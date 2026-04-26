@@ -360,7 +360,18 @@ pub fn me_digest_poseidon(me: &CeClaim<Cmt, F, K>) -> [F; 4] {
     me_digest_poseidon_into(&mut digest_input, me)
 }
 
-pub fn me_input_projection_digest_poseidon_into(dst: &mut Vec<F>, me: &CeClaim<Cmt, F, K>) -> [F; 4] {
+pub fn me_input_projection_digest_poseidon_into(
+    dst: &mut Vec<F>,
+    me: &CeClaim<Cmt, F, K>,
+) -> Result<[F; 4], PiCcsError> {
+    if me.X.rows() != D || me.X.cols() != me.m_in {
+        return Err(PiCcsError::InvalidInput(format!(
+            "CE input projection requires SuperNeo X shape {D} x m_in, got {} x {} for m_in={}",
+            me.X.rows(),
+            me.X.cols(),
+            me.m_in
+        )));
+    }
     dst.clear();
     dst.reserve(2048);
     extend_packed_bytes_as_fields(dst, b"neo/ccs/me_input_projection_digest_poseidon/v2");
@@ -368,7 +379,7 @@ pub fn me_input_projection_digest_poseidon_into(dst: &mut Vec<F>, me: &CeClaim<C
     extend_f_slice(dst, &me.c.data);
     dst.push(F::from_u64(me.m_in as u64));
     for col in 0..me.m_in {
-        dst.push(me.X[(col % me.X.rows(), col)]);
+        dst.push(me.X[(col % D, col)]);
     }
     extend_k_slice(dst, &me.r);
 
@@ -377,10 +388,10 @@ pub fn me_input_projection_digest_poseidon_into(dst: &mut Vec<F>, me: &CeClaim<C
         extend_k_slice(dst, row);
     }
 
-    poseidon_digest_fields(dst)
+    Ok(poseidon_digest_fields(dst))
 }
 
-pub fn me_input_projection_digest_poseidon(me: &CeClaim<Cmt, F, K>) -> [F; 4] {
+pub fn me_input_projection_digest_poseidon(me: &CeClaim<Cmt, F, K>) -> Result<[F; 4], PiCcsError> {
     let mut digest_input = Vec::<F>::with_capacity(2048);
     me_input_projection_digest_poseidon_into(&mut digest_input, me)
 }
@@ -406,18 +417,18 @@ pub fn bind_me_inputs(tr: &mut Poseidon2Transcript, me_inputs: &[CeClaim<Cmt, F,
         me_inputs
             .par_iter()
             .map(me_input_projection_digest_poseidon)
-            .collect()
+            .collect::<Result<Vec<_>, _>>()?
     } else {
         me_inputs
             .iter()
             .map(me_input_projection_digest_poseidon)
-            .collect()
+            .collect::<Result<Vec<_>, _>>()?
     };
     #[cfg(not(any(not(target_arch = "wasm32"), feature = "wasm-threads")))]
     let digests: Vec<[F; 4]> = me_inputs
         .iter()
         .map(me_input_projection_digest_poseidon)
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
 
     let mut packed = Vec::with_capacity(1 + digests.len() * 4);
     packed.push(F::from_u64(PI_CCS_ME_DIGEST_RAW_TAG));
@@ -507,7 +518,9 @@ where
 
 /// Validate MCS-output `X` content against public `x` under SuperNeo packed semantics.
 ///
-/// `x[c] = X[c % D, c]` and all off-lane rows in column `c` must be zero.
+/// CE carries projected input ring slots. Public field `x[c]` must occupy row
+/// `c % D` in ring-slot column `c / D`; other lanes in those slots are owned by
+/// `L_in(z)` and may be non-zero after ring-linear folding.
 pub fn validate_mcs_output_x_recomposition<Ff>(
     _params: &NeoParams,
     ccs_m: usize,
@@ -546,21 +559,11 @@ where
 
         for c in 0..inst.m_in {
             let lane = c % D;
-            let got = out.X[(lane, c)];
+            let column = c / D;
+            let got = out.X[(lane, column)];
             if got != inst.x[c] {
                 return Err(PiCcsError::ProtocolError(format!(
-                    "me_outputs[{idx}].X lane {} at column {} does not match mcs_list[{idx}].x[{}]",
-                    lane, c, c
-                )));
-            }
-            if let Some((rho, _)) = (0..D)
-                .filter(|&rho| rho != lane)
-                .map(|rho| (rho, out.X[(rho, c)]))
-                .find(|(_, v)| *v != Ff::ZERO)
-            {
-                return Err(PiCcsError::ProtocolError(format!(
-                    "me_outputs[{idx}].X column {} has non-zero off-lane row {} in SuperNeo packed layout",
-                    c, rho
+                    "me_outputs[{idx}].X lane {lane} at ring column {column} does not match mcs_list[{idx}].x[{c}]"
                 )));
             }
         }

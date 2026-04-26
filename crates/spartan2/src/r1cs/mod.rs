@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{info, info_span};
 
 mod sparse;
-pub(crate) use sparse::SparseMatrix;
+pub use sparse::SparseMatrix;
 
 fn eq01<F: Field>(bit: u8, r: &F) -> F {
   if bit == 0 { F::ONE - *r } else { *r }
@@ -125,6 +125,32 @@ impl<E: Engine> R1CSShape<E> {
       C,
       digest: OnceCell::new(),
     })
+  }
+
+  /// Number of constraints in this regular R1CS shape.
+  pub fn num_constraints(&self) -> usize {
+    self.num_cons
+  }
+
+  /// Number of private witness variables in this regular R1CS shape.
+  pub fn num_variables(&self) -> usize {
+    self.num_vars
+  }
+
+  /// Number of public input/output values in this regular R1CS shape.
+  pub fn num_io(&self) -> usize {
+    self.num_io
+  }
+
+  /// Read-only access to the regular R1CS matrices `(A, B, C)`.
+  pub fn matrices(
+    &self,
+  ) -> (
+    &SparseMatrix<E::Scalar>,
+    &SparseMatrix<E::Scalar>,
+    &SparseMatrix<E::Scalar>,
+  ) {
+    (&self.A, &self.B, &self.C)
   }
 
   /// Pads the `R1CSShape` so that the shape passes `is_regular_shape`
@@ -316,6 +342,16 @@ impl<E: Engine> R1CSWitness<E> {
     Ok(Self { W, r_W, is_small })
   }
 
+  /// Read-only access to the private witness vector.
+  pub fn values(&self) -> &[E::Scalar] {
+    &self.W
+  }
+
+  /// Whether this witness was committed through the small-value PCS path.
+  pub fn is_small(&self) -> bool {
+    self.is_small
+  }
+
   /// Fold multiple witnesses with a sequence of r_b values
   pub fn fold_multiple(
     r_bs: &[E::Scalar],
@@ -424,6 +460,11 @@ impl<E: Engine> R1CSInstance<E> {
     X: Vec<E::Scalar>,
   ) -> Result<R1CSInstance<E>, SpartanError> {
     Ok(R1CSInstance { comm_W, X })
+  }
+
+  /// Read-only access to the public input/output vector.
+  pub fn public_values(&self) -> &[E::Scalar] {
+    &self.X
   }
 
   /// Fold multiple instances with a sequence of r_b values
@@ -713,6 +754,77 @@ impl<E: Engine> SplitR1CSShape<E> {
     }
   }
 
+  /// Number of padded constraints in this split R1CS shape.
+  pub fn num_constraints(&self) -> usize {
+    self.num_cons
+  }
+
+  /// Number of unpadded constraints in this split R1CS shape.
+  pub fn num_constraints_unpadded(&self) -> usize {
+    self.num_cons_unpadded
+  }
+
+  /// Number of padded witness variables across all split witness regions.
+  pub fn num_variables(&self) -> usize {
+    self.num_shared + self.num_precommitted + self.num_rest
+  }
+
+  /// Number of unpadded witness variables across all split witness regions.
+  pub fn num_variables_unpadded(&self) -> usize {
+    self.num_shared_unpadded + self.num_precommitted_unpadded + self.num_rest_unpadded
+  }
+
+  /// Number of unpadded shared witness variables.
+  pub fn num_shared_unpadded(&self) -> usize {
+    self.num_shared_unpadded
+  }
+
+  /// Number of unpadded precommitted witness variables.
+  pub fn num_precommitted_unpadded(&self) -> usize {
+    self.num_precommitted_unpadded
+  }
+
+  /// Number of unpadded rest witness variables.
+  pub fn num_rest_unpadded(&self) -> usize {
+    self.num_rest_unpadded
+  }
+
+  /// Number of padded shared witness variables.
+  pub fn num_shared(&self) -> usize {
+    self.num_shared
+  }
+
+  /// Number of padded precommitted witness variables.
+  pub fn num_precommitted(&self) -> usize {
+    self.num_precommitted
+  }
+
+  /// Number of padded rest witness variables.
+  pub fn num_rest(&self) -> usize {
+    self.num_rest
+  }
+
+  /// Number of public input/output values.
+  pub fn num_public(&self) -> usize {
+    self.num_public
+  }
+
+  /// Number of verifier-derived challenge values.
+  pub fn num_challenges(&self) -> usize {
+    self.num_challenges
+  }
+
+  /// Read-only access to the split R1CS matrices `(A, B, C)`.
+  pub fn matrices(
+    &self,
+  ) -> (
+    &SparseMatrix<E::Scalar>,
+    &SparseMatrix<E::Scalar>,
+    &SparseMatrix<E::Scalar>,
+  ) {
+    (&self.A, &self.B, &self.C)
+  }
+
   /// Returns statistics about the shape of the R1CS matrices.
   ///
   /// This function returns an array of 10 elements, where each element represents a specific
@@ -961,5 +1073,15 @@ impl<E: Engine> SplitR1CSInstance<E> {
       comm_W,
       X: [self.public_values.clone(), self.challenges.clone()].concat(),
     })
+  }
+
+  /// Read-only access to the public input/output values.
+  pub fn public_values(&self) -> &[E::Scalar] {
+    &self.public_values
+  }
+
+  /// Read-only access to verifier-derived challenge values.
+  pub fn challenges(&self) -> &[E::Scalar] {
+    &self.challenges
   }
 }

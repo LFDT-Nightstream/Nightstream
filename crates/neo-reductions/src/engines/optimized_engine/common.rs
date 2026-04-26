@@ -70,9 +70,7 @@ pub fn chi_ajtai_at_bool_point(rho: usize, xa_mask: usize, _ell_d: usize) -> K {
     }
 }
 
-/// Decode witness matrix `Z` into `z ∈ K^m` for a known CCS width `s_m`.
-///
-/// Supports both Neo digit layout (`D×m`) and SuperNeo packed layout (`D×(m/D)`).
+/// Decode packed SuperNeo witness matrix `Z` into `z ∈ K^m` for a known CCS width `s_m`.
 pub fn recomposed_z_from_Z<Ff>(params: &NeoParams, s_m: usize, Z: &Mat<Ff>) -> Vec<K>
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
@@ -136,22 +134,6 @@ fn get_M<Ff: Field + PrimeCharacteristicRing + Copy>(a: &CcsMatrix<Ff>, row: usi
     }
 }
 
-#[inline]
-fn eval_all_mats_with_cache<Ff>(
-    _s: &CcsStructure<Ff>,
-    superneo_cache: &crate::superneo_eval::SuperneoEvalCache,
-    z: &[K],
-    chi_r: &[K],
-    n_eff: usize,
-) -> Vec<K>
-where
-    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
-    K: From<Ff>,
-{
-    // This path only needs ct(M_j z) scalars; avoid full ring coefficient evaluation.
-    crate::superneo_eval::eval_all_mats_cached(superneo_cache, z, chi_r, n_eff)
-}
-
 /// --- Core, literal formulas from the paper --------------------------------
 
 /// Evaluate F at the Boolean row assignment xr (as in §4.4):
@@ -189,12 +171,12 @@ where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
 {
-    let layout = crate::common::witness_mat_layout(Z_i, s.m)
+    crate::common::validate_superneo_witness_mat(Z_i, s.m)
         .unwrap_or_else(|e| panic!("NC_i_at_bool_point: invalid witness shape for m={}: {e}", s.m));
     // Ẑ_i M_1^T χ_{X_r} evaluated at X_a, with (xa,xr) Boolean
     let mut y_val = K::ZERO;
     for c in 0..s.m {
-        let z = crate::common::witness_mat_get_k(Z_i, layout, s.m, xa_mask, c);
+        let z = crate::common::witness_mat_get_k(Z_i, s.m, xa_mask, c);
         let m = K::from(get_M(&s.matrices[0], xr_mask, c));
         y_val += z * m;
     }
@@ -217,7 +199,7 @@ where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
 {
-    let layout = crate::common::witness_mat_layout(Z_i, s.m)
+    crate::common::validate_superneo_witness_mat(Z_i, s.m)
         .unwrap_or_else(|e| panic!("Eval_ij_at_bool_point: invalid witness shape for m={}: {e}", s.m));
     // eq((α',r'),(α,r)) with X boolean → eq(X_a, α) * eq(X_r, r)
     let eq_ar = {
@@ -247,7 +229,7 @@ where
     // ajtai pick: value = Σ_c Z_i[xa, c] · M_j[xr, c]
     let mut y_val = K::ZERO;
     for c in 0..s.m {
-        let z = crate::common::witness_mat_get_k(Z_i, layout, s.m, xa_mask, c);
+        let z = crate::common::witness_mat_get_k(Z_i, s.m, xa_mask, c);
         let m = K::from(get_M(Mj, xr_mask, c));
         y_val += z * m;
     }
@@ -538,224 +520,79 @@ where
         K::ZERO
     };
 
-    // Packed-SuperNeo path: compute y_ring rows first and derive F/NC/Eval directly.
-    // This matches PaperExact packed semantics and keeps cross-engine parity.
-    let all_packed = mcs_witnesses.iter().all(|w| {
-        matches!(
-            crate::common::witness_mat_layout(&w.Z, s.m),
-            Ok(crate::common::WitnessMatLayout::SuperneoPacked)
-        )
-    }) && me_witnesses.iter().all(|z| {
-        matches!(
-            crate::common::witness_mat_layout(z, s.m),
-            Ok(crate::common::WitnessMatLayout::SuperneoPacked)
-        )
-    });
-    if all_packed {
-        let cache = &superneo_cache;
-        let n_eff = core::cmp::min(s.n, chi_r.len());
-        let mut y_by_inst: Vec<Vec<[K; D]>> = Vec::with_capacity(k_total);
-        for Zi in mcs_witnesses
-            .iter()
-            .map(|w| &w.Z)
-            .chain(me_witnesses.iter())
-        {
-            let z_i = recomposed_z_from_Z::<Ff>(params, s.m, Zi);
-            y_by_inst.push(crate::superneo_eval::eval_all_mats_ring_cached(
-                cache, &z_i, &chi_r, n_eff,
-            ));
-        }
-
-        let mut F_prime = K::ZERO;
-        {
-            let mut g = K::ONE;
-            for y_by_j in y_by_inst.iter().take(k_mcs) {
-                let m_vals: Vec<K> = y_by_j.iter().take(s.t()).map(|row| row[0]).collect();
-                F_prime += g * s.f.eval_in_ext::<K>(&m_vals);
-                g *= ch.gamma;
-            }
-        }
-
-        let mut nc_sum = K::ZERO;
-        {
-            let mut g = K::ONE; // γ^K
-            for _ in 0..k_mcs {
-                g *= ch.gamma;
-            }
-            for y_by_j in &y_by_inst {
-                let mut y_eval = K::ZERO;
-                for rho in 0..D {
-                    y_eval += y_by_j[0][rho] * chi_a[rho];
-                }
-                nc_sum += g * range_product::<Ff>(y_eval, params.b);
-                g *= ch.gamma;
-            }
-        }
-
-        let mut eval_sum = K::ZERO;
-        if k_total > k_mcs {
-            let mut gamma_to_k = K::ONE;
-            for _ in 0..k_total {
-                gamma_to_k *= ch.gamma;
-            }
-
-            for (i_abs, y_by_j) in y_by_inst.iter().enumerate().skip(k_mcs) {
-                let mut gamma_i = K::ONE;
-                for _ in 0..i_abs {
-                    gamma_i *= ch.gamma;
-                }
-                let mut gamma_k_pow_j = K::ONE;
-                for row in y_by_j.iter().take(s.t()) {
-                    let mut y_eval = K::ZERO;
-                    for rho in 0..D {
-                        y_eval += row[rho] * chi_a[rho];
-                    }
-                    eval_sum += (gamma_i * gamma_k_pow_j) * y_eval;
-                    gamma_k_pow_j *= gamma_to_k;
-                }
-            }
-        }
-
-        let mut gamma_to_k_outer = K::ONE;
-        for _ in 0..k_total {
-            gamma_to_k_outer *= ch.gamma;
-        }
-        let lhs = eq_beta * (F_prime + nc_sum) + eq_ar * (gamma_to_k_outer * eval_sum);
-        return (lhs, K::ZERO);
+    for w in mcs_witnesses {
+        crate::common::validate_superneo_witness_mat(&w.Z, s.m)
+            .unwrap_or_else(|e| panic!("q_eval_at_ext_point: invalid MCS witness shape for s.m={}: {e}", s.m));
+    }
+    for z in me_witnesses {
+        crate::common::validate_superneo_witness_mat(z, s.m)
+            .unwrap_or_else(|e| panic!("q_eval_at_ext_point: invalid ME witness shape for s.m={}: {e}", s.m));
     }
 
-    if detailed_log {
-        eprintln!("  [Paper-exact] eq((α',r'), (α,r)) = {:?}", eq_ar);
+    let cache = &superneo_cache;
+    let n_eff = core::cmp::min(s.n, chi_r.len());
+    let mut y_by_inst: Vec<Vec<[K; D]>> = Vec::with_capacity(k_total);
+    for zi in mcs_witnesses
+        .iter()
+        .map(|w| &w.Z)
+        .chain(me_witnesses.iter())
+    {
+        let z_i = recomposed_z_from_Z::<Ff>(params, s.m, zi);
+        y_by_inst.push(crate::superneo_eval::eval_all_mats_ring_cached(
+            cache, &z_i, &chi_r, n_eff,
+        ));
     }
 
-    // ---------------------------
-    // F' := Σ_{i=1..k_mcs} γ^{i-1} · f( Ẽ(M_j z_i)(r') )_j
-    // ---------------------------
     let mut F_prime = K::ZERO;
     {
-        let mut g = K::ONE; // γ^{i-1}
-        for w in mcs_witnesses {
-            let z_i = recomposed_z_from_Z::<Ff>(params, s.m, &w.Z); // K^m
-            let m_vals = eval_all_mats_with_cache(s, &superneo_cache, &z_i, &chi_r, s.n);
+        let mut g = K::ONE;
+        for y_by_j in y_by_inst.iter().take(k_mcs) {
+            let m_vals: Vec<K> = y_by_j.iter().take(s.t()).map(|row| row[0]).collect();
             F_prime += g * s.f.eval_in_ext::<K>(&m_vals);
             g *= ch.gamma;
         }
     }
 
-    if detailed_log {
-        eprintln!("  [Paper-exact] F' = f(m_vals) = {:?}", F_prime);
-    }
-
-    // ---------------------------------------
-    // v1 := M_1^T · χ_{r'}  (K^m), used in NC
-    // ---------------------------------------
-    let v1_form = superneo_cache
-        .matrix(0)
-        .unwrap_or_else(|| panic!("optimized common NC path: missing matrix 0 in SuperNeo cache"))
-        .build_linear_form(&chi_r, s.n);
-
-    // ---------------------------------------
-    // Σ γ^{K+i-1} · N_i'  with Ajtai MLE at α′
-    // ---------------------------------------
     let mut nc_sum = K::ZERO;
     {
         let mut g = K::ONE; // γ^K
         for _ in 0..k_mcs {
             g *= ch.gamma;
         }
-
-        // MCS instances
-        for w in mcs_witnesses {
-            let z_layout = crate::common::witness_mat_layout(&w.Z, s.m)
-                .unwrap_or_else(|e| panic!("q_eval_at_ext_point: invalid MCS witness shape for s.m={}: {e}", s.m));
+        for y_by_j in &y_by_inst {
             let mut y_eval = K::ZERO;
             for rho in 0..D {
-                let y_rho =
-                    v1_form.eval_vec_base_f_with(|c| crate::common::witness_mat_get_f(&w.Z, z_layout, s.m, rho, c));
-                y_eval += y_rho * chi_a[rho];
-            }
-            nc_sum += g * range_product::<Ff>(y_eval, params.b);
-            g *= ch.gamma;
-        }
-
-        // ME witnesses (if any)
-        for Z in me_witnesses {
-            let z_layout = crate::common::witness_mat_layout(Z, s.m)
-                .unwrap_or_else(|e| panic!("q_eval_at_ext_point: invalid ME witness shape for s.m={}: {e}", s.m));
-            let mut y_eval = K::ZERO;
-            for rho in 0..D {
-                let y_rho =
-                    v1_form.eval_vec_base_f_with(|c| crate::common::witness_mat_get_f(Z, z_layout, s.m, rho, c));
-                y_eval += y_rho * chi_a[rho];
+                y_eval += y_by_j[0][rho] * chi_a[rho];
             }
             nc_sum += g * range_product::<Ff>(y_eval, params.b);
             g *= ch.gamma;
         }
     }
 
-    if detailed_log {
-        eprintln!("  [Paper-exact] NC' (norm constraints) = {:?}", nc_sum);
-    }
-
-    // ---------------------------------------
-    // Eval block: γ^k · Σ_{j=1,i=2}^{t,k} γ^{i+(j-1)k-1} · E_{(i,j)}
-    // with E_{(i,j)} = eq((α′,r′),(α,r)) · ẏ'_{(i,j)}(α′).
-    // We compute the inner sum with correct γ weights; eq_ar keeps it gated.
-    // ---------------------------------------
     let mut eval_sum = K::ZERO;
     if k_total > k_mcs {
-        // Precompute γ^k
         let mut gamma_to_k = K::ONE;
         for _ in 0..k_total {
             gamma_to_k *= ch.gamma;
         }
 
-        for (i_abs, Zi) in mcs_witnesses
-            .iter()
-            .map(|w| &w.Z)
-            .chain(me_witnesses.iter())
-            .enumerate()
-            .skip(k_mcs)
-        {
-            let zi_layout = crate::common::witness_mat_layout(Zi, s.m)
-                .unwrap_or_else(|e| panic!("q_eval_at_ext_point: invalid witness shape for s.m={}: {e}", s.m));
-            // z_i(α') := Σ_ρ χ_a[ρ] · Z_i[ρ,·]
-            let mut z_alpha = vec![K::ZERO; s.m];
-            for rho in 0..D {
-                let w = chi_a[rho];
-                if w == K::ZERO {
-                    continue;
-                }
-                for c in 0..s.m {
-                    z_alpha[c] += crate::common::witness_mat_get_k(Zi, zi_layout, s.m, rho, c) * w;
-                }
-            }
-
-            // y_(i,j)'(α', r') = Ẽ(M_j · z_i(α'))(r')
-            let y_by_j = eval_all_mats_with_cache(s, &superneo_cache, &z_alpha, &chi_r, s.n);
-
-            // weight = γ^{i-1} · (γ^k)^j
+        for (i_abs, y_by_j) in y_by_inst.iter().enumerate().skip(k_mcs) {
             let mut gamma_i = K::ONE;
             for _ in 0..i_abs {
                 gamma_i *= ch.gamma;
             }
             let mut gamma_k_pow_j = K::ONE;
-            for y_eval in y_by_j.iter().take(s.t()) {
-                eval_sum += (gamma_i * gamma_k_pow_j) * *y_eval;
+            for row in y_by_j.iter().take(s.t()) {
+                let mut y_eval = K::ZERO;
+                for rho in 0..D {
+                    y_eval += row[rho] * chi_a[rho];
+                }
+                eval_sum += (gamma_i * gamma_k_pow_j) * y_eval;
                 gamma_k_pow_j *= gamma_to_k;
             }
         }
     }
 
-    if detailed_log {
-        eprintln!(
-            "  [Paper-exact] Eval' (weighted ME evaluations, before outer γ^k) = {:?}",
-            eval_sum
-        );
-    }
-
-    // Paper-exact assembly of LHS:
-    // Q(α', r') = eq((α',r'), β)·(F' + NC') + γ^k · eq((α',r'), (α,r)) · Eval'.
     let mut gamma_to_k_outer = K::ONE;
     for _ in 0..k_total {
         gamma_to_k_outer *= ch.gamma;
@@ -763,19 +600,8 @@ where
     let lhs = eq_beta * (F_prime + nc_sum) + eq_ar * (gamma_to_k_outer * eval_sum);
 
     if detailed_log {
-        eprintln!("  [Paper-exact] Final assembly:");
-        eprintln!(
-            "                eq((α',r'), β) * (F' + NC') = {:?}",
-            eq_beta * (F_prime + nc_sum)
-        );
-        eprintln!(
-            "              + eq((α',r'), (α,r)) * (γ^k * Eval') = {:?}",
-            eq_ar * (gamma_to_k_outer * eval_sum)
-        );
-        eprintln!("              = Q(α', r') = {:?}", lhs);
+        eprintln!("  [SuperNeo] Q(α', r') = {:?}", lhs);
     }
-
-    // Preserve existing return shape; RHS not used by callers here.
     (lhs, K::ZERO)
 }
 
@@ -933,7 +759,7 @@ where
         .unwrap_or_else(|e| panic!("Π_RLC(paper-exact): invalid rho set: {e}"));
     let z_cols = Zs[0].cols();
     for (idx, z) in Zs.iter().enumerate() {
-        crate::common::witness_mat_layout(*z, s.m)
+        crate::common::validate_superneo_witness_mat(*z, s.m)
             .unwrap_or_else(|e| panic!("Π_RLC(paper-exact): invalid witness shape at input {idx}: {e}"));
         assert_eq!(
             z.cols(),
@@ -1304,7 +1130,7 @@ where
         }
     };
 
-    let mut children: Vec<CeClaim<Cmt, Ff, K>> = {
+    let children: Vec<CeClaim<Cmt, Ff, K>> = {
         #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
         {
             (0..k).into_par_iter().map(build_child).collect()
@@ -1314,26 +1140,6 @@ where
             (0..k).map(build_child).collect()
         }
     };
-
-    // Reconcile X-channel to the public parent relation:
-    // enforce parent.X == Σ b^i * child_i.X by correcting child 0 only.
-    if !children.is_empty() {
-        let mut lhs_X = Mat::zero(d, m_in, Ff::ZERO);
-        let mut pow = Ff::ONE;
-        for child in children.iter().take(k) {
-            for r in 0..d {
-                for c in 0..m_in {
-                    lhs_X[(r, c)] += pow * child.X[(r, c)];
-                }
-            }
-            pow *= bF;
-        }
-        for r in 0..d {
-            for c in 0..m_in {
-                children[0].X[(r, c)] += parent.X[(r, c)] - lhs_X[(r, c)];
-            }
-        }
-    }
 
     // Verify: y_j ?= Σ b^i · y_(i,j)
     let mut ok_y = true;

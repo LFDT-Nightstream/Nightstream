@@ -159,10 +159,13 @@ fn build_exact_vector_step<CS: ConstraintSystem<SpartanF>>(
         &commitment,
         &format!("{namespace_label}_commitment"),
     )?;
+    let x_native = [F::ONE];
     Ok(PublicStepVar {
         claim: CcsClaimVar {
             c_data,
+            c_values: f_slice_values(&commitment.data),
             x: vec![one],
+            x_values: f_slice_values(&x_native),
             m_in: 1,
             commitment_d: D,
             commitment_kappa: commitment.kappa,
@@ -172,7 +175,16 @@ fn build_exact_vector_step<CS: ConstraintSystem<SpartanF>>(
             exact_label.as_bytes(),
             &format!("{namespace_label}_label"),
         )?,
+        label_values: packed_bytes_field_values(exact_label.as_bytes()),
+        label_byte_len: exact_label.len(),
     })
+}
+
+fn f_slice_values(values: &[F]) -> Vec<SpartanF> {
+    values
+        .iter()
+        .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64()))
+        .collect()
 }
 
 fn exact_vector_package_params(full_width: usize) -> Result<NeoParams, SynthesisError> {

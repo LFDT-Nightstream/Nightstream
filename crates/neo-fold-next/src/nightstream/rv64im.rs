@@ -25,7 +25,7 @@ pub use self::authoritative_side::{
 };
 pub use self::build_perf::{
     build_rv64im_nightstream_from_public_proof_with_perf, build_rv64im_nightstream_from_published_proof_seam_with_perf,
-    Rv64imNightstreamBuildPerf, Rv64imNightstreamVerifiedSeamsBuildPerf,
+    Rv64imNightstreamBuildPerf, Rv64imNightstreamSeamBuildPerf,
 };
 use self::compact_surfaces::{kernel_claim_summary_digest_from_surfaces, packaged_claim_proof_digest_from_surfaces};
 use self::side_bridges::Rv64imSideProofBundle;
@@ -224,9 +224,8 @@ pub mod audit {
 }
 use crate::nightstream::{nightstream_proof_binding_root, NightstreamProofBindingInputs, NightstreamStatement};
 use crate::rv64im::final_relation::{
-    verify_rv64im_final_statement_with_output, Rv64imFinalBuildProof, Rv64imFinalStatement,
+    audit_check_rv64im_final_statement_with_output, Rv64imFinalBuildProof, Rv64imFinalStatement,
 };
-use crate::rv64im::ivc_snark::Rv64imIvcSnarkVerifierKey;
 use crate::rv64im::kernel::{
     build_public_kernel_opening_claim_from_compact_surfaces, build_rv64im_kernel_export_proof_from_accepted_artifact,
     build_rv64im_opening_convergence_artifact_from_phase0_bundle_and_witnesses_trusted_local_with_perf,
@@ -237,6 +236,7 @@ use crate::rv64im::kernel::{
     Stage3CanonicalContinuityBundle, Stage3ClaimSurface, StageDigestCommitment, TranscriptArtifactSurface,
     TranscriptClaimSurface,
 };
+use crate::rv64im::Rv64imIvcSnarkVerifierKey;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rv64imSideProof {
     opening_public: Rv64imSideOpeningPublic,
@@ -821,12 +821,40 @@ fn verify_rv64im_side_main_lane_proof_surface(
     Ok(expected_bundle_digest)
 }
 
-pub fn rv64im_verifier_context_digest(root_params_id: [u8; 32]) -> [u8; 32] {
+pub fn rv64im_verifier_context_digest(
+    root_params_id: [u8; 32],
+    published_statement: &Rv64imPublishedStatement,
+    ivc_recursion_snark_vk: &Rv64imIvcSnarkVerifierKey,
+) -> Result<[u8; 32], SimpleKernelError> {
+    Ok(rv64im_verifier_context_digest_from_key_digest(
+        root_params_id,
+        published_statement,
+        ivc_recursion_snark_vk.expected_digest()?,
+    ))
+}
+
+fn rv64im_verifier_context_digest_from_key_digest(
+    root_params_id: [u8; 32],
+    published_statement: &Rv64imPublishedStatement,
+    ivc_recursion_snark_vk_digest: [u8; 32],
+) -> [u8; 32] {
     let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/verifier_context");
-    tr.append_message(b"neo.fold.next/nightstream/rv64im/verifier_context/version", b"v1");
+    tr.append_message(b"neo.fold.next/nightstream/rv64im/verifier_context/version", b"v3");
     tr.append_message(
         b"neo.fold.next/nightstream/rv64im/verifier_context/root_params_id",
         &root_params_id,
+    );
+    tr.append_message(
+        b"neo.fold.next/nightstream/rv64im/verifier_context/main_recursion_vk_fs",
+        &published_statement.vk_fs().expected_digest(),
+    );
+    tr.append_message(
+        b"neo.fold.next/nightstream/rv64im/verifier_context/main_recursion_shape",
+        &published_statement.shape_digest(),
+    );
+    tr.append_message(
+        b"neo.fold.next/nightstream/rv64im/verifier_context/ivc_recursion_snark_vk",
+        &ivc_recursion_snark_vk_digest,
     );
     tr.digest32()
 }
@@ -838,7 +866,7 @@ fn build_rv64im_nightstream_statement_from_final(
     proof: &Rv64imFinalBuildProof,
     proof_binding_root: [u8; 32],
 ) -> Result<NightstreamStatement, SimpleKernelError> {
-    verify_rv64im_final_statement_with_output(statement, proof)?;
+    audit_check_rv64im_final_statement_with_output(statement, proof)?;
     Ok(NightstreamStatement {
         public_io_digest,
         verifier_context_digest,
@@ -957,7 +985,7 @@ pub fn verify_rv64im_nightstream(
     statement: &NightstreamStatement,
     proof: &Rv64imNightstreamProof,
     trusted_root_params_id: [u8; 32],
-    terminal_decider_vk: &Rv64imIvcSnarkVerifierKey,
+    ivc_recursion_snark_vk: &Rv64imIvcSnarkVerifierKey,
     side_opening_vk: &Rv64imSideOpeningSpartanVerifierKey,
     side_binding_vk: &Rv64imSideBindingVerifierKey,
     public_statement: &Rv64imProofStatement,
@@ -966,7 +994,7 @@ pub fn verify_rv64im_nightstream(
         statement,
         proof,
         trusted_root_params_id,
-        terminal_decider_vk,
+        ivc_recursion_snark_vk,
         side_opening_vk,
         side_binding_vk,
         public_statement,

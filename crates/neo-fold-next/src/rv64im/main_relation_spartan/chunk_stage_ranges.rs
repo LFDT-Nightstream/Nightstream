@@ -120,7 +120,6 @@ pub(crate) fn debug_measure_rv64im_main_relation_chunk_stage_ranges(
         cover_chunk,
         chunk,
         logical_me_input_claims: None,
-        logical_me_input_digests: None,
         boundary_plan,
         rlc_zero_commit_suffix_len: 0,
         exact_initial_chunk_step_count: None,
@@ -186,7 +185,6 @@ pub(crate) fn debug_measure_rv64im_pi_rlc_stage_ranges(
         cover_chunk,
         chunk,
         logical_me_input_claims: None,
-        logical_me_input_digests: None,
         boundary_plan,
         rlc_zero_commit_suffix_len,
         exact_initial_chunk_step_count: None,
@@ -268,11 +266,15 @@ pub(crate) fn debug_measure_rv64im_pi_rlc_stage_ranges(
                     .padded_ccs_outputs
                     .len()
                     .saturating_sub(ctx.rlc_zero_commit_suffix_len);
-                let rho_mats = materialize_goldilocks_rot_matrices(
-                    &mut cs.namespace(|| format!("chunk_{}_rlc_rho_mats", ctx.chunk_index)),
-                    &rho_vars[..active_dense_children_len],
-                    &format!("chunk_{}_rlc_rho_mats", ctx.chunk_index),
-                )?;
+                let rho_mats = if constant_child_prefix > 0 && constant_child_prefix < active_dense_children_len {
+                    materialize_goldilocks_rot_matrices(
+                        &mut cs.namespace(|| format!("chunk_{}_rlc_rho_mats", ctx.chunk_index)),
+                        &rho_vars[..active_dense_children_len],
+                        &format!("chunk_{}_rlc_rho_mats", ctx.chunk_index),
+                    )?
+                } else {
+                    Vec::new()
+                };
                 checkpoints.push("materialize_rho_mats", cs.num_constraints() - pi_rlc_start);
                 crate::rv64im::main_relation_circuit::pi_rlc::enforce_rlc_public_with_split_rho_views_constant_prefix_zero_commit_suffix(
                     &mut cs.namespace(|| format!("chunk_{}_rlc_public", ctx.chunk_index)),
@@ -304,7 +306,6 @@ pub(crate) fn debug_measure_rv64im_rlc_public_stage_ranges(
     chunk: &Rv64imMainCircuitChunkReplaySurface,
     transcript: &mut Poseidon2TranscriptCircuit,
     carried_claims: Rv64imClaimBundle,
-    logical_me_input_digests: Option<&[[F; 4]]>,
     boundary_plan: Rv64imChunkBoundaryPlan,
     rlc_zero_commit_suffix_len: usize,
     exact_initial_chunk_step_count: Option<usize>,
@@ -329,7 +330,6 @@ pub(crate) fn debug_measure_rv64im_rlc_public_stage_ranges(
         cover_chunk,
         chunk,
         logical_me_input_claims: None,
-        logical_me_input_digests,
         boundary_plan,
         rlc_zero_commit_suffix_len,
         exact_initial_chunk_step_count,
@@ -391,11 +391,15 @@ pub(crate) fn debug_measure_rv64im_rlc_public_stage_ranges(
                     .padded_ccs_outputs
                     .len()
                     .saturating_sub(ctx.rlc_zero_commit_suffix_len);
-                let rho_mats = materialize_goldilocks_rot_matrices(
-                    &mut cs.namespace(|| format!("chunk_{}_rlc_rho_mats", ctx.chunk_index)),
-                    &rho_vars[..active_dense_children_len],
-                    &format!("chunk_{}_rlc_rho_mats", ctx.chunk_index),
-                )?;
+                let rho_mats = if constant_child_prefix > 0 && constant_child_prefix < active_dense_children_len {
+                    materialize_goldilocks_rot_matrices(
+                        &mut cs.namespace(|| format!("chunk_{}_rlc_rho_mats", ctx.chunk_index)),
+                        &rho_vars[..active_dense_children_len],
+                        &format!("chunk_{}_rlc_rho_mats", ctx.chunk_index),
+                    )?
+                } else {
+                    Vec::new()
+                };
                 crate::rv64im::main_relation_circuit::pi_rlc::debug_measure_rlc_public_with_split_rho_views_stage_ranges(
                     cs,
                     &parent_claim,
@@ -445,7 +449,6 @@ pub(crate) fn debug_check_rv64im_rlc_public_x_native_values(
         cover_chunk,
         chunk,
         logical_me_input_claims: None,
-        logical_me_input_digests: None,
         boundary_plan,
         rlc_zero_commit_suffix_len: 0,
         exact_initial_chunk_step_count: None,
@@ -702,7 +705,6 @@ pub(crate) fn debug_compare_rv64im_pi_ccs_transcript_state(
         cover_chunk,
         chunk,
         logical_me_input_claims: None,
-        logical_me_input_digests: None,
         boundary_plan,
         rlc_zero_commit_suffix_len: 0,
         exact_initial_chunk_step_count: None,

@@ -48,6 +48,7 @@ impl Rv64imMainRecursionFPrimePayload {
         build_rv64im_main_circuit_chunk_replay_surface(
             &self.handoff,
             &self.fresh_claims[..self.cover_shape.fresh_claim_count as usize],
+            &self.fresh_witnesses[..self.cover_shape.fresh_witness_count as usize],
             build_rv64im_main_circuit_pi_ccs_replay_surface(
                 self.pi_ccs.ccs_outputs[..self.cover_shape.ccs_output_count as usize].to_vec(),
                 self.pi_ccs.replay.clone(),
@@ -122,6 +123,7 @@ impl Rv64imMainRecursionFPrimePayload {
         build_rv64im_main_circuit_chunk_replay_surface(
             &self.handoff,
             &self.fresh_claims[..self.step_shape.fresh_claim_count as usize],
+            &self.fresh_witnesses[..self.step_shape.fresh_witness_count as usize],
             build_rv64im_main_circuit_pi_ccs_replay_surface(
                 effective_ccs_outputs,
                 replay,

@@ -31,7 +31,7 @@ pub mod utils;
 pub use error::{CcsError, DimMismatch, RelationError};
 pub use matrix::{CsrMatrix, Mat, MatRef};
 pub use poly::{SparsePoly, Term};
-pub use r1cs::r1cs_to_ccs;
+pub use r1cs::{r1cs_to_ccs, sparse_r1cs_to_ccs};
 pub use sparse::{CcsMatrix, CscMat, SparseCache};
 
 // Cancellation-resistant direct sum (recommended for production)

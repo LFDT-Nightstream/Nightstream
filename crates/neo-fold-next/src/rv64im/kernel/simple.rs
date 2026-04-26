@@ -4,10 +4,7 @@ use crate::proof::{
     RunProvePerf, RunVerifyPerf, StepInput,
 };
 use crate::prover::{CommitmentMixers, ShardProver};
-use crate::run::{
-    prove_chunks_from_slice_with_perf_and_cache, verify_packaged_with_detailed_perf_and_cache,
-    verify_packaged_with_precomputed_chunk_digests_and_detailed_perf_and_cache,
-};
+use crate::run::{prove_chunks_from_slice_with_perf_and_cache, verify_packaged_with_detailed_perf_and_cache};
 use crate::rv64im::ccs::{rv64im_root_main_lane_ccs, semantic_row_from_execution_row, RV64IM_ROOT_ROW_WIDTH};
 use crate::rv64im::isa::Rv64BuildError;
 use crate::rv64im::lower::Rv64ExpandedRow;
@@ -811,7 +808,6 @@ pub fn verify_root_main_lane_packaged_proof_with_public_rows(
 
 pub(super) fn verify_root_main_lane_packaged_proof_with_verified_public_statement_with_perf(
     packaged: &PackagedProof,
-    public_chunk_digests: &[[F; 4]],
 ) -> Result<RootMainLanePackagedProofVerifyPerf, SimpleKernelError> {
     let total_started = Instant::now();
     let step_cap =
@@ -819,12 +815,11 @@ pub(super) fn verify_root_main_lane_packaged_proof_with_verified_public_statemen
     let root_context = SimpleKernelRootContext::new_for_step_cap(step_cap)?;
     let ccs = cached_root_main_lane_ccs()?;
     let optimized_cache = cached_root_main_lane_optimized_cache()?;
-    let (_, packaged_verify) = verify_packaged_with_precomputed_chunk_digests_and_detailed_perf_and_cache(
+    let (_, packaged_verify) = verify_packaged_with_detailed_perf_and_cache(
         FoldingMode::Optimized,
         root_context.params(),
         ccs,
         packaged,
-        public_chunk_digests,
         rv64im_ajtai_mixers(),
         Some(optimized_cache),
     )?;

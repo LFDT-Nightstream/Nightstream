@@ -4,6 +4,8 @@
 //! replay artifacts consumed by the current Spartan circuit. It is not
 //! theorem-facing and does not own circuit synthesis.
 
+#![allow(dead_code)]
+
 use neo_ajtai::{AjtaiSModule, Commitment};
 use neo_ccs::{build_superneo_ring_forms, CcsClaim, CcsStructure, CcsWitness, Mat, SModuleHomomorphism};
 use neo_math::{balanced::to_balanced_i128, KExtensions, D, F, K};
@@ -11,6 +13,7 @@ use neo_params::NeoParams;
 use neo_reductions::api::{rlc_public, sample_rot_rhos_n_typed, RotRing};
 use neo_reductions::common::{
     compute_y_zcol_from_witness, compute_y_zcol_from_witness_digits, decode_superneo_coeffs_from_witness_mat,
+    project_x_from_witness_mat,
 };
 use neo_reductions::engines::utils::{build_dims_and_policy, Dims};
 use neo_reductions::optimized_engine::{
@@ -77,6 +80,7 @@ pub(crate) struct Rv64imMainCircuitPiDecReplaySurface {
 pub(crate) struct Rv64imMainCircuitChunkReplaySurface {
     pub(crate) handoff: Rv64imMainCircuitHandoff,
     pub(crate) fresh_claims: Vec<CcsClaim<Commitment, F>>,
+    pub(crate) fresh_witnesses: Vec<CcsWitness<F>>,
     pub(crate) pi_ccs: Rv64imMainCircuitPiCcsReplaySurface,
     pub(crate) pi_rlc: Rv64imMainCircuitPiRlcReplaySurface,
     pub(crate) pi_dec: Rv64imMainCircuitPiDecReplaySurface,
@@ -95,6 +99,7 @@ impl Rv64imMainCircuitChunkTrace {
         build_rv64im_main_circuit_chunk_replay_surface(
             &self.handoff,
             &self.fresh_claims,
+            &self.fresh_witnesses,
             build_rv64im_main_circuit_pi_ccs_replay_surface(
                 self.ccs_trace.ccs_outputs.clone(),
                 self.ccs_trace.ccs_replay_proof.clone(),
@@ -113,6 +118,7 @@ impl Rv64imMainCircuitChunkTrace {
 pub(crate) fn build_rv64im_main_circuit_chunk_replay_surface(
     handoff: &Rv64imMainCircuitHandoff,
     fresh_claims: &[CcsClaim<Commitment, F>],
+    fresh_witnesses: &[CcsWitness<F>],
     pi_ccs: Rv64imMainCircuitPiCcsReplaySurface,
     parent: neo_ccs::CeClaim<Commitment, F, K>,
     children: Vec<neo_ccs::CeClaim<Commitment, F, K>>,
@@ -120,6 +126,7 @@ pub(crate) fn build_rv64im_main_circuit_chunk_replay_surface(
     Ok(Rv64imMainCircuitChunkReplaySurface {
         handoff: handoff.clone(),
         fresh_claims: fresh_claims.to_vec(),
+        fresh_witnesses: fresh_witnesses.to_vec(),
         pi_ccs,
         pi_rlc: Rv64imMainCircuitPiRlcReplaySurface { parent },
         pi_dec: Rv64imMainCircuitPiDecReplaySurface { children },
@@ -495,6 +502,7 @@ fn build_rv64im_main_circuit_chunk_trace_from_parts(
     check_output_binding_native(
         ctx.structure,
         &fresh.fresh_claims,
+        &fresh.fresh_witnesses,
         &carry_in.main.claims,
         &trace.ccs_outputs,
         &trace.terminal_state.row_chals,
@@ -572,12 +580,18 @@ fn build_rv64im_main_circuit_chunk_trace_from_parts(
             })?;
     }
 
+    let mut bridge_handoff = handoff.bridge_handoff.clone();
+    for binding in &mut bridge_handoff.step_bindings {
+        binding.digest = binding.expected_digest();
+    }
+    bridge_handoff.digest = bridge_handoff.expected_digest();
+
     Ok(Rv64imMainCircuitChunkTrace {
         handoff: Rv64imMainCircuitHandoff {
             public_chunk: fresh.public_chunk.clone(),
             public_chunk_instance_digest: fresh.public_chunk_instance_digest,
             public_chunk_digest: fresh.public_chunk_digest,
-            bridge_handoff_digest: fresh.bridge_handoff_digest,
+            bridge_handoff_digest: bridge_handoff.digest,
             chunk_relation_digest: trace.chunk_relation_digest,
         },
         fresh_claims: fresh.fresh_claims,
@@ -597,6 +611,7 @@ fn append_chunk_meta_native(transcript: &mut Poseidon2Transcript, public_chunk: 
 fn check_output_binding_native(
     structure: &CcsStructure<F>,
     fresh_claims: &[CcsClaim<Commitment, F>],
+    fresh_witnesses: &[CcsWitness<F>],
     me_inputs: &[neo_ccs::CeClaim<Commitment, F, K>],
     me_outputs: &[neo_ccs::CeClaim<Commitment, F, K>],
     r_prime: &[K],
@@ -604,6 +619,9 @@ fn check_output_binding_native(
 ) -> Result<(), String> {
     if me_outputs.len() != fresh_claims.len() + me_inputs.len() {
         return Err("output arity mismatch".into());
+    }
+    if fresh_witnesses.len() != fresh_claims.len() {
+        return Err("fresh witness arity mismatch".into());
     }
 
     for (index, output) in me_outputs.iter().enumerate() {
@@ -621,13 +639,14 @@ fn check_output_binding_native(
 
         if index < fresh_claims.len() {
             let fresh = &fresh_claims[index];
+            let fresh_witness = &fresh_witnesses[index];
             if output.c.data != fresh.c.data {
                 return Err(format!("fresh output {index} commitment mismatch"));
             }
             if output.m_in != fresh.m_in {
                 return Err(format!("fresh output {index} m_in mismatch"));
             }
-            let expected_x = project_x_from_f_slice(&fresh.x, fresh.m_in)
+            let expected_x = project_x_from_witness_mat(&fresh_witness.Z, structure.m, fresh.m_in)
                 .map_err(|err| format!("fresh output {index} X projection failed: {err}"))?;
             if output.X != expected_x {
                 return Err(format!("fresh output {index} X mismatch"));
@@ -667,17 +686,6 @@ fn check_claim_fold_digest_native(
         }
     }
     Ok(())
-}
-
-fn project_x_from_f_slice(values: &[F], m_in: usize) -> Result<Mat<F>, String> {
-    if values.len() != m_in {
-        return Err("x length mismatch".into());
-    }
-    let mut projected = Mat::zero(D, m_in, F::ZERO);
-    for (column, value) in values.iter().copied().enumerate() {
-        projected[(column % D, column)] = value;
-    }
-    Ok(projected)
 }
 
 fn check_output_claim_consistency(

@@ -13,7 +13,6 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde::{Deserialize, Serialize};
 
 use crate::chunk_relation::ChunkReplayWitness;
-use crate::finalize::digest32_as_fields;
 use crate::nightstream::rv64im::{Rv64imEvalPublic, Rv64imOpenedObjectPublic, Rv64imSideOpeningPublic};
 use crate::proof::Carry;
 use crate::rv64im::chunk_fold_step::adapt_rv64im_chunk_to_fresh_ccs;
@@ -44,7 +43,7 @@ use crate::rv64im::SimpleKernelError;
 ///   bit_j = (digest_bytes[j / 8] >> (j % 8)) & 1
 /// This keeps `x` binary and therefore `||x||_∞ < 2`.
 ///
-/// The current backend still also needs a legacy 4-limb digest packing bridge:
+/// Public IO surfaces serialize those digest bytes as four canonical field limbs:
 ///   limb_j = u64::from_le_bytes(digest_bytes[8*j .. 8*(j+1)])
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rv64imEncodedPublicInput {
@@ -153,13 +152,6 @@ impl Rv64imEncodedPublicInput {
 
     pub fn is_binary_low_norm(&self) -> bool {
         self.bit_image().into_iter().all(|bit| bit <= 1)
-    }
-
-    /// Legacy backend bridge: 4 little-endian u64 limbs of the digest bytes.
-    /// This is not the semantic `enc_inst` image; it remains only for the
-    /// current backend surfaces that have not yet been rewritten.
-    pub fn digest_fields(&self) -> [F; 4] {
-        digest32_as_fields(self.digest_bytes)
     }
 }
 
@@ -287,20 +279,6 @@ fn rv64im_main_recursion_initial_z_for_step_cap(step_cap: usize) -> [u8; 32] {
         .0
 }
 
-pub(crate) fn build_rv64im_main_recursion_backend_statement_from_parts(
-    chunk_count: u64,
-    folded_accumulator_digest: [u8; 32],
-    terminal_handle_digest: [u8; 32],
-) -> Result<Rv64imMainRecursionBackendStepStatement, SimpleKernelError> {
-    let vk_fs = build_rv64im_main_recursion_verifier_key_fs()?;
-    Ok(build_rv64im_main_recursion_backend_statement_from_parts_with_vk_fs(
-        &vk_fs,
-        chunk_count,
-        folded_accumulator_digest,
-        terminal_handle_digest,
-    ))
-}
-
 pub(crate) fn build_rv64im_main_recursion_backend_statement_from_parts_with_vk_fs(
     vk_fs: &Rv64imVerifierKeyFs,
     chunk_count: u64,
@@ -359,15 +337,12 @@ impl Rv64imMainRecursionAccumulator {
                 "RV64IM main recursion step image chunk_count does not advance the carried recursive position".into(),
             ));
         }
-        #[cfg(debug_assertions)]
+        if output.folded_accumulator_digest
+            != rv64im_chunk_fold_carry_recursive_accumulator_digest(&output.next_state.carry)
         {
-            if output.folded_accumulator_digest
-                != rv64im_chunk_fold_carry_recursive_accumulator_digest(&output.next_state.carry)
-            {
-                return Err(SimpleKernelError::Bridge(
-                    "RV64IM main recursion step image folded accumulator digest does not match next_state".into(),
-                ));
-            }
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM main recursion step image folded accumulator digest does not match next_state".into(),
+            ));
         }
         if output.z_next != output.next_state.carry.terminal_handle.0 {
             return Err(SimpleKernelError::Bridge(
@@ -871,6 +846,13 @@ impl Rv64imMainRecursionFPrimeAdvice {
     ) -> Result<Self, SimpleKernelError> {
         state_in.carry.validate_projection_digests("state_in")?;
         state_out.carry.validate_projection_digests("state_out")?;
+        let expected_folded_accumulator_in_digest =
+            rv64im_chunk_fold_carry_recursive_accumulator_digest(&state_in.carry);
+        if folded_accumulator_in_digest != expected_folded_accumulator_in_digest {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM main recursion advice folded accumulator input digest does not match state_in".into(),
+            ));
+        }
         if let Some(construction2_input_u_i) = construction2_input_u_i.as_ref() {
             if chunk_count_in != 0 && construction2_input_u_i.x_i() != &x_i {
                 return Err(SimpleKernelError::Bridge(
@@ -968,6 +950,10 @@ impl Rv64imMainRecursionFPrimeAdvice {
         self.folded_accumulator_in_digest
     }
 
+    pub(crate) fn folded_accumulator_in_digest_mut(&mut self) -> &mut [u8; 32] {
+        &mut self.folded_accumulator_in_digest
+    }
+
     pub fn verifier_key_fs(&self) -> &Rv64imVerifierKeyFs {
         &self.vk_fs
     }
@@ -1028,6 +1014,10 @@ impl Rv64imMainRecursionFPrimeAdvice {
 
     pub(crate) fn main_circuit_replay_witness(&self) -> &ChunkReplayWitness {
         &self.main_circuit_replay_witness
+    }
+
+    pub(crate) fn main_circuit_replay_witness_mut(&mut self) -> &mut ChunkReplayWitness {
+        &mut self.main_circuit_replay_witness
     }
 
     pub(crate) fn verified_kernel_handoff_mut(&mut self) -> &mut Rv64imVerifiedKernelChunkHandoff {
@@ -1219,8 +1209,6 @@ pub struct Rv64imMainRecursionFPrimeEvalPerf {
     pub next_state_surface_check_ms: f64,
     pub derive_public_outputs_ms: f64,
     pub build_construction2_u_next_ms: f64,
-    pub build_construction2_u_next_canonical_full_width_ms: f64,
-    pub build_construction2_u_next_commitment_context_ms: f64,
     pub build_construction2_u_next_pack_image_ms: f64,
     pub build_construction2_u_next_commit_ms: f64,
     pub total_ms: f64,
@@ -1408,6 +1396,7 @@ fn build_rv64im_main_recursion_f_prime_advices_with_phi_side_and_perf(
         let native_verified_step_statement =
             build_rv64im_main_recursion_construction2_verified_step_statement_from_summary(
                 relation.witness.handoff.bridge_handoff.chunk_index,
+                relation.witness.terminal_step,
                 &main_circuit_chunk_summary,
                 &relation.witness.state_in,
                 &relation.witness.state_out,
@@ -1699,8 +1688,6 @@ fn evaluate_rv64im_main_recursion_f_prime_step_with_perf_and_trace(
                 construction2_u_i,
                 x_out.clone(),
             )?;
-        perf.build_construction2_u_next_canonical_full_width_ms = fresh_instance_perf.canonical_full_width_ms;
-        perf.build_construction2_u_next_commitment_context_ms = fresh_instance_perf.commitment_context_ms;
         perf.build_construction2_u_next_pack_image_ms = fresh_instance_perf.pack_image_ms;
         perf.build_construction2_u_next_commit_ms = fresh_instance_perf.commit_ms;
         fresh_instance

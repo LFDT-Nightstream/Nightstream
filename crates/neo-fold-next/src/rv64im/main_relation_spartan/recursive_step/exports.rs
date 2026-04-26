@@ -3,6 +3,15 @@ pub use super::authoritative_surface::{
     debug_check_rv64im_main_recursion_step_authoritative_chunk_surface_matches_native,
     Rv64imMainRecursionStepAuthoritativeChunkSurface,
 };
+pub use super::debug_checks::{
+    debug_check_rv64im_main_recursion_step_spartan_chunk_replay_surface,
+    debug_check_rv64im_main_recursion_step_spartan_circuit,
+    debug_check_rv64im_main_recursion_step_spartan_embedded_body,
+    debug_check_rv64im_main_recursion_step_spartan_inactive_side_lane_constraints,
+    debug_check_rv64im_main_recursion_step_spartan_pi_ccs_replay_lengths,
+    debug_check_rv64im_main_recursion_x_out_gadget_parity,
+    debug_measure_rv64im_main_recursion_step_spartan_circuit_shape,
+};
 pub use super::diagnostics::{
     debug_check_rv64im_main_recursion_step_spartan_fresh_output_accumulator_digest_parity,
     debug_check_rv64im_main_recursion_step_spartan_live_claim_me_digest_parity,

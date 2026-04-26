@@ -326,7 +326,7 @@ pub struct CeClaim<C, F, K> {
     pub r: Vec<K>,
     /// s_col ∈ K^{log m}: column-domain point used for the digit-range (NC) check.
     ///
-    /// Legacy (square/identity-first) pipelines may leave this empty.
+    /// Callers may leave this empty when the NC channel is not part of the checked surface.
     #[serde(default)]
     pub s_col: Vec<K>,
     /// Ring-digit rows per CCS matrix output (j=0..t-1).
@@ -348,7 +348,7 @@ pub struct CeClaim<C, F, K> {
     pub aux_openings: Vec<K>,
     /// y_zcol := Z · χ_{s_col} ∈ K^{d} (digit rows, typically padded to 2^{ell_d}).
     ///
-    /// Legacy (square/identity-first) pipelines may leave this empty.
+    /// Callers may leave this empty when the NC channel is not part of the checked surface.
     #[serde(default)]
     pub y_zcol: Vec<K>,
     /// m_in
@@ -373,17 +373,7 @@ pub struct CeWitness<F> {
     pub Z: Mat<F>,
 }
 
-/// Witness matrix interpretation strategy.
-///
-/// Currently only SuperNeo packed layout is supported, but this enum
-/// exists to support future witness formats without changing the
-/// validation and extraction call sites.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum WitnessLayout {
-    SuperneoPacked,
-}
-
-fn witness_layout_for_expected_m<F: Field>(z: &Mat<F>, expected_m: usize) -> Result<WitnessLayout, CcsError> {
+fn validate_superneo_witness_mat_for_expected_m<F: Field>(z: &Mat<F>, expected_m: usize) -> Result<(), CcsError> {
     if z.rows() != D {
         return Err(CcsError::Dim {
             context: "Z rows (expected D)",
@@ -408,7 +398,7 @@ fn witness_layout_for_expected_m<F: Field>(z: &Mat<F>, expected_m: usize) -> Res
                 ));
             }
         }
-        return Ok(WitnessLayout::SuperneoPacked);
+        return Ok(());
     }
     Err(CcsError::Dim {
         context: "Z shape vs SuperNeo packed width",
@@ -418,25 +408,22 @@ fn witness_layout_for_expected_m<F: Field>(z: &Mat<F>, expected_m: usize) -> Res
 }
 
 #[inline]
-fn witness_get<F: Field + Copy>(z: &Mat<F>, layout: WitnessLayout, rho: usize, col: usize) -> F {
-    match layout {
-        WitnessLayout::SuperneoPacked => {
-            let blk = col / D;
-            let off = col % D;
-            if off == rho {
-                z[(rho, blk)]
-            } else {
-                F::ZERO
-            }
-        }
+fn witness_get<F: Field + Copy>(z: &Mat<F>, rho: usize, col: usize) -> F {
+    let blk = col / D;
+    let off = col % D;
+    if off == rho {
+        z[(rho, blk)]
+    } else {
+        F::ZERO
     }
 }
 
-fn project_x_from_witness_layout<F: Field + Copy>(z: &Mat<F>, layout: WitnessLayout, m_in: usize) -> Mat<F> {
+fn project_x_from_superneo_witness<F: Field + Copy>(z: &Mat<F>, m_in: usize) -> Mat<F> {
     let mut x = Mat::zero(D, m_in, F::ZERO);
-    for rho in 0..D {
-        for c in 0..m_in {
-            x[(rho, c)] = witness_get(z, layout, rho, c);
+    let active_cols = core::cmp::min(m_in, z.cols());
+    for c in 0..active_cols {
+        for rho in 0..D {
+            x[(rho, c)] = z[(rho, c)];
         }
     }
     x
@@ -463,10 +450,13 @@ fn matrix_entry_base_f<F: Field + Copy + Into<GoldiF>>(mat: &CcsMatrix<F>, row: 
         CcsMatrix::Csc(csc) => {
             let s = csc.col_ptr[col];
             let e = csc.col_ptr[col + 1];
-            match csc.row_idx[s..e].binary_search(&row) {
-                Ok(idx) => csc.vals[s + idx].into(),
-                Err(_) => GoldiF::ZERO,
+            let mut acc = GoldiF::ZERO;
+            for idx in s..e {
+                if csc.row_idx[idx] == row {
+                    acc += csc.vals[idx].into();
+                }
             }
+            acc
         }
     }
 }
@@ -512,7 +502,9 @@ pub fn build_superneo_ring_forms<
                 }
                 let a_bar = Rq(superneo_bar_block(a));
                 for i in 0..D {
-                    let shifted = a_bar.mul_by_monomial(i);
+                    let mut basis = [GoldiF::ZERO; D];
+                    basis[i] = GoldiF::ONE;
+                    let shifted = a_bar.mul(&Rq(basis));
                     let slot = &mut forms[base + i];
                     for rho in 0..D {
                         slot[rho] += weight.scale_base(shifted.0[rho]);
@@ -539,7 +531,7 @@ where
 {
     // shape sanity
     let m = inst.m_in + wit.w.len();
-    let _layout = witness_layout_for_expected_m(&wit.Z, m)?;
+    validate_superneo_witness_mat_for_expected_m(&wit.Z, m)?;
     // z = x || w
     if inst.x.len() != inst.m_in {
         return Err(CcsError::Len {
@@ -560,8 +552,13 @@ where
     Ok(z)
 }
 
-/// Check `X == L_x(Z)` and CE output consistency.
-pub fn check_ce_consistency<F: Field, K: Field + From<F>, C, L: SModuleHomomorphism<F, C>>(
+/// Check `X == L_x(Z)` and SuperNeo CE output consistency.
+pub fn check_ce_consistency<
+    F: Field + PrimeCharacteristicRing + Copy + Into<GoldiF>,
+    K: Field + From<F> + KExtensions + Copy,
+    C,
+    L: SModuleHomomorphism<F, C>,
+>(
     _params: &NeoParams,
     s: &CcsStructure<F>,
     l: &L,
@@ -571,10 +568,10 @@ pub fn check_ce_consistency<F: Field, K: Field + From<F>, C, L: SModuleHomomorph
 where
     C: PartialEq,
 {
-    let z_layout = witness_layout_for_expected_m(&wit.Z, s.m)?;
+    validate_superneo_witness_mat_for_expected_m(&wit.Z, s.m)?;
 
     // X = L_x(Z)
-    let x_star = project_x_from_witness_layout(&wit.Z, z_layout, inst.m_in);
+    let x_star = project_x_from_superneo_witness(&wit.Z, inst.m_in);
     if x_star.as_slice() != inst.X.as_slice() {
         return Err(CcsError::Relation("X != L_x(Z)".into()));
     }
@@ -584,7 +581,7 @@ where
         return Err(CcsError::Relation("c != L(Z)".into()));
     }
 
-    // y_j == Z M_j^T r^b
+    // y_j == \widehat{\bar{M}_j z}(r) in SuperNeo ring-coefficient form.
     // Allow arbitrary n by deriving ℓ from the next power of two.
     // χ_r is length 2^ℓ, and we consume only the first n entries.
     let n_pad = s.n.next_power_of_two();
@@ -599,8 +596,8 @@ where
 
     // Optional NC channel: y_zcol == Z · χ_{s_col} (column-domain).
     //
-    // This is only checked when both `s_col` and `y_zcol` are present, so legacy callers
-    // can omit these fields without failing consistency checks.
+    // This is only checked when both `s_col` and `y_zcol` are present; some paper
+    // CE openings do not include the backend NC channel.
     if !(inst.s_col.is_empty() && inst.y_zcol.is_empty()) {
         if inst.s_col.is_empty() || inst.y_zcol.is_empty() {
             return Err(CcsError::Relation(
@@ -637,7 +634,7 @@ where
         for rho in 0..D {
             let mut acc = K::ZERO;
             for c in 0..s.m {
-                acc += K::from(witness_get(&wit.Z, z_layout, rho, c)) * chi_s[c];
+                acc += K::from(witness_get(&wit.Z, rho, c)) * chi_s[c];
             }
             y_star[rho] = acc;
         }
@@ -647,9 +644,6 @@ where
             return Err(CcsError::Relation("y_zcol != Z · χ_{s_col}".into()));
         }
     }
-    let rb = tensor_point::<K>(&inst.r); // K^n
-
-    // for each j: v := M_j^T r^b ∈ K^m; then y_j = Z v ∈ K^d
     if inst.y_ring.len() != s.t() {
         return Err(CcsError::Len {
             context: "|y_ring|",
@@ -661,16 +655,17 @@ where
     // Ajtai padding length for digit rows (matches `1 << ell_d` used by Π_CCS dims).
     let d_pad = D.next_power_of_two();
 
-    for (j, mj) in s.matrices.iter().enumerate() {
-        // v = M_j^T r^b (consume only the first n rows of χ_r)
-        let mut v_k_m = vec![K::ZERO; s.m];
-        mj.add_mul_transpose_into(&rb, &mut v_k_m, s.n);
-        // y*_j = Z v_k_m
+    let ring_forms = build_superneo_ring_forms(s, &inst.r)?;
+    for (j, forms) in ring_forms.iter().enumerate() {
         let mut y_star = vec![K::ZERO; D];
         for rho in 0..D {
             let mut acc = K::ZERO;
-            for c in 0..s.m {
-                acc += K::from(witness_get(&wit.Z, z_layout, rho, c)) * v_k_m[c];
+            for (c, coeffs) in forms.iter().enumerate() {
+                if c >= s.m {
+                    continue;
+                }
+                let z_c = K::from(witness_get(&wit.Z, c % D, c));
+                acc += coeffs[rho] * z_c;
             }
             y_star[rho] = acc;
         }
@@ -691,10 +686,10 @@ where
             });
         }
         if y_star.as_slice() != &yj[..d] {
-            return Err(CcsError::Relation("y_j != Z M_j^T r^b".into()));
+            return Err(CcsError::Relation("y_j != SuperNeo ring-form evaluation".into()));
         }
         if yj[d..].iter().any(|&x| x != K::ZERO) {
-            return Err(CcsError::Relation("y_j != Z M_j^T r^b".into()));
+            return Err(CcsError::Relation("y_j has non-zero SuperNeo padding tail".into()));
         }
     }
 

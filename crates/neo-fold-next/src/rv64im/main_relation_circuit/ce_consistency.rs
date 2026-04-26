@@ -1,17 +1,20 @@
 //! Owns core CE-consistency gadgets for the RV64IM main relation circuit.
 //!
 //! This module mirrors the native `neo_ccs::check_ce_consistency` boundary:
-//! `c = L(Z)`, `X = L_x(Z)`, `y_zcol = Z_digits·chi(s_col)`, `y_ring = Z M_j^T chi(r)`,
-//! `ct[j] = y_ring[j][0]`, and balanced digit representability for each packed
-//! witness coefficient.
+//! `c = L(Z)`, `X = L_x(Z)`, optional `y_zcol = Z_digits·chi(s_col)`,
+//! `y_ring = \widehat{\bar{M}_j z}(r)` in SuperNeo ring-coefficient form,
+//! `ct[j] = y_ring[j][0]`, and balanced digit representability for each
+//! packed witness coefficient.
 
 use crate::rv64im::ivc_snark::SpartanF;
-use bellpepper_core::{ConstraintSystem, SynthesisError};
+use bellpepper_core::{num::AllocatedNum, ConstraintSystem, LinearCombination, SynthesisError};
 use ff::Field;
+use neo_ajtai::Commitment;
 use neo_ajtai::{get_global_pp_for_dims, precompute_rot_columns};
-use neo_ccs::{CcsMatrix, CcsStructure};
+use neo_ccs::{tensor_point, CcsMatrix, CcsStructure, CcsWitness, CeClaim};
 use neo_math::{superneo_bar_block, KExtensions, Rq, D, F, K};
 use neo_params::NeoParams;
+use neo_reductions::common::{validate_superneo_witness_mat, witness_mat_get_f};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::claim::CeClaimVar;
@@ -47,6 +50,68 @@ pub fn enforce_ce_consistency_without_x<CS: ConstraintSystem<SpartanF>>(
     enforce_backend_claim_consistency(
         cs, params, structure, structure, witness, claim, delta, true, false, label,
     )
+}
+
+/// Opens a final carried CE claim against the SuperNeo paper relation.
+///
+/// This is the `R1` check used by the compressed IVC verifier: `c = L(Z)`,
+/// `x = L_in(Z)`, `||Z|| < b`, and `y_j = \widehat{M_j Z}(r)`. It deliberately
+/// does not authorize backend transport fields such as `s_col`, `y_zcol`, or
+/// `ct`; those are verifier-replay cargo, not part of the paper CE relation.
+pub fn enforce_paper_ce_claim_consistency<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    params: &NeoParams,
+    base_structure: &CcsStructure<F>,
+    ring_structure: &CcsStructure<F>,
+    witness: &PackedWitnessVar,
+    claim: &CeClaimVar,
+    delta: SpartanF,
+    label: &str,
+) -> Result<(), SynthesisError> {
+    enforce_ajtai_commitment_consistency(
+        &mut cs.namespace(|| format!("{label}_commitment")),
+        witness,
+        claim,
+        &format!("{label}_commitment"),
+    )?;
+    enforce_x_projection(
+        &mut cs.namespace(|| format!("{label}_x_projection")),
+        witness,
+        claim,
+        base_structure.m,
+        &format!("{label}_x"),
+    )?;
+    enforce_balanced_digit_alphabet(
+        &mut cs.namespace(|| format!("{label}_digits")),
+        witness,
+        base_structure.m,
+        params,
+        &format!("{label}_digits"),
+    )?;
+
+    let (chi_r, chi_r_values) = chi_table_var(
+        &mut cs.namespace(|| format!("{label}_chi_r")),
+        &claim.r,
+        &claim.r_values,
+        delta,
+        &format!("{label}_chi_r"),
+    )?;
+    for (matrix_idx, matrix) in ring_structure.matrices.iter().enumerate() {
+        enforce_claim_y_ring_from_point_var(
+            &mut cs.namespace(|| format!("{label}_y_ring_{matrix_idx}")),
+            witness,
+            ring_structure.m,
+            ring_structure.n,
+            matrix,
+            &chi_r,
+            &chi_r_values,
+            D,
+            &claim.y_ring[matrix_idx],
+            delta,
+            &format!("{label}_y_ring_{matrix_idx}"),
+        )?;
+    }
+    Ok(())
 }
 
 pub fn enforce_backend_claim_consistency_with_x<CS: ConstraintSystem<SpartanF>>(
@@ -127,7 +192,27 @@ pub fn enforce_ajtai_commitment_consistency<CS: ConstraintSystem<SpartanF>>(
     claim: &CeClaimVar,
     label: &str,
 ) -> Result<(), SynthesisError> {
-    enforce_ajtai_commitment(cs, witness, claim, label)
+    enforce_ajtai_commitment_data_consistency(cs, witness, &claim.c_data, label)
+}
+
+pub fn enforce_ajtai_commitment_data_consistency<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    witness: &PackedWitnessVar,
+    c_data: &[AllocatedNum<SpartanF>],
+    label: &str,
+) -> Result<(), SynthesisError> {
+    enforce_ajtai_commitment(cs, witness, c_data, label)
+}
+
+pub fn enforce_ajtai_commitment_linear_consistency<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    rows: usize,
+    cols: usize,
+    witness_entries: &[LinearCombination<SpartanF>],
+    c_data: &[AllocatedNum<SpartanF>],
+    label: &str,
+) -> Result<(), SynthesisError> {
+    enforce_ajtai_commitment_linear(cs, rows, cols, witness_entries, c_data, label)
 }
 
 /// Opens a DEC child only against the paper `CE(b, L)` projection.
@@ -148,7 +233,7 @@ pub fn enforce_paper_dec_child_claim_consistency<CS: ConstraintSystem<SpartanF>>
     delta: SpartanF,
     label: &str,
 ) -> Result<(), SynthesisError> {
-    enforce_ajtai_commitment(
+    enforce_ajtai_commitment_consistency(
         &mut cs.namespace(|| format!("{label}_commitment")),
         witness,
         claim,
@@ -174,6 +259,7 @@ pub fn enforce_paper_dec_child_claim_consistency<CS: ConstraintSystem<SpartanF>>
             &mut cs.namespace(|| format!("{label}_y_ring_{matrix_idx}")),
             witness,
             ring_structure.m,
+            ring_structure.n,
             matrix,
             &chi_r,
             &chi_r_values,
@@ -184,6 +270,51 @@ pub fn enforce_paper_dec_child_claim_consistency<CS: ConstraintSystem<SpartanF>>
         )?;
     }
     Ok(())
+}
+
+pub(crate) fn debug_paper_dec_child_y_ring_formula_mismatch(
+    structure: &CcsStructure<F>,
+    witness: &CcsWitness<F>,
+    claim: &CeClaim<Commitment, F, K>,
+) -> Result<Option<String>, String> {
+    validate_superneo_witness_mat(&witness.Z, structure.m).map_err(|err| err.to_string())?;
+    let chi_r = tensor_point::<K>(&claim.r);
+    for (matrix_idx, matrix) in structure.matrices.iter().enumerate() {
+        let row_cap = core::cmp::min(core::cmp::min(matrix.rows(), structure.n), chi_r.len());
+        for rho in 0..D {
+            let mut acc = K::ZERO;
+            for (row, weight) in chi_r.iter().copied().enumerate().take(row_cap) {
+                let row_terms = row_ring_projection_terms(matrix, row, witness.Z.cols().saturating_mul(D), rho)
+                    .map_err(|err| err.to_string())?;
+                let mut row_component = F::ZERO;
+                for (logical_col, coeff) in row_terms {
+                    let z_coeff = if logical_col < structure.m {
+                        witness_mat_get_f(&witness.Z, structure.m, logical_col % D, logical_col)
+                    } else if witness.Z.cols() == structure.m.div_ceil(D) {
+                        witness.Z[(logical_col % D, logical_col / D)]
+                    } else {
+                        F::ZERO
+                    };
+                    row_component += coeff * z_coeff;
+                }
+                acc += weight.scale_base(row_component);
+            }
+            let target = claim
+                .y_ring
+                .get(matrix_idx)
+                .and_then(|row| row.get(rho))
+                .copied()
+                .unwrap_or(K::ZERO);
+            if acc != target {
+                return Ok(Some(format!(
+                    "circuit CE y_ring formula mismatch: matrix={matrix_idx}, rho={rho}, claim={}, formula={}",
+                    format_k(target),
+                    format_k(acc),
+                )));
+            }
+        }
+    }
+    Ok(None)
 }
 
 fn enforce_backend_claim_consistency<CS: ConstraintSystem<SpartanF>>(
@@ -199,7 +330,7 @@ fn enforce_backend_claim_consistency<CS: ConstraintSystem<SpartanF>>(
     label: &str,
 ) -> Result<(), SynthesisError> {
     if check_commitment {
-        enforce_ajtai_commitment(
+        enforce_ajtai_commitment_consistency(
             &mut cs.namespace(|| format!("{label}_commitment")),
             witness,
             claim,
@@ -257,6 +388,7 @@ fn enforce_backend_claim_consistency<CS: ConstraintSystem<SpartanF>>(
             &mut cs.namespace(|| format!("{label}_y_ring_{matrix_idx}")),
             witness,
             ring_structure.m,
+            ring_structure.n,
             matrix,
             &chi_r,
             &chi_r_values,
@@ -283,27 +415,41 @@ fn enforce_backend_claim_consistency<CS: ConstraintSystem<SpartanF>>(
 fn enforce_ajtai_commitment<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     witness: &PackedWitnessVar,
-    claim: &CeClaimVar,
+    c_data: &[AllocatedNum<SpartanF>],
     label: &str,
 ) -> Result<(), SynthesisError> {
-    let rows = ajtai_commitment_rows(witness.rows(), witness.cols())?;
-    if rows.len() != claim.c_data.len() {
+    let witness_entries = witness
+        .row_major_values()
+        .iter()
+        .map(|value| LinearCombination::<SpartanF>::zero() + value.get_variable())
+        .collect::<Vec<_>>();
+    enforce_ajtai_commitment_linear(cs, witness.rows(), witness.cols(), &witness_entries, c_data, label)
+}
+
+fn enforce_ajtai_commitment_linear<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    witness_rows: usize,
+    witness_cols: usize,
+    witness_entries: &[LinearCombination<SpartanF>],
+    c_data: &[AllocatedNum<SpartanF>],
+    label: &str,
+) -> Result<(), SynthesisError> {
+    let rows = ajtai_commitment_rows(witness_rows, witness_cols)?;
+    if rows.len() != c_data.len() {
         return Err(SynthesisError::Unsatisfiable);
     }
-    for (coord_idx, (coeffs, actual)) in rows.iter().zip(claim.c_data.iter()).enumerate() {
-        if coeffs.len() != witness.row_major_values().len() {
+    for (coord_idx, (coeffs, actual)) in rows.iter().zip(c_data.iter()).enumerate() {
+        if coeffs.len() != witness_entries.len() {
             return Err(SynthesisError::Unsatisfiable);
         }
         cs.enforce(
             || format!("{label}_{coord_idx}"),
             |lc| {
                 let mut acc = lc;
-                for (coeff, value) in coeffs.iter().zip(witness.row_major_values().iter()) {
-                    acc = acc
-                        + (
-                            SpartanF::from_canonical_u64(coeff.as_canonical_u64()),
-                            value.get_variable(),
-                        );
+                for (coeff, entry) in coeffs.iter().zip(witness_entries.iter()) {
+                    if *coeff != F::ZERO {
+                        acc = acc + (SpartanF::from_canonical_u64(coeff.as_canonical_u64()), entry);
+                    }
                 }
                 acc
             },
@@ -351,6 +497,7 @@ fn enforce_claim_y_ring_from_point_var<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     witness: &PackedWitnessVar,
     expected_m: usize,
+    active_row_count: usize,
     matrix: &CcsMatrix<F>,
     chi_r: &[KNumVar],
     chi_r_values: &[K],
@@ -362,13 +509,13 @@ fn enforce_claim_y_ring_from_point_var<CS: ConstraintSystem<SpartanF>>(
     if witness.rows() != D || active_rho_count > D || target.len() < active_rho_count {
         return Err(SynthesisError::Unsatisfiable);
     }
-    let row_cap = core::cmp::min(matrix.rows(), chi_r.len());
+    let row_cap = core::cmp::min(core::cmp::min(matrix.rows(), active_row_count), chi_r.len());
     let zero = alloc_constant_k(cs, KNum::from_neo_k(K::ZERO), &format!("{label}_zero"))?;
     for (rho, target) in target.iter().take(active_rho_count).enumerate() {
         let mut acc = zero.clone();
         let mut acc_value = K::ZERO;
         for row in 0..row_cap {
-            let row_terms = row_ring_projection_terms(matrix, row, expected_m, rho)?;
+            let row_terms = row_ring_projection_terms(matrix, row, witness_y_ring_width(witness, expected_m)?, rho)?;
             let affine_terms = row_terms
                 .iter()
                 .map(|(logical_col, coeff)| {
@@ -419,13 +566,13 @@ fn enforce_claim_y_ring_from_point_var<CS: ConstraintSystem<SpartanF>>(
 fn row_ring_projection_terms(
     matrix: &CcsMatrix<F>,
     row: usize,
-    expected_m: usize,
+    effective_m: usize,
     rho: usize,
 ) -> Result<Vec<(usize, F)>, SynthesisError> {
     if rho >= D {
         return Err(SynthesisError::Unsatisfiable);
     }
-    let block_count = expected_m.div_ceil(D);
+    let block_count = effective_m.div_ceil(D);
     let mut terms = Vec::new();
     for blk in 0..block_count {
         let base = blk * D;
@@ -439,7 +586,7 @@ fn row_ring_projection_terms(
         let a_bar = Rq(superneo_bar_block(a));
         for off in 0..D {
             let logical_col = base + off;
-            if logical_col >= expected_m {
+            if logical_col >= effective_m {
                 break;
             }
             let mut basis = [F::ZERO; D];
@@ -451,6 +598,19 @@ fn row_ring_projection_terms(
         }
     }
     Ok(terms)
+}
+
+fn witness_y_ring_width(witness: &PackedWitnessVar, expected_m: usize) -> Result<usize, SynthesisError> {
+    if expected_m == 0 || witness.rows() != D {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    if witness.cols() == expected_m.div_ceil(D) {
+        return witness
+            .cols()
+            .checked_mul(D)
+            .ok_or(SynthesisError::Unsatisfiable);
+    }
+    Err(SynthesisError::Unsatisfiable)
 }
 
 fn matrix_entry_base_f(matrix: &CcsMatrix<F>, row: usize, col: usize) -> F {
@@ -468,12 +628,20 @@ fn matrix_entry_base_f(matrix: &CcsMatrix<F>, row: usize, col: usize) -> F {
         CcsMatrix::Csc(csc) => {
             let start = csc.col_ptr[col];
             let end = csc.col_ptr[col + 1];
-            match csc.row_idx[start..end].binary_search(&row) {
-                Ok(idx) => csc.vals[start + idx],
-                Err(_) => F::ZERO,
+            let mut acc = F::ZERO;
+            for idx in start..end {
+                if csc.row_idx[idx] == row {
+                    acc += csc.vals[idx];
+                }
             }
+            acc
         }
     }
+}
+
+fn format_k(value: K) -> String {
+    let [re, im] = value.as_coeffs();
+    format!("({}, {})", re.as_canonical_u64(), im.as_canonical_u64())
 }
 
 fn alloc_affine_base<CS: ConstraintSystem<SpartanF>>(

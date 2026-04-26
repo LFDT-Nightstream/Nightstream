@@ -115,7 +115,7 @@ pub fn build_rv64im_published_proof_seam_with_perf(
     let started = Instant::now();
     let (_, verified_kernel) = verify_rv64im_kernel_export_proof_with_relation_output(&final_proof.kernel_export)?;
     let main_proof =
-        Rv64imCompressedMainProof::from_verified_final_seam(&final_statement, &final_proof, verified_kernel.final_pc)?;
+        Rv64imCompressedMainProof::from_final_artifacts(&final_statement, &final_proof, verified_kernel.final_pc)?;
     let main_proof_ms = elapsed_ms(started);
 
     Ok((
@@ -219,7 +219,7 @@ fn prove_rv64im_public_proof_and_published_seam_with_options_and_perf(
     let started = Instant::now();
     let (_, verified_kernel) = verify_rv64im_kernel_export_proof_with_relation_output(&final_proof.kernel_export)?;
     let main_proof =
-        Rv64imCompressedMainProof::from_verified_final_seam(&final_statement, &final_proof, verified_kernel.final_pc)?;
+        Rv64imCompressedMainProof::from_final_artifacts(&final_statement, &final_proof, verified_kernel.final_pc)?;
     let main_proof_ms = elapsed_ms(started);
 
     let seam = Rv64imPublishedProofSeam {

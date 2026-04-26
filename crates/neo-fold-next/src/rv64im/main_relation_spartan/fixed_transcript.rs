@@ -232,6 +232,14 @@ fn derive_fixed_transcript_out_from_parts(
         )?;
     }
     let started = Instant::now();
+    let bridge_handoff_digest: [_; 4] = alloc_const_field_values(
+        &mut cs.namespace(|| "synthetic_bridge_handoff_digest"),
+        &digest32_as_spartan_fields(replay_chunk.handoff.bridge_handoff_digest),
+        "synthetic_bridge_handoff_digest",
+    )
+    .map_err(|err| SimpleKernelError::Bridge(format!("fixed transcript bridge digest allocation failed: {err:?}")))?
+    .try_into()
+    .map_err(|_| SimpleKernelError::Bridge("fixed transcript bridge digest arity mismatch".into()))?;
     if let Err(err) = synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_relation_io(
         params,
         structure,
@@ -245,10 +253,10 @@ fn derive_fixed_transcript_out_from_parts(
         &mut replayed_transcript,
         carried_claims,
         None,
-        None,
         boundary_plan,
         0,
         None,
+        Some(&bridge_handoff_digest),
         None,
     ) {
         if let Err(prefix_err) = debug_check_fixed_transcript_prefix(

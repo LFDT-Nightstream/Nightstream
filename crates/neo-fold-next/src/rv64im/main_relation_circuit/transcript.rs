@@ -533,15 +533,23 @@ impl Poseidon2TranscriptCircuit {
 
     pub fn digest32<CS: ConstraintSystem<SpartanF>>(
         &mut self,
-        mut cs: CS,
+        cs: CS,
     ) -> Result<[AllocatedNum<SpartanF>; DIGEST_LEN], SynthesisError> {
+        Ok(self.digest32_with_values(cs)?.0)
+    }
+
+    pub fn digest32_with_values<CS: ConstraintSystem<SpartanF>>(
+        &mut self,
+        mut cs: CS,
+    ) -> Result<([AllocatedNum<SpartanF>; DIGEST_LEN], [SpartanF; DIGEST_LEN]), SynthesisError> {
         self.absorb_constant(cs.namespace(|| "digest_padding"), SpartanF::ONE)?;
         self.permute(cs.namespace(|| "digest_permute"))?;
-        Ok(core::array::from_fn(|i| {
-            self.state[i]
-                .allocate_canonical(cs.namespace(|| format!("digest_allocate_{i}")))
-                .expect("digest lanes must be allocated")
-        }))
+        let values = core::array::from_fn(|i| self.state[i].value);
+        let mut out = Vec::with_capacity(DIGEST_LEN);
+        for i in 0..DIGEST_LEN {
+            out.push(self.state[i].allocate_canonical(cs.namespace(|| format!("digest_allocate_{i}")))?);
+        }
+        Ok((out.try_into().map_err(|_| SynthesisError::Unsatisfiable)?, values))
     }
 
     pub fn state_values(&self) -> [SpartanF; WIDTH] {

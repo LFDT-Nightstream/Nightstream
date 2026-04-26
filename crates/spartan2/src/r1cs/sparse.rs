@@ -33,6 +33,21 @@ impl<F: PrimeField> SparseMatrix<F> {
     }
   }
 
+  /// Number of rows in the matrix.
+  pub fn rows(&self) -> usize {
+    self.indptr.len().saturating_sub(1)
+  }
+
+  /// Number of columns in the matrix.
+  pub fn cols(&self) -> usize {
+    self.cols
+  }
+
+  /// Number of non-zero entries in the matrix.
+  pub fn nnz(&self) -> usize {
+    self.indptr.last().copied().unwrap_or(0)
+  }
+
   /// Construct from the COO representation; Vec<usize(row), usize(col), F>.
   /// We assume that the rows are sorted during construction.
   #[cfg(test)]

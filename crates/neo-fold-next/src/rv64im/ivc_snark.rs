@@ -1,49 +1,142 @@
-//! Owns optional Spartan compression for the native RV64IM IVC carrier.
+//! Owns Spartan compression for the native RV64IM IVC carrier.
+//!
+//! The compressed verifier boundary is the final Construction-2 verifier
+//! surface: final `U_i` CE satisfiability plus the terminal `F'` committed-step
+//! relation. The terminal `F'` proof binds `u_i.C` to the same SuperNeo-packed
+//! low-norm R2 assignment whose rows it checks. No terminal chunk-step proof or
+//! native replay is accepted as a verifier fallback.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
+use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
 
-mod chunk_step_circuit;
-mod chunk_step_spartan;
 mod spartan_support;
+mod terminal_f_prime_committed;
 
-use self::chunk_step_spartan::{
-    debug_check_rv64im_chunk_step_ivc_spartan_circuit, prove_rv64im_chunk_step_ivc_spartan,
-    setup_rv64im_chunk_step_ivc_spartan, setup_rv64im_chunk_step_ivc_spartan_cached,
-    verify_rv64im_chunk_step_ivc_spartan,
-};
 pub(crate) use self::spartan_support::{
-    hash_packed_goldilocks_fields, GoldilocksP3MerkleMleEngine, R1CSSNARKTrait, Rv64imDeciderEngine,
+    hash_packed_goldilocks_fields, DigestHelperTrait, GoldilocksP3MerkleMleEngine, R1CSSNARKTrait, Rv64imDeciderEngine,
     Rv64imDeciderProverKey, Rv64imDeciderSnark, Rv64imDeciderVerifierKey, ShapeCS, SpartanCircuit, SpartanF,
     SpartanProverKey, SpartanShape, SpartanVerifierKey, SplitR1CSShape, R1CSSNARK,
 };
-use crate::rv64im::chunk_step_ivc::{build_rv64im_chunk_step_ivc_relations, Rv64imChunkStepIvcRelation};
-use crate::rv64im::final_relation::{Rv64imFinalBuildProof, Rv64imFinalStatement};
-use crate::rv64im::ivc::{
-    build_rv64im_ivc_state_from_relations, derive_rv64im_ivc_step_cap, Rv64imIvcPublicImage, Rv64imIvcState,
+use self::terminal_f_prime_committed::{
+    debug_check_rv64im_terminal_f_prime_r1cs_ccs_relation, terminal_f_prime_committed_step_boundary_public_values,
+    Rv64imTerminalFPrimeCommittedRelation, Rv64imTerminalFPrimeCommittedStepSetup,
 };
-use crate::rv64im::main_relation_spartan::{build_rv64im_chunk_step_ivc_shape, Rv64imChunkStepIvcShape};
+use crate::rv64im::chunk_step_ivc::build_rv64im_chunk_step_ivc_relations;
+use crate::rv64im::construction2::Rv64imMainRecursionConstruction2FreshInstance;
+use crate::rv64im::final_relation::{
+    rv64im_recursive_accumulator_instance_digest_from_parts, Rv64imFinalBuildProof, Rv64imFinalStatement,
+};
+use crate::rv64im::ivc::{
+    build_rv64im_ivc_prover_state_from_relations, derive_rv64im_ivc_step_cap, Rv64imIvcPublicImage, Rv64imIvcState,
+};
+use crate::rv64im::main_relation_circuit::ce_spartan::{
+    prove_rv64im_ce_bundle_relation, setup_rv64im_ce_bundle_relation, verify_rv64im_ce_bundle_relation,
+    Rv64imCeBundleProof,
+};
+use crate::rv64im::main_relation_spartan::{
+    build_rv64im_main_recursion_f_prime_backend_relations_with_spartan_shape_from_advices,
+    build_rv64im_main_recursion_step_spartan_published_target, debug_check_rv64im_main_recursion_step_spartan_circuit,
+    terminal_f_prime_r2_public_values_from_parts, Rv64imMainRecursionFPrimeBackendRelation,
+    Rv64imMainRecursionStepSpartanShape,
+};
 use crate::rv64im::SimpleKernelError;
+use neo_ajtai::Commitment;
+use neo_ccs::{CcsWitness, CeClaim, Mat};
+use neo_math::{F, K};
+use neo_transcript::{Poseidon2Transcript, Transcript};
+use p3_field::PrimeCharacteristicRing;
 
-pub type Rv64imIvcSnarkProverKey = Rv64imDeciderProverKey;
-pub type Rv64imIvcSnarkVerifierKey = Rv64imDeciderVerifierKey;
+pub struct Rv64imIvcSnarkProverKey {
+    terminal_f_prime: Rv64imDeciderProverKey,
+    final_ce: Rv64imDeciderProverKey,
+}
+
+pub struct Rv64imIvcSnarkVerifierKey {
+    terminal_f_prime: Rv64imDeciderVerifierKey,
+    final_ce: Rv64imDeciderVerifierKey,
+}
+
+impl Rv64imIvcSnarkVerifierKey {
+    pub fn expected_digest(&self) -> Result<[u8; 32], SimpleKernelError> {
+        let terminal_f_prime_digest = self.terminal_f_prime.digest().map_err(|err| {
+            SimpleKernelError::Bridge(format!("RV64IM IVC terminal F' verifier key digest failed: {err}"))
+        })?;
+        let final_ce_digest = self.final_ce.digest().map_err(|err| {
+            SimpleKernelError::Bridge(format!("RV64IM IVC final CE verifier key digest failed: {err}"))
+        })?;
+
+        let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/ivc_snark_verifier_key");
+        tr.append_message(b"neo.fold.next/rv64im/ivc_snark_verifier_key/version", b"v1");
+        tr.append_message(
+            b"neo.fold.next/rv64im/ivc_snark_verifier_key/terminal_f_prime",
+            &terminal_f_prime_digest,
+        );
+        tr.append_message(
+            b"neo.fold.next/rv64im/ivc_snark_verifier_key/final_ce",
+            &final_ce_digest,
+        );
+        Ok(tr.digest32())
+    }
+}
+
+impl Rv64imIvcSnarkProverKey {
+    pub fn sizes(&self) -> [usize; 10] {
+        self.terminal_f_prime.sizes()
+    }
+
+    pub fn shape_debug_stats(&self) -> spartan2::SplitR1CSShapeDebugStats {
+        self.terminal_f_prime.shape_debug_stats()
+    }
+}
+
 pub type Rv64imIvcSnarkKeyPair = Arc<(Rv64imIvcSnarkProverKey, Rv64imIvcSnarkVerifierKey)>;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Rv64imTerminalDeciderSetupShape {
-    terminal_step_shape: Rv64imChunkStepIvcShape,
+pub struct Rv64imIvcRecursionSnarkSetupShape {
+    main_recursion_step_shape: Rv64imMainRecursionStepSpartanShape,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Rv64imIvcSnarkProof {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Rv64imTerminalFPrimeCommittedStepShape {
+    pub terminal_r2_ccs_rows: usize,
+    pub terminal_r2_ccs_cols: usize,
+    pub terminal_r2_ccs_nnz: usize,
+    pub terminal_r2_public_inputs: usize,
+    pub terminal_r2_witness_inputs: usize,
+    pub terminal_r2_private_padding_inputs: usize,
+    pub terminal_r2_private_bit_inputs: usize,
+    pub terminal_r2_private_u32_inputs: usize,
+    pub terminal_r2_private_u64_inputs: usize,
+    pub terminal_r2_private_low_norm_bit_inputs: usize,
+    pub terminal_r2_committed_low_norm_width: usize,
+    pub terminal_r2_superneo_packed_cols: usize,
+    pub terminal_r2_commitment_words: usize,
+    pub terminal_committed_step_public_inputs: usize,
+    pub terminal_committed_step_constraints: usize,
+    pub terminal_f_prime_r1cs_public_inputs: usize,
+    pub terminal_f_prime_r1cs_challenges: usize,
+    pub terminal_f_prime_r1cs_variables: usize,
+    pub terminal_f_prime_r1cs_constraints: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Rv64imTerminalFPrimeCommittedStepProof {
     pub snark_data: Vec<u8>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Rv64imIvcSnarkProof {
+    pub terminal_f_prime_committed_step_proof: Rv64imTerminalFPrimeCommittedStepProof,
+    pub final_main_claims: Vec<CeClaim<Commitment, F, K>>,
+    pub final_ce_proof: Rv64imCeBundleProof,
 }
 
 impl Rv64imIvcSnarkProof {
     pub fn snark_bytes_len(&self) -> usize {
-        self.snark_data.len()
+        self.terminal_f_prime_committed_step_proof.snark_data.len() + self.final_ce_proof.snark_data.len()
     }
 }
 
@@ -54,73 +147,799 @@ pub struct Rv64imIvcSnark {
 }
 
 static RV64IM_IVC_SNARK_PROOF_CACHE: OnceLock<Mutex<HashMap<[u8; 32], Arc<Rv64imIvcSnarkProof>>>> = OnceLock::new();
-static RV64IM_IVC_SNARK_RELATION_CACHE: OnceLock<Mutex<HashMap<[u8; 32], Arc<Rv64imChunkStepIvcRelation>>>> =
-    OnceLock::new();
+static RV64IM_IVC_SNARK_SETUP_CACHE: OnceLock<Mutex<HashMap<[u8; 32], Rv64imIvcSnarkKeyPair>>> = OnceLock::new();
 
-fn rv64im_ivc_snark_cache_key(statement: &Rv64imFinalStatement, proof: &Rv64imFinalBuildProof) -> [u8; 32] {
-    let mut digest = [0u8; 32];
-    for ((dst, lhs), rhs) in digest
-        .iter_mut()
-        .zip(statement.digest.iter())
-        .zip(proof.proof_digest.iter())
-    {
-        *dst = *lhs ^ *rhs;
+type Rv64imIvcSnarkTrace<'a> = Option<&'a mut dyn FnMut(&str)>;
+
+fn trace_emit(trace: &mut Rv64imIvcSnarkTrace<'_>, message: &str) {
+    if let Some(emit) = trace.as_deref_mut() {
+        emit(message);
     }
-    digest
 }
 
-fn build_rv64im_terminal_step_relation(
+fn trace_emit_owned(trace: &mut Rv64imIvcSnarkTrace<'_>, message: String) {
+    trace_emit(trace, &message);
+}
+
+fn trace_start(trace: &mut Rv64imIvcSnarkTrace<'_>, phase: &str) -> Instant {
+    trace_emit_owned(trace, format!("{phase}.start"));
+    Instant::now()
+}
+
+fn trace_done(trace: &mut Rv64imIvcSnarkTrace<'_>, phase: &str, started: Instant) {
+    trace_emit_owned(
+        trace,
+        format!("{phase}.done_ms={:.3}", started.elapsed().as_secs_f64() * 1000.0),
+    );
+}
+
+fn rv64im_ivc_snark_setup_cache_key(
+    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
+    final_ce_claims: &[CeClaim<Commitment, F, K>],
+    terminal_setup: &Rv64imTerminalFPrimeCommittedStepSetup,
+) -> Result<[u8; 32], SimpleKernelError> {
+    let terminal_r2 = terminal_setup.r1cs_ccs();
+    let (private_bit_inputs, private_u32_inputs, private_u64_inputs) =
+        terminal_setup.terminal_r2_private_encoding_counts();
+    let private_padding_inputs = terminal_setup.terminal_r2_private_padding_inputs();
+    let private_low_norm_bit_inputs = private_bit_inputs + (private_u32_inputs * 32) + (private_u64_inputs * 64);
+    let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/ivc_recursion_snark_setup_cache");
+    tr.append_message(b"neo.fold.next/rv64im/ivc_recursion_snark_setup_cache/version", b"v9");
+    tr.append_message(
+        b"neo.fold.next/rv64im/ivc_recursion_snark_setup_cache/recursive_shape",
+        &spartan_shape.expected_digest(),
+    );
+    let mut final_ce_shape = Vec::with_capacity(1 + final_ce_claims.len() * 10);
+    final_ce_shape.push(final_ce_claims.len() as u64);
+    for claim in final_ce_claims {
+        final_ce_shape.extend([
+            claim.c.data.len() as u64,
+            claim.X.rows() as u64,
+            claim.X.cols() as u64,
+            claim.r.len() as u64,
+            claim.y_ring.len() as u64,
+            claim.m_in as u64,
+        ]);
+        final_ce_shape.extend(claim.y_ring.iter().map(|row| row.len() as u64));
+    }
+    tr.append_u64s(
+        b"neo.fold.next/rv64im/ivc_recursion_snark_setup_cache/final_ce_shape",
+        &final_ce_shape,
+    );
+    tr.append_u64s(
+        b"neo.fold.next/rv64im/ivc_recursion_snark_setup_cache/terminal_committed_step_shape",
+        &[
+            terminal_setup.step_cap() as u64,
+            terminal_r2.structure().n as u64,
+            terminal_r2.structure().m as u64,
+            terminal_r2.total_nnz() as u64,
+            terminal_r2.num_public() as u64,
+            terminal_setup.r2_witness_len() as u64,
+            private_padding_inputs as u64,
+            private_bit_inputs as u64,
+            private_u32_inputs as u64,
+            private_u64_inputs as u64,
+            private_low_norm_bit_inputs as u64,
+            terminal_setup.terminal_r2_committed_low_norm_width()? as u64,
+            terminal_setup.terminal_r2_superneo_packed_cols() as u64,
+            terminal_setup.terminal_r2_commitment_words() as u64,
+        ],
+    );
+    Ok(tr.digest32())
+}
+
+fn rv64im_ivc_snark_cache_key(statement: &Rv64imFinalStatement, proof: &Rv64imFinalBuildProof) -> [u8; 32] {
+    let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/ivc_recursion_snark_cache");
+    tr.append_message(b"neo.fold.next/rv64im/ivc_recursion_snark_cache/version", b"v3");
+    tr.append_message(
+        b"neo.fold.next/rv64im/ivc_recursion_snark_cache/final_statement_digest",
+        &statement.digest,
+    );
+    tr.append_message(
+        b"neo.fold.next/rv64im/ivc_recursion_snark_cache/final_proof_digest",
+        &proof.proof_digest,
+    );
+    tr.digest32()
+}
+
+fn rv64im_terminal_f_prime_r2_public_values_from_public_image(public_image: &Rv64imIvcPublicImage) -> Vec<SpartanF> {
+    terminal_f_prime_r2_public_values_from_parts(
+        public_image.vk_fs_digest,
+        public_image.chunk_count,
+        public_image.z_0,
+        public_image.z_i,
+        public_image.pc,
+        &public_image.x_i,
+        public_image.folded_accumulator_digest,
+        public_image.terminal_bridge_handoff_digest,
+        public_image.terminal_verified_step_statement_digest,
+    )
+}
+
+fn build_rv64im_ivc_prover_state_from_final(
     statement: &Rv64imFinalStatement,
     proof: &Rv64imFinalBuildProof,
-) -> Result<Rv64imChunkStepIvcRelation, SimpleKernelError> {
+) -> Result<Rv64imIvcState, SimpleKernelError> {
     let relations = build_rv64im_chunk_step_ivc_relations(statement, proof)?;
     let step_cap = derive_rv64im_ivc_step_cap(
         statement.folded.fold_schedule,
         usize::try_from(statement.folded.semantic_step_count).map_err(|_| {
             SimpleKernelError::Bridge(
-                "RV64IM IVC SNARK terminal relation step_count does not fit into the native step-cap model".into(),
+                "RV64IM IVC SNARK recursion step_count does not fit into the native step-cap model".into(),
             )
         })?,
     )?;
-    let ivc_state = build_rv64im_ivc_state_from_relations(&relations, step_cap)?;
-    ivc_state.build_terminal_relation()
+    build_rv64im_ivc_prover_state_from_relations(&relations, step_cap)
 }
 
-fn build_rv64im_terminal_step_relation_cached(
-    statement: &Rv64imFinalStatement,
-    proof: &Rv64imFinalBuildProof,
-) -> Result<Arc<Rv64imChunkStepIvcRelation>, SimpleKernelError> {
-    let cache_key = rv64im_ivc_snark_cache_key(statement, proof);
-    let cache = RV64IM_IVC_SNARK_RELATION_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
-    if let Some(relation) = cache
-        .lock()
-        .map_err(|_| SimpleKernelError::Bridge("RV64IM IVC SNARK relation cache poisoned".into()))?
-        .get(&cache_key)
-        .cloned()
-    {
-        return Ok(relation);
-    }
+fn build_rv64im_ivc_recursion_backend_from_state(
+    state: &Rv64imIvcState,
+) -> Result<
+    (
+        Rv64imMainRecursionStepSpartanShape,
+        Rv64imMainRecursionFPrimeBackendRelation,
+    ),
+    SimpleKernelError,
+> {
+    let mut trace = None;
+    build_rv64im_ivc_recursion_backend_from_state_with_trace(state, &mut trace)
+}
 
-    let relation = Arc::new(build_rv64im_terminal_step_relation(statement, proof)?);
-    cache
-        .lock()
-        .map_err(|_| SimpleKernelError::Bridge("RV64IM IVC SNARK relation cache poisoned".into()))?
-        .insert(cache_key, relation.clone());
+fn build_rv64im_ivc_recursion_backend_from_state_with_trace(
+    state: &Rv64imIvcState,
+    trace: &mut Rv64imIvcSnarkTrace<'_>,
+) -> Result<
+    (
+        Rv64imMainRecursionStepSpartanShape,
+        Rv64imMainRecursionFPrimeBackendRelation,
+    ),
+    SimpleKernelError,
+> {
+    let started = trace_start(trace, "ivc_backend.phase=validate_current_surface");
+    state.validate_current_surface_for_compression()?;
+    trace_done(trace, "ivc_backend.phase=validate_current_surface", started);
+
+    let started = trace_start(trace, "ivc_backend.phase=latest_relation_and_advice");
+    let (relation, advice) = state.latest_relation_and_advice()?;
+    trace_done(trace, "ivc_backend.phase=latest_relation_and_advice", started);
+
+    let started = trace_start(trace, "ivc_backend.phase=build_spartan_shape_and_backend");
+    let relations = [relation];
+    let advices = [advice];
+    let (spartan_shape, mut backend_relations) =
+        build_rv64im_main_recursion_f_prime_backend_relations_with_spartan_shape_from_advices(&relations, &advices)?;
+    let backend_relation = backend_relations.pop().ok_or_else(|| {
+        SimpleKernelError::Bridge("RV64IM IVC SNARK requires a latest recursive-step backend relation".into())
+    })?;
+    trace_done(trace, "ivc_backend.phase=build_spartan_shape_and_backend", started);
+    Ok((spartan_shape, backend_relation))
+}
+
+fn ccs_witness_from_packed_z(z: &Mat<F>) -> Result<CcsWitness<F>, SimpleKernelError> {
+    if z.rows() != neo_math::D {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM IVC final CE witness must use D rows".into(),
+        ));
+    }
+    Ok(CcsWitness {
+        w: Vec::new(),
+        Z: z.clone(),
+    })
+}
+
+fn final_ce_context(
+    claim_count: usize,
+) -> Result<(neo_params::NeoParams, &'static neo_ccs::CcsStructure<F>), SimpleKernelError> {
+    let (params, _, structure) = crate::rv64im::kernel::rv64im_root_main_lane_context_for_claim_count(claim_count)?;
+    Ok((params, structure))
+}
+
+fn canonical_final_ce_claim(claim: &CeClaim<Commitment, F, K>) -> CeClaim<Commitment, F, K> {
+    CeClaim {
+        c: claim.c.clone(),
+        X: claim.X.clone(),
+        r: claim.r.clone(),
+        s_col: Vec::new(),
+        y_ring: claim.y_ring.clone(),
+        ct: Vec::new(),
+        aux_openings: Vec::new(),
+        y_zcol: Vec::new(),
+        m_in: claim.m_in,
+        fold_digest: [0; 32],
+        c_step_coords: Vec::new(),
+        u_offset: 0,
+        u_len: 0,
+    }
+}
+
+fn canonical_final_ce_claims(claims: &[CeClaim<Commitment, F, K>]) -> Vec<CeClaim<Commitment, F, K>> {
+    claims.iter().map(canonical_final_ce_claim).collect()
+}
+
+fn ensure_final_ce_claims_are_canonical(claims: &[CeClaim<Commitment, F, K>]) -> Result<(), SimpleKernelError> {
+    for (idx, claim) in claims.iter().enumerate() {
+        if !claim.s_col.is_empty()
+            || !claim.ct.is_empty()
+            || !claim.aux_openings.is_empty()
+            || !claim.y_zcol.is_empty()
+            || claim.fold_digest != [0; 32]
+            || !claim.c_step_coords.is_empty()
+            || claim.u_offset != 0
+            || claim.u_len != 0
+        {
+            return Err(SimpleKernelError::Bridge(format!(
+                "RV64IM IVC final CE claim {idx} carries non-authoritative transport fields"
+            )));
+        }
+        let expected_commitment_words = claim.c.kappa.checked_mul(neo_math::D).ok_or_else(|| {
+            SimpleKernelError::Bridge(format!("RV64IM IVC final CE claim {idx} commitment shape overflows"))
+        })?;
+        if claim.c.d != neo_math::D || claim.c.kappa == 0 || claim.c.data.len() != expected_commitment_words {
+            return Err(SimpleKernelError::Bridge(format!(
+                "RV64IM IVC final CE claim {idx} commitment shape is not canonical SuperNeo D x kappa"
+            )));
+        }
+        if claim.X.rows() != neo_math::D || claim.X.cols() != claim.m_in {
+            return Err(SimpleKernelError::Bridge(format!(
+                "RV64IM IVC final CE claim {idx} must use SuperNeo X shape {} x m_in, got {} x {} for m_in={}",
+                neo_math::D,
+                claim.X.rows(),
+                claim.X.cols(),
+                claim.m_in
+            )));
+        }
+        for (matrix_idx, row) in claim.y_ring.iter().enumerate() {
+            if row.len() != neo_math::D {
+                return Err(SimpleKernelError::Bridge(format!(
+                    "RV64IM IVC final CE claim {idx} y_ring[{matrix_idx}] must carry exactly D SuperNeo coefficients"
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn trace_terminal_f_prime_committed_step_shape(
+    trace: &mut Rv64imIvcSnarkTrace<'_>,
+    terminal_setup: &Rv64imTerminalFPrimeCommittedStepSetup,
+) -> Result<(), SimpleKernelError> {
+    if trace.is_none() {
+        return Ok(());
+    }
+    let shape = measure_terminal_f_prime_committed_step_shape_from_setup(terminal_setup)?;
+    let r1cs_ccs = terminal_setup.r1cs_ccs();
+    trace_emit_owned(
+        trace,
+        format!(
+            "setup.shape.terminal_committed_step_public_inputs={}",
+            shape.terminal_committed_step_public_inputs
+        ),
+    );
+    trace_emit_owned(
+        trace,
+        format!(
+            "setup.shape.terminal_committed_step_constraints={}",
+            shape.terminal_committed_step_constraints
+        ),
+    );
+    trace_emit_owned(
+        trace,
+        format!(
+            "setup.shape.terminal_f_prime_r1cs_public_inputs={}",
+            r1cs_ccs.num_spartan_public()
+        ),
+    );
+    trace_emit_owned(
+        trace,
+        format!(
+            "setup.shape.terminal_f_prime_r1cs_challenges={}",
+            r1cs_ccs.num_challenges()
+        ),
+    );
+    trace_emit_owned(
+        trace,
+        format!(
+            "setup.shape.terminal_f_prime_r1cs_variables={}",
+            r1cs_ccs.num_variables()
+        ),
+    );
+    trace_emit_owned(
+        trace,
+        format!(
+            "setup.shape.terminal_f_prime_r1cs_constraints={}",
+            r1cs_ccs.num_constraints()
+        ),
+    );
+    trace_emit_owned(
+        trace,
+        format!("setup.shape.terminal_f_prime_r1cs_nnz={}", r1cs_ccs.total_nnz()),
+    );
+    trace_emit_owned(
+        trace,
+        format!("setup.shape.terminal_f_prime_ccs_rows={}", r1cs_ccs.structure().n),
+    );
+    trace_emit_owned(
+        trace,
+        format!("setup.shape.terminal_f_prime_ccs_cols={}", r1cs_ccs.structure().m),
+    );
+    trace_emit_owned(
+        trace,
+        format!(
+            "setup.shape.terminal_f_prime_ccs_matrices={}",
+            terminal_setup.r1cs_ccs().structure().t()
+        ),
+    );
+    Ok(())
+}
+
+fn measure_terminal_f_prime_committed_step_shape_from_setup(
+    terminal_setup: &Rv64imTerminalFPrimeCommittedStepSetup,
+) -> Result<Rv64imTerminalFPrimeCommittedStepShape, SimpleKernelError> {
+    let circuit = terminal_setup.committed_step_circuit();
+    let committed_step_shape = ShapeCS::<Rv64imDeciderEngine>::r1cs_shape(&circuit)
+        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM terminal F' committed-step shape failed: {err}")))?;
+    let public_values = circuit.public_values().map_err(|err| {
+        SimpleKernelError::Bridge(format!("RV64IM terminal F' committed-step public IO failed: {err}"))
+    })?;
+    let r1cs_ccs = terminal_setup.r1cs_ccs();
+    let (private_bit_inputs, private_u32_inputs, private_u64_inputs) =
+        terminal_setup.terminal_r2_private_encoding_counts();
+    let private_padding_inputs = terminal_setup.terminal_r2_private_padding_inputs();
+    let private_low_norm_bit_inputs = private_bit_inputs + (private_u32_inputs * 32) + (private_u64_inputs * 64);
+    Ok(Rv64imTerminalFPrimeCommittedStepShape {
+        terminal_r2_ccs_rows: r1cs_ccs.structure().n,
+        terminal_r2_ccs_cols: r1cs_ccs.structure().m,
+        terminal_r2_ccs_nnz: r1cs_ccs.total_nnz(),
+        terminal_r2_public_inputs: r1cs_ccs.num_public(),
+        terminal_r2_witness_inputs: terminal_setup.r2_witness_len(),
+        terminal_r2_private_padding_inputs: private_padding_inputs,
+        terminal_r2_private_bit_inputs: private_bit_inputs,
+        terminal_r2_private_u32_inputs: private_u32_inputs,
+        terminal_r2_private_u64_inputs: private_u64_inputs,
+        terminal_r2_private_low_norm_bit_inputs: private_low_norm_bit_inputs,
+        terminal_r2_committed_low_norm_width: terminal_setup.terminal_r2_committed_low_norm_width()?,
+        terminal_r2_superneo_packed_cols: terminal_setup.terminal_r2_superneo_packed_cols(),
+        terminal_r2_commitment_words: terminal_setup.terminal_r2_commitment_words(),
+        terminal_committed_step_public_inputs: public_values.len(),
+        terminal_committed_step_constraints: committed_step_shape.num_constraints(),
+        terminal_f_prime_r1cs_public_inputs: r1cs_ccs.num_spartan_public(),
+        terminal_f_prime_r1cs_challenges: r1cs_ccs.num_challenges(),
+        terminal_f_prime_r1cs_variables: r1cs_ccs.num_variables(),
+        terminal_f_prime_r1cs_constraints: r1cs_ccs.num_constraints(),
+    })
+}
+
+pub(crate) fn debug_measure_rv64im_terminal_f_prime_committed_step_shape(
+    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
+    backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
+) -> Result<Rv64imTerminalFPrimeCommittedStepShape, SimpleKernelError> {
+    let terminal_setup = Rv64imTerminalFPrimeCommittedStepSetup::from_backend_shape(spartan_shape, backend_relation)?;
+    measure_terminal_f_prime_committed_step_shape_from_setup(&terminal_setup)
+}
+
+fn setup_rv64im_terminal_f_prime_committed_step_relation(
+    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
+    backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
+) -> Result<(Rv64imDeciderProverKey, Rv64imDeciderVerifierKey), SimpleKernelError> {
+    let terminal_setup = Rv64imTerminalFPrimeCommittedStepSetup::from_backend_shape(spartan_shape, backend_relation)?;
+    setup_rv64im_terminal_f_prime_committed_step_relation_from_shape(&terminal_setup)
+}
+
+fn setup_rv64im_terminal_f_prime_committed_step_relation_from_shape(
+    terminal_setup: &Rv64imTerminalFPrimeCommittedStepSetup,
+) -> Result<(Rv64imDeciderProverKey, Rv64imDeciderVerifierKey), SimpleKernelError> {
+    let circuit = terminal_setup.committed_step_circuit();
+    Rv64imDeciderSnark::setup(circuit)
+        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM terminal F' committed-step setup failed: {err}")))
+}
+
+fn prove_rv64im_terminal_f_prime_committed_step_relation_from_relation(
+    pk: &Rv64imDeciderProverKey,
+    terminal_relation: &Rv64imTerminalFPrimeCommittedRelation,
+) -> Result<Rv64imTerminalFPrimeCommittedStepProof, SimpleKernelError> {
+    let circuit = terminal_relation.committed_step_circuit()?;
+    let prep = Rv64imDeciderSnark::prep_prove(pk, circuit.clone(), false)
+        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM terminal F' committed-step prepare failed: {err}")))?;
+    let proof = Rv64imDeciderSnark::prove(pk, circuit, &prep, false)
+        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM terminal F' committed-step prove failed: {err}")))?;
+    let snark_data = bincode::serialize(&proof).map_err(|err| {
+        SimpleKernelError::Bridge(format!("RV64IM terminal F' committed-step encoding failed: {err}"))
+    })?;
+    Ok(Rv64imTerminalFPrimeCommittedStepProof { snark_data })
+}
+
+fn verify_rv64im_terminal_f_prime_committed_step_relation(
+    vk: &Rv64imDeciderVerifierKey,
+    proof: &Rv64imTerminalFPrimeCommittedStepProof,
+) -> Result<Vec<SpartanF>, SimpleKernelError> {
+    let proof: Rv64imDeciderSnark = bincode::deserialize(&proof.snark_data).map_err(|err| {
+        SimpleKernelError::Bridge(format!("RV64IM terminal F' committed-step decoding failed: {err}"))
+    })?;
+    proof
+        .verify(vk)
+        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM terminal F' committed-step verify failed: {err}")))
+}
+
+fn setup_rv64im_final_ce_keys(
+    claims: &[CeClaim<Commitment, F, K>],
+    witnesses: &[Mat<F>],
+) -> Result<(Rv64imDeciderProverKey, Rv64imDeciderVerifierKey), SimpleKernelError> {
+    if claims.len() != witnesses.len() {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM IVC final CE setup requires one witness per final carried claim".into(),
+        ));
+    }
+    let (params, structure) = final_ce_context(claims.len())?;
+    let claims = canonical_final_ce_claims(claims);
+    let witnesses = witnesses
+        .iter()
+        .map(ccs_witness_from_packed_z)
+        .collect::<Result<Vec<_>, _>>()?;
+    setup_rv64im_ce_bundle_relation(&params, structure, &claims, &witnesses, F::from_u64(7))
+        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM IVC final CE bundle setup failed: {err}")))
+}
+
+fn verify_rv64im_final_ce_bundle(
+    key: &Rv64imDeciderVerifierKey,
+    claims: &[CeClaim<Commitment, F, K>],
+    proof: &Rv64imCeBundleProof,
+) -> Result<(), SimpleKernelError> {
+    ensure_final_ce_claims_are_canonical(claims)?;
+    verify_rv64im_ce_bundle_relation(key, claims, proof)
+        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM IVC final CE bundle verify failed: {err}")))
+}
+
+fn ensure_final_claims_bind_public_image(
+    public_image: &Rv64imIvcPublicImage,
+    claims: &[CeClaim<Commitment, F, K>],
+) -> Result<(), SimpleKernelError> {
+    let digest = rv64im_recursive_accumulator_instance_digest_from_parts(claims, public_image.z_i);
+    if digest != public_image.folded_accumulator_digest {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM IVC final CE claims do not bind to the folded accumulator digest in the public image".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn ensure_terminal_committed_step_public_values_bind_public_image(
+    public_image: &Rv64imIvcPublicImage,
+    public_values: &[SpartanF],
+) -> Result<(), SimpleKernelError> {
+    let mut expected_terminal_values = rv64im_terminal_f_prime_r2_public_values_from_public_image(public_image);
+    expected_terminal_values.extend(terminal_f_prime_committed_step_boundary_public_values(
+        &public_image.construction2_u_i,
+    ));
+    if public_values.len() != expected_terminal_values.len() {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM terminal F' public vector length does not match the compressed public image".into(),
+        ));
+    }
+    if public_values != expected_terminal_values.as_slice() {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM terminal F' committed-step public IO does not match the compressed public image".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn ensure_recursion_backend_matches_public_image(
+    backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
+    public_image: &Rv64imIvcPublicImage,
+) -> Result<(), SimpleKernelError> {
+    let actual_target = build_rv64im_main_recursion_step_spartan_published_target(backend_relation)
+        .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    if actual_target.terminal_f_prime_r2_public_values()
+        != rv64im_terminal_f_prime_r2_public_values_from_public_image(public_image)
+    {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM IVC SNARK public image does not match the terminal recursive-step public IO".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn public_image_with_terminal_r2_boundary(
+    public_image: Rv64imIvcPublicImage,
+    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
+    backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
+) -> Result<Rv64imIvcPublicImage, SimpleKernelError> {
+    let terminal_relation = terminal_committed_step_inputs_from_backend(spartan_shape, backend_relation)?;
+    public_image_with_terminal_r2_boundary_from_relation(public_image, backend_relation, &terminal_relation)
+}
+
+fn public_image_with_terminal_r2_boundary_from_relation(
+    mut public_image: Rv64imIvcPublicImage,
+    backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
+    terminal_relation: &Rv64imTerminalFPrimeCommittedRelation,
+) -> Result<Rv64imIvcPublicImage, SimpleKernelError> {
+    let terminal_target = build_rv64im_main_recursion_step_spartan_published_target(backend_relation)
+        .map_err(|err| SimpleKernelError::Bridge(err.to_string()))?;
+    public_image.construction2_u_i = terminal_relation.public_boundary().clone();
+    public_image.terminal_verified_step_statement_digest = terminal_target.terminal_verified_step_statement_digest;
+    Ok(public_image)
+}
+
+fn terminal_committed_step_inputs_from_backend(
+    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
+    backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
+) -> Result<Rv64imTerminalFPrimeCommittedRelation, SimpleKernelError> {
+    let relation = Rv64imTerminalFPrimeCommittedRelation::from_backend(spartan_shape, backend_relation)?;
+    relation.validate_shape()?;
+    relation.require_superneo_assignment_commitment()?;
     Ok(relation)
 }
 
-fn setup_rv64im_ivc_snark_from_terminal_relation_cached(
-    terminal_relation: &Rv64imChunkStepIvcRelation,
-) -> Result<Rv64imIvcSnarkKeyPair, SimpleKernelError> {
-    setup_rv64im_chunk_step_ivc_spartan_cached(&terminal_relation.statement, &terminal_relation.witness)
+pub(crate) fn derive_rv64im_terminal_f_prime_committed_fresh_instance(
+    relation: &crate::rv64im::chunk_step_ivc::Rv64imChunkStepIvcRelation,
+    advice: &crate::rv64im::f_prime::Rv64imMainRecursionFPrimeAdvice,
+) -> Result<Rv64imMainRecursionConstruction2FreshInstance, SimpleKernelError> {
+    let relations = [relation.clone()];
+    let advices = [advice.clone()];
+    let (spartan_shape, mut backend_relations) =
+        build_rv64im_main_recursion_f_prime_backend_relations_with_spartan_shape_from_advices(&relations, &advices)?;
+    let backend_relation = backend_relations.pop().ok_or_else(|| {
+        SimpleKernelError::Bridge("RV64IM terminal F' committed fresh-instance derivation requires one backend".into())
+    })?;
+    let terminal_relation = terminal_committed_step_inputs_from_backend(&spartan_shape, &backend_relation)?;
+    terminal_relation.public_boundary().to_fresh_instance()
 }
 
-fn prove_rv64im_ivc_snark_on_terminal_relation(
+/// Verifies the compressed RV64IM final Construction-2 boundary.
+///
+/// Coverage:
+/// - HyperNova `V` steps 3-4: public-image `x_i`, `pc_i`, and terminal metadata.
+/// - HyperNova `V` step 5 / `R1`: final carried CE claims satisfy SuperNeo CE.
+/// - HyperNova `V` step 5 / `R2`: terminal `F'` rows, `u_i.C = Commit(Z)`,
+///   and the SuperNeo low-norm bound for the same packed `Z`.
+fn verify_rv64im_final_construction2_boundary(
+    proof: &Rv64imIvcSnarkProof,
+    public_image: &Rv64imIvcPublicImage,
+    vk: &Rv64imIvcSnarkVerifierKey,
+) -> Result<(), SimpleKernelError> {
+    public_image.validate_final_construction2_public_boundary()?;
+    ensure_final_ce_claims_are_canonical(&proof.final_main_claims)?;
+    ensure_final_claims_bind_public_image(public_image, &proof.final_main_claims)?;
+    let terminal_public_values = verify_rv64im_terminal_f_prime_committed_step_relation(
+        &vk.terminal_f_prime,
+        &proof.terminal_f_prime_committed_step_proof,
+    )?;
+    ensure_terminal_committed_step_public_values_bind_public_image(public_image, &terminal_public_values)?;
+    verify_rv64im_final_ce_bundle(&vk.final_ce, &proof.final_main_claims, &proof.final_ce_proof)
+}
+
+fn setup_rv64im_ivc_snark_from_recursion_backend_cached(
+    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
+    backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
+) -> Result<Rv64imIvcSnarkKeyPair, SimpleKernelError> {
+    let mut trace = None;
+    setup_rv64im_ivc_snark_from_recursion_backend_cached_with_trace(spartan_shape, backend_relation, &mut trace)
+}
+
+fn setup_rv64im_ivc_snark_from_recursion_backend_cached_with_trace(
+    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
+    backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
+    trace: &mut Rv64imIvcSnarkTrace<'_>,
+) -> Result<Rv64imIvcSnarkKeyPair, SimpleKernelError> {
+    let started = trace_start(trace, "setup.phase=terminal_committed_step_shape_inputs");
+    let terminal_setup = Rv64imTerminalFPrimeCommittedStepSetup::from_backend_shape(spartan_shape, backend_relation)?;
+    trace_done(trace, "setup.phase=terminal_committed_step_shape_inputs", started);
+    setup_rv64im_ivc_snark_from_terminal_setup_cached_with_trace(
+        spartan_shape,
+        backend_relation,
+        &terminal_setup,
+        trace,
+    )
+}
+
+fn setup_rv64im_ivc_snark_from_terminal_relation_cached_with_trace(
+    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
+    backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
+    terminal_relation: &Rv64imTerminalFPrimeCommittedRelation,
+    trace: &mut Rv64imIvcSnarkTrace<'_>,
+) -> Result<Rv64imIvcSnarkKeyPair, SimpleKernelError> {
+    let started = trace_start(trace, "setup.phase=terminal_committed_step_reuse");
+    let step_cap = backend_relation
+        .f_prime_advice
+        .verifier_key_fs()
+        .step_cap()?;
+    let terminal_setup = terminal_relation.committed_step_setup(step_cap)?;
+    trace_done(trace, "setup.phase=terminal_committed_step_reuse", started);
+    setup_rv64im_ivc_snark_from_terminal_setup_cached_with_trace(
+        spartan_shape,
+        backend_relation,
+        &terminal_setup,
+        trace,
+    )
+}
+
+fn setup_rv64im_ivc_snark_from_terminal_setup_cached_with_trace(
+    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
+    backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
+    terminal_setup: &Rv64imTerminalFPrimeCommittedStepSetup,
+    trace: &mut Rv64imIvcSnarkTrace<'_>,
+) -> Result<Rv64imIvcSnarkKeyPair, SimpleKernelError> {
+    let step_cap = terminal_setup.step_cap();
+    let terminal_r2 = terminal_setup.r1cs_ccs();
+    let final_carry = &backend_relation.f_prime_advice.fresh_state_out().carry.main;
+    trace_emit_owned(
+        trace,
+        format!("setup.shape.final_ce_claim_count={}", final_carry.claims.len()),
+    );
+    trace_emit_owned(
+        trace,
+        format!("setup.shape.final_ce_witness_count={}", final_carry.witnesses.len()),
+    );
+    trace_emit_owned(trace, format!("setup.shape.construction2_step_cap={step_cap}"));
+    trace_emit_owned(
+        trace,
+        format!("setup.shape.terminal_r2_ccs_rows={}", terminal_r2.structure().n),
+    );
+    trace_emit_owned(
+        trace,
+        format!("setup.shape.terminal_r2_ccs_cols={}", terminal_r2.structure().m),
+    );
+    trace_emit_owned(
+        trace,
+        format!("setup.shape.terminal_r2_ccs_nnz={}", terminal_r2.total_nnz()),
+    );
+    trace_emit_owned(
+        trace,
+        format!("setup.shape.terminal_r2_public_inputs={}", terminal_r2.num_public()),
+    );
+    trace_emit_owned(
+        trace,
+        format!(
+            "setup.shape.terminal_r2_witness_inputs={}",
+            terminal_setup.r2_witness_len()
+        ),
+    );
+    let (private_bit_inputs, private_u32_inputs, private_u64_inputs) =
+        terminal_setup.terminal_r2_private_encoding_counts();
+    let private_padding_inputs = terminal_setup.terminal_r2_private_padding_inputs();
+    let private_low_norm_bit_inputs = private_bit_inputs + (private_u32_inputs * 32) + (private_u64_inputs * 64);
+    trace_emit_owned(
+        trace,
+        format!("setup.shape.terminal_r2_private_padding_inputs={private_padding_inputs}"),
+    );
+    trace_emit_owned(
+        trace,
+        format!("setup.shape.terminal_r2_private_bit_inputs={private_bit_inputs}"),
+    );
+    trace_emit_owned(
+        trace,
+        format!("setup.shape.terminal_r2_private_u32_inputs={private_u32_inputs}"),
+    );
+    trace_emit_owned(
+        trace,
+        format!("setup.shape.terminal_r2_private_u64_inputs={private_u64_inputs}"),
+    );
+    trace_emit_owned(
+        trace,
+        format!("setup.shape.terminal_r2_private_low_norm_bit_inputs={private_low_norm_bit_inputs}"),
+    );
+    trace_emit_owned(
+        trace,
+        format!(
+            "setup.shape.terminal_r2_committed_low_norm_width={}",
+            terminal_setup.terminal_r2_committed_low_norm_width()?
+        ),
+    );
+    trace_emit(trace, "setup.shape.terminal_r2_superneo_packable=true");
+    trace_emit_owned(
+        trace,
+        format!(
+            "setup.shape.terminal_r2_superneo_packed_cols={}",
+            terminal_setup.terminal_r2_superneo_packed_cols()
+        ),
+    );
+    trace_emit_owned(
+        trace,
+        format!(
+            "setup.shape.terminal_committed_step_commitment_words={}",
+            terminal_setup.terminal_r2_commitment_words()
+        ),
+    );
+    let started = trace_start(trace, "setup.phase=terminal_f_prime_shape");
+    trace_terminal_f_prime_committed_step_shape(trace, &terminal_setup)?;
+    trace_done(trace, "setup.phase=terminal_f_prime_shape", started);
+
+    let started = trace_start(trace, "setup.phase=cache_key");
+    let cache_key = rv64im_ivc_snark_setup_cache_key(spartan_shape, &final_carry.claims, terminal_setup)?;
+    trace_done(trace, "setup.phase=cache_key", started);
+
+    let cache = RV64IM_IVC_SNARK_SETUP_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Some(keys) = cache
+        .lock()
+        .map_err(|_| SimpleKernelError::Bridge("RV64IM IVC recursion SNARK setup cache poisoned".into()))?
+        .get(&cache_key)
+        .cloned()
+    {
+        trace_emit(trace, "setup.cache=hit");
+        return Ok(keys);
+    }
+
+    trace_emit(trace, "setup.cache=miss");
+    let started = trace_start(trace, "setup.phase=final_ce_setup");
+    let (final_ce_pk, final_ce_vk) = setup_rv64im_final_ce_keys(&final_carry.claims, &final_carry.witnesses)?;
+    trace_done(trace, "setup.phase=final_ce_setup", started);
+
+    let started = trace_start(trace, "setup.phase=terminal_committed_step_setup");
+    let (terminal_pk, terminal_vk) = setup_rv64im_terminal_f_prime_committed_step_relation_from_shape(&terminal_setup)?;
+    trace_done(trace, "setup.phase=terminal_committed_step_setup", started);
+
+    let keys = Arc::new((
+        Rv64imIvcSnarkProverKey {
+            terminal_f_prime: terminal_pk,
+            final_ce: final_ce_pk,
+        },
+        Rv64imIvcSnarkVerifierKey {
+            terminal_f_prime: terminal_vk,
+            final_ce: final_ce_vk,
+        },
+    ));
+    cache
+        .lock()
+        .map_err(|_| SimpleKernelError::Bridge("RV64IM IVC recursion SNARK setup cache poisoned".into()))?
+        .insert(cache_key, keys.clone());
+    Ok(keys)
+}
+
+fn prove_rv64im_ivc_snark_on_recursion_backend(
     pk: &Rv64imIvcSnarkProverKey,
-    terminal_relation: &Rv64imChunkStepIvcRelation,
+    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
+    backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
 ) -> Result<Rv64imIvcSnarkProof, SimpleKernelError> {
-    let snark_data = prove_rv64im_chunk_step_ivc_spartan(pk, &terminal_relation.statement, &terminal_relation.witness)?;
-    Ok(Rv64imIvcSnarkProof { snark_data })
+    let mut trace = None;
+    prove_rv64im_ivc_snark_on_recursion_backend_with_trace(pk, spartan_shape, backend_relation, &mut trace)
+}
+
+fn prove_rv64im_ivc_snark_on_recursion_backend_with_trace(
+    pk: &Rv64imIvcSnarkProverKey,
+    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
+    backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
+    trace: &mut Rv64imIvcSnarkTrace<'_>,
+) -> Result<Rv64imIvcSnarkProof, SimpleKernelError> {
+    let terminal_relation = terminal_committed_step_inputs_from_backend(spartan_shape, backend_relation)?;
+    prove_rv64im_ivc_snark_on_recursion_backend_with_terminal_relation(pk, &terminal_relation, backend_relation, trace)
+}
+
+fn prove_rv64im_ivc_snark_on_recursion_backend_with_terminal_relation(
+    pk: &Rv64imIvcSnarkProverKey,
+    terminal_relation: &Rv64imTerminalFPrimeCommittedRelation,
+    backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
+    trace: &mut Rv64imIvcSnarkTrace<'_>,
+) -> Result<Rv64imIvcSnarkProof, SimpleKernelError> {
+    let started = trace_start(trace, "compress.phase=terminal_committed_step_prove");
+    let terminal_f_prime_committed_step_proof =
+        prove_rv64im_terminal_f_prime_committed_step_relation_from_relation(&pk.terminal_f_prime, terminal_relation)?;
+    trace_done(trace, "compress.phase=terminal_committed_step_prove", started);
+
+    let final_carry = &backend_relation.f_prime_advice.fresh_state_out().carry.main;
+    let final_main_claims = canonical_final_ce_claims(&final_carry.claims);
+    let final_ce_witnesses = final_carry
+        .witnesses
+        .iter()
+        .map(ccs_witness_from_packed_z)
+        .collect::<Result<Vec<_>, _>>()?;
+    let (params, structure) = final_ce_context(final_main_claims.len())?;
+    let started = trace_start(trace, "compress.phase=final_ce_prove");
+    let final_ce_proof = prove_rv64im_ce_bundle_relation(
+        &pk.final_ce,
+        &params,
+        structure,
+        &final_main_claims,
+        &final_ce_witnesses,
+        F::from_u64(7),
+    )
+    .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM IVC final CE bundle prove failed: {err}")))?;
+    trace_done(trace, "compress.phase=final_ce_prove", started);
+
+    Ok(Rv64imIvcSnarkProof {
+        terminal_f_prime_committed_step_proof,
+        final_main_claims,
+        final_ce_proof,
+    })
 }
 
 impl Rv64imIvcSnark {
@@ -154,49 +973,45 @@ impl Rv64imIvcSnark {
                 "RV64IM IVC SNARK public image does not match the caller-supplied public image".into(),
             ));
         }
-        let terminal_statement = self
-            .public_image
-            .terminal_statement
-            .as_ref()
-            .ok_or_else(|| {
-                SimpleKernelError::Bridge(
-                    "RV64IM IVC SNARK verify requires a terminal statement in the public image".into(),
-                )
-            })?;
-        verify_rv64im_chunk_step_ivc_spartan(vk, terminal_statement, &self.proof.snark_data)
+        verify_rv64im_final_construction2_boundary(&self.proof, &self.public_image, vk)
     }
 }
 
-pub fn build_rv64im_terminal_decider_setup_shape_from_components(
+pub(crate) fn build_rv64im_ivc_recursion_snark_setup_shape_from_components(
     statement: &Rv64imFinalStatement,
     proof_digest: [u8; 32],
     kernel_export: &crate::rv64im::kernel::Rv64imKernelExportProof,
     chunk_summaries: &[crate::finalize::FixedShapeChunkSummary],
     steps: &[crate::rv64im::final_relation::Rv64imChunkTransitionWitness],
-) -> Result<Rv64imTerminalDeciderSetupShape, SimpleKernelError> {
+) -> Result<Rv64imIvcRecursionSnarkSetupShape, SimpleKernelError> {
     let proof = Rv64imFinalBuildProof {
         proof_digest,
         kernel_export: kernel_export.clone(),
         chunk_summaries: chunk_summaries.to_vec(),
         steps: steps.to_vec(),
     };
-    let terminal_relation = build_rv64im_terminal_step_relation_cached(statement, &proof)?;
-    let terminal_step_shape =
-        build_rv64im_chunk_step_ivc_shape(&terminal_relation.statement, &terminal_relation.witness)
-            .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM terminal decider shape build failed: {err}")))?;
-    Ok(Rv64imTerminalDeciderSetupShape { terminal_step_shape })
+    let state = build_rv64im_ivc_prover_state_from_final(statement, &proof)?;
+    let (main_recursion_step_shape, backend_relation) = build_rv64im_ivc_recursion_backend_from_state(&state)?;
+    let _terminal_setup =
+        Rv64imTerminalFPrimeCommittedStepSetup::from_backend_shape(&main_recursion_step_shape, &backend_relation)?;
+    Ok(Rv64imIvcRecursionSnarkSetupShape {
+        main_recursion_step_shape,
+    })
 }
 
-pub fn debug_check_rv64im_terminal_decider_circuit(
+pub(crate) fn debug_check_rv64im_ivc_recursion_snark_circuit(
     statement: &Rv64imFinalStatement,
     proof: &Rv64imFinalBuildProof,
 ) -> Result<(), SimpleKernelError> {
-    let terminal_relation = build_rv64im_terminal_step_relation_cached(statement, proof)?;
-    debug_check_rv64im_chunk_step_ivc_spartan_circuit(&terminal_relation.statement, &terminal_relation.witness)?;
-    let keys = setup_rv64im_ivc_snark_from_terminal_relation_cached(&terminal_relation)?;
-    let (pk, vk) = &*keys;
-    let proof = prove_rv64im_chunk_step_ivc_spartan(pk, &terminal_relation.statement, &terminal_relation.witness)?;
-    verify_rv64im_chunk_step_ivc_spartan(vk, &terminal_relation.statement, &proof)?;
+    let state = build_rv64im_ivc_prover_state_from_final(statement, proof)?;
+    let (spartan_shape, backend_relation) = build_rv64im_ivc_recursion_backend_from_state(&state)?;
+    debug_check_rv64im_main_recursion_step_spartan_circuit(&spartan_shape, &backend_relation)
+        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM IVC recursion SNARK circuit failed: {err}")))?;
+    debug_check_rv64im_terminal_f_prime_r1cs_ccs_relation(&spartan_shape, &backend_relation)?;
+    let keys = setup_rv64im_ivc_snark_from_recursion_backend_cached(&spartan_shape, &backend_relation)?;
+    let snark = prove_rv64im_ivc_snark_on_recursion_backend(&keys.as_ref().0, &spartan_shape, &backend_relation)?;
+    let public_image = public_image_with_terminal_r2_boundary(state.public_image(), &spartan_shape, &backend_relation)?;
+    verify_rv64im_final_construction2_boundary(&snark, &public_image, &keys.as_ref().1)?;
     Ok(())
 }
 
@@ -204,88 +1019,147 @@ pub fn setup_rv64im_ivc_snark_from_final(
     statement: &Rv64imFinalStatement,
     proof: &Rv64imFinalBuildProof,
 ) -> Result<(Rv64imIvcSnarkProverKey, Rv64imIvcSnarkVerifierKey), SimpleKernelError> {
-    let terminal_relation = build_rv64im_terminal_step_relation(statement, proof)?;
-    setup_rv64im_chunk_step_ivc_spartan(&terminal_relation.statement, &terminal_relation.witness)
+    let state = build_rv64im_ivc_prover_state_from_final(statement, proof)?;
+    let (spartan_shape, backend_relation) = build_rv64im_ivc_recursion_backend_from_state(&state)?;
+    let final_carry = &backend_relation.f_prime_advice.fresh_state_out().carry.main;
+    let (final_ce_pk, final_ce_vk) = setup_rv64im_final_ce_keys(&final_carry.claims, &final_carry.witnesses)?;
+    let (terminal_pk, terminal_vk) =
+        setup_rv64im_terminal_f_prime_committed_step_relation(&spartan_shape, &backend_relation)?;
+    Ok((
+        Rv64imIvcSnarkProverKey {
+            terminal_f_prime: terminal_pk,
+            final_ce: final_ce_pk,
+        },
+        Rv64imIvcSnarkVerifierKey {
+            terminal_f_prime: terminal_vk,
+            final_ce: final_ce_vk,
+        },
+    ))
 }
 
 pub fn setup_rv64im_ivc_snark_from_final_cached(
     statement: &Rv64imFinalStatement,
     proof: &Rv64imFinalBuildProof,
 ) -> Result<Rv64imIvcSnarkKeyPair, SimpleKernelError> {
-    let terminal_relation = build_rv64im_terminal_step_relation_cached(statement, proof)?;
-    setup_rv64im_ivc_snark_from_terminal_relation_cached(&terminal_relation)
+    let state = build_rv64im_ivc_prover_state_from_final(statement, proof)?;
+    let (spartan_shape, backend_relation) = build_rv64im_ivc_recursion_backend_from_state(&state)?;
+    setup_rv64im_ivc_snark_from_recursion_backend_cached(&spartan_shape, &backend_relation)
 }
 
-pub fn prove_rv64im_ivc_snark_from_final(
-    pk: &Rv64imIvcSnarkProverKey,
+pub(crate) fn prove_rv64im_ivc_snark_from_final_cached(
     statement: &Rv64imFinalStatement,
     proof: &Rv64imFinalBuildProof,
-    public_image: Rv64imIvcPublicImage,
 ) -> Result<Rv64imIvcSnark, SimpleKernelError> {
-    let terminal_relation = build_rv64im_terminal_step_relation(statement, proof)?;
-    let proof = prove_rv64im_ivc_snark_on_terminal_relation(pk, &terminal_relation)?;
-    Ok(Rv64imIvcSnark::from_parts(proof, public_image))
-}
-
-pub fn prove_rv64im_ivc_snark_from_final_cached(
-    statement: &Rv64imFinalStatement,
-    proof: &Rv64imFinalBuildProof,
-    public_image: Rv64imIvcPublicImage,
-) -> Result<Rv64imIvcSnark, SimpleKernelError> {
+    let ivc_state = build_rv64im_ivc_prover_state_from_final(statement, proof)?;
+    let (spartan_shape, backend_relation) = build_rv64im_ivc_recursion_backend_from_state(&ivc_state)?;
+    let terminal_relation = terminal_committed_step_inputs_from_backend(&spartan_shape, &backend_relation)?;
+    let expected_public_image = public_image_with_terminal_r2_boundary_from_relation(
+        ivc_state.public_image(),
+        &backend_relation,
+        &terminal_relation,
+    )?;
     let cache_key = rv64im_ivc_snark_cache_key(statement, proof);
     let cache = RV64IM_IVC_SNARK_PROOF_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
     if let Some(proof) = cache
         .lock()
-        .map_err(|_| SimpleKernelError::Bridge("RV64IM IVC SNARK proof cache poisoned".into()))?
+        .map_err(|_| SimpleKernelError::Bridge("RV64IM IVC recursion SNARK proof cache poisoned".into()))?
         .get(&cache_key)
         .cloned()
     {
-        return Ok(Rv64imIvcSnark::from_parts((*proof).clone(), public_image));
+        return Ok(Rv64imIvcSnark::from_parts((*proof).clone(), expected_public_image));
     }
 
-    let terminal_relation = build_rv64im_terminal_step_relation_cached(statement, proof)?;
-    let keys = setup_rv64im_ivc_snark_from_terminal_relation_cached(&terminal_relation)?;
-    let proof = Arc::new(prove_rv64im_ivc_snark_on_terminal_relation(
+    ensure_recursion_backend_matches_public_image(&backend_relation, &expected_public_image)?;
+    let mut trace = None;
+    let keys = setup_rv64im_ivc_snark_from_terminal_relation_cached_with_trace(
+        &spartan_shape,
+        &backend_relation,
+        &terminal_relation,
+        &mut trace,
+    )?;
+    let proof = Arc::new(prove_rv64im_ivc_snark_on_recursion_backend_with_terminal_relation(
         &keys.as_ref().0,
         &terminal_relation,
+        &backend_relation,
+        &mut trace,
     )?);
     cache
         .lock()
-        .map_err(|_| SimpleKernelError::Bridge("RV64IM IVC SNARK proof cache poisoned".into()))?
+        .map_err(|_| SimpleKernelError::Bridge("RV64IM IVC recursion SNARK proof cache poisoned".into()))?
         .insert(cache_key, proof.clone());
-    Ok(Rv64imIvcSnark::from_parts((*proof).clone(), public_image))
-}
-
-pub fn verify_rv64im_ivc_snark_against_final(
-    vk: &Rv64imIvcSnarkVerifierKey,
-    statement: &Rv64imFinalStatement,
-    proof: &Rv64imFinalBuildProof,
-    snark: &Rv64imIvcSnark,
-) -> Result<(), SimpleKernelError> {
-    let terminal_relation = build_rv64im_terminal_step_relation(statement, proof)?;
-    verify_rv64im_chunk_step_ivc_spartan(vk, &terminal_relation.statement, &snark.proof.snark_data)
+    Ok(Rv64imIvcSnark::from_parts((*proof).clone(), expected_public_image))
 }
 
 impl Rv64imIvcState {
     pub fn compress(&self) -> Result<Rv64imIvcSnark, SimpleKernelError> {
-        self.verify()?;
-        let terminal_relation = self.build_terminal_relation()?;
-        let keys = setup_rv64im_ivc_snark_from_terminal_relation_cached(&terminal_relation)?;
-        let proof = prove_rv64im_chunk_step_ivc_spartan(
+        let mut trace = None;
+        self.compress_with_optional_trace(&mut trace)
+    }
+
+    pub fn compress_with_trace(&self, emit: &mut dyn FnMut(&str)) -> Result<Rv64imIvcSnark, SimpleKernelError> {
+        let mut trace = Some(emit);
+        self.compress_with_optional_trace(&mut trace)
+    }
+
+    fn compress_with_optional_trace(
+        &self,
+        trace: &mut Rv64imIvcSnarkTrace<'_>,
+    ) -> Result<Rv64imIvcSnark, SimpleKernelError> {
+        let started = trace_start(trace, "compress.phase=public_image");
+        let mut public_image = self.public_image();
+        trace_done(trace, "compress.phase=public_image", started);
+
+        let (spartan_shape, backend_relation) = build_rv64im_ivc_recursion_backend_from_state_with_trace(self, trace)?;
+
+        let started = trace_start(trace, "compress.phase=terminal_r2_public_boundary");
+        let terminal_relation = terminal_committed_step_inputs_from_backend(&spartan_shape, &backend_relation)?;
+        public_image =
+            public_image_with_terminal_r2_boundary_from_relation(public_image, &backend_relation, &terminal_relation)?;
+        trace_done(trace, "compress.phase=terminal_r2_public_boundary", started);
+
+        let started = trace_start(trace, "compress.phase=match_public_image");
+        ensure_recursion_backend_matches_public_image(&backend_relation, &public_image)?;
+        trace_done(trace, "compress.phase=match_public_image", started);
+
+        let started = trace_start(trace, "compress.phase=setup_cached");
+        let keys = setup_rv64im_ivc_snark_from_terminal_relation_cached_with_trace(
+            &spartan_shape,
+            &backend_relation,
+            &terminal_relation,
+            trace,
+        )?;
+        trace_done(trace, "compress.phase=setup_cached", started);
+
+        let started = trace_start(trace, "compress.phase=prove");
+        let proof = prove_rv64im_ivc_snark_on_recursion_backend_with_terminal_relation(
             &keys.as_ref().0,
-            &terminal_relation.statement,
-            &terminal_relation.witness,
-        )
-        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM IVC compression prove failed: {err}")))?;
-        Ok(Rv64imIvcSnark {
-            proof: Rv64imIvcSnarkProof { snark_data: proof },
-            public_image: self.public_image(),
-        })
+            &terminal_relation,
+            &backend_relation,
+            trace,
+        )?;
+        trace_done(trace, "compress.phase=prove", started);
+
+        Ok(Rv64imIvcSnark { proof, public_image })
     }
 }
 
 pub fn setup_rv64im_ivc_snark_cached(state: &Rv64imIvcState) -> Result<Rv64imIvcSnarkKeyPair, SimpleKernelError> {
-    state.verify()?;
-    let terminal_relation = state.build_terminal_relation()?;
-    setup_rv64im_ivc_snark_from_terminal_relation_cached(&terminal_relation)
+    let mut trace = None;
+    setup_rv64im_ivc_snark_cached_with_optional_trace(state, &mut trace)
+}
+
+pub fn setup_rv64im_ivc_snark_cached_with_trace(
+    state: &Rv64imIvcState,
+    emit: &mut dyn FnMut(&str),
+) -> Result<Rv64imIvcSnarkKeyPair, SimpleKernelError> {
+    let mut trace = Some(emit);
+    setup_rv64im_ivc_snark_cached_with_optional_trace(state, &mut trace)
+}
+
+fn setup_rv64im_ivc_snark_cached_with_optional_trace(
+    state: &Rv64imIvcState,
+    trace: &mut Rv64imIvcSnarkTrace<'_>,
+) -> Result<Rv64imIvcSnarkKeyPair, SimpleKernelError> {
+    let (spartan_shape, backend_relation) = build_rv64im_ivc_recursion_backend_from_state_with_trace(state, trace)?;
+    setup_rv64im_ivc_snark_from_recursion_backend_cached_with_trace(&spartan_shape, &backend_relation, trace)
 }

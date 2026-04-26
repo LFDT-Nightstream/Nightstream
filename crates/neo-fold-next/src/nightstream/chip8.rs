@@ -1,4 +1,5 @@
-//! Owns the CHIP-8 published Nightstream boundary above the current recursive/final seam.
+//! Owns CHIP-8 Nightstream construction above the current recursive/final seam.
+//! Does not own final CHIP-8 proof acceptance; replay checks here are audit-only.
 
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use serde::{Deserialize, Serialize};
@@ -7,7 +8,8 @@ use crate::chip8::decider::build_chip8_spartan2_decider_target;
 use crate::chip8::final_relation::{final_proof_component_digests, folded_statement_digest};
 use crate::chip8::kernel::{SimpleKernelError, CHIP8_BRIDGE_FOLD_SCHEDULE, CHIP8_BRIDGE_ROWS_PER_CHUNK};
 use crate::chip8::proof::{
-    public_io_digest, statement_digest, verify_recursive, Chip8FinalProof, Chip8Statement, CHIP8_MAIN_CARRY_WIDTH,
+    audit_check_recursive_artifact_replay, public_io_digest, statement_digest, Chip8FinalProof, Chip8Statement,
+    CHIP8_MAIN_CARRY_WIDTH,
 };
 use crate::nightstream::{nightstream_proof_binding_root, NightstreamProofBindingInputs, NightstreamStatement};
 
@@ -128,7 +130,8 @@ pub fn build_chip8_main_decider_proof(
     })
 }
 
-pub fn verify_chip8_main_decider_proof(
+/// Audit helper for the current CHIP-8 Nightstream construction seam.
+pub fn audit_check_chip8_main_decider_proof(
     statement: &Chip8Statement,
     proof: &Chip8FinalProof,
     main_decider_proof: &Chip8MainDeciderProof,
@@ -136,7 +139,7 @@ pub fn verify_chip8_main_decider_proof(
     let expected = build_chip8_main_decider_proof(statement, proof)?;
     if &expected != main_decider_proof {
         return Err(SimpleKernelError::BridgeFailed(
-            "CHIP-8 Nightstream main decider proof does not match the verified decider target".into(),
+            "CHIP-8 Nightstream main decider proof does not match the checked decider target".into(),
         ));
     }
     Ok(())
@@ -146,7 +149,7 @@ pub fn build_chip8_main_residual_proof(
     statement: &Chip8Statement,
     proof: &Chip8FinalProof,
 ) -> Result<Chip8MainResidualProof, SimpleKernelError> {
-    verify_recursive(statement, proof)?;
+    audit_check_recursive_artifact_replay(statement, proof)?;
     let component_digests = final_proof_component_digests(proof);
     Ok(Chip8MainResidualProof {
         statement_digest: statement.digest,
@@ -157,7 +160,8 @@ pub fn build_chip8_main_residual_proof(
     })
 }
 
-pub fn verify_chip8_main_residual_proof(
+/// Audit helper for the current CHIP-8 Nightstream construction seam.
+pub fn audit_check_chip8_main_residual_proof(
     statement: &Chip8Statement,
     proof: &Chip8FinalProof,
     residual: &Chip8MainResidualProof,
@@ -176,7 +180,7 @@ pub fn build_chip8_nightstream_statement(
     proof: &Chip8FinalProof,
     proof_binding_root: [u8; 32],
 ) -> Result<NightstreamStatement, SimpleKernelError> {
-    verify_recursive(statement, proof)?;
+    audit_check_recursive_artifact_replay(statement, proof)?;
     Ok(NightstreamStatement {
         public_io_digest: public_io_digest(&statement.public, &statement.final_state),
         verifier_context_digest: chip8_verifier_context_digest(),
@@ -209,7 +213,8 @@ pub fn build_chip8_nightstream_from_recursive_proof(
     ))
 }
 
-pub fn verify_chip8_nightstream_from_recursive_proof(
+/// Audit helper for the current CHIP-8 Nightstream construction seam.
+pub fn audit_check_chip8_nightstream_from_recursive_proof(
     recursive_statement: &Chip8Statement,
     final_proof: &Chip8FinalProof,
     nightstream_statement: &NightstreamStatement,
@@ -225,17 +230,17 @@ pub fn verify_chip8_nightstream_from_recursive_proof(
             "CHIP-8 statement digest mismatch".into(),
         ));
     }
-    verify_chip8_main_decider_proof(recursive_statement, final_proof, &nightstream_proof.main_decider_proof)?;
-    verify_chip8_main_residual_proof(recursive_statement, final_proof, &nightstream_proof.main_residual_proof)?;
+    audit_check_chip8_main_decider_proof(recursive_statement, final_proof, &nightstream_proof.main_decider_proof)?;
+    audit_check_chip8_main_residual_proof(recursive_statement, final_proof, &nightstream_proof.main_residual_proof)?;
     let expected = build_chip8_nightstream_from_recursive_proof(recursive_statement, final_proof)?;
     if &expected.0 != nightstream_statement {
         return Err(SimpleKernelError::BridgeFailed(
-            "CHIP-8 Nightstream statement does not match the verified recursive seam".into(),
+            "CHIP-8 Nightstream statement does not match the checked recursive seam".into(),
         ));
     }
     if &expected.1 != nightstream_proof {
         return Err(SimpleKernelError::BridgeFailed(
-            "CHIP-8 Nightstream proof does not match the verified recursive seam".into(),
+            "CHIP-8 Nightstream proof does not match the checked recursive seam".into(),
         ));
     }
     Ok(())

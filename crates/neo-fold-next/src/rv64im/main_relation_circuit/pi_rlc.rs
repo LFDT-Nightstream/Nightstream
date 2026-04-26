@@ -273,9 +273,11 @@ pub fn enforce_rlc_public_with_split_rho_views_constant_prefix_zero_commit_suffi
     label: &str,
 ) -> Result<(), SynthesisError> {
     let active_children_len = children.len().saturating_sub(zero_commit_suffix_len);
+    let mixed_constant_prefix = constant_child_prefix > 0 && constant_child_prefix < active_children_len;
     if children.is_empty()
         || children.len() != rhos.len()
-        || rho_mats_active.len() != active_children_len
+        || (mixed_constant_prefix && rho_mats_active.len() != active_children_len)
+        || (!mixed_constant_prefix && !rho_mats_active.is_empty())
         || constant_child_prefix > active_children_len
         || parent.x_rows != D
         || parent.x_cols != parent.m_in
@@ -316,9 +318,11 @@ pub fn enforce_rlc_public_with_split_rho_views_constant_prefix_zero_commit_suffi
         }
         enforce_equal_k_slice(cs, &parent.r, &child.r, &format!("{label}_r_{idx}"))?;
     }
-    for rho in rho_mats_active {
-        if rho.entry_value(0, 0).is_err() {
-            return Err(SynthesisError::Unsatisfiable);
+    if mixed_constant_prefix {
+        for rho in rho_mats_active {
+            if rho.entry_value(0, 0).is_err() {
+                return Err(SynthesisError::Unsatisfiable);
+            }
         }
     }
 
@@ -364,6 +368,17 @@ pub fn enforce_rlc_public_with_split_rho_views_constant_prefix_zero_commit_suffi
             &rhos[..active_children_len],
             &format!("{label}_c"),
         )?;
+    } else if constant_child_prefix == active_children_len {
+        enforce_rho_coeff_left_action_on_dense_constant_f_slices(
+            cs,
+            &parent.c_data,
+            &parent.c_data_values,
+            parent.c_data.len() / D,
+            &active_c_values,
+            true,
+            &rhos[..active_children_len],
+            &format!("{label}_c"),
+        )?;
     } else {
         enforce_rho_left_action_on_dense_f_slices_with_vars(
             cs,
@@ -406,6 +421,16 @@ pub fn enforce_rlc_public_with_split_rho_views_constant_prefix_zero_commit_suffi
                     .map(|child| child.y_ring_values[idx].clone())
                     .collect::<Vec<_>>(),
                 &rhos[..active_children_len],
+                &format!("{label}_y_{idx}"),
+            )?;
+        } else if constant_child_prefix == active_children_len {
+            enforce_y_row_rlc_target_with_rho_coeffs(
+                cs,
+                &parent.y_ring[idx],
+                active_children,
+                &rhos[..active_children_len],
+                idx,
+                d_pad,
                 &format!("{label}_y_{idx}"),
             )?;
         } else {
@@ -775,6 +800,7 @@ fn enforce_rho_left_action_on_canonical_embedded_x_with_vars<CS: ConstraintSyste
     }
     for row in 0..D {
         for col in 0..cols {
+            let parent_idx = dense_index(row, col, cols, false);
             let mut linear_terms = Vec::new();
             let mut products = Vec::new();
             for (child_idx, ((child, native_child), rho)) in children
@@ -787,11 +813,7 @@ fn enforce_rho_left_action_on_canonical_embedded_x_with_vars<CS: ConstraintSyste
                 if compact_child {
                     let active_lane = col % D;
                     let coeff = rho.entry(row, active_lane)?;
-                    let child_value = if child_idx < constant_child_prefix {
-                        native_child.get(col).copied().unwrap_or(F::ZERO)
-                    } else {
-                        native_child[col]
-                    };
+                    let child_value = native_child[col];
                     if child_idx < constant_child_prefix {
                         linear_terms.push((SpartanF::from_canonical_u64(child_value.as_canonical_u64()), coeff));
                         continue;
@@ -802,31 +824,26 @@ fn enforce_rho_left_action_on_canonical_embedded_x_with_vars<CS: ConstraintSyste
                         child_var,
                     )?;
                     products.push(product);
-                    continue;
-                }
-                for k in 0..D {
-                    let coeff = rho.entry(row, k)?;
-                    let child_idx_flat = dense_index(k, col, cols, false);
-                    let child_value = if child_idx < constant_child_prefix {
-                        native_child.get(child_idx_flat).copied().unwrap_or(F::ZERO)
-                    } else {
-                        native_child[child_idx_flat]
-                    };
-                    if child_idx < constant_child_prefix {
-                        linear_terms.push((SpartanF::from_canonical_u64(child_value.as_canonical_u64()), coeff));
-                        continue;
+                } else {
+                    for in_lane in 0..D {
+                        let coeff = rho.entry(row, in_lane)?;
+                        let child_idx_flat = dense_index(in_lane, col, cols, false);
+                        let child_value = native_child[child_idx_flat];
+                        if child_idx < constant_child_prefix {
+                            linear_terms.push((SpartanF::from_canonical_u64(child_value.as_canonical_u64()), coeff));
+                            continue;
+                        }
+                        let child_var = child
+                            .get(child_idx_flat)
+                            .ok_or(SynthesisError::Unsatisfiable)?;
+                        let product = coeff.mul(
+                            cs.namespace(|| format!("{label}_mul_{row}_{col}_{child_idx}_{in_lane}")),
+                            child_var,
+                        )?;
+                        products.push(product);
                     }
-                    let child_var = child
-                        .get(child_idx_flat)
-                        .ok_or(SynthesisError::Unsatisfiable)?;
-                    let product = coeff.mul(
-                        cs.namespace(|| format!("{label}_mul_{row}_{col}_{child_idx}_{k}")),
-                        child_var,
-                    )?;
-                    products.push(product);
                 }
             }
-            let parent_idx = dense_index(row, col, cols, false);
             enforce_field_affine_sum_eq(
                 cs,
                 &parent[parent_idx],
@@ -874,6 +891,7 @@ fn enforce_rho_coeff_left_action_on_canonical_embedded_x_with_vars<CS: Constrain
     }
     for row in 0..D {
         for col in 0..cols {
+            let parent_idx = dense_index(row, col, cols, false);
             let mut linear_terms = Vec::new();
             let mut products = Vec::new();
             for (child_idx, ((child, native_child), rho)) in children
@@ -892,11 +910,7 @@ fn enforce_rho_coeff_left_action_on_canonical_embedded_x_with_vars<CS: Constrain
                         active_lane,
                         &format!("{label}_coeff_{row}_{col}_{child_idx}"),
                     )?;
-                    let child_value = if child_idx < constant_child_prefix {
-                        native_child.get(col).copied().unwrap_or(F::ZERO)
-                    } else {
-                        native_child[col]
-                    };
+                    let child_value = native_child[col];
                     if child_idx < constant_child_prefix {
                         linear_terms.push((SpartanF::from_canonical_u64(child_value.as_canonical_u64()), coeff));
                         continue;
@@ -907,37 +921,32 @@ fn enforce_rho_coeff_left_action_on_canonical_embedded_x_with_vars<CS: Constrain
                         child_var,
                     )?;
                     products.push(product);
-                    continue;
-                }
-                for k in 0..D {
-                    let coeff = alloc_rot_rho_entry_from_coeffs(
-                        cs.namespace(|| format!("{label}_coeff_{row}_{col}_{child_idx}_{k}")),
-                        rho,
-                        row,
-                        k,
-                        &format!("{label}_coeff_{row}_{col}_{child_idx}_{k}"),
-                    )?;
-                    let child_idx_flat = dense_index(k, col, cols, false);
-                    let child_value = if child_idx < constant_child_prefix {
-                        native_child.get(child_idx_flat).copied().unwrap_or(F::ZERO)
-                    } else {
-                        native_child[child_idx_flat]
-                    };
-                    if child_idx < constant_child_prefix {
-                        linear_terms.push((SpartanF::from_canonical_u64(child_value.as_canonical_u64()), coeff));
-                        continue;
+                } else {
+                    for in_lane in 0..D {
+                        let coeff = alloc_rot_rho_entry_from_coeffs(
+                            cs.namespace(|| format!("{label}_coeff_{row}_{col}_{child_idx}_{in_lane}")),
+                            rho,
+                            row,
+                            in_lane,
+                            &format!("{label}_coeff_{row}_{col}_{child_idx}_{in_lane}"),
+                        )?;
+                        let child_idx_flat = dense_index(in_lane, col, cols, false);
+                        let child_value = native_child[child_idx_flat];
+                        if child_idx < constant_child_prefix {
+                            linear_terms.push((SpartanF::from_canonical_u64(child_value.as_canonical_u64()), coeff));
+                            continue;
+                        }
+                        let child_var = child
+                            .get(child_idx_flat)
+                            .ok_or(SynthesisError::Unsatisfiable)?;
+                        let product = coeff.mul(
+                            cs.namespace(|| format!("{label}_mul_{row}_{col}_{child_idx}_{in_lane}")),
+                            child_var,
+                        )?;
+                        products.push(product);
                     }
-                    let child_var = child
-                        .get(child_idx_flat)
-                        .ok_or(SynthesisError::Unsatisfiable)?;
-                    let product = coeff.mul(
-                        cs.namespace(|| format!("{label}_mul_{row}_{col}_{child_idx}_{k}")),
-                        child_var,
-                    )?;
-                    products.push(product);
                 }
             }
-            let parent_idx = dense_index(row, col, cols, false);
             enforce_field_affine_sum_eq(
                 cs,
                 &parent[parent_idx],
@@ -1046,28 +1055,15 @@ fn enforce_rho_coeff_left_action_on_canonical_embedded_x_constant_children<CS: C
             let parent_idx = dense_index(row, col, cols, false);
             let mut linear_terms = Vec::new();
             for (child_idx, native_child) in child_native_values.iter().enumerate() {
-                if native_child.len() == cols {
+                let compact_child = native_child.len() == cols;
+                if compact_child {
                     let active_lane = col % D;
                     let value = native_child[col];
-                    for coeff_idx in 0..D {
-                        let basis_coeff = GOLDILOCKS_ROT_BASIS_MATS[coeff_idx][(row, active_lane)];
-                        if basis_coeff == F::ZERO || value == F::ZERO {
-                            continue;
-                        }
-                        linear_terms.push((
-                            SpartanF::from_canonical_u64((basis_coeff * value).as_canonical_u64()),
-                            rhos[child_idx].coeffs[coeff_idx].clone(),
-                        ));
-                    }
-                    continue;
-                }
-                for k in 0..D {
-                    let value = native_child[dense_index(k, col, cols, false)];
                     if value == F::ZERO {
                         continue;
                     }
                     for coeff_idx in 0..D {
-                        let basis_coeff = GOLDILOCKS_ROT_BASIS_MATS[coeff_idx][(row, k)];
+                        let basis_coeff = GOLDILOCKS_ROT_BASIS_MATS[coeff_idx][(row, active_lane)];
                         if basis_coeff == F::ZERO {
                             continue;
                         }
@@ -1075,6 +1071,23 @@ fn enforce_rho_coeff_left_action_on_canonical_embedded_x_constant_children<CS: C
                             SpartanF::from_canonical_u64((basis_coeff * value).as_canonical_u64()),
                             rhos[child_idx].coeffs[coeff_idx].clone(),
                         ));
+                    }
+                } else {
+                    for in_lane in 0..D {
+                        let value = native_child[dense_index(in_lane, col, cols, false)];
+                        if value == F::ZERO {
+                            continue;
+                        }
+                        for coeff_idx in 0..D {
+                            let basis_coeff = GOLDILOCKS_ROT_BASIS_MATS[coeff_idx][(row, in_lane)];
+                            if basis_coeff == F::ZERO {
+                                continue;
+                            }
+                            linear_terms.push((
+                                SpartanF::from_canonical_u64((basis_coeff * value).as_canonical_u64()),
+                                rhos[child_idx].coeffs[coeff_idx].clone(),
+                            ));
+                        }
                     }
                 }
             }

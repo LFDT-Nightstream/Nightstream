@@ -57,7 +57,7 @@ impl Rv64imChunkFoldCarry {
     }
 
     pub fn validate_projection_digests(&self, label: &str) -> Result<(), SimpleKernelError> {
-        let expected = rv64im_main_claim_projection_digests(&self.main.claims);
+        let expected = try_rv64im_main_claim_projection_digests(&self.main.claims)?;
         if self.main_projection_digests != expected {
             return Err(SimpleKernelError::Bridge(format!(
                 "RV64IM chunk-fold carry {label} projection digests drifted from the authoritative carried CE claims"
@@ -68,10 +68,24 @@ impl Rv64imChunkFoldCarry {
 }
 
 pub(crate) fn rv64im_main_claim_projection_digests(claims: &[CeClaim<Commitment, F, K>]) -> Vec<[F; 4]> {
+    try_rv64im_main_claim_projection_digests(claims)
+        .expect("RV64IM carried CE projection digest requires SuperNeo X shape")
+}
+
+pub(crate) fn try_rv64im_main_claim_projection_digests(
+    claims: &[CeClaim<Commitment, F, K>],
+) -> Result<Vec<[F; 4]>, SimpleKernelError> {
     let mut scratch = Vec::<F>::with_capacity(2048);
     claims
         .iter()
-        .map(|claim| me_input_projection_digest_poseidon_into(&mut scratch, claim))
+        .enumerate()
+        .map(|(idx, claim)| {
+            me_input_projection_digest_poseidon_into(&mut scratch, claim).map_err(|err| {
+                SimpleKernelError::Bridge(format!(
+                    "RV64IM carried CE projection digest {idx} requires SuperNeo X = D x m_in shape: {err}"
+                ))
+            })
+        })
         .collect()
 }
 

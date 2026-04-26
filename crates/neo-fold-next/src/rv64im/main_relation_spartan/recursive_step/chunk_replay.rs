@@ -8,21 +8,24 @@ use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use neo_reductions::engines::utils::{build_dims_and_policy, digest_ccs_matrices_with_sparse_cache};
 use p3_goldilocks::Goldilocks;
 
+use super::super::nifs_v_stages::Rv64imPiCcsStageOutput;
 use super::super::recursive_cover::{
-    alloc_recursive_carried_projection_claims, alloc_recursive_carried_x_r_only_claims,
-    carried_projection_claims_have_zero_public_tail,
-    recursive_accumulator_instance_digest_circuit_from_projection_digests, Rv64imRecursiveCoverStateVar,
+    alloc_recursive_carried_projection_claims, recursive_accumulator_instance_digest_circuit_from_claims,
+    Rv64imRecursiveCoverStateVar,
 };
-use super::super::{synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_relation_io, Rv64imClaimBundle};
+use super::super::{synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mode, Rv64imClaimBundle};
 use crate::rv64im::final_relation::RV64IM_CHUNK_DONE_RAW_TAG;
 use crate::rv64im::ivc_snark::SpartanF;
 use crate::rv64im::kernel::rv64im_cached_root_main_lane_optimized_cache;
 use crate::rv64im::main_recursion::Rv64imMainRecursionFPrimeAdvice;
-use crate::rv64im::main_relation_circuit::claim::enforce_claim_projection_eq_native;
 use crate::rv64im::main_relation_spartan::chunk_step_recursive::Rv64imMainRecursionFPrimePayload;
 
 pub(super) struct Rv64imMainRecursionStepChunkReplayOutput {
     pub(super) live_folded_accumulator_out_digest: [AllocatedNum<SpartanF>; 4],
+    pub(super) chunk_relation_digest: [AllocatedNum<SpartanF>; 4],
+    pub(super) chunk_relation_digest_values: [SpartanF; 4],
+    pub(super) state_in_claims: Vec<crate::rv64im::main_relation_circuit::claim::CeClaimVar>,
+    pub(super) pi_ccs: Rv64imPiCcsStageOutput,
 }
 
 pub(super) fn synthesize_rv64im_main_recursion_step_chunk_replay<CS: ConstraintSystem<SpartanF>>(
@@ -31,6 +34,7 @@ pub(super) fn synthesize_rv64im_main_recursion_step_chunk_replay<CS: ConstraintS
     payload: &Rv64imMainRecursionFPrimePayload,
     state_in_var: &Rv64imRecursiveCoverStateVar,
     state_out_var: &Rv64imRecursiveCoverStateVar,
+    bridge_handoff_digest: &[AllocatedNum<SpartanF>; 4],
     trace_prefix: Option<&str>,
 ) -> Result<Rv64imMainRecursionStepChunkReplayOutput, SynthesisError> {
     let (params, _, structure) = crate::rv64im::kernel::rv64im_root_main_lane_context_for_claim_count(
@@ -52,27 +56,22 @@ pub(super) fn synthesize_rv64im_main_recursion_step_chunk_replay<CS: ConstraintS
         payload.initial_transcript_in,
         "transcript_in_import",
     )?;
-    let live_state_in_claims =
-        if payload.initial_transcript_in && carried_projection_claims_have_zero_public_tail(&payload.state_in_claims) {
-            alloc_recursive_carried_x_r_only_claims(
-                &mut cs.namespace(|| "state_in_live_claims"),
-                &payload.state_in_claims,
-                "state_in_live_claims",
-            )?
-        } else {
-            alloc_recursive_carried_projection_claims(
-                &mut cs.namespace(|| "state_in_live_claims"),
-                &payload.state_in_claims,
-                "state_in_live_claims",
-            )?
-        };
+    let live_state_in_claims = alloc_recursive_carried_projection_claims(
+        &mut cs.namespace(|| "state_in_live_claims"),
+        &payload.state_in_claims,
+        "state_in_live_claims",
+    )?;
+    let state_in_claims = live_state_in_claims
+        .iter()
+        .map(|claim| claim.claim.clone())
+        .collect::<Vec<_>>();
     let carried_claims = Rv64imClaimBundle::from_effective_claims(
         live_state_in_claims
             .into_iter()
             .map(|claim| claim.claim)
             .collect(),
     );
-    let replayed_next_claims = synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_relation_io(
+    let replayed_body = synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mode(
         &params,
         structure,
         dims,
@@ -84,38 +83,21 @@ pub(super) fn synthesize_rv64im_main_recursion_step_chunk_replay<CS: ConstraintS
         &replay_chunk,
         &mut replayed_transcript,
         carried_claims,
-        // HyperNova §6.3 requires a single compiled F' circuit reused across
-        // values. The live recursive-step path must therefore bind ME inputs
-        // from the authenticated carried digest slice, not from a native
-        // logical-claim slice that would re-specialize transcript constants.
-        None,
-        Some(&witness.running_state().carry.main_projection_digests),
+        Some(&witness.running_state().carry.main.claims),
         payload.boundary_plan,
         payload.rlc_zero_commit_suffix_len,
-        payload
-            .initial_transcript_in
-            .then_some(payload.chunk_cover.fresh_claim_count as usize),
+        None,
+        true,
+        Some(bridge_handoff_digest),
         trace_prefix,
     )?;
-    if replayed_next_claims.effective_count() != witness.fresh_state_out().carry.main.claims.len() {
-        return Err(SynthesisError::Unsatisfiable);
-    }
-    for (claim_index, (actual, expected)) in replayed_next_claims
-        .effective_claims()
-        .iter()
-        .zip(witness.fresh_state_out().carry.main.claims.iter())
-        .enumerate()
-    {
-        enforce_claim_projection_eq_native(
-            &mut cs.namespace(|| format!("state_out_claim_{claim_index}")),
-            actual,
-            expected,
-            &format!("state_out_claim_{claim_index}"),
-        )?;
-    }
-    let expected_folded_accumulator_out_digest = recursive_accumulator_instance_digest_circuit_from_projection_digests(
+    let replayed_next_claims = replayed_body.next_claims;
+    let (chunk_relation_digest, chunk_relation_digest_values) = replayed_body
+        .synthetic_chunk_relation_digest
+        .ok_or(SynthesisError::Unsatisfiable)?;
+    let expected_folded_accumulator_out_digest = recursive_accumulator_instance_digest_circuit_from_claims(
         &mut cs.namespace(|| "expected_folded_accumulator_out_digest"),
-        &witness.fresh_state_out().carry.main_projection_digests,
+        replayed_next_claims.effective_claims(),
         &state_out_var.terminal_handle,
         "expected_folded_accumulator_out_digest",
     )?;
@@ -153,5 +135,9 @@ pub(super) fn synthesize_rv64im_main_recursion_step_chunk_replay<CS: ConstraintS
 
     Ok(Rv64imMainRecursionStepChunkReplayOutput {
         live_folded_accumulator_out_digest: expected_folded_accumulator_out_digest,
+        chunk_relation_digest,
+        chunk_relation_digest_values,
+        state_in_claims,
+        pi_ccs: replayed_body.pi_ccs,
     })
 }

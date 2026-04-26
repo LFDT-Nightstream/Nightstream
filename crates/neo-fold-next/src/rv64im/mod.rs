@@ -11,12 +11,13 @@ pub mod claim_tree;
 pub mod construction2;
 mod construction2_default;
 mod decider;
+mod encoded_public_input;
 pub mod execute;
 pub mod f_prime;
 pub mod final_relation;
 pub mod isa;
 pub mod ivc;
-pub mod ivc_snark;
+mod ivc_snark;
 pub mod kernel;
 pub mod layout;
 pub mod lower;
@@ -51,18 +52,15 @@ pub use claim_tree::{
 };
 pub use construction2::{
     build_rv64im_main_recursion_construction2_default_fresh_instance,
-    build_rv64im_main_recursion_construction2_default_low_norm_witness_image,
     build_rv64im_main_recursion_construction2_default_pair,
     build_rv64im_main_recursion_construction2_f_prime_ccs_shape,
-    build_rv64im_main_recursion_construction2_f_prime_low_norm_witness_image,
-    build_rv64im_main_recursion_construction2_f_prime_witness_image,
     build_rv64im_main_recursion_construction2_fresh_instance,
     build_rv64im_main_recursion_construction2_fresh_instance_with_input,
     build_rv64im_main_recursion_construction2_input_state_image,
     build_rv64im_main_recursion_construction2_output_state_image, build_rv64im_main_recursion_construction2_x_i,
     Rv64imMainRecursionConstruction2Commitment, Rv64imMainRecursionConstruction2FPrimeCcsShape,
-    Rv64imMainRecursionConstruction2FPrimeLowNormWitnessImage, Rv64imMainRecursionConstruction2FPrimeWitnessImage,
-    Rv64imMainRecursionConstruction2FreshInstance, Rv64imMainRecursionConstruction2StateImage,
+    Rv64imMainRecursionConstruction2FreshInstance, Rv64imMainRecursionConstruction2PublicBoundary,
+    Rv64imMainRecursionConstruction2StateImage,
 };
 pub use construction2_default::{
     build_rv64im_main_recursion_construction2_canonical_full_width,
@@ -103,35 +101,40 @@ pub use isa::{
     encode_subw, encode_sw, encode_xor, encode_xori, MemoryWord, Rv64BuildError, Rv64DecodedInstruction, Rv64Opcode,
     Rv64Program, Rv64State,
 };
+pub use ivc::Rv64imIvcPublicImage;
+pub use ivc_snark::{
+    setup_rv64im_ivc_snark_cached, setup_rv64im_ivc_snark_cached_with_trace, setup_rv64im_ivc_snark_from_final,
+    setup_rv64im_ivc_snark_from_final_cached, Rv64imIvcRecursionSnarkSetupShape, Rv64imIvcSnark, Rv64imIvcSnarkKeyPair,
+    Rv64imIvcSnarkProof, Rv64imIvcSnarkProverKey, Rv64imIvcSnarkVerifierKey, Rv64imTerminalFPrimeCommittedStepProof,
+};
 pub use kernel::{
-    aligned_memory_focus_manifest, audit_rv64im_accepted_proof_against_input,
-    audit_rv64im_accepted_proof_against_input_with_perf, build_aligned_memory_focus_parity_case,
-    build_all_parity_cases, build_claim_reduction_buckets, build_claim_reduction_results_from_witnesses,
-    build_control_flow_beq_parity_case, build_control_flow_bge_parity_case, build_control_flow_bgeu_parity_case,
-    build_control_flow_blt_parity_case, build_control_flow_bltu_parity_case, build_control_flow_bne_parity_case,
-    build_control_flow_focus_parity_case, build_control_flow_jal_parity_case, build_control_flow_jalr_parity_case,
-    build_main_lane_surface, build_multiply_high_parity_case, build_multiply_low_parity_case,
-    build_narrow_memory_load_parity_case, build_narrow_memory_store_parity_case, build_native_alu_focus_parity_case,
-    build_native_logic_compare_parity_case, build_native_shift_parity_case, build_native_upper_parity_case,
-    build_native_word_arith_parity_case, build_native_word_shift_parity_case, build_parity_case_from_source,
-    build_phase2_collapse_result, build_rv64im_accepted_proof_artifact, build_rv64im_audit_bundle,
-    build_rv64im_audit_witness_bundle, build_rv64im_eval_claim_bundle_from_accepted_artifact,
-    build_rv64im_eval_claim_bundle_from_claim_witnesses, build_rv64im_eval_claim_witnesses_from_accepted_artifact,
-    build_rv64im_kernel_export_relation, build_rv64im_kernel_export_source_from_accepted_artifact,
-    build_rv64im_kernel_export_witness, build_rv64im_opening_bundle_from_accepted_artifact,
-    build_rv64im_opening_convergence_artifact_from_proof, build_rv64im_opening_convergence_artifact_from_witnesses,
-    build_rv64im_opening_convergence_proof_from_witnesses, build_rv64im_phase0_binding_surface_from_accepted_artifact,
-    build_signed_divrem_parity_case, build_simple_kernel_witness, build_simple_kernel_witness_with_perf,
-    build_stage1_claim_witnesses, build_stage2_claim_witnesses, build_stage3_claim_witness,
-    build_unsigned_divrem_parity_case, build_vertical_slice_parity_case, control_flow_beq_manifest,
-    control_flow_bge_manifest, control_flow_bgeu_manifest, control_flow_blt_manifest, control_flow_bltu_manifest,
-    control_flow_bne_manifest, control_flow_focus_manifest, control_flow_jal_manifest, control_flow_jalr_manifest,
-    derive_phase0_point, domain_for_schema, encode_packed_column_evals_k, encode_words_to_field_evals_k,
-    multiply_high_manifest, multiply_low_manifest, narrow_memory_load_manifest, narrow_memory_store_manifest,
-    native_alu_focus_manifest, native_logic_compare_manifest, native_shift_manifest, native_upper_manifest,
-    native_word_arith_manifest, native_word_shift_manifest, parity_source_cases, phase0_family_order,
-    phase0_full_width_for_schema, phase0_word_count_for_schema, phase1_claim_digest, phase1_unified_claim_digest,
-    prepared_step_digest, prove_packaged_simple_kernel, prove_packaged_simple_kernel_with_perf,
+    aligned_memory_focus_manifest, build_aligned_memory_focus_parity_case, build_all_parity_cases,
+    build_claim_reduction_buckets, build_claim_reduction_results_from_witnesses, build_control_flow_beq_parity_case,
+    build_control_flow_bge_parity_case, build_control_flow_bgeu_parity_case, build_control_flow_blt_parity_case,
+    build_control_flow_bltu_parity_case, build_control_flow_bne_parity_case, build_control_flow_focus_parity_case,
+    build_control_flow_jal_parity_case, build_control_flow_jalr_parity_case, build_main_lane_surface,
+    build_multiply_high_parity_case, build_multiply_low_parity_case, build_narrow_memory_load_parity_case,
+    build_narrow_memory_store_parity_case, build_native_alu_focus_parity_case, build_native_logic_compare_parity_case,
+    build_native_shift_parity_case, build_native_upper_parity_case, build_native_word_arith_parity_case,
+    build_native_word_shift_parity_case, build_parity_case_from_source, build_phase2_collapse_result,
+    build_rv64im_accepted_proof_artifact, build_rv64im_audit_bundle, build_rv64im_audit_witness_bundle,
+    build_rv64im_eval_claim_bundle_from_accepted_artifact, build_rv64im_eval_claim_bundle_from_claim_witnesses,
+    build_rv64im_eval_claim_witnesses_from_accepted_artifact, build_rv64im_kernel_export_relation,
+    build_rv64im_kernel_export_source_from_accepted_artifact, build_rv64im_kernel_export_witness,
+    build_rv64im_opening_bundle_from_accepted_artifact, build_rv64im_opening_convergence_artifact_from_proof,
+    build_rv64im_opening_convergence_artifact_from_witnesses, build_rv64im_opening_convergence_proof_from_witnesses,
+    build_rv64im_phase0_binding_surface_from_accepted_artifact, build_signed_divrem_parity_case,
+    build_simple_kernel_witness, build_simple_kernel_witness_with_perf, build_stage1_claim_witnesses,
+    build_stage2_claim_witnesses, build_stage3_claim_witness, build_unsigned_divrem_parity_case,
+    build_vertical_slice_parity_case, control_flow_beq_manifest, control_flow_bge_manifest, control_flow_bgeu_manifest,
+    control_flow_blt_manifest, control_flow_bltu_manifest, control_flow_bne_manifest, control_flow_focus_manifest,
+    control_flow_jal_manifest, control_flow_jalr_manifest, derive_phase0_point, domain_for_schema,
+    encode_packed_column_evals_k, encode_words_to_field_evals_k, multiply_high_manifest, multiply_low_manifest,
+    narrow_memory_load_manifest, narrow_memory_store_manifest, native_alu_focus_manifest,
+    native_logic_compare_manifest, native_shift_manifest, native_upper_manifest, native_word_arith_manifest,
+    native_word_shift_manifest, parity_source_cases, phase0_family_order, phase0_full_width_for_schema,
+    phase0_word_count_for_schema, phase1_claim_digest, phase1_unified_claim_digest, prepared_step_digest,
+    prove_packaged_simple_kernel, prove_packaged_simple_kernel_with_perf,
     prove_root_main_lane_packaged_proof_with_perf, prove_root_main_lane_run_proof_with_perf,
     prove_rv64im_accepted_proof, prove_rv64im_accepted_proof_with_options,
     prove_rv64im_accepted_proof_with_options_and_perf, prove_rv64im_accepted_proof_with_perf, prove_rv64im_audit_proof,
@@ -140,22 +143,19 @@ pub use kernel::{
     public_step_digest, public_step_family_digest, reconstruct_words_from_field_evals, rv64im_ajtai_mixers,
     rv64im_simple_root_context_id, rv64im_simple_root_context_id_for_step_cap, rv64im_simple_root_k_rho_for_step_cap,
     rv64im_simple_root_params, rv64im_simple_root_params_for_step_cap, signed_divrem_manifest, unpack_column_evals_k,
-    unsigned_divrem_manifest, validate_rv64im_public_proof_against_input,
-    validate_rv64im_public_proof_against_input_with_perf, verify_claim_reduction_result_with_binding_surface,
+    unsigned_divrem_manifest, verify_claim_reduction_result_with_binding_surface,
     verify_claim_reduction_results_with_binding_surface, verify_packaged_simple_kernel,
     verify_packaged_simple_kernel_with_perf, verify_phase2_collapse_result,
     verify_root_main_lane_packaged_proof_with_public_rows, verify_root_main_lane_run_proof_with_public_rows,
-    verify_rv64im_accepted_proof, verify_rv64im_accepted_proof_with_perf, verify_rv64im_audit_proof,
-    verify_rv64im_audit_proof_with_perf, verify_rv64im_eval_claim_bundle_from_accepted_artifact,
-    verify_rv64im_kernel_export_relation, verify_rv64im_kernel_export_source, verify_rv64im_kernel_export_witness,
+    verify_rv64im_eval_claim_bundle_from_accepted_artifact, verify_rv64im_kernel_export_relation,
+    verify_rv64im_kernel_export_source, verify_rv64im_kernel_export_witness,
     verify_rv64im_opening_bundle_from_accepted_artifact, verify_rv64im_opening_convergence_artifact,
     verify_rv64im_opening_convergence_artifact_from_proof, verify_rv64im_opening_convergence_proof,
-    verify_rv64im_public_proof, verify_rv64im_public_proof_with_perf, verify_simple_kernel,
-    verify_simple_kernel_with_perf, vertical_slice_manifest, AjtaiFamilyKind, AjtaiObjectId, AjtaiOpeningId,
-    AjtaiOpeningProof, ClaimReductionBucket, ClaimReductionError, ClaimReductionProof, ClaimReductionResult,
-    CommitmentContextId, EvalClaimError, ExactStageVectorBuildPerf, FamilyEvalClaim, FamilyEvalClaimId,
-    FamilyEvalClaimWitness, FamilyEvalPayload, FamilyEvalSchemaId, FinalOpeningError, FinalOpeningTarget,
-    KernelBindingOpeningClaim, KernelBindingOpeningPoints, KernelBindingPackagedOpeningProof,
+    verify_simple_kernel, verify_simple_kernel_with_perf, vertical_slice_manifest, AjtaiFamilyKind, AjtaiObjectId,
+    AjtaiOpeningId, AjtaiOpeningProof, ClaimReductionBucket, ClaimReductionError, ClaimReductionProof,
+    ClaimReductionResult, CommitmentContextId, EvalClaimError, ExactStageVectorBuildPerf, FamilyEvalClaim,
+    FamilyEvalClaimId, FamilyEvalClaimWitness, FamilyEvalPayload, FamilyEvalSchemaId, FinalOpeningError,
+    FinalOpeningTarget, KernelBindingOpeningClaim, KernelBindingOpeningPoints, KernelBindingPackagedOpeningProof,
     KernelOpeningBundleBuildPerf, KernelOpeningBundleVerifyPerf, KernelPreparedStepOpeningClaim,
     KernelPreparedStepOpeningPoints, KernelPreparedStepPackagedOpeningProof, KernelSoundnessAccountingSurface,
     MainLaneFamilySummary, OpenedAjtaiCommitmentPublic, OpenedAjtaiObjectId, OpenedAjtaiObjectWitness,

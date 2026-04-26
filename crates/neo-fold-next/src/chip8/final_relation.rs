@@ -136,17 +136,17 @@ where
     Ok((steps, chunk_summaries, accumulator.into_public()?))
 }
 
-pub(crate) fn verify_folded_statement_with_output(
+pub(crate) fn audit_check_folded_statement_with_output(
     public: &crate::chip8::kernel::SimpleKernelPublicInput,
     folded: &Chip8FoldedStatement,
     proof: &Chip8FoldedProof,
 ) -> Result<KernelExportRelationResult, SimpleKernelError> {
     let (verified_kernel, _) =
-        verify_folded_statement_components_with_output(public, folded, &proof.kernel_export, &proof.steps)?;
+        audit_check_folded_statement_components_with_output(public, folded, &proof.kernel_export, &proof.steps)?;
     Ok(verified_kernel)
 }
 
-pub(crate) fn verify_final_statement_with_output(
+pub(crate) fn audit_check_final_statement_with_output(
     public: &crate::chip8::kernel::SimpleKernelPublicInput,
     folded: &Chip8FoldedStatement,
     proof: &Chip8FinalProof,
@@ -155,10 +155,10 @@ pub(crate) fn verify_final_statement_with_output(
         return Err(SimpleKernelError::BridgeFailed("final proof digest mismatch".into()));
     }
     let (verified_kernel, expected_chunk_summaries) =
-        verify_folded_statement_components_with_output(public, folded, &proof.kernel_export, &proof.steps)?;
+        audit_check_folded_statement_components_with_output(public, folded, &proof.kernel_export, &proof.steps)?;
     if proof.chunk_summaries != expected_chunk_summaries {
         return Err(SimpleKernelError::BridgeFailed(
-            "final proof chunk summaries do not match the verified CHIP-8 recursive boundary".into(),
+            "final proof chunk summaries do not match the checked CHIP-8 recursive boundary".into(),
         ));
     }
     Ok(verified_kernel)
@@ -196,7 +196,7 @@ pub(crate) fn folded_statement_digest(folded: &Chip8FoldedStatement) -> [u8; 32]
     tr.digest32()
 }
 
-fn verify_folded_statement_components_with_output(
+fn audit_check_folded_statement_components_with_output(
     public: &crate::chip8::kernel::SimpleKernelPublicInput,
     folded: &Chip8FoldedStatement,
     kernel_export: &KernelExportProof,
@@ -230,12 +230,12 @@ fn verify_folded_statement_components_with_output(
         .sum();
     if folded.semantic_step_count as usize != verified_semantic_step_count {
         return Err(SimpleKernelError::BridgeFailed(
-            "folded statement semantic step count does not match verified native handoff".into(),
+            "folded statement semantic step count does not match checked native handoff".into(),
         ));
     }
     if folded.chunk_count as usize != verified_kernel.chunk_handoffs.len() {
         return Err(SimpleKernelError::BridgeFailed(
-            "folded statement chunk count does not match verified native handoff".into(),
+            "folded statement chunk count does not match checked native handoff".into(),
         ));
     }
     if folded.chunk_count as usize != steps.len() {
@@ -243,11 +243,11 @@ fn verify_folded_statement_components_with_output(
             "folded statement chunk count does not match recursive steps".into(),
         ));
     }
-    let chunk_summaries = verify_recursive_steps(folded, &verified_kernel, steps)?;
+    let chunk_summaries = audit_check_recursive_steps(folded, &verified_kernel, steps)?;
     Ok((verified_kernel, chunk_summaries))
 }
 
-fn verify_recursive_steps(
+fn audit_check_recursive_steps(
     folded: &Chip8FoldedStatement,
     verified_kernel: &KernelExportRelationResult,
     steps: &[Chip8ChunkTransitionWitness],
@@ -262,7 +262,7 @@ fn verify_recursive_steps(
     let mut chunk_summaries = Vec::with_capacity(steps.len());
 
     for (chunk_index, step_witness) in steps.iter().enumerate() {
-        let (next_main, next_handle, next_bridge_state, chunk_relation_digest) = verify_chunk_transition(
+        let (next_main, next_handle, next_bridge_state, chunk_relation_digest) = audit_check_chunk_transition(
             step_witness,
             chunk_index,
             accumulator.terminal_handle,
@@ -307,13 +307,13 @@ fn verify_recursive_steps(
     }
     if final_accumulator.bridge_state != verified_kernel.bridge_final_state {
         return Err(SimpleKernelError::BridgeFailed(
-            "statement bridge final state does not match verified kernel handoff".into(),
+            "statement bridge final state does not match checked kernel handoff".into(),
         ));
     }
     Ok(chunk_summaries)
 }
 
-fn verify_chunk_transition<L>(
+fn audit_check_chunk_transition<L>(
     step_witness: &Chip8ChunkTransitionWitness,
     expected_chunk_index: usize,
     previous_handle: AccumulatorHandle,

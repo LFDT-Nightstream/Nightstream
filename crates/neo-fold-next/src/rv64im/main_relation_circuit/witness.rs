@@ -67,11 +67,17 @@ impl PackedWitnessVar {
         expected_m: usize,
         logical_col: usize,
     ) -> Result<AllocatedNum<SpartanF>, SynthesisError> {
-        if self.rows != D || expected_m == 0 || logical_col >= expected_m {
+        if self.rows != D || expected_m == 0 {
+            return Err(SynthesisError::Unsatisfiable);
+        }
+        if self.cols != expected_m.div_ceil(D) {
+            return Err(SynthesisError::Unsatisfiable);
+        }
+        let off = logical_col % D;
+        if logical_col >= self.cols.saturating_mul(D) {
             return Err(SynthesisError::Unsatisfiable);
         }
         let block = logical_col / D;
-        let off = logical_col % D;
         let index = off
             .checked_mul(self.cols)
             .and_then(|start| start.checked_add(block))
@@ -83,11 +89,17 @@ impl PackedWitnessVar {
     }
 
     pub fn logical_value(&self, expected_m: usize, logical_col: usize) -> Result<F, SynthesisError> {
-        if self.rows != D || expected_m == 0 || logical_col >= expected_m {
+        if self.rows != D || expected_m == 0 {
+            return Err(SynthesisError::Unsatisfiable);
+        }
+        if self.cols != expected_m.div_ceil(D) {
+            return Err(SynthesisError::Unsatisfiable);
+        }
+        let off = logical_col % D;
+        if logical_col >= self.cols.saturating_mul(D) {
             return Err(SynthesisError::Unsatisfiable);
         }
         let block = logical_col / D;
-        let off = logical_col % D;
         let index = off
             .checked_mul(self.cols)
             .and_then(|start| start.checked_add(block))
@@ -169,6 +181,22 @@ pub fn enforce_x_projection<CS: ConstraintSystem<SpartanF>>(
     label: &str,
 ) -> Result<(), SynthesisError> {
     if witness.rows != D || claim.x_rows != D || claim.x_cols != claim.m_in || expected_m == 0 {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    if claim.x.len() == claim.m_in {
+        for col in 0..claim.m_in {
+            let want = witness.logical_entry(expected_m, col)?;
+            let actual = claim.x.get(col).ok_or(SynthesisError::Unsatisfiable)?;
+            cs.enforce(
+                || format!("{label}_x_match_compact_{col}"),
+                |lc| lc + actual.get_variable(),
+                |lc| lc + CS::one(),
+                |lc| lc + want.get_variable(),
+            );
+        }
+        return Ok(());
+    }
+    if claim.x.len() != claim.x_rows.saturating_mul(claim.x_cols) {
         return Err(SynthesisError::Unsatisfiable);
     }
     for col in 0..claim.m_in {

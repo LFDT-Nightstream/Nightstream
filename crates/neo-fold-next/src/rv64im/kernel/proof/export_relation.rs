@@ -9,14 +9,14 @@ use neo_math::F;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use serde::{Deserialize, Serialize};
 
-use crate::finalize::public_chunk_digest;
+use crate::finalize::{digest32_as_fields, public_chunk_digest};
 use crate::proof::{partition_step_inputs, ChunkInput, FoldSchedule, PublicChunk};
 use crate::rv64im::stage1::{build_stage1_summary, Stage1Summary};
 use crate::rv64im::stage2::{build_stage2_summary, Stage2Summary};
 use crate::rv64im::stage3::{build_stage3_summary, Stage3Summary};
 
 use super::artifacts::digest_rows;
-use super::proof_accepted::{accepted_proof_artifact_from_legacy_proof, Rv64imAcceptedProofArtifact};
+use super::proof_accepted::{accepted_proof_artifact_from_public_proof, Rv64imAcceptedProofArtifact};
 use super::proof_api::{Rv64imMainLaneProofBinding, Rv64imMainLaneProofBundle, Rv64imProof, Rv64imProofStatement};
 use super::proof_staged_verify::{
     derive_stage1_export_proof, derive_stage2_export_proof, derive_stage3_export_proof,
@@ -390,7 +390,7 @@ pub(crate) fn verify_rv64im_kernel_export_relation_with_output(
     relation: &Rv64imKernelExportRelation,
     proof: &Rv64imProof,
 ) -> Result<Rv64imKernelExportRelationResult, SimpleKernelError> {
-    let artifact = accepted_proof_artifact_from_legacy_proof(proof)?;
+    let artifact = accepted_proof_artifact_from_public_proof(proof)?;
     let (expected, result) = build_rv64im_kernel_export_relation_from_artifact(&artifact)?;
     if relation != &expected {
         return Err(SimpleKernelError::Bridge(
@@ -403,7 +403,7 @@ pub(crate) fn verify_rv64im_kernel_export_relation_with_output(
 pub(crate) fn build_rv64im_kernel_export_seam(
     proof: &Rv64imProof,
 ) -> Result<(Rv64imKernelExportRelation, Rv64imKernelExportWitness), SimpleKernelError> {
-    let artifact = accepted_proof_artifact_from_legacy_proof(proof)?;
+    let artifact = accepted_proof_artifact_from_public_proof(proof)?;
     build_rv64im_kernel_export_seam_from_accepted_artifact(&artifact).map(|(relation, witness, _)| (relation, witness))
 }
 
@@ -1303,7 +1303,7 @@ pub(crate) fn rv64im_public_chunk_digest(chunk: &PublicChunk) -> [u8; 32] {
         &[chunk.start_index as u64, chunk.steps.len() as u64],
     );
     for digest in public_step_digests(&chunk.steps) {
-        tr.append_message(b"rv64im/public_chunk/step", &digest);
+        tr.append_fields(b"rv64im/public_chunk/step", &digest32_as_fields(digest));
     }
     tr.digest32()
 }

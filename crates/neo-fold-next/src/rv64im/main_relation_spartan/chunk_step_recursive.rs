@@ -27,15 +27,18 @@ use super::{
 };
 use crate::finalize::{digest32_as_fields, digest_fields_as_digest32};
 use crate::rv64im::chunk_step_ivc::Rv64imChunkStepIvcRelation;
-use crate::rv64im::construction2::build_rv64im_main_recursion_construction2_verified_step_statement_from_relation;
+use crate::rv64im::construction2::{
+    build_rv64im_main_recursion_construction2_verified_step_statement_from_relation,
+    Rv64imMainRecursionConstruction2FreshInstance,
+};
 use crate::rv64im::final_relation::{
     rv64im_chunk_fold_initial_transcript_snapshot, rv64im_chunk_fold_transcript_snapshot_digest,
     Rv64imChunkFoldTranscriptSnapshot,
 };
 use crate::rv64im::kernel::rv64im_cached_root_main_lane_optimized_cache;
 use crate::rv64im::main_recursion::{
-    build_rv64im_main_recursion_backend_statement_from_advice, build_rv64im_main_recursion_f_prime_advices,
-    Rv64imMainRecursionFPrimeAdvice,
+    build_rv64im_main_recursion_backend_statement_from_parts_with_vk_fs, build_rv64im_main_recursion_f_prime_advices,
+    evaluate_rv64im_main_recursion_f_prime_advice, Rv64imMainRecursionFPrimeAdvice,
 };
 use crate::rv64im::main_relation_trace::{
     build_rv64im_main_circuit_chunk_trace_from_authoritative_parts, Rv64imMainCircuitCcsClaimShape,
@@ -113,6 +116,7 @@ pub struct Rv64imMainRecursionFPrimePiDecPayload {
 pub struct Rv64imMainRecursionFPrimeBackendRelation {
     pub f_prime_advice: Rv64imMainRecursionFPrimeAdvice,
     pub spartan_statement: Rv64imMainRecursionStepSpartanStatement,
+    pub construction2_u_next: Rv64imMainRecursionConstruction2FreshInstance,
     pub payload: Rv64imMainRecursionFPrimePayload,
 }
 
@@ -698,7 +702,10 @@ pub(crate) fn rv64im_chunk_step_recursive_carry_state_digest(
     }
     let claim_digests = canonical_claims
         .iter()
-        .map(|claim| me_input_projection_digest_poseidon_into(&mut scratch, claim))
+        .map(|claim| {
+            me_input_projection_digest_poseidon_into(&mut scratch, claim)
+                .expect("RV64IM fixed-step CE projection digest requires SuperNeo X shape")
+        })
         .collect::<Vec<_>>();
 
     let mut preimage = Vec::with_capacity(32 + claim_digests.len() * 4);
@@ -722,7 +729,29 @@ pub(crate) fn rv64im_chunk_step_recursive_carry_state_digest(
 pub(crate) fn build_rv64im_main_recursion_step_spartan_statement(
     f_prime_advice: &Rv64imMainRecursionFPrimeAdvice,
 ) -> Result<Rv64imMainRecursionStepSpartanStatement, SimpleKernelError> {
-    Ok(build_rv64im_main_recursion_backend_statement_from_advice(f_prime_advice)?.native_statement())
+    Ok(build_rv64im_main_recursion_step_spartan_statement_and_construction2_output(f_prime_advice)?.0)
+}
+
+fn build_rv64im_main_recursion_step_spartan_statement_and_construction2_output(
+    f_prime_advice: &Rv64imMainRecursionFPrimeAdvice,
+) -> Result<
+    (
+        Rv64imMainRecursionStepSpartanStatement,
+        Rv64imMainRecursionConstruction2FreshInstance,
+    ),
+    SimpleKernelError,
+> {
+    let step_image = evaluate_rv64im_main_recursion_f_prime_advice(f_prime_advice)?;
+    let backend_statement = build_rv64im_main_recursion_backend_statement_from_parts_with_vk_fs(
+        f_prime_advice.verifier_key_fs(),
+        step_image.chunk_count(),
+        step_image.folded_accumulator_digest(),
+        *step_image.z_next(),
+    );
+    Ok((
+        backend_statement.native_statement(),
+        step_image.construction2_u_next().clone(),
+    ))
 }
 
 pub fn debug_check_rv64im_main_recursion_f_prime_backend_relation_semantics(
@@ -1310,7 +1339,7 @@ fn build_rv64im_main_recursion_f_prime_payload_with_trace(
         if payload.fixed_transcript_out != advice.fresh_state_out().transcript {
             return Err(Rv64imChunkStepIvcSpartanError::Prepare(
                 format!(
-                    "rv64im recursive-step fixed transcript out does not match the carried native state_out transcript for chunk {} (halted_out={}, in_absorbed={}, derived_out_absorbed={}, native_out_absorbed={})",
+                    "rv64im recursive-step fixed transcript out does not match the carried state_out transcript for chunk {} (halted_out={}, in_absorbed={}, derived_out_absorbed={}, state_out_absorbed={})",
                     advice.chunk_index(),
                     advice.bridge_handoff_halted_out(),
                     advice.running_state().transcript.absorbed,
@@ -1321,7 +1350,7 @@ fn build_rv64im_main_recursion_f_prime_payload_with_trace(
         }
     } else {
         // `main_circuit_chunk_trace` was already built from authoritative replay inputs and
-        // checked that the native replayed transcript_out equals the carried state_out
+        // checked that the reconstructed transcript_out equals the carried state_out
         // transcript. Replaying the circuit body again here is redundant on the non-debug path.
         payload.fixed_transcript_out = advice.fresh_state_out().transcript.clone();
     }
@@ -1367,25 +1396,37 @@ pub fn build_rv64im_main_recursion_step_spartan_shape(
     build_rv64im_main_recursion_step_spartan_shape_from_advices(relations, &advices)
 }
 
+fn claim_has_zero_rlc_commitment_surface(claim: &CeClaim<Commitment, F, K>) -> bool {
+    claim.c.data.iter().all(|value| *value == F::ZERO)
+        && claim
+            .y_ring
+            .iter()
+            .all(|row| row.iter().all(|value| *value == K::ZERO))
+}
+
+fn trailing_zero_rlc_commitment_surface_len(claims: &[CeClaim<Commitment, F, K>]) -> usize {
+    claims
+        .iter()
+        .rev()
+        .take_while(|claim| claim_has_zero_rlc_commitment_surface(claim))
+        .count()
+}
+
+fn common_rlc_zero_commit_suffix_len(advices: &[Rv64imMainRecursionFPrimeAdvice]) -> u64 {
+    advices
+        .iter()
+        .map(|advice| trailing_zero_rlc_commitment_surface_len(&advice.running_state().carry.main.claims))
+        .min()
+        .unwrap_or(0) as u64
+}
+
 pub fn build_rv64im_main_recursion_step_spartan_shape_from_advices(
     relations: &[Rv64imChunkStepIvcRelation],
     advices: &[Rv64imMainRecursionFPrimeAdvice],
 ) -> Result<Rv64imMainRecursionStepSpartanShape, Rv64imChunkStepIvcSpartanError> {
     let cover_shape = build_rv64im_chunk_step_ivc_recursive_step_cover_shape(relations)?;
     let claim_cover = build_rv64im_main_recursion_f_prime_claim_cover(&advices)?;
-    let rlc_zero_commit_suffix_len = if advices.len() == 1
-        && advices[0]
-            .running_state()
-            .carry
-            .main
-            .claims
-            .iter()
-            .all(|claim| claim.c.data.iter().all(|value| *value == F::ZERO))
-    {
-        advices[0].running_state().carry.main.claims.len() as u64
-    } else {
-        0
-    };
+    let rlc_zero_commit_suffix_len = common_rlc_zero_commit_suffix_len(advices);
     let initial_transcript_in = if advices.len() == 1 {
         advices[0].running_state().transcript == rv64im_chunk_fold_initial_transcript_snapshot()
     } else {
@@ -1431,10 +1472,12 @@ pub fn build_rv64im_main_recursion_f_prime_backend_relations(
         .into_iter()
         .zip(payloads)
         .map(|(f_prime_advice, payload)| {
-            let spartan_statement = build_rv64im_main_recursion_step_spartan_statement(&f_prime_advice)?;
+            let (spartan_statement, construction2_u_next) =
+                build_rv64im_main_recursion_step_spartan_statement_and_construction2_output(&f_prime_advice)?;
             let backend_relation = Rv64imMainRecursionFPrimeBackendRelation {
                 f_prime_advice,
                 spartan_statement,
+                construction2_u_next,
                 payload,
             };
             debug_check_rv64im_main_recursion_f_prime_backend_relation_semantics(&backend_relation)?;
@@ -1528,7 +1571,8 @@ pub fn build_rv64im_main_recursion_f_prime_backend_relations_with_spartan_shape_
         .enumerate()
         .map(|(step_index, (f_prime_advice, payload))| {
             let started = Instant::now();
-            let spartan_statement = build_rv64im_main_recursion_step_spartan_statement(&f_prime_advice)?;
+            let (spartan_statement, construction2_u_next) =
+                build_rv64im_main_recursion_step_spartan_statement_and_construction2_output(&f_prime_advice)?;
             let statement_ms = elapsed_ms(started);
             statement_build_ms += statement_ms;
             emit_debug_timing(
@@ -1539,6 +1583,7 @@ pub fn build_rv64im_main_recursion_f_prime_backend_relations_with_spartan_shape_
             let backend_relation = Rv64imMainRecursionFPrimeBackendRelation {
                 f_prime_advice,
                 spartan_statement,
+                construction2_u_next,
                 payload,
             };
             let started = Instant::now();

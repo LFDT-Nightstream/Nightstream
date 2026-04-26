@@ -5,7 +5,7 @@ use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError, Varia
 use ff::Field;
 use neo_ajtai::Commitment;
 use neo_ccs::CeClaim;
-use neo_math::{KExtensions, F, K};
+use neo_math::{KExtensions, D, F, K};
 use p3_field::PrimeCharacteristicRing;
 use p3_field::PrimeField64;
 
@@ -42,20 +42,15 @@ pub struct CeClaimVar {
 }
 
 fn compact_x_values_from_native_claim(claim: &CeClaim<Commitment, F, K>) -> Result<Vec<F>, SynthesisError> {
-    if claim.X.rows() == 0 || claim.X.cols() < claim.m_in {
+    if claim.X.rows() != D || claim.X.cols() != claim.m_in {
         return Err(SynthesisError::Unsatisfiable);
     }
-    for col in 0..claim.m_in {
-        let canonical_row = col % claim.X.rows();
-        for row in 0..claim.X.rows() {
-            if row != canonical_row && claim.X[(row, col)] != F::ZERO {
-                return Ok(claim.X.as_slice().to_vec());
-            }
-        }
-    }
-    Ok((0..claim.m_in)
-        .map(|col| claim.X[(col % claim.X.rows(), col)])
-        .collect())
+    // CE `x` is the canonical embedded field-vector surface used by
+    // Construction 2 and the recursive Π_RLC / Π_DEC checks. Falling back to a
+    // full `X` matrix based on witness values makes the recursive circuit
+    // shape depend on the concrete chunk, which violates HyperNova §6.3's
+    // fixed-shape requirement.
+    Ok((0..claim.m_in).map(|col| claim.X[(col % D, col)]).collect())
 }
 
 pub fn alloc_ce_claim<CS: ConstraintSystem<SpartanF>>(
@@ -919,14 +914,14 @@ pub fn alloc_ce_claim_x_surface_with_shared_point<CS: ConstraintSystem<SpartanF>
     {
         return Err(SynthesisError::Unsatisfiable);
     }
-    let compact_x_values = compact_x_values_from_native_claim(claim)?;
-    let x = alloc_f_slice(cs, &compact_x_values, &format!("{label}_x"))?;
+    let x_values = claim.X.as_slice().to_vec();
+    let x = alloc_f_slice(cs, &x_values, &format!("{label}_x"))?;
 
     Ok(CeClaimVar {
         c_data: Vec::new(),
         c_data_values: c_data_values.to_vec(),
         x,
-        x_values: compact_x_values,
+        x_values,
         x_rows: claim.X.rows(),
         x_cols: claim.X.cols(),
         r: shared_r.to_vec(),
@@ -1131,7 +1126,7 @@ fn extend_superneo_compact_x_as_lc_fields(
     x_cols: usize,
     native_values: &[F],
 ) -> Result<(), SynthesisError> {
-    if x_rows == 0 || native_values.len() != x_cols {
+    if x_rows != D || native_values.len() != x_cols {
         return Err(SynthesisError::Unsatisfiable);
     }
     push_constant_lc_field(
@@ -1141,7 +1136,7 @@ fn extend_superneo_compact_x_as_lc_fields(
         SpartanF::from_canonical_u64(x_cols as u64),
     );
     let use_compact_values = values.len() == x_cols;
-    let use_full_values = values.len() >= x_rows.saturating_mul(x_cols);
+    let use_full_values = values.len() == x_rows.saturating_mul(x_cols);
     if !use_compact_values && !use_full_values {
         return Err(SynthesisError::Unsatisfiable);
     }
@@ -1166,7 +1161,7 @@ fn superneo_compact_x_values(values: &[F], x_rows: usize, x_cols: usize) -> Resu
     if values.len() == x_cols {
         return Ok(values.to_vec());
     }
-    if x_rows == 0 || values.len() != x_rows.saturating_mul(x_cols) {
+    if x_rows != D || values.len() != x_rows.saturating_mul(x_cols) {
         return Err(SynthesisError::Unsatisfiable);
     }
     let mut compact = Vec::with_capacity(x_cols);
@@ -1700,6 +1695,7 @@ pub fn me_input_projection_digest_poseidon_with_native_claim<CS: ConstraintSyste
         &claim.c_data,
         &native_claim.c.data,
     )?;
+    let native_compact_x = compact_x_values_from_native_claim(native_claim)?;
     extend_superneo_compact_x_as_lc_fields(
         &mut field_terms,
         &mut field_constants,
@@ -1707,9 +1703,7 @@ pub fn me_input_projection_digest_poseidon_with_native_claim<CS: ConstraintSyste
         &claim.x,
         claim.x_rows,
         native_claim.m_in,
-        &(0..native_claim.m_in)
-            .map(|col| native_claim.X[(col % native_claim.X.rows(), col)])
-            .collect::<Vec<_>>(),
+        &native_compact_x,
     )?;
     extend_k_slice_prefix_as_lc_fields(
         &mut field_terms,
@@ -1772,15 +1766,14 @@ pub fn me_digest_poseidon_values(claim: &CeClaimVar) -> [SpartanF; 4] {
     .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64()))
 }
 
-pub fn me_input_projection_digest_poseidon_values(claim: &CeClaimVar) -> [SpartanF; 4] {
+pub fn me_input_projection_digest_poseidon_values(claim: &CeClaimVar) -> Result<[SpartanF; 4], SynthesisError> {
     let mut preimage = Vec::new();
     preimage.extend(packed_bytes_field_values(
         b"neo/ccs/me_input_projection_digest_poseidon/v2",
     ));
     extend_f_slice_values(&mut preimage, &claim.c_data_values);
     preimage.push(SpartanF::from_canonical_u64(claim.m_in as u64));
-    let compact_x_values =
-        superneo_compact_x_values(&claim.x_values, claim.x_rows, claim.x_cols).expect("compact x values");
+    let compact_x_values = superneo_compact_x_values(&claim.x_values, claim.x_rows, claim.x_cols)?;
     for value in compact_x_values {
         preimage.push(SpartanF::from_canonical_u64(value.as_canonical_u64()));
     }
@@ -1791,13 +1784,13 @@ pub fn me_input_projection_digest_poseidon_values(claim: &CeClaimVar) -> [Sparta
         extend_k_slice_values(&mut preimage, row);
     }
 
-    neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash(
+    Ok(neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash(
         &preimage
             .iter()
             .map(|value| F::from_u64(value.to_canonical_u64()))
             .collect::<Vec<_>>(),
     )
-    .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64()))
+    .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64())))
 }
 
 pub fn me_digest_poseidon_values_from_native_claim(claim: &CeClaim<Commitment, F, K>) -> [SpartanF; 4] {
@@ -1833,17 +1826,15 @@ pub fn me_digest_poseidon_values_from_native_claim(claim: &CeClaim<Commitment, F
 
 pub fn me_input_projection_digest_poseidon_values_from_native_claim(
     claim: &CeClaim<Commitment, F, K>,
-) -> [SpartanF; 4] {
+) -> Result<[SpartanF; 4], SynthesisError> {
     let mut preimage = Vec::new();
     preimage.extend(packed_bytes_field_values(
         b"neo/ccs/me_input_projection_digest_poseidon/v2",
     ));
     extend_f_slice_values(&mut preimage, &claim.c.data);
     preimage.push(SpartanF::from_canonical_u64(claim.m_in as u64));
-    for col in 0..claim.m_in {
-        preimage.push(SpartanF::from_canonical_u64(
-            claim.X[(col % claim.X.rows(), col)].as_canonical_u64(),
-        ));
+    for value in compact_x_values_from_native_claim(claim)? {
+        preimage.push(SpartanF::from_canonical_u64(value.as_canonical_u64()));
     }
     extend_k_slice_values(&mut preimage, &claim.r);
 
@@ -1852,13 +1843,13 @@ pub fn me_input_projection_digest_poseidon_values_from_native_claim(
         extend_k_slice_values(&mut preimage, row);
     }
 
-    neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash(
+    Ok(neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash(
         &preimage
             .iter()
             .map(|value| F::from_u64(value.to_canonical_u64()))
             .collect::<Vec<_>>(),
     )
-    .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64()))
+    .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64())))
 }
 
 pub fn enforce_claim_eq_native<CS: ConstraintSystem<SpartanF>>(
@@ -1933,6 +1924,38 @@ pub fn enforce_claim_eq_native<CS: ConstraintSystem<SpartanF>>(
     Ok(())
 }
 
+pub fn enforce_claim_projection_eq<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    actual: &CeClaimVar,
+    expected: &CeClaimVar,
+    label: &str,
+) -> Result<(), SynthesisError> {
+    if actual.c_data.len() != expected.c_data.len()
+        || actual.m_in != expected.m_in
+        || actual.r.len() != expected.r.len()
+        || actual.y_ring.len() != expected.y_ring.len()
+    {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    enforce_f_slice_eq(
+        &mut cs.namespace(|| "c_data"),
+        &actual.c_data,
+        &expected.c_data,
+        &format!("{label}_c_data"),
+    )?;
+    enforce_claim_x_projection_eq(&mut cs.namespace(|| "x"), actual, expected, &format!("{label}_x"))?;
+    enforce_k_slice_eq(&mut cs.namespace(|| "r"), &actual.r, &expected.r, &format!("{label}_r"))?;
+    for (row_idx, (actual_row, expected_row)) in actual.y_ring.iter().zip(expected.y_ring.iter()).enumerate() {
+        enforce_k_slice_eq(
+            &mut cs.namespace(|| format!("y_ring_{row_idx}")),
+            actual_row,
+            expected_row,
+            &format!("{label}_y_ring_{row_idx}"),
+        )?;
+    }
+    Ok(())
+}
+
 pub fn enforce_claim_projection_eq_native<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     actual: &CeClaimVar,
@@ -1943,11 +1966,10 @@ pub fn enforce_claim_projection_eq_native<CS: ConstraintSystem<SpartanF>>(
         || actual.m_in != expected.m_in
         || actual.r.len() != expected.r.len()
         || actual.y_ring.len() != expected.y_ring.len()
-        || expected.X.rows() == 0
-        || expected.X.cols() < expected.m_in
     {
         return Err(SynthesisError::Unsatisfiable);
     }
+    let _ = compact_x_values_from_native_claim(expected)?;
     enforce_f_slice_eq_native(
         &mut cs.namespace(|| "c_data"),
         &actual.c_data,
@@ -2075,10 +2097,10 @@ fn enforce_claim_x_projection_eq_native<CS: ConstraintSystem<SpartanF>>(
     if actual.m_in != expected.m_in {
         return Err(SynthesisError::Unsatisfiable);
     }
+    let expected_compact_x = compact_x_values_from_native_claim(expected)?;
     if actual.x.len() == actual.m_in {
-        for col in 0..actual.m_in {
-            let expected_x =
-                SpartanF::from_canonical_u64(expected.X[(col % expected.X.rows(), col)].as_canonical_u64());
+        for (col, expected_value) in expected_compact_x.iter().enumerate() {
+            let expected_x = SpartanF::from_canonical_u64(expected_value.as_canonical_u64());
             cs.enforce(
                 || format!("{label}_{col}"),
                 |lc| lc + actual.x[col].get_variable(),
@@ -2088,20 +2110,20 @@ fn enforce_claim_x_projection_eq_native<CS: ConstraintSystem<SpartanF>>(
         }
         return Ok(());
     }
-    if actual.x_rows != expected.X.rows()
+    if actual.x_rows != D
         || actual.x_cols != expected.m_in
         || actual.x.len() != actual.x_rows.saturating_mul(actual.x_cols)
     {
         return Err(SynthesisError::Unsatisfiable);
     }
     for col in 0..actual.m_in {
-        let row = col % actual.x_rows;
+        let row = col % D;
         let idx = row
             .checked_mul(actual.x_cols)
             .and_then(|start| start.checked_add(col))
             .ok_or(SynthesisError::Unsatisfiable)?;
         let actual_x = actual.x.get(idx).ok_or(SynthesisError::Unsatisfiable)?;
-        let expected_x = SpartanF::from_canonical_u64(expected.X[(row, col)].as_canonical_u64());
+        let expected_x = SpartanF::from_canonical_u64(expected_compact_x[col].as_canonical_u64());
         cs.enforce(
             || format!("{label}_{row}_{col}"),
             |lc| lc + actual_x.get_variable(),
@@ -2110,6 +2132,43 @@ fn enforce_claim_x_projection_eq_native<CS: ConstraintSystem<SpartanF>>(
         );
     }
     Ok(())
+}
+
+fn enforce_claim_x_projection_eq<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    actual: &CeClaimVar,
+    expected: &CeClaimVar,
+    label: &str,
+) -> Result<(), SynthesisError> {
+    if actual.m_in != expected.m_in {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    for col in 0..actual.m_in {
+        let actual_x = claim_projection_x_lane(actual, col)?;
+        let expected_x = claim_projection_x_lane(expected, col)?;
+        cs.enforce(
+            || format!("{label}_{col}"),
+            |lc| lc + actual_x.get_variable(),
+            |lc| lc + CS::one(),
+            |lc| lc + expected_x.get_variable(),
+        );
+    }
+    Ok(())
+}
+
+fn claim_projection_x_lane(claim: &CeClaimVar, col: usize) -> Result<&AllocatedNum<SpartanF>, SynthesisError> {
+    if claim.x.len() == claim.m_in {
+        return claim.x.get(col).ok_or(SynthesisError::Unsatisfiable);
+    }
+    if claim.x_rows != D || claim.x_cols != claim.m_in || claim.x.len() != claim.x_rows.saturating_mul(claim.x_cols) {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let row = col % D;
+    let idx = row
+        .checked_mul(claim.x_cols)
+        .and_then(|start| start.checked_add(col))
+        .ok_or(SynthesisError::Unsatisfiable)?;
+    claim.x.get(idx).ok_or(SynthesisError::Unsatisfiable)
 }
 
 pub fn packed_bytes_field_values(bytes: &[u8]) -> Vec<SpartanF> {

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::rv64im::ivc_snark::{Rv64imDeciderEngine, ShapeCS, SpartanF};
 use bellpepper_core::test_cs::TestConstraintSystem;
 
@@ -231,9 +233,11 @@ pub(crate) fn debug_measure_rlc_public_with_split_rho_views_stage_ranges(
     label: &str,
 ) -> Result<RlcPublicStageCheckpoints, SynthesisError> {
     let active_children_len = children.len().saturating_sub(zero_commit_suffix_len);
+    let mixed_constant_prefix = constant_child_prefix > 0 && constant_child_prefix < active_children_len;
     if children.is_empty()
         || children.len() != rhos.len()
-        || rho_mats_active.len() != active_children_len
+        || (mixed_constant_prefix && rho_mats_active.len() != active_children_len)
+        || (!mixed_constant_prefix && !rho_mats_active.is_empty())
         || constant_child_prefix > active_children_len
         || parent.x_rows != D
         || parent.x_cols != parent.m_in
@@ -319,6 +323,20 @@ pub(crate) fn debug_measure_rlc_public_with_split_rho_views_stage_ranges(
             &rhos[..active_children_len],
             &format!("{label}_c"),
         )?;
+    } else if constant_child_prefix == active_children_len {
+        enforce_rho_coeff_left_action_on_dense_constant_f_slices(
+            cs,
+            &parent.c_data,
+            &parent.c_data_values,
+            parent.c_data.len() / D,
+            &active_children
+                .iter()
+                .map(|child| child.c_data_values.clone())
+                .collect::<Vec<_>>(),
+            true,
+            &rhos[..active_children_len],
+            &format!("{label}_c"),
+        )?;
     } else {
         enforce_rho_left_action_on_dense_f_slices_with_vars(
             cs,
@@ -368,6 +386,16 @@ pub(crate) fn debug_measure_rlc_public_with_split_rho_views_stage_ranges(
                     .map(|child| child.y_ring_values[idx].clone())
                     .collect::<Vec<_>>(),
                 &rhos[..active_children_len],
+                &format!("{label}_y_{idx}"),
+            )?;
+        } else if constant_child_prefix == active_children_len {
+            enforce_y_row_rlc_target_with_rho_coeffs(
+                cs,
+                &parent.y_ring[idx],
+                active_children,
+                &rhos[..active_children_len],
+                idx,
+                d_pad,
                 &format!("{label}_y_{idx}"),
             )?;
         } else {

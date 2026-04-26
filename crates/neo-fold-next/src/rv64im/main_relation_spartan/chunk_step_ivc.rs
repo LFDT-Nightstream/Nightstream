@@ -1,7 +1,7 @@
 //! Owns native fixed-shape chunk-step shape/padding helpers.
 //!
-//! The optional terminal compression circuit substrate lives in
-//! `ivc_snark/chunk_step_circuit.rs`.
+//! These helpers feed the main-recursion F' backend builder; they are not a
+//! standalone compressed-proof authority.
 
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use serde::{Deserialize, Serialize};

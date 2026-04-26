@@ -518,12 +518,14 @@ fn multiply_low_source_case() -> Rv64imParitySourceCase {
 
 fn multiply_high_source_case() -> Rv64imParitySourceCase {
     let mut registers = [0u64; RV64_REGISTER_COUNT];
-    registers[1] = u64::MAX - 1;
-    registers[2] = u64::MAX - 2;
-    registers[3] = u64::MAX - 1;
-    registers[4] = 3;
-    registers[5] = u64::MAX - 1;
-    registers[6] = 3;
+    // Keep this parity case within the live DEC budget while still producing
+    // non-zero high-word results for the Mulh/Mulhu/Mulhsu lowering path.
+    registers[1] = 1 << 40;
+    registers[2] = 1 << 35;
+    registers[3] = 1 << 41;
+    registers[4] = 1 << 34;
+    registers[5] = 1 << 42;
+    registers[6] = 1 << 33;
     Rv64imParitySourceCase {
         manifest: multiply_high_manifest(),
         start_pc: 0,

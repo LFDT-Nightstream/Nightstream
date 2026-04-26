@@ -19,8 +19,10 @@ use crate::rv64im::kernel::{
     rv64im_cached_root_main_lane_optimized_cache, rv64im_root_main_lane_context_for_claim_count,
     Rv64imVerifiedKernelChunkHandoff, SimpleKernelError,
 };
+use neo_ajtai::Commitment;
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
-use neo_math::F;
+use neo_ccs::CeClaim;
+use neo_math::{F, K};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 
@@ -350,6 +352,14 @@ pub fn validate_rv64im_chunk_step_ivc_surface(
             "RV64IM chunk-step IVC state_out terminal handle does not match step_public.state_out".into(),
         ));
     }
+    witness
+        .state_in
+        .carry
+        .validate_projection_digests("state_in")?;
+    witness
+        .state_out
+        .carry
+        .validate_projection_digests("state_out")?;
     if witness.state_in.transcript.absorbed > neo_params::poseidon2_goldilocks::RATE
         || witness.state_out.transcript.absorbed > neo_params::poseidon2_goldilocks::RATE
     {
@@ -360,7 +370,7 @@ pub fn validate_rv64im_chunk_step_ivc_surface(
     Ok(())
 }
 
-pub fn verify_rv64im_chunk_step_ivc_chain(
+pub fn audit_check_rv64im_chunk_step_ivc_chain(
     relations: &[Rv64imChunkStepIvcRelation],
 ) -> Result<Rv64imChunkFoldState, SimpleKernelError> {
     let claim_count = relations
@@ -457,8 +467,8 @@ pub fn verify_rv64im_chunk_step_ivc(
 }
 
 fn rv64im_ce_claim_slices_match_projection(
-    lhs: &[neo_ccs::CeClaim<neo_ajtai::Commitment, neo_math::F, neo_math::K>],
-    rhs: &[neo_ccs::CeClaim<neo_ajtai::Commitment, neo_math::F, neo_math::K>],
+    lhs: &[CeClaim<Commitment, F, K>],
+    rhs: &[CeClaim<Commitment, F, K>],
 ) -> bool {
     lhs.len() == rhs.len()
         && lhs
@@ -467,17 +477,45 @@ fn rv64im_ce_claim_slices_match_projection(
             .all(|(left, right)| rv64im_ce_claims_match_projection(left, right))
 }
 
-fn rv64im_ce_claims_match_projection(
-    lhs: &neo_ccs::CeClaim<neo_ajtai::Commitment, neo_math::F, neo_math::K>,
-    rhs: &neo_ccs::CeClaim<neo_ajtai::Commitment, neo_math::F, neo_math::K>,
-) -> bool {
-    lhs.c.data == rhs.c.data
-        && lhs.m_in == rhs.m_in
-        && lhs.r == rhs.r
-        && lhs.y_ring == rhs.y_ring
-        && lhs.X.rows() == rhs.X.rows()
-        && lhs.X.cols() == rhs.X.cols()
-        && (0..lhs.m_in).all(|col| lhs.X[(col % lhs.X.rows(), col)] == rhs.X[(col % rhs.X.rows(), col)])
+#[derive(Debug, PartialEq)]
+struct Rv64imCarriedCeProjection {
+    commitment_data: Vec<F>,
+    m_in: usize,
+    r: Vec<K>,
+    y_ring: Vec<Vec<K>>,
+    x_rows: usize,
+    x_cols: usize,
+    compact_x: Vec<F>,
+}
+
+impl Rv64imCarriedCeProjection {
+    fn from_claim(claim: &CeClaim<Commitment, F, K>) -> Option<Self> {
+        if claim.X.rows() != neo_math::D || claim.X.cols() != claim.m_in {
+            return None;
+        }
+        let compact_x = (0..claim.m_in)
+            .map(|col| claim.X[(col % claim.X.rows(), col)])
+            .collect();
+        Some(Self {
+            commitment_data: claim.c.data.clone(),
+            m_in: claim.m_in,
+            r: claim.r.clone(),
+            y_ring: claim.y_ring.clone(),
+            x_rows: claim.X.rows(),
+            x_cols: claim.X.cols(),
+            compact_x,
+        })
+    }
+}
+
+fn rv64im_ce_claims_match_projection(lhs: &CeClaim<Commitment, F, K>, rhs: &CeClaim<Commitment, F, K>) -> bool {
+    match (
+        Rv64imCarriedCeProjection::from_claim(lhs),
+        Rv64imCarriedCeProjection::from_claim(rhs),
+    ) {
+        (Some(lhs), Some(rhs)) => lhs == rhs,
+        _ => false,
+    }
 }
 
 fn rv64im_chunk_step_ivc_states_match(lhs: &Rv64imChunkFoldState, rhs: &Rv64imChunkFoldState) -> bool {

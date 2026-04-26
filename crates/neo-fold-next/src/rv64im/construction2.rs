@@ -1,27 +1,20 @@
 //! Owns the explicit HyperNova Construction-2 target surface for native RV64IM F'.
 //!
-//! This module owns:
-//! - the canonical state image used for `x = enc_inst(H(...))`
-//! - the canonical native witness-domain shape for the future `enc(F')` CCS instance
-//! - the deterministic native witness image for the currently wired Construction-2 inputs
-//!
-//! It does not own:
-//! - native `F'` step evaluation
-//! - any claim that the current legacy replay lane already defines `u = (c, x)`
+//! Native append uses this module to thread Construction-2 state into the next
+//! recursive-step witness. Final `u_i.C` authority is owned by the terminal
+//! SuperNeo R2 proof, not by a native logical-image opening here.
 
 use neo_ajtai::{
-    audit_commit_row_major_seeded_binary_cols_with_chunk_seeds, commit_row_major_seeded_binary_cols_with_chunk_seeds,
-    get_global_pp_seeded_params_for_dims, has_global_pp_for_dims, seeded_pp_chunk_seeds, set_global_pp_seeded,
-    AjtaiSModule, Commitment, SeededBinaryColsCommitAudit,
+    get_global_pp_seeded_params_for_dims, has_global_pp_for_dims, set_global_pp_seeded, AjtaiSModule, Commitment,
 };
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::Mat;
-use neo_math::{KExtensions, D, F, K};
+use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::api::{rlc_public, sample_rot_rhos_n_typed, verify_dec_public, RotRing};
 use neo_reductions::optimized_engine::optimized_verify_with_cache_and_instance_digest_and_perf;
 use neo_transcript::{Poseidon2Transcript, Transcript};
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use p3_field::PrimeCharacteristicRing;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::{self, Write};
@@ -29,15 +22,14 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
 use crate::chunk_relation::ChunkReplayWitness;
-use crate::finalize::{digest32_as_fields, public_chunk_digest, FixedShapeChunkSummary};
-use crate::proof::Carry;
-use crate::proof::{ChunkInput, StepInput};
+use crate::finalize::{digest32_as_fields, digest_fields_as_digest32, public_chunk_digest, FixedShapeChunkSummary};
+use crate::proof::{Carry, ChunkInput};
 use crate::rv64im::chunk_fold_step::{adapt_rv64im_chunk_to_fresh_ccs, Rv64imAccumulatorHandle, Rv64imChunkFoldCarry};
 use crate::rv64im::chunk_relation::{
     rv64im_chunk_relation_digest_from_fold_digest, rv64im_step_handle, trace_rv64im_chunk_relation_with_replay_rounds,
     Rv64imChunkRelationTrace,
 };
-use crate::rv64im::chunk_step_ivc::Rv64imChunkStepIvcRelation;
+use crate::rv64im::chunk_step_ivc::{Rv64imChunkStepIvcRelation, Rv64imChunkStepIvcStatement};
 use crate::rv64im::construction2_default::Rv64imMainRecursionConstruction2DefaultPair;
 use crate::rv64im::f_prime::{
     evaluate_rv64im_main_recursion_f_prime_advice, Rv64imEncodedPublicInput,
@@ -58,6 +50,9 @@ use crate::rv64im::main_relation_spartan::{
 use crate::rv64im::SimpleKernelError;
 use crate::witness_layout::commit_cols_for_full_width;
 
+pub(crate) const RV64IM_CONSTRUCTION2_PUBLIC_BOUNDARY_RAW_TAG: u64 = 0x7276_6332_7075_6269;
+pub(crate) const RV64IM_CONSTRUCTION2_COMMITMENT_RAW_TAG: u64 = 0x7276_6332_636f_6d6d;
+
 fn elapsed_ms(started: Instant) -> f64 {
     started.elapsed().as_secs_f64() * 1_000.0
 }
@@ -71,8 +66,6 @@ fn emit_debug_timing(trace_prefix: Option<&str>, label: &str, elapsed_ms: f64) {
 
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct Rv64imMainRecursionConstruction2FreshInstanceBuildPerf {
-    pub canonical_full_width_ms: f64,
-    pub commitment_context_ms: f64,
     pub pack_image_ms: f64,
     pub commit_ms: f64,
     pub total_ms: f64,
@@ -130,69 +123,140 @@ impl Rv64imMainRecursionConstruction2FreshInstance {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Rv64imMainRecursionConstruction2FPrimeWitnessImage {
-    logical_values: Vec<F>,
+pub struct Rv64imMainRecursionConstruction2PublicBoundary {
+    pub fresh_instance_digest: [u8; 32],
+    pub commitment_digest: [u8; 32],
+    pub commitment_d: u64,
+    pub commitment_kappa: u64,
+    pub commitment_data: Vec<F>,
+    pub x_i: Rv64imEncodedPublicInput,
 }
 
-impl Rv64imMainRecursionConstruction2FPrimeWitnessImage {
-    pub fn logical_values(&self) -> &[F] {
-        &self.logical_values
+impl Rv64imMainRecursionConstruction2PublicBoundary {
+    pub fn from_fresh_instance(instance: &Rv64imMainRecursionConstruction2FreshInstance) -> Self {
+        let commitment_digest = construction2_commitment_digest(instance.commitment());
+        let commitment = instance.commitment().commitment();
+        Self {
+            fresh_instance_digest: construction2_public_boundary_fresh_instance_digest(
+                commitment_digest,
+                instance.x_i(),
+            ),
+            commitment_digest,
+            commitment_d: commitment.d as u64,
+            commitment_kappa: commitment.kappa as u64,
+            commitment_data: commitment.data.clone(),
+            x_i: instance.x_i().clone(),
+        }
     }
 
-    pub fn logical_field_count(&self) -> u64 {
-        self.logical_values.len() as u64
+    pub fn expected_commitment_digest(&self) -> [u8; 32] {
+        construction2_commitment_digest_from_parts(self.commitment_d, self.commitment_kappa, &self.commitment_data)
+    }
+
+    pub fn has_canonical_commitment_shape(&self) -> bool {
+        self.commitment_d == D as u64
+            && self.commitment_kappa != 0
+            && self
+                .commitment_d
+                .checked_mul(self.commitment_kappa)
+                .is_some_and(|len| self.commitment_data.len() as u64 == len)
+    }
+
+    pub fn expected_fresh_instance_digest(&self) -> [u8; 32] {
+        construction2_public_boundary_fresh_instance_digest(self.expected_commitment_digest(), &self.x_i)
+    }
+
+    pub(crate) fn to_fresh_instance(&self) -> Result<Rv64imMainRecursionConstruction2FreshInstance, SimpleKernelError> {
+        if !self.has_canonical_commitment_shape() {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM Construction-2 public boundary cannot rebuild a non-canonical commitment shape".into(),
+            ));
+        }
+        if self.commitment_digest != self.expected_commitment_digest() {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM Construction-2 public boundary commitment digest does not bind commitment data".into(),
+            ));
+        }
+        if self.fresh_instance_digest != self.expected_fresh_instance_digest() {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM Construction-2 public boundary fresh-instance digest does not bind commitment and x_i".into(),
+            ));
+        }
+        let d = usize::try_from(self.commitment_d)
+            .map_err(|_| SimpleKernelError::Bridge("RV64IM Construction-2 commitment d overflows usize".into()))?;
+        let kappa = usize::try_from(self.commitment_kappa)
+            .map_err(|_| SimpleKernelError::Bridge("RV64IM Construction-2 commitment kappa overflows usize".into()))?;
+        Ok(Rv64imMainRecursionConstruction2FreshInstance::from_parts(
+            Rv64imMainRecursionConstruction2Commitment::from_commitment(Commitment {
+                d,
+                kappa,
+                data: self.commitment_data.clone(),
+            }),
+            self.x_i.clone(),
+        ))
     }
 
     pub fn expected_digest(&self) -> [u8; 32] {
-        let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/main_recursion_construction2_f_prime_witness");
+        let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/main_recursion_construction2_public_boundary");
         tr.append_message(
-            b"neo.fold.next/rv64im/main_recursion_construction2_f_prime_witness/version",
-            b"v1",
+            b"neo.fold.next/rv64im/main_recursion_construction2_public_boundary/version",
+            b"v3",
         );
-        tr.append_u64s(
-            b"neo.fold.next/rv64im/main_recursion_construction2_f_prime_witness/len",
-            &[self.logical_values.len() as u64],
+        tr.append_message(
+            b"neo.fold.next/rv64im/main_recursion_construction2_public_boundary/fresh_instance_digest",
+            &self.fresh_instance_digest,
         );
-        tr.append_fields_iter(
-            b"neo.fold.next/rv64im/main_recursion_construction2_f_prime_witness/logical_values",
-            self.logical_values.len(),
-            self.logical_values.iter().copied(),
+        tr.append_message(
+            b"neo.fold.next/rv64im/main_recursion_construction2_public_boundary/commitment_digest",
+            &self.commitment_digest,
+        );
+        tr.append_fields(
+            b"neo.fold.next/rv64im/main_recursion_construction2_public_boundary/commitment_shape",
+            &[F::from_u64(self.commitment_d), F::from_u64(self.commitment_kappa)],
+        );
+        tr.append_fields(
+            b"neo.fold.next/rv64im/main_recursion_construction2_public_boundary/commitment_data",
+            &self.commitment_data,
+        );
+        tr.append_message(
+            b"neo.fold.next/rv64im/main_recursion_construction2_public_boundary/x_i",
+            &self.x_i.bytes(),
         );
         tr.digest32()
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Rv64imMainRecursionConstruction2FPrimeLowNormWitnessImage {
-    pub(crate) binary_values: Vec<F>,
+fn construction2_commitment_digest(commitment: &Rv64imMainRecursionConstruction2Commitment) -> [u8; 32] {
+    let commitment = commitment.commitment();
+    construction2_commitment_digest_from_parts(commitment.d as u64, commitment.kappa as u64, &commitment.data)
 }
 
-impl Rv64imMainRecursionConstruction2FPrimeLowNormWitnessImage {
-    pub fn binary_values(&self) -> &[F] {
-        &self.binary_values
-    }
+fn construction2_commitment_digest_from_parts(d: u64, kappa: u64, data: &[F]) -> [u8; 32] {
+    let mut preimage = Vec::with_capacity(3 + data.len());
+    preimage.push(F::from_u64(RV64IM_CONSTRUCTION2_COMMITMENT_RAW_TAG));
+    preimage.push(F::from_u64(d));
+    preimage.push(F::from_u64(kappa));
+    preimage.extend_from_slice(data);
+    digest_fields_as_digest32(neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash(&preimage))
+}
 
-    pub fn low_norm_field_count(&self) -> u64 {
-        self.binary_values.len() as u64
-    }
+fn construction2_public_boundary_fresh_instance_digest(
+    commitment_digest: [u8; 32],
+    x_i: &Rv64imEncodedPublicInput,
+) -> [u8; 32] {
+    let mut preimage = Vec::with_capacity(9);
+    preimage.push(F::from_u64(RV64IM_CONSTRUCTION2_PUBLIC_BOUNDARY_RAW_TAG));
+    preimage.extend(digest32_as_fields(commitment_digest));
+    preimage.extend(digest32_as_fields(x_i.bytes()));
+    digest_fields_as_digest32(neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash(&preimage))
+}
 
-    pub fn expected_digest(&self) -> [u8; 32] {
-        let mut tr =
-            Poseidon2Transcript::new(b"neo.fold.next/rv64im/main_recursion_construction2_f_prime_low_norm_witness");
-        tr.append_message(
-            b"neo.fold.next/rv64im/main_recursion_construction2_f_prime_low_norm_witness/version",
-            b"v1",
-        );
-        tr.append_u64s(
-            b"neo.fold.next/rv64im/main_recursion_construction2_f_prime_low_norm_witness/len",
-            &[self.binary_values.len() as u64],
-        );
-        tr.append_fields_iter(
-            b"neo.fold.next/rv64im/main_recursion_construction2_f_prime_low_norm_witness/binary_values",
-            self.binary_values.len(),
-            self.binary_values.iter().copied(),
-        );
-        tr.digest32()
+pub(crate) fn rv64im_main_recursion_construction2_x_only_placeholder(
+    x_i: Rv64imEncodedPublicInput,
+) -> Rv64imMainRecursionConstruction2FreshInstance {
+    Rv64imMainRecursionConstruction2FreshInstance {
+        c_i: Rv64imMainRecursionConstruction2Commitment::from_commitment(Commitment::zeros(D, 1)),
+        x_i,
     }
 }
 
@@ -217,6 +281,7 @@ pub(crate) struct Rv64imMainRecursionConstruction2VerifiedStepStatement {
     pub(crate) chunk_index: u64,
     pub(crate) step_lo: u64,
     pub(crate) step_hi: u64,
+    pub(crate) halted_out: bool,
     pub(crate) state_in: [u8; 32],
     pub(crate) state_out: [u8; 32],
     pub(crate) public_chunk_digest: [u8; 32],
@@ -243,27 +308,27 @@ impl Rv64imMainRecursionConstruction2VerifiedStepStatement {
             Poseidon2Transcript::new(b"neo.fold.next/rv64im/main_recursion_construction2_verified_step_statement");
         tr.append_message(
             b"neo.fold.next/rv64im/main_recursion_construction2_verified_step_statement/version",
-            b"v1",
+            b"v2",
         );
         tr.append_u64s(
             b"neo.fold.next/rv64im/main_recursion_construction2_verified_step_statement/meta",
-            &[self.chunk_index, self.step_lo, self.step_hi],
+            &[self.chunk_index, self.step_lo, self.step_hi, u64::from(self.halted_out)],
         );
-        tr.append_message(
+        tr.append_fields(
             b"neo.fold.next/rv64im/main_recursion_construction2_verified_step_statement/state_in",
-            &self.state_in,
+            &digest32_as_fields(self.state_in),
         );
-        tr.append_message(
+        tr.append_fields(
             b"neo.fold.next/rv64im/main_recursion_construction2_verified_step_statement/state_out",
-            &self.state_out,
+            &digest32_as_fields(self.state_out),
         );
-        tr.append_message(
+        tr.append_fields(
             b"neo.fold.next/rv64im/main_recursion_construction2_verified_step_statement/public_chunk_digest",
-            &self.public_chunk_digest,
+            &digest32_as_fields(self.public_chunk_digest),
         );
-        tr.append_message(
+        tr.append_fields(
             b"neo.fold.next/rv64im/main_recursion_construction2_verified_step_statement/chunk_relation_digest",
-            &self.chunk_relation_digest,
+            &digest32_as_fields(self.chunk_relation_digest),
         );
         tr.digest32()
     }
@@ -487,463 +552,6 @@ fn merge_phi_side_commitment_word_cover(cover: &mut Vec<u64>, commitments: &[Vec
     }
 }
 
-fn append_u64_field(out: &mut Vec<F>, value: u64) {
-    out.push(F::from_u64(value));
-}
-
-trait Rv64imConstruction2BitSink {
-    fn push_bit(&mut self, value: F);
-
-    fn skip_zero_bits(&mut self, count: usize) {
-        for _ in 0..count {
-            self.push_bit(F::ZERO);
-        }
-    }
-
-    fn push_u64_bits_le(&mut self, word: u64) {
-        if word == 0 {
-            self.skip_zero_bits(64);
-            return;
-        }
-        for bit_index in 0..64 {
-            self.push_bit(F::from_u64((word >> bit_index) & 1));
-        }
-    }
-}
-
-impl Rv64imConstruction2BitSink for Vec<F> {
-    fn push_bit(&mut self, value: F) {
-        self.push(value);
-    }
-
-    fn skip_zero_bits(&mut self, count: usize) {
-        self.resize(self.len() + count, F::ZERO);
-    }
-
-    fn push_u64_bits_le(&mut self, word: u64) {
-        if word == 0 {
-            self.skip_zero_bits(64);
-            return;
-        }
-        for bit_index in 0..64 {
-            self.push(F::from_u64((word >> bit_index) & 1));
-        }
-    }
-}
-
-struct PackedBinaryMatBitSink {
-    full_width: usize,
-    written: usize,
-    column_bits: Vec<u64>,
-}
-
-impl PackedBinaryMatBitSink {
-    fn new(full_width: usize) -> Result<Self, SimpleKernelError> {
-        if full_width == 0 {
-            return Err(SimpleKernelError::Bridge(
-                "RV64IM native Construction-2 packed bit sink requires a non-zero full width".into(),
-            ));
-        }
-        Ok(Self {
-            full_width,
-            written: 0,
-            column_bits: vec![0u64; commit_cols_for_full_width(full_width)],
-        })
-    }
-
-    fn finish(self, label: &str) -> Result<Vec<u64>, SimpleKernelError> {
-        if self.written != self.full_width {
-            return Err(SimpleKernelError::Bridge(format!(
-                "{label}: packed bit image wrote {} bits but expected {}",
-                self.written, self.full_width
-            )));
-        }
-        Ok(self.column_bits)
-    }
-}
-
-impl Rv64imConstruction2BitSink for PackedBinaryMatBitSink {
-    fn push_bit(&mut self, value: F) {
-        assert!(
-            self.written < self.full_width,
-            "packed binary Construction-2 image overflowed its canonical full width"
-        );
-        let block = self.written / D;
-        let rho = self.written % D;
-        assert!(
-            value == F::ZERO || value == F::ONE,
-            "packed binary Construction-2 image received a non-binary field slot"
-        );
-        if value == F::ONE {
-            self.column_bits[block] |= 1u64 << rho;
-        }
-        self.written += 1;
-    }
-
-    fn skip_zero_bits(&mut self, count: usize) {
-        let next = self
-            .written
-            .checked_add(count)
-            .expect("packed binary Construction-2 image bit index overflowed");
-        assert!(
-            next <= self.full_width,
-            "packed binary Construction-2 image overflowed its canonical full width"
-        );
-        self.written = next;
-    }
-
-    fn push_u64_bits_le(&mut self, word: u64) {
-        if word == 0 {
-            self.skip_zero_bits(64);
-            return;
-        }
-        let next = self
-            .written
-            .checked_add(64)
-            .expect("packed binary Construction-2 image bit index overflowed");
-        assert!(
-            next <= self.full_width,
-            "packed binary Construction-2 image overflowed its canonical full width"
-        );
-
-        let block = self.written / D;
-        let offset = self.written % D;
-        let first_len = (D - offset).min(64);
-        let first_mask = if first_len == 64 {
-            u64::MAX
-        } else {
-            (1u64 << first_len) - 1
-        };
-        self.column_bits[block] |= (word & first_mask) << offset;
-
-        let mut consumed = first_len;
-        if consumed < 64 {
-            let second_len = (64 - consumed).min(D);
-            let second_mask = if second_len == 64 {
-                u64::MAX
-            } else {
-                (1u64 << second_len) - 1
-            };
-            self.column_bits[block + 1] |= (word >> consumed) & second_mask;
-            consumed += second_len;
-            if consumed < 64 {
-                let third_len = 64 - consumed;
-                let third_mask = if third_len == 64 {
-                    u64::MAX
-                } else {
-                    (1u64 << third_len) - 1
-                };
-                self.column_bits[block + 2] |= (word >> consumed) & third_mask;
-            }
-        }
-
-        self.written = next;
-    }
-}
-
-fn append_u64_field_bits(out: &mut impl Rv64imConstruction2BitSink, value: u64) {
-    append_field_bits_le(out, F::from_u64(value));
-}
-
-fn append_field_bits_le(out: &mut impl Rv64imConstruction2BitSink, value: F) {
-    out.push_u64_bits_le(value.as_canonical_u64());
-}
-
-fn append_binary_field_slots(out: &mut impl Rv64imConstruction2BitSink, values: &[F], label: &str) {
-    for (bit_index, &value) in values.iter().enumerate() {
-        assert!(
-            value == F::ZERO || value == F::ONE,
-            "{label}: field slot {bit_index} is not binary"
-        );
-        out.push_bit(value);
-    }
-}
-
-fn append_digest_fields(out: &mut Vec<F>, digest: [u8; 32]) {
-    out.extend(digest32_as_fields(digest));
-}
-
-fn append_digest_field_bits(out: &mut impl Rv64imConstruction2BitSink, digest: [u8; 32]) {
-    for value in digest32_as_fields(digest) {
-        append_field_bits_le(out, value);
-    }
-}
-
-fn append_commitment_fields(out: &mut Vec<F>, commitment: &Commitment) {
-    out.extend(commitment.data.iter().copied());
-}
-
-fn append_commitment_field_bits(out: &mut impl Rv64imConstruction2BitSink, commitment: &Commitment) {
-    for &value in &commitment.data {
-        append_field_bits_le(out, value);
-    }
-}
-
-fn append_f_slice(out: &mut Vec<F>, values: &[F]) {
-    out.extend(values.iter().copied());
-}
-
-fn append_f_slice_bits(out: &mut impl Rv64imConstruction2BitSink, values: &[F]) {
-    for &value in values {
-        append_field_bits_le(out, value);
-    }
-}
-
-fn append_f_matrix(out: &mut Vec<F>, matrix: &neo_ccs::Mat<F>) {
-    for row in 0..matrix.rows() {
-        for col in 0..matrix.cols() {
-            out.push(matrix[(row, col)]);
-        }
-    }
-}
-
-fn append_f_matrix_bits(out: &mut impl Rv64imConstruction2BitSink, matrix: &neo_ccs::Mat<F>) {
-    for row in 0..matrix.rows() {
-        for col in 0..matrix.cols() {
-            append_field_bits_le(out, matrix[(row, col)]);
-        }
-    }
-}
-
-fn append_k_value(out: &mut Vec<F>, value: &K) {
-    out.extend(value.as_coeffs());
-}
-
-fn append_k_value_bits(out: &mut impl Rv64imConstruction2BitSink, value: &K) {
-    for coeff in value.as_coeffs() {
-        append_field_bits_le(out, coeff);
-    }
-}
-
-fn append_k_slice(out: &mut Vec<F>, values: &[K]) {
-    for value in values {
-        append_k_value(out, value);
-    }
-}
-
-fn append_k_slice_bits(out: &mut impl Rv64imConstruction2BitSink, values: &[K]) {
-    for value in values {
-        append_k_value_bits(out, value);
-    }
-}
-
-fn append_k_rows(out: &mut Vec<F>, rows: &[Vec<K>]) {
-    for row in rows {
-        append_k_slice(out, row);
-    }
-}
-
-fn append_k_rows_bits(out: &mut impl Rv64imConstruction2BitSink, rows: &[Vec<K>]) {
-    for row in rows {
-        append_k_slice_bits(out, row);
-    }
-}
-
-fn append_ccs_claim_fields(out: &mut Vec<F>, claim: &neo_ccs::CcsClaim<Commitment, F>) {
-    append_commitment_fields(out, &claim.c);
-    append_f_slice(out, &claim.x);
-}
-
-fn append_ccs_claim_field_bits(out: &mut impl Rv64imConstruction2BitSink, claim: &neo_ccs::CcsClaim<Commitment, F>) {
-    append_commitment_field_bits(out, &claim.c);
-    append_f_slice_bits(out, &claim.x);
-}
-
-fn append_ccs_witness_fields(out: &mut Vec<F>, witness: &neo_ccs::CcsWitness<F>) {
-    append_f_slice(out, &witness.w);
-    append_f_matrix(out, &witness.Z);
-}
-
-fn append_ccs_witness_field_bits(out: &mut impl Rv64imConstruction2BitSink, witness: &neo_ccs::CcsWitness<F>) {
-    append_f_slice_bits(out, &witness.w);
-    append_f_matrix_bits(out, &witness.Z);
-}
-
-fn validate_ce_claim_ct_alias(claim: &neo_ccs::CeClaim<Commitment, F, K>) -> Result<(), SimpleKernelError> {
-    if claim.ct.len() > claim.y_ring.len() {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM native Construction-2 carried CE claim ct vector exceeds y_ring rows".into(),
-        ));
-    }
-    for (idx, expected) in claim.ct.iter().enumerate() {
-        let actual = claim
-            .y_ring
-            .get(idx)
-            .and_then(|row| row.first())
-            .copied()
-            .ok_or_else(|| {
-                SimpleKernelError::Bridge(
-                    "RV64IM native Construction-2 carried CE claim ct alias row is missing".into(),
-                )
-            })?;
-        if actual != *expected {
-            return Err(SimpleKernelError::Bridge(
-                "RV64IM native Construction-2 carried CE claim ct is not the y_ring constant term".into(),
-            ));
-        }
-    }
-    Ok(())
-}
-
-fn validate_shared_state_in_claims(claims: &[neo_ccs::CeClaim<Commitment, F, K>]) -> Result<(), SimpleKernelError> {
-    let Some((first, rest)) = claims.split_first() else {
-        return Ok(());
-    };
-    if first.X.rows() == 0 || first.X.cols() != first.m_in {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM native Construction-2 carried CE claim must expose packed X with cols == m_in".into(),
-        ));
-    }
-    validate_ce_claim_ct_alias(first)?;
-    for claim in rest {
-        if claim.r != first.r {
-            return Err(SimpleKernelError::Bridge(
-                "RV64IM native Construction-2 carried CE claims must share one evaluation point r".into(),
-            ));
-        }
-        if claim.X.rows() == 0 || claim.X.cols() != claim.m_in {
-            return Err(SimpleKernelError::Bridge(
-                "RV64IM native Construction-2 carried CE claim must expose packed X with cols == m_in".into(),
-            ));
-        }
-        validate_ce_claim_ct_alias(claim)?;
-    }
-    Ok(())
-}
-
-fn append_compact_x_fields(out: &mut Vec<F>, claim: &neo_ccs::CeClaim<Commitment, F, K>) {
-    for col in 0..claim.m_in {
-        out.push(claim.X[(col % claim.X.rows(), col)]);
-    }
-}
-
-fn append_compact_x_field_bits(out: &mut impl Rv64imConstruction2BitSink, claim: &neo_ccs::CeClaim<Commitment, F, K>) {
-    for col in 0..claim.m_in {
-        append_field_bits_le(out, claim.X[(col % claim.X.rows(), col)]);
-    }
-}
-
-fn append_state_in_claim_fields(
-    out: &mut Vec<F>,
-    claims: &[neo_ccs::CeClaim<Commitment, F, K>],
-) -> Result<(), SimpleKernelError> {
-    validate_shared_state_in_claims(claims)?;
-    if let Some(first) = claims.first() {
-        append_k_slice(out, &first.r);
-    }
-    for claim in claims {
-        append_commitment_fields(out, &claim.c);
-        append_compact_x_fields(out, claim);
-        append_k_rows(out, &claim.y_ring);
-    }
-    Ok(())
-}
-
-fn append_state_in_claim_field_bits(
-    out: &mut impl Rv64imConstruction2BitSink,
-    claims: &[neo_ccs::CeClaim<Commitment, F, K>],
-) -> Result<(), SimpleKernelError> {
-    validate_shared_state_in_claims(claims)?;
-    if let Some(first) = claims.first() {
-        append_k_slice_bits(out, &first.r);
-    }
-    for claim in claims {
-        append_commitment_field_bits(out, &claim.c);
-        append_compact_x_field_bits(out, claim);
-        append_k_rows_bits(out, &claim.y_ring);
-    }
-    Ok(())
-}
-
-fn append_step_input_fields(out: &mut Vec<F>, step: &StepInput) {
-    append_ccs_claim_fields(out, &step.mcs);
-    append_ccs_witness_fields(out, &step.witness);
-}
-
-fn append_step_input_field_bits(out: &mut impl Rv64imConstruction2BitSink, step: &StepInput) {
-    append_ccs_claim_field_bits(out, &step.mcs);
-    append_ccs_witness_field_bits(out, &step.witness);
-}
-
-fn append_chunk_input_fields(out: &mut Vec<F>, chunk_input: &ChunkInput) {
-    append_u64_field(out, chunk_input.start_index as u64);
-    append_u64_field(out, chunk_input.steps.len() as u64);
-    for step in &chunk_input.steps {
-        append_step_input_fields(out, step);
-    }
-}
-
-fn append_chunk_input_field_bits(out: &mut impl Rv64imConstruction2BitSink, chunk_input: &ChunkInput) {
-    append_u64_field_bits(out, chunk_input.start_index as u64);
-    append_u64_field_bits(out, chunk_input.steps.len() as u64);
-    for step in &chunk_input.steps {
-        append_step_input_field_bits(out, step);
-    }
-}
-
-fn append_construction2_fresh_instance_fields(
-    out: &mut Vec<F>,
-    fresh_instance: &Rv64imMainRecursionConstruction2FreshInstance,
-) {
-    append_commitment_fields(out, fresh_instance.commitment().commitment());
-    out.extend(fresh_instance.x_i().field_image());
-}
-
-fn append_construction2_fresh_instance_field_bits(
-    out: &mut impl Rv64imConstruction2BitSink,
-    fresh_instance: &Rv64imMainRecursionConstruction2FreshInstance,
-) {
-    append_commitment_field_bits(out, fresh_instance.commitment().commitment());
-    for value in fresh_instance.x_i().field_image() {
-        append_field_bits_le(out, value);
-    }
-}
-
-fn append_phi_side_fields(out: &mut Vec<F>, advice: &Rv64imMainRecursionFPrimeAdvice) {
-    append_u64_field(out, advice.phi_side().commitment_count());
-    for words in advice.phi_side().commitment_words() {
-        append_u64_field(out, words.len() as u64);
-        for &word in words {
-            append_u64_field(out, word);
-        }
-    }
-}
-
-fn append_phi_side_field_bits(out: &mut impl Rv64imConstruction2BitSink, advice: &Rv64imMainRecursionFPrimeAdvice) {
-    append_u64_field_bits(out, advice.phi_side().commitment_count());
-    for words in advice.phi_side().commitment_words() {
-        append_u64_field_bits(out, words.len() as u64);
-        for &word in words {
-            append_u64_field_bits(out, word);
-        }
-    }
-}
-
-fn append_pi_fold_fields(out: &mut Vec<F>, pi_fold: &Rv64imMainRecursionConstruction2PiFoldProof) {
-    append_u64_field(out, pi_fold.ccs_replay_payload.sumcheck_rounds.len() as u64);
-    for round in &pi_fold.ccs_replay_payload.sumcheck_rounds {
-        append_k_slice(out, round);
-    }
-    append_u64_field(out, pi_fold.ccs_replay_payload.sumcheck_rounds_nc.len() as u64);
-    for round in &pi_fold.ccs_replay_payload.sumcheck_rounds_nc {
-        append_k_slice(out, round);
-    }
-}
-
-fn append_pi_fold_field_bits(
-    out: &mut impl Rv64imConstruction2BitSink,
-    pi_fold: &Rv64imMainRecursionConstruction2PiFoldProof,
-) {
-    append_u64_field_bits(out, pi_fold.ccs_replay_payload.sumcheck_rounds.len() as u64);
-    for round in &pi_fold.ccs_replay_payload.sumcheck_rounds {
-        append_k_slice_bits(out, round);
-    }
-    append_u64_field_bits(out, pi_fold.ccs_replay_payload.sumcheck_rounds_nc.len() as u64);
-    for round in &pi_fold.ccs_replay_payload.sumcheck_rounds_nc {
-        append_k_slice_bits(out, round);
-    }
-}
-
 fn validate_rv64im_main_recursion_construction2_advice(
     advice: &Rv64imMainRecursionFPrimeAdvice,
 ) -> Result<(), SimpleKernelError> {
@@ -964,6 +572,19 @@ fn validate_rv64im_main_recursion_construction2_advice(
         return Err(SimpleKernelError::Bridge(format!(
             "RV64IM native Construction-2 non-terminal recursive relation must carry exactly step_cap={step_cap} public steps; got {active_step_count}"
         )));
+    }
+    for (idx, step) in advice
+        .verified_kernel_handoff()
+        .chunk_input
+        .steps
+        .iter()
+        .enumerate()
+    {
+        if !step.label.is_empty() {
+            return Err(SimpleKernelError::Bridge(format!(
+                "RV64IM native Construction-2 witness image does not admit public-step label cargo at step {idx}"
+            )));
+        }
     }
     let fresh = adapt_rv64im_chunk_to_fresh_ccs(advice.verified_kernel_handoff());
     if fresh.fresh_claims.len() != active_step_count || fresh.fresh_witnesses.len() != active_step_count {
@@ -1044,7 +665,7 @@ fn build_rv64im_main_recursion_construction2_step_shape(
     })
 }
 
-fn rv64im_main_recursion_construction2_commitment_seed(
+pub(crate) fn rv64im_main_recursion_construction2_commitment_seed(
     full_width: usize,
     step_cap: usize,
 ) -> Result<[u8; 32], SimpleKernelError> {
@@ -1066,10 +687,7 @@ fn rv64im_main_recursion_construction2_commitment_seed(
 
 struct Rv64imMainRecursionConstruction2CommitmentContext {
     log: AjtaiSModule,
-    kappa: usize,
     m: usize,
-    chunk_size: usize,
-    chunk_seeds_by_row: Vec<Vec<[u8; 32]>>,
 }
 
 static RV64IM_MAIN_RECURSION_CONSTRUCTION2_COMMITMENT_CONTEXTS: OnceLock<
@@ -1106,30 +724,30 @@ impl Rv64imMainRecursionConstruction2CommitmentContext {
                 "RV64IM Construction-2 commitment module failed for (d,m)=({D},{m}): {err}"
             ))
         })?;
-        let (chunk_size, chunk_seeds_by_row) = seeded_pp_chunk_seeds(seed, want_kappa, m);
-        Ok(Self {
-            log,
-            kappa: want_kappa,
-            m,
-            chunk_size,
-            chunk_seeds_by_row,
-        })
+        Ok(Self { log, m })
     }
 
     fn commit(&self, packed: &Mat<F>) -> Commitment {
         self.log.commit(packed)
     }
+}
 
-    fn commit_binary_columns(&self, column_bits: &[u64]) -> Commitment {
-        commit_row_major_seeded_binary_cols_with_chunk_seeds(
+pub(crate) fn commit_rv64im_main_recursion_construction2_packed_z(
+    full_width: usize,
+    step_cap: usize,
+    packed_z: &Mat<F>,
+) -> Result<Commitment, SimpleKernelError> {
+    let context = build_rv64im_main_recursion_construction2_commitment_log(full_width, step_cap)?;
+    if packed_z.rows() != D || packed_z.cols() != context.m {
+        return Err(SimpleKernelError::Bridge(format!(
+            "RV64IM Construction-2 packed Z shape mismatch: got {}x{}, expected {}x{} for full width {full_width}",
+            packed_z.rows(),
+            packed_z.cols(),
             D,
-            self.kappa,
-            self.m,
-            column_bits,
-            self.chunk_size,
-            &self.chunk_seeds_by_row,
-        )
+            context.m
+        )));
     }
+    Ok(context.commit(packed_z))
 }
 
 fn rv64im_main_recursion_construction2_commitment_context(
@@ -1238,70 +856,6 @@ pub fn build_rv64im_main_recursion_construction2_x_i(
     advice: &Rv64imMainRecursionFPrimeAdvice,
 ) -> Result<Rv64imEncodedPublicInput, SimpleKernelError> {
     Ok(build_rv64im_main_recursion_construction2_output_state_image(advice)?.encoded_public_input())
-}
-
-pub fn build_rv64im_main_recursion_construction2_f_prime_witness_image(
-    advice: &Rv64imMainRecursionFPrimeAdvice,
-    current_input_fresh_instance: &Rv64imMainRecursionConstruction2FreshInstance,
-) -> Result<Rv64imMainRecursionConstruction2FPrimeWitnessImage, SimpleKernelError> {
-    validate_rv64im_main_recursion_construction2_advice(advice)?;
-    validate_rv64im_main_recursion_construction2_input_fresh_instance(advice, current_input_fresh_instance)?;
-    let pi_fold = advice.construction2_pi_fold();
-
-    let mut logical_values = Vec::new();
-    append_u64_field(&mut logical_values, advice.chunk_count_in());
-    append_digest_fields(&mut logical_values, *advice.z_0());
-    append_digest_fields(&mut logical_values, *advice.z_i());
-    append_u64_field(&mut logical_values, advice.pc_i());
-    append_phi_side_fields(&mut logical_values, advice);
-    append_u64_field(
-        &mut logical_values,
-        advice.running_state().carry.main.claims.len() as u64,
-    );
-    append_state_in_claim_fields(&mut logical_values, &advice.running_state().carry.main.claims)?;
-    append_construction2_fresh_instance_fields(&mut logical_values, current_input_fresh_instance);
-    append_chunk_input_fields(&mut logical_values, &advice.verified_kernel_handoff().chunk_input);
-    append_pi_fold_fields(&mut logical_values, pi_fold);
-
-    Ok(Rv64imMainRecursionConstruction2FPrimeWitnessImage { logical_values })
-}
-
-pub fn build_rv64im_main_recursion_construction2_f_prime_low_norm_witness_image(
-    advice: &Rv64imMainRecursionFPrimeAdvice,
-    current_input_fresh_instance: &Rv64imMainRecursionConstruction2FreshInstance,
-) -> Result<Rv64imMainRecursionConstruction2FPrimeLowNormWitnessImage, SimpleKernelError> {
-    let pi_fold = advice.construction2_pi_fold();
-    let canonical_full_width =
-        crate::rv64im::construction2_default::build_rv64im_main_recursion_construction2_canonical_full_width(
-            advice.verifier_key_fs(),
-            advice.phi_side(),
-        )?;
-    let mut binary_values = Vec::with_capacity(canonical_full_width.saturating_sub(RV64IM_ENC_INST_BITS));
-    append_u64_field_bits(&mut binary_values, advice.chunk_count_in());
-    append_digest_field_bits(&mut binary_values, *advice.z_0());
-    append_digest_field_bits(&mut binary_values, *advice.z_i());
-    append_u64_field_bits(&mut binary_values, advice.pc_i());
-    append_phi_side_field_bits(&mut binary_values, advice);
-    append_u64_field_bits(
-        &mut binary_values,
-        advice.running_state().carry.main.claims.len() as u64,
-    );
-    append_state_in_claim_field_bits(&mut binary_values, &advice.running_state().carry.main.claims)?;
-    append_construction2_fresh_instance_field_bits(&mut binary_values, current_input_fresh_instance);
-    append_chunk_input_field_bits(&mut binary_values, &advice.verified_kernel_handoff().chunk_input);
-    append_pi_fold_field_bits(&mut binary_values, pi_fold);
-    Ok(Rv64imMainRecursionConstruction2FPrimeLowNormWitnessImage { binary_values })
-}
-
-pub fn build_rv64im_main_recursion_construction2_default_low_norm_witness_image(
-    vk_fs: &Rv64imVerifierKeyFs,
-    full_width: usize,
-) -> Result<Rv64imMainRecursionConstruction2FPrimeLowNormWitnessImage, SimpleKernelError> {
-    Ok(
-        build_rv64im_main_recursion_construction2_default_pair(vk_fs, full_width)?
-            .w_perp()
-            .clone(),
-    )
 }
 
 pub fn build_rv64im_main_recursion_construction2_default_pair(
@@ -1455,6 +1009,7 @@ pub(crate) fn audit_rv64im_main_recursion_construction2_pi_rlc_rho_mats(
 
 pub(crate) fn build_rv64im_main_recursion_construction2_verified_step_statement_from_parts(
     chunk_index: u64,
+    halted_out: bool,
     chunk_input: &ChunkInput,
     state_in: &Rv64imChunkFoldState,
     next_state: &Rv64imChunkFoldState,
@@ -1467,6 +1022,7 @@ pub(crate) fn build_rv64im_main_recursion_construction2_verified_step_statement_
         chunk_index,
         step_lo,
         step_hi,
+        halted_out,
         state_in: state_in.carry.terminal_handle.0,
         state_out: next_state.carry.terminal_handle.0,
         public_chunk_digest: rv64im_public_chunk_digest(&public_chunk),
@@ -1476,6 +1032,7 @@ pub(crate) fn build_rv64im_main_recursion_construction2_verified_step_statement_
 
 pub(crate) fn build_rv64im_main_recursion_construction2_verified_step_statement_from_summary(
     chunk_index: u64,
+    halted_out: bool,
     chunk_summary: &FixedShapeChunkSummary,
     state_in: &Rv64imChunkFoldState,
     next_state: &Rv64imChunkFoldState,
@@ -1486,11 +1043,47 @@ pub(crate) fn build_rv64im_main_recursion_construction2_verified_step_statement_
         chunk_index,
         step_lo,
         step_hi,
+        halted_out,
         state_in: state_in.carry.terminal_handle.0,
         state_out: next_state.carry.terminal_handle.0,
         public_chunk_digest: chunk_summary.public_chunk_digest,
         chunk_relation_digest: chunk_summary.chunk_relation_digest,
     }
+}
+
+pub(crate) fn build_rv64im_main_recursion_construction2_verified_step_statement_digest_from_step_statement(
+    statement: &Rv64imChunkStepIvcStatement,
+) -> Result<[u8; 32], SimpleKernelError> {
+    if statement.step_public.step_lo != statement.chunk_summary.start_index {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM Construction-2 verified-step statement digest requires step_lo to match the chunk summary".into(),
+        ));
+    }
+    let step_hi = statement
+        .chunk_summary
+        .start_index
+        .checked_add(statement.chunk_summary.public_step_count)
+        .ok_or_else(|| {
+            SimpleKernelError::Bridge(
+                "RV64IM Construction-2 verified-step statement digest chunk span overflows".into(),
+            )
+        })?;
+    if step_hi != statement.step_public.step_hi {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM Construction-2 verified-step statement digest requires chunk summary to close step_hi".into(),
+        ));
+    }
+    Ok(Rv64imMainRecursionConstruction2VerifiedStepStatement {
+        chunk_index: statement.step_public.chunk_index,
+        step_lo: statement.step_public.step_lo,
+        step_hi: statement.step_public.step_hi,
+        halted_out: statement.step_public.halted_out,
+        state_in: statement.step_public.state_in,
+        state_out: statement.step_public.state_out,
+        public_chunk_digest: statement.chunk_summary.public_chunk_digest,
+        chunk_relation_digest: statement.chunk_summary.chunk_relation_digest,
+    }
+    .expected_digest())
 }
 
 fn trace_and_validate_rv64im_main_recursion_construction2_relation(
@@ -1556,6 +1149,7 @@ pub(crate) fn build_rv64im_main_recursion_construction2_verified_step_statement_
     Ok(
         build_rv64im_main_recursion_construction2_verified_step_statement_from_parts(
             relation.witness.handoff.bridge_handoff.chunk_index,
+            relation.witness.terminal_step,
             &relation.witness.handoff.chunk_input,
             &relation.witness.state_in,
             &relation.witness.state_out,
@@ -1793,151 +1387,6 @@ fn derive_rv64im_main_recursion_construction2_next_state_from_trace(
     )
 }
 
-fn encode_binary_vector_for_full_width(full_width: usize, witness: &[F], label: &str) -> Result<Mat<F>, String> {
-    if witness.len() != full_width {
-        return Err(format!(
-            "{label}: witness length {} != full_width {}",
-            witness.len(),
-            full_width
-        ));
-    }
-    if full_width == 0 {
-        return Err(format!("{label}: full_width must be > 0"));
-    }
-    let cols = commit_cols_for_full_width(full_width);
-    let mut out = Mat::zero(D, cols, F::ZERO);
-    for (column, &value) in witness.iter().enumerate() {
-        if value != F::ZERO && value != F::ONE {
-            return Err(format!("{label}: witness coefficient at index {column} is not binary"));
-        }
-        let block = column / D;
-        let rho = column % D;
-        out[(rho, block)] = value;
-    }
-    Ok(out)
-}
-
-pub(crate) fn build_rv64im_main_recursion_construction2_fresh_instance_from_full_vector(
-    chunk_count_out: u64,
-    step_cap: usize,
-    x_i: Rv64imEncodedPublicInput,
-    full_vector: &[F],
-) -> Result<Rv64imMainRecursionConstruction2FreshInstance, SimpleKernelError> {
-    let context = build_rv64im_main_recursion_construction2_commitment_log(full_vector.len(), step_cap)?;
-    let packed = encode_binary_vector_for_full_width(
-        full_vector.len(),
-        full_vector,
-        "RV64IM native Construction-2 fresh instance",
-    )
-    .map_err(|err| {
-        SimpleKernelError::Bridge(format!(
-            "RV64IM native Construction-2 fresh instance encoding failed for chunk {chunk_count_out}: {err}"
-        ))
-    })?;
-    Ok(Rv64imMainRecursionConstruction2FreshInstance {
-        c_i: Rv64imMainRecursionConstruction2Commitment(context.commit(&packed)),
-        x_i,
-    })
-}
-
-pub(crate) fn debug_trace_build_rv64im_main_recursion_construction2_fresh_instance_from_full_vector(
-    chunk_count_out: u64,
-    step_cap: usize,
-    x_i: Rv64imEncodedPublicInput,
-    full_vector: &[F],
-    trace_prefix: &str,
-) -> Result<Rv64imMainRecursionConstruction2FreshInstance, SimpleKernelError> {
-    let emit = |label: &str, elapsed_ms: f64| {
-        eprintln!("{trace_prefix}.{label}={elapsed_ms:.2}ms");
-        let _ = io::stderr().flush();
-    };
-    let started = Instant::now();
-    let context = build_rv64im_main_recursion_construction2_commitment_log(full_vector.len(), step_cap)?;
-    emit("commitment_context", started.elapsed().as_secs_f64() * 1_000.0);
-    let started = Instant::now();
-    let packed = encode_binary_vector_for_full_width(
-        full_vector.len(),
-        full_vector,
-        "RV64IM native Construction-2 fresh instance",
-    )
-    .map_err(|err| {
-        SimpleKernelError::Bridge(format!(
-            "RV64IM native Construction-2 fresh instance encoding failed for chunk {chunk_count_out}: {err}"
-        ))
-    })?;
-    emit("encode_vector", started.elapsed().as_secs_f64() * 1_000.0);
-    let started = Instant::now();
-    let commitment = context.commit(&packed);
-    emit("commit", started.elapsed().as_secs_f64() * 1_000.0);
-    Ok(Rv64imMainRecursionConstruction2FreshInstance {
-        c_i: Rv64imMainRecursionConstruction2Commitment(commitment),
-        x_i,
-    })
-}
-
-fn build_rv64im_main_recursion_construction2_fresh_instance_packed_image(
-    advice: &Rv64imMainRecursionFPrimeAdvice,
-    current_input_fresh_instance: &Rv64imMainRecursionConstruction2FreshInstance,
-    x_i: &Rv64imEncodedPublicInput,
-) -> Result<Vec<u64>, SimpleKernelError> {
-    let pi_fold = advice.construction2_pi_fold();
-    let canonical_full_width =
-        crate::rv64im::construction2_default::build_rv64im_main_recursion_construction2_canonical_full_width(
-            advice.verifier_key_fs(),
-            advice.phi_side(),
-        )?;
-    let mut sink = PackedBinaryMatBitSink::new(canonical_full_width)?;
-    append_binary_field_slots(&mut sink, &x_i.field_image(), "RV64IM native Construction-2 x_i");
-    append_u64_field_bits(&mut sink, advice.chunk_count_in());
-    append_digest_field_bits(&mut sink, *advice.z_0());
-    append_digest_field_bits(&mut sink, *advice.z_i());
-    append_u64_field_bits(&mut sink, advice.pc_i());
-    append_phi_side_field_bits(&mut sink, advice);
-    append_u64_field_bits(&mut sink, advice.running_state().carry.main.claims.len() as u64);
-    append_state_in_claim_field_bits(&mut sink, &advice.running_state().carry.main.claims)?;
-    append_construction2_fresh_instance_field_bits(&mut sink, current_input_fresh_instance);
-    append_chunk_input_field_bits(&mut sink, &advice.verified_kernel_handoff().chunk_input);
-    append_pi_fold_field_bits(&mut sink, pi_fold);
-    sink.finish("RV64IM native Construction-2 fresh instance")
-}
-
-fn debug_trace_build_rv64im_main_recursion_construction2_fresh_instance_from_input_direct(
-    advice: &Rv64imMainRecursionFPrimeAdvice,
-    current_input_fresh_instance: &Rv64imMainRecursionConstruction2FreshInstance,
-    x_i: Rv64imEncodedPublicInput,
-    trace_prefix: &str,
-) -> Result<Rv64imMainRecursionConstruction2FreshInstance, SimpleKernelError> {
-    let emit = |label: &str, elapsed_ms: f64| {
-        eprintln!("{trace_prefix}.{label}={elapsed_ms:.2}ms");
-        let _ = io::stderr().flush();
-    };
-    let started = Instant::now();
-    let canonical_full_width =
-        crate::rv64im::construction2_default::build_rv64im_main_recursion_construction2_canonical_full_width(
-            advice.verifier_key_fs(),
-            advice.phi_side(),
-        )?;
-    emit("canonical_full_width", started.elapsed().as_secs_f64() * 1_000.0);
-    let started = Instant::now();
-    let context = build_rv64im_main_recursion_construction2_commitment_log(
-        canonical_full_width,
-        advice.verifier_key_fs().step_cap()?,
-    )?;
-    emit("commitment_context", started.elapsed().as_secs_f64() * 1_000.0);
-    let started = Instant::now();
-    let packed = build_rv64im_main_recursion_construction2_fresh_instance_packed_image(
-        advice,
-        current_input_fresh_instance,
-        &x_i,
-    )?;
-    emit("pack_image", started.elapsed().as_secs_f64() * 1_000.0);
-    let started = Instant::now();
-    let commitment =
-        Rv64imMainRecursionConstruction2Commitment::from_commitment(context.commit_binary_columns(&packed));
-    emit("commit", started.elapsed().as_secs_f64() * 1_000.0);
-    Ok(Rv64imMainRecursionConstruction2FreshInstance { c_i: commitment, x_i })
-}
-
 pub fn build_rv64im_main_recursion_construction2_default_fresh_instance(
     vk_fs: &Rv64imVerifierKeyFs,
     full_width: usize,
@@ -1979,71 +1428,13 @@ pub(crate) fn build_rv64im_main_recursion_construction2_fresh_instance_with_inpu
     let total_started = Instant::now();
     let mut perf = Rv64imMainRecursionConstruction2FreshInstanceBuildPerf::default();
     let started = Instant::now();
-    let canonical_full_width =
-        crate::rv64im::construction2_default::build_rv64im_main_recursion_construction2_canonical_full_width(
-            advice.verifier_key_fs(),
-            advice.phi_side(),
-        )?;
-    perf.canonical_full_width_ms = elapsed_ms(started);
-    let started = Instant::now();
-    let context = build_rv64im_main_recursion_construction2_commitment_log(
-        canonical_full_width,
-        advice.verifier_key_fs().step_cap()?,
-    )?;
-    perf.commitment_context_ms = elapsed_ms(started);
-    let started = Instant::now();
-    let packed = build_rv64im_main_recursion_construction2_fresh_instance_packed_image(
-        advice,
-        current_input_fresh_instance,
-        &x_i,
-    )?;
+    validate_rv64im_main_recursion_construction2_input_fresh_instance(advice, current_input_fresh_instance)?;
     perf.pack_image_ms = elapsed_ms(started);
     let started = Instant::now();
-    let commitment =
-        Rv64imMainRecursionConstruction2Commitment::from_commitment(context.commit_binary_columns(&packed));
+    let fresh_instance = rv64im_main_recursion_construction2_x_only_placeholder(x_i);
     perf.commit_ms = elapsed_ms(started);
     perf.total_ms = elapsed_ms(total_started);
-    Ok((
-        Rv64imMainRecursionConstruction2FreshInstance { c_i: commitment, x_i },
-        perf,
-    ))
-}
-
-pub(crate) fn audit_rv64im_main_recursion_construction2_binary_commit(
-    advice: &Rv64imMainRecursionFPrimeAdvice,
-    current_input_fresh_instance: &Rv64imMainRecursionConstruction2FreshInstance,
-    x_i: &Rv64imEncodedPublicInput,
-) -> Result<SeededBinaryColsCommitAudit, SimpleKernelError> {
-    validate_rv64im_main_recursion_construction2_advice(advice)?;
-    let canonical_full_width =
-        crate::rv64im::construction2_default::build_rv64im_main_recursion_construction2_canonical_full_width(
-            advice.verifier_key_fs(),
-            advice.phi_side(),
-        )?;
-    let context = build_rv64im_main_recursion_construction2_commitment_log(
-        canonical_full_width,
-        advice.verifier_key_fs().step_cap()?,
-    )?;
-    let packed = build_rv64im_main_recursion_construction2_fresh_instance_packed_image(
-        advice,
-        current_input_fresh_instance,
-        x_i,
-    )?;
-    let (audited_commitment, audit) = audit_commit_row_major_seeded_binary_cols_with_chunk_seeds(
-        D,
-        context.kappa,
-        context.m,
-        &packed,
-        context.chunk_size,
-        &context.chunk_seeds_by_row,
-    );
-    let live_commitment = context.commit_binary_columns(&packed);
-    if audited_commitment != live_commitment {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM Construction-2 binary-column audit diverged from the live commit_binary_columns path".into(),
-        ));
-    }
-    Ok(audit)
+    Ok((fresh_instance, perf))
 }
 
 pub(crate) fn debug_trace_build_rv64im_main_recursion_construction2_fresh_instance_with_input_and_x_i(
@@ -2052,13 +1443,23 @@ pub(crate) fn debug_trace_build_rv64im_main_recursion_construction2_fresh_instan
     x_i: Rv64imEncodedPublicInput,
     trace_prefix: &str,
 ) -> Result<Rv64imMainRecursionConstruction2FreshInstance, SimpleKernelError> {
-    validate_rv64im_main_recursion_construction2_advice(advice)?;
-    debug_trace_build_rv64im_main_recursion_construction2_fresh_instance_from_input_direct(
+    let started = Instant::now();
+    let (fresh, perf) = build_rv64im_main_recursion_construction2_fresh_instance_with_input_and_x_i_with_perf(
         advice,
         current_input_fresh_instance,
         x_i,
-        &format!("{trace_prefix}.from_input_direct"),
-    )
+    )?;
+    eprintln!(
+        "{trace_prefix}.validate_input_fresh_instance={:.2}ms",
+        perf.pack_image_ms
+    );
+    eprintln!(
+        "{trace_prefix}.x_only_non_authoritative_commitment_placeholder={:.2}ms",
+        perf.commit_ms
+    );
+    eprintln!("{trace_prefix}.total={:.2}ms", elapsed_ms(started));
+    let _ = io::stderr().flush();
+    Ok(fresh)
 }
 
 pub fn build_rv64im_main_recursion_construction2_fresh_instance_with_input(
@@ -2090,7 +1491,7 @@ pub fn build_rv64im_main_recursion_construction2_fresh_instance(
     )
     .map_err(|err| {
         SimpleKernelError::Bridge(format!(
-            "RV64IM native Construction-2 base-case fresh instance build failed after wiring the binary low-norm enc(F') image (shape digest {:?}): {err}",
+            "RV64IM native Construction-2 base-case fresh instance build failed for canonical u_perp (shape digest {:?}): {err}",
             shape.expected_digest(),
         ))
     })

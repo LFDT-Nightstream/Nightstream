@@ -1,5 +1,8 @@
-//! Owns the native RV64IM IVC carrier that can be serialized, resumed, and
-//! appended without Spartan.
+//! Owns the native RV64IM IVC prover carrier.
+//!
+//! The carrier is for append/resume/compress witness construction only. It is
+//! not a proof verifier and must not replay historical chunks as acceptance
+//! evidence.
 
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use serde::{Deserialize, Serialize};
@@ -7,15 +10,18 @@ use std::time::Instant;
 
 use crate::chunk_relation::ChunkReplayWitness;
 use crate::proof::FoldSchedule;
-use crate::rv64im::chunk_fold_step::verify_rv64im_chunk_fold_verifier_step;
 use crate::rv64im::chunk_step_ivc::{
     rv64im_chunk_step_ivc_initial_state_for_step_cap, validate_rv64im_chunk_step_ivc_surface,
     Rv64imChunkStepIvcRelation, Rv64imChunkStepIvcStatement, Rv64imChunkStepIvcWitness,
 };
 use crate::rv64im::construction2::{
     build_rv64im_main_recursion_construction2_pi_fold_from_replay_witness,
+    build_rv64im_main_recursion_construction2_verified_step_statement_digest_from_step_statement,
     build_rv64im_main_recursion_construction2_verified_step_statement_from_summary,
-    Rv64imMainRecursionConstruction2FreshInstance,
+    Rv64imMainRecursionConstruction2FreshInstance, Rv64imMainRecursionConstruction2PublicBoundary,
+};
+use crate::rv64im::encoded_public_input::{
+    digest32_has_canonical_field_limb_bytes, encoded_public_input_has_canonical_field_limb_bytes,
 };
 use crate::rv64im::f_prime::{
     build_rv64im_main_recursion_verifier_key_fs_for_step_cap, evaluate_rv64im_main_recursion_f_prime_advice_with_perf,
@@ -23,10 +29,7 @@ use crate::rv64im::f_prime::{
     Rv64imVerifierKeyFs, RV64IM_MAIN_RECURSION_TRIVIAL_PC,
 };
 use crate::rv64im::final_relation::{rv64im_chunk_fold_carry_recursive_accumulator_digest, Rv64imChunkFoldState};
-use crate::rv64im::kernel::{
-    rv64im_cached_root_main_lane_optimized_cache, rv64im_root_main_lane_context_for_claim_count,
-    Rv64imVerifiedKernelChunkHandoff,
-};
+use crate::rv64im::kernel::Rv64imVerifiedKernelChunkHandoff;
 use crate::rv64im::SimpleKernelError;
 
 fn elapsed_ms(started: Instant) -> f64 {
@@ -73,24 +76,10 @@ pub struct Rv64imIvcAppendPerf {
     pub evaluate_f_prime_verify_chunk_relation_ms: f64,
     pub evaluate_f_prime_verify_derive_next_state_ms: f64,
     pub evaluate_f_prime_build_u_next_ms: f64,
-    pub evaluate_f_prime_build_u_next_canonical_full_width_ms: f64,
-    pub evaluate_f_prime_build_u_next_commitment_context_ms: f64,
     pub evaluate_f_prime_build_u_next_pack_image_ms: f64,
     pub evaluate_f_prime_build_u_next_commit_ms: f64,
+    pub derive_committed_u_next_ms: f64,
     pub finalize_state_ms: f64,
-    pub total_ms: f64,
-}
-
-#[derive(Clone, Copy, Debug, Default)]
-pub struct Rv64imIvcVerifyPerf {
-    pub validate_state_surface_ms: f64,
-    pub build_terminal_relation_ms: f64,
-    pub verified_step_statement_ms: f64,
-    pub context_lookup_ms: f64,
-    pub replay_step_ms: f64,
-    pub compare_running_state_ms: f64,
-    pub transcript_snapshot_ms: f64,
-    pub compare_step_public_ms: f64,
     pub total_ms: f64,
 }
 
@@ -103,14 +92,177 @@ pub struct Rv64imIvcPublicImage {
     pub z_i: [u8; 32],
     pub pc: u64,
     pub x_i: Rv64imEncodedPublicInput,
+    pub construction2_u_i: Rv64imMainRecursionConstruction2PublicBoundary,
     pub folded_accumulator_digest: [u8; 32],
+    pub terminal_bridge_handoff_digest: [u8; 32],
+    pub terminal_verified_step_statement_digest: [u8; 32],
     pub terminal_statement: Option<Rv64imChunkStepIvcStatement>,
 }
 
 impl Rv64imIvcPublicImage {
+    /// Checks the public metadata that the compressed Construction-2 verifier
+    /// consumes directly. Witness-bearing CE and F' relations are checked by
+    /// the paired Spartan proofs, not by this structural guard.
+    pub fn validate_final_construction2_public_boundary(&self) -> Result<(), SimpleKernelError> {
+        if self.chunk_count == 0 {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM IVC compressed public image must close at least one recursive step".into(),
+            ));
+        }
+        if self.step_count == 0 {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM IVC compressed public image must close at least one semantic step".into(),
+            ));
+        }
+        if self.pc != RV64IM_MAIN_RECURSION_TRIVIAL_PC {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM IVC compressed public image pc does not match the trivial recursion lane".into(),
+            ));
+        }
+        if self.construction2_u_i.x_i != self.x_i {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM IVC compressed public image Construction-2 u_i.x_i does not match x_i".into(),
+            ));
+        }
+        if !encoded_public_input_has_canonical_field_limb_bytes(&self.x_i) {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM IVC compressed public image x_i is not a canonical four-limb field encoding".into(),
+            ));
+        }
+        for (label, digest) in [
+            ("vk_fs_digest", self.vk_fs_digest),
+            ("z_0", self.z_0),
+            ("z_i", self.z_i),
+            (
+                "construction2_u_i.fresh_instance_digest",
+                self.construction2_u_i.fresh_instance_digest,
+            ),
+            (
+                "construction2_u_i.commitment_digest",
+                self.construction2_u_i.commitment_digest,
+            ),
+            ("folded_accumulator_digest", self.folded_accumulator_digest),
+            ("terminal_bridge_handoff_digest", self.terminal_bridge_handoff_digest),
+            (
+                "terminal_verified_step_statement_digest",
+                self.terminal_verified_step_statement_digest,
+            ),
+        ] {
+            if !digest32_has_canonical_field_limb_bytes(digest) {
+                return Err(SimpleKernelError::Bridge(format!(
+                    "RV64IM IVC compressed public image {label} is not a canonical four-limb field encoding"
+                )));
+            }
+        }
+        if !self.construction2_u_i.has_canonical_commitment_shape() {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM IVC compressed public image Construction-2 u_i commitment shape is not canonical".into(),
+            ));
+        }
+        if self.construction2_u_i.commitment_digest != self.construction2_u_i.expected_commitment_digest() {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM IVC compressed public image Construction-2 u_i commitment digest does not bind commitment data"
+                    .into(),
+            ));
+        }
+        if self.construction2_u_i.fresh_instance_digest != self.construction2_u_i.expected_fresh_instance_digest() {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM IVC compressed public image Construction-2 u_i digest does not bind commitment and x_i".into(),
+            ));
+        }
+        let terminal_statement = self.terminal_statement.as_ref().ok_or_else(|| {
+            SimpleKernelError::Bridge(
+                "RV64IM IVC compressed public image must carry the terminal chunk statement metadata".into(),
+            )
+        })?;
+        for (label, digest) in [
+            (
+                "terminal_statement.step_public.program_digest",
+                terminal_statement.step_public.program_digest,
+            ),
+            (
+                "terminal_statement.step_public.state_in",
+                terminal_statement.step_public.state_in,
+            ),
+            (
+                "terminal_statement.step_public.state_out",
+                terminal_statement.step_public.state_out,
+            ),
+            (
+                "terminal_statement.chunk_summary.public_chunk_digest",
+                terminal_statement.chunk_summary.public_chunk_digest,
+            ),
+            (
+                "terminal_statement.chunk_summary.chunk_relation_digest",
+                terminal_statement.chunk_summary.chunk_relation_digest,
+            ),
+        ] {
+            if !digest32_has_canonical_field_limb_bytes(digest) {
+                return Err(SimpleKernelError::Bridge(format!(
+                    "RV64IM IVC compressed public image {label} is not a canonical four-limb field encoding"
+                )));
+            }
+        }
+        if terminal_statement.step_public.chunk_index.checked_add(1) != Some(self.chunk_count) {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM IVC compressed public image terminal chunk index does not close chunk_count".into(),
+            ));
+        }
+        if terminal_statement.step_public.step_hi != self.step_count {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM IVC compressed public image terminal step_hi does not close step_count".into(),
+            ));
+        }
+        if terminal_statement.step_public.step_lo != terminal_statement.chunk_summary.start_index {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM IVC compressed public image terminal step_lo does not match chunk summary start".into(),
+            ));
+        }
+        if terminal_statement.chunk_summary.public_step_count == 0 {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM IVC compressed public image terminal chunk must carry at least one public step".into(),
+            ));
+        }
+        let Some(summary_step_hi) = terminal_statement
+            .chunk_summary
+            .start_index
+            .checked_add(terminal_statement.chunk_summary.public_step_count)
+        else {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM IVC compressed public image terminal chunk summary overflows step_count".into(),
+            ));
+        };
+        if summary_step_hi != terminal_statement.step_public.step_hi {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM IVC compressed public image terminal chunk summary does not close step_hi".into(),
+            ));
+        }
+        if terminal_statement.step_public.state_out != self.z_i {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM IVC compressed public image terminal state_out does not match z_i".into(),
+            ));
+        }
+        if !terminal_statement.step_public.halted_out {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM IVC compressed public image terminal chunk must be halted".into(),
+            ));
+        }
+        let expected_terminal_statement_digest =
+            build_rv64im_main_recursion_construction2_verified_step_statement_digest_from_step_statement(
+                terminal_statement,
+            )?;
+        if self.terminal_verified_step_statement_digest != expected_terminal_statement_digest {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM IVC compressed public image terminal verified-step digest does not bind terminal metadata"
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
+
     pub fn expected_digest(&self) -> [u8; 32] {
         let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/ivc_public_image");
-        tr.append_message(b"neo.fold.next/rv64im/ivc_public_image/version", b"v1");
+        tr.append_message(b"neo.fold.next/rv64im/ivc_public_image/version", b"v4");
         tr.append_message(
             b"neo.fold.next/rv64im/ivc_public_image/vk_fs_digest",
             &self.vk_fs_digest,
@@ -123,8 +275,20 @@ impl Rv64imIvcPublicImage {
         tr.append_message(b"neo.fold.next/rv64im/ivc_public_image/z_i", &self.z_i);
         tr.append_message(b"neo.fold.next/rv64im/ivc_public_image/x_i", &self.x_i.bytes());
         tr.append_message(
+            b"neo.fold.next/rv64im/ivc_public_image/construction2_u_i",
+            &self.construction2_u_i.expected_digest(),
+        );
+        tr.append_message(
             b"neo.fold.next/rv64im/ivc_public_image/folded_accumulator_digest",
             &self.folded_accumulator_digest,
+        );
+        tr.append_message(
+            b"neo.fold.next/rv64im/ivc_public_image/terminal_bridge_handoff_digest",
+            &self.terminal_bridge_handoff_digest,
+        );
+        tr.append_message(
+            b"neo.fold.next/rv64im/ivc_public_image/terminal_verified_step_statement_digest",
+            &self.terminal_verified_step_statement_digest,
         );
         match self.terminal_statement.as_ref() {
             Some(statement) => {
@@ -163,7 +327,11 @@ pub struct Rv64imIvcState {
 struct Rv64imIvcStepRecord {
     statement: Rv64imChunkStepIvcStatement,
     handoff: Rv64imVerifiedKernelChunkHandoff,
+    phi_side: Rv64imMainRecursionPhiSide,
+    x_i: Rv64imEncodedPublicInput,
+    construction2_u_i: Rv64imMainRecursionConstruction2FreshInstance,
     state_in: Rv64imChunkFoldState,
+    state_out: Rv64imChunkFoldState,
     replay_witness: ChunkReplayWitness,
     terminal_step: bool,
 }
@@ -247,6 +415,7 @@ impl Rv64imIvcState {
         let native_verified_step_statement =
             build_rv64im_main_recursion_construction2_verified_step_statement_from_summary(
                 relation.witness.handoff.bridge_handoff.chunk_index,
+                relation.witness.terminal_step,
                 &main_circuit_chunk_summary,
                 &relation.witness.state_in,
                 &relation.witness.state_out,
@@ -289,12 +458,18 @@ impl Rv64imIvcState {
         perf.evaluate_f_prime_verify_chunk_relation_ms = eval_perf.verify_nifs_chunk_relation_ms;
         perf.evaluate_f_prime_verify_derive_next_state_ms = eval_perf.verify_nifs_derive_next_state_ms;
         perf.evaluate_f_prime_build_u_next_ms = eval_perf.build_construction2_u_next_ms;
-        perf.evaluate_f_prime_build_u_next_canonical_full_width_ms =
-            eval_perf.build_construction2_u_next_canonical_full_width_ms;
-        perf.evaluate_f_prime_build_u_next_commitment_context_ms =
-            eval_perf.build_construction2_u_next_commitment_context_ms;
         perf.evaluate_f_prime_build_u_next_pack_image_ms = eval_perf.build_construction2_u_next_pack_image_ms;
         perf.evaluate_f_prime_build_u_next_commit_ms = eval_perf.build_construction2_u_next_commit_ms;
+
+        let started = Instant::now();
+        let committed_construction2_u_next =
+            crate::rv64im::ivc_snark::derive_rv64im_terminal_f_prime_committed_fresh_instance(relation, &advice)?;
+        if committed_construction2_u_next.x_i() != &step_image.x_out {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM IVC append derived a committed Construction-2 u_next whose x_i does not match F' x_out".into(),
+            ));
+        }
+        perf.derive_committed_u_next_ms = elapsed_ms(started);
 
         let started = Instant::now();
         let next_step_count = self
@@ -306,6 +481,17 @@ impl Rv64imIvcState {
                 "RV64IM IVC append step_count does not match the appended relation step_hi".into(),
             ));
         }
+        let step_record = Rv64imIvcStepRecord {
+            statement: relation.statement.clone(),
+            handoff: relation.witness.handoff.clone(),
+            phi_side: self.phi_side.clone(),
+            x_i: self.x_i.clone(),
+            construction2_u_i: self.construction2_u_i.clone(),
+            state_in: relation.witness.state_in.clone(),
+            state_out: step_image.next_state.clone(),
+            replay_witness: relation.witness.replay_witness.clone(),
+            terminal_step: relation.witness.terminal_step,
+        };
         let next = Self {
             step_cap: self.step_cap,
             vk_fs_digest: self.vk_fs_digest,
@@ -317,123 +503,13 @@ impl Rv64imIvcState {
             phi_side: step_image.phi_side,
             folded_accumulator_digest: step_image.folded_accumulator_digest,
             x_i: step_image.x_out,
-            construction2_u_i: step_image.construction2_u_next,
+            construction2_u_i: committed_construction2_u_next,
             running_state: step_image.next_state,
-            last_step: Some(Rv64imIvcStepRecord {
-                statement: relation.statement.clone(),
-                handoff: relation.witness.handoff.clone(),
-                state_in: relation.witness.state_in.clone(),
-                replay_witness: relation.witness.replay_witness.clone(),
-                terminal_step: relation.witness.terminal_step,
-            }),
+            last_step: Some(step_record),
         };
         perf.finalize_state_ms = elapsed_ms(started);
         perf.total_ms = elapsed_ms(total_started);
         Ok((next, perf))
-    }
-
-    pub fn verify(&self) -> Result<(), SimpleKernelError> {
-        self.verify_with_perf().map(|_| ())
-    }
-
-    pub fn verify_with_perf(&self) -> Result<Rv64imIvcVerifyPerf, SimpleKernelError> {
-        let total_started = Instant::now();
-        let mut perf = Rv64imIvcVerifyPerf::default();
-
-        let started = Instant::now();
-        self.validate_surface()?;
-        perf.validate_state_surface_ms = elapsed_ms(started);
-
-        if let Some(last_step) = self.last_step.as_ref() {
-            let started = Instant::now();
-            let witness = Rv64imChunkStepIvcWitness {
-                handoff: last_step.handoff.clone(),
-                state_in: last_step.state_in.clone(),
-                state_out: self.running_state.clone(),
-                replay_witness: last_step.replay_witness.clone(),
-                terminal_step: last_step.terminal_step,
-            };
-            validate_rv64im_chunk_step_ivc_surface(&last_step.statement, &witness)?;
-            perf.build_terminal_relation_ms = elapsed_ms(started);
-
-            let started = Instant::now();
-            let (params, log, structure) =
-                rv64im_root_main_lane_context_for_claim_count(last_step.state_in.carry.main.claims.len())?;
-            let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
-            perf.context_lookup_ms = elapsed_ms(started);
-
-            let started = Instant::now();
-            let mut transcript = Poseidon2Transcript::from_state_and_absorbed(
-                last_step.state_in.transcript.state,
-                last_step.state_in.transcript.absorbed,
-            );
-            let step = verify_rv64im_chunk_fold_verifier_step(
-                last_step.statement.step_public.program_digest,
-                last_step.statement.step_public.chunk_index as usize,
-                last_step.terminal_step,
-                &last_step.handoff,
-                &last_step.state_in.carry,
-                &last_step.replay_witness,
-                &mut transcript,
-                &params,
-                structure,
-                log,
-                &optimized_cache,
-            )?;
-            perf.replay_step_ms = elapsed_ms(started);
-
-            let started = Instant::now();
-            if step.public_chunk_digest != last_step.statement.chunk_summary.public_chunk_digest {
-                return Err(SimpleKernelError::Bridge(
-                    "RV64IM IVC verify replayed terminal relation does not reproduce the carried public chunk digest"
-                        .into(),
-                ));
-            }
-            if step.chunk_relation_digest != last_step.statement.chunk_summary.chunk_relation_digest {
-                return Err(SimpleKernelError::Bridge(
-                    "RV64IM IVC verify replayed terminal relation does not reproduce the carried chunk relation digest"
-                        .into(),
-                ));
-            }
-            perf.verified_step_statement_ms = elapsed_ms(started);
-
-            let started = Instant::now();
-            if step.next_carry.main.claims != self.running_state.carry.main.claims
-                || step.next_carry.main.witnesses != self.running_state.carry.main.witnesses
-                || step.next_carry.terminal_handle != self.running_state.carry.terminal_handle
-            {
-                return Err(SimpleKernelError::Bridge(
-                    "RV64IM IVC verify replayed terminal relation does not produce the carried running state".into(),
-                ));
-            }
-            perf.compare_running_state_ms = elapsed_ms(started);
-
-            let started = Instant::now();
-            let transcript_out = crate::rv64im::final_relation::rv64im_chunk_fold_carried_transcript_snapshot(
-                &crate::rv64im::final_relation::Rv64imChunkFoldTranscriptSnapshot {
-                    state: transcript.state(),
-                    absorbed: transcript.absorbed(),
-                },
-            );
-            if transcript_out != self.running_state.transcript {
-                return Err(SimpleKernelError::Bridge(
-                    "RV64IM IVC verify replayed terminal relation does not produce the carried transcript snapshot"
-                        .into(),
-                ));
-            }
-            perf.transcript_snapshot_ms = elapsed_ms(started);
-
-            let started = Instant::now();
-            if step.step_public != last_step.statement.step_public {
-                return Err(SimpleKernelError::Bridge(
-                    "RV64IM IVC verify replayed terminal relation does not reproduce the carried step public".into(),
-                ));
-            }
-            perf.compare_step_public_ms = elapsed_ms(started);
-        }
-
-        perf.total_ms = elapsed_ms(total_started);
-        Ok(perf)
     }
 
     pub fn public_image(&self) -> Rv64imIvcPublicImage {
@@ -445,7 +521,12 @@ impl Rv64imIvcState {
             z_i: self.z_i,
             pc: self.pc,
             x_i: self.x_i.clone(),
+            construction2_u_i: Rv64imMainRecursionConstruction2PublicBoundary::from_fresh_instance(
+                &self.construction2_u_i,
+            ),
             folded_accumulator_digest: self.folded_accumulator_digest(),
+            terminal_bridge_handoff_digest: self.terminal_bridge_handoff_digest(),
+            terminal_verified_step_statement_digest: self.terminal_verified_step_statement_digest(),
             terminal_statement: self.last_step.as_ref().map(|step| step.statement.clone()),
         }
     }
@@ -486,22 +567,37 @@ impl Rv64imIvcState {
         self.last_step.as_ref().map(|step| &step.statement)
     }
 
-    pub(crate) fn build_terminal_relation(&self) -> Result<Rv64imChunkStepIvcRelation, SimpleKernelError> {
+    pub(crate) fn latest_relation_and_advice(
+        &self,
+    ) -> Result<(Rv64imChunkStepIvcRelation, Rv64imMainRecursionFPrimeAdvice), SimpleKernelError> {
+        let vk_fs = self.canonical_vk_fs()?;
         let last_step = self.last_step.as_ref().ok_or_else(|| {
-            SimpleKernelError::Bridge("RV64IM IVC compression requires at least one appended fold".into())
+            SimpleKernelError::Bridge("RV64IM IVC compression requires at least one appended recursive step".into())
         })?;
-        let witness = Rv64imChunkStepIvcWitness {
-            handoff: last_step.handoff.clone(),
-            state_in: last_step.state_in.clone(),
-            state_out: self.running_state.clone(),
-            replay_witness: last_step.replay_witness.clone(),
-            terminal_step: last_step.terminal_step,
-        };
-        validate_rv64im_chunk_step_ivc_surface(&last_step.statement, &witness)?;
-        Ok(Rv64imChunkStepIvcRelation {
-            statement: last_step.statement.clone(),
-            witness,
-        })
+        Ok((last_step.relation()?, last_step.advice(vk_fs, self.z_0)?))
+    }
+
+    pub(crate) fn validate_current_surface_for_compression(&self) -> Result<(), SimpleKernelError> {
+        self.validate_surface()
+    }
+
+    pub(crate) fn terminal_bridge_handoff_digest(&self) -> [u8; 32] {
+        self.last_step
+            .as_ref()
+            .map(|step| step.handoff.bridge_handoff.digest)
+            .unwrap_or([0u8; 32])
+    }
+
+    pub(crate) fn terminal_verified_step_statement_digest(&self) -> [u8; 32] {
+        self.last_step
+            .as_ref()
+            .and_then(|step| {
+                build_rv64im_main_recursion_construction2_verified_step_statement_digest_from_step_statement(
+                    &step.statement,
+                )
+                .ok()
+            })
+            .unwrap_or([0u8; 32])
     }
 
     fn canonical_vk_fs(&self) -> Result<crate::rv64im::Rv64imVerifierKeyFs, SimpleKernelError> {
@@ -560,6 +656,9 @@ impl Rv64imIvcState {
                 "RV64IM IVC carried CE claim and witness counts diverged".into(),
             ));
         }
+        self.running_state
+            .carry
+            .validate_projection_digests("running_state")?;
         let expected_x_i = rv64im_main_recursion_x_out(
             &vk_fs,
             self.chunk_count,
@@ -613,9 +712,14 @@ impl Rv64imIvcState {
         } else {
             let last_step = self.last_step.as_ref().ok_or_else(|| {
                 SimpleKernelError::Bridge(
-                    "RV64IM IVC non-base state must carry the latest relation needed for native verification".into(),
+                    "RV64IM IVC non-base prover state must carry the latest appended relation".into(),
                 )
             })?;
+            if !rv64im_chunk_fold_states_match(&last_step.state_out, &self.running_state) {
+                return Err(SimpleKernelError::Bridge(
+                    "RV64IM IVC latest step output does not match the carried running state".into(),
+                ));
+            }
             self.validate_relation_step_cap(
                 last_step.statement.chunk_summary.public_step_count,
                 last_step.terminal_step,
@@ -712,7 +816,67 @@ impl Rv64imIvcState {
     }
 }
 
-pub(crate) fn build_rv64im_ivc_state_from_relations(
+impl Rv64imIvcStepRecord {
+    fn relation(&self) -> Result<Rv64imChunkStepIvcRelation, SimpleKernelError> {
+        let witness = Rv64imChunkStepIvcWitness {
+            handoff: self.handoff.clone(),
+            state_in: self.state_in.clone(),
+            state_out: self.state_out.clone(),
+            replay_witness: self.replay_witness.clone(),
+            terminal_step: self.terminal_step,
+        };
+        validate_rv64im_chunk_step_ivc_surface(&self.statement, &witness)?;
+        Ok(Rv64imChunkStepIvcRelation {
+            statement: self.statement.clone(),
+            witness,
+        })
+    }
+
+    fn advice(
+        &self,
+        vk_fs: Rv64imVerifierKeyFs,
+        z_0: [u8; 32],
+    ) -> Result<Rv64imMainRecursionFPrimeAdvice, SimpleKernelError> {
+        let native_verified_step_statement =
+            build_rv64im_main_recursion_construction2_verified_step_statement_from_summary(
+                self.handoff.bridge_handoff.chunk_index,
+                self.terminal_step,
+                &self.statement.chunk_summary,
+                &self.state_in,
+                &self.state_out,
+            );
+        let construction2_pi_fold =
+            build_rv64im_main_recursion_construction2_pi_fold_from_replay_witness(&self.replay_witness);
+        Rv64imMainRecursionFPrimeAdvice::from_parts(
+            vk_fs,
+            self.statement.step_public.chunk_index,
+            z_0,
+            self.statement.step_public.state_in,
+            RV64IM_MAIN_RECURSION_TRIVIAL_PC,
+            crate::rv64im::Rv64imMainRecursionSideLaneWitness::zero(),
+            self.phi_side.clone(),
+            self.state_in.clone(),
+            self.x_i.clone(),
+            Some(self.construction2_u_i.clone()),
+            native_verified_step_statement,
+            self.terminal_step,
+            self.handoff.clone(),
+            self.state_out.clone(),
+            self.replay_witness.clone(),
+            construction2_pi_fold,
+        )
+    }
+}
+
+fn rv64im_chunk_fold_states_match(lhs: &Rv64imChunkFoldState, rhs: &Rv64imChunkFoldState) -> bool {
+    lhs.carry.main.claims == rhs.carry.main.claims
+        && lhs.carry.main.witnesses == rhs.carry.main.witnesses
+        && lhs.carry.main_projection_digests == rhs.carry.main_projection_digests
+        && lhs.carry.terminal_handle == rhs.carry.terminal_handle
+        && lhs.transcript == rhs.transcript
+}
+
+pub(crate) fn build_rv64im_ivc_prover_state_from_relations(
     relations: &[Rv64imChunkStepIvcRelation],
     step_cap: usize,
 ) -> Result<Rv64imIvcState, SimpleKernelError> {

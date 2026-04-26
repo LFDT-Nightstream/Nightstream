@@ -1,7 +1,8 @@
-//! Owns CHIP-8 adapters from the theorem-facing final proof seam into generic decider targets.
+//! Owns CHIP-8 adapters from the current construction/audit seam into generic decider targets.
+//! Does not own final CHIP-8 proof acceptance; the current target still depends on replay artifacts.
 
 use crate::chip8::final_relation::{
-    final_proof_component_digests, folded_statement_digest, recursive_seed, verify_final_statement_with_output,
+    audit_check_final_statement_with_output, final_proof_component_digests, folded_statement_digest, recursive_seed,
 };
 use crate::chip8::kernel::SimpleKernelError;
 use crate::chip8::proof::{statement_digest, Chip8FinalProof, Chip8Statement};
@@ -30,7 +31,7 @@ pub fn build_chip8_decider_relation(
     if statement.digest != statement_digest(statement) {
         return Err(SimpleKernelError::BridgeFailed("statement digest mismatch".into()));
     }
-    verify_final_statement_with_output(&statement.public, &statement.folded, proof)?;
+    audit_check_final_statement_with_output(&statement.public, &statement.folded, proof)?;
     let component_digests = final_proof_component_digests(proof);
 
     build_spartan2_decider_relation(
@@ -48,7 +49,8 @@ pub fn build_chip8_decider_relation(
     .map_err(|err| SimpleKernelError::BridgeFailed(err.to_string()))
 }
 
-pub fn verify_chip8_decider_relation(
+/// Audit helper: this rebuilds the current decider target from replay artifacts.
+pub fn audit_check_chip8_decider_relation(
     relation: &Chip8DeciderRelation,
     statement: &Chip8Statement,
     proof: &Chip8FinalProof,
@@ -87,7 +89,8 @@ pub fn prove_chip8_spartan2_decider(
     prove_spartan2_decider(pk, &target).map_err(|err| SimpleKernelError::BridgeFailed(err.to_string()))
 }
 
-pub fn verify_chip8_spartan2_decider(
+/// Audit helper: this proves the generic target binding, not standalone CHIP-8 final acceptance.
+pub fn audit_check_chip8_spartan2_decider(
     vk: &Spartan2DeciderVerifierKey,
     statement: &Chip8Statement,
     proof: &Chip8FinalProof,

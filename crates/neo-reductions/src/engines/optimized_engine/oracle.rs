@@ -2376,8 +2376,8 @@ where
 
         // MCS outputs (keep order).
         for (mcs_idx, (inst, wit)) in mcs_list.iter().zip(self.mcs_witnesses.iter()).enumerate() {
-            let X = crate::common::project_x_from_public_inputs(&inst.x, inst.m_in)
-                .unwrap_or_else(|e| panic!("ME output builder: project_x_from_public_inputs failed: {e}"));
+            let X = crate::common::project_x_from_witness_mat(&wit.Z, self.s.m, inst.m_in)
+                .unwrap_or_else(|e| panic!("ME output builder: project_x_from_witness_mat failed: {e}"));
             let (y_ring, ct) = materialize_y_ring_from_precomputed_digits(&pre.y_eval[mcs_idx], d_pad);
 
             let y_zcol = if let Some(y_zcol_digits) = y_zcol_digits {

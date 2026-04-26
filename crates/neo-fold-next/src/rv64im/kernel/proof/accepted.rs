@@ -155,7 +155,7 @@ impl Rv64imAuditBundle {
     }
 }
 
-pub(crate) fn accepted_proof_artifact_from_legacy_proof(
+pub(crate) fn accepted_proof_artifact_from_public_proof(
     proof: &Rv64imProof,
 ) -> Result<Rv64imAcceptedProofArtifact, SimpleKernelError> {
     let kernel = PublicSimpleKernelOutput {
@@ -255,7 +255,7 @@ pub(crate) fn accepted_proof_artifact_from_prover_materials(
     })
 }
 
-pub(crate) fn audit_bundle_from_legacy_proof(proof: &Rv64imProof) -> Rv64imAuditBundle {
+pub(crate) fn audit_bundle_from_public_proof(proof: &Rv64imProof) -> Rv64imAuditBundle {
     let bundle = Rv64imAuditBundle {
         witness: proof.witness.clone(),
         digest: [0; 32],

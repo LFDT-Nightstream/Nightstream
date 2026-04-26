@@ -19,18 +19,33 @@ pub(super) struct Rv64imChunkNifsVerifierCtx<'a> {
     pub(super) cover_chunk: &'a Rv64imMainCircuitChunkCover,
     pub(super) chunk: &'a Rv64imMainCircuitChunkReplaySurface,
     pub(super) logical_me_input_claims: Option<&'a [neo_ccs::CeClaim<neo_ajtai::Commitment, F, K>]>,
-    pub(super) logical_me_input_digests: Option<&'a [[F; 4]]>,
     pub(super) boundary_plan: Rv64imChunkBoundaryPlan,
     pub(super) rlc_zero_commit_suffix_len: usize,
     pub(super) exact_initial_chunk_step_count: Option<usize>,
 }
 
-pub(super) struct Rv64imPiCcsStageOutput {
-    pub(super) effective_output_count: usize,
-    pub(super) padded_ccs_outputs: Vec<CeClaimVar>,
-    pub(super) r_prime_vars: Vec<KNumVar>,
-    pub(super) s_col_prime_vars: Vec<KNumVar>,
-    pub(super) fold_digest: [AllocatedNum<SpartanF>; 4],
+pub(in crate::rv64im::main_relation_spartan) struct Rv64imPiCcsStageOutput {
+    pub(in crate::rv64im::main_relation_spartan) effective_output_count: usize,
+    pub(in crate::rv64im::main_relation_spartan) me_input_projection_digests: Vec<[AllocatedNum<SpartanF>; 4]>,
+    pub(in crate::rv64im::main_relation_spartan) padded_ccs_outputs: Vec<CeClaimVar>,
+    pub(in crate::rv64im::main_relation_spartan) r_prime_vars: Vec<KNumVar>,
+    pub(in crate::rv64im::main_relation_spartan) s_col_prime_vars: Vec<KNumVar>,
+    pub(in crate::rv64im::main_relation_spartan) fold_digest: [AllocatedNum<SpartanF>; 4],
+    pub(in crate::rv64im::main_relation_spartan) public_chunk_digest: [AllocatedNum<SpartanF>; 4],
+    pub(in crate::rv64im::main_relation_spartan) public_chunk_start_index: AllocatedNum<SpartanF>,
+    pub(in crate::rv64im::main_relation_spartan) public_chunk_start_index_halves: [AllocatedNum<SpartanF>; 2],
+    pub(in crate::rv64im::main_relation_spartan) public_chunk_start_index_half_values: [SpartanF; 2],
+    pub(in crate::rv64im::main_relation_spartan) public_chunk_start_index_value: SpartanF,
+    pub(in crate::rv64im::main_relation_spartan) public_step_count: AllocatedNum<SpartanF>,
+    pub(in crate::rv64im::main_relation_spartan) public_step_count_halves: [AllocatedNum<SpartanF>; 2],
+    pub(in crate::rv64im::main_relation_spartan) public_step_count_half_values: [SpartanF; 2],
+    pub(in crate::rv64im::main_relation_spartan) public_step_count_value: SpartanF,
+    pub(in crate::rv64im::main_relation_spartan) public_step_vars:
+        Vec<crate::rv64im::main_relation_circuit::public_chunk::PublicStepVar>,
+    pub(in crate::rv64im::main_relation_spartan) fe_rounds: Vec<Vec<KNumVar>>,
+    pub(in crate::rv64im::main_relation_spartan) fe_round_values: Vec<Vec<K>>,
+    pub(in crate::rv64im::main_relation_spartan) nc_rounds: Vec<Vec<KNumVar>>,
+    pub(in crate::rv64im::main_relation_spartan) nc_round_values: Vec<Vec<K>>,
 }
 
 pub(super) struct Rv64imPiRlcStageOutput {
@@ -39,7 +54,51 @@ pub(super) struct Rv64imPiRlcStageOutput {
 
 pub(super) struct Rv64imChunkNifsVerifierBodyOutput {
     pub(super) next_claims: Rv64imClaimBundle,
+    pub(super) pi_ccs: Rv64imPiCcsStageOutput,
     pub(super) pi_ccs_fold_digest: [AllocatedNum<SpartanF>; 4],
+    pub(super) synthetic_chunk_relation_digest: Option<([AllocatedNum<SpartanF>; 4], [SpartanF; 4])>,
+}
+
+fn enforce_public_step_matches_fresh_claim<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    public_step: &crate::rv64im::main_relation_circuit::public_chunk::PublicStepVar,
+    fresh: &crate::rv64im::main_relation_circuit::output_binding::FreshCcsClaimVar,
+    label: &str,
+) -> Result<(), SynthesisError> {
+    if public_step.claim.m_in != fresh.m_in
+        || public_step.claim.c_data.len() != fresh.c_data.len()
+        || public_step.claim.x.len() != fresh.m_in
+        || fresh.x.len() != D * fresh.m_in
+    {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    for (idx, (public_lane, fresh_lane)) in public_step
+        .claim
+        .c_data
+        .iter()
+        .zip(fresh.c_data.iter())
+        .enumerate()
+    {
+        cs.enforce(
+            || format!("{label}_c_data_{idx}"),
+            |lc| lc + public_lane.get_variable(),
+            |lc| lc + CS::one(),
+            |lc| lc + fresh_lane.get_variable(),
+        );
+    }
+    for col in 0..fresh.m_in {
+        let embedded_idx = (col % D)
+            .checked_mul(fresh.m_in)
+            .and_then(|start| start.checked_add(col))
+            .ok_or(SynthesisError::Unsatisfiable)?;
+        cs.enforce(
+            || format!("{label}_x_{col}"),
+            |lc| lc + public_step.claim.x[col].get_variable(),
+            |lc| lc + CS::one(),
+            |lc| lc + fresh.x[embedded_idx].get_variable(),
+        );
+    }
+    Ok(())
 }
 
 fn emit_nifs_stage_trace(trace_prefix: Option<&str>, label: &str, started: Instant) {
@@ -47,6 +106,34 @@ fn emit_nifs_stage_trace(trace_prefix: Option<&str>, label: &str, started: Insta
         eprintln!("{prefix}.{label}={:.2}ms", started.elapsed().as_secs_f64() * 1_000.0);
         let _ = io::stderr().flush();
     }
+}
+
+fn u64_halves(value: u64) -> [SpartanF; 2] {
+    [
+        SpartanF::from_canonical_u64(value & 0xFFFF_FFFF),
+        SpartanF::from_canonical_u64(value >> 32),
+    ]
+}
+
+fn alloc_u64_field_with_halves<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    value: u64,
+    label: &str,
+) -> Result<(AllocatedNum<SpartanF>, [AllocatedNum<SpartanF>; 2], [SpartanF; 2]), SynthesisError> {
+    let field_value = SpartanF::from_canonical_u64(value);
+    let field = AllocatedNum::alloc(cs.namespace(|| format!("{label}_field")), || Ok(field_value))?;
+    let half_values = u64_halves(value);
+    let halves: [AllocatedNum<SpartanF>; 2] =
+        alloc_private_field_values(&mut cs.namespace(|| format!("{label}_halves")), &half_values, label)?
+            .try_into()
+            .map_err(|_| SynthesisError::Unsatisfiable)?;
+    cs.enforce(
+        || format!("{label}_halves_match_field"),
+        |lc| lc + halves[0].get_variable() + (SpartanF::from_canonical_u64(1u64 << 32), halves[1].get_variable()),
+        |lc| lc + CS::one(),
+        |lc| lc + field.get_variable(),
+    );
+    Ok((field, halves, half_values))
 }
 
 pub(super) fn synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mode<CS: ConstraintSystem<SpartanF>>(
@@ -62,11 +149,11 @@ pub(super) fn synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mod
     transcript: &mut Poseidon2TranscriptCircuit,
     carried_claims: Rv64imClaimBundle,
     logical_me_input_claims: Option<&[neo_ccs::CeClaim<neo_ajtai::Commitment, F, K>]>,
-    logical_me_input_digests: Option<&[[F; 4]]>,
     boundary_plan: Rv64imChunkBoundaryPlan,
     rlc_zero_commit_suffix_len: usize,
     exact_initial_chunk_step_count: Option<usize>,
     absorb_synthetic_chunk_relation_io: bool,
+    synthetic_bridge_handoff_digest: Option<&[AllocatedNum<SpartanF>; 4]>,
     trace_prefix: Option<&str>,
 ) -> Result<Rv64imChunkNifsVerifierBodyOutput, SynthesisError> {
     if !cover_chunk.covers_replay_surface(chunk) {
@@ -85,7 +172,6 @@ pub(super) fn synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mod
         cover_chunk,
         chunk,
         logical_me_input_claims,
-        logical_me_input_digests,
         boundary_plan,
         rlc_zero_commit_suffix_len,
         exact_initial_chunk_step_count,
@@ -101,25 +187,33 @@ pub(super) fn synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mod
     let started = Instant::now();
     let pi_ccs = synthesize_pi_ccs_stage(&ctx, cs, transcript, &carried_claims, trace_prefix)?;
     emit_nifs_stage_trace(trace_prefix, "pi_ccs", started);
-    if absorb_synthetic_chunk_relation_io {
+    let synthetic_chunk_relation_digest = if absorb_synthetic_chunk_relation_io {
         let started = Instant::now();
-        enforce_synthetic_outer_chunk_relation_public_io(
+        let digest = enforce_synthetic_outer_chunk_relation_public_io(
             &ctx,
             &mut cs.namespace(|| format!("chunk_{}_synthetic_relation_digest", chunk_index)),
             &pi_ccs.fold_digest,
+            &pi_ccs.public_chunk_digest,
+            synthetic_bridge_handoff_digest.ok_or(SynthesisError::Unsatisfiable)?,
             &format!("chunk_{}_synthetic_relation_digest", chunk_index),
         )?;
         emit_nifs_stage_trace(trace_prefix, "synthetic_relation_io", started);
-    }
+        Some(digest)
+    } else {
+        None
+    };
     let started = Instant::now();
     let pi_rlc = synthesize_pi_rlc_stage(&ctx, cs, transcript, &pi_ccs)?;
     emit_nifs_stage_trace(trace_prefix, "pi_rlc", started);
     let started = Instant::now();
     let replayed_next_claims = synthesize_pi_dec_stage(&ctx, cs, carried_claims, &pi_ccs, pi_rlc)?;
     emit_nifs_stage_trace(trace_prefix, "pi_dec", started);
+    let pi_ccs_fold_digest = pi_ccs.fold_digest.clone();
     Ok(Rv64imChunkNifsVerifierBodyOutput {
         next_claims: replayed_next_claims,
-        pi_ccs_fold_digest: pi_ccs.fold_digest,
+        pi_ccs,
+        pi_ccs_fold_digest,
+        synthetic_chunk_relation_digest,
     })
 }
 
@@ -138,10 +232,10 @@ pub(super) fn synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_re
     transcript: &mut Poseidon2TranscriptCircuit,
     carried_claims: Rv64imClaimBundle,
     logical_me_input_claims: Option<&[neo_ccs::CeClaim<neo_ajtai::Commitment, F, K>]>,
-    logical_me_input_digests: Option<&[[F; 4]]>,
     boundary_plan: Rv64imChunkBoundaryPlan,
     rlc_zero_commit_suffix_len: usize,
     exact_initial_chunk_step_count: Option<usize>,
+    synthetic_bridge_handoff_digest: Option<&[AllocatedNum<SpartanF>; 4]>,
     trace_prefix: Option<&str>,
 ) -> Result<Rv64imClaimBundle, SynthesisError> {
     Ok(synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mode(
@@ -157,11 +251,11 @@ pub(super) fn synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_re
         transcript,
         carried_claims,
         logical_me_input_claims,
-        logical_me_input_digests,
         boundary_plan,
         rlc_zero_commit_suffix_len,
         exact_initial_chunk_step_count,
         true,
+        synthetic_bridge_handoff_digest,
         trace_prefix,
     )?
     .next_claims)
@@ -174,58 +268,6 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
     carried_claims: &Rv64imClaimBundle,
     trace_prefix: Option<&str>,
 ) -> Result<Rv64imPiCcsStageOutput, SynthesisError> {
-    let started = Instant::now();
-    bind_header_and_instance_digest(
-        &mut cs.namespace(|| format!("chunk_{}_bind_header", ctx.chunk_index)),
-        transcript,
-        ctx.params,
-        ctx.structure.n,
-        ctx.structure.m,
-        ctx.structure.t(),
-        &ctx.structure.f,
-        ctx.dims,
-        ctx.mat_digest,
-        &ctx.chunk
-            .handoff
-            .public_chunk_instance_digest
-            .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64())),
-    )?;
-    emit_nifs_stage_trace(trace_prefix, "pi_ccs.bind_header", started);
-    let started = Instant::now();
-    if let Some(logical_me_input_digests) = ctx.logical_me_input_digests {
-        crate::rv64im::main_relation_circuit::pi_ccs::bind_me_inputs_with_projection_digests(
-            &mut cs.namespace(|| format!("chunk_{}_bind_me_inputs", ctx.chunk_index)),
-            transcript,
-            logical_me_input_digests,
-            trace_prefix,
-        )?;
-    } else if let Some(logical_me_input_claims) = ctx.logical_me_input_claims {
-        crate::rv64im::main_relation_circuit::pi_ccs::bind_me_inputs_with_native_claims(
-            &mut cs.namespace(|| format!("chunk_{}_bind_me_inputs", ctx.chunk_index)),
-            transcript,
-            carried_claims.effective_claims(),
-            logical_me_input_claims,
-            trace_prefix,
-        )?;
-    } else {
-        bind_me_inputs(
-            &mut cs.namespace(|| format!("chunk_{}_bind_me_inputs", ctx.chunk_index)),
-            transcript,
-            carried_claims.effective_claims(),
-            trace_prefix,
-        )?;
-    }
-    emit_nifs_stage_trace(trace_prefix, "pi_ccs.bind_me_inputs", started);
-    let started = Instant::now();
-    let public_challenges = crate::rv64im::main_relation_circuit::pi_ccs::sample_challenges_with_native(
-        &mut cs.namespace(|| format!("chunk_{}_sample_challenges", ctx.chunk_index)),
-        transcript,
-        ctx.dims,
-        &ctx.chunk.pi_ccs.public_challenges,
-        &format!("chunk_{}_sample_challenges", ctx.chunk_index),
-    )?;
-    emit_nifs_stage_trace(trace_prefix, "pi_ccs.sample_challenges", started);
-
     let started = Instant::now();
     let active_fresh_claim_count = ctx.chunk.handoff.public_chunk.steps.len();
     let cover_fresh_claim_count = ctx.cover_chunk.fresh_claim_count as usize;
@@ -246,12 +288,120 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
         .iter()
         .enumerate()
         .map(|(fresh_index, fresh)| {
-            crate::rv64im::main_relation_circuit::output_binding::alloc_fresh_ccs_claim(
+            let witness = ctx
+                .chunk
+                .fresh_witnesses
+                .get(fresh_index)
+                .ok_or(SynthesisError::Unsatisfiable)?;
+            crate::rv64im::main_relation_circuit::output_binding::alloc_fresh_ccs_claim_with_witness(
                 &mut cs.namespace(|| format!("chunk_{}_fresh_claim_{fresh_index}", ctx.chunk_index)),
                 fresh,
+                witness,
+                ctx.structure.m,
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let public_step_vars = ctx
+        .chunk
+        .handoff
+        .public_chunk
+        .steps
+        .iter()
+        .enumerate()
+        .map(|(step_index, step)| {
+            crate::rv64im::main_relation_circuit::public_chunk::alloc_public_step(
+                &mut cs.namespace(|| format!("chunk_{}_public_step_{step_index}", ctx.chunk_index)),
+                step,
+                &format!("chunk_{}_public_step_{step_index}", ctx.chunk_index),
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if public_step_vars.len() != active_fresh_claim_count || active_fresh_claim_count > covered_fresh_claim_vars.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    for step_index in 0..active_fresh_claim_count {
+        enforce_public_step_matches_fresh_claim(
+            &mut cs.namespace(|| format!("chunk_{}_public_step_binding_{step_index}", ctx.chunk_index)),
+            &public_step_vars[step_index],
+            &covered_fresh_claim_vars[step_index],
+            &format!("chunk_{}_public_step_binding_{step_index}", ctx.chunk_index),
+        )?;
+    }
+    let (public_chunk_start_index, public_chunk_start_index_halves, public_chunk_start_index_half_values) =
+        alloc_u64_field_with_halves(
+            &mut cs.namespace(|| format!("chunk_{}_public_chunk_start_index", ctx.chunk_index)),
+            ctx.chunk.handoff.public_chunk.start_index as u64,
+            &format!("chunk_{}_public_chunk_start_index", ctx.chunk_index),
+        )?;
+    let (public_step_count, public_step_count_halves, public_step_count_half_values) = alloc_u64_field_with_halves(
+        &mut cs.namespace(|| format!("chunk_{}_public_step_count", ctx.chunk_index)),
+        active_fresh_claim_count as u64,
+        &format!("chunk_{}_public_step_count", ctx.chunk_index),
+    )?;
+    let public_chunk_instance_digest =
+        crate::rv64im::main_relation_circuit::public_chunk::public_chunk_instance_digest(
+            &mut cs.namespace(|| format!("chunk_{}_public_chunk_instance_digest", ctx.chunk_index)),
+            &public_chunk_start_index,
+            &public_step_count,
+            &public_step_vars,
+            &format!("chunk_{}_public_chunk_instance_digest", ctx.chunk_index),
+        )?;
+    let public_chunk_digest = crate::rv64im::main_relation_circuit::public_chunk::rv64im_public_chunk_digest(
+        &mut cs.namespace(|| format!("chunk_{}_public_chunk_digest", ctx.chunk_index)),
+        &public_chunk_start_index_halves,
+        ctx.chunk.handoff.public_chunk.start_index as u64,
+        &public_step_count_halves,
+        active_fresh_claim_count as u64,
+        &public_step_vars,
+        &format!("chunk_{}_public_chunk_digest", ctx.chunk_index),
+    )?;
+    let public_chunk_instance_digest_values = ctx
+        .chunk
+        .handoff
+        .public_chunk_instance_digest
+        .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64()));
+    bind_header_and_instance_digest_vars(
+        &mut cs.namespace(|| format!("chunk_{}_bind_header", ctx.chunk_index)),
+        transcript,
+        ctx.params,
+        ctx.structure.n,
+        ctx.structure.m,
+        ctx.structure.t(),
+        &ctx.structure.f,
+        ctx.dims,
+        ctx.mat_digest,
+        &public_chunk_instance_digest,
+        &public_chunk_instance_digest_values,
+    )?;
+    emit_nifs_stage_trace(trace_prefix, "pi_ccs.bind_header", started);
+    let started = Instant::now();
+    let me_input_projection_digests = if let Some(logical_me_input_claims) = ctx.logical_me_input_claims {
+        crate::rv64im::main_relation_circuit::pi_ccs::bind_me_inputs_with_native_claims(
+            &mut cs.namespace(|| format!("chunk_{}_bind_me_inputs", ctx.chunk_index)),
+            transcript,
+            carried_claims.effective_claims(),
+            logical_me_input_claims,
+            trace_prefix,
+        )?
+    } else {
+        bind_me_inputs(
+            &mut cs.namespace(|| format!("chunk_{}_bind_me_inputs", ctx.chunk_index)),
+            transcript,
+            carried_claims.effective_claims(),
+            trace_prefix,
+        )?
+    };
+    emit_nifs_stage_trace(trace_prefix, "pi_ccs.bind_me_inputs", started);
+    let started = Instant::now();
+    let public_challenges = crate::rv64im::main_relation_circuit::pi_ccs::sample_challenges_with_native(
+        &mut cs.namespace(|| format!("chunk_{}_sample_challenges", ctx.chunk_index)),
+        transcript,
+        ctx.dims,
+        &ctx.chunk.pi_ccs.public_challenges,
+        &format!("chunk_{}_sample_challenges", ctx.chunk_index),
+    )?;
+    emit_nifs_stage_trace(trace_prefix, "pi_ccs.sample_challenges", started);
+
     emit_nifs_stage_trace(trace_prefix, "pi_ccs.alloc_fresh_claims", started);
 
     let started = Instant::now();
@@ -272,29 +422,14 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
         cs.namespace(|| format!("chunk_{}_fe_sumcheck_domain", ctx.chunk_index)),
         &[SpartanF::from_canonical_u64(PI_CCS_SUMCHECK_FE_RAW_DOMAIN_TAG)],
     )?;
-    if carried_claims.effective_count() == 0 {
-        let coeffs = initial_sum_fe_value.as_coeffs();
-        transcript.append_const_fields_raw(
-            cs.namespace(|| format!("chunk_{}_fe_sumcheck_initial_tag", ctx.chunk_index)),
-            &[SpartanF::from_canonical_u64(PI_CCS_SUMCHECK_INITIAL_RAW_TAG)],
-        )?;
-        transcript.append_const_fields_raw(
-            cs.namespace(|| format!("chunk_{}_fe_sumcheck_initial_append", ctx.chunk_index)),
-            &[
-                SpartanF::from_canonical_u64(coeffs[0].as_canonical_u64()),
-                SpartanF::from_canonical_u64(coeffs[1].as_canonical_u64()),
-            ],
-        )?;
-    } else {
-        append_k_to_transcript(
-            &mut cs.namespace(|| format!("chunk_{}_fe_sumcheck_initial", ctx.chunk_index)),
-            transcript,
-            PI_CCS_SUMCHECK_INITIAL_RAW_TAG,
-            &initial_sum_fe,
-            initial_sum_fe_value,
-            &format!("chunk_{}_fe_sumcheck_initial", ctx.chunk_index),
-        )?;
-    }
+    append_k_to_transcript(
+        &mut cs.namespace(|| format!("chunk_{}_fe_sumcheck_initial", ctx.chunk_index)),
+        transcript,
+        PI_CCS_SUMCHECK_INITIAL_RAW_TAG,
+        &initial_sum_fe,
+        initial_sum_fe_value,
+        &format!("chunk_{}_fe_sumcheck_initial", ctx.chunk_index),
+    )?;
     let padded_fe_rounds = alloc_rounds(
         &mut cs.namespace(|| format!("chunk_{}_fe_rounds", ctx.chunk_index)),
         &ctx.cover_chunk.fe_round_lengths,
@@ -385,15 +520,11 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
                 &ctx.chunk.pi_ccs.s_col,
             )?;
             if output_index < constant_child_prefix {
-                let fresh = covered_fresh_claims
-                    .get(output_index)
-                    .ok_or(SynthesisError::Unsatisfiable)?;
-                let fresh_x_values =
-                    crate::rv64im::main_relation_circuit::output_binding::embedded_fresh_x_values(fresh);
+                let fresh_x_values = claim.X.as_slice().to_vec();
                 crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_without_f_surface_with_shared_point(
                     &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
                     &claim,
-                    &fresh.c.data,
+                    &claim.c.data,
                     &fresh_x_values,
                     &r_prime_vars,
                     &ctx.chunk.pi_ccs.row_chals,
@@ -405,7 +536,7 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
                 let fresh = covered_fresh_claim_vars
                     .get(output_index)
                     .ok_or(SynthesisError::Unsatisfiable)?;
-                crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point_compact_x(
+                crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point(
                     &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
                     &claim,
                     &fresh.c_data,
@@ -457,7 +588,7 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
                     &format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index),
                 )?
             } else {
-                crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point_compact_x(
+                crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point(
                     &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
                     &claim,
                     &me_input.c_data,
@@ -569,10 +700,25 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
 
     Ok(Rv64imPiCcsStageOutput {
         effective_output_count,
+        me_input_projection_digests,
         padded_ccs_outputs,
         r_prime_vars,
         s_col_prime_vars,
         fold_digest,
+        public_chunk_digest,
+        public_chunk_start_index,
+        public_chunk_start_index_halves,
+        public_chunk_start_index_half_values,
+        public_chunk_start_index_value: SpartanF::from_canonical_u64(ctx.chunk.handoff.public_chunk.start_index as u64),
+        public_step_count,
+        public_step_count_halves,
+        public_step_count_half_values,
+        public_step_count_value: SpartanF::from_canonical_u64(active_fresh_claim_count as u64),
+        public_step_vars,
+        fe_rounds: padded_fe_rounds,
+        fe_round_values,
+        nc_rounds: padded_nc_rounds,
+        nc_round_values,
     })
 }
 
@@ -607,28 +753,30 @@ pub(super) fn enforce_synthetic_outer_chunk_relation_public_io<CS: ConstraintSys
     ctx: &Rv64imChunkNifsVerifierCtx<'_>,
     cs: &mut CS,
     fold_digest: &[AllocatedNum<SpartanF>; 4],
+    public_chunk_digest: &[AllocatedNum<SpartanF>; 4],
+    bridge_handoff_digest: &[AllocatedNum<SpartanF>; 4],
     label: &str,
-) -> Result<(), SynthesisError> {
-    let expected_chunk_relation_digest = digest32_as_spartan_fields(ctx.chunk.handoff.chunk_relation_digest);
-    let chunk_relation_digest = chunk_relation_digest_circuit(
+) -> Result<([AllocatedNum<SpartanF>; 4], [SpartanF; 4]), SynthesisError> {
+    let public_chunk_digest_values = digest32_as_spartan_fields(ctx.chunk.handoff.public_chunk_digest);
+    let bridge_handoff_digest_values = digest32_as_spartan_fields(ctx.chunk.handoff.bridge_handoff_digest);
+    let fold_digest_values = digest32_as_spartan_fields(ctx.chunk.pi_ccs.replay_proof.header_digest);
+    let chunk_relation_digest = chunk_relation_digest_circuit_from_vars(
         &mut cs.namespace(|| format!("{label}_synthetic_chunk_relation_digest")),
-        ctx.chunk.handoff.public_chunk_digest,
+        public_chunk_digest,
+        &public_chunk_digest_values,
         fold_digest,
-        ctx.chunk.handoff.bridge_handoff_digest,
+        &fold_digest_values,
+        bridge_handoff_digest,
+        &bridge_handoff_digest_values,
     )?;
-    for (idx, (actual, expected)) in chunk_relation_digest
-        .iter()
-        .zip(expected_chunk_relation_digest.iter())
-        .enumerate()
-    {
-        cs.enforce(
-            || format!("{label}_synthetic_chunk_relation_digest_eq_{idx}"),
-            |lc| lc + actual.get_variable(),
-            |lc| lc + CS::one(),
-            |lc| lc + (*expected, CS::one()),
-        );
-    }
-    Ok(())
+    let chunk_relation_digest_values = digest32_as_spartan_fields(
+        crate::rv64im::chunk_relation::rv64im_chunk_relation_digest_from_fold_digest(
+            ctx.chunk.handoff.public_chunk_digest,
+            ctx.chunk.pi_ccs.replay_proof.header_digest,
+            ctx.chunk.handoff.bridge_handoff_digest,
+        ),
+    );
+    Ok((chunk_relation_digest, chunk_relation_digest_values))
 }
 
 pub(super) fn synthesize_pi_rlc_stage<CS: ConstraintSystem<SpartanF>>(
@@ -704,11 +852,15 @@ pub(super) fn synthesize_pi_rlc_stage<CS: ConstraintSystem<SpartanF>>(
                     .padded_ccs_outputs
                     .len()
                     .saturating_sub(ctx.rlc_zero_commit_suffix_len);
-                let rho_mats = materialize_goldilocks_rot_matrices(
-                    &mut cs.namespace(|| format!("chunk_{}_rlc_rho_mats", ctx.chunk_index)),
-                    &rho_vars[..active_dense_children_len],
-                    &format!("chunk_{}_rlc_rho_mats", ctx.chunk_index),
-                )?;
+                let rho_mats = if constant_child_prefix > 0 && constant_child_prefix < active_dense_children_len {
+                    materialize_goldilocks_rot_matrices(
+                        &mut cs.namespace(|| format!("chunk_{}_rlc_rho_mats", ctx.chunk_index)),
+                        &rho_vars[..active_dense_children_len],
+                        &format!("chunk_{}_rlc_rho_mats", ctx.chunk_index),
+                    )?
+                } else {
+                    Vec::new()
+                };
                 crate::rv64im::main_relation_circuit::pi_rlc::enforce_rlc_public_with_split_rho_views_constant_prefix_zero_commit_suffix(
                     &mut cs.namespace(|| format!("chunk_{}_rlc_public", ctx.chunk_index)),
                     &parent_claim,

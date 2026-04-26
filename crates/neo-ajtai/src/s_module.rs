@@ -402,16 +402,4 @@ impl SModuleHomomorphism<Fq, Commitment> for AjtaiSModule {
             }
         }
     }
-
-    fn project_x(&self, z: &Mat<Fq>, min: usize) -> Mat<Fq> {
-        let rows = z.rows();
-        let cols = min.min(z.cols());
-        let mut data = Vec::with_capacity(rows * cols);
-        for r in 0..rows {
-            for c in 0..cols {
-                data.push(z[(r, c)]);
-            }
-        }
-        Mat::from_row_major(rows, cols, data)
-    }
 }

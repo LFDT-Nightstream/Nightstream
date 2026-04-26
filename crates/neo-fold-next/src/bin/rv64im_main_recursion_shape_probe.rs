@@ -21,7 +21,9 @@ use neo_fold_next::rv64im::audit::{
     debug_measure_rv64im_main_recursion_step_shape_only_circuit_shape,
     debug_measure_rv64im_main_recursion_step_spartan_circuit_shape,
     debug_measure_rv64im_main_recursion_step_spartan_shape_synthesis,
-    debug_measure_rv64im_main_recursion_step_stage_aux_counts, Rv64imMainRecursionFPrimeBackendRelation,
+    debug_measure_rv64im_main_recursion_step_stage_aux_counts,
+    debug_measure_rv64im_terminal_f_prime_committed_step_shape,
+    debug_trace_rv64im_main_recursion_step_shape_only_fingerprint_synthesize, Rv64imMainRecursionFPrimeBackendRelation,
     Rv64imMainRecursionStepSpartanShape, Rv64imNamedConstraintDelta,
 };
 use neo_fold_next::rv64im::final_relation::prove_rv64im_final_statement_from_accepted;
@@ -49,15 +51,24 @@ fn perf_opcode_count_from_env() -> usize {
 enum ProbeMode {
     Full,
     FastSummary,
+    StageAux,
+    ConstraintBreakdown,
+    TraceShape,
 }
 
 fn probe_mode_from_args() -> ProbeMode {
     let mut mode = ProbeMode::Full;
     for arg in env::args().skip(1) {
+        if arg.starts_with("--relation-index=") {
+            continue;
+        }
         match arg.as_str() {
             "--fast-summary" => mode = ProbeMode::FastSummary,
+            "--stage-aux" => mode = ProbeMode::StageAux,
+            "--constraint-breakdown" => mode = ProbeMode::ConstraintBreakdown,
+            "--trace-shape" => mode = ProbeMode::TraceShape,
             "--full" => mode = ProbeMode::Full,
-            "--whole-trace" | "--rows-per-chunk-1" => {}
+            "--whole-trace" | "--rows-per-chunk-1" | "--last-relation" => {}
             other => panic!("unknown arg: {other}"),
         }
     }
@@ -67,14 +78,39 @@ fn probe_mode_from_args() -> ProbeMode {
 fn root_fold_schedule_from_args() -> FoldSchedule {
     let mut schedule = FoldSchedule::WholeTrace;
     for arg in env::args().skip(1) {
+        if arg.starts_with("--relation-index=") {
+            continue;
+        }
         match arg.as_str() {
             "--whole-trace" => schedule = FoldSchedule::WholeTrace,
             "--rows-per-chunk-1" => schedule = FoldSchedule::RowsPerChunk(1),
-            "--fast-summary" | "--full" => {}
+            "--fast-summary"
+            | "--stage-aux"
+            | "--constraint-breakdown"
+            | "--trace-shape"
+            | "--full"
+            | "--last-relation" => {}
             other => panic!("unknown arg: {other}"),
         }
     }
     schedule
+}
+
+fn selected_relation_index_from_args(relation_count: usize) -> usize {
+    let mut selected = 0usize;
+    for arg in env::args().skip(1) {
+        if arg == "--last-relation" {
+            selected = relation_count.saturating_sub(1);
+        } else if let Some(value) = arg.strip_prefix("--relation-index=") {
+            selected = value
+                .parse::<usize>()
+                .expect("--relation-index requires a usize");
+        }
+    }
+    if selected >= relation_count {
+        panic!("selected relation index {selected} is out of range for {relation_count} backend relations");
+    }
+    selected
 }
 
 fn unwrap_accepted_artifact_with_schedule_context<T>(
@@ -1219,13 +1255,26 @@ fn main() {
     let backend_relations_ms = millis_since(backend_relations_started);
     let fixture_ms = millis_since(fixture_started);
 
+    let selected_relation_index = selected_relation_index_from_args(backend_relations.len());
     let first_relation = backend_relations
-        .first()
-        .expect("shape probe requires at least one backend relation");
+        .get(selected_relation_index)
+        .expect("shape probe requires the selected backend relation");
+    let terminal_relation_index = backend_relations.len().saturating_sub(1);
+    let terminal_relation = backend_relations
+        .get(terminal_relation_index)
+        .expect("shape probe requires a terminal backend relation");
 
     let shape_only_started = Instant::now();
     let shape_only = debug_measure_rv64im_main_recursion_step_shape_only_circuit_shape(&spartan_shape);
     let shape_only_ms = millis_since(shape_only_started);
+    let terminal_committed_shape = if probe_mode == ProbeMode::Full {
+        let terminal_committed_started = Instant::now();
+        let shape = debug_measure_rv64im_terminal_f_prime_committed_step_shape(&spartan_shape, terminal_relation)
+            .expect("measure terminal F' committed-step shape");
+        Some((shape, millis_since(terminal_committed_started)))
+    } else {
+        None
+    };
 
     let step_shape = &first_relation.payload.step_shape;
     let cover_shape = &first_relation.payload.cover_shape;
@@ -1317,11 +1366,16 @@ fn main() {
         match probe_mode {
             ProbeMode::Full => "full",
             ProbeMode::FastSummary => "fast-summary",
+            ProbeMode::StageAux => "stage-aux",
+            ProbeMode::ConstraintBreakdown => "constraint-breakdown",
+            ProbeMode::TraceShape => "trace-shape",
         },
     );
     print_kv("mixed_opcode_non_halt_ops", opcode_count);
     print_kv("relation_count", relations.len());
     print_kv("backend_relation_count", backend_relations.len());
+    print_kv("selected_relation_index", selected_relation_index);
+    print_kv("terminal_relation_index", terminal_relation_index);
     print_kv("fixture_prep", format!("{fixture_ms:.3} ms"));
     print_probe_work_units("Execution Units", work_units);
     print_section("Fixture Breakdown");
@@ -1364,6 +1418,71 @@ fn main() {
             print_kv("shape_only.wall", format!("{shape_only_ms:.3} ms"));
             print_kv("shape_only.error", err);
         }
+    }
+
+    if let Some((terminal_committed_shape, terminal_committed_ms)) = &terminal_committed_shape {
+        print_section("Terminal F' Committed-Step Shape");
+        print_kv("measure.wall", format!("{terminal_committed_ms:.3} ms"));
+        print_kv("r2_ccs.rows", terminal_committed_shape.terminal_r2_ccs_rows);
+        print_kv("r2_ccs.cols", terminal_committed_shape.terminal_r2_ccs_cols);
+        print_kv("r2_ccs.nnz", terminal_committed_shape.terminal_r2_ccs_nnz);
+        print_kv("r2_public_inputs", terminal_committed_shape.terminal_r2_public_inputs);
+        print_kv("r2_witness_inputs", terminal_committed_shape.terminal_r2_witness_inputs);
+        print_kv(
+            "r2_private_padding_inputs",
+            terminal_committed_shape.terminal_r2_private_padding_inputs,
+        );
+        print_kv(
+            "r2_private_low_norm_bits",
+            terminal_committed_shape.terminal_r2_private_low_norm_bit_inputs,
+        );
+        print_kv(
+            "r2_committed_low_norm_width",
+            terminal_committed_shape.terminal_r2_committed_low_norm_width,
+        );
+        print_kv(
+            "r2_superneo_packed_cols",
+            terminal_committed_shape.terminal_r2_superneo_packed_cols,
+        );
+        print_kv(
+            "r2_commitment_words",
+            terminal_committed_shape.terminal_r2_commitment_words,
+        );
+        print_kv(
+            "committed_step_public_inputs",
+            terminal_committed_shape.terminal_committed_step_public_inputs,
+        );
+        print_kv(
+            "committed_step_constraints",
+            terminal_committed_shape.terminal_committed_step_constraints,
+        );
+        print_kv(
+            "r1cs_public_inputs",
+            terminal_committed_shape.terminal_f_prime_r1cs_public_inputs,
+        );
+        print_kv(
+            "r1cs_challenges",
+            terminal_committed_shape.terminal_f_prime_r1cs_challenges,
+        );
+        print_kv(
+            "r1cs_variables",
+            terminal_committed_shape.terminal_f_prime_r1cs_variables,
+        );
+        print_kv(
+            "r1cs_constraints",
+            terminal_committed_shape.terminal_f_prime_r1cs_constraints,
+        );
+    }
+
+    if probe_mode == ProbeMode::TraceShape {
+        let traced =
+            debug_trace_rv64im_main_recursion_step_shape_only_fingerprint_synthesize(&spartan_shape, "shape_trace")
+                .expect("trace shape-only circuit");
+        print_section("Shape Trace");
+        print_kv("num_inputs", traced.num_inputs);
+        print_kv("num_aux", traced.num_aux);
+        print_kv("num_constraints", traced.num_constraints);
+        return;
     }
 
     if probe_mode == ProbeMode::FastSummary {
@@ -1470,10 +1589,383 @@ fn main() {
         return;
     }
 
+    if probe_mode == ProbeMode::ConstraintBreakdown {
+        let chunk_replay_aux_started = Instant::now();
+        let chunk_replay_aux = debug_measure_rv64im_main_recursion_step_chunk_replay_aux_counts(first_relation)
+            .expect("measure first-step chunk replay aux counts");
+        let chunk_replay_aux_ms = millis_since(chunk_replay_aux_started);
+
+        let chunk_replay_tail_digest_started = Instant::now();
+        let chunk_replay_tail_digest =
+            debug_measure_rv64im_main_recursion_step_chunk_replay_tail_digest_aux_breakdown(first_relation)
+                .expect("measure first-step chunk replay tail digest aux breakdown");
+        let chunk_replay_tail_digest_ms = millis_since(chunk_replay_tail_digest_started);
+
+        let pi_ccs_bind_me_inputs_started = Instant::now();
+        let pi_ccs_bind_me_inputs =
+            debug_measure_rv64im_main_recursion_step_pi_ccs_bind_me_inputs_aux_breakdown(first_relation)
+                .expect("measure first-step pi_ccs bind_me_inputs aux breakdown");
+        let pi_ccs_bind_me_inputs_ms = millis_since(pi_ccs_bind_me_inputs_started);
+
+        let pi_ccs_constraints_started = Instant::now();
+        let pi_ccs_constraints = debug_measure_rv64im_main_recursion_step_pi_ccs_constraint_counts(first_relation)
+            .expect("measure first-step pi_ccs constraint counts");
+        let pi_ccs_constraints_ms = millis_since(pi_ccs_constraints_started);
+
+        let pi_ccs_sumcheck_started = Instant::now();
+        let pi_ccs_sumcheck =
+            debug_measure_rv64im_main_recursion_step_pi_ccs_sumcheck_constraint_breakdown(first_relation)
+                .expect("measure first-step pi_ccs sumcheck constraint breakdown");
+        let pi_ccs_sumcheck_ms = millis_since(pi_ccs_sumcheck_started);
+
+        let pi_rlc_public_started = Instant::now();
+        let pi_rlc_public = debug_measure_rv64im_main_recursion_step_pi_rlc_public_constraint_breakdown(first_relation)
+            .expect("measure first-step pi_rlc public breakdown");
+        let pi_rlc_public_ms = millis_since(pi_rlc_public_started);
+
+        let pi_rlc_public_stage_started = Instant::now();
+        let pi_rlc_public_stage =
+            debug_measure_rv64im_main_recursion_step_pi_rlc_public_stage_breakdown(first_relation)
+                .expect("measure first-step pi_rlc public stage breakdown");
+        let pi_rlc_public_stage_ms = millis_since(pi_rlc_public_stage_started);
+
+        print_section("Chunk Replay Aux Hotspots");
+        print_kv("measure.wall", format!("{chunk_replay_aux_ms:.3} ms"));
+        print_cumulative_and_delta("after_state_cover", 0, chunk_replay_aux.after_state_cover);
+        print_cumulative_and_delta(
+            "after_chunk_meta",
+            chunk_replay_aux.after_state_cover,
+            chunk_replay_aux.after_chunk_meta,
+        );
+        print_cumulative_and_delta(
+            "after_pi_ccs",
+            chunk_replay_aux.after_chunk_meta,
+            chunk_replay_aux.after_pi_ccs,
+        );
+        print_cumulative_and_delta(
+            "after_synthetic_relation_io",
+            chunk_replay_aux.after_pi_ccs,
+            chunk_replay_aux.after_synthetic_relation_io,
+        );
+        print_cumulative_and_delta(
+            "after_pi_rlc_parent_claim",
+            chunk_replay_aux.after_synthetic_relation_io,
+            chunk_replay_aux.after_pi_rlc_parent_claim,
+        );
+        print_cumulative_and_delta(
+            "after_pi_rlc_rhos",
+            chunk_replay_aux.after_pi_rlc_parent_claim,
+            chunk_replay_aux.after_pi_rlc_rhos,
+        );
+        print_cumulative_and_delta(
+            "after_pi_rlc_rho_mats",
+            chunk_replay_aux.after_pi_rlc_rhos,
+            chunk_replay_aux.after_pi_rlc_rho_mats,
+        );
+        print_cumulative_and_delta(
+            "after_pi_rlc_public",
+            chunk_replay_aux.after_pi_rlc_rho_mats,
+            chunk_replay_aux.after_pi_rlc_public,
+        );
+        print_cumulative_and_delta(
+            "after_pi_rlc",
+            chunk_replay_aux.after_pi_rlc_public,
+            chunk_replay_aux.after_pi_rlc,
+        );
+        print_cumulative_and_delta(
+            "after_chunk_body",
+            chunk_replay_aux.after_pi_rlc,
+            chunk_replay_aux.after_chunk_body,
+        );
+        print_cumulative_and_delta(
+            "after_chunk_replay",
+            chunk_replay_aux.after_chunk_body,
+            chunk_replay_aux.after_chunk_replay,
+        );
+
+        let mut tail_claim_digest_deltas = Vec::with_capacity(chunk_replay_tail_digest.claim_after_digests.len());
+        let mut tail_digest_prev = chunk_replay_tail_digest.after_header;
+        let mut tail_claim_digest_total = 0usize;
+        for idx in 0..chunk_replay_tail_digest.claim_after_digests.len() {
+            let claim_delta = chunk_replay_tail_digest.claim_after_digests[idx].saturating_sub(tail_digest_prev);
+            tail_claim_digest_total += claim_delta;
+            tail_claim_digest_deltas.push((idx, claim_delta));
+            tail_digest_prev = chunk_replay_tail_digest.claim_after_digests[idx];
+        }
+        let tail_outer_hash_delta = chunk_replay_tail_digest
+            .after_outer_hash
+            .saturating_sub(tail_digest_prev);
+        print_section("Chunk Replay Tail Digest Aux");
+        print_kv("measure.wall", format!("{chunk_replay_tail_digest_ms:.3} ms"));
+        print_kv(
+            "header",
+            chunk_replay_tail_digest
+                .after_header
+                .saturating_sub(chunk_replay_aux.after_chunk_body),
+        );
+        print_kv("claim_digest_total", tail_claim_digest_total);
+        print_kv("outer_hash", tail_outer_hash_delta);
+        for (idx, claim_delta) in &tail_claim_digest_deltas {
+            print_kv(&format!("claim_{idx}.digest"), *claim_delta);
+        }
+
+        let mut pi_ccs_bind_me_input_deltas = Vec::with_capacity(1 + pi_ccs_bind_me_inputs.after_claim_digests.len());
+        let mut bind_prev = pi_ccs_bind_me_inputs.after_bind_header;
+        for (idx, end) in pi_ccs_bind_me_inputs.after_claim_digests.iter().enumerate() {
+            pi_ccs_bind_me_input_deltas.push((format!("claim_digest_{idx}"), end.saturating_sub(bind_prev)));
+            bind_prev = *end;
+        }
+        pi_ccs_bind_me_input_deltas.push((
+            "bind_digests".to_string(),
+            pi_ccs_bind_me_inputs
+                .after_bind_digests
+                .saturating_sub(bind_prev),
+        ));
+        print_section("Pi CCS Bind ME Inputs Aux");
+        print_kv("measure.wall", format!("{pi_ccs_bind_me_inputs_ms:.3} ms"));
+        for (name, delta) in &pi_ccs_bind_me_input_deltas {
+            print_kv(name, *delta);
+        }
+
+        print_section("Pi CCS Constraints");
+        print_kv("measure.wall", format!("{pi_ccs_constraints_ms:.3} ms"));
+        print_cumulative_and_delta("after_bind_header", 0, pi_ccs_constraints.after_bind_header);
+        print_cumulative_and_delta(
+            "after_bind_me_inputs",
+            pi_ccs_constraints.after_bind_header,
+            pi_ccs_constraints.after_bind_me_inputs,
+        );
+        print_cumulative_and_delta(
+            "after_sample_challenges",
+            pi_ccs_constraints.after_bind_me_inputs,
+            pi_ccs_constraints.after_sample_challenges,
+        );
+        print_cumulative_and_delta(
+            "after_alloc_fresh_claims",
+            pi_ccs_constraints.after_sample_challenges,
+            pi_ccs_constraints.after_alloc_fresh_claims,
+        );
+        print_cumulative_and_delta(
+            "after_fe_sumcheck",
+            pi_ccs_constraints.after_alloc_fresh_claims,
+            pi_ccs_constraints.after_fe_sumcheck,
+        );
+        print_cumulative_and_delta(
+            "after_nc_sumcheck",
+            pi_ccs_constraints.after_fe_sumcheck,
+            pi_ccs_constraints.after_nc_sumcheck,
+        );
+        print_cumulative_and_delta(
+            "after_fold_digest",
+            pi_ccs_constraints.after_nc_sumcheck,
+            pi_ccs_constraints.after_fold_digest,
+        );
+        print_cumulative_and_delta(
+            "after_alloc_outputs",
+            pi_ccs_constraints.after_fold_digest,
+            pi_ccs_constraints.after_alloc_outputs,
+        );
+        print_cumulative_and_delta(
+            "after_output_binding",
+            pi_ccs_constraints.after_alloc_outputs,
+            pi_ccs_constraints.after_output_binding,
+        );
+        print_cumulative_and_delta(
+            "after_terminal_fe",
+            pi_ccs_constraints.after_output_binding,
+            pi_ccs_constraints.after_terminal_fe,
+        );
+        print_cumulative_and_delta(
+            "after_terminal_nc",
+            pi_ccs_constraints.after_terminal_fe,
+            pi_ccs_constraints.after_terminal_nc,
+        );
+
+        print_named_constraint_breakdown(
+            "Pi CCS FE Sumcheck Constraints",
+            pi_ccs_sumcheck_ms,
+            &pi_ccs_sumcheck.fe_cover_round_lengths,
+            &pi_ccs_sumcheck.fe_effective_round_lengths,
+            &pi_ccs_sumcheck.fe_stages,
+        );
+        print_named_constraint_breakdown(
+            "Pi CCS NC Sumcheck Constraints",
+            pi_ccs_sumcheck_ms,
+            &pi_ccs_sumcheck.nc_cover_round_lengths,
+            &pi_ccs_sumcheck.nc_effective_round_lengths,
+            &pi_ccs_sumcheck.nc_stages,
+        );
+
+        print_section("Pi RLC Public");
+        print_kv("measure.wall", format!("{pi_rlc_public_ms:.3} ms"));
+        print_kv("shared_point", pi_rlc_public.shared_point_constraints);
+        print_kv("x", pi_rlc_public.x_constraints);
+        print_kv("c", pi_rlc_public.c_constraints);
+        print_kv("y_ring", pi_rlc_public.y_ring_constraints);
+        print_kv("y_zcol", pi_rlc_public.y_zcol_constraints);
+        print_kv("aux", pi_rlc_public.aux_constraints);
+        print_kv("total", pi_rlc_public.total_constraints);
+
+        print_section("Pi RLC Public Stages");
+        print_kv("measure.wall", format!("{pi_rlc_public_stage_ms:.3} ms"));
+        for stage in &pi_rlc_public_stage.stages {
+            print_kv(&stage.name, stage.delta);
+        }
+        return;
+    }
+
     let top_level_aux_started = Instant::now();
     let top_level_aux = debug_measure_rv64im_main_recursion_step_stage_aux_counts(&spartan_shape, first_relation)
         .expect("measure first-step stage aux counts");
     let top_level_aux_ms = millis_since(top_level_aux_started);
+
+    if probe_mode == ProbeMode::StageAux {
+        let chunk_replay_aux_started = Instant::now();
+        let chunk_replay_aux = debug_measure_rv64im_main_recursion_step_chunk_replay_aux_counts(first_relation)
+            .expect("measure first-step chunk replay aux counts");
+        let chunk_replay_aux_ms = millis_since(chunk_replay_aux_started);
+        let chunk_replay_tail_aux_started = Instant::now();
+        let chunk_replay_tail_aux =
+            debug_measure_rv64im_main_recursion_step_chunk_replay_tail_aux_counts(first_relation)
+                .expect("measure first-step chunk replay tail aux counts");
+        let chunk_replay_tail_aux_ms = millis_since(chunk_replay_tail_aux_started);
+        let chunk_replay_tail_digest_started = Instant::now();
+        let chunk_replay_tail_digest =
+            debug_measure_rv64im_main_recursion_step_chunk_replay_tail_digest_aux_breakdown(first_relation)
+                .expect("measure first-step chunk replay tail digest aux breakdown");
+        let chunk_replay_tail_digest_ms = millis_since(chunk_replay_tail_digest_started);
+
+        print_section("Top-Level Aux");
+        print_kv("measure.wall", format!("{top_level_aux_ms:.3} ms"));
+        print_cumulative_and_delta(
+            "after_private_witness_inputs",
+            0,
+            top_level_aux.after_private_witness_inputs,
+        );
+        print_cumulative_and_delta(
+            "after_alloc_cover_states",
+            top_level_aux.after_private_witness_inputs,
+            top_level_aux.after_alloc_cover_states,
+        );
+        print_cumulative_and_delta(
+            "after_bind_state_and_pc",
+            top_level_aux.after_alloc_cover_states,
+            top_level_aux.after_bind_state_and_pc,
+        );
+        print_cumulative_and_delta(
+            "after_chunk_replay",
+            top_level_aux.after_bind_state_and_pc,
+            top_level_aux.after_chunk_replay,
+        );
+        print_cumulative_and_delta(
+            "after_inactive_side_lane_x_out",
+            top_level_aux.after_chunk_replay,
+            top_level_aux.after_inactive_side_lane_and_x_out,
+        );
+        print_cumulative_and_delta(
+            "after_public_output_eq",
+            top_level_aux.after_inactive_side_lane_and_x_out,
+            top_level_aux.after_public_output_eq,
+        );
+        print_section("Chunk Replay Aux");
+        print_kv("measure.wall", format!("{chunk_replay_aux_ms:.3} ms"));
+        print_cumulative_and_delta("after_state_cover", 0, chunk_replay_aux.after_state_cover);
+        print_cumulative_and_delta(
+            "after_chunk_meta",
+            chunk_replay_aux.after_state_cover,
+            chunk_replay_aux.after_chunk_meta,
+        );
+        print_cumulative_and_delta(
+            "after_pi_ccs",
+            chunk_replay_aux.after_chunk_meta,
+            chunk_replay_aux.after_pi_ccs,
+        );
+        print_cumulative_and_delta(
+            "after_synthetic_relation_io",
+            chunk_replay_aux.after_pi_ccs,
+            chunk_replay_aux.after_synthetic_relation_io,
+        );
+        print_cumulative_and_delta(
+            "after_pi_rlc_parent_claim",
+            chunk_replay_aux.after_synthetic_relation_io,
+            chunk_replay_aux.after_pi_rlc_parent_claim,
+        );
+        print_cumulative_and_delta(
+            "after_pi_rlc_rhos",
+            chunk_replay_aux.after_pi_rlc_parent_claim,
+            chunk_replay_aux.after_pi_rlc_rhos,
+        );
+        print_cumulative_and_delta(
+            "after_pi_rlc_rho_mats",
+            chunk_replay_aux.after_pi_rlc_rhos,
+            chunk_replay_aux.after_pi_rlc_rho_mats,
+        );
+        print_cumulative_and_delta(
+            "after_pi_rlc_public",
+            chunk_replay_aux.after_pi_rlc_rho_mats,
+            chunk_replay_aux.after_pi_rlc_public,
+        );
+        print_cumulative_and_delta(
+            "after_pi_rlc",
+            chunk_replay_aux.after_pi_rlc_public,
+            chunk_replay_aux.after_pi_rlc,
+        );
+        print_cumulative_and_delta(
+            "after_chunk_body",
+            chunk_replay_aux.after_pi_rlc,
+            chunk_replay_aux.after_chunk_body,
+        );
+        print_cumulative_and_delta(
+            "after_chunk_replay",
+            chunk_replay_aux.after_chunk_body,
+            chunk_replay_aux.after_chunk_replay,
+        );
+        print_section("Chunk Replay Tail Aux");
+        print_kv("measure.wall", format!("{chunk_replay_tail_aux_ms:.3} ms"));
+        print_cumulative_and_delta(
+            "after_state_out_projection_eq",
+            chunk_replay_aux.after_chunk_body,
+            chunk_replay_tail_aux.after_state_out_projection_eq,
+        );
+        print_cumulative_and_delta(
+            "after_expected_digest",
+            chunk_replay_tail_aux.after_state_out_projection_eq,
+            chunk_replay_tail_aux.after_expected_digest,
+        );
+        print_cumulative_and_delta(
+            "after_chunk_done",
+            chunk_replay_tail_aux.after_expected_digest,
+            chunk_replay_tail_aux.after_chunk_done,
+        );
+        print_cumulative_and_delta(
+            "after_transcript_state_eq",
+            chunk_replay_tail_aux.after_chunk_done,
+            chunk_replay_tail_aux.after_transcript_state_eq,
+        );
+        print_cumulative_and_delta(
+            "after_transcript_absorbed_eq",
+            chunk_replay_tail_aux.after_transcript_state_eq,
+            chunk_replay_tail_aux.after_transcript_absorbed_eq,
+        );
+        let tail_header_delta = chunk_replay_tail_digest
+            .after_header
+            .saturating_sub(chunk_replay_aux.after_chunk_body);
+        let mut tail_total_claim_digest = 0usize;
+        let mut prev = chunk_replay_tail_digest.after_header;
+        for after_digest in &chunk_replay_tail_digest.claim_after_digests {
+            tail_total_claim_digest += after_digest.saturating_sub(prev);
+            prev = *after_digest;
+        }
+        let tail_outer_hash_delta = chunk_replay_tail_digest
+            .after_outer_hash
+            .saturating_sub(prev);
+        print_section("Chunk Replay Tail Digest Aux");
+        print_kv("measure.wall", format!("{chunk_replay_tail_digest_ms:.3} ms"));
+        print_kv("header", tail_header_delta);
+        print_kv("claim_digest_total", tail_total_claim_digest);
+        print_kv("outer_hash", tail_outer_hash_delta);
+        return;
+    }
 
     let chunk_replay_aux_started = Instant::now();
     let chunk_replay_aux = debug_measure_rv64im_main_recursion_step_chunk_replay_aux_counts(first_relation)

@@ -843,134 +843,83 @@ pub fn min_k_rho_for_rlc_count(params: &NeoParams, ring: &RotRing, count: usize)
 // ME Relation Helpers
 // ---------------------------------------------------------------------------
 
-/// Concrete witness-matrix layouts currently accepted by reductions.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum WitnessMatLayout {
-    /// SuperNeo packed layout: `Z ∈ F^{D×(m/D)}`.
-    SuperneoPacked,
-    /// Compatibility layout: `Z ∈ F^{D×m}` (one logical column per matrix column).
-    DenseUnpacked,
-}
-
-/// Classify a witness matrix shape against the expected CCS width.
-pub fn witness_mat_layout<Ff>(Z: &Mat<Ff>, expected_m: usize) -> Result<WitnessMatLayout, PiCcsError>
+/// Validate the packed SuperNeo witness shape against the expected CCS width.
+pub fn validate_superneo_witness_mat<Ff>(Z: &Mat<Ff>, expected_m: usize) -> Result<(), PiCcsError>
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
 {
     if Z.rows() != D {
         return Err(PiCcsError::InvalidInput(format!(
-            "witness_mat_layout: expected Z.rows()={}, got {}",
+            "validate_superneo_witness_mat: expected Z.rows()={}, got {}",
             D,
             Z.rows()
         )));
     }
     if expected_m == 0 {
         return Err(PiCcsError::InvalidInput(
-            "witness_mat_layout: expected_m must be > 0".into(),
+            "validate_superneo_witness_mat: expected_m must be > 0".into(),
         ));
     }
     let want_cols = expected_m.div_ceil(D);
     if Z.cols() == want_cols {
         // NOTE: mixed witnesses (e.g. after Π_RLC) can legitimately carry non-zero values in
-        // padded tail lanes. We therefore classify layout by shape only here.
-        return Ok(WitnessMatLayout::SuperneoPacked);
-    }
-    if Z.cols() == expected_m {
-        return Ok(WitnessMatLayout::DenseUnpacked);
+        // padded tail lanes. Shape is the only invariant checked here.
+        return Ok(());
     }
     Err(PiCcsError::InvalidInput(format!(
-        "witness_mat_layout: expected packed {}x{} or dense {}x{} witness for expected_m={expected_m}, got {}x{}",
+        "validate_superneo_witness_mat: expected packed SuperNeo {}x{} witness for expected_m={expected_m}, got {}x{}",
         D,
         want_cols,
-        D,
-        expected_m,
         Z.rows(),
         Z.cols(),
     )))
 }
 
-/// Layout-aware `Z[rho, col]` access in the logical `D×expected_m` view.
+/// Read `Z[rho, col]` in the logical `D×expected_m` view of a packed SuperNeo witness.
 #[inline]
-pub fn witness_mat_get_f<Ff>(Z: &Mat<Ff>, layout: WitnessMatLayout, expected_m: usize, rho: usize, col: usize) -> Ff
+pub fn witness_mat_get_f<Ff>(Z: &Mat<Ff>, expected_m: usize, rho: usize, col: usize) -> Ff
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
 {
     if rho >= D || col >= expected_m {
         return Ff::ZERO;
     }
-    match layout {
-        WitnessMatLayout::SuperneoPacked => {
-            let blk = col / D;
-            let off = col % D;
-            if off == rho {
-                Z[(rho, blk)]
-            } else {
-                Ff::ZERO
-            }
-        }
-        WitnessMatLayout::DenseUnpacked => Z[(rho, col)],
+    let blk = col / D;
+    let off = col % D;
+    if off == rho {
+        Z[(rho, blk)]
+    } else {
+        Ff::ZERO
     }
 }
 
-/// Layout-aware `Z[rho, col]` lifted to `K`.
+/// Read a packed SuperNeo witness coefficient and lift it to `K`.
 #[inline]
-pub fn witness_mat_get_k<Ff>(Z: &Mat<Ff>, layout: WitnessMatLayout, expected_m: usize, rho: usize, col: usize) -> K
+pub fn witness_mat_get_k<Ff>(Z: &Mat<Ff>, expected_m: usize, rho: usize, col: usize) -> K
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
     K: From<Ff>,
 {
-    K::from(witness_mat_get_f(Z, layout, expected_m, rho, col))
+    K::from(witness_mat_get_f(Z, expected_m, rho, col))
 }
 
-/// Layout-aware projection of the first `m_in` logical columns of `Z` into `X ∈ F^{D×m_in}`.
+/// Project the first `m_in` packed SuperNeo ring slots of `Z` into `X ∈ F^{D×m_in}`.
 pub fn project_x_from_witness_mat<Ff>(Z: &Mat<Ff>, expected_m: usize, m_in: usize) -> Result<Mat<Ff>, PiCcsError>
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
 {
-    let layout = witness_mat_layout(Z, expected_m)?;
-    let mut X = Mat::zero(D, m_in, Ff::ZERO);
-    let active_cols = core::cmp::min(m_in, expected_m);
-    match layout {
-        WitnessMatLayout::SuperneoPacked => {
-            let max_blk = core::cmp::min(active_cols.div_ceil(D), Z.cols());
-            for blk in 0..max_blk {
-                let c0 = blk * D;
-                for rho in 0..D {
-                    let c = c0 + rho;
-                    if c >= active_cols {
-                        break;
-                    }
-                    X[(rho, c)] = Z[(rho, blk)];
-                }
-            }
-        }
-        WitnessMatLayout::DenseUnpacked => {
-            for rho in 0..D {
-                let dst = X.row_mut(rho);
-                let src = Z.row(rho);
-                dst[..active_cols].copy_from_slice(&src[..active_cols]);
-            }
-        }
-    }
-    Ok(X)
-}
-
-/// Build `X ∈ F^{D×m_in}` directly from public inputs `x` under SuperNeo packed semantics.
-///
-/// Column `c` stores `x[c]` at row `c % D`; all off-lane rows are zero.
-pub fn project_x_from_public_inputs<Ff>(x: &[Ff], m_in: usize) -> Result<Mat<Ff>, PiCcsError>
-where
-    Ff: Field + PrimeCharacteristicRing + Copy,
-{
-    if x.len() != m_in {
+    validate_superneo_witness_mat(Z, expected_m)?;
+    if m_in > expected_m {
         return Err(PiCcsError::InvalidInput(format!(
-            "project_x_from_public_inputs: x.len()={} does not match m_in={m_in}",
-            x.len()
+            "project_x_from_witness_mat: m_in={m_in} exceeds expected_m={expected_m}"
         )));
     }
     let mut X = Mat::zero(D, m_in, Ff::ZERO);
-    for c in 0..m_in {
-        X[(c % D, c)] = x[c];
+    let active_cols = core::cmp::min(m_in, Z.cols());
+    for col in 0..active_cols {
+        for rho in 0..D {
+            X[(rho, col)] = Z[(rho, col)];
+        }
     }
     Ok(X)
 }
@@ -978,18 +927,17 @@ where
 /// Decode a witness matrix into a field vector `z` under a known CCS width.
 ///
 /// SuperNeo-only layout:
-/// - packed layout `Z ∈ F^{D×(m/D)}` where `m == expected_m`.
+/// - packed layout `Z ∈ F^{D×ceil(m/D)}` where `m == expected_m`.
 pub fn decode_z_from_witness_mat<Ff>(_params: &NeoParams, Z: &Mat<Ff>, expected_m: usize) -> Result<Vec<K>, PiCcsError>
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
     K: From<Ff>,
 {
-    let layout = witness_mat_layout(Z, expected_m)?;
-    // SuperNeo packed layout: each column is one D-coefficient block.
+    validate_superneo_witness_mat(Z, expected_m)?;
     let mut z = vec![K::ZERO; expected_m];
     for c in 0..expected_m {
         let rho = c % D;
-        z[c] = witness_mat_get_k(Z, layout, expected_m, rho, c);
+        z[c] = witness_mat_get_k(Z, expected_m, rho, c);
     }
     Ok(z)
 }
@@ -1003,24 +951,15 @@ where
     Ff: Field + PrimeCharacteristicRing + Copy,
     K: From<Ff>,
 {
-    let layout = witness_mat_layout(Z, expected_m)?;
+    validate_superneo_witness_mat(Z, expected_m)?;
     let m_eff = expected_m.div_ceil(D) * D;
     let mut z = vec![K::ZERO; m_eff];
-    match layout {
-        WitnessMatLayout::SuperneoPacked => {
-            // Keep all packed lanes (including padded tail) so RLC/DEC remain closed in block space.
-            for (c, zc) in z.iter_mut().enumerate() {
-                let blk = c / D;
-                let off = c % D;
-                if blk < Z.cols() {
-                    *zc = K::from(Z[(off, blk)]);
-                }
-            }
-        }
-        WitnessMatLayout::DenseUnpacked => {
-            for (c, zc) in z.iter_mut().enumerate().take(expected_m) {
-                *zc = witness_mat_get_k(Z, layout, expected_m, c % D, c);
-            }
+    // Keep all packed lanes, including padded tail lanes, so RLC/DEC stay closed in block space.
+    for (c, zc) in z.iter_mut().enumerate() {
+        let blk = c / D;
+        let off = c % D;
+        if blk < Z.cols() {
+            *zc = K::from(Z[(off, blk)]);
         }
     }
     Ok(z)
@@ -1140,10 +1079,10 @@ where
     Ff: PrimeField64 + PrimeCharacteristicRing + Copy,
     K: From<Ff>,
 {
-    let layout = witness_mat_layout(Z, expected_m)?;
+    validate_superneo_witness_mat(Z, expected_m)?;
     let mut out = vec![[K::ZERO; D]; expected_m];
     for (col, dst) in out.iter_mut().enumerate().take(expected_m) {
-        let raw = witness_mat_get_f(Z, layout, expected_m, col % D, col);
+        let raw = witness_mat_get_f(Z, expected_m, col % D, col);
         *dst = decompose_balanced_fixed_d_digits_k(raw, params.b)
             .map_err(|e| PiCcsError::InvalidInput(format!("witness logical_col={col} decomposition failed: {e}")))?;
     }
@@ -1165,14 +1104,14 @@ where
     Ff: PrimeField64 + PrimeCharacteristicRing + Copy,
     K: From<Ff>,
 {
-    let layout = witness_mat_layout(Z, expected_m)?;
+    validate_superneo_witness_mat(Z, expected_m)?;
     let mut yz = vec![K::ZERO; d_pad.max(D)];
     for col in 0..expected_m {
         let w = chi_s.get(col).copied().unwrap_or(K::ZERO);
         if w == K::ZERO {
             continue;
         }
-        let raw = witness_mat_get_f(Z, layout, expected_m, col % D, col);
+        let raw = witness_mat_get_f(Z, expected_m, col % D, col);
         let digits = decompose_balanced_fixed_d_digits_k(raw, params.b)
             .map_err(|e| PiCcsError::InvalidInput(format!("witness logical_col={col} decomposition failed: {e}")))?;
         for rho in 0..D {
@@ -1197,7 +1136,7 @@ where
     Ff: PrimeField64 + PrimeCharacteristicRing + Copy,
     K: From<Ff>,
 {
-    let layout = witness_mat_layout(Z, expected_m)?;
+    validate_superneo_witness_mat(Z, expected_m)?;
     let mut yz = vec![K::ZERO; d_pad.max(D)];
     for col in 0..expected_m {
         let w = chi_s.get(col).copied().unwrap_or(K::ZERO);
@@ -1205,7 +1144,7 @@ where
             continue;
         }
         let off = col % D;
-        yz[off] += witness_mat_get_k(Z, layout, expected_m, off, col) * w;
+        yz[off] += witness_mat_get_k(Z, expected_m, off, col) * w;
     }
     yz.truncate(d_pad);
     Ok(yz)
@@ -1222,7 +1161,7 @@ where
     Ff: PrimeField64 + PrimeCharacteristicRing + Copy,
     K: From<Ff>,
 {
-    let layout = witness_mat_layout(Z, expected_m)?;
+    validate_superneo_witness_mat(Z, expected_m)?;
     if params.b < 2 {
         return Err(PiCcsError::InvalidInput(format!(
             "{label}: invalid b={} (must be >= 2)",
@@ -1231,7 +1170,7 @@ where
     }
     for col in 0..expected_m {
         let off = col % D;
-        let v = witness_mat_get_f(Z, layout, expected_m, off, col);
+        let v = witness_mat_get_f(Z, expected_m, off, col);
         if !is_representable_balanced_fixed_d_digits(v, params.b)? {
             let x = to_balanced_i128(v);
             return Err(PiCcsError::InvalidInput(format!(
@@ -1340,68 +1279,18 @@ where
     Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
     K: From<Ff>,
 {
-    use neo_ccs::CcsMatrix;
-    let d_pad = 1usize << ell_d;
-    let mut y_new: Vec<Vec<K>> = Vec::with_capacity(s.t());
-    let z_layout = witness_mat_layout(Z, s.m)
-        .unwrap_or_else(|e| panic!("compute_y_from_Z_and_r: invalid witness shape for m={}: {e}", s.m));
-    if let Some(cache) = superneo_cache {
-        let z_vec = decode_superneo_coeffs_from_witness_mat(Z, s.m)
-            .unwrap_or_else(|e| panic!("compute_y_from_Z_and_r: failed to decode packed witness coefficients: {e}"));
-        let z_blocks = crate::superneo_eval::SuperneoZBlocks::from_z(&z_vec);
-        return compute_y_from_z_blocks_and_rb_with_cache(s, &z_blocks, rb, ell_d, cache);
+    let local_cache;
+    let cache = if let Some(cache) = superneo_cache {
+        cache
     } else {
-        // Fallback path: explicitly assemble v_j = M_j^T · r^b and then y_j = Z · v_j.
-        let mut vjs: Vec<Vec<K>> = Vec::with_capacity(s.t());
-        for j in 0..s.t() {
-            let mut vj = vec![K::ZERO; s.m];
-            let n_eff = core::cmp::min(s.n, rb.len());
-
-            match &s.matrices[j] {
-                CcsMatrix::Identity { n } => {
-                    let cap = core::cmp::min(n_eff, *n);
-                    for i in 0..cap {
-                        vj[i] += rb[i];
-                    }
-                }
-                CcsMatrix::Csc(csc) => {
-                    for c in 0..csc.ncols {
-                        let s0 = csc.col_ptr[c];
-                        let e0 = csc.col_ptr[c + 1];
-                        for k in s0..e0 {
-                            let row = csc.row_idx[k];
-                            if row >= n_eff {
-                                continue;
-                            }
-                            let wr = rb[row];
-                            if wr == K::ZERO {
-                                continue;
-                            }
-                            vj[c] += wr.scale_base_k(K::from(csc.vals[k]));
-                        }
-                    }
-                }
-            }
-            vjs.push(vj);
-        }
-
-        for j in 0..s.t() {
-            let mut yj_pad = vec![K::ZERO; D];
-            for rho in 0..D {
-                let mut acc = K::ZERO;
-                for c in 0..s.m {
-                    acc += witness_mat_get_k(Z, z_layout, s.m, rho, c) * vjs[j][c];
-                }
-                yj_pad[rho] = acc;
-            }
-            if d_pad > yj_pad.len() {
-                yj_pad.resize(d_pad, K::ZERO);
-            }
-            y_new.push(yj_pad);
-        }
-    }
-    let y_scalars = ct_from_y_ring(&y_new);
-    (y_new, y_scalars)
+        local_cache = crate::superneo_eval::build_superneo_eval_cache(s)
+            .expect("compute_y_from_Z_and_r: SuperNeo evaluator cache must build for valid CCS width");
+        &local_cache
+    };
+    let z_vec = decode_superneo_coeffs_from_witness_mat(Z, s.m)
+        .unwrap_or_else(|e| panic!("compute_y_from_Z_and_r: failed to decode packed witness coefficients: {e}"));
+    let z_blocks = crate::superneo_eval::SuperneoZBlocks::from_z(&z_vec);
+    compute_y_from_z_blocks_and_rb_with_cache(s, &z_blocks, rb, ell_d, cache)
 }
 
 // ---------------------------------------------------------------------------

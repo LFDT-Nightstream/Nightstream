@@ -15,8 +15,7 @@ use std::time::Instant;
 
 use crate::finalize::{
     package_session_proof, verify_finalized_session, verify_finalized_session_with_detailed_perf_and_cache,
-    verify_finalized_session_with_perf, verify_finalized_session_with_perf_and_cache,
-    verify_finalized_session_with_precomputed_chunk_digests_and_detailed_perf_and_cache, PackagedVerifyPerf,
+    verify_finalized_session_with_perf, verify_finalized_session_with_perf_and_cache, PackagedVerifyPerf,
 };
 use crate::proof::{
     partition_prover_step_inputs, partition_public_steps, partition_step_inputs, Carry, ChunkInput, FoldSchedule,
@@ -431,69 +430,6 @@ where
     Ok((proof.final_main_claims.clone(), perf))
 }
 
-pub fn verify_chunks_with_precomputed_chunk_digests_and_perf_and_cache<MR, MB>(
-    mode: FoldingMode,
-    params: &NeoParams,
-    s: &CcsStructure<F>,
-    chunks: &[PublicChunk],
-    proof: &RunProof,
-    public_chunk_digests: &[[F; 4]],
-    mixers: CommitmentMixers<MR, MB>,
-    provided_cache: Option<&OptimizedStructureCache>,
-) -> Result<(Vec<CeClaim<Commitment, F, K>>, RunVerifyPerf), PiCcsError>
-where
-    MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
-    MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
-{
-    let total_started = Instant::now();
-    let mut tr = Poseidon2Transcript::new(b"neo.fold.next/session");
-    let mut main_carry: &[CeClaim<Commitment, F, K>] = &[];
-    let mut perf = RunVerifyPerf::default();
-    let built_cache = maybe_build_optimized_cache(&mode, s, provided_cache)?;
-    let optimized_cache = provided_cache.or(built_cache.as_ref());
-
-    validate_chunk_layout(proof.fold_schedule, chunks)?;
-    if chunks.len() != public_chunk_digests.len() {
-        return Err(PiCcsError::InvalidInput(
-            "precomputed chunk digests do not match public chunk list".into(),
-        ));
-    }
-
-    for (idx, chunk_proof) in proof.chunks.iter().enumerate() {
-        let chunk = chunks
-            .get(idx)
-            .ok_or_else(|| PiCcsError::InvalidInput(format!("missing public chunk {idx} during verification")))?;
-        let public_chunk_digest = public_chunk_digests[idx];
-        let (next_main, chunk_perf) = ShardVerifier::verify_chunk_with_precomputed_digest_with_perf(
-            mode.clone(),
-            &mut tr,
-            params,
-            s,
-            chunk,
-            &main_carry,
-            chunk_proof,
-            mixers,
-            optimized_cache,
-            public_chunk_digest,
-        )?;
-        main_carry = next_main;
-        perf.chunks.push(chunk_perf);
-        tr.append_message(b"neo.fold.next/chunk_done", &[1]);
-    }
-    if chunks.len() != proof.chunks.len() {
-        return Err(PiCcsError::InvalidInput(
-            "public chunk list is longer than proof chunk list".into(),
-        ));
-    }
-    if main_carry != proof.final_main_claims.as_slice() {
-        return Err(PiCcsError::ProtocolError(
-            "final carried main claims do not match proof footer".into(),
-        ));
-    }
-    perf.total_ms = total_started.elapsed().as_secs_f64() * 1_000.0;
-    Ok((proof.final_main_claims.clone(), perf))
-}
-
 pub fn prove_run<L, MR, MB>(
     mode: FoldingMode,
     schedule: FoldSchedule,
@@ -662,30 +598,6 @@ where
     MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
 {
     verify_finalized_session_with_detailed_perf_and_cache(mode, params, s, proof, mixers, provided_cache)
-}
-
-pub(crate) fn verify_packaged_with_precomputed_chunk_digests_and_detailed_perf_and_cache<MR, MB>(
-    mode: FoldingMode,
-    params: &NeoParams,
-    s: &CcsStructure<F>,
-    proof: &PackagedProof,
-    public_chunk_digests: &[[F; 4]],
-    mixers: CommitmentMixers<MR, MB>,
-    provided_cache: Option<&OptimizedStructureCache>,
-) -> Result<(Vec<CeClaim<Commitment, F, K>>, PackagedVerifyPerf), PiCcsError>
-where
-    MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
-    MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
-{
-    verify_finalized_session_with_precomputed_chunk_digests_and_detailed_perf_and_cache(
-        mode,
-        params,
-        s,
-        proof,
-        public_chunk_digests,
-        mixers,
-        provided_cache,
-    )
 }
 
 fn validate_chunk_layout(schedule: FoldSchedule, chunks: &[PublicChunk]) -> Result<(), PiCcsError> {

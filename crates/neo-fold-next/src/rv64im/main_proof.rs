@@ -14,15 +14,18 @@ use crate::rv64im::chunk_step_ivc::{
     build_rv64im_chunk_step_ivc_relations, rv64im_chunk_step_ivc_initial_state_for_step_cap,
     Rv64imChunkStepIvcStatement,
 };
+use crate::rv64im::construction2::{
+    build_rv64im_main_recursion_construction2_verified_step_statement_digest_from_step_statement,
+    Rv64imMainRecursionConstruction2PublicBoundary,
+};
+use crate::rv64im::encoded_public_input::encoded_public_input_has_canonical_field_limb_bytes;
 use crate::rv64im::final_relation::{
     reconstruct_rv64im_final_statement_from_export_and_replay, rv64im_recursive_accumulator_instance_digest_from_parts,
     Rv64imChunkTransitionWitness, Rv64imFinalBuildProof, Rv64imFinalStatement, Rv64imRecursiveAccumulator,
 };
-use crate::rv64im::ivc::derive_rv64im_ivc_step_cap;
 use crate::rv64im::ivc::Rv64imIvcPublicImage;
-use crate::rv64im::ivc_snark::{
-    prove_rv64im_ivc_snark_from_final_cached, Rv64imIvcSnark, Rv64imIvcSnarkProof, Rv64imIvcSnarkVerifierKey,
-};
+use crate::rv64im::ivc::{build_rv64im_ivc_prover_state_from_relations, derive_rv64im_ivc_step_cap};
+use crate::rv64im::ivc_snark::{prove_rv64im_ivc_snark_from_final_cached, Rv64imIvcSnark, Rv64imIvcSnarkProof};
 use crate::rv64im::kernel::{Rv64imKernelExportProof, SimpleKernelError};
 use crate::rv64im::main_recursion::{
     build_rv64im_main_recursion_verifier_key_fs_for_step_cap, Rv64imEncodedPublicInput, Rv64imVerifierKeyFs,
@@ -117,6 +120,9 @@ pub struct Rv64imAccumulatorPublicStatement {
     pc_final: u64,
     accumulator_final: Rv64imRecursiveAccumulator,
     x_last: Rv64imEncodedPublicInput,
+    construction2_u_i: Rv64imMainRecursionConstruction2PublicBoundary,
+    terminal_bridge_handoff_digest: [u8; 32],
+    terminal_verified_step_statement_digest: [u8; 32],
     terminal_step_statement: Rv64imChunkStepIvcStatement,
 }
 
@@ -149,28 +155,6 @@ impl Rv64imMainFinalProofSurface {
             &self.chunk_summary_chain_digest,
         );
         tr.digest32()
-    }
-
-    pub fn validate_against_final_statement(
-        &self,
-        final_statement: &Rv64imFinalStatement,
-    ) -> Result<(), SimpleKernelError> {
-        if final_statement.folded.fold_schedule != self.fold_schedule {
-            return Err(SimpleKernelError::Bridge(
-                "RV64IM Nightstream main proof fold schedule does not match the carried final statement".into(),
-            ));
-        }
-        if final_statement.folded.semantic_step_count != self.semantic_step_count {
-            return Err(SimpleKernelError::Bridge(
-                "RV64IM Nightstream main proof semantic step count does not match the carried final statement".into(),
-            ));
-        }
-        if final_statement.folded.chunk_count != self.chunk_summary_count {
-            return Err(SimpleKernelError::Bridge(
-                "RV64IM Nightstream main proof chunk-summary count does not match the carried final statement".into(),
-            ));
-        }
-        Ok(())
     }
 
     pub fn chunk_summary_count(&self) -> u64 {
@@ -231,6 +215,8 @@ impl Rv64imAccumulatorPublicStatement {
     fn from_final_surface_with_terminal_step_statement(
         final_statement: &Rv64imFinalStatement,
         final_surface: &Rv64imMainFinalProofSurface,
+        construction2_u_i: Rv64imMainRecursionConstruction2PublicBoundary,
+        terminal_bridge_handoff_digest: [u8; 32],
         terminal_step_statement: Rv64imChunkStepIvcStatement,
     ) -> Result<Self, SimpleKernelError> {
         let fold_schedule = final_surface.fold_schedule();
@@ -249,6 +235,10 @@ impl Rv64imAccumulatorPublicStatement {
         let chunk_count = Self::expected_chunk_count_from_parts(fold_schedule, step_count)?;
         let x_last =
             build_rv64im_main_recursion_x_last_from_accumulator_with_vk_fs(&vk_fs, chunk_count, &accumulator_final)?;
+        let terminal_verified_step_statement_digest =
+            build_rv64im_main_recursion_construction2_verified_step_statement_digest_from_step_statement(
+                &terminal_step_statement,
+            )?;
         Ok(Self {
             shape_digest: vk_fs.main_lane_shape_digest,
             vk_fs,
@@ -257,33 +247,58 @@ impl Rv64imAccumulatorPublicStatement {
             pc_final: final_surface.final_pc(),
             accumulator_final,
             x_last,
+            construction2_u_i,
+            terminal_bridge_handoff_digest,
+            terminal_verified_step_statement_digest,
             terminal_step_statement,
         })
     }
 
-    pub fn from_verified_final_seam(
+    /// Builds the published accumulator from final build artifacts.
+    ///
+    /// This is prover/build support. Final acceptance is the compressed proof
+    /// verifier, not this local artifact construction path.
+    pub fn from_final_artifacts(
         final_statement: &Rv64imFinalStatement,
         final_proof: &Rv64imFinalBuildProof,
         final_pc: u64,
     ) -> Result<Self, SimpleKernelError> {
         let final_surface = Rv64imMainFinalProofSurface::from_final_proof(final_statement, final_proof, final_pc);
-        let terminal_step_statement = build_rv64im_chunk_step_ivc_relations(final_statement, final_proof)?
+        let relations = build_rv64im_chunk_step_ivc_relations(final_statement, final_proof)?;
+        let step_cap = derive_rv64im_ivc_step_cap(
+            final_statement.folded.fold_schedule,
+            usize::try_from(final_statement.folded.semantic_step_count).map_err(|_| {
+                SimpleKernelError::Bridge(
+                    "RV64IM published accumulator statement step_count does not fit into the native IVC step-cap model"
+                        .into(),
+                )
+            })?,
+        )?;
+        let ivc_state = build_rv64im_ivc_prover_state_from_relations(&relations, step_cap)?;
+        let construction2_u_i =
+            Rv64imMainRecursionConstruction2PublicBoundary::from_fresh_instance(ivc_state.construction2_u_i());
+        let terminal_relation = relations
             .last()
             .ok_or_else(|| {
                 SimpleKernelError::Bridge(
-                    "RV64IM published accumulator statement requires a terminal chunk-step relation".into(),
+                    "RV64IM published accumulator statement requires terminal chunk statement metadata".into(),
                 )
             })?
-            .statement
             .clone();
-        Self::from_final_surface_with_terminal_step_statement(final_statement, &final_surface, terminal_step_statement)
+        Self::from_final_surface_with_terminal_step_statement(
+            final_statement,
+            &final_surface,
+            construction2_u_i,
+            terminal_relation.witness.handoff.bridge_handoff.digest,
+            terminal_relation.statement,
+        )
     }
 
     pub fn expected_digest(&self) -> [u8; 32] {
         let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/accumulator_public_statement");
         tr.append_message(
             b"neo.fold.next/nightstream/rv64im/accumulator_public_statement/version",
-            b"v10",
+            b"v13",
         );
         let canonical_folded_accumulator_digest = self.canonical_folded_accumulator_digest();
         tr.append_message(
@@ -309,6 +324,18 @@ impl Rv64imAccumulatorPublicStatement {
         tr.append_message(
             b"neo.fold.next/nightstream/rv64im/accumulator_public_statement/x_last",
             &self.x_last.bytes(),
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv64im/accumulator_public_statement/construction2_u_i",
+            &self.construction2_u_i.expected_digest(),
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv64im/accumulator_public_statement/terminal_bridge_handoff_digest",
+            &self.terminal_bridge_handoff_digest,
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv64im/accumulator_public_statement/terminal_verified_step_statement_digest",
+            &self.terminal_verified_step_statement_digest,
         );
         tr.append_message(
             b"neo.fold.next/nightstream/rv64im/accumulator_public_statement/terminal_step_statement",
@@ -380,12 +407,32 @@ impl Rv64imAccumulatorPublicStatement {
         &mut self.x_last
     }
 
+    pub fn construction2_u_i(&self) -> &Rv64imMainRecursionConstruction2PublicBoundary {
+        &self.construction2_u_i
+    }
+
+    pub fn construction2_u_i_mut(&mut self) -> &mut Rv64imMainRecursionConstruction2PublicBoundary {
+        &mut self.construction2_u_i
+    }
+
     pub fn terminal_step_statement(&self) -> &Rv64imChunkStepIvcStatement {
         &self.terminal_step_statement
     }
 
     pub fn terminal_step_statement_mut(&mut self) -> &mut Rv64imChunkStepIvcStatement {
         &mut self.terminal_step_statement
+    }
+
+    pub fn terminal_bridge_handoff_digest(&self) -> [u8; 32] {
+        self.terminal_bridge_handoff_digest
+    }
+
+    pub fn terminal_bridge_handoff_digest_mut(&mut self) -> &mut [u8; 32] {
+        &mut self.terminal_bridge_handoff_digest
+    }
+
+    pub fn terminal_verified_step_statement_digest(&self) -> [u8; 32] {
+        self.terminal_verified_step_statement_digest
     }
 
     pub fn validate(&self) -> Result<(), SimpleKernelError> {
@@ -411,6 +458,44 @@ impl Rv64imAccumulatorPublicStatement {
             ));
         }
         let expected_chunk_count = self.expected_chunk_count()?;
+        let expected_x_last = build_rv64im_main_recursion_x_last_from_accumulator_with_vk_fs(
+            &self.vk_fs,
+            expected_chunk_count,
+            &self.accumulator_final,
+        )?;
+        if self.x_last != expected_x_last {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM published accumulator statement x_last does not match the Construction-2 final instance hash"
+                    .into(),
+            ));
+        }
+        if self.construction2_u_i.x_i != self.x_last {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM published accumulator statement Construction-2 u_i.x_i does not match x_last".into(),
+            ));
+        }
+        if !encoded_public_input_has_canonical_field_limb_bytes(&self.x_last) {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM published accumulator statement x_last is not a canonical four-limb field encoding".into(),
+            ));
+        }
+        if !self.construction2_u_i.has_canonical_commitment_shape() {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM published accumulator statement Construction-2 u_i commitment shape is not canonical".into(),
+            ));
+        }
+        if self.construction2_u_i.commitment_digest != self.construction2_u_i.expected_commitment_digest() {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM published accumulator statement Construction-2 u_i commitment digest does not bind commitment data"
+                    .into(),
+            ));
+        }
+        if self.construction2_u_i.fresh_instance_digest != self.construction2_u_i.expected_fresh_instance_digest() {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM published accumulator statement Construction-2 u_i digest does not bind commitment and x_last"
+                    .into(),
+            ));
+        }
         if self
             .terminal_step_statement
             .step_public
@@ -433,6 +518,11 @@ impl Rv64imAccumulatorPublicStatement {
             return Err(SimpleKernelError::Bridge(
                 "RV64IM published accumulator statement terminal step_lo does not match the terminal chunk summary"
                     .into(),
+            ));
+        }
+        if self.terminal_step_statement.chunk_summary.public_step_count == 0 {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM published accumulator statement terminal chunk must carry at least one public step".into(),
             ));
         }
         let Some(summary_step_hi) = self
@@ -485,36 +575,35 @@ pub(crate) fn build_rv64im_ivc_public_image_from_published_statement(
         // `pc_final`.
         pc: RV64IM_MAIN_RECURSION_TRIVIAL_PC,
         x_i: published_statement.x_last().clone(),
+        construction2_u_i: published_statement.construction2_u_i().clone(),
         folded_accumulator_digest: published_statement.canonical_folded_accumulator_digest(),
+        terminal_bridge_handoff_digest: published_statement.terminal_bridge_handoff_digest(),
+        terminal_verified_step_statement_digest: published_statement.terminal_verified_step_statement_digest(),
         terminal_statement: Some(published_statement.terminal_step_statement().clone()),
     })
 }
 
-pub(crate) fn validate_rv64im_ivc_public_image_against_published_statement(
-    published_statement: &Rv64imAccumulatorPublicStatement,
-    public_image: &Rv64imIvcPublicImage,
-) -> Result<(), SimpleKernelError> {
-    let expected_public_image = build_rv64im_ivc_public_image_from_published_statement(published_statement)?;
-    if public_image != &expected_public_image {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM IVC public image does not match the carried published statement".into(),
-        ));
-    }
-    Ok(())
-}
-
 impl Rv64imCompressedMainProof {
-    pub fn from_verified_final_seam(
+    /// Builds a compressed proof from final build artifacts.
+    ///
+    /// This constructs prover-side inputs for the Spartan proof. Consumers
+    /// must derive the public image and call `Rv64imIvcSnark::verify`; this
+    /// constructor is not a verifier.
+    pub fn from_final_artifacts(
         statement: &Rv64imFinalStatement,
         proof: &Rv64imFinalBuildProof,
         final_pc: u64,
     ) -> Result<Self, SimpleKernelError> {
-        let published_statement =
-            Rv64imAccumulatorPublicStatement::from_verified_final_seam(statement, proof, final_pc)?;
-        let public_image = build_rv64im_ivc_public_image_from_published_statement(&published_statement)?;
+        let mut published_statement =
+            Rv64imAccumulatorPublicStatement::from_final_artifacts(statement, proof, final_pc)?;
+        let ivc_snark = prove_rv64im_ivc_snark_from_final_cached(statement, proof)?;
+        *published_statement.construction2_u_i_mut() = ivc_snark.public_image().construction2_u_i.clone();
+        published_statement.terminal_verified_step_statement_digest = ivc_snark
+            .public_image()
+            .terminal_verified_step_statement_digest;
         Ok(Self {
             published_statement,
-            ivc_snark: prove_rv64im_ivc_snark_from_final_cached(statement, proof, public_image)?,
+            ivc_snark,
         })
     }
 
@@ -534,17 +623,21 @@ impl Rv64imCompressedMainProof {
         &mut self.ivc_snark
     }
 
-    pub fn terminal_decider_proof(&self) -> &Rv64imIvcSnarkProof {
+    pub fn ivc_recursion_snark_proof(&self) -> &Rv64imIvcSnarkProof {
         self.ivc_snark.proof()
     }
 
-    pub fn terminal_decider_proof_mut(&mut self) -> &mut Rv64imIvcSnarkProof {
+    pub fn ivc_recursion_snark_proof_mut(&mut self) -> &mut Rv64imIvcSnarkProof {
         self.ivc_snark.proof_mut()
+    }
+
+    pub fn expected_ivc_public_image(&self) -> Result<Rv64imIvcPublicImage, SimpleKernelError> {
+        build_rv64im_ivc_public_image_from_published_statement(&self.published_statement)
     }
 
     pub fn expected_digest(&self) -> [u8; 32] {
         let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/compressed_main_proof");
-        tr.append_message(b"neo.fold.next/nightstream/rv64im/compressed_main_proof/version", b"v2");
+        tr.append_message(b"neo.fold.next/nightstream/rv64im/compressed_main_proof/version", b"v3");
         tr.append_message(
             b"neo.fold.next/nightstream/rv64im/compressed_main_proof/published_statement_digest",
             &self.published_statement.expected_digest(),
@@ -553,9 +646,11 @@ impl Rv64imCompressedMainProof {
             b"neo.fold.next/nightstream/rv64im/compressed_main_proof/public_image_digest",
             &self.ivc_snark.public_image().expected_digest(),
         );
+        let proof_bytes = bincode::serialize(self.ivc_snark.proof())
+            .expect("RV64IM compressed main proof digest requires serializable recursion SNARK proof");
         tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/compressed_main_proof/terminal_decider_proof",
-            &self.ivc_snark.proof().snark_data,
+            b"neo.fold.next/nightstream/rv64im/compressed_main_proof/ivc_recursion_snark_proof",
+            &proof_bytes,
         );
         tr.digest32()
     }
@@ -564,7 +659,7 @@ impl Rv64imCompressedMainProof {
         let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv64im/compressed_main_proof_binding");
         tr.append_message(
             b"neo.fold.next/nightstream/rv64im/compressed_main_proof_binding/version",
-            b"v2",
+            b"v3",
         );
         tr.append_message(
             b"neo.fold.next/nightstream/rv64im/compressed_main_proof_binding/published_statement_digest",
@@ -574,20 +669,12 @@ impl Rv64imCompressedMainProof {
             b"neo.fold.next/nightstream/rv64im/compressed_main_proof_binding/public_image_digest",
             &self.ivc_snark.public_image().expected_digest(),
         );
+        let proof_bytes = bincode::serialize(self.ivc_snark.proof())
+            .expect("RV64IM compressed main proof binding requires serializable recursion SNARK proof");
         tr.append_message(
-            b"neo.fold.next/nightstream/rv64im/compressed_main_proof_binding/terminal_decider_proof",
-            &self.ivc_snark.proof().snark_data,
+            b"neo.fold.next/nightstream/rv64im/compressed_main_proof_binding/ivc_recursion_snark_proof",
+            &proof_bytes,
         );
         tr.digest32()
-    }
-
-    pub fn verify(&self, terminal_decider_vk: &Rv64imIvcSnarkVerifierKey) -> Result<(), SimpleKernelError> {
-        let expected_public_image = build_rv64im_ivc_public_image_from_published_statement(&self.published_statement)?;
-        validate_rv64im_ivc_public_image_against_published_statement(
-            &self.published_statement,
-            self.ivc_snark.public_image(),
-        )?;
-        self.ivc_snark
-            .verify(terminal_decider_vk, &expected_public_image)
     }
 }

@@ -1,6 +1,5 @@
 //! Owns accepted-proof staged verification and transcript replay for RV64IM.
 
-use crate::finalize::public_chunk_digest;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
@@ -1279,20 +1278,9 @@ pub(crate) fn verify_accepted_proof_core_with_transcript_surface_with_perf(
     accumulator.root_execution_digest = Some(inputs.root_execution.digest);
     let root_execution_ms = millis_since(root_execution_started);
 
-    let verified_public_chunk_digests = inputs
-        .main_lane
-        .packaged
-        .statement
-        .chunks
-        .iter()
-        .map(public_chunk_digest)
-        .collect::<Vec<_>>();
-
     let root_main_lane_started = Instant::now();
-    let root_main_lane = verify_root_main_lane_packaged_proof_with_verified_public_statement_with_perf(
-        &inputs.main_lane.packaged,
-        &verified_public_chunk_digests,
-    )?;
+    let root_main_lane =
+        verify_root_main_lane_packaged_proof_with_verified_public_statement_with_perf(&inputs.main_lane.packaged)?;
     let root_main_lane_proof_ms = millis_since(root_main_lane_started);
 
     let kernel_opening_started = Instant::now();

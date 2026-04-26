@@ -817,7 +817,7 @@ fn rebuild_public_kernel_from_input(
     Ok(((kernel, sidecar), perf))
 }
 
-fn finalize_public_proof_verify_with_perf(
+fn finalize_public_proof_audit_with_perf(
     proof: &Rv64imProof,
     kernel: PublicSimpleKernelOutput,
     sidecar: PublicSimpleKernelWitnessSidecar,
@@ -902,7 +902,7 @@ pub(super) fn verify_kernel_output_from_public_proof_with_perf(
 
     let kernel = public_kernel_from_proof(proof);
     let sidecar = public_sidecar_from_proof(proof);
-    let (kernel, mut perf) = finalize_public_proof_verify_with_perf(
+    let (kernel, mut perf) = finalize_public_proof_audit_with_perf(
         proof,
         kernel,
         sidecar.clone(),

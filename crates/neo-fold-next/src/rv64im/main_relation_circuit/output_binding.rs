@@ -3,9 +3,10 @@
 use crate::rv64im::ivc_snark::SpartanF;
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use neo_ajtai::Commitment;
-use neo_ccs::{CcsClaim, CcsStructure};
+use neo_ccs::{CcsClaim, CcsStructure, CcsWitness};
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
+use neo_reductions::common::project_x_from_witness_mat;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::claim::CeClaimVar;
@@ -29,6 +30,23 @@ pub fn alloc_fresh_ccs_claim<CS: ConstraintSystem<SpartanF>>(
         c_data_values: fresh.c.data.clone(),
         x: alloc_f_slice(cs, &embedded_fresh_x_values(fresh), "x")?,
         x_values: embedded_fresh_x_values(fresh),
+        m_in: fresh.m_in,
+    })
+}
+
+pub fn alloc_fresh_ccs_claim_with_witness<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    fresh: &CcsClaim<Commitment, F>,
+    witness: &CcsWitness<F>,
+    expected_m: usize,
+) -> Result<FreshCcsClaimVar, SynthesisError> {
+    let x_values =
+        project_x_from_witness_mat(&witness.Z, expected_m, fresh.m_in).map_err(|_| SynthesisError::Unsatisfiable)?;
+    Ok(FreshCcsClaimVar {
+        c_data: alloc_f_slice(cs, &fresh.c.data, "c_data")?,
+        c_data_values: fresh.c.data.clone(),
+        x: alloc_f_slice(cs, x_values.as_slice(), "x")?,
+        x_values: x_values.as_slice().to_vec(),
         m_in: fresh.m_in,
     })
 }

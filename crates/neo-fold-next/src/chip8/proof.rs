@@ -1,4 +1,5 @@
-//! Owns the theorem-facing CHIP-8 proof/export boundary and audit-only bundles.
+//! Owns CHIP-8 proof construction and local audit replay checks.
+//! Does not own final proof acceptance; that belongs to a compressed decider relation.
 
 use neo_ajtai::Commitment;
 use neo_ccs::CcsWitness;
@@ -7,8 +8,8 @@ use neo_transcript::{Poseidon2Transcript, Transcript};
 
 use crate::chip8::chunk_relation::Chip8ChunkReplayWitness;
 use crate::chip8::final_relation::{
-    build_final_proof, build_recursive_proof, folded_statement_digest, verify_final_statement_with_output,
-    verify_folded_statement_with_output,
+    audit_check_final_statement_with_output, audit_check_folded_statement_with_output, build_final_proof,
+    build_recursive_proof, folded_statement_digest,
 };
 use crate::chip8::kernel::{
     build_kernel_bridge_binding_summary, build_kernel_exact_frames,
@@ -140,12 +141,13 @@ pub fn prove_folded_statement(
     Ok((built.folded, built.proof))
 }
 
-pub fn verify_folded_statement(
+/// Local replay check for construction tests; not a final proof verifier.
+pub fn audit_check_folded_statement_replay(
     public: &SimpleKernelPublicInput,
     folded: &Chip8FoldedStatement,
     proof: &Chip8FoldedProof,
 ) -> Result<(), SimpleKernelError> {
-    verify_folded_statement_with_output(public, folded, proof)?;
+    audit_check_folded_statement_with_output(public, folded, proof)?;
     Ok(())
 }
 
@@ -157,12 +159,13 @@ pub fn prove_final_statement(
     Ok((built.folded, final_proof))
 }
 
-pub fn verify_final_statement(
+/// Local replay check for construction tests; not a final proof verifier.
+pub fn audit_check_final_statement_replay(
     public: &SimpleKernelPublicInput,
     folded: &Chip8FoldedStatement,
     proof: &Chip8FinalProof,
 ) -> Result<(), SimpleKernelError> {
-    verify_final_statement_with_output(public, folded, proof)?;
+    audit_check_final_statement_with_output(public, folded, proof)?;
     Ok(())
 }
 
@@ -230,7 +233,11 @@ pub fn prove_recursive(
     Ok((statement, final_proof))
 }
 
-pub fn verify_recursive(statement: &Chip8Statement, proof: &Chip8FinalProof) -> Result<(), SimpleKernelError> {
+/// Local replay check for construction tests; not a final proof verifier.
+pub fn audit_check_recursive_artifact_replay(
+    statement: &Chip8Statement,
+    proof: &Chip8FinalProof,
+) -> Result<(), SimpleKernelError> {
     if statement.folded.fold_schedule != CHIP8_BRIDGE_FOLD_SCHEDULE {
         return Err(SimpleKernelError::BridgeFailed(
             "folded statement schedule does not match frozen CHIP-8 export schedule".into(),
@@ -249,7 +256,7 @@ pub fn verify_recursive(statement: &Chip8Statement, proof: &Chip8FinalProof) -> 
     if statement.digest != statement_digest(statement) {
         return Err(SimpleKernelError::BridgeFailed("statement digest mismatch".into()));
     }
-    let verified_kernel = verify_final_statement_with_output(&statement.public, &statement.folded, proof)?;
+    let verified_kernel = audit_check_final_statement_with_output(&statement.public, &statement.folded, proof)?;
     if statement.final_state != public_machine_state(&verified_kernel.final_state) {
         return Err(SimpleKernelError::BridgeFailed(
             "final public machine state mismatch".into(),

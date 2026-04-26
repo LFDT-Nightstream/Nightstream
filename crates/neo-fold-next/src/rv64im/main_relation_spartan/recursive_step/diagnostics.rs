@@ -16,16 +16,17 @@ use crate::rv64im::final_relation::RV64IM_CHUNK_DONE_RAW_TAG;
 use crate::rv64im::ivc_snark::{Rv64imDeciderEngine, ShapeCS, SpartanCircuit, SpartanF, SpartanShape, SplitR1CSShape};
 use crate::rv64im::kernel::{rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache};
 use crate::rv64im::main_recursion::Rv64imMainRecursionFPrimeAdvice;
-use crate::rv64im::main_relation_circuit::claim::enforce_claim_projection_eq_native;
-use crate::rv64im::main_relation_circuit::claim::me_digest_poseidon;
+use crate::rv64im::main_relation_circuit::claim::{
+    enforce_claim_projection_eq_native, me_digest_poseidon,
+    me_input_projection_digest_poseidon_values_from_native_claim,
+    me_input_projection_digest_poseidon_with_native_claim,
+};
 use crate::rv64im::main_relation_circuit::transcript::Poseidon2TranscriptCircuit;
 use crate::rv64im::main_relation_spartan::fingerprint_cs::FingerprintCS;
 use crate::rv64im::main_relation_spartan::recursive_cover::{
-    alloc_recursive_carried_projection_claims, alloc_recursive_carried_x_r_only_claims, alloc_recursive_cover_claims,
-    alloc_recursive_cover_state, carried_projection_claims_have_zero_public_tail,
-    debug_measure_recursive_accumulator_instance_digest_circuit_from_projection_digests_aux,
-    recursive_accumulator_instance_digest_circuit_from_claims,
-    recursive_accumulator_instance_digest_circuit_from_projection_digests, Rv64imRecursiveCoverClaimVar,
+    alloc_recursive_carried_projection_claims, alloc_recursive_cover_claims, alloc_recursive_cover_state,
+    debug_measure_recursive_accumulator_instance_digest_circuit_from_claims_aux,
+    recursive_accumulator_instance_digest_circuit_from_claims, Rv64imRecursiveCoverClaimVar,
 };
 use crate::rv64im::main_relation_spartan::Rv64imMainRecursionFPrimePayload;
 use crate::rv64im::main_relation_spartan::{rv64im_main_relation_delta, Rv64imClaimBundle};
@@ -73,11 +74,7 @@ fn alloc_live_state_in_projection_claims<CS: ConstraintSystem<SpartanF>>(
     payload: &Rv64imMainRecursionFPrimePayload,
     label: &str,
 ) -> Result<Vec<Rv64imRecursiveCoverClaimVar>, SynthesisError> {
-    if payload.initial_transcript_in && carried_projection_claims_have_zero_public_tail(&payload.state_in_claims) {
-        alloc_recursive_carried_x_r_only_claims(cs, &payload.state_in_claims, label)
-    } else {
-        alloc_recursive_carried_projection_claims(cs, &payload.state_in_claims, label)
-    }
+    alloc_recursive_carried_projection_claims(cs, &payload.state_in_claims, label)
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -308,7 +305,6 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_fingerprint(
         cover_chunk: &payload.chunk_cover,
         chunk: &replay_chunk,
         logical_me_input_claims: None,
-        logical_me_input_digests: Some(&witness.running_state().carry.main_projection_digests),
         boundary_plan: payload.boundary_plan,
         rlc_zero_commit_suffix_len: payload.rlc_zero_commit_suffix_len,
         exact_initial_chunk_step_count: payload
@@ -325,10 +321,18 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_fingerprint(
     .map_err(|err| stage_err("chunk_replay_pi_ccs", err))?;
     let after_pi_ccs = super::format_spartan_digest_hex(cs.clone().finish_digest32(0));
 
+    let bridge_handoff_digest = super::super::digest_const_inputs(
+        &mut cs.namespace(|| "payload_chunk_bridge_handoff_digest"),
+        replay_chunk.handoff.bridge_handoff_digest,
+        "payload_chunk_bridge_handoff_digest",
+    )
+    .map_err(|err| stage_err("chunk_replay_bridge_handoff_digest", err))?;
     super::super::enforce_synthetic_outer_chunk_relation_public_io(
         &ctx,
         &mut cs.namespace(|| "payload_chunk_synthetic_relation_io"),
         &pi_ccs.fold_digest,
+        &pi_ccs.public_chunk_digest,
+        &bridge_handoff_digest,
         "payload_chunk_synthetic_relation_io",
     )
     .map_err(|err| stage_err("chunk_replay_synthetic_relation_io", err))?;
@@ -415,12 +419,16 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_fingerprint(
                     .padded_ccs_outputs
                     .len()
                     .saturating_sub(payload.rlc_zero_commit_suffix_len);
-                let rho_mats = super::super::materialize_goldilocks_rot_matrices(
-                    &mut cs.namespace(|| "payload_chunk_pi_rlc_rho_mats"),
-                    &rho_vars[..active_dense_children_len],
-                    "payload_chunk_pi_rlc_rho_mats",
-                )
-                .map_err(|err| stage_err("chunk_replay_pi_rlc_rho_mats", err))?;
+                let rho_mats = if constant_child_prefix > 0 && constant_child_prefix < active_dense_children_len {
+                    super::super::materialize_goldilocks_rot_matrices(
+                        &mut cs.namespace(|| "payload_chunk_pi_rlc_rho_mats"),
+                        &rho_vars[..active_dense_children_len],
+                        "payload_chunk_pi_rlc_rho_mats",
+                    )
+                    .map_err(|err| stage_err("chunk_replay_pi_rlc_rho_mats", err))?
+                } else {
+                    Vec::new()
+                };
                 after_pi_rlc_rho_mats = super::format_spartan_digest_hex(cs.clone().finish_digest32(0));
                 crate::rv64im::main_relation_circuit::pi_rlc::enforce_rlc_public_with_split_rho_views_constant_prefix_zero_commit_suffix(
                     &mut cs.namespace(|| "payload_chunk_pi_rlc_public"),
@@ -470,14 +478,13 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_fingerprint(
         )
         .map_err(|err| stage_err("chunk_replay_state_out_claim_eq", err))?;
     }
-    let _expected_folded_accumulator_out_digest =
-        recursive_accumulator_instance_digest_circuit_from_projection_digests(
-            &mut cs.namespace(|| "expected_folded_accumulator_out_digest"),
-            &witness.fresh_state_out().carry.main_projection_digests,
-            &state_out_var.terminal_handle,
-            "expected_folded_accumulator_out_digest",
-        )
-        .map_err(|err| stage_err("chunk_replay_expected_digest", err))?;
+    let _expected_folded_accumulator_out_digest = recursive_accumulator_instance_digest_circuit_from_claims(
+        &mut cs.namespace(|| "expected_folded_accumulator_out_digest"),
+        replayed_next_claims.effective_claims(),
+        &state_out_var.terminal_handle,
+        "expected_folded_accumulator_out_digest",
+    )
+    .map_err(|err| stage_err("chunk_replay_expected_digest", err))?;
     replayed_transcript
         .append_const_fields_raw(
             cs.namespace(|| "payload_chunk_done"),
@@ -588,7 +595,6 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_aux_counts(
         cover_chunk: &payload.chunk_cover,
         chunk: &replay_chunk,
         logical_me_input_claims: None,
-        logical_me_input_digests: Some(&witness.running_state().carry.main_projection_digests),
         boundary_plan: payload.boundary_plan,
         rlc_zero_commit_suffix_len: payload.rlc_zero_commit_suffix_len,
         exact_initial_chunk_step_count: payload
@@ -622,23 +628,13 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_aux_counts(
     .map_err(|err| stage_err("pi_ccs_bind_header", err))?;
     let after_bind_header = cs.num_aux();
 
-    if let Some(logical_me_input_digests) = ctx.logical_me_input_digests {
-        crate::rv64im::main_relation_circuit::pi_ccs::bind_me_inputs_with_projection_digests(
-            &mut cs.namespace(|| format!("chunk_{}_bind_me_inputs", ctx.chunk_index)),
-            &mut replayed_transcript,
-            logical_me_input_digests,
-            None,
-        )
-        .map_err(|err| stage_err("pi_ccs_bind_me_inputs", err))?;
-    } else {
-        super::super::bind_me_inputs(
-            &mut cs.namespace(|| format!("chunk_{}_bind_me_inputs", ctx.chunk_index)),
-            &mut replayed_transcript,
-            carried_claims.effective_claims(),
-            None,
-        )
-        .map_err(|err| stage_err("pi_ccs_bind_me_inputs", err))?;
-    }
+    super::super::bind_me_inputs(
+        &mut cs.namespace(|| format!("chunk_{}_bind_me_inputs", ctx.chunk_index)),
+        &mut replayed_transcript,
+        carried_claims.effective_claims(),
+        None,
+    )
+    .map_err(|err| stage_err("pi_ccs_bind_me_inputs", err))?;
     let after_bind_me_inputs = cs.num_aux();
 
     let public_challenges = crate::rv64im::main_relation_circuit::pi_ccs::sample_challenges_with_native(
@@ -916,7 +912,7 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_aux_counts(
                 )
                 .map_err(|err| stage_err("pi_ccs_alloc_output", err))?
             } else {
-                crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point_compact_x(
+                crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point(
                     &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
                     &claim,
                     &me_input.c_data,
@@ -1099,7 +1095,6 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_constraint_counts(
         cover_chunk: &payload.chunk_cover,
         chunk: &replay_chunk,
         logical_me_input_claims: None,
-        logical_me_input_digests: Some(&witness.running_state().carry.main_projection_digests),
         boundary_plan: payload.boundary_plan,
         rlc_zero_commit_suffix_len: payload.rlc_zero_commit_suffix_len,
         exact_initial_chunk_step_count: payload
@@ -1133,23 +1128,13 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_constraint_counts(
     .map_err(|err| stage_err("pi_ccs_constraints_bind_header", err))?;
     let after_bind_header = cs.num_constraints();
 
-    if let Some(logical_me_input_digests) = ctx.logical_me_input_digests {
-        crate::rv64im::main_relation_circuit::pi_ccs::bind_me_inputs_with_projection_digests(
-            &mut cs.namespace(|| format!("chunk_{}_bind_me_inputs", ctx.chunk_index)),
-            &mut replayed_transcript,
-            logical_me_input_digests,
-            None,
-        )
-        .map_err(|err| stage_err("pi_ccs_constraints_bind_me_inputs", err))?;
-    } else {
-        super::super::bind_me_inputs(
-            &mut cs.namespace(|| format!("chunk_{}_bind_me_inputs", ctx.chunk_index)),
-            &mut replayed_transcript,
-            carried_claims.effective_claims(),
-            None,
-        )
-        .map_err(|err| stage_err("pi_ccs_constraints_bind_me_inputs", err))?;
-    }
+    super::super::bind_me_inputs(
+        &mut cs.namespace(|| format!("chunk_{}_bind_me_inputs", ctx.chunk_index)),
+        &mut replayed_transcript,
+        carried_claims.effective_claims(),
+        None,
+    )
+    .map_err(|err| stage_err("pi_ccs_constraints_bind_me_inputs", err))?;
     let after_bind_me_inputs = cs.num_constraints();
 
     let public_challenges = crate::rv64im::main_relation_circuit::pi_ccs::sample_challenges_with_native(
@@ -1427,7 +1412,7 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_constraint_counts(
                 )
                 .map_err(|err| stage_err("pi_ccs_constraints_alloc_output", err))?
             } else {
-                crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point_compact_x(
+                crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point(
                     &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
                     &claim,
                     &me_input.c_data,
@@ -1590,7 +1575,7 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_bind_me_inputs_aux_breakd
         witness.running_state().transcript.absorbed,
     )
     .map_err(|err| stage_err("pi_ccs_bind_breakdown_transcript", err))?;
-    let _live_state_in_claims = alloc_live_state_in_projection_claims(
+    let live_state_in_claims = alloc_live_state_in_projection_claims(
         &mut cs.namespace(|| "state_in_live_claims"),
         witness,
         payload,
@@ -1607,7 +1592,6 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_bind_me_inputs_aux_breakd
         cover_chunk: &payload.chunk_cover,
         chunk: &replay_chunk,
         logical_me_input_claims: None,
-        logical_me_input_digests: Some(&witness.running_state().carry.main_projection_digests),
         boundary_plan: payload.boundary_plan,
         rlc_zero_commit_suffix_len: payload.rlc_zero_commit_suffix_len,
         exact_initial_chunk_step_count: payload
@@ -1640,23 +1624,41 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_bind_me_inputs_aux_breakd
     .map_err(|err| stage_err("pi_ccs_bind_breakdown_bind_header", err))?;
     let after_bind_header = cs.num_aux();
 
-    let mut digest_values = Vec::with_capacity(witness.running_state().carry.main_projection_digests.len());
-    let mut after_claim_digests = Vec::with_capacity(witness.running_state().carry.main_projection_digests.len());
-    for (idx, digest) in witness
-        .running_state()
-        .carry
-        .main_projection_digests
+    let native_claims = &witness.running_state().carry.main.claims;
+    if live_state_in_claims.len() != native_claims.len() {
+        return Err(stage_err(
+            "pi_ccs_bind_breakdown_claim_arity",
+            "live state-in claims and native logical claims disagree",
+        ));
+    }
+    let mut digests = Vec::with_capacity(native_claims.len());
+    let mut digest_values = Vec::with_capacity(native_claims.len());
+    let mut after_claim_digests = Vec::with_capacity(native_claims.len());
+    for (idx, (claim, native_claim)) in live_state_in_claims
         .iter()
+        .zip(native_claims.iter())
         .enumerate()
     {
-        digest_values.push(digest.map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64())));
-        let _ = idx;
+        digests.push(
+            me_input_projection_digest_poseidon_with_native_claim(
+                &mut cs.namespace(|| format!("me_input_digest_{idx}")),
+                &claim.claim,
+                native_claim,
+                &format!("me_input_digest_{idx}"),
+            )
+            .map_err(|err| stage_err("pi_ccs_bind_breakdown_claim_digest", err))?,
+        );
+        digest_values.push(
+            me_input_projection_digest_poseidon_values_from_native_claim(native_claim)
+                .map_err(|err| stage_err("pi_ccs_bind_breakdown_claim_digest_values", err))?,
+        );
         after_claim_digests.push(cs.num_aux());
     }
 
-    crate::rv64im::main_relation_circuit::pi_ccs::bind_me_input_digest_values_constant(
+    crate::rv64im::main_relation_circuit::pi_ccs::bind_me_input_digests(
         &mut cs.namespace(|| "me_input_digests"),
         &mut replayed_transcript,
+        &digests,
         &digest_values,
     )
     .map_err(|err| stage_err("pi_ccs_bind_breakdown_bind_digests", err))?;
@@ -1729,7 +1731,6 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_sumcheck_constraint_break
         cover_chunk: &payload.chunk_cover,
         chunk: &replay_chunk,
         logical_me_input_claims: None,
-        logical_me_input_digests: Some(&witness.running_state().carry.main_projection_digests),
         boundary_plan: payload.boundary_plan,
         rlc_zero_commit_suffix_len: payload.rlc_zero_commit_suffix_len,
         exact_initial_chunk_step_count: payload
@@ -1760,10 +1761,11 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_sumcheck_constraint_break
             .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64())),
     )
     .map_err(|err| stage_err("pi_ccs_sumcheck_bind_header", err))?;
-    crate::rv64im::main_relation_circuit::pi_ccs::bind_me_inputs_with_projection_digests(
+    crate::rv64im::main_relation_circuit::pi_ccs::bind_me_inputs_with_native_claims(
         &mut cs.namespace(|| format!("chunk_{}_bind_me_inputs", ctx.chunk_index)),
         &mut replayed_transcript,
-        &witness.running_state().carry.main_projection_digests,
+        carried_claims.effective_claims(),
+        &witness.running_state().carry.main.claims,
         None,
     )
     .map_err(|err| stage_err("pi_ccs_sumcheck_bind_me_inputs", err))?;
@@ -2036,6 +2038,12 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_tail_aux_counts(
             .map(|claim| claim.claim)
             .collect(),
     );
+    let bridge_handoff_digest = super::super::digest_const_inputs(
+        &mut cs.namespace(|| "payload_chunk_bridge_handoff_digest"),
+        replay_chunk.handoff.bridge_handoff_digest,
+        "payload_chunk_bridge_handoff_digest",
+    )
+    .map_err(|err| stage_err("chunk_tail_bridge_handoff_digest", err))?;
     let replayed_next_claims =
         super::super::synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_relation_io(
             params,
@@ -2050,46 +2058,25 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_tail_aux_counts(
             &mut replayed_transcript,
             carried_claims,
             None,
-            Some(&witness.running_state().carry.main_projection_digests),
             payload.boundary_plan,
             payload.rlc_zero_commit_suffix_len,
             payload
                 .initial_transcript_in
                 .then_some(payload.chunk_cover.fresh_claim_count as usize),
+            Some(&bridge_handoff_digest),
             None,
         )
         .map_err(|err| stage_err("chunk_tail_body", err))?;
 
-    if replayed_next_claims.effective_count() != witness.fresh_state_out().carry.main.claims.len() {
-        return Err(stage_err(
-            "chunk_tail_state_out_claim_count",
-            "state_out claim count mismatch",
-        ));
-    }
-    for (claim_index, (actual, expected)) in replayed_next_claims
-        .effective_claims()
-        .iter()
-        .zip(witness.fresh_state_out().carry.main.claims.iter())
-        .enumerate()
-    {
-        enforce_claim_projection_eq_native(
-            &mut cs.namespace(|| format!("state_out_claim_{claim_index}")),
-            actual,
-            expected,
-            &format!("state_out_claim_{claim_index}"),
-        )
-        .map_err(|err| stage_err("chunk_tail_state_out_claim_eq", err))?;
-    }
     let after_state_out_projection_eq = cs.num_aux();
 
-    let _expected_folded_accumulator_out_digest =
-        recursive_accumulator_instance_digest_circuit_from_projection_digests(
-            &mut cs.namespace(|| "expected_folded_accumulator_out_digest"),
-            &witness.fresh_state_out().carry.main_projection_digests,
-            &state_out_var.terminal_handle,
-            "expected_folded_accumulator_out_digest",
-        )
-        .map_err(|err| stage_err("chunk_tail_expected_digest", err))?;
+    let _expected_folded_accumulator_out_digest = recursive_accumulator_instance_digest_circuit_from_claims(
+        &mut cs.namespace(|| "expected_folded_accumulator_out_digest"),
+        replayed_next_claims.effective_claims(),
+        &state_out_var.terminal_handle,
+        "expected_folded_accumulator_out_digest",
+    )
+    .map_err(|err| stage_err("chunk_tail_expected_digest", err))?;
     let after_expected_digest = cs.num_aux();
 
     replayed_transcript
@@ -2202,7 +2189,13 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_tail_digest_aux_bre
             .map(|claim| claim.claim)
             .collect(),
     );
-    let _replayed_next_claims =
+    let bridge_handoff_digest = super::super::digest_const_inputs(
+        &mut cs.namespace(|| "payload_chunk_bridge_handoff_digest"),
+        replay_chunk.handoff.bridge_handoff_digest,
+        "payload_chunk_bridge_handoff_digest",
+    )
+    .map_err(|err| stage_err("chunk_tail_digest_bridge_handoff_digest", err))?;
+    let replayed_next_claims =
         super::super::synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_relation_io(
             params,
             structure,
@@ -2216,19 +2209,19 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_tail_digest_aux_bre
             &mut replayed_transcript,
             carried_claims,
             None,
-            Some(&witness.running_state().carry.main_projection_digests),
             payload.boundary_plan,
             payload.rlc_zero_commit_suffix_len,
             payload
                 .initial_transcript_in
                 .then_some(payload.chunk_cover.fresh_claim_count as usize),
+            Some(&bridge_handoff_digest),
             None,
         )
         .map_err(|err| stage_err("chunk_tail_digest_body", err))?;
 
-    let breakdown = debug_measure_recursive_accumulator_instance_digest_circuit_from_projection_digests_aux(
+    let breakdown = debug_measure_recursive_accumulator_instance_digest_circuit_from_claims_aux(
         &mut cs,
-        &witness.fresh_state_out().carry.main_projection_digests,
+        replayed_next_claims.effective_claims(),
         &state_out_var.terminal_handle,
         "expected_folded_accumulator_out_digest",
     )
@@ -2300,7 +2293,6 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_fingerprint(
         cover_chunk: &payload.chunk_cover,
         chunk: &replay_chunk,
         logical_me_input_claims: None,
-        logical_me_input_digests: Some(&witness.running_state().carry.main_projection_digests),
         boundary_plan: payload.boundary_plan,
         rlc_zero_commit_suffix_len: payload.rlc_zero_commit_suffix_len,
         exact_initial_chunk_step_count: payload
@@ -2334,23 +2326,13 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_fingerprint(
     .map_err(|err| stage_err("pi_ccs_fingerprint_bind_header", err))?;
     let after_bind_header = super::format_spartan_digest_hex(cs.clone().finish_digest32(0));
 
-    if let Some(logical_me_input_digests) = ctx.logical_me_input_digests {
-        crate::rv64im::main_relation_circuit::pi_ccs::bind_me_inputs_with_projection_digests(
-            &mut cs.namespace(|| format!("chunk_{}_bind_me_inputs", ctx.chunk_index)),
-            &mut replayed_transcript,
-            logical_me_input_digests,
-            None,
-        )
-        .map_err(|err| stage_err("pi_ccs_fingerprint_bind_me_inputs", err))?;
-    } else {
-        super::super::bind_me_inputs(
-            &mut cs.namespace(|| format!("chunk_{}_bind_me_inputs", ctx.chunk_index)),
-            &mut replayed_transcript,
-            carried_claims.effective_claims(),
-            None,
-        )
-        .map_err(|err| stage_err("pi_ccs_fingerprint_bind_me_inputs", err))?;
-    }
+    super::super::bind_me_inputs(
+        &mut cs.namespace(|| format!("chunk_{}_bind_me_inputs", ctx.chunk_index)),
+        &mut replayed_transcript,
+        carried_claims.effective_claims(),
+        None,
+    )
+    .map_err(|err| stage_err("pi_ccs_fingerprint_bind_me_inputs", err))?;
     let after_bind_me_inputs = super::format_spartan_digest_hex(cs.clone().finish_digest32(0));
 
     let public_challenges = crate::rv64im::main_relation_circuit::pi_ccs::sample_challenges_with_native(
@@ -2628,7 +2610,7 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_fingerprint(
                 )
                 .map_err(|err| stage_err("pi_ccs_fingerprint_alloc_output", err))?
             } else {
-                crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point_compact_x(
+                crate::rv64im::main_relation_circuit::claim::alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point(
                     &mut cs.namespace(|| format!("chunk_{}_ccs_output_{output_index}", ctx.chunk_index)),
                     &claim,
                     &me_input.c_data,
@@ -2889,12 +2871,19 @@ pub fn debug_measure_rv64im_main_recursion_step_stage_aux_counts(
     };
     let after_bind_state_and_pc = cs.num_aux();
 
+    let bridge_handoff_digest = super::digest_const_inputs(
+        &mut cs.namespace(|| "payload_chunk_bridge_handoff_digest"),
+        witness.bridge_handoff_digest(),
+        "payload_chunk_bridge_handoff_digest",
+    )
+    .map_err(|err| stage_err("stage_aux_counts_bridge_handoff_digest", err))?;
     let live_folded_accumulator_out_digest = synthesize_rv64im_main_recursion_step_chunk_replay(
         &mut cs.namespace(|| "payload_chunk_replay"),
         witness,
         payload,
         &state_in_var,
         &state_out_var,
+        &bridge_handoff_digest,
         None,
     )
     .map_err(|err| stage_err("stage_aux_counts_chunk_replay", err))?
@@ -3047,7 +3036,6 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_rlc_public_constraint_breakdo
         &replay_chunk,
         &mut replayed_transcript,
         carried_claims,
-        Some(&witness.running_state().carry.main_projection_digests),
         payload.boundary_plan,
         payload.rlc_zero_commit_suffix_len,
         payload
@@ -3153,7 +3141,6 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_rlc_public_stage_breakdown(
         &replay_chunk,
         &mut replayed_transcript,
         carried_claims,
-        Some(&witness.running_state().carry.main_projection_digests),
         payload.boundary_plan,
         payload.rlc_zero_commit_suffix_len,
         payload
@@ -3211,15 +3198,12 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_aux_counts(
     let replay_chunk = payload
         .padded_chunk_replay_surface()
         .map_err(|err| stage_err("chunk_replay_surface", err))?;
-    let transcript_in_values = witness
-        .running_state()
-        .transcript
-        .state
-        .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64()));
-    let mut replayed_transcript = Poseidon2TranscriptCircuit::from_state(
-        state_in_var.transcript_state.clone(),
-        transcript_in_values,
-        witness.running_state().transcript.absorbed,
+    let mut replayed_transcript = super::super::import_chunk_fold_transcript_in(
+        &mut cs.namespace(|| "chunk_replay_transcript"),
+        &state_in_var,
+        &witness.running_state().transcript,
+        payload.initial_transcript_in,
+        "chunk_replay_transcript",
     )
     .map_err(|err| stage_err("chunk_replay_transcript", err))?;
     let live_state_in_claims = alloc_live_state_in_projection_claims(
@@ -3256,7 +3240,6 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_aux_counts(
         cover_chunk: &payload.chunk_cover,
         chunk: &replay_chunk,
         logical_me_input_claims: None,
-        logical_me_input_digests: Some(&witness.running_state().carry.main_projection_digests),
         boundary_plan: payload.boundary_plan,
         rlc_zero_commit_suffix_len: payload.rlc_zero_commit_suffix_len,
         exact_initial_chunk_step_count: payload
@@ -3273,10 +3256,18 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_aux_counts(
     .map_err(|err| stage_err("chunk_replay_pi_ccs", err))?;
     let after_pi_ccs = cs.num_aux();
 
+    let bridge_handoff_digest = super::super::digest_const_inputs(
+        &mut cs.namespace(|| "payload_chunk_bridge_handoff_digest"),
+        replay_chunk.handoff.bridge_handoff_digest,
+        "payload_chunk_bridge_handoff_digest",
+    )
+    .map_err(|err| stage_err("chunk_replay_bridge_handoff_digest", err))?;
     super::super::enforce_synthetic_outer_chunk_relation_public_io(
         &ctx,
         &mut cs.namespace(|| "payload_chunk_synthetic_relation_io"),
         &pi_ccs.fold_digest,
+        &pi_ccs.public_chunk_digest,
+        &bridge_handoff_digest,
         "payload_chunk_synthetic_relation_io",
     )
     .map_err(|err| stage_err("chunk_replay_synthetic_relation_io", err))?;
@@ -3363,12 +3354,16 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_aux_counts(
                     .padded_ccs_outputs
                     .len()
                     .saturating_sub(payload.rlc_zero_commit_suffix_len);
-                let rho_mats = super::super::materialize_goldilocks_rot_matrices(
-                    &mut cs.namespace(|| "payload_chunk_pi_rlc_rho_mats"),
-                    &rho_vars[..active_dense_children_len],
-                    "payload_chunk_pi_rlc_rho_mats",
-                )
-                .map_err(|err| stage_err("chunk_replay_pi_rlc_rho_mats", err))?;
+                let rho_mats = if constant_child_prefix > 0 && constant_child_prefix < active_dense_children_len {
+                    super::super::materialize_goldilocks_rot_matrices(
+                        &mut cs.namespace(|| "payload_chunk_pi_rlc_rho_mats"),
+                        &rho_vars[..active_dense_children_len],
+                        "payload_chunk_pi_rlc_rho_mats",
+                    )
+                    .map_err(|err| stage_err("chunk_replay_pi_rlc_rho_mats", err))?
+                } else {
+                    Vec::new()
+                };
                 after_pi_rlc_rho_mats = cs.num_aux();
                 crate::rv64im::main_relation_circuit::pi_rlc::enforce_rlc_public_with_split_rho_views_constant_prefix_zero_commit_suffix(
                     &mut cs.namespace(|| "payload_chunk_pi_rlc_public"),
@@ -3398,34 +3393,13 @@ pub fn debug_measure_rv64im_main_recursion_step_chunk_replay_aux_counts(
     .map_err(|err| stage_err("chunk_replay_body", err))?;
     let after_chunk_body = cs.num_aux();
 
-    if replayed_next_claims.effective_count() != witness.fresh_state_out().carry.main.claims.len() {
-        return Err(stage_err(
-            "chunk_replay_expected_state_out_claim_count",
-            "state_out claim count mismatch",
-        ));
-    }
-    for (claim_index, (actual, expected)) in replayed_next_claims
-        .effective_claims()
-        .iter()
-        .zip(witness.fresh_state_out().carry.main.claims.iter())
-        .enumerate()
-    {
-        enforce_claim_projection_eq_native(
-            &mut cs.namespace(|| format!("state_out_claim_{claim_index}")),
-            actual,
-            expected,
-            &format!("state_out_claim_{claim_index}"),
-        )
-        .map_err(|err| stage_err("chunk_replay_expected_state_out_claim_eq", err))?;
-    }
-    let _expected_folded_accumulator_out_digest =
-        recursive_accumulator_instance_digest_circuit_from_projection_digests(
-            &mut cs.namespace(|| "expected_folded_accumulator_out_digest"),
-            &witness.fresh_state_out().carry.main_projection_digests,
-            &state_out_var.terminal_handle,
-            "expected_folded_accumulator_out_digest",
-        )
-        .map_err(|err| stage_err("chunk_replay_expected_digest", err))?;
+    let _expected_folded_accumulator_out_digest = recursive_accumulator_instance_digest_circuit_from_claims(
+        &mut cs.namespace(|| "expected_folded_accumulator_out_digest"),
+        replayed_next_claims.effective_claims(),
+        &state_out_var.terminal_handle,
+        "expected_folded_accumulator_out_digest",
+    )
+    .map_err(|err| stage_err("chunk_replay_expected_digest", err))?;
     replayed_transcript
         .append_const_fields_raw(
             cs.namespace(|| "payload_chunk_done"),

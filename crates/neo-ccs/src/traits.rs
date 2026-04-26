@@ -4,7 +4,6 @@ use crate::matrix::Mat;
 ///
 /// We intentionally keep this trait tiny; `neo-ajtai` will implement it.
 /// - `commit(Z)` returns the commitment `c`.
-/// - `project_x(Z, min)` returns the first `min` columns (i.e., `X = L_x(Z)`).
 pub trait SModuleHomomorphism<F, C> {
     /// Commit to a `d × m` matrix `Z`.
     fn commit(&self, z: &Mat<F>) -> C;
@@ -16,7 +15,4 @@ pub trait SModuleHomomorphism<F, C> {
     fn commit_many(&self, zs: &[&Mat<F>]) -> Vec<C> {
         zs.iter().map(|z| self.commit(z)).collect()
     }
-
-    /// Project the first `min` columns of `Z`.
-    fn project_x(&self, z: &Mat<F>, min: usize) -> Mat<F>;
 }

@@ -2,19 +2,16 @@
 
 use crate::rv64im::chunk_step_ivc::Rv64imChunkStepIvcRelation;
 use crate::rv64im::construction2::{
-    audit_rv64im_main_recursion_construction2_binary_commit, audit_rv64im_main_recursion_construction2_pi_rlc_rho_mats,
-    build_rv64im_main_recursion_construction2_f_prime_low_norm_witness_image,
-    build_rv64im_main_recursion_construction2_fresh_instance_from_full_vector,
+    audit_rv64im_main_recursion_construction2_pi_rlc_rho_mats,
+    build_rv64im_main_recursion_construction2_default_fresh_instance,
     build_rv64im_main_recursion_construction2_fresh_instance_with_input_and_x_i,
-    build_rv64im_main_recursion_construction2_fresh_instance_with_input_and_x_i_with_perf,
     build_rv64im_main_recursion_construction2_input_state_image, build_rv64im_main_recursion_construction2_nifs_bridge,
     build_rv64im_main_recursion_construction2_output_state_image,
     build_rv64im_main_recursion_construction2_verified_step_statement_from_relation,
-    build_rv64im_main_recursion_construction2_x_i, verify_rv64im_main_recursion_construction2_nifs_step,
-    Rv64imMainRecursionConstruction2FreshInstance,
+    verify_rv64im_main_recursion_construction2_nifs_step,
 };
 use crate::rv64im::main_recursion::{
-    build_rv64im_main_recursion_backend_statement_from_parts, build_rv64im_main_recursion_base_case_default_carry,
+    build_rv64im_main_recursion_backend_statement_from_advice, build_rv64im_main_recursion_base_case_default_carry,
     build_rv64im_main_recursion_x_hash_from_advice,
 };
 use crate::rv64im::main_relation_trace::build_rv64im_main_circuit_chunk_trace_from_authoritative_parts;
@@ -24,12 +21,10 @@ use crate::rv64im::nifs::{
 };
 use crate::rv64im::recursion_spartan::build_rv64im_main_recursion_x_last_from_accumulator_with_vk_fs;
 use crate::rv64im::SimpleKernelError;
-use neo_ajtai::SeededBinaryColsCommitAudit;
 use neo_ccs::{check_ccs_rowwise_zero, check_ce_consistency, CeWitness};
-use neo_math::F;
+use neo_math::{F, K};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
-use std::time::Instant;
 
 pub use crate::rv64im::main_recursion::{
     build_rv64im_main_recursion_f_prime_advices, build_rv64im_main_recursion_f_prime_advices_single_step,
@@ -113,68 +108,6 @@ pub struct Rv64imMainCircuitChunkTraceAuthoritativeSummary {
     pub chunk_relation_digest: [u8; 32],
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct Rv64imMainRecursionConstruction2CommitBackendComparison {
-    pub binary_columns_total_ms: f64,
-    pub binary_columns_commit_ms: f64,
-    pub row_major_rebuild_full_vector_ms: f64,
-    pub row_major_total_ms: f64,
-}
-
-pub fn audit_compare_rv64im_main_recursion_construction2_commit_backends(
-    advice: &Rv64imMainRecursionFPrimeAdvice,
-    current_input_fresh_instance: &Rv64imMainRecursionConstruction2FreshInstance,
-) -> Result<Rv64imMainRecursionConstruction2CommitBackendComparison, SimpleKernelError> {
-    let x_i = build_rv64im_main_recursion_construction2_x_i(advice)?;
-    let (binary_columns, binary_perf) =
-        build_rv64im_main_recursion_construction2_fresh_instance_with_input_and_x_i_with_perf(
-            advice,
-            current_input_fresh_instance,
-            x_i.clone(),
-        )?;
-
-    let step_image = evaluate_rv64im_main_recursion_f_prime_advice(advice)?;
-    let rebuild_started = Instant::now();
-    let x_i_bits = x_i.field_image();
-    let low_norm =
-        build_rv64im_main_recursion_construction2_f_prime_low_norm_witness_image(advice, current_input_fresh_instance)?;
-    let mut full_vector = Vec::with_capacity(x_i_bits.len() + low_norm.binary_values().len());
-    full_vector.extend_from_slice(&x_i_bits);
-    full_vector.extend_from_slice(low_norm.binary_values());
-    let row_major_rebuild_full_vector_ms = rebuild_started.elapsed().as_secs_f64() * 1_000.0;
-
-    let row_major_started = Instant::now();
-    let row_major = build_rv64im_main_recursion_construction2_fresh_instance_from_full_vector(
-        step_image.chunk_count(),
-        advice.verifier_key_fs().step_cap()?,
-        x_i,
-        &full_vector,
-    )?;
-    let row_major_total_ms = row_major_started.elapsed().as_secs_f64() * 1_000.0;
-
-    if binary_columns != row_major {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM audit Construction-2 binary-column and row-major commit backends diverged on the same u_next image"
-                .into(),
-        ));
-    }
-
-    Ok(Rv64imMainRecursionConstruction2CommitBackendComparison {
-        binary_columns_total_ms: binary_perf.total_ms,
-        binary_columns_commit_ms: binary_perf.commit_ms,
-        row_major_rebuild_full_vector_ms,
-        row_major_total_ms,
-    })
-}
-
-pub fn audit_profile_rv64im_main_recursion_construction2_binary_commit(
-    advice: &Rv64imMainRecursionFPrimeAdvice,
-    current_input_fresh_instance: &Rv64imMainRecursionConstruction2FreshInstance,
-) -> Result<SeededBinaryColsCommitAudit, SimpleKernelError> {
-    let x_i = build_rv64im_main_recursion_construction2_x_i(advice)?;
-    audit_rv64im_main_recursion_construction2_binary_commit(advice, current_input_fresh_instance, &x_i)
-}
-
 pub fn audit_build_rv64im_main_circuit_chunk_trace_authoritative_summary(
     relation: &Rv64imChunkStepIvcRelation,
 ) -> Result<Rv64imMainCircuitChunkTraceAuthoritativeSummary, SimpleKernelError> {
@@ -239,11 +172,7 @@ pub fn audit_rv64im_main_recursion_backend_statement_matches_native_f_prime(
     advice: &Rv64imMainRecursionFPrimeAdvice,
 ) -> Result<(), SimpleKernelError> {
     let step_image = evaluate_rv64im_main_recursion_f_prime_advice(advice)?;
-    let rebuilt_statement = build_rv64im_main_recursion_backend_statement_from_parts(
-        step_image.chunk_count(),
-        step_image.folded_accumulator_digest(),
-        step_image.running_out_state().carry.terminal_handle.0,
-    )?;
+    let rebuilt_statement = build_rv64im_main_recursion_backend_statement_from_advice(advice)?;
     if rebuilt_statement.x_out != *step_image.x_out()
         || rebuilt_statement.folded_accumulator_digest != step_image.folded_accumulator_digest()
     {
@@ -313,7 +242,23 @@ pub fn audit_rv64im_main_recursion_construction2_state_images_match_native_f_pri
             "RV64IM audit Construction-2 state-image parity requires a threaded input fresh instance u_i".into(),
         ));
     };
-    if construction2_input_u_i.x_i() != &input_x_i {
+    if advice.chunk_count_in() == 0 {
+        let canonical_full_width =
+            crate::rv64im::construction2_default::build_rv64im_main_recursion_construction2_canonical_full_width(
+                advice.verifier_key_fs(),
+                advice.phi_side(),
+            )?;
+        let expected_default = build_rv64im_main_recursion_construction2_default_fresh_instance(
+            advice.verifier_key_fs(),
+            canonical_full_width,
+        )?;
+        if construction2_input_u_i != &expected_default {
+            return Err(SimpleKernelError::Bridge(
+                "RV64IM audit Construction-2 base-case input fresh instance is not the canonical default witness-backed u_perp"
+                    .into(),
+            ));
+        }
+    } else if construction2_input_u_i.x_i() != &input_x_i {
         return Err(SimpleKernelError::Bridge(
             "RV64IM audit Construction-2 input fresh instance x_i drifted from the canonical input state image".into(),
         ));
@@ -561,6 +506,12 @@ pub fn rv64im_main_recursion_advice_tamper_x_hash_first_byte(advice: &mut Rv64im
     advice.x_i_mut().bytes_mut()[0] ^= 1;
 }
 
+pub fn rv64im_main_recursion_advice_tamper_folded_accumulator_input_digest_first_byte(
+    advice: &mut Rv64imMainRecursionFPrimeAdvice,
+) {
+    advice.folded_accumulator_in_digest_mut()[0] ^= 1;
+}
+
 pub fn rv64im_main_recursion_advice_tamper_construction2_input_fresh_instance_x_first_byte(
     advice: &mut Rv64imMainRecursionFPrimeAdvice,
 ) {
@@ -626,7 +577,7 @@ pub fn rv64im_main_recursion_advice_tamper_fresh_state_out_transcript_absorbed(
     *absorbed = if *absorbed == 0 { 1 } else { 0 };
 }
 
-pub fn rv64im_main_recursion_advice_tamper_legacy_prepared_step_digest_first_byte(
+pub fn rv64im_main_recursion_advice_tamper_prepared_step_digest_first_byte(
     advice: &mut Rv64imMainRecursionFPrimeAdvice,
 ) {
     let digest = advice
@@ -637,13 +588,13 @@ pub fn rv64im_main_recursion_advice_tamper_legacy_prepared_step_digest_first_byt
     digest[0] ^= 1;
 }
 
-pub fn rv64im_main_recursion_advice_tamper_legacy_bridge_handoff_digest_first_byte(
+pub fn rv64im_main_recursion_advice_tamper_bridge_handoff_digest_first_byte(
     advice: &mut Rv64imMainRecursionFPrimeAdvice,
 ) {
     advice.verified_kernel_handoff_mut().bridge_handoff.digest[0] ^= 1;
 }
 
-pub fn rv64im_main_recursion_advice_tamper_legacy_bridge_binding_digest_first_byte(
+pub fn rv64im_main_recursion_advice_tamper_bridge_binding_digest_first_byte(
     advice: &mut Rv64imMainRecursionFPrimeAdvice,
 ) {
     let binding = advice
@@ -742,6 +693,26 @@ pub fn rv64im_main_recursion_advice_tamper_ccs_replay_first_round_coeff(advice: 
         .construction2_pi_fold_mut()
         .tamper_ccs_replay_first_round_coeff()
         .expect("Construction-2 Pi_CCS replay payload must carry at least one sumcheck coefficient");
+}
+
+pub fn rv64im_main_recursion_advice_tamper_authoritative_ccs_replay_first_round_coeff(
+    advice: &mut Rv64imMainRecursionFPrimeAdvice,
+) {
+    let replay_proof = &mut advice.main_circuit_replay_witness_mut().ccs_replay_proof;
+    let coeff = if let Some(coeff) = replay_proof
+        .sumcheck_rounds
+        .first_mut()
+        .and_then(|round| round.first_mut())
+    {
+        coeff
+    } else {
+        replay_proof
+            .sumcheck_rounds_nc
+            .first_mut()
+            .and_then(|round| round.first_mut())
+            .expect("authoritative replay witness must carry at least one sumcheck coefficient")
+    };
+    *coeff += K::ONE;
 }
 
 pub fn rv64im_main_recursion_advice_tamper_dec_child_commitment_first_word(

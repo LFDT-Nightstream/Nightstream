@@ -1,11 +1,11 @@
 //! Owns audit-only chunk-step replay helpers and native shape builders.
 
 pub use crate::rv64im::chunk_step_ivc::{
-    build_rv64im_chunk_step_ivc_published_target, build_rv64im_chunk_step_ivc_relations,
-    rv64im_chunk_step_ivc_initial_state, validate_rv64im_chunk_step_ivc_published_statement,
-    validate_rv64im_chunk_step_ivc_surface, verify_rv64im_chunk_step_ivc, verify_rv64im_chunk_step_ivc_chain,
-    Rv64imChunkStepIvcPublishedTarget, Rv64imChunkStepIvcRelation, Rv64imChunkStepIvcStatement,
-    Rv64imChunkStepIvcWitness,
+    audit_check_rv64im_chunk_step_ivc_chain, build_rv64im_chunk_step_ivc_published_target,
+    build_rv64im_chunk_step_ivc_relations, rv64im_chunk_step_ivc_initial_state,
+    validate_rv64im_chunk_step_ivc_published_statement, validate_rv64im_chunk_step_ivc_surface,
+    verify_rv64im_chunk_step_ivc, Rv64imChunkStepIvcPublishedTarget, Rv64imChunkStepIvcRelation,
+    Rv64imChunkStepIvcStatement, Rv64imChunkStepIvcWitness,
 };
 pub use crate::rv64im::chunk_step_relation::{
     build_rv64im_chunk_step_relations, validate_rv64im_chunk_step_relation_surface, verify_rv64im_chunk_step_relation,

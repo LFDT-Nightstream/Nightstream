@@ -26,10 +26,9 @@ use crate::rv64im::ivc::derive_rv64im_ivc_step_cap;
 use crate::rv64im::kernel::{
     build_rv64im_kernel_export_build_output_from_carried_accepted_artifact_with_source_and_chunk_inputs,
     build_rv64im_kernel_export_proof_from_carried_accepted_artifact, rv64im_cached_root_main_lane_optimized_cache,
-    rv64im_root_main_lane_context_for_claim_count, rv64im_root_main_lane_context_for_step_cap,
-    verify_rv64im_kernel_export_proof_with_output, verify_rv64im_kernel_export_proof_with_relation_output,
-    Rv64imAcceptedProofArtifact, Rv64imKernelExportProof, Rv64imKernelExportRelationResult, Rv64imKernelExportSource,
-    Rv64imVerifiedKernelChunkHandoff, SimpleKernelError,
+    rv64im_root_main_lane_context_for_step_cap, verify_rv64im_kernel_export_proof_with_output,
+    verify_rv64im_kernel_export_proof_with_relation_output, Rv64imAcceptedProofArtifact, Rv64imKernelExportProof,
+    Rv64imKernelExportRelationResult, Rv64imKernelExportSource, Rv64imVerifiedKernelChunkHandoff, SimpleKernelError,
 };
 
 pub(crate) const RV64IM_SESSION_RAW_DOMAIN_TAG: u64 = 17;
@@ -128,27 +127,6 @@ pub(crate) fn rv64im_chunk_fold_transcript_snapshot_digest(snapshot: &Rv64imChun
     );
     preimage.push(F::from_u64(snapshot.absorbed as u64));
     preimage.extend(snapshot.state);
-    digest_fields_as_digest32(poseidon2_hash(&preimage))
-}
-
-pub(crate) fn rv64im_chunk_fold_state_instance_digest(state: &Rv64imChunkFoldState) -> [u8; 32] {
-    let mut preimage = Vec::with_capacity(32 + state.carry.main_projection_digests.len() * 4);
-    extend_packed_bytes_as_fields(
-        &mut preimage,
-        b"neo.fold.next/rv64im/main_recursion_accumulator_instance/v2",
-    );
-    preimage.push(F::from_u64(state.carry.main_projection_digests.len() as u64));
-    preimage.extend(
-        state
-            .carry
-            .main_projection_digests
-            .iter()
-            .flat_map(|digest| digest.iter().copied()),
-    );
-    preimage.extend(digest32_as_fields(rv64im_chunk_fold_transcript_snapshot_digest(
-        &state.transcript,
-    )));
-    preimage.extend(digest32_as_fields(state.carry.terminal_handle.0));
     digest_fields_as_digest32(poseidon2_hash(&preimage))
 }
 
@@ -320,11 +298,12 @@ pub fn prove_rv64im_folded_statement_from_accepted(
     Ok((built.folded, built.proof))
 }
 
-pub fn verify_rv64im_folded_statement(
+/// Local replay check for construction tests; not a final proof verifier.
+pub(crate) fn audit_check_rv64im_folded_statement_replay(
     folded: &Rv64imFoldedStatement,
     proof: &Rv64imFoldedProof,
 ) -> Result<(), SimpleKernelError> {
-    verify_folded_statement_components_with_output(folded, &proof.kernel_export, &proof.steps)?;
+    audit_check_folded_statement_components_with_output(folded, &proof.kernel_export, &proof.steps)?;
     Ok(())
 }
 
@@ -335,11 +314,12 @@ pub fn prove_rv64im_final_statement_from_accepted(
     Ok((built.statement, built.proof))
 }
 
-pub fn verify_rv64im_final_statement(
+/// Local replay check for construction tests; not a final proof verifier.
+pub(crate) fn audit_check_rv64im_final_statement_replay(
     statement: &Rv64imFinalStatement,
     proof: &Rv64imFinalBuildProof,
 ) -> Result<(), SimpleKernelError> {
-    verify_rv64im_final_statement_with_output(statement, proof)?;
+    audit_check_rv64im_final_statement_with_output(statement, proof)?;
     Ok(())
 }
 
@@ -413,51 +393,6 @@ pub fn build_rv64im_terminal_chunk_fold_witness(
     })
 }
 
-pub fn verify_rv64im_terminal_chunk_fold_witness(
-    witness: &Rv64imTerminalChunkFoldWitness,
-) -> Result<(), SimpleKernelError> {
-    let (params, log, structure) =
-        rv64im_root_main_lane_context_for_claim_count(witness.running_last.main.claims.len())?;
-    let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
-    let mut transcript =
-        Poseidon2Transcript::from_state_and_absorbed(witness.transcript_in.state, witness.transcript_in.absorbed);
-    let step = verify_rv64im_chunk_fold_verifier_step(
-        witness.public_statement_digest,
-        witness.step_public.chunk_index as usize,
-        witness.halted_out,
-        &witness.handoff,
-        &witness.running_last,
-        &witness.final_fold_witness,
-        &mut transcript,
-        &params,
-        structure,
-        log,
-        &optimized_cache,
-    )?;
-    if step.next_carry.main.claims != witness.running_final.main.claims
-        || step.next_carry.terminal_handle != witness.running_final.terminal_handle
-    {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM terminal chunk-fold witness final carry does not match the native final fold replay".into(),
-        ));
-    }
-    if step.step_public != witness.step_public {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM terminal chunk-fold witness step public does not match the native final fold replay".into(),
-        ));
-    }
-    let transcript_out = Rv64imChunkFoldTranscriptSnapshot {
-        state: transcript.state(),
-        absorbed: transcript.absorbed(),
-    };
-    if transcript_out != witness.transcript_out {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM terminal chunk-fold witness transcript_out does not match the native final fold replay".into(),
-        ));
-    }
-    Ok(())
-}
-
 pub fn rv64im_chunk_fold_initial_transcript_snapshot() -> Rv64imChunkFoldTranscriptSnapshot {
     let transcript = rv64im_chunk_fold_initial_transcript();
     Rv64imChunkFoldTranscriptSnapshot {
@@ -466,16 +401,17 @@ pub fn rv64im_chunk_fold_initial_transcript_snapshot() -> Rv64imChunkFoldTranscr
     }
 }
 
-pub(crate) fn verify_rv64im_final_statement_with_output(
+pub(crate) fn audit_check_rv64im_final_statement_with_output(
     statement: &Rv64imFinalStatement,
     proof: &Rv64imFinalBuildProof,
 ) -> Result<Rv64imKernelExportRelationResult, SimpleKernelError> {
     validate_rv64im_final_statement_surface(statement, proof)?;
-    let (verified_kernel, expected_chunk_summaries, _) = verify_folded_statement_components_with_output_and_main_carry(
-        &statement.folded,
-        &proof.kernel_export,
-        &proof.steps,
-    )?;
+    let (verified_kernel, expected_chunk_summaries, _) =
+        audit_check_folded_statement_components_with_output_and_main_carry(
+            &statement.folded,
+            &proof.kernel_export,
+            &proof.steps,
+        )?;
     if proof.chunk_summaries != expected_chunk_summaries {
         return Err(SimpleKernelError::Bridge(
             "RV64IM final proof chunk summaries do not match the verified export seam".into(),
@@ -691,17 +627,17 @@ fn build_rv64im_folded_statement_from_accepted_with_perf_and_source(
     ))
 }
 
-fn verify_folded_statement_components_with_output(
+fn audit_check_folded_statement_components_with_output(
     folded: &Rv64imFoldedStatement,
     kernel_export: &Rv64imKernelExportProof,
     steps: &[Rv64imChunkTransitionWitness],
 ) -> Result<(Rv64imKernelExportRelationResult, Vec<FixedShapeChunkSummary>), SimpleKernelError> {
     let (verified_kernel, chunk_summaries, _) =
-        verify_folded_statement_components_with_output_and_main_carry(folded, kernel_export, steps)?;
+        audit_check_folded_statement_components_with_output_and_main_carry(folded, kernel_export, steps)?;
     Ok((verified_kernel, chunk_summaries))
 }
 
-fn verify_folded_statement_components_with_output_and_main_carry(
+fn audit_check_folded_statement_components_with_output_and_main_carry(
     folded: &Rv64imFoldedStatement,
     kernel_export: &Rv64imKernelExportProof,
     steps: &[Rv64imChunkTransitionWitness],
@@ -737,11 +673,11 @@ fn verify_folded_statement_components_with_output_and_main_carry(
             "RV64IM folded proof chunk replay count does not match the verified export relation".into(),
         ));
     }
-    let (chunk_summaries, final_main) = verify_recursive_steps(folded, &verified_kernel, steps)?;
+    let (chunk_summaries, final_main) = audit_check_recursive_steps(folded, &verified_kernel, steps)?;
     Ok((verified_kernel, chunk_summaries, final_main))
 }
 
-fn verify_recursive_steps(
+fn audit_check_recursive_steps(
     folded: &Rv64imFoldedStatement,
     verified_kernel: &Rv64imKernelExportRelationResult,
     steps: &[Rv64imChunkTransitionWitness],
@@ -975,7 +911,7 @@ pub(crate) fn final_proof_component_digests(proof: &Rv64imFinalBuildProof) -> Rv
     final_proof_component_digests_from_parts(&proof.kernel_export, &proof.steps)
 }
 
-pub fn reconstruct_rv64im_final_statement_from_export_and_replay(
+pub(crate) fn reconstruct_rv64im_final_statement_from_export_and_replay(
     public_statement_digest: [u8; 32],
     kernel_export: &Rv64imKernelExportProof,
     steps: &[Rv64imChunkTransitionWitness],
@@ -1056,7 +992,10 @@ pub(crate) fn final_main_claim_digests(final_main_claims: &[CeClaim<Commitment, 
     let mut digests = Vec::with_capacity(final_main_claims.len());
     let mut scratch = Vec::<F>::with_capacity(2048);
     for claim in final_main_claims {
-        digests.push(me_input_projection_digest_poseidon_into(&mut scratch, claim));
+        digests.push(
+            me_input_projection_digest_poseidon_into(&mut scratch, claim)
+                .expect("RV64IM final CE projection digest requires SuperNeo X shape"),
+        );
     }
     digests
 }

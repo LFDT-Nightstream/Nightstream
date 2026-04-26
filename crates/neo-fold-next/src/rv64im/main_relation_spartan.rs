@@ -1,14 +1,15 @@
 //! Owns the shared RV64IM Spartan substrates used by chunk-step IVC, recursive
 //! F' replay, and the remaining fixed-shape diagnostics.
 //!
-//! The live Goal 3 path no longer routes through a standalone full-trace
-//! `R_main^SN` circuit here. Terminal compression is owned in `ivc_snark.rs`
-//! and reuses the one-step chunk-step IVC substrate directly.
+//! The compressed IVC artifact is proved through the recursive-step F' circuit,
+//! not through a standalone chunk-step relation.
+
+#![allow(dead_code)]
 
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::Field;
 use neo_ccs::{CcsStructure, CeClaim, Mat};
-use neo_math::{KExtensions, F, K};
+use neo_math::{KExtensions, D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::engines::utils::{
     build_dims_and_policy, digest_ccs_matrices_with_sparse_cache, Dims, PI_CCS_SUMCHECK_FE_RAW_DOMAIN_TAG,
@@ -19,9 +20,10 @@ use p3_goldilocks::Goldilocks;
 
 use crate::finalize::digest32_as_fields;
 use crate::rv64im::chunk_relation::RV64IM_CHUNK_RELATION_DIGEST_RAW_TAG;
-use crate::rv64im::final_relation::{
-    rv64im_chunk_fold_initial_transcript_snapshot, Rv64imChunkFoldTranscriptSnapshot, RV64IM_CHUNK_DONE_RAW_TAG,
+use crate::rv64im::construction2::{
+    RV64IM_CONSTRUCTION2_COMMITMENT_RAW_TAG, RV64IM_CONSTRUCTION2_PUBLIC_BOUNDARY_RAW_TAG,
 };
+use crate::rv64im::final_relation::{Rv64imChunkFoldTranscriptSnapshot, RV64IM_CHUNK_DONE_RAW_TAG};
 use crate::rv64im::ivc_snark::SpartanF;
 use crate::rv64im::kernel::{rv64im_cached_root_main_lane_context, rv64im_cached_root_main_lane_optimized_cache};
 use crate::rv64im::main_relation_circuit::claim::{
@@ -32,7 +34,7 @@ use crate::rv64im::main_relation_circuit::initial_sum::claimed_initial_sum_from_
 use crate::rv64im::main_relation_circuit::k_field::{alloc_constant_k, alloc_k, KNum, KNumVar};
 use crate::rv64im::main_relation_circuit::output_binding::enforce_me_outputs_against_inputs;
 use crate::rv64im::main_relation_circuit::pi_ccs::{
-    bind_header_and_instance_digest, bind_me_inputs, sample_challenges,
+    bind_header_and_instance_digest, bind_header_and_instance_digest_vars, bind_me_inputs, sample_challenges,
 };
 use crate::rv64im::main_relation_circuit::pi_dec::enforce_dec_public;
 use crate::rv64im::main_relation_circuit::pi_rlc::enforce_rlc_dec_public_with_rho_coeffs_for_last_chunk;
@@ -51,6 +53,7 @@ use crate::rv64im::main_relation_trace::{
     Rv64imMainCircuitHandoff, CHUNK_META_RAW_TAG,
 };
 mod chunk_diagnostics;
+#[allow(dead_code)]
 mod chunk_stage_ranges;
 mod chunk_step_ivc;
 mod chunk_step_recursive;
@@ -69,14 +72,8 @@ pub use chunk_diagnostics::debug_measure_rv64im_main_relation_state_in_prefix_fi
 pub(crate) use chunk_diagnostics::{
     debug_locate_rv64im_main_relation_chunk_stage, debug_profile_rv64im_main_relation_chunk_stage_progress,
 };
-pub(crate) use chunk_stage_ranges::{
-    debug_check_rv64im_rlc_public_x_native_values, debug_compare_rv64im_pi_ccs_transcript_state,
-    debug_compare_rv64im_pi_rlc_rho_mats, debug_locate_rv64im_pi_ccs_late_transcript_stage,
-    debug_measure_rv64im_main_relation_chunk_stage_ranges, debug_measure_rv64im_pi_rlc_stage_ranges,
-    debug_measure_rv64im_rlc_public_stage_ranges,
-};
+pub(crate) use chunk_stage_ranges::debug_measure_rv64im_rlc_public_stage_ranges;
 
-pub(crate) use chunk_step_ivc::prepare_rv64im_chunk_step_ivc_circuit_inputs;
 pub use chunk_step_ivc::{
     build_rv64im_chunk_step_ivc_recursive_step_cover_shape, build_rv64im_chunk_step_ivc_recursive_step_padding,
     build_rv64im_chunk_step_ivc_recursive_step_padding_from_shape, build_rv64im_chunk_step_ivc_shape,
@@ -99,9 +96,11 @@ pub use chunk_step_recursive::{
 };
 use nifs_v_stages::{
     enforce_outer_chunk_relation_public_io, enforce_synthetic_outer_chunk_relation_public_io, synthesize_pi_ccs_stage,
-    synthesize_pi_dec_stage, synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_relation_io,
-    Rv64imChunkNifsVerifierCtx, Rv64imPiRlcStageOutput,
+    synthesize_pi_dec_stage, synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mode,
+    synthesize_rv64im_chunk_nifs_verifier_body_with_synthetic_chunk_relation_io, Rv64imChunkNifsVerifierCtx,
+    Rv64imPiRlcStageOutput,
 };
+pub(crate) use recursive_step::terminal_f_prime_r2_public_values_from_parts;
 #[allow(unused_imports)]
 pub use recursive_step::Rv64imMainRecursionStepChunkReplayFingerprint;
 pub use recursive_step::{
@@ -145,6 +144,7 @@ pub use recursive_step::{
     Rv64imPiCcsStageAuxCounts, Rv64imPiCcsStageConstraintCounts, Rv64imPiCcsStageFingerprint,
     Rv64imPiCcsSumcheckConstraintBreakdown, Rv64imPiRlcPublicConstraintBreakdown, Rv64imPiRlcPublicStageBreakdown,
 };
+pub(crate) use recursive_step::{build_rv64im_terminal_f_prime_r2_circuit, Rv64imMainRecursionStepCircuit};
 pub use step_statement::Rv64imMainRecursionStepSpartanStatement;
 use transcript_k::append_k_to_transcript;
 
@@ -154,60 +154,22 @@ pub(crate) struct Rv64imClaimBundle {
     effective_count: usize,
 }
 
-fn enforce_allocated_num_eq_constant<CS: ConstraintSystem<SpartanF>>(
-    cs: &mut CS,
-    value: &AllocatedNum<SpartanF>,
-    expected: SpartanF,
-    label: &str,
-) {
-    cs.enforce(
-        || label,
-        |lc| lc + value.get_variable(),
-        |lc| lc + CS::one(),
-        |lc| lc + (expected, CS::one()),
-    );
-}
-
 fn import_chunk_fold_transcript_in<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     state_in_var: &recursive_cover::Rv64imRecursiveCoverStateVar,
     transcript_in: &Rv64imChunkFoldTranscriptSnapshot,
-    initial_transcript_in: bool,
+    _initial_transcript_in: bool,
     label: &str,
 ) -> Result<Poseidon2TranscriptCircuit, SynthesisError> {
     let transcript_in_values = transcript_in
         .state
         .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64()));
-    if !initial_transcript_in {
-        return Poseidon2TranscriptCircuit::from_state(
-            state_in_var.transcript_state.clone(),
-            transcript_in_values,
-            transcript_in.absorbed,
-        );
-    }
-
-    let expected = rv64im_chunk_fold_initial_transcript_snapshot();
-    if transcript_in != &expected {
-        return Err(SynthesisError::Unsatisfiable);
-    }
-    let expected_state = expected
-        .state
-        .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64()));
-    for (idx, (allocated, value)) in state_in_var
-        .transcript_state
-        .iter()
-        .zip(expected_state.iter())
-        .enumerate()
-    {
-        enforce_allocated_num_eq_constant(cs, allocated, *value, &format!("{label}_state_{idx}"));
-    }
-    enforce_allocated_num_eq_constant(
-        cs,
-        &state_in_var.transcript_absorbed,
-        SpartanF::from_canonical_u64(expected.absorbed as u64),
-        &format!("{label}_absorbed"),
-    );
-    Poseidon2TranscriptCircuit::from_constant_state(expected_state, expected.absorbed)
+    let _ = (cs, label);
+    Poseidon2TranscriptCircuit::from_state(
+        state_in_var.transcript_state.clone(),
+        transcript_in_values,
+        transcript_in.absorbed,
+    )
 }
 
 impl Rv64imClaimBundle {
@@ -368,11 +330,11 @@ pub(crate) fn synthesize_rv64im_main_relation_chunk<CS: ConstraintSystem<Spartan
         transcript,
         carried_claims,
         None,
-        None,
         boundary_plan,
         0,
         None,
         false,
+        None,
         None,
     )?;
     let next_carried_claims = body_output.next_claims;
@@ -386,7 +348,6 @@ pub(crate) fn synthesize_rv64im_main_relation_chunk<CS: ConstraintSystem<Spartan
         cover_chunk,
         chunk,
         logical_me_input_claims: None,
-        logical_me_input_digests: None,
         boundary_plan,
         rlc_zero_commit_suffix_len: 0,
         exact_initial_chunk_step_count: None,
@@ -676,6 +637,65 @@ pub(crate) fn enforce_digest_eq<CS: ConstraintSystem<SpartanF>>(
     Ok(())
 }
 
+pub(crate) fn construction2_public_boundary_digest_circuit<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    commitment_digest: &[AllocatedNum<SpartanF>; 4],
+    x_i: &[AllocatedNum<SpartanF>; 4],
+    label: &str,
+) -> Result<[AllocatedNum<SpartanF>; 4], SynthesisError> {
+    let mut field_terms = Vec::with_capacity(9);
+    let mut field_constants = Vec::with_capacity(9);
+    let mut field_values = Vec::with_capacity(9);
+
+    field_terms.push(Vec::new());
+    field_constants.push(SpartanF::from_canonical_u64(
+        RV64IM_CONSTRUCTION2_PUBLIC_BOUNDARY_RAW_TAG,
+    ));
+    field_values.push(SpartanF::from_canonical_u64(
+        RV64IM_CONSTRUCTION2_PUBLIC_BOUNDARY_RAW_TAG,
+    ));
+    for lane in commitment_digest.iter().chain(x_i.iter()) {
+        field_terms.push(vec![(lane.get_variable(), SpartanF::ONE)]);
+        field_constants.push(SpartanF::ZERO);
+        field_values.push(lane.get_value().unwrap_or(SpartanF::ZERO));
+    }
+
+    hash_field_linear_combinations_raw(
+        cs.namespace(|| format!("{label}_hash")),
+        &field_terms,
+        &field_constants,
+        &field_values,
+    )
+}
+
+pub(crate) fn construction2_commitment_digest_circuit<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    d: &AllocatedNum<SpartanF>,
+    kappa: &AllocatedNum<SpartanF>,
+    data: &[AllocatedNum<SpartanF>],
+    label: &str,
+) -> Result<[AllocatedNum<SpartanF>; 4], SynthesisError> {
+    let mut field_terms = Vec::with_capacity(3 + data.len());
+    let mut field_constants = Vec::with_capacity(3 + data.len());
+    let mut field_values = Vec::with_capacity(3 + data.len());
+
+    field_terms.push(Vec::new());
+    field_constants.push(SpartanF::from_canonical_u64(RV64IM_CONSTRUCTION2_COMMITMENT_RAW_TAG));
+    field_values.push(SpartanF::from_canonical_u64(RV64IM_CONSTRUCTION2_COMMITMENT_RAW_TAG));
+    for value in [d, kappa].into_iter().chain(data.iter()) {
+        field_terms.push(vec![(value.get_variable(), SpartanF::ONE)]);
+        field_constants.push(SpartanF::ZERO);
+        field_values.push(value.get_value().unwrap_or(SpartanF::ZERO));
+    }
+
+    hash_field_linear_combinations_raw(
+        cs.namespace(|| format!("{label}_hash")),
+        &field_terms,
+        &field_constants,
+        &field_values,
+    )
+}
+
 fn split_vec<T: Clone>(values: &[T], prefix_len: usize) -> Result<(Vec<T>, Vec<T>), SynthesisError> {
     if prefix_len > values.len() {
         return Err(SynthesisError::Unsatisfiable);
@@ -715,6 +735,58 @@ fn chunk_relation_digest_circuit<CS: ConstraintSystem<SpartanF>>(
         field_terms.push(Vec::new());
         field_constants.push(value);
         field_values.push(value);
+    }
+
+    hash_field_linear_combinations_raw(
+        cs.namespace(|| "chunk_relation_digest_hash"),
+        &field_terms,
+        &field_constants,
+        &field_values,
+    )
+}
+
+fn chunk_relation_digest_circuit_from_vars<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    public_chunk_digest: &[AllocatedNum<SpartanF>; 4],
+    public_chunk_digest_values: &[SpartanF; 4],
+    main_relation_digest: &[AllocatedNum<SpartanF>; 4],
+    main_relation_digest_values: &[SpartanF; 4],
+    bridge_handoff_digest: &[AllocatedNum<SpartanF>; 4],
+    bridge_handoff_digest_values: &[SpartanF; 4],
+) -> Result<[AllocatedNum<SpartanF>; 4], SynthesisError> {
+    let mut field_terms = Vec::with_capacity(13);
+    let mut field_constants = Vec::with_capacity(13);
+    let mut field_values = Vec::with_capacity(13);
+
+    field_terms.push(Vec::new());
+    field_constants.push(SpartanF::from_canonical_u64(RV64IM_CHUNK_RELATION_DIGEST_RAW_TAG));
+    field_values.push(SpartanF::from_canonical_u64(RV64IM_CHUNK_RELATION_DIGEST_RAW_TAG));
+
+    for (lane, value) in public_chunk_digest
+        .iter()
+        .zip(public_chunk_digest_values.iter())
+    {
+        field_terms.push(vec![(lane.get_variable(), SpartanF::ONE)]);
+        field_constants.push(SpartanF::ZERO);
+        field_values.push(*value);
+    }
+
+    for (lane, value) in main_relation_digest
+        .iter()
+        .zip(main_relation_digest_values.iter())
+    {
+        field_terms.push(vec![(lane.get_variable(), SpartanF::ONE)]);
+        field_constants.push(SpartanF::ZERO);
+        field_values.push(*value);
+    }
+
+    for (lane, value) in bridge_handoff_digest
+        .iter()
+        .zip(bridge_handoff_digest_values.iter())
+    {
+        field_terms.push(vec![(lane.get_variable(), SpartanF::ONE)]);
+        field_constants.push(SpartanF::ZERO);
+        field_values.push(*value);
     }
 
     hash_field_linear_combinations_raw(

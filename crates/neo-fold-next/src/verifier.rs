@@ -19,6 +19,7 @@ use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 use std::time::Instant;
 
+use crate::chunk_relation::chunk_relation_digest;
 use crate::finalize::public_chunk_digest;
 use crate::proof::{ChunkProof, ChunkVerifyPerf, PiDecArtifact, PiRlcArtifact, PublicChunk};
 use crate::prover::CommitmentMixers;
@@ -318,40 +319,6 @@ impl ShardVerifier {
             optimized_cache,
         )
     }
-
-    pub fn verify_chunk_with_precomputed_digest_with_perf<'a, MR, MB>(
-        mode: FoldingMode,
-        tr: &mut Poseidon2Transcript,
-        params: &NeoParams,
-        s: &CcsStructure<F>,
-        chunk: &PublicChunk,
-        incoming_main: &[neo_ccs::CeClaim<Commitment, F, K>],
-        proof: &'a ChunkProof,
-        mixers: CommitmentMixers<MR, MB>,
-        optimized_cache: Option<&OptimizedStructureCache>,
-        public_instance_digest: [F; 4],
-    ) -> Result<(&'a [neo_ccs::CeClaim<Commitment, F, K>], ChunkVerifyPerf), PiCcsError>
-    where
-        MR: Fn(&[neo_ccs::Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
-        MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
-    {
-        validate_chunk_metadata(chunk, proof)?;
-        Self::verify_chunk_artifacts_with_public_instance_digest_and_perf(
-            mode,
-            tr,
-            params,
-            s,
-            chunk,
-            incoming_main,
-            &proof.ccs_outputs,
-            &proof.ccs_proof,
-            &proof.rlc,
-            &proof.dec,
-            mixers,
-            optimized_cache,
-            public_instance_digest,
-        )
-    }
 }
 
 const CHUNK_META_RAW_TAG: u64 = 14;
@@ -394,6 +361,12 @@ fn validate_chunk_metadata(chunk: &PublicChunk, proof: &ChunkProof) -> Result<()
     }
     if proof.ccs_outputs.is_empty() {
         return Err(PiCcsError::InvalidInput("missing Π_CCS outputs for chunk".into()));
+    }
+    let expected_relation_digest = chunk_relation_digest(&proof.ccs_outputs, &proof.rlc.parent, &proof.dec.children);
+    if proof.relation_digest != expected_relation_digest {
+        return Err(PiCcsError::ProtocolError(
+            "proof chunk relation digest does not match authoritative relation fields".into(),
+        ));
     }
     Ok(())
 }

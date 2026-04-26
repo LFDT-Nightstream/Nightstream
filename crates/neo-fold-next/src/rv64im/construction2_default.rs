@@ -1,9 +1,8 @@
 //! Owns default-pair derivation for the native RV64IM Construction-2 surface.
 //!
 //! HyperNova Def. 12 requires the canonical `u_perp` default instance to be a
-//! pure function of `(pp, s)`. The production path in this module therefore
-//! derives the native F' witness width from canonical protocol structure only:
-//! the recursion verifier key, the root CCS context, and the phi-side shape.
+//! pure function of `(pp, s)`. The default instance carries only zero `C` and
+//! zero `x_i`; the terminal SuperNeo R2 proof owns the committed F' witness.
 //!
 //! Relation-derived cover builders remain available as audit helpers so tests
 //! can compare honest traces against the structural builder.
@@ -13,10 +12,9 @@ use std::time::Instant;
 
 use neo_ajtai::Commitment;
 use neo_ccs::{CcsClaim, CcsWitness, CeClaim};
-use neo_math::{KExtensions, D, F, K};
+use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::engines::utils::build_dims_and_policy;
-use p3_field::PrimeCharacteristicRing;
 use serde::{Deserialize, Serialize};
 
 use crate::proof::Carry;
@@ -24,12 +22,10 @@ use crate::rv64im::ccs::{RV64IM_ROOT_PUBLIC_INPUTS, RV64IM_ROOT_ROW_WIDTH};
 use crate::rv64im::chunk_fold_step::adapt_rv64im_chunk_to_fresh_ccs;
 use crate::rv64im::chunk_step_ivc::Rv64imChunkStepIvcRelation;
 use crate::rv64im::construction2::{
-    build_rv64im_main_recursion_construction2_fresh_instance_from_full_vector,
     build_rv64im_main_recursion_construction2_pi_fold_from_relation,
     build_rv64im_main_recursion_construction2_verified_step_statement_from_relation,
-    debug_trace_build_rv64im_main_recursion_construction2_fresh_instance_from_full_vector,
     Rv64imMainRecursionConstruction2Commitment, Rv64imMainRecursionConstruction2FPrimeCcsShape,
-    Rv64imMainRecursionConstruction2FPrimeLowNormWitnessImage, Rv64imMainRecursionConstruction2FreshInstance,
+    Rv64imMainRecursionConstruction2FreshInstance,
 };
 use crate::rv64im::f_prime::{
     Rv64imMainRecursionPhiSide, Rv64imVerifierKeyFs, RV64IM_ENC_INST_BITS, RV64IM_ENC_INST_RING_DEGREE,
@@ -48,121 +44,12 @@ use crate::witness_layout::commit_cols_for_full_width;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rv64imMainRecursionConstruction2DefaultPair {
     u_perp: Rv64imMainRecursionConstruction2FreshInstance,
-    w_perp: Rv64imMainRecursionConstruction2FPrimeLowNormWitnessImage,
 }
 
 impl Rv64imMainRecursionConstruction2DefaultPair {
     pub fn u_perp(&self) -> &Rv64imMainRecursionConstruction2FreshInstance {
         &self.u_perp
     }
-
-    pub fn w_perp(&self) -> &Rv64imMainRecursionConstruction2FPrimeLowNormWitnessImage {
-        &self.w_perp
-    }
-}
-
-fn count_u64_field() -> usize {
-    1
-}
-
-fn count_digest_fields() -> usize {
-    4
-}
-
-fn count_k_coeffs() -> usize {
-    K::ZERO.as_coeffs().len()
-}
-
-fn count_commitment_shape_fields(c_data_len: u64) -> usize {
-    c_data_len as usize
-}
-
-fn count_commitment_fields_for_full_width(full_width: usize) -> Result<usize, SimpleKernelError> {
-    let params = NeoParams::goldilocks_auto_r1cs_ccs(full_width).map_err(|err| {
-        SimpleKernelError::Bridge(format!(
-            "RV64IM Construction-2 default-pair params failed for full width {full_width}: {err}"
-        ))
-    })?;
-    Ok(D * params.kappa as usize)
-}
-
-fn count_f_slice(len: usize) -> usize {
-    len
-}
-
-fn count_f_matrix_rows_cols(rows: usize, cols: usize) -> usize {
-    rows * cols
-}
-
-fn count_k_slice(len: usize) -> usize {
-    len * count_k_coeffs()
-}
-
-fn count_k_rows_from_lens(row_lens: &[u64]) -> usize {
-    row_lens
-        .iter()
-        .map(|len| count_k_slice(*len as usize))
-        .sum::<usize>()
-}
-
-fn count_shared_state_in_claim_shape_fields(shapes: &[Rv64imCeClaimDigestShape]) -> Result<usize, SimpleKernelError> {
-    let Some((first, rest)) = shapes.split_first() else {
-        return Ok(0);
-    };
-    if first.ct_len as usize > first.y_ring_row_lens.len()
-        || first
-            .y_ring_row_lens
-            .iter()
-            .take(first.ct_len as usize)
-            .any(|len| *len == 0)
-    {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM Construction-2 default-pair width requires ct to alias non-empty y_ring rows".into(),
-        ));
-    }
-    for shape in rest {
-        if shape.r_len != first.r_len {
-            return Err(SimpleKernelError::Bridge(
-                "RV64IM Construction-2 default-pair width requires carried CE claims to share r".into(),
-            ));
-        }
-        if shape.ct_len as usize > shape.y_ring_row_lens.len()
-            || shape
-                .y_ring_row_lens
-                .iter()
-                .take(shape.ct_len as usize)
-                .any(|len| *len == 0)
-        {
-            return Err(SimpleKernelError::Bridge(
-                "RV64IM Construction-2 default-pair width requires ct to alias non-empty y_ring rows".into(),
-            ));
-        }
-    }
-    Ok(count_k_slice(first.r_len as usize)
-        + shapes
-            .iter()
-            .map(|shape| {
-                count_commitment_shape_fields(shape.c_data_len)
-                    + count_f_slice(shape.x_cols as usize)
-                    + count_k_rows_from_lens(&shape.y_ring_row_lens)
-            })
-            .sum::<usize>())
-}
-
-fn count_step_input_shape_fields(claim_shape: &Rv64imCcsClaimShape, witness_shape: &Rv64imCcsWitnessShape) -> usize {
-    count_commitment_shape_fields(claim_shape.c_data_len)
-        + count_f_slice(claim_shape.x_len as usize)
-        + count_f_slice(witness_shape.w_len as usize)
-        + count_f_matrix_rows_cols(witness_shape.z_rows as usize, witness_shape.z_cols as usize)
-}
-
-fn count_phi_side_fields_from_shape(shape: &Rv64imMainRecursionConstruction2FPrimeCcsShape) -> usize {
-    count_u64_field()
-        + shape
-            .phi_side_commitment_word_lens
-            .iter()
-            .map(|len| count_u64_field() + *len as usize)
-            .sum::<usize>()
 }
 
 fn canonical_phi_side_commitment_word_lens(phi_side: &Rv64imMainRecursionPhiSide) -> Vec<u64> {
@@ -326,53 +213,7 @@ pub fn build_rv64im_main_recursion_construction2_default_full_width_from_ccs_sha
             "RV64IM Construction-2 default-pair width requires a canonical fixed native F' shape cover".into(),
         ));
     }
-
-    let count_default_witness_logical_fields = |full_width: usize| -> Result<usize, SimpleKernelError> {
-        let fresh_instance_fields = count_commitment_fields_for_full_width(full_width)? + RV64IM_ENC_INST_BITS;
-        Ok(count_u64_field()
-            + count_digest_fields()
-            + count_digest_fields()
-            + count_u64_field()
-            + count_phi_side_fields_from_shape(shape)
-            + count_u64_field()
-            + count_shared_state_in_claim_shape_fields(&shape.claim_cover.state_in_claim_shapes)?
-            + fresh_instance_fields
-            + count_u64_field()
-            + count_u64_field()
-            + shape
-                .claim_cover
-                .fresh_claim_shapes
-                .iter()
-                .zip(shape.claim_cover.fresh_witness_shapes.iter())
-                .map(|(claim_shape, witness_shape)| count_step_input_shape_fields(claim_shape, witness_shape))
-                .sum::<usize>()
-            + count_u64_field()
-            + shape
-                .step_cover_shape
-                .fe_round_lengths
-                .iter()
-                .map(|round_len| count_k_slice(*round_len as usize))
-                .sum::<usize>()
-            + count_u64_field()
-            + shape
-                .step_cover_shape
-                .nc_round_lengths
-                .iter()
-                .map(|round_len| count_k_slice(*round_len as usize))
-                .sum::<usize>())
-    };
-
-    let mut full_width = RV64IM_ENC_INST_BITS;
-    for _ in 0..8 {
-        let next = RV64IM_ENC_INST_BITS + count_default_witness_logical_fields(full_width)? * 64;
-        if next == full_width {
-            return Ok(full_width);
-        }
-        full_width = next;
-    }
-    Err(SimpleKernelError::Bridge(
-        "RV64IM Construction-2 default-pair width did not converge from the fixed native witness layout".into(),
-    ))
+    Ok(RV64IM_ENC_INST_BITS)
 }
 
 /// Derives the canonical F' CCS shape cover from an honest relation chain.
@@ -591,15 +432,12 @@ pub fn build_rv64im_main_recursion_construction2_default_pair_for_full_width(
             "RV64IM Construction-2 default pair params failed for full width {full_width}: {err}"
         ))
     })?;
-    let w_perp = Rv64imMainRecursionConstruction2FPrimeLowNormWitnessImage {
-        binary_values: vec![F::ZERO; full_width - RV64IM_ENC_INST_BITS],
-    };
     let x_i = crate::rv64im::f_prime::Rv64imEncodedPublicInput::from_digest_bytes([0; 32]);
     let u_perp = Rv64imMainRecursionConstruction2FreshInstance::from_parts(
         Rv64imMainRecursionConstruction2Commitment::from_commitment(Commitment::zeros(D, params.kappa as usize)),
         x_i,
     );
-    Ok(Rv64imMainRecursionConstruction2DefaultPair { u_perp, w_perp })
+    Ok(Rv64imMainRecursionConstruction2DefaultPair { u_perp })
 }
 
 pub(crate) fn debug_trace_build_rv64im_main_recursion_construction2_default_pair_for_full_width(
@@ -635,39 +473,16 @@ fn build_rv64im_main_recursion_construction2_default_pair_for_full_width_impl(
         )));
     }
     let started = Instant::now();
-    let w_perp = Rv64imMainRecursionConstruction2FPrimeLowNormWitnessImage {
-        binary_values: vec![F::ZERO; full_width - RV64IM_ENC_INST_BITS],
-    };
-    emit_debug_timing(
-        trace_prefix,
-        "w_perp_allocate",
-        started.elapsed().as_secs_f64() * 1_000.0,
-    );
-    let started = Instant::now();
     let x_i = crate::rv64im::f_prime::Rv64imEncodedPublicInput::from_digest_bytes([0; 32]);
-    let mut full_vector = Vec::with_capacity(full_width);
-    full_vector.extend(x_i.field_image());
-    full_vector.extend_from_slice(w_perp.binary_values());
-    emit_debug_timing(
-        trace_prefix,
-        "full_vector_materialize",
-        started.elapsed().as_secs_f64() * 1_000.0,
+    let params = NeoParams::goldilocks_auto_r1cs_ccs(full_width).map_err(|err| {
+        SimpleKernelError::Bridge(format!(
+            "RV64IM Construction-2 default pair params failed for full width {full_width}: {err}"
+        ))
+    })?;
+    emit_debug_timing(trace_prefix, "u_perp_params", started.elapsed().as_secs_f64() * 1_000.0);
+    let u_perp = Rv64imMainRecursionConstruction2FreshInstance::from_parts(
+        Rv64imMainRecursionConstruction2Commitment::from_commitment(Commitment::zeros(D, params.kappa as usize)),
+        x_i,
     );
-    let u_perp = if let Some(prefix) = trace_prefix {
-        debug_trace_build_rv64im_main_recursion_construction2_fresh_instance_from_full_vector(
-            0,
-            vk_fs.step_cap()?,
-            x_i,
-            &full_vector,
-            &format!("{prefix}.u_perp"),
-        )?
-    } else {
-        build_rv64im_main_recursion_construction2_fresh_instance_from_full_vector(
-            0,
-            vk_fs.step_cap()?,
-            x_i,
-            &full_vector,
-        )?
-    };
-    Ok(Rv64imMainRecursionConstruction2DefaultPair { u_perp, w_perp })
+    Ok(Rv64imMainRecursionConstruction2DefaultPair { u_perp })
 }

@@ -9,12 +9,13 @@ use ff::{Field, PrimeField};
 use neo_ajtai::{s_mul_add, scale_commitment_add_inplace, set_global_pp_seeded, AjtaiSModule, Commitment};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{CcsClaim, CcsMatrix, CcsStructure, CcsWitness, CeClaim, CscMat, Mat};
+use neo_fold_next::ivc::{build_superneo_ivc_relations_with_perf, SuperNeoIvcBuild};
 use neo_fold_next::proof::{
     Carry, ChunkProvePerf, ChunkVerifyPerf, FoldSchedule, PackagedProof, RunProvePerf, RunVerifyPerf, StepInput,
 };
 use neo_fold_next::prover::CommitmentMixers;
 use neo_fold_next::run::{prove_and_package_with_final_carry_perf, verify_packaged_with_perf};
-use neo_fold_next::rv64im::{prove_direct_ccs_recursion_snark_with_perf, DirectCcsRecursionSnarkPerf};
+use neo_fold_next::{prove_direct_ccs_f_prime_snark_with_perf, DirectCcsFPrimeSnarkPerf};
 use neo_math::ring::Rq as RqEl;
 use neo_math::{D, F, K};
 use neo_params::{goldilocks_paper_b2, NeoParams};
@@ -33,21 +34,6 @@ const AUX_FLAG: u32 = 1 << 31;
 struct Config {
     preimage_bytes: usize,
     foldings: usize,
-}
-
-#[derive(Clone, Copy, Debug)]
-struct SpartanRunSummary {
-    prove_ms: f64,
-    setup_ms: f64,
-    verify_ms: f64,
-    final_proof_bytes: usize,
-    snark_bytes: usize,
-    backend_r1cs_constraints: usize,
-    padded_backend_r1cs_constraints: usize,
-    backend_public_inputs: usize,
-    backend_challenges: usize,
-    backend_nnz_total: usize,
-    spartan_pcs_ms: f64,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -119,7 +105,9 @@ fn print_paper_stage_map() {
     println!("section 7.3 Pi_CCS: K fresh CCS rows + k carried CE claims -> K+k CE claims");
     println!("section 7.4 Pi_RLC: K+k CE claims -> one random-linear-combination parent CE claim");
     println!("section 7.5 Pi_DEC: one large-norm parent CE claim -> k_rho small-norm CE children");
-    println!("Spartan2: proves direct chunk NIFS.V replay and final CE accumulator consistency");
+    println!(
+        "Spartan2: delegates to a relation-owned direct-CCS F' terminal compressor; final CE projections stay private"
+    );
     println!();
 }
 
@@ -1049,126 +1037,53 @@ fn print_one_verify_chunk(idx: usize, chunk: &ChunkVerifyPerf) {
 
 fn print_spartan(
     params: &NeoParams,
-    s: &CcsStructure<F>,
+    ccs: &CcsStructure<F>,
     packaged: &PackagedProof,
     final_carry: &Carry,
     steps: &[StepInput],
-) -> AppResult<SpartanRunSummary> {
-    println!("== Spartan2 direct recursion diagnostic ==");
-    println!("target: direct-CCS F'/NIFS.V-style chunk replay plus final CE consistency");
+) -> AppResult<DirectCcsFPrimeSnarkPerf> {
+    println!("== Spartan2 direct CCS F' terminal compression ==");
+    println!("target: relation-owned direct-CCS terminal compression over NIFS.V plus private post-DEC CE checks");
     println!(
         "public binding: {} chunk digest(s); final CE projection digest(s)=0 ({} private terminal CE claim(s))",
         packaged.statement.chunks.len(),
         packaged.statement.final_main_claims.len()
     );
     println!("native packaged proof digest: {:02x?}", packaged.proof.proof_digest);
-
-    let (_proof, perf) = prove_direct_ccs_recursion_snark_with_perf(params, s, packaged, final_carry, steps)?;
-    print_direct_spartan_perf(&perf);
-    Ok(SpartanRunSummary {
-        prove_ms: perf.total_prove_ms,
-        setup_ms: perf.nifs_setup_ms + perf.final_ce_setup_ms,
-        verify_ms: perf.total_verify_ms,
-        final_proof_bytes: perf.final_proof_bytes,
-        snark_bytes: perf.snark_bytes,
-        backend_r1cs_constraints: perf.nifs_r1cs_sizes[0] + perf.final_ce_r1cs_sizes[0],
-        padded_backend_r1cs_constraints: perf.nifs_r1cs_sizes[4] + perf.final_ce_r1cs_sizes[4],
-        backend_public_inputs: perf.nifs_r1cs_sizes[8] + perf.final_ce_r1cs_sizes[8],
-        backend_challenges: perf.nifs_r1cs_sizes[9] + perf.final_ce_r1cs_sizes[9],
-        backend_nnz_total: perf.nifs_r1cs_nnz + perf.final_ce_r1cs_nnz,
-        spartan_pcs_ms: perf.nifs_pcs_ms,
-    })
-}
-
-fn print_direct_spartan_perf(perf: &DirectCcsRecursionSnarkPerf) {
-    println!("== Spartan2 prove/verify ==");
-    println!(
-        "setup ms (not counted in final summary): direct_nifs_plus_final_ce={:.3}",
-        perf.nifs_setup_ms
-    );
+    let (_proof, perf) = prove_direct_ccs_f_prime_snark_with_perf(params, ccs, packaged, final_carry, steps)?;
+    println!("setup/keygen ms (not counted in final summary): {:.3}", perf.setup_ms);
     println!(
         "prove ms: prep={:.3}, snark={:.3}, encode={:.3}, total={:.3}",
-        perf.nifs_prep_ms, perf.nifs_prove_ms, perf.nifs_encode_ms, perf.total_prove_ms
+        perf.prep_ms, perf.prove_ms, perf.encode_ms, perf.total_prove_ms
+    );
+    println!("verify ms: {:.3}", perf.total_verify_ms);
+    println!(
+        "direct CCS F' R1CS sizes [cons, shared, precommitted, rest, padded_cons, padded_shared, padded_precommitted, padded_rest, public, challenges]: {:?}",
+        perf.r1cs_sizes
     );
     println!(
-        "verify ms: direct_nifs_plus_final_ce={:.3}, total={:.3}",
-        perf.nifs_verify_ms, perf.total_verify_ms
-    );
-    println!(
-        "direct NIFS.V + final CE R1CS sizes [cons, shared, precommitted, rest, padded_cons, padded_shared, padded_precommitted, padded_rest, public, challenges]: {:?}",
-        perf.nifs_r1cs_sizes
-    );
-    println!(
-        "Spartan2 constraints: direct={} (padded {})",
-        perf.nifs_r1cs_sizes[0], perf.nifs_r1cs_sizes[4]
-    );
-    println!(
-        "constraint attribution: nifs_public_inputs={}, nifs_chunks={}, nifs_chunk_constraints_first4={:?}, nifs_public_link={}, nifs_chunk_done={}, nifs_final_claim_digest={}, skipped_final_claim_digest_if_enabled={}, final_ce_public_inputs={}, final_ce_digest={}, final_ce_digest_match={}, final_ce_relation={}",
-        perf.nifs_public_inputs,
-        perf.nifs_chunk_count,
-        perf.nifs_chunk_constraints_first4,
-        perf.nifs_public_link_constraints,
-        perf.nifs_chunk_done_constraints,
-        perf.nifs_final_claim_digest_constraints,
-        perf.skipped_final_claim_digest_constraints,
-        perf.final_ce_public_inputs,
-        perf.final_ce_digest_constraints,
-        perf.final_ce_digest_match_constraints,
+        "constraint attribution: public_inputs={}, chunks={}, nifs_chunk_constraints_first4={:?}, public_link={}, chunk_done={}, final_ce_relation={}",
+        perf.public_inputs,
+        perf.chunk_count,
+        perf.chunk_constraints_first4,
+        perf.public_link_constraints,
+        perf.chunk_done_constraints,
         perf.final_ce_relation_constraints
     );
-    println!(
-        "nifs_chunk_constraints_by_chunk={:?}",
-        perf.nifs_chunk_constraints_by_chunk
-    );
-    let digest = &perf.final_ce_digest_attribution;
-    let fields = digest.fields_per_child;
-    println!();
-    println!("== final CE projection digest attribution ==");
-    println!("children={}", digest.children);
-    println!("fields_per_child:");
-    println!("  domain_tag={}", fields.domain_tag);
-    println!("  commitment_c={}", fields.commitment_c);
-    println!("  x={}", fields.x);
-    println!("  r={}", fields.r);
-    println!("  y_ring={}", fields.y_ring);
-    println!("  aux={}", fields.aux);
-    println!("  total={}", fields.total);
-    println!(
-        "final_claim_digest_by_component_fields=[c={}, x={}, r={}, y={}, tags={}, aux={}]",
-        fields.commitment_c, fields.x, fields.r, fields.y_ring, fields.domain_tag, fields.aux
-    );
-    println!("poseidon:");
-    println!("  rate={}", digest.poseidon_rate);
-    println!("  width={}", digest.poseidon_width);
-    println!("  permutations_per_child={}", digest.permutations_per_child);
-    println!("  total_permutations={}", digest.total_permutations);
-    println!(
-        "  effective_rows_per_permutation={:.1}",
-        digest.effective_rows_per_permutation
-    );
-    println!("  constraints_per_child={:.1}", digest.constraints_per_child);
-    println!(
-        "  current_total_constraints={}",
-        perf.nifs_final_claim_digest_constraints
-    );
-    println!(
-        "  skipped_constraints_if_enabled={}",
-        perf.skipped_final_claim_digest_constraints
-    );
-    let relation = perf.final_ce_relation_breakdown;
+    println!("nifs_chunk_constraints_by_chunk={:?}", perf.chunk_constraints_by_chunk);
+    let ce = perf.final_ce_relation_breakdown;
     println!(
         "final_ce_relation_by_component=[A*z={}, x_projection={}, y_eval={}, norm={}, total={}]",
-        relation.commitment,
-        relation.x_projection,
-        relation.y_eval,
-        relation.norm,
-        relation.total()
+        ce.commitment,
+        ce.x_projection,
+        ce.y_eval,
+        ce.norm,
+        ce.total()
     );
-    print_final_accumulator_surface_modes(perf);
-    let avg_nnz_per_constraint = perf.nifs_r1cs_nnz as f64 / perf.nifs_r1cs_sizes[0].max(1) as f64;
     println!(
         "R1CS nonzero matrix entries (not constraints): direct={} avg_nnz_per_constraint={:.1}",
-        perf.nifs_r1cs_nnz, avg_nnz_per_constraint
+        perf.r1cs_nnz,
+        perf.r1cs_nnz as f64 / perf.r1cs_sizes[0].max(1) as f64
     );
     println!(
         "proof bytes: final_serialized={}, snark_data={}, wrapper_overhead={}",
@@ -1178,43 +1093,37 @@ fn print_direct_spartan_perf(perf: &DirectCcsRecursionSnarkPerf) {
     );
     println!("verify: ok");
     println!();
+    Ok(perf)
 }
 
-fn print_final_accumulator_surface_modes(perf: &DirectCcsRecursionSnarkPerf) {
-    let digest = &perf.final_ce_digest_attribution;
-    let private_constraints = perf.nifs_r1cs_sizes[0];
-    let digest_public_io_constraints = 4 * digest.children;
-    let compact_constraints =
-        private_constraints + perf.skipped_final_claim_digest_constraints + digest_public_io_constraints;
-    let small_public_fields = perf.nifs_public_inputs;
-    let explicit_public_fields = small_public_fields + digest.explicit_public_fields;
-    let explicit_constraints = private_constraints + digest.explicit_public_fields;
-    let compact_public_fields = small_public_fields + (4 * digest.children);
+fn print_superneo_ivc_carrier(build: &SuperNeoIvcBuild, packaged: &PackagedProof) -> AppResult<()> {
+    if build.final_state.carry.claims != packaged.statement.final_main_claims {
+        return Err(invalid_input(
+            "generic SuperNeo IVC carrier final claims did not match packaged native fold claims",
+        ));
+    }
+    println!("== generic SuperNeo IVC/NIFS.V carrier ==");
+    println!("status: built and verified natively");
+    println!("relations: {}", build.relations.len());
+    println!(
+        "final state: chunks={}, steps={}, carried_CE_claims={}, transcript_absorbed={}",
+        build.final_state.chunk_count,
+        build.final_state.step_count,
+        build.final_state.carry.claims.len(),
+        build.final_state.transcript.absorbed
+    );
+    println!(
+        "timing (not counted in final summary): cache_build={:.3} ms, total={:.3} ms",
+        build.cache_build_ms, build.total_ms
+    );
+    println!(
+        "hash boundary: no final CE digest is used here; Construction-2 hash linkage is a separate HyperNova layer"
+    );
     println!();
-    println!("== final accumulator surface modes ==");
-    println!("mode                         | constraints | public_fields | reusable?");
-    println!(
-        "private_terminal             | {:>11} | {:>13} | no",
-        private_constraints, small_public_fields
-    );
-    println!(
-        "explicit_public_ce           | ~{:>10} | ~{:>12} | yes",
-        explicit_constraints, explicit_public_fields
-    );
-    println!(
-        "external_digest_public_ce    | ~{:>10} | ~{:>12} + digest | yes",
-        explicit_constraints, explicit_public_fields
-    );
-    println!(
-        "compact_poseidon_in_circuit  | ~{:>10} | {:>13} | yes",
-        compact_constraints, compact_public_fields
-    );
-    println!("terminal_pre_dec_private     | TBD         | small         | no");
-    println!("terminal_pre_dec_digest      | TBD         | small         | no");
-    println!();
+    Ok(())
 }
 
-fn print_final_summary(prove_perf: &RunProvePerf, spartan: SpartanRunSummary) {
+fn print_final_summary(prove_perf: &RunProvePerf, spartan_perf: &DirectCcsFPrimeSnarkPerf) {
     let chunk_folds = prove_perf.chunk_count();
     let fresh_steps = prove_perf.fresh_steps();
     let ms_per_chunk_fold = prove_perf.total_ms / chunk_folds.max(1) as f64;
@@ -1230,26 +1139,29 @@ fn print_final_summary(prove_perf: &RunProvePerf, spartan: SpartanRunSummary) {
         "  time per fold: {:.3} ms/chunk fold ({:.3} ms/SHA256 CCS claim)",
         ms_per_chunk_fold, ms_per_fresh_step
     );
-    println!("proving (spartan): {:.3} ms", spartan.prove_ms);
-    println!("setup/keygen (not counted): {:.3} ms", spartan.setup_ms);
-    println!("proving (total): {:.3} ms", prove_perf.total_ms + spartan.prove_ms);
-    println!("verifying (final proof): {:.3} ms", spartan.verify_ms);
+    println!("proving (spartan): {:.3} ms", spartan_perf.total_prove_ms);
+    println!("setup/keygen (not counted): {:.3} ms", spartan_perf.setup_ms);
     println!(
-        "constraints passed to Spartan2: {} backend R1CS constraints across NIFS.V + final CE (padded to {})",
-        spartan.backend_r1cs_constraints, spartan.padded_backend_r1cs_constraints
+        "proving (total): {:.3} ms",
+        prove_perf.total_ms + spartan_perf.total_prove_ms
+    );
+    println!("verifying (final proof): {:.3} ms", spartan_perf.total_verify_ms);
+    println!(
+        "constraints passed to Spartan2: {} backend R1CS constraints across direct CCS F' + final CE (padded to {})",
+        spartan_perf.r1cs_sizes[0], spartan_perf.r1cs_sizes[4]
     );
     println!(
         "size final proof: {} bytes (snark_data={}, wrapper_overhead={})",
-        spartan.final_proof_bytes,
-        spartan.snark_bytes,
-        spartan
+        spartan_perf.final_proof_bytes,
+        spartan_perf.snark_bytes,
+        spartan_perf
             .final_proof_bytes
-            .saturating_sub(spartan.snark_bytes)
+            .saturating_sub(spartan_perf.snark_bytes)
     );
     println!();
 }
 
-fn print_optimization_ranking(prove_perf: &RunProvePerf, spartan: SpartanRunSummary) {
+fn print_optimization_ranking(prove_perf: &RunProvePerf) {
     let ccs_named = prove_perf.ccs_bind_ms()
         + prove_perf.ccs_sample_challenges_ms()
         + prove_perf.ccs_fe_sumcheck_ms()
@@ -1261,7 +1173,6 @@ fn print_optimization_ranking(prove_perf: &RunProvePerf, spartan: SpartanRunSumm
         ("Pi_CCS FE sumcheck", prove_perf.ccs_fe_sumcheck_ms()),
         ("Pi_CCS unattributed", ccs_unattributed),
         ("Pi_DEC child commits", prove_perf.dec_commit_ms()),
-        ("Spartan NIFS PCS", spartan.spartan_pcs_ms),
     ];
     items.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
     println!("== optimization ranking ==");
@@ -1340,19 +1251,11 @@ fn print_constraint_breakdown(
     s: &CcsStructure<F>,
     shape: Sha256CircuitShape,
     prove_perf: &RunProvePerf,
-    spartan: SpartanRunSummary,
+    spartan_perf: &DirectCcsFPrimeSnarkPerf,
 ) {
     let fresh = prove_perf.fresh_steps();
     let total_ccs_rows = s.n.saturating_mul(fresh);
     let total_r1cs = shape.constraints.saturating_mul(fresh);
-    let padding_rows = spartan
-        .padded_backend_r1cs_constraints
-        .saturating_sub(spartan.backend_r1cs_constraints);
-    let padding_pct = if spartan.backend_r1cs_constraints == 0 {
-        0.0
-    } else {
-        100.0 * padding_rows as f64 / spartan.backend_r1cs_constraints as f64
-    };
     println!("== constraint breakdown ==");
     println!("circuit constraints:");
     println!("  SHA256 Bellpepper R1CS constraints per claim: {}", shape.constraints);
@@ -1368,18 +1271,25 @@ fn print_constraint_breakdown(
         ccs_matrix_nnz(s)
     );
     println!("Spartan2 constraints:");
+    println!("  backend R1CS constraints passed: {}", spartan_perf.r1cs_sizes[0]);
+    println!("  padded backend constraints: {}", spartan_perf.r1cs_sizes[4]);
     println!(
-        "  backend R1CS constraints passed: {}",
-        spartan.backend_r1cs_constraints
+        "  padding rows: {} ({:.1}% over actual)",
+        spartan_perf.r1cs_sizes[4].saturating_sub(spartan_perf.r1cs_sizes[0]),
+        100.0 * spartan_perf.r1cs_sizes[4].saturating_sub(spartan_perf.r1cs_sizes[0]) as f64
+            / spartan_perf.r1cs_sizes[0].max(1) as f64
     );
-    println!(
-        "  padded backend constraints: {}",
-        spartan.padded_backend_r1cs_constraints
-    );
-    println!("  padding rows: {padding_rows} ({padding_pct:.1}% over actual)");
     println!(
         "  backend public inputs={}, challenges={}, nnz_total={}",
-        spartan.backend_public_inputs, spartan.backend_challenges, spartan.backend_nnz_total
+        spartan_perf.r1cs_sizes[8], spartan_perf.r1cs_sizes[9], spartan_perf.r1cs_nnz
+    );
+    println!(
+        "  direct CCS F' chunk constraints={:?}",
+        spartan_perf.chunk_constraints_by_chunk
+    );
+    println!(
+        "  final CE relation constraints={}",
+        spartan_perf.final_ce_relation_constraints
     );
     println!("  note: nnz_total counts nonzero entries in the R1CS A/B/C matrices, not constraint rows");
     println!();
@@ -1422,16 +1332,17 @@ fn run() -> AppResult<()> {
 
     let schedule = FoldSchedule::RowsPerChunk(1);
     let public_steps = steps.iter().map(StepInput::public).collect::<Vec<_>>();
-    let spartan_steps = steps.clone();
+    let steps_for_spartan = steps.clone();
     let (packaged, prove_perf, final_carry) = prove_and_package_with_final_carry_perf(
         FoldingMode::Optimized,
         schedule,
         &params,
         &ccs,
-        steps,
+        steps.clone(),
         &log,
         ajtai_mixers(),
     )?;
+    let superneo_ivc = build_superneo_ivc_relations_with_perf(schedule, &params, &ccs, steps, &log, ajtai_mixers())?;
     print_chunk_prove_perf(&prove_perf);
     print_prove_timing_accounting(&prove_perf);
     print_fold_evolution(&params, &packaged, &prove_perf);
@@ -1446,11 +1357,12 @@ fn run() -> AppResult<()> {
         return Err(invalid_input("public step count changed during packaging"));
     }
     print_verify_perf(&verify_perf);
-    let spartan_summary = print_spartan(&params, &ccs, &packaged, &final_carry, &spartan_steps)?;
-    print_optimization_ranking(&prove_perf, spartan_summary);
+    print_superneo_ivc_carrier(&superneo_ivc, &packaged)?;
+    let spartan_perf = print_spartan(&params, &ccs, &packaged, &final_carry, &steps_for_spartan)?;
+    print_optimization_ranking(&prove_perf);
     print_folding_timing_table(&prove_perf, ccs.n);
-    print_constraint_breakdown(&ccs, sha_shape, &prove_perf, spartan_summary);
-    print_final_summary(&prove_perf, spartan_summary);
+    print_constraint_breakdown(&ccs, sha_shape, &prove_perf, &spartan_perf);
+    print_final_summary(&prove_perf, &spartan_perf);
     Ok(())
 }
 

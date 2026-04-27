@@ -15,8 +15,8 @@ use super::claim::{
 };
 use super::witness::alloc_packed_witness;
 use crate::rv64im::ivc_snark::{
-    GoldilocksP3MerkleMleEngine, R1CSSNARKTrait, SpartanCircuit, SpartanF, SpartanProverKey, SpartanVerifierKey,
-    R1CSSNARK,
+    GoldilocksP3MerkleMleEngine, R1CSSNARKTrait, ShapeCS, SpartanCircuit, SpartanF, SpartanProverKey,
+    SpartanVerifierKey, R1CSSNARK,
 };
 
 pub type Rv64imCeRelationEngine = GoldilocksP3MerkleMleEngine;
@@ -32,6 +32,16 @@ pub struct Rv64imCeRelationProof {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rv64imCeBundleProof {
     pub snark_data: Vec<u8>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Rv64imCeBundleConstraintBreakdown {
+    pub public_input_count: usize,
+    pub claim_count: usize,
+    pub total_constraints: usize,
+    pub digest_constraints: usize,
+    pub digest_match_constraints: usize,
+    pub ce_relation_constraints: usize,
 }
 
 #[derive(Debug, Error)]
@@ -274,6 +284,106 @@ pub fn setup_rv64im_ce_bundle_relation(
         delta: SpartanF::from_canonical_u64(delta.as_canonical_u64()),
     };
     Rv64imCeRelationSnark::setup(circuit).map_err(|err| Rv64imCeRelationError::Setup(err.to_string()))
+}
+
+pub fn debug_measure_rv64im_ce_bundle_relation_constraints(
+    params: &NeoParams,
+    structure: &CcsStructure<F>,
+    claims: &[CeClaim<Commitment, F, K>],
+    witnesses: &[CcsWitness<F>],
+    delta: F,
+) -> Result<Rv64imCeBundleConstraintBreakdown, Rv64imCeRelationError> {
+    if claims.len() != witnesses.len() {
+        return Err(Rv64imCeRelationError::Prepare(
+            "final CE bundle requires one witness per claim".into(),
+        ));
+    }
+
+    let circuit = Rv64imCeBundleCircuit {
+        params: params.clone(),
+        structure: structure.clone(),
+        claims: claims.to_vec(),
+        witnesses: witnesses.to_vec(),
+        delta: SpartanF::from_canonical_u64(delta.as_canonical_u64()),
+    };
+    let public_values = circuit
+        .expected_public_values()
+        .map_err(|err| Rv64imCeRelationError::Prepare(err.to_string()))?;
+    let mut cs = ShapeCS::<Rv64imCeRelationEngine>::new();
+    let public_inputs = public_values
+        .into_iter()
+        .enumerate()
+        .map(|(idx, value)| {
+            AllocatedNum::alloc_input(cs.namespace(|| format!("claim_digest_input_{idx}")), || Ok(value))
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|err| Rv64imCeRelationError::Prepare(err.to_string()))?;
+
+    let mut out = Rv64imCeBundleConstraintBreakdown {
+        public_input_count: public_inputs.len(),
+        claim_count: claims.len(),
+        ..Rv64imCeBundleConstraintBreakdown::default()
+    };
+
+    for (claim_idx, (claim, witness)) in claims.iter().zip(witnesses.iter()).enumerate() {
+        let claim_var = alloc_ce_claim(
+            &mut cs.namespace(|| format!("claim_{claim_idx}")),
+            claim,
+            &format!("claim_{claim_idx}"),
+        )
+        .map_err(|err| Rv64imCeRelationError::Prepare(err.to_string()))?;
+        let witness_var = alloc_packed_witness(
+            &mut cs.namespace(|| format!("witness_{claim_idx}")),
+            witness,
+            &format!("witness_{claim_idx}"),
+        )
+        .map_err(|err| Rv64imCeRelationError::Prepare(err.to_string()))?;
+
+        let before_digest = cs.num_constraints();
+        let digest = me_input_projection_digest_poseidon(
+            &mut cs.namespace(|| format!("claim_digest_{claim_idx}")),
+            &claim_var,
+            &format!("claim_digest_{claim_idx}"),
+        )
+        .map_err(|err| Rv64imCeRelationError::Prepare(err.to_string()))?;
+        out.digest_constraints += cs.num_constraints() - before_digest;
+
+        let before_match = cs.num_constraints();
+        let one = <ShapeCS<Rv64imCeRelationEngine> as ConstraintSystem<SpartanF>>::one();
+        let input_offset = claim_idx
+            .checked_mul(4)
+            .ok_or_else(|| Rv64imCeRelationError::Prepare("claim digest input offset overflow".into()))?;
+        for (idx, (actual, expected)) in digest
+            .iter()
+            .zip(public_inputs[input_offset..input_offset + 4].iter())
+            .enumerate()
+        {
+            cs.enforce(
+                || format!("claim_digest_match_{claim_idx}_{idx}"),
+                |lc| lc + actual.get_variable(),
+                |lc| lc + one,
+                |lc| lc + expected.get_variable(),
+            );
+        }
+        out.digest_match_constraints += cs.num_constraints() - before_match;
+
+        let before_relation = cs.num_constraints();
+        enforce_paper_ce_claim_consistency(
+            &mut cs.namespace(|| format!("ce_consistency_{claim_idx}")),
+            params,
+            structure,
+            structure,
+            &witness_var,
+            &claim_var,
+            SpartanF::from_canonical_u64(delta.as_canonical_u64()),
+            &format!("ce_{claim_idx}"),
+        )
+        .map_err(|err| Rv64imCeRelationError::Prepare(err.to_string()))?;
+        out.ce_relation_constraints += cs.num_constraints() - before_relation;
+    }
+
+    out.total_constraints = cs.num_constraints();
+    Ok(out)
 }
 
 pub fn debug_check_rv64im_ce_relation(

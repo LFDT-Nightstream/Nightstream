@@ -46,6 +46,13 @@ pub(crate) struct Rv64imMainCircuitHandoff {
     pub(crate) public_chunk_digest: [u8; 32],
     pub(crate) bridge_handoff_digest: [u8; 32],
     pub(crate) chunk_relation_digest: [u8; 32],
+    pub(crate) public_input_layout: Rv64imMainCircuitPublicInputLayout,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Rv64imMainCircuitPublicInputLayout {
+    EmbeddedDiagonal,
+    PackedPrefix,
 }
 
 #[derive(Clone, Debug)]
@@ -352,6 +359,52 @@ impl Rv64imMainCircuitChunkCover {
         }
     }
 
+    pub(crate) fn from_replay_surface(surface: &Rv64imMainCircuitChunkReplaySurface) -> Self {
+        Self {
+            fresh_claim_count: surface.fresh_claims.len() as u64,
+            fresh_witness_count: surface.fresh_witnesses.len() as u64,
+            fresh_claim_shapes: surface
+                .fresh_claims
+                .iter()
+                .map(Rv64imMainCircuitCcsClaimShape::from_claim)
+                .collect(),
+            fresh_witness_shapes: surface
+                .fresh_witnesses
+                .iter()
+                .map(Rv64imMainCircuitCcsWitnessShape::from_witness)
+                .collect(),
+            ccs_output_count: surface.pi_ccs.ccs_outputs.len() as u64,
+            child_count: surface.pi_dec.children.len() as u64,
+            parent_claim_shape: Rv64imMainCircuitCeClaimShape::from_claim(&surface.pi_rlc.parent),
+            ccs_output_shapes: surface
+                .pi_ccs
+                .ccs_outputs
+                .iter()
+                .map(Rv64imMainCircuitCeClaimShape::from_claim)
+                .collect(),
+            child_claim_shapes: surface
+                .pi_dec
+                .children
+                .iter()
+                .map(Rv64imMainCircuitCeClaimShape::from_claim)
+                .collect(),
+            fe_round_lengths: surface
+                .pi_ccs
+                .replay_proof
+                .sumcheck_rounds
+                .iter()
+                .map(|round| round.len() as u64)
+                .collect(),
+            nc_round_lengths: surface
+                .pi_ccs
+                .replay_proof
+                .sumcheck_rounds_nc
+                .iter()
+                .map(|round| round.len() as u64)
+                .collect(),
+        }
+    }
+
     pub(crate) fn covers_replay_surface(&self, surface: &Rv64imMainCircuitChunkReplaySurface) -> bool {
         self.fresh_claim_count >= surface.fresh_claims.len() as u64
             && surface.fresh_claims.iter().enumerate().all(|(idx, claim)| {
@@ -599,6 +652,7 @@ fn build_rv64im_main_circuit_chunk_trace_from_parts(
             public_chunk_digest: fresh.public_chunk_digest,
             bridge_handoff_digest: bridge_handoff.digest,
             chunk_relation_digest: trace.chunk_relation_digest,
+            public_input_layout: Rv64imMainCircuitPublicInputLayout::EmbeddedDiagonal,
         },
         fresh_claims: fresh.fresh_claims,
         fresh_witnesses: fresh.fresh_witnesses,

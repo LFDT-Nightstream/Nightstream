@@ -6,7 +6,7 @@
 //! `ct[j] = y_ring[j][0]`, and balanced digit representability for each
 //! packed witness coefficient.
 
-use crate::rv64im::ivc_snark::SpartanF;
+use crate::rv64im::ivc_snark::{Rv64imDeciderEngine, ShapeCS, SpartanF};
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, LinearCombination, SynthesisError};
 use ff::Field;
 use neo_ajtai::Commitment;
@@ -112,6 +112,95 @@ pub fn enforce_paper_ce_claim_consistency<CS: ConstraintSystem<SpartanF>>(
         )?;
     }
     Ok(())
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PaperCeRelationConstraintBreakdown {
+    pub commitment: usize,
+    pub x_projection: usize,
+    pub norm: usize,
+    pub y_eval: usize,
+}
+
+impl PaperCeRelationConstraintBreakdown {
+    pub fn add_assign(&mut self, other: Self) {
+        self.commitment += other.commitment;
+        self.x_projection += other.x_projection;
+        self.norm += other.norm;
+        self.y_eval += other.y_eval;
+    }
+
+    pub fn total(&self) -> usize {
+        self.commitment + self.x_projection + self.norm + self.y_eval
+    }
+}
+
+pub fn debug_enforce_paper_ce_claim_consistency_with_breakdown(
+    cs: &mut ShapeCS<Rv64imDeciderEngine>,
+    params: &NeoParams,
+    base_structure: &CcsStructure<F>,
+    ring_structure: &CcsStructure<F>,
+    witness: &PackedWitnessVar,
+    claim: &CeClaimVar,
+    delta: SpartanF,
+    label: &str,
+) -> Result<PaperCeRelationConstraintBreakdown, SynthesisError> {
+    let mut breakdown = PaperCeRelationConstraintBreakdown::default();
+
+    let before = cs.num_constraints();
+    enforce_ajtai_commitment_consistency(
+        &mut cs.namespace(|| format!("{label}_commitment")),
+        witness,
+        claim,
+        &format!("{label}_commitment"),
+    )?;
+    breakdown.commitment = cs.num_constraints() - before;
+
+    let before = cs.num_constraints();
+    enforce_x_projection(
+        &mut cs.namespace(|| format!("{label}_x_projection")),
+        witness,
+        claim,
+        base_structure.m,
+        &format!("{label}_x"),
+    )?;
+    breakdown.x_projection = cs.num_constraints() - before;
+
+    let before = cs.num_constraints();
+    enforce_balanced_digit_alphabet(
+        &mut cs.namespace(|| format!("{label}_digits")),
+        witness,
+        base_structure.m,
+        params,
+        &format!("{label}_digits"),
+    )?;
+    breakdown.norm = cs.num_constraints() - before;
+
+    let before = cs.num_constraints();
+    let (chi_r, chi_r_values) = chi_table_var(
+        &mut cs.namespace(|| format!("{label}_chi_r")),
+        &claim.r,
+        &claim.r_values,
+        delta,
+        &format!("{label}_chi_r"),
+    )?;
+    for (matrix_idx, matrix) in ring_structure.matrices.iter().enumerate() {
+        enforce_claim_y_ring_from_point_var(
+            &mut cs.namespace(|| format!("{label}_y_ring_{matrix_idx}")),
+            witness,
+            ring_structure.m,
+            ring_structure.n,
+            matrix,
+            &chi_r,
+            &chi_r_values,
+            D,
+            &claim.y_ring[matrix_idx],
+            delta,
+            &format!("{label}_y_ring_{matrix_idx}"),
+        )?;
+    }
+    breakdown.y_eval = cs.num_constraints() - before;
+    Ok(breakdown)
 }
 
 pub fn enforce_backend_claim_consistency_with_x<CS: ConstraintSystem<SpartanF>>(

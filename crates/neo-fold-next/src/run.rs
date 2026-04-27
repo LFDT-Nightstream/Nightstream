@@ -195,6 +195,25 @@ where
     MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
     MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
 {
+    let (session, perf, _) =
+        prove_prepared_chunks_with_final_carry_perf(mode, schedule, params, s, chunks, log, mixers)?;
+    Ok((session, perf))
+}
+
+fn prove_prepared_chunks_with_final_carry_perf<L, MR, MB>(
+    mode: FoldingMode,
+    schedule: FoldSchedule,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    chunks: impl IntoIterator<Item = ProverChunkInput>,
+    log: &L,
+    mixers: CommitmentMixers<MR, MB>,
+) -> Result<(RunProof, RunProvePerf, Carry), PiCcsError>
+where
+    L: SModuleHomomorphism<F, Commitment> + Sync,
+    MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
+    MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
+{
     let mut tr = Poseidon2Transcript::new(b"neo.fold.next/session");
     let mut main_carry = Carry::default();
     let mut session = RunProof {
@@ -231,9 +250,9 @@ where
             .map(|chunk| chunk.chunk.clone())
             .collect::<Vec<_>>(),
     )?;
-    session.final_main_claims = main_carry.claims;
+    session.final_main_claims = main_carry.claims.clone();
     perf.total_ms = perf.chunks.iter().map(|chunk| chunk.total_ms).sum();
-    Ok((session, perf))
+    Ok((session, perf, main_carry))
 }
 
 pub fn prove_chunks_with_perf_and_cache<L, MR, MB>(
@@ -540,6 +559,32 @@ where
     let (session, perf) = prove_prepared_chunks_with_perf(mode, schedule, params, s, input_chunks, log, mixers)?;
     let packaged = package_session_proof(public_chunks, session)?;
     Ok((packaged, perf))
+}
+
+pub fn prove_and_package_with_final_carry_perf<L, MR, MB>(
+    mode: FoldingMode,
+    schedule: FoldSchedule,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    steps: impl IntoIterator<Item = StepInput>,
+    log: &L,
+    mixers: CommitmentMixers<MR, MB>,
+) -> Result<(PackagedProof, RunProvePerf, Carry), PiCcsError>
+where
+    L: SModuleHomomorphism<F, Commitment> + Sync,
+    MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
+    MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
+{
+    let steps_vec: Vec<StepInput> = steps.into_iter().collect();
+    let input_chunks = partition_prover_step_inputs(schedule, steps_vec)?;
+    let public_chunks = input_chunks
+        .iter()
+        .map(|chunk| chunk.public_chunk.clone())
+        .collect::<Vec<_>>();
+    let (session, perf, final_carry) =
+        prove_prepared_chunks_with_final_carry_perf(mode, schedule, params, s, input_chunks, log, mixers)?;
+    let packaged = package_session_proof(public_chunks, session)?;
+    Ok((packaged, perf, final_carry))
 }
 
 pub fn verify_packaged<MR, MB>(

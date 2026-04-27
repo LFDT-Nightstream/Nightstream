@@ -50,7 +50,7 @@ use crate::rv64im::main_relation_circuit::transcript::{
 };
 use crate::rv64im::main_relation_trace::{
     Rv64imMainCircuitCeClaimShape, Rv64imMainCircuitChunkCover, Rv64imMainCircuitChunkReplaySurface,
-    Rv64imMainCircuitHandoff, CHUNK_META_RAW_TAG,
+    Rv64imMainCircuitHandoff, Rv64imMainCircuitPublicInputLayout, CHUNK_META_RAW_TAG,
 };
 mod chunk_diagnostics;
 #[allow(dead_code)]
@@ -379,6 +379,47 @@ pub(crate) fn synthesize_rv64im_main_relation_chunk<CS: ConstraintSystem<Spartan
         )?;
     }
     Ok(next_carried_claims)
+}
+
+pub(crate) fn synthesize_direct_ccs_nifs_chunk<CS: ConstraintSystem<SpartanF>>(
+    params: &NeoParams,
+    structure: &CcsStructure<F>,
+    dims: Dims,
+    mat_digest: &[Goldilocks; 4],
+    cs: &mut CS,
+    chunk_index: usize,
+    cover_chunk: &Rv64imMainCircuitChunkCover,
+    chunk: &Rv64imMainCircuitChunkReplaySurface,
+    transcript: &mut Poseidon2TranscriptCircuit,
+    carried_claims: Rv64imClaimBundle,
+) -> Result<(Rv64imClaimBundle, [AllocatedNum<SpartanF>; 4]), SynthesisError> {
+    let boundary_plan = Rv64imChunkBoundaryPlan::from_boundary_mode(
+        Rv64imChunkBoundaryMode::Interior,
+        chunk.fresh_claims.len(),
+        chunk.pi_ccs.ccs_outputs.len(),
+    );
+    let body_output = nifs_v_stages::synthesize_rv64im_chunk_nifs_verifier_body_with_outer_relation_mode(
+        params,
+        structure,
+        dims,
+        mat_digest,
+        &[],
+        cs,
+        chunk_index,
+        cover_chunk,
+        chunk,
+        transcript,
+        carried_claims,
+        None,
+        None,
+        boundary_plan,
+        0,
+        None,
+        false,
+        None,
+        None,
+    )?;
+    Ok((body_output.next_claims, body_output.pi_ccs.public_chunk_instance_digest))
 }
 
 fn cover_ce_claim_with_shared_point(

@@ -32,6 +32,7 @@ pub(in crate::rv64im::main_relation_spartan) struct Rv64imPiCcsStageOutput {
     pub(in crate::rv64im::main_relation_spartan) r_prime_vars: Vec<KNumVar>,
     pub(in crate::rv64im::main_relation_spartan) s_col_prime_vars: Vec<KNumVar>,
     pub(in crate::rv64im::main_relation_spartan) fold_digest: [AllocatedNum<SpartanF>; 4],
+    pub(in crate::rv64im::main_relation_spartan) public_chunk_instance_digest: [AllocatedNum<SpartanF>; 4],
     pub(in crate::rv64im::main_relation_spartan) public_chunk_digest: [AllocatedNum<SpartanF>; 4],
     pub(in crate::rv64im::main_relation_spartan) public_chunk_start_index: AllocatedNum<SpartanF>,
     pub(in crate::rv64im::main_relation_spartan) public_chunk_start_index_halves: [AllocatedNum<SpartanF>; 2],
@@ -64,6 +65,7 @@ fn enforce_public_step_matches_fresh_claim<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     public_step: &crate::rv64im::main_relation_circuit::public_chunk::PublicStepVar,
     fresh: &crate::rv64im::main_relation_circuit::output_binding::FreshCcsClaimVar,
+    layout: Rv64imMainCircuitPublicInputLayout,
     label: &str,
 ) -> Result<(), SynthesisError> {
     if public_step.claim.m_in != fresh.m_in
@@ -88,10 +90,7 @@ fn enforce_public_step_matches_fresh_claim<CS: ConstraintSystem<SpartanF>>(
         );
     }
     for col in 0..fresh.m_in {
-        let embedded_idx = (col % D)
-            .checked_mul(fresh.m_in)
-            .and_then(|start| start.checked_add(col))
-            .ok_or(SynthesisError::Unsatisfiable)?;
+        let embedded_idx = public_input_projection_index(layout, col, fresh.m_in)?;
         cs.enforce(
             || format!("{label}_x_{col}"),
             |lc| lc + public_step.claim.x[col].get_variable(),
@@ -100,6 +99,23 @@ fn enforce_public_step_matches_fresh_claim<CS: ConstraintSystem<SpartanF>>(
         );
     }
     Ok(())
+}
+
+fn public_input_projection_index(
+    layout: Rv64imMainCircuitPublicInputLayout,
+    col: usize,
+    m_in: usize,
+) -> Result<usize, SynthesisError> {
+    match layout {
+        Rv64imMainCircuitPublicInputLayout::EmbeddedDiagonal => (col % D)
+            .checked_mul(m_in)
+            .and_then(|start| start.checked_add(col))
+            .ok_or(SynthesisError::Unsatisfiable),
+        Rv64imMainCircuitPublicInputLayout::PackedPrefix => (col % D)
+            .checked_mul(m_in)
+            .and_then(|start| start.checked_add(col / D))
+            .ok_or(SynthesisError::Unsatisfiable),
+    }
 }
 
 fn emit_nifs_stage_trace(trace_prefix: Option<&str>, label: &str, started: Instant) {
@@ -328,6 +344,7 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
             &mut cs.namespace(|| format!("chunk_{}_public_step_binding_{step_index}", ctx.chunk_index)),
             &public_step_vars[step_index],
             &covered_fresh_claim_vars[step_index],
+            ctx.chunk.handoff.public_input_layout,
             &format!("chunk_{}_public_step_binding_{step_index}", ctx.chunk_index),
         )?;
     }
@@ -723,6 +740,7 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
         r_prime_vars,
         s_col_prime_vars,
         fold_digest,
+        public_chunk_instance_digest,
         public_chunk_digest,
         public_chunk_start_index,
         public_chunk_start_index_halves,

@@ -1,19 +1,23 @@
 //! Owns native RV64IM F' semantics and the recursion hash-image boundary.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::io::{self, Write};
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 
 use neo_ajtai::Commitment;
 use neo_ccs::{check_ccs_rowwise_zero, check_ce_consistency, CeClaim, CeWitness, Mat};
-use neo_math::{ring::D, KExtensions, F, K};
+use neo_math::{F, K};
 use neo_transcript::{Poseidon2Transcript, Transcript};
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use p3_field::PrimeCharacteristicRing;
 use serde::{Deserialize, Serialize};
 
 use crate::chunk_relation::ChunkReplayWitness;
-use crate::nightstream::rv64im::{Rv64imEvalPublic, Rv64imOpenedObjectPublic, Rv64imSideOpeningPublic};
+use crate::construction2::{
+    Construction2EncodedPublicInput, CONSTRUCTION2_ENC_INST_BITS, CONSTRUCTION2_ENC_INST_RING_DEGREE,
+    CONSTRUCTION2_ENC_INST_RING_SLOTS,
+};
+use crate::nightstream::rv64im::Rv64imSideOpeningPublic;
 use crate::proof::Carry;
 use crate::rv64im::chunk_fold_step::adapt_rv64im_chunk_to_fresh_ccs;
 use crate::rv64im::chunk_step_ivc::{rv64im_chunk_step_ivc_initial_state_for_step_cap, Rv64imChunkStepIvcRelation};
@@ -28,132 +32,29 @@ use crate::rv64im::construction2::{
     Rv64imMainRecursionConstruction2FreshInstance, Rv64imMainRecursionConstruction2PiFoldProof,
     Rv64imMainRecursionConstruction2StateImage, Rv64imMainRecursionConstruction2VerifiedStepStatement,
 };
+use crate::rv64im::f_prime_accumulator::Rv64imMainRecursionAccumulatorSurface;
+pub use crate::rv64im::f_prime_accumulator::RV64IM_MAIN_RECURSION_ACCUMULATOR_SLOTS;
+pub use crate::rv64im::f_prime_side::{
+    build_rv64im_main_recursion_side_lane_from_side_opening_public, Rv64imMainRecursionPhiSide,
+    Rv64imMainRecursionSideClaim, Rv64imMainRecursionSideLaneWitness,
+};
 use crate::rv64im::final_relation::{rv64im_chunk_fold_carry_recursive_accumulator_digest, Rv64imChunkFoldState};
-use crate::rv64im::kernel::{FamilyEvalSchemaId, PackedColumnEval, Rv64imVerifiedKernelChunkHandoff};
+use crate::rv64im::kernel::Rv64imVerifiedKernelChunkHandoff;
 use crate::rv64im::main_relation_trace::{
     build_rv64im_main_circuit_chunk_trace_from_authoritative_parts, Rv64imMainCircuitChunkTrace,
 };
 use crate::rv64im::SimpleKernelError;
 
-/// Canonical recursion public input image for the current stack.
-///
-/// This is intentionally a named boundary type, not a bare `[u8; 32]`.
-/// The semantic `enc_inst` image is the digest bit-decomposition in little-
-/// endian bit order, one low-norm field element per bit:
-///   bit_j = (digest_bytes[j / 8] >> (j % 8)) & 1
-/// This keeps `x` binary and therefore `||x||_∞ < 2`.
-///
-/// Public IO surfaces serialize those digest bytes as four canonical field limbs:
-///   limb_j = u64::from_le_bytes(digest_bytes[8*j .. 8*(j+1)])
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Rv64imEncodedPublicInput {
-    digest_bytes: [u8; 32],
-}
+pub type Rv64imEncodedPublicInput = Construction2EncodedPublicInput;
 
-pub const RV64IM_ENC_INST_BITS: usize = 256;
-pub const RV64IM_ENC_INST_RING_DEGREE: usize = D;
-pub const RV64IM_ENC_INST_RING_SLOTS: usize =
-    (RV64IM_ENC_INST_BITS + RV64IM_ENC_INST_RING_DEGREE - 1) / RV64IM_ENC_INST_RING_DEGREE;
+pub const RV64IM_ENC_INST_BITS: usize = CONSTRUCTION2_ENC_INST_BITS;
+pub const RV64IM_ENC_INST_RING_DEGREE: usize = CONSTRUCTION2_ENC_INST_RING_DEGREE;
+pub const RV64IM_ENC_INST_RING_SLOTS: usize = CONSTRUCTION2_ENC_INST_RING_SLOTS;
 pub const RV64IM_MAIN_RECURSION_TRIVIAL_PC: u64 = 1;
-pub const RV64IM_MAIN_RECURSION_ACCUMULATOR_SLOTS: usize = 1;
 pub const RV64IM_MAIN_RECURSION_SIDE_WITNESS_ACTIVE: bool = false;
 pub const RV64IM_MAIN_RECURSION_PHI_SIDE_ACTIVE: bool = true;
 pub const RV64IM_MAIN_RECURSION_SIDE_LANE_ACTIVE: bool =
     RV64IM_MAIN_RECURSION_SIDE_WITNESS_ACTIVE || RV64IM_MAIN_RECURSION_PHI_SIDE_ACTIVE;
-
-#[derive(Clone, Debug)]
-pub(crate) struct Rv64imMainRecursionAccumulatorBundle {
-    main: Carry,
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct Rv64imMainRecursionAccumulatorArray<const SLOTS: usize> {
-    slots: [Rv64imMainRecursionAccumulatorBundle; SLOTS],
-}
-
-pub(crate) type Rv64imMainRecursionAccumulatorSurface =
-    Rv64imMainRecursionAccumulatorArray<RV64IM_MAIN_RECURSION_ACCUMULATOR_SLOTS>;
-
-impl<const SLOTS: usize> Rv64imMainRecursionAccumulatorArray<SLOTS> {
-    pub(crate) fn try_from_carry(main: &Carry, label: &str) -> Result<Self, SimpleKernelError> {
-        if main.claims.len() != main.witnesses.len() {
-            return Err(SimpleKernelError::Bridge(format!(
-                "RV64IM main recursion {label} requires one witness per carried CE claim"
-            )));
-        }
-        if SLOTS != 1 {
-            return Err(SimpleKernelError::Bridge(format!(
-                "RV64IM main recursion {label} only supports the current single-PC specialization"
-            )));
-        }
-        Ok(Self {
-            slots: core::array::from_fn(|_| Rv64imMainRecursionAccumulatorBundle { main: main.clone() }),
-        })
-    }
-
-    pub(crate) fn slot(&self, slot: usize) -> Result<&Rv64imMainRecursionAccumulatorBundle, SimpleKernelError> {
-        self.slots.get(slot).ok_or_else(|| {
-            SimpleKernelError::Bridge(format!(
-                "RV64IM main recursion accumulator slot {slot} is out of bounds for {SLOTS} slots"
-            ))
-        })
-    }
-}
-
-impl Rv64imMainRecursionAccumulatorBundle {
-    pub(crate) fn carry(&self) -> &Carry {
-        &self.main
-    }
-}
-
-fn rv64im_enc_inst_bit_image_le(digest_bytes: [u8; 32]) -> [u8; RV64IM_ENC_INST_BITS] {
-    core::array::from_fn(|bit_index| {
-        let byte = digest_bytes[bit_index / 8];
-        (byte >> (bit_index % 8)) & 1
-    })
-}
-
-impl Rv64imEncodedPublicInput {
-    pub fn from_digest_bytes(digest_bytes: [u8; 32]) -> Self {
-        Self { digest_bytes }
-    }
-
-    pub fn bytes(&self) -> [u8; 32] {
-        self.digest_bytes
-    }
-
-    pub fn bytes_mut(&mut self) -> &mut [u8; 32] {
-        &mut self.digest_bytes
-    }
-
-    pub fn bit_image(&self) -> [u8; RV64IM_ENC_INST_BITS] {
-        rv64im_enc_inst_bit_image_le(self.digest_bytes)
-    }
-
-    pub fn field_image(&self) -> [F; RV64IM_ENC_INST_BITS] {
-        self.bit_image().map(|bit| F::from_u64(bit as u64))
-    }
-
-    /// Canonical ring-coordinate image of `enc_inst(h)`.
-    ///
-    /// This is the module-boundary packing rule the checklist relies on:
-    /// `x_ring[q].coeff[r] = x_F[q * D + r]` with zero-padding after bit 255.
-    pub fn ring_image(&self) -> [[F; RV64IM_ENC_INST_RING_DEGREE]; RV64IM_ENC_INST_RING_SLOTS] {
-        let field_image = self.field_image();
-        core::array::from_fn(|ring_slot| {
-            core::array::from_fn(|coeff_index| {
-                field_image
-                    .get(ring_slot * RV64IM_ENC_INST_RING_DEGREE + coeff_index)
-                    .copied()
-                    .unwrap_or(F::ZERO)
-            })
-        })
-    }
-
-    pub fn is_binary_low_norm(&self) -> bool {
-        self.bit_image().into_iter().all(|bit| bit <= 1)
-    }
-}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rv64imMainRecursionStepStatement {
@@ -504,211 +405,6 @@ fn rv64im_main_recursion_fresh_instance_digest(
         );
     }
     tr.digest32()
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Rv64imMainRecursionSideClaim {
-    pub schema: FamilyEvalSchemaId,
-    pub slot: u32,
-    pub point_words: Vec<u64>,
-    pub payload_words: Vec<u64>,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Rv64imMainRecursionSideLaneWitness {
-    pub(crate) claims: Vec<Rv64imMainRecursionSideClaim>,
-}
-
-impl Rv64imMainRecursionSideLaneWitness {
-    pub fn zero() -> Self {
-        Self { claims: Vec::new() }
-    }
-
-    pub fn claims(&self) -> &[Rv64imMainRecursionSideClaim] {
-        &self.claims
-    }
-
-    pub fn claim_count(&self) -> u64 {
-        self.claims.len() as u64
-    }
-
-    pub fn is_zero(&self) -> bool {
-        self.claims.is_empty()
-    }
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Rv64imMainRecursionPhiSide {
-    pub(crate) commitment_words: Vec<Vec<u64>>,
-}
-
-impl Rv64imMainRecursionPhiSide {
-    pub fn zero() -> Self {
-        Self {
-            commitment_words: Vec::new(),
-        }
-    }
-
-    pub fn commitment_words(&self) -> &[Vec<u64>] {
-        &self.commitment_words
-    }
-
-    pub fn commitment_count(&self) -> u64 {
-        self.commitment_words.len() as u64
-    }
-
-    pub fn is_zero(&self) -> bool {
-        self.commitment_words.is_empty()
-    }
-}
-
-fn digest32_as_u64_words(digest: [u8; 32]) -> [u64; 4] {
-    core::array::from_fn(|limb| {
-        let start = limb * 8;
-        u64::from_le_bytes(digest[start..start + 8].try_into().expect("digest limb"))
-    })
-}
-
-fn k_slice_as_u64_words(values: &[K]) -> Vec<u64> {
-    values
-        .iter()
-        .flat_map(|&value| value.as_coeffs().map(|coeff| coeff.as_canonical_u64()))
-        .collect()
-}
-
-fn packed_column_evals_as_u64_words(values: &[PackedColumnEval]) -> Vec<u64> {
-    values
-        .iter()
-        .flat_map(|column_eval| k_slice_as_u64_words(&column_eval.coeffs))
-        .collect()
-}
-
-fn build_rv64im_main_recursion_side_claim_from_eval_public(
-    eval: &Rv64imEvalPublic,
-) -> Result<Rv64imMainRecursionSideClaim, SimpleKernelError> {
-    eval.claim.validate().map_err(|err| {
-        SimpleKernelError::Bridge(format!(
-            "RV64IM main recursion side-lane adapter carries an internally inconsistent {:?}/{} eval: {err}",
-            eval.claim.payload.schema, eval.claim.id.slot
-        ))
-    })?;
-    if eval.digest != eval.expected_digest() {
-        return Err(SimpleKernelError::Bridge(format!(
-            "RV64IM main recursion side-lane adapter carries a stale {:?}/{} eval digest",
-            eval.claim.payload.schema, eval.claim.id.slot
-        )));
-    }
-    Ok(Rv64imMainRecursionSideClaim {
-        schema: eval.claim.payload.schema,
-        slot: eval.claim.id.slot,
-        point_words: k_slice_as_u64_words(&eval.claim.point),
-        payload_words: packed_column_evals_as_u64_words(&eval.claim.payload.column_evals),
-    })
-}
-
-fn build_rv64im_main_recursion_phi_side_commitment_words(
-    opened_object: &Rv64imOpenedObjectPublic,
-) -> Result<Vec<u64>, SimpleKernelError> {
-    let Some(expected_schema) = FamilyEvalSchemaId::from_family(opened_object.opened_object.family) else {
-        return Err(SimpleKernelError::Bridge(format!(
-            "RV64IM main recursion side-lane adapter carries unsupported opened-object family {:?}",
-            opened_object.opened_object.family
-        )));
-    };
-    if expected_schema != opened_object.schema {
-        return Err(SimpleKernelError::Bridge(format!(
-            "RV64IM main recursion side-lane adapter opened-object schema mismatch: expected {:?}, got {:?}",
-            expected_schema, opened_object.schema
-        )));
-    }
-    if opened_object.digest != opened_object.expected_digest() {
-        return Err(SimpleKernelError::Bridge(format!(
-            "RV64IM main recursion side-lane adapter carries a stale {:?} opened-object digest",
-            opened_object.schema
-        )));
-    }
-
-    let mut words = Vec::with_capacity(15);
-    words.push(opened_object.schema.tag());
-    words.push(opened_object.opened_object.layout_version);
-    words.push(opened_object.opened_object.row_domain_log_size as u64);
-    words.extend(digest32_as_u64_words(
-        opened_object.opened_object.commitment_root_digest,
-    ));
-    words.extend(digest32_as_u64_words(opened_object.commitment_context.pp_seed_digest));
-    words.extend(digest32_as_u64_words(
-        opened_object.commitment_context.module_shape_digest,
-    ));
-    Ok(words)
-}
-
-pub fn build_rv64im_main_recursion_side_lane_from_side_opening_public(
-    public: &Rv64imSideOpeningPublic,
-) -> Result<(Rv64imMainRecursionSideLaneWitness, Rv64imMainRecursionPhiSide), SimpleKernelError> {
-    if public.digest != public.expected_digest() {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM main recursion side-lane adapter carries a stale side-opening public digest".into(),
-        ));
-    }
-
-    let mut opened_object_by_schema = BTreeMap::<FamilyEvalSchemaId, &Rv64imOpenedObjectPublic>::new();
-    let mut previous_schema = None;
-    let mut commitment_words = Vec::with_capacity(public.opened_objects.len());
-    for opened_object in &public.opened_objects {
-        if let Some(previous_schema) = previous_schema {
-            if previous_schema >= opened_object.schema {
-                return Err(SimpleKernelError::Bridge(
-                    "RV64IM main recursion side-lane adapter requires strict canonical opened-object schema order"
-                        .into(),
-                ));
-            }
-        }
-        if opened_object_by_schema
-            .insert(opened_object.schema, opened_object)
-            .is_some()
-        {
-            return Err(SimpleKernelError::Bridge(format!(
-                "RV64IM main recursion side-lane adapter carries duplicate {:?} opened objects",
-                opened_object.schema
-            )));
-        }
-        commitment_words.push(build_rv64im_main_recursion_phi_side_commitment_words(opened_object)?);
-        previous_schema = Some(opened_object.schema);
-    }
-
-    let mut previous_key = None;
-    let mut claims = Vec::with_capacity(public.evals.len());
-    for eval in &public.evals {
-        let key = (eval.claim.payload.schema, eval.claim.id.slot);
-        if let Some(previous_key) = previous_key {
-            if previous_key >= key {
-                return Err(SimpleKernelError::Bridge(
-                    "RV64IM main recursion side-lane adapter requires strict canonical eval order".into(),
-                ));
-            }
-        }
-        let Some(opened_object) = opened_object_by_schema.get(&eval.claim.payload.schema) else {
-            return Err(SimpleKernelError::Bridge(format!(
-                "RV64IM main recursion side-lane adapter is missing the {:?} opened object for slot {}",
-                eval.claim.payload.schema, eval.claim.id.slot
-            )));
-        };
-        if eval.claim.opened_object != opened_object.opened_object
-            || eval.claim.commitment_context != opened_object.commitment_context
-        {
-            return Err(SimpleKernelError::Bridge(format!(
-                "RV64IM main recursion side-lane adapter {:?}/{} eval does not match the opened-object public",
-                eval.claim.payload.schema, eval.claim.id.slot
-            )));
-        }
-        claims.push(build_rv64im_main_recursion_side_claim_from_eval_public(eval)?);
-        previous_key = Some(key);
-    }
-
-    Ok((
-        Rv64imMainRecursionSideLaneWitness { claims },
-        Rv64imMainRecursionPhiSide { commitment_words },
-    ))
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

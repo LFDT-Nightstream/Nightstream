@@ -2,7 +2,9 @@
 //!
 //! Ownership:
 //! - `prover`, `verifier`: generic `Π_CCS -> Π_RLC -> Π_DEC`
+//! - `construction2`: relation-neutral recursive public-image primitives
 //! - `run`: session orchestration
+//! - `ivc`: generic native SuperNeo IVC/NIFS accumulator carrier
 //! - `proof`: generic session proof boundary
 //! - `opening`: shared opening-claim and time-opening summary boundary
 //! - `step_build`: frontend-produced step packaging and extension records
@@ -13,8 +15,10 @@
 
 pub mod chip8;
 pub mod chunk_relation;
+pub mod construction2;
 pub mod decider;
 pub mod finalize;
+pub mod ivc;
 pub mod nightstream;
 pub mod opening;
 pub mod proof;

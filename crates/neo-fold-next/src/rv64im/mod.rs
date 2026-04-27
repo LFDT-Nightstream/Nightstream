@@ -15,6 +15,8 @@ mod direct_ccs_recursion;
 mod encoded_public_input;
 pub mod execute;
 pub mod f_prime;
+mod f_prime_accumulator;
+mod f_prime_side;
 pub mod final_relation;
 pub mod isa;
 pub mod ivc;

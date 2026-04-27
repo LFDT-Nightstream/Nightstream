@@ -30,3 +30,8 @@ pub mod time_opening;
 pub mod verifier;
 pub mod vm;
 pub mod witness_layout;
+
+pub use rv64im::{
+    prove_direct_ccs_f_prime_snark_with_perf, DirectCcsFPrimeSnarkError, DirectCcsFPrimeSnarkPerf,
+    DirectCcsFPrimeSnarkProof,
+};

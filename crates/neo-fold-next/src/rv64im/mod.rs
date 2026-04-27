@@ -11,7 +11,7 @@ pub mod claim_tree;
 pub mod construction2;
 mod construction2_default;
 mod decider;
-mod direct_ccs_recursion;
+mod direct_ccs_f_prime;
 mod encoded_public_input;
 pub mod execute;
 pub mod f_prime;
@@ -76,9 +76,9 @@ pub use decider::{
     prove_rv64im_public_proof_and_published_seam_with_perf, Rv64imPublicProofAndSeamBuildPerf,
     Rv64imPublishedProofSeam, Rv64imPublishedProofSeamBuildPerf,
 };
-pub use direct_ccs_recursion::{
-    prove_direct_ccs_recursion_snark_with_perf, DirectCcsRecursionSnarkError, DirectCcsRecursionSnarkPerf,
-    DirectCcsRecursionSnarkProof,
+pub use direct_ccs_f_prime::{
+    prove_direct_ccs_f_prime_snark_with_perf, DirectCcsFPrimeSnarkError, DirectCcsFPrimeSnarkPerf,
+    DirectCcsFPrimeSnarkProof,
 };
 pub use f_prime::{
     build_rv64im_main_recursion_f_prime_advices, build_rv64im_main_recursion_f_prime_advices_single_step,

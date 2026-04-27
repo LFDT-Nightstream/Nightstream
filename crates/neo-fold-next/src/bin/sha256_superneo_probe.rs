@@ -1,3 +1,5 @@
+// Diagnostic probe binary: the repo's 1,500-line implementation-file limit does not apply here.
+
 use std::env;
 use std::error::Error;
 
@@ -21,7 +23,7 @@ use neo_fold_next::prover::CommitmentMixers;
 use neo_fold_next::run::{prove_and_package_with_perf, verify_packaged_with_perf};
 use neo_math::ring::Rq as RqEl;
 use neo_math::{D, F, K};
-use neo_params::NeoParams;
+use neo_params::{goldilocks_paper_b2, NeoParams};
 use neo_reductions::api::FoldingMode;
 use neo_reductions::common::{ct_from_y_ring_for_ccs_m, decode_superneo_coeffs_from_witness_mat, RotRing};
 use neo_reductions::engines::utils::{build_dims_and_policy, digest_ccs_matrices};
@@ -39,8 +41,7 @@ const AUX_FLAG: u32 = 1 << 31;
 #[derive(Clone, Copy, Debug)]
 struct Config {
     preimage_bytes: usize,
-    steps: usize,
-    rows_per_chunk: usize,
+    foldings: usize,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -51,6 +52,9 @@ struct SpartanRunSummary {
     snark_bytes: usize,
     backend_r1cs_constraints: usize,
     padded_backend_r1cs_constraints: usize,
+    backend_public_inputs: usize,
+    backend_challenges: usize,
+    backend_nnz_total: usize,
     spartan_pcs_ms: f64,
 }
 
@@ -65,8 +69,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             preimage_bytes: 3,
-            steps: 1,
-            rows_per_chunk: 1,
+            foldings: 1,
         }
     }
 }
@@ -82,21 +85,16 @@ impl Config {
                 config.preimage_bytes = parse_nonzero_usize("--preimage-bytes", raw)?;
                 continue;
             }
-            if let Some(raw) = arg.strip_prefix("--steps=") {
-                config.steps = parse_nonzero_usize("--steps", raw)?;
-                continue;
-            }
-            if let Some(raw) = arg.strip_prefix("--rows-per-chunk=") {
-                config.rows_per_chunk = parse_nonzero_usize("--rows-per-chunk", raw)?;
+            if let Some(raw) = arg
+                .strip_prefix("--foldings=")
+                .or_else(|| arg.strip_prefix("--steps="))
+            {
+                config.foldings = parse_nonzero_usize("--foldings", raw)?;
                 continue;
             }
             return Err(invalid_input(format!("unknown argument: {arg}")));
         }
         Ok(Some(config))
-    }
-
-    fn chunk_count(self) -> usize {
-        self.steps.div_ceil(self.rows_per_chunk)
     }
 }
 
@@ -117,12 +115,9 @@ fn parse_nonzero_usize(name: &'static str, raw: &str) -> AppResult<usize> {
 fn print_usage() {
     println!("sha256_superneo_probe");
     println!("Direct SHA256 Bellpepper->CCS diagnostic for the generic SuperNeo spine.");
-    println!("No VM frontend and no RV64IM relation are used.");
-    println!();
-    println!("Options:");
     println!("  --preimage-bytes=N   SHA256 preimage length in bytes [default: 3]");
-    println!("  --steps=N            number of repeated SHA256 CCS steps to fold [default: 1]");
-    println!("  --rows-per-chunk=N   generated SHA256 steps per SuperNeo chunk [default: 1]");
+    println!("  --foldings=N         number of SuperNeo folds to run [default: 1]");
+    println!("Alias: --steps=N for --foldings=N");
 }
 
 fn print_paper_stage_map() {
@@ -670,32 +665,33 @@ fn print_norm_budget(label: &str, params: &NeoParams, fresh_k: usize, incoming_k
     );
 }
 
-fn print_parameter_security_audit(
-    params: &NeoParams,
-    s: &CcsStructure<F>,
-    semantic_steps: usize,
-    rows_per_chunk: usize,
-) {
+fn print_parameter_security_audit(params: &NeoParams, s: &CcsStructure<F>, foldings: usize) {
     let dims = build_dims_and_policy(params, s).expect("valid dims");
     let ring = RotRing::goldilocks();
     let challenge_entropy_bits = D as f64 * (ring.alphabet.len() as f64).log2();
-    let repo_profile_match = params.d as usize == D
-        && params.eta == 81
-        && params.kappa == 16
-        && params.k_rho == 12
-        && params.B == 4096
-        && params.T == 216
-        && params.s == 2;
+    let expected = NeoParams::goldilocks_paper_b2();
+    let paper_b2_core_match = params.has_goldilocks_paper_b2_core()
+        && ring.phi_coeffs == goldilocks_paper_b2::PHI_COEFFS.as_slice()
+        && ring.alphabet == goldilocks_paper_b2::CHALLENGE_ALPHABET.as_slice()
+        && ring.binv_floor == Some(goldilocks_paper_b2::B_INV_FLOOR);
+    let entropy_status = if challenge_entropy_bits >= params.lambda as f64 {
+        "ok"
+    } else {
+        "WARN"
+    };
     let steady_max_fresh = max_fresh_k_for_incoming(params, params.k_rho as usize);
     let conservative_terms = ((dims.ell + dims.ell_nc) * s.max_degree().max(1) as usize).max(1);
     let conservative_sumcheck_bits = 64.0 * params.s as f64 - (conservative_terms as f64).log2();
 
     println!("== parameter/security audit ==");
     println!(
-        "field=Goldilocks q_bits=64 extension_s={} extension_field_bits~{} ring_degree_d={} cyclotomic=X^54 + X^27 + 1",
+        "field=Goldilocks q_bits={} extension_s={} extension_field_bits~{} ring_degree_d={} cyclotomic=X^{} + X^{} + 1",
+        u64::BITS - params.q.leading_zeros(),
         params.s,
-        64 * params.s,
-        D
+        (u64::BITS - params.q.leading_zeros()) * params.s,
+        D,
+        goldilocks_paper_b2::D,
+        goldilocks_paper_b2::PHI_MID_DEGREE
     );
     println!(
         "challenge_coeff_set={:?}, challenge_entropy_bits={:.2}, T_worst_case={}, b={}, k_dec={}, B={}, kappa={}, lambda={}",
@@ -709,8 +705,30 @@ fn print_parameter_security_audit(
         params.lambda
     );
     println!(
-        "repo_goldilocks_profile_match={} (expected d=54, eta=81, kappa=16, k_dec=12, B=4096, T=216, s=2)",
-        if repo_profile_match { "yes" } else { "no" }
+        "paper_appendix_b2_core_params_match={} (expected d={}, eta={}, kappa={}, k_dec={}, B={}, T={}, challenge_coeff_set={:?}, s={}, canonical_lambda={})",
+        if paper_b2_core_match { "yes" } else { "no" },
+        expected.d,
+        expected.eta,
+        expected.kappa,
+        expected.k_rho,
+        expected.B,
+        expected.T,
+        goldilocks_paper_b2::CHALLENGE_ALPHABET,
+        expected.s,
+        expected.lambda
+    );
+    println!(
+        "effective_lambda={}{}",
+        params.lambda,
+        if params.lambda == expected.lambda {
+            " (canonical paper profile)"
+        } else {
+            " (auto-lowered by extension policy for this CCS shape)"
+        }
+    );
+    println!(
+        "challenge_entropy_vs_lambda: {:.2} bits vs lambda={}, status={entropy_status}",
+        challenge_entropy_bits, params.lambda
     );
     println!(
         "Pi_CCS soundness estimate: FE_rounds={}, NC_rounds={}, max_degree={}, conservative_error_bits~{:.1}",
@@ -719,19 +737,11 @@ fn print_parameter_security_audit(
         s.max_degree(),
         conservative_sumcheck_bits
     );
-    print_norm_budget("norm budget cold chunk", params, rows_per_chunk.min(semantic_steps), 0);
-    print_norm_budget(
-        "norm budget steady chunk",
-        params,
-        rows_per_chunk.min(semantic_steps),
-        params.k_rho as usize,
-    );
+    print_norm_budget("norm budget cold chunk", params, 1, 0);
+    print_norm_budget("norm budget steady chunk", params, 1, params.k_rho as usize);
     println!("max_fresh_K_at_steady_state={steady_max_fresh}");
-    if semantic_steps <= rows_per_chunk {
+    if foldings == 1 {
         println!("warning: this run has one SuperNeo chunk and does not exercise carried CE claims");
-    }
-    if rows_per_chunk as u128 > steady_max_fresh {
-        println!("warning: rows_per_chunk exceeds the steady-state norm budget for current parameters");
     }
     println!();
 }
@@ -849,9 +859,10 @@ fn print_shape(config: Config, params: &NeoParams, s: &CcsStructure<F>, shape: S
     let dims = build_dims_and_policy(params, s).expect("valid dims");
     println!("== direct SHA256 CCS ==");
     println!(
-        "preimage: {} bytes; repeated fold steps={}; digest={}",
+        "preimage: {} bytes; foldings={}; same-shape SHA256 CCS claims={}; digest={}",
         config.preimage_bytes,
-        config.steps,
+        config.foldings,
+        config.foldings,
         hex_lower(&digest)
     );
     println!(
@@ -878,25 +889,22 @@ fn print_shape(config: Config, params: &NeoParams, s: &CcsStructure<F>, shape: S
         params.b, params.k_rho, params.B, params.kappa, params.T, params.s
     );
     println!(
-        "fold schedule: RowsPerChunk({}); expected chunks={}",
-        config.rows_per_chunk,
-        config.chunk_count()
+        "fold schedule: one whole SHA256 CCS claim per SuperNeo fold; expected SuperNeo folds={}",
+        config.foldings
     );
     println!();
 }
 
 fn print_steps(config: Config, step: &StepInput) {
-    println!("== generated SHA256 fold steps ==");
+    println!("== generated SHA256 fold claims ==");
     println!(
-        "public input fields per step: {}; first field={}, digest_bit_inputs={}",
+        "public input fields per claim: {}; first field={}, digest_bit_inputs={}",
         step.mcs.x.len(),
         step.mcs.x[0].as_canonical_u64(),
         step.mcs.x.len().saturating_sub(1)
     );
-    for idx in 0..config.steps {
-        let chunk = idx / config.rows_per_chunk;
-        let row_in_chunk = idx % config.rows_per_chunk;
-        println!("step[{idx}]: chunk={chunk}, row_in_chunk={row_in_chunk}, label=sha256_step_{idx}");
+    for idx in 0..config.foldings {
+        println!("claim[{idx}]: folding={idx}, label=sha256_claim_{idx}");
     }
     println!();
 }
@@ -1367,6 +1375,9 @@ fn print_spartan(params: &NeoParams, s: &CcsStructure<F>, packaged: &PackagedPro
         snark_bytes,
         backend_r1cs_constraints: sizes[0],
         padded_backend_r1cs_constraints: sizes[4],
+        backend_public_inputs: sizes[8],
+        backend_challenges: sizes[9],
+        backend_nnz_total: stats.total_nnz,
         spartan_pcs_ms: perf.shell.snark_perf.pcs_prove_ms,
     })
 }
@@ -1380,14 +1391,15 @@ fn print_final_summary(prove_perf: &RunProvePerf, spartan: SpartanRunSummary) {
     println!("== final summary ==");
     println!("proving (before spartan): {:.3} ms", prove_perf.total_ms);
     println!(
-        "  number of folds: {} SuperNeo chunk fold(s) over {} fresh CCS step(s)",
+        "  number of folds: {} SuperNeo chunk fold(s) over {} SHA256 CCS claim(s)",
         chunk_folds, fresh_steps
     );
     println!(
-        "  time per fold: {:.3} ms/chunk fold ({:.3} ms/fresh CCS step)",
+        "  time per fold: {:.3} ms/chunk fold ({:.3} ms/SHA256 CCS claim)",
         ms_per_chunk_fold, ms_per_fresh_step
     );
     println!("proving (spartan): {:.3} ms", spartan.prove_ms);
+    println!("proving (total): {:.3} ms", prove_perf.total_ms + spartan.prove_ms);
     println!("verifying (final proof): {:.3} ms", spartan.verify_ms);
     println!(
         "constraints passed to Spartan2: {} backend R1CS constraints (padded to {})",
@@ -1401,7 +1413,6 @@ fn print_final_summary(prove_perf: &RunProvePerf, spartan: SpartanRunSummary) {
             .final_proof_bytes
             .saturating_sub(spartan.snark_bytes)
     );
-    print_optimization_ranking(prove_perf, spartan);
     println!();
 }
 
@@ -1420,10 +1431,124 @@ fn print_optimization_ranking(prove_perf: &RunProvePerf, spartan: SpartanRunSumm
         ("Spartan PCS", spartan.spartan_pcs_ms),
     ];
     items.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-    println!("optimization ranking (measured):");
+    println!("== optimization ranking ==");
     for (rank, (label, ms)) in items.into_iter().take(5).enumerate() {
         println!("  {}. {}: {:.3} ms", rank + 1, label, ms);
     }
+    println!();
+}
+
+fn print_folding_timing_table(perf: &RunProvePerf, ccs_rows_per_claim: usize) {
+    let chunks = perf.chunks.iter().take(4).collect::<Vec<_>>();
+    macro_rules! row {
+        ($label:expr, $value:expr) => {{
+            print!("{:<34}", $label);
+            for &chunk in &chunks {
+                print!(" | {:>12}", $value(chunk));
+            }
+            println!();
+        }};
+    }
+    println!("== folding timing table ==");
+    if perf.chunks.len() > chunks.len() {
+        println!("showing first {} of {} foldings", chunks.len(), perf.chunks.len());
+    }
+    print!("{:<34}", "metric");
+    for idx in 0..chunks.len() {
+        print!(" | {:>12}", format!("fold[{idx}]"));
+    }
+    println!();
+    row!("fresh CCS claims", |chunk: &ChunkProvePerf| chunk
+        .fresh_steps
+        .to_string());
+    row!("incoming CE claims", |chunk: &ChunkProvePerf| chunk
+        .incoming_main_claims
+        .to_string());
+    row!("generate z/input ms", |chunk: &ChunkProvePerf| format!(
+        "{:.3}",
+        chunk.prepare_inputs_ms
+    ));
+    row!("Pi_CCS ms", |chunk: &ChunkProvePerf| format!("{:.3}", chunk.ccs_ms));
+    row!("  FE sumcheck ms (CCS rows)", |chunk: &ChunkProvePerf| format!(
+        "{:.3} ({})",
+        chunk.ccs_fe_sumcheck_ms,
+        chunk.fresh_steps * ccs_rows_per_claim
+    ));
+    row!("  NC sumcheck ms (openings)", |chunk: &ChunkProvePerf| format!(
+        "{:.3} ({})",
+        chunk.ccs_nc_sumcheck_ms, chunk.ccs_outputs
+    ));
+    row!("Pi_RLC fold ms", |chunk: &ChunkProvePerf| format!(
+        "{:.3}",
+        chunk.rlc_ms
+    ));
+    row!("Pi_DEC split ms", |chunk: &ChunkProvePerf| format!(
+        "{:.3}",
+        chunk.dec_split_ms
+    ));
+    row!("Pi_DEC commit ms", |chunk: &ChunkProvePerf| format!(
+        "{:.3}",
+        chunk.dec_commit_ms
+    ));
+    row!("Pi_DEC check ms", |chunk: &ChunkProvePerf| format!(
+        "{:.3}",
+        chunk.dec_ms
+    ));
+    row!("chunk wall total ms", |chunk: &ChunkProvePerf| format!(
+        "{:.3}",
+        chunk.total_ms
+    ));
+    println!("note: Pi_CCS FE count is fresh CCS claims * CCS rows; Pi_CCS NC count is K+k claim openings");
+    println!("note: Pi_RLC is the linear folding reduction; Pi_DEC decomposes the folded parent for the next chunk");
+    println!();
+}
+
+fn print_constraint_breakdown(
+    s: &CcsStructure<F>,
+    shape: Sha256CircuitShape,
+    prove_perf: &RunProvePerf,
+    spartan: SpartanRunSummary,
+) {
+    let fresh = prove_perf.fresh_steps();
+    let total_ccs_rows = s.n.saturating_mul(fresh);
+    let total_r1cs = shape.constraints.saturating_mul(fresh);
+    let padding_rows = spartan
+        .padded_backend_r1cs_constraints
+        .saturating_sub(spartan.backend_r1cs_constraints);
+    let padding_pct = if spartan.backend_r1cs_constraints == 0 {
+        0.0
+    } else {
+        100.0 * padding_rows as f64 / spartan.backend_r1cs_constraints as f64
+    };
+    println!("== constraint breakdown ==");
+    println!("circuit constraints:");
+    println!("  SHA256 Bellpepper R1CS constraints per claim: {}", shape.constraints);
+    println!("  SHA256 CCS rows per claim: {}", s.n);
+    println!("  folded claims: {fresh}");
+    println!("  total Bellpepper R1CS constraints folded: {total_r1cs}");
+    println!("  total semantic CCS rows folded: {total_ccs_rows}");
+    println!(
+        "  CCS columns={}, matrices={}, degree={}, nnz={}",
+        s.m,
+        s.t(),
+        s.max_degree(),
+        ccs_matrix_nnz(s)
+    );
+    println!("Spartan2 constraints:");
+    println!(
+        "  backend R1CS constraints passed: {}",
+        spartan.backend_r1cs_constraints
+    );
+    println!(
+        "  padded backend constraints: {}",
+        spartan.padded_backend_r1cs_constraints
+    );
+    println!("  padding rows: {padding_rows} ({padding_pct:.1}% over actual)");
+    println!(
+        "  backend public inputs={}, challenges={}, nnz_total={}",
+        spartan.backend_public_inputs, spartan.backend_challenges, spartan.backend_nnz_total
+    );
+    println!();
 }
 
 fn run() -> AppResult<()> {
@@ -1440,11 +1565,11 @@ fn run() -> AppResult<()> {
     check_sha256_public_inputs_match_digest(&digest, &witness[..sha_shape.inputs])?;
     let params = NeoParams::goldilocks_auto_r1cs_ccs(ccs.n)?;
     let log = make_ajtai_module(&params, ccs.m.div_ceil(D))?;
-    let base_step = sha256_step(&log, "sha256_step_0", &ccs, &witness, sha_shape.inputs);
-    let steps = (0..config.steps)
+    let base_step = sha256_step(&log, "sha256_claim_0", &ccs, &witness, sha_shape.inputs);
+    let steps = (0..config.foldings)
         .map(|idx| {
             let mut step = base_step.clone();
-            step.label = format!("sha256_step_{idx}");
+            step.label = format!("sha256_claim_{idx}");
             step
         })
         .collect::<Vec<_>>();
@@ -1457,11 +1582,11 @@ fn run() -> AppResult<()> {
     );
     println!();
     print_ccs_sparse_matrix_diagnostic(&ccs);
-    print_parameter_security_audit(&params, &ccs, config.steps, config.rows_per_chunk);
+    print_parameter_security_audit(&params, &ccs, config.foldings);
     print_paper_stage_map();
     print_steps(config, &base_step);
 
-    let schedule = FoldSchedule::RowsPerChunk(config.rows_per_chunk);
+    let schedule = FoldSchedule::RowsPerChunk(1);
     let public_steps = steps.iter().map(StepInput::public).collect::<Vec<_>>();
     let (packaged, prove_perf) = prove_and_package_with_perf(
         FoldingMode::Optimized,
@@ -1487,6 +1612,9 @@ fn run() -> AppResult<()> {
     }
     print_verify_perf(&verify_perf);
     let spartan_summary = print_spartan(&params, &ccs, &packaged)?;
+    print_optimization_ranking(&prove_perf, spartan_summary);
+    print_folding_timing_table(&prove_perf, ccs.n);
+    print_constraint_breakdown(&ccs, sha_shape, &prove_perf, spartan_summary);
     print_final_summary(&prove_perf, spartan_summary);
     Ok(())
 }

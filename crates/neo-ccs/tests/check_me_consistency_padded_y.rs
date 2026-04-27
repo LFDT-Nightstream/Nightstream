@@ -23,7 +23,7 @@ impl SModuleHomomorphism<Fq, Vec<Fq>> for TestL {
 
 #[test]
 fn me_consistency_accepts_padded_y_rows() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
 
     // CCS: n=4 (power of two), SuperNeo-compatible m=D, t=1, f(y)=y0 (linear)
     let n = 4usize;

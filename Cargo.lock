@@ -1944,6 +1944,7 @@ dependencies = [
 name = "neo-math"
 version = "0.1.0"
 dependencies = [
+ "neo-params",
  "p3-field",
  "p3-goldilocks",
  "p3-matrix",

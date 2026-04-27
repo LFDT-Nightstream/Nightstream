@@ -1,3 +1,5 @@
+// Diagnostic probe binary: the repo's 1,500-line implementation-file limit does not apply here.
+
 use std::env;
 use std::error::Error;
 
@@ -18,7 +20,7 @@ use neo_fold_next::prover::CommitmentMixers;
 use neo_fold_next::run::{prove_and_package_with_perf, verify_packaged_with_perf};
 use neo_math::ring::Rq as RqEl;
 use neo_math::{D, F, K};
-use neo_params::NeoParams;
+use neo_params::{goldilocks_paper_b2, NeoParams};
 use neo_reductions::api::FoldingMode;
 use neo_reductions::common::{ct_from_y_ring_for_ccs_m, decode_superneo_coeffs_from_witness_mat, RotRing};
 use neo_reductions::engines::utils::{build_dims_and_policy, digest_ccs_matrices};
@@ -46,6 +48,9 @@ struct SpartanRunSummary {
     snark_bytes: usize,
     backend_r1cs_constraints: usize,
     padded_backend_r1cs_constraints: usize,
+    backend_public_inputs: usize,
+    backend_challenges: usize,
+    backend_nnz_total: usize,
     spartan_pcs_ms: f64,
 }
 
@@ -447,23 +452,29 @@ fn print_parameter_security_audit(
     let dims = build_dims_and_policy(params, s).expect("valid dims");
     let ring = RotRing::goldilocks();
     let challenge_entropy_bits = D as f64 * (ring.alphabet.len() as f64).log2();
-    let repo_profile_match = params.d as usize == D
-        && params.eta == 81
-        && params.kappa == 16
-        && params.k_rho == 12
-        && params.B == 4096
-        && params.T == 216
-        && params.s == 2;
+    let expected = NeoParams::goldilocks_paper_b2();
+    let paper_b2_core_match = params.has_goldilocks_paper_b2_core()
+        && ring.phi_coeffs == goldilocks_paper_b2::PHI_COEFFS.as_slice()
+        && ring.alphabet == goldilocks_paper_b2::CHALLENGE_ALPHABET.as_slice()
+        && ring.binv_floor == Some(goldilocks_paper_b2::B_INV_FLOOR);
+    let entropy_status = if challenge_entropy_bits >= params.lambda as f64 {
+        "ok"
+    } else {
+        "WARN"
+    };
     let steady_max_fresh = max_fresh_k_for_incoming(params, params.k_rho as usize);
     let conservative_terms = ((dims.ell + dims.ell_nc) * s.max_degree().max(1) as usize).max(1);
     let conservative_sumcheck_bits = 64.0 * params.s as f64 - (conservative_terms as f64).log2();
 
     println!("== parameter/security audit ==");
     println!(
-        "field=Goldilocks q_bits=64 extension_s={} extension_field_bits~{} ring_degree_d={} cyclotomic=X^54 + X^27 + 1",
+        "field=Goldilocks q_bits={} extension_s={} extension_field_bits~{} ring_degree_d={} cyclotomic=X^{} + X^{} + 1",
+        u64::BITS - params.q.leading_zeros(),
         params.s,
-        64 * params.s,
-        D
+        (u64::BITS - params.q.leading_zeros()) * params.s,
+        D,
+        goldilocks_paper_b2::D,
+        goldilocks_paper_b2::PHI_MID_DEGREE
     );
     println!(
         "challenge_coeff_set={:?}, challenge_entropy_bits={:.2}, T_worst_case={}, b={}, k_dec={}, B={}, kappa={}, lambda={}",
@@ -477,8 +488,30 @@ fn print_parameter_security_audit(
         params.lambda
     );
     println!(
-        "repo_goldilocks_profile_match={} (expected d=54, eta=81, kappa=16, k_dec=12, B=4096, T=216, s=2)",
-        if repo_profile_match { "yes" } else { "no" }
+        "paper_appendix_b2_core_params_match={} (expected d={}, eta={}, kappa={}, k_dec={}, B={}, T={}, challenge_coeff_set={:?}, s={}, canonical_lambda={})",
+        if paper_b2_core_match { "yes" } else { "no" },
+        expected.d,
+        expected.eta,
+        expected.kappa,
+        expected.k_rho,
+        expected.B,
+        expected.T,
+        goldilocks_paper_b2::CHALLENGE_ALPHABET,
+        expected.s,
+        expected.lambda
+    );
+    println!(
+        "effective_lambda={}{}",
+        params.lambda,
+        if params.lambda == expected.lambda {
+            " (canonical paper profile)"
+        } else {
+            " (auto-lowered by extension policy for this CCS shape)"
+        }
+    );
+    println!(
+        "challenge_entropy_vs_lambda: {:.2} bits vs lambda={}, status={entropy_status}",
+        challenge_entropy_bits, params.lambda
     );
     println!(
         "Pi_CCS soundness estimate: FE_rounds={}, NC_rounds={}, max_degree={}, conservative_error_bits~{:.1}",
@@ -1170,6 +1203,9 @@ fn print_spartan(params: &NeoParams, s: &CcsStructure<F>, packaged: &PackagedPro
         snark_bytes,
         backend_r1cs_constraints: sizes[0],
         padded_backend_r1cs_constraints: sizes[4],
+        backend_public_inputs: sizes[8],
+        backend_challenges: sizes[9],
+        backend_nnz_total: stats.total_nnz,
         spartan_pcs_ms: perf.shell.snark_perf.pcs_prove_ms,
     })
 }
@@ -1191,6 +1227,7 @@ fn print_final_summary(prove_perf: &RunProvePerf, spartan: SpartanRunSummary) {
         ms_per_chunk_fold, ms_per_fresh_step
     );
     println!("proving (spartan): {:.3} ms", spartan.prove_ms);
+    println!("proving (total): {:.3} ms", prove_perf.total_ms + spartan.prove_ms);
     println!("verifying (final proof): {:.3} ms", spartan.verify_ms);
     println!(
         "constraints passed to Spartan2: {} backend R1CS constraints (padded to {})",
@@ -1204,7 +1241,6 @@ fn print_final_summary(prove_perf: &RunProvePerf, spartan: SpartanRunSummary) {
             .final_proof_bytes
             .saturating_sub(spartan.snark_bytes)
     );
-    print_optimization_ranking(prove_perf, spartan);
     println!();
 }
 
@@ -1223,10 +1259,137 @@ fn print_optimization_ranking(prove_perf: &RunProvePerf, spartan: SpartanRunSumm
         ("Spartan PCS", spartan.spartan_pcs_ms),
     ];
     items.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-    println!("optimization ranking (measured):");
+    println!("== optimization ranking ==");
     for (rank, (label, ms)) in items.into_iter().take(5).enumerate() {
         println!("  {}. {}: {:.3} ms", rank + 1, label, ms);
     }
+    println!();
+}
+
+fn print_folding_timing_table(perf: &RunProvePerf, ccs_rows_per_claim: usize) {
+    let chunks = perf.chunks.iter().take(4).collect::<Vec<_>>();
+    println!("== folding timing table ==");
+    if perf.chunks.len() > chunks.len() {
+        println!("showing first {} of {} foldings", chunks.len(), perf.chunks.len());
+    }
+    print_fold_table_row(
+        "metric",
+        chunks
+            .iter()
+            .enumerate()
+            .map(|(idx, _)| format!("fold[{idx}]")),
+    );
+    print_fold_table_row(
+        "fresh CCS claims",
+        chunks.iter().map(|chunk| chunk.fresh_steps.to_string()),
+    );
+    print_fold_table_row(
+        "incoming CE claims",
+        chunks
+            .iter()
+            .map(|chunk| chunk.incoming_main_claims.to_string()),
+    );
+    print_fold_table_row(
+        "generate z/input ms",
+        chunks
+            .iter()
+            .map(|chunk| format!("{:.3}", chunk.prepare_inputs_ms)),
+    );
+    print_fold_table_row("Pi_CCS ms", chunks.iter().map(|chunk| format!("{:.3}", chunk.ccs_ms)));
+    print_fold_table_row(
+        "  FE sumcheck ms (CCS rows)",
+        chunks.iter().map(|chunk| {
+            format!(
+                "{:.3} ({})",
+                chunk.ccs_fe_sumcheck_ms,
+                chunk.fresh_steps * ccs_rows_per_claim
+            )
+        }),
+    );
+    print_fold_table_row(
+        "  NC sumcheck ms (openings)",
+        chunks
+            .iter()
+            .map(|chunk| format!("{:.3} ({})", chunk.ccs_nc_sumcheck_ms, chunk.ccs_outputs)),
+    );
+    print_fold_table_row(
+        "Pi_RLC fold ms",
+        chunks.iter().map(|chunk| format!("{:.3}", chunk.rlc_ms)),
+    );
+    print_fold_table_row(
+        "Pi_DEC split ms",
+        chunks
+            .iter()
+            .map(|chunk| format!("{:.3}", chunk.dec_split_ms)),
+    );
+    print_fold_table_row(
+        "Pi_DEC commit ms",
+        chunks
+            .iter()
+            .map(|chunk| format!("{:.3}", chunk.dec_commit_ms)),
+    );
+    print_fold_table_row(
+        "Pi_DEC check ms",
+        chunks.iter().map(|chunk| format!("{:.3}", chunk.dec_ms)),
+    );
+    print_fold_table_row(
+        "chunk wall total ms",
+        chunks.iter().map(|chunk| format!("{:.3}", chunk.total_ms)),
+    );
+    println!("note: Pi_CCS FE count is fresh CCS claims * CCS rows; Pi_CCS NC count is K+k claim openings");
+    println!("note: Pi_RLC is the linear folding reduction; Pi_DEC decomposes the folded parent for the next chunk");
+    println!();
+}
+
+fn print_fold_table_row<I>(label: &str, values: I)
+where
+    I: IntoIterator<Item = String>,
+{
+    print!("{label:<34}");
+    for value in values {
+        print!(" | {value:>12}");
+    }
+    println!();
+}
+
+fn print_constraint_breakdown(s: &CcsStructure<F>, prove_perf: &RunProvePerf, spartan: SpartanRunSummary) {
+    let fresh = prove_perf.fresh_steps();
+    let total_ccs_rows = s.n.saturating_mul(fresh);
+    let padding_rows = spartan
+        .padded_backend_r1cs_constraints
+        .saturating_sub(spartan.backend_r1cs_constraints);
+    let padding_pct = if spartan.backend_r1cs_constraints == 0 {
+        0.0
+    } else {
+        100.0 * padding_rows as f64 / spartan.backend_r1cs_constraints as f64
+    };
+    println!("== constraint breakdown ==");
+    println!("circuit constraints:");
+    println!("  Fibonacci CCS rows per claim: {}", s.n);
+    println!("  folded claims: {fresh}");
+    println!("  total semantic CCS rows folded: {total_ccs_rows}");
+    println!(
+        "  CCS columns={}, matrices={}, degree={}, nnz={}",
+        s.m,
+        s.t(),
+        s.max_degree(),
+        ccs_matrix_nnz(s)
+    );
+    println!("Spartan2 constraints:");
+    println!(
+        "  backend R1CS constraints passed: {}",
+        spartan.backend_r1cs_constraints
+    );
+    println!(
+        "  padded backend constraints: {}",
+        spartan.padded_backend_r1cs_constraints
+    );
+    println!("  padding rows: {padding_rows} ({padding_pct:.1}% over actual)");
+    println!(
+        "  backend public inputs={}, challenges={}, nnz_total={}",
+        spartan.backend_public_inputs, spartan.backend_challenges, spartan.backend_nnz_total
+    );
+    println!();
 }
 
 fn run() -> AppResult<()> {
@@ -1281,6 +1444,9 @@ fn run() -> AppResult<()> {
     }
     print_verify_perf(&verify_perf);
     let spartan_summary = print_spartan(&params, &ccs, &packaged)?;
+    print_optimization_ranking(&prove_perf, spartan_summary);
+    print_folding_timing_table(&prove_perf, ccs.n);
+    print_constraint_breakdown(&ccs, &prove_perf, spartan_summary);
     print_final_summary(&prove_perf, spartan_summary);
 
     Ok(())

@@ -149,7 +149,7 @@ fn witness_strategy(m: usize) -> impl Strategy<Value = Vec<F>> {
 
 /// Strategy for generating Neo parameters
 fn neo_params_strategy() -> impl Strategy<Value = NeoParams> {
-    (2u32..=4, 2u32..=4, 2u32..=4).prop_map(|(_, _, _)| NeoParams::goldilocks_127())
+    (2u32..=4, 2u32..=4, 2u32..=4).prop_map(|(_, _, _)| NeoParams::goldilocks_paper_b2())
 }
 
 // ============================================================================
@@ -200,7 +200,7 @@ proptest! {
         m in 2usize..=8,
         seed in any::<u64>(),
     ) {
-        let params = NeoParams::goldilocks_127();
+        let params = NeoParams::goldilocks_paper_b2();
         let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(seed);
 
         // Generate random Z matrix (D × m)
@@ -245,7 +245,7 @@ proptest! {
     ) {
         // Setup
         setup_ajtai_for_dims(m, seed);
-        let params = NeoParams::goldilocks_127();
+        let params = NeoParams::goldilocks_paper_b2();
 
         // Create simple CCS structure
         let m0 = Mat::identity(n);
@@ -302,7 +302,7 @@ proptest! {
     ) {
         // Setup
         setup_ajtai_for_dims(m, seed);
-        let params = NeoParams::goldilocks_127();
+        let params = NeoParams::goldilocks_paper_b2();
 
         // Create simple CCS with t=2
         let m0 = Mat::identity(n);
@@ -356,7 +356,7 @@ proptest! {
     ) {
         // Setup
         setup_ajtai_for_dims(m, seed);
-        let params = NeoParams::goldilocks_127();
+        let params = NeoParams::goldilocks_paper_b2();
 
         // Create simple CCS: t=1, f(y0)=y0
         let m0 = Mat::identity(n);
@@ -440,7 +440,7 @@ proptest! {
     ) {
         // Setup
         setup_ajtai_for_dims(m, seed);
-        let params = NeoParams::goldilocks_127();
+        let params = NeoParams::goldilocks_paper_b2();
 
         let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(seed + 1);
 
@@ -470,7 +470,7 @@ proptest! {
         m in 2usize..=6,
         seed in any::<u64>(),
     ) {
-        let params = NeoParams::goldilocks_127();
+        let params = NeoParams::goldilocks_paper_b2();
         let b = params.b;
         let k = params.k_rho as usize;
 
@@ -507,7 +507,7 @@ fn test_full_pipeline_paper_vs_engine_k1() {
     let m = 2usize;
 
     setup_ajtai_for_dims(m, seed);
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
 
     // Create simple CCS
     let m0 = Mat::identity(n);
@@ -570,7 +570,7 @@ fn test_full_pipeline_paper_vs_engine_k2() {
     let m = 4usize;
 
     setup_ajtai_for_dims(m, seed);
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
 
     // Create CCS with t=2
     let m0 = Mat::identity(n);
@@ -647,7 +647,7 @@ fn test_rhs_terminal_comprehensive() {
     let m = 3usize;
 
     setup_ajtai_for_dims(m, seed);
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
 
     // Create CCS with non-trivial polynomial
     let m0 = Mat::identity(n);

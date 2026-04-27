@@ -36,7 +36,7 @@ impl SModuleHomomorphism<Fq, neo_ajtai::Commitment> for AjtaiL {
 
 #[test]
 fn me_consistency_rejects_tamper() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
 
     // CCS: n=4 (power of two), SuperNeo-compatible m=D, t=1, f(y)=y0 (linear)
     let n = 4usize;

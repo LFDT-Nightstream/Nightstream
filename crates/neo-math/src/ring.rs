@@ -2,14 +2,16 @@
 //! MUST: cf/cf^{-1}, ||a||_∞, rot(a) S-action on vectors; constant-time schoolbook mul.
 
 use crate::Fq;
+use neo_params::goldilocks_paper_b2;
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 use std::ops::{Add, Mul, Sub};
 use std::sync::OnceLock;
 
 /// Cyclotomic parameter eta and derived dimension d = deg(Phi_eta).
-pub const ETA: usize = 81;
+pub const ETA: usize = goldilocks_paper_b2::ETA;
 /// Degree d = 54 for Phi_{81}(X) = X^54 + X^27 + 1 (used throughout Neo).
-pub const D: usize = 54;
+pub const D: usize = goldilocks_paper_b2::D;
+pub const PHI_MID_DEGREE: usize = goldilocks_paper_b2::PHI_MID_DEGREE;
 
 /// A ring element a(X) ∈ R_q is represented by its coefficient vector (length D).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -68,15 +70,15 @@ impl Rq {
             let new_deg = i + j;
             if new_deg < D {
                 out[new_deg] = self.0[i];
-            } else if new_deg < D + 27 {
+            } else if new_deg < D + PHI_MID_DEGREE {
                 // X^new_deg = X^(new_deg-54) * X^54 = X^(new_deg-54) * (-X^27 - 1)
                 let reduced_deg = new_deg - D;
                 out[reduced_deg] -= self.0[i]; // -X^(new_deg-54)
-                out[reduced_deg + 27] -= self.0[i]; // -X^(new_deg-54+27) = -X^(new_deg-27)
+                out[reduced_deg + PHI_MID_DEGREE] -= self.0[i]; // -X^(new_deg-54+27) = -X^(new_deg-27)
             } else {
                 // new_deg >= D + 27, so new_deg - 27 >= D
                 // X^new_deg = -X^(new_deg-27) - X^(new_deg-54)
-                let deg1 = new_deg - 27;
+                let deg1 = new_deg - PHI_MID_DEGREE;
                 let deg2 = new_deg - D;
                 if deg2 < D {
                     out[deg2] -= self.0[i];
@@ -86,8 +88,8 @@ impl Rq {
                     let deg1_red = deg1 - D;
                     if deg1_red < D {
                         out[deg1_red] += self.0[i]; // -(-X^(deg1_red)) = +X^(deg1_red)
-                        if deg1_red + 27 < D {
-                            out[deg1_red + 27] += self.0[i];
+                        if deg1_red + PHI_MID_DEGREE < D {
+                            out[deg1_red + PHI_MID_DEGREE] += self.0[i];
                         }
                     }
                 } else {
@@ -227,14 +229,14 @@ pub(crate) fn reduce_mod_phi_81(coeffs: &mut [Fq; 2 * D - 1]) {
         let t = coeffs[i];
         coeffs[i] = Fq::ZERO;
         coeffs[i - D] -= t; // X^i = X^(i-54) * X^54 = X^(i-54) * (-X^27 - 1)
-        let idx_27 = i - 27;
+        let idx_27 = i - PHI_MID_DEGREE;
         if idx_27 < D {
             coeffs[idx_27] -= t; // -X^(i-27)
         } else {
             // idx_27 >= D, need recursive reduction
             coeffs[idx_27 - D] += t; // -(-X^(idx_27-54)) = +X^(idx_27-54)
-            if idx_27 - 27 < D {
-                coeffs[idx_27 - 27] += t; // -(-X^(idx_27-27)) = +X^(idx_27-27)
+            if idx_27 - PHI_MID_DEGREE < D {
+                coeffs[idx_27 - PHI_MID_DEGREE] += t; // -(-X^(idx_27-27)) = +X^(idx_27-27)
             }
         }
     }

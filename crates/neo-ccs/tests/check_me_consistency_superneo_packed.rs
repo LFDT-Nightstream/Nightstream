@@ -34,7 +34,7 @@ fn superneo_project_x(z: &Mat<Fq>, m_in: usize) -> Mat<Fq> {
 
 #[test]
 fn me_consistency_superneo_packed_enforces_constant_term_ct() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
 
     // CCS: n=1, m=D, t=1, linear f(y)=y0.
     let n = 1usize;

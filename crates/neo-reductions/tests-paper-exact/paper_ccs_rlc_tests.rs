@@ -135,7 +135,7 @@ fn tiny_ccs_t2(n: usize, m: usize) -> CcsStructure<F> {
 
 #[test]
 fn paper_exact_rlc_matches_direct_opening_and_eval() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     setup_ajtai_for_dims(m);
 
@@ -269,7 +269,7 @@ fn paper_exact_rlc_matches_direct_opening_and_eval() {
 
 #[test]
 fn paper_exact_full_loop_k2_one_step_roundtrip() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     setup_ajtai_for_dims(m);
 
@@ -400,7 +400,7 @@ fn paper_exact_full_loop_k2_one_step_roundtrip() {
 
 #[test]
 fn paper_exact_full_loop_k2_two_steps_chain() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     setup_ajtai_for_dims(m);
 
@@ -578,7 +578,7 @@ fn paper_exact_full_loop_k2_two_steps_chain() {
 
 #[test]
 fn paper_exact_rlc_tampered_input_y_breaks_consistency() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     setup_ajtai_for_dims(m);
 

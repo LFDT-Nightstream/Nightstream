@@ -236,6 +236,39 @@ pub fn optimized_replay_terminal_state_with_cache_and_instance_digest_and_perf<
     Ok(terminal_state)
 }
 
+pub fn optimized_replay_terminal_state_with_cache_instance_digest_and_me_input_handle_and_perf<
+    L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>,
+>(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[CcsClaim<Cmt, F>],
+    mcs_witnesses: &[CcsWitness<F>],
+    me_inputs: &[CeClaim<Cmt, F, K>],
+    me_witnesses: &[Mat<F>],
+    public_instance_digest: [F; 4],
+    me_input_accumulator_handle: [F; 4],
+    log: &L,
+    cache: &OptimizedStructureCache,
+) -> Result<PiCcsReplayTerminalState, PiCcsError> {
+    let (terminal_state, _rounds) = run_optimized_replay_with_cache_and_perf(
+        tr,
+        params,
+        s,
+        mcs_list,
+        mcs_witnesses,
+        me_inputs,
+        me_witnesses,
+        log,
+        cache,
+        Some(public_instance_digest),
+        Some(me_input_accumulator_handle),
+        ReplayTraceMode::TerminalState,
+    )?;
+    validate_replay_terminal_state(params, s, mcs_list, me_inputs, &terminal_state)?;
+    Ok(terminal_state)
+}
+
 pub fn optimized_replay_outputs_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,

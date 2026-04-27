@@ -59,7 +59,7 @@ fn public_inputs_from_witness(Z: &Mat<F>, expected_m: usize, m_in: usize) -> Vec
 
 #[test]
 fn paper_exact_dec_reconstruction_and_checks_hold() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     setup_ajtai_for_dims(m);
 
@@ -149,7 +149,7 @@ fn paper_exact_dec_reconstruction_and_checks_hold() {
 
 #[test]
 fn paper_exact_dec_k1_identity() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     setup_ajtai_for_dims(m);
 
@@ -200,7 +200,7 @@ fn paper_exact_dec_k1_identity() {
 
 #[test]
 fn paper_exact_dec_wrong_split_detected() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     setup_ajtai_for_dims(m);
 
@@ -264,7 +264,7 @@ fn paper_exact_dec_wrong_split_detected() {
 
 #[test]
 fn paper_exact_dec_rlc_roundtrip() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     setup_ajtai_for_dims(m);
 

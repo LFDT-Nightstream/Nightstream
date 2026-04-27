@@ -52,7 +52,7 @@ fn rand_k() -> K {
 
 #[test]
 fn paper_exact_rhs_matches_direct_eval_k1() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let n = D;
     let m = D;
     let m_commit = m / D;
@@ -99,7 +99,7 @@ fn paper_exact_rhs_matches_direct_eval_k1() {
 
 #[test]
 fn paper_exact_rhs_matches_direct_eval_with_eval_block() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let n = D;
     let m = D;
     let m_commit = m / D;
@@ -170,7 +170,7 @@ fn paper_exact_rhs_matches_direct_eval_with_eval_block() {
 
 #[test]
 fn paper_exact_k2_end_to_end_fold_identity() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let n = D;
     let m = D;
     let m_commit = m / D;
@@ -238,7 +238,7 @@ fn paper_exact_k2_end_to_end_fold_identity() {
 
 #[test]
 fn paper_exact_k2_invalid_outputs_break_identity() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let n = D;
     let m = D;
     let m_commit = m / D;
@@ -313,7 +313,7 @@ fn paper_exact_k2_invalid_outputs_break_identity() {
 
 #[test]
 fn paper_exact_k2_ivc_two_steps() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let n = D;
     let m = D;
     let m_commit = m / D;
@@ -399,7 +399,7 @@ fn paper_exact_k2_ivc_two_steps() {
 
 #[test]
 fn paper_exact_k2_mismatched_mcs_and_outputs() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let n = 2usize;
     let m = 2usize;
     setup_ajtai_for_dims(m);
@@ -476,7 +476,7 @@ fn paper_exact_k2_mismatched_mcs_and_outputs() {
 
 #[test]
 fn paper_exact_boolean_corner_matches_extension_eval() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     setup_ajtai_for_dims(m);
 
@@ -517,7 +517,7 @@ fn paper_exact_boolean_corner_matches_extension_eval() {
 
 #[test]
 fn paper_exact_outputs_equal_literal_definition() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     setup_ajtai_for_dims(m);
 
@@ -596,7 +596,7 @@ fn paper_exact_outputs_equal_literal_definition() {
 
 #[test]
 fn paper_exact_f_term_matches_mle_and_yprime_recomposition() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     setup_ajtai_for_dims(m);
 
@@ -666,7 +666,7 @@ fn paper_exact_f_term_matches_mle_and_yprime_recomposition() {
 
 #[test]
 fn paper_exact_gamma_zero_kills_nc_and_eval() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     setup_ajtai_for_dims(m);
 
@@ -717,7 +717,7 @@ fn paper_exact_gamma_zero_kills_nc_and_eval() {
 
 #[test]
 fn paper_exact_ajtai_padding_is_zero() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     setup_ajtai_for_dims(m);
 

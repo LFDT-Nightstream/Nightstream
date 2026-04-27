@@ -11,7 +11,7 @@
 
 use neo_ccs::{CcsStructure, Mat};
 use neo_math::{balanced::to_balanced_i128, KExtensions, D, F, K};
-use neo_params::NeoParams;
+use neo_params::{goldilocks_paper_b2, NeoParams};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 
@@ -167,7 +167,7 @@ pub fn split_b_matrix_k_with_nonzero_flags(
                             "DEC split: Z[{},{}] = {} (0x{:X}) is out of range for k_rho={}, b={}\n\
                              Matrix Z is {}×{}\n\
                              Balanced range: [{}, {}), where B = b^k_rho = {}^{} = {}\n\
-                             This typically means witness values grew too large during RLC (expansion factor T=216 for rotation matrices)",
+                             This typically means witness values grew too large during RLC for the configured rotation challenge set",
                             r, c, u, u, k, b, Z_rows, Z_cols, -B_signed, B_signed, b, k, B_u
                         )));
                     }
@@ -200,7 +200,7 @@ pub fn split_b_matrix_k_with_nonzero_flags(
                          Matrix Z is {}×{}\n\
                          After extracting {} digits, remainder v={} (should be 0)\n\
                          Original value exceeded the range [{}, {}) for B = {}^{} = {}\n\
-                         This typically means witness values grew too large during RLC (expansion factor T=216 for rotation matrices)",
+                         This typically means witness values grew too large during RLC for the configured rotation challenge set",
                         r,
                         c,
                         k,
@@ -256,7 +256,7 @@ pub fn split_b_matrix_k_with_nonzero_flags(
                             "DEC split: Z[{},{}] = {} (0x{:X}) is out of range for k_rho={}, b={}\n\
                              Matrix Z is {}×{}\n\
                              Balanced range: [{}, {}), where B = b^k_rho = {}^{} = {}\n\
-                             This typically means witness values grew too large during RLC (expansion factor T=216 for rotation matrices)",
+                             This typically means witness values grew too large during RLC for the configured rotation challenge set",
                             r, c, u, u, k, b, Z_rows, Z_cols, -B_signed, B_signed, b, k, B_u
                         )));
                     }
@@ -292,7 +292,7 @@ pub fn split_b_matrix_k_with_nonzero_flags(
                              Matrix Z is {}×{}\n\
                              After extracting {} digits, remainder v={} (should be 0)\n\
                              Original value exceeded the range [{}, {}) for B = {}^{} = {}\n\
-                             This typically means witness values grew too large during RLC (expansion factor T=216 for rotation matrices)",
+                             This typically means witness values grew too large during RLC for the configured rotation challenge set",
                             r,
                             c,
                             k,
@@ -336,7 +336,7 @@ pub fn split_b_matrix_k_with_nonzero_flags(
                          Matrix Z is {}×{}\n\
                          After extracting {} digits, remainder v={} (should be 0)\n\
                          Original value exceeded the range [{}, {}) for B = {}^{} = {}\n\
-                         This typically means witness values grew too large during RLC (expansion factor T=216 for rotation matrices)",
+                         This typically means witness values grew too large during RLC for the configured rotation challenge set",
                         r,
                         c,
                         k,
@@ -370,26 +370,14 @@ pub fn split_b_matrix_k(Z: &Mat<F>, k: usize, b: u32) -> Result<Vec<Mat<F>>, PiC
 /// Ring metadata for ΠRLC rotation-matrix challenges (Section 3.4, Definition 14).
 ///
 /// Specifies the cyclotomic polynomial Φ_η and the coefficient alphabet A
-/// used to construct the strong sampling set C = {rot(a) : a ∈ C_R}, where
-/// Module-level statics for Goldilocks ring parameters.
-/// Φ₈₁(X) = X^54 + X^27 + 1
-pub static PHI_GL: [i32; D] = {
-    let mut a = [0i32; D];
-    a[0] = 1; // constant term
-    a[27] = 1; // X^27 coefficient
-    a
-};
-
-/// Goldilocks alphabet: [-2,-1,0,1]
-pub static A4_GL: [i8; 4] = [-2, -1, 0, 1];
-
+/// used to construct the strong sampling set C = {rot(a) : a ∈ C_R}.
 /// C_R = {a ∈ R_q : all coeffs of a lie in A}.
 pub struct RotRing {
     /// Coefficients [c_0, c_1, ..., c_{d-1}] of Φ_η(X) = X^d + c_{d-1}·X^{d-1} + ... + c_0.
     /// Must have length D (the ring dimension).
     pub phi_coeffs: &'static [i32],
 
-    /// Small coefficient alphabet A ⊂ ℤ (e.g., [-2,-1,0,1]).
+    /// Small coefficient alphabet A ⊂ ℤ.
     /// The strong sampling set is C_R = {polynomials with coeffs in A}.
     pub alphabet: &'static [i8],
 
@@ -399,13 +387,12 @@ pub struct RotRing {
 }
 
 impl RotRing {
-    /// Goldilocks (Section 6.2): Φ_η = X^54 + X^27 + 1, alphabet = [-2,-1,0,1].
-    /// Yields T=216, b_inv ≈ 2.5×10^9.
+    /// Goldilocks Appendix B.2 profile, sourced from `neo_params::goldilocks_paper_b2`.
     pub const fn goldilocks() -> Self {
         Self {
-            phi_coeffs: &PHI_GL,
-            alphabet: &A4_GL,
-            binv_floor: Some(2_500_000_000), // ≈ 2.5×10^9 from paper
+            phi_coeffs: &goldilocks_paper_b2::PHI_COEFFS,
+            alphabet: &goldilocks_paper_b2::CHALLENGE_ALPHABET,
+            binv_floor: Some(goldilocks_paper_b2::B_INV_FLOOR),
         }
     }
 }
@@ -490,7 +477,7 @@ pub fn phi_coeffs_from_params(params: &NeoParams) -> Result<&'static [i32], PiCc
         )));
     }
     match params.eta {
-        81 => Ok(&PHI_GL),
+        eta if eta as usize == goldilocks_paper_b2::ETA => Ok(&goldilocks_paper_b2::PHI_COEFFS),
         128 => Err(PiCcsError::InvalidInput(
             "Π_RLC: eta=128 (Almost-Goldilocks) is disabled while D=54; enable only with a full D=64 migration".into(),
         )),

@@ -195,7 +195,7 @@ fn make_digits_matrix(val: F, d: usize, m: usize) -> Mat<F> {
 #[test]
 fn round0_sum_matches_hypercube_sum_k1() {
     // Small instance: n=2 (ell_n=1), m=2, t=1
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     let s = tiny_ccs_id(n, m);
 
@@ -234,7 +234,7 @@ fn round0_sum_matches_hypercube_sum_k1() {
 #[test]
 fn round0_sum_matches_hypercube_sum_k2_with_eval() {
     // Small instance with one MCS and one ME witness to enable Eval block
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     let s = tiny_ccs_id(n, m);
 
@@ -281,7 +281,7 @@ fn round0_sum_matches_hypercube_sum_k2_with_eval() {
 #[test]
 fn nc_sum_engine_matches_paper_nc_when_m1_not_identity() {
     // Construct a minimal CCS where M_1 ≠ I to expose NC drift
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     let s = tiny_ccs_perm(n, m);
 
@@ -315,7 +315,7 @@ fn nc_sum_engine_matches_paper_nc_when_m1_not_identity() {
 #[test]
 fn nc_sum_engine_vs_paper_drift_with_custom_m1_and_Z() {
     // Stress with custom witness values and multiple witness channels (MCS + ME).
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
 
     // Custom M1: first row selects second column, second row sums both columns

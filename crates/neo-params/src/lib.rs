@@ -9,7 +9,7 @@
 //!
 //! Symbols match the paper: q, η, d=φ(η), κ (kappa), m, b, k, B, T, s.
 //!
-//! References: Sec. 3–4 (Ajtai, strong set, Π_RLC bound); Sec. 6.2 (GL preset).
+//! References: Sec. 3–4 (Ajtai, strong set, Π_RLC bound); Appendix B.2 (Goldilocks preset).
 //!
 //! NOTE: The per-instance (ℓ, d_sc) used in the sum-check live in neo-fold.
 //!       Use `extension_check()` *there* with the preset's q, s, λ.
@@ -52,6 +52,33 @@ pub struct NeoParams {
     pub s: u32,
     /// Target soundness λ in bits for the sum-check (e.g., 128).
     pub lambda: u32,
+}
+
+/// Single source of truth for the SuperNeo Appendix B.2 Goldilocks profile.
+pub mod goldilocks_paper_b2 {
+    pub const Q: u64 = 0xFFFF_FFFF_0000_0001;
+    pub const ETA: usize = 81;
+    pub const D: usize = 54;
+    pub const PHI_MID_DEGREE: usize = 27;
+    pub const KAPPA: u32 = 18;
+    pub const M: u64 = 1u64 << 30;
+    pub const B_BASE: u32 = 2;
+    pub const K_RHO: u32 = 14;
+    pub const B: u64 = 1u64 << K_RHO;
+    pub const T: u32 = 216;
+    pub const EXTENSION_DEGREE: u32 = 2;
+    pub const LAMBDA: u32 = 125;
+    pub const MAX_FRESH_K: u32 = 61;
+    pub const B_INV_FLOOR: u64 = 2_500_000_000;
+
+    pub static PHI_COEFFS: [i32; D] = {
+        let mut coeffs = [0i32; D];
+        coeffs[0] = 1;
+        coeffs[PHI_MID_DEGREE] = 1;
+        coeffs
+    };
+
+    pub static CHALLENGE_ALPHABET: [i8; 5] = [-2, -1, 0, 1, 2];
 }
 
 /// Summary returned by the extension policy check for a given (ℓ, d_sc).
@@ -143,30 +170,50 @@ impl NeoParams {
         })
     }
 
-    /// Goldilocks (~127-bit), Section 6.2: η=81, d=54, κ=16, m=2^24, b=2, k_rho=12, B=4096, T≈216, s=2.
+    /// Goldilocks, Appendix B.2: η=81, d=54, κ=18, m=2^30, b=2, k_rho=14, B=2^14, T=216, s=2.
     /// With Goldilocks q = 2^64 - 2^32 + 1, log₂(q) ≈ 63.999999999966 < 64, so q² < 2^128.
-    /// For s=2 to be viable, we target λ=127 bits, giving ~127.999 bits of actual security.
-    /// Guard: (k_rho+1)T(b−1)=13·216·1=2808 < 4096 ✓
+    /// We set λ=125 to stay within the paper's |C|≈2^125 challenge-set size.
+    /// Guard: (k_rho+1)T(b−1)=15·216·1=3240 < 16384 ✓
     #[allow(non_snake_case)] // Allow mathematical notation from paper
-    pub fn goldilocks_127() -> Self {
-        // Values from the paper; see Sec. 6.2.  K = F_{q^2}.
-        // q = 2^64 − 2^32 + 1 = 0xFFFFFFFF00000001
-        let q: u64 = 0xFFFF_FFFF_0000_0001;
-        let eta: u32 = 81;
-        let d: u32 = 54;
-        let kappa: u32 = 16;
-        let m: u64 = 1u64 << 24;
-        let b: u32 = 2;
-        let k_rho: u32 = 12;
-        let T: u32 = 216;
-        let s: u32 = 2;
-        let lambda: u32 = 127; // Adjusted for s=2 compatibility
-
+    pub fn goldilocks_paper_b2() -> Self {
         // new() computes/validates B and guard; unwrap() is safe for a known-good preset.
-        Self::new(q, eta, d, kappa, m, b, k_rho, T, s, lambda).unwrap()
+        Self::new(
+            goldilocks_paper_b2::Q,
+            goldilocks_paper_b2::ETA as u32,
+            goldilocks_paper_b2::D as u32,
+            goldilocks_paper_b2::KAPPA,
+            goldilocks_paper_b2::M,
+            goldilocks_paper_b2::B_BASE,
+            goldilocks_paper_b2::K_RHO,
+            goldilocks_paper_b2::T,
+            goldilocks_paper_b2::EXTENSION_DEGREE,
+            goldilocks_paper_b2::LAMBDA,
+        )
+        .unwrap()
     }
 
-    /// Auto-pick params for an R1CS instance reduced to CCS (Goldilocks preset).
+    pub fn is_goldilocks_paper_b2(&self) -> bool {
+        self.has_goldilocks_paper_b2_core() && self.lambda == goldilocks_paper_b2::LAMBDA
+    }
+
+    pub fn has_goldilocks_paper_b2_core(&self) -> bool {
+        self.q == goldilocks_paper_b2::Q
+            && self.eta == goldilocks_paper_b2::ETA as u32
+            && self.d == goldilocks_paper_b2::D as u32
+            && self.kappa == goldilocks_paper_b2::KAPPA
+            && self.m == goldilocks_paper_b2::M
+            && self.b == goldilocks_paper_b2::B_BASE
+            && self.k_rho == goldilocks_paper_b2::K_RHO
+            && self.B == goldilocks_paper_b2::B
+            && self.T == goldilocks_paper_b2::T
+            && self.s == goldilocks_paper_b2::EXTENSION_DEGREE
+    }
+
+    /// Auto-pick params for an R1CS instance reduced to CCS.
+    ///
+    /// Starts from the Appendix B.2 Goldilocks profile and only lowers `lambda`
+    /// when the concrete CCS shape needs extra `F_{q^2}` slack under the local
+    /// extension policy.
     ///
     /// FE only needs to pass the number of R1CS constraints `n_rows`.
     /// We:
@@ -188,7 +235,7 @@ impl NeoParams {
         min_lambda: u32,
         safety_margin: u32,
     ) -> Result<Self, ParamsError> {
-        let mut p = Self::goldilocks_127();
+        let mut p = Self::goldilocks_paper_b2();
 
         // Compute (ℓ, d_sc) specialized for R1CS→CCS
         // pad rows to power of two (min 2)

@@ -152,7 +152,7 @@ fn build_me_from_z(
 
 #[test]
 fn rlc_with_commit_k4_matches_public_recompute_and_detects_rho_tamper() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
     let m_in = 2usize;
@@ -231,7 +231,7 @@ fn rlc_with_commit_k4_matches_public_recompute_and_detects_rho_tamper() {
 
 #[test]
 fn rlc_x_projection_tracks_mixed_witness_under_rotation_rhos() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
     let m_in = 3;
@@ -285,7 +285,7 @@ fn rlc_x_projection_tracks_mixed_witness_under_rotation_rhos() {
 
 #[test]
 fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
     let m_in = 2usize;
@@ -404,7 +404,7 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
 #[cfg(feature = "paper-exact")]
 #[test]
 fn rlc_with_commit_k4_optimized_matches_paper_exact() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
     let m_in = 2usize;
@@ -461,7 +461,7 @@ fn rlc_with_commit_k4_optimized_matches_paper_exact() {
 
 #[test]
 fn dec_children_with_commit_k4_public_and_tamper_checks() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
     let m_in = 2usize;
@@ -547,7 +547,7 @@ fn dec_children_with_commit_k4_public_and_tamper_checks() {
 #[cfg(feature = "paper-exact")]
 #[test]
 fn dec_children_with_commit_k4_optimized_matches_paper_exact() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
     let m_in = 2usize;
@@ -617,7 +617,7 @@ fn dec_children_with_commit_k4_optimized_matches_paper_exact() {
 
 #[test]
 fn rlc_with_commit_k61_boundary_smoke() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
     let m_in = 1usize;

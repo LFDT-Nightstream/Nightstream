@@ -57,7 +57,7 @@ pub fn optimized_verify_with_cache_and_perf(
     cache: &OptimizedStructureCache,
 ) -> Result<(bool, PiCcsVerifyPerf), PiCcsError> {
     optimized_verify_with_cache_and_public_instance_digest_impl(
-        tr, params, s, mcs_list, me_inputs, me_outputs, proof, cache, None,
+        tr, params, s, mcs_list, me_inputs, me_outputs, proof, cache, None, None,
     )
 }
 
@@ -82,6 +82,33 @@ pub fn optimized_verify_with_cache_and_instance_digest_and_perf(
         proof,
         cache,
         Some(public_instance_digest),
+        None,
+    )
+}
+
+pub fn optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[CcsClaim<Cmt, F>],
+    me_inputs: &[CeClaim<Cmt, F, K>],
+    me_outputs: &[CeClaim<Cmt, F, K>],
+    proof: &PiCcsProof,
+    cache: &OptimizedStructureCache,
+    public_instance_digest: [F; 4],
+    me_input_accumulator_handle: [F; 4],
+) -> Result<(bool, PiCcsVerifyPerf), PiCcsError> {
+    optimized_verify_with_cache_and_public_instance_digest_impl(
+        tr,
+        params,
+        s,
+        mcs_list,
+        me_inputs,
+        me_outputs,
+        proof,
+        cache,
+        Some(public_instance_digest),
+        Some(me_input_accumulator_handle),
     )
 }
 
@@ -95,6 +122,7 @@ fn optimized_verify_with_cache_and_public_instance_digest_impl(
     proof: &PiCcsProof,
     cache: &OptimizedStructureCache,
     public_instance_digest: Option<[F; 4]>,
+    me_input_accumulator_handle: Option<[F; 4]>,
 ) -> Result<(bool, PiCcsVerifyPerf), PiCcsError> {
     let total_started = std::time::Instant::now();
     if mcs_list.is_empty() {
@@ -118,7 +146,11 @@ fn optimized_verify_with_cache_and_public_instance_digest_impl(
     };
     let bind_header_instances_ms = bind_header_instances_started.elapsed().as_secs_f64() * 1_000.0;
     let bind_me_inputs_started = std::time::Instant::now();
-    utils::bind_me_inputs(tr, me_inputs)?;
+    if let Some(handle) = me_input_accumulator_handle {
+        utils::bind_me_inputs_accumulator_handle(tr, me_inputs.len(), &handle)?;
+    } else {
+        utils::bind_me_inputs(tr, me_inputs)?;
+    }
     let bind_me_inputs_ms = bind_me_inputs_started.elapsed().as_secs_f64() * 1_000.0;
     let bind_sample_challenges_started = std::time::Instant::now();
     let mut ch = utils::sample_challenges(tr, dims.ell_d, dims.ell)?;

@@ -22,7 +22,7 @@ fn add_commitments(a: &Commitment, b: &Commitment) -> Commitment {
 
 #[test]
 fn verify_dec_public_ignores_stale_ct_shell_but_checks_y_aux_and_x_entries() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize; // 64 -> 6
     let d_pad = 1usize << ell_d;
     assert!(d_pad >= D);
@@ -211,7 +211,7 @@ fn verify_dec_public_ignores_stale_ct_shell_but_checks_y_aux_and_x_entries() {
 
 #[test]
 fn verify_dec_public_ignores_y_zcol_and_s_col_shell_when_present() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let d_pad = 1usize << ell_d;
 

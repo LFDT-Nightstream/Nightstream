@@ -8,7 +8,7 @@ use p3_field::PrimeCharacteristicRing;
 
 #[test]
 fn rlc_public_mixes_y_zcol_when_present() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let d_pad = 1usize << ell_d;
 
@@ -109,7 +109,7 @@ fn rlc_public_mixes_y_zcol_when_present() {
 
 #[test]
 fn rlc_public_matches_ignores_y_zcol_and_s_col_shell() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let d_pad = 1usize << ell_d;
     let s = CcsStructure::new(vec![Mat::identity(D)], neo_ccs::poly::SparsePoly::new(1, vec![])).unwrap();

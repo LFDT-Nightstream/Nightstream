@@ -7,35 +7,26 @@ use bellpepper::gadgets::boolean::{AllocatedBit, Boolean};
 use bellpepper_core::{Circuit, ConstraintSystem, Index, LinearCombination, SynthesisError, Variable};
 use ff::{Field, PrimeField};
 use neo_ajtai::{s_mul_add, scale_commitment_add_inplace, set_global_pp_seeded, AjtaiSModule, Commitment};
-use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{CcsClaim, CcsMatrix, CcsStructure, CcsWitness, CeClaim, CscMat, Mat};
-use neo_fold_next::decider::spartan2::{
-    build_spartan2_self_bound_decider_relation, prove_spartan2_decider_with_perf, setup_spartan2_decider,
-    verify_spartan2_decider, Spartan2DeciderShape, Spartan2DeciderTarget,
-};
-use neo_fold_next::finalize::FixedShapeChunkSummary;
 use neo_fold_next::proof::{
-    ChunkProvePerf, ChunkVerifyPerf, FoldSchedule, PackagedProof, PublicChunk, PublicStep, RunProvePerf, RunVerifyPerf,
-    StepInput,
+    Carry, ChunkProvePerf, ChunkVerifyPerf, FoldSchedule, PackagedProof, RunProvePerf, RunVerifyPerf, StepInput,
 };
 use neo_fold_next::prover::CommitmentMixers;
-use neo_fold_next::run::{prove_and_package_with_perf, verify_packaged_with_perf};
+use neo_fold_next::run::{prove_and_package_with_final_carry_perf, verify_packaged_with_perf};
+use neo_fold_next::rv64im::{prove_direct_ccs_recursion_snark_with_perf, DirectCcsRecursionSnarkPerf};
 use neo_math::ring::Rq as RqEl;
 use neo_math::{D, F, K};
 use neo_params::{goldilocks_paper_b2, NeoParams};
 use neo_reductions::api::FoldingMode;
 use neo_reductions::common::{ct_from_y_ring_for_ccs_m, decode_superneo_coeffs_from_witness_mat, RotRing};
-use neo_reductions::engines::utils::{build_dims_and_policy, digest_ccs_matrices};
+use neo_reductions::engines::utils::build_dims_and_policy;
 use neo_reductions::superneo_eval::{build_superneo_eval_cache, eval_all_mats_ring_cached};
-use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use sha2::{Digest, Sha256};
 
 type AppResult<T> = Result<T, Box<dyn Error>>;
 
-const FIXED_SHAPE_DIGEST_FIELD_LEN: usize = 4;
-const PACKED_BYTES_PER_LIMB: usize = 7;
 const AUX_FLAG: u32 = 1 << 31;
 
 #[derive(Clone, Copy, Debug)]
@@ -47,6 +38,7 @@ struct Config {
 #[derive(Clone, Copy, Debug)]
 struct SpartanRunSummary {
     prove_ms: f64,
+    setup_ms: f64,
     verify_ms: f64,
     final_proof_bytes: usize,
     snark_bytes: usize,
@@ -127,7 +119,7 @@ fn print_paper_stage_map() {
     println!("section 7.3 Pi_CCS: K fresh CCS rows + k carried CE claims -> K+k CE claims");
     println!("section 7.4 Pi_RLC: K+k CE claims -> one random-linear-combination parent CE claim");
     println!("section 7.5 Pi_DEC: one large-norm parent CE claim -> k_rho small-norm CE children");
-    println!("Spartan2: proves the fixed-shape public/backend binding shell over the packaged run");
+    println!("Spartan2: proves direct chunk NIFS.V replay and final CE accumulator consistency");
     println!();
 }
 
@@ -456,92 +448,6 @@ fn ajtai_mixers() -> CommitmentMixers<fn(&[Mat<F>], &[Commitment]) -> Commitment
     }
 }
 
-fn extend_packed_bytes_as_fields(dst: &mut Vec<F>, bytes: &[u8]) {
-    dst.push(F::from_u64(bytes.len() as u64));
-    for chunk in bytes.chunks(PACKED_BYTES_PER_LIMB) {
-        let mut limb = [0u8; 8];
-        limb[..chunk.len()].copy_from_slice(chunk);
-        dst.push(F::from_u64(u64::from_le_bytes(limb)));
-    }
-}
-
-fn packed_bytes_field_len(bytes_len: usize) -> usize {
-    1 + bytes_len.div_ceil(PACKED_BYTES_PER_LIMB)
-}
-
-fn fixed_shape_summary_fields_for_spartan() -> usize {
-    FixedShapeChunkSummary::packed_field_len() + FIXED_SHAPE_DIGEST_FIELD_LEN
-}
-
-fn spartan_transition_binding_fields() -> usize {
-    2 * packed_bytes_field_len(32)
-}
-
-fn digest32_as_fields(digest: [u8; 32]) -> [F; FIXED_SHAPE_DIGEST_FIELD_LEN] {
-    [
-        F::from_u64(u64::from_le_bytes(digest[0..8].try_into().expect("digest limb 0"))),
-        F::from_u64(u64::from_le_bytes(digest[8..16].try_into().expect("digest limb 1"))),
-        F::from_u64(u64::from_le_bytes(digest[16..24].try_into().expect("digest limb 2"))),
-        F::from_u64(u64::from_le_bytes(digest[24..32].try_into().expect("digest limb 3"))),
-    ]
-}
-
-fn digest_fields_as_digest32(fields: [F; FIXED_SHAPE_DIGEST_FIELD_LEN]) -> [u8; 32] {
-    let mut out = [0u8; 32];
-    for (index, field) in fields.into_iter().enumerate() {
-        out[index * 8..(index + 1) * 8].copy_from_slice(&field.as_canonical_u64().to_le_bytes());
-    }
-    out
-}
-
-fn poseidon_digest_fields(input: &[F]) -> [F; FIXED_SHAPE_DIGEST_FIELD_LEN] {
-    poseidon2_hash(input)
-}
-
-fn fixed_shape_recursive_seed(domain: &[u8]) -> [u8; 32] {
-    let mut preimage = Vec::new();
-    extend_packed_bytes_as_fields(&mut preimage, domain);
-    digest_fields_as_digest32(poseidon_digest_fields(&preimage))
-}
-
-fn ccs_claim_digest_fields_into(claim: &CcsClaim<Commitment, F>, scratch: &mut Vec<F>) -> [F; 4] {
-    scratch.clear();
-    extend_packed_bytes_as_fields(scratch, b"neo.fold.next/finalize/ccs_claim_digest/v1");
-    scratch.push(F::from_u64(claim.c.d as u64));
-    scratch.push(F::from_u64(claim.c.kappa as u64));
-    scratch.push(F::from_u64(claim.c.data.len() as u64));
-    scratch.extend_from_slice(&claim.c.data);
-    scratch.push(F::from_u64(claim.x.len() as u64));
-    scratch.extend_from_slice(&claim.x);
-    scratch.push(F::from_u64(claim.m_in as u64));
-    poseidon_digest_fields(scratch)
-}
-
-fn public_step_digest_fields_into(step: &PublicStep, claim_scratch: &mut Vec<F>, step_scratch: &mut Vec<F>) -> [F; 4] {
-    step_scratch.clear();
-    extend_packed_bytes_as_fields(step_scratch, b"neo.fold.next/finalize/public_step_digest/v1");
-    extend_packed_bytes_as_fields(step_scratch, step.label.as_bytes());
-    step_scratch.extend_from_slice(&ccs_claim_digest_fields_into(&step.mcs, claim_scratch));
-    poseidon_digest_fields(step_scratch)
-}
-
-fn public_chunk_digest_fields(chunk: &PublicChunk) -> [F; 4] {
-    let mut claim_scratch = Vec::<F>::with_capacity(256);
-    let mut step_scratch = Vec::<F>::with_capacity(96);
-    let mut chunk_scratch = Vec::<F>::new();
-    extend_packed_bytes_as_fields(&mut chunk_scratch, b"neo.fold.next/finalize/public_chunk_digest/v1");
-    chunk_scratch.push(F::from_u64(chunk.start_index as u64));
-    chunk_scratch.push(F::from_u64(chunk.steps.len() as u64));
-    for step in &chunk.steps {
-        chunk_scratch.extend_from_slice(&public_step_digest_fields_into(
-            step,
-            &mut claim_scratch,
-            &mut step_scratch,
-        ));
-    }
-    poseidon_digest_fields(&chunk_scratch)
-}
-
 fn ccs_matrix_nnz(s: &CcsStructure<F>) -> usize {
     s.matrices
         .iter()
@@ -744,91 +650,6 @@ fn print_parameter_security_audit(params: &NeoParams, s: &CcsStructure<F>, foldi
         println!("warning: this run has one SuperNeo chunk and does not exercise carried CE claims");
     }
     println!();
-}
-
-fn diagnostic_relation_digest(params: &NeoParams, s: &CcsStructure<F>) -> [u8; 32] {
-    let mut tr = Poseidon2Transcript::new(b"neo.fold.next/sha256_superneo_probe/relation");
-    tr.append_message(b"neo.fold.next/sha256_superneo_probe/relation/version", b"v1");
-    tr.append_u64s(
-        b"neo.fold.next/sha256_superneo_probe/relation/params",
-        &[
-            params.b as u64,
-            params.k_rho as u64,
-            params.B,
-            params.kappa as u64,
-            params.T as u64,
-            params.s as u64,
-            params.lambda as u64,
-        ],
-    );
-    tr.append_u64s(
-        b"neo.fold.next/sha256_superneo_probe/relation/ccs_shape",
-        &[s.n as u64, s.m as u64, s.t() as u64, s.max_degree() as u64],
-    );
-    tr.append_fields(
-        b"neo.fold.next/sha256_superneo_probe/relation/ccs_matrix_digest",
-        &digest_ccs_matrices(s),
-    );
-    tr.digest32()
-}
-
-fn diagnostic_chunk_transition_digest(
-    chunk_index: usize,
-    public_chunk: &PublicChunk,
-    proof_chunk: &neo_fold_next::proof::ChunkProof,
-) -> [u8; 32] {
-    let mut tr = Poseidon2Transcript::new(b"neo.fold.next/sha256_superneo_probe/chunk_transition");
-    tr.append_message(b"neo.fold.next/sha256_superneo_probe/chunk_transition/version", b"v1");
-    tr.append_u64s(
-        b"neo.fold.next/sha256_superneo_probe/chunk_transition/meta",
-        &[
-            chunk_index as u64,
-            public_chunk.start_index as u64,
-            public_chunk.steps.len() as u64,
-            proof_chunk.ccs_outputs.len() as u64,
-            proof_chunk.dec.children.len() as u64,
-        ],
-    );
-    tr.append_message(
-        b"neo.fold.next/sha256_superneo_probe/chunk_transition/pi_ccs_header_digest",
-        &proof_chunk.ccs_proof.header_digest,
-    );
-    tr.append_message(
-        b"neo.fold.next/sha256_superneo_probe/chunk_transition/chunk_relation_digest",
-        &proof_chunk.relation_digest,
-    );
-    tr.digest32()
-}
-
-fn fixed_shape_summaries_and_transition_digests(
-    packaged: &PackagedProof,
-) -> AppResult<(Vec<FixedShapeChunkSummary>, Vec<[u8; 32]>)> {
-    if packaged.statement.chunks.len() != packaged.proof.session.chunks.len() {
-        return Err(invalid_input(
-            "packaged public chunks and proof chunks have different lengths",
-        ));
-    }
-    let mut summaries = Vec::with_capacity(packaged.statement.chunks.len());
-    let mut transition_digests = Vec::with_capacity(packaged.statement.chunks.len());
-    for (chunk_index, (public_chunk, proof_chunk)) in packaged
-        .statement
-        .chunks
-        .iter()
-        .zip(packaged.proof.session.chunks.iter())
-        .enumerate()
-    {
-        summaries.push(FixedShapeChunkSummary::from_public_chunk(
-            public_chunk,
-            digest_fields_as_digest32(public_chunk_digest_fields(public_chunk)),
-            proof_chunk.relation_digest,
-        ));
-        transition_digests.push(diagnostic_chunk_transition_digest(
-            chunk_index,
-            public_chunk,
-            proof_chunk,
-        ));
-    }
-    Ok((summaries, transition_digests))
 }
 
 fn max_round_width(rounds: &[Vec<K>]) -> usize {
@@ -1226,160 +1047,171 @@ fn print_one_verify_chunk(idx: usize, chunk: &ChunkVerifyPerf) {
     println!("  Pi_DEC: {:.3} ms", chunk.dec_ms);
 }
 
-fn print_spartan_surface_evolution(target: &Spartan2DeciderTarget, shape: &Spartan2DeciderShape) {
-    let digest_fields = packed_bytes_field_len(32);
-    let chunk_summary_fields = fixed_shape_summary_fields_for_spartan();
-    let transition_fields = spartan_transition_binding_fields();
-    let statement_base_fields = 3 * digest_fields + 2 * FIXED_SHAPE_DIGEST_FIELD_LEN + 3;
-    let statement_chunk_fields = target.statement.chunk_summaries.len() * chunk_summary_fields;
-    let witness_base_fields = 2 + target.witness.base_component_digests.len() * digest_fields;
-    let witness_transition_fields = target.witness.chunk_transition_bindings.len() * transition_fields;
-    println!("== Spartan2 surface expansion ==");
-    println!("digest packing: 32 bytes -> {digest_fields} Goldilocks fields using {PACKED_BYTES_PER_LIMB}-byte limbs");
+fn print_spartan(
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    packaged: &PackagedProof,
+    final_carry: &Carry,
+    steps: &[StepInput],
+) -> AppResult<SpartanRunSummary> {
+    println!("== Spartan2 direct recursion diagnostic ==");
+    println!("target: direct-CCS F'/NIFS.V-style chunk replay plus final CE consistency");
     println!(
-        "statement fields: base={} + chunks={}*{}={} => {}",
-        statement_base_fields,
-        target.statement.chunk_summaries.len(),
-        chunk_summary_fields,
-        statement_chunk_fields,
-        shape.statement_public_io_len()
+        "public binding: {} chunk digest(s); final CE projection digest(s)=0 ({} private terminal CE claim(s))",
+        packaged.statement.chunks.len(),
+        packaged.statement.final_main_claims.len()
+    );
+    println!("native packaged proof digest: {:02x?}", packaged.proof.proof_digest);
+
+    let (_proof, perf) = prove_direct_ccs_recursion_snark_with_perf(params, s, packaged, final_carry, steps)?;
+    print_direct_spartan_perf(&perf);
+    Ok(SpartanRunSummary {
+        prove_ms: perf.total_prove_ms,
+        setup_ms: perf.nifs_setup_ms + perf.final_ce_setup_ms,
+        verify_ms: perf.total_verify_ms,
+        final_proof_bytes: perf.final_proof_bytes,
+        snark_bytes: perf.snark_bytes,
+        backend_r1cs_constraints: perf.nifs_r1cs_sizes[0] + perf.final_ce_r1cs_sizes[0],
+        padded_backend_r1cs_constraints: perf.nifs_r1cs_sizes[4] + perf.final_ce_r1cs_sizes[4],
+        backend_public_inputs: perf.nifs_r1cs_sizes[8] + perf.final_ce_r1cs_sizes[8],
+        backend_challenges: perf.nifs_r1cs_sizes[9] + perf.final_ce_r1cs_sizes[9],
+        backend_nnz_total: perf.nifs_r1cs_nnz + perf.final_ce_r1cs_nnz,
+        spartan_pcs_ms: perf.nifs_pcs_ms,
+    })
+}
+
+fn print_direct_spartan_perf(perf: &DirectCcsRecursionSnarkPerf) {
+    println!("== Spartan2 prove/verify ==");
+    println!(
+        "setup ms (not counted in final summary): direct_nifs_plus_final_ce={:.3}",
+        perf.nifs_setup_ms
     );
     println!(
-        "witness fields: counters/base={} + chunk_bindings={}*{}={} => {}",
-        witness_base_fields,
-        target.witness.chunk_transition_bindings.len(),
-        transition_fields,
-        witness_transition_fields,
-        shape.witness_public_io_len()
+        "prove ms: prep={:.3}, snark={:.3}, encode={:.3}, total={:.3}",
+        perf.nifs_prep_ms, perf.nifs_prove_ms, perf.nifs_encode_ms, perf.total_prove_ms
     );
     println!(
-        "backend public fields: statement={} + semantic_digest={} + binding_digest={} => {}",
-        shape.statement_public_io_len(),
-        FIXED_SHAPE_DIGEST_FIELD_LEN,
-        FIXED_SHAPE_DIGEST_FIELD_LEN,
-        shape.backend_public_io_len()
+        "verify ms: direct_nifs_plus_final_ce={:.3}, total={:.3}",
+        perf.nifs_verify_ms, perf.total_verify_ms
     );
+    println!(
+        "direct NIFS.V + final CE R1CS sizes [cons, shared, precommitted, rest, padded_cons, padded_shared, padded_precommitted, padded_rest, public, challenges]: {:?}",
+        perf.nifs_r1cs_sizes
+    );
+    println!(
+        "Spartan2 constraints: direct={} (padded {})",
+        perf.nifs_r1cs_sizes[0], perf.nifs_r1cs_sizes[4]
+    );
+    println!(
+        "constraint attribution: nifs_public_inputs={}, nifs_chunks={}, nifs_chunk_constraints_first4={:?}, nifs_public_link={}, nifs_chunk_done={}, nifs_final_claim_digest={}, skipped_final_claim_digest_if_enabled={}, final_ce_public_inputs={}, final_ce_digest={}, final_ce_digest_match={}, final_ce_relation={}",
+        perf.nifs_public_inputs,
+        perf.nifs_chunk_count,
+        perf.nifs_chunk_constraints_first4,
+        perf.nifs_public_link_constraints,
+        perf.nifs_chunk_done_constraints,
+        perf.nifs_final_claim_digest_constraints,
+        perf.skipped_final_claim_digest_constraints,
+        perf.final_ce_public_inputs,
+        perf.final_ce_digest_constraints,
+        perf.final_ce_digest_match_constraints,
+        perf.final_ce_relation_constraints
+    );
+    println!(
+        "nifs_chunk_constraints_by_chunk={:?}",
+        perf.nifs_chunk_constraints_by_chunk
+    );
+    let digest = &perf.final_ce_digest_attribution;
+    let fields = digest.fields_per_child;
+    println!();
+    println!("== final CE projection digest attribution ==");
+    println!("children={}", digest.children);
+    println!("fields_per_child:");
+    println!("  domain_tag={}", fields.domain_tag);
+    println!("  commitment_c={}", fields.commitment_c);
+    println!("  x={}", fields.x);
+    println!("  r={}", fields.r);
+    println!("  y_ring={}", fields.y_ring);
+    println!("  aux={}", fields.aux);
+    println!("  total={}", fields.total);
+    println!(
+        "final_claim_digest_by_component_fields=[c={}, x={}, r={}, y={}, tags={}, aux={}]",
+        fields.commitment_c, fields.x, fields.r, fields.y_ring, fields.domain_tag, fields.aux
+    );
+    println!("poseidon:");
+    println!("  rate={}", digest.poseidon_rate);
+    println!("  width={}", digest.poseidon_width);
+    println!("  permutations_per_child={}", digest.permutations_per_child);
+    println!("  total_permutations={}", digest.total_permutations);
+    println!(
+        "  effective_rows_per_permutation={:.1}",
+        digest.effective_rows_per_permutation
+    );
+    println!("  constraints_per_child={:.1}", digest.constraints_per_child);
+    println!(
+        "  current_total_constraints={}",
+        perf.nifs_final_claim_digest_constraints
+    );
+    println!(
+        "  skipped_constraints_if_enabled={}",
+        perf.skipped_final_claim_digest_constraints
+    );
+    let relation = perf.final_ce_relation_breakdown;
+    println!(
+        "final_ce_relation_by_component=[A*z={}, x_projection={}, y_eval={}, norm={}, total={}]",
+        relation.commitment,
+        relation.x_projection,
+        relation.y_eval,
+        relation.norm,
+        relation.total()
+    );
+    print_final_accumulator_surface_modes(perf);
+    let avg_nnz_per_constraint = perf.nifs_r1cs_nnz as f64 / perf.nifs_r1cs_sizes[0].max(1) as f64;
+    println!(
+        "R1CS nonzero matrix entries (not constraints): direct={} avg_nnz_per_constraint={:.1}",
+        perf.nifs_r1cs_nnz, avg_nnz_per_constraint
+    );
+    println!(
+        "proof bytes: final_serialized={}, snark_data={}, wrapper_overhead={}",
+        perf.final_proof_bytes,
+        perf.snark_bytes,
+        perf.final_proof_bytes.saturating_sub(perf.snark_bytes)
+    );
+    println!("verify: ok");
     println!();
 }
 
-fn print_spartan(params: &NeoParams, s: &CcsStructure<F>, packaged: &PackagedProof) -> AppResult<SpartanRunSummary> {
-    let (summaries, transition_digests) = fixed_shape_summaries_and_transition_digests(packaged)?;
-    let relation_digest = diagnostic_relation_digest(params, s);
-    let initial_handle_digest = digest32_as_fields(fixed_shape_recursive_seed(
-        b"neo.fold.next/sha256_superneo_probe/initial_handle/v1",
-    ));
-    let relation = build_spartan2_self_bound_decider_relation(
-        packaged.statement.digest,
-        relation_digest,
-        initial_handle_digest,
-        packaged.statement.fold_schedule,
-        packaged.statement.public_step_count() as u64,
-        summaries,
-        vec![packaged.proof.proof_digest],
-        transition_digests,
-    )?;
-    let target = relation.target();
-    let shape = target.shape();
-
-    println!("== Spartan2 diagnostic decider surface ==");
-    println!("target: generic fixed-shape backend-binding shell");
-    println!(
-        "fixed-shape chunks={}, semantic_steps={}, base_components={}, chunk_transitions={}",
-        target.statement.chunk_summaries.len(),
-        target.statement.semantic_step_count,
-        target.witness.base_component_digests.len(),
-        target.witness.chunk_transition_bindings.len()
-    );
-    println!(
-        "io lengths: public_target={}, backend_public={}, backend_witness={}",
-        shape.public_io_len(),
-        shape.backend_public_io_len(),
-        shape.backend_witness_field_len()
-    );
-    println!("relation_digest: {:02x?}", relation.digest);
-    println!("native packaged proof digest: {:02x?}", packaged.proof.proof_digest);
-    println!(
-        "self-bound Spartan final proof digest: {:02x?}",
-        relation.final_proof_digest
-    );
-    print_spartan_surface_evolution(&target, &shape);
-
-    let (pk, vk) = setup_spartan2_decider(&shape)?;
-    let sizes = pk.backend_shape_sizes();
-    let stats = pk.backend_shape_debug_stats();
-    println!(
-        "backend R1CS sizes [cons, shared, precommitted, rest, padded_cons, padded_shared, padded_precommitted, padded_rest, public, challenges]: {:?}",
-        sizes
-    );
-    println!(
-        "backend R1CS nnz: A={}, B={}, C={}, total={}, max_row_total={}",
-        stats.a_nnz, stats.b_nnz, stats.c_nnz, stats.total_nnz, stats.max_row_nnz_total
-    );
-    let semantic_steps = target.statement.semantic_step_count.max(1) as f64;
-    let chunks = target.statement.chunk_summaries.len().max(1) as f64;
-    println!(
-        "backend R1CS scale: constraints_per_semantic_step={:.1}, constraints_per_chunk={:.1}",
-        sizes[0] as f64 / semantic_steps,
-        sizes[0] as f64 / chunks
-    );
-    let padding_rows = sizes[4].saturating_sub(sizes[0]);
-    let padding_pct = if sizes[0] == 0 {
-        0.0
-    } else {
-        100.0 * padding_rows as f64 / sizes[0] as f64
-    };
-    println!(
-        "backend R1CS padding: actual_constraints={}, padded_constraints={}, padding_rows={}, padding_over_actual_pct={:.1}",
-        sizes[0], sizes[4], padding_rows, padding_pct
-    );
-    println!("shape_digest: {:02x?}", pk.shape_digest());
-
-    println!("== Spartan2 prove/verify ==");
-    let (proof, perf) = prove_spartan2_decider_with_perf(&pk, &target)?;
-    println!(
-        "prove ms: relation_surface={:.3}, prep={:.3}, snark={:.3}, encode={:.3}, total={:.3}",
-        perf.relation_surface_ms,
-        perf.shell.prep_ms,
-        perf.shell.snark_perf.total_ms,
-        perf.shell.encode_ms,
-        perf.total_ms
-    );
-    println!(
-        "prove internals ms: outer_sumcheck={:.3}, inner_sumcheck={:.3}, pcs={:.3}",
-        perf.shell.snark_perf.outer_sumcheck_ms,
-        perf.shell.snark_perf.inner_sumcheck_ms,
-        perf.shell.snark_perf.pcs_prove_ms
-    );
-    let final_proof_bytes = bincode::serialize(&proof)?.len();
-    let snark_bytes = proof.snark_bytes_len();
-    println!(
-        "proof bytes: final_serialized={}, snark_data={}, proof_digest={:02x?}",
-        final_proof_bytes,
-        snark_bytes,
-        proof.digest()
-    );
-    println!(
-        "proof bytes breakdown: snark_data={}, wrapper_overhead={}",
-        snark_bytes,
-        final_proof_bytes.saturating_sub(snark_bytes)
-    );
-    let verify_started = std::time::Instant::now();
-    verify_spartan2_decider(&vk, &target, &proof)?;
-    let verify_ms = verify_started.elapsed().as_secs_f64() * 1_000.0;
-    println!("verify: ok");
+fn print_final_accumulator_surface_modes(perf: &DirectCcsRecursionSnarkPerf) {
+    let digest = &perf.final_ce_digest_attribution;
+    let private_constraints = perf.nifs_r1cs_sizes[0];
+    let digest_public_io_constraints = 4 * digest.children;
+    let compact_constraints =
+        private_constraints + perf.skipped_final_claim_digest_constraints + digest_public_io_constraints;
+    let small_public_fields = perf.nifs_public_inputs;
+    let explicit_public_fields = small_public_fields + digest.explicit_public_fields;
+    let explicit_constraints = private_constraints + digest.explicit_public_fields;
+    let compact_public_fields = small_public_fields + (4 * digest.children);
     println!();
-    Ok(SpartanRunSummary {
-        prove_ms: perf.total_ms,
-        verify_ms,
-        final_proof_bytes,
-        snark_bytes,
-        backend_r1cs_constraints: sizes[0],
-        padded_backend_r1cs_constraints: sizes[4],
-        backend_public_inputs: sizes[8],
-        backend_challenges: sizes[9],
-        backend_nnz_total: stats.total_nnz,
-        spartan_pcs_ms: perf.shell.snark_perf.pcs_prove_ms,
-    })
+    println!("== final accumulator surface modes ==");
+    println!("mode                         | constraints | public_fields | reusable?");
+    println!(
+        "private_terminal             | {:>11} | {:>13} | no",
+        private_constraints, small_public_fields
+    );
+    println!(
+        "explicit_public_ce           | ~{:>10} | ~{:>12} | yes",
+        explicit_constraints, explicit_public_fields
+    );
+    println!(
+        "external_digest_public_ce    | ~{:>10} | ~{:>12} + digest | yes",
+        explicit_constraints, explicit_public_fields
+    );
+    println!(
+        "compact_poseidon_in_circuit  | ~{:>10} | {:>13} | yes",
+        compact_constraints, compact_public_fields
+    );
+    println!("terminal_pre_dec_private     | TBD         | small         | no");
+    println!("terminal_pre_dec_digest      | TBD         | small         | no");
+    println!();
 }
 
 fn print_final_summary(prove_perf: &RunProvePerf, spartan: SpartanRunSummary) {
@@ -1399,10 +1231,11 @@ fn print_final_summary(prove_perf: &RunProvePerf, spartan: SpartanRunSummary) {
         ms_per_chunk_fold, ms_per_fresh_step
     );
     println!("proving (spartan): {:.3} ms", spartan.prove_ms);
+    println!("setup/keygen (not counted): {:.3} ms", spartan.setup_ms);
     println!("proving (total): {:.3} ms", prove_perf.total_ms + spartan.prove_ms);
     println!("verifying (final proof): {:.3} ms", spartan.verify_ms);
     println!(
-        "constraints passed to Spartan2: {} backend R1CS constraints (padded to {})",
+        "constraints passed to Spartan2: {} backend R1CS constraints across NIFS.V + final CE (padded to {})",
         spartan.backend_r1cs_constraints, spartan.padded_backend_r1cs_constraints
     );
     println!(
@@ -1428,7 +1261,7 @@ fn print_optimization_ranking(prove_perf: &RunProvePerf, spartan: SpartanRunSumm
         ("Pi_CCS FE sumcheck", prove_perf.ccs_fe_sumcheck_ms()),
         ("Pi_CCS unattributed", ccs_unattributed),
         ("Pi_DEC child commits", prove_perf.dec_commit_ms()),
-        ("Spartan PCS", spartan.spartan_pcs_ms),
+        ("Spartan NIFS PCS", spartan.spartan_pcs_ms),
     ];
     items.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
     println!("== optimization ranking ==");
@@ -1548,6 +1381,7 @@ fn print_constraint_breakdown(
         "  backend public inputs={}, challenges={}, nnz_total={}",
         spartan.backend_public_inputs, spartan.backend_challenges, spartan.backend_nnz_total
     );
+    println!("  note: nnz_total counts nonzero entries in the R1CS A/B/C matrices, not constraint rows");
     println!();
 }
 
@@ -1588,7 +1422,8 @@ fn run() -> AppResult<()> {
 
     let schedule = FoldSchedule::RowsPerChunk(1);
     let public_steps = steps.iter().map(StepInput::public).collect::<Vec<_>>();
-    let (packaged, prove_perf) = prove_and_package_with_perf(
+    let spartan_steps = steps.clone();
+    let (packaged, prove_perf, final_carry) = prove_and_package_with_final_carry_perf(
         FoldingMode::Optimized,
         schedule,
         &params,
@@ -1611,7 +1446,7 @@ fn run() -> AppResult<()> {
         return Err(invalid_input("public step count changed during packaging"));
     }
     print_verify_perf(&verify_perf);
-    let spartan_summary = print_spartan(&params, &ccs, &packaged)?;
+    let spartan_summary = print_spartan(&params, &ccs, &packaged, &final_carry, &spartan_steps)?;
     print_optimization_ranking(&prove_perf, spartan_summary);
     print_folding_timing_table(&prove_perf, ccs.n);
     print_constraint_breakdown(&ccs, sha_shape, &prove_perf, spartan_summary);

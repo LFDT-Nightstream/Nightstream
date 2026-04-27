@@ -199,9 +199,8 @@ pub fn enforce_x_projection<CS: ConstraintSystem<SpartanF>>(
     if claim.x.len() != claim.x_rows.saturating_mul(claim.x_cols) {
         return Err(SynthesisError::Unsatisfiable);
     }
+    let active_cols = claim.m_in.min(witness.cols);
     for col in 0..claim.m_in {
-        let active_row = col % D;
-        let want = witness.logical_entry(expected_m, col)?;
         for row in 0..D {
             let claim_idx = row
                 .checked_mul(claim.x_cols)
@@ -211,7 +210,8 @@ pub fn enforce_x_projection<CS: ConstraintSystem<SpartanF>>(
                 .x
                 .get(claim_idx)
                 .ok_or(SynthesisError::Unsatisfiable)?;
-            if row == active_row {
+            if col < active_cols {
+                let want = witness.entry(row, col)?;
                 cs.enforce(
                     || format!("{label}_x_match_{row}_{col}"),
                     |lc| lc + actual.get_variable(),

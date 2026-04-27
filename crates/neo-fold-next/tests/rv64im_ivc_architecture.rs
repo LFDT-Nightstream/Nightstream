@@ -401,6 +401,7 @@ fn rv64im_construction2_current_input_helper_does_not_keep_witness_digest_cargo(
 #[test]
 fn rv64im_final_construction2_boundary_uses_post_terminal_committed_instance() {
     let native_ivc = fs::read_to_string(crate_path("src/rv64im/ivc.rs")).expect("read native IVC module");
+    let ivc_snark = fs::read_to_string(crate_path("src/rv64im/ivc_snark.rs")).expect("read IVC SNARK module");
     let f_prime = fs::read_to_string(crate_path("src/rv64im/f_prime.rs")).expect("read F' evaluator");
     let construction2 =
         fs::read_to_string(crate_path("src/rv64im/construction2.rs")).expect("read Construction-2 module");
@@ -413,14 +414,15 @@ fn rv64im_final_construction2_boundary_uses_post_terminal_committed_instance() {
         f_prime.contains("build_rv64im_main_recursion_construction2_fresh_instance_with_input_and_x_i")
             && f_prime.contains("construction2_u_next.x_i() != &x_out")
             && construction2.contains("rv64im_main_recursion_construction2_x_only_placeholder")
-            && construction2.contains("current_input.commitment().commitment()"),
+            && construction2.contains("Commitment::zeros(D, 1)"),
         "native F' must emit only the Construction-2 x_i image; terminal SuperNeo R2 owns the authoritative u_i.C"
     );
     assert!(
-        native_ivc.contains("derive_rv64im_terminal_f_prime_committed_fresh_instance")
-            && native_ivc.contains("construction2_u_i: committed_construction2_u_next")
+        native_ivc.contains("construction2_u_i: step_image.construction2_u_next")
+            && ivc_snark.contains("public_image_with_terminal_r2_boundary_from_relation")
+            && ivc_snark.contains("terminal_committed_step_inputs_from_backend")
             && native_ivc.contains("Rv64imMainRecursionConstruction2PublicBoundary::from_fresh_instance("),
-        "the carried public image must publish the committed post-terminal Construction-2 instance"
+        "native append must stay on x-only Construction-2 state while compression publishes the committed terminal R2 instance"
     );
     assert!(
         recursive_step.contains("canonical_step_image.construction2_u_next().x_i()")
@@ -703,6 +705,25 @@ fn rv64im_terminal_f_prime_exports_sparse_superneo_ccs_shape() {
             && !terminal.contains("num_io + col")
             && terminal.contains("check_ccs_rowwise_zero"),
         "terminal F' export must map the 256-bit Construction-2 x_i image into the SuperNeo R2 public instance without retaining the legacy logical/binary witness image"
+    );
+}
+
+#[test]
+fn rv64im_terminal_f_prime_rejects_post_hoc_full_field_bit_expansion() {
+    let terminal_owner = fs::read_to_string(crate_path("src/rv64im/ivc_snark/terminal_f_prime_committed.rs"))
+        .expect("read terminal F' committed relation owner");
+    let rejection = terminal_owner
+        .find("reject_unclassified_full_field_private_columns(&layout, &private_witness_labels)")
+        .expect("terminal exporter must reject unclassified full-field R1CS variables");
+    let matrix_export = terminal_owner
+        .find("spartan_sparse_to_superneo_ccs_matrix(a, &layout)")
+        .expect("terminal exporter must still own sparse R1CS->CCS export");
+
+    assert!(
+        rejection < matrix_export
+            && terminal_owner.contains("must not post-hoc bit-expand")
+            && terminal_owner.contains("source low-norm SuperNeo witness image first"),
+        "terminal F' R2 export must fail before constructing a 64x low-norm expansion over full-field auxiliaries"
     );
 }
 

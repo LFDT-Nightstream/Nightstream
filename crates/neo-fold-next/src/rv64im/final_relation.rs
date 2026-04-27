@@ -164,7 +164,6 @@ pub(crate) fn rv64im_recursive_accumulator_instance_digest_from_phi_dec_parent(
         &mut preimage,
         b"neo.fold.next/rv64im/main_recursion_recursive_accumulator_phi_dec_parent/v1",
     );
-    preimage.push(F::from_u64(final_main_claims.len() as u64));
     preimage.extend(digest32_as_fields(terminal_handle_digest));
     match parent_commitment {
         Some(parent_commitment) => {

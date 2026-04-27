@@ -1,6 +1,6 @@
 //! Owns the Spartan circuit for the terminal committed `F'` R2 proof.
 
-use bellpepper_core::{num::AllocatedNum, ConstraintSystem, LinearCombination, SynthesisError};
+use bellpepper_core::{num::AllocatedNum, ConstraintSystem, LinearCombination, SynthesisError, Variable};
 use neo_math::D;
 
 use crate::rv64im::construction2::Rv64imMainRecursionConstruction2PublicBoundary;
@@ -8,12 +8,15 @@ use crate::rv64im::main_relation_circuit::ce_consistency::enforce_ajtai_commitme
 use crate::rv64im::main_relation_circuit::witness::{alloc_packed_mat_witness, PackedWitnessVar};
 use crate::rv64im::main_relation_spartan::{
     construction2_commitment_digest_circuit, construction2_public_boundary_digest_circuit, digest32_as_spartan_fields,
-    enforce_digest_eq, Rv64imMainRecursionStepSpartanPublishedTarget,
+    enforce_digest_eq, synthesize_rv64im_main_recursion_step_body, Rv64imMainRecursionStepSpartanPublishedTarget,
 };
 use crate::witness_layout::commit_cols_for_full_width;
 
-use super::circuit::{enforce_boolean_allocated, matrix_row_linear_combinations, native_to_spartan, set_z_entry};
-use super::{Rv64imDeciderEngine, Rv64imTerminalFPrimeCommittedStepCircuit, SpartanCircuit, SpartanF};
+use super::circuit::{enforce_boolean_allocated, native_to_spartan};
+use super::{
+    Rv64imDeciderEngine, Rv64imTerminalFPrimeCommittedStepCircuit, Rv64imTerminalFPrimePrivateColumnEncoding,
+    Rv64imTerminalFPrimeR2ColumnLayout, SpartanCircuit, SpartanF,
+};
 
 struct Rv64imTerminalFPrimeBoundaryInputs {
     fresh_instance_digest: [AllocatedNum<SpartanF>; 4],
@@ -85,9 +88,8 @@ impl SpartanCircuit<Rv64imDeciderEngine> for Rv64imTerminalFPrimeCommittedStepCi
         let (committed_width, packed_z) = self.allocate_committed_packed_z(cs)?;
         self.enforce_public_boundary(cs, &public_inputs, &boundary_inputs)?;
         self.enforce_public_commitment_shape(cs, &packed_z, &boundary_inputs)?;
-        let z_entries = self.synthesize_z_entries(cs, &public_inputs, &packed_z, committed_width)?;
-        self.enforce_committed_superneo_image(cs, &packed_z, committed_width, &z_entries)?;
-        self.enforce_rowwise_terminal_r2(cs, &z_entries)?;
+        self.enforce_committed_superneo_image(cs, &public_inputs, &packed_z, committed_width)?;
+        self.synthesize_terminal_f_prime_with_committed_sources(cs, &public_inputs, &packed_z, committed_width)?;
         self.enforce_terminal_commitment(cs, &packed_z, &boundary_inputs.commitment_data)?;
         Ok(())
     }
@@ -219,66 +221,6 @@ impl Rv64imTerminalFPrimeCommittedStepCircuit {
         Ok(())
     }
 
-    fn synthesize_z_entries<CS: ConstraintSystem<SpartanF>>(
-        &self,
-        _cs: &mut CS,
-        public_inputs: &[AllocatedNum<SpartanF>],
-        packed_z: &PackedWitnessVar,
-        committed_width: usize,
-    ) -> Result<Vec<LinearCombination<SpartanF>>, SynthesisError> {
-        let relation = self.assignment.relation();
-        let num_io = self.assignment.terminal_public_values.len();
-        if public_inputs.len() != num_io || relation.structure().m != self.assignment.raw_full_width() {
-            return Err(SynthesisError::Unsatisfiable);
-        }
-
-        let mut entries = vec![None; relation.structure().m];
-        for (public_idx, public_input) in public_inputs.iter().enumerate() {
-            let col = relation
-                .layout
-                .public_col(public_idx)
-                .map_err(|_| SynthesisError::Unsatisfiable)?;
-            set_z_entry(
-                &mut entries,
-                col,
-                LinearCombination::<SpartanF>::zero() + public_input.get_variable(),
-            )?;
-        }
-
-        let public_len = self.assignment.r2_public_values.len();
-        for witness_idx in 0..relation.num_variables() {
-            let start_col = relation
-                .layout
-                .witness_col_start(witness_idx)
-                .map_err(|_| SynthesisError::Unsatisfiable)?;
-            let limb_count = relation
-                .layout
-                .witness_encoding(witness_idx)
-                .map_err(|_| SynthesisError::Unsatisfiable)?
-                .limb_count();
-            for limb_idx in 0..limb_count {
-                let packed_logical_col = public_len
-                    .checked_add(relation.layout.private_offsets[witness_idx])
-                    .and_then(|value| value.checked_add(limb_idx))
-                    .ok_or(SynthesisError::Unsatisfiable)?;
-                let limb = packed_z.logical_entry(committed_width, packed_logical_col)?;
-                set_z_entry(
-                    &mut entries,
-                    start_col + limb_idx,
-                    LinearCombination::<SpartanF>::zero() + limb.get_variable(),
-                )?;
-            }
-        }
-
-        let one_col = relation.layout.one_col();
-        set_z_entry(&mut entries, one_col, LinearCombination::<SpartanF>::zero() + CS::one())?;
-
-        entries
-            .into_iter()
-            .collect::<Option<Vec<_>>>()
-            .ok_or(SynthesisError::Unsatisfiable)
-    }
-
     fn allocate_committed_packed_z<CS: ConstraintSystem<SpartanF>>(
         &self,
         cs: &mut CS,
@@ -310,9 +252,9 @@ impl Rv64imTerminalFPrimeCommittedStepCircuit {
     fn enforce_committed_superneo_image<CS: ConstraintSystem<SpartanF>>(
         &self,
         cs: &mut CS,
+        public_inputs: &[AllocatedNum<SpartanF>],
         packed_z: &PackedWitnessVar,
         committed_width: usize,
-        z_entries: &[LinearCombination<SpartanF>],
     ) -> Result<(), SynthesisError> {
         let public_len = self.assignment.r2_public_values.len();
         let committed_witness_len = self.assignment.committed_witness_values().len();
@@ -320,21 +262,21 @@ impl Rv64imTerminalFPrimeCommittedStepCircuit {
             != public_len
                 .checked_add(committed_witness_len)
                 .ok_or(SynthesisError::Unsatisfiable)?
-            || z_entries.len() != self.assignment.raw_full_width()
         {
+            return Err(SynthesisError::Unsatisfiable);
+        }
+        let r2_public_range = Rv64imMainRecursionStepSpartanPublishedTarget::terminal_r2_public_value_range_static();
+        if r2_public_range.end > public_inputs.len() || r2_public_range.len() != public_len {
             return Err(SynthesisError::Unsatisfiable);
         }
         for public_idx in 0..public_len {
             let packed_entry = packed_z.logical_entry(committed_width, public_idx)?;
-            let expected = z_entries
-                .get(public_idx)
-                .cloned()
-                .ok_or(SynthesisError::Unsatisfiable)?;
+            let expected = public_inputs[r2_public_range.start + public_idx].get_variable();
             cs.enforce(
                 || format!("terminal_r2_superneo_public_z_link_{public_idx}"),
                 |lc| lc + packed_entry.get_variable(),
                 |lc| lc + CS::one(),
-                |_| expected,
+                |lc| lc + expected,
             );
         }
         let constant_one_col = committed_width
@@ -373,6 +315,34 @@ impl Rv64imTerminalFPrimeCommittedStepCircuit {
         Ok(())
     }
 
+    fn synthesize_terminal_f_prime_with_committed_sources<CS: ConstraintSystem<SpartanF>>(
+        &self,
+        cs: &mut CS,
+        public_inputs: &[AllocatedNum<SpartanF>],
+        packed_z: &PackedWitnessVar,
+        committed_width: usize,
+    ) -> Result<(), SynthesisError> {
+        let mut linking_cs = SourceWitnessLinkingCs::new(
+            cs,
+            &self.assignment.relation().layout,
+            packed_z,
+            committed_width,
+            self.assignment.r2_public_values.len(),
+        );
+        let mut public_cursor = 0usize;
+        synthesize_rv64im_main_recursion_step_body(
+            &self.f_prime_circuit,
+            &mut linking_cs,
+            public_inputs,
+            &mut public_cursor,
+            None,
+        )?;
+        if public_cursor != public_inputs.len() {
+            return Err(SynthesisError::Unsatisfiable);
+        }
+        Ok(())
+    }
+
     fn enforce_committed_low_norm_bounds<CS: ConstraintSystem<SpartanF>>(
         &self,
         cs: &mut CS,
@@ -389,7 +359,7 @@ impl Rv64imTerminalFPrimeCommittedStepCircuit {
             );
         }
 
-        for witness_idx in 0..self.assignment.relation.num_variables() {
+        for witness_idx in 0..self.assignment.relation.layout.source_encodings.len() {
             let encoding = self
                 .assignment
                 .relation
@@ -397,7 +367,7 @@ impl Rv64imTerminalFPrimeCommittedStepCircuit {
                 .witness_encoding(witness_idx)
                 .map_err(|_| SynthesisError::Unsatisfiable)?;
             let committed_start = public_len
-                .checked_add(self.assignment.relation.layout.private_offsets[witness_idx])
+                .checked_add(self.assignment.relation.layout.source_offsets[witness_idx])
                 .ok_or(SynthesisError::Unsatisfiable)?;
             for limb_idx in 0..encoding.limb_count() {
                 let logical_col = committed_start
@@ -410,32 +380,6 @@ impl Rv64imTerminalFPrimeCommittedStepCircuit {
                     &format!("terminal_r2_witness_bit_bound_{witness_idx}_{limb_idx}"),
                 );
             }
-        }
-        Ok(())
-    }
-
-    fn enforce_rowwise_terminal_r2<CS: ConstraintSystem<SpartanF>>(
-        &self,
-        cs: &mut CS,
-        z_entries: &[LinearCombination<SpartanF>],
-    ) -> Result<(), SynthesisError> {
-        let structure = self.assignment.relation().structure();
-        if structure.matrices.len() != 3 {
-            return Err(SynthesisError::Unsatisfiable);
-        }
-        let a_rows = matrix_row_linear_combinations(&structure.matrices[0], z_entries)?;
-        let b_rows = matrix_row_linear_combinations(&structure.matrices[1], z_entries)?;
-        let c_rows = matrix_row_linear_combinations(&structure.matrices[2], z_entries)?;
-        if a_rows.len() != structure.n || b_rows.len() != structure.n || c_rows.len() != structure.n {
-            return Err(SynthesisError::Unsatisfiable);
-        }
-        for row in 0..structure.n {
-            cs.enforce(
-                || format!("terminal_r2_row_{row}"),
-                |_| a_rows[row].clone(),
-                |_| b_rows[row].clone(),
-                |_| c_rows[row].clone(),
-            );
         }
         Ok(())
     }
@@ -462,6 +406,128 @@ impl Rv64imTerminalFPrimeCommittedStepCircuit {
             commitment_inputs,
             "terminal_r2_ajtai_commitment",
         )
+    }
+}
+
+struct SourceWitnessLinkingCs<'a, 'b, CS: ConstraintSystem<SpartanF>> {
+    inner: &'a mut CS,
+    layout: &'b Rv64imTerminalFPrimeR2ColumnLayout,
+    packed_z: &'b PackedWitnessVar,
+    committed_width: usize,
+    public_len: usize,
+    current_namespace: Vec<String>,
+}
+
+impl<'a, 'b, CS: ConstraintSystem<SpartanF>> SourceWitnessLinkingCs<'a, 'b, CS> {
+    fn new(
+        inner: &'a mut CS,
+        layout: &'b Rv64imTerminalFPrimeR2ColumnLayout,
+        packed_z: &'b PackedWitnessVar,
+        committed_width: usize,
+        public_len: usize,
+    ) -> Self {
+        Self {
+            inner,
+            layout,
+            packed_z,
+            committed_width,
+            public_len,
+            current_namespace: Vec::new(),
+        }
+    }
+
+    fn alloc_path(&self, annotation: &str) -> String {
+        if self.current_namespace.is_empty() {
+            return annotation.to_owned();
+        }
+        let mut path = self.current_namespace.join("/");
+        path.push('/');
+        path.push_str(annotation);
+        path
+    }
+
+    fn source_lc(
+        &self,
+        offset: usize,
+        encoding: Rv64imTerminalFPrimePrivateColumnEncoding,
+    ) -> Result<LinearCombination<SpartanF>, SynthesisError> {
+        let mut lc = LinearCombination::<SpartanF>::zero();
+        for limb_idx in 0..encoding.limb_count() {
+            let logical_col = self
+                .public_len
+                .checked_add(offset)
+                .and_then(|value| value.checked_add(limb_idx))
+                .ok_or(SynthesisError::Unsatisfiable)?;
+            let limb = self
+                .packed_z
+                .logical_entry(self.committed_width, logical_col)?;
+            lc = lc + (SpartanF::from_canonical_u64(1u64 << limb_idx), limb.get_variable());
+        }
+        Ok(lc)
+    }
+}
+
+impl<CS: ConstraintSystem<SpartanF>> ConstraintSystem<SpartanF> for SourceWitnessLinkingCs<'_, '_, CS> {
+    type Root = Self;
+
+    fn alloc<FN, A, AR>(&mut self, annotation: A, f: FN) -> Result<Variable, SynthesisError>
+    where
+        FN: FnOnce() -> Result<SpartanF, SynthesisError>,
+        A: FnOnce() -> AR,
+        AR: Into<String>,
+    {
+        let annotation = annotation().into();
+        let label = self.alloc_path(&annotation);
+        let var = self.inner.alloc(|| annotation.clone(), f)?;
+        if let Some((offset, encoding)) = self.layout.source_binding(&label) {
+            let source_lc = self.source_lc(offset, encoding)?;
+            self.inner.enforce(
+                || format!("terminal_r2_source_link_{label}"),
+                |lc| lc + var,
+                |lc| lc + CS::one(),
+                |_| source_lc,
+            );
+        }
+        Ok(var)
+    }
+
+    fn alloc_input<FN, A, AR>(&mut self, annotation: A, f: FN) -> Result<Variable, SynthesisError>
+    where
+        FN: FnOnce() -> Result<SpartanF, SynthesisError>,
+        A: FnOnce() -> AR,
+        AR: Into<String>,
+    {
+        self.inner.alloc_input(annotation, f)
+    }
+
+    fn enforce<A, AR, LA, LB, LC>(&mut self, annotation: A, a: LA, b: LB, c: LC)
+    where
+        A: FnOnce() -> AR,
+        AR: Into<String>,
+        LA: FnOnce(LinearCombination<SpartanF>) -> LinearCombination<SpartanF>,
+        LB: FnOnce(LinearCombination<SpartanF>) -> LinearCombination<SpartanF>,
+        LC: FnOnce(LinearCombination<SpartanF>) -> LinearCombination<SpartanF>,
+    {
+        self.inner.enforce(annotation, a, b, c);
+    }
+
+    fn push_namespace<NR, N>(&mut self, name_fn: N)
+    where
+        NR: Into<String>,
+        N: FnOnce() -> NR,
+    {
+        let name = name_fn().into();
+        self.current_namespace.push(name.clone());
+        self.inner.push_namespace(|| name);
+    }
+
+    fn pop_namespace(&mut self) {
+        assert!(self.current_namespace.pop().is_some());
+        self.inner.pop_namespace();
+    }
+
+    fn get_root(&mut self) -> &mut Self::Root {
+        self
     }
 }
 

@@ -106,7 +106,7 @@ pub enum Rv64imMainRecursionStepSpartanError {
     Verify(String),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct Rv64imMainRecursionStepCircuit {
     spartan_shape: Rv64imMainRecursionStepSpartanShape,
     backend_relation: Rv64imMainRecursionFPrimeBackendRelation,
@@ -251,6 +251,9 @@ fn dummy_backend_relation_from_chain_step(
         .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
     let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()
         .map_err(|err| Rv64imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
+    let me_input_accumulator_handle = crate::finalize::digest32_as_fields(
+        crate::rv64im::final_relation::rv64im_chunk_fold_carry_recursive_accumulator_digest(&running_state.carry),
+    );
     let mut prove_transcript =
         Poseidon2Transcript::from_state_and_absorbed(running_state.transcript.state, running_state.transcript.absorbed);
     let ((replay_witness, _next_main, public_chunk_digest, chunk_relation_digest), _) =
@@ -258,6 +261,7 @@ fn dummy_backend_relation_from_chain_step(
             chunk_count_in as usize,
             &handoff,
             &running_state.carry.main,
+            me_input_accumulator_handle,
             &mut prove_transcript,
             &params,
             structure,
@@ -271,6 +275,7 @@ fn dummy_backend_relation_from_chain_step(
         chunk_count_in as usize,
         &handoff,
         &running_state.carry.main,
+        me_input_accumulator_handle,
         &replay_witness,
         &mut trace_transcript,
         &params,

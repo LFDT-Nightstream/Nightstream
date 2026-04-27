@@ -111,12 +111,16 @@ fn verify_rv64im_nifs_pi_ccs_trace(
     let (params, log, structure) =
         rv64im_root_main_lane_context_for_claim_count(running.state.carry.main.claims.len())?;
     let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
+    let me_input_accumulator_handle = crate::finalize::digest32_as_fields(
+        crate::rv64im::final_relation::rv64im_chunk_fold_carry_recursive_accumulator_digest(&running.state.carry),
+    );
     let mut transcript =
         Poseidon2Transcript::from_state_and_absorbed(running.state.transcript.state, running.state.transcript.absorbed);
     let trace = trace_rv64im_chunk_relation_with_replay(
         fresh_instance.step_public.chunk_index as usize,
         &fresh_witness.handoff,
         &running.state.carry.main,
+        me_input_accumulator_handle,
         &proof.replay_witness(),
         &mut transcript,
         &params,
@@ -237,12 +241,16 @@ pub(crate) fn prove_rv64im_nifs_step(
     let (params, log, structure) =
         rv64im_root_main_lane_context_for_claim_count(running.state.carry.main.claims.len())?;
     let optimized_cache = rv64im_cached_root_main_lane_optimized_cache()?;
+    let me_input_accumulator_handle = crate::finalize::digest32_as_fields(
+        crate::rv64im::final_relation::rv64im_chunk_fold_carry_recursive_accumulator_digest(&running.state.carry),
+    );
     let mut prove_transcript =
         Poseidon2Transcript::from_state_and_absorbed(running.state.transcript.state, running.state.transcript.absorbed);
     let ((replay_witness, _, _, _), _) = prove_rv64im_chunk_transition_with_perf(
         fresh_instance.step_public.chunk_index as usize,
         &fresh_witness.handoff,
         &running.state.carry.main,
+        me_input_accumulator_handle,
         &mut prove_transcript,
         &params,
         structure,
@@ -255,6 +263,7 @@ pub(crate) fn prove_rv64im_nifs_step(
         fresh_instance.step_public.chunk_index as usize,
         &fresh_witness.handoff,
         &running.state.carry.main,
+        me_input_accumulator_handle,
         &replay_witness,
         &mut trace_transcript,
         &params,

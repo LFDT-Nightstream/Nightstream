@@ -191,10 +191,11 @@ fn enforce_current_input_u_perp_when_base<CS: ConstraintSystem<SpartanF>>(
         full_width,
     )
     .map_err(|_| SynthesisError::Unsatisfiable)?;
-    if current_input.commitment().commitment().d != expected.commitment().commitment().d
-        || current_input.commitment().commitment().kappa != expected.commitment().commitment().kappa
-        || current_input_commitment_data.len() != expected.commitment().commitment().data.len()
-        || current_input_x_i_bits.len() != expected.x_i().bit_image().len()
+    if witness.chunk_count_in() == 0
+        && (current_input.commitment().commitment().d != expected.commitment().commitment().d
+            || current_input.commitment().commitment().kappa != expected.commitment().commitment().kappa
+            || current_input_commitment_data.len() != expected.commitment().commitment().data.len()
+            || current_input_x_i_bits.len() != expected.x_i().bit_image().len())
     {
         return Err(SynthesisError::Unsatisfiable);
     }

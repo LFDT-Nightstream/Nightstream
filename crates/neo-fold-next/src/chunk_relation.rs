@@ -21,8 +21,10 @@ use neo_reductions::optimized_engine::{
     optimized_prove_with_cache_and_instance_digest_and_perf,
     optimized_replay_outputs_with_cache_and_instance_digest_and_perf,
     optimized_replay_trace_with_cache_and_instance_digest_and_perf,
-    optimized_replay_witness_with_cache_and_instance_digest_and_perf, OptimizedStructureCache, PiCcsReplayProofWitness,
-    PiCcsReplayTerminalState,
+    optimized_replay_trace_with_cache_instance_digest_and_me_input_handle_and_perf,
+    optimized_replay_witness_with_cache_and_instance_digest_and_perf,
+    optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf, OptimizedStructureCache,
+    PiCcsReplayProofWitness, PiCcsReplayTerminalState, PiCcsReplayWitnessOutputs,
 };
 use neo_reductions::pi_rlc_dec::OptimizedRlcDec;
 use neo_transcript::{Poseidon2Transcript, Transcript};
@@ -340,11 +342,90 @@ where
     MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
     MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
 {
+    verify_chunk_relation_with_witness_and_instance_digest_with_perf_inner(
+        tr,
+        params,
+        s,
+        chunk,
+        incoming_main,
+        replay_witness,
+        log,
+        mixers,
+        optimized_cache,
+        public_chunk_instance_digest,
+        None,
+    )
+}
+
+pub(crate) fn verify_chunk_relation_with_witness_and_instance_digest_and_me_input_handle_with_perf<L, MR, MB>(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    chunk: &ChunkInput,
+    incoming_main: &Carry,
+    replay_witness: &ChunkReplayWitness,
+    log: &L,
+    mixers: CommitmentMixers<MR, MB>,
+    optimized_cache: &OptimizedStructureCache,
+    public_chunk_instance_digest: [F; 4],
+    me_input_accumulator_handle: [F; 4],
+) -> Result<((ChunkRelationResult, [u8; 32]), ChunkProvePerf), PiCcsError>
+where
+    L: SModuleHomomorphism<F, Commitment> + Sync,
+    MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
+    MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
+{
+    verify_chunk_relation_with_witness_and_instance_digest_with_perf_inner(
+        tr,
+        params,
+        s,
+        chunk,
+        incoming_main,
+        replay_witness,
+        log,
+        mixers,
+        optimized_cache,
+        Some(public_chunk_instance_digest),
+        Some(me_input_accumulator_handle),
+    )
+}
+
+fn verify_chunk_relation_with_witness_and_instance_digest_with_perf_inner<L, MR, MB>(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    chunk: &ChunkInput,
+    incoming_main: &Carry,
+    replay_witness: &ChunkReplayWitness,
+    log: &L,
+    mixers: CommitmentMixers<MR, MB>,
+    optimized_cache: &OptimizedStructureCache,
+    public_chunk_instance_digest: Option<[F; 4]>,
+    me_input_accumulator_handle: Option<[F; 4]>,
+) -> Result<((ChunkRelationResult, [u8; 32]), ChunkProvePerf), PiCcsError>
+where
+    L: SModuleHomomorphism<F, Commitment> + Sync,
+    MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
+    MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
+{
     let total_started = Instant::now();
     let prepared = prepare_chunk_ccs_inputs(tr, chunk, incoming_main, public_chunk_instance_digest)?;
     let ccs_started = Instant::now();
     let ccs_proof = replay_witness.ccs_replay_proof.to_pi_ccs_proof();
-    let (ok, ccs_verify_perf) =
+    let (ok, ccs_verify_perf) = if let Some(handle) = me_input_accumulator_handle {
+        optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf(
+            tr,
+            params,
+            s,
+            &prepared.fresh_claims,
+            &incoming_main.claims,
+            &replay_witness.ccs_outputs,
+            &ccs_proof,
+            optimized_cache,
+            prepared.public_chunk_digest,
+            handle,
+        )?
+    } else {
         neo_reductions::optimized_engine::optimized_verify_with_cache_and_instance_digest_and_perf(
             tr,
             params,
@@ -355,7 +436,8 @@ where
             &ccs_proof,
             optimized_cache,
             prepared.public_chunk_digest,
-        )?;
+        )?
+    };
     if !ok {
         return Err(PiCcsError::ProtocolError(
             "optimized replay witness does not verify against chunk relation".into(),
@@ -410,7 +492,7 @@ where
     ))
 }
 
-pub(crate) fn trace_chunk_relation_with_witness_and_instance_digest<L, MR, MB>(
+pub(crate) fn trace_chunk_relation_with_witness_and_instance_digest_and_me_input_handle<L, MR, MB>(
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,
     s: &CcsStructure<F>,
@@ -421,6 +503,40 @@ pub(crate) fn trace_chunk_relation_with_witness_and_instance_digest<L, MR, MB>(
     mixers: CommitmentMixers<MR, MB>,
     optimized_cache: &OptimizedStructureCache,
     public_chunk_instance_digest: [F; 4],
+    me_input_accumulator_handle: [F; 4],
+) -> Result<ChunkReplayTrace, PiCcsError>
+where
+    L: SModuleHomomorphism<F, Commitment> + Sync,
+    MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
+    MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
+{
+    trace_chunk_relation_with_witness_and_instance_digest_inner(
+        tr,
+        params,
+        s,
+        chunk,
+        incoming_main,
+        replay_witness,
+        log,
+        mixers,
+        optimized_cache,
+        public_chunk_instance_digest,
+        Some(me_input_accumulator_handle),
+    )
+}
+
+fn trace_chunk_relation_with_witness_and_instance_digest_inner<L, MR, MB>(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    chunk: &ChunkInput,
+    incoming_main: &Carry,
+    replay_witness: &ChunkReplayWitness,
+    log: &L,
+    mixers: CommitmentMixers<MR, MB>,
+    optimized_cache: &OptimizedStructureCache,
+    public_chunk_instance_digest: [F; 4],
+    me_input_accumulator_handle: Option<[F; 4]>,
 ) -> Result<ChunkReplayTrace, PiCcsError>
 where
     L: SModuleHomomorphism<F, Commitment> + Sync,
@@ -428,18 +544,34 @@ where
     MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
 {
     let prepared = prepare_chunk_ccs_inputs(tr, chunk, incoming_main, Some(public_chunk_instance_digest))?;
-    let (terminal_state, derived_replay_proof) = optimized_replay_trace_with_cache_and_instance_digest_and_perf(
-        tr,
-        params,
-        s,
-        &prepared.fresh_claims,
-        &prepared.fresh_witnesses,
-        &incoming_main.claims,
-        &incoming_main.witnesses,
-        prepared.public_chunk_digest,
-        log,
-        optimized_cache,
-    )?;
+    let (terminal_state, derived_replay_proof) = if let Some(handle) = me_input_accumulator_handle {
+        optimized_replay_trace_with_cache_instance_digest_and_me_input_handle_and_perf(
+            tr,
+            params,
+            s,
+            &prepared.fresh_claims,
+            &prepared.fresh_witnesses,
+            &incoming_main.claims,
+            &incoming_main.witnesses,
+            prepared.public_chunk_digest,
+            handle,
+            log,
+            optimized_cache,
+        )?
+    } else {
+        optimized_replay_trace_with_cache_and_instance_digest_and_perf(
+            tr,
+            params,
+            s,
+            &prepared.fresh_claims,
+            &prepared.fresh_witnesses,
+            &incoming_main.claims,
+            &incoming_main.witnesses,
+            prepared.public_chunk_digest,
+            log,
+            optimized_cache,
+        )?
+    };
     let ccs_post_transcript_state = tr.state();
     let ccs_post_transcript_absorbed = tr.absorbed();
     if terminal_state.me_outputs != replay_witness.ccs_outputs {
@@ -474,77 +606,6 @@ where
     Ok(ChunkReplayTrace {
         ccs_outputs: transition.ccs_outputs,
         ccs_replay_proof: replay_witness.ccs_replay_proof.clone(),
-        ccs_post_transcript_state,
-        ccs_post_transcript_absorbed,
-        terminal_state,
-        parent: transition.parent,
-        children: transition.children,
-        z_split: transition.z_split,
-    })
-}
-
-pub(crate) fn trace_chunk_relation_with_replay_rounds_and_instance_digest<L, MR, MB>(
-    tr: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    s: &CcsStructure<F>,
-    chunk: &ChunkInput,
-    incoming_main: &Carry,
-    sumcheck_rounds: &[Vec<K>],
-    sumcheck_rounds_nc: &[Vec<K>],
-    log: &L,
-    mixers: CommitmentMixers<MR, MB>,
-    optimized_cache: &OptimizedStructureCache,
-    public_chunk_instance_digest: [F; 4],
-) -> Result<ChunkReplayTrace, PiCcsError>
-where
-    L: SModuleHomomorphism<F, Commitment> + Sync,
-    MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
-    MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
-{
-    let prepared = prepare_chunk_ccs_inputs(tr, chunk, incoming_main, Some(public_chunk_instance_digest))?;
-    let (terminal_state, derived_replay_proof) = optimized_replay_trace_with_cache_and_instance_digest_and_perf(
-        tr,
-        params,
-        s,
-        &prepared.fresh_claims,
-        &prepared.fresh_witnesses,
-        &incoming_main.claims,
-        &incoming_main.witnesses,
-        prepared.public_chunk_digest,
-        log,
-        optimized_cache,
-    )?;
-    let ccs_post_transcript_state = tr.state();
-    let ccs_post_transcript_absorbed = tr.absorbed();
-    if derived_replay_proof.sumcheck_rounds != sumcheck_rounds
-        || derived_replay_proof.sumcheck_rounds_nc != sumcheck_rounds_nc
-    {
-        return Err(PiCcsError::ProtocolError(
-            "optimized replay proof rounds do not match the carried chunk replay transport".into(),
-        ));
-    }
-    let (transition, _perf) = finish_chunk_transition_with_perf(
-        Instant::now(),
-        FoldingMode::Optimized,
-        tr,
-        params,
-        s,
-        prepared.start_index,
-        prepared.fresh_step_count,
-        incoming_main,
-        log,
-        mixers,
-        Some(optimized_cache),
-        prepared.prepare_inputs_ms,
-        &prepared.fresh_witnesses,
-        terminal_state.me_outputs.clone(),
-        terminal_state.fold_digest,
-        terminal_state.perf,
-        terminal_state.perf.total_ms,
-    )?;
-    Ok(ChunkReplayTrace {
-        ccs_outputs: transition.ccs_outputs,
-        ccs_replay_proof: derived_replay_proof,
         ccs_post_transcript_state,
         ccs_post_transcript_absorbed,
         terminal_state,
@@ -620,21 +681,105 @@ where
     MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
     MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
 {
-    let total_started = Instant::now();
-    let prepared = prepare_chunk_ccs_inputs(tr, chunk, incoming_main, public_chunk_instance_digest)?;
-    let ccs_started = Instant::now();
-    let replay = optimized_replay_witness_with_cache_and_instance_digest_and_perf(
+    compute_chunk_replay_witness_and_relation_with_instance_digest_and_perf_inner(
         tr,
         params,
         s,
-        &prepared.fresh_claims,
-        &prepared.fresh_witnesses,
-        &incoming_main.claims,
-        &incoming_main.witnesses,
-        prepared.public_chunk_digest,
+        chunk,
+        incoming_main,
         log,
+        mixers,
         optimized_cache,
-    )?;
+        public_chunk_instance_digest,
+        None,
+    )
+}
+
+pub(crate) fn compute_chunk_replay_witness_and_relation_with_instance_digest_and_me_input_handle_and_perf<L, MR, MB>(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    chunk: &ChunkInput,
+    incoming_main: &Carry,
+    log: &L,
+    mixers: CommitmentMixers<MR, MB>,
+    optimized_cache: &OptimizedStructureCache,
+    public_chunk_instance_digest: [F; 4],
+    me_input_accumulator_handle: [F; 4],
+) -> Result<((ChunkReplayWitness, ChunkRelationResult, [u8; 32]), ChunkProvePerf), PiCcsError>
+where
+    L: SModuleHomomorphism<F, Commitment> + Sync,
+    MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
+    MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
+{
+    compute_chunk_replay_witness_and_relation_with_instance_digest_and_perf_inner(
+        tr,
+        params,
+        s,
+        chunk,
+        incoming_main,
+        log,
+        mixers,
+        optimized_cache,
+        Some(public_chunk_instance_digest),
+        Some(me_input_accumulator_handle),
+    )
+}
+
+fn compute_chunk_replay_witness_and_relation_with_instance_digest_and_perf_inner<L, MR, MB>(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    chunk: &ChunkInput,
+    incoming_main: &Carry,
+    log: &L,
+    mixers: CommitmentMixers<MR, MB>,
+    optimized_cache: &OptimizedStructureCache,
+    public_chunk_instance_digest: Option<[F; 4]>,
+    me_input_accumulator_handle: Option<[F; 4]>,
+) -> Result<((ChunkReplayWitness, ChunkRelationResult, [u8; 32]), ChunkProvePerf), PiCcsError>
+where
+    L: SModuleHomomorphism<F, Commitment> + Sync,
+    MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
+    MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
+{
+    let total_started = Instant::now();
+    let prepared = prepare_chunk_ccs_inputs(tr, chunk, incoming_main, public_chunk_instance_digest)?;
+    let ccs_started = Instant::now();
+    let replay = if let Some(handle) = me_input_accumulator_handle {
+        let (terminal_state, replay_proof) =
+            optimized_replay_trace_with_cache_instance_digest_and_me_input_handle_and_perf(
+                tr,
+                params,
+                s,
+                &prepared.fresh_claims,
+                &prepared.fresh_witnesses,
+                &incoming_main.claims,
+                &incoming_main.witnesses,
+                prepared.public_chunk_digest,
+                handle,
+                log,
+                optimized_cache,
+            )?;
+        PiCcsReplayWitnessOutputs {
+            me_outputs: terminal_state.me_outputs,
+            replay_proof,
+            perf: terminal_state.perf,
+        }
+    } else {
+        optimized_replay_witness_with_cache_and_instance_digest_and_perf(
+            tr,
+            params,
+            s,
+            &prepared.fresh_claims,
+            &prepared.fresh_witnesses,
+            &incoming_main.claims,
+            &incoming_main.witnesses,
+            prepared.public_chunk_digest,
+            log,
+            optimized_cache,
+        )?
+    };
     let ccs_ms = ccs_started.elapsed().as_secs_f64() * 1_000.0;
     let verified_fold_digest = replay.replay_proof.header_digest;
     let (transition, perf) = finish_chunk_transition_with_perf(

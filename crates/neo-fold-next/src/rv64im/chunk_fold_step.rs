@@ -198,10 +198,14 @@ pub(crate) fn verify_rv64im_chunk_fold_verifier_step(
     optimized_cache: &OptimizedStructureCache,
 ) -> Result<Rv64imChunkFoldVerifierStepOutput, SimpleKernelError> {
     let fresh = adapt_rv64im_chunk_to_fresh_ccs(handoff);
+    let me_input_accumulator_handle = crate::finalize::digest32_as_fields(
+        crate::rv64im::final_relation::rv64im_chunk_fold_carry_recursive_accumulator_digest(carry_in),
+    );
     let (next_main, public_chunk_digest, chunk_relation_digest) = verify_rv64im_chunk_relation_with_replay(
         chunk_index,
         handoff,
         &carry_in.main,
+        me_input_accumulator_handle,
         replay_witness,
         transcript,
         params,
@@ -242,11 +246,15 @@ pub(crate) fn prove_rv64im_chunk_fold_verifier_step_with_perf(
     optimized_cache: &OptimizedStructureCache,
 ) -> Result<((ChunkReplayWitness, Rv64imChunkFoldVerifierStepOutput), ChunkProvePerf), SimpleKernelError> {
     let fresh = adapt_rv64im_chunk_to_fresh_ccs(handoff);
+    let me_input_accumulator_handle = crate::finalize::digest32_as_fields(
+        crate::rv64im::final_relation::rv64im_chunk_fold_carry_recursive_accumulator_digest(carry_in),
+    );
     let ((replay_witness, next_main, public_chunk_digest, chunk_relation_digest), perf) =
         prove_rv64im_chunk_transition_with_perf(
             chunk_index,
             handoff,
             &carry_in.main,
+            me_input_accumulator_handle,
             transcript,
             params,
             structure,

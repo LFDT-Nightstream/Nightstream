@@ -12,7 +12,7 @@ use neo_ccs::Mat;
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::api::{rlc_public, sample_rot_rhos_n_typed, verify_dec_public, RotRing};
-use neo_reductions::optimized_engine::optimized_verify_with_cache_and_instance_digest_and_perf;
+use neo_reductions::optimized_engine::optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 use serde::{Deserialize, Serialize};
@@ -26,7 +26,7 @@ use crate::finalize::{digest32_as_fields, digest_fields_as_digest32, public_chun
 use crate::proof::{Carry, ChunkInput};
 use crate::rv64im::chunk_fold_step::{adapt_rv64im_chunk_to_fresh_ccs, Rv64imAccumulatorHandle, Rv64imChunkFoldCarry};
 use crate::rv64im::chunk_relation::{
-    rv64im_chunk_relation_digest_from_fold_digest, rv64im_step_handle, trace_rv64im_chunk_relation_with_replay_rounds,
+    rv64im_chunk_relation_digest_from_fold_digest, rv64im_step_handle, trace_rv64im_chunk_relation_parts_with_replay,
     Rv64imChunkRelationTrace,
 };
 use crate::rv64im::chunk_step_ivc::{Rv64imChunkStepIvcRelation, Rv64imChunkStepIvcStatement};
@@ -166,36 +166,6 @@ impl Rv64imMainRecursionConstruction2PublicBoundary {
         construction2_public_boundary_fresh_instance_digest(self.expected_commitment_digest(), &self.x_i)
     }
 
-    pub(crate) fn to_fresh_instance(&self) -> Result<Rv64imMainRecursionConstruction2FreshInstance, SimpleKernelError> {
-        if !self.has_canonical_commitment_shape() {
-            return Err(SimpleKernelError::Bridge(
-                "RV64IM Construction-2 public boundary cannot rebuild a non-canonical commitment shape".into(),
-            ));
-        }
-        if self.commitment_digest != self.expected_commitment_digest() {
-            return Err(SimpleKernelError::Bridge(
-                "RV64IM Construction-2 public boundary commitment digest does not bind commitment data".into(),
-            ));
-        }
-        if self.fresh_instance_digest != self.expected_fresh_instance_digest() {
-            return Err(SimpleKernelError::Bridge(
-                "RV64IM Construction-2 public boundary fresh-instance digest does not bind commitment and x_i".into(),
-            ));
-        }
-        let d = usize::try_from(self.commitment_d)
-            .map_err(|_| SimpleKernelError::Bridge("RV64IM Construction-2 commitment d overflows usize".into()))?;
-        let kappa = usize::try_from(self.commitment_kappa)
-            .map_err(|_| SimpleKernelError::Bridge("RV64IM Construction-2 commitment kappa overflows usize".into()))?;
-        Ok(Rv64imMainRecursionConstruction2FreshInstance::from_parts(
-            Rv64imMainRecursionConstruction2Commitment::from_commitment(Commitment {
-                d,
-                kappa,
-                data: self.commitment_data.clone(),
-            }),
-            self.x_i.clone(),
-        ))
-    }
-
     pub fn expected_digest(&self) -> [u8; 32] {
         let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv64im/main_recursion_construction2_public_boundary");
         tr.append_message(
@@ -252,15 +222,10 @@ fn construction2_public_boundary_fresh_instance_digest(
 }
 
 pub(crate) fn rv64im_main_recursion_construction2_x_only_placeholder(
-    current_input: &Rv64imMainRecursionConstruction2FreshInstance,
     x_i: Rv64imEncodedPublicInput,
 ) -> Rv64imMainRecursionConstruction2FreshInstance {
-    let current_commitment = current_input.commitment().commitment();
     Rv64imMainRecursionConstruction2FreshInstance {
-        c_i: Rv64imMainRecursionConstruction2Commitment::from_commitment(Commitment::zeros(
-            current_commitment.d,
-            current_commitment.kappa,
-        )),
+        c_i: Rv64imMainRecursionConstruction2Commitment::from_commitment(Commitment::zeros(D, 1)),
         x_i,
     }
 }
@@ -406,6 +371,20 @@ impl Rv64imMainRecursionConstruction2PiFoldProof {
     pub(crate) fn tamper_ccs_replay_first_round_coeff(&mut self) -> Result<(), SimpleKernelError> {
         self.ccs_replay_payload.tamper_first_sumcheck_coeff()
     }
+}
+
+fn validate_rv64im_main_recursion_construction2_pi_fold_matches_replay_witness(
+    pi_fold: &Rv64imMainRecursionConstruction2PiFoldProof,
+    replay_witness: &ChunkReplayWitness,
+) -> Result<(), SimpleKernelError> {
+    if pi_fold.ccs_replay_payload.sumcheck_rounds != replay_witness.ccs_replay_proof.sumcheck_rounds
+        || pi_fold.ccs_replay_payload.sumcheck_rounds_nc != replay_witness.ccs_replay_proof.sumcheck_rounds_nc
+    {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM Construction-2 Pi_CCS replay payload does not match the carried chunk replay witness".into(),
+        ));
+    }
+    Ok(())
 }
 
 pub(crate) fn build_rv64im_main_recursion_construction2_pi_fold_from_trace(
@@ -961,13 +940,20 @@ fn verify_rv64im_main_recursion_construction2_pi_ccs(
         bridge.state_in.transcript.state,
         bridge.state_in.transcript.absorbed,
     );
-    let trace = trace_rv64im_chunk_relation_with_replay_rounds(
+    validate_rv64im_main_recursion_construction2_pi_fold_matches_replay_witness(bridge.pi_fold, bridge.replay_witness)?;
+    let public_chunk = bridge.chunk_replay_input.chunk_input.public();
+    let me_input_accumulator_handle = digest32_as_fields(
+        crate::rv64im::final_relation::rv64im_chunk_fold_carry_recursive_accumulator_digest(&bridge.state_in.carry),
+    );
+    let trace = trace_rv64im_chunk_relation_parts_with_replay(
         bridge.chunk_index as usize,
         &bridge.chunk_replay_input.chunk_input,
         &bridge.chunk_replay_input.bridge_handoff,
+        rv64im_public_chunk_digest(&public_chunk),
+        public_chunk_digest(&public_chunk),
         &bridge.state_in.carry.main,
-        &bridge.pi_fold.ccs_replay_payload.sumcheck_rounds,
-        &bridge.pi_fold.ccs_replay_payload.sumcheck_rounds_nc,
+        me_input_accumulator_handle,
+        bridge.replay_witness,
         &mut transcript,
         &params,
         structure,
@@ -1111,13 +1097,27 @@ fn trace_and_validate_rv64im_main_recursion_construction2_relation(
         relation.witness.state_in.transcript.absorbed,
     );
     let replay_payload = Rv64imMainRecursionConstruction2PiCcsReplayPayload::from_chunk_step_relation(relation);
-    let trace = trace_rv64im_chunk_relation_with_replay_rounds(
+    validate_rv64im_main_recursion_construction2_pi_fold_matches_replay_witness(
+        &Rv64imMainRecursionConstruction2PiFoldProof {
+            ccs_replay_payload: replay_payload.clone(),
+        },
+        &relation.witness.replay_witness,
+    )?;
+    let public_chunk = replay_input.chunk_input.public();
+    let me_input_accumulator_handle = digest32_as_fields(
+        crate::rv64im::final_relation::rv64im_chunk_fold_carry_recursive_accumulator_digest(
+            &relation.witness.state_in.carry,
+        ),
+    );
+    let trace = trace_rv64im_chunk_relation_parts_with_replay(
         relation.witness.handoff.bridge_handoff.chunk_index as usize,
         &replay_input.chunk_input,
         &replay_input.bridge_handoff,
+        rv64im_public_chunk_digest(&public_chunk),
+        public_chunk_digest(&public_chunk),
         &relation.witness.state_in.carry.main,
-        &replay_payload.sumcheck_rounds,
-        &replay_payload.sumcheck_rounds_nc,
+        me_input_accumulator_handle,
+        &relation.witness.replay_witness,
         &mut transcript,
         &params,
         structure,
@@ -1215,7 +1215,10 @@ fn verify_rv64im_main_recursion_construction2_verified_relation(
         .map(|step| step.mcs.clone())
         .collect::<Vec<_>>();
     let ccs_proof = bridge.replay_witness.ccs_replay_proof.to_pi_ccs_proof();
-    let (ok, _) = optimized_verify_with_cache_and_instance_digest_and_perf(
+    let me_input_accumulator_handle = digest32_as_fields(
+        crate::rv64im::final_relation::rv64im_chunk_fold_carry_recursive_accumulator_digest(&bridge.state_in.carry),
+    );
+    let (ok, _) = optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf(
         &mut transcript,
         &params,
         structure,
@@ -1225,6 +1228,7 @@ fn verify_rv64im_main_recursion_construction2_verified_relation(
         &ccs_proof,
         &optimized_cache,
         public_chunk_digest(&bridge.chunk_replay_input.chunk_input.public()),
+        me_input_accumulator_handle,
     )
     .map_err(|err| SimpleKernelError::Proof(format!("RV64IM Construction-2 Pi_CCS verify failed: {err}")))?;
     if !ok {
@@ -1436,7 +1440,7 @@ pub(crate) fn build_rv64im_main_recursion_construction2_fresh_instance_with_inpu
     validate_rv64im_main_recursion_construction2_input_fresh_instance(advice, current_input_fresh_instance)?;
     perf.pack_image_ms = elapsed_ms(started);
     let started = Instant::now();
-    let fresh_instance = rv64im_main_recursion_construction2_x_only_placeholder(current_input_fresh_instance, x_i);
+    let fresh_instance = rv64im_main_recursion_construction2_x_only_placeholder(x_i);
     perf.commit_ms = elapsed_ms(started);
     perf.total_ms = elapsed_ms(total_started);
     Ok((fresh_instance, perf))

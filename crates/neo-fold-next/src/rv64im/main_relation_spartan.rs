@@ -144,7 +144,10 @@ pub use recursive_step::{
     Rv64imPiCcsStageAuxCounts, Rv64imPiCcsStageConstraintCounts, Rv64imPiCcsStageFingerprint,
     Rv64imPiCcsSumcheckConstraintBreakdown, Rv64imPiRlcPublicConstraintBreakdown, Rv64imPiRlcPublicStageBreakdown,
 };
-pub(crate) use recursive_step::{build_rv64im_terminal_f_prime_r2_circuit, Rv64imMainRecursionStepCircuit};
+pub(crate) use recursive_step::{
+    build_rv64im_terminal_f_prime_r2_circuit, synthesize_rv64im_main_recursion_step_body,
+    Rv64imMainRecursionStepCircuit,
+};
 pub use step_statement::Rv64imMainRecursionStepSpartanStatement;
 use transcript_k::append_k_to_transcript;
 
@@ -266,7 +269,7 @@ impl Rv64imChunkBoundaryPlan {
         effective_fresh_claim_count: usize,
         effective_output_count: usize,
     ) -> Self {
-        let child_claim_source = if boundary_mode.is_terminal() {
+        let child_claim_source = if matches!(boundary_mode, Rv64imChunkBoundaryMode::TerminalCarryChildren) {
             Rv64imChunkChildClaimSource::TerminalFinalClaims
         } else {
             Rv64imChunkChildClaimSource::ReplayedChildren

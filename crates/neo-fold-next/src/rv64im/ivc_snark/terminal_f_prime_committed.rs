@@ -4,10 +4,11 @@
 //! to the low-norm SuperNeo image that reconstructs the terminal `F'` R2
 //! assignment, and `x_i` is the public `enc_inst` image in the leading slots.
 
+use std::collections::BTreeMap;
 use std::ops::Range;
 
 use neo_ajtai::Commitment;
-use neo_ccs::{check_ccs_rowwise_zero, sparse_r1cs_to_ccs, CcsMatrix, CcsStructure, CscMat, Mat};
+use neo_ccs::{poly::SparsePoly, CcsMatrix, CcsStructure, Mat};
 use neo_math::{balanced::to_balanced_i128, D, F};
 use neo_params::NeoParams;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -50,6 +51,7 @@ pub(crate) struct Rv64imTerminalFPrimeCommittedRelation {
 pub(crate) struct Rv64imTerminalFPrimeCommittedStepSetup {
     step_cap: usize,
     r2_assignment: Rv64imTerminalFPrimeR2Assignment,
+    f_prime_circuit: Rv64imMainRecursionStepCircuit,
     packed_cols: usize,
     public_boundary: Rv64imMainRecursionConstruction2PublicBoundary,
 }
@@ -81,33 +83,31 @@ enum Rv64imTerminalFPrimePrivateColumnEncoding {
 
 #[derive(Clone, Debug)]
 struct Rv64imTerminalFPrimeR2ColumnLayout {
-    r2_public_range: Range<usize>,
     r2_public_len: usize,
-    non_r2_public_len: usize,
-    num_spartan_public: usize,
-    private_encodings: Vec<Rv64imTerminalFPrimePrivateColumnEncoding>,
-    private_offsets: Vec<usize>,
-    private_limb_width: usize,
+    source_labels: Vec<String>,
+    source_encodings: Vec<Rv64imTerminalFPrimePrivateColumnEncoding>,
+    source_offsets: Vec<usize>,
+    source_by_label: BTreeMap<String, usize>,
+    source_limb_width: usize,
 }
 
 #[derive(Clone, Debug)]
 pub(crate) struct Rv64imTerminalFPrimeR2Assignment {
-    // Terminal F' R1CS assignment exported as committed R2 relation. Private
-    // R1CS variables are represented by base-2 SuperNeo digits in the committed
-    // `Z`; terminal proof public parameters stay public to this proof and are
-    // not part of `u_i.C`.
+    // Terminal F' R1CS assignment exported as committed R2 relation. Only
+    // source low-norm values may be committed as SuperNeo digits; unclassified
+    // full-field R1CS auxiliaries are rejected before CCS matrix expansion.
     relation: Rv64imTerminalFPrimeR1csCcsRelation,
     terminal_public_values: Vec<F>,
     r2_public_values: Vec<F>,
-    relation_public_values: Vec<F>,
     witness_values: Vec<F>,
-    private_witness_labels: Vec<Option<String>>,
+    f_prime_circuit: Rv64imMainRecursionStepCircuit,
 }
 
 #[derive(Clone, Debug)]
 pub(crate) struct Rv64imTerminalFPrimeCommittedStepCircuit {
     assignment: Rv64imTerminalFPrimeR2Assignment,
     public_boundary: Rv64imMainRecursionConstruction2PublicBoundary,
+    f_prime_circuit: Rv64imMainRecursionStepCircuit,
 }
 
 struct Rv64imTerminalFPrimeR2ShapeExport {
@@ -183,6 +183,7 @@ impl Rv64imTerminalFPrimeCommittedRelation {
         Ok(Rv64imTerminalFPrimeCommittedStepCircuit {
             assignment: self.r2_assignment.clone(),
             public_boundary: self.public_boundary.clone(),
+            f_prime_circuit: self.r2_assignment.f_prime_circuit.clone(),
         })
     }
 
@@ -195,6 +196,7 @@ impl Rv64imTerminalFPrimeCommittedRelation {
         Ok(Rv64imTerminalFPrimeCommittedStepSetup {
             step_cap,
             r2_assignment: self.r2_assignment.clone(),
+            f_prime_circuit: self.r2_assignment.f_prime_circuit.clone(),
             packed_cols: commit_cols_for_full_width(full_width),
             public_boundary: self.public_boundary.clone(),
         })
@@ -245,6 +247,7 @@ impl Rv64imTerminalFPrimeCommittedStepSetup {
         let public_boundary = Rv64imMainRecursionConstruction2PublicBoundary::from_fresh_instance(&fresh_instance);
         Ok(Self {
             step_cap,
+            f_prime_circuit: r2_assignment.f_prime_circuit.clone(),
             r2_assignment,
             packed_cols,
             public_boundary,
@@ -287,6 +290,7 @@ impl Rv64imTerminalFPrimeCommittedStepSetup {
         Rv64imTerminalFPrimeCommittedStepCircuit {
             assignment: self.r2_assignment.clone(),
             public_boundary: self.public_boundary.clone(),
+            f_prime_circuit: self.f_prime_circuit.clone(),
         }
     }
 }
@@ -374,14 +378,14 @@ impl Rv64imTerminalFPrimeR1csCcsRelation {
         let num_variables = regular_shape.num_variables();
         let num_io = regular_shape.num_io();
         let private_witness_labels = padded_private_witness_labels(split_shape, private_witness_labels)?;
-        let layout =
-            Rv64imTerminalFPrimeR2ColumnLayout::new(num_io, num_variables, r2_public_range, &private_witness_labels)?;
-        let structure = sparse_r1cs_to_ccs(
-            spartan_sparse_to_superneo_ccs_matrix(a, &layout)?,
-            spartan_sparse_to_superneo_ccs_matrix(b, &layout)?,
-            spartan_sparse_to_superneo_ccs_matrix(c, &layout)?,
-        )
-        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM terminal F' sparse CCS export failed: {err}")))?;
+        if private_witness_labels.len() != num_variables {
+            return Err(SimpleKernelError::Bridge(format!(
+                "RV64IM terminal F' padded witness label count mismatch: expected {num_variables}, got {}",
+                private_witness_labels.len()
+            )));
+        }
+        let layout = Rv64imTerminalFPrimeR2ColumnLayout::new(num_io, r2_public_range, &private_witness_labels)?;
+        let structure = terminal_source_witness_debug_structure(layout.committed_width())?;
 
         Ok(Self {
             structure,
@@ -439,85 +443,67 @@ impl Rv64imTerminalFPrimeR1csCcsRelation {
     }
 }
 
+fn terminal_source_witness_debug_structure(width: usize) -> Result<CcsStructure<F>, SimpleKernelError> {
+    if width == 0 {
+        return Err(SimpleKernelError::Bridge(
+            "RV64IM terminal F' source witness width is empty".into(),
+        ));
+    }
+    CcsStructure::new_sparse(vec![CcsMatrix::Identity { n: width }], SparsePoly::new(1, Vec::new()))
+        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM terminal F' source structure failed: {err}")))
+}
+
 impl Rv64imTerminalFPrimeR2ColumnLayout {
     fn new(
         num_spartan_public: usize,
-        num_variables: usize,
         r2_public_range: Range<usize>,
         private_witness_labels: &[Option<String>],
     ) -> Result<Self, SimpleKernelError> {
         let r2_public_len = validate_terminal_r2_public_range(&r2_public_range, num_spartan_public)?;
-        if private_witness_labels.len() != num_variables {
-            return Err(SimpleKernelError::Bridge(format!(
-                "RV64IM terminal F' padded witness label count mismatch: expected {num_variables}, got {}",
-                private_witness_labels.len()
-            )));
-        }
-        let non_r2_public_len = num_spartan_public
-            .checked_sub(r2_public_len)
-            .ok_or_else(|| SimpleKernelError::Bridge("RV64IM terminal F' public width underflow".into()))?;
-        let mut private_encodings = Vec::with_capacity(num_variables);
-        let mut private_offsets = Vec::with_capacity(num_variables);
-        let mut private_limb_width = 0usize;
-        for witness_idx in 0..num_variables {
-            let encoding =
-                Rv64imTerminalFPrimePrivateColumnEncoding::from_label(private_witness_labels[witness_idx].as_deref());
-            private_offsets.push(private_limb_width);
-            private_limb_width = private_limb_width
+        let mut source_labels = Vec::new();
+        let mut source_encodings = Vec::new();
+        let mut source_offsets = Vec::new();
+        let mut source_by_label = BTreeMap::new();
+        let mut source_limb_width = 0usize;
+        for label in private_witness_labels.iter().flatten() {
+            if !is_terminal_f_prime_committed_source_label(label) {
+                continue;
+            }
+            let encoding = Rv64imTerminalFPrimePrivateColumnEncoding::from_label(Some(label));
+            if encoding == Rv64imTerminalFPrimePrivateColumnEncoding::UnusedPadding {
+                continue;
+            }
+            source_by_label.insert(label.clone(), source_labels.len());
+            source_labels.push(label.clone());
+            source_encodings.push(encoding);
+            source_offsets.push(source_limb_width);
+            source_limb_width = source_limb_width
                 .checked_add(encoding.limb_count())
-                .ok_or_else(|| SimpleKernelError::Bridge("RV64IM terminal F' private limb width overflow".into()))?;
-            private_encodings.push(encoding);
+                .ok_or_else(|| SimpleKernelError::Bridge("RV64IM terminal F' source limb width overflow".into()))?;
         }
         Ok(Self {
-            r2_public_range,
             r2_public_len,
-            non_r2_public_len,
-            num_spartan_public,
-            private_encodings,
-            private_offsets,
-            private_limb_width,
+            source_labels,
+            source_encodings,
+            source_offsets,
+            source_by_label,
+            source_limb_width,
         })
     }
 
-    fn relation_public_len(&self) -> usize {
-        self.r2_public_len + self.non_r2_public_len
-    }
-
-    fn relation_width(&self) -> usize {
-        self.relation_public_len() + self.private_limb_width + 1
-    }
-
     fn committed_width(&self) -> usize {
-        self.r2_public_len + self.private_limb_width + 1
+        self.r2_public_len + self.source_limb_width + 1
     }
 
-    fn public_col(&self, public_idx: usize) -> Result<usize, SimpleKernelError> {
-        if public_idx >= self.num_spartan_public {
-            return Err(SimpleKernelError::Bridge(
-                "RV64IM terminal F' public column index out of bounds".into(),
-            ));
-        }
-        if self.r2_public_range.contains(&public_idx) {
-            return Ok(public_idx - self.r2_public_range.start);
-        }
-
-        let skipped_r2_public = usize::from(public_idx >= self.r2_public_range.end) * self.r2_public_len;
-        Ok(self.r2_public_len + public_idx - skipped_r2_public)
-    }
-
-    fn num_variables(&self) -> usize {
-        self.private_encodings.len()
-    }
-
-    fn private_limb_width(&self) -> usize {
-        self.private_limb_width
+    fn source_limb_width(&self) -> usize {
+        self.source_limb_width
     }
 
     fn private_encoding_counts(&self) -> (usize, usize, usize) {
         let mut bit_inputs = 0usize;
         let mut u32_inputs = 0usize;
         let mut u64_inputs = 0usize;
-        for encoding in &self.private_encodings {
+        for encoding in &self.source_encodings {
             match encoding {
                 Rv64imTerminalFPrimePrivateColumnEncoding::UnusedPadding => {}
                 Rv64imTerminalFPrimePrivateColumnEncoding::Bit => bit_inputs += 1,
@@ -529,61 +515,22 @@ impl Rv64imTerminalFPrimeR2ColumnLayout {
     }
 
     fn private_padding_inputs(&self) -> usize {
-        self.private_encodings
-            .iter()
-            .filter(|encoding| matches!(encoding, Rv64imTerminalFPrimePrivateColumnEncoding::UnusedPadding))
-            .count()
+        0
     }
 
     fn witness_encoding(
         &self,
-        witness_idx: usize,
+        source_idx: usize,
     ) -> Result<Rv64imTerminalFPrimePrivateColumnEncoding, SimpleKernelError> {
-        self.private_encodings
-            .get(witness_idx)
+        self.source_encodings
+            .get(source_idx)
             .copied()
-            .ok_or_else(|| SimpleKernelError::Bridge("RV64IM terminal F' witness column index out of bounds".into()))
+            .ok_or_else(|| SimpleKernelError::Bridge("RV64IM terminal F' source witness index out of bounds".into()))
     }
 
-    fn witness_col_start(&self, witness_idx: usize) -> Result<usize, SimpleKernelError> {
-        if witness_idx >= self.num_variables() {
-            return Err(SimpleKernelError::Bridge(
-                "RV64IM terminal F' witness column index out of bounds".into(),
-            ));
-        }
-        self.relation_public_len()
-            .checked_add(self.private_offsets[witness_idx])
-            .ok_or_else(|| SimpleKernelError::Bridge("RV64IM terminal F' witness limb column overflow".into()))
-    }
-
-    fn witness_col_terms(&self, witness_idx: usize) -> Result<Vec<(usize, F)>, SimpleKernelError> {
-        let start = self.witness_col_start(witness_idx)?;
-        Ok(self.witness_encoding(witness_idx)?.column_terms(start))
-    }
-
-    fn one_col(&self) -> usize {
-        self.relation_public_len() + self.private_limb_width
-    }
-
-    fn spartan_col_terms(&self, col: usize) -> Result<Vec<(usize, F)>, SimpleKernelError> {
-        let expected_cols = self
-            .num_variables()
-            .checked_add(1)
-            .and_then(|value| value.checked_add(self.num_spartan_public))
-            .ok_or_else(|| SimpleKernelError::Bridge("RV64IM terminal F' R1CS column count overflow".into()))?;
-        if col >= expected_cols {
-            return Err(SimpleKernelError::Bridge(
-                "RV64IM terminal F' R1CS matrix column out of bounds".into(),
-            ));
-        }
-        if col < self.num_variables() {
-            return self.witness_col_terms(col);
-        }
-        if col == self.num_variables() {
-            return Ok(vec![(self.one_col(), F::ONE)]);
-        }
-        let public_idx = col - self.num_variables() - 1;
-        Ok(vec![(self.public_col(public_idx)?, F::ONE)])
+    fn source_binding(&self, label: &str) -> Option<(usize, Rv64imTerminalFPrimePrivateColumnEncoding)> {
+        let source_idx = *self.source_by_label.get(label)?;
+        Some((self.source_offsets[source_idx], self.source_encodings[source_idx]))
     }
 }
 
@@ -616,15 +563,6 @@ impl Rv64imTerminalFPrimePrivateColumnEncoding {
         }
     }
 
-    fn column_terms(self, start: usize) -> Vec<(usize, F)> {
-        match self {
-            Self::UnusedPadding => Vec::new(),
-            Self::Bit => vec![(start, F::ONE)],
-            Self::U32 => bit_column_terms(start, U32_BIT_WIDTH),
-            Self::U64 => bit_column_terms(start, U64_BIT_WIDTH),
-        }
-    }
-
     fn limb_label(self, limb_idx: usize) -> String {
         match self {
             Self::UnusedPadding => "padding".to_string(),
@@ -634,10 +572,25 @@ impl Rv64imTerminalFPrimePrivateColumnEncoding {
     }
 }
 
-fn bit_column_terms(start: usize, bit_width: usize) -> Vec<(usize, F)> {
-    (0..bit_width)
-        .map(|bit_idx| (start + bit_idx, F::from_u64(1u64 << bit_idx)))
-        .collect()
+fn is_terminal_f_prime_committed_source_label(label: &str) -> bool {
+    let root = label.split('/').next().unwrap_or(label);
+    matches!(
+        root,
+        "chunk_index_halves"
+            | "z_i"
+            | "pc_next_halves"
+            | "terminal_halted_out_halves"
+            | "step_handle_meta"
+            | "state_in"
+            | "state_out"
+            | "expected_bridge_handoff_digest"
+            | "construction2_current_input"
+            | "canonical_initial_z"
+            | "statement_chunk_index_halves"
+            | "statement_z_0"
+            | "statement_z_next"
+            | "statement_step_hi_halves"
+    )
 }
 
 impl Rv64imTerminalFPrimeR2Assignment {
@@ -651,24 +604,18 @@ impl Rv64imTerminalFPrimeR2Assignment {
             .iter()
             .map(|value| F::from_u64(value.to_canonical_u64()))
             .collect::<Vec<_>>();
-        let r2_public_range = export.relation.layout.r2_public_range.clone();
-        let (r2_public_values, non_r2_public_values) =
-            split_terminal_r2_public_values(&export.expected_public_values, r2_public_range)?;
-        let mut relation_public_values = Vec::with_capacity(terminal_public_values.len());
-        relation_public_values.extend_from_slice(&r2_public_values);
-        relation_public_values.extend_from_slice(&non_r2_public_values);
+        let r2_public_range = Rv64imMainRecursionStepSpartanPublishedTarget::terminal_r2_public_value_range_static();
+        let (r2_public_values, _) = split_terminal_r2_public_values(&export.expected_public_values, r2_public_range)?;
 
-        let mut witness_values = vec![F::ZERO; export.relation.layout.private_limb_width()];
+        let mut witness_values = vec![F::ZERO; export.relation.layout.source_limb_width()];
         witness_values.push(F::ONE);
-        let num_variables = export.relation.num_variables();
 
         Ok(Self {
             relation: export.relation,
             terminal_public_values,
             r2_public_values,
-            relation_public_values,
             witness_values,
-            private_witness_labels: vec![None; num_variables],
+            f_prime_circuit: export.circuit,
         })
     }
 
@@ -741,26 +688,42 @@ impl Rv64imTerminalFPrimeR2Assignment {
         let relation = export.relation;
         let private_witness_labels =
             padded_private_witness_labels(&export.split_shape, &export.private_witness_labels)?;
-        let r2_public_range = relation.layout.r2_public_range.clone();
-        let (r2_public_values, non_r2_public_values) =
-            split_terminal_r2_public_values(public_values_spartan, r2_public_range)?;
-        let mut relation_public_values = Vec::with_capacity(terminal_public_values.len());
-        relation_public_values.extend_from_slice(&r2_public_values);
-        relation_public_values.extend_from_slice(&non_r2_public_values);
+        let r2_public_range = Rv64imMainRecursionStepSpartanPublishedTarget::terminal_r2_public_value_range_static();
+        let (r2_public_values, _) = split_terminal_r2_public_values(public_values_spartan, r2_public_range)?;
 
         let mut witness_values = Vec::with_capacity(
             relation
                 .layout
-                .private_limb_width()
+                .source_limb_width()
                 .checked_add(1)
                 .ok_or_else(|| {
                     SimpleKernelError::Bridge("RV64IM terminal F' low-norm witness length overflow".into())
                 })?,
         );
         for (witness_idx, value) in witness.values().iter().enumerate() {
+            let Some(Some(label)) = private_witness_labels.get(witness_idx) else {
+                continue;
+            };
+            let Some((offset, encoding)) = relation.layout.source_binding(label) else {
+                continue;
+            };
+            if witness_values.len() < offset {
+                return Err(SimpleKernelError::Bridge(
+                    "RV64IM terminal F' source witness cursor skipped an offset".into(),
+                ));
+            }
+            while witness_values.len() < offset {
+                witness_values.push(F::ZERO);
+            }
             let native = F::from_u64(value.to_canonical_u64());
-            let encoding = relation.layout.witness_encoding(witness_idx)?;
             witness_values.extend(low_norm_encoded_values(native, encoding)?);
+        }
+        if witness_values.len() != relation.layout.source_limb_width() {
+            return Err(SimpleKernelError::Bridge(format!(
+                "RV64IM terminal F' source witness length mismatch: expected {}, got {}",
+                relation.layout.source_limb_width(),
+                witness_values.len()
+            )));
         }
         witness_values.push(F::ONE);
 
@@ -768,9 +731,8 @@ impl Rv64imTerminalFPrimeR2Assignment {
             relation,
             terminal_public_values,
             r2_public_values,
-            relation_public_values,
             witness_values,
-            private_witness_labels,
+            f_prime_circuit: export.circuit,
         };
         assignment.validate()?;
         Ok(assignment)
@@ -782,10 +744,6 @@ impl Rv64imTerminalFPrimeR2Assignment {
 
     fn witness_values(&self) -> &[F] {
         &self.witness_values
-    }
-
-    fn raw_full_width(&self) -> usize {
-        self.relation_public_values.len() + self.witness_values.len()
     }
 
     fn committed_witness_values(&self) -> &[F] {
@@ -853,16 +811,14 @@ impl Rv64imTerminalFPrimeR2Assignment {
             );
         };
         let limb = encoding.limb_label(limb_idx);
-        match self.private_witness_labels.get(r1cs_var_idx) {
-            Some(Some(label)) => {
-                format!(
-                    "committed index {committed_idx} / terminal R2 private witness variable {r1cs_var_idx}.{limb} ({label})"
-                )
-            }
-            Some(None) | None => {
-                format!("committed index {committed_idx} / terminal R2 private witness variable {r1cs_var_idx}.{limb}")
-            }
-        }
+        let label = self
+            .relation
+            .layout
+            .source_labels
+            .get(r1cs_var_idx)
+            .map(String::as_str)
+            .unwrap_or("<unknown>");
+        format!("committed index {committed_idx} / terminal R2 source witness {r1cs_var_idx}.{limb} ({label})")
     }
 
     fn committed_witness_limb(
@@ -872,12 +828,12 @@ impl Rv64imTerminalFPrimeR2Assignment {
         for (witness_idx, encoding) in self
             .relation
             .layout
-            .private_encodings
+            .source_encodings
             .iter()
             .copied()
             .enumerate()
         {
-            let start = self.relation.layout.private_offsets[witness_idx];
+            let start = self.relation.layout.source_offsets[witness_idx];
             let end = start.checked_add(encoding.limb_count())?;
             if (start..end).contains(&committed_witness_idx) {
                 return Some((witness_idx, committed_witness_idx - start, encoding));
@@ -888,16 +844,6 @@ impl Rv64imTerminalFPrimeR2Assignment {
 
     fn validate(&self) -> Result<(), SimpleKernelError> {
         self.validate_shape_only()?;
-        check_ccs_rowwise_zero(
-            self.relation.structure(),
-            &self.relation_public_values,
-            &self.witness_values,
-        )
-        .map_err(|err| {
-            SimpleKernelError::Bridge(format!(
-                "RV64IM terminal F' sparse CCS export is not satisfied by the terminal R1CS witness: {err}"
-            ))
-        })?;
         self.committed_full_vector()?;
         Ok(())
     }
@@ -930,7 +876,7 @@ impl Rv64imTerminalFPrimeR2Assignment {
         let expected_witness_values = self
             .relation
             .layout
-            .private_limb_width()
+            .source_limb_width()
             .checked_add(1)
             .ok_or_else(|| SimpleKernelError::Bridge("RV64IM terminal F' witness length overflow".into()))?;
         if self.witness_values.len() != expected_witness_values {
@@ -946,14 +892,14 @@ impl Rv64imTerminalFPrimeR2Assignment {
             ));
         }
         let total_len = self
-            .relation_public_values
+            .r2_public_values
             .len()
             .checked_add(self.witness_values.len())
             .ok_or_else(|| SimpleKernelError::Bridge("RV64IM terminal F' R2 assignment length overflow".into()))?;
-        if total_len != self.relation.structure().m {
+        if total_len != self.relation.committed_width() {
             return Err(SimpleKernelError::Bridge(format!(
                 "RV64IM terminal F' R2 assignment length mismatch: expected {}, got {}",
-                self.relation.structure().m,
+                self.relation.committed_width(),
                 total_len
             )));
         }
@@ -972,8 +918,17 @@ fn terminal_f_prime_r2_shape_export(
         .public_values()
         .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM terminal F' public IO failed: {err}")))?;
     let r2_public_range = Rv64imMainRecursionStepSpartanPublishedTarget::terminal_r2_public_value_range_static();
-    let split_shape = ShapeCS::<Rv64imDeciderEngine>::r1cs_shape(&circuit)
-        .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM terminal F' R1CS export failed: {err}")))?;
+    let split_shape = ShapeCS::<Rv64imDeciderEngine>::r1cs_shape(&circuit).map_err(|err| {
+        SimpleKernelError::Bridge(format!(
+            "RV64IM terminal F' R1CS export failed for chunk_count_in={} terminal_step={} fresh_claim_count={} state_in_claim_count={} pc_i={} pc_next={}: {err}",
+            backend_relation.f_prime_advice.chunk_count_in(),
+            backend_relation.f_prime_advice.bridge_handoff_halted_out(),
+            backend_relation.payload.step_shape.fresh_claim_count,
+            backend_relation.payload.step_shape.state_in_claim_count,
+            backend_relation.payload.pc_i(),
+            backend_relation.payload.pc_next(),
+        ))
+    })?;
     let private_witness_labels = collect_private_witness_labels(&circuit)?;
     if private_witness_labels.len() != split_shape.num_variables_unpadded() {
         return Err(SimpleKernelError::Bridge(format!(
@@ -1186,39 +1141,4 @@ fn validate_terminal_r2_public_range(
         )));
     }
     Ok(r2_public_range.end - r2_public_range.start)
-}
-
-fn spartan_sparse_to_superneo_ccs_matrix(
-    matrix: &spartan2::SparseMatrix<SpartanF>,
-    layout: &Rv64imTerminalFPrimeR2ColumnLayout,
-) -> Result<CcsMatrix<F>, SimpleKernelError> {
-    let expected_cols = layout
-        .num_variables()
-        .checked_add(1)
-        .and_then(|value| value.checked_add(layout.num_spartan_public))
-        .ok_or_else(|| SimpleKernelError::Bridge("RV64IM terminal F' R1CS column count overflow".into()))?;
-    if matrix.cols() != expected_cols {
-        return Err(SimpleKernelError::Bridge(
-            "RV64IM terminal F' R1CS matrix column count does not match W||1||X layout".into(),
-        ));
-    }
-
-    let mut triplets = Vec::new();
-    for (row, col, value) in matrix.iter() {
-        let coeff = F::from_u64(value.to_canonical_u64());
-        let terms = layout.spartan_col_terms(col)?;
-        if terms.is_empty() && coeff != F::ZERO {
-            return Err(SimpleKernelError::Bridge(
-                "RV64IM terminal F' sparse R1CS matrix references an unused padded witness column".into(),
-            ));
-        }
-        for (superneo_col, multiplier) in terms {
-            triplets.push((row, superneo_col, coeff * multiplier));
-        }
-    }
-    Ok(CcsMatrix::Csc(CscMat::from_triplets(
-        triplets,
-        matrix.rows(),
-        layout.relation_width(),
-    )))
 }

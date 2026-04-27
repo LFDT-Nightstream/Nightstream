@@ -638,7 +638,7 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_aux_counts(
     crate::rv64im::main_relation_circuit::pi_ccs::bind_me_inputs_accumulator_handle(
         &mut cs.namespace(|| format!("chunk_{}_bind_me_input_accumulator", ctx.chunk_index)),
         &mut replayed_transcript,
-        carried_claims.effective_claims().len(),
+        witness.running_state().carry.main.claims.len(),
         accumulator_handle,
         &accumulator_handle_values,
     )
@@ -1146,7 +1146,7 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_constraint_counts(
     crate::rv64im::main_relation_circuit::pi_ccs::bind_me_inputs_accumulator_handle(
         &mut cs.namespace(|| format!("chunk_{}_bind_me_input_accumulator", ctx.chunk_index)),
         &mut replayed_transcript,
-        carried_claims.effective_claims().len(),
+        witness.running_state().carry.main.claims.len(),
         accumulator_handle,
         &accumulator_handle_values,
     )
@@ -1653,7 +1653,7 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_bind_me_inputs_aux_breakd
     crate::rv64im::main_relation_circuit::pi_ccs::bind_me_inputs_accumulator_handle(
         &mut cs.namespace(|| "me_input_accumulator_handle"),
         &mut replayed_transcript,
-        live_state_in_claims.len(),
+        witness.running_state().carry.main.claims.len(),
         &state_in_var.folded_accumulator_digest,
         &digest32_as_spartan_fields(witness.folded_accumulator_in_digest()),
     )
@@ -1767,7 +1767,7 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_sumcheck_constraint_break
     crate::rv64im::main_relation_circuit::pi_ccs::bind_me_inputs_accumulator_handle(
         &mut cs.namespace(|| format!("chunk_{}_bind_me_input_accumulator", ctx.chunk_index)),
         &mut replayed_transcript,
-        carried_claims.effective_claims().len(),
+        witness.running_state().carry.main.claims.len(),
         accumulator_handle,
         &accumulator_handle_values,
     )
@@ -2339,7 +2339,7 @@ pub fn debug_measure_rv64im_main_recursion_step_pi_ccs_fingerprint(
     crate::rv64im::main_relation_circuit::pi_ccs::bind_me_inputs_accumulator_handle(
         &mut cs.namespace(|| format!("chunk_{}_bind_me_input_accumulator", ctx.chunk_index)),
         &mut replayed_transcript,
-        carried_claims.effective_claims().len(),
+        witness.running_state().carry.main.claims.len(),
         accumulator_handle,
         &accumulator_handle_values,
     )

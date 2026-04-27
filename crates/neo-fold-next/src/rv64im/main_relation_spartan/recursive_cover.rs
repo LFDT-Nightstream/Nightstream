@@ -257,7 +257,7 @@ fn recursive_accumulator_instance_digest_circuit_from_phi_dec_parent_vars<CS: Co
         .first()
         .map(|claim| 1 + claim.c_data.len())
         .unwrap_or(0);
-    let mut field_terms = Vec::with_capacity(domain.len() + 1 + terminal_handle.len() + parent_field_count);
+    let mut field_terms = Vec::with_capacity(domain.len() + terminal_handle.len() + parent_field_count);
     let mut field_constants = Vec::with_capacity(field_terms.capacity());
     let mut field_values = Vec::with_capacity(field_terms.capacity());
 
@@ -266,11 +266,6 @@ fn recursive_accumulator_instance_digest_circuit_from_phi_dec_parent_vars<CS: Co
         field_constants.push(value);
         field_values.push(value);
     }
-
-    let claim_count = SpartanF::from_canonical_u64(claims.len() as u64);
-    field_terms.push(Vec::new());
-    field_constants.push(claim_count);
-    field_values.push(claim_count);
 
     for lane in terminal_handle {
         let value = lane.get_value().unwrap_or(SpartanF::ZERO);

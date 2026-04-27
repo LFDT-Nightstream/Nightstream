@@ -1162,48 +1162,8 @@ fn build_rv64im_main_recursion_f_prime_payload_with_trace(
         build_padded_ccs_witnesses(&chunk_trace.fresh_witnesses, &claim_cover.fresh_witness_shapes)?
     };
     emit_debug_timing(trace_prefix, "fresh_witnesses", elapsed_ms(started));
-    let active_fresh_claim_count = advice.verified_kernel_handoff().public_chunk.steps.len();
-    let cover_fresh_claim_count = cover_shape.fresh_claim_count as usize;
-    let rebuild_padded_pi_ccs = active_fresh_claim_count < cover_fresh_claim_count;
     let started = Instant::now();
-    let pi_ccs = if rebuild_padded_pi_ccs {
-        rebuild_padded_pi_ccs_payload(advice, &chunk_trace.handoff, &fresh_claims, &fresh_witnesses)?
-    } else {
-        let ccs_outputs = if chunk_trace.ccs_trace.ccs_outputs.is_empty() && cover_shape.ccs_output_count == 0 {
-            Vec::new()
-        } else {
-            build_canonical_padded_ccs_outputs(
-                &chunk_trace.ccs_trace.ccs_outputs,
-                active_fresh_claim_count,
-                cover_fresh_claim_count,
-                &claim_cover.ccs_output_shapes,
-            )?
-        };
-        let fe_rounds = pad_rounds(
-            &chunk_trace.ccs_trace.ccs_replay_proof.sumcheck_rounds,
-            &cover_shape.fe_round_lengths,
-        )?;
-        let nc_rounds = pad_rounds(
-            &chunk_trace.ccs_trace.ccs_replay_proof.sumcheck_rounds_nc,
-            &cover_shape.nc_round_lengths,
-        )?;
-        let mut replay = chunk_trace.ccs_trace.ccs_replay_proof.clone();
-        replay.sumcheck_rounds = fe_rounds;
-        replay.sumcheck_rounds_nc = nc_rounds;
-        Rv64imMainRecursionFPrimePiCcsPayload {
-            ccs_outputs,
-            replay,
-            public_challenges: chunk_trace
-                .ccs_trace
-                .terminal_state
-                .challenges_public
-                .clone(),
-            row_chals: chunk_trace.ccs_trace.terminal_state.row_chals.clone(),
-            alpha_prime: chunk_trace.ccs_trace.terminal_state.alpha_prime.clone(),
-            s_col: chunk_trace.ccs_trace.terminal_state.s_col.clone(),
-            alpha_prime_nc: chunk_trace.ccs_trace.terminal_state.alpha_prime_nc.clone(),
-        }
-    };
+    let pi_ccs = rebuild_padded_pi_ccs_payload(advice, &chunk_trace.handoff, &fresh_claims, &fresh_witnesses)?;
     emit_debug_timing(trace_prefix, "pi_ccs_payload", elapsed_ms(started));
     let started = Instant::now();
     let parent = pad_ce_claim_to_digest_shape(&chunk_trace.ccs_trace.parent, &claim_cover.parent_claim_shape)?;

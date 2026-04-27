@@ -13,7 +13,7 @@ use spartan2::provider::goldi::F as SpartanF;
 #[test]
 #[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_rho_sampler_matches_native_goldilocks_sampler() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let ring = RotRing::goldilocks();
     let mut native_tr = Poseidon2Transcript::new(b"test/rv64im/rho_sampling");
     let native_rhos = sample_rot_rhos_n(&mut native_tr, &params, &ring, 2).expect("native rho sampling");
@@ -78,7 +78,7 @@ fn rv64im_main_relation_rho_sampler_matches_native_goldilocks_sampler() {
 #[test]
 #[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv64im_main_relation_rho_sampler_handles_k_rho_plus_one_claims() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let mut cs = TestConstraintSystem::<SpartanF>::new();
     let mut circuit_tr =
         Poseidon2TranscriptCircuit::new(cs.namespace(|| "tr"), b"test/rv64im/rho_sampling/full").expect("transcript");

@@ -121,6 +121,7 @@ pub(crate) fn debug_locate_rlc_public_with_split_rho_views_stage(
             .collect::<Vec<_>>(),
         rhos,
         constant_child_prefix,
+        zero_commit_suffix_len,
         &format!("{label}_x"),
     )
     .map_err(|err| format!("x: {err}"))?;
@@ -297,6 +298,7 @@ pub(crate) fn debug_measure_rlc_public_with_split_rho_views_stage_ranges(
             .collect::<Vec<_>>(),
         rhos,
         constant_child_prefix,
+        zero_commit_suffix_len,
         &format!("{label}_x"),
     )?;
     checkpoints.push("x".into(), cs.num_constraints() - stage_start);

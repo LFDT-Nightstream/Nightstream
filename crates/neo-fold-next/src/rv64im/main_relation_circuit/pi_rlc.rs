@@ -340,6 +340,7 @@ pub fn enforce_rlc_public_with_split_rho_views_constant_prefix_zero_commit_suffi
             .collect::<Vec<_>>(),
         rhos,
         constant_child_prefix,
+        0,
         &format!("{label}_x"),
     )?;
 
@@ -864,20 +865,24 @@ fn enforce_rho_coeff_left_action_on_canonical_embedded_x_with_vars<CS: Constrain
     child_native_values: &[Vec<F>],
     rhos: &[RotRhoVar],
     constant_child_prefix: usize,
+    zero_commit_suffix_len: usize,
     label: &str,
 ) -> Result<(), SynthesisError> {
+    let active_children_len = children.len().saturating_sub(zero_commit_suffix_len);
     if parent.len() != D * cols
         || children.is_empty()
         || children.len() != rhos.len()
         || child_native_values.len() != children.len()
-        || constant_child_prefix > children.len()
+        || constant_child_prefix > active_children_len
+        || zero_commit_suffix_len > children.len()
     {
         return Err(SynthesisError::Unsatisfiable);
     }
     for (child_idx, ((_child, native_child), rho)) in children
         .iter()
+        .take(active_children_len)
         .zip(child_native_values.iter())
-        .zip(rhos.iter())
+        .zip(rhos.iter().take(active_children_len))
         .enumerate()
     {
         let native_child_ok = if child_idx < constant_child_prefix {
@@ -894,10 +899,12 @@ fn enforce_rho_coeff_left_action_on_canonical_embedded_x_with_vars<CS: Constrain
             let parent_idx = dense_index(row, col, cols, false);
             let mut linear_terms = Vec::new();
             let mut products = Vec::new();
+            let mut native_expected = F::ZERO;
             for (child_idx, ((child, native_child), rho)) in children
                 .iter()
+                .take(active_children_len)
                 .zip(child_native_values.iter())
-                .zip(rhos.iter())
+                .zip(rhos.iter().take(active_children_len))
                 .enumerate()
             {
                 let compact_child = native_child.len() == cols;
@@ -911,6 +918,12 @@ fn enforce_rho_coeff_left_action_on_canonical_embedded_x_with_vars<CS: Constrain
                         &format!("{label}_coeff_{row}_{col}_{child_idx}"),
                     )?;
                     let child_value = native_child[col];
+                    let mut native_coeff = F::ZERO;
+                    for coeff_idx in 0..D {
+                        native_coeff +=
+                            GOLDILOCKS_ROT_BASIS_MATS[coeff_idx][(row, active_lane)] * rho.coeff_values[coeff_idx];
+                    }
+                    native_expected += native_coeff * child_value;
                     if child_idx < constant_child_prefix {
                         linear_terms.push((SpartanF::from_canonical_u64(child_value.as_canonical_u64()), coeff));
                         continue;
@@ -932,6 +945,12 @@ fn enforce_rho_coeff_left_action_on_canonical_embedded_x_with_vars<CS: Constrain
                         )?;
                         let child_idx_flat = dense_index(in_lane, col, cols, false);
                         let child_value = native_child[child_idx_flat];
+                        let mut native_coeff = F::ZERO;
+                        for coeff_idx in 0..D {
+                            native_coeff +=
+                                GOLDILOCKS_ROT_BASIS_MATS[coeff_idx][(row, in_lane)] * rho.coeff_values[coeff_idx];
+                        }
+                        native_expected += native_coeff * child_value;
                         if child_idx < constant_child_prefix {
                             linear_terms.push((SpartanF::from_canonical_u64(child_value.as_canonical_u64()), coeff));
                             continue;

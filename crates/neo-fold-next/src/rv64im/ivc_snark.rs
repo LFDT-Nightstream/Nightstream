@@ -25,7 +25,6 @@ use self::terminal_f_prime_committed::{
     Rv64imTerminalFPrimeCommittedRelation, Rv64imTerminalFPrimeCommittedStepSetup,
 };
 use crate::rv64im::chunk_step_ivc::build_rv64im_chunk_step_ivc_relations;
-use crate::rv64im::construction2::Rv64imMainRecursionConstruction2FreshInstance;
 use crate::rv64im::final_relation::{
     rv64im_recursive_accumulator_instance_digest_from_parts, Rv64imFinalBuildProof, Rv64imFinalStatement,
 };
@@ -340,7 +339,11 @@ fn canonical_final_ce_claim(claim: &CeClaim<Commitment, F, K>) -> CeClaim<Commit
         X: claim.X.clone(),
         r: claim.r.clone(),
         s_col: Vec::new(),
-        y_ring: claim.y_ring.clone(),
+        y_ring: claim
+            .y_ring
+            .iter()
+            .map(|row| row.iter().copied().take(neo_math::D).collect())
+            .collect(),
         ct: Vec::new(),
         aux_openings: Vec::new(),
         y_zcol: Vec::new(),
@@ -670,21 +673,6 @@ fn terminal_committed_step_inputs_from_backend(
     Ok(relation)
 }
 
-pub(crate) fn derive_rv64im_terminal_f_prime_committed_fresh_instance(
-    relation: &crate::rv64im::chunk_step_ivc::Rv64imChunkStepIvcRelation,
-    advice: &crate::rv64im::f_prime::Rv64imMainRecursionFPrimeAdvice,
-) -> Result<Rv64imMainRecursionConstruction2FreshInstance, SimpleKernelError> {
-    let relations = [relation.clone()];
-    let advices = [advice.clone()];
-    let (spartan_shape, mut backend_relations) =
-        build_rv64im_main_recursion_f_prime_backend_relations_with_spartan_shape_from_advices(&relations, &advices)?;
-    let backend_relation = backend_relations.pop().ok_or_else(|| {
-        SimpleKernelError::Bridge("RV64IM terminal F' committed fresh-instance derivation requires one backend".into())
-    })?;
-    let terminal_relation = terminal_committed_step_inputs_from_backend(&spartan_shape, &backend_relation)?;
-    terminal_relation.public_boundary().to_fresh_instance()
-}
-
 /// Verifies the compressed RV64IM final Construction-2 boundary.
 ///
 /// Coverage:
@@ -721,6 +709,18 @@ fn setup_rv64im_ivc_snark_from_recursion_backend_cached_with_trace(
     backend_relation: &Rv64imMainRecursionFPrimeBackendRelation,
     trace: &mut Rv64imIvcSnarkTrace<'_>,
 ) -> Result<Rv64imIvcSnarkKeyPair, SimpleKernelError> {
+    trace_emit_owned(
+        trace,
+        format!(
+            "setup.terminal_backend.chunk_count_in={} terminal_step={} fresh_claim_count={} state_in_claim_count={} pc_i={} pc_next={}",
+            backend_relation.f_prime_advice.chunk_count_in(),
+            backend_relation.f_prime_advice.bridge_handoff_halted_out(),
+            backend_relation.payload.step_shape.fresh_claim_count,
+            backend_relation.payload.step_shape.state_in_claim_count,
+            backend_relation.payload.pc_i(),
+            backend_relation.payload.pc_next(),
+        ),
+    );
     let started = trace_start(trace, "setup.phase=terminal_committed_step_shape_inputs");
     let terminal_setup = Rv64imTerminalFPrimeCommittedStepSetup::from_backend_shape(spartan_shape, backend_relation)?;
     trace_done(trace, "setup.phase=terminal_committed_step_shape_inputs", started);

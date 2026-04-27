@@ -381,10 +381,14 @@ pub(super) fn synthesize_pi_ccs_stage<CS: ConstraintSystem<SpartanF>>(
     let started = Instant::now();
     let me_input_projection_digests =
         if let Some((accumulator_handle, accumulator_handle_values)) = ctx.me_input_accumulator_handle {
+            let me_input_count = ctx
+                .logical_me_input_claims
+                .map(|claims| claims.len())
+                .unwrap_or_else(|| carried_claims.effective_claims().len());
             crate::rv64im::main_relation_circuit::pi_ccs::bind_me_inputs_accumulator_handle(
                 &mut cs.namespace(|| format!("chunk_{}_bind_me_input_accumulator", ctx.chunk_index)),
                 transcript,
-                carried_claims.effective_claims().len(),
+                me_input_count,
                 accumulator_handle,
                 &accumulator_handle_values,
             )?;

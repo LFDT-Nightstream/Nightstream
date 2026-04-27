@@ -202,7 +202,6 @@ fn accumulator_phi_dec_parent_hash_field_count(claims: &[CeClaim<Commitment, F, 
         .map(|claim| 1 + claim.c.data.len())
         .unwrap_or(0);
     packed_bytes_field_count(b"neo.fold.next/rv64im/main_recursion_recursive_accumulator_phi_dec_parent/v1".len())
-        + 1
         + 4
         + parent_commitment_fields
 }

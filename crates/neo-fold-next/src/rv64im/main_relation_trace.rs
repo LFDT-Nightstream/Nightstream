@@ -17,8 +17,9 @@ use neo_reductions::common::{
 };
 use neo_reductions::engines::utils::{build_dims_and_policy, Dims};
 use neo_reductions::optimized_engine::{
-    optimized_replay_terminal_state_with_cache_and_instance_digest_and_perf, Challenges, OptimizedStructureCache,
-    PiCcsReplayProofWitness, PiCcsReplayTerminalState,
+    optimized_replay_terminal_state_with_cache_and_instance_digest_and_perf,
+    optimized_replay_terminal_state_with_cache_instance_digest_and_me_input_handle_and_perf, Challenges,
+    OptimizedStructureCache, PiCcsReplayProofWitness, PiCcsReplayTerminalState,
 };
 use neo_transcript::Poseidon2Transcript;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -466,10 +467,14 @@ fn build_rv64im_main_circuit_chunk_trace_from_parts(
     transcript: &mut Poseidon2Transcript,
 ) -> Result<Rv64imMainCircuitChunkTrace, SimpleKernelError> {
     let fresh = crate::rv64im::chunk_fold_step::adapt_rv64im_chunk_to_fresh_ccs(handoff);
+    let me_input_accumulator_handle = crate::finalize::digest32_as_fields(
+        crate::rv64im::final_relation::rv64im_chunk_fold_carry_recursive_accumulator_digest(carry_in),
+    );
     let trace = trace_rv64im_chunk_relation_with_replay(
         chunk_index,
         handoff,
         &carry_in.main,
+        me_input_accumulator_handle,
         replay_witness,
         transcript,
         ctx.params,
@@ -486,6 +491,7 @@ fn build_rv64im_main_circuit_chunk_trace_from_parts(
         &fresh.fresh_witnesses,
         &carry_in.main.claims,
         &carry_in.main.witnesses,
+        Some(me_input_accumulator_handle),
     )?;
     check_pi_ccs_terminal_state_native(chunk_index, &trace.terminal_state, &replayed_terminal_state)?;
     check_claim_fold_digest_native(
@@ -790,21 +796,38 @@ fn replay_main_relation_pi_ccs_terminal_state(
     fresh_witnesses: &[CcsWitness<F>],
     me_inputs: &[neo_ccs::CeClaim<Commitment, F, K>],
     me_witnesses: &[Mat<F>],
+    me_input_accumulator_handle: Option<[F; 4]>,
 ) -> Result<(PiCcsReplayTerminalState, Poseidon2Transcript), SimpleKernelError> {
     let mut transcript = Poseidon2Transcript::from_state_and_absorbed(transcript_in.state, transcript_in.absorbed);
     append_chunk_meta_native(&mut transcript, public_chunk);
-    let terminal_state = optimized_replay_terminal_state_with_cache_and_instance_digest_and_perf(
-        &mut transcript,
-        ctx.params,
-        ctx.structure,
-        fresh_claims,
-        fresh_witnesses,
-        me_inputs,
-        me_witnesses,
-        public_chunk_instance_digest,
-        ctx.log,
-        ctx.optimized_cache,
-    )
+    let terminal_state = if let Some(handle) = me_input_accumulator_handle {
+        optimized_replay_terminal_state_with_cache_instance_digest_and_me_input_handle_and_perf(
+            &mut transcript,
+            ctx.params,
+            ctx.structure,
+            fresh_claims,
+            fresh_witnesses,
+            me_inputs,
+            me_witnesses,
+            public_chunk_instance_digest,
+            handle,
+            ctx.log,
+            ctx.optimized_cache,
+        )
+    } else {
+        optimized_replay_terminal_state_with_cache_and_instance_digest_and_perf(
+            &mut transcript,
+            ctx.params,
+            ctx.structure,
+            fresh_claims,
+            fresh_witnesses,
+            me_inputs,
+            me_witnesses,
+            public_chunk_instance_digest,
+            ctx.log,
+            ctx.optimized_cache,
+        )
+    }
     .map_err(|err| SimpleKernelError::Bridge(format!("RV64IM main relation Pi_CCS transcript replay failed: {err}")))?;
     Ok((terminal_state, transcript))
 }
@@ -840,6 +863,7 @@ pub(crate) fn debug_replay_rv64im_main_relation_pi_ccs_transcript_state(
         fresh_witnesses,
         me_inputs,
         me_witnesses,
+        None,
     )?;
     Ok(Rv64imChunkFoldTranscriptSnapshot {
         state: transcript.state(),
@@ -879,6 +903,7 @@ pub(crate) fn debug_describe_rv64im_main_relation_pi_ccs_terminal_state_mismatch
         fresh_witnesses,
         me_inputs,
         me_witnesses,
+        None,
     )?;
     Ok(
         describe_pi_ccs_terminal_state_mismatch(live, &replayed)
@@ -919,6 +944,7 @@ pub(crate) fn debug_describe_rv64im_main_relation_pi_rlc_parent_mismatch(
         fresh_witnesses,
         me_inputs,
         me_witnesses,
+        None,
     )?;
     let expected_rhos = sample_main_relation_pi_rlc_rhos(&mut replay_transcript, ctx.params, ccs_outputs.len())?;
     let mixers = rv64im_ajtai_mixers();
@@ -967,6 +993,7 @@ pub(crate) fn debug_describe_rv64im_main_relation_pi_rlc_x_flat_mismatch(
         fresh_witnesses,
         me_inputs,
         me_witnesses,
+        None,
     )?;
     let expected_rhos = sample_main_relation_pi_rlc_rhos(&mut replay_transcript, ctx.params, ccs_outputs.len())?;
     let cols = live_parent.X.cols();

@@ -9,17 +9,18 @@ use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 
 use crate::chunk_relation::{
-    claim_digests, compute_chunk_replay_witness_and_relation_with_instance_digest_and_perf,
-    trace_chunk_relation_with_replay_rounds_and_instance_digest, trace_chunk_relation_with_witness_and_instance_digest,
-    verify_chunk_relation_with_witness_and_instance_digest, ChunkReplayTrace, ChunkReplayWitness,
+    claim_digests, compute_chunk_replay_witness_and_relation_with_instance_digest_and_me_input_handle_and_perf,
+    trace_chunk_relation_with_witness_and_instance_digest_and_me_input_handle,
+    verify_chunk_relation_with_witness_and_instance_digest_and_me_input_handle_with_perf, ChunkReplayTrace,
+    ChunkReplayWitness,
 };
 use crate::finalize::fixed_shape_recursive_step_handle;
-use crate::finalize::{digest32_as_fields, digest_fields_as_digest32, public_chunk_digest};
+use crate::finalize::{digest32_as_fields, digest_fields_as_digest32};
 use crate::proof::{Carry, ChunkInput, ChunkProvePerf};
 use crate::rv64im::final_relation::Rv64imChunkFoldTranscriptSnapshot;
 use crate::rv64im::kernel::{
-    prepared_step_digest, rv64im_ajtai_mixers, rv64im_public_chunk_digest, Rv64imChunkBridgeHandoff,
-    Rv64imVerifiedKernelChunkHandoff, SimpleKernelError,
+    prepared_step_digest, rv64im_ajtai_mixers, Rv64imChunkBridgeHandoff, Rv64imVerifiedKernelChunkHandoff,
+    SimpleKernelError,
 };
 
 pub(crate) const RV64IM_CHUNK_RELATION_DIGEST_RAW_TAG: u64 = 13;
@@ -40,6 +41,7 @@ pub(crate) fn prove_rv64im_chunk_transition_with_perf(
     chunk_index: usize,
     handoff: &Rv64imVerifiedKernelChunkHandoff,
     incoming_main: &Carry,
+    me_input_accumulator_handle: [F; 4],
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,
     structure: &CcsStructure<F>,
@@ -49,7 +51,7 @@ pub(crate) fn prove_rv64im_chunk_transition_with_perf(
     // This builder only accepts a verified export handoff, so the prover hot path
     // does not replay structural bridge validation here. Verification still does.
     let ((replay_witness, proved, verified_fold_digest), perf) =
-        compute_chunk_replay_witness_and_relation_with_instance_digest_and_perf(
+        compute_chunk_replay_witness_and_relation_with_instance_digest_and_me_input_handle_and_perf(
             transcript,
             params,
             structure,
@@ -58,7 +60,8 @@ pub(crate) fn prove_rv64im_chunk_transition_with_perf(
             log,
             rv64im_ajtai_mixers(),
             optimized_cache,
-            Some(handoff.public_chunk_instance_digest),
+            handoff.public_chunk_instance_digest,
+            me_input_accumulator_handle,
         )
         .map_err(|err| {
             SimpleKernelError::Proof(format!("RV64IM chunk transition {chunk_index} prove failed: {err}"))
@@ -84,6 +87,7 @@ pub(crate) fn verify_rv64im_chunk_relation_with_replay(
     chunk_index: usize,
     handoff: &Rv64imVerifiedKernelChunkHandoff,
     incoming_main: &Carry,
+    me_input_accumulator_handle: [F; 4],
     replay_witness: &ChunkReplayWitness,
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,
@@ -92,19 +96,23 @@ pub(crate) fn verify_rv64im_chunk_relation_with_replay(
     optimized_cache: &OptimizedStructureCache,
 ) -> Result<(Carry, [u8; 32], [u8; 32]), SimpleKernelError> {
     validate_rv64im_chunk_bridge_handoff(chunk_index, handoff)?;
-    let (proved, verified_fold_digest) = verify_chunk_relation_with_witness_and_instance_digest(
-        transcript,
-        params,
-        structure,
-        &handoff.chunk_input,
-        incoming_main,
-        replay_witness,
-        log,
-        rv64im_ajtai_mixers(),
-        optimized_cache,
-        Some(handoff.public_chunk_instance_digest),
-    )
-    .map_err(|err| SimpleKernelError::Proof(format!("RV64IM chunk transition {chunk_index} verify failed: {err}")))?;
+    let ((proved, verified_fold_digest), _) =
+        verify_chunk_relation_with_witness_and_instance_digest_and_me_input_handle_with_perf(
+            transcript,
+            params,
+            structure,
+            &handoff.chunk_input,
+            incoming_main,
+            replay_witness,
+            log,
+            rv64im_ajtai_mixers(),
+            optimized_cache,
+            handoff.public_chunk_instance_digest,
+            me_input_accumulator_handle,
+        )
+        .map_err(|err| {
+            SimpleKernelError::Proof(format!("RV64IM chunk transition {chunk_index} verify failed: {err}"))
+        })?;
     let public_chunk_digest = handoff.public_chunk_digest;
     let chunk_relation_digest = rv64im_chunk_relation_digest_from_fold_digest(
         public_chunk_digest,
@@ -118,6 +126,7 @@ pub(crate) fn trace_rv64im_chunk_relation_with_replay(
     chunk_index: usize,
     handoff: &Rv64imVerifiedKernelChunkHandoff,
     incoming_main: &Carry,
+    me_input_accumulator_handle: [F; 4],
     replay_witness: &ChunkReplayWitness,
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,
@@ -126,33 +135,32 @@ pub(crate) fn trace_rv64im_chunk_relation_with_replay(
     optimized_cache: &OptimizedStructureCache,
 ) -> Result<Rv64imChunkRelationTrace, SimpleKernelError> {
     validate_rv64im_chunk_bridge_handoff(chunk_index, handoff)?;
-    let trace = trace_chunk_relation_with_witness_and_instance_digest(
+    trace_rv64im_chunk_relation_parts_with_replay(
+        chunk_index,
+        &handoff.chunk_input,
+        &handoff.bridge_handoff,
+        handoff.public_chunk_digest,
+        handoff.public_chunk_instance_digest,
+        incoming_main,
+        me_input_accumulator_handle,
+        replay_witness,
         transcript,
         params,
         structure,
-        &handoff.chunk_input,
-        incoming_main,
-        replay_witness,
         log,
-        rv64im_ajtai_mixers(),
         optimized_cache,
-        handoff.public_chunk_instance_digest,
     )
-    .map_err(|err| SimpleKernelError::Proof(format!("RV64IM chunk transition {chunk_index} trace failed: {err}")))?;
-    Ok(trace_into_rv64im(
-        trace,
-        handoff.public_chunk_digest,
-        handoff.bridge_handoff.digest,
-    ))
 }
 
-pub(crate) fn trace_rv64im_chunk_relation_with_replay_rounds(
+pub(crate) fn trace_rv64im_chunk_relation_parts_with_replay(
     chunk_index: usize,
     chunk_input: &ChunkInput,
     bridge_handoff: &Rv64imChunkBridgeHandoff,
+    public_chunk_digest_bytes: [u8; 32],
+    public_chunk_instance_digest: [F; 4],
     incoming_main: &Carry,
-    sumcheck_rounds: &[Vec<K>],
-    sumcheck_rounds_nc: &[Vec<K>],
+    me_input_accumulator_handle: [F; 4],
+    replay_witness: &ChunkReplayWitness,
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,
     structure: &CcsStructure<F>,
@@ -160,24 +168,25 @@ pub(crate) fn trace_rv64im_chunk_relation_with_replay_rounds(
     optimized_cache: &OptimizedStructureCache,
 ) -> Result<Rv64imChunkRelationTrace, SimpleKernelError> {
     validate_rv64im_chunk_replay_input(chunk_index, chunk_input, bridge_handoff)?;
-    let public_chunk = chunk_input.public();
-    let public_chunk_instance_digest = public_chunk_digest(&public_chunk);
-    let public_chunk_digest = rv64im_public_chunk_digest(&public_chunk);
-    let trace = trace_chunk_relation_with_replay_rounds_and_instance_digest(
+    let trace = trace_chunk_relation_with_witness_and_instance_digest_and_me_input_handle(
         transcript,
         params,
         structure,
         chunk_input,
         incoming_main,
-        sumcheck_rounds,
-        sumcheck_rounds_nc,
+        replay_witness,
         log,
         rv64im_ajtai_mixers(),
         optimized_cache,
         public_chunk_instance_digest,
+        me_input_accumulator_handle,
     )
     .map_err(|err| SimpleKernelError::Proof(format!("RV64IM chunk transition {chunk_index} trace failed: {err}")))?;
-    Ok(trace_into_rv64im(trace, public_chunk_digest, bridge_handoff.digest))
+    Ok(trace_into_rv64im(
+        trace,
+        public_chunk_digest_bytes,
+        bridge_handoff.digest,
+    ))
 }
 
 pub(crate) fn rv64im_step_handle(

@@ -462,16 +462,6 @@ impl Rv64imIvcState {
         perf.evaluate_f_prime_build_u_next_commit_ms = eval_perf.build_construction2_u_next_commit_ms;
 
         let started = Instant::now();
-        let committed_construction2_u_next =
-            crate::rv64im::ivc_snark::derive_rv64im_terminal_f_prime_committed_fresh_instance(relation, &advice)?;
-        if committed_construction2_u_next.x_i() != &step_image.x_out {
-            return Err(SimpleKernelError::Bridge(
-                "RV64IM IVC append derived a committed Construction-2 u_next whose x_i does not match F' x_out".into(),
-            ));
-        }
-        perf.derive_committed_u_next_ms = elapsed_ms(started);
-
-        let started = Instant::now();
         let next_step_count = self
             .step_count
             .checked_add(relation.statement.chunk_summary.public_step_count)
@@ -503,7 +493,7 @@ impl Rv64imIvcState {
             phi_side: step_image.phi_side,
             folded_accumulator_digest: step_image.folded_accumulator_digest,
             x_i: step_image.x_out,
-            construction2_u_i: committed_construction2_u_next,
+            construction2_u_i: step_image.construction2_u_next,
             running_state: step_image.next_state,
             last_step: Some(step_record),
         };

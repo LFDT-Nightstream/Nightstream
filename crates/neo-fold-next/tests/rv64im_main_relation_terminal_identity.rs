@@ -174,7 +174,7 @@ fn rv64im_main_relation_terminal_identity_fe_matches_native_formula() {
     .expect("circuit fe rhs");
     let expected = rhs_terminal_identity_fe_with_k_mcs(
         &structure,
-        &NeoParams::goldilocks_127(),
+        &NeoParams::goldilocks_paper_b2(),
         &public_challenges,
         &r_prime,
         &alpha_prime,
@@ -197,7 +197,7 @@ fn rv64im_main_relation_terminal_identity_nc_matches_native_formula() {
     let public_challenges = synthetic_public_challenges();
     let s_col_prime = vec![k(2, 0)];
     let alpha_prime = vec![k(1, 0)];
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
 
     let claim_vars = claims
         .iter()

@@ -285,6 +285,32 @@ fn rv64im_terminal_f_prime_committed_step_uses_superneo_committed_ccs_authority(
 }
 
 #[test]
+fn direct_ccs_folded_compressor_uses_latest_relation_state() {
+    let source = fs::read_to_string(crate_path("src/rv64im/direct_ccs_f_prime.rs")).expect("read direct CCS F' module");
+    let fibonacci_probe =
+        fs::read_to_string(crate_path("src/bin/fibonacci_superneo_probe.rs")).expect("read Fibonacci probe");
+    let sha_probe = fs::read_to_string(crate_path("src/bin/sha256_superneo_probe.rs")).expect("read SHA probe");
+
+    assert!(
+        source.contains("pub struct DirectCcsIvcState")
+            && source.contains("pub fn append<L, MR, MB>")
+            && source.contains("pub fn latest_relation_and_advice")
+            && source.contains("pub fn compress_with_trace")
+            && source.contains("chunks: vec![last.surface.clone()]")
+            && source.contains("initial_claims: last.relation.state_in.carry.claims.clone()")
+            && source.contains("initial_transcript: Some(last.relation.state_in.transcript.clone())"),
+        "direct CCS compression must build the terminal circuit from the latest carried F' relation, not from a historical replay list"
+    );
+    assert!(
+        fibonacci_probe.contains("DirectCcsIvcState::append_all")
+            && sha_probe.contains("DirectCcsIvcState::append_all")
+            && !fibonacci_probe.contains("multi-chunk terminal replay compression is disabled")
+            && !sha_probe.contains("multi-chunk terminal replay compression is disabled"),
+        "direct CCS diagnostics must route multi-chunk runs through the folded carrier"
+    );
+}
+
+#[test]
 fn rv64im_ce_circuit_accepts_only_superneo_packed_witness_shape() {
     let witness = fs::read_to_string(crate_path("src/rv64im/main_relation_circuit/witness.rs"))
         .expect("read circuit witness module");

@@ -1,9 +1,10 @@
-//! Owns terminal direct-CCS SuperNeo compression for non-VM diagnostics.
+//! Owns single-terminal-step direct-CCS SuperNeo compression for non-VM diagnostics.
 //!
-//! This is a relation-owned diagnostic path: the probe supplies direct CCS
-//! steps, while this module synthesizes the shared `NIFS.V` replay and terminal
-//! post-DEC CE consistency inside Spartan. It deliberately does not hash final
-//! CE projections as authority.
+//! This is a relation-owned diagnostic path for one terminal F' step: the probe
+//! supplies direct CCS steps, while this module synthesizes the shared `NIFS.V`
+//! replay and terminal post-DEC CE consistency inside Spartan. It deliberately
+//! rejects multi-chunk runs because that would check historical chunks instead
+//! of proving a folded Construction-2/IVC state.
 
 use std::time::Instant;
 
@@ -12,8 +13,9 @@ use neo_ajtai::Commitment;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat};
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
-use neo_reductions::engines::optimized_engine::PiCcsReplayProofWitness;
+use neo_reductions::engines::optimized_engine::{OptimizedStructureCache, PiCcsReplayProofWitness};
 use neo_reductions::engines::utils::{build_dims_and_policy, digest_ccs_matrices_with_sparse_cache, Dims};
+use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeField64;
 use p3_goldilocks::Goldilocks;
 use serde::{Deserialize, Serialize};
@@ -27,6 +29,7 @@ use super::main_relation_circuit::ce_consistency::{
     debug_enforce_paper_ce_claim_consistency_with_breakdown, enforce_paper_ce_claim_consistency,
     PaperCeRelationConstraintBreakdown,
 };
+use super::main_relation_circuit::claim::alloc_ce_claim;
 use super::main_relation_circuit::transcript::Poseidon2TranscriptCircuit;
 use super::main_relation_circuit::witness::alloc_packed_witness;
 use super::main_relation_spartan::{synthesize_direct_ccs_nifs_chunk, Rv64imClaimBundle};
@@ -35,7 +38,9 @@ use super::main_relation_trace::{
     Rv64imMainCircuitChunkCover, Rv64imMainCircuitChunkReplaySurface, Rv64imMainCircuitHandoff,
     Rv64imMainCircuitPublicInputLayout,
 };
+use crate::chunk_relation::trace_chunk_relation_with_witness_and_instance_digest;
 use crate::finalize::{digest_fields_as_digest32, public_chunk_digest};
+use crate::ivc::{SuperNeoIvcState, SuperNeoIvcStepRelation, SuperNeoIvcTranscriptSnapshot};
 use crate::proof::{partition_prover_step_inputs, Carry, PackagedProof, ProverChunkInput, StepInput};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -100,6 +105,32 @@ struct DirectCcsFPrimeKeys {
     vk: Rv64imDeciderVerifierKey,
 }
 
+#[derive(Clone, Debug)]
+pub struct DirectCcsLatestFPrimeSummary {
+    pub chunk_index: u64,
+    pub fresh_claims: usize,
+    pub incoming_ce_claims: usize,
+    pub output_ce_claims: usize,
+    pub final_ce_claims: usize,
+}
+
+#[derive(Clone)]
+pub struct DirectCcsIvcState {
+    params: NeoParams,
+    structure: CcsStructure<F>,
+    dims: Dims,
+    mat_digest: [Goldilocks; 4],
+    optimized_cache: OptimizedStructureCache,
+    state: SuperNeoIvcState,
+    last_step: Option<DirectCcsIvcStepRecord>,
+}
+
+#[derive(Clone)]
+struct DirectCcsIvcStepRecord {
+    relation: SuperNeoIvcStepRelation,
+    surface: DirectCcsChunkCircuitSurface,
+}
+
 #[derive(Clone)]
 struct DirectCcsChunkCircuitSurface {
     cover: Rv64imMainCircuitChunkCover,
@@ -113,6 +144,8 @@ struct DirectCcsFPrimeCircuit {
     dims: Dims,
     mat_digest: [Goldilocks; 4],
     chunks: Vec<DirectCcsChunkCircuitSurface>,
+    initial_claims: Vec<CeClaim<Commitment, F, K>>,
+    initial_transcript: Option<SuperNeoIvcTranscriptSnapshot>,
     final_claims: Vec<CeClaim<Commitment, F, K>>,
     final_witnesses: Vec<CcsWitness<F>>,
 }
@@ -130,6 +163,146 @@ impl DirectCcsFPrimeCircuit {
                     .map(field_to_spartan)
             })
             .collect()
+    }
+}
+
+impl DirectCcsIvcState {
+    pub fn new(params: &NeoParams, structure: &CcsStructure<F>) -> Result<Self, DirectCcsFPrimeSnarkError> {
+        let dims = build_dims_and_policy(params, structure)
+            .map_err(|err| DirectCcsFPrimeSnarkError::Input(err.to_string()))?;
+        let optimized_cache = OptimizedStructureCache::build(structure)
+            .map_err(|err| DirectCcsFPrimeSnarkError::Input(err.to_string()))?;
+        let mat_digest: [Goldilocks; 4] = digest_ccs_matrices_with_sparse_cache(structure, None)
+            .try_into()
+            .map_err(|digest: Vec<Goldilocks>| {
+                DirectCcsFPrimeSnarkError::Input(format!("expected 4 matrix digest limbs, got {}", digest.len()))
+            })?;
+        Ok(Self {
+            params: params.clone(),
+            structure: structure.clone(),
+            dims,
+            mat_digest,
+            optimized_cache,
+            state: SuperNeoIvcState::seed(),
+            last_step: None,
+        })
+    }
+
+    pub fn append<L, MR, MB>(
+        &self,
+        relation: &SuperNeoIvcStepRelation,
+        log: &L,
+        mixers: crate::prover::CommitmentMixers<MR, MB>,
+    ) -> Result<Self, DirectCcsFPrimeSnarkError>
+    where
+        L: neo_ccs::traits::SModuleHomomorphism<F, Commitment> + Sync,
+        MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
+        MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
+    {
+        if !superneo_ivc_states_match(&self.state, &relation.state_in) {
+            return Err(DirectCcsFPrimeSnarkError::Input(
+                "direct CCS IVC append relation does not start from the carried state".into(),
+            ));
+        }
+        relation
+            .verify(&self.params, &self.structure, log, mixers, &self.optimized_cache)
+            .map_err(|err| DirectCcsFPrimeSnarkError::Input(err.to_string()))?;
+        let surface = build_direct_ccs_chunk_surface_from_ivc_relation(
+            &self.params,
+            &self.structure,
+            self.dims,
+            relation,
+            log,
+            mixers,
+            &self.optimized_cache,
+        )?;
+        Ok(Self {
+            params: self.params.clone(),
+            structure: self.structure.clone(),
+            dims: self.dims,
+            mat_digest: self.mat_digest,
+            optimized_cache: self.optimized_cache.clone(),
+            state: relation.state_out.clone(),
+            last_step: Some(DirectCcsIvcStepRecord {
+                relation: relation.clone(),
+                surface,
+            }),
+        })
+    }
+
+    pub fn append_all<L, MR, MB>(
+        params: &NeoParams,
+        structure: &CcsStructure<F>,
+        relations: &[SuperNeoIvcStepRelation],
+        log: &L,
+        mixers: crate::prover::CommitmentMixers<MR, MB>,
+    ) -> Result<Self, DirectCcsFPrimeSnarkError>
+    where
+        L: neo_ccs::traits::SModuleHomomorphism<F, Commitment> + Sync,
+        MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
+        MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
+    {
+        let mut state = Self::new(params, structure)?;
+        for relation in relations {
+            state = state.append(relation, log, mixers)?;
+        }
+        Ok(state)
+    }
+
+    pub fn final_state(&self) -> &SuperNeoIvcState {
+        &self.state
+    }
+
+    pub fn latest_relation_and_advice(&self) -> Result<DirectCcsLatestFPrimeSummary, DirectCcsFPrimeSnarkError> {
+        let last = self.last_step.as_ref().ok_or_else(|| {
+            DirectCcsFPrimeSnarkError::Input(
+                "direct CCS folded compression requires at least one appended SuperNeo relation".into(),
+            )
+        })?;
+        Ok(DirectCcsLatestFPrimeSummary {
+            chunk_index: last.relation.chunk_index,
+            fresh_claims: last.relation.chunk.steps.len(),
+            incoming_ce_claims: last.relation.state_in.carry.claims.len(),
+            output_ce_claims: last.relation.replay_witness.ccs_outputs.len(),
+            final_ce_claims: self.state.carry.claims.len(),
+        })
+    }
+
+    pub fn compress_with_trace(
+        &self,
+        emit: &mut dyn FnMut(&str),
+    ) -> Result<(DirectCcsFPrimeSnarkProof, DirectCcsFPrimeSnarkPerf), DirectCcsFPrimeSnarkError> {
+        emit("direct_ccs_ivc.phase=latest_relation_and_advice.start");
+        let circuit = self.latest_circuit()?;
+        emit("direct_ccs_ivc.phase=latest_relation_and_advice.done");
+        emit("direct_ccs_ivc.phase=spartan_terminal_prove.start");
+        let proved = prove_direct_ccs_f_prime_circuit(circuit);
+        emit("direct_ccs_ivc.phase=spartan_terminal_prove.done");
+        proved
+    }
+
+    pub fn compress(&self) -> Result<(DirectCcsFPrimeSnarkProof, DirectCcsFPrimeSnarkPerf), DirectCcsFPrimeSnarkError> {
+        let mut emit = |_message: &str| {};
+        self.compress_with_trace(&mut emit)
+    }
+
+    fn latest_circuit(&self) -> Result<DirectCcsFPrimeCircuit, DirectCcsFPrimeSnarkError> {
+        let last = self.last_step.as_ref().ok_or_else(|| {
+            DirectCcsFPrimeSnarkError::Input(
+                "direct CCS folded compression requires at least one appended SuperNeo relation".into(),
+            )
+        })?;
+        Ok(DirectCcsFPrimeCircuit {
+            params: self.params.clone(),
+            structure: self.structure.clone(),
+            dims: self.dims,
+            mat_digest: self.mat_digest,
+            chunks: vec![last.surface.clone()],
+            initial_claims: last.relation.state_in.carry.claims.clone(),
+            initial_transcript: Some(last.relation.state_in.transcript.clone()),
+            final_claims: self.state.carry.claims.clone(),
+            final_witnesses: final_carry_witnesses(&self.state.carry.witnesses)?,
+        })
     }
 }
 
@@ -171,9 +344,8 @@ impl SpartanCircuit<Rv64imDeciderEngine> for DirectCcsFPrimeCircuit {
             .map(|(idx, value)| AllocatedNum::alloc_input(cs.namespace(|| format!("public_{idx}")), || Ok(value)))
             .collect::<Result<Vec<_>, _>>()?;
         let mut public_cursor = 0usize;
-        let mut transcript =
-            Poseidon2TranscriptCircuit::new(cs.namespace(|| "session_transcript"), b"neo.fold.next/session")?;
-        let mut carried = Rv64imClaimBundle::from_effective_claims(Vec::new());
+        let mut transcript = alloc_initial_transcript(cs, self.initial_transcript.as_ref())?;
+        let mut carried = alloc_initial_claim_bundle(cs, &self.initial_claims)?;
 
         for (chunk_index, chunk) in self.chunks.iter().enumerate() {
             let (next, chunk_digest) = synthesize_direct_ccs_nifs_chunk(
@@ -244,6 +416,13 @@ pub fn prove_direct_ccs_f_prime_snark_with_perf(
     final_carry: &Carry,
     steps: &[StepInput],
 ) -> Result<(DirectCcsFPrimeSnarkProof, DirectCcsFPrimeSnarkPerf), DirectCcsFPrimeSnarkError> {
+    if packaged.statement.chunks.len() != 1 {
+        return Err(DirectCcsFPrimeSnarkError::Input(format!(
+            "direct CCS terminal replay compressor is only allowed for one terminal F' step; got {} chunks. \
+             Multi-chunk direct CCS compression must use a folded Construction-2/IVC state, not replay every chunk in Spartan",
+            packaged.statement.chunks.len()
+        )));
+    }
     if packaged.statement.final_main_claims != final_carry.claims {
         return Err(DirectCcsFPrimeSnarkError::Input(
             "packaged final claims do not match final carry claims".into(),
@@ -258,6 +437,12 @@ pub fn prove_direct_ccs_f_prime_snark_with_perf(
     let input_chunks = partition_prover_step_inputs(packaged.statement.fold_schedule, steps.to_vec())
         .map_err(|err| DirectCcsFPrimeSnarkError::Input(err.to_string()))?;
     let circuit = build_direct_ccs_f_prime_circuit(params, structure, packaged, &input_chunks, final_witnesses)?;
+    prove_direct_ccs_f_prime_circuit(circuit)
+}
+
+fn prove_direct_ccs_f_prime_circuit(
+    circuit: DirectCcsFPrimeCircuit,
+) -> Result<(DirectCcsFPrimeSnarkProof, DirectCcsFPrimeSnarkPerf), DirectCcsFPrimeSnarkError> {
     let breakdown = measure_direct_ccs_f_prime_constraints(&circuit)?;
 
     let setup_started = Instant::now();
@@ -362,6 +547,8 @@ fn build_direct_ccs_f_prime_circuit(
         dims,
         mat_digest,
         chunks,
+        initial_claims: Vec::new(),
+        initial_transcript: None,
         final_claims: packaged.statement.final_main_claims.clone(),
         final_witnesses,
     })
@@ -398,10 +585,10 @@ fn measure_direct_ccs_f_prime_constraints(
         ..DirectCcsFPrimeConstraintBreakdown::default()
     };
     let mut public_cursor = 0usize;
-    let mut transcript =
-        Poseidon2TranscriptCircuit::new(cs.namespace(|| "session_transcript"), b"neo.fold.next/session")
-            .map_err(|err| DirectCcsFPrimeSnarkError::Synthesis(err.to_string()))?;
-    let mut carried = Rv64imClaimBundle::from_effective_claims(Vec::new());
+    let mut transcript = alloc_initial_transcript(&mut cs, circuit.initial_transcript.as_ref())
+        .map_err(|err| DirectCcsFPrimeSnarkError::Synthesis(err.to_string()))?;
+    let mut carried = alloc_initial_claim_bundle(&mut cs, &circuit.initial_claims)
+        .map_err(|err| DirectCcsFPrimeSnarkError::Synthesis(err.to_string()))?;
 
     for (chunk_index, chunk) in circuit.chunks.iter().enumerate() {
         let before_chunk = cs.num_constraints();
@@ -547,6 +734,82 @@ fn build_direct_ccs_chunk_surface(
     Ok(DirectCcsChunkCircuitSurface { cover, replay })
 }
 
+fn build_direct_ccs_chunk_surface_from_ivc_relation<L, MR, MB>(
+    params: &NeoParams,
+    structure: &CcsStructure<F>,
+    dims: Dims,
+    relation: &SuperNeoIvcStepRelation,
+    log: &L,
+    mixers: crate::prover::CommitmentMixers<MR, MB>,
+    optimized_cache: &OptimizedStructureCache,
+) -> Result<DirectCcsChunkCircuitSurface, DirectCcsFPrimeSnarkError>
+where
+    L: neo_ccs::traits::SModuleHomomorphism<F, Commitment> + Sync,
+    MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
+    MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
+{
+    let public_chunk = relation.chunk.public();
+    let public_chunk_instance_digest = public_chunk_digest(&public_chunk);
+    let mut transcript = Poseidon2Transcript::from_state_and_absorbed(
+        relation.state_in.transcript.state,
+        relation.state_in.transcript.absorbed,
+    );
+    let trace = trace_chunk_relation_with_witness_and_instance_digest(
+        &mut transcript,
+        params,
+        structure,
+        &relation.chunk,
+        &relation.state_in.carry,
+        &relation.replay_witness,
+        log,
+        mixers,
+        optimized_cache,
+        public_chunk_instance_digest,
+    )
+    .map_err(|err| DirectCcsFPrimeSnarkError::Input(err.to_string()))?;
+    let handoff = Rv64imMainCircuitHandoff {
+        public_chunk,
+        public_chunk_instance_digest,
+        public_chunk_digest: digest_fields_as_digest32(public_chunk_instance_digest),
+        bridge_handoff_digest: [0u8; 32],
+        chunk_relation_digest: relation.chunk_relation_digest,
+        public_input_layout: Rv64imMainCircuitPublicInputLayout::PackedPrefix,
+    };
+    let pi_ccs = build_rv64im_main_circuit_pi_ccs_replay_surface(
+        trace.ccs_outputs,
+        trace.ccs_replay_proof,
+        trace.terminal_state.challenges_public,
+        trace.terminal_state.row_chals,
+        trace.terminal_state.alpha_prime,
+        trace.terminal_state.s_col,
+        trace.terminal_state.alpha_prime_nc,
+    );
+    let fresh_claims = relation
+        .chunk
+        .steps
+        .iter()
+        .map(|step| step.mcs.clone())
+        .collect::<Vec<_>>();
+    let fresh_witnesses = relation
+        .chunk
+        .steps
+        .iter()
+        .map(|step| step.witness.clone())
+        .collect::<Vec<_>>();
+    let replay = build_rv64im_main_circuit_chunk_replay_surface(
+        &handoff,
+        &fresh_claims,
+        &fresh_witnesses,
+        pi_ccs,
+        trace.parent,
+        trace.children,
+    )
+    .map_err(|err| DirectCcsFPrimeSnarkError::Input(format!("failed to build latest direct chunk surface: {err}")))?;
+    let cover = Rv64imMainCircuitChunkCover::from_replay_surface(&replay);
+    let _ = dims;
+    Ok(DirectCcsChunkCircuitSurface { cover, replay })
+}
+
 fn split_challenges(
     values: &[K],
     prefix_len: usize,
@@ -577,6 +840,37 @@ fn final_carry_witnesses(zs: &[Mat<F>]) -> Result<Vec<CcsWitness<F>>, DirectCcsF
             })
         })
         .collect()
+}
+
+fn alloc_initial_transcript<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    snapshot: Option<&SuperNeoIvcTranscriptSnapshot>,
+) -> Result<Poseidon2TranscriptCircuit, SynthesisError> {
+    match snapshot {
+        Some(snapshot) => {
+            let _ = cs;
+            Poseidon2TranscriptCircuit::from_constant_state(snapshot.state.map(field_to_spartan), snapshot.absorbed)
+        }
+        None => Poseidon2TranscriptCircuit::new(cs.namespace(|| "session_transcript"), b"neo.fold.next/session"),
+    }
+}
+
+fn alloc_initial_claim_bundle<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claims: &[CeClaim<Commitment, F, K>],
+) -> Result<Rv64imClaimBundle, SynthesisError> {
+    claims
+        .iter()
+        .enumerate()
+        .map(|(idx, claim)| {
+            alloc_ce_claim(
+                &mut cs.namespace(|| format!("initial_carry_claim_{idx}")),
+                claim,
+                &format!("initial_carry_claim_{idx}"),
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(Rv64imClaimBundle::from_effective_claims)
 }
 
 fn verify_direct_ccs_f_prime_proof(
@@ -623,4 +917,12 @@ fn enforce_digest_public_io<CS: ConstraintSystem<SpartanF>>(
 
 fn field_to_spartan(value: F) -> SpartanF {
     SpartanF::from_canonical_u64(value.as_canonical_u64())
+}
+
+fn superneo_ivc_states_match(left: &SuperNeoIvcState, right: &SuperNeoIvcState) -> bool {
+    left.chunk_count == right.chunk_count
+        && left.step_count == right.step_count
+        && left.transcript == right.transcript
+        && left.carry.claims == right.carry.claims
+        && left.carry.witnesses == right.carry.witnesses
 }

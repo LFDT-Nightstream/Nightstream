@@ -78,7 +78,7 @@ pub use decider::{
 };
 pub use direct_ccs_f_prime::{
     prove_direct_ccs_f_prime_snark_with_perf, DirectCcsFPrimeSnarkError, DirectCcsFPrimeSnarkPerf,
-    DirectCcsFPrimeSnarkProof,
+    DirectCcsFPrimeSnarkProof, DirectCcsIvcState, DirectCcsLatestFPrimeSummary,
 };
 pub use f_prime::{
     build_rv64im_main_recursion_f_prime_advices, build_rv64im_main_recursion_f_prime_advices_single_step,

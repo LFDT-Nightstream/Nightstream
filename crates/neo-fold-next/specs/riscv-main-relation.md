@@ -1,14 +1,14 @@
-# RV64IM Main Relation Specification
+# RV32IM Main Relation Specification
 
 ## Scope
 
-This document specifies the owned RV64IM main relation `R_main^SN` in
+This document specifies the owned RV32IM main relation `R_main^SN` in
 `neo-fold-next`.
 
 It fixes the ownership boundary between:
 
 1. the concrete SuperNeo backend contract owned by `riscv-kernel.md`,
-2. the owned RV64IM main witness relation that carries the theorem-level
+2. the owned RV32IM main witness relation that carries the theorem-level
    accumulator meaning for the main lane,
 3. and the later recursive or succinct backend that compiles that fixed
    relation.
@@ -38,7 +38,7 @@ Those remain owned by:
 This document is constrained by the following local references:
 
 - `./riscv-kernel.md`
-  - the concrete Goldilocks-native SuperNeo backend contract for RV64IM
+  - the concrete Goldilocks-native SuperNeo backend contract for RV32IM
   - the canonical chunk-local `Π_CCS -> Π_RLC -> Π_DEC` split
 - `./riscv-recursive-proof.md`
   - the theorem-facing exported recursive/compressed proof boundary
@@ -51,7 +51,7 @@ This document is constrained by the following local references:
 
 ## 1. Goal
 
-The RV64IM main lane is the fixed witness-backed main relation to be compiled
+The RV32IM main lane is the fixed witness-backed main relation to be compiled
 by later recursive or succinct proofs.
 
 That relation owns the theorem-level meaning of:
@@ -76,7 +76,7 @@ transcript map that is identically enforced in-circuit and natively.
 
 `R_main^SN` owns one exact theorem:
 
-> the published RV64IM execution statement is valid if and only if there exists
+> the published RV32IM execution statement is valid if and only if there exists
 > private witness material that realizes the same carried accumulator semantics
 > as the Fiat-Shamir non-interactive form of
 > `Π_SuperNeo := Π_DEC ∘ Π_RLC ∘ Π_CCS` under the concrete backend contract,
@@ -87,14 +87,14 @@ Equivalently, `R_main^SN(stmt_pub, U_N^pub; w) = 1` iff there exist canonical
 carried accumulator states `A_0..A_N` and per-chunk fresh witness material
 such that:
 
-1. `A_0` is the canonical initial carried bundle derived from the fixed RV64IM
+1. `A_0` is the canonical initial carried bundle derived from the fixed RV32IM
    program binding and public initial machine state under `Init_SN`;
 2. each chunk transition is exactly the Fiat-Shamir non-interactive form of
-   `Π_DEC ∘ Π_RLC ∘ Π_CCS` over the canonical fresh RV64IM chunk claim and the
+   `Π_DEC ∘ Π_RLC ∘ Π_CCS` over the canonical fresh RV32IM chunk claim and the
    previous carried bundle;
 3. `A_N` has theorem-level meaning equal to a valid carried `CE(b, L)^k`
    bundle under the concrete backend contract fixed by `riscv-kernel.md`;
-4. `stmt_pub` binds the canonical RV64IM public theorem statement and any
+4. `stmt_pub` binds the canonical RV32IM public theorem statement and any
    minimal public accumulator handle `U_N^pub` required by the recursive or
    compression backend;
 5. every helper digest or summary used by an implementation is recomputed from
@@ -158,7 +158,7 @@ bindings required by the theorem and by later compiler composition.
 
 At minimum, the public instance shall bind:
 
-- the canonical RV64IM public proof statement or its canonical digest,
+- the canonical RV32IM public proof statement or its canonical digest,
 - the canonical fold schedule / exact step-count binding if that metadata is
   required by the fixed relation,
 - the canonical terminal carried-handle binding if required by the chosen

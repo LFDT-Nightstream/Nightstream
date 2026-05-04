@@ -8,22 +8,22 @@
 
 use neo_ajtai::Commitment;
 use neo_ccs::{CcsClaim, CcsWitness, CeClaim};
-use neo_fold_next::rv64im::audit::{
-    audit_rv64im_main_recursion_step_spartan_fixed_shape_across_chain,
-    debug_check_rv64im_main_recursion_step_spartan_inactive_side_lane_constraints,
-    debug_measure_rv64im_main_recursion_step_chunk_replay_aux_counts,
-    debug_measure_rv64im_main_recursion_step_pi_ccs_aux_counts,
-    debug_measure_rv64im_main_recursion_step_pi_ccs_fingerprint,
-    debug_measure_rv64im_main_recursion_step_spartan_circuit_shape,
-    debug_measure_rv64im_main_recursion_step_stage_aux_counts,
-    debug_profile_rv64im_main_recursion_step_chunk_replay_stages, Rv64imCeClaimDigestShape,
-    Rv64imMainRecursionFPrimeBackendRelation, Rv64imMainRecursionStepSpartanShape,
+use neo_fold_next::rv32im::audit::{
+    audit_rv32im_main_recursion_step_spartan_fixed_shape_across_chain,
+    debug_check_rv32im_main_recursion_step_spartan_inactive_side_lane_constraints,
+    debug_measure_rv32im_main_recursion_step_chunk_replay_aux_counts,
+    debug_measure_rv32im_main_recursion_step_pi_ccs_aux_counts,
+    debug_measure_rv32im_main_recursion_step_pi_ccs_fingerprint,
+    debug_measure_rv32im_main_recursion_step_spartan_circuit_shape,
+    debug_measure_rv32im_main_recursion_step_stage_aux_counts,
+    debug_profile_rv32im_main_recursion_step_chunk_replay_stages, Rv32imCeClaimDigestShape,
+    Rv32imMainRecursionFPrimeBackendRelation, Rv32imMainRecursionStepSpartanShape,
 };
-use neo_fold_next::rv64im::debug_measure_rv64im_main_recursion_step_chunk_replay_fingerprint;
-use neo_fold_next::rv64im::debug_measure_rv64im_main_relation_state_in_prefix_fingerprints;
-use neo_fold_next::rv64im::{
-    build_rv64im_main_recursion_construction2_canonical_shape,
-    build_rv64im_main_recursion_verifier_key_fs_for_step_cap, Rv64imMainRecursionPhiSide,
+use neo_fold_next::rv32im::debug_measure_rv32im_main_recursion_step_chunk_replay_fingerprint;
+use neo_fold_next::rv32im::debug_measure_rv32im_main_relation_state_in_prefix_fingerprints;
+use neo_fold_next::rv32im::{
+    build_rv32im_main_recursion_construction2_canonical_shape,
+    build_rv32im_main_recursion_verifier_key_fs_for_step_cap, Rv32imMainRecursionPhiSide,
 };
 use neo_math::{F, K};
 use p3_field::PrimeCharacteristicRing;
@@ -85,7 +85,7 @@ fn perturb_ccs_witness_values(witness: &mut CcsWitness<F>) {
     }
 }
 
-fn perturb_state_in_r_values(relation: &mut Rv64imMainRecursionFPrimeBackendRelation) {
+fn perturb_state_in_r_values(relation: &mut Rv32imMainRecursionFPrimeBackendRelation) {
     for claim in &mut relation.payload.state_in_claims {
         if let Some(first) = claim.r.first_mut() {
             *first += K::ONE;
@@ -93,7 +93,7 @@ fn perturb_state_in_r_values(relation: &mut Rv64imMainRecursionFPrimeBackendRela
     }
 }
 
-fn perturb_state_in_s_col_values(relation: &mut Rv64imMainRecursionFPrimeBackendRelation) {
+fn perturb_state_in_s_col_values(relation: &mut Rv32imMainRecursionFPrimeBackendRelation) {
     for claim in &mut relation.payload.state_in_claims {
         if let Some(first) = claim.s_col.first_mut() {
             *first += K::ONE;
@@ -101,7 +101,7 @@ fn perturb_state_in_s_col_values(relation: &mut Rv64imMainRecursionFPrimeBackend
     }
 }
 
-fn perturb_state_in_y_ring_values(relation: &mut Rv64imMainRecursionFPrimeBackendRelation) {
+fn perturb_state_in_y_ring_values(relation: &mut Rv32imMainRecursionFPrimeBackendRelation) {
     for claim in &mut relation.payload.state_in_claims {
         if let Some(row) = claim.y_ring.first_mut() {
             if let Some(first) = row.first_mut() {
@@ -113,20 +113,20 @@ fn perturb_state_in_y_ring_values(relation: &mut Rv64imMainRecursionFPrimeBacken
 
 fn measure_family_perturbation(
     label: &str,
-    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
-    baseline_relation: &Rv64imMainRecursionFPrimeBackendRelation,
-    mutate: impl FnOnce(&mut Rv64imMainRecursionFPrimeBackendRelation),
+    spartan_shape: &Rv32imMainRecursionStepSpartanShape,
+    baseline_relation: &Rv32imMainRecursionFPrimeBackendRelation,
+    mutate: impl FnOnce(&mut Rv32imMainRecursionFPrimeBackendRelation),
 ) -> String {
     let mut relation = baseline_relation.clone();
     mutate(&mut relation);
-    let measured = debug_measure_rv64im_main_recursion_step_spartan_circuit_shape(spartan_shape, &relation)
+    let measured = debug_measure_rv32im_main_recursion_step_spartan_circuit_shape(spartan_shape, &relation)
         .unwrap_or_else(|err| panic!("measure {label} perturbation: {err}"));
     println!("{label}: {}", measured.constraint_fingerprint);
     measured.constraint_fingerprint
 }
 
-fn print_state_in_prefix_fingerprints(label: &str, relation: &Rv64imMainRecursionFPrimeBackendRelation) {
-    let measured = debug_measure_rv64im_main_relation_state_in_prefix_fingerprints(relation)
+fn print_state_in_prefix_fingerprints(label: &str, relation: &Rv32imMainRecursionFPrimeBackendRelation) {
+    let measured = debug_measure_rv32im_main_relation_state_in_prefix_fingerprints(relation)
         .unwrap_or_else(|err| panic!("measure {label} state_in prefix fingerprints: {err}"));
     println!(
         "{label}.after_live_state_in_claim_alloc: {}",
@@ -182,7 +182,7 @@ fn print_state_in_prefix_fingerprints(label: &str, relation: &Rv64imMainRecursio
     println!("{label}.terminal_identities_aux: {}", measured.terminal_identities_aux);
 }
 
-fn run_state_in_prefix_breakdown_case(label: &str, mutate: impl FnOnce(&mut Rv64imMainRecursionFPrimeBackendRelation)) {
+fn run_state_in_prefix_breakdown_case(label: &str, mutate: impl FnOnce(&mut Rv32imMainRecursionFPrimeBackendRelation)) {
     let backend_relations = fast_structural_backend_relations();
     let baseline_relation = backend_relations
         .first()
@@ -194,8 +194,8 @@ fn run_state_in_prefix_breakdown_case(label: &str, mutate: impl FnOnce(&mut Rv64
     print_state_in_prefix_fingerprints(label, &mutated);
 }
 
-fn print_state_in_chunk_replay_fingerprint(label: &str, relation: &Rv64imMainRecursionFPrimeBackendRelation) {
-    let measured = debug_measure_rv64im_main_recursion_step_chunk_replay_fingerprint(relation)
+fn print_state_in_chunk_replay_fingerprint(label: &str, relation: &Rv32imMainRecursionFPrimeBackendRelation) {
+    let measured = debug_measure_rv32im_main_recursion_step_chunk_replay_fingerprint(relation)
         .unwrap_or_else(|err| panic!("measure {label} chunk replay fingerprint: {err}"));
     println!("{label}.after_state_cover: {}", measured.after_state_cover);
     println!("{label}.after_chunk_meta: {}", measured.after_chunk_meta);
@@ -218,7 +218,7 @@ fn print_state_in_chunk_replay_fingerprint(label: &str, relation: &Rv64imMainRec
 
 fn run_state_in_chunk_replay_breakdown_case(
     label: &str,
-    mutate: impl FnOnce(&mut Rv64imMainRecursionFPrimeBackendRelation),
+    mutate: impl FnOnce(&mut Rv32imMainRecursionFPrimeBackendRelation),
 ) {
     let backend_relations = fast_structural_backend_relations();
     let baseline_relation = backend_relations
@@ -233,20 +233,20 @@ fn run_state_in_chunk_replay_breakdown_case(
 
 fn assert_shape_matches_canonical_contract(
     label: &str,
-    spartan_shape: &Rv64imMainRecursionStepSpartanShape,
-    first: &Rv64imMainRecursionFPrimeBackendRelation,
+    spartan_shape: &Rv32imMainRecursionStepSpartanShape,
+    first: &Rv32imMainRecursionFPrimeBackendRelation,
 ) {
     let step_cap = first
         .f_prime_advice
         .verifier_key_fs()
         .step_cap()
         .unwrap_or_else(|err| panic!("{label}: derive recursive-step verifier-key step_cap: {err}"));
-    let vk_fs = build_rv64im_main_recursion_verifier_key_fs_for_step_cap(step_cap)
+    let vk_fs = build_rv32im_main_recursion_verifier_key_fs_for_step_cap(step_cap)
         .unwrap_or_else(|err| panic!("{label}: build canonical recursive-step verifier-key FS: {err}"));
     let canonical_shape =
-        build_rv64im_main_recursion_construction2_canonical_shape(&vk_fs, &Rv64imMainRecursionPhiSide::zero())
+        build_rv32im_main_recursion_construction2_canonical_shape(&vk_fs, &Rv32imMainRecursionPhiSide::zero())
             .expect("build canonical Construction-2 fixed shape");
-    let canonical_spartan_shape = Rv64imMainRecursionStepSpartanShape {
+    let canonical_spartan_shape = Rv32imMainRecursionStepSpartanShape {
         cover_shape: canonical_shape.step_cover_shape,
         claim_cover: canonical_shape.claim_cover,
         rlc_zero_commit_suffix_len: spartan_shape.rlc_zero_commit_suffix_len,
@@ -277,7 +277,7 @@ fn assert_shape_matches_canonical_contract(
     );
 }
 
-fn assert_inactive_side_lane_surface_is_zero(label: &str, relation: &Rv64imMainRecursionFPrimeBackendRelation) {
+fn assert_inactive_side_lane_surface_is_zero(label: &str, relation: &Rv32imMainRecursionFPrimeBackendRelation) {
     assert_eq!(
         relation.f_prime_advice.side_witness().claim_count(),
         0,
@@ -287,13 +287,13 @@ fn assert_inactive_side_lane_surface_is_zero(label: &str, relation: &Rv64imMainR
         relation.payload.phi_side_commitment_words().is_empty(),
         "{label}: inactive side-lane commitment surface drifted away from zero"
     );
-    debug_check_rv64im_main_recursion_step_spartan_inactive_side_lane_constraints(relation)
+    debug_check_rv32im_main_recursion_step_spartan_inactive_side_lane_constraints(relation)
         .unwrap_or_else(|err| panic!("{label}: inactive side-lane zero-width subcircuit no longer holds: {err}"));
 }
 
 #[test]
 fn f_prime_circuit_shape_is_n_invariant() {
-    let (first, last) = audit_rv64im_main_recursion_step_spartan_fixed_shape_across_chain(two_step_relations())
+    let (first, last) = audit_rv32im_main_recursion_step_spartan_fixed_shape_across_chain(two_step_relations())
         .expect("measure recursive-step fixed shape across an honest two-step chain");
 
     assert_eq!(
@@ -326,9 +326,9 @@ fn f_prime_two_step_chain_stage_aux_breakdown() {
         .last()
         .expect("two-step chain aux breakdown requires a last backend relation");
 
-    let first_counts = debug_measure_rv64im_main_recursion_step_stage_aux_counts(spartan_shape, first)
+    let first_counts = debug_measure_rv32im_main_recursion_step_stage_aux_counts(spartan_shape, first)
         .expect("measure first recursive-step aux counts");
-    let last_counts = debug_measure_rv64im_main_recursion_step_stage_aux_counts(spartan_shape, last)
+    let last_counts = debug_measure_rv32im_main_recursion_step_stage_aux_counts(spartan_shape, last)
         .expect("measure last recursive-step aux counts");
 
     println!("first={first_counts:#?}");
@@ -346,9 +346,9 @@ fn f_prime_two_step_chain_chunk_replay_aux_breakdown() {
         .last()
         .expect("two-step chain chunk-replay breakdown requires a last backend relation");
 
-    let first_counts = debug_measure_rv64im_main_recursion_step_chunk_replay_aux_counts(first)
+    let first_counts = debug_measure_rv32im_main_recursion_step_chunk_replay_aux_counts(first)
         .expect("measure first chunk-replay aux counts");
-    let last_counts = debug_measure_rv64im_main_recursion_step_chunk_replay_aux_counts(last)
+    let last_counts = debug_measure_rv32im_main_recursion_step_chunk_replay_aux_counts(last)
         .expect("measure last chunk-replay aux counts");
 
     println!(
@@ -396,9 +396,9 @@ fn f_prime_two_step_chain_pi_ccs_fingerprint_breakdown() {
         .expect("two-step chain Pi_CCS fingerprint breakdown requires a last backend relation");
 
     let first_fingerprints =
-        debug_measure_rv64im_main_recursion_step_pi_ccs_fingerprint(first).expect("measure first Pi_CCS fingerprints");
+        debug_measure_rv32im_main_recursion_step_pi_ccs_fingerprint(first).expect("measure first Pi_CCS fingerprints");
     let last_fingerprints =
-        debug_measure_rv64im_main_recursion_step_pi_ccs_fingerprint(last).expect("measure last Pi_CCS fingerprints");
+        debug_measure_rv32im_main_recursion_step_pi_ccs_fingerprint(last).expect("measure last Pi_CCS fingerprints");
 
     println!("first={first_fingerprints:#?}");
     println!("last={last_fingerprints:#?}");
@@ -413,10 +413,10 @@ fn f_prime_circuit_shape_is_value_invariant() {
         .first()
         .expect("value-invariance requires a comparison honest recursive-step backend relation");
     let baseline =
-        debug_measure_rv64im_main_recursion_step_spartan_circuit_shape(single_step_spartan_shape(), baseline_relation)
+        debug_measure_rv32im_main_recursion_step_spartan_circuit_shape(single_step_spartan_shape(), baseline_relation)
             .expect("measure baseline honest recursive-step circuit shape");
     let comparison =
-        debug_measure_rv64im_main_recursion_step_spartan_circuit_shape(two_step_spartan_shape(), comparison_relation)
+        debug_measure_rv32im_main_recursion_step_spartan_circuit_shape(two_step_spartan_shape(), comparison_relation)
             .expect("measure comparison honest recursive-step circuit shape");
 
     assert_eq!(
@@ -571,9 +571,9 @@ fn f_prime_five_step_cap_terminal_padding_preserves_fixed_shape() {
         "short terminal five-step-cap relation drifted outside the canonical recursive-step cover"
     );
 
-    let full_measured = debug_measure_rv64im_main_recursion_step_spartan_circuit_shape(spartan_shape, full)
+    let full_measured = debug_measure_rv32im_main_recursion_step_spartan_circuit_shape(spartan_shape, full)
         .expect("measure five-step-cap full-width recursive-step shape");
-    let terminal_measured = debug_measure_rv64im_main_recursion_step_spartan_circuit_shape(spartan_shape, terminal)
+    let terminal_measured = debug_measure_rv32im_main_recursion_step_spartan_circuit_shape(spartan_shape, terminal)
         .expect("measure five-step-cap short-terminal recursive-step shape");
 
     assert_eq!(
@@ -634,8 +634,8 @@ fn f_prime_terminal_vs_nonterminal_state_in_claim_surface_breakdown() {
         .zip(single_step_relation.payload.state_in_claims.iter())
         .enumerate()
     {
-        let terminal_shape = Rv64imCeClaimDigestShape::from_claim(terminal_claim);
-        let nonterminal_shape = Rv64imCeClaimDigestShape::from_claim(nonterminal_claim);
+        let terminal_shape = Rv32imCeClaimDigestShape::from_claim(terminal_claim);
+        let nonterminal_shape = Rv32imCeClaimDigestShape::from_claim(nonterminal_claim);
         if terminal_shape != nonterminal_shape
             || terminal_claim.m_in != nonterminal_claim.m_in
             || terminal_claim.u_offset != nonterminal_claim.u_offset
@@ -671,9 +671,9 @@ fn f_prime_five_step_cap_terminal_padding_stage_aux_breakdown() {
         .find(|relation| relation.payload.step_shape.terminal_step)
         .expect("five-step-cap aux breakdown requires a short terminal relation");
 
-    let full_counts = debug_measure_rv64im_main_recursion_step_stage_aux_counts(spartan_shape, full)
+    let full_counts = debug_measure_rv32im_main_recursion_step_stage_aux_counts(spartan_shape, full)
         .expect("measure full-width recursive-step aux counts");
-    let terminal_counts = debug_measure_rv64im_main_recursion_step_stage_aux_counts(spartan_shape, terminal)
+    let terminal_counts = debug_measure_rv32im_main_recursion_step_stage_aux_counts(spartan_shape, terminal)
         .expect("measure short-terminal recursive-step aux counts");
 
     println!("full={full_counts:#?}");
@@ -694,9 +694,9 @@ fn f_prime_five_step_cap_terminal_padding_chunk_replay_aux_breakdown() {
         .find(|relation| relation.payload.step_shape.terminal_step)
         .expect("five-step-cap chunk-replay aux breakdown requires a short terminal relation");
 
-    let full_counts = debug_measure_rv64im_main_recursion_step_chunk_replay_aux_counts(full)
+    let full_counts = debug_measure_rv32im_main_recursion_step_chunk_replay_aux_counts(full)
         .expect("measure full-width chunk-replay aux counts");
-    let terminal_counts = debug_measure_rv64im_main_recursion_step_chunk_replay_aux_counts(terminal)
+    let terminal_counts = debug_measure_rv32im_main_recursion_step_chunk_replay_aux_counts(terminal)
         .expect("measure short-terminal chunk-replay aux counts");
 
     println!(
@@ -732,8 +732,8 @@ fn f_prime_five_step_cap_terminal_padding_pi_ccs_aux_breakdown() {
         .expect("five-step-cap pi_ccs aux breakdown requires a short terminal relation");
 
     let full_counts =
-        debug_measure_rv64im_main_recursion_step_pi_ccs_aux_counts(full).expect("measure full-width pi_ccs aux counts");
-    let terminal_counts = debug_measure_rv64im_main_recursion_step_pi_ccs_aux_counts(terminal)
+        debug_measure_rv32im_main_recursion_step_pi_ccs_aux_counts(full).expect("measure full-width pi_ccs aux counts");
+    let terminal_counts = debug_measure_rv32im_main_recursion_step_pi_ccs_aux_counts(terminal)
         .expect("measure short-terminal pi_ccs aux counts");
 
     println!("full={full_counts:#?}");
@@ -754,9 +754,9 @@ fn f_prime_five_step_cap_terminal_padding_pi_ccs_fingerprint_breakdown() {
         .find(|relation| relation.payload.step_shape.terminal_step)
         .expect("five-step-cap pi_ccs fingerprint breakdown requires a short terminal relation");
 
-    let full_fingerprints = debug_measure_rv64im_main_recursion_step_pi_ccs_fingerprint(full)
+    let full_fingerprints = debug_measure_rv32im_main_recursion_step_pi_ccs_fingerprint(full)
         .expect("measure full-width pi_ccs fingerprints");
-    let terminal_fingerprints = debug_measure_rv64im_main_recursion_step_pi_ccs_fingerprint(terminal)
+    let terminal_fingerprints = debug_measure_rv32im_main_recursion_step_pi_ccs_fingerprint(terminal)
         .expect("measure short-terminal pi_ccs fingerprints");
 
     println!("full={full_fingerprints:#?}");
@@ -879,9 +879,9 @@ fn f_prime_five_step_cap_terminal_padding_padded_stage_profile() {
         .expect("five-step-cap padded stage profile requires a short terminal relation");
 
     println!("full_profile_start");
-    debug_profile_rv64im_main_recursion_step_chunk_replay_stages(full).expect("profile full-width padded chunk replay");
+    debug_profile_rv32im_main_recursion_step_chunk_replay_stages(full).expect("profile full-width padded chunk replay");
     println!("terminal_profile_start");
-    debug_profile_rv64im_main_recursion_step_chunk_replay_stages(terminal)
+    debug_profile_rv32im_main_recursion_step_chunk_replay_stages(terminal)
         .expect("profile short-terminal padded chunk replay");
 }
 
@@ -901,7 +901,7 @@ fn f_prime_circuit_shape_value_invariant_family_breakdown() {
     let baseline_relation = backend_relations
         .first()
         .expect("value-invariance family breakdown requires at least one recursive-step backend relation");
-    let baseline = debug_measure_rv64im_main_recursion_step_spartan_circuit_shape(spartan_shape, baseline_relation)
+    let baseline = debug_measure_rv32im_main_recursion_step_spartan_circuit_shape(spartan_shape, baseline_relation)
         .expect("measure baseline recursive-step circuit shape");
     println!("baseline: {}", baseline.constraint_fingerprint);
 
@@ -957,7 +957,7 @@ fn f_prime_circuit_shape_state_in_subfamily_breakdown() {
     let baseline_relation = backend_relations
         .first()
         .expect("state_in subfamily breakdown requires at least one recursive-step backend relation");
-    let baseline = debug_measure_rv64im_main_recursion_step_spartan_circuit_shape(spartan_shape, baseline_relation)
+    let baseline = debug_measure_rv32im_main_recursion_step_spartan_circuit_shape(spartan_shape, baseline_relation)
         .expect("measure baseline recursive-step circuit shape");
     println!("baseline: {}", baseline.constraint_fingerprint);
 

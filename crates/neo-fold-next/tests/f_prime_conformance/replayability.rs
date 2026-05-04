@@ -7,7 +7,7 @@
 //! load-bearing determinism property: evaluating the native F' twice on the
 //! same advice must produce bit-exact step images across every public field.
 
-use neo_fold_next::rv64im::audit::evaluate_rv64im_main_recursion_f_prime_advice;
+use neo_fold_next::rv32im::audit::evaluate_rv32im_main_recursion_f_prime_advice;
 
 use super::support::single_step_advices;
 
@@ -15,9 +15,9 @@ use super::support::single_step_advices;
 fn f_prime_native_is_deterministic_across_evaluations() {
     let advices = single_step_advices();
     for (step, advice) in advices.iter().enumerate() {
-        let first = evaluate_rv64im_main_recursion_f_prime_advice(advice)
+        let first = evaluate_rv32im_main_recursion_f_prime_advice(advice)
             .unwrap_or_else(|err| panic!("step {step}: first evaluation failed: {err}"));
-        let second = evaluate_rv64im_main_recursion_f_prime_advice(advice)
+        let second = evaluate_rv32im_main_recursion_f_prime_advice(advice)
             .unwrap_or_else(|err| panic!("step {step}: second evaluation failed: {err}"));
 
         assert_eq!(

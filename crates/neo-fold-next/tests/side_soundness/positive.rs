@@ -1,12 +1,12 @@
-use neo_fold_next::nightstream::rv64im::audit::{
-    build_rv64im_bound_phase0_claim_witnesses_from_accepted_artifact,
-    build_rv64im_side_eval_claim_relation_from_accepted_artifact, verify_rv64im_side_eval_claim_relation,
+use neo_fold_next::nightstream::rv32im::audit::{
+    build_rv32im_bound_phase0_claim_witnesses_from_accepted_artifact,
+    build_rv32im_side_eval_claim_relation_from_accepted_artifact, verify_rv32im_side_eval_claim_relation,
 };
-use neo_fold_next::nightstream::rv64im::audit::{
-    debug_check_rv64im_side_binding_circuit, measure_rv64im_side_binding_circuit_constraints, setup_rv64im_side_binding,
+use neo_fold_next::nightstream::rv32im::audit::{
+    debug_check_rv32im_side_binding_circuit, measure_rv32im_side_binding_circuit_constraints, setup_rv32im_side_binding,
 };
-use neo_fold_next::nightstream::rv64im::{
-    build_rv64im_side_binding_statement, build_rv64im_side_proof, verify_rv64im_side_proof,
+use neo_fold_next::nightstream::rv32im::{
+    build_rv32im_side_binding_statement, build_rv32im_side_proof, verify_rv32im_side_proof,
 };
 
 use super::common::{
@@ -17,7 +17,7 @@ const BASE_CASE: &str = "control_flow_jal_skip_ecall";
 
 fn assert_side_proof_rejected(
     fixture: &SideFixture,
-    side_proof: &neo_fold_next::nightstream::rv64im::Rv64imSideProof,
+    side_proof: &neo_fold_next::nightstream::rv32im::Rv32imSideProof,
     expected_error_fragments: &[&str],
     context: &str,
 ) {
@@ -25,8 +25,8 @@ fn assert_side_proof_rejected(
         .side_statement()
         .expect("build side binding statement");
     let opening_vk = fixture.side_opening_vk();
-    let (_, vk) = setup_rv64im_side_binding(&side_statement, fixture.side_public()).expect("setup side binding");
-    let err = verify_rv64im_side_proof(
+    let (_, vk) = setup_rv32im_side_binding(&side_statement, fixture.side_public()).expect("setup side binding");
+    let err = verify_rv32im_side_proof(
         &opening_vk,
         &vk,
         &fixture.nightstream_statement,
@@ -44,7 +44,7 @@ fn assert_side_proof_rejected(
 
 #[test]
 #[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
-fn rv64im_side_soundness_positive_side_decider_rejects_container_spartan_splice() {
+fn rv32im_side_soundness_positive_side_decider_rejects_container_spartan_splice() {
     let fixture_a = build_side_fixture(BASE_CASE);
     let fixture_b = build_side_fixture(&alternate_case_name(BASE_CASE));
 
@@ -52,7 +52,7 @@ fn rv64im_side_soundness_positive_side_decider_rejects_container_spartan_splice(
         .side_statement()
         .expect("build side binding statement A");
     let (_, vk_a) =
-        setup_rv64im_side_binding(&side_statement_a, fixture_a.side_public()).expect("setup side binding A");
+        setup_rv32im_side_binding(&side_statement_a, fixture_a.side_public()).expect("setup side binding A");
     let opening_vk_a = fixture_a.side_opening_vk();
     let proof_a = fixture_a.side_proof.clone();
     let proof_b = fixture_b.side_proof.clone();
@@ -60,7 +60,7 @@ fn rv64im_side_soundness_positive_side_decider_rejects_container_spartan_splice(
     let mut spliced = proof_a.clone();
     *spliced.binding_mut() = proof_b.binding().clone();
 
-    let err = verify_rv64im_side_proof(
+    let err = verify_rv32im_side_proof(
         &opening_vk_a,
         &vk_a,
         &fixture_a.nightstream_statement,
@@ -78,23 +78,23 @@ fn rv64im_side_soundness_positive_side_decider_rejects_container_spartan_splice(
 
 #[test]
 #[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
-fn rv64im_side_soundness_positive_exact_cover_rejects_missing_or_duplicate_targets() {
+fn rv32im_side_soundness_positive_exact_cover_rejects_missing_or_duplicate_targets() {
     let fixture = build_side_fixture(BASE_CASE);
     let (statement, mut witness) =
-        build_rv64im_side_eval_claim_relation_from_accepted_artifact(&fixture.accepted_artifact)
+        build_rv32im_side_eval_claim_relation_from_accepted_artifact(&fixture.accepted_artifact)
             .expect("build side eval-claim relation");
 
     let stage1_positions = witness
         .claim_witnesses
         .iter()
         .enumerate()
-        .filter(|(_, claim)| claim.claim.payload.schema == neo_fold_next::rv64im::FamilyEvalSchemaId::Stage1Rows)
+        .filter(|(_, claim)| claim.claim.payload.schema == neo_fold_next::rv32im::FamilyEvalSchemaId::Stage1Rows)
         .map(|(index, _)| index)
         .collect::<Vec<_>>();
     assert!(stage1_positions.len() >= 2, "expected multiple Stage1Rows claims");
     witness.claim_witnesses[stage1_positions[1]] = witness.claim_witnesses[stage1_positions[0]].clone();
 
-    let err = verify_rv64im_side_eval_claim_relation(&statement, &witness)
+    let err = verify_rv32im_side_eval_claim_relation(&statement, &witness)
         .expect_err("duplicate target coverage must be rejected");
     assert!(
         err.to_string().contains("slot coverage")
@@ -106,21 +106,21 @@ fn rv64im_side_soundness_positive_exact_cover_rejects_missing_or_duplicate_targe
 
 #[test]
 #[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
-fn rv64im_side_soundness_positive_cross_object_or_slot_replay_is_rejected() {
+fn rv32im_side_soundness_positive_cross_object_or_slot_replay_is_rejected() {
     let fixture = build_side_fixture(BASE_CASE);
     let (statement, mut witness) =
-        build_rv64im_side_eval_claim_relation_from_accepted_artifact(&fixture.accepted_artifact)
+        build_rv32im_side_eval_claim_relation_from_accepted_artifact(&fixture.accepted_artifact)
             .expect("build side eval-claim relation");
 
     let stage1_position = witness
         .claim_witnesses
         .iter()
-        .position(|claim| claim.claim.payload.schema == neo_fold_next::rv64im::FamilyEvalSchemaId::Stage1Rows)
+        .position(|claim| claim.claim.payload.schema == neo_fold_next::rv32im::FamilyEvalSchemaId::Stage1Rows)
         .expect("find Stage1Rows claim");
     let foreign_position = witness
         .claim_witnesses
         .iter()
-        .position(|claim| claim.claim.payload.schema != neo_fold_next::rv64im::FamilyEvalSchemaId::Stage1Rows)
+        .position(|claim| claim.claim.payload.schema != neo_fold_next::rv32im::FamilyEvalSchemaId::Stage1Rows)
         .expect("find foreign-schema claim");
     let foreign_digest = witness.claim_witnesses[foreign_position]
         .claim
@@ -132,7 +132,7 @@ fn rv64im_side_soundness_positive_cross_object_or_slot_replay_is_rejected() {
         .opened_object_digest = foreign_digest;
 
     let err =
-        verify_rv64im_side_eval_claim_relation(&statement, &witness).expect_err("cross-object replay must be rejected");
+        verify_rv32im_side_eval_claim_relation(&statement, &witness).expect_err("cross-object replay must be rejected");
     assert!(
         err.to_string().contains("internally inconsistent")
             || err.to_string().contains("opened object")
@@ -143,7 +143,7 @@ fn rv64im_side_soundness_positive_cross_object_or_slot_replay_is_rejected() {
 
 #[test]
 #[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
-fn rv64im_side_soundness_positive_linkage_rejects_transcript_final_digest_tamper() {
+fn rv32im_side_soundness_positive_linkage_rejects_transcript_final_digest_tamper() {
     let fixture = build_side_fixture(BASE_CASE);
     let mut tampered_public_statement = fixture.public_statement.clone();
     tampered_public_statement.transcript_final_digest[0] ^= 1;
@@ -151,8 +151,8 @@ fn rv64im_side_soundness_positive_linkage_rejects_transcript_final_digest_tamper
         .side_statement()
         .expect("build side binding statement");
     let opening_vk = fixture.side_opening_vk();
-    let (_, vk) = setup_rv64im_side_binding(&side_statement, fixture.side_public()).expect("setup side binding");
-    let err = verify_rv64im_side_proof(
+    let (_, vk) = setup_rv32im_side_binding(&side_statement, fixture.side_public()).expect("setup side binding");
+    let err = verify_rv32im_side_proof(
         &opening_vk,
         &vk,
         &fixture.nightstream_statement,
@@ -168,7 +168,7 @@ fn rv64im_side_soundness_positive_linkage_rejects_transcript_final_digest_tamper
 
 #[test]
 #[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
-fn rv64im_side_soundness_positive_linkage_rejects_opening_statement_surface_tamper() {
+fn rv32im_side_soundness_positive_linkage_rejects_opening_statement_surface_tamper() {
     let fixture = build_side_fixture(BASE_CASE);
     let mut side_proof = fixture.side_proof.clone();
     side_proof.opening_statement_mut().stage1.rows_digest[0] ^= 1;
@@ -182,7 +182,7 @@ fn rv64im_side_soundness_positive_linkage_rejects_opening_statement_surface_tamp
 
 #[test]
 #[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
-fn rv64im_side_soundness_positive_canonical_public_instance_rebuild_rejects_reordering() {
+fn rv32im_side_soundness_positive_canonical_public_instance_rebuild_rejects_reordering() {
     let fixture = build_side_fixture(BASE_CASE);
     let mut side_proof = fixture.side_proof.clone();
     assert!(side_proof.opening_public().evals.len() >= 2, "expected multiple evals");
@@ -192,9 +192,9 @@ fn rv64im_side_soundness_positive_canonical_public_instance_rebuild_rejects_reor
         .side_statement()
         .expect("build side binding statement");
     let opening_vk = fixture.side_opening_vk();
-    let (_, vk) = setup_rv64im_side_binding(&side_statement, fixture.side_public()).expect("setup side binding");
+    let (_, vk) = setup_rv32im_side_binding(&side_statement, fixture.side_public()).expect("setup side binding");
 
-    let err = verify_rv64im_side_proof(
+    let err = verify_rv32im_side_proof(
         &opening_vk,
         &vk,
         &fixture.nightstream_statement,
@@ -210,7 +210,7 @@ fn rv64im_side_soundness_positive_canonical_public_instance_rebuild_rejects_reor
 
 #[test]
 #[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
-fn rv64im_side_soundness_positive_digest_binding_tracks_opening_statement_digest_bytes() {
+fn rv32im_side_soundness_positive_digest_binding_tracks_opening_statement_digest_bytes() {
     let fixture = build_side_fixture(BASE_CASE);
     let mut side_proof = fixture.side_proof.clone();
     let expected_digest_before = side_proof.expected_digest();
@@ -224,9 +224,9 @@ fn rv64im_side_soundness_positive_digest_binding_tracks_opening_statement_digest
         .side_statement()
         .expect("build side binding statement");
     let opening_vk = fixture.side_opening_vk();
-    let (_, vk) = setup_rv64im_side_binding(&side_statement, fixture.side_public()).expect("setup side binding");
+    let (_, vk) = setup_rv32im_side_binding(&side_statement, fixture.side_public()).expect("setup side binding");
 
-    let err = verify_rv64im_side_proof(
+    let err = verify_rv32im_side_proof(
         &opening_vk,
         &vk,
         &fixture.nightstream_statement,
@@ -242,13 +242,13 @@ fn rv64im_side_soundness_positive_digest_binding_tracks_opening_statement_digest
 
 #[test]
 #[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
-fn rv64im_side_soundness_positive_statement_digest_is_recomputed_not_trusted() {
+fn rv32im_side_soundness_positive_statement_digest_is_recomputed_not_trusted() {
     let fixture = build_side_fixture(BASE_CASE);
     let rebound_statement = mutated_statement_with_new_core(&fixture.nightstream_statement);
     let original_binding_statement = fixture
         .side_statement()
         .expect("build original side binding statement");
-    let rebound_binding_statement = build_rv64im_side_binding_statement(
+    let rebound_binding_statement = build_rv32im_side_binding_statement(
         &rebound_statement,
         &fixture.public_statement,
         fixture.side_proof.opening_public(),
@@ -268,9 +268,9 @@ fn rv64im_side_soundness_positive_statement_digest_is_recomputed_not_trusted() {
 
 #[test]
 #[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
-fn rv64im_side_soundness_positive_binding_rejects_forged_public_witness() {
+fn rv32im_side_soundness_positive_binding_rejects_forged_public_witness() {
     let fixture = build_side_fixture(BASE_CASE);
-    let claim_witnesses = build_rv64im_bound_phase0_claim_witnesses_from_accepted_artifact(
+    let claim_witnesses = build_rv32im_bound_phase0_claim_witnesses_from_accepted_artifact(
         &fixture.nightstream_statement,
         &fixture.accepted_artifact,
     )
@@ -281,7 +281,7 @@ fn rv64im_side_soundness_positive_binding_rejects_forged_public_witness() {
     let mut forged_public = fixture.side_public().clone();
     forged_public.opened_objects[0].digest = [0x5a; 32];
 
-    let err = debug_check_rv64im_side_binding_circuit(&side_statement, &forged_public, &claim_witnesses)
+    let err = debug_check_rv32im_side_binding_circuit(&side_statement, &forged_public, &claim_witnesses)
         .expect_err("side binding circuit should reject a forged side-opening public");
     assert!(
         err.to_string().contains("statement_digest_match")
@@ -295,12 +295,12 @@ fn rv64im_side_soundness_positive_binding_rejects_forged_public_witness() {
 
 #[test]
 #[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
-fn rv64im_side_soundness_positive_binding_circuit_has_nonzero_constraints() {
+fn rv32im_side_soundness_positive_binding_circuit_has_nonzero_constraints() {
     let fixture = build_side_fixture(BASE_CASE);
     let side_statement = fixture
         .side_statement()
         .expect("build side binding statement");
-    let constraint_count = measure_rv64im_side_binding_circuit_constraints(&side_statement, fixture.side_public())
+    let constraint_count = measure_rv32im_side_binding_circuit_constraints(&side_statement, fixture.side_public())
         .expect("measure side binding constraints");
 
     assert!(
@@ -311,10 +311,10 @@ fn rv64im_side_soundness_positive_binding_circuit_has_nonzero_constraints() {
 
 #[test]
 #[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
-fn rv64im_side_soundness_positive_phase0_point_depends_on_statement_digest() {
+fn rv32im_side_soundness_positive_phase0_point_depends_on_statement_digest() {
     let fixture = build_side_fixture(BASE_CASE);
     let rebound_statement = mutated_statement_with_new_core(&fixture.nightstream_statement);
-    let rebound_side_proof = build_rv64im_side_proof(&rebound_statement, &fixture.accepted_artifact)
+    let rebound_side_proof = build_rv32im_side_proof(&rebound_statement, &fixture.accepted_artifact)
         .expect("rebuild side proof under new statement core");
 
     let original_points = fixture
@@ -339,17 +339,17 @@ fn rv64im_side_soundness_positive_phase0_point_depends_on_statement_digest() {
 
 #[test]
 #[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
-fn rv64im_side_soundness_positive_statement_rebinding_without_reopening_is_rejected() {
+fn rv32im_side_soundness_positive_statement_rebinding_without_reopening_is_rejected() {
     let fixture = build_side_fixture(BASE_CASE);
     let rebound_statement = mutated_statement_with_new_core(&fixture.nightstream_statement);
-    let rebound_side_proof = build_rv64im_side_proof(&rebound_statement, &fixture.accepted_artifact)
+    let rebound_side_proof = build_rv32im_side_proof(&rebound_statement, &fixture.accepted_artifact)
         .expect("rebuild side proof under new statement core");
     let opening_vk = fixture.side_opening_vk();
 
     assert!(
-        verify_rv64im_side_proof(
+        verify_rv32im_side_proof(
             &opening_vk,
-            &setup_rv64im_side_binding(
+            &setup_rv32im_side_binding(
                 &fixture
                     .side_statement()
                     .expect("build side binding statement"),

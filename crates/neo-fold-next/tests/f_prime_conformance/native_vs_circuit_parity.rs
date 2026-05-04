@@ -10,11 +10,11 @@
 //! It does not exercise the Goal 3 decider or a real Spartan proof. Those
 //! heavier proof-path checks belong in separate manual/nightly audits.
 
-use neo_fold_next::rv64im::audit::{
-    build_rv64im_main_recursion_step_authoritative_chunk_surface,
-    build_rv64im_main_recursion_step_spartan_published_target,
-    debug_check_rv64im_main_recursion_step_authoritative_chunk_surface_matches_native,
-    debug_check_rv64im_main_recursion_x_out_gadget_parity, evaluate_rv64im_main_recursion_f_prime_advice,
+use neo_fold_next::rv32im::audit::{
+    build_rv32im_main_recursion_step_authoritative_chunk_surface,
+    build_rv32im_main_recursion_step_spartan_published_target,
+    debug_check_rv32im_main_recursion_step_authoritative_chunk_surface_matches_native,
+    debug_check_rv32im_main_recursion_x_out_gadget_parity, evaluate_rv32im_main_recursion_f_prime_advice,
 };
 
 use super::support::fast_structural_backend_relations;
@@ -28,21 +28,21 @@ fn f_prime_native_equals_circuit_bit_exact() {
     );
 
     for (step, backend_relation) in backend_relations.iter().enumerate() {
-        let step_image = evaluate_rv64im_main_recursion_f_prime_advice(&backend_relation.f_prime_advice)
+        let step_image = evaluate_rv32im_main_recursion_f_prime_advice(&backend_relation.f_prime_advice)
             .unwrap_or_else(|err| panic!("step {step}: native F' advice must evaluate: {err}"));
 
-        debug_check_rv64im_main_recursion_x_out_gadget_parity(backend_relation)
+        debug_check_rv32im_main_recursion_x_out_gadget_parity(backend_relation)
             .unwrap_or_else(|err| panic!("step {step}: x_out gadget parity must hold without proving: {err}"));
-        debug_check_rv64im_main_recursion_step_authoritative_chunk_surface_matches_native(backend_relation)
+        debug_check_rv32im_main_recursion_step_authoritative_chunk_surface_matches_native(backend_relation)
             .unwrap_or_else(|err| {
                 panic!(
                     "step {step}: authoritative recursive-step chunk surface must match the native chunk replay theorem surface: {err}"
                 )
             });
 
-        let canonical_target = build_rv64im_main_recursion_step_spartan_published_target(backend_relation)
+        let canonical_target = build_rv32im_main_recursion_step_spartan_published_target(backend_relation)
             .unwrap_or_else(|err| panic!("step {step}: build published target: {err}"));
-        let authoritative_surface = build_rv64im_main_recursion_step_authoritative_chunk_surface(backend_relation)
+        let authoritative_surface = build_rv32im_main_recursion_step_authoritative_chunk_surface(backend_relation)
             .unwrap_or_else(|err| panic!("step {step}: build authoritative chunk surface: {err}"));
         assert_eq!(
             canonical_target.x_out,

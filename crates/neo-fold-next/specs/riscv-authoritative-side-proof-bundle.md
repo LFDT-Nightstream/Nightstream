@@ -1,7 +1,7 @@
-# RV64IM Side-Opening Relation, Side Final Verifier, and Spartan Linkage Specification
+# RV32IM Side-Opening Relation, Side Final Verifier, and Spartan Linkage Specification
 
 This document specifies the minimal side-opening theorem, the optional side
-final verifier packaging, and the Spartan linkage rules for RV64IM in
+final verifier packaging, and the Spartan linkage rules for RV32IM in
 `neo-fold-next`.
 
 The theorem-level facts checked here are:
@@ -67,20 +67,20 @@ Measurement context for the rows below:
 - date: `2026-04-12 01:00:46 CDT`
 - git SHA: `d8683e67`
 - raw Phase 0 source:
-  `cargo test -p neo-fold-next --release --test rv64im_side_relation_phase0 -- --ignored --nocapture rv64im_side_relation_phase0_component_counts`
+  `cargo test -p neo-fold-next --release --test rv32im_side_relation_phase0 -- --ignored --nocapture rv32im_side_relation_phase0_component_counts`
 - side-Spartan structural source:
-  `crates/neo-fold-next/src/nightstream/rv64im/side_relation_spartan.rs`
+  `crates/neo-fold-next/src/nightstream/rv32im/side_relation_spartan.rs`
 - enforced `N=2` side-circuit redline:
-  `RV64IM_N2_SIDE_CONSTRAINT_BUDGET = 2_048`
+  `RV32IM_N2_SIDE_CONSTRAINT_BUDGET = 2_048`
 
 | Path or item | Measured or enforced value at the snapshot | Basis | Interpretation |
 | --- | --- | --- | --- |
-| Raw Phase 0 commitment replay | `79,824` constraints per active schema in every measured case | `rv64im_side_relation_phase0_component_counts` on `Stage1Rows`, `Stage2RegisterWrites`, `Stage2TwistLinks`, `Stage3Continuity` | This is the dominant raw replay cost. It is no longer the intended Spartan boundary. |
+| Raw Phase 0 commitment replay | `79,824` constraints per active schema in every measured case | `rv32im_side_relation_phase0_component_counts` on `Stage1Rows`, `Stage2RegisterWrites`, `Stage2TwistLinks`, `Stage3Continuity` | This is the dominant raw replay cost. It is no longer the intended Spartan boundary. |
 | Raw Phase 0 eval replay | `3,766` to `4,236` constraints per active schema | Sum of `point + point_eq + payload + payload_eq` from the same diagnostic | This is the remaining eval-side replay after separating out commitment replay. |
 | Raw Phase 0 schema total | `83,590` to `84,060` constraints per active schema | Same diagnostic | This is useful only as an audit/debug figure for the old replay path. |
-| Side Spartan wrapper circuit at the snapshot | No raw Phase 0 replay terms remain in the circuit; only the statement digest is allocated as public input | `measure_rv64im_side_spartan_circuit_constraints` and `side_relation_spartan.rs` synthesize only public inputs and no replay subrelations | This row describes the measured wrapper circuit at the snapshot SHA. It is not the theorem itself. |
-| Side Spartan `N=2` redline at the snapshot | `<= 2,048` total constraints | `RV64IM_N2_SIDE_CONSTRAINT_BUDGET` canary in `rv64im_n2_canaries.rs` | This is an enforced budget, not a measured exact count. |
-| End-to-end side timing at the snapshot | unavailable from the canonical perf snapshot at this SHA | `NS_DEBUG_N=2 cargo test -p neo-fold-next --release --test perf_rv64im_with_spartan -- --ignored --nocapture rv64im_mixed_opcode_perf_snapshot` fails with `InvalidSumcheckProof` at the listed SHA | The snapshot records the measurement state honestly; it does not reuse stale timings. |
+| Side Spartan wrapper circuit at the snapshot | No raw Phase 0 replay terms remain in the circuit; only the statement digest is allocated as public input | `measure_rv32im_side_spartan_circuit_constraints` and `side_relation_spartan.rs` synthesize only public inputs and no replay subrelations | This row describes the measured wrapper circuit at the snapshot SHA. It is not the theorem itself. |
+| Side Spartan `N=2` redline at the snapshot | `<= 2,048` total constraints | `RV32IM_N2_SIDE_CONSTRAINT_BUDGET` canary in `rv32im_n2_canaries.rs` | This is an enforced budget, not a measured exact count. |
+| End-to-end side timing at the snapshot | unavailable from the canonical perf snapshot at this SHA | `NS_DEBUG_N=2 cargo test -p neo-fold-next --release --test perf_rv32im_with_spartan -- --ignored --nocapture rv32im_mixed_opcode_perf_snapshot` fails with `InvalidSumcheckProof` at the listed SHA | The snapshot records the measurement state honestly; it does not reuse stale timings. |
 
 Interpretation notes:
 
@@ -565,7 +565,7 @@ it enforces the same equations above.
 This owner defines `R_side_opening`: its public instance, its public and proof
 objects, the role of any proof container, the fixed verifier relations, and
 the negative rules that keep digest compression from being mistaken for proof.
-It does not own RV64IM execution semantics, `R_main^SN`, outer Nightstream
+It does not own RV32IM execution semantics, `R_main^SN`, outer Nightstream
 statement/linkage policy, legacy bridge/export/package artifacts, or the
 concrete compact opening/evaluation and recursive backends.
 
@@ -573,8 +573,8 @@ Delegated ownership:
 
 | Area | Owner |
 | --- | --- |
-| RV64IM semantics and `R_main^SN` | `riscv-kernel.md`, `riscv-main-relation.md` |
-| Main-lane row-local residual (`W = 38` semantic-row width, `29` canonical R1CS rows before CCS conversion) | `riscv-kernel.md` §3.1, §4.1, §11.3 and `riscv-main-relation.md` |
+| RV32IM semantics and `R_main^SN` | `riscv-kernel.md`, `riscv-main-relation.md` |
+| Main-lane row-local residual (`W = 27` semantic-row width, `21` canonical R1CS rows before CCS conversion) | `riscv-kernel.md` and `riscv-main-relation.md` |
 | Outer published statement and linkage policy | Outer Nightstream statement/linkage owner |
 | Recursive backend and recursive export policy | `riscv-recursive-proof.md`, `riscv-recursive-instantiation.md` |
 
@@ -673,7 +673,7 @@ Three end states are conforming:
 Neither path may reintroduce legacy bridge/export artifacts as theorem meaning.
 
 The main-lane row-local residual is not part of this theorem. In this repo,
-that residual is the canonical `W = 38` semantic-row layout with `29`
+that residual is the canonical RV32IM `W = 27` semantic-row layout with `21`
 row-local R1CS constraints before `r1cs_to_ccs(A, B, C)` conversion, owned by
 the main lane.
 

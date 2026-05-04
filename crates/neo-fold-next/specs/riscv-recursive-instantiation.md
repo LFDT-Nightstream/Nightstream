@@ -1,4 +1,4 @@
-# RV64IM Recursive Backend Instantiation
+# RV32IM Recursive Backend Instantiation
 
 ## Scope
 
@@ -8,9 +8,9 @@ This file instantiates the abstract recursive/export-boundary architecture in
 It is the concrete implementation-contract companion to:
 
 - `riscv-recursive-proof.md`, which owns the theorem-facing export boundary,
-- `riscv-main-relation.md`, which owns the fixed RV64IM main relation
+- `riscv-main-relation.md`, which owns the fixed RV32IM main relation
   `R_main^SN` and its bridge theorem to carried `CE(b, L)^k` semantics,
-- `riscv-authoritative-side-proof-bundle.md`, which owns the fixed RV64IM side
+- `riscv-authoritative-side-proof-bundle.md`, which owns the fixed RV32IM side
   opening theorem, optional packaged side verifier, and Spartan linkage rules
   that the later recursive/compression backend must preserve,
 - and `riscv-kernel.md`, which owns the concrete SuperNeo backend contract,
@@ -57,7 +57,7 @@ from `riscv-recursive-proof.md`:
 - `NextBoundary(Sched_SN, n, i, s_i)` is derived from the fixed schedule
   metadata and exact semantic step count `n`,
 - `N := ChunkCount(Sched_SN, n)` is the canonical terminal chunk index,
-- and post-halt padding is forbidden because `n` counts exact legal RV64IM
+- and post-halt padding is forbidden because `n` counts exact legal RV32IM
   semantic transitions.
 
 ## 2. Canonical Recursive Object Encodings
@@ -102,7 +102,7 @@ assumptions actually provided by the chosen recursive and compression backends.
 
 ## 3. Chunk Adapter
 
-If the repo instantiation adapts existing RV64IM chunk artifacts into the
+If the repo instantiation adapts existing RV32IM chunk artifacts into the
 recursive backend, the adapter shall classify and encode those artifacts
 explicitly.
 
@@ -165,10 +165,10 @@ and any optional audit export.
 At minimum it shall name:
 
 ```rust
-pub struct Rv64imStatement { ... }
-pub enum Rv64imPublicOutput { ... }
-pub struct Rv64imCompressedProof { ... }
-pub struct Rv64imAuditBundle { ... }
+pub struct Rv32imStatement { ... }
+pub enum Rv32imPublicOutput { ... }
+pub struct Rv32imCompressedProof { ... }
+pub struct Rv32imAuditBundle { ... }
 ```
 
 and the canonical functions:
@@ -180,8 +180,8 @@ prove_audit(...)
 verify_audit(...)
 ```
 
-Legacy proof-complete artifacts, including `Rv64imProof` from
-`src/rv64im/kernel/proof/api.rs`, are audit-only rather than theorem-facing
+Legacy proof-complete artifacts, including `Rv32imProof` from
+`src/rv32im/kernel/proof/api.rs`, are audit-only rather than theorem-facing
 proof objects in the normalized exported API.
 
 ## 4A. Binding Inventory
@@ -216,14 +216,14 @@ recursive/compression ownership.
 The following shapes should be frozen early to prevent interface drift:
 
 ```rust
-pub struct Rv64imStatement {
+pub struct Rv32imStatement {
     pub program_digest: ProgramDigest,
     pub public_step_count: u64,
     pub initial_state: PublicMachineState,
-    pub output: Rv64imOutput,
+    pub output: Rv32imOutput,
 }
 
-pub enum Rv64imOutput {
+pub enum Rv32imOutput {
     FinalState(PublicMachineState),
     Projection {
         output_id: OutputProjectionId,
@@ -231,14 +231,14 @@ pub enum Rv64imOutput {
     },
 }
 
-pub struct Rv64imCompressedProof {
-    pub stmt: Rv64imStatement,
+pub struct Rv32imCompressedProof {
+    pub stmt: Rv32imStatement,
     pub terminal_accumulator_handle: Option<Vec<u8>>,
     pub proof_bytes: Vec<u8>,
 }
 
-pub struct Rv64imAuditBundle {
-    pub legacy_proof_complete: Rv64imProof,
+pub struct Rv32imAuditBundle {
+    pub legacy_proof_complete: Rv32imProof,
 }
 
 pub struct RecursiveChunkPublic {

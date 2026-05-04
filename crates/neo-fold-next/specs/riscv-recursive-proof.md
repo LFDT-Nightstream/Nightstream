@@ -1,9 +1,9 @@
-# RV64IM Recursive Proof End-State Specification
+# RV32IM Recursive Proof End-State Specification
 
 ## Scope
 
 This document specifies the end-state theorem-facing proof architecture for
-RV64IM in `neo-fold-next`.
+RV32IM in `neo-fold-next`.
 
 It fixes the ownership boundary between:
 
@@ -22,7 +22,7 @@ explicitly anticipated by SuperNeo:
   public sidecar data.
 
 This spec does **not** redefine the underlying CCS folding relation. It only
-defines how the RV64IM proof should be exported in the end-state recursive
+defines how the RV32IM proof should be exported in the end-state recursive
 design.
 
 It is **not** the full SuperNeo backend or parameter specification. In this
@@ -57,14 +57,14 @@ The target in this document is constrained by the following local references:
 - `07_7_Neo_s_folding_scheme_for_CCS.md`
   - the folding scheme relations and reduction shapes
 - `riscv-main-relation.md`
-  - the owned RV64IM main relation `R_main^SN`
+  - the owned RV32IM main relation `R_main^SN`
   - the mandatory bridge theorem to carried `CE(b, L)^k` semantics
 - `riscv-authoritative-side-proof-bundle.md`
-  - the exact RV64IM side-opening relation, optional packaged side verifier,
+  - the exact RV32IM side-opening relation, optional packaged side verifier,
     and Spartan linkage relation that later recursive or succinct compilation
     must preserve
 - `riscv-kernel.md`
-  - the concrete theorem-facing SuperNeo backend contract used by RV64IM
+  - the concrete theorem-facing SuperNeo backend contract used by RV32IM
   - the Goldilocks parameterization and ring/challenge-domain choices
   - the chunk-local `Π_CCS -> Π_RLC -> Π_DEC` role split
 - `riscv-recursive-instantiation.md`
@@ -77,7 +77,7 @@ contract.
 
 ## 1. End-State Design Goal
 
-The codebase target exported proof format for an RV64IM execution shall be a
+The codebase target exported proof format for an RV32IM execution shall be a
 **compressed recursive proof**, not a raw folding accumulator.
 
 This is an export-policy requirement for this repo's end-state proof format. It
@@ -86,7 +86,7 @@ facing artifact in the abstract.
 
 The final external verifier shall verify a proof whose public statement binds:
 
-- the RV64IM program,
+- the RV32IM program,
 - the initial public machine state,
 - the final public machine state or an explicitly chosen output projection of
   that state,
@@ -144,7 +144,7 @@ SuperNeo states that:
    Goldilocks, the resulting accumulators admit efficient proof compression.
 
 Therefore this repo's end-state theorem-facing artifact for a SuperNeo-based
-RV64IM system is not the raw accumulator with its full witness sidecar. It is a
+RV32IM system is not the raw accumulator with its full witness sidecar. It is a
 compressed proof or argument for the recursive verifier relation, with any
 knowledge-soundness claim contingent on the concrete backend assumptions named
 in `riscv-recursive-instantiation.md`.
@@ -153,11 +153,11 @@ in `riscv-recursive-instantiation.md`.
 
 Let:
 
-- `P` be the immutable RV64IM program,
+- `P` be the immutable RV32IM program,
 - `dig(P)` be the program binding digest or equivalent public program binding,
 - `z_i` be the public machine state after `i` semantic steps,
 - `ω_i` be the private witness for step `i`,
-- `F_P` be the RV64IM step relation for program `P`,
+- `F_P` be the RV32IM step relation for program `P`,
 - `A_i` be the carried paper accumulator bundle after a full SuperNeo fold
   cycle, i.e. a bundle of norm-bounded `CE(b, L)^k` claims under the concrete
   backend contract in `riscv-kernel.md`,
@@ -189,13 +189,13 @@ same theorem-facing statement.
 For simplicity, the canonical statement in this spec is:
 
 ```text
-stmt_RV64IM := (dig(P), n, z_0, z_n).
+stmt_RV32IM := (dig(P), n, z_0, z_n).
 ```
 
 If an application wants a smaller public output, it may instead use
 
 ```text
-stmt_RV64IM,out := (dig(P), n, z_0, y)
+stmt_RV32IM,out := (dig(P), n, z_0, y)
 ```
 
 with the additional requirement that the recursive or compression layer proves
@@ -252,13 +252,13 @@ to be the carried boundary produced by `Init_SN(P, z_0)`, so that:
 - and `U_0, W_0` are an encoding and witness for that carried bundle.
 
 `A_0` is therefore not an unconstrained dummy accumulator. It is the carried
-pre-execution boundary for the same RV64IM execution whose public statement
+pre-execution boundary for the same RV32IM execution whose public statement
 binds `(dig(P), n, z_0, z_n)` or `(dig(P), n, z_0, y)`.
 
 If an implementation uses a neutral or synthetic seed object internally, then
 the first recursive step shall prove equivalence between that seed object and
 the backend-defined carried boundary `A_0` before consuming the first real fresh
-RV64IM chunk instance.
+RV32IM chunk instance.
 
 The first fresh instance `u_0` therefore represents the first real chunk-local
 semantic claim starting from `z_0`, not an unconstrained bootstrap transition.
@@ -279,8 +279,8 @@ codebase later adopts that compiler path, it shall be specified separately.
 
 This repo adopts **chunk-step recursion**.
 
-A recursive step consumes one closed RV64IM chunk produced by the kernel
-pipeline, not one semantic RV64IM instruction.
+A recursive step consumes one closed RV32IM chunk produced by the kernel
+pipeline, not one semantic RV32IM instruction.
 
 Let chunk `i` cover the contiguous semantic interval
 
@@ -316,12 +316,12 @@ instruction-level recursion.
 The theorem-facing statement remains the full-execution statement
 
 ```text
-stmt_RV64IM := (dig(P), n, z_0, z_n)
+stmt_RV32IM := (dig(P), n, z_0, z_n)
 ```
 
 or its output-projection variant. Chunk boundaries are recursive-internal.
 
-For this repo, `n` is the exact number of legal RV64IM semantic transitions in
+For this repo, `n` is the exact number of legal RV32IM semantic transitions in
 the proved execution. Post-halt padding is forbidden: once the machine is
 halted, no further semantic step is legal.
 
@@ -479,19 +479,19 @@ The recursive construction shall satisfy the following acceptance relations.
 Base relation:
 
 ```text
-Base(RecParams, stmt_RV64IM):
+Base(RecParams, stmt_RV32IM):
   let A_0 := Init_SN(P, z_0)
   let U_0 := Enc_CE_bundle(A_0)
   output State_0 := (U_0, 0, 0, z_0)
 ```
 
-where `P` is the fixed program bound by `dig(P)` in `stmt_RV64IM`, and `A_0`
+where `P` is the fixed program bound by `dig(P)` in `stmt_RV32IM`, and `A_0`
 has the carried semantics required by section 4.1.
 
 Terminal relation for the full-state statement:
 
 ```text
-Terminal(stmt_RV64IM, State_N):
+Terminal(stmt_RV32IM, State_N):
   let State_N = (U_N, chunk_index, step_count, z_term)
   check chunk_index = N
   check step_count = n
@@ -501,7 +501,7 @@ Terminal(stmt_RV64IM, State_N):
 Terminal relation for the output-projection statement:
 
 ```text
-Terminal(stmt_RV64IM,out, State_N):
+Terminal(stmt_RV32IM,out, State_N):
   let State_N = (U_N, chunk_index, step_count, z_term)
   check chunk_index = N
   check step_count = n
@@ -516,7 +516,7 @@ These terminal checks are part of the recursive verifier relation accepted by
 Consensus-critical values are bound in the following locations:
 
 - `dig(P)`, `n`, `z_0`, and `z_n` or `y` are theorem-facing public inputs via
-  `stmt_RV64IM` or `stmt_RV64IM,out`,
+  `stmt_RV32IM` or `stmt_RV32IM,out`,
 - `vk_NIFS` is fixed by recursive-backend verifier configuration and is not
   theorem-facing by default,
 - `vk_IVC` is fixed by the recursive/compression backend verifier
@@ -558,10 +558,10 @@ Fiat-Shamir non-interactive form of
 
 under `Backend_SN`.
 
-Let `R_main^SN` denote the owned RV64IM main relation from
+Let `R_main^SN` denote the owned RV32IM main relation from
 `riscv-main-relation.md`.
 
-`R_main^SN` is the mandatory theorem bridge between the concrete RV64IM folded
+`R_main^SN` is the mandatory theorem bridge between the concrete RV32IM folded
 execution seam and the carried paper accumulator semantics. Any recursive step
 relation or outer compressor used by this repo shall therefore preserve the
 bridge theorem:
@@ -580,7 +580,7 @@ whose theorem-level meaning is the paper's `CE(b, L)^k` accumulator bundle
 under `Backend_SN`.
 
 Let `stmt_IVC` denote the public statement accepted by the recursive verifier.
-It shall bind `stmt_RV64IM` and may additionally bind a minimal public
+It shall bind `stmt_RV32IM` and may additionally bind a minimal public
 accumulator handle `U_N^pub` if the chosen recursive proof system requires one.
 
 The terminal relation proved by the compression layer is:
@@ -597,7 +597,7 @@ Here:
 
 - `IVC.V` is the verifier of the recursive proof system,
 - `stmt_IVC` is the public recursive statement,
-- `stmt_RV64IM` is the canonical public RV64IM theorem statement,
+- `stmt_RV32IM` is the canonical public RV32IM theorem statement,
 - and `R_acc^SN` remains the backend-grounded carried accumulator semantics
   that the recursive step circuit proves transitively by running `NIFS.V` over
   the Fiat-Shamir non-interactive form of the full SuperNeo composition.
@@ -613,25 +613,25 @@ relation explicitly. This file does not adopt that design by default.
 The exported compressed proof shall then be:
 
 ```text
-Proof_final := (stmt_RV64IM, Π_comp)
+Proof_final := (stmt_RV32IM, Π_comp)
 ```
 
 Here `Π_comp` is a compressed proof or argument for a valid recursive proof
 object `Π'_N` satisfying `R_comp(stmt_IVC)`, where `stmt_IVC` binds
-`stmt_RV64IM`. Any knowledge-soundness claim for `Π_comp` depends on the
+`stmt_RV32IM`. Any knowledge-soundness claim for `Π_comp` depends on the
 concrete backend assumptions fixed in `riscv-recursive-instantiation.md`.
 
 If the recursive verifier requires a minimal public accumulator handle, then
 the exported theorem-facing proof may instead take the form
 
 ```text
-Proof_final := (stmt_RV64IM, U_N^pub, Π_comp),
+Proof_final := (stmt_RV32IM, U_N^pub, Π_comp),
 ```
 
 with
 
 ```text
-stmt_IVC := (stmt_RV64IM, U_N^pub).
+stmt_IVC := (stmt_RV32IM, U_N^pub).
 ```
 
 The concrete choice of `U_N^pub` is owned by
@@ -800,7 +800,7 @@ For avoidance of doubt:
 - `riscv-kernel.md` owns the concrete SuperNeo backend contract, including the
   Goldilocks parameterization, challenge domain, and chunk-local reduction role
   split,
-- `riscv-main-relation.md` owns the fixed RV64IM main theorem relation and the
+- `riscv-main-relation.md` owns the fixed RV32IM main theorem relation and the
   bridge theorem tying that relation to carried `CE(b, L)^k` semantics,
 - `riscv-recursive-instantiation.md` owns the concrete recursive backend
   choice, compression backend choice, canonical encodings of `U_i`, `W_i`,

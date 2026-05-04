@@ -1,7 +1,7 @@
-use neo_fold_next::rv64im::{derive_phase0_point, CommitmentContextId, FamilyEvalSchemaId, OpenedAjtaiObjectId};
+use neo_fold_next::rv32im::{derive_phase0_point, CommitmentContextId, FamilyEvalSchemaId, OpenedAjtaiObjectId};
 
 #[test]
-fn rv64im_side_soundness_phase0_point_depends_on_full_target_key() {
+fn rv32im_side_soundness_phase0_point_depends_on_full_target_key() {
     let commitment_context = CommitmentContextId::new([1; 32], [2; 32]);
     let opened_object = OpenedAjtaiObjectId::new(
         FamilyEvalSchemaId::Stage1Rows.family_kind(),

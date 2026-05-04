@@ -3,21 +3,21 @@ use std::time::Instant;
 
 use neo_ajtai::Commitment;
 use neo_fold_next::proof::FoldSchedule;
-use neo_fold_next::rv64im::audit::{
-    audit_rv64im_main_recursion_step_spartan_fixed_shape_at_chunk_positions, build_rv64im_chunk_step_ivc_relations,
-    build_rv64im_main_recursion_f_prime_advices_single_step,
-    build_rv64im_main_recursion_f_prime_backend_relations_with_spartan_shape_from_advices,
-    debug_measure_rv64im_main_recursion_step_spartan_circuit_shape,
-    debug_measure_rv64im_main_recursion_step_spartan_shape_synthesis,
-    debug_profile_rv64im_main_recursion_step_chunk_replay_stages,
-    debug_trace_rv64im_main_recursion_construction2_default_pair_for_full_width,
-    debug_trace_rv64im_main_recursion_step_spartan_shape_synthesis, Rv64imMainRecursionFPrimeBackendRelation,
+use neo_fold_next::rv32im::audit::{
+    audit_rv32im_main_recursion_step_spartan_fixed_shape_at_chunk_positions, build_rv32im_chunk_step_ivc_relations,
+    build_rv32im_main_recursion_f_prime_advices_single_step,
+    build_rv32im_main_recursion_f_prime_backend_relations_with_spartan_shape_from_advices,
+    debug_measure_rv32im_main_recursion_step_spartan_circuit_shape,
+    debug_measure_rv32im_main_recursion_step_spartan_shape_synthesis,
+    debug_profile_rv32im_main_recursion_step_chunk_replay_stages,
+    debug_trace_rv32im_main_recursion_construction2_default_pair_for_full_width,
+    debug_trace_rv32im_main_recursion_step_spartan_shape_synthesis, Rv32imMainRecursionFPrimeBackendRelation,
 };
-use neo_fold_next::rv64im::final_relation::prove_rv64im_final_statement_from_accepted;
-use neo_fold_next::rv64im::main_recursion::{build_rv64im_main_recursion_verifier_key_fs, Rv64imMainRecursionPhiSide};
-use neo_fold_next::rv64im::{
-    build_mixed_opcode_perf_source_case, build_rv64im_main_recursion_construction2_canonical_full_width,
-    prove_rv64im_accepted_proof_with_options_and_perf, Rv64imProofInput, Rv64imPublicProofOptions,
+use neo_fold_next::rv32im::final_relation::prove_rv32im_final_statement_from_accepted;
+use neo_fold_next::rv32im::main_recursion::{build_rv32im_main_recursion_verifier_key_fs, Rv32imMainRecursionPhiSide};
+use neo_fold_next::rv32im::{
+    build_mixed_opcode_perf_source_case, build_rv32im_main_recursion_construction2_canonical_full_width,
+    prove_rv32im_accepted_proof_with_options_and_perf, Rv32imProofInput, Rv32imPublicProofOptions,
 };
 use neo_math::{F, K};
 use p3_field::PrimeCharacteristicRing;
@@ -85,7 +85,7 @@ fn perturb_ccs_witness_values(witness: &mut neo_ccs::CcsWitness<F>) {
     }
 }
 
-fn perturb_backend_relation_values(relation: &mut Rv64imMainRecursionFPrimeBackendRelation) {
+fn perturb_backend_relation_values(relation: &mut Rv32imMainRecursionFPrimeBackendRelation) {
     for claim in &mut relation.payload.state_in_claims {
         perturb_ce_claim_values(claim);
     }
@@ -110,12 +110,12 @@ fn perturb_backend_relation_values(relation: &mut Rv64imMainRecursionFPrimeBacke
 #[test]
 #[ignore = "manual default-pair timing probe; run exact with --ignored --nocapture"]
 fn goal2_manual_default_pair_breakdown_probe() {
-    let vk_fs = build_rv64im_main_recursion_verifier_key_fs().expect("build canonical vk_fs for default-pair probe");
+    let vk_fs = build_rv32im_main_recursion_verifier_key_fs().expect("build canonical vk_fs for default-pair probe");
     let full_width =
-        build_rv64im_main_recursion_construction2_canonical_full_width(&vk_fs, &Rv64imMainRecursionPhiSide::zero())
+        build_rv32im_main_recursion_construction2_canonical_full_width(&vk_fs, &Rv32imMainRecursionPhiSide::zero())
             .expect("derive canonical full width for default-pair probe");
     let started = Instant::now();
-    let _ = debug_trace_rv64im_main_recursion_construction2_default_pair_for_full_width(
+    let _ = debug_trace_rv32im_main_recursion_construction2_default_pair_for_full_width(
         &vk_fs,
         full_width,
         "goal2_probe.default_pair",
@@ -132,13 +132,13 @@ fn goal2_manual_default_pair_breakdown_probe() {
 fn goal2_manual_value_invariant_breakdown_probe() {
     let source = build_mixed_opcode_perf_source_case(0);
     let max_steps = source.program_words.len();
-    let input = Rv64imProofInput { source, max_steps };
-    let options = Rv64imPublicProofOptions {
+    let input = Rv32imProofInput { source, max_steps };
+    let options = Rv32imPublicProofOptions {
         root_fold_schedule: FoldSchedule::RowsPerChunk(1),
     };
 
     let started = Instant::now();
-    let ((accepted, _), _) = prove_rv64im_accepted_proof_with_options_and_perf(&input, options)
+    let ((accepted, _), _) = prove_rv32im_accepted_proof_with_options_and_perf(&input, options)
         .expect("prove accepted artifact for value-invariance probe");
     print_stage_ms(
         "goal2_probe.value_invariant.accepted_artifact_wall",
@@ -146,7 +146,7 @@ fn goal2_manual_value_invariant_breakdown_probe() {
     );
 
     let started = Instant::now();
-    let (final_statement, final_proof) = prove_rv64im_final_statement_from_accepted(&accepted)
+    let (final_statement, final_proof) = prove_rv32im_final_statement_from_accepted(&accepted)
         .expect("build final statement for value-invariance probe");
     print_stage_ms(
         "goal2_probe.value_invariant.final_statement_wall",
@@ -154,7 +154,7 @@ fn goal2_manual_value_invariant_breakdown_probe() {
     );
 
     let started = Instant::now();
-    let relations = build_rv64im_chunk_step_ivc_relations(&final_statement, &final_proof)
+    let relations = build_rv32im_chunk_step_ivc_relations(&final_statement, &final_proof)
         .expect("build chunk-step relations for value-invariance probe");
     print_stage_ms(
         "goal2_probe.value_invariant.chunk_step_relations_wall",
@@ -162,7 +162,7 @@ fn goal2_manual_value_invariant_breakdown_probe() {
     );
 
     let started = Instant::now();
-    let advices = build_rv64im_main_recursion_f_prime_advices_single_step(&relations)
+    let advices = build_rv32im_main_recursion_f_prime_advices_single_step(&relations)
         .expect("build recursive-step advices for value-invariance probe");
     print_stage_ms(
         "goal2_probe.value_invariant.f_prime_advices_wall",
@@ -171,7 +171,7 @@ fn goal2_manual_value_invariant_breakdown_probe() {
 
     let started = Instant::now();
     let (spartan_shape, backend_relations) =
-        build_rv64im_main_recursion_f_prime_backend_relations_with_spartan_shape_from_advices(&relations, &advices)
+        build_rv32im_main_recursion_f_prime_backend_relations_with_spartan_shape_from_advices(&relations, &advices)
             .expect("build backend relations for value-invariance probe");
     print_stage_ms(
         "goal2_probe.value_invariant.backend_relations_wall",
@@ -183,7 +183,7 @@ fn goal2_manual_value_invariant_breakdown_probe() {
         .expect("value-invariance probe requires one backend relation");
     let started = Instant::now();
     let baseline_synthesis =
-        debug_measure_rv64im_main_recursion_step_spartan_shape_synthesis(&spartan_shape, baseline_relation)
+        debug_measure_rv32im_main_recursion_step_spartan_shape_synthesis(&spartan_shape, baseline_relation)
             .expect("measure baseline shape synthesis for value-invariance probe");
     print_stage_ms(
         "goal2_probe.value_invariant.baseline_shape_synthesis_wall",
@@ -203,7 +203,7 @@ fn goal2_manual_value_invariant_breakdown_probe() {
     );
 
     let started = Instant::now();
-    let baseline = debug_measure_rv64im_main_recursion_step_spartan_circuit_shape(&spartan_shape, baseline_relation)
+    let baseline = debug_measure_rv32im_main_recursion_step_spartan_circuit_shape(&spartan_shape, baseline_relation)
         .expect("measure baseline shape for value-invariance probe");
     print_stage_ms(
         "goal2_probe.value_invariant.baseline_shape_wall",
@@ -217,7 +217,7 @@ fn goal2_manual_value_invariant_breakdown_probe() {
     let mut perturbed_relation = baseline_relation.clone();
     perturb_backend_relation_values(&mut perturbed_relation);
     let started = Instant::now();
-    let perturbed = debug_measure_rv64im_main_recursion_step_spartan_circuit_shape(&spartan_shape, &perturbed_relation)
+    let perturbed = debug_measure_rv32im_main_recursion_step_spartan_circuit_shape(&spartan_shape, &perturbed_relation)
         .expect("measure perturbed shape for value-invariance probe");
     print_stage_ms(
         "goal2_probe.value_invariant.perturbed_shape_wall",
@@ -234,13 +234,13 @@ fn goal2_manual_value_invariant_breakdown_probe() {
 fn goal2_manual_n_invariant_breakdown_probe() {
     let source = build_mixed_opcode_perf_source_case(0);
     let max_steps = source.program_words.len();
-    let input = Rv64imProofInput { source, max_steps };
-    let options = Rv64imPublicProofOptions {
+    let input = Rv32imProofInput { source, max_steps };
+    let options = Rv32imPublicProofOptions {
         root_fold_schedule: FoldSchedule::RowsPerChunk(1),
     };
 
     let started = Instant::now();
-    let ((accepted, _), _) = prove_rv64im_accepted_proof_with_options_and_perf(&input, options)
+    let ((accepted, _), _) = prove_rv32im_accepted_proof_with_options_and_perf(&input, options)
         .expect("prove accepted artifact for n-invariance probe");
     print_stage_ms(
         "goal2_probe.n_invariant.accepted_artifact_wall",
@@ -249,14 +249,14 @@ fn goal2_manual_n_invariant_breakdown_probe() {
 
     let started = Instant::now();
     let (final_statement, final_proof) =
-        prove_rv64im_final_statement_from_accepted(&accepted).expect("build final statement for n-invariance probe");
+        prove_rv32im_final_statement_from_accepted(&accepted).expect("build final statement for n-invariance probe");
     print_stage_ms(
         "goal2_probe.n_invariant.final_statement_wall",
         started.elapsed().as_secs_f64() * 1_000.0,
     );
 
     let started = Instant::now();
-    let relations = build_rv64im_chunk_step_ivc_relations(&final_statement, &final_proof)
+    let relations = build_rv32im_chunk_step_ivc_relations(&final_statement, &final_proof)
         .expect("build chunk-step relations for n-invariance probe");
     print_stage_ms(
         "goal2_probe.n_invariant.chunk_step_relations_wall",
@@ -264,7 +264,7 @@ fn goal2_manual_n_invariant_breakdown_probe() {
     );
 
     let started = Instant::now();
-    let measured = audit_rv64im_main_recursion_step_spartan_fixed_shape_at_chunk_positions(&relations, &[0, 1])
+    let measured = audit_rv32im_main_recursion_step_spartan_fixed_shape_at_chunk_positions(&relations, &[0, 1])
         .expect("measure fixed shape across chunk positions for n-invariance probe");
     print_stage_ms(
         "goal2_probe.n_invariant.audit_wall",
@@ -288,7 +288,7 @@ fn goal2_manual_shape_synthesis_breakdown_probe() {
         .first()
         .expect("shape-synthesis probe requires one backend relation");
     let started = Instant::now();
-    let metrics = debug_trace_rv64im_main_recursion_step_spartan_shape_synthesis(
+    let metrics = debug_trace_rv32im_main_recursion_step_spartan_shape_synthesis(
         spartan_shape,
         first,
         "goal2_probe.shape_synthesis",
@@ -320,7 +320,7 @@ fn goal2_manual_chunk_replay_stage_profile_probe() {
         .first()
         .expect("chunk-replay profile probe requires one backend relation");
     let started = Instant::now();
-    debug_profile_rv64im_main_recursion_step_chunk_replay_stages(first)
+    debug_profile_rv32im_main_recursion_step_chunk_replay_stages(first)
         .expect("profile recursive-step chunk replay stages");
     print_stage_ms(
         "goal2_probe.chunk_replay_profile.total_wall",

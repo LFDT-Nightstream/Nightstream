@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::proof::FoldSchedule;
 
 pub mod chip8;
-pub mod rv64im;
+pub mod rv32im;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NightstreamStatement {

@@ -1,0 +1,1472 @@
+//! Owns the below-export RV32IM side-opening theorem seam.
+//!
+//! The statement is restricted to already-carried Nightstream surfaces.
+//! The witness owns only the selected rows/events needed to justify the
+//! carried opening claims, plus compact single-step packaged projections that
+//! bind those claims back to the exact stage-package and kernel-opening public
+//! steps, without widening the published boundary.
+
+use neo_transcript::{Poseidon2Transcript, Transcript};
+use serde::{Deserialize, Serialize};
+
+use crate::proof::{FoldSchedule, PublicStep};
+use crate::rv32im::kernel::{
+    build_claim_packaged_public_step, build_kernel_binding_opening_public_step,
+    build_kernel_prepared_step_opening_public_step, build_public_kernel_opening_claim_from_compact_surfaces,
+    same_public_step, AjtaiFamilyKind, Rv32imAcceptedProofArtifact, Rv32imProofStatement, Rv32imStageClaimDigestBundle,
+    SelectedOpeningRef, SimpleKernelError, SimpleKernelOpeningClaim, SimpleKernelStageClaimBundle,
+    Stage1CanonicalRowBundle, Stage1ClaimSurface, Stage1OpeningPoints, Stage1SelectedOpeningClaim,
+    Stage2CanonicalFamilyBundle, Stage2ClaimSurface, Stage2OpeningPoints, Stage2SelectedOpeningClaim,
+    Stage3CanonicalContinuityBundle, Stage3ClaimSurface, Stage3OpeningPoints, Stage3SelectedOpeningClaim,
+    RV32IM_SELECTED_OPENING_LAYOUT_V1,
+};
+use crate::rv32im::stage1::{stage1_row_digest, Stage1RowBinding};
+use crate::rv32im::stage2::{
+    ram_event_digest, register_read_event_digest, register_write_event_digest, twist_link_event_digest, RamEvent,
+    RegisterReadEvent, RegisterWriteEvent, TwistLinkEvent,
+};
+use crate::rv32im::stage3::{continuity_event_digest, ContinuityEvent};
+use crate::rv32im::{
+    Stage1ArtifactSurface, Stage1VerifiedClaims, Stage2ArtifactSurface, Stage2VerifiedClaims, Stage3ArtifactSurface,
+    Stage3VerifiedClaims, StageDigestCommitment, TranscriptArtifactSurface, TranscriptClaimSurface,
+};
+
+use super::compact_surfaces::{
+    kernel_claim_summary_digest_from_surfaces, kernel_opening_binding_bundle_digest_from_surfaces,
+    kernel_opening_bundle_digest_from_surfaces, kernel_opening_proof_bundle_digest_from_surfaces,
+    packaged_claim_proof_digest_from_surfaces, packaged_opening_proof_digest_from_surfaces,
+    stage_package_proof_bundle_digest_from_surfaces,
+};
+use super::side_bridges::{
+    validate_rv32im_side_proof_bundle_structure, Rv32imKernelClaimBridge, Rv32imKernelClaimProofBridge,
+    Rv32imKernelOpeningBridge, Rv32imMainLaneProofBridge, Rv32imStageClaimProofBridge,
+};
+use super::side_claim_relation::{
+    validate_rv32im_single_step_packaged_witness_shape, Rv32imSingleStepPackagedProofWitness,
+};
+use super::Rv32imSideProofBundle;
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Rv32imSideTranscriptSummary {
+    pub surface_digest: [u8; 32],
+    pub event_count: usize,
+    pub kernel_final_mix: u64,
+}
+
+impl Rv32imSideTranscriptSummary {
+    pub fn expected_digest(&self) -> [u8; 32] {
+        let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv32im/side_transcript_summary");
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_transcript_summary/surface_digest",
+            &self.surface_digest,
+        );
+        tr.append_u64s(
+            b"neo.fold.next/nightstream/rv32im/side_transcript_summary/meta",
+            &[self.event_count as u64, self.kernel_final_mix],
+        );
+        tr.digest32()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Rv32imSideOpeningPublicStatementSummary {
+    pub proof_statement_digest: [u8; 32],
+    pub root_params_id: [u8; 32],
+    pub fold_schedule: FoldSchedule,
+    pub chunk_count: u64,
+    pub stage_claims_digest: [u8; 32],
+    pub stage_packages_digest: [u8; 32],
+    pub kernel_opening_digest: [u8; 32],
+    pub prepared_step_bindings_digest: [u8; 32],
+    pub execution_digest: [u8; 32],
+    pub final_state_digest: [u8; 32],
+    pub transcript_final_digest: [u8; 32],
+    pub main_lane_surface_digest: [u8; 32],
+    pub root_lane_columns_digest: [u8; 32],
+    pub public_step_count: u64,
+    pub initial_pc: u64,
+    pub final_pc: u64,
+    pub halted: bool,
+}
+
+impl Rv32imSideOpeningPublicStatementSummary {
+    pub fn from_public_statement(public_statement: &Rv32imProofStatement) -> Self {
+        Self {
+            proof_statement_digest: public_statement.digest,
+            root_params_id: public_statement.root_params_id,
+            fold_schedule: public_statement.fold_schedule,
+            chunk_count: public_statement.chunk_count,
+            stage_claims_digest: public_statement.stage_claims_digest,
+            stage_packages_digest: public_statement.stage_packages_digest,
+            kernel_opening_digest: public_statement.kernel_opening_digest,
+            prepared_step_bindings_digest: public_statement.prepared_step_bindings_digest,
+            execution_digest: public_statement.execution_digest,
+            final_state_digest: public_statement.final_state_digest,
+            transcript_final_digest: public_statement.transcript_final_digest,
+            main_lane_surface_digest: public_statement.main_lane_surface_digest,
+            root_lane_columns_digest: public_statement.root_lane_columns_digest,
+            public_step_count: public_statement.public_step_count,
+            initial_pc: public_statement.initial_pc,
+            final_pc: public_statement.final_pc,
+            halted: public_statement.halted,
+        }
+    }
+
+    pub fn expected_digest(&self) -> [u8; 32] {
+        let mut tr =
+            Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv32im/side_opening_public_statement_summary");
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_public_statement_summary/proof_statement_digest",
+            &self.proof_statement_digest,
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_public_statement_summary/root_params_id",
+            &self.root_params_id,
+        );
+        tr.append_u64s(
+            b"neo.fold.next/nightstream/rv32im/side_opening_public_statement_summary/fold_schedule",
+            &self.fold_schedule.meta_words(),
+        );
+        tr.append_u64s(
+            b"neo.fold.next/nightstream/rv32im/side_opening_public_statement_summary/chunk_count",
+            &[self.chunk_count],
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_public_statement_summary/stage_claims_digest",
+            &self.stage_claims_digest,
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_public_statement_summary/stage_packages_digest",
+            &self.stage_packages_digest,
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_public_statement_summary/kernel_opening_digest",
+            &self.kernel_opening_digest,
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_public_statement_summary/prepared_step_bindings_digest",
+            &self.prepared_step_bindings_digest,
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_public_statement_summary/execution_digest",
+            &self.execution_digest,
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_public_statement_summary/final_state_digest",
+            &self.final_state_digest,
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_public_statement_summary/transcript_final_digest",
+            &self.transcript_final_digest,
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_public_statement_summary/main_lane_surface_digest",
+            &self.main_lane_surface_digest,
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_public_statement_summary/root_lane_columns_digest",
+            &self.root_lane_columns_digest,
+        );
+        tr.append_u64s(
+            b"neo.fold.next/nightstream/rv32im/side_opening_public_statement_summary/meta",
+            &[
+                self.public_step_count,
+                self.initial_pc,
+                self.final_pc,
+                u64::from(self.halted),
+            ],
+        );
+        tr.digest32()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Rv32imSideStage1Summary {
+    pub rows_digest: [u8; 32],
+    pub claim: Stage1SelectedOpeningClaim,
+    pub packaged_statement_digest: [u8; 32],
+    pub packaged_digest: [u8; 32],
+    pub mix: u64,
+    pub digest: [u8; 32],
+}
+
+impl Rv32imSideStage1Summary {
+    pub fn from_verified_claims(stage1: &Stage1VerifiedClaims) -> Self {
+        Self {
+            rows_digest: stage1.rows_digest,
+            claim: stage1.claim.clone(),
+            packaged_statement_digest: stage1.packaged_statement_digest,
+            packaged_digest: stage1.packaged_digest,
+            mix: stage1.mix,
+            digest: stage1.digest,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Rv32imSideStage2Summary {
+    pub claim: Stage2SelectedOpeningClaim,
+    pub packaged_statement_digest: [u8; 32],
+    pub packaged_digest: [u8; 32],
+    pub reg_mix: u64,
+    pub ram_mix: u64,
+    pub digest: [u8; 32],
+}
+
+impl Rv32imSideStage2Summary {
+    pub fn from_verified_claims(stage2: &Stage2VerifiedClaims) -> Self {
+        Self {
+            claim: stage2.claim.clone(),
+            packaged_statement_digest: stage2.packaged_statement_digest,
+            packaged_digest: stage2.packaged_digest,
+            reg_mix: stage2.reg_mix,
+            ram_mix: stage2.ram_mix,
+            digest: stage2.digest,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Rv32imSideStage3Summary {
+    pub claim: Stage3SelectedOpeningClaim,
+    pub packaged_statement_digest: [u8; 32],
+    pub packaged_digest: [u8; 32],
+    pub continuity_mix: u64,
+    pub digest: [u8; 32],
+}
+
+impl Rv32imSideStage3Summary {
+    pub fn from_verified_claims(stage3: &Stage3VerifiedClaims) -> Self {
+        Self {
+            claim: stage3.claim.clone(),
+            packaged_statement_digest: stage3.packaged_statement_digest,
+            packaged_digest: stage3.packaged_digest,
+            continuity_mix: stage3.continuity_mix,
+            digest: stage3.digest,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Rv32imSideOpeningRelationStatement {
+    pub public_summary: Rv32imSideOpeningPublicStatementSummary,
+    pub transcript: Rv32imSideTranscriptSummary,
+    pub stage1: Rv32imSideStage1Summary,
+    pub stage2: Rv32imSideStage2Summary,
+    pub stage3: Rv32imSideStage3Summary,
+    pub stage_claim_proof_bridge: Rv32imStageClaimProofBridge,
+    pub kernel_opening_bridge: Rv32imKernelOpeningBridge,
+    pub kernel_claim_bridge: Rv32imKernelClaimBridge,
+    pub kernel_claim_proof_bridge: Rv32imKernelClaimProofBridge,
+    pub main_lane_bridge: Rv32imMainLaneProofBridge,
+}
+
+impl Rv32imSideOpeningRelationStatement {
+    pub fn expected_digest(&self) -> [u8; 32] {
+        let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv32im/side_opening_spartan_statement");
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_spartan_statement/public_summary_digest",
+            &self.public_summary.expected_digest(),
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_spartan_statement/transcript_digest",
+            &self.transcript.expected_digest(),
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_spartan_statement/stage1_digest",
+            &self.stage1.digest,
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_spartan_statement/stage2_digest",
+            &self.stage2.digest,
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_spartan_statement/stage3_digest",
+            &self.stage3.digest,
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_spartan_statement/stage_claim_proof_bridge_digest",
+            &self.stage_claim_proof_bridge.digest,
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_spartan_statement/kernel_opening_bridge_digest",
+            &self.kernel_opening_bridge.digest,
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_spartan_statement/kernel_claim_bridge_digest",
+            &self.kernel_claim_bridge.digest,
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_spartan_statement/kernel_claim_proof_bridge_digest",
+            &self.kernel_claim_proof_bridge.digest,
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_spartan_statement/main_lane_bridge_digest",
+            &self.main_lane_bridge.digest,
+        );
+        tr.digest32()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Rv32imStage1SelectedRowsWitness {
+    pub first: Stage1RowBinding,
+    pub effect_position: u64,
+    pub effect: Stage1RowBinding,
+    pub commit_position: u64,
+    pub commit: Stage1RowBinding,
+    pub last: Stage1RowBinding,
+}
+
+impl Rv32imStage1SelectedRowsWitness {
+    pub fn digest(&self) -> [u8; 32] {
+        let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv32im/stage1_selected_rows_witness");
+        tr.append_u64s(
+            b"neo.fold.next/nightstream/rv32im/stage1_selected_rows_witness/positions",
+            &[self.effect_position, self.commit_position],
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/stage1_selected_rows_witness/first",
+            &stage1_row_digest(&self.first),
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/stage1_selected_rows_witness/effect",
+            &stage1_row_digest(&self.effect),
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/stage1_selected_rows_witness/commit",
+            &stage1_row_digest(&self.commit),
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/stage1_selected_rows_witness/last",
+            &stage1_row_digest(&self.last),
+        );
+        tr.digest32()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Rv32imStage2SelectedEventsWitness {
+    pub first_read: Option<RegisterReadEvent>,
+    pub last_read: Option<RegisterReadEvent>,
+    pub first_write: Option<RegisterWriteEvent>,
+    pub last_write: Option<RegisterWriteEvent>,
+    pub first_ram: Option<RamEvent>,
+    pub last_ram: Option<RamEvent>,
+    pub first_twist: Option<TwistLinkEvent>,
+    pub last_twist: Option<TwistLinkEvent>,
+}
+
+fn append_optional_digest(
+    tr: &mut Poseidon2Transcript,
+    present_label: &'static [u8],
+    digest_label: &'static [u8],
+    digest: Option<[u8; 32]>,
+) {
+    tr.append_u64s(present_label, &[u64::from(digest.is_some())]);
+    if let Some(digest) = digest {
+        tr.append_message(digest_label, &digest);
+    }
+}
+
+impl Rv32imStage2SelectedEventsWitness {
+    pub fn digest(&self) -> [u8; 32] {
+        let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv32im/stage2_selected_events_witness");
+        append_optional_digest(
+            &mut tr,
+            b"neo.fold.next/nightstream/rv32im/stage2_selected_events_witness/first_read_present",
+            b"neo.fold.next/nightstream/rv32im/stage2_selected_events_witness/first_read",
+            self.first_read.as_ref().map(register_read_event_digest),
+        );
+        append_optional_digest(
+            &mut tr,
+            b"neo.fold.next/nightstream/rv32im/stage2_selected_events_witness/last_read_present",
+            b"neo.fold.next/nightstream/rv32im/stage2_selected_events_witness/last_read",
+            self.last_read.as_ref().map(register_read_event_digest),
+        );
+        append_optional_digest(
+            &mut tr,
+            b"neo.fold.next/nightstream/rv32im/stage2_selected_events_witness/first_write_present",
+            b"neo.fold.next/nightstream/rv32im/stage2_selected_events_witness/first_write",
+            self.first_write.as_ref().map(register_write_event_digest),
+        );
+        append_optional_digest(
+            &mut tr,
+            b"neo.fold.next/nightstream/rv32im/stage2_selected_events_witness/last_write_present",
+            b"neo.fold.next/nightstream/rv32im/stage2_selected_events_witness/last_write",
+            self.last_write.as_ref().map(register_write_event_digest),
+        );
+        append_optional_digest(
+            &mut tr,
+            b"neo.fold.next/nightstream/rv32im/stage2_selected_events_witness/first_ram_present",
+            b"neo.fold.next/nightstream/rv32im/stage2_selected_events_witness/first_ram",
+            self.first_ram.as_ref().map(ram_event_digest),
+        );
+        append_optional_digest(
+            &mut tr,
+            b"neo.fold.next/nightstream/rv32im/stage2_selected_events_witness/last_ram_present",
+            b"neo.fold.next/nightstream/rv32im/stage2_selected_events_witness/last_ram",
+            self.last_ram.as_ref().map(ram_event_digest),
+        );
+        append_optional_digest(
+            &mut tr,
+            b"neo.fold.next/nightstream/rv32im/stage2_selected_events_witness/first_twist_present",
+            b"neo.fold.next/nightstream/rv32im/stage2_selected_events_witness/first_twist",
+            self.first_twist.as_ref().map(twist_link_event_digest),
+        );
+        append_optional_digest(
+            &mut tr,
+            b"neo.fold.next/nightstream/rv32im/stage2_selected_events_witness/last_twist_present",
+            b"neo.fold.next/nightstream/rv32im/stage2_selected_events_witness/last_twist",
+            self.last_twist.as_ref().map(twist_link_event_digest),
+        );
+        tr.digest32()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Rv32imStage3SelectedContinuityWitness {
+    pub first_continuity: Option<ContinuityEvent>,
+    pub last_continuity: Option<ContinuityEvent>,
+}
+
+impl Rv32imStage3SelectedContinuityWitness {
+    pub fn digest(&self) -> [u8; 32] {
+        let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv32im/stage3_selected_continuity_witness");
+        append_optional_digest(
+            &mut tr,
+            b"neo.fold.next/nightstream/rv32im/stage3_selected_continuity_witness/first_present",
+            b"neo.fold.next/nightstream/rv32im/stage3_selected_continuity_witness/first",
+            self.first_continuity.as_ref().map(continuity_event_digest),
+        );
+        append_optional_digest(
+            &mut tr,
+            b"neo.fold.next/nightstream/rv32im/stage3_selected_continuity_witness/last_present",
+            b"neo.fold.next/nightstream/rv32im/stage3_selected_continuity_witness/last",
+            self.last_continuity.as_ref().map(continuity_event_digest),
+        );
+        tr.digest32()
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Rv32imSideOpeningRelationWitness {
+    pub stage1_selected_rows: Rv32imStage1SelectedRowsWitness,
+    pub stage2_selected_events: Rv32imStage2SelectedEventsWitness,
+    pub stage3_selected_continuity: Rv32imStage3SelectedContinuityWitness,
+    pub stage1_packaged: Rv32imSingleStepPackagedProofWitness,
+    pub stage2_packaged: Rv32imSingleStepPackagedProofWitness,
+    pub stage3_packaged: Rv32imSingleStepPackagedProofWitness,
+    pub bindings_packaged: Rv32imSingleStepPackagedProofWitness,
+    pub prepared_steps_packaged: Rv32imSingleStepPackagedProofWitness,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Rv32imSideSelectedOpeningWitness {
+    pub stage1_selected_rows: Rv32imStage1SelectedRowsWitness,
+    pub stage2_selected_events: Rv32imStage2SelectedEventsWitness,
+    pub stage3_selected_continuity: Rv32imStage3SelectedContinuityWitness,
+}
+
+impl Rv32imSideOpeningRelationWitness {
+    pub fn digest(&self) -> [u8; 32] {
+        let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv32im/side_opening_relation_witness");
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_relation_witness/stage1_selected_rows",
+            &self.stage1_selected_rows.digest(),
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_relation_witness/stage2_selected_events",
+            &self.stage2_selected_events.digest(),
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_relation_witness/stage3_selected_continuity",
+            &self.stage3_selected_continuity.digest(),
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_relation_witness/stage1_packaged",
+            &self.stage1_packaged.digest(),
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_relation_witness/stage2_packaged",
+            &self.stage2_packaged.digest(),
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_relation_witness/stage3_packaged",
+            &self.stage3_packaged.digest(),
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_relation_witness/bindings_packaged",
+            &self.bindings_packaged.digest(),
+        );
+        tr.append_message(
+            b"neo.fold.next/nightstream/rv32im/side_opening_relation_witness/prepared_steps_packaged",
+            &self.prepared_steps_packaged.digest(),
+        );
+        tr.digest32()
+    }
+}
+
+pub fn build_rv32im_side_opening_relation_statement(
+    public_statement: &Rv32imProofStatement,
+    side_bundle: &Rv32imSideProofBundle,
+) -> Result<Rv32imSideOpeningRelationStatement, SimpleKernelError> {
+    if public_statement.digest != public_statement.expected_digest() {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM side-opening relation public statement digest mismatch".into(),
+        ));
+    }
+    validate_rv32im_side_proof_bundle_structure(side_bundle)?;
+    Ok(Rv32imSideOpeningRelationStatement {
+        public_summary: Rv32imSideOpeningPublicStatementSummary::from_public_statement(public_statement),
+        transcript: Rv32imSideTranscriptSummary {
+            surface_digest: side_bundle.transcript.digest,
+            event_count: side_bundle.transcript.event_count,
+            kernel_final_mix: side_bundle.transcript.challenges.kernel_final_mix,
+        },
+        stage1: Rv32imSideStage1Summary::from_verified_claims(&side_bundle.stage1),
+        stage2: Rv32imSideStage2Summary::from_verified_claims(&side_bundle.stage2),
+        stage3: Rv32imSideStage3Summary::from_verified_claims(&side_bundle.stage3),
+        stage_claim_proof_bridge: side_bundle.stage_claim_proof_bridge.clone(),
+        kernel_opening_bridge: side_bundle.kernel_opening_bridge.clone(),
+        kernel_claim_bridge: side_bundle.kernel_claim_bridge.clone(),
+        kernel_claim_proof_bridge: side_bundle.kernel_claim_proof_bridge.clone(),
+        main_lane_bridge: side_bundle.main_lane_bridge.clone(),
+    })
+}
+
+pub fn build_rv32im_side_opening_relation_witness_from_accepted_artifact(
+    artifact: &Rv32imAcceptedProofArtifact,
+) -> Rv32imSideOpeningRelationWitness {
+    let selected = build_rv32im_side_selected_opening_witness_from_accepted_artifact(artifact);
+    Rv32imSideOpeningRelationWitness {
+        stage1_selected_rows: selected.stage1_selected_rows,
+        stage2_selected_events: selected.stage2_selected_events,
+        stage3_selected_continuity: selected.stage3_selected_continuity,
+        stage1_packaged: Rv32imSingleStepPackagedProofWitness::from_packaged(
+            &artifact.stage_packages.packages.stage1.packaged,
+        ),
+        stage2_packaged: Rv32imSingleStepPackagedProofWitness::from_packaged(
+            &artifact.stage_packages.packages.stage2.packaged,
+        ),
+        stage3_packaged: Rv32imSingleStepPackagedProofWitness::from_packaged(
+            &artifact.stage_packages.packages.stage3.packaged,
+        ),
+        bindings_packaged: Rv32imSingleStepPackagedProofWitness::from_packaged(
+            &artifact.kernel_opening.opening.bindings.packaged,
+        ),
+        prepared_steps_packaged: Rv32imSingleStepPackagedProofWitness::from_packaged(
+            &artifact.kernel_opening.opening.prepared_steps.packaged,
+        ),
+    }
+}
+
+pub(super) fn build_rv32im_side_selected_opening_witness_from_accepted_artifact(
+    artifact: &Rv32imAcceptedProofArtifact,
+) -> Rv32imSideSelectedOpeningWitness {
+    let stage1_rows = &artifact.stage1.row_bindings;
+    let stage2 = &artifact.stage2;
+    let stage3 = &artifact.stage3.bridge.continuity;
+    let effect_position = stage1_rows
+        .iter()
+        .position(|row| row.is_effect_row)
+        .expect("RV32IM side-opening witness requires a stage1 effect row") as u64;
+    let commit_position = stage1_rows
+        .iter()
+        .position(|row| row.is_commit_row)
+        .expect("RV32IM side-opening witness requires a stage1 commit row") as u64;
+    Rv32imSideSelectedOpeningWitness {
+        stage1_selected_rows: Rv32imStage1SelectedRowsWitness {
+            first: stage1_rows
+                .first()
+                .expect("RV32IM side-opening witness requires a first stage1 row")
+                .clone(),
+            effect_position,
+            effect: stage1_rows[effect_position as usize].clone(),
+            commit_position,
+            commit: stage1_rows[commit_position as usize].clone(),
+            last: stage1_rows
+                .last()
+                .expect("RV32IM side-opening witness requires a last stage1 row")
+                .clone(),
+        },
+        stage2_selected_events: Rv32imStage2SelectedEventsWitness {
+            first_read: stage2.register.reads.first().cloned(),
+            last_read: stage2.register.reads.last().cloned(),
+            first_write: stage2.register.writes.first().cloned(),
+            last_write: stage2.register.writes.last().cloned(),
+            first_ram: stage2.ram.events.first().cloned(),
+            last_ram: stage2.ram.events.last().cloned(),
+            first_twist: stage2.temporal.twist_links.first().cloned(),
+            last_twist: stage2.temporal.twist_links.last().cloned(),
+        },
+        stage3_selected_continuity: Rv32imStage3SelectedContinuityWitness {
+            first_continuity: stage3.first().cloned(),
+            last_continuity: stage3.last().cloned(),
+        },
+    }
+}
+
+pub fn build_rv32im_side_opening_relation_from_accepted_artifact(
+    artifact: &Rv32imAcceptedProofArtifact,
+) -> Result<(Rv32imSideOpeningRelationStatement, Rv32imSideOpeningRelationWitness), SimpleKernelError> {
+    let side_bundle = super::build_rv32im_side_proof_bundle_from_accepted_artifact(artifact)?;
+    let statement = build_rv32im_side_opening_relation_statement(&artifact.statement, &side_bundle)?;
+    let witness = build_rv32im_side_opening_relation_witness_from_accepted_artifact(artifact);
+    Ok((statement, witness))
+}
+
+fn usize_from_u64(value: u64, label: &'static str) -> Result<usize, SimpleKernelError> {
+    usize::try_from(value)
+        .map_err(|_| SimpleKernelError::Bridge(format!("RV32IM side-opening relation {label} overflows usize")))
+}
+
+fn build_stage1_artifact_surface_from_summary(
+    stage1: &Rv32imSideStage1Summary,
+) -> Result<Stage1ArtifactSurface, SimpleKernelError> {
+    if stage1.claim.digest != stage1.claim.expected_digest() {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM side-opening relation stage1 selected-opening claim digest mismatch".into(),
+        ));
+    }
+    if stage1.claim.mix != stage1.mix {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM side-opening relation stage1 selected-opening claim mix does not match the carried verified claim"
+                .into(),
+        ));
+    }
+    if stage1.claim.rows_family_digest != stage1.rows_digest {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM side-opening relation stage1 selected-opening claim rows digest does not match the carried verified claim"
+                .into(),
+        ));
+    }
+
+    let rows = Stage1CanonicalRowBundle {
+        rows_digest: stage1.rows_digest,
+        digest: [0; 32],
+    };
+    let rows = Stage1CanonicalRowBundle {
+        digest: rows.expected_digest(),
+        ..rows
+    };
+    Ok(Stage1ArtifactSurface {
+        rows,
+        claim: Stage1ClaimSurface {
+            row_count: usize_from_u64(stage1.claim.row_count, "stage1 row_count")?,
+            effect_row_count: usize_from_u64(stage1.claim.effect_row_count, "stage1 effect_row_count")?,
+            commit_row_count: usize_from_u64(stage1.claim.commit_row_count, "stage1 commit_row_count")?,
+            real_row_count: usize_from_u64(stage1.claim.real_row_count, "stage1 real_row_count")?,
+            preserves_x0_count: usize_from_u64(stage1.claim.preserves_x0_count, "stage1 preserves_x0_count")?,
+            mix: stage1.mix,
+        },
+    })
+}
+
+fn build_stage2_artifact_surface_from_summary(
+    stage2: &Rv32imSideStage2Summary,
+) -> Result<Stage2ArtifactSurface, SimpleKernelError> {
+    if stage2.claim.digest != stage2.claim.expected_digest() {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM side-opening relation stage2 selected-opening claim digest mismatch".into(),
+        ));
+    }
+    if stage2.claim.reg_mix != stage2.reg_mix || stage2.claim.ram_mix != stage2.ram_mix {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM side-opening relation stage2 selected-opening claim mixes do not match the carried verified claim"
+                .into(),
+        ));
+    }
+
+    let families = Stage2CanonicalFamilyBundle {
+        register_reads_digest: stage2.claim.register_reads_family_digest,
+        register_writes_digest: stage2.claim.register_writes_family_digest,
+        ram_events_digest: stage2.claim.ram_events_family_digest,
+        twist_links_digest: stage2.claim.twist_links_family_digest,
+        digest: [0; 32],
+    };
+    let families = Stage2CanonicalFamilyBundle {
+        digest: families.expected_digest(),
+        ..families
+    };
+    Ok(Stage2ArtifactSurface {
+        families,
+        claim: Stage2ClaimSurface {
+            register_read_count: usize_from_u64(stage2.claim.register_read_count, "stage2 register_read_count")?,
+            register_write_count: usize_from_u64(stage2.claim.register_write_count, "stage2 register_write_count")?,
+            ram_event_count: usize_from_u64(stage2.claim.ram_event_count, "stage2 ram_event_count")?,
+            twist_link_count: usize_from_u64(stage2.claim.twist_link_count, "stage2 twist_link_count")?,
+            ram_read_count: usize_from_u64(stage2.claim.ram_read_count, "stage2 ram_read_count")?,
+            ram_write_count: usize_from_u64(stage2.claim.ram_write_count, "stage2 ram_write_count")?,
+            reg_mix: stage2.reg_mix,
+            ram_mix: stage2.ram_mix,
+        },
+    })
+}
+
+fn build_stage3_artifact_surface_from_summary(
+    stage3: &Rv32imSideStage3Summary,
+) -> Result<Stage3ArtifactSurface, SimpleKernelError> {
+    if stage3.claim.digest != stage3.claim.expected_digest() {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM side-opening relation stage3 selected-opening claim digest mismatch".into(),
+        ));
+    }
+    if stage3.claim.continuity_mix != stage3.continuity_mix {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM side-opening relation stage3 selected-opening claim mix does not match the carried verified claim"
+                .into(),
+        ));
+    }
+
+    let continuity = Stage3CanonicalContinuityBundle {
+        continuity_digest: stage3.claim.continuity_family_digest,
+        digest: [0; 32],
+    };
+    let continuity = Stage3CanonicalContinuityBundle {
+        digest: continuity.expected_digest(),
+        ..continuity
+    };
+    Ok(Stage3ArtifactSurface {
+        continuity,
+        claim: Stage3ClaimSurface {
+            continuity_count: usize_from_u64(stage3.claim.continuity_count, "stage3 continuity_count")?,
+            final_step_count: usize_from_u64(stage3.claim.final_step_count, "stage3 final_step_count")?,
+            halted: stage3.claim.halted,
+            all_continuity_hold: stage3.claim.all_continuity_hold,
+            continuity_mix: stage3.continuity_mix,
+        },
+    })
+}
+
+fn build_transcript_artifact_surface_from_summary(
+    transcript_final_digest: [u8; 32],
+    transcript: &Rv32imSideTranscriptSummary,
+) -> Result<TranscriptArtifactSurface, SimpleKernelError> {
+    Ok(TranscriptArtifactSurface {
+        commitment: StageDigestCommitment {
+            digest: transcript_final_digest,
+        },
+        claim: TranscriptClaimSurface {
+            final_digest: transcript_final_digest,
+            event_count: transcript.event_count,
+            kernel_final_mix: transcript.kernel_final_mix,
+        },
+    })
+}
+
+fn build_rv32im_stage_claim_bundle_from_statement(
+    statement: &Rv32imSideOpeningRelationStatement,
+) -> Result<SimpleKernelStageClaimBundle, SimpleKernelError> {
+    let claims = SimpleKernelStageClaimBundle {
+        stage1: build_stage1_artifact_surface_from_summary(&statement.stage1)?,
+        stage2: build_stage2_artifact_surface_from_summary(&statement.stage2)?,
+        stage3: build_stage3_artifact_surface_from_summary(&statement.stage3)?,
+        transcript: build_transcript_artifact_surface_from_summary(
+            statement.public_summary.transcript_final_digest,
+            &statement.transcript,
+        )?,
+        execution_digest: statement.public_summary.execution_digest,
+        digest: [0; 32],
+    };
+    Ok(SimpleKernelStageClaimBundle {
+        digest: claims.expected_digest(),
+        ..claims
+    })
+}
+
+fn rv32im_stage_claim_digest_bundle_from_claims(claims: &SimpleKernelStageClaimBundle) -> Rv32imStageClaimDigestBundle {
+    let summary = Rv32imStageClaimDigestBundle {
+        claim_bundle_digest: claims.digest,
+        stage1_digest: claims.stage1.rows.digest,
+        stage2_digest: claims.stage2.families.digest,
+        stage3_digest: claims.stage3.continuity.digest,
+        transcript_digest: claims.transcript.commitment.digest,
+        execution_digest: claims.execution_digest,
+        digest: [0; 32],
+    };
+    Rv32imStageClaimDigestBundle {
+        digest: summary.expected_digest(),
+        ..summary
+    }
+}
+
+fn public_statement_from_summary(summary: &Rv32imSideOpeningPublicStatementSummary) -> Rv32imProofStatement {
+    Rv32imProofStatement {
+        root_params_id: summary.root_params_id,
+        fold_schedule: summary.fold_schedule,
+        chunk_count: summary.chunk_count,
+        stage_claims_digest: summary.stage_claims_digest,
+        stage_packages_digest: summary.stage_packages_digest,
+        kernel_opening_digest: summary.kernel_opening_digest,
+        prepared_step_bindings_digest: summary.prepared_step_bindings_digest,
+        execution_digest: summary.execution_digest,
+        final_state_digest: summary.final_state_digest,
+        transcript_final_digest: summary.transcript_final_digest,
+        main_lane_surface_digest: summary.main_lane_surface_digest,
+        root_lane_columns_digest: summary.root_lane_columns_digest,
+        public_step_count: summary.public_step_count,
+        initial_pc: summary.initial_pc,
+        final_pc: summary.final_pc,
+        halted: summary.halted,
+        digest: summary.proof_statement_digest,
+    }
+}
+
+fn verify_rv32im_side_stage_claim_proof_surface(
+    statement: &Rv32imSideOpeningRelationStatement,
+) -> Result<(), SimpleKernelError> {
+    if statement.stage_claim_proof_bridge.digest != statement.stage_claim_proof_bridge.expected_digest() {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM side-opening relation stage-claim proof bridge digest mismatch".into(),
+        ));
+    }
+    let claims = build_rv32im_stage_claim_bundle_from_statement(statement)?;
+    let summary = rv32im_stage_claim_digest_bundle_from_claims(&claims);
+    let expected = packaged_claim_proof_digest_from_surfaces(
+        b"neo.fold.next/rv32im/stage_claim_proof_bundle",
+        summary.digest,
+        statement.stage_claim_proof_bridge.packaged_statement_digest,
+        statement.stage_claim_proof_bridge.packaged_proof_digest,
+    );
+    if statement
+        .stage_claim_proof_bridge
+        .stage_claim_proof_bundle_digest
+        != expected
+        || statement.public_summary.stage_claims_digest != expected
+    {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM side-opening relation compact stage-claim proof surface does not match the carried public statement"
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
+fn verify_rv32im_side_stage_packages_surface(
+    statement: &Rv32imSideOpeningRelationStatement,
+) -> Result<(), SimpleKernelError> {
+    let expected = stage_package_proof_bundle_digest_from_surfaces(
+        statement.stage1.packaged_digest,
+        statement.stage2.packaged_digest,
+        statement.stage3.packaged_digest,
+    );
+    if statement.public_summary.stage_packages_digest != expected {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM side-opening relation compact stage-package proof surface does not match the carried public statement"
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
+pub(super) fn build_rv32im_kernel_opening_claim_from_statement(
+    statement: &Rv32imSideOpeningRelationStatement,
+) -> Result<SimpleKernelOpeningClaim, SimpleKernelError> {
+    if statement.kernel_opening_bridge.digest != statement.kernel_opening_bridge.expected_digest() {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM side-opening relation kernel-opening bridge digest mismatch".into(),
+        ));
+    }
+    if statement
+        .kernel_opening_bridge
+        .prepared_step_bindings
+        .digest
+        != statement
+            .kernel_opening_bridge
+            .prepared_step_bindings
+            .expected_digest()
+    {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM side-opening relation prepared-step binding summary bridge digest mismatch".into(),
+        ));
+    }
+    if statement.kernel_opening_bridge.root_lane_commitment.digest
+        != statement
+            .kernel_opening_bridge
+            .root_lane_commitment
+            .expected_digest()
+    {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM side-opening relation root-lane commitment summary digest mismatch".into(),
+        ));
+    }
+    let binding_summary = &statement.kernel_opening_bridge.prepared_step_bindings;
+    if binding_summary.binding_count != statement.public_summary.public_step_count
+        || statement
+            .kernel_opening_bridge
+            .root_lane_commitment
+            .time_len
+            != statement.public_summary.public_step_count
+    {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM side-opening relation kernel-opening provenance summaries do not match the carried public step count"
+                .into(),
+        ));
+    }
+    let stage_claims = build_rv32im_stage_claim_bundle_from_statement(statement)?;
+    Ok(build_public_kernel_opening_claim_from_compact_surfaces(
+        &stage_claims,
+        statement.stage1.packaged_digest,
+        statement.stage2.packaged_digest,
+        statement.stage3.packaged_digest,
+        statement.public_summary.prepared_step_bindings_digest,
+        statement.public_summary.public_step_count,
+        binding_summary.first_binding_digest,
+        binding_summary.last_binding_digest,
+        statement.public_summary.execution_digest,
+        statement.public_summary.final_state_digest,
+        statement.public_summary.transcript_final_digest,
+        statement.public_summary.final_pc,
+        statement.public_summary.halted,
+        &statement.kernel_opening_bridge.root_lane_commitment,
+    ))
+}
+
+fn verify_rv32im_side_kernel_opening_surface(
+    statement: &Rv32imSideOpeningRelationStatement,
+) -> Result<(), SimpleKernelError> {
+    let claim = build_rv32im_kernel_opening_claim_from_statement(statement)?;
+    let opening_bundle_digest = kernel_opening_bundle_digest_from_surfaces(
+        claim.digest,
+        statement.kernel_opening_bridge.bindings_opening_digest,
+        statement
+            .kernel_opening_bridge
+            .prepared_steps_opening_digest,
+    );
+    let binding_bundle_digest = kernel_opening_binding_bundle_digest_from_surfaces(
+        claim.digest,
+        statement.kernel_opening_bridge.bindings_opening_digest,
+        statement
+            .kernel_opening_bridge
+            .prepared_steps_opening_digest,
+    );
+    let expected_proof_bundle_digest =
+        kernel_opening_proof_bundle_digest_from_surfaces(opening_bundle_digest, binding_bundle_digest);
+    if statement.public_summary.kernel_opening_digest != expected_proof_bundle_digest {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM side-opening relation compact kernel-opening proof surface does not match the carried public statement"
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
+fn main_lane_proof_binding_digest_from_surfaces(
+    root_lane_columns_digest: [u8; 32],
+    root_lane_commitment_digest: [u8; 32],
+    fold_schedule: crate::proof::FoldSchedule,
+    chunk_count: u64,
+    public_step_count: u64,
+) -> [u8; 32] {
+    let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv32im/main_lane_proof_binding");
+    tr.append_message(
+        b"rv32im/main_lane_proof_binding/root_lane_columns_digest",
+        &root_lane_columns_digest,
+    );
+    tr.append_message(
+        b"rv32im/main_lane_proof_binding/root_lane_commitment_digest",
+        &root_lane_commitment_digest,
+    );
+    tr.append_u64s(
+        b"rv32im/main_lane_proof_binding/fold_schedule",
+        &fold_schedule.meta_words(),
+    );
+    tr.append_u64s(
+        b"rv32im/main_lane_proof_binding/meta",
+        &[chunk_count, public_step_count],
+    );
+    tr.digest32()
+}
+
+fn main_lane_proof_bundle_digest_from_surfaces(
+    binding_digest: [u8; 32],
+    statement_digest: [u8; 32],
+    proof_digest: [u8; 32],
+) -> [u8; 32] {
+    let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv32im/main_lane_proof_bundle");
+    tr.append_message(b"rv32im/main_lane_proof_bundle/binding_digest", &binding_digest);
+    tr.append_message(b"rv32im/main_lane_proof_bundle/statement_digest", &statement_digest);
+    tr.append_message(b"rv32im/main_lane_proof_bundle/proof_digest", &proof_digest);
+    tr.digest32()
+}
+
+fn verify_rv32im_side_main_lane_proof_surface(
+    statement: &Rv32imSideOpeningRelationStatement,
+) -> Result<[u8; 32], SimpleKernelError> {
+    if statement.main_lane_bridge.digest != statement.main_lane_bridge.expected_digest() {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM side-opening relation main-lane proof bridge digest mismatch".into(),
+        ));
+    }
+    Ok(main_lane_proof_bundle_digest_from_surfaces(
+        main_lane_proof_binding_digest_from_surfaces(
+            statement.public_summary.root_lane_columns_digest,
+            statement.kernel_opening_bridge.root_lane_commitment.digest,
+            statement.public_summary.fold_schedule,
+            statement.public_summary.chunk_count,
+            statement.public_summary.public_step_count,
+        ),
+        statement.main_lane_bridge.main_lane_statement_digest,
+        statement.main_lane_bridge.main_lane_proof_digest,
+    ))
+}
+
+fn verify_rv32im_side_kernel_claim_surface(
+    statement: &Rv32imSideOpeningRelationStatement,
+    main_lane_bundle_digest: [u8; 32],
+) -> Result<[u8; 32], SimpleKernelError> {
+    if statement.kernel_claim_bridge.digest != statement.kernel_claim_bridge.expected_digest() {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM side-opening relation kernel-claim bridge digest mismatch".into(),
+        ));
+    }
+    let expected = crate::rv32im::kernel::kernel_claim_bundle_from_statement_and_compact_surfaces(
+        &public_statement_from_summary(&statement.public_summary),
+        main_lane_bundle_digest,
+        statement.kernel_claim_bridge.stage1_digest,
+        statement.kernel_claim_bridge.stage2_digest,
+        statement.kernel_claim_bridge.stage3_digest,
+        statement.kernel_claim_bridge.root0_digest,
+    );
+    if statement.kernel_claim_bridge.kernel_claim_bundle_digest != expected.digest {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM side-opening relation compact kernel-claim surface does not match the carried public statement"
+                .into(),
+        ));
+    }
+    Ok(expected.digest)
+}
+
+fn verify_rv32im_side_kernel_claim_proof_surface(
+    statement: &Rv32imSideOpeningRelationStatement,
+) -> Result<(), SimpleKernelError> {
+    if statement.kernel_claim_proof_bridge.digest != statement.kernel_claim_proof_bridge.expected_digest() {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM side-opening relation kernel-claim proof bridge digest mismatch".into(),
+        ));
+    }
+    let expected = packaged_claim_proof_digest_from_surfaces(
+        b"neo.fold.next/rv32im/kernel_claim_proof_bundle",
+        kernel_claim_summary_digest_from_surfaces(
+            statement.public_summary.prepared_step_bindings_digest,
+            statement.kernel_claim_bridge.root0_digest,
+            statement.public_summary.execution_digest,
+            statement.public_summary.final_state_digest,
+            statement.public_summary.transcript_final_digest,
+            statement.public_summary.final_pc,
+            statement.public_summary.halted,
+        ),
+        statement
+            .kernel_claim_proof_bridge
+            .packaged_statement_digest,
+        statement.kernel_claim_proof_bridge.packaged_proof_digest,
+    );
+    if statement
+        .kernel_claim_proof_bridge
+        .kernel_claim_proof_bundle_digest
+        != expected
+    {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM side-opening relation compact kernel-claim proof surface does not match the carried public statement"
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
+fn selected_opening_ref(
+    family: AjtaiFamilyKind,
+    commitment_digest: [u8; 32],
+    logical_index: u64,
+    value_digest: [u8; 32],
+) -> SelectedOpeningRef {
+    SelectedOpeningRef::from_parts(
+        family,
+        commitment_digest,
+        RV32IM_SELECTED_OPENING_LAYOUT_V1,
+        logical_index,
+        value_digest,
+    )
+}
+
+fn optional_selected_opening_ref(
+    family: AjtaiFamilyKind,
+    commitment_digest: [u8; 32],
+    logical_index: u64,
+    value_digest: Option<[u8; 32]>,
+) -> Option<SelectedOpeningRef> {
+    value_digest.map(|value_digest| selected_opening_ref(family, commitment_digest, logical_index, value_digest))
+}
+
+fn build_stage1_selected_opening_claim_from_witness(
+    witness: &Rv32imStage1SelectedRowsWitness,
+    claim: &Stage1ClaimSurface,
+    rows: &Stage1CanonicalRowBundle,
+) -> Result<Stage1SelectedOpeningClaim, SimpleKernelError> {
+    let row_count = u64::try_from(claim.row_count)
+        .map_err(|_| SimpleKernelError::Bridge("RV32IM side-opening relation stage1 row_count overflows u64".into()))?;
+    if row_count == 0 {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM side-opening relation stage1 claim must carry at least one row".into(),
+        ));
+    }
+    let claim = Stage1SelectedOpeningClaim {
+        rows_family_digest: rows.rows_digest,
+        row_count,
+        effect_row_count: claim.effect_row_count as u64,
+        commit_row_count: claim.commit_row_count as u64,
+        real_row_count: claim.real_row_count as u64,
+        preserves_x0_count: claim.preserves_x0_count as u64,
+        first_trace_index: witness.first.trace_index as u64,
+        effect_trace_index: witness.effect.trace_index as u64,
+        commit_trace_index: witness.commit.trace_index as u64,
+        last_trace_index: witness.last.trace_index as u64,
+        mix: claim.mix,
+        points: Stage1OpeningPoints {
+            first: selected_opening_ref(
+                AjtaiFamilyKind::Stage1Rows,
+                rows.rows_digest,
+                0,
+                stage1_row_digest(&witness.first),
+            ),
+            effect: selected_opening_ref(
+                AjtaiFamilyKind::Stage1Rows,
+                rows.rows_digest,
+                witness.effect_position,
+                stage1_row_digest(&witness.effect),
+            ),
+            commit: selected_opening_ref(
+                AjtaiFamilyKind::Stage1Rows,
+                rows.rows_digest,
+                witness.commit_position,
+                stage1_row_digest(&witness.commit),
+            ),
+            last: selected_opening_ref(
+                AjtaiFamilyKind::Stage1Rows,
+                rows.rows_digest,
+                row_count.saturating_sub(1),
+                stage1_row_digest(&witness.last),
+            ),
+        },
+        digest: [0; 32],
+    };
+    Ok(Stage1SelectedOpeningClaim {
+        digest: claim.expected_digest(),
+        ..claim
+    })
+}
+
+fn build_stage2_selected_opening_claim_from_witness(
+    witness: &Rv32imStage2SelectedEventsWitness,
+    claim: &Stage2ClaimSurface,
+    families: &Stage2CanonicalFamilyBundle,
+) -> Stage2SelectedOpeningClaim {
+    let claim = Stage2SelectedOpeningClaim {
+        register_reads_family_digest: families.register_reads_digest,
+        register_writes_family_digest: families.register_writes_digest,
+        ram_events_family_digest: families.ram_events_digest,
+        twist_links_family_digest: families.twist_links_digest,
+        register_read_count: claim.register_read_count as u64,
+        register_write_count: claim.register_write_count as u64,
+        ram_event_count: claim.ram_event_count as u64,
+        twist_link_count: claim.twist_link_count as u64,
+        ram_read_count: claim.ram_read_count as u64,
+        ram_write_count: claim.ram_write_count as u64,
+        reg_mix: claim.reg_mix,
+        ram_mix: claim.ram_mix,
+        points: Stage2OpeningPoints {
+            first_read: optional_selected_opening_ref(
+                AjtaiFamilyKind::Stage2RegisterReads,
+                families.register_reads_digest,
+                0,
+                witness.first_read.as_ref().map(register_read_event_digest),
+            ),
+            last_read: optional_selected_opening_ref(
+                AjtaiFamilyKind::Stage2RegisterReads,
+                families.register_reads_digest,
+                claim.register_read_count.saturating_sub(1) as u64,
+                witness.last_read.as_ref().map(register_read_event_digest),
+            ),
+            first_write: optional_selected_opening_ref(
+                AjtaiFamilyKind::Stage2RegisterWrites,
+                families.register_writes_digest,
+                0,
+                witness
+                    .first_write
+                    .as_ref()
+                    .map(register_write_event_digest),
+            ),
+            last_write: optional_selected_opening_ref(
+                AjtaiFamilyKind::Stage2RegisterWrites,
+                families.register_writes_digest,
+                claim.register_write_count.saturating_sub(1) as u64,
+                witness.last_write.as_ref().map(register_write_event_digest),
+            ),
+            first_ram: optional_selected_opening_ref(
+                AjtaiFamilyKind::Stage2RamEvents,
+                families.ram_events_digest,
+                0,
+                witness.first_ram.as_ref().map(ram_event_digest),
+            ),
+            last_ram: optional_selected_opening_ref(
+                AjtaiFamilyKind::Stage2RamEvents,
+                families.ram_events_digest,
+                claim.ram_event_count.saturating_sub(1) as u64,
+                witness.last_ram.as_ref().map(ram_event_digest),
+            ),
+            first_twist: optional_selected_opening_ref(
+                AjtaiFamilyKind::Stage2TwistLinks,
+                families.twist_links_digest,
+                0,
+                witness.first_twist.as_ref().map(twist_link_event_digest),
+            ),
+            last_twist: optional_selected_opening_ref(
+                AjtaiFamilyKind::Stage2TwistLinks,
+                families.twist_links_digest,
+                claim.twist_link_count.saturating_sub(1) as u64,
+                witness.last_twist.as_ref().map(twist_link_event_digest),
+            ),
+        },
+        digest: [0; 32],
+    };
+    Stage2SelectedOpeningClaim {
+        digest: claim.expected_digest(),
+        ..claim
+    }
+}
+
+fn build_stage3_selected_opening_claim_from_witness(
+    witness: &Rv32imStage3SelectedContinuityWitness,
+    claim: &Stage3ClaimSurface,
+    continuity: &Stage3CanonicalContinuityBundle,
+) -> Stage3SelectedOpeningClaim {
+    let claim = Stage3SelectedOpeningClaim {
+        continuity_family_digest: continuity.continuity_digest,
+        continuity_count: claim.continuity_count as u64,
+        final_step_count: claim.final_step_count as u64,
+        halted: claim.halted,
+        all_continuity_hold: claim.all_continuity_hold,
+        continuity_mix: claim.continuity_mix,
+        points: Stage3OpeningPoints {
+            first_continuity: optional_selected_opening_ref(
+                AjtaiFamilyKind::Stage3Continuity,
+                continuity.continuity_digest,
+                0,
+                witness
+                    .first_continuity
+                    .as_ref()
+                    .map(continuity_event_digest),
+            ),
+            last_continuity: optional_selected_opening_ref(
+                AjtaiFamilyKind::Stage3Continuity,
+                continuity.continuity_digest,
+                claim.continuity_count.saturating_sub(1) as u64,
+                witness
+                    .last_continuity
+                    .as_ref()
+                    .map(continuity_event_digest),
+            ),
+        },
+        digest: [0; 32],
+    };
+    Stage3SelectedOpeningClaim {
+        digest: claim.expected_digest(),
+        ..claim
+    }
+}
+
+fn verify_stage_claim_opening_witness(
+    label: &str,
+    claim_digest: [u8; 32],
+    expected_step: &PublicStep,
+    witness: &Rv32imSingleStepPackagedProofWitness,
+    carried_statement_digest: [u8; 32],
+    carried_packaged_digest: [u8; 32],
+    bridge_label: &str,
+) -> Result<(), SimpleKernelError> {
+    validate_rv32im_single_step_packaged_witness_shape(label, witness)?;
+    if !same_public_step(&witness.step, expected_step) {
+        return Err(SimpleKernelError::Bridge(format!(
+            "{label} selected-claim package public step mismatch"
+        )));
+    }
+    let statement_digest = super::side_claim_relation::single_step_packaged_statement_digest(
+        &witness.step,
+        &witness.final_main_claim_digests,
+    );
+    if statement_digest != carried_statement_digest {
+        return Err(SimpleKernelError::Bridge(bridge_label.into()));
+    }
+    let expected_packaged_digest =
+        packaged_opening_proof_digest_from_surfaces(claim_digest, statement_digest, witness.proof_digest);
+    if expected_packaged_digest != carried_packaged_digest {
+        return Err(SimpleKernelError::Bridge(bridge_label.into()));
+    }
+    Ok(())
+}
+
+fn verify_compact_stage_opening_claims(
+    statement: &Rv32imSideOpeningRelationStatement,
+    witness: &Rv32imSideSelectedOpeningWitness,
+    stage_claims: &SimpleKernelStageClaimBundle,
+) -> Result<(), SimpleKernelError> {
+    let stage1_claim = build_stage1_selected_opening_claim_from_witness(
+        &witness.stage1_selected_rows,
+        &stage_claims.stage1.claim,
+        &stage_claims.stage1.rows,
+    )?;
+    if stage1_claim != statement.stage1.claim {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM side-opening relation stage1 selected rows do not match the carried opening claim".into(),
+        ));
+    }
+
+    let stage2_claim = build_stage2_selected_opening_claim_from_witness(
+        &witness.stage2_selected_events,
+        &stage_claims.stage2.claim,
+        &stage_claims.stage2.families,
+    );
+    if stage2_claim != statement.stage2.claim {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM side-opening relation stage2 selected events do not match the carried opening claim".into(),
+        ));
+    }
+
+    let stage3_claim = build_stage3_selected_opening_claim_from_witness(
+        &witness.stage3_selected_continuity,
+        &stage_claims.stage3.claim,
+        &stage_claims.stage3.continuity,
+    );
+    if stage3_claim != statement.stage3.claim {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM side-opening relation stage3 selected continuity does not match the carried opening claim".into(),
+        ));
+    }
+
+    Ok(())
+}
+
+fn verify_compact_stage_opening_packages(
+    statement: &Rv32imSideOpeningRelationStatement,
+    witness: &Rv32imSideOpeningRelationWitness,
+) -> Result<(), SimpleKernelError> {
+    let stage1_step = build_claim_packaged_public_step("rv32im/stage1", &statement.stage1.claim.claim_words())?;
+    verify_stage_claim_opening_witness(
+        "rv32im/stage1",
+        statement.stage1.claim.digest,
+        &stage1_step,
+        &witness.stage1_packaged,
+        statement.stage1.packaged_statement_digest,
+        statement.stage1.packaged_digest,
+        "RV32IM side-opening relation stage1 package witness does not match the carried side bundle",
+    )?;
+
+    let stage2_step = build_claim_packaged_public_step("rv32im/stage2", &statement.stage2.claim.claim_words())?;
+    verify_stage_claim_opening_witness(
+        "rv32im/stage2",
+        statement.stage2.claim.digest,
+        &stage2_step,
+        &witness.stage2_packaged,
+        statement.stage2.packaged_statement_digest,
+        statement.stage2.packaged_digest,
+        "RV32IM side-opening relation stage2 package witness does not match the carried side bundle",
+    )?;
+
+    let stage3_step = build_claim_packaged_public_step("rv32im/stage3", &statement.stage3.claim.claim_words())?;
+    verify_stage_claim_opening_witness(
+        "rv32im/stage3",
+        statement.stage3.claim.digest,
+        &stage3_step,
+        &witness.stage3_packaged,
+        statement.stage3.packaged_statement_digest,
+        statement.stage3.packaged_digest,
+        "RV32IM side-opening relation stage3 package witness does not match the carried side bundle",
+    )?;
+
+    Ok(())
+}
+
+fn verify_compact_kernel_opening_packages(
+    statement: &Rv32imSideOpeningRelationStatement,
+    witness: &Rv32imSideOpeningRelationWitness,
+    kernel_opening_claim: &SimpleKernelOpeningClaim,
+) -> Result<(), SimpleKernelError> {
+    let bindings_step = build_kernel_binding_opening_public_step(&kernel_opening_claim.bindings)?;
+    verify_stage_claim_opening_witness(
+        "rv32im/kernel_opening_bundle/bindings",
+        kernel_opening_claim.bindings.digest,
+        &bindings_step,
+        &witness.bindings_packaged,
+        statement
+            .kernel_opening_bridge
+            .bindings_opening_statement_digest,
+        statement.kernel_opening_bridge.bindings_opening_digest,
+        "RV32IM side-opening relation binding-opening witness does not match the carried side bundle",
+    )?;
+
+    let prepared_steps_step = build_kernel_prepared_step_opening_public_step(&kernel_opening_claim.prepared_steps)?;
+    verify_stage_claim_opening_witness(
+        "rv32im/kernel_opening_bundle/prepared_steps",
+        kernel_opening_claim.prepared_steps.digest,
+        &prepared_steps_step,
+        &witness.prepared_steps_packaged,
+        statement
+            .kernel_opening_bridge
+            .prepared_steps_opening_statement_digest,
+        statement
+            .kernel_opening_bridge
+            .prepared_steps_opening_digest,
+        "RV32IM side-opening relation prepared-step opening witness does not match the carried side bundle",
+    )?;
+
+    Ok(())
+}
+
+pub(super) fn verify_rv32im_side_opening_witness_against_compact_surfaces(
+    statement: &Rv32imSideOpeningRelationStatement,
+    witness: &Rv32imSideOpeningRelationWitness,
+) -> Result<(), SimpleKernelError> {
+    let stage_claims = build_rv32im_stage_claim_bundle_from_statement(statement)?;
+    let selected = Rv32imSideSelectedOpeningWitness {
+        stage1_selected_rows: witness.stage1_selected_rows.clone(),
+        stage2_selected_events: witness.stage2_selected_events.clone(),
+        stage3_selected_continuity: witness.stage3_selected_continuity.clone(),
+    };
+    verify_compact_stage_opening_claims(statement, &selected, &stage_claims)?;
+
+    verify_rv32im_side_stage_packages_surface(statement)?;
+    verify_compact_stage_opening_packages(statement, witness)?;
+
+    verify_rv32im_side_kernel_opening_surface(statement)?;
+    let kernel_opening_claim = build_rv32im_kernel_opening_claim_from_statement(statement)?;
+    verify_compact_kernel_opening_packages(statement, witness, &kernel_opening_claim)?;
+    Ok(())
+}
+
+pub fn validate_rv32im_side_opening_relation_statement(
+    statement: &Rv32imSideOpeningRelationStatement,
+) -> Result<(), SimpleKernelError> {
+    let public_statement = public_statement_from_summary(&statement.public_summary);
+    if public_statement.recompute_digest() != statement.public_summary.proof_statement_digest {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM side-opening relation public-statement summary does not recompute to the carried proof-statement digest"
+                .into(),
+        ));
+    }
+    build_rv32im_stage_claim_bundle_from_statement(statement)?;
+    verify_rv32im_side_stage_claim_proof_surface(statement)?;
+    verify_rv32im_side_stage_packages_surface(statement)?;
+    verify_rv32im_side_kernel_opening_surface(statement)?;
+    let main_lane_bundle_digest = verify_rv32im_side_main_lane_proof_surface(statement)?;
+    verify_rv32im_side_kernel_claim_surface(statement, main_lane_bundle_digest)?;
+    verify_rv32im_side_kernel_claim_proof_surface(statement)
+}
+
+pub fn verify_rv32im_side_opening_relation(
+    statement: &Rv32imSideOpeningRelationStatement,
+    witness: &Rv32imSideOpeningRelationWitness,
+) -> Result<(), SimpleKernelError> {
+    validate_rv32im_side_opening_relation_statement(statement)?;
+    verify_rv32im_side_opening_witness_against_compact_surfaces(statement, witness)
+}

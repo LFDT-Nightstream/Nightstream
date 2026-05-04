@@ -9,18 +9,22 @@ use std::time::Instant;
 
 use neo_ajtai::Commitment;
 use neo_ccs::traits::SModuleHomomorphism;
-use neo_ccs::{CcsStructure, Mat};
-use neo_math::F;
+use neo_ccs::{CcsStructure, CeClaim, Mat};
+use neo_math::{F, K};
 use neo_params::NeoParams;
 use neo_reductions::error::PiCcsError;
 use neo_reductions::optimized_engine::OptimizedStructureCache;
 use neo_transcript::{Poseidon2Transcript, Transcript};
+use p3_field::PrimeCharacteristicRing;
 
 use crate::chunk_relation::{
+    compute_chunk_replay_witness_and_relation_with_instance_digest_and_me_input_handle_and_perf,
     compute_chunk_replay_witness_and_relation_with_instance_digest_and_perf,
+    verify_chunk_relation_with_witness_and_instance_digest_and_me_input_handle_with_perf,
     verify_chunk_relation_with_witness_and_instance_digest_with_perf, ChunkReplayWitness,
 };
-use crate::proof::{partition_step_inputs, Carry, ChunkInput, ChunkProvePerf, FoldSchedule, StepInput};
+use crate::finalize::{digest32_as_fields, digest_fields_as_digest32, public_chunk_digest};
+use crate::proof::{partition_step_inputs, Carry, ChunkInput, ChunkProvePerf, FoldSchedule, RunProvePerf, StepInput};
 use crate::prover::CommitmentMixers;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -57,12 +61,62 @@ pub struct SuperNeoIvcBuild {
     pub total_ms: f64,
 }
 
+impl SuperNeoIvcBuild {
+    pub fn prove_perf(&self) -> RunProvePerf {
+        RunProvePerf {
+            chunks: self
+                .relations
+                .iter()
+                .map(|relation| relation.perf)
+                .collect(),
+            total_ms: self.total_ms,
+        }
+    }
+}
+
 fn elapsed_ms(started: Instant) -> f64 {
     started.elapsed().as_secs_f64() * 1_000.0
 }
 
 fn session_transcript() -> Poseidon2Transcript {
     Poseidon2Transcript::new(b"neo.fold.next/session")
+}
+
+fn accumulator_handle_fields(params: &NeoParams, carry: &Carry) -> [F; 4] {
+    digest32_as_fields(accumulator_handle_digest(params, &carry.claims))
+}
+
+fn accumulator_handle_digest(params: &NeoParams, claims: &[CeClaim<Commitment, F, K>]) -> [u8; 32] {
+    let mut preimage = crate::superneo_circuit::claim::packed_bytes_field_values(
+        b"neo.fold.next/direct_ccs/accumulator_phi_dec_parent/v1",
+    )
+    .into_iter()
+    .map(|value| F::from_u64(value.to_canonical_u64()))
+    .collect::<Vec<_>>();
+    preimage.push(F::from_u64(claims.len() as u64));
+    if let Some(first) = claims.first() {
+        let parent_len = first.c.data.len();
+        preimage.push(F::from_u64(parent_len as u64));
+        let base = F::from_u64(params.b as u64);
+        let mut powers = Vec::with_capacity(claims.len());
+        let mut pow = F::ONE;
+        for claim in claims {
+            if claim.c.data.len() != parent_len {
+                preimage.push(F::from_u64(u64::MAX));
+                return digest_fields_as_digest32(neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash(&preimage));
+            }
+            powers.push(pow);
+            pow *= base;
+        }
+        for lane_idx in 0..parent_len {
+            let mut value = F::ZERO;
+            for (claim, pow) in claims.iter().zip(powers.iter().copied()) {
+                value += claim.c.data[lane_idx] * pow;
+            }
+            preimage.push(value);
+        }
+    }
+    digest_fields_as_digest32(neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash(&preimage))
 }
 
 fn transcript_from_snapshot(snapshot: &SuperNeoIvcTranscriptSnapshot) -> Poseidon2Transcript {
@@ -90,11 +144,15 @@ fn ivc_protocol_error(message: impl Into<String>) -> PiCcsError {
 
 impl SuperNeoIvcState {
     pub fn seed() -> Self {
+        Self::seed_with_carry(Carry::default())
+    }
+
+    pub fn seed_with_carry(carry: Carry) -> Self {
         let transcript = session_transcript();
         Self {
             chunk_count: 0,
             step_count: 0,
-            carry: Carry::default(),
+            carry,
             transcript: transcript_snapshot(&transcript),
         }
     }
@@ -132,6 +190,67 @@ impl SuperNeoIvcState {
                 mixers,
                 optimized_cache,
                 None,
+            )?;
+        append_chunk_done(&mut transcript);
+
+        let next = Self {
+            chunk_count: self.chunk_count + 1,
+            step_count: self
+                .step_count
+                .checked_add(chunk.steps.len() as u64)
+                .ok_or_else(|| ivc_protocol_error("SuperNeo IVC step_count overflow"))?,
+            carry: relation_result.next_main,
+            transcript: transcript_snapshot(&transcript),
+        };
+        let relation = SuperNeoIvcStepRelation {
+            chunk_index: self.chunk_count,
+            chunk,
+            state_in: self.clone(),
+            state_out: next.clone(),
+            replay_witness,
+            fold_digest,
+            chunk_relation_digest: relation_result.artifacts.relation_digest,
+            perf,
+        };
+        Ok((next, relation))
+    }
+
+    pub fn append_chunk_with_perf_and_accumulator_handle<L, MR, MB>(
+        &self,
+        params: &NeoParams,
+        structure: &CcsStructure<F>,
+        chunk: ChunkInput,
+        log: &L,
+        mixers: CommitmentMixers<MR, MB>,
+        optimized_cache: &OptimizedStructureCache,
+    ) -> Result<(Self, SuperNeoIvcStepRelation), PiCcsError>
+    where
+        L: SModuleHomomorphism<F, Commitment> + Sync,
+        MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
+        MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
+    {
+        if chunk.start_index as u64 != self.step_count {
+            return Err(ivc_protocol_error(format!(
+                "SuperNeo IVC chunk start {} does not match carried step_count {}",
+                chunk.start_index, self.step_count
+            )));
+        }
+
+        let mut transcript = transcript_from_snapshot(&self.transcript);
+        let chunk_digest = public_chunk_digest(&chunk.public());
+        let accumulator_handle = accumulator_handle_fields(params, &self.carry);
+        let ((replay_witness, relation_result, fold_digest), perf) =
+            compute_chunk_replay_witness_and_relation_with_instance_digest_and_me_input_handle_and_perf(
+                &mut transcript,
+                params,
+                structure,
+                &chunk,
+                &self.carry,
+                log,
+                mixers,
+                optimized_cache,
+                chunk_digest,
+                accumulator_handle,
             )?;
         append_chunk_done(&mut transcript);
 
@@ -224,6 +343,76 @@ impl SuperNeoIvcStepRelation {
         }
         Ok(perf)
     }
+
+    pub fn verify_with_accumulator_handle<L, MR, MB>(
+        &self,
+        params: &NeoParams,
+        structure: &CcsStructure<F>,
+        log: &L,
+        mixers: CommitmentMixers<MR, MB>,
+        optimized_cache: &OptimizedStructureCache,
+    ) -> Result<ChunkProvePerf, PiCcsError>
+    where
+        L: SModuleHomomorphism<F, Commitment> + Sync,
+        MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
+        MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
+    {
+        if self.chunk_index != self.state_in.chunk_count {
+            return Err(ivc_protocol_error(
+                "SuperNeo IVC relation chunk_index does not match state_in chunk_count",
+            ));
+        }
+        if self.chunk.start_index as u64 != self.state_in.step_count {
+            return Err(ivc_protocol_error(
+                "SuperNeo IVC relation chunk start does not match state_in step_count",
+            ));
+        }
+
+        let mut transcript = transcript_from_snapshot(&self.state_in.transcript);
+        let chunk_digest = public_chunk_digest(&self.chunk.public());
+        let accumulator_handle = accumulator_handle_fields(params, &self.state_in.carry);
+        let ((relation_result, fold_digest), perf) =
+            verify_chunk_relation_with_witness_and_instance_digest_and_me_input_handle_with_perf(
+                &mut transcript,
+                params,
+                structure,
+                &self.chunk,
+                &self.state_in.carry,
+                &self.replay_witness,
+                log,
+                mixers,
+                optimized_cache,
+                chunk_digest,
+                accumulator_handle,
+            )?;
+        if fold_digest != self.fold_digest {
+            return Err(ivc_protocol_error(
+                "SuperNeo IVC relation fold digest does not match verified transcript",
+            ));
+        }
+        if relation_result.artifacts.relation_digest != self.chunk_relation_digest {
+            return Err(ivc_protocol_error(
+                "SuperNeo IVC relation digest does not match verified chunk relation",
+            ));
+        }
+        append_chunk_done(&mut transcript);
+        let expected_state_out = SuperNeoIvcState {
+            chunk_count: self.state_in.chunk_count + 1,
+            step_count: self.state_in.step_count + self.chunk.steps.len() as u64,
+            carry: relation_result.next_main,
+            transcript: transcript_snapshot(&transcript),
+        };
+        if expected_state_out.chunk_count != self.state_out.chunk_count
+            || expected_state_out.step_count != self.state_out.step_count
+            || expected_state_out.transcript != self.state_out.transcript
+            || !carry_matches(&expected_state_out.carry, &self.state_out.carry)
+        {
+            return Err(ivc_protocol_error(
+                "SuperNeo IVC relation state_out does not match verified NIFS.V output",
+            ));
+        }
+        Ok(perf)
+    }
 }
 
 pub fn build_superneo_ivc_relations_with_perf<L, MR, MB>(
@@ -239,17 +428,85 @@ where
     MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
     MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
 {
+    build_superneo_ivc_relations_with_initial_carry_perf(
+        schedule,
+        params,
+        structure,
+        steps,
+        Carry::default(),
+        log,
+        mixers,
+    )
+}
+
+pub fn build_superneo_ivc_relations_with_initial_carry_perf<L, MR, MB>(
+    schedule: FoldSchedule,
+    params: &NeoParams,
+    structure: &CcsStructure<F>,
+    steps: impl IntoIterator<Item = StepInput>,
+    initial_carry: Carry,
+    log: &L,
+    mixers: CommitmentMixers<MR, MB>,
+) -> Result<SuperNeoIvcBuild, PiCcsError>
+where
+    L: SModuleHomomorphism<F, Commitment> + Sync,
+    MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
+    MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
+{
     let total_started = Instant::now();
     let cache_started = Instant::now();
     let optimized_cache = OptimizedStructureCache::build(structure)?;
     let cache_build_ms = elapsed_ms(cache_started);
 
-    let mut state = SuperNeoIvcState::seed();
+    let mut state = SuperNeoIvcState::seed_with_carry(initial_carry);
     let mut relations = Vec::new();
     for chunk in partition_step_inputs(schedule, steps.into_iter().collect())? {
         let (next_state, relation) =
             state.append_chunk_with_perf(params, structure, chunk, log, mixers, &optimized_cache)?;
         relation.verify(params, structure, log, mixers, &optimized_cache)?;
+        state = next_state;
+        relations.push(relation);
+    }
+
+    Ok(SuperNeoIvcBuild {
+        relations,
+        final_state: state,
+        cache_build_ms,
+        total_ms: elapsed_ms(total_started),
+    })
+}
+
+pub fn build_superneo_ivc_relations_with_initial_carry_accumulator_handle_perf<L, MR, MB>(
+    schedule: FoldSchedule,
+    params: &NeoParams,
+    structure: &CcsStructure<F>,
+    steps: impl IntoIterator<Item = StepInput>,
+    initial_carry: Carry,
+    log: &L,
+    mixers: CommitmentMixers<MR, MB>,
+) -> Result<SuperNeoIvcBuild, PiCcsError>
+where
+    L: SModuleHomomorphism<F, Commitment> + Sync,
+    MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
+    MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
+{
+    let total_started = Instant::now();
+    let cache_started = Instant::now();
+    let optimized_cache = OptimizedStructureCache::build(structure)?;
+    let cache_build_ms = elapsed_ms(cache_started);
+
+    let mut state = SuperNeoIvcState::seed_with_carry(initial_carry);
+    let mut relations = Vec::new();
+    for chunk in partition_step_inputs(schedule, steps.into_iter().collect())? {
+        let (next_state, relation) = state.append_chunk_with_perf_and_accumulator_handle(
+            params,
+            structure,
+            chunk,
+            log,
+            mixers,
+            &optimized_cache,
+        )?;
+        relation.verify_with_accumulator_handle(params, structure, log, mixers, &optimized_cache)?;
         state = next_state;
         relations.push(relation);
     }

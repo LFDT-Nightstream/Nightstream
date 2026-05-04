@@ -1,0 +1,2378 @@
+//! Owns CE-claim allocation and Poseidon2 claim-digest gadgets for SuperNeo circuits.
+
+use crate::spartan_backend::SpartanF;
+use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError, Variable};
+use ff::Field;
+use neo_ajtai::Commitment;
+use neo_ccs::CeClaim;
+use neo_math::{KExtensions, D, F, K};
+use p3_field::PrimeCharacteristicRing;
+use p3_field::PrimeField64;
+
+use super::k_field::{alloc_k, enforce_k_eq, KNum, KNumVar};
+use super::transcript::hash_field_linear_combinations_raw;
+
+#[derive(Clone)]
+pub struct CeClaimVar {
+    pub c_data: Vec<AllocatedNum<SpartanF>>,
+    pub c_data_values: Vec<F>,
+    pub x: Vec<AllocatedNum<SpartanF>>,
+    pub x_values: Vec<F>,
+    pub x_rows: usize,
+    pub x_cols: usize,
+    pub r: Vec<KNumVar>,
+    pub r_values: Vec<K>,
+    pub s_col: Vec<KNumVar>,
+    pub s_col_values: Vec<K>,
+    pub y_ring: Vec<Vec<KNumVar>>,
+    pub y_ring_values: Vec<Vec<K>>,
+    pub ct: Vec<KNumVar>,
+    pub ct_values: Vec<K>,
+    pub aux_openings: Vec<KNumVar>,
+    pub aux_openings_values: Vec<K>,
+    pub y_zcol: Vec<KNumVar>,
+    pub y_zcol_values: Vec<K>,
+    pub c_step_coords: Vec<AllocatedNum<SpartanF>>,
+    pub c_step_coords_values: Vec<F>,
+    pub fold_digest_encoding: Vec<AllocatedNum<SpartanF>>,
+    pub fold_digest_encoding_values: Vec<SpartanF>,
+    pub m_in: usize,
+    pub u_offset: usize,
+    pub u_len: usize,
+}
+
+fn compact_x_values_from_native_claim(claim: &CeClaim<Commitment, F, K>) -> Result<Vec<F>, SynthesisError> {
+    if claim.X.rows() != D || claim.X.cols() != claim.m_in {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    // CE `x` is the canonical embedded field-vector surface used by
+    // Construction 2 and the recursive Π_RLC / Π_DEC checks. Falling back to a
+    // full `X` matrix based on witness values makes the recursive circuit
+    // shape depend on the concrete chunk, which violates HyperNova §6.3's
+    // fixed-shape requirement.
+    Ok((0..claim.m_in)
+        .map(|col| claim.X[(col % D, col / D)])
+        .collect())
+}
+
+pub fn alloc_ce_claim<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaim<Commitment, F, K>,
+    label: &str,
+) -> Result<CeClaimVar, SynthesisError> {
+    let c_data = alloc_f_slice(cs, &claim.c.data, &format!("{label}_c_data"))?;
+    let x = alloc_f_slice(cs, claim.X.as_slice(), &format!("{label}_x"))?;
+    let r = alloc_k_slice(cs, &claim.r, &format!("{label}_r"))?;
+    let s_col = alloc_k_slice(cs, &claim.s_col, &format!("{label}_s_col"))?;
+    let y_ring = claim
+        .y_ring
+        .iter()
+        .enumerate()
+        .map(|(row_idx, row)| alloc_k_slice(cs, row, &format!("{label}_y_ring_{row_idx}")))
+        .collect::<Result<Vec<_>, _>>()?;
+    let ct = alloc_k_slice(cs, &claim.ct, &format!("{label}_ct"))?;
+    let aux_openings = alloc_k_slice(cs, &claim.aux_openings, &format!("{label}_aux_openings"))?;
+    let y_zcol = alloc_k_slice(cs, &claim.y_zcol, &format!("{label}_y_zcol"))?;
+    let c_step_coords = alloc_f_slice(cs, &claim.c_step_coords, &format!("{label}_c_step_coords"))?;
+    let fold_digest_encoding_values = packed_bytes_field_values(&claim.fold_digest);
+    let fold_digest_encoding = alloc_packed_bytes_as_fields(cs, &claim.fold_digest, &format!("{label}_fold_digest"))?;
+
+    Ok(CeClaimVar {
+        c_data,
+        c_data_values: claim.c.data.clone(),
+        x,
+        x_values: claim.X.as_slice().to_vec(),
+        x_rows: claim.X.rows(),
+        x_cols: claim.X.cols(),
+        r,
+        r_values: claim.r.clone(),
+        s_col,
+        s_col_values: claim.s_col.clone(),
+        y_ring,
+        y_ring_values: claim.y_ring.clone(),
+        ct,
+        ct_values: claim.ct.clone(),
+        aux_openings,
+        aux_openings_values: claim.aux_openings.clone(),
+        y_zcol,
+        y_zcol_values: claim.y_zcol.clone(),
+        c_step_coords,
+        c_step_coords_values: claim.c_step_coords.clone(),
+        fold_digest_encoding,
+        fold_digest_encoding_values,
+        m_in: claim.m_in,
+        u_offset: claim.u_offset,
+        u_len: claim.u_len,
+    })
+}
+
+pub fn alloc_ce_claim_without_fold_digest<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaim<Commitment, F, K>,
+    label: &str,
+) -> Result<CeClaimVar, SynthesisError> {
+    let c_data = alloc_f_slice(cs, &claim.c.data, &format!("{label}_c_data"))?;
+    let x = alloc_f_slice(cs, claim.X.as_slice(), &format!("{label}_x"))?;
+    let r = alloc_k_slice(cs, &claim.r, &format!("{label}_r"))?;
+    let s_col = alloc_k_slice(cs, &claim.s_col, &format!("{label}_s_col"))?;
+    let y_ring = claim
+        .y_ring
+        .iter()
+        .enumerate()
+        .map(|(row_idx, row)| alloc_k_slice(cs, row, &format!("{label}_y_ring_{row_idx}")))
+        .collect::<Result<Vec<_>, _>>()?;
+    let ct = alloc_k_slice(cs, &claim.ct, &format!("{label}_ct"))?;
+    let aux_openings = alloc_k_slice(cs, &claim.aux_openings, &format!("{label}_aux_openings"))?;
+    let y_zcol = alloc_k_slice(cs, &claim.y_zcol, &format!("{label}_y_zcol"))?;
+    let c_step_coords = alloc_f_slice(cs, &claim.c_step_coords, &format!("{label}_c_step_coords"))?;
+
+    Ok(CeClaimVar {
+        c_data,
+        c_data_values: claim.c.data.clone(),
+        x,
+        x_values: claim.X.as_slice().to_vec(),
+        x_rows: claim.X.rows(),
+        x_cols: claim.X.cols(),
+        r,
+        r_values: claim.r.clone(),
+        s_col,
+        s_col_values: claim.s_col.clone(),
+        y_ring,
+        y_ring_values: claim.y_ring.clone(),
+        ct,
+        ct_values: claim.ct.clone(),
+        aux_openings,
+        aux_openings_values: claim.aux_openings.clone(),
+        y_zcol,
+        y_zcol_values: claim.y_zcol.clone(),
+        c_step_coords,
+        c_step_coords_values: claim.c_step_coords.clone(),
+        fold_digest_encoding: Vec::new(),
+        fold_digest_encoding_values: packed_bytes_field_values(&claim.fold_digest),
+        m_in: claim.m_in,
+        u_offset: claim.u_offset,
+        u_len: claim.u_len,
+    })
+}
+
+pub fn alloc_ce_claim_with_shared_point<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaim<Commitment, F, K>,
+    shared_r: &[KNumVar],
+    shared_r_values: &[K],
+    shared_s_col: &[KNumVar],
+    shared_s_col_values: &[K],
+    label: &str,
+) -> Result<CeClaimVar, SynthesisError> {
+    if claim.r.as_slice() != shared_r_values || claim.s_col.as_slice() != shared_s_col_values {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let c_data = alloc_f_slice(cs, &claim.c.data, &format!("{label}_c_data"))?;
+    let x = alloc_f_slice(cs, claim.X.as_slice(), &format!("{label}_x"))?;
+    let y_ring = claim
+        .y_ring
+        .iter()
+        .enumerate()
+        .map(|(row_idx, row)| alloc_k_slice(cs, row, &format!("{label}_y_ring_{row_idx}")))
+        .collect::<Result<Vec<_>, _>>()?;
+    let ct = alias_ct_from_y_ring(&y_ring, &claim.y_ring, &claim.ct)?;
+    let aux_openings = alloc_k_slice(cs, &claim.aux_openings, &format!("{label}_aux_openings"))?;
+    let y_zcol = alloc_k_slice(cs, &claim.y_zcol, &format!("{label}_y_zcol"))?;
+    let c_step_coords = alloc_f_slice(cs, &claim.c_step_coords, &format!("{label}_c_step_coords"))?;
+    let fold_digest_encoding_values = packed_bytes_field_values(&claim.fold_digest);
+    let fold_digest_encoding = alloc_packed_bytes_as_fields(cs, &claim.fold_digest, &format!("{label}_fold_digest"))?;
+
+    Ok(CeClaimVar {
+        c_data,
+        c_data_values: claim.c.data.clone(),
+        x,
+        x_values: claim.X.as_slice().to_vec(),
+        x_rows: claim.X.rows(),
+        x_cols: claim.X.cols(),
+        r: shared_r.to_vec(),
+        r_values: shared_r_values.to_vec(),
+        s_col: shared_s_col.to_vec(),
+        s_col_values: shared_s_col_values.to_vec(),
+        y_ring,
+        y_ring_values: claim.y_ring.clone(),
+        ct,
+        ct_values: claim.ct.clone(),
+        aux_openings,
+        aux_openings_values: claim.aux_openings.clone(),
+        y_zcol,
+        y_zcol_values: claim.y_zcol.clone(),
+        c_step_coords,
+        c_step_coords_values: claim.c_step_coords.clone(),
+        fold_digest_encoding,
+        fold_digest_encoding_values,
+        m_in: claim.m_in,
+        u_offset: claim.u_offset,
+        u_len: claim.u_len,
+    })
+}
+
+pub fn alloc_ce_claim_with_shared_point_without_fold_digest<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaim<Commitment, F, K>,
+    shared_r: &[KNumVar],
+    shared_r_values: &[K],
+    shared_s_col: &[KNumVar],
+    shared_s_col_values: &[K],
+    label: &str,
+) -> Result<CeClaimVar, SynthesisError> {
+    if claim.r.as_slice() != shared_r_values || claim.s_col.as_slice() != shared_s_col_values {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let c_data = alloc_f_slice(cs, &claim.c.data, &format!("{label}_c_data"))?;
+    let x = alloc_f_slice(cs, claim.X.as_slice(), &format!("{label}_x"))?;
+    let y_ring = claim
+        .y_ring
+        .iter()
+        .enumerate()
+        .map(|(row_idx, row)| alloc_k_slice(cs, row, &format!("{label}_y_ring_{row_idx}")))
+        .collect::<Result<Vec<_>, _>>()?;
+    let ct = alias_ct_from_y_ring(&y_ring, &claim.y_ring, &claim.ct)?;
+    let aux_openings = alloc_k_slice(cs, &claim.aux_openings, &format!("{label}_aux_openings"))?;
+    let y_zcol = alloc_k_slice(cs, &claim.y_zcol, &format!("{label}_y_zcol"))?;
+    let c_step_coords = alloc_f_slice(cs, &claim.c_step_coords, &format!("{label}_c_step_coords"))?;
+
+    Ok(CeClaimVar {
+        c_data,
+        c_data_values: claim.c.data.clone(),
+        x,
+        x_values: claim.X.as_slice().to_vec(),
+        x_rows: claim.X.rows(),
+        x_cols: claim.X.cols(),
+        r: shared_r.to_vec(),
+        r_values: shared_r_values.to_vec(),
+        s_col: shared_s_col.to_vec(),
+        s_col_values: shared_s_col_values.to_vec(),
+        y_ring,
+        y_ring_values: claim.y_ring.clone(),
+        ct,
+        ct_values: claim.ct.clone(),
+        aux_openings,
+        aux_openings_values: claim.aux_openings.clone(),
+        y_zcol,
+        y_zcol_values: claim.y_zcol.clone(),
+        c_step_coords,
+        c_step_coords_values: claim.c_step_coords.clone(),
+        fold_digest_encoding: Vec::new(),
+        fold_digest_encoding_values: packed_bytes_field_values(&claim.fold_digest),
+        m_in: claim.m_in,
+        u_offset: claim.u_offset,
+        u_len: claim.u_len,
+    })
+}
+
+pub fn alloc_ce_claim_public_surface<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaim<Commitment, F, K>,
+    label: &str,
+) -> Result<CeClaimVar, SynthesisError> {
+    let c_data = alloc_f_slice(cs, &claim.c.data, &format!("{label}_c_data"))?;
+    let x = alloc_f_slice(cs, claim.X.as_slice(), &format!("{label}_x"))?;
+    let r = alloc_k_slice(cs, &claim.r, &format!("{label}_r"))?;
+    let s_col = alloc_k_slice(cs, &claim.s_col, &format!("{label}_s_col"))?;
+    let y_ring = claim
+        .y_ring
+        .iter()
+        .enumerate()
+        .map(|(row_idx, row)| alloc_k_slice(cs, row, &format!("{label}_y_ring_{row_idx}")))
+        .collect::<Result<Vec<_>, _>>()?;
+    let ct = alloc_k_slice(cs, &claim.ct, &format!("{label}_ct"))?;
+    let y_zcol = alloc_k_slice(cs, &claim.y_zcol, &format!("{label}_y_zcol"))?;
+
+    Ok(CeClaimVar {
+        c_data,
+        c_data_values: claim.c.data.clone(),
+        x,
+        x_values: claim.X.as_slice().to_vec(),
+        x_rows: claim.X.rows(),
+        x_cols: claim.X.cols(),
+        r,
+        r_values: claim.r.clone(),
+        s_col,
+        s_col_values: claim.s_col.clone(),
+        y_ring,
+        y_ring_values: claim.y_ring.clone(),
+        ct,
+        ct_values: claim.ct.clone(),
+        aux_openings: Vec::new(),
+        aux_openings_values: claim.aux_openings.clone(),
+        y_zcol,
+        y_zcol_values: claim.y_zcol.clone(),
+        c_step_coords: Vec::new(),
+        c_step_coords_values: claim.c_step_coords.clone(),
+        fold_digest_encoding: Vec::new(),
+        fold_digest_encoding_values: packed_bytes_field_values(&claim.fold_digest),
+        m_in: claim.m_in,
+        u_offset: claim.u_offset,
+        u_len: claim.u_len,
+    })
+}
+
+pub fn alloc_ce_claim_public_surface_with_shared_point<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaim<Commitment, F, K>,
+    shared_r: &[KNumVar],
+    shared_r_values: &[K],
+    shared_s_col: &[KNumVar],
+    shared_s_col_values: &[K],
+    label: &str,
+) -> Result<CeClaimVar, SynthesisError> {
+    if claim.r.as_slice() != shared_r_values || claim.s_col.as_slice() != shared_s_col_values {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let c_data = alloc_f_slice(cs, &claim.c.data, &format!("{label}_c_data"))?;
+    let x = alloc_f_slice(cs, claim.X.as_slice(), &format!("{label}_x"))?;
+    let y_ring = claim
+        .y_ring
+        .iter()
+        .enumerate()
+        .map(|(row_idx, row)| alloc_k_slice(cs, row, &format!("{label}_y_ring_{row_idx}")))
+        .collect::<Result<Vec<_>, _>>()?;
+    let ct = alias_ct_from_y_ring(&y_ring, &claim.y_ring, &claim.ct)?;
+    let y_zcol = alloc_k_slice(cs, &claim.y_zcol, &format!("{label}_y_zcol"))?;
+
+    Ok(CeClaimVar {
+        c_data,
+        c_data_values: claim.c.data.clone(),
+        x,
+        x_values: claim.X.as_slice().to_vec(),
+        x_rows: claim.X.rows(),
+        x_cols: claim.X.cols(),
+        r: shared_r.to_vec(),
+        r_values: shared_r_values.to_vec(),
+        s_col: shared_s_col.to_vec(),
+        s_col_values: shared_s_col_values.to_vec(),
+        y_ring,
+        y_ring_values: claim.y_ring.clone(),
+        ct,
+        ct_values: claim.ct.clone(),
+        aux_openings: Vec::new(),
+        aux_openings_values: claim.aux_openings.clone(),
+        y_zcol,
+        y_zcol_values: claim.y_zcol.clone(),
+        c_step_coords: Vec::new(),
+        c_step_coords_values: claim.c_step_coords.clone(),
+        fold_digest_encoding: Vec::new(),
+        fold_digest_encoding_values: packed_bytes_field_values(&claim.fold_digest),
+        m_in: claim.m_in,
+        u_offset: claim.u_offset,
+        u_len: claim.u_len,
+    })
+}
+
+pub fn alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaim<Commitment, F, K>,
+    c_data: &[AllocatedNum<SpartanF>],
+    c_data_values: &[F],
+    shared_r: &[KNumVar],
+    shared_r_values: &[K],
+    shared_s_col: &[KNumVar],
+    shared_s_col_values: &[K],
+    label: &str,
+) -> Result<CeClaimVar, SynthesisError> {
+    if claim.r.as_slice() != shared_r_values
+        || claim.s_col.as_slice() != shared_s_col_values
+        || claim.c.data.len() != c_data.len()
+        || claim.c.data.as_slice() != c_data_values
+    {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let x = alloc_f_slice(cs, claim.X.as_slice(), &format!("{label}_x"))?;
+    let y_ring = claim
+        .y_ring
+        .iter()
+        .enumerate()
+        .map(|(row_idx, row)| alloc_k_slice(cs, row, &format!("{label}_y_ring_{row_idx}")))
+        .collect::<Result<Vec<_>, _>>()?;
+    let ct = alias_ct_from_y_ring(&y_ring, &claim.y_ring, &claim.ct)?;
+    let y_zcol = alloc_k_slice(cs, &claim.y_zcol, &format!("{label}_y_zcol"))?;
+
+    Ok(CeClaimVar {
+        c_data: c_data.to_vec(),
+        c_data_values: c_data_values.to_vec(),
+        x,
+        x_values: claim.X.as_slice().to_vec(),
+        x_rows: claim.X.rows(),
+        x_cols: claim.X.cols(),
+        r: shared_r.to_vec(),
+        r_values: shared_r_values.to_vec(),
+        s_col: shared_s_col.to_vec(),
+        s_col_values: shared_s_col_values.to_vec(),
+        y_ring,
+        y_ring_values: claim.y_ring.clone(),
+        ct,
+        ct_values: claim.ct.clone(),
+        aux_openings: Vec::new(),
+        aux_openings_values: claim.aux_openings.clone(),
+        y_zcol,
+        y_zcol_values: claim.y_zcol.clone(),
+        c_step_coords: Vec::new(),
+        c_step_coords_values: claim.c_step_coords.clone(),
+        fold_digest_encoding: Vec::new(),
+        fold_digest_encoding_values: packed_bytes_field_values(&claim.fold_digest),
+        m_in: claim.m_in,
+        u_offset: claim.u_offset,
+        u_len: claim.u_len,
+    })
+}
+
+pub fn alloc_ce_claim_public_surface_with_alias_c_data_and_shared_point_compact_x<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaim<Commitment, F, K>,
+    c_data: &[AllocatedNum<SpartanF>],
+    c_data_values: &[F],
+    shared_r: &[KNumVar],
+    shared_r_values: &[K],
+    shared_s_col: &[KNumVar],
+    shared_s_col_values: &[K],
+    label: &str,
+) -> Result<CeClaimVar, SynthesisError> {
+    if claim.r.as_slice() != shared_r_values
+        || claim.s_col.as_slice() != shared_s_col_values
+        || claim.c.data.len() != c_data.len()
+        || claim.c.data.as_slice() != c_data_values
+    {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let compact_x_values = compact_x_values_from_native_claim(claim)?;
+    let x = alloc_f_slice(cs, &compact_x_values, &format!("{label}_x"))?;
+    let y_ring = claim
+        .y_ring
+        .iter()
+        .enumerate()
+        .map(|(row_idx, row)| alloc_k_slice(cs, row, &format!("{label}_y_ring_{row_idx}")))
+        .collect::<Result<Vec<_>, _>>()?;
+    let ct = alias_ct_from_y_ring(&y_ring, &claim.y_ring, &claim.ct)?;
+    let y_zcol = alloc_k_slice(cs, &claim.y_zcol, &format!("{label}_y_zcol"))?;
+
+    Ok(CeClaimVar {
+        c_data: c_data.to_vec(),
+        c_data_values: c_data_values.to_vec(),
+        x,
+        x_values: compact_x_values,
+        x_rows: claim.X.rows(),
+        x_cols: claim.X.cols(),
+        r: shared_r.to_vec(),
+        r_values: shared_r_values.to_vec(),
+        s_col: shared_s_col.to_vec(),
+        s_col_values: shared_s_col_values.to_vec(),
+        y_ring,
+        y_ring_values: claim.y_ring.clone(),
+        ct,
+        ct_values: claim.ct.clone(),
+        aux_openings: Vec::new(),
+        aux_openings_values: claim.aux_openings.clone(),
+        y_zcol,
+        y_zcol_values: claim.y_zcol.clone(),
+        c_step_coords: Vec::new(),
+        c_step_coords_values: claim.c_step_coords.clone(),
+        fold_digest_encoding: Vec::new(),
+        fold_digest_encoding_values: packed_bytes_field_values(&claim.fold_digest),
+        m_in: claim.m_in,
+        u_offset: claim.u_offset,
+        u_len: claim.u_len,
+    })
+}
+
+pub fn alloc_ce_claim_projection_surface<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaim<Commitment, F, K>,
+    label: &str,
+) -> Result<CeClaimVar, SynthesisError> {
+    let c_data = alloc_f_slice(cs, &claim.c.data, &format!("{label}_c_data"))?;
+    let compact_x_values = compact_x_values_from_native_claim(claim)?;
+    let x = alloc_f_slice(cs, &compact_x_values, &format!("{label}_x"))?;
+    let r = alloc_k_slice(cs, &claim.r, &format!("{label}_r"))?;
+    let y_ring = claim
+        .y_ring
+        .iter()
+        .enumerate()
+        .map(|(row_idx, row)| alloc_k_slice(cs, row, &format!("{label}_y_ring_{row_idx}")))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(CeClaimVar {
+        c_data,
+        c_data_values: claim.c.data.clone(),
+        x,
+        x_values: compact_x_values,
+        x_rows: claim.X.rows(),
+        x_cols: claim.X.cols(),
+        r,
+        r_values: claim.r.clone(),
+        s_col: Vec::new(),
+        s_col_values: claim.s_col.clone(),
+        y_ring,
+        y_ring_values: claim.y_ring.clone(),
+        ct: Vec::new(),
+        ct_values: claim.ct.clone(),
+        aux_openings: Vec::new(),
+        aux_openings_values: claim.aux_openings.clone(),
+        y_zcol: Vec::new(),
+        y_zcol_values: claim.y_zcol.clone(),
+        c_step_coords: Vec::new(),
+        c_step_coords_values: claim.c_step_coords.clone(),
+        fold_digest_encoding: Vec::new(),
+        fold_digest_encoding_values: packed_bytes_field_values(&claim.fold_digest),
+        m_in: claim.m_in,
+        u_offset: claim.u_offset,
+        u_len: claim.u_len,
+    })
+}
+
+pub fn alloc_ce_claim_dec_surface<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaim<Commitment, F, K>,
+    label: &str,
+) -> Result<CeClaimVar, SynthesisError> {
+    let c_data = alloc_f_slice(cs, &claim.c.data, &format!("{label}_c_data"))?;
+    let x = alloc_f_slice(cs, claim.X.as_slice(), &format!("{label}_x"))?;
+    let r = alloc_k_slice(cs, &claim.r, &format!("{label}_r"))?;
+    let y_ring = claim
+        .y_ring
+        .iter()
+        .enumerate()
+        .map(|(row_idx, row)| alloc_k_slice(cs, row, &format!("{label}_y_ring_{row_idx}")))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(CeClaimVar {
+        c_data,
+        c_data_values: claim.c.data.clone(),
+        x,
+        x_values: claim.X.as_slice().to_vec(),
+        x_rows: claim.X.rows(),
+        x_cols: claim.X.cols(),
+        r,
+        r_values: claim.r.clone(),
+        s_col: Vec::new(),
+        s_col_values: claim.s_col.clone(),
+        y_ring,
+        y_ring_values: claim.y_ring.clone(),
+        ct: Vec::new(),
+        ct_values: claim.ct.clone(),
+        aux_openings: Vec::new(),
+        aux_openings_values: claim.aux_openings.clone(),
+        y_zcol: Vec::new(),
+        y_zcol_values: claim.y_zcol.clone(),
+        c_step_coords: Vec::new(),
+        c_step_coords_values: claim.c_step_coords.clone(),
+        fold_digest_encoding: Vec::new(),
+        fold_digest_encoding_values: packed_bytes_field_values(&claim.fold_digest),
+        m_in: claim.m_in,
+        u_offset: claim.u_offset,
+        u_len: claim.u_len,
+    })
+}
+
+pub fn alloc_ce_claim_dec_surface_with_shared_r<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaim<Commitment, F, K>,
+    shared_r: &[KNumVar],
+    shared_r_values: &[K],
+    label: &str,
+) -> Result<CeClaimVar, SynthesisError> {
+    if claim.r.as_slice() != shared_r_values {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let c_data = alloc_f_slice(cs, &claim.c.data, &format!("{label}_c_data"))?;
+    let x = alloc_f_slice(cs, claim.X.as_slice(), &format!("{label}_x"))?;
+    let y_ring = claim
+        .y_ring
+        .iter()
+        .enumerate()
+        .map(|(row_idx, row)| alloc_k_slice(cs, row, &format!("{label}_y_ring_{row_idx}")))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(CeClaimVar {
+        c_data,
+        c_data_values: claim.c.data.clone(),
+        x,
+        x_values: claim.X.as_slice().to_vec(),
+        x_rows: claim.X.rows(),
+        x_cols: claim.X.cols(),
+        r: shared_r.to_vec(),
+        r_values: shared_r_values.to_vec(),
+        s_col: Vec::new(),
+        s_col_values: claim.s_col.clone(),
+        y_ring,
+        y_ring_values: claim.y_ring.clone(),
+        ct: Vec::new(),
+        ct_values: claim.ct.clone(),
+        aux_openings: Vec::new(),
+        aux_openings_values: claim.aux_openings.clone(),
+        y_zcol: Vec::new(),
+        y_zcol_values: claim.y_zcol.clone(),
+        c_step_coords: Vec::new(),
+        c_step_coords_values: claim.c_step_coords.clone(),
+        fold_digest_encoding: Vec::new(),
+        fold_digest_encoding_values: packed_bytes_field_values(&claim.fold_digest),
+        m_in: claim.m_in,
+        u_offset: claim.u_offset,
+        u_len: claim.u_len,
+    })
+}
+
+pub fn alloc_ce_claim_projection_surface_with_shared_r<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaim<Commitment, F, K>,
+    shared_r: &[KNumVar],
+    shared_r_values: &[K],
+    label: &str,
+) -> Result<CeClaimVar, SynthesisError> {
+    if claim.r.as_slice() != shared_r_values {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let c_data = alloc_f_slice(cs, &claim.c.data, &format!("{label}_c_data"))?;
+    let compact_x_values = compact_x_values_from_native_claim(claim)?;
+    let x = alloc_f_slice(cs, &compact_x_values, &format!("{label}_x"))?;
+    let y_ring = claim
+        .y_ring
+        .iter()
+        .enumerate()
+        .map(|(row_idx, row)| alloc_k_slice(cs, row, &format!("{label}_y_ring_{row_idx}")))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(CeClaimVar {
+        c_data,
+        c_data_values: claim.c.data.clone(),
+        x,
+        x_values: compact_x_values,
+        x_rows: claim.X.rows(),
+        x_cols: claim.X.cols(),
+        r: shared_r.to_vec(),
+        r_values: shared_r_values.to_vec(),
+        s_col: Vec::new(),
+        s_col_values: claim.s_col.clone(),
+        y_ring,
+        y_ring_values: claim.y_ring.clone(),
+        ct: Vec::new(),
+        ct_values: claim.ct.clone(),
+        aux_openings: Vec::new(),
+        aux_openings_values: claim.aux_openings.clone(),
+        y_zcol: Vec::new(),
+        y_zcol_values: claim.y_zcol.clone(),
+        c_step_coords: Vec::new(),
+        c_step_coords_values: claim.c_step_coords.clone(),
+        fold_digest_encoding: Vec::new(),
+        fold_digest_encoding_values: packed_bytes_field_values(&claim.fold_digest),
+        m_in: claim.m_in,
+        u_offset: claim.u_offset,
+        u_len: claim.u_len,
+    })
+}
+
+pub fn alloc_ce_claim_x_r_surface<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaim<Commitment, F, K>,
+    label: &str,
+) -> Result<CeClaimVar, SynthesisError> {
+    let compact_x_values = compact_x_values_from_native_claim(claim)?;
+    let x = alloc_f_slice(cs, &compact_x_values, &format!("{label}_x"))?;
+    let r = alloc_k_slice(cs, &claim.r, &format!("{label}_r"))?;
+
+    Ok(CeClaimVar {
+        c_data: Vec::new(),
+        c_data_values: claim.c.data.clone(),
+        x,
+        x_values: compact_x_values,
+        x_rows: claim.X.rows(),
+        x_cols: claim.X.cols(),
+        r,
+        r_values: claim.r.clone(),
+        s_col: Vec::new(),
+        s_col_values: claim.s_col.clone(),
+        y_ring: Vec::new(),
+        y_ring_values: claim.y_ring.clone(),
+        ct: Vec::new(),
+        ct_values: claim.ct.clone(),
+        aux_openings: Vec::new(),
+        aux_openings_values: claim.aux_openings.clone(),
+        y_zcol: Vec::new(),
+        y_zcol_values: claim.y_zcol.clone(),
+        c_step_coords: Vec::new(),
+        c_step_coords_values: claim.c_step_coords.clone(),
+        fold_digest_encoding: Vec::new(),
+        fold_digest_encoding_values: packed_bytes_field_values(&claim.fold_digest),
+        m_in: claim.m_in,
+        u_offset: claim.u_offset,
+        u_len: claim.u_len,
+    })
+}
+
+pub fn alloc_ce_claim_x_r_surface_with_shared_r<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaim<Commitment, F, K>,
+    shared_r: &[KNumVar],
+    shared_r_values: &[K],
+    label: &str,
+) -> Result<CeClaimVar, SynthesisError> {
+    if claim.r.as_slice() != shared_r_values {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let compact_x_values = compact_x_values_from_native_claim(claim)?;
+    let x = alloc_f_slice(cs, &compact_x_values, &format!("{label}_x"))?;
+
+    Ok(CeClaimVar {
+        c_data: Vec::new(),
+        c_data_values: claim.c.data.clone(),
+        x,
+        x_values: compact_x_values,
+        x_rows: claim.X.rows(),
+        x_cols: claim.X.cols(),
+        r: shared_r.to_vec(),
+        r_values: shared_r_values.to_vec(),
+        s_col: Vec::new(),
+        s_col_values: claim.s_col.clone(),
+        y_ring: Vec::new(),
+        y_ring_values: claim.y_ring.clone(),
+        ct: Vec::new(),
+        ct_values: claim.ct.clone(),
+        aux_openings: Vec::new(),
+        aux_openings_values: claim.aux_openings.clone(),
+        y_zcol: Vec::new(),
+        y_zcol_values: claim.y_zcol.clone(),
+        c_step_coords: Vec::new(),
+        c_step_coords_values: claim.c_step_coords.clone(),
+        fold_digest_encoding: Vec::new(),
+        fold_digest_encoding_values: packed_bytes_field_values(&claim.fold_digest),
+        m_in: claim.m_in,
+        u_offset: claim.u_offset,
+        u_len: claim.u_len,
+    })
+}
+
+pub fn alloc_ce_claim_without_f_surface<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaim<Commitment, F, K>,
+    c_data_values: &[F],
+    x_values: &[F],
+    label: &str,
+) -> Result<CeClaimVar, SynthesisError> {
+    if c_data_values.len() != claim.c.data.len() || x_values.len() != claim.X.as_slice().len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let r = alloc_k_slice(cs, &claim.r, &format!("{label}_r"))?;
+    let s_col = alloc_k_slice(cs, &claim.s_col, &format!("{label}_s_col"))?;
+    let y_ring = claim
+        .y_ring
+        .iter()
+        .enumerate()
+        .map(|(row_idx, row)| alloc_k_slice(cs, row, &format!("{label}_y_ring_{row_idx}")))
+        .collect::<Result<Vec<_>, _>>()?;
+    let ct = alloc_k_slice(cs, &claim.ct, &format!("{label}_ct"))?;
+    let y_zcol = alloc_k_slice(cs, &claim.y_zcol, &format!("{label}_y_zcol"))?;
+
+    Ok(CeClaimVar {
+        c_data: Vec::new(),
+        c_data_values: c_data_values.to_vec(),
+        x: Vec::new(),
+        x_values: x_values.to_vec(),
+        x_rows: claim.X.rows(),
+        x_cols: claim.X.cols(),
+        r,
+        r_values: claim.r.clone(),
+        s_col,
+        s_col_values: claim.s_col.clone(),
+        y_ring,
+        y_ring_values: claim.y_ring.clone(),
+        ct,
+        ct_values: claim.ct.clone(),
+        aux_openings: Vec::new(),
+        aux_openings_values: claim.aux_openings.clone(),
+        y_zcol,
+        y_zcol_values: claim.y_zcol.clone(),
+        c_step_coords: Vec::new(),
+        c_step_coords_values: claim.c_step_coords.clone(),
+        fold_digest_encoding: Vec::new(),
+        fold_digest_encoding_values: packed_bytes_field_values(&claim.fold_digest),
+        m_in: claim.m_in,
+        u_offset: claim.u_offset,
+        u_len: claim.u_len,
+    })
+}
+
+pub fn alloc_ce_claim_without_f_surface_with_shared_point<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaim<Commitment, F, K>,
+    c_data_values: &[F],
+    x_values: &[F],
+    shared_r: &[KNumVar],
+    shared_r_values: &[K],
+    shared_s_col: &[KNumVar],
+    shared_s_col_values: &[K],
+    label: &str,
+) -> Result<CeClaimVar, SynthesisError> {
+    if c_data_values.len() != claim.c.data.len()
+        || x_values.len() != claim.X.as_slice().len()
+        || claim.r.as_slice() != shared_r_values
+        || claim.s_col.as_slice() != shared_s_col_values
+    {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let y_ring = claim
+        .y_ring
+        .iter()
+        .enumerate()
+        .map(|(row_idx, row)| alloc_k_slice(cs, row, &format!("{label}_y_ring_{row_idx}")))
+        .collect::<Result<Vec<_>, _>>()?;
+    let ct = alias_ct_from_y_ring(&y_ring, &claim.y_ring, &claim.ct)?;
+    let y_zcol = alloc_k_slice(cs, &claim.y_zcol, &format!("{label}_y_zcol"))?;
+
+    Ok(CeClaimVar {
+        c_data: Vec::new(),
+        c_data_values: c_data_values.to_vec(),
+        x: Vec::new(),
+        x_values: x_values.to_vec(),
+        x_rows: claim.X.rows(),
+        x_cols: claim.X.cols(),
+        r: shared_r.to_vec(),
+        r_values: shared_r_values.to_vec(),
+        s_col: shared_s_col.to_vec(),
+        s_col_values: shared_s_col_values.to_vec(),
+        y_ring,
+        y_ring_values: claim.y_ring.clone(),
+        ct,
+        ct_values: claim.ct.clone(),
+        aux_openings: Vec::new(),
+        aux_openings_values: claim.aux_openings.clone(),
+        y_zcol,
+        y_zcol_values: claim.y_zcol.clone(),
+        c_step_coords: Vec::new(),
+        c_step_coords_values: claim.c_step_coords.clone(),
+        fold_digest_encoding: Vec::new(),
+        fold_digest_encoding_values: packed_bytes_field_values(&claim.fold_digest),
+        m_in: claim.m_in,
+        u_offset: claim.u_offset,
+        u_len: claim.u_len,
+    })
+}
+
+pub fn alloc_ce_claim_y_zcol_surface_with_shared_point<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaim<Commitment, F, K>,
+    c_data_values: &[F],
+    x_values: &[F],
+    shared_r: &[KNumVar],
+    shared_r_values: &[K],
+    shared_s_col: &[KNumVar],
+    shared_s_col_values: &[K],
+    label: &str,
+) -> Result<CeClaimVar, SynthesisError> {
+    if c_data_values.len() != claim.c.data.len()
+        || x_values.len() != claim.X.as_slice().len()
+        || claim.r.as_slice() != shared_r_values
+        || claim.s_col.as_slice() != shared_s_col_values
+    {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let y_zcol = alloc_k_slice(cs, &claim.y_zcol, &format!("{label}_y_zcol"))?;
+
+    Ok(CeClaimVar {
+        c_data: Vec::new(),
+        c_data_values: c_data_values.to_vec(),
+        x: Vec::new(),
+        x_values: x_values.to_vec(),
+        x_rows: claim.X.rows(),
+        x_cols: claim.X.cols(),
+        r: shared_r.to_vec(),
+        r_values: shared_r_values.to_vec(),
+        s_col: shared_s_col.to_vec(),
+        s_col_values: shared_s_col_values.to_vec(),
+        y_ring: Vec::new(),
+        y_ring_values: claim.y_ring.clone(),
+        ct: Vec::new(),
+        ct_values: claim.ct.clone(),
+        aux_openings: Vec::new(),
+        aux_openings_values: claim.aux_openings.clone(),
+        y_zcol,
+        y_zcol_values: claim.y_zcol.clone(),
+        c_step_coords: Vec::new(),
+        c_step_coords_values: claim.c_step_coords.clone(),
+        fold_digest_encoding: Vec::new(),
+        fold_digest_encoding_values: packed_bytes_field_values(&claim.fold_digest),
+        m_in: claim.m_in,
+        u_offset: claim.u_offset,
+        u_len: claim.u_len,
+    })
+}
+
+pub fn alloc_ce_claim_x_surface_with_shared_point<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaim<Commitment, F, K>,
+    c_data_values: &[F],
+    shared_r: &[KNumVar],
+    shared_r_values: &[K],
+    shared_s_col: &[KNumVar],
+    shared_s_col_values: &[K],
+    label: &str,
+) -> Result<CeClaimVar, SynthesisError> {
+    if c_data_values.len() != claim.c.data.len()
+        || claim.r.as_slice() != shared_r_values
+        || claim.s_col.as_slice() != shared_s_col_values
+    {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let x_values = claim.X.as_slice().to_vec();
+    let x = alloc_f_slice(cs, &x_values, &format!("{label}_x"))?;
+
+    Ok(CeClaimVar {
+        c_data: Vec::new(),
+        c_data_values: c_data_values.to_vec(),
+        x,
+        x_values,
+        x_rows: claim.X.rows(),
+        x_cols: claim.X.cols(),
+        r: shared_r.to_vec(),
+        r_values: shared_r_values.to_vec(),
+        s_col: shared_s_col.to_vec(),
+        s_col_values: shared_s_col_values.to_vec(),
+        y_ring: Vec::new(),
+        y_ring_values: claim.y_ring.clone(),
+        ct: Vec::new(),
+        ct_values: claim.ct.clone(),
+        aux_openings: Vec::new(),
+        aux_openings_values: claim.aux_openings.clone(),
+        y_zcol: Vec::new(),
+        y_zcol_values: claim.y_zcol.clone(),
+        c_step_coords: Vec::new(),
+        c_step_coords_values: claim.c_step_coords.clone(),
+        fold_digest_encoding: Vec::new(),
+        fold_digest_encoding_values: packed_bytes_field_values(&claim.fold_digest),
+        m_in: claim.m_in,
+        u_offset: claim.u_offset,
+        u_len: claim.u_len,
+    })
+}
+
+pub fn alloc_ce_claim_point_only_with_shared_point(
+    claim: &CeClaim<Commitment, F, K>,
+    c_data_values: &[F],
+    x_values: &[F],
+    shared_r: &[KNumVar],
+    shared_r_values: &[K],
+    shared_s_col: &[KNumVar],
+    shared_s_col_values: &[K],
+) -> Result<CeClaimVar, SynthesisError> {
+    if c_data_values.len() != claim.c.data.len()
+        || x_values.len() != claim.X.as_slice().len()
+        || claim.r.as_slice() != shared_r_values
+        || claim.s_col.as_slice() != shared_s_col_values
+    {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    Ok(CeClaimVar {
+        c_data: Vec::new(),
+        c_data_values: c_data_values.to_vec(),
+        x: Vec::new(),
+        x_values: x_values.to_vec(),
+        x_rows: claim.X.rows(),
+        x_cols: claim.X.cols(),
+        r: shared_r.to_vec(),
+        r_values: shared_r_values.to_vec(),
+        s_col: shared_s_col.to_vec(),
+        s_col_values: shared_s_col_values.to_vec(),
+        y_ring: Vec::new(),
+        y_ring_values: claim.y_ring.clone(),
+        ct: Vec::new(),
+        ct_values: claim.ct.clone(),
+        aux_openings: Vec::new(),
+        aux_openings_values: claim.aux_openings.clone(),
+        y_zcol: Vec::new(),
+        y_zcol_values: claim.y_zcol.clone(),
+        c_step_coords: Vec::new(),
+        c_step_coords_values: claim.c_step_coords.clone(),
+        fold_digest_encoding: Vec::new(),
+        fold_digest_encoding_values: packed_bytes_field_values(&claim.fold_digest),
+        m_in: claim.m_in,
+        u_offset: claim.u_offset,
+        u_len: claim.u_len,
+    })
+}
+
+fn alias_ct_from_y_ring(
+    y_ring: &[Vec<KNumVar>],
+    y_ring_values: &[Vec<K>],
+    ct_values: &[K],
+) -> Result<Vec<KNumVar>, SynthesisError> {
+    if ct_values.len() > y_ring.len() || y_ring_values.len() != y_ring.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let mut ct = Vec::with_capacity(ct_values.len());
+    for (idx, expected) in ct_values.iter().enumerate() {
+        let row = y_ring.get(idx).ok_or(SynthesisError::Unsatisfiable)?;
+        let row_values = y_ring_values
+            .get(idx)
+            .ok_or(SynthesisError::Unsatisfiable)?;
+        let first = row.first().ok_or(SynthesisError::Unsatisfiable)?;
+        if row_values.first().copied() != Some(*expected) {
+            return Err(SynthesisError::Unsatisfiable);
+        }
+        ct.push(first.clone());
+    }
+    Ok(ct)
+}
+
+fn push_constant_lc_field(
+    field_terms: &mut Vec<Vec<(Variable, SpartanF)>>,
+    field_constants: &mut Vec<SpartanF>,
+    field_values: &mut Vec<SpartanF>,
+    value: SpartanF,
+) {
+    field_terms.push(Vec::new());
+    field_constants.push(value);
+    field_values.push(value);
+}
+
+fn push_variable_lc_field(
+    field_terms: &mut Vec<Vec<(Variable, SpartanF)>>,
+    field_constants: &mut Vec<SpartanF>,
+    field_values: &mut Vec<SpartanF>,
+    variable: Variable,
+    value: SpartanF,
+) {
+    field_terms.push(vec![(variable, SpartanF::ONE)]);
+    field_constants.push(SpartanF::ZERO);
+    field_values.push(value);
+}
+
+fn extend_packed_bytes_as_lc_fields(
+    field_terms: &mut Vec<Vec<(Variable, SpartanF)>>,
+    field_constants: &mut Vec<SpartanF>,
+    field_values: &mut Vec<SpartanF>,
+    bytes: &[u8],
+) {
+    for value in packed_bytes_field_values(bytes) {
+        push_constant_lc_field(field_terms, field_constants, field_values, value);
+    }
+}
+
+fn extend_allocated_slice_as_lc_fields(
+    field_terms: &mut Vec<Vec<(Variable, SpartanF)>>,
+    field_constants: &mut Vec<SpartanF>,
+    field_values: &mut Vec<SpartanF>,
+    values: &[AllocatedNum<SpartanF>],
+    native_values: &[SpartanF],
+) -> Result<(), SynthesisError> {
+    if values.len() != native_values.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    for (value, native_value) in values.iter().zip(native_values.iter()) {
+        push_variable_lc_field(
+            field_terms,
+            field_constants,
+            field_values,
+            value.get_variable(),
+            *native_value,
+        );
+    }
+    Ok(())
+}
+
+fn extend_f_slice_as_lc_fields(
+    field_terms: &mut Vec<Vec<(Variable, SpartanF)>>,
+    field_constants: &mut Vec<SpartanF>,
+    field_values: &mut Vec<SpartanF>,
+    values: &[AllocatedNum<SpartanF>],
+    native_values: &[F],
+) -> Result<(), SynthesisError> {
+    if values.len() != native_values.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    push_constant_lc_field(
+        field_terms,
+        field_constants,
+        field_values,
+        SpartanF::from_canonical_u64(values.len() as u64),
+    );
+    for (value, native_value) in values.iter().zip(native_values.iter()) {
+        push_variable_lc_field(
+            field_terms,
+            field_constants,
+            field_values,
+            value.get_variable(),
+            SpartanF::from_canonical_u64(native_value.as_canonical_u64()),
+        );
+    }
+    Ok(())
+}
+
+fn extend_f_slice_prefix_as_lc_fields(
+    field_terms: &mut Vec<Vec<(Variable, SpartanF)>>,
+    field_constants: &mut Vec<SpartanF>,
+    field_values: &mut Vec<SpartanF>,
+    values: &[AllocatedNum<SpartanF>],
+    logical_values: &[F],
+) -> Result<(), SynthesisError> {
+    if values.len() < logical_values.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    extend_f_slice_as_lc_fields(
+        field_terms,
+        field_constants,
+        field_values,
+        &values[..logical_values.len()],
+        logical_values,
+    )
+}
+
+fn extend_superneo_compact_x_as_lc_fields(
+    field_terms: &mut Vec<Vec<(Variable, SpartanF)>>,
+    field_constants: &mut Vec<SpartanF>,
+    field_values: &mut Vec<SpartanF>,
+    values: &[AllocatedNum<SpartanF>],
+    x_rows: usize,
+    x_cols: usize,
+    native_values: &[F],
+) -> Result<(), SynthesisError> {
+    if x_rows != D || native_values.len() != x_cols {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    push_constant_lc_field(
+        field_terms,
+        field_constants,
+        field_values,
+        SpartanF::from_canonical_u64(x_cols as u64),
+    );
+    let use_compact_values = values.len() == x_cols;
+    let use_full_values = values.len() == x_rows.saturating_mul(x_cols);
+    if !use_compact_values && !use_full_values {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    for (col, native_value) in native_values.iter().enumerate() {
+        let idx = if use_compact_values {
+            col
+        } else {
+            (col % x_rows) * x_cols + (col / x_rows)
+        };
+        push_variable_lc_field(
+            field_terms,
+            field_constants,
+            field_values,
+            values[idx].get_variable(),
+            SpartanF::from_canonical_u64(native_value.as_canonical_u64()),
+        );
+    }
+    Ok(())
+}
+
+fn superneo_compact_x_values(values: &[F], x_rows: usize, x_cols: usize) -> Result<Vec<F>, SynthesisError> {
+    if values.len() == x_cols {
+        return Ok(values.to_vec());
+    }
+    if x_rows != D || values.len() != x_rows.saturating_mul(x_cols) {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let mut compact = Vec::with_capacity(x_cols);
+    for col in 0..x_cols {
+        compact.push(values[(col % x_rows) * x_cols + (col / x_rows)]);
+    }
+    Ok(compact)
+}
+
+fn extend_k_slice_as_lc_fields(
+    field_terms: &mut Vec<Vec<(Variable, SpartanF)>>,
+    field_constants: &mut Vec<SpartanF>,
+    field_values: &mut Vec<SpartanF>,
+    values: &[KNumVar],
+    native_values: &[K],
+) -> Result<(), SynthesisError> {
+    if values.len() != native_values.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    push_constant_lc_field(
+        field_terms,
+        field_constants,
+        field_values,
+        SpartanF::from_canonical_u64(values.len() as u64),
+    );
+    let coeff_len = native_values
+        .first()
+        .map(|value| value.as_coeffs().len())
+        .unwrap_or(0);
+    push_constant_lc_field(
+        field_terms,
+        field_constants,
+        field_values,
+        SpartanF::from_canonical_u64(coeff_len as u64),
+    );
+    for (value, native_value) in values.iter().zip(native_values.iter()) {
+        let coeffs = native_value.as_coeffs();
+        push_variable_lc_field(
+            field_terms,
+            field_constants,
+            field_values,
+            value.c0,
+            SpartanF::from_canonical_u64(coeffs[0].as_canonical_u64()),
+        );
+        push_variable_lc_field(
+            field_terms,
+            field_constants,
+            field_values,
+            value.c1,
+            SpartanF::from_canonical_u64(coeffs[1].as_canonical_u64()),
+        );
+    }
+    Ok(())
+}
+
+fn extend_k_slice_prefix_as_lc_fields(
+    field_terms: &mut Vec<Vec<(Variable, SpartanF)>>,
+    field_constants: &mut Vec<SpartanF>,
+    field_values: &mut Vec<SpartanF>,
+    values: &[KNumVar],
+    native_values: &[K],
+) -> Result<(), SynthesisError> {
+    if values.len() < native_values.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    extend_k_slice_as_lc_fields(
+        field_terms,
+        field_constants,
+        field_values,
+        &values[..native_values.len()],
+        native_values,
+    )
+}
+
+fn alloc_claim_scalar_as_lc_field<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    field_terms: &mut Vec<Vec<(Variable, SpartanF)>>,
+    field_constants: &mut Vec<SpartanF>,
+    field_values: &mut Vec<SpartanF>,
+    value: u64,
+    label: &str,
+) -> Result<(), SynthesisError> {
+    let scalar = SpartanF::from_canonical_u64(value);
+    let allocated = AllocatedNum::alloc(cs.namespace(|| label.to_string()), || Ok(scalar))?;
+    push_variable_lc_field(
+        field_terms,
+        field_constants,
+        field_values,
+        allocated.get_variable(),
+        scalar,
+    );
+    Ok(())
+}
+
+fn me_digest_field_capacity(
+    c_data_len: usize,
+    x_len: usize,
+    r_len: usize,
+    s_col_len: usize,
+    y_zcol_len: usize,
+    y_ring_lens: impl Iterator<Item = usize>,
+    ct_len: usize,
+    aux_openings_len: usize,
+    c_step_coords_len: usize,
+    fold_digest_encoding_len: usize,
+) -> usize {
+    let mut total = packed_bytes_field_values(b"neo/ccs/me_input_digest_poseidon/v2").len();
+    total += 1 + c_data_len;
+    total += 1 + x_len;
+    total += 2 + (2 * r_len);
+    total += 2 + (2 * s_col_len);
+    total += 2 + (2 * y_zcol_len);
+    total += 1;
+    for row_len in y_ring_lens {
+        total += 2 + (2 * row_len);
+    }
+    total += 2 + (2 * ct_len);
+    total += 2 + (2 * aux_openings_len);
+    total += 1 + c_step_coords_len;
+    total += 3;
+    total + fold_digest_encoding_len
+}
+
+fn me_input_projection_digest_field_capacity(
+    c_data_len: usize,
+    x_len: usize,
+    r_len: usize,
+    y_ring_lens: impl IntoIterator<Item = usize>,
+) -> usize {
+    let mut total = packed_bytes_field_values(b"neo/ccs/me_input_projection_digest_poseidon/v2").len();
+    total += 1 + c_data_len;
+    total += 1 + x_len;
+    total += 2 + (2 * r_len);
+    total += 1;
+    for row_len in y_ring_lens {
+        total += 2 + (2 * row_len);
+    }
+    total + 1
+}
+
+pub fn me_digest_poseidon<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaimVar,
+    label: &str,
+) -> Result<[AllocatedNum<SpartanF>; 4], SynthesisError> {
+    let field_capacity = me_digest_field_capacity(
+        claim.c_data.len(),
+        claim.x.len(),
+        claim.r.len(),
+        claim.s_col.len(),
+        claim.y_zcol.len(),
+        claim.y_ring.iter().map(|row| row.len()),
+        claim.ct.len(),
+        claim.aux_openings.len(),
+        claim.c_step_coords.len(),
+        claim.fold_digest_encoding.len(),
+    );
+    let mut field_terms = Vec::with_capacity(field_capacity);
+    let mut field_constants = Vec::with_capacity(field_capacity);
+    let mut field_values = Vec::with_capacity(field_capacity);
+    extend_packed_bytes_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        b"neo/ccs/me_input_digest_poseidon/v2",
+    );
+    extend_f_slice_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.c_data,
+        &claim.c_data_values,
+    )?;
+    extend_f_slice_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.x,
+        &claim.x_values,
+    )?;
+    extend_k_slice_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.r,
+        &claim.r_values,
+    )?;
+    extend_k_slice_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.s_col,
+        &claim.s_col_values,
+    )?;
+    extend_k_slice_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.y_zcol,
+        &claim.y_zcol_values,
+    )?;
+
+    push_constant_lc_field(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        SpartanF::from_canonical_u64(claim.y_ring.len() as u64),
+    );
+    for (row_idx, row) in claim.y_ring.iter().enumerate() {
+        let _ = row_idx;
+        extend_k_slice_as_lc_fields(
+            &mut field_terms,
+            &mut field_constants,
+            &mut field_values,
+            row,
+            &claim.y_ring_values[row_idx],
+        )?;
+    }
+
+    extend_k_slice_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.ct,
+        &claim.ct_values,
+    )?;
+    extend_k_slice_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.aux_openings,
+        &claim.aux_openings_values,
+    )?;
+    extend_f_slice_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.c_step_coords,
+        &claim.c_step_coords_values,
+    )?;
+    alloc_claim_scalar_as_lc_field(
+        &mut cs.namespace(|| format!("{label}_m_in")),
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        claim.m_in as u64,
+        "m_in",
+    )?;
+    alloc_claim_scalar_as_lc_field(
+        &mut cs.namespace(|| format!("{label}_u_offset")),
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        claim.u_offset as u64,
+        "u_offset",
+    )?;
+    alloc_claim_scalar_as_lc_field(
+        &mut cs.namespace(|| format!("{label}_u_len")),
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        claim.u_len as u64,
+        "u_len",
+    )?;
+    extend_allocated_slice_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.fold_digest_encoding,
+        &claim.fold_digest_encoding_values,
+    )?;
+
+    hash_field_linear_combinations_raw(
+        cs.namespace(|| format!("{label}_hash")),
+        &field_terms,
+        &field_constants,
+        &field_values,
+    )
+}
+
+pub fn me_input_projection_digest_poseidon<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaimVar,
+    label: &str,
+) -> Result<[AllocatedNum<SpartanF>; 4], SynthesisError> {
+    let field_capacity = me_input_projection_digest_field_capacity(
+        claim.c_data.len(),
+        claim.m_in,
+        claim.r.len(),
+        claim.y_ring.iter().map(|row| row.len()),
+    );
+    let mut field_terms = Vec::with_capacity(field_capacity);
+    let mut field_constants = Vec::with_capacity(field_capacity);
+    let mut field_values = Vec::with_capacity(field_capacity);
+    extend_packed_bytes_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        b"neo/ccs/me_input_projection_digest_poseidon/v2",
+    );
+    extend_f_slice_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.c_data,
+        &claim.c_data_values,
+    )?;
+    extend_superneo_compact_x_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.x,
+        claim.x_rows,
+        claim.m_in,
+        &superneo_compact_x_values(&claim.x_values, claim.x_rows, claim.x_cols)?,
+    )?;
+    extend_k_slice_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.r,
+        &claim.r_values,
+    )?;
+    push_constant_lc_field(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        SpartanF::from_canonical_u64(claim.y_ring.len() as u64),
+    );
+    for (row_idx, row) in claim.y_ring.iter().enumerate() {
+        extend_k_slice_as_lc_fields(
+            &mut field_terms,
+            &mut field_constants,
+            &mut field_values,
+            row,
+            &claim.y_ring_values[row_idx],
+        )?;
+    }
+    hash_field_linear_combinations_raw(
+        cs.namespace(|| format!("{label}_hash")),
+        &field_terms,
+        &field_constants,
+        &field_values,
+    )
+}
+
+pub fn me_digest_poseidon_with_native_claim<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaimVar,
+    native_claim: &CeClaim<Commitment, F, K>,
+    label: &str,
+) -> Result<[AllocatedNum<SpartanF>; 4], SynthesisError> {
+    if claim.c_data.len() < native_claim.c.data.len()
+        || claim.x.len() < native_claim.X.as_slice().len()
+        || claim.r.len() < native_claim.r.len()
+        || claim.s_col.len() < native_claim.s_col.len()
+        || claim.y_zcol.len() < native_claim.y_zcol.len()
+        || claim.y_ring.len() < native_claim.y_ring.len()
+        || claim.ct.len() < native_claim.ct.len()
+        || claim.aux_openings.len() < native_claim.aux_openings.len()
+        || claim.c_step_coords.len() < native_claim.c_step_coords.len()
+    {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let field_capacity = me_digest_field_capacity(
+        native_claim.c.data.len(),
+        native_claim.X.as_slice().len(),
+        native_claim.r.len(),
+        native_claim.s_col.len(),
+        native_claim.y_zcol.len(),
+        native_claim.y_ring.iter().map(|row| row.len()),
+        native_claim.ct.len(),
+        native_claim.aux_openings.len(),
+        native_claim.c_step_coords.len(),
+        claim.fold_digest_encoding.len(),
+    );
+    let mut field_terms = Vec::with_capacity(field_capacity);
+    let mut field_constants = Vec::with_capacity(field_capacity);
+    let mut field_values = Vec::with_capacity(field_capacity);
+    extend_packed_bytes_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        b"neo/ccs/me_input_digest_poseidon/v2",
+    );
+    extend_f_slice_prefix_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.c_data,
+        &native_claim.c.data,
+    )?;
+    extend_f_slice_prefix_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.x,
+        native_claim.X.as_slice(),
+    )?;
+    extend_k_slice_prefix_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.r,
+        &native_claim.r,
+    )?;
+    extend_k_slice_prefix_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.s_col,
+        &native_claim.s_col,
+    )?;
+    extend_k_slice_prefix_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.y_zcol,
+        &native_claim.y_zcol,
+    )?;
+
+    push_constant_lc_field(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        SpartanF::from_canonical_u64(native_claim.y_ring.len() as u64),
+    );
+    for (row_idx, native_row) in native_claim.y_ring.iter().enumerate() {
+        let _ = row_idx;
+        extend_k_slice_prefix_as_lc_fields(
+            &mut field_terms,
+            &mut field_constants,
+            &mut field_values,
+            &claim.y_ring[row_idx],
+            native_row,
+        )?;
+    }
+
+    extend_k_slice_prefix_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.ct,
+        &native_claim.ct,
+    )?;
+    extend_k_slice_prefix_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.aux_openings,
+        &native_claim.aux_openings,
+    )?;
+    extend_f_slice_prefix_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.c_step_coords,
+        &native_claim.c_step_coords,
+    )?;
+    alloc_claim_scalar_as_lc_field(
+        &mut cs.namespace(|| format!("{label}_m_in")),
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        native_claim.m_in as u64,
+        "m_in",
+    )?;
+    alloc_claim_scalar_as_lc_field(
+        &mut cs.namespace(|| format!("{label}_u_offset")),
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        native_claim.u_offset as u64,
+        "u_offset",
+    )?;
+    alloc_claim_scalar_as_lc_field(
+        &mut cs.namespace(|| format!("{label}_u_len")),
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        native_claim.u_len as u64,
+        "u_len",
+    )?;
+    extend_allocated_slice_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.fold_digest_encoding,
+        &claim.fold_digest_encoding_values,
+    )?;
+
+    hash_field_linear_combinations_raw(
+        cs.namespace(|| format!("{label}_hash")),
+        &field_terms,
+        &field_constants,
+        &field_values,
+    )
+}
+
+pub fn me_input_projection_digest_poseidon_with_native_claim<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    claim: &CeClaimVar,
+    native_claim: &CeClaim<Commitment, F, K>,
+    label: &str,
+) -> Result<[AllocatedNum<SpartanF>; 4], SynthesisError> {
+    if claim.c_data.len() < native_claim.c.data.len()
+        || claim.r.len() < native_claim.r.len()
+        || claim.y_ring.len() < native_claim.y_ring.len()
+    {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let field_capacity = me_input_projection_digest_field_capacity(
+        native_claim.c.data.len(),
+        native_claim.m_in,
+        native_claim.r.len(),
+        native_claim.y_ring.iter().map(|row| row.len()),
+    );
+    let mut field_terms = Vec::with_capacity(field_capacity);
+    let mut field_constants = Vec::with_capacity(field_capacity);
+    let mut field_values = Vec::with_capacity(field_capacity);
+    extend_packed_bytes_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        b"neo/ccs/me_input_projection_digest_poseidon/v2",
+    );
+    extend_f_slice_prefix_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.c_data,
+        &native_claim.c.data,
+    )?;
+    let native_compact_x = compact_x_values_from_native_claim(native_claim)?;
+    extend_superneo_compact_x_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.x,
+        claim.x_rows,
+        native_claim.m_in,
+        &native_compact_x,
+    )?;
+    extend_k_slice_prefix_as_lc_fields(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        &claim.r,
+        &native_claim.r,
+    )?;
+    push_constant_lc_field(
+        &mut field_terms,
+        &mut field_constants,
+        &mut field_values,
+        SpartanF::from_canonical_u64(native_claim.y_ring.len() as u64),
+    );
+    for (row_idx, native_row) in native_claim.y_ring.iter().enumerate() {
+        extend_k_slice_prefix_as_lc_fields(
+            &mut field_terms,
+            &mut field_constants,
+            &mut field_values,
+            &claim.y_ring[row_idx],
+            native_row,
+        )?;
+    }
+    hash_field_linear_combinations_raw(
+        cs.namespace(|| format!("{label}_hash")),
+        &field_terms,
+        &field_constants,
+        &field_values,
+    )
+}
+
+pub fn me_digest_poseidon_values(claim: &CeClaimVar) -> [SpartanF; 4] {
+    let mut preimage = Vec::new();
+    preimage.extend(packed_bytes_field_values(b"neo/ccs/me_input_digest_poseidon/v2"));
+    extend_f_slice_values(&mut preimage, &claim.c_data_values);
+    extend_f_slice_values(&mut preimage, &claim.x_values);
+    extend_k_slice_values(&mut preimage, &claim.r_values);
+    extend_k_slice_values(&mut preimage, &claim.s_col_values);
+    extend_k_slice_values(&mut preimage, &claim.y_zcol_values);
+
+    preimage.push(SpartanF::from_canonical_u64(claim.y_ring.len() as u64));
+    for row in &claim.y_ring_values {
+        extend_k_slice_values(&mut preimage, row);
+    }
+
+    extend_k_slice_values(&mut preimage, &claim.ct_values);
+    extend_k_slice_values(&mut preimage, &claim.aux_openings_values);
+    extend_f_slice_values(&mut preimage, &claim.c_step_coords_values);
+    preimage.push(SpartanF::from_canonical_u64(claim.m_in as u64));
+    preimage.push(SpartanF::from_canonical_u64(claim.u_offset as u64));
+    preimage.push(SpartanF::from_canonical_u64(claim.u_len as u64));
+    preimage.extend(claim.fold_digest_encoding_values.iter().copied());
+
+    neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash(
+        &preimage
+            .iter()
+            .map(|value| F::from_u64(value.to_canonical_u64()))
+            .collect::<Vec<_>>(),
+    )
+    .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64()))
+}
+
+pub fn me_input_projection_digest_poseidon_values(claim: &CeClaimVar) -> Result<[SpartanF; 4], SynthesisError> {
+    let mut preimage = Vec::new();
+    preimage.extend(packed_bytes_field_values(
+        b"neo/ccs/me_input_projection_digest_poseidon/v2",
+    ));
+    extend_f_slice_values(&mut preimage, &claim.c_data_values);
+    preimage.push(SpartanF::from_canonical_u64(claim.m_in as u64));
+    let compact_x_values = superneo_compact_x_values(&claim.x_values, claim.x_rows, claim.x_cols)?;
+    for value in compact_x_values {
+        preimage.push(SpartanF::from_canonical_u64(value.as_canonical_u64()));
+    }
+    extend_k_slice_values(&mut preimage, &claim.r_values);
+
+    preimage.push(SpartanF::from_canonical_u64(claim.y_ring.len() as u64));
+    for row in &claim.y_ring_values {
+        extend_k_slice_values(&mut preimage, row);
+    }
+
+    Ok(neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash(
+        &preimage
+            .iter()
+            .map(|value| F::from_u64(value.to_canonical_u64()))
+            .collect::<Vec<_>>(),
+    )
+    .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64())))
+}
+
+pub fn me_digest_poseidon_values_from_native_claim(claim: &CeClaim<Commitment, F, K>) -> [SpartanF; 4] {
+    let mut preimage = Vec::new();
+    preimage.extend(packed_bytes_field_values(b"neo/ccs/me_input_digest_poseidon/v2"));
+    extend_f_slice_values(&mut preimage, &claim.c.data);
+    extend_f_slice_values(&mut preimage, claim.X.as_slice());
+    extend_k_slice_values(&mut preimage, &claim.r);
+    extend_k_slice_values(&mut preimage, &claim.s_col);
+    extend_k_slice_values(&mut preimage, &claim.y_zcol);
+
+    preimage.push(SpartanF::from_canonical_u64(claim.y_ring.len() as u64));
+    for row in &claim.y_ring {
+        extend_k_slice_values(&mut preimage, row);
+    }
+
+    extend_k_slice_values(&mut preimage, &claim.ct);
+    extend_k_slice_values(&mut preimage, &claim.aux_openings);
+    extend_f_slice_values(&mut preimage, &claim.c_step_coords);
+    preimage.push(SpartanF::from_canonical_u64(claim.m_in as u64));
+    preimage.push(SpartanF::from_canonical_u64(claim.u_offset as u64));
+    preimage.push(SpartanF::from_canonical_u64(claim.u_len as u64));
+    preimage.extend(packed_bytes_field_values(&claim.fold_digest));
+
+    neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash(
+        &preimage
+            .iter()
+            .map(|value| F::from_u64(value.to_canonical_u64()))
+            .collect::<Vec<_>>(),
+    )
+    .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64()))
+}
+
+pub fn me_input_projection_digest_poseidon_values_from_native_claim(
+    claim: &CeClaim<Commitment, F, K>,
+) -> Result<[SpartanF; 4], SynthesisError> {
+    let mut preimage = Vec::new();
+    preimage.extend(packed_bytes_field_values(
+        b"neo/ccs/me_input_projection_digest_poseidon/v2",
+    ));
+    extend_f_slice_values(&mut preimage, &claim.c.data);
+    preimage.push(SpartanF::from_canonical_u64(claim.m_in as u64));
+    for value in compact_x_values_from_native_claim(claim)? {
+        preimage.push(SpartanF::from_canonical_u64(value.as_canonical_u64()));
+    }
+    extend_k_slice_values(&mut preimage, &claim.r);
+
+    preimage.push(SpartanF::from_canonical_u64(claim.y_ring.len() as u64));
+    for row in &claim.y_ring {
+        extend_k_slice_values(&mut preimage, row);
+    }
+
+    Ok(neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash(
+        &preimage
+            .iter()
+            .map(|value| F::from_u64(value.to_canonical_u64()))
+            .collect::<Vec<_>>(),
+    )
+    .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64())))
+}
+
+pub fn enforce_claim_eq_native<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    actual: &CeClaimVar,
+    expected: &CeClaim<Commitment, F, K>,
+    label: &str,
+) -> Result<(), SynthesisError> {
+    enforce_f_slice_eq_native(
+        &mut cs.namespace(|| "c_data"),
+        &actual.c_data,
+        &expected.c.data,
+        &format!("{label}_c_data"),
+    )?;
+    enforce_f_slice_eq_native(
+        &mut cs.namespace(|| "x"),
+        &actual.x,
+        expected.X.as_slice(),
+        &format!("{label}_x"),
+    )?;
+    enforce_k_slice_eq_native(&mut cs.namespace(|| "r"), &actual.r, &expected.r, &format!("{label}_r"))?;
+    enforce_k_slice_eq_native(
+        &mut cs.namespace(|| "s_col"),
+        &actual.s_col,
+        &expected.s_col,
+        &format!("{label}_s_col"),
+    )?;
+    if actual.y_ring.len() != expected.y_ring.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    for (row_idx, (actual_row, expected_row)) in actual.y_ring.iter().zip(expected.y_ring.iter()).enumerate() {
+        enforce_k_slice_eq_native(
+            &mut cs.namespace(|| format!("y_ring_{row_idx}")),
+            actual_row,
+            expected_row,
+            &format!("{label}_y_ring_{row_idx}"),
+        )?;
+    }
+    enforce_k_slice_eq_native(
+        &mut cs.namespace(|| "ct"),
+        &actual.ct,
+        &expected.ct,
+        &format!("{label}_ct"),
+    )?;
+    enforce_k_slice_eq_native(
+        &mut cs.namespace(|| "aux_openings"),
+        &actual.aux_openings,
+        &expected.aux_openings,
+        &format!("{label}_aux_openings"),
+    )?;
+    enforce_k_slice_eq_native(
+        &mut cs.namespace(|| "y_zcol"),
+        &actual.y_zcol,
+        &expected.y_zcol,
+        &format!("{label}_y_zcol"),
+    )?;
+    enforce_f_slice_eq_native(
+        &mut cs.namespace(|| "c_step_coords"),
+        &actual.c_step_coords,
+        &expected.c_step_coords,
+        &format!("{label}_c_step_coords"),
+    )?;
+    enforce_packed_bytes_eq_native(
+        &mut cs.namespace(|| "fold_digest"),
+        &actual.fold_digest_encoding,
+        &expected.fold_digest,
+        &format!("{label}_fold_digest"),
+    )?;
+    if actual.m_in != expected.m_in || actual.u_offset != expected.u_offset || actual.u_len != expected.u_len {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    Ok(())
+}
+
+pub fn enforce_claim_projection_eq<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    actual: &CeClaimVar,
+    expected: &CeClaimVar,
+    label: &str,
+) -> Result<(), SynthesisError> {
+    if actual.c_data.len() != expected.c_data.len()
+        || actual.m_in != expected.m_in
+        || actual.r.len() != expected.r.len()
+        || actual.y_ring.len() != expected.y_ring.len()
+    {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    enforce_f_slice_eq(
+        &mut cs.namespace(|| "c_data"),
+        &actual.c_data,
+        &expected.c_data,
+        &format!("{label}_c_data"),
+    )?;
+    enforce_claim_x_projection_eq(&mut cs.namespace(|| "x"), actual, expected, &format!("{label}_x"))?;
+    enforce_k_slice_eq(&mut cs.namespace(|| "r"), &actual.r, &expected.r, &format!("{label}_r"))?;
+    for (row_idx, (actual_row, expected_row)) in actual.y_ring.iter().zip(expected.y_ring.iter()).enumerate() {
+        enforce_k_slice_eq(
+            &mut cs.namespace(|| format!("y_ring_{row_idx}")),
+            actual_row,
+            expected_row,
+            &format!("{label}_y_ring_{row_idx}"),
+        )?;
+    }
+    Ok(())
+}
+
+pub fn enforce_claim_projection_eq_native<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    actual: &CeClaimVar,
+    expected: &CeClaim<Commitment, F, K>,
+    label: &str,
+) -> Result<(), SynthesisError> {
+    if actual.c_data.len() != expected.c.data.len()
+        || actual.m_in != expected.m_in
+        || actual.r.len() != expected.r.len()
+        || actual.y_ring.len() != expected.y_ring.len()
+    {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let _ = compact_x_values_from_native_claim(expected)?;
+    enforce_f_slice_eq_native(
+        &mut cs.namespace(|| "c_data"),
+        &actual.c_data,
+        &expected.c.data,
+        &format!("{label}_c_data"),
+    )?;
+    enforce_claim_x_projection_eq_native(&mut cs.namespace(|| "x"), actual, expected, &format!("{label}_x"))?;
+    enforce_k_slice_eq_native(&mut cs.namespace(|| "r"), &actual.r, &expected.r, &format!("{label}_r"))?;
+    for (row_idx, (actual_row, expected_row)) in actual.y_ring.iter().zip(expected.y_ring.iter()).enumerate() {
+        enforce_k_slice_eq_native(
+            &mut cs.namespace(|| format!("y_ring_{row_idx}")),
+            actual_row,
+            expected_row,
+            &format!("{label}_y_ring_{row_idx}"),
+        )?;
+    }
+    Ok(())
+}
+
+pub fn enforce_claim_y_ring_eq_native<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    actual: &CeClaimVar,
+    expected: &CeClaim<Commitment, F, K>,
+    label: &str,
+) -> Result<(), SynthesisError> {
+    if actual.y_ring.len() < expected.y_ring.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    for (row_idx, (actual_row, expected_row)) in actual.y_ring.iter().zip(expected.y_ring.iter()).enumerate() {
+        enforce_k_slice_eq_native(
+            &mut cs.namespace(|| format!("y_ring_{row_idx}")),
+            actual_row,
+            expected_row,
+            &format!("{label}_y_ring_{row_idx}"),
+        )?;
+    }
+    Ok(())
+}
+
+pub fn enforce_claim_y_zcol_eq_native<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    actual: &CeClaimVar,
+    expected: &CeClaim<Commitment, F, K>,
+    label: &str,
+) -> Result<(), SynthesisError> {
+    if actual.y_zcol.len() < expected.y_zcol.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    enforce_k_slice_eq_native(cs, &actual.y_zcol, &expected.y_zcol, label)
+}
+
+pub fn enforce_claim_eq<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    actual: &CeClaimVar,
+    expected: &CeClaimVar,
+    label: &str,
+) -> Result<(), SynthesisError> {
+    enforce_f_slice_eq(
+        &mut cs.namespace(|| "c_data"),
+        &actual.c_data,
+        &expected.c_data,
+        &format!("{label}_c_data"),
+    )?;
+    enforce_f_slice_eq(&mut cs.namespace(|| "x"), &actual.x, &expected.x, &format!("{label}_x"))?;
+    enforce_k_slice_eq(&mut cs.namespace(|| "r"), &actual.r, &expected.r, &format!("{label}_r"))?;
+    enforce_k_slice_eq(
+        &mut cs.namespace(|| "s_col"),
+        &actual.s_col,
+        &expected.s_col,
+        &format!("{label}_s_col"),
+    )?;
+    if actual.y_ring.len() != expected.y_ring.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    for (row_idx, (actual_row, expected_row)) in actual.y_ring.iter().zip(expected.y_ring.iter()).enumerate() {
+        enforce_k_slice_eq(
+            &mut cs.namespace(|| format!("y_ring_{row_idx}")),
+            actual_row,
+            expected_row,
+            &format!("{label}_y_ring_{row_idx}"),
+        )?;
+    }
+    enforce_k_slice_eq(
+        &mut cs.namespace(|| "ct"),
+        &actual.ct,
+        &expected.ct,
+        &format!("{label}_ct"),
+    )?;
+    enforce_k_slice_eq(
+        &mut cs.namespace(|| "aux_openings"),
+        &actual.aux_openings,
+        &expected.aux_openings,
+        &format!("{label}_aux_openings"),
+    )?;
+    enforce_k_slice_eq(
+        &mut cs.namespace(|| "y_zcol"),
+        &actual.y_zcol,
+        &expected.y_zcol,
+        &format!("{label}_y_zcol"),
+    )?;
+    enforce_f_slice_eq(
+        &mut cs.namespace(|| "c_step_coords"),
+        &actual.c_step_coords,
+        &expected.c_step_coords,
+        &format!("{label}_c_step_coords"),
+    )?;
+    enforce_f_slice_eq(
+        &mut cs.namespace(|| "fold_digest"),
+        &actual.fold_digest_encoding,
+        &expected.fold_digest_encoding,
+        &format!("{label}_fold_digest"),
+    )?;
+    if actual.m_in != expected.m_in || actual.u_offset != expected.u_offset || actual.u_len != expected.u_len {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    Ok(())
+}
+
+fn enforce_claim_x_projection_eq_native<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    actual: &CeClaimVar,
+    expected: &CeClaim<Commitment, F, K>,
+    label: &str,
+) -> Result<(), SynthesisError> {
+    if actual.m_in != expected.m_in {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let expected_compact_x = compact_x_values_from_native_claim(expected)?;
+    if actual.x.len() == actual.m_in {
+        for (col, expected_value) in expected_compact_x.iter().enumerate() {
+            let expected_x = SpartanF::from_canonical_u64(expected_value.as_canonical_u64());
+            cs.enforce(
+                || format!("{label}_{col}"),
+                |lc| lc + actual.x[col].get_variable(),
+                |lc| lc + CS::one(),
+                |lc| lc + (expected_x, CS::one()),
+            );
+        }
+        return Ok(());
+    }
+    if actual.x_rows != D
+        || actual.x_cols != expected.m_in
+        || actual.x.len() != actual.x_rows.saturating_mul(actual.x_cols)
+    {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    for col in 0..actual.m_in {
+        let row = col % D;
+        let block = col / D;
+        let idx = row
+            .checked_mul(actual.x_cols)
+            .and_then(|start| start.checked_add(block))
+            .ok_or(SynthesisError::Unsatisfiable)?;
+        let actual_x = actual.x.get(idx).ok_or(SynthesisError::Unsatisfiable)?;
+        let expected_x = SpartanF::from_canonical_u64(expected_compact_x[col].as_canonical_u64());
+        cs.enforce(
+            || format!("{label}_{row}_{col}"),
+            |lc| lc + actual_x.get_variable(),
+            |lc| lc + CS::one(),
+            |lc| lc + (expected_x, CS::one()),
+        );
+    }
+    Ok(())
+}
+
+fn enforce_claim_x_projection_eq<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    actual: &CeClaimVar,
+    expected: &CeClaimVar,
+    label: &str,
+) -> Result<(), SynthesisError> {
+    if actual.m_in != expected.m_in {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    for col in 0..actual.m_in {
+        let actual_x = claim_projection_x_lane(actual, col)?;
+        let expected_x = claim_projection_x_lane(expected, col)?;
+        cs.enforce(
+            || format!("{label}_{col}"),
+            |lc| lc + actual_x.get_variable(),
+            |lc| lc + CS::one(),
+            |lc| lc + expected_x.get_variable(),
+        );
+    }
+    Ok(())
+}
+
+fn claim_projection_x_lane(claim: &CeClaimVar, col: usize) -> Result<&AllocatedNum<SpartanF>, SynthesisError> {
+    if claim.x.len() == claim.m_in {
+        return claim.x.get(col).ok_or(SynthesisError::Unsatisfiable);
+    }
+    if claim.x_rows != D || claim.x_cols != claim.m_in || claim.x.len() != claim.x_rows.saturating_mul(claim.x_cols) {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let row = col % D;
+    let block = col / D;
+    let idx = row
+        .checked_mul(claim.x_cols)
+        .and_then(|start| start.checked_add(block))
+        .ok_or(SynthesisError::Unsatisfiable)?;
+    claim.x.get(idx).ok_or(SynthesisError::Unsatisfiable)
+}
+
+pub fn packed_bytes_field_values(bytes: &[u8]) -> Vec<SpartanF> {
+    const BYTES_PER_LIMB: usize = 7;
+    let mut out = Vec::with_capacity(1 + bytes.len().div_ceil(BYTES_PER_LIMB));
+    out.push(SpartanF::from_canonical_u64(bytes.len() as u64));
+    for chunk in bytes.chunks(BYTES_PER_LIMB) {
+        let mut limb = [0u8; 8];
+        limb[..chunk.len()].copy_from_slice(chunk);
+        out.push(SpartanF::from_canonical_u64(u64::from_le_bytes(limb)));
+    }
+    out
+}
+
+fn alloc_f_slice<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    values: &[F],
+    label: &str,
+) -> Result<Vec<AllocatedNum<SpartanF>>, SynthesisError> {
+    values
+        .iter()
+        .enumerate()
+        .map(|(idx, value)| {
+            AllocatedNum::alloc(cs.namespace(|| format!("{label}_{idx}")), || {
+                Ok(SpartanF::from_canonical_u64(value.as_canonical_u64()))
+            })
+        })
+        .collect()
+}
+
+fn alloc_k_slice<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    values: &[K],
+    label: &str,
+) -> Result<Vec<KNumVar>, SynthesisError> {
+    values
+        .iter()
+        .enumerate()
+        .map(|(idx, value)| alloc_k(cs, Some(KNum::from_neo_k(*value)), &format!("{label}_{idx}")))
+        .collect()
+}
+
+fn extend_packed_bytes_as_fields<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    dst: &mut Vec<AllocatedNum<SpartanF>>,
+    bytes: &[u8],
+    label: &str,
+) -> Result<(), SynthesisError> {
+    const BYTES_PER_LIMB: usize = 7;
+    dst.push(AllocatedNum::alloc(cs.namespace(|| format!("{label}_len")), || {
+        Ok(SpartanF::from_canonical_u64(bytes.len() as u64))
+    })?);
+    for (idx, chunk) in bytes.chunks(BYTES_PER_LIMB).enumerate() {
+        let mut limb = [0u8; 8];
+        limb[..chunk.len()].copy_from_slice(chunk);
+        dst.push(AllocatedNum::alloc(
+            cs.namespace(|| format!("{label}_limb_{idx}")),
+            || Ok(SpartanF::from_canonical_u64(u64::from_le_bytes(limb))),
+        )?);
+    }
+    Ok(())
+}
+
+fn alloc_packed_bytes_as_fields<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    bytes: &[u8],
+    label: &str,
+) -> Result<Vec<AllocatedNum<SpartanF>>, SynthesisError> {
+    let mut out = Vec::new();
+    extend_packed_bytes_as_fields(cs, &mut out, bytes, label)?;
+    Ok(out)
+}
+
+fn enforce_packed_bytes_eq_native<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    actual: &[AllocatedNum<SpartanF>],
+    expected_bytes: &[u8],
+    label: &str,
+) -> Result<(), SynthesisError> {
+    let expected = packed_bytes_field_values(expected_bytes);
+    if actual.len() != expected.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    for (idx, (actual, expected)) in actual.iter().zip(expected.iter()).enumerate() {
+        cs.enforce(
+            || format!("{label}_{idx}_eq"),
+            |lc| lc + actual.get_variable(),
+            |lc| lc + CS::one(),
+            |lc| lc + (*expected, CS::one()),
+        );
+    }
+    Ok(())
+}
+
+fn extend_f_slice_values(dst: &mut Vec<SpartanF>, values: &[F]) {
+    dst.push(SpartanF::from_canonical_u64(values.len() as u64));
+    dst.extend(
+        values
+            .iter()
+            .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64())),
+    );
+}
+
+fn enforce_f_slice_eq_native<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    actual: &[AllocatedNum<SpartanF>],
+    expected: &[F],
+    label: &str,
+) -> Result<(), SynthesisError> {
+    if actual.len() != expected.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    for (idx, (actual, expected)) in actual.iter().zip(expected.iter()).enumerate() {
+        cs.enforce(
+            || format!("{label}_{idx}_eq"),
+            |lc| lc + actual.get_variable(),
+            |lc| lc + CS::one(),
+            |lc| lc + (SpartanF::from_canonical_u64(expected.as_canonical_u64()), CS::one()),
+        );
+    }
+    Ok(())
+}
+
+fn enforce_f_slice_eq<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    actual: &[AllocatedNum<SpartanF>],
+    expected: &[AllocatedNum<SpartanF>],
+    label: &str,
+) -> Result<(), SynthesisError> {
+    if actual.len() != expected.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    for (idx, (actual, expected)) in actual.iter().zip(expected.iter()).enumerate() {
+        cs.enforce(
+            || format!("{label}_{idx}_eq"),
+            |lc| lc + actual.get_variable(),
+            |lc| lc + CS::one(),
+            |lc| lc + expected.get_variable(),
+        );
+    }
+    Ok(())
+}
+
+fn extend_k_slice_values(dst: &mut Vec<SpartanF>, values: &[K]) {
+    dst.push(SpartanF::from_canonical_u64(values.len() as u64));
+    let coeff_len = values
+        .first()
+        .map(|value| value.as_coeffs().len())
+        .unwrap_or(0);
+    dst.push(SpartanF::from_canonical_u64(coeff_len as u64));
+    for value in values {
+        let coeffs = value.as_coeffs();
+        dst.push(SpartanF::from_canonical_u64(coeffs[0].as_canonical_u64()));
+        dst.push(SpartanF::from_canonical_u64(coeffs[1].as_canonical_u64()));
+    }
+}
+
+fn enforce_k_slice_eq_native<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    actual: &[KNumVar],
+    expected: &[K],
+    label: &str,
+) -> Result<(), SynthesisError> {
+    if actual.len() != expected.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    for (idx, (actual, expected)) in actual.iter().zip(expected.iter()).enumerate() {
+        let expected = KNum::from_neo_k(*expected);
+        cs.enforce(
+            || format!("{label}_{idx}_c0_eq"),
+            |lc| lc + actual.c0,
+            |lc| lc + CS::one(),
+            |lc| lc + (expected.c0, CS::one()),
+        );
+        cs.enforce(
+            || format!("{label}_{idx}_c1_eq"),
+            |lc| lc + actual.c1,
+            |lc| lc + CS::one(),
+            |lc| lc + (expected.c1, CS::one()),
+        );
+    }
+    Ok(())
+}
+
+fn enforce_k_slice_eq<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    actual: &[KNumVar],
+    expected: &[KNumVar],
+    label: &str,
+) -> Result<(), SynthesisError> {
+    if actual.len() != expected.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    for (idx, (actual, expected)) in actual.iter().zip(expected.iter()).enumerate() {
+        enforce_k_eq(
+            &mut cs.namespace(|| format!("{label}_{idx}")),
+            actual,
+            expected,
+            &format!("{label}_{idx}"),
+        );
+    }
+    Ok(())
+}

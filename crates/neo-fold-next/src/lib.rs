@@ -16,7 +16,9 @@
 pub mod chip8;
 pub mod chunk_relation;
 pub mod construction2;
+pub(crate) mod construction2_terminal;
 pub mod decider;
+pub mod direct_ccs;
 pub mod finalize;
 pub mod ivc;
 pub mod nightstream;
@@ -24,14 +26,29 @@ pub mod opening;
 pub mod proof;
 pub mod prover;
 pub mod run;
-pub mod rv64im;
+pub mod rv32im;
+pub(crate) mod spartan_backend;
 pub mod step_build;
+pub(crate) mod superneo_circuit;
+pub(crate) mod superneo_nifs_circuit;
 pub mod time_opening;
 pub mod verifier;
 pub mod vm;
 pub mod witness_layout;
 
-pub use rv64im::{
-    prove_direct_ccs_f_prime_snark_with_perf, DirectCcsFPrimeSnarkError, DirectCcsFPrimeSnarkPerf,
-    DirectCcsFPrimeSnarkProof, DirectCcsIvcState, DirectCcsLatestFPrimeSummary,
+pub use direct_ccs::{
+    direct_ccs_program_from_sparse_r1cs, direct_ccs_program_from_sparse_r1cs_with_public_input_len,
+    direct_ccs_step_from_low_norm_full_witness, direct_sparse_r1cs_export_from_spartan_circuit,
+    export_latest_direct_ccs_f_prime_verifier_body_r1cs, lower_sparse_r1cs_export_to_low_norm,
+    lower_sparse_r1cs_export_to_low_norm_program_and_step, measure_latest_direct_ccs_f_prime_verifier_body,
+    verify_direct_ccs_ivc_snark, verify_direct_ccs_ivc_snark_public, verify_direct_ccs_recursive_ivc_snark_public,
+    verify_direct_ccs_statement, DirectCcsCompactFPrimeImage, DirectCcsFPrimeLowNormSourceImage,
+    DirectCcsFPrimeLowNormSourceR1cs, DirectCcsFPrimeLowNormSourceR1csShape, DirectCcsFPrimeSnarkError,
+    DirectCcsFPrimeSnarkPerf, DirectCcsFPrimeSnarkProof, DirectCcsFPrimeVerifierBodyShape, DirectCcsIvcPublicImage,
+    DirectCcsIvcSnark, DirectCcsIvcSnarkVerifierKey, DirectCcsIvcState, DirectCcsLatestFPrimeSummary,
+    DirectCcsNativeFPrimeAdvice, DirectCcsNativeFPrimeStepImage, DirectCcsProgram, DirectCcsRecursiveIvcPublicImage,
+    DirectCcsRecursiveIvcSnark, DirectCcsRecursiveIvcSnarkPerf, DirectCcsRecursiveIvcSnarkVerifierKey,
+    DirectCcsRecursiveIvcState, DirectCcsRecursiveIvcSummary, DirectCcsStatement, DirectCcsStep, DirectLowNormLaneKind,
+    DirectR1csLowNormLayout, DirectSparseR1csExport, DirectSparseR1csLowNormReport, DirectSparseR1csLowNormViolation,
+    DIRECT_CCS_TRIVIAL_PC,
 };

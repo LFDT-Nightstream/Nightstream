@@ -403,7 +403,7 @@ fn build_reduction_groups(manifest: &OpeningManifest) -> Vec<OpeningReductionGro
 fn reduction_family_tag(claim: &OpeningClaim) -> Option<u64> {
     match claim.source {
         OpeningSource::Chip8Kernel | OpeningSource::Chip8Root => Some(claim.ordinal),
-        OpeningSource::MainLane | OpeningSource::Rv64imKernel => None,
+        OpeningSource::MainLane | OpeningSource::Rv32imKernel => None,
     }
 }
 
@@ -925,7 +925,7 @@ fn opening_source_tag(source: OpeningSource) -> u64 {
         OpeningSource::MainLane => 1,
         OpeningSource::Chip8Kernel => 2,
         OpeningSource::Chip8Root => 3,
-        OpeningSource::Rv64imKernel => 4,
+        OpeningSource::Rv32imKernel => 4,
     }
 }
 

@@ -525,38 +525,6 @@ where
     )
 }
 
-pub(crate) fn trace_chunk_relation_with_witness_and_instance_digest<L, MR, MB>(
-    tr: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    s: &CcsStructure<F>,
-    chunk: &ChunkInput,
-    incoming_main: &Carry,
-    replay_witness: &ChunkReplayWitness,
-    log: &L,
-    mixers: CommitmentMixers<MR, MB>,
-    optimized_cache: &OptimizedStructureCache,
-    public_chunk_instance_digest: [F; 4],
-) -> Result<ChunkReplayTrace, PiCcsError>
-where
-    L: SModuleHomomorphism<F, Commitment> + Sync,
-    MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment + Clone + Copy,
-    MB: Fn(&[Commitment], u32) -> Commitment + Clone + Copy,
-{
-    trace_chunk_relation_with_witness_and_instance_digest_inner(
-        tr,
-        params,
-        s,
-        chunk,
-        incoming_main,
-        replay_witness,
-        log,
-        mixers,
-        optimized_cache,
-        public_chunk_instance_digest,
-        None,
-    )
-}
-
 fn trace_chunk_relation_with_witness_and_instance_digest_inner<L, MR, MB>(
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,

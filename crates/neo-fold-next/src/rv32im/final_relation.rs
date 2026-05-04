@@ -1,0 +1,1033 @@
+//! Owns the RV32IM folded/final relation replay above the accepted/export seam.
+
+use neo_ajtai::{scale_commitment_add_inplace, Commitment};
+use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
+use neo_ccs::{CcsStructure, CeClaim};
+use neo_math::{F, K};
+use neo_params::NeoParams;
+use neo_reductions::engines::utils::me_input_projection_digest_poseidon_into;
+use neo_transcript::{Poseidon2Transcript, Transcript};
+use p3_field::PrimeCharacteristicRing;
+use serde::{Deserialize, Serialize};
+use std::time::Instant;
+
+use crate::chunk_relation::ChunkReplayWitness;
+use crate::finalize::{
+    digest32_as_fields, digest_fields_as_digest32, digest_fixed_shape_final_proof, FixedShapeChunkSummary,
+};
+use crate::proof::{Carry, ChunkInput, ChunkProvePerf, FoldSchedule};
+use crate::rv32im::chunk_fold_step::{
+    adapt_rv32im_chunk_to_fresh_ccs, prove_rv32im_chunk_fold_verifier_step_with_perf,
+    verify_rv32im_chunk_fold_verifier_step, Rv32imAccumulatorHandle, Rv32imChunkFoldCarry, Rv32imChunkFoldFresh,
+    Rv32imChunkStepPublic,
+};
+use crate::rv32im::chunk_relation::rv32im_chunk_replay_witness_digest;
+use crate::rv32im::ivc::derive_rv32im_ivc_step_cap;
+use crate::rv32im::kernel::{
+    build_rv32im_kernel_export_build_output_from_carried_accepted_artifact_with_source_and_chunk_inputs,
+    build_rv32im_kernel_export_proof_from_carried_accepted_artifact, rv32im_cached_root_main_lane_optimized_cache,
+    rv32im_root_main_lane_context_for_claim_count, rv32im_root_main_lane_context_for_step_cap,
+    verify_rv32im_kernel_export_proof_with_output, verify_rv32im_kernel_export_proof_with_relation_output,
+    Rv32imAcceptedProofArtifact, Rv32imKernelExportProof, Rv32imKernelExportRelationResult, Rv32imKernelExportSource,
+    Rv32imVerifiedKernelChunkHandoff, SimpleKernelError,
+};
+
+pub(crate) const RV32IM_SESSION_RAW_DOMAIN_TAG: u64 = 17;
+pub(crate) const RV32IM_CHUNK_DONE_RAW_TAG: u64 = 16;
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Rv32imRecursiveAccumulator {
+    pub final_main_claims: Vec<CeClaim<Commitment, F, K>>,
+    pub terminal_handle: Rv32imAccumulatorHandle,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Rv32imFoldedStatement {
+    pub fold_schedule: FoldSchedule,
+    pub chunk_count: u64,
+    pub semantic_step_count: u64,
+    pub kernel_relation_digest: [u8; 32],
+    pub final_accumulator: Rv32imRecursiveAccumulator,
+    pub digest: [u8; 32],
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Rv32imChunkTransitionWitness {
+    pub replay_witness: ChunkReplayWitness,
+}
+
+#[derive(Clone, Debug)]
+pub struct Rv32imFoldedProof {
+    pub kernel_export: Rv32imKernelExportProof,
+    pub steps: Vec<Rv32imChunkTransitionWitness>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Rv32imChunkFoldStepTrace {
+    pub handoff: Rv32imVerifiedKernelChunkHandoff,
+    pub fresh: Rv32imChunkFoldFresh,
+    pub chunk_summary: FixedShapeChunkSummary,
+    pub carry_in: Rv32imChunkFoldCarry,
+    pub carry_out: Rv32imChunkFoldCarry,
+    pub transcript_in: Rv32imChunkFoldTranscriptSnapshot,
+    pub transcript_out: Rv32imChunkFoldTranscriptSnapshot,
+    pub step_public: Rv32imChunkStepPublic,
+    pub replay_witness: ChunkReplayWitness,
+    pub replay_witness_digest: [u8; 32],
+    pub halted_out: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct Rv32imTerminalChunkFoldWitness {
+    pub public_statement_digest: [u8; 32],
+    pub handoff: Rv32imVerifiedKernelChunkHandoff,
+    pub running_last: Rv32imChunkFoldCarry,
+    pub transcript_in: Rv32imChunkFoldTranscriptSnapshot,
+    pub fresh_last: Rv32imChunkFoldFresh,
+    pub final_fold_witness: ChunkReplayWitness,
+    pub running_final: Rv32imChunkFoldCarry,
+    pub transcript_out: Rv32imChunkFoldTranscriptSnapshot,
+    pub step_public: Rv32imChunkStepPublic,
+    pub halted_out: bool,
+}
+
+impl Rv32imTerminalChunkFoldWitness {
+    pub fn accumulator_final(&self) -> Rv32imRecursiveAccumulator {
+        recursive_accumulator_from_carry(&self.running_final)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Rv32imChunkFoldTranscriptSnapshot {
+    pub state: [F; neo_params::poseidon2_goldilocks::WIDTH],
+    pub absorbed: usize,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Rv32imChunkFoldState {
+    pub carry: Rv32imChunkFoldCarry,
+    pub transcript: Rv32imChunkFoldTranscriptSnapshot,
+}
+
+#[inline]
+fn extend_packed_bytes_as_fields(dst: &mut Vec<F>, bytes: &[u8]) {
+    const BYTES_PER_LIMB: usize = 7;
+    dst.push(F::from_u64(bytes.len() as u64));
+    for chunk in bytes.chunks(BYTES_PER_LIMB) {
+        let mut limb = [0u8; 8];
+        limb[..chunk.len()].copy_from_slice(chunk);
+        dst.push(F::from_u64(u64::from_le_bytes(limb)));
+    }
+}
+
+pub(crate) fn rv32im_chunk_fold_transcript_snapshot_digest(snapshot: &Rv32imChunkFoldTranscriptSnapshot) -> [u8; 32] {
+    let mut preimage = Vec::with_capacity(1 + 8 + neo_params::poseidon2_goldilocks::WIDTH);
+    extend_packed_bytes_as_fields(
+        &mut preimage,
+        b"neo.fold.next/rv32im/main_recursion_transcript_snapshot/v2",
+    );
+    preimage.push(F::from_u64(snapshot.absorbed as u64));
+    preimage.extend(snapshot.state);
+    digest_fields_as_digest32(poseidon2_hash(&preimage))
+}
+
+pub(crate) fn rv32im_recursive_accumulator_phi_dec_parent_commitment(
+    final_main_claims: &[CeClaim<Commitment, F, K>],
+) -> Option<Commitment> {
+    let (first, rest) = final_main_claims.split_first()?;
+    let (params, _, _) = rv32im_root_main_lane_context_for_claim_count(final_main_claims.len())
+        .expect("RV32IM recursive accumulator claim count must have root parameters");
+    let mut parent = Commitment::zeros(first.c.d, first.c.kappa);
+    let mut pow = F::ONE;
+    let base = F::from_u64(params.b as u64);
+    for claim in std::iter::once(first).chain(rest.iter()) {
+        if claim.c.d != parent.d || claim.c.kappa != parent.kappa || claim.c.data.len() != parent.data.len() {
+            return None;
+        }
+        scale_commitment_add_inplace(&mut parent, pow, &claim.c);
+        pow *= base;
+    }
+    Some(parent)
+}
+
+pub(crate) fn rv32im_recursive_accumulator_instance_digest_from_phi_dec_parent(
+    final_main_claims: &[CeClaim<Commitment, F, K>],
+    terminal_handle_digest: [u8; 32],
+) -> [u8; 32] {
+    let parent_commitment = rv32im_recursive_accumulator_phi_dec_parent_commitment(final_main_claims);
+    let parent_field_count = parent_commitment
+        .as_ref()
+        .map(|commitment| 1 + commitment.data.len())
+        .unwrap_or(0);
+    let mut preimage = Vec::with_capacity(32 + 4 + parent_field_count);
+    extend_packed_bytes_as_fields(
+        &mut preimage,
+        b"neo.fold.next/rv32im/main_recursion_recursive_accumulator_phi_dec_parent/v1",
+    );
+    preimage.extend(digest32_as_fields(terminal_handle_digest));
+    match parent_commitment {
+        Some(parent_commitment) => {
+            preimage.push(F::from_u64(parent_commitment.data.len() as u64));
+            preimage.extend(parent_commitment.data.iter().copied());
+        }
+        None if !final_main_claims.is_empty() => preimage.push(F::from_u64(u64::MAX)),
+        None => {}
+    }
+    digest_fields_as_digest32(poseidon2_hash(&preimage))
+}
+
+pub(crate) fn rv32im_recursive_accumulator_instance_digest_from_parts(
+    final_main_claims: &[CeClaim<Commitment, F, K>],
+    terminal_handle_digest: [u8; 32],
+) -> [u8; 32] {
+    rv32im_recursive_accumulator_instance_digest_from_phi_dec_parent(final_main_claims, terminal_handle_digest)
+}
+
+pub(crate) fn rv32im_chunk_fold_carry_recursive_accumulator_digest(carry: &Rv32imChunkFoldCarry) -> [u8; 32] {
+    rv32im_recursive_accumulator_instance_digest_from_phi_dec_parent(&carry.main.claims, carry.terminal_handle.0)
+}
+
+impl Rv32imChunkFoldStepTrace {
+    pub fn state_in(&self) -> Rv32imChunkFoldState {
+        Rv32imChunkFoldState {
+            carry: self.carry_in.clone(),
+            transcript: self.transcript_in.clone(),
+        }
+    }
+
+    pub fn state_out(&self) -> Rv32imChunkFoldState {
+        Rv32imChunkFoldState {
+            carry: self.carry_out.clone(),
+            transcript: rv32im_chunk_fold_carried_transcript_snapshot(&self.transcript_out),
+        }
+    }
+}
+
+pub(crate) fn rv32im_chunk_fold_carried_transcript_snapshot(
+    transcript_out: &Rv32imChunkFoldTranscriptSnapshot,
+) -> Rv32imChunkFoldTranscriptSnapshot {
+    let mut transcript = Poseidon2Transcript::from_state_and_absorbed(transcript_out.state, transcript_out.absorbed);
+    transcript.append_fields_raw(&[F::from_u64(RV32IM_CHUNK_DONE_RAW_TAG), F::ONE]);
+    Rv32imChunkFoldTranscriptSnapshot {
+        state: transcript.state(),
+        absorbed: transcript.absorbed(),
+    }
+}
+
+pub(crate) fn rv32im_chunk_fold_initial_transcript() -> Poseidon2Transcript {
+    let mut transcript =
+        Poseidon2Transcript::new_raw_fields(&[F::from_u64(RV32IM_SESSION_RAW_DOMAIN_TAG), F::ZERO, F::ZERO]);
+    transcript.append_fields_raw(&[F::from_u64(RV32IM_CHUNK_DONE_RAW_TAG), F::ONE]);
+    transcript
+}
+
+/// Build-time replay bundle for the final seam.
+///
+/// This is not a published proof surface: it still carries per-chunk replay
+/// witnesses needed by internal relation builders, audits, and decider prep.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Rv32imFinalBuildProof {
+    pub proof_digest: [u8; 32],
+    pub kernel_export: Rv32imKernelExportProof,
+    pub chunk_summaries: Vec<FixedShapeChunkSummary>,
+    pub steps: Vec<Rv32imChunkTransitionWitness>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Rv32imFinalProofComponentDigests {
+    pub kernel_export_proof_digest: [u8; 32],
+    pub chunk_transition_digests: Vec<[u8; 32]>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Rv32imFinalStatement {
+    pub public_statement_digest: [u8; 32],
+    pub folded: Rv32imFoldedStatement,
+    pub digest: [u8; 32],
+}
+
+struct Rv32imFoldedBuildOutput {
+    folded: Rv32imFoldedStatement,
+    chunk_summaries: Vec<FixedShapeChunkSummary>,
+    proof: Rv32imFoldedProof,
+}
+
+pub(crate) struct Rv32imFinalBuildOutput {
+    pub statement: Rv32imFinalStatement,
+    pub proof: Rv32imFinalBuildProof,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct Rv32imFoldedBuildPerf {
+    pub kernel_export_ms: f64,
+    pub recursive: Rv32imRecursiveBuildPerf,
+    pub folded_digest_ms: f64,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct Rv32imFinalBuildPerf {
+    pub folded: Rv32imFoldedBuildPerf,
+    pub final_proof_ms: f64,
+    pub statement_digest_ms: f64,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct Rv32imRecursiveBuildPerf {
+    pub prepare_inputs_ms: f64,
+    pub ccs_bind_ms: f64,
+    pub ccs_sample_challenges_ms: f64,
+    pub ccs_fe_sumcheck_ms: f64,
+    pub ccs_nc_sumcheck_ms: f64,
+    pub ccs_output_materialize_ms: f64,
+    pub ccs_ms: f64,
+    pub dims_ms: f64,
+    pub rlc_prepare_ms: f64,
+    pub rlc_ms: f64,
+    pub dec_split_ms: f64,
+    pub dec_commit_ms: f64,
+    pub dec_ms: f64,
+    pub total_ms: f64,
+}
+
+impl Rv32imRecursiveBuildPerf {
+    fn record_chunk(&mut self, chunk: &ChunkProvePerf) {
+        self.prepare_inputs_ms += chunk.prepare_inputs_ms;
+        self.ccs_bind_ms += chunk.ccs_bind_ms;
+        self.ccs_sample_challenges_ms += chunk.ccs_sample_challenges_ms;
+        self.ccs_fe_sumcheck_ms += chunk.ccs_fe_sumcheck_ms;
+        self.ccs_nc_sumcheck_ms += chunk.ccs_nc_sumcheck_ms;
+        self.ccs_output_materialize_ms += chunk.ccs_output_materialize_ms;
+        self.ccs_ms += chunk.ccs_ms;
+        self.dims_ms += chunk.dims_ms;
+        self.rlc_prepare_ms += chunk.rlc_prepare_ms;
+        self.rlc_ms += chunk.rlc_ms;
+        self.dec_split_ms += chunk.dec_split_ms;
+        self.dec_commit_ms += chunk.dec_commit_ms;
+        self.dec_ms += chunk.dec_ms;
+        self.total_ms += chunk.total_ms;
+    }
+}
+
+fn elapsed_ms(started: Instant) -> f64 {
+    started.elapsed().as_secs_f64() * 1_000.0
+}
+
+pub fn prove_rv32im_folded_statement_from_accepted(
+    artifact: &Rv32imAcceptedProofArtifact,
+) -> Result<(Rv32imFoldedStatement, Rv32imFoldedProof), SimpleKernelError> {
+    let built = build_rv32im_folded_statement_from_accepted(artifact)?;
+    Ok((built.folded, built.proof))
+}
+
+/// Local replay check for construction tests; not a final proof verifier.
+pub(crate) fn audit_check_rv32im_folded_statement_replay(
+    folded: &Rv32imFoldedStatement,
+    proof: &Rv32imFoldedProof,
+) -> Result<(), SimpleKernelError> {
+    audit_check_folded_statement_components_with_output(folded, &proof.kernel_export, &proof.steps)?;
+    Ok(())
+}
+
+pub fn prove_rv32im_final_statement_from_accepted(
+    artifact: &Rv32imAcceptedProofArtifact,
+) -> Result<(Rv32imFinalStatement, Rv32imFinalBuildProof), SimpleKernelError> {
+    let built = prove_rv32im_final_statement_from_accepted_with_output(artifact)?;
+    Ok((built.statement, built.proof))
+}
+
+/// Local replay check for construction tests; not a final proof verifier.
+pub(crate) fn audit_check_rv32im_final_statement_replay(
+    statement: &Rv32imFinalStatement,
+    proof: &Rv32imFinalBuildProof,
+) -> Result<(), SimpleKernelError> {
+    audit_check_rv32im_final_statement_with_output(statement, proof)?;
+    Ok(())
+}
+
+pub fn build_rv32im_chunk_step_publics(
+    statement: &Rv32imFinalStatement,
+    proof: &Rv32imFinalBuildProof,
+) -> Result<Vec<Rv32imChunkStepPublic>, SimpleKernelError> {
+    Ok(build_rv32im_chunk_fold_step_traces(statement, proof)?
+        .into_iter()
+        .map(|step| step.step_public)
+        .collect())
+}
+
+pub fn build_rv32im_chunk_fold_freshs(
+    statement: &Rv32imFinalStatement,
+    proof: &Rv32imFinalBuildProof,
+) -> Result<Vec<Rv32imChunkFoldFresh>, SimpleKernelError> {
+    Ok(build_rv32im_chunk_fold_step_traces(statement, proof)?
+        .into_iter()
+        .map(|step| step.fresh)
+        .collect())
+}
+
+pub fn build_rv32im_chunk_fold_step_traces(
+    statement: &Rv32imFinalStatement,
+    proof: &Rv32imFinalBuildProof,
+) -> Result<Vec<Rv32imChunkFoldStepTrace>, SimpleKernelError> {
+    validate_rv32im_final_statement_surface(statement, proof)?;
+    let verified_kernel =
+        verify_rv32im_kernel_export_proof_with_output(statement.folded.kernel_relation_digest, &proof.kernel_export)?;
+    let (traces, accumulator) = build_chunk_fold_step_traces_from_verified_kernel(
+        statement.public_statement_digest,
+        &verified_kernel,
+        &proof.steps,
+        Some(&proof.chunk_summaries),
+    )?;
+    let expected_final_accumulator = recursive_accumulator_from_carry(&accumulator);
+    if expected_final_accumulator != statement.folded.final_accumulator {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM chunk-fold step trace final accumulator does not match the carried folded statement".into(),
+        ));
+    }
+    Ok(traces)
+}
+
+pub fn build_rv32im_terminal_chunk_fold_witness(
+    statement: &Rv32imFinalStatement,
+    proof: &Rv32imFinalBuildProof,
+) -> Result<Rv32imTerminalChunkFoldWitness, SimpleKernelError> {
+    let traces = build_rv32im_chunk_fold_step_traces(statement, proof)?;
+    let last = traces.last().cloned().ok_or_else(|| {
+        SimpleKernelError::Bridge("RV32IM terminal chunk-fold witness requires a non-empty chunk replay chain".into())
+    })?;
+    let accumulator_final = recursive_accumulator_from_carry(&last.carry_out);
+    if accumulator_final != statement.folded.final_accumulator {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM terminal chunk-fold witness final accumulator does not match the carried folded statement".into(),
+        ));
+    }
+    Ok(Rv32imTerminalChunkFoldWitness {
+        public_statement_digest: statement.public_statement_digest,
+        handoff: last.handoff,
+        running_last: last.carry_in,
+        transcript_in: last.transcript_in,
+        fresh_last: last.fresh,
+        final_fold_witness: last.replay_witness,
+        running_final: last.carry_out,
+        transcript_out: last.transcript_out,
+        step_public: last.step_public,
+        halted_out: last.halted_out,
+    })
+}
+
+pub fn rv32im_chunk_fold_initial_transcript_snapshot() -> Rv32imChunkFoldTranscriptSnapshot {
+    let transcript = rv32im_chunk_fold_initial_transcript();
+    Rv32imChunkFoldTranscriptSnapshot {
+        state: transcript.state(),
+        absorbed: transcript.absorbed(),
+    }
+}
+
+pub(crate) fn audit_check_rv32im_final_statement_with_output(
+    statement: &Rv32imFinalStatement,
+    proof: &Rv32imFinalBuildProof,
+) -> Result<Rv32imKernelExportRelationResult, SimpleKernelError> {
+    validate_rv32im_final_statement_surface(statement, proof)?;
+    let (verified_kernel, expected_chunk_summaries, _) =
+        audit_check_folded_statement_components_with_output_and_main_carry(
+            &statement.folded,
+            &proof.kernel_export,
+            &proof.steps,
+        )?;
+    if proof.chunk_summaries != expected_chunk_summaries {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM final proof chunk summaries do not match the verified export seam".into(),
+        ));
+    }
+    Ok(verified_kernel)
+}
+
+pub(crate) fn validate_rv32im_final_statement_surface(
+    statement: &Rv32imFinalStatement,
+    proof: &Rv32imFinalBuildProof,
+) -> Result<(), SimpleKernelError> {
+    let component_digests = final_proof_component_digests(proof);
+    validate_rv32im_final_statement_surface_with_component_digests(statement, proof, &component_digests)
+}
+
+pub(crate) fn validate_rv32im_final_statement_surface_with_parts(
+    statement: &Rv32imFinalStatement,
+    proof_digest: [u8; 32],
+    kernel_export: &Rv32imKernelExportProof,
+    chunk_summaries: &[FixedShapeChunkSummary],
+    component_digests: &Rv32imFinalProofComponentDigests,
+) -> Result<(), SimpleKernelError> {
+    if statement.folded.digest != folded_statement_digest(&statement.folded) {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM folded statement digest mismatch".into(),
+        ));
+    }
+    if statement.digest != final_statement_digest(statement) {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM final statement digest mismatch".into(),
+        ));
+    }
+    if statement.public_statement_digest != kernel_export.public_statement_digest() {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM final statement public digest does not match the carried accepted artifact".into(),
+        ));
+    }
+    if proof_digest != final_proof_digest_from_component_digests(&statement.folded, chunk_summaries, component_digests)
+    {
+        return Err(SimpleKernelError::Bridge("RV32IM final proof digest mismatch".into()));
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_rv32im_final_statement_surface_with_component_digests(
+    statement: &Rv32imFinalStatement,
+    proof: &Rv32imFinalBuildProof,
+    component_digests: &Rv32imFinalProofComponentDigests,
+) -> Result<(), SimpleKernelError> {
+    validate_rv32im_final_statement_surface_with_parts(
+        statement,
+        proof.proof_digest,
+        &proof.kernel_export,
+        &proof.chunk_summaries,
+        component_digests,
+    )
+}
+
+pub(crate) fn prove_rv32im_final_statement_from_accepted_with_output(
+    artifact: &Rv32imAcceptedProofArtifact,
+) -> Result<Rv32imFinalBuildOutput, SimpleKernelError> {
+    let (built, _) = prove_rv32im_final_statement_from_accepted_with_output_and_perf(artifact)?;
+    Ok(built)
+}
+
+pub(crate) fn prove_rv32im_final_statement_from_accepted_with_output_and_perf(
+    artifact: &Rv32imAcceptedProofArtifact,
+) -> Result<(Rv32imFinalBuildOutput, Rv32imFinalBuildPerf), SimpleKernelError> {
+    prove_rv32im_final_statement_from_accepted_with_output_and_perf_and_source(artifact, None, None)
+}
+
+pub(crate) fn prove_rv32im_final_statement_from_accepted_with_output_and_perf_and_source(
+    artifact: &Rv32imAcceptedProofArtifact,
+    kernel_export_source: Option<Rv32imKernelExportSource>,
+    chunk_inputs: Option<Vec<ChunkInput>>,
+) -> Result<(Rv32imFinalBuildOutput, Rv32imFinalBuildPerf), SimpleKernelError> {
+    let (built, folded_perf) =
+        build_rv32im_folded_statement_from_accepted_with_perf_and_source(artifact, kernel_export_source, chunk_inputs)?;
+
+    let started = Instant::now();
+    let (final_proof, _) = build_final_proof(&built.folded, built.chunk_summaries, built.proof)?;
+    let final_proof_ms = elapsed_ms(started);
+
+    let started = Instant::now();
+    let mut statement = Rv32imFinalStatement {
+        public_statement_digest: artifact.statement.digest,
+        folded: built.folded,
+        digest: [0; 32],
+    };
+    statement.digest = final_statement_digest(&statement);
+    let statement_digest_ms = elapsed_ms(started);
+
+    Ok((
+        Rv32imFinalBuildOutput {
+            statement,
+            proof: final_proof,
+        },
+        Rv32imFinalBuildPerf {
+            folded: folded_perf,
+            final_proof_ms,
+            statement_digest_ms,
+        },
+    ))
+}
+
+pub(crate) fn folded_statement_digest(folded: &Rv32imFoldedStatement) -> [u8; 32] {
+    let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv32im/folded_statement");
+    tr.append_message(b"neo.fold.next/rv32im/folded_statement/version", b"v1");
+    tr.append_u64s(
+        b"neo.fold.next/rv32im/folded_statement/meta",
+        &[folded.chunk_count, folded.semantic_step_count],
+    );
+    tr.append_u64s(
+        b"neo.fold.next/rv32im/folded_statement/schedule",
+        &folded.fold_schedule.meta_words(),
+    );
+    tr.append_message(
+        b"neo.fold.next/rv32im/folded_statement/kernel_relation_digest",
+        &folded.kernel_relation_digest,
+    );
+    append_recursive_accumulator(&mut tr, &folded.final_accumulator);
+    tr.digest32()
+}
+
+pub(crate) fn final_statement_digest(statement: &Rv32imFinalStatement) -> [u8; 32] {
+    let mut tr = Poseidon2Transcript::new(b"neo.fold.next/rv32im/final_statement");
+    tr.append_message(b"neo.fold.next/rv32im/final_statement/version", b"v1");
+    tr.append_message(
+        b"neo.fold.next/rv32im/final_statement/public_statement_digest",
+        &statement.public_statement_digest,
+    );
+    tr.append_message(
+        b"neo.fold.next/rv32im/final_statement/folded_digest",
+        &statement.folded.digest,
+    );
+    tr.digest32()
+}
+
+fn build_rv32im_folded_statement_from_accepted(
+    artifact: &Rv32imAcceptedProofArtifact,
+) -> Result<Rv32imFoldedBuildOutput, SimpleKernelError> {
+    let (built, _) = build_rv32im_folded_statement_from_accepted_with_perf(artifact)?;
+    Ok(built)
+}
+
+fn build_rv32im_folded_statement_from_accepted_with_perf(
+    artifact: &Rv32imAcceptedProofArtifact,
+) -> Result<(Rv32imFoldedBuildOutput, Rv32imFoldedBuildPerf), SimpleKernelError> {
+    build_rv32im_folded_statement_from_accepted_with_perf_and_source(artifact, None, None)
+}
+
+fn build_rv32im_folded_statement_from_accepted_with_perf_and_source(
+    artifact: &Rv32imAcceptedProofArtifact,
+    kernel_export_source: Option<Rv32imKernelExportSource>,
+    chunk_inputs: Option<Vec<ChunkInput>>,
+) -> Result<(Rv32imFoldedBuildOutput, Rv32imFoldedBuildPerf), SimpleKernelError> {
+    let started = Instant::now();
+    let (relation, kernel_export, verified_kernel) = match kernel_export_source {
+        Some(source) => {
+            let built =
+                build_rv32im_kernel_export_build_output_from_carried_accepted_artifact_with_source_and_chunk_inputs(
+                    artifact,
+                    source,
+                    chunk_inputs,
+                )?;
+            (built.relation, built.proof, built.result)
+        }
+        None => build_rv32im_kernel_export_proof_from_carried_accepted_artifact(artifact)?,
+    };
+    let kernel_export_ms = elapsed_ms(started);
+
+    let started = Instant::now();
+    let semantic_step_count = verified_kernel
+        .chunk_handoffs
+        .iter()
+        .map(|handoff| handoff.chunk_input.steps.len())
+        .sum();
+    let step_cap = derive_rv32im_ivc_step_cap(verified_kernel.fold_schedule, semantic_step_count)?;
+    let (params, log, structure) = rv32im_root_main_lane_context_for_step_cap(step_cap)?;
+    let (steps, chunk_summaries, final_accumulator, mut recursive_perf) =
+        build_recursive_proof(&verified_kernel.chunk_handoffs, &params, structure, log)?;
+    let recursive_proof_ms = elapsed_ms(started);
+    recursive_perf.total_ms = recursive_proof_ms;
+
+    let started = Instant::now();
+    let mut folded = Rv32imFoldedStatement {
+        fold_schedule: verified_kernel.fold_schedule,
+        chunk_count: verified_kernel.chunk_handoffs.len() as u64,
+        semantic_step_count: verified_kernel
+            .chunk_handoffs
+            .iter()
+            .map(|handoff| handoff.chunk_input.steps.len() as u64)
+            .sum(),
+        kernel_relation_digest: relation.digest,
+        final_accumulator,
+        digest: [0; 32],
+    };
+    folded.digest = folded_statement_digest(&folded);
+    let folded_digest_ms = elapsed_ms(started);
+
+    Ok((
+        Rv32imFoldedBuildOutput {
+            folded,
+            chunk_summaries,
+            proof: Rv32imFoldedProof { kernel_export, steps },
+        },
+        Rv32imFoldedBuildPerf {
+            kernel_export_ms,
+            recursive: recursive_perf,
+            folded_digest_ms,
+        },
+    ))
+}
+
+fn audit_check_folded_statement_components_with_output(
+    folded: &Rv32imFoldedStatement,
+    kernel_export: &Rv32imKernelExportProof,
+    steps: &[Rv32imChunkTransitionWitness],
+) -> Result<(Rv32imKernelExportRelationResult, Vec<FixedShapeChunkSummary>), SimpleKernelError> {
+    let (verified_kernel, chunk_summaries, _) =
+        audit_check_folded_statement_components_with_output_and_main_carry(folded, kernel_export, steps)?;
+    Ok((verified_kernel, chunk_summaries))
+}
+
+fn audit_check_folded_statement_components_with_output_and_main_carry(
+    folded: &Rv32imFoldedStatement,
+    kernel_export: &Rv32imKernelExportProof,
+    steps: &[Rv32imChunkTransitionWitness],
+) -> Result<(Rv32imKernelExportRelationResult, Vec<FixedShapeChunkSummary>, Carry), SimpleKernelError> {
+    if folded.digest != folded_statement_digest(folded) {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM folded statement digest mismatch".into(),
+        ));
+    }
+    let verified_kernel = verify_rv32im_kernel_export_proof_with_output(folded.kernel_relation_digest, kernel_export)?;
+    if folded.fold_schedule != verified_kernel.fold_schedule {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM folded statement schedule does not match the verified export relation".into(),
+        ));
+    }
+    if folded.chunk_count as usize != verified_kernel.chunk_handoffs.len() {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM folded statement chunk count does not match the verified export relation".into(),
+        ));
+    }
+    let verified_semantic_step_count: usize = verified_kernel
+        .chunk_handoffs
+        .iter()
+        .map(|handoff| handoff.chunk_input.steps.len())
+        .sum();
+    if folded.semantic_step_count as usize != verified_semantic_step_count {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM folded statement semantic step count does not match the verified export relation".into(),
+        ));
+    }
+    if steps.len() != verified_kernel.chunk_handoffs.len() {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM folded proof chunk replay count does not match the verified export relation".into(),
+        ));
+    }
+    let (chunk_summaries, final_main) = audit_check_recursive_steps(folded, &verified_kernel, steps)?;
+    Ok((verified_kernel, chunk_summaries, final_main))
+}
+
+fn audit_check_recursive_steps(
+    folded: &Rv32imFoldedStatement,
+    verified_kernel: &Rv32imKernelExportRelationResult,
+    steps: &[Rv32imChunkTransitionWitness],
+) -> Result<(Vec<FixedShapeChunkSummary>, Carry), SimpleKernelError> {
+    let (chunk_summaries, final_state, _) = replay_recursive_steps_with_state([0; 32], verified_kernel, steps)?;
+    let final_accumulator = recursive_accumulator_from_carry(&final_state);
+    if final_accumulator != folded.final_accumulator {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM folded statement final accumulator mismatch".into(),
+        ));
+    }
+    Ok((chunk_summaries, final_state.main))
+}
+
+fn replay_recursive_steps(
+    verified_kernel: &Rv32imKernelExportRelationResult,
+    steps: &[Rv32imChunkTransitionWitness],
+) -> Result<(Vec<FixedShapeChunkSummary>, Rv32imRecursiveAccumulator), SimpleKernelError> {
+    let (chunk_summaries, final_state, _) = replay_recursive_steps_with_state([0; 32], verified_kernel, steps)?;
+    Ok((chunk_summaries, recursive_accumulator_from_carry(&final_state)))
+}
+
+fn replay_recursive_steps_with_state(
+    public_statement_digest: [u8; 32],
+    verified_kernel: &Rv32imKernelExportRelationResult,
+    steps: &[Rv32imChunkTransitionWitness],
+) -> Result<
+    (
+        Vec<FixedShapeChunkSummary>,
+        Rv32imChunkFoldCarry,
+        Vec<Rv32imChunkStepPublic>,
+    ),
+    SimpleKernelError,
+> {
+    let (traces, accumulator) =
+        build_chunk_fold_step_traces_from_verified_kernel(public_statement_digest, verified_kernel, steps, None)?;
+    Ok((
+        traces
+            .iter()
+            .map(|step| step.chunk_summary.clone())
+            .collect(),
+        accumulator,
+        traces.into_iter().map(|step| step.step_public).collect(),
+    ))
+}
+
+fn build_chunk_fold_step_traces_from_verified_kernel(
+    public_statement_digest: [u8; 32],
+    verified_kernel: &Rv32imKernelExportRelationResult,
+    steps: &[Rv32imChunkTransitionWitness],
+    expected_chunk_summaries: Option<&[FixedShapeChunkSummary]>,
+) -> Result<(Vec<Rv32imChunkFoldStepTrace>, Rv32imChunkFoldCarry), SimpleKernelError> {
+    if steps.len() != verified_kernel.chunk_handoffs.len() {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM chunk-fold step trace replay count does not match the verified export relation".into(),
+        ));
+    }
+    if let Some(summaries) = expected_chunk_summaries {
+        if summaries.len() != verified_kernel.chunk_handoffs.len() {
+            return Err(SimpleKernelError::Bridge(
+                "RV32IM chunk-fold step trace summary count does not match the verified export relation".into(),
+            ));
+        }
+    }
+
+    let semantic_step_count = verified_kernel
+        .chunk_handoffs
+        .iter()
+        .map(|handoff| handoff.chunk_input.steps.len())
+        .sum();
+    let step_cap = derive_rv32im_ivc_step_cap(verified_kernel.fold_schedule, semantic_step_count)?;
+    let (params, log, structure) = rv32im_root_main_lane_context_for_step_cap(step_cap)?;
+    let optimized_cache = rv32im_cached_root_main_lane_optimized_cache()?;
+    let mut transcript = rv32im_chunk_fold_initial_transcript();
+    let mut accumulator = Rv32imChunkFoldCarry::seed_for_step_cap(step_cap);
+    let mut traces = Vec::with_capacity(steps.len());
+
+    for (chunk_index, step_witness) in steps.iter().enumerate() {
+        let handoff = verified_kernel
+            .chunk_handoffs
+            .get(chunk_index)
+            .ok_or_else(|| {
+                SimpleKernelError::Bridge(format!(
+                    "RV32IM chunk transition {chunk_index} missing a verified export handoff"
+                ))
+            })?
+            .clone();
+        let fresh = adapt_rv32im_chunk_to_fresh_ccs(&handoff);
+        let carry_in = accumulator.clone();
+        let transcript_in = Rv32imChunkFoldTranscriptSnapshot {
+            state: transcript.state(),
+            absorbed: transcript.absorbed(),
+        };
+        let halted_out = verified_kernel.halted && chunk_index + 1 == verified_kernel.chunk_handoffs.len();
+        let step = verify_rv32im_chunk_fold_verifier_step(
+            public_statement_digest,
+            chunk_index,
+            halted_out,
+            &handoff,
+            &carry_in,
+            &step_witness.replay_witness,
+            &mut transcript,
+            &params,
+            structure,
+            log,
+            &optimized_cache,
+        )?;
+        let transcript_out = Rv32imChunkFoldTranscriptSnapshot {
+            state: transcript.state(),
+            absorbed: transcript.absorbed(),
+        };
+        let chunk_summary = FixedShapeChunkSummary::from_public_chunk(
+            &handoff.public_chunk,
+            step.public_chunk_digest,
+            step.chunk_relation_digest,
+        );
+        if let Some(expected) = expected_chunk_summaries {
+            if expected[chunk_index] != chunk_summary {
+                return Err(SimpleKernelError::Bridge(format!(
+                    "RV32IM chunk-fold step trace {chunk_index} summary does not match the carried final proof summary"
+                )));
+            }
+        }
+        accumulator = step.next_carry.clone();
+        traces.push(Rv32imChunkFoldStepTrace {
+            handoff,
+            fresh,
+            chunk_summary,
+            carry_in,
+            carry_out: step.next_carry,
+            transcript_in,
+            transcript_out,
+            step_public: step.step_public,
+            replay_witness: step_witness.replay_witness.clone(),
+            replay_witness_digest: chunk_transition_witness_digest(step_witness),
+            halted_out,
+        });
+        transcript.append_fields_raw(&[F::from_u64(RV32IM_CHUNK_DONE_RAW_TAG), F::ONE]);
+    }
+
+    Ok((traces, accumulator))
+}
+
+fn build_recursive_proof(
+    chunk_handoffs: &[Rv32imVerifiedKernelChunkHandoff],
+    params: &NeoParams,
+    structure: &CcsStructure<F>,
+    log: &neo_ajtai::AjtaiSModule,
+) -> Result<
+    (
+        Vec<Rv32imChunkTransitionWitness>,
+        Vec<FixedShapeChunkSummary>,
+        Rv32imRecursiveAccumulator,
+        Rv32imRecursiveBuildPerf,
+    ),
+    SimpleKernelError,
+> {
+    let optimized_cache = rv32im_cached_root_main_lane_optimized_cache()?;
+    let mut transcript = rv32im_chunk_fold_initial_transcript();
+    let mut accumulator = Rv32imChunkFoldCarry::seed_for_claim_count(params.k_rho as usize);
+    let mut steps = Vec::with_capacity(chunk_handoffs.len());
+    let mut chunk_summaries = Vec::with_capacity(chunk_handoffs.len());
+    let mut perf = Rv32imRecursiveBuildPerf::default();
+
+    for (chunk_index, handoff) in chunk_handoffs.iter().enumerate() {
+        let halted_out = false;
+        let ((replay_witness, step), chunk_perf) = prove_rv32im_chunk_fold_verifier_step_with_perf(
+            [0; 32],
+            chunk_index,
+            halted_out,
+            handoff,
+            &accumulator,
+            &mut transcript,
+            params,
+            structure,
+            log,
+            &optimized_cache,
+        )?;
+        perf.record_chunk(&chunk_perf);
+        chunk_summaries.push(FixedShapeChunkSummary::from_public_chunk(
+            &handoff.public_chunk,
+            step.public_chunk_digest,
+            step.chunk_relation_digest,
+        ));
+        accumulator = step.next_carry;
+        steps.push(Rv32imChunkTransitionWitness { replay_witness });
+        transcript.append_fields_raw(&[F::from_u64(RV32IM_CHUNK_DONE_RAW_TAG), F::ONE]);
+    }
+
+    Ok((
+        steps,
+        chunk_summaries,
+        recursive_accumulator_from_carry(&accumulator),
+        perf,
+    ))
+}
+
+fn build_final_proof(
+    folded: &Rv32imFoldedStatement,
+    chunk_summaries: Vec<FixedShapeChunkSummary>,
+    proof: Rv32imFoldedProof,
+) -> Result<(Rv32imFinalBuildProof, Rv32imFinalProofComponentDigests), SimpleKernelError> {
+    let component_digests = final_proof_component_digests_from_parts(&proof.kernel_export, &proof.steps);
+    let proof_digest = final_proof_digest_from_component_digests(folded, &chunk_summaries, &component_digests);
+    Ok((
+        Rv32imFinalBuildProof {
+            proof_digest,
+            kernel_export: proof.kernel_export,
+            chunk_summaries,
+            steps: proof.steps,
+        },
+        component_digests,
+    ))
+}
+
+pub(crate) fn final_proof_digest_from_component_digests(
+    folded: &Rv32imFoldedStatement,
+    chunk_summaries: &[FixedShapeChunkSummary],
+    component_digests: &Rv32imFinalProofComponentDigests,
+) -> [u8; 32] {
+    digest_fixed_shape_final_proof(
+        &folded.digest,
+        folded.chunk_count,
+        chunk_summaries,
+        &[component_digests.kernel_export_proof_digest],
+        &component_digests.chunk_transition_digests,
+    )
+}
+
+pub(crate) fn final_proof_component_digests(proof: &Rv32imFinalBuildProof) -> Rv32imFinalProofComponentDigests {
+    final_proof_component_digests_from_parts(&proof.kernel_export, &proof.steps)
+}
+
+pub(crate) fn reconstruct_rv32im_final_statement_from_export_and_replay(
+    public_statement_digest: [u8; 32],
+    kernel_export: &Rv32imKernelExportProof,
+    steps: &[Rv32imChunkTransitionWitness],
+) -> Result<(Rv32imFinalStatement, Rv32imFinalBuildProof), SimpleKernelError> {
+    if public_statement_digest != kernel_export.public_statement_digest() {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM reconstructed final seam public statement digest does not match the carried kernel export proof"
+                .into(),
+        ));
+    }
+    let (kernel_relation, verified_kernel) = verify_rv32im_kernel_export_proof_with_relation_output(kernel_export)?;
+    if steps.len() != verified_kernel.chunk_handoffs.len() {
+        return Err(SimpleKernelError::Bridge(
+            "RV32IM reconstructed final seam chunk replay count does not match the verified export relation".into(),
+        ));
+    }
+    let (chunk_summaries, final_accumulator) = replay_recursive_steps(&verified_kernel, steps)?;
+    let mut folded = Rv32imFoldedStatement {
+        fold_schedule: verified_kernel.fold_schedule,
+        chunk_count: verified_kernel.chunk_handoffs.len() as u64,
+        semantic_step_count: verified_kernel
+            .chunk_handoffs
+            .iter()
+            .map(|handoff| handoff.chunk_input.steps.len() as u64)
+            .sum(),
+        kernel_relation_digest: kernel_relation.digest,
+        final_accumulator,
+        digest: [0; 32],
+    };
+    folded.digest = folded_statement_digest(&folded);
+    let (final_proof, _) = build_final_proof(
+        &folded,
+        chunk_summaries,
+        Rv32imFoldedProof {
+            kernel_export: kernel_export.clone(),
+            steps: steps.to_vec(),
+        },
+    )?;
+    let mut final_statement = Rv32imFinalStatement {
+        public_statement_digest,
+        folded,
+        digest: [0; 32],
+    };
+    final_statement.digest = final_statement_digest(&final_statement);
+    Ok((final_statement, final_proof))
+}
+
+pub(crate) fn final_proof_component_digests_from_parts(
+    kernel_export: &Rv32imKernelExportProof,
+    steps: &[Rv32imChunkTransitionWitness],
+) -> Rv32imFinalProofComponentDigests {
+    Rv32imFinalProofComponentDigests {
+        kernel_export_proof_digest: kernel_export.digest,
+        chunk_transition_digests: steps.iter().map(chunk_transition_witness_digest).collect(),
+    }
+}
+
+fn append_recursive_accumulator(tr: &mut Poseidon2Transcript, accumulator: &Rv32imRecursiveAccumulator) {
+    let final_main_claim_digests = final_main_claim_digests(&accumulator.final_main_claims);
+    tr.append_u64s(
+        b"neo.fold.next/rv32im/final_accumulator/claim_count",
+        &[final_main_claim_digests.len() as u64],
+    );
+    tr.append_fields_iter(
+        b"neo.fold.next/rv32im/final_accumulator/final_main_claim_digest",
+        final_main_claim_digests.len() * 4,
+        final_main_claim_digests
+            .iter()
+            .flat_map(|digest| digest.iter().copied()),
+    );
+    tr.append_message(
+        b"neo.fold.next/rv32im/final_accumulator/terminal_handle",
+        &accumulator.terminal_handle.0,
+    );
+}
+
+pub(crate) fn final_main_claim_digests(final_main_claims: &[CeClaim<Commitment, F, K>]) -> Vec<[F; 4]> {
+    let mut digests = Vec::with_capacity(final_main_claims.len());
+    let mut scratch = Vec::<F>::with_capacity(2048);
+    for claim in final_main_claims {
+        digests.push(
+            me_input_projection_digest_poseidon_into(&mut scratch, claim)
+                .expect("RV32IM final CE projection digest requires SuperNeo X shape"),
+        );
+    }
+    digests
+}
+
+pub(crate) fn chunk_transition_witness_digest(step: &Rv32imChunkTransitionWitness) -> [u8; 32] {
+    rv32im_chunk_replay_witness_digest(&step.replay_witness)
+}
+
+fn recursive_accumulator_from_carry(carry: &Rv32imChunkFoldCarry) -> Rv32imRecursiveAccumulator {
+    Rv32imRecursiveAccumulator {
+        final_main_claims: carry.main.claims.clone(),
+        terminal_handle: carry.terminal_handle,
+    }
+}

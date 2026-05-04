@@ -18,7 +18,7 @@ pub enum OpeningSource {
     MainLane,
     Chip8Kernel,
     Chip8Root,
-    Rv64imKernel,
+    Rv32imKernel,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]

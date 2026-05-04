@@ -380,7 +380,7 @@ pub fn me_input_projection_digest_poseidon_into(
     extend_f_slice(dst, &me.c.data);
     dst.push(F::from_u64(me.m_in as u64));
     for col in 0..me.m_in {
-        dst.push(me.X[(col % D, col)]);
+        dst.push(me.X[(col % D, col / D)]);
     }
     extend_k_slice(dst, &me.r);
 

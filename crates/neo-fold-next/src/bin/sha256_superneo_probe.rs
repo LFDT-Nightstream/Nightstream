@@ -1,7 +1,6 @@
-// Diagnostic probe binary: the repo's 1,500-line implementation-file limit does not apply here.
-
 use std::env;
 use std::error::Error;
+use std::time::Instant;
 
 use bellpepper::gadgets::boolean::{AllocatedBit, Boolean};
 use bellpepper_core::{Circuit, ConstraintSystem, Index, LinearCombination, SynthesisError, Variable};
@@ -9,13 +8,16 @@ use ff::{Field, PrimeField};
 use neo_ajtai::{s_mul_add, scale_commitment_add_inplace, set_global_pp_seeded, AjtaiSModule, Commitment};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{CcsClaim, CcsMatrix, CcsStructure, CcsWitness, CeClaim, CscMat, Mat};
-use neo_fold_next::ivc::{build_superneo_ivc_relations_with_perf, SuperNeoIvcBuild};
+use neo_fold_next::ivc::{
+    build_superneo_ivc_relations_with_initial_carry_accumulator_handle_perf, build_superneo_ivc_relations_with_perf,
+    SuperNeoIvcBuild,
+};
 use neo_fold_next::proof::{
     Carry, ChunkProvePerf, ChunkVerifyPerf, FoldSchedule, PackagedProof, RunProvePerf, RunVerifyPerf, StepInput,
 };
 use neo_fold_next::prover::CommitmentMixers;
 use neo_fold_next::run::{prove_and_package_with_final_carry_perf, verify_packaged_with_perf};
-use neo_fold_next::{prove_direct_ccs_f_prime_snark_with_perf, DirectCcsFPrimeSnarkPerf, DirectCcsIvcState};
+use neo_fold_next::{DirectCcsProgram, DirectCcsRecursiveIvcSnarkPerf, DirectCcsRecursiveIvcState};
 use neo_math::ring::Rq as RqEl;
 use neo_math::{D, F, K};
 use neo_params::{goldilocks_paper_b2, NeoParams};
@@ -25,6 +27,11 @@ use neo_reductions::engines::utils::build_dims_and_policy;
 use neo_reductions::superneo_eval::{build_superneo_eval_cache, eval_all_mats_ring_cached};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use sha2::{Digest, Sha256};
+
+#[path = "support/sha256_superneo_probe_support.rs"]
+mod sha256_superneo_probe_support;
+
+use sha256_superneo_probe_support::{print_final_summary, print_spartan, print_superneo_ivc_carrier};
 
 type AppResult<T> = Result<T, Box<dyn Error>>;
 
@@ -105,7 +112,7 @@ fn print_paper_stage_map() {
     println!("section 7.3 Pi_CCS: K fresh CCS rows + k carried CE claims -> K+k CE claims");
     println!("section 7.4 Pi_RLC: K+k CE claims -> one random-linear-combination parent CE claim");
     println!("section 7.5 Pi_DEC: one large-norm parent CE claim -> k_rho small-norm CE children");
-    println!("Spartan2: direct CCS uses a generic folded F' carrier and compresses only the latest terminal step");
+    println!("Spartan2: generic direct CCS/R1CS path; no RV32IM VM is used");
     println!();
 }
 
@@ -444,6 +451,14 @@ fn ccs_matrix_nnz(s: &CcsStructure<F>) -> usize {
         .sum()
 }
 
+fn padded_constraints(rows: usize) -> usize {
+    if rows == 0 {
+        0
+    } else {
+        rows.next_power_of_two()
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 struct SparseMatrixDiag {
     nnz: usize,
@@ -633,7 +648,9 @@ fn print_parameter_security_audit(params: &NeoParams, s: &CcsStructure<F>, foldi
     print_norm_budget("norm budget steady chunk", params, 1, params.k_rho as usize);
     println!("max_fresh_K_at_steady_state={steady_max_fresh}");
     if foldings == 1 {
-        println!("warning: this run has one SuperNeo chunk and does not exercise carried CE claims");
+        println!(
+            "note: legacy cold-start packaged proof has one chunk; direct F' carrier still starts from canonical CE(b)^k"
+        );
     }
     println!();
 }
@@ -830,34 +847,34 @@ fn print_prove_timing_accounting(perf: &RunProvePerf) {
     println!();
 }
 
-fn print_fold_evolution(params: &NeoParams, packaged: &PackagedProof, perf: &RunProvePerf) {
+fn print_fold_evolution(params: &NeoParams, build: &SuperNeoIvcBuild, perf: &RunProvePerf) {
     println!("== protocol evolution by chunk ==");
-    let mut incoming_carry = 0usize;
-    for (idx, proof_chunk) in packaged.proof.session.chunks.iter().enumerate() {
-        let fresh = proof_chunk.chunk.steps.len();
+    for (idx, relation) in build.relations.iter().enumerate() {
+        let fresh = relation.chunk.steps.len();
+        let incoming_carry = relation.state_in.carry.claims.len();
         let pi_ccs_inputs = fresh + incoming_carry;
-        let next_carry = proof_chunk.dec.children.len();
+        let next_carry = relation.state_out.carry.claims.len();
+        let replay = &relation.replay_witness.ccs_replay_proof;
         println!(
             "chunk[{idx}] start={} fresh_CCS_K={} incoming_CE_k={} Pi_CCS_inputs_K_plus_k={}",
-            proof_chunk.chunk.start_index, fresh, incoming_carry, pi_ccs_inputs
+            relation.chunk.start_index, fresh, incoming_carry, pi_ccs_inputs
         );
         print_norm_budget("  norm budget", params, fresh, incoming_carry);
         println!(
             "  Pi_CCS out: CE_claims={}, FE_rounds={} max_FE_round_width={}, FE_challenges={}, NC_rounds={} max_NC_round_width={}, NC_challenges={}, header_digest_bytes={}",
-            proof_chunk.ccs_outputs.len(),
-            proof_chunk.ccs_proof.sumcheck_rounds.len(),
-            max_round_width(&proof_chunk.ccs_proof.sumcheck_rounds),
-            proof_chunk.ccs_proof.sumcheck_challenges.len(),
-            proof_chunk.ccs_proof.sumcheck_rounds_nc.len(),
-            max_round_width(&proof_chunk.ccs_proof.sumcheck_rounds_nc),
-            proof_chunk.ccs_proof.sumcheck_challenges_nc.len(),
-            proof_chunk.ccs_proof.header_digest.len()
+            relation.replay_witness.ccs_outputs.len(),
+            replay.sumcheck_rounds.len(),
+            max_round_width(&replay.sumcheck_rounds),
+            replay.sumcheck_rounds.len(),
+            replay.sumcheck_rounds_nc.len(),
+            max_round_width(&replay.sumcheck_rounds_nc),
+            replay.sumcheck_rounds_nc.len(),
+            replay.header_digest.len()
         );
-        if let Some(first) = proof_chunk.ccs_outputs.first() {
+        if let Some(first) = relation.replay_witness.ccs_outputs.first() {
             println!("  first Pi_CCS CE shape: {}", ce_shape_summary(first));
         }
-        println!("  Pi_RLC parent CE: {}", ce_shape_summary(&proof_chunk.rlc.parent));
-        if let Some(first_child) = proof_chunk.dec.children.first() {
+        if let Some(first_child) = relation.state_out.carry.claims.first() {
             println!(
                 "  Pi_DEC out: children={} next_incoming_CE_k={} first_child={}",
                 next_carry,
@@ -876,7 +893,6 @@ fn print_fold_evolution(params: &NeoParams, packaged: &PackagedProof, perf: &Run
                 chunk_perf.total_ms
             );
         }
-        incoming_carry = next_carry;
     }
     println!();
 }
@@ -884,16 +900,15 @@ fn print_fold_evolution(params: &NeoParams, packaged: &PackagedProof, perf: &Run
 fn print_superneo_embedding_diagnostic(
     params: &NeoParams,
     s: &CcsStructure<F>,
-    packaged: &PackagedProof,
+    build: &SuperNeoIvcBuild,
     first_step: &StepInput,
 ) -> AppResult<()> {
-    let proof_chunk = packaged
-        .proof
-        .session
-        .chunks
+    let relation = build
+        .relations
         .first()
-        .ok_or_else(|| invalid_input("SuperNeo embedding diagnostic requires at least one proof chunk"))?;
-    let output = proof_chunk
+        .ok_or_else(|| invalid_input("SuperNeo embedding diagnostic requires at least one direct relation"))?;
+    let output = relation
+        .replay_witness
         .ccs_outputs
         .first()
         .ok_or_else(|| invalid_input("SuperNeo embedding diagnostic requires at least one Pi_CCS output"))?;
@@ -964,7 +979,7 @@ fn print_superneo_embedding_diagnostic(
 }
 
 fn print_verify_perf(perf: &RunVerifyPerf) {
-    println!("== native packaged verify diagnostic ==");
+    println!("== legacy cold-start packaged verify diagnostic ==");
     println!(
         "run totals: chunks={}, fresh_steps={}, incoming_main_claims={}, pi_ccs_outputs={}, dec_children={}, total_ms={:.3}",
         perf.chunk_count(),
@@ -1031,171 +1046,6 @@ fn print_one_verify_chunk(idx: usize, chunk: &ChunkVerifyPerf) {
         chunk.rlc_ms
     );
     println!("  Pi_DEC: {:.3} ms", chunk.dec_ms);
-}
-
-fn print_spartan(
-    params: &NeoParams,
-    ccs: &CcsStructure<F>,
-    packaged: &PackagedProof,
-    final_carry: &Carry,
-    steps: &[StepInput],
-    superneo_ivc: &SuperNeoIvcBuild,
-    log: &AjtaiSModule,
-) -> AppResult<Option<DirectCcsFPrimeSnarkPerf>> {
-    println!("== Spartan2 direct CCS F' terminal compression ==");
-    println!(
-        "target: folded direct-CCS F' terminal compression over latest NIFS.V step plus private post-DEC CE checks"
-    );
-    println!(
-        "public binding: one latest chunk digest; final CE projection digest(s)=0 ({} private terminal CE claim(s))",
-        packaged.statement.final_main_claims.len()
-    );
-    println!(
-        "folded carrier: historical chunks={}, latest chunk only is synthesized in Spartan",
-        packaged.statement.chunks.len(),
-    );
-    println!("native packaged proof digest: {:02x?}", packaged.proof.proof_digest);
-    let (_proof, perf) = if packaged.statement.chunks.len() == 1 {
-        prove_direct_ccs_f_prime_snark_with_perf(params, ccs, packaged, final_carry, steps)?
-    } else {
-        let direct_ivc = DirectCcsIvcState::append_all(params, ccs, &superneo_ivc.relations, log, ajtai_mixers())?;
-        if direct_ivc.final_state().carry.claims != packaged.statement.final_main_claims {
-            return Err(invalid_input(
-                "direct CCS folded IVC final claims did not match packaged native fold claims",
-            ));
-        }
-        let latest = direct_ivc.latest_relation_and_advice()?;
-        println!(
-            "latest F' summary: chunk_index={}, fresh_CCS={}, incoming_CE={}, Pi_CCS_outputs={}, final_CE={}",
-            latest.chunk_index,
-            latest.fresh_claims,
-            latest.incoming_ce_claims,
-            latest.output_ce_claims,
-            latest.final_ce_claims
-        );
-        let mut trace = |message: &str| println!("  {message}");
-        direct_ivc.compress_with_trace(&mut trace)?
-    };
-    println!("setup/keygen ms (not counted in final summary): {:.3}", perf.setup_ms);
-    println!(
-        "prove ms: prep={:.3}, snark={:.3}, encode={:.3}, total={:.3}",
-        perf.prep_ms, perf.prove_ms, perf.encode_ms, perf.total_prove_ms
-    );
-    println!("verify ms: {:.3}", perf.total_verify_ms);
-    println!(
-        "direct CCS F' R1CS sizes [cons, shared, precommitted, rest, padded_cons, padded_shared, padded_precommitted, padded_rest, public, challenges]: {:?}",
-        perf.r1cs_sizes
-    );
-    println!(
-        "constraint attribution: public_inputs={}, terminal_chunks_synthesized={}, nifs_chunk_constraints_first4={:?}, public_link={}, chunk_done={}, final_ce_relation={}",
-        perf.public_inputs,
-        perf.chunk_count,
-        perf.chunk_constraints_first4,
-        perf.public_link_constraints,
-        perf.chunk_done_constraints,
-        perf.final_ce_relation_constraints
-    );
-    println!("terminal_nifs_chunk_constraints={:?}", perf.chunk_constraints_by_chunk);
-    let ce = perf.final_ce_relation_breakdown;
-    println!(
-        "final_ce_relation_by_component=[A*z={}, x_projection={}, y_eval={}, norm={}, total={}]",
-        ce.commitment,
-        ce.x_projection,
-        ce.y_eval,
-        ce.norm,
-        ce.total()
-    );
-    println!(
-        "R1CS nonzero matrix entries (not constraints): direct={} avg_nnz_per_constraint={:.1}",
-        perf.r1cs_nnz,
-        perf.r1cs_nnz as f64 / perf.r1cs_sizes[0].max(1) as f64
-    );
-    println!(
-        "proof bytes: final_serialized={}, snark_data={}, wrapper_overhead={}",
-        perf.final_proof_bytes,
-        perf.snark_bytes,
-        perf.final_proof_bytes.saturating_sub(perf.snark_bytes)
-    );
-    println!("verify: ok");
-    println!();
-    Ok(Some(perf))
-}
-
-fn print_superneo_ivc_carrier(build: &SuperNeoIvcBuild, packaged: &PackagedProof) -> AppResult<()> {
-    if build.final_state.carry.claims != packaged.statement.final_main_claims {
-        return Err(invalid_input(
-            "generic SuperNeo IVC carrier final claims did not match packaged native fold claims",
-        ));
-    }
-    println!("== generic SuperNeo IVC/NIFS.V carrier ==");
-    println!("status: built and verified natively");
-    println!("relations: {}", build.relations.len());
-    println!(
-        "final state: chunks={}, steps={}, carried_CE_claims={}, transcript_absorbed={}",
-        build.final_state.chunk_count,
-        build.final_state.step_count,
-        build.final_state.carry.claims.len(),
-        build.final_state.transcript.absorbed
-    );
-    println!(
-        "timing (not counted in final summary): cache_build={:.3} ms, total={:.3} ms",
-        build.cache_build_ms, build.total_ms
-    );
-    println!(
-        "hash boundary: no final CE digest is used here; Construction-2 hash linkage is a separate HyperNova layer"
-    );
-    println!();
-    Ok(())
-}
-
-fn print_final_summary(prove_perf: &RunProvePerf, spartan_perf: Option<&DirectCcsFPrimeSnarkPerf>) {
-    let chunk_folds = prove_perf.chunk_count();
-    let fresh_steps = prove_perf.fresh_steps();
-    let ms_per_chunk_fold = prove_perf.total_ms / chunk_folds.max(1) as f64;
-    let ms_per_fresh_step = prove_perf.total_ms / fresh_steps.max(1) as f64;
-
-    println!("== final summary ==");
-    println!("proving (before spartan): {:.3} ms", prove_perf.total_ms);
-    println!(
-        "  number of folds: {} SuperNeo chunk fold(s) over {} SHA256 CCS claim(s)",
-        chunk_folds, fresh_steps
-    );
-    println!(
-        "  time per fold: {:.3} ms/chunk fold ({:.3} ms/SHA256 CCS claim)",
-        ms_per_chunk_fold, ms_per_fresh_step
-    );
-    match spartan_perf {
-        Some(spartan_perf) => {
-            println!("proving (spartan): {:.3} ms", spartan_perf.total_prove_ms);
-            println!("setup/keygen (not counted): {:.3} ms", spartan_perf.setup_ms);
-            println!(
-                "proving (total): {:.3} ms",
-                prove_perf.total_ms + spartan_perf.total_prove_ms
-            );
-            println!("verifying (final proof): {:.3} ms", spartan_perf.total_verify_ms);
-            println!(
-                "constraints passed to Spartan2: {} backend R1CS constraints across one terminal direct CCS F' + final CE (padded to {})",
-                spartan_perf.r1cs_sizes[0], spartan_perf.r1cs_sizes[4]
-            );
-            println!(
-                "size final proof: {} bytes (snark_data={}, wrapper_overhead={})",
-                spartan_perf.final_proof_bytes,
-                spartan_perf.snark_bytes,
-                spartan_perf
-                    .final_proof_bytes
-                    .saturating_sub(spartan_perf.snark_bytes)
-            );
-        }
-        None => {
-            println!("proving (spartan): not run");
-            println!("setup/keygen (not counted): not run");
-            println!("proving (total): {:.3} ms", prove_perf.total_ms);
-            println!("verifying (final proof): not run");
-            println!("constraints passed to Spartan2: not available; Spartan terminal compression did not run");
-            println!("size final proof: not available");
-        }
-    }
-    println!();
 }
 
 fn print_optimization_ranking(prove_perf: &RunProvePerf) {
@@ -1288,7 +1138,7 @@ fn print_constraint_breakdown(
     s: &CcsStructure<F>,
     shape: Sha256CircuitShape,
     prove_perf: &RunProvePerf,
-    spartan_perf: Option<&DirectCcsFPrimeSnarkPerf>,
+    spartan_perf: Option<&DirectCcsRecursiveIvcSnarkPerf>,
 ) {
     let fresh = prove_perf.fresh_steps();
     let total_ccs_rows = s.n.saturating_mul(fresh);
@@ -1309,25 +1159,49 @@ fn print_constraint_breakdown(
     );
     println!("Spartan2 constraints:");
     if let Some(spartan_perf) = spartan_perf {
-        println!("  backend R1CS constraints passed: {}", spartan_perf.r1cs_sizes[0]);
-        println!("  padded backend constraints: {}", spartan_perf.r1cs_sizes[4]);
+        let terminal = &spartan_perf.terminal;
+        println!(
+            "  backend R1CS constraints passed: {} terminal + {} folded F' chain + {} folded/default F' accumulator authority = {}",
+            terminal.r1cs_sizes[0],
+            spartan_perf.f_prime_chain_constraints,
+            spartan_perf.f_prime_final_ce_constraints,
+            terminal.r1cs_sizes[0] + spartan_perf.f_prime_chain_constraints + spartan_perf.f_prime_final_ce_constraints
+        );
+        println!(
+            "  padded backend constraints: {} terminal + ~{} folded F' chain + ~{} folded/default F' accumulator authority",
+            terminal.r1cs_sizes[4],
+            padded_constraints(spartan_perf.f_prime_chain_constraints),
+            padded_constraints(spartan_perf.f_prime_final_ce_constraints)
+        );
         println!(
             "  padding rows: {} ({:.1}% over actual)",
-            spartan_perf.r1cs_sizes[4].saturating_sub(spartan_perf.r1cs_sizes[0]),
-            100.0 * spartan_perf.r1cs_sizes[4].saturating_sub(spartan_perf.r1cs_sizes[0]) as f64
-                / spartan_perf.r1cs_sizes[0].max(1) as f64
+            terminal.r1cs_sizes[4].saturating_sub(terminal.r1cs_sizes[0]),
+            100.0 * terminal.r1cs_sizes[4].saturating_sub(terminal.r1cs_sizes[0]) as f64
+                / terminal.r1cs_sizes[0].max(1) as f64
         );
         println!(
             "  backend public inputs={}, challenges={}, nnz_total={}",
-            spartan_perf.r1cs_sizes[8], spartan_perf.r1cs_sizes[9], spartan_perf.r1cs_nnz
+            terminal.r1cs_sizes[8], terminal.r1cs_sizes[9], terminal.r1cs_nnz
         );
         println!(
             "  terminal direct CCS F' chunk constraints={:?}",
-            spartan_perf.chunk_constraints_by_chunk
+            terminal.chunk_constraints_by_chunk
+        );
+        println!(
+            "  terminal Construction-2 folded F' accumulator constraints={}",
+            terminal.construction2_fold_constraints
         );
         println!(
             "  final CE relation constraints={}",
-            spartan_perf.final_ce_relation_constraints
+            terminal.final_ce_relation_constraints
+        );
+        println!(
+            "  folded/default F' accumulator authority constraints={}",
+            spartan_perf.f_prime_final_ce_constraints
+        );
+        println!(
+            "  folded F' chain constraints={}",
+            spartan_perf.f_prime_chain_constraints
         );
         println!("  note: nnz_total counts nonzero entries in the R1CS A/B/C matrices, not constraint rows");
     } else {
@@ -1373,8 +1247,9 @@ fn run() -> AppResult<()> {
 
     let schedule = FoldSchedule::RowsPerChunk(1);
     let public_steps = steps.iter().map(StepInput::public).collect::<Vec<_>>();
+    let steps_for_direct_carrier = steps.clone();
     let steps_for_spartan = steps.clone();
-    let (packaged, prove_perf, final_carry) = prove_and_package_with_final_carry_perf(
+    let (packaged, _legacy_prove_perf, final_carry) = prove_and_package_with_final_carry_perf(
         FoldingMode::Optimized,
         schedule,
         &params,
@@ -1383,11 +1258,29 @@ fn run() -> AppResult<()> {
         &log,
         ajtai_mixers(),
     )?;
-    let superneo_ivc = build_superneo_ivc_relations_with_perf(schedule, &params, &ccs, steps, &log, ajtai_mixers())?;
-    print_chunk_prove_perf(&prove_perf);
-    print_prove_timing_accounting(&prove_perf);
-    print_fold_evolution(&params, &packaged, &prove_perf);
-    print_superneo_embedding_diagnostic(&params, &ccs, &packaged, &first_step_for_embedding_check)?;
+    let legacy_superneo_ivc =
+        build_superneo_ivc_relations_with_perf(schedule, &params, &ccs, steps.clone(), &log, ajtai_mixers())?;
+    let direct_public_input_len = steps_for_spartan
+        .first()
+        .map(|step| step.mcs.m_in)
+        .ok_or_else(|| invalid_input("direct SHA256 carrier requires at least one fold claim"))?;
+    let direct_program = DirectCcsProgram::new_with_public_input_len(&params, &ccs, direct_public_input_len)?;
+    let direct_initial_carry = direct_program.canonical_zero_carry()?;
+    let direct_initial_carry_len = direct_initial_carry.claims.len();
+    let direct_superneo_ivc = build_superneo_ivc_relations_with_initial_carry_accumulator_handle_perf(
+        schedule,
+        &params,
+        &ccs,
+        steps_for_direct_carrier,
+        direct_initial_carry,
+        &log,
+        ajtai_mixers(),
+    )?;
+    let direct_prove_perf = direct_superneo_ivc.prove_perf();
+    print_chunk_prove_perf(&direct_prove_perf);
+    print_prove_timing_accounting(&direct_prove_perf);
+    print_fold_evolution(&params, &direct_superneo_ivc, &direct_prove_perf);
+    print_superneo_embedding_diagnostic(&params, &ccs, &direct_superneo_ivc, &first_step_for_embedding_check)?;
 
     let (verified_claims, verify_perf) =
         verify_packaged_with_perf(FoldingMode::Optimized, &params, &ccs, &packaged, ajtai_mixers())?;
@@ -1398,20 +1291,25 @@ fn run() -> AppResult<()> {
         return Err(invalid_input("public step count changed during packaging"));
     }
     print_verify_perf(&verify_perf);
-    print_superneo_ivc_carrier(&superneo_ivc, &packaged)?;
+    if legacy_superneo_ivc.final_state.carry.claims != packaged.statement.final_main_claims {
+        return Err(invalid_input(
+            "legacy cold-start SuperNeo IVC carrier final claims did not match packaged native fold claims",
+        ));
+    }
+    print_superneo_ivc_carrier(&direct_superneo_ivc, direct_initial_carry_len)?;
     let spartan_perf = print_spartan(
         &params,
         &ccs,
         &packaged,
         &final_carry,
         &steps_for_spartan,
-        &superneo_ivc,
+        &direct_superneo_ivc,
         &log,
     )?;
-    print_optimization_ranking(&prove_perf);
-    print_folding_timing_table(&prove_perf, ccs.n);
-    print_constraint_breakdown(&ccs, sha_shape, &prove_perf, spartan_perf.as_ref());
-    print_final_summary(&prove_perf, spartan_perf.as_ref());
+    print_optimization_ranking(&direct_prove_perf);
+    print_folding_timing_table(&direct_prove_perf, ccs.n);
+    print_constraint_breakdown(&ccs, sha_shape, &direct_prove_perf, spartan_perf.as_ref());
+    print_final_summary(&direct_prove_perf, spartan_perf.as_ref());
     Ok(())
 }
 

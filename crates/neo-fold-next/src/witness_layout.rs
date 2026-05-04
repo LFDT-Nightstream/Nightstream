@@ -1,4 +1,4 @@
-//! Owns the local packed witness layout helpers used by CHIP-8 and RV64IM kernels.
+//! Owns the local packed witness layout helpers used by CHIP-8 and RV32IM kernels.
 //! It does not own deprecated memory-sidecar logic or witness builders.
 
 use neo_ccs::matrix::Mat;

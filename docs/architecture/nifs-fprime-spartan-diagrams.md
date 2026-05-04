@@ -239,7 +239,7 @@ stage because of the lattice setting:
 │       relation works; the paper does not mandate Spartan.                │
 │     • On-chain verifier: one hash-chain check + one SNARK.V.             │
 │                                                                          │
-│     crates/neo-fold-next/src/rv64im/decider/                             │
+│     crates/neo-fold-next/src/rv32im/decider/                             │
 └──────────────────────────────┬───────────────────────────────────────────┘
                                │ (terminal recursive state Π_N; decider
                                │  performs one extra final fold)
@@ -260,8 +260,8 @@ stage because of the lattice setting:
 │         c_{i+1}      := L( **z_{i+1}^{F'}** )      (Ajtai commits full z)│
 │         u_{i+1}      := ( c_{i+1}, x_{i+1} )       ∈ CCS(b,L)            │
 │                                                                          │
-│     crates/neo-fold-next/src/rv64im/nivc/                                │
-│     crates/neo-fold-next/src/rv64im/main_relation_spartan/f_prime.rs     │
+│     crates/neo-fold-next/src/rv32im/nivc/                                │
+│     crates/neo-fold-next/src/rv32im/main_relation_spartan/f_prime.rs     │
 └──────────────────────────────┬───────────────────────────────────────────┘
                                │ (native U_{i+1} == circuit U_{i+1} bit-exact)
                                ▼
@@ -276,12 +276,12 @@ stage because of the lattice setting:
 │                  ρ_1..ρ_{K+k}) are squeezed from a transcript; none      │
 │                  of them appear in π_fold.                               │
 │                                                                          │
-│     crates/neo-fold-next/src/rv64im/nifs/                                │
+│     crates/neo-fold-next/src/rv32im/nifs/                                │
 │         ├── pi_ccs.rs                                                    │
 │         ├── pi_rlc.rs                                                    │
 │         └── pi_dec.rs                                                    │
 │                                                                          │
-│     circuit mirror: crates/neo-fold-next/src/rv64im/main_relation_circuit│
+│     circuit mirror: crates/neo-fold-next/src/rv32im/main_relation_circuit│
 └──────────────────────────────┬───────────────────────────────────────────┘
                                │ (CCS / CE instances + witnesses)
                                ▼
@@ -1134,7 +1134,7 @@ the hash that produced x_N. The recursive chain only produced
 ## §14 Module layout (crate-level)
 
 ```
-crates/neo-fold-next/src/rv64im/
+crates/neo-fold-next/src/rv32im/
 │
 ├── main_relation_ccs.rs                RELATIONS: CCS(b,L) type
 │                                       (instance = (c, x) with c = L([x,w]))

@@ -19,7 +19,7 @@ As a quick note, using Generalized-Lasso for lookups would increase the bit comp
 | $\log(T)$                                   | 5                  | 6                 | 7            |
 | $W$                                         | 3                  | -                 | -            |
 | Total Elements                              | 36                 | 12                | 13           |
-| In 256-bit equivalents<br>(both RV32, RV64) | 3.5 elements       | 1.5 elements      | 1.5 elements |
+| In 256-bit equivalents<br>(both RV32, RV32) | 3.5 elements       | 1.5 elements      | 1.5 elements |
 
 Figure 4: The spread of elements committed to per memory operation with the extra overhead elements per byte of load or store. That is, a load and store of  $k$  bytes involves the prover committing to  $36 + 12k$  elements, and  $36 + 13k$  elements, respectively. We approximate the per-step commitments costs in terms of the cost of committing to a 256-bit element when using Pippenger’s MSM algorithm, assuming that the program code is under  $2^{22}$  bytes long (placing it in the  $\log(T)$  category), and the program finishes in under  $2^{30}$  CPU steps.
 

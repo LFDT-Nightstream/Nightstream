@@ -2,38 +2,38 @@
 
 [![GitHub License](https://img.shields.io/github/license/nicarq/nightstream)](LICENSE)
 
-Nightstream is a **post-quantum** proving system built around a lattice-based folding scheme for **CCS** plus sum-check-based memory arguments (Twist/Shout). The active proving path targets CCS over the **Goldilocks** field with a degree-2 extension for sum-check soundness, and exposes a **compact published proof boundary** for RV64IM.
+Nightstream is a **post-quantum** proving system built around a lattice-based folding scheme for **CCS** plus sum-check-based memory arguments (Twist/Shout). The active proving path targets CCS over the **Goldilocks** field with a degree-2 extension for sum-check soundness, and exposes a **compact published proof boundary** for RV32IM.
 
 - **Twist** for read/write memory (register and RAM timelines)
 - **Shout** for read-only lookups (bytecode fetch, decode, ALU tables)
 
 Nightstream implements the protocol from the Neo paper "Lattice-based folding scheme for CCS over small fields" (Nguyen & Setty, 2025/294), extended with Twist/Shout memory arguments and a Spartan2 outer layer.
 
-> **Status**: Research prototype. The single active proving path (`neo-fold-next`) proves and verifies full RV64IM programs end-to-end and publishes a compact Nightstream statement/proof pair. CHIP-8 remains in the tree as parked audit/development code, not as an active theorem-facing target. Chain-facing deployment wiring and independent audit are still unfinished. Not production-ready.
+> **Status**: Research prototype. The single active proving path (`neo-fold-next`) proves and verifies full RV32IM programs end-to-end and publishes a compact Nightstream statement/proof pair. CHIP-8 remains in the tree as parked audit/development code, not as an active theorem-facing target. Chain-facing deployment wiring and independent audit are still unfinished. Not production-ready.
 
 ---
 
 ## What Works Today
 
-- Full RV64IM public-proof → accepted-proof → final relation → IVC recursion SNARK → published Nightstream pipeline
+- Full RV32IM public-proof → accepted-proof → final relation → IVC recursion SNARK → published Nightstream pipeline
 - Twist/Shout integrated as register, RAM, and TwistLink events inside Stage 2 semantics (no separate sidecar crate)
-- Side-claim / side-opening / side-terminal relations wrap the RV64IM value-lane content into publishable artifacts
-- End-to-end RV64IM integration tests (`crates/neo-fold-next/tests/nightstream.rs`) proving and verifying the active published boundary
+- Side-claim / side-opening / side-terminal relations wrap the RV32IM value-lane content into publishable artifacts
+- End-to-end RV32IM integration tests (`crates/neo-fold-next/tests/nightstream.rs`) proving and verifying the active published boundary
 - Optional Midnight outer-compression bridge (`crates/nstream-midnight-bridge`) for theorem-facing proof exports
 
 ### Published Nightstream Boundary
 
 The compact published boundary lives in `crates/neo-fold-next/src/nightstream/` and is published as a `NightstreamStatement` + ISA-specific nightstream proof:
 
-- RV64IM carried Nightstream artifact: ~524 bytes
-These numbers refer to the *carried* published boundary, not the larger internal Spartan2 proof exchanged below the seam. The RV64IM IVC recursion SNARK and side binding proofs are backend-accounted and verifier-relevant, but they are not carried inside the published Nightstream artifact itself.
+- RV32IM carried Nightstream artifact: ~524 bytes
+These numbers refer to the *carried* published boundary, not the larger internal Spartan2 proof exchanged below the seam. The RV32IM IVC recursion SNARK and side binding proofs are backend-accounted and verifier-relevant, but they are not carried inside the published Nightstream artifact itself.
 
 Measured via the perf snapshots:
 
 ```bash
-# RV64IM (NS_DEBUG_N controls instruction count)
+# RV32IM (NS_DEBUG_N controls instruction count)
 NS_DEBUG_N=1000 cargo test -p neo-fold-next --release --test perf -- \
-  --ignored --nocapture rv64im_mixed_opcode_perf_snapshot
+  --ignored --nocapture rv32im_mixed_opcode_perf_snapshot
 ```
 
 ---
@@ -53,7 +53,7 @@ cargo build --release
 # Full workspace tests
 cargo test --workspace --release
 
-# Canonical RV64IM round-trip (prove + verify via nightstream seam)
+# Canonical RV32IM round-trip (prove + verify via nightstream seam)
 cargo test -p neo-fold-next --release --test nightstream -- --nocapture
 
 ```
@@ -85,20 +85,20 @@ Most tests use `FoldingMode::Optimized`. The `FoldingMode::PaperExact` engine is
 
 ## Architecture Overview
 
-`neo-fold-next` is the single active proving path. It has three layers: a generic SuperNeo shard spine, the RV64IM frontend, and a compact publication boundary. CHIP-8 code remains parked for development reference.
+`neo-fold-next` is the single active proving path. It has three layers: a generic SuperNeo shard spine, the RV32IM frontend, and a compact publication boundary. CHIP-8 code remains parked for development reference.
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │  nightstream/               Published proof boundary (compact)   │  ← chain-facing
 │    mod.rs                   NightstreamStatement + proof binding │
-│    rv64im.rs                Rv64imNightstreamProof               │
+│    rv32im.rs                Rv32imNightstreamProof               │
 │      side_claim / side_opening / side_binding / side_eval_claim  │
 │      opening_artifact / side_bridges                             │
 │    chip8.rs                 parked CHIP-8 audit/development path │
 ├──────────────────────────────────────────────────────────────────┤
 │  decider/spartan2/          Generic Spartan2 final decider       │
 ├──────────────────────────────────────────────────────────────────┤
-│  rv64im/                    active ISA frontend                  │
+│  rv32im/                    active ISA frontend                  │
 │    isa / execute / lower    trace capture and expansion          │
 │    builder / tables         parity manifests, ISA tables         │
 │    stage1 / stage2 / stage3 row binding / temporal / continuity  │
@@ -106,7 +106,7 @@ Most tests use `FoldingMode::Optimized`. The `FoldingMode::PaperExact` engine is
 │    ccs / layout             root CCS and column layout           │
 │    final_relation           build final recursion artifacts       │
 │    ivc_snark                compress final Construction-2 state   │
-│    trace_expand/            RV64IM only: MUL/DIV lowering        │
+│    trace_expand/            RV32IM only: MUL/DIV lowering        │
 ├──────────────────────────────────────────────────────────────────┤
 │  Generic spine (ISA-agnostic)                                    │
 │    proof.rs          StepInput, ChunkInput, RunProof, Carry,     │
@@ -153,9 +153,9 @@ incoming main Carry + fresh CCS step claims
 
 All Fiat-Shamir challenges are sampled from a Poseidon2 transcript bound to `neo.fold.next/session`.
 
-### RV64IM Side Lane
+### RV32IM Side Lane
 
-The RV64IM frontend also emits stage-level eval, opening, and terminal claims that cannot be folded together with the main-lane `Carry` (they are not single-point ME claims at the same point). These are published alongside the main proof as **side artifacts** under `nightstream/rv64im/side_*.rs`:
+The RV32IM frontend also emits stage-level eval, opening, and terminal claims that cannot be folded together with the main-lane `Carry` (they are not single-point ME claims at the same point). These are published alongside the main proof as **side artifacts** under `nightstream/rv32im/side_*.rs`:
 
 | Side artifact              | Content                                                         |
 |----------------------------|-----------------------------------------------------------------|
@@ -166,7 +166,7 @@ The RV64IM frontend also emits stage-level eval, opening, and terminal claims th
 | `opening_artifact`         | Phase-0/1/2 opening convergence artifact                        |
 | `side_bridges`             | Projects accepted kernel artifacts into side relation witnesses |
 
-The parked CHIP-8 path does not participate in the active RV64IM published boundary.
+The parked CHIP-8 path does not participate in the active RV32IM published boundary.
 
 ---
 
@@ -178,12 +178,12 @@ The parked CHIP-8 path does not participate in the active RV64IM published bound
 |-------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------|
 | [`docs/superneo-paper/`](docs/superneo-paper/)                                                        | Neo paper text (source of truth for the folding protocol)               |
 | [`docs/twist-and-shout-paper/`](docs/twist-and-shout-paper/)                                          | Twist / Shout paper text (source of truth for memory arguments)         |
-| [`docs/jolt-paper/`](docs/jolt-paper/)                                                                | Jolt paper text (source for RV64IM lowering and lookup tables)          |
+| [`docs/jolt-paper/`](docs/jolt-paper/)                                                                | Jolt paper text (source for RV32IM lowering and lookup tables)          |
 | [`docs/system-architecture.md`](docs/system-architecture.md)                                          | IVC architecture + emission policies                                    |
 | [`docs/glossary.md`](docs/glossary.md)                                                                | Protocol terminology                                                    |
 | [`docs/assurance-strategy.md`](docs/assurance-strategy.md)                                            | Testing / soundness assurance plan                                      |
 | [`docs/explanations/zkvm-main-lane-vs-twist-shout.md`](docs/explanations/zkvm-main-lane-vs-twist-shout.md) | Main-lane vs. Twist/Shout split                                    |
-| [`crates/neo-fold-next/specs/riscv-kernel.md`](crates/neo-fold-next/specs/riscv-kernel.md)            | RV64IM kernel spec (staging, parity, Jolt-inspired lowering)            |
+| [`crates/neo-fold-next/specs/riscv-kernel.md`](crates/neo-fold-next/specs/riscv-kernel.md)            | RV32IM kernel spec (staging, parity, Jolt-inspired lowering)            |
 | [`crates/neo-fold-next/specs/chip8-kernel.md`](crates/neo-fold-next/specs/chip8-kernel.md)            | CHIP-8 kernel spec                                                      |
 | [`formal/superneo-lean/README.md`](formal/superneo-lean/README.md)                                    | Lean proof-facing model and dependency graph                            |
 
@@ -192,17 +192,17 @@ The parked CHIP-8 path does not participate in the active RV64IM published bound
 ```bash
 cargo test --workspace --release
 
-# End-to-end nightstream round-trip for RV64IM
+# End-to-end nightstream round-trip for RV32IM
 cargo test -p neo-fold-next --release --test nightstream -- --nocapture
 
 # Generic spine Π_CCS → Π_RLC → Π_DEC prove/verify
 cargo test -p neo-fold-next --release --test prover_pipeline -- --nocapture
 cargo test -p neo-fold-next --release --test finalized_proof  -- --nocapture
 
-# Per-stage RV64IM suites
-cargo test -p neo-fold-next --release --test rv64im_stage1 -- --nocapture
-cargo test -p neo-fold-next --release --test rv64im_stage2 -- --nocapture
-cargo test -p neo-fold-next --release --test rv64im_stage3 -- --nocapture
+# Per-stage RV32IM suites
+cargo test -p neo-fold-next --release --test rv32im_stage1 -- --nocapture
+cargo test -p neo-fold-next --release --test rv32im_stage2 -- --nocapture
+cargo test -p neo-fold-next --release --test rv32im_stage3 -- --nocapture
 ```
 
 ### 3. Where to Start in the Code
@@ -216,10 +216,10 @@ cargo test -p neo-fold-next --release --test rv64im_stage3 -- --nocapture
 - [`chunk_relation.rs`](crates/neo-fold-next/src/chunk_relation.rs) sequences Π_CCS → Π_RLC → Π_DEC explicitly and defines `CommitmentMixers`.
 - [`finalize.rs`](crates/neo-fold-next/src/finalize.rs) packages `PackagedProof` and emits the digest footer.
 
-**RV64IM frontend** in [`crates/neo-fold-next/src/rv64im/`](crates/neo-fold-next/src/rv64im/):
+**RV32IM frontend** in [`crates/neo-fold-next/src/rv32im/`](crates/neo-fold-next/src/rv32im/):
 
-- `isa.rs`, `execute.rs`, `lower.rs`, `builder.rs`, `tables.rs` cover ISA semantics, tracing, and lowering to `Rv64ExpandedRow`.
-- `trace_expand/` contains the RV64IM-only multi-cycle MUL/DIV expansion (`mul/`, `divrem/`).
+- `isa.rs`, `execute.rs`, `lower.rs`, `builder.rs`, `tables.rs` cover ISA semantics, tracing, and lowering to `Rv32ExpandedRow`.
+- `trace_expand/` contains the RV32IM-only multi-cycle MUL/DIV expansion (`mul/`, `divrem/`).
 - `stage1/`, `stage2/`, `stage3/` cover row binding, the register/RAM/Twist-link timeline, and continuity.
 - `kernel/` holds the three-stage kernel prover/verifier (`kernel/stages/`, `kernel/main_lane/`, `kernel/openings/`, `kernel/proof/`, `kernel/parity/`).
 - `final_relation.rs`, `decider.rs`, `ivc.rs`, `ivc_snark.rs` build the final recursion artifacts and compressed IVC proof boundary.
@@ -227,13 +227,13 @@ cargo test -p neo-fold-next --release --test rv64im_stage3 -- --nocapture
 **Parked CHIP-8 frontend** in [`crates/neo-fold-next/src/chip8/`](crates/neo-fold-next/src/chip8/):
 
 - `spec.rs`, `isa.rs`, `execute.rs`, `lower.rs`, `builder.rs`, `tables.rs`, `poly.rs`, `trace.rs` cover CHIP-8 ISA semantics and trace capture.
-- `stage1/`, `stage2/`, `stage3/`, `kernel/` mirror the three-stage structure from RV64IM.
+- `stage1/`, `stage2/`, `stage3/`, `kernel/` mirror the three-stage structure from RV32IM.
 - `ccs.rs`, `layout.rs`, `chunk_relation.rs`, `final_relation.rs`, `decider.rs` are audit/development scaffolding and are not part of the active theorem-facing published path.
 
 **Published Nightstream boundary** in [`crates/neo-fold-next/src/nightstream/`](crates/neo-fold-next/src/nightstream/):
 
 - `mod.rs` defines `NightstreamStatement`, `NightstreamProofBindingInputs`, and the core digest helpers.
-- `rv64im.rs` and `rv64im/side_*.rs` build the RV64IM `Rv64imNightstreamProof` with its side-lane artifacts.
+- `rv32im.rs` and `rv32im/side_*.rs` build the RV32IM `Rv32imNightstreamProof` with its side-lane artifacts.
 - `chip8.rs` is parked with the CHIP-8 audit/development path.
 
 ---
@@ -251,9 +251,9 @@ cargo test -p neo-fold-next --release --test rv64im_stage3 -- --nocapture
 | **Carry**          | Running main-lane ME claims + witnesses across chunks                   | `neo_fold_next::proof::Carry`                                                                  |
 | **Run / Session**  | A full prove session over a sequence of chunks                          | `neo_fold_next::run::{prove_chunks, verify_chunks, prove_and_package}`                         |
 | **PackagedProof**  | Final packaged proof + public statement                                 | `neo_fold_next::proof::PackagedProof`; built by `neo_fold_next::finalize`                      |
-| **Twist**          | R/W memory argument (register + RAM timelines via sparse increments)    | `neo_fold_next::rv64im::stage2::semantics`: `RegisterWriteEvent`, `RamEvent`, `TwistLinkEvent`  |
-| **Shout**          | Read-only lookup argument (bytecode fetch / decode / ALU / tables)      | `neo_fold_next::rv64im::stage1` row-binding families                                           |
-| **Nightstream**    | Published compact statement + proof boundary                            | `neo_fold_next::nightstream::{NightstreamStatement, rv64im}`                                   |
+| **Twist**          | R/W memory argument (register + RAM timelines via sparse increments)    | `neo_fold_next::rv32im::stage2::semantics`: `RegisterWriteEvent`, `RamEvent`, `TwistLinkEvent`  |
+| **Shout**          | Read-only lookup argument (bytecode fetch / decode / ALU / tables)      | `neo_fold_next::rv32im::stage1` row-binding families                                           |
+| **Nightstream**    | Published compact statement + proof boundary                            | `neo_fold_next::nightstream::{NightstreamStatement, rv32im}`                                   |
 | **Spartan2**       | Backend used for final recursion and side-binding proofs                | `neo_fold_next::decider::spartan2`                                                             |
 
 ### Key Types
@@ -291,42 +291,42 @@ neo_fold_next::nightstream::NightstreamStatement {
 
 ---
 
-## End-to-End: RV64IM
+## End-to-End: RV32IM
 
 The following is pseudocode matching the flow in [`crates/neo-fold-next/tests/nightstream.rs`](crates/neo-fold-next/tests/nightstream.rs) (see `external_fixture` and `verify_fixture`).
 
 ```rust
-use neo_fold_next::rv64im::{
-    prove_rv64im_public_proof,
-    build_rv64im_accepted_proof_artifact,
-    Rv64imProofInput,
+use neo_fold_next::rv32im::{
+    prove_rv32im_public_proof,
+    build_rv32im_accepted_proof_artifact,
+    Rv32imProofInput,
 };
-use neo_fold_next::rv64im::final_relation::prove_rv64im_final_statement_from_accepted;
-use neo_fold_next::rv64im::ivc_snark::setup_rv64im_ivc_snark_from_final_cached;
-use neo_fold_next::nightstream::rv64im::{
-    build_rv64im_nightstream_from_public_proof,
-    verify_rv64im_nightstream,
+use neo_fold_next::rv32im::final_relation::prove_rv32im_final_statement_from_accepted;
+use neo_fold_next::rv32im::ivc_snark::setup_rv32im_ivc_snark_from_final_cached;
+use neo_fold_next::nightstream::rv32im::{
+    build_rv32im_nightstream_from_public_proof,
+    verify_rv32im_nightstream,
 };
 
-// 1. Produce the public RV64IM proof (stages 1/2/3 + kernel + accepted artifact)
-let proof_input: Rv64imProofInput = /* program_words + max_steps */;
-let public_proof = prove_rv64im_public_proof(&proof_input)?;
+// 1. Produce the public RV32IM proof (stages 1/2/3 + kernel + accepted artifact)
+let proof_input: Rv32imProofInput = /* program_words + max_steps */;
+let public_proof = prove_rv32im_public_proof(&proof_input)?;
 
 // 2. Build final artifacts and the IVC recursion SNARK verifier key
-let accepted = build_rv64im_accepted_proof_artifact(&public_proof)?;
+let accepted = build_rv32im_accepted_proof_artifact(&public_proof)?;
 let (final_statement, final_proof) =
-    prove_rv64im_final_statement_from_accepted(&accepted)?;
+    prove_rv32im_final_statement_from_accepted(&accepted)?;
 let ivc_recursion_snark_keys =
-    setup_rv64im_ivc_snark_from_final_cached(&final_statement, &final_proof)?;
+    setup_rv32im_ivc_snark_from_final_cached(&final_statement, &final_proof)?;
 
 // 3. Build the published Nightstream statement + proof
 let (statement, nightstream_proof) =
-    build_rv64im_nightstream_from_public_proof(&public_proof)?;
+    build_rv32im_nightstream_from_public_proof(&public_proof)?;
 
 // 4. Verify the compressed published boundary
 let side_opening_vk = /* side-opening verifier key */;
 let side_binding_vk = /* side-binding verifier key */;
-verify_rv64im_nightstream(
+verify_rv32im_nightstream(
     &statement,
     &nightstream_proof,
     public_proof.statement.root_params_id,
@@ -356,13 +356,13 @@ Stage 2 of each ISA captures the register and RAM timelines as events against th
 
 Stage 2 reduces these into canonical-family digests and summaries in `stage2/proof.rs`; Stage 2 sum-check logic and `r_twist_cycle` point derivation are specified in `crates/neo-fold-next/specs/riscv-kernel.md`.
 
-**Code:** [`crates/neo-fold-next/src/rv64im/stage2/`](crates/neo-fold-next/src/rv64im/stage2/) and [`crates/neo-fold-next/src/chip8/stage2/`](crates/neo-fold-next/src/chip8/stage2/)
+**Code:** [`crates/neo-fold-next/src/rv32im/stage2/`](crates/neo-fold-next/src/rv32im/stage2/) and [`crates/neo-fold-next/src/chip8/stage2/`](crates/neo-fold-next/src/chip8/stage2/)
 
 ### Shout (Read-only Lookups)
 
-Stage 1 of each ISA binds each executed row against read-only lookup families: bytecode fetch, decode, ALU tables, and (RV64IM) branch/address families. Each family produces a row-binding proof and digest that is carried through the kernel transcript and opened at phase-0 points by the openings subsystem.
+Stage 1 of each ISA binds each executed row against read-only lookup families: bytecode fetch, decode, ALU tables, and (RV32IM) branch/address families. Each family produces a row-binding proof and digest that is carried through the kernel transcript and opened at phase-0 points by the openings subsystem.
 
-**Code:** [`crates/neo-fold-next/src/rv64im/stage1/`](crates/neo-fold-next/src/rv64im/stage1/), [`crates/neo-fold-next/src/chip8/stage1/`](crates/neo-fold-next/src/chip8/stage1/), [`crates/neo-fold-next/src/rv64im/tables.rs`](crates/neo-fold-next/src/rv64im/tables.rs)
+**Code:** [`crates/neo-fold-next/src/rv32im/stage1/`](crates/neo-fold-next/src/rv32im/stage1/), [`crates/neo-fold-next/src/chip8/stage1/`](crates/neo-fold-next/src/chip8/stage1/), [`crates/neo-fold-next/src/rv32im/tables.rs`](crates/neo-fold-next/src/rv32im/tables.rs)
 
 ### Opening Convergence
 
@@ -372,7 +372,7 @@ Stage / main-lane / side-lane claims converge through a three-phase opening pipe
 - **Phase 1**: bucketed reduction of eval claims
 - **Phase 2**: collapse to final openings
 
-**Code:** [`crates/neo-fold-next/src/rv64im/kernel/openings/`](crates/neo-fold-next/src/rv64im/kernel/openings/), `crates/neo-fold-next/src/nightstream/rv64im/opening_artifact.rs`, `crates/neo-fold-next/src/opening.rs`, `crates/neo-fold-next/src/time_opening.rs`
+**Code:** [`crates/neo-fold-next/src/rv32im/kernel/openings/`](crates/neo-fold-next/src/rv32im/kernel/openings/), `crates/neo-fold-next/src/nightstream/rv32im/opening_artifact.rs`, `crates/neo-fold-next/src/opening.rs`, `crates/neo-fold-next/src/time_opening.rs`
 
 ---
 
@@ -393,9 +393,9 @@ Per project policy in [`CLAUDE.md`](CLAUDE.md), tests always use `FoldingMode::O
 Constraint / perf dumps live in [`crates/neo-fold-next/tests/perf.rs`](crates/neo-fold-next/tests/perf.rs). All perf snapshots are `--ignored` by default.
 
 ```bash
-# Full constraint + timing snapshot for RV64IM (N = instructions + 1 halt)
+# Full constraint + timing snapshot for RV32IM (N = instructions + 1 halt)
 NS_DEBUG_N=10000 cargo test -p neo-fold-next --release --test perf -- \
-  --ignored --nocapture rv64im_mixed_opcode_perf_snapshot
+  --ignored --nocapture rv32im_mixed_opcode_perf_snapshot
 ```
 
 For CPU/memory profiling see [`scripts/profile_for_ai.sh`](scripts/profile_for_ai.sh), [`scripts/profile_xctrace.sh`](scripts/profile_xctrace.sh), and [`scripts/profile_memory_deep.sh`](scripts/profile_memory_deep.sh). Usage is documented in [`CLAUDE.md`](CLAUDE.md).
@@ -423,7 +423,7 @@ See [`CLAUDE.md`](CLAUDE.md) for the spec/interface/implementation layout and cl
 - **Transcript binding** via Poseidon2 domain separation across every phase (protocol-binding paths are Poseidon2-only)
 - **ME claim alignment** checks before Π_RLC
 - **Side-lane artifact digests** bound into the `NightstreamProofBindingInputs` root
-- **Red-team test suite** ([`crates/neo-fold-next/tests/rv64im_redteam.rs`](crates/neo-fold-next/tests/rv64im_redteam.rs)) for tamper resistance on the RV64IM path
+- **Red-team test suite** ([`crates/neo-fold-next/tests/rv32im_redteam.rs`](crates/neo-fold-next/tests/rv32im_redteam.rs)) for tamper resistance on the RV32IM path
 
 ### Security Posture
 
@@ -450,7 +450,7 @@ crates/
   neo-ajtai/              Ajtai (lattice) commitments; module-SIS binding
   neo-ccs/                CCS/MCS/ME relations, matrices, arithmetization
   neo-reductions/         Π_CCS / Π_RLC / Π_DEC engines (optimized + paper-exact)
-  neo-fold-next/          Active proving path: spine + RV64IM + nightstream
+  neo-fold-next/          Active proving path: spine + RV32IM + nightstream
   nstream-midnight-bridge/ Midnight outer-compression bridge for proof exports
 
 docs/
@@ -498,7 +498,7 @@ See [`TODO.md`](TODO.md) for in-flight work.
 
 - **Neo**: Wilson Nguyen & Srinath Setty, "[Neo: Lattice-based folding scheme for CCS over small fields](https://eprint.iacr.org/2025/294)" (ePrint 2025/294). Local text: [`docs/superneo-paper/`](docs/superneo-paper/).
 - **Twist / Shout**: Local text in [`docs/twist-and-shout-paper/`](docs/twist-and-shout-paper/).
-- **Jolt**: Local text in [`docs/jolt-paper/`](docs/jolt-paper/); source for RV64IM instruction lowering, virtual composition, and lookup-table structure.
+- **Jolt**: Local text in [`docs/jolt-paper/`](docs/jolt-paper/); source for RV32IM instruction lowering, virtual composition, and lookup-table structure.
 - **Spartan2**: Srinath Setty, "Spartan: Efficient and general-purpose zkSNARKs without trusted setup" (CRYPTO 2020). Vendored in [`crates/spartan2`](crates/spartan2).
 - **Plonky3**: Goldilocks field and Poseidon2 primitives used by Nightstream.
 
@@ -508,7 +508,7 @@ See [`TODO.md`](TODO.md) for in-flight work.
 
 ### Jolt zkVM
 
-The RV64IM frontend's virtual-composition lowering for MUL/MULH/MULHSU/MULW and DIV/DIVU/DIVW/REM/REMU/REMW families, the bitmask+apply pattern for shift instructions, the virtual assertion pattern for control/assertion instructions, and the dense slot manifest structure for Stage 1 row binding are all Jolt-inspired. The detailed mapping is documented in [`crates/neo-fold-next/specs/riscv-kernel.md`](crates/neo-fold-next/specs/riscv-kernel.md).
+The RV32IM frontend's handling of MUL/MULH/MULHSU/MULHU and DIV/DIVU/REM/REMU, the bitmask+apply pattern for RV32 shift instructions, the virtual assertion pattern for control/assertion instructions, and the dense slot manifest structure for Stage 1 row binding are all Jolt-inspired. The detailed mapping is documented in [`crates/neo-fold-next/specs/riscv-kernel.md`](crates/neo-fold-next/specs/riscv-kernel.md).
 
 Thanks to the Jolt team for releasing their zkVM work as open source.
 

@@ -6,7 +6,7 @@ Weakness red-team checks for trace-carrying F' authority.
 These checks isolate ways the trace-authority pattern can be misused. The
 compiled theorems prove that the weak shapes are insufficient. The quarantined
 comment block at the bottom contains examples that are meant to fail when
-uncommented; they are kept here as regression probes for future strengthening.
+uncommented; they are kept here as regression probes for additional strengthening.
 -/
 
 namespace DirectCcsFPrime

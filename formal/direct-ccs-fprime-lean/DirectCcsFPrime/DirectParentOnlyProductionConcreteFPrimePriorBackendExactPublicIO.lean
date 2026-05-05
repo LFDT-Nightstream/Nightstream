@@ -14,11 +14,11 @@ namespace DirectParentOnlyProductionConcreteFPrimePriorBackend
 /--
 Structured terminal public IO for the concrete committed F' verifier.
 
-The Rust verifier receives one public vector from Spartan. The production check
-compares that vector to the exact concatenation of terminal F' public values and
-the Construction-2 boundary public values. Keeping the split explicit here
-prevents an implementation from satisfying independent prefix/suffix predicates
-while smuggling unrelated public fields between them.
+The intended Rust verifier ABI receives one public vector from Spartan. The
+production check compares that vector to the exact concatenation of terminal F'
+public values and the Construction-2 boundary public values. Keeping the split
+explicit here prevents an implementation from satisfying independent
+prefix/suffix predicates while smuggling unrelated public fields between them.
 -/
 structure ExactTerminalBoundaryPublicIO (Field : Type) where
   terminal : List Field

@@ -650,7 +650,7 @@ theorem terminal_reaches_final_and_latest_accumulator_functional_of_computed_sta
     hAlt
 
 /--
-Narrowest current implementation-facing terminal theorem.
+Narrow implementation-facing terminal theorem.
 
 Deterministic `Pi_CCS`, deterministic `Pi_RLC`, deterministic parent-statement
 commitment encoding, and an assignment-level Ajtai opening adapter for the

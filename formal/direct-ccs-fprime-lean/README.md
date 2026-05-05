@@ -46,7 +46,7 @@ the same reduced source cannot feed different next `Pi_CCS` accumulators.
 `DirectCcsFPrime.BinaryChildTableAuthorization` lowers the target one level:
 if a proof verifier implies fixed-length binary digit columns that recompose to
 the parent coefficient vector, the accepted hidden child table is unique. This
-is the arithmetic core a future sumcheck/table proof should establish.
+is the arithmetic core for the implementation-facing sumcheck/table proof.
 
 `DirectCcsFPrime.AggregateChildTableNecessity` records why aggregate summaries
 are not a valid substitute for that pointwise target. It proves a concrete
@@ -457,9 +457,9 @@ terminal parent sources equal `computePiRLC` over that exact output, the
 computed `Pi_CCS` and `Pi_RLC` contexts are the targets of the wrapper's
 Section 7.1 owner objects, and those owner targets carry `ceRelation` plus the
 imported `Pi_CCS`, `Pi_RLC`, and `Pi_DEC` statements. This is the intended
-implementation-facing constructor for the direct parent-only proof path once
-the actual direct CCS application transition and compressed prior verifier are
-supplied.
+implementation-facing constructor for the direct parent-only proof path when
+paired with the concrete direct CCS application transition and the compressed
+prior-verifier ABI contract.
 
 `DirectCcsFPrime.DirectParentOnlyProductionSuperNeoReusePriorOpening` composes
 that Section 7.1-backed production context with the concrete compressed-prior
@@ -981,17 +981,18 @@ The production prior-verifier path is organized by proof responsibility:
 | `DirectParentOnlyProductionConcreteFPrimePriorBackendRawPublicIO` | Raw public-vector adapter into the generic backend surface. |
 | `DirectParentOnlyProductionConcreteFPrimePriorBackend` | Compatibility facade for the complete backend surface. |
 
-The checks-first constructor, `ConcreteVerifierBodyChecks`, splits the actual
-implementation obligation into two narrower claims: replay binds a verifier
+The checks-first constructor, `ConcreteVerifierBodyChecks`, splits the
+implementation-facing verifier obligation into two narrower claims: replay binds a verifier
 statement, and committed-step verifier soundness for that statement opens the
 same proof to folded `F'` authority. This is the intended continuation point
-for the Rust verifier-body path in `direct_ccs/f_prime.rs`,
+for the Rust verifier-body ABI represented by `direct_ccs/f_prime.rs`,
 `direct_ccs/f_prime_verifier_body.rs`, `direct_ccs/terminal_committed.rs`, and
 `direct_ccs/verify.rs`.
 `ConcreteVerifierStatementBinding` tightens the replay side again by requiring
 the opaque proof's verifier statement to equal `canonicalStatement steps image`.
-This models the Rust verifier shape where the caller's public `(steps, image)`
-pair determines the exact statement checked by the committed verifier body.
+This specifies the Rust verifier ABI shape where the caller's public
+`(steps, image)` pair determines the exact statement checked by the committed
+verifier body.
 `ConcreteVerifierStatementSurface` then names the concrete direct CCS verifier
 checks in that statement: final public statement validity, exact equality
 between the proof boundary and the statement's Construction-2 boundary, and
@@ -1049,14 +1050,14 @@ while claiming folded `F'` authority. The latest-step projections return the
 same parent-only CE binding, no-swap, private DEC/stage facts, Section 7.1
 audit, and public-image invariant package from runtime verifier acceptance.
 The same backend module also defines `ConcreteRuntimeExactPublicIOSurface`,
-matching the RV64IM committed-step verifier shape where Spartan returns one
-public vector and the verifier checks exact equality with
+matching the implementation-facing committed-step verifier ABI where Spartan
+returns one public vector and the verifier checks exact equality with
 `terminal F' public values ++ Construction-2 boundary public values`. Its
 `AcceptedExactPublicIOEvidence` eliminator records the raw concatenation
 equality, the terminal split, the boundary split, replay-derived statement
 equality, and the opened folded authority. This is the production-shaped path
 for avoiding a weak prefix/suffix-only public-IO model.
-For the Rust verifier boundary itself, the module exposes
+For the implementation-facing raw verifier ABI, the module exposes
 `ConcreteRuntimeRawPublicIOSurface`: the terminal committed verifier returns a
 raw public vector, and `RuntimeVerifyPriorOfRawPublicIO` accepts only when that
 raw vector is exactly
@@ -1132,14 +1133,14 @@ The remaining necessary theory blockers are:
 1. instantiate `ConcreteRuntimeExactPublicIOOpeningSurface`, or reuse an
    exact-runtime verifier surface through
    `runtimeExactPublicIOOpeningSurfaceOfExactRuntimeSoundAndLayout`, for the
-   actual compressed prior verifier body. The connection must cover the real
+   intended compressed prior-verifier ABI. The connection must cover the
    compact-image replay, Construction-2 boundary replay, transcript replay,
    statement-boundary equality, terminal committed-proof public IO, exact
    terminal/boundary layout binding, and fixed authority opener. The bridge
    must prove that accepted runtime checks open every proof to
    `FoldedFPrimeAuthority` for the same `(steps, image)` pair;
 2. instantiate `DirectParentOnlyProductionSuperNeoReuse.ProductionContext` for
-   the actual direct CCS application transition, NIFS.V parent `CE(B)` source
+   the concrete direct CCS application transition, NIFS.V parent `CE(B)` source
    update, implementation parent hash object, concrete initial public image,
    and Section 7.1-backed stage contexts accepted by
    `DirectStageSuperNeoReuse`.

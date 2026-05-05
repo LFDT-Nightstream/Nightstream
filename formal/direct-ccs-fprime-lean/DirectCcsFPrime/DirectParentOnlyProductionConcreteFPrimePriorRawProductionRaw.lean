@@ -48,7 +48,7 @@ abbrev ExactTerminalBoundaryPublicIO :=
 /--
 Verifier-visible production view of the compressed prior F' proof.
 
-The names mirror the Rust verifier path:
+The names track the intended Rust verifier ABI:
 
 * `expectedIvcPublicImage` models deriving the expected image from the
   published statement.

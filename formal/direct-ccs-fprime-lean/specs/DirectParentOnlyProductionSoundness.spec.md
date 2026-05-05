@@ -4,7 +4,7 @@
 surface for the optimized direct CCS `F'` terminal path whose public accumulator
 carries only the parent `CE(B)` source.
 
-The context fixes the actual implementation obligations:
+The context fixes the implementation-facing obligations:
 
 ```text
 canonical concrete CE data

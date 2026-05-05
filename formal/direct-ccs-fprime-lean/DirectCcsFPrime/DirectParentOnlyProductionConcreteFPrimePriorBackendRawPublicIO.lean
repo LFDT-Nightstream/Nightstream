@@ -15,11 +15,11 @@ namespace DirectParentOnlyProductionConcreteFPrimePriorBackend
 Runtime backend surface for the raw public vector returned by the production
 terminal committed F' verifier.
 
-This mirrors the Rust verifier boundary most closely: the terminal verifier
-returns one raw public vector, and the verifier accepts only when that vector is
-exactly the expected concatenation of terminal F' public values and the
-Construction-2 boundary public values. The authority opening remains a backend
-soundness consequence, not a verifier predicate supplied by callers.
+This specifies the intended raw Rust verifier ABI: the terminal verifier returns
+one raw public vector, and the verifier accepts only when that vector is exactly
+the expected concatenation of terminal F' public values and the Construction-2
+boundary public values. The authority opening remains a backend soundness
+consequence, not a verifier predicate supplied by callers.
 -/
 structure ConcreteRuntimeRawPublicIOSurface
     {Digest Boundary PriorProof : Type}

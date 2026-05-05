@@ -152,7 +152,7 @@ structure ConcreteVerifierBodyChecks
           image
 
 /--
-Canonical-statement binding surface for the Rust verifier path.
+Canonical-statement binding surface for the implementation-facing verifier ABI.
 
 The implementation verifier first reconstructs the statement that should be
 verified from the caller's `(steps, image)` pair, then checks that the opaque
@@ -217,14 +217,14 @@ structure ConcreteVerifierStatementBinding
         image
 
 /--
-Statement-level verifier surface matching the direct CCS Rust verifier shape.
+Statement-level verifier surface matching the direct CCS Rust verifier contract.
 
-The Rust path reconstructs a public statement from the expected public image,
-validates its final Construction-2 boundary, checks that the opaque proof uses
-the same public boundary, and then verifies the terminal committed proof against
-both the terminal public values and that boundary. The final soundness field is
-the single cryptographic backend obligation: successful committed verification
-for that exact public IO opens to folded F' reachability authority.
+The intended Rust path reconstructs a public statement from the expected public
+image, validates its final Construction-2 boundary, checks that the opaque proof
+uses the same public boundary, and then verifies the terminal committed proof
+against both the terminal public values and that boundary. The final soundness
+field is the single cryptographic backend obligation: successful committed
+verification for that exact public IO opens to folded F' reachability authority.
 -/
 structure ConcreteVerifierStatementSurface
     {Digest Boundary PriorProof : Type}

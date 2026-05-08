@@ -1,40 +1,29 @@
 //! Owns the active Rust proving path for `neo-fold-next`.
 //!
 //! Ownership:
-//! - `prover`, `verifier`: generic `Π_CCS -> Π_RLC -> Π_DEC`
-//! - `construction2`: relation-neutral recursive public-image primitives
-//! - `run`: session orchestration
-//! - `ivc`: generic native SuperNeo IVC/NIFS accumulator carrier
-//! - `proof`: generic session proof boundary
-//! - `opening`: shared opening-claim and time-opening summary boundary
-//! - `step_build`: frontend-produced step packaging and extension records
-//! - `time_opening`, `finalize`: final opening and packaged-proof boundaries
-//! - `witness_layout`: shared local packed witness layout helpers
+//! - `core`: shared SuperNeo, Construction-2, proof, opening, and run plumbing
+//! - `circuit`: shared Bellpepper/SuperNeo gadgets
+//! - `frontends::direct_ccs`: first-class direct CCS/R1CS frontend
+//! - `frontends::rv32im`: first-class RV32IM frontend
+//! - `public_proof`: published proof boundary and frontend adapters
+//! - `decider`: Spartan/decider wrappers
 //! - `vm`: static VM contracts
-//! - `chip8`: current VM frontend and staged kernel
 
-pub mod chip8;
-pub mod chunk_relation;
-pub mod construction2;
-pub(crate) mod construction2_terminal;
+pub mod circuit;
+pub mod core;
 pub mod decider;
-pub mod direct_ccs;
-pub mod finalize;
-pub mod ivc;
-pub mod nightstream;
-pub mod opening;
-pub mod proof;
-pub mod prover;
-pub mod run;
-pub mod rv32im;
-pub(crate) mod spartan_backend;
-pub mod step_build;
-pub(crate) mod superneo_circuit;
-pub(crate) mod superneo_nifs_circuit;
-pub mod time_opening;
-pub mod verifier;
+pub mod frontends;
+pub mod public_proof;
 pub mod vm;
-pub mod witness_layout;
+
+pub(crate) use self::circuit::{superneo as superneo_circuit, superneo_nifs as superneo_nifs_circuit};
+pub use self::core::{
+    chunk_relation, construction2, finalize, ivc, opening, proof, prover, run, step_build, time_opening, verifier,
+    witness_layout,
+};
+pub(crate) use self::core::{construction2_terminal, multilinear};
+pub(crate) use self::decider::spartan_backend;
+pub use self::frontends::{direct_ccs, rv32im};
 
 pub use direct_ccs::{
     direct_ccs_program_from_sparse_r1cs, direct_ccs_program_from_sparse_r1cs_with_public_input_len,

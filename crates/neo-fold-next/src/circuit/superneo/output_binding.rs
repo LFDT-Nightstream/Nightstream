@@ -1,0 +1,388 @@
+//! Owns circuit checks that bind Π_CCS outputs to authoritative fresh inputs and carried ME inputs.
+
+use crate::spartan_backend::SpartanF;
+use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
+use neo_ajtai::Commitment;
+use neo_ccs::{CcsClaim, CcsStructure, CcsWitness};
+use neo_math::{D, F, K};
+use neo_params::NeoParams;
+use neo_reductions::common::project_x_from_witness_mat;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
+
+use super::claim::CircuitCeClaim;
+use super::k_field::{enforce_k_eq, KNumVar};
+
+#[derive(Clone)]
+pub struct FreshCcsClaimVar {
+    pub c_data: Vec<AllocatedNum<SpartanF>>,
+    pub c_data_values: Vec<F>,
+    pub x: Vec<AllocatedNum<SpartanF>>,
+    pub x_values: Vec<F>,
+    pub m_in: usize,
+}
+
+pub fn alloc_fresh_ccs_claim<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    fresh: &CcsClaim<Commitment, F>,
+) -> Result<FreshCcsClaimVar, SynthesisError> {
+    Ok(FreshCcsClaimVar {
+        c_data: alloc_f_slice(cs, &fresh.c.data, "c_data")?,
+        c_data_values: fresh.c.data.clone(),
+        x: alloc_f_slice(cs, &embedded_fresh_x_values(fresh), "x")?,
+        x_values: embedded_fresh_x_values(fresh),
+        m_in: fresh.m_in,
+    })
+}
+
+pub fn alloc_fresh_ccs_claim_with_witness<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    fresh: &CcsClaim<Commitment, F>,
+    witness: &CcsWitness<F>,
+    expected_m: usize,
+) -> Result<FreshCcsClaimVar, SynthesisError> {
+    let x_values =
+        project_x_from_witness_mat(&witness.Z, expected_m, fresh.m_in).map_err(|_| SynthesisError::Unsatisfiable)?;
+    Ok(FreshCcsClaimVar {
+        c_data: alloc_f_slice(cs, &fresh.c.data, "c_data")?,
+        c_data_values: fresh.c.data.clone(),
+        x: alloc_f_slice(cs, x_values.as_slice(), "x")?,
+        x_values: x_values.as_slice().to_vec(),
+        m_in: fresh.m_in,
+    })
+}
+
+pub fn enforce_me_outputs_against_inputs<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    structure: &CcsStructure<F>,
+    _params: &NeoParams,
+    fresh_claims: &[FreshCcsClaimVar],
+    me_inputs: &[CircuitCeClaim],
+    me_outputs: &[CircuitCeClaim],
+    zero_me_output_suffix_len: usize,
+    r_prime: &[KNumVar],
+    r_prime_values: &[K],
+    _s_col_prime: &[KNumVar],
+    _s_col_prime_values: &[K],
+    label: &str,
+) -> Result<(), SynthesisError> {
+    let d_pad = D.next_power_of_two();
+    if me_outputs.len() != fresh_claims.len() + me_inputs.len()
+        || zero_me_output_suffix_len > me_inputs.len()
+        || r_prime.len() != r_prime_values.len()
+    {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let zero_suffix_start = me_outputs.len() - zero_me_output_suffix_len;
+
+    for (idx, output) in me_outputs.iter().enumerate() {
+        let zero_public_suffix = idx >= zero_suffix_start;
+        let surface_ok = if zero_public_suffix {
+            claim_has_zero_public_tail(output, structure.t(), d_pad)
+        } else {
+            output.norm_check.y_zcol.len() == d_pad
+                && output.norm_check.y_zcol_values.len() == d_pad
+                && output.openings.y_ring.len() >= structure.t()
+                && output.openings.ct.len() >= structure.t()
+        };
+        if output.openings.r_values != r_prime_values || !surface_ok {
+            return Err(SynthesisError::Unsatisfiable);
+        }
+        enforce_equal_k_slice(cs, &output.openings.r, r_prime, &format!("{label}_r_{idx}"))?;
+        if !zero_public_suffix {
+            for matrix_idx in 0..structure.t() {
+                if output.openings.y_ring_values[matrix_idx].len() < D {
+                    return Err(SynthesisError::Unsatisfiable);
+                }
+            }
+        }
+
+        if idx < fresh_claims.len() {
+            enforce_fresh_output_binding(cs, &fresh_claims[idx], output, &format!("{label}_fresh_{idx}"))?;
+        } else {
+            let me_idx = idx - fresh_claims.len();
+            enforce_me_input_output_binding(cs, &me_inputs[me_idx], output, &format!("{label}_me_input_{me_idx}"))?;
+        }
+    }
+
+    Ok(())
+}
+
+fn claim_has_zero_public_tail(claim: &CircuitCeClaim, t: usize, d_pad: usize) -> bool {
+    if claim.norm_check.y_zcol_values.len() != d_pad
+        || claim.openings.ct_values.len() < t
+        || claim.openings.y_ring_values.len() < t
+    {
+        return false;
+    }
+    claim
+        .openings
+        .ct_values
+        .iter()
+        .take(t)
+        .all(|value| *value == K::ZERO)
+        && claim
+            .norm_check
+            .y_zcol_values
+            .iter()
+            .all(|value| *value == K::ZERO)
+        && claim
+            .openings
+            .y_ring_values
+            .iter()
+            .take(t)
+            .all(|row| row.len() >= D && row.iter().all(|value| *value == K::ZERO))
+}
+
+fn enforce_fresh_output_binding<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    fresh: &FreshCcsClaimVar,
+    output: &CircuitCeClaim,
+    label: &str,
+) -> Result<(), SynthesisError> {
+    let compact_fresh_x_values = compact_embedded_x_values(&fresh.x_values, fresh.m_in)?;
+    if output.public_input.m_in != fresh.m_in
+        || output.public_input.rows != D
+        || output.public_input.cols != fresh.m_in
+        || output.commitment.data_values.len() != fresh.c_data_values.len()
+        || (output.public_input.x_values.len() != fresh.x_values.len()
+            && output.public_input.x_values.len() != compact_fresh_x_values.len())
+    {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+
+    if output.commitment.data.is_empty() {
+        if output.commitment.data_values != fresh.c_data_values {
+            return Err(SynthesisError::Unsatisfiable);
+        }
+    } else {
+        if output.commitment.data.len() != fresh.c_data.len() {
+            return Err(SynthesisError::Unsatisfiable);
+        }
+        for (idx, expected) in fresh.c_data.iter().enumerate() {
+            if output.commitment.data[idx].get_variable() == expected.get_variable() {
+                continue;
+            }
+            cs.enforce(
+                || format!("{label}_commitment_{idx}"),
+                |lc| lc + output.commitment.data[idx].get_variable(),
+                |lc| lc + CS::one(),
+                |lc| lc + expected.get_variable(),
+            );
+        }
+    }
+
+    if output.public_input.x.is_empty() {
+        if output.public_input.x_values != fresh.x_values && output.public_input.x_values != compact_fresh_x_values {
+            return Err(SynthesisError::Unsatisfiable);
+        }
+    } else if output.public_input.x_values.len() == compact_fresh_x_values.len() {
+        if output.public_input.x.len() != compact_fresh_x_values.len() {
+            return Err(SynthesisError::Unsatisfiable);
+        }
+        for col in 0..compact_fresh_x_values.len() {
+            let fresh_idx = (col % D)
+                .checked_mul(fresh.m_in)
+                .and_then(|start| start.checked_add(col / D))
+                .ok_or(SynthesisError::Unsatisfiable)?;
+            if output.public_input.x[col].get_variable() == fresh.x[fresh_idx].get_variable() {
+                continue;
+            }
+            cs.enforce(
+                || format!("{label}_x_{col}"),
+                |lc| lc + output.public_input.x[col].get_variable(),
+                |lc| lc + CS::one(),
+                |lc| lc + fresh.x[fresh_idx].get_variable(),
+            );
+        }
+    } else {
+        if output.public_input.x.len() != fresh.x.len() {
+            return Err(SynthesisError::Unsatisfiable);
+        }
+        for idx in 0..output.public_input.x.len() {
+            if output.public_input.x[idx].get_variable() == fresh.x[idx].get_variable() {
+                continue;
+            }
+            cs.enforce(
+                || format!("{label}_x_{idx}"),
+                |lc| lc + output.public_input.x[idx].get_variable(),
+                |lc| lc + CS::one(),
+                |lc| lc + fresh.x[idx].get_variable(),
+            );
+        }
+    }
+
+    Ok(())
+}
+
+fn enforce_me_input_output_binding<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    input: &CircuitCeClaim,
+    output: &CircuitCeClaim,
+    label: &str,
+) -> Result<(), SynthesisError> {
+    if output.commitment.data_values.len() != input.commitment.data_values.len()
+        || output.public_input.m_in != input.public_input.m_in
+    {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+
+    if output.commitment.data.is_empty() {
+        if output.commitment.data_values != input.commitment.data_values {
+            return Err(SynthesisError::Unsatisfiable);
+        }
+    } else {
+        if output.commitment.data.len() != input.commitment.data.len() {
+            return Err(SynthesisError::Unsatisfiable);
+        }
+        for idx in 0..input.commitment.data.len() {
+            if output.commitment.data[idx].get_variable() == input.commitment.data[idx].get_variable() {
+                continue;
+            }
+            cs.enforce(
+                || format!("{label}_commitment_{idx}"),
+                |lc| lc + output.commitment.data[idx].get_variable(),
+                |lc| lc + CS::one(),
+                |lc| lc + input.commitment.data[idx].get_variable(),
+            );
+        }
+    }
+    if output.public_input.rows != input.public_input.rows
+        && !(input.public_input.x.len() == input.public_input.m_in
+            && output.public_input.rows == D
+            && output.public_input.cols == input.public_input.m_in)
+    {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    if input.public_input.x.len() == input.public_input.m_in
+        && output.public_input.rows == D
+        && output.public_input.cols == input.public_input.m_in
+        && output.public_input.x_values.len() == D * input.public_input.m_in
+    {
+        let expected_values = embedded_me_input_x_values(input)?;
+        if output.public_input.x.is_empty() {
+            if output.public_input.x_values != expected_values {
+                return Err(SynthesisError::Unsatisfiable);
+            }
+            return Ok(());
+        }
+        if output.public_input.x.len() != D * input.public_input.m_in {
+            return Err(SynthesisError::Unsatisfiable);
+        }
+        for (idx, output_x) in output.public_input.x.iter().enumerate() {
+            let expected = SpartanF::from_canonical_u64(expected_values[idx].as_canonical_u64());
+            cs.enforce(
+                || format!("{label}_x_{idx}"),
+                |lc| lc + output_x.get_variable(),
+                |lc| lc + CS::one(),
+                |lc| lc + (expected, CS::one()),
+            );
+        }
+        return Ok(());
+    }
+    if output.public_input.rows != input.public_input.rows
+        || output.public_input.cols != input.public_input.cols
+        || output.public_input.x_values.len() != input.public_input.x_values.len()
+    {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    if output.public_input.x.is_empty() {
+        if output.public_input.x_values != input.public_input.x_values {
+            return Err(SynthesisError::Unsatisfiable);
+        }
+        return Ok(());
+    }
+    if output.public_input.x.len() != input.public_input.x.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    for idx in 0..input.public_input.x.len() {
+        if output.public_input.x[idx].get_variable() == input.public_input.x[idx].get_variable() {
+            continue;
+        }
+        cs.enforce(
+            || format!("{label}_x_{idx}"),
+            |lc| lc + output.public_input.x[idx].get_variable(),
+            |lc| lc + CS::one(),
+            |lc| lc + input.public_input.x[idx].get_variable(),
+        );
+    }
+    Ok(())
+}
+
+pub(crate) fn embedded_fresh_x_values(fresh: &CcsClaim<Commitment, F>) -> Vec<F> {
+    let mut out = vec![F::ZERO; D * fresh.m_in];
+    for col in 0..fresh.m_in {
+        let row = col % D;
+        let block = col / D;
+        out[row * fresh.m_in + block] = fresh.x[col];
+    }
+    out
+}
+
+pub(crate) fn embedded_me_input_x_values(input: &CircuitCeClaim) -> Result<Vec<F>, SynthesisError> {
+    if input.public_input.m_in == 0 {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    if input.public_input.rows == D
+        && input.public_input.cols == input.public_input.m_in
+        && input.public_input.x_values.len() == D * input.public_input.m_in
+    {
+        return Ok(input.public_input.x_values.clone());
+    }
+    if input.public_input.x_values.len() != input.public_input.m_in {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+
+    let mut out = vec![F::ZERO; D * input.public_input.m_in];
+    for col in 0..input.public_input.m_in {
+        let row = col % D;
+        let block = col / D;
+        out[row * input.public_input.m_in + block] = input.public_input.x_values[col];
+    }
+    Ok(out)
+}
+
+fn alloc_f_slice<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    values: &[F],
+    label: &str,
+) -> Result<Vec<AllocatedNum<SpartanF>>, SynthesisError> {
+    values
+        .iter()
+        .enumerate()
+        .map(|(idx, value)| {
+            AllocatedNum::alloc(cs.namespace(|| format!("{label}_{idx}")), || {
+                Ok(SpartanF::from_canonical_u64(value.as_canonical_u64()))
+            })
+        })
+        .collect()
+}
+
+fn compact_embedded_x_values(values: &[F], m_in: usize) -> Result<Vec<F>, SynthesisError> {
+    if values.len() != D * m_in {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let mut out = Vec::with_capacity(m_in);
+    for col in 0..m_in {
+        let idx = (col % D)
+            .checked_mul(m_in)
+            .and_then(|start| start.checked_add(col / D))
+            .ok_or(SynthesisError::Unsatisfiable)?;
+        out.push(values[idx]);
+    }
+    Ok(out)
+}
+
+fn enforce_equal_k_slice<CS: ConstraintSystem<SpartanF>>(
+    cs: &mut CS,
+    left: &[KNumVar],
+    right: &[KNumVar],
+    label: &str,
+) -> Result<(), SynthesisError> {
+    if left.len() != right.len() {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    for (idx, (lhs, rhs)) in left.iter().zip(right.iter()).enumerate() {
+        enforce_k_eq(cs, lhs, rhs, &format!("{label}_{idx}"));
+    }
+    Ok(())
+}

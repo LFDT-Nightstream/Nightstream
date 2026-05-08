@@ -2,22 +2,24 @@
 
 `neo-fold-next` owns the active Rust proving path for:
 
-- the generic SuperNeo shard spine,
-- shared final opening/finalization boundaries,
-- VM contract descriptions,
-- and the current CHIP-8 frontend + simple-kernel audit path.
+- shared SuperNeo and Construction-2 proof plumbing,
+- shared Bellpepper/SuperNeo circuit gadgets,
+- the first-class direct CCS/R1CS frontend,
+- the first-class RV32IM frontend,
+- the published proof boundary,
+- Spartan/decider wrappers,
+- and generic VM contract descriptions used by VM frontends.
 
 ## Current owner map
 
-- `proof`: generic session proof boundary
-- `opening`: shared opening-claim and time-opening summary boundary
-- `step_build`: frontend-produced step packaging and extension records
-- `prover`, `verifier`: explicit `Π_CCS -> Π_RLC -> Π_DEC`
-- `run`: session orchestration over prepared steps
-- `time_opening`: shared grouped opening reduction/unification
-- `finalize`: final packaged proof/public statement boundary
-- `vm`: static VM architecture contracts
-- `chip8`: CHIP-8 machine frontend, staged kernel, and audit surfaces
+- `core`: shared SuperNeo, Construction-2, proof, opening, and run plumbing
+- `circuit`: shared Bellpepper/SuperNeo gadgets
+- `frontends/direct_ccs`: first-class arbitrary CCS/R1CS direct path
+- `frontends/rv32im`: first-class RV32IM machine path
+- `public_proof`: published proof boundary and per-frontend adapters
+- `decider`: Spartan/decider wrappers
+- `vm`: generic VM descriptions used by VM frontends
+- `bin`: thin diagnostics/probe entrypoints
 
 ## Important constraints
 
@@ -30,7 +32,4 @@
 ## Planning docs
 
 - [specs/neo-fold-next-rust-structure-plan.md](./specs/neo-fold-next-rust-structure-plan.md)
-- [specs/chip8-rust-lean-boundary.md](./specs/chip8-rust-lean-boundary.md)
-- [specs/chip8-rust-file-structure-plan.md](./specs/chip8-rust-file-structure-plan.md)
-- [specs/chip8-kernel.md](./specs/chip8-kernel.md)
 - [specs/riscv-kernel.md](./specs/riscv-kernel.md)

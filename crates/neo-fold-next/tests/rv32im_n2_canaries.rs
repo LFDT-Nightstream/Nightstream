@@ -3,7 +3,7 @@ mod rv32im_n2_support;
 
 use bellpepper_core::test_cs::TestConstraintSystem;
 use bellpepper_core::ConstraintSystem;
-use neo_fold_next::nightstream::rv32im::audit::{
+use neo_fold_next::public_proof::rv32im::audit::{
     circuit_derive_phase0_point, circuit_enforce_phase0_commitment_root_and_opened_object_digest,
     circuit_enforce_phase0_payload_eq, circuit_enforce_phase0_point_eq,
     circuit_evaluate_phase0_payload_from_packed_rows, debug_check_rv32im_side_binding_circuit,

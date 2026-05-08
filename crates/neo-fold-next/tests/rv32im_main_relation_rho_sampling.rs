@@ -1,8 +1,6 @@
 use bellpepper_core::{test_cs::TestConstraintSystem, ConstraintSystem};
-use neo_fold_next::rv32im::main_relation_circuit::rho_sampling::{
-    materialize_goldilocks_rot_matrices, sample_goldilocks_rot_rhos,
-};
-use neo_fold_next::rv32im::main_relation_circuit::transcript::Poseidon2TranscriptCircuit;
+use neo_fold_next::circuit::superneo::rho_sampling::{materialize_goldilocks_rot_matrices, sample_goldilocks_rot_rhos};
+use neo_fold_next::circuit::superneo::transcript::Poseidon2TranscriptCircuit;
 use neo_math::D;
 use neo_params::NeoParams;
 use neo_reductions::{sample_rot_rhos_n, RotRing};

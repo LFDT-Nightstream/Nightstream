@@ -3,7 +3,7 @@ use std::sync::Arc;
 use bellpepper_core::{
     num::AllocatedNum, test_cs::TestConstraintSystem, Comparable, ConstraintSystem, Delta, SynthesisError,
 };
-use neo_fold_next::nightstream::rv32im::audit::{
+use neo_fold_next::public_proof::rv32im::audit::{
     build_rv32im_side_opening_relation_from_accepted_artifact, circuit_stage1_opening_packaged_statement_digest,
     debug_check_rv32im_side_opening_spartan_circuit, debug_compare_rv32im_side_opening_spartan_setup_shape,
     debug_compare_rv32im_side_opening_spartan_without_packaged_final_main_claims_shape,

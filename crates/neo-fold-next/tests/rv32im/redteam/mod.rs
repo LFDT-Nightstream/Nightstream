@@ -3,7 +3,7 @@ use crate::common::proof_cases::{
     expect_accepted_audit_failure, refresh_accepted_artifact_digest, refresh_soundness_accounting_surface_digest,
     refresh_stage1_semantic_digests, refresh_stage3_semantic_digests,
 };
-use neo_fold_next::nightstream::rv32im::audit::{
+use neo_fold_next::public_proof::rv32im::audit::{
     build_rv32im_side_opening_relation_statement, build_rv32im_side_opening_relation_witness_from_accepted_artifact,
     build_rv32im_side_proof_bundle_from_accepted_artifact, verify_rv32im_side_opening_relation,
 };

@@ -1,10 +1,10 @@
 use bellpepper_core::{num::AllocatedNum, test_cs::TestConstraintSystem, ConstraintSystem};
 use neo_ccs::{CcsStructure, Mat, SparsePoly, Term};
-use neo_fold_next::rv32im::main_relation_circuit::k_field::{alloc_constant_k, enforce_k_eq, KNum};
-use neo_fold_next::rv32im::main_relation_circuit::pi_ccs::{
+use neo_fold_next::circuit::superneo::k_field::{alloc_constant_k, enforce_k_eq, KNum};
+use neo_fold_next::circuit::superneo::pi_ccs::{
     bind_header_and_instance_digest, bind_me_input_digests, sample_challenges,
 };
-use neo_fold_next::rv32im::main_relation_circuit::transcript::Poseidon2TranscriptCircuit;
+use neo_fold_next::circuit::superneo::transcript::Poseidon2TranscriptCircuit;
 use neo_math::F as GoldilocksF;
 use neo_params::NeoParams;
 use neo_reductions::engines::utils::{

@@ -2,15 +2,15 @@
 
 use std::sync::OnceLock;
 
-use neo_fold_next::nightstream::rv32im::audit::{
+use neo_fold_next::proof::FoldSchedule;
+use neo_fold_next::public_proof::rv32im::audit::{
     build_rv32im_nightstream_statement_from_final, measure_rv32im_side_binding_circuit_constraints,
 };
-use neo_fold_next::nightstream::rv32im::{
+use neo_fold_next::public_proof::rv32im::{
     build_rv32im_side_proof, rv32im_verifier_context_digest, Rv32imSideBindingStatement, Rv32imSideOpeningPublic,
     Rv32imSideProof,
 };
-use neo_fold_next::nightstream::NightstreamStatement;
-use neo_fold_next::proof::FoldSchedule;
+use neo_fold_next::public_proof::NightstreamStatement;
 use neo_fold_next::rv32im::audit::{prove_rv32im_public_proof_and_published_seam_with_perf, Rv32imPublishedProofSeam};
 use neo_fold_next::rv32im::final_relation::{
     prove_rv32im_final_statement_from_accepted, Rv32imFinalBuildProof, Rv32imFinalStatement,
@@ -74,7 +74,7 @@ impl Rv32imN2Fixture {
         SimpleKernelError,
     > {
         let (_, witness) =
-            neo_fold_next::nightstream::rv32im::audit::build_rv32im_side_eval_claim_relation_from_accepted_artifact(
+            neo_fold_next::public_proof::rv32im::audit::build_rv32im_side_eval_claim_relation_from_accepted_artifact(
                 &self.accepted_artifact,
             )?;
         Ok((
@@ -90,11 +90,11 @@ impl Rv32imN2Fixture {
     ) -> Result<
         (
             (),
-            neo_fold_next::nightstream::rv32im::audit::Rv32imSideEvalClaimRelationWitness,
+            neo_fold_next::public_proof::rv32im::audit::Rv32imSideEvalClaimRelationWitness,
         ),
         SimpleKernelError,
     > {
-        neo_fold_next::nightstream::rv32im::audit::build_rv32im_side_eval_claim_relation_from_accepted_artifact(
+        neo_fold_next::public_proof::rv32im::audit::build_rv32im_side_eval_claim_relation_from_accepted_artifact(
             &self.accepted_artifact,
         )
         .map(|(_, witness)| ((), witness))

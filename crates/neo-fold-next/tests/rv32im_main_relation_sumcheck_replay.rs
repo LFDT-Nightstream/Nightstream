@@ -1,7 +1,7 @@
 use bellpepper_core::{test_cs::TestConstraintSystem, ConstraintSystem};
-use neo_fold_next::rv32im::main_relation_circuit::k_field::{alloc_constant_k, enforce_k_eq, KNum};
-use neo_fold_next::rv32im::main_relation_circuit::sumcheck_replay::verify_sumcheck_rounds;
-use neo_fold_next::rv32im::main_relation_circuit::transcript::Poseidon2TranscriptCircuit;
+use neo_fold_next::circuit::superneo::k_field::{alloc_constant_k, enforce_k_eq, KNum};
+use neo_fold_next::circuit::superneo::sumcheck_replay::verify_sumcheck_rounds;
+use neo_fold_next::circuit::superneo::transcript::Poseidon2TranscriptCircuit;
 use neo_math::F as GoldilocksF;
 use neo_math::{from_complex, K as NeoK};
 use neo_reductions::sumcheck::{

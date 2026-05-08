@@ -31,7 +31,7 @@ use neo_fold_next::rv32im::final_relation::prove_rv32im_final_statement_from_acc
 use neo_fold_next::rv32im::{
     build_mixed_opcode_perf_source_case, build_rv32im_accepted_proof_artifact,
     build_rv32im_main_recursion_f_prime_advices, build_rv32im_main_recursion_f_prime_advices_with_side_opening_public,
-    evaluate_rv32im_main_recursion_f_prime_advice, main_recursion::RV32IM_MAIN_RECURSION_TRIVIAL_PC,
+    evaluate_rv32im_main_recursion_f_prime_advice, f_prime::RV32IM_MAIN_RECURSION_TRIVIAL_PC,
     prove_rv32im_public_proof_with_options, Rv32imProofInput, Rv32imPublicProofOptions,
 };
 use neo_math::{D, F, K};

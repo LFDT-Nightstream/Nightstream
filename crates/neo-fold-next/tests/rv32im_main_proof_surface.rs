@@ -1,7 +1,7 @@
 #[path = "support/rv32im_n2.rs"]
 mod rv32im_n2_support;
 
-use neo_fold_next::nightstream::rv32im::audit::rv32im_main_nightstream_proof_digest;
+use neo_fold_next::public_proof::rv32im::audit::rv32im_main_nightstream_proof_digest;
 use neo_fold_next::rv32im::audit::{
     build_rv32im_chunk_step_ivc_relations, build_rv32im_main_recursion_f_prime_advices,
 };

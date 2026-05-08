@@ -1,11 +1,13 @@
 use std::sync::Arc;
 
-use neo_fold_next::nightstream::rv32im::audit::{
+use neo_fold_next::proof::FoldSchedule;
+use neo_fold_next::public_proof::rv32im::audit::{
     build_rv32im_bound_phase0_claim_witnesses_from_accepted_artifact, debug_check_rv32im_side_binding_circuit,
     prove_rv32im_side_binding, setup_rv32im_side_binding, setup_rv32im_side_binding_cached, verify_rv32im_side_binding,
 };
-use neo_fold_next::nightstream::rv32im::{build_rv32im_nightstream_from_public_proof, build_rv32im_side_proof};
-use neo_fold_next::proof::FoldSchedule;
+use neo_fold_next::public_proof::rv32im::{
+    build_rv32im_nightstream_from_public_proof_with_perf, build_rv32im_side_proof,
+};
 use neo_fold_next::rv32im::{
     build_rv32im_accepted_proof_artifact, parity_source_cases, prove_rv32im_public_proof_with_options,
     Rv32imProofInput, Rv32imPublicProofOptions,
@@ -24,7 +26,7 @@ fn proof_input(name: &str) -> Rv32imProofInput {
     Rv32imProofInput { source, max_steps }
 }
 
-fn side_shape_signature(witness: &neo_fold_next::nightstream::rv32im::Rv32imSideOpeningPublic) -> (usize, usize) {
+fn side_shape_signature(witness: &neo_fold_next::public_proof::rv32im::Rv32imSideOpeningPublic) -> (usize, usize) {
     (witness.opened_objects.len(), witness.evals.len())
 }
 
@@ -39,8 +41,8 @@ fn rv32im_side_binding_roundtrip_with_same_and_rebuilt_vk() {
     )
     .expect("prove rv32im public proof");
     let accepted_artifact = build_rv32im_accepted_proof_artifact(&public_proof).expect("build accepted artifact");
-    let (nightstream_statement, _nightstream_proof) =
-        build_rv32im_nightstream_from_public_proof(&public_proof).expect("build nightstream proof");
+    let ((nightstream_statement, _nightstream_proof), _) =
+        build_rv32im_nightstream_from_public_proof_with_perf(&public_proof).expect("build nightstream proof");
     let side_proof = build_rv32im_side_proof(&nightstream_statement, &accepted_artifact).expect("build side proof");
     let claim_witnesses =
         build_rv32im_bound_phase0_claim_witnesses_from_accepted_artifact(&nightstream_statement, &accepted_artifact)
@@ -70,8 +72,8 @@ fn rv32im_side_binding_setup_reuses_same_shape_for_rebuilt_same_case() {
     )
     .expect("prove rv32im public proof A");
     let accepted_artifact_a = build_rv32im_accepted_proof_artifact(&public_proof_a).expect("build accepted artifact A");
-    let (nightstream_statement_a, _nightstream_proof_a) =
-        build_rv32im_nightstream_from_public_proof(&public_proof_a).expect("build nightstream proof A");
+    let ((nightstream_statement_a, _nightstream_proof_a), _) =
+        build_rv32im_nightstream_from_public_proof_with_perf(&public_proof_a).expect("build nightstream proof A");
     let side_proof_a =
         build_rv32im_side_proof(&nightstream_statement_a, &accepted_artifact_a).expect("build side proof A");
     let statement_a = side_proof_a
@@ -88,8 +90,8 @@ fn rv32im_side_binding_setup_reuses_same_shape_for_rebuilt_same_case() {
     )
     .expect("prove rv32im public proof B");
     let accepted_artifact_b = build_rv32im_accepted_proof_artifact(&public_proof_b).expect("build accepted artifact B");
-    let (nightstream_statement_b, _nightstream_proof_b) =
-        build_rv32im_nightstream_from_public_proof(&public_proof_b).expect("build nightstream proof B");
+    let ((nightstream_statement_b, _nightstream_proof_b), _) =
+        build_rv32im_nightstream_from_public_proof_with_perf(&public_proof_b).expect("build nightstream proof B");
     let side_proof_b =
         build_rv32im_side_proof(&nightstream_statement_b, &accepted_artifact_b).expect("build side proof B");
     let claim_witnesses_b = build_rv32im_bound_phase0_claim_witnesses_from_accepted_artifact(

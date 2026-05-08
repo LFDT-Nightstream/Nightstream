@@ -1,5 +1,5 @@
 use bellpepper_core::{num::AllocatedNum, test_cs::TestConstraintSystem, ConstraintSystem};
-use neo_fold_next::rv32im::main_relation_circuit::transcript::Poseidon2TranscriptCircuit;
+use neo_fold_next::circuit::superneo::transcript::Poseidon2TranscriptCircuit;
 use neo_math::F as GoldilocksF;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};

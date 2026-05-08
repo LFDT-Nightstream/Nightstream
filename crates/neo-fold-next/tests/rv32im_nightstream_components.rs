@@ -1,6 +1,6 @@
 use std::sync::OnceLock;
 
-use neo_fold_next::nightstream::rv32im::audit::{
+use neo_fold_next::public_proof::rv32im::audit::{
     build_rv32im_kernel_opening_claim_from_side_proof_bundle, build_rv32im_opening_artifact_from_accepted_artifact,
     build_rv32im_phase0_opened_object_bundle_from_claim_witnesses,
     build_rv32im_side_claim_relation_from_accepted_artifact, build_rv32im_side_claim_relation_statement,
@@ -94,8 +94,8 @@ fn side_eval_claim_relation_statement_digest(
 
 fn forge_opening_phase0_payload(
     public_statement: &Rv32imProofStatement,
-    side_bundle: &neo_fold_next::nightstream::rv32im::audit::Rv32imSideProofBundle,
-    opening_artifact: &mut neo_fold_next::nightstream::rv32im::audit::Rv32imOpeningArtifact,
+    side_bundle: &neo_fold_next::public_proof::rv32im::audit::Rv32imSideProofBundle,
+    opening_artifact: &mut neo_fold_next::public_proof::rv32im::audit::Rv32imOpeningArtifact,
 ) {
     let phase0_opened_objects_digest = build_rv32im_side_eval_claim_relation_statement_from_artifact(
         public_statement,

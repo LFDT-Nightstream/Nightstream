@@ -83,11 +83,15 @@ pub(super) fn print_spartan(
     );
     if recursive_summary.f_prime_verifier_body_measured {
         println!(
-            "verifier-shaped F' body: public_inputs={}, constraints={}, exact_low_norm_fallback_cap={}, latest_nifs_total={}, construction2_fold={}, public_link={}, chunk_done={}, terminal_final_ce={}",
+            "verifier-shaped F' body: public_inputs={}, constraints={}, exact_low_norm_fallback_cap={}, latest_nifs_total={} [meta={}, pi_ccs={}, pi_rlc={}, pi_dec={}], construction2_fold={}, public_link={}, chunk_done={}, terminal_final_ce={}",
             recursive_summary.f_prime_verifier_body_public_inputs,
             recursive_summary.f_prime_verifier_body_constraints,
             recursive_summary.f_prime_exact_encoder_row_cap,
             recursive_summary.f_prime_verifier_body_nifs_constraints,
+            recursive_summary.f_prime_verifier_body_nifs_chunk_meta_constraints,
+            recursive_summary.f_prime_verifier_body_nifs_pi_ccs_constraints,
+            recursive_summary.f_prime_verifier_body_nifs_pi_rlc_constraints,
+            recursive_summary.f_prime_verifier_body_nifs_pi_dec_constraints,
             recursive_summary.f_prime_verifier_body_construction2_fold_constraints,
             recursive_summary.f_prime_verifier_body_public_link_constraints,
             recursive_summary.f_prime_verifier_body_chunk_done_constraints,

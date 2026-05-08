@@ -1023,14 +1023,6 @@ pub fn setup_spartan2_public_target_shell(
         .map_err(|err| Spartan2PublicTargetShellError::Setup(err.to_string()))
 }
 
-pub fn prove_spartan2_public_target_shell(
-    pk: &Spartan2PublicTargetShellProverKey,
-    target: &Spartan2DeciderTarget,
-) -> Result<Spartan2PublicTargetShellProof, Spartan2PublicTargetShellError> {
-    let (proof, _) = prove_spartan2_public_target_shell_with_perf(pk, target)?;
-    Ok(proof)
-}
-
 pub fn prove_spartan2_public_target_shell_with_perf(
     pk: &Spartan2PublicTargetShellProverKey,
     target: &Spartan2DeciderTarget,
@@ -1095,14 +1087,6 @@ pub fn setup_spartan2_backend_binding_shell(
 > {
     Spartan2BackendBindingShellSnark::setup(Spartan2BackendBindingShellCircuit::from_shape(shape))
         .map_err(|err| Spartan2BackendBindingShellError::Setup(err.to_string()))
-}
-
-pub fn prove_spartan2_backend_binding_shell(
-    pk: &Spartan2BackendBindingShellProverKey,
-    relation: &Spartan2DeciderBackendRelation,
-) -> Result<Spartan2BackendBindingShellProof, Spartan2BackendBindingShellError> {
-    let (proof, _) = prove_spartan2_backend_binding_shell_with_perf(pk, relation)?;
-    Ok(proof)
 }
 
 pub fn prove_spartan2_backend_binding_shell_with_perf(
@@ -1171,14 +1155,6 @@ pub fn setup_spartan2_decider(
             backend: vk,
         },
     ))
-}
-
-pub fn prove_spartan2_decider(
-    pk: &Spartan2DeciderProverKey,
-    target: &Spartan2DeciderTarget,
-) -> Result<Spartan2DeciderProof, Spartan2DeciderError> {
-    let (proof, _) = prove_spartan2_decider_with_perf(pk, target)?;
-    Ok(proof)
 }
 
 pub fn prove_spartan2_decider_with_perf(

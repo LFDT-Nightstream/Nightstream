@@ -10,7 +10,6 @@ workspace = true
 
 [features]
 default = []
-chip8-audit = []
 
 [dependencies]
 neo-ajtai = { path = "../neo-ajtai" }

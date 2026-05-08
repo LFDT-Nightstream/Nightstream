@@ -1,8 +1,8 @@
 use neo_fold_next::decider::spartan2::{
-    prove_spartan2_backend_binding_shell, prove_spartan2_decider, setup_spartan2_backend_binding_shell,
-    setup_spartan2_decider, verify_spartan2_backend_binding_shell, verify_spartan2_decider,
-    Spartan2BackendBindingShellError, Spartan2ChunkTransitionBinding, Spartan2DeciderError, Spartan2DeciderStatement,
-    Spartan2DeciderTarget, Spartan2DeciderWitness,
+    prove_spartan2_backend_binding_shell_with_perf, prove_spartan2_decider_with_perf,
+    setup_spartan2_backend_binding_shell, setup_spartan2_decider, verify_spartan2_backend_binding_shell,
+    verify_spartan2_decider, Spartan2BackendBindingShellError, Spartan2ChunkTransitionBinding, Spartan2DeciderError,
+    Spartan2DeciderStatement, Spartan2DeciderTarget, Spartan2DeciderWitness,
 };
 use neo_fold_next::finalize::FixedShapeChunkSummary;
 use neo_fold_next::proof::FoldSchedule;
@@ -71,7 +71,7 @@ fn padded_zero_summary(semantic_step_count: u64) -> FixedShapeChunkSummary {
 fn spartan2_decider_backend_round_trip() {
     let target = synthetic_target();
     let (pk, vk) = setup_spartan2_decider(&target.shape()).expect("setup decider backend");
-    let proof = prove_spartan2_decider(&pk, &target).expect("prove decider backend");
+    let (proof, _) = prove_spartan2_decider_with_perf(&pk, &target).expect("prove decider backend");
 
     verify_spartan2_decider(&vk, &target, &proof).expect("verify decider backend");
     assert!(proof.snark_bytes_len() > 0);
@@ -82,7 +82,7 @@ fn spartan2_decider_backend_round_trip() {
 fn spartan2_decider_backend_rejects_tampered_target() {
     let target = synthetic_target();
     let (pk, vk) = setup_spartan2_decider(&target.shape()).expect("setup decider backend");
-    let proof = prove_spartan2_decider(&pk, &target).expect("prove decider backend");
+    let (proof, _) = prove_spartan2_decider_with_perf(&pk, &target).expect("prove decider backend");
 
     let mut tampered = target.clone();
     tampered.statement.final_proof_digest[0] ^= 1;
@@ -98,7 +98,8 @@ fn spartan2_backend_binding_shell_rejects_tampered_public_final_proof_digest() {
     let relation = target.backend_relation();
     let (pk, vk) = setup_spartan2_backend_binding_shell(&relation.shape()).expect("setup backend-binding shell");
 
-    let proof = prove_spartan2_backend_binding_shell(&pk, &relation).expect("prove backend-binding shell");
+    let (proof, _) =
+        prove_spartan2_backend_binding_shell_with_perf(&pk, &relation).expect("prove backend-binding shell");
 
     let mut tampered = relation.clone();
     tampered.statement.final_proof_digest[0] ^= 1;
@@ -113,7 +114,7 @@ fn spartan2_backend_binding_shell_rejects_tampered_public_final_proof_digest() {
 fn spartan2_decider_backend_rejects_tampered_public_chunk_count() {
     let target = synthetic_target();
     let (pk, vk) = setup_spartan2_decider(&target.shape()).expect("setup decider backend");
-    let proof = prove_spartan2_decider(&pk, &target).expect("prove decider backend");
+    let (proof, _) = prove_spartan2_decider_with_perf(&pk, &target).expect("prove decider backend");
 
     let mut tampered = target.clone();
     tampered
@@ -130,7 +131,7 @@ fn spartan2_decider_backend_rejects_tampered_public_chunk_count() {
 fn spartan2_decider_backend_rejects_tampered_public_semantic_step_count() {
     let target = synthetic_target();
     let (pk, vk) = setup_spartan2_decider(&target.shape()).expect("setup decider backend");
-    let proof = prove_spartan2_decider(&pk, &target).expect("prove decider backend");
+    let (proof, _) = prove_spartan2_decider_with_perf(&pk, &target).expect("prove decider backend");
 
     let mut tampered = target.clone();
     tampered.statement.semantic_step_count += 1;
@@ -144,7 +145,7 @@ fn spartan2_decider_backend_rejects_tampered_public_semantic_step_count() {
 fn spartan2_decider_backend_rejects_tampered_public_chunk_summary() {
     let target = synthetic_target();
     let (pk, vk) = setup_spartan2_decider(&target.shape()).expect("setup decider backend");
-    let proof = prove_spartan2_decider(&pk, &target).expect("prove decider backend");
+    let (proof, _) = prove_spartan2_decider_with_perf(&pk, &target).expect("prove decider backend");
 
     let mut tampered = target.clone();
     tampered.statement.chunk_summaries[0].public_step_count += 1;
@@ -168,7 +169,8 @@ fn spartan2_decider_backend_rejects_zero_length_public_chunk_summary() {
     tampered.statement.terminal_handle_digest = tampered.statement.expected_terminal_handle_digest();
     tampered.statement.final_proof_digest = tampered.expected_final_proof_digest();
 
-    let err = prove_spartan2_decider(&pk, &tampered).expect_err("zero-length chunk summary must fail at prove time");
+    let err = prove_spartan2_decider_with_perf(&pk, &tampered)
+        .expect_err("zero-length chunk summary must fail at prove time");
     assert!(matches!(err, Spartan2DeciderError::RelationSurface(_)));
 }
 
@@ -181,7 +183,8 @@ fn spartan2_decider_backend_rejects_invalid_public_fold_schedule() {
     let mut tampered = target.clone();
     tampered.statement.fold_schedule = FoldSchedule::RowsPerChunk(0);
 
-    let err = prove_spartan2_decider(&pk, &tampered).expect_err("invalid fold schedule must fail at prove time");
+    let err =
+        prove_spartan2_decider_with_perf(&pk, &tampered).expect_err("invalid fold schedule must fail at prove time");
     assert!(matches!(err, Spartan2DeciderError::RelationSurface(_)));
 }
 
@@ -194,7 +197,7 @@ fn spartan2_decider_backend_rejects_mismatched_private_chunk_relation_binding() 
     let mut tampered = target.clone();
     tampered.witness.chunk_transition_bindings[0].claimed_chunk_relation_digest[0] ^= 1;
 
-    let err = prove_spartan2_decider(&pk, &tampered)
+    let err = prove_spartan2_decider_with_perf(&pk, &tampered)
         .expect_err("private chunk-relation binding mismatch must fail at prove time");
     assert!(matches!(err, Spartan2DeciderError::RelationSurface(_)));
 }
@@ -205,7 +208,8 @@ fn spartan2_decider_backend_rejects_whole_trace_with_multiple_chunk_summaries() 
     let target = synthetic_target_with_layout(FoldSchedule::WholeTrace, &[1, 1]);
     let (pk, _vk) = setup_spartan2_decider(&target.shape()).expect("setup decider backend");
 
-    let err = prove_spartan2_decider(&pk, &target).expect_err("WholeTrace with multiple chunk summaries must fail");
+    let err =
+        prove_spartan2_decider_with_perf(&pk, &target).expect_err("WholeTrace with multiple chunk summaries must fail");
     assert!(matches!(err, Spartan2DeciderError::RelationSurface(_)));
 }
 
@@ -215,8 +219,8 @@ fn spartan2_decider_backend_rejects_rows_per_chunk_with_short_non_final_chunk() 
     let target = synthetic_target_with_layout(FoldSchedule::RowsPerChunk(2), &[1, 2]);
     let (pk, _vk) = setup_spartan2_decider(&target.shape()).expect("setup decider backend");
 
-    let err =
-        prove_spartan2_decider(&pk, &target).expect_err("RowsPerChunk schedule with a short non-final chunk must fail");
+    let err = prove_spartan2_decider_with_perf(&pk, &target)
+        .expect_err("RowsPerChunk schedule with a short non-final chunk must fail");
     assert!(matches!(err, Spartan2DeciderError::RelationSurface(_)));
 }
 
@@ -225,7 +229,7 @@ fn spartan2_decider_backend_rejects_rows_per_chunk_with_short_non_final_chunk() 
 fn spartan2_decider_backend_rejects_tampered_public_terminal_handle() {
     let target = synthetic_target();
     let (pk, vk) = setup_spartan2_decider(&target.shape()).expect("setup decider backend");
-    let proof = prove_spartan2_decider(&pk, &target).expect("prove decider backend");
+    let (proof, _) = prove_spartan2_decider_with_perf(&pk, &target).expect("prove decider backend");
 
     let mut tampered = target.clone();
     tampered.statement.terminal_handle_digest[0] += F::ONE;
@@ -247,7 +251,7 @@ fn spartan2_decider_backend_rejects_shape_mismatch() {
     };
     let (pk, _vk) = setup_spartan2_decider(&target.shape()).expect("setup decider backend");
 
-    let err = prove_spartan2_decider(&pk, &mismatched).expect_err("shape mismatch must fail");
+    let err = prove_spartan2_decider_with_perf(&pk, &mismatched).expect_err("shape mismatch must fail");
     assert!(matches!(err, Spartan2DeciderError::ShapeMismatch));
 }
 
@@ -261,10 +265,10 @@ fn spartan2_backend_binding_shell_rejects_tampered_private_base_count() {
     let mut tampered = relation.clone();
     tampered.witness.base_component_count += 1;
 
-    match prove_spartan2_backend_binding_shell(&pk, &tampered) {
+    match prove_spartan2_backend_binding_shell_with_perf(&pk, &tampered) {
         Err(Spartan2BackendBindingShellError::RelationSurface(_)) => {}
         Err(other) => panic!("unexpected backend-binding prove error: {other}"),
-        Ok(proof) => {
+        Ok((proof, _)) => {
             let err = verify_spartan2_backend_binding_shell(&vk, &tampered, &proof)
                 .expect_err("tampered private base count must fail at verify time");
             assert!(matches!(err, Spartan2BackendBindingShellError::RelationSurface(_)));

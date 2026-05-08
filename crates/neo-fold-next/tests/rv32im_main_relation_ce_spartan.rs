@@ -3,12 +3,12 @@ use neo_ajtai::{set_global_pp_seeded, AjtaiSModule, Commitment};
 use neo_ccs::{
     check_ce_consistency, CcsStructure, CcsWitness, CeClaim, CeWitness, Mat, SModuleHomomorphism, SparsePoly, Term,
 };
-use neo_fold_next::rv32im::main_relation_circuit::ce_consistency::enforce_ce_consistency;
-use neo_fold_next::rv32im::main_relation_circuit::ce_spartan::{
+use neo_fold_next::circuit::superneo::ce_consistency::enforce_ce_consistency;
+use neo_fold_next::circuit::superneo::ce_spartan::{
     prove_rv32im_ce_relation, setup_rv32im_ce_relation, verify_rv32im_ce_relation,
 };
-use neo_fold_next::rv32im::main_relation_circuit::claim::{alloc_ce_claim, me_digest_poseidon};
-use neo_fold_next::rv32im::main_relation_circuit::witness::alloc_packed_witness;
+use neo_fold_next::circuit::superneo::claim::{alloc_ce_claim, me_digest_poseidon};
+use neo_fold_next::circuit::superneo::witness::alloc_packed_witness;
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::common::{compute_y_zcol_from_witness_digits, project_x_from_witness_mat};

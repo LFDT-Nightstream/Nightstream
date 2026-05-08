@@ -1,4 +1,4 @@
-use neo_fold_next::rv32im::main_recursion::{
+use neo_fold_next::rv32im::f_prime::{
     build_rv32im_main_recursion_verifier_key_fs, build_rv32im_main_recursion_verifier_key_fs_for_step_cap,
 };
 use neo_fold_next::rv32im::recursion_shape::RV32IM_RECURSION_SOUNDNESS_T;

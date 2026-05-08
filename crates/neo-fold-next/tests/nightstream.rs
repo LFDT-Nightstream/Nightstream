@@ -1,16 +1,17 @@
 use std::fmt::Debug;
 
-use neo_fold_next::nightstream::rv32im::audit::{
+use neo_fold_next::proof::FoldSchedule;
+use neo_fold_next::public_proof::rv32im::audit::{
     build_rv32im_nightstream_statement_from_published_statement, rv32im_main_nightstream_proof_digest,
 };
-use neo_fold_next::nightstream::rv32im::{
-    build_rv32im_nightstream_from_public_proof, rv32im_verifier_context_digest, verify_rv32im_nightstream,
-    Rv32imNightstreamProof, Rv32imSideBindingVerifierKey, Rv32imSideOpeningSpartanVerifierKey,
+use neo_fold_next::public_proof::rv32im::{
+    build_rv32im_nightstream_from_public_proof_with_perf, rv32im_verifier_context_digest,
+    verify_rv32im_nightstream_with_perf, Rv32imNightstreamProof, Rv32imSideBindingVerifierKey,
+    Rv32imSideOpeningSpartanVerifierKey,
 };
-use neo_fold_next::nightstream::{
+use neo_fold_next::public_proof::{
     nightstream_proof_binding_root, nightstream_statement_digest, NightstreamProofBindingInputs, NightstreamStatement,
 };
-use neo_fold_next::proof::FoldSchedule;
 use neo_fold_next::rv32im::audit::{
     build_rv32im_ivc_recursion_snark_setup_shape_from_components,
     prove_rv32im_public_proof_and_published_seam_with_perf,
@@ -69,8 +70,8 @@ fn external_fixture(name: &str) -> ExternalNightstreamFixture {
     let accepted_artifact = build_rv32im_accepted_proof_artifact(&public_proof).expect("build accepted artifact");
     let (final_statement, final_proof) =
         prove_rv32im_final_statement_from_accepted(&accepted_artifact).expect("prove rv32im final statement");
-    let (statement, nightstream_proof) =
-        build_rv32im_nightstream_from_public_proof(&public_proof).expect("build nightstream proof");
+    let ((statement, nightstream_proof), _) =
+        build_rv32im_nightstream_from_public_proof_with_perf(&public_proof).expect("build nightstream proof");
     let _ivc_recursion_snark_shape = build_rv32im_ivc_recursion_snark_setup_shape_from_components(
         &final_statement,
         final_proof.proof_digest,
@@ -82,11 +83,11 @@ fn external_fixture(name: &str) -> ExternalNightstreamFixture {
     let ivc_recursion_snark_keys = setup_rv32im_ivc_snark_from_final_cached(&final_statement, &final_proof)
         .expect("setup rv32im IVC recursion SNARK");
     let (opening_statement, opening_witness) =
-        neo_fold_next::nightstream::rv32im::audit::build_rv32im_side_opening_relation_from_accepted_artifact(
+        neo_fold_next::public_proof::rv32im::audit::build_rv32im_side_opening_relation_from_accepted_artifact(
             &accepted_artifact,
         )
         .expect("build rv32im side opening relation");
-    let (_, side_opening_vk) = neo_fold_next::nightstream::rv32im::audit::setup_rv32im_side_opening_spartan(
+    let (_, side_opening_vk) = neo_fold_next::public_proof::rv32im::audit::setup_rv32im_side_opening_spartan(
         &opening_statement,
         &opening_witness,
     )
@@ -95,7 +96,7 @@ fn external_fixture(name: &str) -> ExternalNightstreamFixture {
         .side_proof()
         .binding_statement(&statement, &public_statement)
         .expect("build rv32im side binding statement");
-    let (_, side_binding_vk) = neo_fold_next::nightstream::rv32im::audit::setup_rv32im_side_binding(
+    let (_, side_binding_vk) = neo_fold_next::public_proof::rv32im::audit::setup_rv32im_side_binding(
         &side_statement,
         nightstream_proof.side_proof().opening_public(),
     )
@@ -112,7 +113,7 @@ fn external_fixture(name: &str) -> ExternalNightstreamFixture {
 }
 
 fn verify_fixture(fixture: &ExternalNightstreamFixture) -> Result<(), SimpleKernelError> {
-    verify_rv32im_nightstream(
+    verify_rv32im_nightstream_with_perf(
         &fixture.statement,
         &fixture.nightstream_proof,
         fixture.trusted_root_params_id,
@@ -121,6 +122,7 @@ fn verify_fixture(fixture: &ExternalNightstreamFixture) -> Result<(), SimpleKern
         &fixture.side_binding_vk,
         &fixture.public_statement,
     )
+    .map(|_| ())
 }
 
 fn published_seam_fixture(
@@ -185,7 +187,8 @@ fn rv32im_nightstream_statement_and_main_proof_follow_verified_final_seam() {
         .expect("rebuild final proof from one-step published seam");
 
     let compressed_main_proof = seam.main_proof.clone();
-    let (_, nightstream_proof) = build_rv32im_nightstream_from_public_proof(&proof).expect("build nightstream proof");
+    let ((_, nightstream_proof), _) =
+        build_rv32im_nightstream_from_public_proof_with_perf(&proof).expect("build nightstream proof");
 
     assert_ne!(
         compressed_main_proof
@@ -298,7 +301,7 @@ fn rv32im_nightstream_carried_boundary_rejects_each_tampered_proof_binding_input
     verify_fixture(&fixture).expect("verify baseline Nightstream proof fixture");
 
     let verify_mutated = |proof: Rv32imNightstreamProof, label: &str| {
-        verify_rv32im_nightstream(
+        verify_rv32im_nightstream_with_perf(
             &fixture.statement,
             &proof,
             fixture.trusted_root_params_id,
@@ -338,7 +341,7 @@ fn rv32im_nightstream_carried_boundary_rejects_each_tampered_proof_binding_input
 fn rv32im_nightstream_rejects_wrong_side_binding_verifier_key_shape() {
     let fixture = external_fixture("control_flow_jal_skip_ecall");
     let alternate = external_fixture(&alternate_case_name("control_flow_jal_skip_ecall"));
-    let err = verify_rv32im_nightstream(
+    let err = verify_rv32im_nightstream_with_perf(
         &fixture.statement,
         &fixture.nightstream_proof,
         fixture.trusted_root_params_id,

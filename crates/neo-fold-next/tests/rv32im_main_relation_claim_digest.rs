@@ -1,9 +1,7 @@
 use bellpepper_core::{num::AllocatedNum, test_cs::TestConstraintSystem, ConstraintSystem};
 use neo_ajtai::Commitment;
 use neo_ccs::{CeClaim, Mat};
-use neo_fold_next::rv32im::main_relation_circuit::claim::{
-    alloc_ce_claim, me_digest_poseidon, me_digest_poseidon_values,
-};
+use neo_fold_next::circuit::superneo::claim::{alloc_ce_claim, me_digest_poseidon, me_digest_poseidon_values};
 use neo_math::{D, F, K};
 use neo_reductions::engines::utils::me_digest_poseidon as native_me_digest_poseidon;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};

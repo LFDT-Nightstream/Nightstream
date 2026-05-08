@@ -1,8 +1,8 @@
 use bellpepper_core::test_cs::TestConstraintSystem;
 use neo_ccs::{CcsStructure, Mat, SparsePoly, Term};
-use neo_fold_next::rv32im::main_relation_circuit::claim::alloc_ce_claim;
-use neo_fold_next::rv32im::main_relation_circuit::initial_sum::claimed_initial_sum_from_me_inputs;
-use neo_fold_next::rv32im::main_relation_circuit::k_field::{alloc_constant_k, enforce_k_eq, KNum};
+use neo_fold_next::circuit::superneo::claim::alloc_ce_claim;
+use neo_fold_next::circuit::superneo::initial_sum::claimed_initial_sum_from_me_inputs;
+use neo_fold_next::circuit::superneo::k_field::{alloc_constant_k, enforce_k_eq, KNum};
 use neo_math::F as GoldilocksF;
 use neo_math::K as NeoK;
 use neo_reductions::optimized_engine::{claimed_initial_sum_from_inputs_with_k_mcs, Challenges};
@@ -50,14 +50,14 @@ fn synthetic_structure() -> CcsStructure<GoldilocksF> {
 
 fn synthetic_claims() -> Vec<neo_ccs::CeClaim<neo_ajtai::Commitment, GoldilocksF, NeoK>> {
     vec![
-        neo_fold_next::rv32im::main_relation_circuit::terminal_identity::dummy_claim(
+        neo_fold_next::circuit::superneo::terminal_identity::dummy_claim(
             vec![vec![k(2, 0), k(1, 1)], vec![k(3, 0), k(0, 1)]],
             vec![k(2, 0), k(5, 0)],
             vec![k(1, 0), k(2, 0)],
             vec![k(3, 0)],
             vec![k(2, 0)],
         ),
-        neo_fold_next::rv32im::main_relation_circuit::terminal_identity::dummy_claim(
+        neo_fold_next::circuit::superneo::terminal_identity::dummy_claim(
             vec![vec![k(1, 0), k(4, 0)], vec![k(0, 1), k(2, 0)]],
             vec![k(1, 0), k(4, 0)],
             vec![k(3, 0), k(1, 1)],

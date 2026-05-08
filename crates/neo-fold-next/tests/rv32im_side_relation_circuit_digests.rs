@@ -1,5 +1,5 @@
 use bellpepper_core::{num::AllocatedNum, test_cs::TestConstraintSystem, ConstraintSystem};
-use neo_fold_next::nightstream::rv32im::audit::{
+use neo_fold_next::public_proof::rv32im::audit::{
     build_rv32im_side_opening_relation_witness_from_accepted_artifact,
     build_rv32im_side_proof_bundle_from_accepted_artifact, circuit_continuity_event_digest, circuit_ram_event_digest,
     circuit_register_read_event_digest, circuit_register_write_event_digest, circuit_stage1_row_digest,

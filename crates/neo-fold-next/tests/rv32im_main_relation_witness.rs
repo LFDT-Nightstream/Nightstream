@@ -1,8 +1,8 @@
 use bellpepper_core::test_cs::TestConstraintSystem;
 use neo_ajtai::Commitment;
 use neo_ccs::{CcsWitness, CeClaim, Mat};
-use neo_fold_next::rv32im::main_relation_circuit::claim::alloc_ce_claim;
-use neo_fold_next::rv32im::main_relation_circuit::witness::{
+use neo_fold_next::circuit::superneo::claim::alloc_ce_claim;
+use neo_fold_next::circuit::superneo::witness::{
     alloc_balanced_digit_witness, alloc_packed_witness, compute_digit_y_zcol, enforce_claim_y_zcol,
     enforce_x_projection,
 };

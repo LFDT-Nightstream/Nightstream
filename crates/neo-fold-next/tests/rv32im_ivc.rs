@@ -2,7 +2,9 @@ use std::sync::LazyLock;
 
 use neo_fold_next::finalize::FixedShapeChunkSummary;
 use neo_fold_next::proof::FoldSchedule;
-use neo_fold_next::rv32im::audit::{build_rv32im_chunk_step_ivc_relations, build_rv32im_published_proof_seam};
+use neo_fold_next::rv32im::audit::{
+    build_rv32im_chunk_step_ivc_relations, build_rv32im_published_proof_seam_with_perf,
+};
 use neo_fold_next::rv32im::construction2::Rv32imMainRecursionConstruction2PublicBoundary;
 use neo_fold_next::rv32im::final_relation::prove_rv32im_final_statement_from_accepted;
 use neo_fold_next::rv32im::ivc::{derive_rv32im_ivc_step_cap, Rv32imIvcPublicImage, Rv32imIvcState};
@@ -422,7 +424,8 @@ fn rv32im_published_seam_ivc_public_image_matches_direct_native_ivc_state() {
     };
 
     let public_proof = prove_rv32im_public_proof_with_options(&input, options).expect("prove two-step public proof");
-    let published_seam = build_rv32im_published_proof_seam(&public_proof).expect("build published proof seam");
+    let (published_seam, _) =
+        build_rv32im_published_proof_seam_with_perf(&public_proof).expect("build published proof seam");
     let accepted_artifact = build_rv32im_accepted_proof_artifact(&public_proof).expect("build accepted proof artifact");
     let (final_statement, final_proof) =
         prove_rv32im_final_statement_from_accepted(&accepted_artifact).expect("prove final statement");

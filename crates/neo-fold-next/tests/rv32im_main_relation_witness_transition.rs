@@ -1,8 +1,8 @@
 use bellpepper_core::{test_cs::TestConstraintSystem, ConstraintSystem};
 use neo_ccs::Mat;
-use neo_fold_next::rv32im::main_relation_circuit::rho_sampling::alloc_rot_rho_matrices_from_native;
-use neo_fold_next::rv32im::main_relation_circuit::witness::alloc_packed_mat_witness;
-use neo_fold_next::rv32im::main_relation_circuit::witness_transition::{
+use neo_fold_next::circuit::superneo::rho_sampling::alloc_rot_rho_matrices_from_native;
+use neo_fold_next::circuit::superneo::witness::alloc_packed_mat_witness;
+use neo_fold_next::circuit::superneo::witness_transition::{
     alloc_split_children_from_native, enforce_packed_dec_split, mix_packed_witnesses_with_rho_vars,
 };
 use neo_math::{D, F};

@@ -1,6 +1,6 @@
 use bellpepper_core::{test_cs::TestConstraintSystem, ConstraintSystem};
 use ff::Field;
-use neo_fold_next::rv32im::main_relation_circuit::k_field::{
+use neo_fold_next::circuit::superneo::k_field::{
     alloc_constant_k, alloc_k, enforce_k_eq, k_add, k_lift_from_f, k_mul, KNum,
 };
 use spartan2::provider::goldi::F as SpartanF;

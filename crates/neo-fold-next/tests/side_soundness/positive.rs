@@ -1,11 +1,11 @@
-use neo_fold_next::nightstream::rv32im::audit::{
+use neo_fold_next::public_proof::rv32im::audit::{
     build_rv32im_bound_phase0_claim_witnesses_from_accepted_artifact,
     build_rv32im_side_eval_claim_relation_from_accepted_artifact, verify_rv32im_side_eval_claim_relation,
 };
-use neo_fold_next::nightstream::rv32im::audit::{
+use neo_fold_next::public_proof::rv32im::audit::{
     debug_check_rv32im_side_binding_circuit, measure_rv32im_side_binding_circuit_constraints, setup_rv32im_side_binding,
 };
-use neo_fold_next::nightstream::rv32im::{
+use neo_fold_next::public_proof::rv32im::{
     build_rv32im_side_binding_statement, build_rv32im_side_proof, verify_rv32im_side_proof,
 };
 
@@ -17,7 +17,7 @@ const BASE_CASE: &str = "control_flow_jal_skip_ecall";
 
 fn assert_side_proof_rejected(
     fixture: &SideFixture,
-    side_proof: &neo_fold_next::nightstream::rv32im::Rv32imSideProof,
+    side_proof: &neo_fold_next::public_proof::rv32im::Rv32imSideProof,
     expected_error_fragments: &[&str],
     context: &str,
 ) {

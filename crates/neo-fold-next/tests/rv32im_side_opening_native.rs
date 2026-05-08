@@ -1,14 +1,14 @@
 use std::sync::Arc;
 
-use neo_fold_next::nightstream::rv32im::audit::{
+use neo_fold_next::proof::FoldSchedule;
+use neo_fold_next::public_proof::rv32im::audit::{
     build_rv32im_side_eval_claim_relation_from_accepted_artifact,
     build_rv32im_side_opening_relation_from_accepted_artifact, setup_rv32im_side_binding,
     setup_rv32im_side_opening_spartan_cached, verify_rv32im_side_eval_claim_relation,
 };
-use neo_fold_next::nightstream::rv32im::{
-    build_rv32im_nightstream_from_public_proof, build_rv32im_side_proof, verify_rv32im_side_proof,
+use neo_fold_next::public_proof::rv32im::{
+    build_rv32im_nightstream_from_public_proof_with_perf, build_rv32im_side_proof, verify_rv32im_side_proof,
 };
-use neo_fold_next::proof::FoldSchedule;
 use neo_fold_next::rv32im::{
     build_rv32im_accepted_proof_artifact, parity_source_cases, prove_rv32im_public_proof_with_options,
     Rv32imProofInput, Rv32imPublicProofOptions,
@@ -40,8 +40,8 @@ fn rv32im_side_opening_native_round_trips() {
     )
     .expect("prove rv32im public proof");
     let accepted_artifact = build_rv32im_accepted_proof_artifact(&public_proof).expect("build accepted artifact");
-    let (nightstream_statement, _nightstream_proof) =
-        build_rv32im_nightstream_from_public_proof(&public_proof).expect("build nightstream proof");
+    let ((nightstream_statement, _nightstream_proof), _) =
+        build_rv32im_nightstream_from_public_proof_with_perf(&public_proof).expect("build nightstream proof");
     let side_proof = build_rv32im_side_proof(&nightstream_statement, &accepted_artifact).expect("build side proof");
     let statement = side_proof
         .binding_statement(&nightstream_statement, &accepted_artifact.statement)

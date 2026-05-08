@@ -1,8 +1,8 @@
 use bellpepper_core::test_cs::TestConstraintSystem;
 use neo_ccs::{CcsStructure, Mat, SparsePoly, Term};
-use neo_fold_next::rv32im::main_relation_circuit::claim::alloc_ce_claim;
-use neo_fold_next::rv32im::main_relation_circuit::k_field::{alloc_constant_k, enforce_k_eq, KNum};
-use neo_fold_next::rv32im::main_relation_circuit::terminal_identity::{
+use neo_fold_next::circuit::superneo::claim::alloc_ce_claim;
+use neo_fold_next::circuit::superneo::k_field::{alloc_constant_k, enforce_k_eq, KNum};
+use neo_fold_next::circuit::superneo::terminal_identity::{
     dummy_claim, rhs_terminal_identity_fe, rhs_terminal_identity_nc,
 };
 use neo_math::F as GoldilocksF;

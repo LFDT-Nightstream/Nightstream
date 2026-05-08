@@ -1,14 +1,14 @@
 use bellpepper_core::test_cs::TestConstraintSystem;
 use neo_ajtai::Commitment;
 use neo_ccs::{CeClaim, Mat};
-use neo_fold_next::rv32im::main_relation_circuit::claim::alloc_ce_claim;
-use neo_fold_next::rv32im::main_relation_circuit::pi_dec::{
+use neo_fold_next::circuit::superneo::claim::alloc_ce_claim;
+use neo_fold_next::circuit::superneo::pi_dec::{
     enforce_dec_public_non_commitment, enforce_dec_public_with_constant_children,
 };
-use neo_fold_next::rv32im::main_relation_circuit::pi_rlc::{
+use neo_fold_next::circuit::superneo::pi_rlc::{
     enforce_rlc_public_non_commitment, enforce_rlc_public_non_commitment_with_rho_vars,
 };
-use neo_fold_next::rv32im::main_relation_circuit::rho_sampling::alloc_rot_rho_matrices_from_native;
+use neo_fold_next::circuit::superneo::rho_sampling::alloc_rot_rho_matrices_from_native;
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
 use spartan2::provider::goldi::F as SpartanF;
@@ -55,12 +55,8 @@ fn diag_rho(scale: i64) -> Mat<F> {
     rho
 }
 
-fn tamper_inactive_x_lane(claim: &mut CeClaim<Commitment, F, K>) {
+fn tamper_embedded_x_lane(claim: &mut CeClaim<Commitment, F, K>) {
     claim.X[(1, 0)] += F::ONE;
-    claim.s_col[0] += K::ONE;
-    claim.ct[0] += K::ONE;
-    claim.aux_openings[0] += K::ONE;
-    claim.y_zcol[0] += K::ONE;
 }
 
 #[test]
@@ -194,6 +190,62 @@ fn rv32im_main_relation_dec_constant_children_reject_tampered_parent() {
 }
 
 #[test]
+fn rv32im_main_relation_dec_public_rejects_aux_opening_parent_tamper() {
+    let child0 = claim_from_scalars(2, 3, 5, 7, 11, 13, 17);
+    let child1 = claim_from_scalars(19, 23, 29, 31, 37, 41, 43);
+    let mut bad_parent = claim_from_scalars(
+        2 + 4 * 19,
+        3 + 4 * 23,
+        5 + 4 * 29,
+        7 + 4 * 31,
+        11 + 4 * 37,
+        13 + 4 * 41,
+        17 + 4 * 43,
+    );
+    bad_parent.aux_openings[0] += K::ONE;
+
+    let mut cs = TestConstraintSystem::<SpartanF>::new();
+    let bad_parent_var = alloc_ce_claim(&mut cs, &bad_parent, "bad_parent").expect("alloc bad parent");
+    let child0_var = alloc_ce_claim(&mut cs, &child0, "child0").expect("alloc child0");
+    let child1_var = alloc_ce_claim(&mut cs, &child1, "child1").expect("alloc child1");
+
+    enforce_dec_public_non_commitment(&mut cs, &bad_parent_var, &[child0_var, child1_var], 4, "dec")
+        .expect("enforce dec");
+
+    assert!(
+        !cs.is_satisfied(),
+        "tampered DEC parent aux_opening must fail the in-circuit public decomposition check"
+    );
+}
+
+#[test]
+fn rv32im_main_relation_dec_constant_children_rejects_aux_opening_parent_tamper() {
+    let child0 = claim_from_scalars(2, 3, 5, 7, 11, 13, 17);
+    let child1 = claim_from_scalars(19, 23, 29, 31, 37, 41, 43);
+    let mut bad_parent = claim_from_scalars(
+        2 + 4 * 19,
+        3 + 4 * 23,
+        5 + 4 * 29,
+        7 + 4 * 31,
+        11 + 4 * 37,
+        13 + 4 * 41,
+        17 + 4 * 43,
+    );
+    bad_parent.aux_openings[0] += K::ONE;
+
+    let mut cs = TestConstraintSystem::<SpartanF>::new();
+    let bad_parent_var = alloc_ce_claim(&mut cs, &bad_parent, "bad_parent").expect("alloc bad parent");
+
+    enforce_dec_public_with_constant_children(&mut cs, &bad_parent_var, &[child0, child1], 4, "dec_const")
+        .expect("enforce dec const");
+
+    assert!(
+        !cs.is_satisfied(),
+        "tampered constant-child DEC parent aux_opening must fail the in-circuit public decomposition check"
+    );
+}
+
+#[test]
 #[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
 fn rv32im_main_relation_rlc_var_gadget_accepts_public_equalities() {
     let child0 = claim_from_scalars(2, 3, 5, 7, 11, 13, 17);
@@ -229,7 +281,7 @@ fn rv32im_main_relation_rlc_var_gadget_accepts_public_equalities() {
 
 #[test]
 #[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
-fn rv32im_main_relation_rlc_public_ignores_inactive_embedded_x_lane() {
+fn rv32im_main_relation_rlc_public_rejects_embedded_x_lane_tamper() {
     let mut child0 = claim_from_scalars(2, 3, 5, 7, 11, 13, 17);
     let mut child1 = claim_from_scalars(19, 23, 29, 31, 37, 41, 43);
     let mut parent = claim_from_scalars(
@@ -241,9 +293,9 @@ fn rv32im_main_relation_rlc_public_ignores_inactive_embedded_x_lane() {
         13 + 2 * 41,
         17 + 2 * 43,
     );
-    tamper_inactive_x_lane(&mut child0);
-    tamper_inactive_x_lane(&mut child1);
-    tamper_inactive_x_lane(&mut parent);
+    tamper_embedded_x_lane(&mut child0);
+    tamper_embedded_x_lane(&mut child1);
+    tamper_embedded_x_lane(&mut parent);
 
     let mut cs = TestConstraintSystem::<SpartanF>::new();
     let parent_var = alloc_ce_claim(&mut cs, &parent, "parent").expect("alloc parent");
@@ -260,15 +312,14 @@ fn rv32im_main_relation_rlc_public_ignores_inactive_embedded_x_lane() {
     .expect("enforce rlc");
 
     assert!(
-        cs.is_satisfied(),
-        "inactive embedded X lane, s_col shell, ct shell, aux_openings shell, and y_zcol shell should be ignored by public RLC CE arithmetic: {}",
-        cs.which_is_unsatisfied().unwrap_or_default()
+        !cs.is_satisfied(),
+        "embedded X lane tampering must fail public RLC CE arithmetic"
     );
 }
 
 #[test]
 #[ignore = "Spartan-path tests are parked until native NIFS and F' replacement lands"]
-fn rv32im_main_relation_dec_public_ignores_inactive_embedded_x_lane() {
+fn rv32im_main_relation_dec_public_rejects_embedded_x_lane_tamper() {
     let mut child0 = claim_from_scalars(2, 3, 5, 7, 11, 13, 17);
     let mut child1 = claim_from_scalars(19, 23, 29, 31, 37, 41, 43);
     let mut parent = claim_from_scalars(
@@ -280,9 +331,9 @@ fn rv32im_main_relation_dec_public_ignores_inactive_embedded_x_lane() {
         13 + 4 * 41,
         17 + 4 * 43,
     );
-    tamper_inactive_x_lane(&mut child0);
-    tamper_inactive_x_lane(&mut child1);
-    tamper_inactive_x_lane(&mut parent);
+    tamper_embedded_x_lane(&mut child0);
+    tamper_embedded_x_lane(&mut child1);
+    tamper_embedded_x_lane(&mut parent);
 
     let mut cs = TestConstraintSystem::<SpartanF>::new();
     let parent_var = alloc_ce_claim(&mut cs, &parent, "parent").expect("alloc parent");
@@ -291,8 +342,7 @@ fn rv32im_main_relation_dec_public_ignores_inactive_embedded_x_lane() {
         .expect("enforce dec const");
 
     assert!(
-        cs.is_satisfied(),
-        "inactive embedded X lane, s_col shell, ct shell, aux_openings shell, and y_zcol shell should be ignored by public DEC CE arithmetic: {}",
-        cs.which_is_unsatisfied().unwrap_or_default()
+        !cs.is_satisfied(),
+        "embedded X lane tampering must fail public DEC CE arithmetic"
     );
 }

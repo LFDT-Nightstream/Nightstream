@@ -4,9 +4,9 @@ use neo_ccs::{
     build_superneo_ring_forms, check_ce_consistency, CcsStructure, CcsWitness, CeClaim, CeWitness, Mat,
     SModuleHomomorphism, SparsePoly, Term,
 };
-use neo_fold_next::rv32im::main_relation_circuit::ce_consistency::enforce_ce_consistency;
-use neo_fold_next::rv32im::main_relation_circuit::claim::alloc_ce_claim;
-use neo_fold_next::rv32im::main_relation_circuit::witness::alloc_packed_witness;
+use neo_fold_next::circuit::superneo::ce_consistency::enforce_ce_consistency;
+use neo_fold_next::circuit::superneo::claim::alloc_ce_claim;
+use neo_fold_next::circuit::superneo::witness::alloc_packed_witness;
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::common::{

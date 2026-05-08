@@ -633,11 +633,11 @@ fn direct_sparse_r1cs_adapter_rejects_non_low_norm_witness() {
 
 #[test]
 fn direct_recursive_f_prime_authority_is_not_public_or_terminal_source_image_based() {
-    let direct_mod = include_str!("../src/direct_ccs/mod.rs");
-    let recursive_src = include_str!("../src/direct_ccs/recursive.rs");
-    let f_prime_chain_src = include_str!("../src/direct_ccs/f_prime_chain.rs");
-    let construction2_fold_src = include_str!("../src/direct_ccs/construction2_fold.rs");
-    let r1cs_src = include_str!("../src/direct_ccs/r1cs.rs");
+    let direct_mod = include_str!("../src/frontends/direct_ccs/mod.rs");
+    let recursive_src = include_str!("../src/frontends/direct_ccs/recursive.rs");
+    let f_prime_chain_src = include_str!("../src/frontends/direct_ccs/f_prime_chain.rs");
+    let construction2_fold_src = include_str!("../src/frontends/direct_ccs/construction2_fold.rs");
+    let r1cs_src = include_str!("../src/frontends/direct_ccs/r1cs.rs");
     let crate_root = include_str!("../src/lib.rs");
 
     assert!(
@@ -1003,12 +1003,12 @@ fn direct_native_f_prime_advice_evaluates_compact_image_and_construction2_bounda
             .all(|value| *value == F::ZERO || *value == F::ONE),
         "direct F' source image must be binary low-norm material before it can be encoded as SuperNeo CCS"
     );
-    assert_eq!(source.digest_count(), 15);
-    assert_eq!(source.encoded_public_input_count(), 3);
+    assert_eq!(source.digest_count(), 18);
+    assert_eq!(source.encoded_public_input_count(), 4);
     assert_eq!(source.construction2_commitment_fields(), 0);
     assert_eq!(
         source.u64_count(),
-        30,
+        32,
         "direct F' source image should contain compact counters and handles, not terminal commitment data"
     );
     assert_eq!(
@@ -1028,12 +1028,12 @@ fn direct_native_f_prime_advice_evaluates_compact_image_and_construction2_bounda
             + source_r1cs.shape.authority_constraints()
     );
     assert_eq!(source_r1cs.shape.x_out_link_constraints, 256);
-    assert_eq!(source_r1cs.shape.construction2_boundary_link_constraints, 256);
-    assert_eq!(source_r1cs.shape.construction2_commitment_shape_constraints, 128);
+    assert_eq!(source_r1cs.shape.construction2_boundary_link_constraints, 512);
+    assert_eq!(source_r1cs.shape.construction2_commitment_shape_constraints, 256);
     assert_eq!(source_r1cs.shape.structural_counter_constraints, 768);
     assert_eq!(source_r1cs.shape.structural_counter_carry_bit_constraints, 189);
-    assert_eq!(source_r1cs.shape.canonical_field_lane_count, 80);
-    assert_eq!(source_r1cs.shape.canonical_field_lane_constraints, 5040);
+    assert_eq!(source_r1cs.shape.canonical_field_lane_count, 96);
+    assert_eq!(source_r1cs.shape.canonical_field_lane_constraints, 6048);
     assert!(source_r1cs.shape.shell_constraints() < source_r1cs.shape.constraint_count);
     assert!(
         source_r1cs.shape.poseidon_digest_recomputation_constraints > 0,
@@ -1084,10 +1084,10 @@ fn direct_native_f_prime_advice_evaluates_compact_image_and_construction2_bounda
         "source R1CS must reject tampering with compact x_out bits"
     );
     let mut tampered = source_r1cs.clone();
-    tampered.witness[source_start + source.construction2_u_in_x_i_bit_offset()] += F::ONE;
+    tampered.witness[source_start + source.construction2_u_out_x_i_bit_offset()] += F::ONE;
     assert!(
         !tampered.is_satisfied(),
-        "source R1CS must reject tampering with Construction-2 input x_i bits"
+        "source R1CS must reject tampering with Construction-2 output x_i bits"
     );
     let mut tampered = source_r1cs.clone();
     tampered.witness[source_start + source.current_boundary_out_digest_bit_offset()] += F::ONE;

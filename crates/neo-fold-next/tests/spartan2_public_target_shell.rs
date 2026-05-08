@@ -1,7 +1,7 @@
 use neo_fold_next::decider::spartan2::{
-    prove_spartan2_public_target_shell, setup_spartan2_public_target_shell, verify_spartan2_public_target_shell,
-    Spartan2ChunkTransitionBinding, Spartan2DeciderStatement, Spartan2DeciderTarget, Spartan2DeciderWitness,
-    Spartan2PublicTargetShellError,
+    prove_spartan2_public_target_shell_with_perf, setup_spartan2_public_target_shell,
+    verify_spartan2_public_target_shell, Spartan2ChunkTransitionBinding, Spartan2DeciderStatement,
+    Spartan2DeciderTarget, Spartan2DeciderWitness, Spartan2PublicTargetShellError,
 };
 use neo_fold_next::finalize::FixedShapeChunkSummary;
 use neo_fold_next::proof::FoldSchedule;
@@ -42,7 +42,7 @@ fn synthetic_target() -> Spartan2DeciderTarget {
 fn spartan2_public_target_shell_round_trip() {
     let target = synthetic_target();
     let (pk, vk) = setup_spartan2_public_target_shell(&target.shape()).expect("setup public-target shell");
-    let proof = prove_spartan2_public_target_shell(&pk, &target).expect("prove public-target shell");
+    let (proof, _) = prove_spartan2_public_target_shell_with_perf(&pk, &target).expect("prove public-target shell");
 
     verify_spartan2_public_target_shell(&vk, &target, &proof).expect("verify public-target shell");
     assert!(proof.snark_bytes_len() > 0);
@@ -53,7 +53,7 @@ fn spartan2_public_target_shell_round_trip() {
 fn spartan2_public_target_shell_rejects_tampered_target() {
     let target = synthetic_target();
     let (pk, vk) = setup_spartan2_public_target_shell(&target.shape()).expect("setup public-target shell");
-    let proof = prove_spartan2_public_target_shell(&pk, &target).expect("prove public-target shell");
+    let (proof, _) = prove_spartan2_public_target_shell_with_perf(&pk, &target).expect("prove public-target shell");
 
     let mut tampered = target.clone();
     tampered.statement.final_proof_digest[0] ^= 1;
@@ -74,8 +74,10 @@ fn spartan2_public_target_shell_setup_reuses_same_shape() {
     other.witness.chunk_transition_bindings[0].transition_witness_digest[0] ^= 1;
 
     let (pk, vk) = setup_spartan2_public_target_shell(&target.shape()).expect("setup public-target shell");
-    let proof_a = prove_spartan2_public_target_shell(&pk, &target).expect("prove first public-target shell");
-    let proof_b = prove_spartan2_public_target_shell(&pk, &other).expect("prove second public-target shell");
+    let (proof_a, _) =
+        prove_spartan2_public_target_shell_with_perf(&pk, &target).expect("prove first public-target shell");
+    let (proof_b, _) =
+        prove_spartan2_public_target_shell_with_perf(&pk, &other).expect("prove second public-target shell");
 
     verify_spartan2_public_target_shell(&vk, &target, &proof_a).expect("verify first public-target shell");
     verify_spartan2_public_target_shell(&vk, &other, &proof_b).expect("verify second public-target shell");

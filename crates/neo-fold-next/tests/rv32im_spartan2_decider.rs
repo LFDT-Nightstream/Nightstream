@@ -2,8 +2,8 @@
 
 use std::sync::Arc;
 
-use neo_fold_next::nightstream::rv32im::audit::build_rv32im_nightstream_statement_from_final;
-use neo_fold_next::nightstream::rv32im::rv32im_verifier_context_digest;
+use neo_fold_next::public_proof::rv32im::audit::build_rv32im_nightstream_statement_from_final;
+use neo_fold_next::public_proof::rv32im::rv32im_verifier_context_digest;
 use neo_fold_next::rv32im::audit::{
     build_rv32im_ivc_recursion_snark_setup_shape_from_components, debug_check_rv32im_ivc_recursion_snark_circuit,
 };
@@ -44,7 +44,7 @@ fn final_fixture_from_input(
     neo_fold_next::rv32im::Rv32imProof,
     neo_fold_next::rv32im::final_relation::Rv32imFinalStatement,
     neo_fold_next::rv32im::final_relation::Rv32imFinalBuildProof,
-    neo_fold_next::nightstream::NightstreamStatement,
+    neo_fold_next::public_proof::NightstreamStatement,
 ) {
     let proof = prove_rv32im_public_proof(&input).expect("prove rv32im public proof");
     let artifact = build_rv32im_accepted_proof_artifact(&proof).expect("build accepted artifact");
@@ -80,7 +80,7 @@ fn final_fixture(
     neo_fold_next::rv32im::Rv32imProof,
     neo_fold_next::rv32im::final_relation::Rv32imFinalStatement,
     neo_fold_next::rv32im::final_relation::Rv32imFinalBuildProof,
-    neo_fold_next::nightstream::NightstreamStatement,
+    neo_fold_next::public_proof::NightstreamStatement,
 ) {
     final_fixture_from_input(proof_input(name))
 }

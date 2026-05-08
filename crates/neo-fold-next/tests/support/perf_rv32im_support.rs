@@ -5,7 +5,7 @@ use std::env;
 use std::io::{self, Write};
 use std::time::Instant;
 
-use neo_fold_next::nightstream::rv32im::{
+use neo_fold_next::public_proof::rv32im::{
     build_rv32im_nightstream_from_published_proof_seam_with_perf, verify_rv32im_nightstream_with_perf,
 };
 use neo_fold_next::proof::{FoldSchedule, PackagedProof};

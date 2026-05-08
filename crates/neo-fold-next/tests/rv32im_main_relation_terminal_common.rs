@@ -1,7 +1,7 @@
 use bellpepper_core::test_cs::TestConstraintSystem;
 use neo_ccs::{SparsePoly, Term};
-use neo_fold_next::rv32im::main_relation_circuit::k_field::{alloc_constant_k, enforce_k_eq, KNum};
-use neo_fold_next::rv32im::main_relation_circuit::terminal_common::{eq_points, eval_sparse_poly_in_k, range_product};
+use neo_fold_next::circuit::superneo::k_field::{alloc_constant_k, enforce_k_eq, KNum};
+use neo_fold_next::circuit::superneo::terminal_common::{eq_points, eval_sparse_poly_in_k, range_product};
 use neo_math::F as GoldilocksF;
 use neo_math::K as NeoK;
 use neo_reductions::engines::optimized_engine::eq_points as native_eq_points;

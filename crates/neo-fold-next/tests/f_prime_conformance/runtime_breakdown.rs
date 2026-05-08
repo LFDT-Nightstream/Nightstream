@@ -13,8 +13,8 @@ use neo_fold_next::rv32im::audit::{
     debug_trace_rv32im_main_recursion_construction2_default_pair_for_full_width,
     debug_trace_rv32im_main_recursion_step_spartan_shape_synthesis, Rv32imMainRecursionFPrimeBackendRelation,
 };
+use neo_fold_next::rv32im::f_prime::{build_rv32im_main_recursion_verifier_key_fs, Rv32imMainRecursionPhiSide};
 use neo_fold_next::rv32im::final_relation::prove_rv32im_final_statement_from_accepted;
-use neo_fold_next::rv32im::main_recursion::{build_rv32im_main_recursion_verifier_key_fs, Rv32imMainRecursionPhiSide};
 use neo_fold_next::rv32im::{
     build_mixed_opcode_perf_source_case, build_rv32im_main_recursion_construction2_canonical_full_width,
     prove_rv32im_accepted_proof_with_options_and_perf, Rv32imProofInput, Rv32imPublicProofOptions,

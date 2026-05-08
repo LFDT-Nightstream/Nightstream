@@ -1,11 +1,9 @@
 use bellpepper_core::test_cs::TestConstraintSystem;
 use neo_ajtai::Commitment;
 use neo_ccs::{CcsClaim, CcsStructure, CeClaim, Mat, SparsePoly, Term};
-use neo_fold_next::rv32im::main_relation_circuit::claim::alloc_ce_claim;
-use neo_fold_next::rv32im::main_relation_circuit::k_field::alloc_constant_k;
-use neo_fold_next::rv32im::main_relation_circuit::output_binding::{
-    alloc_fresh_ccs_claim, enforce_me_outputs_against_inputs,
-};
+use neo_fold_next::circuit::superneo::claim::alloc_ce_claim;
+use neo_fold_next::circuit::superneo::k_field::alloc_constant_k;
+use neo_fold_next::circuit::superneo::output_binding::{alloc_fresh_ccs_claim, enforce_me_outputs_against_inputs};
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
@@ -86,7 +84,7 @@ fn rv32im_main_relation_output_binding_accepts_fresh_and_me_inputs() {
         .map(|(idx, value)| {
             alloc_constant_k(
                 &mut cs,
-                neo_fold_next::rv32im::main_relation_circuit::k_field::KNum::from_neo_k(*value),
+                neo_fold_next::circuit::superneo::k_field::KNum::from_neo_k(*value),
                 &format!("r_{idx}"),
             )
         })
@@ -98,7 +96,7 @@ fn rv32im_main_relation_output_binding_accepts_fresh_and_me_inputs() {
         .map(|(idx, value)| {
             alloc_constant_k(
                 &mut cs,
-                neo_fold_next::rv32im::main_relation_circuit::k_field::KNum::from_neo_k(*value),
+                neo_fold_next::circuit::superneo::k_field::KNum::from_neo_k(*value),
                 &format!("s_col_{idx}"),
             )
         })
@@ -144,7 +142,7 @@ fn rv32im_main_relation_output_binding_rejects_tampered_fresh_commitment() {
         .map(|(idx, value)| {
             alloc_constant_k(
                 &mut cs,
-                neo_fold_next::rv32im::main_relation_circuit::k_field::KNum::from_neo_k(*value),
+                neo_fold_next::circuit::superneo::k_field::KNum::from_neo_k(*value),
                 &format!("r_{idx}"),
             )
         })
@@ -156,7 +154,7 @@ fn rv32im_main_relation_output_binding_rejects_tampered_fresh_commitment() {
         .map(|(idx, value)| {
             alloc_constant_k(
                 &mut cs,
-                neo_fold_next::rv32im::main_relation_circuit::k_field::KNum::from_neo_k(*value),
+                neo_fold_next::circuit::superneo::k_field::KNum::from_neo_k(*value),
                 &format!("s_col_{idx}"),
             )
         })
@@ -206,7 +204,7 @@ fn rv32im_main_relation_output_binding_ignores_s_col_shell() {
         .map(|(idx, value)| {
             alloc_constant_k(
                 &mut cs,
-                neo_fold_next::rv32im::main_relation_circuit::k_field::KNum::from_neo_k(*value),
+                neo_fold_next::circuit::superneo::k_field::KNum::from_neo_k(*value),
                 &format!("r_{idx}"),
             )
         })
@@ -218,7 +216,7 @@ fn rv32im_main_relation_output_binding_ignores_s_col_shell() {
         .map(|(idx, value)| {
             alloc_constant_k(
                 &mut cs,
-                neo_fold_next::rv32im::main_relation_circuit::k_field::KNum::from_neo_k(*value),
+                neo_fold_next::circuit::superneo::k_field::KNum::from_neo_k(*value),
                 &format!("s_col_{idx}"),
             )
         })

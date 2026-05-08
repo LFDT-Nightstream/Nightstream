@@ -1,12 +1,12 @@
-use neo_fold_next::nightstream::rv32im::audit::{
+use neo_fold_next::proof::FoldSchedule;
+use neo_fold_next::public_proof::rv32im::audit::{
     build_rv32im_side_opening_relation_from_accepted_artifact, setup_rv32im_side_opening_spartan,
 };
-use neo_fold_next::nightstream::rv32im::{
-    build_rv32im_nightstream_from_public_proof, build_rv32im_side_proof, Rv32imSideBindingStatement,
+use neo_fold_next::public_proof::rv32im::{
+    build_rv32im_nightstream_from_public_proof_with_perf, build_rv32im_side_proof, Rv32imSideBindingStatement,
     Rv32imSideOpeningPublic, Rv32imSideOpeningSpartanVerifierKey, Rv32imSideProof,
 };
-use neo_fold_next::nightstream::NightstreamStatement;
-use neo_fold_next::proof::FoldSchedule;
+use neo_fold_next::public_proof::NightstreamStatement;
 use neo_fold_next::rv32im::{
     build_rv32im_accepted_proof_artifact, parity_source_cases, prove_rv32im_public_proof_with_options,
     Rv32imAcceptedProofArtifact, Rv32imProofInput, Rv32imProofStatement, Rv32imPublicProofOptions, SimpleKernelError,
@@ -69,8 +69,9 @@ pub fn build_side_fixture(name: &str) -> SideFixture {
     .expect("prove rv32im public proof for side soundness fixture");
     let accepted_artifact = build_rv32im_accepted_proof_artifact(&public_proof)
         .expect("build accepted artifact for side soundness fixture");
-    let (nightstream_statement, _nightstream_proof) = build_rv32im_nightstream_from_public_proof(&public_proof)
-        .expect("build nightstream proof for side soundness fixture");
+    let ((nightstream_statement, _nightstream_proof), _) =
+        build_rv32im_nightstream_from_public_proof_with_perf(&public_proof)
+            .expect("build nightstream proof for side soundness fixture");
     let side_proof = build_rv32im_side_proof(&nightstream_statement, &accepted_artifact)
         .expect("build side proof for side soundness fixture");
     SideFixture {

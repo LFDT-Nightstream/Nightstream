@@ -1,6 +1,6 @@
 use bellpepper_core::test_cs::TestConstraintSystem;
-use neo_fold_next::rv32im::main_relation_circuit::k_field::{alloc_constant_k, alloc_k, KNum};
-use neo_fold_next::rv32im::main_relation_circuit::sumcheck::{sumcheck_eval_gadget, sumcheck_round_gadget};
+use neo_fold_next::circuit::superneo::k_field::{alloc_constant_k, alloc_k, KNum};
+use neo_fold_next::circuit::superneo::sumcheck::{sumcheck_eval_gadget, sumcheck_round_gadget};
 use neo_math::F as GoldilocksF;
 use neo_math::K as NeoK;
 use p3_field::PrimeCharacteristicRing;
@@ -28,7 +28,7 @@ fn rv32im_main_relation_sumcheck_gadgets_match_native_horner_logic() {
     let eval =
         sumcheck_eval_gadget(&mut cs, &coeffs, &coeff_values, &challenge, k(2, 0), delta, "eval").expect("eval gadget");
     let expected_eval = alloc_constant_k(&mut cs, KNum::from_neo_k(k(41, 0)), "expected_eval").expect("expected eval");
-    neo_fold_next::rv32im::main_relation_circuit::k_field::enforce_k_eq(&mut cs, &eval, &expected_eval, "eval_eq");
+    neo_fold_next::circuit::superneo::k_field::enforce_k_eq(&mut cs, &eval, &expected_eval, "eval_eq");
 
     assert!(cs.is_satisfied(), "{}", cs.which_is_unsatisfied().unwrap_or_default());
 }

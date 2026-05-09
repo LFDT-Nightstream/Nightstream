@@ -8,7 +8,7 @@ use neo_reductions::optimized_engine::OptimizedStructureCache;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 
-use crate::chunk_relation::{
+use crate::chunk_folding::{
     claim_digests, compute_chunk_replay_witness_and_relation_with_instance_digest_and_me_input_handle_and_perf,
     trace_chunk_relation_with_witness_and_instance_digest_and_me_input_handle,
     verify_chunk_relation_with_witness_and_instance_digest_and_me_input_handle_with_perf, ChunkReplayTrace,

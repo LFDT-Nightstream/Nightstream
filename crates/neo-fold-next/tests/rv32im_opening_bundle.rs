@@ -1,16 +1,18 @@
 use std::collections::BTreeSet;
 
-use neo_fold_next::opening::{OpeningDomain, OpeningSource};
+use neo_fold_next::core::opening::{OpeningDomain, OpeningSource};
+use neo_fold_next::core::witness_layout::commit_cols_for_full_width;
+use neo_fold_next::rv32im::kernel::{
+    build_rv32im_opening_bundle_from_accepted_artifact, rv32im_exact_stage_pp_seed, rv32im_simple_kernel_pp_seed,
+    verify_rv32im_opening_bundle_from_accepted_artifact, Rv32imOpeningBundle,
+};
 use neo_fold_next::rv32im::{
-    build_rv32im_accepted_proof_artifact, build_rv32im_opening_bundle_from_accepted_artifact,
-    kernel::{rv32im_exact_stage_pp_seed, rv32im_simple_kernel_pp_seed},
-    parity_source_cases, prove_rv32im_public_proof,
+    build_rv32im_accepted_proof_artifact, parity_source_cases, prove_rv32im_public_proof,
     stage1::stage1_row_word_width,
     stage2::{ram_event_word_width, register_read_word_width, register_write_word_width, twist_link_word_width},
     stage3::continuity_event_word_width,
-    verify_rv32im_opening_bundle_from_accepted_artifact, Rv32imOpeningBundle, Rv32imProofInput,
+    Rv32imProofInput,
 };
-use neo_fold_next::witness_layout::commit_cols_for_full_width;
 use neo_math::ring::D;
 use neo_math::K;
 use p3_field::PrimeCharacteristicRing;

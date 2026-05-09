@@ -25,11 +25,11 @@ use neo_transcript::Poseidon2Transcript;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde::{Deserialize, Serialize};
 
-use crate::chunk_relation::ChunkReplayWitness;
+use crate::chunk_folding::ChunkReplayWitness;
 use crate::finalize::FixedShapeChunkSummary;
 use crate::proof::PublicChunk;
-use crate::rv32im::chunk_fold_step::Rv32imChunkFoldCarry;
-use crate::rv32im::chunk_relation::{trace_rv32im_chunk_relation_with_replay, Rv32imChunkRelationTrace};
+use crate::rv32im::chunk::fold::Rv32imChunkFoldCarry;
+use crate::rv32im::chunk::transition::{trace_rv32im_chunk_relation_with_replay, Rv32imChunkRelationTrace};
 use crate::rv32im::final_relation::{rv32im_chunk_fold_carried_transcript_snapshot, Rv32imChunkFoldTranscriptSnapshot};
 use crate::rv32im::kernel::{
     rv32im_ajtai_mixers, rv32im_cached_root_main_lane_context, rv32im_cached_root_main_lane_optimized_cache,
@@ -518,7 +518,7 @@ fn build_rv32im_main_circuit_chunk_trace_from_parts(
     replay_witness: &ChunkReplayWitness,
     transcript: &mut Poseidon2Transcript,
 ) -> Result<Rv32imMainCircuitChunkTrace, SimpleKernelError> {
-    let fresh = crate::rv32im::chunk_fold_step::adapt_rv32im_chunk_to_fresh_ccs(handoff);
+    let fresh = crate::rv32im::chunk::fold::adapt_rv32im_chunk_to_fresh_ccs(handoff);
     let me_input_accumulator_handle = crate::finalize::digest32_as_fields(
         crate::rv32im::final_relation::rv32im_chunk_fold_carry_recursive_accumulator_digest(carry_in),
     );

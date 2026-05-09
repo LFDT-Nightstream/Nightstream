@@ -936,6 +936,7 @@ pub(super) fn validate_public_proof_against_input_with_perf(
         .first()
         .map(|row| u64::from(row.pc))
         .unwrap_or(proof.statement.final_pc);
+
     if proof.statement.initial_pc != rebuilt_initial_pc {
         return Err(SimpleKernelError::Bridge(
             "RV32IM public proof initial pc does not match the canonical build from public input".into(),

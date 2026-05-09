@@ -1,7 +1,7 @@
 use std::env;
 use std::time::Instant;
 
-use neo_fold_next::proof::FoldSchedule;
+use neo_fold_next::core::proof::FoldSchedule;
 use neo_fold_next::rv32im::audit::build_rv32im_chunk_step_ivc_relations;
 use neo_fold_next::rv32im::final_relation::prove_rv32im_final_statement_from_accepted;
 use neo_fold_next::rv32im::ivc::{derive_rv32im_ivc_step_cap, Rv32imIvcAppendPerf, Rv32imIvcState};

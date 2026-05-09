@@ -3,7 +3,7 @@
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, LinearCombination, SynthesisError, Variable};
 use neo_math::D;
 
-use crate::construction2_terminal::{
+use crate::construction2::terminal::{
     alloc_terminal_boundary_public_inputs, enforce_boolean_allocated, enforce_packed_padding_zero,
     enforce_public_commitment_shape, enforce_terminal_ajtai_commitment, enforce_terminal_boundary_digests,
     native_to_spartan, terminal_boundary_public_values, Construction2TerminalBoundaryInputs,

@@ -16,10 +16,10 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
 use crate::proof::{FoldSchedule, PackagedProof, PublicStep, StepInput};
-use crate::run::{prove_and_package, verify_packaged};
 use crate::rv32im::stage1::Stage1Summary;
 use crate::rv32im::stage2::Stage2Summary;
 use crate::rv32im::stage3::Stage3Summary;
+use crate::session::{prove_and_package, verify_packaged};
 use crate::vm::r1cs_builder::R1csBuilder;
 use crate::witness_layout::{commit_cols_for_full_width, encode_vector_for_full_width};
 

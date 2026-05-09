@@ -1,4 +1,4 @@
-use neo_fold_next::rv32im::{
+use neo_fold_next::rv32im::kernel::{
     derive_phase0_point, encode_packed_column_evals_k, encode_words_to_field_evals_k, phase0_full_width_for_schema,
     reconstruct_words_from_field_evals, unpack_column_evals_k, CommitmentContextId, EvalClaimError, FamilyEvalSchemaId,
     OpenedAjtaiObjectId,

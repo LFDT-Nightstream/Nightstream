@@ -1,6 +1,6 @@
 //! Owns audit helpers for native F', NIFS, and recursive-step Spartan surfaces.
 
-use crate::rv32im::chunk_step_ivc::Rv32imChunkStepIvcRelation;
+use crate::rv32im::chunk::step_ivc::Rv32imChunkStepIvcRelation;
 use crate::rv32im::construction2::{
     audit_rv32im_main_recursion_construction2_pi_rlc_rho_mats,
     build_rv32im_main_recursion_construction2_default_fresh_instance,
@@ -94,7 +94,7 @@ pub fn debug_trace_rv32im_main_recursion_construction2_default_pair_for_full_wid
     full_width: usize,
     trace_prefix: &str,
 ) -> Result<crate::rv32im::Rv32imMainRecursionConstruction2DefaultPair, SimpleKernelError> {
-    crate::rv32im::construction2_default::debug_trace_build_rv32im_main_recursion_construction2_default_pair_for_full_width(
+    crate::rv32im::construction2::default::debug_trace_build_rv32im_main_recursion_construction2_default_pair_for_full_width(
         vk_fs,
         full_width,
         trace_prefix,
@@ -244,7 +244,7 @@ pub fn audit_rv32im_main_recursion_construction2_state_images_match_native_f_pri
     };
     if advice.chunk_count_in() == 0 {
         let canonical_full_width =
-            crate::rv32im::construction2_default::build_rv32im_main_recursion_construction2_canonical_full_width(
+            crate::rv32im::construction2::default::build_rv32im_main_recursion_construction2_canonical_full_width(
                 advice.verifier_key_fs(),
                 advice.phi_side(),
             )?;
@@ -376,7 +376,7 @@ fn retag_rv32im_main_recursion_advice_chunk_position(
     rv32im_main_recursion_advice_retarget_x_hash_to_current_accumulator(&mut advice);
     if chunk_count_in == 0 {
         let canonical_full_width =
-            crate::rv32im::construction2_default::build_rv32im_main_recursion_construction2_canonical_full_width(
+            crate::rv32im::construction2::default::build_rv32im_main_recursion_construction2_canonical_full_width(
                 advice.verifier_key_fs(),
                 advice.phi_side(),
             )?;

@@ -4,7 +4,7 @@
 //! This test compares the structural canonical builder against two independent
 //! relation-derived cover builders. All three widths must match exactly.
 
-use neo_fold_next::proof::FoldSchedule;
+use neo_fold_next::core::proof::FoldSchedule;
 use neo_fold_next::rv32im::audit::{build_rv32im_chunk_step_ivc_relations, rv32im_chunk_step_ivc_initial_state};
 use neo_fold_next::rv32im::f_prime::build_rv32im_main_recursion_verifier_key_fs;
 use neo_fold_next::rv32im::final_relation::prove_rv32im_final_statement_from_accepted;

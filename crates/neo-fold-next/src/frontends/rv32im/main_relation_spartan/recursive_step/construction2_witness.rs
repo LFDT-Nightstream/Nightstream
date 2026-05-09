@@ -181,7 +181,7 @@ fn enforce_current_input_u_perp_when_base<CS: ConstraintSystem<SpartanF>>(
     chunk_count_in_halves: &[AllocatedNum<SpartanF>; 2],
 ) -> Result<(), SynthesisError> {
     let full_width =
-        crate::rv32im::construction2_default::build_rv32im_main_recursion_construction2_canonical_full_width(
+        crate::rv32im::construction2::default::build_rv32im_main_recursion_construction2_canonical_full_width(
             witness.verifier_key_fs(),
             witness.phi_side(),
         )

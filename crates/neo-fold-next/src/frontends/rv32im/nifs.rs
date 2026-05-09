@@ -1,13 +1,13 @@
 //! Owns the native RV32IM fold-step boundary between a running recursive state and one fresh chunk step.
 
-use crate::chunk_relation::ChunkReplayWitness;
+use crate::chunk_folding::ChunkReplayWitness;
 use crate::finalize::FixedShapeChunkSummary;
 use crate::proof::Carry;
-use crate::rv32im::chunk_fold_step::{
+use crate::rv32im::chunk::fold::{
     adapt_rv32im_chunk_to_fresh_ccs, build_rv32im_chunk_step_public, Rv32imAccumulatorHandle, Rv32imChunkFoldCarry,
     Rv32imChunkStepPublic,
 };
-use crate::rv32im::chunk_relation::{
+use crate::rv32im::chunk::transition::{
     prove_rv32im_chunk_transition_with_perf, rv32im_step_handle, trace_rv32im_chunk_relation_with_replay,
     Rv32imChunkRelationTrace,
 };

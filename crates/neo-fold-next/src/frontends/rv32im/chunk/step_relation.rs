@@ -6,12 +6,9 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::chunk_relation::ChunkReplayWitness;
+use crate::chunk_folding::ChunkReplayWitness;
 use crate::finalize::FixedShapeChunkSummary;
 use crate::proof::Carry;
-use crate::rv32im::chunk_fold_step::{
-    verify_rv32im_chunk_fold_verifier_step, Rv32imAccumulatorHandle, Rv32imChunkFoldCarry, Rv32imChunkStepPublic,
-};
 use crate::rv32im::final_relation::{
     build_rv32im_chunk_fold_step_traces, Rv32imChunkFoldState, Rv32imChunkFoldTranscriptSnapshot,
     Rv32imFinalBuildProof, Rv32imFinalStatement,
@@ -20,6 +17,10 @@ use crate::rv32im::kernel::{
     rv32im_cached_root_main_lane_optimized_cache, Rv32imVerifiedKernelChunkHandoff, SimpleKernelError,
 };
 use neo_transcript::Poseidon2Transcript;
+
+use super::fold::{
+    verify_rv32im_chunk_fold_verifier_step, Rv32imAccumulatorHandle, Rv32imChunkFoldCarry, Rv32imChunkStepPublic,
+};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Rv32imChunkStepRelationStatement {

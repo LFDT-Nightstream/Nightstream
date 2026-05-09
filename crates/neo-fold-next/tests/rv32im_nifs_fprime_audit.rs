@@ -1,6 +1,6 @@
 use std::env;
 
-use neo_fold_next::proof::FoldSchedule;
+use neo_fold_next::core::proof::FoldSchedule;
 use neo_fold_next::rv32im::audit::{
     audit_rv32im_nifs_round_trip_from_chunk_step_relation, build_rv32im_chunk_step_ivc_relations,
     build_rv32im_main_recursion_f_prime_advices,

@@ -2,7 +2,7 @@ use crate::common::proof_cases::{
     accepted_memory, accepted_multiply_high, accepted_test_guard, expect_accepted_audit_failure,
     refresh_stage1_semantic_digests,
 };
-use neo_fold_next::proof::FoldSchedule;
+use neo_fold_next::core::proof::FoldSchedule;
 use neo_fold_next::rv32im::audit::{
     audit_rv32im_accepted_proof, audit_rv32im_public_proof, audit_rv32im_public_proof_against_input,
 };

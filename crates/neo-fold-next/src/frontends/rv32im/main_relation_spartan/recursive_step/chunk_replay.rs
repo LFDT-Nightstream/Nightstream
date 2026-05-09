@@ -19,7 +19,7 @@ use super::super::{synthesize_rv32im_chunk_nifs_verifier_body_with_outer_relatio
 use crate::rv32im::f_prime::Rv32imMainRecursionFPrimeAdvice;
 use crate::rv32im::final_relation::RV32IM_CHUNK_DONE_RAW_TAG;
 use crate::rv32im::kernel::rv32im_cached_root_main_lane_optimized_cache;
-use crate::rv32im::main_relation_spartan::chunk_step_recursive::Rv32imMainRecursionFPrimePayload;
+use crate::rv32im::main_relation_spartan::chunk_step::Rv32imMainRecursionFPrimePayload;
 use crate::rv32im::main_relation_spartan::digest32_as_spartan_fields;
 use crate::spartan_backend::SpartanF;
 

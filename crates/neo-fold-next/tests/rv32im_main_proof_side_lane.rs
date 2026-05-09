@@ -3,7 +3,7 @@
 #[path = "support/rv32im_n2.rs"]
 mod rv32im_n2_support;
 
-use neo_fold_next::public_proof::rv32im::audit::build_rv32im_nightstream_statement_from_final;
+use neo_fold_next::public_proof::rv32im::statement::build_rv32im_nightstream_statement_from_final;
 use neo_fold_next::public_proof::rv32im::{
     build_rv32im_bound_side_opening_public_from_accepted_artifact, rv32im_verifier_context_digest,
 };

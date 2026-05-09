@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::finalize::{digest32_as_fields, digest_fields_as_digest32, FixedShapeChunkSummary};
 use crate::proof::FoldSchedule;
-use crate::rv32im::chunk_step_ivc::{
+use crate::rv32im::chunk::step_ivc::{
     build_rv32im_chunk_step_ivc_relations, rv32im_chunk_step_ivc_initial_state_for_step_cap,
     Rv32imChunkStepIvcStatement,
 };

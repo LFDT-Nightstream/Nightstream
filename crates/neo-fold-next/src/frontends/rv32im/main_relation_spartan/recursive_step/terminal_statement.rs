@@ -3,7 +3,7 @@
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 
 use crate::rv32im::construction2::Rv32imMainRecursionConstruction2VerifiedStepStatement;
-use crate::rv32im::main_relation_spartan::chunk_step_recursive::Rv32imMainRecursionFPrimeBackendRelation;
+use crate::rv32im::main_relation_spartan::chunk_step::Rv32imMainRecursionFPrimeBackendRelation;
 use crate::spartan_backend::SpartanF;
 use crate::superneo_circuit::transcript::Poseidon2TranscriptCircuit;
 
@@ -19,7 +19,7 @@ pub(super) fn build_terminal_f_prime_verified_step_statement(
             "rv32im terminal F' verified-step statement step span overflow".into(),
         )
     })?;
-    let chunk_relation_digest = crate::rv32im::chunk_relation::rv32im_chunk_relation_digest_from_fold_digest(
+    let chunk_relation_digest = crate::rv32im::chunk::transition::rv32im_chunk_relation_digest_from_fold_digest(
         backend_relation.payload.handoff.public_chunk_digest,
         backend_relation.payload.pi_ccs.replay.header_digest,
         backend_relation.payload.handoff.bridge_handoff_digest,

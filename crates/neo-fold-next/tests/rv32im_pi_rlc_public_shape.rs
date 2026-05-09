@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use neo_fold_next::proof::FoldSchedule;
+use neo_fold_next::core::proof::FoldSchedule;
 use neo_fold_next::rv32im::audit::{
     build_rv32im_main_recursion_f_prime_backend_relations_with_spartan_shape_from_advices,
     debug_measure_rv32im_main_recursion_step_pi_rlc_public_constraint_breakdown,

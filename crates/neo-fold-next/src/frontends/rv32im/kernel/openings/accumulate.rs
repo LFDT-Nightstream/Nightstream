@@ -18,7 +18,8 @@ use p3_field::RawDataSerializable;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use super::opening_claim_reduction::{ClaimReductionError, ClaimReductionResult};
+use super::opening_claim_reduction::ClaimReductionResult;
+use super::opening_claim_reduction_error::ClaimReductionError;
 use super::opening_eval_claims::{
     CommitmentContextId, EvalClaimError, FamilyEvalClaim, FamilyEvalClaimId, FamilyEvalPayload, FamilyEvalSchemaId,
     OpenedAjtaiObjectId, PackedColumnEval,

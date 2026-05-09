@@ -2,8 +2,8 @@
 
 use std::sync::Arc;
 
-use neo_fold_next::public_proof::rv32im::audit::build_rv32im_nightstream_statement_from_final;
 use neo_fold_next::public_proof::rv32im::rv32im_verifier_context_digest;
+use neo_fold_next::public_proof::rv32im::statement::build_rv32im_nightstream_statement_from_final;
 use neo_fold_next::rv32im::audit::{
     build_rv32im_ivc_recursion_snark_setup_shape_from_components, debug_check_rv32im_ivc_recursion_snark_circuit,
 };

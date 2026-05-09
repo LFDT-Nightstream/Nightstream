@@ -21,16 +21,15 @@ use std::io::{self, Write};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
-use crate::chunk_relation::ChunkReplayWitness;
+use crate::chunk_folding::ChunkReplayWitness;
 use crate::finalize::{digest32_as_fields, digest_fields_as_digest32, public_chunk_digest, FixedShapeChunkSummary};
 use crate::proof::{Carry, ChunkInput};
-use crate::rv32im::chunk_fold_step::{adapt_rv32im_chunk_to_fresh_ccs, Rv32imAccumulatorHandle, Rv32imChunkFoldCarry};
-use crate::rv32im::chunk_relation::{
+use crate::rv32im::chunk::fold::{adapt_rv32im_chunk_to_fresh_ccs, Rv32imAccumulatorHandle, Rv32imChunkFoldCarry};
+use crate::rv32im::chunk::step_ivc::{Rv32imChunkStepIvcRelation, Rv32imChunkStepIvcStatement};
+use crate::rv32im::chunk::transition::{
     rv32im_chunk_relation_digest_from_fold_digest, rv32im_step_handle, trace_rv32im_chunk_relation_parts_with_replay,
     Rv32imChunkRelationTrace,
 };
-use crate::rv32im::chunk_step_ivc::{Rv32imChunkStepIvcRelation, Rv32imChunkStepIvcStatement};
-use crate::rv32im::construction2_default::Rv32imMainRecursionConstruction2DefaultPair;
 use crate::rv32im::f_prime::{
     evaluate_rv32im_main_recursion_f_prime_advice, Rv32imEncodedPublicInput,
     Rv32imMainRecursionConstruction2NifsVerifyPerf, Rv32imMainRecursionFPrimeAdvice, Rv32imVerifierKeyFs,
@@ -50,6 +49,27 @@ use crate::rv32im::main_relation_spartan::{
 use crate::rv32im::SimpleKernelError;
 use crate::witness_layout::commit_cols_for_full_width;
 
+pub(crate) mod default;
+mod fresh_instance;
+
+pub use default::{
+    build_rv32im_main_recursion_construction2_canonical_full_width,
+    build_rv32im_main_recursion_construction2_canonical_shape,
+    build_rv32im_main_recursion_construction2_default_full_width_from_ccs_shape,
+    build_rv32im_main_recursion_construction2_default_full_width_from_relations,
+    build_rv32im_main_recursion_construction2_default_pair_for_full_width, Rv32imMainRecursionConstruction2DefaultPair,
+};
+pub use fresh_instance::{
+    build_rv32im_main_recursion_construction2_default_fresh_instance,
+    build_rv32im_main_recursion_construction2_fresh_instance,
+    build_rv32im_main_recursion_construction2_fresh_instance_with_input,
+};
+pub(crate) use fresh_instance::{
+    build_rv32im_main_recursion_construction2_fresh_instance_with_input_and_x_i,
+    build_rv32im_main_recursion_construction2_fresh_instance_with_input_and_x_i_with_perf,
+    debug_trace_build_rv32im_main_recursion_construction2_fresh_instance_with_input_and_x_i,
+};
+
 pub(crate) const RV32IM_CONSTRUCTION2_PUBLIC_BOUNDARY_RAW_TAG: u64 = 0x7276_6332_7075_6269;
 pub(crate) const RV32IM_CONSTRUCTION2_COMMITMENT_RAW_TAG: u64 = 0x7276_6332_636f_6d6d;
 
@@ -62,13 +82,6 @@ fn emit_debug_timing(trace_prefix: Option<&str>, label: &str, elapsed_ms: f64) {
         eprintln!("{prefix}.{label}={elapsed_ms:.2}ms");
         let _ = io::stderr().flush();
     }
-}
-
-#[derive(Clone, Copy, Debug, Default)]
-pub(crate) struct Rv32imMainRecursionConstruction2FreshInstanceBuildPerf {
-    pub pack_image_ms: f64,
-    pub commit_ms: f64,
-    pub total_ms: f64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -587,7 +600,7 @@ fn validate_rv32im_main_recursion_construction2_input_fresh_instance(
 ) -> Result<(), SimpleKernelError> {
     if advice.chunk_count_in() == 0 {
         let canonical_full_width =
-            crate::rv32im::construction2_default::build_rv32im_main_recursion_construction2_canonical_full_width(
+            crate::rv32im::construction2::default::build_rv32im_main_recursion_construction2_canonical_full_width(
                 advice.verifier_key_fs(),
                 advice.phi_side(),
             )?;
@@ -846,7 +859,7 @@ pub fn build_rv32im_main_recursion_construction2_default_pair(
     vk_fs: &Rv32imVerifierKeyFs,
     full_width: usize,
 ) -> Result<Rv32imMainRecursionConstruction2DefaultPair, SimpleKernelError> {
-    crate::rv32im::construction2_default::build_rv32im_main_recursion_construction2_default_pair_for_full_width(
+    crate::rv32im::construction2::default::build_rv32im_main_recursion_construction2_default_pair_for_full_width(
         vk_fs, full_width,
     )
 }
@@ -1004,7 +1017,7 @@ pub(crate) fn build_rv32im_main_recursion_construction2_verified_step_statement_
     chunk_input: &ChunkInput,
     state_in: &Rv32imChunkFoldState,
     next_state: &Rv32imChunkFoldState,
-    trace: &crate::rv32im::chunk_relation::Rv32imChunkRelationTrace,
+    trace: &crate::rv32im::chunk::transition::Rv32imChunkRelationTrace,
 ) -> Rv32imMainRecursionConstruction2VerifiedStepStatement {
     let public_chunk = chunk_input.public();
     let step_lo = public_chunk.start_index as u64;
@@ -1300,11 +1313,11 @@ fn verify_rv32im_main_recursion_construction2_verified_relation(
 fn derive_rv32im_main_recursion_construction2_next_state_from_verified_relation(
     state_in: &Rv32imChunkFoldState,
     replay_input: &Rv32imMainRecursionConstruction2ReplayInput,
-    verified_relation: crate::chunk_relation::ChunkRelationResult,
+    verified_relation: crate::chunk_folding::ChunkRelationResult,
     chunk_relation_digest: [u8; 32],
     transcript: &Poseidon2Transcript,
 ) -> Result<Rv32imChunkFoldState, SimpleKernelError> {
-    let crate::chunk_relation::ChunkRelationResult { next_main, .. } = verified_relation;
+    let crate::chunk_folding::ChunkRelationResult { next_main, .. } = verified_relation;
     if next_main.witnesses.is_empty() {
         return Err(SimpleKernelError::Bridge(
             "RV32IM Construction-2 native next-state derivation requires a non-empty Π_DEC digit witness".into(),
@@ -1375,15 +1388,15 @@ fn derive_rv32im_main_recursion_construction2_next_state_from_expected_state_out
 fn derive_rv32im_main_recursion_construction2_next_state_from_trace(
     state_in: &Rv32imChunkFoldState,
     replay_input: &Rv32imMainRecursionConstruction2ReplayInput,
-    trace: &crate::rv32im::chunk_relation::Rv32imChunkRelationTrace,
+    trace: &crate::rv32im::chunk::transition::Rv32imChunkRelationTrace,
     transcript: &Poseidon2Transcript,
 ) -> Result<Rv32imChunkFoldState, SimpleKernelError> {
-    let verified_relation = crate::chunk_relation::ChunkRelationResult {
+    let verified_relation = crate::chunk_folding::ChunkRelationResult {
         next_main: Carry {
             claims: trace.children.clone(),
             witnesses: trace.z_split.clone(),
         },
-        artifacts: crate::chunk_relation::ChunkRelationArtifacts {
+        artifacts: crate::chunk_folding::ChunkRelationArtifacts {
             relation_digest: trace.chunk_relation_digest,
         },
     };
@@ -1394,114 +1407,4 @@ fn derive_rv32im_main_recursion_construction2_next_state_from_trace(
         trace.chunk_relation_digest,
         transcript,
     )
-}
-
-pub fn build_rv32im_main_recursion_construction2_default_fresh_instance(
-    vk_fs: &Rv32imVerifierKeyFs,
-    full_width: usize,
-) -> Result<Rv32imMainRecursionConstruction2FreshInstance, SimpleKernelError> {
-    Ok(
-        build_rv32im_main_recursion_construction2_default_pair(vk_fs, full_width)?
-            .u_perp()
-            .clone(),
-    )
-}
-
-pub(crate) fn build_rv32im_main_recursion_construction2_fresh_instance_with_input_and_x_i(
-    advice: &Rv32imMainRecursionFPrimeAdvice,
-    current_input_fresh_instance: &Rv32imMainRecursionConstruction2FreshInstance,
-    x_i: Rv32imEncodedPublicInput,
-) -> Result<Rv32imMainRecursionConstruction2FreshInstance, SimpleKernelError> {
-    Ok(
-        build_rv32im_main_recursion_construction2_fresh_instance_with_input_and_x_i_with_perf(
-            advice,
-            current_input_fresh_instance,
-            x_i,
-        )?
-        .0,
-    )
-}
-
-pub(crate) fn build_rv32im_main_recursion_construction2_fresh_instance_with_input_and_x_i_with_perf(
-    advice: &Rv32imMainRecursionFPrimeAdvice,
-    current_input_fresh_instance: &Rv32imMainRecursionConstruction2FreshInstance,
-    x_i: Rv32imEncodedPublicInput,
-) -> Result<
-    (
-        Rv32imMainRecursionConstruction2FreshInstance,
-        Rv32imMainRecursionConstruction2FreshInstanceBuildPerf,
-    ),
-    SimpleKernelError,
-> {
-    validate_rv32im_main_recursion_construction2_advice(advice)?;
-    let total_started = Instant::now();
-    let mut perf = Rv32imMainRecursionConstruction2FreshInstanceBuildPerf::default();
-    let started = Instant::now();
-    validate_rv32im_main_recursion_construction2_input_fresh_instance(advice, current_input_fresh_instance)?;
-    perf.pack_image_ms = elapsed_ms(started);
-    let started = Instant::now();
-    let fresh_instance = rv32im_main_recursion_construction2_x_only_placeholder(x_i);
-    perf.commit_ms = elapsed_ms(started);
-    perf.total_ms = elapsed_ms(total_started);
-    Ok((fresh_instance, perf))
-}
-
-pub(crate) fn debug_trace_build_rv32im_main_recursion_construction2_fresh_instance_with_input_and_x_i(
-    advice: &Rv32imMainRecursionFPrimeAdvice,
-    current_input_fresh_instance: &Rv32imMainRecursionConstruction2FreshInstance,
-    x_i: Rv32imEncodedPublicInput,
-    trace_prefix: &str,
-) -> Result<Rv32imMainRecursionConstruction2FreshInstance, SimpleKernelError> {
-    let started = Instant::now();
-    let (fresh, perf) = build_rv32im_main_recursion_construction2_fresh_instance_with_input_and_x_i_with_perf(
-        advice,
-        current_input_fresh_instance,
-        x_i,
-    )?;
-    eprintln!(
-        "{trace_prefix}.validate_input_fresh_instance={:.2}ms",
-        perf.pack_image_ms
-    );
-    eprintln!(
-        "{trace_prefix}.x_only_non_authoritative_commitment_placeholder={:.2}ms",
-        perf.commit_ms
-    );
-    eprintln!("{trace_prefix}.total={:.2}ms", elapsed_ms(started));
-    let _ = io::stderr().flush();
-    Ok(fresh)
-}
-
-pub fn build_rv32im_main_recursion_construction2_fresh_instance_with_input(
-    advice: &Rv32imMainRecursionFPrimeAdvice,
-    current_input_fresh_instance: &Rv32imMainRecursionConstruction2FreshInstance,
-) -> Result<Rv32imMainRecursionConstruction2FreshInstance, SimpleKernelError> {
-    build_rv32im_main_recursion_construction2_fresh_instance_with_input_and_x_i(
-        advice,
-        current_input_fresh_instance,
-        build_rv32im_main_recursion_construction2_x_i(advice)?,
-    )
-}
-
-pub fn build_rv32im_main_recursion_construction2_fresh_instance(
-    advice: &Rv32imMainRecursionFPrimeAdvice,
-) -> Result<Rv32imMainRecursionConstruction2FreshInstance, SimpleKernelError> {
-    let shape = build_rv32im_main_recursion_construction2_f_prime_ccs_shape(core::slice::from_ref(advice))?;
-    if advice.chunk_count_in() > 0 {
-        return Err(SimpleKernelError::Bridge(
-            "RV32IM native Construction-2 fresh instance builder for an inductive F' step still requires the prior-step output u_i = (c_i, x_i) to be threaded explicitly; use the explicit input-threaded builder"
-                .into(),
-        ));
-    }
-    build_rv32im_main_recursion_construction2_default_fresh_instance(
-        advice.verifier_key_fs(),
-        crate::rv32im::construction2_default::build_rv32im_main_recursion_construction2_default_full_width_from_ccs_shape(
-            &build_rv32im_main_recursion_construction2_f_prime_ccs_shape(core::slice::from_ref(advice))?,
-        )?,
-    )
-    .map_err(|err| {
-        SimpleKernelError::Bridge(format!(
-            "RV32IM native Construction-2 base-case fresh instance build failed for canonical u_perp (shape digest {:?}): {err}",
-            shape.expected_digest(),
-        ))
-    })
 }

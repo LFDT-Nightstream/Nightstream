@@ -1,6 +1,6 @@
 use neo_ajtai::Commitment;
 use neo_ccs::{CeClaim, Mat};
-use neo_fold_next::proof::Carry;
+use neo_fold_next::core::proof::Carry;
 use neo_fold_next::rv32im::{Rv32imAccumulatorHandle, Rv32imChunkFoldCarry};
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;

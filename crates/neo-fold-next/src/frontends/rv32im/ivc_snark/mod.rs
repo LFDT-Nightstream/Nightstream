@@ -18,7 +18,7 @@ use self::terminal_f_prime_committed::{
     debug_check_rv32im_terminal_f_prime_r1cs_ccs_relation, terminal_f_prime_committed_step_boundary_public_values,
     Rv32imTerminalFPrimeCommittedRelation, Rv32imTerminalFPrimeCommittedStepSetup,
 };
-use crate::rv32im::chunk_step_ivc::build_rv32im_chunk_step_ivc_relations;
+use crate::rv32im::chunk::step_ivc::build_rv32im_chunk_step_ivc_relations;
 use crate::rv32im::final_relation::{
     rv32im_recursive_accumulator_instance_digest_from_parts, Rv32imFinalBuildProof, Rv32imFinalStatement,
 };

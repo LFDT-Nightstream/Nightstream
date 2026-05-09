@@ -2,10 +2,9 @@
 
 use std::sync::OnceLock;
 
-use neo_fold_next::proof::FoldSchedule;
-use neo_fold_next::public_proof::rv32im::audit::{
-    build_rv32im_nightstream_statement_from_final, measure_rv32im_side_binding_circuit_constraints,
-};
+use neo_fold_next::core::proof::FoldSchedule;
+use neo_fold_next::public_proof::rv32im::side_relation_spartan::measure_rv32im_side_binding_circuit_constraints;
+use neo_fold_next::public_proof::rv32im::statement::build_rv32im_nightstream_statement_from_final;
 use neo_fold_next::public_proof::rv32im::{
     build_rv32im_side_proof, rv32im_verifier_context_digest, Rv32imSideBindingStatement, Rv32imSideOpeningPublic,
     Rv32imSideProof,
@@ -69,12 +68,12 @@ impl Rv32imN2Fixture {
         (
             Rv32imSideBindingStatement,
             Rv32imSideOpeningPublic,
-            Vec<neo_fold_next::rv32im::FamilyEvalClaimWitness>,
+            Vec<neo_fold_next::rv32im::kernel::FamilyEvalClaimWitness>,
         ),
         SimpleKernelError,
     > {
         let (_, witness) =
-            neo_fold_next::public_proof::rv32im::audit::build_rv32im_side_eval_claim_relation_from_accepted_artifact(
+            neo_fold_next::public_proof::rv32im::side_eval_claim_relation::build_rv32im_side_eval_claim_relation_from_accepted_artifact(
                 &self.accepted_artifact,
             )?;
         Ok((
@@ -90,11 +89,11 @@ impl Rv32imN2Fixture {
     ) -> Result<
         (
             (),
-            neo_fold_next::public_proof::rv32im::audit::Rv32imSideEvalClaimRelationWitness,
+            neo_fold_next::public_proof::rv32im::side_eval_claim_relation::Rv32imSideEvalClaimRelationWitness,
         ),
         SimpleKernelError,
     > {
-        neo_fold_next::public_proof::rv32im::audit::build_rv32im_side_eval_claim_relation_from_accepted_artifact(
+        neo_fold_next::public_proof::rv32im::side_eval_claim_relation::build_rv32im_side_eval_claim_relation_from_accepted_artifact(
             &self.accepted_artifact,
         )
         .map(|(_, witness)| ((), witness))

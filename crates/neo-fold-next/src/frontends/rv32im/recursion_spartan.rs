@@ -1,6 +1,6 @@
 //! Owns the small published-statement helper shared by the main proof surface.
 
-use crate::rv32im::chunk_fold_step::Rv32imChunkFoldCarry;
+use crate::rv32im::chunk::fold::Rv32imChunkFoldCarry;
 use crate::rv32im::f_prime::{
     build_rv32im_main_recursion_backend_statement_from_parts_with_vk_fs, Rv32imEncodedPublicInput, Rv32imVerifierKeyFs,
 };

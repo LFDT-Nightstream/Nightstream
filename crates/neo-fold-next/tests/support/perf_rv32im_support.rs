@@ -8,7 +8,7 @@ use std::time::Instant;
 use neo_fold_next::public_proof::rv32im::{
     build_rv32im_nightstream_from_published_proof_seam_with_perf, verify_rv32im_nightstream_with_perf,
 };
-use neo_fold_next::proof::{FoldSchedule, PackagedProof};
+use neo_fold_next::core::proof::{FoldSchedule, PackagedProof};
 use neo_fold_next::rv32im::audit::audit_rv32im_public_proof_with_perf;
 use neo_fold_next::rv32im::audit::build_rv32im_published_proof_seam_with_perf;
 use neo_fold_next::rv32im::ccs::{rv32im_root_main_lane_ccs, RV32IM_ROOT_PUBLIC_INPUTS, RV32IM_ROOT_ROW_WIDTH};
@@ -19,14 +19,14 @@ use neo_fold_next::rv32im::stage1::build_stage1_summary;
 use neo_fold_next::rv32im::stage2::{build_stage2_summary, RamAccessKind, RegisterReadRole};
 use neo_fold_next::rv32im::stage3::build_stage3_summary;
 use neo_fold_next::rv32im::tables::Rv32FamilyTag;
+use neo_fold_next::rv32im::kernel::{OpeningAccumulator, OpeningAccumulatorStats, OpeningPointLabel};
 use neo_fold_next::rv32im::{
     build_mixed_opcode_perf_source_case, build_parity_case_from_source, build_program,
     build_rv32im_accepted_proof_artifact, build_rv32im_chunk_step_ivc_relations, build_simple_kernel_witness_with_perf,
     mixed_opcode_perf_expected_x1, prove_rv32im_public_proof_with_options_and_perf, rv32im_simple_root_params,
     setup_rv32im_ivc_snark_cached, setup_rv32im_ivc_snark_cached_with_trace,
-    setup_rv32im_ivc_snark_from_final_cached, OpeningAccumulator, OpeningAccumulatorStats, OpeningPointLabel, Rv32Program,
-    Rv32State, Rv32imProofInput, Rv32imPublicProofOptions, SimpleKernelBuildPerf,
-    RV32IM_MIXED_OPCODE_PERF_BLOCK_LEN, RV32IM_MIXED_OPCODE_PERF_DEFAULT_N,
+    setup_rv32im_ivc_snark_from_final_cached, Rv32Program, Rv32State, Rv32imProofInput, Rv32imPublicProofOptions,
+    SimpleKernelBuildPerf, RV32IM_MIXED_OPCODE_PERF_BLOCK_LEN, RV32IM_MIXED_OPCODE_PERF_DEFAULT_N,
 };
 use serde::Serialize;
 

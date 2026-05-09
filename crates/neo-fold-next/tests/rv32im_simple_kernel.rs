@@ -1,11 +1,11 @@
 //! Focused tests for the live RV32IM simple-kernel proof boundary.
 
-use neo_fold_next::proof::StepInput;
+use neo_fold_next::core::proof::StepInput;
 use neo_fold_next::rv32im::ccs::RV32IM_ROOT_ROW_WIDTH;
+use neo_fold_next::rv32im::kernel::{AjtaiFamilyKind, OpeningPointLabel, SelectedOpeningRef};
 use neo_fold_next::rv32im::{
     parity_source_cases, prove_packaged_simple_kernel, prove_simple_kernel, verify_packaged_simple_kernel,
-    verify_simple_kernel, AjtaiFamilyKind, OpeningPointLabel, SelectedOpeningRef, SimpleKernelProverInput,
-    SimpleKernelPublicInput, SimpleKernelVerifierInput,
+    verify_simple_kernel, SimpleKernelProverInput, SimpleKernelPublicInput, SimpleKernelVerifierInput,
 };
 
 fn source_case(name: &str) -> neo_fold_next::rv32im::Rv32imParitySourceCase {
@@ -21,7 +21,10 @@ fn public_input(name: &str) -> SimpleKernelPublicInput {
     SimpleKernelPublicInput { source, max_steps }
 }
 
-fn same_public_step(lhs: &neo_fold_next::proof::PublicStep, rhs: &neo_fold_next::proof::PublicStep) -> bool {
+fn same_public_step(
+    lhs: &neo_fold_next::core::proof::PublicStep,
+    rhs: &neo_fold_next::core::proof::PublicStep,
+) -> bool {
     lhs.label == rhs.label
         && lhs.mcs.m_in == rhs.mcs.m_in
         && lhs.mcs.x == rhs.mcs.x

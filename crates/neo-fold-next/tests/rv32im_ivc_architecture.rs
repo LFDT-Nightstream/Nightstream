@@ -11,6 +11,22 @@ fn workspace_path(path: &str) -> PathBuf {
         .join(path)
 }
 
+fn read_construction2_terminal_helpers() -> String {
+    [
+        "src/core/construction2/terminal/mod.rs",
+        "src/core/construction2/terminal/boundary.rs",
+        "src/core/construction2/terminal/commitment.rs",
+        "src/core/construction2/terminal/constraints.rs",
+        "src/core/construction2/terminal/labels.rs",
+        "src/core/construction2/terminal/low_norm.rs",
+        "src/core/construction2/terminal/types.rs",
+    ]
+    .into_iter()
+    .map(|path| fs::read_to_string(crate_path(path)).expect("read shared terminal helper"))
+    .collect::<Vec<_>>()
+    .join("\n")
+}
+
 #[test]
 fn rv32im_ivc_native_module_does_not_reference_spartan2() {
     let source = fs::read_to_string(crate_path("src/frontends/rv32im/ivc.rs")).expect("read native IVC module");
@@ -30,7 +46,7 @@ fn rv32im_compressed_main_proof_is_not_a_verifier() {
         "Rv32imCompressedMainProof may derive the public image, but proof acceptance must call Rv32imIvcSnark::verify"
     );
 
-    let nightstream_verify = fs::read_to_string(crate_path("src/public_proof/rv32im/verify_perf.rs"))
+    let nightstream_verify = fs::read_to_string(crate_path("src/public_proof/rv32im/flow/verify.rs"))
         .expect("read Nightstream verify timing module");
     assert!(
         nightstream_verify.contains(".ivc_snark()") && nightstream_verify.contains(".verify(ivc_recursion_snark_vk"),
@@ -40,11 +56,12 @@ fn rv32im_compressed_main_proof_is_not_a_verifier() {
 
 #[test]
 fn rv32im_nightstream_verifier_context_binds_actual_ivc_snark_vk() {
-    let nightstream = fs::read_to_string(crate_path("src/public_proof/rv32im.rs")).expect("read Nightstream RV32IM");
+    let nightstream =
+        fs::read_to_string(crate_path("src/public_proof/rv32im/mod.rs")).expect("read Nightstream RV32IM");
     let statement =
         fs::read_to_string(crate_path("src/public_proof/rv32im/statement.rs")).expect("read Nightstream statement");
     let verify_perf =
-        fs::read_to_string(crate_path("src/public_proof/rv32im/verify_perf.rs")).expect("read Nightstream verifier");
+        fs::read_to_string(crate_path("src/public_proof/rv32im/flow/verify.rs")).expect("read Nightstream verifier");
     let source = format!("{nightstream}\n{statement}");
     assert!(
         source.contains("ivc_recursion_snark_vk: &Rv32imIvcSnarkVerifierKey")
@@ -66,7 +83,7 @@ fn rv32im_nightstream_verifier_context_binds_actual_ivc_snark_vk() {
 #[test]
 fn rv32im_ivc_compression_module_owns_explicit_compress_boundary() {
     let source =
-        fs::read_to_string(crate_path("src/frontends/rv32im/ivc_snark.rs")).expect("read IVC compression module");
+        fs::read_to_string(crate_path("src/frontends/rv32im/ivc_snark/mod.rs")).expect("read IVC compression module");
     assert!(
         source.contains("impl Rv32imIvcState")
             && source.contains("pub fn compress(&self)")
@@ -85,9 +102,9 @@ fn rv32im_ivc_compression_module_owns_explicit_compress_boundary() {
 fn rv32im_ivc_compression_has_no_replay_or_terminal_step_acceptance_fallback() {
     for path in [
         "src/frontends/rv32im/ivc.rs",
-        "src/frontends/rv32im/ivc_snark.rs",
+        "src/frontends/rv32im/ivc_snark/mod.rs",
         "src/frontends/rv32im/main_proof.rs",
-        "src/public_proof/rv32im/verify_perf.rs",
+        "src/public_proof/rv32im/flow/verify.rs",
     ] {
         let source = fs::read_to_string(crate_path(path)).expect("read RV32IM verifier source");
         assert!(
@@ -105,9 +122,10 @@ fn rv32im_ivc_compression_has_no_replay_or_terminal_step_acceptance_fallback() {
 fn rv32im_verifiers_do_not_accept_precomputed_public_digests() {
     for path in [
         "src/core/verifier.rs",
-        "src/core/run.rs",
-        "src/core/finalize.rs",
-        "src/frontends/rv32im/kernel/simple.rs",
+        "src/core/session/mod.rs",
+        "src/core/finalize/package.rs",
+        "src/core/finalize/verify.rs",
+        "src/frontends/rv32im/kernel/simple/mod.rs",
         "src/frontends/rv32im/kernel/proof/staged_verify.rs",
     ] {
         let source = fs::read_to_string(crate_path(path)).expect("read verifier source");
@@ -123,7 +141,7 @@ fn rv32im_verifiers_do_not_accept_precomputed_public_digests() {
 #[test]
 fn rv32im_chunk_step_ivc_uses_named_authoritative_ce_projection() {
     let source =
-        fs::read_to_string(crate_path("src/frontends/rv32im/chunk_step_ivc.rs")).expect("read chunk-step IVC module");
+        fs::read_to_string(crate_path("src/frontends/rv32im/chunk/step_ivc.rs")).expect("read chunk-step IVC module");
     assert!(
         source.contains("struct Rv32imCarriedCeProjection")
             && source.contains("commitment_data: Vec<F>")
@@ -140,7 +158,7 @@ fn rv32im_chunk_step_ivc_uses_named_authoritative_ce_projection() {
 #[test]
 fn rv32im_recursive_step_binds_current_construction2_input_hash_image() {
     let source = fs::read_to_string(crate_path(
-        "src/frontends/rv32im/main_relation_spartan/recursive_step.rs",
+        "src/frontends/rv32im/main_relation_spartan/recursive_step/mod.rs",
     ))
     .expect("read recursive-step circuit");
     let public_boundary = fs::read_to_string(crate_path(
@@ -184,7 +202,7 @@ fn rv32im_recursive_step_enforces_canonical_base_u_perp() {
 #[test]
 fn rv32im_terminal_f_prime_committed_step_uses_superneo_committed_ccs_authority() {
     let recursive_step = fs::read_to_string(crate_path(
-        "src/frontends/rv32im/main_relation_spartan/recursive_step.rs",
+        "src/frontends/rv32im/main_relation_spartan/recursive_step/mod.rs",
     ))
     .expect("read recursive-step circuit");
     let public_target = fs::read_to_string(crate_path(
@@ -196,17 +214,16 @@ fn rv32im_terminal_f_prime_committed_step_uses_superneo_committed_ccs_authority(
     ))
     .expect("read recursive-step Construction-2 witness circuit");
     let compression =
-        fs::read_to_string(crate_path("src/frontends/rv32im/ivc_snark.rs")).expect("read IVC compression module");
+        fs::read_to_string(crate_path("src/frontends/rv32im/ivc_snark/mod.rs")).expect("read IVC compression module");
     let terminal_committed_owner = fs::read_to_string(crate_path(
-        "src/frontends/rv32im/ivc_snark/terminal_f_prime_committed.rs",
+        "src/frontends/rv32im/ivc_snark/terminal_f_prime_committed/mod.rs",
     ))
     .expect("read terminal F' committed-step owner");
     let terminal_committed_circuit = fs::read_to_string(crate_path(
         "src/frontends/rv32im/ivc_snark/terminal_f_prime_committed/proof_circuit.rs",
     ))
     .expect("read terminal F' committed-step circuit");
-    let construction2_terminal =
-        fs::read_to_string(crate_path("src/core/construction2_terminal.rs")).expect("read shared terminal helpers");
+    let construction2_terminal = read_construction2_terminal_helpers();
     let terminal_committed =
         format!("{terminal_committed_owner}\n{terminal_committed_circuit}\n{construction2_terminal}");
 
@@ -301,32 +318,52 @@ fn rv32im_terminal_f_prime_committed_step_uses_superneo_committed_ccs_authority(
 
 #[test]
 fn direct_ccs_terminal_compressor_uses_folded_ivc_carrier() {
-    let source_owner =
-        fs::read_to_string(crate_path("src/frontends/direct_ccs/ivc.rs")).expect("read direct CCS F' owner module");
-    let source_terminal_circuit = fs::read_to_string(crate_path("src/frontends/direct_ccs/ivc/terminal_circuit.rs"))
-        .expect("read direct CCS terminal F' circuit module");
     let source_state =
-        fs::read_to_string(crate_path("src/frontends/direct_ccs/ivc/state.rs")).expect("read direct CCS state module");
-    let source_prove =
-        fs::read_to_string(crate_path("src/frontends/direct_ccs/ivc/prove.rs")).expect("read direct CCS prove module");
-    let source_verify = fs::read_to_string(crate_path("src/frontends/direct_ccs/ivc/verify.rs"))
+        fs::read_to_string(crate_path("src/frontends/direct_ccs/state/mod.rs")).expect("read direct CCS state module");
+    let source_append = fs::read_to_string(crate_path("src/frontends/direct_ccs/state/append.rs"))
+        .expect("read direct CCS append module");
+    let source_compress = fs::read_to_string(crate_path("src/frontends/direct_ccs/state/compress.rs"))
+        .expect("read direct CCS compression module");
+    let source_summary = fs::read_to_string(crate_path("src/frontends/direct_ccs/state/summary.rs"))
+        .expect("read direct CCS summary module");
+    let source_types =
+        fs::read_to_string(crate_path("src/frontends/direct_ccs/state/types.rs")).expect("read direct CCS state types");
+    let source_terminal_circuit = fs::read_to_string(crate_path("src/frontends/direct_ccs/terminal/circuit/mod.rs"))
+        .expect("read direct CCS terminal F' circuit module");
+    let source_prove = fs::read_to_string(crate_path("src/frontends/direct_ccs/terminal/prove.rs"))
+        .expect("read direct CCS prove module");
+    let source_verify = fs::read_to_string(crate_path("src/frontends/direct_ccs/terminal/verify.rs"))
         .expect("read direct CCS verify module");
-    let source = format!("{source_owner}\n{source_terminal_circuit}\n{source_state}\n{source_prove}\n{source_verify}");
+    let source_public_image = [
+        "src/frontends/direct_ccs/public_image/mod.rs",
+        "src/frontends/direct_ccs/public_image/digest.rs",
+    ]
+    .into_iter()
+    .map(|path| fs::read_to_string(crate_path(path)).expect("read direct CCS public-image module"))
+    .collect::<Vec<_>>()
+    .join("\n");
+    let source_accumulator = fs::read_to_string(crate_path("src/frontends/direct_ccs/terminal/gadgets/accumulator.rs"))
+        .expect("read direct CCS accumulator digest module");
+    let source = format!(
+        "{source_state}\n{source_types}\n{source_append}\n{source_compress}\n{source_summary}\n{source_terminal_circuit}\n{source_prove}\n{source_verify}\n{source_public_image}\n{source_accumulator}"
+    );
     let direct_mod =
         fs::read_to_string(crate_path("src/frontends/direct_ccs/mod.rs")).expect("read direct CCS owner module");
-    let terminal_committed_owner = fs::read_to_string(crate_path("src/frontends/direct_ccs/terminal_committed/mod.rs"))
+    let terminal_committed_owner = fs::read_to_string(crate_path("src/frontends/direct_ccs/terminal/committed/mod.rs"))
         .expect("read direct CCS terminal committed owner module");
+    let terminal_committed_circuit =
+        fs::read_to_string(crate_path("src/frontends/direct_ccs/terminal/committed/circuit.rs"))
+            .expect("read direct CCS terminal committed circuit module");
     let terminal_committed_types =
-        fs::read_to_string(crate_path("src/frontends/direct_ccs/terminal_committed/types.rs"))
+        fs::read_to_string(crate_path("src/frontends/direct_ccs/terminal/committed/types.rs"))
             .expect("read direct CCS terminal committed types module");
     let terminal_committed_source_linking = fs::read_to_string(crate_path(
-        "src/frontends/direct_ccs/terminal_committed/source_linking.rs",
+        "src/frontends/direct_ccs/terminal/committed/source_linking.rs",
     ))
     .expect("read direct CCS terminal committed source-linking module");
-    let construction2_terminal =
-        fs::read_to_string(crate_path("src/core/construction2_terminal.rs")).expect("read shared terminal helpers");
+    let construction2_terminal = read_construction2_terminal_helpers();
     let terminal_committed = format!(
-        "{terminal_committed_owner}\n{terminal_committed_types}\n{terminal_committed_source_linking}\n{construction2_terminal}"
+        "{terminal_committed_owner}\n{terminal_committed_circuit}\n{terminal_committed_types}\n{terminal_committed_source_linking}\n{construction2_terminal}"
     );
     let fibonacci_probe =
         fs::read_to_string(crate_path("src/bin/fibonacci_superneo_probe.rs")).expect("read Fibonacci probe");
@@ -401,8 +438,8 @@ fn direct_ccs_terminal_compressor_uses_folded_ivc_carrier() {
 fn rv32im_ce_circuit_accepts_only_superneo_packed_witness_shape() {
     let witness =
         fs::read_to_string(crate_path("src/circuit/superneo/witness.rs")).expect("read circuit witness module");
-    let ce_consistency =
-        fs::read_to_string(crate_path("src/circuit/superneo/ce_consistency.rs")).expect("read CE consistency module");
+    let ce_consistency = fs::read_to_string(crate_path("src/circuit/superneo/ce_consistency/mod.rs"))
+        .expect("read CE consistency module");
 
     assert!(
         witness.contains("self.cols != expected_m.div_ceil(D)")
@@ -415,7 +452,7 @@ fn rv32im_ce_circuit_accepts_only_superneo_packed_witness_shape() {
 #[test]
 fn rv32im_terminal_f_prime_relation_extraction_legacy_is_removed() {
     let compression =
-        fs::read_to_string(crate_path("src/frontends/rv32im/ivc_snark.rs")).expect("read IVC compression module");
+        fs::read_to_string(crate_path("src/frontends/rv32im/ivc_snark/mod.rs")).expect("read IVC compression module");
     assert!(
         !crate_path("src/frontends/rv32im/ivc_snark/terminal_f_prime_relation.rs").exists()
             && !compression.contains("public_first_committed_ccs")
@@ -428,7 +465,7 @@ fn rv32im_terminal_f_prime_relation_extraction_legacy_is_removed() {
 #[test]
 fn rv32im_construction2_current_input_helper_does_not_keep_witness_digest_cargo() {
     let construction2 =
-        fs::read_to_string(crate_path("src/frontends/rv32im/construction2.rs")).expect("read Construction-2");
+        fs::read_to_string(crate_path("src/frontends/rv32im/construction2/mod.rs")).expect("read Construction-2");
     let recursive_witness = fs::read_to_string(crate_path(
         "src/frontends/rv32im/main_relation_spartan/recursive_step/construction2_witness.rs",
     ))
@@ -439,17 +476,16 @@ fn rv32im_construction2_current_input_helper_does_not_keep_witness_digest_cargo(
     .expect("read NIFS stages");
     let pi_ccs = fs::read_to_string(crate_path("src/circuit/superneo/pi_ccs.rs")).expect("read SuperNeo Pi_CCS");
     let compression =
-        fs::read_to_string(crate_path("src/frontends/rv32im/ivc_snark.rs")).expect("read IVC compression module");
+        fs::read_to_string(crate_path("src/frontends/rv32im/ivc_snark/mod.rs")).expect("read IVC compression module");
     let terminal_committed_owner = fs::read_to_string(crate_path(
-        "src/frontends/rv32im/ivc_snark/terminal_f_prime_committed.rs",
+        "src/frontends/rv32im/ivc_snark/terminal_f_prime_committed/mod.rs",
     ))
     .expect("read terminal F' committed-step owner");
     let terminal_committed_circuit = fs::read_to_string(crate_path(
         "src/frontends/rv32im/ivc_snark/terminal_f_prime_committed/proof_circuit.rs",
     ))
     .expect("read terminal F' committed-step circuit");
-    let construction2_terminal =
-        fs::read_to_string(crate_path("src/core/construction2_terminal.rs")).expect("read shared terminal helpers");
+    let construction2_terminal = read_construction2_terminal_helpers();
     let terminal_committed =
         format!("{terminal_committed_owner}\n{terminal_committed_circuit}\n{construction2_terminal}");
 
@@ -525,16 +561,17 @@ fn rv32im_construction2_current_input_helper_does_not_keep_witness_digest_cargo(
 #[test]
 fn rv32im_final_construction2_boundary_uses_post_terminal_committed_instance() {
     let native_ivc = fs::read_to_string(crate_path("src/frontends/rv32im/ivc.rs")).expect("read native IVC module");
-    let ivc_snark = fs::read_to_string(crate_path("src/frontends/rv32im/ivc_snark.rs")).expect("read IVC SNARK module");
-    let f_prime = fs::read_to_string(crate_path("src/frontends/rv32im/f_prime.rs")).expect("read F' evaluator");
-    let construction2 =
-        fs::read_to_string(crate_path("src/frontends/rv32im/construction2.rs")).expect("read Construction-2 module");
+    let ivc_snark =
+        fs::read_to_string(crate_path("src/frontends/rv32im/ivc_snark/mod.rs")).expect("read IVC SNARK module");
+    let f_prime = fs::read_to_string(crate_path("src/frontends/rv32im/f_prime/mod.rs")).expect("read F' evaluator");
+    let construction2 = fs::read_to_string(crate_path("src/frontends/rv32im/construction2/mod.rs"))
+        .expect("read Construction-2 module");
     let recursive_step = fs::read_to_string(crate_path(
-        "src/frontends/rv32im/main_relation_spartan/recursive_step.rs",
+        "src/frontends/rv32im/main_relation_spartan/recursive_step/mod.rs",
     ))
     .expect("read recursive-step circuit");
     let terminal_committed = fs::read_to_string(crate_path(
-        "src/frontends/rv32im/ivc_snark/terminal_f_prime_committed.rs",
+        "src/frontends/rv32im/ivc_snark/terminal_f_prime_committed/mod.rs",
     ))
     .expect("read terminal F' committed-step owner");
 
@@ -583,9 +620,9 @@ fn rv32im_final_construction2_boundary_uses_post_terminal_committed_instance() {
 #[test]
 fn rv32im_construction2_witness_image_excludes_public_step_label_cargo() {
     let construction2 =
-        fs::read_to_string(crate_path("src/frontends/rv32im/construction2.rs")).expect("read Construction-2");
+        fs::read_to_string(crate_path("src/frontends/rv32im/construction2/mod.rs")).expect("read Construction-2");
     let recursive_step = fs::read_to_string(crate_path(
-        "src/frontends/rv32im/main_relation_spartan/recursive_step.rs",
+        "src/frontends/rv32im/main_relation_spartan/recursive_step/mod.rs",
     ))
     .expect("read recursive-step circuit");
 
@@ -603,7 +640,7 @@ fn rv32im_construction2_witness_image_excludes_public_step_label_cargo() {
 #[test]
 fn rv32im_recursive_step_chunk_digest_uses_authoritative_public_surfaces() {
     let recursive_step = fs::read_to_string(crate_path(
-        "src/frontends/rv32im/main_relation_spartan/recursive_step.rs",
+        "src/frontends/rv32im/main_relation_spartan/recursive_step/mod.rs",
     ))
     .expect("read recursive-step circuit");
     let chunk_replay = fs::read_to_string(crate_path(
@@ -653,7 +690,7 @@ fn rv32im_recursive_state_identity_uses_phi_commitments_not_full_ce_projection_h
     ))
     .expect("read recursive-cover circuit");
     let chunk_step_recursive = fs::read_to_string(crate_path(
-        "src/frontends/rv32im/main_relation_spartan/chunk_step_recursive.rs",
+        "src/frontends/rv32im/main_relation_spartan/chunk_step/recursive/mod.rs",
     ))
     .expect("read recursive-step payload builder");
     let final_relation =
@@ -662,10 +699,7 @@ fn rv32im_recursive_state_identity_uses_phi_commitments_not_full_ce_projection_h
     let carry_digest = chunk_step_recursive
         .split("pub(crate) fn rv32im_chunk_step_recursive_carry_state_digest")
         .nth(1)
-        .and_then(|tail| {
-            tail.split("pub(crate) fn build_rv32im_main_recursion_step_spartan_statement")
-                .next()
-        })
+        .and_then(|tail| tail.split("fn pad_matrix_to_shape").next())
         .expect("carry-state digest function");
     assert!(
         recursive_cover.contains("recursive_accumulator_instance_digest_circuit_from_phi_dec_parent_vars")
@@ -703,7 +737,7 @@ fn rv32im_pi_ccs_fs_binding_documents_accumulator_handle_boundary() {
     ))
     .expect("read recursive chunk replay");
     let recursive_step = fs::read_to_string(crate_path(
-        "src/frontends/rv32im/main_relation_spartan/recursive_step.rs",
+        "src/frontends/rv32im/main_relation_spartan/recursive_step/mod.rs",
     ))
     .expect("read recursive step");
     assert!(
@@ -721,7 +755,7 @@ fn rv32im_pi_ccs_fs_binding_documents_accumulator_handle_boundary() {
 #[test]
 fn rv32im_verified_step_statement_digest_has_one_native_public_formula() {
     let construction2 =
-        fs::read_to_string(crate_path("src/frontends/rv32im/construction2.rs")).expect("read Construction-2");
+        fs::read_to_string(crate_path("src/frontends/rv32im/construction2/mod.rs")).expect("read Construction-2");
     let terminal_statement = fs::read_to_string(crate_path(
         "src/frontends/rv32im/main_relation_spartan/recursive_step/terminal_statement.rs",
     ))
@@ -757,7 +791,7 @@ fn rv32im_final_ce_bundle_uses_superneo_ce_projection_digest() {
     let source =
         fs::read_to_string(crate_path("src/circuit/superneo/ce_spartan.rs")).expect("read SuperNeo CE Spartan");
     let compression =
-        fs::read_to_string(crate_path("src/frontends/rv32im/ivc_snark.rs")).expect("read IVC compression module");
+        fs::read_to_string(crate_path("src/frontends/rv32im/ivc_snark/mod.rs")).expect("read IVC compression module");
     assert!(
         source.contains("struct Rv32imCeBundleCircuit")
             && source.contains("me_input_projection_digest_poseidon(")
@@ -788,7 +822,7 @@ fn rv32im_final_ce_tamper_coverage_targets_full_superneo_claim_fields() {
     let ce_spartan =
         fs::read_to_string(crate_path("src/circuit/superneo/ce_spartan.rs")).expect("read SuperNeo CE Spartan");
     let compressed_verify =
-        fs::read_to_string(crate_path("src/frontends/rv32im/ivc_snark.rs")).expect("read IVC SNARK verifier");
+        fs::read_to_string(crate_path("src/frontends/rv32im/ivc_snark/mod.rs")).expect("read IVC SNARK verifier");
     let decider_test =
         fs::read_to_string(crate_path("tests/rv32im_spartan2_decider.rs")).expect("read Spartan decider tests");
 
@@ -813,15 +847,14 @@ fn rv32im_final_ce_tamper_coverage_targets_full_superneo_claim_fields() {
 #[test]
 fn rv32im_terminal_f_prime_exports_sparse_superneo_ccs_shape() {
     let terminal_owner = fs::read_to_string(crate_path(
-        "src/frontends/rv32im/ivc_snark/terminal_f_prime_committed.rs",
+        "src/frontends/rv32im/ivc_snark/terminal_f_prime_committed/mod.rs",
     ))
     .expect("read terminal F' committed relation owner");
     let terminal_circuit = fs::read_to_string(crate_path(
         "src/frontends/rv32im/ivc_snark/terminal_f_prime_committed/proof_circuit.rs",
     ))
     .expect("read terminal F' committed relation circuit");
-    let construction2_terminal =
-        fs::read_to_string(crate_path("src/core/construction2_terminal.rs")).expect("read shared terminal helpers");
+    let construction2_terminal = read_construction2_terminal_helpers();
     let terminal = format!("{terminal_owner}\n{terminal_circuit}\n{construction2_terminal}");
     let r1cs = fs::read_to_string(workspace_path("crates/neo-ccs/src/r1cs.rs")).expect("read neo-ccs R1CS bridge");
 
@@ -859,7 +892,7 @@ fn rv32im_terminal_f_prime_exports_sparse_superneo_ccs_shape() {
 #[test]
 fn rv32im_terminal_f_prime_rejects_post_hoc_full_field_bit_expansion() {
     let terminal_owner = fs::read_to_string(crate_path(
-        "src/frontends/rv32im/ivc_snark/terminal_f_prime_committed.rs",
+        "src/frontends/rv32im/ivc_snark/terminal_f_prime_committed/mod.rs",
     ))
     .expect("read terminal F' committed relation owner");
 
@@ -875,7 +908,7 @@ fn rv32im_terminal_f_prime_rejects_post_hoc_full_field_bit_expansion() {
 
 #[test]
 fn rv32im_default_u_perp_does_not_reintroduce_logical_image_width() {
-    let default_pair = fs::read_to_string(crate_path("src/frontends/rv32im/construction2_default.rs"))
+    let default_pair = fs::read_to_string(crate_path("src/frontends/rv32im/construction2/default.rs"))
         .expect("read Construction-2 default-pair owner");
     assert!(
         default_pair.contains("Ok(RV32IM_ENC_INST_BITS)")
@@ -890,7 +923,7 @@ fn rv32im_default_u_perp_does_not_reintroduce_logical_image_width() {
 #[test]
 fn rv32im_recursive_shape_only_elides_common_zero_rlc_suffix() {
     let source = fs::read_to_string(crate_path(
-        "src/frontends/rv32im/main_relation_spartan/chunk_step_recursive.rs",
+        "src/frontends/rv32im/main_relation_spartan/chunk_step/recursive/mod.rs",
     ))
     .expect("read recursive-step payload builder");
     let nifs = fs::read_to_string(crate_path(

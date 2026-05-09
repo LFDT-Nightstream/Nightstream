@@ -19,7 +19,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 
 use crate::finalize::digest32_as_fields;
-use crate::rv32im::chunk_relation::RV32IM_CHUNK_RELATION_DIGEST_RAW_TAG;
+use crate::rv32im::chunk::transition::RV32IM_CHUNK_RELATION_DIGEST_RAW_TAG;
 use crate::rv32im::construction2::{
     RV32IM_CONSTRUCTION2_COMMITMENT_RAW_TAG, RV32IM_CONSTRUCTION2_PUBLIC_BOUNDARY_RAW_TAG,
 };
@@ -47,10 +47,7 @@ use crate::superneo_circuit::sumcheck_replay::verify_sumcheck_rounds;
 use crate::superneo_circuit::terminal_identity::{enforce_terminal_identity_fe, enforce_terminal_identity_nc};
 use crate::superneo_circuit::transcript::{hash_field_linear_combinations_raw, Poseidon2TranscriptCircuit};
 mod chunk_diagnostics;
-#[allow(dead_code)]
-mod chunk_stage_ranges;
-mod chunk_step_ivc;
-mod chunk_step_recursive;
+mod chunk_step;
 mod fingerprint_cs;
 mod fixed_transcript;
 mod nifs_v_stages;
@@ -65,20 +62,18 @@ const RV32IM_MAIN_RELATION_DELTA: u64 = 7;
 #[allow(unused_imports)]
 pub use chunk_diagnostics::debug_measure_rv32im_main_relation_state_in_prefix_fingerprints;
 pub(crate) use chunk_diagnostics::{
-    debug_locate_rv32im_main_relation_chunk_stage, debug_profile_rv32im_main_relation_chunk_stage_progress,
-};
-pub(crate) use chunk_stage_ranges::{
-    debug_measure_rv32im_rlc_public_stage_ranges, debug_synthesize_rv32im_main_relation_chunk_with_stage_ranges,
-    Rv32imMainRelationChunkStageCheckpoints,
+    debug_locate_rv32im_main_relation_chunk_stage, debug_measure_rv32im_rlc_public_stage_ranges,
+    debug_profile_rv32im_main_relation_chunk_stage_progress,
+    debug_synthesize_rv32im_main_relation_chunk_with_stage_ranges, Rv32imMainRelationChunkStageCheckpoints,
 };
 pub(crate) use stage_counting_cs::ConstraintStageCounts;
 
-pub use chunk_step_ivc::{
+pub use chunk_step::{
     build_rv32im_chunk_step_ivc_recursive_step_cover_shape, build_rv32im_chunk_step_ivc_recursive_step_padding,
     build_rv32im_chunk_step_ivc_recursive_step_padding_from_shape, build_rv32im_chunk_step_ivc_shape,
     Rv32imChunkStepIvcRecursiveStepPadding, Rv32imChunkStepIvcShape, Rv32imChunkStepIvcSpartanError,
 };
-pub use chunk_step_recursive::{
+pub use chunk_step::{
     build_rv32im_main_recursion_f_prime_backend_relations,
     build_rv32im_main_recursion_f_prime_backend_relations_with_spartan_shape,
     build_rv32im_main_recursion_f_prime_backend_relations_with_spartan_shape_from_advices,

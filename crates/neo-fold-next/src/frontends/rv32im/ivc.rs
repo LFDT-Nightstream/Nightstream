@@ -8,9 +8,9 @@ use neo_transcript::{Poseidon2Transcript, Transcript};
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
 
-use crate::chunk_relation::ChunkReplayWitness;
+use crate::chunk_folding::ChunkReplayWitness;
 use crate::proof::FoldSchedule;
-use crate::rv32im::chunk_step_ivc::{
+use crate::rv32im::chunk::step_ivc::{
     rv32im_chunk_step_ivc_initial_state_for_step_cap, validate_rv32im_chunk_step_ivc_surface,
     Rv32imChunkStepIvcRelation, Rv32imChunkStepIvcStatement, Rv32imChunkStepIvcWitness,
 };

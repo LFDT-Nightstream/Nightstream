@@ -1,12 +1,15 @@
 use std::collections::BTreeSet;
 use std::sync::OnceLock;
 
-use neo_fold_next::rv32im::{
-    build_rv32im_accepted_proof_artifact, build_rv32im_eval_claim_bundle_from_accepted_artifact,
-    build_rv32im_eval_claim_witnesses_from_accepted_artifact, build_stage1_claim_witnesses,
-    build_stage2_claim_witnesses, build_stage3_claim_witness, parity_source_cases, prove_rv32im_public_proof,
+use neo_fold_next::rv32im::kernel::{
+    build_rv32im_eval_claim_bundle_from_accepted_artifact, build_rv32im_eval_claim_witnesses_from_accepted_artifact,
+    build_stage1_claim_witnesses, build_stage2_claim_witnesses, build_stage3_claim_witness,
     verify_rv32im_eval_claim_bundle_from_accepted_artifact, EvalClaimError, FamilyEvalClaimWitness, FamilyEvalSchemaId,
-    OpenedAjtaiObjectWitness, Rv32imAcceptedProofArtifact, Rv32imProofInput,
+    OpenedAjtaiObjectWitness,
+};
+use neo_fold_next::rv32im::{
+    build_rv32im_accepted_proof_artifact, parity_source_cases, prove_rv32im_public_proof, Rv32imAcceptedProofArtifact,
+    Rv32imProofInput,
 };
 use neo_math::{from_complex, F, K};
 use p3_field::PrimeCharacteristicRing;

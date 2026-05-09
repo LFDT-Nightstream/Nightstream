@@ -9,7 +9,7 @@ use neo_reductions::engines::optimized_engine::claimed_initial_sum_from_inputs_w
 use neo_reductions::sumcheck::verify_sumcheck_rounds_poseidon_v3;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 
-use super::*;
+use super::super::*;
 use crate::rv32im::final_relation::Rv32imChunkFoldTranscriptSnapshot;
 use crate::rv32im::main_relation_spartan::nifs_v_stages::synthesize_pi_rlc_stage;
 use crate::rv32im::main_relation_spartan::stage_counting_cs::{ConstraintStageCounts, StageCountingCs};

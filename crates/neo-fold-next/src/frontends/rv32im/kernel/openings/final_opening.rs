@@ -26,8 +26,9 @@ use super::opening_accumulate::{
 };
 use super::opening_claim_reduction::{
     build_claim_reduction_results_from_bundle_and_witnesses_trusted_local,
-    verify_claim_reduction_results_with_binding_surface, ClaimReductionError, ClaimReductionResult,
+    verify_claim_reduction_results_with_binding_surface, ClaimReductionResult,
 };
+use super::opening_claim_reduction_error::ClaimReductionError;
 use super::opening_eval_claim_witness::{
     build_commitment_vector, phase0_commitment_root_digest, FamilyEvalClaimWitness, OpenedAjtaiObjectWitness,
     PackedColumnOracleRef, RealAjtaiCommitmentVector,

@@ -1,4 +1,4 @@
-use neo_fold_next::finalize::FixedShapeChunkSummary;
+use neo_fold_next::core::finalize::FixedShapeChunkSummary;
 use neo_fold_next::rv32im::{
     Rv32imChunkStepIvcStatement, Rv32imChunkStepPublic, Rv32imEncodedPublicInput, Rv32imIvcPublicImage,
     Rv32imMainRecursionConstruction2PublicBoundary,

@@ -11,17 +11,17 @@ use p3_field::PrimeCharacteristicRing;
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
 
-use crate::chunk_relation::ChunkReplayWitness;
+use crate::chunk_folding::ChunkReplayWitness;
 use crate::finalize::{
     digest32_as_fields, digest_fields_as_digest32, digest_fixed_shape_final_proof, FixedShapeChunkSummary,
 };
 use crate::proof::{Carry, ChunkInput, ChunkProvePerf, FoldSchedule};
-use crate::rv32im::chunk_fold_step::{
+use crate::rv32im::chunk::fold::{
     adapt_rv32im_chunk_to_fresh_ccs, prove_rv32im_chunk_fold_verifier_step_with_perf,
     verify_rv32im_chunk_fold_verifier_step, Rv32imAccumulatorHandle, Rv32imChunkFoldCarry, Rv32imChunkFoldFresh,
     Rv32imChunkStepPublic,
 };
-use crate::rv32im::chunk_relation::rv32im_chunk_replay_witness_digest;
+use crate::rv32im::chunk::transition::rv32im_chunk_replay_witness_digest;
 use crate::rv32im::ivc::derive_rv32im_ivc_step_cap;
 use crate::rv32im::kernel::{
     build_rv32im_kernel_export_build_output_from_carried_accepted_artifact_with_source_and_chunk_inputs,

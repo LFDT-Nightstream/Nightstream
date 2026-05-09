@@ -3,9 +3,9 @@
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use serde::{Deserialize, Serialize};
 
+use crate::opening::time::{prove_time_opening_compact, time_opening_compact_proof_digest};
 use crate::opening::OpeningClaim;
 use crate::opening::TimeOpeningCompactProof;
-use crate::time_opening::{prove_time_opening_compact, time_opening_compact_proof_digest};
 
 use super::opening_manifest::{
     opening_claims_from_carriers, stage1_opening_witness_carriers, stage2_opening_witness_carriers,

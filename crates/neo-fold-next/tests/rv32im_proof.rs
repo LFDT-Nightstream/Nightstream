@@ -2,7 +2,7 @@
 
 use std::sync::{LazyLock, Mutex, MutexGuard};
 
-use neo_fold_next::proof::FoldSchedule;
+use neo_fold_next::core::proof::FoldSchedule;
 use neo_fold_next::rv32im::audit::{
     audit_rv32im_public_proof, audit_rv32im_public_proof_against_input,
     audit_rv32im_public_proof_with_witness as audit_rv32im_proof,

@@ -1,15 +1,15 @@
 use std::sync::OnceLock;
 
-use neo_fold_next::rv32im::{
+use neo_fold_next::rv32im::kernel::{
     build_phase2_collapse_result, build_rv32im_eval_claim_witnesses_from_accepted_artifact,
     build_rv32im_opening_convergence_artifact_from_proof, build_rv32im_opening_convergence_artifact_from_witnesses,
     build_rv32im_opening_convergence_proof_from_witnesses, build_rv32im_phase0_binding_surface_from_accepted_artifact,
     derive_phase0_point, verify_rv32im_opening_convergence_artifact,
     verify_rv32im_opening_convergence_artifact_from_proof, verify_rv32im_opening_convergence_proof,
     ClaimReductionError, FamilyEvalClaim, FamilyEvalClaimWitness, FamilyEvalPayload, FamilyEvalSchemaId,
-    FinalOpeningError, Rv32imAcceptedProofArtifact, Rv32imOpeningConvergenceArtifact, Rv32imOpeningConvergenceProof,
-    Rv32imPhase0BindingSurface,
+    FinalOpeningError, Rv32imOpeningConvergenceArtifact, Rv32imOpeningConvergenceProof, Rv32imPhase0BindingSurface,
 };
+use neo_fold_next::rv32im::Rv32imAcceptedProofArtifact;
 use neo_math::K;
 use p3_field::PrimeCharacteristicRing;
 

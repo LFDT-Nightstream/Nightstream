@@ -2,7 +2,7 @@
 
 use std::sync::OnceLock;
 
-use neo_fold_next::proof::FoldSchedule;
+use neo_fold_next::core::proof::FoldSchedule;
 use neo_fold_next::rv32im::layout::{RV32IM_PARITY_LOWERING_VERSION_ID, RV32IM_PARITY_PROTOCOL_VERSION_ID};
 use neo_fold_next::rv32im::tables::Rv32FamilyTag;
 use neo_fold_next::rv32im::{

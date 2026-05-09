@@ -1,7 +1,7 @@
-use neo_fold_next::public_proof::rv32im::audit::{
+use neo_fold_next::public_proof::rv32im::side_bundle::build_rv32im_side_proof_bundle_from_accepted_artifact;
+use neo_fold_next::public_proof::rv32im::side_eval_claim_relation::{
     build_rv32im_side_eval_claim_artifact_from_accepted_artifact,
-    build_rv32im_side_eval_claim_relation_from_accepted_artifact,
-    build_rv32im_side_proof_bundle_from_accepted_artifact, verify_rv32im_side_eval_claim_artifact,
+    build_rv32im_side_eval_claim_relation_from_accepted_artifact, verify_rv32im_side_eval_claim_artifact,
     verify_rv32im_side_eval_claim_relation,
 };
 use neo_fold_next::rv32im::{

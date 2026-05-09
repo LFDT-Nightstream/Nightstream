@@ -1,6 +1,6 @@
 use std::sync::OnceLock;
 
-use neo_fold_next::rv32im::{
+use neo_fold_next::rv32im::kernel::{
     build_claim_reduction_buckets, build_claim_reduction_results_from_witnesses,
     build_rv32im_eval_claim_bundle_from_accepted_artifact, build_rv32im_eval_claim_witnesses_from_accepted_artifact,
     build_rv32im_phase0_binding_surface_from_accepted_artifact, derive_phase0_point,
@@ -33,8 +33,8 @@ fn eval_claim_bundle() -> &'static Rv32imEvalClaimBundle {
     })
 }
 
-fn claim_witnesses() -> &'static Vec<neo_fold_next::rv32im::FamilyEvalClaimWitness> {
-    static WITNESSES: OnceLock<Vec<neo_fold_next::rv32im::FamilyEvalClaimWitness>> = OnceLock::new();
+fn claim_witnesses() -> &'static Vec<FamilyEvalClaimWitness> {
+    static WITNESSES: OnceLock<Vec<FamilyEvalClaimWitness>> = OnceLock::new();
     WITNESSES.get_or_init(|| {
         build_rv32im_eval_claim_witnesses_from_accepted_artifact(artifact())
             .expect("phase0 eval-claim witnesses should build for claim-reduction tests")

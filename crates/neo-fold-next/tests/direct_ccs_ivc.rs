@@ -3,24 +3,25 @@ use neo_ajtai::{
 };
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{poly::SparsePoly, poly::Term, CcsClaim, CcsMatrix, CcsStructure, CcsWitness, CscMat, Mat};
-use neo_fold_next::ivc::build_superneo_ivc_relations_with_initial_carry_accumulator_handle_perf;
-use neo_fold_next::proof::{Carry, FoldSchedule, StepInput};
-use neo_fold_next::prover::CommitmentMixers;
-use neo_fold_next::{
+use neo_fold_next::core::ivc::build_superneo_ivc_relations_with_initial_carry_accumulator_handle_perf;
+use neo_fold_next::core::proof::{Carry, FoldSchedule, StepInput};
+use neo_fold_next::core::prover::CommitmentMixers;
+use neo_fold_next::direct_ccs::{
     direct_ccs_program_from_sparse_r1cs_with_public_input_len, direct_ccs_step_from_low_norm_full_witness,
-    verify_direct_ccs_ivc_snark, verify_direct_ccs_ivc_snark_public, verify_direct_ccs_recursive_ivc_snark_public,
-    verify_direct_ccs_statement, DirectCcsCompactFPrimeImage, DirectCcsFPrimeLowNormSourceR1cs, DirectCcsIvcState,
+    verify_direct_ccs_ivc_snark_public, verify_direct_ccs_recursive_ivc_snark_public, verify_direct_ccs_statement,
+    verify_direct_ccs_terminal_snark_against_state, DirectCcsCompactFPrimeImage, DirectCcsFPrimeLowNormSourceR1cs,
+    DirectCcsIvcPublicImage, DirectCcsIvcSnark, DirectCcsIvcSnarkVerifierKey, DirectCcsIvcState,
     DirectCcsNativeFPrimeAdvice, DirectCcsProgram, DirectCcsRecursiveIvcPublicImage, DirectCcsRecursiveIvcState,
-    DirectCcsStep, DirectSparseR1csExport,
+    DirectCcsStatement, DirectCcsStep, DirectSparseR1csExport,
 };
 use neo_math::ring::Rq as RqEl;
 use neo_math::{D, F};
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
 fn assert_public_verify_rejects(
-    vk: &neo_fold_next::DirectCcsIvcSnarkVerifierKey,
-    snark: &neo_fold_next::DirectCcsIvcSnark,
-    public_image: neo_fold_next::DirectCcsIvcPublicImage,
+    vk: &DirectCcsIvcSnarkVerifierKey,
+    snark: &DirectCcsIvcSnark,
+    public_image: DirectCcsIvcPublicImage,
     label: &str,
 ) {
     assert!(
@@ -29,9 +30,9 @@ fn assert_public_verify_rejects(
     );
 }
 fn assert_statement_verify_rejects(
-    vk: &neo_fold_next::DirectCcsIvcSnarkVerifierKey,
-    snark: &neo_fold_next::DirectCcsIvcSnark,
-    statement: neo_fold_next::DirectCcsStatement,
+    vk: &DirectCcsIvcSnarkVerifierKey,
+    snark: &DirectCcsIvcSnark,
+    statement: DirectCcsStatement,
     label: &str,
 ) {
     assert!(
@@ -284,7 +285,8 @@ fn direct_ccs_single_step_compression_uses_latest_chunk_and_no_final_ce_digest()
         verify_direct_ccs_statement(&vk, &tampered_statement, snark.proof()).is_err(),
         "statement verifier must reject a tampered step counter"
     );
-    verify_direct_ccs_ivc_snark(&direct, snark.proof()).expect("verify state-bound compatibility helper");
+    verify_direct_ccs_terminal_snark_against_state(&direct, snark.proof())
+        .expect("verify terminal proof against live state");
 
     let mut tampered_public_image = snark.public_image().clone();
     tampered_public_image.step_count_out += 1;
@@ -402,7 +404,7 @@ fn direct_ccs_public_verifier_rejects_authoritative_boundary_tampering() {
     let mut bad_x = image.x_out.bytes();
     bad_x[0] ^= 1;
     image.construction2_u_i.x_i =
-        neo_fold_next::construction2::Construction2EncodedPublicInput::from_digest_bytes(bad_x);
+        neo_fold_next::core::construction2::Construction2EncodedPublicInput::from_digest_bytes(bad_x);
     image.construction2_u_i.fresh_instance_digest = image.construction2_u_i.expected_fresh_instance_digest();
     assert_public_verify_rejects(&vk, &snark, image, "Construction-2 x_i");
 
@@ -634,10 +636,16 @@ fn direct_sparse_r1cs_adapter_rejects_non_low_norm_witness() {
 #[test]
 fn direct_recursive_f_prime_authority_is_not_public_or_terminal_source_image_based() {
     let direct_mod = include_str!("../src/frontends/direct_ccs/mod.rs");
-    let recursive_src = include_str!("../src/frontends/direct_ccs/recursive.rs");
-    let f_prime_chain_src = include_str!("../src/frontends/direct_ccs/f_prime_chain.rs");
-    let construction2_fold_src = include_str!("../src/frontends/direct_ccs/construction2_fold.rs");
-    let r1cs_src = include_str!("../src/frontends/direct_ccs/r1cs.rs");
+    let recursive_src = include_str!("../src/frontends/direct_ccs/recursive/mod.rs");
+    let f_prime_chain_src = include_str!("../src/frontends/direct_ccs/f_prime/chain/mod.rs");
+    let construction2_fold_src = [
+        include_str!("../src/frontends/direct_ccs/terminal/construction2_fold/mod.rs"),
+        include_str!("../src/frontends/direct_ccs/terminal/construction2_fold/synthesis.rs"),
+        include_str!("../src/frontends/direct_ccs/terminal/construction2_fold/measurement.rs"),
+        include_str!("../src/frontends/direct_ccs/terminal/construction2_fold/types.rs"),
+    ]
+    .join("\n");
+    let r1cs_src = include_str!("../src/frontends/direct_ccs/adapter/r1cs.rs");
     let crate_root = include_str!("../src/lib.rs");
 
     assert!(
@@ -680,31 +688,42 @@ fn direct_recursive_ivc_state_starts_without_terminal_step() {
     let recursive = DirectCcsRecursiveIvcState::new_with_canonical_zero_carry(program).expect("direct recursive state");
     let summary = recursive.summary();
 
-    assert_eq!(summary.semantic_chunks, 0);
-    assert_eq!(summary.semantic_steps, 0);
-    assert_eq!(summary.terminal_chunks_synthesized, 0);
-    assert_eq!(summary.carried_semantic_ce_claims, params.k_rho as usize);
-    assert_eq!(summary.folded_f_prime_r2_steps, 0);
-    assert_eq!(summary.carried_f_prime_ce_claims, 0);
-    assert!(!summary.native_f_prime_evaluator_available);
-    assert!(!summary.f_prime_encoder_required);
-    assert!(!summary.f_prime_encoder_available);
-    assert_eq!(summary.compact_f_prime_image_digest, None);
-    assert!(!summary.low_norm_f_prime_source_available);
-    assert_eq!(summary.low_norm_f_prime_source_len, 0);
-    assert_eq!(summary.low_norm_f_prime_source_digest, None);
-    assert_eq!(summary.low_norm_f_prime_source_r1cs_constraints, 0);
-    assert_eq!(summary.low_norm_f_prime_source_r1cs_variables, 0);
-    assert_eq!(summary.low_norm_f_prime_source_r1cs_nnz, 0);
-    assert_eq!(summary.low_norm_f_prime_source_shell_constraints, 0);
-    assert_eq!(summary.low_norm_f_prime_source_authority_constraints, 0);
+    assert_eq!(summary.semantic.chunks, 0);
+    assert_eq!(summary.semantic.steps, 0);
+    assert_eq!(summary.semantic.terminal_chunks_synthesized, 0);
+    assert_eq!(summary.semantic.carried_ce_claims, params.k_rho as usize);
+    assert_eq!(summary.f_prime.folded_r2_steps, 0);
+    assert_eq!(summary.f_prime.carried_ce_claims, 0);
+    assert!(!summary.f_prime.native_evaluator_available);
+    assert!(!summary.f_prime.encoder_required);
+    assert!(!summary.f_prime.encoder_available);
+    assert_eq!(summary.f_prime.compact_image_digest, None);
+    assert!(!summary.f_prime.low_norm_source.available);
+    assert_eq!(summary.f_prime.low_norm_source.len, 0);
+    assert_eq!(summary.f_prime.low_norm_source.digest, None);
+    assert_eq!(summary.f_prime.low_norm_source.r1cs.constraints, 0);
+    assert_eq!(summary.f_prime.low_norm_source.r1cs.variables, 0);
+    assert_eq!(summary.f_prime.low_norm_source.r1cs.nnz, 0);
+    assert_eq!(summary.f_prime.low_norm_source.r1cs.shell_constraints, 0);
+    assert_eq!(summary.f_prime.low_norm_source.r1cs.authority_constraints, 0);
     assert_eq!(
-        summary.low_norm_f_prime_source_poseidon_digest_recomputation_constraints,
+        summary
+            .f_prime
+            .low_norm_source
+            .r1cs
+            .poseidon_digest_recomputation_constraints,
         0
     );
-    assert_eq!(summary.low_norm_f_prime_source_nifs_v_verifier_constraints, 0);
-    assert_eq!(summary.f_prime_encoder_blocker, None);
-    assert!(!summary.standalone_proof_authority_ready);
+    assert_eq!(
+        summary
+            .f_prime
+            .low_norm_source
+            .r1cs
+            .nifs_v_verifier_constraints,
+        0
+    );
+    assert_eq!(summary.proof.encoder_blocker, None);
+    assert!(!summary.proof.standalone_authority_ready);
 }
 
 #[test]
@@ -752,68 +771,79 @@ fn direct_recursive_ivc_append_does_not_fold_terminal_source_image_exports() {
         .expect("append third recursive direct step");
     let summary = recursive.summary();
 
-    assert_eq!(summary.semantic_chunks, 3);
-    assert_eq!(summary.semantic_steps, 3);
+    assert_eq!(summary.semantic.chunks, 3);
+    assert_eq!(summary.semantic.steps, 3);
     assert_eq!(
-        summary.folded_f_prime_r2_steps, 0,
+        summary.f_prime.folded_r2_steps, 0,
         "direct recursive append must not fold the compact source shell before it contains NIFS.V authority"
     );
-    assert_eq!(summary.carried_semantic_ce_claims, params.k_rho as usize);
+    assert_eq!(summary.semantic.carried_ce_claims, params.k_rho as usize);
     assert_eq!(
-        summary.carried_f_prime_ce_claims, 0,
+        summary.f_prime.carried_ce_claims, 0,
         "the F' accumulator must stay empty until a proof-authoritative low-norm enc(F') exists"
     );
     assert!(
-        summary.f_prime_encoder_required,
+        summary.f_prime.encoder_required,
         "multi-step direct recursion must require an encoded prior F' relation"
     );
     assert!(
-        summary.native_f_prime_evaluator_available,
+        summary.f_prime.native_evaluator_available,
         "the latest compact direct F' native evaluator should be available before low-norm encoding is implemented"
     );
     assert!(
-        !summary.f_prime_encoder_available,
+        !summary.f_prime.encoder_available,
         "the direct path must not report low-norm F' encoder availability until one exists"
     );
     assert!(
-        summary.compact_f_prime_image_digest.is_some(),
+        summary.f_prime.compact_image_digest.is_some(),
         "the compact F' image digest can exist, but it is not proof authority by itself"
     );
     assert!(
-        summary.low_norm_f_prime_source_available,
+        summary.f_prime.low_norm_source.available,
         "the compact native F' advice should now export a low-norm source image"
     );
     assert!(
-        summary.low_norm_f_prime_source_len > 0,
+        summary.f_prime.low_norm_source.len > 0,
         "the low-norm F' source image should contain the bits needed by a future enc(F') relation"
     );
     assert!(
-        summary.low_norm_f_prime_source_digest.is_some(),
+        summary.f_prime.low_norm_source.digest.is_some(),
         "the low-norm F' source image digest should be available as a diagnostic handle"
     );
-    assert!(summary.low_norm_f_prime_source_r1cs_constraints > 0);
-    assert!(summary.low_norm_f_prime_source_r1cs_variables > 0);
-    assert!(summary.low_norm_f_prime_source_r1cs_nnz > 0);
+    assert!(summary.f_prime.low_norm_source.r1cs.constraints > 0);
+    assert!(summary.f_prime.low_norm_source.r1cs.variables > 0);
+    assert!(summary.f_prime.low_norm_source.r1cs.nnz > 0);
     assert_eq!(
-        summary.low_norm_f_prime_source_authority_constraints, 0,
+        summary.f_prime.low_norm_source.r1cs.authority_constraints, 0,
         "Poseidon2 digest recomputation must not be counted as recursive proof authority"
     );
     assert!(
-        summary.low_norm_f_prime_source_poseidon_digest_recomputation_constraints > 0,
+        summary
+            .f_prime
+            .low_norm_source
+            .r1cs
+            .poseidon_digest_recomputation_constraints
+            > 0,
         "Construction-2 digest fields must not remain self-consistent diagnostic data"
     );
     assert_eq!(
-        summary.low_norm_f_prime_source_nifs_v_verifier_constraints, 0,
+        summary
+            .f_prime
+            .low_norm_source
+            .r1cs
+            .nifs_v_verifier_constraints,
+        0,
         "the source shell must not claim to verify NIFS.V"
     );
     assert!(
         summary
-            .f_prime_encoder_blocker
+            .proof
+            .encoder_blocker
             .is_some_and(|blocker| blocker.contains("low-norm")),
         "multi-step direct recursion must expose the missing encoded-F' blocker"
     );
     assert!(
-        !summary.standalone_proof_authority_ready,
+        !summary.proof.standalone_authority_ready,
         "multi-step direct compression must not be marked proof-complete until compact F' source rows include NIFS.V authority"
     );
 }
@@ -855,7 +885,7 @@ fn direct_recursive_latest_step_is_not_historical_replay() {
     assert_eq!(latest.output_ce_claims, params.k_rho as usize + 1);
     assert_eq!(latest.final_ce_claims, params.k_rho as usize);
     assert_eq!(
-        recursive.summary().terminal_chunks_synthesized,
+        recursive.summary().semantic.terminal_chunks_synthesized,
         1,
         "terminal compression may synthesize only the latest F' step, never every historical chunk"
     );
@@ -902,24 +932,25 @@ fn direct_compact_f_prime_image_binds_latest_step_without_terminal_material() {
     assert_eq!(image.output_ce_claims, params.k_rho as u64 + 1);
     assert_eq!(image.final_ce_claims, params.k_rho as u64);
     assert_ne!(image_digest, [0u8; 32]);
-    assert!(summary.native_f_prime_evaluator_available);
+    assert!(summary.f_prime.native_evaluator_available);
     assert_eq!(
-        summary.compact_f_prime_image_digest,
+        summary.f_prime.compact_image_digest,
         Some(image_digest),
         "recursive summary should expose the compact image digest as a diagnostic handle, not as authority"
     );
-    assert!(summary.low_norm_f_prime_source_available);
-    assert!(summary.low_norm_f_prime_source_len > 0);
-    assert!(summary.low_norm_f_prime_source_digest.is_some());
-    assert!(summary.f_prime_encoder_required);
-    assert!(!summary.f_prime_encoder_available);
+    assert!(summary.f_prime.low_norm_source.available);
+    assert!(summary.f_prime.low_norm_source.len > 0);
+    assert!(summary.f_prime.low_norm_source.digest.is_some());
+    assert!(summary.f_prime.encoder_required);
+    assert!(!summary.f_prime.encoder_available);
     assert_eq!(
-        summary.low_norm_f_prime_source_authority_constraints, 0,
+        summary.f_prime.low_norm_source.r1cs.authority_constraints, 0,
         "compact source diagnostics must not count digest recomputation as authority"
     );
     assert!(
         summary
-            .f_prime_encoder_blocker
+            .proof
+            .encoder_blocker
             .is_some_and(|blocker| blocker.contains("low-norm")),
         "multi-step compact F' image must still report the missing encoder"
     );
@@ -986,16 +1017,16 @@ fn direct_native_f_prime_advice_evaluates_compact_image_and_construction2_bounda
     let summary = recursive.summary();
 
     assert_eq!(
-        summary.compact_f_prime_image_digest,
+        summary.f_prime.compact_image_digest,
         Some(compact_digest),
         "native direct F' advice and recursive summary must agree on the compact latest-step image"
     );
     assert_eq!(
-        summary.low_norm_f_prime_source_digest,
+        summary.f_prime.low_norm_source.digest,
         Some(source.expected_digest()),
         "recursive summary should expose the native F' source-image digest as diagnostic evidence"
     );
-    assert_eq!(summary.low_norm_f_prime_source_len, source.len());
+    assert_eq!(summary.f_prime.low_norm_source.len, source.len());
     assert!(
         source
             .values()
@@ -1143,24 +1174,36 @@ fn direct_native_f_prime_advice_evaluates_compact_image_and_construction2_bounda
         "source R1CS must reject non-canonical field lanes"
     );
     assert_eq!(
-        summary.low_norm_f_prime_source_r1cs_constraints,
+        summary.f_prime.low_norm_source.r1cs.constraints,
         source_r1cs.shape.constraint_count
     );
-    assert_eq!(summary.low_norm_f_prime_source_private_bits, source.len());
+    assert_eq!(summary.f_prime.low_norm_source.r1cs.private_bits, source.len());
     assert_eq!(
-        summary.low_norm_f_prime_source_structural_counter_constraints,
+        summary
+            .f_prime
+            .low_norm_source
+            .r1cs
+            .structural_counter_constraints,
         source_r1cs.shape.structural_counter_constraints
     );
     assert_eq!(
-        summary.low_norm_f_prime_source_authority_constraints,
+        summary.f_prime.low_norm_source.r1cs.authority_constraints,
         source_r1cs.shape.authority_constraints()
     );
     assert_eq!(
-        summary.low_norm_f_prime_source_poseidon_digest_recomputation_constraints,
+        summary
+            .f_prime
+            .low_norm_source
+            .r1cs
+            .poseidon_digest_recomputation_constraints,
         source_r1cs.shape.poseidon_digest_recomputation_constraints
     );
     assert_eq!(
-        summary.low_norm_f_prime_source_nifs_v_verifier_constraints,
+        summary
+            .f_prime
+            .low_norm_source
+            .r1cs
+            .nifs_v_verifier_constraints,
         source_r1cs.shape.nifs_v_verifier_constraints
     );
     let program = source_r1cs
@@ -1203,45 +1246,59 @@ fn direct_recursive_ivc_compresses_terminal_boundary_and_binds_accumulator_diges
         )
         .expect("append first recursive direct step");
     let summary = recursive.summary();
-    assert_eq!(summary.semantic_chunks, 1);
-    assert_eq!(summary.semantic_steps, 1);
+    assert_eq!(summary.semantic.chunks, 1);
+    assert_eq!(summary.semantic.steps, 1);
     assert_eq!(
-        summary.terminal_chunks_synthesized, 1,
+        summary.semantic.terminal_chunks_synthesized, 1,
         "recursive terminal compression must synthesize one latest F' chunk"
     );
-    assert_eq!(summary.carried_semantic_ce_claims, params.k_rho as usize);
-    assert_eq!(summary.folded_f_prime_r2_steps, 0);
+    assert_eq!(summary.semantic.carried_ce_claims, params.k_rho as usize);
+    assert_eq!(summary.f_prime.folded_r2_steps, 0);
     assert_eq!(
-        summary.carried_f_prime_ce_claims, 0,
+        summary.f_prime.carried_ce_claims, 0,
         "single-step terminal compression has no folded prior F' accumulator"
     );
     assert!(
-        summary.standalone_proof_authority_ready,
+        summary.proof.standalone_authority_ready,
         "a single-step direct proof is the Construction-2 base case and needs no folded prior F' chain"
     );
-    assert!(summary.native_f_prime_evaluator_available);
+    assert!(summary.f_prime.native_evaluator_available);
     assert!(
-        !summary.f_prime_encoder_required,
+        !summary.f_prime.encoder_required,
         "base case has no prior F' step to encode"
     );
     assert!(
-        !summary.f_prime_encoder_available,
+        !summary.f_prime.encoder_available,
         "base case should not claim a low-norm direct F' encoder exists"
     );
-    assert_eq!(summary.f_prime_encoder_blocker, None);
+    assert_eq!(summary.proof.encoder_blocker, None);
     assert!(
-        summary.compact_f_prime_image_digest.is_some(),
+        summary.f_prime.compact_image_digest.is_some(),
         "base case still has a compact latest F' image"
     );
-    assert!(summary.low_norm_f_prime_source_available);
-    assert!(summary.low_norm_f_prime_source_len > 0);
-    assert!(summary.low_norm_f_prime_source_digest.is_some());
+    assert!(summary.f_prime.low_norm_source.available);
+    assert!(summary.f_prime.low_norm_source.len > 0);
+    assert!(summary.f_prime.low_norm_source.digest.is_some());
     assert_eq!(
-        summary.low_norm_f_prime_source_authority_constraints, 0,
+        summary.f_prime.low_norm_source.r1cs.authority_constraints, 0,
         "base case source digest linkage is diagnostic until NIFS.V rows exist"
     );
-    assert!(summary.low_norm_f_prime_source_poseidon_digest_recomputation_constraints > 0);
-    assert_eq!(summary.low_norm_f_prime_source_nifs_v_verifier_constraints, 0);
+    assert!(
+        summary
+            .f_prime
+            .low_norm_source
+            .r1cs
+            .poseidon_digest_recomputation_constraints
+            > 0
+    );
+    assert_eq!(
+        summary
+            .f_prime
+            .low_norm_source
+            .r1cs
+            .nifs_v_verifier_constraints,
+        0
+    );
     assert_eq!(recursive.direct_state().final_state().chunk_count, 1);
 
     let (snark, vk, perf) = recursive
@@ -1314,36 +1371,46 @@ fn direct_recursive_ivc_multi_step_compression_refuses_terminal_source_image_aut
         Err(err) => err,
     };
     assert!(
-        !recursive.summary().standalone_proof_authority_ready,
+        !recursive.summary().proof.standalone_authority_ready,
         "multi-step direct recursive state must not report standalone authority without folded prior F'"
     );
-    assert!(recursive.summary().f_prime_encoder_required);
-    assert!(recursive.summary().native_f_prime_evaluator_available);
-    assert!(recursive.summary().low_norm_f_prime_source_available);
-    assert!(recursive.summary().low_norm_f_prime_source_len > 0);
-    assert!(!recursive.summary().f_prime_encoder_available);
+    assert!(recursive.summary().f_prime.encoder_required);
+    assert!(recursive.summary().f_prime.native_evaluator_available);
+    assert!(recursive.summary().f_prime.low_norm_source.available);
+    assert!(recursive.summary().f_prime.low_norm_source.len > 0);
+    assert!(!recursive.summary().f_prime.encoder_available);
     assert_eq!(
         recursive
             .summary()
-            .low_norm_f_prime_source_authority_constraints,
+            .f_prime
+            .low_norm_source
+            .r1cs
+            .authority_constraints,
         0
     );
     assert!(
         recursive
             .summary()
-            .low_norm_f_prime_source_poseidon_digest_recomputation_constraints
+            .f_prime
+            .low_norm_source
+            .r1cs
+            .poseidon_digest_recomputation_constraints
             > 0
     );
     assert_eq!(
         recursive
             .summary()
-            .low_norm_f_prime_source_nifs_v_verifier_constraints,
+            .f_prime
+            .low_norm_source
+            .r1cs
+            .nifs_v_verifier_constraints,
         0
     );
     assert!(
         recursive
             .summary()
-            .f_prime_encoder_blocker
+            .proof
+            .encoder_blocker
             .is_some_and(|blocker| blocker.contains("low-norm")),
         "multi-step refusal must surface the missing low-norm direct F' encoder"
     );

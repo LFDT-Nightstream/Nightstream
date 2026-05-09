@@ -5,16 +5,16 @@ use std::time::Instant;
 use neo_ajtai::{s_mul_add, scale_commitment_add_inplace, set_global_pp_seeded, AjtaiSModule, Commitment};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{CcsClaim, CcsMatrix, CcsStructure, CcsWitness, CeClaim, Mat};
-use neo_fold_next::ivc::{
+use neo_fold_next::core::ivc::{
     build_superneo_ivc_relations_with_initial_carry_accumulator_handle_perf, build_superneo_ivc_relations_with_perf,
     SuperNeoIvcBuild,
 };
-use neo_fold_next::proof::{
+use neo_fold_next::core::proof::{
     Carry, ChunkProvePerf, ChunkVerifyPerf, FoldSchedule, PackagedProof, RunProvePerf, RunVerifyPerf, StepInput,
 };
-use neo_fold_next::prover::CommitmentMixers;
-use neo_fold_next::run::{prove_and_package_with_final_carry_perf, verify_packaged_with_perf};
-use neo_fold_next::{DirectCcsProgram, DirectCcsRecursiveIvcSnarkPerf, DirectCcsRecursiveIvcState};
+use neo_fold_next::core::prover::CommitmentMixers;
+use neo_fold_next::core::session::{prove_and_package_with_final_carry_perf, verify_packaged_with_perf};
+use neo_fold_next::direct_ccs::{DirectCcsProgram, DirectCcsRecursiveIvcSnarkPerf, DirectCcsRecursiveIvcState};
 use neo_math::ring::Rq as RqEl;
 use neo_math::{D, F, K};
 use neo_params::{goldilocks_paper_b2, NeoParams};

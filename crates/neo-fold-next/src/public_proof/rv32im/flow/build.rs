@@ -1,4 +1,4 @@
-//! Owns compact build-time diagnostics for the RV32IM Nightstream boundary.
+//! Owns the prover-side flow for building an RV32IM published proof.
 
 use std::time::Instant;
 
@@ -11,96 +11,30 @@ use crate::rv32im::kernel::{
 };
 use crate::rv32im::{setup_rv32im_ivc_snark_from_final_cached, Rv32imCompressedMainProof, Rv32imPublishedProofSeam};
 
-use super::authoritative_side::{build_rv32im_side_binding_statement, build_rv32im_side_opening_public};
-use super::opening_artifact;
-use super::proof::{rv32im_main_nightstream_proof_digest, Rv32imNightstreamProof, Rv32imSideProof};
-use super::side_bridges::Rv32imSideProofBundle;
-use super::side_bundle::{
+use super::perf::{elapsed_ms, Rv32imNightstreamBuildPerf, Rv32imNightstreamSeamBuildPerf};
+use crate::public_proof::rv32im::authoritative_side::{
+    build_rv32im_side_binding_statement, build_rv32im_side_opening_public,
+};
+use crate::public_proof::rv32im::opening_artifact;
+use crate::public_proof::rv32im::proof::{
+    rv32im_main_nightstream_proof_digest, Rv32imNightstreamProof, Rv32imSideProof,
+};
+use crate::public_proof::rv32im::side_bridges::Rv32imSideProofBundle;
+use crate::public_proof::rv32im::side_bundle::{
     bind_rv32im_side_proof_bundle_to_statement_core,
     build_rv32im_side_proof_bundle_from_accepted_artifact_and_kernel_export,
 };
-use super::side_eval_claim_relation::{self, rebind_phase0_claim_witnesses_to_side_bundle};
-use super::side_opening_relation::{
+use crate::public_proof::rv32im::side_eval_claim_relation::{self, rebind_phase0_claim_witnesses_to_side_bundle};
+use crate::public_proof::rv32im::side_opening_relation::{
     build_rv32im_side_opening_relation_statement, build_rv32im_side_opening_relation_witness_from_accepted_artifact,
 };
-use super::side_opening_spartan::{prove_rv32im_side_opening_spartan, setup_rv32im_side_opening_spartan_cached};
-use super::side_relation_spartan::{prove_rv32im_side_binding, setup_rv32im_side_binding_cached};
-use super::statement::{build_rv32im_nightstream_statement_from_published_statement, rv32im_verifier_context_digest};
-
-#[derive(Clone, Copy, Debug, Default)]
-pub struct Rv32imNightstreamSeamBuildPerf {
-    pub final_surface_guard_ms: f64,
-    pub main_proof_ms: f64,
-    pub statement_ms: f64,
-    pub bind_side_statement_core_ms: f64,
-    pub opening_phase0_artifact_ms: f64,
-    pub opening_phase0_claim_witnesses_ms: f64,
-    pub opening_phase0_relation_artifact_ms: f64,
-    pub opening_phase0_packed_columns_ms: f64,
-    pub opening_phase0_commitment_vector_ms: f64,
-    pub opening_phase0_commitment_params_ms: f64,
-    pub opening_phase0_commitment_committer_ms: f64,
-    pub opening_phase0_commitment_mats_ms: f64,
-    pub opening_phase0_commitment_commit_many_ms: f64,
-    pub opening_phase0_commitment_root_ms: f64,
-    pub opening_phase0_opened_object_id_ms: f64,
-    pub opening_phase0_opened_object_total_ms: f64,
-    pub opening_phase0_binding_digest_ms: f64,
-    pub opening_phase0_point_derivation_ms: f64,
-    pub opening_phase0_payload_eval_ms: f64,
-    pub opening_phase0_claim_build_ms: f64,
-    pub opening_phase0_slot_claims_total_ms: f64,
-    pub opening_support_bundle_ms: f64,
-    pub opening_convergence_total_ms: f64,
-    pub opening_convergence_phase1_ms: f64,
-    pub opening_convergence_phase2_ms: f64,
-    pub opening_convergence_final_openings_ms: f64,
-    pub opening_convergence_final_openings_witness_map_ms: f64,
-    pub opening_convergence_final_openings_representative_ms: f64,
-    pub opening_convergence_final_openings_commitment_validate_ms: f64,
-    pub opening_convergence_final_openings_opened_commitment_digest_ms: f64,
-    pub opening_convergence_final_openings_opening_proof_digest_ms: f64,
-    pub opening_convergence_final_openings_target_build_ms: f64,
-    pub opening_convergence_digest_ms: f64,
-    pub opening_support_wrap_ms: f64,
-    pub side_binding_prepare_ms: f64,
-    pub side_binding_setup_ms: f64,
-    pub side_binding_prove_ms: f64,
-    pub side_binding_ms: f64,
-    pub proof_binding_root_ms: f64,
-    pub total_ms: f64,
-}
-
-#[derive(Clone, Copy, Debug, Default)]
-pub struct Rv32imNightstreamBuildPerf {
-    pub accepted_artifact_ms: f64,
-    pub final_statement_ms: f64,
-    pub final_statement_kernel_export_ms: f64,
-    pub final_statement_recursive_proof_ms: f64,
-    pub final_statement_recursive_prepare_inputs_ms: f64,
-    pub final_statement_recursive_ccs_bind_ms: f64,
-    pub final_statement_recursive_ccs_sample_challenges_ms: f64,
-    pub final_statement_recursive_ccs_fe_sumcheck_ms: f64,
-    pub final_statement_recursive_ccs_nc_sumcheck_ms: f64,
-    pub final_statement_recursive_ccs_output_materialize_ms: f64,
-    pub final_statement_recursive_ccs_ms: f64,
-    pub final_statement_recursive_dims_ms: f64,
-    pub final_statement_recursive_rlc_prepare_ms: f64,
-    pub final_statement_recursive_rlc_ms: f64,
-    pub final_statement_recursive_dec_split_ms: f64,
-    pub final_statement_recursive_dec_commit_ms: f64,
-    pub final_statement_recursive_dec_ms: f64,
-    pub final_statement_folded_digest_ms: f64,
-    pub final_statement_final_proof_ms: f64,
-    pub final_statement_statement_digest_ms: f64,
-    pub side_support_bundle_ms: f64,
-    pub seam_build: Rv32imNightstreamSeamBuildPerf,
-    pub total_ms: f64,
-}
-
-fn elapsed_ms(started: Instant) -> f64 {
-    started.elapsed().as_secs_f64() * 1_000.0
-}
+use crate::public_proof::rv32im::side_opening_spartan::{
+    prove_rv32im_side_opening_spartan, setup_rv32im_side_opening_spartan_cached,
+};
+use crate::public_proof::rv32im::side_relation_spartan::{prove_rv32im_side_binding, setup_rv32im_side_binding_cached};
+use crate::public_proof::rv32im::statement::{
+    build_rv32im_nightstream_statement_from_published_statement, rv32im_verifier_context_digest,
+};
 
 fn guard_locally_built_compact_main_proof(
     accepted_artifact: &Rv32imAcceptedProofArtifact,
@@ -178,8 +112,8 @@ pub(super) fn build_rv32im_nightstream_from_published_seam_with_perf(
     let opening_phase0_claim_witnesses_ms = elapsed_ms(started);
 
     let started = Instant::now();
-    let opening_phase0_artifact = super::side_eval_claim_relation::
-        build_rv32im_side_eval_claim_artifact_from_claim_witnesses_and_trusted_side_bundle(
+    let opening_phase0_artifact =
+        side_eval_claim_relation::build_rv32im_side_eval_claim_artifact_from_claim_witnesses_and_trusted_side_bundle(
             &accepted_artifact.statement,
             &side_proof_bundle,
             &claim_witnesses,
@@ -189,7 +123,7 @@ pub(super) fn build_rv32im_nightstream_from_published_seam_with_perf(
 
     let started = Instant::now();
     let phase0_binding_surface =
-        super::side_eval_claim_relation::build_rv32im_phase0_binding_surface_from_side_bundle(&side_proof_bundle);
+        side_eval_claim_relation::build_rv32im_phase0_binding_surface_from_side_bundle(&side_proof_bundle);
     let opening_phase0_binding_surface_ms = elapsed_ms(started);
 
     let started = Instant::now();

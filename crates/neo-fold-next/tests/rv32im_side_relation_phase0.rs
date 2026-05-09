@@ -1,8 +1,9 @@
 use bellpepper_core::{test_cs::TestConstraintSystem, ConstraintSystem};
-use neo_fold_next::public_proof::rv32im::audit::{
-    build_rv32im_side_eval_claim_relation_from_accepted_artifact, circuit_derive_phase0_point,
-    circuit_enforce_phase0_commitment_root_and_opened_object_digest, circuit_enforce_phase0_payload_eq,
-    circuit_enforce_phase0_point_eq, circuit_evaluate_phase0_payload_from_packed_rows,
+use neo_fold_next::public_proof::rv32im::side_eval_claim_relation::build_rv32im_side_eval_claim_relation_from_accepted_artifact;
+use neo_fold_next::public_proof::rv32im::side_relation_circuit::{
+    circuit_derive_phase0_point, circuit_enforce_phase0_commitment_root_and_opened_object_digest,
+    circuit_enforce_phase0_payload_eq, circuit_enforce_phase0_point_eq,
+    circuit_evaluate_phase0_payload_from_packed_rows,
 };
 use neo_fold_next::rv32im::{
     build_rv32im_accepted_proof_artifact, parity_source_cases, prove_rv32im_public_proof, Rv32imProofInput,
@@ -52,7 +53,9 @@ fn rv32im_side_relation_phase0_point_and_payload_match_native_claim_witness() {
     let claim_witness = witness
         .claim_witnesses
         .iter()
-        .find(|claim| claim.claim.payload.schema == neo_fold_next::rv32im::FamilyEvalSchemaId::Stage2RegisterWrites)
+        .find(|claim| {
+            claim.claim.payload.schema == neo_fold_next::rv32im::kernel::FamilyEvalSchemaId::Stage2RegisterWrites
+        })
         .expect("stage2 register-writes phase0 claim witness");
 
     let mut cs = TestConstraintSystem::<SpartanF>::new();

@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
-use neo_fold_next::proof::FoldSchedule;
-use neo_fold_next::public_proof::rv32im::audit::{
-    build_rv32im_side_eval_claim_relation_from_accepted_artifact,
-    build_rv32im_side_opening_relation_from_accepted_artifact, setup_rv32im_side_binding,
-    setup_rv32im_side_opening_spartan_cached, verify_rv32im_side_eval_claim_relation,
+use neo_fold_next::core::proof::FoldSchedule;
+use neo_fold_next::public_proof::rv32im::side_eval_claim_relation::{
+    build_rv32im_side_eval_claim_relation_from_accepted_artifact, verify_rv32im_side_eval_claim_relation,
 };
+use neo_fold_next::public_proof::rv32im::side_opening_relation::build_rv32im_side_opening_relation_from_accepted_artifact;
+use neo_fold_next::public_proof::rv32im::side_opening_spartan::setup_rv32im_side_opening_spartan_cached;
+use neo_fold_next::public_proof::rv32im::side_relation_spartan::setup_rv32im_side_binding;
 use neo_fold_next::public_proof::rv32im::{
     build_rv32im_nightstream_from_public_proof_with_perf, build_rv32im_side_proof, verify_rv32im_side_proof,
 };

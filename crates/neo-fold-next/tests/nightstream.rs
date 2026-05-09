@@ -1,9 +1,8 @@
 use std::fmt::Debug;
 
-use neo_fold_next::proof::FoldSchedule;
-use neo_fold_next::public_proof::rv32im::audit::{
-    build_rv32im_nightstream_statement_from_published_statement, rv32im_main_nightstream_proof_digest,
-};
+use neo_fold_next::core::proof::FoldSchedule;
+use neo_fold_next::public_proof::rv32im::proof::rv32im_main_nightstream_proof_digest;
+use neo_fold_next::public_proof::rv32im::statement::build_rv32im_nightstream_statement_from_published_statement;
 use neo_fold_next::public_proof::rv32im::{
     build_rv32im_nightstream_from_public_proof_with_perf, rv32im_verifier_context_digest,
     verify_rv32im_nightstream_with_perf, Rv32imNightstreamProof, Rv32imSideBindingVerifierKey,
@@ -83,20 +82,21 @@ fn external_fixture(name: &str) -> ExternalNightstreamFixture {
     let ivc_recursion_snark_keys = setup_rv32im_ivc_snark_from_final_cached(&final_statement, &final_proof)
         .expect("setup rv32im IVC recursion SNARK");
     let (opening_statement, opening_witness) =
-        neo_fold_next::public_proof::rv32im::audit::build_rv32im_side_opening_relation_from_accepted_artifact(
+        neo_fold_next::public_proof::rv32im::side_opening_relation::build_rv32im_side_opening_relation_from_accepted_artifact(
             &accepted_artifact,
         )
         .expect("build rv32im side opening relation");
-    let (_, side_opening_vk) = neo_fold_next::public_proof::rv32im::audit::setup_rv32im_side_opening_spartan(
-        &opening_statement,
-        &opening_witness,
-    )
-    .expect("setup rv32im side opening");
+    let (_, side_opening_vk) =
+        neo_fold_next::public_proof::rv32im::side_opening_spartan::setup_rv32im_side_opening_spartan(
+            &opening_statement,
+            &opening_witness,
+        )
+        .expect("setup rv32im side opening");
     let side_statement = nightstream_proof
         .side_proof()
         .binding_statement(&statement, &public_statement)
         .expect("build rv32im side binding statement");
-    let (_, side_binding_vk) = neo_fold_next::public_proof::rv32im::audit::setup_rv32im_side_binding(
+    let (_, side_binding_vk) = neo_fold_next::public_proof::rv32im::side_relation_spartan::setup_rv32im_side_binding(
         &side_statement,
         nightstream_proof.side_proof().opening_public(),
     )
@@ -159,7 +159,7 @@ fn nightstream_statement_digest_tracks_binding_root() {
     let mut statement = NightstreamStatement {
         public_io_digest: [1; 32],
         verifier_context_digest: [2; 32],
-        fold_schedule: neo_fold_next::proof::FoldSchedule::WholeTrace,
+        fold_schedule: neo_fold_next::core::proof::FoldSchedule::WholeTrace,
         semantic_step_count: 7,
         proof_binding_root: [0; 32],
     };

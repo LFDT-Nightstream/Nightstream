@@ -45,6 +45,16 @@ pub fn build_rv32im_side_proof_bundle_from_accepted_artifact(
     build_rv32im_side_proof_bundle_from_accepted_artifact_and_kernel_export(artifact, &kernel_export)
 }
 
+pub fn build_rv32im_bound_side_proof_bundle_from_accepted_artifact(
+    statement: &NightstreamStatement,
+    artifact: &Rv32imAcceptedProofArtifact,
+) -> Result<Rv32imSideProofBundle, SimpleKernelError> {
+    bind_rv32im_side_proof_bundle_to_statement_core(
+        &build_rv32im_side_proof_bundle_from_accepted_artifact(artifact)?,
+        statement.core_digest(),
+    )
+}
+
 pub fn build_rv32im_bound_side_opening_public_from_accepted_artifact(
     statement: &NightstreamStatement,
     artifact: &Rv32imAcceptedProofArtifact,

@@ -8,11 +8,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
-use bellpepper_core::{num::AllocatedNum, test_cs::TestConstraintSystem, ConstraintSystem, SynthesisError};
-use neo_ajtai::Commitment;
-use neo_math::{D, F, K};
-use neo_params::NeoParams;
-use neo_transcript::{Poseidon2Transcript, Transcript};
+use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde::{Deserialize, Serialize};
 use spartan2::{
@@ -25,11 +21,17 @@ use super::authoritative_side::Rv32imSideBindingStatement;
 use super::authoritative_side::Rv32imSideOpeningPublic;
 use super::side_relation_circuit::phase0;
 use crate::finalize::digest32_as_fields;
-use crate::rv32im::kernel::{
-    phase0_full_width_for_schema, FamilyEvalClaimWitness, OpenedAjtaiObjectWitness, PackedColumnOracleRef,
-    SimpleKernelError,
-};
+use crate::rv32im::kernel::{FamilyEvalClaimWitness, OpenedAjtaiObjectWitness, SimpleKernelError};
 use crate::superneo_circuit::transcript::Poseidon2TranscriptCircuit;
+
+mod debug;
+mod setup_witness;
+
+pub use debug::{debug_check_rv32im_side_binding_circuit, measure_rv32im_side_binding_circuit_constraints};
+use setup_witness::{
+    build_dummy_opened_object_witnesses, build_opened_object_witnesses_from_claim_witnesses, expected_payload_coeffs,
+    rv32im_side_binding_shape_digest,
+};
 
 pub type Rv32imSideBindingEngine = GoldilocksP3MerkleMleEngine;
 pub type Rv32imSideBindingSnark = R1CSSNARK<Rv32imSideBindingEngine>;
@@ -362,38 +364,6 @@ pub fn verify_rv32im_side_binding(
     verify_side_public_io(statement, &public_values)
 }
 
-pub fn debug_check_rv32im_side_binding_circuit(
-    statement: &Rv32imSideBindingStatement,
-    public: &Rv32imSideOpeningPublic,
-    claim_witnesses: &[FamilyEvalClaimWitness],
-) -> Result<(), SimpleKernelError> {
-    let circuit = Rv32imSideBindingCircuit::from_claim_witnesses(statement, public, claim_witnesses)?;
-    let mut cs = TestConstraintSystem::<SpartanF>::new();
-    circuit
-        .synthesize(&mut cs, &[], &[], None)
-        .map_err(|err| SimpleKernelError::Bridge(format!("RV32IM side binding debug synthesis failed: {err}")))?;
-    if !cs.is_satisfied() {
-        return Err(SimpleKernelError::Bridge(format!(
-            "RV32IM side binding circuit unsatisfied: {}",
-            cs.which_is_unsatisfied()
-                .unwrap_or_else(|| "unknown".into())
-        )));
-    }
-    Ok(())
-}
-
-pub fn measure_rv32im_side_binding_circuit_constraints(
-    statement: &Rv32imSideBindingStatement,
-    public: &Rv32imSideOpeningPublic,
-) -> Result<usize, SimpleKernelError> {
-    let circuit = Rv32imSideBindingCircuit::dummy(statement, public)?;
-    let mut cs = TestConstraintSystem::<SpartanF>::new();
-    circuit
-        .synthesize(&mut cs, &[], &[], None)
-        .map_err(|err| SimpleKernelError::Bridge(format!("RV32IM side binding counting synthesis failed: {err}")))?;
-    Ok(cs.num_constraints())
-}
-
 fn verify_side_public_io(
     statement: &Rv32imSideBindingStatement,
     public_values: &[SpartanF],
@@ -408,100 +378,6 @@ fn verify_side_public_io(
         ));
     }
     Ok(())
-}
-
-fn expected_payload_coeffs(claim: &crate::rv32im::kernel::FamilyEvalClaim) -> Vec<Vec<K>> {
-    claim
-        .payload
-        .column_evals
-        .iter()
-        .map(|column| column.coeffs.to_vec())
-        .collect()
-}
-
-fn build_dummy_opened_object_witnesses(
-    public: &Rv32imSideOpeningPublic,
-) -> Result<Vec<Arc<OpenedAjtaiObjectWitness>>, SimpleKernelError> {
-    public
-        .evals
-        .iter()
-        .map(|eval| build_dummy_opened_object_witness(&eval.claim))
-        .collect()
-}
-
-fn build_dummy_opened_object_witness(
-    claim: &crate::rv32im::kernel::FamilyEvalClaim,
-) -> Result<Arc<OpenedAjtaiObjectWitness>, SimpleKernelError> {
-    let params =
-        NeoParams::goldilocks_auto_r1cs_ccs(phase0_full_width_for_schema(claim.payload.schema)).map_err(|err| {
-            SimpleKernelError::Bridge(format!(
-                "RV32IM side binding could not derive Phase 0 dummy parameters for {:?}: {err}",
-                claim.payload.schema
-            ))
-        })?;
-    let row_len = 1usize << (claim.opened_object.row_domain_log_size as usize);
-    let packed_column_count = claim.payload.column_evals.len();
-    let packed_columns = (0..packed_column_count)
-        .map(|column_index| PackedColumnOracleRef {
-            column_index: column_index as u32,
-            rows: vec![[F::ZERO; D]; row_len],
-        })
-        .collect::<Vec<_>>();
-    let commitment_vector = (0..packed_column_count)
-        .map(|_| Commitment::zeros(D, params.kappa as usize))
-        .collect::<Vec<_>>();
-    Ok(Arc::new(OpenedAjtaiObjectWitness {
-        opened_object: claim.opened_object.clone(),
-        commitment_context: claim.commitment_context.clone(),
-        row_domain_log_size: claim.opened_object.row_domain_log_size,
-        packed_column_count: packed_column_count as u32,
-        packed_columns,
-        commitment_vector,
-    }))
-}
-
-fn build_opened_object_witnesses_from_claim_witnesses(
-    public: &Rv32imSideOpeningPublic,
-    claim_witnesses: &[FamilyEvalClaimWitness],
-) -> Result<Vec<Arc<OpenedAjtaiObjectWitness>>, SimpleKernelError> {
-    if claim_witnesses.len() != public.evals.len() {
-        return Err(SimpleKernelError::Bridge(
-            "RV32IM side binding prove path claim-witness count does not match the carried public eval set".into(),
-        ));
-    }
-    public
-        .evals
-        .iter()
-        .zip(claim_witnesses.iter())
-        .map(|(eval, claim_witness)| {
-            if eval.claim != claim_witness.claim {
-                return Err(SimpleKernelError::Bridge(format!(
-                    "RV32IM side binding prove path {:?}/{} claim does not match the carried public eval",
-                    eval.claim.payload.schema, eval.claim.id.slot
-                )));
-            }
-            Ok(claim_witness.witness.clone())
-        })
-        .collect()
-}
-
-fn rv32im_side_binding_shape_digest(public: &Rv32imSideOpeningPublic) -> [u8; 32] {
-    let mut tr = Poseidon2Transcript::new(b"neo.fold.next/nightstream/rv32im/side_binding_shape");
-    tr.append_u64s(
-        b"neo.fold.next/nightstream/rv32im/side_binding_shape/counts",
-        &[public.opened_objects.len() as u64, public.evals.len() as u64],
-    );
-    for eval in &public.evals {
-        tr.append_u64s(
-            b"neo.fold.next/nightstream/rv32im/side_binding_shape/eval",
-            &[
-                eval.claim.payload.schema.tag(),
-                eval.claim.point.len() as u64,
-                eval.claim.payload.column_evals.len() as u64,
-            ],
-        );
-    }
-    tr.digest32()
 }
 
 fn alloc_packed_bytes_witness<CS: ConstraintSystem<SpartanF>>(

@@ -3,8 +3,8 @@ use std::sync::Arc;
 use bellpepper_core::{
     num::AllocatedNum, test_cs::TestConstraintSystem, Comparable, ConstraintSystem, Delta, SynthesisError,
 };
-use neo_fold_next::public_proof::rv32im::audit::{
-    build_rv32im_side_opening_relation_from_accepted_artifact, circuit_stage1_opening_packaged_statement_digest,
+use neo_fold_next::public_proof::rv32im::side_opening_relation::build_rv32im_side_opening_relation_from_accepted_artifact;
+use neo_fold_next::public_proof::rv32im::side_opening_spartan::{
     debug_check_rv32im_side_opening_spartan_circuit, debug_compare_rv32im_side_opening_spartan_setup_shape,
     debug_compare_rv32im_side_opening_spartan_without_packaged_final_main_claims_shape,
     debug_compare_rv32im_stage1_packaged_opening_digest_without_packaged_final_main_claims_shape,
@@ -17,6 +17,7 @@ use neo_fold_next::public_proof::rv32im::audit::{
     prove_rv32im_side_opening_spartan, setup_rv32im_side_opening_spartan, setup_rv32im_side_opening_spartan_cached,
     verify_rv32im_side_opening_spartan,
 };
+use neo_fold_next::public_proof::rv32im::side_relation_circuit::circuit_stage1_opening_packaged_statement_digest;
 use neo_fold_next::rv32im::kernel::Stage1SelectedOpeningClaim;
 use neo_fold_next::rv32im::{
     build_rv32im_accepted_proof_artifact, parity_source_cases, prove_rv32im_public_proof, Rv32imProofInput,

@@ -1,9 +1,9 @@
 use bellpepper_core::{num::AllocatedNum, test_cs::TestConstraintSystem, ConstraintSystem};
-use neo_fold_next::public_proof::rv32im::audit::{
-    build_rv32im_side_opening_relation_witness_from_accepted_artifact,
-    build_rv32im_side_proof_bundle_from_accepted_artifact, circuit_continuity_event_digest, circuit_ram_event_digest,
-    circuit_register_read_event_digest, circuit_register_write_event_digest, circuit_stage1_row_digest,
-    circuit_twist_link_event_digest,
+use neo_fold_next::public_proof::rv32im::side_bundle::build_rv32im_side_proof_bundle_from_accepted_artifact;
+use neo_fold_next::public_proof::rv32im::side_opening_relation::build_rv32im_side_opening_relation_witness_from_accepted_artifact;
+use neo_fold_next::public_proof::rv32im::side_relation_circuit::{
+    circuit_continuity_event_digest, circuit_ram_event_digest, circuit_register_read_event_digest,
+    circuit_register_write_event_digest, circuit_stage1_row_digest, circuit_twist_link_event_digest,
 };
 use neo_fold_next::rv32im::{
     build_rv32im_accepted_proof_artifact, parity_source_cases, prove_rv32im_public_proof, Rv32imProofInput,

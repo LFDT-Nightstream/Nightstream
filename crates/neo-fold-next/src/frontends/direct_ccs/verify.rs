@@ -1,9 +1,9 @@
 //! Owns verifier-facing checks for direct CCS/R1CS terminal proofs.
 
-use super::ivc::{DirectCcsFPrimeSnarkError, DirectCcsFPrimeSnarkProof};
 use super::public_image::{DirectCcsIvcPublicImage, DirectCcsStatement};
 use super::snark::DirectCcsIvcSnarkVerifierKey;
-use super::terminal_committed::verify_direct_ccs_terminal_committed_relation;
+use super::state::{DirectCcsFPrimeSnarkError, DirectCcsFPrimeSnarkProof};
+use super::terminal::committed::verify_direct_ccs_terminal_committed_relation;
 
 pub fn verify_direct_ccs_ivc_snark_public(
     vk: &DirectCcsIvcSnarkVerifierKey,

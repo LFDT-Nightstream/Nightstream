@@ -3,10 +3,10 @@ use neo_ajtai::{
 };
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{poly::SparsePoly, poly::Term, CcsClaim, CcsStructure, CcsWitness, Mat};
-use neo_fold_next::ivc::build_superneo_ivc_relations_with_initial_carry_accumulator_handle_perf;
-use neo_fold_next::proof::{Carry, FoldSchedule, StepInput};
-use neo_fold_next::prover::CommitmentMixers;
-use neo_fold_next::{
+use neo_fold_next::core::ivc::build_superneo_ivc_relations_with_initial_carry_accumulator_handle_perf;
+use neo_fold_next::core::proof::{Carry, FoldSchedule, StepInput};
+use neo_fold_next::core::prover::CommitmentMixers;
+use neo_fold_next::direct_ccs::{
     export_latest_direct_ccs_f_prime_verifier_body_r1cs, measure_latest_direct_ccs_f_prime_verifier_body,
     DirectCcsIvcState, DirectCcsProgram,
 };

@@ -2,8 +2,8 @@ use neo_ajtai::{
     has_global_pp_for_dims, s_mul_add, scale_commitment_add_inplace, set_global_pp_seeded, AjtaiSModule, Commitment,
 };
 use neo_ccs::{CcsMatrix, CscMat, Mat};
-use neo_fold_next::prover::CommitmentMixers;
-use neo_fold_next::{
+use neo_fold_next::core::prover::CommitmentMixers;
+use neo_fold_next::direct_ccs::{
     lower_sparse_r1cs_export_to_low_norm, lower_sparse_r1cs_export_to_low_norm_program_and_step,
     verify_direct_ccs_recursive_ivc_snark_public, DirectCcsProgram, DirectCcsRecursiveIvcState, DirectCcsStep,
     DirectLowNormLaneKind, DirectR1csLowNormLayout, DirectSparseR1csExport,
@@ -114,27 +114,27 @@ fn r1cs_low_norm_lowering_builds_direct_step_and_appends() {
         .append_step(step, &log, ajtai_mixers())
         .expect("append lowered direct R1CS step");
     let summary = recursive.summary_with_verifier_body_measurement();
-    assert_eq!(summary.semantic_chunks, 1);
-    assert_eq!(summary.semantic_steps, 1);
-    assert_eq!(summary.carried_semantic_ce_claims, program.params().k_rho as usize);
-    assert_eq!(summary.folded_f_prime_r2_steps, 0);
+    assert_eq!(summary.semantic.chunks, 1);
+    assert_eq!(summary.semantic.steps, 1);
+    assert_eq!(summary.semantic.carried_ce_claims, program.params().k_rho as usize);
+    assert_eq!(summary.f_prime.folded_r2_steps, 0);
 
-    assert!(summary.f_prime_verifier_body_measured);
-    assert!(!summary.f_prime_verifier_body_measure_skipped);
-    assert_eq!(summary.f_prime_verifier_body_final_ce_relation_constraints, 0);
-    assert!(summary.f_prime_verifier_body_nifs_constraints > 0);
-    assert!(summary.f_prime_verifier_body_nifs_chunk_meta_constraints > 0);
-    assert!(summary.f_prime_verifier_body_nifs_pi_ccs_constraints > 0);
-    assert!(summary.f_prime_verifier_body_nifs_pi_rlc_constraints > 0);
-    assert!(summary.f_prime_verifier_body_nifs_pi_dec_constraints > 0);
+    assert!(summary.f_prime.verifier_body.measured);
+    assert!(!summary.f_prime.verifier_body.measure_skipped);
+    assert_eq!(summary.f_prime.verifier_body.final_ce_relation_constraints, 0);
+    assert!(summary.f_prime.verifier_body.nifs.constraints > 0);
+    assert!(summary.f_prime.verifier_body.nifs.chunk_meta_constraints > 0);
+    assert!(summary.f_prime.verifier_body.nifs.pi_ccs_constraints > 0);
+    assert!(summary.f_prime.verifier_body.nifs.pi_rlc_constraints > 0);
+    assert!(summary.f_prime.verifier_body.nifs.pi_dec_constraints > 0);
     assert_eq!(
-        summary.f_prime_verifier_body_nifs_constraints,
-        summary.f_prime_verifier_body_nifs_chunk_meta_constraints
-            + summary.f_prime_verifier_body_nifs_pi_ccs_constraints
-            + summary.f_prime_verifier_body_nifs_pi_rlc_constraints
-            + summary.f_prime_verifier_body_nifs_pi_dec_constraints
+        summary.f_prime.verifier_body.nifs.constraints,
+        summary.f_prime.verifier_body.nifs.chunk_meta_constraints
+            + summary.f_prime.verifier_body.nifs.pi_ccs_constraints
+            + summary.f_prime.verifier_body.nifs.pi_rlc_constraints
+            + summary.f_prime.verifier_body.nifs.pi_dec_constraints
     );
-    assert!(summary.f_prime_verifier_body_public_link_constraints > 0);
+    assert!(summary.f_prime.verifier_body.public_link_constraints > 0);
 }
 
 #[test]
@@ -149,35 +149,35 @@ fn r1cs_low_norm_two_step_recursive_state_refuses_missing_f_prime_authority() {
         .expect("append second lowered direct R1CS step");
 
     let summary = recursive.summary_with_verifier_body_measurement();
-    assert_eq!(summary.semantic_chunks, 2);
-    assert_eq!(summary.semantic_steps, 2);
+    assert_eq!(summary.semantic.chunks, 2);
+    assert_eq!(summary.semantic.steps, 2);
     assert_eq!(
-        summary.folded_f_prime_r2_steps, 0,
+        summary.f_prime.folded_r2_steps, 0,
         "two-step low-norm append must not claim folded F' authority until the authority relation is real: chunks={} source_r1cs_constraints={} source_r1cs_variables={} verifier_constraints={} row_cap={} blocker={:?}",
-        summary.semantic_chunks,
-        summary.low_norm_f_prime_source_r1cs_constraints,
-        summary.low_norm_f_prime_source_r1cs_variables,
-        summary.f_prime_verifier_body_constraints,
-        summary.f_prime_exact_encoder_row_cap,
-        summary.f_prime_encoder_blocker
+        summary.semantic.chunks,
+        summary.f_prime.low_norm_source.r1cs.constraints,
+        summary.f_prime.low_norm_source.r1cs.variables,
+        summary.f_prime.verifier_body.constraints,
+        summary.f_prime.exact_encoder_row_cap,
+        summary.proof.encoder_blocker
     );
     assert!(
-        !summary.standalone_proof_authority_ready,
+        !summary.proof.standalone_authority_ready,
         "two-step direct recursion must refuse standalone proof authority without folded F'"
     );
     assert!(
-        summary.carried_f_prime_ce_claims == 0,
+        summary.f_prime.carried_ce_claims == 0,
         "missing folded F' authority must not expose digest-only carried CE claims"
     );
-    assert!(summary.native_f_prime_evaluator_available);
-    assert!(summary.low_norm_f_prime_source_available);
-    assert!(summary.f_prime_verifier_body_measured);
+    assert!(summary.f_prime.native_evaluator_available);
+    assert!(summary.f_prime.low_norm_source.available);
+    assert!(summary.f_prime.verifier_body.measured);
     assert!(
-        summary.f_prime_verifier_body_constraints > summary.f_prime_exact_encoder_row_cap,
+        summary.f_prime.verifier_body.constraints > summary.f_prime.exact_encoder_row_cap,
         "current exact verifier-body encoder should fail for a real size reason: constraints={} cap={} blocker={:?}",
-        summary.f_prime_verifier_body_constraints,
-        summary.f_prime_exact_encoder_row_cap,
-        summary.f_prime_encoder_blocker
+        summary.f_prime.verifier_body.constraints,
+        summary.f_prime.exact_encoder_row_cap,
+        summary.proof.encoder_blocker
     );
     let err = match recursive.compress_recursive_snark() {
         Ok(_) => panic!("multi-step direct recursive compression must reject missing F' authority"),
@@ -202,23 +202,23 @@ fn r1cs_low_norm_lowered_product_reports_exact_encoder_size_blocker() {
         .expect("append second lowered direct R1CS step");
 
     let summary = recursive.summary_with_verifier_body_measurement();
-    assert_eq!(summary.semantic_chunks, 2);
-    assert_eq!(summary.semantic_steps, 2);
+    assert_eq!(summary.semantic.chunks, 2);
+    assert_eq!(summary.semantic.steps, 2);
     assert_eq!(
-        summary.folded_f_prime_r2_steps, 0,
+        summary.f_prime.folded_r2_steps, 0,
         "lowered arbitrary-field product should not silently claim folded F' authority while the exact verifier body is over the gate"
     );
-    assert!(!summary.standalone_proof_authority_ready);
-    assert!(summary.f_prime_encoder_required);
+    assert!(!summary.proof.standalone_authority_ready);
+    assert!(summary.f_prime.encoder_required);
     assert_eq!(
-        summary.f_prime_encoder_blocker,
+        summary.proof.encoder_blocker,
         Some("verifier-shaped direct F' body exceeds the exact low-norm encoder size gate")
     );
     assert!(
-        summary.f_prime_verifier_body_constraints > summary.f_prime_exact_encoder_row_cap,
+        summary.f_prime.verifier_body.constraints > summary.f_prime.exact_encoder_row_cap,
         "expected the lowered product blocker to be a real size limit: constraints={} cap={}",
-        summary.f_prime_verifier_body_constraints,
-        summary.f_prime_exact_encoder_row_cap
+        summary.f_prime.verifier_body.constraints,
+        summary.f_prime.exact_encoder_row_cap
     );
 }
 
@@ -234,8 +234,8 @@ fn r1cs_low_norm_recursive_snark_target_compresses_f_prime_chain_and_rejects_tam
         .append_step(second_step, &log, ajtai_mixers())
         .expect("append second lowered direct R1CS step");
     let summary = recursive.summary();
-    assert_eq!(summary.folded_f_prime_r2_steps, 1);
-    assert!(summary.standalone_proof_authority_ready);
+    assert_eq!(summary.f_prime.folded_r2_steps, 1);
+    assert!(summary.proof.standalone_authority_ready);
 
     let (snark, vk, perf) = recursive
         .compress_recursive_snark()

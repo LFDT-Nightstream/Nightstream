@@ -3,10 +3,10 @@ use std::time::Instant;
 
 use neo_ajtai::{s_mul_add, scale_commitment_add_inplace, setup as ajtai_setup, AjtaiSModule, Commitment};
 use neo_ccs::{poly::SparsePoly, poly::Term, CcsClaim, CcsStructure, CcsWitness, Mat};
-use neo_fold_next::finalize::package_proof;
-use neo_fold_next::proof::{partition_public_steps, FoldSchedule, StepInput};
-use neo_fold_next::prover::CommitmentMixers;
-use neo_fold_next::run::{prove_and_package, prove_run, verify_packaged, verify_run};
+use neo_fold_next::core::finalize::package_proof;
+use neo_fold_next::core::proof::{partition_public_steps, FoldSchedule, StepInput};
+use neo_fold_next::core::prover::CommitmentMixers;
+use neo_fold_next::core::session::{prove_and_package, prove_run, verify_packaged, verify_run};
 use neo_math::ring::Rq as RqEl;
 use neo_math::{D, F};
 use neo_params::NeoParams;

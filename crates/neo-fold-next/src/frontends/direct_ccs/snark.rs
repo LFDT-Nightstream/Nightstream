@@ -6,8 +6,8 @@ use neo_transcript::{Poseidon2Transcript, Transcript};
 use serde::{Deserialize, Serialize};
 use spartan2::traits::snark::DigestHelperTrait;
 
-use super::ivc::{DirectCcsFPrimeSnarkError, DirectCcsFPrimeSnarkProof};
 use super::public_image::{DirectCcsIvcPublicImage, DirectCcsStatement};
+use super::state::{DirectCcsFPrimeSnarkError, DirectCcsFPrimeSnarkProof};
 use super::verify::verify_direct_ccs_ivc_snark_public;
 use crate::spartan_backend::NeoFoldDeciderVerifierKey;
 

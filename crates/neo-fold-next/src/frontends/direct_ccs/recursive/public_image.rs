@@ -2,6 +2,18 @@
 
 use super::*;
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DirectCcsRecursiveIvcPublicImage {
+    pub terminal_public_image: DirectCcsIvcPublicImage,
+    pub proven_accumulator_digest: [u8; 32],
+    pub proven_f_prime_accumulator_digest: [u8; 32],
+    pub f_prime_accumulator_base: u32,
+    pub proven_chunk_count: u64,
+    pub proven_step_count: u64,
+    pub folded_f_prime_r2_steps: u64,
+    pub f_prime_final_ce_claims: u64,
+}
+
 impl DirectCcsRecursiveIvcPublicImage {
     pub fn from_terminal_and_f_prime_accumulator(
         terminal_public_image: DirectCcsIvcPublicImage,

@@ -3,9 +3,8 @@ use neo_ajtai::{
     has_global_pp_for_dims, s_mul_add, scale_commitment_add_inplace, set_global_pp_seeded, AjtaiSModule, Commitment,
 };
 use neo_ccs::Mat;
-use neo_fold_next::direct_sparse_r1cs_export_from_spartan_circuit;
-use neo_fold_next::prover::CommitmentMixers;
-use neo_fold_next::DirectCcsRecursiveIvcState;
+use neo_fold_next::core::prover::CommitmentMixers;
+use neo_fold_next::direct_ccs::{direct_sparse_r1cs_export_from_spartan_circuit, DirectCcsRecursiveIvcState};
 use neo_math::ring::Rq as RqEl;
 use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
@@ -336,13 +335,13 @@ fn bellpepper_spartan_circuit_exports_append_through_direct_recursive_state() {
         .expect("append second exported R1CS step");
 
     let summary = recursive.summary();
-    assert_eq!(summary.semantic_chunks, 2);
-    assert_eq!(summary.semantic_steps, 2);
-    assert_eq!(summary.carried_semantic_ce_claims, program.params().k_rho as usize);
-    assert!(summary.native_f_prime_evaluator_available);
-    assert!(summary.f_prime_encoder_required);
+    assert_eq!(summary.semantic.chunks, 2);
+    assert_eq!(summary.semantic.steps, 2);
+    assert_eq!(summary.semantic.carried_ce_claims, program.params().k_rho as usize);
+    assert!(summary.f_prime.native_evaluator_available);
+    assert!(summary.f_prime.encoder_required);
     assert!(
-        !summary.standalone_proof_authority_ready,
+        !summary.proof.standalone_authority_ready,
         "multi-step direct R1CS append must still wait for low-norm enc(F') proof authority"
     );
 }

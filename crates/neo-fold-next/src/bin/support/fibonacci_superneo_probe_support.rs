@@ -71,29 +71,29 @@ pub(super) fn print_spartan(
     );
     println!(
         "recursive authority summary: semantic_chunks={}, folded_prior_f_prime_r2_steps={}, carried_semantic_CE={}, carried_f_prime_CE={}, standalone_proof_authority_ready={}",
-        recursive_summary.semantic_chunks,
-        recursive_summary.folded_f_prime_r2_steps,
-        recursive_summary.carried_semantic_ce_claims,
-        recursive_summary.carried_f_prime_ce_claims,
-        recursive_summary.standalone_proof_authority_ready
+        recursive_summary.semantic.chunks,
+        recursive_summary.f_prime.folded_r2_steps,
+        recursive_summary.semantic.carried_ce_claims,
+        recursive_summary.f_prime.carried_ce_claims,
+        recursive_summary.proof.standalone_authority_ready
     );
-    if recursive_summary.f_prime_verifier_body_measured {
+    if recursive_summary.f_prime.verifier_body.measured {
         println!(
             "verifier-shaped F' body: public_inputs={}, constraints={}, exact_low_norm_fallback_cap={}, latest_nifs_total={} [meta={}, pi_ccs={}, pi_rlc={}, pi_dec={}], construction2_fold={}, public_link={}, chunk_done={}, terminal_final_ce={}",
-            recursive_summary.f_prime_verifier_body_public_inputs,
-            recursive_summary.f_prime_verifier_body_constraints,
-            recursive_summary.f_prime_exact_encoder_row_cap,
-            recursive_summary.f_prime_verifier_body_nifs_constraints,
-            recursive_summary.f_prime_verifier_body_nifs_chunk_meta_constraints,
-            recursive_summary.f_prime_verifier_body_nifs_pi_ccs_constraints,
-            recursive_summary.f_prime_verifier_body_nifs_pi_rlc_constraints,
-            recursive_summary.f_prime_verifier_body_nifs_pi_dec_constraints,
-            recursive_summary.f_prime_verifier_body_construction2_fold_constraints,
-            recursive_summary.f_prime_verifier_body_public_link_constraints,
-            recursive_summary.f_prime_verifier_body_chunk_done_constraints,
-            recursive_summary.f_prime_verifier_body_final_ce_relation_constraints
+            recursive_summary.f_prime.verifier_body.public_inputs,
+            recursive_summary.f_prime.verifier_body.constraints,
+            recursive_summary.f_prime.exact_encoder_row_cap,
+            recursive_summary.f_prime.verifier_body.nifs.constraints,
+            recursive_summary.f_prime.verifier_body.nifs.chunk_meta_constraints,
+            recursive_summary.f_prime.verifier_body.nifs.pi_ccs_constraints,
+            recursive_summary.f_prime.verifier_body.nifs.pi_rlc_constraints,
+            recursive_summary.f_prime.verifier_body.nifs.pi_dec_constraints,
+            recursive_summary.f_prime.verifier_body.construction2_fold_constraints,
+            recursive_summary.f_prime.verifier_body.public_link_constraints,
+            recursive_summary.f_prime.verifier_body.chunk_done_constraints,
+            recursive_summary.f_prime.verifier_body.final_ce_relation_constraints
         );
-    } else if recursive_summary.f_prime_verifier_body_measure_skipped {
+    } else if recursive_summary.f_prime.verifier_body.measure_skipped {
         println!(
             "verifier-shaped F' body: not measured by default for this large CCS shape (rows={}, cols={}, matrices={}); recursive enc(F') still excludes terminal final CE by construction",
             ccs.n,
@@ -106,48 +106,51 @@ pub(super) fn print_spartan(
     println!(
         "verifier-shaped F' guardrail: terminal_final_ce=0 means recursive enc(F') excludes final semantic CE consistency"
     );
-    let required_prior_f_prime_r2_steps = recursive_summary.semantic_chunks.saturating_sub(1);
+    let required_prior_f_prime_r2_steps = recursive_summary.semantic.chunks.saturating_sub(1);
     let compact_f_prime_digest = recursive_summary
-        .compact_f_prime_image_digest
+        .f_prime
+        .compact_image_digest
         .map(|digest| format!("{:02x?}", &digest[..4]))
         .unwrap_or_else(|| "none".to_owned());
     let low_norm_source_digest = recursive_summary
-        .low_norm_f_prime_source_digest
+        .f_prime
+        .low_norm_source
+        .digest
         .map(|digest| format!("{:02x?}", &digest[..4]))
         .unwrap_or_else(|| "none".to_owned());
     println!(
         "encoded F' preflight: native_evaluator_available={}, required_for_prior_steps={}, low_norm_source_available={}, low_norm_source_len={}, low_norm_source_digest={}, source_r1cs_constraints={}, source_r1cs_variables={}, source_r1cs_nnz={}, low_norm_relation_available={}, compact_image_digest={}, blocker={}",
-        recursive_summary.native_f_prime_evaluator_available,
-        recursive_summary.f_prime_encoder_required,
-        recursive_summary.low_norm_f_prime_source_available,
-        recursive_summary.low_norm_f_prime_source_len,
+        recursive_summary.f_prime.native_evaluator_available,
+        recursive_summary.f_prime.encoder_required,
+        recursive_summary.f_prime.low_norm_source.available,
+        recursive_summary.f_prime.low_norm_source.len,
         low_norm_source_digest,
-        recursive_summary.low_norm_f_prime_source_r1cs_constraints,
-        recursive_summary.low_norm_f_prime_source_r1cs_variables,
-        recursive_summary.low_norm_f_prime_source_r1cs_nnz,
-        recursive_summary.f_prime_encoder_available,
+        recursive_summary.f_prime.low_norm_source.r1cs.constraints,
+        recursive_summary.f_prime.low_norm_source.r1cs.variables,
+        recursive_summary.f_prime.low_norm_source.r1cs.nnz,
+        recursive_summary.f_prime.encoder_available,
         compact_f_prime_digest,
-        recursive_summary.f_prime_encoder_blocker.unwrap_or("none")
+        recursive_summary.proof.encoder_blocker.unwrap_or("none")
     );
     println!(
         "encoded F' source R1CS columns: public_inputs={}, private_source_bits={}, counter_carry_bits={}, total_variables={}",
-        recursive_summary.low_norm_f_prime_source_public_inputs,
-        recursive_summary.low_norm_f_prime_source_private_bits,
-        recursive_summary.low_norm_f_prime_source_counter_carry_bits,
-        recursive_summary.low_norm_f_prime_source_r1cs_variables
+        recursive_summary.f_prime.low_norm_source.r1cs.public_inputs,
+        recursive_summary.f_prime.low_norm_source.r1cs.private_bits,
+        recursive_summary.f_prime.low_norm_source.r1cs.counter_carry_bits,
+        recursive_summary.f_prime.low_norm_source.r1cs.variables
     );
     println!(
         "encoded F' source packed inputs: digests={}, u64_words={}, encoded_public_inputs={}, canonical_field_lanes={}, construction2_commitment_data_fields_in_source={}",
-        recursive_summary.low_norm_f_prime_source_digest_count,
-        recursive_summary.low_norm_f_prime_source_u64_count,
-        recursive_summary.low_norm_f_prime_source_encoded_public_input_count,
-        recursive_summary.low_norm_f_prime_source_field_lane_count,
-        recursive_summary.low_norm_f_prime_source_construction2_commitment_fields
+        recursive_summary.f_prime.low_norm_source.digest_count,
+        recursive_summary.f_prime.low_norm_source.u64_count,
+        recursive_summary.f_prime.low_norm_source.encoded_public_input_count,
+        recursive_summary.f_prime.low_norm_source.field_lane_count,
+        recursive_summary.f_prime.low_norm_source.construction2_commitment_fields
     );
     println!(
         "encoded F' source SuperNeo handles: latest_public_chunk_digest_fields=4, latest_fold_digest=1, latest_chunk_relation_digest=1"
     );
-    if let Some(shape) = recursive_summary.low_norm_f_prime_nifs_payload_shape {
+    if let Some(shape) = recursive_summary.f_prime.low_norm_source.nifs_payload_shape {
         println!(
             "encoded F' NIFS.V payload metadata: chunk_index={}, fresh_CCS={}, incoming_CE={}, Pi_CCS_outputs={}, final_CE={}, FE_rounds={} (messages={}), NC_rounds={} (messages={}), transcript_absorbed={} -> {}; encoded_authority_nifs_rows={}",
             shape.chunk_index,
@@ -161,44 +164,44 @@ pub(super) fn print_spartan(
             shape.nc_sumcheck_messages,
             shape.transcript_absorbed_in,
             shape.transcript_absorbed_out,
-            recursive_summary.low_norm_f_prime_source_nifs_v_verifier_constraints
+            recursive_summary.f_prime.low_norm_source.r1cs.nifs_v_verifier_constraints
         );
     }
     println!(
         "encoded F' source R1CS breakdown: shell_constraints={} [bitness={}, public_x_out_link={}, construction2_boundary_link={}, construction2_instance_digest_link={}, commitment_shape={}, structural_counters={} (fixed_arity={}, carry_bit_columns={}), canonical_field_lanes={} (aux_bits={})], digest_binding_constraints={} [poseidon_digest_recompute={}], proof_authority_constraints={} [nifs_v_verifier={}]",
-        recursive_summary.low_norm_f_prime_source_shell_constraints,
-        recursive_summary.low_norm_f_prime_source_bit_constraints,
-        recursive_summary.low_norm_f_prime_source_x_out_link_constraints,
-        recursive_summary.low_norm_f_prime_source_construction2_boundary_link_constraints,
-        recursive_summary.low_norm_f_prime_source_construction2_instance_digest_link_constraints,
-        recursive_summary.low_norm_f_prime_source_construction2_commitment_shape_constraints,
-        recursive_summary.low_norm_f_prime_source_structural_counter_constraints,
-        recursive_summary.low_norm_f_prime_source_structural_fixed_arity_constraints,
-        recursive_summary.low_norm_f_prime_source_structural_counter_carry_bit_constraints,
-        recursive_summary.low_norm_f_prime_source_canonical_field_lane_constraints,
-        recursive_summary.low_norm_f_prime_source_canonical_field_lane_aux_bits,
-        recursive_summary.low_norm_f_prime_source_poseidon_digest_recomputation_constraints,
-        recursive_summary.low_norm_f_prime_source_poseidon_digest_recomputation_constraints,
-        recursive_summary.low_norm_f_prime_source_authority_constraints,
-        recursive_summary.low_norm_f_prime_source_nifs_v_verifier_constraints
+        recursive_summary.f_prime.low_norm_source.r1cs.shell_constraints,
+        recursive_summary.f_prime.low_norm_source.r1cs.bit_constraints,
+        recursive_summary.f_prime.low_norm_source.r1cs.x_out_link_constraints,
+        recursive_summary.f_prime.low_norm_source.r1cs.construction2_boundary_link_constraints,
+        recursive_summary.f_prime.low_norm_source.r1cs.construction2_instance_digest_link_constraints,
+        recursive_summary.f_prime.low_norm_source.r1cs.construction2_commitment_shape_constraints,
+        recursive_summary.f_prime.low_norm_source.r1cs.structural_counter_constraints,
+        recursive_summary.f_prime.low_norm_source.r1cs.structural_fixed_arity_constraints,
+        recursive_summary.f_prime.low_norm_source.r1cs.structural_counter_carry_bit_constraints,
+        recursive_summary.f_prime.low_norm_source.r1cs.canonical_field_lane_constraints,
+        recursive_summary.f_prime.low_norm_source.r1cs.canonical_field_lane_aux_bits,
+        recursive_summary.f_prime.low_norm_source.r1cs.poseidon_digest_recomputation_constraints,
+        recursive_summary.f_prime.low_norm_source.r1cs.poseidon_digest_recomputation_constraints,
+        recursive_summary.f_prime.low_norm_source.r1cs.authority_constraints,
+        recursive_summary.f_prime.low_norm_source.r1cs.nifs_v_verifier_constraints
     );
     println!("== direct F' authority layers ==");
     println!("layer                          | status              | size/claims | proof role");
     println!(
         "recursive_f_prime_relation     | {} | required={}, folded={} prior R2 step(s) | folds prior committed F' authority",
-        if recursive_summary.f_prime_encoder_required && !recursive_summary.f_prime_encoder_available {
+        if recursive_summary.f_prime.encoder_required && !recursive_summary.f_prime.encoder_available {
             "missing low-norm enc(F')"
-        } else if recursive_summary.folded_f_prime_r2_steps == 0 {
+        } else if recursive_summary.f_prime.folded_r2_steps == 0 {
             "base/not required"
         } else {
             "present"
         },
         required_prior_f_prime_r2_steps,
-        recursive_summary.folded_f_prime_r2_steps
+        recursive_summary.f_prime.folded_r2_steps
     );
     println!(
         "terminal_current_f_prime       | {} | 1 latest chunk | final committed F' check",
-        if recursive_summary.standalone_proof_authority_ready {
+        if recursive_summary.proof.standalone_authority_ready {
             "enabled"
         } else {
             "blocked"
@@ -206,16 +209,16 @@ pub(super) fn print_spartan(
     );
     println!(
         "folded_f_prime_accumulator_ce  | {} | {} CE claim(s) | Construction-2 induction authority",
-        if recursive_summary.carried_f_prime_ce_claims == 0 {
+        if recursive_summary.f_prime.carried_ce_claims == 0 {
             "default/missing"
         } else {
             "carried"
         },
-        recursive_summary.carried_f_prime_ce_claims
+        recursive_summary.f_prime.carried_ce_claims
     );
     println!(
         "terminal_private_semantic_ce   | private post-DEC   | {} CE claim(s) | final semantic accumulator consistency",
-        recursive_summary.carried_semantic_ce_claims
+        recursive_summary.semantic.carried_ce_claims
     );
     let mut trace = |message: &str| println!("  {message}");
     let (recursive_snark, vk, mut recursive_perf) =

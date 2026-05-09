@@ -1,16 +1,22 @@
-//! Owns the compact native F' image for direct CCS.
+//! Owns direct-CCS F' authority material.
 //!
-//! This is the paper-shaped Construction-2 boundary that a future low-norm
-//! `enc(F')` relation must prove. It intentionally carries only compact
-//! counters, handles, and digests; terminal source packing and final CE checks
-//! remain terminal-compression responsibilities.
+//! This folder separates the native latest-step image, low-norm source
+//! encoding, R1CS shell, verifier-shaped body, and folded prior chain.
+//! Terminal source packing and final CE checks remain terminal responsibilities.
 
-mod advice;
-mod image;
-mod low_norm;
-mod nifs;
+pub(crate) mod chain;
+mod native;
+pub(crate) mod r1cs;
+mod source;
+mod verifier_body;
 
-pub use advice::{DirectCcsNativeFPrimeAdvice, DirectCcsNativeFPrimeStepImage};
-pub use image::DirectCcsCompactFPrimeImage;
-pub use low_norm::DirectCcsFPrimeLowNormSourceImage;
-pub use nifs::DirectCcsFPrimeNifsPayloadShape;
+pub use native::{
+    DirectCcsCompactFPrimeImage, DirectCcsFPrimeNifsPayloadShape, DirectCcsNativeFPrimeAdvice,
+    DirectCcsNativeFPrimeStepImage,
+};
+pub use r1cs::{DirectCcsFPrimeLowNormSourceR1cs, DirectCcsFPrimeLowNormSourceR1csShape};
+pub use source::DirectCcsFPrimeLowNormSourceImage;
+pub use verifier_body::{
+    export_latest_direct_ccs_f_prime_verifier_body_r1cs, measure_latest_direct_ccs_f_prime_verifier_body,
+    DirectCcsFPrimeVerifierBodyShape,
+};

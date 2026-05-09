@@ -12,7 +12,7 @@ use neo_reductions::engines::utils::me_digest_poseidon_into;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use serde::{Deserialize, Serialize};
 
-use super::super::chunk_step_recursive::rv32im_chunk_step_recursive_carry_state_digest;
+use super::super::chunk_step::rv32im_chunk_step_recursive_carry_state_digest;
 use super::super::Rv32imMainRecursionFPrimeBackendRelation;
 use crate::finalize::digest_fields_as_digest32;
 use crate::rv32im::final_relation::{

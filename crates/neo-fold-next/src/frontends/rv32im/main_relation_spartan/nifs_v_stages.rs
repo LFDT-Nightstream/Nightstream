@@ -802,7 +802,7 @@ pub(super) fn enforce_synthetic_outer_chunk_relation_public_io<CS: ConstraintSys
         &bridge_handoff_digest_values,
     )?;
     let chunk_relation_digest_values = digest32_as_spartan_fields(
-        crate::rv32im::chunk_relation::rv32im_chunk_relation_digest_from_fold_digest(
+        crate::rv32im::chunk::transition::rv32im_chunk_relation_digest_from_fold_digest(
             ctx.chunk.handoff.public_chunk_digest,
             ctx.chunk.pi_ccs.replay_proof.header_digest,
             ctx.chunk.handoff.bridge_handoff_digest,

@@ -9,13 +9,14 @@ use neo_reductions::optimized_engine::OptimizedStructureCache;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use serde::{Deserialize, Serialize};
 
-use crate::chunk_relation::ChunkReplayWitness;
+use crate::chunk_folding::ChunkReplayWitness;
 use crate::finalize::fixed_shape_recursive_seed;
 use crate::proof::{Carry, ChunkProvePerf, PublicChunk};
-use crate::rv32im::chunk_relation::{
+use crate::rv32im::kernel::{Rv32imVerifiedKernelChunkHandoff, SimpleKernelError};
+
+use super::transition::{
     prove_rv32im_chunk_transition_with_perf, rv32im_step_handle, verify_rv32im_chunk_relation_with_replay,
 };
-use crate::rv32im::kernel::{Rv32imVerifiedKernelChunkHandoff, SimpleKernelError};
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Rv32imAccumulatorHandle(pub [u8; 32]);
@@ -43,7 +44,7 @@ impl Rv32imChunkFoldCarry {
 
     pub fn seed_for_claim_count(claim_count: usize) -> Self {
         Self::from_main(
-            crate::rv32im::construction2_default::build_rv32im_main_recursion_canonical_zero_carry_for_claim_count(
+            crate::rv32im::construction2::default::build_rv32im_main_recursion_canonical_zero_carry_for_claim_count(
                 claim_count,
             )
             .expect("canonical RV32IM chunk-fold seed carry must build"),

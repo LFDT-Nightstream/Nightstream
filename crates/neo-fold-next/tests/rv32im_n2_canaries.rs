@@ -3,17 +3,19 @@ mod rv32im_n2_support;
 
 use bellpepper_core::test_cs::TestConstraintSystem;
 use bellpepper_core::ConstraintSystem;
-use neo_fold_next::public_proof::rv32im::audit::{
+use neo_fold_next::public_proof::rv32im::side_relation_circuit::{
     circuit_derive_phase0_point, circuit_enforce_phase0_commitment_root_and_opened_object_digest,
     circuit_enforce_phase0_payload_eq, circuit_enforce_phase0_point_eq,
-    circuit_evaluate_phase0_payload_from_packed_rows, debug_check_rv32im_side_binding_circuit,
+    circuit_evaluate_phase0_payload_from_packed_rows,
 };
+use neo_fold_next::public_proof::rv32im::side_relation_spartan::debug_check_rv32im_side_binding_circuit;
 use neo_fold_next::rv32im::audit::{
     debug_check_rv32im_ivc_recursion_snark_circuit, prove_rv32im_public_proof_and_published_seam_with_perf,
 };
 use neo_fold_next::rv32im::final_relation::prove_rv32im_final_statement_from_accepted;
+use neo_fold_next::rv32im::kernel::FamilyEvalSchemaId;
 use neo_fold_next::rv32im::{
-    build_mixed_opcode_perf_source_case, build_rv32im_accepted_proof_artifact, FamilyEvalSchemaId, Rv32imProofInput,
+    build_mixed_opcode_perf_source_case, build_rv32im_accepted_proof_artifact, Rv32imProofInput,
 };
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use spartan2::provider::goldi::F as SpartanF;

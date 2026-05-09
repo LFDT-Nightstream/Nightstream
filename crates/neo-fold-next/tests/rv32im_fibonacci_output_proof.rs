@@ -1,6 +1,6 @@
 //! End-to-end RV32IM proof test for a looped Fibonacci program with fixed public input/output.
 
-use neo_fold_next::proof::FoldSchedule;
+use neo_fold_next::core::proof::FoldSchedule;
 use neo_fold_next::rv32im::audit::{audit_rv32im_public_proof, audit_rv32im_public_proof_against_input};
 use neo_fold_next::rv32im::layout::{
     RV32IM_PARITY_LOWERING_VERSION_ID, RV32IM_PARITY_PROTOCOL_VERSION_ID, RV32_REGISTER_COUNT,

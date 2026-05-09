@@ -5,7 +5,7 @@ use std::sync::{Mutex, MutexGuard, OnceLock};
 #[path = "support/rv32im_n2.rs"]
 mod rv32im_n2_support;
 
-use neo_fold_next::proof::FoldSchedule;
+use neo_fold_next::core::proof::FoldSchedule;
 use neo_fold_next::rv32im::audit::{
     audit_build_rv32im_main_circuit_chunk_trace_authoritative_summary,
     audit_build_rv32im_main_recursion_x_last_from_accumulator_with_vk_fs,

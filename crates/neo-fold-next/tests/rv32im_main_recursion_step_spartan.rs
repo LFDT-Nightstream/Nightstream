@@ -5,7 +5,7 @@ mod rv32im_n2_support;
 
 use std::sync::OnceLock;
 
-use neo_fold_next::proof::FoldSchedule;
+use neo_fold_next::core::proof::FoldSchedule;
 use neo_fold_next::rv32im::audit::{
     audit_rv32im_main_recursion_step_spartan_published_target_matches_construction2_state_images,
     build_rv32im_chunk_step_ivc_relations, build_rv32im_main_recursion_f_prime_backend_relations_with_spartan_shape,

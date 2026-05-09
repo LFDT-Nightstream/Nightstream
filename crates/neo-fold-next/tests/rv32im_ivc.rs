@@ -1,7 +1,7 @@
 use std::sync::LazyLock;
 
-use neo_fold_next::finalize::FixedShapeChunkSummary;
-use neo_fold_next::proof::FoldSchedule;
+use neo_fold_next::core::finalize::FixedShapeChunkSummary;
+use neo_fold_next::core::proof::FoldSchedule;
 use neo_fold_next::rv32im::audit::{
     build_rv32im_chunk_step_ivc_relations, build_rv32im_published_proof_seam_with_perf,
 };

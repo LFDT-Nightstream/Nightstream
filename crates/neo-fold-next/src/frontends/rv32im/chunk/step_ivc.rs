@@ -5,11 +5,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::chunk_relation::ChunkReplayWitness;
+use crate::chunk_folding::ChunkReplayWitness;
 use crate::finalize::{digest32_as_fields, digest_fields_as_digest32, FixedShapeChunkSummary};
-use crate::rv32im::chunk_fold_step::{
-    verify_rv32im_chunk_fold_verifier_step, Rv32imChunkFoldCarry, Rv32imChunkStepPublic,
-};
 use crate::rv32im::construction2::build_rv32im_main_recursion_construction2_canonical_step_statement_digest_from_relation;
 use crate::rv32im::final_relation::{
     build_rv32im_chunk_fold_step_traces, rv32im_chunk_fold_carried_transcript_snapshot,
@@ -25,6 +22,8 @@ use neo_ccs::CeClaim;
 use neo_math::{F, K};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
+
+use super::fold::{verify_rv32im_chunk_fold_verifier_step, Rv32imChunkFoldCarry, Rv32imChunkStepPublic};
 
 const RV32IM_STEP_STATEMENT_CHAIN_RAW_TAG: u64 = 0x7276_3634_7374_6d74;
 const RV32IM_BRIDGE_HANDOFF_CHAIN_RAW_TAG: u64 = 0x7276_3634_62686467;

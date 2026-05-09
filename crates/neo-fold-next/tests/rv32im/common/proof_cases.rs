@@ -2,7 +2,7 @@ use std::sync::{LazyLock, Mutex, MutexGuard};
 
 use neo_transcript::{Poseidon2Transcript, Transcript};
 
-use neo_fold_next::proof::FoldSchedule;
+use neo_fold_next::core::proof::FoldSchedule;
 use neo_fold_next::rv32im::audit::audit_rv32im_accepted_proof;
 use neo_fold_next::rv32im::layout::{RV32IM_PARITY_LOWERING_VERSION_ID, RV32IM_PARITY_PROTOCOL_VERSION_ID};
 use neo_fold_next::rv32im::tables::Rv32FamilyTag;

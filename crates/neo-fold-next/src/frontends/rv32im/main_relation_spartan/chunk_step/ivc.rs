@@ -7,7 +7,7 @@ use neo_transcript::{Poseidon2Transcript, Transcript};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::rv32im::chunk_step_ivc::{
+use crate::rv32im::chunk::step_ivc::{
     build_rv32im_chunk_step_ivc_published_target, build_rv32im_chunk_step_ivc_statement_from_authoritative_parts,
     validate_rv32im_chunk_step_ivc_surface, Rv32imChunkStepIvcPublishedTarget, Rv32imChunkStepIvcRelation,
     Rv32imChunkStepIvcStatement, Rv32imChunkStepIvcWitness,

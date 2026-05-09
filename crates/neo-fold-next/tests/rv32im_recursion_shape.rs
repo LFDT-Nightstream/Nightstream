@@ -1,10 +1,10 @@
 use neo_fold_next::rv32im::f_prime::{
     build_rv32im_main_recursion_verifier_key_fs, build_rv32im_main_recursion_verifier_key_fs_for_step_cap,
 };
+use neo_fold_next::rv32im::kernel::FamilyEvalSchemaId;
 use neo_fold_next::rv32im::recursion_shape::RV32IM_RECURSION_SOUNDNESS_T;
 use neo_fold_next::rv32im::{
-    build_rv32im_recursion_shape, build_rv32im_recursion_shape_for_step_cap, FamilyEvalSchemaId, ProtocolVersion,
-    ShapeError,
+    build_rv32im_recursion_shape, build_rv32im_recursion_shape_for_step_cap, ProtocolVersion, ShapeError,
 };
 use neo_fold_next::rv32im::{rv32im_simple_root_params, rv32im_simple_root_params_for_step_cap};
 

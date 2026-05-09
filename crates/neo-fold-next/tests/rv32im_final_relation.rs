@@ -1,6 +1,6 @@
 //! Focused tests for the RV32IM folded/final relation seam above the accepted artifact.
 
-use neo_fold_next::proof::FoldSchedule;
+use neo_fold_next::core::proof::FoldSchedule;
 use neo_fold_next::rv32im::audit::{
     audit_check_rv32im_final_statement_replay, audit_check_rv32im_folded_statement_replay,
 };

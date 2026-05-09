@@ -1,10 +1,11 @@
 use std::sync::OnceLock;
 
-use neo_fold_next::rv32im::{
+use neo_fold_next::rv32im::kernel::{
     build_claim_reduction_results_from_witnesses, build_phase2_collapse_result,
     build_rv32im_eval_claim_witnesses_from_accepted_artifact, verify_phase2_collapse_result, ClaimReductionResult,
-    FamilyEvalSchemaId, Phase2CollapseError, Phase2CollapseResult, Rv32imAcceptedProofArtifact,
+    FamilyEvalSchemaId, Phase2CollapseError, Phase2CollapseResult,
 };
+use neo_fold_next::rv32im::Rv32imAcceptedProofArtifact;
 use neo_math::K;
 use p3_field::PrimeCharacteristicRing;
 

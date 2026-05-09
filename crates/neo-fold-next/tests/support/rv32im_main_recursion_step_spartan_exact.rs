@@ -1,6 +1,6 @@
 use std::sync::OnceLock;
 
-use neo_fold_next::proof::FoldSchedule;
+use neo_fold_next::core::proof::FoldSchedule;
 use neo_fold_next::rv32im::audit::{
     build_rv32im_chunk_step_ivc_relations, build_rv32im_main_recursion_f_prime_backend_relations_with_spartan_shape,
     debug_check_rv32im_chunk_step_recursive_effective_chunk_trace_matches_native,

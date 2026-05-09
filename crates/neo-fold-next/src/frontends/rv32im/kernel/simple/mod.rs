@@ -4,27 +4,19 @@ use crate::proof::{
     RunProvePerf, RunVerifyPerf, StepInput,
 };
 use crate::prover::{CommitmentMixers, ShardProver};
-use crate::run::{prove_chunks_from_slice_with_perf_and_cache, verify_packaged_with_detailed_perf_and_cache};
-use crate::rv32im::ccs::{rv32im_root_main_lane_ccs, semantic_row_from_execution_row, RV32IM_ROOT_ROW_WIDTH};
-use crate::rv32im::isa::Rv32BuildError;
+use crate::rv32im::ccs::{semantic_row_from_execution_row, RV32IM_ROOT_ROW_WIDTH};
 use crate::rv32im::lower::Rv32ExpandedRow;
-use crate::rv32im::stage1::Stage1Summary;
-use crate::rv32im::stage2::Stage2Summary;
-use crate::rv32im::stage3::Stage3Summary;
+use crate::session::{prove_chunks_from_slice_with_perf_and_cache, verify_packaged_with_detailed_perf_and_cache};
 use crate::verifier::ShardVerifier;
-use crate::witness_layout::{commit_cols_for_full_width, encode_vector_for_full_width};
-use neo_ajtai::{s_mul_add_from_rot_col, scale_commitment_add_inplace, set_global_pp_seeded, AjtaiSModule, Commitment};
-use neo_ccs::{traits::SModuleHomomorphism, CcsStructure, Mat};
+use crate::witness_layout::encode_vector_for_full_width;
+use neo_ajtai::{s_mul_add_from_rot_col, scale_commitment_add_inplace, Commitment};
+use neo_ccs::{traits::SModuleHomomorphism, Mat};
 use neo_math::{D, F};
-use neo_params::NeoParams;
 use neo_reductions::api::FoldingMode;
-use neo_reductions::error::PiCcsError;
-use neo_reductions::optimized_engine::OptimizedStructureCache;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 use rayon::prelude::*;
-use serde::{Deserialize, Serialize};
-use std::{ops::Deref, sync::OnceLock, time::Instant};
+use std::time::Instant;
 
 use super::{
     build_parity_case_from_source,
@@ -63,225 +55,36 @@ use super::{
     Rv32imParityCaseManifest, Rv32imParityDerivedCase, Rv32imParitySourceCase, TranscriptRecord,
 };
 
-fn millis_since(started: Instant) -> f64 {
-    started.elapsed().as_secs_f64() * 1_000.0
-}
+mod context;
+mod support;
+mod types;
 
-fn allow_parallel_step_build(count: usize) -> bool {
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        rayon::current_num_threads() > 1 && rayon::current_thread_index().is_none() && count >= 8
-    }
+use context::{
+    cached_root_main_lane_ccs, cached_root_main_lane_optimized_cache, cached_simple_kernel_root_context,
+    SimpleKernelRootContext,
+};
+pub(super) use context::{EXACT_STAGE_PP_SEED, SIMPLE_KERNEL_PP_SEED};
+pub(crate) use context::{
+    rv32im_cached_root_main_lane_context, rv32im_cached_root_main_lane_optimized_cache,
+    rv32im_root_main_lane_context_for_claim_count, rv32im_root_main_lane_context_for_step_cap,
+    rv32im_root_step_cap_for_schedule, rv32im_simple_root_context_id_for_schedule,
+};
+pub use context::{
+    rv32im_exact_stage_pp_seed, rv32im_simple_kernel_pp_seed, rv32im_simple_root_context_id,
+    rv32im_simple_root_context_id_for_step_cap, rv32im_simple_root_k_rho_for_step_cap,
+    rv32im_simple_root_params, rv32im_simple_root_params_for_step_cap,
+};
+use support::{allow_parallel_step_build, millis_since};
+pub use types::{
+    PreparedStepBinding, PreparedStepBindingSummary, SimpleKernelAuditOutput, SimpleKernelError,
+    SimpleKernelKernelClaimBundle, SimpleKernelOutput, SimpleKernelPackagedProof, SimpleKernelProof,
+    SimpleKernelProverInput, SimpleKernelPublicInput, SimpleKernelStageWitnessBundle, SimpleKernelTraceWitness,
+    SimpleKernelVerifierInput,
+};
+use types::{PublicSimpleKernelBuildSeed, SimpleKernelBuildSeed, SimpleKernelExpectedSeed};
+pub(crate) use types::{PublicSimpleKernelOutput, PublicSimpleKernelWitnessSidecar};
 
-    #[cfg(target_arch = "wasm32")]
-    {
-        let _ = count;
-        false
-    }
-}
-
-pub(super) const SIMPLE_KERNEL_PP_SEED: [u8; 32] = [
-    0x40, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-];
-// Single-step RV32IM uses the lean base DEC width. Wider chunk step-caps derive
-// a larger `k_rho` up front as part of the declared proof family.
-pub(super) const SIMPLE_KERNEL_BASE_K_RHO: u32 = 16;
-// Ajtai public parameters are global per dimension bucket, so exact stage surfaces share one seed.
-pub(super) const EXACT_STAGE_PP_SEED: [u8; 32] = SIMPLE_KERNEL_PP_SEED;
 const ROOT_MAIN_LANE_STEP_LABEL: &str = "";
-
-pub fn rv32im_simple_kernel_pp_seed() -> [u8; 32] {
-    SIMPLE_KERNEL_PP_SEED
-}
-
-pub fn rv32im_exact_stage_pp_seed() -> [u8; 32] {
-    EXACT_STAGE_PP_SEED
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct SimpleKernelPublicInput {
-    pub source: Rv32imParitySourceCase,
-    pub max_steps: usize,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct SimpleKernelProverInput {
-    pub public: SimpleKernelPublicInput,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct SimpleKernelVerifierInput {
-    pub public: SimpleKernelPublicInput,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct PreparedStepBinding {
-    pub trace_index: usize,
-    pub row_digest: [u8; 32],
-    pub row_opening_digest: [u8; 32],
-    pub digest: [u8; 32],
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct PreparedStepBindingSummary {
-    pub bindings: Vec<PreparedStepBinding>,
-    pub binding_count: u64,
-    pub first_binding_digest: Option<[u8; 32]>,
-    pub last_binding_digest: Option<[u8; 32]>,
-    pub digest: [u8; 32],
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct SimpleKernelTraceWitness {
-    pub manifest: Rv32imParityCaseManifest,
-    pub execution_rows: Vec<Rv32ExpandedRow>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct SimpleKernelStageWitnessBundle {
-    pub stage1: Stage1Summary,
-    pub stage2: Stage2Summary,
-    pub stage3: Stage3Summary,
-    pub transcript: TranscriptRecord,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct SimpleKernelKernelClaimBundle {
-    pub kernel: Rv32imKernelSummary,
-    pub prepared_step_bindings: PreparedStepBindingSummary,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SimpleKernelOutput {
-    pub trace: SimpleKernelTraceWitness,
-    pub stages: SimpleKernelStageWitnessBundle,
-    pub stage_claims: SimpleKernelStageClaimBundle,
-    pub stage_packages: SimpleKernelStagePackageBundle,
-    pub kernel_opening: SimpleKernelOpeningBundle,
-    pub kernel_claims: SimpleKernelKernelClaimBundle,
-    pub root_lane_columns: RootLaneColumns,
-    pub root_lane_commitment: RootLaneCommitmentArtifact,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SimpleKernelAuditOutput {
-    pub kernel: SimpleKernelOutput,
-    pub prepared_steps: Vec<StepInput>,
-}
-
-impl Deref for SimpleKernelAuditOutput {
-    type Target = SimpleKernelOutput;
-
-    fn deref(&self) -> &Self::Target {
-        &self.kernel
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub(crate) struct PublicSimpleKernelOutput {
-    pub trace: Rv32imTraceProjectionBundle,
-    pub stages: Rv32imStageWitnessProjectionBundle,
-    pub stage_claims: SimpleKernelStageClaimBundle,
-    pub stage_packages: SimpleKernelStagePackageBundle,
-    pub kernel_opening: SimpleKernelOpeningBundle,
-    pub kernel_claims: SimpleKernelKernelClaimBundle,
-    pub root_lane_columns: RootLaneColumns,
-    pub root_lane_commitment: RootLaneCommitmentSummaryArtifact,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SimpleKernelProof {
-    pub root_params_id: [u8; 32],
-    pub trace: SimpleKernelTraceWitness,
-    pub stages: SimpleKernelStageWitnessBundle,
-    pub stage_claims: SimpleKernelStageClaimBundle,
-    pub stage_packages: SimpleKernelStagePackageBundle,
-    pub kernel_opening: SimpleKernelOpeningBundle,
-    pub kernel_claims: SimpleKernelKernelClaimBundle,
-    pub root_lane_columns: RootLaneColumns,
-    pub root_lane_commitment: RootLaneCommitmentArtifact,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SimpleKernelPackagedProof {
-    pub kernel: SimpleKernelProof,
-    pub main_lane: SimpleKernelMainLaneArtifact,
-}
-
-#[derive(Debug)]
-pub enum SimpleKernelError {
-    Build(String),
-    Bridge(String),
-    Proof(String),
-}
-
-impl core::fmt::Display for SimpleKernelError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::Build(s) => write!(f, "build failed: {s}"),
-            Self::Bridge(s) => write!(f, "bridge failed: {s}"),
-            Self::Proof(s) => write!(f, "proof failed: {s}"),
-        }
-    }
-}
-
-impl std::error::Error for SimpleKernelError {}
-
-impl From<Rv32BuildError> for SimpleKernelError {
-    fn from(value: Rv32BuildError) -> Self {
-        Self::Build(value.to_string())
-    }
-}
-
-impl From<PiCcsError> for SimpleKernelError {
-    fn from(value: PiCcsError) -> Self {
-        Self::Proof(value.to_string())
-    }
-}
-
-struct SimpleKernelRootContext {
-    params: NeoParams,
-    log: AjtaiSModule,
-}
-
-pub(super) struct SimpleKernelExpectedSeed {
-    trace: SimpleKernelTraceWitness,
-    stages: SimpleKernelStageWitnessBundle,
-    stage_claims: SimpleKernelStageClaimBundle,
-    kernel_claims: SimpleKernelKernelClaimBundle,
-    root_lane_columns: RootLaneColumns,
-    root_lane_commitment: RootLaneCommitmentArtifact,
-    root_lane_witness: RootLaneWitness,
-}
-
-struct SimpleKernelBuildSeed {
-    trace: SimpleKernelTraceWitness,
-    stages: SimpleKernelStageWitnessBundle,
-    stage_claims: SimpleKernelStageClaimBundle,
-    stage_packages: SimpleKernelStagePackageBundle,
-    kernel_opening: SimpleKernelOpeningBundle,
-    kernel_claims: SimpleKernelKernelClaimBundle,
-    root_lane_columns: RootLaneColumns,
-    root_lane_commitment: RootLaneCommitmentArtifact,
-}
-
-struct PublicSimpleKernelBuildSeed {
-    trace: Rv32imTraceProjectionBundle,
-    stages: Rv32imStageWitnessProjectionBundle,
-    stage_claims: SimpleKernelStageClaimBundle,
-    stage_packages: SimpleKernelStagePackageBundle,
-    kernel_opening: SimpleKernelOpeningBundle,
-    kernel_claims: SimpleKernelKernelClaimBundle,
-    root_lane_columns: RootLaneColumns,
-    root_lane_commitment: RootLaneCommitmentSummaryArtifact,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct PublicSimpleKernelWitnessSidecar {
-    pub trace: SimpleKernelTraceWitness,
-    pub stages: SimpleKernelStageWitnessBundle,
-}
 
 pub(crate) fn selected_opening_ref_digest(
     object_digest: [u8; 32],

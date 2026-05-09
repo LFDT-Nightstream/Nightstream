@@ -19,8 +19,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::proof::Carry;
 use crate::rv32im::ccs::{RV32IM_ROOT_PUBLIC_INPUTS, RV32IM_ROOT_ROW_WIDTH};
-use crate::rv32im::chunk_fold_step::adapt_rv32im_chunk_to_fresh_ccs;
-use crate::rv32im::chunk_step_ivc::Rv32imChunkStepIvcRelation;
+use crate::rv32im::chunk::fold::adapt_rv32im_chunk_to_fresh_ccs;
+use crate::rv32im::chunk::step_ivc::Rv32imChunkStepIvcRelation;
 use crate::rv32im::construction2::{
     build_rv32im_main_recursion_construction2_pi_fold_from_relation,
     build_rv32im_main_recursion_construction2_verified_step_statement_from_relation,

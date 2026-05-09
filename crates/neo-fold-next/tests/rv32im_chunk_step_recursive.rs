@@ -1,6 +1,6 @@
 use neo_ajtai::Commitment;
 use neo_ccs::{CcsClaim, CcsWitness, CeClaim};
-use neo_fold_next::proof::FoldSchedule;
+use neo_fold_next::core::proof::FoldSchedule;
 use neo_fold_next::rv32im::audit::{
     build_rv32im_chunk_step_ivc_recursive_step_cover_shape, build_rv32im_chunk_step_ivc_recursive_step_padding,
     build_rv32im_chunk_step_ivc_relations, build_rv32im_main_recursion_f_prime_advices,

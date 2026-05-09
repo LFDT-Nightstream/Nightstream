@@ -19,7 +19,7 @@ use p3_goldilocks::Goldilocks;
 use std::io::{self, Write};
 use std::time::Instant;
 
-use super::chunk_step_recursive::Rv32imMainRecursionFPrimePayload;
+use super::chunk_step::Rv32imMainRecursionFPrimePayload;
 use super::recursive_cover::{alloc_recursive_carried_projection_claims, alloc_recursive_cover_state};
 use super::{
     alloc_const_field_values, append_chunk_meta, debug_locate_rv32im_main_relation_chunk_stage,

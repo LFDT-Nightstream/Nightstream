@@ -1,5 +1,8 @@
 //! Owns native RV32IM F' semantics and the recursion hash-image boundary.
 
+mod accumulator;
+mod side;
+
 use std::collections::HashMap;
 use std::io::{self, Write};
 use std::sync::{Mutex, OnceLock};
@@ -12,15 +15,21 @@ use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 use serde::{Deserialize, Serialize};
 
-use crate::chunk_relation::ChunkReplayWitness;
+use self::accumulator::Rv32imMainRecursionAccumulatorSurface;
+pub use self::accumulator::RV32IM_MAIN_RECURSION_ACCUMULATOR_SLOTS;
+pub use self::side::{
+    build_rv32im_main_recursion_side_lane_from_side_opening_public, Rv32imMainRecursionPhiSide,
+    Rv32imMainRecursionSideClaim, Rv32imMainRecursionSideLaneWitness,
+};
+use crate::chunk_folding::ChunkReplayWitness;
 use crate::construction2::{
     Construction2EncodedPublicInput, CONSTRUCTION2_ENC_INST_BITS, CONSTRUCTION2_ENC_INST_RING_DEGREE,
     CONSTRUCTION2_ENC_INST_RING_SLOTS,
 };
 use crate::proof::Carry;
 use crate::public_proof::rv32im::Rv32imSideOpeningPublic;
-use crate::rv32im::chunk_fold_step::adapt_rv32im_chunk_to_fresh_ccs;
-use crate::rv32im::chunk_step_ivc::{rv32im_chunk_step_ivc_initial_state_for_step_cap, Rv32imChunkStepIvcRelation};
+use crate::rv32im::chunk::fold::adapt_rv32im_chunk_to_fresh_ccs;
+use crate::rv32im::chunk::step_ivc::{rv32im_chunk_step_ivc_initial_state_for_step_cap, Rv32imChunkStepIvcRelation};
 use crate::rv32im::construction2::{
     build_rv32im_main_recursion_construction2_default_fresh_instance,
     build_rv32im_main_recursion_construction2_fresh_instance_with_input_and_x_i_with_perf,
@@ -31,12 +40,6 @@ use crate::rv32im::construction2::{
     verify_rv32im_main_recursion_construction2_nifs_step_with_perf_and_trace,
     Rv32imMainRecursionConstruction2FreshInstance, Rv32imMainRecursionConstruction2PiFoldProof,
     Rv32imMainRecursionConstruction2StateImage, Rv32imMainRecursionConstruction2VerifiedStepStatement,
-};
-use crate::rv32im::f_prime_accumulator::Rv32imMainRecursionAccumulatorSurface;
-pub use crate::rv32im::f_prime_accumulator::RV32IM_MAIN_RECURSION_ACCUMULATOR_SLOTS;
-pub use crate::rv32im::f_prime_side::{
-    build_rv32im_main_recursion_side_lane_from_side_opening_public, Rv32imMainRecursionPhiSide,
-    Rv32imMainRecursionSideClaim, Rv32imMainRecursionSideLaneWitness,
 };
 use crate::rv32im::final_relation::{rv32im_chunk_fold_carry_recursive_accumulator_digest, Rv32imChunkFoldState};
 use crate::rv32im::kernel::Rv32imVerifiedKernelChunkHandoff;
@@ -174,7 +177,7 @@ pub fn build_rv32im_main_recursion_verifier_key_fs_for_step_cap(
 }
 
 fn rv32im_main_recursion_initial_z_for_step_cap(step_cap: usize) -> [u8; 32] {
-    crate::rv32im::chunk_step_ivc::rv32im_chunk_step_ivc_initial_state_for_step_cap(step_cap)
+    crate::rv32im::chunk::step_ivc::rv32im_chunk_step_ivc_initial_state_for_step_cap(step_cap)
         .carry
         .terminal_handle
         .0
@@ -294,7 +297,7 @@ fn validate_rv32im_main_recursion_base_case_accumulator(
         ));
     }
     let canonical_full_width =
-        crate::rv32im::construction2_default::build_rv32im_main_recursion_construction2_canonical_full_width(
+        crate::rv32im::construction2::default::build_rv32im_main_recursion_construction2_canonical_full_width(
             advice.verifier_key_fs(),
             advice.phi_side(),
         )?;
@@ -1126,7 +1129,7 @@ fn build_rv32im_main_recursion_f_prime_advices_with_phi_side_and_perf(
     } else {
         let started = Instant::now();
         let canonical_full_width =
-            crate::rv32im::construction2_default::build_rv32im_main_recursion_construction2_canonical_full_width(
+            crate::rv32im::construction2::default::build_rv32im_main_recursion_construction2_canonical_full_width(
                 &vk_fs, phi_side,
             )?;
         perf.canonical_full_width_ms = elapsed_ms(started);

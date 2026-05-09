@@ -1,6 +1,6 @@
 //! Focused tests for RV32IM canonical Ajtai opening identities and alias safety.
 
-use neo_fold_next::rv32im::{AjtaiFamilyKind, OpeningAccumulator, SelectedOpeningRef};
+use neo_fold_next::rv32im::kernel::{AjtaiFamilyKind, OpeningAccumulator, SelectedOpeningRef};
 
 fn digest(byte: u8) -> [u8; 32] {
     [byte; 32]

@@ -228,12 +228,12 @@ fn parity_cases_reach_expected_halted_states() {
                         && row.rd >= INLINE_SCRATCH_REGISTER_BASE
                 }));
                 assert_eq!(derived.kernel.final_pc, 16);
-                assert_eq!(derived.kernel.final_registers[1], 1 << 40);
-                assert_eq!(derived.kernel.final_registers[2], 1 << 35);
-                assert_eq!(derived.kernel.final_registers[3], 1 << 41);
-                assert_eq!(derived.kernel.final_registers[4], 1 << 34);
-                assert_eq!(derived.kernel.final_registers[5], 1 << 42);
-                assert_eq!(derived.kernel.final_registers[6], 1 << 33);
+                assert_eq!(derived.kernel.final_registers[1], (1u64 << 40) as u32);
+                assert_eq!(derived.kernel.final_registers[2], (1u64 << 35) as u32);
+                assert_eq!(derived.kernel.final_registers[3], (1u64 << 41) as u32);
+                assert_eq!(derived.kernel.final_registers[4], (1u64 << 34) as u32);
+                assert_eq!(derived.kernel.final_registers[5], (1u64 << 42) as u32);
+                assert_eq!(derived.kernel.final_registers[6], (1u64 << 33) as u32);
                 assert_eq!(derived.kernel.final_registers[7], 2048);
                 assert_eq!(derived.kernel.final_registers[8], 2048);
                 assert_eq!(derived.kernel.final_registers[9], 2048);

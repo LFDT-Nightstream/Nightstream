@@ -1,6 +1,6 @@
 use std::sync::LazyLock;
 
-use neo_fold_next::proof::FoldSchedule;
+use neo_fold_next::core::proof::FoldSchedule;
 use neo_fold_next::rv32im::audit::{
     build_rv32im_chunk_step_ivc_relations, build_rv32im_main_recursion_f_prime_advices_single_step,
     build_rv32im_main_recursion_f_prime_backend_relations_with_spartan_shape_from_advices, Rv32imChunkStepIvcRelation,

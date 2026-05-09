@@ -17,7 +17,7 @@ use spartan2::{
     traits::{transcript::TranscriptEngineTrait, Engine},
 };
 
-use crate::construction2_terminal::{
+use crate::construction2::terminal::{
     collect_private_witness_labels, committed_nc_range_error, low_norm_encoded_values, padded_private_witness_labels,
     TerminalPrivateColumnEncoding,
 };

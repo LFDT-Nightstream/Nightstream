@@ -108,17 +108,17 @@ fn rv32im_mixed_opcode_perf_snapshot() {
         .side_proof()
         .binding_statement(&nightstream_statement, &public_statement)
         .expect("build rv32im side binding statement");
-    let side_keys = neo_fold_next::public_proof::rv32im::audit::setup_rv32im_side_binding_cached(
+    let side_keys = neo_fold_next::public_proof::rv32im::side_relation_spartan::setup_rv32im_side_binding_cached(
         &side_statement,
         nightstream_proof.side_proof().opening_public(),
     )
     .expect("setup rv32im side binding");
     let (opening_statement, opening_witness) =
-        neo_fold_next::public_proof::rv32im::audit::build_rv32im_side_opening_relation_from_accepted_artifact(
+        neo_fold_next::public_proof::rv32im::side_opening_relation::build_rv32im_side_opening_relation_from_accepted_artifact(
             accepted_artifact,
         )
         .expect("build rv32im side opening relation");
-    let side_opening_keys = neo_fold_next::public_proof::rv32im::audit::setup_rv32im_side_opening_spartan_cached(
+    let side_opening_keys = neo_fold_next::public_proof::rv32im::side_opening_spartan::setup_rv32im_side_opening_spartan_cached(
         &opening_statement,
         &opening_witness,
     )

@@ -32,7 +32,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use super::chunk_step_recursive::{
+use super::chunk_step::{
     build_rv32im_main_recursion_step_spartan_statement as build_rv32im_main_recursion_step_spartan_statement_from_payload,
     Rv32imMainRecursionFPrimeBackendRelation, Rv32imMainRecursionStepSpartanShape,
 };
@@ -46,8 +46,8 @@ use super::{
 };
 use crate::finalize::FixedShapeChunkSummary;
 use crate::proof::{Carry, ChunkInput, StepInput};
-use crate::rv32im::chunk_fold_step::{Rv32imAccumulatorHandle, Rv32imChunkFoldCarry};
-use crate::rv32im::chunk_step_ivc::Rv32imChunkStepIvcRelation;
+use crate::rv32im::chunk::fold::{Rv32imAccumulatorHandle, Rv32imChunkFoldCarry};
+use crate::rv32im::chunk::step_ivc::Rv32imChunkStepIvcRelation;
 use crate::rv32im::construction2::{
     build_rv32im_main_recursion_construction2_verified_step_statement_from_relation,
     Rv32imMainRecursionConstruction2PublicBoundary,
@@ -64,8 +64,8 @@ use crate::rv32im::kernel::{
 use crate::rv32im::kernel::{
     Rv32imChunkBridgeHandoff, Rv32imPreparedStepBridgeBinding, Rv32imVerifiedKernelChunkHandoff,
 };
-use crate::rv32im::main_relation_spartan::chunk_step_ivc::Rv32imChunkStepIvcShape;
-use crate::rv32im::main_relation_spartan::chunk_step_recursive::build_rv32im_main_recursion_f_prime_payload;
+use crate::rv32im::main_relation_spartan::chunk_step::build_rv32im_main_recursion_f_prime_payload;
+use crate::rv32im::main_relation_spartan::chunk_step::Rv32imChunkStepIvcShape;
 use crate::spartan_backend::{Rv32imDeciderEngine, SpartanCircuit, SpartanF};
 use crate::superneo_circuit::transcript::Poseidon2TranscriptCircuit;
 use chunk_replay::synthesize_rv32im_main_recursion_step_chunk_replay;
@@ -180,8 +180,8 @@ fn ensure_main_recursion_step_spartan_statement_binding(
 }
 
 fn zero_step_inputs(
-    fresh_claim_shapes: &[crate::rv32im::main_relation_spartan::chunk_step_recursive::Rv32imCcsClaimShape],
-    fresh_witness_shapes: &[crate::rv32im::main_relation_spartan::chunk_step_recursive::Rv32imCcsWitnessShape],
+    fresh_claim_shapes: &[crate::rv32im::main_relation_spartan::chunk_step::Rv32imCcsClaimShape],
+    fresh_witness_shapes: &[crate::rv32im::main_relation_spartan::chunk_step::Rv32imCcsWitnessShape],
     live_len: usize,
 ) -> Vec<StepInput> {
     (0..live_len)
@@ -257,7 +257,7 @@ fn dummy_backend_relation_from_chain_step(
     let mut prove_transcript =
         Poseidon2Transcript::from_state_and_absorbed(running_state.transcript.state, running_state.transcript.absorbed);
     let ((replay_witness, _next_main, public_chunk_digest, chunk_relation_digest), _) =
-        crate::rv32im::chunk_relation::prove_rv32im_chunk_transition_with_perf(
+        crate::rv32im::chunk::transition::prove_rv32im_chunk_transition_with_perf(
             chunk_count_in as usize,
             &handoff,
             &running_state.carry.main,
@@ -271,7 +271,7 @@ fn dummy_backend_relation_from_chain_step(
         .map_err(|err| Rv32imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
     let mut trace_transcript =
         Poseidon2Transcript::from_state_and_absorbed(running_state.transcript.state, running_state.transcript.absorbed);
-    let trace = crate::rv32im::chunk_relation::trace_rv32im_chunk_relation_with_replay(
+    let trace = crate::rv32im::chunk::transition::trace_rv32im_chunk_relation_with_replay(
         chunk_count_in as usize,
         &handoff,
         &running_state.carry.main,
@@ -289,7 +289,7 @@ fn dummy_backend_relation_from_chain_step(
             claims: trace.children.clone(),
             witnesses: trace.z_split.clone(),
         },
-        Rv32imAccumulatorHandle(crate::rv32im::chunk_relation::rv32im_step_handle(
+        Rv32imAccumulatorHandle(crate::rv32im::chunk::transition::rv32im_step_handle(
             running_state.carry.terminal_handle.0,
             chunk_count_in as usize,
             handoff.public_chunk.start_index,
@@ -303,9 +303,9 @@ fn dummy_backend_relation_from_chain_step(
             absorbed: trace_transcript.absorbed(),
         },
     );
-    let fresh = crate::rv32im::chunk_fold_step::adapt_rv32im_chunk_to_fresh_ccs(&handoff);
-    let native_step_statement = crate::rv32im::chunk_step_ivc::Rv32imChunkStepIvcStatement {
-        step_public: crate::rv32im::chunk_fold_step::build_rv32im_chunk_step_public(
+    let fresh = crate::rv32im::chunk::fold::adapt_rv32im_chunk_to_fresh_ccs(&handoff);
+    let native_step_statement = crate::rv32im::chunk::step_ivc::Rv32imChunkStepIvcStatement {
+        step_public: crate::rv32im::chunk::fold::build_rv32im_chunk_step_public(
             [0; 32],
             chunk_count_in as usize,
             &fresh,
@@ -323,7 +323,7 @@ fn dummy_backend_relation_from_chain_step(
         carry: next_carry,
         transcript: transcript_out,
     };
-    let main_circuit_witness = crate::rv32im::chunk_step_ivc::Rv32imChunkStepIvcWitness {
+    let main_circuit_witness = crate::rv32im::chunk::step_ivc::Rv32imChunkStepIvcWitness {
         handoff: handoff.clone(),
         state_in: running_state.clone(),
         state_out: state_out.clone(),
@@ -337,7 +337,7 @@ fn dummy_backend_relation_from_chain_step(
         })
         .map_err(|err| Rv32imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
     let canonical_full_width =
-        crate::rv32im::construction2_default::build_rv32im_main_recursion_construction2_canonical_full_width(
+        crate::rv32im::construction2::default::build_rv32im_main_recursion_construction2_canonical_full_width(
             &vk_fs,
             &crate::rv32im::f_prime::Rv32imMainRecursionPhiSide::zero(),
         )
@@ -347,7 +347,7 @@ fn dummy_backend_relation_from_chain_step(
         canonical_full_width,
     )
     .map_err(|err| Rv32imMainRecursionStepSpartanError::Prepare(err.to_string()))?;
-    let initial_state = crate::rv32im::chunk_step_ivc::rv32im_chunk_step_ivc_initial_state_for_step_cap(
+    let initial_state = crate::rv32im::chunk::step_ivc::rv32im_chunk_step_ivc_initial_state_for_step_cap(
         vk_fs
             .step_cap()
             .map_err(|err| Rv32imMainRecursionStepSpartanError::Prepare(err.to_string()))?,
@@ -501,7 +501,7 @@ struct ExactInitialXOutPrefix {
 }
 
 fn exact_initial_x_out_prefix(step_cap: usize) -> ExactInitialXOutPrefix {
-    let initial_state = crate::rv32im::chunk_step_ivc::rv32im_chunk_step_ivc_initial_state_for_step_cap(step_cap);
+    let initial_state = crate::rv32im::chunk::step_ivc::rv32im_chunk_step_ivc_initial_state_for_step_cap(step_cap);
     ExactInitialXOutPrefix {
         next_chunk_count: 1,
         pc_next: 1,
@@ -834,7 +834,7 @@ pub(crate) fn synthesize_rv32im_main_recursion_step_body_with_outputs<CS: Constr
     )?;
     emit_synthesize_trace(trace_prefix, "alloc_cover_states", started);
     let started = Instant::now();
-    let initial_state = crate::rv32im::chunk_step_ivc::rv32im_chunk_step_ivc_initial_state_for_step_cap(
+    let initial_state = crate::rv32im::chunk::step_ivc::rv32im_chunk_step_ivc_initial_state_for_step_cap(
         witness
             .verifier_key_fs()
             .step_cap()
@@ -1247,7 +1247,7 @@ fn build_rv32im_main_recursion_step_shape_only_circuit(
     let step_cap = usize::try_from(spartan_shape.cover_shape.fresh_claim_count).map_err(|_| {
         Rv32imMainRecursionStepSpartanError::Prepare("rv32im main recursion shape step_cap overflow".into())
     })?;
-    let seed_state = crate::rv32im::chunk_step_ivc::rv32im_chunk_step_ivc_initial_state_for_step_cap(step_cap);
+    let seed_state = crate::rv32im::chunk::step_ivc::rv32im_chunk_step_ivc_initial_state_for_step_cap(step_cap);
     let dummy_relation =
         dummy_backend_relation_from_chain_step(spartan_shape, &spartan_shape.cover_shape, 0, &seed_state)?;
     build_rv32im_main_recursion_step_circuit(spartan_shape, &dummy_relation)

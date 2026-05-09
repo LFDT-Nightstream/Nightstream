@@ -1,7 +1,7 @@
 //! Owns verification for the first published RV32IM opening bundle.
 
+use crate::opening::time::{prove_time_opening_compact, verify_time_opening_compact};
 use crate::rv32im::kernel::SimpleKernelError;
-use crate::time_opening::{prove_time_opening_compact, verify_time_opening_compact};
 
 use super::opening_batch::Rv32imOpeningBundle;
 use super::opening_manifest::opening_claims_from_carriers;

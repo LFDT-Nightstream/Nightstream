@@ -1,8 +1,8 @@
-use neo_fold_next::public_proof::rv32im::audit::{
+use neo_fold_next::public_proof::rv32im::side_eval_claim_relation::{
     build_rv32im_bound_phase0_claim_witnesses_from_accepted_artifact,
     build_rv32im_side_eval_claim_relation_from_accepted_artifact, verify_rv32im_side_eval_claim_relation,
 };
-use neo_fold_next::public_proof::rv32im::audit::{
+use neo_fold_next::public_proof::rv32im::side_relation_spartan::{
     debug_check_rv32im_side_binding_circuit, measure_rv32im_side_binding_circuit_constraints, setup_rv32im_side_binding,
 };
 use neo_fold_next::public_proof::rv32im::{
@@ -88,7 +88,9 @@ fn rv32im_side_soundness_positive_exact_cover_rejects_missing_or_duplicate_targe
         .claim_witnesses
         .iter()
         .enumerate()
-        .filter(|(_, claim)| claim.claim.payload.schema == neo_fold_next::rv32im::FamilyEvalSchemaId::Stage1Rows)
+        .filter(|(_, claim)| {
+            claim.claim.payload.schema == neo_fold_next::rv32im::kernel::FamilyEvalSchemaId::Stage1Rows
+        })
         .map(|(index, _)| index)
         .collect::<Vec<_>>();
     assert!(stage1_positions.len() >= 2, "expected multiple Stage1Rows claims");
@@ -115,12 +117,12 @@ fn rv32im_side_soundness_positive_cross_object_or_slot_replay_is_rejected() {
     let stage1_position = witness
         .claim_witnesses
         .iter()
-        .position(|claim| claim.claim.payload.schema == neo_fold_next::rv32im::FamilyEvalSchemaId::Stage1Rows)
+        .position(|claim| claim.claim.payload.schema == neo_fold_next::rv32im::kernel::FamilyEvalSchemaId::Stage1Rows)
         .expect("find Stage1Rows claim");
     let foreign_position = witness
         .claim_witnesses
         .iter()
-        .position(|claim| claim.claim.payload.schema != neo_fold_next::rv32im::FamilyEvalSchemaId::Stage1Rows)
+        .position(|claim| claim.claim.payload.schema != neo_fold_next::rv32im::kernel::FamilyEvalSchemaId::Stage1Rows)
         .expect("find foreign-schema claim");
     let foreign_digest = witness.claim_witnesses[foreign_position]
         .claim

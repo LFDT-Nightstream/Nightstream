@@ -1,25 +1,32 @@
 use std::sync::OnceLock;
 
-use neo_fold_next::public_proof::rv32im::audit::{
-    build_rv32im_kernel_opening_claim_from_side_proof_bundle, build_rv32im_opening_artifact_from_accepted_artifact,
-    build_rv32im_phase0_opened_object_bundle_from_claim_witnesses,
+use neo_fold_next::public_proof::rv32im::opening_artifact::{
+    build_rv32im_opening_artifact_from_accepted_artifact, verify_rv32im_opening_artifact_from_side_proof_bundle,
+};
+use neo_fold_next::public_proof::rv32im::side_bundle::build_rv32im_side_proof_bundle_from_accepted_artifact;
+use neo_fold_next::public_proof::rv32im::side_claim_relation::{
     build_rv32im_side_claim_relation_from_accepted_artifact, build_rv32im_side_claim_relation_statement,
-    build_rv32im_side_claim_relation_witness_from_accepted_artifact,
+    build_rv32im_side_claim_relation_witness_from_accepted_artifact, verify_rv32im_side_claim_relation,
+};
+use neo_fold_next::public_proof::rv32im::side_eval_claim_relation::{
+    build_rv32im_phase0_opened_object_bundle_from_claim_witnesses,
     build_rv32im_side_eval_claim_artifact_from_accepted_artifact,
     build_rv32im_side_eval_claim_relation_from_accepted_artifact,
     build_rv32im_side_eval_claim_relation_statement_from_artifact,
-    build_rv32im_side_eval_claim_relation_witness_from_accepted_artifact,
-    build_rv32im_side_opening_relation_from_accepted_artifact, build_rv32im_side_opening_relation_statement,
-    build_rv32im_side_opening_relation_witness_from_accepted_artifact,
-    build_rv32im_side_proof_bundle_from_accepted_artifact, build_rv32im_stage_claim_bundle_from_side_proof_bundle,
-    verify_rv32im_opening_artifact_from_side_proof_bundle, verify_rv32im_side_claim_relation,
-    verify_rv32im_side_eval_claim_artifact, verify_rv32im_side_eval_claim_relation,
-    verify_rv32im_side_opening_relation,
+    build_rv32im_side_eval_claim_relation_witness_from_accepted_artifact, verify_rv32im_side_eval_claim_artifact,
+    verify_rv32im_side_eval_claim_relation,
 };
+use neo_fold_next::public_proof::rv32im::side_opening_relation::{
+    build_rv32im_side_opening_relation_from_accepted_artifact, build_rv32im_side_opening_relation_statement,
+    build_rv32im_side_opening_relation_witness_from_accepted_artifact, verify_rv32im_side_opening_relation,
+};
+use neo_fold_next::public_proof::rv32im::surfaces::{
+    build_rv32im_kernel_opening_claim_from_side_proof_bundle, build_rv32im_stage_claim_bundle_from_side_proof_bundle,
+};
+use neo_fold_next::rv32im::kernel::{build_phase2_collapse_result, FamilyEvalSchemaId, Rv32imEvalClaimBundle};
 use neo_fold_next::rv32im::{
-    build_phase2_collapse_result, build_rv32im_accepted_proof_artifact, parity_source_cases, prove_rv32im_public_proof,
-    FamilyEvalSchemaId, Rv32imAcceptedProofArtifact, Rv32imEvalClaimBundle, Rv32imProof, Rv32imProofInput,
-    Rv32imProofStatement,
+    build_rv32im_accepted_proof_artifact, parity_source_cases, prove_rv32im_public_proof, Rv32imAcceptedProofArtifact,
+    Rv32imProof, Rv32imProofInput, Rv32imProofStatement,
 };
 use neo_math::K;
 use neo_transcript::{Poseidon2Transcript, Transcript};
@@ -94,8 +101,8 @@ fn side_eval_claim_relation_statement_digest(
 
 fn forge_opening_phase0_payload(
     public_statement: &Rv32imProofStatement,
-    side_bundle: &neo_fold_next::public_proof::rv32im::audit::Rv32imSideProofBundle,
-    opening_artifact: &mut neo_fold_next::public_proof::rv32im::audit::Rv32imOpeningArtifact,
+    side_bundle: &neo_fold_next::public_proof::rv32im::side_bridges::Rv32imSideProofBundle,
+    opening_artifact: &mut neo_fold_next::public_proof::rv32im::opening_artifact::Rv32imOpeningArtifact,
 ) {
     let phase0_opened_objects_digest = build_rv32im_side_eval_claim_relation_statement_from_artifact(
         public_statement,

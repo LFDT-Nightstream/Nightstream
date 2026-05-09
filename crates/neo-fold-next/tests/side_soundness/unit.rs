@@ -1,4 +1,6 @@
-use neo_fold_next::rv32im::{derive_phase0_point, CommitmentContextId, FamilyEvalSchemaId, OpenedAjtaiObjectId};
+use neo_fold_next::rv32im::kernel::{
+    derive_phase0_point, CommitmentContextId, FamilyEvalSchemaId, OpenedAjtaiObjectId,
+};
 
 #[test]
 fn rv32im_side_soundness_phase0_point_depends_on_full_target_key() {

@@ -1,35 +1,18 @@
-//! Owns timing breakdowns for the published RV32IM Nightstream verifier path.
+//! Owns the verifier-side flow for the RV32IM published proof.
 
 use std::time::Instant;
 
 use crate::public_proof::NightstreamStatement;
 use crate::rv32im::{Rv32imIvcSnarkVerifierKey, Rv32imProofStatement, SimpleKernelError};
 
-use super::proof::Rv32imNightstreamProof;
-use super::side_opening_spartan::Rv32imSideOpeningSpartanVerifierKey;
-use super::side_proof::verify_rv32im_side_proof;
-use super::side_relation_spartan::Rv32imSideBindingVerifierKey;
-use super::statement::{rv32im_verifier_context_digest, verify_rv32im_nightstream_carried_boundary};
-
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct Rv32imNightstreamVerifyPerf {
-    pub carried_boundary_ms: f64,
-    pub statement_binding_ms: f64,
-    pub side_proof_ms: f64,
-    pub remaining_side_surfaces_ms: f64,
-    pub main_proof_ms: f64,
-    pub total_ms: f64,
-}
-
-impl Rv32imNightstreamVerifyPerf {
-    pub fn before_main_proof_ms(&self) -> f64 {
-        self.total_ms - self.main_proof_ms
-    }
-}
-
-fn elapsed_ms(started: Instant) -> f64 {
-    started.elapsed().as_secs_f64() * 1_000.0
-}
+use super::perf::{elapsed_ms, Rv32imNightstreamVerifyPerf};
+use crate::public_proof::rv32im::proof::Rv32imNightstreamProof;
+use crate::public_proof::rv32im::side_opening_spartan::Rv32imSideOpeningSpartanVerifierKey;
+use crate::public_proof::rv32im::side_proof::verify_rv32im_side_proof;
+use crate::public_proof::rv32im::side_relation_spartan::Rv32imSideBindingVerifierKey;
+use crate::public_proof::rv32im::statement::{
+    rv32im_verifier_context_digest, verify_rv32im_nightstream_carried_boundary,
+};
 
 pub fn verify_rv32im_nightstream_with_perf(
     statement: &NightstreamStatement,

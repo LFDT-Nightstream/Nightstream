@@ -22,8 +22,8 @@ use neo_ajtai::{
     assert_range_b, commit, s_lincomb, sample_uniform_rq, setup, split_b, verify_open, verify_split_open, Commitment,
     DecompStyle, PP,
 };
-use neo_fold_next::opening::{OpeningClaim, OpeningDomain, OpeningSource};
-use neo_fold_next::time_opening::{prove_time_opening, verify_time_opening};
+use neo_fold_next::core::opening::time::{prove_time_opening, verify_time_opening};
+use neo_fold_next::core::opening::{OpeningClaim, OpeningDomain, OpeningSource};
 use neo_math::ring::Rq;
 use neo_math::s_action::SAction;
 use neo_math::{Fq, D, K};

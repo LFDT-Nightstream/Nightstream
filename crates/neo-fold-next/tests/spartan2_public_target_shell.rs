@@ -1,10 +1,10 @@
+use neo_fold_next::core::finalize::FixedShapeChunkSummary;
+use neo_fold_next::core::proof::FoldSchedule;
 use neo_fold_next::decider::spartan2::{
     prove_spartan2_public_target_shell_with_perf, setup_spartan2_public_target_shell,
     verify_spartan2_public_target_shell, Spartan2ChunkTransitionBinding, Spartan2DeciderStatement,
     Spartan2DeciderTarget, Spartan2DeciderWitness, Spartan2PublicTargetShellError,
 };
-use neo_fold_next::finalize::FixedShapeChunkSummary;
-use neo_fold_next::proof::FoldSchedule;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 

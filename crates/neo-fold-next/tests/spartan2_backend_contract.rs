@@ -1,9 +1,9 @@
+use neo_fold_next::core::finalize::FixedShapeChunkSummary;
+use neo_fold_next::core::proof::FoldSchedule;
 use neo_fold_next::decider::spartan2::{
     Spartan2ChunkTransitionBinding, Spartan2DeciderShape, Spartan2DeciderStatement, Spartan2DeciderTarget,
     Spartan2DeciderWitness,
 };
-use neo_fold_next::finalize::FixedShapeChunkSummary;
-use neo_fold_next::proof::FoldSchedule;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 

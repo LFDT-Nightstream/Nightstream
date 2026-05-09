@@ -1,5 +1,5 @@
-use neo_fold_next::opening::{OpeningClaim, OpeningDomain, OpeningSource, TimeOpeningProofSummary};
-use neo_fold_next::time_opening::{prove_time_opening, verify_time_opening};
+use neo_fold_next::core::opening::time::{prove_time_opening, verify_time_opening};
+use neo_fold_next::core::opening::{OpeningClaim, OpeningDomain, OpeningSource, TimeOpeningProofSummary};
 use neo_math::{F, K};
 use p3_field::PrimeCharacteristicRing;
 

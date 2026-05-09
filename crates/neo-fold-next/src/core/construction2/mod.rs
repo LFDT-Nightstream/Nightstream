@@ -9,6 +9,8 @@ use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 use serde::{Deserialize, Serialize};
 
+pub(crate) mod terminal;
+
 pub const CONSTRUCTION2_ENC_INST_BITS: usize = 256;
 pub const CONSTRUCTION2_ENC_INST_RING_DEGREE: usize = D;
 pub const CONSTRUCTION2_ENC_INST_RING_SLOTS: usize =

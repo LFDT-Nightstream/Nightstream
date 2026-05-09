@@ -1,9 +1,9 @@
 use neo_ajtai::Commitment;
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, Mat, SparsePoly};
-use neo_fold_next::proof::{FinalProof, FoldSchedule, PackagedProof, PublicStatement, RunProof, StepInput};
-use neo_fold_next::prover::CommitmentMixers;
-use neo_fold_next::run::{prove_and_package, verify_packaged};
+use neo_fold_next::core::proof::{FinalProof, FoldSchedule, PackagedProof, PublicStatement, RunProof, StepInput};
+use neo_fold_next::core::prover::CommitmentMixers;
+use neo_fold_next::core::session::{prove_and_package, verify_packaged};
 use neo_math::{D, F};
 use neo_params::NeoParams;
 use neo_reductions::api::FoldingMode;

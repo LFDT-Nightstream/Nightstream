@@ -15,10 +15,10 @@ use neo_reductions::error::PiCcsError;
 use neo_reductions::optimized_engine::OptimizedStructureCache;
 use neo_transcript::Poseidon2Transcript;
 
-use crate::chunk_relation::{compute_chunk_relation_for_prover_chunk_with_perf, compute_chunk_relation_with_perf};
+use crate::chunk_folding::{compute_chunk_relation_for_prover_chunk_with_perf, compute_chunk_relation_with_perf};
 use crate::proof::{Carry, ChunkInput, ChunkProvePerf, ChunkResult, ProverChunkInput};
 
-pub use crate::chunk_relation::{ChunkRelationArtifacts, CommitmentMixers};
+pub use crate::chunk_folding::{ChunkRelationArtifacts, CommitmentMixers};
 
 pub struct ShardProver;
 

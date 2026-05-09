@@ -4,11 +4,12 @@
 //! - canonical opening claim/source/domain records
 //! - reduced opening group summaries
 //! - the final time-opening proof summary surface
+//! - `time`, which builds and verifies the shared time-opening reduction
 //!
 //! It does not own:
-//! - opening-manifest construction
-//! - time-opening proof construction
 //! - VM-specific opening manifests
+
+pub mod time;
 
 use neo_math::K;
 use serde::{Deserialize, Serialize};

@@ -1,12 +1,14 @@
 use neo_ajtai::Commitment;
 use neo_ccs::traits::SModuleHomomorphism;
-use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, Mat, SparsePoly};
-use neo_fold_next::proof::{FoldSchedule, StepInput};
-use neo_fold_next::prover::CommitmentMixers;
-use neo_fold_next::run::{prove_run, verify_run};
-use neo_math::{D, F};
+use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat, SparsePoly};
+use neo_fold_next::core::proof::{FoldSchedule, StepInput};
+use neo_fold_next::core::prover::CommitmentMixers;
+use neo_fold_next::core::session::{prove_run, verify_run};
+use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::api::FoldingMode;
+use neo_reductions::engines::utils::me_digest_poseidon;
+use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 
 struct ToyModule;
@@ -77,6 +79,35 @@ fn mixers() -> CommitmentMixers<fn(&[Mat<F>], &[Commitment]) -> Commitment, fn(&
         mix_rhos_commits,
         combine_b_pows,
     }
+}
+
+fn chunk_relation_digest_for_test(
+    ccs_outputs: &[CeClaim<Commitment, F, K>],
+    parent: &CeClaim<Commitment, F, K>,
+    children: &[CeClaim<Commitment, F, K>],
+) -> [u8; 32] {
+    let mut tr = Poseidon2Transcript::new(b"neo.fold.next/chunk_relation_digest");
+    tr.append_u64s(
+        b"neo.fold.next/chunk_relation_digest/counts",
+        &[ccs_outputs.len() as u64, children.len() as u64],
+    );
+    for claim in ccs_outputs {
+        tr.append_fields(
+            b"neo.fold.next/chunk_relation_digest/ccs_output",
+            &me_digest_poseidon(claim),
+        );
+    }
+    tr.append_fields(
+        b"neo.fold.next/chunk_relation_digest/rlc_parent",
+        &me_digest_poseidon(parent),
+    );
+    for claim in children {
+        tr.append_fields(
+            b"neo.fold.next/chunk_relation_digest/dec_child",
+            &me_digest_poseidon(claim),
+        );
+    }
+    tr.digest32()
 }
 
 fn make_step(log: &ToyModule, seed: u64, label: &str) -> StepInput {
@@ -161,6 +192,11 @@ fn verifier_rejects_tampered_rlc_parent() {
     )
     .expect("run prove");
     proof.chunks[0].rlc.parent.c.data[0] += F::ONE;
+    proof.chunks[0].relation_digest = chunk_relation_digest_for_test(
+        &proof.chunks[0].ccs_outputs,
+        &proof.chunks[0].rlc.parent,
+        &proof.chunks[0].dec.children,
+    );
 
     let public_steps = steps
         .into_iter()

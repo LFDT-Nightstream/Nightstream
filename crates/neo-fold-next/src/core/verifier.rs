@@ -19,7 +19,7 @@ use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 use std::time::Instant;
 
-use crate::chunk_relation::chunk_relation_digest;
+use crate::chunk_folding::chunk_relation_digest;
 use crate::finalize::public_chunk_digest;
 use crate::proof::{ChunkProof, ChunkVerifyPerf, PiDecArtifact, PiRlcArtifact, PublicChunk};
 use crate::prover::CommitmentMixers;

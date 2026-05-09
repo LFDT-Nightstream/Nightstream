@@ -1,7 +1,7 @@
 //! Owns public Π_RLC arithmetic checks over CE claims for the RV32IM main-relation circuit.
 //!
 //! This module owns rho-driven claim folding and the last-chunk shortcut that still lives on
-//! the Π_RLC side of the bridge theorem boundary. Pure b-ary Π_DEC checks live in `pi_dec.rs`.
+//! the Π_RLC side of the bridge theorem boundary. Pure b-ary Π_DEC checks live in `pi_dec/mod.rs`.
 
 mod basis;
 mod constraints;

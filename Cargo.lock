@@ -1912,6 +1912,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "neo-fold-clean"
+version = "0.1.0"
+dependencies = [
+ "neo-ajtai",
+ "neo-ccs",
+ "neo-math",
+ "neo-params",
+ "neo-reductions",
+ "neo-transcript",
+ "p3-field",
+ "rand_chacha 0.9.0",
+ "serde",
+ "spartan2",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "neo-fold-next"
 version = "0.1.0"
 dependencies = [

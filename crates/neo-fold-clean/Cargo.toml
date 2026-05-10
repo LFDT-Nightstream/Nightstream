@@ -1,0 +1,38 @@
+[package]
+name = "neo-fold-clean"
+edition = { workspace = true }
+version = { workspace = true }
+authors = { workspace = true }
+license = "Apache-2.0"
+
+[lints]
+workspace = true
+
+[features]
+default = []
+
+# Keep dependencies tight on purpose. Every dep is something an auditor
+# will trust transitively, so the bar is high.
+[dependencies]
+neo-math       = { path = "../neo-math" }
+neo-params     = { path = "../neo-params" }
+neo-ccs        = { path = "../neo-ccs" }
+neo-ajtai      = { path = "../neo-ajtai" }
+neo-transcript = { path = "../neo-transcript" }
+neo-reductions = { path = "../neo-reductions" }
+p3-field       = { workspace = true }
+spartan2       = { workspace = true }
+serde          = { workspace = true }
+thiserror      = { workspace = true }
+
+[dev-dependencies]
+neo-ajtai   = { path = "../neo-ajtai" }
+neo-ccs     = { path = "../neo-ccs" }
+neo-math    = { path = "../neo-math" }
+neo-params  = { path = "../neo-params" }
+p3-field    = { workspace = true }
+rand_chacha = { workspace = true }
+
+[[test]]
+name = "perf_fibonacci_bits"
+path = "tests/perf/fibonacci_bits.rs"

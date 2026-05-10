@@ -2,8 +2,8 @@
 //!
 //! Exposes field/cyclotomic/commitment/folding parameters and enforces:
 //!  1) (k+1)·T·(b−1) < B where B=b^k  [Π_RLC bound]
-//!  2) Extension policy v1 for sum-check soundness:
-//!     - s_min = ceil((λ + log2(ℓ·d_sc)) / log2(q))
+//!  2) Extension policy v1 for soundness-factor feasibility:
+//!     - s_min = ceil((λ + log2(soundness_factor)) / log2(q))
 //!     - support only s=2; if s_min>2, return a configuration error
 //!     - and record slack_bits when s_min ≤ 2.
 //!
@@ -81,12 +81,12 @@ pub mod goldilocks_paper_b2 {
     pub static CHALLENGE_ALPHABET: [i8; 5] = [-2, -1, 0, 1, 2];
 }
 
-/// Summary returned by the extension policy check for a given (ℓ, d_sc).
+/// Summary returned by the extension policy check for a concrete soundness factor.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ExtensionSummary {
     pub s_min: u32,
     pub s_supported: u32,
-    /// slack_bits = s_supported·log2(q) − (λ + log2(ℓ·d_sc))
+    /// slack_bits = s_supported·log2(q) − (λ + log2(soundness_factor))
     pub slack_bits: i32,
 }
 
@@ -212,21 +212,24 @@ impl NeoParams {
     /// Auto-pick params for an R1CS instance reduced to CCS.
     ///
     /// Starts from the Appendix B.2 Goldilocks profile and only lowers `lambda`
-    /// when the concrete CCS shape needs extra `F_{q^2}` slack under the local
-    /// extension policy.
+    /// when the concrete CCS shape needs extra `F_{q^2}` slack under the full
+    /// SuperNeo D.4 Π_CCS soundness budget.
     ///
-    /// FE only needs to pass the number of R1CS constraints `n_rows`.
+    /// Callers pass the effective R1CS/CCS shape size.
     /// We:
     ///   - pad `n_rows` to next power of two,
     ///   - set ℓ = ceil(log2(d * padded_rows))   // d = φ(η) from the preset
-    ///   - bound d_sc for R1CS as: d_sc = 1 + max(u, 2b, 2), with u=2 (quadratic), b=preset.b
-    ///     => with b=2 this gives d_sc = 5 (safe for R1CS-ish CCS)
+    ///   - use SuperNeo D.4's
+    ///     ε_SC + ε_SZ numerator:
+    ///       max(u, 2b + 1, 2)·ℓ + (2K + k)·max(ℓ, ktd)
+    ///     with u=2, t=3, and conservative K=max fresh count allowed by the
+    ///     Appendix B.2 RLC guard,
     ///   - keep s=2 (policy v1), and search the largest λ ≤ preset λ with ≥ `safety_margin` slack.
     ///
-    /// Defaults: min_lambda=96, safety_margin=2 bits. Returns UnsupportedExtension{required:3}
+    /// Defaults: min_lambda=100, safety_margin=2 bits. Returns UnsupportedExtension{required:3}
     /// if even λ=min_lambda would force s≥3.
     pub fn goldilocks_auto_r1cs_ccs(n_rows: usize) -> Result<Self, ParamsError> {
-        Self::goldilocks_auto_r1cs_ccs_with(n_rows, 96, 2)
+        Self::goldilocks_auto_r1cs_ccs_with(n_rows, 100, 2)
     }
 
     /// Same as above, but with explicit knobs for `min_lambda` and `safety_margin`.
@@ -237,7 +240,7 @@ impl NeoParams {
     ) -> Result<Self, ParamsError> {
         let mut p = Self::goldilocks_paper_b2();
 
-        // Compute (ℓ, d_sc) specialized for R1CS→CCS
+        // Compute SuperNeo D.4's Π_CCS soundness factor specialized for R1CS→CCS.
         // pad rows to power of two (min 2)
         let padded_rows = if n_rows == 0 {
             2
@@ -248,16 +251,14 @@ impl NeoParams {
         let prod: u128 = (p.d as u128) * (padded_rows as u128);
         let ell: u32 = ceil_log2_u128(prod);
 
-        // R1CS: u = 2 (quadratic). d_sc = 1 + max(u, 2b, 2).
-        let u_r1cs: u32 = 2;
-        let two_b: u32 = p.b.saturating_mul(2);
-        let d_sc: u32 = 1 + u_r1cs.max(two_b).max(2);
+        let fresh_count = p.max_fresh_count_from_rlc_guard()?;
+        let soundness_factor = p.r1cs_pi_ccs_soundness_factor(ell, fresh_count)?;
 
         // Search λ downward (keep s=2) until extension_check passes with slack
         let mut lam = p.lambda.max(min_lambda);
         while lam >= min_lambda {
             p.lambda = lam;
-            match p.extension_check(ell, d_sc) {
+            match p.extension_check_factor(soundness_factor) {
                 Ok(sum) if sum.slack_bits >= safety_margin as i32 => return Ok(p),
                 Ok(_) | Err(ParamsError::UnsupportedExtension { .. }) => {
                     lam = lam.saturating_sub(1);
@@ -277,13 +278,12 @@ impl NeoParams {
         }
     }
 
-    /// Exact check for s=2: q^2 ≥ 2^λ · (ell·d_sc).
+    /// Exact check for s=2: q^2 ≥ 2^λ · soundness_factor.
     /// Returns None if overflow prevents the check.
-    fn s2_feasible(&self, ell: u32, d_sc: u32) -> Option<bool> {
+    fn s2_feasible_factor(&self, soundness_factor: u128) -> Option<bool> {
         let q2 = (self.q as u128).checked_mul(self.q as u128)?; // q^2 fits for 64-bit q
-        let ld = (ell as u128).checked_mul(d_sc as u128)?;
         let pow2 = 1u128.checked_shl(self.lambda)?; // None if λ ≥ 128
-        let rhs = pow2.checked_mul(ld)?; // None if overflow
+        let rhs = pow2.checked_mul(soundness_factor)?; // None if overflow
         Some(q2 >= rhs)
     }
 
@@ -291,19 +291,23 @@ impl NeoParams {
     /// This eliminates boundary-case optimism from bit-length ceiling approximations.
     /// Critical for soundness: bit-length methods can accept cases that actually need s=3!
     pub fn s_min(&self, ell: u32, d_sc: u32) -> u32 {
-        let ld = (ell as u128) * (d_sc as u128);
+        let factor = (ell as u128) * (d_sc as u128);
+        self.s_min_factor(factor)
+    }
 
+    /// Compute the minimal extension degree for a precomputed soundness factor.
+    pub fn s_min_factor(&self, soundness_factor: u128) -> u32 {
         // Check s=1 exactly: q ≥ 2^λ · (ℓ·d_sc)
         if let Some(pow2) = 1u128.checked_shl(self.lambda) {
-            if let Some(rhs) = pow2.checked_mul(ld) {
+            if let Some(rhs) = pow2.checked_mul(soundness_factor) {
                 if (self.q as u128) >= rhs {
                     return 1;
                 }
             }
         }
 
-        // Check s=2 exactly: q^2 ≥ 2^λ · (ℓ·d_sc)
-        match self.s2_feasible(ell, d_sc) {
+        // Check s=2 exactly: q^2 ≥ 2^λ · soundness_factor.
+        match self.s2_feasible_factor(soundness_factor) {
             Some(true) => 2,  // s=2 is sufficient
             Some(false) => 3, // s=2 insufficient, need s≥3
             None => 3,        // overflow on RHS ⇒ requires s ≥ 3
@@ -313,19 +317,26 @@ impl NeoParams {
     /// Extension policy v1: support s=2 only. If s_min>2, return UnsupportedExtension{required=s_min}.
     /// When s_min=2, compute exact slack_bits by comparing q^2 against 2^λ·(ℓ·d_sc) directly.
     pub fn extension_check(&self, ell: u32, d_sc: u32) -> Result<ExtensionSummary, ParamsError> {
-        let s_min = self.s_min(ell, d_sc);
+        let factor = (ell as u128)
+            .checked_mul(d_sc as u128)
+            .ok_or(ParamsError::UnsupportedExtension { required: 3 })?;
+        self.extension_check_factor(factor)
+    }
+
+    /// Extension policy v1 for a precomputed soundness factor.
+    pub fn extension_check_factor(&self, soundness_factor: u128) -> Result<ExtensionSummary, ParamsError> {
+        let s_min = self.s_min_factor(soundness_factor);
         if s_min > 2 {
             return Err(ParamsError::UnsupportedExtension { required: s_min });
         }
 
-        // Exact slack for s=2: compute floor(log₂(q²/(2^λ·ℓd))) without floating point
+        // Exact slack for s=2: compute floor(log₂(q²/(2^λ·factor))) without floating point.
         let q = self.q as u128;
         let q2 = q * q; // q^2 cannot overflow u128 for 64-bit q
-        let ld = (ell as u128).checked_mul(d_sc as u128).unwrap();
 
         let rhs = 1u128
             .checked_shl(self.lambda)
-            .and_then(|p| p.checked_mul(ld))
+            .and_then(|p| p.checked_mul(soundness_factor))
             .ok_or(ParamsError::UnsupportedExtension { required: 3 })?;
 
         let slack_bits = if q2 < rhs {
@@ -348,6 +359,54 @@ impl NeoParams {
             s_supported: 2,
             slack_bits,
         })
+    }
+
+    /// Maximum fresh CCS inputs K allowed by Definition 14's RLC guard:
+    /// `(K + k)·T·(b - 1) < B`.
+    fn max_fresh_count_from_rlc_guard(&self) -> Result<u32, ParamsError> {
+        let denom = (self.T as u128)
+            .checked_mul((self.b as u128).saturating_sub(1))
+            .ok_or(ParamsError::GuardInequality)?;
+        if denom == 0 {
+            return Err(ParamsError::GuardInequality);
+        }
+        let max_total = ((self.B as u128).saturating_sub(1)) / denom;
+        if max_total <= self.k_rho as u128 {
+            return Err(ParamsError::GuardInequality);
+        }
+        (max_total - self.k_rho as u128)
+            .try_into()
+            .map_err(|_| ParamsError::GuardInequality)
+    }
+
+    /// SuperNeo D.4 Π_CCS soundness numerator for the standard R1CS→CCS embedding.
+    fn r1cs_pi_ccs_soundness_factor(&self, ell: u32, fresh_count: u32) -> Result<u128, ParamsError> {
+        const R1CS_POLY_DEGREE: u32 = 2;
+        const R1CS_CCS_MATRIX_COUNT: u32 = 3;
+
+        let d_sc = R1CS_POLY_DEGREE
+            .max(self.b.saturating_mul(2).saturating_add(1))
+            .max(2);
+        let epsilon_sc = (ell as u128)
+            .checked_mul(d_sc as u128)
+            .ok_or(ParamsError::UnsupportedExtension { required: 3 })?;
+
+        let ktd = (self.k_rho as u128)
+            .checked_mul(R1CS_CCS_MATRIX_COUNT as u128)
+            .and_then(|v| v.checked_mul(self.d as u128))
+            .ok_or(ParamsError::UnsupportedExtension { required: 3 })?;
+        let sz_degree = (ell as u128).max(ktd);
+        let sz_terms = (2u128)
+            .checked_mul(fresh_count as u128)
+            .and_then(|v| v.checked_add(self.k_rho as u128))
+            .ok_or(ParamsError::UnsupportedExtension { required: 3 })?;
+        let epsilon_sz = sz_terms
+            .checked_mul(sz_degree)
+            .ok_or(ParamsError::UnsupportedExtension { required: 3 })?;
+
+        epsilon_sc
+            .checked_add(epsilon_sz)
+            .ok_or(ParamsError::UnsupportedExtension { required: 3 })
     }
 }
 

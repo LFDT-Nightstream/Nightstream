@@ -34,6 +34,24 @@ fn extension_policy_enforces_s_eq_2() {
 }
 
 #[test]
+fn r1cs_auto_params_charge_full_superneo_d4_budget() {
+    let p = NeoParams::goldilocks_auto_r1cs_ccs(60).expect("R1CS params");
+
+    assert!(p.has_goldilocks_paper_b2_core());
+    // With Appendix B.2's s=2, the D.4 Schwartz-Zippel term dominates. This
+    // is intentionally lower than the old sumcheck-only helper result, but
+    // above the default 100-bit floor.
+    assert_eq!(p.lambda, 107);
+}
+
+#[test]
+fn r1cs_auto_params_reject_120_bit_full_d4_budget_under_s2() {
+    let err = NeoParams::goldilocks_auto_r1cs_ccs_with(60, 120, 2)
+        .expect_err("s=2 cannot satisfy a 120-bit full-D4 floor for this profile");
+    assert_eq!(err, ParamsError::UnsupportedExtension { required: 3 });
+}
+
+#[test]
 fn serde_roundtrip() {
     let p = NeoParams::goldilocks_paper_b2();
     let s = serde_json::to_string(&p).unwrap();

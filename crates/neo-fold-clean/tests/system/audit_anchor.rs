@@ -48,22 +48,76 @@ fn lifecycle_surface_compiles() {
 
 #[test]
 fn verify_uncompressed_surface_compiles() {
-    // Compile-time anchor: the finish + verify_uncompressed entrypoints exist
-    // with the expected signatures, and the proof type carries the public
-    // view that verification reads from.
-    fn _finish(
+    // Compile-time anchor: both finalize variants + both verifier variants
+    // exist with the expected signatures. Phase 1.7 split surfaces the
+    // non-replay IVC verifier (`verify_uncompressed`) from the
+    // chain-replay/audit verifier (`verify_uncompressed_audit`) at the
+    // type level via `Uncompressed` vs `UncompressedAudit`.
+    fn _finish_terminal(
         _: fn(
             &neo_fold_clean::Preprocessing,
-            neo_fold_clean::Uncompressed,
+            neo_fold_clean::UncompressedAudit,
         ) -> Result<neo_fold_clean::Uncompressed, neo_fold_clean::Error>,
     ) {
     }
-    fn _surface(
+    fn _finish_audit(
+        _: fn(
+            &neo_fold_clean::Preprocessing,
+            neo_fold_clean::UncompressedAudit,
+        ) -> Result<neo_fold_clean::UncompressedAudit, neo_fold_clean::Error>,
+    ) {
+    }
+    fn _verify_terminal(
         _: fn(&neo_fold_clean::Preprocessing, &neo_fold_clean::Uncompressed) -> Result<(), neo_fold_clean::Error>,
     ) {
     }
-    _finish(neo_fold_clean::finish_uncompressed);
-    _surface(neo_fold_clean::verify_uncompressed);
+    fn _verify_audit(
+        _: fn(&neo_fold_clean::Preprocessing, &neo_fold_clean::UncompressedAudit) -> Result<(), neo_fold_clean::Error>,
+    ) {
+    }
+    _finish_terminal(neo_fold_clean::finish_uncompressed);
+    _finish_audit(neo_fold_clean::finish_uncompressed_with_audit);
+    _verify_terminal(neo_fold_clean::verify_uncompressed);
+    _verify_audit(neo_fold_clean::verify_uncompressed_audit);
+}
+
+/// Type-level anchor for the Phase 1.7 split: a terminal-only
+/// [`Uncompressed`] **structurally cannot** expose the per-step audit
+/// trail.
+///
+/// If you ever revert the type split (e.g. by moving `steps` /
+/// `public_batches` back onto `Uncompressed`), the exhaustive
+/// destructure below stops compiling. That's the point: a terminal-only
+/// caller can never silently iterate audit fields, because those fields
+/// only exist on `UncompressedAudit` — and reaching them requires
+/// having an `UncompressedAudit` in hand, not just an `Uncompressed`.
+#[test]
+fn uncompressed_terminal_type_excludes_audit_trail_at_compile_time() {
+    // `Uncompressed` is exhaustively `{ state, final_fold }`. Adding a
+    // new field here without updating this anchor will fail the build.
+    fn _terminal_destructure(p: &neo_fold_clean::Uncompressed) {
+        let neo_fold_clean::Uncompressed {
+            state: _,
+            final_fold: _,
+        } = p;
+    }
+
+    // `UncompressedAudit` is exhaustively `{ proof, steps, public_batches }`
+    // — i.e. the terminal-only piece + the per-step audit trail. The two
+    // halves are namespaced; `audit.proof` and `audit.steps` are not
+    // siblings, so a caller that only sees `&Uncompressed` cannot get to
+    // `steps` / `public_batches` without explicitly reconstructing an
+    // `UncompressedAudit`.
+    fn _audit_destructure(a: &neo_fold_clean::UncompressedAudit) {
+        let neo_fold_clean::UncompressedAudit {
+            proof: _,
+            steps: _,
+            public_batches: _,
+        } = a;
+    }
+
+    let _ = _terminal_destructure;
+    let _ = _audit_destructure;
 }
 
 #[test]

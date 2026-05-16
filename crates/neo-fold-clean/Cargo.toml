@@ -40,6 +40,241 @@ neo-params  = { path = "../neo-params" }
 p3-field    = { workspace = true }
 rand_chacha = { workspace = true }
 
+# Integration tests live under `tests/<category>/<file>.rs`. Cargo only picks
+# up `.rs` files at the top of `tests/` automatically; every nested file needs
+# an explicit `[[test]]` entry below. The folder layout mirrors `src/`:
+#   - `gadgets/`     ↔ `src/engine/r1cs_circuit/`
+#   - `reductions/`  ↔ `src/paper/reductions/` + Π_*.V circuits
+#   - `nifs/`        ↔ `src/paper/nifs/` (native flows)
+#   - `direct_ccs/`  ↔ direct-CCS IVC path
+#   - `f_prime/`     ↔ `src/paper/f_prime/`
+#   - `system/`      ↔ end-to-end + lifecycle + params + audit
+#   - `perf/`        ↔ perf-only snapshots
+
+[[test]]
+name = "gadgets_r1cs_builder"
+path = "tests/gadgets/r1cs_builder.rs"
+
+[[test]]
+name = "gadgets_u64_and_mux"
+path = "tests/gadgets/u64_and_mux.rs"
+
+[[test]]
+name = "gadgets_poseidon2"
+path = "tests/gadgets/poseidon2.rs"
+
+[[test]]
+name = "gadgets_sumcheck"
+path = "tests/gadgets/sumcheck.rs"
+
+[[test]]
+name = "gadgets_transcript"
+path = "tests/gadgets/transcript.rs"
+
+[[test]]
+name = "gadgets_alphabet_sampling"
+path = "tests/gadgets/alphabet_sampling.rs"
+
+[[test]]
+name = "reductions_pi_ccs_split_nc"
+path = "tests/reductions/pi_ccs_split_nc.rs"
+
+[[test]]
+name = "reductions_pi_ccs_split_nc_fe"
+path = "tests/reductions/pi_ccs_split_nc_fe.rs"
+
+[[test]]
+name = "reductions_pi_ccs_split_nc_nc"
+path = "tests/reductions/pi_ccs_split_nc_nc.rs"
+
+[[test]]
+name = "reductions_pi_ccs_split_nc_verifier"
+path = "tests/reductions/pi_ccs_split_nc_verifier.rs"
+
+[[test]]
+name = "reductions_ccs_native_poseidon"
+path = "tests/reductions/ccs_native_poseidon.rs"
+
+[[test]]
+name = "reductions_pi_rlc"
+path = "tests/reductions/pi_rlc.rs"
+
+[[test]]
+name = "reductions_pi_dec"
+path = "tests/reductions/pi_dec.rs"
+
+[[test]]
+name = "reductions_nifs_v"
+path = "tests/reductions/nifs_v.rs"
+
+[[test]]
+name = "reductions_degree7_pi_ccs"
+path = "tests/reductions/degree7_pi_ccs.rs"
+
+[[test]]
+name = "nifs_round_trip"
+path = "tests/nifs/round_trip.rs"
+
+[[test]]
+name = "nifs_r1cs_isolated"
+path = "tests/nifs/r1cs_isolated.rs"
+
+[[test]]
+name = "direct_ccs_r1cs"
+path = "tests/direct_ccs/r1cs.rs"
+
+[[test]]
+name = "direct_ccs_redteam"
+path = "tests/direct_ccs/redteam.rs"
+
+[[test]]
+name = "f_prime_digest_circuit"
+path = "tests/f_prime/digest_circuit.rs"
+
+[[test]]
+name = "f_prime_r1cs"
+path = "tests/f_prime/r1cs.rs"
+
+[[test]]
+name = "f_prime_source_image"
+path = "tests/f_prime/source_image.rs"
+
+[[test]]
+name = "system_audit_anchor"
+path = "tests/system/audit_anchor.rs"
+
+[[test]]
+name = "system_fibonacci_bits_e2e"
+path = "tests/system/fibonacci_bits_e2e.rs"
+
+[[test]]
+name = "system_lifecycle_finalization"
+path = "tests/system/lifecycle_finalization.rs"
+
+[[test]]
+name = "system_lifecycle_f_prime_link"
+path = "tests/system/lifecycle_f_prime_link.rs"
+
+[[test]]
+name = "system_decider_r1cs"
+path = "tests/system/decider_r1cs.rs"
+
+[[test]]
+name = "system_ivc_invariants"
+path = "tests/system/ivc_invariants.rs"
+
+[[test]]
+name = "system_phase_1_mini_1_state_x_out"
+path = "tests/system/phase_1_mini_1_state_x_out.rs"
+
+[[test]]
+name = "system_phase_1_mini_2_parent_authority"
+path = "tests/system/phase_1_mini_2_parent_authority.rs"
+
+[[test]]
+name = "system_phase_1_mini_3a_one_shot_digests"
+path = "tests/system/phase_1_mini_3a_one_shot_digests.rs"
+
+[[test]]
+name = "system_phase_1_mini_3b_sponge_transcript"
+path = "tests/system/phase_1_mini_3b_sponge_transcript.rs"
+
+[[test]]
+name = "system_phase_1_mini_4_ring_action"
+path = "tests/system/phase_1_mini_4_ring_action.rs"
+
+[[test]]
+name = "system_phase_1_2_fibonacci_image"
+path = "tests/system/phase_1_2_fibonacci_image.rs"
+
+[[test]]
+name = "system_phase_1_3a_fill"
+path = "tests/system/phase_1_3a_fill.rs"
+
+[[test]]
+name = "system_phase_1_3b_nifs_payloads"
+path = "tests/system/phase_1_3b_nifs_payloads.rs"
+
+[[test]]
+name = "system_phase_1_3c_kmul"
+path = "tests/system/phase_1_3c_kmul.rs"
+
+[[test]]
+name = "system_phase_1_3d_step_parity"
+path = "tests/system/phase_1_3d_step_parity.rs"
+
+[[test]]
+name = "system_phase_1_3d_kmul_wire_parity"
+path = "tests/system/phase_1_3d_kmul_wire_parity.rs"
+
+[[test]]
+name = "system_phase_1_3d_ring_action_wire_parity"
+path = "tests/system/phase_1_3d_ring_action_wire_parity.rs"
+
+[[test]]
+name = "system_phase_1_4a_fibonacci_structure"
+path = "tests/system/phase_1_4a_fibonacci_structure.rs"
+
+[[test]]
+name = "system_phase_1_4c_ring_action_product_constraints"
+path = "tests/system/phase_1_4c_ring_action_product_constraints.rs"
+
+[[test]]
+name = "system_phase_1_4c_ring_action_output_constraints"
+path = "tests/system/phase_1_4c_ring_action_output_constraints.rs"
+
+[[test]]
+name = "system_phase_1_4c_state_out_digest_binding"
+path = "tests/system/phase_1_4c_state_out_digest_binding.rs"
+
+[[test]]
+name = "system_phase_1_4c_public_x_out_digest_binding"
+path = "tests/system/phase_1_4c_public_x_out_digest_binding.rs"
+
+[[test]]
+name = "system_phase_1_4d_poseidon_transitions"
+path = "tests/system/phase_1_4d_poseidon_transitions.rs"
+
+[[test]]
+name = "system_phase_1_4e_recursive_plan"
+path = "tests/system/phase_1_4e_recursive_plan.rs"
+
+[[test]]
+name = "system_phase_1_4f_state_x_out"
+path = "tests/system/phase_1_4f_state_x_out.rs"
+
+[[test]]
+name = "system_phase_1_5a_fibonacci_encoder"
+path = "tests/system/phase_1_5a_fibonacci_encoder.rs"
+
+[[test]]
+name = "system_phase_1_6a_state_threaded_encoded_f_prime"
+path = "tests/system/phase_1_6a_state_threaded_encoded_f_prime.rs"
+
+[[test]]
+name = "system_phase_1_7a_non_linear_verifier"
+path = "tests/system/phase_1_7a_non_linear_verifier.rs"
+
+[[test]]
+name = "system_fibonacci_compiler_recursive_step"
+path = "tests/system/fibonacci_compiler_recursive_step.rs"
+
+[[test]]
+name = "system_fibonacci_unified_accumulator_selector"
+path = "tests/system/fibonacci_unified_accumulator_selector.rs"
+
+[[test]]
+name = "system_fibonacci_compiler_unified_structure"
+path = "tests/system/fibonacci_compiler_unified_structure.rs"
+
+[[test]]
+name = "system_production_params"
+path = "tests/system/production_params.rs"
+
 [[test]]
 name = "perf_fibonacci_bits"
 path = "tests/perf/fibonacci_bits.rs"
+
+[[test]]
+name = "perf_ring_action_low_norm_prototype"
+path = "tests/perf/ring_action_low_norm_prototype.rs"

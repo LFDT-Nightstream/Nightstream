@@ -65,10 +65,10 @@ fn nifs_round_trip_on_r1cs_structure() {
         prep.mix_rhos_commits,
         prep.combine_b_pows,
         &fresh_claims,
-        &[],
+        &running,
         &proof,
     )
     .expect("NIFS.V");
 
-    assert_eq!(verified, next_running.claims);
+    assert_eq!(verified.claims, next_running.claims);
 }

@@ -1,3 +1,11 @@
+// Shared test fixtures: each test binary inlines this module via `#[path =
+// "../support/mod.rs"] mod support;`, and only uses the subset it needs.
+// `-Dwarnings` turns the resulting `dead_code` warnings into errors per
+// binary, so opt them all out at the module root.
+#![allow(dead_code)]
+
+pub mod fibonacci_f_prime;
+
 use neo_ajtai::{has_global_pp_for_dims, s_mul_add, scale_commitment_add_inplace, set_global_pp_seeded, Commitment};
 use neo_ccs::{CcsStructure, Mat, SparsePoly};
 use neo_fold_clean::{config, preprocess, CcsInstance, DecMixer, Params, Preprocessing, RlcMixer, Structure};

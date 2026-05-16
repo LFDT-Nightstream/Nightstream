@@ -890,7 +890,16 @@ where
     K::from(witness_mat_get_f(Z, expected_m, rho, col))
 }
 
-/// Project the first `m_in` packed SuperNeo ring slots of `Z` into `X ∈ F^{D×m_in}`.
+/// Project the active SuperNeo public-input ring slots of packed witness
+/// matrix `Z` into `X ∈ F^{D×m_in}`.
+///
+/// `m_in` counts public field elements, but SuperNeo carries public inputs
+/// in packed ring columns. The active prefix therefore has
+/// `ceil(m_in / D)` full ring columns. Rows in the final active column that
+/// do not correspond to a scalar public input are still part of the active
+/// ring slot: after RLC they may be non-zero, and DEC must be able to split
+/// and recombine them. Columns `ceil(m_in / D)..m_in` remain structural
+/// zeros and are checked by `superneo_inactive_x_zero`.
 pub fn project_x_from_witness_mat<Ff>(Z: &Mat<Ff>, expected_m: usize, m_in: usize) -> Result<Mat<Ff>, PiCcsError>
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
@@ -901,11 +910,18 @@ where
             "project_x_from_witness_mat: m_in={m_in} exceeds expected_m={expected_m}"
         )));
     }
+    let required_cols = m_in.div_ceil(D);
+    if required_cols > Z.cols() {
+        return Err(PiCcsError::InvalidInput(format!(
+            "project_x_from_witness_mat: m_in={m_in} needs {required_cols} packed columns, but Z has {}",
+            Z.cols()
+        )));
+    }
+
     let mut X = Mat::zero(D, m_in, Ff::ZERO);
-    let active_cols = core::cmp::min(m_in, Z.cols());
-    for col in 0..active_cols {
-        for rho in 0..D {
-            X[(rho, col)] = Z[(rho, col)];
+    for col in 0..required_cols {
+        for row in 0..D {
+            X[(row, col)] = Z[(row, col)];
         }
     }
     Ok(X)

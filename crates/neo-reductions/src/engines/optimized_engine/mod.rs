@@ -225,6 +225,7 @@ impl PiCcsReplayProofWitness {
 // Re-export optimized prove/verify entrypoints as the main interface
 pub use prove::optimized_prove as pi_ccs_prove;
 pub use prove::optimized_prove_with_cache;
+pub use prove::optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf;
 pub use prove::optimized_prove_with_cache_and_instance_digest_and_perf;
 pub use prove::optimized_prove_with_cache_and_perf;
 pub use prove::optimized_replay_outputs_with_cache_and_instance_digest_and_perf;

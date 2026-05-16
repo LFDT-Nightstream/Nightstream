@@ -1,15 +1,22 @@
 //! Prover-side lifecycle: `prove` (top-level loop) + `extend` (one step) +
-//! `start_proof` (base-case `Uncompressed` constructor).
+//! `start_proof` (base-case `UncompressedAudit` constructor).
+//!
+//! No session-wide transcript lives here. Each F' step owns its own per-step
+//! transcript inside `paper::f_prime::prove`; the terminal fold owns its own
+//! inside `paper::construction2::prove_final_fold`.
 
-use crate::engine::transcript::Transcript;
-use crate::lifecycle::{Error, Preprocessing, Uncompressed};
+use crate::lifecycle::{Error, Preprocessing, Uncompressed, UncompressedAudit};
 use crate::paper::construction2::{self, State};
 use crate::paper::relations::{CcsClaim, CcsInstance};
 
 /// Drive the IVC over a sequence of batches, top-down. Each batch is
 /// `Vec<CcsInstance>` — typically produced by
 /// [`crate::lifecycle::FoldSchedule::partition`].
-pub fn prove<I>(prep: &Preprocessing, batches: I) -> Result<Uncompressed, Error>
+///
+/// Returns the **pre-finalize** [`UncompressedAudit`]: per-step
+/// `StepProof`s + public batches accumulated, terminal fold not yet run
+/// (`audit.proof.final_fold == None`, trailing `latest` non-empty).
+pub fn prove<I>(prep: &Preprocessing, batches: I) -> Result<UncompressedAudit, Error>
 where
     I: IntoIterator<Item = Vec<CcsInstance>>,
 {
@@ -22,41 +29,45 @@ where
 
 /// Extend an in-flight proof by one step. The batch is the K instances the
 /// next step will fold into running (i.e., what becomes `state.proof.latest`).
-pub fn extend(prep: &Preprocessing, mut proof: Uncompressed, batch: Vec<CcsInstance>) -> Result<Uncompressed, Error> {
-    if proof.final_fold.is_some() {
+pub fn extend(
+    prep: &Preprocessing,
+    mut audit: UncompressedAudit,
+    batch: Vec<CcsInstance>,
+) -> Result<UncompressedAudit, Error> {
+    if audit.proof.final_fold.is_some() {
         return Err(Error::AlreadyFinalized);
     }
     let public_batch: Vec<CcsClaim> = batch.iter().map(|i| i.claim.clone()).collect();
     super::validate_public_input_len(prep, &public_batch)?;
     let (next_state, step_proof) = construction2::step(
-        &mut proof.transcript,
         &prep.params,
         &prep.structure,
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,
         &prep.vk,
-        proof.state,
+        audit.proof.state,
         batch,
     )?;
-    proof.state = next_state;
-    proof.steps.push(step_proof);
-    proof.public_batches.push(public_batch);
-    Ok(proof)
+    audit.proof.state = next_state;
+    audit.steps.push(step_proof);
+    audit.public_batches.push(public_batch);
+    Ok(audit)
 }
 
-/// Base-case `Uncompressed`: empty steps, empty `public_batches`,
-/// fresh transcript, base `State`.
-pub(super) fn start_proof(prep: &Preprocessing) -> Uncompressed {
+/// Base-case `UncompressedAudit`: empty steps, empty `public_batches`,
+/// base `State`, no terminal fold.
+pub(super) fn start_proof(prep: &Preprocessing) -> UncompressedAudit {
     let structure = crate::paper::digest::structure_digest(&prep.structure);
     let z_0 = crate::paper::digest::initial_boundary_digest(&structure, prep.public_input_len);
     let public_trace = crate::paper::digest::public_trace_seed_digest(&structure);
     let acc_digest = crate::paper::digest::accumulator_digest_from_claims(prep.params.b(), &[]);
-    Uncompressed {
-        state: State::base(z_0, public_trace, acc_digest),
+    UncompressedAudit {
+        proof: Uncompressed {
+            state: State::base(z_0, public_trace, acc_digest),
+            final_fold: None,
+        },
         steps: Vec::new(),
         public_batches: Vec::new(),
-        final_fold: None,
-        transcript: Transcript::session(),
     }
 }

@@ -15,13 +15,16 @@ use neo_reductions::api as nr;
 use neo_reductions::api::FoldingMode;
 use neo_reductions::common::{sample_rot_rhos_n_typed, split_b_matrix_k, RotRho};
 use neo_reductions::optimized_engine::{
-    optimized_prove_with_cache_and_instance_digest_and_perf, optimized_verify_with_cache_and_instance_digest_and_perf,
-    OptimizedStructureCache,
+    optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf,
+    optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf, OptimizedStructureCache,
 };
 use thiserror::Error;
 
 use crate::paper::construction2::RunningInstance;
-use crate::paper::digest::pi_ccs_instance_digest;
+use crate::paper::digest::{
+    accumulator_digest_from_claims, accumulator_digest_from_parent_claim, digest32_as_fields,
+    pi_ccs_instance_digest_parent_authority,
+};
 use crate::paper::params::Params;
 use crate::paper::relations::{CcsClaim, CcsInstance, CcsWitness, CeClaim, Structure};
 
@@ -40,6 +43,10 @@ pub enum Error {
     PiDecFailed,
     #[error("engine.optimized: \u{03A0}_DEC public checks failed at prove time (y={ok_y}, X={ok_x}, c={ok_c})")]
     PiDecPublicCheckFailed { ok_y: bool, ok_x: bool, ok_c: bool },
+    #[error("engine.optimized: running accumulator is missing its \u{03A0}_RLC parent authority")]
+    MissingParentAuthority,
+    #[error("engine.optimized: empty running accumulator unexpectedly carries a parent authority")]
+    UnexpectedParentAuthority,
 }
 
 /// Π_CCS (§7.3) prove — wrapper over the optimized engine's
@@ -70,11 +77,17 @@ where
     // Validate inputs and compute the instance digest BEFORE moving `fresh`
     // into engine arrays — both sides hash the same public claims.
     let fresh_claims_for_digest: Vec<CcsClaim> = fresh.iter().map(|i| i.claim.clone()).collect();
-    let instance_digest = pi_ccs_instance_digest(&fresh_claims_for_digest, &running.claims);
+    let parent_authority = running_parent_authority(running)?;
+    let instance_digest =
+        pi_ccs_instance_digest_parent_authority(&fresh_claims_for_digest, running.claims.len(), parent_authority);
+    // Accumulator-handle ME-input binding: bind the same Π_RLC parent
+    // authority as the public-instance digest. The Π_DEC children remain the
+    // algebraic running inputs, but they do not steer this Fiat-Shamir absorb.
+    let me_handle = running_parent_accumulator_handle(running)?;
 
     let (mcs, mcs_witnesses) = split_fresh_for_engine(fresh);
     let cache = OptimizedStructureCache::build(s)?;
-    let (outputs, proof, _perf) = optimized_prove_with_cache_and_instance_digest_and_perf(
+    let (outputs, proof, _perf) = optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf(
         tr,
         pp.inner(),
         s,
@@ -83,6 +96,7 @@ where
         &running.claims,
         &running.witnesses,
         instance_digest,
+        me_handle,
         log,
         &cache,
     )?;
@@ -108,23 +122,27 @@ pub fn verify_pi_ccs(
     pp: &Params,
     s: &Structure,
     fresh_claims: &[CcsClaim],
-    running_claims: &[CeClaim],
+    running: &RunningInstance,
     fold_outputs: &[CeClaim],
     proof: &nr::PiCcsProof,
 ) -> Result<bool, Error> {
     use neo_transcript::Transcript as _;
-    let instance_digest = pi_ccs_instance_digest(fresh_claims, running_claims);
+    let parent_authority = running_parent_authority(running)?;
+    let instance_digest = pi_ccs_instance_digest_parent_authority(fresh_claims, running.claims.len(), parent_authority);
+    // Same parent-authority handle the prover bound.
+    let me_handle = running_parent_accumulator_handle(running)?;
     let cache = OptimizedStructureCache::build(s)?;
-    let (ok, _perf) = optimized_verify_with_cache_and_instance_digest_and_perf(
+    let (ok, _perf) = optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf(
         tr,
         pp.inner(),
         s,
         fresh_claims,
-        running_claims,
+        &running.claims,
         fold_outputs,
         proof,
         &cache,
         instance_digest,
+        me_handle,
     )?;
     if !ok {
         return Ok(false);
@@ -159,6 +177,29 @@ fn split_fresh_for_engine(fresh: Vec<CcsInstance>) -> (Vec<CcsClaim>, Vec<CcsWit
 
 // `carry.witnesses` is a `Vec<WitnessMat>` already; there is no separate
 // `carry_witnesses(...)` helper because the field accessor is the helper.
+
+fn running_parent_authority(running: &RunningInstance) -> Result<Option<&CeClaim>, Error> {
+    if running.claims.is_empty() {
+        if running.parent_authority.is_some() {
+            return Err(Error::UnexpectedParentAuthority);
+        }
+        Ok(None)
+    } else {
+        running
+            .parent_authority
+            .as_ref()
+            .map(Some)
+            .ok_or(Error::MissingParentAuthority)
+    }
+}
+
+fn running_parent_accumulator_handle(running: &RunningInstance) -> Result<[F; 4], Error> {
+    let digest = match running_parent_authority(running)? {
+        Some(parent) => accumulator_digest_from_parent_claim(running.claims.len(), parent),
+        None => accumulator_digest_from_claims(0, &[]),
+    };
+    Ok(digest32_as_fields(digest))
+}
 
 // ──────────────────────────────────────────────────────────────────────────
 // Π_RLC (§7.4) — wrappers around `neo_reductions::api::rlc_with_commit` and

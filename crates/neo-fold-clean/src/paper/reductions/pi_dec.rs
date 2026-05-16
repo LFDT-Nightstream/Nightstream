@@ -19,7 +19,7 @@ use thiserror::Error;
 
 use crate::engine::optimized as engine;
 use crate::paper::params::Params;
-use crate::paper::relations::{CeClaim, DecMixer, Structure};
+use crate::paper::relations::{superneo_inactive_x_zero, CeClaim, DecMixer, Structure};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -27,6 +27,8 @@ pub enum Error {
     ChildCount { expected: usize, got: usize },
     #[error("\u{03A0}_DEC: verifier rejected the children reconstruction")]
     VerifyRejected,
+    #[error("\u{03A0}_DEC: inactive X columns must be zero in {0}")]
+    InactiveX(&'static str),
     #[error(transparent)]
     Engine(#[from] engine::Error),
 }
@@ -61,6 +63,7 @@ pub fn prove(
 ) -> Result<(Children, Proof), Error> {
     let (children, witnesses) = engine::prove_pi_dec(pp, s, log, parent, parent_witness, |cs, b| combine(cs, b))?;
     validate_child_count(pp, children.len())?;
+    validate_inactive_x_zero(parent, &children)?;
     Ok((
         Children {
             claims: children.clone(),
@@ -86,6 +89,7 @@ pub fn verify(
     if !ok {
         return Err(Error::VerifyRejected);
     }
+    validate_inactive_x_zero(parent, &proof.children)?;
     Ok(proof.children.clone())
 }
 
@@ -93,6 +97,23 @@ fn validate_child_count(pp: &Params, got: usize) -> Result<(), Error> {
     let expected = pp.k_rho() as usize;
     if got != expected {
         return Err(Error::ChildCount { expected, got });
+    }
+    Ok(())
+}
+
+/// Reject parent + children whose `X` has non-zero entries in columns
+/// `[ceil(m_in / D), x.cols())`. Children become the next running
+/// accumulator; without this, a terminal state could carry a non-canonical
+/// accumulator that no downstream Π_CCS would re-validate. Mirrors the
+/// circuit-side `pi_dec_circuit::enforce_inactive_x_zero`.
+fn validate_inactive_x_zero(parent: &CeClaim, children: &[CeClaim]) -> Result<(), Error> {
+    if !superneo_inactive_x_zero(&parent.X, parent.m_in) {
+        return Err(Error::InactiveX("parent"));
+    }
+    for child in children {
+        if !superneo_inactive_x_zero(&child.X, child.m_in) {
+            return Err(Error::InactiveX("child"));
+        }
     }
     Ok(())
 }

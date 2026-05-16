@@ -7,7 +7,12 @@
 //!
 //! Each submodule is named after the paper section it serves:
 //! - `transcript` — Poseidon2 wrapper with one absorb-label namespace.
-//! - (`pi_ccs`, `pi_rlc`, `pi_dec`, `decider` — added as wiring lands.)
+//! - `r1cs_circuit` — low-level R1CS-builder primitives used by the
+//!   in-circuit verifier gadgets in `paper/reductions/*_circuit.rs`.
+//! - (`decider` — Spartan terminal compression, added as wiring lands.)
 
+pub mod ccs_native;
+pub mod decider;
 pub mod optimized;
+pub mod r1cs_circuit;
 pub mod transcript;

@@ -46,6 +46,7 @@
 //! and ultimately in `engine::optimized` (which wraps `neo-reductions`).
 //! This module is only the composition layer.
 
+pub mod circuit;
 mod proof;
 mod prover;
 mod verifier;

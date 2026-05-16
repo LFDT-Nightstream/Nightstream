@@ -11,6 +11,7 @@
 
 use neo_ajtai::AjtaiSModule;
 use neo_ccs::matrix::Mat;
+use neo_reductions::optimized_engine::OptimizedStructureCache;
 
 use crate::engine::transcript::Transcript;
 use crate::paper::construction2::latest::LatestInstance;
@@ -48,6 +49,8 @@ fn final_fold_transcript() -> Transcript {
 pub(crate) fn prove_final_fold(
     pp: &Params,
     s: &Structure,
+    cache: &OptimizedStructureCache,
+    structure_digest: &[neo_math::F; 4],
     log: &AjtaiSModule,
     mix_rhos_commits: RlcMixer,
     combine_b_pows: DecMixer,
@@ -97,6 +100,7 @@ pub(crate) fn prove_final_fold(
                 &mut tr,
                 pp,
                 s,
+                cache,
                 log,
                 mix_rhos_commits,
                 combine_b_pows,
@@ -132,7 +136,7 @@ pub(crate) fn prove_final_fold(
         },
     };
     let final_proof = nifs_with_inputs.map(|(nifs, terminal_inputs)| FinalFoldProof {
-        x_out: transition::compute_x_out(vk, pp, s, &state_after),
+        x_out: transition::compute_x_out(vk, pp, structure_digest, &state_after),
         nifs,
         terminal_inputs,
     });
@@ -176,6 +180,8 @@ fn strip_latest_witnesses(latest: &LatestInstance) -> LatestInstance {
 pub(crate) fn verify_final_fold(
     pp: &Params,
     s: &Structure,
+    cache: &OptimizedStructureCache,
+    structure_digest: &[neo_math::F; 4],
     mix_rhos_commits: RlcMixer,
     combine_b_pows: DecMixer,
     vk: &VerifierKey,
@@ -222,6 +228,7 @@ pub(crate) fn verify_final_fold(
                 &mut tr,
                 pp,
                 s,
+                cache,
                 mix_rhos_commits,
                 combine_b_pows,
                 &latest.claims(),
@@ -255,7 +262,7 @@ pub(crate) fn verify_final_fold(
     };
 
     if let Some(proof) = proof {
-        let x_out = transition::compute_x_out(vk, pp, s, &state_after);
+        let x_out = transition::compute_x_out(vk, pp, structure_digest, &state_after);
         if x_out != proof.x_out {
             return Err(Error::XOutMismatch);
         }

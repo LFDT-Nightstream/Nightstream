@@ -90,7 +90,9 @@ pub fn finish_uncompressed_with_audit(
 
     let (post_state, final_fold) = construction2::prove_final_fold(
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
+        prep.structure_digest(),
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,
@@ -124,7 +126,7 @@ fn check_already_finalized_consistency(prep: &Preprocessing, proof: &Uncompresse
         return Err(Error::FinalizedProofInconsistent);
     }
 
-    let expected_x_out = construction2::compute_x_out(&prep.vk, &prep.params, &prep.structure, &proof.state);
+    let expected_x_out = construction2::compute_x_out(&prep.vk, &prep.params, prep.structure_digest(), &proof.state);
     if final_fold.x_out != expected_x_out {
         return Err(Error::FinalizedProofInconsistent);
     }

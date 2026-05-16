@@ -14,8 +14,8 @@ use neo_fold_clean::CcsInstance;
 /// preprocessing has `m = m_in = 1`, so the assignment is a single field
 /// element (which is also the public input).
 fn toy_instance_with_x_value(prep: &neo_fold_clean::Preprocessing, x: F) -> CcsInstance {
-    let z = vec![x; prep.structure.m];
-    CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, &prep.structure, &z, 1)
+    let z = vec![x; prep.structure().m];
+    CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &z, 1)
         .expect("low-norm toy instance with chosen x")
 }
 
@@ -36,7 +36,7 @@ fn valid_bitness_instance(prep: &neo_fold_clean::Preprocessing, r1cs: &R1cs, z: 
 
 fn invalid_bitness_instance_with_valid_shape(prep: &neo_fold_clean::Preprocessing) -> CcsInstance {
     let invalid_low_norm = F::ZERO - F::ONE;
-    CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, &prep.structure, &[invalid_low_norm], 1)
+    CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &[invalid_low_norm], 1)
         .expect("shape-valid low-norm instance that intentionally violates z*z=z")
 }
 
@@ -229,9 +229,9 @@ fn finish_uncompressed_rejects_inconsistent_already_finalized_proof() {
 #[test]
 fn prove_rejects_public_input_len_mismatch() {
     let prep = support::toy_preprocessing();
-    let z = vec![F::ZERO; prep.structure.m];
+    let z = vec![F::ZERO; prep.structure().m];
     let mismatched =
-        neo_fold_clean::CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, &prep.structure, &z, 0)
+        neo_fold_clean::CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &z, 0)
             .expect("mismatched public-input split instance");
 
     assert!(
@@ -275,7 +275,9 @@ fn validate(
 ) -> Result<(), neo_fold_clean::paper::decider::Error> {
     neo_fold_clean::paper::decider::validate_witness(
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
+        prep.structure_digest(),
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,

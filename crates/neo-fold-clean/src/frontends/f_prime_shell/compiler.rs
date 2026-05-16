@@ -23,7 +23,7 @@ use crate::lifecycle::Preprocessing;
 use crate::paper::construction2::{LatestInstance, ProofState, RunningInstance, State as PaperState};
 use crate::paper::digest::{
     accumulator_digest_from_claims, digest32_as_fields, digest_fields_as_digest32, f_prime_chunk_public_digest,
-    initial_boundary_digest, public_trace_seed_digest, structure_digest,
+    initial_boundary_digest, public_trace_seed_digest,
 };
 use crate::paper::f_prime::native::f_prime_step_transcript;
 use crate::paper::f_prime::poseidon_trace::{encode_poseidon_trace, PoseidonTraceImage};
@@ -183,7 +183,7 @@ pub fn start_f_prime_chain_context(
     pc: u64,
     limbs: usize,
 ) -> Result<FPrimeCompilerContext, FPrimeShellCompilerError> {
-    let structure_digest = structure_digest(&prep.structure);
+    let structure_digest = *prep.structure_digest();
     let public_input_len = prep
         .public_input_len
         .ok_or(FPrimeShellCompilerError::PreprocessingMissingPublicInputLen)?;
@@ -259,12 +259,13 @@ pub fn verify_prior_fold(
         ctx.commitment_kappa,
         ctx.public_input_len,
     );
-    let mut tr = f_prime_step_transcript(&prep.vk, &prep.structure, &state_in, chunk_digest);
+    let mut tr = f_prime_step_transcript(&prep.vk, prep.structure_digest(), &state_in, chunk_digest);
 
     let derived = crate::paper::nifs::verify(
         &mut tr,
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
         prep.mix_rhos_commits,
         prep.combine_b_pows,
         &fold.latest.claims(),

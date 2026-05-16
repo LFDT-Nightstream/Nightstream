@@ -8,7 +8,7 @@
 //!
 //! | Invariant | Default | Notes |
 //! |---|---|---|
-//! | `per_step_ccs_structure_must_encode_f_prime` | ✓ | Folds one threaded encoded F' step; `prep.structure.m` ≥ 50_000 |
+//! | `per_step_ccs_structure_must_encode_f_prime` | ✓ | Folds one threaded encoded F' step; `prep.structure().m` ≥ 50_000 |
 //! | `running_accumulator_witness_must_carry_f_prime_encoded_size` | ✓ | Folds three threaded encoded F' steps; running.witnesses[0] ≥ 50_000 cells |
 //! | `decider_r1cs_size_must_be_constant_in_chain_length` | ignored | Synthesizes the steady-state last-step terminal R1CS for two threaded chains; asserts ≤ 10% per-step growth. Under the canonical fixed-point plan this exceeds the 5-min default-test budget, so it runs only with `--ignored`. |
 //!
@@ -65,13 +65,13 @@ fn per_step_ccs_structure_must_encode_f_prime() {
     const MIN_F_PRIME_STRUCTURE_M: usize = 50_000;
 
     assert!(
-        prep.structure.m >= MIN_F_PRIME_STRUCTURE_M,
+        prep.structure().m >= MIN_F_PRIME_STRUCTURE_M,
         "Encoded F' per-step CCS structure has m = {} variables; expected \
          at least {MIN_F_PRIME_STRUCTURE_M} for the structure to encode \
          `F'_i` (user app step + in-circuit NIFS.V of the previous fold + \
          state advance + hash chain). If this regresses, the encoded F' \
          image shape has shrunk below the in-circuit NIFS.V floor.",
-        prep.structure.m,
+        prep.structure().m,
     );
 }
 

@@ -81,6 +81,7 @@ fn degree7_ccs_pi_ccs_prove_verify_accepts_honest_instance() {
         CcsInstance::from_low_norm_assignment(&params, &log, &structure, &z, 0).expect("honest degree-7 instance");
 
     let running = RunningInstance::default();
+    let cache = neo_reductions::optimized_engine::OptimizedStructureCache::build(&structure).expect("cache build");
 
     // Prove with one transcript, verify with a matching one.
     let mut tr_prove = Transcript::with_label(LABEL);
@@ -88,6 +89,7 @@ fn degree7_ccs_pi_ccs_prove_verify_accepts_honest_instance() {
         &mut tr_prove,
         &params,
         &structure,
+        &cache,
         &log,
         vec![instance.clone()],
         &running,
@@ -95,8 +97,16 @@ fn degree7_ccs_pi_ccs_prove_verify_accepts_honest_instance() {
     .expect("degree-7 Π_CCS prove succeeds");
 
     let mut tr_verify = Transcript::with_label(LABEL);
-    let outputs = pi_ccs::verify(&mut tr_verify, &params, &structure, &[instance.claim], &running, &proof)
-        .expect("degree-7 Π_CCS verify accepts honest proof");
+    let outputs = pi_ccs::verify(
+        &mut tr_verify,
+        &params,
+        &structure,
+        &cache,
+        &[instance.claim],
+        &running,
+        &proof,
+    )
+    .expect("degree-7 Π_CCS verify accepts honest proof");
 
     assert_eq!(
         outputs.len(),

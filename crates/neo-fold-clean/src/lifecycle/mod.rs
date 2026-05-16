@@ -57,7 +57,8 @@ pub mod schedule;
 pub mod verify;
 
 use neo_ajtai::AjtaiSModule;
-use neo_math::D;
+use neo_math::{D, F};
+use neo_reductions::optimized_engine::OptimizedStructureCache;
 use thiserror::Error;
 
 use crate::paper::construction2::{FinalFoldProof, State, StepProof, VerifierKey};
@@ -110,6 +111,14 @@ pub enum Error {
     AjtaiKappaMismatch { expected: usize, got: usize },
     #[error("preprocess: canonical Ajtai setup unavailable ({0})")]
     AjtaiSetup(#[from] neo_ajtai::AjtaiError),
+    #[error("preprocess: optimized engine cache build failed ({0})")]
+    OptimizedCacheBuild(#[from] neo_reductions::error::PiCcsError),
+    #[error(
+        "preprocess: cached structure_digest / optimized_cache no longer matches `prep.structure`. \
+         This is a developer footgun: internal code desynchronized preprocessing caches after construction. \
+         Rebuild `Preprocessing` via `preprocess` instead of mutating fields."
+    )]
+    StructureCacheMismatch,
 }
 
 /// Verifier-owned protocol context. Built once per program and reused
@@ -120,7 +129,7 @@ pub enum Error {
 /// these params/setup. Proofs must never carry or choose params/setup.
 pub struct Preprocessing {
     pub params: Params,
-    pub structure: Structure,
+    structure: Structure,
     pub log: AjtaiSModule,
     pub vk: VerifierKey,
     pub mix_rhos_commits: RlcMixer,
@@ -129,6 +138,53 @@ pub struct Preprocessing {
     /// the chain binds to a specific m_in. `None` means "unfixed at the
     /// program level" — encoded as `u64::MAX` in the absorb.
     pub public_input_len: Option<usize>,
+    /// Memoized 4-limb digest of the full CCS structure
+    /// (`paper::digest::structure_digest(&structure)`). Verifier-owned,
+    /// computed once at preprocess time; protocol code reads this field
+    /// instead of recomputing the digest on every step.
+    structure_digest: [F; 4],
+    /// Memoized optimized-engine cache for this structure (sparse + SuperNeo
+    /// eval tables + matrix digest). Verifier-derived; built once at
+    /// preprocess time so `engine::optimized::{prove_pi_ccs, verify_pi_ccs}`
+    /// don't rebuild it on every fold.
+    optimized_cache: OptimizedStructureCache,
+}
+
+impl Preprocessing {
+    pub fn structure(&self) -> &Structure {
+        &self.structure
+    }
+
+    pub fn structure_digest(&self) -> &[F; 4] {
+        &self.structure_digest
+    }
+
+    pub fn optimized_cache(&self) -> &OptimizedStructureCache {
+        &self.optimized_cache
+    }
+
+    /// Cheap integrity check that the memoized `structure_digest` and
+    /// `optimized_cache` still describe the live `structure`. Compares
+    /// the cache's shape fingerprint `(n, m, t)` and re-runs
+    /// `structure_digest` from `structure`. The protocol-bound digest
+    /// is the recomputed value; the stored field is only authority by
+    /// preprocessing-time construction.
+    ///
+    /// Returns [`Error::StructureCacheMismatch`] if internal code somehow
+    /// desynchronized `structure` and the derived caches after construction.
+    /// Production paths don't call this on every step; it's a developer
+    /// footgun gate.
+    pub fn validate_cached_structure(&self) -> Result<(), Error> {
+        let live_shape = (self.structure.n, self.structure.m, self.structure.t());
+        if self.optimized_cache.shape() != live_shape {
+            return Err(Error::StructureCacheMismatch);
+        }
+        let live_digest = crate::paper::digest::structure_digest(&self.structure);
+        if live_digest != self.structure_digest {
+            return Err(Error::StructureCacheMismatch);
+        }
+        Ok(())
+    }
 }
 
 /// Terminal-only uncompressed proof — the **non-replay IVC verifier**'s
@@ -248,7 +304,16 @@ pub fn preprocess_with_test_log(
     public_input_len: Option<usize>,
 ) -> Result<Preprocessing, Error> {
     validate_ajtai_context(&params, &structure, &log)?;
-    let vk = VerifierKey::derive(&params, &structure, public_input_len);
+    // Verifier-derived caches: pure functions of `structure`, computed
+    // once here so engine seams + protocol-binding paths don't recompute
+    // them on every fold/step. The optimized cache carries its own
+    // `mat_digest` fingerprint and is built from the same `structure`
+    // the verifier locally trusts. `structure_digest` is reused inside
+    // `VerifierKey::derive_from_structure_digest` so we only walk the
+    // matrices once per preprocess.
+    let structure_digest = crate::paper::digest::structure_digest(&structure);
+    let vk = VerifierKey::derive_from_structure_digest(&params, &structure_digest, public_input_len);
+    let optimized_cache = OptimizedStructureCache::build(&structure)?;
     Ok(Preprocessing {
         params,
         structure,
@@ -257,6 +322,8 @@ pub fn preprocess_with_test_log(
         mix_rhos_commits,
         combine_b_pows,
         public_input_len,
+        structure_digest,
+        optimized_cache,
     })
 }
 

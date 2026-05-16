@@ -41,7 +41,9 @@ pub fn extend(
     super::validate_public_input_len(prep, &public_batch)?;
     let (next_state, step_proof) = construction2::step(
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
+        prep.structure_digest(),
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,
@@ -58,7 +60,7 @@ pub fn extend(
 /// Base-case `UncompressedAudit`: empty steps, empty `public_batches`,
 /// base `State`, no terminal fold.
 pub(super) fn start_proof(prep: &Preprocessing) -> UncompressedAudit {
-    let structure = crate::paper::digest::structure_digest(&prep.structure);
+    let structure = *prep.structure_digest();
     let z_0 = crate::paper::digest::initial_boundary_digest(&structure, prep.public_input_len);
     let public_trace = crate::paper::digest::public_trace_seed_digest(&structure);
     let acc_digest = crate::paper::digest::accumulator_digest_from_claims(prep.params.b(), &[]);

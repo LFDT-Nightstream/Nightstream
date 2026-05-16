@@ -20,7 +20,8 @@ fn nifs_prove_verify_round_trip_matches_children() {
     let (next_running, proof) = nifs::prove(
         &mut prover_tr,
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,
@@ -33,7 +34,8 @@ fn nifs_prove_verify_round_trip_matches_children() {
     let verified_children = nifs::verify(
         &mut verifier_tr,
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
         prep.mix_rhos_commits,
         prep.combine_b_pows,
         &fresh_claims,
@@ -54,7 +56,8 @@ fn nifs_verify_rejects_tampered_running_parent_authority() {
     let (running, _) = nifs::prove(
         &mut tr0,
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,
@@ -73,7 +76,8 @@ fn nifs_verify_rejects_tampered_running_parent_authority() {
     let (_, proof) = nifs::prove(
         &mut tr1,
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,
@@ -86,7 +90,8 @@ fn nifs_verify_rejects_tampered_running_parent_authority() {
     nifs::verify(
         &mut baseline_tr,
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
         prep.mix_rhos_commits,
         prep.combine_b_pows,
         &second_claims,
@@ -107,7 +112,8 @@ fn nifs_verify_rejects_tampered_running_parent_authority() {
         nifs::verify(
             &mut verifier_tr,
             &prep.params,
-            &prep.structure,
+            prep.structure(),
+            prep.optimized_cache(),
             prep.mix_rhos_commits,
             prep.combine_b_pows,
             &second_claims,
@@ -127,7 +133,8 @@ fn nifs_verify_rejects_running_child_changed_under_same_parent_authority() {
     let (running, _) = nifs::prove(
         &mut tr0,
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,
@@ -142,7 +149,8 @@ fn nifs_verify_rejects_running_child_changed_under_same_parent_authority() {
     let (_, proof) = nifs::prove(
         &mut tr1,
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,
@@ -158,7 +166,8 @@ fn nifs_verify_rejects_running_child_changed_under_same_parent_authority() {
         nifs::verify(
             &mut verifier_tr,
             &prep.params,
-            &prep.structure,
+            prep.structure(),
+            prep.optimized_cache(),
             prep.mix_rhos_commits,
             prep.combine_b_pows,
             &second_claims,
@@ -181,7 +190,8 @@ fn nifs_verify_rejects_tampered_pi_ccs_output() {
     let (_, mut proof) = nifs::prove(
         &mut prover_tr,
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,
@@ -194,7 +204,8 @@ fn nifs_verify_rejects_tampered_pi_ccs_output() {
     nifs::verify(
         &mut baseline_tr,
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
         prep.mix_rhos_commits,
         prep.combine_b_pows,
         &fresh_claims,
@@ -210,7 +221,8 @@ fn nifs_verify_rejects_tampered_pi_ccs_output() {
         nifs::verify(
             &mut verifier_tr,
             &prep.params,
-            &prep.structure,
+            prep.structure(),
+            prep.optimized_cache(),
             prep.mix_rhos_commits,
             prep.combine_b_pows,
             &fresh_claims,
@@ -233,7 +245,7 @@ fn pi_ccs_verify_rejects_output_y_not_bound_to_sumcheck_terminal_value() {
     c[(0, 1)] = F::ONE;
     let r1cs = R1cs { a, b, c, m_in: 1 };
     let prep = direct_ccs::preprocess_seeded(&r1cs, 41).expect("preprocess nontrivial R1CS");
-    let mut z = vec![F::ZERO; prep.structure.m];
+    let mut z = vec![F::ZERO; prep.structure().m];
     z[0] = F::ONE;
     z[1] = F::ONE;
     let fresh = vec![direct_ccs::build_instance(&prep, &r1cs, &z).expect("fresh instance")];
@@ -244,7 +256,8 @@ fn pi_ccs_verify_rejects_output_y_not_bound_to_sumcheck_terminal_value() {
     let (_, mut proof) = nifs::prove(
         &mut prover_tr,
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,
@@ -257,7 +270,8 @@ fn pi_ccs_verify_rejects_output_y_not_bound_to_sumcheck_terminal_value() {
     pi_ccs::verify(
         &mut baseline_tr,
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
         &fresh_claims,
         &running,
         &proof.pi_ccs,
@@ -277,7 +291,8 @@ fn pi_ccs_verify_rejects_output_y_not_bound_to_sumcheck_terminal_value() {
         pi_ccs::verify(
             &mut verifier_tr,
             &prep.params,
-            &prep.structure,
+            prep.structure(),
+            prep.optimized_cache(),
             &fresh_claims,
             &running,
             &proof.pi_ccs,
@@ -298,7 +313,8 @@ fn nifs_verify_rejects_tampered_pi_dec_child() {
     let (_, mut proof) = nifs::prove(
         &mut prover_tr,
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,
@@ -311,7 +327,8 @@ fn nifs_verify_rejects_tampered_pi_dec_child() {
     nifs::verify(
         &mut baseline_tr,
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
         prep.mix_rhos_commits,
         prep.combine_b_pows,
         &fresh_claims,
@@ -327,7 +344,8 @@ fn nifs_verify_rejects_tampered_pi_dec_child() {
         nifs::verify(
             &mut verifier_tr,
             &prep.params,
-            &prep.structure,
+            prep.structure(),
+            prep.optimized_cache(),
             prep.mix_rhos_commits,
             prep.combine_b_pows,
             &fresh_claims,
@@ -350,7 +368,8 @@ fn nifs_verify_rejects_pi_dec_child_count_drift() {
     let (_, mut proof) = nifs::prove(
         &mut prover_tr,
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,
@@ -366,7 +385,8 @@ fn nifs_verify_rejects_pi_dec_child_count_drift() {
         nifs::verify(
             &mut verifier_tr,
             &prep.params,
-            &prep.structure,
+            prep.structure(),
+            prep.optimized_cache(),
             prep.mix_rhos_commits,
             prep.combine_b_pows,
             &fresh_claims,

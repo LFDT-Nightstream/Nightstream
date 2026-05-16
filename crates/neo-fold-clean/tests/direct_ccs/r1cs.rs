@@ -83,7 +83,7 @@ fn build_instance_succeeds_for_satisfying_low_norm_assignment() {
     assert_eq!(prep.params.k_rho(), config::K_RHO);
 
     // (a, b, c) = (1, 0, 1) — pad to structure.m with zeros.
-    let z = pad_z(vec![F::ONE, F::ONE, F::ZERO, F::ONE], prep.structure.m);
+    let z = pad_z(vec![F::ONE, F::ONE, F::ZERO, F::ONE], prep.structure().m);
     let _instance = direct_ccs::build_instance(&prep, &r1cs, &z).expect("build_instance");
 }
 
@@ -93,8 +93,8 @@ fn end_to_end_chain_proof_for_three_term_addition() {
     let prep = direct_ccs::preprocess_seeded(&r1cs, /* seed = */ 2).expect("preprocess");
 
     // Two valid (a, b, c) triples.
-    let z1 = pad_z(vec![F::ONE, F::ZERO, F::ONE, F::ONE], prep.structure.m); // (a=0, b=1, c=1)
-    let z2 = pad_z(vec![F::ONE, F::ONE, F::ZERO, F::ONE], prep.structure.m); // (a=1, b=0, c=1)
+    let z1 = pad_z(vec![F::ONE, F::ZERO, F::ONE, F::ONE], prep.structure().m); // (a=0, b=1, c=1)
+    let z2 = pad_z(vec![F::ONE, F::ONE, F::ZERO, F::ONE], prep.structure().m); // (a=1, b=0, c=1)
 
     let i1 = direct_ccs::build_instance(&prep, &r1cs, &z1).expect("instance 1");
     let i2 = direct_ccs::build_instance(&prep, &r1cs, &z2).expect("instance 2");

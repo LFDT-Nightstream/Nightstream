@@ -62,7 +62,7 @@ fn bit_carrier_r1cs() -> R1cs {
 fn compute_x_out_native(prep: &neo_fold_clean::Preprocessing, state: &State) -> [F; 4] {
     digest32_as_fields(state_x_out_digest(
         prep.vk.digest(),
-        &structure_digest(&prep.structure),
+        &structure_digest(prep.structure()),
         state.chunk_count,
         state.step_count,
         state.z_0,
@@ -75,7 +75,7 @@ fn compute_x_out_native(prep: &neo_fold_clean::Preprocessing, state: &State) -> 
 }
 
 fn base_state(prep: &neo_fold_clean::Preprocessing) -> State {
-    let structure = structure_digest(&prep.structure);
+    let structure = structure_digest(prep.structure());
     let z_0 = initial_boundary_digest(&structure, prep.public_input_len);
     let public_trace = public_trace_seed_digest(&structure);
     let acc_digest = accumulator_digest_from_claims(prep.params.b(), &[]);
@@ -84,14 +84,16 @@ fn base_state(prep: &neo_fold_clean::Preprocessing) -> State {
 
 fn build_link_instance(prep: &neo_fold_clean::Preprocessing, r1cs: &R1cs, x_out_target: [F; 4]) -> CcsInstance {
     let mut z = encode_f_prime_public_input(x_out_target);
-    z.resize(prep.structure.m, F::ZERO);
+    z.resize(prep.structure().m, F::ZERO);
     direct_ccs::build_instance(prep, r1cs, &z).expect("recursive-link instance")
 }
 
 fn peek_next_state(prep: &neo_fold_clean::Preprocessing, state: &State, batch: &[CcsInstance]) -> State {
     let (next, _) = construction2::step(
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
+        prep.structure_digest(),
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,
@@ -110,7 +112,7 @@ fn build_honest_finished_proof(len: usize) -> (neo_fold_clean::Preprocessing, ne
     assert!(len >= 1);
     let r1cs = bit_carrier_r1cs();
     let prep = direct_ccs::preprocess_seeded(&r1cs, 42).expect("preprocess");
-    let placeholder_z = vec![F::ZERO; prep.structure.m];
+    let placeholder_z = vec![F::ZERO; prep.structure().m];
     let dummy_inst = || direct_ccs::build_instance(&prep, &r1cs, &placeholder_z).expect("dummy");
 
     let mut state = base_state(&prep);
@@ -125,7 +127,9 @@ fn build_honest_finished_proof(len: usize) -> (neo_fold_clean::Preprocessing, ne
 
         let (next_state, step_proof) = construction2::step(
             &prep.params,
-            &prep.structure,
+            prep.structure(),
+            prep.optimized_cache(),
+            prep.structure_digest(),
             &prep.log,
             prep.mix_rhos_commits,
             prep.combine_b_pows,

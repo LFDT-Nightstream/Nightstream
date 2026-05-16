@@ -125,7 +125,9 @@ fn verify_terminal_fold_case(
     let pre_state = build_pre_final_state(prep, &proof.state, &final_fold.terminal_inputs);
     let derived_state = construction2::verify_final_fold(
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
+        prep.structure_digest(),
         prep.mix_rhos_commits,
         prep.combine_b_pows,
         &prep.vk,
@@ -229,7 +231,7 @@ fn check_running_witnesses_authority(prep: &Preprocessing, running: &RunningInst
         if prep.log.commit(witness) != claim.c {
             return Err(Error::FinalAccumulatorWitnessCommitmentMismatch { index });
         }
-        let projected = project_x_from_witness_mat(witness, prep.structure.m, claim.m_in)
+        let projected = project_x_from_witness_mat(witness, prep.structure().m, claim.m_in)
             .map_err(|_| Error::FinalAccumulatorPublicInputMismatch { index })?;
         if projected != claim.X {
             return Err(Error::FinalAccumulatorPublicInputMismatch { index });
@@ -311,7 +313,9 @@ pub fn verify_uncompressed_audit(prep: &Preprocessing, audit: &UncompressedAudit
     let statement = super::build_decider_statement(prep, audit);
     decider::validate_witness(
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
+        prep.structure_digest(),
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,

@@ -94,7 +94,6 @@ fn valid_app_step(prev_u: u64, curr_u: u64, step_index: u64) -> FibonacciAppStep
 /// The cached values must outlive every test on `'static`, which
 /// `OnceLock` gives us automatically.
 struct BootstrapShared {
-    prep: FibonacciFPrimePreprocessing,
     fold: FibonacciFoldForStep,
     recursive_has_selector: bool,
     recursive_one_shot_count: usize,
@@ -103,10 +102,18 @@ struct BootstrapShared {
     recursive_structure_digest: [F; 4],
 }
 
+static CANONICAL_PREP: OnceLock<FibonacciFPrimePreprocessing> = OnceLock::new();
 static BOOTSTRAP: OnceLock<BootstrapShared> = OnceLock::new();
 
+fn shared_canonical_prep() -> &'static FibonacciFPrimePreprocessing {
+    CANONICAL_PREP.get_or_init(|| {
+        let plan = canonical_threaded_plan();
+        fibonacci_f_prime::preprocess_seeded(&plan, 0xC0DE_5EED).expect("preprocess")
+    })
+}
+
 fn shared_bootstrap() -> &'static BootstrapShared {
-    BOOTSTRAP.get_or_init(|| bootstrap_real_intermediate_fold_uncached(0xC0DE_5EED))
+    BOOTSTRAP.get_or_init(bootstrap_real_intermediate_fold_uncached)
 }
 
 /// Build a real per-step fold + matching compiler chain state from a
@@ -117,14 +124,13 @@ fn shared_bootstrap() -> &'static BootstrapShared {
 /// `audit.steps[1]` of a non-finalised lifecycle audit) and `chain_state`
 /// mirrors lifecycle state at the start of step 1 so the compiler's
 /// per-step transcript reconstruction matches the prover side.
-fn bootstrap_real_intermediate_fold_uncached(seed: u64) -> BootstrapShared {
-    let plan = canonical_threaded_plan();
-    let prep = fibonacci_f_prime::preprocess_seeded(&plan, seed).expect("preprocess");
-    let mut ctx = start_fibonacci_chain(&prep).expect("start chain");
+fn bootstrap_real_intermediate_fold_uncached() -> BootstrapShared {
+    let prep = shared_canonical_prep();
+    let mut ctx = start_fibonacci_chain(prep).expect("start chain");
 
-    let compiled_base = compile_fibonacci_step(&prep, &mut ctx, valid_app_step(1, 1, 0)).expect("base compile");
+    let compiled_base = compile_fibonacci_step(prep, &mut ctx, valid_app_step(1, 1, 0)).expect("base compile");
     let base_structure_digest = structure_digest(&compiled_base.encoded.structure.ccs);
-    let base_instance = fibonacci_f_prime::build_instance(&prep, &compiled_base.encoded).expect("base instance");
+    let base_instance = fibonacci_f_prime::build_instance(prep, &compiled_base.encoded).expect("base instance");
 
     let audit_after_base = lifecycle::prove(&prep.prep, [vec![base_instance.clone()]]).expect("base lifecycle prove");
 
@@ -159,15 +165,14 @@ fn bootstrap_real_intermediate_fold_uncached(seed: u64) -> BootstrapShared {
         post_running,
     };
 
-    let mut recursive_ctx = start_fibonacci_chain(&prep).expect("start chain for recursive compile");
+    let mut recursive_ctx = start_fibonacci_chain(prep).expect("start chain for recursive compile");
     recursive_ctx.chain_state = chain_state;
     recursive_ctx.fold_for_step = Some(fold.clone());
     let compiled_recursive =
-        compile_fibonacci_step(&prep, &mut recursive_ctx, valid_app_step(1, 1, 1)).expect("recursive compile");
+        compile_fibonacci_step(prep, &mut recursive_ctx, valid_app_step(1, 1, 1)).expect("recursive compile");
     let recursive_config = &compiled_recursive.encoded.image.layout.config;
 
     BootstrapShared {
-        prep,
         fold,
         recursive_has_selector: recursive_config.unified_accumulator_selector.is_some(),
         recursive_one_shot_count: recursive_config.poseidon_one_shot_preimage_lens.len(),
@@ -219,11 +224,10 @@ fn compiler_recursive_step_emits_unified_structure() {
 
 #[test]
 fn compiler_base_step_uses_empty_accumulator_digest() {
-    let plan = canonical_threaded_plan();
-    let prep = fibonacci_f_prime::preprocess_seeded(&plan, 0xC0DE_0003).expect("preprocess");
-    let mut ctx = start_fibonacci_chain(&prep).expect("start chain");
+    let prep = shared_canonical_prep();
+    let mut ctx = start_fibonacci_chain(prep).expect("start chain");
 
-    let compiled = compile_fibonacci_step(&prep, &mut ctx, valid_app_step(1, 1, 0)).expect("base compile");
+    let compiled = compile_fibonacci_step(prep, &mut ctx, valid_app_step(1, 1, 0)).expect("base compile");
     let state_out = compiled.encoded.image.decode_state_out();
     let expected_empty = digest32_as_fields(accumulator_digest_from_claims(prep.prep.params.b(), &[]));
     assert_eq!(
@@ -238,11 +242,10 @@ fn compiler_base_step_uses_empty_accumulator_digest() {
 
 #[test]
 fn compiler_base_step_emits_perp_nifs_payload() {
-    let plan = canonical_threaded_plan();
-    let prep = fibonacci_f_prime::preprocess_seeded(&plan, 0xC0DE_0004).expect("preprocess");
-    let mut ctx = start_fibonacci_chain(&prep).expect("start chain");
+    let prep = shared_canonical_prep();
+    let mut ctx = start_fibonacci_chain(prep).expect("start chain");
 
-    let compiled = compile_fibonacci_step(&prep, &mut ctx, valid_app_step(1, 1, 0)).expect("base compile");
+    let compiled = compile_fibonacci_step(prep, &mut ctx, valid_app_step(1, 1, 0)).expect("base compile");
 
     // Pull the canonical CE shape out of the prep's plan.
     let ce_shape: NifsCeClaimShape = {
@@ -296,12 +299,13 @@ fn compiler_base_step_emits_perp_nifs_payload() {
 #[test]
 fn compiler_base_step_rejects_unexpected_prior_fold() {
     let shared = shared_bootstrap();
-    let mut ctx = start_fibonacci_chain(&shared.prep).expect("start chain");
+    let prep = shared_canonical_prep();
+    let mut ctx = start_fibonacci_chain(prep).expect("start chain");
     // Intentionally do NOT advance chain_state; chunk_count stays at 0
     // (= base path) while fold_for_step is supplied.
     ctx.fold_for_step = Some(shared.fold.clone());
 
-    let err = compile_fibonacci_step(&shared.prep, &mut ctx, valid_app_step(1, 1, 0)).expect_err("must reject");
+    let err = compile_fibonacci_step(prep, &mut ctx, valid_app_step(1, 1, 0)).expect_err("must reject");
     assert!(
         matches!(
             err,
@@ -323,13 +327,12 @@ fn compiler_recursive_step_sets_is_base_false() {
 
 #[test]
 fn compiler_chain_builds_from_scratch_and_verify_uncompressed_accepts() {
-    let plan = canonical_threaded_plan();
-    let prep = fibonacci_f_prime::preprocess_seeded(&plan, 0xC0DE_0007).expect("preprocess");
+    let prep = shared_canonical_prep();
 
     // Run the production base path entirely through the builder so the
     // `FibonacciChainBuilder::finish() -> verify_uncompressed` surface
     // gets default coverage.
-    let mut builder = FibonacciChainBuilder::new(&prep).expect("start builder");
+    let mut builder = FibonacciChainBuilder::new(prep).expect("start builder");
     let compiled = builder
         .append_step(valid_app_step(1, 1, 0))
         .expect("base append");
@@ -352,10 +355,9 @@ fn compiler_chain_builds_from_scratch_and_verify_uncompressed_accepts() {
 
 #[test]
 fn fibonacci_chain_builder_appends_base_step() {
-    let plan = canonical_threaded_plan();
-    let prep = fibonacci_f_prime::preprocess_seeded(&plan, 0xC0DE_BD11).expect("preprocess");
+    let prep = shared_canonical_prep();
 
-    let mut builder = FibonacciChainBuilder::new(&prep).expect("start chain");
+    let mut builder = FibonacciChainBuilder::new(prep).expect("start chain");
     assert!(builder.audit().is_none(), "fresh builder must not own an audit yet");
 
     let compiled = builder

@@ -255,7 +255,7 @@ fn build_instance_rejects_non_satisfying_assignment() {
     let prep = direct_ccs::preprocess_seeded(&r1cs, /* seed = */ 11).expect("preprocess");
 
     // (a, b, c) = (1, 1, 0): 1 + 1 = 2 ≠ 0. The R1CS check fires *before* any commit.
-    let mut z = vec![F::default(); prep.structure.m];
+    let mut z = vec![F::default(); prep.structure().m];
     z[0] = F::ONE;
     z[1] = F::ONE;
     z[2] = F::ONE;
@@ -275,7 +275,7 @@ fn build_instance_rejects_norm_violation() {
     // (a, b, c) = (2, 0, 2): a + b = 2 = c (R1CS satisfies), but ‖z‖_∞ = 2 ≥ b = 2.
     // The norm check fires AFTER R1CS satisfaction, so this exercises the
     // RelationError path.
-    let mut z = vec![F::default(); prep.structure.m];
+    let mut z = vec![F::default(); prep.structure().m];
     z[0] = F::ONE;
     z[1] = F::from_u64(2);
     z[2] = F::ZERO;

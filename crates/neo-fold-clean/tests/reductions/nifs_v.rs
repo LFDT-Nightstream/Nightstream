@@ -73,7 +73,8 @@ fn build_fixture() -> Fixture {
     let (running, _first_proof) = neo_fold_clean::paper::nifs::prove(
         &mut first_tr,
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,
@@ -90,7 +91,8 @@ fn build_fixture() -> Fixture {
     let (next_running, proof) = neo_fold_clean::paper::nifs::prove(
         &mut tr,
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,
@@ -118,17 +120,17 @@ fn build_fixture() -> Fixture {
 
 fn pi_ccs_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> SplitNcPiCcsVConfig<'a> {
     let raw_params = neo_params::NeoParams::goldilocks_auto_r1cs_ccs_with(
-        prep.structure.n.max(prep.structure.m),
+        prep.structure().n.max(prep.structure().m),
         neo_fold_clean::config::MIN_EFFECTIVE_LAMBDA,
         neo_fold_clean::config::EXTENSION_SAFETY_MARGIN_BITS,
     )
     .expect("raw params reconstruction");
     let dims =
-        neo_reductions::engines::utils::build_dims_and_policy(&raw_params, &prep.structure).expect("engine dims");
-    let mat_digest = neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache(&prep.structure, None);
+        neo_reductions::engines::utils::build_dims_and_policy(&raw_params, prep.structure()).expect("engine dims");
+    let mat_digest = neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache(prep.structure(), None);
     let header_bundle = neo_reductions::engines::utils::pi_ccs_header_bundle_digest_fields(
         &raw_params,
-        &prep.structure,
+        prep.structure(),
         dims,
         &mat_digest,
     )
@@ -136,7 +138,7 @@ fn pi_ccs_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> SplitNcPiCcsVCo
 
     SplitNcPiCcsVConfig {
         params: &prep.params,
-        structure: &prep.structure,
+        structure: prep.structure(),
         header_bundle,
         ell_d: dims.ell_d,
         ell_n: dims.ell_n,
@@ -178,7 +180,8 @@ fn nifs_v_accepts_native_proof() {
         let _next_running_claims = neo_fold_clean::paper::nifs::verify(
             &mut native_tr,
             &fixture.prep.params,
-            &fixture.prep.structure,
+            fixture.prep.structure(),
+            fixture.prep.optimized_cache(),
             fixture.prep.mix_rhos_commits,
             fixture.prep.combine_b_pows,
             &fixture.fresh_claims,
@@ -280,7 +283,8 @@ fn native_nifs_verify_rejects_nonzero_inactive_x_in_dec_child() {
     let result = neo_fold_clean::paper::nifs::verify(
         &mut tr,
         &fixture.prep.params,
-        &fixture.prep.structure,
+        fixture.prep.structure(),
+        fixture.prep.optimized_cache(),
         fixture.prep.mix_rhos_commits,
         fixture.prep.combine_b_pows,
         &fixture.fresh_claims,
@@ -312,7 +316,8 @@ fn native_nifs_verify_rejects_nonzero_inactive_x_in_running() {
     let result = neo_fold_clean::paper::nifs::verify(
         &mut tr,
         &fixture.prep.params,
-        &fixture.prep.structure,
+        fixture.prep.structure(),
+        fixture.prep.optimized_cache(),
         fixture.prep.mix_rhos_commits,
         fixture.prep.combine_b_pows,
         &fixture.fresh_claims,

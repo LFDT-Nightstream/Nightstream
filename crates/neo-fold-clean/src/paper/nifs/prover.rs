@@ -1,6 +1,7 @@
 //! NIFS.P — prover-side composition `Π_CCS → Π_RLC → Π_DEC`.
 
 use neo_ajtai::AjtaiSModule;
+use neo_reductions::optimized_engine::OptimizedStructureCache;
 
 use crate::engine::transcript::Transcript;
 use crate::paper::construction2::RunningInstance;
@@ -17,6 +18,7 @@ pub fn prove(
     tr: &mut Transcript,
     pp: &Params,
     s: &Structure,
+    cache: &OptimizedStructureCache,
     log: &AjtaiSModule,
     mix_rhos_commits: RlcMixer,
     combine_b_pows: DecMixer,
@@ -27,7 +29,7 @@ pub fn prove(
     let prior_running_witnesses = running.witnesses.clone();
 
     // 1. Π_CCS — fold K fresh CCS into K+k CE claims at r'.
-    let pi_ccs_proof = pi_ccs::prove(tr, pp, s, log, fresh, running)?;
+    let pi_ccs_proof = pi_ccs::prove(tr, pp, s, cache, log, fresh, running)?;
     let all_witnesses = chain_witnesses(fresh_witness_mats, prior_running_witnesses);
 
     // 2. Π_RLC — combine into one CE claim of norm B.

@@ -11,7 +11,8 @@
 - Do not introduce mixed hash families (e.g., Blake3/SHA prehashes) in protocol-binding paths without explicit user approval.
 - For difficult questions, hard design/review tradeoffs, or high-confidence soundness checks, you may use the project-local multi-AI council skill at `./.codex/skills/multi-ai-council/SKILL.md` (it may take between 5 - 25 min to answer).
 - You can find the SuperNeo paper which is what the main protocol is based upon in ./docs/superneo-paper
-- If any tests take longer than 60 seconds cancel it, unless the user explicitly approves a longer run.
+- **5-minute test cap (hard).** Every `cargo test` (and any other test-binary invocation) MUST be launched with a timeout of **at most 300 000 ms (5 minutes)**. Pass `timeout: 300000` to the Bash tool — do not omit it, do not raise it. If a test is still running at the cap, kill it and treat the test as failing this slice; either reduce its work (smaller `n`, shared cache) or mark it `#[ignore]` with a clear comment. The 5-minute cap is unconditional; the only way to exceed it is the user explicitly approving a longer run for a specific invocation in the same turn — there is no standing exception.
+- **No subagents (hard).** Never invoke the Agent / Task tool, never spawn a subagent of any type (`general-purpose`, `Explore`, `Plan`, `claude`, etc.), and never call `mcp__ccd_session__spawn_task`. Do all work inline in the current session. This is unconditional — the only way to dispatch a subagent is the user explicitly approving a specific dispatch in the same turn, naming the subagent_type and the task; there is no standing exception. The multi-AI council skill referenced above is a separate mechanism (a slash-command tool, not the Agent tool) and is still allowed where rule 12 applies.
 
 ## Operating Discipline
 - Before implementing, state the assumptions that matter for the task. If multiple interpretations are plausible and the wrong one would be costly, ask instead of guessing.
@@ -38,6 +39,18 @@
   - If a new abstraction mostly moves complexity around instead of removing it, reject it.
   - If understanding a hot path requires chasing wrappers or indirection, simplify it.
   - If a module grows by absorbing unrelated responsibilities, split it by responsibility instead of adding more flags or configuration.
+- Rust design quality:
+  - Before writing or changing Rust code, identify the shape of the design before choosing syntax.
+  - Ask what core concept the code expresses: data, behavior, construction, validation, state transition, or orchestration flow.
+  - Design from the simplest correct call site first. If the call site is ugly, the design is probably wrong.
+  - Prefer names that make sense to a reader who has not seen the internals.
+  - Use the type system to make invalid states hard to express, but do not add ceremony that only moves complexity around.
+  - Prefer small public surfaces, domain types, private fields by default, narrow accessors, associated constructors for pure value construction, and free functions for obvious actions and flows.
+  - Use traits only for real shared capabilities or conformance contracts, not to make one implementation look abstract.
+  - Use step-down functions only when each step names a real phase or hides real complexity.
+  - Prefer explicit data flow over clever callbacks, hidden mutation, or compiler-shaped APIs.
+  - Reject exposed closure plumbing, noisy bounds, deep paths, tuple soup, state-machine internals, pass-through wrappers, single-use helpers that do not name a real concept, premature generic flexibility, giant mixed-domain structs, borrow-checker clones, and public fields that are not a deliberate ABI/proof boundary.
+- Public protocol APIs must use lifecycle names and hide implementation state-machine constructors. A client should call entrypoints such as `prove`, `extend`, `finish_with_spartan`, and `verify`, not deep paths like `direct_ccs::DirectCcsRecursiveIvcState::new_with_canonical_zero_carry`. If such constructors are needed internally, isolate them behind a short, well-named private helper and never put them in crate-root examples, public docs, or expected client flow.
 - Rust file/module documentation should optimize for ownership clarity and auditability, not ceremony.
 - Do not add top-level file docs to trivial files whose purpose is obvious from the code.
 - For normal files, prefer a short `//!` ownership header that states what the file owns and what it does not own.
@@ -55,82 +68,26 @@
 - When running tests use --release eg cargo test --workspace --release
 - For extra debugs use debug-logs eg --features paper-exact,debug-logs
 
-## Formal Lean Subproject (`formal/superneo-lean`)
-- Use this 3-layer layout for each formalized component:
-  - Human spec: `formal/superneo-lean/specs/<Name>.spec.md`
-  - Typed Lean interface: `formal/superneo-lean/SuperNeo/<Name>Interface.lean`
-  - Lean implementation: `formal/superneo-lean/SuperNeo/<Name>.lean`
-- Lean build discipline:
-  - During iteration, build only the target module(s) you changed and their dependencies, not the whole package.
-  - Prefer narrow commands such as `lake build SuperNeo.<Name>` while working.
-  - If several Lean modules changed, build the narrowest affected theorem-facing targets that cover those edits.
-  - Only once the Lean work is complete, run a full `lake build` to catch package-wide breakage before finishing.
-- Closure standard (mandatory): **Paper-faithful proof-complete**.
-  - A module is only considered complete when the exact mathematical construction/claim from
-    `./formal/superneo-lean/SuperNeo.pdf.md` is proved in Lean at quantified theorem level.
-  - Regression checks (`lake exe check`, generated vectors, booleans) are required but are never
-    sufficient evidence for completion.
-  - Interface-level or assumption-level closure (`Done (Boundary)`) is intermediate only.
-  - Do not claim proof completion by redefining theorem-facing surfaces to be definitionally equal
-    to the target expression while leaving the executable/paper construction unproved; prove the
-    bridge theorem explicitly.
-  - Any trusted assumption/axiom that remains must be explicit, minimal, and accompanied by a
-    concrete closure plan in the module spec and README.
-- Project-local skill for this workflow:
-  - Path: `./.codex/skills/superneo-lean-interface-spec/SKILL.md`
-  - Purpose: create/update per-module Lean contract pairs
-    (`SuperNeo/<Name>Interface.lean` + `specs/<Name>.spec.md`).
-  - Use when: standardizing specs, adding missing interface/spec files, or
-    auditing assumptions/consumers against `./formal/superneo-lean/SuperNeo.pdf.md`.
-- Keep interface files colocated with implementations (Objective-C style), not in a separate top-level folder.
-- `*.spec.md` is the external/human-facing specification; `*Interface.lean` is the machine-checked boundary.
-- Specs must be **stateless**: they describe the timeless mathematical target (what the module must achieve), never the current implementation progress. Do not use language like "currently proved", "not yet implemented", "scaffold", "pending", or "in progress" in specs. A spec should read identically whether the module is 0% or 100% complete.
-- Avoid naming Lean boundary files as `*Spec.lean` or `*Contract.lean` to prevent confusion with prose specs and crypto terminology.
-- Interfaces should expose theorem/definition shapes and boundary assumptions clearly; implementations should satisfy or instantiate those interfaces.
-- Prefer thin/stable interfaces and keep implementation details out of `*Interface.lean`.
+## Formal Lean Subprojects
+- Lean-specific instructions live in subdirectory `AGENTS.md` files so they apply only to the matching formal project.
+- For the SuperNeo Lean project, read `formal/superneo-lean/AGENTS.md`.
+
 
 ## Perf & Constraint Debugging
 
-Perf tests live in `crates/neo-fold/tests/suites/perf/single_addi_metrics_nightstream.rs`. All use `--ignored`.
+Use these commands based on what you are measuring. `NS_DEBUG_N` is the number of VM instructions plus halt.
 
-Full constraint architecture report (main CCS, bus, Route-A claims, openings, timing):
-```bash
-NS_DEBUG_N=10000 cargo test -p neo-fold-next --release --test perf_rv64im_with_spartan -- --ignored --nocapture rv64im_mixed_opcode_perf_snapshot
-```
-N: number of riscv instructions + 1 (halt).
+| Question | Command |
+|---|---|
+| How many constraints/aux variables are handed to Spartan before compression? | `NS_DEBUG_N=10 cargo run -p neo-fold-prototype --bin rv64im_main_recursion_shape_probe` |
+| How expensive is no-Spartan IVC append/build work? | `NS_DEBUG_N=5 cargo test -p neo-fold-prototype --release --test perf_rv64im_no_spartan -- --ignored --nocapture rv64im_mixed_opcode_no_spartan_ivc_perf_snapshot` |
+| What does final Spartan compression + verify cost for a live RV64IM IVC artifact? | `NS_DEBUG_N=2 cargo test -p neo-fold-prototype --release --test perf_rv64im_with_spartan rv64im_ivc_product_surface_with_spartan_compress_and_verify_snapshot -- --ignored --exact --nocapture` |
+| Need the broad architecture report across main CCS, bus, Route-A claims, openings, and timing? | `NS_DEBUG_N=10000 cargo test -p neo-fold-prototype --release --test perf_rv64im_with_spartan -- --ignored --nocapture rv64im_mixed_opcode_perf_snapshot` |
 
-Main-recursion shape probe (constraint count / aux count / synth-time before compression):
+For product-surface compression chunk sizing, append either `-- --chunk-size 2` or `-- --rows-per-chunk 2` after the libtest args:
 ```bash
-NS_DEBUG_N=10 cargo run -p neo-fold-next --bin rv64im_main_recursion_shape_probe
+NS_DEBUG_N=5 cargo test -p neo-fold-prototype --release --test perf_rv64im_with_spartan rv64im_ivc_product_surface_with_spartan_compress_and_verify_snapshot -- --ignored --exact --nocapture -- --chunk-size 2
 ```
-Use this when the question is "how many constraints are we handing to Spartan?" or when optimizing the recursive circuit shape without paying for `compress()`.
-
-RV64IM no-Spartan IVC perf/debug snapshot (append/build only; stops before `compress()`):
-```bash
-NS_DEBUG_N=5 cargo test -p neo-fold-next --release --test perf_rv64im_no_spartan -- --ignored --nocapture rv64im_mixed_opcode_no_spartan_ivc_perf_snapshot
-```
-Use this test for RV64IM no-Spartan IVC append/build performance work and stage-by-stage IVC timing breakdowns.
-
-RV64IM with-Spartan product-surface IVC compression snapshot (live state build, then `compress()` + compressed verify):
-```bash
-NS_DEBUG_N=2 cargo test -p neo-fold-next --release --test perf_rv64im_with_spartan rv64im_ivc_product_surface_with_spartan_compress_and_verify_snapshot -- --ignored --exact --nocapture
-```
-This test now builds the live IVC state from `NS_DEBUG_N`; it is no longer fixture-backed.
-
-Optional chunk sizing for the live product-surface snapshot uses an extra libtest delimiter and defaults to `1` when omitted:
-```bash
-NS_DEBUG_N=5 cargo test -p neo-fold-next --release --test perf_rv64im_with_spartan rv64im_ivc_product_surface_with_spartan_compress_and_verify_snapshot -- --ignored --exact --nocapture -- --chunk-size 2
-```
-Alias:
-```bash
-NS_DEBUG_N=5 cargo test -p neo-fold-next --release --test perf_rv64im_with_spartan rv64im_ivc_product_surface_with_spartan_compress_and_verify_snapshot -- --ignored --exact --nocapture -- --rows-per-chunk 2
-```
-
-Which perf command to use:
-- Use `rv64im_main_recursion_shape_probe` when optimizing recursive constraint count, aux count, or pre-compression synth cost. This is the default tool for "reduce what Spartan has to compress".
-- Use `rv64im_mixed_opcode_no_spartan_ivc_perf_snapshot` when optimizing append/build time before Spartan. This is the right tool for `F'`, Construction-2, Ajtai commit, and other no-compression hotspots.
-- Use `rv64im_ivc_product_surface_with_spartan_compress_and_verify_snapshot` when measuring the final compressed RV64IM IVC artifact: live state build, `compress()`, compressed verify, and serialized proof size.
-- Use `rv64im_mixed_opcode_perf_snapshot` under `--test perf_rv64im_with_spartan` when you need the larger theorem-facing public-path architecture report across main CCS, bus, Route-A claims, openings, and timing, not just the recursive lane.
 
 ## Profiling
 

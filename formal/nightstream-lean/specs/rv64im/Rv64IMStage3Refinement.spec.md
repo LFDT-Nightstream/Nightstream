@@ -33,7 +33,7 @@ $$
 
 ## Paper Anchors
 
-- **Source**: `./crates/neo-fold-next/specs/riscv-kernel.md`
+- **Source**: `./crates/neo-fold-prototype/specs/riscv-kernel.md`
 - Anchors:
   - Stage-3 semantic PC bridge
   - full halted execution claim

@@ -13,11 +13,13 @@ pub use contract::*;
 pub use contract_submit::*;
 pub use proof_server::*;
 
-use neo_fold_next::nightstream::rv64im::audit::rv64im_main_nightstream_proof_digest;
-use neo_fold_next::nightstream::rv64im::{rv64im_verifier_context_digest, Rv64imNightstreamProof};
-use neo_fold_next::nightstream::{nightstream_proof_binding_root, NightstreamProofBindingInputs, NightstreamStatement};
-use neo_fold_next::proof::FoldSchedule;
-use neo_fold_next::rv64im::SimpleKernelError;
+use neo_fold_prototype::nightstream::rv64im::audit::rv64im_main_nightstream_proof_digest;
+use neo_fold_prototype::nightstream::rv64im::{rv64im_verifier_context_digest, Rv64imNightstreamProof};
+use neo_fold_prototype::nightstream::{
+    nightstream_proof_binding_root, NightstreamProofBindingInputs, NightstreamStatement,
+};
+use neo_fold_prototype::proof::FoldSchedule;
+use neo_fold_prototype::rv64im::SimpleKernelError;
 use payload::{decode_rv64im_nightstream_proof_fields, encode_rv64im_nightstream_proof_fields};
 use std::borrow::Cow;
 use std::sync::Arc;

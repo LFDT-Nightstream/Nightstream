@@ -1,5 +1,5 @@
-use neo_fold_next::chip8::spec::CommitmentId;
-use neo_fold_next::chip8::Chip8Opcode;
+use neo_fold_prototype::chip8::spec::CommitmentId;
+use neo_fold_prototype::chip8::Chip8Opcode;
 
 pub fn render_u8_list(values: &[u8]) -> String {
     if !values.is_empty() && values.iter().all(|&value| value == 0) {

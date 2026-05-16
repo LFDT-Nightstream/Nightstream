@@ -250,7 +250,7 @@ full §10 soundness surface in Lean.
 ## Paper Anchors
 
 - **Sources**:
-  - `./crates/neo-fold-next/specs/chip8-kernel.md`
+  - `./crates/neo-fold-prototype/specs/chip8-kernel.md`
   - `./docs/soundness-specs/twist-and-shout-requirements.md`
   - `./docs/superneo-paper/07_7_Neo_s_folding_scheme_for_CCS.md`
 - Anchors:

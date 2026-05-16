@@ -158,7 +158,7 @@ in the formal stack.
 - **Sources**:
   - `./docs/assurance-strategy.md`
   - `./docs/soundness-specs/twist-and-shout-requirements.md`
-  - `./crates/neo-fold-next/specs/chip8-kernel.md`
+  - `./crates/neo-fold-prototype/specs/chip8-kernel.md`
   - `./docs/superneo-paper`
 - Anchors:
   - staged proof composition

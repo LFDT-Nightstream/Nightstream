@@ -245,7 +245,7 @@ CHIP-8 meaning of the Stage-2 subsystem.
 
 ## Paper Anchors
 
-- **Source**: `./crates/neo-fold-next/specs/chip8-kernel.md`
+- **Source**: `./crates/neo-fold-prototype/specs/chip8-kernel.md`
 - Anchors:
   - register-file domain and ports
   - register-file lane linkage

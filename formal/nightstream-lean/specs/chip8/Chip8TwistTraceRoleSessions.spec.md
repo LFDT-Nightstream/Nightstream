@@ -76,7 +76,7 @@ theorem is attempted.
 ## Paper Anchors
 
 - **Sources**:
-  - `/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-next/specs/chip8-kernel.md`
+  - `/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-prototype/specs/chip8-kernel.md`
   - `/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/docs/soundness-specs/twist-and-shout-requirements.md`
 - Anchors:
   - Stage 2 must preserve the exact `Inc -> Val -> rv / wv` dependency chain

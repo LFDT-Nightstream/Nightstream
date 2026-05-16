@@ -14,7 +14,7 @@
 ## Target Formulas
 
 The simple-kernel input boundary in
-`./crates/neo-fold-next/specs/chip8-kernel.md` requires:
+`./crates/neo-fold-prototype/specs/chip8-kernel.md` requires:
 
 - `semantic_trace_rows` contains exactly the `N` semantic rows of the chunk
 - the first semantic row agrees with `initial_state`
@@ -67,7 +67,7 @@ start-boundary or final-boundary laws, because those remain owned by
 ## Paper Anchors
 
 - **Sources**:
-  - `./crates/neo-fold-next/specs/chip8-kernel.md`
+  - `./crates/neo-fold-prototype/specs/chip8-kernel.md`
   - `./docs/assurance-strategy.md`
 - Anchors:
   - simple-kernel input contract

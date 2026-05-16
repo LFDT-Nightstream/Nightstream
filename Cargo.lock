@@ -1931,7 +1931,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "neo-fold-next"
+name = "neo-fold-prototype"
 version = "0.1.0"
 dependencies = [
  "bellpepper",
@@ -2053,7 +2053,7 @@ dependencies = [
  "midnight-storage",
  "midnight-transient-crypto",
  "midnight-zkir",
- "neo-fold-next",
+ "neo-fold-prototype",
  "thiserror 2.0.18",
 ]
 

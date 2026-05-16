@@ -273,7 +273,7 @@ $$
 
 ## Paper Anchors
 
-- **Source**: `./crates/neo-fold-next/specs/chip8-kernel.md`
+- **Source**: `./crates/neo-fold-prototype/specs/chip8-kernel.md`
 - Anchors:
   - continuity support relation
   - `LaneShiftProof`

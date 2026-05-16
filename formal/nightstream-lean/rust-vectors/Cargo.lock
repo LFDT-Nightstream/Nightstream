@@ -488,7 +488,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "neo-fold-next"
+name = "neo-fold-prototype"
 version = "0.1.0"
 dependencies = [
  "bellpepper-core",
@@ -568,7 +568,7 @@ dependencies = [
 name = "nightstream-rust-vectors"
 version = "0.1.0"
 dependencies = [
- "neo-fold-next",
+ "neo-fold-prototype",
  "neo-math",
  "neo-transcript",
  "p3-field",

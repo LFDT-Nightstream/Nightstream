@@ -6,7 +6,7 @@ edition = "2021"
 [workspace]
 
 [dependencies]
-neo-fold-next = { path = "../../../crates/neo-fold-next", features = ["chip8-audit"] }
+neo-fold-prototype = { path = "../../../crates/neo-fold-prototype", features = ["chip8-audit"] }
 neo-math = { path = "../../../crates/neo-math" }
 neo-transcript = { path = "../../../crates/neo-transcript" }
 p3-field = "=0.5.1"

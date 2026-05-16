@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use neo_fold_next::chip8::kernel::{
+use neo_fold_prototype::chip8::kernel::{
     absorb_root0, build_kernel_exact_frames, build_kernel_stage3_digest_surfaces,
     build_kernel_external_release_artifact, build_kernel_staged_execution_digest_bundle, new_simple_kernel_transcript,
     prepared_step_digest, prove_simple_kernel, KernelBridgeBindingClaim, KernelBridgeBindingSummary, KernelCommitments,
@@ -19,16 +19,16 @@ use neo_fold_next::chip8::kernel::{
     KernelTranscriptEvent, SimpleKernelProverInput, SimpleKernelPublicInput, SimpleKernelWitness,
     Stage1ShoutChannel, AddressFamily, TwistReadFamily, TwistMemoryFamily, KernelErrorTerm,
 };
-use neo_fold_next::chip8::stage1;
-use neo_fold_next::chip8::stage2;
-use neo_fold_next::chip8::stage3;
-use neo_fold_next::chip8::spec::{build_pad_row, COL_I_NEXT, COL_I_REG, COL_REG_X, COL_REG_X_NEXT, WITNESS_WIDTH};
-use neo_fold_next::chip8::tables::{
+use neo_fold_prototype::chip8::stage1;
+use neo_fold_prototype::chip8::stage2;
+use neo_fold_prototype::chip8::stage3;
+use neo_fold_prototype::chip8::spec::{build_pad_row, COL_I_NEXT, COL_I_REG, COL_REG_X, COL_REG_X_NEXT, WITNESS_WIDTH};
+use neo_fold_prototype::chip8::tables::{
     build_alu_table, build_decode_table, build_eq4_table, build_rom_table, flatten_alu_key, flatten_eq4_key,
     LookupKind, ADDR_REG_BITS, RAM_SINK_ADDR, REG_SINK_ADDR,
 };
-use neo_fold_next::chip8::trace::Chip8TraceBuilder;
-use neo_fold_next::chip8::{Chip8Program, Chip8State, CHIP8_PROGRAM_START};
+use neo_fold_prototype::chip8::trace::Chip8TraceBuilder;
+use neo_fold_prototype::chip8::{Chip8Program, Chip8State, CHIP8_PROGRAM_START};
 use neo_math::{F, KExtensions, K};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -1129,7 +1129,7 @@ fn render_bridge_binding_summary_view(summary: &KernelBridgeBindingSummary) -> S
 }
 
 fn render_kernel_trace_surface_view_from_frames_expr(
-    trace: &neo_fold_next::chip8::kernel::KernelTraceSurface,
+    trace: &neo_fold_prototype::chip8::kernel::KernelTraceSurface,
     frames_expr: &str,
 ) -> String {
     format!(
@@ -1143,7 +1143,7 @@ fn render_kernel_trace_surface_view_from_frames_expr(
 }
 
 fn render_kernel_export_surface_view(
-    export: &neo_fold_next::chip8::kernel::KernelExportSurface,
+    export: &neo_fold_prototype::chip8::kernel::KernelExportSurface,
 ) -> String {
     let prepared_step_digests: Vec<[u8; 32]> =
         export.prepared_steps.iter().map(prepared_step_digest).collect();
@@ -1163,7 +1163,7 @@ fn render_kernel_export_surface_view(
 }
 
 fn render_kernel_audit_surface_view(
-    audit: &neo_fold_next::chip8::kernel::KernelAuditSurface,
+    audit: &neo_fold_prototype::chip8::kernel::KernelAuditSurface,
 ) -> String {
     format!(
         "mkKernelAuditSurfaceView\n      ({})\n      ({})",
@@ -1224,7 +1224,7 @@ fn render_kernel_transcript_event(event: &KernelTranscriptEvent) -> String {
 }
 
 fn render_kernel_transcript_surface_view(
-    transcript: &neo_fold_next::chip8::kernel::KernelTranscriptSurface,
+    transcript: &neo_fold_prototype::chip8::kernel::KernelTranscriptSurface,
 ) -> String {
     let mut events = String::from("[");
     for (idx, event) in transcript.events.iter().enumerate() {
@@ -1463,7 +1463,7 @@ fn render_error_term_list(values: &[KernelErrorTerm]) -> String {
 }
 
 fn render_kernel_error_surface_view(
-    error: &neo_fold_next::chip8::kernel::KernelErrorSurface,
+    error: &neo_fold_prototype::chip8::kernel::KernelErrorSurface,
 ) -> String {
     format!(
         "mkKernelErrorSurfaceView\n      {}\n      {}\n      {}\n      {}\n      {}\n      {}\n      {}\n      {}\n      {}\n      {}\n      {}\n      {}\n      {}",

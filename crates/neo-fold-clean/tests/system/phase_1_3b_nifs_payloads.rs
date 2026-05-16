@@ -20,9 +20,9 @@
 mod support;
 
 use neo_fold_clean::engine::transcript::Transcript;
-use neo_fold_clean::frontends::fibonacci_f_prime::image::{
-    FibonacciFPrimeImage, FibonacciFPrimeImageConfig, FibonacciFPrimeImageLayout, NifsCcsClaimShape, NifsCcsClaimView,
-    NifsCeClaimShape, NifsCeClaimView, NifsPayloadShape,
+use neo_fold_clean::frontends::f_prime_shell::image::{
+    FPrimeImage, FPrimeImageConfig, FPrimeImageLayout, NifsCcsClaimShape, NifsCcsClaimView, NifsCeClaimShape,
+    NifsCeClaimView, NifsPayloadShape,
 };
 use neo_fold_clean::paper::construction2::RunningInstance;
 use neo_fold_clean::paper::digest::digest32_as_fields;
@@ -135,8 +135,8 @@ fn ce_view_shape(view: &NifsCeClaimView) -> NifsCeClaimShape {
 
 // ── Config sized to the fixture's actual claim sizes ─────────────────────
 
-fn skeleton_config_for(fresh_shape: &NifsCcsClaimShape, ce_shape: &NifsCeClaimShape) -> FibonacciFPrimeImageConfig {
-    FibonacciFPrimeImageConfig {
+fn skeleton_config_for(fresh_shape: &NifsCcsClaimShape, ce_shape: &NifsCeClaimShape) -> FPrimeImageConfig {
+    FPrimeImageConfig {
         limbs: 3,
         boundary_bits: 704,
         nifs_payload_shapes: vec![
@@ -160,11 +160,8 @@ fn skeleton_config_for(fresh_shape: &NifsCcsClaimShape, ce_shape: &NifsCeClaimSh
     }
 }
 
-fn fresh_image(fresh_shape: &NifsCcsClaimShape, ce_shape: &NifsCeClaimShape) -> FibonacciFPrimeImage {
-    FibonacciFPrimeImage::new(FibonacciFPrimeImageLayout::new(skeleton_config_for(
-        fresh_shape,
-        ce_shape,
-    )))
+fn fresh_image(fresh_shape: &NifsCcsClaimShape, ce_shape: &NifsCeClaimShape) -> FPrimeImage {
+    FPrimeImage::new(FPrimeImageLayout::new(skeleton_config_for(fresh_shape, ce_shape)))
 }
 
 // ── Round-trip tests ─────────────────────────────────────────────────────
@@ -325,8 +322,8 @@ fn phase_1_3b_nifs_overflow_panics() {
         },
     );
 
-    let layout = FibonacciFPrimeImageLayout::new(config);
-    let mut image = FibonacciFPrimeImage::new(layout);
+    let layout = FPrimeImageLayout::new(config);
+    let mut image = FPrimeImage::new(layout);
     image.fill_nifs_ccs_claim_at(0, &view);
 }
 

@@ -1,9 +1,11 @@
-//! Phase 1.2 — Fibonacci F' source-image skeleton.
+//! App-agnostic encoded-F' source-image skeleton.
 //!
 //! Composes the four Phase 1.1 primitives (`poseidon_trace`,
 //! `poseidon2_transcript`, `ring_action_trace`, plus the existing
 //! `source_image` boundary layer) into a single layout + image for one
-//! Fibonacci F' recursive step.
+//! recursive F' step. Concrete app frontends
+//! (`crate::frontends::fibonacci_f_prime`,
+//! `crate::frontends::r1cs_f_prime`) build on this shell.
 //!
 //! This is a skeleton: the layout describes every region (boundary–poseidon from
 //! the Phase 1.1 spec §2) with non-overlapping offsets, and the image
@@ -65,9 +67,9 @@ impl RegionRange {
     }
 }
 
-/// Knobs sizing the Fibonacci F' image for one recursive step.
+/// Knobs sizing the F' image for one recursive step.
 #[derive(Clone, Debug)]
-pub struct FibonacciFPrimeImageConfig {
+pub struct FPrimeImageConfig {
     /// Fibonacci `LIMBS`; private bits = `LIMBS - 1` carries.
     pub limbs: usize,
     /// boundary bit count (existing `source_image` BitRange size).
@@ -219,6 +221,17 @@ pub enum PoseidonPreimageLaneSource {
     /// `lane_slots.public_x_out_binding_lanes[binding_index][lane]`,
     /// resolved through `lane_terms(slot)`.
     PublicXOutBindingLane { binding_index: usize, lane: usize },
+    /// Canonical-u64 value of the `j`-th app-assignment variable —
+    /// `lane_slots.app_assignment_lanes[var_index]`. Resolved through
+    /// `lane_terms(slot)` directly from the 64 committed bits at
+    /// `layout.app_private.offset + var_index * 64`.
+    ///
+    /// Intended for app frontends (R1CS today) that bind app-level
+    /// public-input bits to an algebraically-enforced Poseidon hash so
+    /// the verifier-visible `state_x_out` is bound to the proven public
+    /// input `x`. The Fibonacci frontend's `app_private` region holds
+    /// carries (not 64-bit lanes) and does not use this variant.
+    AppAssignmentLane(usize),
 }
 
 /// One Phase 1.4d-a-4 enforcement: bind the trace at `one_shot_index`
@@ -253,10 +266,10 @@ impl NifsPayloadShape {
     }
 }
 
-/// Concrete layout for one Fibonacci F' image.
+/// Concrete layout for one F' image.
 #[derive(Clone, Debug)]
-pub struct FibonacciFPrimeImageLayout {
-    pub config: FibonacciFPrimeImageConfig,
+pub struct FPrimeImageLayout {
+    pub config: FPrimeImageConfig,
     pub boundary: RegionRange,
     pub state_in: RegionRange,
     pub state_out: RegionRange,
@@ -264,7 +277,7 @@ pub struct FibonacciFPrimeImageLayout {
     pub app_private: RegionRange,
     /// Single committed bit; `1` for base step, `0` for recursive step.
     /// Drives the unified-accumulator selector constraint emitted in
-    /// `fibonacci_structure::build_fibonacci_f_prime_structure`. Always
+    /// `fibonacci_structure::build_f_prime_shell_structure`. Always
     /// reserved (one bit) even when the plan has no
     /// `AccumulatorPlanOptions` — the encoder writes `0` there in that
     /// case, and the structure's bit-validity row covers the binary
@@ -292,8 +305,8 @@ pub struct FibonacciFPrimeImageLayout {
     pub end: usize,
 }
 
-impl FibonacciFPrimeImageLayout {
-    pub fn new(config: FibonacciFPrimeImageConfig) -> Self {
+impl FPrimeImageLayout {
+    pub fn new(config: FPrimeImageConfig) -> Self {
         // z[0] = constant slot; non-constant regions start at offset 1.
         let mut cursor = 1usize;
 
@@ -422,18 +435,18 @@ impl FibonacciFPrimeImageLayout {
     }
 }
 
-/// One Fibonacci F' recursive step's bit-backed witness, plus the
+/// One F' recursive step's bit-backed witness, plus the
 /// layout that names its regions.
 #[derive(Clone, Debug)]
-pub struct FibonacciFPrimeImage {
-    pub layout: FibonacciFPrimeImageLayout,
+pub struct FPrimeImage {
+    pub layout: FPrimeImageLayout,
     /// `values[0] = F::ONE`; all later entries are `{0, 1}` once any
     /// splice has populated them. Unspliced regions remain zero.
     pub values: Vec<F>,
 }
 
-impl FibonacciFPrimeImage {
-    pub fn new(layout: FibonacciFPrimeImageLayout) -> Self {
+impl FPrimeImage {
+    pub fn new(layout: FPrimeImageLayout) -> Self {
         let mut values = vec![F::ZERO; layout.end];
         values[0] = F::ONE;
         Self { layout, values }
@@ -599,7 +612,7 @@ fn read_digest_bits(values: &[F], offset: usize) -> [F; 4] {
     std::array::from_fn(|lane| decode_u64_lane(values, offset + lane * POSEIDON2_GOLDILOCKS_BITS))
 }
 
-impl FibonacciFPrimeImage {
+impl FPrimeImage {
     /// Copy `bits` verbatim into the boundary region. Length must
     /// match `config.boundary_bits`. Each entry must be `{0, 1}`.
     pub fn fill_boundary(&mut self, bits: &[F]) {
@@ -826,7 +839,7 @@ impl NifsCeClaimShape {
     }
 }
 
-impl FibonacciFPrimeImage {
+impl FPrimeImage {
     /// Encode a fresh `CcsClaim` payload starting at `nifs_offset` (a
     /// nifs_payloads-relative offset). Returns the next free nifs_payloads-relative offset.
     pub fn fill_nifs_ccs_claim_at(&mut self, nifs_offset: usize, view: &NifsCcsClaimView) -> usize {
@@ -1135,7 +1148,7 @@ pub struct KMulView {
     pub r: [F; 2],
 }
 
-impl FibonacciFPrimeImage {
+impl FPrimeImage {
     /// Encode one K-mul slot at `index` (must be `< kmul_count`).
     pub fn fill_kmul_at(&mut self, index: usize, view: &KMulView) {
         assert!(

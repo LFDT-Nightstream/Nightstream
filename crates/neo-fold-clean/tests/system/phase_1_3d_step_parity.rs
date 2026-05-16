@@ -2,7 +2,7 @@
 //!
 //! Builds a real Fibonacci F' recursive step using the same machinery as
 //! `tests/f_prime/r1cs.rs::f_prime_recursive_step_accepts_real_native_nifs_proof`,
-//! then validates that the bit-backed `FibonacciFPrimeImage`'s decoded
+//! then validates that the bit-backed `FPrimeImage`'s decoded
 //! values match BOTH the in-circuit witness wires the F' R1CS emitter
 //! produces AND the production native digest functions in
 //! `paper::digest::*`.
@@ -35,8 +35,8 @@ use neo_fold_clean::engine::r1cs_circuit::builder::RingMulAuditEntry;
 use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
 use neo_fold_clean::engine::transcript::Transcript;
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
-use neo_fold_clean::frontends::fibonacci_f_prime::image::{
-    FibonacciFPrimeImage, FibonacciFPrimeImageConfig, FibonacciFPrimeImageLayout, KMulView, StateIn, StateOut,
+use neo_fold_clean::frontends::f_prime_shell::image::{
+    FPrimeImage, FPrimeImageConfig, FPrimeImageLayout, KMulView, StateIn, StateOut,
 };
 use neo_fold_clean::paper::construction2::RunningInstance;
 use neo_fold_clean::paper::digest::{
@@ -304,8 +304,8 @@ fn recursive_source_image(fixture: &Fixture) -> RecursiveSourceFixture {
 
 // ── Image config (minimal — only the regions touched by this test) ──────
 
-fn image_config_for_one_step(poseidon_one_shot_preimage_lens: Vec<usize>) -> FibonacciFPrimeImageConfig {
-    FibonacciFPrimeImageConfig {
+fn image_config_for_one_step(poseidon_one_shot_preimage_lens: Vec<usize>) -> FPrimeImageConfig {
+    FPrimeImageConfig {
         limbs: 3,
         boundary_bits: 704,
         nifs_payload_shapes: vec![], // not exercised here
@@ -409,13 +409,13 @@ fn phase_1_3d_state_out_and_x_out_three_way_parity() {
         build_state_x_out_preimage_from_fixture(&fixture, new_chunk_count, new_step_count, new_acc_digest);
 
     // ── 4. Build a bit-backed image and fill state_in/state_out/chunk_digest from the same fixture. ─
-    let layout = FibonacciFPrimeImageLayout::new(image_config_for_one_step(vec![
+    let layout = FPrimeImageLayout::new(image_config_for_one_step(vec![
         boundary_preimage.len(),
         pt_preimage.len(),
         acc_preimage.len(),
         x_out_preimage.len(),
     ]));
-    let mut image = FibonacciFPrimeImage::new(layout);
+    let mut image = FPrimeImage::new(layout);
 
     image.fill_state_in(&StateIn {
         vk_fs_digest: fixture.state.vk_fs_digest,
@@ -577,7 +577,7 @@ fn _suppress_unused() {
 // ── Phase 1.3d-mini-2: nifs_payloads parent_authority wire parity ───────────────────
 
 use neo_fold_clean::engine::r1cs_circuit::Var;
-use neo_fold_clean::frontends::fibonacci_f_prime::image::{NifsCeClaimShape, NifsCeClaimView, NifsPayloadShape};
+use neo_fold_clean::frontends::f_prime_shell::image::{NifsCeClaimShape, NifsCeClaimView, NifsPayloadShape};
 use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsOutputWires;
 use neo_fold_clean::paper::relations::superneo_public_x_cols;
 use p3_field::BasedVectorSpace;
@@ -668,8 +668,8 @@ fn wires_to_nifs_view(wires: &SplitNcPiCcsOutputWires, witness: &[F]) -> NifsCeC
 
 /// Image config sized for one parent_authority nifs_payloads CeClaim — no other
 /// regions exercised (boundary/state_out/chunk_digest/app_private left empty, kmul/ring_action/poseidon all zero).
-fn nifs_only_image_config(shapes: Vec<NifsPayloadShape>) -> FibonacciFPrimeImageConfig {
-    FibonacciFPrimeImageConfig {
+fn nifs_only_image_config(shapes: Vec<NifsPayloadShape>) -> FPrimeImageConfig {
+    FPrimeImageConfig {
         limbs: 3,
         boundary_bits: 0,
         nifs_payload_shapes: shapes,
@@ -751,9 +751,8 @@ fn phase_1_3d_nifs_parent_authority_wire_parity_three_way() {
 
     // ── 4. Build a nifs_payloads-sized image, fill with the native view, decode. ─
     let shape = ce_view_shape(&native_view);
-    let layout =
-        FibonacciFPrimeImageLayout::new(nifs_only_image_config(vec![NifsPayloadShape::CeClaim(shape.clone())]));
-    let mut image = FibonacciFPrimeImage::new(layout);
+    let layout = FPrimeImageLayout::new(nifs_only_image_config(vec![NifsPayloadShape::CeClaim(shape.clone())]));
+    let mut image = FPrimeImage::new(layout);
     let next_offset = image.fill_nifs_ce_claim_at(0, &native_view);
     assert_eq!(next_offset, shape.bits());
 
@@ -828,7 +827,7 @@ fn first_ring_action_signed_digit_overflow(ring_muls: &[RingMulAuditEntry], witn
 //
 // Runs the F' R1CS emitter once with the K-mul / ring-mul audit trail
 // enabled, then asserts that every K-mul and every ring-mul the emitter
-// actually invoked round-trips through a `FibonacciFPrimeImage` sized to
+// actually invoked round-trips through a `FPrimeImage` sized to
 // those observed counts. This is the load-bearing coverage gate: it
 // fails if a future emitter change adds a K-mul or ring-mul that the
 // bit-backed image config does not account for, OR if the image
@@ -914,7 +913,7 @@ fn phase_1_3d_kmul_ring_action_coverage_full_step_three_way_parity() {
         LowNormEncoding::U64,
         LowNormEncoding::U64,
     );
-    let image_config = FibonacciFPrimeImageConfig {
+    let image_config = FPrimeImageConfig {
         limbs: 3,
         boundary_bits: 0,
         nifs_payload_shapes: vec![],
@@ -938,7 +937,7 @@ fn phase_1_3d_kmul_ring_action_coverage_full_step_three_way_parity() {
         ring_muls.len(),
         "image ring_action slot count must match observed ring-muls"
     );
-    let mut image = FibonacciFPrimeImage::new(FibonacciFPrimeImageLayout::new(image_config));
+    let mut image = FPrimeImage::new(FPrimeImageLayout::new(image_config));
 
     // ── 3. kmul — per K-mul, wire ↔ image parity. ──────────────────────────
     for (i, intermediates) in k_muls.iter().enumerate() {

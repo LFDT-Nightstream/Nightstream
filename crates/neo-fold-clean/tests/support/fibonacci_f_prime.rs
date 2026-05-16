@@ -21,13 +21,13 @@
 //!   `state_in` of step i+1.
 
 use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
-use neo_fold_clean::frontends::fibonacci_f_prime::encoder::{
-    encode_fibonacci_f_prime_step, EncodedFibonacciFPrimeStep, FibonacciFPrimeStepInput, NifsPayloadInput,
+use neo_fold_clean::frontends::f_prime_shell::encoder::{
+    encode_f_prime_step, EncodedFPrimeStep, FPrimeStepInput, NifsPayloadInput,
 };
-use neo_fold_clean::frontends::fibonacci_f_prime::image::{
-    FibonacciFPrimeImageLayout, NifsCeClaimShape, NifsCeClaimView, NifsPayloadShape, StateIn, StateOut,
+use neo_fold_clean::frontends::f_prime_shell::image::{
+    FPrimeImageLayout, NifsCeClaimShape, NifsCeClaimView, NifsPayloadShape, StateIn, StateOut,
 };
-use neo_fold_clean::frontends::fibonacci_f_prime::recursive_plan::{
+use neo_fold_clean::frontends::f_prime_shell::recursive_plan::{
     build_accumulator_preimage_fields, build_boundary_update_preimage_fields,
     build_public_trace_update_preimage_fields, build_recursive_step_image_config, build_state_x_out_preimage_fields,
     AccumulatorPlanOptions, RecursiveStepImagePlan, StateXOutPlanOptions,
@@ -144,17 +144,17 @@ fn perp_canonical_ce_view() -> NifsCeClaimView {
 }
 
 /// Build the four Poseidon traces, post-step state-out digests, boundary
-/// public-x_out bits, and the matching `FibonacciFPrimeStepInput`. The
+/// public-x_out bits, and the matching `FPrimeStepInput`. The
 /// caller hands the returned input directly to
-/// `encode_fibonacci_f_prime_step`.
+/// `encode_f_prime_step`.
 ///
 /// Returns `(input, state_x_out_digest)` so callers can cross-check the
 /// public-x_out boundary bits against `encode_x_out_public_bits`.
-pub fn build_honest_step_input() -> (FibonacciFPrimeStepInput, [F; 4]) {
+pub fn build_honest_step_input() -> (FPrimeStepInput, [F; 4]) {
     // Probe-build to learn boundary's offset, then rebuild the plan with
     // concrete public-x_out lane bit starts.
     let probe_plan = make_plan_without_state_x_out();
-    let probe_layout = FibonacciFPrimeImageLayout::new(build_recursive_step_image_config(&probe_plan));
+    let probe_layout = FPrimeImageLayout::new(build_recursive_step_image_config(&probe_plan));
     let boundary_start = probe_layout.boundary.offset;
     let public_x_out_lane_bit_starts: [usize; 4] =
         std::array::from_fn(|m| boundary_start + m * POSEIDON2_GOLDILOCKS_BITS);
@@ -163,6 +163,7 @@ pub fn build_honest_step_input() -> (FibonacciFPrimeStepInput, [F; 4]) {
     plan.state_x_out = Some(StateXOutPlanOptions {
         pc: PC,
         public_x_out_lane_bit_starts,
+        app_public_input_var_indices: Vec::new(),
     });
 
     let vk_fs_digest: [F; 4] = [
@@ -264,7 +265,7 @@ pub fn build_honest_step_input() -> (FibonacciFPrimeStepInput, [F; 4]) {
         }
     }
 
-    let input = FibonacciFPrimeStepInput {
+    let input = FPrimeStepInput {
         plan,
         boundary_bits,
         state_in,
@@ -335,7 +336,7 @@ pub struct ThreadedFPrimeState {
 pub struct ThreadedEncodedFPrimeRecord {
     pub state_in: ThreadedFPrimeState,
     pub state_out: ThreadedFPrimeState,
-    pub encoded: EncodedFibonacciFPrimeStep,
+    pub encoded: EncodedFPrimeStep,
 }
 
 /// The base-case state for the threaded fixture: counters at 0,
@@ -390,7 +391,7 @@ fn threaded_base_state() -> ThreadedFPrimeState {
 /// app-step / pc threading is out of scope for this fixture.
 pub fn canonical_threaded_plan() -> RecursiveStepImagePlan {
     let probe_plan = make_plan_without_state_x_out();
-    let probe_layout = FibonacciFPrimeImageLayout::new(build_recursive_step_image_config(&probe_plan));
+    let probe_layout = FPrimeImageLayout::new(build_recursive_step_image_config(&probe_plan));
     let boundary_start = probe_layout.boundary.offset;
     let public_x_out_lane_bit_starts: [usize; 4] =
         std::array::from_fn(|m| boundary_start + m * POSEIDON2_GOLDILOCKS_BITS);
@@ -399,6 +400,7 @@ pub fn canonical_threaded_plan() -> RecursiveStepImagePlan {
     plan.state_x_out = Some(StateXOutPlanOptions {
         pc: PC,
         public_x_out_lane_bit_starts,
+        app_public_input_var_indices: Vec::new(),
     });
     plan
 }
@@ -466,7 +468,7 @@ fn build_threaded_step_record(state: &ThreadedFPrimeState, step_idx: u64) -> Thr
         }
     }
 
-    let input = FibonacciFPrimeStepInput {
+    let input = FPrimeStepInput {
         plan,
         boundary_bits,
         state_in: StateIn {
@@ -513,7 +515,7 @@ fn build_threaded_step_record(state: &ThreadedFPrimeState, step_idx: u64) -> Thr
     ThreadedEncodedFPrimeRecord {
         state_in: state.clone(),
         state_out,
-        encoded: encode_fibonacci_f_prime_step(input),
+        encoded: encode_f_prime_step(input),
     }
 }
 
@@ -534,7 +536,7 @@ pub fn honest_state_threaded_encoded_f_prime_records(n: usize) -> Vec<ThreadedEn
 /// Convenience: same as [`honest_state_threaded_encoded_f_prime_records`]
 /// but returns only the encoded steps. Use this when only the encoded
 /// step is needed (e.g., to drive the lifecycle).
-pub fn honest_state_threaded_encoded_f_prime_steps(n: usize) -> Vec<EncodedFibonacciFPrimeStep> {
+pub fn honest_state_threaded_encoded_f_prime_steps(n: usize) -> Vec<EncodedFPrimeStep> {
     honest_state_threaded_encoded_f_prime_records(n)
         .into_iter()
         .map(|r| r.encoded)

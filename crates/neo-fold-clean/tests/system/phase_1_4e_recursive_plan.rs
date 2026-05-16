@@ -22,16 +22,15 @@
 //! mirror `paper::digest::*` exactly.
 
 use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
-use neo_fold_clean::frontends::fibonacci_f_prime::image::{
-    FibonacciFPrimeImage, FibonacciFPrimeImageLayout, NifsCeClaimShape, NifsCeClaimView, NifsPayloadShape, StateIn,
-    StateOut,
+use neo_fold_clean::frontends::f_prime_shell::image::{
+    FPrimeImage, FPrimeImageLayout, NifsCeClaimShape, NifsCeClaimView, NifsPayloadShape, StateIn, StateOut,
 };
-use neo_fold_clean::frontends::fibonacci_f_prime::recursive_plan::{
+use neo_fold_clean::frontends::f_prime_shell::recursive_plan::{
     build_accumulator_preimage_fields, build_boundary_update_preimage_fields,
     build_public_trace_update_preimage_fields, build_recursive_step_image_config, AccumulatorPlanOptions,
     RecursiveStepImagePlan,
 };
-use neo_fold_clean::frontends::fibonacci_f_prime::structure::build_fibonacci_f_prime_structure;
+use neo_fold_clean::frontends::f_prime_shell::structure::build_f_prime_shell_structure;
 use neo_fold_clean::paper::f_prime::poseidon_trace::encode_poseidon_trace;
 use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
 use neo_math::F;
@@ -82,15 +81,15 @@ fn make_plan() -> RecursiveStepImagePlan {
 }
 
 struct Fixture {
-    layout: FibonacciFPrimeImageLayout,
-    image: FibonacciFPrimeImage,
+    layout: FPrimeImageLayout,
+    image: FPrimeImage,
 }
 
 fn build_honest_fixture() -> Fixture {
     let plan = make_plan();
     let config = build_recursive_step_image_config(&plan);
-    let layout = FibonacciFPrimeImageLayout::new(config);
-    let mut image = FibonacciFPrimeImage::new(layout.clone());
+    let layout = FPrimeImageLayout::new(config);
+    let mut image = FPrimeImage::new(layout.clone());
 
     let z_i_in: [F; 4] = [
         F::from_u64(0x111),
@@ -187,7 +186,7 @@ fn flip_lane_bits_to(z: &mut [F], lane_bit_start: usize, new_value: F) {
 #[test]
 fn phase_1_4e_honest_recursive_step_satisfies_structure() {
     let fix = build_honest_fixture();
-    let structure = build_fibonacci_f_prime_structure(fix.layout);
+    let structure = build_f_prime_shell_structure(fix.layout);
     let z = structure.extend_witness_from_image(&fix.image);
     assert!(
         structure.is_satisfied(&z),
@@ -199,7 +198,7 @@ fn phase_1_4e_honest_recursive_step_satisfies_structure() {
 #[test]
 fn phase_1_4e_tampered_z_i_in_trips_boundary_absorb() {
     let fix = build_honest_fixture();
-    let structure = build_fibonacci_f_prime_structure(fix.layout);
+    let structure = build_f_prime_shell_structure(fix.layout);
     let mut z = structure.extend_witness_from_image(&fix.image);
     assert!(structure.is_satisfied(&z), "baseline must satisfy");
 
@@ -216,7 +215,7 @@ fn phase_1_4e_tampered_z_i_in_trips_boundary_absorb() {
 #[test]
 fn phase_1_4e_tampered_chunk_digest_trips_some_binding() {
     let fix = build_honest_fixture();
-    let structure = build_fibonacci_f_prime_structure(fix.layout);
+    let structure = build_f_prime_shell_structure(fix.layout);
     let mut z = structure.extend_witness_from_image(&fix.image);
     assert!(structure.is_satisfied(&z), "baseline must satisfy");
 
@@ -233,7 +232,7 @@ fn phase_1_4e_tampered_chunk_digest_trips_some_binding() {
 #[test]
 fn phase_1_4e_tampered_public_trace_in_trips_public_trace_absorb() {
     let fix = build_honest_fixture();
-    let structure = build_fibonacci_f_prime_structure(fix.layout);
+    let structure = build_f_prime_shell_structure(fix.layout);
     let mut z = structure.extend_witness_from_image(&fix.image);
     assert!(structure.is_satisfied(&z), "baseline must satisfy");
 
@@ -250,7 +249,7 @@ fn phase_1_4e_tampered_public_trace_in_trips_public_trace_absorb() {
 #[test]
 fn phase_1_4e_tampered_c_data_lane_trips_accumulator_absorb() {
     let fix = build_honest_fixture();
-    let structure = build_fibonacci_f_prime_structure(fix.layout);
+    let structure = build_f_prime_shell_structure(fix.layout);
     let mut z = structure.extend_witness_from_image(&fix.image);
     assert!(structure.is_satisfied(&z), "baseline must satisfy");
 

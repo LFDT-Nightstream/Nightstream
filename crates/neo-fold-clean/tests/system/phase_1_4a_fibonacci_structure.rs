@@ -18,11 +18,9 @@
 //!   the failing `per_step_ccs_structure_must_encode_f_prime` invariant
 //!   still measures the bit-carrier R1CS, not this structure.
 
-use neo_fold_clean::frontends::fibonacci_f_prime::image::{
-    FibonacciFPrimeImage, FibonacciFPrimeImageConfig, FibonacciFPrimeImageLayout, KMulView,
-};
-use neo_fold_clean::frontends::fibonacci_f_prime::structure::{
-    build_fibonacci_f_prime_structure, production_kmul_ring_action_shell_image_config, PRODUCTION_KMUL_COUNT,
+use neo_fold_clean::frontends::f_prime_shell::image::{FPrimeImage, FPrimeImageConfig, FPrimeImageLayout, KMulView};
+use neo_fold_clean::frontends::f_prime_shell::structure::{
+    build_f_prime_shell_structure, production_kmul_ring_action_shell_image_config, PRODUCTION_KMUL_COUNT,
     PRODUCTION_RING_ACTION_PAIR_COUNT,
 };
 use neo_fold_clean::paper::f_prime::poseidon_trace::assert_committed_coords_are_bits;
@@ -39,8 +37,8 @@ use p3_field::PrimeCharacteristicRing;
 /// ring-action pairs under U64 encoding. End-result image is large
 /// enough to exercise both gadget regions but small enough that the
 /// CCS structure materializes in ~30 MB of triplets.
-fn small_test_image_config() -> FibonacciFPrimeImageConfig {
-    FibonacciFPrimeImageConfig {
+fn small_test_image_config() -> FPrimeImageConfig {
+    FPrimeImageConfig {
         limbs: 3,
         boundary_bits: 0,
         nifs_payload_shapes: vec![],
@@ -98,7 +96,7 @@ fn phase_1_4a_production_config_pins_emitter_counts() {
     // The layout-end must dwarf the `per_step_ccs_structure_must_encode_f_prime`
     // floor (50 000): this is the first sign the F' frontend is shaped
     // like a real per-step CCS, not the trivial bit-carrier stand-in.
-    let layout = FibonacciFPrimeImageLayout::new(config);
+    let layout = FPrimeImageLayout::new(config);
     assert!(
         layout.end >= 50_000,
         "Phase 1.4a production layout.end = {} must exceed the ivc_invariants floor (50_000)",
@@ -116,8 +114,8 @@ fn phase_1_4a_production_config_pins_emitter_counts() {
 /// validity rows plus the ring_action product / output rows.
 #[test]
 fn phase_1_4a_structure_shape_matches_image_layout() {
-    let layout = FibonacciFPrimeImageLayout::new(small_test_image_config());
-    let structure = build_fibonacci_f_prime_structure(layout.clone());
+    let layout = FPrimeImageLayout::new(small_test_image_config());
+    let structure = build_f_prime_shell_structure(layout.clone());
 
     assert_eq!(
         structure.ccs.m, layout.end,
@@ -155,9 +153,9 @@ fn phase_1_4a_structure_shape_matches_image_layout() {
 /// once extended with the canonical state_in/state_out/chunk_digest lane decoding.
 #[test]
 fn phase_1_4a_structure_satisfies_honest_image() {
-    let layout = FibonacciFPrimeImageLayout::new(small_test_image_config());
-    let structure = build_fibonacci_f_prime_structure(layout.clone());
-    let mut image = FibonacciFPrimeImage::new(layout);
+    let layout = FPrimeImageLayout::new(small_test_image_config());
+    let structure = build_f_prime_shell_structure(layout.clone());
+    let mut image = FPrimeImage::new(layout);
 
     // kmul: fill both slots with non-zero K-mul views.
     for i in 0..image.layout.config.kmul_count {
@@ -198,9 +196,9 @@ fn phase_1_4a_structure_satisfies_honest_image() {
 /// folding smoke test relies on.
 #[test]
 fn phase_1_4a_strict_structure_witness_is_low_norm() {
-    let layout = FibonacciFPrimeImageLayout::new(small_test_image_config());
-    let structure = build_fibonacci_f_prime_structure(layout.clone());
-    let mut image = FibonacciFPrimeImage::new(layout.clone());
+    let layout = FPrimeImageLayout::new(small_test_image_config());
+    let structure = build_f_prime_shell_structure(layout.clone());
+    let mut image = FPrimeImage::new(layout.clone());
 
     // Fill non-trivial kmul / ring_action content so we exercise lanes that used to
     // hold high-norm decoded columns.
@@ -236,9 +234,9 @@ fn phase_1_4a_strict_structure_witness_is_low_norm() {
 /// (i.e., the boolean rows are not vacuously satisfied for any z).
 #[test]
 fn phase_1_4a_structure_rejects_non_bit_witness() {
-    let layout = FibonacciFPrimeImageLayout::new(small_test_image_config());
-    let structure = build_fibonacci_f_prime_structure(layout.clone());
-    let image = FibonacciFPrimeImage::new(layout);
+    let layout = FPrimeImageLayout::new(small_test_image_config());
+    let structure = build_f_prime_shell_structure(layout.clone());
+    let image = FPrimeImage::new(layout);
 
     // Baseline: all-zero bits + zero decoded lanes trivially satisfies.
     let mut z = structure.extend_witness_from_image(&image);

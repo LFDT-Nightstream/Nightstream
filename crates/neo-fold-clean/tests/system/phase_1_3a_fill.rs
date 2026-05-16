@@ -17,8 +17,8 @@
 //! - Lifecycle migration, Spartan, generic AppStep.
 //! - Any change that turns an `ivc_invariants` test green.
 
-use neo_fold_clean::frontends::fibonacci_f_prime::image::{
-    FibonacciFPrimeImage, FibonacciFPrimeImageConfig, FibonacciFPrimeImageLayout, StateIn, StateOut,
+use neo_fold_clean::frontends::f_prime_shell::image::{
+    FPrimeImage, FPrimeImageConfig, FPrimeImageLayout, StateIn, StateOut,
 };
 use neo_fold_clean::paper::f_prime::poseidon_trace::assert_committed_coords_are_bits;
 use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
@@ -27,8 +27,8 @@ use p3_field::PrimeCharacteristicRing;
 
 // ── Fixtures ─────────────────────────────────────────────────────────────
 
-fn skeleton_config() -> FibonacciFPrimeImageConfig {
-    FibonacciFPrimeImageConfig {
+fn skeleton_config() -> FPrimeImageConfig {
+    FPrimeImageConfig {
         limbs: 3,
         boundary_bits: 704,
         nifs_payload_shapes: vec![],
@@ -49,8 +49,8 @@ fn skeleton_config() -> FibonacciFPrimeImageConfig {
     }
 }
 
-fn fresh_image() -> FibonacciFPrimeImage {
-    FibonacciFPrimeImage::new(FibonacciFPrimeImageLayout::new(skeleton_config()))
+fn fresh_image() -> FPrimeImage {
+    FPrimeImage::new(FPrimeImageLayout::new(skeleton_config()))
 }
 
 fn mk_digest(seed: u64) -> [F; 4] {

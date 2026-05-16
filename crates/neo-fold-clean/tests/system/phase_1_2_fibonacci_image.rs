@@ -1,6 +1,6 @@
 //! Phase 1.2 — Fibonacci F' source-image skeleton composition tests.
 //!
-//! Validates that the new `frontends::fibonacci_f_prime::image` module
+//! Validates that the new `frontends::f_prime_shell::image` module
 //! composes mini-1 through mini-4 primitives into one coherent layout
 //! and image for a Fibonacci F' recursive step. Tests cover:
 //!
@@ -15,9 +15,7 @@
 //! that turns an `ivc_invariants` test green.
 
 use neo_fold_clean::engine::ccs_native::poseidon2_transcript::SpongeTraceBuilder;
-use neo_fold_clean::frontends::fibonacci_f_prime::image::{
-    FibonacciFPrimeImage, FibonacciFPrimeImageConfig, FibonacciFPrimeImageLayout,
-};
+use neo_fold_clean::frontends::f_prime_shell::image::{FPrimeImage, FPrimeImageConfig, FPrimeImageLayout};
 use neo_fold_clean::paper::f_prime::poseidon_trace::{assert_committed_coords_are_bits, encode_poseidon_trace};
 use neo_fold_clean::paper::f_prime::ring_action_trace::{
     encode_ring_action_trace, LowNormEncoding, RingActionTraceLayout,
@@ -58,8 +56,8 @@ fn make_c_values() -> [F; D] {
 /// A small but realistic Fibonacci-F'-shape config. Values are
 /// deliberately compact so the test stays fast while covering every
 /// region group.
-fn skeleton_config() -> FibonacciFPrimeImageConfig {
-    FibonacciFPrimeImageConfig {
+fn skeleton_config() -> FPrimeImageConfig {
+    FPrimeImageConfig {
         limbs: 3,                    // LIMBS=3 → 2 carry bits
         boundary_bits: 704,          // recursive: enc_inst(x_out) + enc_inst(prior_x_out) + 3 u64 counters
         nifs_payload_shapes: vec![], // placeholder size — Phase 1.3 fills nifs_payloads properly
@@ -78,8 +76,8 @@ fn skeleton_config() -> FibonacciFPrimeImageConfig {
     }
 }
 
-fn skeleton_layout() -> FibonacciFPrimeImageLayout {
-    FibonacciFPrimeImageLayout::new(skeleton_config())
+fn skeleton_layout() -> FPrimeImageLayout {
+    FPrimeImageLayout::new(skeleton_config())
 }
 
 // ── Layout invariants ────────────────────────────────────────────────────
@@ -160,7 +158,7 @@ fn phase_1_2_sub_region_splices_lie_within_their_parents() {
 
 #[test]
 fn phase_1_2_empty_image_satisfies_low_norm_invariant() {
-    let image = FibonacciFPrimeImage::new(skeleton_layout());
+    let image = FPrimeImage::new(skeleton_layout());
     assert_eq!(image.values[0], F::ONE, "constant slot");
     for (i, v) in image.values.iter().enumerate().skip(1) {
         assert_eq!(*v, F::ZERO, "empty image z[{i}] must be ZERO");
@@ -171,7 +169,7 @@ fn phase_1_2_empty_image_satisfies_low_norm_invariant() {
 
 #[test]
 fn phase_1_2_image_after_splicing_one_shot_still_satisfies_bit_invariant() {
-    let mut image = FibonacciFPrimeImage::new(skeleton_layout());
+    let mut image = FPrimeImage::new(skeleton_layout());
 
     // Splice a real Poseidon trace into the smallest one-shot slot (the
     // first one, preimage_len = 13 — boundary-update shape).
@@ -189,7 +187,7 @@ fn phase_1_2_image_after_splicing_one_shot_still_satisfies_bit_invariant() {
 
 #[test]
 fn phase_1_2_one_shot_poseidon_splice_round_trips() {
-    let mut image = FibonacciFPrimeImage::new(skeleton_layout());
+    let mut image = FPrimeImage::new(skeleton_layout());
 
     // Splice into one-shot index 2 (preimage_len = 40, state_x_out shape).
     let index = 2;
@@ -209,7 +207,7 @@ fn phase_1_2_one_shot_poseidon_splice_round_trips() {
 
 #[test]
 fn phase_1_2_ring_action_pair_splice_round_trips() {
-    let mut image = FibonacciFPrimeImage::new(skeleton_layout());
+    let mut image = FPrimeImage::new(skeleton_layout());
 
     let rho = make_rho_values();
     let c = make_c_values();
@@ -228,7 +226,7 @@ fn phase_1_2_ring_action_pair_splice_round_trips() {
 
 #[test]
 fn phase_1_2_sponge_transcript_splice_preserves_bit_invariant() {
-    let mut image = FibonacciFPrimeImage::new(skeleton_layout());
+    let mut image = FPrimeImage::new(skeleton_layout());
 
     // Build a sponge transcript with exactly the configured permute count.
     // Each `challenge_fields_raw(4)` triggers exactly one permute (one

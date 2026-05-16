@@ -18,9 +18,7 @@
 //! - CCS structure / lifecycle / Spartan / generic AppStep.
 //! - Touching nifs_payloads, ring_action, poseidon, or `ivc_invariants` behaviour.
 
-use neo_fold_clean::frontends::fibonacci_f_prime::image::{
-    FibonacciFPrimeImage, FibonacciFPrimeImageConfig, FibonacciFPrimeImageLayout, KMulView,
-};
+use neo_fold_clean::frontends::f_prime_shell::image::{FPrimeImage, FPrimeImageConfig, FPrimeImageLayout, KMulView};
 use neo_fold_clean::paper::f_prime::poseidon_trace::assert_committed_coords_are_bits;
 use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
 use neo_math::F;
@@ -30,8 +28,8 @@ use p3_field::PrimeCharacteristicRing;
 
 const KMUL_COUNT: usize = 6;
 
-fn skeleton_config() -> FibonacciFPrimeImageConfig {
-    FibonacciFPrimeImageConfig {
+fn skeleton_config() -> FPrimeImageConfig {
+    FPrimeImageConfig {
         limbs: 3,
         boundary_bits: 704,
         nifs_payload_shapes: vec![],
@@ -52,8 +50,8 @@ fn skeleton_config() -> FibonacciFPrimeImageConfig {
     }
 }
 
-fn fresh_image() -> FibonacciFPrimeImage {
-    FibonacciFPrimeImage::new(FibonacciFPrimeImageLayout::new(skeleton_config()))
+fn fresh_image() -> FPrimeImage {
+    FPrimeImage::new(FPrimeImageLayout::new(skeleton_config()))
 }
 
 /// Deterministic kmul views — arbitrary F values per slot. Sized to

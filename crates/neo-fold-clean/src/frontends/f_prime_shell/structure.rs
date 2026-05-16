@@ -1,7 +1,7 @@
-//! CCS structure for one `enc(F')` step.
+//! App-agnostic CCS structure for one `enc(F')` step.
 //!
-//! The image layout's regions are owned by `fibonacci_image`; for quick
-//! reference:
+//! The image layout's regions are owned by
+//! [`crate::frontends::f_prime_shell::image`]; for quick reference:
 //!
 //! | Region | Holds |
 //! |---|---|
@@ -9,7 +9,7 @@
 //! | state_in (`state_in`)         | six four-lane state-in digests (vk_fs, structure, z_0, z_i_in, acc_digest_in, public_trace_in) |
 //! | state_out (`state_out`)        | two u64 counters + three four-lane post-step digests (new_z_i, new_public_trace, new_acc_digest) |
 //! | chunk_digest (`chunk_digest`)     | one four-lane chunk digest |
-//! | app_private (`app_private`)      | Fibonacci app-private carry bits |
+//! | app_private (`app_private`)      | app-private carry bits (Fibonacci witness or R1CS bit-decomposed assignment) |
 //! | nifs_payloads (`nifs_payloads`)    | NIFS CcsClaim / CeClaim payloads (parent_authority etc.) |
 //! | kmul (`kmul`)             | K-mul Karatsuba intermediates (one slot per K-mul invocation) |
 //! | ring_action (`ring_action`)      | ring-action pair traces (ρ, c, products, output per pair) |
@@ -53,7 +53,7 @@
 //! Every lane this module references is a canonical-u64 lane (64 bits
 //! per lane, coefficient `2^i` for bit `i`). For ring_action this requires the
 //! [`RingActionTraceLayout`] to use [`LowNormEncoding::U64`] on all four
-//! subregions; [`fibonacci_lane_slots`] panics otherwise.
+//! subregions; [`f_prime_lane_slots`] panics otherwise.
 //!
 //! ## Production count pinning
 //!
@@ -70,9 +70,9 @@ use p3_field::PrimeCharacteristicRing;
 
 use crate::engine::ccs_native::poseidon2::{POSEIDON2_DIGEST_LEN, POSEIDON2_GOLDILOCKS_BITS, POSEIDON2_WIDTH};
 use crate::engine::r1cs_circuit::ring_action::phi_reduction_coeff;
-use crate::frontends::fibonacci_f_prime::image::{
-    FibonacciFPrimeImage, FibonacciFPrimeImageConfig, FibonacciFPrimeImageLayout, NifsPayloadShape,
-    PoseidonPreimageLaneSource, StateOutDigestTarget,
+use crate::frontends::f_prime_shell::image::{
+    FPrimeImage, FPrimeImageConfig, FPrimeImageLayout, NifsPayloadShape, PoseidonPreimageLaneSource,
+    StateOutDigestTarget,
 };
 use crate::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
 
@@ -110,8 +110,8 @@ pub const PRODUCTION_RING_ACTION_PAIR_COUNT: usize = 465;
 /// zero-sized until later slices wire their functional regions into the
 /// structure. What it does pin today is the production kmul/ring_action audit count
 /// and the U64 ring-action encoding choice.
-pub fn production_kmul_ring_action_shell_image_config() -> FibonacciFPrimeImageConfig {
-    FibonacciFPrimeImageConfig {
+pub fn production_kmul_ring_action_shell_image_config() -> FPrimeImageConfig {
+    FPrimeImageConfig {
         limbs: 3,
         boundary_bits: 0,
         nifs_payload_shapes: vec![],
@@ -144,7 +144,7 @@ pub struct LaneSlot {
 
 /// Linear combination that recomposes a canonical-u64 lane from its 64
 /// committed bits: `Σ_{i<64} 2^i · z[bit_start + i]`.
-fn lane_terms(slot: LaneSlot) -> impl Iterator<Item = (usize, F)> {
+pub(crate) fn lane_terms(slot: LaneSlot) -> impl Iterator<Item = (usize, F)> {
     (0..POSEIDON2_GOLDILOCKS_BITS).map(move |i| (slot.bit_start + i, F::from_u64(1u64 << i)))
 }
 
@@ -172,7 +172,7 @@ fn scaled_lane_terms(slot: LaneSlot, coeff: F) -> impl Iterator<Item = (usize, F
 /// `sponge_transcript_lanes`, `public_x_out_binding_lanes` (per binding).
 /// Tests can access each region's slots directly via its field.
 #[derive(Clone, Debug)]
-pub struct FibonacciLaneSlots {
+pub struct FPrimeLaneSlots {
     pub state_lanes: Vec<LaneSlot>,
     /// One inner `Vec<LaneSlot>` per spliced nifs_payloads NIFS payload. Each
     /// inner Vec enumerates every 64-bit lane in the payload's fill
@@ -190,9 +190,14 @@ pub struct FibonacciLaneSlots {
     /// outer entry is one binding's 4 digest lanes; allocation order
     /// matches `config.one_shot_digest_to_public_x_out_bindings`.
     pub public_x_out_binding_lanes: Vec<[LaneSlot; 4]>,
+    /// One canonical-u64 lane per app-assignment variable when
+    /// `app_private` is laid out as 64-bit lanes (R1CS frontends). For
+    /// frontends whose `app_private` region is not a multiple of 64 bits
+    /// (Fibonacci carries), this Vec is empty.
+    pub app_assignment_lanes: Vec<LaneSlot>,
 }
 
-impl FibonacciLaneSlots {
+impl FPrimeLaneSlots {
     pub fn total(&self) -> usize {
         self.state_lanes.len()
             + self.nifs_payload_lanes.iter().map(Vec::len).sum::<usize>()
@@ -205,6 +210,7 @@ impl FibonacciLaneSlots {
                 .sum::<usize>()
             + self.sponge_transcript_lanes.len()
             + self.public_x_out_binding_lanes.len() * 4
+            + self.app_assignment_lanes.len()
     }
 }
 
@@ -212,8 +218,8 @@ impl FibonacciLaneSlots {
 /// order. Lanes only describe 64-bit windows into `image.values`; the
 /// structure substitutes `Σ 2^i · bit` directly where it needs the lane's
 /// recomposed value, so no fresh witness columns are minted here.
-pub fn fibonacci_lane_slots(layout: &FibonacciFPrimeImageLayout) -> FibonacciLaneSlots {
-    FibonacciLaneSlots {
+pub fn f_prime_lane_slots(layout: &FPrimeImageLayout) -> FPrimeLaneSlots {
+    FPrimeLaneSlots {
         state_lanes: collect_state_lane_slots(layout),
         nifs_payload_lanes: collect_nifs_payload_slots(layout),
         kmul_lanes: collect_kmul_slots(layout),
@@ -221,10 +227,30 @@ pub fn fibonacci_lane_slots(layout: &FibonacciFPrimeImageLayout) -> FibonacciLan
         poseidon_trace_lanes: collect_poseidon_trace_slots(layout),
         sponge_transcript_lanes: collect_sponge_transcript_slots(layout),
         public_x_out_binding_lanes: collect_public_x_out_binding_slots(layout),
+        app_assignment_lanes: collect_app_assignment_lane_slots(layout),
     }
 }
 
-fn collect_public_x_out_binding_slots(layout: &FibonacciFPrimeImageLayout) -> Vec<[LaneSlot; 4]> {
+/// Enumerate `app_private` as 64-bit canonical-u64 lanes (one lane per
+/// app-assignment variable). Used by app frontends that bit-decompose
+/// the R1CS assignment into `app_private`. Returns an empty Vec when
+/// the region size isn't a multiple of 64 (e.g. Fibonacci's 2-bit
+/// carries).
+fn collect_app_assignment_lane_slots(layout: &FPrimeImageLayout) -> Vec<LaneSlot> {
+    let bits = layout.app_private.bits;
+    if bits == 0 || bits % POSEIDON2_GOLDILOCKS_BITS != 0 {
+        return Vec::new();
+    }
+    let lane_count = bits / POSEIDON2_GOLDILOCKS_BITS;
+    let base = layout.app_private.offset;
+    (0..lane_count)
+        .map(|i| LaneSlot {
+            bit_start: base + i * POSEIDON2_GOLDILOCKS_BITS,
+        })
+        .collect()
+}
+
+fn collect_public_x_out_binding_slots(layout: &FPrimeImageLayout) -> Vec<[LaneSlot; 4]> {
     let boundary_start = layout.boundary.offset;
     let boundary_end = layout.boundary.end();
     let mut all = Vec::with_capacity(layout.config.one_shot_digest_to_public_x_out_bindings.len());
@@ -242,7 +268,7 @@ fn collect_public_x_out_binding_slots(layout: &FibonacciFPrimeImageLayout) -> Ve
     all
 }
 
-fn collect_nifs_payload_slots(layout: &FibonacciFPrimeImageLayout) -> Vec<Vec<LaneSlot>> {
+fn collect_nifs_payload_slots(layout: &FPrimeImageLayout) -> Vec<Vec<LaneSlot>> {
     let mut payloads = Vec::with_capacity(layout.config.nifs_payload_shapes.len());
     for (shape, &payload_offset) in layout
         .config
@@ -333,7 +359,7 @@ fn push_u64_lane(slots: &mut Vec<LaneSlot>, cursor: &mut usize) {
     *cursor += POSEIDON2_GOLDILOCKS_BITS;
 }
 
-fn collect_sponge_transcript_slots(layout: &FibonacciFPrimeImageLayout) -> Vec<LaneSlot> {
+fn collect_sponge_transcript_slots(layout: &FPrimeImageLayout) -> Vec<LaneSlot> {
     assert_eq!(
         layout.sponge_transcript_bits % POSEIDON2_GOLDILOCKS_BITS,
         0,
@@ -349,7 +375,7 @@ fn collect_sponge_transcript_slots(layout: &FibonacciFPrimeImageLayout) -> Vec<L
     slots
 }
 
-fn collect_poseidon_trace_slots(layout: &FibonacciFPrimeImageLayout) -> Vec<Vec<LaneSlot>> {
+fn collect_poseidon_trace_slots(layout: &FPrimeImageLayout) -> Vec<Vec<LaneSlot>> {
     let mut all = Vec::with_capacity(layout.one_shot_poseidon_splices.len());
     for (&splice, trace_layout) in layout
         .one_shot_poseidon_splices
@@ -373,7 +399,7 @@ fn collect_poseidon_trace_slots(layout: &FibonacciFPrimeImageLayout) -> Vec<Vec<
     all
 }
 
-fn collect_state_lane_slots(layout: &FibonacciFPrimeImageLayout) -> Vec<LaneSlot> {
+fn collect_state_lane_slots(layout: &FPrimeImageLayout) -> Vec<LaneSlot> {
     let lane_bits = POSEIDON2_GOLDILOCKS_BITS;
     let state_in_lanes = STATE_IN_DIGEST_COUNT * 4;
     let state_out_lanes = STATE_OUT_COUNTER_COUNT + STATE_OUT_DIGEST_COUNT * 4;
@@ -404,7 +430,7 @@ fn collect_state_lane_slots(layout: &FibonacciFPrimeImageLayout) -> Vec<LaneSlot
     slots
 }
 
-fn collect_kmul_slots(layout: &FibonacciFPrimeImageLayout) -> Vec<LaneSlot> {
+fn collect_kmul_slots(layout: &FPrimeImageLayout) -> Vec<LaneSlot> {
     let kmul_count = layout.config.kmul_count;
     let mut slots = Vec::with_capacity(KMUL_LANES_PER_SLOT * kmul_count);
     for i in 0..kmul_count {
@@ -419,7 +445,7 @@ fn collect_kmul_slots(layout: &FibonacciFPrimeImageLayout) -> Vec<LaneSlot> {
     slots
 }
 
-fn collect_ring_action_slots(layout: &FibonacciFPrimeImageLayout) -> Vec<LaneSlot> {
+fn collect_ring_action_slots(layout: &FPrimeImageLayout) -> Vec<LaneSlot> {
     let pair_layout = layout.config.ring_action_pair_layout;
     assert_eq!(
         pair_layout.rho_enc,
@@ -481,15 +507,15 @@ fn collect_ring_action_slots(layout: &FibonacciFPrimeImageLayout) -> Vec<LaneSlo
 }
 
 /// Phase 1.4 CCS structure for one `enc(F')` step. Carries the
-/// [`FibonacciFPrimeImageLayout`] it was built from plus the per-region
+/// [`FPrimeImageLayout`] it was built from plus the per-region
 /// lane-slot lists so downstream consumers (1.4c, 1.4d) can extend the
 /// witness without re-deriving offsets.
 #[derive(Clone, Debug)]
 pub struct FPrimeStructure {
-    pub layout: FibonacciFPrimeImageLayout,
+    pub layout: FPrimeImageLayout,
     pub ccs: CcsStructure<F>,
     /// Lane-decode positions grouped by region.
-    pub lane_slots: FibonacciLaneSlots,
+    pub lane_slots: FPrimeLaneSlots,
 }
 
 /// Build the CCS structure: bit-validity (1.4a), state_in/state_out/chunk_digest (1.4b-a)
@@ -501,7 +527,7 @@ pub struct FPrimeStructure {
 /// encoding.
 /// Matrix-index assignment for the mixed-gate F' CCS polynomial:
 /// bitness + product + Poseidon S-box + linear equality.
-mod gate {
+pub(crate) mod gate {
     pub const BITNESS: usize = 0;
     pub const PRODUCT_LEFT: usize = 1;
     pub const PRODUCT_RIGHT: usize = 2;
@@ -526,21 +552,28 @@ mod gate {
 /// so each row's contribution to `f` is the relevant gate's term in
 /// isolation. `finish` builds the eight `CscMat` matrices and the
 /// corresponding `SparsePoly`.
-struct MixedGateBuilder {
+pub(crate) struct MixedGateBuilder {
     trips: [Vec<(usize, usize, F)>; gate::ARITY],
     rows: usize,
 }
 
 impl MixedGateBuilder {
-    fn with_estimated_rows(estimated_rows: usize) -> Self {
+    pub(crate) fn with_estimated_rows(estimated_rows: usize) -> Self {
         Self {
             trips: std::array::from_fn(|_| Vec::with_capacity(estimated_rows)),
             rows: 0,
         }
     }
 
+    /// Current row count. Useful for sibling structure builders that
+    /// need to know where their appended row block starts.
+    #[allow(dead_code)]
+    pub(crate) fn rows(&self) -> usize {
+        self.rows
+    }
+
     /// `z[col] · (z[col] − 1) = 0`. Populates the BITNESS matrix only.
-    fn bitness(&mut self, col: usize) -> usize {
+    pub(crate) fn bitness(&mut self, col: usize) -> usize {
         let row = self.rows;
         self.trips[gate::BITNESS].push((row, col, F::ONE));
         self.rows += 1;
@@ -550,7 +583,7 @@ impl MixedGateBuilder {
     /// `(Σ left) · (Σ right) = (Σ out)`. Populates the three product matrices.
     /// Each operand is an arbitrary linear combination `(col, coeff)` so the
     /// builder can represent products of lane-recomposed values directly.
-    fn product<L, R, O>(&mut self, left: L, right: R, out: O) -> usize
+    pub(crate) fn product<L, R, O>(&mut self, left: L, right: R, out: O) -> usize
     where
         L: IntoIterator<Item = (usize, F)>,
         R: IntoIterator<Item = (usize, F)>,
@@ -571,7 +604,7 @@ impl MixedGateBuilder {
     }
 
     /// `(Σ lhs) = (Σ rhs)`. Populates the LINEAR_LHS / LINEAR_RHS matrices.
-    fn linear<L, R>(&mut self, lhs: L, rhs: R) -> usize
+    pub(crate) fn linear<L, R>(&mut self, lhs: L, rhs: R) -> usize
     where
         L: IntoIterator<Item = (usize, F)>,
         R: IntoIterator<Item = (usize, F)>,
@@ -609,7 +642,7 @@ impl MixedGateBuilder {
     }
 
     /// Build the eight sparse matrices + the mixed-gate polynomial.
-    fn finish(self, cols: usize) -> CcsStructure<F> {
+    pub(crate) fn finish(self, cols: usize) -> CcsStructure<F> {
         let n = self.rows;
         let matrices: Vec<CcsMatrix<F>> = self
             .trips
@@ -669,14 +702,40 @@ impl MixedGateBuilder {
     }
 }
 
-pub fn build_fibonacci_f_prime_structure(layout: FibonacciFPrimeImageLayout) -> FPrimeStructure {
+pub fn build_f_prime_shell_structure(layout: FPrimeImageLayout) -> FPrimeStructure {
     let image_end = layout.end;
     assert!(
         image_end >= 2,
-        "FibonacciFPrimeImageLayout::end = {image_end} too small; need constant slot + ≥1 bit column"
+        "FPrimeImageLayout::end = {image_end} too small; need constant slot + ≥1 bit column"
     );
 
-    let lane_slots = fibonacci_lane_slots(&layout);
+    let lane_slots = f_prime_lane_slots(&layout);
+    let mut builder = MixedGateBuilder::with_estimated_rows(image_end);
+    emit_shell_rows(&layout, &lane_slots, &mut builder);
+    let ccs = builder.finish(image_end);
+
+    FPrimeStructure {
+        layout,
+        ccs,
+        lane_slots,
+    }
+}
+
+/// Emit every shell row the F' structure owns into `builder`:
+/// bit-validity, ring-action products/outputs, trace↔state-out digest
+/// bindings, the unified-accumulator selector, trace↔public-x_out
+/// bindings, and the Poseidon transition enforcements.
+///
+/// Sibling structure builders (e.g. R1CS F') call this on a fresh
+/// `MixedGateBuilder`, then append their app-level rows, then finish.
+/// The image layout (column count, bit positions, lane slots) is
+/// identical to the Fibonacci build; only the appended rows differ.
+pub(crate) fn emit_shell_rows(
+    layout: &FPrimeImageLayout,
+    lane_slots: &FPrimeLaneSlots,
+    builder: &mut MixedGateBuilder,
+) {
+    let image_end = layout.end;
     let bit_count = image_end - 1;
     let ring_action_product_count = layout.config.ring_action_pair_count * RING_ACTION_PRODUCT_LANES_PER_PAIR;
     let ring_action_output_count = layout.config.ring_action_pair_count * RING_ACTION_OUTPUT_LANES_PER_PAIR;
@@ -691,21 +750,19 @@ pub fn build_fibonacci_f_prime_structure(layout: FibonacciFPrimeImageLayout) -> 
     } else {
         0
     };
-    let m = image_end;
-    let total_rows = bit_count
+    let total_shell_rows = bit_count
         + ring_action_product_count
         + ring_action_output_count
         + state_out_binding_count
         + public_x_out_binding_count
         + unified_selector_count;
-
-    let mut builder = MixedGateBuilder::with_estimated_rows(total_rows / gate::ARITY);
+    let base_row = builder.rows();
 
     // ── Bit-validity rows: `z[col] · (z[col] − 1) = 0` for every committed bit.
     for col in 1..image_end {
         builder.bitness(col);
     }
-    debug_assert_eq!(builder.rows, bit_count);
+    debug_assert_eq!(builder.rows() - base_row, bit_count);
 
     // ── Ring-action product rows: `(Σ 2^i · ρ_bits) · (Σ 2^i · c_bits) = (Σ 2^i · prod_bits)`.
     for pair_idx in 0..layout.config.ring_action_pair_count {
@@ -719,7 +776,7 @@ pub fn build_fibonacci_f_prime_structure(layout: FibonacciFPrimeImageLayout) -> 
             }
         }
     }
-    debug_assert_eq!(builder.rows, bit_count + ring_action_product_count);
+    debug_assert_eq!(builder.rows() - base_row, bit_count + ring_action_product_count);
 
     // ── Ring-action output rows: `Σ 2^i · out_m_bits = Σ Φ[i+j][m] · (Σ 2^i · prod_ij_bits)`.
     for pair_idx in 0..layout.config.ring_action_pair_count {
@@ -740,7 +797,7 @@ pub fn build_fibonacci_f_prime_structure(layout: FibonacciFPrimeImageLayout) -> 
         }
     }
     debug_assert_eq!(
-        builder.rows,
+        builder.rows() - base_row,
         bit_count + ring_action_product_count + ring_action_output_count
     );
 
@@ -759,7 +816,7 @@ pub fn build_fibonacci_f_prime_structure(layout: FibonacciFPrimeImageLayout) -> 
         }
     }
     debug_assert_eq!(
-        builder.rows,
+        builder.rows() - base_row,
         bit_count + ring_action_product_count + ring_action_output_count + state_out_binding_count
     );
 
@@ -810,7 +867,7 @@ pub fn build_fibonacci_f_prime_structure(layout: FibonacciFPrimeImageLayout) -> 
         }
     }
     debug_assert_eq!(
-        builder.rows,
+        builder.rows() - base_row,
         bit_count
             + ring_action_product_count
             + ring_action_output_count
@@ -834,7 +891,7 @@ pub fn build_fibonacci_f_prime_structure(layout: FibonacciFPrimeImageLayout) -> 
             builder.linear(lane_terms(trace), lane_terms(public_x_out));
         }
     }
-    debug_assert_eq!(builder.rows, total_rows);
+    debug_assert_eq!(builder.rows() - base_row, total_shell_rows);
 
     // ── Optional Poseidon transition rows + variable preimage binding (1.4d-a-4) ──
     // For each enforcement:
@@ -860,16 +917,8 @@ pub fn build_fibonacci_f_prime_structure(layout: FibonacciFPrimeImageLayout) -> 
             .flatten()
             .copied()
             .collect();
-        lift_native_poseidon_rows_skipping(&native_bundle.structure, splice, &absorb_row_skip, &mut builder);
-        emit_variable_poseidon_absorb_rows(enforcement, &lane_slots, &mut builder);
-    }
-
-    let ccs = builder.finish(m);
-
-    FPrimeStructure {
-        layout,
-        ccs,
-        lane_slots,
+        lift_native_poseidon_rows_skipping(&native_bundle.structure, splice, &absorb_row_skip, builder);
+        emit_variable_poseidon_absorb_rows(enforcement, lane_slots, builder);
     }
 }
 
@@ -961,7 +1010,7 @@ fn lift_native_poseidon_rows_skipping(
 /// directly; no decoded witness column is referenced.
 fn poseidon_preimage_source_terms(
     source: &PoseidonPreimageLaneSource,
-    lane_slots: &FibonacciLaneSlots,
+    lane_slots: &FPrimeLaneSlots,
 ) -> Vec<(usize, F)> {
     match *source {
         PoseidonPreimageLaneSource::Constant(v) => {
@@ -989,6 +1038,9 @@ fn poseidon_preimage_source_terms(
         PoseidonPreimageLaneSource::PublicXOutBindingLane { binding_index, lane } => {
             lane_terms(lane_slots.public_x_out_binding_lanes[binding_index][lane]).collect()
         }
+        PoseidonPreimageLaneSource::AppAssignmentLane(var_index) => {
+            lane_terms(lane_slots.app_assignment_lanes[var_index]).collect()
+        }
     }
 }
 
@@ -1010,7 +1062,7 @@ fn poseidon_preimage_source_terms(
 /// preceding permutation's block.
 fn emit_variable_poseidon_absorb_rows(
     enforcement: &super::image::PoseidonTransitionEnforcement,
-    lane_slots: &FibonacciLaneSlots,
+    lane_slots: &FPrimeLaneSlots,
     builder: &mut MixedGateBuilder,
 ) {
     use crate::engine::ccs_native::poseidon2::{BIT_BACKED_PERMUTATION_WORDS, POSEIDON2_RATE};
@@ -1066,7 +1118,7 @@ impl FPrimeStructure {
     /// exactly the committed bit-vector, all entries in `{0, 1}` except
     /// `z[0] = 1`. Lane-recomposed u64 values appear inside constraint
     /// rows as `Σ 2^i · z[bit_start + i]`, never as fresh witness columns.
-    pub fn extend_witness_from_image(&self, image: &FibonacciFPrimeImage) -> Vec<F> {
+    pub fn extend_witness_from_image(&self, image: &FPrimeImage) -> Vec<F> {
         assert_eq!(
             image.values.len(),
             self.layout.end,

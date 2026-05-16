@@ -24,9 +24,7 @@
 use neo_fold_clean::engine::r1cs_circuit::builder::Var;
 use neo_fold_clean::engine::r1cs_circuit::ring_action::{enforce_ring_mul_with_products, RingMulProducts};
 use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
-use neo_fold_clean::frontends::fibonacci_f_prime::image::{
-    FibonacciFPrimeImage, FibonacciFPrimeImageConfig, FibonacciFPrimeImageLayout,
-};
+use neo_fold_clean::frontends::f_prime_shell::image::{FPrimeImage, FPrimeImageConfig, FPrimeImageLayout};
 use neo_fold_clean::paper::f_prime::poseidon_trace::assert_committed_coords_are_bits;
 use neo_fold_clean::paper::f_prime::ring_action_trace::{
     encode_ring_action_trace, LowNormEncoding, RingActionTraceLayout,
@@ -72,8 +70,8 @@ fn alloc_d(builder: &mut R1csBuilder, vals: &[F; D]) -> [Var; D] {
 }
 
 /// Image with a single ring_action pair slot — all other regions empty.
-fn ring_action_only_image_config() -> FibonacciFPrimeImageConfig {
-    FibonacciFPrimeImageConfig {
+fn ring_action_only_image_config() -> FPrimeImageConfig {
+    FPrimeImageConfig {
         limbs: 3,
         boundary_bits: 0,
         nifs_payload_shapes: vec![],
@@ -126,10 +124,10 @@ fn wire_view(
 }
 
 /// Decode ρ, c, products, output from the ring_action region of a
-/// `FibonacciFPrimeImage`. Translates the pair-local
+/// `FPrimeImage`. Translates the pair-local
 /// `RingActionTraceLayout` offsets to the image's `values` frame
 /// (primitive `z[k]` for `k ≥ 1` lives at `splice_offset + k - 1`).
-fn decode_ring_action_pair(image: &FibonacciFPrimeImage, pair_index: usize) -> ([F; D], [F; D], Vec<Vec<F>>, [F; D]) {
+fn decode_ring_action_pair(image: &FPrimeImage, pair_index: usize) -> ([F; D], [F; D], Vec<Vec<F>>, [F; D]) {
     let layout = image.layout.config.ring_action_pair_layout;
     let splice = image.layout.ring_action_pair_splices[pair_index];
 
@@ -218,8 +216,8 @@ fn phase_1_3d_ring_action_three_way_parity() {
     let layout = signed_digit_ring_layout();
     let ring_trace = encode_ring_action_trace(&rho_vals, &c_vals, layout);
 
-    let image_layout = FibonacciFPrimeImageLayout::new(ring_action_only_image_config());
-    let mut image = FibonacciFPrimeImage::new(image_layout);
+    let image_layout = FPrimeImageLayout::new(ring_action_only_image_config());
+    let mut image = FPrimeImage::new(image_layout);
     image.splice_ring_action_pair(0, &ring_trace);
     assert_committed_coords_are_bits(&image.values);
 
@@ -306,8 +304,8 @@ fn phase_1_3d_ring_action_image_decode_lossless_for_full_product_matrix() {
     let c_vals = make_c_values();
     let layout = signed_digit_ring_layout();
     let ring_trace = encode_ring_action_trace(&rho_vals, &c_vals, layout);
-    let image_layout = FibonacciFPrimeImageLayout::new(ring_action_only_image_config());
-    let mut image = FibonacciFPrimeImage::new(image_layout);
+    let image_layout = FPrimeImageLayout::new(ring_action_only_image_config());
+    let mut image = FPrimeImage::new(image_layout);
     image.splice_ring_action_pair(0, &ring_trace);
 
     let (_, _, img_prods, _) = decode_ring_action_pair(&image, 0);

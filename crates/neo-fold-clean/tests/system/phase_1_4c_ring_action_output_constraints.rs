@@ -11,10 +11,8 @@
 //!   chain folds `enc(F'_i)`.
 
 use neo_fold_clean::engine::r1cs_circuit::ring_action::phi_reduction_coeff;
-use neo_fold_clean::frontends::fibonacci_f_prime::image::{
-    FibonacciFPrimeImage, FibonacciFPrimeImageConfig, FibonacciFPrimeImageLayout,
-};
-use neo_fold_clean::frontends::fibonacci_f_prime::structure::build_fibonacci_f_prime_structure;
+use neo_fold_clean::frontends::f_prime_shell::image::{FPrimeImage, FPrimeImageConfig, FPrimeImageLayout};
+use neo_fold_clean::frontends::f_prime_shell::structure::build_f_prime_shell_structure;
 use neo_fold_clean::paper::f_prime::ring_action_trace::{
     encode_ring_action_trace, LowNormEncoding, RingActionTraceLayout,
 };
@@ -22,8 +20,8 @@ use neo_math::ring::D;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-fn small_ring_action_config() -> FibonacciFPrimeImageConfig {
-    FibonacciFPrimeImageConfig {
+fn small_ring_action_config() -> FPrimeImageConfig {
+    FPrimeImageConfig {
         limbs: 3,
         boundary_bits: 0,
         nifs_payload_shapes: vec![],
@@ -50,9 +48,9 @@ fn honest_rho_c(pair_idx: usize) -> ([F; D], [F; D]) {
     (rho, c)
 }
 
-fn honest_ring_action_image() -> (FibonacciFPrimeImageLayout, FibonacciFPrimeImage) {
-    let layout = FibonacciFPrimeImageLayout::new(small_ring_action_config());
-    let mut image = FibonacciFPrimeImage::new(layout.clone());
+fn honest_ring_action_image() -> (FPrimeImageLayout, FPrimeImage) {
+    let layout = FPrimeImageLayout::new(small_ring_action_config());
+    let mut image = FPrimeImage::new(layout.clone());
     for pair_idx in 0..image.layout.config.ring_action_pair_count {
         let (rho, c) = honest_rho_c(pair_idx);
         let trace = encode_ring_action_trace(&rho, &c, image.layout.config.ring_action_pair_layout);
@@ -97,8 +95,8 @@ fn ring_action_out_slot_index(pair_idx: usize, m: usize) -> usize {
 
 #[test]
 fn phase_1_4c_ring_action_output_row_count_shape() {
-    let layout = FibonacciFPrimeImageLayout::new(small_ring_action_config());
-    let structure = build_fibonacci_f_prime_structure(layout.clone());
+    let layout = FPrimeImageLayout::new(small_ring_action_config());
+    let structure = build_f_prime_shell_structure(layout.clone());
     let output_rows = layout.config.ring_action_pair_count * D;
 
     assert_eq!(
@@ -125,7 +123,7 @@ fn phase_1_4c_ring_action_output_row_count_shape() {
 #[test]
 fn phase_1_4c_honest_ring_action_image_satisfies_output_rows() {
     let (layout, image) = honest_ring_action_image();
-    let structure = build_fibonacci_f_prime_structure(layout);
+    let structure = build_f_prime_shell_structure(layout);
 
     let z = structure.extend_witness_from_image(&image);
     assert!(
@@ -138,7 +136,7 @@ fn phase_1_4c_honest_ring_action_image_satisfies_output_rows() {
 #[test]
 fn phase_1_4c_tampered_ring_action_output_lane_with_matching_bits_trips_output_row() {
     let (layout, mut image) = honest_ring_action_image();
-    let structure = build_fibonacci_f_prime_structure(layout);
+    let structure = build_f_prime_shell_structure(layout);
 
     let baseline = structure.extend_witness_from_image(&image);
     assert!(structure.is_satisfied(&baseline), "baseline must satisfy");
@@ -168,7 +166,7 @@ fn phase_1_4c_tampered_ring_action_output_lane_with_matching_bits_trips_output_r
 #[test]
 fn phase_1_4c_output_row_matches_phi_reduction_coefficients() {
     let (layout, image) = honest_ring_action_image();
-    let structure = build_fibonacci_f_prime_structure(layout);
+    let structure = build_f_prime_shell_structure(layout);
     let z = structure.extend_witness_from_image(&image);
 
     let pair_idx = 1usize;

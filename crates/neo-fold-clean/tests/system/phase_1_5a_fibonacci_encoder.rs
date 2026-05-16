@@ -1,6 +1,6 @@
 //! Phase 1.5a — Milestone 4 Fibonacci F' encoder.
 //!
-//! Drives the new `encode_fibonacci_f_prime_step` end-to-end on the same
+//! Drives the new `encode_f_prime_step` end-to-end on the same
 //! kind of recursive fixture Phase 1.4f assembles by hand. The encoder
 //! consumes "real prover output" (plan + state digests + chunk digest +
 //! NIFS payload views + Poseidon traces + boundary public-x_out bits) and
@@ -25,7 +25,7 @@
 //!
 //! Phase 1.5b — encoded F' → foldable `CcsInstance`:
 //! 6. The encoder's strict low-norm witness commits cleanly through
-//!    `EncodedFibonacciFPrimeStep::to_ccs_instance`, producing a CCS
+//!    `EncodedFPrimeStep::to_ccs_instance`, producing a CCS
 //!    instance with witness length equal to the encoded witness.
 //! 7. The resulting `CcsInstance` folds through SuperNeo NIFS.P /
 //!    NIFS.V end-to-end (verifier accepts; prover and verifier agree on
@@ -37,14 +37,14 @@
 mod support;
 
 use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
-use neo_fold_clean::frontends::fibonacci_f_prime::encoder::encode_fibonacci_f_prime_step;
+use neo_fold_clean::frontends::f_prime_shell::encoder::encode_f_prime_step;
 use neo_fold_clean::paper::f_prime::r1cs::encode_x_out_public_bits;
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use support::fibonacci_f_prime::{build_honest_step_input, BOUNDARY_BITS};
 
-// State-lane base indices inside `FibonacciLaneSlots::state_lanes`:
+// State-lane base indices inside `FPrimeLaneSlots::state_lanes`:
 // state_in occupies lanes 0..24, state_out lanes 24..38, chunk_digest lanes 38..42.
 const STATE_LANE_CHUNK_DIGEST_BASE: usize = 38;
 
@@ -75,7 +75,7 @@ fn phase_1_5a_recursive_fixture_encoder_satisfies_structure() {
     let (input, _) = build_honest_step_input();
     // The encoder itself asserts `is_satisfied` internally; if this
     // returns, it satisfied the structure. Re-check defensively.
-    let encoded = encode_fibonacci_f_prime_step(input);
+    let encoded = encode_f_prime_step(input);
     assert!(
         encoded.structure.is_satisfied(&encoded.witness),
         "encoded honest step must satisfy its structure (first failing row: {:?})",
@@ -86,7 +86,7 @@ fn phase_1_5a_recursive_fixture_encoder_satisfies_structure() {
 #[test]
 fn phase_1_5a_encoder_public_x_out_matches_f_prime_emitter() {
     let (input, state_x_out_digest) = build_honest_step_input();
-    let encoded = encode_fibonacci_f_prime_step(input);
+    let encoded = encode_f_prime_step(input);
 
     // The encoder's boundary public-x_out bits must match the canonical
     // little-endian decomposition the F' R1CS emitter uses.
@@ -102,7 +102,7 @@ fn phase_1_5a_encoder_public_x_out_matches_f_prime_emitter() {
 #[test]
 fn phase_1_5a_encoder_rejects_tampered_chunk_digest() {
     let (input, _) = build_honest_step_input();
-    let encoded = encode_fibonacci_f_prime_step(input);
+    let encoded = encode_f_prime_step(input);
     let mut z = encoded.witness.clone();
     assert!(encoded.structure.is_satisfied(&z), "baseline must satisfy");
 
@@ -122,7 +122,7 @@ fn phase_1_5a_encoder_rejects_tampered_chunk_digest() {
 #[test]
 fn phase_1_5a_encoder_rejects_tampered_public_x_out() {
     let (input, _) = build_honest_step_input();
-    let encoded = encode_fibonacci_f_prime_step(input);
+    let encoded = encode_f_prime_step(input);
     let mut z = encoded.witness.clone();
     assert!(encoded.structure.is_satisfied(&z), "baseline must satisfy");
 
@@ -141,7 +141,7 @@ fn phase_1_5a_encoder_rejects_tampered_public_x_out() {
 #[test]
 fn phase_1_5a_encoder_witness_is_strict_low_norm_image_bits() {
     let (input, _) = build_honest_step_input();
-    let encoded = encode_fibonacci_f_prime_step(input);
+    let encoded = encode_f_prime_step(input);
 
     // The encoded witness is exactly the committed image bits.
     assert_eq!(
@@ -178,7 +178,7 @@ fn phase_1_5b_encoded_f_prime_converts_to_ccs_instance() {
     use neo_fold_clean::frontends::direct_ccs::ajtai;
 
     let (input, _) = build_honest_step_input();
-    let encoded = encode_fibonacci_f_prime_step(input);
+    let encoded = encode_f_prime_step(input);
 
     let structure = encoded.structure.ccs.clone();
     let params = config::r1cs_params(structure.n, structure.m).expect("encoded F' params");
@@ -210,7 +210,7 @@ fn phase_1_5b_encoded_f_prime_instance_folds_through_nifs() {
     const LABEL: &[u8] = b"neo.fold.clean/test/encoded-f-prime-nifs/v1";
 
     let (input, _) = build_honest_step_input();
-    let encoded = encode_fibonacci_f_prime_step(input);
+    let encoded = encode_f_prime_step(input);
 
     let structure = encoded.structure.ccs.clone();
     let params = config::r1cs_params(structure.n, structure.m).expect("encoded F' params");

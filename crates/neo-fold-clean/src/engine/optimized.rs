@@ -55,7 +55,7 @@ pub enum Error {
 /// **Why instance-digest binding**: without it, `nr::prove` and `nr::verify`
 /// can produce different transcript states for non-trivial polynomial CCS
 /// shapes (anything beyond the empty-`f` toy fixture) and Π_RLC's verifier
-/// rejects. neo-fold-next solved this by binding a public-instance digest
+/// rejects. neo-fold-prototype solved this by binding a public-instance digest
 /// into both prover and verifier transcripts; we mirror that contract.
 ///
 /// **Soundness boundary**: the digest is *recomputed by both sides* from
@@ -243,7 +243,7 @@ where
 }
 
 /// Π_RLC verify. Re-derives `expected = Σρ_i · me_inputs[i]` and checks
-/// against the prover's claimed combined CE claim. Mirrors `neo-fold-next`'s
+/// against the prover's claimed combined CE claim. Mirrors `neo-fold-prototype`'s
 /// contract: the prover's parent is on the wire and the verifier asserts
 /// equality before feeding Π_DEC. The bit-identical match matters because
 /// Π_DEC's children were committed against the prover's exact parent.
@@ -308,7 +308,7 @@ where
         return Err(Error::PiDecFailed);
     }
     // The engine returns these flags so the prover can fail fast instead of
-    // emitting unverifiable children. Mirrors `neo-fold-next`'s contract.
+    // emitting unverifiable children. Mirrors `neo-fold-prototype`'s contract.
     if !(ok_y && ok_x && ok_c) {
         return Err(Error::PiDecPublicCheckFailed { ok_y, ok_x, ok_c });
     }

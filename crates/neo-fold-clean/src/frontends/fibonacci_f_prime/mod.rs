@@ -4,14 +4,14 @@
 //! (the verifier-owned structure description):
 //!
 //! 1. **Encoded path** — callers who already have an
-//!    [`EncodedFibonacciFPrimeStep`] in hand hand it directly to
+//!    [`EncodedFPrimeStep`] in hand hand it directly to
 //!    [`build_instance`] / [`prove_encoded_steps`]. Used by test
 //!    fixtures and downstream chain builders that own their own
 //!    encoder.
 //! 2. **Compiler path** — callers feed app-level
 //!    [`FibonacciAppStepInput`]s through
 //!    [`compile_fibonacci_step`]. The compiler hides
-//!    `FibonacciFPrimeStepInput` and the NIFS / K-mul / ring-action /
+//!    `FPrimeStepInput` and the NIFS / K-mul / ring-action /
 //!    Poseidon-trace plumbing. Branches internally on
 //!    `ctx.chain_state.chunk_count`: base step (`== 0`, no prior fold)
 //!    or recursive step (`> 0`, caller supplies a real per-step
@@ -47,12 +47,8 @@
 //!   `ctx.fold_for_step.proof`.
 
 pub mod compiler;
-pub mod encoder;
-pub mod image;
 pub mod instance;
 pub mod lifecycle;
-pub mod recursive_plan;
-pub mod structure;
 
 pub use compiler::{
     compile_fibonacci_step, start_fibonacci_chain, FibonacciAppState, FibonacciAppStepInput, FibonacciAppStepOutput,
@@ -60,14 +56,14 @@ pub use compiler::{
     FibonacciFoldForStep,
 };
 pub use instance::build_instance;
-pub use lifecycle::prove_encoded_steps;
+pub use lifecycle::{prove_encoded_steps, FibonacciChainBuilder};
 
 use thiserror::Error;
 
 use crate::frontends::direct_ccs::{ajtai, ajtai_dec_mixer, ajtai_rlc_mixer};
-use crate::frontends::fibonacci_f_prime::image::FibonacciFPrimeImageLayout;
-use crate::frontends::fibonacci_f_prime::recursive_plan::{build_recursive_step_image_config, RecursiveStepImagePlan};
-use crate::frontends::fibonacci_f_prime::structure::build_fibonacci_f_prime_structure;
+use crate::frontends::f_prime_shell::image::FPrimeImageLayout;
+use crate::frontends::f_prime_shell::recursive_plan::{build_recursive_step_image_config, RecursiveStepImagePlan};
+use crate::frontends::f_prime_shell::structure::build_f_prime_shell_structure;
 use crate::lifecycle::{preprocess as lifecycle_preprocess, Preprocessing};
 use crate::paper::params::Params;
 
@@ -99,6 +95,12 @@ pub enum Error {
         prep_digest: [neo_math::F; 4],
         step_digest: [neo_math::F; 4],
     },
+    #[error(transparent)]
+    Compiler(#[from] compiler::FibonacciCompilerError),
+    #[error("Fibonacci F' chain builder: cannot finish before appending any steps")]
+    ChainEmpty,
+    #[error("Fibonacci F' chain builder: expected active lifecycle state while deriving the next recursive fold")]
+    ChainExpectedActiveState,
     #[error(transparent)]
     Params(#[from] neo_params::ParamsError),
     #[error(transparent)]
@@ -162,13 +164,38 @@ pub fn preprocess_seeded(plan: &RecursiveStepImagePlan, seed: u64) -> Result<Fib
     })
 }
 
+/// Test/demo helper variant that lets the caller supply custom [`Params`]
+/// (e.g. a smaller test profile that preserves the protocol's algebraic
+/// correctness at lower cryptographic security). Production paths must
+/// use [`preprocess`] or [`preprocess_seeded`] with the Appendix B.2
+/// params.
+pub fn preprocess_seeded_with_params(
+    plan: &RecursiveStepImagePlan,
+    params: Params,
+    seed: u64,
+) -> Result<FibonacciFPrimePreprocessing, Error> {
+    let (structure, public_input_len) = derive_canonical_structure(plan);
+    let _ = ajtai::setup_seeded(&params, &structure, seed);
+    let prep = lifecycle_preprocess(
+        params,
+        structure,
+        ajtai_rlc_mixer,
+        ajtai_dec_mixer,
+        Some(public_input_len),
+    )?;
+    Ok(FibonacciFPrimePreprocessing {
+        prep,
+        plan: plan.clone(),
+    })
+}
+
 /// Run the verifier-owned plan through the canonical image-layout +
 /// structure builders. Returns `(structure, public_input_len)`; the
 /// caller wraps them into [`Preprocessing`]. Centralised here so
 /// `preprocess` and `preprocess_seeded` share one derivation.
 fn derive_canonical_structure(plan: &RecursiveStepImagePlan) -> (neo_ccs::CcsStructure<neo_math::F>, usize) {
-    let layout = FibonacciFPrimeImageLayout::new(build_recursive_step_image_config(plan));
+    let layout = FPrimeImageLayout::new(build_recursive_step_image_config(plan));
     let public_input_len = 1 + layout.boundary.bits;
-    let structure = build_fibonacci_f_prime_structure(layout).ccs;
+    let structure = build_f_prime_shell_structure(layout).ccs;
     (structure, public_input_len)
 }

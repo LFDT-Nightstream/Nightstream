@@ -28,6 +28,7 @@ use neo_fold_clean::paper::construction2::RunningInstance;
 use neo_fold_clean::paper::reductions::pi_ccs;
 use neo_fold_clean::{config, CcsInstance, Params, Structure};
 use neo_math::{D, F, K};
+use neo_reductions::optimized_engine::OptimizedStructureCache;
 use p3_field::PrimeCharacteristicRing;
 
 /// Total S-boxes per full Poseidon2 permutation. Used to size-check
@@ -149,6 +150,7 @@ fn bit_backed_sbox_instance(params: &Params, structure: &Structure, log: &AjtaiS
 struct Fixture {
     params: Params,
     structure: Structure,
+    cache: OptimizedStructureCache,
     log: AjtaiSModule,
     instance: CcsInstance,
 }
@@ -159,10 +161,12 @@ fn build_fixture() -> Fixture {
     install_ajtai_module(&params, &structure);
     let cols = structure.m.div_ceil(D);
     let log = AjtaiSModule::from_global_for_dims(D, cols).expect("Ajtai module");
+    let cache = OptimizedStructureCache::build(&structure).expect("cache build");
     let instance = degree7_instance(&params, &structure, &log);
     Fixture {
         params,
         structure,
+        cache,
         log,
         instance,
     }
@@ -174,10 +178,12 @@ fn build_bit_backed_fixture(x: F) -> Fixture {
     install_ajtai_module(&params, &structure);
     let cols = structure.m.div_ceil(D);
     let log = AjtaiSModule::from_global_for_dims(D, cols).expect("Ajtai module");
+    let cache = OptimizedStructureCache::build(&structure).expect("cache build");
     let instance = bit_backed_sbox_instance(&params, &structure, &log, x);
     Fixture {
         params,
         structure,
+        cache,
         log,
         instance,
     }
@@ -188,6 +194,7 @@ fn prove_verify_single_fresh(structure: &Structure, z: Vec<F>) -> Result<Vec<neo
     install_ajtai_module(&params, structure);
     let cols = structure.m.div_ceil(D);
     let log = AjtaiSModule::from_global_for_dims(D, cols).expect("Ajtai module");
+    let cache = OptimizedStructureCache::build(structure).expect("cache build");
     let instance =
         CcsInstance::from_low_norm_assignment(&params, &log, structure, &z, 1).expect("low-norm sparse CCS assignment");
 
@@ -196,6 +203,7 @@ fn prove_verify_single_fresh(structure: &Structure, z: Vec<F>) -> Result<Vec<neo
         &mut prover_tr,
         &params,
         structure,
+        &cache,
         &log,
         vec![instance.clone()],
         &RunningInstance::default(),
@@ -206,6 +214,7 @@ fn prove_verify_single_fresh(structure: &Structure, z: Vec<F>) -> Result<Vec<neo
         &mut verifier_tr,
         &params,
         structure,
+        &cache,
         &[instance.claim],
         &RunningInstance::default(),
         &proof,
@@ -250,6 +259,7 @@ fn native_pi_ccs_accepts_degree7_sbox_relation() {
         &mut prover_tr,
         &f.params,
         &f.structure,
+        &f.cache,
         &f.log,
         vec![f.instance.clone()],
         &RunningInstance::default(),
@@ -261,6 +271,7 @@ fn native_pi_ccs_accepts_degree7_sbox_relation() {
         &mut verifier_tr,
         &f.params,
         &f.structure,
+        &f.cache,
         &[f.instance.claim.clone()],
         &RunningInstance::default(),
         &proof,
@@ -280,6 +291,7 @@ fn native_pi_ccs_rejects_tampered_degree7_sbox_proof() {
         &mut prover_tr,
         &f.params,
         &f.structure,
+        &f.cache,
         &f.log,
         vec![f.instance.clone()],
         &RunningInstance::default(),
@@ -293,6 +305,7 @@ fn native_pi_ccs_rejects_tampered_degree7_sbox_proof() {
         &mut verifier_tr,
         &f.params,
         &f.structure,
+        &f.cache,
         &[f.instance.claim.clone()],
         &RunningInstance::default(),
         &proof,
@@ -320,6 +333,7 @@ fn native_pi_ccs_accepts_bit_backed_degree7_sbox_relation() {
         &mut prover_tr,
         &f.params,
         &f.structure,
+        &f.cache,
         &f.log,
         vec![f.instance.clone()],
         &RunningInstance::default(),
@@ -331,6 +345,7 @@ fn native_pi_ccs_accepts_bit_backed_degree7_sbox_relation() {
         &mut verifier_tr,
         &f.params,
         &f.structure,
+        &f.cache,
         &[f.instance.claim.clone()],
         &RunningInstance::default(),
         &proof,
@@ -347,6 +362,7 @@ fn native_pi_ccs_rejects_wrong_bit_backed_degree7_output() {
     install_ajtai_module(&params, &structure);
     let cols = structure.m.div_ceil(D);
     let log = AjtaiSModule::from_global_for_dims(D, cols).expect("Ajtai module");
+    let cache = OptimizedStructureCache::build(&structure).expect("cache build");
 
     let mut z = bit_backed_sbox_assignment(F::from_u64(0x1234_5678_9abc_def0));
     z[1 + POSEIDON2_GOLDILOCKS_BITS] = F::ONE - z[1 + POSEIDON2_GOLDILOCKS_BITS];
@@ -358,6 +374,7 @@ fn native_pi_ccs_rejects_wrong_bit_backed_degree7_output() {
         &mut prover_tr,
         &params,
         &structure,
+        &cache,
         &log,
         vec![instance.clone()],
         &RunningInstance::default(),
@@ -369,6 +386,7 @@ fn native_pi_ccs_rejects_wrong_bit_backed_degree7_output() {
             &mut verifier_tr,
             &params,
             &structure,
+            &cache,
             &[instance.claim],
             &RunningInstance::default(),
             &proof,

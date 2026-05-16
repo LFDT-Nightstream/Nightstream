@@ -32,12 +32,13 @@
 
 use neo_ajtai::AjtaiSModule;
 use neo_math::F;
+use neo_reductions::optimized_engine::OptimizedStructureCache;
 
 use crate::engine::transcript::Transcript;
 use crate::paper::construction2::{
     self, FoldProof, LatestInstance, ProofState, RunningInstance, State, StepProof, VerifierKey,
 };
-use crate::paper::digest::{digest32_as_fields, structure_digest};
+use crate::paper::digest::digest32_as_fields;
 use crate::paper::nifs;
 use crate::paper::params::Params;
 use crate::paper::relations::{CcsClaim, CcsInstance, DecMixer, RlcMixer, Structure};
@@ -58,16 +59,17 @@ pub const F_PRIME_STEP_TRANSCRIPT_LABEL: &[u8] = b"neo.fold.clean/f_prime/step/v
 ///
 /// Order is fixed and matches `enforce_f_prime_recursive_step_circuit` in
 /// `paper::f_prime::r1cs`; do not reorder without updating the in-circuit
-/// transcript prefix as well.
+/// transcript prefix as well. `structure_digest` is the caller's cached
+/// `paper::digest::structure_digest(&prep.structure)` value.
 fn absorb_f_prime_step_context(
     tr: &mut Transcript,
     vk: &VerifierKey,
-    s: &Structure,
+    structure_digest: &[F; 4],
     state: &State,
     chunk_digest: [F; 4],
 ) {
     tr.append_fields(b"f_prime/vk_fs", &digest32_as_fields(vk.digest()));
-    tr.append_fields(b"f_prime/structure", &structure_digest(s));
+    tr.append_fields(b"f_prime/structure", structure_digest);
     tr.append_fields(b"f_prime/z_0", &digest32_as_fields(state.z_0));
     tr.append_fields(b"f_prime/z_i_in", &digest32_as_fields(state.z_i));
     tr.append_fields(b"f_prime/public_trace_in", &digest32_as_fields(state.public_trace));
@@ -81,9 +83,16 @@ fn absorb_f_prime_step_context(
 /// runs), so its `z_i`, `public_trace`, etc. match the F' R1CS's `state-in`
 /// fields. `chunk_digest` is computed from `next_latest`, the new batch
 /// being deposited as `latest` (not the `latest` currently being folded).
-pub fn f_prime_step_transcript(vk: &VerifierKey, s: &Structure, state: &State, chunk_digest: [F; 4]) -> Transcript {
+/// `structure_digest` is the caller's cached
+/// `paper::digest::structure_digest(&prep.structure)`.
+pub fn f_prime_step_transcript(
+    vk: &VerifierKey,
+    structure_digest: &[F; 4],
+    state: &State,
+    chunk_digest: [F; 4],
+) -> Transcript {
     let mut tr = Transcript::with_label(F_PRIME_STEP_TRANSCRIPT_LABEL);
-    absorb_f_prime_step_context(&mut tr, vk, s, state, chunk_digest);
+    absorb_f_prime_step_context(&mut tr, vk, structure_digest, state, chunk_digest);
     tr
 }
 
@@ -106,6 +115,8 @@ pub fn f_prime_step_transcript(vk: &VerifierKey, s: &Structure, state: &State, c
 pub fn prove(
     pp: &Params,
     s: &Structure,
+    cache: &OptimizedStructureCache,
+    structure_digest: &[F; 4],
     log: &AjtaiSModule,
     mix_rhos_commits: RlcMixer,
     combine_b_pows: DecMixer,
@@ -151,11 +162,12 @@ pub fn prove(
                 public_trace,
                 proof: ProofState::Initial,
             };
-            let mut tr = f_prime_step_transcript(vk, s, &state_in, chunk_digest);
+            let mut tr = f_prime_step_transcript(vk, structure_digest, &state_in, chunk_digest);
             let (next_running, nifs_proof) = nifs::prove(
                 &mut tr,
                 pp,
                 s,
+                cache,
                 log,
                 mix_rhos_commits,
                 combine_b_pows,
@@ -184,7 +196,7 @@ pub fn prove(
         proof: ProofState::Initial, // placeholder; advance_state reads new_proof for the new state
     };
     let next_state = construction2::advance_state(pp, prev_state_for_advance, new_proof, fresh_count, chunk_digest);
-    let x_out = construction2::compute_x_out(vk, pp, s, &next_state);
+    let x_out = construction2::compute_x_out(vk, pp, structure_digest, &next_state);
 
     Ok((next_state, StepProof { fold, x_out }))
 }
@@ -203,6 +215,8 @@ pub fn prove(
 pub fn verify(
     pp: &Params,
     s: &Structure,
+    cache: &OptimizedStructureCache,
+    structure_digest: &[F; 4],
     mix_rhos_commits: RlcMixer,
     combine_b_pows: DecMixer,
     vk: &VerifierKey,
@@ -245,11 +259,12 @@ pub fn verify(
                 public_trace,
                 proof: ProofState::Initial,
             };
-            let mut tr = f_prime_step_transcript(vk, s, &state_in, chunk_digest);
+            let mut tr = f_prime_step_transcript(vk, structure_digest, &state_in, chunk_digest);
             nifs::verify(
                 &mut tr,
                 pp,
                 s,
+                cache,
                 mix_rhos_commits,
                 combine_b_pows,
                 &latest.claims(),
@@ -278,7 +293,7 @@ pub fn verify(
         proof: ProofState::Initial, // placeholder; advance reads new_proof
     };
     let next_state = construction2::advance_state(pp, prev_state_for_advance, new_proof, fresh_count, chunk_digest);
-    let x_out = construction2::compute_x_out(vk, pp, s, &next_state);
+    let x_out = construction2::compute_x_out(vk, pp, structure_digest, &next_state);
     if x_out != proof.x_out {
         return Err(Error::XOutMismatch);
     }

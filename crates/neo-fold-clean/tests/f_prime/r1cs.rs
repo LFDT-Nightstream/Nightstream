@@ -109,13 +109,14 @@ fn build_fixture() -> Fixture {
 
     // First fold: seed the running accumulator. Any low-norm assignment
     // works; all zeros is the simplest.
-    let zero_assignment = vec![F::ZERO; prep.structure.m];
+    let zero_assignment = vec![F::ZERO; prep.structure().m];
     let first = direct_ccs::build_instance(&prep, &r1cs, &zero_assignment).expect("first instance");
     let mut first_tr = Transcript::session();
     let (running, _first_proof) = neo_fold_clean::paper::nifs::prove(
         &mut first_tr,
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,
@@ -150,9 +151,9 @@ fn build_fixture() -> Fixture {
     let mut z = encode_f_prime_public_input(prior_x_out);
     assert_eq!(z.len(), F_PRIME_PUBLIC_INPUT_LEN);
     // Carrier R1CS has m = m_in, so the assignment is exactly [1, bits…].
-    assert_eq!(prep.structure.m, F_PRIME_PUBLIC_INPUT_LEN);
+    assert_eq!(prep.structure().m, F_PRIME_PUBLIC_INPUT_LEN);
     // Defensive: pad/truncate to structure.m in case those ever diverge.
-    z.resize(prep.structure.m, F::ZERO);
+    z.resize(prep.structure().m, F::ZERO);
 
     let second = direct_ccs::build_instance(&prep, &r1cs, &z).expect("second instance");
     let fresh_claims = vec![second.claim.clone()];
@@ -173,7 +174,8 @@ fn build_fixture() -> Fixture {
     let (next_running, proof) = neo_fold_clean::paper::nifs::prove(
         &mut tr,
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,
@@ -199,17 +201,17 @@ fn build_fixture() -> Fixture {
 
 fn split_nc_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> SplitNcPiCcsVConfig<'a> {
     let raw_params = neo_params::NeoParams::goldilocks_auto_r1cs_ccs_with(
-        prep.structure.n.max(prep.structure.m),
+        prep.structure().n.max(prep.structure().m),
         neo_fold_clean::config::MIN_EFFECTIVE_LAMBDA,
         neo_fold_clean::config::EXTENSION_SAFETY_MARGIN_BITS,
     )
     .expect("raw params reconstruction");
     let dims =
-        neo_reductions::engines::utils::build_dims_and_policy(&raw_params, &prep.structure).expect("engine dims");
-    let mat_digest = neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache(&prep.structure, None);
+        neo_reductions::engines::utils::build_dims_and_policy(&raw_params, prep.structure()).expect("engine dims");
+    let mat_digest = neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache(prep.structure(), None);
     let header_bundle = neo_reductions::engines::utils::pi_ccs_header_bundle_digest_fields(
         &raw_params,
-        &prep.structure,
+        prep.structure(),
         dims,
         &mat_digest,
     )
@@ -217,7 +219,7 @@ fn split_nc_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> SplitNcPiCcsV
 
     SplitNcPiCcsVConfig {
         params: &prep.params,
-        structure: &prep.structure,
+        structure: prep.structure(),
         header_bundle,
         ell_d: dims.ell_d,
         ell_n: dims.ell_n,

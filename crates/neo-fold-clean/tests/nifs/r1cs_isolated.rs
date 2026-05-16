@@ -33,7 +33,7 @@ fn nifs_round_trip_on_r1cs_structure() {
     let prep = direct_ccs::preprocess_seeded(&r1cs, /* seed = */ 42).expect("preprocess");
 
     // (a, b, c) = (1, 0, 1)
-    let mut z = vec![F::default(); prep.structure.m];
+    let mut z = vec![F::default(); prep.structure().m];
     z[0] = F::ONE;
     z[1] = F::ONE;
     z[2] = F::ZERO;
@@ -47,7 +47,8 @@ fn nifs_round_trip_on_r1cs_structure() {
     let (next_running, proof) = nifs::prove(
         &mut prover_tr,
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,
@@ -61,7 +62,8 @@ fn nifs_round_trip_on_r1cs_structure() {
     let verified = nifs::verify(
         &mut verifier_tr,
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
         prep.mix_rhos_commits,
         prep.combine_b_pows,
         &fresh_claims,

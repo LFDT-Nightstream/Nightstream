@@ -77,7 +77,7 @@ fn bit_carrier_r1cs() -> R1cs {
 fn compute_x_out_native(prep: &neo_fold_clean::Preprocessing, state: &State) -> [F; 4] {
     digest32_as_fields(state_x_out_digest(
         prep.vk.digest(),
-        &structure_digest(&prep.structure),
+        &structure_digest(prep.structure()),
         state.chunk_count,
         state.step_count,
         state.z_0,
@@ -91,24 +91,24 @@ fn compute_x_out_native(prep: &neo_fold_clean::Preprocessing, state: &State) -> 
 
 fn split_nc_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> SplitNcPiCcsVConfig<'a> {
     let raw_params = neo_params::NeoParams::goldilocks_auto_r1cs_ccs_with(
-        prep.structure.n.max(prep.structure.m),
+        prep.structure().n.max(prep.structure().m),
         neo_fold_clean::config::MIN_EFFECTIVE_LAMBDA,
         neo_fold_clean::config::EXTENSION_SAFETY_MARGIN_BITS,
     )
     .expect("raw params");
     let dims =
-        neo_reductions::engines::utils::build_dims_and_policy(&raw_params, &prep.structure).expect("engine dims");
-    let mat_digest = neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache(&prep.structure, None);
+        neo_reductions::engines::utils::build_dims_and_policy(&raw_params, prep.structure()).expect("engine dims");
+    let mat_digest = neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache(prep.structure(), None);
     let header_bundle = neo_reductions::engines::utils::pi_ccs_header_bundle_digest_fields(
         &raw_params,
-        &prep.structure,
+        prep.structure(),
         dims,
         &mat_digest,
     )
     .expect("header bundle digest");
     SplitNcPiCcsVConfig {
         params: &prep.params,
-        structure: &prep.structure,
+        structure: prep.structure(),
         header_bundle,
         ell_d: dims.ell_d,
         ell_n: dims.ell_n,
@@ -130,7 +130,7 @@ fn make_step_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> FPrimeStepCo
 fn f_prime_state_in(state: &State, prep: &neo_fold_clean::Preprocessing) -> FPrimeStateIn {
     FPrimeStateIn {
         vk_fs_digest: digest32_as_fields(prep.vk.digest()),
-        structure_digest: structure_digest(&prep.structure),
+        structure_digest: structure_digest(prep.structure()),
         chunk_count_in: state.chunk_count,
         step_count_in: state.step_count,
         z_0: digest32_as_fields(state.z_0),
@@ -142,7 +142,7 @@ fn f_prime_state_in(state: &State, prep: &neo_fold_clean::Preprocessing) -> FPri
 }
 
 fn base_state(prep: &neo_fold_clean::Preprocessing) -> State {
-    let structure = structure_digest(&prep.structure);
+    let structure = structure_digest(prep.structure());
     let z_0 = initial_boundary_digest(&structure, prep.public_input_len);
     let public_trace = public_trace_seed_digest(&structure);
     let acc_digest = accumulator_digest_from_claims(prep.params.b(), &[]);
@@ -155,7 +155,7 @@ fn base_state(prep: &neo_fold_clean::Preprocessing) -> State {
 /// `m_in`, so the chain advance is unaffected.
 fn build_link_instance(prep: &neo_fold_clean::Preprocessing, r1cs: &R1cs, x_out_target: [F; 4]) -> CcsInstance {
     let mut z = encode_f_prime_public_input(x_out_target);
-    z.resize(prep.structure.m, F::ZERO);
+    z.resize(prep.structure().m, F::ZERO);
     direct_ccs::build_instance(prep, r1cs, &z).expect("recursive-link instance")
 }
 
@@ -165,7 +165,9 @@ fn build_link_instance(prep: &neo_fold_clean::Preprocessing, r1cs: &R1cs, x_out_
 fn peek_next_state(prep: &neo_fold_clean::Preprocessing, state: &State, batch: &[CcsInstance]) -> State {
     let (next, _) = construction2::step(
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
+        prep.structure_digest(),
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,
@@ -202,7 +204,7 @@ struct ChainFixture {
 fn build_f_prime_honest_chain(len: usize) -> ChainFixture {
     let r1cs = bit_carrier_r1cs();
     let prep = direct_ccs::preprocess_seeded(&r1cs, 42).expect("preprocess");
-    let placeholder_z = vec![F::ZERO; prep.structure.m];
+    let placeholder_z = vec![F::ZERO; prep.structure().m];
     let dummy_inst = || direct_ccs::build_instance(&prep, &r1cs, &placeholder_z).expect("dummy");
 
     let mut state = base_state(&prep);
@@ -220,7 +222,9 @@ fn build_f_prime_honest_chain(len: usize) -> ChainFixture {
 
         let (next_state, step_proof) = construction2::step(
             &prep.params,
-            &prep.structure,
+            prep.structure(),
+            prep.optimized_cache(),
+            prep.structure_digest(),
             &prep.log,
             prep.mix_rhos_commits,
             prep.combine_b_pows,
@@ -488,10 +492,10 @@ fn f_prime_chunk_public_digest_is_independent_of_recursive_link_x() {
     let r1cs = bit_carrier_r1cs();
     let prep = direct_ccs::preprocess_seeded(&r1cs, 42).expect("preprocess");
 
-    let z_a: Vec<F> = (0..prep.structure.m)
+    let z_a: Vec<F> = (0..prep.structure().m)
         .map(|i| F::from_u64((i as u64) & 1))
         .collect();
-    let z_b: Vec<F> = (0..prep.structure.m)
+    let z_b: Vec<F> = (0..prep.structure().m)
         .map(|i| F::from_u64(((i + 1) as u64) & 1))
         .collect();
     let inst_a = direct_ccs::build_instance(&prep, &r1cs, &z_a).expect("inst a");
@@ -549,10 +553,10 @@ fn nifs_transcript_binds_chunk_contents_even_though_f_prime_digest_is_shape_only
     let prep = direct_ccs::preprocess_seeded(&r1cs, 42).expect("preprocess");
 
     // Two same-shape distinct-content low-norm instances.
-    let z_a: Vec<F> = (0..prep.structure.m)
+    let z_a: Vec<F> = (0..prep.structure().m)
         .map(|i| F::from_u64((i as u64) & 1))
         .collect();
-    let z_b: Vec<F> = (0..prep.structure.m)
+    let z_b: Vec<F> = (0..prep.structure().m)
         .map(|i| F::from_u64(((i + 1) as u64) & 1))
         .collect();
     let inst_a = direct_ccs::build_instance(&prep, &r1cs, &z_a).expect("inst a");
@@ -600,7 +604,9 @@ fn nifs_transcript_binds_chunk_contents_even_though_f_prime_digest_is_shape_only
     let untampered_statement = neo_fold_clean::build_decider_statement(&prep, &finished);
     neo_fold_clean::paper::decider::validate_witness(
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
+        prep.structure_digest(),
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,
@@ -619,7 +625,9 @@ fn nifs_transcript_binds_chunk_contents_even_though_f_prime_digest_is_shape_only
     assert!(
         neo_fold_clean::paper::decider::validate_witness(
             &prep.params,
-            &prep.structure,
+            prep.structure(),
+            prep.optimized_cache(),
+            prep.structure_digest(),
             &prep.log,
             prep.mix_rhos_commits,
             prep.combine_b_pows,

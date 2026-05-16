@@ -377,7 +377,8 @@ fn drive_nifs(seed: u64) -> (nifs::NifsProof, Vec<neo_fold_clean::CcsInstance>) 
     let (_next_running, proof) = nifs::prove(
         &mut tr,
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,

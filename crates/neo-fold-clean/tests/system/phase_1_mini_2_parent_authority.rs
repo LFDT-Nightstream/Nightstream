@@ -107,7 +107,8 @@ fn build_parent_authority_fixture() -> CeClaim {
     let (next_running, _proof) = nifs::prove(
         &mut prover_tr,
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,

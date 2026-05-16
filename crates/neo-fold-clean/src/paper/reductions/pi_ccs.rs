@@ -22,6 +22,7 @@
 use thiserror::Error;
 
 use neo_ajtai::AjtaiSModule;
+use neo_reductions::optimized_engine::OptimizedStructureCache;
 
 use crate::engine::optimized as engine;
 use crate::engine::transcript::Transcript;
@@ -61,12 +62,13 @@ pub fn prove(
     tr: &mut Transcript,
     pp: &Params,
     s: &Structure,
+    cache: &OptimizedStructureCache,
     log: &AjtaiSModule,
     fresh: Vec<CcsInstance>,
     running: &RunningInstance,
 ) -> Result<Proof, Error> {
     validate_input_shape(pp, &fresh, running)?;
-    let (outputs, sumcheck) = engine::prove_pi_ccs(tr.inner_mut(), pp, s, fresh, running, log)?;
+    let (outputs, sumcheck) = engine::prove_pi_ccs(tr.inner_mut(), pp, s, cache, fresh, running, log)?;
     Ok(Proof { sumcheck, outputs })
 }
 
@@ -89,6 +91,7 @@ pub fn verify(
     tr: &mut Transcript,
     pp: &Params,
     s: &Structure,
+    cache: &OptimizedStructureCache,
     fresh_claims: &[CcsClaim],
     running: &RunningInstance,
     proof: &Proof,
@@ -98,6 +101,7 @@ pub fn verify(
         tr.inner_mut(),
         pp,
         s,
+        cache,
         fresh_claims,
         running,
         &proof.outputs,

@@ -19,7 +19,7 @@ use crate::paper::relations::CcsInstance;
 /// `prep.log` under the canonical public-input split
 /// (`step.public_input_len()` = `1 + boundary_bits`).
 pub fn build_instance(prep: &FibonacciFPrimePreprocessing, step: &EncodedFPrimeStep) -> Result<CcsInstance, Error> {
-    let prep_digest = structure_digest(&prep.prep.structure);
+    let prep_digest = *prep.prep.structure_digest();
     let step_digest = structure_digest(&step.structure.ccs);
     if prep_digest != step_digest {
         return Err(Error::StructureMismatch {

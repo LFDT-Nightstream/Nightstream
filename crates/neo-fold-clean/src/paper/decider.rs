@@ -28,14 +28,13 @@
 
 use neo_ajtai::AjtaiSModule;
 use neo_ccs::traits::SModuleHomomorphism;
+use neo_reductions::optimized_engine::OptimizedStructureCache;
 use thiserror::Error;
 
 use crate::paper::construction2::{
     self, EncInst, FinalFoldProof, ProofState, RunningInstance, State, StepProof, VerifierKey,
 };
-use crate::paper::digest::{
-    accumulator_digest_from_claims, initial_boundary_digest, public_trace_seed_digest, structure_digest,
-};
+use crate::paper::digest::{accumulator_digest_from_claims, initial_boundary_digest, public_trace_seed_digest};
 use crate::paper::params::Params;
 use crate::paper::relations::{CcsClaim, DecMixer, RlcMixer, Structure};
 
@@ -126,6 +125,8 @@ pub struct Statement {
 pub fn validate_witness(
     params: &Params,
     structure: &Structure,
+    cache: &OptimizedStructureCache,
+    structure_digest_v: &[neo_math::F; 4],
     log: &AjtaiSModule,
     mix_rhos_commits: RlcMixer,
     combine_b_pows: DecMixer,
@@ -148,9 +149,8 @@ pub fn validate_witness(
     }
 
     // Rebuild verifier state from preprocessing.
-    let structure_digest_v = structure_digest(structure);
-    let z_0 = initial_boundary_digest(&structure_digest_v, public_input_len);
-    let public_trace = public_trace_seed_digest(&structure_digest_v);
+    let z_0 = initial_boundary_digest(structure_digest_v, public_input_len);
+    let public_trace = public_trace_seed_digest(structure_digest_v);
     let acc_digest = accumulator_digest_from_claims(params.b(), &[]);
     let mut state = State::base(z_0, public_trace, acc_digest);
 
@@ -159,6 +159,8 @@ pub fn validate_witness(
         state = construction2::verify_step(
             params,
             structure,
+            cache,
+            structure_digest_v,
             mix_rhos_commits,
             combine_b_pows,
             vk,
@@ -173,6 +175,8 @@ pub fn validate_witness(
     state = construction2::verify_final_fold(
         params,
         structure,
+        cache,
+        structure_digest_v,
         mix_rhos_commits,
         combine_b_pows,
         vk,
@@ -183,7 +187,7 @@ pub fn validate_witness(
 
     // Derive the public image from the walked state and compare to the
     // statement's declared public.
-    let x_out = construction2::compute_x_out(vk, params, structure, &state);
+    let x_out = construction2::compute_x_out(vk, params, structure_digest_v, &state);
     let derived = PublicImage {
         vk_fs_digest: vk.digest(),
         chunk_count: state.chunk_count,

@@ -333,7 +333,7 @@ fn f_prime_fibonacci_transition_assignment(prev: u64, curr: u64, next: u64, x_ou
 }
 
 fn f_prime_base_state(prep: &neo_fold_clean::lifecycle::Preprocessing) -> State {
-    let structure = structure_digest(&prep.structure);
+    let structure = structure_digest(prep.structure());
     let z_0 = initial_boundary_digest(&structure, prep.public_input_len);
     let public_trace = public_trace_seed_digest(&structure);
     let acc_digest = accumulator_digest_from_claims(prep.params.b(), &[]);
@@ -343,7 +343,7 @@ fn f_prime_base_state(prep: &neo_fold_clean::lifecycle::Preprocessing) -> State 
 fn f_prime_state_x_out(prep: &neo_fold_clean::lifecycle::Preprocessing, state: &State) -> [F; 4] {
     digest32_as_fields(state_x_out_digest(
         prep.vk.digest(),
-        &structure_digest(&prep.structure),
+        &structure_digest(prep.structure()),
         state.chunk_count,
         state.step_count,
         state.z_0,
@@ -362,7 +362,9 @@ fn f_prime_peek_next_state(
 ) -> State {
     let (next, _) = construction2::step(
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
+        prep.structure_digest(),
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,
@@ -618,7 +620,9 @@ fn fibonacci_decider_r1cs_shape_snapshot() {
 
         let (next_state, step_proof) = construction2::step(
             &prep.params,
-            &prep.structure,
+            prep.structure(),
+            prep.optimized_cache(),
+            prep.structure_digest(),
             &prep.log,
             prep.mix_rhos_commits,
             prep.combine_b_pows,
@@ -751,10 +755,10 @@ fn print_report(
     kv("CCS nnz", ccs_matrix_nnz(r1cs));
 
     section("CCS structure");
-    kv("n (rows)", prep.structure.n);
-    kv("m (vars)", prep.structure.m);
-    kv("t (matrices)", prep.structure.t());
-    kv("f degree", prep.structure.max_degree());
+    kv("n (rows)", prep.structure().n);
+    kv("m (vars)", prep.structure().m);
+    kv("t (matrices)", prep.structure().t());
+    kv("f degree", prep.structure().max_degree());
 
     section("Protocol params");
     kv("profile", R1CS_PROFILE);

@@ -276,6 +276,10 @@ name = "system_production_params"
 path = "tests/system/production_params.rs"
 
 [[test]]
+name = "system_preprocessing_cache_hygiene"
+path = "tests/system/preprocessing_cache_hygiene.rs"
+
+[[test]]
 name = "perf_fibonacci_bits"
 path = "tests/perf/fibonacci_bits.rs"
 

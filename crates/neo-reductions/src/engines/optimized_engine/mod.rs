@@ -254,6 +254,12 @@ pub struct OptimizedStructureCache {
     sparse: Arc<SparseCache<F>>,
     superneo: Arc<SuperneoEvalCache>,
     mat_digest: [Goldilocks; 4],
+    /// Shape fingerprint of the source structure: `(n, m, t)` where
+    /// `t = matrices.len()`. Used by downstream code to assert this
+    /// cache is still describing the structure it was built from
+    /// (e.g. after a caller mutated a public `Preprocessing.structure`
+    /// field).
+    shape: (usize, usize, usize),
 }
 
 impl OptimizedStructureCache {
@@ -278,6 +284,7 @@ impl OptimizedStructureCache {
             sparse,
             superneo: Arc::new(superneo),
             mat_digest,
+            shape: (s.n, s.m, s.matrices.len()),
         })
     }
 
@@ -293,7 +300,14 @@ impl OptimizedStructureCache {
         self.superneo.clone()
     }
 
-    pub(crate) fn mat_digest(&self) -> &[Goldilocks; 4] {
+    pub fn mat_digest(&self) -> &[Goldilocks; 4] {
         &self.mat_digest
+    }
+
+    /// `(n, m, t)` of the structure this cache was built from. Used as
+    /// a cheap pre-digest fingerprint when validating that the cache
+    /// still matches its owning `Structure`.
+    pub fn shape(&self) -> (usize, usize, usize) {
+        self.shape
     }
 }

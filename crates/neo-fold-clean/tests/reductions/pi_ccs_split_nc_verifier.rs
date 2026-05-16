@@ -90,7 +90,8 @@ fn build_fixture() -> Fixture {
     let (running, _) = neo_fold_clean::paper::nifs::prove(
         &mut first_tr,
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,
@@ -109,7 +110,8 @@ fn build_fixture() -> Fixture {
     let proof = pi_ccs::prove(
         &mut tr,
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
         &prep.log,
         vec![second],
         &running,
@@ -133,18 +135,18 @@ fn split_nc_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> SplitNcPiCcsV
     // The paper-layer `Params` keeps its `NeoParams` private; reconstruct
     // it from the same shape the production `r1cs_params` derives.
     let raw_params = neo_params::NeoParams::goldilocks_auto_r1cs_ccs_with(
-        prep.structure.n.max(prep.structure.m),
+        prep.structure().n.max(prep.structure().m),
         neo_fold_clean::config::MIN_EFFECTIVE_LAMBDA,
         neo_fold_clean::config::EXTENSION_SAFETY_MARGIN_BITS,
     )
     .expect("raw params reconstruction");
 
     let dims =
-        neo_reductions::engines::utils::build_dims_and_policy(&raw_params, &prep.structure).expect("engine dims");
-    let mat_digest = neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache(&prep.structure, None);
+        neo_reductions::engines::utils::build_dims_and_policy(&raw_params, prep.structure()).expect("engine dims");
+    let mat_digest = neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache(prep.structure(), None);
     let header_bundle = neo_reductions::engines::utils::pi_ccs_header_bundle_digest_fields(
         &raw_params,
-        &prep.structure,
+        prep.structure(),
         dims,
         &mat_digest,
     )
@@ -152,7 +154,7 @@ fn split_nc_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> SplitNcPiCcsV
 
     SplitNcPiCcsVConfig {
         params: &prep.params,
-        structure: &prep.structure,
+        structure: prep.structure(),
         header_bundle,
         ell_d: dims.ell_d,
         ell_n: dims.ell_n,

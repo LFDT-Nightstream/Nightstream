@@ -11,7 +11,7 @@ use crate::paper::construction2::verifier_key::VerifierKey;
 use crate::paper::construction2::{enc_inst::EncInst, Error, TRIVIAL_PC};
 use crate::paper::digest;
 use crate::paper::params::Params;
-use crate::paper::relations::{CcsClaim, CcsInstance, Structure};
+use crate::paper::relations::{CcsClaim, CcsInstance};
 
 /// 1 ≤ pc_i ≤ ℓ. ℓ=1 in this build.
 pub(crate) fn enforce_pc_in_range(state: &State) -> Result<(), Error> {
@@ -83,11 +83,14 @@ pub(crate) fn f_prime_chunk_public_digest_from_claims(start_index: u64, fresh_cl
 }
 
 /// `x_{i+1}` — Construction-2 hash-chain output (Soundness Invariant I-5).
-pub(crate) fn compute_x_out(vk: &VerifierKey, _pp: &Params, s: &Structure, state: &State) -> EncInst {
-    let structure = digest::structure_digest(s);
+///
+/// `structure_digest` is the caller's cached
+/// `paper::digest::structure_digest(&prep.structure)`; passing it in
+/// avoids walking the structure on every step.
+pub(crate) fn compute_x_out(vk: &VerifierKey, _pp: &Params, structure_digest: &[F; 4], state: &State) -> EncInst {
     let bytes = digest::state_x_out_digest(
         vk.digest(),
-        &structure,
+        structure_digest,
         state.chunk_count,
         state.step_count,
         state.z_0,

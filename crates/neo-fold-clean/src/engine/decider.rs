@@ -77,7 +77,7 @@ use crate::paper::construction2::{self, FoldProof, ProofState, State, TRIVIAL_PC
 use crate::paper::decider::{self, PublicImage, Statement};
 use crate::paper::digest::{
     accumulator_digest_from_claims, digest32_as_fields, f_prime_chunk_public_digest, initial_boundary_digest,
-    public_trace_seed_digest, state_x_out_digest, structure_digest,
+    public_trace_seed_digest, state_x_out_digest,
 };
 use crate::paper::f_prime::digest_circuit::{enforce_state_x_out_digest_circuit, StateXOutDigestInputs};
 use crate::paper::f_prime::native::F_PRIME_STEP_TRANSCRIPT_LABEL;
@@ -186,7 +186,9 @@ pub fn synthesize_statement_r1cs(
     // 1. Preflight (sanity, not part of SNARK).
     decider::validate_witness(
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
+        prep.structure_digest(),
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,
@@ -196,7 +198,7 @@ pub fn synthesize_statement_r1cs(
     )?;
 
     // 2-4. F' chain (base + recursive steps + cross-step links).
-    let structure_digest_v = structure_digest(&prep.structure);
+    let structure_digest_v = *prep.structure_digest();
     let z_0 = initial_boundary_digest(&structure_digest_v, prep.public_input_len);
     let public_trace = public_trace_seed_digest(&structure_digest_v);
     let acc_digest = accumulator_digest_from_claims(prep.params.b(), &[]);
@@ -222,7 +224,9 @@ pub fn synthesize_statement_r1cs(
         let state_in = state.clone();
         state = construction2::verify_step(
             &prep.params,
-            &prep.structure,
+            prep.structure(),
+            prep.optimized_cache(),
+            prep.structure_digest(),
             prep.mix_rhos_commits,
             prep.combine_b_pows,
             &prep.vk,
@@ -415,7 +419,9 @@ pub fn synthesize_last_step_terminal_r1cs(
     // 1. Native preflight on the full statement (O(N) work, zero R1CS rows).
     decider::validate_witness(
         &prep.params,
-        &prep.structure,
+        prep.structure(),
+        prep.optimized_cache(),
+        prep.structure_digest(),
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,
@@ -426,7 +432,7 @@ pub fn synthesize_last_step_terminal_r1cs(
 
     // 2. Walk natively to compute the last step's state_in / state_out.
     //    No R1CS rows are emitted here — `verify_step` runs out-of-circuit.
-    let structure_digest_v = structure_digest(&prep.structure);
+    let structure_digest_v = *prep.structure_digest();
     let z_0 = initial_boundary_digest(&structure_digest_v, prep.public_input_len);
     let public_trace = public_trace_seed_digest(&structure_digest_v);
     let acc_digest = accumulator_digest_from_claims(prep.params.b(), &[]);
@@ -448,7 +454,9 @@ pub fn synthesize_last_step_terminal_r1cs(
         }
         state = construction2::verify_step(
             &prep.params,
-            &prep.structure,
+            prep.structure(),
+            prep.optimized_cache(),
+            prep.structure_digest(),
             prep.mix_rhos_commits,
             prep.combine_b_pows,
             &prep.vk,
@@ -531,7 +539,7 @@ fn emit_base_step_r1cs(
 
     let f_state = FPrimeStateIn {
         vk_fs_digest: digest32_as_fields(prep.vk.digest()),
-        structure_digest: structure_digest(&prep.structure),
+        structure_digest: *prep.structure_digest(),
         chunk_count_in: state_in.chunk_count,
         step_count_in: state_in.step_count,
         z_0: digest32_as_fields(state_in.z_0),
@@ -593,7 +601,7 @@ fn emit_recursive_step_r1cs(
 
     let f_state = FPrimeStateIn {
         vk_fs_digest: digest32_as_fields(prep.vk.digest()),
-        structure_digest: structure_digest(&prep.structure),
+        structure_digest: *prep.structure_digest(),
         chunk_count_in: state_in.chunk_count,
         step_count_in: state_in.step_count,
         z_0: digest32_as_fields(state_in.z_0),
@@ -651,7 +659,7 @@ fn emit_recursive_step_r1cs(
 /// the seed values. Native `validate_witness` catches it, but the R1CS
 /// must stand alone.
 fn enforce_base_state_constants(builder: &mut R1csBuilder, prep: &Preprocessing, base: &FPrimeStepOutput) {
-    let structure_lanes = structure_digest(&prep.structure);
+    let structure_lanes = *prep.structure_digest();
     let z_0_bytes = initial_boundary_digest(&structure_lanes, prep.public_input_len);
     let public_trace_bytes = public_trace_seed_digest(&structure_lanes);
     let empty_acc_bytes = accumulator_digest_from_claims(prep.params.b(), &[]);
@@ -978,7 +986,7 @@ fn pin_public_image(
     pin_digest32(builder, &terminal_x_out, public.x_out.digest_bytes);
     // Belt-and-braces: pin `structure_digest` to the canonical
     // verifier-derived value (not a `PublicImage` field).
-    let structure_lanes = structure_digest(&prep.structure);
+    let structure_lanes = *prep.structure_digest();
     for k in 0..4 {
         builder.enforce_eq(
             &Lc::from_var(so.structure_digest[k]),
@@ -1002,7 +1010,7 @@ fn pin_u64(builder: &mut R1csBuilder, wire: Var, expected: u64) {
 fn state_x_out_lanes(prep: &Preprocessing, state: &State) -> [F; 4] {
     digest32_as_fields(state_x_out_digest(
         prep.vk.digest(),
-        &structure_digest(&prep.structure),
+        prep.structure_digest(),
         state.chunk_count,
         state.step_count,
         state.z_0,
@@ -1016,24 +1024,24 @@ fn state_x_out_lanes(prep: &Preprocessing, state: &State) -> [F; 4] {
 
 fn split_nc_config(prep: &Preprocessing) -> Result<SplitNcPiCcsVConfig<'_>, String> {
     let raw_params = neo_params::NeoParams::goldilocks_auto_r1cs_ccs_with(
-        prep.structure.n.max(prep.structure.m),
+        prep.structure().n.max(prep.structure().m),
         crate::config::MIN_EFFECTIVE_LAMBDA,
         crate::config::EXTENSION_SAFETY_MARGIN_BITS,
     )
     .map_err(|e| format!("raw params: {e}"))?;
-    let dims = neo_reductions::engines::utils::build_dims_and_policy(&raw_params, &prep.structure)
+    let dims = neo_reductions::engines::utils::build_dims_and_policy(&raw_params, prep.structure())
         .map_err(|e| format!("dims: {e}"))?;
-    let mat_digest = neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache(&prep.structure, None);
+    let mat_digest = neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache(prep.structure(), None);
     let header_bundle = neo_reductions::engines::utils::pi_ccs_header_bundle_digest_fields(
         &raw_params,
-        &prep.structure,
+        prep.structure(),
         dims,
         &mat_digest,
     )
     .map_err(|e| format!("header bundle: {e}"))?;
     Ok(SplitNcPiCcsVConfig {
         params: &prep.params,
-        structure: &prep.structure,
+        structure: prep.structure(),
         header_bundle,
         ell_d: dims.ell_d,
         ell_n: dims.ell_n,

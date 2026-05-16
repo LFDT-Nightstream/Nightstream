@@ -67,6 +67,7 @@ pub fn prove_pi_ccs<L>(
     tr: &mut neo_transcript::Poseidon2Transcript,
     pp: &Params,
     s: &Structure,
+    cache: &OptimizedStructureCache,
     fresh: Vec<CcsInstance>,
     running: &RunningInstance,
     log: &L,
@@ -86,7 +87,6 @@ where
     let me_handle = running_parent_accumulator_handle(running)?;
 
     let (mcs, mcs_witnesses) = split_fresh_for_engine(fresh);
-    let cache = OptimizedStructureCache::build(s)?;
     let (outputs, proof, _perf) = optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf(
         tr,
         pp.inner(),
@@ -98,7 +98,7 @@ where
         instance_digest,
         me_handle,
         log,
-        &cache,
+        cache,
     )?;
     Ok((outputs, proof))
 }
@@ -121,6 +121,7 @@ pub fn verify_pi_ccs(
     tr: &mut neo_transcript::Poseidon2Transcript,
     pp: &Params,
     s: &Structure,
+    cache: &OptimizedStructureCache,
     fresh_claims: &[CcsClaim],
     running: &RunningInstance,
     fold_outputs: &[CeClaim],
@@ -131,7 +132,6 @@ pub fn verify_pi_ccs(
     let instance_digest = pi_ccs_instance_digest_parent_authority(fresh_claims, running.claims.len(), parent_authority);
     // Same parent-authority handle the prover bound.
     let me_handle = running_parent_accumulator_handle(running)?;
-    let cache = OptimizedStructureCache::build(s)?;
     let (ok, _perf) = optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf(
         tr,
         pp.inner(),
@@ -140,7 +140,7 @@ pub fn verify_pi_ccs(
         &running.claims,
         fold_outputs,
         proof,
-        &cache,
+        cache,
         instance_digest,
         me_handle,
     )?;

@@ -31,7 +31,7 @@ pub fn build_instance(prep: &Preprocessing, r1cs: &R1cs, z: &[F]) -> Result<CcsI
     r1cs.validate_shape()?;
     ensure_preprocessing_matches_r1cs(prep, r1cs)?;
     r1cs.is_satisfied_by(z)?;
-    let instance = CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, &prep.structure, z, r1cs.m_in)?;
+    let instance = CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), z, r1cs.m_in)?;
     Ok(instance)
 }
 
@@ -50,7 +50,7 @@ fn ensure_preprocessing_matches_r1cs(prep: &Preprocessing, r1cs: &R1cs) -> Resul
     // relation. We compare the full CCS structure digest ({M_j}, f), but do
     // not generalize this into a protocol proof boundary.
     let expected_structure = r1cs.to_structure();
-    if digest::structure_digest(&expected_structure) != digest::structure_digest(&prep.structure) {
+    if digest::structure_digest(&expected_structure) != *prep.structure_digest() {
         return Err(FrontendError::PreprocessingStructureMismatch);
     }
 

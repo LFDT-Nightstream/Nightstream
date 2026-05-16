@@ -14,18 +14,17 @@
 //! - Bindings to boundary (state_x_out) or other regions.
 
 use neo_fold_clean::engine::ccs_native::poseidon2::{POSEIDON2_DIGEST_LEN, POSEIDON2_GOLDILOCKS_BITS, POSEIDON2_WIDTH};
-use neo_fold_clean::frontends::fibonacci_f_prime::image::{
-    FibonacciFPrimeImage, FibonacciFPrimeImageConfig, FibonacciFPrimeImageLayout, OneShotDigestToStateOutBinding,
-    StateOut, StateOutDigestTarget,
+use neo_fold_clean::frontends::f_prime_shell::image::{
+    FPrimeImage, FPrimeImageConfig, FPrimeImageLayout, OneShotDigestToStateOutBinding, StateOut, StateOutDigestTarget,
 };
-use neo_fold_clean::frontends::fibonacci_f_prime::structure::build_fibonacci_f_prime_structure;
+use neo_fold_clean::frontends::f_prime_shell::structure::build_f_prime_shell_structure;
 use neo_fold_clean::paper::f_prime::poseidon_trace::{encode_poseidon_trace, PoseidonTraceImage};
 use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-fn binding_config(bindings: Vec<OneShotDigestToStateOutBinding>) -> FibonacciFPrimeImageConfig {
-    FibonacciFPrimeImageConfig {
+fn binding_config(bindings: Vec<OneShotDigestToStateOutBinding>) -> FPrimeImageConfig {
+    FPrimeImageConfig {
         limbs: 3,
         boundary_bits: 0,
         nifs_payload_shapes: vec![],
@@ -46,8 +45,8 @@ fn binding_config(bindings: Vec<OneShotDigestToStateOutBinding>) -> FibonacciFPr
     }
 }
 
-fn binding_config_with_ring_action(bindings: Vec<OneShotDigestToStateOutBinding>) -> FibonacciFPrimeImageConfig {
-    FibonacciFPrimeImageConfig {
+fn binding_config_with_ring_action(bindings: Vec<OneShotDigestToStateOutBinding>) -> FPrimeImageConfig {
+    FPrimeImageConfig {
         ring_action_pair_count: 1,
         ..binding_config(bindings)
     }
@@ -62,18 +61,14 @@ fn build_trace() -> PoseidonTraceImage {
 /// to the trace's native digest. The chosen target is configurable.
 fn honest_image_with_binding(
     target: StateOutDigestTarget,
-) -> (
-    FibonacciFPrimeImageLayout,
-    FibonacciFPrimeImage,
-    [F; POSEIDON2_DIGEST_LEN],
-) {
+) -> (FPrimeImageLayout, FPrimeImage, [F; POSEIDON2_DIGEST_LEN]) {
     let trace = build_trace();
     let digest = trace.digest_native;
-    let layout = FibonacciFPrimeImageLayout::new(binding_config(vec![OneShotDigestToStateOutBinding {
+    let layout = FPrimeImageLayout::new(binding_config(vec![OneShotDigestToStateOutBinding {
         one_shot_index: 0,
         state_out_target: target,
     }]));
-    let mut image = FibonacciFPrimeImage::new(layout.clone());
+    let mut image = FPrimeImage::new(layout.clone());
     image.splice_one_shot_poseidon(0, &trace);
 
     // Set the chosen state_out digest target to match the trace's digest.
@@ -109,12 +104,11 @@ fn honest_image_with_binding(
 
 #[test]
 fn phase_1_4c_poseidon_state_out_binding_row_shape() {
-    let layout =
-        FibonacciFPrimeImageLayout::new(binding_config_with_ring_action(vec![OneShotDigestToStateOutBinding {
-            one_shot_index: 0,
-            state_out_target: StateOutDigestTarget::NewZI,
-        }]));
-    let structure = build_fibonacci_f_prime_structure(layout);
+    let layout = FPrimeImageLayout::new(binding_config_with_ring_action(vec![OneShotDigestToStateOutBinding {
+        one_shot_index: 0,
+        state_out_target: StateOutDigestTarget::NewZI,
+    }]));
+    let structure = build_f_prime_shell_structure(layout);
 
     assert_eq!(structure.state_out_digest_binding_row_count(), POSEIDON2_DIGEST_LEN);
     assert_eq!(
@@ -145,7 +139,7 @@ fn phase_1_4c_honest_poseidon_state_out_binding_satisfies() {
         StateOutDigestTarget::NewAccDigest,
     ] {
         let (layout, image, _) = honest_image_with_binding(target);
-        let structure = build_fibonacci_f_prime_structure(layout);
+        let structure = build_f_prime_shell_structure(layout);
         let z = structure.extend_witness_from_image(&image);
         assert!(
             structure.is_satisfied(&z),
@@ -159,7 +153,7 @@ fn phase_1_4c_honest_poseidon_state_out_binding_satisfies() {
 #[test]
 fn phase_1_4c_tampered_state_out_digest_lane_trips_binding_row() {
     let (layout, image, _) = honest_image_with_binding(StateOutDigestTarget::NewZI);
-    let structure = build_fibonacci_f_prime_structure(layout);
+    let structure = build_f_prime_shell_structure(layout);
     let mut z = structure.extend_witness_from_image(&image);
     assert!(structure.is_satisfied(&z), "baseline must satisfy");
 
@@ -180,7 +174,7 @@ fn phase_1_4c_tampered_state_out_digest_lane_trips_binding_row() {
 #[test]
 fn phase_1_4c_tampered_trace_digest_bit_trips_binding_row() {
     let (layout, image, _) = honest_image_with_binding(StateOutDigestTarget::NewAccDigest);
-    let structure = build_fibonacci_f_prime_structure(layout);
+    let structure = build_f_prime_shell_structure(layout);
     let mut z = structure.extend_witness_from_image(&image);
     assert!(structure.is_satisfied(&z), "baseline must satisfy");
 

@@ -112,7 +112,7 @@ impl SourceBinding {
 }
 
 /// Wrapper that emits one bridge constraint per labeled alloc when the
-/// label is bound. Mirrors `neo-fold-next`'s
+/// label is bound. Mirrors `neo-fold-prototype`'s
 /// `DirectSourceWitnessLinkingCs` (`terminal/committed/source_linking.rs`).
 struct LabeledR1csBuilder<'a> {
     inner: &'a mut R1csBuilder,

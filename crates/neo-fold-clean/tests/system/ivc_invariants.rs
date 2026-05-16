@@ -10,7 +10,7 @@
 //! |---|---|---|
 //! | `per_step_ccs_structure_must_encode_f_prime` | ✓ | Folds one threaded encoded F' step; `prep.structure.m` ≥ 50_000 |
 //! | `running_accumulator_witness_must_carry_f_prime_encoded_size` | ✓ | Folds three threaded encoded F' steps; running.witnesses[0] ≥ 50_000 cells |
-//! | `decider_r1cs_size_must_be_constant_in_chain_length` | ignored | Synthesizes the steady-state last-step terminal R1CS for two threaded chains; asserts ≤ 10% per-step growth. Under the canonical fixed-point plan this exceeds the 320s default-test budget, so it runs only with `--ignored`. |
+//! | `decider_r1cs_size_must_be_constant_in_chain_length` | ignored | Synthesizes the steady-state last-step terminal R1CS for two threaded chains; asserts ≤ 10% per-step growth. Under the canonical fixed-point plan this exceeds the 5-min default-test budget, so it runs only with `--ignored`. |
 //!
 //! The implementation that turned each invariant green:
 //!   - Phase 1.5b: encoded F' image / structure / encoder + foldable `CcsInstance`.
@@ -96,9 +96,9 @@ fn per_step_ccs_structure_must_encode_f_prime() {
 /// steps (which [`synthesize_statement_r1cs`] uses for audit/replay)
 /// is gone, so `builder.rows()` is constant in the steady state.
 #[test]
-#[ignore = "runs two big-plan lifecycle chains + two finalizations + two terminal syntheses; exceeds the repo's 320s per-test ceiling under the canonical fixed-point plan. Run manually with `cargo test --release -p neo-fold-clean --test system_ivc_invariants -- --ignored`."]
+#[ignore = "runs two big-plan lifecycle chains + two finalizations + two terminal syntheses; exceeds the repo's 5-min per-test ceiling under the canonical fixed-point plan. Run manually with `cargo test --release -p neo-fold-clean --test system_ivc_invariants -- --ignored`."]
 fn decider_r1cs_size_must_be_constant_in_chain_length() {
-    // This test sits intentionally near the repo's 320s test ceiling:
+    // This test sits intentionally near the repo's 5-min test ceiling:
     // it runs two encoded-F' lifecycle proofs, two finalizations, and
     // two terminal syntheses (~170s on dev hardware). Keep it focused
     // — do not add extra cases here; a separate perf snapshot is the

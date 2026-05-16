@@ -9,7 +9,7 @@ use crate::paper::params::Params;
 /// Human-readable identifier for the strict production profile.
 pub const PRODUCTION_PROFILE: &str = "superneo-appendix-b2-goldilocks-b2";
 /// Identifier for R1CS tests/frontends that use the production core with a
-/// shape-specific effective lambda, matching `neo-fold-next`.
+/// shape-specific effective lambda, matching `neo-fold-prototype`.
 pub const R1CS_PROFILE: &str = "superneo-appendix-b2-goldilocks-b2-r1cs-effective-lambda";
 
 /// Base field modulus q = 2^64 - 2^32 + 1.
@@ -56,7 +56,7 @@ pub fn production_params() -> Params {
 /// production profile. The effective lambda may be lower than 125 when
 /// the concrete CCS shape needs more room under the current `s = 2`
 /// optimized-engine extension policy. That is the same split used in
-/// `neo-fold-next`'s R1CS/IVC paths, but with a hard floor at
+/// `neo-fold-prototype`'s R1CS/IVC paths, but with a hard floor at
 /// [`MIN_EFFECTIVE_LAMBDA`].
 ///
 /// The size input is `max(ccs.n, ccs.m)`, not just the constraint count:

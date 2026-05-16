@@ -1,10 +1,13 @@
-//! Phase 1.4e — Recursive-step enforcement plan.
+//! App-agnostic recursive-step enforcement plan.
 //!
-//! One module that, given a base image config (region sizes), produces
-//! the full Phase 1.4 `FibonacciFPrimeImageConfig` for a real Fibonacci
-//! F' recursive step: every one-shot Poseidon hash is enforced with
-//! preimage sources read from the committed F' image regions, and the
-//! resulting digest is bound to the corresponding state-out lane.
+//! Given a base image config (region sizes), produces the full
+//! [`FPrimeImageConfig`] for a real F' recursive step: every one-shot
+//! Poseidon hash is enforced with preimage sources read from the
+//! committed F' image regions, and the resulting digest is bound to the
+//! corresponding state-out lane. App frontends
+//! ([`crate::frontends::fibonacci_f_prime`],
+//! [`crate::frontends::r1cs_f_prime`]) supply the per-app
+//! [`RecursiveStepImagePlan`] and reuse this builder.
 //!
 //! Currently emits enforcements for the three state-advance hashes
 //! whose preimages route fully through F' image regions plus the
@@ -34,8 +37,8 @@
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-use crate::frontends::fibonacci_f_prime::image::{
-    FibonacciFPrimeImageConfig, NifsPayloadShape, OneShotDigestToPublicXOutBinding, OneShotDigestToStateOutBinding,
+use crate::frontends::f_prime_shell::image::{
+    FPrimeImageConfig, NifsPayloadShape, OneShotDigestToPublicXOutBinding, OneShotDigestToStateOutBinding,
     PoseidonPreimageLaneSource, PoseidonTransitionEnforcement, StateOutDigestTarget,
 };
 use crate::paper::digest::pack_bytes_as_fields;
@@ -189,6 +192,28 @@ pub fn accumulator_preimage_sources(
 /// boundary (the source-image boundary region) and we don't yet have a boundary
 /// lane source variant — proper plumbing is a follow-up.
 pub fn state_x_out_preimage_sources(pc: u64) -> Vec<PoseidonPreimageLaneSource> {
+    state_x_out_preimage_sources_with_app_x(pc, &[])
+}
+
+/// Variant of [`state_x_out_preimage_sources`] that appends app-level
+/// public-input lanes to the preimage.
+///
+/// `app_public_input_var_indices` lists the app-assignment variable
+/// indices `j` whose 64-bit canonical-u64 lane should be absorbed into
+/// the `state_x_out` Poseidon hash after the chain-coordinate prefix.
+/// Each index resolves through
+/// [`PoseidonPreimageLaneSource::AppAssignmentLane`] to
+/// `lane_slots.app_assignment_lanes[j]`, i.e. the 64 committed bits at
+/// `layout.app_private.offset + j * 64`.
+///
+/// This is how an R1CS frontend binds its public input `x = z[..m_in]`
+/// to the verifier-visible `public_output_digest` (without that
+/// binding, two assignments with different `x` but the same R1CS
+/// shape produce the same `state_x_out` digest — a soundness gap).
+pub fn state_x_out_preimage_sources_with_app_x(
+    pc: u64,
+    app_public_input_var_indices: &[usize],
+) -> Vec<PoseidonPreimageLaneSource> {
     let header = pack_bytes_as_fields(STATE_X_OUT_TAG);
     let mut sources: Vec<PoseidonPreimageLaneSource> = header
         .iter()
@@ -229,6 +254,9 @@ pub fn state_x_out_preimage_sources(pc: u64) -> Vec<PoseidonPreimageLaneSource> 
             STATE_LANE_NEW_PUBLIC_TRACE_BASE + i,
         ));
     }
+    for &var_idx in app_public_input_var_indices {
+        sources.push(PoseidonPreimageLaneSource::AppAssignmentLane(var_idx));
+    }
     sources
 }
 
@@ -267,7 +295,7 @@ pub struct AccumulatorPlanOptions {
     /// emits **two** accumulator Poseidon enforcements (one with the
     /// empty-preimage `H(tag, 0)`, one with the recursive preimage
     /// `H(tag, child_count, c_data_entries, c_data ...)`) and pushes a
-    /// [`crate::frontends::fibonacci_f_prime::image::UnifiedAccumulatorSelector`]
+    /// [`crate::frontends::f_prime_shell::image::UnifiedAccumulatorSelector`]
     /// onto the resulting config so the structure builder emits the
     /// selector product rows over the `is_base` lane. When `false`,
     /// the legacy single-accumulator path applies.
@@ -283,13 +311,22 @@ pub struct StateXOutPlanOptions {
     /// Bit offsets in the image's `values` where the 4 public-x_out
     /// digest lanes live. Must lie inside the boundary region.
     pub public_x_out_lane_bit_starts: [usize; 4],
+    /// Indices of app-assignment variables to append to the
+    /// `state_x_out` Poseidon preimage as canonical-u64 lanes. Each
+    /// index `j` binds the 64 committed bits at
+    /// `layout.app_private.offset + j * 64` into the verifier-visible
+    /// `public_output_digest`.
+    ///
+    /// Used by app frontends with a "verifier-supplied public input"
+    /// semantics (R1CS). Defaults to empty — no extra binding.
+    pub app_public_input_var_indices: Vec<usize>,
 }
 
-/// Assemble the recursive-step `FibonacciFPrimeImageConfig` from the
+/// Assemble the recursive-step `FPrimeImageConfig` from the
 /// plan. Produces enforcements for boundary_update, public_trace_update,
 /// and (if requested) accumulator_from_parent_c_data, plus matching
 /// state-out digest bindings.
-pub fn build_recursive_step_image_config(plan: &RecursiveStepImagePlan) -> FibonacciFPrimeImageConfig {
+pub fn build_recursive_step_image_config(plan: &RecursiveStepImagePlan) -> FPrimeImageConfig {
     let boundary_sources = boundary_update_preimage_sources();
     let public_trace_sources = public_trace_update_preimage_sources();
 
@@ -315,7 +352,7 @@ pub fn build_recursive_step_image_config(plan: &RecursiveStepImagePlan) -> Fibon
         },
     ];
 
-    let mut unified_selector: Option<crate::frontends::fibonacci_f_prime::image::UnifiedAccumulatorSelector> = None;
+    let mut unified_selector: Option<crate::frontends::f_prime_shell::image::UnifiedAccumulatorSelector> = None;
     if let Some(acc) = &plan.accumulator {
         if acc.unified {
             // Unified mode: emit two accumulator Poseidon enforcements.
@@ -335,7 +372,7 @@ pub fn build_recursive_step_image_config(plan: &RecursiveStepImagePlan) -> Fibon
                 one_shot_index: 3,
                 preimage_lanes: rec_sources,
             });
-            unified_selector = Some(crate::frontends::fibonacci_f_prime::image::UnifiedAccumulatorSelector {
+            unified_selector = Some(crate::frontends::f_prime_shell::image::UnifiedAccumulatorSelector {
                 base_trace_index: 2,
                 recursive_trace_index: 3,
             });
@@ -374,7 +411,7 @@ pub fn build_recursive_step_image_config(plan: &RecursiveStepImagePlan) -> Fibon
         } else {
             3
         };
-        let sxo_sources = state_x_out_preimage_sources(sxo.pc);
+        let sxo_sources = state_x_out_preimage_sources_with_app_x(sxo.pc, &sxo.app_public_input_var_indices);
         preimage_lens.push(sxo_sources.len());
         enforcements.push(PoseidonTransitionEnforcement {
             one_shot_index: sxo_index,
@@ -386,7 +423,7 @@ pub fn build_recursive_step_image_config(plan: &RecursiveStepImagePlan) -> Fibon
         });
     }
 
-    FibonacciFPrimeImageConfig {
+    FPrimeImageConfig {
         limbs: plan.limbs,
         boundary_bits: plan.boundary_bits,
         nifs_payload_shapes: plan.nifs_payload_shapes.clone(),
@@ -452,6 +489,43 @@ pub fn build_state_x_out_preimage_fields(
     new_acc_digest: [F; 4],
     new_public_trace: [F; 4],
 ) -> Vec<F> {
+    build_state_x_out_preimage_fields_with_app_x(
+        vk_fs_digest,
+        structure_digest,
+        new_chunk_count,
+        new_step_count,
+        z_0,
+        new_z_i,
+        pc,
+        new_acc_digest,
+        new_public_trace,
+        &[],
+    )
+}
+
+/// Variant of [`build_state_x_out_preimage_fields`] that appends the
+/// canonical-u64 values of `app_public_input` to the preimage in fill
+/// order. Mirrors [`state_x_out_preimage_sources_with_app_x`]'s shape
+/// so the trace encoded from this preimage matches the absorb rows the
+/// planner emits when `StateXOutPlanOptions::app_public_input_var_indices`
+/// is non-empty.
+///
+/// Each entry must be a canonical Goldilocks element whose value fits
+/// in 64 bits unsigned (the structure binds it through the 64 bits
+/// stored in `app_private`).
+#[allow(clippy::too_many_arguments)]
+pub fn build_state_x_out_preimage_fields_with_app_x(
+    vk_fs_digest: [F; 4],
+    structure_digest: [F; 4],
+    new_chunk_count: u64,
+    new_step_count: u64,
+    z_0: [F; 4],
+    new_z_i: [F; 4],
+    pc: u64,
+    new_acc_digest: [F; 4],
+    new_public_trace: [F; 4],
+    app_public_input: &[F],
+) -> Vec<F> {
     let mut p = pack_bytes_as_fields(STATE_X_OUT_TAG);
     p.extend(vk_fs_digest);
     p.extend(structure_digest);
@@ -466,5 +540,6 @@ pub fn build_state_x_out_preimage_fields(
     p.extend(new_acc_digest);
     p.extend(new_acc_digest);
     p.extend(new_public_trace);
+    p.extend_from_slice(app_public_input);
     p
 }

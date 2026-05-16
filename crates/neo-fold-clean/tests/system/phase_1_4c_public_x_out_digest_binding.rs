@@ -16,10 +16,10 @@
 //! - Other boundary layout assumptions (only the four lane offsets matter).
 
 use neo_fold_clean::engine::ccs_native::poseidon2::{POSEIDON2_DIGEST_LEN, POSEIDON2_GOLDILOCKS_BITS, POSEIDON2_WIDTH};
-use neo_fold_clean::frontends::fibonacci_f_prime::image::{
-    FibonacciFPrimeImage, FibonacciFPrimeImageConfig, FibonacciFPrimeImageLayout, OneShotDigestToPublicXOutBinding,
+use neo_fold_clean::frontends::f_prime_shell::image::{
+    FPrimeImage, FPrimeImageConfig, FPrimeImageLayout, OneShotDigestToPublicXOutBinding,
 };
-use neo_fold_clean::frontends::fibonacci_f_prime::structure::build_fibonacci_f_prime_structure;
+use neo_fold_clean::frontends::f_prime_shell::structure::build_f_prime_shell_structure;
 use neo_fold_clean::paper::f_prime::poseidon_trace::{encode_poseidon_trace, PoseidonTraceImage};
 use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
 use neo_math::F;
@@ -29,13 +29,13 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 /// 64-bit digest lanes are at offsets boundary_start, +64, +128, +192.
 const BOUNDARY_BITS: usize = 4 * POSEIDON2_GOLDILOCKS_BITS;
 
-fn public_x_out_lane_bit_starts(layout: &FibonacciFPrimeImageLayout) -> [usize; 4] {
+fn public_x_out_lane_bit_starts(layout: &FPrimeImageLayout) -> [usize; 4] {
     let boundary_start = layout.boundary.offset;
     std::array::from_fn(|m| boundary_start + m * POSEIDON2_GOLDILOCKS_BITS)
 }
 
-fn binding_config(boundary_bindings: Vec<OneShotDigestToPublicXOutBinding>) -> FibonacciFPrimeImageConfig {
-    FibonacciFPrimeImageConfig {
+fn binding_config(boundary_bindings: Vec<OneShotDigestToPublicXOutBinding>) -> FPrimeImageConfig {
+    FPrimeImageConfig {
         limbs: 3,
         boundary_bits: BOUNDARY_BITS,
         nifs_payload_shapes: vec![],
@@ -81,19 +81,19 @@ fn decode_lane_f(z: &[F], bit_start: usize) -> F {
 
 /// Build an honest image: trace spliced into poseidon; trace's digest bits
 /// written into the four boundary lanes addressed by the binding.
-fn honest_boundary_image() -> (FibonacciFPrimeImageLayout, FibonacciFPrimeImage) {
+fn honest_boundary_image() -> (FPrimeImageLayout, FPrimeImage) {
     // First, build the layout with a placeholder so we can read
     // boundary.offset, then construct the real bindings.
-    let scratch_layout = FibonacciFPrimeImageLayout::new(binding_config(vec![]));
+    let scratch_layout = FPrimeImageLayout::new(binding_config(vec![]));
     let boundary_lanes = public_x_out_lane_bit_starts(&scratch_layout);
-    let layout = FibonacciFPrimeImageLayout::new(binding_config(vec![OneShotDigestToPublicXOutBinding {
+    let layout = FPrimeImageLayout::new(binding_config(vec![OneShotDigestToPublicXOutBinding {
         one_shot_index: 0,
         public_x_out_lane_bit_starts: boundary_lanes,
     }]));
     assert_eq!(layout.end, scratch_layout.end, "binding addition must not move regions");
 
     let trace = build_trace();
-    let mut image = FibonacciFPrimeImage::new(layout.clone());
+    let mut image = FPrimeImage::new(layout.clone());
     image.splice_one_shot_poseidon(0, &trace);
 
     // Write trace.digest_native into the four boundary lanes.
@@ -113,7 +113,7 @@ fn honest_boundary_image() -> (FibonacciFPrimeImageLayout, FibonacciFPrimeImage)
 #[test]
 fn phase_1_4c_poseidon_boundary_binding_row_shape() {
     let (layout, _) = honest_boundary_image();
-    let structure = build_fibonacci_f_prime_structure(layout);
+    let structure = build_f_prime_shell_structure(layout);
 
     assert_eq!(structure.public_x_out_binding_row_count(), POSEIDON2_DIGEST_LEN);
     assert_eq!(
@@ -143,7 +143,7 @@ fn phase_1_4c_poseidon_boundary_binding_row_shape() {
 #[test]
 fn phase_1_4c_honest_poseidon_boundary_binding_satisfies() {
     let (layout, image) = honest_boundary_image();
-    let structure = build_fibonacci_f_prime_structure(layout);
+    let structure = build_f_prime_shell_structure(layout);
     let z = structure.extend_witness_from_image(&image);
     assert!(
         structure.is_satisfied(&z),
@@ -155,7 +155,7 @@ fn phase_1_4c_honest_poseidon_boundary_binding_satisfies() {
 #[test]
 fn phase_1_4c_tampered_boundary_lane_trips_binding_row() {
     let (layout, image) = honest_boundary_image();
-    let structure = build_fibonacci_f_prime_structure(layout);
+    let structure = build_f_prime_shell_structure(layout);
     let mut z = structure.extend_witness_from_image(&image);
     assert!(structure.is_satisfied(&z), "baseline must satisfy");
 
@@ -177,7 +177,7 @@ fn phase_1_4c_tampered_boundary_lane_trips_binding_row() {
 #[test]
 fn phase_1_4c_tampered_trace_digest_bit_trips_boundary_binding_row() {
     let (layout, image) = honest_boundary_image();
-    let structure = build_fibonacci_f_prime_structure(layout);
+    let structure = build_f_prime_shell_structure(layout);
     let mut z = structure.extend_witness_from_image(&image);
     assert!(structure.is_satisfied(&z), "baseline must satisfy");
 

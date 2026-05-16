@@ -1,31 +1,24 @@
-//! Milestone 4 — Full Fibonacci F' recursive-step encoder.
+//! App-agnostic encoded-F' recursive-step encoder.
 //!
 //! Consumes a real recursive-step's data and produces an `enc(F'_i)`
-//! instance: a `FibonacciFPrimeImage` with every region filled, the
-//! matching `FPrimeStructure`, and the extended witness `z` that
+//! instance: an [`FPrimeImage`] with every region filled, the
+//! matching [`FPrimeStructure`], and the extended witness `z` that
 //! satisfies it.
 //!
 //! This is the single chokepoint that takes "step witness + prover
 //! artifacts" and returns "low-norm CCS-shaped F' state ready to be
-//! folded." Tests stop assembling images by hand — they configure a
-//! plan, hand it to the encoder, and check the result.
-//!
-//! Out of scope for Milestone 4:
-//! - Generic `AppStep` trait. Fibonacci is hard-coded for now.
-//! - Lifecycle migration. `preprocess_seeded` still folds the
-//!   bit-carrier R1CS; nothing here is plumbed into the prover flow.
-//! - A `neo-ccs::CcsInstance` wrapper around the witness — that's a
-//!   small follow-up once the lifecycle path needs it.
+//! folded." App frontends (`fibonacci_f_prime`, `r1cs_f_prime`)
+//! configure a plan, hand it to the encoder, and check the result.
 
 use neo_ajtai::AjtaiSModule;
 use neo_math::F;
 
 use crate::engine::ccs_native::poseidon2_transcript::SpongeTraceImage;
-use crate::frontends::fibonacci_f_prime::image::{
-    FibonacciFPrimeImage, FibonacciFPrimeImageLayout, KMulView, NifsCcsClaimView, NifsCeClaimView, StateIn, StateOut,
+use crate::frontends::f_prime_shell::image::{
+    FPrimeImage, FPrimeImageLayout, KMulView, NifsCcsClaimView, NifsCeClaimView, StateIn, StateOut,
 };
-use crate::frontends::fibonacci_f_prime::recursive_plan::{build_recursive_step_image_config, RecursiveStepImagePlan};
-use crate::frontends::fibonacci_f_prime::structure::{build_fibonacci_f_prime_structure, FPrimeStructure};
+use crate::frontends::f_prime_shell::recursive_plan::{build_recursive_step_image_config, RecursiveStepImagePlan};
+use crate::frontends::f_prime_shell::structure::{build_f_prime_shell_structure, FPrimeStructure};
 use crate::paper::f_prime::poseidon_trace::PoseidonTraceImage;
 use crate::paper::f_prime::ring_action_trace::RingActionTraceImage;
 use crate::paper::params::Params;
@@ -44,7 +37,7 @@ pub enum NifsPayloadInput {
 /// Everything here is "real prover output": no test-local stand-ins
 /// remain except for explicit `Constant`s in the plan's preimage
 /// sources (domain tags, currently `pc` and `child_count`).
-pub struct FibonacciFPrimeStepInput {
+pub struct FPrimeStepInput {
     /// The image config plan. Drives layout sizing and which Poseidon
     /// transition enforcements / digest bindings are emitted.
     pub plan: RecursiveStepImagePlan,
@@ -85,8 +78,8 @@ pub struct FibonacciFPrimeStepInput {
 
 /// Encoder output: image + structure + satisfying witness.
 #[derive(Debug)]
-pub struct EncodedFibonacciFPrimeStep {
-    pub image: FibonacciFPrimeImage,
+pub struct EncodedFPrimeStep {
+    pub image: FPrimeImage,
     pub structure: FPrimeStructure,
     pub witness: Vec<F>,
 }
@@ -100,7 +93,7 @@ pub struct EncodedFibonacciFPrimeStep {
 /// satisfy the structure — that's a prover/encoder bug, not a soundness
 /// gate. External fault-injection tests should tamper the returned
 /// witness after this function returns.
-pub fn encode_fibonacci_f_prime_step(input: FibonacciFPrimeStepInput) -> EncodedFibonacciFPrimeStep {
+pub fn encode_f_prime_step(input: FPrimeStepInput) -> EncodedFPrimeStep {
     let config = build_recursive_step_image_config(&input.plan);
 
     // ── Strict input-shape gate ──────────────────────────────────────
@@ -140,8 +133,8 @@ pub fn encode_fibonacci_f_prime_step(input: FibonacciFPrimeStepInput) -> Encoded
         "sponge_trace presence must match sponge_transcript_permutes > 0"
     );
 
-    let layout = FibonacciFPrimeImageLayout::new(config);
-    let mut image = FibonacciFPrimeImage::new(layout.clone());
+    let layout = FPrimeImageLayout::new(config);
+    let mut image = FPrimeImage::new(layout.clone());
 
     image.fill_boundary(&input.boundary_bits);
     image.fill_state_in(&input.state_in);
@@ -177,23 +170,23 @@ pub fn encode_fibonacci_f_prime_step(input: FibonacciFPrimeStepInput) -> Encoded
         image.splice_sponge_transcript(trace);
     }
 
-    let structure = build_fibonacci_f_prime_structure(layout);
+    let structure = build_f_prime_shell_structure(layout);
     let witness = structure.extend_witness_from_image(&image);
 
     assert!(
         structure.is_satisfied(&witness),
-        "encoded Fibonacci F' step must satisfy its structure; first failing row: {:?}",
+        "encoded F' step must satisfy its structure; first failing row: {:?}",
         structure.first_unsatisfied_row(&witness)
     );
 
-    EncodedFibonacciFPrimeStep {
+    EncodedFPrimeStep {
         image,
         structure,
         witness,
     }
 }
 
-impl EncodedFibonacciFPrimeStep {
+impl EncodedFPrimeStep {
     /// Canonical CCS public-input length for this encoded F' instance:
     /// the constant slot `z[0] = 1` plus the boundary public bits
     /// (`enc_inst(x_out)` body). Everything past this index is private
@@ -207,7 +200,7 @@ impl EncodedFibonacciFPrimeStep {
     /// The witness is strict low-norm: exactly `image.values`, with
     /// `z[0] = 1` and every other coordinate in `{0, 1}`. This is the only
     /// boundary that should call [`CcsInstance::from_low_norm_assignment`]
-    /// for Fibonacci F' steps — downstream code (NIFS, lifecycle) folds
+    /// for F' steps — downstream code (NIFS, lifecycle) folds
     /// the returned instance directly.
     pub fn to_ccs_instance(
         &self,

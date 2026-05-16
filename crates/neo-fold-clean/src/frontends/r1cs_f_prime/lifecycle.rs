@@ -1,36 +1,20 @@
-//! Lifecycle wrappers for encoded-F' chains.
-//!
-//! [`prove_encoded_steps`] is the production entry point for callers
-//! that already own an [`EncodedFPrimeStep`] sequence and just
-//! need it folded through `lifecycle::prove`.
-//!
-//! [`FibonacciChainBuilder`] owns the prover-side chain assembly
-//! (compile → fold → derive next per-step fold authority → compile
-//! recursive → extend) so callers do not have to thread
-//! `fold_for_step` manually. Mirrors
-//! [`crate::frontends::r1cs_f_prime::R1csChainBuilder`].
+//! Lifecycle helpers for R1CS-encoded-F' chains.
 
 use crate::frontends::f_prime_shell::encoder::EncodedFPrimeStep;
-use crate::frontends::fibonacci_f_prime::compiler::{
-    compile_fibonacci_step, start_fibonacci_chain, FibonacciAppStepInput, FibonacciChainState, FibonacciCompiledStep,
-    FibonacciCompilerContext, FibonacciFoldForStep,
+use crate::frontends::r1cs_f_prime::compiler::{
+    compile_step, start_chain, R1csCompiledStep, R1csCompilerContext, R1csFPrimeStepInput, R1csFoldForStep,
 };
-use crate::frontends::fibonacci_f_prime::instance::build_instance;
-use crate::frontends::fibonacci_f_prime::{Error, FibonacciFPrimePreprocessing};
+use crate::frontends::r1cs_f_prime::instance::build_instance;
+use crate::frontends::r1cs_f_prime::{Error, R1csFPrimePreprocessing};
 use crate::lifecycle::{Uncompressed, UncompressedAudit};
-use crate::paper::construction2::{FoldProof, ProofState};
+use crate::paper::construction2::ProofState;
 use crate::paper::digest::digest32_as_fields;
 use crate::paper::relations::CcsInstance;
 
-/// Fold a sequence of encoded F' steps through `lifecycle::prove`,
+/// Fold a sequence of encoded R1CS-F' steps through `lifecycle::prove`,
 /// one step per batch.
-///
-/// Each step is converted into a `CcsInstance` via [`build_instance`],
-/// which enforces that every step's CCS structure matches the
-/// preprocessing's structure (so the chain folds a homogeneous
-/// relation).
 pub fn prove_encoded_steps(
-    prep: &FibonacciFPrimePreprocessing,
+    prep: &R1csFPrimePreprocessing,
     steps: &[EncodedFPrimeStep],
 ) -> Result<UncompressedAudit, Error> {
     let mut batches: Vec<Vec<CcsInstance>> = Vec::with_capacity(steps.len());
@@ -40,48 +24,54 @@ pub fn prove_encoded_steps(
     Ok(crate::lifecycle::prove(&prep.prep, batches)?)
 }
 
-/// Thin prover-side wrapper for one fixed-shape Fibonacci F' chain.
+/// Thin prover-side wrapper for one fixed-shape R1CS-F' chain.
 ///
 /// Owns the otherwise easy-to-mis-thread sequence:
 ///
-/// 1. compile the base Fibonacci step,
+/// 1. compile the base R1CS assignment,
 /// 2. fold the resulting encoded F' instance through `lifecycle::prove`,
 /// 3. derive the next per-step fold authority from the current audit state,
-/// 4. compile each recursive step, and
+/// 4. compile each recursive assignment, and
 /// 5. extend the audit with the real compiled instance.
 ///
-/// One builder is tied to one [`FibonacciFPrimePreprocessing`] value,
-/// and therefore one verifier-owned F' structure (one `pc`).
-pub struct FibonacciChainBuilder<'a> {
-    prep: &'a FibonacciFPrimePreprocessing,
-    ctx: FibonacciCompilerContext,
+/// It does not support heterogeneous circuits. One builder is tied to
+/// one [`R1csFPrimePreprocessing`] value, and therefore one verifier-owned
+/// R1CS shape / F' structure.
+pub struct R1csChainBuilder<'a> {
+    prep: &'a R1csFPrimePreprocessing,
+    ctx: R1csCompilerContext,
     audit: Option<UncompressedAudit>,
     latest_instance: Option<CcsInstance>,
 }
 
-impl<'a> FibonacciChainBuilder<'a> {
-    /// Start a fresh fixed-shape Fibonacci F' chain.
-    pub fn new(prep: &'a FibonacciFPrimePreprocessing) -> Result<Self, Error> {
+impl<'a> R1csChainBuilder<'a> {
+    /// Start a fresh fixed-shape R1CS-F' chain.
+    pub fn new(prep: &'a R1csFPrimePreprocessing) -> Result<Self, Error> {
         Ok(Self {
             prep,
-            ctx: start_fibonacci_chain(prep)?,
+            ctx: start_chain(prep)?,
             audit: None,
             latest_instance: None,
         })
     }
 
-    /// Append one Fibonacci app step to the chain.
+    /// Append one satisfying R1CS assignment to the chain.
     ///
     /// The first call compiles the base branch. Later calls derive the
     /// required recursive fold authority from the current audit and feed
     /// it into the compiler before extending the audit with the newly
     /// compiled instance.
-    pub fn append_step(&mut self, input: FibonacciAppStepInput) -> Result<FibonacciCompiledStep, Error> {
+    pub fn append_assignment(&mut self, assignment: Vec<neo_math::F>) -> Result<R1csCompiledStep, Error> {
+        self.append_step(R1csFPrimeStepInput { assignment })
+    }
+
+    /// Append one explicit R1CS-F' compiler input to the chain.
+    pub fn append_step(&mut self, input: R1csFPrimeStepInput) -> Result<R1csCompiledStep, Error> {
         if self.audit.is_some() {
             self.prepare_next_fold()?;
         }
 
-        let compiled = compile_fibonacci_step(self.prep, &mut self.ctx, input)?;
+        let compiled = compile_step(self.prep, &mut self.ctx, input)?;
         let instance = build_instance(self.prep, &compiled.encoded)?;
 
         self.audit = Some(match self.audit.take() {
@@ -98,7 +88,7 @@ impl<'a> FibonacciChainBuilder<'a> {
     }
 
     /// Current compiler context. Exposed for diagnostics and tests.
-    pub fn context(&self) -> &FibonacciCompilerContext {
+    pub fn context(&self) -> &R1csCompilerContext {
         &self.ctx
     }
 
@@ -141,22 +131,22 @@ impl<'a> FibonacciChainBuilder<'a> {
         // after the recursive step has been compiled below.
         let derived = crate::lifecycle::extend(&self.prep.prep, audit.clone(), vec![latest_instance.clone()])?;
         let fold = match &derived.steps.last().expect("extend appended one step").fold {
-            FoldProof::Recursive(p) => p.clone(),
-            FoldProof::NoFold => return Err(Error::ChainExpectedActiveState),
+            crate::paper::construction2::FoldProof::Recursive(p) => p.clone(),
+            crate::paper::construction2::FoldProof::NoFold => return Err(Error::ChainExpectedActiveState),
         };
         let post_running = match &derived.proof.state.proof {
             ProofState::Active { running, .. } => running.clone(),
             _ => return Err(Error::ChainExpectedActiveState),
         };
 
-        self.ctx.chain_state = FibonacciChainState {
+        self.ctx.chain_state = crate::frontends::r1cs_f_prime::R1csChainState {
             chunk_count: pre_state.chunk_count,
             step_count: pre_state.step_count,
             z_i: digest32_as_fields(pre_state.z_i),
             acc_digest: digest32_as_fields(pre_state.acc_digest),
             public_trace: digest32_as_fields(pre_state.public_trace),
         };
-        self.ctx.fold_for_step = Some(FibonacciFoldForStep {
+        self.ctx.fold_for_step = Some(R1csFoldForStep {
             pre_running,
             latest,
             proof: fold,

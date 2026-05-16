@@ -20,11 +20,11 @@
 use neo_fold_clean::engine::ccs_native::poseidon2::{
     build_bit_backed_poseidon2_hash, POSEIDON2_GOLDILOCKS_BITS, POSEIDON2_RATE,
 };
-use neo_fold_clean::frontends::fibonacci_f_prime::image::{
-    FibonacciFPrimeImage, FibonacciFPrimeImageConfig, FibonacciFPrimeImageLayout, PoseidonPreimageLaneSource,
-    PoseidonTransitionEnforcement, StateOut,
+use neo_fold_clean::frontends::f_prime_shell::image::{
+    FPrimeImage, FPrimeImageConfig, FPrimeImageLayout, PoseidonPreimageLaneSource, PoseidonTransitionEnforcement,
+    StateOut,
 };
-use neo_fold_clean::frontends::fibonacci_f_prime::structure::build_fibonacci_f_prime_structure;
+use neo_fold_clean::frontends::f_prime_shell::structure::build_f_prime_shell_structure;
 use neo_fold_clean::paper::f_prime::poseidon_trace::encode_poseidon_trace;
 use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
 use neo_math::F;
@@ -39,8 +39,8 @@ const PREIMAGE_LEN: usize = 4;
 /// half, which is convenient: we control them via `fill_state_in`.
 const SOURCE_STATE_LANE_INDICES: [usize; PREIMAGE_LEN] = [4, 5, 6, 7];
 
-fn enforcement_config(enforcements: Vec<PoseidonTransitionEnforcement>) -> FibonacciFPrimeImageConfig {
-    FibonacciFPrimeImageConfig {
+fn enforcement_config(enforcements: Vec<PoseidonTransitionEnforcement>) -> FPrimeImageConfig {
+    FPrimeImageConfig {
         limbs: 3,
         boundary_bits: 0,
         nifs_payload_shapes: vec![],
@@ -82,12 +82,12 @@ fn decode_lane_f(z: &[F], bit_start: usize) -> F {
 
 /// Build an honest image: fill state-in digest lanes 4..8 with arbitrary values,
 /// then splice in a Poseidon2 trace computed over those same values.
-fn honest_image() -> (FibonacciFPrimeImageLayout, FibonacciFPrimeImage, [F; PREIMAGE_LEN]) {
-    let layout = FibonacciFPrimeImageLayout::new(enforcement_config(vec![PoseidonTransitionEnforcement {
+fn honest_image() -> (FPrimeImageLayout, FPrimeImage, [F; PREIMAGE_LEN]) {
+    let layout = FPrimeImageLayout::new(enforcement_config(vec![PoseidonTransitionEnforcement {
         one_shot_index: 0,
         preimage_lanes: source_lanes(),
     }]));
-    let mut image = FibonacciFPrimeImage::new(layout.clone());
+    let mut image = FPrimeImage::new(layout.clone());
 
     // The 24 state-in digest lanes are: vk_fs[0..4], structure[0..4], z_0[0..4],
     // z_i_in[0..4], acc_digest_in[0..4], public_trace_in[0..4]. Indices
@@ -100,7 +100,7 @@ fn honest_image() -> (FibonacciFPrimeImageLayout, FibonacciFPrimeImage, [F; PREI
         F::from_u64(0x333),
         F::from_u64(0x444),
     ];
-    let state_in = neo_fold_clean::frontends::fibonacci_f_prime::image::StateIn {
+    let state_in = neo_fold_clean::frontends::f_prime_shell::image::StateIn {
         vk_fs_digest: [F::ZERO; 4],
         structure_digest: preimage_vals,
         z_0: [F::ZERO; 4],
@@ -127,10 +127,10 @@ fn honest_image() -> (FibonacciFPrimeImageLayout, FibonacciFPrimeImage, [F; PREI
 #[test]
 fn phase_1_4d_a4_enforcement_adds_lifted_rows_plus_variable_absorb_rows() {
     let (layout, _, preimage) = honest_image();
-    let with_enforcement = build_fibonacci_f_prime_structure(layout);
+    let with_enforcement = build_f_prime_shell_structure(layout);
 
-    let baseline_layout = FibonacciFPrimeImageLayout::new(enforcement_config(vec![]));
-    let baseline = build_fibonacci_f_prime_structure(baseline_layout);
+    let baseline_layout = FPrimeImageLayout::new(enforcement_config(vec![]));
+    let baseline = build_f_prime_shell_structure(baseline_layout);
 
     let native = build_bit_backed_poseidon2_hash(&preimage.to_vec());
     let native_bitness_count = native
@@ -159,7 +159,7 @@ fn phase_1_4d_a4_enforcement_adds_lifted_rows_plus_variable_absorb_rows() {
 #[test]
 fn phase_1_4d_a4_honest_trace_with_matching_sources_satisfies() {
     let (layout, image, _) = honest_image();
-    let structure = build_fibonacci_f_prime_structure(layout);
+    let structure = build_f_prime_shell_structure(layout);
     let z = structure.extend_witness_from_image(&image);
     assert!(
         structure.is_satisfied(&z),
@@ -171,7 +171,7 @@ fn phase_1_4d_a4_honest_trace_with_matching_sources_satisfies() {
 #[test]
 fn phase_1_4d_a4_tampered_source_lane_trips_absorb_binding() {
     let (layout, image, _) = honest_image();
-    let structure = build_fibonacci_f_prime_structure(layout);
+    let structure = build_f_prime_shell_structure(layout);
     let mut z = structure.extend_witness_from_image(&image);
     assert!(structure.is_satisfied(&z), "baseline must satisfy");
 
@@ -207,7 +207,7 @@ fn phase_1_4d_a4_tampered_internal_trace_lane_trips_round_constraint() {
     use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_WIDTH;
 
     let (layout, image, _) = honest_image();
-    let structure = build_fibonacci_f_prime_structure(layout);
+    let structure = build_f_prime_shell_structure(layout);
     let mut z = structure.extend_witness_from_image(&image);
     assert!(structure.is_satisfied(&z), "baseline must satisfy");
 

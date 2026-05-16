@@ -45,7 +45,7 @@ impl Params {
     /// Appendix B.2 Goldilocks core with shape-specific effective λ for
     /// an R1CS-derived CCS of `n_rows` constraints.
     ///
-    /// Mirrors the production path in `neo-fold-next`: q, eta, d, kappa,
+    /// Mirrors the production path in `neo-fold-prototype`: q, eta, d, kappa,
     /// m, b, k_rho, B, T, and s remain the Appendix B.2 values; λ is
     /// lowered only when the concrete sumcheck shape cannot satisfy the
     /// current `s = 2` extension policy at λ = 125.
@@ -63,6 +63,15 @@ impl Params {
         Ok(Self {
             inner: NeoParams::goldilocks_auto_r1cs_ccs_with(n_rows, min_lambda, safety_margin)?,
         })
+    }
+
+    /// Test/probe escape hatch for wrapping a caller-built [`NeoParams`].
+    ///
+    /// This can lower cryptographic security parameters. Do not use in
+    /// production proving or verification paths. Normal callers should
+    /// use [`Params::production`] or [`Params::for_r1cs_shape`].
+    pub fn test_only_from_neo_params(inner: NeoParams) -> Self {
+        Self { inner }
     }
 
     /// Norm bound `b` (Definition 1).

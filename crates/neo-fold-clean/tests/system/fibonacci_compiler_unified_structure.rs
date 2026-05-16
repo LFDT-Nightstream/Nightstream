@@ -54,16 +54,25 @@ use std::sync::OnceLock;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-use neo_fold_clean::frontends::fibonacci_f_prime::image::NifsCeClaimShape;
+use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
+use neo_fold_clean::frontends::f_prime_shell::compiler::FPrimeShellCompilerError;
+use neo_fold_clean::frontends::f_prime_shell::image::{FPrimeImageLayout, NifsCeClaimShape, NifsPayloadShape};
+use neo_fold_clean::frontends::f_prime_shell::recursive_plan::{
+    build_recursive_step_image_config, AccumulatorPlanOptions, RecursiveStepImagePlan, StateXOutPlanOptions,
+};
 use neo_fold_clean::frontends::fibonacci_f_prime::{
     self, compile_fibonacci_step, start_fibonacci_chain, FibonacciAppState, FibonacciAppStepInput, FibonacciAppWitness,
-    FibonacciChainState, FibonacciCompilerError, FibonacciFPrimePreprocessing, FibonacciFoldForStep,
+    FibonacciChainBuilder, FibonacciChainState, FibonacciCompilerError, FibonacciFPrimePreprocessing,
+    FibonacciFoldForStep,
 };
 use neo_fold_clean::lifecycle;
 use neo_fold_clean::paper::construction2::{FoldProof, ProofState};
 use neo_fold_clean::paper::digest::{accumulator_digest_from_claims, digest32_as_fields, structure_digest};
+use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
+use neo_fold_clean::paper::params::Params;
+use neo_params::{goldilocks_paper_b2, NeoParams};
 
-use support::fibonacci_f_prime::canonical_threaded_plan;
+use support::fibonacci_f_prime::{canonical_threaded_plan, BOUNDARY_BITS};
 
 /// Convenience: a Fibonacci app input where `next == prev + curr`.
 fn valid_app_step(prev_u: u64, curr_u: u64, step_index: u64) -> FibonacciAppStepInput {
@@ -237,7 +246,7 @@ fn compiler_base_step_emits_perp_nifs_payload() {
 
     // Pull the canonical CE shape out of the prep's plan.
     let ce_shape: NifsCeClaimShape = {
-        use neo_fold_clean::frontends::fibonacci_f_prime::image::NifsPayloadShape;
+        use neo_fold_clean::frontends::f_prime_shell::image::NifsPayloadShape;
         match &prep.plan.nifs_payload_shapes[0] {
             NifsPayloadShape::CeClaim(s) => s.clone(),
             other => panic!("expected CeClaim shape, got {other:?}"),
@@ -294,8 +303,11 @@ fn compiler_base_step_rejects_unexpected_prior_fold() {
 
     let err = compile_fibonacci_step(&shared.prep, &mut ctx, valid_app_step(1, 1, 0)).expect_err("must reject");
     assert!(
-        matches!(err, FibonacciCompilerError::BaseStepUnexpectedPriorFold),
-        "expected BaseStepUnexpectedPriorFold, got {err:?}"
+        matches!(
+            err,
+            FibonacciCompilerError::Shell(FPrimeShellCompilerError::BaseStepUnexpectedPriorFold)
+        ),
+        "expected Shell(BaseStepUnexpectedPriorFold), got {err:?}"
     );
 }
 
@@ -313,16 +325,184 @@ fn compiler_recursive_step_sets_is_base_false() {
 fn compiler_chain_builds_from_scratch_and_verify_uncompressed_accepts() {
     let plan = canonical_threaded_plan();
     let prep = fibonacci_f_prime::preprocess_seeded(&plan, 0xC0DE_0007).expect("preprocess");
-    let mut ctx = start_fibonacci_chain(&prep).expect("start chain");
 
-    let compiled = compile_fibonacci_step(&prep, &mut ctx, valid_app_step(1, 1, 0)).expect("base compile");
+    // Run the production base path entirely through the builder so the
+    // `FibonacciChainBuilder::finish() -> verify_uncompressed` surface
+    // gets default coverage.
+    let mut builder = FibonacciChainBuilder::new(&prep).expect("start builder");
+    let compiled = builder
+        .append_step(valid_app_step(1, 1, 0))
+        .expect("base append");
+    assert!(
+        compiled.encoded.image.decode_is_base(),
+        "single-step builder chain must compile the base branch"
+    );
 
-    // Fold the compiler-emitted base step through the lifecycle.
-    let inst = fibonacci_f_prime::build_instance(&prep, &compiled.encoded).expect("build_instance");
-    let audit = lifecycle::prove(&prep.prep, [vec![inst]]).expect("lifecycle prove");
-    let finalized = neo_fold_clean::finish_uncompressed(&prep.prep, audit).expect("finalize");
-
+    let finalized = builder.finish().expect("finish");
     lifecycle::verify_uncompressed(&prep.prep, &finalized).expect("verify_uncompressed");
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Light base-step test for `FibonacciChainBuilder`.
+//
+// Confirms the prover-side wrapper does the same compile + lifecycle
+// prove the manual two-line dance above does — without the finalize +
+// verify pass (covered by the test directly above).
+// ─────────────────────────────────────────────────────────────────────────
+
+#[test]
+fn fibonacci_chain_builder_appends_base_step() {
+    let plan = canonical_threaded_plan();
+    let prep = fibonacci_f_prime::preprocess_seeded(&plan, 0xC0DE_BD11).expect("preprocess");
+
+    let mut builder = FibonacciChainBuilder::new(&prep).expect("start chain");
+    assert!(builder.audit().is_none(), "fresh builder must not own an audit yet");
+
+    let compiled = builder
+        .append_step(valid_app_step(1, 1, 0))
+        .expect("base step");
+    assert!(
+        compiled.encoded.image.decode_is_base(),
+        "first builder step must take the base branch"
+    );
+    assert!(
+        builder.audit().is_some(),
+        "after one append the builder must own an audit"
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Tiny-params recursive builder test.
+//
+// Pins `FibonacciChainBuilder::prepare_next_fold` (the recursive-append
+// orchestration) in the default suite. Under the canonical big plan one
+// prove + extend exceeds the 5-min cap; under a test-only smaller
+// `Params` profile (kappa = 4, m = 2^16, lambda = 60) the full
+// base → recursive flow fits comfortably. The Goldilocks ring + Π_RLC
+// constants are unchanged, so every algebraic identity holds bit-for-bit;
+// only the Ajtai-SIS security parameter is reduced.
+//
+// `c_data_entries = 216` and `child_count = 14` are the params-derived
+// fixed-point CE shape (KAPPA * D and K_RHO respectively); `r_len = 21`
+// is the empirically converged value under this image size. If `Params`
+// or the limb count ever change, this test fails with
+// `PostParentShapeMismatch` and the error message names the new
+// `actual` shape to copy into these constants.
+// ─────────────────────────────────────────────────────────────────────────
+
+fn tiny_fibonacci_params() -> Params {
+    let inner = NeoParams::new(
+        goldilocks_paper_b2::Q,
+        goldilocks_paper_b2::ETA as u32,
+        goldilocks_paper_b2::D as u32,
+        /* kappa  */ 4,
+        /* m      */ 1u64 << 16,
+        goldilocks_paper_b2::B_BASE,
+        goldilocks_paper_b2::K_RHO,
+        goldilocks_paper_b2::T,
+        goldilocks_paper_b2::EXTENSION_DEGREE,
+        /* lambda */ 60,
+    )
+    .expect("tiny NeoParams must satisfy the Π_RLC guard");
+    Params::test_only_from_neo_params(inner)
+}
+
+fn tiny_fibonacci_lifecycle_plan() -> RecursiveStepImagePlan {
+    const TINY_C_DATA_ENTRIES: usize = 216;
+    const TINY_CHILD_COUNT: u64 = 14;
+    const TINY_R_LEN: usize = 21;
+
+    let ce_shape = NifsCeClaimShape {
+        c_data_entries: TINY_C_DATA_ENTRIES,
+        x_rows: 54,
+        x_active_cols: 5,
+        r_len: TINY_R_LEN,
+        y_ring_inner_lens: vec![64; 8],
+        y_zcol_len: 64,
+        s_col_len: TINY_R_LEN,
+    };
+
+    let probe_plan = RecursiveStepImagePlan {
+        limbs: 3,
+        boundary_bits: BOUNDARY_BITS,
+        kmul_count: 0,
+        ring_action_pair_count: 0,
+        ring_action_pair_layout: RingActionTraceLayout::new(
+            LowNormEncoding::U64,
+            LowNormEncoding::U64,
+            LowNormEncoding::U64,
+            LowNormEncoding::U64,
+        ),
+        sponge_transcript_permutes: 0,
+        nifs_payload_shapes: vec![NifsPayloadShape::CeClaim(ce_shape)],
+        accumulator: Some(AccumulatorPlanOptions {
+            ce_claim_payload_index: 0,
+            c_data_entries: TINY_C_DATA_ENTRIES,
+            child_count: TINY_CHILD_COUNT,
+            unified: true,
+        }),
+        state_x_out: None,
+    };
+
+    let probe_layout = FPrimeImageLayout::new(build_recursive_step_image_config(&probe_plan));
+    let boundary_start = probe_layout.boundary.offset;
+    let public_x_out_lane_bit_starts: [usize; 4] =
+        std::array::from_fn(|i| boundary_start + i * POSEIDON2_GOLDILOCKS_BITS);
+
+    let mut plan = probe_plan;
+    plan.state_x_out = Some(StateXOutPlanOptions {
+        pc: 1,
+        public_x_out_lane_bit_starts,
+        app_public_input_var_indices: Vec::new(),
+    });
+    plan
+}
+
+#[test]
+fn fibonacci_chain_builder_appends_recursive_step_under_tiny_params() {
+    let plan = tiny_fibonacci_lifecycle_plan();
+    let prep = fibonacci_f_prime::preprocess_seeded_with_params(&plan, tiny_fibonacci_params(), 0xC0DE_00B1)
+        .expect("preprocess");
+
+    let mut builder = FibonacciChainBuilder::new(&prep).expect("start builder");
+
+    let compiled_base = builder
+        .append_step(valid_app_step(1, 1, 0))
+        .expect("base append");
+    let base_out = compiled_base.app_output.state_out;
+
+    let recursive_input = FibonacciAppStepInput {
+        state_in: base_out,
+        witness: FibonacciAppWitness {
+            next: base_out.prev + base_out.curr,
+        },
+    };
+    let compiled_recursive = builder
+        .append_step(recursive_input)
+        .expect("recursive append");
+
+    assert!(compiled_base.encoded.image.decode_is_base());
+    assert!(!compiled_recursive.encoded.image.decode_is_base());
+
+    assert_eq!(
+        structure_digest(&compiled_base.encoded.structure.ccs),
+        structure_digest(&compiled_recursive.encoded.structure.ccs),
+        "builder base and recursive outputs must share one verifier-owned F'_j structure"
+    );
+    assert_eq!(
+        builder
+            .audit()
+            .expect("audit after recursive append")
+            .steps
+            .len(),
+        2,
+        "builder must extend the lifecycle once per appended app step"
+    );
+    assert_eq!(
+        builder.context().chain_state.step_count,
+        2,
+        "builder must thread compiler chain state across base and recursive appends"
+    );
 }
 
 #[test]
@@ -330,67 +510,27 @@ fn compiler_chain_builds_from_scratch_and_verify_uncompressed_accepts() {
 fn compiler_two_step_chain_builds_from_scratch_and_verify_uncompressed_accepts() {
     let plan = canonical_threaded_plan();
     let prep = fibonacci_f_prime::preprocess_seeded(&plan, 0xC0DE_0009).expect("preprocess");
-    let mut ctx = start_fibonacci_chain(&prep).expect("start chain");
 
-    // Step 0: compile the base step and fold it once so it becomes the
-    // `latest` that step 1 must fold into the running accumulator.
-    let compiled_base = compile_fibonacci_step(&prep, &mut ctx, valid_app_step(1, 1, 0)).expect("base compile");
-    let base_instance = fibonacci_f_prime::build_instance(&prep, &compiled_base.encoded).expect("base instance");
-    let audit_after_base = lifecycle::prove(&prep.prep, [vec![base_instance.clone()]]).expect("base lifecycle prove");
+    // `FibonacciChainBuilder` owns the compile → prove → derive-next-fold
+    // → compile → extend dance. Each `append_step` after the first
+    // re-extends a cloned audit with the previous `latest` to obtain the
+    // recursive fold authority, feeds that into the compiler, then
+    // extends the real audit with the compiled instance.
+    let mut builder = FibonacciChainBuilder::new(&prep).expect("start chain");
+    let compiled_base = builder
+        .append_step(valid_app_step(1, 1, 0))
+        .expect("base step");
+    let compiled_recursive = builder
+        .append_step(valid_app_step(1, 1, 1))
+        .expect("recursive step");
 
-    let pre_state_for_recursive = audit_after_base.proof.state.clone();
-    let (pre_running, latest) = match &pre_state_for_recursive.proof {
-        ProofState::Active { running, latest } => (running.clone(), latest.clone()),
-        _ => panic!("after base step the lifecycle state must be Active"),
-    };
-
-    // Derive the real per-step NIFS proof for step 1. The fresh instance
-    // used here is a shape-equivalent placeholder: F' chunk digests bind
-    // only `(start_index, fresh.len, d, kappa, m_in)`, and every compiler
-    // output under `prep` has the same shape. This avoids a circular
-    // dependency between "compile step 1" and "need step 1's fold proof".
-    // `audit_after_base` is cloned so the placeholder extend doesn't
-    // contaminate the chain we re-extend with the real step 1 below.
-    let audit_after_placeholder_recursive =
-        lifecycle::extend(&prep.prep, audit_after_base.clone(), vec![base_instance.clone()])
-            .expect("derive recursive fold proof with shape-equivalent placeholder");
-    let recursive_proof = match &audit_after_placeholder_recursive.steps[1].fold {
-        FoldProof::Recursive(p) => p.clone(),
-        _ => panic!("step 1 must produce a Recursive fold proof"),
-    };
-    let post_running = match &audit_after_placeholder_recursive.proof.state.proof {
-        ProofState::Active { running, .. } => running.clone(),
-        _ => panic!("after placeholder recursive step the lifecycle state must be Active"),
-    };
     assert!(
-        !post_running.claims.is_empty(),
-        "step 1 fold must produce a non-empty running accumulator"
+        compiled_base.encoded.image.decode_is_base(),
+        "step 0 must take the base branch"
     );
-
-    // Step 1: feed the derived fold authority back into the compiler and
-    // compile the actual recursive app step from the compiler-threaded ctx.
-    ctx.chain_state = FibonacciChainState {
-        chunk_count: pre_state_for_recursive.chunk_count,
-        step_count: pre_state_for_recursive.step_count,
-        z_i: digest32_as_fields(pre_state_for_recursive.z_i),
-        acc_digest: digest32_as_fields(pre_state_for_recursive.acc_digest),
-        public_trace: digest32_as_fields(pre_state_for_recursive.public_trace),
-    };
-    ctx.fold_for_step = Some(FibonacciFoldForStep {
-        pre_running,
-        latest,
-        proof: recursive_proof,
-        post_running,
-    });
-    let compiled_recursive =
-        compile_fibonacci_step(&prep, &mut ctx, valid_app_step(1, 1, 1)).expect("recursive compile");
-    assert!(!compiled_recursive.encoded.image.decode_is_base());
-
-    let recursive_instance =
-        fibonacci_f_prime::build_instance(&prep, &compiled_recursive.encoded).expect("recursive instance");
-    assert_eq!(
-        base_instance.claim.m_in, recursive_instance.claim.m_in,
-        "base and recursive instances must use the same public-input split"
+    assert!(
+        !compiled_recursive.encoded.image.decode_is_base(),
+        "step 1 must take the recursive branch"
     );
     assert_eq!(
         structure_digest(&compiled_base.encoded.structure.ccs),
@@ -398,9 +538,8 @@ fn compiler_two_step_chain_builds_from_scratch_and_verify_uncompressed_accepts()
         "base and recursive compiler outputs must build instances under the same verifier-owned structure"
     );
 
-    // Production-shape end-to-end: extend the original (un-placeholder)
-    // audit with the *real* compiled recursive instance, finalise, and
-    // run **both** verifier surfaces:
+    // Production-shape end-to-end: finalize and run **both** verifier
+    // surfaces:
     //
     // - `verify_uncompressed_audit` — chain-replay verifier; walks
     //   every per-step `StepProof::Recursive` under the F' transcript,
@@ -415,10 +554,7 @@ fn compiler_two_step_chain_builds_from_scratch_and_verify_uncompressed_accepts()
     // pin different soundness properties and a real production
     // deployment will rely on `verify_uncompressed` (the audit form
     // doesn't survive Spartan compression).
-    let audit_after_recursive =
-        lifecycle::extend(&prep.prep, audit_after_base, vec![recursive_instance]).expect("recursive lifecycle extend");
-    let finalized =
-        neo_fold_clean::finish_uncompressed_with_audit(&prep.prep, audit_after_recursive).expect("finalize");
+    let finalized = builder.finish_with_audit().expect("finalize");
 
     lifecycle::verify_uncompressed_audit(&prep.prep, &finalized).expect("verify_uncompressed_audit");
     lifecycle::verify_uncompressed(&prep.prep, &finalized.proof).expect("verify_uncompressed");

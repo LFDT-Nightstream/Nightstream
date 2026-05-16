@@ -21,9 +21,7 @@
 
 use neo_fold_clean::engine::r1cs_circuit::field_ext::{enforce_k_mul_with_intermediates, KLc, KMulIntermediates, KVar};
 use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
-use neo_fold_clean::frontends::fibonacci_f_prime::image::{
-    FibonacciFPrimeImage, FibonacciFPrimeImageConfig, FibonacciFPrimeImageLayout, KMulView,
-};
+use neo_fold_clean::frontends::f_prime_shell::image::{FPrimeImage, FPrimeImageConfig, FPrimeImageLayout, KMulView};
 use neo_fold_clean::paper::f_prime::poseidon_trace::assert_committed_coords_are_bits;
 use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
 use neo_math::{KExtensions, F, K};
@@ -37,8 +35,8 @@ fn alloc_k(builder: &mut R1csBuilder, value: K) -> KVar {
 }
 
 /// Image config with a single kmul slot — all other regions empty.
-fn kmul_only_image_config() -> FibonacciFPrimeImageConfig {
-    FibonacciFPrimeImageConfig {
+fn kmul_only_image_config() -> FPrimeImageConfig {
+    FPrimeImageConfig {
         limbs: 3,
         boundary_bits: 0,
         nifs_payload_shapes: vec![],
@@ -121,8 +119,8 @@ fn phase_1_3d_kmul_three_way_parity_small_k_values() {
         let (native, wire, _out, _builder) = run_k_mul_and_collect_views(*a, *b);
         assert_eq!(native, wire, "case {idx}: native ↔ wire");
 
-        let layout = FibonacciFPrimeImageLayout::new(kmul_only_image_config());
-        let mut image = FibonacciFPrimeImage::new(layout);
+        let layout = FPrimeImageLayout::new(kmul_only_image_config());
+        let mut image = FPrimeImage::new(layout);
         image.fill_kmul_at(0, &native);
         let decoded = image.decode_kmul_at(0);
 
@@ -159,8 +157,8 @@ fn phase_1_3d_kmul_negative_k_value_round_trips_through_signed_repr() {
     let (native, wire, _out, _builder) = run_k_mul_and_collect_views(a, b);
     assert_eq!(native, wire, "wire ↔ native for K elements containing -F::ONE");
 
-    let layout = FibonacciFPrimeImageLayout::new(kmul_only_image_config());
-    let mut image = FibonacciFPrimeImage::new(layout);
+    let layout = FPrimeImageLayout::new(kmul_only_image_config());
+    let mut image = FPrimeImage::new(layout);
     image.fill_kmul_at(0, &native);
     assert_committed_coords_are_bits(&image.values);
     let decoded = image.decode_kmul_at(0);

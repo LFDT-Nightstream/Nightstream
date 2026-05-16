@@ -19,16 +19,15 @@
 //!    state_x_out → boundary digest binding.
 
 use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
-use neo_fold_clean::frontends::fibonacci_f_prime::image::{
-    FibonacciFPrimeImage, FibonacciFPrimeImageLayout, NifsCeClaimShape, NifsCeClaimView, NifsPayloadShape, StateIn,
-    StateOut,
+use neo_fold_clean::frontends::f_prime_shell::image::{
+    FPrimeImage, FPrimeImageLayout, NifsCeClaimShape, NifsCeClaimView, NifsPayloadShape, StateIn, StateOut,
 };
-use neo_fold_clean::frontends::fibonacci_f_prime::recursive_plan::{
+use neo_fold_clean::frontends::f_prime_shell::recursive_plan::{
     build_accumulator_preimage_fields, build_boundary_update_preimage_fields,
     build_public_trace_update_preimage_fields, build_recursive_step_image_config, build_state_x_out_preimage_fields,
     AccumulatorPlanOptions, RecursiveStepImagePlan, StateXOutPlanOptions,
 };
-use neo_fold_clean::frontends::fibonacci_f_prime::structure::build_fibonacci_f_prime_structure;
+use neo_fold_clean::frontends::f_prime_shell::structure::build_f_prime_shell_structure;
 use neo_fold_clean::paper::f_prime::poseidon_trace::encode_poseidon_trace;
 use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
 use neo_math::F;
@@ -80,15 +79,15 @@ fn make_plan() -> RecursiveStepImagePlan {
 }
 
 struct Fixture {
-    layout: FibonacciFPrimeImageLayout,
-    image: FibonacciFPrimeImage,
+    layout: FPrimeImageLayout,
+    image: FPrimeImage,
 }
 
 fn build_honest_fixture() -> Fixture {
     // Probe-build the layout once to learn boundary's offset, then rebuild
     // the plan with concrete public-x_out lane bit starts.
     let probe_plan = make_plan();
-    let probe_layout = FibonacciFPrimeImageLayout::new(build_recursive_step_image_config(&probe_plan));
+    let probe_layout = FPrimeImageLayout::new(build_recursive_step_image_config(&probe_plan));
     let boundary_start = probe_layout.boundary.offset;
     let public_x_out_lane_bit_starts: [usize; 4] =
         std::array::from_fn(|m| boundary_start + m * POSEIDON2_GOLDILOCKS_BITS);
@@ -97,9 +96,10 @@ fn build_honest_fixture() -> Fixture {
     plan.state_x_out = Some(StateXOutPlanOptions {
         pc: PC,
         public_x_out_lane_bit_starts,
+        app_public_input_var_indices: Vec::new(),
     });
-    let layout = FibonacciFPrimeImageLayout::new(build_recursive_step_image_config(&plan));
-    let mut image = FibonacciFPrimeImage::new(layout.clone());
+    let layout = FPrimeImageLayout::new(build_recursive_step_image_config(&plan));
+    let mut image = FPrimeImage::new(layout.clone());
 
     let vk_fs_digest: [F; 4] = [
         F::from_u64(0x101),
@@ -241,7 +241,7 @@ fn flip_lane_bits_to(z: &mut [F], lane_bit_start: usize, new_value: F) {
 #[test]
 fn phase_1_4f_honest_recursive_step_with_state_x_out_satisfies() {
     let fix = build_honest_fixture();
-    let structure = build_fibonacci_f_prime_structure(fix.layout);
+    let structure = build_f_prime_shell_structure(fix.layout);
     let z = structure.extend_witness_from_image(&fix.image);
     assert!(
         structure.is_satisfied(&z),
@@ -253,7 +253,7 @@ fn phase_1_4f_honest_recursive_step_with_state_x_out_satisfies() {
 #[test]
 fn phase_1_4f_tampered_new_chunk_count_trips_state_x_out_absorb() {
     let fix = build_honest_fixture();
-    let structure = build_fibonacci_f_prime_structure(fix.layout);
+    let structure = build_f_prime_shell_structure(fix.layout);
     let mut z = structure.extend_witness_from_image(&fix.image);
     assert!(structure.is_satisfied(&z), "baseline must satisfy");
 
@@ -275,7 +275,7 @@ fn phase_1_4f_tampered_new_chunk_count_trips_state_x_out_absorb() {
 #[test]
 fn phase_1_4f_tampered_new_z_i_trips_some_state_x_out_row() {
     let fix = build_honest_fixture();
-    let structure = build_fibonacci_f_prime_structure(fix.layout);
+    let structure = build_f_prime_shell_structure(fix.layout);
     let mut z = structure.extend_witness_from_image(&fix.image);
     assert!(structure.is_satisfied(&z), "baseline must satisfy");
 
@@ -295,7 +295,7 @@ fn phase_1_4f_tampered_new_z_i_trips_some_state_x_out_row() {
 #[test]
 fn phase_1_4f_tampered_new_acc_digest_trips_some_state_x_out_row() {
     let fix = build_honest_fixture();
-    let structure = build_fibonacci_f_prime_structure(fix.layout);
+    let structure = build_f_prime_shell_structure(fix.layout);
     let mut z = structure.extend_witness_from_image(&fix.image);
     assert!(structure.is_satisfied(&z), "baseline must satisfy");
 
@@ -312,7 +312,7 @@ fn phase_1_4f_tampered_new_acc_digest_trips_some_state_x_out_row() {
 #[test]
 fn phase_1_4f_tampered_public_x_out_lane_trips_state_x_out_digest_binding() {
     let fix = build_honest_fixture();
-    let structure = build_fibonacci_f_prime_structure(fix.layout);
+    let structure = build_f_prime_shell_structure(fix.layout);
     let mut z = structure.extend_witness_from_image(&fix.image);
     assert!(structure.is_satisfied(&z), "baseline must satisfy");
 

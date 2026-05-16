@@ -55,7 +55,7 @@ The RAM side must expose the exact analogous formulas for
 ## Paper Anchors
 
 - **Sources**:
-  - `./crates/neo-fold-next/specs/chip8-kernel.md`
+  - `./crates/neo-fold-prototype/specs/chip8-kernel.md`
   - `./docs/soundness-specs/twist-and-shout-requirements.md`
   - `./formal/twist-shout-lean/TwistShout/TwistCore.lean`
   - `./formal/twist-shout-lean/TwistShout/TwistValueEval.lean`

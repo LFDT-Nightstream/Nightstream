@@ -119,7 +119,7 @@ externally imported Rust artifact.
 
 - **Sources**:
   - `./docs/assurance-strategy.md`
-  - `./crates/neo-fold-next/specs/chip8-kernel.md`
+  - `./crates/neo-fold-prototype/specs/chip8-kernel.md`
   - `./formal/nightstream-lean/specs/chip8/Chip8StagedExecutionDigest.spec.md`
 - Anchors:
 - Layer-2 digest comparison needs one exact chunk artifact

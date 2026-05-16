@@ -154,7 +154,7 @@ Poseidon2 permutation.
 
 - **Sources**:
   - `./docs/assurance-strategy.md`
-  - `./crates/neo-fold-next/specs/chip8-kernel.md`
+  - `./crates/neo-fold-prototype/specs/chip8-kernel.md`
   - `./formal/nightstream-lean/specs/chip8/Chip8RomScheduleBinding.spec.md`
   - `./formal/nightstream-lean/specs/chip8/Chip8TranscriptSchedule.spec.md`
 

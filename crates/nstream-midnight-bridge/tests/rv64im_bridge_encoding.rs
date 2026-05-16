@@ -1,6 +1,6 @@
-use neo_fold_next::nightstream::rv64im::{build_rv64im_nightstream_from_public_proof, Rv64imNightstreamProof};
-use neo_fold_next::nightstream::NightstreamStatement;
-use neo_fold_next::rv64im::{
+use neo_fold_prototype::nightstream::rv64im::{build_rv64im_nightstream_from_public_proof, Rv64imNightstreamProof};
+use neo_fold_prototype::nightstream::NightstreamStatement;
+use neo_fold_prototype::rv64im::{
     build_mixed_opcode_perf_source_case, prove_rv64im_public_proof, Rv64imProof, Rv64imProofInput,
 };
 use nstream_midnight_bridge::rv64im::{

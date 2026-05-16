@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use neo_fold_next::rv64im::{
+use neo_fold_prototype::rv64im::{
     build_mixed_opcode_perf_source_case, build_parity_case_from_source, RV64IM_MIXED_OPCODE_PERF_DEFAULT_N,
 };
 use nightstream_rust_vectors::render_rv64im_single_case_compat_module;

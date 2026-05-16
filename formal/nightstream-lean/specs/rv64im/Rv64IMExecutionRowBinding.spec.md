@@ -144,7 +144,7 @@ lookup owners and therefore never enter the main lane directly.
 
 ## Paper Anchors
 
-- **Source**: `./crates/neo-fold-next/specs/riscv-kernel.md`
+- **Source**: `./crates/neo-fold-prototype/specs/riscv-kernel.md`
 - Anchors:
   - canonical Stage-1 slot manifests
   - branch-condition channel

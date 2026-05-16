@@ -5,13 +5,13 @@ edition.workspace = true
 authors.workspace = true
 rust-version.workspace = true
 license = "MIT"
-description = "Midnight outer-compression bridge for theorem-facing neo-fold-next proof exports."
+description = "Midnight outer-compression bridge for theorem-facing neo-fold-prototype proof exports."
 
 [dependencies]
 base-crypto = { package = "midnight-base-crypto", git = "https://github.com/midnightntwrk/midnight-ledger", rev = "81a578c35b015c069cb22684e8b481300af6c6af" }
 bincode.workspace = true
 coin-structure = { package = "midnight-coin-structure", git = "https://github.com/midnightntwrk/midnight-ledger", rev = "81a578c35b015c069cb22684e8b481300af6c6af" }
-neo-fold-next = { path = "../neo-fold-next" }
+neo-fold-prototype = { path = "../neo-fold-prototype" }
 serialize = { package = "midnight-serialize", git = "https://github.com/midnightntwrk/midnight-ledger", rev = "81a578c35b015c069cb22684e8b481300af6c6af" }
 storage = { package = "midnight-storage", git = "https://github.com/midnightntwrk/midnight-ledger", rev = "81a578c35b015c069cb22684e8b481300af6c6af" }
 thiserror.workspace = true

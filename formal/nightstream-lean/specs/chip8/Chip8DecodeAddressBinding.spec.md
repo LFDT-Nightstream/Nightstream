@@ -191,7 +191,7 @@ floating free of the intended row semantics.
 
 ## Paper Anchors
 
-- **Source**: `./crates/neo-fold-next/specs/chip8-kernel.md`
+- **Source**: `./crates/neo-fold-prototype/specs/chip8-kernel.md`
 - Anchors:
   - Stage-1 address-correctness obligations
   - Stage-2 address-correctness obligations

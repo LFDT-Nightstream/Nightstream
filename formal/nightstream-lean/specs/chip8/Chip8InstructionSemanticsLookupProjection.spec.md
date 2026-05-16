@@ -138,9 +138,9 @@ $$
 
 - **Source**:
   - `./docs/assurance-strategy.md`
-  - `./crates/neo-fold-next/specs/chip8-kernel.md`
-  - `./crates/neo-fold-next/src/proof.rs`
-  - `./crates/neo-fold-next/src/stages/planner.rs`
+  - `./crates/neo-fold-prototype/specs/chip8-kernel.md`
+  - `./crates/neo-fold-prototype/src/proof.rs`
+  - `./crates/neo-fold-prototype/src/stages/planner.rs`
   - `./formal/nightstream-lean/specs/chip8/Chip8FetchDecodeBinding.spec.md`
 
 ## Out of Scope

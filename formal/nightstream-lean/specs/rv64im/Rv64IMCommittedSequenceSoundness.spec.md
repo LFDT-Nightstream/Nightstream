@@ -99,7 +99,7 @@ fixed committed sequence.
 
 ## Paper Anchors
 
-- **Source**: `./crates/neo-fold-next/specs/riscv-kernel.md`
+- **Source**: `./crates/neo-fold-prototype/specs/riscv-kernel.md`
 - Anchors:
   - fixed committed row list for every multi-row lowering
   - fixed touched-state set and preserved-state obligations

@@ -1,5 +1,5 @@
-use neo_fold_next::nightstream::rv64im::build_rv64im_nightstream_from_public_proof;
-use neo_fold_next::rv64im::{build_mixed_opcode_perf_source_case, prove_rv64im_public_proof, Rv64imProofInput};
+use neo_fold_prototype::nightstream::rv64im::build_rv64im_nightstream_from_public_proof;
+use neo_fold_prototype::rv64im::{build_mixed_opcode_perf_source_case, prove_rv64im_public_proof, Rv64imProofInput};
 use nstream_midnight_bridge::rv64im::{
     verify_rv64im_nightstream_bridge_input, Rv64imNightstreamBridgePrivateWitness, Rv64imNightstreamBridgePublicInputs,
     RV64IM_NIGHTSTREAM_BRIDGE_VERSION,
@@ -12,9 +12,9 @@ fn proof_input(_name: &str) -> Rv64imProofInput {
 }
 
 fn bridge_witness<'a>(
-    statement: &'a neo_fold_next::nightstream::NightstreamStatement,
-    proof: &'a neo_fold_next::nightstream::rv64im::Rv64imNightstreamProof,
-    public_proof: &'a neo_fold_next::rv64im::Rv64imProof,
+    statement: &'a neo_fold_prototype::nightstream::NightstreamStatement,
+    proof: &'a neo_fold_prototype::nightstream::rv64im::Rv64imNightstreamProof,
+    public_proof: &'a neo_fold_prototype::rv64im::Rv64imProof,
 ) -> Rv64imNightstreamBridgePrivateWitness<'a> {
     Rv64imNightstreamBridgePrivateWitness {
         statement,

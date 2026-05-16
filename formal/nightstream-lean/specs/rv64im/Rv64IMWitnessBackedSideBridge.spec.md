@@ -25,9 +25,9 @@ This owner is constrained by the following local references:
 - `./docs/superneo-paper/07_7_Neo_s_folding_scheme_for_CCS.md`
   - the paper-owned relation is the CE/CCS relation plus
     `Π_CCS -> Π_RLC -> Π_DEC`, not a verifier for a variable-length proof blob
-- `./crates/neo-fold-next/specs/riscv-kernel.md`
+- `./crates/neo-fold-prototype/specs/riscv-kernel.md`
   - the current concrete RV64IM theorem-facing bridge obligations
-- `./crates/neo-fold-next/specs/riscv-recursive-proof.md`
+- `./crates/neo-fold-prototype/specs/riscv-recursive-proof.md`
   - the end-state recursive/exported proof architecture
 
 This document is normative only where its requirements are implied by, or are a
@@ -174,8 +174,8 @@ The following are forbidden at this theorem boundary:
 ## Dependency and Consumer Map
 
 - **Depends on**:
-  - `./crates/neo-fold-next/specs/riscv-kernel.md`
-  - `./crates/neo-fold-next/specs/riscv-recursive-proof.md`
+  - `./crates/neo-fold-prototype/specs/riscv-kernel.md`
+  - `./crates/neo-fold-prototype/specs/riscv-recursive-proof.md`
   - `./formal/nightstream-lean/specs/rv64im/Rv64IMBridgeBinding.spec.md`
   - `./formal/nightstream-lean/specs/rv64im/Rv64IMAcceptedArtifactKernelDesignBridgeClosure.spec.md`
   - `./formal/nightstream-lean/specs/rv64im/Rv64IMAcceptedArtifactRootExecutionSemanticsClosure.spec.md`

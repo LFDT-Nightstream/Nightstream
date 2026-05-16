@@ -39,6 +39,7 @@ pub fn prove(
     let next_running = RunningInstance {
         claims: dec_out.claims,
         witnesses: dec_out.witnesses,
+        parent_authority: Some(rlc_out.claim),
     };
     Ok((
         next_running,

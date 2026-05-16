@@ -38,3 +38,4 @@
 //!   witness, and commits via Ajtai.
 
 pub mod direct_ccs;
+pub mod fibonacci_f_prime;

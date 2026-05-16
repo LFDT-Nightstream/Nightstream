@@ -1,6 +1,6 @@
 //! `neo-fold-clean` — paper-faithful, audit-first SuperNeo IVC integrator.
 //!
-//! ## Public lifecycle
+//! ## Public lifecycle (non-replay IVC, the production path)
 //!
 //! ```ignore
 //! use neo_fold_clean::{
@@ -21,22 +21,51 @@
 //! //   FoldSchedule::WholeRun        — all rows in one fold step
 //! let steps = FoldSchedule::RowsPerStep(4).partition(rows)?;
 //!
-//! let mut proof = prove(&prep, steps)?;
+//! // `prove` returns an `UncompressedAudit` — the in-flight proof,
+//! // with the per-step audit trail attached because `extend` may want
+//! // to push more batches into it.
+//! let mut audit = prove(&prep, steps)?;
 //!
 //! // More rows arrive later? Partition them and `extend`.
 //! let extra = FoldSchedule::RowsPerStep(4).partition(more_rows)?;
 //! for step in extra {
-//!     proof = extend(&prep, proof, step)?;
+//!     audit = extend(&prep, audit, step)?;
 //! }
 //!
-//! // Finish folds the trailing latest into the running accumulator, retaining
-//! // the terminal NIFS proof. The IVC chain is verifiable before Spartan.
-//! proof = finish_uncompressed(&prep, proof)?;
+//! // Finalize. `finish_uncompressed` flushes the trailing latest into the
+//! // running accumulator AND drops the per-step audit trail — leaving an
+//! // `Uncompressed` that carries only the fields the IVC verifier reads.
+//! // The chain is verifiable in O(1) work via `verify_uncompressed`.
+//! let proof = finish_uncompressed(&prep, audit)?;
 //! verify_uncompressed(&prep, &proof)?;
 //!
 //! // `compress` / compressed `verify` are reserved for the PR5 Spartan decider
 //! // and currently return an explicit unsupported error.
 //! ```
+//!
+//! ## Audit / decider path (diagnostic + Spartan)
+//!
+//! Tests, the Spartan decider statement, and chain-replay debugging
+//! need the per-step audit trail kept. Use the `_audit` variants:
+//!
+//! ```ignore
+//! use neo_fold_clean::{finish_uncompressed_with_audit, verify_uncompressed_audit};
+//!
+//! let audit_finalized = finish_uncompressed_with_audit(&prep, audit)?;
+//!
+//! // Constant-time IVC check on the terminal-only projection.
+//! verify_uncompressed(&prep, &audit_finalized.proof)?;
+//!
+//! // Linear-time chain replay — catches audit-trail tampers (steps,
+//! // public_batches, final_fold.nifs) that the IVC verifier ignores
+//! // by design.
+//! verify_uncompressed_audit(&prep, &audit_finalized)?;
+//! ```
+//!
+//! Production code that just wants to verify the IVC chain should use
+//! `finish_uncompressed` + `verify_uncompressed`. Reach for the audit
+//! variants only for diagnostics, the Spartan decider statement, or
+//! red-team tests that mutate audit-trail fields.
 //!
 //! ## Where do `(z, m_in)` come from?
 //!
@@ -58,9 +87,19 @@ pub mod lifecycle;
 pub mod paper;
 
 // ── Public lifecycle re-exports. Keep this surface small. ─────────────────
+
+// Production path — non-replay IVC.
 pub use lifecycle::{
-    compress, extend, finish_uncompressed, preprocess, prove, verify, verify_uncompressed, Compressed, Error,
-    Preprocessing, PublicImage, Uncompressed,
+    extend, finish_uncompressed, preprocess, prove, verify_uncompressed, Compressed, Error, Preprocessing, PublicImage,
+    Uncompressed,
+};
+
+// Audit / decider path — chain-replay verifier, Spartan statement, diagnostic
+// tests. See the crate-level docs for when each is appropriate; reach for
+// these only when the production names above don't fit the use case.
+pub use lifecycle::{
+    build_decider_statement, compress, finish_uncompressed_with_audit, verify, verify_uncompressed_audit,
+    UncompressedAudit,
 };
 
 pub use lifecycle::{FoldSchedule, ScheduleError};

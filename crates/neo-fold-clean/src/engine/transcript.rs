@@ -6,7 +6,7 @@
 //! Does not own: the Poseidon2 hash itself (lives in `neo-transcript`), nor
 //! the choice of absorb labels (those are *paper*-driven; see usage sites).
 //!
-//! Hash discipline (CLAUDE.md): Poseidon2 only on protocol-binding paths.
+//! Hash discipline: Poseidon2 only on protocol-binding paths.
 
 use neo_transcript::{Poseidon2Transcript, Transcript as NeoTranscript};
 
@@ -24,8 +24,17 @@ impl Transcript {
     /// Top-of-session transcript. The label distinguishes the protocol so
     /// transcripts from different protocols cannot be confused.
     pub fn session() -> Self {
+        Self::with_label(b"neo.fold.clean/session/v1")
+    }
+
+    /// Top-of-session transcript with a caller-supplied init label.
+    ///
+    /// Used by callers that need their transcript chain to match the
+    /// in-circuit [`TranscriptGadget::new`] label (F' R1CS, tests that
+    /// mirror a recursive step's pre-NIFS.V absorbs).
+    pub fn with_label(label: &'static [u8]) -> Self {
         Self {
-            inner: Poseidon2Transcript::new(b"neo.fold.clean/session/v1"),
+            inner: Poseidon2Transcript::new(label),
         }
     }
 

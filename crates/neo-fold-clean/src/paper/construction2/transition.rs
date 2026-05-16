@@ -44,7 +44,16 @@ pub(crate) fn advance_state(
     let new_public_trace = digest::public_trace_update_digest(prev.public_trace, chunk_digest);
     let new_acc_digest = match &new_proof {
         ProofState::Initial => digest::accumulator_digest_from_claims(pp.b(), &[]),
-        ProofState::Active { running, .. } => digest::accumulator_digest_from_claims(pp.b(), &running.claims),
+        ProofState::Active { running, .. } if running.claims.is_empty() => {
+            digest::accumulator_digest_from_claims(pp.b(), &[])
+        }
+        ProofState::Active { running, .. } => {
+            let parent = running
+                .parent_authority
+                .as_ref()
+                .expect("non-empty running accumulator must carry its Pi_RLC parent authority");
+            digest::accumulator_digest_from_parent_claim(running.claims.len(), parent)
+        }
     };
     State {
         chunk_count: prev.chunk_count + 1,
@@ -58,17 +67,19 @@ pub(crate) fn advance_state(
     }
 }
 
-/// Project the K `CcsClaim`s out of `&[CcsInstance]` and feed
-/// [`digest::chunk_public_digest`].
-pub(crate) fn chunk_public_digest_for_step(start_index: u64, fresh: &[CcsInstance]) -> [F; 4] {
+/// F'-step chunk digest from `&[CcsInstance]`. Uses
+/// [`digest::f_prime_chunk_public_digest`] (which excludes `claim.x`)
+/// so the chain advance is independent of the fresh public input — see
+/// that function's doc for the recursive-link fixed-point rationale.
+pub(crate) fn f_prime_chunk_public_digest_for_step(start_index: u64, fresh: &[CcsInstance]) -> [F; 4] {
     let claims: Vec<_> = fresh.iter().map(|i| i.claim.clone()).collect();
-    digest::chunk_public_digest(start_index, &claims)
+    digest::f_prime_chunk_public_digest(start_index, &claims)
 }
 
-/// Same as [`chunk_public_digest_for_step`] but consumes claims directly —
-/// used on the verifier side where witnesses are not in scope.
-pub(crate) fn chunk_public_digest_from_claims(start_index: u64, fresh_claims: &[CcsClaim]) -> [F; 4] {
-    digest::chunk_public_digest(start_index, fresh_claims)
+/// Verifier-side variant of [`f_prime_chunk_public_digest_for_step`] that
+/// consumes claims directly (witnesses are prover-only).
+pub(crate) fn f_prime_chunk_public_digest_from_claims(start_index: u64, fresh_claims: &[CcsClaim]) -> [F; 4] {
+    digest::f_prime_chunk_public_digest(start_index, fresh_claims)
 }
 
 /// `x_{i+1}` — Construction-2 hash-chain output (Soundness Invariant I-5).

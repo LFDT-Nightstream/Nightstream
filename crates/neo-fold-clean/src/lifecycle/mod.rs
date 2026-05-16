@@ -1,4 +1,4 @@
-//! Public lifecycle: `preprocess → prove → extend → compress → verify`.
+//! Public lifecycle.
 //!
 //! This is the *only* public surface a frontend or downstream consumer
 //! should know about. Everything below is in `paper/` (auditable) or
@@ -6,45 +6,50 @@
 //!
 //! See the crate-level docs in `lib.rs` for the canonical example.
 //!
-//! ## Pipeline
+//! ## Two paths, two verifier types
 //!
-//! Prover and verifier execute the same numbered sequence (Jolt-style index;
-//! every line maps to one paper section so an auditor can follow along).
+//! The Phase 1.7 type split makes the verifier-authority boundary
+//! structural. Production code wires the non-replay path; the audit
+//! path is for diagnostics, the Spartan decider statement, and red-team
+//! tests that need to mutate the per-step audit trail.
 //!
 //! ```text
-//! 1. preprocess              (one-time)
-//!    └─ derive vk_fs from (params, structure)            [Construction 2]
+//! Production (non-replay IVC):
+//!   preprocess              one-time
+//!     └─ derive vk_fs from (params, structure)
+//!   prove(prep, batches)  → UncompressedAudit                (per-session)
+//!     └─ runs Π_CCS / Π_RLC / Π_DEC on each batch, accumulating audit
+//!   extend(prep, audit, batch) → UncompressedAudit            (optional)
+//!     └─ one more F' step
+//!   finish_uncompressed(prep, audit) → Uncompressed
+//!     └─ flush trailing latest, DROP audit trail
+//!   verify_uncompressed(prep, &Uncompressed) → Result<()>
+//!     └─ constant-time IVC verification via terminal-fold re-run
+//!        (HyperNova §6.3 Construction 2 + SuperNeo §7)
 //!
-//! 2. start                    (per session)
-//!    └─ State::base(z_0): empty proof state, pc = TRIVIAL_PC
-//!                                                        [Construction 2 initial case]
-//!
-//! 3. extend                   (per IVC step)
-//!    ├─ if state.proof = Active: Π_CCS / Π_RLC / Π_DEC fold latest into running
-//!    ├─ else (Initial):         no fold; running stays empty
-//!    ├─ advance counters / digests
-//!    ├─ x_out                  H(vk_fs, i+1, z_0, z_{i+1}, U_{i+1}, pc)
-//!    └─ store next batch as state.proof.latest for the *next* fold
-//!
-//! 4. finish_uncompressed      (optional before compression)
-//!    └─ fold the trailing latest into running and retain terminal NIFS proof
-//!
-//! 5. compress                 (one-time; PR5)
-//!    └─ Spartan terminal compression of the final F' step       [decider]
-//!
-//! 6. verify                   (one-time; PR5)
-//!    └─ Spartan SNARK verify against PublicImage                [decider]
+//! Audit / decider (chain replay, Spartan):
+//!   ... prove + extend as above ...
+//!   finish_uncompressed_with_audit(prep, audit) → UncompressedAudit
+//!     └─ flush trailing latest, KEEP audit trail
+//!   verify_uncompressed_audit(prep, &UncompressedAudit) → Result<()>
+//!     └─ linear-time chain replay; catches audit-trail tampers
+//!   build_decider_statement(prep, &UncompressedAudit) → decider::Statement
+//!     └─ feeds the (PR5) Spartan compress / verify SNARK
+//!   compress(prep, UncompressedAudit) → Compressed              (PR5)
+//!   verify(prep, &Compressed) → Result<()>                      (PR5)
 //! ```
 //!
 //! ## What this module owns
 //!
-//! - `mod.rs` (this file) — public types (Preprocessing, Uncompressed,
-//!   Compressed, PublicImage), the `Error` enum, and `preprocess`.
-//! - `prove.rs` — `prove`, `extend`, and the `start_proof` helper.
-//! - `verify.rs` — `verify`, `verify_uncompressed`, and shape/state checks.
-//! - `compress.rs` — `finish_uncompressed`, `compress`, public-image and
-//!   decider-statement builders.
-//! - `schedule.rs` — `FoldSchedule`, `partition<T>`, `ScheduleError`.
+//! - `mod.rs` (this file) — public types ([`Preprocessing`],
+//!   [`Uncompressed`], [`UncompressedAudit`], [`Compressed`],
+//!   [`PublicImage`]), the [`Error`] enum, and [`preprocess`].
+//! - `prove.rs` — [`prove`], [`extend`], and the `start_proof` helper.
+//! - `verify.rs` — [`verify`] (compressed), [`verify_uncompressed`]
+//!   (non-replay IVC), [`verify_uncompressed_audit`] (chain replay).
+//! - `compress.rs` — [`finish_uncompressed`] / [`finish_uncompressed_with_audit`],
+//!   [`compress`], public-image / decider-statement builders.
+//! - `schedule.rs` — [`FoldSchedule`], `partition<T>`, [`ScheduleError`].
 
 pub mod compress;
 pub mod prove;
@@ -55,8 +60,7 @@ use neo_ajtai::AjtaiSModule;
 use neo_math::D;
 use thiserror::Error;
 
-use crate::engine::transcript::Transcript;
-use crate::paper::construction2::{EncInst, FinalFoldProof, State, StepProof, VerifierKey};
+use crate::paper::construction2::{FinalFoldProof, State, StepProof, VerifierKey};
 use crate::paper::decider;
 use crate::paper::params::Params;
 use crate::paper::relations::{CcsClaim, DecMixer, RlcMixer, Structure};
@@ -67,14 +71,28 @@ pub enum Error {
     Construction2(#[from] crate::paper::construction2::Error),
     #[error(transparent)]
     Decider(#[from] decider::Error),
-    #[error("verify_uncompressed: |steps| ({steps}) \u{2260} |batches| ({batches})")]
-    UncompressedShapeMismatch { steps: usize, batches: usize },
-    #[error("verify_uncompressed: replayed final state did not match the prover's recorded state")]
-    UncompressedStateMismatch,
+    #[error("verify_uncompressed: proof is not finalized (state is Initial, or trailing latest is non-empty)")]
+    NotFinalized,
     #[error("verify_uncompressed: recorded final accumulator witness shape is inconsistent")]
     FinalAccumulatorWitnessShapeMismatch,
     #[error("verify_uncompressed: recorded final accumulator witness commitment mismatch at index {index}")]
     FinalAccumulatorWitnessCommitmentMismatch { index: usize },
+    #[error("verify_uncompressed: recorded final accumulator claim {index} public-input X does not match the projection from witness Z")]
+    FinalAccumulatorPublicInputMismatch { index: usize },
+    #[error("verify_uncompressed: recorded final accumulator witness {index} has an entry outside the low-norm bound at row={row}, col={col}")]
+    FinalAccumulatorLowNormViolation {
+        index: usize,
+        row: usize,
+        col: usize,
+    },
+    #[error(
+        "verify_uncompressed: state after re-running the terminal NIFS fold disagrees with the recorded proof.state"
+    )]
+    PostStateMismatch,
+    #[error("verify_uncompressed: finalized proof has a non-empty final running accumulator but carries no terminal-fold proof")]
+    MissingTerminalFoldProof,
+    #[error("verify_uncompressed: recorded acc_digest does not match the digest of the recorded final running claims")]
+    AccDigestMismatch,
     #[error("extend: cannot extend an already-finalized uncompressed proof")]
     AlreadyFinalized,
     #[error("finish_uncompressed: already-finalized proof is internally inconsistent")]
@@ -113,19 +131,57 @@ pub struct Preprocessing {
     pub public_input_len: Option<usize>,
 }
 
-/// Uncompressed proof state. Before `finish_uncompressed`, the final batch is
-/// still held in `state.proof.latest`; after finishing, `final_fold` verifies
-/// that trailing batch and `state` is the post-finalization state.
+/// Terminal-only uncompressed proof — the **non-replay IVC verifier**'s
+/// input.
+///
+/// Carries exactly the fields `verify_uncompressed` reads: the
+/// post-finalization `State` (chain coordinates + final running
+/// accumulator with witnesses) and the terminal `FinalFoldProof`
+/// (whose `terminal_inputs` snapshot is what authentiticates the chain
+/// through a verifier-driven NIFS.V re-run; see
+/// [`verify::verify_uncompressed`]).
+///
+/// The per-step audit trail (`steps`, `public_batches`) is **not** part
+/// of this type — it lives in [`UncompressedAudit`] and is consumed by
+/// the chain-replay verifier ([`verify::verify_uncompressed_audit`])
+/// and the Spartan decider.
+///
+/// There is no session-wide transcript on the proof. Each F' step owns
+/// its own per-step transcript inside `paper::f_prime::{prove, verify}`,
+/// and the terminal fold owns its own inside
+/// `paper::construction2::{prove_final_fold, verify_final_fold}`.
+#[derive(Clone, Debug)]
 pub struct Uncompressed {
     pub state: State,
+    /// Final NIFS proof that flushed the trailing latest into the running
+    /// accumulator at finalization, plus the prover-snapshotted
+    /// `terminal_inputs` (pre-fold running + latest) the verifier
+    /// re-runs NIFS.V against. `None` only when the chain had nothing
+    /// to flush at finalize.
+    pub final_fold: Option<FinalFoldProof>,
+}
+
+/// Uncompressed proof **with audit trail** — the chain-replay verifier's
+/// input and the Spartan decider's witness source.
+///
+/// Wraps the terminal-only [`Uncompressed`] with the per-step
+/// `StepProof`s and public batches each `extend` produced. The wrapping
+/// (rather than flat fields) makes the verifier-authority boundary
+/// explicit at the type level: anything inside `proof` is the terminal
+/// IVC verifier's authority surface; `steps` / `public_batches` are
+/// audit-trail metadata.
+///
+/// Pre-finalize this type is `UncompressedAudit { proof: Uncompressed
+/// { state, final_fold: None }, steps, public_batches }` — the terminal
+/// fold hasn't run yet. After [`finish_uncompressed_with_audit`] the
+/// inner `proof.final_fold` is `Some`.
+#[derive(Clone, Debug)]
+pub struct UncompressedAudit {
+    pub proof: Uncompressed,
     pub steps: Vec<StepProof>,
     /// The K instances each `extend` stored as the next-step's latest,
     /// claims-only (witnesses are prover-private). Length matches `steps`.
     pub public_batches: Vec<Vec<CcsClaim>>,
-    /// Final NIFS proof that flushes the trailing latest into the running
-    /// accumulator without advancing chunk counters.
-    pub final_fold: Option<FinalFoldProof>,
-    pub transcript: Transcript,
 }
 
 /// The final proof bundle.
@@ -135,29 +191,24 @@ pub struct Compressed {
     pub public_image: PublicImage,
 }
 
-/// What the verifier sees. Paper-named; matches the absorb order of
-/// [`crate::paper::construction2::compute_x_out`].
-#[derive(Clone, Debug)]
-pub struct PublicImage {
-    pub chunk_count: u64,
-    pub step_count: u64,
-    pub z_0: [u8; 32],
-    pub z_i: [u8; 32],
-    pub pc: u64,
-    pub acc_digest: [u8; 32],
-    pub public_trace: [u8; 32],
-    pub x_out: EncInst,
-    pub vk_fs_digest: [u8; 32],
-}
+// Public image lives with the decider contract; re-export so lifecycle
+// callers can name it without reaching into `paper::decider`.
+pub use crate::paper::decider::PublicImage;
 
 // ──────────────────────────────────────────────────────────────────────────
 // Public entry-point re-exports + preprocess (the only one-line entry).
 // ──────────────────────────────────────────────────────────────────────────
 
-pub use compress::{compress, finish_uncompressed, verify};
+// Production path — non-replay IVC.
+pub use compress::finish_uncompressed;
 pub use prove::{extend, prove};
-pub use schedule::{FoldSchedule, ScheduleError};
 pub use verify::verify_uncompressed;
+
+// Audit / decider path — chain replay, Spartan, diagnostic tests.
+pub use compress::{build_decider_statement, compress, finish_uncompressed_with_audit, verify};
+pub use verify::verify_uncompressed_audit;
+
+pub use schedule::{FoldSchedule, ScheduleError};
 
 /// Build the verifier-owned preprocessing once and reuse it.
 ///

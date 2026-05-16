@@ -27,7 +27,7 @@ use crate::engine::optimized as engine;
 use crate::engine::transcript::Transcript;
 use crate::paper::construction2::RunningInstance;
 use crate::paper::params::Params;
-use crate::paper::relations::{CcsClaim, CcsInstance, CeClaim, Structure};
+use crate::paper::relations::{superneo_inactive_x_zero, CcsClaim, CcsInstance, CeClaim, Structure};
 
 /// Engine-level sumcheck transcript, opaque at the paper layer.
 pub use neo_reductions::api::PiCcsProof as SumcheckProof;
@@ -90,16 +90,16 @@ pub fn verify(
     pp: &Params,
     s: &Structure,
     fresh_claims: &[CcsClaim],
-    running_claims: &[CeClaim],
+    running: &RunningInstance,
     proof: &Proof,
 ) -> Result<Vec<CeClaim>, Error> {
-    validate_verifier_shape(pp, fresh_claims, running_claims, &proof.outputs)?;
+    validate_verifier_shape(pp, fresh_claims, &running.claims, &proof.outputs)?;
     let ok = engine::verify_pi_ccs(
         tr.inner_mut(),
         pp,
         s,
         fresh_claims,
-        running_claims,
+        running,
         &proof.outputs,
         &proof.sumcheck,
     )?;
@@ -113,6 +113,20 @@ pub fn verify(
 // Step bodies — short, named, paper-referenced.
 // ──────────────────────────────────────────────────────────────────────────
 
+/// Reject CE claims whose `X` has non-zero entries in columns
+/// `[ceil(m_in / D), x.cols())`. The circuit-side verifier enforces the
+/// same invariant and the v2 `ce_claim_digest` skips inactive columns —
+/// so without this guard, a malicious prover could smuggle data into
+/// inactive columns where it is not transcript-bound.
+fn validate_inactive_x_zero(claims: &[CeClaim], label: &'static str) -> Result<(), Error> {
+    for claim in claims {
+        if !superneo_inactive_x_zero(&claim.X, claim.m_in) {
+            return Err(Error::Shape(label));
+        }
+    }
+    Ok(())
+}
+
 /// Step 0 (prover): K fresh ≥ 1, running length equals `pp.k_rho()` after step 1.
 fn validate_input_shape(pp: &Params, fresh: &[CcsInstance], running: &RunningInstance) -> Result<(), Error> {
     if fresh.is_empty() {
@@ -124,6 +138,7 @@ fn validate_input_shape(pp: &Params, fresh: &[CcsInstance], running: &RunningIns
     if !running.is_empty() && running.claims.len() as u32 != pp.k_rho() {
         return Err(Error::Shape("running length does not match params.k_rho()"));
     }
+    validate_inactive_x_zero(&running.claims, "running inactive X columns must be zero")?;
     Ok(())
 }
 
@@ -144,5 +159,7 @@ fn validate_verifier_shape(
     if fold_outputs.len() != expected_outputs {
         return Err(Error::Shape("|fold_outputs| \u{2260} K + k"));
     }
+    validate_inactive_x_zero(running_claims, "running inactive X columns must be zero")?;
+    validate_inactive_x_zero(fold_outputs, "fold output inactive X columns must be zero")?;
     Ok(())
 }

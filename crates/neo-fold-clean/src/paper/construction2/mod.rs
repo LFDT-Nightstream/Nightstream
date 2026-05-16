@@ -71,7 +71,7 @@ pub use latest::LatestInstance;
 pub use proof_state::ProofState;
 pub use running::RunningInstance;
 pub use state::State;
-pub use step_proof::{FinalFoldProof, FoldProof, StepProof};
+pub use step_proof::{FinalFoldProof, FoldProof, StepProof, TerminalFoldInputs};
 pub use verifier_key::VerifierKey;
 
 // Step entry points live in `paper::f_prime`; re-exported here under the
@@ -82,6 +82,6 @@ pub use crate::paper::f_prime::verify as verify_step;
 // Transition + finalization helpers exposed `pub(crate)` for f_prime and lifecycle.
 pub(crate) use finalization::{prove_final_fold, verify_final_fold};
 pub(crate) use transition::{
-    advance_state, chunk_public_digest_for_step, chunk_public_digest_from_claims, compute_x_out, enforce_pc_in_range,
-    state_base_case_check,
+    advance_state, compute_x_out, enforce_pc_in_range, f_prime_chunk_public_digest_for_step,
+    f_prime_chunk_public_digest_from_claims, state_base_case_check,
 };

@@ -21,6 +21,13 @@ neo-ajtai      = { path = "../neo-ajtai" }
 neo-transcript = { path = "../neo-transcript" }
 neo-reductions = { path = "../neo-reductions" }
 p3-field       = { workspace = true }
+# Poseidon2-in-circuit gadget: derives the same round constants `neo-ccs::PERM`
+# uses by replicating its `ChaCha8Rng::from_seed(SEED)` + `next_u64()` +
+# rejection-sample-to-Goldilocks path. Only `rand_chacha_p3` (= rand_chacha
+# 0.10, brings `rand_core 0.10`'s `RngCore`) is needed — we sidestep the rand
+# 0.9-vs-0.10 trait-version mismatch by sampling u64s directly.
+p3-goldilocks  = { workspace = true }
+rand_chacha_p3 = { workspace = true }
 spartan2       = { workspace = true }
 serde          = { workspace = true }
 thiserror      = { workspace = true }

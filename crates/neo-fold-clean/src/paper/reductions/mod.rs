@@ -20,6 +20,10 @@
 //! Theorem 6 then composes Π_CCS (strong) with Π_RLC (weak) to a sound
 //! NIFS; Π_DEC closes the loop by restoring norm bounds for the next round.
 
+pub mod accumulator_digest_circuit;
 pub mod pi_ccs;
+pub mod pi_ccs_split_nc_circuit;
 pub mod pi_dec;
+pub mod pi_dec_circuit;
 pub mod pi_rlc;
+pub mod pi_rlc_circuit;

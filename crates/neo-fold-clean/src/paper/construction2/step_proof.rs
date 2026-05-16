@@ -5,6 +5,7 @@
 //! verifier matches on this variant in `paper::f_prime::verify`.
 
 use crate::paper::construction2::enc_inst::EncInst;
+use crate::paper::construction2::{LatestInstance, RunningInstance};
 use crate::paper::nifs::NifsProof;
 
 /// What kind of fold this step produced.
@@ -32,11 +33,43 @@ pub struct StepProof {
     pub x_out: EncInst,
 }
 
+/// Inputs to the terminal NIFS fold, recorded by the prover so the
+/// non-replay IVC verifier can re-run NIFS.V on the final step alone.
+///
+/// **Why this exists.** A non-replay IVC verifier must still authenticate
+/// the chain through the **terminal** NIFS.V (HyperNova §6.3 Construction 2;
+/// SuperNeo §7). Without storing these inputs explicitly the verifier
+/// cannot rederive the verifier-driven `r` for the post-fold running, so
+/// the running's CE relation check would be sound only at a prover-chosen
+/// point — the soundness gap the council flagged on Phase 1.7's first
+/// attempt.
+///
+/// **Witnesses are stripped.** Both `pre_final_running` and `latest` carry
+/// claims only; the prover-private witness matrices never cross the
+/// proof boundary. `latest.instances[i].witness` is a placeholder
+/// zero-shape matrix when read from a proof.
+#[derive(Clone, Debug)]
+pub struct TerminalFoldInputs {
+    /// `U_{N-1}` — the running accumulator's CE claims (and Π_RLC parent
+    /// authority) **before** the terminal fold. Witness matrices are
+    /// empty when this is read from a proof.
+    pub pre_final_running: RunningInstance,
+    /// `u_N` — the trailing latest's CCS claims (the batch that was about
+    /// to be folded into the running). Witnesses inside are empty when
+    /// read from a proof.
+    pub latest: LatestInstance,
+}
+
 /// Terminal fold proof emitted when finalization folds the last trailing
 /// `latest` into the running accumulator without advancing the chunk/state
 /// counters.
+///
+/// `terminal_inputs` lets a non-replay IVC verifier re-run NIFS.V on the
+/// terminal fold without having to walk all prior steps. See
+/// [`TerminalFoldInputs`] and [`crate::lifecycle::verify_uncompressed`].
 #[derive(Clone, Debug)]
 pub struct FinalFoldProof {
     pub nifs: NifsProof,
     pub x_out: EncInst,
+    pub terminal_inputs: TerminalFoldInputs,
 }

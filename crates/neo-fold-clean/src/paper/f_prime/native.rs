@@ -31,16 +31,61 @@
 //! R1CS form lives in `engine::decider` (PR5).
 
 use neo_ajtai::AjtaiSModule;
+use neo_math::F;
 
 use crate::engine::transcript::Transcript;
 use crate::paper::construction2::{
     self, FoldProof, LatestInstance, ProofState, RunningInstance, State, StepProof, VerifierKey,
 };
+use crate::paper::digest::{digest32_as_fields, structure_digest};
 use crate::paper::nifs;
 use crate::paper::params::Params;
 use crate::paper::relations::{CcsClaim, CcsInstance, DecMixer, RlcMixer, Structure};
 
 pub use construction2::Error;
+
+/// Canonical transcript label for one F' step.
+///
+/// Used by `paper::f_prime::{prove, verify}` (native) and must match the
+/// `cfg.transcript_label` of [`crate::paper::f_prime::r1cs::FPrimeStepConfig`]
+/// when the in-circuit F' R1CS verifies the same step. Both sides initialize
+/// their transcript with this label and absorb the six F'-step context
+/// bundles below before NIFS.V; if either diverges, Fiat–Shamir challenges
+/// disagree at the first absorb and the F' R1CS rejects.
+pub const F_PRIME_STEP_TRANSCRIPT_LABEL: &[u8] = b"neo.fold.clean/f_prime/step/v1";
+
+/// Absorb the six F'-step context bundles into a transcript.
+///
+/// Order is fixed and matches `enforce_f_prime_recursive_step_circuit` in
+/// `paper::f_prime::r1cs`; do not reorder without updating the in-circuit
+/// transcript prefix as well.
+fn absorb_f_prime_step_context(
+    tr: &mut Transcript,
+    vk: &VerifierKey,
+    s: &Structure,
+    state: &State,
+    chunk_digest: [F; 4],
+) {
+    tr.append_fields(b"f_prime/vk_fs", &digest32_as_fields(vk.digest()));
+    tr.append_fields(b"f_prime/structure", &structure_digest(s));
+    tr.append_fields(b"f_prime/z_0", &digest32_as_fields(state.z_0));
+    tr.append_fields(b"f_prime/z_i_in", &digest32_as_fields(state.z_i));
+    tr.append_fields(b"f_prime/public_trace_in", &digest32_as_fields(state.public_trace));
+    tr.append_fields(b"f_prime/chunk_digest", &chunk_digest);
+}
+
+/// Build a fresh per-step F' transcript, initialized with
+/// [`F_PRIME_STEP_TRANSCRIPT_LABEL`] and the six F'-step context absorbs.
+///
+/// `state` is the state **input to this step** (i.e. before `advance_state`
+/// runs), so its `z_i`, `public_trace`, etc. match the F' R1CS's `state-in`
+/// fields. `chunk_digest` is computed from `next_latest`, the new batch
+/// being deposited as `latest` (not the `latest` currently being folded).
+pub fn f_prime_step_transcript(vk: &VerifierKey, s: &Structure, state: &State, chunk_digest: [F; 4]) -> Transcript {
+    let mut tr = Transcript::with_label(F_PRIME_STEP_TRANSCRIPT_LABEL);
+    absorb_f_prime_step_context(&mut tr, vk, s, state, chunk_digest);
+    tr
+}
 
 // ──────────────────────────────────────────────────────────────────────────
 // F' prove (native)
@@ -59,7 +104,6 @@ pub use construction2::Error;
 /// internally from the F' encoder; in the direct-CCS interim it's the
 /// caller's batch of CcsInstances.
 pub fn prove(
-    tr: &mut Transcript,
     pp: &Params,
     s: &Structure,
     log: &AjtaiSModule,
@@ -73,7 +117,7 @@ pub fn prove(
     construction2::state_base_case_check(&state)?;
 
     let fresh_count = next_latest.len() as u64;
-    let chunk_digest = construction2::chunk_public_digest_for_step(state.step_count, &next_latest);
+    let chunk_digest = construction2::f_prime_chunk_public_digest_for_step(state.step_count, &next_latest);
 
     // Destructure proof out of state up front so the rest can move the
     // remaining fields freely.
@@ -95,8 +139,21 @@ pub fn prove(
             (RunningInstance::default(), FoldProof::NoFold)
         }
         ProofState::Active { running, latest } => {
+            // Fresh per-step F' transcript: init label + six state-in
+            // absorbs that the in-circuit F' R1CS replays bit-for-bit.
+            let state_in = State {
+                chunk_count,
+                step_count,
+                z_0,
+                z_i,
+                pc,
+                acc_digest,
+                public_trace,
+                proof: ProofState::Initial,
+            };
+            let mut tr = f_prime_step_transcript(vk, s, &state_in, chunk_digest);
             let (next_running, nifs_proof) = nifs::prove(
-                tr,
+                &mut tr,
                 pp,
                 s,
                 log,
@@ -144,7 +201,6 @@ pub fn prove(
 ///   `proof.folded_claims` and the running claims in `state.proof`.
 /// - Advances state, recomputes x_out, asserts it matches `proof.x_out`.
 pub fn verify(
-    tr: &mut Transcript,
     pp: &Params,
     s: &Structure,
     mix_rhos_commits: RlcMixer,
@@ -158,7 +214,7 @@ pub fn verify(
     construction2::state_base_case_check(&state)?;
 
     let fresh_count = next_latest_claims.len() as u64;
-    let chunk_digest = construction2::chunk_public_digest_from_claims(state.step_count, next_latest_claims);
+    let chunk_digest = construction2::f_prime_chunk_public_digest_from_claims(state.step_count, next_latest_claims);
 
     let State {
         chunk_count,
@@ -172,29 +228,39 @@ pub fn verify(
     } = state;
 
     // F' fold-step verifier — branch on (prev_proof, proof.fold).
-    let next_running_claims = match (prev_proof, &proof.fold) {
+    let next_running = match (prev_proof, &proof.fold) {
         (ProofState::Initial, FoldProof::NoFold) => {
             // i = 0: no NIFS.V; running stays empty.
-            Vec::new()
+            RunningInstance::default()
         }
-        (ProofState::Active { running, latest }, FoldProof::Recursive(nifs_proof)) => nifs::verify(
-            tr,
-            pp,
-            s,
-            mix_rhos_commits,
-            combine_b_pows,
-            &latest.claims(),
-            &running.claims,
-            nifs_proof,
-        )?,
+        (ProofState::Active { running, latest }, FoldProof::Recursive(nifs_proof)) => {
+            // Same fresh per-step F' transcript the prover used.
+            let state_in = State {
+                chunk_count,
+                step_count,
+                z_0,
+                z_i,
+                pc,
+                acc_digest,
+                public_trace,
+                proof: ProofState::Initial,
+            };
+            let mut tr = f_prime_step_transcript(vk, s, &state_in, chunk_digest);
+            nifs::verify(
+                &mut tr,
+                pp,
+                s,
+                mix_rhos_commits,
+                combine_b_pows,
+                &latest.claims(),
+                &running,
+                nifs_proof,
+            )?
+        }
         _ => return Err(Error::FoldProofVariantMismatch),
     };
 
     // Build next ProofState (verifier-side: witnesses empty).
-    let next_running = RunningInstance {
-        claims: next_running_claims,
-        witnesses: Vec::new(),
-    };
     let new_proof = ProofState::Active {
         running: next_running,
         latest: latest_from_claims_for_verifier(next_latest_claims),

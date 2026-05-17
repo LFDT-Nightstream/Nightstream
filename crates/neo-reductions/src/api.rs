@@ -618,6 +618,67 @@ where
     }
 }
 
+/// DEC (SuperNeo-cached): same as `dec_children_with_commit`, but reuses a
+/// caller-provided SuperNeo eval cache.
+///
+/// This is intended for high-level coordinators that already precompute the
+/// verifier-owned optimized structure cache and want Π_DEC to avoid rebuilding
+/// the SuperNeo transformed-matrix view on every prover call.
+pub fn dec_children_with_commit_superneo_cached<Comb>(
+    mode: FoldingMode,
+    s: &CcsStructure<F>,
+    params: &NeoParams,
+    parent: &CeClaim<Cmt, F, K>,
+    Z_split: &[Mat<F>],
+    ell_d: usize,
+    child_commitments: &[Cmt],
+    combine_b_pows: Comb,
+    superneo_cache: &crate::superneo_eval::SuperneoEvalCache,
+) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool)
+where
+    Comb: Fn(&[Cmt], u32) -> Cmt,
+{
+    use crate::engines::pi_rlc_dec::OptimizedRlcDec;
+    if let Err(e) = validate_dec_boundary_inputs(s, params, parent, Z_split, child_commitments, ell_d) {
+        eprintln!("dec_children_with_commit_superneo_cached input validation failed: {e}");
+        return (Vec::new(), false, false, false);
+    }
+
+    match mode {
+        FoldingMode::Optimized => OptimizedRlcDec::dec_children_with_commit_superneo_cached(
+            s,
+            params,
+            parent,
+            Z_split,
+            ell_d,
+            child_commitments,
+            combine_b_pows,
+            superneo_cache,
+        ),
+        #[cfg(feature = "paper-exact")]
+        FoldingMode::PaperExact => crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
+            s,
+            params,
+            parent,
+            Z_split,
+            ell_d,
+            child_commitments,
+            combine_b_pows,
+        ),
+        #[cfg(feature = "paper-exact")]
+        FoldingMode::OptimizedWithCrosscheck(_) => OptimizedRlcDec::dec_children_with_commit_superneo_cached(
+            s,
+            params,
+            parent,
+            Z_split,
+            ell_d,
+            child_commitments,
+            combine_b_pows,
+            superneo_cache,
+        ),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // RLC/DEC Public Verification API
 // ---------------------------------------------------------------------------

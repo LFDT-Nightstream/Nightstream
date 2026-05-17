@@ -987,7 +987,24 @@ where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
 {
-    dec_reduction_paper_exact_inner(s, params, parent, Z_split, ell_d, Some(sparse))
+    let _ = sparse;
+    dec_reduction_paper_exact_inner(s, params, parent, Z_split, ell_d, None)
+}
+
+/// Same as `dec_reduction_paper_exact`, but reuses a prebuilt SuperNeo eval cache.
+pub fn dec_reduction_paper_exact_with_superneo_cache<Ff>(
+    s: &CcsStructure<Ff>,
+    params: &NeoParams,
+    parent: &CeClaim<Cmt, Ff, K>,
+    Z_split: &[Mat<Ff>],
+    ell_d: usize,
+    superneo_cache: &crate::superneo_eval::SuperneoEvalCache,
+) -> (Vec<CeClaim<Cmt, Ff, K>>, bool, bool)
+where
+    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
+    K: From<Ff>,
+{
+    dec_reduction_paper_exact_inner(s, params, parent, Z_split, ell_d, Some(superneo_cache))
 }
 
 fn dec_reduction_paper_exact_inner<Ff>(
@@ -996,7 +1013,7 @@ fn dec_reduction_paper_exact_inner<Ff>(
     parent: &CeClaim<Cmt, Ff, K>,
     Z_split: &[Mat<Ff>],
     ell_d: usize,
-    _sparse: Option<&super::sparse::SparseCache<Ff>>,
+    superneo_cache: Option<&crate::superneo_eval::SuperneoEvalCache>,
 ) -> (Vec<CeClaim<Cmt, Ff, K>>, bool, bool)
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
@@ -1013,6 +1030,8 @@ where
     let m_in = parent.m_in;
 
     // Build χ_r and v_j = M_j^T · χ_r.
+    #[cfg(feature = "perf-timers")]
+    let t_chi_r = std::time::Instant::now();
     let ell_n = parent.r.len();
     let n_sz = 1usize << ell_n; // 2^{ℓ_n}
     let n_eff = core::cmp::min(s.n, n_sz);
@@ -1026,15 +1045,43 @@ where
         }
         chi_r[row] = w;
     }
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[pi-dec-inner] chi_r                         {:>7.2}s",
+        t_chi_r.elapsed().as_secs_f64()
+    );
 
     let t_mats = s.t();
-    let superneo_cache = crate::superneo_eval::build_superneo_eval_cache(s).unwrap_or_else(|| {
-        panic!(
-            "Π_DEC optimized common requires SuperNeo-compatible CCS shape (m={}, matrices={})",
-            s.m,
-            s.matrices.len()
-        )
-    });
+    #[cfg(feature = "perf-timers")]
+    let t_superneo_cache = std::time::Instant::now();
+    let local_superneo_cache;
+    let superneo_cache = match superneo_cache {
+        Some(cache) => cache,
+        None => {
+            local_superneo_cache = crate::superneo_eval::build_superneo_eval_cache(s).unwrap_or_else(|| {
+                panic!(
+                    "Π_DEC optimized common requires SuperNeo-compatible CCS shape (m={}, matrices={})",
+                    s.m,
+                    s.matrices.len()
+                )
+            });
+            &local_superneo_cache
+        }
+    };
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[pi-dec-inner] superneo cache                 {:>7.2}s",
+        t_superneo_cache.elapsed().as_secs_f64()
+    );
+
+    #[cfg(feature = "perf-timers")]
+    let t_ring_forms = std::time::Instant::now();
+    let ring_linear_forms = superneo_cache.build_ring_linear_forms(&chi_r, n_eff);
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[pi-dec-inner] ring linear forms              {:>7.2}s",
+        t_ring_forms.elapsed().as_secs_f64()
+    );
 
     // Scalar base used for DEC reconstruction checks.
     let bF = Ff::from_u64(params.b as u64);
@@ -1053,6 +1100,8 @@ where
     let aux_len = parent_aux.len();
 
     // Optional NC channel: build χ_{s_col} once for all children.
+    #[cfg(feature = "perf-timers")]
+    let t_chi_s = std::time::Instant::now();
     let want_nc_channel = !(parent.s_col.is_empty() && parent.y_zcol.is_empty());
     let chi_s = if want_nc_channel {
         assert!(
@@ -1076,15 +1125,30 @@ where
     } else {
         Vec::new()
     };
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[pi-dec-inner] chi_s                         {:>7.2}s",
+        t_chi_s.elapsed().as_secs_f64()
+    );
 
     // Build children (parallel over digits).
     let build_child = |i: usize| {
+        #[cfg(feature = "perf-timers")]
+        let t_project_decode = std::time::Instant::now();
         let Zi = &Z_split[i];
         let Xi = project_x(Zi);
 
         let z_i = crate::common::decode_superneo_coeffs_from_witness_mat(Zi, s.m)
             .unwrap_or_else(|e| panic!("Π_DEC: failed to decode packed child witness coefficients: {e}"));
-        let y_i: Vec<Vec<K>> = crate::superneo_eval::eval_all_mats_ring_cached(&superneo_cache, &z_i, &chi_r, n_eff)
+        let z_blocks = crate::superneo_eval::SuperneoZBlocks::from_z(&z_i);
+        #[cfg(feature = "perf-timers")]
+        let project_decode_s = t_project_decode.elapsed().as_secs_f64();
+
+        #[cfg(feature = "perf-timers")]
+        let t_y_ring = std::time::Instant::now();
+        let y_i: Vec<Vec<K>> = ring_linear_forms
+            .iter()
+            .map(|form| form.eval_real_z_blocks(&z_blocks))
             .into_iter()
             .map(|coeffs| {
                 let mut row = coeffs.to_vec();
@@ -1101,13 +1165,24 @@ where
             })
             .collect();
         let y_scalars_i = crate::common::ct_from_y_ring_for_ccs_m(&y_i, params, s.m);
+        #[cfg(feature = "perf-timers")]
+        let y_ring_s = t_y_ring.elapsed().as_secs_f64();
 
+        #[cfg(feature = "perf-timers")]
+        let t_y_zcol = std::time::Instant::now();
         let y_zcol = if chi_s.is_empty() {
             Vec::new()
         } else {
             crate::common::compute_y_zcol_from_witness(params, Zi, s.m, &chi_s, d_pad)
                 .unwrap_or_else(|e| panic!("Π_DEC: y_zcol compute failed: {e}"))
         };
+        #[cfg(feature = "perf-timers")]
+        eprintln!(
+            "[pi-dec-inner] child {i:02} project/decode {:>7.2}s y_ring {:>7.2}s y_zcol {:>7.2}s",
+            project_decode_s,
+            y_ring_s,
+            t_y_zcol.elapsed().as_secs_f64()
+        );
 
         CeClaim::<Cmt, Ff, K> {
             c_step_coords: vec![],
@@ -1130,6 +1205,8 @@ where
         }
     };
 
+    #[cfg(feature = "perf-timers")]
+    let t_children = std::time::Instant::now();
     let children: Vec<CeClaim<Cmt, Ff, K>> = {
         #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
         {
@@ -1140,8 +1217,15 @@ where
             (0..k).map(build_child).collect()
         }
     };
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[pi-dec-inner] build children                {:>7.2}s",
+        t_children.elapsed().as_secs_f64()
+    );
 
     // Verify: y_j ?= Σ b^i · y_(i,j)
+    #[cfg(feature = "perf-timers")]
+    let t_ok_y = std::time::Instant::now();
     let mut ok_y = true;
     for j in 0..t_mats {
         let mut lhs = vec![K::ZERO; d_pad];
@@ -1173,8 +1257,15 @@ where
             break;
         }
     }
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[pi-dec-inner] ok_y                          {:>7.2}s",
+        t_ok_y.elapsed().as_secs_f64()
+    );
 
     // Verify: X ?= Σ b^i · X_i.
+    #[cfg(feature = "perf-timers")]
+    let t_ok_x = std::time::Instant::now();
     let mut ok_X = true;
     'x_check: for rho in 0..d {
         for c in 0..m_in {
@@ -1190,6 +1281,11 @@ where
             }
         }
     }
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[pi-dec-inner] ok_X                          {:>7.2}s",
+        t_ok_x.elapsed().as_secs_f64()
+    );
 
     let _ = (want_nc_channel, bK, d_pad);
 

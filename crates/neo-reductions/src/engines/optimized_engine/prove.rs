@@ -597,12 +597,16 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
         utils::bind_me_inputs(tr, me_inputs)?;
     }
     let bind_ms = bind_started.elapsed().as_secs_f64() * 1_000.0;
+    #[cfg(feature = "perf-timers")]
+    eprintln!("optimized_prove: 1. bind/header        {bind_ms:>9.2}ms");
 
     // Sample challenges
     let sample_started = std::time::Instant::now();
     let mut ch = utils::sample_challenges(tr, dims.ell_d, dims.ell)?;
     ch.beta_m = utils::sample_beta_m(tr, dims.ell_m)?;
     let sample_challenges_ms = sample_started.elapsed().as_secs_f64() * 1_000.0;
+    #[cfg(feature = "perf-timers")]
+    eprintln!("optimized_prove: 2. sample challenges  {sample_challenges_ms:>9.2}ms");
 
     let r_inputs = utils::shared_me_input_r(me_inputs, dims.ell_n)?;
 
@@ -655,6 +659,8 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
     }
 
     // Optimized oracles with cached sparse formats and factored algebra
+    #[cfg(feature = "perf-timers")]
+    let oracle_started = std::time::Instant::now();
     let mut oracle = super::oracle::OptimizedOracle::new_with_sparse_and_superneo_cache(
         s,
         params,
@@ -668,6 +674,11 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
         cache.sparse_arc(),
         cache.superneo_arc(),
     );
+    #[cfg(feature = "perf-timers")]
+    {
+        let oracle_build_ms = oracle_started.elapsed().as_secs_f64() * 1_000.0;
+        eprintln!("optimized_prove: 3. oracle build       {oracle_build_ms:>9.2}ms");
+    }
 
     // ---------------------------------------------------------------------
     // FE sumcheck channel (SplitNcV1).
@@ -684,10 +695,35 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
     let mut sumcheck_chals: Vec<K> = Vec::with_capacity(oracle.num_rounds());
 
     let fe_sumcheck_started = std::time::Instant::now();
+    #[cfg(feature = "perf-timers")]
+    let mut fe_eval_ms = 0.0f64;
+    #[cfg(feature = "perf-timers")]
+    let mut fe_interp_ms = 0.0f64;
+    #[cfg(feature = "perf-timers")]
+    let mut fe_fold_ms = 0.0f64;
+    #[cfg(feature = "perf-timers")]
+    let mut fe_largest_eval_ms = 0.0f64;
+    #[cfg(feature = "perf-timers")]
+    let mut fe_largest_eval_round = 0usize;
+    #[cfg(feature = "perf-timers")]
+    let mut fe_largest_fold_ms = 0.0f64;
+    #[cfg(feature = "perf-timers")]
+    let mut fe_largest_fold_round = 0usize;
     for round_idx in 0..oracle.num_rounds() {
+        #[cfg(feature = "perf-timers")]
+        let eval_started = std::time::Instant::now();
         let deg = oracle.degree_bound();
         let xs: Vec<K> = (0..=deg).map(|t| K::from(F::from_u64(t as u64))).collect();
         let ys = oracle.evals_at(&xs);
+        #[cfg(feature = "perf-timers")]
+        {
+            let eval_ms = eval_started.elapsed().as_secs_f64() * 1_000.0;
+            fe_eval_ms += eval_ms;
+            if eval_ms > fe_largest_eval_ms {
+                fe_largest_eval_ms = eval_ms;
+                fe_largest_eval_round = round_idx;
+            }
+        }
 
         #[cfg(feature = "debug-logs")]
         if round_idx == 0 {
@@ -720,7 +756,13 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
         // Sumcheck requires coefficients in low→high order (c0, c1, ..., cn) so that
         // poly_eval_k(coeffs, ·) reproduces ys at x=0,1 and the verifier invariant
         // p(0)+p(1) == running_sum holds.
+        #[cfg(feature = "perf-timers")]
+        let interp_started = std::time::Instant::now();
         let coeffs = crate::sumcheck::interpolate_from_evals(&xs, &ys);
+        #[cfg(feature = "perf-timers")]
+        {
+            fe_interp_ms += interp_started.elapsed().as_secs_f64() * 1_000.0;
+        }
 
         debug_assert_eq!(crate::sumcheck::poly_eval_k(&coeffs, K::ZERO), ys[0]);
         debug_assert_eq!(crate::sumcheck::poly_eval_k(&coeffs, K::ONE), ys[1]);
@@ -734,16 +776,44 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
         // Evaluate at challenge using poly_eval_k (low→high) for consistency.
         running_sum = crate::sumcheck::poly_eval_k(&coeffs, r_i);
 
+        #[cfg(feature = "perf-timers")]
+        let fold_started = std::time::Instant::now();
         oracle.fold(r_i);
+        #[cfg(feature = "perf-timers")]
+        {
+            let fold_ms = fold_started.elapsed().as_secs_f64() * 1_000.0;
+            fe_fold_ms += fold_ms;
+            if fold_ms > fe_largest_fold_ms {
+                fe_largest_fold_ms = fold_ms;
+                fe_largest_fold_round = round_idx;
+            }
+        }
         if let Some(rounds) = sumcheck_rounds.as_mut() {
             rounds.push(coeffs);
         }
     }
     let fe_sumcheck_ms = fe_sumcheck_started.elapsed().as_secs_f64() * 1_000.0;
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "optimized_prove: 4. FE sumcheck        {fe_sumcheck_ms:>9.2}ms ({} rounds)",
+        sumcheck_chals.len()
+    );
+    #[cfg(feature = "perf-timers")]
+    eprintln!("optimized_prove: 4b. FE eval          {fe_eval_ms:>9.2}ms");
+    #[cfg(feature = "perf-timers")]
+    eprintln!("optimized_prove: 4c. FE interpolate   {fe_interp_ms:>9.2}ms");
+    #[cfg(feature = "perf-timers")]
+    eprintln!("optimized_prove: 4d. FE fold          {fe_fold_ms:>9.2}ms");
+    #[cfg(feature = "perf-timers")]
+    eprintln!("optimized_prove: 4e. FE largest eval  {fe_largest_eval_ms:>9.2}ms (round {fe_largest_eval_round})");
+    #[cfg(feature = "perf-timers")]
+    eprintln!("optimized_prove: 4f. FE largest fold  {fe_largest_fold_ms:>9.2}ms (round {fe_largest_fold_round})");
 
     // ---------------------------------------------------------------------
     // NC-only sumcheck (split-NC scaffolding; claimed sum is 0)
     // ---------------------------------------------------------------------
+    #[cfg(feature = "perf-timers")]
+    let nc_oracle_new_started = std::time::Instant::now();
     let mut oracle_nc = super::oracle::NcOracle::new(
         s,
         params,
@@ -754,6 +824,10 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
         dims.ell_m,
         dims.d_sc,
     );
+    #[cfg(feature = "perf-timers")]
+    let nc_oracle_new_ms = nc_oracle_new_started.elapsed().as_secs_f64() * 1_000.0;
+    #[cfg(feature = "perf-timers")]
+    eprintln!("optimized_prove: 5a. NC oracle new     {nc_oracle_new_ms:>9.2}ms");
 
     tr.append_fields_raw(&[F::from_u64(crate::engines::utils::PI_CCS_SUMCHECK_NC_RAW_DOMAIN_TAG)]);
     let initial_sum_nc = K::ZERO;
@@ -768,7 +842,27 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
     let mut sumcheck_chals_nc: Vec<K> = Vec::with_capacity(oracle_nc.num_rounds());
 
     let nc_sumcheck_started = std::time::Instant::now();
+    #[cfg(feature = "perf-timers")]
+    let mut nc_col_coeff_ms = 0.0f64;
+    #[cfg(feature = "perf-timers")]
+    let mut nc_ajtai_coeff_ms = 0.0f64;
+    #[cfg(feature = "perf-timers")]
+    let mut nc_col_fold_ms = 0.0f64;
+    #[cfg(feature = "perf-timers")]
+    let mut nc_ajtai_fold_ms = 0.0f64;
+    #[cfg(feature = "perf-timers")]
+    let mut nc_largest_coeff_ms = 0.0f64;
+    #[cfg(feature = "perf-timers")]
+    let mut nc_largest_coeff_round = 0usize;
+    #[cfg(feature = "perf-timers")]
+    let mut nc_largest_fold_ms = 0.0f64;
+    #[cfg(feature = "perf-timers")]
+    let mut nc_largest_fold_round = 0usize;
     for _round_idx in 0..oracle_nc.num_rounds() {
+        #[cfg(feature = "perf-timers")]
+        let is_col_round = oracle_nc.round_idx < dims.ell_m;
+        #[cfg(feature = "perf-timers")]
+        let coeff_started = std::time::Instant::now();
         let coeffs = if let Some(coeffs) = oracle_nc.optimized_col_phase_round_coeffs() {
             coeffs
         } else {
@@ -777,6 +871,19 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
             let ys = oracle_nc.evals_at(&xs);
             crate::sumcheck::interpolate_from_evals(&xs, &ys)
         };
+        #[cfg(feature = "perf-timers")]
+        {
+            let coeff_ms = coeff_started.elapsed().as_secs_f64() * 1_000.0;
+            if is_col_round {
+                nc_col_coeff_ms += coeff_ms;
+            } else {
+                nc_ajtai_coeff_ms += coeff_ms;
+            }
+            if coeff_ms > nc_largest_coeff_ms {
+                nc_largest_coeff_ms = coeff_ms;
+                nc_largest_coeff_round = _round_idx;
+            }
+        }
 
         let p0 = coeffs[0];
         let p1 = crate::sumcheck::poly_eval_k_base(&coeffs, F::ONE);
@@ -793,12 +900,50 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
         sumcheck_chals_nc.push(r_i);
 
         running_sum_nc = crate::sumcheck::poly_eval_k(&coeffs, r_i);
+        #[cfg(feature = "perf-timers")]
+        let fold_started = std::time::Instant::now();
         oracle_nc.fold(r_i);
+        #[cfg(feature = "perf-timers")]
+        {
+            let fold_ms = fold_started.elapsed().as_secs_f64() * 1_000.0;
+            if is_col_round {
+                nc_col_fold_ms += fold_ms;
+            } else {
+                nc_ajtai_fold_ms += fold_ms;
+            }
+            if fold_ms > nc_largest_fold_ms {
+                nc_largest_fold_ms = fold_ms;
+                nc_largest_fold_round = _round_idx;
+            }
+        }
         if let Some(rounds) = sumcheck_rounds_nc.as_mut() {
             rounds.push(coeffs);
         }
     }
     let nc_sumcheck_ms = nc_sumcheck_started.elapsed().as_secs_f64() * 1_000.0;
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "optimized_prove: 5. NC sumcheck        {nc_sumcheck_ms:>9.2}ms ({} rounds)",
+        sumcheck_chals_nc.len()
+    );
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "optimized_prove: 5b. NC coeff col      {nc_col_coeff_ms:>9.2}ms ({} rounds)",
+        dims.ell_m
+    );
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "optimized_prove: 5c. NC coeff ajtai    {nc_ajtai_coeff_ms:>9.2}ms ({} rounds)",
+        dims.ell_d
+    );
+    #[cfg(feature = "perf-timers")]
+    eprintln!("optimized_prove: 5d. NC fold col       {nc_col_fold_ms:>9.2}ms");
+    #[cfg(feature = "perf-timers")]
+    eprintln!("optimized_prove: 5e. NC fold ajtai     {nc_ajtai_fold_ms:>9.2}ms");
+    #[cfg(feature = "perf-timers")]
+    eprintln!("optimized_prove: 5f. NC largest coeff  {nc_largest_coeff_ms:>9.2}ms (round {nc_largest_coeff_round})");
+    #[cfg(feature = "perf-timers")]
+    eprintln!("optimized_prove: 5g. NC largest fold   {nc_largest_fold_ms:>9.2}ms (round {nc_largest_fold_round})");
 
     // Build outputs at r′ using the oracle's r′-only precomputation (no dense scan).
     let output_started = std::time::Instant::now();
@@ -814,6 +959,8 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
         log,
     );
     let output_materialize_ms = output_started.elapsed().as_secs_f64() * 1_000.0;
+    #[cfg(feature = "perf-timers")]
+    eprintln!("optimized_prove: 6. output             {output_materialize_ms:>9.2}ms");
 
     let perf = PiCcsProvePerf {
         bind_ms,
@@ -823,6 +970,8 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
         output_materialize_ms,
         total_ms: total_started.elapsed().as_secs_f64() * 1_000.0,
     };
+    #[cfg(feature = "perf-timers")]
+    eprintln!("optimized_prove: TOTAL                {:>9.2}ms", perf.total_ms);
 
     let terminal_state = PiCcsReplayTerminalState {
         me_outputs: out_me,

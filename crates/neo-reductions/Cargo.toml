@@ -16,6 +16,10 @@ testing = []
 paper-exact = []
 # Forward neo-transcript debug logging so tests can enable transcript dumps on stable
 debug-logs = ["neo-transcript/debug-log"]
+# Compile-time-only perf timing prints for RowStreamState::build subphases.
+# Separate from debug-logs because the latter also triggers an O(2^ell)
+# paper-exact cross-check unsuited for production-sized structures.
+perf-timers = []
 # Forward fs-guard so tests can compare prover vs verifier transcript events
 fs-guard = ["neo-transcript/fs-guard"]
 # Enable verbose logging for debugging (no-op in this crate; used for cfg gating)

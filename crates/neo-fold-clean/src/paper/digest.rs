@@ -75,11 +75,21 @@ pub fn mat_digest(structure: &CcsStructure<F>) -> [F; 4] {
 /// paths use this digest so changing `f` changes `vk_fs`, `z_0`, public trace
 /// seed, and `x_out`.
 pub fn structure_digest(structure: &CcsStructure<F>) -> [F; 4] {
+    let matrix_digest = mat_digest(structure);
+    structure_digest_from_mat_digest(structure, &matrix_digest)
+}
+
+/// Same digest as [`structure_digest`], using a caller-supplied matrix digest.
+///
+/// This is useful at preprocessing boundaries that already built the
+/// optimized-engine matrix digest for Π_CCS. The supplied digest must be
+/// `mat_digest(structure)`; this helper only avoids recomputing it.
+pub(crate) fn structure_digest_from_mat_digest(structure: &CcsStructure<F>, matrix_digest: &[F; 4]) -> [F; 4] {
     let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/structure_digest/v1");
     preimage.push(F::from_u64(structure.n as u64));
     preimage.push(F::from_u64(structure.m as u64));
     preimage.push(F::from_u64(structure.t() as u64));
-    preimage.extend_from_slice(&mat_digest(structure));
+    preimage.extend_from_slice(matrix_digest);
 
     preimage.push(F::from_u64(structure.f.arity() as u64));
     preimage.push(F::from_u64(structure.f.max_degree() as u64));

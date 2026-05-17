@@ -306,14 +306,14 @@ pub fn preprocess_with_test_log(
     validate_ajtai_context(&params, &structure, &log)?;
     // Verifier-derived caches: pure functions of `structure`, computed
     // once here so engine seams + protocol-binding paths don't recompute
-    // them on every fold/step. The optimized cache carries its own
-    // `mat_digest` fingerprint and is built from the same `structure`
-    // the verifier locally trusts. `structure_digest` is reused inside
-    // `VerifierKey::derive_from_structure_digest` so we only walk the
-    // matrices once per preprocess.
-    let structure_digest = crate::paper::digest::structure_digest(&structure);
-    let vk = VerifierKey::derive_from_structure_digest(&params, &structure_digest, public_input_len);
+    // them on every fold/step. The optimized cache carries the Π_CCS
+    // `mat_digest`, which `structure_digest` also binds, so derive the
+    // structure digest from that same matrix digest instead of walking the
+    // matrices twice during preprocess.
     let optimized_cache = OptimizedStructureCache::build(&structure)?;
+    let structure_digest =
+        crate::paper::digest::structure_digest_from_mat_digest(&structure, optimized_cache.mat_digest());
+    let vk = VerifierKey::derive_from_structure_digest(&params, &structure_digest, public_input_len);
     Ok(Preprocessing {
         params,
         structure,

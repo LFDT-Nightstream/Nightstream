@@ -15,6 +15,7 @@
 use neo_ajtai::AjtaiSModule;
 use neo_ccs::Mat;
 use neo_math::F;
+use neo_reductions::optimized_engine::OptimizedStructureCache;
 use thiserror::Error;
 
 use crate::engine::optimized as engine;
@@ -56,12 +57,14 @@ pub struct Proof {
 pub fn prove(
     pp: &Params,
     s: &Structure,
+    cache: &OptimizedStructureCache,
     log: &AjtaiSModule,
     combine: DecMixer,
     parent: &CeClaim,
     parent_witness: &Mat<F>,
 ) -> Result<(Children, Proof), Error> {
-    let (children, witnesses) = engine::prove_pi_dec(pp, s, log, parent, parent_witness, |cs, b| combine(cs, b))?;
+    let (children, witnesses) =
+        engine::prove_pi_dec(pp, s, cache, log, parent, parent_witness, |cs, b| combine(cs, b))?;
     validate_child_count(pp, children.len())?;
     validate_inactive_x_zero(parent, &children)?;
     Ok((

@@ -10,6 +10,9 @@ workspace = true
 
 [features]
 default = []
+# Forward neo-reductions' compile-time perf timers (RowStreamState::build
+# subphases) so tests under this crate can flip them on with one flag.
+perf-timers = ["neo-reductions/perf-timers"]
 
 # Keep dependencies tight on purpose. Every dep is something an auditor
 # will trust transitively, so the bar is high.
@@ -20,6 +23,8 @@ neo-ccs        = { path = "../neo-ccs" }
 neo-ajtai      = { path = "../neo-ajtai" }
 neo-transcript = { path = "../neo-transcript" }
 neo-reductions = { path = "../neo-reductions" }
+bellpepper-core = { workspace = true }
+ff              = { workspace = true }
 p3-field       = { workspace = true }
 # Poseidon2-in-circuit gadget: derives the same round constants `neo-ccs::PERM`
 # uses by replicating its `ChaCha8Rng::from_seed(SEED)` + `next_u64()` +
@@ -39,6 +44,9 @@ neo-math    = { path = "../neo-math" }
 neo-params  = { path = "../neo-params" }
 p3-field    = { workspace = true }
 rand_chacha = { workspace = true }
+bellpepper  = { workspace = true }
+sha2        = "0.10"
+bincode     = { workspace = true }
 
 # Integration tests live under `tests/<category>/<file>.rs`. Cargo only picks
 # up `.rs` files at the top of `tests/` automatically; every nested file needs
@@ -278,6 +286,10 @@ path = "tests/system/production_params.rs"
 [[test]]
 name = "system_preprocessing_cache_hygiene"
 path = "tests/system/preprocessing_cache_hygiene.rs"
+
+[[test]]
+name = "system_sha256_bellpepper_ccs"
+path = "tests/system/sha256_bellpepper_ccs.rs"
 
 [[test]]
 name = "perf_fibonacci_bits"

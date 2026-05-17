@@ -37,6 +37,7 @@
 //! - A `build_instance` entry that validates user input, packs the
 //!   witness, and commits via Ajtai.
 
+pub mod bellpepper;
 pub mod direct_ccs;
 pub mod f_prime_shell;
 pub mod fibonacci_f_prime;

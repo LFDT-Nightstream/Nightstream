@@ -67,6 +67,7 @@ pub enum Error {
 // reaches them via `paper::construction2::Foo` (one path, no internal
 // double-namespace).
 pub use enc_inst::EncInst;
+pub use finalization::FINAL_FOLD_TRANSCRIPT_LABEL;
 pub use latest::LatestInstance;
 pub use proof_state::ProofState;
 pub use running::RunningInstance;

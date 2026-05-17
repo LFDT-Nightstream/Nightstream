@@ -10,6 +10,8 @@
 //! folded." App frontends (`fibonacci_f_prime`, `r1cs_f_prime`)
 //! configure a plan, hand it to the encoder, and check the result.
 
+use std::sync::Arc;
+
 use neo_ajtai::AjtaiSModule;
 use neo_math::F;
 
@@ -77,10 +79,15 @@ pub struct FPrimeStepInput {
 }
 
 /// Encoder output: image + structure + satisfying witness.
+///
+/// `structure` is shared via [`Arc`] so frontends can cache one
+/// `FPrimeStructure` per preprocessing and reuse it across every
+/// encoded step in a chain instead of rebuilding (~1.5M sparse
+/// constraint rows for SHA-256-sized R1CS shapes).
 #[derive(Debug)]
 pub struct EncodedFPrimeStep {
     pub image: FPrimeImage,
-    pub structure: FPrimeStructure,
+    pub structure: Arc<FPrimeStructure>,
     pub witness: Vec<F>,
 }
 
@@ -170,7 +177,7 @@ pub fn encode_f_prime_step(input: FPrimeStepInput) -> EncodedFPrimeStep {
         image.splice_sponge_transcript(trace);
     }
 
-    let structure = build_f_prime_shell_structure(layout);
+    let structure = Arc::new(build_f_prime_shell_structure(layout));
     let witness = structure.extend_witness_from_image(&image);
 
     assert!(

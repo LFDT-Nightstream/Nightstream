@@ -1,7 +1,7 @@
 //! R1CS F' step encoder.
 //!
 //! Mirrors [`crate::frontends::f_prime_shell::encoder::encode_f_prime_step`]
-//! but builds an R1CS-aware [`FPrimeStructure`] for the final
+//! but consumes a cached, R1CS-aware [`FPrimeStructure`] for the final
 //! satisfaction check, so the resulting encoded step also enforces every
 //! R1CS constraint.
 //!
@@ -10,17 +10,24 @@
 //! the bit-decomposed R1CS variable assignment `z = [x | w]` in fill
 //! order via [`R1csEncoderInput::assignment_bits`]. The encoder writes
 //! those bits into `image.app_private` verbatim.
+//!
+//! The structure is **not** rebuilt per call: every chain in a given
+//! preprocessing shares one [`Arc<FPrimeStructure>`] held on
+//! [`crate::frontends::r1cs_f_prime::R1csFPrimePreprocessing`]. For
+//! R1CS shapes the size of SHA-256 this saves ~1.5M sparse constraint
+//! rows + bit-validity rows of work per step.
+
+use std::sync::Arc;
 
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
 use crate::engine::ccs_native::poseidon2_transcript::SpongeTraceImage;
-use crate::frontends::direct_ccs::R1cs;
 use crate::frontends::f_prime_shell::encoder::{EncodedFPrimeStep, NifsPayloadInput};
-use crate::frontends::f_prime_shell::image::{FPrimeImage, FPrimeImageLayout, KMulView, StateIn, StateOut};
+use crate::frontends::f_prime_shell::image::{FPrimeImage, KMulView, StateIn, StateOut};
 use crate::frontends::f_prime_shell::recursive_plan::{build_recursive_step_image_config, RecursiveStepImagePlan};
-use crate::frontends::r1cs_f_prime::structure::{build_r1cs_f_prime_structure, R1csRowAnchors};
+use crate::frontends::f_prime_shell::structure::FPrimeStructure;
 use crate::paper::f_prime::poseidon_trace::PoseidonTraceImage;
 use crate::paper::f_prime::ring_action_trace::RingActionTraceImage;
 
@@ -61,11 +68,15 @@ pub fn assignment_to_bits(assignment: &[F]) -> Vec<F> {
 
 /// Encode one `enc(F')` step that includes the in-circuit R1CS rows.
 ///
-/// Returns the encoded step plus the R1CS row-anchor metadata so the
-/// compiler can plumb it through to tests/verifiers without rebuilding
-/// the structure.
-pub fn encode_r1cs_f_prime_step(input: R1csEncoderInput, r1cs: &R1cs) -> (EncodedFPrimeStep, R1csRowAnchors) {
+/// `structure` is the verifier-owned cached R1CS-F' structure (see
+/// [`crate::frontends::r1cs_f_prime::R1csFPrimePreprocessing::structure`]).
+/// The encoder reuses it as-is — it does **not** rebuild the structure
+/// per step — and the returned [`EncodedFPrimeStep`] shares the same
+/// [`Arc`] so downstream consumers (`build_instance`, lifecycle folds)
+/// can fast-path the digest check via pointer equality.
+pub fn encode_r1cs_f_prime_step(input: R1csEncoderInput, structure: Arc<FPrimeStructure>) -> EncodedFPrimeStep {
     let config = build_recursive_step_image_config(&input.plan);
+    let layout = structure.layout.clone();
 
     // ── Strict input-shape gate ──────────────────────────────────────
     assert_eq!(
@@ -75,13 +86,20 @@ pub fn encode_r1cs_f_prime_step(input: R1csEncoderInput, r1cs: &R1cs) -> (Encode
     );
     assert_eq!(
         input.assignment_bits.len(),
-        r1cs.m() * POSEIDON2_GOLDILOCKS_BITS,
-        "assignment_bits must have length r1cs.m() * 64"
+        layout.app_private.bits,
+        "assignment_bits must match cached structure's app_private region (= r1cs.m() * 64)"
     );
     assert_eq!(
         input.plan.limbs,
-        r1cs.m() * POSEIDON2_GOLDILOCKS_BITS + 1,
-        "plan.limbs must equal r1cs.m() * 64 + 1 (limbs - 1 = app_private bit count)"
+        layout.app_private.bits + 1,
+        "plan.limbs must equal app_private.bits + 1 (= r1cs.m() * 64 + 1)"
+    );
+    assert!(
+        layout
+            .app_private
+            .bits
+            .is_multiple_of(POSEIDON2_GOLDILOCKS_BITS),
+        "app_private.bits must be a multiple of 64 (one 64-bit lane per R1CS variable)"
     );
     assert_eq!(
         input.nifs_payloads.len(),
@@ -109,8 +127,7 @@ pub fn encode_r1cs_f_prime_step(input: R1csEncoderInput, r1cs: &R1cs) -> (Encode
         "sponge_trace presence must match sponge_transcript_permutes > 0"
     );
 
-    let layout = FPrimeImageLayout::new(config);
-    let mut image = FPrimeImage::new(layout.clone());
+    let mut image = FPrimeImage::new(layout);
 
     image.fill_boundary(&input.boundary_bits);
     image.fill_state_in(&input.state_in);
@@ -142,21 +159,31 @@ pub fn encode_r1cs_f_prime_step(input: R1csEncoderInput, r1cs: &R1cs) -> (Encode
         image.splice_sponge_transcript(trace);
     }
 
-    let (structure, anchors) = build_r1cs_f_prime_structure(layout, r1cs);
+    #[cfg(feature = "perf-timers")]
+    let t_witness = std::time::Instant::now();
     let witness = structure.extend_witness_from_image(&image);
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[r1cs-encode] extend witness               {:>7.2}s",
+        t_witness.elapsed().as_secs_f64()
+    );
 
+    #[cfg(feature = "perf-timers")]
+    let t_satisfied = std::time::Instant::now();
     assert!(
         structure.is_satisfied(&witness),
         "encoded R1CS F' step must satisfy its structure; first failing row: {:?}",
         structure.first_unsatisfied_row(&witness)
     );
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[r1cs-encode] structure.is_satisfied       {:>7.2}s",
+        t_satisfied.elapsed().as_secs_f64()
+    );
 
-    (
-        EncodedFPrimeStep {
-            image,
-            structure,
-            witness,
-        },
-        anchors,
-    )
+    EncodedFPrimeStep {
+        image,
+        structure,
+        witness,
+    }
 }

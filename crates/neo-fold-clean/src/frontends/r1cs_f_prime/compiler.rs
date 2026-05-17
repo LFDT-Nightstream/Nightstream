@@ -9,6 +9,8 @@
 //! prior-fold verification, NIFS CE views, canonical plan validation,
 //! and unified Poseidon trace assembly.
 
+use std::sync::Arc;
+
 use neo_math::F;
 use thiserror::Error;
 
@@ -88,6 +90,8 @@ pub fn compile_step(
     input: R1csFPrimeStepInput,
 ) -> Result<R1csCompiledStep, R1csCompilerError> {
     // ── App-level satisfaction check ────────────────────────────────
+    #[cfg(feature = "perf-timers")]
+    let t_satisfaction = std::time::Instant::now();
     if input.assignment.len() != prep.r1cs.m() {
         return Err(R1csCompilerError::AssignmentLength {
             got: input.assignment.len(),
@@ -97,6 +101,11 @@ pub fn compile_step(
     prep.r1cs
         .is_satisfied_by(&input.assignment)
         .map_err(R1csCompilerError::Unsatisfied)?;
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[r1cs-compile] app satisfaction             {:>7.2}s",
+        t_satisfaction.elapsed().as_secs_f64()
+    );
 
     // ── Branch: base (chunk_count == 0) or recursive (> 0) ──────────
     let is_base = ctx.chain_state.chunk_count == 0;
@@ -117,7 +126,14 @@ pub fn compile_step(
         // The prior-fold transcript is protocol-generic; the shared
         // shell helper performs the per-step F' transcript reconstruction
         // and NIFS verification.
+        #[cfg(feature = "perf-timers")]
+        let t_verify = std::time::Instant::now();
         verify_prior_fold(&prep.prep, ctx, &fold)?;
+        #[cfg(feature = "perf-timers")]
+        eprintln!(
+            "[r1cs-compile] verify_prior_fold          {:>7.2}s",
+            t_verify.elapsed().as_secs_f64()
+        );
         compile_recursive_step(prep, ctx, input, fold)
     }
 }
@@ -214,10 +230,24 @@ fn finalize_compile(
     // R1CS shape produce the same `public_output_digest` — the
     // verifier learns only "some assignment satisfies the R1CS,"
     // not "this specific `x` was proven."
-    let app_public_input: Vec<F> = input.assignment[..prep.r1cs.m_in].to_vec();
+    let app_public_input: Vec<F> = input.assignment[..prep.r1cs.m_in()].to_vec();
+    #[cfg(feature = "perf-timers")]
+    let t_assembly = std::time::Instant::now();
     let assembly = assemble_unified_step_traces(ctx, is_base, &recursive_c_data, child_count, &app_public_input);
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[r1cs-compile] assemble traces              {:>7.2}s",
+        t_assembly.elapsed().as_secs_f64()
+    );
 
+    #[cfg(feature = "perf-timers")]
+    let t_bits = std::time::Instant::now();
     let assignment_bits = assignment_to_bits(&input.assignment);
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[r1cs-compile] assignment_to_bits           {:>7.2}s",
+        t_bits.elapsed().as_secs_f64()
+    );
     let encoder_input = R1csEncoderInput {
         plan,
         boundary_bits: assembly.boundary_bits,
@@ -239,7 +269,14 @@ fn finalize_compile(
         sponge_trace: None,
     };
 
-    let (encoded, _anchors) = encode_r1cs_f_prime_step(encoder_input, &prep.r1cs);
+    #[cfg(feature = "perf-timers")]
+    let t_encode = std::time::Instant::now();
+    let encoded = encode_r1cs_f_prime_step(encoder_input, Arc::clone(&prep.structure));
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[r1cs-compile] encode step                  {:>7.2}s",
+        t_encode.elapsed().as_secs_f64()
+    );
 
     ctx.chain_state = assembly.next_chain_state;
     ctx.fold_for_step = None;

@@ -25,13 +25,16 @@ pub use compiler::{
 pub use encoder::{assignment_to_bits, encode_r1cs_f_prime_step, R1csEncoderInput};
 pub use instance::build_instance;
 pub use lifecycle::{prove_encoded_steps, R1csChainBuilder};
-pub use structure::{build_r1cs_f_prime_structure, R1csRowAnchors};
+pub use structure::{build_r1cs_f_prime_structure, R1csRowAnchors, R1csShape, SparseR1cs};
+
+use std::sync::Arc;
 
 use thiserror::Error;
 
 use crate::frontends::direct_ccs::{ajtai, ajtai_dec_mixer, ajtai_rlc_mixer, R1cs};
 use crate::frontends::f_prime_shell::image::FPrimeImageLayout;
 use crate::frontends::f_prime_shell::recursive_plan::{build_recursive_step_image_config, RecursiveStepImagePlan};
+use crate::frontends::f_prime_shell::structure::FPrimeStructure;
 use crate::lifecycle::{preprocess as lifecycle_preprocess, Preprocessing};
 use crate::paper::params::Params;
 
@@ -44,10 +47,20 @@ use crate::paper::params::Params;
 /// reads it for both base and recursive branches. `r1cs` is the
 /// verifier-pinned circuit shape used to derive the structure's R1CS
 /// rows.
+///
+/// `structure` caches the full [`FPrimeStructure`] (shell rows +
+/// per-constraint R1CS product rows) built once at preprocess time and
+/// shared with every encoded step via [`Arc`]. The R1CS rows scale with
+/// `r1cs.n()` and the shell's bitness rows scale with `plan.limbs`
+/// (~1.5M rows for SHA-256-sized circuits), so re-deriving them per
+/// step would dominate chain build time. `anchors` is kept alongside
+/// for tests / external auditing — the compiler never reads it.
 pub struct R1csFPrimePreprocessing {
     pub prep: Preprocessing,
     pub plan: RecursiveStepImagePlan,
-    pub r1cs: R1cs,
+    pub r1cs: R1csShape,
+    pub structure: Arc<FPrimeStructure>,
+    pub anchors: R1csRowAnchors,
 }
 
 #[derive(Debug, Error)]
@@ -96,10 +109,11 @@ pub fn preprocess(
     params: Params,
 ) -> Result<R1csFPrimePreprocessing, Error> {
     r1cs.validate_shape()?;
-    let (structure, public_input_len) = derive_structure(plan, r1cs)?;
+    let r1cs = R1csShape::Dense(r1cs.clone());
+    let (structure, anchors, public_input_len) = derive_structure(plan, &r1cs)?;
     let prep = lifecycle_preprocess(
         params,
-        structure,
+        structure.ccs.clone(),
         ajtai_rlc_mixer,
         ajtai_dec_mixer,
         Some(public_input_len),
@@ -107,7 +121,35 @@ pub fn preprocess(
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: plan.clone(),
-        r1cs: r1cs.clone(),
+        r1cs,
+        structure,
+        anchors,
+    })
+}
+
+/// Build [`R1csFPrimePreprocessing`] from a verifier-owned plan + sparse
+/// R1CS shape + caller-supplied protocol params.
+pub fn preprocess_sparse(
+    r1cs: &SparseR1cs,
+    plan: &RecursiveStepImagePlan,
+    params: Params,
+) -> Result<R1csFPrimePreprocessing, Error> {
+    r1cs.validate_shape()?;
+    let r1cs = R1csShape::Sparse(r1cs.clone());
+    let (structure, anchors, public_input_len) = derive_structure(plan, &r1cs)?;
+    let prep = lifecycle_preprocess(
+        params,
+        structure.ccs.clone(),
+        ajtai_rlc_mixer,
+        ajtai_dec_mixer,
+        Some(public_input_len),
+    )?;
+    Ok(R1csFPrimePreprocessing {
+        prep,
+        plan: plan.clone(),
+        r1cs,
+        structure,
+        anchors,
     })
 }
 
@@ -120,12 +162,13 @@ pub fn preprocess_seeded(
     seed: u64,
 ) -> Result<R1csFPrimePreprocessing, Error> {
     r1cs.validate_shape()?;
-    let (structure, public_input_len) = derive_structure(plan, r1cs)?;
-    let params = crate::config::r1cs_params(structure.n, structure.m)?;
-    let _ = ajtai::setup_seeded(&params, &structure, seed);
+    let r1cs = R1csShape::Dense(r1cs.clone());
+    let (structure, anchors, public_input_len) = derive_structure(plan, &r1cs)?;
+    let params = crate::config::r1cs_params(structure.ccs.n, structure.ccs.m)?;
+    let _ = ajtai::setup_seeded(&params, &structure.ccs, seed);
     let prep = lifecycle_preprocess(
         params,
-        structure,
+        structure.ccs.clone(),
         ajtai_rlc_mixer,
         ajtai_dec_mixer,
         Some(public_input_len),
@@ -133,7 +176,36 @@ pub fn preprocess_seeded(
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: plan.clone(),
-        r1cs: r1cs.clone(),
+        r1cs,
+        structure,
+        anchors,
+    })
+}
+
+/// Test/demo helper for sparse R1CS shapes.
+pub fn preprocess_sparse_seeded(
+    r1cs: &SparseR1cs,
+    plan: &RecursiveStepImagePlan,
+    seed: u64,
+) -> Result<R1csFPrimePreprocessing, Error> {
+    r1cs.validate_shape()?;
+    let r1cs = R1csShape::Sparse(r1cs.clone());
+    let (structure, anchors, public_input_len) = derive_structure(plan, &r1cs)?;
+    let params = crate::config::r1cs_params(structure.ccs.n, structure.ccs.m)?;
+    let _ = ajtai::setup_seeded(&params, &structure.ccs, seed);
+    let prep = lifecycle_preprocess(
+        params,
+        structure.ccs.clone(),
+        ajtai_rlc_mixer,
+        ajtai_dec_mixer,
+        Some(public_input_len),
+    )?;
+    Ok(R1csFPrimePreprocessing {
+        prep,
+        plan: plan.clone(),
+        r1cs,
+        structure,
+        anchors,
     })
 }
 
@@ -149,11 +221,12 @@ pub fn preprocess_seeded_with_params(
     seed: u64,
 ) -> Result<R1csFPrimePreprocessing, Error> {
     r1cs.validate_shape()?;
-    let (structure, public_input_len) = derive_structure(plan, r1cs)?;
-    let _ = ajtai::setup_seeded(&params, &structure, seed);
+    let r1cs = R1csShape::Dense(r1cs.clone());
+    let (structure, anchors, public_input_len) = derive_structure(plan, &r1cs)?;
+    let _ = ajtai::setup_seeded(&params, &structure.ccs, seed);
     let prep = lifecycle_preprocess(
         params,
-        structure,
+        structure.ccs.clone(),
         ajtai_rlc_mixer,
         ajtai_dec_mixer,
         Some(public_input_len),
@@ -161,17 +234,52 @@ pub fn preprocess_seeded_with_params(
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: plan.clone(),
-        r1cs: r1cs.clone(),
+        r1cs,
+        structure,
+        anchors,
+    })
+}
+
+/// Test/demo helper variant for sparse R1CS with custom params.
+pub fn preprocess_sparse_seeded_with_params(
+    r1cs: &SparseR1cs,
+    plan: &RecursiveStepImagePlan,
+    params: Params,
+    seed: u64,
+) -> Result<R1csFPrimePreprocessing, Error> {
+    r1cs.validate_shape()?;
+    let r1cs = R1csShape::Sparse(r1cs.clone());
+    let (structure, anchors, public_input_len) = derive_structure(plan, &r1cs)?;
+    let _ = ajtai::setup_seeded(&params, &structure.ccs, seed);
+    let prep = lifecycle_preprocess(
+        params,
+        structure.ccs.clone(),
+        ajtai_rlc_mixer,
+        ajtai_dec_mixer,
+        Some(public_input_len),
+    )?;
+    Ok(R1csFPrimePreprocessing {
+        prep,
+        plan: plan.clone(),
+        r1cs,
+        structure,
+        anchors,
     })
 }
 
 /// Run the verifier-owned `(plan, r1cs)` through the canonical
 /// image-layout + R1CS-aware structure builder, after validating that
 /// the plan binds the full R1CS public input into `state_x_out`.
+///
+/// Returns the cached [`FPrimeStructure`] (wrapped in [`Arc`] so the
+/// compiler can hand it to every encoded step) plus the R1CS row
+/// anchors and public-input length. Building this is the dominant cost
+/// of preprocessing for large R1CS shapes — sharing the result across
+/// every step of a chain is the whole point of caching.
 fn derive_structure(
     plan: &RecursiveStepImagePlan,
-    r1cs: &R1cs,
-) -> Result<(neo_ccs::CcsStructure<neo_math::F>, usize), Error> {
+    r1cs: &R1csShape,
+) -> Result<(Arc<FPrimeStructure>, R1csRowAnchors, usize), Error> {
     let expected_limbs = r1cs.m() * crate::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS + 1;
     if plan.limbs != expected_limbs {
         return Err(Error::PlanLimbsMismatch {
@@ -192,16 +300,16 @@ fn derive_structure(
         .state_x_out
         .as_ref()
         .ok_or(Error::PlanMissingStateXOut)?;
-    let expected_indices: Vec<usize> = (0..r1cs.m_in).collect();
+    let expected_indices: Vec<usize> = (0..r1cs.m_in()).collect();
     if state_x_out.app_public_input_var_indices != expected_indices {
         return Err(Error::PlanAppPublicInputMismatch {
             actual: state_x_out.app_public_input_var_indices.clone(),
-            m_in: r1cs.m_in,
+            m_in: r1cs.m_in(),
         });
     }
 
     let layout = FPrimeImageLayout::new(build_recursive_step_image_config(plan));
     let public_input_len = 1 + layout.boundary.bits;
-    let (structure, _anchors) = structure::build_r1cs_f_prime_structure(layout, r1cs);
-    Ok((structure.ccs, public_input_len))
+    let (structure, anchors) = structure::build_r1cs_f_prime_structure(layout, r1cs);
+    Ok((Arc::new(structure), anchors, public_input_len))
 }

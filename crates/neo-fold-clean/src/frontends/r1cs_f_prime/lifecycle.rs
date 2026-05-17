@@ -68,16 +68,45 @@ impl<'a> R1csChainBuilder<'a> {
     /// Append one explicit R1CS-F' compiler input to the chain.
     pub fn append_step(&mut self, input: R1csFPrimeStepInput) -> Result<R1csCompiledStep, Error> {
         if self.audit.is_some() {
+            #[cfg(feature = "perf-timers")]
+            let t_prepare = std::time::Instant::now();
             self.prepare_next_fold()?;
+            #[cfg(feature = "perf-timers")]
+            eprintln!(
+                "[r1cs-chain] prepare_next_fold             {:>7.2}s",
+                t_prepare.elapsed().as_secs_f64()
+            );
         }
 
+        #[cfg(feature = "perf-timers")]
+        let t_compile = std::time::Instant::now();
         let compiled = compile_step(self.prep, &mut self.ctx, input)?;
-        let instance = build_instance(self.prep, &compiled.encoded)?;
+        #[cfg(feature = "perf-timers")]
+        eprintln!(
+            "[r1cs-chain] compile_step                  {:>7.2}s",
+            t_compile.elapsed().as_secs_f64()
+        );
 
+        #[cfg(feature = "perf-timers")]
+        let t_instance = std::time::Instant::now();
+        let instance = build_instance(self.prep, &compiled.encoded)?;
+        #[cfg(feature = "perf-timers")]
+        eprintln!(
+            "[r1cs-chain] build_instance                {:>7.2}s",
+            t_instance.elapsed().as_secs_f64()
+        );
+
+        #[cfg(feature = "perf-timers")]
+        let t_fold = std::time::Instant::now();
         self.audit = Some(match self.audit.take() {
             Some(audit) => crate::lifecycle::extend(&self.prep.prep, audit, vec![instance.clone()])?,
             None => crate::lifecycle::prove(&self.prep.prep, [vec![instance.clone()]])?,
         });
+        #[cfg(feature = "perf-timers")]
+        eprintln!(
+            "[r1cs-chain] lifecycle prove/extend        {:>7.2}s",
+            t_fold.elapsed().as_secs_f64()
+        );
         self.latest_instance = Some(instance);
         Ok(compiled)
     }

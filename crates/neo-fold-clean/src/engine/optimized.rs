@@ -282,6 +282,7 @@ where
 pub fn prove_pi_dec<L, MB>(
     pp: &Params,
     s: &Structure,
+    cache: &OptimizedStructureCache,
     log: &L,
     parent: &CeClaim,
     parent_witness: &Mat<F>,
@@ -292,9 +293,27 @@ where
     MB: Fn(&[Commitment], u32) -> Commitment,
 {
     let k = pp.k_rho() as usize;
+    #[cfg(feature = "perf-timers")]
+    let t_split = std::time::Instant::now();
     let z_split = split_b_matrix_k(parent_witness, k, pp.b())?;
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[pi-dec] split_b                         {:>7.2}s",
+        t_split.elapsed().as_secs_f64()
+    );
+
+    #[cfg(feature = "perf-timers")]
+    let t_commit = std::time::Instant::now();
     let child_commitments: Vec<Commitment> = z_split.iter().map(|z| log.commit(z)).collect();
-    let (children, ok_y, ok_x, ok_c) = nr::dec_children_with_commit(
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[pi-dec] child commitments               {:>7.2}s",
+        t_commit.elapsed().as_secs_f64()
+    );
+
+    #[cfg(feature = "perf-timers")]
+    let t_children = std::time::Instant::now();
+    let (children, ok_y, ok_x, ok_c) = nr::dec_children_with_commit_superneo_cached(
         FoldingMode::Optimized,
         s,
         pp.inner(),
@@ -303,6 +322,12 @@ where
         ell_d(),
         &child_commitments,
         combine_b_pows,
+        cache.superneo(),
+    );
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[pi-dec] dec_children_with_commit        {:>7.2}s",
+        t_children.elapsed().as_secs_f64()
     );
     if children.is_empty() {
         return Err(Error::PiDecFailed);

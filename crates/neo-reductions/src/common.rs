@@ -1030,6 +1030,14 @@ where
             "decompose_balanced_fixed_d_digits_k: invalid base b={b}"
         )));
     }
+    if val == Ff::ZERO {
+        return Ok([K::ZERO; D]);
+    }
+    if val == Ff::ONE {
+        let mut out = [K::ZERO; D];
+        out[0] = K::ONE;
+        return Ok(out);
+    }
 
     let mut rem = to_balanced_i128(val);
     let b_i = b as i128;
@@ -1082,15 +1090,49 @@ where
     Ff: PrimeField64 + PrimeCharacteristicRing + Copy,
     K: From<Ff>,
 {
+    build_witness_nc_digit_table_with_masks(params, Z, expected_m).map(|(digits, _masks)| digits)
+}
+
+pub fn build_witness_nc_digit_table_with_masks<Ff>(
+    params: &NeoParams,
+    Z: &Mat<Ff>,
+    expected_m: usize,
+) -> Result<(Vec<[K; D]>, Vec<u64>), PiCcsError>
+where
+    Ff: PrimeField64 + PrimeCharacteristicRing + Copy,
+    K: From<Ff>,
+{
     validate_superneo_witness_mat(Z, expected_m)?;
     let mut out = vec![[K::ZERO; D]; expected_m];
-    for (col, dst) in out.iter_mut().enumerate().take(expected_m) {
-        let raw = witness_mat_get_f(Z, expected_m, col % D, col);
-        *dst = decompose_balanced_fixed_d_digits_k(raw, params.b)
-            .map_err(|e| PiCcsError::InvalidInput(format!("witness logical_col={col} decomposition failed: {e}")))?;
+    let mut masks = vec![0u64; expected_m];
+    let active_cols = expected_m.div_ceil(D);
+    for rho in 0..D {
+        let row = Z.row(rho);
+        for (blk, &raw) in row.iter().enumerate().take(active_cols) {
+            let col = blk * D + rho;
+            if col >= expected_m || raw == Ff::ZERO {
+                continue;
+            }
+            let dst = &mut out[col];
+            if raw == Ff::ONE {
+                dst[0] = K::ONE;
+                masks[col] = 1;
+                continue;
+            }
+            *dst = decompose_balanced_fixed_d_digits_k(raw, params.b).map_err(|e| {
+                PiCcsError::InvalidInput(format!("witness logical_col={col} decomposition failed: {e}"))
+            })?;
+            let mut mask = 0u64;
+            for (lane, &digit) in dst.iter().enumerate() {
+                if digit != K::ZERO {
+                    mask |= 1u64 << lane;
+                }
+            }
+            masks[col] = mask;
+        }
     }
 
-    Ok(out)
+    Ok((out, masks))
 }
 
 /// Compute NC channel opening `y_zcol := Z_digits · χ_s`, padded to `d_pad`.

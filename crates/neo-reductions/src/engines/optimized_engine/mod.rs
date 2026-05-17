@@ -108,6 +108,7 @@ pub use common::{
     dec_reduction_paper_exact,
     dec_reduction_paper_exact_with_commit_check,
     dec_reduction_paper_exact_with_sparse_cache,
+    dec_reduction_paper_exact_with_superneo_cache,
     // Core equalities & helpers
     eq_points,
     // Q(X) and sums
@@ -264,22 +265,96 @@ pub struct OptimizedStructureCache {
 
 impl OptimizedStructureCache {
     pub fn build(s: &CcsStructure<F>) -> Result<Self, PiCcsError> {
+        #[cfg(feature = "perf-timers")]
+        let t_total = std::time::Instant::now();
+        #[cfg(feature = "perf-timers")]
+        let t_sparse = std::time::Instant::now();
         let sparse = Arc::new(SparseCache::build(s));
-        let superneo = build_superneo_eval_cache(s).ok_or_else(|| {
-            PiCcsError::InvalidInput(format!(
-                "optimized cache requires SuperNeo-compatible CCS shape (m={}, matrices={})",
-                s.m,
-                s.matrices.len()
-            ))
-        })?;
-        let mat_digest: [Goldilocks; 4] = digest_ccs_matrices_with_sparse_cache(s, Some(sparse.as_ref()))
-            .try_into()
-            .map_err(|digest: Vec<Goldilocks>| {
-                PiCcsError::ProtocolError(format!(
-                    "optimized cache expected 4 CCS digest limbs, got {}",
-                    digest.len()
+        #[cfg(feature = "perf-timers")]
+        eprintln!(
+            "OptimizedStructureCache::build: sparse             {:.2?}",
+            t_sparse.elapsed()
+        );
+        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+        let (superneo, mat_digest) = {
+            let sparse_for_digest = Arc::clone(&sparse);
+            let (superneo, mat_digest) = rayon::join(
+                || {
+                    #[cfg(feature = "perf-timers")]
+                    let t_superneo = std::time::Instant::now();
+                    let out = build_superneo_eval_cache(s).ok_or_else(|| {
+                        PiCcsError::InvalidInput(format!(
+                            "optimized cache requires SuperNeo-compatible CCS shape (m={}, matrices={})",
+                            s.m,
+                            s.matrices.len()
+                        ))
+                    });
+                    #[cfg(feature = "perf-timers")]
+                    eprintln!(
+                        "OptimizedStructureCache::build: superneo           {:.2?}",
+                        t_superneo.elapsed()
+                    );
+                    out
+                },
+                || {
+                    #[cfg(feature = "perf-timers")]
+                    let t_digest = std::time::Instant::now();
+                    let out = digest_ccs_matrices_with_sparse_cache(s, Some(sparse_for_digest.as_ref()))
+                        .try_into()
+                        .map_err(|digest: Vec<Goldilocks>| {
+                            PiCcsError::ProtocolError(format!(
+                                "optimized cache expected 4 CCS digest limbs, got {}",
+                                digest.len()
+                            ))
+                        });
+                    #[cfg(feature = "perf-timers")]
+                    eprintln!(
+                        "OptimizedStructureCache::build: matrix digest      {:.2?}",
+                        t_digest.elapsed()
+                    );
+                    out
+                },
+            );
+            (superneo?, mat_digest?)
+        };
+        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+        let (superneo, mat_digest) = {
+            #[cfg(feature = "perf-timers")]
+            let t_superneo = std::time::Instant::now();
+            let superneo = build_superneo_eval_cache(s).ok_or_else(|| {
+                PiCcsError::InvalidInput(format!(
+                    "optimized cache requires SuperNeo-compatible CCS shape (m={}, matrices={})",
+                    s.m,
+                    s.matrices.len()
                 ))
             })?;
+            #[cfg(feature = "perf-timers")]
+            eprintln!(
+                "OptimizedStructureCache::build: superneo           {:.2?}",
+                t_superneo.elapsed()
+            );
+            #[cfg(feature = "perf-timers")]
+            let t_digest = std::time::Instant::now();
+            let mat_digest: [Goldilocks; 4] = digest_ccs_matrices_with_sparse_cache(s, Some(sparse.as_ref()))
+                .try_into()
+                .map_err(|digest: Vec<Goldilocks>| {
+                    PiCcsError::ProtocolError(format!(
+                        "optimized cache expected 4 CCS digest limbs, got {}",
+                        digest.len()
+                    ))
+                })?;
+            #[cfg(feature = "perf-timers")]
+            eprintln!(
+                "OptimizedStructureCache::build: matrix digest      {:.2?}",
+                t_digest.elapsed()
+            );
+            (superneo, mat_digest)
+        };
+        #[cfg(feature = "perf-timers")]
+        eprintln!(
+            "OptimizedStructureCache::build: TOTAL              {:.2?}",
+            t_total.elapsed()
+        );
         Ok(Self {
             sparse,
             superneo: Arc::new(superneo),
@@ -290,6 +365,10 @@ impl OptimizedStructureCache {
 
     pub fn sparse(&self) -> &SparseCache<F> {
         self.sparse.as_ref()
+    }
+
+    pub fn superneo(&self) -> &SuperneoEvalCache {
+        self.superneo.as_ref()
     }
 
     pub(crate) fn sparse_arc(&self) -> Arc<SparseCache<F>> {

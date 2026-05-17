@@ -81,7 +81,6 @@ fn finalized_encoded_f_prime_audit_proof() -> (
 // ── Acceptance ─────────────────────────────────────────────────────────────
 
 #[test]
-#[ignore = "chain re-run under the canonical big plan: verify_uncompressed re-folds the terminal NIFS proof (~70s under the fixed-point CE shape). full red-team matrix × ~70s per terminal-fold replay blows the 5-min per-test cap; run manually with --ignored after the protocol/Spartan path lands or under a smaller test profile."]
 fn verify_uncompressed_accepts_finalized_encoded_f_prime_chain() {
     let (prep, finished) = finalized_encoded_f_prime_proof();
     neo_fold_clean::verify_uncompressed(&prep.prep, &finished)
@@ -98,7 +97,6 @@ fn verify_uncompressed_accepts_finalized_encoded_f_prime_chain() {
 /// untouched, so `verify_uncompressed` still accepts it; the audit
 /// verifier (`verify_uncompressed_audit`) rejects it.
 #[test]
-#[ignore = "chain re-run under the canonical big plan: verify_uncompressed re-folds the terminal NIFS proof (~70s under the fixed-point CE shape). full red-team matrix × ~70s per terminal-fold replay blows the 5-min per-test cap; run manually with --ignored after the protocol/Spartan path lands or under a smaller test profile."]
 fn verify_uncompressed_ignores_audit_trail_that_verify_uncompressed_audit_catches() {
     use neo_fold_clean::paper::construction2::FoldProof;
 
@@ -132,7 +130,6 @@ fn verify_uncompressed_ignores_audit_trail_that_verify_uncompressed_audit_catche
 // ── Rejection — recorded final-running tampers ─────────────────────────────
 
 #[test]
-#[ignore = "chain re-run under the canonical big plan: verify_uncompressed re-folds the terminal NIFS proof (~70s under the fixed-point CE shape). full red-team matrix × ~70s per terminal-fold replay blows the 5-min per-test cap; run manually with --ignored after the protocol/Spartan path lands or under a smaller test profile."]
 fn verify_uncompressed_rejects_tampered_running_witness_entry() {
     let (prep, mut finished) = finalized_encoded_f_prime_proof();
     tamper_running_witness_entry(
@@ -151,7 +148,6 @@ fn verify_uncompressed_rejects_tampered_running_witness_entry() {
 }
 
 #[test]
-#[ignore = "chain re-run under the canonical big plan: verify_uncompressed re-folds the terminal NIFS proof (~70s under the fixed-point CE shape). full red-team matrix × ~70s per terminal-fold replay blows the 5-min per-test cap; run manually with --ignored after the protocol/Spartan path lands or under a smaller test profile."]
 fn verify_uncompressed_rejects_tampered_running_claim_commitment() {
     let (prep, mut finished) = finalized_encoded_f_prime_proof();
     tamper_running_claim_commitment(&mut finished, /* index = */ 0);
@@ -164,7 +160,6 @@ fn verify_uncompressed_rejects_tampered_running_claim_commitment() {
 }
 
 #[test]
-#[ignore = "chain re-run under the canonical big plan: verify_uncompressed re-folds the terminal NIFS proof (~70s under the fixed-point CE shape). full red-team matrix × ~70s per terminal-fold replay blows the 5-min per-test cap; run manually with --ignored after the protocol/Spartan path lands or under a smaller test profile."]
 fn verify_uncompressed_rejects_tampered_running_claim_public_input() {
     let (prep, mut finished) = finalized_encoded_f_prime_proof();
     tamper_running_claim_public_input(&mut finished, /* index = */ 0);
@@ -178,7 +173,6 @@ fn verify_uncompressed_rejects_tampered_running_claim_public_input() {
 }
 
 #[test]
-#[ignore = "chain re-run under the canonical big plan: verify_uncompressed re-folds the terminal NIFS proof (~70s under the fixed-point CE shape). full red-team matrix × ~70s per terminal-fold replay blows the 5-min per-test cap; run manually with --ignored after the protocol/Spartan path lands or under a smaller test profile."]
 fn verify_uncompressed_rejects_tampered_recorded_acc_digest() {
     let (prep, mut finished) = finalized_encoded_f_prime_proof();
     finished.state.acc_digest = [0xA5; 32];
@@ -189,7 +183,6 @@ fn verify_uncompressed_rejects_tampered_recorded_acc_digest() {
 }
 
 #[test]
-#[ignore = "chain re-run under the canonical big plan: verify_uncompressed re-folds the terminal NIFS proof (~70s under the fixed-point CE shape). full red-team matrix × ~70s per terminal-fold replay blows the 5-min per-test cap; run manually with --ignored after the protocol/Spartan path lands or under a smaller test profile."]
 fn verify_uncompressed_rejects_unfinalized_proof_state() {
     let plan = canonical_threaded_plan();
     let prep = fibonacci_f_prime::preprocess_seeded(&plan, 0x1F17_A105).expect("preprocess");
@@ -215,7 +208,6 @@ fn verify_uncompressed_rejects_unfinalized_proof_state() {
 // ── Rejection — chain coordinates ──────────────────────────────────────────
 
 #[test]
-#[ignore = "chain re-run under the canonical big plan: verify_uncompressed re-folds the terminal NIFS proof (~70s under the fixed-point CE shape). full red-team matrix × ~70s per terminal-fold replay blows the 5-min per-test cap; run manually with --ignored after the protocol/Spartan path lands or under a smaller test profile."]
 fn verify_uncompressed_rejects_tampered_chunk_count() {
     let (prep, mut finished) = finalized_encoded_f_prime_proof();
     finished.state.chunk_count += 1;
@@ -228,7 +220,6 @@ fn verify_uncompressed_rejects_tampered_chunk_count() {
 }
 
 #[test]
-#[ignore = "chain re-run under the canonical big plan: verify_uncompressed re-folds the terminal NIFS proof (~70s under the fixed-point CE shape). full red-team matrix × ~70s per terminal-fold replay blows the 5-min per-test cap; run manually with --ignored after the protocol/Spartan path lands or under a smaller test profile."]
 fn verify_uncompressed_rejects_tampered_z_i() {
     let (prep, mut finished) = finalized_encoded_f_prime_proof();
     finished.state.z_i[0] ^= 0xFF;
@@ -239,7 +230,6 @@ fn verify_uncompressed_rejects_tampered_z_i() {
 }
 
 #[test]
-#[ignore = "chain re-run under the canonical big plan: verify_uncompressed re-folds the terminal NIFS proof (~70s under the fixed-point CE shape). full red-team matrix × ~70s per terminal-fold replay blows the 5-min per-test cap; run manually with --ignored after the protocol/Spartan path lands or under a smaller test profile."]
 fn verify_uncompressed_rejects_tampered_public_trace() {
     let (prep, mut finished) = finalized_encoded_f_prime_proof();
     finished.state.public_trace[0] ^= 0xFF;
@@ -252,7 +242,6 @@ fn verify_uncompressed_rejects_tampered_public_trace() {
 // ── Rejection — terminal-fold inputs and NIFS proof ────────────────────────
 
 #[test]
-#[ignore = "chain re-run under the canonical big plan: verify_uncompressed re-folds the terminal NIFS proof (~70s under the fixed-point CE shape). full red-team matrix × ~70s per terminal-fold replay blows the 5-min per-test cap; run manually with --ignored after the protocol/Spartan path lands or under a smaller test profile."]
 fn verify_uncompressed_rejects_tampered_terminal_nifs_proof() {
     let (prep, mut finished) = finalized_encoded_f_prime_proof();
     let final_fold = finished.final_fold.as_mut().expect("final_fold present");
@@ -264,7 +253,6 @@ fn verify_uncompressed_rejects_tampered_terminal_nifs_proof() {
 }
 
 #[test]
-#[ignore = "chain re-run under the canonical big plan: verify_uncompressed re-folds the terminal NIFS proof (~70s under the fixed-point CE shape). full red-team matrix × ~70s per terminal-fold replay blows the 5-min per-test cap; run manually with --ignored after the protocol/Spartan path lands or under a smaller test profile."]
 fn verify_uncompressed_rejects_tampered_terminal_latest_x() {
     let (prep, mut finished) = finalized_encoded_f_prime_proof();
     let final_fold = finished.final_fold.as_mut().expect("final_fold present");
@@ -277,7 +265,6 @@ fn verify_uncompressed_rejects_tampered_terminal_latest_x() {
 }
 
 #[test]
-#[ignore = "chain re-run under the canonical big plan: verify_uncompressed re-folds the terminal NIFS proof (~70s under the fixed-point CE shape). full red-team matrix × ~70s per terminal-fold replay blows the 5-min per-test cap; run manually with --ignored after the protocol/Spartan path lands or under a smaller test profile."]
 fn verify_uncompressed_rejects_cleared_terminal_latest() {
     let (prep, mut finished) = finalized_encoded_f_prime_proof();
     let final_fold = finished.final_fold.as_mut().expect("final_fold present");
@@ -289,7 +276,6 @@ fn verify_uncompressed_rejects_cleared_terminal_latest() {
 }
 
 #[test]
-#[ignore = "chain re-run under the canonical big plan: verify_uncompressed re-folds the terminal NIFS proof (~70s under the fixed-point CE shape). full red-team matrix × ~70s per terminal-fold replay blows the 5-min per-test cap; run manually with --ignored after the protocol/Spartan path lands or under a smaller test profile."]
 fn verify_uncompressed_rejects_tampered_terminal_pre_final_running_commitment() {
     let (prep, mut finished) = finalized_encoded_f_prime_proof();
     let final_fold = finished.final_fold.as_mut().expect("final_fold present");

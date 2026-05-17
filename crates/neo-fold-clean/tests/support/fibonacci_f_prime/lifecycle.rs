@@ -120,7 +120,9 @@ impl<'a> FibonacciChainBuilder<'a> {
     pub fn finish_with_audit(self) -> Result<UncompressedAudit, Error> {
         let prep = self.prep;
         let audit = self.into_audit()?;
-        Ok(neo_fold_clean::lifecycle::finish_uncompressed_with_audit(&prep.prep, audit)?)
+        Ok(neo_fold_clean::lifecycle::finish_uncompressed_with_audit(
+            &prep.prep, audit,
+        )?)
     }
 
     fn prepare_next_fold(&mut self) -> Result<(), Error> {

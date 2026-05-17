@@ -508,7 +508,6 @@ fn fibonacci_chain_builder_appends_recursive_step_under_tiny_params() {
 }
 
 #[test]
-#[ignore = "full compiler-built two-step IVC: base compile + lifecycle fold + recursive compile + final extend + finalize + both `verify_uncompressed_audit` (chain-replay) and `verify_uncompressed` (production terminal-only). Runs ~500 s on dev hardware under the canonical big plan, well above the 5-min default cap. Run manually with `cargo test --release -p neo-fold-clean --test system_fibonacci_compiler_unified_structure -- --ignored compiler_two_step_chain_builds_from_scratch_and_verify_uncompressed_accepts` after small-params lands."]
 fn compiler_two_step_chain_builds_from_scratch_and_verify_uncompressed_accepts() {
     let plan = canonical_threaded_plan();
     let prep = fibonacci_f_prime::preprocess_seeded(&plan, 0xC0DE_0009).expect("preprocess");

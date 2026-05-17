@@ -1,6 +1,6 @@
 //! R1CS F' step encoder.
 //!
-//! Mirrors [`crate::frontends::f_prime_shell::encoder::encode_f_prime_step`]
+//! Mirrors [`crate::frontends::f_prime::encoder::encode_f_prime_step`]
 //! but consumes a cached, R1CS-aware [`FPrimeStructure`] for the final
 //! satisfaction check, so the resulting encoded step also enforces every
 //! R1CS constraint.
@@ -24,10 +24,10 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
 use crate::engine::ccs_native::poseidon2_transcript::SpongeTraceImage;
-use crate::frontends::f_prime_shell::encoder::{EncodedFPrimeStep, NifsPayloadInput};
-use crate::frontends::f_prime_shell::image::{FPrimeImage, KMulView, StateIn, StateOut};
-use crate::frontends::f_prime_shell::recursive_plan::{build_recursive_step_image_config, RecursiveStepImagePlan};
-use crate::frontends::f_prime_shell::structure::FPrimeStructure;
+use crate::frontends::f_prime::encoder::{EncodedFPrimeStep, NifsPayloadInput};
+use crate::frontends::f_prime::image::{FPrimeImage, KMulView, StateIn, StateOut};
+use crate::frontends::f_prime::recursive_plan::{build_recursive_step_image_config, RecursiveStepImagePlan};
+use crate::frontends::f_prime::structure::FPrimeStructure;
 use crate::paper::f_prime::poseidon_trace::PoseidonTraceImage;
 use crate::paper::f_prime::ring_action_trace::RingActionTraceImage;
 

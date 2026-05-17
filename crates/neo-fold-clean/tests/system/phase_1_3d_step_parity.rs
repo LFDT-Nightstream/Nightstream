@@ -35,7 +35,7 @@ use neo_fold_clean::engine::r1cs_circuit::builder::RingMulAuditEntry;
 use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
 use neo_fold_clean::engine::transcript::Transcript;
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
-use neo_fold_clean::frontends::f_prime_shell::image::{
+use neo_fold_clean::frontends::f_prime::image::{
     FPrimeImage, FPrimeImageConfig, FPrimeImageLayout, KMulView, StateIn, StateOut,
 };
 use neo_fold_clean::paper::construction2::RunningInstance;
@@ -579,7 +579,7 @@ fn _suppress_unused() {
 // ── Phase 1.3d-mini-2: nifs_payloads parent_authority wire parity ───────────────────
 
 use neo_fold_clean::engine::r1cs_circuit::Var;
-use neo_fold_clean::frontends::f_prime_shell::image::{NifsCeClaimShape, NifsCeClaimView, NifsPayloadShape};
+use neo_fold_clean::frontends::f_prime::image::{NifsCeClaimShape, NifsCeClaimView, NifsPayloadShape};
 use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsOutputWires;
 use neo_fold_clean::paper::relations::superneo_public_x_cols;
 use p3_field::BasedVectorSpace;

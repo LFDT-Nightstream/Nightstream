@@ -47,7 +47,7 @@ The SuperNeo / HyperNova §6.3 Construction 2 IVC core path is **complete
 for arbitrary fixed-shape R1CS circuits** under the canonical fixed-point
 F' image plan. The frontend stack is split by ownership:
 
-- [`frontends::f_prime_shell`](src/frontends/f_prime_shell/) — the
+- [`frontends::f_prime`](src/frontends/f_prime/) — the
   app-agnostic F' shell: image layout, recursive plan, shell CCS rows,
   encoded step type, shared compiler state, prior-fold verification,
   and unified trace assembly.
@@ -86,7 +86,7 @@ Concretely:
   unchanged, so every Π_RLC / Π_DEC algebraic identity holds
   bit-for-bit.
 - **Per-step F' transcript.** Both app compilers call
-  `f_prime_shell::compiler::verify_prior_fold`, which rebuilds the
+  `f_prime::compiler::verify_prior_fold`, which rebuilds the
   F'-step transcript that `paper::f_prime::native::prove` initialises.
   A real `StepProof::Recursive` from `audit.steps[i]` is accepted; a
   terminal-fold proof from `finish_uncompressed_with_audit` is rejected

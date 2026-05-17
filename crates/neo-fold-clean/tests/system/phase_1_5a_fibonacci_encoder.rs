@@ -37,7 +37,7 @@
 mod support;
 
 use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
-use neo_fold_clean::frontends::f_prime_shell::encoder::encode_f_prime_step;
+use neo_fold_clean::frontends::f_prime::encoder::encode_f_prime_step;
 use neo_fold_clean::paper::f_prime::r1cs::encode_x_out_public_bits;
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};

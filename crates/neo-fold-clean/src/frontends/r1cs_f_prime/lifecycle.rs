@@ -1,6 +1,6 @@
 //! Lifecycle helpers for R1CS-encoded-F' chains.
 
-use crate::frontends::f_prime_shell::encoder::EncodedFPrimeStep;
+use crate::frontends::f_prime::encoder::EncodedFPrimeStep;
 use crate::frontends::r1cs_f_prime::compiler::{
     compile_step, start_chain, R1csCompiledStep, R1csCompilerContext, R1csFPrimeStepInput, R1csFoldForStep,
 };

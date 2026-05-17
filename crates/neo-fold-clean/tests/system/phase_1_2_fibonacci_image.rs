@@ -1,6 +1,6 @@
 //! Phase 1.2 — Fibonacci F' source-image skeleton composition tests.
 //!
-//! Validates that the new `frontends::f_prime_shell::image` module
+//! Validates that the new `frontends::f_prime::image` module
 //! composes mini-1 through mini-4 primitives into one coherent layout
 //! and image for a Fibonacci F' recursive step. Tests cover:
 //!
@@ -15,7 +15,7 @@
 //! that turns an `ivc_invariants` test green.
 
 use neo_fold_clean::engine::ccs_native::poseidon2_transcript::SpongeTraceBuilder;
-use neo_fold_clean::frontends::f_prime_shell::image::{FPrimeImage, FPrimeImageConfig, FPrimeImageLayout};
+use neo_fold_clean::frontends::f_prime::image::{FPrimeImage, FPrimeImageConfig, FPrimeImageLayout};
 use neo_fold_clean::paper::f_prime::poseidon_trace::{assert_committed_coords_are_bits, encode_poseidon_trace};
 use neo_fold_clean::paper::f_prime::ring_action_trace::{
     encode_ring_action_trace, LowNormEncoding, RingActionTraceLayout,

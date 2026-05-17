@@ -4,7 +4,7 @@
 //!
 //! Turn a Fibonacci app step into an [`EncodedFPrimeStep`] the
 //! lifecycle can fold. The shared shell
-//! ([`crate::frontends::f_prime_shell::compiler`]) assembles the unified
+//! ([`neo_fold_clean::frontends::f_prime::compiler`]) assembles the unified
 //! F' traces (chunk digest, state_in / state_out, the five Poseidon
 //! traces, boundary bits, next chain state); this frontend supplies the
 //! Fibonacci transition check, the app-state output, and the encoder
@@ -31,7 +31,7 @@
 //!   The shell assembles `is_base = 1` traces (the base accumulator
 //!   digest comes from `H(tag, 0)`); this frontend fills the NIFS
 //!   payload with a **perp** view via the shell's
-//!   [`perp_nifs_ce_view`][`crate::frontends::f_prime_shell::compiler::perp_nifs_ce_view`]
+//!   [`perp_nifs_ce_view`][`neo_fold_clean::frontends::f_prime::compiler::perp_nifs_ce_view`]
 //!   — deterministic filler, NOT authority. The unified structure's
 //!   selector picks the base accumulator trace's digest into
 //!   `state_out.new_acc_digest`, so the perp payload's `c_data` does
@@ -43,11 +43,11 @@
 //!   `fold_for_step` (rejected with
 //!   `FibonacciCompilerError::Shell(FPrimeShellCompilerError::PriorFoldMissingForRecursiveStep)`
 //!   otherwise). The shell's
-//!   [`verify_prior_fold`][`crate::frontends::f_prime_shell::compiler::verify_prior_fold`]
+//!   [`verify_prior_fold`][`neo_fold_clean::frontends::f_prime::compiler::verify_prior_fold`]
 //!   reruns NIFS.V on the prior fold and rejects if the derived
 //!   `post_running` differs from `fold.post_running`. This frontend
 //!   then fills the NIFS payload via the shell's
-//!   [`nifs_ce_view_from_claim`][`crate::frontends::f_prime_shell::compiler::nifs_ce_view_from_claim`]
+//!   [`nifs_ce_view_from_claim`][`neo_fold_clean::frontends::f_prime::compiler::nifs_ce_view_from_claim`]
 //!   from `post_running.parent_authority`'s real CE claim and the
 //!   shell assembles `is_base = 0` traces (the recursive accumulator
 //!   digest comes from `H(tag, child_count, c_data...)`).
@@ -72,10 +72,10 @@
 //! | Fibonacci `state_in` (`prev`, `curr`, `step_index`) / `witness` (`next`)          | App caller                                                                                                                                               | Provided                 |
 //! | Fibonacci transition check (`next == prev + curr`) and app `state_out`            | This frontend                                                                                                                                            | Hidden / returned via `app_output` |
 //! | Prior fold authority boundary (`pre_running`, `latest`, `proof`, `post_running`)  | Caller hands once per step via `ctx.fold_for_step` (recursive only)                                                                                      | Threaded via `ctx`       |
-//! | F' chain header / state and prior-fold verification                               | `f_prime_shell::compiler` ([`FPrimeCompilerContext`], `verify_prior_fold`)                                                                               | Hidden under `ctx`       |
-//! | Image plan (NIFS shape, accumulator options, canonical CE shape validation)       | `prep.plan` + `f_prime_shell::compiler::canonical_ce_shape_and_child_count`; recursive path shape-validates `post_running.parent_authority` against `prep.plan` and rejects on mismatch | Hidden                   |
-//! | NIFS payload views                                                                | `f_prime_shell::compiler` (`perp_nifs_ce_view` for base, `nifs_ce_view_from_claim` for recursive); selected by Fibonacci branch logic                    | Hidden                   |
-//! | Poseidon traces (boundary, public_trace, base_acc, recursive_acc, state_x_out)    | `f_prime_shell::compiler::assemble_unified_step_traces`                                                                                                  | Hidden                   |
+//! | F' chain header / state and prior-fold verification                               | `f_prime::compiler` ([`FPrimeCompilerContext`], `verify_prior_fold`)                                                                               | Hidden under `ctx`       |
+//! | Image plan (NIFS shape, accumulator options, canonical CE shape validation)       | `prep.plan` + `f_prime::compiler::canonical_ce_shape_and_child_count`; recursive path shape-validates `post_running.parent_authority` against `prep.plan` and rejects on mismatch | Hidden                   |
+//! | NIFS payload views                                                                | `f_prime::compiler` (`perp_nifs_ce_view` for base, `nifs_ce_view_from_claim` for recursive); selected by Fibonacci branch logic                    | Hidden                   |
+//! | Poseidon traces (boundary, public_trace, base_acc, recursive_acc, state_x_out)    | `f_prime::compiler::assemble_unified_step_traces`                                                                                                  | Hidden                   |
 //! | `is_base` lane + `app_private_carries`                                            | This frontend                                                                                                                                            | Hidden                   |
 //! | `FPrimeStepInput` (splices shell assembly with `app_private_carries`, `is_base`, NIFS payload view) and `EncodedFPrimeStep` encoder output | This frontend                                                                                                                                            | **Never exposed** / returned via `encoded` |
 
@@ -83,17 +83,17 @@ use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
 
-use crate::frontends::f_prime_shell::compiler::{
+use neo_fold_clean::frontends::f_prime::compiler::{
     assemble_unified_step_traces, canonical_ce_shape_and_child_count, nifs_ce_view_from_claim, perp_nifs_ce_view,
     start_f_prime_chain_context, verify_prior_fold, FPrimeChainState, FPrimeCompilerContext, FPrimeFoldForStep,
     FPrimeShellCompilerError,
 };
-use crate::frontends::f_prime_shell::encoder::{
+use neo_fold_clean::frontends::f_prime::encoder::{
     encode_f_prime_step, EncodedFPrimeStep, FPrimeStepInput, NifsPayloadInput,
 };
-use crate::frontends::f_prime_shell::image::NifsCeClaimView;
-use crate::frontends::f_prime_shell::recursive_plan::RecursiveStepImagePlan;
-use crate::paper::construction2::TRIVIAL_PC;
+use neo_fold_clean::frontends::f_prime::image::NifsCeClaimView;
+use neo_fold_clean::frontends::f_prime::recursive_plan::RecursiveStepImagePlan;
+use neo_fold_clean::paper::construction2::TRIVIAL_PC;
 
 // ─────────────────────────────────────────────────────────────────────────
 // App surface — the only types the caller writes per step.
@@ -137,7 +137,7 @@ pub struct FibonacciCompiledStep {
 // ─────────────────────────────────────────────────────────────────────────
 // Compiler context.
 //
-// The state types live in `crate::frontends::f_prime_shell::compiler`
+// The state types live in `neo_fold_clean::frontends::f_prime::compiler`
 // because every F' app frontend (Fibonacci, R1CS, …) threads the same
 // shape. Fibonacci re-exports them under app-named aliases so call
 // sites keep their existing names.
@@ -159,7 +159,7 @@ pub type FibonacciFoldForStep = FPrimeFoldForStep;
 /// Initialize a [`FibonacciCompilerContext`] for a fresh chain.
 ///
 /// Thin wrapper over
-/// [`crate::frontends::f_prime_shell::compiler::start_f_prime_chain_context`]
+/// [`neo_fold_clean::frontends::f_prime::compiler::start_f_prime_chain_context`]
 /// that pins Fibonacci's `pc` and `limbs` (3 — two carry bits).
 pub fn start_fibonacci_chain(
     prep: &super::FibonacciFPrimePreprocessing,
@@ -277,10 +277,10 @@ fn compile_recursive_step(
     // verifier-owned canonical CE shape. Truncating or padding would
     // either drop authority (`c_data`, `r`, `y_ring`, …) or write
     // unrelated values into committed payload bits — neither is safe.
-    let actual_shape = crate::frontends::f_prime_shell::image::NifsCeClaimShape {
+    let actual_shape = neo_fold_clean::frontends::f_prime::image::NifsCeClaimShape {
         c_data_entries: post_parent.c.data.len(),
         x_rows: post_parent.X.rows(),
-        x_active_cols: crate::paper::relations::superneo_public_x_cols(post_parent.m_in),
+        x_active_cols: neo_fold_clean::paper::relations::superneo_public_x_cols(post_parent.m_in),
         r_len: post_parent.r.len(),
         y_ring_inner_lens: post_parent.y_ring.iter().map(|row| row.len()).collect(),
         y_zcol_len: post_parent.y_zcol.len(),

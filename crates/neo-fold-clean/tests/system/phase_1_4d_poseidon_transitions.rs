@@ -20,11 +20,11 @@
 use neo_fold_clean::engine::ccs_native::poseidon2::{
     build_bit_backed_poseidon2_hash, POSEIDON2_GOLDILOCKS_BITS, POSEIDON2_RATE,
 };
-use neo_fold_clean::frontends::f_prime_shell::image::{
+use neo_fold_clean::frontends::f_prime::image::{
     FPrimeImage, FPrimeImageConfig, FPrimeImageLayout, PoseidonPreimageLaneSource, PoseidonTransitionEnforcement,
     StateOut,
 };
-use neo_fold_clean::frontends::f_prime_shell::structure::build_f_prime_shell_structure;
+use neo_fold_clean::frontends::f_prime::structure::build_f_prime_structure;
 use neo_fold_clean::paper::f_prime::poseidon_trace::encode_poseidon_trace;
 use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
 use neo_math::F;
@@ -100,7 +100,7 @@ fn honest_image() -> (FPrimeImageLayout, FPrimeImage, [F; PREIMAGE_LEN]) {
         F::from_u64(0x333),
         F::from_u64(0x444),
     ];
-    let state_in = neo_fold_clean::frontends::f_prime_shell::image::StateIn {
+    let state_in = neo_fold_clean::frontends::f_prime::image::StateIn {
         vk_fs_digest: [F::ZERO; 4],
         structure_digest: preimage_vals,
         z_0: [F::ZERO; 4],
@@ -127,10 +127,10 @@ fn honest_image() -> (FPrimeImageLayout, FPrimeImage, [F; PREIMAGE_LEN]) {
 #[test]
 fn phase_1_4d_a4_enforcement_adds_lifted_rows_plus_variable_absorb_rows() {
     let (layout, _, preimage) = honest_image();
-    let with_enforcement = build_f_prime_shell_structure(layout);
+    let with_enforcement = build_f_prime_structure(layout);
 
     let baseline_layout = FPrimeImageLayout::new(enforcement_config(vec![]));
-    let baseline = build_f_prime_shell_structure(baseline_layout);
+    let baseline = build_f_prime_structure(baseline_layout);
 
     let native = build_bit_backed_poseidon2_hash(&preimage.to_vec());
     let native_bitness_count = native
@@ -159,7 +159,7 @@ fn phase_1_4d_a4_enforcement_adds_lifted_rows_plus_variable_absorb_rows() {
 #[test]
 fn phase_1_4d_a4_honest_trace_with_matching_sources_satisfies() {
     let (layout, image, _) = honest_image();
-    let structure = build_f_prime_shell_structure(layout);
+    let structure = build_f_prime_structure(layout);
     let z = structure.extend_witness_from_image(&image);
     assert!(
         structure.is_satisfied(&z),
@@ -171,7 +171,7 @@ fn phase_1_4d_a4_honest_trace_with_matching_sources_satisfies() {
 #[test]
 fn phase_1_4d_a4_tampered_source_lane_trips_absorb_binding() {
     let (layout, image, _) = honest_image();
-    let structure = build_f_prime_shell_structure(layout);
+    let structure = build_f_prime_structure(layout);
     let mut z = structure.extend_witness_from_image(&image);
     assert!(structure.is_satisfied(&z), "baseline must satisfy");
 
@@ -207,7 +207,7 @@ fn phase_1_4d_a4_tampered_internal_trace_lane_trips_round_constraint() {
     use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_WIDTH;
 
     let (layout, image, _) = honest_image();
-    let structure = build_f_prime_shell_structure(layout);
+    let structure = build_f_prime_structure(layout);
     let mut z = structure.extend_witness_from_image(&image);
     assert!(structure.is_satisfied(&z), "baseline must satisfy");
 

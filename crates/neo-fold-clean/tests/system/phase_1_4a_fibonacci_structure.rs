@@ -18,9 +18,9 @@
 //!   the failing `per_step_ccs_structure_must_encode_f_prime` invariant
 //!   still measures the bit-carrier R1CS, not this structure.
 
-use neo_fold_clean::frontends::f_prime_shell::image::{FPrimeImage, FPrimeImageConfig, FPrimeImageLayout, KMulView};
-use neo_fold_clean::frontends::f_prime_shell::structure::{
-    build_f_prime_shell_structure, production_kmul_ring_action_shell_image_config, PRODUCTION_KMUL_COUNT,
+use neo_fold_clean::frontends::f_prime::image::{FPrimeImage, FPrimeImageConfig, FPrimeImageLayout, KMulView};
+use neo_fold_clean::frontends::f_prime::structure::{
+    build_f_prime_structure, production_kmul_ring_action_shell_image_config, PRODUCTION_KMUL_COUNT,
     PRODUCTION_RING_ACTION_PAIR_COUNT,
 };
 use neo_fold_clean::paper::f_prime::poseidon_trace::assert_committed_coords_are_bits;
@@ -115,7 +115,7 @@ fn phase_1_4a_production_config_pins_emitter_counts() {
 #[test]
 fn phase_1_4a_structure_shape_matches_image_layout() {
     let layout = FPrimeImageLayout::new(small_test_image_config());
-    let structure = build_f_prime_shell_structure(layout.clone());
+    let structure = build_f_prime_structure(layout.clone());
 
     assert_eq!(
         structure.ccs.m, layout.end,
@@ -154,7 +154,7 @@ fn phase_1_4a_structure_shape_matches_image_layout() {
 #[test]
 fn phase_1_4a_structure_satisfies_honest_image() {
     let layout = FPrimeImageLayout::new(small_test_image_config());
-    let structure = build_f_prime_shell_structure(layout.clone());
+    let structure = build_f_prime_structure(layout.clone());
     let mut image = FPrimeImage::new(layout);
 
     // kmul: fill both slots with non-zero K-mul views.
@@ -197,7 +197,7 @@ fn phase_1_4a_structure_satisfies_honest_image() {
 #[test]
 fn phase_1_4a_strict_structure_witness_is_low_norm() {
     let layout = FPrimeImageLayout::new(small_test_image_config());
-    let structure = build_f_prime_shell_structure(layout.clone());
+    let structure = build_f_prime_structure(layout.clone());
     let mut image = FPrimeImage::new(layout.clone());
 
     // Fill non-trivial kmul / ring_action content so we exercise lanes that used to
@@ -235,7 +235,7 @@ fn phase_1_4a_strict_structure_witness_is_low_norm() {
 #[test]
 fn phase_1_4a_structure_rejects_non_bit_witness() {
     let layout = FPrimeImageLayout::new(small_test_image_config());
-    let structure = build_f_prime_shell_structure(layout.clone());
+    let structure = build_f_prime_structure(layout.clone());
     let image = FPrimeImage::new(layout);
 
     // Baseline: all-zero bits + zero decoded lanes trivially satisfies.

@@ -4,7 +4,7 @@
 //! `poseidon2_transcript`, `ring_action_trace`, plus the existing
 //! `source_image` boundary layer) into a single layout + image for one
 //! recursive F' step. Concrete app frontends
-//! (`crate::frontends::fibonacci_f_prime`,
+//! (`fibonacci_f_prime`,
 //! `crate::frontends::r1cs_f_prime`) build on this shell.
 //!
 //! This is a skeleton: the layout describes every region (boundary–poseidon from
@@ -277,7 +277,7 @@ pub struct FPrimeImageLayout {
     pub app_private: RegionRange,
     /// Single committed bit; `1` for base step, `0` for recursive step.
     /// Drives the unified-accumulator selector constraint emitted in
-    /// `fibonacci_structure::build_f_prime_shell_structure`. Always
+    /// `fibonacci_structure::build_f_prime_structure`. Always
     /// reserved (one bit) even when the plan has no
     /// `AccumulatorPlanOptions` — the encoder writes `0` there in that
     /// case, and the structure's bit-validity row covers the binary

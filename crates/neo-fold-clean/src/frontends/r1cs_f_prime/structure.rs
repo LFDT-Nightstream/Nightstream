@@ -1,7 +1,7 @@
 //! CCS structure for one `enc(F')` step that hosts an R1CS app circuit.
 //!
 //! Reuses every row the shared F' shell structure
-//! ([`crate::frontends::f_prime_shell::structure::build_f_prime_shell_structure`])
+//! ([`crate::frontends::f_prime::structure::build_f_prime_structure`])
 //! emits (bit-validity, ring-action shell, state-out / public-x_out
 //! digest bindings, selector, Poseidon transitions). On top of the
 //! shell we append exactly `r1cs.n()` product rows — one per R1CS
@@ -17,8 +17,8 @@ use p3_field::PrimeCharacteristicRing;
 use crate::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
 use crate::frontends::direct_ccs::FrontendError;
 use crate::frontends::direct_ccs::R1cs;
-use crate::frontends::f_prime_shell::image::FPrimeImageLayout;
-use crate::frontends::f_prime_shell::structure::{
+use crate::frontends::f_prime::image::FPrimeImageLayout;
+use crate::frontends::f_prime::structure::{
     emit_shell_rows, f_prime_lane_slots, lane_terms, FPrimeStructure, LaneSlot, MixedGateBuilder,
 };
 use crate::paper::relations::Structure;

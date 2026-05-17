@@ -14,8 +14,8 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use thiserror::Error;
 
 use crate::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
-use crate::frontends::f_prime_shell::image::{NifsCeClaimShape, NifsCeClaimView, NifsPayloadShape, StateIn, StateOut};
-use crate::frontends::f_prime_shell::recursive_plan::{
+use crate::frontends::f_prime::image::{NifsCeClaimShape, NifsCeClaimView, NifsPayloadShape, StateIn, StateOut};
+use crate::frontends::f_prime::recursive_plan::{
     build_accumulator_preimage_fields, build_boundary_update_preimage_fields,
     build_public_trace_update_preimage_fields, build_state_x_out_preimage_fields_with_app_x, RecursiveStepImagePlan,
 };

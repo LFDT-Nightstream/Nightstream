@@ -17,9 +17,7 @@
 //! - Lifecycle migration, Spartan, generic AppStep.
 //! - Any change that turns an `ivc_invariants` test green.
 
-use neo_fold_clean::frontends::f_prime_shell::image::{
-    FPrimeImage, FPrimeImageConfig, FPrimeImageLayout, StateIn, StateOut,
-};
+use neo_fold_clean::frontends::f_prime::image::{FPrimeImage, FPrimeImageConfig, FPrimeImageLayout, StateIn, StateOut};
 use neo_fold_clean::paper::f_prime::poseidon_trace::assert_committed_coords_are_bits;
 use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
 use neo_math::F;

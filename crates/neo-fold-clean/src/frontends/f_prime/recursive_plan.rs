@@ -5,7 +5,7 @@
 //! Poseidon hash is enforced with preimage sources read from the
 //! committed F' image regions, and the resulting digest is bound to the
 //! corresponding state-out lane. App frontends
-//! ([`crate::frontends::fibonacci_f_prime`],
+//! ([`fibonacci_f_prime`],
 //! [`crate::frontends::r1cs_f_prime`]) supply the per-app
 //! [`RecursiveStepImagePlan`] and reuse this builder.
 //!
@@ -37,7 +37,7 @@
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-use crate::frontends::f_prime_shell::image::{
+use crate::frontends::f_prime::image::{
     FPrimeImageConfig, NifsPayloadShape, OneShotDigestToPublicXOutBinding, OneShotDigestToStateOutBinding,
     PoseidonPreimageLaneSource, PoseidonTransitionEnforcement, StateOutDigestTarget,
 };
@@ -295,7 +295,7 @@ pub struct AccumulatorPlanOptions {
     /// emits **two** accumulator Poseidon enforcements (one with the
     /// empty-preimage `H(tag, 0)`, one with the recursive preimage
     /// `H(tag, child_count, c_data_entries, c_data ...)`) and pushes a
-    /// [`crate::frontends::f_prime_shell::image::UnifiedAccumulatorSelector`]
+    /// [`crate::frontends::f_prime::image::UnifiedAccumulatorSelector`]
     /// onto the resulting config so the structure builder emits the
     /// selector product rows over the `is_base` lane. When `false`,
     /// the legacy single-accumulator path applies.
@@ -352,7 +352,7 @@ pub fn build_recursive_step_image_config(plan: &RecursiveStepImagePlan) -> FPrim
         },
     ];
 
-    let mut unified_selector: Option<crate::frontends::f_prime_shell::image::UnifiedAccumulatorSelector> = None;
+    let mut unified_selector: Option<crate::frontends::f_prime::image::UnifiedAccumulatorSelector> = None;
     if let Some(acc) = &plan.accumulator {
         if acc.unified {
             // Unified mode: emit two accumulator Poseidon enforcements.
@@ -372,7 +372,7 @@ pub fn build_recursive_step_image_config(plan: &RecursiveStepImagePlan) -> FPrim
                 one_shot_index: 3,
                 preimage_lanes: rec_sources,
             });
-            unified_selector = Some(crate::frontends::f_prime_shell::image::UnifiedAccumulatorSelector {
+            unified_selector = Some(crate::frontends::f_prime::image::UnifiedAccumulatorSelector {
                 base_trace_index: 2,
                 recursive_trace_index: 3,
             });

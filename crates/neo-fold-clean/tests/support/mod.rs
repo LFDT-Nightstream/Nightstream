@@ -1,8 +1,8 @@
 // Shared test fixtures: each test binary inlines this module via `#[path =
 // "../support/mod.rs"] mod support;`, and only uses the subset it needs.
-// `-Dwarnings` turns the resulting `dead_code` warnings into errors per
-// binary, so opt them all out at the module root.
-#![allow(dead_code)]
+// `-Dwarnings` turns the resulting `dead_code` and `unused_imports` warnings
+// into errors per binary, so opt them all out at the module root.
+#![allow(dead_code, unused_imports)]
 
 pub mod fibonacci_f_prime;
 

@@ -19,15 +19,15 @@
 //!    state_x_out → boundary digest binding.
 
 use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
-use neo_fold_clean::frontends::f_prime_shell::image::{
+use neo_fold_clean::frontends::f_prime::image::{
     FPrimeImage, FPrimeImageLayout, NifsCeClaimShape, NifsCeClaimView, NifsPayloadShape, StateIn, StateOut,
 };
-use neo_fold_clean::frontends::f_prime_shell::recursive_plan::{
+use neo_fold_clean::frontends::f_prime::recursive_plan::{
     build_accumulator_preimage_fields, build_boundary_update_preimage_fields,
     build_public_trace_update_preimage_fields, build_recursive_step_image_config, build_state_x_out_preimage_fields,
     AccumulatorPlanOptions, RecursiveStepImagePlan, StateXOutPlanOptions,
 };
-use neo_fold_clean::frontends::f_prime_shell::structure::build_f_prime_shell_structure;
+use neo_fold_clean::frontends::f_prime::structure::build_f_prime_structure;
 use neo_fold_clean::paper::f_prime::poseidon_trace::encode_poseidon_trace;
 use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
 use neo_math::F;
@@ -241,7 +241,7 @@ fn flip_lane_bits_to(z: &mut [F], lane_bit_start: usize, new_value: F) {
 #[test]
 fn phase_1_4f_honest_recursive_step_with_state_x_out_satisfies() {
     let fix = build_honest_fixture();
-    let structure = build_f_prime_shell_structure(fix.layout);
+    let structure = build_f_prime_structure(fix.layout);
     let z = structure.extend_witness_from_image(&fix.image);
     assert!(
         structure.is_satisfied(&z),
@@ -253,7 +253,7 @@ fn phase_1_4f_honest_recursive_step_with_state_x_out_satisfies() {
 #[test]
 fn phase_1_4f_tampered_new_chunk_count_trips_state_x_out_absorb() {
     let fix = build_honest_fixture();
-    let structure = build_f_prime_shell_structure(fix.layout);
+    let structure = build_f_prime_structure(fix.layout);
     let mut z = structure.extend_witness_from_image(&fix.image);
     assert!(structure.is_satisfied(&z), "baseline must satisfy");
 
@@ -275,7 +275,7 @@ fn phase_1_4f_tampered_new_chunk_count_trips_state_x_out_absorb() {
 #[test]
 fn phase_1_4f_tampered_new_z_i_trips_some_state_x_out_row() {
     let fix = build_honest_fixture();
-    let structure = build_f_prime_shell_structure(fix.layout);
+    let structure = build_f_prime_structure(fix.layout);
     let mut z = structure.extend_witness_from_image(&fix.image);
     assert!(structure.is_satisfied(&z), "baseline must satisfy");
 
@@ -295,7 +295,7 @@ fn phase_1_4f_tampered_new_z_i_trips_some_state_x_out_row() {
 #[test]
 fn phase_1_4f_tampered_new_acc_digest_trips_some_state_x_out_row() {
     let fix = build_honest_fixture();
-    let structure = build_f_prime_shell_structure(fix.layout);
+    let structure = build_f_prime_structure(fix.layout);
     let mut z = structure.extend_witness_from_image(&fix.image);
     assert!(structure.is_satisfied(&z), "baseline must satisfy");
 
@@ -312,7 +312,7 @@ fn phase_1_4f_tampered_new_acc_digest_trips_some_state_x_out_row() {
 #[test]
 fn phase_1_4f_tampered_public_x_out_lane_trips_state_x_out_digest_binding() {
     let fix = build_honest_fixture();
-    let structure = build_f_prime_shell_structure(fix.layout);
+    let structure = build_f_prime_structure(fix.layout);
     let mut z = structure.extend_witness_from_image(&fix.image);
     assert!(structure.is_satisfied(&z), "baseline must satisfy");
 

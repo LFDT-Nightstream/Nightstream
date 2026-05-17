@@ -1,15 +1,15 @@
 //! Per-step `CcsInstance` construction for the encoded-F' frontend.
 //!
-//! Unlike [`crate::frontends::direct_ccs::instance::build_instance`]
+//! Unlike [`neo_fold_clean::frontends::direct_ccs::instance::build_instance`]
 //! (which builds an instance from a satisfying R1CS assignment), this
 //! entry takes a fully-encoded `EncodedFPrimeStep` — the
 //! encoder has already produced the strict low-norm witness — and
 //! commits it under the matched preprocessing.
 
-use crate::frontends::f_prime_shell::encoder::EncodedFPrimeStep;
-use crate::frontends::fibonacci_f_prime::{Error, FibonacciFPrimePreprocessing};
-use crate::paper::digest::structure_digest;
-use crate::paper::relations::CcsInstance;
+use super::{Error, FibonacciFPrimePreprocessing};
+use neo_fold_clean::frontends::f_prime::encoder::EncodedFPrimeStep;
+use neo_fold_clean::paper::digest::structure_digest;
+use neo_fold_clean::paper::relations::CcsInstance;
 
 /// Build one `CcsInstance` from an encoded F' step.
 ///

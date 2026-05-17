@@ -15,18 +15,20 @@
 //!   *boundary* encodings — `enc_inst(x_out)` and selected u64 counters.
 //!   Wired into `r1cs.rs` for the recursive public link only. It is
 //!   **not** the production low-norm F' image encoder; that lives in
-//!   the Fibonacci frontend (`crate::frontends::fibonacci_f_prime`).
+//!   the F' shell ([`crate::frontends::f_prime`]).
 //! - **`poseidon_trace`** / **`ring_action_trace`**: F' trace
 //!   primitives. They're paper-layer (no app knowledge) and the
-//!   Fibonacci frontend consumes them.
+//!   F' shell consumes them.
 //!
 //! ## Boundary rule
 //!
-//! `paper::f_prime` **does not know about Fibonacci**. The
-//! Fibonacci-specific image / structure / encoder / recursive-step
-//! plan live under [`crate::frontends::fibonacci_f_prime`] and import
-//! the trace primitives from here. The dependency direction is
-//! one-way: `frontends::fibonacci_f_prime → paper::f_prime`.
+//! `paper::f_prime` **does not know about any app frontend**. The
+//! generic F' image / structure / encoder / recursive-step plan live
+//! under [`crate::frontends::f_prime`] (the engine) and the app
+//! adapters (`frontends::r1cs_f_prime` for production; the Fibonacci
+//! test fixture lives under `tests/support/fibonacci_f_prime`) build
+//! on top of that. The dependency direction is one-way:
+//! `frontends::* → paper::f_prime`.
 
 pub mod digest_circuit;
 pub mod native;

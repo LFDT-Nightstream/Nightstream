@@ -5,7 +5,7 @@
 //! public input `x = z[..m_in]` into `state_x_out`.
 //!
 //! Shared F' mechanics live in
-//! [`crate::frontends::f_prime_shell::compiler`]: chain state,
+//! [`crate::frontends::f_prime::compiler`]: chain state,
 //! prior-fold verification, NIFS CE views, canonical plan validation,
 //! and unified Poseidon trace assembly.
 
@@ -15,14 +15,14 @@ use neo_math::F;
 use thiserror::Error;
 
 use crate::frontends::direct_ccs::FrontendError;
-use crate::frontends::f_prime_shell::compiler::{
+use crate::frontends::f_prime::compiler::{
     assemble_unified_step_traces, canonical_ce_shape_and_child_count, nifs_ce_view_from_claim, perp_nifs_ce_view,
     start_f_prime_chain_context, verify_prior_fold, FPrimeChainState, FPrimeCompilerContext, FPrimeFoldForStep,
     FPrimeShellCompilerError,
 };
-use crate::frontends::f_prime_shell::encoder::{EncodedFPrimeStep, NifsPayloadInput};
-use crate::frontends::f_prime_shell::image::{NifsCeClaimShape, NifsCeClaimView};
-use crate::frontends::f_prime_shell::recursive_plan::RecursiveStepImagePlan;
+use crate::frontends::f_prime::encoder::{EncodedFPrimeStep, NifsPayloadInput};
+use crate::frontends::f_prime::image::{NifsCeClaimShape, NifsCeClaimView};
+use crate::frontends::f_prime::recursive_plan::RecursiveStepImagePlan;
 use crate::frontends::r1cs_f_prime::encoder::{assignment_to_bits, encode_r1cs_f_prime_step, R1csEncoderInput};
 use crate::frontends::r1cs_f_prime::R1csFPrimePreprocessing;
 use crate::paper::construction2::TRIVIAL_PC;
@@ -32,11 +32,10 @@ use crate::paper::construction2::TRIVIAL_PC;
 /// HyperNova / SuperNeo's `pc` (program counter) selects which `F'_j`
 /// the chain folds. The R1CS frontend pins one R1CS shape per chain
 /// (one `pc`, one `F'_j`), so `pc` is constant. We bind it through
-/// `paper::construction2::TRIVIAL_PC` rather than reusing
-/// `frontends::fibonacci_f_prime::FIBONACCI_PC` so the R1CS frontend
-/// doesn't implicitly claim to be the Fibonacci frontend; the
-/// underlying constant is the same `TRIVIAL_PC = 1`, but the name now
-/// reflects which frontend committed to it.
+/// `paper::construction2::TRIVIAL_PC` directly rather than aliasing
+/// it under a frontend-specific name; the underlying constant is the
+/// same `TRIVIAL_PC = 1`, but the name now reflects which frontend
+/// committed to it.
 const R1CS_F_PRIME_PC: u64 = TRIVIAL_PC;
 
 /// R1CS-facing alias for the shared F'-shell fold authority.
@@ -66,7 +65,7 @@ pub type R1csCompilerContext = FPrimeCompilerContext;
 /// Initialise a compiler context for a fresh R1CS chain.
 ///
 /// Thin wrapper over
-/// [`crate::frontends::f_prime_shell::compiler::start_f_prime_chain_context`]
+/// [`crate::frontends::f_prime::compiler::start_f_prime_chain_context`]
 /// that pins the R1CS frontend's `pc` and sources `limbs` from the
 /// canonical plan (sized by the R1CS's variable count `m()`).
 pub fn start_chain(prep: &R1csFPrimePreprocessing) -> Result<R1csCompilerContext, R1csCompilerError> {

@@ -1,7 +1,7 @@
 //! App-agnostic CCS structure for one `enc(F')` step.
 //!
 //! The image layout's regions are owned by
-//! [`crate::frontends::f_prime_shell::image`]; for quick reference:
+//! [`crate::frontends::f_prime::image`]; for quick reference:
 //!
 //! | Region | Holds |
 //! |---|---|
@@ -70,7 +70,7 @@ use p3_field::PrimeCharacteristicRing;
 
 use crate::engine::ccs_native::poseidon2::{POSEIDON2_DIGEST_LEN, POSEIDON2_GOLDILOCKS_BITS, POSEIDON2_WIDTH};
 use crate::engine::r1cs_circuit::ring_action::phi_reduction_coeff;
-use crate::frontends::f_prime_shell::image::{
+use crate::frontends::f_prime::image::{
     FPrimeImage, FPrimeImageConfig, FPrimeImageLayout, NifsPayloadShape, PoseidonPreimageLaneSource,
     StateOutDigestTarget,
 };
@@ -702,7 +702,7 @@ impl MixedGateBuilder {
     }
 }
 
-pub fn build_f_prime_shell_structure(layout: FPrimeImageLayout) -> FPrimeStructure {
+pub fn build_f_prime_structure(layout: FPrimeImageLayout) -> FPrimeStructure {
     let image_end = layout.end;
     assert!(
         image_end >= 2,

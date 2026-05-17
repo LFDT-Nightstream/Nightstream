@@ -17,13 +17,13 @@
 //!    or recursive step (`> 0`, caller supplies a real per-step
 //!    `StepProof::Recursive` via `ctx.fold_for_step`).
 //!
-//! Unlike [`crate::frontends::direct_ccs`] (which takes a user R1CS and
+//! Unlike [`neo_fold_clean::frontends::direct_ccs`] (which takes a user R1CS and
 //! folds raw application CCS instances), this frontend folds the
 //! **augmented** step `enc(F'_i)` HyperNova §6.3 Construction 2 calls
 //! for: each fresh CCS instance is the bit-encoding of a step that
 //! contains the previous fold's NIFS.V trace in-circuit. The chain is
 //! self-verifying; the terminal decider stays O(1) in chain length
-//! (see [`crate::engine::decider::synthesize_last_step_terminal_r1cs`]).
+//! (see [`neo_fold_clean::engine::decider::synthesize_last_step_terminal_r1cs`]).
 //!
 //! ## API surface
 //!
@@ -34,7 +34,7 @@
 //!   setup is read from the canonical global registry for the derived
 //!   structure's CCS shape.
 //! - [`preprocess_seeded`] — test/demo helper that derives params from
-//!   the plan-derived CCS shape via [`crate::config::r1cs_params`] and
+//!   the plan-derived CCS shape via [`neo_fold_clean::config::r1cs_params`] and
 //!   installs the Ajtai setup deterministically from a caller-supplied
 //!   seed.
 //! - [`build_instance`] — turn one encoded F' step into a foldable
@@ -47,8 +47,17 @@
 //!   `ctx.fold_for_step.proof`.
 
 pub mod compiler;
+pub mod fixtures;
 pub mod instance;
 pub mod lifecycle;
+
+// Re-export the threaded-chain fixtures used by Phase 1.5a/1.6a/1.7a tests
+// directly under the Fibonacci namespace so call sites don't need to know
+// they live in a separate submodule.
+pub use fixtures::{
+    build_honest_step_input, canonical_threaded_plan, honest_state_threaded_encoded_f_prime_records,
+    honest_state_threaded_encoded_f_prime_steps, ThreadedEncodedFPrimeRecord, ThreadedFPrimeState, BOUNDARY_BITS,
+};
 
 pub use compiler::{
     compile_fibonacci_step, start_fibonacci_chain, FibonacciAppState, FibonacciAppStepInput, FibonacciAppStepOutput,
@@ -60,12 +69,12 @@ pub use lifecycle::{prove_encoded_steps, FibonacciChainBuilder};
 
 use thiserror::Error;
 
-use crate::frontends::direct_ccs::{ajtai, ajtai_dec_mixer, ajtai_rlc_mixer};
-use crate::frontends::f_prime_shell::image::FPrimeImageLayout;
-use crate::frontends::f_prime_shell::recursive_plan::{build_recursive_step_image_config, RecursiveStepImagePlan};
-use crate::frontends::f_prime_shell::structure::build_f_prime_shell_structure;
-use crate::lifecycle::{preprocess as lifecycle_preprocess, Preprocessing};
-use crate::paper::params::Params;
+use neo_fold_clean::frontends::direct_ccs::{ajtai, ajtai_dec_mixer, ajtai_rlc_mixer};
+use neo_fold_clean::frontends::f_prime::image::FPrimeImageLayout;
+use neo_fold_clean::frontends::f_prime::recursive_plan::{build_recursive_step_image_config, RecursiveStepImagePlan};
+use neo_fold_clean::frontends::f_prime::structure::build_f_prime_structure;
+use neo_fold_clean::lifecycle::{preprocess as lifecycle_preprocess, Preprocessing};
+use neo_fold_clean::paper::params::Params;
 
 /// Lifecycle preprocessing pinned to one encoded-F' CCS structure.
 ///
@@ -104,9 +113,9 @@ pub enum Error {
     #[error(transparent)]
     Params(#[from] neo_params::ParamsError),
     #[error(transparent)]
-    Relations(#[from] crate::paper::relations::RelationError),
+    Relations(#[from] neo_fold_clean::paper::relations::RelationError),
     #[error(transparent)]
-    Lifecycle(#[from] crate::lifecycle::Error),
+    Lifecycle(#[from] neo_fold_clean::lifecycle::Error),
 }
 
 /// Build [`FibonacciFPrimePreprocessing`] from a verifier-owned
@@ -140,16 +149,16 @@ pub fn preprocess(plan: &RecursiveStepImagePlan, params: Params) -> Result<Fibon
 
 /// Test/demo helper: derive structure from the verifier-owned `plan`,
 /// derive params from the resulting CCS shape via
-/// [`crate::config::r1cs_params`], install an Ajtai PP for the shape
+/// [`neo_fold_clean::config::r1cs_params`], install an Ajtai PP for the shape
 /// deterministically from `seed`, then build preprocessing.
 ///
 /// Production callers should install the canonical Ajtai setup out of
 /// band and then call [`preprocess`]. This helper exists for
 /// deterministic tests and examples, mirroring
-/// [`crate::frontends::direct_ccs::preprocess_seeded`].
+/// [`neo_fold_clean::frontends::direct_ccs::preprocess_seeded`].
 pub fn preprocess_seeded(plan: &RecursiveStepImagePlan, seed: u64) -> Result<FibonacciFPrimePreprocessing, Error> {
     let (structure, public_input_len) = derive_canonical_structure(plan);
-    let params = crate::config::r1cs_params(structure.n, structure.m)?;
+    let params = neo_fold_clean::config::r1cs_params(structure.n, structure.m)?;
     let _ = ajtai::setup_seeded(&params, &structure, seed);
     let prep = lifecycle_preprocess(
         params,
@@ -196,6 +205,6 @@ pub fn preprocess_seeded_with_params(
 fn derive_canonical_structure(plan: &RecursiveStepImagePlan) -> (neo_ccs::CcsStructure<neo_math::F>, usize) {
     let layout = FPrimeImageLayout::new(build_recursive_step_image_config(plan));
     let public_input_len = 1 + layout.boundary.bits;
-    let structure = build_f_prime_shell_structure(layout).ccs;
+    let structure = build_f_prime_structure(layout).ccs;
     (structure, public_input_len)
 }

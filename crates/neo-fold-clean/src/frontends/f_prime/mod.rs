@@ -3,7 +3,7 @@
 //! This module owns the app-agnostic encoded-F' image: boundary,
 //! lifecycle state, NIFS payloads, accumulator selector, Poseidon
 //! traces, recursive-step image plan, and the base shell CCS rows. App
-//! frontends such as [`crate::frontends::fibonacci_f_prime`] and
+//! frontends such as [`fibonacci_f_prime`] and
 //! [`crate::frontends::r1cs_f_prime`] add their own app semantics on
 //! top of this shell.
 
@@ -21,4 +21,4 @@ pub use image::{
 pub use recursive_plan::{
     build_recursive_step_image_config, AccumulatorPlanOptions, RecursiveStepImagePlan, StateXOutPlanOptions,
 };
-pub use structure::{build_f_prime_shell_structure, FPrimeStructure};
+pub use structure::{build_f_prime_structure, FPrimeStructure};

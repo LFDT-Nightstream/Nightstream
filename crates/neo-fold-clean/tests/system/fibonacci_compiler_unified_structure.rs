@@ -55,15 +55,10 @@ use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
 use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
-use neo_fold_clean::frontends::f_prime_shell::compiler::FPrimeShellCompilerError;
-use neo_fold_clean::frontends::f_prime_shell::image::{FPrimeImageLayout, NifsCeClaimShape, NifsPayloadShape};
-use neo_fold_clean::frontends::f_prime_shell::recursive_plan::{
+use neo_fold_clean::frontends::f_prime::compiler::FPrimeShellCompilerError;
+use neo_fold_clean::frontends::f_prime::image::{FPrimeImageLayout, NifsCeClaimShape, NifsPayloadShape};
+use neo_fold_clean::frontends::f_prime::recursive_plan::{
     build_recursive_step_image_config, AccumulatorPlanOptions, RecursiveStepImagePlan, StateXOutPlanOptions,
-};
-use neo_fold_clean::frontends::fibonacci_f_prime::{
-    self, compile_fibonacci_step, start_fibonacci_chain, FibonacciAppState, FibonacciAppStepInput, FibonacciAppWitness,
-    FibonacciChainBuilder, FibonacciChainState, FibonacciCompilerError, FibonacciFPrimePreprocessing,
-    FibonacciFoldForStep,
 };
 use neo_fold_clean::lifecycle;
 use neo_fold_clean::paper::construction2::{FoldProof, ProofState};
@@ -71,6 +66,11 @@ use neo_fold_clean::paper::digest::{accumulator_digest_from_claims, digest32_as_
 use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
 use neo_fold_clean::paper::params::Params;
 use neo_params::{goldilocks_paper_b2, NeoParams};
+use support::fibonacci_f_prime::{
+    self, compile_fibonacci_step, start_fibonacci_chain, FibonacciAppState, FibonacciAppStepInput, FibonacciAppWitness,
+    FibonacciChainBuilder, FibonacciChainState, FibonacciCompilerError, FibonacciFPrimePreprocessing,
+    FibonacciFoldForStep,
+};
 
 use support::fibonacci_f_prime::{canonical_threaded_plan, BOUNDARY_BITS};
 
@@ -249,7 +249,7 @@ fn compiler_base_step_emits_perp_nifs_payload() {
 
     // Pull the canonical CE shape out of the prep's plan.
     let ce_shape: NifsCeClaimShape = {
-        use neo_fold_clean::frontends::f_prime_shell::image::NifsPayloadShape;
+        use neo_fold_clean::frontends::f_prime::image::NifsPayloadShape;
         match &prep.plan.nifs_payload_shapes[0] {
             NifsPayloadShape::CeClaim(s) => s.clone(),
             other => panic!("expected CeClaim shape, got {other:?}"),

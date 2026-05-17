@@ -24,7 +24,7 @@
 use neo_fold_clean::engine::r1cs_circuit::builder::Var;
 use neo_fold_clean::engine::r1cs_circuit::ring_action::{enforce_ring_mul_with_products, RingMulProducts};
 use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
-use neo_fold_clean::frontends::f_prime_shell::image::{FPrimeImage, FPrimeImageConfig, FPrimeImageLayout};
+use neo_fold_clean::frontends::f_prime::image::{FPrimeImage, FPrimeImageConfig, FPrimeImageLayout};
 use neo_fold_clean::paper::f_prime::poseidon_trace::assert_committed_coords_are_bits;
 use neo_fold_clean::paper::f_prime::ring_action_trace::{
     encode_ring_action_trace, LowNormEncoding, RingActionTraceLayout,

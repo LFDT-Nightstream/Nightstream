@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::frontends::f_prime_shell::encoder::EncodedFPrimeStep;
+use crate::frontends::f_prime::encoder::EncodedFPrimeStep;
 use crate::frontends::r1cs_f_prime::{Error, R1csFPrimePreprocessing};
 use crate::paper::digest::structure_digest;
 use crate::paper::relations::CcsInstance;

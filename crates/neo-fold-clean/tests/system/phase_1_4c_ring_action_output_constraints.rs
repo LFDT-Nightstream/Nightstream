@@ -11,8 +11,8 @@
 //!   chain folds `enc(F'_i)`.
 
 use neo_fold_clean::engine::r1cs_circuit::ring_action::phi_reduction_coeff;
-use neo_fold_clean::frontends::f_prime_shell::image::{FPrimeImage, FPrimeImageConfig, FPrimeImageLayout};
-use neo_fold_clean::frontends::f_prime_shell::structure::build_f_prime_shell_structure;
+use neo_fold_clean::frontends::f_prime::image::{FPrimeImage, FPrimeImageConfig, FPrimeImageLayout};
+use neo_fold_clean::frontends::f_prime::structure::build_f_prime_structure;
 use neo_fold_clean::paper::f_prime::ring_action_trace::{
     encode_ring_action_trace, LowNormEncoding, RingActionTraceLayout,
 };
@@ -96,7 +96,7 @@ fn ring_action_out_slot_index(pair_idx: usize, m: usize) -> usize {
 #[test]
 fn phase_1_4c_ring_action_output_row_count_shape() {
     let layout = FPrimeImageLayout::new(small_ring_action_config());
-    let structure = build_f_prime_shell_structure(layout.clone());
+    let structure = build_f_prime_structure(layout.clone());
     let output_rows = layout.config.ring_action_pair_count * D;
 
     assert_eq!(
@@ -123,7 +123,7 @@ fn phase_1_4c_ring_action_output_row_count_shape() {
 #[test]
 fn phase_1_4c_honest_ring_action_image_satisfies_output_rows() {
     let (layout, image) = honest_ring_action_image();
-    let structure = build_f_prime_shell_structure(layout);
+    let structure = build_f_prime_structure(layout);
 
     let z = structure.extend_witness_from_image(&image);
     assert!(
@@ -136,7 +136,7 @@ fn phase_1_4c_honest_ring_action_image_satisfies_output_rows() {
 #[test]
 fn phase_1_4c_tampered_ring_action_output_lane_with_matching_bits_trips_output_row() {
     let (layout, mut image) = honest_ring_action_image();
-    let structure = build_f_prime_shell_structure(layout);
+    let structure = build_f_prime_structure(layout);
 
     let baseline = structure.extend_witness_from_image(&image);
     assert!(structure.is_satisfied(&baseline), "baseline must satisfy");
@@ -166,7 +166,7 @@ fn phase_1_4c_tampered_ring_action_output_lane_with_matching_bits_trips_output_r
 #[test]
 fn phase_1_4c_output_row_matches_phi_reduction_coefficients() {
     let (layout, image) = honest_ring_action_image();
-    let structure = build_f_prime_shell_structure(layout);
+    let structure = build_f_prime_structure(layout);
     let z = structure.extend_witness_from_image(&image);
 
     let pair_idx = 1usize;

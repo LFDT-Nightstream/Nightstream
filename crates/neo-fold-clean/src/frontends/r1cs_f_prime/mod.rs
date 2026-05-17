@@ -1,6 +1,6 @@
 //! R1CS F' frontend — fixed-shape R1CS circuit in, foldable lifecycle out.
 //!
-//! Mirrors [`crate::frontends::fibonacci_f_prime`] but lets the user
+//! Mirrors [`fibonacci_f_prime`] but lets the user
 //! pick the per-step app circuit. The verifier pins one R1CS shape
 //! [`R1cs`]; every step supplies a satisfying assignment `z = [x | w]`
 //! and the compiler emits an encoded F' step whose CCS structure
@@ -32,9 +32,9 @@ use std::sync::Arc;
 use thiserror::Error;
 
 use crate::frontends::direct_ccs::{ajtai, ajtai_dec_mixer, ajtai_rlc_mixer, R1cs};
-use crate::frontends::f_prime_shell::image::FPrimeImageLayout;
-use crate::frontends::f_prime_shell::recursive_plan::{build_recursive_step_image_config, RecursiveStepImagePlan};
-use crate::frontends::f_prime_shell::structure::FPrimeStructure;
+use crate::frontends::f_prime::image::FPrimeImageLayout;
+use crate::frontends::f_prime::recursive_plan::{build_recursive_step_image_config, RecursiveStepImagePlan};
+use crate::frontends::f_prime::structure::FPrimeStructure;
 use crate::lifecycle::{preprocess as lifecycle_preprocess, Preprocessing};
 use crate::paper::params::Params;
 

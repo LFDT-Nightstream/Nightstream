@@ -29,8 +29,8 @@ use p3_field::PrimeCharacteristicRing;
 
 use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
 use neo_fold_clean::frontends::direct_ccs::R1cs;
-use neo_fold_clean::frontends::f_prime_shell::image::{FPrimeImageLayout, NifsCeClaimShape, NifsPayloadShape};
-use neo_fold_clean::frontends::f_prime_shell::recursive_plan::{
+use neo_fold_clean::frontends::f_prime::image::{FPrimeImageLayout, NifsCeClaimShape, NifsPayloadShape};
+use neo_fold_clean::frontends::f_prime::recursive_plan::{
     build_recursive_step_image_config, AccumulatorPlanOptions, RecursiveStepImagePlan, StateXOutPlanOptions,
 };
 use neo_fold_clean::frontends::r1cs_f_prime::{
@@ -348,7 +348,7 @@ fn r1cs_compiler_row_count_matches_r1cs_n() {
 /// `r1cs_compiler_row_count_matches_r1cs_n` to feed the same app
 /// assignment to two different R1CS structures.
 fn honest_witness_with_assignment_for(
-    structure: &neo_fold_clean::frontends::f_prime_shell::structure::FPrimeStructure,
+    structure: &neo_fold_clean::frontends::f_prime::structure::FPrimeStructure,
     assignment_bits: &[F],
 ) -> Vec<F> {
     let r1cs = one_product_r1cs();

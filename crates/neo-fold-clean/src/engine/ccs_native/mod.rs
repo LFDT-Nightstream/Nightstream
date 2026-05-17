@@ -12,7 +12,7 @@
 //! Scope: standalone components only. None of these builders touch
 //! F', NIFS, or lifecycle. They are individual gadgets that produce
 //! one self-contained CCS instance per call. F'-specific composition
-//! lives in `frontends::f_prime_shell::structure`.
+//! lives in `frontends::f_prime::structure`.
 
 pub mod poseidon2;
 pub mod poseidon2_transcript;

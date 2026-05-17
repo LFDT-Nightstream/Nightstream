@@ -24,15 +24,15 @@
 #![allow(non_snake_case)]
 
 use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
-use neo_fold_clean::frontends::f_prime_shell::image::{
+use neo_fold_clean::frontends::f_prime::image::{
     FPrimeImage, FPrimeImageLayout, NifsCeClaimShape, NifsCeClaimView, NifsPayloadShape, StateIn, StateOut,
 };
-use neo_fold_clean::frontends::f_prime_shell::recursive_plan::{
+use neo_fold_clean::frontends::f_prime::recursive_plan::{
     build_accumulator_preimage_fields, build_boundary_update_preimage_fields,
     build_public_trace_update_preimage_fields, build_recursive_step_image_config, build_state_x_out_preimage_fields,
     AccumulatorPlanOptions, RecursiveStepImagePlan, StateXOutPlanOptions,
 };
-use neo_fold_clean::frontends::f_prime_shell::structure::build_f_prime_shell_structure;
+use neo_fold_clean::frontends::f_prime::structure::build_f_prime_structure;
 use neo_fold_clean::paper::digest::{
     accumulator_digest_from_claims, accumulator_digest_from_parent_c_data, digest32_as_fields,
 };
@@ -141,7 +141,7 @@ fn unified_plan_drops_direct_new_acc_digest_binding() {
     // Unified mode replaces the direct linear binding with the
     // selector product rows; the state-out bindings list must NOT
     // mention NewAccDigest.
-    use neo_fold_clean::frontends::f_prime_shell::image::StateOutDigestTarget;
+    use neo_fold_clean::frontends::f_prime::image::StateOutDigestTarget;
     let has_new_acc = config
         .one_shot_digest_to_state_out_bindings
         .iter()
@@ -156,7 +156,7 @@ fn unified_plan_drops_direct_new_acc_digest_binding() {
 fn legacy_plan_keeps_direct_new_acc_digest_binding() {
     let plan = make_plan(/* unified = */ false);
     let config = build_recursive_step_image_config(&plan);
-    use neo_fold_clean::frontends::f_prime_shell::image::StateOutDigestTarget;
+    use neo_fold_clean::frontends::f_prime::image::StateOutDigestTarget;
     let has_new_acc = config
         .one_shot_digest_to_state_out_bindings
         .iter()
@@ -204,11 +204,11 @@ fn unified_structure_builds_without_panicking() {
     // The structure builder asserts row counts internally
     // (`debug_assert_eq!(builder.rows, total_rows)`). If the selector
     // emission diverges from `unified_selector_count`, this build
-    // panics. Reaching the end of `build_f_prime_shell_structure`
+    // panics. Reaching the end of `build_f_prime_structure`
     // is the M3a structural smoke test.
     let plan = make_plan(/* unified = */ true);
     let layout = FPrimeImageLayout::new(build_recursive_step_image_config(&plan));
-    let _structure = build_f_prime_shell_structure(layout);
+    let _structure = build_f_prime_structure(layout);
     // No assertion needed — building without panic is the assertion.
 }
 
@@ -443,7 +443,7 @@ fn unified_accumulator_selector_recursive_digest_equals_paper_helper() {
 #[test]
 fn unified_accumulator_selector_accepts_base_digest() {
     let fixture = build_unified_image(SelectedDigest::Base);
-    let structure = build_f_prime_shell_structure(fixture.layout.clone());
+    let structure = build_f_prime_structure(fixture.layout.clone());
     let z = structure.extend_witness_from_image(&fixture.image);
     assert!(
         structure.is_satisfied(&z),
@@ -455,7 +455,7 @@ fn unified_accumulator_selector_accepts_base_digest() {
 #[test]
 fn unified_accumulator_selector_accepts_recursive_digest() {
     let fixture = build_unified_image(SelectedDigest::Recursive);
-    let structure = build_f_prime_shell_structure(fixture.layout.clone());
+    let structure = build_f_prime_structure(fixture.layout.clone());
     let z = structure.extend_witness_from_image(&fixture.image);
     assert!(
         structure.is_satisfied(&z),
@@ -478,7 +478,7 @@ fn unified_accumulator_selector_rejects_base_flag_flip() {
     assert_eq!(fixture.image.values[is_base_col], F::ONE);
     fixture.image.values[is_base_col] = F::ZERO;
 
-    let structure = build_f_prime_shell_structure(fixture.layout.clone());
+    let structure = build_f_prime_structure(fixture.layout.clone());
     let z = structure.extend_witness_from_image(&fixture.image);
     assert!(
         !structure.is_satisfied(&z),
@@ -554,7 +554,7 @@ fn unified_accumulator_selector_rejects_wrong_selected_digest() {
         }
     }
 
-    let structure = build_f_prime_shell_structure(fixture.layout.clone());
+    let structure = build_f_prime_structure(fixture.layout.clone());
     let z = structure.extend_witness_from_image(&fixture.image);
     assert!(
         !structure.is_satisfied(&z),
@@ -567,11 +567,11 @@ fn unified_accumulator_selector_rejects_wrong_selected_digest() {
 /// or a Poseidon trace inconsistency.
 #[test]
 fn unified_accumulator_selector_flip_failure_is_a_selector_row() {
-    use neo_fold_clean::frontends::f_prime_shell::image::UnifiedAccumulatorSelector;
+    use neo_fold_clean::frontends::f_prime::image::UnifiedAccumulatorSelector;
 
     let mut fixture = build_unified_image(SelectedDigest::Base);
     fixture.image.values[fixture.layout.is_base.offset] = F::ZERO;
-    let structure = build_f_prime_shell_structure(fixture.layout.clone());
+    let structure = build_f_prime_structure(fixture.layout.clone());
     let z = structure.extend_witness_from_image(&fixture.image);
     let bad_row = structure.first_unsatisfied_row(&z).expect("must fail");
 

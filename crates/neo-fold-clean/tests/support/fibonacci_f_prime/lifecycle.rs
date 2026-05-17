@@ -8,19 +8,19 @@
 //! (compile → fold → derive next per-step fold authority → compile
 //! recursive → extend) so callers do not have to thread
 //! `fold_for_step` manually. Mirrors
-//! [`crate::frontends::r1cs_f_prime::R1csChainBuilder`].
+//! [`neo_fold_clean::frontends::r1cs_f_prime::R1csChainBuilder`].
 
-use crate::frontends::f_prime_shell::encoder::EncodedFPrimeStep;
-use crate::frontends::fibonacci_f_prime::compiler::{
+use super::compiler::{
     compile_fibonacci_step, start_fibonacci_chain, FibonacciAppStepInput, FibonacciChainState, FibonacciCompiledStep,
     FibonacciCompilerContext, FibonacciFoldForStep,
 };
-use crate::frontends::fibonacci_f_prime::instance::build_instance;
-use crate::frontends::fibonacci_f_prime::{Error, FibonacciFPrimePreprocessing};
-use crate::lifecycle::{Uncompressed, UncompressedAudit};
-use crate::paper::construction2::{FoldProof, ProofState};
-use crate::paper::digest::digest32_as_fields;
-use crate::paper::relations::CcsInstance;
+use super::instance::build_instance;
+use super::{Error, FibonacciFPrimePreprocessing};
+use neo_fold_clean::frontends::f_prime::encoder::EncodedFPrimeStep;
+use neo_fold_clean::lifecycle::{Uncompressed, UncompressedAudit};
+use neo_fold_clean::paper::construction2::{FoldProof, ProofState};
+use neo_fold_clean::paper::digest::digest32_as_fields;
+use neo_fold_clean::paper::relations::CcsInstance;
 
 /// Fold a sequence of encoded F' steps through `lifecycle::prove`,
 /// one step per batch.
@@ -37,7 +37,7 @@ pub fn prove_encoded_steps(
     for step in steps {
         batches.push(vec![build_instance(prep, step)?]);
     }
-    Ok(crate::lifecycle::prove(&prep.prep, batches)?)
+    Ok(neo_fold_clean::lifecycle::prove(&prep.prep, batches)?)
 }
 
 /// Thin prover-side wrapper for one fixed-shape Fibonacci F' chain.
@@ -85,8 +85,8 @@ impl<'a> FibonacciChainBuilder<'a> {
         let instance = build_instance(self.prep, &compiled.encoded)?;
 
         self.audit = Some(match self.audit.take() {
-            Some(audit) => crate::lifecycle::extend(&self.prep.prep, audit, vec![instance.clone()])?,
-            None => crate::lifecycle::prove(&self.prep.prep, [vec![instance.clone()]])?,
+            Some(audit) => neo_fold_clean::lifecycle::extend(&self.prep.prep, audit, vec![instance.clone()])?,
+            None => neo_fold_clean::lifecycle::prove(&self.prep.prep, [vec![instance.clone()]])?,
         });
         self.latest_instance = Some(instance);
         Ok(compiled)
@@ -112,7 +112,7 @@ impl<'a> FibonacciChainBuilder<'a> {
     pub fn finish(self) -> Result<Uncompressed, Error> {
         let prep = self.prep;
         let audit = self.into_audit()?;
-        Ok(crate::lifecycle::finish_uncompressed(&prep.prep, audit)?)
+        Ok(neo_fold_clean::lifecycle::finish_uncompressed(&prep.prep, audit)?)
     }
 
     /// Finalize while keeping the audit trail; useful for diagnostics and
@@ -120,7 +120,7 @@ impl<'a> FibonacciChainBuilder<'a> {
     pub fn finish_with_audit(self) -> Result<UncompressedAudit, Error> {
         let prep = self.prep;
         let audit = self.into_audit()?;
-        Ok(crate::lifecycle::finish_uncompressed_with_audit(&prep.prep, audit)?)
+        Ok(neo_fold_clean::lifecycle::finish_uncompressed_with_audit(&prep.prep, audit)?)
     }
 
     fn prepare_next_fold(&mut self) -> Result<(), Error> {
@@ -139,7 +139,7 @@ impl<'a> FibonacciChainBuilder<'a> {
         // the fold authority for the next recursive compile without
         // contaminating the real audit. The real audit is extended only
         // after the recursive step has been compiled below.
-        let derived = crate::lifecycle::extend(&self.prep.prep, audit.clone(), vec![latest_instance.clone()])?;
+        let derived = neo_fold_clean::lifecycle::extend(&self.prep.prep, audit.clone(), vec![latest_instance.clone()])?;
         let fold = match &derived.steps.last().expect("extend appended one step").fold {
             FoldProof::Recursive(p) => p.clone(),
             FoldProof::NoFold => return Err(Error::ChainExpectedActiveState),

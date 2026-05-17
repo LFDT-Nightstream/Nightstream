@@ -29,7 +29,7 @@
 mod support;
 
 use neo_fold_clean::engine::decider::synthesize_last_step_terminal_r1cs;
-use neo_fold_clean::frontends::fibonacci_f_prime;
+use support::fibonacci_f_prime;
 
 use support::fibonacci_f_prime::{canonical_threaded_plan, honest_state_threaded_encoded_f_prime_steps};
 

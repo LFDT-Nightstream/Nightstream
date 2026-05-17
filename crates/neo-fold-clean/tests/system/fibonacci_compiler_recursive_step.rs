@@ -48,15 +48,15 @@ use neo_ccs::matrix::Mat;
 use neo_math::{F, K};
 use p3_field::PrimeCharacteristicRing;
 
-use neo_fold_clean::frontends::f_prime_shell::compiler::FPrimeShellCompilerError;
-use neo_fold_clean::frontends::f_prime_shell::image::{NifsCeClaimShape, NifsCeClaimView};
-use neo_fold_clean::frontends::fibonacci_f_prime::{
-    self, compile_fibonacci_step, start_fibonacci_chain, FibonacciAppState, FibonacciAppStepInput, FibonacciAppWitness,
-    FibonacciChainState, FibonacciCompilerError, FibonacciFPrimePreprocessing, FibonacciFoldForStep,
-};
+use neo_fold_clean::frontends::f_prime::compiler::FPrimeShellCompilerError;
+use neo_fold_clean::frontends::f_prime::image::{NifsCeClaimShape, NifsCeClaimView};
 use neo_fold_clean::lifecycle;
 use neo_fold_clean::paper::construction2::{FoldProof, ProofState};
 use neo_fold_clean::paper::digest::digest32_as_fields;
+use support::fibonacci_f_prime::{
+    self, compile_fibonacci_step, start_fibonacci_chain, FibonacciAppState, FibonacciAppStepInput, FibonacciAppWitness,
+    FibonacciChainState, FibonacciCompilerError, FibonacciFPrimePreprocessing, FibonacciFoldForStep,
+};
 
 use support::fibonacci_f_prime::{canonical_threaded_plan, honest_state_threaded_encoded_f_prime_steps};
 

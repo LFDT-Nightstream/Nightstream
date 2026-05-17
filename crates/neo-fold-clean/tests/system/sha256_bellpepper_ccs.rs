@@ -33,8 +33,8 @@ use neo_ccs::Mat;
 use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
 use neo_fold_clean::frontends::bellpepper::{synthesize_to_ccs, BellpepperGoldilocks};
 use neo_fold_clean::frontends::direct_ccs::ajtai as direct_ajtai;
-use neo_fold_clean::frontends::f_prime_shell::image::{FPrimeImageLayout, NifsCeClaimShape, NifsPayloadShape};
-use neo_fold_clean::frontends::f_prime_shell::recursive_plan::{
+use neo_fold_clean::frontends::f_prime::image::{FPrimeImageLayout, NifsCeClaimShape, NifsPayloadShape};
+use neo_fold_clean::frontends::f_prime::recursive_plan::{
     build_recursive_step_image_config, AccumulatorPlanOptions, RecursiveStepImagePlan, StateXOutPlanOptions,
 };
 use neo_fold_clean::frontends::r1cs_f_prime::{self, R1csChainBuilder};

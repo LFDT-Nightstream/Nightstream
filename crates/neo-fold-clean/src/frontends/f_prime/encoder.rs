@@ -16,11 +16,11 @@ use neo_ajtai::AjtaiSModule;
 use neo_math::F;
 
 use crate::engine::ccs_native::poseidon2_transcript::SpongeTraceImage;
-use crate::frontends::f_prime_shell::image::{
+use crate::frontends::f_prime::image::{
     FPrimeImage, FPrimeImageLayout, KMulView, NifsCcsClaimView, NifsCeClaimView, StateIn, StateOut,
 };
-use crate::frontends::f_prime_shell::recursive_plan::{build_recursive_step_image_config, RecursiveStepImagePlan};
-use crate::frontends::f_prime_shell::structure::{build_f_prime_shell_structure, FPrimeStructure};
+use crate::frontends::f_prime::recursive_plan::{build_recursive_step_image_config, RecursiveStepImagePlan};
+use crate::frontends::f_prime::structure::{build_f_prime_structure, FPrimeStructure};
 use crate::paper::f_prime::poseidon_trace::PoseidonTraceImage;
 use crate::paper::f_prime::ring_action_trace::RingActionTraceImage;
 use crate::paper::params::Params;
@@ -177,7 +177,7 @@ pub fn encode_f_prime_step(input: FPrimeStepInput) -> EncodedFPrimeStep {
         image.splice_sponge_transcript(trace);
     }
 
-    let structure = Arc::new(build_f_prime_shell_structure(layout));
+    let structure = Arc::new(build_f_prime_structure(layout));
     let witness = structure.extend_witness_from_image(&image);
 
     assert!(

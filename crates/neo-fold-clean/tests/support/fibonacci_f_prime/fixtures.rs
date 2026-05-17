@@ -10,7 +10,7 @@
 //! This module owns **only fixtures**: canonical Phase 1.5a step input
 //! constants, the threaded-chain builder, and the threaded base state.
 //! Preprocessing / instance construction / lifecycle wiring is the
-//! production [`crate::frontends::fibonacci_f_prime`] frontend's job and
+//! production [`fibonacci_f_prime`] frontend's job and
 //! tests call it directly.
 //!
 //! Exposes:
@@ -21,13 +21,13 @@
 //!   `state_in` of step i+1.
 
 use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
-use neo_fold_clean::frontends::f_prime_shell::encoder::{
+use neo_fold_clean::frontends::f_prime::encoder::{
     encode_f_prime_step, EncodedFPrimeStep, FPrimeStepInput, NifsPayloadInput,
 };
-use neo_fold_clean::frontends::f_prime_shell::image::{
+use neo_fold_clean::frontends::f_prime::image::{
     FPrimeImageLayout, NifsCeClaimShape, NifsCeClaimView, NifsPayloadShape, StateIn, StateOut,
 };
-use neo_fold_clean::frontends::f_prime_shell::recursive_plan::{
+use neo_fold_clean::frontends::f_prime::recursive_plan::{
     build_accumulator_preimage_fields, build_boundary_update_preimage_fields,
     build_public_trace_update_preimage_fields, build_recursive_step_image_config, build_state_x_out_preimage_fields,
     AccumulatorPlanOptions, RecursiveStepImagePlan, StateXOutPlanOptions,

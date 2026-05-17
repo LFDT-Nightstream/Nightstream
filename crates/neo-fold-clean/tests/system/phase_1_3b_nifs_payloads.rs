@@ -20,7 +20,7 @@
 mod support;
 
 use neo_fold_clean::engine::transcript::Transcript;
-use neo_fold_clean::frontends::f_prime_shell::image::{
+use neo_fold_clean::frontends::f_prime::image::{
     FPrimeImage, FPrimeImageConfig, FPrimeImageLayout, NifsCcsClaimShape, NifsCcsClaimView, NifsCeClaimShape,
     NifsCeClaimView, NifsPayloadShape,
 };

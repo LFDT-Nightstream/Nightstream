@@ -188,8 +188,21 @@ fn tiny_ccs_custom_m1(m1: Mat<F>) -> CcsStructure<F> {
     CcsStructure::new(vec![m1], f).unwrap()
 }
 
-fn make_digits_matrix(val: F, d: usize, m: usize) -> Mat<F> {
-    Mat::from_row_major(d, m, vec![val; d * m])
+fn make_digits_matrix(val: F, _d: usize, m: usize) -> Mat<F> {
+    let mut z = Mat::zero(D, m.div_ceil(D), F::ZERO);
+    for col in 0..m {
+        z.set(col % D, col / D, val);
+    }
+    z
+}
+
+fn packed_from_values(values: impl IntoIterator<Item = F>) -> Mat<F> {
+    let vals: Vec<F> = values.into_iter().collect();
+    let mut z = Mat::zero(D, vals.len().div_ceil(D), F::ZERO);
+    for (col, value) in vals.into_iter().enumerate() {
+        z.set(col % D, col / D, value);
+    }
+    z
 }
 
 #[test]
@@ -323,14 +336,8 @@ fn nc_sum_engine_vs_paper_drift_with_custom_m1_and_Z() {
     let m1 = Mat::from_row_major(n, m, vec![F::ZERO, F::ONE, F::ONE, F::ONE]);
     let s = tiny_ccs_custom_m1(m1);
 
-    // Z with distinct larger values to avoid accidental zeros in range product
-    // Z rows (Ajtai): rho=0: [100, 17], rho=1: [9, 23], remaining rows: zeros
-    let mut z_data = vec![F::ZERO; D * m];
-    z_data[0] = F::from_u64(100);
-    z_data[1] = F::from_u64(17);
-    z_data[m] = F::from_u64(9);
-    z_data[m + 1] = F::from_u64(23);
-    let Z = Mat::from_row_major(D, m, z_data);
+    // Distinct packed logical witness values to avoid accidental zeros in range product.
+    let Z = packed_from_values([F::from_u64(100), F::from_u64(23)]);
     let mcs_w = [CcsWitness { w: vec![], Z }];
     let me_w = [make_digits_matrix(F::from_u64(6), D, m)];
 

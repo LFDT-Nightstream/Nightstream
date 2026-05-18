@@ -206,6 +206,7 @@ mod tests {
     provider::PallasHyraxEngine,
     traits::{Engine, Group},
   };
+  #[cfg(not(feature = "p3_backend"))]
   use ff::PrimeField;
   #[cfg(not(feature = "p3_backend"))]
   use proptest::{
@@ -217,9 +218,11 @@ mod tests {
   type Fr = <G as Group>::Scalar;
 
   /// Wrapper struct around a field element that implements additional traits
+  #[cfg(not(feature = "p3_backend"))]
   #[derive(Clone, Debug, PartialEq, Eq)]
   pub struct FWrap<F: PrimeField>(pub F);
 
+  #[cfg(not(feature = "p3_backend"))]
   impl<F: PrimeField> Copy for FWrap<F> {}
 
   #[cfg(not(target_arch = "wasm32"))]

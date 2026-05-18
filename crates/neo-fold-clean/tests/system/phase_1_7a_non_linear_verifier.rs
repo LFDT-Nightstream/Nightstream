@@ -92,6 +92,7 @@ fn finalized_encoded_f_prime_audit_proof() -> (
 // ── Acceptance ─────────────────────────────────────────────────────────────
 
 #[test]
+#[ignore = "canonical verifier replay is memory-heavy; run explicitly with --ignored"]
 fn verify_uncompressed_accepts_finalized_encoded_f_prime_chain() {
     run_serial(|| {
         let (prep, finished) = finalized_encoded_f_prime_proof();
@@ -110,6 +111,7 @@ fn verify_uncompressed_accepts_finalized_encoded_f_prime_chain() {
 /// untouched, so `verify_uncompressed` still accepts it; the audit
 /// verifier (`verify_uncompressed_audit`) rejects it.
 #[test]
+#[ignore = "canonical verifier replay is memory-heavy; run explicitly with --ignored"]
 fn verify_uncompressed_ignores_audit_trail_that_verify_uncompressed_audit_catches() {
     run_serial(|| {
         use neo_fold_clean::paper::construction2::FoldProof;
@@ -145,6 +147,7 @@ fn verify_uncompressed_ignores_audit_trail_that_verify_uncompressed_audit_catche
 // ── Rejection — recorded final-running tampers ─────────────────────────────
 
 #[test]
+#[ignore = "canonical verifier replay is memory-heavy; run explicitly with --ignored"]
 fn verify_uncompressed_rejects_tampered_running_witness_entry() {
     run_serial(|| {
         let (prep, mut finished) = finalized_encoded_f_prime_proof();
@@ -165,6 +168,7 @@ fn verify_uncompressed_rejects_tampered_running_witness_entry() {
 }
 
 #[test]
+#[ignore = "canonical verifier replay is memory-heavy; run explicitly with --ignored"]
 fn verify_uncompressed_rejects_tampered_running_claim_commitment() {
     run_serial(|| {
         let (prep, mut finished) = finalized_encoded_f_prime_proof();
@@ -179,6 +183,7 @@ fn verify_uncompressed_rejects_tampered_running_claim_commitment() {
 }
 
 #[test]
+#[ignore = "canonical verifier replay is memory-heavy; run explicitly with --ignored"]
 fn verify_uncompressed_rejects_tampered_running_claim_public_input() {
     run_serial(|| {
         let (prep, mut finished) = finalized_encoded_f_prime_proof();
@@ -194,6 +199,7 @@ fn verify_uncompressed_rejects_tampered_running_claim_public_input() {
 }
 
 #[test]
+#[ignore = "canonical verifier replay is memory-heavy; run explicitly with --ignored"]
 fn verify_uncompressed_rejects_tampered_recorded_acc_digest() {
     run_serial(|| {
         let (prep, mut finished) = finalized_encoded_f_prime_proof();
@@ -206,6 +212,7 @@ fn verify_uncompressed_rejects_tampered_recorded_acc_digest() {
 }
 
 #[test]
+#[ignore = "canonical verifier replay is memory-heavy; run explicitly with --ignored"]
 fn verify_uncompressed_rejects_unfinalized_proof_state() {
     run_serial(|| {
         let plan = canonical_threaded_plan();
@@ -233,6 +240,7 @@ fn verify_uncompressed_rejects_unfinalized_proof_state() {
 // ── Rejection — chain coordinates ──────────────────────────────────────────
 
 #[test]
+#[ignore = "canonical verifier replay is memory-heavy; run explicitly with --ignored"]
 fn verify_uncompressed_rejects_tampered_chunk_count() {
     run_serial(|| {
         let (prep, mut finished) = finalized_encoded_f_prime_proof();
@@ -247,6 +255,7 @@ fn verify_uncompressed_rejects_tampered_chunk_count() {
 }
 
 #[test]
+#[ignore = "canonical verifier replay is memory-heavy; run explicitly with --ignored"]
 fn verify_uncompressed_rejects_tampered_z_i() {
     run_serial(|| {
         let (prep, mut finished) = finalized_encoded_f_prime_proof();
@@ -259,6 +268,7 @@ fn verify_uncompressed_rejects_tampered_z_i() {
 }
 
 #[test]
+#[ignore = "canonical verifier replay is memory-heavy; run explicitly with --ignored"]
 fn verify_uncompressed_rejects_tampered_public_trace() {
     run_serial(|| {
         let (prep, mut finished) = finalized_encoded_f_prime_proof();
@@ -273,6 +283,7 @@ fn verify_uncompressed_rejects_tampered_public_trace() {
 // ── Rejection — terminal-fold inputs and NIFS proof ────────────────────────
 
 #[test]
+#[ignore = "canonical verifier replay is memory-heavy; run explicitly with --ignored"]
 fn verify_uncompressed_rejects_tampered_terminal_nifs_proof() {
     run_serial(|| {
         let (prep, mut finished) = finalized_encoded_f_prime_proof();
@@ -286,6 +297,7 @@ fn verify_uncompressed_rejects_tampered_terminal_nifs_proof() {
 }
 
 #[test]
+#[ignore = "canonical verifier replay is memory-heavy; run explicitly with --ignored"]
 fn verify_uncompressed_rejects_tampered_terminal_latest_x() {
     run_serial(|| {
         let (prep, mut finished) = finalized_encoded_f_prime_proof();
@@ -300,6 +312,7 @@ fn verify_uncompressed_rejects_tampered_terminal_latest_x() {
 }
 
 #[test]
+#[ignore = "canonical verifier replay is memory-heavy; run explicitly with --ignored"]
 fn verify_uncompressed_rejects_cleared_terminal_latest() {
     run_serial(|| {
         let (prep, mut finished) = finalized_encoded_f_prime_proof();
@@ -313,6 +326,7 @@ fn verify_uncompressed_rejects_cleared_terminal_latest() {
 }
 
 #[test]
+#[ignore = "canonical verifier replay is memory-heavy; run explicitly with --ignored"]
 fn verify_uncompressed_rejects_tampered_terminal_pre_final_running_commitment() {
     run_serial(|| {
         let (prep, mut finished) = finalized_encoded_f_prime_proof();

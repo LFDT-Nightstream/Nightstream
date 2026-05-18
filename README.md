@@ -9,7 +9,7 @@ Nightstream is a **post-quantum** proving system built around a lattice-based fo
 
 Nightstream implements the protocol from the Neo paper "Lattice-based folding scheme for CCS over small fields" (Nguyen & Setty, 2025/294), extended with Twist/Shout memory arguments and a Spartan2 outer layer.
 
-> **Status**: Research prototype. The single active proving path (`neo-fold-prototype`) proves and verifies full RV32IM programs end-to-end and publishes a compact Nightstream statement/proof pair. CHIP-8 remains in the tree as parked audit/development code, not as an active theorem-facing target. Chain-facing deployment wiring and independent audit are still unfinished. Not production-ready.
+> **Status**: Research prototype, mid-migration. `neo-fold-clean` is the new main crate — it will orchestrate the F′ IVC core, the frontends, and the published Nightstream proof boundary. `neo-fold-prototype` is the sandbox where ideas are tested and benchmarked; today it still runs the full RV32IM end-to-end pipeline and produces the published Nightstream artifact, but that role is migrating to `neo-fold-clean`. CHIP-8 is an earlier prototype that also lives in `neo-fold-prototype`; it is not slated for migration. Chain-facing deployment wiring and independent audit are still unfinished. Not production-ready.
 
 ---
 
@@ -450,7 +450,12 @@ crates/
   neo-ajtai/              Ajtai (lattice) commitments; module-SIS binding
   neo-ccs/                CCS/MCS/ME relations, matrices, arithmetization
   neo-reductions/         Π_CCS / Π_RLC / Π_DEC engines (optimized + paper-exact)
-  neo-fold-prototype/          Active proving path: spine + RV32IM + nightstream
+  neo-fold-clean/         Main proving crate (in progress): orchestrates the F′ IVC core,
+                          frontends (Bellpepper R1CS, F′ shell), and the published
+                          proof boundary. Becoming the single path once migration completes.
+  neo-fold-prototype/     Sandbox crate. Tests and benchmarks ideas before they land in
+                          `neo-fold-clean`. Today still hosts the full RV32IM + Nightstream
+                          end-to-end pipeline; that role is migrating out.
   nstream-midnight-bridge/ Midnight outer-compression bridge for proof exports
 
 docs/

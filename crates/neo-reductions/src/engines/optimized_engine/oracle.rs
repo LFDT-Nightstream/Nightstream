@@ -61,6 +61,10 @@ where
     weights: Vec<[K; D]>,
     // Cached t^2 values for the symmetric range polynomial.
     range_t_sq: Vec<K>,
+    // True while every entry in every `digits_tables[i]` has imag() == 0
+    // (initially true: witnesses are base-field). Flipped to false the
+    // first time `fold` runs with a challenge `r` having nonzero imag.
+    digit_tables_all_real: bool,
 }
 
 impl<'a, F> NcOracle<'a, F>
@@ -207,6 +211,7 @@ where
             digit_lane_masks,
             weights,
             range_t_sq,
+            digit_tables_all_real: true,
         }
     }
 
@@ -232,12 +237,24 @@ where
         debug_assert!(!table.is_empty());
         debug_assert_eq!(table.len(), masks.len(), "NC digit table/mask length mismatch");
         let half = table.len().div_ceil(2);
+        // One-way invariant maintained across rounds:
+        //   masks[i] == 0  =>  table[i] == [K::ZERO; D]
+        // (The reverse is not true: a live lane can fold to zero by
+        // cancellation. We only rely on the forward direction here.)
+        // It lets us skip the zero-write when active_mask is 0 AND the slot
+        // was already zero on entry (i.e., old masks[i] was already 0).
         for i in 0..half {
             let base = 2 * i;
             let active_mask = masks[base] | if base + 1 < masks.len() { masks[base + 1] } else { 0 };
+            let was_zero = masks[i] == 0;
             masks[i] = active_mask;
             if active_mask == 0 {
-                table[i] = [K::ZERO; D];
+                if !was_zero {
+                    // Old masks[i] != 0 means the slot may hold non-zero
+                    // data (mask is only a one-way "has live lanes" hint);
+                    // explicitly clear so the forward invariant holds.
+                    table[i] = [K::ZERO; D];
+                }
                 continue;
             }
 
@@ -399,13 +416,104 @@ where
         }
     }
 
+    /// Per-`t` inner accumulator for `b=2`: contributes to `inner[0..4]` the sum
+    /// `Σ_i Σ_ρ γ_{i,ρ} · N(a + bX)` evaluated as a degree-3 polynomial in X.
+    ///
+    /// When `digit_tables_all_real` is set (round 0 — tables still encode raw real
+    /// witnesses), the inner kernel runs in `Fq` and lifts to `K` via `scale_base`;
+    /// otherwise the generic `K` kernel runs.
+    #[inline]
+    fn accumulate_inner_b2_at(&self, idx: usize, inner: &mut [K; 4]) {
+        if self.digit_tables_all_real {
+            let three_fq = Fq::from_u64(3);
+            for (wit_idx, tbl) in self.digits_tables.iter().enumerate() {
+                let lo = &tbl[idx];
+                let hi = (idx + 1 < tbl.len()).then(|| &tbl[idx + 1]);
+                let mut lane_mask =
+                    self.digit_lane_masks[wit_idx][idx] | hi.map_or(0, |_| self.digit_lane_masks[wit_idx][idx + 1]);
+                let weights = &self.weights[wit_idx];
+
+                while lane_mask != 0 {
+                    let rho = lane_mask.trailing_zeros() as usize;
+                    lane_mask &= lane_mask - 1;
+                    let w = weights[rho];
+                    if w == K::ZERO {
+                        continue;
+                    }
+                    let a = lo[rho].real();
+                    let y1 = hi.map_or(Fq::ZERO, |row| row[rho].real());
+                    let b = y1 - a;
+                    if a == Fq::ZERO && b == Fq::ZERO {
+                        continue;
+                    }
+                    if b == Fq::ZERO {
+                        let t0 = a * a * a - a;
+                        inner[0] += w.scale_base(t0);
+                        continue;
+                    }
+                    let a2 = a * a;
+                    let a3 = a2 * a;
+                    let b2 = b * b;
+                    let b3 = b2 * b;
+                    inner[0] += w.scale_base(a3 - a);
+                    inner[1] += w.scale_base(a2 * b * three_fq - b);
+                    inner[2] += w.scale_base(a * b2 * three_fq);
+                    inner[3] += w.scale_base(b3);
+                }
+            }
+        } else {
+            let three = K::from(F::from_u64(3));
+            for (wit_idx, tbl) in self.digits_tables.iter().enumerate() {
+                let lo = &tbl[idx];
+                let hi = (idx + 1 < tbl.len()).then(|| &tbl[idx + 1]);
+                let mut lane_mask =
+                    self.digit_lane_masks[wit_idx][idx] | hi.map_or(0, |_| self.digit_lane_masks[wit_idx][idx + 1]);
+                let weights = &self.weights[wit_idx];
+
+                while lane_mask != 0 {
+                    let rho = lane_mask.trailing_zeros() as usize;
+                    lane_mask &= lane_mask - 1;
+                    let w = weights[rho];
+                    if w == K::ZERO {
+                        continue;
+                    }
+                    let a = lo[rho];
+                    let y1 = hi.map_or(K::ZERO, |row| row[rho]);
+                    let b = y1 - a;
+                    if a == K::ZERO && b == K::ZERO {
+                        continue;
+                    }
+                    if b == K::ZERO {
+                        let t0 = (a * a * a) - a;
+                        inner[0] += w * t0;
+                        continue;
+                    }
+
+                    let a2 = a * a;
+                    let a3 = a2 * a;
+                    let b2 = b * b;
+                    let b3 = b2 * b;
+
+                    let t0 = a3 - a;
+                    let t1 = (a2 * b).scale_base_k(three) - b;
+                    let t2 = (a * b2).scale_base_k(three);
+                    let t3 = b3;
+
+                    inner[0] += w * t0;
+                    inner[1] += w * t1;
+                    inner[2] += w * t2;
+                    inner[3] += w * t3;
+                }
+            }
+        }
+    }
+
     fn col_phase_coeffs_b2(&self) -> [K; 5] {
         debug_assert!(self.cur_len >= 2 && self.cur_len % 2 == 0);
         let tail_len = self.cur_len / 2;
         let active_tail_len = self.active_col_tail_len(tail_len);
 
         const PAR_THRESHOLD: usize = 1 << 13;
-        let three = K::from(F::from_u64(3));
 
         let coeffs_seq = |active_tail_len: usize| -> [K; 5] {
             let mut coeffs = [K::ZERO; 5];
@@ -415,49 +523,7 @@ where
                 let e1 = self.eq_beta_m_tbl[idx + 1] - e0;
 
                 let mut inner = [K::ZERO; 4];
-                for (wit_idx, tbl) in self.digits_tables.iter().enumerate() {
-                    let lo = &tbl[idx];
-                    let hi = (idx + 1 < tbl.len()).then(|| &tbl[idx + 1]);
-                    let mut lane_mask =
-                        self.digit_lane_masks[wit_idx][idx] | hi.map_or(0, |_| self.digit_lane_masks[wit_idx][idx + 1]);
-                    let weights = &self.weights[wit_idx];
-
-                    while lane_mask != 0 {
-                        let rho = lane_mask.trailing_zeros() as usize;
-                        lane_mask &= lane_mask - 1;
-                        let w = weights[rho];
-                        if w == K::ZERO {
-                            continue;
-                        }
-                        let a = lo[rho];
-                        let y1 = hi.map_or(K::ZERO, |row| row[rho]);
-                        let b = y1 - a;
-                        if a == K::ZERO && b == K::ZERO {
-                            continue;
-                        }
-                        if b == K::ZERO {
-                            let t0 = (a * a * a) - a;
-                            inner[0] += w * t0;
-                            continue;
-                        }
-
-                        let a2 = a * a;
-                        let a3 = a2 * a;
-                        let b2 = b * b;
-                        let b3 = b2 * b;
-
-                        // N(a+bX) = (a+bX)^3 - (a+bX)
-                        let t0 = a3 - a;
-                        let t1 = (a2 * b).scale_base_k(three) - b;
-                        let t2 = (a * b2).scale_base_k(three);
-                        let t3 = b3;
-
-                        inner[0] += w * t0;
-                        inner[1] += w * t1;
-                        inner[2] += w * t2;
-                        inner[3] += w * t3;
-                    }
-                }
+                self.accumulate_inner_b2_at(idx, &mut inner);
 
                 // (e0 + e1 X) * (inner0 + inner1 X + inner2 X^2 + inner3 X^3)
                 coeffs[0] += e0 * inner[0];
@@ -482,48 +548,7 @@ where
                             let e1 = self.eq_beta_m_tbl[idx + 1] - e0;
 
                             let mut inner = [K::ZERO; 4];
-                            for (wit_idx, tbl) in self.digits_tables.iter().enumerate() {
-                                let lo = &tbl[idx];
-                                let hi = (idx + 1 < tbl.len()).then(|| &tbl[idx + 1]);
-                                let mut lane_mask = self.digit_lane_masks[wit_idx][idx]
-                                    | hi.map_or(0, |_| self.digit_lane_masks[wit_idx][idx + 1]);
-                                let weights = &self.weights[wit_idx];
-
-                                while lane_mask != 0 {
-                                    let rho = lane_mask.trailing_zeros() as usize;
-                                    lane_mask &= lane_mask - 1;
-                                    let w = weights[rho];
-                                    if w == K::ZERO {
-                                        continue;
-                                    }
-                                    let a = lo[rho];
-                                    let y1 = hi.map_or(K::ZERO, |row| row[rho]);
-                                    let b = y1 - a;
-                                    if a == K::ZERO && b == K::ZERO {
-                                        continue;
-                                    }
-                                    if b == K::ZERO {
-                                        let t0 = (a * a * a) - a;
-                                        inner[0] += w * t0;
-                                        continue;
-                                    }
-
-                                    let a2 = a * a;
-                                    let a3 = a2 * a;
-                                    let b2 = b * b;
-                                    let b3 = b2 * b;
-
-                                    let t0 = a3 - a;
-                                    let t1 = (a2 * b).scale_base_k(three) - b;
-                                    let t2 = (a * b2).scale_base_k(three);
-                                    let t3 = b3;
-
-                                    inner[0] += w * t0;
-                                    inner[1] += w * t1;
-                                    inner[2] += w * t2;
-                                    inner[3] += w * t3;
-                                }
-                            }
+                            self.accumulate_inner_b2_at(idx, &mut inner);
 
                             coeffs[0] += e0 * inner[0];
                             coeffs[1] += e0 * inner[1] + e1 * inner[0];
@@ -918,6 +943,9 @@ where
                     Self::fold_digits_table_inplace(tbl, masks, r_i);
                 }
             }
+            if r_i.imag() != Fq::ZERO {
+                self.digit_tables_all_real = false;
+            }
             self.cur_len /= 2;
         } else {
             self.ajtai_chals.push(r_i);
@@ -929,7 +957,8 @@ where
 #[derive(Clone, Debug)]
 struct CompiledPolyTerm {
     coeff: K,
-    /// (var_pos, exponent), where `var_pos` indexes `RowStreamState::f_var_tables`.
+    /// (var_pos, exponent), where `var_pos` indexes the inner `Vec<Vec<K>>`
+    /// of each `RowStreamState::f_var_tables_by_mcs` entry.
     vars: Vec<(usize, u32)>,
 }
 
@@ -954,13 +983,10 @@ struct RowStreamState {
     /// `z_i[c] = Σ_{ρ=0..D-1} b^ρ · Z_i[ρ,c]`.
     z_mcs: Vec<Vec<K>>,
 
-    /// Tables for the variables used by the CCS polynomial `f`.
-    /// For `k_mcs=1`, this is the first-slot cache used by b=2/b=3 optimized kernels.
-    /// Each entry is a row-domain table of `m_j(row) = (M_j · z_1)[row]` at boolean row points.
-    f_var_tables: Vec<Vec<K>>,
-    /// Per-MCS version of `f_var_tables`, used for K>1 generic row-phase evaluation.
+    /// Per-MCS tables for the variables used by the CCS polynomial `f`.
+    /// Each entry is a row-domain table of `m_j(row) = (M_j · z_i)[row]` at boolean row points.
     f_var_tables_by_mcs: Vec<Vec<Vec<K>>>,
-    /// Compiled sparse polynomial terms for `f` using `f_var_tables` indices.
+    /// Compiled sparse polynomial terms for `f` using `f_var_tables_by_mcs[i]` indices.
     f_terms: Vec<CompiledPolyTerm>,
 
     /// Combined Eval block table over rows (already summed over α' and (i,j) coefficients).
@@ -1153,21 +1179,40 @@ impl RowStreamState {
         // f-var tables: m_j(row) = (M_j * z_i)[row] for each used variable and each MCS slot.
         let mut f_var_tables_by_mcs: Vec<Vec<Vec<K>>> = Vec::with_capacity(k_mcs);
         for z_i in &z_mcs {
-            let mut f_tables_i: Vec<Vec<K>> = Vec::with_capacity(f_var_indices.len());
             let z_blocks = crate::superneo_eval::SuperneoZBlocks::from_z(z_i);
-            for &j in &f_var_indices {
-                let mut out = vec![K::ZERO; n_pad];
-                let mat_cache = superneo_cache
-                    .matrix(j)
-                    .unwrap_or_else(|| panic!("superneo cache missing matrix j={j}"));
-                for (r, out_r) in out.iter_mut().take(n_eff).enumerate() {
-                    *out_r = mat_cache.row_dot_with_blocks(r, &z_blocks);
-                }
-                f_tables_i.push(out);
-            }
+            #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+            let f_tables_i: Vec<Vec<K>> = f_var_indices
+                .par_iter()
+                .map(|&j| {
+                    let mut out = vec![K::ZERO; n_pad];
+                    let mat_cache = superneo_cache
+                        .matrix(j)
+                        .unwrap_or_else(|| panic!("superneo cache missing matrix j={j}"));
+                    out[..n_eff]
+                        .par_iter_mut()
+                        .enumerate()
+                        .for_each(|(r, out_r)| {
+                            *out_r = mat_cache.row_dot_with_blocks(r, &z_blocks);
+                        });
+                    out
+                })
+                .collect();
+            #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+            let f_tables_i: Vec<Vec<K>> = f_var_indices
+                .iter()
+                .map(|&j| {
+                    let mut out = vec![K::ZERO; n_pad];
+                    let mat_cache = superneo_cache
+                        .matrix(j)
+                        .unwrap_or_else(|| panic!("superneo cache missing matrix j={j}"));
+                    for (r, out_r) in out.iter_mut().take(n_eff).enumerate() {
+                        *out_r = mat_cache.row_dot_with_blocks(r, &z_blocks);
+                    }
+                    out
+                })
+                .collect();
             f_var_tables_by_mcs.push(f_tables_i);
         }
-        let f_var_tables = f_var_tables_by_mcs.first().cloned().unwrap_or_default();
         #[cfg(feature = "perf-timers")]
         eprintln!(
             "RowStreamState::build: 4. f_var_tables_by_mcs       {:.2?} (k_mcs={k_mcs}, vars={}, n_eff={n_eff})",
@@ -1194,7 +1239,6 @@ impl RowStreamState {
                 "RowStreamState::build: 5. build_weighted_matrix_caches {:.2?} (t_mats={t_mats})",
                 t_weighted.elapsed()
             );
-
             let mut gamma_pow_i = vec![K::ONE; k_total];
             for i in 1..k_total {
                 gamma_pow_i[i] = gamma_pow_i[i - 1] * ch.gamma;
@@ -1286,7 +1330,6 @@ impl RowStreamState {
             eq_r_inputs_tbl,
             gamma_pow_mcs,
             z_mcs,
-            f_var_tables,
             f_var_tables_by_mcs,
             f_terms,
             eval_tbl,
@@ -1328,9 +1371,6 @@ impl RowStreamState {
             if let Some(tbl) = self.eq_r_inputs_tbl.as_mut() {
                 Self::fold_table_inplace_base(tbl, r0);
             }
-            for tbl in self.f_var_tables.iter_mut() {
-                Self::fold_table_inplace_base(tbl, r0);
-            }
             for per_mcs in self.f_var_tables_by_mcs.iter_mut() {
                 for tbl in per_mcs.iter_mut() {
                     Self::fold_table_inplace_base(tbl, r0);
@@ -1343,9 +1383,6 @@ impl RowStreamState {
             self.all_base = false;
             Self::fold_table_inplace(&mut self.eq_beta_r_tbl, r);
             if let Some(tbl) = self.eq_r_inputs_tbl.as_mut() {
-                Self::fold_table_inplace(tbl, r);
-            }
-            for tbl in self.f_var_tables.iter_mut() {
                 Self::fold_table_inplace(tbl, r);
             }
             for per_mcs in self.f_var_tables_by_mcs.iter_mut() {
@@ -1735,16 +1772,12 @@ impl RowStreamState {
             // eq_beta_r(X) adds one degree; Eval block is quadratic.
             let deg_max = core::cmp::max(2, f_max_term_deg + 1);
 
-            let mut coeffs = vec![K::ZERO; deg_max + 1];
-            let mut inner = vec![K::ZERO; deg_max + 1];
-            let mut term_poly = vec![K::ZERO; deg_max + 1];
-
-            for t in 0..tail_len {
-                // eq_beta_r(X) = e0 + e1·X
+            // Sequential per-`t` step, factored out so seq and par paths share one body.
+            let step = |coeffs: &mut [K], inner: &mut [K], term_poly: &mut [K], t: usize| {
                 let e0 = self.eq_beta_r_tbl[2 * t];
                 let e1 = self.eq_beta_r_tbl[2 * t + 1] - e0;
 
-                self.accumulate_weighted_f_poly(2 * t, deg_max, &mut inner, &mut term_poly);
+                self.accumulate_weighted_f_poly(2 * t, deg_max, inner, term_poly);
 
                 // coeffs += eq_beta_r(X) * inner(X)
                 coeffs[0] += e0 * inner[0];
@@ -1768,7 +1801,57 @@ impl RowStreamState {
                         coeffs[2] += g * (r1 * v1);
                     }
                 }
-            }
+            };
+
+            const PAR_THRESHOLD: usize = 1 << 14;
+            let coeffs = if tail_len >= PAR_THRESHOLD {
+                #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+                {
+                    (0..tail_len)
+                        .into_par_iter()
+                        .fold(
+                            || {
+                                (
+                                    vec![K::ZERO; deg_max + 1],
+                                    vec![K::ZERO; deg_max + 1],
+                                    vec![K::ZERO; deg_max + 1],
+                                )
+                            },
+                            |(mut coeffs, mut inner, mut term_poly), t| {
+                                step(&mut coeffs, &mut inner, &mut term_poly, t);
+                                (coeffs, inner, term_poly)
+                            },
+                        )
+                        .map(|(coeffs, _, _)| coeffs)
+                        .reduce(
+                            || vec![K::ZERO; deg_max + 1],
+                            |mut a, b| {
+                                for i in 0..=deg_max {
+                                    a[i] += b[i];
+                                }
+                                a
+                            },
+                        )
+                }
+                #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+                {
+                    let mut coeffs = vec![K::ZERO; deg_max + 1];
+                    let mut inner = vec![K::ZERO; deg_max + 1];
+                    let mut term_poly = vec![K::ZERO; deg_max + 1];
+                    for t in 0..tail_len {
+                        step(&mut coeffs, &mut inner, &mut term_poly, t);
+                    }
+                    coeffs
+                }
+            } else {
+                let mut coeffs = vec![K::ZERO; deg_max + 1];
+                let mut inner = vec![K::ZERO; deg_max + 1];
+                let mut term_poly = vec![K::ZERO; deg_max + 1];
+                for t in 0..tail_len {
+                    step(&mut coeffs, &mut inner, &mut term_poly, t);
+                }
+                coeffs
+            };
 
             return if xs_are_base {
                 xs.iter()
@@ -2354,16 +2437,23 @@ where
                     t
                 );
             }
+            let k_total = self.witness_z_blocks.len();
             #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
             {
-                self.witness_z_blocks
-                    .par_iter()
-                    .map(|z_blocks| {
-                        ring_forms
-                            .iter()
-                            .map(|form| form.eval_real_z_blocks(&z_blocks))
-                            .collect()
+                // Flatten (witness, mat) pairs so all k_total * t evaluations run
+                // in parallel — the old per-witness par_iter left t-way work
+                // sequential inside each task and underused cores when
+                // k_total < cores.
+                let flat: Vec<[K; D]> = (0..k_total * t)
+                    .into_par_iter()
+                    .map(|idx| {
+                        let w = idx / t;
+                        let m = idx % t;
+                        ring_forms[m].eval_real_z_blocks(&self.witness_z_blocks[w])
                     })
+                    .collect();
+                (0..k_total)
+                    .map(|w| flat[w * t..(w + 1) * t].to_vec())
                     .collect()
             }
             #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]

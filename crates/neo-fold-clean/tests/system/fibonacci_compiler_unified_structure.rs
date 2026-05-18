@@ -508,6 +508,7 @@ fn fibonacci_chain_builder_appends_recursive_step_under_tiny_params() {
 }
 
 #[test]
+#[ignore = "production-shape two-step compiler chain runs ~500s; run explicitly with --ignored"]
 fn compiler_two_step_chain_builds_from_scratch_and_verify_uncompressed_accepts() {
     let plan = canonical_threaded_plan();
     let prep = fibonacci_f_prime::preprocess_seeded(&plan, 0xC0DE_0009).expect("preprocess");

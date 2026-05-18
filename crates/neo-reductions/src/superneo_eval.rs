@@ -282,6 +282,10 @@ impl SuperneoRingLinearForm {
         let mut out_im = [F::ZERO; D];
         for entry in &self.entries {
             let z_re = &z_blocks.re[entry.blk];
+            // If this witness's block is all-zero, both products vanish.
+            if is_all_zero(&z_re.0) {
+                continue;
+            }
             if !is_all_zero(&entry.re_form.0) {
                 let prod_re = entry.re_form.mul(z_re);
                 for i in 0..D {

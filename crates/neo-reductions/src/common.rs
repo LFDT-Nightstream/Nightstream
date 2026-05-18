@@ -14,6 +14,8 @@ use neo_math::{balanced::to_balanced_i128, KExtensions, D, F, K};
 use neo_params::{goldilocks_paper_b2, NeoParams};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
+#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+use rayon::prelude::*;
 
 use crate::error::PiCcsError;
 
@@ -1087,7 +1089,7 @@ pub fn build_witness_nc_digit_table<Ff>(
     expected_m: usize,
 ) -> Result<Vec<[K; D]>, PiCcsError>
 where
-    Ff: PrimeField64 + PrimeCharacteristicRing + Copy,
+    Ff: PrimeField64 + PrimeCharacteristicRing + Copy + Send + Sync,
     K: From<Ff>,
 {
     build_witness_nc_digit_table_with_masks(params, Z, expected_m).map(|(digits, _masks)| digits)
@@ -1099,24 +1101,40 @@ pub fn build_witness_nc_digit_table_with_masks<Ff>(
     expected_m: usize,
 ) -> Result<(Vec<[K; D]>, Vec<u64>), PiCcsError>
 where
-    Ff: PrimeField64 + PrimeCharacteristicRing + Copy,
+    Ff: PrimeField64 + PrimeCharacteristicRing + Copy + Send + Sync,
     K: From<Ff>,
 {
     validate_superneo_witness_mat(Z, expected_m)?;
     let mut out = vec![[K::ZERO; D]; expected_m];
     let mut masks = vec![0u64; expected_m];
     let active_cols = expected_m.div_ceil(D);
-    for rho in 0..D {
-        let row = Z.row(rho);
-        for (blk, &raw) in row.iter().enumerate().take(active_cols) {
+    // Snapshot all D rows once; `Mat::row` is a cheap slice borrow.
+    let rows: [&[Ff]; D] = {
+        let mut tmp: [&[Ff]; D] = [&[]; D];
+        for (rho, slot) in tmp.iter_mut().enumerate() {
+            *slot = Z.row(rho);
+        }
+        tmp
+    };
+
+    // Process column blocks in parallel; each block writes to disjoint
+    // slices of `out` and `masks` (D contiguous columns per block).
+    let process_block = |blk: usize, out_chunk: &mut [[K; D]], mask_chunk: &mut [u64]| -> Result<(), PiCcsError> {
+        if blk >= active_cols {
+            return Ok(());
+        }
+        for (rho, (dst, mask_slot)) in out_chunk.iter_mut().zip(mask_chunk.iter_mut()).enumerate() {
             let col = blk * D + rho;
-            if col >= expected_m || raw == Ff::ZERO {
+            if col >= expected_m {
+                break;
+            }
+            let raw = rows[rho].get(blk).copied().unwrap_or(Ff::ZERO);
+            if raw == Ff::ZERO {
                 continue;
             }
-            let dst = &mut out[col];
             if raw == Ff::ONE {
                 dst[0] = K::ONE;
-                masks[col] = 1;
+                *mask_slot = 1;
                 continue;
             }
             *dst = decompose_balanced_fixed_d_digits_k(raw, params.b).map_err(|e| {
@@ -1128,7 +1146,22 @@ where
                     mask |= 1u64 << lane;
                 }
             }
-            masks[col] = mask;
+            *mask_slot = mask;
+        }
+        Ok(())
+    };
+
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    {
+        out.par_chunks_mut(D)
+            .zip(masks.par_chunks_mut(D))
+            .enumerate()
+            .try_for_each(|(blk, (out_chunk, mask_chunk))| process_block(blk, out_chunk, mask_chunk))?;
+    }
+    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+    {
+        for (blk, (out_chunk, mask_chunk)) in out.chunks_mut(D).zip(masks.chunks_mut(D)).enumerate() {
+            process_block(blk, out_chunk, mask_chunk)?;
         }
     }
 

@@ -536,8 +536,10 @@ fn rv32im_main_recursion_construction2_fresh_instance_builder_builds_inductive_s
         "expected at least two single-step advices for inductive Construction-2 coverage"
     );
 
-    let u_1 = build_rv32im_main_recursion_construction2_fresh_instance(&f_prime_advices[0])
+    let u_perp = build_rv32im_main_recursion_construction2_fresh_instance(&f_prime_advices[0])
         .expect("build base-case HyperNova Construction-2 fresh instance");
+    let u_1 = build_rv32im_main_recursion_construction2_fresh_instance_with_input(&f_prime_advices[0], &u_perp)
+        .expect("build first HyperNova Construction-2 output fresh instance");
     let u_2 = build_rv32im_main_recursion_construction2_fresh_instance_with_input(&f_prime_advices[1], &u_1)
         .expect("build inductive HyperNova Construction-2 fresh instance with threaded prior u_i");
 
@@ -550,9 +552,10 @@ fn rv32im_main_recursion_construction2_fresh_instance_builder_builds_inductive_s
             .commitment()
             .data
             .iter()
-            .any(|&value| value != F::ZERO),
-        "inductive Construction-2 fresh commitment should be non-zero once prior u_i is threaded"
+            .all(|&value| value == F::ZERO),
+        "native Construction-2 output must keep u_i.C as the x-only placeholder until terminal R2"
     );
+    assert_eq!(u_2.commitment().commitment().kappa, 1);
 }
 
 #[test]
@@ -618,8 +621,8 @@ fn rv32im_main_recursion_base_case_rejects_non_default_accumulator_even_if_x_i_i
     let err = verify_rv32im_main_recursion_f_prime_public_output(&public_output, &tampered_advice)
         .expect_err("base-case accumulator drift must fail even after x_i retargeting");
     assert!(
-        err.to_string().contains("z_0 == z_i"),
-        "base-case accumulator drift must fail at the HyperNova base-case seed boundary: {err}"
+        err.to_string().contains("folded accumulator input digest"),
+        "base-case accumulator drift must fail at the carried accumulator boundary: {err}"
     );
 }
 

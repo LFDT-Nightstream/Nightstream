@@ -338,11 +338,8 @@ fn bellpepper_spartan_circuit_exports_append_through_direct_recursive_state() {
     assert_eq!(summary.semantic.steps, 2);
     assert_eq!(summary.semantic.carried_ce_claims, program.params().k_rho as usize);
     assert!(summary.f_prime.native_evaluator_available);
-    assert!(summary.f_prime.encoder_required);
-    assert!(
-        !summary.proof.standalone_authority_ready,
-        "multi-step direct R1CS append must still wait for low-norm enc(F') proof authority"
-    );
+    assert!(!summary.f_prime.encoder_required);
+    assert!(summary.proof.standalone_authority_ready);
 }
 
 #[test]

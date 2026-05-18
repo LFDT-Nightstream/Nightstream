@@ -1275,7 +1275,6 @@ pub(crate) fn verify_accepted_proof_core_with_transcript_surface_with_perf(
 
     let root_execution_started = Instant::now();
     let root_execution_perf = verify_root_execution(inputs)?;
-    accumulator.root_execution_digest = Some(inputs.root_execution.digest);
     let root_execution_ms = millis_since(root_execution_started);
 
     let root_main_lane_started = Instant::now();

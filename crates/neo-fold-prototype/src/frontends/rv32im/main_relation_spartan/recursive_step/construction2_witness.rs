@@ -23,17 +23,20 @@ use crate::spartan_backend::SpartanF;
 fn alloc_current_input_fresh_instance<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     current_input: &Rv32imMainRecursionConstruction2FreshInstance,
+    commitment_data_len: usize,
 ) -> Result<(Vec<AllocatedNum<SpartanF>>, [AllocatedNum<SpartanF>; 4], Vec<Boolean>), SynthesisError> {
-    let commitment_data = current_input
-        .commitment()
-        .commitment()
-        .data
-        .iter()
-        .enumerate()
-        .map(|(idx, value)| {
-            AllocatedNum::alloc(cs.namespace(|| format!("current_input_commitment_{idx}")), || {
-                Ok(SpartanF::from_canonical_u64(value.as_canonical_u64()))
-            })
+    let commitment = current_input.commitment().commitment();
+    if commitment.data.len() > commitment_data_len {
+        return Err(SynthesisError::Unsatisfiable);
+    }
+    let commitment_data = (0..commitment_data_len)
+        .map(|idx| {
+            let value = commitment
+                .data
+                .get(idx)
+                .map(|value| SpartanF::from_canonical_u64(value.as_canonical_u64()))
+                .unwrap_or(SpartanF::ZERO);
+            AllocatedNum::alloc(cs.namespace(|| format!("current_input_commitment_{idx}")), || Ok(value))
         })
         .collect::<Result<Vec<_>, _>>()?;
     let x_i = private_digest_inputs(
@@ -174,26 +177,17 @@ fn enforce_boolean_eq_constant_when_selected<CS: ConstraintSystem<SpartanF>>(
 fn enforce_current_input_u_perp_when_base<CS: ConstraintSystem<SpartanF>>(
     cs: &mut CS,
     witness: &Rv32imMainRecursionFPrimeAdvice,
+    expected: &Rv32imMainRecursionConstruction2FreshInstance,
     current_input: &Rv32imMainRecursionConstruction2FreshInstance,
     current_input_commitment_data: &[AllocatedNum<SpartanF>],
     current_input_x_i: &[AllocatedNum<SpartanF>; 4],
     current_input_x_i_bits: &[Boolean],
     chunk_count_in_halves: &[AllocatedNum<SpartanF>; 2],
 ) -> Result<(), SynthesisError> {
-    let full_width =
-        crate::rv32im::construction2::default::build_rv32im_main_recursion_construction2_canonical_full_width(
-            witness.verifier_key_fs(),
-            witness.phi_side(),
-        )
-        .map_err(|_| SynthesisError::Unsatisfiable)?;
-    let expected = crate::rv32im::construction2::build_rv32im_main_recursion_construction2_default_fresh_instance(
-        witness.verifier_key_fs(),
-        full_width,
-    )
-    .map_err(|_| SynthesisError::Unsatisfiable)?;
     if witness.chunk_count_in() == 0
         && (current_input.commitment().commitment().d != expected.commitment().commitment().d
             || current_input.commitment().commitment().kappa != expected.commitment().commitment().kappa
+            || current_input.commitment().commitment().data.len() != expected.commitment().commitment().data.len()
             || current_input_commitment_data.len() != expected.commitment().commitment().data.len()
             || current_input_x_i_bits.len() != expected.x_i().bit_image().len())
     {
@@ -258,11 +252,29 @@ pub(super) fn construction2_current_input_x_from_live_step<CS: ConstraintSystem<
     let current_input = witness
         .construction2_input_fresh_instance()
         .ok_or(SynthesisError::Unsatisfiable)?;
+    let full_width =
+        crate::rv32im::construction2::default::build_rv32im_main_recursion_construction2_canonical_full_width(
+            witness.verifier_key_fs(),
+            witness.phi_side(),
+        )
+        .map_err(|_| SynthesisError::Unsatisfiable)?;
+    let expected_u_perp =
+        crate::rv32im::construction2::build_rv32im_main_recursion_construction2_default_fresh_instance(
+            witness.verifier_key_fs(),
+            full_width,
+        )
+        .map_err(|_| SynthesisError::Unsatisfiable)?;
+    let commitment_data_len = expected_u_perp.commitment().commitment().data.len();
     let (current_input_commitment_data, current_input_x_i, current_input_x_i_bits) =
-        alloc_current_input_fresh_instance(&mut cs.namespace(|| "current_input_fresh_instance"), current_input)?;
+        alloc_current_input_fresh_instance(
+            &mut cs.namespace(|| "current_input_fresh_instance"),
+            current_input,
+            commitment_data_len,
+        )?;
     enforce_current_input_u_perp_when_base(
         &mut cs.namespace(|| "base_current_input_u_perp"),
         witness,
+        &expected_u_perp,
         current_input,
         &current_input_commitment_data,
         &current_input_x_i,

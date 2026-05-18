@@ -26,8 +26,9 @@
 //!   — a single base step compiled end-to-end through the lifecycle is
 //!   accepted by the production non-replay verifier.
 //! - `compiler_two_step_chain_builds_from_scratch_and_verify_uncompressed_accepts`
-//!   — ignored by default (runs ~500 s under the canonical big plan,
-//!   well above the 5-min default cap). Run manually with `--ignored`.
+//!   — ignored by default (runs ~80 s on the current optimized path,
+//!   but remains too heavy for the default compiler-regression suite).
+//!   Run manually with `--ignored`.
 //!   This is the load-bearing production IVC path: compile a base step,
 //!   fold it through the lifecycle, derive the next step's NIFS proof
 //!   from a shape-equivalent placeholder extend, compile a recursive
@@ -508,7 +509,7 @@ fn fibonacci_chain_builder_appends_recursive_step_under_tiny_params() {
 }
 
 #[test]
-#[ignore = "production-shape two-step compiler chain runs ~500s; run explicitly with --ignored"]
+#[ignore = "production-shape two-step compiler chain runs ~80s; run explicitly with --ignored"]
 fn compiler_two_step_chain_builds_from_scratch_and_verify_uncompressed_accepts() {
     let plan = canonical_threaded_plan();
     let prep = fibonacci_f_prime::preprocess_seeded(&plan, 0xC0DE_0009).expect("preprocess");

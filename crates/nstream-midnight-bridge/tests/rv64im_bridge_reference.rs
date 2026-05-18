@@ -64,6 +64,7 @@ fn rv64im_bridge_reference_verifier_rejects_tampered_public_boundary() {
     proof
         .main_proof_mut()
         .ivc_recursion_snark_proof_mut()
+        .terminal_f_prime_committed_step_proof
         .snark_data[0] ^= 1;
     let public_inputs = Rv64imNightstreamBridgePublicInputs::new(&statement);
     let private_witness = bridge_witness(&statement, &proof, &public_proof);

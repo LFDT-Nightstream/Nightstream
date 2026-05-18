@@ -328,12 +328,14 @@ fn direct_ccs_terminal_compressor_uses_folded_ivc_carrier() {
         .expect("read direct CCS summary module");
     let source_types =
         fs::read_to_string(crate_path("src/frontends/direct_ccs/state/types.rs")).expect("read direct CCS state types");
+    let source_step =
+        fs::read_to_string(crate_path("src/frontends/direct_ccs/step.rs")).expect("read direct CCS step module");
     let source_terminal_circuit = fs::read_to_string(crate_path("src/frontends/direct_ccs/terminal/circuit/mod.rs"))
         .expect("read direct CCS terminal F' circuit module");
     let source_prove = fs::read_to_string(crate_path("src/frontends/direct_ccs/terminal/prove.rs"))
         .expect("read direct CCS prove module");
-    let source_verify = fs::read_to_string(crate_path("src/frontends/direct_ccs/terminal/verify.rs"))
-        .expect("read direct CCS verify module");
+    let source_verify =
+        fs::read_to_string(crate_path("src/frontends/direct_ccs/verify.rs")).expect("read direct CCS verify module");
     let source_public_image = [
         "src/frontends/direct_ccs/public_image/mod.rs",
         "src/frontends/direct_ccs/public_image/digest.rs",
@@ -345,7 +347,7 @@ fn direct_ccs_terminal_compressor_uses_folded_ivc_carrier() {
     let source_accumulator = fs::read_to_string(crate_path("src/frontends/direct_ccs/terminal/gadgets/accumulator.rs"))
         .expect("read direct CCS accumulator digest module");
     let source = format!(
-        "{source_state}\n{source_types}\n{source_append}\n{source_compress}\n{source_summary}\n{source_terminal_circuit}\n{source_prove}\n{source_verify}\n{source_public_image}\n{source_accumulator}"
+        "{source_state}\n{source_types}\n{source_step}\n{source_append}\n{source_compress}\n{source_summary}\n{source_terminal_circuit}\n{source_prove}\n{source_verify}\n{source_public_image}\n{source_accumulator}"
     );
     let direct_mod =
         fs::read_to_string(crate_path("src/frontends/direct_ccs/mod.rs")).expect("read direct CCS owner module");
@@ -382,7 +384,7 @@ fn direct_ccs_terminal_compressor_uses_folded_ivc_carrier() {
             && source.contains("pub fn append_step<L, MR, MB>")
             && source.contains("pub fn append_all<L, MR, MB>")
             && source.contains("pub fn latest_relation_and_advice")
-            && source.contains("pub fn compress_with_trace")
+            && source.contains("pub fn compress_snark_with_trace")
             && source.contains("ensure_terminal_compression_is_proof_complete")
             && source.contains("chunks: vec![last.surface.clone()]")
             && source.contains("initial_claims: last.relation.state_in.carry.claims.clone()")
@@ -393,8 +395,8 @@ fn direct_ccs_terminal_compressor_uses_folded_ivc_carrier() {
             && source.contains("direct_accumulator_digest_from_claims")
             && source.contains("direct_state_x_out")
             && source.contains("direct_terminal_accumulator_in_digest_private")
-            && source.contains("proof.construction2_u_i.x_i != expected_x_i")
-            && source.contains("terminal_circuit.terminal_public_values()")
+            && source.contains("self.construction2_u_i.x_i != self.x_out")
+            && source.contains("statement.terminal_public_values()")
             && source.contains("enforce_direct_terminal_final_ce_consistency")
             && !source.contains("prove_rv32im_ce_bundle_relation")
             && !source.contains("verify_rv32im_ce_bundle_relation"),

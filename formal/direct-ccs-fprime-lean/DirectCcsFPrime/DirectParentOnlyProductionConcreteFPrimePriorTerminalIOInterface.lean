@@ -1,0 +1,76 @@
+import DirectCcsFPrime.DirectParentOnlyProductionConcreteFPrimePriorTerminalIO
+
+/-!
+Typed interface for terminal committed public-IO binding in the concrete prior
+F' verifier.
+
+Spec: `specs/DirectParentOnlyProductionConcreteFPrimePriorTerminalIO.spec.md`
+-/
+
+namespace DirectCcsFPrime
+
+namespace DirectParentOnlyProductionConcreteFPrimePriorTerminalIOInterface
+
+abbrev ProductionContext :=
+  DirectParentOnlyProductionConcreteFPrimePriorTerminalIO.ProductionContext
+
+abbrev PublicImage :=
+  DirectParentOnlyProductionConcreteFPrimePriorTerminalIO.PublicImage
+
+abbrev ProofCarryingPriorProof :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIO.ProofCarryingPriorProof
+
+abbrev ConcreteTerminalCommittedIOSurface :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIO.ConcreteTerminalCommittedIOSurface
+
+abbrev VerifyPriorOfTerminalIO :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIO.VerifyPriorOfTerminalIO
+
+abbrev authorityOpenerOfTerminalIO :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIO.authorityOpenerOfTerminalIO
+
+abbrev AcceptedTerminalIOEvidence :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIO.AcceptedTerminalIOEvidence
+
+abbrev verifyPriorOfTerminalIO_evidence :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIO.verifyPriorOfTerminalIO_evidence
+
+abbrev acceptedOpensOfTerminalIO :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIO.acceptedOpensOfTerminalIO
+
+abbrev verifyPriorOfTerminalIO_openAuthority_ne_none :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIO.verifyPriorOfTerminalIO_openAuthority_ne_none
+
+abbrev verifyPriorOfTerminalIO_openedAuthority_accepts_of_open :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIO.verifyPriorOfTerminalIO_openedAuthority_accepts_of_open
+
+abbrev verifyPriorOfTerminalIO_reaches_prior :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIO.verifyPriorOfTerminalIO_reaches_prior
+
+abbrev verifyPriorOfTerminalIO_cannot_accept_unreachable_prior :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIO.verifyPriorOfTerminalIO_cannot_accept_unreachable_prior
+
+abbrev verifyPriorOfTerminalIO_publicImageInvariants :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIO.verifyPriorOfTerminalIO_publicImageInvariants
+
+abbrev proofFunctionalOfTerminalIO :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIO.proofFunctionalOfTerminalIO
+
+abbrev certifiedPriorVerifierOfTerminalIO :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIO.certifiedPriorVerifierOfTerminalIO
+
+abbrev certifiedPriorVerifierOfTerminalIO_verify :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIO.certifiedPriorVerifierOfTerminalIO_verify
+
+abbrev certifiedSingleTerminalEndToEnd_ofConcreteTerminalIOLatestStep :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIO.certifiedSingleTerminalEndToEnd_ofConcreteTerminalIOLatestStep
+
+abbrev nonAggregatePrivateDecStageFacts_ofConcreteTerminalIOLatestStep :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIO.nonAggregatePrivateDecStageFacts_ofConcreteTerminalIOLatestStep
+
+abbrev section71StageTargetAuditTrail_ofConcreteTerminalIOLatestStep :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIO.section71StageTargetAuditTrail_ofConcreteTerminalIOLatestStep
+
+end DirectParentOnlyProductionConcreteFPrimePriorTerminalIOInterface
+
+end DirectCcsFPrime

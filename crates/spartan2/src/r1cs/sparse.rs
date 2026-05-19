@@ -33,6 +33,21 @@ impl<F: PrimeField> SparseMatrix<F> {
     }
   }
 
+  /// Number of rows in the matrix.
+  pub fn rows(&self) -> usize {
+    self.indptr.len().saturating_sub(1)
+  }
+
+  /// Number of columns in the matrix.
+  pub fn cols(&self) -> usize {
+    self.cols
+  }
+
+  /// Number of non-zero entries in the matrix.
+  pub fn nnz(&self) -> usize {
+    self.indptr.last().copied().unwrap_or(0)
+  }
+
   /// Construct from the COO representation; Vec<usize(row), usize(col), F>.
   /// We assume that the rows are sorted during construction.
   #[cfg(test)]
@@ -191,6 +206,7 @@ mod tests {
     provider::PallasHyraxEngine,
     traits::{Engine, Group},
   };
+  #[cfg(not(feature = "p3_backend"))]
   use ff::PrimeField;
   #[cfg(not(feature = "p3_backend"))]
   use proptest::{
@@ -202,9 +218,11 @@ mod tests {
   type Fr = <G as Group>::Scalar;
 
   /// Wrapper struct around a field element that implements additional traits
+  #[cfg(not(feature = "p3_backend"))]
   #[derive(Clone, Debug, PartialEq, Eq)]
   pub struct FWrap<F: PrimeField>(pub F);
 
+  #[cfg(not(feature = "p3_backend"))]
   impl<F: PrimeField> Copy for FWrap<F> {}
 
   #[cfg(not(target_arch = "wasm32"))]

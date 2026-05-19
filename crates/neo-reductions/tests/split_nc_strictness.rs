@@ -202,6 +202,42 @@ fn split_nc_uses_ell_m_for_s_col_when_rectangular() {
 }
 
 #[test]
+fn split_nc_verify_ignores_stale_ct_shell() {
+    let (params, s, l, mcs_inst, mcs_wit, mut tr_p) = build_fixture(b"test/split_nc/stale_ct", 4, D);
+
+    let (mut out_me, proof) = neo_reductions::api::prove(
+        FoldingMode::Optimized,
+        &mut tr_p,
+        &params,
+        &s,
+        core::slice::from_ref(&mcs_inst),
+        core::slice::from_ref(&mcs_wit),
+        &[],
+        &[],
+        &l,
+    )
+    .expect("prove");
+
+    assert_eq!(proof.variant, PiCcsProofVariant::SplitNcV1);
+    assert!(!out_me.is_empty());
+    out_me[0].ct[0] += K::ONE;
+
+    let mut tr_v = Poseidon2Transcript::new(b"test/split_nc/stale_ct");
+    let ok = neo_reductions::api::verify(
+        FoldingMode::Optimized,
+        &mut tr_v,
+        &params,
+        &s,
+        core::slice::from_ref(&mcs_inst),
+        &[],
+        &out_me,
+        &proof,
+    )
+    .expect("verify should not error");
+    assert!(ok, "stale ct shell must not fail optimized verify");
+}
+
+#[test]
 fn split_nc_tampered_y_zcol_is_rejected() {
     // If `eq((α',s'),β)` happens to be zero, a single attempt may not detect tampering.
     // Try a few transcript labels and require that at least one detects it.

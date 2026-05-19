@@ -1,6 +1,6 @@
-use neo_fold_next::nightstream::rv64im::build_rv64im_nightstream_from_public_proof;
-use neo_fold_next::proof::FoldSchedule;
-use neo_fold_next::rv64im::{parity_source_cases, prove_rv64im_public_proof, Rv64imProofInput};
+use neo_fold_prototype::nightstream::rv64im::build_rv64im_nightstream_from_public_proof;
+use neo_fold_prototype::proof::FoldSchedule;
+use neo_fold_prototype::rv64im::{build_mixed_opcode_perf_source_case, prove_rv64im_public_proof, Rv64imProofInput};
 use nstream_midnight_bridge::rv64im::{
     build_rv64im_nightstream_bridge_preimage, build_rv64im_nightstream_midnight_proof_preimage,
     build_rv64im_nightstream_verifier_ir_v2, check_rv64im_nightstream_verifier_ir_v2,
@@ -11,68 +11,41 @@ use nstream_midnight_bridge::rv64im::{
 use transient_crypto::curve::Fr;
 
 const DIGEST32_FIELD_WORDS: usize = 5;
-const PROOF_BINDING_CLAIM_DIGESTS: usize = 9;
+const PROOF_BINDING_CLAIM_DIGESTS: usize = 5;
 
-fn private_claim_words(chunk_count: usize) -> usize {
-    DIGEST32_FIELD_WORDS
-        + DIGEST32_FIELD_WORDS
-        + 2
-        + (PROOF_BINDING_CLAIM_DIGESTS * DIGEST32_FIELD_WORDS)
-        + DIGEST32_FIELD_WORDS
-        + DIGEST32_FIELD_WORDS
-        + DIGEST32_FIELD_WORDS
-        + 1
-        + (DIGEST32_FIELD_WORDS * chunk_count)
-        + 1
-        + (DIGEST32_FIELD_WORDS * chunk_count)
-        + 1
-        + ((2 * DIGEST32_FIELD_WORDS) * chunk_count)
+fn private_claim_words() -> usize {
+    DIGEST32_FIELD_WORDS + DIGEST32_FIELD_WORDS + 2 + 1 + (PROOF_BINDING_CLAIM_DIGESTS * DIGEST32_FIELD_WORDS)
 }
 
-fn first_linkage_public_chunk_digest_offset() -> usize {
-    DIGEST32_FIELD_WORDS
-        + DIGEST32_FIELD_WORDS
-        + 2
-        + (PROOF_BINDING_CLAIM_DIGESTS * DIGEST32_FIELD_WORDS)
-        + DIGEST32_FIELD_WORDS
-        + DIGEST32_FIELD_WORDS
-        + DIGEST32_FIELD_WORDS
-        + 1
+fn proof_binding_main_proof_digest_offset() -> usize {
+    DIGEST32_FIELD_WORDS + DIGEST32_FIELD_WORDS + 2 + 1 + DIGEST32_FIELD_WORDS
 }
 
-fn statement_linkage_root_offset(chunk_count: usize) -> usize {
-    private_claim_words(chunk_count) + DIGEST32_FIELD_WORDS + DIGEST32_FIELD_WORDS + 2 + 1 + 1 + (12 * chunk_count)
+fn statement_proof_binding_root_offset() -> usize {
+    private_claim_words() + DIGEST32_FIELD_WORDS + DIGEST32_FIELD_WORDS + 2 + 1
 }
 
-fn statement_proof_binding_root_offset(chunk_count: usize) -> usize {
-    statement_linkage_root_offset(chunk_count) + DIGEST32_FIELD_WORDS
+fn statement_public_io_digest_offset() -> usize {
+    private_claim_words()
 }
 
-fn statement_first_chunk_start_index_offset(chunk_count: usize) -> usize {
-    private_claim_words(chunk_count) + DIGEST32_FIELD_WORDS + DIGEST32_FIELD_WORDS + 2 + 1 + 1
+fn proof_main_digest_offset() -> usize {
+    private_claim_words() + DIGEST32_FIELD_WORDS + DIGEST32_FIELD_WORDS + 2 + 1 + DIGEST32_FIELD_WORDS
 }
 
-fn statement_first_chunk_relation_digest_offset(chunk_count: usize) -> usize {
-    private_claim_words(chunk_count)
+fn proof_published_statement_digest_offset() -> usize {
+    private_claim_words()
         + DIGEST32_FIELD_WORDS
         + DIGEST32_FIELD_WORDS
         + 2
         + 1
-        + 1
-        + 1
-        + 1
+        + DIGEST32_FIELD_WORDS
+        + DIGEST32_FIELD_WORDS
         + DIGEST32_FIELD_WORDS
 }
 
-fn source_case(name: &str) -> neo_fold_next::rv64im::Rv64imParitySourceCase {
-    parity_source_cases()
-        .into_iter()
-        .find(|case| case.manifest.name == name)
-        .unwrap_or_else(|| panic!("missing parity source case {name}"))
-}
-
-fn proof_input(name: &str) -> Rv64imProofInput {
-    let source = source_case(name);
+fn proof_input(_name: &str) -> Rv64imProofInput {
+    let source = build_mixed_opcode_perf_source_case(2);
     let max_steps = source.program_words.len();
     Rv64imProofInput { source, max_steps }
 }
@@ -86,7 +59,12 @@ fn rv64im_bridge_builds_real_midnight_proof_preimage() {
 
     let bridge_preimage = build_rv64im_nightstream_bridge_preimage(
         Rv64imNightstreamBridgePublicInputs::new(&statement),
-        Rv64imNightstreamBridgePrivateWitness::new(&statement, &proof, &public_proof),
+        Rv64imNightstreamBridgePrivateWitness::new(
+            &statement,
+            &proof,
+            public_proof.statement.root_params_id,
+            public_proof.statement.recompute_digest(),
+        ),
     )
     .expect("build bridge preimage");
     let midnight_preimage =
@@ -118,7 +96,12 @@ fn rv64im_bridge_midnight_verifier_ir_checks_current_preimage() {
 
     let bridge_preimage = build_rv64im_nightstream_bridge_preimage(
         Rv64imNightstreamBridgePublicInputs::new(&statement),
-        Rv64imNightstreamBridgePrivateWitness::new(&statement, &proof, &public_proof),
+        Rv64imNightstreamBridgePrivateWitness::new(
+            &statement,
+            &proof,
+            public_proof.statement.root_params_id,
+            public_proof.statement.recompute_digest(),
+        ),
     )
     .expect("build bridge preimage");
 
@@ -135,7 +118,12 @@ fn rv64im_bridge_midnight_verifier_ir_rejects_wrong_version_word() {
 
     let bridge_preimage = build_rv64im_nightstream_bridge_preimage(
         Rv64imNightstreamBridgePublicInputs::new(&statement),
-        Rv64imNightstreamBridgePrivateWitness::new(&statement, &proof, &public_proof),
+        Rv64imNightstreamBridgePrivateWitness::new(
+            &statement,
+            &proof,
+            public_proof.statement.root_params_id,
+            public_proof.statement.recompute_digest(),
+        ),
     )
     .expect("build bridge preimage");
     let mut midnight_preimage =
@@ -159,7 +147,12 @@ fn rv64im_bridge_midnight_verifier_ir_rejects_tampered_public_digest_word() {
 
     let bridge_preimage = build_rv64im_nightstream_bridge_preimage(
         Rv64imNightstreamBridgePublicInputs::new(&statement),
-        Rv64imNightstreamBridgePrivateWitness::new(&statement, &proof, &public_proof),
+        Rv64imNightstreamBridgePrivateWitness::new(
+            &statement,
+            &proof,
+            public_proof.statement.root_params_id,
+            public_proof.statement.recompute_digest(),
+        ),
     )
     .expect("build bridge preimage");
     let mut midnight_preimage =
@@ -175,7 +168,7 @@ fn rv64im_bridge_midnight_verifier_ir_rejects_tampered_public_digest_word() {
 }
 
 #[test]
-fn rv64im_bridge_midnight_verifier_ir_rejects_tampered_residual_public_statement_digest() {
+fn rv64im_bridge_midnight_verifier_ir_rejects_tampered_main_proof_digest_claim() {
     let input = proof_input("control_flow_jal_skip_ecall");
     let public_proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
     let (statement, proof) =
@@ -183,27 +176,24 @@ fn rv64im_bridge_midnight_verifier_ir_rejects_tampered_residual_public_statement
 
     let bridge_preimage = build_rv64im_nightstream_bridge_preimage(
         Rv64imNightstreamBridgePublicInputs::new(&statement),
-        Rv64imNightstreamBridgePrivateWitness::new(&statement, &proof, &public_proof),
+        Rv64imNightstreamBridgePrivateWitness::new(
+            &statement,
+            &proof,
+            public_proof.statement.root_params_id,
+            public_proof.statement.recompute_digest(),
+        ),
     )
     .expect("build bridge preimage");
     let ir = build_rv64im_nightstream_verifier_ir_v2(&bridge_preimage).expect("build verifier ir");
     let mut midnight_preimage =
         build_rv64im_nightstream_midnight_proof_preimage(&bridge_preimage).expect("build midnight preimage");
 
-    let mut private_witness =
-        decode_rv64im_nightstream_bridge_private_witness_fields(&bridge_preimage.private_transcript)
-            .expect("decode private witness");
-    private_witness
-        .proof
-        .main_residual_proof
-        .public_statement_digest[0] ^= 1;
-    let tampered_private_words = encode_rv64im_nightstream_bridge_private_witness_fields(private_witness.borrowed())
-        .expect("re-encode tampered private witness");
-    midnight_preimage.private_transcript = tampered_private_words.into_iter().map(Fr::from).collect();
+    let proof_digest_word = proof_binding_main_proof_digest_offset();
+    midnight_preimage.private_transcript[proof_digest_word] = Fr::from(0u64);
 
     let err = midnight_preimage
         .check(&ir)
-        .expect_err("tampered residual digest must fail verifier ir");
+        .expect_err("tampered main proof digest must fail verifier ir");
     let msg = format!("{err}");
     assert!(msg.contains("assert") || msg.contains("Assertion"));
 }
@@ -217,7 +207,12 @@ fn rv64im_bridge_midnight_verifier_ir_rejects_tampered_statement_verifier_contex
 
     let bridge_preimage = build_rv64im_nightstream_bridge_preimage(
         Rv64imNightstreamBridgePublicInputs::new(&statement),
-        Rv64imNightstreamBridgePrivateWitness::new(&statement, &proof, &public_proof),
+        Rv64imNightstreamBridgePrivateWitness::new(
+            &statement,
+            &proof,
+            public_proof.statement.root_params_id,
+            public_proof.statement.recompute_digest(),
+        ),
     )
     .expect("build bridge preimage");
     let ir = build_rv64im_nightstream_verifier_ir_v2(&bridge_preimage).expect("build verifier ir");
@@ -248,7 +243,12 @@ fn rv64im_bridge_midnight_verifier_ir_rejects_tampered_statement_fold_schedule()
 
     let bridge_preimage = build_rv64im_nightstream_bridge_preimage(
         Rv64imNightstreamBridgePublicInputs::new(&statement),
-        Rv64imNightstreamBridgePrivateWitness::new(&statement, &proof, &public_proof),
+        Rv64imNightstreamBridgePrivateWitness::new(
+            &statement,
+            &proof,
+            public_proof.statement.root_params_id,
+            public_proof.statement.recompute_digest(),
+        ),
     )
     .expect("build bridge preimage");
     let ir = build_rv64im_nightstream_verifier_ir_v2(&bridge_preimage).expect("build verifier ir");
@@ -274,7 +274,7 @@ fn rv64im_bridge_midnight_verifier_ir_rejects_tampered_statement_fold_schedule()
 }
 
 #[test]
-fn rv64im_bridge_midnight_verifier_ir_rejects_tampered_linkage_public_chunk_digest() {
+fn rv64im_bridge_midnight_verifier_ir_rejects_tampered_statement_public_io_digest() {
     let input = proof_input("control_flow_jal_skip_ecall");
     let public_proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
     let (statement, proof) =
@@ -282,19 +282,24 @@ fn rv64im_bridge_midnight_verifier_ir_rejects_tampered_linkage_public_chunk_dige
 
     let bridge_preimage = build_rv64im_nightstream_bridge_preimage(
         Rv64imNightstreamBridgePublicInputs::new(&statement),
-        Rv64imNightstreamBridgePrivateWitness::new(&statement, &proof, &public_proof),
+        Rv64imNightstreamBridgePrivateWitness::new(
+            &statement,
+            &proof,
+            public_proof.statement.root_params_id,
+            public_proof.statement.recompute_digest(),
+        ),
     )
     .expect("build bridge preimage");
     let ir = build_rv64im_nightstream_verifier_ir_v2(&bridge_preimage).expect("build verifier ir");
     let mut midnight_preimage =
         build_rv64im_nightstream_midnight_proof_preimage(&bridge_preimage).expect("build midnight preimage");
 
-    let first_linkage_public_chunk_digest_word = first_linkage_public_chunk_digest_offset();
-    midnight_preimage.private_transcript[first_linkage_public_chunk_digest_word] = Fr::from(0u64);
+    let public_io_word = statement_public_io_digest_offset();
+    midnight_preimage.private_transcript[public_io_word] = Fr::from(0u64);
 
     let err = midnight_preimage
         .check(&ir)
-        .expect_err("tampered linkage public chunk digest must fail verifier ir");
+        .expect_err("tampered statement public IO digest must fail verifier ir");
     let msg = format!("{err}");
     assert!(msg.contains("assert") || msg.contains("Assertion"));
 }
@@ -308,14 +313,19 @@ fn rv64im_bridge_midnight_verifier_ir_rejects_tampered_statement_proof_binding_r
 
     let bridge_preimage = build_rv64im_nightstream_bridge_preimage(
         Rv64imNightstreamBridgePublicInputs::new(&statement),
-        Rv64imNightstreamBridgePrivateWitness::new(&statement, &proof, &public_proof),
+        Rv64imNightstreamBridgePrivateWitness::new(
+            &statement,
+            &proof,
+            public_proof.statement.root_params_id,
+            public_proof.statement.recompute_digest(),
+        ),
     )
     .expect("build bridge preimage");
     let ir = build_rv64im_nightstream_verifier_ir_v2(&bridge_preimage).expect("build verifier ir");
     let mut midnight_preimage =
         build_rv64im_nightstream_midnight_proof_preimage(&bridge_preimage).expect("build midnight preimage");
 
-    let proof_binding_root_word = statement_proof_binding_root_offset(statement.chunk_summaries.len());
+    let proof_binding_root_word = statement_proof_binding_root_offset();
     midnight_preimage.private_transcript[proof_binding_root_word] = Fr::from(0u64);
 
     let err = midnight_preimage
@@ -326,7 +336,7 @@ fn rv64im_bridge_midnight_verifier_ir_rejects_tampered_statement_proof_binding_r
 }
 
 #[test]
-fn rv64im_bridge_midnight_verifier_ir_rejects_tampered_statement_linkage_root() {
+fn rv64im_bridge_midnight_verifier_ir_rejects_tampered_proof_main_digest() {
     let input = proof_input("control_flow_jal_skip_ecall");
     let public_proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
     let (statement, proof) =
@@ -334,25 +344,30 @@ fn rv64im_bridge_midnight_verifier_ir_rejects_tampered_statement_linkage_root() 
 
     let bridge_preimage = build_rv64im_nightstream_bridge_preimage(
         Rv64imNightstreamBridgePublicInputs::new(&statement),
-        Rv64imNightstreamBridgePrivateWitness::new(&statement, &proof, &public_proof),
+        Rv64imNightstreamBridgePrivateWitness::new(
+            &statement,
+            &proof,
+            public_proof.statement.root_params_id,
+            public_proof.statement.recompute_digest(),
+        ),
     )
     .expect("build bridge preimage");
     let ir = build_rv64im_nightstream_verifier_ir_v2(&bridge_preimage).expect("build verifier ir");
     let mut midnight_preimage =
         build_rv64im_nightstream_midnight_proof_preimage(&bridge_preimage).expect("build midnight preimage");
 
-    let linkage_root_word = statement_linkage_root_offset(statement.chunk_summaries.len());
-    midnight_preimage.private_transcript[linkage_root_word] = Fr::from(0u64);
+    let proof_main_digest_word = proof_main_digest_offset();
+    midnight_preimage.private_transcript[proof_main_digest_word] = Fr::from(0u64);
 
     let err = midnight_preimage
         .check(&ir)
-        .expect_err("tampered statement linkage root must fail verifier ir");
+        .expect_err("tampered proof main digest must fail verifier ir");
     let msg = format!("{err}");
     assert!(msg.contains("assert") || msg.contains("Assertion"));
 }
 
 #[test]
-fn rv64im_bridge_midnight_verifier_ir_rejects_tampered_statement_chunk_relation_digest() {
+fn rv64im_bridge_midnight_verifier_ir_rejects_tampered_proof_published_statement_digest() {
     let input = proof_input("control_flow_jal_skip_ecall");
     let public_proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
     let (statement, proof) =
@@ -360,25 +375,30 @@ fn rv64im_bridge_midnight_verifier_ir_rejects_tampered_statement_chunk_relation_
 
     let bridge_preimage = build_rv64im_nightstream_bridge_preimage(
         Rv64imNightstreamBridgePublicInputs::new(&statement),
-        Rv64imNightstreamBridgePrivateWitness::new(&statement, &proof, &public_proof),
+        Rv64imNightstreamBridgePrivateWitness::new(
+            &statement,
+            &proof,
+            public_proof.statement.root_params_id,
+            public_proof.statement.recompute_digest(),
+        ),
     )
     .expect("build bridge preimage");
     let ir = build_rv64im_nightstream_verifier_ir_v2(&bridge_preimage).expect("build verifier ir");
     let mut midnight_preimage =
         build_rv64im_nightstream_midnight_proof_preimage(&bridge_preimage).expect("build midnight preimage");
 
-    let chunk_relation_digest_word = statement_first_chunk_relation_digest_offset(statement.chunk_summaries.len());
-    midnight_preimage.private_transcript[chunk_relation_digest_word] = Fr::from(0u64);
+    let published_statement_digest_word = proof_published_statement_digest_offset();
+    midnight_preimage.private_transcript[published_statement_digest_word] = Fr::from(0u64);
 
     let err = midnight_preimage
         .check(&ir)
-        .expect_err("tampered statement chunk relation digest must fail verifier ir");
+        .expect_err("tampered proof published statement digest must fail verifier ir");
     let msg = format!("{err}");
     assert!(msg.contains("assert") || msg.contains("Assertion"));
 }
 
 #[test]
-fn rv64im_bridge_midnight_verifier_ir_rejects_tampered_statement_chunk_start_index() {
+fn rv64im_bridge_midnight_verifier_ir_rejects_tampered_statement_semantic_step_count() {
     let input = proof_input("control_flow_jal_skip_ecall");
     let public_proof = prove_rv64im_public_proof(&input).expect("prove rv64im public proof");
     let (statement, proof) =
@@ -386,19 +406,24 @@ fn rv64im_bridge_midnight_verifier_ir_rejects_tampered_statement_chunk_start_ind
 
     let bridge_preimage = build_rv64im_nightstream_bridge_preimage(
         Rv64imNightstreamBridgePublicInputs::new(&statement),
-        Rv64imNightstreamBridgePrivateWitness::new(&statement, &proof, &public_proof),
+        Rv64imNightstreamBridgePrivateWitness::new(
+            &statement,
+            &proof,
+            public_proof.statement.root_params_id,
+            public_proof.statement.recompute_digest(),
+        ),
     )
     .expect("build bridge preimage");
     let ir = build_rv64im_nightstream_verifier_ir_v2(&bridge_preimage).expect("build verifier ir");
     let mut midnight_preimage =
         build_rv64im_nightstream_midnight_proof_preimage(&bridge_preimage).expect("build midnight preimage");
 
-    let start_index_word = statement_first_chunk_start_index_offset(statement.chunk_summaries.len());
-    midnight_preimage.private_transcript[start_index_word] = Fr::from(1u64);
+    let semantic_step_count_word = private_claim_words() + DIGEST32_FIELD_WORDS + DIGEST32_FIELD_WORDS + 2;
+    midnight_preimage.private_transcript[semantic_step_count_word] = Fr::from(0u64);
 
     let err = midnight_preimage
         .check(&ir)
-        .expect_err("tampered statement chunk start index must fail verifier ir");
+        .expect_err("tampered statement semantic step count must fail verifier ir");
     let msg = format!("{err}");
     assert!(msg.contains("assert") || msg.contains("Assertion"));
 }

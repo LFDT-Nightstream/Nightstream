@@ -16,6 +16,8 @@ def exportedModuleNames : List String :=
   , "Nightstream.Rv64IM.Kernel.RequiredRootExecutionSemanticsSurface"
   , "Nightstream.Rv64IM.Kernel.RequiredKernelDesignBridgeSurface"
   , "Nightstream.Rv64IM.Kernel.RequiredProofCompleteRustExportSurface"
+  , "Nightstream.Rv64IM.Generated.SideTerminalOpeningDigestBindingCorpus"
+  , "Nightstream.Rv64IM.SideTerminalOpeningDigestBinding"
   , "Nightstream.Rv64IM.ProofCompleteAudit"
   ]
 

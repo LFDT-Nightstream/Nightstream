@@ -3,23 +3,22 @@
 use neo_ccs::poly::{SparsePoly, Term};
 use neo_ccs::{CcsStructure, CcsWitness, Mat};
 use neo_math::{from_complex, D, F, K};
-use neo_params::NeoParams;
+use neo_params::{goldilocks_paper_b2, NeoParams};
 use neo_reductions::engines::optimized_engine::oracle::{OptimizedOracle, SparseCache};
 use neo_reductions::superneo_eval::build_superneo_eval_cache;
 use neo_reductions::Challenges;
 use p3_field::PrimeCharacteristicRing;
-use p3_field::PrimeField64;
 use std::sync::Arc;
 
 fn build_params_for_b(b: u32, m: usize) -> NeoParams {
-    let q: u64 = <F as PrimeField64>::ORDER_U64;
-    let eta: u32 = neo_math::ETA as u32;
-    let d: u32 = neo_math::D as u32;
+    let q: u64 = goldilocks_paper_b2::Q;
+    let eta: u32 = goldilocks_paper_b2::ETA as u32;
+    let d: u32 = goldilocks_paper_b2::D as u32;
     let kappa: u32 = 2;
     let m_u: u64 = m as u64;
     let k_rho: u32 = 12;
-    let T: u32 = 216;
-    let s: u32 = 2;
+    let T: u32 = goldilocks_paper_b2::T;
+    let s: u32 = goldilocks_paper_b2::EXTENSION_DEGREE;
     let lambda: u32 = 96;
     NeoParams::new(q, eta, d, kappa, m_u, b, k_rho, T, s, lambda).expect("params")
 }

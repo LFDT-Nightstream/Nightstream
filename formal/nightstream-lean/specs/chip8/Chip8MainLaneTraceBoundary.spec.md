@@ -90,7 +90,7 @@ $$
 ## Paper Anchors
 
 - **Sources**:
-  - `./crates/neo-fold-next/specs/chip8-kernel.md`
+  - `./crates/neo-fold-prototype/specs/chip8-kernel.md`
   - `./docs/assurance-strategy.md`
 - Anchors:
   - root/main-lane local row obligations remain distinct from Stage-1 /

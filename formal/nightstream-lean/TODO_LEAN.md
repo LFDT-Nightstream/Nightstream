@@ -1,6 +1,6 @@
 # TODO_LEAN
 
-Lean-first roadmap for moving the CHIP-8 path in `neo-fold-next` from the
+Lean-first roadmap for moving the CHIP-8 path in `neo-fold-prototype` from the
 current compatibility frontend to the intended release architecture.
 
 This file is about **boundary-changing** work only. Pure Rust performance work
@@ -45,28 +45,28 @@ than replaying a compatibility export path.
 These are the reasons a Lean-first release-architecture pass is still needed.
 
 - The active CHIP-8 pipeline is explicitly a compatibility path in
-  [crates/neo-fold-next/src/pipeline/mod.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-next/src/pipeline/mod.rs).
+  [crates/neo-fold-prototype/src/pipeline/mod.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-prototype/src/pipeline/mod.rs).
 - The bridge still exports compatibility artifacts in
-  [crates/neo-fold-next/src/bridge/mod.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-next/src/bridge/mod.rs),
+  [crates/neo-fold-prototype/src/bridge/mod.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-prototype/src/bridge/mod.rs),
   including `compatibility_path: true`.
 - `BytecodeFetch` is still a transcript-binding facade, not a real Shout proof,
   in
-  [crates/neo-fold-next/src/families/bytecode_fetch.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-next/src/families/bytecode_fetch.rs).
+  [crates/neo-fold-prototype/src/families/bytecode_fetch.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-prototype/src/families/bytecode_fetch.rs).
 - `RegisterHistory` is still a transcript-binding facade, not a real Twist
   proof, in
-  [crates/neo-fold-next/src/families/register_history.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-next/src/families/register_history.rs).
+  [crates/neo-fold-prototype/src/families/register_history.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-prototype/src/families/register_history.rs).
 - `RamHistory` is still a transcript-binding facade, not a real Twist proof, in
-  [crates/neo-fold-next/src/families/ram_history.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-next/src/families/ram_history.rs).
+  [crates/neo-fold-prototype/src/families/ram_history.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-prototype/src/families/ram_history.rs).
 - `InstructionSemanticsLookup` exists in proof/planner enums but does not yet
   have a real proving module. See
-  [crates/neo-fold-next/src/proof.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-next/src/proof.rs)
+  [crates/neo-fold-prototype/src/proof.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-prototype/src/proof.rs)
   and
-  [crates/neo-fold-next/src/stages/planner.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-next/src/stages/planner.rs).
+  [crates/neo-fold-prototype/src/stages/planner.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-prototype/src/stages/planner.rs).
 - `time_opening` currently owns manifest/reduction/unification summaries over
   `OpeningClaim`s, not the final compressed PCS opening backend, in
-  [crates/neo-fold-next/src/time_opening.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-next/src/time_opening.rs).
+  [crates/neo-fold-prototype/src/time_opening.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-prototype/src/time_opening.rs).
 - The Rust proof boundary still advertises future placeholders in
-  [crates/neo-fold-next/src/proof.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-next/src/proof.rs).
+  [crates/neo-fold-prototype/src/proof.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-prototype/src/proof.rs).
 - The Nightstream Lean stack already fixes the digest boundary and transcript
   schedule, but it does not yet own one fully executable Goldilocks /
   serialization / Poseidon2 parity lane for the exported protocol-binding hash
@@ -139,7 +139,7 @@ Why:
 Blocks:
 
 - replacing
-  [bytecode_fetch.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-next/src/families/bytecode_fetch.rs)
+  [bytecode_fetch.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-prototype/src/families/bytecode_fetch.rs)
   with a real proof family
 
 ### 3. Formalize instruction-semantics lookup as a real family
@@ -190,7 +190,7 @@ Why:
 Blocks:
 
 - replacing
-  [register_history.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-next/src/families/register_history.rs)
+  [register_history.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-prototype/src/families/register_history.rs)
 
 ### 5. Formalize the RAM-history family as a real Twist-owned surface
 
@@ -213,7 +213,7 @@ Why:
 Blocks:
 
 - replacing
-  [ram_history.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-next/src/families/ram_history.rs)
+  [ram_history.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-prototype/src/families/ram_history.rs)
 
 ### 6. Prove the family-to-main-lane bridge
 
@@ -261,9 +261,9 @@ Why:
 Blocks:
 
 - replacing
-  [crates/neo-fold-next/src/bridge/mod.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-next/src/bridge/mod.rs)
+  [crates/neo-fold-prototype/src/bridge/mod.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-prototype/src/bridge/mod.rs)
   and the compatibility parts of
-  [crates/neo-fold-next/src/pipeline/mod.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-next/src/pipeline/mod.rs)
+  [crates/neo-fold-prototype/src/pipeline/mod.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-prototype/src/pipeline/mod.rs)
 
 ### 8. Define the final opening/compression boundary
 
@@ -288,9 +288,9 @@ Why:
 Blocks:
 
 - upgrading
-  [crates/neo-fold-next/src/time_opening.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-next/src/time_opening.rs)
+  [crates/neo-fold-prototype/src/time_opening.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-prototype/src/time_opening.rs)
   and possibly
-  [crates/neo-fold-next/src/finalize.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-next/src/finalize.rs)
+  [crates/neo-fold-prototype/src/finalize.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-prototype/src/finalize.rs)
 
 ### 9. Define the final packaged proof and checker surface
 
@@ -314,9 +314,9 @@ Why:
 Blocks:
 
 - changes to
-  [crates/neo-fold-next/src/proof.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-next/src/proof.rs)
+  [crates/neo-fold-prototype/src/proof.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-prototype/src/proof.rs)
   and
-  [crates/neo-fold-next/src/finalize.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-next/src/finalize.rs)
+  [crates/neo-fold-prototype/src/finalize.rs](/Users/nicolasarqueros/starstream/develop/nightstream-clean-up/crates/neo-fold-prototype/src/finalize.rs)
 
 ### 10. Define the executable protocol-parity lane
 

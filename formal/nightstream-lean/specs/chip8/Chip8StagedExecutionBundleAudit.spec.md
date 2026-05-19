@@ -138,7 +138,7 @@ must recover that bundled digest count equals the public semantic-row count.
 
 - **Sources**:
   - `./docs/assurance-strategy.md`
-  - `./crates/neo-fold-next/specs/chip8-kernel.md`
+  - `./crates/neo-fold-prototype/specs/chip8-kernel.md`
   - `./formal/nightstream-lean/specs/chip8/Chip8StagedExecutionDigestBundle.spec.md`
   - `./formal/nightstream-lean/specs/chip8/Chip8ArtifactAudit.spec.md`
 - Anchors:

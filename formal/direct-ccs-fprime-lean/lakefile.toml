@@ -1,0 +1,11 @@
+name = "direct_ccs_fprime_lean"
+version = "0.1.0"
+defaultTargets = ["DirectCcsFPrime"]
+
+[[require]]
+name = "superneo_lean"
+path = "../superneo-lean"
+
+[[lean_lib]]
+name = "DirectCcsFPrime"
+globs = ["DirectCcsFPrime"]

@@ -8,15 +8,14 @@
 
 use crate::traits::snark::SpartanDigest;
 use bincode::Options;
-use neo_params::poseidon2_goldilocks::{DIGEST_LEN, RATE, SEED, WIDTH};
-use once_cell::sync::Lazy;
+use neo_params::poseidon2_goldilocks::{DIGEST_LEN, RATE, WIDTH};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
+use p3_goldilocks::Goldilocks;
 use p3_symmetric::Permutation;
-use rand_chacha_p3::ChaCha8Rng;
-use rand_chacha_p3::rand_core::SeedableRng;
 use serde::Serialize;
 use std::io;
+
+use crate::poseidon2_shared::goldilocks_poseidon2_perm;
 
 /// Trait for components with potentially discrete digests to be included in their container's digest.
 pub trait Digestible {
@@ -50,16 +49,12 @@ pub struct DigestComputer<'a, T> {
   inner: &'a T,
 }
 
-static PERM: Lazy<Poseidon2Goldilocks<{ WIDTH }>> = Lazy::new(|| {
-  let mut rng = ChaCha8Rng::from_seed(SEED);
-  Poseidon2Goldilocks::<{ WIDTH }>::new_from_rng_128(&mut rng)
-});
-
 fn poseidon2_digest32_packed_bytes(bytes: &[u8]) -> SpartanDigest {
+  let perm = goldilocks_poseidon2_perm();
   let mut state = [Goldilocks::ZERO; WIDTH];
   let mut absorb_one = |x: Goldilocks, absorbed: &mut usize| {
     if *absorbed >= RATE {
-      state = PERM.permute(state);
+      state = perm.permute(state);
       *absorbed = 0;
     }
     state[*absorbed] = x;
@@ -80,7 +75,7 @@ fn poseidon2_digest32_packed_bytes(bytes: &[u8]) -> SpartanDigest {
   }
 
   absorb_one(Goldilocks::ONE, &mut absorbed);
-  state = PERM.permute(state);
+  state = perm.permute(state);
 
   let mut out = [0u8; 32];
   for i in 0..DIGEST_LEN {

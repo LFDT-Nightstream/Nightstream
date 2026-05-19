@@ -369,7 +369,7 @@ $$
 ## Paper Anchors
 
 - **Sources**:
-  - `./crates/neo-fold-next/specs/chip8-kernel.md`
+  - `./crates/neo-fold-prototype/specs/chip8-kernel.md`
   - `./docs/soundness-specs/twist-and-shout-requirements.md`
   - `./docs/assurance-strategy.md`
 - Anchors:

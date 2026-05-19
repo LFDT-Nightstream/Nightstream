@@ -11,6 +11,7 @@ description = "Nightstream math primitives: Fq, F_{q^2}, cyclotomic ring R_q, S-
 workspace = true
 
 [dependencies]
+neo-params = { path = "../neo-params" }
 # Plonky3 field + Goldilocks + Matrix (no NTT/FFT in folding layer per Neo design)
 p3-field = { workspace = true }
 p3-goldilocks = { workspace = true }

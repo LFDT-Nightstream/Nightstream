@@ -1,0 +1,39 @@
+import DirectCcsFPrime.FPrimeTraceAuthorityRedTeam
+
+/-!
+Typed interface for trace-authority red-team checks.
+
+Spec: `specs/FPrimeTraceAuthorityRedTeam.spec.md`
+-/
+
+namespace DirectCcsFPrime
+
+namespace FPrimeTraceAuthorityRedTeamInterface
+
+abbrev TwoImage :=
+  FPrimeTraceAuthorityRedTeam.TwoImage
+
+abbrev NoTransition :=
+  FPrimeTraceAuthorityRedTeam.NoTransition
+
+abbrev AcceptsAnyDigest :=
+  FPrimeTraceAuthorityRedTeam.AcceptsAnyDigest
+
+abbrev digest_only_acceptance_is_not_trace_sound :=
+  FPrimeTraceAuthorityRedTeam.digest_only_acceptance_is_not_trace_sound
+
+abbrev aggregate_digit_summary_does_not_authorize_unique_children :=
+  FPrimeTraceAuthorityRedTeam.aggregate_digit_summary_does_not_authorize_unique_children
+
+abbrev aggregate_norm_total_does_not_authorize_child_identity :=
+  FPrimeTraceAuthorityRedTeam.aggregate_norm_total_does_not_authorize_child_identity
+
+abbrev signed_low_norm_dec_recomposition_does_not_authorize_unique_children :=
+  FPrimeTraceAuthorityRedTeam.signed_low_norm_dec_recomposition_does_not_authorize_unique_children
+
+abbrev modular_binary_recomposition_without_range_does_not_authorize_unique_children :=
+  FPrimeTraceAuthorityRedTeam.modular_binary_recomposition_without_range_does_not_authorize_unique_children
+
+end FPrimeTraceAuthorityRedTeamInterface
+
+end DirectCcsFPrime

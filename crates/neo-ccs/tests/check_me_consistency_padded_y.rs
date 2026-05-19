@@ -1,5 +1,7 @@
 #![allow(non_snake_case)]
 
+mod support;
+
 use neo_ccs::{
     poly::SparsePoly, poly::Term, relations::check_ce_consistency, traits::SModuleHomomorphism, CcsStructure, CeClaim,
     CeWitness, Mat,
@@ -9,6 +11,7 @@ use neo_math::K;
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks as Fq;
+use support::superneo_y_ring;
 
 struct TestL;
 
@@ -16,23 +19,11 @@ impl SModuleHomomorphism<Fq, Vec<Fq>> for TestL {
     fn commit(&self, z: &Mat<Fq>) -> Vec<Fq> {
         z.as_slice().to_vec()
     }
-
-    fn project_x(&self, z: &Mat<Fq>, min: usize) -> Mat<Fq> {
-        let (d, m) = (z.rows(), z.cols());
-        assert!(min <= m);
-        let mut out = Mat::zero(d, min, Fq::ZERO);
-        for c in 0..min {
-            for r in 0..d {
-                out[(r, c)] = z[(r, c)];
-            }
-        }
-        out
-    }
 }
 
 #[test]
 fn me_consistency_accepts_padded_y_rows() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
 
     // CCS: n=4 (power of two), SuperNeo-compatible m=D, t=1, f(y)=y0 (linear)
     let n = 4usize;
@@ -59,31 +50,12 @@ fn me_consistency_accepts_padded_y_rows() {
 
     let m_in = 1usize;
     let c = L.commit(&Z);
-    let X = L.project_x(&Z, m_in);
+    let mut X = Mat::zero(d, m_in, Fq::ZERO);
+    X[(0, 0)] = Z[(0, 0)];
 
     // Choose r ∈ K^ell with ell=log2(n)=2.
     let r = vec![K::from(Fq::from_u64(3)), K::from(Fq::from_u64(5))]; // arbitrary
-    let rb = neo_ccs::utils::tensor_point::<K>(&r);
-
-    // v = M^T rb (in K^m)
-    let v_k = {
-        let mut v = vec![K::ZERO; m];
-        for row in 0..n {
-            let rb_r = rb[row];
-            let row_slice = m0.row(row).to_vec();
-            for cidx in 0..m {
-                v[cidx] += K::from(row_slice[cidx]) * rb_r;
-            }
-        }
-        v
-    };
-
-    // y = Z * v in packed SuperNeo layout:
-    // y[rho] = Z[rho,0] * v[rho] for m=D.
-    let mut y0 = vec![K::ZERO; d];
-    for rho in 0..d {
-        y0[rho] = K::from(Z[(rho, 0)]) * v_k[rho];
-    }
+    let y0 = superneo_y_ring(&s, &Z, &r).remove(0);
 
     // Pad y to 2^{ell_d} (typically 64 for D=54).
     let mut y0_padded = y0.clone();

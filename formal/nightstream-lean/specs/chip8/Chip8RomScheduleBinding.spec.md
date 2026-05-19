@@ -138,7 +138,7 @@ facts across a fixed public input bundle without re-proving the public bindings.
 
 ## Paper Anchors
 
-- **Source**: `./crates/neo-fold-next/specs/chip8-kernel.md`
+- **Source**: `./crates/neo-fold-prototype/specs/chip8-kernel.md`
 - Anchors:
   - commitment bundle / `meta_pub`
   - fixed hypercube domains and absolute ROM addressing

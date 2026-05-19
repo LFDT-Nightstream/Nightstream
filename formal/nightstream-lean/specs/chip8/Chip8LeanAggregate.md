@@ -220,7 +220,7 @@ with all imported source columns fixed to those chosen values and with
 
 ## Paper Anchors
 
-- **Source**: `./crates/neo-fold-next/specs/chip8-kernel.md`
+- **Source**: `./crates/neo-fold-prototype/specs/chip8-kernel.md`
 - Anchors:
   - main-lane witness layout
   - row-local R1CS
@@ -562,7 +562,7 @@ The module must prove:
 
 ## Paper Anchors
 
-- **Source**: `./crates/neo-fold-next/specs/chip8-kernel.md`
+- **Source**: `./crates/neo-fold-prototype/specs/chip8-kernel.md`
 - Anchors:
   - fetch channel
   - full-opcode decode channel
@@ -854,7 +854,7 @@ floating free of the intended row semantics.
 
 ## Paper Anchors
 
-- **Source**: `./crates/neo-fold-next/specs/chip8-kernel.md`
+- **Source**: `./crates/neo-fold-prototype/specs/chip8-kernel.md`
 - Anchors:
   - Stage-1 address-correctness obligations
   - Stage-2 address-correctness obligations
@@ -1179,7 +1179,7 @@ CHIP-8 meaning of the Stage-2 subsystem.
 
 ## Paper Anchors
 
-- **Source**: `./crates/neo-fold-next/specs/chip8-kernel.md`
+- **Source**: `./crates/neo-fold-prototype/specs/chip8-kernel.md`
 - Anchors:
   - register-file domain and ports
   - register-file lane linkage
@@ -1372,7 +1372,7 @@ the authenticated row trace.
 
 ## Paper Anchors
 
-- **Source**: `./crates/neo-fold-next/specs/chip8-kernel.md`
+- **Source**: `./crates/neo-fold-prototype/specs/chip8-kernel.md`
 - Anchors:
   - exact supported 9-family kernel semantics
   - chunk-local continuity / prepared-step export
@@ -1578,7 +1578,7 @@ facts across a fixed public input bundle without re-proving the public bindings.
 
 ## Paper Anchors
 
-- **Source**: `./crates/neo-fold-next/specs/chip8-kernel.md`
+- **Source**: `./crates/neo-fold-prototype/specs/chip8-kernel.md`
 - Anchors:
   - commitment bundle / `meta_pub`
   - fixed hypercube domains and absolute ROM addressing
@@ -1900,7 +1900,7 @@ $$
 
 ## Paper Anchors
 
-- **Source**: `./crates/neo-fold-next/specs/chip8-kernel.md`
+- **Source**: `./crates/neo-fold-prototype/specs/chip8-kernel.md`
 - Anchors:
   - commitment bundle
   - two commitment layers
@@ -2185,7 +2185,7 @@ $$
 
 ## Paper Anchors
 
-- **Source**: `./crates/neo-fold-next/specs/chip8-kernel.md`
+- **Source**: `./crates/neo-fold-prototype/specs/chip8-kernel.md`
 - Anchors:
   - continuity support relation
   - `LaneShiftProof`
@@ -2497,7 +2497,7 @@ top-level theorem parameters.
 
 - **Sources**:
   - `./docs/soundness-specs/twist-and-shout-requirements.md`
-  - `./crates/neo-fold-next/specs/chip8-kernel.md`
+  - `./crates/neo-fold-prototype/specs/chip8-kernel.md`
 - Anchors:
   - commitment-before-challenge discipline
   - Stage-1 linkage and handoff
@@ -2818,7 +2818,7 @@ surfaces, not a parallel informal interface.
 - **Sources**:
   - `./docs/assurance-strategy.md`
   - `./docs/soundness-specs/twist-and-shout-requirements.md`
-  - `./crates/neo-fold-next/specs/chip8-kernel.md`
+  - `./crates/neo-fold-prototype/specs/chip8-kernel.md`
   - `./docs/superneo-paper`
 - Anchors:
   - staged proof composition
@@ -3039,7 +3039,7 @@ re-proved inside this module.
 - **Sources**:
   - `./docs/assurance-strategy.md`
   - `./docs/soundness-specs/twist-and-shout-requirements.md`
-  - `./crates/neo-fold-next/specs/chip8-kernel.md`
+  - `./crates/neo-fold-prototype/specs/chip8-kernel.md`
   - `./docs/superneo-paper`
 - Anchors:
   - staged proof composition
@@ -3293,7 +3293,7 @@ $$
 ## Paper Anchors
 
 - **Sources**:
-  - `./crates/neo-fold-next/specs/chip8-kernel.md`
+  - `./crates/neo-fold-prototype/specs/chip8-kernel.md`
   - `./docs/soundness-specs/twist-and-shout-requirements.md`
 - Anchors:
   - decomposed instruction schedule for memory-prefix families
@@ -3540,7 +3540,7 @@ $$
 
 ## Paper Anchors
 
-- **Source**: `./crates/neo-fold-next/specs/chip8-kernel.md`
+- **Source**: `./crates/neo-fold-prototype/specs/chip8-kernel.md`
 - Anchors:
   - supported opcode coverage
   - row-local routing relation

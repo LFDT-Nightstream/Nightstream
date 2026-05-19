@@ -15,7 +15,7 @@ fn eval_zcol(params: &NeoParams, Z: &Mat<F>, s_col: &[K], m: usize, ell_d: usize
 
 #[test]
 fn dec_reduction_emits_and_checks_y_zcol() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let d_pad = 1usize << ell_d;
 
@@ -110,7 +110,7 @@ fn dec_reduction_emits_and_checks_y_zcol() {
 #[cfg(feature = "paper-exact")]
 #[test]
 fn dec_reduction_superneo_shape_optimized_matches_paper_exact() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let d_pad = 1usize << ell_d;
 

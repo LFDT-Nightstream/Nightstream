@@ -175,8 +175,8 @@ $$
 - **Source**:
   - `./docs/assurance-strategy.md`
   - `./docs/soundness-specs/twist-and-shout-requirements.md`
-  - `./crates/neo-fold-next/specs/chip8-kernel.md`
-  - `./crates/neo-fold-next/src/families/ram_history.rs`
+  - `./crates/neo-fold-prototype/specs/chip8-kernel.md`
+  - `./crates/neo-fold-prototype/src/families/ram_history.rs`
   - `./formal/nightstream-lean/specs/chip8/Chip8TwistTraceRoleSessions.spec.md`
   - `./formal/nightstream-lean/specs/chip8/Chip8RamTimeline.spec.md`
 

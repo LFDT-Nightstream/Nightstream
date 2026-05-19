@@ -92,7 +92,7 @@ where
         .unwrap_or_else(|e| panic!("Π_RLC(optimized): invalid rho set: {e}"));
     let z_cols = Zs[0].cols();
     for (idx, z) in Zs.iter().enumerate() {
-        crate::common::witness_mat_layout(*z, s.m)
+        crate::common::validate_superneo_witness_mat(*z, s.m)
             .unwrap_or_else(|e| panic!("Π_RLC(optimized): invalid witness shape at input {idx}: {e}"));
         assert_eq!(
             z.cols(),

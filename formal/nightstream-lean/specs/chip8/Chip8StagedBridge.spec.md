@@ -191,8 +191,8 @@ $$
 - **Source**:
   - `./docs/assurance-strategy.md`
   - `./docs/new-fold-plan.md`
-  - `./crates/neo-fold-next/src/bridge/mod.rs`
-  - `./crates/neo-fold-next/src/pipeline/mod.rs`
+  - `./crates/neo-fold-prototype/src/bridge/mod.rs`
+  - `./crates/neo-fold-prototype/src/pipeline/mod.rs`
   - `./formal/nightstream-lean/specs/chip8/Chip8ReleaseBridge.spec.md`
   - `./formal/nightstream-lean/specs/chip8/Chip8AuthenticatedTrace.spec.md`
 

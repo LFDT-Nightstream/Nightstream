@@ -114,6 +114,7 @@ pub fn optimized_prove_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorphi
         log,
         cache,
         None,
+        None,
         ReplayTraceMode::Prove,
     )?;
     let rounds = rounds.expect("optimized prove trace must capture proof rounds");
@@ -155,6 +156,59 @@ pub fn optimized_prove_with_cache_and_instance_digest_and_perf<L: neo_ccs::trait
         log,
         cache,
         Some(public_instance_digest),
+        None,
+        ReplayTraceMode::Prove,
+    )?;
+    let rounds = rounds.expect("optimized prove trace must capture proof rounds");
+
+    let mut proof = PiCcsProof::new(rounds.sumcheck_rounds, Some(rounds.initial_sum));
+    proof.variant = PiCcsProofVariant::SplitNcV1;
+    proof.sumcheck_challenges = [terminal_state.row_chals.clone(), terminal_state.alpha_prime.clone()].concat();
+    proof.sumcheck_rounds_nc = rounds.sumcheck_rounds_nc;
+    proof.sc_initial_sum_nc = Some(rounds.initial_sum_nc);
+    proof.sumcheck_challenges_nc = [terminal_state.s_col.clone(), terminal_state.alpha_prime_nc.clone()].concat();
+    proof.challenges_public = terminal_state.challenges_public.clone();
+    proof.sumcheck_final = terminal_state.sumcheck_final;
+    proof.sumcheck_final_nc = terminal_state.sumcheck_final_nc;
+    proof.header_digest = terminal_state.fold_digest.to_vec();
+
+    Ok((terminal_state.me_outputs, proof, terminal_state.perf))
+}
+
+/// Variant of [`optimized_prove_with_cache_and_instance_digest_and_perf`] that
+/// binds the ME-input accumulator handle into the transcript instead of the
+/// per-claim ME-input projection digests. The caller supplies a 4-lane handle
+/// (e.g. the running-accumulator digest) which must be recomputed from
+/// authoritative claim data on the verify side via the matching `_me_input_handle_`
+/// verify entry. Body is identical to the non-handle variant except for the
+/// `Some(me_input_accumulator_handle)` argument passed into the replay driver.
+pub fn optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf<
+    L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>,
+>(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[CcsClaim<Cmt, F>],
+    mcs_witnesses: &[CcsWitness<F>],
+    me_inputs: &[CeClaim<Cmt, F, K>],
+    me_witnesses: &[Mat<F>],
+    public_instance_digest: [F; 4],
+    me_input_accumulator_handle: [F; 4],
+    log: &L,
+    cache: &OptimizedStructureCache,
+) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, PiCcsProvePerf), PiCcsError> {
+    let (terminal_state, rounds) = run_optimized_replay_with_cache_and_perf(
+        tr,
+        params,
+        s,
+        mcs_list,
+        mcs_witnesses,
+        me_inputs,
+        me_witnesses,
+        log,
+        cache,
+        Some(public_instance_digest),
+        Some(me_input_accumulator_handle),
         ReplayTraceMode::Prove,
     )?;
     let rounds = rounds.expect("optimized prove trace must capture proof rounds");
@@ -195,6 +249,72 @@ pub fn optimized_replay_terminal_state_with_cache_and_perf<L: neo_ccs::traits::S
         log,
         cache,
         None,
+        None,
+        ReplayTraceMode::TerminalState,
+    )?;
+    validate_replay_terminal_state(params, s, mcs_list, me_inputs, &terminal_state)?;
+    Ok(terminal_state)
+}
+
+pub fn optimized_replay_terminal_state_with_cache_and_instance_digest_and_perf<
+    L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>,
+>(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[CcsClaim<Cmt, F>],
+    mcs_witnesses: &[CcsWitness<F>],
+    me_inputs: &[CeClaim<Cmt, F, K>],
+    me_witnesses: &[Mat<F>],
+    public_instance_digest: [F; 4],
+    log: &L,
+    cache: &OptimizedStructureCache,
+) -> Result<PiCcsReplayTerminalState, PiCcsError> {
+    let (terminal_state, _rounds) = run_optimized_replay_with_cache_and_perf(
+        tr,
+        params,
+        s,
+        mcs_list,
+        mcs_witnesses,
+        me_inputs,
+        me_witnesses,
+        log,
+        cache,
+        Some(public_instance_digest),
+        None,
+        ReplayTraceMode::TerminalState,
+    )?;
+    validate_replay_terminal_state(params, s, mcs_list, me_inputs, &terminal_state)?;
+    Ok(terminal_state)
+}
+
+pub fn optimized_replay_terminal_state_with_cache_instance_digest_and_me_input_handle_and_perf<
+    L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>,
+>(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[CcsClaim<Cmt, F>],
+    mcs_witnesses: &[CcsWitness<F>],
+    me_inputs: &[CeClaim<Cmt, F, K>],
+    me_witnesses: &[Mat<F>],
+    public_instance_digest: [F; 4],
+    me_input_accumulator_handle: [F; 4],
+    log: &L,
+    cache: &OptimizedStructureCache,
+) -> Result<PiCcsReplayTerminalState, PiCcsError> {
+    let (terminal_state, _rounds) = run_optimized_replay_with_cache_and_perf(
+        tr,
+        params,
+        s,
+        mcs_list,
+        mcs_witnesses,
+        me_inputs,
+        me_witnesses,
+        log,
+        cache,
+        Some(public_instance_digest),
+        Some(me_input_accumulator_handle),
         ReplayTraceMode::TerminalState,
     )?;
     validate_replay_terminal_state(params, s, mcs_list, me_inputs, &terminal_state)?;
@@ -255,6 +375,7 @@ pub fn optimized_replay_outputs_with_cache_and_instance_digest_and_perf<
         log,
         cache,
         Some(public_instance_digest),
+        None,
         ReplayTraceMode::TerminalState,
     )?;
     Ok(PiCcsReplayOutputs {
@@ -285,6 +406,7 @@ pub fn optimized_replay_witness_with_cache_and_perf<L: neo_ccs::traits::SModuleH
         me_witnesses,
         log,
         cache,
+        None,
         None,
         ReplayTraceMode::Prove,
     )?;
@@ -325,6 +447,7 @@ pub fn optimized_replay_witness_with_cache_and_instance_digest_and_perf<
         log,
         cache,
         Some(public_instance_digest),
+        None,
         ReplayTraceMode::Prove,
     )?;
     let rounds = rounds.expect("optimized replay-witness trace must capture proof rounds");
@@ -339,6 +462,87 @@ pub fn optimized_replay_witness_with_cache_and_instance_digest_and_perf<
     })
 }
 
+pub fn optimized_replay_trace_with_cache_and_instance_digest_and_perf<
+    L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>,
+>(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[CcsClaim<Cmt, F>],
+    mcs_witnesses: &[CcsWitness<F>],
+    me_inputs: &[CeClaim<Cmt, F, K>],
+    me_witnesses: &[Mat<F>],
+    public_instance_digest: [F; 4],
+    log: &L,
+    cache: &OptimizedStructureCache,
+) -> Result<(PiCcsReplayTerminalState, PiCcsReplayProofWitness), PiCcsError> {
+    let (terminal_state, rounds) = run_optimized_replay_with_cache_and_perf(
+        tr,
+        params,
+        s,
+        mcs_list,
+        mcs_witnesses,
+        me_inputs,
+        me_witnesses,
+        log,
+        cache,
+        Some(public_instance_digest),
+        None,
+        ReplayTraceMode::Prove,
+    )?;
+    validate_replay_terminal_state(params, s, mcs_list, me_inputs, &terminal_state)?;
+    let rounds = rounds.expect("optimized replay trace must capture proof rounds");
+    Ok((
+        terminal_state.clone(),
+        PiCcsReplayProofWitness {
+            sumcheck_rounds: rounds.sumcheck_rounds,
+            sumcheck_rounds_nc: rounds.sumcheck_rounds_nc,
+            header_digest: terminal_state.fold_digest,
+        },
+    ))
+}
+
+pub fn optimized_replay_trace_with_cache_instance_digest_and_me_input_handle_and_perf<
+    L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>,
+>(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[CcsClaim<Cmt, F>],
+    mcs_witnesses: &[CcsWitness<F>],
+    me_inputs: &[CeClaim<Cmt, F, K>],
+    me_witnesses: &[Mat<F>],
+    public_instance_digest: [F; 4],
+    me_input_accumulator_handle: [F; 4],
+    log: &L,
+    cache: &OptimizedStructureCache,
+) -> Result<(PiCcsReplayTerminalState, PiCcsReplayProofWitness), PiCcsError> {
+    let (terminal_state, rounds) = run_optimized_replay_with_cache_and_perf(
+        tr,
+        params,
+        s,
+        mcs_list,
+        mcs_witnesses,
+        me_inputs,
+        me_witnesses,
+        log,
+        cache,
+        Some(public_instance_digest),
+        Some(me_input_accumulator_handle),
+        ReplayTraceMode::Prove,
+    )?;
+    validate_replay_terminal_state(params, s, mcs_list, me_inputs, &terminal_state)?;
+    let rounds = rounds.expect("optimized replay trace must capture proof rounds");
+    Ok((
+        terminal_state.clone(),
+        PiCcsReplayProofWitness {
+            sumcheck_rounds: rounds.sumcheck_rounds,
+            sumcheck_rounds_nc: rounds.sumcheck_rounds_nc,
+            header_digest: terminal_state.fold_digest,
+        },
+    ))
+}
+
 fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -350,6 +554,7 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
     log: &L,
     cache: &OptimizedStructureCache,
     public_instance_digest: Option<[F; 4]>,
+    me_input_accumulator_handle: Option<[F; 4]>,
     mode: ReplayTraceMode,
 ) -> Result<(PiCcsReplayTerminalState, Option<OptimizedProofRounds>), PiCcsError> {
     let total_started = std::time::Instant::now();
@@ -386,14 +591,22 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
     } else {
         utils::bind_header_and_instances_with_digest(tr, params, s, mcs_list, dims, cache.mat_digest())?;
     }
-    utils::bind_me_inputs(tr, me_inputs)?;
+    if let Some(handle) = me_input_accumulator_handle {
+        utils::bind_me_inputs_accumulator_handle(tr, me_inputs.len(), &handle)?;
+    } else {
+        utils::bind_me_inputs(tr, me_inputs)?;
+    }
     let bind_ms = bind_started.elapsed().as_secs_f64() * 1_000.0;
+    #[cfg(feature = "perf-timers")]
+    eprintln!("optimized_prove: 1. bind/header        {bind_ms:>9.2}ms");
 
     // Sample challenges
     let sample_started = std::time::Instant::now();
     let mut ch = utils::sample_challenges(tr, dims.ell_d, dims.ell)?;
     ch.beta_m = utils::sample_beta_m(tr, dims.ell_m)?;
     let sample_challenges_ms = sample_started.elapsed().as_secs_f64() * 1_000.0;
+    #[cfg(feature = "perf-timers")]
+    eprintln!("optimized_prove: 2. sample challenges  {sample_challenges_ms:>9.2}ms");
 
     let r_inputs = utils::shared_me_input_r(me_inputs, dims.ell_n)?;
 
@@ -446,6 +659,8 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
     }
 
     // Optimized oracles with cached sparse formats and factored algebra
+    #[cfg(feature = "perf-timers")]
+    let oracle_started = std::time::Instant::now();
     let mut oracle = super::oracle::OptimizedOracle::new_with_sparse_and_superneo_cache(
         s,
         params,
@@ -459,12 +674,19 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
         cache.sparse_arc(),
         cache.superneo_arc(),
     );
+    #[cfg(feature = "perf-timers")]
+    {
+        let oracle_build_ms = oracle_started.elapsed().as_secs_f64() * 1_000.0;
+        eprintln!("optimized_prove: 3. oracle build       {oracle_build_ms:>9.2}ms");
+    }
 
     // ---------------------------------------------------------------------
     // FE sumcheck channel (SplitNcV1).
     // ---------------------------------------------------------------------
-    tr.append_message(b"sumcheck/fe", b"");
-    tr.append_fields(b"sumcheck/initial_sum", &initial_sum.as_coeffs());
+    tr.append_fields_raw(&[F::from_u64(crate::engines::utils::PI_CCS_SUMCHECK_FE_RAW_DOMAIN_TAG)]);
+    tr.append_fields_raw(&[F::from_u64(crate::engines::utils::PI_CCS_SUMCHECK_INITIAL_RAW_TAG)]);
+    tr.append_fields_raw(&initial_sum.as_coeffs());
+    tr.append_fields_raw(&[F::from_u64(crate::sumcheck::SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG)]);
 
     let mut running_sum = initial_sum;
     let mut sumcheck_rounds = mode
@@ -473,10 +695,35 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
     let mut sumcheck_chals: Vec<K> = Vec::with_capacity(oracle.num_rounds());
 
     let fe_sumcheck_started = std::time::Instant::now();
+    #[cfg(feature = "perf-timers")]
+    let mut fe_eval_ms = 0.0f64;
+    #[cfg(feature = "perf-timers")]
+    let mut fe_interp_ms = 0.0f64;
+    #[cfg(feature = "perf-timers")]
+    let mut fe_fold_ms = 0.0f64;
+    #[cfg(feature = "perf-timers")]
+    let mut fe_largest_eval_ms = 0.0f64;
+    #[cfg(feature = "perf-timers")]
+    let mut fe_largest_eval_round = 0usize;
+    #[cfg(feature = "perf-timers")]
+    let mut fe_largest_fold_ms = 0.0f64;
+    #[cfg(feature = "perf-timers")]
+    let mut fe_largest_fold_round = 0usize;
     for round_idx in 0..oracle.num_rounds() {
+        #[cfg(feature = "perf-timers")]
+        let eval_started = std::time::Instant::now();
         let deg = oracle.degree_bound();
         let xs: Vec<K> = (0..=deg).map(|t| K::from(F::from_u64(t as u64))).collect();
         let ys = oracle.evals_at(&xs);
+        #[cfg(feature = "perf-timers")]
+        {
+            let eval_ms = eval_started.elapsed().as_secs_f64() * 1_000.0;
+            fe_eval_ms += eval_ms;
+            if eval_ms > fe_largest_eval_ms {
+                fe_largest_eval_ms = eval_ms;
+                fe_largest_eval_round = round_idx;
+            }
+        }
 
         #[cfg(feature = "debug-logs")]
         if round_idx == 0 {
@@ -509,29 +756,64 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
         // Sumcheck requires coefficients in low→high order (c0, c1, ..., cn) so that
         // poly_eval_k(coeffs, ·) reproduces ys at x=0,1 and the verifier invariant
         // p(0)+p(1) == running_sum holds.
+        #[cfg(feature = "perf-timers")]
+        let interp_started = std::time::Instant::now();
         let coeffs = crate::sumcheck::interpolate_from_evals(&xs, &ys);
+        #[cfg(feature = "perf-timers")]
+        {
+            fe_interp_ms += interp_started.elapsed().as_secs_f64() * 1_000.0;
+        }
 
         debug_assert_eq!(crate::sumcheck::poly_eval_k(&coeffs, K::ZERO), ys[0]);
         debug_assert_eq!(crate::sumcheck::poly_eval_k(&coeffs, K::ONE), ys[1]);
 
-        crate::sumcheck::append_round_coeffs(tr, &coeffs);
-        let c = tr.challenge_fields(b"sumcheck/challenge", 2);
+        let coeff_fields = crate::sumcheck::round_coeff_fields(&coeffs);
+        tr.append_fields_raw(&coeff_fields);
+        let c = tr.challenge_fields_raw(2);
         let r_i = neo_math::from_complex(c[0], c[1]);
         sumcheck_chals.push(r_i);
 
         // Evaluate at challenge using poly_eval_k (low→high) for consistency.
         running_sum = crate::sumcheck::poly_eval_k(&coeffs, r_i);
 
+        #[cfg(feature = "perf-timers")]
+        let fold_started = std::time::Instant::now();
         oracle.fold(r_i);
+        #[cfg(feature = "perf-timers")]
+        {
+            let fold_ms = fold_started.elapsed().as_secs_f64() * 1_000.0;
+            fe_fold_ms += fold_ms;
+            if fold_ms > fe_largest_fold_ms {
+                fe_largest_fold_ms = fold_ms;
+                fe_largest_fold_round = round_idx;
+            }
+        }
         if let Some(rounds) = sumcheck_rounds.as_mut() {
             rounds.push(coeffs);
         }
     }
     let fe_sumcheck_ms = fe_sumcheck_started.elapsed().as_secs_f64() * 1_000.0;
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "optimized_prove: 4. FE sumcheck        {fe_sumcheck_ms:>9.2}ms ({} rounds)",
+        sumcheck_chals.len()
+    );
+    #[cfg(feature = "perf-timers")]
+    eprintln!("optimized_prove: 4b. FE eval          {fe_eval_ms:>9.2}ms");
+    #[cfg(feature = "perf-timers")]
+    eprintln!("optimized_prove: 4c. FE interpolate   {fe_interp_ms:>9.2}ms");
+    #[cfg(feature = "perf-timers")]
+    eprintln!("optimized_prove: 4d. FE fold          {fe_fold_ms:>9.2}ms");
+    #[cfg(feature = "perf-timers")]
+    eprintln!("optimized_prove: 4e. FE largest eval  {fe_largest_eval_ms:>9.2}ms (round {fe_largest_eval_round})");
+    #[cfg(feature = "perf-timers")]
+    eprintln!("optimized_prove: 4f. FE largest fold  {fe_largest_fold_ms:>9.2}ms (round {fe_largest_fold_round})");
 
     // ---------------------------------------------------------------------
     // NC-only sumcheck (split-NC scaffolding; claimed sum is 0)
     // ---------------------------------------------------------------------
+    #[cfg(feature = "perf-timers")]
+    let nc_oracle_new_started = std::time::Instant::now();
     let mut oracle_nc = super::oracle::NcOracle::new(
         s,
         params,
@@ -542,10 +824,16 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
         dims.ell_m,
         dims.d_sc,
     );
+    #[cfg(feature = "perf-timers")]
+    let nc_oracle_new_ms = nc_oracle_new_started.elapsed().as_secs_f64() * 1_000.0;
+    #[cfg(feature = "perf-timers")]
+    eprintln!("optimized_prove: 5a. NC oracle new     {nc_oracle_new_ms:>9.2}ms");
 
-    tr.append_message(b"sumcheck/nc", b"");
+    tr.append_fields_raw(&[F::from_u64(crate::engines::utils::PI_CCS_SUMCHECK_NC_RAW_DOMAIN_TAG)]);
     let initial_sum_nc = K::ZERO;
-    tr.append_fields(b"sumcheck/initial_sum", &initial_sum_nc.as_coeffs());
+    tr.append_fields_raw(&[F::from_u64(crate::engines::utils::PI_CCS_SUMCHECK_INITIAL_RAW_TAG)]);
+    tr.append_fields_raw(&initial_sum_nc.as_coeffs());
+    tr.append_fields_raw(&[F::from_u64(crate::sumcheck::SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG)]);
 
     let mut running_sum_nc = initial_sum_nc;
     let mut sumcheck_rounds_nc = mode
@@ -554,7 +842,27 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
     let mut sumcheck_chals_nc: Vec<K> = Vec::with_capacity(oracle_nc.num_rounds());
 
     let nc_sumcheck_started = std::time::Instant::now();
+    #[cfg(feature = "perf-timers")]
+    let mut nc_col_coeff_ms = 0.0f64;
+    #[cfg(feature = "perf-timers")]
+    let mut nc_ajtai_coeff_ms = 0.0f64;
+    #[cfg(feature = "perf-timers")]
+    let mut nc_col_fold_ms = 0.0f64;
+    #[cfg(feature = "perf-timers")]
+    let mut nc_ajtai_fold_ms = 0.0f64;
+    #[cfg(feature = "perf-timers")]
+    let mut nc_largest_coeff_ms = 0.0f64;
+    #[cfg(feature = "perf-timers")]
+    let mut nc_largest_coeff_round = 0usize;
+    #[cfg(feature = "perf-timers")]
+    let mut nc_largest_fold_ms = 0.0f64;
+    #[cfg(feature = "perf-timers")]
+    let mut nc_largest_fold_round = 0usize;
     for _round_idx in 0..oracle_nc.num_rounds() {
+        #[cfg(feature = "perf-timers")]
+        let is_col_round = oracle_nc.round_idx < dims.ell_m;
+        #[cfg(feature = "perf-timers")]
+        let coeff_started = std::time::Instant::now();
         let coeffs = if let Some(coeffs) = oracle_nc.optimized_col_phase_round_coeffs() {
             coeffs
         } else {
@@ -563,6 +871,19 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
             let ys = oracle_nc.evals_at(&xs);
             crate::sumcheck::interpolate_from_evals(&xs, &ys)
         };
+        #[cfg(feature = "perf-timers")]
+        {
+            let coeff_ms = coeff_started.elapsed().as_secs_f64() * 1_000.0;
+            if is_col_round {
+                nc_col_coeff_ms += coeff_ms;
+            } else {
+                nc_ajtai_coeff_ms += coeff_ms;
+            }
+            if coeff_ms > nc_largest_coeff_ms {
+                nc_largest_coeff_ms = coeff_ms;
+                nc_largest_coeff_round = _round_idx;
+            }
+        }
 
         let p0 = coeffs[0];
         let p1 = crate::sumcheck::poly_eval_k_base(&coeffs, F::ONE);
@@ -572,18 +893,57 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
             ));
         }
 
-        crate::sumcheck::append_round_coeffs(tr, &coeffs);
-        let c = tr.challenge_fields(b"sumcheck/challenge", 2);
+        let coeff_fields = crate::sumcheck::round_coeff_fields(&coeffs);
+        tr.append_fields_raw(&coeff_fields);
+        let c = tr.challenge_fields_raw(2);
         let r_i = neo_math::from_complex(c[0], c[1]);
         sumcheck_chals_nc.push(r_i);
 
         running_sum_nc = crate::sumcheck::poly_eval_k(&coeffs, r_i);
+        #[cfg(feature = "perf-timers")]
+        let fold_started = std::time::Instant::now();
         oracle_nc.fold(r_i);
+        #[cfg(feature = "perf-timers")]
+        {
+            let fold_ms = fold_started.elapsed().as_secs_f64() * 1_000.0;
+            if is_col_round {
+                nc_col_fold_ms += fold_ms;
+            } else {
+                nc_ajtai_fold_ms += fold_ms;
+            }
+            if fold_ms > nc_largest_fold_ms {
+                nc_largest_fold_ms = fold_ms;
+                nc_largest_fold_round = _round_idx;
+            }
+        }
         if let Some(rounds) = sumcheck_rounds_nc.as_mut() {
             rounds.push(coeffs);
         }
     }
     let nc_sumcheck_ms = nc_sumcheck_started.elapsed().as_secs_f64() * 1_000.0;
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "optimized_prove: 5. NC sumcheck        {nc_sumcheck_ms:>9.2}ms ({} rounds)",
+        sumcheck_chals_nc.len()
+    );
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "optimized_prove: 5b. NC coeff col      {nc_col_coeff_ms:>9.2}ms ({} rounds)",
+        dims.ell_m
+    );
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "optimized_prove: 5c. NC coeff ajtai    {nc_ajtai_coeff_ms:>9.2}ms ({} rounds)",
+        dims.ell_d
+    );
+    #[cfg(feature = "perf-timers")]
+    eprintln!("optimized_prove: 5d. NC fold col       {nc_col_fold_ms:>9.2}ms");
+    #[cfg(feature = "perf-timers")]
+    eprintln!("optimized_prove: 5e. NC fold ajtai     {nc_ajtai_fold_ms:>9.2}ms");
+    #[cfg(feature = "perf-timers")]
+    eprintln!("optimized_prove: 5f. NC largest coeff  {nc_largest_coeff_ms:>9.2}ms (round {nc_largest_coeff_round})");
+    #[cfg(feature = "perf-timers")]
+    eprintln!("optimized_prove: 5g. NC largest fold   {nc_largest_fold_ms:>9.2}ms (round {nc_largest_fold_round})");
 
     // Build outputs at r′ using the oracle's r′-only precomputation (no dense scan).
     let output_started = std::time::Instant::now();
@@ -599,6 +959,8 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
         log,
     );
     let output_materialize_ms = output_started.elapsed().as_secs_f64() * 1_000.0;
+    #[cfg(feature = "perf-timers")]
+    eprintln!("optimized_prove: 6. output             {output_materialize_ms:>9.2}ms");
 
     let perf = PiCcsProvePerf {
         bind_ms,
@@ -608,6 +970,8 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
         output_materialize_ms,
         total_ms: total_started.elapsed().as_secs_f64() * 1_000.0,
     };
+    #[cfg(feature = "perf-timers")]
+    eprintln!("optimized_prove: TOTAL                {:>9.2}ms", perf.total_ms);
 
     let terminal_state = PiCcsReplayTerminalState {
         me_outputs: out_me,

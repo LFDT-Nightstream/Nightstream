@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use neo_fold_next::rv64im::{
+use neo_fold_prototype::rv64im::{
     build_all_parity_cases, build_rv64im_audit_witness_bundle, prove_rv64im_public_proof,
     verify_rv64im_public_proof, Rv64imProofInput,
 };

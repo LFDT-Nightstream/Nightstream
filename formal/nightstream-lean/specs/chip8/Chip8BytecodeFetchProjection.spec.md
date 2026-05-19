@@ -101,7 +101,7 @@ $$
 
 - **Source**:
   - `./docs/assurance-strategy.md`
-  - `./crates/neo-fold-next/src/families/bytecode_fetch.rs`
+  - `./crates/neo-fold-prototype/src/families/bytecode_fetch.rs`
   - `./formal/nightstream-lean/specs/chip8/Chip8FetchDecodeBinding.spec.md`
 
 ## Out of Scope

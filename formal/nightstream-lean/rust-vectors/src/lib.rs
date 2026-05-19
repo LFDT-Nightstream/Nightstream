@@ -2,7 +2,7 @@
 #[path = "bin/rv64im_rust_vectors.rs"]
 mod rv64im_rust_vectors_bin;
 
-use neo_fold_next::rv64im::{Rv64imParityDerivedCase, Rv64imParitySourceCase};
+use neo_fold_prototype::rv64im::{Rv64imParityDerivedCase, Rv64imParitySourceCase};
 
 pub fn render_rv64im_single_case_compat_module(
     module_name: &str,

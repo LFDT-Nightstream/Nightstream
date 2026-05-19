@@ -1,5 +1,5 @@
 use neo_ccs::{matrix::Mat, poly::SparsePoly, CcsStructure};
-use neo_math::KExtensions;
+use neo_math::{superneo_bar_block, KExtensions, Rq};
 use neo_math::{D, F, K};
 use neo_reductions::superneo_eval::{
     build_superneo_eval_cache, eval_all_mats_cached, eval_all_mats_direct, eval_all_mats_ring_cached,
@@ -19,6 +19,13 @@ fn chi_table(point: &[K]) -> Vec<K> {
         *out_cell = w;
     }
     out
+}
+
+fn rq_dot(lhs: &Rq, rhs: &Rq) -> F {
+    lhs.0
+        .iter()
+        .zip(rhs.0.iter())
+        .fold(F::ZERO, |acc, (&a, &b)| acc + a * b)
 }
 
 #[test]
@@ -79,6 +86,46 @@ fn transformed_eval_matches_direct_eval_for_identity_sentinel() {
     let direct = eval_all_mats_direct(&s, &z, &chi_r, n);
     let via_bar = eval_all_mats_transformed(&s_bar, &z, &chi_r, n);
     assert_eq!(direct, via_bar);
+}
+
+#[test]
+fn weighted_cache_coefficients_match_monomial_shift_dot() {
+    let n = 1usize;
+    let m = D;
+    let mut row = [F::ZERO; D];
+    for (i, slot) in row.iter_mut().enumerate() {
+        *slot = F::from_u64(((17 * i + 5) % 29 + 1) as u64);
+    }
+
+    let mat = Mat::from_row_major(n, m, row.to_vec());
+    let s = CcsStructure::new(vec![mat], SparsePoly::new(1, vec![])).expect("valid CCS");
+    let cache = build_superneo_eval_cache(&s).expect("superneo-compatible width");
+    let matrix = cache.matrix(0).expect("matrix cache");
+
+    let mut weights = [K::ZERO; D];
+    let mut weight_re = [F::ZERO; D];
+    let mut weight_im = [F::ZERO; D];
+    for i in 0..D {
+        weight_re[i] = F::from_u64(((11 * i + 3) % 31 + 1) as u64);
+        weight_im[i] = F::from_u64(((7 * i + 9) % 37 + 1) as u64);
+        weights[i] = K::from_coeffs([weight_re[i], weight_im[i]]);
+    }
+
+    let weighted = matrix.compile_weighted_rows(&weights);
+    let bar = Rq(superneo_bar_block(row));
+    let weight_re = Rq(weight_re);
+    let weight_im = Rq(weight_im);
+
+    for basis in 0..D {
+        let mut z = [F::ZERO; D];
+        z[basis] = F::ONE;
+        let z_blocks = SuperneoZBlocks::from_base_row_f(&z);
+        let observed = weighted.row_dot_real_with_blocks(0, &z_blocks);
+
+        let shifted = bar.mul_by_monomial(basis);
+        let expected = K::from_coeffs([rq_dot(&weight_re, &shifted), rq_dot(&weight_im, &shifted)]);
+        assert_eq!(observed, expected, "basis {basis}");
+    }
 }
 
 #[test]
@@ -214,6 +261,49 @@ fn cached_superneo_ring_constant_term_matches_scalar_eval() {
     for j in 0..scalar.len() {
         assert_eq!(scalar[j], ring[j][0], "matrix {j}: scalar eval must equal ct(y_ring)");
     }
+}
+
+#[test]
+fn cached_superneo_ring_linear_forms_match_ring_eval_for_real_witnesses() {
+    let n = 32usize;
+    let m = 2 * D;
+
+    let mut m0 = Mat::zero(n, m, F::ZERO);
+    let mut m1 = Mat::zero(n, m, F::ZERO);
+    for r in 0..n {
+        for c in 0..m {
+            if ((r * 23) + (c * 9)) % 31 == 0 {
+                m0[(r, c)] = F::from_u64(((r + 2 * c) % 29 + 1) as u64);
+            }
+            if ((r * 7) + (c * 13)) % 37 == 0 {
+                m1[(r, c)] = F::from_u64(((3 * r + c) % 31 + 1) as u64);
+            }
+        }
+    }
+
+    let s = CcsStructure::new(vec![m0, m1], SparsePoly::new(2, vec![])).expect("valid CCS");
+    let cache = build_superneo_eval_cache(&s).expect("cache should build for D-compatible width");
+
+    let z: Vec<K> = (0..m)
+        .map(|i| K::from(F::from_u64((i % 31 + 1) as u64)))
+        .collect();
+    let r = vec![
+        K::from_coeffs([F::from_u64(2), F::from_u64(1)]),
+        K::from_coeffs([F::from_u64(3), F::from_u64(0)]),
+        K::from_coeffs([F::from_u64(5), F::from_u64(2)]),
+        K::from_coeffs([F::from_u64(7), F::from_u64(1)]),
+        K::from_coeffs([F::from_u64(11), F::from_u64(0)]),
+    ];
+    let chi_r = chi_table(&r);
+
+    let ring = eval_all_mats_ring_cached(&cache, &z, &chi_r, n);
+    let forms = cache.build_ring_linear_forms(&chi_r, n);
+    let z_blocks = SuperneoZBlocks::from_z(&z);
+    let via_forms: Vec<[K; D]> = forms
+        .iter()
+        .map(|form| form.eval_real_z_blocks(&z_blocks))
+        .collect();
+    assert_eq!(ring, via_forms);
 }
 
 #[test]

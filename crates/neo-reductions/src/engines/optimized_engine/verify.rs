@@ -13,7 +13,6 @@ use neo_math::KExtensions;
 use neo_math::{F, K};
 use neo_params::NeoParams;
 use neo_transcript::Poseidon2Transcript;
-use neo_transcript::Transcript;
 use p3_field::PrimeCharacteristicRing;
 
 use crate::engines::utils;
@@ -58,7 +57,7 @@ pub fn optimized_verify_with_cache_and_perf(
     cache: &OptimizedStructureCache,
 ) -> Result<(bool, PiCcsVerifyPerf), PiCcsError> {
     optimized_verify_with_cache_and_public_instance_digest_impl(
-        tr, params, s, mcs_list, me_inputs, me_outputs, proof, cache, None,
+        tr, params, s, mcs_list, me_inputs, me_outputs, proof, cache, None, None,
     )
 }
 
@@ -83,6 +82,33 @@ pub fn optimized_verify_with_cache_and_instance_digest_and_perf(
         proof,
         cache,
         Some(public_instance_digest),
+        None,
+    )
+}
+
+pub fn optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[CcsClaim<Cmt, F>],
+    me_inputs: &[CeClaim<Cmt, F, K>],
+    me_outputs: &[CeClaim<Cmt, F, K>],
+    proof: &PiCcsProof,
+    cache: &OptimizedStructureCache,
+    public_instance_digest: [F; 4],
+    me_input_accumulator_handle: [F; 4],
+) -> Result<(bool, PiCcsVerifyPerf), PiCcsError> {
+    optimized_verify_with_cache_and_public_instance_digest_impl(
+        tr,
+        params,
+        s,
+        mcs_list,
+        me_inputs,
+        me_outputs,
+        proof,
+        cache,
+        Some(public_instance_digest),
+        Some(me_input_accumulator_handle),
     )
 }
 
@@ -96,6 +122,7 @@ fn optimized_verify_with_cache_and_public_instance_digest_impl(
     proof: &PiCcsProof,
     cache: &OptimizedStructureCache,
     public_instance_digest: Option<[F; 4]>,
+    me_input_accumulator_handle: Option<[F; 4]>,
 ) -> Result<(bool, PiCcsVerifyPerf), PiCcsError> {
     let total_started = std::time::Instant::now();
     if mcs_list.is_empty() {
@@ -119,7 +146,11 @@ fn optimized_verify_with_cache_and_public_instance_digest_impl(
     };
     let bind_header_instances_ms = bind_header_instances_started.elapsed().as_secs_f64() * 1_000.0;
     let bind_me_inputs_started = std::time::Instant::now();
-    utils::bind_me_inputs(tr, me_inputs)?;
+    if let Some(handle) = me_input_accumulator_handle {
+        utils::bind_me_inputs_accumulator_handle(tr, me_inputs.len(), &handle)?;
+    } else {
+        utils::bind_me_inputs(tr, me_inputs)?;
+    }
     let bind_me_inputs_ms = bind_me_inputs_started.elapsed().as_secs_f64() * 1_000.0;
     let bind_sample_challenges_started = std::time::Instant::now();
     let mut ch = utils::sample_challenges(tr, dims.ell_d, dims.ell)?;
@@ -170,10 +201,12 @@ fn optimized_verify_with_cache_and_public_instance_digest_impl(
     // FE sumcheck
     // -----------------------------
     let fe_sumcheck_started = std::time::Instant::now();
-    tr.append_message(b"sumcheck/fe", b"");
-    tr.append_fields(b"sumcheck/initial_sum", &claimed_initial.as_coeffs());
+    tr.append_fields_raw(&[F::from_u64(utils::PI_CCS_SUMCHECK_FE_RAW_DOMAIN_TAG)]);
+    tr.append_fields_raw(&[F::from_u64(utils::PI_CCS_SUMCHECK_INITIAL_RAW_TAG)]);
+    tr.append_fields_raw(&claimed_initial.as_coeffs());
+    tr.append_fields_raw(&[F::from_u64(crate::sumcheck::SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG)]);
     let (r_all, running_sum, ok) =
-        crate::sumcheck::verify_sumcheck_rounds(tr, dims.d_sc, claimed_initial, &proof.sumcheck_rounds);
+        crate::sumcheck::verify_sumcheck_rounds_poseidon_v3(tr, dims.d_sc, claimed_initial, &proof.sumcheck_rounds);
     if !ok {
         return Err(PiCcsError::SumcheckError("rounds invalid".into()));
     }
@@ -191,11 +224,13 @@ fn optimized_verify_with_cache_and_public_instance_digest_impl(
     // NC-only sumcheck
     // -----------------------------
     let nc_sumcheck_started = std::time::Instant::now();
-    tr.append_message(b"sumcheck/nc", b"");
+    tr.append_fields_raw(&[F::from_u64(utils::PI_CCS_SUMCHECK_NC_RAW_DOMAIN_TAG)]);
     let claimed_nc = K::ZERO;
-    tr.append_fields(b"sumcheck/initial_sum", &claimed_nc.as_coeffs());
+    tr.append_fields_raw(&[F::from_u64(utils::PI_CCS_SUMCHECK_INITIAL_RAW_TAG)]);
+    tr.append_fields_raw(&claimed_nc.as_coeffs());
+    tr.append_fields_raw(&[F::from_u64(crate::sumcheck::SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG)]);
     let (r_all_nc, running_sum_nc, ok_nc) =
-        crate::sumcheck::verify_sumcheck_rounds(tr, dims.d_sc, claimed_nc, &proof.sumcheck_rounds_nc);
+        crate::sumcheck::verify_sumcheck_rounds_poseidon_v3(tr, dims.d_sc, claimed_nc, &proof.sumcheck_rounds_nc);
     if !ok_nc {
         return Err(PiCcsError::SumcheckError("NC rounds invalid".into()));
     }

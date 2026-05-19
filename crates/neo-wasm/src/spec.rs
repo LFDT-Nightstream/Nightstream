@@ -8,9 +8,8 @@ pub use super::ir::{
 };
 pub use super::isa::{opcode_info_from_code, WasmOpcode, WasmOpcodeClass, WasmOpcodeInfo, WasmShoutOpcode};
 pub use super::kernel::{
-    prove_simple_kernel, verify_simple_kernel, WasmKernelError, WasmKernelOpeningSummary, WasmKernelOutput,
-    WasmKernelPreparedStepSummary, WasmKernelProof, WasmKernelProverInput, WasmKernelPublicInput,
-    WasmKernelRelationOpeningSummary, WasmKernelSelectedRowRef, WasmKernelVerifierInput,
+    prove_simple_kernel, verify_simple_kernel, WasmKernelError, WasmKernelOutput, WasmKernelProof,
+    WasmKernelProverInput, WasmKernelPublicInput, WasmKernelVerifierInput,
 };
 pub use super::layout::{WasmColumnSpec, COLUMN_SPECS};
 pub use super::lookup_binding_builder::{

@@ -68,6 +68,5 @@ fn wasm_fibonacci_kernel_roundtrip() {
         let verified = verify_simple_kernel(&verifier_input, &proof).expect("verify");
         assert_eq!(output.prepared_steps.len(), trace.len());
         assert_eq!(verified.prepared_steps.len(), output.prepared_steps.len());
-        assert_eq!(verified.opening_summary, output.opening_summary);
     }
 }

@@ -13,6 +13,7 @@ pub mod lookup_binding_builder;
 pub mod lookup_semantics;
 pub mod lower;
 pub mod memory_semantics;
+pub mod preprocess;
 mod r1cs_builder;
 pub mod relation;
 pub mod spec;
@@ -36,9 +37,8 @@ pub use ir::{
 };
 pub use isa::{opcode_code, opcode_info_from_code, WasmOpcode, WasmOpcodeClass, WasmOpcodeInfo, WasmShoutOpcode};
 pub use kernel::{
-    prove_simple_kernel, verify_simple_kernel, WasmKernelError, WasmKernelOpeningSummary, WasmKernelOutput,
-    WasmKernelPreparedStepSummary, WasmKernelProof, WasmKernelProverInput, WasmKernelPublicInput,
-    WasmKernelRelationOpeningSummary, WasmKernelSelectedRowRef, WasmKernelVerifierInput,
+    prove_kernel_run, prove_simple_kernel, verify_kernel_run, verify_simple_kernel, WasmKernelError, WasmKernelOutput,
+    WasmKernelProof, WasmKernelProverInput, WasmKernelPublicInput, WasmKernelRunProof, WasmKernelVerifierInput,
 };
 pub use layout::{WasmColumnSpec, COLUMN_SPECS};
 pub use lookup_binding_builder::{

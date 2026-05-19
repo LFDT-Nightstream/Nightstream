@@ -141,7 +141,7 @@ fn wasm_component_import_kernel_roundtrip_for_embedded_core_trace() {
         pc_edge_kinds: run.pc_edge_kinds.clone(),
         function_entries: run.function_entries.clone(),
     };
-    let (output, proof) = prove_simple_kernel(&prover_input).expect("prove");
+    let (_output, proof) = prove_simple_kernel(&prover_input).expect("prove");
 
     let verifier_input = WasmKernelVerifierInput {
         public,
@@ -152,7 +152,6 @@ fn wasm_component_import_kernel_roundtrip_for_embedded_core_trace() {
     };
     let verified = verify_simple_kernel(&verifier_input, &proof).expect("verify");
     assert_eq!(verified.prepared_steps.len(), trace.len());
-    assert_eq!(verified.opening_summary, output.opening_summary);
 }
 
 #[test]
@@ -177,7 +176,7 @@ fn wasm_component_kernel_roundtrip_for_embedded_core_trace() {
         pc_edge_kinds: run.pc_edge_kinds.clone(),
         function_entries: run.function_entries.clone(),
     };
-    let (output, proof) = prove_simple_kernel(&prover_input).expect("prove");
+    let (_output, proof) = prove_simple_kernel(&prover_input).expect("prove");
 
     let verifier_input = WasmKernelVerifierInput {
         public,
@@ -188,7 +187,6 @@ fn wasm_component_kernel_roundtrip_for_embedded_core_trace() {
     };
     let verified = verify_simple_kernel(&verifier_input, &proof).expect("verify");
     assert_eq!(verified.prepared_steps.len(), trace.len());
-    assert_eq!(verified.opening_summary, output.opening_summary);
 }
 
 #[test]

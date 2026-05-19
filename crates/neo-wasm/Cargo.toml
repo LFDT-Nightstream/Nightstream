@@ -14,6 +14,7 @@ default = []
 [dependencies]
 neo-ajtai = { path = "../neo-ajtai" }
 neo-ccs = { path = "../neo-ccs" }
+neo-fold-clean = { path = "../neo-fold-clean" }
 neo-math = { path = "../neo-math" }
 neo-params = { path = "../neo-params" }
 neo-reductions = { path = "../neo-reductions" }

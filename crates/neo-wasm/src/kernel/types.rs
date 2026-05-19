@@ -3,6 +3,7 @@
 use crate::ir::WasmStepTrace;
 use crate::relation::WasmRelationProof;
 use crate::step_build::WasmStepBuild;
+use neo_fold_clean::Uncompressed;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WasmKernelPublicInput {
@@ -37,52 +38,15 @@ pub struct WasmKernelVerifierInput<'a> {
 
 pub struct WasmKernelOutput {
     pub prepared_steps: Vec<WasmStepBuild>,
-    pub opening_summary: WasmKernelOpeningSummary,
 }
 
 pub struct WasmKernelProof {
     pub relation: WasmRelationProof,
-    pub opening_summary: WasmKernelOpeningSummary,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct WasmKernelSelectedRowRef {
-    pub logical_index: u64,
-    pub value_digest: [u8; 32],
-    pub digest: [u8; 32],
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct WasmKernelRelationOpeningSummary {
-    pub lookup_rows_digest: [u8; 32],
-    pub memory_events_digest: [u8; 32],
-    pub boundary_rows_digest: [u8; 32],
-    pub lookup_row_count: u64,
-    pub memory_event_count: u64,
-    pub boundary_row_count: u64,
-    pub final_stack_slot_count: u64,
-    pub final_local_slot_count: u64,
-    pub first_lookup_row: Option<WasmKernelSelectedRowRef>,
-    pub last_lookup_row: Option<WasmKernelSelectedRowRef>,
-    pub first_memory_event: Option<WasmKernelSelectedRowRef>,
-    pub last_memory_event: Option<WasmKernelSelectedRowRef>,
-    pub digest: [u8; 32],
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct WasmKernelPreparedStepSummary {
-    pub steps_digest: [u8; 32],
-    pub step_count: u64,
-    pub first_step: Option<WasmKernelSelectedRowRef>,
-    pub last_step: Option<WasmKernelSelectedRowRef>,
-    pub digest: [u8; 32],
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct WasmKernelOpeningSummary {
-    pub relation: WasmKernelRelationOpeningSummary,
-    pub prepared_steps: WasmKernelPreparedStepSummary,
-    pub digest: [u8; 32],
+pub struct WasmKernelRunProof {
+    pub kernel: WasmKernelProof,
+    pub main_run: Uncompressed,
 }
 
 #[derive(Debug)]

@@ -7,13 +7,13 @@ mod gadgets;
 pub use gadgets::push_zero_test_gadget;
 pub mod ir;
 pub mod isa;
-pub mod kernel;
 pub mod layout;
 pub mod lookup_binding_builder;
 pub mod lookup_semantics;
 pub mod lower;
 pub mod memory_semantics;
 pub mod preprocess;
+pub mod prove;
 mod r1cs_builder;
 pub mod relation;
 pub mod spec;
@@ -36,10 +36,6 @@ pub use ir::{
     WasmBuildError, WasmParamInitState, WasmPcEdgeKind, WasmRowKind, WasmStepTrace,
 };
 pub use isa::{opcode_code, opcode_info_from_code, WasmOpcode, WasmOpcodeClass, WasmOpcodeInfo, WasmShoutOpcode};
-pub use kernel::{
-    prove_kernel_run, prove_simple_kernel, verify_kernel_run, verify_simple_kernel, WasmKernelError, WasmKernelOutput,
-    WasmKernelProof, WasmKernelProverInput, WasmKernelPublicInput, WasmKernelRunProof, WasmKernelVerifierInput,
-};
 pub use layout::{WasmColumnSpec, COLUMN_SPECS};
 pub use lookup_binding_builder::{
     build_wasm_lookup_binding_layout, CallColumns, Column, ControlColumns, FrameColumns, GlobalsColumns,
@@ -51,6 +47,10 @@ pub use lookup_binding_builder::{
 pub use lookup_semantics::{sanity_check_lookup_row, LookupBuiltin, LookupExpr, LookupPredicate, LookupSemantics};
 pub use lower::{build_row_traces, normalize_source, normalize_tracer, WasmExecutionStep, WasmTraceSource};
 pub use memory_semantics::{preload_from_wasmtime_run, sanity_check_memory_rows, WasmMemoryPreload};
+pub use prove::{
+    prove, prove_relation, verify, verify_relation, WasmProof, WasmProveError, WasmProverInput, WasmPublicInput,
+    WasmVerifierInput,
+};
 pub use relation::{
     prove_wasm_relation, verify_wasm_relation, WasmBoundaryRow, WasmLookupRow, WasmMemoryEvent, WasmMemoryEventKind,
     WasmMemoryKind, WasmRelationProof,

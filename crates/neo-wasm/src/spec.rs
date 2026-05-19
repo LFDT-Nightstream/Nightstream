@@ -7,10 +7,6 @@ pub use super::ir::{
     LinearMemoryAccess, LinearMemoryWordLane, StackLaneAccess, WasmBoundaryState, WasmBuildError, WasmStepTrace,
 };
 pub use super::isa::{opcode_info_from_code, WasmOpcode, WasmOpcodeClass, WasmOpcodeInfo, WasmShoutOpcode};
-pub use super::kernel::{
-    prove_simple_kernel, verify_simple_kernel, WasmKernelError, WasmKernelOutput, WasmKernelProof,
-    WasmKernelProverInput, WasmKernelPublicInput, WasmKernelVerifierInput,
-};
 pub use super::layout::{WasmColumnSpec, COLUMN_SPECS};
 pub use super::lookup_binding_builder::{
     build_wasm_lookup_binding_layout, CallColumns, Column, ControlColumns, FrameColumns, GlobalsColumns,
@@ -19,6 +15,9 @@ pub use super::lookup_binding_builder::{
     WasmMemoryColumnKind, WasmMemoryColumnSpec, WasmMemorySpec,
 };
 pub use super::lower::{build_row_traces, normalize_source, normalize_tracer, WasmExecutionStep, WasmTraceSource};
+pub use super::prove::{
+    prove_relation, verify_relation, WasmProveError, WasmProverInput, WasmPublicInput, WasmVerifierInput,
+};
 pub use super::relation::{
     prove_wasm_relation, verify_wasm_relation, WasmBoundaryRow, WasmLookupRow, WasmMemoryEvent, WasmMemoryEventKind,
     WasmMemoryKind, WasmRelationProof,

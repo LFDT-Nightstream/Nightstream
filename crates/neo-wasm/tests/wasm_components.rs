@@ -1,8 +1,8 @@
 use neo_wasm::{
     build_wasm_lookup_binding_layout, builder::build_witness_vector, collect_wasmtime_component_run,
-    collect_wasmtime_component_run_with_linker, prove_simple_kernel, sanity_check_lookup_row,
-    traces_from_wasmtime_component, traces_from_wasmtime_steps, verify_simple_kernel, WasmBuildError,
-    WasmKernelProverInput, WasmKernelPublicInput, WasmKernelVerifierInput, WasmOpcode,
+    collect_wasmtime_component_run_with_linker, prove_relation, sanity_check_lookup_row,
+    traces_from_wasmtime_component, traces_from_wasmtime_steps, verify_relation, WasmBuildError, WasmOpcode,
+    WasmProverInput, WasmPublicInput, WasmVerifierInput,
 };
 use wasmtime::{
     component::{Component, Linker},
@@ -130,28 +130,27 @@ fn wasm_component_import_kernel_roundtrip_for_embedded_core_trace() {
         sanity_check_lookup_row(layout, &witness)
             .unwrap_or_else(|err| panic!("lookup semantics rejected {:?}: {err}", row.opcode));
     }
-    let public = WasmKernelPublicInput {
+    let public = WasmPublicInput {
         transcript_seed: b"wasm-component-import-kernel".to_vec(),
         initial_locals: run.initial_locals.clone(),
     };
-    let prover_input = WasmKernelProverInput {
+    let prover_input = WasmProverInput {
         public: public.clone(),
         trace: &trace,
         pc_rom: run.pc_rom.clone(),
         pc_edge_kinds: run.pc_edge_kinds.clone(),
         function_entries: run.function_entries.clone(),
     };
-    let (_output, proof) = prove_simple_kernel(&prover_input).expect("prove");
+    let proof = prove_relation(&prover_input).expect("prove");
 
-    let verifier_input = WasmKernelVerifierInput {
+    let verifier_input = WasmVerifierInput {
         public,
         trace: &trace,
         pc_rom: run.pc_rom,
         pc_edge_kinds: run.pc_edge_kinds,
         function_entries: run.function_entries,
     };
-    let verified = verify_simple_kernel(&verifier_input, &proof).expect("verify");
-    assert_eq!(verified.prepared_steps.len(), trace.len());
+    verify_relation(&verifier_input, &proof).expect("verify");
 }
 
 #[test]
@@ -165,28 +164,27 @@ fn wasm_component_kernel_roundtrip_for_embedded_core_trace() {
         sanity_check_lookup_row(layout, &witness)
             .unwrap_or_else(|err| panic!("lookup semantics rejected {:?}: {err}", row.opcode));
     }
-    let public = WasmKernelPublicInput {
+    let public = WasmPublicInput {
         transcript_seed: b"wasm-component-kernel".to_vec(),
         initial_locals: run.initial_locals.clone(),
     };
-    let prover_input = WasmKernelProverInput {
+    let prover_input = WasmProverInput {
         public: public.clone(),
         trace: &trace,
         pc_rom: run.pc_rom.clone(),
         pc_edge_kinds: run.pc_edge_kinds.clone(),
         function_entries: run.function_entries.clone(),
     };
-    let (_output, proof) = prove_simple_kernel(&prover_input).expect("prove");
+    let proof = prove_relation(&prover_input).expect("prove");
 
-    let verifier_input = WasmKernelVerifierInput {
+    let verifier_input = WasmVerifierInput {
         public,
         trace: &trace,
         pc_rom: run.pc_rom,
         pc_edge_kinds: run.pc_edge_kinds,
         function_entries: run.function_entries,
     };
-    let verified = verify_simple_kernel(&verifier_input, &proof).expect("verify");
-    assert_eq!(verified.prepared_steps.len(), trace.len());
+    verify_relation(&verifier_input, &proof).expect("verify");
 }
 
 #[test]

@@ -1,6 +1,6 @@
 use neo_wasm::{
-    collect_wasmtime_steps, prove_simple_kernel, traces_from_wasmtime_steps, verify_simple_kernel,
-    WasmKernelProverInput, WasmKernelPublicInput, WasmKernelVerifierInput,
+    collect_wasmtime_steps, prove_relation, traces_from_wasmtime_steps, verify_relation, WasmProverInput,
+    WasmPublicInput, WasmVerifierInput,
 };
 
 // Iterative fibonacci (do-while loop, valid for n >= 1).
@@ -45,28 +45,26 @@ fn wasm_fibonacci_kernel_roundtrip() {
         );
 
         let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
-        let public = WasmKernelPublicInput {
+        let public = WasmPublicInput {
             transcript_seed: format!("wasm-fib-{n}").into_bytes(),
             initial_locals: run.initial_locals.clone(),
         };
-        let prover_input = WasmKernelProverInput {
+        let prover_input = WasmProverInput {
             public: public.clone(),
             trace: &trace,
             pc_rom: run.pc_rom.clone(),
             pc_edge_kinds: run.pc_edge_kinds.clone(),
             function_entries: run.function_entries.clone(),
         };
-        let (output, proof) = prove_simple_kernel(&prover_input).expect("prove");
+        let proof = prove_relation(&prover_input).expect("prove");
 
-        let verifier_input = WasmKernelVerifierInput {
+        let verifier_input = WasmVerifierInput {
             public,
             trace: &trace,
             pc_rom: run.pc_rom.clone(),
             pc_edge_kinds: run.pc_edge_kinds.clone(),
             function_entries: run.function_entries.clone(),
         };
-        let verified = verify_simple_kernel(&verifier_input, &proof).expect("verify");
-        assert_eq!(output.prepared_steps.len(), trace.len());
-        assert_eq!(verified.prepared_steps.len(), output.prepared_steps.len());
+        verify_relation(&verifier_input, &proof).expect("verify");
     }
 }

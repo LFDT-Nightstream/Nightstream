@@ -98,38 +98,6 @@ pub struct WasmRelationProof {
     pub final_local_slots: Vec<(u64, u32)>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct RelationStepRow {
-    opcode: WasmOpcode,
-    trace_index: usize,
-    cycle: u64,
-    pc_before: u64,
-    pc_after: u64,
-    sp_before: u64,
-    sp_after: u64,
-    memory_pages_before: Option<u32>,
-    memory_pages_after: Option<u32>,
-    halted: bool,
-    read0: Option<StackLaneAccess>,
-    read1: Option<StackLaneAccess>,
-    read2: Option<StackLaneAccess>,
-    write0: Option<StackLaneAccess>,
-    local_read: Option<StackLaneAccess>,
-    local_write: Option<StackLaneAccess>,
-    global_read: Option<StackLaneAccess>,
-    global_write: Option<StackLaneAccess>,
-    table_id: Option<u32>,
-    table_index: Option<u32>,
-    table_value: Option<u32>,
-    table_size: Option<u32>,
-    function_type_id: Option<u32>,
-    expected_type_id: Option<u32>,
-    call_indirect_type_index: Option<u32>,
-    linear_memory: Option<LinearMemoryAccess>,
-    call_stack_push: Option<(u64, u64)>,
-    call_stack_pop: Option<(u64, u64)>,
-}
-
 pub fn prove_wasm_relation(
     trace: &[WasmStepTrace],
     initial_locals: &[u32],
@@ -375,61 +343,24 @@ fn relation_boundary_rows(trace: &[WasmStepTrace]) -> Vec<WasmBoundaryRow> {
         .collect()
 }
 
-fn relation_step_rows(trace: &[WasmStepTrace]) -> Vec<RelationStepRow> {
-    trace
-        .iter()
-        .enumerate()
-        .map(|(trace_index, step)| {
-            let local_addr = step.local_index.map(|idx| step.locals_fbp + u64::from(idx));
-            let local_read = match (local_addr, step.local_read_value) {
-                (Some(addr), Some(value)) => Some(StackLaneAccess { addr, value }),
-                _ => None,
-            };
-            let local_write = match (local_addr, step.local_write_value) {
-                (Some(addr), Some(value)) => Some(StackLaneAccess { addr, value }),
-                _ => None,
-            };
-            let global_addr = step.global_index.map(u64::from);
-            let global_read = match (global_addr, step.global_read_value) {
-                (Some(addr), Some(value)) => Some(StackLaneAccess { addr, value }),
-                _ => None,
-            };
-            let global_write = match (global_addr, step.global_write_value) {
-                (Some(addr), Some(value)) => Some(StackLaneAccess { addr, value }),
-                _ => None,
-            };
-            RelationStepRow {
-                opcode: step.opcode,
-                trace_index,
-                cycle: step.cycle,
-                pc_before: step.pc_before,
-                pc_after: step.pc_after,
-                sp_before: step.sp_before,
-                sp_after: step.sp_after,
-                memory_pages_before: step.memory_pages_before,
-                memory_pages_after: step.memory_pages_after,
-                halted: step.halted,
-                read0: step.stack_read0,
-                read1: step.stack_read1,
-                read2: step.stack_read2,
-                write0: step.stack_write0,
-                local_read,
-                local_write,
-                global_read,
-                global_write,
-                table_id: step.table_id,
-                table_index: step.table_index,
-                table_value: step.table_value,
-                table_size: step.table_size,
-                function_type_id: step.function_type_id,
-                call_indirect_type_index: step.call_indirect_type_index,
-                expected_type_id: step.expected_type_id,
-                linear_memory: step.linear_memory,
-                call_stack_push: step.call_stack_push,
-                call_stack_pop: step.call_stack_pop,
-            }
-        })
-        .collect()
+fn local_access(step: &WasmStepTrace, value: Option<u32>) -> Option<StackLaneAccess> {
+    match (step.local_index, value) {
+        (Some(idx), Some(value)) => Some(StackLaneAccess {
+            addr: step.locals_fbp + u64::from(idx),
+            value,
+        }),
+        _ => None,
+    }
+}
+
+fn global_access(step: &WasmStepTrace, value: Option<u32>) -> Option<StackLaneAccess> {
+    match (step.global_index, value) {
+        (Some(idx), Some(value)) => Some(StackLaneAccess {
+            addr: u64::from(idx),
+            value,
+        }),
+        _ => None,
+    }
 }
 
 pub(crate) fn relation_memory_events(
@@ -480,72 +411,102 @@ pub(crate) fn relation_memory_events(
         });
     }
 
-    for row in relation_step_rows(trace) {
-        let trace_index = Some(row.trace_index);
-        let cycle = row.cycle;
-        append_stack_event(&mut events, trace_index, cycle, WasmMemoryEventKind::Read, row.read0);
-        append_stack_event(&mut events, trace_index, cycle, WasmMemoryEventKind::Read, row.read1);
-        append_stack_event(&mut events, trace_index, cycle, WasmMemoryEventKind::Read, row.read2);
-        append_stack_event(&mut events, trace_index, cycle, WasmMemoryEventKind::Write, row.write0);
-        append_linear_memory_event(&mut events, trace_index, cycle, row.linear_memory, row.write0.is_some());
+    for (idx, step) in trace.iter().enumerate() {
+        let trace_index = Some(idx);
+        let cycle = step.cycle;
+        append_stack_event(
+            &mut events,
+            trace_index,
+            cycle,
+            WasmMemoryEventKind::Read,
+            step.stack_read0,
+        );
+        append_stack_event(
+            &mut events,
+            trace_index,
+            cycle,
+            WasmMemoryEventKind::Read,
+            step.stack_read1,
+        );
+        append_stack_event(
+            &mut events,
+            trace_index,
+            cycle,
+            WasmMemoryEventKind::Read,
+            step.stack_read2,
+        );
+        append_stack_event(
+            &mut events,
+            trace_index,
+            cycle,
+            WasmMemoryEventKind::Write,
+            step.stack_write0,
+        );
+        append_linear_memory_event(
+            &mut events,
+            trace_index,
+            cycle,
+            step.linear_memory,
+            step.stack_write0.is_some(),
+        );
         append_locals_event(
             &mut events,
             trace_index,
             cycle,
             WasmMemoryEventKind::Read,
-            row.local_read,
+            local_access(step, step.local_read_value),
         );
         append_locals_event(
             &mut events,
             trace_index,
             cycle,
             WasmMemoryEventKind::Write,
-            row.local_write,
+            local_access(step, step.local_write_value),
         );
         append_globals_event(
             &mut events,
             trace_index,
             cycle,
             WasmMemoryEventKind::Read,
-            row.global_read,
+            global_access(step, step.global_read_value),
         );
         append_globals_event(
             &mut events,
             trace_index,
             cycle,
             WasmMemoryEventKind::Write,
-            row.global_write,
+            global_access(step, step.global_write_value),
         );
         append_table_size_event(
             &mut events,
             trace_index,
             cycle,
             WasmMemoryEventKind::Read,
-            row.table_id,
-            row.table_size,
+            step.table_id,
+            step.table_size,
         );
         append_table_size_event(
             &mut events,
             trace_index,
             cycle,
             WasmMemoryEventKind::Write,
-            row.table_id,
-            row.table_size,
+            step.table_id,
+            step.table_size,
         );
-        append_function_type_event(&mut events, trace_index, cycle, row.table_value, row.function_type_id);
+        append_function_type_event(&mut events, trace_index, cycle, step.table_value, step.function_type_id);
         append_module_type_event(
             &mut events,
             trace_index,
             cycle,
-            row.call_indirect_type_index,
-            row.expected_type_id,
+            step.call_indirect_type_index,
+            step.expected_type_id,
         );
         append_function_entry_event(
             &mut events,
             trace_index,
             cycle,
-            row.opcode,
-            row.table_value,
+            step.opcode,
+            step.table_value,
             &function_entry_map,
         );
         append_table_event(
@@ -553,21 +514,21 @@ pub(crate) fn relation_memory_events(
             trace_index,
             cycle,
             WasmMemoryEventKind::Read,
-            row.table_id,
-            row.table_index,
-            row.table_value,
+            step.table_id,
+            step.table_index,
+            step.table_value,
         );
         append_table_event(
             &mut events,
             trace_index,
             cycle,
             WasmMemoryEventKind::Write,
-            row.table_id,
-            row.table_index,
-            row.table_value,
+            step.table_id,
+            step.table_index,
+            step.table_value,
         );
 
-        if let Some((return_pc, caller_fbp)) = row.call_stack_push {
+        if let Some((return_pc, caller_fbp)) = step.call_stack_push {
             events.push(WasmMemoryEvent {
                 family: WasmMemoryKind::CallStack,
                 kind: WasmMemoryEventKind::Push,
@@ -579,7 +540,7 @@ pub(crate) fn relation_memory_events(
                 value1: caller_fbp,
             });
         }
-        if let Some((return_pc, caller_fbp)) = row.call_stack_pop {
+        if let Some((return_pc, caller_fbp)) = step.call_stack_pop {
             events.push(WasmMemoryEvent {
                 family: WasmMemoryKind::CallStack,
                 kind: WasmMemoryEventKind::Pop,
@@ -817,8 +778,8 @@ fn append_function_entry_event(
 
 fn final_stack_slots(trace: &[WasmStepTrace]) -> Vec<(u64, u32)> {
     let mut slots = BTreeMap::new();
-    for row in relation_step_rows(trace) {
-        if let Some(write) = row.write0 {
+    for step in trace {
+        if let Some(write) = step.stack_write0 {
             slots.insert(write.addr, write.value);
         }
     }
@@ -830,9 +791,9 @@ fn final_local_slots(trace: &[WasmStepTrace], initial_locals: &[u32]) -> Vec<(u6
     for (addr, &value) in initial_locals.iter().enumerate() {
         slots.insert(addr as u64, value);
     }
-    for row in relation_step_rows(trace) {
-        if let Some(write) = row.local_write {
-            slots.insert(write.addr, write.value);
+    for step in trace {
+        if let Some(access) = local_access(step, step.local_write_value) {
+            slots.insert(access.addr, access.value);
         }
     }
     slots.into_iter().collect()

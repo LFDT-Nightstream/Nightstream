@@ -1,6 +1,6 @@
 use neo_wasm::{
-    collect_wasmtime_steps, prove_simple_kernel, traces_from_wasmtime_steps, verify_simple_kernel,
-    WasmKernelProverInput, WasmKernelPublicInput, WasmKernelVerifierInput,
+    collect_wasmtime_steps, prove_relation, traces_from_wasmtime_steps, verify_relation, WasmProverInput,
+    WasmPublicInput, WasmVerifierInput,
 };
 
 // Loop that counts down: local[0] starts at 3, decrements to 0.
@@ -64,27 +64,25 @@ fn print_br_if_raw_trace() {
 #[test]
 fn wasm_br_if_kernel_roundtrip() {
     let (_, trace, pc_rom, pc_edge_kinds, function_entries) = compile_and_trace(COUNTDOWN_WAT);
-    let public = WasmKernelPublicInput {
+    let public = WasmPublicInput {
         transcript_seed: b"wasm-br-if".to_vec(),
         initial_locals: vec![],
     };
-    let prover_input = WasmKernelProverInput {
+    let prover_input = WasmProverInput {
         public: public.clone(),
         trace: &trace,
         pc_rom: pc_rom.clone(),
         pc_edge_kinds: pc_edge_kinds.clone(),
         function_entries: function_entries.clone(),
     };
-    let (output, proof) = prove_simple_kernel(&prover_input).expect("prove");
+    let proof = prove_relation(&prover_input).expect("prove");
 
-    let verifier_input = WasmKernelVerifierInput {
+    let verifier_input = WasmVerifierInput {
         public,
         trace: &trace,
         pc_rom,
         pc_edge_kinds,
         function_entries,
     };
-    let verified = verify_simple_kernel(&verifier_input, &proof).expect("verify");
-    assert_eq!(output.prepared_steps.len(), trace.len());
-    assert_eq!(verified.prepared_steps.len(), output.prepared_steps.len());
+    verify_relation(&verifier_input, &proof).expect("verify");
 }

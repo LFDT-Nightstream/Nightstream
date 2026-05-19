@@ -1,0 +1,654 @@
+//! Owns packaging normalized WASM rows into `StepBuild`.
+
+use super::ccs::WasmVmSpec;
+use super::gadgets::zero_test_witness_u64;
+use super::ir::{WasmBuildError, WasmRowKind, WasmStepTrace};
+use super::layout::{
+    selector_col, COL_CALL_INDIRECT_TYPE_INDEX, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT,
+    COL_CALL_STACK_POP_CALLER_FBP, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_POP_RETURN_PC,
+    COL_CALL_STACK_PUSH_PRESENT, COL_CONTROL_CHOICE, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_CURRENT_FUNCTION_REF,
+    COL_EXPECTED_TYPE_ID, COL_FUNCTION_REF, COL_FUNCTION_TYPE_ID, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE,
+    COL_GLOBAL_VALUE_BYTE0, COL_GLOBAL_VALUE_BYTE1, COL_GLOBAL_VALUE_BYTE2, COL_GLOBAL_VALUE_BYTE3,
+    COL_GLOBAL_VALUE_HI, COL_GLOBAL_VALUE_HI_BYTE0, COL_GLOBAL_VALUE_HI_BYTE1, COL_GLOBAL_VALUE_HI_BYTE2,
+    COL_GLOBAL_VALUE_HI_BYTE3, COL_HALTED, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0,
+    COL_LINEAR_MEM_ACCESS_BYTE1, COL_LINEAR_MEM_ACCESS_BYTE2, COL_LINEAR_MEM_ACCESS_BYTE3, COL_LINEAR_MEM_BYTE_OFFSET,
+    COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1,
+    COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_2, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_3,
+    COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_1,
+    COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_2, COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_3,
+    COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_1,
+    COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_2, COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_3,
+    COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_1,
+    COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_2, COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_3, COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_0,
+    COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_1, COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_2, COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_3,
+    COL_LINEAR_MEM_I64_STORE_OFFSET_IS_0, COL_LINEAR_MEM_I64_STORE_OFFSET_IS_1, COL_LINEAR_MEM_I64_STORE_OFFSET_IS_2,
+    COL_LINEAR_MEM_I64_STORE_OFFSET_IS_3, COL_LINEAR_MEM_IMM_OFFSET, COL_LINEAR_MEM_IS_BYTE_WIDTH,
+    COL_LINEAR_MEM_IS_DOUBLE_WIDTH, COL_LINEAR_MEM_IS_FULL_WIDTH, COL_LINEAR_MEM_IS_HALF_WIDTH,
+    COL_LINEAR_MEM_LANE0_ADDR, COL_LINEAR_MEM_LANE0_BYTE0, COL_LINEAR_MEM_LANE0_BYTE1, COL_LINEAR_MEM_LANE0_BYTE2,
+    COL_LINEAR_MEM_LANE0_BYTE3, COL_LINEAR_MEM_LANE0_VALUE, COL_LINEAR_MEM_LANE1_ADDR, COL_LINEAR_MEM_LANE1_BYTE0,
+    COL_LINEAR_MEM_LANE1_BYTE1, COL_LINEAR_MEM_LANE1_BYTE2, COL_LINEAR_MEM_LANE1_BYTE3, COL_LINEAR_MEM_LANE1_VALUE,
+    COL_LINEAR_MEM_LANE2_ADDR, COL_LINEAR_MEM_LANE2_BYTE0, COL_LINEAR_MEM_LANE2_BYTE1, COL_LINEAR_MEM_LANE2_BYTE2,
+    COL_LINEAR_MEM_LANE2_BYTE3, COL_LINEAR_MEM_LANE2_VALUE, COL_LINEAR_MEM_OFFSET_IS_0, COL_LINEAR_MEM_OFFSET_IS_1,
+    COL_LINEAR_MEM_OFFSET_IS_2, COL_LINEAR_MEM_OFFSET_IS_3, COL_LINEAR_MEM_USE_LANE0, COL_LINEAR_MEM_USE_LANE1,
+    COL_LINEAR_MEM_USE_LANE2, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE, COL_LOCAL_INDEX, COL_LOCAL_VALUE,
+    COL_LOCAL_VALUE_BYTE0, COL_LOCAL_VALUE_BYTE1, COL_LOCAL_VALUE_BYTE2, COL_LOCAL_VALUE_BYTE3, COL_LOCAL_VALUE_HI,
+    COL_LOCAL_VALUE_HI_BYTE0, COL_LOCAL_VALUE_HI_BYTE1, COL_LOCAL_VALUE_HI_BYTE2, COL_LOCAL_VALUE_HI_BYTE3,
+    COL_LOCAL_WRITE_ENABLED, COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_ONE, COL_OPCODE_CODE,
+    COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_AFTER,
+    COL_PARAM_INIT_REMAINING_AFTER_INV, COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PARAM_INIT_REMAINING_BEFORE,
+    COL_PC_AFTER, COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE,
+    COL_SELECT_OUT_DELTA, COL_SHOUT_ENABLED, COL_SHOUT_ID, COL_SHOUT_VALUE, COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7,
+    COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READ0_ACTIVE, COL_STACK_READ0_ADDR, COL_STACK_READ0_VALUE,
+    COL_STACK_READ0_VALUE_BYTE0, COL_STACK_READ0_VALUE_BYTE1, COL_STACK_READ0_VALUE_BYTE2, COL_STACK_READ0_VALUE_BYTE3,
+    COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_HI_BYTE0, COL_STACK_READ0_VALUE_HI_BYTE1,
+    COL_STACK_READ0_VALUE_HI_BYTE2, COL_STACK_READ0_VALUE_HI_BYTE3, COL_STACK_READ1_ACTIVE, COL_STACK_READ1_ADDR,
+    COL_STACK_READ1_VALUE, COL_STACK_READ1_VALUE_BYTE0, COL_STACK_READ1_VALUE_BYTE1, COL_STACK_READ1_VALUE_BYTE2,
+    COL_STACK_READ1_VALUE_BYTE3, COL_STACK_READ1_VALUE_HI, COL_STACK_READ1_VALUE_HI_BYTE0,
+    COL_STACK_READ1_VALUE_HI_BYTE1, COL_STACK_READ1_VALUE_HI_BYTE2, COL_STACK_READ1_VALUE_HI_BYTE3,
+    COL_STACK_READ2_ACTIVE, COL_STACK_READ2_ADDR, COL_STACK_READ2_VALUE, COL_STACK_READ2_VALUE_BYTE0,
+    COL_STACK_READ2_VALUE_BYTE1, COL_STACK_READ2_VALUE_BYTE2, COL_STACK_READ2_VALUE_BYTE3, COL_STACK_READ2_VALUE_HI,
+    COL_STACK_READ2_VALUE_HI_BYTE0, COL_STACK_READ2_VALUE_HI_BYTE1, COL_STACK_READ2_VALUE_HI_BYTE2,
+    COL_STACK_READ2_VALUE_HI_BYTE3, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR,
+    COL_STACK_WRITE0_VALUE, COL_STACK_WRITE0_VALUE_BYTE0, COL_STACK_WRITE0_VALUE_BYTE1, COL_STACK_WRITE0_VALUE_BYTE2,
+    COL_STACK_WRITE0_VALUE_BYTE3, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_HI_BYTE0,
+    COL_STACK_WRITE0_VALUE_HI_BYTE1, COL_STACK_WRITE0_VALUE_HI_BYTE2, COL_STACK_WRITE0_VALUE_HI_BYTE3,
+    COL_STACK_WRITES, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE, COL_TABLE_VALUE,
+    COL_TARGET_FUNCTION_IS_GUEST, COL_WIDE_AUX0, COL_WIDE_AUX1, COL_WIDE_VALUES_ENABLED, WITNESS_WIDTH,
+};
+use super::lower::{normalize_source, WasmTraceSource};
+use super::step_build::{BytecodeFetchRecord, ShoutLookupRecord, WasmStepBuild, WasmStepExtensionData};
+use super::tables::lookup_payload;
+use neo_math::F;
+use p3_field::PrimeCharacteristicRing;
+
+/// Packages normalized WASM rows into prepared `WasmStepBuild`s.
+///
+/// Each step's witness vector is the raw R1CS-satisfying assignment. The
+/// R1CS-F' chain builder in `neo-fold-clean` bit-decomposes it during
+/// `compile_step` and constructs the foldable F'-encoded `CcsInstance`
+/// from there. neo-wasm never commits to the raw assignment directly.
+#[derive(Default)]
+pub struct WasmTraceBuilder;
+
+impl WasmTraceBuilder {
+    pub fn new() -> Self {
+        Self
+    }
+
+    pub fn build_trace_source(
+        &self,
+        vm: &WasmVmSpec,
+        source: &impl WasmTraceSource,
+    ) -> Result<Vec<WasmStepBuild>, WasmBuildError> {
+        let steps = normalize_source(source)?;
+        self.build_steps(vm, &steps)
+    }
+
+    pub fn build_ir(&self, vm: &WasmVmSpec, steps: &[WasmStepTrace]) -> Result<Vec<WasmStepBuild>, WasmBuildError> {
+        self.build_steps(vm, steps)
+    }
+
+    pub fn build_steps(&self, vm: &WasmVmSpec, steps: &[WasmStepTrace]) -> Result<Vec<WasmStepBuild>, WasmBuildError> {
+        steps.iter().map(|step| self.build_step(vm, step)).collect()
+    }
+
+    fn build_step(&self, _vm: &WasmVmSpec, trace: &WasmStepTrace) -> Result<WasmStepBuild, WasmBuildError> {
+        let assignment = build_witness_vector(trace);
+
+        let extension_data = WasmStepExtensionData {
+            bytecode_fetch: Some(BytecodeFetchRecord {
+                pc: u16::try_from(trace.pc_before).unwrap_or(u16::MAX),
+                opcode: trace.opcode_code,
+            }),
+            shout_lookup: lookup_payload(trace).map(|payload| ShoutLookupRecord {
+                shout_id: payload.shout_id,
+                inputs: payload.inputs,
+                outputs: payload.outputs,
+            }),
+        };
+
+        Ok(WasmStepBuild {
+            label: format!("wasm@pc:{:04x}:{}", trace.pc_before, trace.info.name),
+            assignment,
+            extension_data,
+        })
+    }
+}
+
+pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
+    let mut wit = vec![F::ZERO; WITNESS_WIDTH];
+    wit[COL_ONE] = F::ONE;
+    wit[COL_OPCODE_CODE] = F::from_u64(u64::from(trace.opcode_code));
+    wit[COL_PC_BEFORE] = F::from_u64(trace.pc_before);
+    wit[COL_PC_AFTER] = F::from_u64(trace.pc_after);
+    wit[COL_CONTROL_CHOICE] = F::from_u64(u64::from(trace.control_choice));
+    wit[COL_PC_EDGE_KIND] = F::from_u64(u64::from(trace.pc_edge_kind.as_u32()));
+    let (pc_edge_kind_is_static, pc_edge_kind_inv) = zero_test_witness_u64(u64::from(trace.pc_edge_kind.as_u32()));
+    wit[COL_PC_EDGE_KIND_IS_STATIC] = pc_edge_kind_is_static;
+    wit[COL_PC_EDGE_KIND_INV] = pc_edge_kind_inv;
+    write_param_init_state(&mut wit, true, trace.param_init_before);
+    write_param_init_state(&mut wit, false, trace.param_init_after);
+    let (remaining_is_zero, remaining_inv) = zero_test_witness_u64(u64::from(trace.param_init_after.remaining));
+    wit[COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO] = remaining_is_zero;
+    wit[COL_PARAM_INIT_REMAINING_AFTER_INV] = remaining_inv;
+    wit[COL_WIDE_VALUES_ENABLED] = if trace.wide_values_enabled { F::ONE } else { F::ZERO };
+    wit[COL_SP_BEFORE] = F::from_u64(trace.sp_before);
+    wit[COL_SP_AFTER] = F::from_u64(trace.sp_after);
+    wit[COL_CURRENT_FUNCTION_REF] = F::from_u64(u64::from(trace.current_function_ref));
+    wit[COL_CURRENT_FUNCTION_NUM_LOCALS] = F::from_u64(u64::from(trace.current_function_num_locals));
+    wit[COL_LOCALS_FBP_BEFORE] = F::from_u64(trace.locals_fbp);
+    wit[COL_LOCALS_FBP_AFTER] = F::from_u64(trace.locals_fbp_after);
+    wit[COL_HALTED] = if trace.halted { F::ONE } else { F::ZERO };
+    wit[COL_IS_PROGRAM_ROW] = if trace.row_kind.is_program() { F::ONE } else { F::ZERO };
+    wit[COL_PC_ROM_ACTIVE] = if trace.row_kind.is_program() && trace.pc_edge_kind.as_u32() == 0 {
+        F::ONE
+    } else {
+        F::ZERO
+    };
+    wit[COL_CALL_STACK_POP_PRESENT] = if trace.call_stack_pop.is_some() {
+        F::ONE
+    } else {
+        F::ZERO
+    };
+    wit[COL_CALL_STACK_PUSH_PRESENT] = if trace.call_stack_push.is_some() {
+        F::ONE
+    } else {
+        F::ZERO
+    };
+    if let Some((return_pc, caller_fbp)) = trace.call_stack_pop {
+        wit[COL_CALL_STACK_POP_RETURN_PC] = F::from_u64(return_pc);
+        wit[COL_CALL_STACK_POP_CALLER_FBP] = F::from_u64(caller_fbp);
+    }
+    if let Some(pages) = trace.memory_pages_before {
+        wit[COL_MEMORY_PAGES_BEFORE] = F::from_u64(u64::from(pages));
+    }
+    if let Some(pages) = trace.memory_pages_after {
+        wit[COL_MEMORY_PAGES_AFTER] = F::from_u64(u64::from(pages));
+    }
+    wit[COL_STACK_READS] = F::from_u64(u64::from(trace.stack_reads_override.unwrap_or(trace.info.stack_reads)));
+    wit[COL_STACK_WRITES] = F::from_u64(u64::from(
+        trace
+            .stack_writes_override
+            .unwrap_or(trace.info.stack_writes),
+    ));
+    let stack_reads = trace.stack_reads_override.unwrap_or(trace.info.stack_reads);
+    let stack_writes = trace
+        .stack_writes_override
+        .unwrap_or(trace.info.stack_writes);
+    wit[COL_STACK_READ0_ACTIVE] = if stack_reads >= 1 { F::ONE } else { F::ZERO };
+    wit[COL_STACK_READ1_ACTIVE] = if stack_reads >= 2 { F::ONE } else { F::ZERO };
+    wit[COL_STACK_READ2_ACTIVE] = if stack_reads >= 3 { F::ONE } else { F::ZERO };
+    wit[COL_STACK_WRITE0_ACTIVE] = if stack_writes >= 1 { F::ONE } else { F::ZERO };
+    wit[COL_SHOUT_ENABLED] = if trace.info.uses_shout { F::ONE } else { F::ZERO };
+    wit[COL_LINEAR_MEM_USE_LANE0] = if trace.linear_memory.is_some() { F::ONE } else { F::ZERO };
+    wit[COL_LOCAL_WRITE_ENABLED] = if matches!(
+        trace.opcode,
+        super::isa::WasmOpcode::LocalSet | super::isa::WasmOpcode::LocalTee
+    ) {
+        F::ONE
+    } else {
+        F::ZERO
+    };
+    wit[COL_TABLE_READ_ENABLED] = if matches!(
+        trace.opcode,
+        super::isa::WasmOpcode::TableGet | super::isa::WasmOpcode::CallIndirect
+    ) {
+        F::ONE
+    } else {
+        F::ZERO
+    };
+
+    if matches!(trace.row_kind, WasmRowKind::Program) {
+        if let Some(col) = selector_col(trace.opcode) {
+            wit[col] = F::ONE;
+        }
+    }
+    if let Some(read) = trace.stack_read0 {
+        wit[COL_STACK_READ0_ADDR] = F::from_u64(read.addr);
+        wit[COL_STACK_READ0_VALUE] = F::from_u64(u64::from(read.value));
+        write_u32_le_bytes(
+            &mut wit,
+            [
+                COL_STACK_READ0_VALUE_BYTE0,
+                COL_STACK_READ0_VALUE_BYTE1,
+                COL_STACK_READ0_VALUE_BYTE2,
+                COL_STACK_READ0_VALUE_BYTE3,
+            ],
+            read.value,
+        );
+    }
+    if let Some(read0_value_hi) = trace.stack_read0_hi {
+        wit[COL_STACK_READ0_VALUE_HI] = F::from_u64(u64::from(read0_value_hi));
+        write_u32_le_bytes(
+            &mut wit,
+            [
+                COL_STACK_READ0_VALUE_HI_BYTE0,
+                COL_STACK_READ0_VALUE_HI_BYTE1,
+                COL_STACK_READ0_VALUE_HI_BYTE2,
+                COL_STACK_READ0_VALUE_HI_BYTE3,
+            ],
+            read0_value_hi,
+        );
+    }
+    if let Some(read) = trace.stack_read1 {
+        wit[COL_STACK_READ1_ADDR] = F::from_u64(read.addr);
+        wit[COL_STACK_READ1_VALUE] = F::from_u64(u64::from(read.value));
+        write_u32_le_bytes(
+            &mut wit,
+            [
+                COL_STACK_READ1_VALUE_BYTE0,
+                COL_STACK_READ1_VALUE_BYTE1,
+                COL_STACK_READ1_VALUE_BYTE2,
+                COL_STACK_READ1_VALUE_BYTE3,
+            ],
+            read.value,
+        );
+    }
+    if let Some(read1_value_hi) = trace.stack_read1_hi {
+        wit[COL_STACK_READ1_VALUE_HI] = F::from_u64(u64::from(read1_value_hi));
+        write_u32_le_bytes(
+            &mut wit,
+            [
+                COL_STACK_READ1_VALUE_HI_BYTE0,
+                COL_STACK_READ1_VALUE_HI_BYTE1,
+                COL_STACK_READ1_VALUE_HI_BYTE2,
+                COL_STACK_READ1_VALUE_HI_BYTE3,
+            ],
+            read1_value_hi,
+        );
+    }
+    if let Some(read) = trace.stack_read2 {
+        wit[COL_STACK_READ2_ADDR] = F::from_u64(read.addr);
+        wit[COL_STACK_READ2_VALUE] = F::from_u64(u64::from(read.value));
+        write_u32_le_bytes(
+            &mut wit,
+            [
+                COL_STACK_READ2_VALUE_BYTE0,
+                COL_STACK_READ2_VALUE_BYTE1,
+                COL_STACK_READ2_VALUE_BYTE2,
+                COL_STACK_READ2_VALUE_BYTE3,
+            ],
+            read.value,
+        );
+    }
+    if let Some(read2_value_hi) = trace.stack_read2_hi {
+        wit[COL_STACK_READ2_VALUE_HI] = F::from_u64(u64::from(read2_value_hi));
+        write_u32_le_bytes(
+            &mut wit,
+            [
+                COL_STACK_READ2_VALUE_HI_BYTE0,
+                COL_STACK_READ2_VALUE_HI_BYTE1,
+                COL_STACK_READ2_VALUE_HI_BYTE2,
+                COL_STACK_READ2_VALUE_HI_BYTE3,
+            ],
+            read2_value_hi,
+        );
+    }
+    if let Some(write) = trace.stack_write0 {
+        wit[COL_STACK_WRITE0_ADDR] = F::from_u64(write.addr);
+        wit[COL_STACK_WRITE0_VALUE] = F::from_u64(u64::from(write.value));
+        write_u32_le_bytes(
+            &mut wit,
+            [
+                COL_STACK_WRITE0_VALUE_BYTE0,
+                COL_STACK_WRITE0_VALUE_BYTE1,
+                COL_STACK_WRITE0_VALUE_BYTE2,
+                COL_STACK_WRITE0_VALUE_BYTE3,
+            ],
+            write.value,
+        );
+    }
+    if let Some(write0_value_hi) = trace.stack_write0_hi {
+        wit[COL_STACK_WRITE0_VALUE_HI] = F::from_u64(u64::from(write0_value_hi));
+        write_u32_le_bytes(
+            &mut wit,
+            [
+                COL_STACK_WRITE0_VALUE_HI_BYTE0,
+                COL_STACK_WRITE0_VALUE_HI_BYTE1,
+                COL_STACK_WRITE0_VALUE_HI_BYTE2,
+                COL_STACK_WRITE0_VALUE_HI_BYTE3,
+            ],
+            write0_value_hi,
+        );
+    }
+    if let Some(access) = trace.linear_memory {
+        wit[COL_LINEAR_MEM_IMM_OFFSET] = F::from_u64(trace.linear_memory_offset);
+        wit[COL_LINEAR_MEM_BYTE_OFFSET] = F::from_u64(u64::from(access.byte_offset));
+        wit[COL_LINEAR_MEM_USE_LANE1] = if access.lane1.is_some() { F::ONE } else { F::ZERO };
+        wit[COL_LINEAR_MEM_USE_LANE2] = if access.lane2.is_some() { F::ONE } else { F::ZERO };
+        match access.byte_offset {
+            0 => wit[COL_LINEAR_MEM_OFFSET_IS_0] = F::ONE,
+            1 => wit[COL_LINEAR_MEM_OFFSET_IS_1] = F::ONE,
+            2 => wit[COL_LINEAR_MEM_OFFSET_IS_2] = F::ONE,
+            3 => wit[COL_LINEAR_MEM_OFFSET_IS_3] = F::ONE,
+            _ => {}
+        }
+        if access.width_bytes == 4 {
+            wit[COL_LINEAR_MEM_IS_FULL_WIDTH] = F::ONE;
+            match access.byte_offset {
+                0 => wit[COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_0] = F::ONE,
+                1 => wit[COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_1] = F::ONE,
+                2 => wit[COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_2] = F::ONE,
+                3 => wit[COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_3] = F::ONE,
+                _ => {}
+            }
+        } else if access.width_bytes == 8 {
+            wit[COL_LINEAR_MEM_IS_DOUBLE_WIDTH] = F::ONE;
+            match access.byte_offset {
+                0 => wit[COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_0] = F::ONE,
+                1 => wit[COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_1] = F::ONE,
+                2 => wit[COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_2] = F::ONE,
+                3 => wit[COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_3] = F::ONE,
+                _ => {}
+            }
+            match trace.opcode {
+                super::isa::WasmOpcode::I64Load => match access.byte_offset {
+                    0 => wit[COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_0] = F::ONE,
+                    1 => wit[COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_1] = F::ONE,
+                    2 => wit[COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_2] = F::ONE,
+                    3 => wit[COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_3] = F::ONE,
+                    _ => {}
+                },
+                super::isa::WasmOpcode::I64Store => match access.byte_offset {
+                    0 => wit[COL_LINEAR_MEM_I64_STORE_OFFSET_IS_0] = F::ONE,
+                    1 => wit[COL_LINEAR_MEM_I64_STORE_OFFSET_IS_1] = F::ONE,
+                    2 => wit[COL_LINEAR_MEM_I64_STORE_OFFSET_IS_2] = F::ONE,
+                    3 => wit[COL_LINEAR_MEM_I64_STORE_OFFSET_IS_3] = F::ONE,
+                    _ => {}
+                },
+                _ => {}
+            }
+        } else if access.width_bytes == 1 {
+            wit[COL_LINEAR_MEM_IS_BYTE_WIDTH] = F::ONE;
+            match access.byte_offset {
+                0 => wit[COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0] = F::ONE,
+                1 => wit[COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1] = F::ONE,
+                2 => wit[COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_2] = F::ONE,
+                3 => wit[COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_3] = F::ONE,
+                _ => {}
+            }
+        } else if access.width_bytes == 2 {
+            wit[COL_LINEAR_MEM_IS_HALF_WIDTH] = F::ONE;
+            match access.byte_offset {
+                0 => wit[COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_0] = F::ONE,
+                1 => wit[COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_1] = F::ONE,
+                2 => wit[COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_2] = F::ONE,
+                3 => wit[COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_3] = F::ONE,
+                _ => {}
+            }
+        }
+        wit[COL_LINEAR_MEM_LANE0_ADDR] = F::from_u64(access.lane0.word_addr);
+        let lane0_value = match trace.opcode {
+            super::isa::WasmOpcode::I32Load
+            | super::isa::WasmOpcode::I64Load
+            | super::isa::WasmOpcode::I32Load8S
+            | super::isa::WasmOpcode::I32Load8U
+            | super::isa::WasmOpcode::I32Load16S
+            | super::isa::WasmOpcode::I32Load16U => access.lane0.value_before,
+            super::isa::WasmOpcode::I32Store
+            | super::isa::WasmOpcode::I64Store
+            | super::isa::WasmOpcode::I32Store8
+            | super::isa::WasmOpcode::I32Store16 => access.lane0.value_after,
+            _ => access.lane0.value_after,
+        };
+        wit[COL_LINEAR_MEM_LANE0_VALUE] = F::from_u64(u64::from(lane0_value));
+        write_u32_le_bytes(
+            &mut wit,
+            [
+                COL_LINEAR_MEM_LANE0_BYTE0,
+                COL_LINEAR_MEM_LANE0_BYTE1,
+                COL_LINEAR_MEM_LANE0_BYTE2,
+                COL_LINEAR_MEM_LANE0_BYTE3,
+            ],
+            lane0_value,
+        );
+        if let Some(lane1) = access.lane1 {
+            wit[COL_LINEAR_MEM_LANE1_ADDR] = F::from_u64(lane1.word_addr);
+            let lane1_value = match trace.opcode {
+                super::isa::WasmOpcode::I32Load
+                | super::isa::WasmOpcode::I64Load
+                | super::isa::WasmOpcode::I32Load8S
+                | super::isa::WasmOpcode::I32Load8U
+                | super::isa::WasmOpcode::I32Load16S
+                | super::isa::WasmOpcode::I32Load16U => lane1.value_before,
+                super::isa::WasmOpcode::I32Store
+                | super::isa::WasmOpcode::I64Store
+                | super::isa::WasmOpcode::I32Store8
+                | super::isa::WasmOpcode::I32Store16 => lane1.value_after,
+                _ => lane1.value_after,
+            };
+            wit[COL_LINEAR_MEM_LANE1_VALUE] = F::from_u64(u64::from(lane1_value));
+            write_u32_le_bytes(
+                &mut wit,
+                [
+                    COL_LINEAR_MEM_LANE1_BYTE0,
+                    COL_LINEAR_MEM_LANE1_BYTE1,
+                    COL_LINEAR_MEM_LANE1_BYTE2,
+                    COL_LINEAR_MEM_LANE1_BYTE3,
+                ],
+                lane1_value,
+            );
+        }
+        if let Some(lane2) = access.lane2 {
+            wit[COL_LINEAR_MEM_LANE2_ADDR] = F::from_u64(lane2.word_addr);
+            let lane2_value = match trace.opcode {
+                super::isa::WasmOpcode::I64Load => lane2.value_before,
+                super::isa::WasmOpcode::I64Store => lane2.value_after,
+                _ => lane2.value_after,
+            };
+            wit[COL_LINEAR_MEM_LANE2_VALUE] = F::from_u64(u64::from(lane2_value));
+            write_u32_le_bytes(
+                &mut wit,
+                [
+                    COL_LINEAR_MEM_LANE2_BYTE0,
+                    COL_LINEAR_MEM_LANE2_BYTE1,
+                    COL_LINEAR_MEM_LANE2_BYTE2,
+                    COL_LINEAR_MEM_LANE2_BYTE3,
+                ],
+                lane2_value,
+            );
+        }
+        let access_value = match trace.opcode {
+            super::isa::WasmOpcode::I32Load
+            | super::isa::WasmOpcode::I32Load8S
+            | super::isa::WasmOpcode::I32Load8U
+            | super::isa::WasmOpcode::I32Load16S
+            | super::isa::WasmOpcode::I32Load16U => trace.stack_write0.map(|lane| lane.value).unwrap_or(0),
+            super::isa::WasmOpcode::I32Store
+            | super::isa::WasmOpcode::I32Store8
+            | super::isa::WasmOpcode::I32Store16 => trace.stack_read1.map(|lane| lane.value).unwrap_or(0),
+            _ => 0,
+        };
+        write_u32_le_bytes(
+            &mut wit,
+            [
+                COL_LINEAR_MEM_ACCESS_BYTE0,
+                COL_LINEAR_MEM_ACCESS_BYTE1,
+                COL_LINEAR_MEM_ACCESS_BYTE2,
+                COL_LINEAR_MEM_ACCESS_BYTE3,
+            ],
+            access_value,
+        );
+        match trace.opcode {
+            super::isa::WasmOpcode::I32Load8S => {
+                let bytes = access_value.to_le_bytes();
+                wit[COL_SIGN_EXT_LOW7] = F::from_u64(u64::from(bytes[0] & 0x7f));
+                wit[COL_SIGN_EXT_BIT] = if (bytes[0] & 0x80) != 0 { F::ONE } else { F::ZERO };
+            }
+            super::isa::WasmOpcode::I32Load16S => {
+                let bytes = access_value.to_le_bytes();
+                wit[COL_SIGN_EXT_LOW7] = F::from_u64(u64::from(bytes[1] & 0x7f));
+                wit[COL_SIGN_EXT_BIT] = if (bytes[1] & 0x80) != 0 { F::ONE } else { F::ZERO };
+            }
+            _ => {}
+        }
+    }
+    if let Some(shout) = trace.info.shout_opcode {
+        wit[COL_SHOUT_ID] = F::from_u64(u64::from(shout.to_shout_id()));
+        wit[COL_SHOUT_VALUE] = F::from_u64(trace.stack_write0.map(|w| u64::from(w.value)).unwrap_or(0));
+    }
+
+    if matches!(
+        trace.opcode,
+        super::isa::WasmOpcode::LocalGet | super::isa::WasmOpcode::LocalSet | super::isa::WasmOpcode::LocalTee
+    ) || trace.row_kind.is_call_param_init()
+    {
+        if let Some(idx) = trace.local_index {
+            wit[COL_LOCAL_INDEX] = F::from_u64(u64::from(idx));
+        }
+        let local_value_lo = trace
+            .local_read_value
+            .or(trace.local_write_value)
+            .unwrap_or(0);
+        wit[COL_LOCAL_VALUE] = F::from_u64(u64::from(local_value_lo));
+        let local_value_hi = trace
+            .local_read_value_hi
+            .or(trace.local_write_value_hi)
+            .unwrap_or(0);
+        wit[COL_LOCAL_VALUE_HI] = F::from_u64(u64::from(local_value_hi));
+        write_u32_le_bytes(
+            &mut wit,
+            [
+                COL_LOCAL_VALUE_BYTE0,
+                COL_LOCAL_VALUE_BYTE1,
+                COL_LOCAL_VALUE_BYTE2,
+                COL_LOCAL_VALUE_BYTE3,
+            ],
+            local_value_lo,
+        );
+        write_u32_le_bytes(
+            &mut wit,
+            [
+                COL_LOCAL_VALUE_HI_BYTE0,
+                COL_LOCAL_VALUE_HI_BYTE1,
+                COL_LOCAL_VALUE_HI_BYTE2,
+                COL_LOCAL_VALUE_HI_BYTE3,
+            ],
+            local_value_hi,
+        );
+    }
+
+    if matches!(
+        trace.opcode,
+        super::isa::WasmOpcode::GlobalGet | super::isa::WasmOpcode::GlobalSet
+    ) {
+        if let Some(idx) = trace.global_index {
+            wit[COL_GLOBAL_INDEX] = F::from_u64(u64::from(idx));
+        }
+        let global_value_lo = trace
+            .global_read_value
+            .or(trace.global_write_value)
+            .unwrap_or(0);
+        wit[COL_GLOBAL_VALUE] = F::from_u64(u64::from(global_value_lo));
+        let global_value_hi = trace
+            .global_read_value_hi
+            .or(trace.global_write_value_hi)
+            .unwrap_or(0);
+        wit[COL_GLOBAL_VALUE_HI] = F::from_u64(u64::from(global_value_hi));
+        write_u32_le_bytes(
+            &mut wit,
+            [
+                COL_GLOBAL_VALUE_BYTE0,
+                COL_GLOBAL_VALUE_BYTE1,
+                COL_GLOBAL_VALUE_BYTE2,
+                COL_GLOBAL_VALUE_BYTE3,
+            ],
+            global_value_lo,
+        );
+        write_u32_le_bytes(
+            &mut wit,
+            [
+                COL_GLOBAL_VALUE_HI_BYTE0,
+                COL_GLOBAL_VALUE_HI_BYTE1,
+                COL_GLOBAL_VALUE_HI_BYTE2,
+                COL_GLOBAL_VALUE_HI_BYTE3,
+            ],
+            global_value_hi,
+        );
+    }
+
+    if let Some(table_id) = trace.table_id {
+        wit[COL_TABLE_ID] = F::from_u64(u64::from(table_id));
+    }
+    if let Some(table_index) = trace.table_index {
+        wit[COL_TABLE_INDEX] = F::from_u64(u64::from(table_index));
+    }
+    if let Some(table_value) = trace.table_value {
+        wit[COL_TABLE_VALUE] = F::from_u64(u64::from(table_value));
+    }
+    if let Some(table_size) = trace.table_size {
+        wit[COL_TABLE_SIZE] = F::from_u64(u64::from(table_size));
+    }
+    if let Some(function_ref) = trace.function_ref {
+        wit[COL_FUNCTION_REF] = F::from_u64(u64::from(function_ref));
+    }
+    wit[COL_TARGET_FUNCTION_IS_GUEST] = if trace.target_function_is_guest {
+        F::ONE
+    } else {
+        F::ZERO
+    };
+    if let Some(param_count) = trace.call_param_count {
+        wit[COL_CALL_PARAM_COUNT] = F::from_u64(u64::from(param_count));
+    }
+    if let Some(result_count) = trace.call_result_count {
+        wit[COL_CALL_RESULT_COUNT] = F::from_u64(u64::from(result_count));
+    }
+    if let Some(function_type_id) = trace.function_type_id {
+        wit[COL_FUNCTION_TYPE_ID] = F::from_u64(u64::from(function_type_id));
+    }
+    if let Some(type_index) = trace.call_indirect_type_index {
+        wit[COL_CALL_INDIRECT_TYPE_INDEX] = F::from_u64(u64::from(type_index));
+    }
+    if let Some(expected_type_id) = trace.expected_type_id {
+        wit[COL_EXPECTED_TYPE_ID] = F::from_u64(u64::from(expected_type_id));
+    }
+
+    match trace.opcode {
+        super::isa::WasmOpcode::I64Add => {
+            let lhs_lo = u64::from(trace.stack_read0.map(|lane| lane.value).unwrap_or(0));
+            let rhs_lo = u64::from(trace.stack_read1.map(|lane| lane.value).unwrap_or(0));
+            let lhs_hi = u64::from(trace.stack_read0_hi.unwrap_or(0));
+            let rhs_hi = u64::from(trace.stack_read1_hi.unwrap_or(0));
+            let carry0 = (lhs_lo + rhs_lo) >> 32;
+            let carry1 = (lhs_hi + rhs_hi + carry0) >> 32;
+            wit[COL_WIDE_AUX0] = F::from_u64(carry0);
+            wit[COL_WIDE_AUX1] = F::from_u64(carry1);
+        }
+        super::isa::WasmOpcode::I64Sub => {
+            let lhs_lo = trace.stack_read0.map(|lane| lane.value).unwrap_or(0);
+            let rhs_lo = trace.stack_read1.map(|lane| lane.value).unwrap_or(0);
+            let lhs_hi = trace.stack_read0_hi.unwrap_or(0);
+            let rhs_hi = trace.stack_read1_hi.unwrap_or(0);
+            let borrow0 = u64::from(lhs_lo < rhs_lo);
+            let borrow1 = u64::from(u64::from(lhs_hi) < u64::from(rhs_hi) + borrow0);
+            wit[COL_WIDE_AUX0] = F::from_u64(borrow0);
+            wit[COL_WIDE_AUX1] = F::from_u64(borrow1);
+        }
+        _ => {}
+    }
+
+    if matches!(trace.opcode, super::isa::WasmOpcode::Select) {
+        let read1 = trace.stack_read1.map(|lane| lane.value).unwrap_or(0);
+        let write0 = trace.stack_write0.map(|lane| lane.value).unwrap_or(0);
+        wit[COL_SELECT_OUT_DELTA] = F::from_u64(u64::from(write0)) - F::from_u64(u64::from(read1));
+    }
+
+    wit
+}
+
+fn write_param_init_state(wit: &mut [F], before: bool, state: super::ir::WasmParamInitState) {
+    let (active_col, remaining_col) = if before {
+        (COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_BEFORE)
+    } else {
+        (COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_REMAINING_AFTER)
+    };
+    wit[active_col] = if state.active { F::ONE } else { F::ZERO };
+    wit[remaining_col] = F::from_u64(u64::from(state.remaining));
+}
+
+fn write_u32_le_bytes(wit: &mut [F], columns: [usize; 4], value: u32) {
+    let bytes = value.to_le_bytes();
+    for (column, byte) in columns.into_iter().zip(bytes) {
+        wit[column] = F::from_u64(u64::from(byte));
+    }
+}

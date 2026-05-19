@@ -1,0 +1,248 @@
+use neo_wasm::{build_wasm_lookup_binding_layout, WasmLookupFamilyKind, WasmLookupFamilySpec, WasmMemoryActivation};
+
+fn family_named<'a>(families: &'a [WasmLookupFamilySpec], name: &str) -> &'a WasmLookupFamilySpec {
+    families
+        .iter()
+        .find(|family| family.name == name)
+        .expect("lookup family")
+}
+
+#[test]
+fn layout_describes_byte_u8_lookup_family_and_byte_bindings() {
+    let layout = build_wasm_lookup_binding_layout();
+    let byte_family = family_named(&layout.lookup_families, "byte_u8");
+    assert!(matches!(byte_family.kind, WasmLookupFamilyKind::ByteU8));
+    let bounds_family = family_named(&layout.lookup_families, "linear_memory_bounds");
+    assert!(matches!(bounds_family.kind, WasmLookupFamilyKind::LinearMemoryBounds));
+
+    let byte_bindings: Vec<_> = layout
+        .lookup_bindings
+        .iter()
+        .filter(|binding| binding.family == "byte_u8")
+        .collect();
+    assert_eq!(byte_bindings.len(), 65);
+    assert!(byte_bindings
+        .iter()
+        .any(|binding| binding.name == "stack_read0_value_byte0"));
+    assert!(byte_bindings
+        .iter()
+        .any(|binding| binding.name == "stack_write0_value_hi_byte3"));
+    assert!(byte_bindings
+        .iter()
+        .any(|binding| binding.name == "local_value_hi_byte2"));
+    assert!(byte_bindings
+        .iter()
+        .any(|binding| binding.name == "global_value_byte1"));
+    assert!(byte_bindings
+        .iter()
+        .any(|binding| binding.name == "linear_mem_lane0_byte0"));
+    assert!(byte_bindings
+        .iter()
+        .any(|binding| binding.name == "linear_mem_lane1_byte3"));
+    assert!(byte_bindings
+        .iter()
+        .any(|binding| binding.name == "linear_mem_access_byte3"));
+    assert!(byte_bindings
+        .iter()
+        .any(|binding| binding.name == "sign_ext_low7"));
+    assert!(byte_bindings
+        .iter()
+        .all(|binding| binding.columns.len() == 1));
+    assert!(byte_bindings.iter().all(|binding| binding.gate.is_none()));
+
+    let shout_bindings: Vec<_> = layout
+        .lookup_bindings
+        .iter()
+        .filter(|binding| binding.role == "shout row binding")
+        .collect();
+    assert!(!shout_bindings.is_empty());
+    assert!(shout_bindings.iter().all(|binding| binding.gate.is_some()));
+
+    let bounds_binding = layout
+        .lookup_bindings
+        .iter()
+        .find(|binding| binding.family == "linear_memory_bounds")
+        .expect("linear-memory bounds binding");
+    assert_eq!(bounds_binding.columns.len(), 4);
+    assert!(bounds_binding.gate.is_some());
+
+    let globals_memory = layout
+        .memories
+        .iter()
+        .find(|memory| memory.name == "globals")
+        .expect("globals memory family");
+    assert_eq!(globals_memory.columns.len(), 2);
+    assert!(matches!(
+        globals_memory.columns[0].activation,
+        WasmMemoryActivation::BooleanGate(_)
+    ));
+    assert!(matches!(
+        globals_memory.columns[1].activation,
+        WasmMemoryActivation::BooleanGate(_)
+    ));
+
+    let tables_memory = layout
+        .memories
+        .iter()
+        .find(|memory| memory.name == "tables")
+        .expect("tables memory family");
+    assert_eq!(tables_memory.columns.len(), 2);
+    assert_eq!(tables_memory.columns[0].address_columns.len(), 2);
+    assert!(matches!(
+        tables_memory.columns[0].activation,
+        WasmMemoryActivation::BooleanGate(_)
+    ));
+    assert!(matches!(
+        tables_memory.columns[1].activation,
+        WasmMemoryActivation::BooleanGate(_)
+    ));
+
+    let locals_memory = layout
+        .memories
+        .iter()
+        .find(|memory| memory.name == "locals")
+        .expect("locals memory family");
+    assert_eq!(locals_memory.columns.len(), 3);
+    assert!(matches!(
+        locals_memory.columns[0].activation,
+        WasmMemoryActivation::BooleanGate(_)
+    ));
+    assert!(matches!(
+        locals_memory.columns[1].activation,
+        WasmMemoryActivation::BooleanGate(_)
+    ));
+    assert!(matches!(
+        locals_memory.columns[2].activation,
+        WasmMemoryActivation::BooleanGate(_)
+    ));
+
+    let table_sizes_memory = layout
+        .memories
+        .iter()
+        .find(|memory| memory.name == "table_sizes")
+        .expect("table_sizes memory family");
+    assert_eq!(table_sizes_memory.columns.len(), 1);
+    assert_eq!(table_sizes_memory.columns[0].address_columns.len(), 1);
+    assert!(matches!(
+        table_sizes_memory.columns[0].activation,
+        WasmMemoryActivation::BooleanGate(_)
+    ));
+
+    let function_types_memory = layout
+        .memories
+        .iter()
+        .find(|memory| memory.name == "function_types")
+        .expect("function_types memory family");
+    assert_eq!(function_types_memory.columns.len(), 1);
+    assert_eq!(function_types_memory.columns[0].address_columns.len(), 1);
+    assert!(function_types_memory.is_rom);
+    assert!(matches!(
+        function_types_memory.columns[0].activation,
+        WasmMemoryActivation::BooleanGate(_)
+    ));
+
+    let function_local_counts_memory = layout
+        .memories
+        .iter()
+        .find(|memory| memory.name == "function_local_counts")
+        .expect("function_local_counts memory family");
+    assert_eq!(function_local_counts_memory.columns.len(), 1);
+    assert_eq!(
+        function_local_counts_memory.columns[0]
+            .address_columns
+            .len(),
+        1
+    );
+    assert!(function_local_counts_memory.is_rom);
+    assert!(matches!(
+        function_local_counts_memory.columns[0].activation,
+        WasmMemoryActivation::BooleanGate(_)
+    ));
+
+    let pc_function_refs_memory = layout
+        .memories
+        .iter()
+        .find(|memory| memory.name == "pc_function_refs")
+        .expect("pc_function_refs memory family");
+    assert_eq!(pc_function_refs_memory.columns.len(), 1);
+    assert!(pc_function_refs_memory.is_rom);
+    assert!(matches!(
+        pc_function_refs_memory.columns[0].activation,
+        WasmMemoryActivation::Always
+    ));
+
+    let function_guest_flags_memory = layout
+        .memories
+        .iter()
+        .find(|memory| memory.name == "function_guest_flags")
+        .expect("function_guest_flags memory family");
+    assert_eq!(function_guest_flags_memory.columns.len(), 2);
+    assert!(function_guest_flags_memory.is_rom);
+    assert!(function_guest_flags_memory
+        .columns
+        .iter()
+        .all(|column| matches!(column.activation, WasmMemoryActivation::BooleanGate(_))));
+
+    let function_entries_memory = layout
+        .memories
+        .iter()
+        .find(|memory| memory.name == "function_entries")
+        .expect("function_entries memory family");
+    assert_eq!(function_entries_memory.columns.len(), 1);
+    assert_eq!(function_entries_memory.columns[0].address_columns.len(), 1);
+    assert!(function_entries_memory.is_rom);
+    assert!(matches!(
+        function_entries_memory.columns[0].activation,
+        WasmMemoryActivation::BooleanGate(_)
+    ));
+
+    let module_types_memory = layout
+        .memories
+        .iter()
+        .find(|memory| memory.name == "module_types")
+        .expect("module_types memory family");
+    assert_eq!(module_types_memory.columns.len(), 1);
+    assert_eq!(module_types_memory.columns[0].address_columns.len(), 1);
+    assert!(module_types_memory.is_rom);
+    assert!(matches!(
+        module_types_memory.columns[0].activation,
+        WasmMemoryActivation::BooleanGate(_)
+    ));
+
+    let pc_rom_memory = layout
+        .memories
+        .iter()
+        .find(|memory| memory.name == "pc_rom")
+        .expect("pc_rom memory");
+    assert_eq!(pc_rom_memory.columns.len(), 1);
+    assert_eq!(pc_rom_memory.columns[0].address_columns.len(), 2);
+    assert!(matches!(
+        pc_rom_memory.columns[0].activation,
+        WasmMemoryActivation::BooleanGate(_)
+    ));
+
+    let linear_memory = layout
+        .memories
+        .iter()
+        .find(|memory| memory.name == "linear_memory")
+        .expect("linear_memory memory family");
+    assert_eq!(linear_memory.columns.len(), 3);
+    assert!(linear_memory
+        .columns
+        .iter()
+        .all(|column| matches!(column.activation, WasmMemoryActivation::BooleanGate(_))));
+}
+
+#[test]
+fn column_specs_are_dense_and_in_order() {
+    use neo_wasm::layout::{COLUMN_SPECS, WITNESS_WIDTH};
+
+    assert_eq!(
+        COLUMN_SPECS.len(),
+        WITNESS_WIDTH,
+        "macro must emit one spec per witness column"
+    );
+    for (i, spec) in COLUMN_SPECS.iter().enumerate() {
+        assert_eq!(spec.index, i, "COLUMN_SPECS must be index-sequential starting at 0");
+    }
+}

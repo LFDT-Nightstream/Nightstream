@@ -211,6 +211,12 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         }
     });
 
+    b.with_tag(always("selector columns are boolean"), |b| {
+        for &col in &SELECTOR_COLS {
+            b.push_boolean(col);
+        }
+    });
+
     b.with_tag(always("value byte decomposition"), |b| {
         for (word, bytes) in [
             (stack.read0_value, stack_read0_bytes),

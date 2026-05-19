@@ -1,6 +1,6 @@
 use neo_wasm::{
-    collect_wasmtime_steps, prove_relation, traces_from_wasmtime_steps, verify_relation, WasmProverInput,
-    WasmPublicInput, WasmVerifierInput,
+    build_wasm_lookup_binding_layout, collect_wasmtime_steps, preload_from_wasmtime_run, sanity_check_lookup_row,
+    sanity_check_memory_rows, traces_from_wasmtime_steps,
 };
 
 // Loop that counts down: local[0] starts at 3, decrements to 0.
@@ -23,22 +23,6 @@ const COUNTDOWN_WAT: &str = r#"
   )
 )
 "#;
-
-fn compile_and_trace(
-    wat_src: &str,
-) -> (
-    Vec<u8>,
-    Vec<neo_wasm::WasmStepTrace>,
-    Vec<(u64, u64, u64)>,
-    Vec<(u64, u64)>,
-    Vec<(u64, u64)>,
-) {
-    let wasm = wat::parse_str(wat_src).expect("valid WAT");
-    let run = collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
-    let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
-    let pc_rom = run.pc_rom.clone();
-    (wasm, trace, pc_rom, run.pc_edge_kinds, run.function_entries)
-}
 
 #[test]
 fn print_br_if_raw_trace() {
@@ -63,26 +47,18 @@ fn print_br_if_raw_trace() {
 
 #[test]
 fn wasm_br_if_kernel_roundtrip() {
-    let (_, trace, pc_rom, pc_edge_kinds, function_entries) = compile_and_trace(COUNTDOWN_WAT);
-    let public = WasmPublicInput {
-        transcript_seed: b"wasm-br-if".to_vec(),
-        initial_locals: vec![],
-    };
-    let prover_input = WasmProverInput {
-        public: public.clone(),
-        trace: &trace,
-        pc_rom: pc_rom.clone(),
-        pc_edge_kinds: pc_edge_kinds.clone(),
-        function_entries: function_entries.clone(),
-    };
-    let proof = prove_relation(&prover_input).expect("prove");
-
-    let verifier_input = WasmVerifierInput {
-        public,
-        trace: &trace,
-        pc_rom,
-        pc_edge_kinds,
-        function_entries,
-    };
-    verify_relation(&verifier_input, &proof).expect("verify");
+    let wasm = wat::parse_str(COUNTDOWN_WAT).expect("valid WAT");
+    let run = collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
+    let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
+    let layout = build_wasm_lookup_binding_layout();
+    let mut witnesses = Vec::with_capacity(trace.len());
+    for row in &trace {
+        let witness = neo_wasm::builder::build_witness_vector(row);
+        sanity_check_lookup_row(layout, &witness)
+            .unwrap_or_else(|err| panic!("lookup semantics rejected {:?}: {err}", row.opcode));
+        witnesses.push(witness);
+    }
+    let preload = preload_from_wasmtime_run(&run, &run.initial_locals);
+    sanity_check_memory_rows(layout, &witnesses, &preload)
+        .unwrap_or_else(|err| panic!("memory semantics rejected trace: {err}"));
 }

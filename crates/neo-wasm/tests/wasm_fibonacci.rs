@@ -1,6 +1,6 @@
 use neo_wasm::{
-    collect_wasmtime_steps, prove_relation, traces_from_wasmtime_steps, verify_relation, WasmProverInput,
-    WasmPublicInput, WasmVerifierInput,
+    build_wasm_lookup_binding_layout, collect_wasmtime_steps, preload_from_wasmtime_run, sanity_check_lookup_row,
+    sanity_check_memory_rows, traces_from_wasmtime_steps,
 };
 
 // Iterative fibonacci (do-while loop, valid for n >= 1).
@@ -35,6 +35,7 @@ const FIB_WAT: &str = r#"
 #[test]
 fn wasm_fibonacci_kernel_roundtrip() {
     let wasm = wat::parse_str(FIB_WAT).expect("valid WAT");
+    let layout = build_wasm_lookup_binding_layout();
 
     for (n, expected) in [(1u32, 1u32), (2, 1), (3, 2), (4, 3), (5, 5), (10, 55)] {
         let run = collect_wasmtime_steps(&wasm, "main", &[n as i32]).expect("wasmtime trace");
@@ -45,26 +46,15 @@ fn wasm_fibonacci_kernel_roundtrip() {
         );
 
         let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
-        let public = WasmPublicInput {
-            transcript_seed: format!("wasm-fib-{n}").into_bytes(),
-            initial_locals: run.initial_locals.clone(),
-        };
-        let prover_input = WasmProverInput {
-            public: public.clone(),
-            trace: &trace,
-            pc_rom: run.pc_rom.clone(),
-            pc_edge_kinds: run.pc_edge_kinds.clone(),
-            function_entries: run.function_entries.clone(),
-        };
-        let proof = prove_relation(&prover_input).expect("prove");
-
-        let verifier_input = WasmVerifierInput {
-            public,
-            trace: &trace,
-            pc_rom: run.pc_rom.clone(),
-            pc_edge_kinds: run.pc_edge_kinds.clone(),
-            function_entries: run.function_entries.clone(),
-        };
-        verify_relation(&verifier_input, &proof).expect("verify");
+        let mut witnesses = Vec::with_capacity(trace.len());
+        for row in &trace {
+            let witness = neo_wasm::builder::build_witness_vector(row);
+            sanity_check_lookup_row(layout, &witness)
+                .unwrap_or_else(|err| panic!("lookup semantics rejected {:?}: {err}", row.opcode));
+            witnesses.push(witness);
+        }
+        let preload = preload_from_wasmtime_run(&run, &run.initial_locals);
+        sanity_check_memory_rows(layout, &witnesses, &preload)
+            .unwrap_or_else(|err| panic!("memory semantics rejected fib({n}): {err}"));
     }
 }

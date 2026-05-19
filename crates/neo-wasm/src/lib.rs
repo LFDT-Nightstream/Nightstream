@@ -15,7 +15,6 @@ pub mod memory_semantics;
 pub mod preprocess;
 pub mod prove;
 mod r1cs_builder;
-pub mod relation;
 pub mod spec;
 pub mod step_build;
 pub mod tables;
@@ -47,13 +46,6 @@ pub use lookup_binding_builder::{
 pub use lookup_semantics::{sanity_check_lookup_row, LookupBuiltin, LookupExpr, LookupPredicate, LookupSemantics};
 pub use lower::{build_row_traces, normalize_source, normalize_tracer, WasmExecutionStep, WasmTraceSource};
 pub use memory_semantics::{preload_from_wasmtime_run, sanity_check_memory_rows, WasmMemoryPreload};
-pub use prove::{
-    prove, prove_relation, verify, verify_relation, WasmProof, WasmProveError, WasmProverInput, WasmPublicInput,
-    WasmVerifierInput,
-};
-pub use relation::{
-    prove_wasm_relation, verify_wasm_relation, WasmBoundaryRow, WasmLookupRow, WasmMemoryEvent, WasmMemoryEventKind,
-    WasmMemoryKind, WasmRelationProof,
-};
+pub use prove::{prove, verify, WasmProof, WasmProveError};
 pub use tables::{lookup_payload, WasmLookupArity, WasmLookupPayload};
 pub use tagged_r1cs_builder::{WasmConstraintCatalog, WasmConstraintScope, WasmConstraintTag};

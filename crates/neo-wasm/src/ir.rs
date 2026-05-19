@@ -150,8 +150,9 @@ pub struct WasmStepTrace {
     /// Referenced element index within the table contents namespace.
     pub table_index: Option<u32>,
     /// Normalized table element value observed by this step. For `call_indirect`, the Wasmtime
-    /// adapter is expected to populate this with the selected funcref id so the relation layer can
-    /// validate `pc_after` against the static `function_entries` ROM.
+    /// adapter is expected to populate this with the selected funcref id so witness-level memory
+    /// semantics (and the per-row CCS constraints) can validate `pc_after` against the static
+    /// `function_entries` ROM.
     pub table_value: Option<u32>,
     /// Normalized deduplicated type id for the observed function reference.
     pub function_type_id: Option<u32>,

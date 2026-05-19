@@ -1,8 +1,7 @@
 use neo_wasm::{
     build_wasm_lookup_binding_layout, builder::build_witness_vector, collect_wasmtime_component_run,
-    collect_wasmtime_component_run_with_linker, prove_relation, sanity_check_lookup_row,
-    traces_from_wasmtime_component, traces_from_wasmtime_steps, verify_relation, WasmBuildError, WasmOpcode,
-    WasmProverInput, WasmPublicInput, WasmVerifierInput,
+    collect_wasmtime_component_run_with_linker, preload_from_wasmtime_run, sanity_check_lookup_row,
+    sanity_check_memory_rows, traces_from_wasmtime_component, traces_from_wasmtime_steps, WasmBuildError, WasmOpcode,
 };
 use wasmtime::{
     component::{Component, Linker},
@@ -124,33 +123,7 @@ fn wasm_component_import_kernel_roundtrip_for_embedded_core_trace() {
     })
     .expect("component trace run");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("component trace normalization");
-    let layout = build_wasm_lookup_binding_layout();
-    for row in &trace {
-        let witness = build_witness_vector(row);
-        sanity_check_lookup_row(layout, &witness)
-            .unwrap_or_else(|err| panic!("lookup semantics rejected {:?}: {err}", row.opcode));
-    }
-    let public = WasmPublicInput {
-        transcript_seed: b"wasm-component-import-kernel".to_vec(),
-        initial_locals: run.initial_locals.clone(),
-    };
-    let prover_input = WasmProverInput {
-        public: public.clone(),
-        trace: &trace,
-        pc_rom: run.pc_rom.clone(),
-        pc_edge_kinds: run.pc_edge_kinds.clone(),
-        function_entries: run.function_entries.clone(),
-    };
-    let proof = prove_relation(&prover_input).expect("prove");
-
-    let verifier_input = WasmVerifierInput {
-        public,
-        trace: &trace,
-        pc_rom: run.pc_rom,
-        pc_edge_kinds: run.pc_edge_kinds,
-        function_entries: run.function_entries,
-    };
-    verify_relation(&verifier_input, &proof).expect("verify");
+    check_component_trace(&trace, &run);
 }
 
 #[test]
@@ -158,33 +131,21 @@ fn wasm_component_kernel_roundtrip_for_embedded_core_trace() {
     let component_bytes = wat::parse_str(component_wat()).expect("component wat");
     let run = collect_wasmtime_component_run(&component_bytes, "run").expect("component trace run");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("component trace normalization");
+    check_component_trace(&trace, &run);
+}
+
+fn check_component_trace(trace: &[neo_wasm::WasmStepTrace], run: &neo_wasm::WasmtimeTraceRun) {
     let layout = build_wasm_lookup_binding_layout();
-    for row in &trace {
+    let mut witnesses = Vec::with_capacity(trace.len());
+    for row in trace {
         let witness = build_witness_vector(row);
         sanity_check_lookup_row(layout, &witness)
             .unwrap_or_else(|err| panic!("lookup semantics rejected {:?}: {err}", row.opcode));
+        witnesses.push(witness);
     }
-    let public = WasmPublicInput {
-        transcript_seed: b"wasm-component-kernel".to_vec(),
-        initial_locals: run.initial_locals.clone(),
-    };
-    let prover_input = WasmProverInput {
-        public: public.clone(),
-        trace: &trace,
-        pc_rom: run.pc_rom.clone(),
-        pc_edge_kinds: run.pc_edge_kinds.clone(),
-        function_entries: run.function_entries.clone(),
-    };
-    let proof = prove_relation(&prover_input).expect("prove");
-
-    let verifier_input = WasmVerifierInput {
-        public,
-        trace: &trace,
-        pc_rom: run.pc_rom,
-        pc_edge_kinds: run.pc_edge_kinds,
-        function_entries: run.function_entries,
-    };
-    verify_relation(&verifier_input, &proof).expect("verify");
+    let preload = preload_from_wasmtime_run(run, &run.initial_locals);
+    sanity_check_memory_rows(layout, &witnesses, &preload)
+        .unwrap_or_else(|err| panic!("memory semantics rejected component trace: {err}"));
 }
 
 #[test]

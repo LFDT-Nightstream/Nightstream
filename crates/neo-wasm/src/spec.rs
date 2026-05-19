@@ -15,11 +15,5 @@ pub use super::lookup_binding_builder::{
     WasmMemoryColumnKind, WasmMemoryColumnSpec, WasmMemorySpec,
 };
 pub use super::lower::{build_row_traces, normalize_source, normalize_tracer, WasmExecutionStep, WasmTraceSource};
-pub use super::prove::{
-    prove_relation, verify_relation, WasmProveError, WasmProverInput, WasmPublicInput, WasmVerifierInput,
-};
-pub use super::relation::{
-    prove_wasm_relation, verify_wasm_relation, WasmBoundaryRow, WasmLookupRow, WasmMemoryEvent, WasmMemoryEventKind,
-    WasmMemoryKind, WasmRelationProof,
-};
+pub use super::prove::WasmProveError;
 pub use super::tables::{lookup_payload, WasmLookupArity, WasmLookupPayload};

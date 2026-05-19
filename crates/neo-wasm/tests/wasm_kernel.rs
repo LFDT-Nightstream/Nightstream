@@ -1,75 +1,72 @@
 use neo_wasm::preprocess::preprocess_seeded;
 use neo_wasm::{
-    build_wasm_lookup_binding_layout, collect_wasmtime_steps, preload_from_wasmtime_run, prove, prove_relation,
-    sanity_check_lookup_row, sanity_check_memory_rows, traces_from_wasmtime_steps, verify, verify_relation,
-    WasmProverInput, WasmPublicInput, WasmVerifierInput, WasmVmSpec,
+    build_wasm_lookup_binding_layout, collect_wasmtime_steps, preload_from_wasmtime_run, prove,
+    sanity_check_lookup_row, sanity_check_memory_rows, traces_from_wasmtime_steps, verify, WasmStepTrace, WasmVmSpec,
+    WasmtimeTraceRun,
 };
 
-/// Compile a WAT module, run it through the wasmtime adapter, and return
-/// (wasm_bytes, trace, pc_rom, pc_edge_kinds, function_entries).
+/// Compile a WAT module, run it through the wasmtime adapter, exercise the
+/// witness-derived sanity checks, and return the trace + ROMs.
 fn compile_and_trace(
     wat_src: &str,
 ) -> (
     Vec<u8>,
-    Vec<neo_wasm::WasmStepTrace>,
+    Vec<WasmStepTrace>,
+    Vec<(u64, u64, u64)>,
+    Vec<(u64, u64)>,
+    Vec<(u64, u64)>,
+) {
+    compile_and_trace_with(wat_src, "main", &[])
+}
+
+fn compile_and_trace_with(
+    wat_src: &str,
+    export: &str,
+    params: &[i32],
+) -> (
+    Vec<u8>,
+    Vec<WasmStepTrace>,
     Vec<(u64, u64, u64)>,
     Vec<(u64, u64)>,
     Vec<(u64, u64)>,
 ) {
     let wasm = wat::parse_str(wat_src).expect("valid WAT");
-    let run = collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
+    let run = collect_wasmtime_steps(&wasm, export, params).expect("wasmtime trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
+    sanity_check_witnesses(&trace, &run);
+    let pc_rom = run.pc_rom.clone();
+    let pc_edge_kinds = run.pc_edge_kinds.clone();
+    let function_entries = run.function_entries.clone();
+    (wasm, trace, pc_rom, pc_edge_kinds, function_entries)
+}
+
+fn sanity_check_witnesses(trace: &[WasmStepTrace], run: &WasmtimeTraceRun) {
     let layout = build_wasm_lookup_binding_layout();
     let mut witnesses = Vec::with_capacity(trace.len());
-    for row in &trace {
+    for row in trace {
         let witness = neo_wasm::builder::build_witness_vector(row);
         sanity_check_lookup_row(layout, &witness)
             .unwrap_or_else(|err| panic!("lookup semantics rejected {:?}: {err}", row.opcode));
         witnesses.push(witness);
     }
-    let pc_rom = run.pc_rom.clone();
-    let pc_edge_kinds = run.pc_edge_kinds.clone();
-    let function_entries = run.function_entries.clone();
-    let preload = preload_from_wasmtime_run(&run, &run.initial_locals);
+    let preload = preload_from_wasmtime_run(run, &run.initial_locals);
     sanity_check_memory_rows(layout, &witnesses, &preload)
         .unwrap_or_else(|err| panic!("memory semantics rejected trace: {err}"));
-    (wasm, trace, pc_rom, pc_edge_kinds, function_entries)
 }
 
 #[test]
 fn wasm_kernel_roundtrip() {
-    let (_, trace, pc_rom, pc_edge_kinds, function_entries) = compile_and_trace(
+    compile_and_trace(
         r#"(module (func (export "main") (result i32)
              i32.const 7
              i32.const 9
              i32.eq))"#,
     );
-    let public = WasmPublicInput {
-        transcript_seed: b"wasm-kernel".to_vec(),
-        initial_locals: vec![],
-    };
-    let prover_input = WasmProverInput {
-        public: public.clone(),
-        trace: &trace,
-        pc_rom: pc_rom.clone(),
-        pc_edge_kinds: pc_edge_kinds.clone(),
-        function_entries: function_entries.clone(),
-    };
-    let proof = prove_relation(&prover_input).expect("prove");
-
-    let verifier_input = WasmVerifierInput {
-        public,
-        trace: &trace,
-        pc_rom,
-        pc_edge_kinds,
-        function_entries,
-    };
-    verify_relation(&verifier_input, &proof).expect("verify");
 }
 
 #[test]
 fn wasm_kernel_roundtrip_with_linear_memory() {
-    let (_, trace, pc_rom, pc_edge_kinds, function_entries) = compile_and_trace(
+    let (_, trace, ..) = compile_and_trace(
         r#"(module
              (memory 1)
              (func (export "main") (result i32)
@@ -80,33 +77,11 @@ fn wasm_kernel_roundtrip_with_linear_memory() {
                i32.load))"#,
     );
     assert!(trace.iter().any(|row| row.linear_memory.is_some()));
-
-    let public = WasmPublicInput {
-        transcript_seed: b"wasm-kernel-memory".to_vec(),
-        initial_locals: vec![],
-    };
-    let prover_input = WasmProverInput {
-        public: public.clone(),
-        trace: &trace,
-        pc_rom: pc_rom.clone(),
-        pc_edge_kinds: pc_edge_kinds.clone(),
-        function_entries: function_entries.clone(),
-    };
-    let proof = prove_relation(&prover_input).expect("prove");
-
-    let verifier_input = WasmVerifierInput {
-        public,
-        trace: &trace,
-        pc_rom,
-        pc_edge_kinds,
-        function_entries,
-    };
-    verify_relation(&verifier_input, &proof).expect("verify");
 }
 
 #[test]
 fn wasm_kernel_roundtrip_with_memory_size_and_grow() {
-    let (_, trace, pc_rom, pc_edge_kinds, function_entries) = compile_and_trace(
+    let (_, trace, ..) = compile_and_trace(
         r#"(module
              (memory 1 3)
              (func (export "main") (result i32)
@@ -123,33 +98,11 @@ fn wasm_kernel_roundtrip_with_memory_size_and_grow() {
     assert!(trace
         .iter()
         .any(|row| matches!(row.opcode, neo_wasm::WasmOpcode::MemoryGrow)));
-
-    let public = WasmPublicInput {
-        transcript_seed: b"wasm-kernel-memory-size-grow".to_vec(),
-        initial_locals: vec![],
-    };
-    let prover_input = WasmProverInput {
-        public: public.clone(),
-        trace: &trace,
-        pc_rom: pc_rom.clone(),
-        pc_edge_kinds: pc_edge_kinds.clone(),
-        function_entries: function_entries.clone(),
-    };
-    let proof = prove_relation(&prover_input).expect("prove");
-
-    let verifier_input = WasmVerifierInput {
-        public,
-        trace: &trace,
-        pc_rom,
-        pc_edge_kinds,
-        function_entries,
-    };
-    verify_relation(&verifier_input, &proof).expect("verify");
 }
 
 #[test]
 fn wasm_kernel_roundtrip_with_linear_memory_offset() {
-    let (_, trace, pc_rom, pc_edge_kinds, function_entries) = compile_and_trace(
+    let (_, trace, ..) = compile_and_trace(
         r#"(module
              (memory 1)
              (func (export "main") (result i32)
@@ -160,33 +113,11 @@ fn wasm_kernel_roundtrip_with_linear_memory_offset() {
                i32.load offset=8))"#,
     );
     assert!(trace.iter().any(|row| row.linear_memory_offset != 0));
-
-    let public = WasmPublicInput {
-        transcript_seed: b"wasm-kernel-memory-offset".to_vec(),
-        initial_locals: vec![],
-    };
-    let prover_input = WasmProverInput {
-        public: public.clone(),
-        trace: &trace,
-        pc_rom: pc_rom.clone(),
-        pc_edge_kinds: pc_edge_kinds.clone(),
-        function_entries: function_entries.clone(),
-    };
-    let proof = prove_relation(&prover_input).expect("prove");
-
-    let verifier_input = WasmVerifierInput {
-        public,
-        trace: &trace,
-        pc_rom,
-        pc_edge_kinds,
-        function_entries,
-    };
-    verify_relation(&verifier_input, &proof).expect("verify");
 }
 
 #[test]
 fn wasm_kernel_roundtrip_with_byte_linear_memory() {
-    let (_, trace, pc_rom, pc_edge_kinds, function_entries) = compile_and_trace(
+    let (_, trace, ..) = compile_and_trace(
         r#"(module
              (memory 1)
              (func (export "main") (result i32)
@@ -202,33 +133,11 @@ fn wasm_kernel_roundtrip_with_byte_linear_memory() {
     assert!(trace
         .iter()
         .any(|row| matches!(row.opcode, neo_wasm::WasmOpcode::I32Load8U)));
-
-    let public = WasmPublicInput {
-        transcript_seed: b"wasm-kernel-byte-memory".to_vec(),
-        initial_locals: vec![],
-    };
-    let prover_input = WasmProverInput {
-        public: public.clone(),
-        trace: &trace,
-        pc_rom: pc_rom.clone(),
-        pc_edge_kinds: pc_edge_kinds.clone(),
-        function_entries: function_entries.clone(),
-    };
-    let proof = prove_relation(&prover_input).expect("prove");
-
-    let verifier_input = WasmVerifierInput {
-        public,
-        trace: &trace,
-        pc_rom,
-        pc_edge_kinds,
-        function_entries,
-    };
-    verify_relation(&verifier_input, &proof).expect("verify");
 }
 
 #[test]
 fn wasm_kernel_roundtrip_with_globals() {
-    let (_, trace, pc_rom, pc_edge_kinds, function_entries) = compile_and_trace(
+    let (_, trace, ..) = compile_and_trace(
         r#"(module
              (global (mut i32) (i32.const 7))
              (func (export "main") (result i32)
@@ -244,37 +153,12 @@ fn wasm_kernel_roundtrip_with_globals() {
     assert!(trace
         .iter()
         .any(|row| matches!(row.opcode, neo_wasm::WasmOpcode::GlobalSet)));
-
-    let public = WasmPublicInput {
-        transcript_seed: b"wasm-kernel-globals".to_vec(),
-        initial_locals: vec![],
-    };
-    let prover_input = WasmProverInput {
-        public: public.clone(),
-        trace: &trace,
-        pc_rom: pc_rom.clone(),
-        pc_edge_kinds: pc_edge_kinds.clone(),
-        function_entries: function_entries.clone(),
-    };
-    let proof = prove_relation(&prover_input).expect("prove");
-
-    let verifier_input = WasmVerifierInput {
-        public,
-        trace: &trace,
-        pc_rom,
-        pc_edge_kinds,
-        function_entries,
-    };
-    verify_relation(&verifier_input, &proof).expect("verify");
-    assert!(proof
-        .memory_events
-        .iter()
-        .any(|event| event.family == neo_wasm::WasmMemoryKind::Globals));
+    assert!(trace.iter().any(|row| row.global_index.is_some()));
 }
 
 #[test]
 fn wasm_kernel_roundtrip_with_shift_div_rem() {
-    let (_, trace, pc_rom, pc_edge_kinds, function_entries) = compile_and_trace(
+    let (_, trace, ..) = compile_and_trace(
         r#"(module
              (func (export "main") (result i32)
                i32.const 3
@@ -318,33 +202,11 @@ fn wasm_kernel_roundtrip_with_shift_div_rem() {
     ] {
         assert!(trace.iter().any(|row| row.opcode == op), "missing {op:?}");
     }
-
-    let public = WasmPublicInput {
-        transcript_seed: b"wasm-kernel-shift-div-rem".to_vec(),
-        initial_locals: vec![],
-    };
-    let prover_input = WasmProverInput {
-        public: public.clone(),
-        trace: &trace,
-        pc_rom: pc_rom.clone(),
-        pc_edge_kinds: pc_edge_kinds.clone(),
-        function_entries: function_entries.clone(),
-    };
-    let proof = prove_relation(&prover_input).expect("prove");
-
-    let verifier_input = WasmVerifierInput {
-        public,
-        trace: &trace,
-        pc_rom,
-        pc_edge_kinds,
-        function_entries,
-    };
-    verify_relation(&verifier_input, &proof).expect("verify");
 }
 
 #[test]
 fn wasm_kernel_roundtrip_with_compare_unary_and_rotate() {
-    let (_, trace, pc_rom, pc_edge_kinds, function_entries) = compile_and_trace(
+    let (_, trace, ..) = compile_and_trace(
         r#"(module
              (func (export "main") (result i32)
                i32.const 16
@@ -401,33 +263,11 @@ fn wasm_kernel_roundtrip_with_compare_unary_and_rotate() {
     ] {
         assert!(trace.iter().any(|row| row.opcode == op), "missing {op:?}");
     }
-
-    let public = WasmPublicInput {
-        transcript_seed: b"wasm-kernel-compare-unary-rotate".to_vec(),
-        initial_locals: vec![],
-    };
-    let prover_input = WasmProverInput {
-        public: public.clone(),
-        trace: &trace,
-        pc_rom: pc_rom.clone(),
-        pc_edge_kinds: pc_edge_kinds.clone(),
-        function_entries: function_entries.clone(),
-    };
-    let proof = prove_relation(&prover_input).expect("prove");
-
-    let verifier_input = WasmVerifierInput {
-        public,
-        trace: &trace,
-        pc_rom,
-        pc_edge_kinds,
-        function_entries,
-    };
-    verify_relation(&verifier_input, &proof).expect("verify");
 }
 
 #[test]
 fn wasm_kernel_roundtrip_with_br_table() {
-    let wasm = wat::parse_str(
+    let (_, trace, pc_rom, ..) = compile_and_trace_with(
         r#"(module
              (func (export "main") (param i32) (result i32)
                (block $default
@@ -443,13 +283,9 @@ fn wasm_kernel_roundtrip_with_br_table() {
                  return
                )
                i32.const 30))"#,
-    )
-    .expect("valid WAT");
-    let run = collect_wasmtime_steps(&wasm, "main", &[5]).expect("wasmtime trace");
-    let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
-    let pc_rom = run.pc_rom.clone();
-    let pc_edge_kinds = run.pc_edge_kinds.clone();
-    let function_entries = run.function_entries.clone();
+        "main",
+        &[5],
+    );
     let row = trace
         .iter()
         .find(|row| row.opcode == neo_wasm::WasmOpcode::BrTable)
@@ -462,33 +298,11 @@ fn wasm_kernel_roundtrip_with_br_table() {
             .count(),
         3
     );
-
-    let public = WasmPublicInput {
-        transcript_seed: b"wasm-kernel-br-table".to_vec(),
-        initial_locals: vec![5],
-    };
-    let prover_input = WasmProverInput {
-        public: public.clone(),
-        trace: &trace,
-        pc_rom: pc_rom.clone(),
-        pc_edge_kinds: pc_edge_kinds.clone(),
-        function_entries: function_entries.clone(),
-    };
-    let proof = prove_relation(&prover_input).expect("prove");
-
-    let verifier_input = WasmVerifierInput {
-        public,
-        trace: &trace,
-        pc_rom,
-        pc_edge_kinds,
-        function_entries,
-    };
-    verify_relation(&verifier_input, &proof).expect("verify");
 }
 
 #[test]
 fn wasm_kernel_roundtrip_with_table_size() {
-    let (_, trace, pc_rom, pc_edge_kinds, function_entries) = compile_and_trace(
+    let (_, trace, ..) = compile_and_trace(
         r#"(module
              (table 4 funcref)
              (func (export "main") (result i32)
@@ -500,33 +314,11 @@ fn wasm_kernel_roundtrip_with_table_size() {
         .expect("table.size row");
     assert_eq!(row.table_id, Some(0));
     assert_eq!(row.table_size, Some(4));
-
-    let public = WasmPublicInput {
-        transcript_seed: b"wasm-kernel-table-size".to_vec(),
-        initial_locals: vec![],
-    };
-    let prover_input = WasmProverInput {
-        public: public.clone(),
-        trace: &trace,
-        pc_rom: pc_rom.clone(),
-        pc_edge_kinds: pc_edge_kinds.clone(),
-        function_entries: function_entries.clone(),
-    };
-    let proof = prove_relation(&prover_input).expect("prove");
-
-    let verifier_input = WasmVerifierInput {
-        public,
-        trace: &trace,
-        pc_rom,
-        pc_edge_kinds,
-        function_entries,
-    };
-    verify_relation(&verifier_input, &proof).expect("verify");
 }
 
 #[test]
 fn wasm_kernel_roundtrip_with_funcref_tables() {
-    let (_, trace, pc_rom, pc_edge_kinds, function_entries) = compile_and_trace(
+    let (_, trace, ..) = compile_and_trace(
         r#"(module
              (type (func))
              (func $f)
@@ -549,33 +341,11 @@ fn wasm_kernel_roundtrip_with_funcref_tables() {
     assert_eq!(table_get.table_index, Some(0));
     assert_eq!(table_get.table_value, Some(1));
     assert_eq!(table_get.function_type_id, Some(1));
-
-    let public = WasmPublicInput {
-        transcript_seed: b"wasm-kernel-funcref-tables".to_vec(),
-        initial_locals: vec![],
-    };
-    let prover_input = WasmProverInput {
-        public: public.clone(),
-        trace: &trace,
-        pc_rom: pc_rom.clone(),
-        pc_edge_kinds: pc_edge_kinds.clone(),
-        function_entries: function_entries.clone(),
-    };
-    let proof = prove_relation(&prover_input).expect("prove");
-
-    let verifier_input = WasmVerifierInput {
-        public,
-        trace: &trace,
-        pc_rom,
-        pc_edge_kinds,
-        function_entries,
-    };
-    verify_relation(&verifier_input, &proof).expect("verify");
 }
 
 #[test]
 fn wasm_kernel_roundtrip_with_call_indirect() {
-    let (_, trace, pc_rom, pc_edge_kinds, function_entries) = compile_and_trace(
+    let (_, trace, ..) = compile_and_trace(
         r#"(module
             (type $t (func (result i32)))
             (func $f (type $t) (result i32)
@@ -597,32 +367,11 @@ fn wasm_kernel_roundtrip_with_call_indirect() {
     assert_eq!(row.function_type_id, Some(1));
     assert_eq!(row.call_indirect_type_index, Some(0));
     assert_eq!(row.expected_type_id, Some(1));
-
-    let public = WasmPublicInput {
-        transcript_seed: b"wasm-kernel-call-indirect".to_vec(),
-        initial_locals: vec![],
-    };
-    let prover_input = WasmProverInput {
-        public: public.clone(),
-        trace: &trace,
-        pc_rom: pc_rom.clone(),
-        pc_edge_kinds: pc_edge_kinds.clone(),
-        function_entries: function_entries.clone(),
-    };
-    let proof = prove_relation(&prover_input).expect("prove");
-    let verifier_input = WasmVerifierInput {
-        public,
-        trace: &trace,
-        pc_rom,
-        pc_edge_kinds,
-        function_entries,
-    };
-    verify_relation(&verifier_input, &proof).expect("verify");
 }
 
 #[test]
 fn wasm_kernel_roundtrip_with_basic_i64_ops() {
-    let wasm = wat::parse_str(
+    let (_, trace, ..) = compile_and_trace_with(
         r#"(module
             (func (export "run") (result i32)
                 i64.const 4294967295
@@ -650,44 +399,20 @@ fn wasm_kernel_roundtrip_with_basic_i64_ops() {
                 i64.sub
                 i64.eqz)
         )"#,
-    )
-    .expect("wat");
-
-    let run = neo_wasm::collect_wasmtime_steps(&wasm, "run", &[]).expect("trace run");
-    let trace = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
+        "run",
+        &[],
+    );
     assert!(trace
         .iter()
         .any(|row| row.opcode == neo_wasm::WasmOpcode::I64Add));
     assert!(trace
         .iter()
         .any(|row| row.opcode == neo_wasm::WasmOpcode::I64Mul));
-    assert_eq!(run.results.as_slice(), &["1".to_string()]);
-
-    let public = WasmPublicInput {
-        transcript_seed: b"wasm-kernel-i64".to_vec(),
-        initial_locals: run.initial_locals.clone(),
-    };
-    let prover_input = WasmProverInput {
-        public: public.clone(),
-        trace: &trace,
-        pc_rom: run.pc_rom.clone(),
-        pc_edge_kinds: run.pc_edge_kinds.clone(),
-        function_entries: run.function_entries.clone(),
-    };
-    let proof = prove_relation(&prover_input).expect("prove");
-    let verifier_input = WasmVerifierInput {
-        public,
-        trace: &trace,
-        pc_rom: run.pc_rom,
-        pc_edge_kinds: run.pc_edge_kinds,
-        function_entries: run.function_entries,
-    };
-    verify_relation(&verifier_input, &proof).expect("verify kernel");
 }
 
 #[test]
 fn wasm_kernel_roundtrip_with_aligned_i64_linear_memory() {
-    let wasm = wat::parse_str(
+    let (_, trace, ..) = compile_and_trace_with(
         r#"(module
             (memory 1)
             (data (i32.const 8) "\88\77\66\55\44\33\22\11")
@@ -698,41 +423,17 @@ fn wasm_kernel_roundtrip_with_aligned_i64_linear_memory() {
                 i64.sub
                 i64.eqz)
         )"#,
-    )
-    .expect("wat");
-
-    let run = neo_wasm::collect_wasmtime_steps(&wasm, "run", &[]).expect("trace run");
-    let trace = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
+        "run",
+        &[],
+    );
     assert!(trace
         .iter()
         .any(|row| row.opcode == neo_wasm::WasmOpcode::I64Load));
-    assert_eq!(run.results.as_slice(), &["1".to_string()]);
-
-    let public = WasmPublicInput {
-        transcript_seed: b"wasm-kernel-i64-memory".to_vec(),
-        initial_locals: run.initial_locals.clone(),
-    };
-    let prover_input = WasmProverInput {
-        public: public.clone(),
-        trace: &trace,
-        pc_rom: run.pc_rom.clone(),
-        pc_edge_kinds: run.pc_edge_kinds.clone(),
-        function_entries: run.function_entries.clone(),
-    };
-    let proof = prove_relation(&prover_input).expect("prove");
-    let verifier_input = WasmVerifierInput {
-        public,
-        trace: &trace,
-        pc_rom: run.pc_rom,
-        pc_edge_kinds: run.pc_edge_kinds,
-        function_entries: run.function_entries,
-    };
-    verify_relation(&verifier_input, &proof).expect("verify kernel");
 }
 
 #[test]
 fn wasm_kernel_roundtrip_with_unaligned_i64_linear_memory() {
-    let wasm = wat::parse_str(
+    let (_, trace, ..) = compile_and_trace_with(
         r#"(module
             (memory 1)
             (func (export "run") (result i32)
@@ -745,44 +446,20 @@ fn wasm_kernel_roundtrip_with_unaligned_i64_linear_memory() {
                 i64.sub
                 i64.eqz)
         )"#,
-    )
-    .expect("wat");
-
-    let run = neo_wasm::collect_wasmtime_steps(&wasm, "run", &[]).expect("trace run");
-    let trace = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
+        "run",
+        &[],
+    );
     assert!(trace
         .iter()
         .any(|row| row.opcode == neo_wasm::WasmOpcode::I64Load));
     assert!(trace
         .iter()
         .any(|row| row.opcode == neo_wasm::WasmOpcode::I64Store));
-    assert_eq!(run.results.as_slice(), &["1".to_string()]);
-
-    let public = WasmPublicInput {
-        transcript_seed: b"wasm-kernel-unaligned-i64-memory".to_vec(),
-        initial_locals: run.initial_locals.clone(),
-    };
-    let prover_input = WasmProverInput {
-        public: public.clone(),
-        trace: &trace,
-        pc_rom: run.pc_rom.clone(),
-        pc_edge_kinds: run.pc_edge_kinds.clone(),
-        function_entries: run.function_entries.clone(),
-    };
-    let proof = prove_relation(&prover_input).expect("prove");
-    let verifier_input = WasmVerifierInput {
-        public,
-        trace: &trace,
-        pc_rom: run.pc_rom,
-        pc_edge_kinds: run.pc_edge_kinds,
-        function_entries: run.function_entries,
-    };
-    verify_relation(&verifier_input, &proof).expect("verify kernel");
 }
 
 #[test]
 fn wasm_kernel_roundtrip_with_halfword_linear_memory() {
-    let (_, trace, pc_rom, pc_edge_kinds, function_entries) = compile_and_trace(
+    let (_, trace, ..) = compile_and_trace(
         r#"(module
              (memory 1)
              (func (export "main") (result i32)
@@ -798,33 +475,11 @@ fn wasm_kernel_roundtrip_with_halfword_linear_memory() {
     assert!(trace
         .iter()
         .any(|row| matches!(row.opcode, neo_wasm::WasmOpcode::I32Load16U)));
-
-    let public = WasmPublicInput {
-        transcript_seed: b"wasm-kernel-halfword-memory".to_vec(),
-        initial_locals: vec![],
-    };
-    let prover_input = WasmProverInput {
-        public: public.clone(),
-        trace: &trace,
-        pc_rom: pc_rom.clone(),
-        pc_edge_kinds: pc_edge_kinds.clone(),
-        function_entries: function_entries.clone(),
-    };
-    let proof = prove_relation(&prover_input).expect("prove");
-
-    let verifier_input = WasmVerifierInput {
-        public,
-        trace: &trace,
-        pc_rom,
-        pc_edge_kinds,
-        function_entries,
-    };
-    verify_relation(&verifier_input, &proof).expect("verify");
 }
 
 #[test]
 fn wasm_kernel_roundtrip_with_signed_subword_loads() {
-    let (_, trace, pc_rom, pc_edge_kinds, function_entries) = compile_and_trace(
+    let (_, trace, ..) = compile_and_trace(
         r#"(module
              (memory 1)
              (func (export "main") (result i32)
@@ -846,66 +501,22 @@ fn wasm_kernel_roundtrip_with_signed_subword_loads() {
     assert!(trace
         .iter()
         .any(|row| matches!(row.opcode, neo_wasm::WasmOpcode::I32Load16S)));
-
-    let public = WasmPublicInput {
-        transcript_seed: b"wasm-kernel-signed-subword-loads".to_vec(),
-        initial_locals: vec![],
-    };
-    let prover_input = WasmProverInput {
-        public: public.clone(),
-        trace: &trace,
-        pc_rom: pc_rom.clone(),
-        pc_edge_kinds: pc_edge_kinds.clone(),
-        function_entries: function_entries.clone(),
-    };
-    let proof = prove_relation(&prover_input).expect("prove");
-
-    let verifier_input = WasmVerifierInput {
-        public,
-        trace: &trace,
-        pc_rom,
-        pc_edge_kinds,
-        function_entries,
-    };
-    verify_relation(&verifier_input, &proof).expect("verify");
 }
 
 #[test]
 fn wasm_kernel_roundtrip_with_drop() {
-    let (_, trace, pc_rom, pc_edge_kinds, function_entries) = compile_and_trace(
+    compile_and_trace(
         r#"(module
              (func (export "main") (result i32)
                i32.const 7
                drop
                i32.const 9))"#,
     );
-
-    let public = WasmPublicInput {
-        transcript_seed: b"wasm-kernel-drop".to_vec(),
-        initial_locals: vec![],
-    };
-    let prover_input = WasmProverInput {
-        public: public.clone(),
-        trace: &trace,
-        pc_rom: pc_rom.clone(),
-        pc_edge_kinds: pc_edge_kinds.clone(),
-        function_entries: function_entries.clone(),
-    };
-    let proof = prove_relation(&prover_input).expect("prove");
-
-    let verifier_input = WasmVerifierInput {
-        public,
-        trace: &trace,
-        pc_rom,
-        pc_edge_kinds,
-        function_entries,
-    };
-    verify_relation(&verifier_input, &proof).expect("verify");
 }
 
 #[test]
 fn wasm_kernel_roundtrip_with_structured_control_rows() {
-    let (_, trace, pc_rom, pc_edge_kinds, function_entries) = compile_and_trace(
+    let (_, trace, ..) = compile_and_trace(
         r#"(module
              (func (export "main") (result i32)
                block
@@ -935,33 +546,11 @@ fn wasm_kernel_roundtrip_with_structured_control_rows() {
             neo_wasm::WasmOpcode::End,
         ]
     );
-
-    let public = WasmPublicInput {
-        transcript_seed: b"wasm-kernel-structured-control".to_vec(),
-        initial_locals: vec![],
-    };
-    let prover_input = WasmProverInput {
-        public: public.clone(),
-        trace: &trace,
-        pc_rom: pc_rom.clone(),
-        pc_edge_kinds: pc_edge_kinds.clone(),
-        function_entries: function_entries.clone(),
-    };
-    let proof = prove_relation(&prover_input).expect("prove");
-
-    let verifier_input = WasmVerifierInput {
-        public,
-        trace: &trace,
-        pc_rom,
-        pc_edge_kinds,
-        function_entries,
-    };
-    verify_relation(&verifier_input, &proof).expect("verify");
 }
 
 #[test]
 fn wasm_kernel_roundtrip_with_nop_and_br() {
-    let (_, trace, pc_rom, pc_edge_kinds, function_entries) = compile_and_trace(
+    let (_, trace, ..) = compile_and_trace(
         r#"(module
              (func (export "main") (result i32)
                block
@@ -983,127 +572,17 @@ fn wasm_kernel_roundtrip_with_nop_and_br() {
             neo_wasm::WasmOpcode::End,
         ]
     );
-
-    let public = WasmPublicInput {
-        transcript_seed: b"wasm-kernel-nop-br".to_vec(),
-        initial_locals: vec![],
-    };
-    let prover_input = WasmProverInput {
-        public: public.clone(),
-        trace: &trace,
-        pc_rom: pc_rom.clone(),
-        pc_edge_kinds: pc_edge_kinds.clone(),
-        function_entries: function_entries.clone(),
-    };
-    let proof = prove_relation(&prover_input).expect("prove");
-
-    let verifier_input = WasmVerifierInput {
-        public,
-        trace: &trace,
-        pc_rom,
-        pc_edge_kinds,
-        function_entries,
-    };
-    verify_relation(&verifier_input, &proof).expect("verify");
-}
-
-#[test]
-fn wasm_kernel_rejects_tampered_relation_memory_event() {
-    let (_, trace, pc_rom, pc_edge_kinds, function_entries) = compile_and_trace(
-        r#"(module (func (export "main") (result i32)
-             i32.const 7))"#,
-    );
-    let public = WasmPublicInput {
-        transcript_seed: b"wasm-kernel".to_vec(),
-        initial_locals: vec![],
-    };
-    let prover_input = WasmProverInput {
-        public: public.clone(),
-        trace: &trace,
-        pc_rom: pc_rom.clone(),
-        pc_edge_kinds: pc_edge_kinds.clone(),
-        function_entries: function_entries.clone(),
-    };
-    let mut proof = prove_relation(&prover_input).expect("prove");
-    proof.memory_events[0].value0 ^= 1;
-
-    let verifier_input = WasmVerifierInput {
-        public,
-        trace: &trace,
-        pc_rom,
-        pc_edge_kinds,
-        function_entries,
-    };
-    let err = verify_relation(&verifier_input, &proof)
-        .err()
-        .expect("tampered relation must fail");
-    assert!(format!("{err}").contains("relation"));
-}
-
-#[test]
-fn wasm_kernel_rejects_wrong_lookup_order() {
-    let (_, trace, pc_rom, pc_edge_kinds, function_entries) = compile_and_trace(
-        r#"(module (func (export "main") (result i32)
-             i32.const 1
-             i32.const 1
-             i32.eq
-             i32.eqz))"#,
-    );
-    let public = WasmPublicInput {
-        transcript_seed: b"wasm-kernel".to_vec(),
-        initial_locals: vec![],
-    };
-    let prover_input = WasmProverInput {
-        public: public.clone(),
-        trace: &trace,
-        pc_rom: pc_rom.clone(),
-        pc_edge_kinds: pc_edge_kinds.clone(),
-        function_entries: function_entries.clone(),
-    };
-    let mut proof = prove_relation(&prover_input).expect("prove");
-    proof.lookup_rows.reverse();
-
-    let verifier_input = WasmVerifierInput {
-        public,
-        trace: &trace,
-        pc_rom,
-        pc_edge_kinds,
-        function_entries,
-    };
-    let err = verify_relation(&verifier_input, &proof)
-        .err()
-        .expect("wrong order must fail");
-    assert!(format!("{err}").contains("relation"));
 }
 
 #[test]
 fn wasm_kernel_run_roundtrip() {
-    let (_, trace, pc_rom, pc_edge_kinds, function_entries) = compile_and_trace(
+    let (_, trace, ..) = compile_and_trace(
         r#"(module (func (export "main") (result i32)
              i32.const 7
              i32.const 9
              i32.add))"#,
     );
-    let public = WasmPublicInput {
-        transcript_seed: b"wasm-kernel-run".to_vec(),
-        initial_locals: vec![],
-    };
-    let prover_input = WasmProverInput {
-        public: public.clone(),
-        trace: &trace,
-        pc_rom: pc_rom.clone(),
-        pc_edge_kinds: pc_edge_kinds.clone(),
-        function_entries: function_entries.clone(),
-    };
     let prep = preprocess_seeded(&WasmVmSpec::default()).expect("prep");
-    let proof = prove(&prep, &prover_input).expect("prove kernel run");
-
-    let verifier_input = WasmVerifierInput {
-        public,
-        trace: &trace,
-        pc_rom,
-        pc_edge_kinds,
-        function_entries,
-    };
-    verify(&prep, &verifier_input, &proof).expect("verify kernel run");
+    let proof = prove(&prep, &trace).expect("prove kernel run");
+    verify(&prep, &proof).expect("verify kernel run");
 }

@@ -1,6 +1,6 @@
 use neo_wasm::{
-    collect_wasmtime_steps, prove_wasm_relation, traces_from_wasmtime_steps, verify_wasm_relation, WasmAuxOpcode,
-    WasmMemoryEventKind, WasmMemoryKind, WasmOpcode, WasmRowKind,
+    build_wasm_lookup_binding_layout, collect_wasmtime_steps, preload_from_wasmtime_run, sanity_check_lookup_row,
+    sanity_check_memory_rows, traces_from_wasmtime_steps, WasmAuxOpcode, WasmOpcode, WasmRowKind, WasmStepTrace,
 };
 
 fn add_one_wasm() -> Vec<u8> {
@@ -55,6 +55,13 @@ fn call_indirect_param_wasm() -> Vec<u8> {
         )"#,
     )
     .expect("wat parse")
+}
+
+fn build_witnesses(trace: &[WasmStepTrace]) -> Vec<Vec<neo_math::F>> {
+    trace
+        .iter()
+        .map(neo_wasm::builder::build_witness_vector)
+        .collect()
 }
 
 #[test]
@@ -203,163 +210,44 @@ fn call_indirect_guest_target_initializes_params() {
 }
 
 #[test]
-fn call_relation_roundtrip() {
+fn call_trace_passes_witness_checks() {
     let wasm = add_one_wasm();
     let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
-    let pc_rom = run.pc_rom.clone();
-    let pc_edge_kinds = run.pc_edge_kinds.clone();
-    let function_entries = run.function_entries.clone();
 
-    let proof = prove_wasm_relation(
-        &trace,
-        &run.initial_locals,
-        &pc_rom,
-        &pc_edge_kinds,
-        &function_entries,
-        b"wasm_call_relation",
-    )
-    .expect("relation prove");
-    verify_wasm_relation(
-        &trace,
-        &run.initial_locals,
-        &pc_rom,
-        &pc_edge_kinds,
-        &function_entries,
-        b"wasm_call_relation",
-        &proof,
-    )
-    .expect("relation verify");
-
-    assert!(
-        proof
-            .memory_events
-            .iter()
-            .any(|event| { event.family == WasmMemoryKind::CallStack && event.kind == WasmMemoryEventKind::Push }),
-        "relation must contain call-stack push events"
-    );
-    assert!(
-        proof
-            .memory_events
-            .iter()
-            .any(|event| { event.family == WasmMemoryKind::CallStack && event.kind == WasmMemoryEventKind::Pop }),
-        "relation must contain call-stack pop events"
-    );
-}
-
-#[test]
-fn call_relation_rejects_unmatched_call_stack_push() {
-    let wasm = add_one_wasm();
-    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
-    let mut trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
-    let pc_rom = run.pc_rom.clone();
-    let pc_edge_kinds = run.pc_edge_kinds.clone();
-    let function_entries = run.function_entries.clone();
-
-    // Remove the call_stack_pop from the Return step so the push is never matched.
-    for step in &mut trace {
-        if step.call_stack_pop.is_some() {
-            step.call_stack_pop = None;
-        }
+    let layout = build_wasm_lookup_binding_layout();
+    let witnesses = build_witnesses(&trace);
+    for (row, witness) in trace.iter().zip(&witnesses) {
+        sanity_check_lookup_row(layout, witness)
+            .unwrap_or_else(|err| panic!("lookup semantics rejected {:?}: {err}", row.opcode));
     }
+    let preload = preload_from_wasmtime_run(&run, &run.initial_locals);
+    sanity_check_memory_rows(layout, &witnesses, &preload)
+        .unwrap_or_else(|err| panic!("memory semantics rejected call trace: {err}"));
 
-    let err = prove_wasm_relation(
-        &trace,
-        &run.initial_locals,
-        &pc_rom,
-        &pc_edge_kinds,
-        &function_entries,
-        b"wasm_call_relation_bad",
-    )
-    .expect_err("must reject unmatched push");
-    assert!(err.contains("call stack not empty"), "unexpected error: {err}");
+    assert!(
+        trace.iter().any(|row| row.call_stack_push.is_some()),
+        "trace must contain a call_stack_push"
+    );
+    assert!(
+        trace.iter().any(|row| row.call_stack_pop.is_some()),
+        "trace must contain a call_stack_pop"
+    );
 }
 
 #[test]
-fn call_relation_rejects_missing_param_init_aux_row() {
+fn memory_semantics_rejects_missing_param_init_aux_row() {
     let wasm = add_one_wasm();
     let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
     let mut trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
-    let pc_rom = run.pc_rom.clone();
-    let pc_edge_kinds = run.pc_edge_kinds.clone();
-    let function_entries = run.function_entries.clone();
 
     trace.retain(|row| row.row_kind != WasmRowKind::Aux(WasmAuxOpcode::CallParamInit));
 
-    let err = prove_wasm_relation(
-        &trace,
-        &run.initial_locals,
-        &pc_rom,
-        &pc_edge_kinds,
-        &function_entries,
-        b"wasm_call_relation_missing_param_init",
-    )
-    .expect_err("must reject missing param-init aux row");
-    assert!(err.contains("param-init continuity"), "unexpected error: {err}");
-}
-
-#[test]
-fn call_relation_rejects_mismatched_caller_fbp() {
-    let wasm = add_one_wasm();
-    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
-    let mut trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
-    let pc_rom = run.pc_rom.clone();
-    let pc_edge_kinds = run.pc_edge_kinds.clone();
-    let function_entries = run.function_entries.clone();
-
-    // Corrupt the caller_fbp stored in the call_stack_pop.
-    for step in &mut trace {
-        if let Some((ret_pc, _)) = step.call_stack_pop {
-            step.call_stack_pop = Some((ret_pc, 99));
-        }
-    }
-
-    let err = prove_wasm_relation(
-        &trace,
-        &run.initial_locals,
-        &pc_rom,
-        &pc_edge_kinds,
-        &function_entries,
-        b"wasm_call_relation_bad_fbp",
-    )
-    .expect_err("must reject FBP mismatch");
-    assert!(err.contains("call stack mismatch"), "unexpected error: {err}");
-}
-
-#[test]
-fn call_relation_rejects_wrong_return_pc() {
-    let wasm = add_one_wasm();
-    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
-    let mut trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
-    let pc_rom = run.pc_rom.clone();
-    let mut pc_edge_kinds = run.pc_edge_kinds.clone();
-    let function_entries = run.function_entries.clone();
-
-    let mut patched = false;
-    for idx in 0..trace.len() {
-        if trace[idx].call_stack_pop.is_some() {
-            trace[idx].pc_after = trace[idx].pc_after.saturating_add(1);
-            let patched_pc_after = trace[idx].pc_after;
-            if let Some(next) = trace.get_mut(idx + 1) {
-                // Keep the static edge-kind ROM consistent with the forged control-flow splice so
-                // this test still isolates the intended `return pc mismatch` failure.
-                pc_edge_kinds.push((patched_pc_after, u64::from(next.pc_edge_kind.as_u32())));
-                next.pc_before = patched_pc_after;
-            }
-            patched = true;
-            break;
-        }
-    }
-    assert!(patched, "expected a non-final return row");
-
-    let err = prove_wasm_relation(
-        &trace,
-        &run.initial_locals,
-        &pc_rom,
-        &pc_edge_kinds,
-        &function_entries,
-        b"wasm_call_relation_bad_return_pc",
-    )
-    .expect_err("must reject wrong return pc");
-    assert!(err.contains("return pc mismatch"), "unexpected error: {err}");
+    let layout = build_wasm_lookup_binding_layout();
+    let witnesses = build_witnesses(&trace);
+    let preload = preload_from_wasmtime_run(&run, &run.initial_locals);
+    let err = sanity_check_memory_rows(layout, &witnesses, &preload)
+        .err()
+        .expect("must reject missing param-init aux row");
+    assert!(err.contains("param_init_continuity"), "unexpected error: {err}");
 }

@@ -1,16 +1,20 @@
 // crates/neo-ccs/tests/red_team_me.rs
 #![allow(non_snake_case)] // Allow uppercase math variables like Z, X, L
 
+mod support;
+
 use neo_ajtai::{commit as ajtai_commit, setup as ajtai_setup, PP};
 use neo_ccs::{
     poly::SparsePoly, poly::Term, relations::check_ce_consistency, traits::SModuleHomomorphism, CcsStructure, CeClaim,
     CeWitness, Mat,
 };
 use neo_math::ring::D;
+use neo_math::K;
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks as Fq;
 use rand::SeedableRng;
+use support::superneo_y_ring;
 
 struct AjtaiL {
     pp: PP<neo_math::ring::Rq>,
@@ -28,22 +32,11 @@ impl SModuleHomomorphism<Fq, neo_ajtai::Commitment> for AjtaiL {
         }
         ajtai_commit(&self.pp, &col_major)
     }
-    fn project_x(&self, z: &Mat<Fq>, min: usize) -> Mat<Fq> {
-        let (d, m) = (z.rows(), z.cols());
-        assert!(min <= m);
-        let mut out = Mat::zero(d, min, Fq::ZERO);
-        for c in 0..min {
-            for r in 0..d {
-                out[(r, c)] = z[(r, c)];
-            }
-        }
-        out
-    }
 }
 
 #[test]
 fn me_consistency_rejects_tamper() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
 
     // CCS: n=4 (power of two), SuperNeo-compatible m=D, t=1, f(y)=y0 (linear)
     let n = 4usize;
@@ -74,37 +67,17 @@ fn me_consistency_rejects_tamper() {
         pp: pp.expect("Setup should succeed"),
     };
 
-    // Instance: c, X (first m_in columns), r, y
+    // Instance: c, X (projected SuperNeo input ring slots), r, y
     let m_in = 1usize;
     let c = L.commit(&Z);
-    // SuperNeo packed projection for the first field column: only row 0 contributes.
     let mut X = Mat::zero(d, m_in, Fq::ZERO);
-    X[(0, 0)] = Z[(0, 0)];
+    for rho in 0..D {
+        X[(rho, 0)] = Z[(rho, 0)];
+    }
 
     // Choose r ∈ K^ell with ell=log2(n)=2
-    use neo_math::K;
     let r = vec![K::from(Fq::from_u64(3)), K::from(Fq::from_u64(5))]; // arbitrary
-    let rb = neo_ccs::utils::tensor_point::<K>(&r);
-
-    // v = M^T rb (in K^m)
-    let v_k = {
-        let mut v = vec![K::ZERO; m];
-        for row in 0..n {
-            let rb_r = rb[row];
-            let row_slice = m0.row(row).to_vec();
-            for cidx in 0..m {
-                v[cidx] += K::from(row_slice[cidx]) * rb_r;
-            }
-        }
-        v
-    };
-
-    // y = Z * v in packed SuperNeo layout for m=D:
-    // y[rho] = Z[rho,0] * v[rho].
-    let mut y0 = vec![K::ZERO; d];
-    for rho in 0..d {
-        y0[rho] = K::from(Z[(rho, 0)]) * v_k[rho];
-    }
+    let y0 = superneo_y_ring(&s, &Z, &r).remove(0);
     // Pad y to Ajtai digit length (2^ell_d) expected by CE checks.
     let mut y0_padded = y0.clone();
     y0_padded.resize(D.next_power_of_two(), K::ZERO);

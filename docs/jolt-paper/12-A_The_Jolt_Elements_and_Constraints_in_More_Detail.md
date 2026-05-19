@@ -57,7 +57,7 @@ One challenge with implementing a zkVM for RISC-V is supporting byte-addressable
 
 **Range-check costs.** The CPU circuit requires performing range-checks on inputs of the following bit-sizes: 8 bits (for the bytes in stores) and  $\log(\#\text{steps})$  bits (for the timestamps). Both these range checks can be performed using `Lasso` with parameter  $c = 1$ . This is a special case that requires the prover to commit to only one element of value bounded by the step counter.
 
-Table 2 shows the overheads (on top of the basic non-lookup elements involved in all operations) for load and store operations per byte involved in the operation (up to 4 for RV32 and 8 for RV64). These elements are always 0 in other operations and hence only count towards the prover’s cost when performing loads and stores.
+Table 2 shows the overheads (on top of the basic non-lookup elements involved in all operations) for load and store operations per byte involved in the operation (up to 4 for RV32 and 8 for RV32). These elements are always 0 in other operations and hence only count towards the prover’s cost when performing loads and stores.
 
 | Element           | Purpose                                                                                                                            | #Bits per byte                                                               |
 |-------------------|------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|

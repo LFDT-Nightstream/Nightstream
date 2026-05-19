@@ -6,8 +6,8 @@ use neo_reductions::error::PiCcsError;
 use p3_field::PrimeCharacteristicRing;
 
 #[test]
-fn decode_witness_z_accepts_neo_digit_layout_compat_mode() {
-    let params = NeoParams::goldilocks_127();
+fn decode_witness_z_rejects_neo_digit_layout_compat_mode() {
+    let params = NeoParams::goldilocks_paper_b2();
     let m = 6usize;
     let mut z_mat = Mat::zero(D, m, F::ZERO);
 
@@ -23,13 +23,14 @@ fn decode_witness_z_accepts_neo_digit_layout_compat_mode() {
         z_mat[(2, c)] = d2[c];
     }
 
-    let got = decode_z_from_witness_mat(&params, &z_mat, m).expect("Neo layout must decode in compat mode");
-    assert_eq!(got.len(), m, "decoded witness length mismatch");
+    let err = decode_z_from_witness_mat(&params, &z_mat, m)
+        .expect_err("Neo digit layout must not decode after SuperNeo-only cleanup");
+    assert!(matches!(err, PiCcsError::InvalidInput(_)));
 }
 
 #[test]
 fn decode_witness_z_superneo_packed_layout_flattens_coeff_blocks() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let blocks = 2usize;
     let expected_m = blocks * D;
     let mut packed = Mat::zero(D, blocks, F::ZERO);
@@ -53,7 +54,7 @@ fn decode_witness_z_superneo_packed_layout_flattens_coeff_blocks() {
 
 #[test]
 fn decode_witness_z_rejects_unknown_shape() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let bad = Mat::zero(D, 5, F::ZERO);
     let err = decode_z_from_witness_mat(&params, &bad, 37).expect_err("shape must be rejected");
     assert!(matches!(err, PiCcsError::InvalidInput(_)));

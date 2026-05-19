@@ -178,8 +178,8 @@ $$
 
 - **Source**:
   - `./docs/assurance-strategy.md`
-  - `./crates/neo-fold-next/src/proof.rs`
-  - `./crates/neo-fold-next/src/stages/planner.rs`
+  - `./crates/neo-fold-prototype/src/proof.rs`
+  - `./crates/neo-fold-prototype/src/stages/planner.rs`
   - `./formal/nightstream-lean/specs/chip8/Chip8BytecodeFetchProjection.spec.md`
   - `./formal/nightstream-lean/specs/chip8/Chip8InstructionSemanticsLookupProjection.spec.md`
   - `./formal/nightstream-lean/specs/chip8/Chip8RegisterHistoryProjection.spec.md`

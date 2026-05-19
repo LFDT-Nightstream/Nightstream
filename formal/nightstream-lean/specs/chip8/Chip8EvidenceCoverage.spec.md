@@ -447,7 +447,7 @@ top-level theorem parameters.
 
 - **Sources**:
   - `./docs/soundness-specs/twist-and-shout-requirements.md`
-  - `./crates/neo-fold-next/specs/chip8-kernel.md`
+  - `./crates/neo-fold-prototype/specs/chip8-kernel.md`
 - Anchors:
   - commitment-before-challenge discipline
   - Stage-1 linkage and handoff

@@ -20,11 +20,7 @@ fn identity_ccs(n: usize) -> CcsStructure<F> {
 
 #[inline]
 fn commit_cols_for_ccs_m(ccs_m: usize) -> usize {
-    if ccs_m.is_multiple_of(D) {
-        ccs_m / D
-    } else {
-        ccs_m
-    }
+    ccs_m.div_ceil(D)
 }
 
 fn setup_ajtai_committer(params: &NeoParams, m: usize) -> AjtaiSModule {
@@ -44,80 +40,36 @@ fn build_mcs_step(
     let z: Vec<F> = (0..m)
         .map(|i| if ((i as i64) + base) % 2 == 0 { F::ONE } else { -F::ONE })
         .collect();
-    let x = if m.is_multiple_of(D) {
-        z[..m_in].to_vec()
-    } else {
-        z[..m_in].to_vec()
-    };
+    let x = z[..m_in].to_vec();
     let w = z[m_in..].to_vec();
-    let mut Z = if m.is_multiple_of(D) {
-        Mat::zero(D, m / D, F::ZERO)
-    } else {
-        Mat::zero(D, m, F::ZERO)
-    };
+    let mut Z = Mat::zero(D, m.div_ceil(D), F::ZERO);
     for (c, val) in z.iter().copied().enumerate() {
-        if m.is_multiple_of(D) {
-            Z[(c % D, c / D)] = val;
-        } else {
-            Z[(0, c)] = val;
-        }
+        Z[(c % D, c / D)] = val;
     }
     let c = l.commit(&Z);
     (CcsClaim { c, x, m_in }, CcsWitness { w, Z })
 }
 
-fn build_mcs_step_dense_digits(
-    params: &NeoParams,
+fn build_mcs_step_packed_digits(
     l: &AjtaiSModule,
     m: usize,
     m_in: usize,
     seed: u64,
 ) -> (CcsClaim<neo_ajtai::Commitment, F>, CcsWitness<F>) {
-    if m.is_multiple_of(D) {
-        let mut z_cols = vec![F::ZERO; m];
-        for (c, out) in z_cols.iter_mut().enumerate().take(m) {
-            *out = match ((seed as usize) + c * 11) % 3 {
-                0 => -F::ONE,
-                1 => F::ZERO,
-                _ => F::ONE,
-            };
-        }
-        let mut Z = Mat::zero(D, m / D, F::ZERO);
-        for (c, val) in z_cols.iter().copied().enumerate().take(m) {
-            Z[(c % D, c / D)] = val;
-        }
-        let x: Vec<F> = z_cols[..m_in].to_vec();
-        let w = z_cols[m_in..].to_vec();
-        let c = l.commit(&Z);
-        return (CcsClaim { c, x, m_in }, CcsWitness { w, Z });
-    }
-
-    let mut Z = Mat::zero(D, m, F::ZERO);
-    for rho in 0..D {
-        for c in 0..m {
-            let v = match ((seed as usize) + rho * 7 + c * 11) % 3 {
-                0 => -F::ONE,
-                1 => F::ZERO,
-                _ => F::ONE,
-            };
-            Z[(rho, c)] = v;
-        }
-    }
-
-    let b = F::from_u64(params.b as u64);
     let mut z_cols = vec![F::ZERO; m];
-    for c in 0..m {
-        let mut pow = F::ONE;
-        let mut acc = F::ZERO;
-        for rho in 0..D {
-            acc += Z[(rho, c)] * pow;
-            pow *= b;
-        }
-        z_cols[c] = acc;
+    for (c, out) in z_cols.iter_mut().enumerate().take(m) {
+        *out = match ((seed as usize) + c * 11) % 3 {
+            0 => -F::ONE,
+            1 => F::ZERO,
+            _ => F::ONE,
+        };
     }
-    let x = z_cols[..m_in].to_vec();
+    let mut Z = Mat::zero(D, m.div_ceil(D), F::ZERO);
+    for (c, val) in z_cols.iter().copied().enumerate().take(m) {
+        Z[(c % D, c / D)] = val;
+    }
+    let x: Vec<F> = z_cols[..m_in].to_vec();
     let w = z_cols[m_in..].to_vec();
-
     let c = l.commit(&Z);
     (CcsClaim { c, x, m_in }, CcsWitness { w, Z })
 }
@@ -213,12 +165,12 @@ fn pi_ccs_prove_verify_superneo_shape_nonzero_digits_k_mcs_2() {
     let mut mcs_list = Vec::with_capacity(2);
     let mut mcs_wits = Vec::with_capacity(2);
     for i in 0..2 {
-        let (inst, wit) = build_mcs_step_dense_digits(&params, &l, ccs.m, 2, 500 + (i as u64) * 17);
+        let (inst, wit) = build_mcs_step_packed_digits(&l, ccs.m, 2, 500 + (i as u64) * 17);
         mcs_list.push(inst);
         mcs_wits.push(wit);
     }
 
-    let mut tr_p = Poseidon2Transcript::new(b"neo.reductions/superneo_dense_digits");
+    let mut tr_p = Poseidon2Transcript::new(b"neo.reductions/superneo_packed_digits");
     let (out, proof) = prove(
         FoldingMode::Optimized,
         &mut tr_p,
@@ -232,7 +184,7 @@ fn pi_ccs_prove_verify_superneo_shape_nonzero_digits_k_mcs_2() {
     )
     .expect("pi_ccs prove");
 
-    let mut tr_v = Poseidon2Transcript::new(b"neo.reductions/superneo_dense_digits");
+    let mut tr_v = Poseidon2Transcript::new(b"neo.reductions/superneo_packed_digits");
     let ok = verify(
         FoldingMode::Optimized,
         &mut tr_v,
@@ -244,7 +196,7 @@ fn pi_ccs_prove_verify_superneo_shape_nonzero_digits_k_mcs_2() {
         &proof,
     )
     .expect("pi_ccs verify");
-    assert!(ok, "pi_ccs verify should pass for SuperNeo dense-digit witness");
+    assert!(ok, "pi_ccs verify should pass for SuperNeo packed witness");
 }
 
 #[test]

@@ -59,7 +59,7 @@ The intended ownership split is:
 
 - **Source**:
   - `./docs/assurance-strategy.md`
-  - `./crates/neo-fold-next/src/proof.rs`
+  - `./crates/neo-fold-prototype/src/proof.rs`
 
 ## Out of Scope
 

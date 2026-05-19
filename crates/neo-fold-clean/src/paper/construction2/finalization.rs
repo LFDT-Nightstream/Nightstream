@@ -1,0 +1,271 @@
+//! Finalization — flush the trailing `latest` before Spartan compression.
+//!
+//! Each `extend` records a new `latest` for the *next* step's fold, so the
+//! final extend leaves one batch unfolded sitting in `state.proof.latest`.
+//! Compression has to fold it via one last NIFS.P call so the running
+//! accumulator handed to Spartan covers every batch the user passed.
+//!
+//! Final folding is **not** an F' step (no chunk counter advance, no F' R1CS
+//! contract). It owns its own terminal NIFS transcript here so callers never
+//! mix it with the per-step F' transcripts used by `paper::f_prime`.
+
+use neo_ajtai::AjtaiSModule;
+use neo_ccs::matrix::Mat;
+use neo_reductions::optimized_engine::OptimizedStructureCache;
+
+use crate::engine::transcript::Transcript;
+use crate::paper::construction2::latest::LatestInstance;
+use crate::paper::construction2::proof_state::ProofState;
+use crate::paper::construction2::running::RunningInstance;
+use crate::paper::construction2::state::State;
+use crate::paper::construction2::step_proof::{FinalFoldProof, TerminalFoldInputs};
+use crate::paper::construction2::verifier_key::VerifierKey;
+use crate::paper::construction2::{transition, Error};
+use crate::paper::digest;
+use crate::paper::nifs;
+use crate::paper::params::Params;
+use crate::paper::relations::{CcsInstance, CcsWitness, DecMixer, RlcMixer, Structure};
+
+/// Init label for the terminal finalization NIFS transcript. Distinct from
+/// the F'-step label so an auditor sees finalization as its own slot in the
+/// transcript namespace.
+///
+/// `pub` so the in-circuit decider mirror (`engine::decider`) can replay
+/// the terminal fold under the same label — without this, the in-circuit
+/// transcript prefix would diverge from the native one and NIFS.V would
+/// reject lifecycle-produced final-fold proofs.
+pub const FINAL_FOLD_TRANSCRIPT_LABEL: &[u8] = b"neo.fold.clean/finalization/v1";
+
+fn final_fold_transcript() -> Transcript {
+    Transcript::with_label(FINAL_FOLD_TRANSCRIPT_LABEL)
+}
+
+/// One final NIFS.P call to fold any trailing `latest` into `running`.
+///
+/// Returns the post-flush `State` (with `latest = empty`) and the optional
+/// flush proof. `Ok((state, None))` means there was nothing to flush —
+/// either the state was `Initial` (no extends ever ran) or the trailing
+/// latest was already empty.
+pub(crate) fn prove_final_fold(
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    structure_digest: &[neo_math::F; 4],
+    log: &AjtaiSModule,
+    mix_rhos_commits: RlcMixer,
+    combine_b_pows: DecMixer,
+    vk: &VerifierKey,
+    state: State,
+) -> Result<(State, Option<FinalFoldProof>), Error> {
+    let State {
+        chunk_count,
+        step_count,
+        z_0,
+        z_i,
+        pc,
+        acc_digest: _, // recomputed from post-flush running below
+        public_trace,
+        proof,
+    } = state;
+
+    let (post_running, nifs_with_inputs) = match proof {
+        ProofState::Initial => {
+            return Ok((
+                State {
+                    chunk_count,
+                    step_count,
+                    z_0,
+                    z_i,
+                    pc,
+                    acc_digest: digest::accumulator_digest_from_claims(pp.b(), &[]),
+                    public_trace,
+                    proof: ProofState::Initial,
+                },
+                None,
+            ));
+        }
+        ProofState::Active { running, latest } if latest.instances.is_empty() => (running, None),
+        ProofState::Active { running, latest } => {
+            // Snapshot the pre-fold (running, latest) **claims** for the
+            // non-replay IVC verifier. Witnesses are stripped here so the
+            // proof never carries prover-private data across the trust
+            // boundary; see [`crate::paper::construction2::TerminalFoldInputs`].
+            let terminal_inputs = TerminalFoldInputs {
+                pre_final_running: strip_running_witnesses(&running),
+                latest: strip_latest_witnesses(&latest),
+            };
+
+            let mut tr = final_fold_transcript();
+            let (post_running, nifs_proof) = nifs::prove(
+                &mut tr,
+                pp,
+                s,
+                cache,
+                log,
+                mix_rhos_commits,
+                combine_b_pows,
+                latest.instances,
+                &running,
+            )?;
+            (post_running, Some((nifs_proof, terminal_inputs)))
+        }
+    };
+
+    // Re-derive acc_digest from the post-flush running's Π_RLC parent.
+    let post_acc_digest = if post_running.claims.is_empty() {
+        digest::accumulator_digest_from_claims(pp.b(), &[])
+    } else {
+        let parent = post_running
+            .parent_authority
+            .as_ref()
+            .expect("post-flush running must carry its Pi_RLC parent authority");
+        digest::accumulator_digest_from_parent_claim(post_running.claims.len(), parent)
+    };
+
+    let state_after = State {
+        chunk_count,
+        step_count,
+        z_0,
+        z_i,
+        pc,
+        acc_digest: post_acc_digest,
+        public_trace,
+        proof: ProofState::Active {
+            running: post_running,
+            latest: LatestInstance::from_instances(Vec::new()),
+        },
+    };
+    let final_proof = nifs_with_inputs.map(|(nifs, terminal_inputs)| FinalFoldProof {
+        x_out: transition::compute_x_out(vk, pp, structure_digest, &state_after),
+        nifs,
+        terminal_inputs,
+    });
+    Ok((state_after, final_proof))
+}
+
+/// Return a witness-stripped clone of a `RunningInstance`. The verifier
+/// never sees the prover's `W_i` matrices; stripping them at finalization
+/// keeps `TerminalFoldInputs.pre_final_running` purely public.
+fn strip_running_witnesses(running: &RunningInstance) -> RunningInstance {
+    RunningInstance {
+        claims: running.claims.clone(),
+        // Wire-compatible empty placeholders: zero-shape `Mat`s carry no data,
+        // satisfy `RunningInstance::shape_ok()` semantically only if `claims`
+        // is empty. The verifier path does not invoke `shape_ok` on this
+        // value, so empty `witnesses` is the right snapshot here.
+        witnesses: Vec::new(),
+        parent_authority: running.parent_authority.clone(),
+    }
+}
+
+/// Return a witness-stripped clone of a `LatestInstance`. The verifier
+/// only needs `(c, x, m_in)` from each CCS instance; the witness `(w, Z)`
+/// is prover-private and is replaced with zero-shape placeholders.
+fn strip_latest_witnesses(latest: &LatestInstance) -> LatestInstance {
+    LatestInstance::from_instances(
+        latest
+            .instances
+            .iter()
+            .map(|inst| CcsInstance {
+                claim: inst.claim.clone(),
+                witness: CcsWitness {
+                    w: Vec::new(),
+                    Z: Mat::zero(0, 0, neo_math::F::default()),
+                },
+            })
+            .collect(),
+    )
+}
+
+pub(crate) fn verify_final_fold(
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    structure_digest: &[neo_math::F; 4],
+    mix_rhos_commits: RlcMixer,
+    combine_b_pows: DecMixer,
+    vk: &VerifierKey,
+    state: State,
+    proof: Option<&FinalFoldProof>,
+) -> Result<State, Error> {
+    let State {
+        chunk_count,
+        step_count,
+        z_0,
+        z_i,
+        pc,
+        acc_digest: _,
+        public_trace,
+        proof: prev_proof,
+    } = state;
+
+    let post_running = match prev_proof {
+        ProofState::Initial => {
+            if proof.is_some() {
+                return Err(Error::UnexpectedFinalFoldProof);
+            }
+            return Ok(State {
+                chunk_count,
+                step_count,
+                z_0,
+                z_i,
+                pc,
+                acc_digest: digest::accumulator_digest_from_claims(pp.b(), &[]),
+                public_trace,
+                proof: ProofState::Initial,
+            });
+        }
+        ProofState::Active { running, latest } if latest.instances.is_empty() => {
+            if proof.is_some() {
+                return Err(Error::UnexpectedFinalFoldProof);
+            }
+            running
+        }
+        ProofState::Active { running, latest } => {
+            let proof = proof.ok_or(Error::MissingFinalFoldProof)?;
+            let mut tr = final_fold_transcript();
+            nifs::verify(
+                &mut tr,
+                pp,
+                s,
+                cache,
+                mix_rhos_commits,
+                combine_b_pows,
+                &latest.claims(),
+                &running,
+                &proof.nifs,
+            )?
+        }
+    };
+
+    let post_acc_digest = if post_running.claims.is_empty() {
+        digest::accumulator_digest_from_claims(pp.b(), &[])
+    } else {
+        let parent = post_running
+            .parent_authority
+            .as_ref()
+            .expect("post-flush running must carry its Pi_RLC parent authority");
+        digest::accumulator_digest_from_parent_claim(post_running.claims.len(), parent)
+    };
+    let state_after = State {
+        chunk_count,
+        step_count,
+        z_0,
+        z_i,
+        pc,
+        acc_digest: post_acc_digest,
+        public_trace,
+        proof: ProofState::Active {
+            running: post_running,
+            latest: LatestInstance::from_instances(Vec::new()),
+        },
+    };
+
+    if let Some(proof) = proof {
+        let x_out = transition::compute_x_out(vk, pp, structure_digest, &state_after);
+        if x_out != proof.x_out {
+            return Err(Error::XOutMismatch);
+        }
+    }
+    Ok(state_after)
+}

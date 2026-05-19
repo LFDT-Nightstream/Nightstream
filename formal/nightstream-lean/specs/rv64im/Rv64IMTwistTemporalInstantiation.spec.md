@@ -39,7 +39,7 @@ into the generic `Stage2TemporalClosureProofPackage`.
 
 ## Paper Anchors
 
-- **Source**: `./crates/neo-fold-next/specs/riscv-kernel.md`
+- **Source**: `./crates/neo-fold-prototype/specs/riscv-kernel.md`
 - Anchors:
   - Stage-2 temporal closure object
   - adjacent-state linking theorem obligation

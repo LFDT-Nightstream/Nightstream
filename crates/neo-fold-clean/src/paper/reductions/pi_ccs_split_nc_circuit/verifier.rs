@@ -1,0 +1,875 @@
+//! SplitNcV1 — full Π_CCS.V composition.
+//!
+//! Wires every sub-gadget added in sub-steps A-I into one verifier
+//! function that mirrors
+//! `optimized_verify_with_cache_and_public_instance_digest_impl` plus the
+//! `tr.digest32()` catch-up in `crate::engine::optimized::verify_pi_ccs`.
+//!
+//! ## Composition order
+//!
+//! ```text
+//! 1. Allocate fresh/running/output wires (once)
+//! 2. Recompute per-fresh CCS claim digests from those wires
+//! 3. Recompute per-running CE claim digests + ME-projection digests
+//! 4. Compute pi_ccs_instance_digest from authoritative digests
+//! 5. Absorb header bundle + instance digest (raw [11, …]/[12, …])
+//! 6. Absorb ME inputs (raw [4]/[5,count]/[6, digests])
+//! 7. Sample α, β_a, β_r, γ, β_m
+//! 8. FE claimed_initial
+//! 9. FE sumcheck driver → r_prime, alpha_prime, fe_final
+//! 10. NC sumcheck driver → s_col_prime, alpha_prime_nc, nc_final
+//! 11. Bind outputs to fresh/running (wire-to-wire, not wire-to-const)
+//!     + bind output.r/s_col to r_prime/s_col_prime
+//! 12. FE terminal identity, pin to fe_final
+//! 13. NC terminal identity, pin to nc_final
+//! 14. header_digest catch-up squeeze
+//! ```
+//!
+//! ## Soundness rules
+//!
+//! - The public-instance digest absorbed in step 5 is **recomputed** from
+//!   authoritative claim wires in steps 2-4 — it is never accepted from the
+//!   prover as a witness wire.
+//! - Output→input binding (step 11) uses **wire-to-wire** equality. The
+//!   native values are only consulted by [`R1csBuilder::alloc`] to seed the
+//!   witness; constraints reference the wires, so the same `verifier.rs`
+//!   can be reused inside F' where the inputs are *also* witness wires
+//!   rather than test-time constants.
+
+use neo_ccs::CcsStructure;
+use neo_math::ring::D;
+use neo_math::{KExtensions, F, K};
+
+use super::{
+    absorb_engine_header_bundle_and_instance_digest, absorb_engine_me_inputs_accumulator_handle,
+    enforce_ccs_claim_digest, enforce_ce_claim_digest, enforce_fe_claimed_initial, enforce_fe_sumcheck_driver,
+    enforce_fe_terminal_identity, enforce_header_digest_catch_up, enforce_nc_sumcheck_driver,
+    enforce_nc_terminal_identity, enforce_pi_ccs_instance_digest_parent_authority, header_digest_bytes_to_fields,
+    sample_engine_beta_m, sample_engine_challenges, CeClaimDigestInputs, Error, FeClaimedInitialInputs,
+    FeTerminalInputs, NcTerminalInputs,
+};
+use crate::engine::r1cs_circuit::builder::{Lc, Var};
+use crate::engine::r1cs_circuit::field_ext::KVar;
+use crate::engine::r1cs_circuit::transcript::TranscriptGadget;
+use crate::engine::r1cs_circuit::R1csBuilder;
+use crate::paper::params::Params;
+use crate::paper::reductions::accumulator_digest_circuit::enforce_accumulator_digest_from_parent_circuit;
+use crate::paper::relations::{CcsClaim, CeClaim};
+
+/// Static configuration for one SplitNc Π_CCS.V invocation.
+///
+/// Everything here is baked in at gadget-emit time:
+/// - `params` / `structure` come from the F'-side public structure.
+/// - `header_bundle` is the four-lane Poseidon2 digest of `(params, structure,
+///   dims, mat_digest)`, computed natively once and embedded as a constant.
+/// - `ell_d`, `ell_n`, `ell_m`, `d_sc` come from `Dims` (also a function of
+///   `(params, structure)`).
+pub struct SplitNcPiCcsVConfig<'a> {
+    pub params: &'a Params,
+    pub structure: &'a CcsStructure<F>,
+    pub header_bundle: [F; 4],
+    pub ell_d: usize,
+    pub ell_n: usize,
+    pub ell_m: usize,
+    pub d_sc: usize,
+}
+
+/// Witness/protocol messages from a real native `pi_ccs::prove` proof.
+///
+/// - `fresh` / `running`: the public claim arrays both sides already hold.
+/// - `outputs`: the K+k output CE claims the prover sends on the wire.
+/// - `sumcheck_rounds_fe` / `sumcheck_rounds_nc`: per-round K-coeff lists.
+/// - `header_digest`: native `tr.digest32()` captured after the engine's
+///   verify path; the catch-up squeeze pins to it.
+pub struct SplitNcPiCcsVMessages<'a> {
+    pub fresh: &'a [CcsClaim],
+    pub running: &'a [CeClaim],
+    pub running_parent_authority: Option<&'a CeClaim>,
+    pub outputs: &'a [CeClaim],
+    pub sumcheck_rounds_fe: &'a [Vec<K>],
+    pub sumcheck_rounds_nc: &'a [Vec<K>],
+    pub header_digest: &'a [u8],
+}
+
+/// Per-output wire bundle that downstream Π_RLC.V (and any consumer that
+/// needs to fold output claims) consumes after a successful SplitNc verify.
+///
+/// Each output is one CE claim, and Π_RLC combines them into a parent CE.
+/// Every field here is a witness wire (or row of wires) already constrained
+/// by the SplitNc verifier's identity and transcript checks.
+#[derive(Clone)]
+pub struct SplitNcPiCcsOutputWires {
+    pub c_d: usize,
+    pub c_kappa: usize,
+    pub c_data: Vec<Var>,
+    pub x: Vec<Var>,
+    pub x_rows: usize,
+    pub x_cols: usize,
+    pub m_in: usize,
+    pub r: Vec<KVar>,
+    pub s_col: Vec<KVar>,
+    pub y_ring: Vec<Vec<KVar>>,
+    pub y_zcol: Vec<KVar>,
+    /// `fold_digest` field of the CE claim, projected to four base-field
+    /// lanes (matches `digest32_as_fields`). Carried by the bundle so
+    /// downstream consumers (decider CE-continuity gate, audit tooling)
+    /// can re-bind without re-walking the original claim's witness.
+    pub fold_digest_fields: [Var; 4],
+}
+
+/// Derived wires the SplitNc Π_CCS.V verifier exposes to the downstream
+/// NIFS.V / Π_RLC composition once verification passes.
+///
+/// `fresh_x` and `running_c_data` are surfaced separately because F' R1CS
+/// (above NIFS.V) needs them to enforce the HyperNova recursive link
+/// (`u_i.public == enc_inst(hash(prior_state))`) and the accumulator
+/// digest binding (`acc_digest_in == digest(running)`). They're already
+/// constrained by the Π_CCS.V verifier; this just exposes the wires
+/// without forcing F' to re-walk the witness layout.
+pub struct SplitNcPiCcsVDerived {
+    pub r_prime: Vec<KVar>,
+    pub s_col_prime: Vec<KVar>,
+    pub outputs: Vec<SplitNcPiCcsOutputWires>,
+    /// `fresh_x[i]` = the `m_in` public-input `F`-wires of `fresh[i]`.
+    pub fresh_x: Vec<Vec<Var>>,
+    /// `running_c_data[i]` = the `D * kappa` commitment-data wires of `running[i]`.
+    pub running_c_data: Vec<Vec<Var>>,
+    /// Full per-running-claim CE-claim wire bundles (c, x, r, y_ring,
+    /// y_zcol, s_col, shape, fold_digest_fields). Surfaced for the
+    /// decider's CE-continuity gate: `prev.children == next.running`
+    /// must hold wire-to-wire, and commitment-only continuity (via
+    /// `running_acc_digest`) is intentionally weaker.
+    pub running: Vec<SplitNcPiCcsOutputWires>,
+    /// Π_RLC parent whose Π_DEC children form `running`. This parent is the
+    /// running-side Fiat-Shamir authority for this Π_CCS invocation.
+    pub running_parent_authority: Option<SplitNcPiCcsOutputWires>,
+    /// Four-lane Poseidon2 digest of the running accumulator's b-ary-
+    /// recomposed commitment data. Computed once inside the SplitNc
+    /// verifier as the ME-input accumulator handle (replaces per-claim
+    /// ME-input projection digests). Surfaced so F' R1CS can reuse it
+    /// for the `acc_digest_in` binding instead of recomputing the same
+    /// Poseidon2.
+    pub running_acc_digest: [Var; 4],
+}
+
+// ── Wire-allocation structs ───────────────────────────────────────────────
+
+/// Wires for one fresh CCS claim, allocated once and reused across the
+/// digest gadget and any wire-to-wire output binding.
+struct CcsClaimWires {
+    c_d: usize,
+    c_kappa: usize,
+    c_data: Vec<Var>,
+    x: Vec<Var>,
+    m_in: usize,
+}
+
+/// Wires for one CE claim (running input or output), allocated once.
+///
+/// `x` is the X matrix in row-major order: `x[r * x_cols + c] = X[(r, c)]`.
+/// The SuperNeo-packed view used by the ME-projection digest is built on
+/// demand via [`Self::x_packed`] without reallocating any wires.
+struct CeClaimWires {
+    c_d: usize,
+    c_kappa: usize,
+    c_data: Vec<Var>,
+    x: Vec<Var>,
+    x_rows: usize,
+    x_cols: usize,
+    r: Vec<KVar>,
+    s_col: Vec<KVar>,
+    y_ring: Vec<Vec<KVar>>,
+    y_zcol: Vec<KVar>,
+    m_in: usize,
+    fold_digest_fields: [Var; 4],
+}
+
+impl CeClaimWires {
+    /// SuperNeo-packed view of X: `x_packed[c] = X[(c % D, c / D)]` for
+    /// `c ∈ 0..m_in`. Returns `Var` copies (indices) into `self.x`, no fresh
+    /// witness wires.
+    fn x_packed(&self) -> Vec<Var> {
+        (0..self.m_in)
+            .map(|c| self.x[(c % D) * self.x_cols + (c / D)])
+            .collect()
+    }
+}
+
+// ── Public entry ──────────────────────────────────────────────────────────
+
+/// Compose the full SplitNcV1 Π_CCS.V verifier on top of `transcript`.
+pub fn enforce_split_nc_pi_ccs_v(
+    builder: &mut R1csBuilder,
+    transcript: &mut TranscriptGadget,
+    cfg: &SplitNcPiCcsVConfig<'_>,
+    msg: &SplitNcPiCcsVMessages<'_>,
+) -> Result<SplitNcPiCcsVDerived, Error> {
+    let k_mcs = msg.fresh.len();
+    let k_me = msg.running.len();
+    let k_total = k_mcs + k_me;
+    let t = cfg.structure.t();
+    let d_pad = 1usize << cfg.ell_d;
+
+    if k_mcs == 0 {
+        return Err(Error::Shape(
+            "SplitNc Π_CCS.V requires at least one fresh CCS claim".into(),
+        ));
+    }
+    if msg.outputs.len() != k_total {
+        return Err(Error::Shape(format!(
+            "outputs.len={} expected fresh+running={k_total}",
+            msg.outputs.len()
+        )));
+    }
+
+    // ── 0. Validate fresh / running / output shapes up front ─────────────
+    // Mirrors native shape checks (kappa, m_in, X dims, r/s_col/y_ring/y_zcol
+    // lengths) so the verifier never reaches indexing paths with malformed
+    // inputs.
+    for (i, f) in msg.fresh.iter().enumerate() {
+        validate_fresh_shape(cfg, i, f)?;
+    }
+    for (i, r) in msg.running.iter().enumerate() {
+        validate_ce_shape(cfg, &format!("running[{i}]"), r)?;
+    }
+    match (k_me, msg.running_parent_authority) {
+        (0, None) => {}
+        (0, Some(_)) => {
+            return Err(Error::Shape(
+                "running parent authority present while running is empty".into(),
+            ))
+        }
+        (_, Some(parent)) => validate_ce_shape(cfg, "running_parent_authority", parent)?,
+        (_, None) => {
+            return Err(Error::Shape(
+                "non-empty running accumulator missing Pi_RLC parent authority".into(),
+            ))
+        }
+    }
+    for (i, o) in msg.outputs.iter().enumerate() {
+        // Outputs may have different X cols than running (fresh outputs use
+        // m_in columns); the per-idx output X shape is also checked in
+        // `bind_outputs_to_inputs`. The structural CE invariants — kappa,
+        // r/s_col length, y_ring outer/inner length, y_zcol length — apply
+        // uniformly.
+        validate_output_ce_shape(cfg, &format!("outputs[{i}]"), o)?;
+    }
+
+    // ── 1. Allocate fresh / running / output wires once ──────────────────
+    let fresh_wires: Vec<CcsClaimWires> = msg
+        .fresh
+        .iter()
+        .map(|f| alloc_fresh_wires(builder, f))
+        .collect();
+    let running_wires: Vec<CeClaimWires> = msg
+        .running
+        .iter()
+        .map(|r| alloc_ce_wires(builder, r))
+        .collect::<Result<_, _>>()?;
+    let running_parent_authority_wires = msg
+        .running_parent_authority
+        .map(|parent| alloc_ce_wires(builder, parent))
+        .transpose()?;
+    let output_wires: Vec<CeClaimWires> = msg
+        .outputs
+        .iter()
+        .map(|o| alloc_ce_wires(builder, o))
+        .collect::<Result<_, _>>()?;
+
+    // ── 2. Fresh CCS digests (from allocated wires) ──────────────────────
+    let mut fresh_digests: Vec<[Var; 4]> = Vec::with_capacity(k_mcs);
+    for fw in &fresh_wires {
+        fresh_digests.push(enforce_ccs_claim_digest(
+            builder, fw.c_d, fw.c_kappa, &fw.c_data, &fw.x, fw.m_in,
+        ));
+    }
+
+    // ── 3. Running parent digest + shared-r check ────────────────────────
+    //
+    // The running-side Fiat-Shamir authority is the Π_RLC parent whose Π_DEC
+    // children form `running`, not the child claims themselves. The children
+    // remain the algebraic ME inputs below; Π_DEC validation in the previous
+    // step binds them to this parent.
+    for (idx, rw) in running_wires.iter().enumerate() {
+        // Shared-r check (mirrors `shared_me_input_r` in the engine): all
+        // running ME inputs must carry the same evaluation point.
+        if idx > 0 {
+            let first = &running_wires[0].r;
+            if rw.r.len() != first.len() {
+                return Err(Error::Shape("running ME inputs must share evaluation point r".into()));
+            }
+            for (a, b) in rw.r.iter().zip(first.iter()) {
+                enforce_kvar_eq(builder, *a, *b);
+            }
+        }
+    }
+    let running_parent_digest = running_parent_authority_wires
+        .as_ref()
+        .map(|parent| {
+            enforce_ce_claim_digest(
+                builder,
+                &CeClaimDigestInputs {
+                    c_d: parent.c_d,
+                    c_kappa: parent.c_kappa,
+                    c_data: &parent.c_data,
+                    x_rows: parent.x_rows,
+                    x_cols: parent.x_cols,
+                    x_flat_row_major: &parent.x,
+                    r: &parent.r,
+                    y_ring: &parent.y_ring,
+                    m_in: parent.m_in,
+                    fold_digest_fields: parent.fold_digest_fields,
+                },
+            )
+        })
+        .transpose()?;
+
+    // ── 4-5. Instance digest + header/instance absorbs ───────────────────
+    let instance_digest =
+        enforce_pi_ccs_instance_digest_parent_authority(builder, &fresh_digests, k_me, running_parent_digest);
+    absorb_engine_header_bundle_and_instance_digest(builder, transcript, cfg.header_bundle, instance_digest);
+
+    // ── 6. ME-input absorb (parent-authority handle mode) ────────────────
+    //
+    // Compute the running-accumulator digest from the carried Π_RLC parent
+    // commitment. This is the same value as b-ary recomposition of the Π_DEC
+    // children when the prior DEC check holds, but it does not let child data
+    // steer the Fiat-Shamir transcript for this step.
+    let running_acc_digest = match &running_parent_authority_wires {
+        Some(parent) => enforce_accumulator_digest_from_parent_circuit(builder, k_me, &parent.c_data),
+        None => enforce_accumulator_digest_from_parent_circuit(builder, 0, &[]),
+    };
+    absorb_engine_me_inputs_accumulator_handle(builder, transcript, k_me, running_acc_digest);
+
+    // ── 7. Sample engine challenges + β_m ────────────────────────────────
+    let ch = sample_engine_challenges(builder, transcript, cfg.ell_d, cfg.ell_n);
+    let beta_m = sample_engine_beta_m(builder, transcript, cfg.ell_m);
+
+    // ── 8. FE claimed_initial ────────────────────────────────────────────
+    let running_y_ring_view: Vec<Vec<Vec<KVar>>> = running_wires.iter().map(|rw| rw.y_ring.clone()).collect();
+    let claimed_initial = enforce_fe_claimed_initial(
+        builder,
+        &FeClaimedInitialInputs {
+            k_mcs,
+            t,
+            ell_d: cfg.ell_d,
+            gamma: ch.gamma,
+            alpha: &ch.alpha,
+            running_y_ring: &running_y_ring_view,
+        },
+    )?;
+
+    // ── 9. FE sumcheck driver ────────────────────────────────────────────
+    let fe_rounds: Vec<Vec<KVar>> = msg
+        .sumcheck_rounds_fe
+        .iter()
+        .map(|r| alloc_k_vec(builder, r))
+        .collect();
+    let fe = enforce_fe_sumcheck_driver(
+        builder,
+        transcript,
+        cfg.ell_n,
+        cfg.ell_d,
+        cfg.d_sc,
+        claimed_initial,
+        &fe_rounds,
+    )?;
+
+    // ── 10. NC sumcheck driver ───────────────────────────────────────────
+    let nc_rounds: Vec<Vec<KVar>> = msg
+        .sumcheck_rounds_nc
+        .iter()
+        .map(|r| alloc_k_vec(builder, r))
+        .collect();
+    let nc = enforce_nc_sumcheck_driver(builder, transcript, cfg.ell_m, cfg.ell_d, cfg.d_sc, &nc_rounds)?;
+
+    // ── 11. Bind outputs to inputs (wire-to-wire) ────────────────────────
+    bind_outputs_to_inputs(
+        builder,
+        &fresh_wires,
+        &running_wires,
+        &output_wires,
+        &fe.r_prime,
+        &nc.s_col_prime,
+        d_pad,
+    )?;
+
+    let output_y_ring_view: Vec<Vec<Vec<KVar>>> = output_wires.iter().map(|ow| ow.y_ring.clone()).collect();
+    let output_y_zcol_view: Vec<Vec<KVar>> = output_wires.iter().map(|ow| ow.y_zcol.clone()).collect();
+
+    // ── 12. FE terminal identity ─────────────────────────────────────────
+    let me_input_r: Option<&[KVar]> = running_wires.first().map(|w| w.r.as_slice());
+    let rhs_fe = enforce_fe_terminal_identity(
+        builder,
+        &FeTerminalInputs {
+            poly: &cfg.structure.f,
+            t,
+            k_mcs,
+            gamma: ch.gamma,
+            alpha: &ch.alpha,
+            beta_a: &ch.beta_a,
+            beta_r: &ch.beta_r,
+            r_prime: &fe.r_prime,
+            alpha_prime: &fe.alpha_prime,
+            me_input_r,
+            output_y_ring: &output_y_ring_view,
+        },
+    )?;
+    enforce_kvar_eq(builder, fe.final_sum, rhs_fe);
+
+    // ── 13. NC terminal identity ─────────────────────────────────────────
+    let rhs_nc = enforce_nc_terminal_identity(
+        builder,
+        &NcTerminalInputs {
+            b: cfg.params.b(),
+            gamma: ch.gamma,
+            beta_a: &ch.beta_a,
+            beta_m: &beta_m,
+            s_col_prime: &nc.s_col_prime,
+            alpha_prime: &nc.alpha_prime,
+            output_y_zcol: &output_y_zcol_view,
+        },
+    )?;
+    enforce_kvar_eq(builder, nc.final_sum, rhs_nc);
+
+    // ── 14. Header digest catch-up squeeze ───────────────────────────────
+    let header_fields = header_digest_bytes_to_fields(msg.header_digest)?;
+    enforce_header_digest_catch_up(builder, transcript, header_fields);
+
+    // Surface the full output wire bundle so downstream Π_RLC.V / NIFS.V
+    // composition can fold c.data, X, r, s_col, y_ring, y_zcol without
+    // re-allocating any wires.
+    let outputs: Vec<SplitNcPiCcsOutputWires> = output_wires
+        .into_iter()
+        .map(|ow| SplitNcPiCcsOutputWires {
+            c_d: ow.c_d,
+            c_kappa: ow.c_kappa,
+            c_data: ow.c_data,
+            x: ow.x,
+            x_rows: ow.x_rows,
+            x_cols: ow.x_cols,
+            m_in: ow.m_in,
+            r: ow.r,
+            s_col: ow.s_col,
+            y_ring: ow.y_ring,
+            y_zcol: ow.y_zcol,
+            fold_digest_fields: ow.fold_digest_fields,
+        })
+        .collect();
+
+    // Snapshot fresh.x and running.c_data wires so F'-side composition can
+    // consume them without re-walking the witness layout.
+    let fresh_x: Vec<Vec<Var>> = fresh_wires.iter().map(|fw| fw.x.clone()).collect();
+    let running_c_data: Vec<Vec<Var>> = running_wires.iter().map(|rw| rw.c_data.clone()).collect();
+    // Surface the full per-running-claim wire bundle so the decider's
+    // CE-continuity gate can pin `prev.children == next.running` field
+    // by field. Built from the same allocated wires the SplitNc verifier
+    // already constrained via shape checks + digest absorbs.
+    let running: Vec<SplitNcPiCcsOutputWires> = running_wires
+        .into_iter()
+        .map(|rw| SplitNcPiCcsOutputWires {
+            c_d: rw.c_d,
+            c_kappa: rw.c_kappa,
+            c_data: rw.c_data,
+            x: rw.x,
+            x_rows: rw.x_rows,
+            x_cols: rw.x_cols,
+            m_in: rw.m_in,
+            r: rw.r,
+            s_col: rw.s_col,
+            y_ring: rw.y_ring,
+            y_zcol: rw.y_zcol,
+            fold_digest_fields: rw.fold_digest_fields,
+        })
+        .collect();
+    let running_parent_authority = running_parent_authority_wires.map(|rw| SplitNcPiCcsOutputWires {
+        c_d: rw.c_d,
+        c_kappa: rw.c_kappa,
+        c_data: rw.c_data,
+        x: rw.x,
+        x_rows: rw.x_rows,
+        x_cols: rw.x_cols,
+        m_in: rw.m_in,
+        r: rw.r,
+        s_col: rw.s_col,
+        y_ring: rw.y_ring,
+        y_zcol: rw.y_zcol,
+        fold_digest_fields: rw.fold_digest_fields,
+    });
+
+    Ok(SplitNcPiCcsVDerived {
+        r_prime: fe.r_prime,
+        s_col_prime: nc.s_col_prime,
+        outputs,
+        fresh_x,
+        running_c_data,
+        running,
+        running_parent_authority,
+        running_acc_digest,
+    })
+}
+
+// ── Private helpers ───────────────────────────────────────────────────────
+
+/// Native-mirror shape check for one fresh CCS claim. Catches kappa /
+/// commitment-data length / m_in / public-input-length mismatches before
+/// the verifier reaches indexing-heavy gadgets.
+fn validate_fresh_shape(cfg: &SplitNcPiCcsVConfig<'_>, idx: usize, f: &CcsClaim) -> Result<(), Error> {
+    let kappa = cfg.params.kappa() as usize;
+    if f.m_in > cfg.structure.m {
+        return Err(Error::Shape(format!(
+            "fresh[{idx}].m_in ({}) > structure.m ({})",
+            f.m_in, cfg.structure.m
+        )));
+    }
+    if f.x.len() != f.m_in {
+        return Err(Error::Shape(format!(
+            "fresh[{idx}].x.len ({}) != m_in ({})",
+            f.x.len(),
+            f.m_in
+        )));
+    }
+    if f.c.d != D {
+        return Err(Error::Shape(format!("fresh[{idx}].c.d ({}) != D ({})", f.c.d, D)));
+    }
+    if f.c.kappa != kappa {
+        return Err(Error::Shape(format!(
+            "fresh[{idx}].c.kappa ({}) != params.kappa ({})",
+            f.c.kappa, kappa
+        )));
+    }
+    if f.c.data.len() != D * kappa {
+        return Err(Error::Shape(format!(
+            "fresh[{idx}].c.data.len ({}) != D*kappa ({})",
+            f.c.data.len(),
+            D * kappa
+        )));
+    }
+    Ok(())
+}
+
+/// Native-mirror shape check for one running CE claim. CE outputs share the
+/// same invariants except that fresh outputs may have a different X.cols
+/// (= fresh.m_in), so output X is checked separately in
+/// `bind_outputs_to_inputs` — but the other CE invariants still apply, so
+/// outputs flow through [`validate_output_ce_shape`].
+fn validate_ce_shape(cfg: &SplitNcPiCcsVConfig<'_>, label: &str, ce: &CeClaim) -> Result<(), Error> {
+    let kappa = cfg.params.kappa() as usize;
+    let d_pad = 1usize << cfg.ell_d;
+
+    if ce.c.d != D {
+        return Err(Error::Shape(format!("{label}.c.d ({}) != D ({D})", ce.c.d)));
+    }
+    if ce.c.kappa != kappa {
+        return Err(Error::Shape(format!(
+            "{label}.c.kappa ({}) != params.kappa ({kappa})",
+            ce.c.kappa
+        )));
+    }
+    if ce.c.data.len() != D * kappa {
+        return Err(Error::Shape(format!(
+            "{label}.c.data.len ({}) != D*kappa ({})",
+            ce.c.data.len(),
+            D * kappa
+        )));
+    }
+    if ce.m_in > cfg.structure.m {
+        return Err(Error::Shape(format!(
+            "{label}.m_in ({}) > structure.m ({})",
+            ce.m_in, cfg.structure.m
+        )));
+    }
+    if ce.X.rows() != D || ce.X.cols() != ce.m_in {
+        return Err(Error::Shape(format!(
+            "{label}.X shape ({}×{}) != ({D}×{})",
+            ce.X.rows(),
+            ce.X.cols(),
+            ce.m_in
+        )));
+    }
+    validate_ce_common_shape(cfg, label, ce, d_pad)
+}
+
+/// Output CE invariants that don't depend on whether the output is a fresh
+/// or running slot — kappa / X.rows / r / s_col / y_ring / y_zcol shapes.
+/// The X.cols check is in `bind_outputs_to_inputs` where it can compare
+/// against either fresh.m_in or running.X.cols.
+fn validate_output_ce_shape(cfg: &SplitNcPiCcsVConfig<'_>, label: &str, ce: &CeClaim) -> Result<(), Error> {
+    let kappa = cfg.params.kappa() as usize;
+    let d_pad = 1usize << cfg.ell_d;
+
+    if ce.c.d != D {
+        return Err(Error::Shape(format!("{label}.c.d ({}) != D ({D})", ce.c.d)));
+    }
+    if ce.c.kappa != kappa {
+        return Err(Error::Shape(format!(
+            "{label}.c.kappa ({}) != params.kappa ({kappa})",
+            ce.c.kappa
+        )));
+    }
+    if ce.c.data.len() != D * kappa {
+        return Err(Error::Shape(format!(
+            "{label}.c.data.len ({}) != D*kappa ({})",
+            ce.c.data.len(),
+            D * kappa
+        )));
+    }
+    if ce.m_in > cfg.structure.m {
+        return Err(Error::Shape(format!(
+            "{label}.m_in ({}) > structure.m ({})",
+            ce.m_in, cfg.structure.m
+        )));
+    }
+    if ce.X.rows() != D {
+        return Err(Error::Shape(format!("{label}.X.rows ({}) != D ({D})", ce.X.rows())));
+    }
+    validate_ce_common_shape(cfg, label, ce, d_pad)
+}
+
+fn validate_ce_common_shape(
+    cfg: &SplitNcPiCcsVConfig<'_>,
+    label: &str,
+    ce: &CeClaim,
+    d_pad: usize,
+) -> Result<(), Error> {
+    if ce.r.len() != cfg.ell_n {
+        return Err(Error::Shape(format!(
+            "{label}.r.len ({}) != ell_n ({})",
+            ce.r.len(),
+            cfg.ell_n
+        )));
+    }
+    if ce.s_col.len() != cfg.ell_m {
+        return Err(Error::Shape(format!(
+            "{label}.s_col.len ({}) != ell_m ({})",
+            ce.s_col.len(),
+            cfg.ell_m
+        )));
+    }
+    if ce.y_ring.len() != cfg.structure.t() {
+        return Err(Error::Shape(format!(
+            "{label}.y_ring.len ({}) != structure.t ({})",
+            ce.y_ring.len(),
+            cfg.structure.t()
+        )));
+    }
+    for (j, row) in ce.y_ring.iter().enumerate() {
+        if row.len() != d_pad {
+            return Err(Error::Shape(format!(
+                "{label}.y_ring[{j}].len ({}) != d_pad ({})",
+                row.len(),
+                d_pad
+            )));
+        }
+    }
+    if ce.y_zcol.len() != d_pad {
+        return Err(Error::Shape(format!(
+            "{label}.y_zcol.len ({}) != d_pad ({})",
+            ce.y_zcol.len(),
+            d_pad
+        )));
+    }
+    Ok(())
+}
+
+fn enforce_kvar_eq(builder: &mut R1csBuilder, a: KVar, b: KVar) {
+    builder.enforce_eq(&Lc::from_var(a.c0), &Lc::from_var(b.c0));
+    builder.enforce_eq(&Lc::from_var(a.c1), &Lc::from_var(b.c1));
+}
+
+fn enforce_var_eq(builder: &mut R1csBuilder, a: Var, b: Var) {
+    builder.enforce_eq(&Lc::from_var(a), &Lc::from_var(b));
+}
+
+fn alloc_k(builder: &mut R1csBuilder, v: K) -> KVar {
+    let [c0, c1] = v.as_coeffs();
+    KVar::alloc(builder, c0, c1)
+}
+
+fn alloc_k_vec(builder: &mut R1csBuilder, xs: &[K]) -> Vec<KVar> {
+    xs.iter().copied().map(|x| alloc_k(builder, x)).collect()
+}
+
+fn alloc_k_rows(builder: &mut R1csBuilder, rows: &[Vec<K>]) -> Vec<Vec<KVar>> {
+    rows.iter().map(|r| alloc_k_vec(builder, r)).collect()
+}
+
+/// Decode a 32-byte digest (e.g. `fold_digest`) into 4 F lanes and allocate
+/// each as a witness wire. The verifier doesn't pin these — the constraints
+/// come from the digest gadget that absorbs them.
+fn digest32_witness_fields(builder: &mut R1csBuilder, bytes: &[u8]) -> Result<[Var; 4], Error> {
+    let fields = header_digest_bytes_to_fields(bytes)?;
+    Ok(std::array::from_fn(|i| builder.alloc(fields[i])))
+}
+
+fn alloc_fresh_wires(builder: &mut R1csBuilder, fresh: &CcsClaim) -> CcsClaimWires {
+    CcsClaimWires {
+        c_d: fresh.c.d,
+        c_kappa: fresh.c.kappa,
+        c_data: builder.alloc_vec(&fresh.c.data),
+        x: builder.alloc_vec(&fresh.x),
+        m_in: fresh.m_in,
+    }
+}
+
+/// Allocate wires for one CE claim. `x` is stored as a flat row-major
+/// `Vec<Var>` of length `x_rows * x_cols`; the SuperNeo-packed view is
+/// derived on demand via [`CeClaimWires::x_packed`].
+fn alloc_ce_wires(builder: &mut R1csBuilder, ce: &CeClaim) -> Result<CeClaimWires, Error> {
+    let mut x: Vec<Var> = Vec::with_capacity(ce.X.rows() * ce.X.cols());
+    for r in 0..ce.X.rows() {
+        for c in 0..ce.X.cols() {
+            x.push(builder.alloc(ce.X[(r, c)]));
+        }
+    }
+    Ok(CeClaimWires {
+        c_d: ce.c.d,
+        c_kappa: ce.c.kappa,
+        c_data: builder.alloc_vec(&ce.c.data),
+        x,
+        x_rows: ce.X.rows(),
+        x_cols: ce.X.cols(),
+        r: alloc_k_vec(builder, &ce.r),
+        s_col: alloc_k_vec(builder, &ce.s_col),
+        y_ring: alloc_k_rows(builder, &ce.y_ring),
+        y_zcol: alloc_k_vec(builder, &ce.y_zcol),
+        m_in: ce.m_in,
+        fold_digest_fields: digest32_witness_fields(builder, &ce.fold_digest)?,
+    })
+}
+
+/// Mirror of native `validate_me_outputs_against_inputs`, but wire-to-wire
+/// (no `wire == constant`). Constraints emitted per output:
+/// - `output.r == r_prime`
+/// - `output.s_col == s_col_prime`
+/// - `output.y_zcol.len == d_pad` (shape, no silent truncation)
+/// - Fresh outputs (idx < k_mcs):
+///     - `output.c_data == fresh.c_data` (lane-wise)
+///     - `output.X[(c % D, c / D)] == fresh.x[c]` for `c ∈ 0..m_in`
+/// - Running outputs (idx ≥ k_mcs):
+///     - `output.c_data == running.c_data`
+///     - `output.X[r, c] == running.X[r, c]` (full row-major)
+fn bind_outputs_to_inputs(
+    builder: &mut R1csBuilder,
+    fresh_wires: &[CcsClaimWires],
+    running_wires: &[CeClaimWires],
+    output_wires: &[CeClaimWires],
+    r_prime: &[KVar],
+    s_col_prime: &[KVar],
+    d_pad: usize,
+) -> Result<(), Error> {
+    let k_mcs = fresh_wires.len();
+
+    for (idx, ow) in output_wires.iter().enumerate() {
+        // r / s_col bind to FE/NC challenge halves.
+        if ow.r.len() != r_prime.len() {
+            return Err(Error::Shape(format!(
+                "output[{idx}].r.len ({}) != r_prime.len ({})",
+                ow.r.len(),
+                r_prime.len()
+            )));
+        }
+        if ow.s_col.len() != s_col_prime.len() {
+            return Err(Error::Shape(format!(
+                "output[{idx}].s_col.len ({}) != s_col_prime.len ({})",
+                ow.s_col.len(),
+                s_col_prime.len()
+            )));
+        }
+        for (i, v) in ow.r.iter().enumerate() {
+            enforce_kvar_eq(builder, *v, r_prime[i]);
+        }
+        for (i, v) in ow.s_col.iter().enumerate() {
+            enforce_kvar_eq(builder, *v, s_col_prime[i]);
+        }
+
+        // y_zcol shape (native asserts y_zcol.len == d_pad in `validate_me_outputs_against_inputs`).
+        if ow.y_zcol.len() != d_pad {
+            return Err(Error::Shape(format!(
+                "output[{idx}].y_zcol.len ({}) != d_pad ({})",
+                ow.y_zcol.len(),
+                d_pad
+            )));
+        }
+
+        if idx < k_mcs {
+            let fw = &fresh_wires[idx];
+
+            // m_in must match native `validate_me_outputs_against_inputs`
+            // (`out.m_in == fresh.m_in`). m_in is structural — checked here
+            // at gadget-emit time rather than as a wire constraint.
+            if ow.m_in != fw.m_in {
+                return Err(Error::Shape(format!(
+                    "fresh output[{idx}].m_in ({}) != fresh.m_in ({})",
+                    ow.m_in, fw.m_in
+                )));
+            }
+
+            // commitment data length + lane-wise equality.
+            if ow.c_data.len() != fw.c_data.len() {
+                return Err(Error::Shape(format!(
+                    "fresh output[{idx}].c_data.len ({}) != fresh.c_data.len ({})",
+                    ow.c_data.len(),
+                    fw.c_data.len()
+                )));
+            }
+            for (a, b) in ow.c_data.iter().zip(fw.c_data.iter()) {
+                enforce_var_eq(builder, *a, *b);
+            }
+
+            // X shape: must be D × m_in for SuperNeo packing.
+            if ow.x_rows != D || ow.x_cols != fw.m_in {
+                return Err(Error::Shape(format!(
+                    "fresh output[{idx}].X shape ({}×{}) != expected ({D}×{})",
+                    ow.x_rows, ow.x_cols, fw.m_in
+                )));
+            }
+
+            // Public X lanes inherit from fresh.x[c] for c ∈ 0..m_in.
+            // Other lanes are owned by L_in(z) and may be non-zero after
+            // ring-linear folding — don't constrain them.
+            for c in 0..fw.m_in {
+                let row = c % D;
+                let col = c / D;
+                let out_wire = ow.x[row * ow.x_cols + col];
+                let fresh_wire = fw.x[c];
+                enforce_var_eq(builder, out_wire, fresh_wire);
+            }
+        } else {
+            let rw = &running_wires[idx - k_mcs];
+
+            // m_in must match native `validate_me_outputs_against_inputs`
+            // (`out.m_in == running.m_in`). Structural, gadget-emit time.
+            if ow.m_in != rw.m_in {
+                return Err(Error::Shape(format!(
+                    "running output[{idx}].m_in ({}) != running.m_in ({})",
+                    ow.m_in, rw.m_in
+                )));
+            }
+
+            if ow.c_data.len() != rw.c_data.len() {
+                return Err(Error::Shape(format!(
+                    "running output[{idx}].c_data.len ({}) != running.c_data.len ({})",
+                    ow.c_data.len(),
+                    rw.c_data.len()
+                )));
+            }
+            for (a, b) in ow.c_data.iter().zip(rw.c_data.iter()) {
+                enforce_var_eq(builder, *a, *b);
+            }
+
+            if ow.x_rows != rw.x_rows || ow.x_cols != rw.x_cols {
+                return Err(Error::Shape(format!(
+                    "running output[{idx}].X shape ({}×{}) != running.X shape ({}×{})",
+                    ow.x_rows, ow.x_cols, rw.x_rows, rw.x_cols
+                )));
+            }
+            // Full X matrix is inherited from the running input (every lane).
+            for (a, b) in ow.x.iter().zip(rw.x.iter()) {
+                enforce_var_eq(builder, *a, *b);
+            }
+        }
+    }
+
+    Ok(())
+}

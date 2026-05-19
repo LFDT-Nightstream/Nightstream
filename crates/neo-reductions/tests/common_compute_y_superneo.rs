@@ -5,7 +5,7 @@ use neo_ccs::utils::tensor_point;
 use neo_ccs::{CcsStructure, Mat};
 use neo_math::{D, F, K};
 use neo_reductions::common::{
-    compute_y_from_Z_and_r, decode_superneo_coeffs_from_witness_mat, witness_mat_layout, WitnessMatLayout,
+    compute_y_from_Z_and_r, decode_superneo_coeffs_from_witness_mat, validate_superneo_witness_mat,
 };
 use neo_reductions::superneo_eval::build_superneo_eval_cache;
 use p3_field::PrimeCharacteristicRing;
@@ -102,7 +102,7 @@ fn compute_y_from_Z_and_r_superneo_compatible_matches_manual() {
 #[test]
 fn compute_y_from_Z_and_r_nondiv_width_uses_packed_layout_without_cache() {
     let n = 8usize;
-    let m = 8usize; // non-divisible width uses packed ceil(m/D) layout.
+    let m = D + 1; // non-divisible width uses packed ceil(m/D) layout.
     let s = CcsStructure::new(
         vec![dense_mat(n, m, 700), dense_mat(n, m, 900)],
         SparsePoly::new(
@@ -121,8 +121,7 @@ fn compute_y_from_Z_and_r_nondiv_width_uses_packed_layout_without_cache() {
     );
 
     let Z = make_z(1200, m);
-    let layout = witness_mat_layout(&Z, s.m).expect("packed layout must be accepted");
-    assert_eq!(layout, WitnessMatLayout::SuperneoPacked);
+    validate_superneo_witness_mat(&Z, s.m).expect("packed layout must be accepted");
 
     let r = vec![
         K::from(F::from_u64(2)),

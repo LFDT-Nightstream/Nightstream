@@ -331,6 +331,16 @@ impl AjtaiSModule {
                 }),
         }
     }
+
+    /// Return the Ajtai PP dimensions `(d, m)` without materializing a
+    /// seeded global PP. Here `m` is the number of S-module columns, so a
+    /// committed CCS witness has length `d * m`.
+    pub fn dims(&self) -> (usize, usize) {
+        match &self.pp {
+            PpSource::Owned(pp) => (pp.d, pp.m),
+            PpSource::Global { d, m } => (*d, *m),
+        }
+    }
 }
 
 impl SModuleHomomorphism<Fq, Commitment> for AjtaiSModule {
@@ -401,17 +411,5 @@ impl SModuleHomomorphism<Fq, Commitment> for AjtaiSModule {
                     .collect()
             }
         }
-    }
-
-    fn project_x(&self, z: &Mat<Fq>, min: usize) -> Mat<Fq> {
-        let rows = z.rows();
-        let cols = min.min(z.cols());
-        let mut data = Vec::with_capacity(rows * cols);
-        for r in 0..rows {
-            for c in 0..cols {
-                data.push(z[(r, c)]);
-            }
-        }
-        Mat::from_row_major(rows, cols, data)
     }
 }

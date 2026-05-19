@@ -27,4 +27,10 @@ docs/mpc-domain-text
 docs/plans/*
 .claude/skills
 personal-notes/
+persona_notes/
+persona-notes/
 .mco-runs/
+/checklists/
+docs/hypernova-paper
+.mco-sessions
+personal_notes

@@ -17,6 +17,7 @@
 // private modules
 mod math;
 mod parallel;
+mod poseidon2_shared;
 mod r1cs;
 mod time;
 
@@ -70,6 +71,9 @@ pub use r1cs::R1CSWitness;
 
 /// Split R1CS shape for bellpepper circuits with precommitted variables
 pub use r1cs::SplitR1CSShape;
+
+/// Sparse matrix backing R1CS shapes.
+pub use r1cs::SparseMatrix;
 
 /// Sparse-matrix debug stats for a split R1CS shape.
 pub use r1cs::SplitR1CSShapeDebugStats;

@@ -2,26 +2,19 @@
 
 use crate::{
   errors::SpartanError,
+  poseidon2_shared::goldilocks_poseidon2_perm,
   traits::{
     Engine, PrimeFieldExt,
     transcript::{TranscriptEngineTrait, TranscriptReprTrait},
   },
 };
 use core::marker::PhantomData;
-use neo_params::poseidon2_goldilocks::{RATE, SEED, WIDTH};
-use once_cell::sync::Lazy;
+use neo_params::poseidon2_goldilocks::{RATE, WIDTH};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
+use p3_goldilocks::Goldilocks;
 use p3_symmetric::Permutation;
-use rand_chacha_p3::ChaCha8Rng;
-use rand_chacha_p3::rand_core::SeedableRng;
 
 const APP_DOMAIN: &[u8] = b"spartan2/transcript/v1|poseidon2-goldilocks";
-
-static PERM: Lazy<Poseidon2Goldilocks<{ WIDTH }>> = Lazy::new(|| {
-  let mut rng = ChaCha8Rng::from_seed(SEED);
-  Poseidon2Goldilocks::<{ WIDTH }>::new_from_rng_128(&mut rng)
-});
 
 #[derive(Debug, Clone)]
 /// Poseidon2-based transcript engine for Goldilocks-backed Spartan proofs.
@@ -111,7 +104,7 @@ impl<E: Engine> Poseidon2Transcript<E> {
 
   #[inline]
   fn permute(&mut self) {
-    self.st = PERM.permute(self.st);
+    self.st = goldilocks_poseidon2_perm().permute(self.st);
     self.absorbed = 0;
   }
 }

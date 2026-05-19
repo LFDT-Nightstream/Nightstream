@@ -519,6 +519,12 @@ The package policy for RV64IM should therefore be:
   above can be made constructive instead of hard-failing on missing theorem
   surfaces
 
+The end-state target for this migration is fixed by:
+
+- `specs/rv64im/Rv64IMWitnessBackedSideBridge.spec.md`: exact theorem-facing
+  public/private split and compiler obligations for the final RV64IM
+  witness-backed and later succinct side bridge.
+
 The practical objective is not to formalize more abstract semantics first. The
 practical objective is to lower the theorem boundary until the concrete exported
 RV64IM artifact is rich enough that a missing semantic-input binding, missing

@@ -27,8 +27,33 @@ fn q_ext_from_witnesses_lit(
 
 fn setup_ajtai_for_dims(m: usize) {
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(7);
-    let pp = ajtai_setup(&mut rng, D, 4, m).expect("Ajtai setup should succeed");
+    let pp = ajtai_setup(&mut rng, D, 4, packed_cols(m)).expect("Ajtai setup should succeed");
     let _ = set_global_pp(pp);
+}
+
+fn packed_cols(m: usize) -> usize {
+    m.div_ceil(D)
+}
+
+fn ajtai_for_dims(m: usize) -> AjtaiSModule {
+    AjtaiSModule::from_global_for_dims(D, packed_cols(m)).unwrap()
+}
+
+fn packed_constant(m: usize, value: F) -> Mat<F> {
+    let mut z = Mat::zero(D, packed_cols(m), F::ZERO);
+    for col in 0..m {
+        z.set(col % D, col / D, value);
+    }
+    z
+}
+
+fn packed_from_values(values: impl IntoIterator<Item = F>) -> Mat<F> {
+    let vals: Vec<F> = values.into_iter().collect();
+    let mut z = Mat::zero(D, packed_cols(vals.len()), F::ZERO);
+    for (col, value) in vals.into_iter().enumerate() {
+        z.set(col % D, col / D, value);
+    }
+    z
 }
 
 fn tiny_ccs_id(n: usize, m: usize) -> CcsStructure<F> {
@@ -52,7 +77,7 @@ fn rand_k() -> K {
 
 #[test]
 fn paper_exact_rhs_matches_direct_eval_k1() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let n = D;
     let m = D;
     let m_commit = m / D;
@@ -99,7 +124,7 @@ fn paper_exact_rhs_matches_direct_eval_k1() {
 
 #[test]
 fn paper_exact_rhs_matches_direct_eval_with_eval_block() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let n = D;
     let m = D;
     let m_commit = m / D;
@@ -126,7 +151,7 @@ fn paper_exact_rhs_matches_direct_eval_with_eval_block() {
         u_offset: 0,
         u_len: 0,
         c: l.commit(&me_z),
-        X: l.project_x(&me_z, 0),
+        X: Mat::zero(D, 0, F::ZERO),
         r: me_r.clone(),
         s_col: vec![],
         y_ring: vec![vec![K::ZERO; D]],
@@ -170,7 +195,7 @@ fn paper_exact_rhs_matches_direct_eval_with_eval_block() {
 
 #[test]
 fn paper_exact_k2_end_to_end_fold_identity() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let n = D;
     let m = D;
     let m_commit = m / D;
@@ -196,7 +221,7 @@ fn paper_exact_k2_end_to_end_fold_identity() {
         u_offset: 0,
         u_len: 0,
         c: l.commit(&me_z),
-        X: l.project_x(&me_z, 0),
+        X: Mat::zero(D, 0, F::ZERO),
         r: me_r.clone(),
         s_col: vec![],
         y_ring: vec![vec![K::ZERO; D]],
@@ -238,7 +263,7 @@ fn paper_exact_k2_end_to_end_fold_identity() {
 
 #[test]
 fn paper_exact_k2_invalid_outputs_break_identity() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let n = D;
     let m = D;
     let m_commit = m / D;
@@ -263,7 +288,7 @@ fn paper_exact_k2_invalid_outputs_break_identity() {
         u_offset: 0,
         u_len: 0,
         c: l.commit(&me_z),
-        X: l.project_x(&me_z, 0),
+        X: Mat::zero(D, 0, F::ZERO),
         r: me_r.clone(),
         s_col: vec![],
         y_ring: vec![vec![K::ZERO; D]],
@@ -313,7 +338,7 @@ fn paper_exact_k2_invalid_outputs_break_identity() {
 
 #[test]
 fn paper_exact_k2_ivc_two_steps() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let n = D;
     let m = D;
     let m_commit = m / D;
@@ -399,16 +424,16 @@ fn paper_exact_k2_ivc_two_steps() {
 
 #[test]
 fn paper_exact_k2_mismatched_mcs_and_outputs() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let n = 2usize;
     let m = 2usize;
     setup_ajtai_for_dims(m);
 
     let s = tiny_ccs_id(n, m);
-    let l = AjtaiSModule::from_global_for_dims(D, m).unwrap();
+    let l = ajtai_for_dims(m);
 
-    let z0 = Mat::from_row_major(D, m, vec![F::from_u64(13); D * m]);
-    let z1 = Mat::from_row_major(D, m, vec![F::from_u64(14); D * m]);
+    let z0 = packed_constant(m, F::from_u64(13));
+    let z1 = packed_constant(m, F::from_u64(14));
     let w0 = CcsWitness {
         w: vec![],
         Z: z0.clone(),
@@ -425,7 +450,7 @@ fn paper_exact_k2_mismatched_mcs_and_outputs() {
         u_offset: 0,
         u_len: 0,
         c: l.commit(&me_z),
-        X: l.project_x(&me_z, 0),
+        X: Mat::zero(D, 0, F::ZERO),
         r: me_r.clone(),
         s_col: vec![],
         y_ring: vec![vec![K::ZERO; D]],
@@ -460,7 +485,7 @@ fn paper_exact_k2_mismatched_mcs_and_outputs() {
         &l,
     );
 
-    let z_bad = Mat::from_row_major(D, m, vec![F::from_u64(1); D * m]);
+    let z_bad = packed_constant(m, F::from_u64(1));
     let w_bad = CcsWitness {
         w: vec![],
         Z: z_bad.clone(),
@@ -476,12 +501,12 @@ fn paper_exact_k2_mismatched_mcs_and_outputs() {
 
 #[test]
 fn paper_exact_boolean_corner_matches_extension_eval() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     setup_ajtai_for_dims(m);
 
     let s = tiny_ccs_id(n, m);
-    let z = Mat::from_row_major(D, m, vec![F::from_u64(7); D * m]);
+    let z = packed_constant(m, F::ONE);
     let w = CcsWitness { w: vec![], Z: z };
     let ell_d_full = D.next_power_of_two().trailing_zeros() as usize;
     let mut alpha_vec = vec![K::ZERO; ell_d_full];
@@ -517,7 +542,7 @@ fn paper_exact_boolean_corner_matches_extension_eval() {
 
 #[test]
 fn paper_exact_outputs_equal_literal_definition() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     setup_ajtai_for_dims(m);
 
@@ -533,15 +558,9 @@ fn paper_exact_outputs_equal_literal_definition() {
         }],
     );
     let s = CcsStructure::new(vec![m0.clone(), m1.clone()], f).unwrap();
-    let l = AjtaiSModule::from_global_for_dims(D, m).unwrap();
+    let l = ajtai_for_dims(m);
 
-    let z = Mat::from_row_major(
-        D,
-        m,
-        (0..D * m)
-            .map(|i| F::from_u64((i % 7) as u64 + 1))
-            .collect(),
-    );
+    let z = packed_from_values((0..m).map(|i| F::from_u64((i % 7) as u64 + 1)));
     let w = CcsWitness {
         w: vec![],
         Z: z.clone(),
@@ -596,7 +615,7 @@ fn paper_exact_outputs_equal_literal_definition() {
 
 #[test]
 fn paper_exact_f_term_matches_mle_and_yprime_recomposition() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     setup_ajtai_for_dims(m);
 
@@ -612,9 +631,9 @@ fn paper_exact_f_term_matches_mle_and_yprime_recomposition() {
         }],
     );
     let s = CcsStructure::new(vec![m0, m1], f).unwrap();
-    let l = AjtaiSModule::from_global_for_dims(D, m).unwrap();
+    let l = ajtai_for_dims(m);
 
-    let z = Mat::from_row_major(D, m, vec![F::from_u64(1); D * m]);
+    let z = packed_constant(m, F::from_u64(1));
     let w = CcsWitness {
         w: vec![],
         Z: z.clone(),
@@ -666,12 +685,12 @@ fn paper_exact_f_term_matches_mle_and_yprime_recomposition() {
 
 #[test]
 fn paper_exact_gamma_zero_kills_nc_and_eval() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     setup_ajtai_for_dims(m);
 
     let s = tiny_ccs_id(n, m);
-    let z0 = Mat::from_row_major(D, m, vec![F::from_u64(2); D * m]);
+    let z0 = packed_constant(m, F::from_u64(2));
     let w0 = CcsWitness {
         w: vec![],
         Z: z0.clone(),
@@ -691,7 +710,7 @@ fn paper_exact_gamma_zero_kills_nc_and_eval() {
     let q = q_ext_from_witnesses_lit(&s, &params, &[w0.clone()], &[], &alpha_p, &r_p, &ch, None);
 
     let eq_beta = refimpl::eq_points(&alpha_p, &ch.beta_a) * refimpl::eq_points(&r_p, &ch.beta_r);
-    let l = AjtaiSModule::from_global_for_dims(D, m).unwrap();
+    let l = ajtai_for_dims(m);
     let inst = CcsClaim {
         c: l.commit(&z0),
         x: vec![],
@@ -717,14 +736,14 @@ fn paper_exact_gamma_zero_kills_nc_and_eval() {
 
 #[test]
 fn paper_exact_ajtai_padding_is_zero() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     setup_ajtai_for_dims(m);
 
     let s = tiny_ccs_id(n, m);
-    let l = AjtaiSModule::from_global_for_dims(D, m).unwrap();
+    let l = ajtai_for_dims(m);
 
-    let z = Mat::from_row_major(D, m, vec![F::from_u64(1); D * m]);
+    let z = packed_constant(m, F::from_u64(1));
     let w = CcsWitness {
         w: vec![],
         Z: z.clone(),

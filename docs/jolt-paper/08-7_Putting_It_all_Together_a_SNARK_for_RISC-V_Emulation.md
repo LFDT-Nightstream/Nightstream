@@ -70,7 +70,7 @@ In summary, while prover commitment costs are higher if **Jolt** is built using 
 
 | Per-step Commitment Costs for Non-Memory Operations |                    |                            |                            |
 |-----------------------------------------------------|--------------------|----------------------------|----------------------------|
-| Bit-length                                          | Number of Elements | In RV32<br>$W = 32, c = 3$ | In RV64<br>$W = 64, c = 6$ |
+| Bit-length                                          | Number of Elements | In RV32<br>$W = 32, c = 3$ | In RV32<br>$W = 64, c = 6$ |
 | 1                                                   | 22                 | 22                         | 22                         |
 | [2, 12]                                             | $3 + 2c$           | 9                          | 15                         |
 | $(2W/c) \approx 22$                                 | $1 + c$            | 4                          | 7                          |
@@ -79,4 +79,4 @@ In summary, while prover commitment costs are higher if **Jolt** is built using 
 | Total Elements                                      | $35 + 5c$          | 50                         | 65                         |
 | In 256-bit equivalents:                             |                    | $\approx 5$ elements       | $\approx 6$ elements       |
 
-Figure 3: An overview of the spread of elements committed to in Jolt in non-memory operations (i.e., excluding loads and stores which do not involve lookups) by their bit-length. The Lasso parameter  $c$  is 3 with RV32 ( $W = 32$ ) and  $c = 6$  with RV64 ( $W = 64$ ). We approximate the per-step commitments costs in terms of the cost of committing to a 256-bit element when using Pippenger’s MSM algorithm, assuming that the program code is under  $2^{22}$  bytes long, and the program finishes in under  $2^{30}$  CPU steps.
+Figure 3: An overview of the spread of elements committed to in Jolt in non-memory operations (i.e., excluding loads and stores which do not involve lookups) by their bit-length. The Lasso parameter  $c$  is 3 with RV32 ( $W = 32$ ) and  $c = 6$  with RV32 ( $W = 64$ ). We approximate the per-step commitments costs in terms of the cost of committing to a 256-bit element when using Pippenger’s MSM algorithm, assuming that the program code is under  $2^{22}$  bytes long, and the program finishes in under  $2^{30}$  CPU steps.

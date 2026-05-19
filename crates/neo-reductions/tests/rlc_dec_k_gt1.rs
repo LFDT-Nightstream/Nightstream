@@ -8,7 +8,10 @@ use neo_reductions::api::{
     dec_children_with_commit, rlc_public, rlc_public_matches_verified_inputs_with_perf, rlc_public_matches_with_perf,
     rlc_with_commit, verify_dec_public, FoldingMode,
 };
-use neo_reductions::common::{compute_y_from_Z_and_r, left_mul_acc};
+use neo_reductions::common::{
+    compute_y_from_Z_and_r, left_mul_acc, project_x_from_witness_mat, sample_rot_rhos_n, RotRing,
+};
+use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 
 fn k(v: u64) -> K {
@@ -149,7 +152,7 @@ fn build_me_from_z(
 
 #[test]
 fn rlc_with_commit_k4_matches_public_recompute_and_detects_rho_tamper() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
     let m_in = 2usize;
@@ -192,6 +195,22 @@ fn rlc_with_commit_k4_matches_public_recompute_and_detects_rho_tamper() {
         .expect("rlc_public recompute");
     assert_eq!(parent, parent_public, "public RLC recompute must match engine output");
 
+    let mut me_inputs_stale = me_inputs.clone();
+    me_inputs_stale[1].ct[0] += K::ONE;
+    let parent_public_stale = rlc_public(
+        &s,
+        &params,
+        &rhos_typed,
+        &me_inputs_stale,
+        mix_commitments_from_rhos,
+        ell_d,
+    )
+    .expect("rlc_public stale ct");
+    assert_eq!(
+        parent_public_stale, parent,
+        "public RLC recompute must ignore stale ct shell on inputs"
+    );
+
     let want_Z_mix = combine_z_with_rhos(&rhos, &Zs);
     assert_eq!(Z_mix, want_Z_mix, "Z_mix must equal Σ ρ_i · Z_i");
 
@@ -211,8 +230,62 @@ fn rlc_with_commit_k4_matches_public_recompute_and_detects_rho_tamper() {
 }
 
 #[test]
+fn rlc_x_projection_tracks_mixed_witness_under_rotation_rhos() {
+    let params = NeoParams::goldilocks_paper_b2();
+    let ell_d = D.next_power_of_two().trailing_zeros() as usize;
+    let s = build_structure(D, D);
+    let m_in = 3;
+    let r = vec![k(11); 6];
+
+    let mut Zs = Vec::new();
+    let mut me_inputs = Vec::new();
+    for i in 0..2usize {
+        let Z = make_z(4000 + i as u64 * 100, s.m);
+        let c = make_commitment(&params, 5000 + i as u64);
+        me_inputs.push(build_me_from_z(
+            &params,
+            &s,
+            &Z,
+            &r,
+            ell_d,
+            m_in,
+            c,
+            6000 + i as u64 * 10,
+        ));
+        Zs.push(Z);
+    }
+
+    let mut transcript = Poseidon2Transcript::new(b"rlc_x_projection_tracks_mixed_witness_under_rotation_rhos");
+    let rhos = sample_rot_rhos_n(&mut transcript, &params, &RotRing::goldilocks(), 2).expect("sample rhos");
+    assert!(
+        rhos.iter()
+            .any(|rho| (0..D).any(|row| (0..D).any(|col| row != col && rho[(row, col)] != F::ZERO))),
+        "test requires at least one non-diagonal rotation rho"
+    );
+    let rhos_typed = typed_rhos(&params, &rhos);
+
+    let (parent, Z_mix) = rlc_with_commit(
+        FoldingMode::Optimized,
+        &s,
+        &params,
+        &rhos_typed,
+        &me_inputs,
+        &Zs,
+        ell_d,
+        mix_commitments_from_rhos,
+    )
+    .expect("optimized rlc_with_commit");
+    let projected = project_x_from_witness_mat(&Z_mix, s.m, m_in).expect("project mixed witness X");
+
+    assert_eq!(
+        parent.X, projected,
+        "Π_RLC public X must stay equal to the CE ring-slot projection L_in(Z_mix)"
+    );
+}
+
+#[test]
 fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
     let m_in = 2usize;
@@ -273,6 +346,36 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
     assert_eq!(verified_ok, full_ok, "fast path must agree on valid verified inputs");
     assert!(verified_ok, "valid verified inputs must satisfy the public RLC check");
 
+    let mut me_inputs_stale = me_inputs.clone();
+    me_inputs_stale[2].ct[0] += K::ONE;
+    let mut parent_stale = parent.clone();
+    parent_stale.ct[0] += K::ONE;
+    let (full_ok_stale, _) = rlc_public_matches_with_perf(
+        &s,
+        &params,
+        &rhos_typed,
+        &me_inputs_stale,
+        &parent_stale,
+        mix_commitments_from_rhos,
+        ell_d,
+    )
+    .expect("full stale-ct rlc_public_matches_with_perf");
+    let (verified_ok_stale, _) = rlc_public_matches_verified_inputs_with_perf(
+        &s,
+        &params,
+        &rhos_typed,
+        &me_inputs_stale,
+        &parent_stale,
+        mix_commitments_from_rhos,
+        ell_d,
+    )
+    .expect("verified-inputs stale-ct rlc_public_matches_with_perf");
+    assert_eq!(
+        verified_ok_stale, full_ok_stale,
+        "fast path must agree on stale-ct shell inputs"
+    );
+    assert!(verified_ok_stale, "stale ct shell must not fail the public RLC check");
+
     let rhos_tampered = typed_rhos(&params, &[diag_rho(9), diag_rho(3), diag_rho(4), diag_rho(7)]);
     let (full_bad, _) = rlc_public_matches_with_perf(
         &s,
@@ -301,7 +404,7 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
 #[cfg(feature = "paper-exact")]
 #[test]
 fn rlc_with_commit_k4_optimized_matches_paper_exact() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
     let m_in = 2usize;
@@ -358,7 +461,7 @@ fn rlc_with_commit_k4_optimized_matches_paper_exact() {
 
 #[test]
 fn dec_children_with_commit_k4_public_and_tamper_checks() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
     let m_in = 2usize;
@@ -420,7 +523,7 @@ fn dec_children_with_commit_k4_public_and_tamper_checks() {
 
     let mut tampered_child = children.clone();
     tampered_child[2].ct[0] += K::ONE;
-    assert!(!verify_dec_public(
+    assert!(verify_dec_public(
         &s,
         &params,
         &parent,
@@ -444,7 +547,7 @@ fn dec_children_with_commit_k4_public_and_tamper_checks() {
 #[cfg(feature = "paper-exact")]
 #[test]
 fn dec_children_with_commit_k4_optimized_matches_paper_exact() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
     let m_in = 2usize;
@@ -514,7 +617,7 @@ fn dec_children_with_commit_k4_optimized_matches_paper_exact() {
 
 #[test]
 fn rlc_with_commit_k61_boundary_smoke() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
     let m_in = 1usize;

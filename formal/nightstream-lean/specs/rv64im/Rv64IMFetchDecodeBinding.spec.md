@@ -124,7 +124,7 @@ which is the Stage-1 contribution to the root-lane `AdvanceArchPc` control.
 
 ## Paper Anchors
 
-- **Source**: `./crates/neo-fold-next/specs/riscv-kernel.md`
+- **Source**: `./crates/neo-fold-prototype/specs/riscv-kernel.md`
 - Anchors:
   - expanded bytecode row channel
   - decode-handoff surface

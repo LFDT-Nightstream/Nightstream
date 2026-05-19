@@ -100,7 +100,7 @@ specializations:
 
 ## Paper Anchors
 
-- **Source**: `./crates/neo-fold-next/specs/riscv-kernel.md`
+- **Source**: `./crates/neo-fold-prototype/specs/riscv-kernel.md`
 - Anchors:
   - primitive virtual-instruction catalog
   - per-instruction virtual sequences

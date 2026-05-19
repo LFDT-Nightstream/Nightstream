@@ -52,6 +52,12 @@ pub fn permutation() -> &'static Poseidon2Goldilocks<{ WIDTH }> {
     &PERM
 }
 
+/// Apply one raw Poseidon2 permutation to a full-width state.
+#[inline]
+pub fn permute_state(state: [Goldilocks; WIDTH]) -> [Goldilocks; WIDTH] {
+    permutation().permute(state)
+}
+
 /// Standard sponge construction with proper padding.
 ///
 /// Implements the Poseidon2 sponge: absorb input → pad → squeeze output.

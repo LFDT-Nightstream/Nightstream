@@ -1,0 +1,84 @@
+import DirectCcsFPrime.ParentOnlyAccumulatorStep
+
+/-!
+Typed interface for the parent-only accumulator step.
+
+Spec: `specs/ParentOnlyAccumulatorStep.spec.md`
+-/
+
+namespace DirectCcsFPrime
+
+namespace ParentOnlyAccumulatorStepInterface
+
+abbrev AccumulatorHandle :=
+  @ParentOnlyAccumulatorStep.AccumulatorHandle
+
+abbrev ParentSourceFunctional :=
+  @ParentOnlyAccumulatorStep.ParentSourceFunctional
+
+abbrev Step :=
+  @ParentOnlyAccumulatorStep.Step
+
+abbrev step_parentSource_functional :=
+  @ParentOnlyAccumulatorStep.step_parentSource_functional
+
+abbrev step_common_authorized_inputs :=
+  @ParentOnlyAccumulatorStep.step_common_authorized_inputs
+
+abbrev ParentSourceFromPiStages :=
+  @ParentOnlyAccumulatorStep.ParentSourceFromPiStages
+
+abbrev parentSourceFromPiStages_functional :=
+  @ParentOnlyAccumulatorStep.parentSourceFromPiStages_functional
+
+abbrev PointwisePrivateDecCertificate :=
+  @ParentOnlyAccumulatorStep.PointwisePrivateDecCertificate
+
+abbrev PointwisePrivateDecRequirements :=
+  @ParentOnlyAccumulatorStep.PointwisePrivateDecRequirements
+
+abbrev FixedCEChildMembershipCertificate :=
+  @ParentOnlyAccumulatorStep.FixedCEChildMembershipCertificate
+
+abbrev FixedCEChildMembership :=
+  @ParentOnlyAccumulatorStep.FixedCEChildMembership
+
+abbrev pointwise_private_dec_requirements_of_authorized :=
+  @ParentOnlyAccumulatorStep.pointwise_private_dec_requirements_of_authorized
+
+abbrev fixedCEChildMembership_of_pointwise_private_dec_requirements :=
+  @ParentOnlyAccumulatorStep.fixedCEChildMembership_of_pointwise_private_dec_requirements
+
+abbrev fixedCEChildMembership_of_authorized :=
+  @ParentOnlyAccumulatorStep.fixedCEChildMembership_of_authorized
+
+abbrev PrivateDecNoSwapAudit :=
+  @ParentOnlyAccumulatorStep.PrivateDecNoSwapAudit
+
+abbrev privateDecNoSwapAudit_of_certificates :=
+  @ParentOnlyAccumulatorStep.privateDecNoSwapAudit_of_certificates
+
+abbrev privateDecNoSwapAudit_of_requirements :=
+  @ParentOnlyAccumulatorStep.privateDecNoSwapAudit_of_requirements
+
+abbrev pointwise_private_dec_requirements_functional_of_ajtaiCEOpening :=
+  @ParentOnlyAccumulatorStep.pointwise_private_dec_requirements_functional_of_ajtaiCEOpening
+
+abbrev pointwise_private_dec_requirements_functional_of_statementCommitment_and_ajtaiCEOpening :=
+  @ParentOnlyAccumulatorStep.pointwise_private_dec_requirements_functional_of_statementCommitment_and_ajtaiCEOpening
+
+abbrev pointwise_prior_dec_requirements_of_step :=
+  @ParentOnlyAccumulatorStep.pointwise_prior_dec_requirements_of_step
+
+abbrev pointwise_common_prior_dec_requirements_of_steps :=
+  @ParentOnlyAccumulatorStep.pointwise_common_prior_dec_requirements_of_steps
+
+abbrev step_parentSource_functional_of_stages_and_ajtaiCEOpening :=
+  @ParentOnlyAccumulatorStep.step_parentSource_functional_of_stages_and_ajtaiCEOpening
+
+abbrev step_parentSource_functional_of_statementCommitment_stages_and_ajtaiCEOpening :=
+  @ParentOnlyAccumulatorStep.step_parentSource_functional_of_statementCommitment_stages_and_ajtaiCEOpening
+
+end ParentOnlyAccumulatorStepInterface
+
+end DirectCcsFPrime

@@ -3,14 +3,14 @@ mod accepted_artifact_vectors;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use neo_fold_next::rv64im as rv64;
-use neo_fold_next::rv64im::{
+use neo_fold_prototype::rv64im as rv64;
+use neo_fold_prototype::rv64im::{
     build_all_parity_cases, build_rv64im_audit_witness_bundle, prove_rv64im_public_proof,
     verify_rv64im_public_proof, MemoryWord, Rv64imKernelSummary, Rv64imParityCaseManifest,
     Rv64imParityDerivedCase, Rv64imParitySourceCase, Rv64TraceVirtualOpcode, TranscriptCursorSnapshot,
     TranscriptEventKind, TranscriptEventRecord, TranscriptRecord,
 };
-use neo_fold_next::rv64im::kernel::{
+use neo_fold_prototype::rv64im::kernel::{
     RootLaneCommitmentSetSummary, RootLaneCommitmentSummaryArtifact,
 };
 
@@ -52,10 +52,10 @@ fn render_u64_list(values: &[u64]) -> String {
     out
 }
 
-fn render_fold_schedule(schedule: &neo_fold_next::proof::FoldSchedule) -> String {
+fn render_fold_schedule(schedule: &neo_fold_prototype::proof::FoldSchedule) -> String {
     match schedule {
-        neo_fold_next::proof::FoldSchedule::WholeTrace => "Nightstream.FoldSchedule.wholeTrace".into(),
-        neo_fold_next::proof::FoldSchedule::RowsPerChunk(rows) => {
+        neo_fold_prototype::proof::FoldSchedule::WholeTrace => "Nightstream.FoldSchedule.wholeTrace".into(),
+        neo_fold_prototype::proof::FoldSchedule::RowsPerChunk(rows) => {
             format!("Nightstream.FoldSchedule.rowsPerChunk {rows}")
         }
     }
@@ -93,110 +93,110 @@ fn render_string(value: &str) -> String {
     format!("{value:?}")
 }
 
-fn render_family_tag(tag: neo_fold_next::rv64im::tables::Rv64FamilyTag) -> &'static str {
+fn render_family_tag(tag: neo_fold_prototype::rv64im::tables::Rv64FamilyTag) -> &'static str {
     match tag {
-        neo_fold_next::rv64im::tables::Rv64FamilyTag::NativeAlu => ".nativeAlu",
-        neo_fold_next::rv64im::tables::Rv64FamilyTag::AlignedMemory => ".alignedMemory",
-        neo_fold_next::rv64im::tables::Rv64FamilyTag::NarrowMemory => ".narrowMemory",
-        neo_fold_next::rv64im::tables::Rv64FamilyTag::Multiply => ".multiply",
-        neo_fold_next::rv64im::tables::Rv64FamilyTag::UnsignedDivRem => ".unsignedDivRem",
-        neo_fold_next::rv64im::tables::Rv64FamilyTag::SignedDivRem => ".signedDivRem",
-        neo_fold_next::rv64im::tables::Rv64FamilyTag::ControlFlow => ".controlFlow",
+        neo_fold_prototype::rv64im::tables::Rv64FamilyTag::NativeAlu => ".nativeAlu",
+        neo_fold_prototype::rv64im::tables::Rv64FamilyTag::AlignedMemory => ".alignedMemory",
+        neo_fold_prototype::rv64im::tables::Rv64FamilyTag::NarrowMemory => ".narrowMemory",
+        neo_fold_prototype::rv64im::tables::Rv64FamilyTag::Multiply => ".multiply",
+        neo_fold_prototype::rv64im::tables::Rv64FamilyTag::UnsignedDivRem => ".unsignedDivRem",
+        neo_fold_prototype::rv64im::tables::Rv64FamilyTag::SignedDivRem => ".signedDivRem",
+        neo_fold_prototype::rv64im::tables::Rv64FamilyTag::ControlFlow => ".controlFlow",
     }
 }
 
-fn family_module_name(tag: neo_fold_next::rv64im::tables::Rv64FamilyTag) -> &'static str {
+fn family_module_name(tag: neo_fold_prototype::rv64im::tables::Rv64FamilyTag) -> &'static str {
     match tag {
-        neo_fold_next::rv64im::tables::Rv64FamilyTag::NativeAlu => "NativeAlu",
-        neo_fold_next::rv64im::tables::Rv64FamilyTag::AlignedMemory => "AlignedMemory",
-        neo_fold_next::rv64im::tables::Rv64FamilyTag::NarrowMemory => "NarrowMemory",
-        neo_fold_next::rv64im::tables::Rv64FamilyTag::Multiply => "Multiply",
-        neo_fold_next::rv64im::tables::Rv64FamilyTag::UnsignedDivRem => "UnsignedDivRem",
-        neo_fold_next::rv64im::tables::Rv64FamilyTag::SignedDivRem => "SignedDivRem",
-        neo_fold_next::rv64im::tables::Rv64FamilyTag::ControlFlow => "ControlFlow",
+        neo_fold_prototype::rv64im::tables::Rv64FamilyTag::NativeAlu => "NativeAlu",
+        neo_fold_prototype::rv64im::tables::Rv64FamilyTag::AlignedMemory => "AlignedMemory",
+        neo_fold_prototype::rv64im::tables::Rv64FamilyTag::NarrowMemory => "NarrowMemory",
+        neo_fold_prototype::rv64im::tables::Rv64FamilyTag::Multiply => "Multiply",
+        neo_fold_prototype::rv64im::tables::Rv64FamilyTag::UnsignedDivRem => "UnsignedDivRem",
+        neo_fold_prototype::rv64im::tables::Rv64FamilyTag::SignedDivRem => "SignedDivRem",
+        neo_fold_prototype::rv64im::tables::Rv64FamilyTag::ControlFlow => "ControlFlow",
     }
 }
 
-fn render_opcode(opcode: neo_fold_next::rv64im::Rv64Opcode) -> &'static str {
+fn render_opcode(opcode: neo_fold_prototype::rv64im::Rv64Opcode) -> &'static str {
     match opcode {
-        neo_fold_next::rv64im::Rv64Opcode::Addi => ".addi",
-        neo_fold_next::rv64im::Rv64Opcode::Add => ".add",
-        neo_fold_next::rv64im::Rv64Opcode::Sub => ".sub",
-        neo_fold_next::rv64im::Rv64Opcode::Addiw => ".addiw",
-        neo_fold_next::rv64im::Rv64Opcode::Addw => ".addw",
-        neo_fold_next::rv64im::Rv64Opcode::Subw => ".subw",
-        neo_fold_next::rv64im::Rv64Opcode::Andi => ".andi",
-        neo_fold_next::rv64im::Rv64Opcode::And => ".and",
-        neo_fold_next::rv64im::Rv64Opcode::Ori => ".ori",
-        neo_fold_next::rv64im::Rv64Opcode::Or => ".or",
-        neo_fold_next::rv64im::Rv64Opcode::Xori => ".xori",
-        neo_fold_next::rv64im::Rv64Opcode::Xor => ".xor",
-        neo_fold_next::rv64im::Rv64Opcode::Slti => ".slti",
-        neo_fold_next::rv64im::Rv64Opcode::Slt => ".slt",
-        neo_fold_next::rv64im::Rv64Opcode::Sltiu => ".sltiu",
-        neo_fold_next::rv64im::Rv64Opcode::Sltu => ".sltu",
-        neo_fold_next::rv64im::Rv64Opcode::Slli => ".slli",
-        neo_fold_next::rv64im::Rv64Opcode::Sll => ".sll",
-        neo_fold_next::rv64im::Rv64Opcode::Srli => ".srli",
-        neo_fold_next::rv64im::Rv64Opcode::Srl => ".srl",
-        neo_fold_next::rv64im::Rv64Opcode::Srai => ".srai",
-        neo_fold_next::rv64im::Rv64Opcode::Sra => ".sra",
-        neo_fold_next::rv64im::Rv64Opcode::Slliw => ".slliw",
-        neo_fold_next::rv64im::Rv64Opcode::Sllw => ".sllw",
-        neo_fold_next::rv64im::Rv64Opcode::Srliw => ".srliw",
-        neo_fold_next::rv64im::Rv64Opcode::Srlw => ".srlw",
-        neo_fold_next::rv64im::Rv64Opcode::Sraiw => ".sraiw",
-        neo_fold_next::rv64im::Rv64Opcode::Sraw => ".sraw",
-        neo_fold_next::rv64im::Rv64Opcode::Lui => ".lui",
-        neo_fold_next::rv64im::Rv64Opcode::Auipc => ".auipc",
-        neo_fold_next::rv64im::Rv64Opcode::Fence => ".fence",
-        neo_fold_next::rv64im::Rv64Opcode::Mul => ".mul",
-        neo_fold_next::rv64im::Rv64Opcode::Mulh => ".mulh",
-        neo_fold_next::rv64im::Rv64Opcode::Mulhsu => ".mulhsu",
-        neo_fold_next::rv64im::Rv64Opcode::Mulhu => ".mulhu",
-        neo_fold_next::rv64im::Rv64Opcode::Mulw => ".mulw",
-        neo_fold_next::rv64im::Rv64Opcode::Div => ".div",
-        neo_fold_next::rv64im::Rv64Opcode::Divu => ".divu",
-        neo_fold_next::rv64im::Rv64Opcode::Rem => ".rem",
-        neo_fold_next::rv64im::Rv64Opcode::Remu => ".remu",
-        neo_fold_next::rv64im::Rv64Opcode::Divw => ".divw",
-        neo_fold_next::rv64im::Rv64Opcode::Divuw => ".divuw",
-        neo_fold_next::rv64im::Rv64Opcode::Remw => ".remw",
-        neo_fold_next::rv64im::Rv64Opcode::Remuw => ".remuw",
-        neo_fold_next::rv64im::Rv64Opcode::Lb => ".lb",
-        neo_fold_next::rv64im::Rv64Opcode::Lbu => ".lbu",
-        neo_fold_next::rv64im::Rv64Opcode::Lh => ".lh",
-        neo_fold_next::rv64im::Rv64Opcode::Lhu => ".lhu",
-        neo_fold_next::rv64im::Rv64Opcode::Lw => ".lw",
-        neo_fold_next::rv64im::Rv64Opcode::Lwu => ".lwu",
-        neo_fold_next::rv64im::Rv64Opcode::Ld => ".ld",
-        neo_fold_next::rv64im::Rv64Opcode::Sb => ".sb",
-        neo_fold_next::rv64im::Rv64Opcode::Sh => ".sh",
-        neo_fold_next::rv64im::Rv64Opcode::Sw => ".sw",
-        neo_fold_next::rv64im::Rv64Opcode::Sd => ".sd",
-        neo_fold_next::rv64im::Rv64Opcode::Jal => ".jal",
-        neo_fold_next::rv64im::Rv64Opcode::Jalr => ".jalr",
-        neo_fold_next::rv64im::Rv64Opcode::Beq => ".beq",
-        neo_fold_next::rv64im::Rv64Opcode::Bne => ".bne",
-        neo_fold_next::rv64im::Rv64Opcode::Blt => ".blt",
-        neo_fold_next::rv64im::Rv64Opcode::Bge => ".bge",
-        neo_fold_next::rv64im::Rv64Opcode::Bltu => ".bltu",
-        neo_fold_next::rv64im::Rv64Opcode::Bgeu => ".bgeu",
-        neo_fold_next::rv64im::Rv64Opcode::Ecall => ".ecall",
+        neo_fold_prototype::rv64im::Rv64Opcode::Addi => ".addi",
+        neo_fold_prototype::rv64im::Rv64Opcode::Add => ".add",
+        neo_fold_prototype::rv64im::Rv64Opcode::Sub => ".sub",
+        neo_fold_prototype::rv64im::Rv64Opcode::Addiw => ".addiw",
+        neo_fold_prototype::rv64im::Rv64Opcode::Addw => ".addw",
+        neo_fold_prototype::rv64im::Rv64Opcode::Subw => ".subw",
+        neo_fold_prototype::rv64im::Rv64Opcode::Andi => ".andi",
+        neo_fold_prototype::rv64im::Rv64Opcode::And => ".and",
+        neo_fold_prototype::rv64im::Rv64Opcode::Ori => ".ori",
+        neo_fold_prototype::rv64im::Rv64Opcode::Or => ".or",
+        neo_fold_prototype::rv64im::Rv64Opcode::Xori => ".xori",
+        neo_fold_prototype::rv64im::Rv64Opcode::Xor => ".xor",
+        neo_fold_prototype::rv64im::Rv64Opcode::Slti => ".slti",
+        neo_fold_prototype::rv64im::Rv64Opcode::Slt => ".slt",
+        neo_fold_prototype::rv64im::Rv64Opcode::Sltiu => ".sltiu",
+        neo_fold_prototype::rv64im::Rv64Opcode::Sltu => ".sltu",
+        neo_fold_prototype::rv64im::Rv64Opcode::Slli => ".slli",
+        neo_fold_prototype::rv64im::Rv64Opcode::Sll => ".sll",
+        neo_fold_prototype::rv64im::Rv64Opcode::Srli => ".srli",
+        neo_fold_prototype::rv64im::Rv64Opcode::Srl => ".srl",
+        neo_fold_prototype::rv64im::Rv64Opcode::Srai => ".srai",
+        neo_fold_prototype::rv64im::Rv64Opcode::Sra => ".sra",
+        neo_fold_prototype::rv64im::Rv64Opcode::Slliw => ".slliw",
+        neo_fold_prototype::rv64im::Rv64Opcode::Sllw => ".sllw",
+        neo_fold_prototype::rv64im::Rv64Opcode::Srliw => ".srliw",
+        neo_fold_prototype::rv64im::Rv64Opcode::Srlw => ".srlw",
+        neo_fold_prototype::rv64im::Rv64Opcode::Sraiw => ".sraiw",
+        neo_fold_prototype::rv64im::Rv64Opcode::Sraw => ".sraw",
+        neo_fold_prototype::rv64im::Rv64Opcode::Lui => ".lui",
+        neo_fold_prototype::rv64im::Rv64Opcode::Auipc => ".auipc",
+        neo_fold_prototype::rv64im::Rv64Opcode::Fence => ".fence",
+        neo_fold_prototype::rv64im::Rv64Opcode::Mul => ".mul",
+        neo_fold_prototype::rv64im::Rv64Opcode::Mulh => ".mulh",
+        neo_fold_prototype::rv64im::Rv64Opcode::Mulhsu => ".mulhsu",
+        neo_fold_prototype::rv64im::Rv64Opcode::Mulhu => ".mulhu",
+        neo_fold_prototype::rv64im::Rv64Opcode::Mulw => ".mulw",
+        neo_fold_prototype::rv64im::Rv64Opcode::Div => ".div",
+        neo_fold_prototype::rv64im::Rv64Opcode::Divu => ".divu",
+        neo_fold_prototype::rv64im::Rv64Opcode::Rem => ".rem",
+        neo_fold_prototype::rv64im::Rv64Opcode::Remu => ".remu",
+        neo_fold_prototype::rv64im::Rv64Opcode::Divw => ".divw",
+        neo_fold_prototype::rv64im::Rv64Opcode::Divuw => ".divuw",
+        neo_fold_prototype::rv64im::Rv64Opcode::Remw => ".remw",
+        neo_fold_prototype::rv64im::Rv64Opcode::Remuw => ".remuw",
+        neo_fold_prototype::rv64im::Rv64Opcode::Lb => ".lb",
+        neo_fold_prototype::rv64im::Rv64Opcode::Lbu => ".lbu",
+        neo_fold_prototype::rv64im::Rv64Opcode::Lh => ".lh",
+        neo_fold_prototype::rv64im::Rv64Opcode::Lhu => ".lhu",
+        neo_fold_prototype::rv64im::Rv64Opcode::Lw => ".lw",
+        neo_fold_prototype::rv64im::Rv64Opcode::Lwu => ".lwu",
+        neo_fold_prototype::rv64im::Rv64Opcode::Ld => ".ld",
+        neo_fold_prototype::rv64im::Rv64Opcode::Sb => ".sb",
+        neo_fold_prototype::rv64im::Rv64Opcode::Sh => ".sh",
+        neo_fold_prototype::rv64im::Rv64Opcode::Sw => ".sw",
+        neo_fold_prototype::rv64im::Rv64Opcode::Sd => ".sd",
+        neo_fold_prototype::rv64im::Rv64Opcode::Jal => ".jal",
+        neo_fold_prototype::rv64im::Rv64Opcode::Jalr => ".jalr",
+        neo_fold_prototype::rv64im::Rv64Opcode::Beq => ".beq",
+        neo_fold_prototype::rv64im::Rv64Opcode::Bne => ".bne",
+        neo_fold_prototype::rv64im::Rv64Opcode::Blt => ".blt",
+        neo_fold_prototype::rv64im::Rv64Opcode::Bge => ".bge",
+        neo_fold_prototype::rv64im::Rv64Opcode::Bltu => ".bltu",
+        neo_fold_prototype::rv64im::Rv64Opcode::Bgeu => ".bgeu",
+        neo_fold_prototype::rv64im::Rv64Opcode::Ecall => ".ecall",
     }
 }
 
-fn render_register_read_role(role: neo_fold_next::rv64im::stage2::RegisterReadRole) -> &'static str {
+fn render_register_read_role(role: neo_fold_prototype::rv64im::stage2::RegisterReadRole) -> &'static str {
     match role {
-        neo_fold_next::rv64im::stage2::RegisterReadRole::Rs1 => ".rs1",
-        neo_fold_next::rv64im::stage2::RegisterReadRole::Rs2 => ".rs2",
+        neo_fold_prototype::rv64im::stage2::RegisterReadRole::Rs1 => ".rs1",
+        neo_fold_prototype::rv64im::stage2::RegisterReadRole::Rs2 => ".rs2",
     }
 }
 
-fn render_ram_access_kind(kind: neo_fold_next::rv64im::stage2::RamAccessKind) -> &'static str {
+fn render_ram_access_kind(kind: neo_fold_prototype::rv64im::stage2::RamAccessKind) -> &'static str {
     match kind {
-        neo_fold_next::rv64im::stage2::RamAccessKind::Read => ".read",
-        neo_fold_next::rv64im::stage2::RamAccessKind::Write => ".write",
+        neo_fold_prototype::rv64im::stage2::RamAccessKind::Read => ".read",
+        neo_fold_prototype::rv64im::stage2::RamAccessKind::Write => ".write",
     }
 }
 
@@ -353,7 +353,7 @@ pub(crate) fn render_source_case(case: &Rv64imParitySourceCase) -> String {
     )
 }
 
-fn render_expanded_row(row: &neo_fold_next::rv64im::lower::Rv64ExpandedRow) -> String {
+fn render_expanded_row(row: &neo_fold_prototype::rv64im::lower::Rv64ExpandedRow) -> String {
     format!(
         "{{\n  traceIndex := {}\n  , stepIndex := {}\n  , sequenceIndex := {}\n  , pc := {}\n  , nextPc := {}\n  , word := {}\n  , opcode := {}\n  , traceOpcode := {}\n  , traceVirtualOpcode := {}\n  , family := {}\n  , rs1 := {}\n  , rs1Value := {}\n  , rs2 := {}\n  , rs2Value := {}\n  , rd := {}\n  , rdBefore := {}\n  , rdAfter := {}\n  , imm := {}\n  , aluResult := {}\n  , effectiveAddr := {}\n  , memoryBefore := {}\n  , memoryAfter := {}\n  , writesRd := {}\n  , writesRam := {}\n  , halted := {}\n  , isFirstInSequence := {}\n  , virtualSequenceRemaining := {}\n  , isEffectRow := {}\n  , isCommitRow := {}\n  , isReal := {}\n}}",
         row.trace_index,
@@ -395,7 +395,7 @@ fn render_expanded_row(row: &neo_fold_next::rv64im::lower::Rv64ExpandedRow) -> S
     )
 }
 
-fn render_stage1_summary(stage1: &neo_fold_next::rv64im::stage1::Stage1Summary) -> String {
+fn render_stage1_summary(stage1: &neo_fold_prototype::rv64im::stage1::Stage1Summary) -> String {
     let mut rows = String::from("[");
     for (idx, row) in stage1.rows.iter().enumerate() {
         if idx > 0 {
@@ -436,7 +436,7 @@ fn render_stage1_summary(stage1: &neo_fold_next::rv64im::stage1::Stage1Summary) 
     format!("{{ rows := {} }}", rows)
 }
 
-fn render_stage2_summary(stage2: &neo_fold_next::rv64im::stage2::Stage2Summary) -> String {
+fn render_stage2_summary(stage2: &neo_fold_prototype::rv64im::stage2::Stage2Summary) -> String {
     let mut register_reads = String::from("[");
     for (idx, event) in stage2.register_reads.iter().enumerate() {
         if idx > 0 {
@@ -509,7 +509,7 @@ fn render_stage2_summary(stage2: &neo_fold_next::rv64im::stage2::Stage2Summary) 
     )
 }
 
-fn render_stage3_summary(stage3: &neo_fold_next::rv64im::stage3::Stage3Summary) -> String {
+fn render_stage3_summary(stage3: &neo_fold_prototype::rv64im::stage3::Stage3Summary) -> String {
     let mut continuity = String::from("[");
     for (idx, event) in stage3.continuity.iter().enumerate() {
         if idx > 0 {
@@ -1154,7 +1154,7 @@ fn main() {
             source
                 .manifest
                 .family_tags
-                .contains(&neo_fold_next::rv64im::tables::Rv64FamilyTag::NativeAlu)
+                .contains(&neo_fold_prototype::rv64im::tables::Rv64FamilyTag::NativeAlu)
         })
         .cloned()
         .collect::<Vec<_>>();
@@ -1164,7 +1164,7 @@ fn main() {
             source
                 .manifest
                 .family_tags
-                .contains(&neo_fold_next::rv64im::tables::Rv64FamilyTag::AlignedMemory)
+                .contains(&neo_fold_prototype::rv64im::tables::Rv64FamilyTag::AlignedMemory)
         })
         .cloned()
         .collect::<Vec<_>>();
@@ -1174,7 +1174,7 @@ fn main() {
             source
                 .manifest
                 .family_tags
-                .contains(&neo_fold_next::rv64im::tables::Rv64FamilyTag::NarrowMemory)
+                .contains(&neo_fold_prototype::rv64im::tables::Rv64FamilyTag::NarrowMemory)
         })
         .cloned()
         .collect::<Vec<_>>();
@@ -1184,7 +1184,7 @@ fn main() {
             source
                 .manifest
                 .family_tags
-                .contains(&neo_fold_next::rv64im::tables::Rv64FamilyTag::Multiply)
+                .contains(&neo_fold_prototype::rv64im::tables::Rv64FamilyTag::Multiply)
         })
         .cloned()
         .collect::<Vec<_>>();
@@ -1194,7 +1194,7 @@ fn main() {
             source
                 .manifest
                 .family_tags
-                .contains(&neo_fold_next::rv64im::tables::Rv64FamilyTag::UnsignedDivRem)
+                .contains(&neo_fold_prototype::rv64im::tables::Rv64FamilyTag::UnsignedDivRem)
         })
         .cloned()
         .collect::<Vec<_>>();
@@ -1204,7 +1204,7 @@ fn main() {
             source
                 .manifest
                 .family_tags
-                .contains(&neo_fold_next::rv64im::tables::Rv64FamilyTag::SignedDivRem)
+                .contains(&neo_fold_prototype::rv64im::tables::Rv64FamilyTag::SignedDivRem)
         })
         .cloned()
         .collect::<Vec<_>>();
@@ -1214,54 +1214,54 @@ fn main() {
             source
                 .manifest
                 .family_tags
-                .contains(&neo_fold_next::rv64im::tables::Rv64FamilyTag::ControlFlow)
+                .contains(&neo_fold_prototype::rv64im::tables::Rv64FamilyTag::ControlFlow)
         })
         .cloned()
         .collect::<Vec<_>>();
 
     write_file(
         &generated_dir().join("Index").join("NativeAlu.lean"),
-        render_index_module(family_module_name(neo_fold_next::rv64im::tables::Rv64FamilyTag::NativeAlu), &native_alu_cases),
+        render_index_module(family_module_name(neo_fold_prototype::rv64im::tables::Rv64FamilyTag::NativeAlu), &native_alu_cases),
     );
     write_file(
         &generated_dir().join("Index").join("AlignedMemory.lean"),
         render_index_module(
-            family_module_name(neo_fold_next::rv64im::tables::Rv64FamilyTag::AlignedMemory),
+            family_module_name(neo_fold_prototype::rv64im::tables::Rv64FamilyTag::AlignedMemory),
             &aligned_memory_cases,
         ),
     );
     write_file(
         &generated_dir().join("Index").join("NarrowMemory.lean"),
         render_index_module(
-            family_module_name(neo_fold_next::rv64im::tables::Rv64FamilyTag::NarrowMemory),
+            family_module_name(neo_fold_prototype::rv64im::tables::Rv64FamilyTag::NarrowMemory),
             &narrow_memory_cases,
         ),
     );
     write_file(
         &generated_dir().join("Index").join("Multiply.lean"),
         render_index_module(
-            family_module_name(neo_fold_next::rv64im::tables::Rv64FamilyTag::Multiply),
+            family_module_name(neo_fold_prototype::rv64im::tables::Rv64FamilyTag::Multiply),
             &multiply_cases,
         ),
     );
     write_file(
         &generated_dir().join("Index").join("UnsignedDivRem.lean"),
         render_index_module(
-            family_module_name(neo_fold_next::rv64im::tables::Rv64FamilyTag::UnsignedDivRem),
+            family_module_name(neo_fold_prototype::rv64im::tables::Rv64FamilyTag::UnsignedDivRem),
             &unsigned_divrem_cases,
         ),
     );
     write_file(
         &generated_dir().join("Index").join("SignedDivRem.lean"),
         render_index_module(
-            family_module_name(neo_fold_next::rv64im::tables::Rv64FamilyTag::SignedDivRem),
+            family_module_name(neo_fold_prototype::rv64im::tables::Rv64FamilyTag::SignedDivRem),
             &signed_divrem_cases,
         ),
     );
     write_file(
         &generated_dir().join("Index").join("ControlFlow.lean"),
         render_index_module(
-            family_module_name(neo_fold_next::rv64im::tables::Rv64FamilyTag::ControlFlow),
+            family_module_name(neo_fold_prototype::rv64im::tables::Rv64FamilyTag::ControlFlow),
             &control_flow_cases,
         ),
     );

@@ -18,6 +18,17 @@ pub struct Poseidon2Transcript {
 
 impl Poseidon2Transcript {
     #[inline]
+    fn empty() -> Self {
+        Self {
+            st: [Goldilocks::ZERO; p2::WIDTH],
+            absorbed: 0,
+            perm: p2::permutation(),
+            #[cfg(feature = "debug-log")]
+            log: Vec::new(),
+        }
+    }
+
+    #[inline]
     fn absorb_elem(&mut self, x: Goldilocks) {
         if self.absorbed >= p2::RATE {
             self.permute();
@@ -136,17 +147,28 @@ impl Poseidon2Transcript {
     pub fn absorbed(&self) -> usize {
         self.absorbed
     }
+
+    pub fn from_state_and_absorbed(state: [Goldilocks; p2::WIDTH], absorbed: usize) -> Self {
+        assert!(absorbed <= p2::RATE, "transcript absorbed cursor out of range");
+        Self {
+            st: state,
+            absorbed,
+            perm: p2::permutation(),
+            #[cfg(feature = "debug-log")]
+            log: Vec::new(),
+        }
+    }
+
+    pub fn new_raw_fields(fields: &[F]) -> Self {
+        let mut tr = Self::empty();
+        tr.append_fields_raw(fields);
+        tr
+    }
 }
 
 impl Transcript for Poseidon2Transcript {
     fn new(app_label: &'static [u8]) -> Self {
-        let mut tr = Self {
-            st: [Goldilocks::ZERO; p2::WIDTH],
-            absorbed: 0,
-            perm: p2::permutation(),
-            #[cfg(feature = "debug-log")]
-            log: Vec::new(),
-        };
+        let mut tr = Self::empty();
         tr.append_message(APP_DOMAIN, app_label);
         tr
     }
@@ -286,6 +308,34 @@ impl TranscriptProtocol for Poseidon2Transcript {
 
 // Convenience helpers (not in the Transcript trait for minimal surface)
 impl Poseidon2Transcript {
+    pub fn append_fields_raw(&mut self, fs: &[F]) {
+        self.absorb_elem(Goldilocks::from_u64(fs.len() as u64));
+        self.absorb_slice(fs);
+        #[cfg(feature = "debug-log")]
+        self.log
+            .push(crate::debug::Event::new("append_fields_raw", b"", fs.len(), &self.st));
+        #[cfg(feature = "fs-guard")]
+        crate::fs_guard::record(crate::debug::Event::new("append_fields_raw", b"", fs.len(), &self.st));
+    }
+
+    pub fn challenge_fields_raw(&mut self, n: usize) -> Vec<F> {
+        let mut out = Vec::with_capacity(n);
+        while out.len() < n {
+            self.absorb_elem(Goldilocks::ONE);
+            self.permute();
+            for i in 0..p2::DIGEST_LEN.min(n - out.len()) {
+                out.push(F::from_u64(self.st[i].as_canonical_u64()));
+            }
+        }
+        #[cfg(feature = "debug-log")]
+        if std::env::var("NEO_TRANSCRIPT_DUMP").ok().as_deref() == Some("1") {
+            self.dump_and_clear("challenge_fields_raw");
+        }
+        #[cfg(feature = "fs-guard")]
+        crate::fs_guard::record(crate::debug::Event::new("challenge_fields_raw", b"", n, &self.st));
+        out
+    }
+
     pub fn challenge_nonzero_field(&mut self, label: &'static [u8]) -> F {
         // Rejection sampling to obtain an element in F\{0}.
         self.append_message(b"chal/label", label);

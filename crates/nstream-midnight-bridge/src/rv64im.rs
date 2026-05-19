@@ -13,17 +13,13 @@ pub use contract::*;
 pub use contract_submit::*;
 pub use proof_server::*;
 
-use neo_fold_next::finalize::FixedShapeChunkSummary;
-use neo_fold_next::nightstream::rv64im::{
-    build_rv64im_main_residual_proof, rv64im_nightstream_linkage_root, rv64im_verifier_context_digest,
-    verify_rv64im_linkage_artifact, verify_rv64im_main_decider_proof, verify_rv64im_main_residual_proof,
-    verify_rv64im_opening_artifact_from_side_proof_bundle, verify_rv64im_side_proof_artifact,
-    verify_rv64im_side_terminal_proof_artifact, Rv64imMainResidualProof, Rv64imNightstreamProof,
+use neo_fold_prototype::nightstream::rv64im::audit::rv64im_main_nightstream_proof_digest;
+use neo_fold_prototype::nightstream::rv64im::{rv64im_verifier_context_digest, Rv64imNightstreamProof};
+use neo_fold_prototype::nightstream::{
+    nightstream_proof_binding_root, NightstreamProofBindingInputs, NightstreamStatement,
 };
-use neo_fold_next::nightstream::{nightstream_proof_binding_root, NightstreamProofBindingInputs, NightstreamStatement};
-use neo_fold_next::proof::FoldSchedule;
-use neo_fold_next::rv64im::final_relation::prove_rv64im_final_statement_from_accepted;
-use neo_fold_next::rv64im::{build_rv64im_accepted_proof_artifact, Rv64imProof, SimpleKernelError};
+use neo_fold_prototype::proof::FoldSchedule;
+use neo_fold_prototype::rv64im::SimpleKernelError;
 use payload::{decode_rv64im_nightstream_proof_fields, encode_rv64im_nightstream_proof_fields};
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -59,7 +55,8 @@ impl Rv64imNightstreamBridgePublicInputs {
 pub struct Rv64imNightstreamBridgePrivateWitness<'a> {
     pub statement: &'a NightstreamStatement,
     pub proof: &'a Rv64imNightstreamProof,
-    pub proof_complete_transport: &'a Rv64imProof,
+    pub trusted_root_params_id: [u8; 32],
+    pub public_statement_digest: [u8; 32],
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -74,54 +71,35 @@ pub struct Rv64imNightstreamBridgePreimage {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Rv64imNightstreamBridgeLinkageClaims {
-    pub kernel_export_anchor_digest: [u8; 32],
-    pub linkage_root: [u8; 32],
-    pub public_chunk_digests: Vec<[u8; 32]>,
-    pub bridge_handoff_digests: Vec<[u8; 32]>,
-    pub linkage_claims_digest: [u8; 32],
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Rv64imNightstreamBridgePrivateClaims {
     pub statement_digest_hint: [u8; 32],
     pub verifier_context_digest: [u8; 32],
     pub fold_schedule: FoldSchedule,
+    pub semantic_step_count: u64,
     pub proof_binding: Rv64imNightstreamBridgeProofBindingClaims,
-    pub linkage: Rv64imNightstreamBridgeLinkageClaims,
-    pub chunk_transitions: Vec<Rv64imNightstreamBridgeChunkTransitionClaim>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Rv64imNightstreamBridgeProofBindingClaims {
     pub proof_binding_root: [u8; 32],
-    pub main_decider_target_digest: [u8; 32],
-    pub main_residual_public_statement_digest: [u8; 32],
-    pub main_residual_folded_statement_digest: [u8; 32],
-    pub main_residual_final_proof_digest: [u8; 32],
-    pub main_residual_kernel_export_proof_digest: [u8; 32],
-    pub side_terminal_artifact_digest: [u8; 32],
-    pub side_proof_artifact_digest: [u8; 32],
-    pub opening_artifact_digest: [u8; 32],
-    pub linkage_artifact_digest: [u8; 32],
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Rv64imNightstreamBridgeChunkTransitionClaim {
-    pub chunk_relation_digest: [u8; 32],
-    pub transition_witness_digest: [u8; 32],
+    pub main_proof_digest: [u8; 32],
+    pub side_proof_digest: [u8; 32],
+    pub public_statement_digest: [u8; 32],
+    pub published_statement_digest: [u8; 32],
 }
 
 impl<'a> Rv64imNightstreamBridgePrivateWitness<'a> {
     pub fn new(
         statement: &'a NightstreamStatement,
         proof: &'a Rv64imNightstreamProof,
-        proof_complete_transport: &'a Rv64imProof,
+        trusted_root_params_id: [u8; 32],
+        public_statement_digest: [u8; 32],
     ) -> Self {
         Self {
             statement,
             proof,
-            proof_complete_transport,
+            trusted_root_params_id,
+            public_statement_digest,
         }
     }
 }
@@ -130,7 +108,8 @@ impl<'a> Rv64imNightstreamBridgePrivateWitness<'a> {
 pub struct OwnedRv64imNightstreamBridgePrivateWitness {
     pub statement: NightstreamStatement,
     pub proof: Rv64imNightstreamProof,
-    pub proof_complete_transport: Rv64imProof,
+    pub trusted_root_params_id: [u8; 32],
+    pub public_statement_digest: [u8; 32],
 }
 
 impl OwnedRv64imNightstreamBridgePrivateWitness {
@@ -138,7 +117,8 @@ impl OwnedRv64imNightstreamBridgePrivateWitness {
         Rv64imNightstreamBridgePrivateWitness {
             statement: &self.statement,
             proof: &self.proof,
-            proof_complete_transport: &self.proof_complete_transport,
+            trusted_root_params_id: self.trusted_root_params_id,
+            public_statement_digest: self.public_statement_digest,
         }
     }
 }
@@ -186,6 +166,17 @@ pub fn verify_rv64im_nightstream_bridge_input(
     public_inputs: Rv64imNightstreamBridgePublicInputs,
     private_witness: Rv64imNightstreamBridgePrivateWitness<'_>,
 ) -> Result<(), Rv64imBridgeError> {
+    verify_rv64im_nightstream_bridge_public_inputs(public_inputs, private_witness)?;
+    verify_rv64im_nightstream_bridge_expected_boundary(private_witness)?;
+    let private_claims = build_rv64im_nightstream_bridge_private_claims_unchecked(private_witness)?;
+    verify_rv64im_nightstream_bridge_private_claims_unchecked(&private_claims, private_witness)?;
+    Ok(())
+}
+
+fn verify_rv64im_nightstream_bridge_public_inputs(
+    public_inputs: Rv64imNightstreamBridgePublicInputs,
+    private_witness: Rv64imNightstreamBridgePrivateWitness<'_>,
+) -> Result<(), Rv64imBridgeError> {
     if public_inputs.version != RV64IM_NIGHTSTREAM_BRIDGE_VERSION {
         return Err(Rv64imBridgeError::UnsupportedVersion {
             expected: RV64IM_NIGHTSTREAM_BRIDGE_VERSION,
@@ -200,137 +191,92 @@ pub fn verify_rv64im_nightstream_bridge_input(
         });
     }
     let expected_context_digest = rv64im_verifier_context_digest(
-        private_witness
-            .proof_complete_transport
-            .statement
-            .root_params_id,
+        private_witness.trusted_root_params_id,
+        private_witness.proof.main_proof().published_statement(),
     );
     if private_witness.statement.verifier_context_digest != expected_context_digest {
         return Err(Rv64imBridgeError::Nightstream(SimpleKernelError::Bridge(
-            "RV64IM Nightstream statement verifier-context digest does not match the legacy public-proof root params"
-                .into(),
+            "RV64IM Nightstream statement verifier-context digest does not match the trusted root params".into(),
         )));
     }
-    let artifact = build_rv64im_accepted_proof_artifact(private_witness.proof_complete_transport)?;
-    let (final_statement, final_proof) = prove_rv64im_final_statement_from_accepted(&artifact)?;
-    verify_rv64im_main_residual_proof(
-        &final_statement,
-        &final_proof,
-        &private_witness.proof.main_residual_proof,
-    )?;
-    verify_rv64im_main_decider_proof(
-        &final_statement,
-        &final_proof,
-        &private_witness.proof.main_decider_proof,
-    )?;
-    verify_rv64im_linkage_artifact(&final_statement, &final_proof, &private_witness.proof.linkage_artifact)?;
-    let side_bundle = verify_rv64im_side_proof_artifact(&private_witness.proof.side_proof_artifact)?;
-    if side_bundle.statement_core_digest != private_witness.statement.core_digest() {
+    Ok(())
+}
+
+fn verify_rv64im_nightstream_bridge_expected_boundary(
+    private_witness: Rv64imNightstreamBridgePrivateWitness<'_>,
+) -> Result<(), Rv64imBridgeError> {
+    let published_statement = private_witness.proof.main_proof().published_statement();
+    if private_witness.statement.public_io_digest != published_statement.expected_digest() {
         return Err(Rv64imBridgeError::Nightstream(SimpleKernelError::Bridge(
-            "RV64IM Nightstream side-proof artifact does not match the carried statement core".into(),
+            "RV64IM Nightstream bridge statement public IO digest does not match the compressed main proof".into(),
         )));
     }
-    verify_rv64im_opening_artifact_from_side_proof_bundle(
-        &private_witness.proof_complete_transport.statement,
-        &side_bundle,
-        &private_witness.proof.opening_artifact,
-    )?;
-    verify_rv64im_side_terminal_proof_artifact(
-        private_witness.statement,
-        &private_witness
-            .proof
-            .main_residual_proof
-            .bridge_handoff_digests,
-        &private_witness.proof_complete_transport.statement,
-        &side_bundle,
-        &private_witness.proof.side_terminal_artifact,
-    )?;
-    let private_claims = build_rv64im_nightstream_bridge_private_claims(private_witness)?;
-    verify_rv64im_nightstream_bridge_private_claims(&private_claims, private_witness)?;
+    if private_witness.statement.fold_schedule != published_statement.fold_schedule() {
+        return Err(Rv64imBridgeError::Nightstream(SimpleKernelError::Bridge(
+            "RV64IM Nightstream bridge statement fold schedule does not match the compressed main proof".into(),
+        )));
+    }
+    if private_witness.statement.semantic_step_count != published_statement.step_count() {
+        return Err(Rv64imBridgeError::Nightstream(SimpleKernelError::Bridge(
+            "RV64IM Nightstream bridge statement step count does not match the compressed main proof".into(),
+        )));
+    }
+    let proof_binding_inputs = NightstreamProofBindingInputs {
+        main_proof_digest: rv64im_main_nightstream_proof_digest(private_witness.proof.main_proof()),
+        side_proof_digest: private_witness.proof.side_proof().expected_digest(),
+        public_statement_digest: private_witness.public_statement_digest,
+    };
+    let expected_proof_binding_root =
+        nightstream_proof_binding_root(private_witness.statement.core_digest(), &proof_binding_inputs);
+    if private_witness.statement.proof_binding_root != expected_proof_binding_root {
+        return Err(Rv64imBridgeError::Nightstream(SimpleKernelError::Bridge(
+            "RV64IM Nightstream bridge statement proof binding root does not match the carried proof digests".into(),
+        )));
+    }
     Ok(())
 }
 
 fn build_rv64im_nightstream_bridge_private_claims(
     private_witness: Rv64imNightstreamBridgePrivateWitness<'_>,
 ) -> Result<Rv64imNightstreamBridgePrivateClaims, Rv64imBridgeError> {
-    let artifact = build_rv64im_accepted_proof_artifact(private_witness.proof_complete_transport)?;
-    let (final_statement, final_proof) = prove_rv64im_final_statement_from_accepted(&artifact)?;
-    let main_residual = build_rv64im_main_residual_proof(&final_statement, &final_proof)?;
-    let linkage_claims =
-        verify_rv64im_linkage_artifact(&final_statement, &final_proof, &private_witness.proof.linkage_artifact)?;
+    verify_rv64im_nightstream_bridge_expected_boundary(private_witness)?;
+    build_rv64im_nightstream_bridge_private_claims_unchecked(private_witness)
+}
+
+fn build_rv64im_nightstream_bridge_private_claims_unchecked(
+    private_witness: Rv64imNightstreamBridgePrivateWitness<'_>,
+) -> Result<Rv64imNightstreamBridgePrivateClaims, Rv64imBridgeError> {
+    let main_proof_digest = rv64im_main_nightstream_proof_digest(private_witness.proof.main_proof());
+    let side_proof_digest = private_witness.proof.side_proof().expected_digest();
+    let public_statement_digest = private_witness.public_statement_digest;
+    let published_statement_digest = private_witness
+        .proof
+        .main_proof()
+        .published_statement()
+        .expected_digest();
     let proof_binding_inputs = NightstreamProofBindingInputs {
-        main_decider_proof_digest: private_witness.proof.main_decider_proof.expected_digest(),
-        main_residual_proof_digest: private_witness.proof.main_residual_proof.expected_digest(),
-        side_terminal_artifact_digest: private_witness.proof.side_terminal_artifact.digest,
-        side_proof_artifact_digest: private_witness.proof.side_proof_artifact.digest,
-        opening_artifact_digest: private_witness.proof.opening_artifact.digest,
-        linkage_artifact_digest: private_witness.proof.linkage_artifact.digest,
+        main_proof_digest,
+        side_proof_digest,
+        public_statement_digest,
     };
     Ok(Rv64imNightstreamBridgePrivateClaims {
         statement_digest_hint: private_witness.statement.digest(),
         verifier_context_digest: rv64im_verifier_context_digest(
-            private_witness
-                .proof_complete_transport
-                .statement
-                .root_params_id,
+            private_witness.trusted_root_params_id,
+            private_witness.proof.main_proof().published_statement(),
         ),
-        fold_schedule: final_statement.folded.fold_schedule,
+        fold_schedule: private_witness.statement.fold_schedule,
+        semantic_step_count: private_witness.statement.semantic_step_count,
         proof_binding: Rv64imNightstreamBridgeProofBindingClaims {
             proof_binding_root: nightstream_proof_binding_root(
                 private_witness.statement.core_digest(),
                 &proof_binding_inputs,
             ),
-            main_decider_target_digest: private_witness
-                .proof
-                .main_decider_proof
-                .decider_target_digest,
-            main_residual_public_statement_digest: private_witness
-                .proof
-                .main_residual_proof
-                .public_statement_digest,
-            main_residual_folded_statement_digest: private_witness
-                .proof
-                .main_residual_proof
-                .decider_relation
-                .relation_digest,
-            main_residual_final_proof_digest: private_witness
-                .proof
-                .main_residual_proof
-                .decider_relation
-                .final_proof_digest,
-            main_residual_kernel_export_proof_digest: private_witness
-                .proof
-                .main_residual_proof
-                .decider_relation
-                .base_component_digests
-                .first()
-                .copied()
-                .ok_or_else(|| {
-                    Rv64imBridgeError::PrivateClaims(
-                        "main residual proof is missing the kernel export component digest".into(),
-                    )
-                })?,
-            side_terminal_artifact_digest: private_witness.proof.side_terminal_artifact.digest,
-            side_proof_artifact_digest: private_witness.proof.side_proof_artifact.digest,
-            opening_artifact_digest: private_witness.proof.opening_artifact.digest,
-            linkage_artifact_digest: private_witness.proof.linkage_artifact.digest,
+            main_proof_digest,
+            side_proof_digest,
+            public_statement_digest,
+            published_statement_digest,
         },
-        linkage: Rv64imNightstreamBridgeLinkageClaims {
-            kernel_export_anchor_digest: final_proof.kernel_export.digest,
-            linkage_root: rv64im_nightstream_linkage_root(final_proof.kernel_export.digest, &linkage_claims),
-            public_chunk_digests: linkage_claims.public_chunk_digests,
-            bridge_handoff_digests: linkage_claims.bridge_handoff_digests,
-            linkage_claims_digest: linkage_claims.digest,
-        },
-        chunk_transitions: main_residual
-            .decider_relation
-            .chunk_transition_bindings
-            .iter()
-            .map(|binding| Rv64imNightstreamBridgeChunkTransitionClaim {
-                chunk_relation_digest: binding.claimed_chunk_relation_digest,
-                transition_witness_digest: binding.transition_witness_digest,
-            })
-            .collect(),
     })
 }
 
@@ -338,7 +284,15 @@ fn verify_rv64im_nightstream_bridge_private_claims(
     claims: &Rv64imNightstreamBridgePrivateClaims,
     private_witness: Rv64imNightstreamBridgePrivateWitness<'_>,
 ) -> Result<(), Rv64imBridgeError> {
-    let expected = build_rv64im_nightstream_bridge_private_claims(private_witness)?;
+    verify_rv64im_nightstream_bridge_expected_boundary(private_witness)?;
+    verify_rv64im_nightstream_bridge_private_claims_unchecked(claims, private_witness)
+}
+
+fn verify_rv64im_nightstream_bridge_private_claims_unchecked(
+    claims: &Rv64imNightstreamBridgePrivateClaims,
+    private_witness: Rv64imNightstreamBridgePrivateWitness<'_>,
+) -> Result<(), Rv64imBridgeError> {
+    let expected = build_rv64im_nightstream_bridge_private_claims_unchecked(private_witness)?;
     if claims != &expected {
         return Err(Rv64imBridgeError::PrivateClaims(
             "bridge private claims do not match the verified final seam".into(),
@@ -359,173 +313,48 @@ fn verify_rv64im_nightstream_bridge_private_claims(
             "fold_schedule does not match the carried statement".into(),
         ));
     }
+    if claims.semantic_step_count != private_witness.statement.semantic_step_count {
+        return Err(Rv64imBridgeError::PrivateClaims(
+            "semantic_step_count does not match the carried statement".into(),
+        ));
+    }
     if claims.proof_binding.proof_binding_root != private_witness.statement.proof_binding_root {
         return Err(Rv64imBridgeError::PrivateClaims(
             "proof_binding_root does not match the carried statement".into(),
         ));
     }
-    if claims.proof_binding.main_decider_target_digest
+    if claims.proof_binding.main_proof_digest
+        != rv64im_main_nightstream_proof_digest(private_witness.proof.main_proof())
+    {
+        return Err(Rv64imBridgeError::PrivateClaims(
+            "main_proof_digest does not match the carried proof".into(),
+        ));
+    }
+    if claims.proof_binding.side_proof_digest != private_witness.proof.side_proof().expected_digest() {
+        return Err(Rv64imBridgeError::PrivateClaims(
+            "side_proof_digest does not match the carried proof".into(),
+        ));
+    }
+    if claims.proof_binding.public_statement_digest != private_witness.public_statement_digest {
+        return Err(Rv64imBridgeError::PrivateClaims(
+            "public_statement_digest does not match the bridge witness".into(),
+        ));
+    }
+    if claims.proof_binding.published_statement_digest
         != private_witness
             .proof
-            .main_decider_proof
-            .decider_target_digest
+            .main_proof()
+            .published_statement()
+            .expected_digest()
     {
         return Err(Rv64imBridgeError::PrivateClaims(
-            "main_decider_target_digest does not match the carried proof".into(),
+            "published_statement_digest does not match the carried proof".into(),
         ));
     }
-    if claims.proof_binding.main_residual_public_statement_digest
-        != private_witness
-            .proof
-            .main_residual_proof
-            .public_statement_digest
-    {
+    if claims.proof_binding.published_statement_digest != private_witness.statement.public_io_digest {
         return Err(Rv64imBridgeError::PrivateClaims(
-            "main_residual_public_statement_digest does not match the carried proof".into(),
+            "published_statement_digest does not match the carried statement public_io_digest".into(),
         ));
-    }
-    if claims.proof_binding.main_residual_folded_statement_digest
-        != private_witness
-            .proof
-            .main_residual_proof
-            .decider_relation
-            .relation_digest
-    {
-        return Err(Rv64imBridgeError::PrivateClaims(
-            "main_residual_folded_statement_digest does not match the carried proof".into(),
-        ));
-    }
-    if claims.proof_binding.main_residual_final_proof_digest
-        != private_witness
-            .proof
-            .main_residual_proof
-            .decider_relation
-            .final_proof_digest
-    {
-        return Err(Rv64imBridgeError::PrivateClaims(
-            "main_residual_final_proof_digest does not match the carried proof".into(),
-        ));
-    }
-    if claims
-        .proof_binding
-        .main_residual_kernel_export_proof_digest
-        != private_witness
-            .proof
-            .main_residual_proof
-            .decider_relation
-            .base_component_digests
-            .first()
-            .copied()
-            .ok_or_else(|| {
-                Rv64imBridgeError::PrivateClaims(
-                    "main residual proof is missing the kernel export component digest".into(),
-                )
-            })?
-    {
-        return Err(Rv64imBridgeError::PrivateClaims(
-            "main_residual_kernel_export_proof_digest does not match the carried proof".into(),
-        ));
-    }
-    if claims.proof_binding.side_terminal_artifact_digest != private_witness.proof.side_terminal_artifact.digest {
-        return Err(Rv64imBridgeError::PrivateClaims(
-            "side_terminal_artifact_digest does not match the carried proof".into(),
-        ));
-    }
-    if claims.proof_binding.side_proof_artifact_digest != private_witness.proof.side_proof_artifact.digest {
-        return Err(Rv64imBridgeError::PrivateClaims(
-            "side_proof_artifact_digest does not match the carried proof".into(),
-        ));
-    }
-    if claims.proof_binding.opening_artifact_digest != private_witness.proof.opening_artifact.digest {
-        return Err(Rv64imBridgeError::PrivateClaims(
-            "opening_artifact_digest does not match the carried proof".into(),
-        ));
-    }
-    if claims.proof_binding.linkage_artifact_digest != private_witness.proof.linkage_artifact.digest {
-        return Err(Rv64imBridgeError::PrivateClaims(
-            "linkage_artifact_digest does not match the carried proof".into(),
-        ));
-    }
-    if claims.linkage.kernel_export_anchor_digest
-        != private_witness
-            .proof
-            .main_residual_proof
-            .decider_relation
-            .base_component_digests
-            .first()
-            .copied()
-            .ok_or_else(|| {
-                Rv64imBridgeError::PrivateClaims(
-                    "main residual proof is missing the kernel export component digest".into(),
-                )
-            })?
-    {
-        return Err(Rv64imBridgeError::PrivateClaims(
-            "kernel_export_anchor_digest does not match the carried residual proof".into(),
-        ));
-    }
-    if claims.linkage.linkage_root != private_witness.statement.linkage_root {
-        return Err(Rv64imBridgeError::PrivateClaims(
-            "linkage_root does not match the carried statement".into(),
-        ));
-    }
-    if claims.linkage.linkage_claims_digest != private_witness.proof.linkage_artifact.digest {
-        return Err(Rv64imBridgeError::PrivateClaims(
-            "linkage_claims_digest does not match the carried linkage artifact".into(),
-        ));
-    }
-    let statement_public_chunk_digests: Vec<[u8; 32]> = private_witness
-        .statement
-        .chunk_summaries
-        .iter()
-        .map(|summary| summary.public_chunk_digest)
-        .collect();
-    if claims.linkage.public_chunk_digests != statement_public_chunk_digests {
-        return Err(Rv64imBridgeError::PrivateClaims(
-            "linkage public_chunk_digests do not match the carried statement".into(),
-        ));
-    }
-    if claims.chunk_transitions.len() != private_witness.statement.chunk_summaries.len() {
-        return Err(Rv64imBridgeError::PrivateClaims(
-            "chunk transition claims do not match the carried statement chunk count".into(),
-        ));
-    }
-    if claims.chunk_transitions.len()
-        != private_witness
-            .proof
-            .main_residual_proof
-            .decider_relation
-            .chunk_transition_bindings
-            .len()
-    {
-        return Err(Rv64imBridgeError::PrivateClaims(
-            "chunk transition claims do not match the carried residual transition count".into(),
-        ));
-    }
-    for (index, ((claim, summary), transition_digest)) in claims
-        .chunk_transitions
-        .iter()
-        .zip(private_witness.statement.chunk_summaries.iter())
-        .zip(
-            private_witness
-                .proof
-                .main_residual_proof
-                .decider_relation
-                .chunk_transition_bindings
-                .iter(),
-        )
-        .enumerate()
-    {
-        if claim.chunk_relation_digest != summary.chunk_relation_digest {
-            return Err(Rv64imBridgeError::PrivateClaims(format!(
-                "chunk transition claim {index} does not match the carried chunk relation digest"
-            )));
-        }
-        if claim.transition_witness_digest != transition_digest.transition_witness_digest {
-            return Err(Rv64imBridgeError::PrivateClaims(format!(
-                "chunk transition claim {index} does not match the carried transition witness digest"
-            )));
-        }
     }
     Ok(())
 }
@@ -572,9 +401,8 @@ pub fn encode_rv64im_nightstream_bridge_private_witness_fields(
     encode_rv64im_nightstream_bridge_private_claims_fields(&mut out, &private_claims);
     encode_nightstream_statement_fields(&mut out, private_witness.statement);
     encode_rv64im_nightstream_proof_fields(&mut out, private_witness.proof)?;
-    let proof_bytes = bincode::serialize(private_witness.proof_complete_transport)
-        .map_err(|err| Rv64imBridgeError::WitnessEncode(err.to_string()))?;
-    out.extend(encode_bytes_field_words(&proof_bytes));
+    encode_digest32_field_words(&mut out, private_witness.trusted_root_params_id);
+    encode_digest32_field_words(&mut out, private_witness.public_statement_digest);
     Ok(out)
 }
 
@@ -585,19 +413,19 @@ fn decode_rv64im_nightstream_bridge_private_payload_fields(
     let claims = decode_rv64im_nightstream_bridge_private_claims_fields(words, &mut cursor)?;
     let statement = decode_nightstream_statement_fields(words, &mut cursor)?;
     let proof = decode_rv64im_nightstream_proof_fields(words, &mut cursor)?;
-    let proof_bytes = decode_bytes_field_words(words, &mut cursor, "proof-complete transport bytes")?;
+    let trusted_root_params_id = decode_digest32_field_words(words, &mut cursor, "trusted root params id")?;
+    let public_statement_digest = decode_digest32_field_words(words, &mut cursor, "public statement digest")?;
     if cursor != words.len() {
         return Err(Rv64imBridgeError::InvalidEncoding(format!(
             "private witness has {} trailing field words",
             words.len() - cursor
         )));
     }
-    let proof_complete_transport = bincode::deserialize::<Rv64imProof>(&proof_bytes)
-        .map_err(|err| Rv64imBridgeError::WitnessDecode(err.to_string()))?;
     let witness = OwnedRv64imNightstreamBridgePrivateWitness {
         statement,
         proof,
-        proof_complete_transport,
+        trusted_root_params_id,
+        public_statement_digest,
     };
     verify_rv64im_nightstream_bridge_private_claims(&claims, witness.borrowed())?;
     Ok(OwnedRv64imNightstreamBridgePrivatePayload { claims, witness })
@@ -615,7 +443,7 @@ pub fn verify_rv64im_nightstream_bridge_payload(
 ) -> Result<(), Rv64imBridgeError> {
     let public_inputs = decode_rv64im_nightstream_bridge_public_inputs_fields(public_inputs)?;
     let private_payload = decode_rv64im_nightstream_bridge_private_payload_fields(private_witness)?;
-    verify_rv64im_nightstream_bridge_input(public_inputs, private_payload.witness.borrowed())
+    verify_rv64im_nightstream_bridge_public_inputs(public_inputs, private_payload.witness.borrowed())
 }
 
 pub fn build_rv64im_nightstream_bridge_preimage(
@@ -721,18 +549,25 @@ impl VerifierIrBuilder {
         index
     }
 
-    fn add(&mut self, a: u32, b: u32) -> u32 {
-        let index = self.next_index;
-        self.instructions.push(Instruction::Add { a, b });
-        self.next_index += 1;
-        index
-    }
-
     fn assert_equal(&mut self, a: u32, b: u32) {
         let eq = self.next_index;
         self.instructions.push(Instruction::TestEq { a, b });
         self.next_index += 1;
         self.instructions.push(Instruction::Assert { cond: eq });
+    }
+
+    fn private_digest(&mut self) -> [u32; DIGEST32_FIELD_WORDS] {
+        let mut indices = [0u32; DIGEST32_FIELD_WORDS];
+        for index in &mut indices {
+            *index = self.private_input();
+        }
+        indices
+    }
+
+    fn assert_digest_equal(&mut self, a: &[u32; DIGEST32_FIELD_WORDS], b: &[u32; DIGEST32_FIELD_WORDS]) {
+        for (lhs, rhs) in a.iter().zip(b.iter()) {
+            self.assert_equal(*lhs, *rhs);
+        }
     }
 
     fn finish(self) -> Arc<Vec<Instruction>> {
@@ -746,353 +581,62 @@ pub fn build_rv64im_nightstream_verifier_ir_v2(
     let public_inputs = decode_rv64im_nightstream_bridge_public_inputs_fields(&preimage.inputs)?;
     let private_payload = decode_rv64im_nightstream_bridge_private_payload_fields(&preimage.private_transcript)?;
     let private_witness = &private_payload.witness;
-    let private_claims = &private_payload.claims;
+    if private_payload.claims.statement_digest_hint != public_inputs.statement_digest {
+        return Err(Rv64imBridgeError::StatementDigestMismatch {
+            expected: public_inputs.statement_digest,
+            actual: private_payload.claims.statement_digest_hint,
+        });
+    }
     let mut builder = VerifierIrBuilder::new(preimage.inputs.len())?;
 
     let expected_version = builder.load_imm(RV64IM_NIGHTSTREAM_BRIDGE_VERSION as BridgeFieldWord);
     builder.assert_equal(0, expected_version);
 
-    let mut statement_digest_hint_indices = [0u32; DIGEST32_FIELD_WORDS];
-    for index in &mut statement_digest_hint_indices {
-        *index = builder.private_input();
-    }
+    let statement_digest_hint_indices = builder.private_digest();
     for (offset, digest_index) in statement_digest_hint_indices.iter().enumerate() {
         let public_index = 1 + offset as u32;
         builder.assert_equal(public_index, *digest_index);
     }
-    let mut verifier_context_digest_claim_indices = [0u32; DIGEST32_FIELD_WORDS];
-    for index in &mut verifier_context_digest_claim_indices {
-        *index = builder.private_input();
-    }
+    let verifier_context_digest_claim_indices = builder.private_digest();
     let fold_schedule_claim_tag_index = builder.private_input();
     let fold_schedule_claim_value_index = builder.private_input();
+    let semantic_step_count_claim_index = builder.private_input();
 
-    let mut proof_binding_root_indices = [0u32; DIGEST32_FIELD_WORDS];
-    for index in &mut proof_binding_root_indices {
-        *index = builder.private_input();
-    }
-    let mut proof_binding_main_decider_target_digest_indices = [0u32; DIGEST32_FIELD_WORDS];
-    for index in &mut proof_binding_main_decider_target_digest_indices {
-        *index = builder.private_input();
-    }
-    let mut proof_binding_residual_public_statement_digest_indices = [0u32; DIGEST32_FIELD_WORDS];
-    for index in &mut proof_binding_residual_public_statement_digest_indices {
-        *index = builder.private_input();
-    }
-    let mut proof_binding_residual_folded_statement_digest_indices = [0u32; DIGEST32_FIELD_WORDS];
-    for index in &mut proof_binding_residual_folded_statement_digest_indices {
-        *index = builder.private_input();
-    }
-    let mut proof_binding_residual_final_proof_digest_indices = [0u32; DIGEST32_FIELD_WORDS];
-    for index in &mut proof_binding_residual_final_proof_digest_indices {
-        *index = builder.private_input();
-    }
-    let mut proof_binding_residual_kernel_export_digest_indices = [0u32; DIGEST32_FIELD_WORDS];
-    for index in &mut proof_binding_residual_kernel_export_digest_indices {
-        *index = builder.private_input();
-    }
-    let mut proof_binding_side_terminal_artifact_digest_indices = [0u32; DIGEST32_FIELD_WORDS];
-    for index in &mut proof_binding_side_terminal_artifact_digest_indices {
-        *index = builder.private_input();
-    }
-    let mut proof_binding_side_artifact_digest_indices = [0u32; DIGEST32_FIELD_WORDS];
-    for index in &mut proof_binding_side_artifact_digest_indices {
-        *index = builder.private_input();
-    }
-    let mut proof_binding_opening_artifact_digest_indices = [0u32; DIGEST32_FIELD_WORDS];
-    for index in &mut proof_binding_opening_artifact_digest_indices {
-        *index = builder.private_input();
-    }
-    let mut proof_binding_linkage_artifact_digest_indices = [0u32; DIGEST32_FIELD_WORDS];
-    for index in &mut proof_binding_linkage_artifact_digest_indices {
-        *index = builder.private_input();
-    }
+    let proof_binding_root_indices = builder.private_digest();
+    let proof_binding_main_digest_indices = builder.private_digest();
+    let proof_binding_side_digest_indices = builder.private_digest();
+    let _proof_binding_public_statement_digest_indices = builder.private_digest();
+    let proof_binding_published_statement_digest_indices = builder.private_digest();
 
-    let mut linkage_kernel_export_anchor_digest_indices = [0u32; DIGEST32_FIELD_WORDS];
-    for index in &mut linkage_kernel_export_anchor_digest_indices {
-        *index = builder.private_input();
-    }
-    let mut linkage_root_indices = [0u32; DIGEST32_FIELD_WORDS];
-    for index in &mut linkage_root_indices {
-        *index = builder.private_input();
-    }
-    let mut linkage_claims_digest_indices = [0u32; DIGEST32_FIELD_WORDS];
-    for index in &mut linkage_claims_digest_indices {
-        *index = builder.private_input();
-    }
-    let linkage_public_chunk_digest_count_index = builder.private_input();
-    let mut linkage_public_chunk_digest_indices = Vec::with_capacity(private_claims.linkage.public_chunk_digests.len());
-    for _ in &private_claims.linkage.public_chunk_digests {
-        let mut digest_indices = [0u32; DIGEST32_FIELD_WORDS];
-        for index in &mut digest_indices {
-            *index = builder.private_input();
-        }
-        linkage_public_chunk_digest_indices.push(digest_indices);
-    }
-    let linkage_bridge_handoff_digest_count_index = builder.private_input();
-    for _ in &private_claims.linkage.bridge_handoff_digests {
-        for _ in 0..DIGEST32_FIELD_WORDS {
-            builder.private_input();
-        }
-    }
-    let chunk_transition_claim_count_index = builder.private_input();
-    let mut chunk_transition_claim_relation_digest_indices = Vec::with_capacity(private_claims.chunk_transitions.len());
-    let mut chunk_transition_claim_witness_digest_indices = Vec::with_capacity(private_claims.chunk_transitions.len());
-    for _ in &private_claims.chunk_transitions {
-        let mut relation_digest_indices = [0u32; DIGEST32_FIELD_WORDS];
-        for index in &mut relation_digest_indices {
-            *index = builder.private_input();
-        }
-        chunk_transition_claim_relation_digest_indices.push(relation_digest_indices);
-        let mut witness_digest_indices = [0u32; DIGEST32_FIELD_WORDS];
-        for index in &mut witness_digest_indices {
-            *index = builder.private_input();
-        }
-        chunk_transition_claim_witness_digest_indices.push(witness_digest_indices);
-    }
-
-    let mut statement_public_io_digest_indices = [0u32; DIGEST32_FIELD_WORDS];
-    for index in &mut statement_public_io_digest_indices {
-        *index = builder.private_input();
-    }
-    let mut statement_verifier_context_digest_indices = [0u32; DIGEST32_FIELD_WORDS];
-    for index in &mut statement_verifier_context_digest_indices {
-        *index = builder.private_input();
-    }
+    let statement_public_io_digest_indices = builder.private_digest();
+    let statement_verifier_context_digest_indices = builder.private_digest();
     let statement_fold_schedule_tag_index = builder.private_input();
     let statement_fold_schedule_value_index = builder.private_input();
     let semantic_step_count_index = builder.private_input();
-    let chunk_summary_count_index = builder.private_input();
+    let statement_proof_binding_root_indices = builder.private_digest();
 
-    let mut chunk_start_index_indices = Vec::with_capacity(private_witness.statement.chunk_summaries.len());
-    let mut chunk_public_step_count_indices = Vec::with_capacity(private_witness.statement.chunk_summaries.len());
-    let mut statement_chunk_public_digest_indices = Vec::with_capacity(private_witness.statement.chunk_summaries.len());
-    let mut statement_chunk_relation_digest_indices =
-        Vec::with_capacity(private_witness.statement.chunk_summaries.len());
-    for _ in &private_witness.statement.chunk_summaries {
-        chunk_start_index_indices.push(builder.private_input());
-        chunk_public_step_count_indices.push(builder.private_input());
-        let mut public_digest_indices = [0u32; DIGEST32_FIELD_WORDS];
-        for index in &mut public_digest_indices {
-            *index = builder.private_input();
-        }
-        statement_chunk_public_digest_indices.push(public_digest_indices);
-        let mut relation_digest_indices = [0u32; DIGEST32_FIELD_WORDS];
-        for index in &mut relation_digest_indices {
-            *index = builder.private_input();
-        }
-        statement_chunk_relation_digest_indices.push(relation_digest_indices);
-    }
-    let mut statement_linkage_root_indices = [0u32; DIGEST32_FIELD_WORDS];
-    for index in &mut statement_linkage_root_indices {
-        *index = builder.private_input();
-    }
+    let proof_main_digest_indices = builder.private_digest();
+    let proof_side_digest_indices = builder.private_digest();
+    let proof_published_statement_digest_indices = builder.private_digest();
 
-    let mut statement_proof_binding_root_indices = [0u32; DIGEST32_FIELD_WORDS];
-    for index in &mut statement_proof_binding_root_indices {
-        *index = builder.private_input();
-    }
-
-    let mut proof_main_decider_target_digest_indices = [0u32; DIGEST32_FIELD_WORDS];
-    for index in &mut proof_main_decider_target_digest_indices {
-        *index = builder.private_input();
-    }
-
-    let mut residual_public_statement_digest_indices = [0u32; DIGEST32_FIELD_WORDS];
-    for index in &mut residual_public_statement_digest_indices {
-        *index = builder.private_input();
-    }
-    let mut residual_folded_statement_digest_indices = [0u32; DIGEST32_FIELD_WORDS];
-    for index in &mut residual_folded_statement_digest_indices {
-        *index = builder.private_input();
-    }
-    let mut residual_final_proof_digest_indices = [0u32; DIGEST32_FIELD_WORDS];
-    for index in &mut residual_final_proof_digest_indices {
-        *index = builder.private_input();
-    }
-    let mut residual_kernel_export_digest_indices = [0u32; DIGEST32_FIELD_WORDS];
-    for index in &mut residual_kernel_export_digest_indices {
-        *index = builder.private_input();
-    }
-    let chunk_transition_count_index = builder.private_input();
-    let mut residual_chunk_transition_digest_indices = Vec::with_capacity(
-        private_witness
-            .proof
-            .main_residual_proof
-            .decider_relation
-            .chunk_transition_bindings
-            .len(),
+    builder.assert_digest_equal(
+        &statement_verifier_context_digest_indices,
+        &verifier_context_digest_claim_indices,
     );
-    for _ in &private_witness
-        .proof
-        .main_residual_proof
-        .decider_relation
-        .chunk_transition_bindings
-    {
-        let mut digest_indices = [0u32; DIGEST32_FIELD_WORDS];
-        for index in &mut digest_indices {
-            *index = builder.private_input();
-        }
-        residual_chunk_transition_digest_indices.push(digest_indices);
-    }
-    let mut proof_side_terminal_artifact_digest_indices = [0u32; DIGEST32_FIELD_WORDS];
-    for index in &mut proof_side_terminal_artifact_digest_indices {
-        *index = builder.private_input();
-    }
-    let mut proof_side_artifact_digest_indices = [0u32; DIGEST32_FIELD_WORDS];
-    for index in &mut proof_side_artifact_digest_indices {
-        *index = builder.private_input();
-    }
-    let mut proof_opening_artifact_digest_indices = [0u32; DIGEST32_FIELD_WORDS];
-    for index in &mut proof_opening_artifact_digest_indices {
-        *index = builder.private_input();
-    }
-    let mut proof_linkage_artifact_digest_indices = [0u32; DIGEST32_FIELD_WORDS];
-    for index in &mut proof_linkage_artifact_digest_indices {
-        *index = builder.private_input();
-    }
-
-    for (statement_index, residual_index) in statement_public_io_digest_indices
-        .iter()
-        .zip(residual_public_statement_digest_indices.iter())
-    {
-        builder.assert_equal(*statement_index, *residual_index);
-    }
-    for (statement_index, claim_index) in statement_verifier_context_digest_indices
-        .iter()
-        .zip(verifier_context_digest_claim_indices.iter())
-    {
-        builder.assert_equal(*statement_index, *claim_index);
-    }
     builder.assert_equal(statement_fold_schedule_tag_index, fold_schedule_claim_tag_index);
     builder.assert_equal(statement_fold_schedule_value_index, fold_schedule_claim_value_index);
-    for (statement_index, proof_binding_index) in statement_proof_binding_root_indices
-        .iter()
-        .zip(proof_binding_root_indices.iter())
-    {
-        builder.assert_equal(*statement_index, *proof_binding_index);
-    }
-    for (proof_index, claim_index) in proof_main_decider_target_digest_indices
-        .iter()
-        .zip(proof_binding_main_decider_target_digest_indices.iter())
-    {
-        builder.assert_equal(*proof_index, *claim_index);
-    }
-    for (proof_index, claim_index) in residual_public_statement_digest_indices
-        .iter()
-        .zip(proof_binding_residual_public_statement_digest_indices.iter())
-    {
-        builder.assert_equal(*proof_index, *claim_index);
-    }
-    for (proof_index, claim_index) in residual_folded_statement_digest_indices
-        .iter()
-        .zip(proof_binding_residual_folded_statement_digest_indices.iter())
-    {
-        builder.assert_equal(*proof_index, *claim_index);
-    }
-    for (proof_index, claim_index) in residual_final_proof_digest_indices
-        .iter()
-        .zip(proof_binding_residual_final_proof_digest_indices.iter())
-    {
-        builder.assert_equal(*proof_index, *claim_index);
-    }
-    for (proof_index, claim_index) in residual_kernel_export_digest_indices
-        .iter()
-        .zip(proof_binding_residual_kernel_export_digest_indices.iter())
-    {
-        builder.assert_equal(*proof_index, *claim_index);
-    }
-    for (proof_index, claim_index) in proof_side_terminal_artifact_digest_indices
-        .iter()
-        .zip(proof_binding_side_terminal_artifact_digest_indices.iter())
-    {
-        builder.assert_equal(*proof_index, *claim_index);
-    }
-    for (proof_index, claim_index) in proof_side_artifact_digest_indices
-        .iter()
-        .zip(proof_binding_side_artifact_digest_indices.iter())
-    {
-        builder.assert_equal(*proof_index, *claim_index);
-    }
-    for (proof_index, claim_index) in proof_opening_artifact_digest_indices
-        .iter()
-        .zip(proof_binding_opening_artifact_digest_indices.iter())
-    {
-        builder.assert_equal(*proof_index, *claim_index);
-    }
-    for (proof_index, claim_index) in proof_linkage_artifact_digest_indices
-        .iter()
-        .zip(proof_binding_linkage_artifact_digest_indices.iter())
-    {
-        builder.assert_equal(*proof_index, *claim_index);
-    }
-    builder.assert_equal(chunk_summary_count_index, chunk_transition_count_index);
-    builder.assert_equal(chunk_summary_count_index, linkage_public_chunk_digest_count_index);
-    builder.assert_equal(chunk_summary_count_index, linkage_bridge_handoff_digest_count_index);
-    builder.assert_equal(chunk_summary_count_index, chunk_transition_claim_count_index);
-    for (statement_digest, linkage_digest) in statement_chunk_public_digest_indices
-        .iter()
-        .zip(linkage_public_chunk_digest_indices.iter())
-    {
-        for (statement_index, linkage_index) in statement_digest.iter().zip(linkage_digest.iter()) {
-            builder.assert_equal(*statement_index, *linkage_index);
-        }
-    }
-    for (statement_digest, claim_digest) in statement_chunk_relation_digest_indices
-        .iter()
-        .zip(chunk_transition_claim_relation_digest_indices.iter())
-    {
-        for (statement_index, claim_index) in statement_digest.iter().zip(claim_digest.iter()) {
-            builder.assert_equal(*statement_index, *claim_index);
-        }
-    }
-    for (residual_index, linkage_index) in residual_kernel_export_digest_indices
-        .iter()
-        .zip(linkage_kernel_export_anchor_digest_indices.iter())
-    {
-        builder.assert_equal(*residual_index, *linkage_index);
-    }
-    for (statement_index, linkage_index) in statement_linkage_root_indices
-        .iter()
-        .zip(linkage_root_indices.iter())
-    {
-        builder.assert_equal(*statement_index, *linkage_index);
-    }
-    for (proof_index, linkage_index) in proof_linkage_artifact_digest_indices
-        .iter()
-        .zip(linkage_claims_digest_indices.iter())
-    {
-        builder.assert_equal(*proof_index, *linkage_index);
-    }
-    for (residual_digest, claim_digest) in residual_chunk_transition_digest_indices
-        .iter()
-        .zip(chunk_transition_claim_witness_digest_indices.iter())
-    {
-        for (residual_index, claim_index) in residual_digest.iter().zip(claim_digest.iter()) {
-            builder.assert_equal(*residual_index, *claim_index);
-        }
-    }
-
-    let semantic_step_sum_index = if chunk_public_step_count_indices.is_empty() {
-        builder.load_imm(0)
-    } else {
-        let mut sum = chunk_public_step_count_indices[0];
-        for index in chunk_public_step_count_indices.iter().skip(1) {
-            sum = builder.add(sum, *index);
-        }
-        sum
-    };
-    builder.assert_equal(semantic_step_count_index, semantic_step_sum_index);
-
-    let mut expected_start_index = builder.load_imm(0);
-    for (start_index, public_step_count) in chunk_start_index_indices
-        .iter()
-        .zip(chunk_public_step_count_indices.iter())
-    {
-        builder.assert_equal(*start_index, expected_start_index);
-        expected_start_index = builder.add(expected_start_index, *public_step_count);
-    }
-    builder.assert_equal(expected_start_index, semantic_step_count_index);
+    builder.assert_equal(semantic_step_count_index, semantic_step_count_claim_index);
+    builder.assert_digest_equal(&statement_proof_binding_root_indices, &proof_binding_root_indices);
+    builder.assert_digest_equal(
+        &statement_public_io_digest_indices,
+        &proof_published_statement_digest_indices,
+    );
+    builder.assert_digest_equal(&proof_main_digest_indices, &proof_binding_main_digest_indices);
+    builder.assert_digest_equal(&proof_side_digest_indices, &proof_binding_side_digest_indices);
+    builder.assert_digest_equal(
+        &proof_binding_published_statement_digest_indices,
+        &proof_published_statement_digest_indices,
+    );
 
     while builder.private_words_consumed < preimage.private_transcript.len() {
         builder.private_input();
@@ -1207,9 +751,8 @@ fn encode_rv64im_nightstream_bridge_private_claims_fields(
     encode_digest32_field_words(out, claims.statement_digest_hint);
     encode_digest32_field_words(out, claims.verifier_context_digest);
     encode_fold_schedule_fields(out, claims.fold_schedule);
+    out.push(claims.semantic_step_count);
     encode_rv64im_nightstream_bridge_proof_binding_claims_fields(out, &claims.proof_binding);
-    encode_rv64im_nightstream_bridge_linkage_claims_fields(out, &claims.linkage);
-    encode_rv64im_nightstream_bridge_chunk_transition_claims_fields(out, &claims.chunk_transitions);
 }
 
 fn decode_rv64im_nightstream_bridge_private_claims_fields(
@@ -1220,9 +763,8 @@ fn decode_rv64im_nightstream_bridge_private_claims_fields(
         statement_digest_hint: decode_digest32_field_words(words, cursor, "bridge witness statement_digest_hint")?,
         verifier_context_digest: decode_digest32_field_words(words, cursor, "bridge witness verifier_context_digest")?,
         fold_schedule: decode_fold_schedule_fields(words, cursor)?,
+        semantic_step_count: take_word(words, cursor, "bridge witness semantic_step_count")?,
         proof_binding: decode_rv64im_nightstream_bridge_proof_binding_claims_fields(words, cursor)?,
-        linkage: decode_rv64im_nightstream_bridge_linkage_claims_fields(words, cursor)?,
-        chunk_transitions: decode_rv64im_nightstream_bridge_chunk_transition_claims_fields(words, cursor)?,
     })
 }
 
@@ -1231,15 +773,10 @@ fn encode_rv64im_nightstream_bridge_proof_binding_claims_fields(
     claims: &Rv64imNightstreamBridgeProofBindingClaims,
 ) {
     encode_digest32_field_words(out, claims.proof_binding_root);
-    encode_digest32_field_words(out, claims.main_decider_target_digest);
-    encode_digest32_field_words(out, claims.main_residual_public_statement_digest);
-    encode_digest32_field_words(out, claims.main_residual_folded_statement_digest);
-    encode_digest32_field_words(out, claims.main_residual_final_proof_digest);
-    encode_digest32_field_words(out, claims.main_residual_kernel_export_proof_digest);
-    encode_digest32_field_words(out, claims.side_terminal_artifact_digest);
-    encode_digest32_field_words(out, claims.side_proof_artifact_digest);
-    encode_digest32_field_words(out, claims.opening_artifact_digest);
-    encode_digest32_field_words(out, claims.linkage_artifact_digest);
+    encode_digest32_field_words(out, claims.main_proof_digest);
+    encode_digest32_field_words(out, claims.side_proof_digest);
+    encode_digest32_field_words(out, claims.public_statement_digest);
+    encode_digest32_field_words(out, claims.published_statement_digest);
 }
 
 fn decode_rv64im_nightstream_bridge_proof_binding_claims_fields(
@@ -1248,147 +785,19 @@ fn decode_rv64im_nightstream_bridge_proof_binding_claims_fields(
 ) -> Result<Rv64imNightstreamBridgeProofBindingClaims, Rv64imBridgeError> {
     Ok(Rv64imNightstreamBridgeProofBindingClaims {
         proof_binding_root: decode_digest32_field_words(words, cursor, "bridge proof binding root")?,
-        main_decider_target_digest: decode_digest32_field_words(
+        main_proof_digest: decode_digest32_field_words(words, cursor, "bridge proof binding main_proof_digest")?,
+        side_proof_digest: decode_digest32_field_words(words, cursor, "bridge proof binding side_proof_digest")?,
+        public_statement_digest: decode_digest32_field_words(
             words,
             cursor,
-            "bridge proof binding main_decider_target_digest",
+            "bridge proof binding public_statement_digest",
         )?,
-        main_residual_public_statement_digest: decode_digest32_field_words(
+        published_statement_digest: decode_digest32_field_words(
             words,
             cursor,
-            "bridge proof binding main_residual_public_statement_digest",
-        )?,
-        main_residual_folded_statement_digest: decode_digest32_field_words(
-            words,
-            cursor,
-            "bridge proof binding main_residual_folded_statement_digest",
-        )?,
-        main_residual_final_proof_digest: decode_digest32_field_words(
-            words,
-            cursor,
-            "bridge proof binding main_residual_final_proof_digest",
-        )?,
-        main_residual_kernel_export_proof_digest: decode_digest32_field_words(
-            words,
-            cursor,
-            "bridge proof binding main_residual_kernel_export_proof_digest",
-        )?,
-        side_terminal_artifact_digest: decode_digest32_field_words(
-            words,
-            cursor,
-            "bridge proof binding side_terminal_artifact_digest",
-        )?,
-        side_proof_artifact_digest: decode_digest32_field_words(
-            words,
-            cursor,
-            "bridge proof binding side_proof_artifact_digest",
-        )?,
-        opening_artifact_digest: decode_digest32_field_words(
-            words,
-            cursor,
-            "bridge proof binding opening_artifact_digest",
-        )?,
-        linkage_artifact_digest: decode_digest32_field_words(
-            words,
-            cursor,
-            "bridge proof binding linkage_artifact_digest",
+            "bridge proof binding published_statement_digest",
         )?,
     })
-}
-
-fn encode_rv64im_nightstream_bridge_linkage_claims_fields(
-    out: &mut Vec<BridgeFieldWord>,
-    claims: &Rv64imNightstreamBridgeLinkageClaims,
-) {
-    encode_digest32_field_words(out, claims.kernel_export_anchor_digest);
-    encode_digest32_field_words(out, claims.linkage_root);
-    encode_digest32_field_words(out, claims.linkage_claims_digest);
-    out.push(claims.public_chunk_digests.len() as BridgeFieldWord);
-    for digest in &claims.public_chunk_digests {
-        encode_digest32_field_words(out, *digest);
-    }
-    out.push(claims.bridge_handoff_digests.len() as BridgeFieldWord);
-    for digest in &claims.bridge_handoff_digests {
-        encode_digest32_field_words(out, *digest);
-    }
-}
-
-fn decode_rv64im_nightstream_bridge_linkage_claims_fields(
-    words: &[BridgeFieldWord],
-    cursor: &mut usize,
-) -> Result<Rv64imNightstreamBridgeLinkageClaims, Rv64imBridgeError> {
-    let kernel_export_anchor_digest =
-        decode_digest32_field_words(words, cursor, "bridge linkage kernel_export_anchor_digest")?;
-    let linkage_root = decode_digest32_field_words(words, cursor, "bridge linkage linkage_root")?;
-    let linkage_claims_digest = decode_digest32_field_words(words, cursor, "bridge linkage linkage_claims_digest")?;
-    let public_chunk_digest_count = usize_from_word(
-        take_word(words, cursor, "bridge linkage public_chunk_digest_count")?,
-        "bridge linkage public_chunk_digest_count",
-    )?;
-    let mut public_chunk_digests = Vec::with_capacity(public_chunk_digest_count);
-    for _ in 0..public_chunk_digest_count {
-        public_chunk_digests.push(decode_digest32_field_words(
-            words,
-            cursor,
-            "bridge linkage public_chunk_digest",
-        )?);
-    }
-    let bridge_handoff_digest_count = usize_from_word(
-        take_word(words, cursor, "bridge linkage bridge_handoff_digest_count")?,
-        "bridge linkage bridge_handoff_digest_count",
-    )?;
-    let mut bridge_handoff_digests = Vec::with_capacity(bridge_handoff_digest_count);
-    for _ in 0..bridge_handoff_digest_count {
-        bridge_handoff_digests.push(decode_digest32_field_words(
-            words,
-            cursor,
-            "bridge linkage bridge_handoff_digest",
-        )?);
-    }
-    Ok(Rv64imNightstreamBridgeLinkageClaims {
-        kernel_export_anchor_digest,
-        linkage_root,
-        public_chunk_digests,
-        bridge_handoff_digests,
-        linkage_claims_digest,
-    })
-}
-
-fn encode_rv64im_nightstream_bridge_chunk_transition_claims_fields(
-    out: &mut Vec<BridgeFieldWord>,
-    claims: &[Rv64imNightstreamBridgeChunkTransitionClaim],
-) {
-    out.push(claims.len() as BridgeFieldWord);
-    for claim in claims {
-        encode_digest32_field_words(out, claim.chunk_relation_digest);
-        encode_digest32_field_words(out, claim.transition_witness_digest);
-    }
-}
-
-fn decode_rv64im_nightstream_bridge_chunk_transition_claims_fields(
-    words: &[BridgeFieldWord],
-    cursor: &mut usize,
-) -> Result<Vec<Rv64imNightstreamBridgeChunkTransitionClaim>, Rv64imBridgeError> {
-    let claim_count = usize_from_word(
-        take_word(words, cursor, "bridge chunk transition claim count")?,
-        "bridge chunk transition claim count",
-    )?;
-    let mut claims = Vec::with_capacity(claim_count);
-    for _ in 0..claim_count {
-        claims.push(Rv64imNightstreamBridgeChunkTransitionClaim {
-            chunk_relation_digest: decode_digest32_field_words(
-                words,
-                cursor,
-                "bridge chunk transition chunk_relation_digest",
-            )?,
-            transition_witness_digest: decode_digest32_field_words(
-                words,
-                cursor,
-                "bridge chunk transition transition_witness_digest",
-            )?,
-        });
-    }
-    Ok(claims)
 }
 
 fn encode_fold_schedule_fields(out: &mut Vec<BridgeFieldWord>, schedule: FoldSchedule) {
@@ -1421,35 +830,11 @@ fn decode_fold_schedule_fields(
     Ok(schedule)
 }
 
-fn encode_chunk_summary_fields(out: &mut Vec<BridgeFieldWord>, summary: &FixedShapeChunkSummary) {
-    out.push(summary.start_index);
-    out.push(summary.public_step_count);
-    encode_digest32_field_words(out, summary.public_chunk_digest);
-    encode_digest32_field_words(out, summary.chunk_relation_digest);
-}
-
-fn decode_chunk_summary_fields(
-    words: &[BridgeFieldWord],
-    cursor: &mut usize,
-) -> Result<FixedShapeChunkSummary, Rv64imBridgeError> {
-    Ok(FixedShapeChunkSummary {
-        start_index: take_word(words, cursor, "chunk summary start_index")?,
-        public_step_count: take_word(words, cursor, "chunk summary public_step_count")?,
-        public_chunk_digest: decode_digest32_field_words(words, cursor, "chunk summary public_chunk_digest")?,
-        chunk_relation_digest: decode_digest32_field_words(words, cursor, "chunk summary chunk_relation_digest")?,
-    })
-}
-
 fn encode_nightstream_statement_fields(out: &mut Vec<BridgeFieldWord>, statement: &NightstreamStatement) {
     encode_digest32_field_words(out, statement.public_io_digest);
     encode_digest32_field_words(out, statement.verifier_context_digest);
     encode_fold_schedule_fields(out, statement.fold_schedule);
     out.push(statement.semantic_step_count);
-    out.push(statement.chunk_summaries.len() as BridgeFieldWord);
-    for summary in &statement.chunk_summaries {
-        encode_chunk_summary_fields(out, summary);
-    }
-    encode_digest32_field_words(out, statement.linkage_root);
     encode_digest32_field_words(out, statement.proof_binding_root);
 }
 
@@ -1461,23 +846,12 @@ fn decode_nightstream_statement_fields(
     let verifier_context_digest = decode_digest32_field_words(words, cursor, "statement verifier_context_digest")?;
     let fold_schedule = decode_fold_schedule_fields(words, cursor)?;
     let semantic_step_count = take_word(words, cursor, "statement semantic_step_count")?;
-    let chunk_count = usize_from_word(
-        take_word(words, cursor, "statement chunk_summary_count")?,
-        "statement chunk_summary_count",
-    )?;
-    let mut chunk_summaries = Vec::with_capacity(chunk_count);
-    for _ in 0..chunk_count {
-        chunk_summaries.push(decode_chunk_summary_fields(words, cursor)?);
-    }
-    let linkage_root = decode_digest32_field_words(words, cursor, "statement linkage_root")?;
     let proof_binding_root = decode_digest32_field_words(words, cursor, "statement proof_binding_root")?;
     Ok(NightstreamStatement {
         public_io_digest,
         verifier_context_digest,
         fold_schedule,
         semantic_step_count,
-        chunk_summaries,
-        linkage_root,
         proof_binding_root,
     })
 }

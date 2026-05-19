@@ -214,7 +214,7 @@ with all imported source columns fixed to those chosen values and with
 
 ## Paper Anchors
 
-- **Source**: `./crates/neo-fold-next/specs/chip8-kernel.md`
+- **Source**: `./crates/neo-fold-prototype/specs/chip8-kernel.md`
 - Anchors:
   - main-lane witness layout
   - row-local R1CS

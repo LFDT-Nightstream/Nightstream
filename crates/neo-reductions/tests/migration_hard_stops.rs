@@ -52,8 +52,17 @@ fn assert_absent_tokens_in_src(crate_rel_path: &str, banned: &[&str]) {
 
 #[test]
 fn legacy_me_mcs_identifiers_do_not_reappear_in_core_src() {
-    let banned = ["MeInstance", "McsInstance", "MeWitness", "McsWitness"];
+    let banned = [
+        "MeInstance",
+        "McsInstance",
+        "MeWitness",
+        "McsWitness",
+        "DenseUnpacked",
+        "WitnessMatLayout",
+        "witness_mat_layout",
+        "project_x_from_public_inputs",
+    ];
     assert_absent_tokens_in_src("crates/neo-ccs", &banned);
     assert_absent_tokens_in_src("crates/neo-reductions", &banned);
-    assert_absent_tokens_in_src("crates/neo-fold-next", &banned);
+    assert_absent_tokens_in_src("crates/neo-fold-prototype", &banned);
 }

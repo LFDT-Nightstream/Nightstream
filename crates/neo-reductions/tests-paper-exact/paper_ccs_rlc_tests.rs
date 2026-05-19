@@ -16,8 +16,24 @@ use rand_chacha::rand_core::SeedableRng;
 
 fn setup_ajtai_for_dims(m: usize) {
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(7);
-    let pp = ajtai_setup(&mut rng, D, 4, m).expect("Ajtai setup should succeed");
+    let pp = ajtai_setup(&mut rng, D, 4, packed_cols(m)).expect("Ajtai setup should succeed");
     let _ = set_global_pp(pp);
+}
+
+fn packed_cols(m: usize) -> usize {
+    m.div_ceil(D)
+}
+
+fn ajtai_for_dims(m: usize) -> AjtaiSModule {
+    AjtaiSModule::from_global_for_dims(D, packed_cols(m)).unwrap()
+}
+
+fn packed_constant(m: usize, value: F) -> Mat<F> {
+    let mut z = Mat::zero(D, packed_cols(m), F::ZERO);
+    for col in 0..m {
+        z.set(col % D, col / D, value);
+    }
+    z
 }
 
 fn tiny_ccs_id(n: usize, m: usize) -> CcsStructure<F> {
@@ -67,11 +83,14 @@ fn mul_Z_vec_digits<Ff: Field + PrimeCharacteristicRing + Copy>(Z: &Mat<Ff>, v: 
 where
     K: From<Ff>,
 {
+    let expected_m = v.len();
+    neo_reductions::common::validate_superneo_witness_mat(Z, expected_m)
+        .expect("fixture witness must use packed SuperNeo layout");
     let mut out = vec![K::ZERO; D];
     for rho in 0..D {
         let mut acc = K::ZERO;
-        for c in 0..Z.cols() {
-            acc += K::from(Z[(rho, c)]) * v[c];
+        for (c, &vc) in v.iter().enumerate() {
+            acc += neo_reductions::common::witness_mat_get_k(Z, expected_m, rho, c) * vc;
         }
         out[rho] = acc;
     }
@@ -93,16 +112,16 @@ fn mat_eq<Ff: Field + PrimeCharacteristicRing + Copy>(a: &Mat<Ff>, b: &Mat<Ff>) 
 }
 
 fn public_inputs_from_witness(Z: &Mat<F>, expected_m: usize, m_in: usize) -> Vec<F> {
-    let layout =
-        neo_reductions::common::witness_mat_layout(Z, expected_m).expect("fixture witness must have a valid layout");
+    neo_reductions::common::validate_superneo_witness_mat(Z, expected_m)
+        .expect("fixture witness must use packed SuperNeo layout");
     (0..m_in)
-        .map(|c| neo_reductions::common::witness_mat_get_f(Z, layout, expected_m, c % D, c))
+        .map(|c| neo_reductions::common::witness_mat_get_f(Z, expected_m, c % D, c))
         .collect()
 }
 
 fn project_x_first_cols(Z: &Mat<F>, expected_m: usize, m_in: usize) -> Mat<F> {
-    let x = public_inputs_from_witness(Z, expected_m, m_in);
-    neo_reductions::common::project_x_from_public_inputs(&x, m_in).expect("fixture x projection should succeed")
+    neo_reductions::common::project_x_from_witness_mat(Z, expected_m, m_in)
+        .expect("fixture X projection should succeed")
 }
 
 fn tiny_ccs_t2(n: usize, m: usize) -> CcsStructure<F> {
@@ -135,16 +154,16 @@ fn tiny_ccs_t2(n: usize, m: usize) -> CcsStructure<F> {
 
 #[test]
 fn paper_exact_rlc_matches_direct_opening_and_eval() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     setup_ajtai_for_dims(m);
 
     let s = tiny_ccs_id(n, m);
-    let l = AjtaiSModule::from_global_for_dims(D, m).unwrap();
+    let l = ajtai_for_dims(m);
 
     // Two inputs with same r
-    let z1 = Mat::from_row_major(D, m, vec![F::ONE; D * m]);
-    let z2 = Mat::from_row_major(D, m, vec![F::from_u64(2); D * m]);
+    let z1 = packed_constant(m, F::ONE);
+    let z2 = packed_constant(m, F::from_u64(2));
     let w1 = CcsWitness {
         w: vec![],
         Z: z1.clone(),
@@ -211,9 +230,9 @@ fn paper_exact_rlc_matches_direct_opening_and_eval() {
     let (combined_me, combined_Z) = refimpl::rlc_reduction_paper_exact::<F>(&s, &params, &rhos, &inputs, &Zs, ell_d);
 
     // Expected Z = Z1 + 2·Z2
-    let mut Z_exp = Mat::zero(D, m, F::ZERO);
+    let mut Z_exp = Mat::zero(D, packed_cols(m), F::ZERO);
     for r_ in 0..D {
-        for c_ in 0..m {
+        for c_ in 0..Z_exp.cols() {
             let v = z1[(r_, c_)] + F::from_u64(2) * z2[(r_, c_)];
             Z_exp.set(r_, c_, v);
         }
@@ -269,17 +288,17 @@ fn paper_exact_rlc_matches_direct_opening_and_eval() {
 
 #[test]
 fn paper_exact_full_loop_k2_one_step_roundtrip() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     setup_ajtai_for_dims(m);
 
     let s = tiny_ccs_t2(n, m);
-    let l = AjtaiSModule::from_global_for_dims(D, m).unwrap();
+    let l = ajtai_for_dims(m);
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
 
     // MCS witness Z_mcs and prior ME witness Z_prev (state)
-    let Z_mcs = Mat::from_row_major(D, m, vec![F::from_u64(2); D * m]);
-    let Z_prev = Mat::from_row_major(D, m, vec![F::from_u64(3); D * m]);
+    let Z_mcs = packed_constant(m, F::from_u64(2));
+    let Z_prev = packed_constant(m, F::from_u64(3));
 
     let w_mcs = CcsWitness {
         w: vec![],
@@ -297,7 +316,7 @@ fn paper_exact_full_loop_k2_one_step_roundtrip() {
         u_offset: 0,
         u_len: 0,
         c: l.commit(&Z_prev),
-        X: l.project_x(&Z_prev, 1),
+        X: project_x_first_cols(&Z_prev, m, 1),
         r: me_r_prev.clone(),
         s_col: vec![],
         y_ring: vec![vec![K::ZERO; D]; s.t()],
@@ -400,17 +419,17 @@ fn paper_exact_full_loop_k2_one_step_roundtrip() {
 
 #[test]
 fn paper_exact_full_loop_k2_two_steps_chain() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     setup_ajtai_for_dims(m);
 
     let s = tiny_ccs_t2(n, m);
-    let l = AjtaiSModule::from_global_for_dims(D, m).unwrap();
+    let l = ajtai_for_dims(m);
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
 
     // Step 1 witnesses
-    let Z_mcs0 = Mat::from_row_major(D, m, vec![F::from_u64(2); D * m]);
-    let Z_prev0 = Mat::from_row_major(D, m, vec![F::from_u64(3); D * m]);
+    let Z_mcs0 = packed_constant(m, F::from_u64(2));
+    let Z_prev0 = packed_constant(m, F::from_u64(3));
 
     let w_mcs0 = CcsWitness {
         w: vec![],
@@ -428,7 +447,7 @@ fn paper_exact_full_loop_k2_two_steps_chain() {
         u_offset: 0,
         u_len: 0,
         c: l.commit(&Z_prev0),
-        X: l.project_x(&Z_prev0, 1),
+        X: project_x_first_cols(&Z_prev0, m, 1),
         r: me_r0.clone(),
         s_col: vec![],
         y_ring: vec![vec![K::ZERO; D]; s.t()],
@@ -481,7 +500,7 @@ fn paper_exact_full_loop_k2_two_steps_chain() {
     let carried_Z = Z_prev0.clone();
 
     // Step 2: new MCS witness, same carried ME state
-    let Z_mcs1 = Mat::from_row_major(D, m, vec![F::from_u64(4); D * m]);
+    let Z_mcs1 = packed_constant(m, F::from_u64(4));
     let w_mcs1 = CcsWitness {
         w: vec![],
         Z: Z_mcs1.clone(),
@@ -578,15 +597,15 @@ fn paper_exact_full_loop_k2_two_steps_chain() {
 
 #[test]
 fn paper_exact_rlc_tampered_input_y_breaks_consistency() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     setup_ajtai_for_dims(m);
 
     let s = tiny_ccs_id(n, m);
-    let l = AjtaiSModule::from_global_for_dims(D, m).unwrap();
+    let l = ajtai_for_dims(m);
 
-    let z1 = Mat::from_row_major(D, m, vec![F::ONE; D * m]);
-    let z2 = Mat::from_row_major(D, m, vec![F::from_u64(3); D * m]);
+    let z1 = packed_constant(m, F::ONE);
+    let z2 = packed_constant(m, F::from_u64(3));
     let w1 = CcsWitness {
         w: vec![],
         Z: z1.clone(),

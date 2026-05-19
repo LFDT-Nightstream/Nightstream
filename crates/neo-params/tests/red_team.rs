@@ -1,13 +1,22 @@
 #![allow(clippy::uninlined_format_args)]
-use neo_params::{NeoParams, ParamsError};
+use neo_params::{goldilocks_paper_b2, NeoParams, ParamsError};
 
 #[test]
 fn guard_rejects_tight_or_overflowing_profiles() {
     // Tight inequality: lhs == B should be rejected.
-    // Choose b=2,k=12 => B=4096; pick T so (k+1)T(b-1)=4096
-    let (b, k, d, eta, kappa, m, s, lambda) = (2u32, 12u32, 54u32, 81u32, 16u32, 1u64 << 20, 2u32, 128u32);
-    let q = 0xFFFF_FFFF_0000_0001u64;
-    let t = 316u32; // makes lhs > B (exact would be 4096/13≈315.076, so 316 > bound)
+    // Start from Appendix B.2 and pick T so (k+1)T(b-1)>B.
+    let (b, k, d, eta, kappa, m, s, lambda) = (
+        goldilocks_paper_b2::B_BASE,
+        goldilocks_paper_b2::K_RHO,
+        goldilocks_paper_b2::D as u32,
+        goldilocks_paper_b2::ETA as u32,
+        goldilocks_paper_b2::KAPPA,
+        goldilocks_paper_b2::M,
+        goldilocks_paper_b2::EXTENSION_DEGREE,
+        goldilocks_paper_b2::LAMBDA,
+    );
+    let q = goldilocks_paper_b2::Q;
+    let t = (goldilocks_paper_b2::B / (goldilocks_paper_b2::K_RHO as u64 + 1) + 1) as u32;
     let err = NeoParams::new(q, eta, d, kappa, m, b, k, t, s, lambda).unwrap_err();
     assert!(matches!(err, ParamsError::GuardInequality));
     println!("✅ RED TEAM: Guard correctly rejects tight inequality");
@@ -23,8 +32,8 @@ fn guard_rejects_tight_or_overflowing_profiles() {
 
 #[test]
 fn extension_policy_rejects_when_s_min_gt_2() {
-    let p = NeoParams::goldilocks_127(); // s=2 compatible
-                                         // Force s_min > 2 by tightening λ and picking large (ℓ·d_sc)
+    let p = NeoParams::goldilocks_paper_b2(); // s=2 compatible
+                                              // Force s_min > 2 by tightening λ and picking large (ℓ·d_sc)
     let mut p2 = p;
     p2.lambda = 320; // very tight target
     let (ell, d_sc) = (64u32, 16u32);
@@ -40,7 +49,7 @@ fn extension_policy_rejects_when_s_min_gt_2() {
 
 #[test]
 fn s_min_and_slack_bits_behave() {
-    let p = NeoParams::goldilocks_127(); // s=2 compatible
+    let p = NeoParams::goldilocks_paper_b2(); // s=2 compatible
 
     // Test that s_min calculation doesn't panic and returns reasonable values
     let s_min1 = p.s_min(1, 1);
@@ -65,16 +74,16 @@ fn s_min_and_slack_bits_behave() {
 #[test]
 fn parameter_boundary_conditions() {
     let base_params = (
-        0xFFFF_FFFF_0000_0001u64,
-        81u32,
-        54u32,
-        16u32,
-        1u64 << 20,
-        2u32,
-        12u32,
-        216u32,
-        2u32,
-        128u32,
+        goldilocks_paper_b2::Q,
+        goldilocks_paper_b2::ETA as u32,
+        goldilocks_paper_b2::D as u32,
+        goldilocks_paper_b2::KAPPA,
+        goldilocks_paper_b2::M,
+        goldilocks_paper_b2::B_BASE,
+        goldilocks_paper_b2::K_RHO,
+        goldilocks_paper_b2::T,
+        goldilocks_paper_b2::EXTENSION_DEGREE,
+        goldilocks_paper_b2::LAMBDA,
     );
     let (q, eta, d, kappa, m, b, k, t, s, lambda) = base_params;
 
@@ -125,7 +134,7 @@ fn parameter_boundary_conditions() {
 
 #[test]
 fn goldilocks_preset_security_invariants() {
-    let p = NeoParams::goldilocks_127();
+    let p = NeoParams::goldilocks_paper_b2();
 
     // Verify the guard inequality is satisfied with margin
     let lhs = (p.k_rho as u128 + 1) * (p.T as u128) * ((p.b as u128) - 1);
@@ -142,9 +151,10 @@ fn goldilocks_preset_security_invariants() {
     );
 
     // Verify field parameters
-    assert_eq!(p.q, 0xFFFF_FFFF_0000_0001); // Goldilocks prime
-    assert_eq!(p.s, 2); // Extension degree
-    assert_eq!(p.lambda, 127); // Security level (~127-bit for s=2 compatibility)
+    assert!(p.is_goldilocks_paper_b2());
+    assert_eq!(p.q, goldilocks_paper_b2::Q);
+    assert_eq!(p.s, goldilocks_paper_b2::EXTENSION_DEGREE);
+    assert_eq!(p.lambda, goldilocks_paper_b2::LAMBDA);
 
     println!("✅ RED TEAM: Goldilocks preset satisfies all security invariants");
     println!(
@@ -160,13 +170,11 @@ fn goldilocks_preset_security_invariants() {
 fn parameter_overflow_boundary_test() {
     use neo_params::{NeoParams, ParamsError};
 
-    const GOLDILOCKS_MODULUS: u64 = 0xFFFF_FFFF_0000_0001; // 2^64 - 2^32 + 1
-
     // Test with lambda=128 which should force overflow and require s_min >= 3
     let high_lambda_params = NeoParams {
-        q: GOLDILOCKS_MODULUS,
-        eta: 81,
-        d: 54,
+        q: goldilocks_paper_b2::Q,
+        eta: goldilocks_paper_b2::ETA as u32,
+        d: goldilocks_paper_b2::D as u32,
         kappa: 3,
         m: 4,
         lambda: 128, // Very high security parameter
@@ -190,9 +198,9 @@ fn parameter_overflow_boundary_test() {
 
     // Test boundary case where s=1 fails but s=2 might succeed
     let boundary_params = NeoParams {
-        q: GOLDILOCKS_MODULUS,
-        eta: 81,
-        d: 54,
+        q: goldilocks_paper_b2::Q,
+        eta: goldilocks_paper_b2::ETA as u32,
+        d: goldilocks_paper_b2::D as u32,
         kappa: 3,
         m: 4,
         lambda: 127, // Challenging security parameter

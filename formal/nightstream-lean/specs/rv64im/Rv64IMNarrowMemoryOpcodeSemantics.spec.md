@@ -58,7 +58,7 @@ makes narrow-load write suppression depend on `rd`, not only on opcode.
 
 ## Paper Anchors
 
-- **Source**: `./crates/neo-fold-next/specs/riscv-kernel.md`
+- **Source**: `./crates/neo-fold-prototype/specs/riscv-kernel.md`
 - Anchors:
   - memory-support virtual instructions
   - narrow-memory helper arithmetic

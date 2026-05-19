@@ -1,4 +1,4 @@
-use neo_ajtai::{commit_row_major, commit_row_major_seeded, setup_par};
+use neo_ajtai::{commit_row_major, commit_row_major_seeded, commit_row_major_seeded_binary_cols, setup_par};
 use neo_ccs::Mat;
 use neo_math::D;
 use p3_field::PrimeCharacteristicRing;
@@ -32,4 +32,38 @@ fn seeded_pp_commit_matches_materialized_pp() {
         let c_seeded = commit_row_major_seeded(seed, d, kappa, m, &z);
         assert_eq!(c_materialized, c_seeded, "m={}", m);
     }
+}
+
+#[test]
+fn seeded_pp_binary_cols_commit_matches_seeded_mat_commit() {
+    let seed = [9u8; 32];
+    let d = D;
+    let kappa = 3;
+    let m = 257usize;
+    let mut column_bits = vec![0u64; m];
+    for c in 0..m {
+        let mut mask = 0u64;
+        for r in 0..d {
+            let bit = (((c as u64).wrapping_mul(0x9E37_79B9) ^ (r as u64).wrapping_mul(0xBF58_476D)) & 1) as u64;
+            if bit == 1 {
+                mask |= 1u64 << r;
+            }
+        }
+        column_bits[c] = mask;
+    }
+    let mut data = Vec::with_capacity(d * m);
+    for r in 0..d {
+        for c in 0..m {
+            data.push(if (column_bits[c] >> r) & 1 == 1 {
+                Fq::ONE
+            } else {
+                Fq::ZERO
+            });
+        }
+    }
+    let z = Mat::from_row_major(d, m, data);
+
+    let c_seeded = commit_row_major_seeded(seed, d, kappa, m, &z);
+    let c_binary = commit_row_major_seeded_binary_cols(seed, d, kappa, m, &column_bits);
+    assert_eq!(c_seeded, c_binary);
 }

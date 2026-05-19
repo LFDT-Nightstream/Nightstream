@@ -31,15 +31,15 @@ pub mod utils;
 pub use error::{CcsError, DimMismatch, RelationError};
 pub use matrix::{CsrMatrix, Mat, MatRef};
 pub use poly::{SparsePoly, Term};
-pub use r1cs::r1cs_to_ccs;
+pub use r1cs::{r1cs_to_ccs, sparse_r1cs_to_ccs};
 pub use sparse::{CcsMatrix, CscMat, SparseCache};
 
 // Cancellation-resistant direct sum (recommended for production)
 pub use utils::direct_sum_transcript_mixed;
 // Main CCS types and functions (audit-ready)
 pub use relations::{
-    check_ccs_claim_opening, check_ccs_rowwise_relaxed, check_ccs_rowwise_zero, check_ce_consistency, CcsClaim,
-    CcsStructure, CcsWitness, CeClaim, CeWitness,
+    build_superneo_ring_forms, check_ccs_claim_opening, check_ccs_rowwise_relaxed, check_ccs_rowwise_zero,
+    check_ce_consistency, CcsClaim, CcsStructure, CcsWitness, CeClaim, CeWitness,
 };
 pub use traits::SModuleHomomorphism;
 pub use utils::{direct_sum, direct_sum_mixed, mat_vec_mul_ff, mat_vec_mul_fk, tensor_point, validate_power_of_two};

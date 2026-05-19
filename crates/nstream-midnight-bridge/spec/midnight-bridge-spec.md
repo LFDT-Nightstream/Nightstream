@@ -3,13 +3,13 @@
 ## 1. Scope
 
 `nstream-midnight-bridge` owns the final Midnight proof backend for theorem-facing
-RV64IM Nightstream exports produced by `neo-fold-next`.
+RV64IM Nightstream exports produced by `neo-fold-prototype`.
 
 Its job is:
 
 - take the frozen public Nightstream boundary exported by
-  `crates/neo-fold-next/src/nightstream/mod.rs` and
-  `crates/neo-fold-next/src/nightstream/rv64im.rs`,
+  `crates/neo-fold-prototype/src/nightstream/mod.rs` and
+  `crates/neo-fold-prototype/src/nightstream/rv64im.rs`,
 - encode the verifier for that boundary as a Midnight circuit,
 - lower that circuit to a form accepted by unmodified `external/midnight-ledger`,
 - and emit Midnight prover/verifier material plus a final Midnight proof.
@@ -19,7 +19,7 @@ It does not own:
 - the RV64IM arithmetization,
 - the SuperNeo backend contract,
 - the inner folding relation,
-- the recursive proof construction inside `neo-fold-next`,
+- the recursive proof construction inside `neo-fold-prototype`,
 - the public Nightstream theorem boundary itself,
 - or the current proof-complete RV64IM transport object as a final theorem input.
 
@@ -40,14 +40,14 @@ The bridge is constrained by the current Midnight stack.
 
 Consequences:
 
-- `neo-fold-next` should stop at the public Nightstream boundary.
+- `neo-fold-prototype` should stop at the public Nightstream boundary.
 - `nstream-midnight-bridge` is the outer compression backend.
 - The bridge must lower its verifier relation to accepted ZKIR.
 - The bridge must not require ledger/runtime/proof-server patches.
 - Any wider RV64IM proof material still required today belongs to the
   bridge-private witness, not to the public theorem input.
 
-## 3. Bridge Input From `neo-fold-next`
+## 3. Bridge Input From `neo-fold-prototype`
 
 The bridge input is the theorem-facing public Nightstream boundary, not the
 legacy proof-complete RV64IM transport object.
@@ -114,8 +114,8 @@ Current owned facts:
 
 The root relation is owned by:
 
-- `crates/neo-fold-next/src/rv64im/ccs.rs`
-- `crates/neo-fold-next/specs/riscv-kernel.md`
+- `crates/neo-fold-prototype/src/rv64im/ccs.rs`
+- `crates/neo-fold-prototype/specs/riscv-kernel.md`
 
 The “58” value in RV64IM parity code is not the root constraint count.
 
@@ -145,8 +145,8 @@ path over the fixed RV64IM root CCS, not just “29 equations per step.”
 
 The current RV64IM public Nightstream surface is the compact carried boundary in:
 
-- `crates/neo-fold-next/src/nightstream/mod.rs`
-- `crates/neo-fold-next/src/nightstream/rv64im.rs`
+- `crates/neo-fold-prototype/src/nightstream/mod.rs`
+- `crates/neo-fold-prototype/src/nightstream/rv64im.rs`
 
 That public surface is already theorem-facing and compact.
 
@@ -165,13 +165,13 @@ The bridge must therefore treat:
 
 The bridge proves:
 
-> the carried RV64IM Nightstream boundary exported by `neo-fold-next`
+> the carried RV64IM Nightstream boundary exported by `neo-fold-prototype`
 > verifies under the current Nightstream verifier relation, therefore the
 > claimed RV64IM execution statement holds.
 
 Operationally:
 
-- `neo-fold-next` owns the inner folding relation and the compact Nightstream
+- `neo-fold-prototype` owns the inner folding relation and the compact Nightstream
   public boundary,
 - `nstream-midnight-bridge` owns only the outer Midnight verifier circuit for
   that boundary,
@@ -302,7 +302,7 @@ Neo RV64IM execution relation -> Midnight circuit
 The first bridge prototype shall mirror the current exported RV64IM Nightstream
 verifier relation in:
 
-- `crates/neo-fold-next/src/nightstream/rv64im.rs`
+- `crates/neo-fold-prototype/src/nightstream/rv64im.rs`
   - `verify_rv64im_nightstream(...)`
   - plus the bridge-owned `root_params_id -> verifier_context_digest` compatibility check
 
@@ -533,7 +533,7 @@ The removed bridge is reference material only for:
 
 The bridge is complete only when all of the following are true:
 
-1. `neo-fold-next` exports the compact public Nightstream boundary as the final
+1. `neo-fold-prototype` exports the compact public Nightstream boundary as the final
    theorem-facing public proof for RV64IM.
 2. `nstream-midnight-bridge` converts that boundary plus any required
    bridge-private witness into Midnight

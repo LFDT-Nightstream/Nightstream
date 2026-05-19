@@ -121,7 +121,7 @@ non-zero-init carrier.
 
 ## Paper Anchors
 
-- **Source**: `./crates/neo-fold-next/specs/riscv-kernel.md`
+- **Source**: `./crates/neo-fold-prototype/specs/riscv-kernel.md`
 - Anchors:
   - Stage-2 linkage batch
   - RAM store payload binding

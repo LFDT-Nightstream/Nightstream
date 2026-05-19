@@ -16,8 +16,24 @@ use rand_chacha::rand_core::SeedableRng;
 
 fn setup_ajtai_for_dims(m: usize) {
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(7);
-    let pp = ajtai_setup(&mut rng, D, 4, m).expect("Ajtai setup should succeed");
+    let pp = ajtai_setup(&mut rng, D, 4, packed_cols(m)).expect("Ajtai setup should succeed");
     let _ = set_global_pp(pp);
+}
+
+fn packed_cols(m: usize) -> usize {
+    m.div_ceil(D)
+}
+
+fn ajtai_for_dims(m: usize) -> AjtaiSModule {
+    AjtaiSModule::from_global_for_dims(D, packed_cols(m)).unwrap()
+}
+
+fn packed_constant(m: usize, value: F) -> Mat<F> {
+    let mut z = Mat::zero(D, packed_cols(m), F::ZERO);
+    for col in 0..m {
+        z.set(col % D, col / D, value);
+    }
+    z
 }
 
 fn tiny_ccs_id(n: usize, m: usize) -> CcsStructure<F> {
@@ -48,10 +64,10 @@ fn mat_eq<Ff: Field + PrimeCharacteristicRing + Copy>(a: &Mat<Ff>, b: &Mat<Ff>) 
 }
 
 fn public_inputs_from_witness(Z: &Mat<F>, expected_m: usize, m_in: usize) -> Vec<F> {
-    let layout =
-        neo_reductions::common::witness_mat_layout(Z, expected_m).expect("fixture witness must have a valid layout");
+    neo_reductions::common::validate_superneo_witness_mat(Z, expected_m)
+        .expect("fixture witness must use packed SuperNeo layout");
     (0..m_in)
-        .map(|c| neo_reductions::common::witness_mat_get_f(Z, layout, expected_m, c % D, c))
+        .map(|c| neo_reductions::common::witness_mat_get_f(Z, expected_m, c % D, c))
         .collect()
 }
 
@@ -59,27 +75,27 @@ fn public_inputs_from_witness(Z: &Mat<F>, expected_m: usize, m_in: usize) -> Vec
 
 #[test]
 fn paper_exact_dec_reconstruction_and_checks_hold() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     setup_ajtai_for_dims(m);
 
     let s = tiny_ccs_id(n, m);
-    let l = AjtaiSModule::from_global_for_dims(D, m).unwrap();
+    let l = ajtai_for_dims(m);
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
 
     // Split components (Z_1, Z_2, Z_3)
-    let z1 = Mat::from_row_major(D, m, vec![F::from_u64(1); D * m]);
-    let z2 = Mat::from_row_major(D, m, vec![F::from_u64(2); D * m]);
-    let z3 = Mat::from_row_major(D, m, vec![F::from_u64(3); D * m]);
+    let z1 = packed_constant(m, F::from_u64(1));
+    let z2 = packed_constant(m, F::from_u64(2));
+    let z3 = packed_constant(m, F::from_u64(3));
     let Z_split = vec![z1.clone(), z2.clone(), z3.clone()];
 
     // Parent Z := Σ b^{i-1} Z_i
     let bF = F::from_u64(params.b as u64);
-    let mut Z_parent = Mat::zero(D, m, F::ZERO);
+    let mut Z_parent = Mat::zero(D, packed_cols(m), F::ZERO);
     let mut pow = F::ONE;
     for Zi in &Z_split {
         for r in 0..D {
-            for c in 0..m {
+            for c in 0..Zi.cols() {
                 Z_parent.set(r, c, Z_parent[(r, c)] + pow * Zi[(r, c)]);
             }
         }
@@ -149,15 +165,15 @@ fn paper_exact_dec_reconstruction_and_checks_hold() {
 
 #[test]
 fn paper_exact_dec_k1_identity() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     setup_ajtai_for_dims(m);
 
     let s = tiny_ccs_id(n, m);
-    let l = AjtaiSModule::from_global_for_dims(D, m).unwrap();
+    let l = ajtai_for_dims(m);
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
 
-    let Z = Mat::from_row_major(D, m, vec![F::from_u64(4); D * m]);
+    let Z = packed_constant(m, F::from_u64(4));
     let r = vec![K::from(F::from_u64(13)); 1];
 
     let w = CcsWitness {
@@ -200,23 +216,23 @@ fn paper_exact_dec_k1_identity() {
 
 #[test]
 fn paper_exact_dec_wrong_split_detected() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     setup_ajtai_for_dims(m);
 
     let s = tiny_ccs_id(n, m);
-    let l = AjtaiSModule::from_global_for_dims(D, m).unwrap();
+    let l = ajtai_for_dims(m);
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
 
     // Honest split
-    let z1 = Mat::from_row_major(D, m, vec![F::from_u64(1); D * m]);
-    let z2 = Mat::from_row_major(D, m, vec![F::from_u64(2); D * m]);
+    let z1 = packed_constant(m, F::from_u64(1));
+    let z2 = packed_constant(m, F::from_u64(2));
 
     // Parent Z := z1 + b·z2
     let bF = F::from_u64(params.b as u64);
-    let mut Z_parent = Mat::zero(D, m, F::ZERO);
+    let mut Z_parent = Mat::zero(D, packed_cols(m), F::ZERO);
     for r_ in 0..D {
-        for c_ in 0..m {
+        for c_ in 0..Z_parent.cols() {
             Z_parent.set(r_, c_, z1[(r_, c_)] + bF * z2[(r_, c_)]);
         }
     }
@@ -247,9 +263,9 @@ fn paper_exact_dec_wrong_split_detected() {
     .clone();
 
     // Bad split: replace Z_2 with 2·Z_2
-    let mut Z2_bad = Mat::zero(D, m, F::ZERO);
+    let mut Z2_bad = Mat::zero(D, packed_cols(m), F::ZERO);
     for r_ in 0..D {
-        for c_ in 0..m {
+        for c_ in 0..Z2_bad.cols() {
             Z2_bad.set(r_, c_, F::from_u64(2) * z2[(r_, c_)]);
         }
     }
@@ -264,12 +280,12 @@ fn paper_exact_dec_wrong_split_detected() {
 
 #[test]
 fn paper_exact_dec_rlc_roundtrip() {
-    let params = NeoParams::goldilocks_127();
+    let params = NeoParams::goldilocks_paper_b2();
     let (n, m) = (2usize, 2usize);
     setup_ajtai_for_dims(m);
 
     let s = tiny_ccs_id(n, m);
-    let l = AjtaiSModule::from_global_for_dims(D, m).unwrap();
+    let l = ajtai_for_dims(m);
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
 
     // Split components Z_i
@@ -277,16 +293,16 @@ fn paper_exact_dec_rlc_roundtrip() {
     let mut Z_split = Vec::with_capacity(k);
     for i in 0..k {
         let val = F::from_u64((i as u64) + 1);
-        Z_split.push(Mat::from_row_major(D, m, vec![val; D * m]));
+        Z_split.push(packed_constant(m, val));
     }
 
     // Parent Z := Σ b^{i-1} Z_i
     let bF = F::from_u64(params.b as u64);
-    let mut Z_parent = Mat::zero(D, m, F::ZERO);
+    let mut Z_parent = Mat::zero(D, packed_cols(m), F::ZERO);
     let mut pow = F::ONE;
     for Zi in &Z_split {
         for r_ in 0..D {
-            for c_ in 0..m {
+            for c_ in 0..Zi.cols() {
                 Z_parent.set(r_, c_, Z_parent[(r_, c_)] + pow * Zi[(r_, c_)]);
             }
         }

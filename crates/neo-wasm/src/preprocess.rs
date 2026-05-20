@@ -24,6 +24,7 @@ use neo_fold_clean::paper::params::Params;
 use neo_params::{goldilocks_paper_b2, NeoParams};
 
 use crate::ccs::WasmVmSpec;
+use crate::layout::{ColumnWidth, COLUMN_SPECS};
 
 /// Test/demo Ajtai SRS seed. The Ajtai PP is shape-keyed in the global
 /// registry, so any consistent value across prover + verifier in the same
@@ -98,7 +99,8 @@ fn wasm_recursive_plan(m: usize, m_in: usize) -> RecursiveStepImagePlan {
     // wasm R1CS shape under the tiny params profile.
     const R_LEN: usize = 21;
 
-    let limbs = m * POSEIDON2_GOLDILOCKS_BITS + 1;
+    let app_private_var_widths = wasm_app_private_var_widths(m);
+    let limbs = app_private_var_widths.iter().sum::<usize>() + 1;
     let ce_shape = NifsCeClaimShape {
         c_data_entries: C_DATA_ENTRIES,
         x_rows: 54,
@@ -110,6 +112,7 @@ fn wasm_recursive_plan(m: usize, m_in: usize) -> RecursiveStepImagePlan {
     };
     let probe_plan = RecursiveStepImagePlan {
         limbs,
+        app_private_var_widths,
         boundary_bits: 4 * POSEIDON2_GOLDILOCKS_BITS,
         kmul_count: 0,
         ring_action_pair_count: 0,
@@ -137,6 +140,27 @@ fn wasm_recursive_plan(m: usize, m_in: usize) -> RecursiveStepImagePlan {
         pc: 1,
         public_x_out_lane_bit_starts,
         app_public_input_var_indices: (0..m_in).collect(),
+        app_public_input_bit_var_indices: Vec::new(),
+        semantic_state_in_var_indices: Vec::new(),
+        semantic_state_out_var_indices: Vec::new(),
+        initial_semantic_state_digest_anchor: None,
     });
     plan
+}
+
+fn wasm_app_private_var_widths(m: usize) -> Vec<usize> {
+    assert_eq!(
+        m,
+        COLUMN_SPECS.len(),
+        "wasm R1CS variable count must match COLUMN_SPECS"
+    );
+    COLUMN_SPECS
+        .iter()
+        .map(|spec| match spec.width {
+            ColumnWidth::Boolean => 1,
+            ColumnWidth::Byte => 8,
+            ColumnWidth::U32 => 32,
+            ColumnWidth::Field => POSEIDON2_GOLDILOCKS_BITS,
+        })
+        .collect()
 }

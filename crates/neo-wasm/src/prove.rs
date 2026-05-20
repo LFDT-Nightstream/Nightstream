@@ -87,16 +87,16 @@ pub fn verify(prep: &R1csFPrimePreprocessing, proof: &WasmProof) -> Result<(), W
 fn validate_wasm_preprocessing(prep: &R1csFPrimePreprocessing, vm: &WasmVmSpec) -> Result<(), WasmProveError> {
     let core = vm.core_ccs_spec();
     let expected = structure_digest(&core.structure);
-    let actual = structure_digest(&prep.r1cs.to_structure());
+    let actual = structure_digest(&prep.r1cs().to_structure());
     if actual != expected {
         return Err(WasmProveError::Bridge(
             "preprocessing R1CS shape does not match the canonical wasm VM".into(),
         ));
     }
-    if prep.r1cs.m_in() != core.m_in {
+    if prep.r1cs().m_in() != core.m_in {
         return Err(WasmProveError::Bridge(format!(
             "preprocessing m_in {} does not match wasm m_in {}",
-            prep.r1cs.m_in(),
+            prep.r1cs().m_in(),
             core.m_in
         )));
     }

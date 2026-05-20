@@ -1,5 +1,7 @@
 //! Owns the WASM VM contract and phase-1 core CCS.
 
+use crate::layout::{COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV};
+
 use super::gadgets::{
     add_conditional_select_gadget, push_gated_linear_zero, push_u32_le_bytes, push_zero_test_gadget,
     ConditionalSelectCols,
@@ -890,6 +892,8 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
                 rhs: idx(stack.read1_value),
                 out: idx(stack.write0_value),
                 scratch_out_delta: COL_SELECT_OUT_DELTA,
+                scratch_inverse: COL_SELECT_SCRATCH_INV,
+                cond_is_zero: COL_SELECT_COND_IS_ZERO,
             },
         )
     });

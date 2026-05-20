@@ -1,3 +1,5 @@
+use crate::layout::COL_ONE;
+
 use super::tagged_r1cs_builder::WasmTaggedR1csBuilder as R1csBuilder;
 use neo_math::F;
 use p3_field::{Field, PrimeCharacteristicRing};
@@ -6,25 +8,25 @@ use p3_field::{Field, PrimeCharacteristicRing};
 pub struct ConditionalSelectCols {
     pub selector: usize,
     pub cond: usize,
+    pub cond_is_zero: usize,
     pub lhs: usize,
     pub rhs: usize,
     pub out: usize,
     pub scratch_out_delta: usize,
+    pub scratch_inverse: usize,
 }
 
-/// Constraints for:
-/// cond ? lhs : rhs
+/// Constraints for `selector * (out - (cond != 0 ? lhs : rhs)) = 0`.
 ///
-/// TODO: this currently *assumes* that cond is boolean
+/// The zero-test and scratch product rows are intentionally global: callers
+/// must populate `cond_is_zero`, `scratch_inverse`, and `scratch_out_delta` on
+/// every witness row.
 pub fn add_conditional_select_gadget(b: &mut R1csBuilder, cols: ConditionalSelectCols) {
-    // the core equation is:
-    //
-    // selector * [ cond * (lhs - rhs) ] = selector * (out - rhs)
+    push_zero_test_gadget(b, cols.cond, cols.scratch_inverse, cols.cond_is_zero);
 
-    // one auxiliary variable/row for:
-    //   cond * (lhs - rhs)
+    // scratch_out_delta = (cond != 0) * (lhs - rhs)
     b.push_row(
-        [(cols.cond, F::ONE)],
+        [(COL_ONE, F::ONE), (cols.cond_is_zero, -F::ONE)],
         [(cols.lhs, F::ONE), (cols.rhs, -F::ONE)],
         [(cols.scratch_out_delta, F::ONE)],
     );
@@ -32,7 +34,7 @@ pub fn add_conditional_select_gadget(b: &mut R1csBuilder, cols: ConditionalSelec
     push_gated_linear_zero(
         b,
         cols.selector,
-        // (out - rhs) - cond * (lhs - rhs)] = 0
+        // (out - rhs) - (cond != 0) * (lhs - rhs) = 0
         [
             (cols.out, F::ONE),
             (cols.rhs, -F::ONE),

@@ -15,11 +15,9 @@ pub mod memory_semantics;
 pub mod preprocess;
 pub mod prove;
 mod r1cs_builder;
-pub mod spec;
 pub mod step_build;
 pub mod tables;
 pub mod tagged_r1cs_builder;
-pub mod trace;
 
 pub use adapters::rwasm::{traces_from_rwasm_instr_states, traces_from_rwasm_tracer};
 pub use adapters::wasmtime::{
@@ -28,7 +26,7 @@ pub use adapters::wasmtime::{
     traces_from_wasmtime_steps, traces_from_wasmtime_wasm_bytes, WasmtimeTraceMemoryAccess, WasmtimeTraceRun,
     WasmtimeTraceState, WasmtimeTraceStep,
 };
-pub use builder::WasmTraceBuilder;
+pub use builder::{build_steps, build_witness_vector};
 pub use ccs::WasmVmSpec;
 pub use ir::{
     boundary_states, LinearMemoryAccess, LinearMemoryWordLane, StackLaneAccess, WasmAuxOpcode, WasmBoundaryState,

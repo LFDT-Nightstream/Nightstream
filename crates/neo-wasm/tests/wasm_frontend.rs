@@ -2,15 +2,14 @@ use neo_fold_clean::frontends::r1cs_f_prime::R1csChainBuilder;
 use neo_fold_clean::lifecycle::verify_uncompressed;
 use neo_wasm::preprocess::preprocess_seeded;
 use neo_wasm::{
-    opcode_code, StackLaneAccess, WasmOpcode, WasmParamInitState, WasmPcEdgeKind, WasmRowKind, WasmStepTrace,
-    WasmTraceBuilder, WasmVmSpec,
+    build_steps, opcode_code, StackLaneAccess, WasmOpcode, WasmParamInitState, WasmPcEdgeKind, WasmRowKind,
+    WasmStepTrace, WasmVmSpec,
 };
 
 #[test]
 fn wasm_frontend_scaffold_runs_through_clean_lifecycle() {
     let vm = WasmVmSpec::new().expect("vm");
     let prep = preprocess_seeded(&vm).expect("prep");
-    let builder = WasmTraceBuilder::new();
 
     let steps = vec![
         WasmStepTrace {
@@ -247,7 +246,7 @@ fn wasm_frontend_scaffold_runs_through_clean_lifecycle() {
         },
     ];
 
-    let prepared = builder.build_steps(&vm, &steps).expect("build");
+    let prepared = build_steps(&steps);
 
     let mut chain = R1csChainBuilder::new(&prep).expect("chain");
     for step in &prepared {

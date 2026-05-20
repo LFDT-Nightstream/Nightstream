@@ -1261,7 +1261,7 @@ fn i64_call_param_init_aux_row_is_wide_and_accepted() {
 }
 
 #[test]
-fn select_row_rejects_non_boolean_condition() {
+fn select_row_accepts_nonzero_condition() {
     let row = build_witness_vector(&step(
         0,
         4,
@@ -1276,5 +1276,24 @@ fn select_row_rejects_non_boolean_condition() {
         0,
         false,
     ));
-    assert_rejected(&row, "select row with non-boolean condition");
+    assert_satisfied(&row, "select row with nonzero condition");
+}
+
+#[test]
+fn select_row_rejects_nonzero_condition_with_rhs_output() {
+    let row = build_witness_vector(&step(
+        0,
+        4,
+        opcode_code(WasmOpcode::Select),
+        3,
+        1,
+        Some(StackLaneAccess { addr: 0, value: 11 }),
+        Some(StackLaneAccess { addr: 1, value: 22 }),
+        Some(StackLaneAccess { addr: 2, value: 2 }),
+        Some(StackLaneAccess { addr: 0, value: 22 }),
+        None,
+        0,
+        false,
+    ));
+    assert_rejected(&row, "select row with nonzero condition and rhs output");
 }

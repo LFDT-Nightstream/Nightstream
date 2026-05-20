@@ -1,8 +1,7 @@
 //! Owns packaging normalized WASM rows into `StepBuild`.
 
-use super::ccs::WasmVmSpec;
 use super::gadgets::zero_test_witness_u64;
-use super::ir::{WasmBuildError, WasmRowKind, WasmStepTrace};
+use super::ir::{WasmRowKind, WasmStepTrace};
 use super::layout::{
     selector_col, COL_CALL_INDIRECT_TYPE_INDEX, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT,
     COL_CALL_STACK_POP_CALLER_FBP, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_POP_RETURN_PC,
@@ -55,64 +54,23 @@ use super::layout::{
     COL_STACK_WRITES, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE, COL_TABLE_VALUE,
     COL_TARGET_FUNCTION_IS_GUEST, COL_WIDE_AUX0, COL_WIDE_AUX1, COL_WIDE_VALUES_ENABLED, WITNESS_WIDTH,
 };
-use super::lower::{normalize_source, WasmTraceSource};
-use super::step_build::{BytecodeFetchRecord, ShoutLookupRecord, WasmStepBuild, WasmStepExtensionData};
-use super::tables::lookup_payload;
+use super::step_build::WasmStepBuild;
+use crate::layout::{COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-/// Packages normalized WASM rows into prepared `WasmStepBuild`s.
+/// Build one R1CS-satisfying assignment per normalized wasm step.
 ///
-/// Each step's witness vector is the raw R1CS-satisfying assignment. The
-/// R1CS-F' chain builder in `neo-fold-clean` bit-decomposes it during
-/// `compile_step` and constructs the foldable F'-encoded `CcsInstance`
-/// from there. neo-wasm never commits to the raw assignment directly.
-#[derive(Default)]
-pub struct WasmTraceBuilder;
-
-impl WasmTraceBuilder {
-    pub fn new() -> Self {
-        Self
-    }
-
-    pub fn build_trace_source(
-        &self,
-        vm: &WasmVmSpec,
-        source: &impl WasmTraceSource,
-    ) -> Result<Vec<WasmStepBuild>, WasmBuildError> {
-        let steps = normalize_source(source)?;
-        self.build_steps(vm, &steps)
-    }
-
-    pub fn build_ir(&self, vm: &WasmVmSpec, steps: &[WasmStepTrace]) -> Result<Vec<WasmStepBuild>, WasmBuildError> {
-        self.build_steps(vm, steps)
-    }
-
-    pub fn build_steps(&self, vm: &WasmVmSpec, steps: &[WasmStepTrace]) -> Result<Vec<WasmStepBuild>, WasmBuildError> {
-        steps.iter().map(|step| self.build_step(vm, step)).collect()
-    }
-
-    fn build_step(&self, _vm: &WasmVmSpec, trace: &WasmStepTrace) -> Result<WasmStepBuild, WasmBuildError> {
-        let assignment = build_witness_vector(trace);
-
-        let extension_data = WasmStepExtensionData {
-            bytecode_fetch: Some(BytecodeFetchRecord {
-                pc: u16::try_from(trace.pc_before).unwrap_or(u16::MAX),
-                opcode: trace.opcode_code,
-            }),
-            shout_lookup: lookup_payload(trace).map(|payload| ShoutLookupRecord {
-                shout_id: payload.shout_id,
-                inputs: payload.inputs,
-                outputs: payload.outputs,
-            }),
-        };
-
-        Ok(WasmStepBuild {
-            label: format!("wasm@pc:{:04x}:{}", trace.pc_before, trace.info.name),
-            assignment,
-            extension_data,
+/// The R1CS-F' chain builder in `neo-fold-clean` bit-decomposes each
+/// assignment during `compile_step` and constructs the foldable F'-encoded
+/// `CcsInstance` internally — neo-wasm does not commit to the assignment.
+pub fn build_steps(steps: &[WasmStepTrace]) -> Vec<WasmStepBuild> {
+    steps
+        .iter()
+        .map(|step| WasmStepBuild {
+            assignment: build_witness_vector(step),
         })
-    }
+        .collect()
 }
 
 pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
@@ -627,11 +585,13 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
         _ => {}
     }
 
-    if matches!(trace.opcode, super::isa::WasmOpcode::Select) {
-        let read1 = trace.stack_read1.map(|lane| lane.value).unwrap_or(0);
-        let write0 = trace.stack_write0.map(|lane| lane.value).unwrap_or(0);
-        wit[COL_SELECT_OUT_DELTA] = F::from_u64(u64::from(write0)) - F::from_u64(u64::from(read1));
-    }
+    let select_cond = trace.stack_read2.map(|lane| lane.value).unwrap_or(0);
+    let (select_cond_is_zero, select_cond_inv) = zero_test_witness_u64(u64::from(select_cond));
+    let select_lhs = F::from_u64(u64::from(trace.stack_read0.map(|lane| lane.value).unwrap_or(0)));
+    let select_rhs = F::from_u64(u64::from(trace.stack_read1.map(|lane| lane.value).unwrap_or(0)));
+    wit[COL_SELECT_COND_IS_ZERO] = select_cond_is_zero;
+    wit[COL_SELECT_SCRATCH_INV] = select_cond_inv;
+    wit[COL_SELECT_OUT_DELTA] = (F::ONE - select_cond_is_zero) * (select_lhs - select_rhs);
 
     wit
 }

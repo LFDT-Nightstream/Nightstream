@@ -1,6 +1,6 @@
 use neo_wasm::{
     lookup_payload, opcode_code, opcode_info_from_code, StackLaneAccess, WasmOpcode, WasmParamInitState,
-    WasmPcEdgeKind, WasmRowKind, WasmShoutOpcode, WasmStepTrace, WasmTraceBuilder, WasmVmSpec,
+    WasmPcEdgeKind, WasmRowKind, WasmShoutOpcode, WasmStepTrace,
 };
 
 fn step(opcode: WasmOpcode, lhs: u32, rhs: Option<u32>, out: u32) -> WasmStepTrace {
@@ -170,25 +170,6 @@ fn lookup_payload_is_emitted_for_compare_unary_and_rotate_family() {
         assert_eq!(payload.inputs, vec![lhs, rhs]);
         assert_eq!(payload.outputs, vec![output]);
     }
-}
-
-#[test]
-fn trace_builder_attaches_lookup_payload_to_extension_data() {
-    let vm = WasmVmSpec::new().expect("vm");
-
-    let builder = WasmTraceBuilder::new();
-    let trace = step(WasmOpcode::I32Mul, 7, Some(9), 63);
-
-    let built = builder.build_steps(&vm, &[trace]).expect("build");
-    let payload = built[0]
-        .extension_data
-        .shout_lookup
-        .clone()
-        .expect("lookup payload");
-
-    assert_eq!(payload.shout_id, WasmShoutOpcode::I32Mul.to_shout_id());
-    assert_eq!(payload.inputs, vec![7, 9]);
-    assert_eq!(payload.outputs, vec![63]);
 }
 
 #[test]

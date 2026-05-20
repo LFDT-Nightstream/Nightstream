@@ -4,9 +4,11 @@
 //! `neo-fold-clean`'s r1cs_f_prime chain; [`verify`] verifies the chain
 //! against the same preprocessing.
 //!
-//! The proof object is the IVC artifact only. Witness/trace soundness
-//! is enforced by the CCS constraints under the fold, and exercised in
-//! tests through [`sanity_check_lookup_row`] and [`sanity_check_memory_rows`].
+//! The proof object is the IVC artifact only. The fold binds per-row R1CS
+//! constraints (the wasm CCS), but does *not* bind the ROM/memory/lookup
+//! semantics — those rely on debug checkers ([`sanity_check_lookup_row`],
+//! [`sanity_check_memory_rows`]) today and will move under a lookup
+//! argument when the shout/twist layer lands.
 //!
 //! [`sanity_check_lookup_row`]: crate::sanity_check_lookup_row
 //! [`sanity_check_memory_rows`]: crate::sanity_check_memory_rows
@@ -16,7 +18,7 @@ use neo_fold_clean::lifecycle::verify_uncompressed as clean_verify_uncompressed;
 use neo_fold_clean::paper::digest::structure_digest;
 use neo_fold_clean::Uncompressed;
 
-use crate::builder::WasmTraceBuilder;
+use crate::builder::build_steps;
 use crate::ccs::WasmVmSpec;
 use crate::ir::WasmStepTrace;
 
@@ -26,14 +28,12 @@ pub struct WasmProof {
 
 #[derive(Debug)]
 pub enum WasmProveError {
-    InvalidWitness(String),
     Bridge(String),
 }
 
 impl core::fmt::Display for WasmProveError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::InvalidWitness(msg) => write!(f, "invalid witness: {msg}"),
             Self::Bridge(msg) => write!(f, "bridge failed: {msg}"),
         }
     }
@@ -48,7 +48,7 @@ pub fn prove(prep: &R1csFPrimePreprocessing, trace: &[WasmStepTrace]) -> Result<
     let vm = WasmVmSpec::default();
     validate_wasm_preprocessing(prep, &vm)?;
 
-    let prepared = build_prepared(trace)?;
+    let prepared = build_steps(trace);
     let mut chain =
         R1csChainBuilder::new(prep).map_err(|err| WasmProveError::Bridge(format!("R1csChainBuilder::new: {err}")))?;
     for step in &prepared {
@@ -101,12 +101,4 @@ fn validate_wasm_preprocessing(prep: &R1csFPrimePreprocessing, vm: &WasmVmSpec) 
         )));
     }
     Ok(())
-}
-
-fn build_prepared(trace: &[WasmStepTrace]) -> Result<Vec<crate::step_build::WasmStepBuild>, WasmProveError> {
-    let vm = WasmVmSpec::default();
-    let builder = WasmTraceBuilder::new();
-    builder
-        .build_steps(&vm, trace)
-        .map_err(|err| WasmProveError::InvalidWitness(err.to_string()))
 }

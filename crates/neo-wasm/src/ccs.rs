@@ -8,8 +8,8 @@ use super::gadgets::{
 };
 use super::isa::{opcode_code, opcode_info_from_code, WasmOpcode, WasmShoutOpcode};
 use super::layout::{
-    selector_col, BOOLEAN_COLS, COL_ONE, COL_PC_EDGE_KIND, COL_SELECT_OUT_DELTA, COL_WIDE_AUX0, COL_WIDE_AUX1,
-    SELECTOR_COLS, WITNESS_WIDTH,
+    selector_col, ColumnWidth, COLUMN_SPECS, COL_ONE, COL_PC_EDGE_KIND, COL_SELECT_OUT_DELTA, COL_WIDE_AUX0,
+    COL_WIDE_AUX1, SELECTOR_COLS, WITNESS_WIDTH,
 };
 use super::lookup_binding_builder::{
     build_wasm_lookup_binding_layout, CallColumns, Column, ControlColumns, FrameColumns, FunctionTypeColumns,
@@ -208,14 +208,11 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
     let mut b = WasmTaggedR1csBuilder::new(WITNESS_WIDTH, COL_ONE)?;
 
     b.with_tag(always("boolean columns"), |b| {
-        for &col in &BOOLEAN_COLS {
-            b.push_boolean(col);
-        }
-    });
-
-    b.with_tag(always("selector columns are boolean"), |b| {
-        for &col in &SELECTOR_COLS {
-            b.push_boolean(col);
+        for spec in COLUMN_SPECS
+            .iter()
+            .filter(|s| s.width == ColumnWidth::Boolean)
+        {
+            b.push_boolean(spec.index);
         }
     });
 

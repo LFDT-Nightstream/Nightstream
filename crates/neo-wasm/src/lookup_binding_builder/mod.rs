@@ -69,7 +69,6 @@ pub struct WasmLookupFamilySpec {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WasmLookupFamilyKind {
     Shout(WasmShoutOpcode),
-    ByteU8,
     LinearMemoryBounds,
 }
 
@@ -803,19 +802,6 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
         })
         .collect();
 
-    let byte_u8_family = WasmLookupFamilySpec {
-        name: "byte_u8",
-        arity: WasmLookupArity::Unary,
-        kind: WasmLookupFamilyKind::ByteU8,
-        semantics: LookupSemantics {
-            predicate: super::lookup_semantics::LookupPredicate::And(Vec::new()),
-        },
-    };
-    lookup_families.push(WasmLookupFamilySpec {
-        semantics: semantics_for_lookup_family(&byte_u8_family),
-        ..byte_u8_family
-    });
-
     let linear_memory_bounds_family = WasmLookupFamilySpec {
         name: "linear_memory_bounds",
         arity: WasmLookupArity::Tuple(4),
@@ -854,84 +840,6 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
             role: "shout row binding",
         })
         .collect();
-
-    lookup_bindings.extend(
-        [
-            ("stack_read0_value_byte0", stack_read0_bytes.lo[0]),
-            ("stack_read0_value_byte1", stack_read0_bytes.lo[1]),
-            ("stack_read0_value_byte2", stack_read0_bytes.lo[2]),
-            ("stack_read0_value_byte3", stack_read0_bytes.lo[3]),
-            ("stack_read0_value_hi_byte0", stack_read0_bytes.hi[0]),
-            ("stack_read0_value_hi_byte1", stack_read0_bytes.hi[1]),
-            ("stack_read0_value_hi_byte2", stack_read0_bytes.hi[2]),
-            ("stack_read0_value_hi_byte3", stack_read0_bytes.hi[3]),
-            ("stack_read1_value_byte0", stack_read1_bytes.lo[0]),
-            ("stack_read1_value_byte1", stack_read1_bytes.lo[1]),
-            ("stack_read1_value_byte2", stack_read1_bytes.lo[2]),
-            ("stack_read1_value_byte3", stack_read1_bytes.lo[3]),
-            ("stack_read1_value_hi_byte0", stack_read1_bytes.hi[0]),
-            ("stack_read1_value_hi_byte1", stack_read1_bytes.hi[1]),
-            ("stack_read1_value_hi_byte2", stack_read1_bytes.hi[2]),
-            ("stack_read1_value_hi_byte3", stack_read1_bytes.hi[3]),
-            ("stack_read2_value_byte0", stack_read2_bytes.lo[0]),
-            ("stack_read2_value_byte1", stack_read2_bytes.lo[1]),
-            ("stack_read2_value_byte2", stack_read2_bytes.lo[2]),
-            ("stack_read2_value_byte3", stack_read2_bytes.lo[3]),
-            ("stack_read2_value_hi_byte0", stack_read2_bytes.hi[0]),
-            ("stack_read2_value_hi_byte1", stack_read2_bytes.hi[1]),
-            ("stack_read2_value_hi_byte2", stack_read2_bytes.hi[2]),
-            ("stack_read2_value_hi_byte3", stack_read2_bytes.hi[3]),
-            ("stack_write0_value_byte0", stack_write0_bytes.lo[0]),
-            ("stack_write0_value_byte1", stack_write0_bytes.lo[1]),
-            ("stack_write0_value_byte2", stack_write0_bytes.lo[2]),
-            ("stack_write0_value_byte3", stack_write0_bytes.lo[3]),
-            ("stack_write0_value_hi_byte0", stack_write0_bytes.hi[0]),
-            ("stack_write0_value_hi_byte1", stack_write0_bytes.hi[1]),
-            ("stack_write0_value_hi_byte2", stack_write0_bytes.hi[2]),
-            ("stack_write0_value_hi_byte3", stack_write0_bytes.hi[3]),
-            ("local_value_byte0", local_value_bytes.lo[0]),
-            ("local_value_byte1", local_value_bytes.lo[1]),
-            ("local_value_byte2", local_value_bytes.lo[2]),
-            ("local_value_byte3", local_value_bytes.lo[3]),
-            ("local_value_hi_byte0", local_value_bytes.hi[0]),
-            ("local_value_hi_byte1", local_value_bytes.hi[1]),
-            ("local_value_hi_byte2", local_value_bytes.hi[2]),
-            ("local_value_hi_byte3", local_value_bytes.hi[3]),
-            ("global_value_byte0", global_value_bytes.lo[0]),
-            ("global_value_byte1", global_value_bytes.lo[1]),
-            ("global_value_byte2", global_value_bytes.lo[2]),
-            ("global_value_byte3", global_value_bytes.lo[3]),
-            ("global_value_hi_byte0", global_value_bytes.hi[0]),
-            ("global_value_hi_byte1", global_value_bytes.hi[1]),
-            ("global_value_hi_byte2", global_value_bytes.hi[2]),
-            ("global_value_hi_byte3", global_value_bytes.hi[3]),
-            ("linear_mem_lane0_byte0", linear_memory.lane0_bytes[0]),
-            ("linear_mem_lane0_byte1", linear_memory.lane0_bytes[1]),
-            ("linear_mem_lane0_byte2", linear_memory.lane0_bytes[2]),
-            ("linear_mem_lane0_byte3", linear_memory.lane0_bytes[3]),
-            ("linear_mem_lane1_byte0", linear_memory.lane1_bytes[0]),
-            ("linear_mem_lane1_byte1", linear_memory.lane1_bytes[1]),
-            ("linear_mem_lane1_byte2", linear_memory.lane1_bytes[2]),
-            ("linear_mem_lane1_byte3", linear_memory.lane1_bytes[3]),
-            ("linear_mem_lane2_byte0", linear_memory.lane2_bytes[0]),
-            ("linear_mem_lane2_byte1", linear_memory.lane2_bytes[1]),
-            ("linear_mem_lane2_byte2", linear_memory.lane2_bytes[2]),
-            ("linear_mem_lane2_byte3", linear_memory.lane2_bytes[3]),
-            ("linear_mem_access_byte0", linear_memory.access_bytes[0]),
-            ("linear_mem_access_byte1", linear_memory.access_bytes[1]),
-            ("linear_mem_access_byte2", linear_memory.access_bytes[2]),
-            ("linear_mem_access_byte3", linear_memory.access_bytes[3]),
-            ("sign_ext_low7", linear_memory.sign_ext_low7),
-        ]
-        .into_iter()
-        .map(|(name, column)| WasmLookupBindingSpec {
-            name,
-            family: "byte_u8",
-            columns: vec![column],
-            gate: None,
-            role: "unproven byte range lookup binding",
-        }),
-    );
 
     lookup_bindings.push(WasmLookupBindingSpec {
         name: "linear_memory_bounds",

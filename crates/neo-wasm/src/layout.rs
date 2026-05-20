@@ -7,33 +7,61 @@ use super::isa::{opcode_code, WasmOpcode};
 
 pub const PUBLIC_INPUTS: usize = 1;
 
+/// Declared intrinsic range for a witness column.
+///
+/// These declarations are meant to be enforced; otherwise the proof is not
+/// sound. Enforcement can happen in the wasm CCS itself, as part of a lookup
+/// argument, or as part of the bounded-CCS preprocessing for folding (which
+/// bit-decomposes columns to preserve low norms). The chosen approach is
+/// not supposed to change the semantics, but may affect performance.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ColumnWidth {
+    /// Constrained to {0, 1}.
+    Boolean,
+    /// Constrained to [0, 256).
+    Byte,
+    /// Constrained to [0, 2^32).
+    U32,
+    /// No declared bound — the value is treated as a full field element.
+    /// Use for columns whose intrinsic range has not been audited yet, or
+    /// whose width depends on a row gate (e.g. wide limbs that are 64-bit
+    /// only when `wide_values_enabled = 1`).
+    Field,
+}
+
 /// Static metadata about a witness column. `name` is the `UPPER_SNAKE_CASE`
 /// Rust identifier (e.g. `"COL_OPCODE_CODE"`) as produced by `stringify!`;
 /// consumers that want a lowercased / display label should strip the `COL_`
 /// prefix and lowercase. `role` is a free-form human-readable description (may
-/// be empty if the column has not been documented).
+/// be empty if the column has not been documented). `width` declares the
+/// intrinsic range; see [`ColumnWidth`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WasmColumnSpec {
     pub index: usize,
     pub name: &'static str,
     pub role: &'static str,
+    pub width: ColumnWidth,
 }
 
 macro_rules! define_columns {
-    ($(($name:ident, $role:literal)),+ $(,)?) => {
+    ($( ( $name:ident, $role:literal $(, $width:expr)? ) ),+ $(,)?) => {
         define_columns!(@assign 0usize; $($name),+);
 
         /// Macro-generated table of column metadata. Single source of truth:
-        /// the `pub const COL_*`, the `name`, and the `role` here all come from
-        /// the same macro entry, so they cannot drift from each other.
+        /// the `pub const COL_*`, the `name`, the `role`, and the declared
+        /// `width` here all come from the same macro entry, so they cannot
+        /// drift from each other.
         pub const COLUMN_SPECS: &[WasmColumnSpec] = &[
             $(WasmColumnSpec {
                 index: $name,
                 name: stringify!($name),
                 role: $role,
+                width: define_columns!(@maybe_width $($width)?),
             }),+
         ];
     };
+    (@maybe_width $width:expr) => { $width };
+    (@maybe_width) => { ColumnWidth::Field };
     (@assign $idx:expr; $name:ident, $($rest:ident),+) => {
         pub const $name: usize = $idx;
         define_columns!(@assign $idx + 1usize; $($rest),+);
@@ -46,47 +74,67 @@ macro_rules! define_columns {
 
 define_columns!(
     (COL_ONE, ""),
-    (COL_OPCODE_CODE, "opcode decode selector source"),
-    (COL_PC_BEFORE, "transition source pc"),
-    (COL_PC_AFTER, "transition destination pc"),
+    (COL_OPCODE_CODE, "opcode decode selector source", ColumnWidth::U32),
+    (COL_PC_BEFORE, "transition source pc", ColumnWidth::U32),
+    (COL_PC_AFTER, "transition destination pc", ColumnWidth::U32),
     (
         COL_CONTROL_CHOICE,
-        "normalized control-edge selector where 0 is default/fallthrough"
+        "normalized control-edge selector where 0 is default/fallthrough",
+        ColumnWidth::U32
     ),
     (
         COL_PC_EDGE_KIND,
-        "static next-pc kind: static, return-like, dynamic call_indirect, or terminal"
+        "static next-pc kind: static, return-like, dynamic call_indirect, or terminal",
+        ColumnWidth::U32
     ),
     (
         COL_WIDE_VALUES_ENABLED,
-        "row flag enabling high limbs for i64-shaped values"
+        "row flag enabling high limbs for i64-shaped values",
+        ColumnWidth::Boolean
     ),
-    (COL_SP_BEFORE, "transition source stack pointer"),
-    (COL_SP_AFTER, "transition destination stack pointer"),
-    (COL_HALTED, "terminal row flag"),
-    (COL_IS_PROGRAM_ROW, "real decoded wasm program row"),
-    (COL_PC_ROM_ACTIVE, "program static edge ROM read gate"),
-    (COL_PC_EDGE_KIND_IS_STATIC, "zero-test flag for static pc-edge rows"),
+    (COL_SP_BEFORE, "transition source stack pointer", ColumnWidth::U32),
+    (COL_SP_AFTER, "transition destination stack pointer", ColumnWidth::U32),
+    (COL_HALTED, "terminal row flag", ColumnWidth::Boolean),
+    (
+        COL_IS_PROGRAM_ROW,
+        "real decoded wasm program row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_PC_ROM_ACTIVE,
+        "program static edge ROM read gate",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_PC_EDGE_KIND_IS_STATIC,
+        "zero-test flag for static pc-edge rows",
+        ColumnWidth::Boolean
+    ),
     (COL_PC_EDGE_KIND_INV, "inverse witness for pc edge-kind zero test"),
     (
         COL_PARAM_INIT_ACTIVE_BEFORE,
-        "call-parameter initialization mode before this row"
+        "call-parameter initialization mode before this row",
+        ColumnWidth::Boolean
     ),
     (
         COL_PARAM_INIT_ACTIVE_AFTER,
-        "call-parameter initialization mode after this row"
+        "call-parameter initialization mode after this row",
+        ColumnWidth::Boolean
     ),
     (
         COL_PARAM_INIT_REMAINING_BEFORE,
-        "remaining call parameters to initialize before this row"
+        "remaining call parameters to initialize before this row",
+        ColumnWidth::U32
     ),
     (
         COL_PARAM_INIT_REMAINING_AFTER,
-        "remaining call parameters to initialize after this row"
+        "remaining call parameters to initialize after this row",
+        ColumnWidth::U32
     ),
     (
         COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO,
-        "zero-test flag for remaining call parameters after this row"
+        "zero-test flag for remaining call parameters after this row",
+        ColumnWidth::Boolean
     ),
     (
         COL_PARAM_INIT_REMAINING_AFTER_INV,
@@ -94,232 +142,369 @@ define_columns!(
     ),
     (
         COL_CALL_STACK_PUSH_PRESENT,
-        "flag indicating that this row enters a traced guest callee"
+        "flag indicating that this row enters a traced guest callee",
+        ColumnWidth::Boolean
     ),
     (
         COL_CALL_STACK_POP_PRESENT,
-        "flag indicating that this row restores a saved caller return context"
+        "flag indicating that this row restores a saved caller return context",
+        ColumnWidth::Boolean
     ),
     (
         COL_CALL_STACK_POP_RETURN_PC,
-        "saved return pc restored by a non-final return row"
+        "saved return pc restored by a non-final return row",
+        ColumnWidth::U32
     ),
     (
         COL_CALL_STACK_POP_CALLER_FBP,
-        "saved caller locals frame base restored by a non-final return row"
+        "saved caller locals frame base restored by a non-final return row",
+        ColumnWidth::U32
     ),
     (
         COL_CURRENT_FUNCTION_REF,
-        "normalized function reference for the currently executing frame"
+        "normalized function reference for the currently executing frame",
+        ColumnWidth::U32
     ),
     (
         COL_CURRENT_FUNCTION_NUM_LOCALS,
-        "number of locals in the current function frame"
+        "number of locals in the current function frame",
+        ColumnWidth::U32
     ),
-    (COL_STACK_READS, "stack delta source"),
-    (COL_STACK_WRITES, "stack delta destination"),
-    (COL_STACK_READ0_ACTIVE, "stack lane 0 read activity flag"),
-    (COL_STACK_READ1_ACTIVE, "stack lane 1 read activity flag"),
-    (COL_STACK_READ2_ACTIVE, "stack lane 2 read activity flag"),
-    (COL_STACK_WRITE0_ACTIVE, "stack lane 0 write activity flag"),
-    (COL_SHOUT_ENABLED, "lookup gate"),
-    (COL_SEL_NOP, ""),
-    (COL_SEL_I32_CONST, ""),
-    (COL_SEL_I64_CONST, ""),
-    (COL_SEL_REF_FUNC, ""),
-    (COL_SEL_I32_ADD, ""),
-    (COL_SEL_I64_ADD, ""),
-    (COL_SEL_I32_SUB, ""),
-    (COL_SEL_I64_SUB, ""),
-    (COL_SEL_I32_LOAD, ""),
-    (COL_SEL_I32_LOAD8_S, ""),
-    (COL_SEL_I32_LOAD8_U, ""),
-    (COL_SEL_I32_LOAD16_S, ""),
-    (COL_SEL_I32_LOAD16_U, ""),
-    (COL_SEL_I64_LOAD, ""),
-    (COL_SEL_I32_STORE, ""),
-    (COL_SEL_I32_STORE8, ""),
-    (COL_SEL_I32_STORE16, ""),
-    (COL_SEL_I64_STORE, ""),
-    (COL_SEL_MEMORY_SIZE, ""),
-    (COL_SEL_MEMORY_GROW, ""),
-    (COL_SEL_TABLE_SIZE, ""),
-    (COL_SEL_TABLE_GET, ""),
-    (COL_SEL_TABLE_SET, ""),
-    (COL_SEL_DROP, ""),
-    (COL_SEL_BR, ""),
-    (COL_SEL_BLOCK, ""),
-    (COL_SEL_LOOP, ""),
-    (COL_SEL_IF, ""),
-    (COL_SEL_ELSE, ""),
-    (COL_SEL_END, ""),
-    (COL_SEL_UNREACHABLE, ""),
-    (COL_SEL_I32_CLZ, ""),
-    (COL_SEL_I32_CTZ, ""),
-    (COL_SEL_I32_POPCNT, ""),
-    (COL_SEL_I32_EQZ, ""),
-    (COL_SEL_I64_EQZ, ""),
-    (COL_SEL_I32_EQ, ""),
-    (COL_SEL_I32_NE, ""),
-    (COL_SEL_I32_LTS, ""),
-    (COL_SEL_I32_LTU, ""),
-    (COL_SEL_I32_GTS, ""),
-    (COL_SEL_I32_GTU, ""),
-    (COL_SEL_I32_LES, ""),
-    (COL_SEL_I32_LEU, ""),
-    (COL_SEL_I32_GES, ""),
-    (COL_SEL_I32_GEU, ""),
-    (COL_SEL_I32_AND, ""),
-    (COL_SEL_I32_OR, ""),
-    (COL_SEL_I32_XOR, ""),
-    (COL_SEL_I32_MUL, ""),
-    (COL_SEL_I64_AND, ""),
-    (COL_SEL_I64_OR, ""),
-    (COL_SEL_I64_XOR, ""),
-    (COL_SEL_I64_MUL, ""),
-    (COL_SEL_I32_SHL, ""),
-    (COL_SEL_I32_SHR_U, ""),
-    (COL_SEL_I32_SHR_S, ""),
-    (COL_SEL_I32_ROTL, ""),
-    (COL_SEL_I32_ROTR, ""),
-    (COL_SEL_I32_DIV_U, ""),
-    (COL_SEL_I32_DIV_S, ""),
-    (COL_SEL_I32_REM_U, ""),
-    (COL_SEL_I32_REM_S, ""),
-    (COL_SEL_SELECT, ""),
-    (COL_SEL_BR_IF_EQZ, ""),
-    (COL_SEL_BR_TABLE, ""),
-    (COL_SEL_CALL, ""),
-    (COL_SEL_CALL_INDIRECT, ""),
-    (COL_SEL_RETURN, ""),
-    (COL_SEL_LOCAL_GET, ""),
-    (COL_SEL_LOCAL_SET, ""),
-    (COL_SEL_LOCAL_TEE, ""),
-    (COL_SEL_GLOBAL_GET, ""),
-    (COL_SEL_GLOBAL_SET, ""),
+    (COL_STACK_READS, "stack delta source", ColumnWidth::U32),
+    (COL_STACK_WRITES, "stack delta destination", ColumnWidth::U32),
+    (
+        COL_STACK_READ0_ACTIVE,
+        "stack lane 0 read activity flag",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_STACK_READ1_ACTIVE,
+        "stack lane 1 read activity flag",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_STACK_READ2_ACTIVE,
+        "stack lane 2 read activity flag",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_STACK_WRITE0_ACTIVE,
+        "stack lane 0 write activity flag",
+        ColumnWidth::Boolean
+    ),
+    (COL_SHOUT_ENABLED, "lookup gate", ColumnWidth::Boolean),
+    (COL_SEL_NOP, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_CONST, "", ColumnWidth::Boolean),
+    (COL_SEL_I64_CONST, "", ColumnWidth::Boolean),
+    (COL_SEL_REF_FUNC, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_ADD, "", ColumnWidth::Boolean),
+    (COL_SEL_I64_ADD, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_SUB, "", ColumnWidth::Boolean),
+    (COL_SEL_I64_SUB, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_LOAD, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_LOAD8_S, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_LOAD8_U, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_LOAD16_S, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_LOAD16_U, "", ColumnWidth::Boolean),
+    (COL_SEL_I64_LOAD, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_STORE, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_STORE8, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_STORE16, "", ColumnWidth::Boolean),
+    (COL_SEL_I64_STORE, "", ColumnWidth::Boolean),
+    (COL_SEL_MEMORY_SIZE, "", ColumnWidth::Boolean),
+    (COL_SEL_MEMORY_GROW, "", ColumnWidth::Boolean),
+    (COL_SEL_TABLE_SIZE, "", ColumnWidth::Boolean),
+    (COL_SEL_TABLE_GET, "", ColumnWidth::Boolean),
+    (COL_SEL_TABLE_SET, "", ColumnWidth::Boolean),
+    (COL_SEL_DROP, "", ColumnWidth::Boolean),
+    (COL_SEL_BR, "", ColumnWidth::Boolean),
+    (COL_SEL_BLOCK, "", ColumnWidth::Boolean),
+    (COL_SEL_LOOP, "", ColumnWidth::Boolean),
+    (COL_SEL_IF, "", ColumnWidth::Boolean),
+    (COL_SEL_ELSE, "", ColumnWidth::Boolean),
+    (COL_SEL_END, "", ColumnWidth::Boolean),
+    (COL_SEL_UNREACHABLE, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_CLZ, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_CTZ, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_POPCNT, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_EQZ, "", ColumnWidth::Boolean),
+    (COL_SEL_I64_EQZ, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_EQ, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_NE, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_LTS, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_LTU, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_GTS, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_GTU, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_LES, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_LEU, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_GES, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_GEU, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_AND, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_OR, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_XOR, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_MUL, "", ColumnWidth::Boolean),
+    (COL_SEL_I64_AND, "", ColumnWidth::Boolean),
+    (COL_SEL_I64_OR, "", ColumnWidth::Boolean),
+    (COL_SEL_I64_XOR, "", ColumnWidth::Boolean),
+    (COL_SEL_I64_MUL, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_SHL, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_SHR_U, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_SHR_S, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_ROTL, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_ROTR, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_DIV_U, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_DIV_S, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_REM_U, "", ColumnWidth::Boolean),
+    (COL_SEL_I32_REM_S, "", ColumnWidth::Boolean),
+    (COL_SEL_SELECT, "", ColumnWidth::Boolean),
+    (COL_SEL_BR_IF_EQZ, "", ColumnWidth::Boolean),
+    (COL_SEL_BR_TABLE, "", ColumnWidth::Boolean),
+    (COL_SEL_CALL, "", ColumnWidth::Boolean),
+    (COL_SEL_CALL_INDIRECT, "", ColumnWidth::Boolean),
+    (COL_SEL_RETURN, "", ColumnWidth::Boolean),
+    (COL_SEL_LOCAL_GET, "", ColumnWidth::Boolean),
+    (COL_SEL_LOCAL_SET, "", ColumnWidth::Boolean),
+    (COL_SEL_LOCAL_TEE, "", ColumnWidth::Boolean),
+    (COL_SEL_GLOBAL_GET, "", ColumnWidth::Boolean),
+    (COL_SEL_GLOBAL_SET, "", ColumnWidth::Boolean),
     (
         COL_LOCAL_WRITE_ENABLED,
-        "locals memory write gate for local.set/local.tee"
+        "locals memory write gate for local.set/local.tee",
+        ColumnWidth::Boolean
     ),
     (
         COL_TABLE_READ_ENABLED,
-        "table memory read gate for table.get/call_indirect"
+        "table memory read gate for table.get/call_indirect",
+        ColumnWidth::Boolean
     ),
-    (COL_LOCALS_FBP_BEFORE, "locals memory frame base before this row"),
-    (COL_LOCALS_FBP_AFTER, "locals memory frame base after this row"),
-    (COL_LOCAL_INDEX, "locals memory offset"),
+    (
+        COL_LOCALS_FBP_BEFORE,
+        "locals memory frame base before this row",
+        ColumnWidth::U32
+    ),
+    (
+        COL_LOCALS_FBP_AFTER,
+        "locals memory frame base after this row",
+        ColumnWidth::U32
+    ),
+    (COL_LOCAL_INDEX, "locals memory offset", ColumnWidth::U32),
     (COL_LOCAL_VALUE, "locals memory value"),
     (COL_LOCAL_VALUE_HI, "locals memory high limb for future i64 support"),
-    (COL_GLOBAL_INDEX, "globals memory index"),
+    (COL_GLOBAL_INDEX, "globals memory index", ColumnWidth::U32),
     (COL_GLOBAL_VALUE, "globals memory value"),
     (COL_GLOBAL_VALUE_HI, "globals memory high limb for future i64 support"),
-    (COL_TABLE_ID, "table state namespace selector"),
-    (COL_TABLE_INDEX, "table element index"),
-    (COL_TABLE_VALUE, "normalized table element value observed by this step"),
-    (COL_TABLE_SIZE, "size of the referenced table observed by this step"),
+    (COL_TABLE_ID, "table state namespace selector", ColumnWidth::U32),
+    (COL_TABLE_INDEX, "table element index", ColumnWidth::U32),
+    (
+        COL_TABLE_VALUE,
+        "normalized table element value observed by this step",
+        ColumnWidth::U32
+    ),
+    (
+        COL_TABLE_SIZE,
+        "size of the referenced table observed by this step",
+        ColumnWidth::U32
+    ),
     (
         COL_FUNCTION_REF,
-        "normalized function reference selected by call-like opcodes"
+        "normalized function reference selected by call-like opcodes",
+        ColumnWidth::U32
     ),
-    (COL_CALL_PARAM_COUNT, "parameter count for the selected call target"),
-    (COL_CALL_RESULT_COUNT, "result count for the selected call target"),
+    (
+        COL_CALL_PARAM_COUNT,
+        "parameter count for the selected call target",
+        ColumnWidth::U32
+    ),
+    (
+        COL_CALL_RESULT_COUNT,
+        "result count for the selected call target",
+        ColumnWidth::U32
+    ),
     (
         COL_TARGET_FUNCTION_IS_GUEST,
-        "true when the selected call target is a guest-defined function"
+        "true when the selected call target is a guest-defined function",
+        ColumnWidth::Boolean
     ),
     (
         COL_CALL_INDIRECT_TYPE_INDEX,
-        "raw module type-section index from the call_indirect instruction immediate"
+        "raw module type-section index from the call_indirect instruction immediate",
+        ColumnWidth::U32
     ),
     (
         COL_FUNCTION_TYPE_ID,
-        "normalized deduplicated type id for the observed function reference"
+        "normalized deduplicated type id for the observed function reference",
+        ColumnWidth::U32
     ),
     (
         COL_EXPECTED_TYPE_ID,
-        "normalized deduplicated type id expected by the current opcode"
+        "normalized deduplicated type id expected by the current opcode",
+        ColumnWidth::U32
     ),
-    (COL_MEMORY_PAGES_BEFORE, "linear memory page count before this step"),
-    (COL_MEMORY_PAGES_AFTER, "linear memory page count after this step"),
-    (COL_STACK_READ0_ADDR, "operand-stack read lane 0 address"),
+    (
+        COL_MEMORY_PAGES_BEFORE,
+        "linear memory page count before this step",
+        ColumnWidth::U32
+    ),
+    (
+        COL_MEMORY_PAGES_AFTER,
+        "linear memory page count after this step",
+        ColumnWidth::U32
+    ),
+    (
+        COL_STACK_READ0_ADDR,
+        "operand-stack read lane 0 address",
+        ColumnWidth::U32
+    ),
     (COL_STACK_READ0_VALUE, "operand-stack read lane 0 value"),
     (
         COL_STACK_READ0_VALUE_HI,
         "operand-stack read lane 0 high limb for future i64 support"
     ),
-    (COL_STACK_READ0_VALUE_BYTE0, "operand-stack read lane 0 low limb byte 0"),
-    (COL_STACK_READ0_VALUE_BYTE1, "operand-stack read lane 0 low limb byte 1"),
-    (COL_STACK_READ0_VALUE_BYTE2, "operand-stack read lane 0 low limb byte 2"),
-    (COL_STACK_READ0_VALUE_BYTE3, "operand-stack read lane 0 low limb byte 3"),
+    (
+        COL_STACK_READ0_VALUE_BYTE0,
+        "operand-stack read lane 0 low limb byte 0",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_STACK_READ0_VALUE_BYTE1,
+        "operand-stack read lane 0 low limb byte 1",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_STACK_READ0_VALUE_BYTE2,
+        "operand-stack read lane 0 low limb byte 2",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_STACK_READ0_VALUE_BYTE3,
+        "operand-stack read lane 0 low limb byte 3",
+        ColumnWidth::Byte
+    ),
     (
         COL_STACK_READ0_VALUE_HI_BYTE0,
-        "operand-stack read lane 0 high limb byte 0"
+        "operand-stack read lane 0 high limb byte 0",
+        ColumnWidth::Byte
     ),
     (
         COL_STACK_READ0_VALUE_HI_BYTE1,
-        "operand-stack read lane 0 high limb byte 1"
+        "operand-stack read lane 0 high limb byte 1",
+        ColumnWidth::Byte
     ),
     (
         COL_STACK_READ0_VALUE_HI_BYTE2,
-        "operand-stack read lane 0 high limb byte 2"
+        "operand-stack read lane 0 high limb byte 2",
+        ColumnWidth::Byte
     ),
     (
         COL_STACK_READ0_VALUE_HI_BYTE3,
-        "operand-stack read lane 0 high limb byte 3"
+        "operand-stack read lane 0 high limb byte 3",
+        ColumnWidth::Byte
     ),
-    (COL_STACK_READ1_ADDR, "operand-stack read lane 1 address"),
+    (
+        COL_STACK_READ1_ADDR,
+        "operand-stack read lane 1 address",
+        ColumnWidth::U32
+    ),
     (COL_STACK_READ1_VALUE, "operand-stack read lane 1 value"),
     (
         COL_STACK_READ1_VALUE_HI,
         "operand-stack read lane 1 high limb for future i64 support"
     ),
-    (COL_STACK_READ1_VALUE_BYTE0, "operand-stack read lane 1 low limb byte 0"),
-    (COL_STACK_READ1_VALUE_BYTE1, "operand-stack read lane 1 low limb byte 1"),
-    (COL_STACK_READ1_VALUE_BYTE2, "operand-stack read lane 1 low limb byte 2"),
-    (COL_STACK_READ1_VALUE_BYTE3, "operand-stack read lane 1 low limb byte 3"),
+    (
+        COL_STACK_READ1_VALUE_BYTE0,
+        "operand-stack read lane 1 low limb byte 0",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_STACK_READ1_VALUE_BYTE1,
+        "operand-stack read lane 1 low limb byte 1",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_STACK_READ1_VALUE_BYTE2,
+        "operand-stack read lane 1 low limb byte 2",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_STACK_READ1_VALUE_BYTE3,
+        "operand-stack read lane 1 low limb byte 3",
+        ColumnWidth::Byte
+    ),
     (
         COL_STACK_READ1_VALUE_HI_BYTE0,
-        "operand-stack read lane 1 high limb byte 0"
+        "operand-stack read lane 1 high limb byte 0",
+        ColumnWidth::Byte
     ),
     (
         COL_STACK_READ1_VALUE_HI_BYTE1,
-        "operand-stack read lane 1 high limb byte 1"
+        "operand-stack read lane 1 high limb byte 1",
+        ColumnWidth::Byte
     ),
     (
         COL_STACK_READ1_VALUE_HI_BYTE2,
-        "operand-stack read lane 1 high limb byte 2"
+        "operand-stack read lane 1 high limb byte 2",
+        ColumnWidth::Byte
     ),
     (
         COL_STACK_READ1_VALUE_HI_BYTE3,
-        "operand-stack read lane 1 high limb byte 3"
+        "operand-stack read lane 1 high limb byte 3",
+        ColumnWidth::Byte
     ),
-    (COL_STACK_READ2_ADDR, "operand-stack read lane 2 address"),
+    (
+        COL_STACK_READ2_ADDR,
+        "operand-stack read lane 2 address",
+        ColumnWidth::U32
+    ),
     (COL_STACK_READ2_VALUE, "operand-stack read lane 2 value"),
     (
         COL_STACK_READ2_VALUE_HI,
         "operand-stack read lane 2 high limb for future i64 support"
     ),
-    (COL_STACK_READ2_VALUE_BYTE0, "operand-stack read lane 2 low limb byte 0"),
-    (COL_STACK_READ2_VALUE_BYTE1, "operand-stack read lane 2 low limb byte 1"),
-    (COL_STACK_READ2_VALUE_BYTE2, "operand-stack read lane 2 low limb byte 2"),
-    (COL_STACK_READ2_VALUE_BYTE3, "operand-stack read lane 2 low limb byte 3"),
+    (
+        COL_STACK_READ2_VALUE_BYTE0,
+        "operand-stack read lane 2 low limb byte 0",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_STACK_READ2_VALUE_BYTE1,
+        "operand-stack read lane 2 low limb byte 1",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_STACK_READ2_VALUE_BYTE2,
+        "operand-stack read lane 2 low limb byte 2",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_STACK_READ2_VALUE_BYTE3,
+        "operand-stack read lane 2 low limb byte 3",
+        ColumnWidth::Byte
+    ),
     (
         COL_STACK_READ2_VALUE_HI_BYTE0,
-        "operand-stack read lane 2 high limb byte 0"
+        "operand-stack read lane 2 high limb byte 0",
+        ColumnWidth::Byte
     ),
     (
         COL_STACK_READ2_VALUE_HI_BYTE1,
-        "operand-stack read lane 2 high limb byte 1"
+        "operand-stack read lane 2 high limb byte 1",
+        ColumnWidth::Byte
     ),
     (
         COL_STACK_READ2_VALUE_HI_BYTE2,
-        "operand-stack read lane 2 high limb byte 2"
+        "operand-stack read lane 2 high limb byte 2",
+        ColumnWidth::Byte
     ),
     (
         COL_STACK_READ2_VALUE_HI_BYTE3,
-        "operand-stack read lane 2 high limb byte 3"
+        "operand-stack read lane 2 high limb byte 3",
+        ColumnWidth::Byte
     ),
-    (COL_STACK_WRITE0_ADDR, "operand-stack write lane 0 address"),
+    (
+        COL_STACK_WRITE0_ADDR,
+        "operand-stack write lane 0 address",
+        ColumnWidth::U32
+    ),
     (COL_STACK_WRITE0_VALUE, "operand-stack write lane 0 value"),
     (
         COL_STACK_WRITE0_VALUE_HI,
@@ -327,88 +512,191 @@ define_columns!(
     ),
     (
         COL_STACK_WRITE0_VALUE_BYTE0,
-        "operand-stack write lane 0 low limb byte 0"
+        "operand-stack write lane 0 low limb byte 0",
+        ColumnWidth::Byte
     ),
     (
         COL_STACK_WRITE0_VALUE_BYTE1,
-        "operand-stack write lane 0 low limb byte 1"
+        "operand-stack write lane 0 low limb byte 1",
+        ColumnWidth::Byte
     ),
     (
         COL_STACK_WRITE0_VALUE_BYTE2,
-        "operand-stack write lane 0 low limb byte 2"
+        "operand-stack write lane 0 low limb byte 2",
+        ColumnWidth::Byte
     ),
     (
         COL_STACK_WRITE0_VALUE_BYTE3,
-        "operand-stack write lane 0 low limb byte 3"
+        "operand-stack write lane 0 low limb byte 3",
+        ColumnWidth::Byte
     ),
     (
         COL_STACK_WRITE0_VALUE_HI_BYTE0,
-        "operand-stack write lane 0 high limb byte 0"
+        "operand-stack write lane 0 high limb byte 0",
+        ColumnWidth::Byte
     ),
     (
         COL_STACK_WRITE0_VALUE_HI_BYTE1,
-        "operand-stack write lane 0 high limb byte 1"
+        "operand-stack write lane 0 high limb byte 1",
+        ColumnWidth::Byte
     ),
     (
         COL_STACK_WRITE0_VALUE_HI_BYTE2,
-        "operand-stack write lane 0 high limb byte 2"
+        "operand-stack write lane 0 high limb byte 2",
+        ColumnWidth::Byte
     ),
     (
         COL_STACK_WRITE0_VALUE_HI_BYTE3,
-        "operand-stack write lane 0 high limb byte 3"
+        "operand-stack write lane 0 high limb byte 3",
+        ColumnWidth::Byte
     ),
-    (COL_WIDE_AUX0, ""),
-    (COL_WIDE_AUX1, ""),
-    (COL_LOCAL_VALUE_BYTE0, "locals memory low limb byte 0"),
-    (COL_LOCAL_VALUE_BYTE1, "locals memory low limb byte 1"),
-    (COL_LOCAL_VALUE_BYTE2, "locals memory low limb byte 2"),
-    (COL_LOCAL_VALUE_BYTE3, "locals memory low limb byte 3"),
-    (COL_LOCAL_VALUE_HI_BYTE0, "locals memory high limb byte 0"),
-    (COL_LOCAL_VALUE_HI_BYTE1, "locals memory high limb byte 1"),
-    (COL_LOCAL_VALUE_HI_BYTE2, "locals memory high limb byte 2"),
-    (COL_LOCAL_VALUE_HI_BYTE3, "locals memory high limb byte 3"),
-    (COL_GLOBAL_VALUE_BYTE0, "globals memory low limb byte 0"),
-    (COL_GLOBAL_VALUE_BYTE1, "globals memory low limb byte 1"),
-    (COL_GLOBAL_VALUE_BYTE2, "globals memory low limb byte 2"),
-    (COL_GLOBAL_VALUE_BYTE3, "globals memory low limb byte 3"),
-    (COL_GLOBAL_VALUE_HI_BYTE0, "globals memory high limb byte 0"),
-    (COL_GLOBAL_VALUE_HI_BYTE1, "globals memory high limb byte 1"),
-    (COL_GLOBAL_VALUE_HI_BYTE2, "globals memory high limb byte 2"),
-    (COL_GLOBAL_VALUE_HI_BYTE3, "globals memory high limb byte 3"),
-    (COL_LINEAR_MEM_IMM_OFFSET, "linear-memory immediate offset in bytes"),
+    (COL_WIDE_AUX0, "", ColumnWidth::Boolean),
+    (COL_WIDE_AUX1, "", ColumnWidth::Boolean),
+    (
+        COL_LOCAL_VALUE_BYTE0,
+        "locals memory low limb byte 0",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LOCAL_VALUE_BYTE1,
+        "locals memory low limb byte 1",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LOCAL_VALUE_BYTE2,
+        "locals memory low limb byte 2",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LOCAL_VALUE_BYTE3,
+        "locals memory low limb byte 3",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LOCAL_VALUE_HI_BYTE0,
+        "locals memory high limb byte 0",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LOCAL_VALUE_HI_BYTE1,
+        "locals memory high limb byte 1",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LOCAL_VALUE_HI_BYTE2,
+        "locals memory high limb byte 2",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LOCAL_VALUE_HI_BYTE3,
+        "locals memory high limb byte 3",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_GLOBAL_VALUE_BYTE0,
+        "globals memory low limb byte 0",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_GLOBAL_VALUE_BYTE1,
+        "globals memory low limb byte 1",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_GLOBAL_VALUE_BYTE2,
+        "globals memory low limb byte 2",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_GLOBAL_VALUE_BYTE3,
+        "globals memory low limb byte 3",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_GLOBAL_VALUE_HI_BYTE0,
+        "globals memory high limb byte 0",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_GLOBAL_VALUE_HI_BYTE1,
+        "globals memory high limb byte 1",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_GLOBAL_VALUE_HI_BYTE2,
+        "globals memory high limb byte 2",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_GLOBAL_VALUE_HI_BYTE3,
+        "globals memory high limb byte 3",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_IMM_OFFSET,
+        "linear-memory immediate offset in bytes",
+        ColumnWidth::U32
+    ),
     (
         COL_LINEAR_MEM_BYTE_OFFSET,
-        "linear-memory byte offset within the first word lane"
+        "linear-memory byte offset within the first word lane",
+        ColumnWidth::U32
     ),
     (
         COL_LINEAR_MEM_USE_LANE1,
-        "linear-memory second-lane flag for unaligned accesses"
+        "linear-memory second-lane flag for unaligned accesses",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_USE_LANE2,
-        "linear-memory third-lane flag for wide unaligned accesses"
+        "linear-memory third-lane flag for wide unaligned accesses",
+        ColumnWidth::Boolean
     ),
-    (COL_LINEAR_MEM_USE_LANE0, "linear-memory first-lane activity gate"),
-    (COL_LINEAR_MEM_LANE0_ADDR, "linear-memory first word-lane address"),
+    (
+        COL_LINEAR_MEM_USE_LANE0,
+        "linear-memory first-lane activity gate",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_LINEAR_MEM_LANE0_ADDR,
+        "linear-memory first word-lane address",
+        ColumnWidth::U32
+    ),
     (
         COL_LINEAR_MEM_LANE0_VALUE,
         "linear-memory first word-lane accessed value"
     ),
-    (COL_LINEAR_MEM_LANE1_ADDR, "linear-memory second word-lane address"),
+    (
+        COL_LINEAR_MEM_LANE1_ADDR,
+        "linear-memory second word-lane address",
+        ColumnWidth::U32
+    ),
     (
         COL_LINEAR_MEM_LANE1_VALUE,
         "linear-memory second word-lane accessed value"
     ),
-    (COL_LINEAR_MEM_LANE2_ADDR, "linear-memory third word-lane address"),
+    (
+        COL_LINEAR_MEM_LANE2_ADDR,
+        "linear-memory third word-lane address",
+        ColumnWidth::U32
+    ),
     (
         COL_LINEAR_MEM_LANE2_VALUE,
         "linear-memory third word-lane accessed value"
     ),
-    (COL_SHOUT_ID, "lookup table row selector"),
+    (COL_SHOUT_ID, "lookup table row selector", ColumnWidth::U32),
     (COL_SHOUT_VALUE, "lookup payload witness"),
+    // `COL_SELECT_COND_IS_ZERO` is forced to {0, 1} by the zero-test rows
+    // emitted by `add_conditional_select_gadget`. Declared `Boolean` so the
+    // spec reflects its actual range; whichever path eventually enforces
+    // `ColumnWidth::Boolean` will overlap with the gadget's constraint and
+    // one of the two becomes redundant — an optimization to revisit later.
+    // We deliberately do not introduce a dedicated `ImpliedBoolean` width
+    // for this case — premature complexity.
     (
         COL_SELECT_COND_IS_ZERO,
-        "scratch column for add_conditional_select_gadget for select opcode"
+        "scratch column for add_conditional_select_gadget for select opcode",
+        ColumnWidth::Boolean
     ),
     (
         COL_SELECT_SCRATCH_INV,
@@ -420,213 +708,258 @@ define_columns!(
     ),
     (
         COL_LINEAR_MEM_OFFSET_IS_0,
-        "linear-memory offset case selector for byte offset 0"
+        "linear-memory offset case selector for byte offset 0",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_OFFSET_IS_1,
-        "linear-memory offset case selector for byte offset 1"
+        "linear-memory offset case selector for byte offset 1",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_OFFSET_IS_2,
-        "linear-memory offset case selector for byte offset 2"
+        "linear-memory offset case selector for byte offset 2",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_OFFSET_IS_3,
-        "linear-memory offset case selector for byte offset 3"
+        "linear-memory offset case selector for byte offset 3",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_IS_BYTE_WIDTH,
-        "linear-memory selector for 8-bit byte-width accesses"
+        "linear-memory selector for 8-bit byte-width accesses",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0,
-        "linear-memory byte-width offset case selector for byte offset 0"
+        "linear-memory byte-width offset case selector for byte offset 0",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1,
-        "linear-memory byte-width offset case selector for byte offset 1"
+        "linear-memory byte-width offset case selector for byte offset 1",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_2,
-        "linear-memory byte-width offset case selector for byte offset 2"
+        "linear-memory byte-width offset case selector for byte offset 2",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_3,
-        "linear-memory byte-width offset case selector for byte offset 3"
+        "linear-memory byte-width offset case selector for byte offset 3",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_IS_HALF_WIDTH,
-        "linear-memory selector for 16-bit half-width accesses"
+        "linear-memory selector for 16-bit half-width accesses",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_0,
-        "linear-memory half-width offset case selector for byte offset 0"
+        "linear-memory half-width offset case selector for byte offset 0",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_1,
-        "linear-memory half-width offset case selector for byte offset 1"
+        "linear-memory half-width offset case selector for byte offset 1",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_2,
-        "linear-memory half-width offset case selector for byte offset 2"
+        "linear-memory half-width offset case selector for byte offset 2",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_3,
-        "linear-memory half-width offset case selector for byte offset 3"
+        "linear-memory half-width offset case selector for byte offset 3",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_IS_FULL_WIDTH,
-        "linear-memory selector for 32-bit full-width accesses"
+        "linear-memory selector for 32-bit full-width accesses",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_0,
-        "linear-memory full-width offset case selector for byte offset 0"
+        "linear-memory full-width offset case selector for byte offset 0",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_1,
-        "linear-memory full-width offset case selector for byte offset 1"
+        "linear-memory full-width offset case selector for byte offset 1",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_2,
-        "linear-memory full-width offset case selector for byte offset 2"
+        "linear-memory full-width offset case selector for byte offset 2",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_3,
-        "linear-memory full-width offset case selector for byte offset 3"
+        "linear-memory full-width offset case selector for byte offset 3",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_IS_DOUBLE_WIDTH,
-        "linear-memory selector for 64-bit double-width accesses"
+        "linear-memory selector for 64-bit double-width accesses",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_0,
-        "linear-memory double-width offset case selector for byte offset 0"
+        "linear-memory double-width offset case selector for byte offset 0",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_1,
-        "linear-memory double-width offset case selector for byte offset 1"
+        "linear-memory double-width offset case selector for byte offset 1",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_2,
-        "linear-memory double-width offset case selector for byte offset 2"
+        "linear-memory double-width offset case selector for byte offset 2",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_3,
-        "linear-memory double-width offset case selector for byte offset 3"
+        "linear-memory double-width offset case selector for byte offset 3",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_0,
-        "i64.load offset case selector for byte offset 0"
+        "i64.load offset case selector for byte offset 0",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_1,
-        "i64.load offset case selector for byte offset 1"
+        "i64.load offset case selector for byte offset 1",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_2,
-        "i64.load offset case selector for byte offset 2"
+        "i64.load offset case selector for byte offset 2",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_3,
-        "i64.load offset case selector for byte offset 3"
+        "i64.load offset case selector for byte offset 3",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_I64_STORE_OFFSET_IS_0,
-        "i64.store offset case selector for byte offset 0"
+        "i64.store offset case selector for byte offset 0",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_I64_STORE_OFFSET_IS_1,
-        "i64.store offset case selector for byte offset 1"
+        "i64.store offset case selector for byte offset 1",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_I64_STORE_OFFSET_IS_2,
-        "i64.store offset case selector for byte offset 2"
+        "i64.store offset case selector for byte offset 2",
+        ColumnWidth::Boolean
     ),
     (
         COL_LINEAR_MEM_I64_STORE_OFFSET_IS_3,
-        "i64.store offset case selector for byte offset 3"
+        "i64.store offset case selector for byte offset 3",
+        ColumnWidth::Boolean
     ),
-    (COL_LINEAR_MEM_LANE0_BYTE0, "linear-memory first word lane byte 0"),
-    (COL_LINEAR_MEM_LANE0_BYTE1, "linear-memory first word lane byte 1"),
-    (COL_LINEAR_MEM_LANE0_BYTE2, "linear-memory first word lane byte 2"),
-    (COL_LINEAR_MEM_LANE0_BYTE3, "linear-memory first word lane byte 3"),
-    (COL_LINEAR_MEM_LANE1_BYTE0, "linear-memory second word lane byte 0"),
-    (COL_LINEAR_MEM_LANE1_BYTE1, "linear-memory second word lane byte 1"),
-    (COL_LINEAR_MEM_LANE1_BYTE2, "linear-memory second word lane byte 2"),
-    (COL_LINEAR_MEM_LANE1_BYTE3, "linear-memory second word lane byte 3"),
-    (COL_LINEAR_MEM_LANE2_BYTE0, "linear-memory third word lane byte 0"),
-    (COL_LINEAR_MEM_LANE2_BYTE1, "linear-memory third word lane byte 1"),
-    (COL_LINEAR_MEM_LANE2_BYTE2, "linear-memory third word lane byte 2"),
-    (COL_LINEAR_MEM_LANE2_BYTE3, "linear-memory third word lane byte 3"),
-    (COL_LINEAR_MEM_ACCESS_BYTE0, "linear-memory access value byte 0"),
-    (COL_LINEAR_MEM_ACCESS_BYTE1, "linear-memory access value byte 1"),
-    (COL_LINEAR_MEM_ACCESS_BYTE2, "linear-memory access value byte 2"),
-    (COL_LINEAR_MEM_ACCESS_BYTE3, "linear-memory access value byte 3"),
+    (
+        COL_LINEAR_MEM_LANE0_BYTE0,
+        "linear-memory first word lane byte 0",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_LANE0_BYTE1,
+        "linear-memory first word lane byte 1",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_LANE0_BYTE2,
+        "linear-memory first word lane byte 2",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_LANE0_BYTE3,
+        "linear-memory first word lane byte 3",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_LANE1_BYTE0,
+        "linear-memory second word lane byte 0",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_LANE1_BYTE1,
+        "linear-memory second word lane byte 1",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_LANE1_BYTE2,
+        "linear-memory second word lane byte 2",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_LANE1_BYTE3,
+        "linear-memory second word lane byte 3",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_LANE2_BYTE0,
+        "linear-memory third word lane byte 0",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_LANE2_BYTE1,
+        "linear-memory third word lane byte 1",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_LANE2_BYTE2,
+        "linear-memory third word lane byte 2",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_LANE2_BYTE3,
+        "linear-memory third word lane byte 3",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_ACCESS_BYTE0,
+        "linear-memory access value byte 0",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_ACCESS_BYTE1,
+        "linear-memory access value byte 1",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_ACCESS_BYTE2,
+        "linear-memory access value byte 2",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_ACCESS_BYTE3,
+        "linear-memory access value byte 3",
+        ColumnWidth::Byte
+    ),
+    // Genuine range is 7 bits, [0, 128). Annotated `Byte` as a conservative
+    // (over-)approximation so it gets the same enforcement as other byte
+    // columns. Tighten to a 7-bit declaration when a `Bits(N)` variant lands.
     (
         COL_SIGN_EXT_LOW7,
-        "sign-extension scratch lower 7 bits of the sign source byte"
+        "sign-extension scratch lower 7 bits of the sign source byte",
+        ColumnWidth::Byte
     ),
-    (COL_SIGN_EXT_BIT, "sign-extension scratch sign bit"),
+    (
+        COL_SIGN_EXT_BIT,
+        "sign-extension scratch sign bit",
+        ColumnWidth::Boolean
+    ),
 );
-
-pub const BOOLEAN_COLS: [usize; 56] = [
-    COL_HALTED,
-    COL_IS_PROGRAM_ROW,
-    COL_PC_ROM_ACTIVE,
-    COL_PC_EDGE_KIND_IS_STATIC,
-    COL_PARAM_INIT_ACTIVE_BEFORE,
-    COL_PARAM_INIT_ACTIVE_AFTER,
-    COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO,
-    COL_CALL_STACK_PUSH_PRESENT,
-    COL_CALL_STACK_POP_PRESENT,
-    COL_TARGET_FUNCTION_IS_GUEST,
-    COL_WIDE_VALUES_ENABLED,
-    COL_STACK_READ0_ACTIVE,
-    COL_STACK_READ1_ACTIVE,
-    COL_STACK_READ2_ACTIVE,
-    COL_STACK_WRITE0_ACTIVE,
-    COL_SHOUT_ENABLED,
-    COL_LOCAL_WRITE_ENABLED,
-    COL_TABLE_READ_ENABLED,
-    COL_LINEAR_MEM_USE_LANE1,
-    COL_LINEAR_MEM_USE_LANE2,
-    COL_LINEAR_MEM_USE_LANE0,
-    COL_LINEAR_MEM_OFFSET_IS_0,
-    COL_LINEAR_MEM_OFFSET_IS_1,
-    COL_LINEAR_MEM_OFFSET_IS_2,
-    COL_LINEAR_MEM_OFFSET_IS_3,
-    COL_LINEAR_MEM_IS_BYTE_WIDTH,
-    COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0,
-    COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1,
-    COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_2,
-    COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_3,
-    COL_LINEAR_MEM_IS_HALF_WIDTH,
-    COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_0,
-    COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_1,
-    COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_2,
-    COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_3,
-    COL_LINEAR_MEM_IS_FULL_WIDTH,
-    COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_0,
-    COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_1,
-    COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_2,
-    COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_3,
-    COL_LINEAR_MEM_IS_DOUBLE_WIDTH,
-    COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_0,
-    COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_1,
-    COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_2,
-    COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_3,
-    COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_0,
-    COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_1,
-    COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_2,
-    COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_3,
-    COL_LINEAR_MEM_I64_STORE_OFFSET_IS_0,
-    COL_LINEAR_MEM_I64_STORE_OFFSET_IS_1,
-    COL_LINEAR_MEM_I64_STORE_OFFSET_IS_2,
-    COL_LINEAR_MEM_I64_STORE_OFFSET_IS_3,
-    COL_SIGN_EXT_BIT,
-    COL_WIDE_AUX0,
-    COL_WIDE_AUX1,
-];
 
 pub const SELECTOR_COLS: [usize; 74] = [
     COL_SEL_NOP,

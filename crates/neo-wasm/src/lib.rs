@@ -33,7 +33,7 @@ pub use ir::{
     WasmBuildError, WasmParamInitState, WasmPcEdgeKind, WasmRowKind, WasmStepTrace,
 };
 pub use isa::{opcode_code, opcode_info_from_code, WasmOpcode, WasmOpcodeClass, WasmOpcodeInfo, WasmShoutOpcode};
-pub use layout::{WasmColumnSpec, COLUMN_SPECS};
+pub use layout::{ColumnWidth, WasmColumnSpec, COLUMN_SPECS};
 pub use lookup_binding_builder::{
     build_wasm_lookup_binding_layout, CallColumns, Column, ControlColumns, FrameColumns, GlobalsColumns,
     LinearMemoryColumns, LocalsColumns, OperandStackColumns, ParamInitColumns, ShoutColumns, StateColumns,

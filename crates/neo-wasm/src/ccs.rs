@@ -3,13 +3,13 @@
 use crate::layout::{COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV};
 
 use super::gadgets::{
-    add_conditional_select_gadget, push_gated_linear_zero, push_u32_le_bytes, push_zero_test_gadget,
+    add_conditional_select_gadget, push_gated_linear_zero, push_u32_le_bytes_decomp, push_zero_test_gadget,
     ConditionalSelectCols,
 };
 use super::isa::{opcode_code, opcode_info_from_code, WasmOpcode, WasmShoutOpcode};
 use super::layout::{
-    selector_col, ColumnWidth, COLUMN_SPECS, COL_ONE, COL_PC_EDGE_KIND, COL_SELECT_OUT_DELTA, COL_WIDE_AUX0,
-    COL_WIDE_AUX1, SELECTOR_COLS, WITNESS_WIDTH,
+    selector_col, COL_ONE, COL_PC_EDGE_KIND, COL_SELECT_OUT_DELTA, COL_WIDE_AUX0, COL_WIDE_AUX1, SELECTOR_COLS,
+    WITNESS_WIDTH,
 };
 use super::lookup_binding_builder::{
     build_wasm_lookup_binding_layout, CallColumns, Column, ControlColumns, FrameColumns, FunctionTypeColumns,
@@ -197,46 +197,39 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
     let table_sizes = layout.table_sizes;
     let function_types = layout.function_types;
     let module_types = layout.module_types;
-    let stack_read0_bytes = layout.stack_read0_bytes;
     let stack_read1_bytes = layout.stack_read1_bytes;
-    let stack_read2_bytes = layout.stack_read2_bytes;
     let stack_write0_bytes = layout.stack_write0_bytes;
-    let local_value_bytes = layout.local_value_bytes;
-    let global_value_bytes = layout.global_value_bytes;
     let linear_memory = layout.linear_memory;
     let shout = layout.shout;
     let mut b = WasmTaggedR1csBuilder::new(WITNESS_WIDTH, COL_ONE)?;
 
-    b.with_tag(always("boolean columns"), |b| {
-        for spec in COLUMN_SPECS
-            .iter()
-            .filter(|s| s.width == ColumnWidth::Boolean)
-        {
-            b.push_boolean(spec.index);
-        }
-    });
-
+    // For `stack.read1_value` and `stack.write0_value` the
+    // byte columns are needed becase of the dependency in
+    // `push_linear_memory_{load,store}64_constraints`.
+    //
+    // To handle unaligned reads, the constraints in that function shuffle
+    // individual bytes from the linear memory.
+    //
+    // This is because the memory is modeled as 32bit-word based, and not bytes.
+    //
+    // This means certain reads can cross the word bound, so we decompose the
+    // linear memory reads into bytes from both lanes and compare bytes.
+    //
+    // The byte-decomp constraints on the stack words are needed so those byte
+    // columns are bound to be the actual bytes of the word; range-checking
+    // now comes for free from the U32 declaration on the word plus the `Byte`
+    // declaration on each byte column.
+    //
+    // Note that for the stack we just need the byte decomposition, the
+    // shuffling is more on the memory checking side, but to do that, we need to
+    // be able to compare individual bytes.
     b.with_tag(always("value byte decomposition"), |b| {
-        for (word, bytes) in [
-            (stack.read0_value, stack_read0_bytes),
-            (stack.read1_value, stack_read1_bytes),
-            (stack.read2_value, stack_read2_bytes),
-            (stack.write0_value, stack_write0_bytes),
-            (locals.value_lo, local_value_bytes),
-            (globals.value, global_value_bytes),
-        ] {
-            push_value_limb_bytes_constraints(b, word, bytes);
-        }
-        for (word, bytes) in [
-            (stack.read0_value_hi, stack_read0_bytes.hi),
-            (stack.read1_value_hi, stack_read1_bytes.hi),
-            (stack.read2_value_hi, stack_read2_bytes.hi),
-            (stack.write0_value_hi, stack_write0_bytes.hi),
-            (locals.value_hi, local_value_bytes.hi),
-            (globals.value_hi, global_value_bytes.hi),
-        ] {
-            push_u32_le_bytes(b, COL_ONE, idx(word), bytes.map(idx));
-        }
+        // the selector is unconditional mainly for simplicity and because the
+        // witnesses can be set to 0 anyway.
+        push_u32_le_bytes_decomp(b, COL_ONE, idx(stack.read1_value), stack_read1_bytes.lo.map(idx));
+        push_u32_le_bytes_decomp(b, COL_ONE, idx(stack.read1_value_hi), stack_read1_bytes.hi.map(idx));
+        push_u32_le_bytes_decomp(b, COL_ONE, idx(stack.write0_value), stack_write0_bytes.lo.map(idx));
+        push_u32_le_bytes_decomp(b, COL_ONE, idx(stack.write0_value_hi), stack_write0_bytes.hi.map(idx));
     });
 
     b.with_tag(shared("wide value gating", I64_OPS), |b| {
@@ -1546,13 +1539,13 @@ fn push_linear_memory_constraints(
             [],
         );
         for selector in linear_memory_selectors {
-            push_u32_le_bytes(
+            push_u32_le_bytes_decomp(
                 b,
                 selector,
                 idx(linear_memory.lane0_value),
                 linear_memory.lane0_bytes.map(idx),
             );
-            push_u32_le_bytes(
+            push_u32_le_bytes_decomp(
                 b,
                 selector,
                 idx(linear_memory.lane1_value),
@@ -1560,7 +1553,7 @@ fn push_linear_memory_constraints(
             );
         }
         for selector in [i64_load_selector, i64_store_selector] {
-            push_u32_le_bytes(
+            push_u32_le_bytes_decomp(
                 b,
                 selector,
                 idx(linear_memory.lane2_value),
@@ -2307,10 +2300,6 @@ fn push_matching_byte_constraints(b: &mut R1csBuilder, selector: usize, lhs: [Co
 
 fn idx(column: Column) -> usize {
     column.0
-}
-
-fn push_value_limb_bytes_constraints(b: &mut R1csBuilder, word_lo: Column, bytes: ValueLimbByteColumns) {
-    push_u32_le_bytes(b, COL_ONE, idx(word_lo), bytes.lo.map(idx));
 }
 
 fn selector_for_shout(op: WasmShoutOpcode) -> usize {

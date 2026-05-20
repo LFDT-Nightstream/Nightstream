@@ -21,6 +21,7 @@ use neo_fold_clean::Uncompressed;
 use crate::builder::build_steps;
 use crate::ccs::WasmVmSpec;
 use crate::ir::WasmStepTrace;
+use crate::preprocess::canonical_wasm_f_prime_shape;
 
 pub struct WasmProof {
     pub main_run: Uncompressed,
@@ -79,25 +80,33 @@ pub fn verify(prep: &R1csFPrimePreprocessing, proof: &WasmProof) -> Result<(), W
     Ok(())
 }
 
-/// Reject a `prep` whose underlying R1CS shape or public-input split does
-/// not match the canonical wasm VM. Compared digests are over the *app*
-/// R1CS-to-CCS embedding, not the F'-augmented `prep.prep.structure_digest()`
-/// — the latter wraps the wasm R1CS in F' bit-decomposition + recursive-plan
-/// rows, so it never equals the bare wasm CCS digest.
+/// Reject a `prep` whose full F' structure does not match the canonical
+/// wasm VM. The width map is load-bearing: Boolean/Byte/U32 annotations are
+/// enforced by the R1CS-F' bit frame, not by redundant rows in the wasm CCS.
 fn validate_wasm_preprocessing(prep: &R1csFPrimePreprocessing, vm: &WasmVmSpec) -> Result<(), WasmProveError> {
-    let core = vm.core_ccs_spec();
-    let expected = structure_digest(&core.structure);
-    let actual = structure_digest(&prep.r1cs().to_structure());
-    if actual != expected {
+    let canonical = canonical_wasm_f_prime_shape(vm)
+        .map_err(|err| WasmProveError::Bridge(format!("canonical wasm F' shape: {err}")))?;
+    if prep.plan().app_private_var_widths != canonical.plan.app_private_var_widths {
         return Err(WasmProveError::Bridge(
-            "preprocessing R1CS shape does not match the canonical wasm VM".into(),
+            "preprocessing widths do not match the canonical wasm column widths".into(),
         ));
     }
-    if prep.r1cs().m_in() != core.m_in {
+    let expected = structure_digest(&canonical.structure.ccs);
+    if *prep.prep.structure_digest() != expected {
+        return Err(WasmProveError::Bridge(
+            "preprocessing F' structure does not match the canonical wasm VM".into(),
+        ));
+    }
+    if structure_digest(&prep.structure().ccs) != expected {
+        return Err(WasmProveError::Bridge(
+            "cached compiler F' structure does not match the canonical wasm VM".into(),
+        ));
+    }
+    if prep.r1cs().m_in() != canonical.sparse_r1cs.m_in {
         return Err(WasmProveError::Bridge(format!(
             "preprocessing m_in {} does not match wasm m_in {}",
             prep.r1cs().m_in(),
-            core.m_in
+            canonical.sparse_r1cs.m_in
         )));
     }
     Ok(())

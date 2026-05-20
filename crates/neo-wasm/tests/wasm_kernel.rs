@@ -1,3 +1,6 @@
+use neo_fold_clean::frontends::r1cs_f_prime;
+use neo_fold_clean::paper::params::Params;
+use neo_params::{goldilocks_paper_b2, NeoParams};
 use neo_wasm::preprocess::preprocess_seeded;
 use neo_wasm::{
     build_wasm_lookup_binding_layout, collect_wasmtime_steps, preload_from_wasmtime_run, prove,
@@ -585,4 +588,53 @@ fn wasm_kernel_run_roundtrip() {
     let prep = preprocess_seeded(&WasmVmSpec::default()).expect("prep");
     let proof = prove(&prep, &trace).expect("prove kernel run");
     verify(&prep, &proof).expect("verify kernel run");
+}
+
+#[test]
+fn wasm_verify_rejects_preprocessing_with_wrong_widths() {
+    let (_, trace, ..) = compile_and_trace(
+        r#"(module (func (export "main") (result i32)
+             i32.const 7
+             i32.const 9
+             i32.add))"#,
+    );
+    let prep = preprocess_seeded(&WasmVmSpec::default()).expect("prep");
+    let proof = prove(&prep, &trace).expect("prove with canonical prep");
+
+    let mut canonical = neo_wasm::preprocess::canonical_wasm_f_prime_shape(&WasmVmSpec::default()).expect("shape");
+    canonical.plan.app_private_var_widths = vec![64; canonical.plan.app_private_var_widths.len()];
+    canonical.plan.limbs = canonical.plan.app_private_var_widths.iter().sum::<usize>() + 1;
+    let verifier_prep = r1cs_f_prime::preprocess_sparse_seeded_with_params(
+        &canonical.sparse_r1cs,
+        &canonical.plan,
+        Params::test_only_from_neo_params(wasm_tiny_params()),
+        0xa55ec_a11ed_15ea,
+    )
+    .expect("wrong-width prep");
+
+    let err = match verify(&verifier_prep, &proof) {
+        Ok(_) => panic!("verify must reject a wasm preprocessing with non-canonical widths"),
+        Err(err) => err,
+    };
+    assert!(
+        err.to_string()
+            .contains("preprocessing widths do not match"),
+        "unexpected error: {err}"
+    );
+}
+
+fn wasm_tiny_params() -> NeoParams {
+    NeoParams::new(
+        goldilocks_paper_b2::Q,
+        goldilocks_paper_b2::ETA as u32,
+        goldilocks_paper_b2::D as u32,
+        /* kappa  */ 2,
+        /* m      */ 1u64 << 15,
+        goldilocks_paper_b2::B_BASE,
+        goldilocks_paper_b2::K_RHO,
+        goldilocks_paper_b2::T,
+        goldilocks_paper_b2::EXTENSION_DEGREE,
+        /* lambda */ 40,
+    )
+    .expect("wasm tiny NeoParams must satisfy the Pi_RLC guard")
 }

@@ -288,11 +288,19 @@ define_columns!(
         ColumnWidth::U32
     ),
     (COL_LOCAL_INDEX, "locals memory offset", ColumnWidth::U32),
-    (COL_LOCAL_VALUE, "locals memory value"),
-    (COL_LOCAL_VALUE_HI, "locals memory high limb for future i64 support"),
+    (COL_LOCAL_VALUE, "locals memory value", ColumnWidth::U32),
+    (
+        COL_LOCAL_VALUE_HI,
+        "locals memory high limb for future i64 support",
+        ColumnWidth::U32
+    ),
     (COL_GLOBAL_INDEX, "globals memory index", ColumnWidth::U32),
-    (COL_GLOBAL_VALUE, "globals memory value"),
-    (COL_GLOBAL_VALUE_HI, "globals memory high limb for future i64 support"),
+    (COL_GLOBAL_VALUE, "globals memory value", ColumnWidth::U32),
+    (
+        COL_GLOBAL_VALUE_HI,
+        "globals memory high limb for future i64 support",
+        ColumnWidth::U32
+    ),
     (COL_TABLE_ID, "table state namespace selector", ColumnWidth::U32),
     (COL_TABLE_INDEX, "table element index", ColumnWidth::U32),
     (
@@ -355,60 +363,30 @@ define_columns!(
         "operand-stack read lane 0 address",
         ColumnWidth::U32
     ),
-    (COL_STACK_READ0_VALUE, "operand-stack read lane 0 value"),
+    (
+        COL_STACK_READ0_VALUE,
+        "operand-stack read lane 0 value",
+        ColumnWidth::U32
+    ),
     (
         COL_STACK_READ0_VALUE_HI,
-        "operand-stack read lane 0 high limb for future i64 support"
-    ),
-    (
-        COL_STACK_READ0_VALUE_BYTE0,
-        "operand-stack read lane 0 low limb byte 0",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_STACK_READ0_VALUE_BYTE1,
-        "operand-stack read lane 0 low limb byte 1",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_STACK_READ0_VALUE_BYTE2,
-        "operand-stack read lane 0 low limb byte 2",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_STACK_READ0_VALUE_BYTE3,
-        "operand-stack read lane 0 low limb byte 3",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_STACK_READ0_VALUE_HI_BYTE0,
-        "operand-stack read lane 0 high limb byte 0",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_STACK_READ0_VALUE_HI_BYTE1,
-        "operand-stack read lane 0 high limb byte 1",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_STACK_READ0_VALUE_HI_BYTE2,
-        "operand-stack read lane 0 high limb byte 2",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_STACK_READ0_VALUE_HI_BYTE3,
-        "operand-stack read lane 0 high limb byte 3",
-        ColumnWidth::Byte
+        "operand-stack read lane 0 high limb for future i64 support",
+        ColumnWidth::U32
     ),
     (
         COL_STACK_READ1_ADDR,
         "operand-stack read lane 1 address",
         ColumnWidth::U32
     ),
-    (COL_STACK_READ1_VALUE, "operand-stack read lane 1 value"),
+    (
+        COL_STACK_READ1_VALUE,
+        "operand-stack read lane 1 value",
+        ColumnWidth::U32
+    ),
     (
         COL_STACK_READ1_VALUE_HI,
-        "operand-stack read lane 1 high limb for future i64 support"
+        "operand-stack read lane 1 high limb for future i64 support",
+        ColumnWidth::U32
     ),
     (
         COL_STACK_READ1_VALUE_BYTE0,
@@ -455,60 +433,30 @@ define_columns!(
         "operand-stack read lane 2 address",
         ColumnWidth::U32
     ),
-    (COL_STACK_READ2_VALUE, "operand-stack read lane 2 value"),
+    (
+        COL_STACK_READ2_VALUE,
+        "operand-stack read lane 2 value",
+        ColumnWidth::U32
+    ),
     (
         COL_STACK_READ2_VALUE_HI,
-        "operand-stack read lane 2 high limb for future i64 support"
-    ),
-    (
-        COL_STACK_READ2_VALUE_BYTE0,
-        "operand-stack read lane 2 low limb byte 0",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_STACK_READ2_VALUE_BYTE1,
-        "operand-stack read lane 2 low limb byte 1",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_STACK_READ2_VALUE_BYTE2,
-        "operand-stack read lane 2 low limb byte 2",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_STACK_READ2_VALUE_BYTE3,
-        "operand-stack read lane 2 low limb byte 3",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_STACK_READ2_VALUE_HI_BYTE0,
-        "operand-stack read lane 2 high limb byte 0",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_STACK_READ2_VALUE_HI_BYTE1,
-        "operand-stack read lane 2 high limb byte 1",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_STACK_READ2_VALUE_HI_BYTE2,
-        "operand-stack read lane 2 high limb byte 2",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_STACK_READ2_VALUE_HI_BYTE3,
-        "operand-stack read lane 2 high limb byte 3",
-        ColumnWidth::Byte
+        "operand-stack read lane 2 high limb for future i64 support",
+        ColumnWidth::U32
     ),
     (
         COL_STACK_WRITE0_ADDR,
         "operand-stack write lane 0 address",
         ColumnWidth::U32
     ),
-    (COL_STACK_WRITE0_VALUE, "operand-stack write lane 0 value"),
+    (
+        COL_STACK_WRITE0_VALUE,
+        "operand-stack write lane 0 value",
+        ColumnWidth::U32
+    ),
     (
         COL_STACK_WRITE0_VALUE_HI,
-        "operand-stack write lane 0 high limb for future i64 support"
+        "operand-stack write lane 0 high limb for future i64 support",
+        ColumnWidth::U32
     ),
     (
         COL_STACK_WRITE0_VALUE_BYTE0,
@@ -552,86 +500,6 @@ define_columns!(
     ),
     (COL_WIDE_AUX0, "", ColumnWidth::Boolean),
     (COL_WIDE_AUX1, "", ColumnWidth::Boolean),
-    (
-        COL_LOCAL_VALUE_BYTE0,
-        "locals memory low limb byte 0",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_LOCAL_VALUE_BYTE1,
-        "locals memory low limb byte 1",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_LOCAL_VALUE_BYTE2,
-        "locals memory low limb byte 2",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_LOCAL_VALUE_BYTE3,
-        "locals memory low limb byte 3",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_LOCAL_VALUE_HI_BYTE0,
-        "locals memory high limb byte 0",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_LOCAL_VALUE_HI_BYTE1,
-        "locals memory high limb byte 1",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_LOCAL_VALUE_HI_BYTE2,
-        "locals memory high limb byte 2",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_LOCAL_VALUE_HI_BYTE3,
-        "locals memory high limb byte 3",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_GLOBAL_VALUE_BYTE0,
-        "globals memory low limb byte 0",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_GLOBAL_VALUE_BYTE1,
-        "globals memory low limb byte 1",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_GLOBAL_VALUE_BYTE2,
-        "globals memory low limb byte 2",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_GLOBAL_VALUE_BYTE3,
-        "globals memory low limb byte 3",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_GLOBAL_VALUE_HI_BYTE0,
-        "globals memory high limb byte 0",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_GLOBAL_VALUE_HI_BYTE1,
-        "globals memory high limb byte 1",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_GLOBAL_VALUE_HI_BYTE2,
-        "globals memory high limb byte 2",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_GLOBAL_VALUE_HI_BYTE3,
-        "globals memory high limb byte 3",
-        ColumnWidth::Byte
-    ),
     (
         COL_LINEAR_MEM_IMM_OFFSET,
         "linear-memory immediate offset in bytes",

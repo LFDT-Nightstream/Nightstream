@@ -8,47 +8,10 @@ fn family_named<'a>(families: &'a [WasmLookupFamilySpec], name: &str) -> &'a Was
 }
 
 #[test]
-fn layout_describes_byte_u8_lookup_family_and_byte_bindings() {
+fn layout_describes_lookup_families_and_memory_bindings() {
     let layout = build_wasm_lookup_binding_layout();
-    let byte_family = family_named(&layout.lookup_families, "byte_u8");
-    assert!(matches!(byte_family.kind, WasmLookupFamilyKind::ByteU8));
     let bounds_family = family_named(&layout.lookup_families, "linear_memory_bounds");
     assert!(matches!(bounds_family.kind, WasmLookupFamilyKind::LinearMemoryBounds));
-
-    let byte_bindings: Vec<_> = layout
-        .lookup_bindings
-        .iter()
-        .filter(|binding| binding.family == "byte_u8")
-        .collect();
-    assert_eq!(byte_bindings.len(), 65);
-    assert!(byte_bindings
-        .iter()
-        .any(|binding| binding.name == "stack_read0_value_byte0"));
-    assert!(byte_bindings
-        .iter()
-        .any(|binding| binding.name == "stack_write0_value_hi_byte3"));
-    assert!(byte_bindings
-        .iter()
-        .any(|binding| binding.name == "local_value_hi_byte2"));
-    assert!(byte_bindings
-        .iter()
-        .any(|binding| binding.name == "global_value_byte1"));
-    assert!(byte_bindings
-        .iter()
-        .any(|binding| binding.name == "linear_mem_lane0_byte0"));
-    assert!(byte_bindings
-        .iter()
-        .any(|binding| binding.name == "linear_mem_lane1_byte3"));
-    assert!(byte_bindings
-        .iter()
-        .any(|binding| binding.name == "linear_mem_access_byte3"));
-    assert!(byte_bindings
-        .iter()
-        .any(|binding| binding.name == "sign_ext_low7"));
-    assert!(byte_bindings
-        .iter()
-        .all(|binding| binding.columns.len() == 1));
-    assert!(byte_bindings.iter().all(|binding| binding.gate.is_none()));
 
     let shout_bindings: Vec<_> = layout
         .lookup_bindings
@@ -245,4 +208,26 @@ fn column_specs_are_dense_and_in_order() {
     for (i, spec) in COLUMN_SPECS.iter().enumerate() {
         assert_eq!(spec.index, i, "COLUMN_SPECS must be index-sequential starting at 0");
     }
+}
+
+#[test]
+fn every_selector_column_is_declared_boolean() {
+    // The opcode-one-hot row in `ccs.rs` only constrains the *sum* of
+    // selectors; it does NOT force each selector to be 0 or 1. Per-selector
+    // booleanity now comes from `ColumnWidth::Boolean` driving the unified
+    // booleanity loop. If a future selector is added without that width
+    // annotation, the booleanity row is silently omitted and per-opcode
+    // gating becomes unsound (a prover can split a selector's "1" across
+    // canceling field values). This test pins that contract.
+    use neo_wasm::layout::{ColumnWidth, COLUMN_SPECS, SELECTOR_COLS};
+
+    let undeclared: Vec<&'static str> = SELECTOR_COLS
+        .iter()
+        .filter(|&&col| COLUMN_SPECS[col].width != ColumnWidth::Boolean)
+        .map(|&col| COLUMN_SPECS[col].name)
+        .collect();
+    assert!(
+        undeclared.is_empty(),
+        "every SELECTOR_COLS entry must be ColumnWidth::Boolean; missing on: {undeclared:?}"
+    );
 }

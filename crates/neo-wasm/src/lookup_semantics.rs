@@ -1,6 +1,7 @@
 //! IMPORTANT: this doesn't prove anything, it's just a sanity checker for now
 
 use super::isa::WasmShoutOpcode;
+use super::layout::{ColumnWidth, COLUMN_SPECS};
 use super::lookup_binding_builder::{WasmLookupBindingLayout, WasmLookupFamilyKind, WasmLookupFamilySpec};
 use neo_math::F;
 use neo_transcript::Poseidon2Transcript;
@@ -27,7 +28,6 @@ pub enum LookupExpr {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LookupBuiltin {
-    ByteInRange,
     LinearMemoryInBounds,
     ComposeU64,
     Low32,
@@ -68,9 +68,6 @@ pub enum LookupBuiltin {
 pub fn semantics_for_lookup_family(family: &WasmLookupFamilySpec) -> LookupSemantics {
     match family.kind {
         WasmLookupFamilyKind::Shout(op) => shout_semantics(op),
-        WasmLookupFamilyKind::ByteU8 => LookupSemantics {
-            predicate: LookupPredicate::Eq(apply(LookupBuiltin::ByteInRange, vec![slot(0)]), LookupExpr::Const(1)),
-        },
         WasmLookupFamilyKind::LinearMemoryBounds => LookupSemantics {
             predicate: LookupPredicate::Eq(
                 apply(
@@ -94,6 +91,18 @@ pub fn sanity_check_lookup_row(layout: &WasmLookupBindingLayout, witness: &[F]) 
             layout.witness_width,
             witness.len()
         ));
+    }
+    // Per-row check that every byte column carries a value in [0, 256). This
+    // replaces the old `byte_u8` lookup family — `ColumnWidth::Byte` on the
+    // column spec is now the single source of truth for byte-shaped columns.
+    for spec in COLUMN_SPECS.iter().filter(|s| s.width == ColumnWidth::Byte) {
+        let value = witness[spec.index].as_canonical_u64();
+        if value > 0xff {
+            return Err(format!(
+                "column `{}` declared ColumnWidth::Byte but witness value is {value} (> 255)",
+                spec.name
+            ));
+        }
     }
     let families = layout
         .lookup_families
@@ -262,10 +271,6 @@ fn evaluate_expr(expr: &LookupExpr, slots: &[u64]) -> Result<u64, String> {
 
 fn evaluate_builtin(builtin: LookupBuiltin, values: &[u64]) -> Result<u64, String> {
     Ok(match builtin {
-        LookupBuiltin::ByteInRange => {
-            require_arity(builtin, values, 1)?;
-            u64::from(values[0] <= 0xff)
-        }
         LookupBuiltin::LinearMemoryInBounds => {
             require_arity(builtin, values, 4)?;
             let pages_before = values[0];
@@ -429,7 +434,6 @@ fn i32v(value: u64) -> i32 {
 impl LookupBuiltin {
     fn name(self) -> &'static str {
         match self {
-            LookupBuiltin::ByteInRange => "byte_in_range",
             LookupBuiltin::LinearMemoryInBounds => "linear_memory_in_bounds",
             LookupBuiltin::ComposeU64 => "compose_u64",
             LookupBuiltin::Low32 => "low32",
@@ -470,7 +474,6 @@ impl LookupBuiltin {
 
     fn digest_id(self) -> u64 {
         match self {
-            LookupBuiltin::ByteInRange => 0,
             LookupBuiltin::LinearMemoryInBounds => 1,
             LookupBuiltin::ComposeU64 => 2,
             LookupBuiltin::Low32 => 3,

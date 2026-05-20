@@ -17,8 +17,11 @@ use neo_fold_clean::frontends::f_prime::image::{FPrimeImageLayout, NifsPayloadSh
 use neo_fold_clean::frontends::f_prime::recursive_plan::{
     build_recursive_step_image_config, AccumulatorPlanOptions, RecursiveStepImagePlan, StateXOutPlanOptions,
 };
+use neo_fold_clean::frontends::f_prime::structure::FPrimeStructure;
 use neo_fold_clean::frontends::f_prime::NifsCeClaimShape;
-use neo_fold_clean::frontends::r1cs_f_prime::{self, R1csFPrimePreprocessing, SparseR1cs};
+use neo_fold_clean::frontends::r1cs_f_prime::{
+    self, build_r1cs_f_prime_structure, R1csFPrimePreprocessing, SparseR1cs,
+};
 use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
 use neo_fold_clean::paper::params::Params;
 use neo_params::{goldilocks_paper_b2, NeoParams};
@@ -41,10 +44,18 @@ pub enum WasmPreprocessError {
     R1csFPrime(#[from] neo_fold_clean::frontends::r1cs_f_prime::Error),
 }
 
-/// Build preprocessing for the wasm VM using a process-global Ajtai SRS
-/// installed deterministically from the canonical wasm seed. Tests that
-/// reuse the same `(D, cols)` shape share one PP.
-pub fn preprocess_seeded(vm: &WasmVmSpec) -> Result<R1csFPrimePreprocessing, WasmPreprocessError> {
+/// Canonical structural inputs for the wasm R1CS-F' frontend.
+///
+/// This deliberately stops before lifecycle/Ajtai preprocessing. It is the
+/// cheap verifier-side shape surface: the wasm R1CS, recursive image plan,
+/// and resulting F' CCS structure.
+pub struct WasmCanonicalFPrimeShape {
+    pub sparse_r1cs: SparseR1cs,
+    pub plan: RecursiveStepImagePlan,
+    pub structure: FPrimeStructure,
+}
+
+pub fn canonical_wasm_f_prime_shape(vm: &WasmVmSpec) -> Result<WasmCanonicalFPrimeShape, WasmPreprocessError> {
     let core = vm.core_ccs_spec();
     let sparse_r1cs = SparseR1cs::new(
         core.structure.matrices[0].clone(),
@@ -55,6 +66,24 @@ pub fn preprocess_seeded(vm: &WasmVmSpec) -> Result<R1csFPrimePreprocessing, Was
         core.m_in,
     )?;
     let plan = wasm_recursive_plan(core.structure.m, core.m_in);
+    let layout = FPrimeImageLayout::new(build_recursive_step_image_config(&plan));
+    let (structure, _) = build_r1cs_f_prime_structure(layout, &sparse_r1cs);
+    Ok(WasmCanonicalFPrimeShape {
+        sparse_r1cs,
+        plan,
+        structure,
+    })
+}
+
+/// Build preprocessing for the wasm VM using a process-global Ajtai SRS
+/// installed deterministically from the canonical wasm seed. Tests that
+/// reuse the same `(D, cols)` shape share one PP.
+pub fn preprocess_seeded(vm: &WasmVmSpec) -> Result<R1csFPrimePreprocessing, WasmPreprocessError> {
+    let WasmCanonicalFPrimeShape {
+        sparse_r1cs,
+        plan,
+        structure: _,
+    } = canonical_wasm_f_prime_shape(vm)?;
     let params = wasm_tiny_params();
     Ok(r1cs_f_prime::preprocess_sparse_seeded_with_params(
         &sparse_r1cs,
@@ -87,8 +116,9 @@ fn wasm_tiny_params() -> NeoParams {
 
 /// `RecursiveStepImagePlan` for the wasm R1CS shape.
 ///
-/// `m` here is the wasm R1CS variable count (= `WasmCoreCcs::structure.m`);
-/// `m_in` is the public-input split (= `WasmCoreCcs::m_in`).
+/// `plan.app_private_var_widths` carries the per-variable bit-widths
+/// committed in the F' bit frame; `plan.limbs = total_bits + 1`. `m_in` is the
+/// public-input split (= `WasmCoreCcs::m_in`).
 fn wasm_recursive_plan(m: usize, m_in: usize) -> RecursiveStepImagePlan {
     // kappa * D for `wasm_tiny_params` = 2 * 54 = 108.
     const C_DATA_ENTRIES: usize = 108;

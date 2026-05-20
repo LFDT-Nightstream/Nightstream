@@ -73,7 +73,12 @@ pub(crate) fn zero_test_witness_u64(value: u64) -> (F, F) {
     }
 }
 
-pub(crate) fn push_u32_le_bytes<const N: usize>(b: &mut R1csBuilder, selector: usize, word: usize, bytes: [usize; N]) {
+pub(crate) fn push_u32_le_bytes_decomp<const N: usize>(
+    b: &mut R1csBuilder,
+    selector: usize,
+    word: usize,
+    bytes: [usize; N],
+) {
     debug_assert_eq!(N, 4);
     push_gated_linear_zero(
         b,

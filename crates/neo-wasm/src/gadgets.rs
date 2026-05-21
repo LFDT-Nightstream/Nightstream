@@ -73,16 +73,23 @@ pub(crate) fn zero_test_witness_u64(value: u64) -> (F, F) {
     }
 }
 
+/// Enforce `(Σ gate_cols) · (word - Σ_{i<4} bytes[i] · 2^(8i)) = 0`.
+///
+/// Each entry in `gate_cols` is summed with coefficient `1` on the
+/// left of the CCS row. For a single-column gate, pass `[selector_col]`.
+/// For a one-hot opcode gate (the constraint should fire on any of
+/// several mutually exclusive opcodes), pass the corresponding
+/// selector columns — exactly one is `1` per row, so `Σ gate_cols` is
+/// `1` when the constraint should fire and `0` otherwise.
 pub(crate) fn push_u32_le_bytes_decomp<const N: usize>(
     b: &mut R1csBuilder,
-    selector: usize,
+    gate_cols: impl IntoIterator<Item = usize>,
     word: usize,
     bytes: [usize; N],
 ) {
     debug_assert_eq!(N, 4);
-    push_gated_linear_zero(
-        b,
-        selector,
+    b.push_row(
+        gate_cols.into_iter().map(|col| (col, F::ONE)),
         [
             (word, F::ONE),
             (bytes[0], -F::ONE),
@@ -90,5 +97,6 @@ pub(crate) fn push_u32_le_bytes_decomp<const N: usize>(
             (bytes[2], -F::from_u64(1 << 16)),
             (bytes[3], -F::from_u64(1 << 24)),
         ],
+        [],
     );
 }

@@ -8,7 +8,8 @@ use super::layout::{
     COL_CALL_STACK_PUSH_PRESENT, COL_CONTROL_CHOICE, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_CURRENT_FUNCTION_REF,
     COL_EXPECTED_TYPE_ID, COL_FUNCTION_REF, COL_FUNCTION_TYPE_ID, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE,
     COL_GLOBAL_VALUE_HI, COL_HALTED, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1,
-    COL_LINEAR_MEM_ACCESS_BYTE2, COL_LINEAR_MEM_ACCESS_BYTE3, COL_LINEAR_MEM_BYTE_OFFSET,
+    COL_LINEAR_MEM_ACCESS_BYTE2, COL_LINEAR_MEM_ACCESS_BYTE3, COL_LINEAR_MEM_ACCESS_BYTE4, COL_LINEAR_MEM_ACCESS_BYTE5,
+    COL_LINEAR_MEM_ACCESS_BYTE6, COL_LINEAR_MEM_ACCESS_BYTE7, COL_LINEAR_MEM_BYTE_OFFSET,
     COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1,
     COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_2, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_3,
     COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_1,
@@ -35,15 +36,11 @@ use super::layout::{
     COL_SELECT_OUT_DELTA, COL_SHOUT_ENABLED, COL_SHOUT_ID, COL_SHOUT_VALUE, COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7,
     COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READ0_ACTIVE, COL_STACK_READ0_ADDR, COL_STACK_READ0_VALUE,
     COL_STACK_READ0_VALUE_HI, COL_STACK_READ1_ACTIVE, COL_STACK_READ1_ADDR, COL_STACK_READ1_VALUE,
-    COL_STACK_READ1_VALUE_BYTE0, COL_STACK_READ1_VALUE_BYTE1, COL_STACK_READ1_VALUE_BYTE2, COL_STACK_READ1_VALUE_BYTE3,
-    COL_STACK_READ1_VALUE_HI, COL_STACK_READ1_VALUE_HI_BYTE0, COL_STACK_READ1_VALUE_HI_BYTE1,
-    COL_STACK_READ1_VALUE_HI_BYTE2, COL_STACK_READ1_VALUE_HI_BYTE3, COL_STACK_READ2_ACTIVE, COL_STACK_READ2_ADDR,
-    COL_STACK_READ2_VALUE, COL_STACK_READ2_VALUE_HI, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR,
-    COL_STACK_WRITE0_VALUE, COL_STACK_WRITE0_VALUE_BYTE0, COL_STACK_WRITE0_VALUE_BYTE1, COL_STACK_WRITE0_VALUE_BYTE2,
-    COL_STACK_WRITE0_VALUE_BYTE3, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_HI_BYTE0,
-    COL_STACK_WRITE0_VALUE_HI_BYTE1, COL_STACK_WRITE0_VALUE_HI_BYTE2, COL_STACK_WRITE0_VALUE_HI_BYTE3,
-    COL_STACK_WRITES, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE, COL_TABLE_VALUE,
-    COL_TARGET_FUNCTION_IS_GUEST, COL_WIDE_AUX0, COL_WIDE_AUX1, COL_WIDE_VALUES_ENABLED, WITNESS_WIDTH,
+    COL_STACK_READ1_VALUE_HI, COL_STACK_READ2_ACTIVE, COL_STACK_READ2_ADDR, COL_STACK_READ2_VALUE,
+    COL_STACK_READ2_VALUE_HI, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR, COL_STACK_WRITE0_VALUE,
+    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITES, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE,
+    COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST, COL_WIDE_AUX0, COL_WIDE_AUX1, COL_WIDE_VALUES_ENABLED,
+    WITNESS_WIDTH,
 };
 use super::step_build::WasmStepBuild;
 use crate::layout::{COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV};
@@ -162,29 +159,9 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
     if let Some(read) = trace.stack_read1 {
         wit[COL_STACK_READ1_ADDR] = F::from_u64(read.addr);
         wit[COL_STACK_READ1_VALUE] = F::from_u64(u64::from(read.value));
-        write_u32_le_bytes(
-            &mut wit,
-            [
-                COL_STACK_READ1_VALUE_BYTE0,
-                COL_STACK_READ1_VALUE_BYTE1,
-                COL_STACK_READ1_VALUE_BYTE2,
-                COL_STACK_READ1_VALUE_BYTE3,
-            ],
-            read.value,
-        );
     }
     if let Some(read1_value_hi) = trace.stack_read1_hi {
         wit[COL_STACK_READ1_VALUE_HI] = F::from_u64(u64::from(read1_value_hi));
-        write_u32_le_bytes(
-            &mut wit,
-            [
-                COL_STACK_READ1_VALUE_HI_BYTE0,
-                COL_STACK_READ1_VALUE_HI_BYTE1,
-                COL_STACK_READ1_VALUE_HI_BYTE2,
-                COL_STACK_READ1_VALUE_HI_BYTE3,
-            ],
-            read1_value_hi,
-        );
     }
     if let Some(read) = trace.stack_read2 {
         wit[COL_STACK_READ2_ADDR] = F::from_u64(read.addr);
@@ -196,29 +173,9 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
     if let Some(write) = trace.stack_write0 {
         wit[COL_STACK_WRITE0_ADDR] = F::from_u64(write.addr);
         wit[COL_STACK_WRITE0_VALUE] = F::from_u64(u64::from(write.value));
-        write_u32_le_bytes(
-            &mut wit,
-            [
-                COL_STACK_WRITE0_VALUE_BYTE0,
-                COL_STACK_WRITE0_VALUE_BYTE1,
-                COL_STACK_WRITE0_VALUE_BYTE2,
-                COL_STACK_WRITE0_VALUE_BYTE3,
-            ],
-            write.value,
-        );
     }
     if let Some(write0_value_hi) = trace.stack_write0_hi {
         wit[COL_STACK_WRITE0_VALUE_HI] = F::from_u64(u64::from(write0_value_hi));
-        write_u32_le_bytes(
-            &mut wit,
-            [
-                COL_STACK_WRITE0_VALUE_HI_BYTE0,
-                COL_STACK_WRITE0_VALUE_HI_BYTE1,
-                COL_STACK_WRITE0_VALUE_HI_BYTE2,
-                COL_STACK_WRITE0_VALUE_HI_BYTE3,
-            ],
-            write0_value_hi,
-        );
     }
     if let Some(access) = trace.linear_memory {
         wit[COL_LINEAR_MEM_IMM_OFFSET] = F::from_u64(trace.linear_memory_offset);
@@ -357,16 +314,29 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
                 lane2_value,
             );
         }
-        let access_value = match trace.opcode {
+        // `access_bytes` is the direction-agnostic byte view of the
+        // value being read or written: lo limb for both i32 and i64,
+        // hi limb for i64 only. The byte-decomp constraints bind it
+        // to `stack.write0_value{,_hi}` on loads and
+        // `stack.read1_value{,_hi}` on stores.
+        let (access_lo, access_hi) = match trace.opcode {
             super::isa::WasmOpcode::I32Load
             | super::isa::WasmOpcode::I32Load8S
             | super::isa::WasmOpcode::I32Load8U
             | super::isa::WasmOpcode::I32Load16S
-            | super::isa::WasmOpcode::I32Load16U => trace.stack_write0.map(|lane| lane.value).unwrap_or(0),
+            | super::isa::WasmOpcode::I32Load16U => (trace.stack_write0.map(|lane| lane.value).unwrap_or(0), 0),
             super::isa::WasmOpcode::I32Store
             | super::isa::WasmOpcode::I32Store8
-            | super::isa::WasmOpcode::I32Store16 => trace.stack_read1.map(|lane| lane.value).unwrap_or(0),
-            _ => 0,
+            | super::isa::WasmOpcode::I32Store16 => (trace.stack_read1.map(|lane| lane.value).unwrap_or(0), 0),
+            super::isa::WasmOpcode::I64Load => (
+                trace.stack_write0.map(|lane| lane.value).unwrap_or(0),
+                trace.stack_write0_hi.unwrap_or(0),
+            ),
+            super::isa::WasmOpcode::I64Store => (
+                trace.stack_read1.map(|lane| lane.value).unwrap_or(0),
+                trace.stack_read1_hi.unwrap_or(0),
+            ),
+            _ => (0, 0),
         };
         write_u32_le_bytes(
             &mut wit,
@@ -376,16 +346,26 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
                 COL_LINEAR_MEM_ACCESS_BYTE2,
                 COL_LINEAR_MEM_ACCESS_BYTE3,
             ],
-            access_value,
+            access_lo,
+        );
+        write_u32_le_bytes(
+            &mut wit,
+            [
+                COL_LINEAR_MEM_ACCESS_BYTE4,
+                COL_LINEAR_MEM_ACCESS_BYTE5,
+                COL_LINEAR_MEM_ACCESS_BYTE6,
+                COL_LINEAR_MEM_ACCESS_BYTE7,
+            ],
+            access_hi,
         );
         match trace.opcode {
             super::isa::WasmOpcode::I32Load8S => {
-                let bytes = access_value.to_le_bytes();
+                let bytes = access_lo.to_le_bytes();
                 wit[COL_SIGN_EXT_LOW7] = F::from_u64(u64::from(bytes[0] & 0x7f));
                 wit[COL_SIGN_EXT_BIT] = if (bytes[0] & 0x80) != 0 { F::ONE } else { F::ZERO };
             }
             super::isa::WasmOpcode::I32Load16S => {
-                let bytes = access_value.to_le_bytes();
+                let bytes = access_lo.to_le_bytes();
                 wit[COL_SIGN_EXT_LOW7] = F::from_u64(u64::from(bytes[1] & 0x7f));
                 wit[COL_SIGN_EXT_BIT] = if (bytes[1] & 0x80) != 0 { F::ONE } else { F::ZERO };
             }

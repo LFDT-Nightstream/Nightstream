@@ -7,6 +7,7 @@
 //! utilities (`idx`, `f_u64`, …) that those submodules consume via
 //! `use super::*`.
 
+mod call;
 mod linear_memory;
 
 use super::gadgets::{
@@ -18,9 +19,8 @@ use super::layout::{
     WITNESS_WIDTH,
 };
 use super::lookup_binding_builder::{
-    build_wasm_lookup_binding_layout, CallColumns, Column, ControlColumns, FrameColumns, FunctionTypeColumns,
-    GlobalsColumns, LocalsColumns, MemoryPagesColumns, OperandStackColumns, ParamInitColumns, ShoutColumns,
-    StateColumns, TableColumns, TableSizeColumns,
+    build_wasm_lookup_binding_layout, Column, ControlColumns, GlobalsColumns, LocalsColumns, MemoryPagesColumns,
+    OperandStackColumns, ShoutColumns, StateColumns, TableColumns, TableSizeColumns,
 };
 use super::tagged_r1cs_builder::{
     WasmConstraintCatalog, WasmConstraintScope, WasmConstraintTag, WasmTaggedR1csBuilder,
@@ -193,17 +193,13 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
     let layout = build_wasm_lookup_binding_layout();
     let control = layout.control;
     let state = layout.state;
-    let param_init = layout.param_init;
     let call = layout.call;
-    let frame = layout.frame;
     let stack = layout.stack;
     let locals = layout.locals;
     let globals = layout.globals;
     let memory_pages = layout.memory_pages;
     let table = layout.table;
     let table_sizes = layout.table_sizes;
-    let function_types = layout.function_types;
-    let module_types = layout.module_types;
     let linear_memory = layout.linear_memory;
     let shout = layout.shout;
     let mut b = WasmTaggedR1csBuilder::new(WITNESS_WIDTH, COL_ONE)?;
@@ -280,59 +276,7 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         }
     });
 
-    b.with_tag(always("row kind one hot"), |b| {
-        b.push_linear_zero([
-            (idx(control.is_program_row), F::ONE),
-            (idx(param_init.param_init_active_before), F::ONE),
-            (COL_ONE, -F::ONE),
-        ]);
-    });
-
-    b.with_tag(always("aux call param init shape"), |b| {
-        let param_init_row_gate = idx(param_init.param_init_active_before);
-
-        // pc_after == pc_before
-        push_gated_linear_zero(
-            b,
-            param_init_row_gate,
-            [(idx(state.pc_after), F::ONE), (idx(state.pc_before), -F::ONE)],
-        );
-
-        // init local outputs don't modify the stack
-        // these two also imply sp_after == sp_before
-        push_gated_linear_zero(b, param_init_row_gate, [(idx(control.stack_reads), F::ONE)]);
-        push_gated_linear_zero(b, param_init_row_gate, [(idx(control.stack_writes), F::ONE)]);
-
-        // write to the locals memory the value read from the stack
-        //
-        // remember that there is only one lane for locals access
-        push_gated_linear_zero(
-            b,
-            param_init_row_gate,
-            [(idx(stack.read0_value), F::ONE), (idx(locals.value_lo), -F::ONE)],
-        );
-        push_gated_linear_zero(
-            b,
-            param_init_row_gate,
-            [(idx(stack.read0_value_hi), F::ONE), (idx(locals.value_hi), -F::ONE)],
-        );
-    });
-
-    b.with_tag(always("guest call flag"), |b| {
-        push_guest_call_flag_constraints(b, &call, &function_types);
-    });
-
-    b.with_tag(always("call param init enter mode"), |b| {
-        push_call_param_init_enter_mode_constraints(b, &control, &param_init, &call, &function_types);
-    });
-
-    b.with_tag(always("call param init exit mode"), |b| {
-        push_call_param_init_exit_mode_constraints(b, &param_init);
-    });
-
-    b.with_tag(always("call param init aux row"), |b| {
-        push_call_param_init_aux_row_constraints(b, &state, &param_init, &function_types, &stack, &locals);
-    });
+    call::push_call_constraints(&mut b, layout);
 
     b.with_tag(always("opcode selector one hot"), |b| {
         b.push_linear_zero(
@@ -722,29 +666,6 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         );
     });
 
-    b.with_tag(always("return pc restoration"), |b| {
-        b.push_row(
-            [(idx(call.call_stack_pop_present), F::ONE)],
-            [
-                (idx(state.pc_after), F::ONE),
-                (idx(call.call_stack_pop_return_pc), -F::ONE),
-            ],
-            [],
-        );
-        b.push_row(
-            [(idx(call.call_stack_pop_present), F::ONE)],
-            [
-                (COL_ONE, F::ONE),
-                (selector_col(WasmOpcode::Return).unwrap(), -F::ONE),
-                (selector_col(WasmOpcode::End).unwrap(), -F::ONE),
-            ],
-            [],
-        );
-    });
-    b.with_tag(always("locals fbp transition"), |b| {
-        push_locals_fbp_transition_constraints(b, &call, &frame);
-    });
-
     b.push_linear_zero(
         [
             (idx(shout.enabled), F::ONE),
@@ -882,16 +803,6 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
     b.with_tag(opcode_tag("table size constraints", WasmOpcode::TableSize), |b| {
         push_table_size_constraints(b, &stack, &table_sizes);
     });
-    b.with_tag(
-        opcode_tag("call_indirect type constraints", WasmOpcode::CallIndirect),
-        |b| {
-            push_call_indirect_type_constraints(b, &function_types, &module_types);
-        },
-    );
-    b.with_tag(always("dynamic call stack arity"), |b| {
-        push_dynamic_call_stack_arity_constraints(b, &control, &function_types, &table);
-    });
-
     let (structure, constraint_catalog) = b.build()?;
 
     Ok((
@@ -1242,208 +1153,6 @@ fn push_table_size_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns,
         b,
         selector_col(WasmOpcode::TableSize).unwrap(),
         [(idx(table_sizes.value), F::ONE), (idx(stack.write0_value), -F::ONE)],
-    );
-}
-
-fn push_call_indirect_type_constraints(
-    b: &mut R1csBuilder,
-    function_types: &FunctionTypeColumns,
-    module_types: &super::lookup_binding_builder::ModuleTypeColumns,
-) {
-    push_gated_linear_zero(
-        b,
-        selector_col(WasmOpcode::CallIndirect).unwrap(),
-        [
-            (idx(function_types.type_id), F::ONE),
-            (idx(module_types.expected_type_id), -F::ONE),
-        ],
-    );
-}
-
-fn push_dynamic_call_stack_arity_constraints(
-    b: &mut R1csBuilder,
-    control: &ControlColumns,
-    function_types: &FunctionTypeColumns,
-    table: &TableColumns,
-) {
-    push_gated_linear_zero(
-        b,
-        selector_col(WasmOpcode::Call).unwrap(),
-        [
-            (idx(control.stack_reads), F::ONE),
-            (idx(function_types.param_count), -F::ONE),
-        ],
-    );
-    push_gated_linear_zero(
-        b,
-        selector_col(WasmOpcode::Call).unwrap(),
-        [(idx(control.stack_writes), F::ONE)],
-    );
-    push_gated_linear_zero(
-        b,
-        selector_col(WasmOpcode::CallIndirect).unwrap(),
-        [(idx(function_types.function_ref), F::ONE), (idx(table.value), -F::ONE)],
-    );
-    push_gated_linear_zero(
-        b,
-        selector_col(WasmOpcode::CallIndirect).unwrap(),
-        [
-            (idx(control.stack_reads), F::ONE),
-            (idx(function_types.param_count), -F::ONE),
-            (COL_ONE, -F::ONE),
-        ],
-    );
-    push_gated_linear_zero(
-        b,
-        selector_col(WasmOpcode::CallIndirect).unwrap(),
-        [(idx(control.stack_writes), F::ONE)],
-    );
-}
-
-fn push_guest_call_flag_constraints(b: &mut R1csBuilder, call: &CallColumns, function_types: &FunctionTypeColumns) {
-    let call_selector = selector_col(WasmOpcode::Call).unwrap();
-    let call_indirect = selector_col(WasmOpcode::CallIndirect).unwrap();
-
-    b.push_row(
-        [(call_selector, F::ONE), (call_indirect, F::ONE)],
-        [(idx(function_types.is_guest), F::ONE)],
-        [(idx(call.call_stack_push_present), F::ONE)],
-    );
-}
-
-fn push_call_param_init_enter_mode_constraints(
-    b: &mut R1csBuilder,
-    control: &ControlColumns,
-    param_init: &ParamInitColumns,
-    call: &CallColumns,
-    function_types: &FunctionTypeColumns,
-) {
-    let guest_call = idx(call.call_stack_push_present);
-
-    b.push_row(
-        [
-            (idx(control.is_program_row), F::ONE),
-            (idx(call.call_stack_push_present), -F::ONE),
-        ],
-        // Only guest calls may enter param-init mode from a program row.
-        // Aux rows are excluded by `is_program_row = 0`, so multi-param init
-        // can continue until the global remaining-after zero test turns it off.
-        [(idx(param_init.param_init_active_after), F::ONE)],
-        [],
-    );
-
-    // guest_call => param_init_remaining' == param_count
-    push_gated_linear_zero(
-        b,
-        guest_call,
-        [
-            (idx(param_init.param_init_remaining_after), F::ONE),
-            (idx(function_types.param_count), -F::ONE),
-        ],
-    );
-}
-
-fn push_call_param_init_exit_mode_constraints(b: &mut R1csBuilder, param_init: &ParamInitColumns) {
-    b.push_linear_zero([
-        (idx(param_init.param_init_active_after), F::ONE),
-        (idx(param_init.param_init_remaining_after_is_zero), F::ONE),
-        (COL_ONE, -F::ONE),
-    ]);
-
-    // if we reached the end of the local initialization sequence
-    push_zero_test_gadget(
-        b,
-        idx(param_init.param_init_remaining_after),
-        idx(param_init.param_init_remaining_after_inv),
-        idx(param_init.param_init_remaining_after_is_zero),
-    );
-}
-
-fn push_call_param_init_aux_row_constraints(
-    b: &mut R1csBuilder,
-    state: &StateColumns,
-    param_init: &ParamInitColumns,
-    function_types: &FunctionTypeColumns,
-    stack: &OperandStackColumns,
-    locals: &LocalsColumns,
-) {
-    let selector = idx(param_init.param_init_active_before);
-
-    // in_param_init_mode => param_init_remaining' = param_init_remaining - 1
-    push_gated_linear_zero(
-        b,
-        selector,
-        [
-            (idx(param_init.param_init_remaining_before), F::ONE),
-            (idx(param_init.param_init_remaining_after), -F::ONE),
-            (COL_ONE, -F::ONE),
-        ],
-    );
-
-    push_gated_linear_zero(
-        b,
-        selector,
-        [
-            // stack_addr + remaining = sp_before + param_count
-            //
-            // remaining goes down, so stack_addr may go up (the rhs is constant while selector is on)
-            (idx(stack.read0_addr), F::ONE),
-            (idx(state.sp_before), -F::ONE),
-            (idx(function_types.param_count), -F::ONE),
-            (idx(param_init.param_init_remaining_before), F::ONE),
-        ],
-    );
-
-    push_gated_linear_zero(
-        b,
-        selector,
-        // The aux row writes callee local `param_count - remaining_before`.
-        [
-            (idx(locals.index), F::ONE),
-            (idx(function_types.param_count), -F::ONE),
-            (idx(param_init.param_init_remaining_before), F::ONE),
-        ],
-    );
-
-    // the pc is not constrained for the aux opcode (since it's not a real
-    // opcode, it's not in the next pc table)
-    //
-    // we assert here that it doesn't change
-    push_gated_linear_zero(
-        b,
-        selector,
-        [(idx(state.pc_after), F::ONE), (idx(state.pc_before), -F::ONE)],
-    );
-}
-
-fn push_locals_fbp_transition_constraints(b: &mut R1csBuilder, call: &CallColumns, frame: &FrameColumns) {
-    let guest_call = idx(call.call_stack_push_present);
-    let pop = idx(call.call_stack_pop_present);
-
-    push_gated_linear_zero(
-        b,
-        guest_call,
-        [
-            (idx(frame.locals_fbp_after), F::ONE),
-            (idx(frame.locals_fbp_before), -F::ONE),
-            (idx(frame.current_function_num_locals), -F::ONE),
-        ],
-    );
-    push_gated_linear_zero(
-        b,
-        pop,
-        [
-            (idx(frame.locals_fbp_after), F::ONE),
-            (idx(call.call_stack_pop_caller_fbp), -F::ONE),
-        ],
-    );
-    b.push_row(
-        [(COL_ONE, F::ONE), (guest_call, -F::ONE), (pop, -F::ONE)],
-        [
-            (idx(frame.locals_fbp_after), F::ONE),
-            (idx(frame.locals_fbp_before), -F::ONE),
-        ],
-        [],
     );
 }
 

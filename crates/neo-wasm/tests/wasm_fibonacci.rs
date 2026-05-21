@@ -1,7 +1,7 @@
-use neo_wasm::{
-    build_wasm_lookup_binding_layout, collect_wasmtime_steps, preload_from_wasmtime_run, sanity_check_lookup_row,
-    sanity_check_memory_rows, traces_from_wasmtime_steps,
-};
+mod common;
+
+use neo_wasm::preprocess::preprocess_seeded;
+use neo_wasm::{prove, verify, WasmVmSpec};
 
 // Iterative fibonacci (do-while loop, valid for n >= 1).
 // param 0 = n (iteration counter), locals 1 and 2 = a and b.
@@ -34,27 +34,32 @@ const FIB_WAT: &str = r#"
 
 #[test]
 fn wasm_fibonacci_kernel_roundtrip() {
-    let wasm = wat::parse_str(FIB_WAT).expect("valid WAT");
-    let layout = build_wasm_lookup_binding_layout();
-
     for (n, expected) in [(1u32, 1u32), (2, 1), (3, 2), (4, 3), (5, 5), (10, 55)] {
-        let run = collect_wasmtime_steps(&wasm, "main", &[n as i32]).expect("wasmtime trace");
+        let checked = common::checked_wasm_run(FIB_WAT, "main", &[n as i32]);
         assert_eq!(
-            run.results.as_slice(),
+            checked.run.results.as_slice(),
             &[expected.to_string()],
             "fib({n}) should be {expected}"
         );
-
-        let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
-        let mut witnesses = Vec::with_capacity(trace.len());
-        for row in &trace {
-            let witness = neo_wasm::builder::build_witness_vector(row);
-            sanity_check_lookup_row(layout, &witness)
-                .unwrap_or_else(|err| panic!("lookup semantics rejected {:?}: {err}", row.opcode));
-            witnesses.push(witness);
-        }
-        let preload = preload_from_wasmtime_run(&run, &run.initial_locals);
-        sanity_check_memory_rows(layout, &witnesses, &preload)
-            .unwrap_or_else(|err| panic!("memory semantics rejected fib({n}): {err}"));
     }
+}
+
+#[test]
+fn wasm_fibonacci_trace_rows_satisfy_ccs() {
+    let checked = common::checked_wasm_run(FIB_WAT, "main", &[3]);
+    assert!(checked
+        .trace
+        .iter()
+        .any(|row| row.opcode == neo_wasm::WasmOpcode::End && !row.halted));
+}
+
+#[test]
+#[ignore = "folding proof is currently too slow for the normal wasm test suite"]
+fn wasm_fibonacci_folding_proof_covers_control_flow() {
+    let checked = common::checked_wasm_run(FIB_WAT, "main", &[3]);
+    assert_eq!(checked.run.results.as_slice(), &["2".to_string()]);
+
+    let prep = preprocess_seeded(&WasmVmSpec::default()).expect("prep");
+    let proof = prove(&prep, &checked.trace).expect("prove fibonacci run");
+    verify(&prep, &proof).expect("verify fibonacci run");
 }

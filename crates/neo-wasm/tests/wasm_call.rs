@@ -1,6 +1,8 @@
+mod common;
+
 use neo_wasm::{
-    build_wasm_lookup_binding_layout, collect_wasmtime_steps, preload_from_wasmtime_run, sanity_check_lookup_row,
-    sanity_check_memory_rows, traces_from_wasmtime_steps, WasmAuxOpcode, WasmOpcode, WasmRowKind, WasmStepTrace,
+    build_wasm_lookup_binding_layout, collect_wasmtime_steps, preload_from_wasmtime_run, sanity_check_memory_rows,
+    traces_from_wasmtime_steps, WasmAuxOpcode, WasmOpcode, WasmRowKind, WasmStepTrace,
 };
 
 fn add_one_wasm() -> Vec<u8> {
@@ -214,16 +216,8 @@ fn call_trace_passes_witness_checks() {
     let wasm = add_one_wasm();
     let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
-
-    let layout = build_wasm_lookup_binding_layout();
-    let witnesses = build_witnesses(&trace);
-    for (row, witness) in trace.iter().zip(&witnesses) {
-        sanity_check_lookup_row(layout, witness)
-            .unwrap_or_else(|err| panic!("lookup semantics rejected {:?}: {err}", row.opcode));
-    }
-    let preload = preload_from_wasmtime_run(&run, &run.initial_locals);
-    sanity_check_memory_rows(layout, &witnesses, &preload)
-        .unwrap_or_else(|err| panic!("memory semantics rejected call trace: {err}"));
+    common::sanity_check_trace(&trace, &run);
+    common::ccs_check_trace(&trace);
 
     assert!(
         trace.iter().any(|row| row.call_stack_push.is_some()),

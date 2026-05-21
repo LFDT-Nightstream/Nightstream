@@ -1,12 +1,10 @@
+mod common;
+
 use neo_fold_clean::frontends::r1cs_f_prime;
 use neo_fold_clean::paper::params::Params;
 use neo_params::{goldilocks_paper_b2, NeoParams};
 use neo_wasm::preprocess::preprocess_seeded;
-use neo_wasm::{
-    build_wasm_lookup_binding_layout, collect_wasmtime_steps, preload_from_wasmtime_run, prove,
-    sanity_check_lookup_row, sanity_check_memory_rows, traces_from_wasmtime_steps, verify, WasmStepTrace, WasmVmSpec,
-    WasmtimeTraceRun,
-};
+use neo_wasm::{prove, verify, WasmStepTrace, WasmVmSpec};
 
 /// Compile a WAT module, run it through the wasmtime adapter, exercise the
 /// witness-derived sanity checks, and return the trace + ROMs.
@@ -33,32 +31,15 @@ fn compile_and_trace_with(
     Vec<(u64, u64)>,
     Vec<(u64, u64)>,
 ) {
-    let wasm = wat::parse_str(wat_src).expect("valid WAT");
-    let run = collect_wasmtime_steps(&wasm, export, params).expect("wasmtime trace");
-    let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
-    sanity_check_witnesses(&trace, &run);
-    let pc_rom = run.pc_rom.clone();
-    let pc_edge_kinds = run.pc_edge_kinds.clone();
-    let function_entries = run.function_entries.clone();
-    (wasm, trace, pc_rom, pc_edge_kinds, function_entries)
-}
-
-fn sanity_check_witnesses(trace: &[WasmStepTrace], run: &WasmtimeTraceRun) {
-    let layout = build_wasm_lookup_binding_layout();
-    let mut witnesses = Vec::with_capacity(trace.len());
-    for row in trace {
-        let witness = neo_wasm::builder::build_witness_vector(row);
-        sanity_check_lookup_row(layout, &witness)
-            .unwrap_or_else(|err| panic!("lookup semantics rejected {:?}: {err}", row.opcode));
-        witnesses.push(witness);
-    }
-    let preload = preload_from_wasmtime_run(run, &run.initial_locals);
-    sanity_check_memory_rows(layout, &witnesses, &preload)
-        .unwrap_or_else(|err| panic!("memory semantics rejected trace: {err}"));
+    let checked = common::checked_wasm_run(wat_src, export, params);
+    let pc_rom = checked.run.pc_rom.clone();
+    let pc_edge_kinds = checked.run.pc_edge_kinds.clone();
+    let function_entries = checked.run.function_entries.clone();
+    (checked.wasm, checked.trace, pc_rom, pc_edge_kinds, function_entries)
 }
 
 #[test]
-fn wasm_kernel_roundtrip() {
+fn wasm_trace_run() {
     compile_and_trace(
         r#"(module (func (export "main") (result i32)
              i32.const 7
@@ -68,7 +49,7 @@ fn wasm_kernel_roundtrip() {
 }
 
 #[test]
-fn wasm_kernel_roundtrip_with_linear_memory() {
+fn wasm_trace_run_with_linear_memory() {
     let (_, trace, ..) = compile_and_trace(
         r#"(module
              (memory 1)
@@ -83,7 +64,7 @@ fn wasm_kernel_roundtrip_with_linear_memory() {
 }
 
 #[test]
-fn wasm_kernel_roundtrip_with_memory_size_and_grow() {
+fn wasm_trace_run_with_memory_size_and_grow() {
     let (_, trace, ..) = compile_and_trace(
         r#"(module
              (memory 1 3)
@@ -104,7 +85,7 @@ fn wasm_kernel_roundtrip_with_memory_size_and_grow() {
 }
 
 #[test]
-fn wasm_kernel_roundtrip_with_linear_memory_offset() {
+fn wasm_trace_run_with_linear_memory_offset() {
     let (_, trace, ..) = compile_and_trace(
         r#"(module
              (memory 1)
@@ -119,7 +100,7 @@ fn wasm_kernel_roundtrip_with_linear_memory_offset() {
 }
 
 #[test]
-fn wasm_kernel_roundtrip_with_byte_linear_memory() {
+fn wasm_trace_run_with_byte_linear_memory() {
     let (_, trace, ..) = compile_and_trace(
         r#"(module
              (memory 1)
@@ -139,7 +120,7 @@ fn wasm_kernel_roundtrip_with_byte_linear_memory() {
 }
 
 #[test]
-fn wasm_kernel_roundtrip_with_globals() {
+fn wasm_trace_run_with_globals() {
     let (_, trace, ..) = compile_and_trace(
         r#"(module
              (global (mut i32) (i32.const 7))
@@ -160,7 +141,7 @@ fn wasm_kernel_roundtrip_with_globals() {
 }
 
 #[test]
-fn wasm_kernel_roundtrip_with_shift_div_rem() {
+fn wasm_trace_run_with_shift_div_rem() {
     let (_, trace, ..) = compile_and_trace(
         r#"(module
              (func (export "main") (result i32)
@@ -208,7 +189,7 @@ fn wasm_kernel_roundtrip_with_shift_div_rem() {
 }
 
 #[test]
-fn wasm_kernel_roundtrip_with_compare_unary_and_rotate() {
+fn wasm_trace_run_with_compare_unary_and_rotate() {
     let (_, trace, ..) = compile_and_trace(
         r#"(module
              (func (export "main") (result i32)
@@ -269,7 +250,7 @@ fn wasm_kernel_roundtrip_with_compare_unary_and_rotate() {
 }
 
 #[test]
-fn wasm_kernel_roundtrip_with_br_table() {
+fn wasm_trace_run_with_br_table() {
     let (_, trace, pc_rom, ..) = compile_and_trace_with(
         r#"(module
              (func (export "main") (param i32) (result i32)
@@ -304,7 +285,7 @@ fn wasm_kernel_roundtrip_with_br_table() {
 }
 
 #[test]
-fn wasm_kernel_roundtrip_with_table_size() {
+fn wasm_trace_run_with_table_size() {
     let (_, trace, ..) = compile_and_trace(
         r#"(module
              (table 4 funcref)
@@ -320,7 +301,7 @@ fn wasm_kernel_roundtrip_with_table_size() {
 }
 
 #[test]
-fn wasm_kernel_roundtrip_with_funcref_tables() {
+fn wasm_trace_run_with_funcref_tables() {
     let (_, trace, ..) = compile_and_trace(
         r#"(module
              (type (func))
@@ -347,7 +328,7 @@ fn wasm_kernel_roundtrip_with_funcref_tables() {
 }
 
 #[test]
-fn wasm_kernel_roundtrip_with_call_indirect() {
+fn wasm_trace_run_with_call_indirect() {
     let (_, trace, ..) = compile_and_trace(
         r#"(module
             (type $t (func (result i32)))
@@ -373,7 +354,7 @@ fn wasm_kernel_roundtrip_with_call_indirect() {
 }
 
 #[test]
-fn wasm_kernel_roundtrip_with_basic_i64_ops() {
+fn wasm_trace_run_with_basic_i64_ops() {
     let (_, trace, ..) = compile_and_trace_with(
         r#"(module
             (func (export "run") (result i32)
@@ -414,7 +395,7 @@ fn wasm_kernel_roundtrip_with_basic_i64_ops() {
 }
 
 #[test]
-fn wasm_kernel_roundtrip_with_aligned_i64_linear_memory() {
+fn wasm_trace_run_with_aligned_i64_linear_memory() {
     let (_, trace, ..) = compile_and_trace_with(
         r#"(module
             (memory 1)
@@ -435,7 +416,7 @@ fn wasm_kernel_roundtrip_with_aligned_i64_linear_memory() {
 }
 
 #[test]
-fn wasm_kernel_roundtrip_with_unaligned_i64_linear_memory() {
+fn wasm_trace_run_with_unaligned_i64_linear_memory() {
     let (_, trace, ..) = compile_and_trace_with(
         r#"(module
             (memory 1)
@@ -461,7 +442,7 @@ fn wasm_kernel_roundtrip_with_unaligned_i64_linear_memory() {
 }
 
 #[test]
-fn wasm_kernel_roundtrip_with_halfword_linear_memory() {
+fn wasm_trace_run_with_halfword_linear_memory() {
     let (_, trace, ..) = compile_and_trace(
         r#"(module
              (memory 1)
@@ -481,7 +462,7 @@ fn wasm_kernel_roundtrip_with_halfword_linear_memory() {
 }
 
 #[test]
-fn wasm_kernel_roundtrip_with_signed_subword_loads() {
+fn wasm_trace_run_with_signed_subword_loads() {
     let (_, trace, ..) = compile_and_trace(
         r#"(module
              (memory 1)
@@ -507,7 +488,7 @@ fn wasm_kernel_roundtrip_with_signed_subword_loads() {
 }
 
 #[test]
-fn wasm_kernel_roundtrip_with_drop() {
+fn wasm_trace_run_with_drop() {
     compile_and_trace(
         r#"(module
              (func (export "main") (result i32)
@@ -518,7 +499,7 @@ fn wasm_kernel_roundtrip_with_drop() {
 }
 
 #[test]
-fn wasm_kernel_roundtrip_with_structured_control_rows() {
+fn wasm_trace_run_with_structured_control_rows() {
     let (_, trace, ..) = compile_and_trace(
         r#"(module
              (func (export "main") (result i32)
@@ -552,7 +533,7 @@ fn wasm_kernel_roundtrip_with_structured_control_rows() {
 }
 
 #[test]
-fn wasm_kernel_roundtrip_with_nop_and_br() {
+fn wasm_trace_run_with_nop_and_br() {
     let (_, trace, ..) = compile_and_trace(
         r#"(module
              (func (export "main") (result i32)
@@ -578,7 +559,7 @@ fn wasm_kernel_roundtrip_with_nop_and_br() {
 }
 
 #[test]
-fn wasm_kernel_run_roundtrip() {
+fn wasm_trace_run_folding_proof() {
     let (_, trace, ..) = compile_and_trace(
         r#"(module (func (export "main") (result i32)
              i32.const 7

@@ -1,7 +1,8 @@
+mod common;
+
 use neo_wasm::{
-    build_wasm_lookup_binding_layout, builder::build_witness_vector, collect_wasmtime_component_run,
-    collect_wasmtime_component_run_with_linker, preload_from_wasmtime_run, sanity_check_lookup_row,
-    sanity_check_memory_rows, traces_from_wasmtime_component, traces_from_wasmtime_steps, WasmBuildError, WasmOpcode,
+    collect_wasmtime_component_run, collect_wasmtime_component_run_with_linker, traces_from_wasmtime_component,
+    traces_from_wasmtime_steps, WasmBuildError, WasmOpcode,
 };
 use wasmtime::{
     component::{Component, Linker},
@@ -135,17 +136,11 @@ fn wasm_component_kernel_roundtrip_for_embedded_core_trace() {
 }
 
 fn check_component_trace(trace: &[neo_wasm::WasmStepTrace], run: &neo_wasm::WasmtimeTraceRun) {
-    let layout = build_wasm_lookup_binding_layout();
-    let mut witnesses = Vec::with_capacity(trace.len());
-    for row in trace {
-        let witness = build_witness_vector(row);
-        sanity_check_lookup_row(layout, &witness)
-            .unwrap_or_else(|err| panic!("lookup semantics rejected {:?}: {err}", row.opcode));
-        witnesses.push(witness);
-    }
-    let preload = preload_from_wasmtime_run(run, &run.initial_locals);
-    sanity_check_memory_rows(layout, &witnesses, &preload)
-        .unwrap_or_else(|err| panic!("memory semantics rejected component trace: {err}"));
+    // TODO: Add CCS row checks once lowered component host-call rows have a
+    // protocol model. The import fixture currently includes a host-backed
+    // `call` whose stack-result behavior is accepted by lookup/memory sanity
+    // but is not represented by the guest-call CCS arity constraints.
+    common::sanity_check_trace(trace, run);
 }
 
 #[test]

@@ -389,46 +389,6 @@ define_columns!(
         ColumnWidth::U32
     ),
     (
-        COL_STACK_READ1_VALUE_BYTE0,
-        "operand-stack read lane 1 low limb byte 0",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_STACK_READ1_VALUE_BYTE1,
-        "operand-stack read lane 1 low limb byte 1",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_STACK_READ1_VALUE_BYTE2,
-        "operand-stack read lane 1 low limb byte 2",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_STACK_READ1_VALUE_BYTE3,
-        "operand-stack read lane 1 low limb byte 3",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_STACK_READ1_VALUE_HI_BYTE0,
-        "operand-stack read lane 1 high limb byte 0",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_STACK_READ1_VALUE_HI_BYTE1,
-        "operand-stack read lane 1 high limb byte 1",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_STACK_READ1_VALUE_HI_BYTE2,
-        "operand-stack read lane 1 high limb byte 2",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_STACK_READ1_VALUE_HI_BYTE3,
-        "operand-stack read lane 1 high limb byte 3",
-        ColumnWidth::Byte
-    ),
-    (
         COL_STACK_READ2_ADDR,
         "operand-stack read lane 2 address",
         ColumnWidth::U32
@@ -457,46 +417,6 @@ define_columns!(
         COL_STACK_WRITE0_VALUE_HI,
         "operand-stack write lane 0 high limb for future i64 support",
         ColumnWidth::U32
-    ),
-    (
-        COL_STACK_WRITE0_VALUE_BYTE0,
-        "operand-stack write lane 0 low limb byte 0",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_STACK_WRITE0_VALUE_BYTE1,
-        "operand-stack write lane 0 low limb byte 1",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_STACK_WRITE0_VALUE_BYTE2,
-        "operand-stack write lane 0 low limb byte 2",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_STACK_WRITE0_VALUE_BYTE3,
-        "operand-stack write lane 0 low limb byte 3",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_STACK_WRITE0_VALUE_HI_BYTE0,
-        "operand-stack write lane 0 high limb byte 0",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_STACK_WRITE0_VALUE_HI_BYTE1,
-        "operand-stack write lane 0 high limb byte 1",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_STACK_WRITE0_VALUE_HI_BYTE2,
-        "operand-stack write lane 0 high limb byte 2",
-        ColumnWidth::Byte
-    ),
-    (
-        COL_STACK_WRITE0_VALUE_HI_BYTE3,
-        "operand-stack write lane 0 high limb byte 3",
-        ColumnWidth::Byte
     ),
     (COL_WIDE_AUX0, "", ColumnWidth::Boolean),
     (COL_WIDE_AUX1, "", ColumnWidth::Boolean),
@@ -796,22 +716,42 @@ define_columns!(
     ),
     (
         COL_LINEAR_MEM_ACCESS_BYTE0,
-        "linear-memory access value byte 0",
+        "linear-memory access value lo byte 0",
         ColumnWidth::Byte
     ),
     (
         COL_LINEAR_MEM_ACCESS_BYTE1,
-        "linear-memory access value byte 1",
+        "linear-memory access value lo byte 1",
         ColumnWidth::Byte
     ),
     (
         COL_LINEAR_MEM_ACCESS_BYTE2,
-        "linear-memory access value byte 2",
+        "linear-memory access value lo byte 2",
         ColumnWidth::Byte
     ),
     (
         COL_LINEAR_MEM_ACCESS_BYTE3,
-        "linear-memory access value byte 3",
+        "linear-memory access value lo byte 3",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_ACCESS_BYTE4,
+        "linear-memory access value hi byte 0 (i64 only)",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_ACCESS_BYTE5,
+        "linear-memory access value hi byte 1 (i64 only)",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_ACCESS_BYTE6,
+        "linear-memory access value hi byte 2 (i64 only)",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_ACCESS_BYTE7,
+        "linear-memory access value hi byte 3 (i64 only)",
         ColumnWidth::Byte
     ),
     // Genuine range is 7 bits, [0, 128). Annotated `Byte` as a conservative

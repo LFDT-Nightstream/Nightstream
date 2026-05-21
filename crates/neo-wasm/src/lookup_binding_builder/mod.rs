@@ -5,7 +5,8 @@ use super::layout::{
     COL_CALL_STACK_PUSH_PRESENT, COL_CONTROL_CHOICE, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_CURRENT_FUNCTION_REF,
     COL_EXPECTED_TYPE_ID, COL_FUNCTION_REF, COL_FUNCTION_TYPE_ID, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE,
     COL_GLOBAL_VALUE_HI, COL_HALTED, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1,
-    COL_LINEAR_MEM_ACCESS_BYTE2, COL_LINEAR_MEM_ACCESS_BYTE3, COL_LINEAR_MEM_BYTE_OFFSET,
+    COL_LINEAR_MEM_ACCESS_BYTE2, COL_LINEAR_MEM_ACCESS_BYTE3, COL_LINEAR_MEM_ACCESS_BYTE4, COL_LINEAR_MEM_ACCESS_BYTE5,
+    COL_LINEAR_MEM_ACCESS_BYTE6, COL_LINEAR_MEM_ACCESS_BYTE7, COL_LINEAR_MEM_BYTE_OFFSET,
     COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1,
     COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_2, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_3,
     COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_1,
@@ -31,14 +32,9 @@ use super::layout::{
     COL_PC_AFTER, COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE,
     COL_SHOUT_ENABLED, COL_SHOUT_ID, COL_SHOUT_VALUE, COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7, COL_SP_AFTER, COL_SP_BEFORE,
     COL_STACK_READ0_ACTIVE, COL_STACK_READ0_ADDR, COL_STACK_READ0_VALUE, COL_STACK_READ0_VALUE_HI,
-    COL_STACK_READ1_ACTIVE, COL_STACK_READ1_ADDR, COL_STACK_READ1_VALUE, COL_STACK_READ1_VALUE_BYTE0,
-    COL_STACK_READ1_VALUE_BYTE1, COL_STACK_READ1_VALUE_BYTE2, COL_STACK_READ1_VALUE_BYTE3, COL_STACK_READ1_VALUE_HI,
-    COL_STACK_READ1_VALUE_HI_BYTE0, COL_STACK_READ1_VALUE_HI_BYTE1, COL_STACK_READ1_VALUE_HI_BYTE2,
-    COL_STACK_READ1_VALUE_HI_BYTE3, COL_STACK_READ2_ACTIVE, COL_STACK_READ2_ADDR, COL_STACK_READ2_VALUE,
-    COL_STACK_READ2_VALUE_HI, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR, COL_STACK_WRITE0_VALUE,
-    COL_STACK_WRITE0_VALUE_BYTE0, COL_STACK_WRITE0_VALUE_BYTE1, COL_STACK_WRITE0_VALUE_BYTE2,
-    COL_STACK_WRITE0_VALUE_BYTE3, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_HI_BYTE0,
-    COL_STACK_WRITE0_VALUE_HI_BYTE1, COL_STACK_WRITE0_VALUE_HI_BYTE2, COL_STACK_WRITE0_VALUE_HI_BYTE3,
+    COL_STACK_READ1_ACTIVE, COL_STACK_READ1_ADDR, COL_STACK_READ1_VALUE, COL_STACK_READ1_VALUE_HI,
+    COL_STACK_READ2_ACTIVE, COL_STACK_READ2_ADDR, COL_STACK_READ2_VALUE, COL_STACK_READ2_VALUE_HI, COL_STACK_READS,
+    COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR, COL_STACK_WRITE0_VALUE, COL_STACK_WRITE0_VALUE_HI,
     COL_STACK_WRITES, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE, COL_TABLE_VALUE,
     COL_TARGET_FUNCTION_IS_GUEST, COL_WIDE_VALUES_ENABLED, WITNESS_WIDTH,
 };
@@ -145,12 +141,6 @@ pub struct GlobalsColumns {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ValueLimbByteColumns {
-    pub lo: [Column; 4],
-    pub hi: [Column; 4],
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MemoryPagesColumns {
     pub before: Column,
     pub after: Column,
@@ -213,7 +203,16 @@ pub struct LinearMemoryColumns {
     pub lane0_bytes: [Column; 4],
     pub lane1_bytes: [Column; 4],
     pub lane2_bytes: [Column; 4],
-    pub access_bytes: [Column; 4],
+    /// Direction-agnostic byte view of the value being read or
+    /// written this row. On loads, the byte-decomp constraints bind
+    /// `access_bytes_lo` to `stack.write0_value` (and `access_bytes_hi`
+    /// to `stack.write0_value_hi` on `I64Load`); on stores, they bind
+    /// to `stack.read1_value` / `stack.read1_value_hi`. The byte
+    /// shuffles compare these bytes against the per-lane bytes
+    /// regardless of direction, so the i32 and i64 paths share one
+    /// column family.
+    pub access_bytes_lo: [Column; 4],
+    pub access_bytes_hi: [Column; 4],
     pub sign_ext_low7: Column,
     pub sign_ext_bit: Column,
 }
@@ -302,8 +301,6 @@ pub struct WasmLookupBindingLayout {
     pub table_sizes: TableSizeColumns,
     pub function_types: FunctionTypeColumns,
     pub module_types: ModuleTypeColumns,
-    pub stack_read1_bytes: ValueLimbByteColumns,
-    pub stack_write0_bytes: ValueLimbByteColumns,
     pub linear_memory: LinearMemoryColumns,
     pub shout: ShoutColumns,
 }
@@ -411,6 +408,10 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
     let linear_mem_access_byte1 = Column(COL_LINEAR_MEM_ACCESS_BYTE1);
     let linear_mem_access_byte2 = Column(COL_LINEAR_MEM_ACCESS_BYTE2);
     let linear_mem_access_byte3 = Column(COL_LINEAR_MEM_ACCESS_BYTE3);
+    let linear_mem_access_byte4 = Column(COL_LINEAR_MEM_ACCESS_BYTE4);
+    let linear_mem_access_byte5 = Column(COL_LINEAR_MEM_ACCESS_BYTE5);
+    let linear_mem_access_byte6 = Column(COL_LINEAR_MEM_ACCESS_BYTE6);
+    let linear_mem_access_byte7 = Column(COL_LINEAR_MEM_ACCESS_BYTE7);
     let sign_ext_low7 = Column(COL_SIGN_EXT_LOW7);
     let sign_ext_bit = Column(COL_SIGN_EXT_BIT);
     let stack_read0_addr = Column(COL_STACK_READ0_ADDR);
@@ -419,28 +420,12 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
     let stack_read1_addr = Column(COL_STACK_READ1_ADDR);
     let stack_read1_value = Column(COL_STACK_READ1_VALUE);
     let stack_read1_value_hi = Column(COL_STACK_READ1_VALUE_HI);
-    let stack_read1_value_byte0 = Column(COL_STACK_READ1_VALUE_BYTE0);
-    let stack_read1_value_byte1 = Column(COL_STACK_READ1_VALUE_BYTE1);
-    let stack_read1_value_byte2 = Column(COL_STACK_READ1_VALUE_BYTE2);
-    let stack_read1_value_byte3 = Column(COL_STACK_READ1_VALUE_BYTE3);
-    let stack_read1_value_hi_byte0 = Column(COL_STACK_READ1_VALUE_HI_BYTE0);
-    let stack_read1_value_hi_byte1 = Column(COL_STACK_READ1_VALUE_HI_BYTE1);
-    let stack_read1_value_hi_byte2 = Column(COL_STACK_READ1_VALUE_HI_BYTE2);
-    let stack_read1_value_hi_byte3 = Column(COL_STACK_READ1_VALUE_HI_BYTE3);
     let stack_read2_addr = Column(COL_STACK_READ2_ADDR);
     let stack_read2_value = Column(COL_STACK_READ2_VALUE);
     let stack_read2_value_hi = Column(COL_STACK_READ2_VALUE_HI);
     let stack_write0_addr = Column(COL_STACK_WRITE0_ADDR);
     let stack_write0_value = Column(COL_STACK_WRITE0_VALUE);
     let stack_write0_value_hi = Column(COL_STACK_WRITE0_VALUE_HI);
-    let stack_write0_value_byte0 = Column(COL_STACK_WRITE0_VALUE_BYTE0);
-    let stack_write0_value_byte1 = Column(COL_STACK_WRITE0_VALUE_BYTE1);
-    let stack_write0_value_byte2 = Column(COL_STACK_WRITE0_VALUE_BYTE2);
-    let stack_write0_value_byte3 = Column(COL_STACK_WRITE0_VALUE_BYTE3);
-    let stack_write0_value_hi_byte0 = Column(COL_STACK_WRITE0_VALUE_HI_BYTE0);
-    let stack_write0_value_hi_byte1 = Column(COL_STACK_WRITE0_VALUE_HI_BYTE1);
-    let stack_write0_value_hi_byte2 = Column(COL_STACK_WRITE0_VALUE_HI_BYTE2);
-    let stack_write0_value_hi_byte3 = Column(COL_STACK_WRITE0_VALUE_HI_BYTE3);
     let global_index = Column(COL_GLOBAL_INDEX);
     let global_value = Column(COL_GLOBAL_VALUE);
     let global_value_hi = Column(COL_GLOBAL_VALUE_HI);
@@ -553,34 +538,6 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
         raw_type_index: call_indirect_type_index,
         expected_type_id,
     };
-    let stack_read1_bytes = ValueLimbByteColumns {
-        lo: [
-            stack_read1_value_byte0,
-            stack_read1_value_byte1,
-            stack_read1_value_byte2,
-            stack_read1_value_byte3,
-        ],
-        hi: [
-            stack_read1_value_hi_byte0,
-            stack_read1_value_hi_byte1,
-            stack_read1_value_hi_byte2,
-            stack_read1_value_hi_byte3,
-        ],
-    };
-    let stack_write0_bytes = ValueLimbByteColumns {
-        lo: [
-            stack_write0_value_byte0,
-            stack_write0_value_byte1,
-            stack_write0_value_byte2,
-            stack_write0_value_byte3,
-        ],
-        hi: [
-            stack_write0_value_hi_byte0,
-            stack_write0_value_hi_byte1,
-            stack_write0_value_hi_byte2,
-            stack_write0_value_hi_byte3,
-        ],
-    };
     let linear_memory = LinearMemoryColumns {
         imm_offset: linear_mem_imm_offset,
         byte_offset: linear_mem_byte_offset,
@@ -657,11 +614,17 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
             linear_mem_lane2_byte2,
             linear_mem_lane2_byte3,
         ],
-        access_bytes: [
+        access_bytes_lo: [
             linear_mem_access_byte0,
             linear_mem_access_byte1,
             linear_mem_access_byte2,
             linear_mem_access_byte3,
+        ],
+        access_bytes_hi: [
+            linear_mem_access_byte4,
+            linear_mem_access_byte5,
+            linear_mem_access_byte6,
+            linear_mem_access_byte7,
         ],
         sign_ext_low7,
         sign_ext_bit,
@@ -1134,8 +1097,6 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
         table_sizes,
         function_types,
         module_types,
-        stack_read1_bytes,
-        stack_write0_bytes,
         linear_memory,
         shout,
     }

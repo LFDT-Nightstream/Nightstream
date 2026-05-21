@@ -204,13 +204,9 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
     let table_sizes = layout.table_sizes;
     let function_types = layout.function_types;
     let module_types = layout.module_types;
-    let stack_read1_bytes = layout.stack_read1_bytes;
-    let stack_write0_bytes = layout.stack_write0_bytes;
     let linear_memory = layout.linear_memory;
     let shout = layout.shout;
     let mut b = WasmTaggedR1csBuilder::new(WITNESS_WIDTH, COL_ONE)?;
-
-    linear_memory::push_stack_byte_decomposition(&mut b, &stack, stack_read1_bytes, stack_write0_bytes);
 
     b.with_tag(shared("wide value gating", I64_OPS), |b| {
         b.push_row(
@@ -851,13 +847,7 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
     b.with_tag(opcode_tag("i64.eqz high limb zero", WasmOpcode::I64Eqz), |b| {
         push_i64_eqz_high_zero(b, &stack);
     });
-    linear_memory::push_linear_memory_constraints(
-        &mut b,
-        &stack,
-        stack_read1_bytes,
-        stack_write0_bytes,
-        &linear_memory,
-    );
+    linear_memory::push_linear_memory_constraints(&mut b, &stack, &linear_memory);
     b.with_tag(opcode_tag("select conditional gadget", WasmOpcode::Select), |b| {
         add_conditional_select_gadget(
             b,

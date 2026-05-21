@@ -9,6 +9,7 @@
 
 mod call;
 mod linear_memory;
+mod stack_io;
 
 use super::gadgets::{
     add_conditional_select_gadget, push_gated_linear_zero, push_zero_test_gadget, ConditionalSelectCols,
@@ -19,8 +20,7 @@ use super::layout::{
     WITNESS_WIDTH,
 };
 use super::lookup_binding_builder::{
-    build_wasm_lookup_binding_layout, Column, ControlColumns, GlobalsColumns, LocalsColumns, MemoryPagesColumns,
-    OperandStackColumns, ShoutColumns, StateColumns, TableColumns, TableSizeColumns,
+    build_wasm_lookup_binding_layout, Column, ControlColumns, OperandStackColumns, ShoutColumns, StateColumns,
 };
 use super::tagged_r1cs_builder::{
     WasmConstraintCatalog, WasmConstraintScope, WasmConstraintTag, WasmTaggedR1csBuilder,
@@ -103,12 +103,6 @@ pub(super) const LINEAR_MEMORY_OPS: &[WasmOpcode] = &[
     WasmOpcode::I64Store,
 ];
 
-const LOCAL_WRITE_OPS: &[WasmOpcode] = &[WasmOpcode::LocalSet, WasmOpcode::LocalTee];
-const TABLE_READ_OPS: &[WasmOpcode] = &[WasmOpcode::TableGet, WasmOpcode::CallIndirect];
-const LOCAL_VALUE_OPS: &[WasmOpcode] = &[WasmOpcode::LocalGet, WasmOpcode::LocalSet, WasmOpcode::LocalTee];
-const GLOBAL_VALUE_OPS: &[WasmOpcode] = &[WasmOpcode::GlobalGet, WasmOpcode::GlobalSet];
-const MEMORY_PAGE_OPS: &[WasmOpcode] = &[WasmOpcode::MemorySize, WasmOpcode::MemoryGrow];
-const TABLE_VALUE_OPS: &[WasmOpcode] = &[WasmOpcode::TableGet, WasmOpcode::TableSet, WasmOpcode::CallIndirect];
 fn always(label: &'static str) -> WasmConstraintTag {
     WasmConstraintTag {
         label,
@@ -197,9 +191,6 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
     let stack = layout.stack;
     let locals = layout.locals;
     let globals = layout.globals;
-    let memory_pages = layout.memory_pages;
-    let table = layout.table;
-    let table_sizes = layout.table_sizes;
     let linear_memory = layout.linear_memory;
     let shout = layout.shout;
     let mut b = WasmTaggedR1csBuilder::new(WITNESS_WIDTH, COL_ONE)?;
@@ -243,21 +234,7 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         ]);
     });
 
-    b.with_tag(shared("locals write gate", LOCAL_WRITE_OPS), |b| {
-        b.push_linear_zero([
-            (idx(locals.write_enabled), F::ONE),
-            (selector_col(WasmOpcode::LocalSet).unwrap(), -F::ONE),
-            (selector_col(WasmOpcode::LocalTee).unwrap(), -F::ONE),
-        ]);
-    });
-
-    b.with_tag(shared("table read gate", TABLE_READ_OPS), |b| {
-        b.push_linear_zero([
-            (idx(table.read_enabled), F::ONE),
-            (selector_col(WasmOpcode::TableGet).unwrap(), -F::ONE),
-            (selector_col(WasmOpcode::CallIndirect).unwrap(), -F::ONE),
-        ]);
-    });
+    stack_io::push_stack_io_constraints(&mut b, layout);
 
     b.with_tag(always("narrow high limbs zero"), |b| {
         for column in [
@@ -788,21 +765,6 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
     b.with_tag(always("shout constraints"), |b| {
         push_shout_constraints(b, &stack, &shout);
     });
-    b.with_tag(shared("locals value constraints", LOCAL_VALUE_OPS), |b| {
-        push_local_value_constraints(b, &stack, &locals);
-    });
-    b.with_tag(shared("globals value constraints", GLOBAL_VALUE_OPS), |b| {
-        push_global_value_constraints(b, &stack, &globals);
-    });
-    b.with_tag(shared("memory page constraints", MEMORY_PAGE_OPS), |b| {
-        push_memory_pages_constraints(b, &stack, &memory_pages);
-    });
-    b.with_tag(shared("table value constraints", TABLE_VALUE_OPS), |b| {
-        push_table_value_constraints(b, &stack, &table);
-    });
-    b.with_tag(opcode_tag("table size constraints", WasmOpcode::TableSize), |b| {
-        push_table_size_constraints(b, &stack, &table_sizes);
-    });
     let (structure, constraint_catalog) = b.build()?;
 
     Ok((
@@ -1068,91 +1030,6 @@ fn push_shout_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns, shou
             .map(|op| (selector_for_shout(op), F::from_u64(u64::from(op.to_shout_id())))),
         [(COL_ONE, F::ONE)],
         [(idx(shout.id), F::ONE)],
-    );
-}
-
-fn push_local_value_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns, locals: &LocalsColumns) {
-    push_gated_linear_zero(
-        b,
-        selector_col(WasmOpcode::LocalGet).unwrap(),
-        [(idx(locals.value_lo), F::ONE), (idx(stack.write0_value), -F::ONE)],
-    );
-    push_gated_linear_zero(
-        b,
-        selector_col(WasmOpcode::LocalSet).unwrap(),
-        [(idx(locals.value_lo), F::ONE), (idx(stack.read0_value), -F::ONE)],
-    );
-    push_gated_linear_zero(
-        b,
-        selector_col(WasmOpcode::LocalTee).unwrap(),
-        [(idx(locals.value_lo), F::ONE), (idx(stack.read0_value), -F::ONE)],
-    );
-    push_gated_linear_zero(
-        b,
-        selector_col(WasmOpcode::LocalTee).unwrap(),
-        [(idx(locals.value_lo), F::ONE), (idx(stack.write0_value), -F::ONE)],
-    );
-}
-
-fn push_global_value_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns, globals: &GlobalsColumns) {
-    push_gated_linear_zero(
-        b,
-        selector_col(WasmOpcode::GlobalGet).unwrap(),
-        [(idx(globals.value), F::ONE), (idx(stack.write0_value), -F::ONE)],
-    );
-    push_gated_linear_zero(
-        b,
-        selector_col(WasmOpcode::GlobalSet).unwrap(),
-        [(idx(globals.value), F::ONE), (idx(stack.read0_value), -F::ONE)],
-    );
-}
-
-fn push_table_value_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns, table: &TableColumns) {
-    push_gated_linear_zero(
-        b,
-        selector_col(WasmOpcode::TableGet).unwrap(),
-        [(idx(table.value), F::ONE), (idx(stack.write0_value), -F::ONE)],
-    );
-    push_gated_linear_zero(
-        b,
-        selector_col(WasmOpcode::TableSet).unwrap(),
-        [(idx(table.value), F::ONE), (idx(stack.read1_value), -F::ONE)],
-    );
-    push_gated_linear_zero(
-        b,
-        selector_col(WasmOpcode::TableGet).unwrap(),
-        [(idx(table.index), F::ONE), (idx(stack.read0_value), -F::ONE)],
-    );
-    push_gated_linear_zero(
-        b,
-        selector_col(WasmOpcode::TableSet).unwrap(),
-        [(idx(table.index), F::ONE), (idx(stack.read0_value), -F::ONE)],
-    );
-}
-
-fn push_memory_pages_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns, memory_pages: &MemoryPagesColumns) {
-    push_gated_linear_zero(
-        b,
-        selector_col(WasmOpcode::MemorySize).unwrap(),
-        [(idx(memory_pages.before), F::ONE), (idx(stack.write0_value), -F::ONE)],
-    );
-    push_gated_linear_zero(
-        b,
-        selector_col(WasmOpcode::MemorySize).unwrap(),
-        [(idx(memory_pages.after), F::ONE), (idx(memory_pages.before), -F::ONE)],
-    );
-    push_gated_linear_zero(
-        b,
-        selector_col(WasmOpcode::MemoryGrow).unwrap(),
-        [(idx(memory_pages.before), F::ONE), (idx(stack.write0_value), -F::ONE)],
-    );
-}
-
-fn push_table_size_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns, table_sizes: &TableSizeColumns) {
-    push_gated_linear_zero(
-        b,
-        selector_col(WasmOpcode::TableSize).unwrap(),
-        [(idx(table_sizes.value), F::ONE), (idx(stack.write0_value), -F::ONE)],
     );
 }
 

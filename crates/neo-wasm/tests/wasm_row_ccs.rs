@@ -946,6 +946,28 @@ fn drop_row_is_accepted() {
 }
 
 #[test]
+fn drop_i64_row_zeroes_unused_high_limb_in_witness() {
+    let trace = traces_from_wasmtime_wasm_bytes(
+        &wat::parse_str(
+            r#"(module
+               (func (export "run") (result i32)
+                 i64.const 4294967296
+                 drop
+                 i32.const 1))"#,
+        )
+        .expect("wat"),
+        "run",
+    )
+    .expect("normalize");
+    let row = trace
+        .iter()
+        .find(|row| row.opcode == WasmOpcode::Drop)
+        .expect("drop row");
+    assert_eq!(row.stack_read0_hi, Some(1));
+    assert_satisfied(&build_witness_vector(row), "i64 drop row");
+}
+
+#[test]
 fn nop_row_is_accepted() {
     let row = build_witness_vector(&step(
         0,
@@ -1000,6 +1022,25 @@ fn if_row_is_accepted() {
         false,
     ));
     assert_satisfied(&row, "if row");
+}
+
+#[test]
+fn structured_end_row_is_accepted() {
+    let trace = trace_from_wat(
+        r#"(module
+             (func (export "main") (result i32)
+               block
+                 i32.const 1
+                 drop
+               end
+               i32.const 5))"#,
+    );
+    let row = trace
+        .iter()
+        .find(|row| row.opcode == WasmOpcode::End && !row.halted)
+        .expect("structured end row");
+    assert_eq!(row.pc_edge_kind, WasmPcEdgeKind::Static);
+    assert_satisfied(&build_witness_vector(row), "structured end row");
 }
 
 #[test]

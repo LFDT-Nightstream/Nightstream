@@ -153,29 +153,37 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
         wit[COL_STACK_READ0_ADDR] = F::from_u64(read.addr);
         wit[COL_STACK_READ0_VALUE] = F::from_u64(u64::from(read.value));
     }
-    if let Some(read0_value_hi) = trace.stack_read0_hi {
-        wit[COL_STACK_READ0_VALUE_HI] = F::from_u64(u64::from(read0_value_hi));
+    if trace.wide_values_enabled {
+        if let Some(read0_value_hi) = trace.stack_read0_hi {
+            wit[COL_STACK_READ0_VALUE_HI] = F::from_u64(u64::from(read0_value_hi));
+        }
     }
     if let Some(read) = trace.stack_read1 {
         wit[COL_STACK_READ1_ADDR] = F::from_u64(read.addr);
         wit[COL_STACK_READ1_VALUE] = F::from_u64(u64::from(read.value));
     }
-    if let Some(read1_value_hi) = trace.stack_read1_hi {
-        wit[COL_STACK_READ1_VALUE_HI] = F::from_u64(u64::from(read1_value_hi));
+    if trace.wide_values_enabled {
+        if let Some(read1_value_hi) = trace.stack_read1_hi {
+            wit[COL_STACK_READ1_VALUE_HI] = F::from_u64(u64::from(read1_value_hi));
+        }
     }
     if let Some(read) = trace.stack_read2 {
         wit[COL_STACK_READ2_ADDR] = F::from_u64(read.addr);
         wit[COL_STACK_READ2_VALUE] = F::from_u64(u64::from(read.value));
     }
-    if let Some(read2_value_hi) = trace.stack_read2_hi {
-        wit[COL_STACK_READ2_VALUE_HI] = F::from_u64(u64::from(read2_value_hi));
+    if trace.wide_values_enabled {
+        if let Some(read2_value_hi) = trace.stack_read2_hi {
+            wit[COL_STACK_READ2_VALUE_HI] = F::from_u64(u64::from(read2_value_hi));
+        }
     }
     if let Some(write) = trace.stack_write0 {
         wit[COL_STACK_WRITE0_ADDR] = F::from_u64(write.addr);
         wit[COL_STACK_WRITE0_VALUE] = F::from_u64(u64::from(write.value));
     }
-    if let Some(write0_value_hi) = trace.stack_write0_hi {
-        wit[COL_STACK_WRITE0_VALUE_HI] = F::from_u64(u64::from(write0_value_hi));
+    if trace.wide_values_enabled {
+        if let Some(write0_value_hi) = trace.stack_write0_hi {
+            wit[COL_STACK_WRITE0_VALUE_HI] = F::from_u64(u64::from(write0_value_hi));
+        }
     }
     if let Some(access) = trace.linear_memory {
         wit[COL_LINEAR_MEM_IMM_OFFSET] = F::from_u64(trace.linear_memory_offset);

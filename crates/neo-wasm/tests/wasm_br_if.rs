@@ -1,7 +1,6 @@
-use neo_wasm::{
-    build_wasm_lookup_binding_layout, collect_wasmtime_steps, preload_from_wasmtime_run, sanity_check_lookup_row,
-    sanity_check_memory_rows, traces_from_wasmtime_steps,
-};
+mod common;
+
+use neo_wasm::{collect_wasmtime_steps, traces_from_wasmtime_steps};
 
 // Loop that counts down: local[0] starts at 3, decrements to 0.
 // br_if $L branches back while local[0] > 0, then falls through.
@@ -25,6 +24,7 @@ const COUNTDOWN_WAT: &str = r#"
 "#;
 
 #[test]
+#[ignore = "debug dump for raw br_if trace collection"]
 fn print_br_if_raw_trace() {
     let wasm = wat::parse_str(COUNTDOWN_WAT).expect("valid WAT");
     let run = collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
@@ -47,18 +47,5 @@ fn print_br_if_raw_trace() {
 
 #[test]
 fn wasm_br_if_kernel_roundtrip() {
-    let wasm = wat::parse_str(COUNTDOWN_WAT).expect("valid WAT");
-    let run = collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
-    let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
-    let layout = build_wasm_lookup_binding_layout();
-    let mut witnesses = Vec::with_capacity(trace.len());
-    for row in &trace {
-        let witness = neo_wasm::builder::build_witness_vector(row);
-        sanity_check_lookup_row(layout, &witness)
-            .unwrap_or_else(|err| panic!("lookup semantics rejected {:?}: {err}", row.opcode));
-        witnesses.push(witness);
-    }
-    let preload = preload_from_wasmtime_run(&run, &run.initial_locals);
-    sanity_check_memory_rows(layout, &witnesses, &preload)
-        .unwrap_or_else(|err| panic!("memory semantics rejected trace: {err}"));
+    common::checked_main(COUNTDOWN_WAT);
 }

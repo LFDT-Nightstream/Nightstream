@@ -609,26 +609,39 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         [],
     );
 
-    b.push_linear_zero(
-        [
-            (idx(control.halted), F::ONE),
-            (idx(call.call_stack_pop_present), F::ONE),
-            (selector_col(WasmOpcode::Return).unwrap(), -F::ONE),
-            (selector_col(WasmOpcode::End).unwrap(), -F::ONE),
-            (selector_col(WasmOpcode::Unreachable).unwrap(), -F::ONE),
-        ]
-        .into_iter(),
-    );
-    b.push_linear_zero(
-        [
-            (COL_PC_EDGE_KIND, F::ONE),
-            (selector_col(WasmOpcode::Return).unwrap(), -F::ONE),
-            (selector_col(WasmOpcode::End).unwrap(), -F::ONE),
-            (selector_col(WasmOpcode::CallIndirect).unwrap(), -F::from_u64(2)),
-            (selector_col(WasmOpcode::Unreachable).unwrap(), -F::from_u64(3)),
-        ]
-        .into_iter(),
-    );
+    b.with_tag(always("pc edge kind constraints"), |b| {
+        // Edge kind encodes the next-PC source:
+        // 0 = static pc ROM, 1 = return-like, 2 = call_indirect target,
+        // 3 = terminal unreachable. Return-like rows are identified by
+        // `halted` for the final frame and by `call_stack_pop_present` for
+        // non-final returns; the latter intentionally covers both explicit
+        // `return` and a callee's function-ending `end`.
+        b.push_linear_zero(
+            [
+                (idx(control.halted), F::ONE),
+                (idx(call.call_stack_pop_present), F::ONE),
+                (COL_PC_EDGE_KIND, -F::ONE),
+                (selector_col(WasmOpcode::CallIndirect).unwrap(), F::from_u64(2)),
+                (selector_col(WasmOpcode::Unreachable).unwrap(), F::from_u64(2)),
+            ]
+            .into_iter(),
+        );
+        push_gated_linear_zero(
+            b,
+            selector_col(WasmOpcode::Return).unwrap(),
+            [(COL_PC_EDGE_KIND, F::ONE), (COL_ONE, -F::ONE)],
+        );
+        push_gated_linear_zero(
+            b,
+            selector_col(WasmOpcode::CallIndirect).unwrap(),
+            [(COL_PC_EDGE_KIND, F::ONE), (COL_ONE, -F::from_u64(2))],
+        );
+        push_gated_linear_zero(
+            b,
+            selector_col(WasmOpcode::Unreachable).unwrap(),
+            [(COL_PC_EDGE_KIND, F::ONE), (COL_ONE, -F::from_u64(3))],
+        );
+    });
     b.with_tag(always("pc rom active gate"), |b| {
         push_zero_test_gadget(
             b,

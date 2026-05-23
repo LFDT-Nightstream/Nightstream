@@ -156,6 +156,71 @@ fn build_honest_finished_proof(len: usize) -> (neo_fold_clean::Preprocessing, ne
     (prep, finished)
 }
 
+/// Like [`build_honest_finished_proof`] but with an explicit per-chunk
+/// batch size schedule, so the decider replays steps whose
+/// `nifs_msg.fresh.len()` (previous chunk) differs from `rows_in_chunk`
+/// (current chunk). Every fresh instance in a chunk encodes the same
+/// `prior_x_out` (one chunk rooted at one prior Construction-2 state).
+fn build_honest_finished_proof_with_sizes(
+    sizes: &[usize],
+) -> (neo_fold_clean::Preprocessing, neo_fold_clean::UncompressedAudit) {
+    assert!(!sizes.is_empty());
+    assert!(sizes.iter().all(|&k| k >= 1));
+    let r1cs = bit_carrier_r1cs();
+    let prep = direct_ccs::preprocess_seeded(&r1cs, 42).expect("preprocess");
+    let placeholder_z = vec![F::ZERO; prep.structure().m];
+    let dummy_batch = |k: usize| -> Vec<CcsInstance> {
+        (0..k)
+            .map(|_| direct_ccs::build_instance(&prep, &r1cs, &placeholder_z).expect("dummy"))
+            .collect()
+    };
+
+    let mut state = base_state(&prep);
+    let mut steps = Vec::with_capacity(sizes.len());
+    let mut public_batches: Vec<Vec<neo_fold_clean::paper::relations::CcsClaim>> = Vec::with_capacity(sizes.len());
+
+    for &k in sizes {
+        // Predict the post-step state with a *correctly-sized* dummy batch
+        // so chunk_digest and step_count advance match the real fold.
+        let predicted = peek_next_state(&prep, &state, &dummy_batch(k));
+        let target_x_out = compute_x_out_native(&prep, &predicted);
+        // All K fresh in this chunk encode the same prior x_out.
+        let batch: Vec<CcsInstance> = (0..k)
+            .map(|_| build_link_instance(&prep, &r1cs, target_x_out))
+            .collect();
+        let public_batch: Vec<_> = batch.iter().map(|i| i.claim.clone()).collect();
+
+        let (next_state, step_proof) = construction2::step(
+            &prep.params,
+            prep.structure(),
+            prep.optimized_cache(),
+            prep.structure_digest(),
+            &prep.log,
+            prep.mix_rhos_commits,
+            prep.combine_b_pows,
+            &prep.vk,
+            state,
+            batch,
+        )
+        .expect("step");
+
+        steps.push(step_proof);
+        public_batches.push(public_batch);
+        state = next_state;
+    }
+
+    let in_flight = neo_fold_clean::UncompressedAudit {
+        proof: neo_fold_clean::Uncompressed {
+            state,
+            final_fold: None,
+        },
+        steps,
+        public_batches,
+    };
+    let finished = neo_fold_clean::finish_uncompressed_with_audit(&prep, in_flight).expect("finish");
+    (prep, finished)
+}
+
 // ── Tests ───────────────────────────────────────────────────────────────────
 
 #[test]
@@ -380,4 +445,41 @@ fn decider_r1cs_links_full_ce_accumulator_claims() {
             synth.builder.first_unsatisfied_row()
         );
     }
+}
+
+#[test]
+fn decider_r1cs_synthesis_accepts_varying_size_batched_chunks() {
+    // Batch schedule [2, 3]: the recursive F' R1CS step replays a fold
+    // whose `nifs_msg.fresh.len()` (= the *previous* chunk it folds, 2)
+    // differs from `rows_in_chunk` (= the *current* chunk's deposit, 3).
+    // This is the case the `rows_in_chunk` field exists for: the F' R1CS
+    // must advance `step_count` by the current chunk (3), and the decider
+    // pins the recomputed `state_out` against the cross-step link and the
+    // public image — so a regression that advanced by `fresh.len()` (2)
+    // would land on the wrong `step_count` and make the builder
+    // unsatisfied. It also exercises `enforce_terminal_latest_link`
+    // looping over a 3-wide terminal fresh batch.
+    let (prep, finished) = build_honest_finished_proof_with_sizes(&[2, 3]);
+
+    // The chain folds 2 fresh at the recursive step and flushes 3 fresh
+    // against the k_rho running at finalize.
+    assert_eq!(finished.public_batches.len(), 2);
+    assert_eq!(finished.public_batches[0].len(), 2);
+    assert_eq!(finished.public_batches[1].len(), 3);
+
+    let statement = neo_fold_clean::build_decider_statement(&prep, &finished);
+    let synth = synthesize_statement_r1cs(&prep, &statement).expect("synthesize");
+
+    assert_eq!(synth.recursive_step_count, 1, "[2,3] chain has 1 recursive step");
+    assert!(
+        synth.terminal_latest_link,
+        "terminal fold must link all 3 terminal fresh public inputs to the last step's x_out_bits"
+    );
+    assert!(
+        synth.builder.is_satisfied(),
+        "decider rejected an honest varying-size batched chain (first bad row: {:?})",
+        synth.builder.first_unsatisfied_row()
+    );
+    // Cross-check the public image's step_count: 2 + 3 = 5 ops total.
+    assert_eq!(statement.public.step_count, 5, "total ops folded = 2 + 3 = 5");
 }

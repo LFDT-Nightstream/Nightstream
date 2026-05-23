@@ -355,6 +355,7 @@ fn run_recursive_check(
             combined: &view.nifs.pi_rlc.combined,
             children: &view.nifs.pi_dec.children,
         },
+        rows_in_chunk: 1,
         source_image: &source.image,
         chunk_count_in_word: source.chunk_count_in_word,
         step_count_in_word: source.step_count_in_word,

@@ -108,6 +108,73 @@ fn end_to_end_chain_proof_for_three_term_addition() {
     verify_uncompressed(&prep, &finished).expect("verify_uncompressed");
 }
 
+/// SuperNeo steady-state max-fresh path: `MAX_FRESH_K = 61` fresh + 14
+/// running claims = 75 RLC claims, just under the `(K + k_rho) · T · (b-1)
+/// < B = 2^14` bound (`75 · 216 = 16200`). 122 simple direct-CCS instances
+/// partitioned as two batches of 61 prove, finalize, and verify.
+///
+/// The first `extend` deposits 61 fresh into `latest` without folding; the
+/// second folds those 61 fresh into the (empty) running, producing the
+/// `k_rho = 14`-sized running accumulator; `finish_uncompressed` then
+/// flushes the trailing latest (61 fresh) against that 14-running, which
+/// is exactly the `61 + 14 = 75` RLC-claim shape this test exists to
+/// exercise.
+#[test]
+fn end_to_end_chain_proof_for_max_fresh_k61_steady_state() {
+    let r1cs = three_term_addition();
+    let prep = direct_ccs::preprocess_seeded(&r1cs, /* seed = */ 7).expect("preprocess");
+
+    let k = neo_params::goldilocks_paper_b2::MAX_FRESH_K as usize;
+    let total = 2 * k;
+    let instances: Vec<_> = (0..total)
+        .map(|_| {
+            let z = pad_z(vec![F::ONE, F::ONE, F::ZERO, F::ONE], prep.structure().m);
+            direct_ccs::build_instance(&prep, &r1cs, &z).expect("instance")
+        })
+        .collect();
+
+    let batches = FoldSchedule::RowsPerStep(k)
+        .partition(instances)
+        .expect("partition");
+    assert_eq!(batches.len(), 2);
+    assert_eq!(batches[0].len(), k);
+    assert_eq!(batches[1].len(), k);
+
+    let proof = prove(&prep, batches).expect("prove K=MAX_FRESH_K");
+    let finished = finish_uncompressed(&prep, proof).expect("finish at K=61, k_rho=14 must pass RLC bound");
+    verify_uncompressed(&prep, &finished).expect("verify_uncompressed");
+}
+
+/// Steady-state RLC bound violation. First batch = 61 (passes Π_RLC at
+/// `61 + 0 = 61` claims), second batch = 62 ends up as the trailing
+/// `latest`; finalization folds it against the 14-claim running, giving
+/// `62 + 14 = 76` RLC claims and `76 · 216 = 16416 ≥ 2^14 = 16384` —
+/// `finish_uncompressed` must reject.
+#[test]
+fn finish_uncompressed_rejects_steady_state_above_max_fresh() {
+    let r1cs = three_term_addition();
+    let prep = direct_ccs::preprocess_seeded(&r1cs, /* seed = */ 11).expect("preprocess");
+
+    let k = neo_params::goldilocks_paper_b2::MAX_FRESH_K as usize;
+    let build = || {
+        let z = pad_z(vec![F::ONE, F::ONE, F::ZERO, F::ONE], prep.structure().m);
+        direct_ccs::build_instance(&prep, &r1cs, &z).expect("instance")
+    };
+
+    let first: Vec<_> = (0..k).map(|_| build()).collect();
+    let second: Vec<_> = (0..(k + 1)).map(|_| build()).collect();
+
+    let proof = prove(&prep, [first, second]).expect("prove (RLC bound only checked on next fold)");
+    let err = finish_uncompressed(&prep, proof)
+        .err()
+        .expect("finish_uncompressed must reject 62 fresh + 14 running (steady-state \u{03A0}_RLC bound)");
+    let msg = format!("{err:?}");
+    assert!(
+        msg.contains("RlcBoundViolated") || msg.to_lowercase().contains("rlc"),
+        "expected steady-state \u{03A0}_RLC bound violation, got {msg}",
+    );
+}
+
 // ── helpers ───────────────────────────────────────────────────────────────
 
 fn pad_z(mut z: Vec<F>, new_len: usize) -> Vec<F> {

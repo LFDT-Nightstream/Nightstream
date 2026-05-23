@@ -16,9 +16,9 @@ use thiserror::Error;
 
 use crate::frontends::direct_ccs::FrontendError;
 use crate::frontends::f_prime::compiler::{
-    assemble_unified_step_traces, canonical_ce_shape_and_child_count, nifs_ce_view_from_claim, perp_nifs_ce_view,
-    start_f_prime_chain_context, verify_prior_fold, FPrimeChainState, FPrimeCompilerContext, FPrimeFoldForStep,
-    FPrimeShellCompilerError,
+    assemble_shared_chunk_traces, assemble_step_from_shared, canonical_ce_shape_and_child_count,
+    nifs_ce_view_from_claim, perp_nifs_ce_view, start_f_prime_chain_context, verify_prior_fold, FPrimeChainState,
+    FPrimeCompilerContext, FPrimeFoldForStep, FPrimeShellCompilerError,
 };
 use crate::frontends::f_prime::encoder::{EncodedFPrimeStep, NifsPayloadInput};
 use crate::frontends::f_prime::image::{NifsCeClaimShape, NifsCeClaimView};
@@ -77,32 +77,71 @@ pub fn start_chain(prep: &R1csFPrimePreprocessing) -> Result<R1csCompilerContext
 }
 
 /// Compile one R1CS app step into a foldable [`EncodedFPrimeStep`].
-///
-/// Branches on `ctx.chain_state.chunk_count`:
-/// - `0` → base step. Caller must NOT supply `ctx.fold_for_step`.
-/// - `> 0` → recursive step. Caller MUST supply `ctx.fold_for_step`;
-///   the compiler re-verifies the prior fold's NIFS proof under the
-///   per-step F' transcript before emitting the encoded image.
+/// K=1 wrapper around [`compile_chunk`]; preserves the legacy
+/// single-assignment API and surface error type used by per-step
+/// callers.
 pub fn compile_step(
     prep: &R1csFPrimePreprocessing,
     ctx: &mut R1csCompilerContext,
     input: R1csFPrimeStepInput,
 ) -> Result<R1csCompiledStep, R1csCompilerError> {
-    // ── App-level satisfaction check ────────────────────────────────
+    match compile_chunk(prep, ctx, vec![input]) {
+        Ok(mut compiled) => {
+            debug_assert_eq!(compiled.len(), 1);
+            Ok(compiled.pop().expect("compile_chunk(1) returns 1 step"))
+        }
+        // Map the chunk's positional error back to the legacy
+        // single-step error so existing K=1 callers keep matching on
+        // `R1csCompilerError::Unsatisfied(_)`.
+        Err(R1csCompilerError::UnsatisfiedAt { source, .. }) => Err(R1csCompilerError::Unsatisfied(source)),
+        Err(e) => Err(e),
+    }
+}
+
+/// Compile a SuperNeo same-shape chunk of `inputs.len()` R1CS app
+/// assignments into `inputs.len()` foldable [`EncodedFPrimeStep`]s, all
+/// rooted at the same pre-step chain state. The chain advances
+/// **once** (chunk_count += 1, step_count += K) at the end of the
+/// chunk; every emitted `EncodedFPrimeStep` carries the same
+/// post-step chain coordinates (chunk_count, step_count, z_i,
+/// public_trace, acc_digest), so the resulting K CCS instances form
+/// one "chunk rooted at one prior Construction-2 state."
+///
+/// Branches on `ctx.chain_state.chunk_count`:
+/// - `0` → base step. Caller must NOT supply `ctx.fold_for_step`.
+/// - `> 0` → recursive step. Caller MUST supply `ctx.fold_for_step`;
+///   the compiler re-verifies the prior fold's NIFS proof **once**
+///   under the per-step F' transcript (which now absorbs `K =
+///   inputs.len()` via the chunk digest) before emitting the K
+///   encoded images.
+pub fn compile_chunk(
+    prep: &R1csFPrimePreprocessing,
+    ctx: &mut R1csCompilerContext,
+    inputs: Vec<R1csFPrimeStepInput>,
+) -> Result<Vec<R1csCompiledStep>, R1csCompilerError> {
+    if inputs.is_empty() {
+        return Err(FPrimeShellCompilerError::EmptyChunk.into());
+    }
+    let rows_in_chunk = inputs.len();
+
+    // ── App-level satisfaction check (all K assignments) ──────────
     #[cfg(feature = "perf-timers")]
     let t_satisfaction = std::time::Instant::now();
-    if input.assignment.len() != prep.r1cs.m() {
-        return Err(R1csCompilerError::AssignmentLength {
-            got: input.assignment.len(),
-            expected: prep.r1cs.m(),
-        });
+    for (idx, input) in inputs.iter().enumerate() {
+        if input.assignment.len() != prep.r1cs.m() {
+            return Err(R1csCompilerError::AssignmentLength {
+                got: input.assignment.len(),
+                expected: prep.r1cs.m(),
+            });
+        }
+        prep.r1cs
+            .is_satisfied_by(&input.assignment)
+            .map_err(|e| R1csCompilerError::UnsatisfiedAt { index: idx, source: e })?;
     }
-    prep.r1cs
-        .is_satisfied_by(&input.assignment)
-        .map_err(R1csCompilerError::Unsatisfied)?;
     #[cfg(feature = "perf-timers")]
     eprintln!(
-        "[r1cs-compile] app satisfaction             {:>7.2}s",
+        "[r1cs-compile] app satisfaction (x{:>2})       {:>7.2}s",
+        rows_in_chunk,
         t_satisfaction.elapsed().as_secs_f64()
     );
 
@@ -113,7 +152,7 @@ pub fn compile_step(
         if ctx.fold_for_step.is_some() {
             return Err(FPrimeShellCompilerError::BaseStepUnexpectedPriorFold.into());
         }
-        compile_base_step(prep, ctx, input)
+        compile_base_chunk(prep, ctx, inputs, rows_in_chunk)
     } else {
         let fold =
             ctx.fold_for_step
@@ -122,49 +161,52 @@ pub fn compile_step(
                 .ok_or(FPrimeShellCompilerError::PriorFoldMissingForRecursiveStep {
                     chunk_count: ctx.chain_state.chunk_count,
                 })?;
-        // The prior-fold transcript is protocol-generic; the shared
-        // shell helper performs the per-step F' transcript reconstruction
-        // and NIFS verification.
+        // The prior-fold transcript reconstruction needs the K of the
+        // current step (the NIFS proof's transcript absorbed
+        // chunk_digest with K from native).
         #[cfg(feature = "perf-timers")]
         let t_verify = std::time::Instant::now();
-        verify_prior_fold(&prep.prep, ctx, &fold)?;
+        verify_prior_fold(&prep.prep, ctx, &fold, rows_in_chunk)?;
         #[cfg(feature = "perf-timers")]
         eprintln!(
             "[r1cs-compile] verify_prior_fold          {:>7.2}s",
             t_verify.elapsed().as_secs_f64()
         );
-        compile_recursive_step(prep, ctx, input, fold)
+        compile_recursive_chunk(prep, ctx, inputs, fold, rows_in_chunk)
     }
 }
 
-fn compile_base_step(
+fn compile_base_chunk(
     prep: &R1csFPrimePreprocessing,
     ctx: &mut R1csCompilerContext,
-    input: R1csFPrimeStepInput,
-) -> Result<R1csCompiledStep, R1csCompilerError> {
+    inputs: Vec<R1csFPrimeStepInput>,
+    rows_in_chunk: usize,
+) -> Result<Vec<R1csCompiledStep>, R1csCompilerError> {
     let plan = prep.plan.clone();
     let (ce_shape, child_count) = canonical_ce_shape_and_child_count(&plan)?;
 
     let perp_view = perp_nifs_ce_view(&ce_shape);
     let recursive_c_data = perp_view.c_data.clone();
-    finalize_compile(
+    finalize_compile_chunk(
         prep,
         ctx,
-        input,
+        inputs,
         plan,
         /* is_base = */ true,
         perp_view,
         recursive_c_data,
         child_count,
+        rows_in_chunk,
     )
 }
 
-fn compile_recursive_step(
+fn compile_recursive_chunk(
     prep: &R1csFPrimePreprocessing,
     ctx: &mut R1csCompilerContext,
-    input: R1csFPrimeStepInput,
+    inputs: Vec<R1csFPrimeStepInput>,
     fold: R1csFoldForStep,
-) -> Result<R1csCompiledStep, R1csCompilerError> {
+    rows_in_chunk: usize,
+) -> Result<Vec<R1csCompiledStep>, R1csCompilerError> {
     let post_running = &fold.post_running;
     let post_parent = post_running
         .parent_authority
@@ -200,90 +242,122 @@ fn compile_recursive_step(
 
     let ce_view = nifs_ce_view_from_claim(post_parent, ctx.public_input_len);
     let recursive_c_data = ce_view.c_data.clone();
-    finalize_compile(
+    finalize_compile_chunk(
         prep,
         ctx,
-        input,
+        inputs,
         plan,
         /* is_base = */ false,
         ce_view,
         recursive_c_data,
         child_count,
+        rows_in_chunk,
     )
 }
 
-/// Compose the encoded R1CS-F' step around the shared shell assembly.
-fn finalize_compile(
+/// Compose K encoded R1CS-F' steps around the shared shell assembly.
+/// Every step in the chunk sees the **same** pre-step `ctx` and the
+/// **same** `rows_in_chunk`, so the K post-step chain coordinates are
+/// identical. Each step's `state_x_out` still binds its own
+/// `app_public_input`, giving K distinct `public_output_digest`s
+/// (the verifier learns "this specific `x_i` was proven" for each).
+/// The chain advances **once** at the end of the chunk.
+fn finalize_compile_chunk(
     prep: &R1csFPrimePreprocessing,
     ctx: &mut R1csCompilerContext,
-    input: R1csFPrimeStepInput,
+    inputs: Vec<R1csFPrimeStepInput>,
     plan: RecursiveStepImagePlan,
     is_base: bool,
     ce_view: NifsCeClaimView,
     recursive_c_data: Vec<F>,
     child_count: u64,
-) -> Result<R1csCompiledStep, R1csCompilerError> {
-    // Bind the R1CS public input `x = assignment[..m_in]` into the
-    // chain's verifier-visible `state_x_out` Poseidon hash. Without
-    // this binding two assignments with different `x` but the same
-    // R1CS shape produce the same `public_output_digest` — the
-    // verifier learns only "some assignment satisfies the R1CS,"
-    // not "this specific `x` was proven."
-    let app_public_input: Vec<F> = input.assignment[..prep.r1cs.m_in()].to_vec();
+    rows_in_chunk: usize,
+) -> Result<Vec<R1csCompiledStep>, R1csCompilerError> {
+    debug_assert_eq!(inputs.len(), rows_in_chunk);
+
+    // Compute the chunk-shared traces ONCE: chunk_digest, the four
+    // app-input-independent Poseidon traces (boundary, public_trace,
+    // base / recursive accumulator), and the post-step chain advance.
+    // These are identical for every assignment in the chunk, so
+    // recomputing them per assignment (the previous behavior) was the
+    // dominant redundant compile cost.
     #[cfg(feature = "perf-timers")]
-    let t_assembly = std::time::Instant::now();
-    let assembly = assemble_unified_step_traces(ctx, is_base, &recursive_c_data, child_count, &app_public_input);
+    let t_shared = std::time::Instant::now();
+    let shared = assemble_shared_chunk_traces(ctx, is_base, &recursive_c_data, child_count, rows_in_chunk);
     #[cfg(feature = "perf-timers")]
     eprintln!(
-        "[r1cs-compile] assemble traces              {:>7.2}s",
-        t_assembly.elapsed().as_secs_f64()
+        "[r1cs-compile] shared chunk traces (once)   {:>7.2}s",
+        t_shared.elapsed().as_secs_f64()
     );
 
-    #[cfg(feature = "perf-timers")]
-    let t_bits = std::time::Instant::now();
-    let assignment_bits = assignment_to_bits(&input.assignment);
-    #[cfg(feature = "perf-timers")]
-    eprintln!(
-        "[r1cs-compile] assignment_to_bits           {:>7.2}s",
-        t_bits.elapsed().as_secs_f64()
-    );
-    let encoder_input = R1csEncoderInput {
-        plan,
-        boundary_bits: assembly.boundary_bits,
-        state_in: assembly.state_in,
-        state_out: assembly.state_out,
-        chunk_digest: assembly.chunk_digest,
-        assignment_bits,
-        is_base,
-        nifs_payloads: vec![NifsPayloadInput::Ce(ce_view)],
-        kmul_views: vec![],
-        ring_action_pairs: vec![],
-        one_shot_traces: vec![
-            assembly.traces.boundary,
-            assembly.traces.public_trace,
-            assembly.traces.base_accumulator,
-            assembly.traces.recursive_accumulator,
-            assembly.traces.state_x_out,
-        ],
-        sponge_trace: None,
-    };
+    let mut compiled = Vec::with_capacity(rows_in_chunk);
+    for input in inputs.into_iter() {
+        // Bind this assignment's R1CS public input `x =
+        // assignment[..m_in]` into its `state_x_out` Poseidon hash.
+        // For a K-deposit step every assignment shares the post-step
+        // chain coordinates but absorbs its own `x`, so the K
+        // boundary digests are distinct and the verifier learns each
+        // specific `x_i`. Only `state_x_out` / `boundary_bits` are
+        // recomputed here; the four shared traces are cloned.
+        let app_public_input: Vec<F> = input.assignment[..prep.r1cs.m_in()].to_vec();
+        #[cfg(feature = "perf-timers")]
+        let t_assembly = std::time::Instant::now();
+        let assembly = assemble_step_from_shared(&shared, ctx, &app_public_input);
+        #[cfg(feature = "perf-timers")]
+        eprintln!(
+            "[r1cs-compile] step state_x_out             {:>7.2}s",
+            t_assembly.elapsed().as_secs_f64()
+        );
 
-    #[cfg(feature = "perf-timers")]
-    let t_encode = std::time::Instant::now();
-    let encoded = encode_r1cs_f_prime_step(encoder_input, Arc::clone(&prep.structure));
-    #[cfg(feature = "perf-timers")]
-    eprintln!(
-        "[r1cs-compile] encode step                  {:>7.2}s",
-        t_encode.elapsed().as_secs_f64()
-    );
+        #[cfg(feature = "perf-timers")]
+        let t_bits = std::time::Instant::now();
+        let assignment_bits = assignment_to_bits(&input.assignment);
+        #[cfg(feature = "perf-timers")]
+        eprintln!(
+            "[r1cs-compile] assignment_to_bits           {:>7.2}s",
+            t_bits.elapsed().as_secs_f64()
+        );
+        let encoder_input = R1csEncoderInput {
+            plan: plan.clone(),
+            boundary_bits: assembly.boundary_bits,
+            state_in: assembly.state_in,
+            state_out: assembly.state_out,
+            chunk_digest: assembly.chunk_digest,
+            assignment_bits,
+            is_base,
+            nifs_payloads: vec![NifsPayloadInput::Ce(ce_view.clone())],
+            kmul_views: vec![],
+            ring_action_pairs: vec![],
+            one_shot_traces: vec![
+                assembly.traces.boundary,
+                assembly.traces.public_trace,
+                assembly.traces.base_accumulator,
+                assembly.traces.recursive_accumulator,
+                assembly.traces.state_x_out,
+            ],
+            sponge_trace: None,
+        };
 
-    ctx.chain_state = assembly.next_chain_state;
+        #[cfg(feature = "perf-timers")]
+        let t_encode = std::time::Instant::now();
+        let encoded = encode_r1cs_f_prime_step(encoder_input, Arc::clone(&prep.structure));
+        #[cfg(feature = "perf-timers")]
+        eprintln!(
+            "[r1cs-compile] encode step                  {:>7.2}s",
+            t_encode.elapsed().as_secs_f64()
+        );
+
+        compiled.push(R1csCompiledStep {
+            encoded,
+            public_output_digest: assembly.public_output_digest,
+        });
+    }
+
+    // Advance the chain state **once** for the whole chunk.
+    ctx.chain_state = shared.next_chain_state;
     ctx.fold_for_step = None;
 
-    Ok(R1csCompiledStep {
-        encoded,
-        public_output_digest: assembly.public_output_digest,
-    })
+    Ok(compiled)
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -299,6 +373,14 @@ pub enum R1csCompilerError {
     /// The R1CS rejected the assignment at the given row.
     #[error("R1CS compiler: app-level R1CS unsatisfied: {0}")]
     Unsatisfied(#[source] FrontendError),
+
+    /// The R1CS rejected the assignment at `index` within a chunk.
+    #[error("R1CS compiler: app-level R1CS unsatisfied at chunk index {index}: {source}")]
+    UnsatisfiedAt {
+        index: usize,
+        #[source]
+        source: FrontendError,
+    },
 
     /// Protocol-generic shell-level failure (preprocessing missing
     /// `public_input_len`, boundary shape mismatch, prior-fold

@@ -19,7 +19,7 @@ pub mod lifecycle;
 pub mod structure;
 
 pub use compiler::{
-    compile_step, start_chain, R1csChainState, R1csCompiledStep, R1csCompilerContext, R1csCompilerError,
+    compile_chunk, compile_step, start_chain, R1csChainState, R1csCompiledStep, R1csCompilerContext, R1csCompilerError,
     R1csFPrimeStepInput, R1csFoldForStep,
 };
 pub use encoder::{assignment_to_bits, encode_r1cs_f_prime_step, R1csEncoderInput};
@@ -86,6 +86,8 @@ pub enum Error {
     Compiler(#[from] compiler::R1csCompilerError),
     #[error("R1CS-F' chain builder: cannot finish before appending any steps")]
     ChainEmpty,
+    #[error("R1CS-F' chain builder: chunk must contain at least one assignment (got empty)")]
+    EmptyChunk,
     #[error("R1CS-F' chain builder: expected active lifecycle state while deriving the next recursive fold")]
     ChainExpectedActiveState,
     #[error(transparent)]

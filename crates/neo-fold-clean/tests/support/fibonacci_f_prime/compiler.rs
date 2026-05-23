@@ -224,7 +224,7 @@ pub fn compile_fibonacci_step(
         // - mutated NIFS proof (NIFS.V rejects → PriorFoldVerificationFailed)
         // - mutated post_running (claims / parent_authority differ
         //   from derived → PriorFoldPostRunningMismatch)
-        verify_prior_fold(&prep.prep, ctx, &fold)?;
+        verify_prior_fold(&prep.prep, ctx, &fold, 1)?;
         compile_recursive_step(prep, ctx, input, fold)
     }
 }
@@ -339,7 +339,8 @@ fn finalize_compile(
     // Fibonacci does not bind app public input into `state_x_out` — the
     // boundary digest alone commits to the chain's verifier-visible
     // output. R1CS passes its public assignment prefix here instead.
-    let assembly = assemble_unified_step_traces(ctx, is_base, &recursive_c_data, child_count, &[]);
+    // Fibonacci is K=1 per step (one app row per F' step).
+    let assembly = assemble_unified_step_traces(ctx, is_base, &recursive_c_data, child_count, &[], 1);
 
     let encoder_input = FPrimeStepInput {
         plan,

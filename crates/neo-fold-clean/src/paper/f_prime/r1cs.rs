@@ -32,25 +32,28 @@
 //!
 //! ## Bindings enforced (recursive case)
 //!
-//! 1. **HyperNova recursive public link**: `fresh[0].x` is
-//!    `[1 || enc_inst(prior_x_out)]`. The raw `prior_x_out` digest is an
-//!    ordinary computed field value; it is bit-encoded here only because
-//!    it becomes the public input of a *fresh SuperNeo CCS instance*, and
-//!    that public input is part of the low-norm assignment `z = [x, w]`
-//!    (`‖z‖_∞ < b = 2`). Poseidon2 itself does not need low norm. See
-//!    `encoding.md` for the distinction between this public-instance
-//!    encoding `enc_inst(h)` and the unresolved private-witness encoding
-//!    `enc(F')`.
+//! 1. **HyperNova recursive public link**: every fresh `u_i.x` in the
+//!    batch is `[1 || enc_inst(prior_x_out)]` — same prior `x_out` for
+//!    the whole chunk, mirroring the SuperNeo "one chunk rooted at a
+//!    single prior Construction-2 state" semantics. The raw
+//!    `prior_x_out` digest is an ordinary computed field value; it is
+//!    bit-encoded here only because it becomes the public input of a
+//!    *fresh SuperNeo CCS instance*, and that public input is part of
+//!    the low-norm assignment `z = [x, w]` (`‖z‖_∞ < b = 2`). Poseidon2
+//!    itself does not need low norm. See `encoding.md` for the
+//!    distinction between this public-instance encoding `enc_inst(h)`
+//!    and the unresolved private-witness encoding `enc(F')`.
 //! 2. **Running accumulator binding**: `acc_digest_in == digest(running)`,
 //!    where `digest(running)` is computed in-circuit by
 //!    [`enforce_accumulator_digest_from_children_circuit`]. Without this,
 //!    `u_i.public` could bind to one accumulator while NIFS.V folds a
 //!    different one.
 //! 3. **`pc == TRIVIAL_PC`** (ℓ = 1 in this build).
-//! 4. **Strict-mode shape**: exactly one fresh `u_i` per step, and its
-//!    public input has length [`F_PRIME_PUBLIC_INPUT_LEN`]. Enforced
-//!    against the message shape (the SplitNc config carries `params` +
-//!    `structure` references, not redundant integer copies).
+//! 4. **Strict-mode shape**: non-empty fresh batch, every fresh `u_i`
+//!    has `m_in == F_PRIME_PUBLIC_INPUT_LEN` and `x.len() ==
+//!    F_PRIME_PUBLIC_INPUT_LEN`. Enforced against the message shape
+//!    (the SplitNc config carries `params` + `structure` references,
+//!    not redundant integer copies).
 
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -268,6 +271,18 @@ pub struct FPrimeRecursiveInputs<'a> {
     pub state: FPrimeStateIn,
     pub chunk_digest: [F; DIGEST_LEN],
     pub nifs_msg: NifsVCircuitMessages<'a>,
+    /// Size of the **current** chunk being deposited as the new latest —
+    /// i.e., `next_latest.len()` in [`crate::paper::f_prime::native::prove`].
+    /// Drives the `step_count` advance in this step
+    /// (`step_count_out = step_count_in + rows_in_chunk`), matching native
+    /// `advance_state(..., fresh_count, ...)` semantics.
+    ///
+    /// This is **not** `nifs_msg.fresh.len()`: that is the *previous*
+    /// latest batch being folded by NIFS.V at this step. When batch
+    /// sizes vary across steps (e.g. `K=61` then `K=62`), the two
+    /// differ and using `nifs_msg.fresh.len()` would advance
+    /// `step_count` by the wrong amount.
+    pub rows_in_chunk: u64,
     /// Low-norm-native witness image (Phase 7-pre); see
     /// [`FPrimeBaseInputs::source_image`].
     pub source_image: &'a FPrimeSourceImage,
@@ -280,9 +295,12 @@ pub struct FPrimeRecursiveInputs<'a> {
     /// Slice inside `source_image` for `enc_inst(prior_x_out)` — the body
     /// of the **input** recursive link. F' constrains both
     /// `source_image[prior_x_out_bits] == enc_inst(prior_x_out)` AND
-    /// `fresh[0].x[1..] == source_image[prior_x_out_bits]`, so the
-    /// authoritative low-norm witness for the input link lives in the
-    /// source image rather than inside the NIFS proof message.
+    /// `fresh[i].x[1..] == source_image[prior_x_out_bits]` for **every**
+    /// fresh `u_i` in the batch, so the authoritative low-norm witness
+    /// for the input link lives in the source image rather than inside
+    /// the NIFS proof message. Same `prior_x_out` for the whole chunk:
+    /// every fresh in the batch is rooted at the same prior
+    /// Construction-2 state.
     pub prior_x_out_bits: BitRange,
     /// Slice inside `source_image` that holds the `enc_inst(x_out)` body
     /// for this step's **output** link.
@@ -535,16 +553,22 @@ pub fn enforce_f_prime_base_step_circuit(
     })
 }
 
-/// F' **recursive** step (i ≥ 1). Runs NIFS.V to fold `u_i` into `U_i`,
-/// enforces the HyperNova recursive link `u_i.public == prior x_out`, and
-/// binds `acc_digest_in` to the digest of the actual running accumulator.
+/// F' **recursive** step (i ≥ 1). Runs NIFS.V to fold the K fresh
+/// `u_i,j` into `U_i`, enforces the HyperNova recursive link
+/// `u_i,j.public == prior x_out` for every j in the batch, and binds
+/// `acc_digest_in` to the digest of the actual running accumulator.
 ///
 /// Strict mode preconditions (rejected at message-shape check):
-///   - exactly one fresh `u_i` (`inputs.nifs_msg.fresh.len() == 1`).
-///   - the fresh `u_i` has `m_in == F_PRIME_PUBLIC_INPUT_LEN` and
+///   - non-empty fresh batch (`inputs.nifs_msg.fresh.len() >= 1`).
+///   - `inputs.rows_in_chunk >= 1` — the new chunk being deposited
+///     must be non-empty.
+///   - every fresh `u_i,j` has `m_in == F_PRIME_PUBLIC_INPUT_LEN` and
 ///     `x.len() == F_PRIME_PUBLIC_INPUT_LEN`. Public input encodes the
 ///     prior `x_out` digest as `DIGEST_LEN * 64` low-norm bits — raw
 ///     Goldilocks digest lanes can't be CCS public inputs under `b = 2`.
+///   - all K fresh public inputs are bound to the **same** prior
+///     `x_out` source-image bits; the whole batch is treated as one
+///     SuperNeo chunk rooted at one prior Construction-2 state.
 pub fn enforce_f_prime_recursive_step_circuit(
     builder: &mut R1csBuilder,
     pp: &Params,
@@ -552,20 +576,25 @@ pub fn enforce_f_prime_recursive_step_circuit(
     inputs: &FPrimeRecursiveInputs<'_>,
 ) -> Result<FPrimeStepOutput, Error> {
     // ── Strict-mode shape ──────────────────────────────────────────────
-    if inputs.nifs_msg.fresh.len() != 1 {
-        return Err(Error::Inner(format!(
-            "strict F' recursive: expected exactly one fresh u_i, got {}",
-            inputs.nifs_msg.fresh.len()
-        )));
+    if inputs.nifs_msg.fresh.is_empty() {
+        return Err(Error::Inner(
+            "strict F' recursive: fresh batch must be non-empty".into(),
+        ));
     }
-    let fresh0 = &inputs.nifs_msg.fresh[0];
-    if fresh0.m_in != F_PRIME_PUBLIC_INPUT_LEN || fresh0.x.len() != F_PRIME_PUBLIC_INPUT_LEN {
-        return Err(Error::Inner(format!(
-            "strict F' recursive: fresh u_i public input must be [1 | {F_PRIME_ENC_INST_BITS} enc_inst bits], \
-             got m_in={}, x.len={}",
-            fresh0.m_in,
-            fresh0.x.len()
-        )));
+    if inputs.rows_in_chunk == 0 {
+        return Err(Error::Inner(
+            "strict F' recursive: rows_in_chunk must be \u{2265} 1 (new chunk must be non-empty)".into(),
+        ));
+    }
+    for (idx, fresh) in inputs.nifs_msg.fresh.iter().enumerate() {
+        if fresh.m_in != F_PRIME_PUBLIC_INPUT_LEN || fresh.x.len() != F_PRIME_PUBLIC_INPUT_LEN {
+            return Err(Error::Inner(format!(
+                "strict F' recursive: fresh[{idx}] public input must be [1 | {F_PRIME_ENC_INST_BITS} enc_inst bits], \
+                 got m_in={}, x.len={}",
+                fresh.m_in,
+                fresh.x.len()
+            )));
+        }
     }
 
     // Recursive means i ≥ 1; chunk_count_in must be nonzero.
@@ -634,37 +663,42 @@ pub fn enforce_f_prime_recursive_step_circuit(
     };
     let prior_x_out = enforce_state_x_out_digest_circuit(builder, &prior_x_out_inputs);
 
-    let fresh0_x = nifs_outputs
-        .fresh_x
-        .first()
-        .ok_or_else(|| Error::Inner("strict F' missing fresh u_i".into()))?;
-    if fresh0_x.len() != F_PRIME_PUBLIC_INPUT_LEN {
-        return Err(Error::Inner(format!(
-            "strict F' fresh u_i public input length {} != F_PRIME_PUBLIC_INPUT_LEN ({F_PRIME_PUBLIC_INPUT_LEN})",
-            fresh0_x.len()
-        )));
+    if nifs_outputs.fresh_x.is_empty() {
+        return Err(Error::Inner("strict F' missing fresh u_i".into()));
     }
-    // CCS constant-one slot.
-    builder.enforce_eq(
-        &Lc::from_var(fresh0_x[F_PRIME_PUBLIC_ONE_OFFSET]),
-        &Lc::from_const(F::ONE),
-    );
     // Recursive input link, routed through the source image:
     //   1) source_image[prior_x_out_bits] == enc_inst(prior_x_out)
     //      — pins source bits to canonical 64-bit decomposition of the
     //      in-circuit-recomputed prior_x_out digest.
-    //   2) fresh[0].x[1..] == source_image[prior_x_out_bits]
-    //      — wire-to-wire, so the authoritative low-norm witness lives in
-    //      the source image rather than inside the NIFS proof's fresh
-    //      claim. The NIFS proof's `fresh[0].x` must agree with the source
-    //      image; tampering either side breaks the link.
+    //   2) for every fresh u_i in the chunk:
+    //        fresh[i].x[0]     == 1                                 (CCS one-slot)
+    //        fresh[i].x[1..]   == source_image[prior_x_out_bits]    (recursive link)
+    //      The same prior_x_out witness bits are reused for every fresh:
+    //      the whole batch is one SuperNeo chunk rooted at a single prior
+    //      Construction-2 state, so every fresh CCS instance's public
+    //      input encodes the same prior `x_out`. The NIFS proof's
+    //      `fresh[i].x` must agree with the source image; tampering
+    //      either side breaks the link.
     let prior_bits = source_wires.range(inputs.prior_x_out_bits);
     enforce_public_bits_encode_digest(builder, prior_bits, &prior_x_out)?;
-    for (fresh_bit, source_bit) in fresh0_x[F_PRIME_ENC_INST_OFFSET..]
-        .iter()
-        .zip(prior_bits.iter())
-    {
-        builder.enforce_eq(&Lc::from_var(*fresh_bit), &Lc::from_var(*source_bit));
+    for (idx, fresh_x) in nifs_outputs.fresh_x.iter().enumerate() {
+        if fresh_x.len() != F_PRIME_PUBLIC_INPUT_LEN {
+            return Err(Error::Inner(format!(
+                "strict F' fresh[{idx}] public input length {} != F_PRIME_PUBLIC_INPUT_LEN ({F_PRIME_PUBLIC_INPUT_LEN})",
+                fresh_x.len()
+            )));
+        }
+        // CCS constant-one slot.
+        builder.enforce_eq(
+            &Lc::from_var(fresh_x[F_PRIME_PUBLIC_ONE_OFFSET]),
+            &Lc::from_const(F::ONE),
+        );
+        for (fresh_bit, source_bit) in fresh_x[F_PRIME_ENC_INST_OFFSET..]
+            .iter()
+            .zip(prior_bits.iter())
+        {
+            builder.enforce_eq(&Lc::from_var(*fresh_bit), &Lc::from_var(*source_bit));
+        }
     }
 
     // ── Bind acc_digest_in to digest(running) ──────────────────────────
@@ -694,16 +728,23 @@ pub fn enforce_f_prime_recursive_step_circuit(
     let new_acc_digest = enforce_accumulator_digest_from_parent_circuit(builder, k_carry, &nifs_outputs.parent_c_data);
 
     // Counter advance.
-    let fresh_count = inputs.nifs_msg.fresh.len() as u64;
+    //
+    // `rows_in_chunk` is the size of the *current* chunk being deposited
+    // as the new latest (mirrors native `advance_state(..., fresh_count,
+    // ...)` where `fresh_count == next_latest.len()`). Note: this is
+    // **not** `inputs.nifs_msg.fresh.len()` — that's the previous batch
+    // being folded by NIFS.V at this step. The two only coincide when
+    // every step's batch has the same size.
+    let rows_in_chunk = inputs.rows_in_chunk;
     let new_chunk_count_val = inputs.state.chunk_count_in + 1;
-    let new_step_count_val = inputs.state.step_count_in + fresh_count;
+    let new_step_count_val = inputs.state.step_count_in + rows_in_chunk;
     let new_chunk_count = builder.alloc(F::from_u64(new_chunk_count_val));
     let new_step_count = builder.alloc(F::from_u64(new_step_count_val));
     let mut chunk_sum = Lc::from_var(sw.chunk_count_in);
     chunk_sum.add_constant(F::ONE);
     builder.enforce_eq(&Lc::from_var(new_chunk_count), &chunk_sum);
     let mut step_sum = Lc::from_var(sw.step_count_in);
-    step_sum.add_constant(F::from_u64(fresh_count));
+    step_sum.add_constant(F::from_u64(rows_in_chunk));
     builder.enforce_eq(&Lc::from_var(new_step_count), &step_sum);
 
     let (x_out, new_z_i, new_public_trace) = build_x_out(

@@ -516,17 +516,19 @@ fn sha256_bellpepper_ivc_chain_two_steps() {
     //      a. `prepare_next_fold`: extend a CLONED audit with step 0's
     //         latest to derive the NIFS proof + post_running that the
     //         recursive compile needs. This is a full Π_CCS+RLC+DEC
-    //         prover pass on the cloned audit.
+    //         prover pass on the cloned audit. The post-fold audit is
+    //         **stashed** and reused at deposit time (see (c)).
     //      b. `compile_step`: reuse the cached `prep.structure` Arc,
     //         run NIFS.V on the prior fold under the per-step F'
     //         transcript, encode the image with the prior fold
     //         authority embedded in the NIFS payload, satisfaction
     //         self-check against the cached structure.
-    //      c. `lifecycle::extend` on the REAL audit with the freshly
-    //         compiled recursive instance. Another full Π_CCS+RLC+DEC
-    //         prover pass.
-    //    So step 1's wall time ≈ 2 × (prove cost) + 1 × (encode + verify).
-    //    Roughly double step 0.
+    //      c. deposit: swap the freshly compiled recursive instance into
+    //         the stashed post-fold audit's `latest` — **no** second
+    //         prover pass (the fold from (a) is reused; the chunk digest
+    //         is shape+count-only so it is identical for the real
+    //         instance). So step 1's wall time ≈ 1 × (prove cost) +
+    //         1 × (compile + NIFS.V), not 2× prove.
     let compiled_b = phase("step 1 append (recursive)", || {
         chain
             .append_assignment(artifact_b.assignment.clone())
@@ -616,5 +618,229 @@ fn sha256_bellpepper_ivc_chain_two_steps() {
         "[sha-ivc] {:<32} {:>7.2}s",
         "TOTAL (incl. drops)",
         total.elapsed().as_secs_f64()
+    );
+}
+
+/// Distinct 3-byte preimage for index `i` (same length ⇒ same R1CS
+/// shape, different digest ⇒ genuinely different SHA instance).
+fn nth_preimage(i: usize) -> Vec<u8> {
+    vec![
+        b'a' + (i % 26) as u8,
+        b'a' + ((i / 26) % 26) as u8,
+        b'a' + ((i / 676) % 26) as u8,
+    ]
+}
+
+/// Real SHA-256 batched R1CS-F' chain at **K = 4** per chunk: two chunks
+/// of four genuinely distinct SHA-256 instances, finalized and verified
+/// end-to-end. A lighter, focused companion to
+/// [`sha256_fold_cost_k61_vs_k2_benchmark`] (which is K=61 and ~8 min) —
+/// this one proves the batched same-shape SHA path is correct, not just
+/// fast.
+///
+/// `#[ignore]`d because it still folds 8 SHA-256 instances (~1 min under
+/// [`sha256_tiny_params`]); opt in with
+/// `cargo test --release -p neo-fold-clean --test system_sha256_bellpepper_ccs \
+///   sha256_bellpepper_ivc_chain_k4_chunks -- --ignored --exact --nocapture`.
+#[test]
+#[ignore]
+fn sha256_bellpepper_ivc_chain_k4_chunks() {
+    let total = Instant::now();
+    const K: usize = 4;
+
+    let ref_artifact = synthesize_to_ccs(Sha256Circuit {
+        preimage: nth_preimage(0),
+    })
+    .expect("reference synth");
+    let m = ref_artifact.shape.inputs + ref_artifact.shape.aux;
+    let plan = sha256_tiny_lifecycle_plan(m, ref_artifact.shape.inputs);
+    let prep = phase("preprocess R1CS-F'", || {
+        r1cs_f_prime::preprocess_sparse_seeded_with_params(
+            &ref_artifact.sparse_r1cs,
+            &plan,
+            sha256_tiny_params(),
+            SHA256_AJTAI_SEED,
+        )
+        .expect("preprocess")
+    });
+
+    let mk_batch = |chunk: usize| -> Vec<Vec<F>> {
+        (0..K)
+            .map(|i| {
+                synthesize_to_ccs(Sha256Circuit {
+                    preimage: nth_preimage(chunk * K + i),
+                })
+                .expect("synth")
+                .assignment
+            })
+            .collect()
+    };
+
+    let mut chain = R1csChainBuilder::new(&prep).expect("chain");
+
+    let compiled_0 = phase("chunk 0 (base, K=4)", || {
+        chain
+            .append_assignments(mk_batch(0))
+            .expect("base K=4 chunk")
+    });
+    assert_eq!(compiled_0.len(), K);
+    assert!(
+        compiled_0.iter().all(|c| c.encoded.image.decode_is_base()),
+        "every step in chunk 0 must take the base branch"
+    );
+
+    let compiled_1 = phase("chunk 1 (recursive, K=4)", || {
+        chain
+            .append_assignments(mk_batch(1))
+            .expect("recursive K=4 chunk")
+    });
+    assert_eq!(compiled_1.len(), K);
+    assert!(
+        compiled_1.iter().all(|c| !c.encoded.image.decode_is_base()),
+        "every step in chunk 1 must take the recursive branch"
+    );
+
+    // Distinct preimages ⇒ distinct per-step `state_x_out` (the SHA
+    // digest is bound into the chain output via `app_public_input`).
+    let mut digests: Vec<_> = compiled_0
+        .iter()
+        .chain(compiled_1.iter())
+        .map(|c| c.public_output_digest)
+        .collect();
+    digests.sort_by(|a, b| format!("{a:?}").cmp(&format!("{b:?}")));
+    digests.dedup();
+    assert_eq!(
+        digests.len(),
+        2 * K,
+        "all 8 distinct SHA must yield distinct chain outputs"
+    );
+
+    // Chain advanced once per chunk: chunk_count = 2, step_count = 2K = 8.
+    let ctx = chain.context();
+    assert_eq!(ctx.chain_state.chunk_count, 2);
+    assert_eq!(ctx.chain_state.step_count, (2 * K) as u64);
+
+    let audit = chain.audit().expect("audit after two K=4 chunks");
+    assert_eq!(audit.steps.len(), 2, "two extends, one per K-chunk");
+    assert_eq!(audit.public_batches[0].len(), K);
+    assert_eq!(audit.public_batches[1].len(), K);
+
+    let proof = phase("chain.finish()", || chain.finish().expect("finish K=4 chain"));
+    phase("verify_uncompressed", || {
+        lifecycle::verify_uncompressed(&prep.prep, &proof).expect("verify_uncompressed accepts K=4 SHA chain")
+    });
+
+    eprintln!("[sha-ivc-k4] TOTAL {:.2}s", total.elapsed().as_secs_f64());
+}
+
+/// **Real** SHA-256 fold-cost benchmark: K=61 vs K=2 per chunk.
+///
+/// Folds genuinely distinct SHA-256 instances (24,803 R1CS constraints,
+/// structure ≈ 4.3M rows) through the batched R1CS-F' chain at two chunk
+/// sizes and times every phase. Two chunks per K so the `finish` fold is
+/// the steady-state `K + k_rho = K + 14` claim case.
+///
+/// Heavy and `#[ignore]`d — opt in with
+/// `cargo test --release --features perf-timers -p neo-fold-clean \
+///   --test system_sha256_bellpepper_ccs \
+///   sha256_fold_cost_k61_vs_k2_benchmark -- --ignored --exact --nocapture`.
+/// Runs well over the 5-minute slice; only run when explicitly measuring.
+#[test]
+#[ignore]
+fn sha256_fold_cost_k61_vs_k2_benchmark() {
+    let bench_total = Instant::now();
+    let ref_artifact = synthesize_to_ccs(Sha256Circuit {
+        preimage: nth_preimage(0),
+    })
+    .expect("reference synth");
+    let m = ref_artifact.shape.inputs + ref_artifact.shape.aux;
+    let plan = sha256_tiny_lifecycle_plan(m, ref_artifact.shape.inputs);
+    let prep = phase("preprocess R1CS-F' (once)", || {
+        r1cs_f_prime::preprocess_sparse_seeded_with_params(
+            &ref_artifact.sparse_r1cs,
+            &plan,
+            sha256_tiny_params(),
+            SHA256_AJTAI_SEED,
+        )
+        .expect("preprocess")
+    });
+    eprintln!(
+        "[bench] SHA-256 shape: constraints={}, m={}, structure.n={}, structure.m={}, kappa={}",
+        ref_artifact.shape.constraints,
+        m,
+        prep.prep.structure().n,
+        prep.prep.structure().m,
+        prep.prep.params.kappa(),
+    );
+
+    for k in [2usize, 61usize] {
+        eprintln!("\n[bench] ===================== K = {k} =====================");
+
+        let mk_batch = |chunk: usize| -> Vec<Vec<F>> {
+            (0..k)
+                .map(|i| {
+                    synthesize_to_ccs(Sha256Circuit {
+                        preimage: nth_preimage(chunk * k + i),
+                    })
+                    .expect("synth")
+                    .assignment
+                })
+                .collect()
+        };
+
+        let t_synth = Instant::now();
+        let batch_0 = mk_batch(0);
+        let batch_1 = mk_batch(1);
+        let synth_s = t_synth.elapsed().as_secs_f64();
+
+        let mut chain = R1csChainBuilder::new(&prep).expect("chain");
+
+        let t_base = Instant::now();
+        chain
+            .append_assignments(batch_0)
+            .expect("base chunk (K fresh deposited, no fold)");
+        let base_s = t_base.elapsed().as_secs_f64();
+
+        // Recursive chunk: `prepare_next_fold` runs ONE NIFS prove
+        // (folds the base chunk's K fresh + 0 running) and stashes the
+        // post-fold audit; `compile_chunk` runs K compiles + one
+        // `verify_prior_fold` (NIFS.V); the deposit then swaps the real
+        // instances into the stashed audit — no second prove.
+        let t_rec = Instant::now();
+        chain
+            .append_assignments(batch_1)
+            .expect("recursive chunk (folds K fresh + 0 running)");
+        let rec_s = t_rec.elapsed().as_secs_f64();
+
+        // Finalize: NIFS folds the trailing K fresh + k_rho(14) running =
+        // K + 14 claims. This is the steady-state fold.
+        let t_fin = Instant::now();
+        let proof = chain.finish().expect("finish");
+        let fin_s = t_fin.elapsed().as_secs_f64();
+
+        let t_ver = Instant::now();
+        lifecycle::verify_uncompressed(&prep.prep, &proof).expect("verify_uncompressed");
+        let ver_s = t_ver.elapsed().as_secs_f64();
+
+        let ops = 2 * k; // total SHA folded across the two chunks
+        eprintln!(
+            "[bench] K={k:<2} synth={synth_s:6.2}s  base={base_s:6.2}s  recursive={rec_s:6.2}s  \
+             finish={fin_s:6.2}s  verify={ver_s:6.2}s",
+        );
+        eprintln!(
+            "[bench] K={k:<2} steady-state fold (finish, {}+14 claims) = {fin_s:6.2}s = {:.3}s/op",
+            k,
+            fin_s / k as f64,
+        );
+        eprintln!(
+            "[bench] K={k:<2} all fold+compile work (base+recursive+finish) = {:6.2}s over {ops} ops = {:.3}s/op",
+            base_s + rec_s + fin_s,
+            (base_s + rec_s + fin_s) / ops as f64,
+        );
+        drop(proof);
+    }
+    eprintln!(
+        "\n[bench] TOTAL benchmark wall {:.1}s",
+        bench_total.elapsed().as_secs_f64()
     );
 }

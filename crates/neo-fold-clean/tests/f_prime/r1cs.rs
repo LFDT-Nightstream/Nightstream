@@ -12,8 +12,13 @@
 //!   paired with an F' state-in whose `prior_x_out` is bit-encoded into the
 //!   fresh CCS instance's public input and an `acc_digest_in` that matches
 //!   `digest(running)`, must satisfy the F' R1CS verifier shell.
-//! - Recursive-step shape-rejection: `fresh.len() != 1`, `fresh[0].m_in
-//!   != F_PRIME_PUBLIC_INPUT_LEN`, `chunk_count_in == 0`.
+//! - Recursive-step batch shape-rejection: empty fresh batch (`fresh.is_empty()`),
+//!   `fresh[i].m_in != F_PRIME_PUBLIC_INPUT_LEN`, and `chunk_count_in == 0`.
+//! - Recursive-step batched-link: a K=3 fresh batch with every public
+//!   input rooted at one shared prior `x_out` must satisfy; an
+//!   independently-proved fresh whose public input encodes a *different*
+//!   `enc_inst` than the source-image `prior_x_out_bits` must be rejected
+//!   by the per-fresh recursive-link gate (not just by NIFS.V).
 //!
 //! ## Caveat (Phase 6g' follow-up)
 //!
@@ -104,6 +109,120 @@ fn native_prior_x_out(state: &FPrimeStateIn) -> [F; 4] {
 }
 
 fn build_fixture() -> Fixture {
+    build_fixture_with_k_fresh(1)
+}
+
+/// Construct a fixture whose recursive-step NIFS proof folds K=3 fresh
+/// CCS instances **of which `divergent_index` encodes a different
+/// `enc_inst` than the honest `prior_x_out`**. The proof is otherwise
+/// honest, so NIFS.V on its own accepts (sumcheck/header/etc. are valid
+/// for the actual fresh claims handed in). The F' R1CS recursive-link
+/// gate is what catches the mismatch — the per-fresh loop must equate
+/// every `fresh[i].x[1..]` to the *shared* `source_image[prior_x_out_bits]`,
+/// which still encode `enc_inst(honest_prior_x_out)`.
+fn build_fixture_with_divergent_fresh(divergent_index: usize) -> Fixture {
+    let r1cs = bit_carrier_r1cs();
+    let prep = direct_ccs::preprocess_seeded(&r1cs, 42).expect("preprocess");
+
+    let zero_assignment = vec![F::ZERO; prep.structure().m];
+    let first = direct_ccs::build_instance(&prep, &r1cs, &zero_assignment).expect("first instance");
+    let mut first_tr = Transcript::session();
+    let (running, _first_proof) = neo_fold_clean::paper::nifs::prove(
+        &mut first_tr,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &prep.log,
+        prep.mix_rhos_commits,
+        prep.combine_b_pows,
+        vec![first],
+        &RunningInstance::default(),
+    )
+    .expect("first NIFS.P");
+
+    let acc_digest_in = digest32_as_fields(accumulator_digest_from_parent_claim(
+        running.claims.len(),
+        running
+            .parent_authority
+            .as_ref()
+            .expect("seed running has parent authority"),
+    ));
+    let state = FPrimeStateIn {
+        vk_fs_digest: rand_digest(0x10),
+        structure_digest: rand_digest(0x20),
+        chunk_count_in: 1,
+        step_count_in: 1,
+        z_0: rand_digest(0x100),
+        z_i_in: rand_digest(0x101),
+        pc: 1,
+        acc_digest_in,
+        public_trace_in: rand_digest(0x40),
+    };
+
+    let prior_x_out = native_prior_x_out(&state);
+    let mut honest_z = encode_f_prime_public_input(prior_x_out);
+    honest_z.resize(prep.structure().m, F::ZERO);
+
+    // `divergent_x_out` differs from `prior_x_out` in at least one lane —
+    // so its `enc_inst` body differs from the honest source-image bits.
+    let mut divergent_x_out = prior_x_out;
+    divergent_x_out[0] += F::ONE;
+    let mut divergent_z = encode_f_prime_public_input(divergent_x_out);
+    divergent_z.resize(prep.structure().m, F::ZERO);
+
+    let k_fresh = 3;
+    assert!(divergent_index < k_fresh);
+    let fresh_instances: Vec<_> = (0..k_fresh)
+        .map(|i| {
+            let z = if i == divergent_index { &divergent_z } else { &honest_z };
+            direct_ccs::build_instance(&prep, &r1cs, z).expect("fresh instance")
+        })
+        .collect();
+    let fresh_claims: Vec<_> = fresh_instances.iter().map(|i| i.claim.clone()).collect();
+
+    let chunk_digest = rand_digest(0x50);
+    let mut tr = Transcript::with_label(TRANSCRIPT_LABEL);
+    tr.append_fields(b"f_prime/vk_fs", &state.vk_fs_digest);
+    tr.append_fields(b"f_prime/structure", &state.structure_digest);
+    tr.append_fields(b"f_prime/z_0", &state.z_0);
+    tr.append_fields(b"f_prime/z_i_in", &state.z_i_in);
+    tr.append_fields(b"f_prime/public_trace_in", &state.public_trace_in);
+    tr.append_fields(b"f_prime/chunk_digest", &chunk_digest);
+    let (next_running, proof) = neo_fold_clean::paper::nifs::prove(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &prep.log,
+        prep.mix_rhos_commits,
+        prep.combine_b_pows,
+        fresh_instances,
+        &running,
+    )
+    .expect("divergent NIFS.P");
+
+    let combined = proof.pi_rlc.combined.clone();
+    let children: Vec<_> = next_running.claims.clone();
+
+    Fixture {
+        prep,
+        fresh_claims,
+        running,
+        proof,
+        combined,
+        children,
+        state,
+        chunk_digest,
+    }
+}
+
+/// Construct a fixture whose recursive-step NIFS proof folds `k_fresh`
+/// fresh CCS instances into the running accumulator. All `k_fresh`
+/// fresh instances encode the **same** `enc_inst(prior_x_out)` — the
+/// "one chunk rooted at a single prior Construction-2 state"
+/// semantics F' R1CS expects.
+fn build_fixture_with_k_fresh(k_fresh: usize) -> Fixture {
+    assert!(k_fresh >= 1, "build_fixture_with_k_fresh: k_fresh must be \u{2265} 1");
     let r1cs = bit_carrier_r1cs();
     let prep = direct_ccs::preprocess_seeded(&r1cs, 42).expect("preprocess");
 
@@ -127,7 +246,7 @@ fn build_fixture() -> Fixture {
 
     // Pin F' state-in so the recursive link is honest:
     //   acc_digest_in = digest(running.claims)
-    //   fresh.x      = bit_encode(state_x_out(state))
+    //   fresh[i].x   = enc_inst(state_x_out(state))   for every i in 0..k_fresh
     let acc_digest_in = digest32_as_fields(accumulator_digest_from_parent_claim(
         running.claims.len(),
         running
@@ -155,8 +274,10 @@ fn build_fixture() -> Fixture {
     // Defensive: pad/truncate to structure.m in case those ever diverge.
     z.resize(prep.structure().m, F::ZERO);
 
-    let second = direct_ccs::build_instance(&prep, &r1cs, &z).expect("second instance");
-    let fresh_claims = vec![second.claim.clone()];
+    let fresh_instances: Vec<_> = (0..k_fresh)
+        .map(|_| direct_ccs::build_instance(&prep, &r1cs, &z).expect("fresh instance"))
+        .collect();
+    let fresh_claims: Vec<_> = fresh_instances.iter().map(|i| i.claim.clone()).collect();
 
     // Mirror F' R1CS's transcript exactly: same init label, same pre-NIFS
     // state absorbs, in the same order. Without this, in-circuit and
@@ -179,7 +300,7 @@ fn build_fixture() -> Fixture {
         &prep.log,
         prep.mix_rhos_commits,
         prep.combine_b_pows,
-        vec![second],
+        fresh_instances,
         &running,
     )
     .expect("second NIFS.P");
@@ -497,6 +618,7 @@ fn f_prime_recursive_step_accepts_real_native_nifs_proof() {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
         nifs_msg: msg_from_fixture(&fixture),
+        rows_in_chunk: 1,
         source_image: &source.image,
         chunk_count_in_word: source.chunk_count_in_word,
         step_count_in_word: source.step_count_in_word,
@@ -534,6 +656,7 @@ fn f_prime_recursive_rejects_chunk_count_in_zero() {
         state,
         chunk_digest: fixture.chunk_digest,
         nifs_msg: msg_from_fixture(&fixture),
+        rows_in_chunk: 1,
         source_image: &source.image,
         chunk_count_in_word: source.chunk_count_in_word,
         step_count_in_word: source.step_count_in_word,
@@ -548,23 +671,23 @@ fn f_prime_recursive_rejects_chunk_count_in_zero() {
 }
 
 #[test]
-fn f_prime_recursive_rejects_more_than_one_fresh() {
+fn f_prime_recursive_rejects_empty_fresh_batch() {
     let fixture = build_fixture();
     let cfg = make_step_config(&fixture.prep);
-    let extra = fixture.fresh_claims[0].clone();
-    let two_fresh = vec![fixture.fresh_claims[0].clone(), extra];
+    let empty: Vec<CcsClaim> = Vec::new();
     let source = recursive_source_image(&fixture);
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
         nifs_msg: NifsVCircuitMessages {
-            fresh: &two_fresh,
+            fresh: &empty,
             running: &fixture.running.claims,
             running_parent_authority: fixture.running.parent_authority.as_ref(),
             pi_ccs: &fixture.proof.pi_ccs,
             combined: &fixture.combined,
             children: &fixture.children,
         },
+        rows_in_chunk: 1,
         source_image: &source.image,
         chunk_count_in_word: source.chunk_count_in_word,
         step_count_in_word: source.step_count_in_word,
@@ -575,7 +698,81 @@ fn f_prime_recursive_rejects_more_than_one_fresh() {
 
     let mut b = R1csBuilder::new();
     let result = enforce_f_prime_recursive_step_circuit(&mut b, &fixture.prep.params, &cfg, &inputs);
-    assert!(result.is_err(), "recursive must reject |fresh| != 1");
+    assert!(
+        result.is_err(),
+        "recursive must reject empty fresh batch (SuperNeo K \u{2265} 1)"
+    );
+}
+
+/// Multi-fresh chunk: a real NIFS proof with K=3 fresh CCS instances
+/// (the whole batch rooted at one prior Construction-2 state) must
+/// satisfy the F' R1CS recursive verifier — proving the in-circuit
+/// public-link gate runs over **every** fresh `u_i`, not just `fresh[0]`.
+#[test]
+fn recursive_step_accepts_multi_fresh_batch() {
+    let fixture = build_fixture_with_k_fresh(3);
+    assert_eq!(fixture.fresh_claims.len(), 3);
+    let cfg = make_step_config(&fixture.prep);
+    let source = recursive_source_image(&fixture);
+    let inputs = FPrimeRecursiveInputs {
+        state: fixture.state.clone(),
+        chunk_digest: fixture.chunk_digest,
+        nifs_msg: msg_from_fixture(&fixture),
+        rows_in_chunk: 3,
+        source_image: &source.image,
+        chunk_count_in_word: source.chunk_count_in_word,
+        step_count_in_word: source.step_count_in_word,
+        pc_word: source.pc_word,
+        prior_x_out_bits: source.prior_x_out_bits,
+        public_x_out_bits: source.public_x_out_bits,
+    };
+
+    let mut b = R1csBuilder::new();
+    enforce_f_prime_recursive_step_circuit(&mut b, &fixture.prep.params, &cfg, &inputs).expect("emit");
+    assert!(
+        b.is_satisfied(),
+        "multi-fresh recursive F' step must satisfy when every fresh.x is linked to the shared prior x_out (first bad row: {:?})",
+        b.first_unsatisfied_row()
+    );
+}
+
+/// Negative companion to [`recursive_step_accepts_multi_fresh_batch`]:
+/// the K=3 NIFS proof is generated honestly over a batch where
+/// `fresh[2].x` encodes a **different** `enc_inst` than the honest prior
+/// `x_out`. NIFS.V on its own accepts (the proof matches the actual
+/// fresh handed in). The F' R1CS recursive-link gate must still reject,
+/// because `source_image[prior_x_out_bits]` is the *honest* enc_inst and
+/// only the per-fresh loop catches the divergent `fresh[2].x[1..]`.
+///
+/// This isolates the per-fresh recursive-link gate from NIFS.V's own
+/// sumcheck/header binding: if the loop bailed after `fresh[0]`, this
+/// test would (wrongly) pass.
+#[test]
+fn f_prime_recursive_rejects_multi_fresh_with_divergent_non_first_link() {
+    let fixture = build_fixture_with_divergent_fresh(2);
+    assert_eq!(fixture.fresh_claims.len(), 3);
+    let cfg = make_step_config(&fixture.prep);
+    let source = recursive_source_image(&fixture);
+    let inputs = FPrimeRecursiveInputs {
+        state: fixture.state.clone(),
+        chunk_digest: fixture.chunk_digest,
+        nifs_msg: msg_from_fixture(&fixture),
+        rows_in_chunk: 3,
+        source_image: &source.image,
+        chunk_count_in_word: source.chunk_count_in_word,
+        step_count_in_word: source.step_count_in_word,
+        pc_word: source.pc_word,
+        prior_x_out_bits: source.prior_x_out_bits,
+        public_x_out_bits: source.public_x_out_bits,
+    };
+
+    let mut b = R1csBuilder::new();
+    enforce_f_prime_recursive_step_circuit(&mut b, &fixture.prep.params, &cfg, &inputs).expect("emit");
+    assert!(
+        !b.is_satisfied(),
+        "F' R1CS must run the per-fresh recursive-link gate at every index — fresh[2].x diverged from \
+         source_image[prior_x_out_bits] (honest), so the loop at i=2 must fail"
+    );
 }
 
 #[test]
@@ -598,6 +795,7 @@ fn f_prime_recursive_rejects_fresh_m_in_mismatch() {
             combined: &fixture.combined,
             children: &fixture.children,
         },
+        rows_in_chunk: 1,
         source_image: &source.image,
         chunk_count_in_word: source.chunk_count_in_word,
         step_count_in_word: source.step_count_in_word,
@@ -635,6 +833,7 @@ fn f_prime_recursive_rejects_tampered_public_x_out_bits() {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
         nifs_msg: msg_from_fixture(&fixture),
+        rows_in_chunk: 1,
         source_image: &source.image,
         chunk_count_in_word: source.chunk_count_in_word,
         step_count_in_word: source.step_count_in_word,
@@ -662,6 +861,7 @@ fn f_prime_recursive_rejects_tampered_acc_digest_in() {
         state,
         chunk_digest: fixture.chunk_digest,
         nifs_msg: msg_from_fixture(&fixture),
+        rows_in_chunk: 1,
         source_image: &source.image,
         chunk_count_in_word: source.chunk_count_in_word,
         step_count_in_word: source.step_count_in_word,
@@ -689,6 +889,7 @@ fn f_prime_recursive_rejects_tampered_chunk_digest() {
         state: fixture.state.clone(),
         chunk_digest: bad_chunk_digest,
         nifs_msg: msg_from_fixture(&fixture),
+        rows_in_chunk: 1,
         source_image: &source.image,
         chunk_count_in_word: source.chunk_count_in_word,
         step_count_in_word: source.step_count_in_word,
@@ -728,6 +929,7 @@ fn f_prime_recursive_rejects_tampered_fresh_x_bit() {
             combined: &fixture.combined,
             children: &fixture.children,
         },
+        rows_in_chunk: 1,
         source_image: &source.image,
         chunk_count_in_word: source.chunk_count_in_word,
         step_count_in_word: source.step_count_in_word,
@@ -760,6 +962,7 @@ fn f_prime_recursive_rejects_nonbinary_source_image_public_bit() {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
         nifs_msg: msg_from_fixture(&fixture),
+        rows_in_chunk: 1,
         source_image: &source.image,
         chunk_count_in_word: source.chunk_count_in_word,
         step_count_in_word: source.step_count_in_word,
@@ -793,6 +996,7 @@ fn f_prime_recursive_rejects_tampered_prior_source_image_bit() {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
         nifs_msg: msg_from_fixture(&fixture),
+        rows_in_chunk: 1,
         source_image: &source.image,
         chunk_count_in_word: source.chunk_count_in_word,
         step_count_in_word: source.step_count_in_word,
@@ -834,6 +1038,7 @@ fn f_prime_recursive_rejects_fresh_x_not_matching_prior_source_image() {
             combined: &fixture.combined,
             children: &fixture.children,
         },
+        rows_in_chunk: 1,
         source_image: &source.image,
         chunk_count_in_word: source.chunk_count_in_word,
         step_count_in_word: source.step_count_in_word,
@@ -866,6 +1071,7 @@ fn f_prime_recursive_rejects_source_image_chunk_count_mismatch() {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
         nifs_msg: msg_from_fixture(&fixture),
+        rows_in_chunk: 1,
         source_image: &source.image,
         chunk_count_in_word: source.chunk_count_in_word,
         step_count_in_word: source.step_count_in_word,
@@ -902,6 +1108,7 @@ fn f_prime_recursive_rejects_noncanonical_source_image_pc_word() {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
         nifs_msg: msg_from_fixture(&fixture),
+        rows_in_chunk: 1,
         source_image: &source.image,
         chunk_count_in_word: source.chunk_count_in_word,
         step_count_in_word: source.step_count_in_word,

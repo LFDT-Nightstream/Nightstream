@@ -665,6 +665,173 @@ fn r1cs_compiler_base_and_recursive_share_structure() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// Batched R1CS-F' chain — `append_assignments` for K > 1.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Quick smoke test for batched R1CS-F' chunks: two `append_assignments`
+/// calls of K=3 each. Asserts (a) per-step audit length matches batch
+/// count, (b) public_batches lengths are `[3, 3]`, and (c) finish +
+/// verify_uncompressed succeed end-to-end.
+#[test]
+fn r1cs_chain_builder_batched_chunks_K3_finishes_and_verifies() {
+    let r1cs = one_product_r1cs();
+    let plan = make_tiny_lifecycle_plan(r1cs.m(), r1cs.m_in);
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_00B3).expect("preprocess");
+
+    let mut chain = R1csChainBuilder::new(&prep).expect("start builder");
+
+    let k = 3usize;
+    let batch_0: Vec<Vec<F>> = (0..k)
+        .map(|i| assignment_one_product(3 + i as u64, 7))
+        .collect();
+    let batch_1: Vec<Vec<F>> = (0..k)
+        .map(|i| assignment_one_product(2 + i as u64, 5))
+        .collect();
+
+    let compiled_0 = chain.append_assignments(batch_0).expect("K=3 base chunk");
+    assert_eq!(compiled_0.len(), k);
+    let compiled_1 = chain
+        .append_assignments(batch_1)
+        .expect("K=3 recursive chunk");
+    assert_eq!(compiled_1.len(), k);
+
+    // Chunk-shared trace assembly must NOT share `state_x_out`: each
+    // assignment binds its own public input, so distinct assignments
+    // (products 21, 28, 35) must produce distinct `public_output_digest`s.
+    // If the shared/per-step split accidentally shared `state_x_out`,
+    // these would collapse to one value.
+    for chunk in [&compiled_0, &compiled_1] {
+        let mut outs: Vec<_> = chunk.iter().map(|c| c.public_output_digest).collect();
+        outs.sort_by(|a, b| format!("{a:?}").cmp(&format!("{b:?}")));
+        outs.dedup();
+        assert_eq!(
+            outs.len(),
+            k,
+            "each assignment in a chunk must keep its own state_x_out / public_output_digest"
+        );
+    }
+
+    // Chain advanced once per chunk: chunk_count = 2, step_count = 2K.
+    let ctx = chain.context();
+    assert_eq!(ctx.chain_state.chunk_count, 2);
+    assert_eq!(ctx.chain_state.step_count, 2 * k as u64);
+
+    // Lifecycle audit reflects two extends, each of size K.
+    let audit = chain.audit().expect("audit after two batched appends");
+    assert_eq!(audit.steps.len(), 2, "two extends, one per K-chunk");
+    assert_eq!(audit.public_batches.len(), 2);
+    assert_eq!(audit.public_batches[0].len(), k, "first public batch must be K=3");
+    assert_eq!(audit.public_batches[1].len(), k, "second public batch must be K=3");
+
+    let finished = chain.finish().expect("finalize batched chain");
+    neo_fold_clean::verify_uncompressed(&prep.prep, &finished).expect("verify_uncompressed");
+}
+
+/// **Varying** batch sizes across chunks: K=3 then K=2. This is the case
+/// the `rows_in_chunk`-vs-`nifs_msg.fresh.len()` separation exists for —
+/// at the second chunk the F' transcript / step_count advance must use
+/// the *current* chunk size (2), while NIFS folds the *previous* chunk
+/// (3). Equal-size tests (`[3,3]`, `[61,61]`) can't distinguish the two,
+/// so a regression that conflated them would slip through; this one
+/// catches it via (a) `verify_prior_fold`'s K-aware chunk_digest (a
+/// wrong K makes the reconstructed transcript diverge and NIFS.V
+/// rejects) and (b) the explicit `step_count == 5` assertion (a wrong
+/// advance would land on 6).
+#[test]
+fn r1cs_chain_builder_batched_chunks_varying_k_finishes_and_verifies() {
+    let r1cs = one_product_r1cs();
+    let plan = make_tiny_lifecycle_plan(r1cs.m(), r1cs.m_in);
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_00D7).expect("preprocess");
+
+    let mut chain = R1csChainBuilder::new(&prep).expect("start builder");
+
+    let batch_0: Vec<Vec<F>> = (0..3)
+        .map(|i| assignment_one_product(3 + i as u64, 7))
+        .collect();
+    let batch_1: Vec<Vec<F>> = (0..2)
+        .map(|i| assignment_one_product(2 + i as u64, 5))
+        .collect();
+
+    assert_eq!(chain.append_assignments(batch_0).expect("K=3 base").len(), 3);
+    assert_eq!(
+        chain
+            .append_assignments(batch_1)
+            .expect("K=2 recursive")
+            .len(),
+        2
+    );
+
+    // chunk_count advances once per chunk (2); step_count by the per-chunk
+    // sizes (3 + 2 = 5), NOT by 2*|previous chunk|.
+    let ctx = chain.context();
+    assert_eq!(ctx.chain_state.chunk_count, 2);
+    assert_eq!(
+        ctx.chain_state.step_count, 5,
+        "step_count must advance by the *current* chunk size each step (3 then 2 = 5)"
+    );
+
+    let audit = chain.audit().expect("audit");
+    assert_eq!(audit.public_batches[0].len(), 3);
+    assert_eq!(audit.public_batches[1].len(), 2);
+
+    let finished = chain.finish().expect("finish");
+    neo_fold_clean::verify_uncompressed(&prep.prep, &finished).expect("verify_uncompressed");
+}
+
+/// Full SuperNeo same-shape max-fresh path through the R1CS-F' frontend:
+/// two `append_assignments` calls of `K = MAX_FRESH_K = 61` each. This is
+/// the load-bearing "61 same-shape R1CS-F' operations at once" surface —
+/// finishing folds `K + k_rho = 61 + 14 = 75` claims through Π_RLC under
+/// the steady-state bound `75 · 216 = 16200 < 2^14`. (Here the per-op
+/// circuit is the trivial `one_product_r1cs`, not SHA — this proves the
+/// batching machinery scales to K=61, not any particular app circuit.)
+///
+/// Marked `#[ignore]` because it runs ~4 minutes (122 R1CS-F' compiles
+/// + two heavy NIFS proves), so the default `cargo test` slice stays
+/// fast. Verified end-to-end at ~244s under [`tiny_params`] on the
+/// project's reference machine. Opt in via
+/// `cargo test ... -- --ignored`. The smaller K=3 test
+/// [`r1cs_chain_builder_batched_chunks_K3_finishes_and_verifies`] is
+/// the fast smoke test that runs by default.
+#[test]
+#[ignore]
+fn r1cs_chain_builder_batched_chunks_K_max_fresh_finishes_and_verifies() {
+    let r1cs = one_product_r1cs();
+    let plan = make_tiny_lifecycle_plan(r1cs.m(), r1cs.m_in);
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_00C1).expect("preprocess");
+
+    let mut chain = R1csChainBuilder::new(&prep).expect("start builder");
+
+    let k = goldilocks_paper_b2::MAX_FRESH_K as usize;
+    let batch_0: Vec<Vec<F>> = (0..k)
+        .map(|i| assignment_one_product(1 + i as u64, 7))
+        .collect();
+    let batch_1: Vec<Vec<F>> = (0..k)
+        .map(|i| assignment_one_product(1 + i as u64, 9))
+        .collect();
+
+    let compiled_0 = chain
+        .append_assignments(batch_0)
+        .expect("K=MAX_FRESH_K base chunk");
+    assert_eq!(compiled_0.len(), k);
+    let compiled_1 = chain
+        .append_assignments(batch_1)
+        .expect("K=MAX_FRESH_K recursive chunk");
+    assert_eq!(compiled_1.len(), k);
+
+    let audit = chain.audit().expect("audit after two batched appends");
+    assert_eq!(audit.steps.len(), 2);
+    assert_eq!(audit.public_batches[0].len(), k);
+    assert_eq!(audit.public_batches[1].len(), k);
+
+    let finished = chain.finish().expect("finalize K=61 R1CS-F' chain");
+    neo_fold_clean::verify_uncompressed(&prep.prep, &finished).expect("verify_uncompressed");
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // `preprocess` validates the plan's public-input binding.
 // ─────────────────────────────────────────────────────────────────────────
 

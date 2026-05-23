@@ -134,6 +134,9 @@ pub enum FPrimeShellCompilerError {
     #[error("F' shell compiler: base step (chunk_count == 0) must not carry a prior fold")]
     BaseStepUnexpectedPriorFold,
 
+    #[error("F' shell compiler: chunk must contain at least one assignment (got empty)")]
+    EmptyChunk,
+
     #[error(
         "F' shell compiler: recursive step at chunk_count = {chunk_count} requires `ctx.fold_for_step = Some(..)`"
     )]
@@ -239,6 +242,7 @@ pub fn verify_prior_fold(
     prep: &Preprocessing,
     ctx: &FPrimeCompilerContext,
     fold: &FPrimeFoldForStep,
+    rows_in_chunk: usize,
 ) -> Result<(), FPrimeShellCompilerError> {
     // Reconstruct the per-step F' transcript prefix. The proof variant
     // is irrelevant here — `f_prime_step_transcript` only reads digest
@@ -253,8 +257,15 @@ pub fn verify_prior_fold(
         public_trace: digest_fields_as_digest32(ctx.chain_state.public_trace),
         proof: ProofState::Initial,
     };
-    let chunk_digest = chunk_digest_for_shape(
+    // `rows_in_chunk` is the size of the **current** batch being deposited
+    // at this step (= `next_latest.len()` in native). The native fold
+    // transcript used `f_prime_chunk_public_digest(state.step_count,
+    // &next_latest)`, which absorbs K = `next_latest.len()` in the
+    // preimage. Reconstructing K-aware shape digest replays the same
+    // transcript bit-for-bit.
+    let chunk_digest = chunk_digest_for_shape_count(
         ctx.chain_state.step_count,
+        rows_in_chunk,
         ctx.commitment_d,
         ctx.commitment_kappa,
         ctx.public_input_len,
@@ -385,11 +396,29 @@ fn k_to_pair(k: &K) -> [F; 2] {
 // Shape / boundary digest helpers.
 // ─────────────────────────────────────────────────────────────────────────
 
-/// `chunk_digest` for the canonical F' shape: shape-only, no
-/// circularity with the step's own commitment data. Synthesises a
-/// minimal [`CcsClaim`] with the right (d, kappa, m_in) — these are
-/// the only fields [`f_prime_chunk_public_digest`] reads.
-pub fn chunk_digest_for_shape(start_index: u64, d: usize, kappa: usize, m_in: usize) -> [F; 4] {
+/// `chunk_digest` for the canonical F' shape, with explicit batch
+/// size `fresh_count`. Mirrors a same-shape SuperNeo chunk of K =
+/// `fresh_count` fresh CCS instances at this step. Shape-only: no
+/// circularity with the step's own commitment data.
+///
+/// Synthesises one minimal [`CcsClaim`] with the right `(d, kappa,
+/// m_in)` and feeds it `fresh_count` times to
+/// [`f_prime_chunk_public_digest`], which reads only those three
+/// per-claim fields and `(start_index, fresh.len())`. Two batches of
+/// identical shape and different size therefore produce *different*
+/// digests — the K-bind comes from `fresh.len()` in the absorbed
+/// preimage.
+pub fn chunk_digest_for_shape_count(
+    start_index: u64,
+    fresh_count: usize,
+    d: usize,
+    kappa: usize,
+    m_in: usize,
+) -> [F; 4] {
+    assert!(
+        fresh_count >= 1,
+        "chunk_digest_for_shape_count: SuperNeo K \u{2265} 1 (got 0)"
+    );
     let shape_claim = CcsClaim {
         c: Commitment {
             d,
@@ -399,7 +428,14 @@ pub fn chunk_digest_for_shape(start_index: u64, d: usize, kappa: usize, m_in: us
         x: Vec::new(),
         m_in,
     };
-    f_prime_chunk_public_digest(start_index, std::slice::from_ref(&shape_claim))
+    let claims = vec![shape_claim; fresh_count];
+    f_prime_chunk_public_digest(start_index, &claims)
+}
+
+/// `chunk_digest` for the canonical F' shape with K = 1. Convenience
+/// wrapper around [`chunk_digest_for_shape_count`].
+pub fn chunk_digest_for_shape(start_index: u64, d: usize, kappa: usize, m_in: usize) -> [F; 4] {
+    chunk_digest_for_shape_count(start_index, 1, d, kappa, m_in)
 }
 
 /// Decompose the 4-lane Goldilocks digest into `boundary_bits` boolean
@@ -459,15 +495,67 @@ pub fn canonical_ce_shape_and_child_count(
 /// the satisfying assignment's public prefix so the verifier learns
 /// "this `x` was proven," not just "some assignment satisfies the
 /// shape."
+///
+/// `rows_in_chunk` is the SuperNeo same-shape batch size of *this*
+/// step's deposit (= `next_latest.len()` in native). It drives
+/// `step_count` advance (`+= rows_in_chunk`) and is absorbed into the
+/// shape `chunk_digest`. For a K=1 step, pass `1`; the produced trace
+/// matches the legacy K=1 path bit-for-bit.
 pub fn assemble_unified_step_traces(
     ctx: &FPrimeCompilerContext,
     is_base: bool,
     recursive_c_data: &[F],
     child_count: u64,
     app_public_input: &[F],
+    rows_in_chunk: usize,
 ) -> UnifiedStepTraceAssembly {
-    let chunk_digest = chunk_digest_for_shape(
+    let shared = assemble_shared_chunk_traces(ctx, is_base, recursive_c_data, child_count, rows_in_chunk);
+    assemble_step_from_shared(&shared, ctx, app_public_input)
+}
+
+/// The chunk-shared portion of [`assemble_unified_step_traces`]:
+/// everything that does **not** depend on a step's `app_public_input`.
+///
+/// For a K-sized SuperNeo chunk all assignments share the same pre-step
+/// `ctx`, so they share the `chunk_digest`, the four Poseidon traces
+/// (boundary, public_trace, base/recursive accumulator), and the
+/// post-step chain-coordinate advance. Computing this once per chunk and
+/// reusing it (via [`assemble_step_from_shared`]) avoids recomputing the
+/// four Poseidon traces K times — that recomputation was the dominant
+/// per-assignment compile cost. The only per-assignment work left is the
+/// `state_x_out` trace (which absorbs the app public input) and the
+/// `boundary_bits` derived from it.
+pub struct SharedChunkTraces {
+    pub state_in: StateIn,
+    pub state_out: StateOut,
+    pub chunk_digest: [F; 4],
+    pub next_chain_state: FPrimeChainState,
+    boundary: PoseidonTraceImage,
+    public_trace: PoseidonTraceImage,
+    base_accumulator: PoseidonTraceImage,
+    recursive_accumulator: PoseidonTraceImage,
+}
+
+/// Compute the [`SharedChunkTraces`] once for a SuperNeo chunk. See that
+/// type's docs. `rows_in_chunk` is the chunk's batch size `K`.
+pub fn assemble_shared_chunk_traces(
+    ctx: &FPrimeCompilerContext,
+    is_base: bool,
+    recursive_c_data: &[F],
+    child_count: u64,
+    rows_in_chunk: usize,
+) -> SharedChunkTraces {
+    assert!(
+        rows_in_chunk >= 1,
+        "assemble_shared_chunk_traces: SuperNeo K \u{2265} 1 (got 0)"
+    );
+    // SuperNeo same-shape chunk of K = `rows_in_chunk` fresh CCS
+    // instances. The chunk_digest absorbs K alongside the per-claim
+    // shape digest, matching native
+    // `f_prime_chunk_public_digest_for_step(start_index, next_latest)`.
+    let chunk_digest = chunk_digest_for_shape_count(
         ctx.chain_state.step_count,
+        rows_in_chunk,
         ctx.commitment_d,
         ctx.commitment_kappa,
         ctx.public_input_len,
@@ -499,7 +587,10 @@ pub fn assemble_unified_step_traces(
     let new_z_i = boundary.digest_native;
     let new_public_trace = public_trace.digest_native;
     let new_chunk_count = ctx.chain_state.chunk_count + 1;
-    let new_step_count = ctx.chain_state.step_count + 1;
+    // Native `advance_state(prev, _, fresh_count, _)` increments
+    // `step_count` by `fresh_count == next_latest.len()` per step. For
+    // a K-deposit step, `rows_in_chunk = K`.
+    let new_step_count = ctx.chain_state.step_count + rows_in_chunk as u64;
 
     let state_out = StateOut {
         new_chunk_count,
@@ -508,22 +599,6 @@ pub fn assemble_unified_step_traces(
         new_public_trace,
         new_acc_digest,
     };
-
-    let state_x_out = encode_poseidon_trace(&build_state_x_out_preimage_fields_with_app_x(
-        ctx.vk_fs_digest,
-        ctx.structure_digest,
-        new_chunk_count,
-        new_step_count,
-        ctx.z_0,
-        new_z_i,
-        ctx.pc,
-        new_acc_digest,
-        new_public_trace,
-        app_public_input,
-    ));
-
-    let public_output_digest = state_x_out.digest_native;
-    let boundary_bits = boundary_bits_from_digest(public_output_digest, ctx.boundary_bits);
     let next_chain_state = FPrimeChainState {
         chunk_count: new_chunk_count,
         step_count: new_step_count,
@@ -532,18 +607,57 @@ pub fn assemble_unified_step_traces(
         public_trace: new_public_trace,
     };
 
-    UnifiedStepTraceAssembly {
+    SharedChunkTraces {
         state_in,
         state_out,
         chunk_digest,
+        next_chain_state,
+        boundary,
+        public_trace,
+        base_accumulator,
+        recursive_accumulator,
+    }
+}
+
+/// Build one step's [`UnifiedStepTraceAssembly`] from the chunk-shared
+/// traces plus this step's `app_public_input`. Only the `state_x_out`
+/// trace and the `boundary_bits` it produces are computed here; the four
+/// shared Poseidon traces are cloned from `shared` (a memcpy, far cheaper
+/// than recomputing the permutations). The result is byte-for-byte
+/// identical to calling [`assemble_unified_step_traces`] directly.
+pub fn assemble_step_from_shared(
+    shared: &SharedChunkTraces,
+    ctx: &FPrimeCompilerContext,
+    app_public_input: &[F],
+) -> UnifiedStepTraceAssembly {
+    let state_x_out = encode_poseidon_trace(&build_state_x_out_preimage_fields_with_app_x(
+        ctx.vk_fs_digest,
+        ctx.structure_digest,
+        shared.state_out.new_chunk_count,
+        shared.state_out.new_step_count,
+        ctx.z_0,
+        shared.state_out.new_z_i,
+        ctx.pc,
+        shared.state_out.new_acc_digest,
+        shared.state_out.new_public_trace,
+        app_public_input,
+    ));
+
+    let public_output_digest = state_x_out.digest_native;
+    let boundary_bits = boundary_bits_from_digest(public_output_digest, ctx.boundary_bits);
+
+    UnifiedStepTraceAssembly {
+        state_in: shared.state_in,
+        state_out: shared.state_out,
+        chunk_digest: shared.chunk_digest,
         public_output_digest,
         boundary_bits,
-        next_chain_state,
+        next_chain_state: shared.next_chain_state,
         traces: UnifiedStepPoseidonTraces {
-            boundary,
-            public_trace,
-            base_accumulator,
-            recursive_accumulator,
+            boundary: shared.boundary.clone(),
+            public_trace: shared.public_trace.clone(),
+            base_accumulator: shared.base_accumulator.clone(),
+            recursive_accumulator: shared.recursive_accumulator.clone(),
             state_x_out,
         },
     }

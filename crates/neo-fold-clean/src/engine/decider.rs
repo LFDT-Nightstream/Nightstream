@@ -637,6 +637,12 @@ fn emit_recursive_step_r1cs(
             combined: &nifs.pi_rlc.combined,
             children: &nifs.pi_dec.children,
         },
+        // The current-step chunk size = number of fresh claims deposited
+        // at this step (= `public_batch.len()`, mirroring native
+        // `advance_state(..., fresh_count, ...)`). This may differ from
+        // `nifs_msg.fresh.len()` (the previous step's batch being folded
+        // by NIFS.V) when batch sizes vary across steps.
+        rows_in_chunk: public_batch.len() as u64,
         source_image: &image,
         chunk_count_in_word,
         step_count_in_word,
@@ -908,37 +914,41 @@ fn emit_terminal_fold(
     Ok((true, true, post_fold_acc_digest, nifs_outputs.running))
 }
 
-/// Constrain the terminal fold's only fresh CCS instance's public input
-/// to encode the last F' step's `x_out`. Specifically:
-///   - `fresh.x[0] == 1` (CCS constant-one slot).
-///   - `fresh.x[1..] == last.x_out_bits` (bit-by-bit).
+/// Constrain every terminal-fold fresh CCS instance's public input to
+/// encode the last F' step's `x_out`. The trailing latest is one
+/// SuperNeo chunk rooted at the last step's `x_out`, so every fresh in
+/// the batch shares the same recursive link. Specifically, for every
+/// `fresh_x[i]`:
+///   - `fresh_x[i].len() == F_PRIME_PUBLIC_INPUT_LEN`.
+///   - `fresh_x[i][0] == 1` (CCS constant-one slot).
+///   - `fresh_x[i][1..] == last_x_out_bits` (bit-by-bit).
 fn enforce_terminal_latest_link(
     builder: &mut R1csBuilder,
     fresh_x: &[Vec<Var>],
     last_x_out_bits: &[Var],
 ) -> Result<(), decider::Error> {
-    if fresh_x.len() != 1 {
-        return Err(decider::Error::WalkFailed(format!(
-            "terminal fold must have exactly one fresh claim, got {}",
-            fresh_x.len()
-        )));
+    if fresh_x.is_empty() {
+        return Err(decider::Error::WalkFailed(
+            "terminal fold must have a non-empty fresh batch".into(),
+        ));
     }
-    let x = &fresh_x[0];
-    if x.len() != F_PRIME_PUBLIC_INPUT_LEN {
-        return Err(decider::Error::WalkFailed(format!(
-            "terminal fresh public input has length {}, expected {F_PRIME_PUBLIC_INPUT_LEN}",
-            x.len()
-        )));
-    }
-    builder.enforce_eq(&Lc::from_var(x[F_PRIME_PUBLIC_ONE_OFFSET]), &Lc::from_const(F::ONE));
     if last_x_out_bits.len() != F_PRIME_ENC_INST_BITS {
         return Err(decider::Error::WalkFailed(format!(
             "last step's x_out_bits length {} != F_PRIME_ENC_INST_BITS ({F_PRIME_ENC_INST_BITS})",
             last_x_out_bits.len()
         )));
     }
-    for (fresh_bit, out_bit) in x[F_PRIME_ENC_INST_OFFSET..].iter().zip(last_x_out_bits) {
-        builder.enforce_eq(&Lc::from_var(*fresh_bit), &Lc::from_var(*out_bit));
+    for (idx, x) in fresh_x.iter().enumerate() {
+        if x.len() != F_PRIME_PUBLIC_INPUT_LEN {
+            return Err(decider::Error::WalkFailed(format!(
+                "terminal fresh[{idx}] public input has length {}, expected {F_PRIME_PUBLIC_INPUT_LEN}",
+                x.len()
+            )));
+        }
+        builder.enforce_eq(&Lc::from_var(x[F_PRIME_PUBLIC_ONE_OFFSET]), &Lc::from_const(F::ONE));
+        for (fresh_bit, out_bit) in x[F_PRIME_ENC_INST_OFFSET..].iter().zip(last_x_out_bits) {
+            builder.enforce_eq(&Lc::from_var(*fresh_bit), &Lc::from_var(*out_bit));
+        }
     }
     Ok(())
 }

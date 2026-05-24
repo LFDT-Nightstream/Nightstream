@@ -144,14 +144,23 @@ pub struct Preprocessing {
     /// the chain binds to a specific m_in. `None` means "unfixed at the
     /// program level" — encoded as `u64::MAX` in the absorb.
     pub public_input_len: Option<usize>,
-    /// Verifier-owned semantic-state mode. Default `Stateless`; the
-    /// R1CS-F' frontend (or any other stateful frontend) sets this to
-    /// `Stateful` at its own preprocess time if its plan declares
-    /// `semantic_state_in/out_var_indices`. The verifier consults this
-    /// bit in `verify_uncompressed` / `verify_uncompressed_audit` so a
-    /// malicious prover on a stateless plan cannot inject self-consistent
-    /// arbitrary bytes into `PublicImage.semantic_state_digest`.
-    pub semantic_state_mode: SemanticStateMode,
+    /// Verifier-owned semantic-state mode — **structure-derived, not
+    /// caller-settable**.
+    ///
+    /// Default `Stateless`; in-crate frontends (the R1CS-F' preprocess
+    /// path) flip this to `Stateful` at their own preprocess time
+    /// **only when** their plan declares `semantic_state_in/out_var_indices`
+    /// — i.e. when the resulting F' image's CCS structure actually
+    /// carries Poseidon2 binding rows over the app-state wires.
+    ///
+    /// The field is `pub(crate)` rather than `pub` precisely because a
+    /// public setter would break the ownership boundary: an external
+    /// caller could mark a stateless `Preprocessing` `Stateful`,
+    /// `verify_uncompressed` would skip the stateless invariant, and
+    /// the resulting proof would carry a prover-chosen
+    /// `semantic_state_digest` that no constraint authenticates. Read
+    /// access goes through [`Preprocessing::semantic_state_mode`].
+    pub(crate) semantic_state_mode: SemanticStateMode,
     /// Memoized 4-limb digest of the full CCS structure
     /// (`paper::digest::structure_digest(&structure)`). Verifier-owned,
     /// computed once at preprocess time; protocol code reads this field
@@ -169,15 +178,21 @@ impl Preprocessing {
         &self.structure
     }
 
-    /// Frontend-side hook to declare that the chain built on top of this
-    /// preprocessing carries application state (i.e., the plan declares
-    /// `semantic_state_in/out_var_indices`). Verifier checks consult the
-    /// resulting mode to decide whether `proof.semantic_state_digest`
-    /// must equal the accumulator digest (Stateless) or whether the F'
-    /// image's Poseidon2 binding rows authenticate it (Stateful).
-    ///
-    /// Called once by the stateful frontend's `preprocess`; idempotent.
-    pub fn with_semantic_state_mode(mut self, mode: SemanticStateMode) -> Self {
+    /// Read-only view of the verifier-owned semantic-state mode. See
+    /// the [`Preprocessing.semantic_state_mode`] field doc for the
+    /// soundness argument.
+    pub fn semantic_state_mode(&self) -> SemanticStateMode {
+        self.semantic_state_mode
+    }
+
+    /// In-crate hook for stateful frontends to declare the chain's
+    /// semantic mode at their own preprocess time. The frontend MUST
+    /// derive `mode` from observable structure properties (e.g. its
+    /// plan's `semantic_state_in/out_var_indices`); it MUST NOT take a
+    /// caller-supplied value. The setter is `pub(crate)` so external
+    /// code cannot lie about the mode to short-circuit
+    /// `verify_uncompressed`'s stateless invariant.
+    pub(crate) fn with_semantic_state_mode(mut self, mode: SemanticStateMode) -> Self {
         self.semantic_state_mode = mode;
         self
     }

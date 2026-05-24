@@ -38,29 +38,40 @@ pub enum SemanticStateAdvance {
     Stateful([u8; 32]),
 }
 
-/// Verifier-owned discriminator for whether a chain carries app state.
+/// Verifier-owned, structure-derived discriminator for whether a chain
+/// carries app state.
 ///
-/// Lives on [`crate::lifecycle::Preprocessing`]; the frontend sets it
-/// once at preprocess time based on whether its plan declares
-/// `semantic_state_in/out_var_indices`. The verifier consults this bit
-/// to decide whether a prover-supplied `StepProof.semantic_state_digest`
-/// must equal the accumulator digest (stateless invariant — no F' image
-/// binding rows would otherwise authenticate the field) or whether the
-/// F' image's Poseidon2 binding rows are responsible for it (stateful).
+/// Lives on [`crate::lifecycle::Preprocessing::semantic_state_mode`] —
+/// a `pub(crate)` field with no public setter. In-crate stateful
+/// frontends (today: R1CS-F') flip this to `Stateful` at preprocess
+/// time **only when** their plan declares
+/// `semantic_state_in/out_var_indices`, i.e. when the resulting F'
+/// image's CCS structure actually carries the Poseidon2 binding rows
+/// over the app-state wires. External callers cannot construct a
+/// `Stateful` preprocessing: the only public path
+/// (`lifecycle::preprocess` + `lifecycle::preprocess_with_test_log`)
+/// always returns `Stateless`. This ownership boundary is what makes
+/// `Stateful` a real verifier contract — without it, a caller could
+/// flip the bit, `verify_uncompressed` would skip the stateless
+/// invariant, and the prover would be free to inject arbitrary
+/// `semantic_state_digest` bytes that no constraint authenticates.
 ///
-/// Without this bit, a malicious prover on a stateless plan could
-/// inject arbitrary self-consistent bytes into
-/// `PublicImage.semantic_state_digest` because the F' image's CCS
-/// structure has no binding constraint for that lane.
+/// Verifier consequences:
+/// - `Stateless`: `verify_uncompressed` / `verify_step` enforce
+///   `proof.semantic_state_digest == accumulator digest carried
+///   through finalization`. A mismatch is surfaced as
+///   [`Error::StatelessSemanticInvariantViolated`].
+/// - `Stateful`: the verifier trusts `proof.semantic_state_digest` as
+///   the new chain coordinate; authenticity is established by the
+///   terminal NIFS.V re-run inside `verify_uncompressed`, which runs
+///   Π_CCS sumcheck on the last F' image. That image's CCS structure
+///   carries the binding rows (by virtue of how the frontend builds
+///   it), and the IVC inductive argument propagates the binding to
+///   prior steps through each step's in-circuit NIFS.V verifier.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum SemanticStateMode {
-    /// Chain has no application state. `proof.semantic_state_digest`
-    /// must equal the accumulator digest.
     #[default]
     Stateless,
-    /// Chain carries application state. The F' image's CCS structure
-    /// has Poseidon2 binding rows over the app-state wires; terminal
-    /// Π_CCS sumcheck authenticates them.
     Stateful,
 }
 

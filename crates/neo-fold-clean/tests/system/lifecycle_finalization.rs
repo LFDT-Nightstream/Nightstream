@@ -283,7 +283,7 @@ fn validate(
         prep.combine_b_pows,
         &prep.vk,
         prep.public_input_len,
-        prep.semantic_state_mode,
+        prep.semantic_state_mode(),
         statement,
     )
 }

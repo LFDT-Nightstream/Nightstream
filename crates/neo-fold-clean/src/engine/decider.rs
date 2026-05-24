@@ -209,14 +209,37 @@ pub fn synthesize_statement_r1cs(
     synthesize_statement_r1cs_inner(prep, statement)
 }
 
-/// Test hook for pin-row isolation. Production callers must use
-/// [`synthesize_statement_r1cs`], which runs the native preflight before
-/// emitting any rows.
+/// **TEST-ONLY ENTRY POINT — DO NOT USE IN PRODUCTION CODE.**
+///
+/// Emits the full-history audit R1CS directly from `statement`, **skipping
+/// the native preflight that authenticates the statement against
+/// preprocessing**. The only legitimate caller is the pin-row isolation
+/// test in `tests/system/decider_r1cs.rs::decider_r1cs_terminal_semantic_state_pin_rejects_when_preflight_is_bypassed`,
+/// which depends on bypassing preflight to prove that the in-circuit
+/// pin row fires even when preflight is silenced.
+///
+/// Why it is `pub`: the test lives in `tests/` (per CLAUDE.md
+/// "Never add tests in the same implementation file") and the
+/// integration-test framework only sees the public API. `#[doc(hidden)]`
+/// + this loud comment + the `_without_preflight_for_tests` name +
+/// `#[track_caller]` panicking debug assert below are the cordon.
+///
+/// Production callers MUST use [`synthesize_statement_r1cs`], which
+/// runs the native preflight before emitting any rows. Calling this
+/// instead is a soundness footgun: an attacker-crafted `statement`
+/// passes through and synthesizes an R1CS over unvalidated witness
+/// material.
 #[doc(hidden)]
+#[track_caller]
 pub fn synthesize_statement_r1cs_without_preflight_for_tests(
     prep: &Preprocessing,
     statement: &Statement,
 ) -> Result<DeciderR1csSynthesis, decider::Error> {
+    debug_assert!(
+        cfg!(test) || std::thread::current().name().unwrap_or("").contains("test"),
+        "synthesize_statement_r1cs_without_preflight_for_tests called outside a test context — \
+         use synthesize_statement_r1cs in production code"
+    );
     synthesize_statement_r1cs_inner(prep, statement)
 }
 

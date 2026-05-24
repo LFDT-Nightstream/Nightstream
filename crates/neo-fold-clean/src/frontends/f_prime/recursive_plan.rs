@@ -212,15 +212,15 @@ pub fn accumulator_preimage_sources(
 /// Preimage layout (matches `paper::digest::state_x_out_digest`):
 /// ```text
 ///   pack_bytes_as_fields(tag)
-///   ‖ vk_fs (4)              [state_lanes 0..4]
-///   ‖ structure (4)          [state_lanes 4..8]
-///   ‖ chunk_count halves (2) [state_lanes[24] split into low_32, high_32]
-///   ‖ step_count halves (2)  [state_lanes[25] split]
-///   ‖ z_0 (4)                [state_lanes 8..12]    initial_boundary
-///   ‖ new_z_i (4)            [state_lanes 26..30]   current_boundary
-///   ‖ pc halves (2)          [Constant fixture/per-step values]
-///   ‖ new_semantic_state_digest (4) [state_lanes 38..42] semantic_acc
-///   ‖ new_acc_digest (4)            [state_lanes 42..46] construction2_acc
+///   ‖ vk_fs (4)                     [state_lanes 0..4]
+///   ‖ structure (4)                 [state_lanes 4..8]
+///   ‖ chunk_count halves (2)        [state_lanes[28] split into low_32, high_32]
+///   ‖ step_count halves (2)         [state_lanes[29] split]
+///   ‖ z_0 (4)                       [state_lanes 8..12]    initial_boundary
+///   ‖ new_z_i (4)                   [state_lanes 30..34]   current_boundary
+///   ‖ pc halves (2)                 [Constant fixture/per-step values]
+///   ‖ new_semantic_state_digest (4) [state_lanes 38..42]   semantic_acc
+///   ‖ new_acc_digest (4)            [state_lanes 42..46]   construction2_acc
 ///   ‖ new_public_trace (4)          [state_lanes 34..38]
 /// ```
 ///

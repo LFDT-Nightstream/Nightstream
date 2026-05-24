@@ -50,6 +50,15 @@ pub struct State {
     /// terminal-fold re-run that `verify_uncompressed` performs via
     /// `final_fold.terminal_inputs`).
     pub z_i: [u8; 32],
+    /// Initial app / VM semantic state digest, fixed at `State::base` time.
+    /// Exposed on the terminal public image so external verifiers can pin
+    /// the start state. Never mutated by `advance_state`.
+    pub initial_semantic_state_digest: [u8; 32],
+    /// Current app / VM semantic state digest. Fed to the `semantic_acc`
+    /// lane of `state_x_out_digest`; `acc_digest` remains the
+    /// Construction-2 / SuperNeo accumulator handle in the
+    /// `construction2_acc` lane.
+    pub semantic_state_digest: [u8; 32],
     /// pc_i — program counter (always `TRIVIAL_PC` in this build).
     pub pc: u64,
     /// Derived accumulator handle. After finalization, equals the digest
@@ -74,13 +83,15 @@ pub struct State {
 impl State {
     /// Initial case — `chunk_count = 0`, `proof = ProofState::Initial`, `z_i = z_0`.
     /// Constructed via [`crate::lifecycle::preprocess`] then `prove(&prep, [])`.
-    pub fn base(z_0: [u8; 32], public_trace: [u8; 32], acc_digest: [u8; 32]) -> Self {
+    pub fn base(z_0: [u8; 32], public_trace: [u8; 32], acc_digest: [u8; 32], semantic_state_digest: [u8; 32]) -> Self {
         Self {
             chunk_count: 0,
             step_count: 0,
             z_0,
             z_i: z_0,
             pc: TRIVIAL_PC,
+            initial_semantic_state_digest: semantic_state_digest,
+            semantic_state_digest,
             acc_digest,
             public_trace,
             proof: ProofState::Initial,

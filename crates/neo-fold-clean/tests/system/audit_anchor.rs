@@ -14,7 +14,7 @@ fn base_case_state_has_paper_fields() {
     let z_0 = [7u8; 32];
     let public_trace = [3u8; 32];
     let acc_digest = [5u8; 32];
-    let s = State::base(z_0, public_trace, acc_digest);
+    let s = State::base(z_0, public_trace, acc_digest, acc_digest);
 
     // chunk_count = 0, z_0 = z_i, pc = TRIVIAL_PC, ProofState = Initial.
     assert_eq!(s.chunk_count, 0);

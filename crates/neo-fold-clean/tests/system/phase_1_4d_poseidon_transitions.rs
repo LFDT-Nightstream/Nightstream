@@ -55,6 +55,7 @@ fn enforcement_config(enforcements: Vec<PoseidonTransitionEnforcement>) -> FPrim
         poseidon_one_shot_preimage_lens: vec![PREIMAGE_LEN],
         sponge_transcript_permutes: 0,
         one_shot_digest_to_state_out_bindings: vec![],
+        one_shot_digest_to_state_in_bindings: vec![],
         one_shot_digest_to_public_x_out_bindings: vec![],
         poseidon_transition_enforcements: enforcements,
         unified_accumulator_selector: None,
@@ -106,6 +107,7 @@ fn honest_image() -> (FPrimeImageLayout, FPrimeImage, [F; PREIMAGE_LEN]) {
         z_0: [F::ZERO; 4],
         z_i_in: [F::ZERO; 4],
         acc_digest_in: [F::ZERO; 4],
+        semantic_state_digest_in: [F::ZERO; 4],
         public_trace_in: [F::ZERO; 4],
     };
     image.fill_state_in(&state_in);
@@ -115,6 +117,7 @@ fn honest_image() -> (FPrimeImageLayout, FPrimeImage, [F; PREIMAGE_LEN]) {
         new_z_i: [F::ZERO; 4],
         new_public_trace: [F::ZERO; 4],
         new_acc_digest: [F::ZERO; 4],
+        new_semantic_state_digest: [F::ZERO; 4],
     });
 
     let preimage_vec: Vec<F> = preimage_vals.iter().copied().collect();

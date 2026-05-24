@@ -6,8 +6,8 @@
 //! | Region | Holds |
 //! |---|---|
 //! | boundary (`boundary`)         | public-IO bits — `enc_inst(x_out)`, `enc_inst(prior_x_out)`, counter words |
-//! | state_in (`state_in`)         | six four-lane state-in digests (vk_fs, structure, z_0, z_i_in, acc_digest_in, public_trace_in) |
-//! | state_out (`state_out`)        | two u64 counters + three four-lane post-step digests (new_z_i, new_public_trace, new_acc_digest) |
+//! | state_in (`state_in`)         | seven four-lane state-in digests (vk_fs, structure, z_0, z_i_in, semantic_state_digest_in, acc_digest_in, public_trace_in) |
+//! | state_out (`state_out`)        | two u64 counters + four four-lane post-step digests (new_z_i, new_public_trace, new_semantic_state_digest, new_acc_digest) |
 //! | chunk_digest (`chunk_digest`)     | one four-lane chunk digest |
 //! | app_private (`app_private`)      | app-private carry bits (Fibonacci witness or R1CS bit-decomposed assignment) |
 //! | nifs_payloads (`nifs_payloads`)    | NIFS CcsClaim / CeClaim payloads (parent_authority etc.) |
@@ -72,16 +72,16 @@ use crate::engine::ccs_native::poseidon2::{POSEIDON2_DIGEST_LEN, POSEIDON2_GOLDI
 use crate::engine::r1cs_circuit::ring_action::phi_reduction_coeff;
 use crate::frontends::f_prime::image::{
     FPrimeImage, FPrimeImageConfig, FPrimeImageLayout, NifsPayloadShape, PoseidonPreimageLaneSource,
-    StateOutDigestTarget,
+    StateInDigestTarget, StateOutDigestTarget,
 };
 use crate::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
 
-/// Number of state_in four-lane digests (vk_fs, structure, z_0, z_i_in, acc, public_trace).
-const STATE_IN_DIGEST_COUNT: usize = 6;
+/// Number of state_in four-lane digests (vk_fs, structure, z_0, z_i_in, semantic, acc, public_trace).
+const STATE_IN_DIGEST_COUNT: usize = 7;
 /// Number of state_out u64 counters (new chunk_count, new step_count).
 const STATE_OUT_COUNTER_COUNT: usize = 2;
-/// Number of state_out four-lane digests (new z_i, new public_trace, new acc).
-const STATE_OUT_DIGEST_COUNT: usize = 3;
+/// Number of state_out four-lane digests (new z_i, new public_trace, new semantic, new acc).
+const STATE_OUT_DIGEST_COUNT: usize = 4;
 /// chunk_digest holds one chunk_digest (four lanes).
 const CHUNK_DIGEST_LANE_COUNT: usize = 4;
 /// kmul K-mul slot: 3 K-pairs `(p, q, r)`, each pair has low + high lane.
@@ -126,6 +126,7 @@ pub fn production_kmul_ring_action_shell_image_config() -> FPrimeImageConfig {
         poseidon_one_shot_preimage_lens: vec![],
         sponge_transcript_permutes: 0,
         one_shot_digest_to_state_out_bindings: vec![],
+        one_shot_digest_to_state_in_bindings: vec![],
         one_shot_digest_to_public_x_out_bindings: vec![],
         poseidon_transition_enforcements: vec![],
         unified_accumulator_selector: None,
@@ -739,6 +740,7 @@ pub(crate) fn emit_shell_rows(
     let bit_count = image_end - 1;
     let ring_action_product_count = layout.config.ring_action_pair_count * RING_ACTION_PRODUCT_LANES_PER_PAIR;
     let ring_action_output_count = layout.config.ring_action_pair_count * RING_ACTION_OUTPUT_LANES_PER_PAIR;
+    let state_in_binding_count = layout.config.one_shot_digest_to_state_in_bindings.len() * POSEIDON2_DIGEST_LEN;
     let state_out_binding_count = layout.config.one_shot_digest_to_state_out_bindings.len() * POSEIDON2_DIGEST_LEN;
     let public_x_out_binding_count =
         layout.config.one_shot_digest_to_public_x_out_bindings.len() * POSEIDON2_DIGEST_LEN;
@@ -753,6 +755,7 @@ pub(crate) fn emit_shell_rows(
     let total_shell_rows = bit_count
         + ring_action_product_count
         + ring_action_output_count
+        + state_in_binding_count
         + state_out_binding_count
         + public_x_out_binding_count
         + unified_selector_count;
@@ -801,6 +804,22 @@ pub(crate) fn emit_shell_rows(
         bit_count + ring_action_product_count + ring_action_output_count
     );
 
+    // ── Trace digest ↔ state-in digest binding rows.
+    for binding in &layout.config.one_shot_digest_to_state_in_bindings {
+        let trace_slots = &lane_slots.poseidon_trace_lanes[binding.one_shot_index];
+        let digest_lane_base = trace_slots.len() - POSEIDON2_WIDTH;
+        let state_in_lane_base = state_in_digest_lane_base(binding.state_in_target);
+        for lane in 0..POSEIDON2_DIGEST_LEN {
+            let trace = trace_slots[digest_lane_base + lane];
+            let state_in = lane_slots.state_lanes[state_in_lane_base + lane];
+            builder.linear(lane_terms(trace), lane_terms(state_in));
+        }
+    }
+    debug_assert_eq!(
+        builder.rows() - base_row,
+        bit_count + ring_action_product_count + ring_action_output_count + state_in_binding_count
+    );
+
     // ── Trace digest ↔ state-out digest binding rows.
     for binding in &layout.config.one_shot_digest_to_state_out_bindings {
         let trace_slots = &lane_slots.poseidon_trace_lanes[binding.one_shot_index];
@@ -817,7 +836,11 @@ pub(crate) fn emit_shell_rows(
     }
     debug_assert_eq!(
         builder.rows() - base_row,
-        bit_count + ring_action_product_count + ring_action_output_count + state_out_binding_count
+        bit_count
+            + ring_action_product_count
+            + ring_action_output_count
+            + state_in_binding_count
+            + state_out_binding_count
     );
 
     // ── Unified-accumulator selector rows.
@@ -871,6 +894,7 @@ pub(crate) fn emit_shell_rows(
         bit_count
             + ring_action_product_count
             + ring_action_output_count
+            + state_in_binding_count
             + state_out_binding_count
             + unified_selector_count
     );
@@ -1223,7 +1247,7 @@ impl FPrimeStructure {
 
     /// First row of the poseidon↔state_out binding block.
     pub fn state_out_digest_binding_row_start(&self) -> usize {
-        self.ring_action_output_row_start() + self.ring_action_output_row_count()
+        self.state_in_digest_binding_row_start() + self.state_in_digest_binding_row_count()
     }
 
     /// Row index for the constraint
@@ -1247,6 +1271,21 @@ impl FPrimeStructure {
             "state-out digest binding lane {lane} out of range (digest has {POSEIDON2_DIGEST_LEN} lanes)"
         );
         self.state_out_digest_binding_row_start() + binding_idx * POSEIDON2_DIGEST_LEN + lane
+    }
+
+    /// Number of poseidon↔state_in digest binding rows
+    /// (`POSEIDON2_DIGEST_LEN` per binding).
+    pub fn state_in_digest_binding_row_count(&self) -> usize {
+        self.layout
+            .config
+            .one_shot_digest_to_state_in_bindings
+            .len()
+            * POSEIDON2_DIGEST_LEN
+    }
+
+    /// First row of the poseidon↔state_in binding block.
+    pub fn state_in_digest_binding_row_start(&self) -> usize {
+        self.ring_action_output_row_start() + self.ring_action_output_row_count()
     }
 
     /// Number of one-shot-trace ↔ public-x_out binding rows
@@ -1288,18 +1327,27 @@ impl FPrimeStructure {
     }
 }
 
+/// First state_in/state_out/chunk_digest lane slot index for the four-lane state_in digest at
+/// `target`.
+fn state_in_digest_lane_base(target: StateInDigestTarget) -> usize {
+    match target {
+        StateInDigestTarget::SemanticStateDigestIn => 16,
+    }
+}
+
 /// First state_in/state_out/chunk_digest lane slot index for the four-lane state_out digest at
-/// `target`. state_in occupies the first 24 lanes; state_out starts at index 24
-/// with two u64 counters (chunk_count, step_count), then three
+/// `target`. state_in occupies the first 28 lanes; state_out starts at index 28
+/// with two u64 counters (chunk_count, step_count), then four
 /// four-lane digests in fill order: new_z_i, new_public_trace,
-/// new_acc_digest.
+/// new_semantic_state_digest, new_acc_digest.
 fn state_out_digest_lane_base(target: StateOutDigestTarget) -> usize {
-    const STATE_IN_LANES: usize = 24;
+    const STATE_IN_LANES: usize = 28;
     const STATE_OUT_COUNTER_LANES: usize = 2;
     let state_out_digests_start = STATE_IN_LANES + STATE_OUT_COUNTER_LANES;
     match target {
         StateOutDigestTarget::NewZI => state_out_digests_start,
         StateOutDigestTarget::NewPublicTrace => state_out_digests_start + 4,
-        StateOutDigestTarget::NewAccDigest => state_out_digests_start + 8,
+        StateOutDigestTarget::NewSemanticStateDigest => state_out_digests_start + 8,
+        StateOutDigestTarget::NewAccDigest => state_out_digests_start + 12,
     }
 }

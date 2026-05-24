@@ -23,14 +23,16 @@
 //!
 //! ## Invariants this module relies on
 //!
-//! Lane indices within `state_lanes` (24 state-in digest lanes + 14
-//! state-out lanes + 4 chunk-digest lanes = 42 total):
+//! Lane indices within `state_lanes` (28 state-in digest lanes + 18
+//! state-out lanes + 4 chunk-digest lanes = 50 total):
 //!
 //! - state-in digests: vk_fs (0..4), structure (4..8), z_0 (8..12),
-//!   z_i_in (12..16), acc_digest_in (16..20), public_trace_in (20..24)
-//! - state-out: new_chunk_count (24), new_step_count (25), new_z_i
-//!   (26..30), new_public_trace (30..34), new_acc_digest (34..38)
-//! - chunk_digest: (38..42)
+//!   z_i_in (12..16), semantic_state_digest_in (16..20),
+//!   acc_digest_in (20..24), public_trace_in (24..28)
+//! - state-out: new_chunk_count (28), new_step_count (29), new_z_i
+//!   (30..34), new_public_trace (34..38), new_semantic_state_digest
+//!   (38..42), new_acc_digest (42..46)
+//! - chunk_digest: (46..50)
 //!
 //! These match `fibonacci_structure::collect_state_lane_slots`.
 
@@ -38,8 +40,9 @@ use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
 use crate::frontends::f_prime::image::{
-    FPrimeImageConfig, NifsPayloadShape, OneShotDigestToPublicXOutBinding, OneShotDigestToStateOutBinding,
-    PoseidonPreimageLaneSource, PoseidonTransitionEnforcement, StateOutDigestTarget,
+    FPrimeImageConfig, NifsPayloadShape, OneShotDigestToPublicXOutBinding, OneShotDigestToStateInBinding,
+    OneShotDigestToStateOutBinding, PoseidonPreimageLaneSource, PoseidonTransitionEnforcement, StateInDigestTarget,
+    StateOutDigestTarget,
 };
 use crate::paper::digest::pack_bytes_as_fields;
 use crate::paper::f_prime::ring_action_trace::RingActionTraceLayout;
@@ -52,21 +55,27 @@ pub const STATE_LANE_STRUCTURE_BASE: usize = 4;
 pub const STATE_LANE_Z_0_BASE: usize = 8;
 /// Lane index of `z_i_in[0]` in `state_lanes`.
 pub const STATE_LANE_Z_I_IN_BASE: usize = 12;
+/// Lane index of `semantic_state_digest_in[0]` in `state_lanes`.
+pub const STATE_LANE_SEMANTIC_STATE_IN_BASE: usize = 16;
+/// Lane index of `acc_digest_in[0]` in `state_lanes`.
+pub const STATE_LANE_ACC_DIGEST_IN_BASE: usize = 20;
 /// Lane index of `public_trace_in[0]` in `state_lanes`.
-pub const STATE_LANE_PUBLIC_TRACE_IN_BASE: usize = 20;
+pub const STATE_LANE_PUBLIC_TRACE_IN_BASE: usize = 24;
 /// Lane index of `new_chunk_count` in `state_lanes` (start of state-out).
-pub const STATE_LANE_NEW_CHUNK_COUNT: usize = 24;
+pub const STATE_LANE_NEW_CHUNK_COUNT: usize = 28;
 /// Lane index of `new_step_count` in `state_lanes`.
-pub const STATE_LANE_NEW_STEP_COUNT: usize = 25;
+pub const STATE_LANE_NEW_STEP_COUNT: usize = 29;
 /// Lane index of `new_z_i[0]` in `state_lanes`.
-pub const STATE_LANE_NEW_Z_I_BASE: usize = 26;
+pub const STATE_LANE_NEW_Z_I_BASE: usize = 30;
 /// Lane index of `new_public_trace[0]` in `state_lanes`.
-pub const STATE_LANE_NEW_PUBLIC_TRACE_BASE: usize = 30;
+pub const STATE_LANE_NEW_PUBLIC_TRACE_BASE: usize = 34;
+/// Lane index of `new_semantic_state_digest[0]` in `state_lanes`.
+pub const STATE_LANE_NEW_SEMANTIC_STATE_BASE: usize = 38;
 /// Lane index of `new_acc_digest[0]` in `state_lanes`.
-pub const STATE_LANE_NEW_ACC_DIGEST_BASE: usize = 34;
+pub const STATE_LANE_NEW_ACC_DIGEST_BASE: usize = 42;
 /// Lane index of `chunk_digest[0]` in `state_lanes` (start of the
 /// chunk-digest sub-region).
-pub const STATE_LANE_CHUNK_DIGEST_BASE: usize = 38;
+pub const STATE_LANE_CHUNK_DIGEST_BASE: usize = 46;
 /// Four lanes per Goldilocks digest.
 pub const DIGEST_LANE_COUNT: usize = 4;
 
@@ -78,6 +87,8 @@ const PUBLIC_TRACE_UPDATE_TAG: &[u8] = b"neo.fold.clean/public_trace_update/v1";
 const ACCUMULATOR_TAG: &[u8] = b"neo.fold.next/direct_ccs/accumulator_phi_dec_parent/v1";
 /// Domain-separation tag for the recursive `state_x_out` hash.
 const STATE_X_OUT_TAG: &[u8] = b"neo.fold.clean/state_x_out/v1";
+/// Domain-separation tag for app semantic state digests.
+const SEMANTIC_STATE_TAG: &[u8] = b"neo.fold.clean/semantic_state/v1";
 
 /// Build the preimage-source list for the `boundary_update` hash.
 ///
@@ -117,6 +128,31 @@ pub fn public_trace_update_preimage_sources() -> Vec<PoseidonPreimageLaneSource>
         sources.push(PoseidonPreimageLaneSource::StateLane(STATE_LANE_CHUNK_DIGEST_BASE + i));
     }
     sources
+}
+
+/// Build the preimage-source list for an app semantic-state hash over
+/// R1CS assignment variables.
+///
+/// Preimage layout:
+///   `pack_bytes_as_fields(tag)` ‖ app assignment lanes in caller order
+pub fn semantic_state_preimage_sources(var_indices: &[usize]) -> Vec<PoseidonPreimageLaneSource> {
+    let header = pack_bytes_as_fields(SEMANTIC_STATE_TAG);
+    let mut sources: Vec<PoseidonPreimageLaneSource> = header
+        .iter()
+        .map(|&v| PoseidonPreimageLaneSource::Constant(v))
+        .collect();
+    for &var_idx in var_indices {
+        sources.push(PoseidonPreimageLaneSource::AppAssignmentLane(var_idx));
+    }
+    sources
+}
+
+/// Native preimage for the semantic-state digest over app assignment
+/// variables. Mirrors [`semantic_state_preimage_sources`].
+pub fn build_semantic_state_preimage_fields(app_state: &[F]) -> Vec<F> {
+    let mut p = pack_bytes_as_fields(SEMANTIC_STATE_TAG);
+    p.extend_from_slice(app_state);
+    p
 }
 
 /// Build the preimage-source list for `accumulator_from_parent_c_data`.
@@ -183,9 +219,9 @@ pub fn accumulator_preimage_sources(
 ///   ‖ z_0 (4)                [state_lanes 8..12]    initial_boundary
 ///   ‖ new_z_i (4)            [state_lanes 26..30]   current_boundary
 ///   ‖ pc halves (2)          [Constant fixture/per-step values]
-///   ‖ new_acc_digest (4)     [state_lanes 34..38]   semantic_acc
-///   ‖ new_acc_digest (4)     [state_lanes 34..38]   construction2_acc (repeated)
-///   ‖ new_public_trace (4)   [state_lanes 30..34]
+///   ‖ new_semantic_state_digest (4) [state_lanes 38..42] semantic_acc
+///   ‖ new_acc_digest (4)            [state_lanes 42..46] construction2_acc
+///   ‖ new_public_trace (4)          [state_lanes 34..38]
 /// ```
 ///
 /// `pc` is baked as `Constant` because the recursive image stores it in
@@ -241,7 +277,7 @@ pub fn state_x_out_preimage_sources_with_app_x(
     sources.push(PoseidonPreimageLaneSource::Constant(F::from_u64(pc >> 32)));
     for i in 0..DIGEST_LANE_COUNT {
         sources.push(PoseidonPreimageLaneSource::StateLane(
-            STATE_LANE_NEW_ACC_DIGEST_BASE + i,
+            STATE_LANE_NEW_SEMANTIC_STATE_BASE + i,
         ));
     }
     for i in 0..DIGEST_LANE_COUNT {
@@ -320,6 +356,12 @@ pub struct StateXOutPlanOptions {
     /// Used by app frontends with a "verifier-supplied public input"
     /// semantics (R1CS). Defaults to empty — no extra binding.
     pub app_public_input_var_indices: Vec<usize>,
+    /// App-assignment variables whose Poseidon2 digest must equal the
+    /// incoming carried semantic-state digest.
+    pub semantic_state_in_var_indices: Vec<usize>,
+    /// App-assignment variables whose Poseidon2 digest becomes the
+    /// outgoing carried semantic-state digest.
+    pub semantic_state_out_var_indices: Vec<usize>,
 }
 
 /// Assemble the recursive-step `FPrimeImageConfig` from the
@@ -351,6 +393,7 @@ pub fn build_recursive_step_image_config(plan: &RecursiveStepImagePlan) -> FPrim
             state_out_target: StateOutDigestTarget::NewPublicTrace,
         },
     ];
+    let mut state_in_bindings: Vec<OneShotDigestToStateInBinding> = Vec::new();
 
     let mut unified_selector: Option<crate::frontends::f_prime::image::UnifiedAccumulatorSelector> = None;
     if let Some(acc) = &plan.accumulator {
@@ -398,19 +441,34 @@ pub fn build_recursive_step_image_config(plan: &RecursiveStepImagePlan) -> FPrim
             plan.accumulator.is_some(),
             "state_x_out enforcement requires accumulator enforcement to be configured first"
         );
-        // Legacy plan: state_x_out at one_shot index 3; unified plan
-        // pushes it to index 4 because the second accumulator
-        // enforcement consumed index 3.
-        let sxo_index = if plan
-            .accumulator
-            .as_ref()
-            .map(|a| a.unified)
-            .unwrap_or(false)
-        {
-            4
-        } else {
-            3
-        };
+        let mut next_index = preimage_lens.len();
+        if !sxo.semantic_state_in_var_indices.is_empty() {
+            let semantic_in_sources = semantic_state_preimage_sources(&sxo.semantic_state_in_var_indices);
+            preimage_lens.push(semantic_in_sources.len());
+            enforcements.push(PoseidonTransitionEnforcement {
+                one_shot_index: next_index,
+                preimage_lanes: semantic_in_sources,
+            });
+            state_in_bindings.push(OneShotDigestToStateInBinding {
+                one_shot_index: next_index,
+                state_in_target: StateInDigestTarget::SemanticStateDigestIn,
+            });
+            next_index += 1;
+        }
+        if !sxo.semantic_state_out_var_indices.is_empty() {
+            let semantic_out_sources = semantic_state_preimage_sources(&sxo.semantic_state_out_var_indices);
+            preimage_lens.push(semantic_out_sources.len());
+            enforcements.push(PoseidonTransitionEnforcement {
+                one_shot_index: next_index,
+                preimage_lanes: semantic_out_sources,
+            });
+            state_out_bindings.push(OneShotDigestToStateOutBinding {
+                one_shot_index: next_index,
+                state_out_target: StateOutDigestTarget::NewSemanticStateDigest,
+            });
+            next_index += 1;
+        }
+        let sxo_index = next_index;
         let sxo_sources = state_x_out_preimage_sources_with_app_x(sxo.pc, &sxo.app_public_input_var_indices);
         preimage_lens.push(sxo_sources.len());
         enforcements.push(PoseidonTransitionEnforcement {
@@ -433,6 +491,7 @@ pub fn build_recursive_step_image_config(plan: &RecursiveStepImagePlan) -> FPrim
         poseidon_one_shot_preimage_lens: preimage_lens,
         sponge_transcript_permutes: plan.sponge_transcript_permutes,
         one_shot_digest_to_state_out_bindings: state_out_bindings,
+        one_shot_digest_to_state_in_bindings: state_in_bindings,
         one_shot_digest_to_public_x_out_bindings: public_x_out_bindings,
         poseidon_transition_enforcements: enforcements,
         unified_accumulator_selector: unified_selector,
@@ -486,6 +545,7 @@ pub fn build_state_x_out_preimage_fields(
     z_0: [F; 4],
     new_z_i: [F; 4],
     pc: u64,
+    new_semantic_state_digest: [F; 4],
     new_acc_digest: [F; 4],
     new_public_trace: [F; 4],
 ) -> Vec<F> {
@@ -497,6 +557,7 @@ pub fn build_state_x_out_preimage_fields(
         z_0,
         new_z_i,
         pc,
+        new_semantic_state_digest,
         new_acc_digest,
         new_public_trace,
         &[],
@@ -522,6 +583,7 @@ pub fn build_state_x_out_preimage_fields_with_app_x(
     z_0: [F; 4],
     new_z_i: [F; 4],
     pc: u64,
+    new_semantic_state_digest: [F; 4],
     new_acc_digest: [F; 4],
     new_public_trace: [F; 4],
     app_public_input: &[F],
@@ -537,7 +599,7 @@ pub fn build_state_x_out_preimage_fields_with_app_x(
     p.extend(new_z_i);
     p.push(F::from_u64(pc & 0xffff_ffff));
     p.push(F::from_u64(pc >> 32));
-    p.extend(new_acc_digest);
+    p.extend(new_semantic_state_digest);
     p.extend(new_acc_digest);
     p.extend(new_public_trace);
     p.extend_from_slice(app_public_input);

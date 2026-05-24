@@ -35,13 +35,14 @@ use crate::paper::f_prime::ring_action_trace::{RingActionTraceImage, RingActionT
 /// 4 lanes × 64 bits = 256 bits per digest.
 const DIGEST_BITS: usize = 4 * POSEIDON2_GOLDILOCKS_BITS;
 
-/// state_in state-in: 6 four-lane digests (vk_fs, structure, z_0, z_i_in,
-/// acc_digest_in, public_trace_in).
-const STATE_IN_BITS: usize = 6 * DIGEST_BITS;
+/// state_in state-in: 7 four-lane digests (vk_fs, structure, z_0, z_i_in,
+/// semantic_state_digest_in, acc_digest_in, public_trace_in).
+const STATE_IN_BITS: usize = 7 * DIGEST_BITS;
 
-/// state_out state-out: 2 u64 counters (new chunk_count, new step_count) + 3
-/// four-lane digests (new z_i, new public_trace, new acc_digest).
-const STATE_OUT_BITS: usize = 2 * POSEIDON2_GOLDILOCKS_BITS + 3 * DIGEST_BITS;
+/// state_out state-out: 2 u64 counters (new chunk_count, new step_count) + 4
+/// four-lane digests (new z_i, new public_trace, new semantic_state_digest,
+/// new acc_digest).
+const STATE_OUT_BITS: usize = 2 * POSEIDON2_GOLDILOCKS_BITS + 4 * DIGEST_BITS;
 
 /// chunk_digest chunk digest: one four-lane digest.
 const CHUNK_DIGEST_BITS: usize = DIGEST_BITS;
@@ -95,6 +96,10 @@ pub struct FPrimeImageConfig {
     /// digest" loop for the boundary_update / public_trace_update /
     /// accumulator state-advance hashes.
     pub one_shot_digest_to_state_out_bindings: Vec<OneShotDigestToStateOutBinding>,
+    /// Optional bindings: each entry asserts that one-shot Poseidon
+    /// trace at `one_shot_index`'s digest output (4 lanes) equals the
+    /// state_in digest at `state_in_target`.
+    pub one_shot_digest_to_state_in_bindings: Vec<OneShotDigestToStateInBinding>,
     /// Optional bindings: each entry asserts that the one-shot Poseidon
     /// trace at `one_shot_index`'s digest output (4 lanes) equals the
     /// 4 canonical-u64 lanes at the listed bit offsets inside the
@@ -148,8 +153,17 @@ pub enum StateOutDigestTarget {
     NewZI,
     /// state_out's `new_public_trace` (4 lanes after `new_z_i`).
     NewPublicTrace,
-    /// state_out's `new_acc_digest` (4 lanes after `new_public_trace`).
+    /// state_out's `new_semantic_state_digest` (4 lanes after `new_public_trace`).
+    NewSemanticStateDigest,
+    /// state_out's `new_acc_digest` (4 lanes after `new_semantic_state_digest`).
     NewAccDigest,
+}
+
+/// Which state_in digest a one-shot trace's output binds to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StateInDigestTarget {
+    /// state_in's `semantic_state_digest_in`.
+    SemanticStateDigestIn,
 }
 
 /// One Phase 1.4c-c binding: trace's digest output ↔ state_out digest lanes.
@@ -158,6 +172,14 @@ pub struct OneShotDigestToStateOutBinding {
     /// Index into `poseidon_one_shot_preimage_lens` / `one_shot_poseidon_splices`.
     pub one_shot_index: usize,
     pub state_out_target: StateOutDigestTarget,
+}
+
+/// One Phase 1.4c-c binding: trace's digest output ↔ state_in digest lanes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OneShotDigestToStateInBinding {
+    /// Index into `poseidon_one_shot_preimage_lens` / `one_shot_poseidon_splices`.
+    pub one_shot_index: usize,
+    pub state_in_target: StateInDigestTarget,
 }
 
 /// One Phase 1.4c-d binding: trace's digest output ↔ four canonical-u64
@@ -569,6 +591,7 @@ pub struct StateIn {
     pub structure_digest: [F; 4],
     pub z_0: [F; 4],
     pub z_i_in: [F; 4],
+    pub semantic_state_digest_in: [F; 4],
     pub acc_digest_in: [F; 4],
     pub public_trace_in: [F; 4],
 }
@@ -581,6 +604,7 @@ pub struct StateOut {
     pub new_step_count: u64,
     pub new_z_i: [F; 4],
     pub new_public_trace: [F; 4],
+    pub new_semantic_state_digest: [F; 4],
     pub new_acc_digest: [F; 4],
 }
 
@@ -628,7 +652,7 @@ impl FPrimeImage {
         self.values[range].copy_from_slice(bits);
     }
 
-    /// Bit-decompose the 6 state-in digests into state_in.
+    /// Bit-decompose the 7 state-in digests into state_in.
     pub fn fill_state_in(&mut self, state: &StateIn) {
         let mut cursor = self.layout.state_in.offset;
         let digests = [
@@ -636,6 +660,7 @@ impl FPrimeImage {
             state.structure_digest,
             state.z_0,
             state.z_i_in,
+            state.semantic_state_digest_in,
             state.acc_digest_in,
             state.public_trace_in,
         ];
@@ -653,7 +678,12 @@ impl FPrimeImage {
         cursor += POSEIDON2_GOLDILOCKS_BITS;
         write_u64_bits(&mut self.values, cursor, state.new_step_count);
         cursor += POSEIDON2_GOLDILOCKS_BITS;
-        for digest in [state.new_z_i, state.new_public_trace, state.new_acc_digest] {
+        for digest in [
+            state.new_z_i,
+            state.new_public_trace,
+            state.new_semantic_state_digest,
+            state.new_acc_digest,
+        ] {
             write_digest_bits(&mut self.values, cursor, digest);
             cursor += 4 * POSEIDON2_GOLDILOCKS_BITS;
         }
@@ -685,7 +715,7 @@ impl FPrimeImage {
         self.values[self.layout.boundary.offset..self.layout.boundary.end()].to_vec()
     }
 
-    /// Decode state_in's 6 state-in digests by canonical 64-bit recomposition.
+    /// Decode state_in's 7 state-in digests by canonical 64-bit recomposition.
     pub fn decode_state_in(&self) -> StateIn {
         let mut cursor = self.layout.state_in.offset;
         let mut next = || {
@@ -698,6 +728,7 @@ impl FPrimeImage {
             structure_digest: next(),
             z_0: next(),
             z_i_in: next(),
+            semantic_state_digest_in: next(),
             acc_digest_in: next(),
             public_trace_in: next(),
         }
@@ -714,12 +745,15 @@ impl FPrimeImage {
         cursor += 4 * POSEIDON2_GOLDILOCKS_BITS;
         let new_public_trace = read_digest_bits(&self.values, cursor);
         cursor += 4 * POSEIDON2_GOLDILOCKS_BITS;
+        let new_semantic_state_digest = read_digest_bits(&self.values, cursor);
+        cursor += 4 * POSEIDON2_GOLDILOCKS_BITS;
         let new_acc_digest = read_digest_bits(&self.values, cursor);
         StateOut {
             new_chunk_count,
             new_step_count,
             new_z_i,
             new_public_trace,
+            new_semantic_state_digest,
             new_acc_digest,
         }
     }

@@ -27,7 +27,7 @@
 //!
 //!   x_out = state_x_out_digest(
 //!       vk_fs, structure, chunk_count', step_count',
-//!       z_0, z_{i+1}, pc', acc_digest', acc_digest', public_trace')
+//!       z_0, z_{i+1}, pc', semantic_state_digest', acc_digest', public_trace')
 //! ```
 //!
 //! ## Bindings enforced (recursive case)
@@ -233,6 +233,7 @@ pub struct FPrimeStateIn {
     pub z_0: [F; DIGEST_LEN],
     pub z_i_in: [F; DIGEST_LEN],
     pub pc: u64,
+    pub semantic_state_digest_in: [F; DIGEST_LEN],
     pub acc_digest_in: [F; DIGEST_LEN],
     pub public_trace_in: [F; DIGEST_LEN],
 }
@@ -245,6 +246,7 @@ pub struct FPrimeStateIn {
 pub struct FPrimeBaseInputs<'a> {
     pub state: FPrimeStateIn,
     pub chunk_digest: [F; DIGEST_LEN],
+    pub semantic_state_digest_out: [F; DIGEST_LEN],
     /// Number of fresh-instance rows this chunk encodes. Native
     /// `advance_state(prev, _, fresh_count, _)` adds `fresh_count` to
     /// `step_count`; we mirror that here.
@@ -270,6 +272,7 @@ pub struct FPrimeBaseInputs<'a> {
 pub struct FPrimeRecursiveInputs<'a> {
     pub state: FPrimeStateIn,
     pub chunk_digest: [F; DIGEST_LEN],
+    pub semantic_state_digest_out: [F; DIGEST_LEN],
     pub nifs_msg: NifsVCircuitMessages<'a>,
     /// Size of the **current** chunk being deposited as the new latest —
     /// i.e., `next_latest.len()` in [`crate::paper::f_prime::native::prove`].
@@ -347,6 +350,7 @@ pub struct FPrimeStateWires {
     pub z_0: [Var; DIGEST_LEN],
     pub z_i: [Var; DIGEST_LEN],
     pub pc: Var,
+    pub semantic_state_digest: [Var; DIGEST_LEN],
     pub acc_digest: [Var; DIGEST_LEN],
     pub public_trace: [Var; DIGEST_LEN],
 }
@@ -379,6 +383,7 @@ struct StateInWires {
     z_0: [Var; DIGEST_LEN],
     z_i_in: [Var; DIGEST_LEN],
     pc: Var,
+    semantic_state_digest_in: [Var; DIGEST_LEN],
     acc_digest_in: [Var; DIGEST_LEN],
     public_trace_in: [Var; DIGEST_LEN],
 }
@@ -394,6 +399,7 @@ fn alloc_state_in(builder: &mut R1csBuilder, state: &FPrimeStateIn) -> StateInWi
         z_0: alloc_4(builder, state.z_0),
         z_i_in: alloc_4(builder, state.z_i_in),
         pc,
+        semantic_state_digest_in: alloc_4(builder, state.semantic_state_digest_in),
         acc_digest_in: alloc_4(builder, state.acc_digest_in),
         public_trace_in: alloc_4(builder, state.public_trace_in),
     }
@@ -410,6 +416,7 @@ fn state_in_to_wires(sw: &StateInWires) -> FPrimeStateWires {
         z_0: sw.z_0,
         z_i: sw.z_i_in,
         pc: sw.pc,
+        semantic_state_digest: sw.semantic_state_digest_in,
         acc_digest: sw.acc_digest_in,
         public_trace: sw.public_trace_in,
     }
@@ -424,6 +431,7 @@ fn state_out_wires(
     step_count: Var,
     z_i: [Var; DIGEST_LEN],
     public_trace: [Var; DIGEST_LEN],
+    semantic_state_digest: [Var; DIGEST_LEN],
     acc_digest: [Var; DIGEST_LEN],
 ) -> FPrimeStateWires {
     FPrimeStateWires {
@@ -434,6 +442,7 @@ fn state_out_wires(
         z_0: sw.z_0,
         z_i,
         pc: sw.pc,
+        semantic_state_digest,
         acc_digest,
         public_trace,
     }
@@ -448,6 +457,7 @@ fn build_x_out(
     builder: &mut R1csBuilder,
     sw: &StateInWires,
     chunk_digest: [Var; DIGEST_LEN],
+    new_semantic_state_digest: [Var; DIGEST_LEN],
     new_acc_digest: [Var; DIGEST_LEN],
     new_chunk_count: Var,
     new_step_count: Var,
@@ -462,7 +472,7 @@ fn build_x_out(
         initial_boundary: sw.z_0,
         current_boundary: new_z_i,
         pc: sw.pc,
-        semantic_acc: new_acc_digest,
+        semantic_acc: new_semantic_state_digest,
         construction2_acc: new_acc_digest,
         public_trace: new_public_trace,
     };
@@ -508,6 +518,7 @@ pub fn enforce_f_prime_base_step_circuit(
 
     // Output acc_digest is also the empty-acc constant (running stays ⊥).
     let new_acc_digest = alloc_4_const(builder, empty_acc);
+    let new_semantic_state_digest = alloc_4(builder, inputs.semantic_state_digest_out);
 
     // Counter advance: chunk_count' = 1, step_count' = rows_in_chunk.
     // Base IS a real F' step (consumes a chunk_digest, updates z_i and
@@ -525,6 +536,7 @@ pub fn enforce_f_prime_base_step_circuit(
         builder,
         &sw,
         chunk_digest,
+        new_semantic_state_digest,
         new_acc_digest,
         new_chunk_count,
         new_step_count,
@@ -538,6 +550,7 @@ pub fn enforce_f_prime_base_step_circuit(
         new_step_count,
         new_z_i,
         new_public_trace,
+        new_semantic_state_digest,
         new_acc_digest,
     );
     Ok(FPrimeStepOutput {
@@ -657,7 +670,7 @@ pub fn enforce_f_prime_recursive_step_circuit(
         initial_boundary: sw.z_0,
         current_boundary: sw.z_i_in,
         pc: sw.pc,
-        semantic_acc: sw.acc_digest_in,
+        semantic_acc: sw.semantic_state_digest_in,
         construction2_acc: sw.acc_digest_in,
         public_trace: sw.public_trace_in,
     };
@@ -726,6 +739,7 @@ pub fn enforce_f_prime_recursive_step_circuit(
     // needs that count to fan out the parent commitment correctly.
     let k_carry = inputs.nifs_msg.children.len();
     let new_acc_digest = enforce_accumulator_digest_from_parent_circuit(builder, k_carry, &nifs_outputs.parent_c_data);
+    let new_semantic_state_digest = alloc_4(builder, inputs.semantic_state_digest_out);
 
     // Counter advance.
     //
@@ -751,6 +765,7 @@ pub fn enforce_f_prime_recursive_step_circuit(
         builder,
         &sw,
         chunk_digest,
+        new_semantic_state_digest,
         new_acc_digest,
         new_chunk_count,
         new_step_count,
@@ -766,6 +781,7 @@ pub fn enforce_f_prime_recursive_step_circuit(
         new_step_count,
         new_z_i,
         new_public_trace,
+        new_semantic_state_digest,
         new_acc_digest,
     );
     Ok(FPrimeStepOutput {

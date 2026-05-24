@@ -164,6 +164,8 @@ pub fn build_honest_step_input() -> (FPrimeStepInput, [F; 4]) {
         pc: PC,
         public_x_out_lane_bit_starts,
         app_public_input_var_indices: Vec::new(),
+        semantic_state_in_var_indices: Vec::new(),
+        semantic_state_out_var_indices: Vec::new(),
     });
 
     let vk_fs_digest: [F; 4] = [
@@ -210,6 +212,7 @@ pub fn build_honest_step_input() -> (FPrimeStepInput, [F; 4]) {
         structure_digest,
         z_0,
         z_i_in,
+        semantic_state_digest_in: [F::ZERO; 4],
         acc_digest_in: [F::ZERO; 4],
         public_trace_in,
     };
@@ -238,6 +241,7 @@ pub fn build_honest_step_input() -> (FPrimeStepInput, [F; 4]) {
         new_step_count: NEW_STEP_COUNT,
         new_z_i,
         new_public_trace,
+        new_semantic_state_digest: new_acc_digest,
         new_acc_digest,
     };
 
@@ -249,6 +253,7 @@ pub fn build_honest_step_input() -> (FPrimeStepInput, [F; 4]) {
         z_0,
         new_z_i,
         PC,
+        new_acc_digest,
         new_acc_digest,
         new_public_trace,
     );
@@ -325,6 +330,7 @@ pub struct ThreadedFPrimeState {
     pub step_count: u64,
     pub z_0: [F; 4],
     pub z_i: [F; 4],
+    pub semantic_state_digest: [F; 4],
     pub acc_digest: [F; 4],
     pub public_trace: [F; 4],
     pub pc: u64,
@@ -368,6 +374,7 @@ fn threaded_base_state() -> ThreadedFPrimeState {
         step_count: 0,
         z_0,
         z_i: z_0,
+        semantic_state_digest: [F::ZERO; 4],
         acc_digest: [F::ZERO; 4],
         public_trace: [
             F::from_u64(0xaaa),
@@ -401,6 +408,8 @@ pub fn canonical_threaded_plan() -> RecursiveStepImagePlan {
         pc: PC,
         public_x_out_lane_bit_starts,
         app_public_input_var_indices: Vec::new(),
+        semantic_state_in_var_indices: Vec::new(),
+        semantic_state_out_var_indices: Vec::new(),
     });
     plan
 }
@@ -457,6 +466,7 @@ fn build_threaded_step_record(state: &ThreadedFPrimeState, step_idx: u64) -> Thr
         new_z_i,
         state.pc,
         new_acc_digest,
+        new_acc_digest,
         new_public_trace,
     ));
 
@@ -476,6 +486,7 @@ fn build_threaded_step_record(state: &ThreadedFPrimeState, step_idx: u64) -> Thr
             structure_digest: state.structure_digest,
             z_0: state.z_0,
             z_i_in: state.z_i,
+            semantic_state_digest_in: state.semantic_state_digest,
             acc_digest_in: state.acc_digest,
             public_trace_in: state.public_trace,
         },
@@ -484,6 +495,7 @@ fn build_threaded_step_record(state: &ThreadedFPrimeState, step_idx: u64) -> Thr
             new_step_count,
             new_z_i,
             new_public_trace,
+            new_semantic_state_digest: new_acc_digest,
             new_acc_digest,
         },
         chunk_digest,
@@ -507,6 +519,7 @@ fn build_threaded_step_record(state: &ThreadedFPrimeState, step_idx: u64) -> Thr
         chunk_count: new_chunk_count,
         step_count: new_step_count,
         z_i: new_z_i,
+        semantic_state_digest: new_acc_digest,
         acc_digest: new_acc_digest,
         public_trace: new_public_trace,
         ..state.clone()

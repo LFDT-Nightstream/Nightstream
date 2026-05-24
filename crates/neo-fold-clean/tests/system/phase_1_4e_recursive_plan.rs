@@ -44,8 +44,8 @@ const C_DATA_ENTRIES: usize = 2;
 /// Lane indices in `state_lanes` for the data we tamper. Mirrors the
 /// constants in `fibonacci_recursive_plan` (verified by inspection).
 const STATE_LANE_Z_I_IN_BASE: usize = 12;
-const STATE_LANE_PUBLIC_TRACE_IN_BASE: usize = 20;
-const STATE_LANE_CHUNK_DIGEST_BASE: usize = 38;
+const STATE_LANE_PUBLIC_TRACE_IN_BASE: usize = 24;
+const STATE_LANE_CHUNK_DIGEST_BASE: usize = 46;
 
 fn make_plan() -> RecursiveStepImagePlan {
     let ce_shape = NifsCeClaimShape {
@@ -117,6 +117,7 @@ fn build_honest_fixture() -> Fixture {
         z_0: [F::ZERO; 4],
         z_i_in,
         acc_digest_in: [F::ZERO; 4],
+        semantic_state_digest_in: [F::ZERO; 4],
         public_trace_in,
     });
     image.fill_chunk_digest(chunk_digest);
@@ -156,6 +157,7 @@ fn build_honest_fixture() -> Fixture {
         new_z_i: boundary_trace.digest_native,
         new_public_trace: public_trace_trace.digest_native,
         new_acc_digest: accumulator_trace.digest_native,
+        new_semantic_state_digest: accumulator_trace.digest_native,
     });
 
     Fixture { layout, image }

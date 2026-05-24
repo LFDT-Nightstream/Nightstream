@@ -153,6 +153,7 @@ fn build_fixture() -> Fixture {
         z_0: rand_digest(0x100),
         z_i_in: rand_digest(0x101),
         pc: 1,
+        semantic_state_digest_in: acc_digest_in,
         acc_digest_in,
         public_trace_in: rand_digest(0x40),
     };
@@ -255,6 +256,7 @@ fn native_x_out(
     state: &FPrimeStateIn,
     chunk_digest: [F; 4],
     new_acc_digest: [F; 4],
+    new_semantic_state_digest: [F; 4],
     new_chunk_count: u64,
     new_step_count: u64,
 ) -> [F; 4] {
@@ -268,7 +270,7 @@ fn native_x_out(
         digest_fields_as_digest32(state.z_0),
         new_z_i,
         state.pc,
-        digest_fields_as_digest32(new_acc_digest),
+        digest_fields_as_digest32(new_semantic_state_digest),
         digest_fields_as_digest32(new_acc_digest),
         new_public_trace,
     ))
@@ -281,6 +283,7 @@ fn recursive_x_out(fixture: &Fixture) -> [F; 4] {
         &fixture.state,
         fixture.chunk_digest,
         new_acc,
+        fixture.state.semantic_state_digest_in,
         fixture.state.chunk_count_in + 1,
         fixture.state.step_count_in + fixture.fresh_claims.len() as u64,
     )
@@ -324,6 +327,7 @@ fn image_config_for_one_step(poseidon_one_shot_preimage_lens: Vec<usize>) -> FPr
         poseidon_one_shot_preimage_lens,
         sponge_transcript_permutes: 0,
         one_shot_digest_to_state_out_bindings: vec![],
+        one_shot_digest_to_state_in_bindings: vec![],
         one_shot_digest_to_public_x_out_bindings: vec![],
         poseidon_transition_enforcements: vec![],
         unified_accumulator_selector: None,
@@ -357,6 +361,7 @@ fn phase_1_3d_state_out_and_x_out_three_way_parity() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
+        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
         nifs_msg: msg_from_fixture(&fixture),
         rows_in_chunk: 1,
         source_image: &source.image,
@@ -408,8 +413,13 @@ fn phase_1_3d_state_out_and_x_out_three_way_parity() {
         fixture.chunk_digest,
     );
     let acc_preimage = build_accumulator_from_parent_c_data_preimage(fixture.children.len(), &fixture.combined.c.data);
-    let x_out_preimage =
-        build_state_x_out_preimage_from_fixture(&fixture, new_chunk_count, new_step_count, new_acc_digest);
+    let x_out_preimage = build_state_x_out_preimage_from_fixture(
+        &fixture,
+        new_chunk_count,
+        new_step_count,
+        new_acc_digest,
+        fixture.state.semantic_state_digest_in,
+    );
 
     // ── 4. Build a bit-backed image and fill state_in/state_out/chunk_digest from the same fixture. ─
     let layout = FPrimeImageLayout::new(image_config_for_one_step(vec![
@@ -426,6 +436,7 @@ fn phase_1_3d_state_out_and_x_out_three_way_parity() {
         z_0: fixture.state.z_0,
         z_i_in: fixture.state.z_i_in,
         acc_digest_in: fixture.state.acc_digest_in,
+        semantic_state_digest_in: fixture.state.acc_digest_in,
         public_trace_in: fixture.state.public_trace_in,
     });
     image.fill_state_out(&StateOut {
@@ -433,6 +444,7 @@ fn phase_1_3d_state_out_and_x_out_three_way_parity() {
         new_step_count,
         new_z_i,
         new_public_trace,
+        new_semantic_state_digest: fixture.state.semantic_state_digest_in,
         new_acc_digest,
     });
     image.fill_chunk_digest(fixture.chunk_digest);
@@ -548,6 +560,7 @@ fn build_state_x_out_preimage_from_fixture(
     new_chunk_count: u64,
     new_step_count: u64,
     new_acc_digest: [F; 4],
+    new_semantic_state_digest: [F; 4],
 ) -> Vec<F> {
     let new_z_i = boundary_update_digest(digest_fields_as_digest32(fixture.state.z_i_in), fixture.chunk_digest);
     let new_public_trace = public_trace_update_digest(
@@ -564,7 +577,7 @@ fn build_state_x_out_preimage_from_fixture(
     p.extend(digest32_as_fields(digest_fields_as_digest32(fixture.state.z_0)));
     p.extend(digest32_as_fields(new_z_i));
     p.extend(u64_halves(fixture.state.pc));
-    p.extend(digest32_as_fields(digest_fields_as_digest32(new_acc_digest)));
+    p.extend(digest32_as_fields(digest_fields_as_digest32(new_semantic_state_digest)));
     p.extend(digest32_as_fields(digest_fields_as_digest32(new_acc_digest)));
     p.extend(digest32_as_fields(new_public_trace));
     p
@@ -687,6 +700,7 @@ fn nifs_only_image_config(shapes: Vec<NifsPayloadShape>) -> FPrimeImageConfig {
         poseidon_one_shot_preimage_lens: vec![],
         sponge_transcript_permutes: 0,
         one_shot_digest_to_state_out_bindings: vec![],
+        one_shot_digest_to_state_in_bindings: vec![],
         one_shot_digest_to_public_x_out_bindings: vec![],
         poseidon_transition_enforcements: vec![],
         unified_accumulator_selector: None,
@@ -711,6 +725,7 @@ fn phase_1_3d_nifs_parent_authority_wire_parity_three_way() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
+        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
         nifs_msg: msg_from_fixture(&fixture),
         rows_in_chunk: 1,
         source_image: &source.image,
@@ -858,6 +873,7 @@ fn phase_1_3d_kmul_ring_action_coverage_full_step_three_way_parity() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
+        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
         nifs_msg: msg_from_fixture(&fixture),
         rows_in_chunk: 1,
         source_image: &source.image,
@@ -928,6 +944,7 @@ fn phase_1_3d_kmul_ring_action_coverage_full_step_three_way_parity() {
         poseidon_one_shot_preimage_lens: vec![],
         sponge_transcript_permutes: 0,
         one_shot_digest_to_state_out_bindings: vec![],
+        one_shot_digest_to_state_in_bindings: vec![],
         one_shot_digest_to_public_x_out_bindings: vec![],
         poseidon_transition_enforcements: vec![],
         unified_accumulator_selector: None,

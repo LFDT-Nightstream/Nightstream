@@ -144,6 +144,7 @@ fn bootstrap_real_intermediate_fold_uncached() -> BootstrapShared {
         chunk_count: pre_state.chunk_count,
         step_count: pre_state.step_count,
         z_i: digest32_as_fields(pre_state.z_i),
+        semantic_state_digest: digest32_as_fields(pre_state.semantic_state_digest),
         acc_digest: digest32_as_fields(pre_state.acc_digest),
         public_trace: digest32_as_fields(pre_state.public_trace),
     };
@@ -457,6 +458,8 @@ fn tiny_fibonacci_lifecycle_plan() -> RecursiveStepImagePlan {
         pc: 1,
         public_x_out_lane_bit_starts,
         app_public_input_var_indices: Vec::new(),
+        semantic_state_in_var_indices: Vec::new(),
+        semantic_state_out_var_indices: Vec::new(),
     });
     plan
 }

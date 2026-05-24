@@ -28,8 +28,10 @@ use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
 use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
+use neo_fold_clean::engine::decider::synthesize_statement_r1cs;
 use neo_fold_clean::frontends::direct_ccs::R1cs;
 use neo_fold_clean::frontends::f_prime::image::{FPrimeImageLayout, NifsCeClaimShape, NifsPayloadShape};
+use neo_fold_clean::frontends::f_prime::recursive_plan::build_semantic_state_preimage_fields;
 use neo_fold_clean::frontends::f_prime::recursive_plan::{
     build_recursive_step_image_config, AccumulatorPlanOptions, RecursiveStepImagePlan, StateXOutPlanOptions,
 };
@@ -37,7 +39,8 @@ use neo_fold_clean::frontends::r1cs_f_prime::{
     self, build_r1cs_f_prime_structure, compile_step, start_chain, R1csChainBuilder, R1csCompilerError,
     R1csFPrimeStepInput,
 };
-use neo_fold_clean::paper::digest::structure_digest;
+use neo_fold_clean::paper::digest::{digest_fields_as_digest32, structure_digest};
+use neo_fold_clean::paper::f_prime::poseidon_trace::encode_poseidon_trace;
 use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
 use neo_fold_clean::paper::params::Params;
 use neo_params::{goldilocks_paper_b2, NeoParams};
@@ -121,6 +124,8 @@ fn make_small_plan(m: usize, m_in: usize) -> RecursiveStepImagePlan {
         // Bind every R1CS public-input variable into state_x_out so the
         // chain's verifier-visible digest commits to the actual `x`.
         app_public_input_var_indices: (0..m_in).collect(),
+        semantic_state_in_var_indices: Vec::new(),
+        semantic_state_out_var_indices: Vec::new(),
     });
     plan
 }
@@ -170,6 +175,54 @@ fn assignment_one_product(a: u64, b: u64) -> Vec<F> {
     z[2] = F::from_u64(b);
     z[0] = F::from_u64(a * b);
     z
+}
+
+fn assignment_one_product_with_extras(a: u64, b: u64, extras: &[(usize, u64)]) -> Vec<F> {
+    let mut z = assignment_one_product(a, b);
+    for &(index, value) in extras {
+        z[index] = F::from_u64(value);
+    }
+    z
+}
+
+fn make_stateful_plan(
+    m: usize,
+    m_in: usize,
+    semantic_state_in_var_indices: Vec<usize>,
+    semantic_state_out_var_indices: Vec<usize>,
+) -> RecursiveStepImagePlan {
+    let mut plan = make_small_plan(m, m_in);
+    let state_x_out = plan
+        .state_x_out
+        .as_mut()
+        .expect("make_small_plan installs state_x_out");
+    state_x_out.semantic_state_in_var_indices = semantic_state_in_var_indices;
+    state_x_out.semantic_state_out_var_indices = semantic_state_out_var_indices;
+    plan
+}
+
+fn make_tiny_stateful_lifecycle_plan(
+    m: usize,
+    m_in: usize,
+    semantic_state_in_var_indices: Vec<usize>,
+    semantic_state_out_var_indices: Vec<usize>,
+) -> RecursiveStepImagePlan {
+    let mut plan = make_tiny_lifecycle_plan(m, m_in);
+    let NifsPayloadShape::CeClaim(shape) = &mut plan.nifs_payload_shapes[0] else {
+        panic!("tiny lifecycle plan uses a CE payload");
+    };
+    // Stateful semantic binding adds two Poseidon2 traces / binding
+    // blocks, increasing the fixed-point row-domain length by one bit
+    // under the tiny test params.
+    shape.r_len = 22;
+    shape.s_col_len = 22;
+    let state_x_out = plan
+        .state_x_out
+        .as_mut()
+        .expect("make_tiny_lifecycle_plan installs state_x_out");
+    state_x_out.semantic_state_in_var_indices = semantic_state_in_var_indices;
+    state_x_out.semantic_state_out_var_indices = semantic_state_out_var_indices;
+    plan
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -451,6 +504,352 @@ fn r1cs_compiler_public_output_independent_of_private_witness() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// Stateful semantic lane — app-state digests link serial R1CS steps.
+// ─────────────────────────────────────────────────────────────────────────
+
+#[test]
+fn r1cs_stateful_semantic_digest_binds_private_state_wires() {
+    let r1cs = one_product_r1cs();
+    let plan = make_stateful_plan(r1cs.m(), r1cs.m_in, vec![6], vec![7]);
+    let prep = r1cs_f_prime::preprocess_seeded(&r1cs, &plan, 0x71C5_0A01).expect("preprocess");
+    let mut ctx = start_chain(&prep).expect("start chain");
+
+    let compiled = compile_step(
+        &prep,
+        &mut ctx,
+        R1csFPrimeStepInput {
+            assignment: assignment_one_product_with_extras(3, 7, &[(6, 42), (7, 43)]),
+        },
+    )
+    .expect("stateful base compile");
+
+    assert!(
+        compiled
+            .encoded
+            .structure
+            .is_satisfied(&compiled.encoded.witness),
+        "honest stateful R1CS-F' image must satisfy its structure"
+    );
+    assert_ne!(
+        compiled.semantic_state_digest_in, compiled.semantic_state_digest_out,
+        "test setup uses different state_in/state_out values"
+    );
+    assert_eq!(
+        ctx.chain_state.semantic_state_digest, compiled.semantic_state_digest_out,
+        "compiler context must carry the app-state output digest, not the accumulator digest"
+    );
+
+    // Variable z[6] is not used by the app R1CS or public-input hash.
+    // Flipping it should fail only because the F' shell binds
+    // H(z[6]) to state_in.semantic_state_digest_in.
+    let mut tampered = compiled.encoded.witness.clone();
+    let bit = compiled.encoded.image.layout.app_private.offset + 6 * POSEIDON2_GOLDILOCKS_BITS;
+    tampered[bit] = if tampered[bit] == F::ZERO { F::ONE } else { F::ZERO };
+    assert!(
+        !compiled.encoded.structure.is_satisfied(&tampered),
+        "semantic-state Poseidon binding must reject tampering with the private app-state wire"
+    );
+}
+
+#[test]
+fn r1cs_stateful_semantic_digest_lane_tamper_rejects() {
+    let r1cs = one_product_r1cs();
+    let plan = make_stateful_plan(r1cs.m(), r1cs.m_in, vec![6], vec![7]);
+    let prep = r1cs_f_prime::preprocess_seeded(&r1cs, &plan, 0x71C5_0A04).expect("preprocess");
+    let mut ctx = start_chain(&prep).expect("start chain");
+
+    let compiled = compile_step(
+        &prep,
+        &mut ctx,
+        R1csFPrimeStepInput {
+            assignment: assignment_one_product_with_extras(3, 7, &[(6, 42), (7, 43)]),
+        },
+    )
+    .expect("stateful base compile");
+    assert!(compiled
+        .encoded
+        .structure
+        .is_satisfied(&compiled.encoded.witness));
+
+    // The assignment and semantic-state Poseidon trace remain honest,
+    // but the carried state-in digest lane is changed coherently. This
+    // isolates the F' shell's trace-digest ↔ state-in binding rows.
+    let mut tampered_in = compiled.encoded.witness.clone();
+    let semantic_in_lane_0 = compiled.encoded.image.layout.state_in.offset + 16 * POSEIDON2_GOLDILOCKS_BITS;
+    tampered_in[semantic_in_lane_0] = if tampered_in[semantic_in_lane_0] == F::ZERO {
+        F::ONE
+    } else {
+        F::ZERO
+    };
+    let row = compiled
+        .encoded
+        .structure
+        .first_unsatisfied_row(&tampered_in)
+        .expect("state-in lane tamper must reject");
+    let start = compiled
+        .encoded
+        .structure
+        .state_in_digest_binding_row_start();
+    let end = start
+        + compiled
+            .encoded
+            .structure
+            .state_in_digest_binding_row_count();
+    assert!(
+        (start..end).contains(&row),
+        "semantic-state state-in lane tamper must trip a state-in digest binding row; got {row}, expected {start}..{end}"
+    );
+
+    // Same isolation for the outgoing semantic digest lane.
+    let mut tampered_out = compiled.encoded.witness.clone();
+    let semantic_out_lane_0 = compiled.encoded.image.layout.state_out.offset + 10 * POSEIDON2_GOLDILOCKS_BITS;
+    tampered_out[semantic_out_lane_0] = if tampered_out[semantic_out_lane_0] == F::ZERO {
+        F::ONE
+    } else {
+        F::ZERO
+    };
+    let row = compiled
+        .encoded
+        .structure
+        .first_unsatisfied_row(&tampered_out)
+        .expect("state-out lane tamper must reject");
+    let start = compiled
+        .encoded
+        .structure
+        .state_out_digest_binding_row_start();
+    let end = start
+        + compiled
+            .encoded
+            .structure
+            .state_out_digest_binding_row_count();
+    assert!(
+        (start..end).contains(&row),
+        "semantic-state state-out lane tamper must trip a state-out digest binding row; got {row}, expected {start}..{end}"
+    );
+}
+
+#[test]
+fn r1cs_stateful_compiler_rejects_disconnected_second_step() {
+    let r1cs = one_product_r1cs();
+    let plan = make_stateful_plan(r1cs.m(), r1cs.m_in, vec![1], vec![0]);
+    let prep = r1cs_f_prime::preprocess_seeded(&r1cs, &plan, 0x71C5_0A02).expect("preprocess");
+    let mut ctx = start_chain(&prep).expect("start chain");
+
+    let first = compile_step(
+        &prep,
+        &mut ctx,
+        R1csFPrimeStepInput {
+            assignment: assignment_one_product(3, 7),
+        },
+    )
+    .expect("base step");
+    assert_eq!(ctx.chain_state.semantic_state_digest, first.semantic_state_digest_out);
+
+    // The previous output digest is H(21), but this assignment claims
+    // the next input state is H(5). The compiler must reject before it
+    // even asks for a recursive fold proof.
+    let err = compile_step(
+        &prep,
+        &mut ctx,
+        R1csFPrimeStepInput {
+            assignment: assignment_one_product(5, 2),
+        },
+    )
+    .expect_err("disconnected semantic state must reject");
+    match err {
+        R1csCompilerError::SemanticStateInputMismatch { expected, got } => {
+            assert_eq!(expected, first.semantic_state_digest_out);
+            assert_ne!(got, expected);
+        }
+        other => panic!("expected SemanticStateInputMismatch, got {other:?}"),
+    }
+}
+
+#[test]
+fn r1cs_stateful_chain_builder_rejects_parallel_chunk() {
+    let r1cs = one_product_r1cs();
+    let plan = make_stateful_plan(r1cs.m(), r1cs.m_in, vec![1], vec![0]);
+    let prep = r1cs_f_prime::preprocess_seeded(&r1cs, &plan, 0x71C5_0A03).expect("preprocess");
+    let mut chain = R1csChainBuilder::new(&prep).expect("start builder");
+
+    let err = chain
+        .append_assignments(vec![assignment_one_product(3, 7), assignment_one_product(4, 5)])
+        .expect_err("stateful semantic mode must reject K > 1 chunks");
+    match err {
+        r1cs_f_prime::Error::Compiler(R1csCompilerError::StatefulChunkMustBeSerial { got }) => {
+            assert_eq!(got, 2)
+        }
+        other => panic!("expected StatefulChunkMustBeSerial, got {other:?}"),
+    }
+}
+
+/// Stateful Fibonacci transition:
+///
+/// ```text
+/// state_in  = (a, b)
+/// state_out = (b, a + b)
+/// ```
+///
+/// Variable layout: `[one, a, b, a_out, b_out, ...]`.
+fn fibonacci_transition_stateful_r1cs() -> R1cs {
+    let m = neo_math::D;
+    let mut a = NeoMat::zero(2, m, F::default());
+    a[(0, 2)] = F::ONE; // b
+    a[(1, 1)] = F::ONE; // a
+    a[(1, 2)] = F::ONE; // + b
+    let mut b = NeoMat::zero(2, m, F::default());
+    b[(0, 0)] = F::ONE; // * one
+    b[(1, 0)] = F::ONE; // * one
+    let mut c = NeoMat::zero(2, m, F::default());
+    c[(0, 3)] = F::ONE; // a_out = b
+    c[(1, 4)] = F::ONE; // b_out = a + b
+    R1cs { a, b, c, m_in: 5 }
+}
+
+fn assignment_fibonacci_transition(a: u64, b: u64) -> Vec<F> {
+    let mut z = vec![F::ZERO; neo_math::D];
+    z[0] = F::ONE;
+    z[1] = F::from_u64(a);
+    z[2] = F::from_u64(b);
+    z[3] = F::from_u64(b);
+    z[4] = F::from_u64(a + b);
+    z
+}
+
+fn semantic_digest_for_pair(a: u64, b: u64) -> [u8; 32] {
+    let fields = [F::from_u64(a), F::from_u64(b)];
+    digest_fields_as_digest32(encode_poseidon_trace(&build_semantic_state_preimage_fields(&fields)).digest_native)
+}
+
+fn validate_decider_statement(
+    prep: &neo_fold_clean::Preprocessing,
+    statement: &neo_fold_clean::paper::decider::Statement,
+) -> Result<(), neo_fold_clean::paper::decider::Error> {
+    neo_fold_clean::paper::decider::validate_witness(
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        prep.structure_digest(),
+        &prep.log,
+        prep.mix_rhos_commits,
+        prep.combine_b_pows,
+        &prep.vk,
+        prep.public_input_len,
+        prep.semantic_state_mode,
+        statement,
+    )
+}
+
+struct LinkedFibonacciFixture {
+    prep: r1cs_f_prime::R1csFPrimePreprocessing,
+    audit: neo_fold_clean::UncompressedAudit,
+    step_semantic_out: Vec<[F; 4]>,
+}
+
+fn build_linked_fibonacci_fixture() -> LinkedFibonacciFixture {
+    let r1cs = fibonacci_transition_stateful_r1cs();
+    let plan = make_tiny_stateful_lifecycle_plan(r1cs.m(), r1cs.m_in, vec![1, 2], vec![3, 4]);
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_0F1B).expect("preprocess");
+    let mut chain = R1csChainBuilder::new(&prep).expect("start chain");
+
+    let mut step_semantic_out = Vec::new();
+    for (a, b) in [(1, 1), (1, 2), (2, 3), (3, 5)] {
+        let compiled = chain
+            .append_assignment(assignment_fibonacci_transition(a, b))
+            .expect("append linked Fibonacci transition");
+        step_semantic_out.push(compiled.semantic_state_digest_out);
+    }
+
+    let audit = chain
+        .finish_with_audit()
+        .expect("finish linked Fibonacci chain");
+    LinkedFibonacciFixture {
+        prep,
+        audit,
+        step_semantic_out,
+    }
+}
+
+#[test]
+fn r1cs_stateful_linked_fibonacci_chain_verifies_end_to_end() {
+    let fixture = build_linked_fibonacci_fixture();
+
+    assert_eq!(
+        fixture.audit.proof.state.initial_semantic_state_digest,
+        semantic_digest_for_pair(1, 1),
+        "initial semantic state must be H(1, 1)"
+    );
+    assert_eq!(
+        fixture.audit.proof.state.semantic_state_digest,
+        semantic_digest_for_pair(5, 8),
+        "final semantic state after four transitions must be H(5, 8)"
+    );
+
+    for (idx, expected) in [(1, 2), (2, 3), (3, 5), (5, 8)].into_iter().enumerate() {
+        let expected_digest = semantic_digest_for_pair(expected.0, expected.1);
+        assert_eq!(
+            fixture.audit.steps[idx].semantic_state_digest, expected_digest,
+            "step {idx} proof must carry H({},{})",
+            expected.0, expected.1
+        );
+        assert_eq!(
+            digest_fields_as_digest32(fixture.step_semantic_out[idx]),
+            expected_digest,
+            "compiled step {idx} semantic output must match the proof-carried digest"
+        );
+    }
+
+    neo_fold_clean::verify_uncompressed(&fixture.prep.prep, &fixture.audit.proof)
+        .expect("non-replay verifier accepts linked Fibonacci proof");
+    neo_fold_clean::verify_uncompressed_audit(&fixture.prep.prep, &fixture.audit)
+        .expect("audit verifier accepts linked Fibonacci proof");
+
+    let statement = neo_fold_clean::build_decider_statement(&fixture.prep.prep, &fixture.audit);
+    validate_decider_statement(&fixture.prep.prep, &statement).expect("decider preflight accepts");
+}
+
+#[test]
+fn r1cs_stateful_step_proof_semantic_digest_tamper_rejects_audit() {
+    let mut fixture = build_linked_fibonacci_fixture();
+    fixture.audit.steps[1].semantic_state_digest[0] ^= 0xFF;
+
+    let err = neo_fold_clean::verify_uncompressed_audit(&fixture.prep.prep, &fixture.audit)
+        .expect_err("semantic digest tamper in StepProof must reject");
+    match err {
+        neo_fold_clean::Error::Decider(neo_fold_clean::paper::decider::Error::WalkFailed(reason)) => {
+            assert!(
+                reason.contains("x_out hash chain mismatch"),
+                "expected XOutMismatch in walk failure, got {reason}"
+            );
+        }
+        other => panic!("expected decider walk failure from XOutMismatch, got {other:?}"),
+    }
+}
+
+#[test]
+fn r1cs_stateful_public_image_semantic_digest_tamper_rejects() {
+    let fixture = build_linked_fibonacci_fixture();
+    let mut statement = neo_fold_clean::build_decider_statement(&fixture.prep.prep, &fixture.audit);
+    statement.public.semantic_state_digest[0] ^= 0xFF;
+
+    assert!(
+        matches!(
+            validate_decider_statement(&fixture.prep.prep, &statement),
+            Err(neo_fold_clean::paper::decider::Error::PublicImageMismatch)
+        ),
+        "decider preflight accepted a tampered final semantic_state_digest"
+    );
+    assert!(
+        matches!(
+            synthesize_statement_r1cs(&fixture.prep.prep, &statement),
+            Err(neo_fold_clean::paper::decider::Error::PublicImageMismatch)
+        ),
+        "decider R1CS synthesis accepted a tampered final semantic_state_digest"
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // Structure digest depends on R1CS shape.
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -627,6 +1026,8 @@ fn make_tiny_lifecycle_plan(m: usize, m_in: usize) -> RecursiveStepImagePlan {
         pc: 1,
         public_x_out_lane_bit_starts,
         app_public_input_var_indices: (0..m_in).collect(),
+        semantic_state_in_var_indices: Vec::new(),
+        semantic_state_out_var_indices: Vec::new(),
     });
     plan
 }
@@ -896,5 +1297,39 @@ fn r1cs_preprocess_rejects_plan_without_state_x_out() {
     assert!(
         matches!(&err, r1cs_f_prime::Error::PlanMissingStateXOut),
         "expected PlanMissingStateXOut, got {err:?}"
+    );
+}
+
+#[test]
+fn r1cs_preprocess_rejects_partial_semantic_state_binding() {
+    let r1cs = one_product_r1cs();
+    let mut plan = make_small_plan(r1cs.m(), r1cs.m_in);
+    let sxo = plan.state_x_out.as_mut().expect("plan has state_x_out");
+    sxo.semantic_state_in_var_indices = vec![1];
+    sxo.semantic_state_out_var_indices = vec![];
+
+    let err = expect_preprocess_err(&r1cs, &plan, 0x71C5_C004);
+    assert!(
+        matches!(&err, r1cs_f_prime::Error::PlanSemanticStatePartial),
+        "expected PlanSemanticStatePartial, got {err:?}"
+    );
+}
+
+#[test]
+fn r1cs_preprocess_rejects_semantic_state_index_out_of_range() {
+    let r1cs = one_product_r1cs();
+    let mut plan = make_small_plan(r1cs.m(), r1cs.m_in);
+    let sxo = plan.state_x_out.as_mut().expect("plan has state_x_out");
+    sxo.semantic_state_in_var_indices = vec![1];
+    sxo.semantic_state_out_var_indices = vec![r1cs.m()];
+
+    let err = expect_preprocess_err(&r1cs, &plan, 0x71C5_C005);
+    assert!(
+        matches!(
+            &err,
+            r1cs_f_prime::Error::PlanSemanticStateIndexOutOfRange { index, m }
+                if *index == r1cs.m() && *m == r1cs.m()
+        ),
+        "expected PlanSemanticStateIndexOutOfRange, got {err:?}"
     );
 }

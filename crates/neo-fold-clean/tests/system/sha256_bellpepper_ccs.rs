@@ -235,6 +235,8 @@ fn sha256_tiny_lifecycle_plan(m: usize, m_in: usize) -> RecursiveStepImagePlan {
         pc: 1,
         public_x_out_lane_bit_starts,
         app_public_input_var_indices: (0..m_in).collect(),
+        semantic_state_in_var_indices: Vec::new(),
+        semantic_state_out_var_indices: Vec::new(),
     });
     plan
 }

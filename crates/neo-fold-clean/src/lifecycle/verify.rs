@@ -81,6 +81,17 @@ pub fn verify_uncompressed(prep: &Preprocessing, proof: &Uncompressed) -> Result
     }
     check_running_shape(recorded_running)?;
 
+    // (0) Stateless semantic invariant — checked FIRST so a tampered
+    // `semantic_state_digest` produces a precise
+    // `StatelessSemanticInvariantViolated` rather than an opaque
+    // `XOutMismatch` from the terminal-fold re-run. For stateless plans
+    // the F' image's CCS structure has no Poseidon2 binding rows for
+    // the `semantic_state_digest` lane, so a malicious prover could
+    // otherwise self-consistently inject arbitrary bytes there.
+    // Stateful plans skip this — terminal Π_CCS sumcheck authenticates
+    // the field inductively via the binding rows.
+    check_stateless_semantic_invariant(prep, proof)?;
+
     // (1)–(2) Reconstruct pre-fold state from terminal_inputs and run the
     // terminal fold verifier. Three sub-cases mirror `prove_final_fold`:
     match &proof.final_fold {
@@ -95,6 +106,27 @@ pub fn verify_uncompressed(prep: &Preprocessing, proof: &Uncompressed) -> Result
 
     // (4) acc_digest is recomputed from the just-authenticated claims.
     check_recorded_acc_digest(prep, recorded_running, &proof.state.acc_digest)?;
+    Ok(())
+}
+
+fn check_stateless_semantic_invariant(prep: &Preprocessing, proof: &Uncompressed) -> Result<(), Error> {
+    if !matches!(
+        prep.semantic_state_mode,
+        crate::paper::construction2::SemanticStateMode::Stateless
+    ) {
+        return Ok(());
+    }
+    let expected = match &proof.final_fold {
+        None => {
+            // No terminal fold ran (Initial or empty-latest path). The
+            // current acc_digest IS the pre-terminal acc_digest.
+            proof.state.acc_digest
+        }
+        Some(final_fold) => pre_fold_acc_digest(prep, &final_fold.terminal_inputs.pre_final_running),
+    };
+    if proof.state.semantic_state_digest != expected {
+        return Err(Error::StatelessSemanticInvariantViolated);
+    }
     Ok(())
 }
 
@@ -183,6 +215,8 @@ fn build_pre_final_state(prep: &Preprocessing, post: &State, terminal: &Terminal
         z_0: post.z_0,
         z_i: post.z_i,
         pc: post.pc,
+        initial_semantic_state_digest: post.initial_semantic_state_digest,
+        semantic_state_digest: post.semantic_state_digest,
         acc_digest: pre_acc_digest,
         public_trace: post.public_trace,
         proof: ProofState::Active {
@@ -215,6 +249,8 @@ fn bind_derived_state_to_recorded(derived: &State, recorded: &State) -> Result<(
         || derived.z_0 != recorded.z_0
         || derived.z_i != recorded.z_i
         || derived.pc != recorded.pc
+        || derived.initial_semantic_state_digest != recorded.initial_semantic_state_digest
+        || derived.semantic_state_digest != recorded.semantic_state_digest
         || derived.public_trace != recorded.public_trace
         || derived.acc_digest != recorded.acc_digest
     {
@@ -321,6 +357,7 @@ pub fn verify_uncompressed_audit(prep: &Preprocessing, audit: &UncompressedAudit
         prep.combine_b_pows,
         &prep.vk,
         prep.public_input_len,
+        prep.semantic_state_mode,
         &statement,
     )
     .map_err(Error::from)

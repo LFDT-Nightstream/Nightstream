@@ -13,6 +13,57 @@ use crate::paper::digest;
 use crate::paper::params::Params;
 use crate::paper::relations::{CcsClaim, CcsInstance};
 
+/// How `advance_state` should derive the next `semantic_state_digest`.
+///
+/// Modelled as an explicit enum rather than `Option<[u8; 32]>` so a
+/// caller must consciously declare the chain's mode — no silent fallback
+/// hides a forgotten `Some(..)` argument.
+///
+/// - **Stateless**: the chain carries no application state. The advanced
+///   `semantic_state_digest` is set to the new accumulator digest, which
+///   keeps the `semantic_acc == construction2_acc` x_out layout the
+///   pre-stateful build relied on. Verifier-side, `f_prime::verify`
+///   enforces `proof.semantic_state_digest == new_acc_digest` so a
+///   malicious prover cannot inject arbitrary self-consistent bytes
+///   into the `PublicImage.semantic_state_digest` field.
+/// - **Stateful**: the chain carries app state. The advanced
+///   `semantic_state_digest` is the caller-supplied digest. The F'
+///   image's CCS structure carries Poseidon2 binding rows
+///   (`H(state_in_vars) == semantic_state_digest_in_lane` and the
+///   state_out counterpart) so terminal Π_CCS sumcheck authenticates the
+///   digest against the actual app-state wires.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SemanticStateAdvance {
+    Stateless,
+    Stateful([u8; 32]),
+}
+
+/// Verifier-owned discriminator for whether a chain carries app state.
+///
+/// Lives on [`crate::lifecycle::Preprocessing`]; the frontend sets it
+/// once at preprocess time based on whether its plan declares
+/// `semantic_state_in/out_var_indices`. The verifier consults this bit
+/// to decide whether a prover-supplied `StepProof.semantic_state_digest`
+/// must equal the accumulator digest (stateless invariant — no F' image
+/// binding rows would otherwise authenticate the field) or whether the
+/// F' image's Poseidon2 binding rows are responsible for it (stateful).
+///
+/// Without this bit, a malicious prover on a stateless plan could
+/// inject arbitrary self-consistent bytes into
+/// `PublicImage.semantic_state_digest` because the F' image's CCS
+/// structure has no binding constraint for that lane.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum SemanticStateMode {
+    /// Chain has no application state. `proof.semantic_state_digest`
+    /// must equal the accumulator digest.
+    #[default]
+    Stateless,
+    /// Chain carries application state. The F' image's CCS structure
+    /// has Poseidon2 binding rows over the app-state wires; terminal
+    /// Π_CCS sumcheck authenticates them.
+    Stateful,
+}
+
 /// 1 ≤ pc_i ≤ ℓ. ℓ=1 in this build.
 pub(crate) fn enforce_pc_in_range(state: &State) -> Result<(), Error> {
     if state.pc == TRIVIAL_PC {
@@ -39,6 +90,7 @@ pub(crate) fn advance_state(
     new_proof: ProofState,
     fresh_count: u64,
     chunk_digest: [F; 4],
+    semantic_advance: SemanticStateAdvance,
 ) -> State {
     let new_z_i = digest::boundary_update_digest(prev.z_i, chunk_digest);
     let new_public_trace = digest::public_trace_update_digest(prev.public_trace, chunk_digest);
@@ -55,12 +107,18 @@ pub(crate) fn advance_state(
             digest::accumulator_digest_from_parent_claim(running.claims.len(), parent)
         }
     };
+    let new_semantic_state_digest = match semantic_advance {
+        SemanticStateAdvance::Stateless => new_acc_digest,
+        SemanticStateAdvance::Stateful(digest) => digest,
+    };
     State {
         chunk_count: prev.chunk_count + 1,
         step_count: prev.step_count + fresh_count,
         z_0: prev.z_0,
         z_i: new_z_i,
         pc: prev.pc,
+        initial_semantic_state_digest: prev.initial_semantic_state_digest,
+        semantic_state_digest: new_semantic_state_digest,
         acc_digest: new_acc_digest,
         public_trace: new_public_trace,
         proof: new_proof,
@@ -96,8 +154,8 @@ pub(crate) fn compute_x_out(vk: &VerifierKey, _pp: &Params, structure_digest: &[
         state.z_0,
         state.z_i,
         state.pc,
+        state.semantic_state_digest,
         state.acc_digest,
-        state.acc_digest, // single-step build: construction2_acc == semantic_acc
         state.public_trace,
     );
     EncInst::from_digest(bytes)

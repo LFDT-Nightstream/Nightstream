@@ -36,7 +36,23 @@ use crate::frontends::f_prime::image::FPrimeImageLayout;
 use crate::frontends::f_prime::recursive_plan::{build_recursive_step_image_config, RecursiveStepImagePlan};
 use crate::frontends::f_prime::structure::FPrimeStructure;
 use crate::lifecycle::{preprocess as lifecycle_preprocess, Preprocessing};
+use crate::paper::construction2::SemanticStateMode;
 use crate::paper::params::Params;
+
+/// Read the plan and decide whether the chain built on top will carry
+/// application state. The frontend installs this on
+/// [`Preprocessing::semantic_state_mode`] so the verifier can apply the
+/// stateless invariant where appropriate.
+fn semantic_state_mode_for_plan(plan: &RecursiveStepImagePlan) -> SemanticStateMode {
+    let Some(state_x_out) = plan.state_x_out.as_ref() else {
+        return SemanticStateMode::Stateless;
+    };
+    if state_x_out.semantic_state_in_var_indices.is_empty() && state_x_out.semantic_state_out_var_indices.is_empty() {
+        SemanticStateMode::Stateless
+    } else {
+        SemanticStateMode::Stateful
+    }
+}
 
 /// Lifecycle preprocessing pinned to one R1CS-shape + canonical plan.
 ///
@@ -82,6 +98,12 @@ pub enum Error {
         "R1CS-F' preprocessing: plan.state_x_out.app_public_input_var_indices = {actual:?} does not match the required range `0..r1cs.m_in` = 0..{m_in}. The frontend binds every public-input variable into `state_x_out`; misconfigured indices would silently miss the binding (different `x` could produce the same `public_output_digest`)."
     )]
     PlanAppPublicInputMismatch { actual: Vec<usize>, m_in: usize },
+    #[error(
+        "R1CS-F' preprocessing: semantic state binding must declare both input and output variable lists, or neither"
+    )]
+    PlanSemanticStatePartial,
+    #[error("R1CS-F' preprocessing: semantic state variable index {index} is out of range for r1cs.m() = {m}")]
+    PlanSemanticStateIndexOutOfRange { index: usize, m: usize },
     #[error(transparent)]
     Compiler(#[from] compiler::R1csCompilerError),
     #[error("R1CS-F' chain builder: cannot finish before appending any steps")]
@@ -119,7 +141,8 @@ pub fn preprocess(
         ajtai_rlc_mixer,
         ajtai_dec_mixer,
         Some(public_input_len),
-    )?;
+    )?
+    .with_semantic_state_mode(semantic_state_mode_for_plan(plan));
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: plan.clone(),
@@ -145,7 +168,8 @@ pub fn preprocess_sparse(
         ajtai_rlc_mixer,
         ajtai_dec_mixer,
         Some(public_input_len),
-    )?;
+    )?
+    .with_semantic_state_mode(semantic_state_mode_for_plan(plan));
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: plan.clone(),
@@ -174,7 +198,8 @@ pub fn preprocess_seeded(
         ajtai_rlc_mixer,
         ajtai_dec_mixer,
         Some(public_input_len),
-    )?;
+    )?
+    .with_semantic_state_mode(semantic_state_mode_for_plan(plan));
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: plan.clone(),
@@ -201,7 +226,8 @@ pub fn preprocess_sparse_seeded(
         ajtai_rlc_mixer,
         ajtai_dec_mixer,
         Some(public_input_len),
-    )?;
+    )?
+    .with_semantic_state_mode(semantic_state_mode_for_plan(plan));
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: plan.clone(),
@@ -232,7 +258,8 @@ pub fn preprocess_seeded_with_params(
         ajtai_rlc_mixer,
         ajtai_dec_mixer,
         Some(public_input_len),
-    )?;
+    )?
+    .with_semantic_state_mode(semantic_state_mode_for_plan(plan));
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: plan.clone(),
@@ -259,7 +286,8 @@ pub fn preprocess_sparse_seeded_with_params(
         ajtai_rlc_mixer,
         ajtai_dec_mixer,
         Some(public_input_len),
-    )?;
+    )?
+    .with_semantic_state_mode(semantic_state_mode_for_plan(plan));
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: plan.clone(),
@@ -308,6 +336,20 @@ fn derive_structure(
             actual: state_x_out.app_public_input_var_indices.clone(),
             m_in: r1cs.m_in(),
         });
+    }
+    let has_semantic_in = !state_x_out.semantic_state_in_var_indices.is_empty();
+    let has_semantic_out = !state_x_out.semantic_state_out_var_indices.is_empty();
+    if has_semantic_in != has_semantic_out {
+        return Err(Error::PlanSemanticStatePartial);
+    }
+    for &index in state_x_out
+        .semantic_state_in_var_indices
+        .iter()
+        .chain(state_x_out.semantic_state_out_var_indices.iter())
+    {
+        if index >= r1cs.m() {
+            return Err(Error::PlanSemanticStateIndexOutOfRange { index, m: r1cs.m() });
+        }
     }
 
     let layout = FPrimeImageLayout::new(build_recursive_step_image_config(plan));

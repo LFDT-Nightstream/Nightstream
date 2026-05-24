@@ -6,7 +6,8 @@
 //!   2. z_{i+1}  = F_j(z_i, ω_i)
 //!   3. base case (i = 0):  no NIFS.P; running = canonical default
 //!   4. recursive case:     NIFS.V(vk_fs[pc_i], U_i, u_i, π) → U_{i+1}
-//!   5. x = hash(vk_fs, i+1, z_0, z_{i+1}, U_{i+1}, pc_{i+1})
+//!   5. x = state_x_out_digest(vk_fs, i+1, z_0, z_{i+1},
+//!      semantic_state_digest_{i+1}, U_{i+1}, pc_{i+1}, public_trace_{i+1})
 //! ```
 //!
 //! For ccs-direct (ℓ = 1):
@@ -36,7 +37,8 @@ use neo_reductions::optimized_engine::OptimizedStructureCache;
 
 use crate::engine::transcript::Transcript;
 use crate::paper::construction2::{
-    self, FoldProof, LatestInstance, ProofState, RunningInstance, State, StepProof, VerifierKey,
+    self, FoldProof, LatestInstance, ProofState, RunningInstance, SemanticStateAdvance, SemanticStateMode, State,
+    StepProof, VerifierKey,
 };
 use crate::paper::digest::digest32_as_fields;
 use crate::paper::nifs;
@@ -124,6 +126,35 @@ pub fn prove(
     state: State,
     next_latest: Vec<CcsInstance>,
 ) -> Result<(State, StepProof), Error> {
+    prove_with_semantic_state(
+        pp,
+        s,
+        cache,
+        structure_digest,
+        log,
+        mix_rhos_commits,
+        combine_b_pows,
+        vk,
+        state,
+        next_latest,
+        SemanticStateAdvance::Stateless,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn prove_with_semantic_state(
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    structure_digest: &[F; 4],
+    log: &AjtaiSModule,
+    mix_rhos_commits: RlcMixer,
+    combine_b_pows: DecMixer,
+    vk: &VerifierKey,
+    state: State,
+    next_latest: Vec<CcsInstance>,
+    semantic_advance: SemanticStateAdvance,
+) -> Result<(State, StepProof), Error> {
     construction2::enforce_pc_in_range(&state)?;
     construction2::state_base_case_check(&state)?;
 
@@ -138,6 +169,8 @@ pub fn prove(
         z_0,
         z_i,
         pc,
+        initial_semantic_state_digest,
+        semantic_state_digest,
         acc_digest,
         public_trace,
         proof: prev_proof,
@@ -158,6 +191,8 @@ pub fn prove(
                 z_0,
                 z_i,
                 pc,
+                initial_semantic_state_digest,
+                semantic_state_digest,
                 acc_digest,
                 public_trace,
                 proof: ProofState::Initial,
@@ -191,14 +226,30 @@ pub fn prove(
         z_0,
         z_i,
         pc,
+        initial_semantic_state_digest,
+        semantic_state_digest,
         acc_digest,
         public_trace,
         proof: ProofState::Initial, // placeholder; advance_state reads new_proof for the new state
     };
-    let next_state = construction2::advance_state(pp, prev_state_for_advance, new_proof, fresh_count, chunk_digest);
+    let next_state = construction2::advance_state(
+        pp,
+        prev_state_for_advance,
+        new_proof,
+        fresh_count,
+        chunk_digest,
+        semantic_advance,
+    );
     let x_out = construction2::compute_x_out(vk, pp, structure_digest, &next_state);
 
-    Ok((next_state, StepProof { fold, x_out }))
+    Ok((
+        next_state.clone(),
+        StepProof {
+            fold,
+            semantic_state_digest: next_state.semantic_state_digest,
+            x_out,
+        },
+    ))
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -212,6 +263,19 @@ pub fn prove(
 /// - For recursive: replays NIFS.V over `proof.fold` against
 ///   `proof.folded_claims` and the running claims in `state.proof`.
 /// - Advances state, recomputes x_out, asserts it matches `proof.x_out`.
+///
+/// `semantic_mode` is verifier-owned (set on `Preprocessing` at
+/// preprocess time, derived from the frontend plan). For
+/// [`SemanticStateMode::Stateless`] chains the F' image's CCS
+/// structure has no Poseidon2 binding rows for the semantic lane, so
+/// `proof.semantic_state_digest` is **not** authenticated by the
+/// in-circuit verifier; this function instead enforces the protocol
+/// invariant `proof.semantic_state_digest == new_acc_digest` directly
+/// and returns [`Error::StatelessSemanticInvariantViolated`] on
+/// mismatch. For [`SemanticStateMode::Stateful`] chains the binding
+/// rows are part of the structure, so the digest is authenticated
+/// inductively by terminal Π_CCS sumcheck and this function trusts
+/// `proof.semantic_state_digest` as the new chain coordinate.
 pub fn verify(
     pp: &Params,
     s: &Structure,
@@ -223,6 +287,7 @@ pub fn verify(
     state: State,
     next_latest_claims: &[CcsClaim],
     proof: &StepProof,
+    semantic_mode: SemanticStateMode,
 ) -> Result<State, Error> {
     construction2::enforce_pc_in_range(&state)?;
     construction2::state_base_case_check(&state)?;
@@ -236,6 +301,8 @@ pub fn verify(
         z_0,
         z_i,
         pc,
+        initial_semantic_state_digest,
+        semantic_state_digest,
         acc_digest,
         public_trace,
         proof: prev_proof,
@@ -255,6 +322,8 @@ pub fn verify(
                 z_0,
                 z_i,
                 pc,
+                initial_semantic_state_digest,
+                semantic_state_digest,
                 acc_digest,
                 public_trace,
                 proof: ProofState::Initial,
@@ -288,11 +357,37 @@ pub fn verify(
         z_0,
         z_i,
         pc,
+        initial_semantic_state_digest,
+        semantic_state_digest,
         acc_digest,
         public_trace,
         proof: ProofState::Initial, // placeholder; advance reads new_proof
     };
-    let next_state = construction2::advance_state(pp, prev_state_for_advance, new_proof, fresh_count, chunk_digest);
+    let semantic_advance = match semantic_mode {
+        // Stateless plans have no F' image binding rows for the semantic
+        // lane. The verifier therefore drives `advance_state` with
+        // `Stateless` (which sets `semantic_state_digest = new_acc_digest`)
+        // and then explicitly cross-checks the prover's claim against the
+        // resulting deterministic value. A mismatch is surfaced with a
+        // dedicated error instead of being implicitly caught by the x_out
+        // chain check below — the prover should see exactly which
+        // invariant they violated.
+        SemanticStateMode::Stateless => SemanticStateAdvance::Stateless,
+        SemanticStateMode::Stateful => SemanticStateAdvance::Stateful(proof.semantic_state_digest),
+    };
+    let next_state = construction2::advance_state(
+        pp,
+        prev_state_for_advance,
+        new_proof,
+        fresh_count,
+        chunk_digest,
+        semantic_advance,
+    );
+    if matches!(semantic_mode, SemanticStateMode::Stateless)
+        && next_state.semantic_state_digest != proof.semantic_state_digest
+    {
+        return Err(Error::StatelessSemanticInvariantViolated);
+    }
     let x_out = construction2::compute_x_out(vk, pp, structure_digest, &next_state);
     if x_out != proof.x_out {
         return Err(Error::XOutMismatch);

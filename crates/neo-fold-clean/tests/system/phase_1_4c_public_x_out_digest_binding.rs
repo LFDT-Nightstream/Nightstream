@@ -50,6 +50,7 @@ fn binding_config(boundary_bindings: Vec<OneShotDigestToPublicXOutBinding>) -> F
         poseidon_one_shot_preimage_lens: vec![3],
         sponge_transcript_permutes: 0,
         one_shot_digest_to_state_out_bindings: vec![],
+        one_shot_digest_to_state_in_bindings: vec![],
         one_shot_digest_to_public_x_out_bindings: boundary_bindings,
         poseidon_transition_enforcements: vec![],
         unified_accumulator_selector: None,

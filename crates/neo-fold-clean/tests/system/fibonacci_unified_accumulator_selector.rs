@@ -102,6 +102,8 @@ fn make_plan(unified: bool) -> RecursiveStepImagePlan {
             pc: 1,
             public_x_out_lane_bit_starts: lane_starts,
             app_public_input_var_indices: Vec::new(),
+            semantic_state_in_var_indices: Vec::new(),
+            semantic_state_out_var_indices: Vec::new(),
         }),
         ..plan_probe
     }
@@ -225,6 +227,7 @@ struct FixedInputs {
     z_0: [F; 4],
     z_i_in: [F; 4],
     acc_digest_in: [F; 4],
+    semantic_state_digest_in: [F; 4],
     public_trace_in: [F; 4],
     chunk_digest: [F; 4],
     c_data: Vec<F>,
@@ -257,6 +260,7 @@ fn fixed_inputs() -> FixedInputs {
             F::from_u64(0x444),
         ],
         acc_digest_in: [F::ZERO; 4],
+        semantic_state_digest_in: [F::ZERO; 4],
         public_trace_in: [
             F::from_u64(0xaaa),
             F::from_u64(0xbbb),
@@ -312,6 +316,7 @@ fn build_unified_image(selected: SelectedDigest) -> UnifiedFixture {
         z_0: fx.z_0,
         z_i_in: fx.z_i_in,
         acc_digest_in: fx.acc_digest_in,
+        semantic_state_digest_in: fx.semantic_state_digest_in,
         public_trace_in: fx.public_trace_in,
     });
     image.fill_chunk_digest(fx.chunk_digest);
@@ -373,6 +378,7 @@ fn build_unified_image(selected: SelectedDigest) -> UnifiedFixture {
         new_step_count: NEW_STEP_COUNT,
         new_z_i,
         new_public_trace,
+        new_semantic_state_digest: new_acc_digest,
         new_acc_digest,
     });
 
@@ -390,6 +396,7 @@ fn build_unified_image(selected: SelectedDigest) -> UnifiedFixture {
         fx.z_0,
         new_z_i,
         PC,
+        new_acc_digest,
         new_acc_digest,
         new_public_trace,
     );
@@ -525,6 +532,7 @@ fn unified_accumulator_selector_rejects_wrong_selected_digest() {
         new_z_i,
         new_public_trace,
         new_acc_digest: third_digest,
+        new_semantic_state_digest: third_digest,
     });
     let _ = acc_digest_lane_count;
 
@@ -538,6 +546,7 @@ fn unified_accumulator_selector_rejects_wrong_selected_digest() {
         fx.z_0,
         new_z_i,
         PC,
+        third_digest,
         third_digest,
         new_public_trace,
     );

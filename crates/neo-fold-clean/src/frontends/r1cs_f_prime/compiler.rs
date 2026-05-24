@@ -22,10 +22,12 @@ use crate::frontends::f_prime::compiler::{
 };
 use crate::frontends::f_prime::encoder::{EncodedFPrimeStep, NifsPayloadInput};
 use crate::frontends::f_prime::image::{NifsCeClaimShape, NifsCeClaimView};
+use crate::frontends::f_prime::recursive_plan::build_semantic_state_preimage_fields;
 use crate::frontends::f_prime::recursive_plan::RecursiveStepImagePlan;
 use crate::frontends::r1cs_f_prime::encoder::{assignment_to_bits, encode_r1cs_f_prime_step, R1csEncoderInput};
 use crate::frontends::r1cs_f_prime::R1csFPrimePreprocessing;
 use crate::paper::construction2::TRIVIAL_PC;
+use crate::paper::f_prime::poseidon_trace::encode_poseidon_trace;
 
 /// `pc` for an R1CS-F' chain.
 ///
@@ -57,6 +59,10 @@ pub struct R1csCompiledStep {
     pub encoded: EncodedFPrimeStep,
     /// `state_x_out` digest committed in this step's boundary region.
     pub public_output_digest: [F; 4],
+    /// Carried semantic-state digest consumed by this step.
+    pub semantic_state_digest_in: [F; 4],
+    /// Carried semantic-state digest produced by this step.
+    pub semantic_state_digest_out: [F; 4],
 }
 
 /// R1CS-facing alias for the shared F'-shell compiler context.
@@ -144,6 +150,15 @@ pub fn compile_chunk(
         rows_in_chunk,
         t_satisfaction.elapsed().as_secs_f64()
     );
+    let semantic = semantic_state_digests_for_inputs(prep, &inputs)?;
+    if let Some(semantic) = semantic {
+        if ctx.chain_state.chunk_count > 0 && ctx.chain_state.semantic_state_digest != semantic.input {
+            return Err(R1csCompilerError::SemanticStateInputMismatch {
+                expected: ctx.chain_state.semantic_state_digest,
+                got: semantic.input,
+            });
+        }
+    }
 
     // ── Branch: base (chunk_count == 0) or recursive (> 0) ──────────
     let is_base = ctx.chain_state.chunk_count == 0;
@@ -152,7 +167,7 @@ pub fn compile_chunk(
         if ctx.fold_for_step.is_some() {
             return Err(FPrimeShellCompilerError::BaseStepUnexpectedPriorFold.into());
         }
-        compile_base_chunk(prep, ctx, inputs, rows_in_chunk)
+        compile_base_chunk(prep, ctx, inputs, rows_in_chunk, semantic)
     } else {
         let fold =
             ctx.fold_for_step
@@ -172,7 +187,7 @@ pub fn compile_chunk(
             "[r1cs-compile] verify_prior_fold          {:>7.2}s",
             t_verify.elapsed().as_secs_f64()
         );
-        compile_recursive_chunk(prep, ctx, inputs, fold, rows_in_chunk)
+        compile_recursive_chunk(prep, ctx, inputs, fold, rows_in_chunk, semantic)
     }
 }
 
@@ -181,6 +196,7 @@ fn compile_base_chunk(
     ctx: &mut R1csCompilerContext,
     inputs: Vec<R1csFPrimeStepInput>,
     rows_in_chunk: usize,
+    semantic: Option<SemanticStateDigests>,
 ) -> Result<Vec<R1csCompiledStep>, R1csCompilerError> {
     let plan = prep.plan.clone();
     let (ce_shape, child_count) = canonical_ce_shape_and_child_count(&plan)?;
@@ -197,6 +213,7 @@ fn compile_base_chunk(
         recursive_c_data,
         child_count,
         rows_in_chunk,
+        semantic,
     )
 }
 
@@ -206,6 +223,7 @@ fn compile_recursive_chunk(
     inputs: Vec<R1csFPrimeStepInput>,
     fold: R1csFoldForStep,
     rows_in_chunk: usize,
+    semantic: Option<SemanticStateDigests>,
 ) -> Result<Vec<R1csCompiledStep>, R1csCompilerError> {
     let post_running = &fold.post_running;
     let post_parent = post_running
@@ -252,6 +270,7 @@ fn compile_recursive_chunk(
         recursive_c_data,
         child_count,
         rows_in_chunk,
+        semantic,
     )
 }
 
@@ -272,8 +291,19 @@ fn finalize_compile_chunk(
     recursive_c_data: Vec<F>,
     child_count: u64,
     rows_in_chunk: usize,
+    semantic: Option<SemanticStateDigests>,
 ) -> Result<Vec<R1csCompiledStep>, R1csCompilerError> {
     debug_assert_eq!(inputs.len(), rows_in_chunk);
+    if let Some(semantic) = semantic {
+        if ctx.chain_state.chunk_count == 0 {
+            ctx.chain_state.semantic_state_digest = semantic.input;
+        } else if ctx.chain_state.semantic_state_digest != semantic.input {
+            return Err(R1csCompilerError::SemanticStateInputMismatch {
+                expected: ctx.chain_state.semantic_state_digest,
+                got: semantic.input,
+            });
+        }
+    }
 
     // Compute the chunk-shared traces ONCE: chunk_digest, the four
     // app-input-independent Poseidon traces (boundary, public_trace,
@@ -302,7 +332,8 @@ fn finalize_compile_chunk(
         let app_public_input: Vec<F> = input.assignment[..prep.r1cs.m_in()].to_vec();
         #[cfg(feature = "perf-timers")]
         let t_assembly = std::time::Instant::now();
-        let assembly = assemble_step_from_shared(&shared, ctx, &app_public_input);
+        let semantic_out = semantic.map(|s| s.output);
+        let assembly = assemble_step_from_shared(&shared, ctx, &app_public_input, semantic_out);
         #[cfg(feature = "perf-timers")]
         eprintln!(
             "[r1cs-compile] step state_x_out             {:>7.2}s",
@@ -317,6 +348,27 @@ fn finalize_compile_chunk(
             "[r1cs-compile] assignment_to_bits           {:>7.2}s",
             t_bits.elapsed().as_secs_f64()
         );
+        let mut one_shot_traces = vec![
+            assembly.traces.boundary,
+            assembly.traces.public_trace,
+            assembly.traces.base_accumulator,
+            assembly.traces.recursive_accumulator,
+        ];
+        if let Some(state_x_out) = prep.plan.state_x_out.as_ref() {
+            if !state_x_out.semantic_state_in_var_indices.is_empty() {
+                one_shot_traces.push(semantic_state_trace_for_assignment(
+                    &input.assignment,
+                    &state_x_out.semantic_state_in_var_indices,
+                ));
+            }
+            if !state_x_out.semantic_state_out_var_indices.is_empty() {
+                one_shot_traces.push(semantic_state_trace_for_assignment(
+                    &input.assignment,
+                    &state_x_out.semantic_state_out_var_indices,
+                ));
+            }
+        }
+        one_shot_traces.push(assembly.traces.state_x_out);
         let encoder_input = R1csEncoderInput {
             plan: plan.clone(),
             boundary_bits: assembly.boundary_bits,
@@ -328,13 +380,7 @@ fn finalize_compile_chunk(
             nifs_payloads: vec![NifsPayloadInput::Ce(ce_view.clone())],
             kmul_views: vec![],
             ring_action_pairs: vec![],
-            one_shot_traces: vec![
-                assembly.traces.boundary,
-                assembly.traces.public_trace,
-                assembly.traces.base_accumulator,
-                assembly.traces.recursive_accumulator,
-                assembly.traces.state_x_out,
-            ],
+            one_shot_traces,
             sponge_trace: None,
         };
 
@@ -350,14 +396,71 @@ fn finalize_compile_chunk(
         compiled.push(R1csCompiledStep {
             encoded,
             public_output_digest: assembly.public_output_digest,
+            semantic_state_digest_in: assembly.state_in.semantic_state_digest_in,
+            semantic_state_digest_out: assembly.state_out.new_semantic_state_digest,
         });
     }
 
-    // Advance the chain state **once** for the whole chunk.
-    ctx.chain_state = shared.next_chain_state;
+    // Advance the chain state **once** for the whole chunk. In
+    // stateful mode, the semantic lane is the app-state output digest;
+    // stateless mode keeps the legacy accumulator digest there.
+    ctx.chain_state = if let Some(semantic) = semantic {
+        FPrimeChainState {
+            semantic_state_digest: semantic.output,
+            ..shared.next_chain_state
+        }
+    } else {
+        shared.next_chain_state
+    };
     ctx.fold_for_step = None;
 
     Ok(compiled)
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SemanticStateDigests {
+    pub input: [F; 4],
+    pub output: [F; 4],
+}
+
+pub(crate) fn semantic_state_digests_for_inputs(
+    prep: &R1csFPrimePreprocessing,
+    inputs: &[R1csFPrimeStepInput],
+) -> Result<Option<SemanticStateDigests>, R1csCompilerError> {
+    let Some(state_x_out) = prep.plan.state_x_out.as_ref() else {
+        return Ok(None);
+    };
+    let has_input = !state_x_out.semantic_state_in_var_indices.is_empty();
+    let has_output = !state_x_out.semantic_state_out_var_indices.is_empty();
+    if !has_input && !has_output {
+        return Ok(None);
+    }
+    if inputs.len() != 1 {
+        return Err(R1csCompilerError::StatefulChunkMustBeSerial { got: inputs.len() });
+    }
+    let assignment = &inputs[0].assignment;
+    if assignment.len() != prep.r1cs.m() {
+        return Err(R1csCompilerError::AssignmentLength {
+            got: assignment.len(),
+            expected: prep.r1cs.m(),
+        });
+    }
+    Ok(Some(SemanticStateDigests {
+        input: semantic_state_digest_for_assignment(assignment, &state_x_out.semantic_state_in_var_indices),
+        output: semantic_state_digest_for_assignment(assignment, &state_x_out.semantic_state_out_var_indices),
+    }))
+}
+
+pub(crate) fn semantic_state_digest_for_assignment(assignment: &[F], indices: &[usize]) -> [F; 4] {
+    semantic_state_trace_for_assignment(assignment, indices).digest_native
+}
+
+fn semantic_state_trace_for_assignment(
+    assignment: &[F],
+    indices: &[usize],
+) -> crate::paper::f_prime::poseidon_trace::PoseidonTraceImage {
+    let values: Vec<F> = indices.iter().map(|&idx| assignment[idx]).collect();
+    encode_poseidon_trace(&build_semantic_state_preimage_fields(&values))
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -381,6 +484,12 @@ pub enum R1csCompilerError {
         #[source]
         source: FrontendError,
     },
+
+    #[error("R1CS compiler: stateful semantic mode requires K=1 serial chunks (got K={got})")]
+    StatefulChunkMustBeSerial { got: usize },
+
+    #[error("R1CS compiler: semantic state input digest mismatch (expected {expected:?}, got {got:?})")]
+    SemanticStateInputMismatch { expected: [F; 4], got: [F; 4] },
 
     /// Protocol-generic shell-level failure (preprocessing missing
     /// `public_input_len`, boundary shape mismatch, prior-fold

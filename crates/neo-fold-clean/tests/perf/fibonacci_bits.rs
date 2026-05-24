@@ -337,7 +337,7 @@ fn f_prime_base_state(prep: &neo_fold_clean::lifecycle::Preprocessing) -> State 
     let z_0 = initial_boundary_digest(&structure, prep.public_input_len);
     let public_trace = public_trace_seed_digest(&structure);
     let acc_digest = accumulator_digest_from_claims(prep.params.b(), &[]);
-    State::base(z_0, public_trace, acc_digest)
+    State::base(z_0, public_trace, acc_digest, acc_digest)
 }
 
 fn f_prime_state_x_out(prep: &neo_fold_clean::lifecycle::Preprocessing, state: &State) -> [F; 4] {

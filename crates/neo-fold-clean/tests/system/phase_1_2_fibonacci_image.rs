@@ -70,6 +70,7 @@ fn skeleton_config() -> FPrimeImageConfig {
         // acc_handle + acc_output. Sizes are catalog §B.3 ballparks.
         sponge_transcript_permutes: 64, // F' transcript session permute count (toy)
         one_shot_digest_to_state_out_bindings: vec![],
+        one_shot_digest_to_state_in_bindings: vec![],
         one_shot_digest_to_public_x_out_bindings: vec![],
         poseidon_transition_enforcements: vec![],
         unified_accumulator_selector: None,

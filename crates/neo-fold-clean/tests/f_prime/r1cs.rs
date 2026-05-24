@@ -155,6 +155,7 @@ fn build_fixture_with_divergent_fresh(divergent_index: usize) -> Fixture {
         z_0: rand_digest(0x100),
         z_i_in: rand_digest(0x101),
         pc: 1,
+        semantic_state_digest_in: acc_digest_in,
         acc_digest_in,
         public_trace_in: rand_digest(0x40),
     };
@@ -262,6 +263,7 @@ fn build_fixture_with_k_fresh(k_fresh: usize) -> Fixture {
         z_0: rand_digest(0x100),
         z_i_in: rand_digest(0x101),
         pc: 1,
+        semantic_state_digest_in: acc_digest_in,
         acc_digest_in,
         public_trace_in: rand_digest(0x40),
     };
@@ -370,6 +372,7 @@ fn base_state(b: u32, z_0: [F; 4]) -> FPrimeStateIn {
         z_i_in: z_0,
         pc: 1,
         acc_digest_in: empty_acc,
+        semantic_state_digest_in: empty_acc,
         public_trace_in: rand_digest(0x40),
     }
 }
@@ -392,6 +395,7 @@ fn native_x_out(
     state: &FPrimeStateIn,
     chunk_digest: [F; 4],
     new_acc_digest: [F; 4],
+    new_semantic_state_digest: [F; 4],
     new_chunk_count: u64,
     new_step_count: u64,
 ) -> [F; 4] {
@@ -405,7 +409,7 @@ fn native_x_out(
         digest_fields_as_digest32(state.z_0),
         new_z_i,
         state.pc,
-        digest_fields_as_digest32(new_acc_digest),
+        digest_fields_as_digest32(new_semantic_state_digest),
         digest_fields_as_digest32(new_acc_digest),
         new_public_trace,
     ))
@@ -416,7 +420,7 @@ fn native_x_out(
 /// `push_enc_inst` to get the bit-encoded `BitRange`.
 fn base_step_x_out(b: u32, state: &FPrimeStateIn, chunk_digest: [F; 4], rows_in_chunk: u64) -> [F; 4] {
     let empty_acc = digest32_as_fields(accumulator_digest_from_claims(b, &[]));
-    native_x_out(state, chunk_digest, empty_acc, 1, rows_in_chunk)
+    native_x_out(state, chunk_digest, empty_acc, empty_acc, 1, rows_in_chunk)
 }
 
 /// Raw `x_out` (`[F; 4]`) for the **recursive** step: post-state's
@@ -434,6 +438,7 @@ fn recursive_step_x_out(
         state,
         chunk_digest,
         new_acc,
+        state.semantic_state_digest_in,
         state.chunk_count_in + 1,
         state.step_count_in + fresh_count,
     )
@@ -454,6 +459,7 @@ fn f_prime_base_step_emits_and_satisfies() {
     let inputs = FPrimeBaseInputs {
         state: state.clone(),
         chunk_digest,
+        semantic_state_digest_out: state.semantic_state_digest_in,
         rows_in_chunk,
         source_image: &source.image,
         chunk_count_in_word: source.chunk_count_in_word,
@@ -497,6 +503,7 @@ fn f_prime_base_step_rejects_nonzero_chunk_count_in() {
     let inputs = FPrimeBaseInputs {
         state: state.clone(),
         chunk_digest,
+        semantic_state_digest_out: state.semantic_state_digest_in,
         rows_in_chunk: 3,
         source_image: &source.image,
         chunk_count_in_word: source.chunk_count_in_word,
@@ -523,6 +530,7 @@ fn f_prime_base_step_rejects_z_i_neq_z_0() {
     let inputs = FPrimeBaseInputs {
         state: state.clone(),
         chunk_digest,
+        semantic_state_digest_out: state.semantic_state_digest_in,
         rows_in_chunk: 3,
         source_image: &source.image,
         chunk_count_in_word: source.chunk_count_in_word,
@@ -617,6 +625,7 @@ fn f_prime_recursive_step_accepts_real_native_nifs_proof() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
+        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
         nifs_msg: msg_from_fixture(&fixture),
         rows_in_chunk: 1,
         source_image: &source.image,
@@ -653,6 +662,7 @@ fn f_prime_recursive_rejects_chunk_count_in_zero() {
     state.chunk_count_in = 0;
     let source = recursive_source_image(&fixture);
     let inputs = FPrimeRecursiveInputs {
+        semantic_state_digest_out: state.semantic_state_digest_in,
         state,
         chunk_digest: fixture.chunk_digest,
         nifs_msg: msg_from_fixture(&fixture),
@@ -679,6 +689,7 @@ fn f_prime_recursive_rejects_empty_fresh_batch() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
+        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
         nifs_msg: NifsVCircuitMessages {
             fresh: &empty,
             running: &fixture.running.claims,
@@ -717,6 +728,7 @@ fn recursive_step_accepts_multi_fresh_batch() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
+        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
         nifs_msg: msg_from_fixture(&fixture),
         rows_in_chunk: 3,
         source_image: &source.image,
@@ -756,6 +768,7 @@ fn f_prime_recursive_rejects_multi_fresh_with_divergent_non_first_link() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
+        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
         nifs_msg: msg_from_fixture(&fixture),
         rows_in_chunk: 3,
         source_image: &source.image,
@@ -787,6 +800,7 @@ fn f_prime_recursive_rejects_fresh_m_in_mismatch() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
+        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
         nifs_msg: NifsVCircuitMessages {
             fresh: &bad_fresh,
             running: &fixture.running.claims,
@@ -832,6 +846,7 @@ fn f_prime_recursive_rejects_tampered_public_x_out_bits() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
+        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
         nifs_msg: msg_from_fixture(&fixture),
         rows_in_chunk: 1,
         source_image: &source.image,
@@ -858,6 +873,7 @@ fn f_prime_recursive_rejects_tampered_acc_digest_in() {
     state.acc_digest_in[0] += F::ONE;
     let source = recursive_source_image(&fixture);
     let inputs = FPrimeRecursiveInputs {
+        semantic_state_digest_out: state.semantic_state_digest_in,
         state,
         chunk_digest: fixture.chunk_digest,
         nifs_msg: msg_from_fixture(&fixture),
@@ -888,6 +904,7 @@ fn f_prime_recursive_rejects_tampered_chunk_digest() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: bad_chunk_digest,
+        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
         nifs_msg: msg_from_fixture(&fixture),
         rows_in_chunk: 1,
         source_image: &source.image,
@@ -921,6 +938,7 @@ fn f_prime_recursive_rejects_tampered_fresh_x_bit() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
+        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
         nifs_msg: NifsVCircuitMessages {
             fresh: &bad_fresh,
             running: &fixture.running.claims,
@@ -961,6 +979,7 @@ fn f_prime_recursive_rejects_nonbinary_source_image_public_bit() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
+        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
         nifs_msg: msg_from_fixture(&fixture),
         rows_in_chunk: 1,
         source_image: &source.image,
@@ -995,6 +1014,7 @@ fn f_prime_recursive_rejects_tampered_prior_source_image_bit() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
+        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
         nifs_msg: msg_from_fixture(&fixture),
         rows_in_chunk: 1,
         source_image: &source.image,
@@ -1030,6 +1050,7 @@ fn f_prime_recursive_rejects_fresh_x_not_matching_prior_source_image() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
+        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
         nifs_msg: NifsVCircuitMessages {
             fresh: &bad_fresh,
             running: &fixture.running.claims,
@@ -1070,6 +1091,7 @@ fn f_prime_recursive_rejects_source_image_chunk_count_mismatch() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
+        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
         nifs_msg: msg_from_fixture(&fixture),
         rows_in_chunk: 1,
         source_image: &source.image,
@@ -1107,6 +1129,7 @@ fn f_prime_recursive_rejects_noncanonical_source_image_pc_word() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
+        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
         nifs_msg: msg_from_fixture(&fixture),
         rows_in_chunk: 1,
         source_image: &source.image,

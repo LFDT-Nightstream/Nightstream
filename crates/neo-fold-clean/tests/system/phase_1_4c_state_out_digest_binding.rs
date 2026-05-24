@@ -39,6 +39,7 @@ fn binding_config(bindings: Vec<OneShotDigestToStateOutBinding>) -> FPrimeImageC
         poseidon_one_shot_preimage_lens: vec![3],
         sponge_transcript_permutes: 0,
         one_shot_digest_to_state_out_bindings: bindings,
+        one_shot_digest_to_state_in_bindings: vec![],
         one_shot_digest_to_public_x_out_bindings: vec![],
         poseidon_transition_enforcements: vec![],
         unified_accumulator_selector: None,
@@ -78,6 +79,7 @@ fn honest_image_with_binding(
             new_step_count: 0,
             new_z_i: digest,
             new_public_trace: [F::ZERO; 4],
+            new_semantic_state_digest: [F::ZERO; 4],
             new_acc_digest: [F::ZERO; 4],
         },
         StateOutDigestTarget::NewPublicTrace => StateOut {
@@ -85,6 +87,15 @@ fn honest_image_with_binding(
             new_step_count: 0,
             new_z_i: [F::ZERO; 4],
             new_public_trace: digest,
+            new_semantic_state_digest: [F::ZERO; 4],
+            new_acc_digest: [F::ZERO; 4],
+        },
+        StateOutDigestTarget::NewSemanticStateDigest => StateOut {
+            new_chunk_count: 0,
+            new_step_count: 0,
+            new_z_i: [F::ZERO; 4],
+            new_public_trace: [F::ZERO; 4],
+            new_semantic_state_digest: digest,
             new_acc_digest: [F::ZERO; 4],
         },
         StateOutDigestTarget::NewAccDigest => StateOut {
@@ -92,6 +103,7 @@ fn honest_image_with_binding(
             new_step_count: 0,
             new_z_i: [F::ZERO; 4],
             new_public_trace: [F::ZERO; 4],
+            new_semantic_state_digest: [F::ZERO; 4],
             new_acc_digest: digest,
         },
     };
@@ -136,6 +148,7 @@ fn phase_1_4c_honest_poseidon_state_out_binding_satisfies() {
     for target in [
         StateOutDigestTarget::NewZI,
         StateOutDigestTarget::NewPublicTrace,
+        StateOutDigestTarget::NewSemanticStateDigest,
         StateOutDigestTarget::NewAccDigest,
     ] {
         let (layout, image, _) = honest_image_with_binding(target);
@@ -160,7 +173,7 @@ fn phase_1_4c_tampered_state_out_digest_lane_trips_binding_row() {
     // Tamper the state_out new_z_i lane 0 by rewriting its 64 bits to encode a
     // different canonical-u64 value. Bit validity still holds; only the
     // poseidon↔state_out binding row at lane 0 sees the mismatch.
-    let state_out_z_i_lane0 = structure.lane_slots.state_lanes[26];
+    let state_out_z_i_lane0 = structure.lane_slots.state_lanes[30];
     let new_value = decode_lane_f(&z, state_out_z_i_lane0.bit_start) + F::ONE;
     write_u64_bits(&mut z, state_out_z_i_lane0.bit_start, new_value.as_canonical_u64());
 

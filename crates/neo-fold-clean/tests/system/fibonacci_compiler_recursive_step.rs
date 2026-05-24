@@ -136,6 +136,7 @@ fn build_real_fold_uncached(
         chunk_count: pre_state.chunk_count,
         step_count: pre_state.step_count,
         z_i: digest32_as_fields(pre_state.z_i),
+        semantic_state_digest: digest32_as_fields(pre_state.semantic_state_digest),
         acc_digest: digest32_as_fields(pre_state.acc_digest),
         public_trace: digest32_as_fields(pre_state.public_trace),
     };

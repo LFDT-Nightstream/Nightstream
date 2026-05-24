@@ -32,7 +32,7 @@ use neo_reductions::optimized_engine::OptimizedStructureCache;
 use thiserror::Error;
 
 use crate::paper::construction2::{
-    self, EncInst, FinalFoldProof, ProofState, RunningInstance, State, StepProof, VerifierKey,
+    self, EncInst, FinalFoldProof, ProofState, RunningInstance, SemanticStateMode, State, StepProof, VerifierKey,
 };
 use crate::paper::digest::{accumulator_digest_from_claims, initial_boundary_digest, public_trace_seed_digest};
 use crate::paper::params::Params;
@@ -77,6 +77,8 @@ pub struct PublicImage {
     pub z_0: [u8; 32],
     pub z_i: [u8; 32],
     pub pc: u64,
+    pub initial_semantic_state_digest: [u8; 32],
+    pub semantic_state_digest: [u8; 32],
     pub acc_digest: [u8; 32],
     pub public_trace: [u8; 32],
     pub x_out: EncInst,
@@ -122,6 +124,7 @@ pub struct Statement {
 /// knowledge. Building Spartan around an underspecified statement risks
 /// soundness gaps that `validate_witness` cannot catch later, so this
 /// non-SNARK check is the gatekeeper.
+#[allow(clippy::too_many_arguments)]
 pub fn validate_witness(
     params: &Params,
     structure: &Structure,
@@ -132,6 +135,7 @@ pub fn validate_witness(
     combine_b_pows: DecMixer,
     vk: &VerifierKey,
     public_input_len: Option<usize>,
+    semantic_mode: SemanticStateMode,
     statement: &Statement,
 ) -> Result<(), Error> {
     let Witness {
@@ -152,9 +156,17 @@ pub fn validate_witness(
     let z_0 = initial_boundary_digest(structure_digest_v, public_input_len);
     let public_trace = public_trace_seed_digest(structure_digest_v);
     let acc_digest = accumulator_digest_from_claims(params.b(), &[]);
-    let mut state = State::base(z_0, public_trace, acc_digest);
+    let mut state = State::base(
+        z_0,
+        public_trace,
+        acc_digest,
+        statement.public.initial_semantic_state_digest,
+    );
 
-    // Walk each step through F'.verify.
+    // Walk each step through F'.verify. The mode discriminates whether
+    // the stateless invariant (`StepProof.semantic_state_digest == new
+    // accumulator digest`) is enforced — for stateful chains the F'
+    // image's binding rows authenticate the digest instead.
     for (public_batch, step_proof) in public_batches.iter().zip(steps) {
         state = construction2::verify_step(
             params,
@@ -167,6 +179,7 @@ pub fn validate_witness(
             state,
             public_batch,
             step_proof,
+            semantic_mode,
         )
         .map_err(|e| Error::WalkFailed(format!("step: {e}")))?;
     }
@@ -195,6 +208,8 @@ pub fn validate_witness(
         z_0: state.z_0,
         z_i: state.z_i,
         pc: state.pc,
+        initial_semantic_state_digest: state.initial_semantic_state_digest,
+        semantic_state_digest: state.semantic_state_digest,
         acc_digest: state.acc_digest,
         public_trace: state.public_trace,
         x_out,
@@ -221,6 +236,8 @@ pub fn validate_witness(
         || final_state.z_0 != state.z_0
         || final_state.z_i != state.z_i
         || final_state.pc != state.pc
+        || final_state.initial_semantic_state_digest != state.initial_semantic_state_digest
+        || final_state.semantic_state_digest != state.semantic_state_digest
         || final_state.acc_digest != state.acc_digest
         || final_state.public_trace != state.public_trace
     {

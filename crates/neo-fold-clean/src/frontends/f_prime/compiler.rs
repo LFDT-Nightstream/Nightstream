@@ -65,6 +65,7 @@ pub struct FPrimeChainState {
     pub chunk_count: u64,
     pub step_count: u64,
     pub z_i: [F; 4],
+    pub semantic_state_digest: [F; 4],
     pub acc_digest: [F; 4],
     pub public_trace: [F; 4],
 }
@@ -219,6 +220,7 @@ pub fn start_f_prime_chain_context(
             chunk_count: 0,
             step_count: 0,
             z_i: z_0,
+            semantic_state_digest: acc_digest,
             acc_digest,
             public_trace,
         },
@@ -253,6 +255,8 @@ pub fn verify_prior_fold(
         z_0: digest_fields_as_digest32(ctx.z_0),
         z_i: digest_fields_as_digest32(ctx.chain_state.z_i),
         pc: ctx.pc,
+        initial_semantic_state_digest: digest_fields_as_digest32(ctx.chain_state.semantic_state_digest),
+        semantic_state_digest: digest_fields_as_digest32(ctx.chain_state.semantic_state_digest),
         acc_digest: digest_fields_as_digest32(ctx.chain_state.acc_digest),
         public_trace: digest_fields_as_digest32(ctx.chain_state.public_trace),
         proof: ProofState::Initial,
@@ -510,7 +514,7 @@ pub fn assemble_unified_step_traces(
     rows_in_chunk: usize,
 ) -> UnifiedStepTraceAssembly {
     let shared = assemble_shared_chunk_traces(ctx, is_base, recursive_c_data, child_count, rows_in_chunk);
-    assemble_step_from_shared(&shared, ctx, app_public_input)
+    assemble_step_from_shared(&shared, ctx, app_public_input, None)
 }
 
 /// The chunk-shared portion of [`assemble_unified_step_traces`]:
@@ -566,6 +570,7 @@ pub fn assemble_shared_chunk_traces(
         structure_digest: ctx.structure_digest,
         z_0: ctx.z_0,
         z_i_in: ctx.chain_state.z_i,
+        semantic_state_digest_in: ctx.chain_state.semantic_state_digest,
         acc_digest_in: ctx.chain_state.acc_digest,
         public_trace_in: ctx.chain_state.public_trace,
     };
@@ -597,12 +602,14 @@ pub fn assemble_shared_chunk_traces(
         new_step_count,
         new_z_i,
         new_public_trace,
+        new_semantic_state_digest: new_acc_digest,
         new_acc_digest,
     };
     let next_chain_state = FPrimeChainState {
         chunk_count: new_chunk_count,
         step_count: new_step_count,
         z_i: new_z_i,
+        semantic_state_digest: new_acc_digest,
         acc_digest: new_acc_digest,
         public_trace: new_public_trace,
     };
@@ -629,17 +636,23 @@ pub fn assemble_step_from_shared(
     shared: &SharedChunkTraces,
     ctx: &FPrimeCompilerContext,
     app_public_input: &[F],
+    semantic_state_digest_out: Option<[F; 4]>,
 ) -> UnifiedStepTraceAssembly {
+    let mut state_out = shared.state_out;
+    if let Some(semantic_state_digest) = semantic_state_digest_out {
+        state_out.new_semantic_state_digest = semantic_state_digest;
+    }
     let state_x_out = encode_poseidon_trace(&build_state_x_out_preimage_fields_with_app_x(
         ctx.vk_fs_digest,
         ctx.structure_digest,
-        shared.state_out.new_chunk_count,
-        shared.state_out.new_step_count,
+        state_out.new_chunk_count,
+        state_out.new_step_count,
         ctx.z_0,
-        shared.state_out.new_z_i,
+        state_out.new_z_i,
         ctx.pc,
-        shared.state_out.new_acc_digest,
-        shared.state_out.new_public_trace,
+        state_out.new_semantic_state_digest,
+        state_out.new_acc_digest,
+        state_out.new_public_trace,
         app_public_input,
     ));
 
@@ -648,11 +661,14 @@ pub fn assemble_step_from_shared(
 
     UnifiedStepTraceAssembly {
         state_in: shared.state_in,
-        state_out: shared.state_out,
+        state_out,
         chunk_digest: shared.chunk_digest,
         public_output_digest,
         boundary_bits,
-        next_chain_state: shared.next_chain_state,
+        next_chain_state: FPrimeChainState {
+            semantic_state_digest: state_out.new_semantic_state_digest,
+            ..shared.next_chain_state
+        },
         traces: UnifiedStepPoseidonTraces {
             boundary: shared.boundary.clone(),
             public_trace: shared.public_trace.clone(),

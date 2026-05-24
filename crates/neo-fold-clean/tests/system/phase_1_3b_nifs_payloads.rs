@@ -155,6 +155,7 @@ fn skeleton_config_for(fresh_shape: &NifsCcsClaimShape, ce_shape: &NifsCeClaimSh
         poseidon_one_shot_preimage_lens: vec![13, 40],
         sponge_transcript_permutes: 16,
         one_shot_digest_to_state_out_bindings: vec![],
+        one_shot_digest_to_state_in_bindings: vec![],
         one_shot_digest_to_public_x_out_bindings: vec![],
         poseidon_transition_enforcements: vec![],
         unified_accumulator_selector: None,

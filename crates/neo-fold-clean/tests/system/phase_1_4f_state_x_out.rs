@@ -97,6 +97,8 @@ fn build_honest_fixture() -> Fixture {
         pc: PC,
         public_x_out_lane_bit_starts,
         app_public_input_var_indices: Vec::new(),
+        semantic_state_in_var_indices: Vec::new(),
+        semantic_state_out_var_indices: Vec::new(),
     });
     let layout = FPrimeImageLayout::new(build_recursive_step_image_config(&plan));
     let mut image = FPrimeImage::new(layout.clone());
@@ -145,6 +147,7 @@ fn build_honest_fixture() -> Fixture {
         z_0,
         z_i_in,
         acc_digest_in: [F::ZERO; 4],
+        semantic_state_digest_in: [F::ZERO; 4],
         public_trace_in,
     });
     image.fill_chunk_digest(chunk_digest);
@@ -186,6 +189,7 @@ fn build_honest_fixture() -> Fixture {
         new_step_count: NEW_STEP_COUNT,
         new_z_i,
         new_public_trace,
+        new_semantic_state_digest: new_acc_digest,
         new_acc_digest,
     });
 
@@ -199,6 +203,7 @@ fn build_honest_fixture() -> Fixture {
         z_0,
         new_z_i,
         PC,
+        new_acc_digest,
         new_acc_digest,
         new_public_trace,
     );

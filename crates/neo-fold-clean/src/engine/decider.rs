@@ -55,10 +55,11 @@
 //!    pinned to `1` (CCS constant-one slot) and `fresh.x[1..]` is pinned
 //!    to the last F' step's `x_out_bits`. The trailing latest is bound
 //!    to the actual chain output, not an attacker-chosen value.
-//! 8. **Nine public-image pins**: every field of
-//!    [`crate::paper::decider::PublicImage`] is bound to chain-derived
-//!    wires. The terminal `x_out` is recomputed in-circuit from the
-//!    post-fold state and pinned to `statement.public.x_out`.
+//! 8. **Public-image pins**: `initial_semantic_state_digest` is pinned by the
+//!    base-state seed check; the remaining ten terminal public-image
+//!    fields are pinned by `pin_public_image`. The terminal `x_out` is
+//!    recomputed in-circuit from the post-fold state and pinned to
+//!    `statement.public.x_out`.
 //!
 //! Each audit layer's completeness is reported on [`DeciderR1csSynthesis`].
 //! [`DeciderR1csSynthesis::is_self_sufficient_relation`] returns `true`
@@ -131,9 +132,17 @@ pub struct DeciderR1csSynthesis {
     /// `true` once the terminal `final_fold` NIFS.V is re-emitted
     /// in-circuit under [`FINAL_FOLD_TRANSCRIPT_LABEL`].
     pub terminal_fold_emitted: bool,
-    /// Count of in-circuit `statement.public` field pins (out of
-    /// [`REQUIRED_PUBLIC_IMAGE_PINS`]).
+    /// Count of terminal in-circuit `statement.public` field pins
+    /// emitted by `pin_public_image` (out of
+    /// [`REQUIRED_PUBLIC_IMAGE_PINS`]). The initial
+    /// `initial_semantic_state_digest` public field is pinned by
+    /// `base_state_pinned`, since it belongs to the base seed.
     pub public_image_pins: usize,
+    /// First row of the terminal `semantic_state_digest` public-image pin.
+    /// The pin occupies the next four rows. Exposed so integration tests can
+    /// distinguish "native preflight rejected" from "the in-circuit public
+    /// pin itself rejected."
+    pub semantic_state_digest_pin_row_start: usize,
     /// Number of CE-claim continuity links emitted between adjacent
     /// NIFS.V steps. For an N-batch chain (1 base + (N-1) recursive +
     /// terminal fold) this equals `recursive_step_count`: each
@@ -146,9 +155,10 @@ pub struct DeciderR1csSynthesis {
     pub accumulator_claim_links: usize,
 }
 
-/// Number of fields in `decider::PublicImage` that must be pinned
-/// in-circuit before the R1CS is a self-sufficient SNARK relation.
-pub const REQUIRED_PUBLIC_IMAGE_PINS: usize = 9;
+/// Number of terminal `decider::PublicImage` fields pinned by
+/// `pin_public_image`. `initial_semantic_state_digest` is the remaining
+/// public-image field and is covered by `base_state_pinned`.
+pub const REQUIRED_PUBLIC_IMAGE_PINS: usize = 10;
 
 impl DeciderR1csSynthesis {
     /// Single-call readiness gate. Returns `true` exactly when every
@@ -183,7 +193,6 @@ pub fn synthesize_statement_r1cs(
     prep: &Preprocessing,
     statement: &Statement,
 ) -> Result<DeciderR1csSynthesis, decider::Error> {
-    // 1. Preflight (sanity, not part of SNARK).
     decider::validate_witness(
         &prep.params,
         prep.structure(),
@@ -194,15 +203,38 @@ pub fn synthesize_statement_r1cs(
         prep.combine_b_pows,
         &prep.vk,
         prep.public_input_len,
+        prep.semantic_state_mode,
         statement,
     )?;
+    synthesize_statement_r1cs_inner(prep, statement)
+}
 
-    // 2-4. F' chain (base + recursive steps + cross-step links).
+/// Test hook for pin-row isolation. Production callers must use
+/// [`synthesize_statement_r1cs`], which runs the native preflight before
+/// emitting any rows.
+#[doc(hidden)]
+pub fn synthesize_statement_r1cs_without_preflight_for_tests(
+    prep: &Preprocessing,
+    statement: &Statement,
+) -> Result<DeciderR1csSynthesis, decider::Error> {
+    synthesize_statement_r1cs_inner(prep, statement)
+}
+
+fn synthesize_statement_r1cs_inner(
+    prep: &Preprocessing,
+    statement: &Statement,
+) -> Result<DeciderR1csSynthesis, decider::Error> {
+    // 1-3. F' chain (base + recursive steps + cross-step links).
     let structure_digest_v = *prep.structure_digest();
     let z_0 = initial_boundary_digest(&structure_digest_v, prep.public_input_len);
     let public_trace = public_trace_seed_digest(&structure_digest_v);
     let acc_digest = accumulator_digest_from_claims(prep.params.b(), &[]);
-    let mut state = State::base(z_0, public_trace, acc_digest);
+    let mut state = State::base(
+        z_0,
+        public_trace,
+        acc_digest,
+        statement.public.initial_semantic_state_digest,
+    );
 
     let mut builder = R1csBuilder::new();
     let mut base_step_emitted = false;
@@ -233,6 +265,7 @@ pub fn synthesize_statement_r1cs(
             state,
             public_batch,
             step_proof,
+            prep.semantic_state_mode,
         )
         .map_err(|e| decider::Error::WalkFailed(format!("step {idx}: {e}")))?;
 
@@ -241,7 +274,7 @@ pub fn synthesize_statement_r1cs(
                 base_step_emitted = true;
                 let out = emit_base_step_r1cs(&mut builder, prep, &state_in, &state, public_batch)
                     .map_err(|e| decider::Error::WalkFailed(format!("emit F' base step {idx}: {e}")))?;
-                enforce_base_state_constants(&mut builder, prep, &out);
+                enforce_base_state_constants(&mut builder, prep, &statement.public, &out);
                 base_state_pinned = true;
                 out
             }
@@ -329,7 +362,8 @@ pub fn synthesize_statement_r1cs(
         cross_step_links,
         terminal_latest_link,
         terminal_fold_emitted,
-        public_image_pins,
+        public_image_pins: public_image_pins.count,
+        semantic_state_digest_pin_row_start: public_image_pins.semantic_state_digest_row_start,
         accumulator_claim_links,
     })
 }
@@ -427,6 +461,7 @@ pub fn synthesize_last_step_terminal_r1cs(
         prep.combine_b_pows,
         &prep.vk,
         prep.public_input_len,
+        prep.semantic_state_mode,
         &statement,
     )?;
 
@@ -436,7 +471,12 @@ pub fn synthesize_last_step_terminal_r1cs(
     let z_0 = initial_boundary_digest(&structure_digest_v, prep.public_input_len);
     let public_trace = public_trace_seed_digest(&structure_digest_v);
     let acc_digest = accumulator_digest_from_claims(prep.params.b(), &[]);
-    let mut state = State::base(z_0, public_trace, acc_digest);
+    let mut state = State::base(
+        z_0,
+        public_trace,
+        acc_digest,
+        statement.public.initial_semantic_state_digest,
+    );
 
     let last_idx = audit.steps.len() - 1;
     let mut last_state_in: Option<State> = None;
@@ -463,6 +503,7 @@ pub fn synthesize_last_step_terminal_r1cs(
             state,
             public_batch,
             step_proof,
+            prep.semantic_state_mode,
         )
         .map_err(|e| decider::Error::WalkFailed(format!("native walk step {idx}: {e}")))?;
         if idx == last_idx {
@@ -482,7 +523,7 @@ pub fn synthesize_last_step_terminal_r1cs(
         FoldProof::NoFold => {
             let out = emit_base_step_r1cs(&mut builder, prep, &last_state_in, &last_state_out, last_public_batch)
                 .map_err(|e| decider::Error::WalkFailed(format!("emit last (base) step: {e}")))?;
-            enforce_base_state_constants(&mut builder, prep, &out);
+            enforce_base_state_constants(&mut builder, prep, &statement.public, &out);
             out
         }
         FoldProof::Recursive(nifs) => emit_recursive_step_r1cs(
@@ -519,7 +560,7 @@ pub fn synthesize_last_step_terminal_r1cs(
         builder,
         running_claim_count: terminal_running.len(),
         has_final_fold: true,
-        public_image_pins,
+        public_image_pins: public_image_pins.count,
     })
 }
 
@@ -545,6 +586,7 @@ fn emit_base_step_r1cs(
         z_0: digest32_as_fields(state_in.z_0),
         z_i_in: digest32_as_fields(state_in.z_i),
         pc: state_in.pc,
+        semantic_state_digest_in: digest32_as_fields(state_in.semantic_state_digest),
         acc_digest_in: digest32_as_fields(state_in.acc_digest),
         public_trace_in: digest32_as_fields(state_in.public_trace),
     };
@@ -566,6 +608,7 @@ fn emit_base_step_r1cs(
     let inputs = FPrimeBaseInputs {
         state: f_state,
         chunk_digest,
+        semantic_state_digest_out: digest32_as_fields(state_out.semantic_state_digest),
         rows_in_chunk,
         source_image: &image,
         chunk_count_in_word,
@@ -607,6 +650,7 @@ fn emit_recursive_step_r1cs(
         z_0: digest32_as_fields(state_in.z_0),
         z_i_in: digest32_as_fields(state_in.z_i),
         pc: state_in.pc,
+        semantic_state_digest_in: digest32_as_fields(state_in.semantic_state_digest),
         acc_digest_in: digest32_as_fields(state_in.acc_digest),
         public_trace_in: digest32_as_fields(state_in.public_trace),
     };
@@ -629,6 +673,7 @@ fn emit_recursive_step_r1cs(
     let inputs = FPrimeRecursiveInputs {
         state: f_state,
         chunk_digest,
+        semantic_state_digest_out: digest32_as_fields(state_out.semantic_state_digest),
         nifs_msg: NifsVCircuitMessages {
             fresh: &fresh,
             running: running_claims,
@@ -664,7 +709,12 @@ fn emit_recursive_step_r1cs(
 /// step itself only enforces shape (counters=0, z_i==z_0, acc==empty), not
 /// the seed values. Native `validate_witness` catches it, but the R1CS
 /// must stand alone.
-fn enforce_base_state_constants(builder: &mut R1csBuilder, prep: &Preprocessing, base: &FPrimeStepOutput) {
+fn enforce_base_state_constants(
+    builder: &mut R1csBuilder,
+    prep: &Preprocessing,
+    public: &PublicImage,
+    base: &FPrimeStepOutput,
+) {
     let structure_lanes = *prep.structure_digest();
     let z_0_bytes = initial_boundary_digest(&structure_lanes, prep.public_input_len);
     let public_trace_bytes = public_trace_seed_digest(&structure_lanes);
@@ -676,6 +726,11 @@ fn enforce_base_state_constants(builder: &mut R1csBuilder, prep: &Preprocessing,
     // Base step also enforces z_i == z_0 in-circuit, but pinning here
     // gives the SNARK verifier a direct constant to compare against.
     pin_digest32(builder, &base.state_in.z_i, z_0_bytes);
+    pin_digest32(
+        builder,
+        &base.state_in.semantic_state_digest,
+        public.initial_semantic_state_digest,
+    );
     pin_digest32(builder, &base.state_in.public_trace, public_trace_bytes);
     pin_digest32(builder, &base.state_in.acc_digest, empty_acc_bytes);
     pin_u64(builder, base.state_in.chunk_count, 0);
@@ -699,6 +754,7 @@ fn enforce_state_link(builder: &mut R1csBuilder, a: &FPrimeStateWires, b: &FPrim
     enforce_digest_eq(builder, &a.z_0, &b.z_0);
     enforce_digest_eq(builder, &a.z_i, &b.z_i);
     builder.enforce_eq(&Lc::from_var(a.pc), &Lc::from_var(b.pc));
+    enforce_digest_eq(builder, &a.semantic_state_digest, &b.semantic_state_digest);
     enforce_digest_eq(builder, &a.acc_digest, &b.acc_digest);
     enforce_digest_eq(builder, &a.public_trace, &b.public_trace);
 }
@@ -953,15 +1009,22 @@ fn enforce_terminal_latest_link(
     Ok(())
 }
 
-/// Pin every field of `statement.public` to chain-derived wires. Returns
-/// [`REQUIRED_PUBLIC_IMAGE_PINS`].
+struct PublicImagePinEmission {
+    count: usize,
+    semantic_state_digest_row_start: usize,
+}
+
+/// Pin every terminal field of `statement.public` to chain-derived
+/// wires. The initial semantic-state digest is pinned in
+/// `enforce_base_state_constants`, because it is part of the base seed.
+/// Returns [`REQUIRED_PUBLIC_IMAGE_PINS`].
 fn pin_public_image(
     builder: &mut R1csBuilder,
     public: &PublicImage,
     prep: &Preprocessing,
     last: &FPrimeStepOutput,
     final_acc_digest: &[Var; 4],
-) -> usize {
+) -> PublicImagePinEmission {
     let so = &last.state_out;
     // 1. vk_fs_digest.
     pin_digest32(builder, &so.vk_fs_digest, public.vk_fs_digest);
@@ -975,11 +1038,14 @@ fn pin_public_image(
     pin_digest32(builder, &so.z_i, public.z_i);
     // 6. pc.
     pin_u64(builder, so.pc, public.pc);
-    // 7. acc_digest — post-final-fold value.
+    // 7. semantic_state_digest — final app / VM state.
+    let semantic_state_digest_row_start = builder.rows();
+    pin_digest32(builder, &so.semantic_state_digest, public.semantic_state_digest);
+    // 8. acc_digest — post-final-fold Construction-2 accumulator.
     pin_digest32(builder, final_acc_digest, public.acc_digest);
-    // 8. public_trace — last F' step's value.
+    // 9. public_trace — last F' step's value.
     pin_digest32(builder, &so.public_trace, public.public_trace);
-    // 9. x_out — recomputed in-circuit from the post-fold state.
+    // 10. x_out — recomputed in-circuit from the post-fold state.
     let terminal_x_out_inputs = StateXOutDigestInputs {
         vk_fs_digest: so.vk_fs_digest,
         structure_digest: so.structure_digest,
@@ -988,7 +1054,7 @@ fn pin_public_image(
         initial_boundary: so.z_0,
         current_boundary: so.z_i,
         pc: so.pc,
-        semantic_acc: *final_acc_digest,
+        semantic_acc: so.semantic_state_digest,
         construction2_acc: *final_acc_digest,
         public_trace: so.public_trace,
     };
@@ -1003,7 +1069,10 @@ fn pin_public_image(
             &Lc::from_const(structure_lanes[k]),
         );
     }
-    REQUIRED_PUBLIC_IMAGE_PINS
+    PublicImagePinEmission {
+        count: REQUIRED_PUBLIC_IMAGE_PINS,
+        semantic_state_digest_row_start,
+    }
 }
 
 fn pin_digest32(builder: &mut R1csBuilder, wires: &[Var; 4], expected: [u8; 32]) {
@@ -1026,7 +1095,7 @@ fn state_x_out_lanes(prep: &Preprocessing, state: &State) -> [F; 4] {
         state.z_0,
         state.z_i,
         state.pc,
-        state.acc_digest,
+        state.semantic_state_digest,
         state.acc_digest,
         state.public_trace,
     ))

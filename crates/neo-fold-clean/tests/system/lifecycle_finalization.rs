@@ -283,6 +283,7 @@ fn validate(
         prep.combine_b_pows,
         &prep.vk,
         prep.public_input_len,
+        prep.semantic_state_mode,
         statement,
     )
 }
@@ -597,4 +598,72 @@ fn same_shape_different_batches_have_same_f_prime_trace_but_different_acc_digest
     // their own running accumulators.
     neo_fold_clean::verify_uncompressed(&prep, &finished_a).expect("proof a verifies");
     neo_fold_clean::verify_uncompressed(&prep, &finished_b).expect("proof b verifies");
+}
+
+// ── H2 regression: stateless semantic invariant ──────────────────────────────
+//
+// The toy preprocessing is stateless (no `semantic_state_in/out_var_indices`
+// in its plan), so the F' image's CCS structure has no Poseidon2 binding
+// rows for the `semantic_state_digest` lane. The verifier must therefore
+// enforce the protocol invariant `semantic_state_digest == accumulator
+// digest carried through finalization` itself; without this check, a
+// malicious prover could self-consistently inject arbitrary bytes into
+// `PublicImage.semantic_state_digest`.
+
+#[test]
+fn verify_uncompressed_rejects_tampered_stateless_semantic_state_digest() {
+    let prep = support::toy_preprocessing();
+    let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 51)]]).expect("one-batch proof");
+    let mut finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finalize");
+
+    // Honest stateless proof must verify cleanly under verify_uncompressed.
+    neo_fold_clean::verify_uncompressed(&prep, &finished).expect("honest stateless proof verifies");
+
+    // Tamper just the terminal semantic_state_digest. The accumulator
+    // digest stays untouched, so the only invariant that should now fail
+    // is the stateless `semantic == acc` carry-through.
+    finished.state.semantic_state_digest[0] ^= 0xFF;
+
+    let err = neo_fold_clean::verify_uncompressed(&prep, &finished)
+        .expect_err("stateless verify must reject a tampered semantic_state_digest");
+    assert!(
+        matches!(err, neo_fold_clean::Error::StatelessSemanticInvariantViolated),
+        "expected StatelessSemanticInvariantViolated, got {err:?}"
+    );
+}
+
+#[test]
+fn verify_uncompressed_audit_rejects_tampered_stateless_step_proof_semantic_state_digest() {
+    let prep = support::toy_preprocessing();
+    let proof = neo_fold_clean::prove(
+        &prep,
+        vec![
+            vec![support::toy_instance(&prep, 61)],
+            vec![support::toy_instance(&prep, 62)],
+        ],
+    )
+    .expect("two-batch proof");
+    let mut audit = neo_fold_clean::finish_uncompressed_with_audit(&prep, proof).expect("finalize with audit");
+
+    // Honest audit verifies cleanly.
+    neo_fold_clean::verify_uncompressed_audit(&prep, &audit).expect("honest stateless audit verifies");
+
+    // Tamper the first step's StepProof.semantic_state_digest. Per-step
+    // f_prime::verify walks this and must reject with
+    // StatelessSemanticInvariantViolated (not XOutMismatch) because the
+    // dedicated check fires before x_out comparison.
+    audit.steps[0].semantic_state_digest[0] ^= 0xFF;
+
+    let err = neo_fold_clean::verify_uncompressed_audit(&prep, &audit)
+        .expect_err("stateless audit must reject a tampered per-step semantic_state_digest");
+    // The per-step f_prime::verify surfaces
+    // `Construction2(StatelessSemanticInvariantViolated)` wrapped in the
+    // decider's `WalkFailed` (which carries the inner error as a string).
+    // Match on the message text and confirm it identifies the stateless
+    // invariant — not the generic XOutMismatch.
+    let msg = format!("{err}");
+    assert!(
+        msg.contains("stateless chain claimed semantic_state_digest"),
+        "expected the per-step verifier to surface the stateless invariant error, got {err}"
+    );
 }

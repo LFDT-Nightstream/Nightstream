@@ -45,8 +45,8 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use support::fibonacci_f_prime::{build_honest_step_input, BOUNDARY_BITS};
 
 // State-lane base indices inside `FPrimeLaneSlots::state_lanes`:
-// state_in occupies lanes 0..24, state_out lanes 24..38, chunk_digest lanes 38..42.
-const STATE_LANE_CHUNK_DIGEST_BASE: usize = 38;
+// state_in occupies lanes 0..28, state_out lanes 28..46, chunk_digest lanes 46..50.
+const STATE_LANE_CHUNK_DIGEST_BASE: usize = 46;
 
 /// Recompose a 64-bit lane to its canonical-u64 F value from the
 /// committed bits.

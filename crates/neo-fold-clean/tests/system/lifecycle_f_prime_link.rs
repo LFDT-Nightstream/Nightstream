@@ -83,7 +83,7 @@ fn compute_x_out_native(prep: &neo_fold_clean::Preprocessing, state: &State) -> 
         state.z_0,
         state.z_i,
         state.pc,
-        state.acc_digest,
+        state.semantic_state_digest,
         state.acc_digest,
         state.public_trace,
     ))
@@ -137,6 +137,7 @@ fn f_prime_state_in(state: &State, prep: &neo_fold_clean::Preprocessing) -> FPri
         z_i_in: digest32_as_fields(state.z_i),
         pc: state.pc,
         acc_digest_in: digest32_as_fields(state.acc_digest),
+        semantic_state_digest_in: digest32_as_fields(state.semantic_state_digest),
         public_trace_in: digest32_as_fields(state.public_trace),
     }
 }
@@ -146,7 +147,7 @@ fn base_state(prep: &neo_fold_clean::Preprocessing) -> State {
     let z_0 = initial_boundary_digest(&structure, prep.public_input_len);
     let public_trace = public_trace_seed_digest(&structure);
     let acc_digest = accumulator_digest_from_claims(prep.params.b(), &[]);
-    State::base(z_0, public_trace, acc_digest)
+    State::base(z_0, public_trace, acc_digest, acc_digest)
 }
 
 /// CCS instance whose public-input bits encode `enc_inst(x_out_target)`.
@@ -238,6 +239,7 @@ fn build_f_prime_honest_chain(len: usize) -> ChainFixture {
         // shape-only, batch.x doesn't change state advance).
         debug_assert_eq!(next_state.z_i, predicted.z_i);
         debug_assert_eq!(next_state.public_trace, predicted.public_trace);
+        debug_assert_eq!(next_state.semantic_state_digest, predicted.semantic_state_digest);
         debug_assert_eq!(next_state.acc_digest, predicted.acc_digest);
 
         snapshots.push(StepSnapshot {
@@ -257,6 +259,7 @@ fn build_f_prime_honest_chain(len: usize) -> ChainFixture {
 struct RecursiveStepView<'a> {
     prep: &'a neo_fold_clean::Preprocessing,
     state_in: &'a State,
+    state_out: &'a State,
     fresh: Vec<CcsClaim>,
     running_claims: &'a [CeClaim],
     running_parent_authority: Option<&'a CeClaim>,
@@ -288,6 +291,7 @@ impl ChainFixture {
         RecursiveStepView {
             prep: &self.prep,
             state_in: &snapshot.state_in,
+            state_out: &snapshot.state_out,
             fresh,
             running_claims,
             running_parent_authority,
@@ -345,6 +349,7 @@ fn run_recursive_check(
 
     let cfg = make_step_config(view.prep);
     let inputs = FPrimeRecursiveInputs {
+        semantic_state_digest_out: digest32_as_fields(view.state_out.semantic_state_digest),
         state: f_state,
         chunk_digest,
         nifs_msg: NifsVCircuitMessages {
@@ -613,6 +618,7 @@ fn nifs_transcript_binds_chunk_contents_even_though_f_prime_digest_is_shape_only
         prep.combine_b_pows,
         &prep.vk,
         prep.public_input_len,
+        prep.semantic_state_mode,
         &untampered_statement,
     )
     .expect("untampered statement passes validate_witness");
@@ -634,6 +640,7 @@ fn nifs_transcript_binds_chunk_contents_even_though_f_prime_digest_is_shape_only
             prep.combine_b_pows,
             &prep.vk,
             prep.public_input_len,
+            prep.semantic_state_mode,
             &tampered_statement,
         )
         .is_err(),

@@ -41,6 +41,7 @@ fn skeleton_config() -> FPrimeImageConfig {
         poseidon_one_shot_preimage_lens: vec![13, 13, 40, 40, 1235, 1300, 977, 977],
         sponge_transcript_permutes: 64,
         one_shot_digest_to_state_out_bindings: vec![],
+        one_shot_digest_to_state_in_bindings: vec![],
         one_shot_digest_to_public_x_out_bindings: vec![],
         poseidon_transition_enforcements: vec![],
         unified_accumulator_selector: None,
@@ -62,6 +63,7 @@ fn deterministic_state_in() -> StateIn {
         z_0: mk_digest(3_000),
         z_i_in: mk_digest(4_000),
         acc_digest_in: mk_digest(5_000),
+        semantic_state_digest_in: mk_digest(5_000),
         public_trace_in: mk_digest(6_000),
     }
 }
@@ -73,6 +75,7 @@ fn deterministic_state_out() -> StateOut {
         new_z_i: mk_digest(7_000),
         new_public_trace: mk_digest(8_000),
         new_acc_digest: mk_digest(9_000),
+        new_semantic_state_digest: mk_digest(9_000),
     }
 }
 

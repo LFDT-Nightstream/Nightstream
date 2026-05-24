@@ -2,14 +2,14 @@
 
 use crate::frontends::f_prime::encoder::EncodedFPrimeStep;
 use crate::frontends::r1cs_f_prime::compiler::{
-    compile_chunk, compile_step, start_chain, R1csCompiledStep, R1csCompilerContext, R1csFPrimeStepInput,
-    R1csFoldForStep,
+    compile_chunk, compile_step, semantic_state_digests_for_inputs, start_chain, R1csCompiledStep, R1csCompilerContext,
+    R1csFPrimeStepInput, R1csFoldForStep,
 };
 use crate::frontends::r1cs_f_prime::instance::build_instance;
 use crate::frontends::r1cs_f_prime::{Error, R1csFPrimePreprocessing};
 use crate::lifecycle::{Uncompressed, UncompressedAudit};
 use crate::paper::construction2::{LatestInstance, ProofState};
-use crate::paper::digest::digest32_as_fields;
+use crate::paper::digest::{digest32_as_fields, digest_fields_as_digest32};
 use crate::paper::relations::{CcsClaim, CcsInstance};
 
 /// Fold a sequence of encoded R1CS-F' steps through `lifecycle::prove`,
@@ -117,6 +117,19 @@ impl<'a> R1csChainBuilder<'a> {
         }
         let k = inputs.len();
         let is_recursive = self.audit.is_some();
+        let semantic = semantic_state_digests_for_inputs(self.prep, &inputs)?;
+        if is_recursive {
+            if let Some(semantic) = semantic {
+                if self.ctx.chain_state.semantic_state_digest != semantic.input {
+                    return Err(Error::Compiler(
+                        crate::frontends::r1cs_f_prime::compiler::R1csCompilerError::SemanticStateInputMismatch {
+                            expected: self.ctx.chain_state.semantic_state_digest,
+                            got: semantic.input,
+                        },
+                    ));
+                }
+            }
+        }
 
         if is_recursive {
             #[cfg(feature = "perf-timers")]
@@ -124,7 +137,7 @@ impl<'a> R1csChainBuilder<'a> {
             // Computes the fold proof for the upcoming step AND stashes
             // the post-fold audit in `self.pending_audit` (so the deposit
             // below need not re-run the fold).
-            self.prepare_next_fold(k)?;
+            self.prepare_next_fold(k, semantic.map(|s| digest_fields_as_digest32(s.output)))?;
             #[cfg(feature = "perf-timers")]
             eprintln!(
                 "[r1cs-chain] prepare_next_fold             {:>7.2}s",
@@ -198,7 +211,16 @@ impl<'a> R1csChainBuilder<'a> {
                 .ok_or(Error::ChainExpectedActiveState)? = real_claims;
             audit
         } else {
-            crate::lifecycle::prove(&self.prep.prep, [instances.clone()])?
+            if let Some(semantic) = semantic {
+                crate::lifecycle::prove::prove_one_with_semantic_state(
+                    &self.prep.prep,
+                    instances.clone(),
+                    digest_fields_as_digest32(semantic.input),
+                    digest_fields_as_digest32(semantic.output),
+                )?
+            } else {
+                crate::lifecycle::prove(&self.prep.prep, [instances.clone()])?
+            }
         });
         #[cfg(feature = "perf-timers")]
         eprintln!(
@@ -245,7 +267,11 @@ impl<'a> R1csChainBuilder<'a> {
     /// chunk's batch — it controls the chunk_digest the simulated
     /// extend's NIFS transcript absorbs, which must match what the
     /// upcoming F' R1CS will replay.
-    fn prepare_next_fold(&mut self, next_rows_in_chunk: usize) -> Result<(), Error> {
+    fn prepare_next_fold(
+        &mut self,
+        next_rows_in_chunk: usize,
+        semantic_state_digest_next: Option<[u8; 32]>,
+    ) -> Result<(), Error> {
         let audit = self.audit.as_ref().ok_or(Error::ChainEmpty)?;
         if self.latest_batch.is_empty() {
             return Err(Error::ChainEmpty);
@@ -265,7 +291,16 @@ impl<'a> R1csChainBuilder<'a> {
         // reads only the per-claim shape `(d, kappa, m_in)` and the
         // batch length.
         let placeholder = vec![self.latest_batch[0].clone(); next_rows_in_chunk];
-        let derived = crate::lifecycle::extend(&self.prep.prep, audit.clone(), placeholder)?;
+        let derived = if let Some(semantic_state_digest_next) = semantic_state_digest_next {
+            crate::lifecycle::prove::extend_with_semantic_state(
+                &self.prep.prep,
+                audit.clone(),
+                placeholder,
+                semantic_state_digest_next,
+            )?
+        } else {
+            crate::lifecycle::extend(&self.prep.prep, audit.clone(), placeholder)?
+        };
         let fold = match &derived.steps.last().expect("extend appended one step").fold {
             crate::paper::construction2::FoldProof::Recursive(p) => p.clone(),
             crate::paper::construction2::FoldProof::NoFold => return Err(Error::ChainExpectedActiveState),
@@ -279,6 +314,7 @@ impl<'a> R1csChainBuilder<'a> {
             chunk_count: pre_state.chunk_count,
             step_count: pre_state.step_count,
             z_i: digest32_as_fields(pre_state.z_i),
+            semantic_state_digest: digest32_as_fields(pre_state.semantic_state_digest),
             acc_digest: digest32_as_fields(pre_state.acc_digest),
             public_trace: digest32_as_fields(pre_state.public_trace),
         };

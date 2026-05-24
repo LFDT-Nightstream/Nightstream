@@ -25,8 +25,9 @@
 //!     (`terminal_fold_emitted == true`).
 //!   - **Terminal latest link**: `terminal_fresh.x[0] == 1` and
 //!     `fresh.x[1..] == last.x_out_bits` (`terminal_latest_link == true`).
-//!   - **Nine public-image pins** (`public_image_pins ==
-//!     REQUIRED_PUBLIC_IMAGE_PINS`).
+//!   - **Public-image pins**: the base-state seed pins
+//!     `initial_semantic_state_digest`; `public_image_pins ==
+//!     REQUIRED_PUBLIC_IMAGE_PINS` covers the remaining terminal fields.
 //!
 //! When all of the above hold and the builder is satisfied,
 //! [`DeciderR1csSynthesis::is_self_sufficient_relation`] returns
@@ -36,7 +37,9 @@
 #![allow(non_snake_case)]
 
 use neo_ccs::Mat;
-use neo_fold_clean::engine::decider::{synthesize_statement_r1cs, REQUIRED_PUBLIC_IMAGE_PINS};
+use neo_fold_clean::engine::decider::{
+    synthesize_statement_r1cs, synthesize_statement_r1cs_without_preflight_for_tests, REQUIRED_PUBLIC_IMAGE_PINS,
+};
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
 use neo_fold_clean::paper::construction2::{self, State};
 use neo_fold_clean::paper::digest::{
@@ -68,7 +71,7 @@ fn compute_x_out_native(prep: &neo_fold_clean::Preprocessing, state: &State) -> 
         state.z_0,
         state.z_i,
         state.pc,
-        state.acc_digest,
+        state.semantic_state_digest,
         state.acc_digest,
         state.public_trace,
     ))
@@ -79,7 +82,7 @@ fn base_state(prep: &neo_fold_clean::Preprocessing) -> State {
     let z_0 = initial_boundary_digest(&structure, prep.public_input_len);
     let public_trace = public_trace_seed_digest(&structure);
     let acc_digest = accumulator_digest_from_claims(prep.params.b(), &[]);
-    State::base(z_0, public_trace, acc_digest)
+    State::base(z_0, public_trace, acc_digest, acc_digest)
 }
 
 fn build_link_instance(prep: &neo_fold_clean::Preprocessing, r1cs: &R1cs, x_out_target: [F; 4]) -> CcsInstance {
@@ -258,6 +261,32 @@ fn decider_r1cs_synthesis_rejects_tampered_public_image() {
 }
 
 #[test]
+fn decider_r1cs_terminal_semantic_state_pin_rejects_when_preflight_is_bypassed() {
+    let (prep, finished) = build_honest_finished_proof(2);
+    let mut statement = neo_fold_clean::build_decider_statement(&prep, &finished);
+
+    statement.public.semantic_state_digest[0] ^= 0xFF;
+
+    let synth = synthesize_statement_r1cs_without_preflight_for_tests(&prep, &statement)
+        .expect("unchecked synthesis should reach the public-image pin rows");
+    assert!(
+        !synth.builder.is_satisfied(),
+        "unchecked synthesis accepted a tampered final semantic_state_digest"
+    );
+
+    let bad_row = synth
+        .builder
+        .first_unsatisfied_row()
+        .expect("tampered final semantic_state_digest must trip a row");
+    let start = synth.semantic_state_digest_pin_row_start;
+    assert!(
+        (start..start + 4).contains(&bad_row),
+        "tampered final semantic_state_digest should trip its terminal public-image pin rows; got {bad_row}, expected {start}..{}",
+        start + 4
+    );
+}
+
+#[test]
 fn decider_r1cs_synthesis_rejects_tampered_step_proof() {
     let (prep, finished) = build_honest_finished_proof(3);
     let mut statement = neo_fold_clean::build_decider_statement(&prep, &finished);
@@ -339,8 +368,9 @@ fn decider_r1cs_synthesis_emits_base_step_and_links_terminal_latest() {
     //   - terminal_latest_link == true: terminal fresh.x[0]==1 and
     //     fresh.x[1..]==last.x_out_bits.
     //   - terminal_fold_emitted == true: terminal NIFS.V in-circuit.
-    //   - public_image_pins == REQUIRED_PUBLIC_IMAGE_PINS (9): every
-    //     field of `statement.public` is bound to chain-derived wires.
+    //   - public_image_pins == REQUIRED_PUBLIC_IMAGE_PINS (10): every
+    //     terminal field of `statement.public` is bound to chain-derived
+    //     wires; `initial_semantic_state_digest` is pinned by base_state_pinned.
     //
     let (prep, finished) = build_honest_finished_proof(2);
     let statement = neo_fold_clean::build_decider_statement(&prep, &finished);
@@ -374,9 +404,9 @@ fn decider_r1cs_synthesis_emits_base_step_and_links_terminal_latest() {
         "all {REQUIRED_PUBLIC_IMAGE_PINS} public-image fields must be pinned in-circuit"
     );
     assert_eq!(
-        REQUIRED_PUBLIC_IMAGE_PINS, 9,
-        "PublicImage has 9 fields (vk_fs_digest, chunk_count, step_count, z_0, z_i, pc, \
-         acc_digest, public_trace, x_out)"
+        REQUIRED_PUBLIC_IMAGE_PINS, 10,
+        "pin_public_image covers 10 terminal PublicImage fields; \
+         initial_semantic_state_digest is covered by base_state_pinned"
     );
     assert!(
         synth.builder.is_satisfied(),

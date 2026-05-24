@@ -61,7 +61,7 @@ use neo_math::{D, F};
 use neo_reductions::optimized_engine::OptimizedStructureCache;
 use thiserror::Error;
 
-use crate::paper::construction2::{FinalFoldProof, State, StepProof, VerifierKey};
+use crate::paper::construction2::{FinalFoldProof, SemanticStateMode, State, StepProof, VerifierKey};
 use crate::paper::decider;
 use crate::paper::params::Params;
 use crate::paper::relations::{CcsClaim, DecMixer, RlcMixer, Structure};
@@ -94,6 +94,12 @@ pub enum Error {
     MissingTerminalFoldProof,
     #[error("verify_uncompressed: recorded acc_digest does not match the digest of the recorded final running claims")]
     AccDigestMismatch,
+    #[error(
+        "verify_uncompressed: stateless chain's terminal semantic_state_digest does not equal \
+         the pre-terminal accumulator digest (stateless plans require \
+         `semantic_state_digest == acc_digest` to be carried unchanged through finalization)"
+    )]
+    StatelessSemanticInvariantViolated,
     #[error("extend: cannot extend an already-finalized uncompressed proof")]
     AlreadyFinalized,
     #[error("finish_uncompressed: already-finalized proof is internally inconsistent")]
@@ -138,6 +144,14 @@ pub struct Preprocessing {
     /// the chain binds to a specific m_in. `None` means "unfixed at the
     /// program level" — encoded as `u64::MAX` in the absorb.
     pub public_input_len: Option<usize>,
+    /// Verifier-owned semantic-state mode. Default `Stateless`; the
+    /// R1CS-F' frontend (or any other stateful frontend) sets this to
+    /// `Stateful` at its own preprocess time if its plan declares
+    /// `semantic_state_in/out_var_indices`. The verifier consults this
+    /// bit in `verify_uncompressed` / `verify_uncompressed_audit` so a
+    /// malicious prover on a stateless plan cannot inject self-consistent
+    /// arbitrary bytes into `PublicImage.semantic_state_digest`.
+    pub semantic_state_mode: SemanticStateMode,
     /// Memoized 4-limb digest of the full CCS structure
     /// (`paper::digest::structure_digest(&structure)`). Verifier-owned,
     /// computed once at preprocess time; protocol code reads this field
@@ -153,6 +167,19 @@ pub struct Preprocessing {
 impl Preprocessing {
     pub fn structure(&self) -> &Structure {
         &self.structure
+    }
+
+    /// Frontend-side hook to declare that the chain built on top of this
+    /// preprocessing carries application state (i.e., the plan declares
+    /// `semantic_state_in/out_var_indices`). Verifier checks consult the
+    /// resulting mode to decide whether `proof.semantic_state_digest`
+    /// must equal the accumulator digest (Stateless) or whether the F'
+    /// image's Poseidon2 binding rows authenticate it (Stateful).
+    ///
+    /// Called once by the stateful frontend's `preprocess`; idempotent.
+    pub fn with_semantic_state_mode(mut self, mode: SemanticStateMode) -> Self {
+        self.semantic_state_mode = mode;
+        self
     }
 
     pub fn structure_digest(&self) -> &[F; 4] {
@@ -322,6 +349,10 @@ pub fn preprocess_with_test_log(
         mix_rhos_commits,
         combine_b_pows,
         public_input_len,
+        // Default to Stateless. Stateful frontends call
+        // [`Preprocessing::with_semantic_state_mode`] after preprocess to
+        // upgrade the mode based on their plan.
+        semantic_state_mode: SemanticStateMode::Stateless,
         structure_digest,
         optimized_cache,
     })

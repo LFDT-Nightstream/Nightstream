@@ -158,6 +158,8 @@ fn build_public_image(prep: &Preprocessing, audit: &UncompressedAudit) -> Public
         z_0: audit.proof.state.z_0,
         z_i: audit.proof.state.z_i,
         pc: audit.proof.state.pc,
+        initial_semantic_state_digest: audit.proof.state.initial_semantic_state_digest,
+        semantic_state_digest: audit.proof.state.semantic_state_digest,
         acc_digest: audit.proof.state.acc_digest,
         public_trace: audit.proof.state.public_trace,
         x_out,

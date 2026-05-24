@@ -150,12 +150,20 @@ pub fn compile_chunk(
         rows_in_chunk,
         t_satisfaction.elapsed().as_secs_f64()
     );
+    // Canonical chain-link check for stateful chains. Lives here (not
+    // in `R1csChainBuilder::append_chunk` nor `finalize_compile_chunk`)
+    // because this is the single funnel both `compile_step` and the
+    // chain builder pass through, AND it fires before
+    // `PriorFoldMissingForRecursiveStep` would mask the soundness
+    // signal. A mismatch here means step `i+1` claimed an input
+    // semantic state that doesn't equal step `i`'s output — direct
+    // chain disconnection, rejected before any expensive compile work.
     let semantic = semantic_state_digests_for_inputs(prep, &inputs)?;
-    if let Some(semantic) = semantic {
-        if ctx.chain_state.chunk_count > 0 && ctx.chain_state.semantic_state_digest != semantic.input {
+    if let Some(s) = semantic.as_ref() {
+        if ctx.chain_state.chunk_count > 0 && ctx.chain_state.semantic_state_digest != s.input {
             return Err(R1csCompilerError::SemanticStateInputMismatch {
                 expected: ctx.chain_state.semantic_state_digest,
-                got: semantic.input,
+                got: s.input,
             });
         }
     }
@@ -294,14 +302,13 @@ fn finalize_compile_chunk(
     semantic: Option<SemanticStateDigests>,
 ) -> Result<Vec<R1csCompiledStep>, R1csCompilerError> {
     debug_assert_eq!(inputs.len(), rows_in_chunk);
+    // For the base step (chunk_count == 0), seed the compiler's
+    // semantic chain-state to the caller's first input digest. The
+    // recursive-step mismatch check already fired in `compile_chunk`,
+    // so this branch is the base-only initialization.
     if let Some(semantic) = semantic {
         if ctx.chain_state.chunk_count == 0 {
             ctx.chain_state.semantic_state_digest = semantic.input;
-        } else if ctx.chain_state.semantic_state_digest != semantic.input {
-            return Err(R1csCompilerError::SemanticStateInputMismatch {
-                expected: ctx.chain_state.semantic_state_digest,
-                got: semantic.input,
-            });
         }
     }
 

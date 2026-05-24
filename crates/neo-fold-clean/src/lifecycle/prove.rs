@@ -41,7 +41,18 @@ pub fn extend(
     extend_inner(prep, audit, batch, SemanticStateAdvance::Stateless)
 }
 
-pub(crate) fn prove_one_with_semantic_state(
+/// Begin a stateful proof: seed the base state with
+/// `semantic_state_digest_initial` (typically `H(initial_app_state)`) and
+/// fold one batch.
+///
+/// Stateful callers MUST also call
+/// [`Preprocessing::with_semantic_state_mode`] (or use a frontend whose
+/// `preprocess` does it) so `verify_uncompressed` /
+/// `verify_uncompressed_audit` consult the F' image's Poseidon2 binding
+/// rows instead of enforcing the stateless invariant. Calling this
+/// without `SemanticStateMode::Stateful` on `prep` will produce a proof
+/// that every verifier rejects with `StatelessSemanticInvariantViolated`.
+pub fn prove_one_with_semantic_state(
     prep: &Preprocessing,
     batch: Vec<CcsInstance>,
     semantic_state_digest_initial: [u8; 32],
@@ -56,7 +67,14 @@ pub(crate) fn prove_one_with_semantic_state(
     )
 }
 
-pub(crate) fn extend_with_semantic_state(
+/// Extend an in-flight proof with an app-supplied
+/// `semantic_state_digest_next`. The digest MUST equal
+/// `H(state_out_vars)` under the same Poseidon2 binding rows that the
+/// F' image's CCS structure enforces (see
+/// `frontends/f_prime/recursive_plan::semantic_state_preimage_sources`).
+/// See [`prove_one_with_semantic_state`] for the preprocessing
+/// requirement.
+pub fn extend_with_semantic_state(
     prep: &Preprocessing,
     audit: UncompressedAudit,
     batch: Vec<CcsInstance>,

@@ -117,19 +117,11 @@ impl<'a> R1csChainBuilder<'a> {
         }
         let k = inputs.len();
         let is_recursive = self.audit.is_some();
+        // Derive the semantic digests once. The chain-link check itself
+        // lives inside `compile_chunk -> finalize_compile_chunk` — the
+        // single funnel every path reaches. We only need the output
+        // digest here to thread through `prepare_next_fold`.
         let semantic = semantic_state_digests_for_inputs(self.prep, &inputs)?;
-        if is_recursive {
-            if let Some(semantic) = semantic {
-                if self.ctx.chain_state.semantic_state_digest != semantic.input {
-                    return Err(Error::Compiler(
-                        crate::frontends::r1cs_f_prime::compiler::R1csCompilerError::SemanticStateInputMismatch {
-                            expected: self.ctx.chain_state.semantic_state_digest,
-                            got: semantic.input,
-                        },
-                    ));
-                }
-            }
-        }
 
         if is_recursive {
             #[cfg(feature = "perf-timers")]

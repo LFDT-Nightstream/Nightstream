@@ -323,6 +323,52 @@ fn add_row_rejects_tampered_static_stack_arity() {
 }
 
 #[test]
+fn i32_add_wraps_on_overflow() {
+    // 0xFFFF_FFFF + 0x0000_0001 = 0x1_0000_0000 → wasm result is 0, carry = 1.
+    let row = build_witness_vector(&step(
+        0,
+        2,
+        opcode_code(WasmOpcode::I32Add),
+        2,
+        1,
+        Some(StackLaneAccess {
+            addr: 0,
+            value: 0xFFFF_FFFF,
+        }),
+        Some(StackLaneAccess { addr: 1, value: 1 }),
+        None,
+        Some(StackLaneAccess { addr: 0, value: 0 }),
+        None,
+        0,
+        false,
+    ));
+    assert_satisfied(&row, "wrapping i32.add row");
+}
+
+#[test]
+fn i32_sub_wraps_on_underflow() {
+    // 0x0000_0000 - 0x0000_0001 = 0xFFFF_FFFF (mod 2^32), borrow = 1.
+    let row = build_witness_vector(&step(
+        0,
+        2,
+        opcode_code(WasmOpcode::I32Sub),
+        2,
+        1,
+        Some(StackLaneAccess { addr: 0, value: 0 }),
+        Some(StackLaneAccess { addr: 1, value: 1 }),
+        None,
+        Some(StackLaneAccess {
+            addr: 0,
+            value: 0xFFFF_FFFF,
+        }),
+        None,
+        0,
+        false,
+    ));
+    assert_satisfied(&row, "wrapping i32.sub row");
+}
+
+#[test]
 fn selector_opcode_mismatch_is_rejected() {
     let mut row = build_witness_vector(&step(
         0,

@@ -948,6 +948,11 @@ fn push_stack_write0_addr_sp_minus_2(
 }
 
 fn push_add_relation(b: &mut R1csBuilder, stack: &OperandStackColumns) {
+    // write0 = (read0 + read1) mod 2^32. COL_WIDE_AUX0 holds the carry bit.
+    // Soundness relies on COL_WIDE_AUX0's `ColumnWidth::Boolean` tag: without
+    // that, a cheating prover could pick any field element for the carry and
+    // solve for a matching write0. Given the boolean range, the U32 tags on
+    // read0, read1, write0 ensure the equation has a unique solution.
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::I32Add).unwrap(),
@@ -955,11 +960,16 @@ fn push_add_relation(b: &mut R1csBuilder, stack: &OperandStackColumns) {
             (idx(stack.read0_value), F::ONE),
             (idx(stack.read1_value), F::ONE),
             (idx(stack.write0_value), -F::ONE),
+            (COL_WIDE_AUX0, -f_u64(1_u64 << 32)),
         ],
     );
 }
 
 fn push_sub_relation(b: &mut R1csBuilder, stack: &OperandStackColumns) {
+    // write0 = (read0 - read1) mod 2^32. COL_WIDE_AUX0 holds the borrow bit
+    // (1 iff read0 < read1); same soundness argument as [`push_add_relation`]:
+    // the Boolean width tag on COL_WIDE_AUX0 is what pins the borrow to {0, 1},
+    // and the U32 tags on read0/read1/write0 make the solution unique.
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::I32Sub).unwrap(),
@@ -967,6 +977,7 @@ fn push_sub_relation(b: &mut R1csBuilder, stack: &OperandStackColumns) {
             (idx(stack.read0_value), F::ONE),
             (idx(stack.read1_value), -F::ONE),
             (idx(stack.write0_value), -F::ONE),
+            (COL_WIDE_AUX0, f_u64(1_u64 << 32)),
         ],
     );
 }

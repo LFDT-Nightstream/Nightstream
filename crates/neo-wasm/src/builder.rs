@@ -462,6 +462,18 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
     }
 
     match trace.opcode {
+        super::isa::WasmOpcode::I32Add => {
+            let lhs = u64::from(trace.stack_read0.map(|lane| lane.value).unwrap_or(0));
+            let rhs = u64::from(trace.stack_read1.map(|lane| lane.value).unwrap_or(0));
+            let carry = (lhs + rhs) >> 32;
+            wit[COL_WIDE_AUX0] = F::from_u64(carry);
+        }
+        super::isa::WasmOpcode::I32Sub => {
+            let lhs = trace.stack_read0.map(|lane| lane.value).unwrap_or(0);
+            let rhs = trace.stack_read1.map(|lane| lane.value).unwrap_or(0);
+            let borrow = u64::from(lhs < rhs);
+            wit[COL_WIDE_AUX0] = F::from_u64(borrow);
+        }
         super::isa::WasmOpcode::I64Add => {
             let lhs_lo = u64::from(trace.stack_read0.map(|lane| lane.value).unwrap_or(0));
             let rhs_lo = u64::from(trace.stack_read1.map(|lane| lane.value).unwrap_or(0));

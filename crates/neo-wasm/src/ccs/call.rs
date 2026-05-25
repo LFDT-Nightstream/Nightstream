@@ -54,24 +54,75 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder, layout: &WasmLookupBind
         b.push_linear_zero([
             (idx(control.is_program_row), F::ONE),
             (idx(param_init.param_init_active_before), F::ONE),
+            (idx(control.padding_active), F::ONE),
             (COL_ONE, -F::ONE),
         ]);
     });
 
-    b.with_tag(always("aux call param init shape"), |b| {
-        let param_init_row_gate = idx(param_init.param_init_active_before);
-
-        // pc_after == pc_before
+    let memory_pages = layout.memory_pages;
+    b.with_tag(always("padding row state preservation"), |b| {
+        // Padding rows are synthetic state-preserving placeholders used
+        // to round a trace up to a multiple of the F'-shell batch size.
+        // Force every state column the cross-step links care about to
+        // satisfy `_after == _before`, so a padding row is a true fixed
+        // point for the chain. pc/sp are already pinned via the shared
+        // "non-program row shape" tag below.
+        let padding_gate = idx(control.padding_active);
         push_gated_linear_zero(
             b,
-            param_init_row_gate,
-            [(idx(state.pc_after), F::ONE), (idx(state.pc_before), -F::ONE)],
+            padding_gate,
+            [(idx(memory_pages.after), F::ONE), (idx(memory_pages.before), -F::ONE)],
         );
+        push_gated_linear_zero(
+            b,
+            padding_gate,
+            [
+                (idx(frame.locals_fbp_after), F::ONE),
+                (idx(frame.locals_fbp_before), -F::ONE),
+            ],
+        );
+        push_gated_linear_zero(
+            b,
+            padding_gate,
+            [
+                (idx(param_init.param_init_active_after), F::ONE),
+                (idx(param_init.param_init_active_before), -F::ONE),
+            ],
+        );
+        push_gated_linear_zero(
+            b,
+            padding_gate,
+            [
+                (idx(param_init.param_init_remaining_after), F::ONE),
+                (idx(param_init.param_init_remaining_before), -F::ONE),
+            ],
+        );
+    });
 
-        // init local outputs don't modify the stack
-        // these two also imply sp_after == sp_before
-        push_gated_linear_zero(b, param_init_row_gate, [(idx(control.stack_reads), F::ONE)]);
-        push_gated_linear_zero(b, param_init_row_gate, [(idx(control.stack_writes), F::ONE)]);
+    b.with_tag(always("non-program row shape"), |b| {
+        // pc_after == pc_before; stack_reads == stack_writes == 0
+        // (which together with the global sp linear constraint imply
+        // sp_after == sp_before).
+        //
+        // Shared by param-init aux rows (which advance state machine
+        // bookkeeping but don't change pc/sp) and padding rows (which
+        // preserve everything). The two gate columns are mutually
+        // exclusive booleans by the row-kind one-hot, so their sum is
+        // still in {0, 1}.
+        let aux_row_gate = [
+            (idx(param_init.param_init_active_before), F::ONE),
+            (idx(control.padding_active), F::ONE),
+        ];
+
+        b.push_row(
+            aux_row_gate,
+            [(idx(state.pc_after), F::ONE), (idx(state.pc_before), -F::ONE)],
+            [],
+        );
+        b.push_row(aux_row_gate, [(idx(control.stack_reads), F::ONE)], []);
+        b.push_row(aux_row_gate, [(idx(control.stack_writes), F::ONE)], []);
+
+        let param_init_row_gate = idx(param_init.param_init_active_before);
 
         // write to the locals memory the value read from the stack
         //

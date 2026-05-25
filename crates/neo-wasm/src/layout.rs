@@ -122,6 +122,11 @@ define_columns!(
         ColumnWidth::Boolean
     ),
     (
+        COL_PADDING_ACTIVE,
+        "synthetic state-preserving padding row flag",
+        ColumnWidth::Boolean
+    ),
+    (
         COL_PARAM_INIT_REMAINING_BEFORE,
         "remaining call parameters to initialize before this row",
         ColumnWidth::U32

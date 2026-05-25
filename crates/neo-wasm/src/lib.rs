@@ -1,6 +1,7 @@
 #![recursion_limit = "512"]
 
 pub mod adapters;
+pub mod batch;
 pub mod builder;
 pub mod ccs;
 mod gadgets;
@@ -44,6 +45,6 @@ pub use lookup_binding_builder::{
 pub use lookup_semantics::{sanity_check_lookup_row, LookupBuiltin, LookupExpr, LookupPredicate, LookupSemantics};
 pub use lower::{build_row_traces, normalize_source, normalize_tracer, WasmExecutionStep, WasmTraceSource};
 pub use memory_semantics::{preload_from_wasmtime_run, sanity_check_memory_rows, WasmMemoryPreload};
-pub use prove::{prove, verify, WasmProof, WasmProveError};
+pub use prove::{prove, prove_batched, verify, WasmProof, WasmProveError};
 pub use tables::{lookup_payload, WasmLookupArity, WasmLookupPayload};
 pub use tagged_r1cs_builder::{WasmConstraintCatalog, WasmConstraintScope, WasmConstraintTag};

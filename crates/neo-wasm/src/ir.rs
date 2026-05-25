@@ -70,6 +70,10 @@ pub struct WasmBoundaryState {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WasmAuxOpcode {
     CallParamInit,
+    /// Synthetic state-preserving row used to pad a trace up to a
+    /// multiple of `batch_size`. Not a real wasm opcode — the CCS gates
+    /// these rows so that `_after == _before` for every state column.
+    Padding,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -85,6 +89,10 @@ impl WasmRowKind {
 
     pub fn is_call_param_init(self) -> bool {
         matches!(self, Self::Aux(WasmAuxOpcode::CallParamInit))
+    }
+
+    pub fn is_padding(self) -> bool {
+        matches!(self, Self::Aux(WasmAuxOpcode::Padding))
     }
 }
 

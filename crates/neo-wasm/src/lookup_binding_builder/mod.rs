@@ -27,7 +27,7 @@ use super::layout::{
     COL_LINEAR_MEM_OFFSET_IS_2, COL_LINEAR_MEM_OFFSET_IS_3, COL_LINEAR_MEM_USE_LANE0, COL_LINEAR_MEM_USE_LANE1,
     COL_LINEAR_MEM_USE_LANE2, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE, COL_LOCAL_INDEX, COL_LOCAL_VALUE,
     COL_LOCAL_VALUE_HI, COL_LOCAL_WRITE_ENABLED, COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_OPCODE_CODE,
-    COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_AFTER,
+    COL_PADDING_ACTIVE, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_AFTER,
     COL_PARAM_INIT_REMAINING_AFTER_INV, COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PARAM_INIT_REMAINING_BEFORE,
     COL_PC_AFTER, COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE,
     COL_SHOUT_ENABLED, COL_SHOUT_ID, COL_SHOUT_VALUE, COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7, COL_SP_AFTER, COL_SP_BEFORE,
@@ -225,6 +225,10 @@ pub struct ControlColumns {
     //
     // 0 if this is a helper/aux/micro-opcode
     pub is_program_row: Column,
+    /// Synthetic state-preserving row marker. Mutually exclusive with
+    /// `is_program_row` and `param_init.param_init_active_before` via the
+    /// row-kind one-hot.
+    pub padding_active: Column,
     pub pc_rom_active: Column,
     pub pc_edge_kind_is_static: Column,
     pub pc_edge_kind_inv: Column,
@@ -313,6 +317,7 @@ pub fn build_wasm_lookup_binding_layout() -> &'static WasmLookupBindingLayout {
 fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
     let opcode_code = Column(COL_OPCODE_CODE);
     let is_program_row = Column(COL_IS_PROGRAM_ROW);
+    let padding_active = Column(COL_PADDING_ACTIVE);
     let pc_before = Column(COL_PC_BEFORE);
     let pc_after = Column(COL_PC_AFTER);
     let pc_rom_active = Column(COL_PC_ROM_ACTIVE);
@@ -448,6 +453,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
     let control = ControlColumns {
         opcode_code,
         is_program_row,
+        padding_active,
         pc_rom_active,
         pc_edge_kind_is_static,
         pc_edge_kind_inv,
@@ -1069,12 +1075,6 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     next_before: param_init.param_init_remaining_before,
                 },
             ],
-        },
-        WasmCrossStepLinkSpec {
-            name: "call_stack_well_formed",
-            description:
-                "call_stack_push and call_stack_pop must form a balanced LIFO discipline over return context pairs",
-            column_pairs: vec![],
         },
     ];
 

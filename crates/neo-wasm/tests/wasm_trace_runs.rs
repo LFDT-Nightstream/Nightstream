@@ -184,6 +184,83 @@ fn wasm_trace_run_with_unaligned_i64_store32() {
     }
 }
 
+/// i64.load8_u / load16_u / load32_u round-trips: store a known pattern,
+/// then load it back zero-extended. The load-correctness check is the
+/// memory-semantics layer inside `checked_wasm_run` (`sanity_check_memory_rows`
+/// verifies each load returns the last-stored value), and `ccs_check_trace`
+/// confirms every row's witness satisfies the CCS. The opcode-presence
+/// asserts below just guarantee the new ops are actually exercised.
+#[test]
+fn wasm_trace_run_with_i64_unsigned_loads() {
+    // Store byte 0xDD at addr 0, halfword 0xCCDD at addr 8, word 0xAABBCCDD
+    // at addr 16; load each back (zero-extended) and sum.
+    let checked = common::checked_main(
+        r#"(module
+             (memory 1)
+             (func (export "main") (result i64)
+               i32.const 0
+               i64.const 0xDD
+               i64.store8
+               i32.const 8
+               i64.const 0xCCDD
+               i64.store16
+               i32.const 16
+               i64.const 0xAABBCCDD
+               i64.store32
+               i32.const 0
+               i64.load8_u
+               i32.const 8
+               i64.load16_u
+               i64.add
+               i32.const 16
+               i64.load32_u
+               i64.add))"#,
+    );
+    for op in [
+        neo_wasm::WasmOpcode::I64Load8U,
+        neo_wasm::WasmOpcode::I64Load16U,
+        neo_wasm::WasmOpcode::I64Load32U,
+    ] {
+        assert!(
+            checked.trace.iter().any(|row| row.opcode == op),
+            "expected a {op:?} row"
+        );
+    }
+}
+
+/// i64.loadN_u must zero-extend: the output hi limb is pinned to 0. Since
+/// these ops set `wide_values_enabled = 1` (the input side is i64-shaped),
+/// the generic "narrow high limbs zero" rule does not cover `write0_value_hi`
+/// here — the dedicated `i64 unsigned load high zero` gate does. Forging a
+/// nonzero hi limb must be rejected.
+#[test]
+fn i64_load8_u_zero_extension_is_enforced() {
+    use neo_ccs::check_ccs_rowwise_zero;
+    use neo_math::F;
+    use neo_wasm::builder::build_witness_vector;
+    use neo_wasm::layout::COL_STACK_WRITE0_VALUE_HI;
+    use p3_field::PrimeCharacteristicRing;
+
+    let (_, trace, ..) = compile_and_trace(
+        r#"(module (memory 1) (func (export "main") (result i64)
+             i32.const 0 i64.const 0xDD i64.store8 i32.const 0 i64.load8_u))"#,
+    );
+    let load = trace
+        .iter()
+        .find(|r| matches!(r.opcode, neo_wasm::WasmOpcode::I64Load8U))
+        .expect("i64.load8_u row");
+    let mut wit = build_witness_vector(load);
+    let vm = WasmVmSpec::default();
+    let ccs = &vm.core_ccs_spec().structure;
+    check_ccs_rowwise_zero(ccs, &wit[..1], &wit[1..]).expect("honest i64.load8_u row should satisfy the CCS");
+
+    wit[COL_STACK_WRITE0_VALUE_HI] = F::ONE;
+    assert!(
+        check_ccs_rowwise_zero(ccs, &wit[..1], &wit[1..]).is_err(),
+        "a nonzero output hi limb must be rejected (zero-extension)"
+    );
+}
+
 /// The width-family flags (`is_byte_width` etc.) must be pinned per opcode:
 /// zeroing the byte-width family on an i64.store8 row would otherwise
 /// vacuously satisfy the byte-routing gates and decouple the stored byte

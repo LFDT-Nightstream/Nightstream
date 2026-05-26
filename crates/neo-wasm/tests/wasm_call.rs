@@ -62,7 +62,7 @@ fn call_indirect_param_wasm() -> Vec<u8> {
 fn build_witnesses(trace: &[WasmStepTrace]) -> Vec<Vec<neo_math::F>> {
     trace
         .iter()
-        .map(neo_wasm::builder::build_witness_vector)
+        .map(neo_wasm::witness_builder::build_witness_vector)
         .collect()
 }
 

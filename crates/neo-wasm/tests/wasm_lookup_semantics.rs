@@ -1,6 +1,6 @@
 use neo_math::F;
-use neo_wasm::builder::build_witness_vector;
 use neo_wasm::layout::{COL_MEMORY_PAGES_BEFORE, COL_STACK_WRITE0_VALUE};
+use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{
     build_wasm_lookup_binding_layout, sanity_check_lookup_row, traces_from_wasmtime_wasm_bytes, WasmOpcode,
 };

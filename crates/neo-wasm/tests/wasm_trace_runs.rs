@@ -237,8 +237,8 @@ fn wasm_trace_run_with_i64_unsigned_loads() {
 fn i64_load8_u_zero_extension_is_enforced() {
     use neo_ccs::check_ccs_rowwise_zero;
     use neo_math::F;
-    use neo_wasm::builder::build_witness_vector;
     use neo_wasm::layout::COL_STACK_WRITE0_VALUE_HI;
+    use neo_wasm::witness_builder::build_witness_vector;
     use p3_field::PrimeCharacteristicRing;
 
     let (_, trace, ..) = compile_and_trace(
@@ -269,8 +269,8 @@ fn i64_load8_u_zero_extension_is_enforced() {
 /// ties the loaded bytes to what was stored.
 #[test]
 fn wasm_trace_run_with_i64_signed_loads() {
-    use neo_wasm::builder::build_witness_vector;
     use neo_wasm::layout::{COL_STACK_WRITE0_VALUE, COL_STACK_WRITE0_VALUE_HI};
+    use neo_wasm::witness_builder::build_witness_vector;
     use p3_field::PrimeField64;
 
     // (store opcode, stored value, load opcode, expected lo limb, expected hi limb)
@@ -319,8 +319,8 @@ fn wasm_trace_run_with_i64_signed_loads() {
 fn i64_load8_s_sign_extension_is_enforced() {
     use neo_ccs::check_ccs_rowwise_zero;
     use neo_math::F;
-    use neo_wasm::builder::build_witness_vector;
     use neo_wasm::layout::COL_STACK_WRITE0_VALUE_HI;
+    use neo_wasm::witness_builder::build_witness_vector;
     use p3_field::PrimeCharacteristicRing;
 
     // 0x80 is negative -> hi limb must be 0xFFFF_FFFF.
@@ -385,8 +385,8 @@ fn wasm_trace_run_with_unaligned_i64_load32() {
 fn i64_load32_u_unaligned_requires_use_lane1() {
     use neo_ccs::check_ccs_rowwise_zero;
     use neo_math::F;
-    use neo_wasm::builder::build_witness_vector;
     use neo_wasm::layout::COL_LINEAR_MEM_USE_LANE1;
+    use neo_wasm::witness_builder::build_witness_vector;
     use p3_field::PrimeCharacteristicRing;
 
     let (_, trace, ..) = compile_and_trace(
@@ -424,11 +424,11 @@ fn i64_load32_u_unaligned_requires_use_lane1() {
 fn i64_store8_width_family_pin_is_enforced() {
     use neo_ccs::check_ccs_rowwise_zero;
     use neo_math::F;
-    use neo_wasm::builder::build_witness_vector;
     use neo_wasm::layout::{
         COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1,
         COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_2, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_3, COL_LINEAR_MEM_IS_BYTE_WIDTH,
     };
+    use neo_wasm::witness_builder::build_witness_vector;
     use p3_field::PrimeCharacteristicRing;
 
     let (_, trace, ..) = compile_and_trace(

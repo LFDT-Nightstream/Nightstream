@@ -4,9 +4,9 @@ use neo_ccs::check_ccs_rowwise_zero;
 use neo_math::F;
 use neo_wasm::layout::COLUMN_SPECS;
 use neo_wasm::{
-    build_wasm_lookup_binding_layout, builder::build_witness_vector, collect_wasmtime_steps, preload_from_wasmtime_run,
-    sanity_check_lookup_row, sanity_check_memory_rows, traces_from_wasmtime_steps, WasmStepTrace, WasmVmSpec,
-    WasmtimeTraceRun,
+    build_wasm_lookup_binding_layout, collect_wasmtime_steps, preload_from_wasmtime_run, sanity_check_lookup_row,
+    sanity_check_memory_rows, traces_from_wasmtime_steps, witness_builder::build_witness_vector, WasmStepTrace,
+    WasmVmSpec, WasmtimeTraceRun,
 };
 
 pub struct CheckedWasmRun {

@@ -1,8 +1,8 @@
 use neo_math::F;
 use neo_wasm::layout::{COL_CURRENT_FUNCTION_NUM_LOCALS, COL_CURRENT_FUNCTION_REF, COL_LOCALS_FBP_AFTER};
 use neo_wasm::{
-    build_wasm_lookup_binding_layout, builder::build_witness_vector, collect_wasmtime_steps, preload_from_wasmtime_run,
-    sanity_check_memory_rows, traces_from_wasmtime_steps, WasmMemoryPreload, WasmOpcode,
+    build_wasm_lookup_binding_layout, collect_wasmtime_steps, preload_from_wasmtime_run, sanity_check_memory_rows,
+    traces_from_wasmtime_steps, witness_builder::build_witness_vector, WasmMemoryPreload, WasmOpcode,
 };
 use p3_field::PrimeCharacteristicRing;
 

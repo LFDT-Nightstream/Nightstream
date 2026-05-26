@@ -92,6 +92,9 @@ const I64_OPS: &[WasmOpcode] = &[
     WasmOpcode::I64Load8U,
     WasmOpcode::I64Load16U,
     WasmOpcode::I64Load32U,
+    WasmOpcode::I64Load8S,
+    WasmOpcode::I64Load16S,
+    WasmOpcode::I64Load32S,
     WasmOpcode::I64Eqz,
     WasmOpcode::I64Eq,
     WasmOpcode::I64Ne,
@@ -204,29 +207,16 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
     let mut b = WasmTaggedR1csBuilder::new(WITNESS_WIDTH, COL_ONE)?;
 
     b.with_tag(shared("wide value gating", I64_OPS), |b| {
+        // is_program_row · (wide_values_enabled − Σ i64-op selectors) = 0, so
+        // on a program row wide_values_enabled = 1 iff an i64-shaped op is
+        // active. Derived from `I64_OPS` so the gate can't drift from it.
         b.push_row(
             [(idx(control.is_program_row), F::ONE)],
-            [
-                (idx(control.wide_values_enabled), F::ONE),
-                (selector_col(WasmOpcode::I64Const).unwrap(), -F::ONE),
-                (selector_col(WasmOpcode::I64Add).unwrap(), -F::ONE),
-                (selector_col(WasmOpcode::I64Sub).unwrap(), -F::ONE),
-                (selector_col(WasmOpcode::I64Load).unwrap(), -F::ONE),
-                (selector_col(WasmOpcode::I64Store).unwrap(), -F::ONE),
-                (selector_col(WasmOpcode::I64Eqz).unwrap(), -F::ONE),
-                (selector_col(WasmOpcode::I64Eq).unwrap(), -F::ONE),
-                (selector_col(WasmOpcode::I64Ne).unwrap(), -F::ONE),
-                (selector_col(WasmOpcode::I64Store8).unwrap(), -F::ONE),
-                (selector_col(WasmOpcode::I64Store16).unwrap(), -F::ONE),
-                (selector_col(WasmOpcode::I64Store32).unwrap(), -F::ONE),
-                (selector_col(WasmOpcode::I64Load8U).unwrap(), -F::ONE),
-                (selector_col(WasmOpcode::I64Load16U).unwrap(), -F::ONE),
-                (selector_col(WasmOpcode::I64Load32U).unwrap(), -F::ONE),
-                (selector_col(WasmOpcode::I64And).unwrap(), -F::ONE),
-                (selector_col(WasmOpcode::I64Or).unwrap(), -F::ONE),
-                (selector_col(WasmOpcode::I64Xor).unwrap(), -F::ONE),
-                (selector_col(WasmOpcode::I64Mul).unwrap(), -F::ONE),
-            ],
+            std::iter::once((idx(control.wide_values_enabled), F::ONE)).chain(
+                I64_OPS
+                    .iter()
+                    .map(|&op| (selector_col(op).expect("i64 op selector"), -F::ONE)),
+            ),
             [],
         );
     });
@@ -275,340 +265,18 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
     });
 
     b.with_tag(always("opcode decode"), |b| {
-        b.push_linear_zero(
-            [
-                (idx(control.opcode_code), F::ONE),
-                (
-                    selector_col(WasmOpcode::Nop).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::Nop)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32Const).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32Const)),
-                ),
-                (
-                    selector_col(WasmOpcode::I64Const).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I64Const)),
-                ),
-                (
-                    selector_col(WasmOpcode::RefFunc).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::RefFunc)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32Add).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32Add)),
-                ),
-                (
-                    selector_col(WasmOpcode::I64Add).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I64Add)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32Sub).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32Sub)),
-                ),
-                (
-                    selector_col(WasmOpcode::I64Sub).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I64Sub)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32Load).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32Load)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32Load8S).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32Load8S)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32Load8U).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32Load8U)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32Load16S).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32Load16S)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32Load16U).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32Load16U)),
-                ),
-                (
-                    selector_col(WasmOpcode::I64Load).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I64Load)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32Store).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32Store)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32Store8).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32Store8)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32Store16).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32Store16)),
-                ),
-                (
-                    selector_col(WasmOpcode::I64Store).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I64Store)),
-                ),
-                (
-                    selector_col(WasmOpcode::I64Store8).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I64Store8)),
-                ),
-                (
-                    selector_col(WasmOpcode::I64Store16).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I64Store16)),
-                ),
-                (
-                    selector_col(WasmOpcode::I64Store32).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I64Store32)),
-                ),
-                (
-                    selector_col(WasmOpcode::I64Load8U).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I64Load8U)),
-                ),
-                (
-                    selector_col(WasmOpcode::I64Load16U).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I64Load16U)),
-                ),
-                (
-                    selector_col(WasmOpcode::I64Load32U).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I64Load32U)),
-                ),
-                (
-                    selector_col(WasmOpcode::MemorySize).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::MemorySize)),
-                ),
-                (
-                    selector_col(WasmOpcode::MemoryGrow).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::MemoryGrow)),
-                ),
-                (
-                    selector_col(WasmOpcode::TableSize).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::TableSize)),
-                ),
-                (
-                    selector_col(WasmOpcode::TableGet).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::TableGet)),
-                ),
-                (
-                    selector_col(WasmOpcode::TableSet).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::TableSet)),
-                ),
-                (
-                    selector_col(WasmOpcode::Drop).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::Drop)),
-                ),
-                (
-                    selector_col(WasmOpcode::Br).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::Br)),
-                ),
-                (
-                    selector_col(WasmOpcode::Block).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::Block)),
-                ),
-                (
-                    selector_col(WasmOpcode::Loop).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::Loop)),
-                ),
-                (
-                    selector_col(WasmOpcode::If).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::If)),
-                ),
-                (
-                    selector_col(WasmOpcode::Else).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::Else)),
-                ),
-                (
-                    selector_col(WasmOpcode::End).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::End)),
-                ),
-                (
-                    selector_col(WasmOpcode::Unreachable).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::Unreachable)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32Clz).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32Clz)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32Ctz).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32Ctz)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32Popcnt).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32Popcnt)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32Eqz).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32Eqz)),
-                ),
-                (
-                    selector_col(WasmOpcode::I64Eqz).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I64Eqz)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32Eq).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32Eq)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32Ne).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32Ne)),
-                ),
-                (
-                    selector_col(WasmOpcode::I64Eq).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I64Eq)),
-                ),
-                (
-                    selector_col(WasmOpcode::I64Ne).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I64Ne)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32LtS).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32LtS)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32LtU).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32LtU)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32GtS).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32GtS)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32GtU).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32GtU)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32LeS).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32LeS)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32LeU).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32LeU)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32GeS).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32GeS)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32GeU).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32GeU)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32And).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32And)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32Or).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32Or)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32Xor).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32Xor)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32Mul).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32Mul)),
-                ),
-                (
-                    selector_col(WasmOpcode::I64And).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I64And)),
-                ),
-                (
-                    selector_col(WasmOpcode::I64Or).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I64Or)),
-                ),
-                (
-                    selector_col(WasmOpcode::I64Xor).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I64Xor)),
-                ),
-                (
-                    selector_col(WasmOpcode::I64Mul).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I64Mul)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32Shl).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32Shl)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32ShrU).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32ShrU)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32ShrS).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32ShrS)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32Rotl).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32Rotl)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32Rotr).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32Rotr)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32DivU).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32DivU)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32DivS).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32DivS)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32RemU).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32RemU)),
-                ),
-                (
-                    selector_col(WasmOpcode::I32RemS).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::I32RemS)),
-                ),
-                (
-                    selector_col(WasmOpcode::Select).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::Select)),
-                ),
-                (
-                    selector_col(WasmOpcode::BrIf).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::BrIf)),
-                ),
-                (
-                    selector_col(WasmOpcode::BrTable).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::BrTable)),
-                ),
-                (
-                    selector_col(WasmOpcode::Call).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::Call)),
-                ),
-                (
-                    selector_col(WasmOpcode::CallIndirect).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::CallIndirect)),
-                ),
-                (
-                    selector_col(WasmOpcode::Return).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::Return)),
-                ),
-                (
-                    selector_col(WasmOpcode::LocalGet).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::LocalGet)),
-                ),
-                (
-                    selector_col(WasmOpcode::LocalSet).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::LocalSet)),
-                ),
-                (
-                    selector_col(WasmOpcode::LocalTee).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::LocalTee)),
-                ),
-                (
-                    selector_col(WasmOpcode::GlobalGet).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::GlobalGet)),
-                ),
-                (
-                    selector_col(WasmOpcode::GlobalSet).unwrap(),
-                    -f_u16(opcode_code(WasmOpcode::GlobalSet)),
-                ),
-            ]
-            .into_iter(),
-        );
+        // opcode_code = Σ_op selector(op) · opcode_code(op). Selectors are
+        // one-hot per program row, so this pins opcode_code to the active
+        // opcode's byte. Derived from `WasmOpcode::supported()` so it can't
+        // drift from the opcode set.
+        b.push_linear_zero(std::iter::once((idx(control.opcode_code), F::ONE)).chain(
+            WasmOpcode::supported().into_iter().map(|op| {
+                (
+                    selector_col(op).expect("supported opcode selector"),
+                    -f_u16(opcode_code(op)),
+                )
+            }),
+        ));
     });
 
     // sp after + stack reads = sp before + stack writes

@@ -280,6 +280,9 @@ define_columns!(
     (COL_SEL_I64_LOAD8_U, "", ColumnWidth::Boolean),
     (COL_SEL_I64_LOAD16_U, "", ColumnWidth::Boolean),
     (COL_SEL_I64_LOAD32_U, "", ColumnWidth::Boolean),
+    (COL_SEL_I64_LOAD8_S, "", ColumnWidth::Boolean),
+    (COL_SEL_I64_LOAD16_S, "", ColumnWidth::Boolean),
+    (COL_SEL_I64_LOAD32_S, "", ColumnWidth::Boolean),
     (
         COL_LOCAL_WRITE_ENABLED,
         "locals memory write gate for local.set/local.tee",
@@ -811,7 +814,7 @@ define_columns!(
     ),
 );
 
-pub const SELECTOR_COLS: [usize; 82] = [
+pub const SELECTOR_COLS: [usize; 85] = [
     COL_SEL_NOP,
     COL_SEL_I32_CONST,
     COL_SEL_I64_CONST,
@@ -894,6 +897,9 @@ pub const SELECTOR_COLS: [usize; 82] = [
     COL_SEL_I64_LOAD8_U,
     COL_SEL_I64_LOAD16_U,
     COL_SEL_I64_LOAD32_U,
+    COL_SEL_I64_LOAD8_S,
+    COL_SEL_I64_LOAD16_S,
+    COL_SEL_I64_LOAD32_S,
 ];
 
 pub fn selector_col(op: WasmOpcode) -> Option<usize> {
@@ -944,6 +950,9 @@ pub fn selector_col(op: WasmOpcode) -> Option<usize> {
         WasmOpcode::I64Load8U => Some(COL_SEL_I64_LOAD8_U),
         WasmOpcode::I64Load16U => Some(COL_SEL_I64_LOAD16_U),
         WasmOpcode::I64Load32U => Some(COL_SEL_I64_LOAD32_U),
+        WasmOpcode::I64Load8S => Some(COL_SEL_I64_LOAD8_S),
+        WasmOpcode::I64Load16S => Some(COL_SEL_I64_LOAD16_S),
+        WasmOpcode::I64Load32S => Some(COL_SEL_I64_LOAD32_S),
         WasmOpcode::I32LtS => Some(COL_SEL_I32_LTS),
         WasmOpcode::I32LtU => Some(COL_SEL_I32_LTU),
         WasmOpcode::I32GtS => Some(COL_SEL_I32_GTS),

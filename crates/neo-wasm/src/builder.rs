@@ -339,7 +339,10 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
             | super::isa::WasmOpcode::I32Load16U
             | super::isa::WasmOpcode::I64Load8U
             | super::isa::WasmOpcode::I64Load16U
-            | super::isa::WasmOpcode::I64Load32U => (trace.stack_write0.map(|lane| lane.value).unwrap_or(0), 0),
+            | super::isa::WasmOpcode::I64Load32U
+            | super::isa::WasmOpcode::I64Load8S
+            | super::isa::WasmOpcode::I64Load16S
+            | super::isa::WasmOpcode::I64Load32S => (trace.stack_write0.map(|lane| lane.value).unwrap_or(0), 0),
             super::isa::WasmOpcode::I32Store
             | super::isa::WasmOpcode::I32Store8
             | super::isa::WasmOpcode::I32Store16
@@ -376,18 +379,18 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
             ],
             access_hi,
         );
-        match trace.opcode {
-            super::isa::WasmOpcode::I32Load8S => {
-                let bytes = access_lo.to_le_bytes();
-                wit[COL_SIGN_EXT_LOW7] = F::from_u64(u64::from(bytes[0] & 0x7f));
-                wit[COL_SIGN_EXT_BIT] = if (bytes[0] & 0x80) != 0 { F::ONE } else { F::ZERO };
-            }
-            super::isa::WasmOpcode::I32Load16S => {
-                let bytes = access_lo.to_le_bytes();
-                wit[COL_SIGN_EXT_LOW7] = F::from_u64(u64::from(bytes[1] & 0x7f));
-                wit[COL_SIGN_EXT_BIT] = if (bytes[1] & 0x80) != 0 { F::ONE } else { F::ZERO };
-            }
-            _ => {}
+        // Sign-source byte index per signed load: byte 0 for *8_s, byte 1 for
+        // *16_s, byte 3 for i64.load32_s (the top byte of the loaded word).
+        let sign_source = match trace.opcode {
+            super::isa::WasmOpcode::I32Load8S | super::isa::WasmOpcode::I64Load8S => Some(0),
+            super::isa::WasmOpcode::I32Load16S | super::isa::WasmOpcode::I64Load16S => Some(1),
+            super::isa::WasmOpcode::I64Load32S => Some(3),
+            _ => None,
+        };
+        if let Some(byte_index) = sign_source {
+            let byte = access_lo.to_le_bytes()[byte_index];
+            wit[COL_SIGN_EXT_LOW7] = F::from_u64(u64::from(byte & 0x7f));
+            wit[COL_SIGN_EXT_BIT] = if (byte & 0x80) != 0 { F::ONE } else { F::ZERO };
         }
     }
     if let Some(shout) = trace.info.shout_opcode {

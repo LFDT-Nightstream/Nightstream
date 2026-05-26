@@ -5,12 +5,12 @@
 
 use neo_ccs::check_ccs_rowwise_zero;
 use neo_math::F;
-use neo_wasm::builder::build_witness_vector;
 use neo_wasm::layout::{
     COL_CMP_AND, COL_CMP_HI_DIFF, COL_CMP_HI_INV, COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF, COL_CMP_LO_INV,
     COL_CMP_LO_IS_ZERO, COL_STACK_READ0_VALUE, COL_STACK_READ0_VALUE_HI, COL_STACK_READ1_VALUE,
     COL_STACK_READ1_VALUE_HI, COL_STACK_WRITE0_VALUE,
 };
+use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{
     build_wasm_lookup_binding_layout, opcode_code, opcode_info_from_code, sanity_check_lookup_row, StackLaneAccess,
     WasmOpcode, WasmParamInitState, WasmPcEdgeKind, WasmRowKind, WasmStepTrace, WasmVmSpec,

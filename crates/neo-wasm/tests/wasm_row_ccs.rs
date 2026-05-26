@@ -1,6 +1,5 @@
 use neo_ccs::check_ccs_rowwise_zero;
 use neo_math::F;
-use neo_wasm::builder::build_witness_vector;
 use neo_wasm::layout::{
     COL_CALL_PARAM_COUNT, COL_CALL_STACK_POP_CALLER_FBP, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_POP_RETURN_PC,
     COL_CALL_STACK_PUSH_PRESENT, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_LINEAR_MEM_LANE0_ADDR,
@@ -9,6 +8,7 @@ use neo_wasm::layout::{
     COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PC_ROM_ACTIVE, COL_STACK_READ0_ACTIVE, COL_STACK_READ1_ACTIVE,
     COL_STACK_READ2_ACTIVE, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_VALUE, COL_STACK_WRITES,
 };
+use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::WasmRowKind;
 use neo_wasm::{
     build_wasm_lookup_binding_layout, collect_wasmtime_steps, opcode_code, opcode_info_from_code,

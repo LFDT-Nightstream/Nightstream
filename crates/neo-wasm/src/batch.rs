@@ -41,12 +41,12 @@ use neo_fold_clean::frontends::r1cs_f_prime::SparseR1cs;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-use crate::builder::build_witness_vector;
 use crate::ccs::WasmVmSpec;
 use crate::ir::{WasmAuxOpcode, WasmParamInitState, WasmPcEdgeKind, WasmRowKind, WasmStepTrace};
 use crate::isa::{opcode_info_from_code, WasmOpcode};
 use crate::layout::{ColumnWidth, COLUMN_SPECS, COL_ONE, WITNESS_WIDTH};
 use crate::lookup_binding_builder::build_wasm_lookup_binding_layout;
+use crate::witness_builder::build_witness_vector;
 
 /// Block-diagonal R1CS shape for a batch of `batch_size` consecutive wasm steps.
 pub struct BatchedWasmCcs {

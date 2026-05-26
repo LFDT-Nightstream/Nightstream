@@ -2,9 +2,9 @@
 
 pub mod adapters;
 pub mod batch;
-pub mod builder;
 pub mod ccs;
 mod gadgets;
+pub mod witness_builder;
 pub use gadgets::push_zero_test_gadget;
 pub mod ir;
 pub mod isa;
@@ -27,7 +27,6 @@ pub use adapters::wasmtime::{
     traces_from_wasmtime_steps, traces_from_wasmtime_wasm_bytes, WasmtimeTraceMemoryAccess, WasmtimeTraceRun,
     WasmtimeTraceState, WasmtimeTraceStep,
 };
-pub use builder::{build_steps, build_witness_vector};
 pub use ccs::WasmVmSpec;
 pub use ir::{
     boundary_states, LinearMemoryAccess, LinearMemoryWordLane, StackLaneAccess, WasmAuxOpcode, WasmBoundaryState,
@@ -51,3 +50,4 @@ pub use memory_semantics::{preload_from_wasmtime_run, sanity_check_memory_rows, 
 pub use prove::{prove, prove_batched, verify, WasmProof, WasmProveError};
 pub use tables::{lookup_payload, WasmLookupArity, WasmLookupPayload};
 pub use tagged_r1cs_builder::{WasmConstraintCatalog, WasmConstraintScope, WasmConstraintTag};
+pub use witness_builder::{build_steps, build_witness_vector};

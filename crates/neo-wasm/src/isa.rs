@@ -182,6 +182,8 @@ pub enum WasmOpcode {
     I64Eqz,
     I32Eq,
     I32Ne,
+    I64Eq,
+    I64Ne,
     I32LtS,
     I32LtU,
     I32GtS,
@@ -223,7 +225,7 @@ pub enum WasmOpcode {
 }
 
 impl WasmOpcode {
-    pub fn supported() -> [Self; 74] {
+    pub fn supported() -> [Self; 76] {
         [
             Self::Nop,
             Self::I32Const,
@@ -263,6 +265,8 @@ impl WasmOpcode {
             Self::I64Eqz,
             Self::I32Eq,
             Self::I32Ne,
+            Self::I64Eq,
+            Self::I64Ne,
             Self::I32LtS,
             Self::I32LtU,
             Self::I32GtS,
@@ -378,6 +382,8 @@ impl WasmOpcode {
             Self::LocalTee => Some(71),
             Self::GlobalGet => Some(72),
             Self::GlobalSet => Some(73),
+            Self::I64Eq => Some(74),
+            Self::I64Ne => Some(75),
             Self::Trap | Self::Unsupported => None,
         }
     }
@@ -422,6 +428,8 @@ impl WasmOpcode {
             Self::I64Eqz => "i64_eqz",
             Self::I32Eq => "i32_eq",
             Self::I32Ne => "i32_ne",
+            Self::I64Eq => "i64_eq",
+            Self::I64Ne => "i64_ne",
             Self::I32LtS => "i32_lt_s",
             Self::I32LtU => "i32_lt_u",
             Self::I32GtS => "i32_gt_s",
@@ -591,6 +599,8 @@ pub fn opcode_info_from_code(code: u16) -> WasmOpcodeInfo {
         Op::I64Eqz => info(op, code, Class::Compare, 1, 1, false, None),
         Op::I32Eq => info(op, code, Class::Compare, 2, 1, false, None),
         Op::I32Ne => info(op, code, Class::Compare, 2, 1, false, None),
+        Op::I64Eq => info(op, code, Class::Compare, 2, 1, false, None),
+        Op::I64Ne => info(op, code, Class::Compare, 2, 1, false, None),
         Op::I32LtS => info(op, code, Class::Compare, 2, 1, true, Some(Shout::I32LtS)),
         Op::I32LtU => info(op, code, Class::Compare, 2, 1, true, Some(Shout::I32LtU)),
         Op::I32GtS => info(op, code, Class::Compare, 2, 1, true, Some(Shout::I32GtS)),
@@ -682,6 +692,8 @@ pub fn opcode_code(op: WasmOpcode) -> u16 {
         WasmOpcode::I64Eqz => 0x50,
         WasmOpcode::I32Eq => 0x46,
         WasmOpcode::I32Ne => 0x47,
+        WasmOpcode::I64Eq => 0x51,
+        WasmOpcode::I64Ne => 0x52,
         WasmOpcode::I32LtS => 0x48,
         WasmOpcode::I32LtU => 0x49,
         WasmOpcode::I32GtS => 0x4A,
@@ -763,6 +775,8 @@ fn opcode_from_code(code: u16) -> WasmOpcode {
         x if x == opcode_code(WasmOpcode::I64Eqz) => WasmOpcode::I64Eqz,
         x if x == opcode_code(WasmOpcode::I32Eq) => WasmOpcode::I32Eq,
         x if x == opcode_code(WasmOpcode::I32Ne) => WasmOpcode::I32Ne,
+        x if x == opcode_code(WasmOpcode::I64Eq) => WasmOpcode::I64Eq,
+        x if x == opcode_code(WasmOpcode::I64Ne) => WasmOpcode::I64Ne,
         x if x == opcode_code(WasmOpcode::I32LtS) => WasmOpcode::I32LtS,
         x if x == opcode_code(WasmOpcode::I32LtU) => WasmOpcode::I32LtU,
         x if x == opcode_code(WasmOpcode::I32GtS) => WasmOpcode::I32GtS,

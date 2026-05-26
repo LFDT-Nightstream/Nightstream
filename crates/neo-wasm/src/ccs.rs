@@ -87,6 +87,8 @@ const I64_OPS: &[WasmOpcode] = &[
     WasmOpcode::I64Load,
     WasmOpcode::I64Store,
     WasmOpcode::I64Eqz,
+    WasmOpcode::I64Eq,
+    WasmOpcode::I64Ne,
     WasmOpcode::I64And,
     WasmOpcode::I64Or,
     WasmOpcode::I64Xor,
@@ -209,6 +211,8 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
                 (selector_col(WasmOpcode::I64Load).unwrap(), -F::ONE),
                 (selector_col(WasmOpcode::I64Store).unwrap(), -F::ONE),
                 (selector_col(WasmOpcode::I64Eqz).unwrap(), -F::ONE),
+                (selector_col(WasmOpcode::I64Eq).unwrap(), -F::ONE),
+                (selector_col(WasmOpcode::I64Ne).unwrap(), -F::ONE),
                 (selector_col(WasmOpcode::I64And).unwrap(), -F::ONE),
                 (selector_col(WasmOpcode::I64Or).unwrap(), -F::ONE),
                 (selector_col(WasmOpcode::I64Xor).unwrap(), -F::ONE),
@@ -422,6 +426,14 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
                 (
                     selector_col(WasmOpcode::I32Ne).unwrap(),
                     -f_u16(opcode_code(WasmOpcode::I32Ne)),
+                ),
+                (
+                    selector_col(WasmOpcode::I64Eq).unwrap(),
+                    -f_u16(opcode_code(WasmOpcode::I64Eq)),
+                ),
+                (
+                    selector_col(WasmOpcode::I64Ne).unwrap(),
+                    -f_u16(opcode_code(WasmOpcode::I64Ne)),
                 ),
                 (
                     selector_col(WasmOpcode::I32LtS).unwrap(),
@@ -754,9 +766,15 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
     b.with_tag(opcode_tag("i64.sub relation", WasmOpcode::I64Sub), |b| {
         push_i64_sub_relation(b, &stack)
     });
-    b.with_tag(opcode_tag("i64.eqz high limb zero", WasmOpcode::I64Eqz), |b| {
-        push_i64_eqz_high_zero(b, &stack);
-    });
+    b.with_tag(
+        shared(
+            "i64 comparator high limb zero",
+            &[WasmOpcode::I64Eqz, WasmOpcode::I64Eq, WasmOpcode::I64Ne],
+        ),
+        |b| {
+            push_i64_comparator_high_zero(b, &stack);
+        },
+    );
     b.with_tag(shared("comparator zero-test", COMPARATOR_OPS), |b| {
         push_comparator_constraints(b, &stack);
     });
@@ -1034,11 +1052,19 @@ fn push_i64_sub_relation(b: &mut R1csBuilder, stack: &OperandStackColumns) {
     );
 }
 
-fn push_i64_eqz_high_zero(b: &mut R1csBuilder, stack: &OperandStackColumns) {
-    push_gated_linear_zero(
-        b,
-        selector_col(WasmOpcode::I64Eqz).unwrap(),
+/// Force `write0_value_hi = 0` on every comparator row that produces a
+/// u32 result. i64.eqz / i64.eq / i64.ne have `wide_values_enabled = 1`
+/// for their inputs, which disables the "narrow high limbs zero" rule for
+/// `write0_value_hi`; this constraint pins the output hi limb back to 0.
+fn push_i64_comparator_high_zero(b: &mut R1csBuilder, stack: &OperandStackColumns) {
+    b.push_row(
+        [
+            (selector_col(WasmOpcode::I64Eqz).unwrap(), F::ONE),
+            (selector_col(WasmOpcode::I64Eq).unwrap(), F::ONE),
+            (selector_col(WasmOpcode::I64Ne).unwrap(), F::ONE),
+        ],
         [(idx(stack.write0_value_hi), F::ONE)],
+        [],
     );
 }
 
@@ -1047,32 +1073,38 @@ const COMPARATOR_OPS: &[WasmOpcode] = &[
     WasmOpcode::I64Eqz,
     WasmOpcode::I32Eq,
     WasmOpcode::I32Ne,
+    WasmOpcode::I64Eq,
+    WasmOpcode::I64Ne,
 ];
 
-/// CCS-native gates for i32.eqz / i64.eqz / i32.eq / i32.ne.
+/// CCS-native gates for i32.eqz / i64.eqz / i32.eq / i32.ne / i64.eq / i64.ne.
 ///
-/// The opcode's selector pins `COL_CMP_LO_DIFF` to the right zero-test input
-/// (`read0`, `read0_lo`, or `read0 - read1`); the shared zero-test gadget
-/// forces `COL_CMP_LO_IS_ZERO = (cmp_lo_diff == 0)`.
+/// The opcode's selector pins `COL_CMP_LO_DIFF` to the zero-test input for
+/// the lo limb (`read0`, `read0_lo`, `read0 - read1`, or `read0_lo -
+/// read1_lo`); the zero-test gadget forces
+/// `COL_CMP_LO_IS_ZERO = (cmp_lo_diff == 0)`.
 ///
-/// **i64.eqz needs a split limb-by-limb zero-test.** The Goldilocks
-/// modulus `q = 2^64 - 2^32 + 1` does not have an injective u64 →
-/// field-element embedding for the obvious `lo + hi*2^32` map: the value
-/// `(lo=1, hi=0xffffffff)` is exactly `q ≡ 0`, so a single field
-/// zero-test would wrongly accept it. We pin `COL_CMP_LO_DIFF = read0_lo`
-/// and `COL_CMP_HI_DIFF = read0_hi`, zero-test each limb, and AND the
-/// flags into `COL_CMP_AND`. The i64.eqz write-back uses `cmp_and`; the
-/// i32 write-backs use `cmp_lo_is_zero` directly.
+/// **The i64 comparators need a split limb-by-limb zero-test.** The
+/// Goldilocks modulus `q = 2^64 - 2^32 + 1` does not have an injective
+/// u64 → field-element embedding for the obvious `lo + hi*2^32` map: the
+/// value `(lo=1, hi=0xffffffff)` is exactly `q ≡ 0`, so a single field
+/// zero-test would wrongly accept it. For i64.eqz / i64.eq / i64.ne we
+/// pin `COL_CMP_HI_DIFF` to the hi-limb diff, zero-test it independently,
+/// and AND the two flags into `COL_CMP_AND`. The i64 write-backs use
+/// `cmp_and`; the i32 write-backs use `cmp_lo_is_zero` directly (their
+/// inputs fit safely below q, so the hi limb is unused).
 ///
-/// On non-comparator rows all four selectors are 0, the diff-pinning
-/// gates degenerate, and the witness sets `cmp_lo_diff = cmp_hi_diff = 0` →
-/// both flags = 1, `cmp_and = 1`. None of those values are observed
+/// On non-comparator rows all six selectors are 0, the diff-pinning
+/// gates degenerate, and the witness sets `cmp_lo_diff = cmp_hi_diff = 0`
+/// → both flags = 1, `cmp_and = 1`. None of those values are observed
 /// elsewhere on non-comparator rows.
 fn push_comparator_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns) {
     let sel_eqz_i32 = selector_col(WasmOpcode::I32Eqz).unwrap();
     let sel_eqz_i64 = selector_col(WasmOpcode::I64Eqz).unwrap();
     let sel_eq = selector_col(WasmOpcode::I32Eq).unwrap();
     let sel_ne = selector_col(WasmOpcode::I32Ne).unwrap();
+    let sel_i64_eq = selector_col(WasmOpcode::I64Eq).unwrap();
+    let sel_i64_ne = selector_col(WasmOpcode::I64Ne).unwrap();
 
     // cmp_lo_diff = read0_value on i32.eqz rows.
     push_gated_linear_zero(
@@ -1086,9 +1118,16 @@ fn push_comparator_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns)
         sel_eqz_i64,
         [(COL_CMP_LO_DIFF, F::ONE), (idx(stack.read0_value), -F::ONE)],
     );
-    // cmp_lo_diff = read0_value - read1_value on i32.eq / i32.ne rows.
+    // cmp_lo_diff = read0_value - read1_value on i32.eq/ne and i64.eq/ne rows.
+    // (Same lo-limb diff expression for all four; hi-limb diff is pinned
+    // separately below for the i64 pair.)
     b.push_row(
-        [(sel_eq, F::ONE), (sel_ne, F::ONE)],
+        [
+            (sel_eq, F::ONE),
+            (sel_ne, F::ONE),
+            (sel_i64_eq, F::ONE),
+            (sel_i64_ne, F::ONE),
+        ],
         [
             (COL_CMP_LO_DIFF, F::ONE),
             (idx(stack.read0_value), -F::ONE),
@@ -1099,12 +1138,22 @@ fn push_comparator_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns)
 
     push_zero_test_gadget(b, COL_CMP_LO_DIFF, COL_CMP_LO_INV, COL_CMP_LO_IS_ZERO);
 
-    // cmp_hi_diff = read0_value_hi on i64.eqz rows; unconstrained otherwise
-    // (witness sets it to 0 so the hi zero-test flag is 1).
+    // cmp_hi_diff bindings for the i64 comparators (i64.eqz: read0_hi;
+    // i64.eq/ne: read0_hi - read1_hi). Unconstrained on every other row
+    // — the witness sets it to 0 so the hi zero-test flag becomes 1.
     push_gated_linear_zero(
         b,
         sel_eqz_i64,
         [(COL_CMP_HI_DIFF, F::ONE), (idx(stack.read0_value_hi), -F::ONE)],
+    );
+    b.push_row(
+        [(sel_i64_eq, F::ONE), (sel_i64_ne, F::ONE)],
+        [
+            (COL_CMP_HI_DIFF, F::ONE),
+            (idx(stack.read0_value_hi), -F::ONE),
+            (idx(stack.read1_value_hi), F::ONE),
+        ],
+        [],
     );
 
     push_zero_test_gadget(b, COL_CMP_HI_DIFF, COL_CMP_HI_INV, COL_CMP_HI_IS_ZERO);
@@ -1122,19 +1171,29 @@ fn push_comparator_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns)
         [(idx(stack.write0_value), F::ONE), (COL_CMP_LO_IS_ZERO, -F::ONE)],
         [],
     );
-    // write0_value = cmp_and on i64.eqz rows.
-    push_gated_linear_zero(
-        b,
-        sel_eqz_i64,
+    // write0_value = cmp_and on i64.eqz / i64.eq rows.
+    b.push_row(
+        [(sel_eqz_i64, F::ONE), (sel_i64_eq, F::ONE)],
         [(idx(stack.write0_value), F::ONE), (COL_CMP_AND, -F::ONE)],
+        [],
     );
-    // write0_value = 1 - cmp_lo_is_zero on ne rows.
+    // write0_value = 1 - cmp_lo_is_zero on i32.ne rows.
     push_gated_linear_zero(
         b,
         sel_ne,
         [
             (idx(stack.write0_value), F::ONE),
             (COL_CMP_LO_IS_ZERO, F::ONE),
+            (COL_ONE, -F::ONE),
+        ],
+    );
+    // write0_value = 1 - cmp_and on i64.ne rows.
+    push_gated_linear_zero(
+        b,
+        sel_i64_ne,
+        [
+            (idx(stack.write0_value), F::ONE),
+            (COL_CMP_AND, F::ONE),
             (COL_ONE, -F::ONE),
         ],
     );

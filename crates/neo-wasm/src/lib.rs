@@ -33,7 +33,10 @@ pub use ir::{
     boundary_states, LinearMemoryAccess, LinearMemoryWordLane, StackLaneAccess, WasmAuxOpcode, WasmBoundaryState,
     WasmBuildError, WasmParamInitState, WasmPcEdgeKind, WasmRowKind, WasmStepTrace,
 };
-pub use isa::{opcode_code, opcode_info_from_code, WasmOpcode, WasmOpcodeClass, WasmOpcodeInfo, WasmShoutOpcode};
+pub use isa::{
+    opcode_code, opcode_info_from_code, WasmMemoryAccessInfo, WasmMemoryAccessKind, WasmMemoryExtension, WasmOpcode,
+    WasmOpcodeClass, WasmOpcodeInfo, WasmShoutOpcode,
+};
 pub use layout::{ColumnWidth, WasmColumnSpec, COLUMN_SPECS};
 pub use lookup_binding_builder::{
     build_wasm_lookup_binding_layout, CallColumns, Column, ControlColumns, FrameColumns, GlobalsColumns,

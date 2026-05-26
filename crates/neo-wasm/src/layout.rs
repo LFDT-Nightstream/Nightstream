@@ -272,6 +272,8 @@ define_columns!(
     (COL_SEL_LOCAL_TEE, "", ColumnWidth::Boolean),
     (COL_SEL_GLOBAL_GET, "", ColumnWidth::Boolean),
     (COL_SEL_GLOBAL_SET, "", ColumnWidth::Boolean),
+    (COL_SEL_I64_EQ, "", ColumnWidth::Boolean),
+    (COL_SEL_I64_NE, "", ColumnWidth::Boolean),
     (
         COL_LOCAL_WRITE_ENABLED,
         "locals memory write gate for local.set/local.tee",
@@ -499,20 +501,24 @@ define_columns!(
         COL_SELECT_OUT_DELTA,
         "scratch column for add_conditional_select_gadget for select opcode"
     ),
-    // Shared zero-test scratch columns for the i32.eqz / i64.eqz / i32.eq /
-    // i32.ne CCS-native gates. The active opcode's selector pins COL_CMP_LO_DIFF
-    // to the right input (read0, read0_lo, or read0-read1); the zero-test
-    // gadget forces COL_CMP_LO_IS_ZERO = (cmp_lo_diff == 0).
+    // Shared zero-test scratch columns for the CCS-native comparators:
+    // i32.eqz / i64.eqz / i32.eq / i32.ne / i64.eq / i64.ne. The active
+    // opcode's selector pins COL_CMP_LO_DIFF to the lo-limb input
+    // (read0, read0_lo, or read0[_lo] - read1[_lo]); the zero-test gadget
+    // forces COL_CMP_LO_IS_ZERO = (cmp_lo_diff == 0).
     //
-    // For i64.eqz the lo limb alone is not sufficient: the full u64 value
-    // does not embed injectively into Goldilocks (q = 2^64 - 2^32 + 1 has
-    // a nontrivial preimage at lo=1, hi=0xffffffff). We zero-test the hi
-    // limb separately via COL_CMP_HI_* and AND the two flags into
-    // COL_CMP_AND.
+    // The i64 comparators (i64.eqz / i64.eq / i64.ne) need a hi-limb
+    // zero-test too: the full u64 value does not embed injectively into
+    // Goldilocks (q = 2^64 - 2^32 + 1 has a nontrivial preimage at
+    // lo=1, hi=0xffffffff). We pin COL_CMP_HI_DIFF to the hi-limb input,
+    // zero-test it independently, and AND the two flags into COL_CMP_AND.
     (COL_CMP_LO_DIFF, "comparator zero-test input (lo limb / full i32 input)"),
     (COL_CMP_LO_INV, "comparator zero-test inverse witness"),
     (COL_CMP_LO_IS_ZERO, "comparator zero-test result", ColumnWidth::Boolean),
-    (COL_CMP_HI_DIFF, "comparator hi-limb zero-test input (i64.eqz only)"),
+    (
+        COL_CMP_HI_DIFF,
+        "comparator hi-limb zero-test input (i64.eqz / i64.eq / i64.ne)"
+    ),
     (COL_CMP_HI_INV, "comparator hi-limb zero-test inverse witness"),
     (
         COL_CMP_HI_IS_ZERO,
@@ -521,7 +527,7 @@ define_columns!(
     ),
     (
         COL_CMP_AND,
-        "AND of COL_CMP_LO_IS_ZERO and COL_CMP_HI_IS_ZERO; i64.eqz result",
+        "AND of COL_CMP_LO_IS_ZERO and COL_CMP_HI_IS_ZERO; i64.eqz / i64.eq result",
         ColumnWidth::Boolean
     ),
     (
@@ -799,7 +805,7 @@ define_columns!(
     ),
 );
 
-pub const SELECTOR_COLS: [usize; 74] = [
+pub const SELECTOR_COLS: [usize; 76] = [
     COL_SEL_NOP,
     COL_SEL_I32_CONST,
     COL_SEL_I64_CONST,
@@ -874,6 +880,8 @@ pub const SELECTOR_COLS: [usize; 74] = [
     COL_SEL_LOCAL_TEE,
     COL_SEL_GLOBAL_GET,
     COL_SEL_GLOBAL_SET,
+    COL_SEL_I64_EQ,
+    COL_SEL_I64_NE,
 ];
 
 pub fn selector_col(op: WasmOpcode) -> Option<usize> {
@@ -916,6 +924,8 @@ pub fn selector_col(op: WasmOpcode) -> Option<usize> {
         WasmOpcode::I64Eqz => Some(COL_SEL_I64_EQZ),
         WasmOpcode::I32Eq => Some(COL_SEL_I32_EQ),
         WasmOpcode::I32Ne => Some(COL_SEL_I32_NE),
+        WasmOpcode::I64Eq => Some(COL_SEL_I64_EQ),
+        WasmOpcode::I64Ne => Some(COL_SEL_I64_NE),
         WasmOpcode::I32LtS => Some(COL_SEL_I32_LTS),
         WasmOpcode::I32LtU => Some(COL_SEL_I32_LTU),
         WasmOpcode::I32GtS => Some(COL_SEL_I32_GTS),

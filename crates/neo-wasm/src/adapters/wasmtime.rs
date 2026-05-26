@@ -1115,6 +1115,8 @@ fn normalize_supported_row(row: &WasmtimeTraceStep) -> Result<Option<SupportedRo
                 | WasmOpcode::I64Add
                 | WasmOpcode::I64Sub
                 | WasmOpcode::I64Eqz
+                | WasmOpcode::I64Eq
+                | WasmOpcode::I64Ne
                 | WasmOpcode::I64And
                 | WasmOpcode::I64Or
                 | WasmOpcode::I64Xor
@@ -1940,6 +1942,8 @@ fn decode_opcode(operator: &wasmparser::Operator<'_>) -> Option<(WasmOpcode, Opt
         wasmparser::Operator::I64Eqz => Some((WasmOpcode::I64Eqz, None)),
         wasmparser::Operator::I32Eq => Some((WasmOpcode::I32Eq, None)),
         wasmparser::Operator::I32Ne => Some((WasmOpcode::I32Ne, None)),
+        wasmparser::Operator::I64Eq => Some((WasmOpcode::I64Eq, None)),
+        wasmparser::Operator::I64Ne => Some((WasmOpcode::I64Ne, None)),
         wasmparser::Operator::I32LtS => Some((WasmOpcode::I32LtS, None)),
         wasmparser::Operator::I32LtU => Some((WasmOpcode::I32LtU, None)),
         wasmparser::Operator::I32GtS => Some((WasmOpcode::I32GtS, None)),

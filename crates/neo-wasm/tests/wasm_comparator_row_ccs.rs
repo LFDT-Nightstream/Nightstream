@@ -1,0 +1,246 @@
+//! Row-level CCS tests for the CCS-native comparators
+//! (i32.eqz / i64.eqz / i32.eq / i32.ne). See `push_comparator_constraints`
+//! in `crates/neo-wasm/src/ccs.rs` for the constraint shape.
+
+use neo_ccs::check_ccs_rowwise_zero;
+use neo_math::F;
+use neo_wasm::builder::build_witness_vector;
+use neo_wasm::layout::{
+    COL_CMP_AND, COL_CMP_HI_DIFF, COL_CMP_HI_INV, COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF, COL_CMP_LO_INV,
+    COL_CMP_LO_IS_ZERO, COL_STACK_READ0_VALUE, COL_STACK_READ0_VALUE_HI, COL_STACK_WRITE0_VALUE,
+    COL_WIDE_VALUES_ENABLED,
+};
+use neo_wasm::{
+    build_wasm_lookup_binding_layout, opcode_code, opcode_info_from_code, sanity_check_lookup_row, StackLaneAccess,
+    WasmOpcode, WasmParamInitState, WasmPcEdgeKind, WasmRowKind, WasmStepTrace, WasmVmSpec,
+};
+use p3_field::{Field, PrimeCharacteristicRing};
+
+fn assert_satisfied(z: &[F], label: &str) {
+    let layout = build_wasm_lookup_binding_layout();
+    sanity_check_lookup_row(layout, z)
+        .unwrap_or_else(|e| panic!("{label}: expected lookup semantics satisfied, got: {e}"));
+    let vm = WasmVmSpec::default();
+    let ccs = &vm.core_ccs_spec().structure;
+    let (x, w) = (&z[..1], &z[1..]);
+    check_ccs_rowwise_zero(ccs, x, w).unwrap_or_else(|e| panic!("{label}: expected CCS satisfied, got: {e}"));
+}
+
+fn assert_rejected(z: &[F], label: &str) {
+    let vm = WasmVmSpec::default();
+    let ccs = &vm.core_ccs_spec().structure;
+    let (x, w) = (&z[..1], &z[1..]);
+    assert!(
+        check_ccs_rowwise_zero(ccs, x, w).is_err(),
+        "{label}: expected CCS rejection, but the witness was accepted"
+    );
+}
+
+fn step(
+    opcode: WasmOpcode,
+    sp_before: u64,
+    sp_after: u64,
+    stack_read0: Option<StackLaneAccess>,
+    stack_read1: Option<StackLaneAccess>,
+    stack_write0: Option<StackLaneAccess>,
+) -> WasmStepTrace {
+    let code = opcode_code(opcode);
+    WasmStepTrace {
+        cycle: 0,
+        row_kind: WasmRowKind::Program,
+        pc_before: 2,
+        pc_after: 3,
+        control_choice: 0,
+        pc_edge_kind: WasmPcEdgeKind::Static,
+        param_init_before: WasmParamInitState::ZERO,
+        param_init_after: WasmParamInitState::ZERO,
+        wide_values_enabled: false,
+        opcode_code: code,
+        opcode,
+        info: opcode_info_from_code(code),
+        stack_reads_override: None,
+        stack_writes_override: None,
+        sp_before,
+        sp_after,
+        current_function_ref: 0,
+        current_function_num_locals: 0,
+        stack_read0,
+        stack_read0_hi: None,
+        stack_read1,
+        stack_read1_hi: None,
+        stack_read2: None,
+        stack_read2_hi: None,
+        stack_write0,
+        stack_write0_hi: None,
+        linear_memory: None,
+        linear_memory_offset: 0,
+        memory_pages_before: None,
+        memory_pages_after: None,
+        halted: false,
+        locals_fbp: 0,
+        locals_fbp_after: 0,
+        local_index: None,
+        local_read_value: None,
+        local_read_value_hi: None,
+        local_write_value: None,
+        local_write_value_hi: None,
+        global_index: None,
+        global_read_value: None,
+        global_read_value_hi: None,
+        global_write_value: None,
+        global_write_value_hi: None,
+        table_id: None,
+        table_index: None,
+        table_value: None,
+        function_ref: None,
+        target_function_is_guest: false,
+        function_type_id: None,
+        call_indirect_type_index: None,
+        expected_type_id: None,
+        table_size: None,
+        call_param_count: None,
+        call_result_count: None,
+        call_stack_push: None,
+        call_stack_pop: None,
+    }
+}
+
+fn set_i64_eqz_cmp_scratch(row: &mut [F], lo: u32, hi: u32) {
+    let lo_diff = F::from_u64(u64::from(lo));
+    let hi_diff = F::from_u64(u64::from(hi));
+    row[COL_CMP_LO_DIFF] = lo_diff;
+    row[COL_CMP_HI_DIFF] = hi_diff;
+    let (lo_is_zero, lo_inv) = if lo_diff == F::ZERO {
+        (F::ONE, F::ZERO)
+    } else {
+        (F::ZERO, lo_diff.try_inverse().unwrap())
+    };
+    let (hi_is_zero, hi_inv) = if hi_diff == F::ZERO {
+        (F::ONE, F::ZERO)
+    } else {
+        (F::ZERO, hi_diff.try_inverse().unwrap())
+    };
+    row[COL_CMP_LO_IS_ZERO] = lo_is_zero;
+    row[COL_CMP_LO_INV] = lo_inv;
+    row[COL_CMP_HI_IS_ZERO] = hi_is_zero;
+    row[COL_CMP_HI_INV] = hi_inv;
+    row[COL_CMP_AND] = lo_is_zero * hi_is_zero;
+}
+
+#[test]
+fn i32_eqz_row_accepts_zero_and_nonzero_inputs() {
+    for (input, result) in [(0u32, 1u32), (1, 0), (0xFFFF_FFFF, 0)] {
+        let row = build_witness_vector(&step(
+            WasmOpcode::I32Eqz,
+            1,
+            1,
+            Some(StackLaneAccess { addr: 0, value: input }),
+            None,
+            Some(StackLaneAccess { addr: 0, value: result }),
+        ));
+        assert_satisfied(&row, &format!("i32.eqz({input})"));
+    }
+}
+
+#[test]
+fn i32_eqz_row_rejects_tampered_output() {
+    // Honest: eqz(5) = 0. Tampered: claim eqz(5) = 1.
+    let mut row = build_witness_vector(&step(
+        WasmOpcode::I32Eqz,
+        1,
+        1,
+        Some(StackLaneAccess { addr: 0, value: 5 }),
+        None,
+        Some(StackLaneAccess { addr: 0, value: 1 }),
+    ));
+    row[COL_STACK_WRITE0_VALUE] = F::ONE;
+    assert_rejected(&row, "tampered i32.eqz output");
+}
+
+#[test]
+fn i64_eqz_row_accepts_zero_and_nonzero_inputs() {
+    for (lo, hi, result) in [(0u32, 0u32, 1u32), (1, 0, 0), (0, 1, 0), (0xFFFF_FFFF, 0xFFFF_FFFF, 0)] {
+        let mut row = build_witness_vector(&step(
+            WasmOpcode::I64Eqz,
+            1,
+            1,
+            Some(StackLaneAccess { addr: 0, value: lo }),
+            None,
+            Some(StackLaneAccess { addr: 0, value: result }),
+        ));
+        // The `step` helper doesn't populate stack_read0_hi; set it directly
+        // and recompute the comparator scratch.
+        row[COL_WIDE_VALUES_ENABLED] = F::ONE;
+        row[COL_STACK_READ0_VALUE] = F::from_u64(u64::from(lo));
+        row[COL_STACK_READ0_VALUE_HI] = F::from_u64(u64::from(hi));
+        set_i64_eqz_cmp_scratch(&mut row, lo, hi);
+        assert_satisfied(&row, &format!("i64.eqz(lo={lo}, hi={hi})"));
+    }
+}
+
+/// Regression: Goldilocks has q = 2^64 - 2^32 + 1, so the u64 value
+/// 0xffff_ffff_0000_0001 = q is the field zero. An i64.eqz zero-test
+/// over a single field element `lo + hi*2^32` would wrongly accept
+/// `eqz(0xffff_ffff_0000_0001) = 1`. The split limb-by-limb zero-test
+/// must reject this.
+#[test]
+fn i64_eqz_row_rejects_goldilocks_modulus_collision() {
+    let mut row = build_witness_vector(&step(
+        WasmOpcode::I64Eqz,
+        1,
+        1,
+        Some(StackLaneAccess { addr: 0, value: 1 }),
+        None,
+        Some(StackLaneAccess { addr: 0, value: 1 }),
+    ));
+    row[COL_WIDE_VALUES_ENABLED] = F::ONE;
+    row[COL_STACK_READ0_VALUE] = F::from_u64(1);
+    row[COL_STACK_READ0_VALUE_HI] = F::from_u64(0xFFFF_FFFFu64);
+    // Forge the lo-limb zero-test the way the old single-element gadget
+    // accepted: 1 + 0xffff_ffff * 2^32 ≡ 0 mod q, so claim cmp_lo_is_zero = 1.
+    // The split limb-by-limb gates still see cmp_hi_diff = 0xffff_ffff
+    // (nonzero), so cmp_and = 0 and the i64.eqz write-back of 1 must be
+    // rejected.
+    row[COL_CMP_LO_DIFF] = F::ZERO;
+    row[COL_CMP_LO_INV] = F::ZERO;
+    row[COL_CMP_LO_IS_ZERO] = F::ONE;
+    assert_rejected(&row, "i64.eqz must reject Goldilocks-modulus collision");
+}
+
+#[test]
+fn i32_eq_and_ne_rows_accept_equal_and_distinct_inputs() {
+    for (lhs, rhs, eq_out, ne_out) in [(0u32, 0u32, 1u32, 0u32), (5, 5, 1, 0), (5, 7, 0, 1), (7, 5, 0, 1)] {
+        let eq_row = build_witness_vector(&step(
+            WasmOpcode::I32Eq,
+            2,
+            1,
+            Some(StackLaneAccess { addr: 0, value: lhs }),
+            Some(StackLaneAccess { addr: 1, value: rhs }),
+            Some(StackLaneAccess { addr: 0, value: eq_out }),
+        ));
+        assert_satisfied(&eq_row, &format!("i32.eq({lhs}, {rhs})"));
+        let ne_row = build_witness_vector(&step(
+            WasmOpcode::I32Ne,
+            2,
+            1,
+            Some(StackLaneAccess { addr: 0, value: lhs }),
+            Some(StackLaneAccess { addr: 1, value: rhs }),
+            Some(StackLaneAccess { addr: 0, value: ne_out }),
+        ));
+        assert_satisfied(&ne_row, &format!("i32.ne({lhs}, {rhs})"));
+    }
+}
+
+#[test]
+fn i32_eq_row_rejects_tampered_output() {
+    let mut row = build_witness_vector(&step(
+        WasmOpcode::I32Eq,
+        2,
+        1,
+        Some(StackLaneAccess { addr: 0, value: 7 }),
+        Some(StackLaneAccess { addr: 1, value: 7 }),
+        Some(StackLaneAccess { addr: 0, value: 1 }),
+    ));
+    row[COL_STACK_WRITE0_VALUE] = F::ZERO;
+    assert_rejected(&row, "tampered i32.eq output");
+}

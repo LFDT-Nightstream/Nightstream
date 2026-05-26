@@ -499,6 +499,31 @@ define_columns!(
         COL_SELECT_OUT_DELTA,
         "scratch column for add_conditional_select_gadget for select opcode"
     ),
+    // Shared zero-test scratch columns for the i32.eqz / i64.eqz / i32.eq /
+    // i32.ne CCS-native gates. The active opcode's selector pins COL_CMP_LO_DIFF
+    // to the right input (read0, read0_lo, or read0-read1); the zero-test
+    // gadget forces COL_CMP_LO_IS_ZERO = (cmp_lo_diff == 0).
+    //
+    // For i64.eqz the lo limb alone is not sufficient: the full u64 value
+    // does not embed injectively into Goldilocks (q = 2^64 - 2^32 + 1 has
+    // a nontrivial preimage at lo=1, hi=0xffffffff). We zero-test the hi
+    // limb separately via COL_CMP_HI_* and AND the two flags into
+    // COL_CMP_AND.
+    (COL_CMP_LO_DIFF, "comparator zero-test input (lo limb / full i32 input)"),
+    (COL_CMP_LO_INV, "comparator zero-test inverse witness"),
+    (COL_CMP_LO_IS_ZERO, "comparator zero-test result", ColumnWidth::Boolean),
+    (COL_CMP_HI_DIFF, "comparator hi-limb zero-test input (i64.eqz only)"),
+    (COL_CMP_HI_INV, "comparator hi-limb zero-test inverse witness"),
+    (
+        COL_CMP_HI_IS_ZERO,
+        "comparator hi-limb zero-test result",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_CMP_AND,
+        "AND of COL_CMP_LO_IS_ZERO and COL_CMP_HI_IS_ZERO; i64.eqz result",
+        ColumnWidth::Boolean
+    ),
     (
         COL_LINEAR_MEM_OFFSET_IS_0,
         "linear-memory offset case selector for byte offset 0",

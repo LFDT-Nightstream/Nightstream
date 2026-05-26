@@ -34,10 +34,6 @@ pub enum LookupBuiltin {
     High32,
     I32Clz,
     I32Ctz,
-    I32Eqz,
-    I64Eqz,
-    I32Eq,
-    I32Ne,
     I32LtS,
     I32LtU,
     I32GtS,
@@ -155,16 +151,6 @@ fn shout_semantics(op: WasmShoutOpcode) -> LookupSemantics {
     let predicate = match op {
         WasmShoutOpcode::I32Clz => predicate_with_i32_unary(op, LookupBuiltin::I32Clz),
         WasmShoutOpcode::I32Ctz => predicate_with_i32_unary(op, LookupBuiltin::I32Ctz),
-        WasmShoutOpcode::I32Eqz => predicate_with_i32_unary(op, LookupBuiltin::I32Eqz),
-        WasmShoutOpcode::I64Eqz => LookupPredicate::And(vec![
-            LookupPredicate::Eq(slot(0), LookupExpr::Const(op.to_shout_id() as u64)),
-            LookupPredicate::Eq(
-                slot(3),
-                apply(LookupBuiltin::I64Eqz, vec![compose_u64(slot(1), slot(2))]),
-            ),
-        ]),
-        WasmShoutOpcode::I32Eq => predicate_with_i32_binary(op, LookupBuiltin::I32Eq),
-        WasmShoutOpcode::I32Ne => predicate_with_i32_binary(op, LookupBuiltin::I32Ne),
         WasmShoutOpcode::I32LtS => predicate_with_i32_binary(op, LookupBuiltin::I32LtS),
         WasmShoutOpcode::I32LtU => predicate_with_i32_binary(op, LookupBuiltin::I32LtU),
         WasmShoutOpcode::I32GtS => predicate_with_i32_binary(op, LookupBuiltin::I32GtS),
@@ -313,16 +299,6 @@ fn evaluate_builtin(builtin: LookupBuiltin, values: &[u64]) -> Result<u64, Strin
             require_arity(builtin, values, 1)?;
             trunc_u32(values[0]).trailing_zeros() as u64
         }
-        LookupBuiltin::I32Eqz => {
-            require_arity(builtin, values, 1)?;
-            u64::from(trunc_u32(values[0]) == 0)
-        }
-        LookupBuiltin::I64Eqz => {
-            require_arity(builtin, values, 1)?;
-            u64::from(values[0] == 0)
-        }
-        LookupBuiltin::I32Eq => compare_u32(values, |lhs, rhs| lhs == rhs)?,
-        LookupBuiltin::I32Ne => compare_u32(values, |lhs, rhs| lhs != rhs)?,
         LookupBuiltin::I32LtS => compare_i32(values, |lhs, rhs| lhs < rhs)?,
         LookupBuiltin::I32LtU => compare_u32(values, |lhs, rhs| lhs < rhs)?,
         LookupBuiltin::I32GtS => compare_i32(values, |lhs, rhs| lhs > rhs)?,
@@ -440,10 +416,6 @@ impl LookupBuiltin {
             LookupBuiltin::High32 => "high32",
             LookupBuiltin::I32Clz => "i32_clz",
             LookupBuiltin::I32Ctz => "i32_ctz",
-            LookupBuiltin::I32Eqz => "i32_eqz",
-            LookupBuiltin::I64Eqz => "i64_eqz",
-            LookupBuiltin::I32Eq => "i32_eq",
-            LookupBuiltin::I32Ne => "i32_ne",
             LookupBuiltin::I32LtS => "i32_lt_s",
             LookupBuiltin::I32LtU => "i32_lt_u",
             LookupBuiltin::I32GtS => "i32_gt_s",
@@ -480,10 +452,6 @@ impl LookupBuiltin {
             LookupBuiltin::High32 => 4,
             LookupBuiltin::I32Clz => 5,
             LookupBuiltin::I32Ctz => 6,
-            LookupBuiltin::I32Eqz => 7,
-            LookupBuiltin::I64Eqz => 8,
-            LookupBuiltin::I32Eq => 9,
-            LookupBuiltin::I32Ne => 10,
             LookupBuiltin::I32LtS => 11,
             LookupBuiltin::I32LtU => 12,
             LookupBuiltin::I32GtS => 13,

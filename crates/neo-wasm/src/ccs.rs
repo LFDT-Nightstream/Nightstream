@@ -25,7 +25,10 @@ use super::lookup_binding_builder::{
 use super::tagged_r1cs_builder::{
     WasmConstraintCatalog, WasmConstraintScope, WasmConstraintTag, WasmTaggedR1csBuilder,
 };
-use crate::layout::{COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV};
+use crate::layout::{
+    COL_CMP_AND, COL_CMP_HI_DIFF, COL_CMP_HI_INV, COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF, COL_CMP_LO_INV,
+    COL_CMP_LO_IS_ZERO, COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV,
+};
 use neo_ccs::CcsStructure;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
@@ -661,10 +664,6 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
             (idx(shout.enabled), F::ONE),
             (selector_for_lookup(WasmOpcode::I32Clz), -F::ONE),
             (selector_for_lookup(WasmOpcode::I32Ctz), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I32Eqz), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I64Eqz), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I32Eq), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I32Ne), -F::ONE),
             (selector_for_lookup(WasmOpcode::I32LtS), -F::ONE),
             (selector_for_lookup(WasmOpcode::I32LtU), -F::ONE),
             (selector_for_lookup(WasmOpcode::I32GtS), -F::ONE),
@@ -757,6 +756,9 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
     });
     b.with_tag(opcode_tag("i64.eqz high limb zero", WasmOpcode::I64Eqz), |b| {
         push_i64_eqz_high_zero(b, &stack);
+    });
+    b.with_tag(shared("comparator zero-test", COMPARATOR_OPS), |b| {
+        push_comparator_constraints(b, &stack);
     });
     linear_memory::push_linear_memory_constraints(&mut b, &stack, &linear_memory);
     b.with_tag(opcode_tag("select conditional gadget", WasmOpcode::Select), |b| {
@@ -1040,6 +1042,104 @@ fn push_i64_eqz_high_zero(b: &mut R1csBuilder, stack: &OperandStackColumns) {
     );
 }
 
+const COMPARATOR_OPS: &[WasmOpcode] = &[
+    WasmOpcode::I32Eqz,
+    WasmOpcode::I64Eqz,
+    WasmOpcode::I32Eq,
+    WasmOpcode::I32Ne,
+];
+
+/// CCS-native gates for i32.eqz / i64.eqz / i32.eq / i32.ne.
+///
+/// The opcode's selector pins `COL_CMP_LO_DIFF` to the right zero-test input
+/// (`read0`, `read0_lo`, or `read0 - read1`); the shared zero-test gadget
+/// forces `COL_CMP_LO_IS_ZERO = (cmp_lo_diff == 0)`.
+///
+/// **i64.eqz needs a split limb-by-limb zero-test.** The Goldilocks
+/// modulus `q = 2^64 - 2^32 + 1` does not have an injective u64 →
+/// field-element embedding for the obvious `lo + hi*2^32` map: the value
+/// `(lo=1, hi=0xffffffff)` is exactly `q ≡ 0`, so a single field
+/// zero-test would wrongly accept it. We pin `COL_CMP_LO_DIFF = read0_lo`
+/// and `COL_CMP_HI_DIFF = read0_hi`, zero-test each limb, and AND the
+/// flags into `COL_CMP_AND`. The i64.eqz write-back uses `cmp_and`; the
+/// i32 write-backs use `cmp_lo_is_zero` directly.
+///
+/// On non-comparator rows all four selectors are 0, the diff-pinning
+/// gates degenerate, and the witness sets `cmp_lo_diff = cmp_hi_diff = 0` →
+/// both flags = 1, `cmp_and = 1`. None of those values are observed
+/// elsewhere on non-comparator rows.
+fn push_comparator_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns) {
+    let sel_eqz_i32 = selector_col(WasmOpcode::I32Eqz).unwrap();
+    let sel_eqz_i64 = selector_col(WasmOpcode::I64Eqz).unwrap();
+    let sel_eq = selector_col(WasmOpcode::I32Eq).unwrap();
+    let sel_ne = selector_col(WasmOpcode::I32Ne).unwrap();
+
+    // cmp_lo_diff = read0_value on i32.eqz rows.
+    push_gated_linear_zero(
+        b,
+        sel_eqz_i32,
+        [(COL_CMP_LO_DIFF, F::ONE), (idx(stack.read0_value), -F::ONE)],
+    );
+    // cmp_lo_diff = read0_value (lo limb only) on i64.eqz rows.
+    push_gated_linear_zero(
+        b,
+        sel_eqz_i64,
+        [(COL_CMP_LO_DIFF, F::ONE), (idx(stack.read0_value), -F::ONE)],
+    );
+    // cmp_lo_diff = read0_value - read1_value on i32.eq / i32.ne rows.
+    b.push_row(
+        [(sel_eq, F::ONE), (sel_ne, F::ONE)],
+        [
+            (COL_CMP_LO_DIFF, F::ONE),
+            (idx(stack.read0_value), -F::ONE),
+            (idx(stack.read1_value), F::ONE),
+        ],
+        [],
+    );
+
+    push_zero_test_gadget(b, COL_CMP_LO_DIFF, COL_CMP_LO_INV, COL_CMP_LO_IS_ZERO);
+
+    // cmp_hi_diff = read0_value_hi on i64.eqz rows; unconstrained otherwise
+    // (witness sets it to 0 so the hi zero-test flag is 1).
+    push_gated_linear_zero(
+        b,
+        sel_eqz_i64,
+        [(COL_CMP_HI_DIFF, F::ONE), (idx(stack.read0_value_hi), -F::ONE)],
+    );
+
+    push_zero_test_gadget(b, COL_CMP_HI_DIFF, COL_CMP_HI_INV, COL_CMP_HI_IS_ZERO);
+
+    // cmp_and = cmp_lo_is_zero * cmp_hi_is_zero (unconditional).
+    b.push_row(
+        [(COL_CMP_LO_IS_ZERO, F::ONE)],
+        [(COL_CMP_HI_IS_ZERO, F::ONE)],
+        [(COL_CMP_AND, F::ONE)],
+    );
+
+    // write0_value = cmp_lo_is_zero on i32.eqz / i32.eq rows.
+    b.push_row(
+        [(sel_eqz_i32, F::ONE), (sel_eq, F::ONE)],
+        [(idx(stack.write0_value), F::ONE), (COL_CMP_LO_IS_ZERO, -F::ONE)],
+        [],
+    );
+    // write0_value = cmp_and on i64.eqz rows.
+    push_gated_linear_zero(
+        b,
+        sel_eqz_i64,
+        [(idx(stack.write0_value), F::ONE), (COL_CMP_AND, -F::ONE)],
+    );
+    // write0_value = 1 - cmp_lo_is_zero on ne rows.
+    push_gated_linear_zero(
+        b,
+        sel_ne,
+        [
+            (idx(stack.write0_value), F::ONE),
+            (COL_CMP_LO_IS_ZERO, F::ONE),
+            (COL_ONE, -F::ONE),
+        ],
+    );
+}
+
 fn push_shout_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns, shout: &ShoutColumns) {
     b.push_row(
         WasmShoutOpcode::all()
@@ -1065,10 +1165,6 @@ fn selector_for_shout(op: WasmShoutOpcode) -> usize {
     selector_for_lookup(match op {
         WasmShoutOpcode::I32Clz => WasmOpcode::I32Clz,
         WasmShoutOpcode::I32Ctz => WasmOpcode::I32Ctz,
-        WasmShoutOpcode::I32Eqz => WasmOpcode::I32Eqz,
-        WasmShoutOpcode::I64Eqz => WasmOpcode::I64Eqz,
-        WasmShoutOpcode::I32Eq => WasmOpcode::I32Eq,
-        WasmShoutOpcode::I32Ne => WasmOpcode::I32Ne,
         WasmShoutOpcode::I32LtS => WasmOpcode::I32LtS,
         WasmShoutOpcode::I32LtU => WasmOpcode::I32LtU,
         WasmShoutOpcode::I32GtS => WasmOpcode::I32GtS,

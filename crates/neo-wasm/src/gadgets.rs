@@ -61,15 +61,19 @@ pub fn push_zero_test_gadget(b: &mut R1csBuilder, value: usize, inverse: usize, 
 }
 
 pub(crate) fn zero_test_witness_u64(value: u64) -> (F, F) {
-    if value == 0 {
+    zero_test_witness_field(F::from_u64(value))
+}
+
+/// Zero-test witness for an arbitrary field element.
+///
+/// Returns `(is_zero, inverse)` consistent with [`push_zero_test_gadget`]:
+/// when `value == 0` the inverse is unconstrained and we return `0`; when
+/// `value != 0` `is_zero` is `0` and we return the field inverse.
+pub(crate) fn zero_test_witness_field(value: F) -> (F, F) {
+    if value == F::ZERO {
         (F::ONE, F::ZERO)
     } else {
-        (
-            F::ZERO,
-            F::from_u64(value)
-                .try_inverse()
-                .expect("nonzero field inverse"),
-        )
+        (F::ZERO, value.try_inverse().expect("nonzero field inverse"))
     }
 }
 

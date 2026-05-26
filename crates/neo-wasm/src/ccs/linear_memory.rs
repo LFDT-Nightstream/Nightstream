@@ -12,7 +12,7 @@ use super::super::isa::WasmOpcode;
 use super::super::layout::{selector_col, COL_ONE};
 use super::super::lookup_binding_builder::{Column, LinearMemoryColumns, OperandStackColumns};
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
-use super::{f_u64, idx, opcode_tag, shared, LINEAR_MEMORY_OPS};
+use super::{f_u64, idx, linear_memory_ops, opcode_tag, shared};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
@@ -25,89 +25,88 @@ pub(super) fn push_linear_memory_constraints(
 ) {
     let load_selector = selector_col(WasmOpcode::I32Load).unwrap();
     let i64_load_selector = selector_col(WasmOpcode::I64Load).unwrap();
-    let load8s_selector = selector_col(WasmOpcode::I32Load8S).unwrap();
-    let load8_selector = selector_col(WasmOpcode::I32Load8U).unwrap();
-    let load16s_selector = selector_col(WasmOpcode::I32Load16S).unwrap();
     let load16_selector = selector_col(WasmOpcode::I32Load16U).unwrap();
     let store_selector = selector_col(WasmOpcode::I32Store).unwrap();
     let i64_store_selector = selector_col(WasmOpcode::I64Store).unwrap();
-    let store8_selector = selector_col(WasmOpcode::I32Store8).unwrap();
     let store16_selector = selector_col(WasmOpcode::I32Store16).unwrap();
-    let linear_memory_selectors = [
-        load_selector,
-        i64_load_selector,
-        load8s_selector,
-        load8_selector,
-        load16s_selector,
-        load16_selector,
-        store_selector,
-        i64_store_selector,
-        store8_selector,
-        store16_selector,
-    ];
-    b.with_tag(shared("linear memory address normalization", LINEAR_MEMORY_OPS), |b| {
-        b.push_row(
-            linear_memory_selectors
-                .into_iter()
-                .map(|selector| (selector, F::ONE)),
-            [
-                (idx(linear_memory.lane0_addr), f_u64(4)),
-                (idx(linear_memory.byte_offset), F::ONE),
-                (idx(stack.read0_value), -F::ONE),
-                (idx(linear_memory.imm_offset), -F::ONE),
-            ],
-            [],
-        );
-        b.push_row(
-            linear_memory_selectors
-                .into_iter()
-                .map(|selector| (selector, F::ONE)),
-            [
-                (idx(linear_memory.offset_is[0]), F::ONE),
-                (idx(linear_memory.offset_is[1]), F::ONE),
-                (idx(linear_memory.offset_is[2]), F::ONE),
-                (idx(linear_memory.offset_is[3]), F::ONE),
-                (COL_ONE, -F::ONE),
-            ],
-            [],
-        );
-        b.push_row(
-            linear_memory_selectors
-                .into_iter()
-                .map(|selector| (selector, F::ONE)),
-            [
-                (idx(linear_memory.byte_offset), F::ONE),
-                (idx(linear_memory.offset_is[1]), -F::ONE),
-                (idx(linear_memory.offset_is[2]), -f_u64(2)),
-                (idx(linear_memory.offset_is[3]), -f_u64(3)),
-            ],
-            [],
-        );
-        for selector in linear_memory_selectors {
-            push_u32_le_bytes_decomp(
-                b,
-                [selector],
-                idx(linear_memory.lane0_value),
-                linear_memory.lane0_bytes.map(idx),
+    let i64_store32_selector = selector_col(WasmOpcode::I64Store32).unwrap();
+    // Derived from `WasmOpcode::uses_linear_memory` so it stays in sync
+    // with the single declaration on `WasmOpcodeInfo`. Adding a new memory
+    // opcode here is a no-op once `uses_linear_memory` returns true for it.
+    let linear_memory_selectors: Vec<usize> = linear_memory_ops()
+        .into_iter()
+        .map(|op| selector_col(op).expect("linear-memory op selector"))
+        .collect();
+    b.with_tag(
+        shared("linear memory address normalization", &linear_memory_ops()),
+        |b| {
+            // offset_is is one-hot
+            b.push_row(
+                linear_memory_selectors
+                    .iter()
+                    .map(|&selector| (selector, F::ONE)),
+                [
+                    (idx(linear_memory.offset_is[0]), F::ONE),
+                    (idx(linear_memory.offset_is[1]), F::ONE),
+                    (idx(linear_memory.offset_is[2]), F::ONE),
+                    (idx(linear_memory.offset_is[3]), F::ONE),
+                    (COL_ONE, -F::ONE),
+                ],
+                [],
             );
-            push_u32_le_bytes_decomp(
-                b,
-                [selector],
-                idx(linear_memory.lane1_value),
-                linear_memory.lane1_bytes.map(idx),
+            // byte_offset is in 0..4 and decomposed into offset_is
+            b.push_row(
+                linear_memory_selectors
+                    .iter()
+                    .map(|&selector| (selector, F::ONE)),
+                [
+                    (idx(linear_memory.byte_offset), F::ONE),
+                    (idx(linear_memory.offset_is[1]), -F::ONE),
+                    (idx(linear_memory.offset_is[2]), -f_u64(2)),
+                    (idx(linear_memory.offset_is[3]), -f_u64(3)),
+                ],
+                [],
             );
-        }
-        for selector in [i64_load_selector, i64_store_selector] {
-            push_u32_le_bytes_decomp(
-                b,
-                [selector],
-                idx(linear_memory.lane2_value),
-                linear_memory.lane2_bytes.map(idx),
+            // byte_offset contains the remainder mod 4 of the actual address
+            b.push_row(
+                linear_memory_selectors
+                    .iter()
+                    .map(|&selector| (selector, F::ONE)),
+                [
+                    (idx(linear_memory.lane0_addr), f_u64(4)),
+                    (idx(linear_memory.byte_offset), F::ONE),
+                    (idx(stack.read0_value), -F::ONE),
+                    (idx(linear_memory.imm_offset), -F::ONE),
+                ],
+                [],
             );
-        }
-    });
 
-    b.with_tag(shared("linear memory width selectors", LINEAR_MEMORY_OPS), |b| {
+            for &selector in &linear_memory_selectors {
+                push_u32_le_bytes_decomp(
+                    b,
+                    [selector],
+                    idx(linear_memory.lane0_value),
+                    linear_memory.lane0_bytes.map(idx),
+                );
+                push_u32_le_bytes_decomp(
+                    b,
+                    [selector],
+                    idx(linear_memory.lane1_value),
+                    linear_memory.lane1_bytes.map(idx),
+                );
+            }
+            for selector in [i64_load_selector, i64_store_selector] {
+                push_u32_le_bytes_decomp(
+                    b,
+                    [selector],
+                    idx(linear_memory.lane2_value),
+                    linear_memory.lane2_bytes.map(idx),
+                );
+            }
+        },
+    );
+
+    b.with_tag(shared("linear memory width selectors", &linear_memory_ops()), |b| {
         // Under each gate, both offset families are one-hot, so the weighted 1..4
         // fingerprint is injective and can replace four per-case equalities.
         b.push_linear_zero(
@@ -258,7 +257,34 @@ pub(super) fn push_linear_memory_constraints(
         );
     });
 
-    b.with_tag(shared("linear memory lane usage", LINEAR_MEMORY_OPS), |b| {
+    // Pin each width family to the opcodes that use it. Combined with the
+    // unconditional `is_X_width = sum(X_width_offset_is)` above, this forces
+    // the correct width-offset family active per opcode. Without it a prover
+    // could zero the whole width family (is_X_width = 0, all X_width_offset_is
+    // = 0), which would vacuously satisfy the byte-routing gates — those are
+    // gated by `X_width_offset_is[k]`, not by the opcode selector — and so
+    // bypass the access-byte ↔ lane-byte binding entirely.
+    b.with_tag(
+        shared("linear memory width opcode binding", &linear_memory_ops()),
+        |b| {
+            for (width_flag, width_bytes) in [
+                (linear_memory.is_byte_width, 1u8),
+                (linear_memory.is_half_width, 2),
+                (linear_memory.is_full_width, 4),
+                (linear_memory.is_double_width, 8),
+            ] {
+                let terms = std::iter::once((idx(width_flag), F::ONE)).chain(
+                    linear_memory_ops()
+                        .into_iter()
+                        .filter(|op| op.memory_access_width_bytes() == Some(width_bytes))
+                        .map(|op| (selector_col(op).expect("memory op selector"), -F::ONE)),
+                );
+                b.push_linear_zero(terms);
+            }
+        },
+    );
+
+    b.with_tag(shared("linear memory lane usage", &linear_memory_ops()), |b| {
         b.push_row(
             [load16_selector, store16_selector]
                 .into_iter()
@@ -270,7 +296,7 @@ pub(super) fn push_linear_memory_constraints(
             [],
         );
         b.push_row(
-            [load_selector, store_selector]
+            [load_selector, store_selector, i64_store32_selector]
                 .into_iter()
                 .map(|selector| (selector, F::ONE)),
             [
@@ -279,13 +305,6 @@ pub(super) fn push_linear_memory_constraints(
                 (idx(linear_memory.full_width_offset_is[2]), -F::ONE),
                 (idx(linear_memory.full_width_offset_is[3]), -F::ONE),
             ],
-            [],
-        );
-        b.push_row(
-            [i64_load_selector, i64_store_selector]
-                .into_iter()
-                .map(|selector| (selector, F::ONE)),
-            [(idx(linear_memory.is_double_width), F::ONE), (COL_ONE, -F::ONE)],
             [],
         );
         b.push_row(
@@ -309,7 +328,7 @@ pub(super) fn push_linear_memory_constraints(
         );
     });
 
-    b.with_tag(shared("linear memory lane adjacency", LINEAR_MEMORY_OPS), |b| {
+    b.with_tag(shared("linear memory lane adjacency", &linear_memory_ops()), |b| {
         push_gated_linear_zero(
             b,
             idx(linear_memory.use_lane1),
@@ -365,6 +384,9 @@ pub(super) fn push_linear_memory_constraints(
         WasmOpcode::I32Store8,
         WasmOpcode::I32Store16,
         WasmOpcode::I64Store,
+        WasmOpcode::I64Store8,
+        WasmOpcode::I64Store16,
+        WasmOpcode::I64Store32,
     ];
     b.with_tag(
         shared(
@@ -454,6 +476,33 @@ pub(super) fn push_linear_memory_constraints(
     b.with_tag(opcode_tag("linear memory store64 routing", WasmOpcode::I64Store), |b| {
         push_linear_memory_store64_constraints(b, stack, linear_memory);
     });
+    // i64.storeN ops truncate the lo limb to N bytes and reuse the same
+    // byte-selection / subword machinery as i32.storeN. The hi limb is read
+    // from the stack (wide_values_enabled is on) but never written to memory.
+    // i64.store32 piggybacks on the full-width offset gates that already
+    // route i32.store, so it needs no extra rows here.
+    b.with_tag(
+        opcode_tag("linear memory i64.store8 routing", WasmOpcode::I64Store8),
+        |b| {
+            push_linear_memory_store_subword_constraints(
+                b,
+                selector_col(WasmOpcode::I64Store8).unwrap(),
+                1,
+                linear_memory,
+            );
+        },
+    );
+    b.with_tag(
+        opcode_tag("linear memory i64.store16 routing", WasmOpcode::I64Store16),
+        |b| {
+            push_linear_memory_store_subword_constraints(
+                b,
+                selector_col(WasmOpcode::I64Store16).unwrap(),
+                2,
+                linear_memory,
+            );
+        },
+    );
 }
 
 fn push_linear_memory_load32_byte_selection(b: &mut R1csBuilder, linear_memory: &LinearMemoryColumns) {

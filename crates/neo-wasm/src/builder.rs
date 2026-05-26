@@ -339,7 +339,10 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
             | super::isa::WasmOpcode::I32Load16U => (trace.stack_write0.map(|lane| lane.value).unwrap_or(0), 0),
             super::isa::WasmOpcode::I32Store
             | super::isa::WasmOpcode::I32Store8
-            | super::isa::WasmOpcode::I32Store16 => (trace.stack_read1.map(|lane| lane.value).unwrap_or(0), 0),
+            | super::isa::WasmOpcode::I32Store16
+            | super::isa::WasmOpcode::I64Store8
+            | super::isa::WasmOpcode::I64Store16
+            | super::isa::WasmOpcode::I64Store32 => (trace.stack_read1.map(|lane| lane.value).unwrap_or(0), 0),
             super::isa::WasmOpcode::I64Load => (
                 trace.stack_write0.map(|lane| lane.value).unwrap_or(0),
                 trace.stack_write0_hi.unwrap_or(0),

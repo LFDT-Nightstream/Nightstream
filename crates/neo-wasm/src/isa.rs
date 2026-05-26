@@ -162,6 +162,9 @@ pub enum WasmOpcode {
     I32Store8,
     I32Store16,
     I64Store,
+    I64Store8,
+    I64Store16,
+    I64Store32,
     MemorySize,
     MemoryGrow,
     TableSize,
@@ -225,7 +228,7 @@ pub enum WasmOpcode {
 }
 
 impl WasmOpcode {
-    pub fn supported() -> [Self; 76] {
+    pub fn supported() -> [Self; 79] {
         [
             Self::Nop,
             Self::I32Const,
@@ -245,6 +248,9 @@ impl WasmOpcode {
             Self::I32Store8,
             Self::I32Store16,
             Self::I64Store,
+            Self::I64Store8,
+            Self::I64Store16,
+            Self::I64Store32,
             Self::MemorySize,
             Self::MemoryGrow,
             Self::TableSize,
@@ -384,7 +390,31 @@ impl WasmOpcode {
             Self::GlobalSet => Some(73),
             Self::I64Eq => Some(74),
             Self::I64Ne => Some(75),
+            Self::I64Store8 => Some(76),
+            Self::I64Store16 => Some(77),
+            Self::I64Store32 => Some(78),
             Self::Trap | Self::Unsupported => None,
+        }
+    }
+
+    /// True for opcodes that access linear memory. Single source of truth
+    /// for the linear-memory selector list — see
+    /// [`crate::ccs::linear_memory`].
+    pub fn uses_linear_memory(self) -> bool {
+        self.memory_access_width_bytes().is_some()
+    }
+
+    /// Number of memory bytes touched by a linear-memory opcode, or `None`
+    /// for non-memory opcodes. Single source of truth for the width-family
+    /// gates (`is_byte_width` / `is_half_width` / `is_full_width` /
+    /// `is_double_width`) in [`crate::ccs::linear_memory`].
+    pub fn memory_access_width_bytes(self) -> Option<u8> {
+        match self {
+            Self::I32Load8S | Self::I32Load8U | Self::I32Store8 | Self::I64Store8 => Some(1),
+            Self::I32Load16S | Self::I32Load16U | Self::I32Store16 | Self::I64Store16 => Some(2),
+            Self::I32Load | Self::I32Store | Self::I64Store32 => Some(4),
+            Self::I64Load | Self::I64Store => Some(8),
+            _ => None,
         }
     }
 
@@ -408,6 +438,9 @@ impl WasmOpcode {
             Self::I32Store8 => "i32_store8",
             Self::I32Store16 => "i32_store16",
             Self::I64Store => "i64_store",
+            Self::I64Store8 => "i64_store8",
+            Self::I64Store16 => "i64_store16",
+            Self::I64Store32 => "i64_store32",
             Self::MemorySize => "memory_size",
             Self::MemoryGrow => "memory_grow",
             Self::TableSize => "table_size",
@@ -579,6 +612,9 @@ pub fn opcode_info_from_code(code: u16) -> WasmOpcodeInfo {
         Op::I32Store8 => info(op, code, Class::System, 2, 0, false, None),
         Op::I32Store16 => info(op, code, Class::System, 2, 0, false, None),
         Op::I64Store => info(op, code, Class::System, 2, 0, false, None),
+        Op::I64Store8 => info(op, code, Class::System, 2, 0, false, None),
+        Op::I64Store16 => info(op, code, Class::System, 2, 0, false, None),
+        Op::I64Store32 => info(op, code, Class::System, 2, 0, false, None),
         Op::MemorySize => info(op, code, Class::System, 0, 1, false, None),
         Op::MemoryGrow => info(op, code, Class::System, 1, 1, false, None),
         Op::TableSize => info(op, code, Class::System, 0, 1, false, None),
@@ -672,6 +708,9 @@ pub fn opcode_code(op: WasmOpcode) -> u16 {
         WasmOpcode::I32Store8 => 0x3A,
         WasmOpcode::I32Store16 => 0x3B,
         WasmOpcode::I64Store => 0x37,
+        WasmOpcode::I64Store8 => 0x3C,
+        WasmOpcode::I64Store16 => 0x3D,
+        WasmOpcode::I64Store32 => 0x3E,
         WasmOpcode::MemorySize => 0x3F,
         WasmOpcode::MemoryGrow => 0x40,
         WasmOpcode::TableSize => 0xFC10,
@@ -754,6 +793,9 @@ fn opcode_from_code(code: u16) -> WasmOpcode {
         x if x == opcode_code(WasmOpcode::I32Store) => WasmOpcode::I32Store,
         x if x == opcode_code(WasmOpcode::I32Store8) => WasmOpcode::I32Store8,
         x if x == opcode_code(WasmOpcode::I32Store16) => WasmOpcode::I32Store16,
+        x if x == opcode_code(WasmOpcode::I64Store8) => WasmOpcode::I64Store8,
+        x if x == opcode_code(WasmOpcode::I64Store16) => WasmOpcode::I64Store16,
+        x if x == opcode_code(WasmOpcode::I64Store32) => WasmOpcode::I64Store32,
         x if x == opcode_code(WasmOpcode::I64Store) => WasmOpcode::I64Store,
         x if x == opcode_code(WasmOpcode::MemorySize) => WasmOpcode::MemorySize,
         x if x == opcode_code(WasmOpcode::MemoryGrow) => WasmOpcode::MemoryGrow,

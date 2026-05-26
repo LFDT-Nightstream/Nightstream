@@ -119,6 +119,111 @@ fn wasm_trace_run_with_byte_linear_memory() {
         .any(|row| matches!(row.opcode, neo_wasm::WasmOpcode::I32Load8U)));
 }
 
+/// Exercises i64.store8 / i64.store16 / i64.store32 end-to-end: each
+/// truncates the i64 input to N bytes, writes them, and the corresponding
+/// i32.loadN_u reads them back. `common::checked_wasm_run` runs the lookup
+/// + memory + CCS sanity checks on every row, so passing here proves the
+/// full constraint chain holds for the new opcodes.
+#[test]
+fn wasm_trace_run_with_i64_subword_stores() {
+    let (_, trace, ..) = compile_and_trace(
+        r#"(module
+             (memory 1)
+             (func (export "main") (result i32)
+               i32.const 0
+               i64.const 0xAABBCCDD11223344
+               i64.store8
+               i32.const 8
+               i64.const 0xAABBCCDD11223344
+               i64.store16
+               i32.const 16
+               i64.const 0xAABBCCDD11223344
+               i64.store32
+               i32.const 0
+               i32.load8_u
+               i32.const 8
+               i32.load16_u
+               i32.add
+               i32.const 16
+               i32.load
+               i32.add))"#,
+    );
+    assert!(trace
+        .iter()
+        .any(|row| matches!(row.opcode, neo_wasm::WasmOpcode::I64Store8)));
+    assert!(trace
+        .iter()
+        .any(|row| matches!(row.opcode, neo_wasm::WasmOpcode::I64Store16)));
+    assert!(trace
+        .iter()
+        .any(|row| matches!(row.opcode, neo_wasm::WasmOpcode::I64Store32)));
+}
+
+/// i64.store32 at every sub-word alignment (offsets 1, 2, 3 cross into
+/// lane1). Exercises the full-width lane-usage / byte-routing constraints
+/// for the new opcode under unaligned addresses.
+#[test]
+fn wasm_trace_run_with_unaligned_i64_store32() {
+    for addr in [1, 2, 3] {
+        let (_, trace, ..) = compile_and_trace(&format!(
+            r#"(module
+                 (memory 1)
+                 (func (export "main") (result i32)
+                   i32.const {addr}
+                   i64.const 0xAABBCCDD11223344
+                   i64.store32
+                   i32.const {addr}
+                   i32.load))"#,
+        ));
+        assert!(
+            trace
+                .iter()
+                .any(|row| matches!(row.opcode, neo_wasm::WasmOpcode::I64Store32)),
+            "addr {addr}: expected an i64.store32 row"
+        );
+    }
+}
+
+/// The width-family flags (`is_byte_width` etc.) must be pinned per opcode:
+/// zeroing the byte-width family on an i64.store8 row would otherwise
+/// vacuously satisfy the byte-routing gates and decouple the stored byte
+/// from the memory lane. The `linear memory width opcode binding` rows
+/// reject it. (Same pin now protects the i32 subword ops.)
+#[test]
+fn i64_store8_width_family_pin_is_enforced() {
+    use neo_ccs::check_ccs_rowwise_zero;
+    use neo_math::F;
+    use neo_wasm::builder::build_witness_vector;
+    use neo_wasm::layout::{
+        COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1,
+        COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_2, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_3, COL_LINEAR_MEM_IS_BYTE_WIDTH,
+    };
+    use p3_field::PrimeCharacteristicRing;
+
+    let (_, trace, ..) = compile_and_trace(
+        r#"(module (memory 1) (func (export "main") (result i32)
+             i32.const 0 i64.const 0xAB i64.store8 i32.const 0 i32.load8_u))"#,
+    );
+    let store = trace
+        .iter()
+        .find(|r| matches!(r.opcode, neo_wasm::WasmOpcode::I64Store8))
+        .expect("i64.store8 row");
+    let mut wit = build_witness_vector(store);
+    let vm = WasmVmSpec::default();
+    let ccs = &vm.core_ccs_spec().structure;
+    check_ccs_rowwise_zero(ccs, &wit[..1], &wit[1..]).expect("honest i64.store8 row should satisfy the CCS");
+
+    wit[COL_LINEAR_MEM_IS_BYTE_WIDTH] = F::ZERO;
+    wit[COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0] = F::ZERO;
+    wit[COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1] = F::ZERO;
+    wit[COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_2] = F::ZERO;
+    wit[COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_3] = F::ZERO;
+    assert!(
+        check_ccs_rowwise_zero(ccs, &wit[..1], &wit[1..]).is_err(),
+        "zeroing the byte-width family must be rejected"
+    );
+}
+
 #[test]
 fn wasm_trace_run_with_globals() {
     let (_, trace, ..) = compile_and_trace(

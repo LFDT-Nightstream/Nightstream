@@ -362,6 +362,9 @@ pub(super) fn push_linear_memory_constraints(
         WasmOpcode::I32Load16S,
         WasmOpcode::I32Load16U,
         WasmOpcode::I64Load,
+        WasmOpcode::I64Load8U,
+        WasmOpcode::I64Load16U,
+        WasmOpcode::I64Load32U,
     ];
     b.with_tag(
         shared(
@@ -453,6 +456,50 @@ pub(super) fn push_linear_memory_constraints(
         opcode_tag("linear memory load16_u routing", WasmOpcode::I32Load16U),
         |b| {
             push_linear_memory_load16_u_constraints(b, linear_memory);
+        },
+    );
+    // i64.loadN_u: load N bytes into write0_value (lo limb) with the same
+    // subword / full-width byte machinery as the i32 unsigned loads, then
+    // zero-extend by pinning the output hi limb to 0. i64.load32_u rides the
+    // full-width offset gates that already route i32.load, so it needs no
+    // dedicated byte-selection row — only the hi-limb pin below.
+    b.with_tag(
+        opcode_tag("linear memory i64.load8_u routing", WasmOpcode::I64Load8U),
+        |b| {
+            push_linear_memory_load_subword_constraints(
+                b,
+                selector_col(WasmOpcode::I64Load8U).unwrap(),
+                1,
+                linear_memory,
+            );
+        },
+    );
+    b.with_tag(
+        opcode_tag("linear memory i64.load16_u routing", WasmOpcode::I64Load16U),
+        |b| {
+            push_linear_memory_load_subword_constraints(
+                b,
+                selector_col(WasmOpcode::I64Load16U).unwrap(),
+                2,
+                linear_memory,
+            );
+        },
+    );
+    b.with_tag(
+        shared(
+            "linear memory i64 unsigned load high zero",
+            &[WasmOpcode::I64Load8U, WasmOpcode::I64Load16U, WasmOpcode::I64Load32U],
+        ),
+        |b| {
+            b.push_row(
+                [
+                    (selector_col(WasmOpcode::I64Load8U).unwrap(), F::ONE),
+                    (selector_col(WasmOpcode::I64Load16U).unwrap(), F::ONE),
+                    (selector_col(WasmOpcode::I64Load32U).unwrap(), F::ONE),
+                ],
+                [(idx(stack.write0_value_hi), F::ONE)],
+                [],
+            );
         },
     );
     b.with_tag(

@@ -89,6 +89,9 @@ const I64_OPS: &[WasmOpcode] = &[
     WasmOpcode::I64Store8,
     WasmOpcode::I64Store16,
     WasmOpcode::I64Store32,
+    WasmOpcode::I64Load8U,
+    WasmOpcode::I64Load16U,
+    WasmOpcode::I64Load32U,
     WasmOpcode::I64Eqz,
     WasmOpcode::I64Eq,
     WasmOpcode::I64Ne,
@@ -216,6 +219,9 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
                 (selector_col(WasmOpcode::I64Store8).unwrap(), -F::ONE),
                 (selector_col(WasmOpcode::I64Store16).unwrap(), -F::ONE),
                 (selector_col(WasmOpcode::I64Store32).unwrap(), -F::ONE),
+                (selector_col(WasmOpcode::I64Load8U).unwrap(), -F::ONE),
+                (selector_col(WasmOpcode::I64Load16U).unwrap(), -F::ONE),
+                (selector_col(WasmOpcode::I64Load32U).unwrap(), -F::ONE),
                 (selector_col(WasmOpcode::I64And).unwrap(), -F::ONE),
                 (selector_col(WasmOpcode::I64Or).unwrap(), -F::ONE),
                 (selector_col(WasmOpcode::I64Xor).unwrap(), -F::ONE),
@@ -226,25 +232,16 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
     });
 
     b.with_tag(shared("linear memory lane0 gate", &linear_memory_ops()), |b| {
-        // lane0 usage only depends on the opcode
-        //
-        // but the other lanes depends on the type of access/alignment
-        b.push_linear_zero([
-            (idx(linear_memory.use_lane0), F::ONE),
-            (selector_col(WasmOpcode::I32Load).unwrap(), -F::ONE),
-            (selector_col(WasmOpcode::I32Load8S).unwrap(), -F::ONE),
-            (selector_col(WasmOpcode::I32Load8U).unwrap(), -F::ONE),
-            (selector_col(WasmOpcode::I32Load16S).unwrap(), -F::ONE),
-            (selector_col(WasmOpcode::I32Load16U).unwrap(), -F::ONE),
-            (selector_col(WasmOpcode::I64Load).unwrap(), -F::ONE),
-            (selector_col(WasmOpcode::I32Store).unwrap(), -F::ONE),
-            (selector_col(WasmOpcode::I32Store8).unwrap(), -F::ONE),
-            (selector_col(WasmOpcode::I32Store16).unwrap(), -F::ONE),
-            (selector_col(WasmOpcode::I64Store).unwrap(), -F::ONE),
-            (selector_col(WasmOpcode::I64Store8).unwrap(), -F::ONE),
-            (selector_col(WasmOpcode::I64Store16).unwrap(), -F::ONE),
-            (selector_col(WasmOpcode::I64Store32).unwrap(), -F::ONE),
-        ]);
+        // Every linear-memory op touches lane0 (the lowest word); the other
+        // lanes depend on access width / alignment. Derived from
+        // `linear_memory_ops` so the gate can't drift from the opcode set.
+        b.push_linear_zero(
+            std::iter::once((idx(linear_memory.use_lane0), F::ONE)).chain(
+                linear_memory_ops()
+                    .into_iter()
+                    .map(|op| (selector_col(op).expect("memory op selector"), -F::ONE)),
+            ),
+        );
     });
 
     stack_io::push_stack_io_constraints(&mut b, layout);
@@ -364,6 +361,18 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
                 (
                     selector_col(WasmOpcode::I64Store32).unwrap(),
                     -f_u16(opcode_code(WasmOpcode::I64Store32)),
+                ),
+                (
+                    selector_col(WasmOpcode::I64Load8U).unwrap(),
+                    -f_u16(opcode_code(WasmOpcode::I64Load8U)),
+                ),
+                (
+                    selector_col(WasmOpcode::I64Load16U).unwrap(),
+                    -f_u16(opcode_code(WasmOpcode::I64Load16U)),
+                ),
+                (
+                    selector_col(WasmOpcode::I64Load32U).unwrap(),
+                    -f_u16(opcode_code(WasmOpcode::I64Load32U)),
                 ),
                 (
                     selector_col(WasmOpcode::MemorySize).unwrap(),

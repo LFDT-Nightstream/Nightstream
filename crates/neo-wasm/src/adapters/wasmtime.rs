@@ -218,6 +218,9 @@ enum DecodedMemoryAccessKind {
     I64Load8U,
     I64Load16U,
     I64Load32U,
+    I64Load8S,
+    I64Load16S,
+    I64Load32S,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -254,10 +257,20 @@ impl ControlFrame {
 impl DecodedMemoryAccessKind {
     fn width_bytes(self) -> u8 {
         match self {
-            Self::I32Load | Self::I32Store | Self::I64Store32 | Self::I64Load32U => 4,
+            Self::I32Load | Self::I32Store | Self::I64Store32 | Self::I64Load32U | Self::I64Load32S => 4,
             Self::I64Load | Self::I64Store => 8,
-            Self::I32Load8S | Self::I32Load8U | Self::I32Store8 | Self::I64Store8 | Self::I64Load8U => 1,
-            Self::I32Load16S | Self::I32Load16U | Self::I32Store16 | Self::I64Store16 | Self::I64Load16U => 2,
+            Self::I32Load8S
+            | Self::I32Load8U
+            | Self::I32Store8
+            | Self::I64Store8
+            | Self::I64Load8U
+            | Self::I64Load8S => 1,
+            Self::I32Load16S
+            | Self::I32Load16U
+            | Self::I32Store16
+            | Self::I64Store16
+            | Self::I64Load16U
+            | Self::I64Load16S => 2,
         }
     }
 
@@ -1087,7 +1100,10 @@ fn normalize_supported_row(row: &WasmtimeTraceStep) -> Result<Option<SupportedRo
         | WasmOpcode::I64Store32
         | WasmOpcode::I64Load8U
         | WasmOpcode::I64Load16U
-        | WasmOpcode::I64Load32U => {
+        | WasmOpcode::I64Load32U
+        | WasmOpcode::I64Load8S
+        | WasmOpcode::I64Load16S
+        | WasmOpcode::I64Load32S => {
             let memory = row.memory.as_ref().ok_or_else(|| {
                 WasmBuildError::Trace(format!("missing wasmtime memory access for opcode {}", opcode.name()))
             })?;
@@ -1157,6 +1173,9 @@ fn normalize_supported_row(row: &WasmtimeTraceStep) -> Result<Option<SupportedRo
                 | WasmOpcode::I64Load8U
                 | WasmOpcode::I64Load16U
                 | WasmOpcode::I64Load32U
+                | WasmOpcode::I64Load8S
+                | WasmOpcode::I64Load16S
+                | WasmOpcode::I64Load32S
         ),
         stack_reads_override,
         stack_writes_override,
@@ -1951,6 +1970,9 @@ fn decode_opcode(operator: &wasmparser::Operator<'_>) -> Option<(WasmOpcode, Opt
         wasmparser::Operator::I64Load8U { .. } => Some((WasmOpcode::I64Load8U, None)),
         wasmparser::Operator::I64Load16U { .. } => Some((WasmOpcode::I64Load16U, None)),
         wasmparser::Operator::I64Load32U { .. } => Some((WasmOpcode::I64Load32U, None)),
+        wasmparser::Operator::I64Load8S { .. } => Some((WasmOpcode::I64Load8S, None)),
+        wasmparser::Operator::I64Load16S { .. } => Some((WasmOpcode::I64Load16S, None)),
+        wasmparser::Operator::I64Load32S { .. } => Some((WasmOpcode::I64Load32S, None)),
         wasmparser::Operator::I64And => Some((WasmOpcode::I64And, None)),
         wasmparser::Operator::I64Or => Some((WasmOpcode::I64Or, None)),
         wasmparser::Operator::I64Xor => Some((WasmOpcode::I64Xor, None)),
@@ -2111,6 +2133,21 @@ fn decode_memory_opcode(operator: &wasmparser::Operator<'_>) -> Option<DecodedMe
             memory_index: memarg.memory,
             offset: memarg.offset,
         }),
+        wasmparser::Operator::I64Load8S { memarg } => Some(DecodedMemoryOpcode {
+            kind: DecodedMemoryAccessKind::I64Load8S,
+            memory_index: memarg.memory,
+            offset: memarg.offset,
+        }),
+        wasmparser::Operator::I64Load16S { memarg } => Some(DecodedMemoryOpcode {
+            kind: DecodedMemoryAccessKind::I64Load16S,
+            memory_index: memarg.memory,
+            offset: memarg.offset,
+        }),
+        wasmparser::Operator::I64Load32S { memarg } => Some(DecodedMemoryOpcode {
+            kind: DecodedMemoryAccessKind::I64Load32S,
+            memory_index: memarg.memory,
+            offset: memarg.offset,
+        }),
         _ => None,
     }
 }
@@ -2135,7 +2172,10 @@ fn capture_memory_access(
         | DecodedMemoryAccessKind::I32Load16U
         | DecodedMemoryAccessKind::I64Load8U
         | DecodedMemoryAccessKind::I64Load16U
-        | DecodedMemoryAccessKind::I64Load32U => operand_stack.last().copied().map(u64::from),
+        | DecodedMemoryAccessKind::I64Load32U
+        | DecodedMemoryAccessKind::I64Load8S
+        | DecodedMemoryAccessKind::I64Load16S
+        | DecodedMemoryAccessKind::I64Load32S => operand_stack.last().copied().map(u64::from),
         DecodedMemoryAccessKind::I32Store
         | DecodedMemoryAccessKind::I64Store
         | DecodedMemoryAccessKind::I32Store8
@@ -2159,10 +2199,11 @@ fn capture_memory_access(
         DecodedMemoryAccessKind::I32Load
         | DecodedMemoryAccessKind::I32Store
         | DecodedMemoryAccessKind::I64Store32
-        | DecodedMemoryAccessKind::I64Load32U => {
+        | DecodedMemoryAccessKind::I64Load32U
+        | DecodedMemoryAccessKind::I64Load32S => {
             read_word(memory_opcode.memory_index, effective_address, frame, store)? as i32
         }
-        DecodedMemoryAccessKind::I32Load8S => {
+        DecodedMemoryAccessKind::I32Load8S | DecodedMemoryAccessKind::I64Load8S => {
             i32::from(read_byte(memory_opcode.memory_index, effective_address, frame, store)? as i8)
         }
         DecodedMemoryAccessKind::I32Load8U
@@ -2171,7 +2212,7 @@ fn capture_memory_access(
         | DecodedMemoryAccessKind::I64Load8U => {
             i32::from(read_byte(memory_opcode.memory_index, effective_address, frame, store)?)
         }
-        DecodedMemoryAccessKind::I32Load16S => {
+        DecodedMemoryAccessKind::I32Load16S | DecodedMemoryAccessKind::I64Load16S => {
             i32::from(read_halfword(memory_opcode.memory_index, effective_address, frame, store)? as i16)
         }
         DecodedMemoryAccessKind::I32Load16U
@@ -2193,7 +2234,10 @@ fn capture_memory_access(
         | DecodedMemoryAccessKind::I32Load16U
         | DecodedMemoryAccessKind::I64Load8U
         | DecodedMemoryAccessKind::I64Load16U
-        | DecodedMemoryAccessKind::I64Load32U => Some(loaded_value_i32),
+        | DecodedMemoryAccessKind::I64Load32U
+        | DecodedMemoryAccessKind::I64Load8S
+        | DecodedMemoryAccessKind::I64Load16S
+        | DecodedMemoryAccessKind::I64Load32S => Some(loaded_value_i32),
         DecodedMemoryAccessKind::I32Store
         | DecodedMemoryAccessKind::I32Store8
         | DecodedMemoryAccessKind::I32Store16
@@ -2312,6 +2356,9 @@ fn capture_memory_access(
             DecodedMemoryAccessKind::I64Load8U => "i64.load8_u".to_string(),
             DecodedMemoryAccessKind::I64Load16U => "i64.load16_u".to_string(),
             DecodedMemoryAccessKind::I64Load32U => "i64.load32_u".to_string(),
+            DecodedMemoryAccessKind::I64Load8S => "i64.load8_s".to_string(),
+            DecodedMemoryAccessKind::I64Load16S => "i64.load16_s".to_string(),
+            DecodedMemoryAccessKind::I64Load32S => "i64.load32_s".to_string(),
         },
         memory_index: memory_opcode.memory_index,
         width_bytes,
@@ -2338,6 +2385,9 @@ fn capture_memory_access(
                 | DecodedMemoryAccessKind::I64Load8U
                 | DecodedMemoryAccessKind::I64Load16U
                 | DecodedMemoryAccessKind::I64Load32U
+                | DecodedMemoryAccessKind::I64Load8S
+                | DecodedMemoryAccessKind::I64Load16S
+                | DecodedMemoryAccessKind::I64Load32S
         )
         .then_some(loaded_value_i32),
         value_after_i32,
@@ -2688,7 +2738,12 @@ fn write_lane_hi(current: &SupportedRow, next: Option<&SupportedRow>) -> Result<
         | WasmOpcode::I64And
         | WasmOpcode::I64Or
         | WasmOpcode::I64Xor
-        | WasmOpcode::I64Mul => next
+        | WasmOpcode::I64Mul
+        // Signed subword/word loads sign-extend into the hi limb; wasmtime's
+        // post-state operand_stack_hi already holds the replicated sign bits.
+        | WasmOpcode::I64Load8S
+        | WasmOpcode::I64Load16S
+        | WasmOpcode::I64Load32S => next
             .and_then(|row| row.operand_stack_hi.last().copied())
             .ok_or_else(|| {
                 WasmBuildError::Trace(format!(

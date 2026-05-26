@@ -261,6 +261,160 @@ fn i64_load8_u_zero_extension_is_enforced() {
     );
 }
 
+/// i64.load8_s / load16_s / load32_s round-trips, covering both signs at
+/// each width. Asserts on the load row's *witness* (the columns
+/// `ccs_check_trace` validated inside `checked_main`): the lo limb carries the
+/// 32-bit value and the hi limb is the replicated sign bit — 0 for a clear
+/// top bit, 0xFFFF_FFFF for a set one. `sanity_check_memory_rows` separately
+/// ties the loaded bytes to what was stored.
+#[test]
+fn wasm_trace_run_with_i64_signed_loads() {
+    use neo_wasm::builder::build_witness_vector;
+    use neo_wasm::layout::{COL_STACK_WRITE0_VALUE, COL_STACK_WRITE0_VALUE_HI};
+    use p3_field::PrimeField64;
+
+    // (store opcode, stored value, load opcode, expected lo limb, expected hi limb)
+    let cases: &[(&str, &str, &str, u64, u64)] = &[
+        ("i64.store8", "0x7F", "i64.load8_s", 0x7F, 0),
+        ("i64.store8", "0x80", "i64.load8_s", 0xFFFF_FF80, 0xFFFF_FFFF),
+        ("i64.store16", "0x7FFF", "i64.load16_s", 0x7FFF, 0),
+        ("i64.store16", "0x8000", "i64.load16_s", 0xFFFF_8000, 0xFFFF_FFFF),
+        ("i64.store32", "0x7FFFFFFF", "i64.load32_s", 0x7FFF_FFFF, 0),
+        ("i64.store32", "0x80000000", "i64.load32_s", 0x8000_0000, 0xFFFF_FFFF),
+    ];
+    for &(store_op, value, load_op, expected_lo, expected_hi) in cases {
+        let checked = common::checked_main(&format!(
+            r#"(module
+                 (memory 1)
+                 (func (export "main") (result i64)
+                   i32.const 0
+                   i64.const {value}
+                   {store_op}
+                   i32.const 0
+                   {load_op}))"#,
+        ));
+        let load = checked
+            .trace
+            .iter()
+            .find(|r| r.opcode.name() == load_op.replace('.', "_"))
+            .unwrap_or_else(|| panic!("expected a {load_op} row"));
+        let wit = build_witness_vector(load);
+        assert_eq!(
+            wit[COL_STACK_WRITE0_VALUE].as_canonical_u64(),
+            expected_lo,
+            "{load_op}({value}) lo limb"
+        );
+        assert_eq!(
+            wit[COL_STACK_WRITE0_VALUE_HI].as_canonical_u64(),
+            expected_hi,
+            "{load_op}({value}) hi limb (sign extension)"
+        );
+    }
+}
+
+/// i64.loadN_s sign extension is load-bearing: on a negative load the hi limb
+/// must be 0xFFFF_FFFF, and the `i64 signed load high fill` gate
+/// (`write0_value_hi = sign_ext_bit · 0xFFFF_FFFF`) rejects a forged hi limb.
+#[test]
+fn i64_load8_s_sign_extension_is_enforced() {
+    use neo_ccs::check_ccs_rowwise_zero;
+    use neo_math::F;
+    use neo_wasm::builder::build_witness_vector;
+    use neo_wasm::layout::COL_STACK_WRITE0_VALUE_HI;
+    use p3_field::PrimeCharacteristicRing;
+
+    // 0x80 is negative -> hi limb must be 0xFFFF_FFFF.
+    let (_, trace, ..) = compile_and_trace(
+        r#"(module (memory 1) (func (export "main") (result i64)
+             i32.const 0 i64.const 0x80 i64.store8 i32.const 0 i64.load8_s))"#,
+    );
+    let load = trace
+        .iter()
+        .find(|r| matches!(r.opcode, neo_wasm::WasmOpcode::I64Load8S))
+        .expect("i64.load8_s row");
+    let mut wit = build_witness_vector(load);
+    let vm = WasmVmSpec::default();
+    let ccs = &vm.core_ccs_spec().structure;
+    check_ccs_rowwise_zero(ccs, &wit[..1], &wit[1..]).expect("honest negative i64.load8_s row should satisfy the CCS");
+    assert_eq!(
+        wit[COL_STACK_WRITE0_VALUE_HI],
+        F::from_u64(0xFFFF_FFFF),
+        "negative load must fill the hi limb with all ones"
+    );
+
+    // Forge the hi limb to 0 (as if it zero-extended); the sign-fill gate rejects it.
+    wit[COL_STACK_WRITE0_VALUE_HI] = F::ZERO;
+    assert!(
+        check_ccs_rowwise_zero(ccs, &wit[..1], &wit[1..]).is_err(),
+        "a zeroed hi limb on a negative signed load must be rejected"
+    );
+}
+
+/// Full-width i64.load32_{u,s} at every sub-word alignment (offsets 1/2/3
+/// cross into lane1). Exercises the full-width byte-routing + use_lane1
+/// constraints for the new load opcodes under unaligned addresses.
+#[test]
+fn wasm_trace_run_with_unaligned_i64_load32() {
+    for addr in [1, 2, 3] {
+        for load_op in ["i64.load32_u", "i64.load32_s"] {
+            let (_, trace, ..) = compile_and_trace(&format!(
+                r#"(module
+                     (memory 1)
+                     (func (export "main") (result i64)
+                       i32.const {addr}
+                       i64.const 0x11223344
+                       i64.store32
+                       i32.const {addr}
+                       {load_op}))"#,
+            ));
+            let want = load_op.replace('.', "_");
+            assert!(
+                trace.iter().any(|row| row.opcode.name() == want),
+                "addr {addr}: expected a {load_op} row"
+            );
+        }
+    }
+}
+
+/// Full-width loads that cross into lane1 (offset 1/2/3) must force
+/// `use_lane1 = 1`. Otherwise a malicious witness could satisfy the
+/// cross-lane byte shuffle from unconstrained lane1 bytes without activating
+/// the lane1 memory access. The full-width `use_lane1` row now covers
+/// i64.load32_{u,s}; zeroing `use_lane1` on an offset-1 load must be rejected.
+#[test]
+fn i64_load32_u_unaligned_requires_use_lane1() {
+    use neo_ccs::check_ccs_rowwise_zero;
+    use neo_math::F;
+    use neo_wasm::builder::build_witness_vector;
+    use neo_wasm::layout::COL_LINEAR_MEM_USE_LANE1;
+    use p3_field::PrimeCharacteristicRing;
+
+    let (_, trace, ..) = compile_and_trace(
+        r#"(module (memory 1) (func (export "main") (result i64)
+             i32.const 1 i64.const 0x11223344 i64.store32 i32.const 1 i64.load32_u))"#,
+    );
+    let load = trace
+        .iter()
+        .find(|r| matches!(r.opcode, neo_wasm::WasmOpcode::I64Load32U))
+        .expect("i64.load32_u row");
+    let mut wit = build_witness_vector(load);
+    let vm = WasmVmSpec::default();
+    let ccs = &vm.core_ccs_spec().structure;
+    check_ccs_rowwise_zero(ccs, &wit[..1], &wit[1..])
+        .expect("honest unaligned i64.load32_u row should satisfy the CCS");
+    assert_eq!(
+        wit[COL_LINEAR_MEM_USE_LANE1],
+        F::ONE,
+        "an offset-1 full-width load must activate lane1"
+    );
+
+    wit[COL_LINEAR_MEM_USE_LANE1] = F::ZERO;
+    assert!(
+        check_ccs_rowwise_zero(ccs, &wit[..1], &wit[1..]).is_err(),
+        "deactivating lane1 on an unaligned full-width load must be rejected"
+    );
+}
+
 /// The width-family flags (`is_byte_width` etc.) must be pinned per opcode:
 /// zeroing the byte-width family on an i64.store8 row would otherwise
 /// vacuously satisfy the byte-routing gates and decouple the stored byte

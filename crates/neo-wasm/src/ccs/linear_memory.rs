@@ -30,6 +30,8 @@ pub(super) fn push_linear_memory_constraints(
     let i64_store_selector = selector_col(WasmOpcode::I64Store).unwrap();
     let store16_selector = selector_col(WasmOpcode::I32Store16).unwrap();
     let i64_store32_selector = selector_col(WasmOpcode::I64Store32).unwrap();
+    let i64_load32u_selector = selector_col(WasmOpcode::I64Load32U).unwrap();
+    let i64_load32s_selector = selector_col(WasmOpcode::I64Load32S).unwrap();
     // Derived from `WasmOpcode::uses_linear_memory` so it stays in sync
     // with the single declaration on `WasmOpcodeInfo`. Adding a new memory
     // opcode here is a no-op once `uses_linear_memory` returns true for it.
@@ -296,9 +298,20 @@ pub(super) fn push_linear_memory_constraints(
             [],
         );
         b.push_row(
-            [load_selector, store_selector, i64_store32_selector]
-                .into_iter()
-                .map(|selector| (selector, F::ONE)),
+            // Every full-width (4-byte) access — i32.load/store, i64.store32,
+            // and i64.load32_{u,s} — crosses into lane1 at offsets 1/2/3, so
+            // they must all force use_lane1 there. Omitting the i64 load32 ops
+            // would let an unaligned load satisfy the byte shuffle from
+            // unconstrained lane1 bytes without activating the lane1 access.
+            [
+                load_selector,
+                store_selector,
+                i64_store32_selector,
+                i64_load32u_selector,
+                i64_load32s_selector,
+            ]
+            .into_iter()
+            .map(|selector| (selector, F::ONE)),
             [
                 (idx(linear_memory.use_lane1), F::ONE),
                 (idx(linear_memory.full_width_offset_is[1]), -F::ONE),
@@ -365,6 +378,9 @@ pub(super) fn push_linear_memory_constraints(
         WasmOpcode::I64Load8U,
         WasmOpcode::I64Load16U,
         WasmOpcode::I64Load32U,
+        WasmOpcode::I64Load8S,
+        WasmOpcode::I64Load16S,
+        WasmOpcode::I64Load32S,
     ];
     b.with_tag(
         shared(
@@ -498,6 +514,73 @@ pub(super) fn push_linear_memory_constraints(
                     (selector_col(WasmOpcode::I64Load32U).unwrap(), F::ONE),
                 ],
                 [(idx(stack.write0_value_hi), F::ONE)],
+                [],
+            );
+        },
+    );
+    // i64.loadN_s: the lo limb sign-extends exactly like the i32 signed loads
+    // (load8_s / load16_s reuse the subword sign-extension helper; load32_s
+    // keeps the full word routed by the full-width offset gates and only
+    // extracts the sign bit from its top byte). The hi limb is then filled
+    // with the replicated sign bit: 0xFFFF_FFFF iff negative, else 0.
+    b.with_tag(
+        opcode_tag("linear memory i64.load8_s routing", WasmOpcode::I64Load8S),
+        |b| {
+            push_linear_memory_load_signed_subword_constraints(
+                b,
+                selector_col(WasmOpcode::I64Load8S).unwrap(),
+                1,
+                idx(linear_memory.access_bytes_lo[0]),
+                linear_memory,
+            );
+        },
+    );
+    b.with_tag(
+        opcode_tag("linear memory i64.load16_s routing", WasmOpcode::I64Load16S),
+        |b| {
+            push_linear_memory_load_signed_subword_constraints(
+                b,
+                selector_col(WasmOpcode::I64Load16S).unwrap(),
+                2,
+                idx(linear_memory.access_bytes_lo[1]),
+                linear_memory,
+            );
+        },
+    );
+    b.with_tag(
+        opcode_tag("linear memory i64.load32_s sign extract", WasmOpcode::I64Load32S),
+        |b| {
+            // Lo limb (the full word) is routed by the full-width offset gates;
+            // here we only split the top byte into sign_ext_low7 + sign_ext_bit.
+            push_gated_linear_zero(
+                b,
+                selector_col(WasmOpcode::I64Load32S).unwrap(),
+                [
+                    (idx(linear_memory.access_bytes_lo[3]), F::ONE),
+                    (idx(linear_memory.sign_ext_low7), -F::ONE),
+                    (idx(linear_memory.sign_ext_bit), -f_u64(128)),
+                ],
+            );
+        },
+    );
+    b.with_tag(
+        shared(
+            "linear memory i64 signed load high fill",
+            &[WasmOpcode::I64Load8S, WasmOpcode::I64Load16S, WasmOpcode::I64Load32S],
+        ),
+        |b| {
+            // write0_value_hi = sign_ext_bit * 0xFFFF_FFFF (all-ones iff the
+            // sign bit is set, else 0).
+            b.push_row(
+                [
+                    (selector_col(WasmOpcode::I64Load8S).unwrap(), F::ONE),
+                    (selector_col(WasmOpcode::I64Load16S).unwrap(), F::ONE),
+                    (selector_col(WasmOpcode::I64Load32S).unwrap(), F::ONE),
+                ],
+                [
+                    (idx(stack.write0_value_hi), F::ONE),
+                    (idx(linear_memory.sign_ext_bit), -f_u64(0xFFFF_FFFF)),
+                ],
                 [],
             );
         },

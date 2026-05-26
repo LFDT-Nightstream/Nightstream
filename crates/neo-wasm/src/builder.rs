@@ -1,6 +1,6 @@
 //! Owns packaging normalized WASM rows into `StepBuild`.
 
-use super::gadgets::zero_test_witness_u64;
+use super::gadgets::{zero_test_witness_field, zero_test_witness_u64};
 use super::ir::{WasmRowKind, WasmStepTrace};
 use super::layout::{
     selector_col, COL_CALL_INDIRECT_TYPE_INDEX, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT,
@@ -43,7 +43,10 @@ use super::layout::{
     COL_WIDE_AUX0, COL_WIDE_AUX1, COL_WIDE_VALUES_ENABLED, WITNESS_WIDTH,
 };
 use super::step_build::WasmStepBuild;
-use crate::layout::{COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV};
+use crate::layout::{
+    COL_CMP_AND, COL_CMP_HI_DIFF, COL_CMP_HI_INV, COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF, COL_CMP_LO_INV,
+    COL_CMP_LO_IS_ZERO, COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV,
+};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
@@ -504,6 +507,34 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
     wit[COL_SELECT_COND_IS_ZERO] = select_cond_is_zero;
     wit[COL_SELECT_SCRATCH_INV] = select_cond_inv;
     wit[COL_SELECT_OUT_DELTA] = (F::ONE - select_cond_is_zero) * (select_lhs - select_rhs);
+
+    // Comparator zero-test scratch (see `push_comparator_constraints` in ccs.rs).
+    // For non-comparator opcodes both diffs are 0 and the gadget pins both
+    // is_zero flags to 1, so cmp_and = 1.
+    let cmp_lo_diff = match trace.opcode {
+        super::isa::WasmOpcode::I32Eqz | super::isa::WasmOpcode::I64Eqz => {
+            F::from_u64(u64::from(trace.stack_read0.map(|l| l.value).unwrap_or(0)))
+        }
+        super::isa::WasmOpcode::I32Eq | super::isa::WasmOpcode::I32Ne => {
+            let lhs = F::from_u64(u64::from(trace.stack_read0.map(|l| l.value).unwrap_or(0)));
+            let rhs = F::from_u64(u64::from(trace.stack_read1.map(|l| l.value).unwrap_or(0)));
+            lhs - rhs
+        }
+        _ => F::ZERO,
+    };
+    let cmp_hi_diff = match trace.opcode {
+        super::isa::WasmOpcode::I64Eqz => F::from_u64(u64::from(trace.stack_read0_hi.unwrap_or(0))),
+        _ => F::ZERO,
+    };
+    let (cmp_lo_is_zero, cmp_lo_inv) = zero_test_witness_field(cmp_lo_diff);
+    let (cmp_hi_is_zero, cmp_hi_inv) = zero_test_witness_field(cmp_hi_diff);
+    wit[COL_CMP_LO_DIFF] = cmp_lo_diff;
+    wit[COL_CMP_LO_INV] = cmp_lo_inv;
+    wit[COL_CMP_LO_IS_ZERO] = cmp_lo_is_zero;
+    wit[COL_CMP_HI_DIFF] = cmp_hi_diff;
+    wit[COL_CMP_HI_INV] = cmp_hi_inv;
+    wit[COL_CMP_HI_IS_ZERO] = cmp_hi_is_zero;
+    wit[COL_CMP_AND] = cmp_lo_is_zero * cmp_hi_is_zero;
 
     wit
 }

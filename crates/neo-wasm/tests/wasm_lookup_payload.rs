@@ -67,16 +67,6 @@ fn step(opcode: WasmOpcode, lhs: u32, rhs: Option<u32>, out: u32) -> WasmStepTra
 }
 
 #[test]
-fn unary_lookup_payload_is_emitted_for_i32_eqz() {
-    let trace = step(WasmOpcode::I32Eqz, 11, None, 0);
-    let payload = lookup_payload(&trace).expect("payload");
-    assert_eq!(payload.arity, neo_wasm::WasmLookupArity::Unary);
-    assert_eq!(payload.shout_id, WasmShoutOpcode::I32Eqz.to_shout_id());
-    assert_eq!(payload.inputs, vec![11]);
-    assert_eq!(payload.outputs, vec![0]);
-}
-
-#[test]
 fn binary_lookup_payload_is_emitted_for_i32_xor() {
     let trace = step(WasmOpcode::I32Xor, 0x55aa, Some(0x0ff0), 0x5a5a);
     let payload = lookup_payload(&trace).expect("payload");

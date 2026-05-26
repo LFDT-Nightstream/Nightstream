@@ -28,15 +28,6 @@ pub struct WasmLookupPayload {
 pub fn lookup_payload(trace: &WasmStepTrace) -> Option<WasmLookupPayload> {
     let shout = trace.info.shout_opcode?;
     Some(match shout {
-        super::isa::WasmShoutOpcode::I64Eqz => WasmLookupPayload {
-            arity: WasmLookupArity::Binary,
-            shout_id: shout.to_shout_id(),
-            inputs: vec![
-                trace.stack_read0.map(|lane| lane.value).unwrap_or(0),
-                trace.stack_read0_hi.unwrap_or(0),
-            ],
-            outputs: vec![trace.stack_write0.map(|lane| lane.value).unwrap_or(0)],
-        },
         super::isa::WasmShoutOpcode::I64And
         | super::isa::WasmShoutOpcode::I64Or
         | super::isa::WasmShoutOpcode::I64Xor

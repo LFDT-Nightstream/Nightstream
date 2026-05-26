@@ -419,18 +419,6 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
     let linear_mem_access_byte7 = Column(COL_LINEAR_MEM_ACCESS_BYTE7);
     let sign_ext_low7 = Column(COL_SIGN_EXT_LOW7);
     let sign_ext_bit = Column(COL_SIGN_EXT_BIT);
-    let stack_read0_addr = Column(COL_STACK_READ0_ADDR);
-    let stack_read0_value = Column(COL_STACK_READ0_VALUE);
-    let stack_read0_value_hi = Column(COL_STACK_READ0_VALUE_HI);
-    let stack_read1_addr = Column(COL_STACK_READ1_ADDR);
-    let stack_read1_value = Column(COL_STACK_READ1_VALUE);
-    let stack_read1_value_hi = Column(COL_STACK_READ1_VALUE_HI);
-    let stack_read2_addr = Column(COL_STACK_READ2_ADDR);
-    let stack_read2_value = Column(COL_STACK_READ2_VALUE);
-    let stack_read2_value_hi = Column(COL_STACK_READ2_VALUE_HI);
-    let stack_write0_addr = Column(COL_STACK_WRITE0_ADDR);
-    let stack_write0_value = Column(COL_STACK_WRITE0_VALUE);
-    let stack_write0_value_hi = Column(COL_STACK_WRITE0_VALUE_HI);
     let global_index = Column(COL_GLOBAL_INDEX);
     let global_value = Column(COL_GLOBAL_VALUE);
     let global_value_hi = Column(COL_GLOBAL_VALUE_HI);
@@ -495,18 +483,18 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
         locals_fbp_after,
     };
     let stack = OperandStackColumns {
-        read0_addr: stack_read0_addr,
-        read0_value: stack_read0_value,
-        read0_value_hi: stack_read0_value_hi,
-        read1_addr: stack_read1_addr,
-        read1_value: stack_read1_value,
-        read1_value_hi: stack_read1_value_hi,
-        read2_addr: stack_read2_addr,
-        read2_value: stack_read2_value,
-        read2_value_hi: stack_read2_value_hi,
-        write0_addr: stack_write0_addr,
-        write0_value: stack_write0_value,
-        write0_value_hi: stack_write0_value_hi,
+        read0_addr: Column(COL_STACK_READ0_ADDR),
+        read0_value: Column(COL_STACK_READ0_VALUE),
+        read0_value_hi: Column(COL_STACK_READ0_VALUE_HI),
+        read1_addr: Column(COL_STACK_READ1_ADDR),
+        read1_value: Column(COL_STACK_READ1_VALUE),
+        read1_value_hi: Column(COL_STACK_READ1_VALUE_HI),
+        read2_addr: Column(COL_STACK_READ2_ADDR),
+        read2_value: Column(COL_STACK_READ2_VALUE),
+        read2_value_hi: Column(COL_STACK_READ2_VALUE_HI),
+        write0_addr: Column(COL_STACK_WRITE0_ADDR),
+        write0_value: Column(COL_STACK_WRITE0_VALUE),
+        write0_value_hi: Column(COL_STACK_WRITE0_VALUE_HI),
     };
     let locals = LocalsColumns {
         write_enabled: local_write_enabled,
@@ -648,10 +636,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
             let family = WasmLookupFamilySpec {
                 name: shout_opcode.name(),
                 arity: match shout_opcode {
-                    WasmShoutOpcode::I32Eqz | WasmShoutOpcode::I32Clz | WasmShoutOpcode::I32Ctz => {
-                        WasmLookupArity::Unary
-                    }
-                    WasmShoutOpcode::I64Eqz => WasmLookupArity::Binary,
+                    WasmShoutOpcode::I32Clz | WasmShoutOpcode::I32Ctz => WasmLookupArity::Unary,
                     WasmShoutOpcode::I64And
                     | WasmShoutOpcode::I64Or
                     | WasmShoutOpcode::I64Xor
@@ -689,7 +674,6 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
             name: shout_opcode.name(),
             family: shout_opcode.name(),
             columns: match shout_opcode {
-                WasmShoutOpcode::I64Eqz => vec![shout.id, stack.read0_value, stack.read0_value_hi, stack.write0_value],
                 WasmShoutOpcode::I64And
                 | WasmShoutOpcode::I64Or
                 | WasmShoutOpcode::I64Xor

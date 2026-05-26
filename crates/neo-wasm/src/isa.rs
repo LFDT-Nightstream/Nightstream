@@ -15,10 +15,6 @@ pub enum WasmOpcodeClass {
 pub enum WasmShoutOpcode {
     I32Clz,
     I32Ctz,
-    I32Eqz,
-    I64Eqz,
-    I32Eq,
-    I32Ne,
     I32LtS,
     I32LtU,
     I32GtS,
@@ -47,14 +43,10 @@ pub enum WasmShoutOpcode {
 }
 
 impl WasmShoutOpcode {
-    pub fn all() -> [Self; 31] {
+    pub fn all() -> [Self; 27] {
         [
             Self::I32Clz,
             Self::I32Ctz,
-            Self::I32Eqz,
-            Self::I64Eqz,
-            Self::I32Eq,
-            Self::I32Ne,
             Self::I32LtS,
             Self::I32LtU,
             Self::I32GtS,
@@ -87,10 +79,6 @@ impl WasmShoutOpcode {
         match self {
             Self::I32Clz => "i32_clz",
             Self::I32Ctz => "i32_ctz",
-            Self::I32Eqz => "i32_eqz",
-            Self::I64Eqz => "i64_eqz",
-            Self::I32Eq => "i32_eq",
-            Self::I32Ne => "i32_ne",
             Self::I32LtS => "i32_lt_s",
             Self::I32LtU => "i32_lt_u",
             Self::I32GtS => "i32_gt_s",
@@ -124,10 +112,6 @@ impl WasmShoutOpcode {
         let offset = match self {
             Self::I32Clz => 5,
             Self::I32Ctz => 6,
-            Self::I32Eqz => 0,
-            Self::I64Eqz => 33,
-            Self::I32Eq => 1,
-            Self::I32Ne => 2,
             Self::I32LtS => 3,
             Self::I32LtU => 4,
             Self::I32GtS => 7,
@@ -603,10 +587,10 @@ pub fn opcode_info_from_code(code: u16) -> WasmOpcodeInfo {
         Op::I32Clz => info(op, code, Class::Numeric, 1, 1, true, Some(Shout::I32Clz)),
         Op::I32Ctz => info(op, code, Class::Numeric, 1, 1, true, Some(Shout::I32Ctz)),
         Op::I32Popcnt => info(op, code, Class::Numeric, 1, 1, false, None),
-        Op::I32Eqz => info(op, code, Class::Compare, 1, 1, true, Some(Shout::I32Eqz)),
-        Op::I64Eqz => info(op, code, Class::Compare, 1, 1, true, Some(Shout::I64Eqz)),
-        Op::I32Eq => info(op, code, Class::Compare, 2, 1, true, Some(Shout::I32Eq)),
-        Op::I32Ne => info(op, code, Class::Compare, 2, 1, true, Some(Shout::I32Ne)),
+        Op::I32Eqz => info(op, code, Class::Compare, 1, 1, false, None),
+        Op::I64Eqz => info(op, code, Class::Compare, 1, 1, false, None),
+        Op::I32Eq => info(op, code, Class::Compare, 2, 1, false, None),
+        Op::I32Ne => info(op, code, Class::Compare, 2, 1, false, None),
         Op::I32LtS => info(op, code, Class::Compare, 2, 1, true, Some(Shout::I32LtS)),
         Op::I32LtU => info(op, code, Class::Compare, 2, 1, true, Some(Shout::I32LtU)),
         Op::I32GtS => info(op, code, Class::Compare, 2, 1, true, Some(Shout::I32GtS)),

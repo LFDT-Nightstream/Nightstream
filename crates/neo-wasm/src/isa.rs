@@ -12,6 +12,27 @@ pub enum WasmOpcodeClass {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum WasmMemoryAccessKind {
+    Load,
+    Store,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum WasmMemoryExtension {
+    Unextended,
+    Zero,
+    Sign,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct WasmMemoryAccessInfo {
+    pub kind: WasmMemoryAccessKind,
+    pub width_bytes: u8,
+    pub result_bits: u8,
+    pub extension: WasmMemoryExtension,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum WasmShoutOpcode {
     I32Clz,
     I32Ctz,
@@ -419,29 +440,109 @@ impl WasmOpcode {
     /// for the linear-memory selector list — see
     /// [`crate::ccs::linear_memory`].
     pub fn uses_linear_memory(self) -> bool {
-        self.memory_access_width_bytes().is_some()
+        self.memory_access_info().is_some()
     }
 
-    /// Number of memory bytes touched by a linear-memory opcode, or `None`
-    /// for non-memory opcodes. Single source of truth for the width-family
-    /// gates (`is_byte_width` / `is_half_width` / `is_full_width` /
-    /// `is_double_width`) in [`crate::ccs::linear_memory`].
-    pub fn memory_access_width_bytes(self) -> Option<u8> {
+    pub fn memory_access_info(self) -> Option<WasmMemoryAccessInfo> {
+        use WasmMemoryAccessKind::{Load, Store};
+        use WasmMemoryExtension::{Sign, Zero};
         match self {
-            Self::I32Load8S
-            | Self::I32Load8U
-            | Self::I32Store8
-            | Self::I64Store8
-            | Self::I64Load8U
-            | Self::I64Load8S => Some(1),
-            Self::I32Load16S
-            | Self::I32Load16U
-            | Self::I32Store16
-            | Self::I64Store16
-            | Self::I64Load16U
-            | Self::I64Load16S => Some(2),
-            Self::I32Load | Self::I32Store | Self::I64Store32 | Self::I64Load32U | Self::I64Load32S => Some(4),
-            Self::I64Load | Self::I64Store => Some(8),
+            Self::I32Load8S => Some(WasmMemoryAccessInfo {
+                kind: Load,
+                width_bytes: 1,
+                result_bits: 32,
+                extension: Sign,
+            }),
+            Self::I32Load8U => Some(WasmMemoryAccessInfo {
+                kind: Load,
+                width_bytes: 1,
+                result_bits: 32,
+                extension: Zero,
+            }),
+            Self::I64Load8U => Some(WasmMemoryAccessInfo {
+                kind: Load,
+                width_bytes: 1,
+                result_bits: 64,
+                extension: Zero,
+            }),
+            Self::I64Load8S => Some(WasmMemoryAccessInfo {
+                kind: Load,
+                width_bytes: 1,
+                result_bits: 64,
+                extension: Sign,
+            }),
+            Self::I32Store8 | Self::I64Store8 => Some(WasmMemoryAccessInfo {
+                kind: Store,
+                width_bytes: 1,
+                result_bits: 0,
+                extension: WasmMemoryExtension::Unextended,
+            }),
+            Self::I32Load16S => Some(WasmMemoryAccessInfo {
+                kind: Load,
+                width_bytes: 2,
+                result_bits: 32,
+                extension: Sign,
+            }),
+            Self::I32Load16U => Some(WasmMemoryAccessInfo {
+                kind: Load,
+                width_bytes: 2,
+                result_bits: 32,
+                extension: Zero,
+            }),
+            Self::I64Load16U => Some(WasmMemoryAccessInfo {
+                kind: Load,
+                width_bytes: 2,
+                result_bits: 64,
+                extension: Zero,
+            }),
+            Self::I64Load16S => Some(WasmMemoryAccessInfo {
+                kind: Load,
+                width_bytes: 2,
+                result_bits: 64,
+                extension: Sign,
+            }),
+            Self::I32Store16 | Self::I64Store16 => Some(WasmMemoryAccessInfo {
+                kind: Store,
+                width_bytes: 2,
+                result_bits: 0,
+                extension: WasmMemoryExtension::Unextended,
+            }),
+            Self::I32Load => Some(WasmMemoryAccessInfo {
+                kind: Load,
+                width_bytes: 4,
+                result_bits: 32,
+                extension: WasmMemoryExtension::Unextended,
+            }),
+            Self::I64Load32U => Some(WasmMemoryAccessInfo {
+                kind: Load,
+                width_bytes: 4,
+                result_bits: 64,
+                extension: Zero,
+            }),
+            Self::I64Load32S => Some(WasmMemoryAccessInfo {
+                kind: Load,
+                width_bytes: 4,
+                result_bits: 64,
+                extension: Sign,
+            }),
+            Self::I32Store | Self::I64Store32 => Some(WasmMemoryAccessInfo {
+                kind: Store,
+                width_bytes: 4,
+                result_bits: 0,
+                extension: WasmMemoryExtension::Unextended,
+            }),
+            Self::I64Load => Some(WasmMemoryAccessInfo {
+                kind: Load,
+                width_bytes: 8,
+                result_bits: 64,
+                extension: WasmMemoryExtension::Unextended,
+            }),
+            Self::I64Store => Some(WasmMemoryAccessInfo {
+                kind: Store,
+                width_bytes: 8,
+                result_bits: 0,
+                extension: WasmMemoryExtension::Unextended,
+            }),
             _ => None,
         }
     }
@@ -612,6 +713,7 @@ pub struct WasmOpcodeInfo {
     pub class: WasmOpcodeClass,
     pub stack_reads: u8,
     pub stack_writes: u8,
+    pub memory_access: Option<WasmMemoryAccessInfo>,
     pub uses_shout: bool,
     pub shout_opcode: Option<WasmShoutOpcode>,
 }
@@ -928,6 +1030,7 @@ fn info(
         class,
         stack_reads,
         stack_writes,
+        memory_access: opcode.memory_access_info(),
         uses_shout,
         shout_opcode,
     }

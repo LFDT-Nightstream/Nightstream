@@ -241,6 +241,7 @@ fn normalize_supported_row(row: &WasmtimeTraceStep) -> Result<Option<SupportedRo
                 | WasmOpcode::I64Load8S
                 | WasmOpcode::I64Load16S
                 | WasmOpcode::I64Load32S
+                | WasmOpcode::I32WrapI64
         ),
         stack_reads_override,
         stack_writes_override,

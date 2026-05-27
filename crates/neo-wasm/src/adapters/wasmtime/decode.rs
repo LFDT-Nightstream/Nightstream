@@ -141,6 +141,7 @@ pub(crate) fn decode_opcode(operator: &wasmparser::Operator<'_>) -> Option<(Wasm
         wasmparser::Operator::I64Load8S { .. } => Some((WasmOpcode::I64Load8S, None)),
         wasmparser::Operator::I64Load16S { .. } => Some((WasmOpcode::I64Load16S, None)),
         wasmparser::Operator::I64Load32S { .. } => Some((WasmOpcode::I64Load32S, None)),
+        wasmparser::Operator::I32WrapI64 => Some((WasmOpcode::I32WrapI64, None)),
         wasmparser::Operator::I64And => Some((WasmOpcode::I64And, None)),
         wasmparser::Operator::I64Or => Some((WasmOpcode::I64Or, None)),
         wasmparser::Operator::I64Xor => Some((WasmOpcode::I64Xor, None)),

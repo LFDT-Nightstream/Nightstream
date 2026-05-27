@@ -895,6 +895,27 @@ fn wasm_trace_run_with_nop_and_br() {
 }
 
 #[test]
+fn wasm_trace_run_with_i32_wrap_i64() {
+    let checked = common::checked_wasm_run(
+        r#"(module
+             (func (export "main") (result i32)
+               i64.const 0x1234567889abcdef
+               i32.wrap_i64))"#,
+        "main",
+        &[],
+    );
+    assert_eq!(checked.run.results.as_slice(), &["-1985229329"]);
+    let row = checked
+        .trace
+        .iter()
+        .find(|row| row.opcode == neo_wasm::WasmOpcode::I32WrapI64)
+        .expect("i32.wrap_i64 row");
+    assert!(row.wide_values_enabled, "i32.wrap_i64 should read an i64 input");
+    assert_eq!(row.stack_write0.map(|lane| lane.value), Some(0x89ab_cdef));
+    assert_eq!(row.stack_write0_hi, Some(0));
+}
+
+#[test]
 fn wasm_trace_run_folding_proof() {
     let (_, trace, ..) = compile_and_trace(
         r#"(module (func (export "main") (result i32)

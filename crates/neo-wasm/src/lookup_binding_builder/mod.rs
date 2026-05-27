@@ -203,18 +203,22 @@ pub struct LinearMemoryColumns {
     pub lane0_bytes: [Column; 4],
     pub lane1_bytes: [Column; 4],
     pub lane2_bytes: [Column; 4],
-    /// Direction-agnostic byte view of the value being read or
-    /// written this row. On loads, the byte-decomp constraints bind
-    /// `access_bytes_lo` to `stack.write0_value` (and `access_bytes_hi`
-    /// to `stack.write0_value_hi` on `I64Load`); on stores, they bind
-    /// to `stack.read1_value` / `stack.read1_value_hi`. The byte
-    /// shuffles compare these bytes against the per-lane bytes
-    /// regardless of direction, so the i32 and i64 paths share one
-    /// column family.
-    pub access_bytes_lo: [Column; 4],
+    /// High byte view of the value being read or written by i64 load/store
+    /// rows. The low byte view lives in `SignExtensionColumns`, because it is
+    /// also useful for non-memory sign-extension opcodes.
     pub access_bytes_hi: [Column; 4],
-    pub sign_ext_low7: Column,
-    pub sign_ext_bit: Column,
+}
+
+/// Shared scratch columns for low 32-bit byte decomposition and sign extension.
+///
+/// Linear-memory constraints use `bytes` as the low access-byte view. Non-memory
+/// sign-extension opcodes also reuse this group; those opcodes are not
+/// linear-memory rows, so only one constraint family is active on a row.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SignExtensionColumns {
+    pub bytes: [Column; 4],
+    pub low7: Column,
+    pub bit: Column,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -306,6 +310,7 @@ pub struct WasmLookupBindingLayout {
     pub function_types: FunctionTypeColumns,
     pub module_types: ModuleTypeColumns,
     pub linear_memory: LinearMemoryColumns,
+    pub sign_extension: SignExtensionColumns,
     pub shout: ShoutColumns,
 }
 
@@ -608,20 +613,22 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
             linear_mem_lane2_byte2,
             linear_mem_lane2_byte3,
         ],
-        access_bytes_lo: [
-            linear_mem_access_byte0,
-            linear_mem_access_byte1,
-            linear_mem_access_byte2,
-            linear_mem_access_byte3,
-        ],
         access_bytes_hi: [
             linear_mem_access_byte4,
             linear_mem_access_byte5,
             linear_mem_access_byte6,
             linear_mem_access_byte7,
         ],
-        sign_ext_low7,
-        sign_ext_bit,
+    };
+    let sign_extension = SignExtensionColumns {
+        bytes: [
+            linear_mem_access_byte0,
+            linear_mem_access_byte1,
+            linear_mem_access_byte2,
+            linear_mem_access_byte3,
+        ],
+        low7: sign_ext_low7,
+        bit: sign_ext_bit,
     };
 
     let shout = ShoutColumns {
@@ -1082,6 +1089,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
         function_types,
         module_types,
         linear_memory,
+        sign_extension,
         shout,
     }
 }

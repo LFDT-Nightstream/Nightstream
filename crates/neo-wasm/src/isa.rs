@@ -193,6 +193,8 @@ pub enum WasmOpcode {
     I64Load16S,
     I64Load32S,
     I32WrapI64,
+    I64ExtendI32U,
+    I64ExtendI32S,
     MemorySize,
     MemoryGrow,
     TableSize,
@@ -256,7 +258,7 @@ pub enum WasmOpcode {
 }
 
 impl WasmOpcode {
-    pub fn supported() -> [Self; 86] {
+    pub fn supported() -> [Self; 88] {
         [
             Self::Nop,
             Self::I32Const,
@@ -286,6 +288,8 @@ impl WasmOpcode {
             Self::I64Load16S,
             Self::I64Load32S,
             Self::I32WrapI64,
+            Self::I64ExtendI32U,
+            Self::I64ExtendI32S,
             Self::MemorySize,
             Self::MemoryGrow,
             Self::TableSize,
@@ -435,6 +439,8 @@ impl WasmOpcode {
             Self::I64Load16S => Some(83),
             Self::I64Load32S => Some(84),
             Self::I32WrapI64 => Some(85),
+            Self::I64ExtendI32U => Some(86),
+            Self::I64ExtendI32S => Some(87),
             Self::Trap | Self::Unsupported => None,
         }
     }
@@ -580,6 +586,8 @@ impl WasmOpcode {
             Self::I64Load16S => "i64_load16_s",
             Self::I64Load32S => "i64_load32_s",
             Self::I32WrapI64 => "i32_wrap_i64",
+            Self::I64ExtendI32U => "i64_extend_i32_u",
+            Self::I64ExtendI32S => "i64_extend_i32_s",
             Self::MemorySize => "memory_size",
             Self::MemoryGrow => "memory_grow",
             Self::TableSize => "table_size",
@@ -762,6 +770,8 @@ pub fn opcode_info_from_code(code: u16) -> WasmOpcodeInfo {
         Op::I64Load16S => info(op, code, Class::System, 1, 1, false, None),
         Op::I64Load32S => info(op, code, Class::System, 1, 1, false, None),
         Op::I32WrapI64 => info(op, code, Class::Numeric, 1, 1, false, None),
+        Op::I64ExtendI32U => info(op, code, Class::Numeric, 1, 1, false, None),
+        Op::I64ExtendI32S => info(op, code, Class::Numeric, 1, 1, false, None),
         Op::MemorySize => info(op, code, Class::System, 0, 1, false, None),
         Op::MemoryGrow => info(op, code, Class::System, 1, 1, false, None),
         Op::TableSize => info(op, code, Class::System, 0, 1, false, None),
@@ -865,6 +875,8 @@ pub fn opcode_code(op: WasmOpcode) -> u16 {
         WasmOpcode::I64Load16S => 0x32,
         WasmOpcode::I64Load32S => 0x34,
         WasmOpcode::I32WrapI64 => 0xA7,
+        WasmOpcode::I64ExtendI32S => 0xAC,
+        WasmOpcode::I64ExtendI32U => 0xAD,
         WasmOpcode::MemorySize => 0x3F,
         WasmOpcode::MemoryGrow => 0x40,
         WasmOpcode::TableSize => 0xFC10,
@@ -957,6 +969,8 @@ fn opcode_from_code(code: u16) -> WasmOpcode {
         x if x == opcode_code(WasmOpcode::I64Load16S) => WasmOpcode::I64Load16S,
         x if x == opcode_code(WasmOpcode::I64Load32S) => WasmOpcode::I64Load32S,
         x if x == opcode_code(WasmOpcode::I32WrapI64) => WasmOpcode::I32WrapI64,
+        x if x == opcode_code(WasmOpcode::I64ExtendI32U) => WasmOpcode::I64ExtendI32U,
+        x if x == opcode_code(WasmOpcode::I64ExtendI32S) => WasmOpcode::I64ExtendI32S,
         x if x == opcode_code(WasmOpcode::I64Store) => WasmOpcode::I64Store,
         x if x == opcode_code(WasmOpcode::MemorySize) => WasmOpcode::MemorySize,
         x if x == opcode_code(WasmOpcode::MemoryGrow) => WasmOpcode::MemoryGrow,

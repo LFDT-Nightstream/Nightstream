@@ -12,7 +12,8 @@ mod linear_memory;
 mod stack_io;
 
 use super::gadgets::{
-    add_conditional_select_gadget, push_gated_linear_zero, push_zero_test_gadget, ConditionalSelectCols,
+    add_conditional_select_gadget, push_gated_linear_zero, push_u32_le_bytes_decomp, push_zero_test_gadget,
+    ConditionalSelectCols,
 };
 use super::isa::{opcode_code, opcode_info_from_code, WasmOpcode, WasmShoutOpcode};
 use super::layout::{
@@ -20,7 +21,8 @@ use super::layout::{
     WITNESS_WIDTH,
 };
 use super::lookup_binding_builder::{
-    build_wasm_lookup_binding_layout, Column, ControlColumns, OperandStackColumns, ShoutColumns, StateColumns,
+    build_wasm_lookup_binding_layout, Column, ControlColumns, OperandStackColumns, ShoutColumns, SignExtensionColumns,
+    StateColumns,
 };
 use super::tagged_r1cs_builder::{
     WasmConstraintCatalog, WasmConstraintScope, WasmConstraintTag, WasmTaggedR1csBuilder,
@@ -96,6 +98,8 @@ const I64_OPS: &[WasmOpcode] = &[
     WasmOpcode::I64Load16S,
     WasmOpcode::I64Load32S,
     WasmOpcode::I32WrapI64,
+    WasmOpcode::I64ExtendI32U,
+    WasmOpcode::I64ExtendI32S,
     WasmOpcode::I64Eqz,
     WasmOpcode::I64Eq,
     WasmOpcode::I64Ne,
@@ -467,6 +471,21 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
     });
     b.with_tag(
         shared(
+            "i64.extend_i32_{u,s} low relation",
+            &[WasmOpcode::I64ExtendI32U, WasmOpcode::I64ExtendI32S],
+        ),
+        |b| push_i64_extend_i32_low_relation(b, &stack),
+    );
+    b.with_tag(
+        opcode_tag("i64.extend_i32_u high zero", WasmOpcode::I64ExtendI32U),
+        |b| push_i64_extend_i32_u_high_relation(b, &stack),
+    );
+    b.with_tag(
+        opcode_tag("i64.extend_i32_s high sign fill", WasmOpcode::I64ExtendI32S),
+        |b| push_i64_extend_i32_s_high_relation(b, &stack, &layout.sign_extension),
+    );
+    b.with_tag(
+        shared(
             "i64 comparator high limb zero",
             &[WasmOpcode::I64Eqz, WasmOpcode::I64Eq, WasmOpcode::I64Ne],
         ),
@@ -477,7 +496,7 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
     b.with_tag(shared("comparator zero-test", COMPARATOR_OPS), |b| {
         push_comparator_constraints(b, &stack);
     });
-    linear_memory::push_linear_memory_constraints(&mut b, &stack, &linear_memory);
+    linear_memory::push_linear_memory_constraints(&mut b, &stack, &linear_memory, &layout.sign_extension);
     b.with_tag(opcode_tag("select conditional gadget", WasmOpcode::Select), |b| {
         add_conditional_select_gadget(
             b,
@@ -759,6 +778,55 @@ fn push_i32_wrap_i64_relation(b: &mut R1csBuilder, stack: &OperandStackColumns) 
         [(idx(stack.write0_value), F::ONE), (idx(stack.read0_value), -F::ONE)],
     );
     push_gated_linear_zero(b, selector, [(idx(stack.write0_value_hi), F::ONE)]);
+}
+
+fn push_i64_extend_i32_low_relation(b: &mut R1csBuilder, stack: &OperandStackColumns) {
+    b.push_row(
+        [
+            (selector_col(WasmOpcode::I64ExtendI32U).unwrap(), F::ONE),
+            (selector_col(WasmOpcode::I64ExtendI32S).unwrap(), F::ONE),
+        ],
+        [(idx(stack.write0_value), F::ONE), (idx(stack.read0_value), -F::ONE)],
+        [],
+    );
+}
+
+fn push_i64_extend_i32_u_high_relation(b: &mut R1csBuilder, stack: &OperandStackColumns) {
+    push_gated_linear_zero(
+        b,
+        selector_col(WasmOpcode::I64ExtendI32U).unwrap(),
+        [(idx(stack.write0_value_hi), F::ONE)],
+    );
+}
+
+fn push_i64_extend_i32_s_high_relation(
+    b: &mut R1csBuilder,
+    stack: &OperandStackColumns,
+    sign_extension: &SignExtensionColumns,
+) {
+    let selector = selector_col(WasmOpcode::I64ExtendI32S).unwrap();
+    // Reuses the shared sign-extension scratch columns that signed
+    // linear-memory loads use. This is sound because i64.extend_i32_s is not a
+    // linear-memory opcode, so no linear-memory byte-routing constraints are
+    // active on the same row.
+    push_u32_le_bytes_decomp(b, [selector], idx(stack.read0_value), sign_extension.bytes.map(idx));
+    push_gated_linear_zero(
+        b,
+        selector,
+        [
+            (idx(sign_extension.bytes[3]), F::ONE),
+            (idx(sign_extension.low7), -F::ONE),
+            (idx(sign_extension.bit), -f_u64(128)),
+        ],
+    );
+    b.push_row(
+        [(selector, F::ONE)],
+        [
+            (idx(stack.write0_value_hi), F::ONE),
+            (idx(sign_extension.bit), -f_u64(0xffff_ffff)),
+        ],
+        [],
+    );
 }
 
 /// Force `write0_value_hi = 0` on every comparator row that produces a

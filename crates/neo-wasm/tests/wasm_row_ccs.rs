@@ -847,6 +847,148 @@ fn i32_wrap_i64_row_rejects_tampered_high_output() {
 }
 
 #[test]
+fn i64_extend_i32_u_row_zero_extends() {
+    let mut row = step(
+        0,
+        0,
+        opcode_code(WasmOpcode::I64ExtendI32U),
+        1,
+        1,
+        Some(StackLaneAccess {
+            addr: 0,
+            value: 0x89ab_cdef,
+        }),
+        None,
+        None,
+        Some(StackLaneAccess {
+            addr: 0,
+            value: 0x89ab_cdef,
+        }),
+        None,
+        0,
+        false,
+    );
+    row.wide_values_enabled = true;
+    row.stack_write0_hi = Some(0);
+
+    assert_satisfied(&build_witness_vector(&row), "i64.extend_i32_u row");
+}
+
+#[test]
+fn i64_extend_i32_u_row_rejects_nonzero_high_output() {
+    let mut row = step(
+        0,
+        0,
+        opcode_code(WasmOpcode::I64ExtendI32U),
+        1,
+        1,
+        Some(StackLaneAccess {
+            addr: 0,
+            value: 0x89ab_cdef,
+        }),
+        None,
+        None,
+        Some(StackLaneAccess {
+            addr: 0,
+            value: 0x89ab_cdef,
+        }),
+        None,
+        0,
+        false,
+    );
+    row.wide_values_enabled = true;
+    let mut witness = build_witness_vector(&row);
+    witness[COL_STACK_WRITE0_VALUE_HI] = F::ONE;
+
+    assert_rejected(&witness, "i64.extend_i32_u row with nonzero high output");
+}
+
+#[test]
+fn i64_extend_i32_s_row_sign_extends_negative_value() {
+    let mut row = step(
+        0,
+        0,
+        opcode_code(WasmOpcode::I64ExtendI32S),
+        1,
+        1,
+        Some(StackLaneAccess {
+            addr: 0,
+            value: 0x89ab_cdef,
+        }),
+        None,
+        None,
+        Some(StackLaneAccess {
+            addr: 0,
+            value: 0x89ab_cdef,
+        }),
+        None,
+        0,
+        false,
+    );
+    row.wide_values_enabled = true;
+    row.stack_write0_hi = Some(0xffff_ffff);
+
+    assert_satisfied(&build_witness_vector(&row), "i64.extend_i32_s negative row");
+}
+
+#[test]
+fn i64_extend_i32_s_row_sign_extends_positive_value() {
+    let mut row = step(
+        0,
+        0,
+        opcode_code(WasmOpcode::I64ExtendI32S),
+        1,
+        1,
+        Some(StackLaneAccess {
+            addr: 0,
+            value: 0x09ab_cdef,
+        }),
+        None,
+        None,
+        Some(StackLaneAccess {
+            addr: 0,
+            value: 0x09ab_cdef,
+        }),
+        None,
+        0,
+        false,
+    );
+    row.wide_values_enabled = true;
+    row.stack_write0_hi = Some(0);
+
+    assert_satisfied(&build_witness_vector(&row), "i64.extend_i32_s positive row");
+}
+
+#[test]
+fn i64_extend_i32_s_row_rejects_tampered_high_output() {
+    let mut row = step(
+        0,
+        0,
+        opcode_code(WasmOpcode::I64ExtendI32S),
+        1,
+        1,
+        Some(StackLaneAccess {
+            addr: 0,
+            value: 0x89ab_cdef,
+        }),
+        None,
+        None,
+        Some(StackLaneAccess {
+            addr: 0,
+            value: 0x89ab_cdef,
+        }),
+        None,
+        0,
+        false,
+    );
+    row.wide_values_enabled = true;
+    let mut witness = build_witness_vector(&row);
+    witness[COL_STACK_WRITE0_VALUE_HI] = F::ZERO;
+
+    assert_rejected(&witness, "i64.extend_i32_s row with tampered high output");
+}
+
+#[test]
 fn i64_store_row_is_accepted() {
     let wasm = wat::parse_str(
         r#"(module

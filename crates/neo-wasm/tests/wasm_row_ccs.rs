@@ -6,7 +6,8 @@ use neo_wasm::layout::{
     COL_LINEAR_MEM_LANE1_VALUE, COL_LINEAR_MEM_LANE2_VALUE, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE,
     COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_AFTER_INV,
     COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PC_ROM_ACTIVE, COL_STACK_READ0_ACTIVE, COL_STACK_READ1_ACTIVE,
-    COL_STACK_READ2_ACTIVE, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_VALUE, COL_STACK_WRITES,
+    COL_STACK_READ2_ACTIVE, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_VALUE,
+    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITES,
 };
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::WasmRowKind;
@@ -755,6 +756,94 @@ fn i64_linear_memory_rows_are_accepted() {
         .expect("i64.load row");
     assert!(load.wide_values_enabled, "i64.load should enable wide values");
     assert_satisfied(&build_witness_vector(load), "i64.load row");
+}
+
+#[test]
+fn i32_wrap_i64_row_projects_low_limb() {
+    let mut row = step(
+        0,
+        0,
+        opcode_code(WasmOpcode::I32WrapI64),
+        1,
+        1,
+        Some(StackLaneAccess {
+            addr: 0,
+            value: 0x89ab_cdef,
+        }),
+        None,
+        None,
+        Some(StackLaneAccess {
+            addr: 0,
+            value: 0x89ab_cdef,
+        }),
+        None,
+        0,
+        false,
+    );
+    row.wide_values_enabled = true;
+    row.stack_read0_hi = Some(0x1234_5678);
+    row.stack_write0_hi = Some(0);
+
+    assert_satisfied(&build_witness_vector(&row), "i32.wrap_i64 row");
+}
+
+#[test]
+fn i32_wrap_i64_row_rejects_tampered_output() {
+    let mut row = step(
+        0,
+        0,
+        opcode_code(WasmOpcode::I32WrapI64),
+        1,
+        1,
+        Some(StackLaneAccess {
+            addr: 0,
+            value: 0x89ab_cdef,
+        }),
+        None,
+        None,
+        Some(StackLaneAccess {
+            addr: 0,
+            value: 0x89ab_cdee,
+        }),
+        None,
+        0,
+        false,
+    );
+    row.wide_values_enabled = true;
+    row.stack_read0_hi = Some(0x1234_5678);
+    row.stack_write0_hi = Some(0);
+
+    assert_rejected(&build_witness_vector(&row), "i32.wrap_i64 row with tampered output");
+}
+
+#[test]
+fn i32_wrap_i64_row_rejects_tampered_high_output() {
+    let mut row = step(
+        0,
+        0,
+        opcode_code(WasmOpcode::I32WrapI64),
+        1,
+        1,
+        Some(StackLaneAccess {
+            addr: 0,
+            value: 0x89ab_cdef,
+        }),
+        None,
+        None,
+        Some(StackLaneAccess {
+            addr: 0,
+            value: 0x89ab_cdef,
+        }),
+        None,
+        0,
+        false,
+    );
+    row.wide_values_enabled = true;
+    row.stack_read0_hi = Some(0x1234_5678);
+    let mut witness = build_witness_vector(&row);
+    witness[COL_STACK_WRITE0_VALUE_HI] = F::ONE;
+
+    assert_rejected(&witness, "i32.wrap_i64 row with tampered high output");
 }
 
 #[test]

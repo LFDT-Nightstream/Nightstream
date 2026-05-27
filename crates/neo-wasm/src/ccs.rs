@@ -95,6 +95,7 @@ const I64_OPS: &[WasmOpcode] = &[
     WasmOpcode::I64Load8S,
     WasmOpcode::I64Load16S,
     WasmOpcode::I64Load32S,
+    WasmOpcode::I32WrapI64,
     WasmOpcode::I64Eqz,
     WasmOpcode::I64Eq,
     WasmOpcode::I64Ne,
@@ -461,6 +462,9 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
     b.with_tag(opcode_tag("i64.sub relation", WasmOpcode::I64Sub), |b| {
         push_i64_sub_relation(b, &stack)
     });
+    b.with_tag(opcode_tag("i32.wrap_i64 relation", WasmOpcode::I32WrapI64), |b| {
+        push_i32_wrap_i64_relation(b, &stack)
+    });
     b.with_tag(
         shared(
             "i64 comparator high limb zero",
@@ -745,6 +749,16 @@ fn push_i64_sub_relation(b: &mut R1csBuilder, stack: &OperandStackColumns) {
         [(selector, F::ONE)],
         [],
     );
+}
+
+fn push_i32_wrap_i64_relation(b: &mut R1csBuilder, stack: &OperandStackColumns) {
+    let selector = selector_col(WasmOpcode::I32WrapI64).unwrap();
+    push_gated_linear_zero(
+        b,
+        selector,
+        [(idx(stack.write0_value), F::ONE), (idx(stack.read0_value), -F::ONE)],
+    );
+    push_gated_linear_zero(b, selector, [(idx(stack.write0_value_hi), F::ONE)]);
 }
 
 /// Force `write0_value_hi = 0` on every comparator row that produces a

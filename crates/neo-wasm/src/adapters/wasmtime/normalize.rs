@@ -242,6 +242,8 @@ fn normalize_supported_row(row: &WasmtimeTraceStep) -> Result<Option<SupportedRo
                 | WasmOpcode::I64Load16S
                 | WasmOpcode::I64Load32S
                 | WasmOpcode::I32WrapI64
+                | WasmOpcode::I64ExtendI32U
+                | WasmOpcode::I64ExtendI32S
         ),
         stack_reads_override,
         stack_writes_override,
@@ -828,7 +830,8 @@ fn write_lane_hi(current: &SupportedRow, next: Option<&SupportedRow>) -> Result<
         // post-state operand_stack_hi already holds the replicated sign bits.
         | WasmOpcode::I64Load8S
         | WasmOpcode::I64Load16S
-        | WasmOpcode::I64Load32S => next
+        | WasmOpcode::I64Load32S
+        | WasmOpcode::I64ExtendI32S => next
             .and_then(|row| row.operand_stack_hi.last().copied())
             .ok_or_else(|| {
                 WasmBuildError::Trace(format!(

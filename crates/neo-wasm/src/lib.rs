@@ -39,8 +39,8 @@ pub use isa::{
 pub use layout::{ColumnWidth, WasmColumnSpec, COLUMN_SPECS};
 pub use lookup_binding_builder::{
     build_wasm_lookup_binding_layout, CallColumns, Column, ControlColumns, FrameColumns, GlobalsColumns,
-    LinearMemoryColumns, LocalsColumns, OperandStackColumns, ParamInitColumns, ShoutColumns, StateColumns,
-    WasmCrossStepColumnPair, WasmCrossStepLinkSpec, WasmLookupBindingLayout, WasmLookupBindingSpec,
+    LinearMemoryColumns, LocalsColumns, OperandStackColumns, ParamInitColumns, ShoutColumns, SignExtensionColumns,
+    StateColumns, WasmCrossStepColumnPair, WasmCrossStepLinkSpec, WasmLookupBindingLayout, WasmLookupBindingSpec,
     WasmLookupFamilyKind, WasmLookupFamilySpec, WasmMemoryActivation, WasmMemoryColumnKind, WasmMemoryColumnSpec,
     WasmMemorySpec,
 };

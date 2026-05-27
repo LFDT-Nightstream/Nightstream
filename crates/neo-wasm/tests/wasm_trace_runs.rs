@@ -916,6 +916,43 @@ fn wasm_trace_run_with_i32_wrap_i64() {
 }
 
 #[test]
+fn wasm_trace_run_with_i64_extend_i32() {
+    let checked = common::checked_wasm_run(
+        r#"(module
+             (func (export "main") (result i32)
+               i32.const -1985229329
+               i64.extend_i32_u
+               i64.const 0x0000000089abcdef
+               i64.eq
+               i32.const -1985229329
+               i64.extend_i32_s
+               i64.const -1985229329
+               i64.eq
+               i32.add))"#,
+        "main",
+        &[],
+    );
+    assert_eq!(checked.run.results.as_slice(), &["2"]);
+    let unsigned = checked
+        .trace
+        .iter()
+        .find(|row| row.opcode == neo_wasm::WasmOpcode::I64ExtendI32U)
+        .expect("i64.extend_i32_u row");
+    assert!(unsigned.wide_values_enabled, "i64.extend_i32_u should write an i64");
+    assert_eq!(unsigned.stack_write0.map(|lane| lane.value), Some(0x89ab_cdef));
+    assert_eq!(unsigned.stack_write0_hi, Some(0));
+
+    let signed = checked
+        .trace
+        .iter()
+        .find(|row| row.opcode == neo_wasm::WasmOpcode::I64ExtendI32S)
+        .expect("i64.extend_i32_s row");
+    assert!(signed.wide_values_enabled, "i64.extend_i32_s should write an i64");
+    assert_eq!(signed.stack_write0.map(|lane| lane.value), Some(0x89ab_cdef));
+    assert_eq!(signed.stack_write0_hi, Some(0xffff_ffff));
+}
+
+#[test]
 fn wasm_trace_run_folding_proof() {
     let (_, trace, ..) = compile_and_trace(
         r#"(module (func (export "main") (result i32)

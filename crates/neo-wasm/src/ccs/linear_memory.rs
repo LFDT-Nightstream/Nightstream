@@ -10,7 +10,7 @@
 use super::super::gadgets::{push_gated_linear_zero, push_u32_le_bytes_decomp};
 use super::super::isa::{WasmMemoryAccessKind, WasmMemoryExtension, WasmOpcode};
 use super::super::layout::{selector_col, COL_ONE};
-use super::super::lookup_binding_builder::{Column, LinearMemoryColumns, OperandStackColumns};
+use super::super::lookup_binding_builder::{Column, LinearMemoryColumns, OperandStackColumns, SignExtensionColumns};
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::{f_u64, idx, linear_memory_ops, opcode_tag, shared};
 use neo_math::F;
@@ -63,6 +63,7 @@ pub(super) fn push_linear_memory_constraints(
     b: &mut R1csBuilder,
     stack: &OperandStackColumns,
     linear_memory: &LinearMemoryColumns,
+    sign_extension: &SignExtensionColumns,
 ) {
     // Derived from `WasmOpcode::uses_linear_memory` so it stays in sync
     // with the single declaration on `WasmOpcodeInfo`. Adding a new memory
@@ -73,11 +74,11 @@ pub(super) fn push_linear_memory_constraints(
     push_width_opcode_bindings(b, linear_memory);
     push_lane_usage_constraints(b, linear_memory);
     push_lane_adjacency_constraints(b, linear_memory);
-    push_access_byte_bindings(b, stack, linear_memory);
+    push_access_byte_bindings(b, stack, linear_memory, sign_extension);
 
-    push_load_routing_constraints(b, stack, linear_memory);
-    push_i64_load_extension_constraints(b, stack, linear_memory);
-    push_store_routing_constraints(b, stack, linear_memory);
+    push_load_routing_constraints(b, stack, linear_memory, sign_extension);
+    push_i64_load_extension_constraints(b, stack, linear_memory, sign_extension);
+    push_store_routing_constraints(b, stack, linear_memory, sign_extension);
 }
 
 fn push_address_normalization(
@@ -340,37 +341,35 @@ fn push_lane_adjacency_constraints(b: &mut R1csBuilder, linear_memory: &LinearMe
     });
 }
 
-fn push_access_byte_bindings(b: &mut R1csBuilder, stack: &OperandStackColumns, linear_memory: &LinearMemoryColumns) {
-    // Bind `access_bytes_lo` to the active value's low 32 bits and
-    // `access_bytes_hi` to the high 32 bits (i64 only). `access_bytes`
-    // is direction-agnostic at the byte-shuffle layer (gated by
-    // offset, not opcode), so the direction-specific binding lives
-    // here: write0 on loads, read1 on stores; the i64 ops additionally
-    // bind the hi half.
-    let load_access_bytes_lo_ops = memory_ops_by_kind(WasmMemoryAccessKind::Load);
-    b.with_tag(
-        shared("linear memory access bytes lo (loads)", &load_access_bytes_lo_ops),
-        |b| {
-            push_u32_le_bytes_decomp(
-                b,
-                load_access_bytes_lo_ops.iter().copied().map(op_selector),
-                idx(stack.write0_value),
-                linear_memory.access_bytes_lo.map(idx),
-            );
-        },
-    );
-    let store_access_bytes_lo_ops = memory_ops_by_kind(WasmMemoryAccessKind::Store);
-    b.with_tag(
-        shared("linear memory access bytes lo (stores)", &store_access_bytes_lo_ops),
-        |b| {
-            push_u32_le_bytes_decomp(
-                b,
-                store_access_bytes_lo_ops.iter().copied().map(op_selector),
-                idx(stack.read1_value),
-                linear_memory.access_bytes_lo.map(idx),
-            );
-        },
-    );
+fn push_access_byte_bindings(
+    b: &mut R1csBuilder,
+    stack: &OperandStackColumns,
+    linear_memory: &LinearMemoryColumns,
+    sign_extension: &SignExtensionColumns,
+) {
+    // Bind the shared low-byte scratch to the active value's low 32 bits and
+    // `access_bytes_hi` to the high 32 bits (i64 only). The byte views are
+    // direction-agnostic at the byte-shuffle layer (gated by offset, not
+    // opcode), so the direction-specific binding lives here: write0 on loads,
+    // read1 on stores; the i64 ops additionally bind the hi half.
+    let load_low_byte_ops = memory_ops_by_kind(WasmMemoryAccessKind::Load);
+    b.with_tag(shared("linear memory low bytes (loads)", &load_low_byte_ops), |b| {
+        push_u32_le_bytes_decomp(
+            b,
+            load_low_byte_ops.iter().copied().map(op_selector),
+            idx(stack.write0_value),
+            sign_extension.bytes.map(idx),
+        );
+    });
+    let store_low_byte_ops = memory_ops_by_kind(WasmMemoryAccessKind::Store);
+    b.with_tag(shared("linear memory low bytes (stores)", &store_low_byte_ops), |b| {
+        push_u32_le_bytes_decomp(
+            b,
+            store_low_byte_ops.iter().copied().map(op_selector),
+            idx(stack.read1_value),
+            sign_extension.bytes.map(idx),
+        );
+    });
     b.with_tag(
         shared(
             "linear memory access bytes hi (i64)",
@@ -397,35 +396,36 @@ fn push_load_routing_constraints(
     b: &mut R1csBuilder,
     stack: &OperandStackColumns,
     linear_memory: &LinearMemoryColumns,
+    sign_extension: &SignExtensionColumns,
 ) {
     b.with_tag(
         opcode_tag("linear memory load32 byte routing", WasmOpcode::I32Load),
         |b| {
-            push_linear_memory_load32_byte_selection(b, linear_memory);
+            push_linear_memory_load32_byte_selection(b, linear_memory, sign_extension);
         },
     );
     b.with_tag(
         opcode_tag("linear memory load8_s routing", WasmOpcode::I32Load8S),
         |b| {
-            push_linear_memory_load8_s_constraints(b, linear_memory);
+            push_linear_memory_load8_s_constraints(b, linear_memory, sign_extension);
         },
     );
     b.with_tag(
         opcode_tag("linear memory load8_u routing", WasmOpcode::I32Load8U),
         |b| {
-            push_linear_memory_load8_u_constraints(b, linear_memory);
+            push_linear_memory_load8_u_constraints(b, linear_memory, sign_extension);
         },
     );
     b.with_tag(
         opcode_tag("linear memory load16_s routing", WasmOpcode::I32Load16S),
         |b| {
-            push_linear_memory_load16_s_constraints(b, linear_memory);
+            push_linear_memory_load16_s_constraints(b, linear_memory, sign_extension);
         },
     );
     b.with_tag(
         opcode_tag("linear memory load16_u routing", WasmOpcode::I32Load16U),
         |b| {
-            push_linear_memory_load16_u_constraints(b, linear_memory);
+            push_linear_memory_load16_u_constraints(b, linear_memory, sign_extension);
         },
     );
     // i64.loadN_u: load N bytes into write0_value (lo limb) with the same
@@ -436,17 +436,29 @@ fn push_load_routing_constraints(
     b.with_tag(
         opcode_tag("linear memory i64.load8_u routing", WasmOpcode::I64Load8U),
         |b| {
-            push_linear_memory_load_subword_constraints(b, op_selector(WasmOpcode::I64Load8U), 1, linear_memory);
+            push_linear_memory_load_subword_constraints(
+                b,
+                op_selector(WasmOpcode::I64Load8U),
+                1,
+                linear_memory,
+                sign_extension,
+            );
         },
     );
     b.with_tag(
         opcode_tag("linear memory i64.load16_u routing", WasmOpcode::I64Load16U),
         |b| {
-            push_linear_memory_load_subword_constraints(b, op_selector(WasmOpcode::I64Load16U), 2, linear_memory);
+            push_linear_memory_load_subword_constraints(
+                b,
+                op_selector(WasmOpcode::I64Load16U),
+                2,
+                linear_memory,
+                sign_extension,
+            );
         },
     );
     b.with_tag(opcode_tag("linear memory load64 routing", WasmOpcode::I64Load), |b| {
-        push_linear_memory_load64_constraints(b, stack, linear_memory);
+        push_linear_memory_load64_constraints(b, stack, linear_memory, sign_extension);
     });
 }
 
@@ -454,6 +466,7 @@ fn push_i64_load_extension_constraints(
     b: &mut R1csBuilder,
     stack: &OperandStackColumns,
     linear_memory: &LinearMemoryColumns,
+    sign_extension: &SignExtensionColumns,
 ) {
     let i64_unsigned_load_ops = load_ops_by_result_extension(64, WasmMemoryExtension::Zero);
     b.with_tag(
@@ -478,8 +491,9 @@ fn push_i64_load_extension_constraints(
                 b,
                 op_selector(WasmOpcode::I64Load8S),
                 1,
-                idx(linear_memory.access_bytes_lo[0]),
+                idx(sign_extension.bytes[0]),
                 linear_memory,
+                sign_extension,
             );
         },
     );
@@ -490,8 +504,9 @@ fn push_i64_load_extension_constraints(
                 b,
                 op_selector(WasmOpcode::I64Load16S),
                 2,
-                idx(linear_memory.access_bytes_lo[1]),
+                idx(sign_extension.bytes[1]),
                 linear_memory,
+                sign_extension,
             );
         },
     );
@@ -499,14 +514,14 @@ fn push_i64_load_extension_constraints(
         opcode_tag("linear memory i64.load32_s sign extract", WasmOpcode::I64Load32S),
         |b| {
             // Lo limb (the full word) is routed by the full-width offset gates;
-            // here we only split the top byte into sign_ext_low7 + sign_ext_bit.
+            // here we only split the top byte into low7 + 128 * sign bit.
             push_gated_linear_zero(
                 b,
                 op_selector(WasmOpcode::I64Load32S),
                 [
-                    (idx(linear_memory.access_bytes_lo[3]), F::ONE),
-                    (idx(linear_memory.sign_ext_low7), -F::ONE),
-                    (idx(linear_memory.sign_ext_bit), -f_u64(128)),
+                    (idx(sign_extension.bytes[3]), F::ONE),
+                    (idx(sign_extension.low7), -F::ONE),
+                    (idx(sign_extension.bit), -f_u64(128)),
                 ],
             );
         },
@@ -515,13 +530,13 @@ fn push_i64_load_extension_constraints(
     b.with_tag(
         shared("linear memory i64 signed load high fill", &i64_signed_load_ops),
         |b| {
-            // write0_value_hi = sign_ext_bit * 0xFFFF_FFFF (all-ones iff the
+            // write0_value_hi = sign bit * 0xFFFF_FFFF (all-ones iff the
             // sign bit is set, else 0).
             b.push_row(
                 op_selectors(&i64_signed_load_ops),
                 [
                     (idx(stack.write0_value_hi), F::ONE),
-                    (idx(linear_memory.sign_ext_bit), -f_u64(0xFFFF_FFFF)),
+                    (idx(sign_extension.bit), -f_u64(0xFFFF_FFFF)),
                 ],
                 [],
             );
@@ -533,24 +548,25 @@ fn push_store_routing_constraints(
     b: &mut R1csBuilder,
     stack: &OperandStackColumns,
     linear_memory: &LinearMemoryColumns,
+    sign_extension: &SignExtensionColumns,
 ) {
     b.with_tag(
         opcode_tag("linear memory store32 byte routing", WasmOpcode::I32Store),
         |b| {
-            push_linear_memory_store32_byte_selection(b, linear_memory);
+            push_linear_memory_store32_byte_selection(b, linear_memory, sign_extension);
         },
     );
     b.with_tag(opcode_tag("linear memory store8 routing", WasmOpcode::I32Store8), |b| {
-        push_linear_memory_store8_constraints(b, linear_memory);
+        push_linear_memory_store8_constraints(b, linear_memory, sign_extension);
     });
     b.with_tag(
         opcode_tag("linear memory store16 routing", WasmOpcode::I32Store16),
         |b| {
-            push_linear_memory_store16_constraints(b, linear_memory);
+            push_linear_memory_store16_constraints(b, linear_memory, sign_extension);
         },
     );
     b.with_tag(opcode_tag("linear memory store64 routing", WasmOpcode::I64Store), |b| {
-        push_linear_memory_store64_constraints(b, stack, linear_memory);
+        push_linear_memory_store64_constraints(b, stack, linear_memory, sign_extension);
     });
     // i64.storeN ops truncate the lo limb to N bytes and reuse the same
     // byte-selection / subword machinery as i32.storeN. The hi limb is read
@@ -560,18 +576,34 @@ fn push_store_routing_constraints(
     b.with_tag(
         opcode_tag("linear memory i64.store8 routing", WasmOpcode::I64Store8),
         |b| {
-            push_linear_memory_store_subword_constraints(b, op_selector(WasmOpcode::I64Store8), 1, linear_memory);
+            push_linear_memory_store_subword_constraints(
+                b,
+                op_selector(WasmOpcode::I64Store8),
+                1,
+                linear_memory,
+                sign_extension,
+            );
         },
     );
     b.with_tag(
         opcode_tag("linear memory i64.store16 routing", WasmOpcode::I64Store16),
         |b| {
-            push_linear_memory_store_subword_constraints(b, op_selector(WasmOpcode::I64Store16), 2, linear_memory);
+            push_linear_memory_store_subword_constraints(
+                b,
+                op_selector(WasmOpcode::I64Store16),
+                2,
+                linear_memory,
+                sign_extension,
+            );
         },
     );
 }
 
-fn push_linear_memory_load32_byte_selection(b: &mut R1csBuilder, linear_memory: &LinearMemoryColumns) {
+fn push_linear_memory_load32_byte_selection(
+    b: &mut R1csBuilder,
+    linear_memory: &LinearMemoryColumns,
+    sign_extension: &SignExtensionColumns,
+) {
     for (selector, lane_bytes) in [
         (idx(linear_memory.full_width_offset_is[0]), linear_memory.lane0_bytes),
         (
@@ -602,20 +634,24 @@ fn push_linear_memory_load32_byte_selection(b: &mut R1csBuilder, linear_memory: 
             ],
         ),
     ] {
-        push_matching_byte_constraints(b, selector, linear_memory.access_bytes_lo, lane_bytes);
+        push_matching_byte_constraints(b, selector, sign_extension.bytes, lane_bytes);
     }
 }
 
-fn push_linear_memory_store32_byte_selection(b: &mut R1csBuilder, linear_memory: &LinearMemoryColumns) {
+fn push_linear_memory_store32_byte_selection(
+    b: &mut R1csBuilder,
+    linear_memory: &LinearMemoryColumns,
+    sign_extension: &SignExtensionColumns,
+) {
     for (selector, access_bytes, lane_bytes) in [
         (
             idx(linear_memory.full_width_offset_is[0]),
-            linear_memory.access_bytes_lo,
+            sign_extension.bytes,
             linear_memory.lane0_bytes,
         ),
         (
             idx(linear_memory.full_width_offset_is[1]),
-            linear_memory.access_bytes_lo,
+            sign_extension.bytes,
             [
                 linear_memory.lane0_bytes[1],
                 linear_memory.lane0_bytes[2],
@@ -625,7 +661,7 @@ fn push_linear_memory_store32_byte_selection(b: &mut R1csBuilder, linear_memory:
         ),
         (
             idx(linear_memory.full_width_offset_is[2]),
-            linear_memory.access_bytes_lo,
+            sign_extension.bytes,
             [
                 linear_memory.lane0_bytes[2],
                 linear_memory.lane0_bytes[3],
@@ -635,7 +671,7 @@ fn push_linear_memory_store32_byte_selection(b: &mut R1csBuilder, linear_memory:
         ),
         (
             idx(linear_memory.full_width_offset_is[3]),
-            linear_memory.access_bytes_lo,
+            sign_extension.bytes,
             [
                 linear_memory.lane0_bytes[3],
                 linear_memory.lane1_bytes[0],
@@ -648,42 +684,83 @@ fn push_linear_memory_store32_byte_selection(b: &mut R1csBuilder, linear_memory:
     }
 }
 
-fn push_linear_memory_load8_u_constraints(b: &mut R1csBuilder, linear_memory: &LinearMemoryColumns) {
-    push_linear_memory_load_subword_constraints(b, selector_col(WasmOpcode::I32Load8U).unwrap(), 1, linear_memory);
+fn push_linear_memory_load8_u_constraints(
+    b: &mut R1csBuilder,
+    linear_memory: &LinearMemoryColumns,
+    sign_extension: &SignExtensionColumns,
+) {
+    push_linear_memory_load_subword_constraints(
+        b,
+        selector_col(WasmOpcode::I32Load8U).unwrap(),
+        1,
+        linear_memory,
+        sign_extension,
+    );
 }
 
-fn push_linear_memory_load8_s_constraints(b: &mut R1csBuilder, linear_memory: &LinearMemoryColumns) {
+fn push_linear_memory_load8_s_constraints(
+    b: &mut R1csBuilder,
+    linear_memory: &LinearMemoryColumns,
+    sign_extension: &SignExtensionColumns,
+) {
     push_linear_memory_load_signed_subword_constraints(
         b,
         selector_col(WasmOpcode::I32Load8S).unwrap(),
         1,
-        idx(linear_memory.access_bytes_lo[0]),
+        idx(sign_extension.bytes[0]),
         linear_memory,
+        sign_extension,
     );
 }
 
-fn push_linear_memory_store8_constraints(b: &mut R1csBuilder, linear_memory: &LinearMemoryColumns) {
-    push_linear_memory_store_subword_constraints(b, selector_col(WasmOpcode::I32Store8).unwrap(), 1, linear_memory);
+fn push_linear_memory_store8_constraints(
+    b: &mut R1csBuilder,
+    linear_memory: &LinearMemoryColumns,
+    sign_extension: &SignExtensionColumns,
+) {
+    push_linear_memory_store_subword_constraints(
+        b,
+        selector_col(WasmOpcode::I32Store8).unwrap(),
+        1,
+        linear_memory,
+        sign_extension,
+    );
 }
 
-fn push_linear_memory_load16_s_constraints(b: &mut R1csBuilder, linear_memory: &LinearMemoryColumns) {
+fn push_linear_memory_load16_s_constraints(
+    b: &mut R1csBuilder,
+    linear_memory: &LinearMemoryColumns,
+    sign_extension: &SignExtensionColumns,
+) {
     push_linear_memory_load_signed_subword_constraints(
         b,
         selector_col(WasmOpcode::I32Load16S).unwrap(),
         2,
-        idx(linear_memory.access_bytes_lo[1]),
+        idx(sign_extension.bytes[1]),
         linear_memory,
+        sign_extension,
     );
 }
 
-fn push_linear_memory_load16_u_constraints(b: &mut R1csBuilder, linear_memory: &LinearMemoryColumns) {
-    push_linear_memory_load_subword_constraints(b, selector_col(WasmOpcode::I32Load16U).unwrap(), 2, linear_memory);
+fn push_linear_memory_load16_u_constraints(
+    b: &mut R1csBuilder,
+    linear_memory: &LinearMemoryColumns,
+    sign_extension: &SignExtensionColumns,
+) {
+    push_linear_memory_load_subword_constraints(
+        b,
+        selector_col(WasmOpcode::I32Load16U).unwrap(),
+        2,
+        linear_memory,
+        sign_extension,
+    );
 }
 
 fn push_linear_memory_load64_constraints(
     b: &mut R1csBuilder,
     stack: &OperandStackColumns,
     linear_memory: &LinearMemoryColumns,
+    sign_extension: &SignExtensionColumns,
 ) {
     // Aligned (offset == 0): the 8 loaded bytes are exactly `lane0` (lo
     // limb) and `lane1` (hi limb), so a word-level binding skips the
@@ -705,8 +782,8 @@ fn push_linear_memory_load64_constraints(
         ],
     );
     // Unaligned (offset ∈ {1,2,3}): the 8 loaded bytes straddle 2 or 3
-    // lanes; match `access_bytes_lo` / `access_bytes_hi` against the
-    // shuffled lane bytes. The byte-decomp above binds those to
+    // lanes; match the shared low-byte scratch / `access_bytes_hi` against
+    // the shuffled lane bytes. The byte-decomp above binds those to
     // `stack.write0_value{,_hi}`.
     for (case_selector, low_bytes, high_bytes) in [
         (
@@ -755,7 +832,7 @@ fn push_linear_memory_load64_constraints(
             ],
         ),
     ] {
-        for (byte, lane_byte) in linear_memory.access_bytes_lo.into_iter().zip(low_bytes) {
+        for (byte, lane_byte) in sign_extension.bytes.into_iter().zip(low_bytes) {
             push_gated_linear_zero(b, case_selector, [(idx(byte), F::ONE), (idx(lane_byte), -F::ONE)]);
         }
         for (byte, lane_byte) in linear_memory.access_bytes_hi.into_iter().zip(high_bytes) {
@@ -768,6 +845,7 @@ fn push_linear_memory_store64_constraints(
     b: &mut R1csBuilder,
     stack: &OperandStackColumns,
     linear_memory: &LinearMemoryColumns,
+    sign_extension: &SignExtensionColumns,
 ) {
     push_gated_linear_zero(
         b,
@@ -826,8 +904,8 @@ fn push_linear_memory_store64_constraints(
             ],
         ),
     ] {
-        for (byte, target_byte) in linear_memory
-            .access_bytes_lo
+        for (byte, target_byte) in sign_extension
+            .bytes
             .into_iter()
             .chain(linear_memory.access_bytes_hi)
             .zip(target_bytes)
@@ -837,8 +915,18 @@ fn push_linear_memory_store64_constraints(
     }
 }
 
-fn push_linear_memory_store16_constraints(b: &mut R1csBuilder, linear_memory: &LinearMemoryColumns) {
-    push_linear_memory_store_subword_constraints(b, selector_col(WasmOpcode::I32Store16).unwrap(), 2, linear_memory);
+fn push_linear_memory_store16_constraints(
+    b: &mut R1csBuilder,
+    linear_memory: &LinearMemoryColumns,
+    sign_extension: &SignExtensionColumns,
+) {
+    push_linear_memory_store_subword_constraints(
+        b,
+        selector_col(WasmOpcode::I32Store16).unwrap(),
+        2,
+        linear_memory,
+        sign_extension,
+    );
 }
 
 fn push_linear_memory_load_subword_constraints(
@@ -846,11 +934,12 @@ fn push_linear_memory_load_subword_constraints(
     selector: usize,
     width_bytes: usize,
     linear_memory: &LinearMemoryColumns,
+    sign_extension: &SignExtensionColumns,
 ) {
-    for byte in &linear_memory.access_bytes_lo[width_bytes..] {
+    for byte in &sign_extension.bytes[width_bytes..] {
         push_gated_linear_zero(b, selector, [(idx(*byte), F::ONE)]);
     }
-    push_linear_memory_subword_byte_constraints(b, selector, width_bytes, linear_memory);
+    push_linear_memory_subword_byte_constraints(b, selector, width_bytes, linear_memory, sign_extension);
 }
 
 fn push_linear_memory_load_signed_subword_constraints(
@@ -859,22 +948,23 @@ fn push_linear_memory_load_signed_subword_constraints(
     width_bytes: usize,
     sign_source_byte: usize,
     linear_memory: &LinearMemoryColumns,
+    sign_extension: &SignExtensionColumns,
 ) {
-    push_linear_memory_subword_byte_constraints(b, selector, width_bytes, linear_memory);
+    push_linear_memory_subword_byte_constraints(b, selector, width_bytes, linear_memory, sign_extension);
     push_gated_linear_zero(
         b,
         selector,
         [
             (sign_source_byte, F::ONE),
-            (idx(linear_memory.sign_ext_low7), -F::ONE),
-            (idx(linear_memory.sign_ext_bit), -f_u64(128)),
+            (idx(sign_extension.low7), -F::ONE),
+            (idx(sign_extension.bit), -f_u64(128)),
         ],
     );
-    for byte in &linear_memory.access_bytes_lo[width_bytes..] {
+    for byte in &sign_extension.bytes[width_bytes..] {
         push_gated_linear_zero(
             b,
             selector,
-            [(idx(*byte), F::ONE), (idx(linear_memory.sign_ext_bit), -f_u64(255))],
+            [(idx(*byte), F::ONE), (idx(sign_extension.bit), -f_u64(255))],
         );
     }
 }
@@ -884,8 +974,9 @@ fn push_linear_memory_store_subword_constraints(
     selector: usize,
     width_bytes: usize,
     linear_memory: &LinearMemoryColumns,
+    sign_extension: &SignExtensionColumns,
 ) {
-    push_linear_memory_subword_byte_constraints(b, selector, width_bytes, linear_memory);
+    push_linear_memory_subword_byte_constraints(b, selector, width_bytes, linear_memory, sign_extension);
 }
 
 fn push_linear_memory_subword_byte_constraints(
@@ -893,6 +984,7 @@ fn push_linear_memory_subword_byte_constraints(
     selector: usize,
     width_bytes: usize,
     linear_memory: &LinearMemoryColumns,
+    sign_extension: &SignExtensionColumns,
 ) {
     if width_bytes == 1 {
         push_gated_linear_zero(b, selector, [(idx(linear_memory.use_lane1), F::ONE)]);
@@ -960,7 +1052,7 @@ fn push_linear_memory_subword_byte_constraints(
             ],
         ),
     ] {
-        for (access_byte, lane_byte) in linear_memory.access_bytes_lo[..width_bytes]
+        for (access_byte, lane_byte) in sign_extension.bytes[..width_bytes]
             .iter()
             .zip(lane_bytes[..width_bytes].iter())
         {

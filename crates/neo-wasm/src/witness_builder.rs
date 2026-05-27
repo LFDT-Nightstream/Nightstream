@@ -393,6 +393,22 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
             wit[COL_SIGN_EXT_BIT] = if (byte & 0x80) != 0 { F::ONE } else { F::ZERO };
         }
     }
+    if matches!(trace.opcode, super::isa::WasmOpcode::I64ExtendI32S) {
+        let value = trace.stack_read0.map(|lane| lane.value).unwrap_or(0);
+        write_u32_le_bytes(
+            &mut wit,
+            [
+                COL_LINEAR_MEM_ACCESS_BYTE0,
+                COL_LINEAR_MEM_ACCESS_BYTE1,
+                COL_LINEAR_MEM_ACCESS_BYTE2,
+                COL_LINEAR_MEM_ACCESS_BYTE3,
+            ],
+            value,
+        );
+        let top_byte = value.to_le_bytes()[3];
+        wit[COL_SIGN_EXT_LOW7] = F::from_u64(u64::from(top_byte & 0x7f));
+        wit[COL_SIGN_EXT_BIT] = if (top_byte & 0x80) != 0 { F::ONE } else { F::ZERO };
+    }
     if let Some(shout) = trace.info.shout_opcode {
         wit[COL_SHOUT_ID] = F::from_u64(u64::from(shout.to_shout_id()));
         wit[COL_SHOUT_VALUE] = F::from_u64(trace.stack_write0.map(|w| u64::from(w.value)).unwrap_or(0));

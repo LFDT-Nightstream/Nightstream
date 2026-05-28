@@ -3,7 +3,9 @@
 //! `push_comparator_constraints` in `crates/neo-wasm/src/ccs.rs` for the
 //! constraint shape.
 
-use neo_ccs::check_ccs_rowwise_zero;
+mod common;
+
+use common::{assert_rejected, assert_satisfied};
 use neo_math::F;
 use neo_wasm::layout::{
     COL_CMP_AND, COL_CMP_HI_DIFF, COL_CMP_HI_INV, COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF, COL_CMP_LO_INV,
@@ -12,30 +14,10 @@ use neo_wasm::layout::{
 };
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{
-    build_wasm_lookup_binding_layout, opcode_code, opcode_info_from_code, sanity_check_lookup_row, StackLaneAccess,
-    WasmOpcode, WasmParamInitState, WasmPcEdgeKind, WasmRowKind, WasmStepTrace, WasmVmSpec,
+    opcode_code, opcode_info_from_code, StackLaneAccess, WasmOpcode, WasmParamInitState, WasmPcEdgeKind, WasmRowKind,
+    WasmStepTrace,
 };
 use p3_field::{Field, PrimeCharacteristicRing};
-
-fn assert_satisfied(z: &[F], label: &str) {
-    let layout = build_wasm_lookup_binding_layout();
-    sanity_check_lookup_row(layout, z)
-        .unwrap_or_else(|e| panic!("{label}: expected lookup semantics satisfied, got: {e}"));
-    let vm = WasmVmSpec::default();
-    let ccs = &vm.core_ccs_spec().structure;
-    let (x, w) = (&z[..1], &z[1..]);
-    check_ccs_rowwise_zero(ccs, x, w).unwrap_or_else(|e| panic!("{label}: expected CCS satisfied, got: {e}"));
-}
-
-fn assert_rejected(z: &[F], label: &str) {
-    let vm = WasmVmSpec::default();
-    let ccs = &vm.core_ccs_spec().structure;
-    let (x, w) = (&z[..1], &z[1..]);
-    assert!(
-        check_ccs_rowwise_zero(ccs, x, w).is_err(),
-        "{label}: expected CCS rejection, but the witness was accepted"
-    );
-}
 
 fn step(
     opcode: WasmOpcode,

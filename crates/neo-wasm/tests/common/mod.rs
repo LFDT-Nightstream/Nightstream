@@ -49,6 +49,26 @@ pub fn sanity_check_trace(trace: &[WasmStepTrace], run: &WasmtimeTraceRun) -> Ve
     witnesses
 }
 
+pub fn assert_satisfied(z: &[F], label: &str) {
+    let layout = build_wasm_lookup_binding_layout();
+    sanity_check_lookup_row(layout, z)
+        .unwrap_or_else(|e| panic!("{label}: expected lookup semantics satisfied, got: {e}"));
+    let vm = WasmVmSpec::default();
+    let ccs = &vm.core_ccs_spec().structure;
+    let (x, w) = (&z[..1], &z[1..]);
+    check_ccs_rowwise_zero(ccs, x, w).unwrap_or_else(|e| panic!("{label}: expected CCS satisfied, got: {e}"));
+}
+
+pub fn assert_rejected(z: &[F], label: &str) {
+    let vm = WasmVmSpec::default();
+    let ccs = &vm.core_ccs_spec().structure;
+    let (x, w) = (&z[..1], &z[1..]);
+    assert!(
+        check_ccs_rowwise_zero(ccs, x, w).is_err(),
+        "{label}: expected CCS rejection, but the witness was accepted"
+    );
+}
+
 pub fn ccs_check_trace(trace: &[WasmStepTrace]) {
     let vm = WasmVmSpec::default();
     let ccs = &vm.core_ccs_spec().structure;

@@ -100,6 +100,9 @@ const I64_OPS: &[WasmOpcode] = &[
     WasmOpcode::I32WrapI64,
     WasmOpcode::I64ExtendI32U,
     WasmOpcode::I64ExtendI32S,
+    WasmOpcode::I64Extend8S,
+    WasmOpcode::I64Extend16S,
+    WasmOpcode::I64Extend32S,
     WasmOpcode::I64Eqz,
     WasmOpcode::I64Eq,
     WasmOpcode::I64Ne,
@@ -470,20 +473,25 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         push_i32_wrap_i64_relation(b, &stack)
     });
     b.with_tag(
-        shared(
-            "i64.extend_i32_{u,s} low relation",
-            &[WasmOpcode::I64ExtendI32U, WasmOpcode::I64ExtendI32S],
-        ),
-        |b| push_i64_extend_i32_low_relation(b, &stack),
+        opcode_tag("i64.extend_i32_u low relation", WasmOpcode::I64ExtendI32U),
+        |b| push_i64_extend_i32_u_low_relation(b, &stack),
     );
     b.with_tag(
         opcode_tag("i64.extend_i32_u high zero", WasmOpcode::I64ExtendI32U),
         |b| push_i64_extend_i32_u_high_relation(b, &stack),
     );
-    b.with_tag(
-        opcode_tag("i64.extend_i32_s high sign fill", WasmOpcode::I64ExtendI32S),
-        |b| push_i64_extend_i32_s_high_relation(b, &stack, &layout.sign_extension),
-    );
+    for (opcode, width_bytes, writes_i64) in [
+        (WasmOpcode::I64ExtendI32S, 4, true),
+        (WasmOpcode::I32Extend8S, 1, false),
+        (WasmOpcode::I32Extend16S, 2, false),
+        (WasmOpcode::I64Extend8S, 1, true),
+        (WasmOpcode::I64Extend16S, 2, true),
+        (WasmOpcode::I64Extend32S, 4, true),
+    ] {
+        b.with_tag(opcode_tag("integer sign-extension relation", opcode), |b| {
+            push_integer_sign_extend_relation(b, &stack, &layout.sign_extension, opcode, width_bytes, writes_i64);
+        });
+    }
     b.with_tag(
         shared(
             "i64 comparator high limb zero",
@@ -780,12 +788,9 @@ fn push_i32_wrap_i64_relation(b: &mut R1csBuilder, stack: &OperandStackColumns) 
     push_gated_linear_zero(b, selector, [(idx(stack.write0_value_hi), F::ONE)]);
 }
 
-fn push_i64_extend_i32_low_relation(b: &mut R1csBuilder, stack: &OperandStackColumns) {
+fn push_i64_extend_i32_u_low_relation(b: &mut R1csBuilder, stack: &OperandStackColumns) {
     b.push_row(
-        [
-            (selector_col(WasmOpcode::I64ExtendI32U).unwrap(), F::ONE),
-            (selector_col(WasmOpcode::I64ExtendI32S).unwrap(), F::ONE),
-        ],
+        [(selector_col(WasmOpcode::I64ExtendI32U).unwrap(), F::ONE)],
         [(idx(stack.write0_value), F::ONE), (idx(stack.read0_value), -F::ONE)],
         [],
     );
@@ -799,34 +804,57 @@ fn push_i64_extend_i32_u_high_relation(b: &mut R1csBuilder, stack: &OperandStack
     );
 }
 
-fn push_i64_extend_i32_s_high_relation(
+fn push_integer_sign_extend_relation(
     b: &mut R1csBuilder,
     stack: &OperandStackColumns,
     sign_extension: &SignExtensionColumns,
+    opcode: WasmOpcode,
+    width_bytes: usize,
+    writes_i64: bool,
 ) {
-    let selector = selector_col(WasmOpcode::I64ExtendI32S).unwrap();
-    // Reuses the shared sign-extension scratch columns that signed
-    // linear-memory loads use. This is sound because i64.extend_i32_s is not a
-    // linear-memory opcode, so no linear-memory byte-routing constraints are
-    // active on the same row.
+    debug_assert!((1..=4).contains(&width_bytes));
+    let selector = selector_col(opcode).unwrap();
     push_u32_le_bytes_decomp(b, [selector], idx(stack.read0_value), sign_extension.bytes.map(idx));
+
+    let sign_source = sign_extension.bytes[width_bytes - 1];
     push_gated_linear_zero(
         b,
         selector,
         [
-            (idx(sign_extension.bytes[3]), F::ONE),
+            (idx(sign_source), F::ONE),
             (idx(sign_extension.low7), -F::ONE),
             (idx(sign_extension.bit), -f_u64(128)),
         ],
     );
+
+    let retained_mask = if width_bytes == 4 {
+        u32::MAX
+    } else {
+        (1u32 << (width_bytes * 8)) - 1
+    };
+    let sign_fill = u32::MAX ^ retained_mask;
+    let retained_bytes = sign_extension.bytes[..width_bytes]
+        .iter()
+        .enumerate()
+        .map(|(byte_index, &byte)| (idx(byte), -f_u64(1u64 << (byte_index * 8))));
     b.push_row(
         [(selector, F::ONE)],
-        [
-            (idx(stack.write0_value_hi), F::ONE),
-            (idx(sign_extension.bit), -f_u64(0xffff_ffff)),
-        ],
+        std::iter::once((idx(stack.write0_value), F::ONE))
+            .chain(retained_bytes)
+            .chain(std::iter::once((idx(sign_extension.bit), -f_u64(u64::from(sign_fill))))),
         [],
     );
+
+    if writes_i64 {
+        b.push_row(
+            [(selector, F::ONE)],
+            [
+                (idx(stack.write0_value_hi), F::ONE),
+                (idx(sign_extension.bit), -f_u64(0xffff_ffff)),
+            ],
+            [],
+        );
+    }
 }
 
 /// Force `write0_value_hi = 0` on every comparator row that produces a

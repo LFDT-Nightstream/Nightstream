@@ -823,9 +823,34 @@ define_columns!(
         "selector for i64.extend_i32_s",
         ColumnWidth::Boolean
     ),
+    (
+        COL_SEL_I32_EXTEND8_S,
+        "selector for i32.extend8_s",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_SEL_I32_EXTEND16_S,
+        "selector for i32.extend16_s",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_SEL_I64_EXTEND8_S,
+        "selector for i64.extend8_s",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_SEL_I64_EXTEND16_S,
+        "selector for i64.extend16_s",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_SEL_I64_EXTEND32_S,
+        "selector for i64.extend32_s",
+        ColumnWidth::Boolean
+    ),
 );
 
-pub const SELECTOR_COLS: [usize; 88] = [
+pub const SELECTOR_COLS: [usize; 93] = [
     COL_SEL_NOP,
     COL_SEL_I32_CONST,
     COL_SEL_I64_CONST,
@@ -914,6 +939,11 @@ pub const SELECTOR_COLS: [usize; 88] = [
     COL_SEL_I32_WRAP_I64,
     COL_SEL_I64_EXTEND_I32_U,
     COL_SEL_I64_EXTEND_I32_S,
+    COL_SEL_I32_EXTEND8_S,
+    COL_SEL_I32_EXTEND16_S,
+    COL_SEL_I64_EXTEND8_S,
+    COL_SEL_I64_EXTEND16_S,
+    COL_SEL_I64_EXTEND32_S,
 ];
 
 pub fn selector_col(op: WasmOpcode) -> Option<usize> {
@@ -970,6 +1000,11 @@ pub fn selector_col(op: WasmOpcode) -> Option<usize> {
         WasmOpcode::I32WrapI64 => Some(COL_SEL_I32_WRAP_I64),
         WasmOpcode::I64ExtendI32U => Some(COL_SEL_I64_EXTEND_I32_U),
         WasmOpcode::I64ExtendI32S => Some(COL_SEL_I64_EXTEND_I32_S),
+        WasmOpcode::I32Extend8S => Some(COL_SEL_I32_EXTEND8_S),
+        WasmOpcode::I32Extend16S => Some(COL_SEL_I32_EXTEND16_S),
+        WasmOpcode::I64Extend8S => Some(COL_SEL_I64_EXTEND8_S),
+        WasmOpcode::I64Extend16S => Some(COL_SEL_I64_EXTEND16_S),
+        WasmOpcode::I64Extend32S => Some(COL_SEL_I64_EXTEND32_S),
         WasmOpcode::I32LtS => Some(COL_SEL_I32_LTS),
         WasmOpcode::I32LtU => Some(COL_SEL_I32_LTU),
         WasmOpcode::I32GtS => Some(COL_SEL_I32_GTS),

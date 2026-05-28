@@ -953,6 +953,69 @@ fn wasm_trace_run_with_i64_extend_i32() {
 }
 
 #[test]
+fn wasm_trace_run_with_integer_sign_extensions() {
+    let checked = common::checked_wasm_run(
+        r#"(module
+             (func (export "main") (result i32)
+               i32.const 128
+               i32.extend8_s
+               i32.const -128
+               i32.eq
+
+               i32.const 32768
+               i32.extend16_s
+               i32.const -32768
+               i32.eq
+               i32.add
+
+               i64.const 128
+               i64.extend8_s
+               i64.const -128
+               i64.eq
+               i32.add
+
+               i64.const 32768
+               i64.extend16_s
+               i64.const -32768
+               i64.eq
+               i32.add
+
+               i64.const 2147483648
+               i64.extend32_s
+               i64.const -2147483648
+               i64.eq
+               i32.add))"#,
+        "main",
+        &[],
+    );
+    assert_eq!(checked.run.results.as_slice(), &["5"]);
+
+    for opcode in [
+        neo_wasm::WasmOpcode::I32Extend8S,
+        neo_wasm::WasmOpcode::I32Extend16S,
+        neo_wasm::WasmOpcode::I64Extend8S,
+        neo_wasm::WasmOpcode::I64Extend16S,
+        neo_wasm::WasmOpcode::I64Extend32S,
+    ] {
+        let row = checked
+            .trace
+            .iter()
+            .find(|row| row.opcode == opcode)
+            .unwrap_or_else(|| panic!("missing {opcode:?} row"));
+        assert_eq!(
+            row.wide_values_enabled,
+            matches!(
+                opcode,
+                neo_wasm::WasmOpcode::I64Extend8S
+                    | neo_wasm::WasmOpcode::I64Extend16S
+                    | neo_wasm::WasmOpcode::I64Extend32S
+            ),
+            "{opcode:?} wide value flag"
+        );
+    }
+}
+
+#[test]
 fn wasm_trace_run_folding_proof() {
     let (_, trace, ..) = compile_and_trace(
         r#"(module (func (export "main") (result i32)

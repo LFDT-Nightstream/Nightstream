@@ -393,7 +393,13 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
             wit[COL_SIGN_EXT_BIT] = if (byte & 0x80) != 0 { F::ONE } else { F::ZERO };
         }
     }
-    if matches!(trace.opcode, super::isa::WasmOpcode::I64ExtendI32S) {
+    let integer_sign_extend_source = match trace.opcode {
+        super::isa::WasmOpcode::I32Extend8S | super::isa::WasmOpcode::I64Extend8S => Some(0),
+        super::isa::WasmOpcode::I32Extend16S | super::isa::WasmOpcode::I64Extend16S => Some(1),
+        super::isa::WasmOpcode::I64ExtendI32S | super::isa::WasmOpcode::I64Extend32S => Some(3),
+        _ => None,
+    };
+    if let Some(byte_index) = integer_sign_extend_source {
         let value = trace.stack_read0.map(|lane| lane.value).unwrap_or(0);
         write_u32_le_bytes(
             &mut wit,
@@ -405,9 +411,13 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
             ],
             value,
         );
-        let top_byte = value.to_le_bytes()[3];
-        wit[COL_SIGN_EXT_LOW7] = F::from_u64(u64::from(top_byte & 0x7f));
-        wit[COL_SIGN_EXT_BIT] = if (top_byte & 0x80) != 0 { F::ONE } else { F::ZERO };
+        let sign_source_byte = value.to_le_bytes()[byte_index];
+        wit[COL_SIGN_EXT_LOW7] = F::from_u64(u64::from(sign_source_byte & 0x7f));
+        wit[COL_SIGN_EXT_BIT] = if (sign_source_byte & 0x80) != 0 {
+            F::ONE
+        } else {
+            F::ZERO
+        };
     }
     if let Some(shout) = trace.info.shout_opcode {
         wit[COL_SHOUT_ID] = F::from_u64(u64::from(shout.to_shout_id()));

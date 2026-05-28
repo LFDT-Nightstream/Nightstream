@@ -228,6 +228,7 @@ pub fn padding_step_after(prev: &WasmStepTrace) -> WasmStepTrace {
     let fbp = prev.locals_fbp_after;
     let pc = prev.pc_after;
     let sp = prev.sp_after;
+    let call_stack_depth = prev.call_stack_depth_after;
     let param_init = prev.param_init_after;
     debug_assert!(
         !param_init.active,
@@ -253,6 +254,15 @@ pub fn padding_step_after(prev: &WasmStepTrace) -> WasmStepTrace {
         stack_writes_override: Some(0),
         sp_before: sp,
         sp_after: sp,
+        output_enabled_before: prev.output_enabled_after,
+        output_enabled_after: prev.output_enabled_after,
+        output_value_lo_before: prev.output_value_lo_after,
+        output_value_lo_after: prev.output_value_lo_after,
+        output_value_hi_before: prev.output_value_hi_after,
+        output_value_hi_after: prev.output_value_hi_after,
+        output_captured: false,
+        call_stack_depth_before: call_stack_depth,
+        call_stack_depth_after: call_stack_depth,
         current_function_ref: prev.current_function_ref,
         current_function_num_locals: prev.current_function_num_locals,
         stack_read0: None,

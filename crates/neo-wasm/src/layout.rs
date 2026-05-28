@@ -5,7 +5,8 @@ use p3_field::PrimeCharacteristicRing;
 
 use super::isa::{opcode_code, WasmOpcode};
 
-pub const PUBLIC_INPUTS: usize = 1;
+pub const PUBLIC_INPUTS: usize = 7;
+pub const CALL_RETURN_PC_CHOICE: u64 = 1;
 
 /// Declared intrinsic range for a witness column.
 ///
@@ -74,6 +75,36 @@ macro_rules! define_columns {
 
 define_columns!(
     (COL_ONE, ""),
+    (
+        COL_OUTPUT_ENABLED_BEFORE,
+        "carried simple-output flag before this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_OUTPUT_ENABLED_AFTER,
+        "carried simple-output flag after this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_OUTPUT_VALUE_LO_BEFORE,
+        "carried simple-output low limb before this row",
+        ColumnWidth::U32
+    ),
+    (
+        COL_OUTPUT_VALUE_LO_AFTER,
+        "carried simple-output low limb after this row",
+        ColumnWidth::U32
+    ),
+    (
+        COL_OUTPUT_VALUE_HI_BEFORE,
+        "carried simple-output high limb before this row",
+        ColumnWidth::U32
+    ),
+    (
+        COL_OUTPUT_VALUE_HI_AFTER,
+        "carried simple-output high limb after this row",
+        ColumnWidth::U32
+    ),
     (COL_OPCODE_CODE, "opcode decode selector source", ColumnWidth::U32),
     (COL_PC_BEFORE, "transition source pc", ColumnWidth::U32),
     (COL_PC_AFTER, "transition destination pc", ColumnWidth::U32),
@@ -90,6 +121,11 @@ define_columns!(
     (
         COL_WIDE_VALUES_ENABLED,
         "row flag enabling high limbs for i64-shaped values",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_OUTPUT_CAPTURED,
+        "one-row gate when the simple-output carry captures a halted result",
         ColumnWidth::Boolean
     ),
     (COL_SP_BEFORE, "transition source stack pointer", ColumnWidth::U32),
@@ -163,6 +199,26 @@ define_columns!(
     (
         COL_CALL_STACK_POP_CALLER_FBP,
         "saved caller locals frame base restored by a non-final return row",
+        ColumnWidth::U32
+    ),
+    (
+        COL_CALL_STACK_DEPTH_BEFORE,
+        "call return-context stack depth before this row",
+        ColumnWidth::U32
+    ),
+    (
+        COL_CALL_STACK_DEPTH_AFTER,
+        "call return-context stack depth after this row",
+        ColumnWidth::U32
+    ),
+    (
+        COL_CALL_STACK_ADDR,
+        "call return-context stack address read or written this row",
+        ColumnWidth::U32
+    ),
+    (
+        COL_CALL_STACK_RETURN_PC_CHOICE,
+        "pc-rom control choice used to bind a pushed call return pc",
         ColumnWidth::U32
     ),
     (

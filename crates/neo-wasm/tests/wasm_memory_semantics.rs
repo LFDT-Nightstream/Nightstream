@@ -1,5 +1,8 @@
 use neo_math::F;
-use neo_wasm::layout::{COL_CURRENT_FUNCTION_NUM_LOCALS, COL_CURRENT_FUNCTION_REF, COL_LOCALS_FBP_AFTER};
+use neo_wasm::layout::{
+    CALL_RETURN_PC_CHOICE, COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_POP_RETURN_PC, COL_CURRENT_FUNCTION_NUM_LOCALS,
+    COL_CURRENT_FUNCTION_REF, COL_LOCALS_FBP_AFTER,
+};
 use neo_wasm::{
     build_wasm_lookup_binding_layout, collect_wasmtime_steps, preload_from_wasmtime_run, sanity_check_memory_rows,
     traces_from_wasmtime_steps, witness_builder::build_witness_vector, WasmMemoryPreload, WasmOpcode,
@@ -56,6 +59,29 @@ fn memory_semantics_reject_missing_pc_rom_edge() {
 }
 
 #[test]
+fn memory_semantics_reject_missing_call_return_pc_rom_edge() {
+    let (trace, witnesses, mut preload) = witness_run(
+        r#"(module
+            (func $add_one (param i32) (result i32)
+                local.get 0
+                i32.const 1
+                i32.add)
+            (func (export "run") (result i32)
+                i32.const 5
+                call $add_one))
+        "#,
+    );
+    let call_row = trace
+        .iter()
+        .find(|row| row.call_stack_push.is_some())
+        .expect("call row");
+    preload.remove("pc_rom", &[call_row.pc_before, CALL_RETURN_PC_CHOICE]);
+    let layout = build_wasm_lookup_binding_layout();
+    let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("missing return edge must fail");
+    assert!(err.contains("memory `pc_rom` ROM read before initialization"));
+}
+
+#[test]
 fn memory_semantics_rejects_broken_locals_fbp_cross_step_link() {
     let (trace, mut witnesses, preload) = witness_run(
         r#"(module
@@ -78,6 +104,54 @@ fn memory_semantics_rejects_broken_locals_fbp_cross_step_link() {
     let layout = build_wasm_lookup_binding_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("broken fbp link must fail");
     assert!(err.contains("cross-step link `locals_fbp_continuity`"));
+}
+
+#[test]
+fn memory_semantics_rejects_broken_call_stack_depth_cross_step_link() {
+    let (trace, mut witnesses, preload) = witness_run(
+        r#"(module
+            (func $add_one (param i32) (result i32)
+                local.get 0
+                i32.const 1
+                i32.add)
+            (func (export "run") (result i32)
+                i32.const 5
+                call $add_one))
+        "#,
+    );
+    let call_index = trace
+        .iter()
+        .position(|row| matches!(row.opcode, WasmOpcode::Call))
+        .expect("call row");
+    witnesses[call_index][COL_CALL_STACK_DEPTH_AFTER] += F::ONE;
+
+    let layout = build_wasm_lookup_binding_layout();
+    let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("broken depth link must fail");
+    assert!(err.contains("cross-step link `call_stack_depth_continuity`"));
+}
+
+#[test]
+fn memory_semantics_rejects_return_pc_not_read_from_call_stack() {
+    let (trace, mut witnesses, preload) = witness_run(
+        r#"(module
+            (func $add_one (param i32) (result i32)
+                local.get 0
+                i32.const 1
+                i32.add)
+            (func (export "run") (result i32)
+                i32.const 5
+                call $add_one))
+        "#,
+    );
+    let return_index = trace
+        .iter()
+        .position(|row| row.call_stack_pop.is_some())
+        .expect("non-final return row");
+    witnesses[return_index][COL_CALL_STACK_POP_RETURN_PC] += F::ONE;
+
+    let layout = build_wasm_lookup_binding_layout();
+    let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("broken return pc read must fail");
+    assert!(err.contains("memory `call_stack_return_pcs` read mismatch"));
 }
 
 #[test]

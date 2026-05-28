@@ -864,10 +864,14 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
     let mut out = Vec::with_capacity(supported.len());
     // Runtime call stack: (return_pc, caller_fbp). Grows on Call, shrinks on non-final Return.
     let mut call_stack: Vec<(u64, u64)> = Vec::new();
+    let mut call_stack_depth: u64 = 0;
     // Frame base pointer: absolute offset in the flat locals array where current function's
     // locals start. FBP_callee = FBP_caller + num_locals_caller.
     let mut fbp: u64 = 0;
     let mut param_init_state = WasmParamInitState::ZERO;
+    let mut output_enabled = false;
+    let mut output_value_lo = 0;
+    let mut output_value_hi = 0;
 
     for (idx, current) in supported.iter().enumerate() {
         let next = supported.get(idx + 1);
@@ -894,6 +898,21 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
         let stack_write0 = write_lane(current, next, sp_after)?;
         // Only the very last step of the whole trace is halted.
         let halted = next.is_none();
+        let output_enabled_before = output_enabled;
+        let output_value_lo_before = output_value_lo;
+        let output_value_hi_before = output_value_hi;
+        let mut output_captured = false;
+        if halted && !output_enabled {
+            if let Some(value) = current.operand_stack.last().copied() {
+                output_enabled = true;
+                output_value_lo = value;
+                output_value_hi = current.operand_stack_hi.last().copied().unwrap_or(0);
+                output_captured = true;
+            }
+        }
+        let output_enabled_after = output_enabled;
+        let output_value_lo_after = output_value_lo;
+        let output_value_hi_after = output_value_hi;
 
         // local_read_value: the local's value before this step (local.get: pushed onto stack).
         // local_write_value: the value being stored into the local (local.set / local.tee:
@@ -921,6 +940,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
 
         // FBP tracking and call/return handling.
         let current_fbp = fbp;
+        let call_stack_depth_before = call_stack_depth;
         let call_stack_push;
         let call_stack_pop;
         let callee_initial_params;
@@ -970,6 +990,9 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                     callee_initial_params = collect_callee_initial_params(next, callee_fbp, param_count);
                     guest_callee_fbp = Some(callee_fbp);
                     call_stack.push((return_pc, current_fbp));
+                    call_stack_depth = call_stack_depth.checked_add(1).ok_or_else(|| {
+                        WasmBuildError::Trace(format!("call stack depth overflow at cycle {}", current.cycle))
+                    })?;
                     fbp = callee_fbp;
                 }
             }
@@ -980,6 +1003,9 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                 call_stack_pop = Some((ret_pc, caller_fbp));
                 callee_initial_params = vec![];
                 guest_callee_fbp = None;
+                call_stack_depth = call_stack_depth.checked_sub(1).ok_or_else(|| {
+                    WasmBuildError::Trace(format!("call stack depth underflow at cycle {}", current.cycle))
+                })?;
                 fbp = caller_fbp;
             }
             _ => {
@@ -989,6 +1015,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                 guest_callee_fbp = None;
             }
         }
+        let call_stack_depth_after = call_stack_depth;
 
         let program_cycle = out.len() as u64;
         let param_init_before = param_init_state;
@@ -1025,6 +1052,15 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
             stack_writes_override: current.stack_writes_override,
             sp_before,
             sp_after,
+            output_enabled_before,
+            output_enabled_after,
+            output_value_lo_before,
+            output_value_lo_after,
+            output_value_hi_before,
+            output_value_hi_after,
+            output_captured,
+            call_stack_depth_before,
+            call_stack_depth_after,
             current_function_ref: current.current_function_ref.unwrap_or(0),
             current_function_num_locals: current.num_locals,
             stack_read0,
@@ -1150,6 +1186,15 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                     stack_writes_override: Some(0),
                     sp_before: sp_after,
                     sp_after,
+                    output_enabled_before: output_enabled,
+                    output_enabled_after: output_enabled,
+                    output_value_lo_before: output_value_lo,
+                    output_value_lo_after: output_value_lo,
+                    output_value_hi_before: output_value_hi,
+                    output_value_hi_after: output_value_hi,
+                    output_captured: false,
+                    call_stack_depth_before: call_stack_depth_after,
+                    call_stack_depth_after,
                     current_function_ref: callee_function_ref,
                     current_function_num_locals: current.num_locals,
                     stack_read0: Some(src),

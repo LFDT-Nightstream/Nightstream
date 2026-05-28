@@ -245,8 +245,16 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
     stack_io::push_stack_io_constraints(&mut b, layout);
 
     b.with_tag(always("narrow high limbs zero"), |b| {
+        b.push_row(
+            [(idx(stack.read0_value_hi), F::ONE)],
+            [
+                (COL_ONE, F::ONE),
+                (idx(control.wide_values_enabled), -F::ONE),
+                (idx(layout.output.captured), -F::ONE),
+            ],
+            [],
+        );
         for column in [
-            stack.read0_value_hi,
             stack.read1_value_hi,
             stack.read2_value_hi,
             stack.write0_value_hi,

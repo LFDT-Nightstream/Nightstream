@@ -21,10 +21,10 @@
 
 use super::super::gadgets::{push_gated_linear_zero, push_zero_test_gadget};
 use super::super::isa::WasmOpcode;
-use super::super::layout::{selector_col, COL_ONE};
+use super::super::layout::{selector_col, CALL_RETURN_PC_CHOICE, COL_ONE};
 use super::super::lookup_binding_builder::{
     CallColumns, ControlColumns, FrameColumns, FunctionTypeColumns, LocalsColumns, ModuleTypeColumns,
-    OperandStackColumns, ParamInitColumns, StateColumns, TableColumns, WasmLookupBindingLayout,
+    OperandStackColumns, OutputColumns, ParamInitColumns, StateColumns, TableColumns, WasmLookupBindingLayout,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::{always, idx};
@@ -45,6 +45,7 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder, layout: &WasmLookupBind
     let call = layout.call;
     let frame = layout.frame;
     let stack = layout.stack;
+    let output = layout.output;
     let locals = layout.locals;
     let function_types = layout.function_types;
     let module_types = layout.module_types;
@@ -85,6 +86,14 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder, layout: &WasmLookupBind
             b,
             padding_gate,
             [
+                (idx(call.call_stack_depth_after), F::ONE),
+                (idx(call.call_stack_depth_before), -F::ONE),
+            ],
+        );
+        push_gated_linear_zero(
+            b,
+            padding_gate,
+            [
                 (idx(param_init.param_init_active_after), F::ONE),
                 (idx(param_init.param_init_active_before), -F::ONE),
             ],
@@ -98,6 +107,8 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder, layout: &WasmLookupBind
             ],
         );
     });
+
+    push_simple_output_constraints(b, &control, &state, &stack, &output);
 
     b.with_tag(always("non-program row shape"), |b| {
         // pc_after == pc_before; stack_reads == stack_writes == 0
@@ -175,6 +186,10 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder, layout: &WasmLookupBind
         );
     });
 
+    b.with_tag(always("call stack transition"), |b| {
+        push_call_stack_transition_constraints(b, &control, &call, &frame);
+    });
+
     b.with_tag(always("locals fbp transition"), |b| {
         push_locals_fbp_transition_constraints(b, &call, &frame);
     });
@@ -188,6 +203,75 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder, layout: &WasmLookupBind
 
     b.with_tag(always("dynamic call stack arity"), |b| {
         push_dynamic_call_stack_arity_constraints(b, &control, &function_types, &table);
+    });
+}
+
+fn push_simple_output_constraints(
+    b: &mut R1csBuilder,
+    control: &ControlColumns,
+    state: &StateColumns,
+    stack: &OperandStackColumns,
+    output: &OutputColumns,
+) {
+    let enabled_delta = [
+        (idx(output.enabled_after), F::ONE),
+        (idx(output.enabled_before), -F::ONE),
+    ];
+    b.with_tag(always("simple output carry"), |b| {
+        for (after, before) in [
+            (output.enabled_after, output.enabled_before),
+            (output.value_lo_after, output.value_lo_before),
+            (output.value_hi_after, output.value_hi_before),
+        ] {
+            b.push_row(
+                [(COL_ONE, F::ONE), (idx(control.halted), -F::ONE)],
+                [(idx(after), F::ONE), (idx(before), -F::ONE)],
+                [],
+            );
+            push_gated_linear_zero(
+                b,
+                idx(output.enabled_before),
+                [(idx(after), F::ONE), (idx(before), -F::ONE)],
+            );
+        }
+
+        b.push_linear_zero(
+            enabled_delta
+                .into_iter()
+                .chain([(idx(output.captured), -F::ONE)]),
+        );
+        b.push_row(
+            [(idx(output.captured), F::ONE)],
+            [(COL_ONE, F::ONE), (idx(control.halted), -F::ONE)],
+            [],
+        );
+        b.push_row(
+            [(idx(output.captured), F::ONE)],
+            [(idx(output.enabled_before), F::ONE)],
+            [],
+        );
+        b.push_row(
+            [(idx(output.captured), F::ONE)],
+            [
+                (idx(stack.read0_addr), F::ONE),
+                (idx(state.sp_before), -F::ONE),
+                (COL_ONE, F::ONE),
+            ],
+            [],
+        );
+        b.push_row(
+            [(idx(output.captured), F::ONE)],
+            [(idx(output.value_lo_after), F::ONE), (idx(stack.read0_value), -F::ONE)],
+            [],
+        );
+        b.push_row(
+            [(idx(output.captured), F::ONE)],
+            [
+                (idx(output.value_hi_after), F::ONE),
+                (idx(stack.read0_value_hi), -F::ONE),
+            ],
+            [],
+        );
     });
 }
 
@@ -360,6 +444,60 @@ fn push_call_param_init_aux_row_constraints(
         selector,
         [(idx(state.pc_after), F::ONE), (idx(state.pc_before), -F::ONE)],
     );
+}
+
+fn push_call_stack_transition_constraints(
+    b: &mut R1csBuilder,
+    control: &ControlColumns,
+    call: &CallColumns,
+    frame: &FrameColumns,
+) {
+    let push = idx(call.call_stack_push_present);
+    let pop = idx(call.call_stack_pop_present);
+
+    // Push increments the return-context stack, pop decrements it, and every
+    // other row preserves it. Range-checking on the depth columns rules out
+    // underflow in the bounded witness model.
+    b.push_linear_zero([
+        (idx(call.call_stack_depth_after), F::ONE),
+        (idx(call.call_stack_depth_before), -F::ONE),
+        (push, -F::ONE),
+        (pop, F::ONE),
+    ]);
+
+    push_gated_linear_zero(
+        b,
+        push,
+        [
+            (idx(call.call_stack_addr), F::ONE),
+            (idx(call.call_stack_depth_before), -F::ONE),
+        ],
+    );
+    push_gated_linear_zero(
+        b,
+        push,
+        [
+            (idx(call.call_stack_return_pc_choice), F::ONE),
+            (COL_ONE, -F::from_u64(CALL_RETURN_PC_CHOICE)),
+        ],
+    );
+    push_gated_linear_zero(
+        b,
+        pop,
+        [
+            (idx(call.call_stack_addr), F::ONE),
+            (idx(call.call_stack_depth_after), -F::ONE),
+        ],
+    );
+    push_gated_linear_zero(
+        b,
+        push,
+        [
+            (idx(call.call_stack_pop_caller_fbp), F::ONE),
+            (idx(frame.locals_fbp_before), -F::ONE),
+        ],
+    );
+    push_gated_linear_zero(b, idx(control.halted), [(idx(call.call_stack_depth_before), F::ONE)]);
 }
 
 fn push_locals_fbp_transition_constraints(b: &mut R1csBuilder, call: &CallColumns, frame: &FrameColumns) {

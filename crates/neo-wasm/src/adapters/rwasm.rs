@@ -16,6 +16,9 @@ pub fn traces_from_rwasm_instr_states(
 ) -> Result<Vec<WasmStepTrace>, WasmBuildError> {
     let mut out = Vec::with_capacity(rows.len());
     let mut sp = initial_stack_pointer;
+    let mut output_enabled = false;
+    let mut output_value_lo = 0u32;
+    let output_value_hi = 0u32;
 
     for (idx, row) in rows.iter().enumerate() {
         let info = opcode_info_from_concrete(row.opcode);
@@ -63,6 +66,16 @@ pub fn traces_from_rwasm_instr_states(
         let opcode_code = u16::try_from(row.opcode.code())
             .map_err(|_| WasmBuildError::Trace(format!("opcode code does not fit u16 at row {idx}")))?;
         let halted = matches!(info.opcode, WasmOpcode::Return | WasmOpcode::Trap);
+        let output_enabled_before = output_enabled;
+        let output_value_lo_before = output_value_lo;
+        let mut output_captured = false;
+        if halted && !output_enabled {
+            if let Some(read) = stack_read0 {
+                output_enabled = true;
+                output_value_lo = read.value;
+                output_captured = true;
+            }
+        }
 
         out.push(WasmStepTrace {
             cycle: idx as u64,
@@ -81,6 +94,15 @@ pub fn traces_from_rwasm_instr_states(
             stack_writes_override: None,
             sp_before,
             sp_after,
+            output_enabled_before,
+            output_enabled_after: output_enabled,
+            output_value_lo_before,
+            output_value_lo_after: output_value_lo,
+            output_value_hi_before: output_value_hi,
+            output_value_hi_after: output_value_hi,
+            output_captured,
+            call_stack_depth_before: 0,
+            call_stack_depth_after: 0,
             current_function_ref: 0,
             current_function_num_locals: 0,
             stack_read0,

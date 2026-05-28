@@ -1,13 +1,13 @@
 use super::isa::WasmShoutOpcode;
 use super::layout::{
-    selector_col, COL_CALL_INDIRECT_TYPE_INDEX, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT,
-    COL_CALL_STACK_POP_CALLER_FBP, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_POP_RETURN_PC,
-    COL_CALL_STACK_PUSH_PRESENT, COL_CONTROL_CHOICE, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_CURRENT_FUNCTION_REF,
-    COL_EXPECTED_TYPE_ID, COL_FUNCTION_REF, COL_FUNCTION_TYPE_ID, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE,
-    COL_GLOBAL_VALUE_HI, COL_HALTED, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1,
-    COL_LINEAR_MEM_ACCESS_BYTE2, COL_LINEAR_MEM_ACCESS_BYTE3, COL_LINEAR_MEM_ACCESS_BYTE4, COL_LINEAR_MEM_ACCESS_BYTE5,
-    COL_LINEAR_MEM_ACCESS_BYTE6, COL_LINEAR_MEM_ACCESS_BYTE7, COL_LINEAR_MEM_BYTE_OFFSET,
-    COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1,
+    selector_col, COL_CALL_INDIRECT_TYPE_INDEX, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR,
+    COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE, COL_CALL_STACK_POP_CALLER_FBP, COL_CALL_STACK_POP_PRESENT,
+    COL_CALL_STACK_POP_RETURN_PC, COL_CALL_STACK_PUSH_PRESENT, COL_CALL_STACK_RETURN_PC_CHOICE, COL_CONTROL_CHOICE,
+    COL_CURRENT_FUNCTION_NUM_LOCALS, COL_CURRENT_FUNCTION_REF, COL_EXPECTED_TYPE_ID, COL_FUNCTION_REF,
+    COL_FUNCTION_TYPE_ID, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI, COL_HALTED, COL_IS_PROGRAM_ROW,
+    COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1, COL_LINEAR_MEM_ACCESS_BYTE2, COL_LINEAR_MEM_ACCESS_BYTE3,
+    COL_LINEAR_MEM_ACCESS_BYTE4, COL_LINEAR_MEM_ACCESS_BYTE5, COL_LINEAR_MEM_ACCESS_BYTE6, COL_LINEAR_MEM_ACCESS_BYTE7,
+    COL_LINEAR_MEM_BYTE_OFFSET, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1,
     COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_2, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_3,
     COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_1,
     COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_2, COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_3,
@@ -27,7 +27,9 @@ use super::layout::{
     COL_LINEAR_MEM_OFFSET_IS_2, COL_LINEAR_MEM_OFFSET_IS_3, COL_LINEAR_MEM_USE_LANE0, COL_LINEAR_MEM_USE_LANE1,
     COL_LINEAR_MEM_USE_LANE2, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE, COL_LOCAL_INDEX, COL_LOCAL_VALUE,
     COL_LOCAL_VALUE_HI, COL_LOCAL_WRITE_ENABLED, COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_OPCODE_CODE,
-    COL_PADDING_ACTIVE, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_AFTER,
+    COL_OUTPUT_CAPTURED, COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER,
+    COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE, COL_PADDING_ACTIVE,
+    COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_AFTER,
     COL_PARAM_INIT_REMAINING_AFTER_INV, COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PARAM_INIT_REMAINING_BEFORE,
     COL_PC_AFTER, COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE,
     COL_SHOUT_ENABLED, COL_SHOUT_ID, COL_SHOUT_VALUE, COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7, COL_SP_AFTER, COL_SP_BEFORE,
@@ -257,6 +259,17 @@ pub struct StateColumns {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OutputColumns {
+    pub enabled_before: Column,
+    pub enabled_after: Column,
+    pub value_lo_before: Column,
+    pub value_lo_after: Column,
+    pub value_hi_before: Column,
+    pub value_hi_after: Column,
+    pub captured: Column,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ParamInitColumns {
     pub param_init_active_before: Column,
     pub param_init_active_after: Column,
@@ -272,6 +285,10 @@ pub struct CallColumns {
     pub call_stack_pop_present: Column,
     pub call_stack_pop_return_pc: Column,
     pub call_stack_pop_caller_fbp: Column,
+    pub call_stack_depth_before: Column,
+    pub call_stack_depth_after: Column,
+    pub call_stack_addr: Column,
+    pub call_stack_return_pc_choice: Column,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -298,6 +315,7 @@ pub struct WasmLookupBindingLayout {
     pub cross_step_links: Vec<WasmCrossStepLinkSpec>,
     pub control: ControlColumns,
     pub state: StateColumns,
+    pub output: OutputColumns,
     pub param_init: ParamInitColumns,
     pub call: CallColumns,
     pub frame: FrameColumns,
@@ -340,10 +358,21 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
     let wide_values_enabled = Column(COL_WIDE_VALUES_ENABLED);
     let sp_before = Column(COL_SP_BEFORE);
     let sp_after = Column(COL_SP_AFTER);
+    let output_enabled_before = Column(COL_OUTPUT_ENABLED_BEFORE);
+    let output_enabled_after = Column(COL_OUTPUT_ENABLED_AFTER);
+    let output_value_lo_before = Column(COL_OUTPUT_VALUE_LO_BEFORE);
+    let output_value_lo_after = Column(COL_OUTPUT_VALUE_LO_AFTER);
+    let output_value_hi_before = Column(COL_OUTPUT_VALUE_HI_BEFORE);
+    let output_value_hi_after = Column(COL_OUTPUT_VALUE_HI_AFTER);
+    let output_captured = Column(COL_OUTPUT_CAPTURED);
     let halted = Column(COL_HALTED);
     let call_stack_pop_present = Column(COL_CALL_STACK_POP_PRESENT);
     let call_stack_pop_return_pc = Column(COL_CALL_STACK_POP_RETURN_PC);
     let call_stack_pop_caller_fbp = Column(COL_CALL_STACK_POP_CALLER_FBP);
+    let call_stack_depth_before = Column(COL_CALL_STACK_DEPTH_BEFORE);
+    let call_stack_depth_after = Column(COL_CALL_STACK_DEPTH_AFTER);
+    let call_stack_addr = Column(COL_CALL_STACK_ADDR);
+    let call_stack_return_pc_choice = Column(COL_CALL_STACK_RETURN_PC_CHOICE);
     let current_function_ref = Column(COL_CURRENT_FUNCTION_REF);
     let current_function_num_locals = Column(COL_CURRENT_FUNCTION_NUM_LOCALS);
     let stack_reads = Column(COL_STACK_READS);
@@ -467,6 +496,15 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
         sp_before,
         sp_after,
     };
+    let output = OutputColumns {
+        enabled_before: output_enabled_before,
+        enabled_after: output_enabled_after,
+        value_lo_before: output_value_lo_before,
+        value_lo_after: output_value_lo_after,
+        value_hi_before: output_value_hi_before,
+        value_hi_after: output_value_hi_after,
+        captured: output_captured,
+    };
     let param_init = ParamInitColumns {
         param_init_active_before,
         param_init_active_after,
@@ -480,6 +518,10 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
         call_stack_pop_present,
         call_stack_pop_return_pc,
         call_stack_pop_caller_fbp,
+        call_stack_depth_before,
+        call_stack_depth_after,
+        call_stack_addr,
+        call_stack_return_pc_choice,
     };
     let frame = FrameColumns {
         current_function_ref,
@@ -731,6 +773,12 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     address_columns: vec![stack.read0_addr],
                     value_column: stack.read0_value,
                     kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(output.captured),
+                },
+                WasmMemoryColumnSpec {
+                    address_columns: vec![stack.read0_addr],
+                    value_column: stack.read0_value,
+                    kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(param_init.param_init_active_before),
                 },
                 WasmMemoryColumnSpec {
@@ -750,6 +798,42 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     value_column: stack.write0_value,
                     kind: WasmMemoryColumnKind::Write,
                     activation: WasmMemoryActivation::BooleanGate(control.stack_write0_active),
+                },
+            ],
+            is_rom: false,
+        },
+        WasmMemorySpec {
+            name: "call_stack_return_pcs",
+            columns: vec![
+                WasmMemoryColumnSpec {
+                    address_columns: vec![call.call_stack_addr],
+                    value_column: call.call_stack_pop_return_pc,
+                    kind: WasmMemoryColumnKind::Write,
+                    activation: WasmMemoryActivation::BooleanGate(call.call_stack_push_present),
+                },
+                WasmMemoryColumnSpec {
+                    address_columns: vec![call.call_stack_addr],
+                    value_column: call.call_stack_pop_return_pc,
+                    kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(call.call_stack_pop_present),
+                },
+            ],
+            is_rom: false,
+        },
+        WasmMemorySpec {
+            name: "call_stack_caller_fbps",
+            columns: vec![
+                WasmMemoryColumnSpec {
+                    address_columns: vec![call.call_stack_addr],
+                    value_column: call.call_stack_pop_caller_fbp,
+                    kind: WasmMemoryColumnKind::Write,
+                    activation: WasmMemoryActivation::BooleanGate(call.call_stack_push_present),
+                },
+                WasmMemoryColumnSpec {
+                    address_columns: vec![call.call_stack_addr],
+                    value_column: call.call_stack_pop_caller_fbp,
+                    kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(call.call_stack_pop_present),
                 },
             ],
             is_rom: false,
@@ -1010,12 +1094,20 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
         },
         WasmMemorySpec {
             name: "pc_rom",
-            columns: vec![WasmMemoryColumnSpec {
-                address_columns: vec![state.pc_before, control.control_choice],
-                value_column: state.pc_after,
-                kind: WasmMemoryColumnKind::Read,
-                activation: WasmMemoryActivation::BooleanGate(control.pc_rom_active),
-            }],
+            columns: vec![
+                WasmMemoryColumnSpec {
+                    address_columns: vec![state.pc_before, control.control_choice],
+                    value_column: state.pc_after,
+                    kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(control.pc_rom_active),
+                },
+                WasmMemoryColumnSpec {
+                    address_columns: vec![state.pc_before, call.call_stack_return_pc_choice],
+                    value_column: call.call_stack_pop_return_pc,
+                    kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(call.call_stack_push_present),
+                },
+            ],
             is_rom: true,
         },
     ];
@@ -1035,6 +1127,32 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
             column_pairs: vec![WasmCrossStepColumnPair {
                 prev_after: state.sp_after,
                 next_before: state.sp_before,
+            }],
+        },
+        WasmCrossStepLinkSpec {
+            name: "output_continuity",
+            description: "row[i].simple output carry must match row[i+1].simple output carry",
+            column_pairs: vec![
+                WasmCrossStepColumnPair {
+                    prev_after: output.enabled_after,
+                    next_before: output.enabled_before,
+                },
+                WasmCrossStepColumnPair {
+                    prev_after: output.value_lo_after,
+                    next_before: output.value_lo_before,
+                },
+                WasmCrossStepColumnPair {
+                    prev_after: output.value_hi_after,
+                    next_before: output.value_hi_before,
+                },
+            ],
+        },
+        WasmCrossStepLinkSpec {
+            name: "call_stack_depth_continuity",
+            description: "row[i].call_stack_depth_after must match row[i+1].call_stack_depth_before",
+            column_pairs: vec![WasmCrossStepColumnPair {
+                prev_after: call.call_stack_depth_after,
+                next_before: call.call_stack_depth_before,
             }],
         },
         WasmCrossStepLinkSpec {
@@ -1077,6 +1195,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
         cross_step_links,
         control,
         state,
+        output,
         param_init,
         call,
         frame,

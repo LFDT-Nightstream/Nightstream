@@ -61,6 +61,9 @@ impl Default for WasmParamInitState {
 pub struct WasmBoundaryState {
     pub pc: u64,
     pub sp: u64,
+    pub output_enabled: bool,
+    pub output_value_lo: u32,
+    pub output_value_hi: u32,
     pub memory_pages: Option<u32>,
     pub locals_fbp: u64,
     pub halted: bool,
@@ -114,6 +117,15 @@ pub struct WasmStepTrace {
     pub stack_writes_override: Option<u8>,
     pub sp_before: u64,
     pub sp_after: u64,
+    pub output_enabled_before: bool,
+    pub output_enabled_after: bool,
+    pub output_value_lo_before: u32,
+    pub output_value_lo_after: u32,
+    pub output_value_hi_before: u32,
+    pub output_value_hi_after: u32,
+    pub output_captured: bool,
+    pub call_stack_depth_before: u64,
+    pub call_stack_depth_after: u64,
     /// Normalized function reference for the currently executing frame.
     /// `function_ref` below is opcode-target metadata, not this frame identity.
     pub current_function_ref: u32,
@@ -210,6 +222,9 @@ pub fn boundary_states(trace: &[WasmStepTrace]) -> Vec<(WasmBoundaryState, WasmB
                 WasmBoundaryState {
                     pc: row.pc_before,
                     sp: row.sp_before,
+                    output_enabled: row.output_enabled_before,
+                    output_value_lo: row.output_value_lo_before,
+                    output_value_hi: row.output_value_hi_before,
                     memory_pages: row.memory_pages_before,
                     locals_fbp: row.locals_fbp,
                     halted: false,
@@ -218,6 +233,9 @@ pub fn boundary_states(trace: &[WasmStepTrace]) -> Vec<(WasmBoundaryState, WasmB
                 WasmBoundaryState {
                     pc: row.pc_after,
                     sp: row.sp_after,
+                    output_enabled: row.output_enabled_after,
+                    output_value_lo: row.output_value_lo_after,
+                    output_value_hi: row.output_value_hi_after,
                     memory_pages: row.memory_pages_after,
                     locals_fbp: row.locals_fbp_after,
                     halted: row.halted,

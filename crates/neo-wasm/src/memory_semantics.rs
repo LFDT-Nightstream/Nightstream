@@ -243,6 +243,8 @@ fn assert_all_memory_specs_have_init_modes(layout: &WasmLookupBindingLayout) -> 
 
 const MEMORY_INIT_MODES: &[(&str, DebugInitMode)] = &[
     ("stack", DebugInitMode::Strict),
+    ("call_stack_return_pcs", DebugInitMode::Strict),
+    ("call_stack_caller_fbps", DebugInitMode::Strict),
     ("linear_memory", DebugInitMode::ZeroReadDefault),
     ("locals", DebugInitMode::FirstReadDefines),
     ("globals", DebugInitMode::FirstReadDefines),

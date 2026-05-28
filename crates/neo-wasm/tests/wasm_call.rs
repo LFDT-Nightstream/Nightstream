@@ -1,9 +1,11 @@
 mod common;
 
+use neo_wasm::layout::{COL_CALL_STACK_RETURN_PC_CHOICE, COL_OUTPUT_VALUE_LO_AFTER, COL_STACK_READ0_VALUE};
 use neo_wasm::{
     build_wasm_lookup_binding_layout, collect_wasmtime_steps, preload_from_wasmtime_run, sanity_check_memory_rows,
     traces_from_wasmtime_steps, WasmAuxOpcode, WasmOpcode, WasmRowKind, WasmStepTrace,
 };
+use p3_field::PrimeCharacteristicRing;
 
 fn add_one_wasm() -> Vec<u8> {
     wat::parse_str(
@@ -227,6 +229,82 @@ fn call_trace_passes_witness_checks() {
         trace.iter().any(|row| row.call_stack_pop.is_some()),
         "trace must contain a call_stack_pop"
     );
+}
+
+#[test]
+fn halted_row_requires_empty_call_stack_depth() {
+    let wasm = add_one_wasm();
+    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
+    let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
+    let mut final_row = trace
+        .iter()
+        .find(|row| row.halted)
+        .expect("halted row")
+        .clone();
+    final_row.call_stack_depth_before = 1;
+    final_row.call_stack_depth_after = 1;
+
+    let witness = neo_wasm::witness_builder::build_witness_vector(&final_row);
+    common::assert_rejected(&witness, "halted row with non-empty call stack depth");
+}
+
+#[test]
+fn call_row_pins_return_pc_rom_choice() {
+    let wasm = add_one_wasm();
+    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
+    let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
+    let call_row = trace
+        .iter()
+        .find(|row| row.call_stack_push.is_some())
+        .expect("call row");
+    let mut witness = neo_wasm::witness_builder::build_witness_vector(call_row);
+    witness[COL_CALL_STACK_RETURN_PC_CHOICE] = neo_math::F::ZERO;
+    common::assert_rejected(&witness, "call row with unpinned return pc choice");
+}
+
+#[test]
+fn final_halt_captures_simple_output() {
+    let wasm = add_one_wasm();
+    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
+    let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
+    let final_row = trace.iter().find(|row| row.halted).expect("halted row");
+
+    assert!(final_row.output_captured, "halted row should capture the result");
+    assert!(final_row.output_enabled_after, "result carry should be enabled");
+    assert_eq!(final_row.output_value_lo_after, 6);
+    assert_eq!(final_row.output_value_hi_after, 0);
+}
+
+#[test]
+fn final_halt_output_low_is_row_bound() {
+    let wasm = add_one_wasm();
+    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
+    let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
+    let final_row = trace.iter().find(|row| row.halted).expect("halted row");
+    let mut witness = neo_wasm::witness_builder::build_witness_vector(final_row);
+
+    witness[COL_OUTPUT_VALUE_LO_AFTER] = neo_math::F::from_u64(7);
+
+    common::assert_rejected(&witness, "halted output with mismatched low limb");
+}
+
+#[test]
+fn final_halt_output_low_is_stack_memory_bound() {
+    let wasm = add_one_wasm();
+    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
+    let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
+    let layout = build_wasm_lookup_binding_layout();
+    let mut witnesses = build_witnesses(&trace);
+    let final_idx = trace.iter().position(|row| row.halted).expect("halted row");
+
+    witnesses[final_idx][COL_OUTPUT_VALUE_LO_AFTER] = neo_math::F::from_u64(7);
+    witnesses[final_idx][COL_STACK_READ0_VALUE] = neo_math::F::from_u64(7);
+
+    let preload = preload_from_wasmtime_run(&run, &run.initial_locals);
+    let err = sanity_check_memory_rows(layout, &witnesses, &preload)
+        .err()
+        .expect("must reject output stack memory mismatch");
+    assert!(err.contains("memory `stack`"), "unexpected error: {err}");
 }
 
 #[test]

@@ -13,6 +13,7 @@ use super::decode::{
 };
 use crate::ir::{WasmBuildError, WasmPcEdgeKind};
 use crate::isa::WasmOpcode;
+use crate::layout::CALL_RETURN_PC_CHOICE;
 use std::collections::BTreeMap;
 use wasmparser::{Parser, Payload};
 
@@ -499,6 +500,7 @@ impl ParsedWasmArtifactsBuilder {
                         wasmparser::Operator::Call { function_index } => {
                             let function_ref = function_index.saturating_add(1);
                             self.call_targets.push((pc_before, u64::from(function_ref)));
+                            self.push_pc_rom_edge(pc_before, CALL_RETURN_PC_CHOICE, pc_after);
                             if function_ref <= self.imported_function_count {
                                 self.push_pc_rom_edge(pc_before, 0, pc_after);
                             } else {
@@ -511,6 +513,9 @@ impl ParsedWasmArtifactsBuilder {
                                     None => self.unresolved_call_edges.push((pc_before, function_ref)),
                                 }
                             }
+                        }
+                        wasmparser::Operator::CallIndirect { .. } => {
+                            self.push_pc_rom_edge(pc_before, CALL_RETURN_PC_CHOICE, pc_after);
                         }
                         wasmparser::Operator::Unreachable | wasmparser::Operator::Return => {}
                         _ => self.push_pc_rom_edge(pc_before, 0, pc_after),

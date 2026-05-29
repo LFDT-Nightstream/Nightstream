@@ -171,7 +171,7 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder, layout: &WasmLookupBind
             [(idx(call.call_stack_pop_present), F::ONE)],
             [
                 (idx(state.pc_after), F::ONE),
-                (idx(call.call_stack_pop_return_pc), -F::ONE),
+                (idx(call.call_stack_access_return_pc), -F::ONE),
             ],
             [],
         );
@@ -254,8 +254,8 @@ fn push_simple_output_constraints(
             [(idx(output.captured), F::ONE)],
             [
                 (idx(stack.read0_addr), F::ONE),
-                (idx(state.sp_before), -F::ONE),
-                (COL_ONE, F::ONE),
+                (idx(state.sp_before), -F::from_u64(2)),
+                (COL_ONE, F::from_u64(2)),
             ],
             [],
         );
@@ -418,9 +418,9 @@ fn push_call_param_init_aux_row_constraints(
             //
             // remaining goes down, so stack_addr may go up (the rhs is constant while selector is on)
             (idx(stack.read0_addr), F::ONE),
-            (idx(state.sp_before), -F::ONE),
-            (idx(function_types.param_count), -F::ONE),
-            (idx(param_init.param_init_remaining_before), F::ONE),
+            (idx(state.sp_before), -F::from_u64(2)),
+            (idx(function_types.param_count), -F::from_u64(2)),
+            (idx(param_init.param_init_remaining_before), F::from_u64(2)),
         ],
     );
 
@@ -493,7 +493,7 @@ fn push_call_stack_transition_constraints(
         b,
         push,
         [
-            (idx(call.call_stack_pop_caller_fbp), F::ONE),
+            (idx(call.call_stack_access_caller_fbp), F::ONE),
             (idx(frame.locals_fbp_before), -F::ONE),
         ],
     );
@@ -518,7 +518,7 @@ fn push_locals_fbp_transition_constraints(b: &mut R1csBuilder, call: &CallColumn
         pop,
         [
             (idx(frame.locals_fbp_after), F::ONE),
-            (idx(call.call_stack_pop_caller_fbp), -F::ONE),
+            (idx(call.call_stack_access_caller_fbp), -F::ONE),
         ],
     );
     b.push_row(

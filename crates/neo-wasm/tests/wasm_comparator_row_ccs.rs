@@ -28,6 +28,13 @@ fn step(
     stack_write0: Option<StackLaneAccess>,
     wide_values_enabled: bool,
 ) -> WasmStepTrace {
+    fn physical(access: Option<StackLaneAccess>) -> Option<StackLaneAccess> {
+        access.map(|lane| StackLaneAccess {
+            addr: lane.addr * 2,
+            value: lane.value,
+        })
+    }
+
     let code = opcode_code(opcode);
     WasmStepTrace {
         cycle: 0,
@@ -57,13 +64,13 @@ fn step(
         call_stack_depth_after: 0,
         current_function_ref: 0,
         current_function_num_locals: 0,
-        stack_read0,
+        stack_read0: physical(stack_read0),
         stack_read0_hi: None,
-        stack_read1,
+        stack_read1: physical(stack_read1),
         stack_read1_hi: None,
         stack_read2: None,
         stack_read2_hi: None,
-        stack_write0,
+        stack_write0: physical(stack_write0),
         stack_write0_hi: None,
         linear_memory: None,
         linear_memory_offset: 0,

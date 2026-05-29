@@ -75,35 +75,23 @@ macro_rules! define_columns {
 
 define_columns!(
     (COL_ONE, ""),
-    (
-        COL_OUTPUT_ENABLED_BEFORE,
-        "carried simple-output flag before this row",
-        ColumnWidth::Boolean
-    ),
-    (
-        COL_OUTPUT_ENABLED_AFTER,
-        "carried simple-output flag after this row",
-        ColumnWidth::Boolean
-    ),
+    (COL_OUTPUT_ENABLED_BEFORE, "carried simple-output flag before this row"),
+    (COL_OUTPUT_ENABLED_AFTER, "carried simple-output flag after this row"),
     (
         COL_OUTPUT_VALUE_LO_BEFORE,
-        "carried simple-output low limb before this row",
-        ColumnWidth::U32
+        "carried simple-output low limb before this row"
     ),
     (
         COL_OUTPUT_VALUE_LO_AFTER,
-        "carried simple-output low limb after this row",
-        ColumnWidth::U32
+        "carried simple-output low limb after this row"
     ),
     (
         COL_OUTPUT_VALUE_HI_BEFORE,
-        "carried simple-output high limb before this row",
-        ColumnWidth::U32
+        "carried simple-output high limb before this row"
     ),
     (
         COL_OUTPUT_VALUE_HI_AFTER,
-        "carried simple-output high limb after this row",
-        ColumnWidth::U32
+        "carried simple-output high limb after this row"
     ),
     (COL_OPCODE_CODE, "opcode decode selector source", ColumnWidth::U32),
     (COL_PC_BEFORE, "transition source pc", ColumnWidth::U32),
@@ -432,7 +420,12 @@ define_columns!(
     ),
     (
         COL_STACK_READ0_ADDR,
-        "operand-stack read lane 0 address",
+        "operand-stack read lane 0 low-limb physical address",
+        ColumnWidth::U32
+    ),
+    (
+        COL_STACK_READ0_ADDR_HI,
+        "operand-stack read lane 0 high-limb physical address",
         ColumnWidth::U32
     ),
     (
@@ -447,7 +440,12 @@ define_columns!(
     ),
     (
         COL_STACK_READ1_ADDR,
-        "operand-stack read lane 1 address",
+        "operand-stack read lane 1 low-limb physical address",
+        ColumnWidth::U32
+    ),
+    (
+        COL_STACK_READ1_ADDR_HI,
+        "operand-stack read lane 1 high-limb physical address",
         ColumnWidth::U32
     ),
     (
@@ -462,7 +460,12 @@ define_columns!(
     ),
     (
         COL_STACK_READ2_ADDR,
-        "operand-stack read lane 2 address",
+        "operand-stack read lane 2 low-limb physical address",
+        ColumnWidth::U32
+    ),
+    (
+        COL_STACK_READ2_ADDR_HI,
+        "operand-stack read lane 2 high-limb physical address",
         ColumnWidth::U32
     ),
     (
@@ -477,7 +480,12 @@ define_columns!(
     ),
     (
         COL_STACK_WRITE0_ADDR,
-        "operand-stack write lane 0 address",
+        "operand-stack write lane 0 low-limb physical address",
+        ColumnWidth::U32
+    ),
+    (
+        COL_STACK_WRITE0_ADDR_HI,
+        "operand-stack write lane 0 high-limb physical address",
         ColumnWidth::U32
     ),
     (

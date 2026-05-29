@@ -38,7 +38,7 @@ fn batched_at_one_matches_single_step_shape() {
         single.sparse_r1cs.n, core.structure.n,
         "n must match single-step (no link rows at N=1)"
     );
-    assert_eq!(single.sparse_r1cs.m_in, 1);
+    assert_eq!(single.sparse_r1cs.m_in, core.m_in);
 }
 
 #[test]

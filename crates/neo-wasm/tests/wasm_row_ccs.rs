@@ -36,6 +36,13 @@ fn step(
     linear_memory_offset: u64,
     halted: bool,
 ) -> WasmStepTrace {
+    fn physical(access: Option<StackLaneAccess>) -> Option<StackLaneAccess> {
+        access.map(|lane| StackLaneAccess {
+            addr: lane.addr * 2,
+            value: lane.value,
+        })
+    }
+
     WasmStepTrace {
         cycle,
         row_kind: WasmRowKind::Program,
@@ -69,13 +76,13 @@ fn step(
         call_stack_depth_after: 0,
         current_function_ref: 0,
         current_function_num_locals: 0,
-        stack_read0,
+        stack_read0: physical(stack_read0),
         stack_read0_hi: None,
-        stack_read1,
+        stack_read1: physical(stack_read1),
         stack_read1_hi: None,
-        stack_read2,
+        stack_read2: physical(stack_read2),
         stack_read2_hi: None,
-        stack_write0,
+        stack_write0: physical(stack_write0),
         stack_write0_hi: None,
         linear_memory,
         linear_memory_offset,
@@ -167,7 +174,7 @@ fn normalization_tracks_stack_pointer_for_binary_op() {
     assert_eq!(trace[2].sp_before, 2);
     assert_eq!(trace[2].sp_after, 1);
     assert_eq!(trace[2].stack_read0.expect("lhs").addr, 0);
-    assert_eq!(trace[2].stack_read1.expect("rhs").addr, 1);
+    assert_eq!(trace[2].stack_read1.expect("rhs").addr, 2);
     assert_eq!(trace[2].stack_write0.expect("out").addr, 0);
     assert_eq!(trace[2].opcode, WasmOpcode::I32Add);
 }

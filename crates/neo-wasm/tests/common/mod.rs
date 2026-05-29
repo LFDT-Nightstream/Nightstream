@@ -55,14 +55,16 @@ pub fn assert_satisfied(z: &[F], label: &str) {
         .unwrap_or_else(|e| panic!("{label}: expected lookup semantics satisfied, got: {e}"));
     let vm = WasmVmSpec::default();
     let ccs = &vm.core_ccs_spec().structure;
-    let (x, w) = (&z[..1], &z[1..]);
+    let m_in = vm.core_ccs_spec().m_in;
+    let (x, w) = (&z[..m_in], &z[m_in..]);
     check_ccs_rowwise_zero(ccs, x, w).unwrap_or_else(|e| panic!("{label}: expected CCS satisfied, got: {e}"));
 }
 
 pub fn assert_rejected(z: &[F], label: &str) {
     let vm = WasmVmSpec::default();
     let ccs = &vm.core_ccs_spec().structure;
-    let (x, w) = (&z[..1], &z[1..]);
+    let m_in = vm.core_ccs_spec().m_in;
+    let (x, w) = (&z[..m_in], &z[m_in..]);
     assert!(
         check_ccs_rowwise_zero(ccs, x, w).is_err(),
         "{label}: expected CCS rejection, but the witness was accepted"
@@ -75,7 +77,8 @@ pub fn ccs_check_trace(trace: &[WasmStepTrace]) {
     let catalog = vm.constraint_catalog();
     for (idx, row) in trace.iter().enumerate() {
         let witness = build_witness_vector(row);
-        let (x, w) = (&witness[..1], &witness[1..]);
+        let m_in = vm.core_ccs_spec().m_in;
+        let (x, w) = (&witness[..m_in], &witness[m_in..]);
         check_ccs_rowwise_zero(ccs, x, w).unwrap_or_else(|err| {
             let detail = err.to_string();
             let row_idx = detail

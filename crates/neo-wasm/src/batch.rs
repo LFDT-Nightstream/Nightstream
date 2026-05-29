@@ -17,8 +17,9 @@
 //!      the spec, an equality row across adjacent blocks.
 //!
 //! Witness shape: `m_batch = batch_size * m_single`. Step `s`'s columns
-//! live at `z[s * m_single .. (s+1) * m_single]`. `m_in = 1` (the single
-//! global constant slot at `z[0]`).
+//! live at `z[s * m_single .. (s+1) * m_single]`. The first step's public
+//! prefix remains the batched public prefix; later step copies are linked by
+//! explicit continuity rows where needed.
 //!
 //! Padding: when a trace isn't a multiple of `batch_size`, we extend it
 //! with synthetic `WasmAuxOpcode::Padding` rows. Each padding row has
@@ -81,7 +82,6 @@ pub fn build_batched_wasm_ccs(batch_size: usize) -> Result<BatchedWasmCcs, Batch
     let m_single = core.structure.m;
     let n_single = core.structure.n;
     assert_eq!(m_single, WITNESS_WIDTH);
-    assert_eq!(core.m_in, 1, "wasm m_in must be 1 (just the constant slot)");
 
     let layout = build_wasm_lookup_binding_layout();
     let link_pairs: Vec<(usize, usize)> = layout
@@ -150,7 +150,7 @@ pub fn build_batched_wasm_ccs(batch_size: usize) -> Result<BatchedWasmCcs, Batch
     let b = CcsMatrix::Csc(CscMat::from_triplets(b_triplets, n_batch, m_batch));
     let c = CcsMatrix::Csc(CscMat::from_triplets(c_triplets, n_batch, m_batch));
 
-    let sparse_r1cs = SparseR1cs::new(a, b, c, n_batch, m_batch, 1)?;
+    let sparse_r1cs = SparseR1cs::new(a, b, c, n_batch, m_batch, core.m_in)?;
 
     let widths_single = wasm_app_private_var_widths();
     let mut all_widths = Vec::with_capacity(m_batch);

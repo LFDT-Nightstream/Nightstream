@@ -79,7 +79,8 @@ pub fn canonical_wasm_f_prime_shape_batched(
     batch_size: usize,
 ) -> Result<WasmCanonicalFPrimeShape, WasmPreprocessError> {
     let batched = batch::build_batched_wasm_ccs(batch_size)?;
-    let (plan, structure) = wasm_recursive_plan_and_structure(&batched.sparse_r1cs, &batched.widths, 1);
+    let (plan, structure) =
+        wasm_recursive_plan_and_structure(&batched.sparse_r1cs, &batched.widths, batched.sparse_r1cs.m_in);
     Ok(WasmCanonicalFPrimeShape {
         sparse_r1cs: batched.sparse_r1cs,
         plan,

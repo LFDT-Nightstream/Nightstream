@@ -56,7 +56,7 @@ pub fn traces_from_rwasm_instr_states(
         let stack_write0 = write_lane(
             row.memory_access.c,
             if info.stack_writes > 0 {
-                Some(sp_after.saturating_sub(1))
+                Some(sp_after.saturating_sub(1).saturating_mul(2))
             } else {
                 None
             },
@@ -182,23 +182,23 @@ fn write_lane(
 fn read_addr0(sp_before: u64, reads: u8) -> Option<u64> {
     match reads {
         0 => None,
-        1 => Some(sp_before.saturating_sub(1)),
-        2 => Some(sp_before.saturating_sub(2)),
-        _ => Some(sp_before.saturating_sub(3)),
+        1 => Some(sp_before.saturating_sub(1).saturating_mul(2)),
+        2 => Some(sp_before.saturating_sub(2).saturating_mul(2)),
+        _ => Some(sp_before.saturating_sub(3).saturating_mul(2)),
     }
 }
 
 fn read_addr1(sp_before: u64, reads: u8) -> Option<u64> {
     match reads {
         0 | 1 => None,
-        2 => Some(sp_before.saturating_sub(1)),
-        _ => Some(sp_before.saturating_sub(2)),
+        2 => Some(sp_before.saturating_sub(1).saturating_mul(2)),
+        _ => Some(sp_before.saturating_sub(2).saturating_mul(2)),
     }
 }
 
 fn read_addr2(sp_before: u64, reads: u8) -> Option<u64> {
     if reads >= 3 {
-        Some(sp_before.saturating_sub(1))
+        Some(sp_before.saturating_sub(1).saturating_mul(2))
     } else {
         None
     }

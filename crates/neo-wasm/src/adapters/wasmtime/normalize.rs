@@ -112,10 +112,22 @@ fn normalize_supported_row(row: &WasmtimeTraceStep) -> Result<Option<SupportedRo
     let operand_stack_hi = row.operand_stack_words_hi.clone();
     let code = opcode_code(opcode);
     let (stack_reads_override, stack_writes_override) = match opcode {
-        WasmOpcode::Call => row.call_param_count.map(|params| (Some(params), Some(0))),
-        WasmOpcode::CallIndirect => row
-            .call_param_count
-            .map(|params| (Some(params.saturating_add(1)), Some(0))),
+        WasmOpcode::Call => row.call_param_count.map(|params| {
+            let writes = if row.target_function_is_guest {
+                0
+            } else {
+                row.call_result_count.unwrap_or(0)
+            };
+            (Some(params), Some(writes))
+        }),
+        WasmOpcode::CallIndirect => row.call_param_count.map(|params| {
+            let writes = if row.target_function_is_guest {
+                0
+            } else {
+                row.call_result_count.unwrap_or(0)
+            };
+            (Some(params.saturating_add(1)), Some(writes))
+        }),
         _ => Some((None, None)),
     }
     .unwrap_or((None, None));
@@ -247,6 +259,15 @@ fn normalize_supported_row(row: &WasmtimeTraceStep) -> Result<Option<SupportedRo
                 | WasmOpcode::I64Extend8S
                 | WasmOpcode::I64Extend16S
                 | WasmOpcode::I64Extend32S
+                | WasmOpcode::Drop
+                | WasmOpcode::Select
+                | WasmOpcode::Call
+                | WasmOpcode::CallIndirect
+                | WasmOpcode::LocalGet
+                | WasmOpcode::LocalSet
+                | WasmOpcode::LocalTee
+                | WasmOpcode::GlobalGet
+                | WasmOpcode::GlobalSet
         ),
         stack_reads_override,
         stack_writes_override,
@@ -757,8 +778,9 @@ fn write_lane(
     current: &SupportedRow,
     next: Option<&SupportedRow>,
     sp_after: u64,
+    stack_writes: u8,
 ) -> Result<Option<StackLaneAccess>, WasmBuildError> {
-    if current.info.stack_writes == 0 {
+    if stack_writes == 0 {
         return Ok(None);
     }
 
@@ -788,6 +810,14 @@ fn write_lane(
         WasmOpcode::TableGet => current.table_value.ok_or_else(|| {
             WasmBuildError::Trace(format!("missing table value for table.get at cycle {}", current.cycle))
         })?,
+        WasmOpcode::Call | WasmOpcode::CallIndirect => next
+            .and_then(|row| row.operand_stack.last().copied())
+            .ok_or_else(|| {
+                WasmBuildError::Trace(format!(
+                    "missing Wasmtime post-call stack result for {} at cycle {}",
+                    current.info.name, current.cycle
+                ))
+            })?,
         // local.tee leaves the current top of stack unchanged on the stack.
         WasmOpcode::LocalTee => current.operand_stack.last().copied().ok_or_else(|| {
             WasmBuildError::Trace(format!("missing stack top for local.tee at cycle {}", current.cycle))
@@ -803,13 +833,17 @@ fn write_lane(
     };
 
     Ok(Some(StackLaneAccess {
-        addr: sp_after.saturating_sub(1),
+        addr: sp_after.saturating_sub(1).saturating_mul(2),
         value,
     }))
 }
 
-fn write_lane_hi(current: &SupportedRow, next: Option<&SupportedRow>) -> Result<Option<u32>, WasmBuildError> {
-    if current.info.stack_writes == 0 {
+fn write_lane_hi(
+    current: &SupportedRow,
+    next: Option<&SupportedRow>,
+    stack_writes: u8,
+) -> Result<Option<u32>, WasmBuildError> {
+    if stack_writes == 0 {
         return Ok(None);
     }
 
@@ -847,6 +881,9 @@ fn write_lane_hi(current: &SupportedRow, next: Option<&SupportedRow>) -> Result<
             })?,
         WasmOpcode::LocalGet => current.local_value_hi.unwrap_or(0),
         WasmOpcode::GlobalGet => current.global_value_before_hi.unwrap_or(0),
+        WasmOpcode::Call | WasmOpcode::CallIndirect => next
+            .and_then(|row| row.operand_stack_hi.last().copied())
+            .unwrap_or(0),
         _ => 0,
     };
 
@@ -895,7 +932,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
         let stack_read0 = read_lane(&current.operand_stack, sp_before, stack_reads, 0);
         let stack_read1 = read_lane(&current.operand_stack, sp_before, stack_reads, 1);
         let stack_read2 = read_lane(&current.operand_stack, sp_before, stack_reads, 2);
-        let stack_write0 = write_lane(current, next, sp_after)?;
+        let stack_write0 = write_lane(current, next, sp_after, stack_writes)?;
         // Only the very last step of the whole trace is halted.
         let halted = next.is_none();
         let output_enabled_before = output_enabled;
@@ -1070,7 +1107,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
             stack_read2,
             stack_read2_hi: read_lane_hi(&current.operand_stack_hi, stack_reads, 2),
             stack_write0,
-            stack_write0_hi: write_lane_hi(current, next)?,
+            stack_write0_hi: write_lane_hi(current, next, stack_writes)?,
             linear_memory: current.linear_memory,
             linear_memory_offset: current.linear_memory_offset,
             memory_pages_before: current.memory_pages_before,

@@ -177,7 +177,7 @@ fn layout_describes_lookup_families_and_memory_bindings() {
         .iter()
         .find(|memory| memory.name == "pc_rom")
         .expect("pc_rom memory");
-    assert_eq!(pc_rom_memory.columns.len(), 1);
+    assert_eq!(pc_rom_memory.columns.len(), 2);
     assert_eq!(pc_rom_memory.columns[0].address_columns.len(), 2);
     assert!(matches!(
         pc_rom_memory.columns[0].activation,

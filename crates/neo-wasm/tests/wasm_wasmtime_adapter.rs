@@ -79,7 +79,7 @@ fn wasmtime_steps_normalize_to_wasm_ir() {
 
     assert_eq!(trace[2].opcode, WasmOpcode::I32Add);
     assert_eq!(trace[2].stack_read0, Some(StackLaneAccess { addr: 0, value: 7 }));
-    assert_eq!(trace[2].stack_read1, Some(StackLaneAccess { addr: 1, value: 9 }));
+    assert_eq!(trace[2].stack_read1, Some(StackLaneAccess { addr: 2, value: 9 }));
     assert_eq!(trace[2].stack_write0, Some(StackLaneAccess { addr: 0, value: 16 }));
 
     assert_eq!(trace[3].opcode, WasmOpcode::End);

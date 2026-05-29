@@ -33,10 +33,11 @@ use super::layout::{
     COL_PARAM_INIT_REMAINING_AFTER_INV, COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PARAM_INIT_REMAINING_BEFORE,
     COL_PC_AFTER, COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE,
     COL_SHOUT_ENABLED, COL_SHOUT_ID, COL_SHOUT_VALUE, COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7, COL_SP_AFTER, COL_SP_BEFORE,
-    COL_STACK_READ0_ACTIVE, COL_STACK_READ0_ADDR, COL_STACK_READ0_VALUE, COL_STACK_READ0_VALUE_HI,
-    COL_STACK_READ1_ACTIVE, COL_STACK_READ1_ADDR, COL_STACK_READ1_VALUE, COL_STACK_READ1_VALUE_HI,
-    COL_STACK_READ2_ACTIVE, COL_STACK_READ2_ADDR, COL_STACK_READ2_VALUE, COL_STACK_READ2_VALUE_HI, COL_STACK_READS,
-    COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR, COL_STACK_WRITE0_VALUE, COL_STACK_WRITE0_VALUE_HI,
+    COL_STACK_READ0_ACTIVE, COL_STACK_READ0_ADDR, COL_STACK_READ0_ADDR_HI, COL_STACK_READ0_VALUE,
+    COL_STACK_READ0_VALUE_HI, COL_STACK_READ1_ACTIVE, COL_STACK_READ1_ADDR, COL_STACK_READ1_ADDR_HI,
+    COL_STACK_READ1_VALUE, COL_STACK_READ1_VALUE_HI, COL_STACK_READ2_ACTIVE, COL_STACK_READ2_ADDR,
+    COL_STACK_READ2_ADDR_HI, COL_STACK_READ2_VALUE, COL_STACK_READ2_VALUE_HI, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE,
+    COL_STACK_WRITE0_ADDR, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_VALUE, COL_STACK_WRITE0_VALUE_HI,
     COL_STACK_WRITES, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE, COL_TABLE_VALUE,
     COL_TARGET_FUNCTION_IS_GUEST, COL_WIDE_VALUES_ENABLED, WITNESS_WIDTH,
 };
@@ -114,15 +115,19 @@ pub struct WasmCrossStepColumnPair {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OperandStackColumns {
     pub read0_addr: Column,
+    pub read0_addr_hi: Column,
     pub read0_value: Column,
     pub read0_value_hi: Column,
     pub read1_addr: Column,
+    pub read1_addr_hi: Column,
     pub read1_value: Column,
     pub read1_value_hi: Column,
     pub read2_addr: Column,
+    pub read2_addr_hi: Column,
     pub read2_value: Column,
     pub read2_value_hi: Column,
     pub write0_addr: Column,
+    pub write0_addr_hi: Column,
     pub write0_value: Column,
     pub write0_value_hi: Column,
 }
@@ -283,8 +288,8 @@ pub struct ParamInitColumns {
 pub struct CallColumns {
     pub call_stack_push_present: Column,
     pub call_stack_pop_present: Column,
-    pub call_stack_pop_return_pc: Column,
-    pub call_stack_pop_caller_fbp: Column,
+    pub call_stack_access_return_pc: Column,
+    pub call_stack_access_caller_fbp: Column,
     pub call_stack_depth_before: Column,
     pub call_stack_depth_after: Column,
     pub call_stack_addr: Column,
@@ -367,8 +372,8 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
     let output_captured = Column(COL_OUTPUT_CAPTURED);
     let halted = Column(COL_HALTED);
     let call_stack_pop_present = Column(COL_CALL_STACK_POP_PRESENT);
-    let call_stack_pop_return_pc = Column(COL_CALL_STACK_POP_RETURN_PC);
-    let call_stack_pop_caller_fbp = Column(COL_CALL_STACK_POP_CALLER_FBP);
+    let call_stack_access_return_pc = Column(COL_CALL_STACK_POP_RETURN_PC);
+    let call_stack_access_caller_fbp = Column(COL_CALL_STACK_POP_CALLER_FBP);
     let call_stack_depth_before = Column(COL_CALL_STACK_DEPTH_BEFORE);
     let call_stack_depth_after = Column(COL_CALL_STACK_DEPTH_AFTER);
     let call_stack_addr = Column(COL_CALL_STACK_ADDR);
@@ -516,8 +521,8 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
     let call = CallColumns {
         call_stack_push_present,
         call_stack_pop_present,
-        call_stack_pop_return_pc,
-        call_stack_pop_caller_fbp,
+        call_stack_access_return_pc,
+        call_stack_access_caller_fbp,
         call_stack_depth_before,
         call_stack_depth_after,
         call_stack_addr,
@@ -531,15 +536,19 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
     };
     let stack = OperandStackColumns {
         read0_addr: Column(COL_STACK_READ0_ADDR),
+        read0_addr_hi: Column(COL_STACK_READ0_ADDR_HI),
         read0_value: Column(COL_STACK_READ0_VALUE),
         read0_value_hi: Column(COL_STACK_READ0_VALUE_HI),
         read1_addr: Column(COL_STACK_READ1_ADDR),
+        read1_addr_hi: Column(COL_STACK_READ1_ADDR_HI),
         read1_value: Column(COL_STACK_READ1_VALUE),
         read1_value_hi: Column(COL_STACK_READ1_VALUE_HI),
         read2_addr: Column(COL_STACK_READ2_ADDR),
+        read2_addr_hi: Column(COL_STACK_READ2_ADDR_HI),
         read2_value: Column(COL_STACK_READ2_VALUE),
         read2_value_hi: Column(COL_STACK_READ2_VALUE_HI),
         write0_addr: Column(COL_STACK_WRITE0_ADDR),
+        write0_addr_hi: Column(COL_STACK_WRITE0_ADDR_HI),
         write0_value: Column(COL_STACK_WRITE0_VALUE),
         write0_value_hi: Column(COL_STACK_WRITE0_VALUE_HI),
     };
@@ -770,8 +779,20 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     activation: WasmMemoryActivation::BooleanGate(control.stack_read0_active),
                 },
                 WasmMemoryColumnSpec {
+                    address_columns: vec![stack.read0_addr_hi],
+                    value_column: stack.read0_value_hi,
+                    kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(control.stack_read0_active),
+                },
+                WasmMemoryColumnSpec {
                     address_columns: vec![stack.read0_addr],
                     value_column: stack.read0_value,
+                    kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(output.captured),
+                },
+                WasmMemoryColumnSpec {
+                    address_columns: vec![stack.read0_addr_hi],
+                    value_column: stack.read0_value_hi,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(output.captured),
                 },
@@ -782,8 +803,20 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     activation: WasmMemoryActivation::BooleanGate(param_init.param_init_active_before),
                 },
                 WasmMemoryColumnSpec {
+                    address_columns: vec![stack.read0_addr_hi],
+                    value_column: stack.read0_value_hi,
+                    kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(param_init.param_init_active_before),
+                },
+                WasmMemoryColumnSpec {
                     address_columns: vec![stack.read1_addr],
                     value_column: stack.read1_value,
+                    kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(control.stack_read1_active),
+                },
+                WasmMemoryColumnSpec {
+                    address_columns: vec![stack.read1_addr_hi],
+                    value_column: stack.read1_value_hi,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(control.stack_read1_active),
                 },
@@ -794,8 +827,20 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     activation: WasmMemoryActivation::BooleanGate(control.stack_read2_active),
                 },
                 WasmMemoryColumnSpec {
+                    address_columns: vec![stack.read2_addr_hi],
+                    value_column: stack.read2_value_hi,
+                    kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(control.stack_read2_active),
+                },
+                WasmMemoryColumnSpec {
                     address_columns: vec![stack.write0_addr],
                     value_column: stack.write0_value,
+                    kind: WasmMemoryColumnKind::Write,
+                    activation: WasmMemoryActivation::BooleanGate(control.stack_write0_active),
+                },
+                WasmMemoryColumnSpec {
+                    address_columns: vec![stack.write0_addr_hi],
+                    value_column: stack.write0_value_hi,
                     kind: WasmMemoryColumnKind::Write,
                     activation: WasmMemoryActivation::BooleanGate(control.stack_write0_active),
                 },
@@ -807,13 +852,13 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
             columns: vec![
                 WasmMemoryColumnSpec {
                     address_columns: vec![call.call_stack_addr],
-                    value_column: call.call_stack_pop_return_pc,
+                    value_column: call.call_stack_access_return_pc,
                     kind: WasmMemoryColumnKind::Write,
                     activation: WasmMemoryActivation::BooleanGate(call.call_stack_push_present),
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![call.call_stack_addr],
-                    value_column: call.call_stack_pop_return_pc,
+                    value_column: call.call_stack_access_return_pc,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(call.call_stack_pop_present),
                 },
@@ -825,13 +870,13 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
             columns: vec![
                 WasmMemoryColumnSpec {
                     address_columns: vec![call.call_stack_addr],
-                    value_column: call.call_stack_pop_caller_fbp,
+                    value_column: call.call_stack_access_caller_fbp,
                     kind: WasmMemoryColumnKind::Write,
                     activation: WasmMemoryActivation::BooleanGate(call.call_stack_push_present),
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![call.call_stack_addr],
-                    value_column: call.call_stack_pop_caller_fbp,
+                    value_column: call.call_stack_access_caller_fbp,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(call.call_stack_pop_present),
                 },
@@ -1103,7 +1148,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![state.pc_before, call.call_stack_return_pc_choice],
-                    value_column: call.call_stack_pop_return_pc,
+                    value_column: call.call_stack_access_return_pc,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(call.call_stack_push_present),
                 },

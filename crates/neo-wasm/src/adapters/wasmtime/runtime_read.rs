@@ -249,9 +249,10 @@ pub(crate) fn read_lane(stack: &[u32], sp_before: u64, reads: u8, lane: usize) -
         return None;
     }
     let stack_index = stack.len().checked_sub(reads)?.checked_add(lane)?;
-    let addr = sp_before
+    let slot = sp_before
         .checked_sub(reads as u64)?
         .checked_add(lane as u64)?;
+    let addr = slot.checked_mul(2)?;
     stack
         .get(stack_index)
         .copied()

@@ -1,7 +1,7 @@
 use neo_math::F;
 use neo_wasm::layout::{
     CALL_RETURN_PC_CHOICE, COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_POP_RETURN_PC, COL_CURRENT_FUNCTION_NUM_LOCALS,
-    COL_CURRENT_FUNCTION_REF, COL_LOCALS_FBP_AFTER,
+    COL_CURRENT_FUNCTION_REF, COL_LOCALS_FBP_AFTER, COL_STACK_READ0_VALUE_HI,
 };
 use neo_wasm::{
     build_wasm_lookup_binding_layout, collect_wasmtime_steps, preload_from_wasmtime_run, sanity_check_memory_rows,
@@ -33,6 +33,30 @@ fn memory_semantics_accept_real_direct_call_trace() {
     );
     let layout = build_wasm_lookup_binding_layout();
     sanity_check_memory_rows(layout, &witnesses, &preload).expect("memory sanity");
+}
+
+#[test]
+fn memory_semantics_rejects_tampered_i64_stack_high_limb() {
+    let (trace, mut witnesses, preload) = witness_run(
+        r#"(module
+            (func (export "run") (result i64)
+                i64.const 0x1_0000_0000
+                i64.const 1
+                i64.add)
+        )"#,
+    );
+    let add_idx = trace
+        .iter()
+        .position(|row| row.opcode == WasmOpcode::I64Add)
+        .expect("i64.add row");
+
+    witnesses[add_idx][COL_STACK_READ0_VALUE_HI] = F::from_u64(9);
+
+    let layout = build_wasm_lookup_binding_layout();
+    let err = sanity_check_memory_rows(layout, &witnesses, &preload)
+        .err()
+        .expect("must reject tampered i64 stack high limb");
+    assert!(err.contains("memory `stack`"), "unexpected error: {err}");
 }
 
 #[test]

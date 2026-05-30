@@ -216,6 +216,46 @@ fn r1cs_stateful_compiler_rejects_disconnected_second_step() {
 }
 
 #[test]
+fn r1cs_stateful_chain_builder_rejects_disconnected_chunk_before_stashing_fold() {
+    let r1cs = fibonacci_transition_stateful_r1cs();
+    let plan = make_tiny_stateful_lifecycle_plan_with_anchor(
+        r1cs.m(),
+        r1cs.m_in,
+        vec![1, 2],
+        vec![3, 4],
+        Some(semantic_digest_for_pair(1, 1)),
+    );
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_0A22).expect("preprocess");
+    let mut chain = R1csChainBuilder::new(&prep).expect("start builder");
+
+    let first = chain
+        .append_assignment(assignment_fibonacci_transition(1, 1))
+        .expect("base append");
+
+    let err = chain
+        .append_assignment(assignment_fibonacci_transition(5, 2))
+        .expect_err("disconnected semantic state must reject");
+    match err {
+        r1cs_f_prime::Error::Compiler(R1csCompilerError::SemanticStateInputMismatch { expected, got }) => {
+            assert_eq!(expected, first.semantic_state_digest_out);
+            assert_ne!(got, expected);
+        }
+        other => panic!("expected SemanticStateInputMismatch, got {other:?}"),
+    }
+    assert!(
+        chain.context().fold_for_step.is_none(),
+        "semantic mismatch must reject before prepare_next_fold stashes recursive fold authority"
+    );
+
+    chain
+        .append_assignment(assignment_fibonacci_transition(1, 2))
+        .expect("builder remains usable after rejected disconnected chunk");
+    let finished = chain.finish().expect("finish");
+    neo_fold_clean::verify_uncompressed(&prep.prep, &finished).expect("verify_uncompressed");
+}
+
+#[test]
 fn r1cs_stateful_fibonacci_rejects_rewound_second_step() {
     let r1cs = fibonacci_transition_stateful_r1cs();
     let plan = make_tiny_stateful_lifecycle_plan_with_anchor(

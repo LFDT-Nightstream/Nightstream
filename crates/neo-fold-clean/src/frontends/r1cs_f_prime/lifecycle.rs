@@ -3,7 +3,7 @@
 use crate::frontends::f_prime::encoder::EncodedFPrimeStep;
 use crate::frontends::r1cs_f_prime::compiler::{
     compile_chunk, compile_step, semantic_state_digests_for_inputs, start_chain, R1csCompiledStep, R1csCompilerContext,
-    R1csFPrimeStepInput, R1csFoldForStep,
+    R1csCompilerError, R1csFPrimeStepInput, R1csFoldForStep,
 };
 use crate::frontends::r1cs_f_prime::instance::build_instance;
 use crate::frontends::r1cs_f_prime::{Error, R1csFPrimePreprocessing};
@@ -130,13 +130,21 @@ impl<'a> R1csChainBuilder<'a> {
         }
         let k = inputs.len();
         let is_recursive = self.audit.is_some();
-        // Derive the semantic digests once. The chain-link check itself
-        // lives inside `compile_chunk -> finalize_compile_chunk` — the
-        // single funnel every path reaches. We only need the output
-        // digest here to thread through `prepare_next_fold`.
+        // Derive the semantic digests once. `compile_chunk` remains the
+        // canonical funnel for all callers, but the builder also checks
+        // the recursive state link before `prepare_next_fold` so an
+        // obviously disconnected chunk cannot stash a pending fold.
         let semantic = semantic_state_digests_for_inputs(self.prep, &inputs)?;
 
         if is_recursive {
+            if let Some(s) = semantic.as_ref() {
+                if self.ctx.chain_state.semantic_state_digest != s.input {
+                    return Err(Error::Compiler(R1csCompilerError::SemanticStateInputMismatch {
+                        expected: self.ctx.chain_state.semantic_state_digest,
+                        got: s.input,
+                    }));
+                }
+            }
             #[cfg(feature = "perf-timers")]
             let t_prepare = std::time::Instant::now();
             // Computes the fold proof for the upcoming step AND stashes

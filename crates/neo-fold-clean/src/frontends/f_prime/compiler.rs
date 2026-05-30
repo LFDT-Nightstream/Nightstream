@@ -255,7 +255,7 @@ pub fn verify_prior_fold(
         z_0: digest_fields_as_digest32(ctx.z_0),
         z_i: digest_fields_as_digest32(ctx.chain_state.z_i),
         pc: ctx.pc,
-        initial_semantic_state_digest: digest_fields_as_digest32(ctx.chain_state.semantic_state_digest),
+        initial_semantic_state_digest: prep.initial_semantic_state_digest(),
         semantic_state_digest: digest_fields_as_digest32(ctx.chain_state.semantic_state_digest),
         acc_digest: digest_fields_as_digest32(ctx.chain_state.acc_digest),
         public_trace: digest_fields_as_digest32(ctx.chain_state.public_trace),

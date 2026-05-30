@@ -166,6 +166,7 @@ pub fn build_honest_step_input() -> (FPrimeStepInput, [F; 4]) {
         app_public_input_var_indices: Vec::new(),
         semantic_state_in_var_indices: Vec::new(),
         semantic_state_out_var_indices: Vec::new(),
+        initial_semantic_state_digest_anchor: None,
     });
 
     let vk_fs_digest: [F; 4] = [
@@ -410,6 +411,7 @@ pub fn canonical_threaded_plan() -> RecursiveStepImagePlan {
         app_public_input_var_indices: Vec::new(),
         semantic_state_in_var_indices: Vec::new(),
         semantic_state_out_var_indices: Vec::new(),
+        initial_semantic_state_digest_anchor: None,
     });
     plan
 }

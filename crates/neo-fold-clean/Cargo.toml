@@ -276,8 +276,20 @@ name = "system_fibonacci_compiler_unified_structure"
 path = "tests/system/fibonacci_compiler_unified_structure.rs"
 
 [[test]]
+name = "system_decider_ce_relation_isolation"
+path = "tests/system/decider_ce_relation_isolation.rs"
+
+[[test]]
 name = "system_r1cs_compiler"
 path = "tests/system/r1cs_compiler.rs"
+
+[[test]]
+name = "system_r1cs_compiler_stateful"
+path = "tests/system/r1cs_compiler_stateful.rs"
+
+[[test]]
+name = "system_r1cs_preprocess"
+path = "tests/system/r1cs_preprocess.rs"
 
 [[test]]
 name = "system_production_params"

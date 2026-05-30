@@ -37,9 +37,7 @@
 #![allow(non_snake_case)]
 
 use neo_ccs::Mat;
-use neo_fold_clean::engine::decider::{
-    synthesize_statement_r1cs, synthesize_statement_r1cs_without_preflight_for_tests, REQUIRED_PUBLIC_IMAGE_PINS,
-};
+use neo_fold_clean::engine::decider::{synthesize_statement_r1cs, REQUIRED_PUBLIC_IMAGE_PINS};
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
 use neo_fold_clean::paper::construction2::{self, State};
 use neo_fold_clean::paper::digest::{
@@ -257,32 +255,6 @@ fn decider_r1cs_synthesis_rejects_tampered_public_image() {
             Err(neo_fold_clean::paper::decider::Error::PublicImageMismatch)
         ),
         "synthesis accepted a tampered public image"
-    );
-}
-
-#[test]
-fn decider_r1cs_terminal_semantic_state_pin_rejects_when_preflight_is_bypassed() {
-    let (prep, finished) = build_honest_finished_proof(2);
-    let mut statement = neo_fold_clean::build_decider_statement(&prep, &finished);
-
-    statement.public.semantic_state_digest[0] ^= 0xFF;
-
-    let synth = synthesize_statement_r1cs_without_preflight_for_tests(&prep, &statement)
-        .expect("unchecked synthesis should reach the public-image pin rows");
-    assert!(
-        !synth.builder.is_satisfied(),
-        "unchecked synthesis accepted a tampered final semantic_state_digest"
-    );
-
-    let bad_row = synth
-        .builder
-        .first_unsatisfied_row()
-        .expect("tampered final semantic_state_digest must trip a row");
-    let start = synth.semantic_state_digest_pin_row_start;
-    assert!(
-        (start..start + 4).contains(&bad_row),
-        "tampered final semantic_state_digest should trip its terminal public-image pin rows; got {bad_row}, expected {start}..{}",
-        start + 4
     );
 }
 
@@ -513,3 +485,12 @@ fn decider_r1cs_synthesis_accepts_varying_size_batched_chunks() {
     // Cross-check the public image's step_count: 2 + 3 = 5 ops total.
     assert_eq!(statement.public.step_count, 5, "total ops folded = 2 + 3 = 5");
 }
+
+// The previous end-to-end "tamper Z, bypass preflight, expect
+// `!is_satisfied`" test has been replaced by the gadget-level
+// isolation tests in `tests/system/decider_ce_relation_isolation.rs`.
+// Those tests hit the CE-relation gadget directly through the narrow
+// `engine::decider::__test_isolation` surface and prove each of the
+// five obligations (commit / X / low-norm / y_ring / ct) is load-bearing
+// in isolation, without needing to disable the chain-level
+// `validate_witness` preflight.

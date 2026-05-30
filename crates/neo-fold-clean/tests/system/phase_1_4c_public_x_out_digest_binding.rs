@@ -54,6 +54,7 @@ fn binding_config(boundary_bindings: Vec<OneShotDigestToPublicXOutBinding>) -> F
         one_shot_digest_to_public_x_out_bindings: boundary_bindings,
         poseidon_transition_enforcements: vec![],
         unified_accumulator_selector: None,
+        initial_semantic_state_digest_anchor: None,
     }
 }
 

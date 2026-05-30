@@ -59,6 +59,7 @@ fn enforcement_config(enforcements: Vec<PoseidonTransitionEnforcement>) -> FPrim
         one_shot_digest_to_public_x_out_bindings: vec![],
         poseidon_transition_enforcements: enforcements,
         unified_accumulator_selector: None,
+        initial_semantic_state_digest_anchor: None,
     }
 }
 

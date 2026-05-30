@@ -142,6 +142,30 @@ fn pi_dec_circuit_strict_accepts_honest_decomposition() {
 }
 
 #[test]
+fn pi_dec_circuit_strict_rejects_child_ct_not_derived_from_y_ring() {
+    let (proof, _claims) = drive_nifs(24);
+
+    let parent = &proof.pi_rlc.combined;
+    let children = &proof.pi_dec.children;
+
+    let prep = support::toy_preprocessing();
+    let mut builder = R1csBuilder::new();
+    let wires = alloc_dec_inputs(&mut builder, parent, children);
+    enforce_dec_v_strict(&mut builder, &prep.params, &wires).expect("strict emit");
+    assert!(builder.is_satisfied(), "baseline must satisfy");
+
+    assert!(!wires.children[0].ct.is_empty(), "fixture must expose child ct wires");
+    let target_col = wires.children[0].ct[0].c0.col();
+    let tampered = builder.witness()[target_col] + neo_math::F::ONE;
+    builder.tamper_witness(target_col, tampered);
+
+    assert!(
+        !builder.is_satisfied(),
+        "strict Π_DEC.V accepted child ct that no longer equals y_ring[j][lane=0]"
+    );
+}
+
+#[test]
 fn pi_dec_circuit_r_consistency_accepts_native_shared_r() {
     let (proof, _claims) = drive_nifs(29);
 

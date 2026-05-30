@@ -43,6 +43,7 @@ fn binding_config(bindings: Vec<OneShotDigestToStateOutBinding>) -> FPrimeImageC
         one_shot_digest_to_public_x_out_bindings: vec![],
         poseidon_transition_enforcements: vec![],
         unified_accumulator_selector: None,
+        initial_semantic_state_digest_anchor: None,
     }
 }
 

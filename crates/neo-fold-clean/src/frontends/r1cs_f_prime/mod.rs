@@ -54,6 +54,17 @@ fn semantic_state_mode_for_plan(plan: &RecursiveStepImagePlan) -> SemanticStateM
     }
 }
 
+/// Read the plan's initial-semantic-state anchor, defaulting to
+/// `empty_semantic_state_digest()` for stateless plans. This is the
+/// value that gets baked into `vk_fs_digest` AND into the F' image's
+/// CCS structure's base-step constraint.
+fn initial_semantic_state_digest_for_plan(plan: &RecursiveStepImagePlan) -> [u8; 32] {
+    plan.state_x_out
+        .as_ref()
+        .and_then(|sxo| sxo.initial_semantic_state_digest_anchor)
+        .unwrap_or_else(crate::paper::digest::empty_semantic_state_digest)
+}
+
 /// Lifecycle preprocessing pinned to one R1CS-shape + canonical plan.
 ///
 /// `prep` carries the CCS structure derived from `(plan, r1cs)`; every
@@ -72,11 +83,48 @@ fn semantic_state_mode_for_plan(plan: &RecursiveStepImagePlan) -> SemanticStateM
 /// step would dominate chain build time. `anchors` is kept alongside
 /// for tests / external auditing — the compiler never reads it.
 pub struct R1csFPrimePreprocessing {
+    /// Lifecycle-layer preprocessing. Kept `pub` because `Preprocessing`
+    /// already locks down its soundness-critical internals (mode/anchor
+    /// are `pub(crate)`); the lifecycle layer is read by many call
+    /// sites and forcing all of them through an accessor adds churn
+    /// without buying assurance.
     pub prep: Preprocessing,
-    pub plan: RecursiveStepImagePlan,
-    pub r1cs: R1csShape,
-    pub structure: Arc<FPrimeStructure>,
-    pub anchors: R1csRowAnchors,
+    /// The four mutually-coupled F' image fields. **Private** so an
+    /// external caller cannot assemble a Frankenstein
+    /// `R1csFPrimePreprocessing` by swapping in a `plan` that doesn't
+    /// match `structure`, an `r1cs` that doesn't match `plan`, or
+    /// `anchors` from a different layout. Read access goes through
+    /// [`Self::plan`] / [`Self::r1cs`] / [`Self::structure`] /
+    /// [`Self::anchors`].
+    plan: RecursiveStepImagePlan,
+    r1cs: R1csShape,
+    structure: Arc<FPrimeStructure>,
+    anchors: R1csRowAnchors,
+}
+
+impl R1csFPrimePreprocessing {
+    /// Read-only view of the verifier-owned recursive-step plan.
+    pub fn plan(&self) -> &RecursiveStepImagePlan {
+        &self.plan
+    }
+
+    /// Read-only view of the verifier-owned R1CS shape this
+    /// preprocessing was built for.
+    pub fn r1cs(&self) -> &R1csShape {
+        &self.r1cs
+    }
+
+    /// Read-only view of the cached F' image structure shared with
+    /// every encoded step in a chain.
+    pub fn structure(&self) -> &Arc<FPrimeStructure> {
+        &self.structure
+    }
+
+    /// Read-only view of the R1CS row anchors (used by audit
+    /// tooling and tests).
+    pub fn anchors(&self) -> &R1csRowAnchors {
+        &self.anchors
+    }
 }
 
 #[derive(Debug, Error)]
@@ -102,6 +150,25 @@ pub enum Error {
         "R1CS-F' preprocessing: semantic state binding must declare both input and output variable lists, or neither"
     )]
     PlanSemanticStatePartial,
+    #[error(
+        "R1CS-F' preprocessing: stateful plan declares semantic_state_in/out_var_indices but no \
+         `initial_semantic_state_digest_anchor`. Stateful chains MUST anchor the base step's \
+         first app-state to a verifier-owned digest (baked into the F' image's CCS structure \
+         via the base-gated `is_base * (state_in.semantic_state_digest_in_lane - anchor) == 0` \
+         constraint)."
+    )]
+    PlanSemanticStateMissingAnchor,
+    #[error(
+        "R1CS-F' preprocessing: plan supplies an `initial_semantic_state_digest_anchor` but \
+         no semantic_state_in/out_var_indices. An anchor with nothing to bind to is meaningless."
+    )]
+    PlanSemanticStateAnchorWithoutIndices,
+    #[error(
+        "R1CS-F' lifecycle: `prove_encoded_steps` is stateless-only and a stateful preprocessing \
+         was supplied. Use `R1csChainBuilder` instead — it threads per-step semantic digests \
+         consistently with the F' image's state-out binding rows."
+    )]
+    ProveEncodedStepsStatefulUnsupported,
     #[error("R1CS-F' preprocessing: semantic state variable index {index} is out of range for r1cs.m() = {m}")]
     PlanSemanticStateIndexOutOfRange { index: usize, m: usize },
     #[error(transparent)]
@@ -142,7 +209,8 @@ pub fn preprocess(
         ajtai_dec_mixer,
         Some(public_input_len),
     )?
-    .with_semantic_state_mode(semantic_state_mode_for_plan(plan));
+    .with_semantic_state_mode(semantic_state_mode_for_plan(plan))
+    .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan));
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: plan.clone(),
@@ -169,7 +237,8 @@ pub fn preprocess_sparse(
         ajtai_dec_mixer,
         Some(public_input_len),
     )?
-    .with_semantic_state_mode(semantic_state_mode_for_plan(plan));
+    .with_semantic_state_mode(semantic_state_mode_for_plan(plan))
+    .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan));
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: plan.clone(),
@@ -199,7 +268,8 @@ pub fn preprocess_seeded(
         ajtai_dec_mixer,
         Some(public_input_len),
     )?
-    .with_semantic_state_mode(semantic_state_mode_for_plan(plan));
+    .with_semantic_state_mode(semantic_state_mode_for_plan(plan))
+    .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan));
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: plan.clone(),
@@ -227,7 +297,8 @@ pub fn preprocess_sparse_seeded(
         ajtai_dec_mixer,
         Some(public_input_len),
     )?
-    .with_semantic_state_mode(semantic_state_mode_for_plan(plan));
+    .with_semantic_state_mode(semantic_state_mode_for_plan(plan))
+    .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan));
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: plan.clone(),
@@ -259,7 +330,8 @@ pub fn preprocess_seeded_with_params(
         ajtai_dec_mixer,
         Some(public_input_len),
     )?
-    .with_semantic_state_mode(semantic_state_mode_for_plan(plan));
+    .with_semantic_state_mode(semantic_state_mode_for_plan(plan))
+    .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan));
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: plan.clone(),
@@ -287,7 +359,8 @@ pub fn preprocess_sparse_seeded_with_params(
         ajtai_dec_mixer,
         Some(public_input_len),
     )?
-    .with_semantic_state_mode(semantic_state_mode_for_plan(plan));
+    .with_semantic_state_mode(semantic_state_mode_for_plan(plan))
+    .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan));
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: plan.clone(),
@@ -350,6 +423,18 @@ fn derive_structure(
         if index >= r1cs.m() {
             return Err(Error::PlanSemanticStateIndexOutOfRange { index, m: r1cs.m() });
         }
+    }
+    // Stateful semantic-state binding requires a verifier-owned
+    // initial anchor; conversely an anchor without binding indices is
+    // meaningless (nothing to bind to). Enforce iff equivalence so a
+    // misconfigured plan can't desync the F' image's base constraint
+    // from the verifier's claimed start state.
+    let has_anchor = state_x_out.initial_semantic_state_digest_anchor.is_some();
+    if has_semantic_in && !has_anchor {
+        return Err(Error::PlanSemanticStateMissingAnchor);
+    }
+    if !has_semantic_in && has_anchor {
+        return Err(Error::PlanSemanticStateAnchorWithoutIndices);
     }
 
     let layout = FPrimeImageLayout::new(build_recursive_step_image_config(plan));

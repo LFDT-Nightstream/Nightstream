@@ -67,6 +67,14 @@ pub struct CeClaimWires {
     /// Index as `y_ring[j][lane * s + limb]`.
     pub y_ring: Vec<Vec<Var>>,
     pub y_ring_lanes: usize,
+    /// SuperNeo scalar/constant-term view of `y_ring`. Per Theorem 5 of
+    /// the SuperNeo paper, `ct(y_j) = M̄_j z(r)` — the constant term of
+    /// the K-valued ring evaluation equals the field-level multilinear
+    /// eval. In flat-limb form, `ct[j] == (y_ring[j][0], y_ring[j][1])`
+    /// (the lane-0 K-element of `y_ring[j]`). One `KVar` per CCS matrix.
+    /// Bound to the y_ring layout by
+    /// `paper::decider_ce_relation::evaluation::enforce_ct_from_y_ring`.
+    pub ct: Vec<KVar>,
     /// CE evaluation point `r ∈ K^{log n}`. Shared between parent and all
     /// children in a Π_DEC.V step; enforced via [`enforce_r_consistency`].
     pub r: Vec<KVar>,
@@ -199,6 +207,8 @@ pub fn enforce_r_consistency(builder: &mut R1csBuilder, wires: &DecInputWires) -
 ///   1. [`enforce_dec_v`] — `(c, X, y_ring)` b-ary recomposition.
 ///   2. [`enforce_r_consistency`] — `parent.r == child_i.r` for all `i`.
 ///   3. [`enforce_s_col_consistency`] — `parent.s_col == child_i.s_col`.
+///   4. [`enforce_ct_consistency`] — every claim's cached `ct[j]` is the
+///      lane-0 K-element of `y_ring[j]`.
 ///
 /// Notably absent (and absent on the native side):
 ///   - **No `y_zcol` b-ary check.** Π_CCS outputs mix MCS digit-decomposed
@@ -216,6 +226,44 @@ pub fn enforce_dec_v_strict(builder: &mut R1csBuilder, pp: &Params, wires: &DecI
     enforce_r_consistency(builder, wires)?;
     enforce_s_col_consistency(builder, wires)?;
     enforce_inactive_x_zero(builder, wires)?;
+    enforce_ct_consistency(builder, wires)?;
+    Ok(())
+}
+
+/// Enforce the SuperNeo implementation invariant `ct[j] == y_ring[j][0]`
+/// for the parent and every child. The paper CE instance carries
+/// `y_ring`; `ct` is a cached scalar/constant-term view used by later
+/// verifier equations. Keeping it derived here prevents it from becoming
+/// a shadow authoritative field.
+pub fn enforce_ct_consistency(builder: &mut R1csBuilder, wires: &DecInputWires) -> Result<(), Error> {
+    enforce_ct_consistency_one(builder, &wires.parent, 0)?;
+    for (idx, child) in wires.children.iter().enumerate() {
+        enforce_ct_consistency_one(builder, child, idx)?;
+    }
+    Ok(())
+}
+
+fn enforce_ct_consistency_one(builder: &mut R1csBuilder, claim: &CeClaimWires, idx: usize) -> Result<(), Error> {
+    if claim.ct.len() != claim.y_ring.len() {
+        return Err(Error::ShapeMismatch {
+            what: "ct length",
+            expected: claim.y_ring.len(),
+            got: claim.ct.len(),
+            idx,
+        });
+    }
+    for (j, (ct, row)) in claim.ct.iter().zip(claim.y_ring.iter()).enumerate() {
+        if row.len() < K_LIMBS {
+            return Err(Error::ShapeMismatch {
+                what: "y_ring[j] constant-term limbs",
+                expected: K_LIMBS,
+                got: row.len(),
+                idx: j,
+            });
+        }
+        builder.enforce_eq(&Lc::from_var(ct.c0), &Lc::from_var(row[0]));
+        builder.enforce_eq(&Lc::from_var(ct.c1), &Lc::from_var(row[1]));
+    }
     Ok(())
 }
 
@@ -356,7 +404,7 @@ fn enforce_lane_combination_y(
     }
 }
 
-fn alloc_ce_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> CeClaimWires {
+pub(crate) fn alloc_ce_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> CeClaimWires {
     let c_data = builder.alloc_vec(&claim.c.data);
     let x_rows = claim.X.rows();
     let x_cols = claim.X.cols();
@@ -380,6 +428,19 @@ fn alloc_ce_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> CeClaimWires {
         })
         .collect::<Vec<_>>();
     let y_ring_lanes = claim.y_ring.first().map(|row| row.len()).unwrap_or(0);
+    // `ct[j]` is the SuperNeo scalar/constant-term view of `y_ring[j]`.
+    // Native value (= `ct_from_y_digits(y_ring[j])` = `y_ring[j][0]`)
+    // is filled here; the wire-equality binding `ct[j] == y_ring[j][lane=0]`
+    // is enforced by
+    // `paper::decider_ce_relation::evaluation::enforce_ct_from_y_ring`.
+    let ct = claim
+        .ct
+        .iter()
+        .map(|k| {
+            let [c0, c1] = k.as_coeffs();
+            KVar::alloc(builder, c0, c1)
+        })
+        .collect();
     let r = claim
         .r
         .iter()
@@ -423,6 +484,7 @@ fn alloc_ce_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> CeClaimWires {
         m_in: claim.m_in,
         y_ring,
         y_ring_lanes,
+        ct,
         r,
         s_col,
         y_zcol,

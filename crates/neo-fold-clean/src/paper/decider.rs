@@ -136,8 +136,22 @@ pub fn validate_witness(
     vk: &VerifierKey,
     public_input_len: Option<usize>,
     semantic_mode: SemanticStateMode,
+    // Verifier-owned initial app/VM semantic-state seed. Pulled from
+    // `prep.initial_semantic_state_digest()` at the lifecycle layer;
+    // MUST equal `statement.public.initial_semantic_state_digest` or
+    // `validate_witness` returns `Error::PublicImageMismatch`.
+    initial_semantic_state_digest_anchor: [u8; 32],
     statement: &Statement,
 ) -> Result<(), Error> {
+    // (0) Pin the prover's claimed initial app-state to the verifier's
+    //     preprocessing-derived anchor. `vk_fs_digest` already absorbs
+    //     `initial_semantic_state_digest_anchor`, so a mismatched
+    //     `statement.public.initial_semantic_state_digest` would also
+    //     fail the chain-x_out check downstream — but surfacing the
+    //     dedicated error here gives the caller a precise diagnostic.
+    if statement.public.initial_semantic_state_digest != initial_semantic_state_digest_anchor {
+        return Err(Error::PublicImageMismatch);
+    }
     let Witness {
         steps,
         public_batches,
@@ -156,12 +170,7 @@ pub fn validate_witness(
     let z_0 = initial_boundary_digest(structure_digest_v, public_input_len);
     let public_trace = public_trace_seed_digest(structure_digest_v);
     let acc_digest = accumulator_digest_from_claims(params.b(), &[]);
-    let mut state = State::base(
-        z_0,
-        public_trace,
-        acc_digest,
-        statement.public.initial_semantic_state_digest,
-    );
+    let mut state = State::base(z_0, public_trace, acc_digest, initial_semantic_state_digest_anchor);
 
     // Walk each step through F'.verify. The mode discriminates whether
     // the stateless invariant (`StepProof.semantic_state_digest == new
@@ -252,7 +261,11 @@ pub fn validate_witness(
     }
 
     // Now check that the prover's witness matrices open the walked CE
-    // claims' commitments under `log`.
+    // claims' commitments under `log`. This preflight only checks
+    // chain/public-image binding plus commitment openings for fast
+    // diagnostics. The decider R1CS, not this preflight, owns the full
+    // terminal CE closure: X projection, low-norm, y_ring, and ct (see
+    // `paper::decider_ce_relation` / `engine::decider`).
     if prover_running.claims.len() != prover_running.witnesses.len() {
         return Err(Error::WitnessLengthMismatch);
     }

@@ -370,6 +370,20 @@ pub fn accumulator_digest_from_parent_claim(child_count: usize, parent: &CeClaim
     accumulator_digest_from_parent_c_data(child_count, &parent.c.data)
 }
 
+/// Canonical "no app state" seed for stateless chains. This is the
+/// fixed digest of the empty CE-claim list, returned by
+/// [`accumulator_digest_from_claims`] when called with no claims (which
+/// makes its result independent of `base`).
+///
+/// Used as the `initial_semantic_state_digest` for stateless
+/// [`crate::lifecycle::Preprocessing`] so `vk_fs_digest` absorbs a
+/// deterministic seed instead of being chain-state-aware. Stateful
+/// frontends set their own seed via
+/// [`crate::lifecycle::Preprocessing::with_initial_semantic_state_digest`].
+pub fn empty_semantic_state_digest() -> [u8; 32] {
+    accumulator_digest_from_claims(0, &[])
+}
+
 // ── Boundary + public-trace chains ────────────────────────────────────────
 
 /// Initial `z_0`. Pure function of the full structure digest and
@@ -407,11 +421,28 @@ pub fn public_trace_update_digest(prev: [u8; 32], chunk_digest: [F; 4]) -> [u8; 
 // ── vk_fs and x_out ────────────────────────────────────────────────────────
 
 /// `vk_fs_digest` — Definition 14 + full CCS structure + program-fixed
-/// `public_input_len`.
+/// `public_input_len` + **chain initial semantic-state digest**.
 ///
 /// Absorbs the full 11-field `NeoParams` view plus the optional
-/// `public_input_len` (encoded as `u64::MAX` when absent).
-pub fn vk_fs_digest(params: &NeoParams, structure_digest: &[F; 4], public_input_len: Option<usize>) -> [u8; 32] {
+/// `public_input_len` (encoded as `u64::MAX` when absent) plus the
+/// `initial_semantic_state_digest` — the chain's claimed starting
+/// application state.
+///
+/// Absorbing the initial app-state digest into `vk_fs` (rather than
+/// adding a separate `state_x_out` slot) gives every step's chain
+/// digest a transitive binding to the initial state without a layout
+/// change in the F' image. The verifier-owned [`Preprocessing`] holds
+/// the value at preprocess time (set by the frontend that knows what
+/// the chain should start from); a malicious prover cannot relabel it
+/// after-the-fact because every `vk_fs_digest`-bearing absorb
+/// (including `state_x_out`) would diverge from the verifier's
+/// preprocessing-pinned digest.
+pub fn vk_fs_digest(
+    params: &NeoParams,
+    structure_digest: &[F; 4],
+    public_input_len: Option<usize>,
+    initial_semantic_state_digest: [u8; 32],
+) -> [u8; 32] {
     let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/vk_fs/v1");
     preimage.extend(structure_digest.iter().copied());
     preimage.extend([
@@ -428,6 +459,7 @@ pub fn vk_fs_digest(params: &NeoParams, structure_digest: &[F; 4], public_input_
         F::from_u64(params.lambda as u64),
         F::from_u64(public_input_len.map_or(u64::MAX, |n| n as u64)),
     ]);
+    preimage.extend(digest32_as_fields(initial_semantic_state_digest));
     digest_fields_as_digest32(poseidon_digest_fields(&preimage))
 }
 
@@ -435,6 +467,11 @@ pub fn vk_fs_digest(params: &NeoParams, structure_digest: &[F; 4], public_input_
 ///
 /// **Soundness Invariant I-5**: this absorb sequence and the in-circuit
 /// gadget that recomputes it must move in lockstep.
+///
+/// The initial app-state seed (`initial_semantic_state_digest`) is bound
+/// into the chain transitively through `vk_fs_digest`: the verifier-owned
+/// [`vk_fs_digest`] absorbs it as part of preprocessing, so every step's
+/// `x_out` inherits the binding without needing a separate slot here.
 #[allow(clippy::too_many_arguments)]
 pub fn state_x_out_digest(
     vk_fs_digest: [u8; 32],

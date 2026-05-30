@@ -1,0 +1,274 @@
+//! Terminal CE-relation gadgets — the in-circuit closure of the
+//! HyperNova/SuperNeo §7 decider obligation.
+//!
+//! ## Ownership
+//!
+//! Owns the R1CS rows that bind the **final running accumulator's
+//! opened witnesses `Z`** to each claim's `(c, X, r, y_ring, ct)` —
+//! the same SuperNeo CE relation obligations that `lifecycle::verify`
+//! executes natively. The Rust function and the circuit verify the
+//! same equations; both sides must stay in sync.
+//!
+//! For each `(claim, witness Z)` in `statement.witness.final_state.proof.running`:
+//!
+//! 1. **Commitment opening**: `commit_Ajtai(Z) == claim.c.data`
+//!    (linear in `Z`, coefficients from the Ajtai global setup).
+//! 2. **Public-input projection**: `L_in(Z) == claim.X` for the
+//!    active `m_in` columns; inactive columns are zero (already pinned
+//!    by `pi_ccs_split_nc_circuit::validate_inactive_x_zero`).
+//! 3. **Low-norm / NC-bound alphabet**: every entry of `Z` lies in
+//!    `{-(b-1), …, +(b-1)}`, matching native
+//!    `neo_math::balanced::within_nc_bound`. Ensures the Ajtai binding
+//!    property's norm bound. (See [`witness::enforce_balanced_alphabet`].)
+//! 4. **CE evaluation closure**: for every CCS matrix `M_j`,
+//!    `claim.y_ring[j] == multilinear_eval(M_j · Z, claim.r)`.
+//!    Closes the SuperNeo §7 obligation against the opened witness —
+//!    see [`evaluation::enforce_y_ring_from_z_at_r`].
+//! 5. **ct closure**: `claim.ct[j] == claim.y_ring[j][lane=0]` per
+//!    SuperNeo Theorem 5 — the constant-term lane of `y_ring[j]` is
+//!    the field-level `M̄_j z(r)`. Implementation-consistency
+//!    obligation that makes the circuit's CE-relation contract match
+//!    the native `verify_uncompressed`'s. See
+//!    [`evaluation::enforce_ct_from_y_ring`].
+//!
+//! ## Why this lives here, not in `lifecycle::verify`
+//!
+//! `verify_uncompressed` checks the same SuperNeo CE relation
+//! natively. A consumer that runs the Rust verifier sees the
+//! obligation closed there; a SNARK consumer that verifies the
+//! decider R1CS sees it closed here. Both paths must enforce the
+//! same five-obligation set — drifting one without the other is a
+//! soundness regression. The two regressions tests
+//! (`final_witness_authority_rejects_y_ring_inconsistent_with_m_z_at_r`
+//! native and `decider_ce_isolation_rejects_*` in-circuit) check
+//! parity per-obligation.
+//!
+//! ## Composition
+//!
+//! [`enforce_final_ce_relations`] is called from
+//! `crate::engine::decider::synthesize_statement_r1cs` after the
+//! chain replay and terminal-fold NIFS.V emission. The wires it
+//! receives:
+//!
+//! - `final_claims_wires`: the `CeClaimWires` for each final running
+//!   claim, already allocated and constrained by the terminal NIFS's
+//!   Π_DEC children block.
+//! - `final_witnesses`: the prover-supplied `WitnessMat` for each
+//!   claim; this module allocates fresh witness wires under the
+//!   builder, fills them with `WitnessMat` entries, and binds them.
+//!
+//! No new public types are exposed at the crate root. The orchestrator
+//! is the only surface and it is `pub(crate)`.
+//!
+//! ## Prover-vs-verifier drift — read this before treating the gadget
+//!    as production-ready
+//!
+//! This module turns the decider circuit into the **CE prover/checker**:
+//! it allocates the witness `Z` directly inside the circuit and emits
+//! the constraints
+//!
+//!   `Commit(Z) == c`, `X == L_in(Z)`, `y_ring == M·Z(r)`, `Z low-norm`.
+//!
+//! That is a sound but architecturally wrong shape for a ledger-facing
+//! verifier. The production split is:
+//!
+//! ```text
+//! current shape (this module):
+//!   decider circuit proves the CE relation directly
+//!     ↳ Z is a wire inside the circuit
+//!     ↳ M_j · Z is recomputed in-circuit, row by row
+//!
+//! production shape (NOT IN THIS BRANCH):
+//!   off-circuit prover produces a compact proof of the CE relation
+//!   decider circuit only VERIFIES that proof
+//!     ↳ Z stays out-of-circuit
+//!     ↳ constraints are the in-circuit verifier rows for the chosen
+//!       proof backend (Spartan + FRI-PCS per the SuperNeo paper)
+//! ```
+//!
+//! The constraint count under the current shape is roughly
+//! `O(n · t · m)` — fine for `(n, m)` in the thousands (lifecycle
+//! tests), catastrophic for real F'-image sizes (`n, m` ~ 10⁶+ for
+//! non-trivial application R1CS, where the constraint count blows past
+//! anything that can land in one downstream ledger-facing proof).
+//!
+//! **Layering note.** SuperNeo's folding leaves a terminal obligation —
+//! "these CE claims open to some Z". Discharging that obligation is a
+//! SEPARATE proof system. The SuperNeo paper recommends **Spartan +
+//! FRI-PCS** for this layer (paper §1 D5 / §1 contributions: "SNARK-
+//! friendly fields enable efficient proof compression using existing
+//! SNARKs (e.g., Spartan with a FRI-based polynomial commitment
+//! scheme) ... without requiring any non-native arithmetic or field
+//! emulation"). That recommendation preserves SuperNeo's post-quantum
+//! posture (FRI is hash-based) and runs natively over Goldilocks. The
+//! compact terminal-CE decider is out of scope for this branch — see the
+//! `engine::decider::LastStepTerminalSynthesis` docs for the inductive
+//! picture and the open design question.
+//!
+//! ## Why this still lives in the tree
+//!
+//! 1. **Soundness fallback.** A scalability-wrong-but-sound CE closure
+//!    is better than no CE closure: the F'-image's `acc_digest`-only
+//!    chain hash does not carry `y_ring`, so without these rows the
+//!    SNARK consumer could accept a final witness Z that is not a
+//!    real opening of the terminal accumulator.
+//! 2. **Correctness reference.** When the compact terminal CE proof
+//!    verifier lands, its outputs must agree byte-for-byte with what
+//!    this gadget enforces. The gadget defines the relation; the
+//!    production backend will be its proof, not its replacement.
+//!
+//! ## What still needs designing (out of scope for this module)
+//!
+//! - **Terminal-CE decider implementation.** The SuperNeo paper's
+//!   recommended backend is Spartan + FRI-PCS. Whatever backend lands,
+//!   the binding rule is a Poseidon2 digest over the full
+//!   `terminal_children` set (every `CeClaim` field — not just
+//!   commitment data), so the compact proof can't be replayed against
+//!   a different set of children.
+//! - **In-circuit verifier rows** for the chosen backend.
+//! - **Wiring** to terminal NIFS children, so the proof's claimed CE
+//!   values are pinned to the verifier-derived `terminal_children`
+//!   from `emit_terminal_fold`.
+//!
+//! Until that lands, `enforce_final_ce_relations` is the soundness
+//! contract this code stands on. Treat it as a reference: if you are
+//! sizing the decider circuit for production, the rows this gadget
+//! emits are NOT the rows that will be there.
+
+mod commitment;
+mod evaluation;
+mod witness;
+
+pub(crate) use commitment::{enforce_ajtai_opening, enforce_x_projection};
+pub(crate) use evaluation::{enforce_ct_from_y_ring, enforce_y_ring_from_z_at_r};
+pub(crate) use witness::alloc_final_witness;
+
+use thiserror::Error;
+
+use crate::engine::r1cs_circuit::R1csBuilder;
+use crate::lifecycle::Preprocessing;
+use crate::paper::reductions::pi_dec_circuit::CeClaimWires;
+use crate::paper::relations::WitnessMat;
+
+#[derive(Debug, Error)]
+pub(crate) enum CeRelationError {
+    #[error("decider_ce_relation: claim/witness count mismatch (claims={claims}, witnesses={witnesses})")]
+    CountMismatch { claims: usize, witnesses: usize },
+    #[error("decider_ce_relation: claim {index} {what} shape mismatch (expected {expected}, got {got})")]
+    ShapeMismatch {
+        index: usize,
+        what: &'static str,
+        expected: usize,
+        got: usize,
+    },
+    #[error("decider_ce_relation: Ajtai global setup unavailable for d={d}, cols={cols}")]
+    AjtaiSetupMissing { d: usize, cols: usize },
+    #[error(
+        "decider_ce_relation: balanced-alphabet gadget is undefined for b={b} (NeoParams::new \
+         rejects b < 2; this only fires from a hand-crafted Preprocessing)"
+    )]
+    InvalidNormBound { b: u32 },
+}
+
+/// Emit the terminal CE-relation constraint rows.
+///
+/// `final_claims_wires` MUST be the terminal NIFS output children's wires
+/// (`nifs_outputs.children` from `emit_terminal_fold`), whose `c_data`,
+/// `X`, `r`, `y_ring` are *constrained* by the upstream Π_CCS / Π_RLC /
+/// Π_DEC circuit verifiers — they're the authoritative end of the
+/// terminal accumulator. Passing a freshly-allocated copy of
+/// `statement.witness.final_state.proof.running.claims` would be a
+/// soundness bug: that's prover-supplied private data, not bound to the
+/// circuit. Only the witnesses `Z` come from `final_state` — they're the
+/// new prover-private payload this gadget closes.
+pub(crate) fn enforce_final_ce_relations(
+    builder: &mut R1csBuilder,
+    prep: &Preprocessing,
+    final_claims_wires: &[CeClaimWires],
+    final_witnesses: &[WitnessMat],
+) -> Result<(), CeRelationError> {
+    if final_claims_wires.len() != final_witnesses.len() {
+        return Err(CeRelationError::CountMismatch {
+            claims: final_claims_wires.len(),
+            witnesses: final_witnesses.len(),
+        });
+    }
+
+    let structure = prep.structure();
+    let expected_m = structure.m;
+    let b = prep.params.b();
+
+    for (index, (claim_wires, witness)) in final_claims_wires.iter().zip(final_witnesses).enumerate() {
+        let witness_wires =
+            alloc_final_witness(builder, witness, expected_m).map_err(|err| witness_shape_err(index, err))?;
+
+        enforce_ajtai_opening(
+            builder,
+            &witness_wires,
+            &claim_wires.c_data,
+            claim_wires.c_d,
+            claim_wires.c_kappa,
+        )
+        .map_err(|err| ajtai_setup_err(index, err))?;
+
+        enforce_x_projection(builder, &witness_wires, claim_wires).map_err(|err| projection_err(index, err))?;
+
+        // Low-norm: enforce every entry of `Z` lies in the SuperNeo
+        // NC-bound alphabet `{-(b-1), …, +(b-1)}`, matching the native
+        // `neo_math::balanced::within_nc_bound`'s `|x| < b` predicate.
+        // Implemented as `Π_{a ∈ alphabet} (Z[i,j] - a) = 0`. See
+        // [`witness::enforce_balanced_alphabet`].
+        witness::enforce_balanced_alphabet(builder, &witness_wires, b)
+            .map_err(|err| CeRelationError::InvalidNormBound { b: err.b })?;
+
+        // `enforce_y_ring_from_z_at_r` owns the exact `claim.r` length
+        // guard (`|r| == log2(next_pow2(n).max(2))`), so there's no weaker
+        // pre-check here.
+        enforce_y_ring_from_z_at_r(builder, prep, &witness_wires, claim_wires).map_err(|err| y_ring_err(index, err))?;
+        // ct[j] is the constant-term lane of y_ring[j] (Paper Theorem 5).
+        // Wire-equality binding `ct[j] == y_ring[j][lane=0]` closes the
+        // CE-relation contract so the circuit matches the native
+        // `verify_uncompressed` verifier's full obligation set.
+        enforce_ct_from_y_ring(builder, claim_wires).map_err(|err| y_ring_err(index, err))?;
+    }
+    Ok(())
+}
+
+fn witness_shape_err(index: usize, err: witness::AllocError) -> CeRelationError {
+    CeRelationError::ShapeMismatch {
+        index,
+        what: err.what(),
+        expected: err.expected(),
+        got: err.got(),
+    }
+}
+
+fn ajtai_setup_err(index: usize, err: commitment::AjtaiOpeningError) -> CeRelationError {
+    match err {
+        commitment::AjtaiOpeningError::SetupMissing { d, cols } => CeRelationError::AjtaiSetupMissing { d, cols },
+        commitment::AjtaiOpeningError::Shape { what, expected, got } => CeRelationError::ShapeMismatch {
+            index,
+            what,
+            expected,
+            got,
+        },
+    }
+}
+
+fn projection_err(index: usize, err: commitment::XProjectionError) -> CeRelationError {
+    CeRelationError::ShapeMismatch {
+        index,
+        what: err.what(),
+        expected: err.expected(),
+        got: err.got(),
+    }
+}
+
+fn y_ring_err(index: usize, err: evaluation::YRingError) -> CeRelationError {
+    CeRelationError::ShapeMismatch {
+        index,
+        what: err.what(),
+        expected: err.expected(),
+        got: err.got(),
+    }
+}

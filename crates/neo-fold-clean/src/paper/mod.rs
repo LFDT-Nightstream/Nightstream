@@ -114,6 +114,7 @@
 
 pub mod construction2;
 pub mod decider;
+pub(crate) mod decider_ce_relation;
 pub mod digest;
 pub mod f_prime;
 pub mod nifs;

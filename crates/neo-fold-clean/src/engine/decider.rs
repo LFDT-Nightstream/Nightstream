@@ -60,6 +60,13 @@
 //!    fields are pinned by `pin_public_image`. The terminal `x_out` is
 //!    recomputed in-circuit from the post-fold state and pinned to
 //!    `statement.public.x_out`.
+//! 9. **Terminal CE-relation rows**: `enforce_final_ce_relations` emits,
+//!    for each terminal NIFS-output child `(claim, witness Z)`, the full
+//!    CE closure — Ajtai opening `commit(Z) == claim.c`, X projection,
+//!    low-norm `||Z||_∞ < b`, the `r`-shape guard, `y_ring[j] == M_j ·
+//!    Z(r)`, and `ct[j] == const-term(y_ring[j])`. This is the only
+//!    layer that binds the prover-private witnesses `Z` to the folded
+//!    accumulator.
 //!
 //! Each audit layer's completeness is reported on [`DeciderR1csSynthesis`].
 //! [`DeciderR1csSynthesis::is_self_sufficient_relation`] returns `true`
@@ -138,11 +145,6 @@ pub struct DeciderR1csSynthesis {
     /// `initial_semantic_state_digest` public field is pinned by
     /// `base_state_pinned`, since it belongs to the base seed.
     pub public_image_pins: usize,
-    /// First row of the terminal `semantic_state_digest` public-image pin.
-    /// The pin occupies the next four rows. Exposed so integration tests can
-    /// distinguish "native preflight rejected" from "the in-circuit public
-    /// pin itself rejected."
-    pub semantic_state_digest_pin_row_start: usize,
     /// Number of CE-claim continuity links emitted between adjacent
     /// NIFS.V steps. For an N-batch chain (1 base + (N-1) recursive +
     /// terminal fold) this equals `recursive_step_count`: each
@@ -150,7 +152,7 @@ pub struct DeciderR1csSynthesis {
     /// next step's `nifs_running` (or to the terminal fold's running
     /// for the last recursive step). This goes beyond the
     /// commitment-only continuity that `state_out.acc_digest` chaining
-    /// provides — it binds `(c_data, x, r, y_ring, y_zcol, s_col,
+    /// provides — it binds `(c_data, x, r, y_ring, ct, y_zcol, s_col,
     /// fold_digest)` across every step boundary.
     pub accumulator_claim_links: usize,
 }
@@ -204,43 +206,56 @@ pub fn synthesize_statement_r1cs(
         &prep.vk,
         prep.public_input_len,
         prep.semantic_state_mode,
+        prep.initial_semantic_state_digest(),
         statement,
     )?;
     synthesize_statement_r1cs_inner(prep, statement)
 }
 
-/// **TEST-ONLY ENTRY POINT — DO NOT USE IN PRODUCTION CODE.**
+/// **TEST-ONLY GADGET HARNESS.** Narrow surface that lets integration
+/// tests exercise the terminal CE-relation gadget in isolation.
+/// Production code MUST NOT touch this module.
 ///
-/// Emits the full-history audit R1CS directly from `statement`, **skipping
-/// the native preflight that authenticates the statement against
-/// preprocessing**. The only legitimate caller is the pin-row isolation
-/// test in `tests/system/decider_r1cs.rs::decider_r1cs_terminal_semantic_state_pin_rejects_when_preflight_is_bypassed`,
-/// which depends on bypassing preflight to prove that the in-circuit
-/// pin row fires even when preflight is silenced.
+/// Replaces the older `synthesize_statement_r1cs_without_preflight`
+/// bypass: the gadget-level isolation tests below catch the same
+/// soundness obligations (commit / X / low-norm / y_ring / ct closure)
+/// without disabling the chain-level `validate_witness` preflight.
 ///
-/// Why it is `pub`: the test lives in `tests/` (per CLAUDE.md
-/// "Never add tests in the same implementation file") and the
-/// integration-test framework only sees the public API. `#[doc(hidden)]`
-/// + this loud comment + the `_without_preflight_for_tests` name +
-/// `#[track_caller]` panicking debug assert below are the cordon.
-///
-/// Production callers MUST use [`synthesize_statement_r1cs`], which
-/// runs the native preflight before emitting any rows. Calling this
-/// instead is a soundness footgun: an attacker-crafted `statement`
-/// passes through and synthesizes an R1CS over unvalidated witness
-/// material.
+/// The path is intentionally awkward (`engine::decider::__test_isolation::...`)
+/// to make accidental production calls glaringly visible at review
+/// time. CLAUDE.md forbids new Rust features / env vars, so `pub` is
+/// the only mechanism that lets integration tests reach this; the
+/// uglified path is the strongest hygiene we can apply without adding
+/// either.
 #[doc(hidden)]
-#[track_caller]
-pub fn synthesize_statement_r1cs_without_preflight_for_tests(
-    prep: &Preprocessing,
-    statement: &Statement,
-) -> Result<DeciderR1csSynthesis, decider::Error> {
-    debug_assert!(
-        cfg!(test) || std::thread::current().name().unwrap_or("").contains("test"),
-        "synthesize_statement_r1cs_without_preflight_for_tests called outside a test context — \
-         use synthesize_statement_r1cs in production code"
-    );
-    synthesize_statement_r1cs_inner(prep, statement)
+pub mod __test_isolation {
+    use super::Preprocessing;
+    use crate::engine::r1cs_circuit::R1csBuilder;
+    use crate::paper::decider_ce_relation::enforce_final_ce_relations;
+    use crate::paper::reductions::pi_dec_circuit::alloc_ce_claim;
+    use crate::paper::relations::{CeClaim, WitnessMat};
+
+    /// Emit just the terminal CE-relation rows against a hand-crafted
+    /// `(claim, witness)` pair. The full decider chain is NOT
+    /// constructed — the returned builder contains only the CE
+    /// gadget's wires. Tests call `is_satisfied()` (and
+    /// `first_unsatisfied_row()`) to assert per-obligation behaviour.
+    ///
+    /// Honest input must satisfy. Any of the five mutation classes
+    /// (commit / X / low-norm / y_ring / ct) must make it unsatisfied.
+    pub fn enforce_ce_relations_against(
+        prep: &Preprocessing,
+        claim: &CeClaim,
+        witness: &WitnessMat,
+    ) -> Result<R1csBuilder, String> {
+        let mut builder = R1csBuilder::new();
+        let claim_wires = alloc_ce_claim(&mut builder, claim);
+        let claim_wires_slice = [claim_wires];
+        let witnesses_slice = [witness.clone()];
+        enforce_final_ce_relations(&mut builder, prep, &claim_wires_slice, &witnesses_slice)
+            .map_err(|e| e.to_string())?;
+        Ok(builder)
+    }
 }
 
 fn synthesize_statement_r1cs_inner(
@@ -357,14 +372,15 @@ fn synthesize_statement_r1cs_inner(
         .last()
         .ok_or_else(|| decider::Error::WalkFailed("final_fold present but public_batches empty".into()))?;
 
-    let (terminal_fold_emitted, terminal_latest_link, final_acc_digest, terminal_running) = emit_terminal_fold(
-        &mut builder,
-        prep,
-        &last,
-        &running_pre_final_fold,
-        trailing_latest,
-        &final_fold.nifs,
-    )?;
+    let (terminal_fold_emitted, terminal_latest_link, final_acc_digest, terminal_running, terminal_children) =
+        emit_terminal_fold(
+            &mut builder,
+            prep,
+            &last,
+            &running_pre_final_fold,
+            trailing_latest,
+            &final_fold.nifs,
+        )?;
 
     // Final CE-claim continuity link: terminal fold's running must equal
     // the last recursive F' step's children.
@@ -377,6 +393,37 @@ fn synthesize_statement_r1cs_inner(
     // 7. Public-image pins.
     let public_image_pins = pin_public_image(&mut builder, &statement.public, prep, &last, &final_acc_digest);
 
+    // 8. Terminal CE-relation closure — SOUND DIRECT PATH, NOT COMPACT.
+    //    These rows ARE the decider R1CS's current soundness contract:
+    //    they allocate Z and directly enforce commit(Z) == c, X ==
+    //    L_in(Z), low-norm, y_ring == M·Z(r), and ct == const-term(y_ring)
+    //    against the opened terminal witnesses. Do not remove them — the
+    //    F'-chain `acc_digest` carries only commitment data, not y_ring,
+    //    so without this closure a SNARK consumer could accept a final Z
+    //    that is not a real opening of the terminal accumulator.
+    //
+    //    Not the eventual COMPACT shape: a future off-circuit terminal-CE
+    //    proof (Spartan + FRI-PCS per the SuperNeo paper) could replace
+    //    these direct rows with in-circuit verifier rows for that proof,
+    //    keeping Z out-of-circuit at real F'-image sizes (n, m ~ 10⁶+).
+    //    See `paper::decider_ce_relation` module docs.
+    let ProofState::Active {
+        running: final_running,
+        latest: _final_latest,
+    } = &statement.witness.final_state.proof
+    else {
+        return Err(decider::Error::WalkFailed(
+            "statement.witness.final_state must be Active after finalization".into(),
+        ));
+    };
+    crate::paper::decider_ce_relation::enforce_final_ce_relations(
+        &mut builder,
+        prep,
+        &terminal_children,
+        &final_running.witnesses,
+    )
+    .map_err(|e| decider::Error::WalkFailed(format!("terminal CE relation: {e}")))?;
+
     Ok(DeciderR1csSynthesis {
         builder,
         base_step_emitted,
@@ -385,8 +432,7 @@ fn synthesize_statement_r1cs_inner(
         cross_step_links,
         terminal_latest_link,
         terminal_fold_emitted,
-        public_image_pins: public_image_pins.count,
-        semantic_state_digest_pin_row_start: public_image_pins.semantic_state_digest_row_start,
+        public_image_pins,
         accumulator_claim_links,
     })
 }
@@ -485,6 +531,7 @@ pub fn synthesize_last_step_terminal_r1cs(
         &prep.vk,
         prep.public_input_len,
         prep.semantic_state_mode,
+        prep.initial_semantic_state_digest(),
         &statement,
     )?;
 
@@ -566,24 +613,62 @@ pub fn synthesize_last_step_terminal_r1cs(
         .final_fold
         .as_ref()
         .expect("proof.final_fold checked above");
-    let (_terminal_fold_emitted, _terminal_latest_link, final_acc_digest, terminal_running) = emit_terminal_fold(
-        &mut builder,
-        prep,
-        &last_output,
-        &running_pre_final_fold,
-        last_public_batch,
-        &final_fold.nifs,
-    )?;
+    let (_terminal_fold_emitted, _terminal_latest_link, final_acc_digest, terminal_running, terminal_children) =
+        emit_terminal_fold(
+            &mut builder,
+            prep,
+            &last_output,
+            &running_pre_final_fold,
+            last_public_batch,
+            &final_fold.nifs,
+        )?;
+
+    // 4b. CE-claim continuity: the last recursive F' step's Π_DEC
+    //     children must equal the terminal fold's Π_CCS running input
+    //     wire-for-wire, across every CE field (c_data, X, r, s_col,
+    //     y_ring, ct, y_zcol, fold_digest_fields). `acc_digest` only binds
+    //     commitment data; this is the only path that pins r, y_ring, ct,
+    //     y_zcol, s_col, and fold_digest_fields end-to-end. Mirrors the
+    //     analogous check in `synthesize_statement_r1cs_inner` (full-
+    //     history audit). Base last-step has no nifs_children, so this
+    //     is guarded by `if let Some`.
+    if let Some(prev_children) = last_output.nifs_children.as_ref() {
+        enforce_children_equal_running(&mut builder, prev_children, &terminal_running)
+            .map_err(|e| decider::Error::WalkFailed(format!("CE continuity terminal fold (last-step): {e}")))?;
+    }
 
     // 5. Public-image pins. Anchors the relation to a SNARK-verifiable
     //    public statement.
     let public_image_pins = pin_public_image(&mut builder, &statement.public, prep, &last_output, &final_acc_digest);
 
+    // 6. Terminal CE-relation closure — SOUND DIRECT PATH, NOT COMPACT.
+    //    Same contract as `synthesize_statement_r1cs_inner` step 8: these
+    //    rows directly enforce the CE relation against the opened terminal
+    //    witnesses and are the current soundness contract — do not remove.
+    //    A future compact terminal-CE proof could replace them with
+    //    in-circuit verifier rows. See `paper::decider_ce_relation` docs.
+    let ProofState::Active {
+        running: final_running,
+        latest: _final_latest,
+    } = &statement.witness.final_state.proof
+    else {
+        return Err(decider::Error::WalkFailed(
+            "statement.witness.final_state must be Active after finalization".into(),
+        ));
+    };
+    crate::paper::decider_ce_relation::enforce_final_ce_relations(
+        &mut builder,
+        prep,
+        &terminal_children,
+        &final_running.witnesses,
+    )
+    .map_err(|e| decider::Error::WalkFailed(format!("terminal CE relation: {e}")))?;
+
     Ok(LastStepTerminalSynthesis {
         builder,
         running_claim_count: terminal_running.len(),
         has_final_fold: true,
-        public_image_pins: public_image_pins.count,
+        public_image_pins,
     })
 }
 
@@ -797,7 +882,7 @@ fn enforce_digest_eq(builder: &mut R1csBuilder, a: &[Var; 4], b: &[Var; 4]) {
 /// Π_CCS verifier's input-running view. They carry the same data in two
 /// representations:
 ///   - both share Vec<Var> for c_data / x.
-///   - both share Vec<KVar> for r / s_col.
+///   - both share Vec<KVar> for r / s_col / ct.
 ///   - children's y_ring / y_zcol are flattened K_LIMBS=2 base-field
 ///     limbs (Vec<Var>); running's are Vec<KVar>. The helper expands
 ///     each KVar back into (c0, c1) and pins limb-by-limb.
@@ -838,9 +923,10 @@ fn enforce_children_equal_running(
         // c_data + x are Vec<Var> in both representations.
         enforce_vec_var_eq(builder, &child.c_data, &run.c_data, "c_data", idx)?;
         enforce_vec_var_eq(builder, &child.x, &run.x, "x", idx)?;
-        // r, s_col are Vec<KVar> in both — KVar exposes c0/c1 directly.
+        // r, s_col, ct are Vec<KVar> in both — KVar exposes c0/c1 directly.
         enforce_vec_kvar_eq(builder, &child.r, &run.r, "r", idx)?;
         enforce_vec_kvar_eq(builder, &child.s_col, &run.s_col, "s_col", idx)?;
+        enforce_vec_kvar_eq(builder, &child.ct, &run.ct, "ct", idx)?;
         // y_ring representation differs: child has [j][lane*2 + limb]
         // base-field wires; run has [j][lane] KVars.
         if child.y_ring.len() != run.y_ring.len() {
@@ -939,9 +1025,12 @@ fn enforce_flat_limbs_vs_kvar_row(
 /// Emit the terminal final-fold NIFS.V inside the builder + enforce the
 /// terminal latest recursive link. Returns
 /// `(terminal_fold_emitted, terminal_latest_link, post_fold_acc_digest,
-/// terminal_running_wires)`. The decider uses the running wires for the
-/// final CE-claim continuity link (terminal fold's running == last
-/// recursive F' step's children).
+/// terminal_running_wires, terminal_children)`. The decider uses the
+/// running wires for the final CE-claim continuity link (terminal fold's
+/// running == last recursive F' step's children), and the children wires
+/// as the terminal CE-relation closure's claim inputs — the NIFS-output
+/// CE claims that `enforce_final_ce_relations` binds to the opened
+/// witnesses.
 fn emit_terminal_fold(
     builder: &mut R1csBuilder,
     prep: &Preprocessing,
@@ -949,7 +1038,16 @@ fn emit_terminal_fold(
     running_pre_final_fold: &crate::paper::construction2::RunningInstance,
     trailing_latest: &[CcsClaim],
     final_fold_nifs: &NifsProof,
-) -> Result<(bool, bool, [Var; 4], Vec<SplitNcPiCcsOutputWires>), decider::Error> {
+) -> Result<
+    (
+        bool,
+        bool,
+        [Var; 4],
+        Vec<SplitNcPiCcsOutputWires>,
+        Vec<crate::paper::reductions::pi_dec_circuit::CeClaimWires>,
+    ),
+    decider::Error,
+> {
     let nifs_config = NifsVCircuitConfig {
         pi_ccs: split_nc_config(prep).map_err(|e| decider::Error::WalkFailed(format!("split_nc_config: {e}")))?,
     };
@@ -990,7 +1088,13 @@ fn emit_terminal_fold(
     let post_fold_acc_digest =
         enforce_accumulator_digest_from_parent_circuit(builder, k_carry, &nifs_outputs.parent_c_data);
 
-    Ok((true, true, post_fold_acc_digest, nifs_outputs.running))
+    Ok((
+        true,
+        true,
+        post_fold_acc_digest,
+        nifs_outputs.running,
+        nifs_outputs.children,
+    ))
 }
 
 /// Constrain every terminal-fold fresh CCS instance's public input to
@@ -1032,11 +1136,6 @@ fn enforce_terminal_latest_link(
     Ok(())
 }
 
-struct PublicImagePinEmission {
-    count: usize,
-    semantic_state_digest_row_start: usize,
-}
-
 /// Pin every terminal field of `statement.public` to chain-derived
 /// wires. The initial semantic-state digest is pinned in
 /// `enforce_base_state_constants`, because it is part of the base seed.
@@ -1047,7 +1146,7 @@ fn pin_public_image(
     prep: &Preprocessing,
     last: &FPrimeStepOutput,
     final_acc_digest: &[Var; 4],
-) -> PublicImagePinEmission {
+) -> usize {
     let so = &last.state_out;
     // 1. vk_fs_digest.
     pin_digest32(builder, &so.vk_fs_digest, public.vk_fs_digest);
@@ -1062,7 +1161,6 @@ fn pin_public_image(
     // 6. pc.
     pin_u64(builder, so.pc, public.pc);
     // 7. semantic_state_digest — final app / VM state.
-    let semantic_state_digest_row_start = builder.rows();
     pin_digest32(builder, &so.semantic_state_digest, public.semantic_state_digest);
     // 8. acc_digest — post-final-fold Construction-2 accumulator.
     pin_digest32(builder, final_acc_digest, public.acc_digest);
@@ -1092,10 +1190,7 @@ fn pin_public_image(
             &Lc::from_const(structure_lanes[k]),
         );
     }
-    PublicImagePinEmission {
-        count: REQUIRED_PUBLIC_IMAGE_PINS,
-        semantic_state_digest_row_start,
-    }
+    REQUIRED_PUBLIC_IMAGE_PINS
 }
 
 fn pin_digest32(builder: &mut R1csBuilder, wires: &[Var; 4], expected: [u8; 32]) {

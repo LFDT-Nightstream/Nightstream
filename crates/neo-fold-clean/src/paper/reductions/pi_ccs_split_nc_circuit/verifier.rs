@@ -109,6 +109,12 @@ pub struct SplitNcPiCcsOutputWires {
     pub r: Vec<KVar>,
     pub s_col: Vec<KVar>,
     pub y_ring: Vec<Vec<KVar>>,
+    /// SuperNeo scalar/constant-term view of `y_ring`.
+    ///
+    /// The SplitNc verifier constrains this as `ct[j] == y_ring[j][0]`;
+    /// downstream continuity gates then carry the denormalized field
+    /// wire-to-wire without treating it as independent authority.
+    pub ct: Vec<KVar>,
     pub y_zcol: Vec<KVar>,
     /// `fold_digest` field of the CE claim, projected to four base-field
     /// lanes (matches `digest32_as_fields`). Carried by the bundle so
@@ -134,7 +140,7 @@ pub struct SplitNcPiCcsVDerived {
     pub fresh_x: Vec<Vec<Var>>,
     /// `running_c_data[i]` = the `D * kappa` commitment-data wires of `running[i]`.
     pub running_c_data: Vec<Vec<Var>>,
-    /// Full per-running-claim CE-claim wire bundles (c, x, r, y_ring,
+    /// Full per-running-claim CE-claim wire bundles (c, x, r, y_ring, ct,
     /// y_zcol, s_col, shape, fold_digest_fields). Surfaced for the
     /// decider's CE-continuity gate: `prev.children == next.running`
     /// must hold wire-to-wire, and commitment-only continuity (via
@@ -179,6 +185,7 @@ struct CeClaimWires {
     r: Vec<KVar>,
     s_col: Vec<KVar>,
     y_ring: Vec<Vec<KVar>>,
+    ct: Vec<KVar>,
     y_zcol: Vec<KVar>,
     m_in: usize,
     fold_digest_fields: [Var; 4],
@@ -219,6 +226,18 @@ pub fn enforce_split_nc_pi_ccs_v(
         return Err(Error::Shape(format!(
             "outputs.len={} expected fresh+running={k_total}",
             msg.outputs.len()
+        )));
+    }
+    // Native parity: `pi_ccs::validate_verifier_shape` rejects a non-empty
+    // running whose length is not `params.k_rho()`. The structural shape
+    // is fixed at gadget-emit time, but mirroring the guard here keeps
+    // the in-circuit verifier from silently accepting a malformed
+    // running batch in a future caller that wires a different `msg`
+    // shape (cheap, no constraints — pure native validation).
+    if k_me != 0 && (k_me as u32) != cfg.params.k_rho() {
+        return Err(Error::Shape(format!(
+            "running length {k_me} does not match params.k_rho()={}",
+            cfg.params.k_rho()
         )));
     }
 
@@ -275,6 +294,19 @@ pub fn enforce_split_nc_pi_ccs_v(
         .iter()
         .map(|o| alloc_ce_wires(builder, o))
         .collect::<Result<_, _>>()?;
+
+    // `ct` is a denormalized scalar/constant-term view of `y_ring`.
+    // Bind it immediately after allocation so every downstream consumer
+    // can carry it without treating it as independent authority.
+    for (idx, rw) in running_wires.iter().enumerate() {
+        enforce_ct_from_y_ring(builder, &format!("running[{idx}]"), rw)?;
+    }
+    if let Some(parent) = &running_parent_authority_wires {
+        enforce_ct_from_y_ring(builder, "running_parent_authority", parent)?;
+    }
+    for (idx, ow) in output_wires.iter().enumerate() {
+        enforce_ct_from_y_ring(builder, &format!("outputs[{idx}]"), ow)?;
+    }
 
     // ── 2. Fresh CCS digests (from allocated wires) ──────────────────────
     let mut fresh_digests: Vec<[Var; 4]> = Vec::with_capacity(k_mcs);
@@ -437,7 +469,7 @@ pub fn enforce_split_nc_pi_ccs_v(
     enforce_header_digest_catch_up(builder, transcript, header_fields);
 
     // Surface the full output wire bundle so downstream Π_RLC.V / NIFS.V
-    // composition can fold c.data, X, r, s_col, y_ring, y_zcol without
+    // composition can fold c.data, X, r, s_col, y_ring, ct, y_zcol without
     // re-allocating any wires.
     let outputs: Vec<SplitNcPiCcsOutputWires> = output_wires
         .into_iter()
@@ -452,6 +484,7 @@ pub fn enforce_split_nc_pi_ccs_v(
             r: ow.r,
             s_col: ow.s_col,
             y_ring: ow.y_ring,
+            ct: ow.ct,
             y_zcol: ow.y_zcol,
             fold_digest_fields: ow.fold_digest_fields,
         })
@@ -478,6 +511,7 @@ pub fn enforce_split_nc_pi_ccs_v(
             r: rw.r,
             s_col: rw.s_col,
             y_ring: rw.y_ring,
+            ct: rw.ct,
             y_zcol: rw.y_zcol,
             fold_digest_fields: rw.fold_digest_fields,
         })
@@ -493,6 +527,7 @@ pub fn enforce_split_nc_pi_ccs_v(
         r: rw.r,
         s_col: rw.s_col,
         y_ring: rw.y_ring,
+        ct: rw.ct,
         y_zcol: rw.y_zcol,
         fold_digest_fields: rw.fold_digest_fields,
     });
@@ -653,6 +688,13 @@ fn validate_ce_common_shape(
             cfg.structure.t()
         )));
     }
+    if ce.ct.len() != cfg.structure.t() {
+        return Err(Error::Shape(format!(
+            "{label}.ct.len ({}) != structure.t ({})",
+            ce.ct.len(),
+            cfg.structure.t()
+        )));
+    }
     for (j, row) in ce.y_ring.iter().enumerate() {
         if row.len() != d_pad {
             return Err(Error::Shape(format!(
@@ -679,6 +721,25 @@ fn enforce_kvar_eq(builder: &mut R1csBuilder, a: KVar, b: KVar) {
 
 fn enforce_var_eq(builder: &mut R1csBuilder, a: Var, b: Var) {
     builder.enforce_eq(&Lc::from_var(a), &Lc::from_var(b));
+}
+
+fn enforce_ct_from_y_ring(builder: &mut R1csBuilder, label: &str, claim: &CeClaimWires) -> Result<(), Error> {
+    if claim.ct.len() != claim.y_ring.len() {
+        return Err(Error::Shape(format!(
+            "{label}.ct.len ({}) != y_ring.len ({})",
+            claim.ct.len(),
+            claim.y_ring.len()
+        )));
+    }
+    for (j, (ct, row)) in claim.ct.iter().zip(claim.y_ring.iter()).enumerate() {
+        let y0 = row.first().copied().ok_or_else(|| {
+            Error::Shape(format!(
+                "{label}.y_ring[{j}] has no lane-0 constant term for ct binding"
+            ))
+        })?;
+        enforce_kvar_eq(builder, *ct, y0);
+    }
+    Ok(())
 }
 
 fn alloc_k(builder: &mut R1csBuilder, v: K) -> KVar {
@@ -732,6 +793,7 @@ fn alloc_ce_wires(builder: &mut R1csBuilder, ce: &CeClaim) -> Result<CeClaimWire
         r: alloc_k_vec(builder, &ce.r),
         s_col: alloc_k_vec(builder, &ce.s_col),
         y_ring: alloc_k_rows(builder, &ce.y_ring),
+        ct: alloc_k_vec(builder, &ce.ct),
         y_zcol: alloc_k_vec(builder, &ce.y_zcol),
         m_in: ce.m_in,
         fold_digest_fields: digest32_witness_fields(builder, &ce.fold_digest)?,

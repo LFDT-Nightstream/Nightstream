@@ -45,21 +45,44 @@
 //!    recorded `proof.state.running.claims`.
 //! 4. Re-derives `acc_digest` from `proof.state.running.claims` and
 //!    asserts it matches `proof.state.acc_digest`.
-//! 5. Cross-checks the prover's `proof.state.running.witnesses` open the
-//!    verifier-derived claims and are low-norm. (CE `y_j` openings are
-//!    already authenticated by step 3 — the verifier-derived claim
-//!    carries the verifier-derived `r` and `y_j`.)
+//! 5. Discharges every terminal witness-authority obligation against
+//!    each `(claim, witness Z)` in `proof.state.running`:
+//!    - `commit(Z) == claim.c` (Ajtai opening),
+//!    - `project_x(Z) == claim.X` (public-input projection),
+//!    - `||Z||_∞ < b` (low-norm),
+//!    - `claim.y_ring[j] == multilinear_eval(M_j · Z, claim.r)` for
+//!      every CCS matrix (CE-relation closure),
+//!    - `claim.ct[j] == constant_term(claim.y_ring[j])` (the SuperNeo
+//!      scalar view of the same `M_j · Z(r)`).
 //!
-//! The load-bearing soundness step is the Π_CCS sumcheck inside step 2:
-//! at random row `α` it implies CCS satisfaction for the latest and
-//! correct CE evaluation for `pre_final_running` at its (prover-supplied
-//! but circuit-bound) `r` — and the latest's CCS being satisfied
-//! transitively grounds the chain because the F' CCS structure encodes
-//! `latest.x = hash(vk_fs, i, z_0, z_i, pre_final_running, pc)`.
+//! ## What this is and isn't
+//!
+//! `verify_uncompressed` **executes the SuperNeo verifier equations
+//! directly over the folded CCS/CE circuit relation.** Rust is the
+//! executor; SuperNeo is the source of soundness. A consumer that
+//! runs this function gets the SuperNeo verifier's terminal-fold
+//! check + the full CE-relation closure against the opened witnesses.
+//!
+//! It is NOT the soundness contract for a consumer that verifies a
+//! *compressed* artifact (the decider R1CS + a SNARK over it). For
+//! that consumer, the CE-relation obligation has to live as
+//! constraint rows in the decider R1CS — that's a separate parallel
+//! obligation tracked by `paper::decider_ce_relation` (reference
+//! gadget). The check in step 5 of THIS verifier does not substitute
+//! for the in-circuit version.
+//!
+//! The load-bearing soundness step in §1–4 is the Π_CCS sumcheck inside
+//! step 2: at random row `α` it implies CCS satisfaction for the latest
+//! and correct CE evaluation for `pre_final_running` at its
+//! (prover-supplied but circuit-bound) `r` — and the latest's CCS being
+//! satisfied transitively grounds the chain because the F' CCS structure
+//! encodes `latest.x = hash(vk_fs, i, z_0, z_i, pre_final_running, pc)`.
+//! Step 5's CE-relation check is what binds those transcript-derived
+//! `y_j` values back to the *opened* witness `Z`.
 
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_math::balanced::within_nc_bound;
-use neo_reductions::common::project_x_from_witness_mat;
+use neo_reductions::common::{compute_y_from_Z_and_r, project_x_from_witness_mat};
 
 use crate::lifecycle::{Error, Preprocessing, Uncompressed, UncompressedAudit};
 use crate::paper::construction2::{
@@ -81,7 +104,18 @@ pub fn verify_uncompressed(prep: &Preprocessing, proof: &Uncompressed) -> Result
     }
     check_running_shape(recorded_running)?;
 
-    // (0) Stateless semantic invariant — checked FIRST so a tampered
+    // (0a) Initial-semantic-state anchor. The decider preflight catches
+    // a tampered `statement.public.initial_semantic_state_digest` via the
+    // anchor cross-check in `validate_witness`, but `verify_uncompressed`
+    // takes a raw `Uncompressed` proof — `state.initial_semantic_state_digest`
+    // is prover-supplied and never cross-checked elsewhere in this verifier
+    // path. `vk_fs_digest` absorbs the verifier-owned anchor, so a chain
+    // whose actual initial differs from `prep.initial_semantic_state_digest()`
+    // also breaks `XOutMismatch`; this dedicated check exists so the prover
+    // sees the precise invariant they violated.
+    check_initial_semantic_anchor(prep, proof)?;
+
+    // (0b) Stateless semantic invariant — checked next so a tampered
     // `semantic_state_digest` produces a precise
     // `StatelessSemanticInvariantViolated` rather than an opaque
     // `XOutMismatch` from the terminal-fold re-run. For stateless plans
@@ -99,13 +133,24 @@ pub fn verify_uncompressed(prep: &Preprocessing, proof: &Uncompressed) -> Result
         Some(final_fold) => verify_terminal_fold_case(prep, proof, recorded_running, final_fold)?,
     }
 
-    // (5) Witness-side authority: each prover-stored witness must open
-    // the (now verifier-authenticated) claim, project to claim.X, and be
-    // low-norm. y_j matching is already covered by step (3) above.
+    // (5) Witness-side authority: each prover-stored witness must
+    // satisfy ALL five terminal CE obligations against its claim —
+    // commit / X / low-norm / `y_ring == M_j · Z(r)` / `ct ==
+    // constant-term(y_ring)`. These are the SuperNeo verifier
+    // equations on the folded CE relation; this Rust function
+    // executes them directly. See module docs for the layering
+    // boundary with the decider R1CS path.
     check_running_witnesses_authority(prep, recorded_running)?;
 
     // (4) acc_digest is recomputed from the just-authenticated claims.
     check_recorded_acc_digest(prep, recorded_running, &proof.state.acc_digest)?;
+    Ok(())
+}
+
+fn check_initial_semantic_anchor(prep: &Preprocessing, proof: &Uncompressed) -> Result<(), Error> {
+    if proof.state.initial_semantic_state_digest != prep.initial_semantic_state_digest() {
+        return Err(Error::InitialSemanticStateAnchorMismatch);
+    }
     Ok(())
 }
 
@@ -261,8 +306,46 @@ fn bind_derived_state_to_recorded(derived: &State, recorded: &State) -> Result<(
 
 // ── Witness-side authority ────────────────────────────────────────────────
 
+/// Step (5) of [`verify_uncompressed`]: every running witness must
+/// satisfy the **SuperNeo terminal CE relation** against its claim.
+///
+/// Paper-level CE relation (SuperNeo Theorem 5, §5):
+///
+/// 1. `commit_Ajtai(Z) == claim.c`
+/// 2. `project_x(Z) == claim.X`
+/// 3. every entry of `Z` is low-norm: `|z| < b`
+/// 4. `claim.y_ring[j] == multilinear_eval(M_j · Z, claim.r)` for every
+///    CCS matrix `M_j`
+///
+/// Implementation-consistency obligation (the SuperNeo paper's
+/// `ct(y_j) = M̄_j z(r)` identity, made checkable from cached state):
+///
+/// 5. `claim.ct[j] == constant_term(claim.y_ring[j])` — the lane-0
+///    K-element of `y_ring[j]`. `ct` is the scalar/constant-term view
+///    of `y_ring`; if `y_ring` matches `M_j · Z(r)` and `ct` is the
+///    constant term of `y_ring`, then `ct == M_j z(r)` transitively.
+///
+/// (4) and (5) close the CE relation against the opened witness.
+/// Without them, the F'-chain `acc_digest` (commitment-only) would
+/// let a malformed `y_ring` or `ct` slip through the binding
+/// pipeline. The Rust code below faithfully executes the SuperNeo
+/// verifier equations; it does not invent a new check.
+///
+/// **Layering note.** This makes `verify_uncompressed` sound for any
+/// consumer that runs it. It does NOT substitute for the parallel
+/// obligation on a future decider R1CS / SNARK consumer; that lives
+/// in `paper::decider_ce_relation` (reference gadget for the
+/// in-circuit version).
+///
+/// Exposed `pub` via [`validate_final_witness_authority`] so isolation
+/// tests can exercise the five obligations against a hand-crafted
+/// `(claim, witness)` pair without driving the full
+/// `verify_uncompressed` binding pipeline.
 fn check_running_witnesses_authority(prep: &Preprocessing, running: &RunningInstance) -> Result<(), Error> {
+    check_running_shape(running)?;
+
     let b = prep.params.b();
+    let ell_d = ell_d_for_ce_check();
     for (index, (claim, witness)) in running.claims.iter().zip(&running.witnesses).enumerate() {
         if prep.log.commit(witness) != claim.c {
             return Err(Error::FinalAccumulatorWitnessCommitmentMismatch { index });
@@ -273,6 +356,95 @@ fn check_running_witnesses_authority(prep: &Preprocessing, running: &RunningInst
             return Err(Error::FinalAccumulatorPublicInputMismatch { index });
         }
         check_low_norm(index, witness, b)?;
+        check_ce_relation(prep, index, claim, witness, ell_d)?;
+    }
+    Ok(())
+}
+
+/// Public entry that runs the five-obligation witness-authority block
+/// from [`check_running_witnesses_authority`] against a caller-provided
+/// `RunningInstance`. Used by tests that want to isolate the CE-relation
+/// obligation without first passing the chain-replay + binding steps
+/// `verify_uncompressed` does up-front.
+pub fn validate_final_witness_authority(prep: &Preprocessing, running: &RunningInstance) -> Result<(), Error> {
+    check_running_witnesses_authority(prep, running)
+}
+
+/// `ell_d = log2(next_power_of_two(D))`, matching the prover's
+/// `compute_y_from_Z_and_r` padding so the verifier's expected
+/// `y_ring` lengths align with the proof's.
+#[inline]
+fn ell_d_for_ce_check() -> usize {
+    neo_math::D.next_power_of_two().trailing_zeros() as usize
+}
+
+/// Verify the two CE-relation obligations (4th and 5th) against the
+/// opened witness: `claim.y_ring[j] == multilinear_eval(M_j · Z,
+/// claim.r)` for every CCS matrix `M_j`, then `claim.ct[j] ==
+/// constant_term(claim.y_ring[j])` (recomputed as the lane-0 view of
+/// the same `M_j · Z(r)`). Both make the standalone Rust verifier
+/// sound. See [`check_running_witnesses_authority`] for the full step
+/// (5) checklist.
+fn check_ce_relation(
+    prep: &Preprocessing,
+    index: usize,
+    claim: &CeClaim,
+    witness: &WitnessMat,
+    ell_d: usize,
+) -> Result<(), Error> {
+    // ── r shape guard ─────────────────────────────────────────────────
+    // `r` is the row-domain multilinear point. The honest fold engine
+    // sizes it as `log2(next_pow2(n).max(2))` — the min-one-round padding
+    // shared with `neo_reductions::api::ell_n_for_ccs` / `engines::utils`
+    // (so even a single-row `n=1` structure carries one round). The
+    // downstream `compute_y_from_Z_and_r` is lenient: it clamps its eval
+    // domain to `min(n, 2^|r|)`, so a short `r` would silently drop rows
+    // and a long `r` would carry dead tensor entries. Pin the exact
+    // honest length so neither slips past this verifier.
+    let expected_r_len = prep
+        .structure()
+        .n
+        .next_power_of_two()
+        .max(2)
+        .trailing_zeros() as usize;
+    if claim.r.len() != expected_r_len {
+        return Err(Error::FinalAccumulatorEvaluationPointShapeMismatch {
+            index,
+            expected: expected_r_len,
+            got: claim.r.len(),
+        });
+    }
+
+    let (expected_y, expected_ct) = compute_y_from_Z_and_r(prep.structure(), witness, &claim.r, ell_d, prep.params.b());
+
+    // ── y_ring closure ────────────────────────────────────────────────
+    if expected_y.len() != claim.y_ring.len() {
+        return Err(Error::FinalAccumulatorCeRelationViolation {
+            index,
+            matrix_index: expected_y.len().min(claim.y_ring.len()),
+        });
+    }
+    for (matrix_index, (expected, recorded)) in expected_y.iter().zip(claim.y_ring.iter()).enumerate() {
+        if expected != recorded {
+            return Err(Error::FinalAccumulatorCeRelationViolation { index, matrix_index });
+        }
+    }
+
+    // ── ct closure ────────────────────────────────────────────────────
+    // `ct` is the SuperNeo scalar view of `y_ring` (the constant term
+    // of each `y_ring[j]`). It enters downstream consistency checks
+    // (`Σ c_S · Π ct[j]`), so leaving it unauthenticated would let a
+    // prover diverge `ct` from `y_ring` without this verifier noticing.
+    if expected_ct.len() != claim.ct.len() {
+        return Err(Error::FinalAccumulatorCtMismatch {
+            index,
+            matrix_index: expected_ct.len().min(claim.ct.len()),
+        });
+    }
+    for (matrix_index, (expected, recorded)) in expected_ct.iter().zip(claim.ct.iter()).enumerate() {
+        if expected != recorded {
+            return Err(Error::FinalAccumulatorCtMismatch { index, matrix_index });
+        }
     }
     Ok(())
 }
@@ -358,6 +530,7 @@ pub fn verify_uncompressed_audit(prep: &Preprocessing, audit: &UncompressedAudit
         &prep.vk,
         prep.public_input_len,
         prep.semantic_state_mode,
+        prep.initial_semantic_state_digest(),
         &statement,
     )
     .map_err(Error::from)

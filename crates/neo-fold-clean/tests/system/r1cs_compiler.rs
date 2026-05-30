@@ -36,12 +36,14 @@ use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
 use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
+use neo_fold_clean::frontends::f_prime::compiler::{verify_prior_fold, FPrimeShellCompilerError};
 use neo_fold_clean::frontends::f_prime::image::FPrimeImageLayout;
 use neo_fold_clean::frontends::f_prime::recursive_plan::build_recursive_step_image_config;
 use neo_fold_clean::frontends::r1cs_f_prime::{
     self, build_r1cs_f_prime_structure, compile_step, start_chain, R1csChainBuilder, R1csCompilerError,
-    R1csFPrimeStepInput,
+    R1csFPrimeStepInput, R1csFoldForStep,
 };
+use neo_fold_clean::paper::construction2::{FoldProof, ProofState};
 use neo_fold_clean::paper::digest::structure_digest;
 use neo_params::goldilocks_paper_b2;
 
@@ -553,6 +555,103 @@ fn r1cs_chain_builder_batched_chunks_varying_k_finishes_and_verifies() {
 
     let finished = chain.finish().expect("finish");
     neo_fold_clean::verify_uncompressed(&prep.prep, &finished).expect("verify_uncompressed");
+}
+
+#[test]
+fn r1cs_chain_builder_placeholder_extend_matches_real_batch_same_shape_same_k() {
+    let r1cs = one_product_r1cs();
+    let plan = make_tiny_lifecycle_plan(r1cs.m(), r1cs.m_in);
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_00E1).expect("preprocess");
+
+    let mut chain = R1csChainBuilder::new(&prep).expect("start builder");
+    chain
+        .append_assignments(vec![assignment_one_product(3, 7)])
+        .expect("base chunk");
+    let prev_audit = chain.audit().expect("audit after base").clone();
+
+    let real_batch = vec![assignment_one_product(2, 5), assignment_one_product(4, 6)];
+    let compiled = chain
+        .append_assignments(real_batch)
+        .expect("optimized placeholder-swap recursive chunk");
+    let optimized = chain.audit().expect("optimized audit").clone();
+    let real_instances = compiled
+        .iter()
+        .map(|step| r1cs_f_prime::build_instance(&prep, &step.encoded))
+        .collect::<Result<Vec<_>, _>>()
+        .expect("real instances");
+
+    let direct =
+        neo_fold_clean::lifecycle::extend(&prep.prep, prev_audit, real_instances).expect("direct real-batch extend");
+
+    assert_eq!(optimized.steps.len(), direct.steps.len());
+    assert_eq!(optimized.public_batches.len(), direct.public_batches.len());
+    assert_eq!(
+        format!("{:?}", optimized.proof.state),
+        format!("{:?}", direct.proof.state),
+        "placeholder-swap audit must land on the same post-fold state as a direct real-batch extend"
+    );
+    assert_eq!(
+        format!("{:?}", optimized.steps.last().expect("optimized step").fold),
+        format!("{:?}", direct.steps.last().expect("direct step").fold),
+        "same-shape same-K placeholder and real batch must produce identical fold authority"
+    );
+    assert_eq!(
+        optimized.steps.last().expect("optimized step").x_out,
+        direct.steps.last().expect("direct step").x_out,
+        "same-shape same-K placeholder and real batch must produce identical x_out"
+    );
+    assert_eq!(
+        format!("{:?}", optimized.public_batches.last()),
+        format!("{:?}", direct.public_batches.last()),
+        "the optimized audit must swap the real deposited public batch back into the audit trail"
+    );
+}
+
+#[test]
+fn r1cs_verify_prior_fold_rejects_wrong_k_transcript() {
+    let r1cs = one_product_r1cs();
+    let plan = make_tiny_lifecycle_plan(r1cs.m(), r1cs.m_in);
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_00E2).expect("preprocess");
+
+    let mut chain = R1csChainBuilder::new(&prep).expect("start builder");
+    let compiled_base = chain
+        .append_assignments(vec![assignment_one_product(3, 7)])
+        .expect("base chunk");
+    let ctx_before_recursive = chain.context().clone();
+    let prev_audit = chain.audit().expect("audit after base").clone();
+
+    let placeholder = r1cs_f_prime::build_instance(&prep, &compiled_base[0].encoded).expect("placeholder instance");
+    let derived = neo_fold_clean::lifecycle::extend(&prep.prep, prev_audit.clone(), vec![placeholder])
+        .expect("K=1 prepared fold");
+
+    let (pre_running, latest) = match &prev_audit.proof.state.proof {
+        ProofState::Active { running, latest } => (running.clone(), latest.clone()),
+        other => panic!("expected active pre-state, got {other:?}"),
+    };
+    let proof = match &derived.steps.last().expect("derived step").fold {
+        FoldProof::Recursive(proof) => proof.clone(),
+        FoldProof::NoFold => panic!("recursive extend must emit a fold proof"),
+    };
+    let post_running = match &derived.proof.state.proof {
+        ProofState::Active { running, .. } => running.clone(),
+        other => panic!("expected active post-state, got {other:?}"),
+    };
+    let fold = R1csFoldForStep {
+        pre_running,
+        latest,
+        proof,
+        post_running,
+    };
+
+    verify_prior_fold(&prep.prep, &ctx_before_recursive, &fold, 1).expect("correct K=1 transcript verifies");
+    let err = verify_prior_fold(&prep.prep, &ctx_before_recursive, &fold, 2)
+        .expect_err("a fold prepared for K=1 must not verify as K=2");
+    assert!(
+        matches!(err, FPrimeShellCompilerError::PriorFoldVerificationFailed { .. }),
+        "expected PriorFoldVerificationFailed for wrong K transcript, got {err:?}"
+    );
 }
 
 /// Full SuperNeo same-shape max-fresh path through the R1CS-F' frontend:

@@ -130,6 +130,7 @@ pub fn production_kmul_ring_action_shell_image_config() -> FPrimeImageConfig {
         one_shot_digest_to_public_x_out_bindings: vec![],
         poseidon_transition_enforcements: vec![],
         unified_accumulator_selector: None,
+        initial_semantic_state_digest_anchor: None,
     }
 }
 
@@ -752,13 +753,28 @@ pub(crate) fn emit_shell_rows(
     } else {
         0
     };
+    // Initial semantic-state anchor: 4 product rows (one per digest
+    // lane) enforcing
+    //   `is_base * (state_in.semantic_state_digest_in_lane[k] - anchor[k]) == 0`.
+    // Without this, a hand-crafted prover could submit a base step
+    // whose `state_in.semantic_state_digest_in_lane` disagrees with
+    // the verifier-owned anchor; the protocol would have no proven
+    // binding from the claimed initial app state to the actual first
+    // step's witness wires. Only emitted when the plan supplied an
+    // anchor (`StateXOutPlanOptions::initial_semantic_state_digest_anchor`).
+    let initial_semantic_anchor_count = if layout.config.initial_semantic_state_digest_anchor.is_some() {
+        POSEIDON2_DIGEST_LEN
+    } else {
+        0
+    };
     let total_shell_rows = bit_count
         + ring_action_product_count
         + ring_action_output_count
         + state_in_binding_count
         + state_out_binding_count
         + public_x_out_binding_count
-        + unified_selector_count;
+        + unified_selector_count
+        + initial_semantic_anchor_count;
     let base_row = builder.rows();
 
     // ── Bit-validity rows: `z[col] · (z[col] − 1) = 0` for every committed bit.
@@ -897,6 +913,51 @@ pub(crate) fn emit_shell_rows(
             + state_in_binding_count
             + state_out_binding_count
             + unified_selector_count
+    );
+
+    // ── Initial semantic-state anchor rows (base-step gated).
+    //
+    // For each of the 4 digest lanes:
+    //   is_base * (state_in.semantic_state_digest_in_lane[k] - anchor[k]) == 0
+    //
+    // - `is_base = 1` (base step) ⇒ lane MUST equal the anchor.
+    // - `is_base = 0` (recursive step) ⇒ constraint is vacuous; the
+    //   lane is bound to the prior step's output via the recursive
+    //   `prior_x_out` link emitted by `paper::f_prime::r1cs`.
+    //
+    // The anchor is a verifier-owned constant baked into the structure
+    // at preprocess time (via `StateXOutPlanOptions::initial_semantic_state_digest_anchor`),
+    // so it propagates into `structure_digest` and transitively into
+    // `vk_fs_digest`. A hand-crafted prover cannot mount the
+    // base-state attack: their base image's witness lane would
+    // disagree with the structure-baked anchor, Π_CCS sumcheck
+    // rejects at random row α.
+    if let Some(anchor_bytes) = layout.config.initial_semantic_state_digest_anchor {
+        let is_base_col = layout.is_base.offset;
+        let anchor_lanes = crate::paper::digest::digest32_as_fields(anchor_bytes);
+        let semantic_in_lane_base = state_in_digest_lane_base(StateInDigestTarget::SemanticStateDigestIn);
+        for lane in 0..POSEIDON2_DIGEST_LEN {
+            let semantic_in_lane = lane_slots.state_lanes[semantic_in_lane_base + lane];
+            // left = is_base
+            let left: Vec<(usize, F)> = vec![(is_base_col, F::ONE)];
+            // right = state_in_lane - anchor (constant column = z[0] = 1, coefficient = -anchor[k])
+            let right: Vec<(usize, F)> = lane_terms(semantic_in_lane)
+                .chain(std::iter::once((0, F::ZERO - anchor_lanes[lane])))
+                .collect();
+            // out = 0 (empty)
+            let out: Vec<(usize, F)> = Vec::new();
+            builder.product(left, right, out);
+        }
+    }
+    debug_assert_eq!(
+        builder.rows() - base_row,
+        bit_count
+            + ring_action_product_count
+            + ring_action_output_count
+            + state_in_binding_count
+            + state_out_binding_count
+            + unified_selector_count
+            + initial_semantic_anchor_count
     );
 
     // ── Trace digest ↔ public-x_out binding rows.

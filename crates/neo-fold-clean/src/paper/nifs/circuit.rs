@@ -161,6 +161,14 @@ pub fn enforce_nifs_v_circuit_with_transcript(
     let kappa = ccs.outputs[0].c_kappa;
     let m_in = ccs.outputs[0].x_cols;
 
+    // Native parity: Π_RLC's Definition-14 bound `count·T·(b−1) < B` is a
+    // structural constraint on `count = K + k` (fixed at gadget-emit
+    // time). Native `pi_rlc::enforce_rlc_bound` rejects RLC folds that
+    // violate it; the in-circuit path must match (cheap, no constraints —
+    // pure native validation, same call as the native verifier).
+    crate::paper::sampling::check_rlc_bound(pp, k_total, pp.T() as u128)
+        .map_err(|e| Error::Inner(format!("Π_RLC bound: {e}")))?;
+
     // ── 2. Π_RLC ρ sampling (AFTER catch-up squeeze inside CCS.V) ─────────
     let rho_wires = enforce_pi_rlc_rhos_from_transcript(builder, transcript, k_total);
 

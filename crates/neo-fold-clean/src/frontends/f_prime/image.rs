@@ -128,6 +128,15 @@ pub struct FPrimeImageConfig {
     /// four selector product rows instead. When `None`, the legacy
     /// single-accumulator path applies.
     pub unified_accumulator_selector: Option<UnifiedAccumulatorSelector>,
+    /// **Base-step initial semantic-state anchor**. When `Some`, the
+    /// F' image's CCS structure emits four product rows enforcing
+    /// `is_base * (state_in.semantic_state_digest_in_lane[k] - anchor[k]) == 0`
+    /// for each digest lane. The anchor is baked into `structure_digest`
+    /// (since the constraint references the constant lanes), so it
+    /// transitively binds into `vk_fs_digest` and every step's
+    /// `state_x_out`. `None` means stateless seed semantics — no
+    /// constraint emitted.
+    pub initial_semantic_state_digest_anchor: Option<[u8; 32]>,
 }
 
 /// Indices into `poseidon_one_shot_preimage_lens` for the two

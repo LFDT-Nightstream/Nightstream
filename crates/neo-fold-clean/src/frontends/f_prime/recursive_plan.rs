@@ -362,6 +362,19 @@ pub struct StateXOutPlanOptions {
     /// App-assignment variables whose Poseidon2 digest becomes the
     /// outgoing carried semantic-state digest.
     pub semantic_state_out_var_indices: Vec<usize>,
+    /// **Verifier-owned initial semantic-state anchor**. When `Some`,
+    /// the F' image's CCS structure emits a base-gated constraint
+    ///   `is_base * (state_in.semantic_state_digest_in_lane[k] - anchor[k]) == 0`
+    /// for each of the 4 digest lanes. Without this constraint, a
+    /// hand-crafted prover could submit a base step whose
+    /// `state_in.semantic_state_digest_in_lane` (and thus
+    /// `H(state_in_app_vars)`) disagrees with the verifier's anchor —
+    /// the protocol would have no proven binding from the claimed
+    /// initial app state to the actual first-step witness.
+    ///
+    /// `None` (the default) means stateless seed semantics — no
+    /// anchor constraint is emitted.
+    pub initial_semantic_state_digest_anchor: Option<[u8; 32]>,
 }
 
 /// Assemble the recursive-step `FPrimeImageConfig` from the
@@ -495,6 +508,10 @@ pub fn build_recursive_step_image_config(plan: &RecursiveStepImagePlan) -> FPrim
         one_shot_digest_to_public_x_out_bindings: public_x_out_bindings,
         poseidon_transition_enforcements: enforcements,
         unified_accumulator_selector: unified_selector,
+        initial_semantic_state_digest_anchor: plan
+            .state_x_out
+            .as_ref()
+            .and_then(|sxo| sxo.initial_semantic_state_digest_anchor),
     }
 }
 

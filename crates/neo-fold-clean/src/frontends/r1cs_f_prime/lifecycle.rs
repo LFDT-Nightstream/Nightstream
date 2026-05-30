@@ -14,10 +14,23 @@ use crate::paper::relations::{CcsClaim, CcsInstance};
 
 /// Fold a sequence of encoded R1CS-F' steps through `lifecycle::prove`,
 /// one step per batch.
+///
+/// **Stateless only.** This entrypoint uses the generic stateless
+/// `lifecycle::prove` path, which advances `state.semantic_state_digest`
+/// to `new_acc_digest` at every step. That would silently disagree
+/// with the encoded image's `state_out.semantic_state_digest_lane`
+/// (which encodes `H(state_out_app_vars)`) — the `x_out` chain check
+/// would later fail with a confusing diagnostic. Reject up front so a
+/// stateful caller is forced toward [`R1csChainBuilder`], which threads
+/// the per-step semantic digests correctly.
 pub fn prove_encoded_steps(
     prep: &R1csFPrimePreprocessing,
     steps: &[EncodedFPrimeStep],
 ) -> Result<UncompressedAudit, Error> {
+    use crate::paper::construction2::SemanticStateMode;
+    if matches!(prep.prep.semantic_state_mode(), SemanticStateMode::Stateful) {
+        return Err(Error::ProveEncodedStepsStatefulUnsupported);
+    }
     let mut batches: Vec<Vec<CcsInstance>> = Vec::with_capacity(steps.len());
     for step in steps {
         batches.push(vec![build_instance(prep, step)?]);

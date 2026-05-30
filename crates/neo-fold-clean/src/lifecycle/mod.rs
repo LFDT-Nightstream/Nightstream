@@ -87,6 +87,32 @@ pub enum Error {
         col: usize,
     },
     #[error(
+        "verify_uncompressed: recorded final accumulator claim {index} CE relation violated — \
+         `y_ring[{matrix_index}]` does not equal multilinear_eval(M_{matrix_index} · Z, r). \
+         The SuperNeo verifier equation on the folded CE relation requires y_ring closure \
+         against the opened witness; the F'-chain `acc_digest` carries only commitment data, \
+         so without this check a malformed y_ring slips through the binding pipeline."
+    )]
+    FinalAccumulatorCeRelationViolation { index: usize, matrix_index: usize },
+    #[error(
+        "verify_uncompressed: recorded final accumulator claim {index} `ct[{matrix_index}]` \
+         does not equal the SuperNeo scalar view of `multilinear_eval(M_{matrix_index} · Z, r)` \
+         (the constant term of y_ring[{matrix_index}]). Bound here so the prover can't lie about \
+         `ct` independently of `y_ring` — `ct` enters the protocol's consistency checks downstream."
+    )]
+    FinalAccumulatorCtMismatch { index: usize, matrix_index: usize },
+    #[error(
+        "verify_uncompressed: recorded final accumulator claim {index} evaluation point `r` has the \
+         wrong length (expected {expected} = log2(next_pow2(structure.n).max(2)), got {got}). A \
+         truncated `r` would silently shrink the multilinear evaluation domain and a padded `r` \
+         would over-extend it, so the CE-relation closure rejects an off-shape `r` before computing M·Z(r)."
+    )]
+    FinalAccumulatorEvaluationPointShapeMismatch {
+        index: usize,
+        expected: usize,
+        got: usize,
+    },
+    #[error(
         "verify_uncompressed: state after re-running the terminal NIFS fold disagrees with the recorded proof.state"
     )]
     PostStateMismatch,
@@ -100,6 +126,13 @@ pub enum Error {
          `semantic_state_digest == acc_digest` to be carried unchanged through finalization)"
     )]
     StatelessSemanticInvariantViolated,
+    #[error(
+        "verify_uncompressed: proof.state.initial_semantic_state_digest \u{2260} \
+         prep.initial_semantic_state_digest() (the verifier-owned preprocessing anchors the \
+         chain's initial app-state seed; vk_fs_digest absorbs it, so a mismatched proof field \
+         cannot be silently relabelled)"
+    )]
+    InitialSemanticStateAnchorMismatch,
     #[error("extend: cannot extend an already-finalized uncompressed proof")]
     AlreadyFinalized,
     #[error("finish_uncompressed: already-finalized proof is internally inconsistent")]
@@ -144,6 +177,21 @@ pub struct Preprocessing {
     /// the chain binds to a specific m_in. `None` means "unfixed at the
     /// program level" — encoded as `u64::MAX` in the absorb.
     pub public_input_len: Option<usize>,
+    /// Verifier-owned initial app/VM semantic-state digest.
+    ///
+    /// Absorbed into [`vk_fs_digest`] at preprocess time so every
+    /// step's `state_x_out` transitively binds it. Default is the
+    /// `empty_semantic_state_digest()` constant (stateless seed).
+    /// Stateful frontends set the actual `H(initial_app_state)` via
+    /// [`Preprocessing::with_initial_semantic_state_digest`], which
+    /// **rebuilds `vk`** so the new value is bound from the very
+    /// first step.
+    ///
+    /// `pub(crate)` so external callers can't quietly mutate the seed
+    /// (which would silently rebuild `vk` underneath them). Read
+    /// access goes through
+    /// [`Preprocessing::initial_semantic_state_digest`].
+    pub(crate) initial_semantic_state_digest: [u8; 32],
     /// Verifier-owned semantic-state mode — **structure-derived, not
     /// caller-settable**.
     ///
@@ -183,6 +231,39 @@ impl Preprocessing {
     /// soundness argument.
     pub fn semantic_state_mode(&self) -> SemanticStateMode {
         self.semantic_state_mode
+    }
+
+    /// Read-only view of the verifier-owned initial app/VM
+    /// semantic-state digest. Stateless preprocessings carry
+    /// `empty_semantic_state_digest()`; stateful frontends carry
+    /// `H(initial_app_state)`.
+    pub fn initial_semantic_state_digest(&self) -> [u8; 32] {
+        self.initial_semantic_state_digest
+    }
+
+    /// In-crate hook for stateful frontends to set the initial
+    /// app-state seed. Rebuilds `vk` so the new value is absorbed
+    /// into `vk_fs_digest` and transitively binds every step's
+    /// `state_x_out`.
+    ///
+    /// **`pub(crate)` is load-bearing for soundness.** Stateful
+    /// frontends must call this from preprocess time, with a value
+    /// matching the structure-baked anchor (read from the same plan).
+    /// Exposing it publicly would let a caller drift `vk_fs_digest`'s
+    /// initial anchor away from the F' image's base-step constraint —
+    /// the very gap the structural fix closes. The only legitimate
+    /// caller is `frontends/r1cs_f_prime::preprocess`, which reads
+    /// the anchor from `RecursiveStepImagePlan` and applies the same
+    /// value here that the structure builder baked into the CCS.
+    pub(crate) fn with_initial_semantic_state_digest(mut self, initial: [u8; 32]) -> Self {
+        self.initial_semantic_state_digest = initial;
+        self.vk = VerifierKey::derive_from_structure_digest(
+            &self.params,
+            &self.structure_digest,
+            self.public_input_len,
+            initial,
+        );
+        self
     }
 
     /// In-crate hook for stateful frontends to declare the chain's
@@ -300,7 +381,7 @@ pub use crate::paper::decider::PublicImage;
 // Production path — non-replay IVC.
 pub use compress::finish_uncompressed;
 pub use prove::{extend, prove};
-pub use verify::verify_uncompressed;
+pub use verify::{validate_final_witness_authority, verify_uncompressed};
 
 // Audit / decider path — chain replay, Spartan, diagnostic tests.
 pub use compress::{build_decider_statement, compress, finish_uncompressed_with_audit, verify};
@@ -355,7 +436,18 @@ pub fn preprocess_with_test_log(
     let optimized_cache = OptimizedStructureCache::build(&structure)?;
     let structure_digest =
         crate::paper::digest::structure_digest_from_mat_digest(&structure, optimized_cache.mat_digest());
-    let vk = VerifierKey::derive_from_structure_digest(&params, &structure_digest, public_input_len);
+    // Default seed: `empty_semantic_state_digest()`. Stateful frontends
+    // call [`Preprocessing::with_initial_semantic_state_digest`] after
+    // preprocess to install their `H(initial_app_state)`; that setter
+    // rebuilds `vk` so the new seed propagates through every step's
+    // `state_x_out`.
+    let initial_semantic_state_digest = crate::paper::digest::empty_semantic_state_digest();
+    let vk = VerifierKey::derive_from_structure_digest(
+        &params,
+        &structure_digest,
+        public_input_len,
+        initial_semantic_state_digest,
+    );
     Ok(Preprocessing {
         params,
         structure,
@@ -364,6 +456,7 @@ pub fn preprocess_with_test_log(
         mix_rhos_commits,
         combine_b_pows,
         public_input_len,
+        initial_semantic_state_digest,
         // Default to Stateless. Stateful frontends call
         // [`Preprocessing::with_semantic_state_mode`] after preprocess to
         // upgrade the mode based on their plan.

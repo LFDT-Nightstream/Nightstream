@@ -1,0 +1,203 @@
+//! Ajtai commitment opening + X projection as R1CS rows.
+//!
+//! Ports the matrix-row coefficient computation from the prototype's
+//! `enforce_ajtai_commitment` (`get_global_pp_for_dims` +
+//! `precompute_rot_columns`) into the clean's `R1csBuilder` world.
+
+use neo_ajtai::{get_global_pp_for_dims, precompute_rot_columns};
+use neo_math::{D, F};
+use p3_field::PrimeCharacteristicRing;
+
+use crate::engine::r1cs_circuit::builder::{Lc, R1csBuilder, Var};
+use crate::paper::reductions::pi_dec_circuit::CeClaimWires;
+
+use super::witness::FinalWitnessWires;
+
+#[derive(Debug)]
+pub(crate) enum AjtaiOpeningError {
+    SetupMissing {
+        d: usize,
+        cols: usize,
+    },
+    Shape {
+        what: &'static str,
+        expected: usize,
+        got: usize,
+    },
+}
+
+pub(crate) fn enforce_ajtai_opening(
+    builder: &mut R1csBuilder,
+    witness: &FinalWitnessWires,
+    c_data: &[Var],
+    c_d: usize,
+    c_kappa: usize,
+) -> Result<(), AjtaiOpeningError> {
+    let rows = witness.rows;
+    let cols = witness.cols;
+    if rows != c_d {
+        return Err(AjtaiOpeningError::Shape {
+            what: "witness rows vs c_d",
+            expected: c_d,
+            got: rows,
+        });
+    }
+    let coord_count = rows.checked_mul(c_kappa).ok_or(AjtaiOpeningError::Shape {
+        what: "c_data length overflow",
+        expected: 0,
+        got: 0,
+    })?;
+    if c_data.len() != coord_count {
+        return Err(AjtaiOpeningError::Shape {
+            what: "c_data length",
+            expected: coord_count,
+            got: c_data.len(),
+        });
+    }
+    let pp = get_global_pp_for_dims(rows, cols).map_err(|_| AjtaiOpeningError::SetupMissing { d: rows, cols })?;
+    if pp.m_rows.len() != c_kappa {
+        return Err(AjtaiOpeningError::Shape {
+            what: "Ajtai kappa",
+            expected: c_kappa,
+            got: pp.m_rows.len(),
+        });
+    }
+    for pp_row in &pp.m_rows {
+        if pp_row.len() != cols {
+            return Err(AjtaiOpeningError::Shape {
+                what: "Ajtai row width",
+                expected: cols,
+                got: pp_row.len(),
+            });
+        }
+    }
+
+    // For each commit column `commit_col` (kappa total) and each
+    // coordinate-row inside it (rows total), emit one linear
+    // equation: `Σ rots[witness_row][coord_row] * Z[witness_row,
+    // witness_col] = c_data[commit_col * rows + coord_row]`. The
+    // mapping mirrors `ajtai_commitment_rows` in the prototype but
+    // streams the constraint directly without materialising the full
+    // coefficient matrix.
+    for (commit_col, pp_row) in pp.m_rows.iter().enumerate() {
+        for coord_row in 0..rows {
+            let mut lhs = Lc::zero();
+            for (witness_col, ring_el) in pp_row.iter().copied().enumerate() {
+                let mut rots = [[F::ZERO; D]; D];
+                precompute_rot_columns(ring_el, &mut rots);
+                for witness_row in 0..rows {
+                    let coeff = rots[witness_row][coord_row];
+                    if coeff != F::ZERO {
+                        let z_var = witness
+                            .entry(witness_row, witness_col)
+                            .ok_or(AjtaiOpeningError::Shape {
+                                what: "witness entry",
+                                expected: rows * cols,
+                                got: 0,
+                            })?;
+                        lhs.add_term(z_var, coeff);
+                    }
+                }
+            }
+            let coord = commit_col * rows + coord_row;
+            builder.enforce_eq(&lhs, &Lc::from_var(c_data[coord]));
+        }
+    }
+    Ok(())
+}
+
+#[derive(Debug)]
+pub(crate) struct XProjectionError {
+    what: &'static str,
+    expected: usize,
+    got: usize,
+}
+
+impl XProjectionError {
+    pub(crate) fn what(&self) -> &'static str {
+        self.what
+    }
+    pub(crate) fn expected(&self) -> usize {
+        self.expected
+    }
+    pub(crate) fn got(&self) -> usize {
+        self.got
+    }
+}
+
+/// Enforce `claim.X = L_x(Z)` for the active public-input prefix.
+///
+/// `project_x_from_witness_mat` copies the first `required_cols = ceil(m_in / D)`
+/// packed columns of `Z` into `X`; this gadget also pins all remaining
+/// structural `X` columns to zero. That keeps the terminal CE relation
+/// self-contained instead of relying on an upstream inactive-column check.
+pub(crate) fn enforce_x_projection(
+    builder: &mut R1csBuilder,
+    witness: &FinalWitnessWires,
+    claim: &CeClaimWires,
+) -> Result<(), XProjectionError> {
+    if claim.x_rows != D {
+        return Err(XProjectionError {
+            what: "claim.x_rows",
+            expected: D,
+            got: claim.x_rows,
+        });
+    }
+    if witness.rows != D {
+        return Err(XProjectionError {
+            what: "witness rows",
+            expected: D,
+            got: witness.rows,
+        });
+    }
+    let required_cols = claim.m_in.div_ceil(D);
+    if claim.x_cols != claim.m_in {
+        return Err(XProjectionError {
+            what: "claim.x_cols == m_in",
+            expected: claim.m_in,
+            got: claim.x_cols,
+        });
+    }
+    if witness.cols < required_cols {
+        return Err(XProjectionError {
+            what: "witness cols ≥ required_cols",
+            expected: required_cols,
+            got: witness.cols,
+        });
+    }
+    if claim.x_cols < required_cols {
+        return Err(XProjectionError {
+            what: "claim.x_cols ≥ required_cols",
+            expected: required_cols,
+            got: claim.x_cols,
+        });
+    }
+    for col in 0..required_cols {
+        for row in 0..D {
+            let z_var = witness.entry(row, col).ok_or(XProjectionError {
+                what: "witness entry",
+                expected: D * required_cols,
+                got: 0,
+            })?;
+            let x_idx = row * claim.x_cols + col;
+            let x_var = *claim.x.get(x_idx).ok_or(XProjectionError {
+                what: "claim.x slot",
+                expected: D * claim.x_cols,
+                got: claim.x.len(),
+            })?;
+            builder.enforce_eq(&Lc::from_var(z_var), &Lc::from_var(x_var));
+        }
+    }
+    for col in required_cols..claim.x_cols {
+        for row in 0..D {
+            let x_idx = row * claim.x_cols + col;
+            let x_var = *claim.x.get(x_idx).ok_or(XProjectionError {
+                what: "claim.x slot",
+                expected: D * claim.x_cols,
+                got: claim.x.len(),
+            })?;
+            builder.enforce_eq(&Lc::from_var(x_var), &Lc::zero());
+        }
+    }
+    Ok(())
+}

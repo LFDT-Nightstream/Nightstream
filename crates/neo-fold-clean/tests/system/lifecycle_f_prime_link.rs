@@ -619,6 +619,7 @@ fn nifs_transcript_binds_chunk_contents_even_though_f_prime_digest_is_shape_only
         &prep.vk,
         prep.public_input_len,
         prep.semantic_state_mode(),
+        prep.initial_semantic_state_digest(),
         &untampered_statement,
     )
     .expect("untampered statement passes validate_witness");
@@ -641,6 +642,7 @@ fn nifs_transcript_binds_chunk_contents_even_though_f_prime_digest_is_shape_only
             &prep.vk,
             prep.public_input_len,
             prep.semantic_state_mode(),
+            prep.initial_semantic_state_digest(),
             &tampered_statement,
         )
         .is_err(),

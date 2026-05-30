@@ -460,6 +460,7 @@ fn tiny_fibonacci_lifecycle_plan() -> RecursiveStepImagePlan {
         app_public_input_var_indices: Vec::new(),
         semantic_state_in_var_indices: Vec::new(),
         semantic_state_out_var_indices: Vec::new(),
+        initial_semantic_state_digest_anchor: None,
     });
     plan
 }

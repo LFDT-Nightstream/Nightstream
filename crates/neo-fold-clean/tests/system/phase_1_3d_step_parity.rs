@@ -331,6 +331,7 @@ fn image_config_for_one_step(poseidon_one_shot_preimage_lens: Vec<usize>) -> FPr
         one_shot_digest_to_public_x_out_bindings: vec![],
         poseidon_transition_enforcements: vec![],
         unified_accumulator_selector: None,
+        initial_semantic_state_digest_anchor: None,
     }
 }
 
@@ -704,6 +705,7 @@ fn nifs_only_image_config(shapes: Vec<NifsPayloadShape>) -> FPrimeImageConfig {
         one_shot_digest_to_public_x_out_bindings: vec![],
         poseidon_transition_enforcements: vec![],
         unified_accumulator_selector: None,
+        initial_semantic_state_digest_anchor: None,
     }
 }
 
@@ -948,6 +950,7 @@ fn phase_1_3d_kmul_ring_action_coverage_full_step_three_way_parity() {
         one_shot_digest_to_public_x_out_bindings: vec![],
         poseidon_transition_enforcements: vec![],
         unified_accumulator_selector: None,
+        initial_semantic_state_digest_anchor: None,
     };
     assert_eq!(
         image_config.kmul_count,

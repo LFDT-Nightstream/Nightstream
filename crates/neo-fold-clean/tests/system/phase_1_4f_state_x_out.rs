@@ -99,6 +99,7 @@ fn build_honest_fixture() -> Fixture {
         app_public_input_var_indices: Vec::new(),
         semantic_state_in_var_indices: Vec::new(),
         semantic_state_out_var_indices: Vec::new(),
+        initial_semantic_state_digest_anchor: None,
     });
     let layout = FPrimeImageLayout::new(build_recursive_step_image_config(&plan));
     let mut image = FPrimeImage::new(layout.clone());

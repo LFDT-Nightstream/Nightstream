@@ -81,8 +81,12 @@
 //! `y_j` values back to the *opened* witness `Z`.
 
 use neo_ccs::traits::SModuleHomomorphism;
+use neo_ccs::utils::tensor_point;
 use neo_math::balanced::within_nc_bound;
-use neo_reductions::common::{compute_y_from_Z_and_r, project_x_from_witness_mat};
+use neo_math::K;
+use neo_reductions::common::project_x_from_witness_mat;
+use neo_reductions::superneo_eval::{SuperneoEvalCache, SuperneoRingLinearForm, SuperneoZBlocks};
+use p3_field::PrimeCharacteristicRing;
 
 use crate::lifecycle::{Error, Preprocessing, Uncompressed, UncompressedAudit};
 use crate::paper::construction2::{
@@ -346,6 +350,8 @@ fn check_running_witnesses_authority(prep: &Preprocessing, running: &RunningInst
 
     let b = prep.params.b();
     let ell_d = ell_d_for_ce_check();
+    let superneo_cache = prep.optimized_cache().superneo();
+    let mut cached_forms: Option<(Vec<K>, Vec<SuperneoRingLinearForm>)> = None;
     for (index, (claim, witness)) in running.claims.iter().zip(&running.witnesses).enumerate() {
         if prep.log.commit(witness) != claim.c {
             return Err(Error::FinalAccumulatorWitnessCommitmentMismatch { index });
@@ -356,7 +362,16 @@ fn check_running_witnesses_authority(prep: &Preprocessing, running: &RunningInst
             return Err(Error::FinalAccumulatorPublicInputMismatch { index });
         }
         check_low_norm(index, witness, b)?;
-        check_ce_relation(prep, index, claim, witness, ell_d)?;
+        let expected_r_len = expected_row_point_len(prep);
+        if claim.r.len() != expected_r_len {
+            return Err(Error::FinalAccumulatorEvaluationPointShapeMismatch {
+                index,
+                expected: expected_r_len,
+                got: claim.r.len(),
+            });
+        }
+        let forms = ring_linear_forms_for_claim_r(prep, superneo_cache, &mut cached_forms, &claim.r);
+        check_ce_relation(prep, index, claim, witness, ell_d, forms)?;
     }
     Ok(())
 }
@@ -378,6 +393,36 @@ fn ell_d_for_ce_check() -> usize {
     neo_math::D.next_power_of_two().trailing_zeros() as usize
 }
 
+#[inline]
+fn expected_row_point_len(prep: &Preprocessing) -> usize {
+    prep.structure()
+        .n
+        .next_power_of_two()
+        .max(2)
+        .trailing_zeros() as usize
+}
+
+fn ring_linear_forms_for_claim_r<'a>(
+    prep: &Preprocessing,
+    superneo_cache: &SuperneoEvalCache,
+    cached_forms: &'a mut Option<(Vec<K>, Vec<SuperneoRingLinearForm>)>,
+    r: &[K],
+) -> &'a [SuperneoRingLinearForm] {
+    let needs_rebuild = cached_forms
+        .as_ref()
+        .is_none_or(|(cached_r, _)| cached_r.as_slice() != r);
+    if needs_rebuild {
+        let rb = tensor_point::<K>(r);
+        let n_eff = core::cmp::min(prep.structure().n, rb.len());
+        *cached_forms = Some((r.to_vec(), superneo_cache.build_ring_linear_forms(&rb, n_eff)));
+    }
+    cached_forms
+        .as_ref()
+        .expect("ring-linear forms must be cached")
+        .1
+        .as_slice()
+}
+
 /// Verify the two CE-relation obligations (4th and 5th) against the
 /// opened witness: `claim.y_ring[j] == multilinear_eval(M_j · Z,
 /// claim.r)` for every CCS matrix `M_j`, then `claim.ct[j] ==
@@ -391,43 +436,33 @@ fn check_ce_relation(
     claim: &CeClaim,
     witness: &WitnessMat,
     ell_d: usize,
+    ring_linear_forms: &[SuperneoRingLinearForm],
 ) -> Result<(), Error> {
-    // ── r shape guard ─────────────────────────────────────────────────
-    // `r` is the row-domain multilinear point. The honest fold engine
-    // sizes it as `log2(next_pow2(n).max(2))` — the min-one-round padding
-    // shared with `neo_reductions::api::ell_n_for_ccs` / `engines::utils`
-    // (so even a single-row `n=1` structure carries one round). The
-    // downstream `compute_y_from_Z_and_r` is lenient: it clamps its eval
-    // domain to `min(n, 2^|r|)`, so a short `r` would silently drop rows
-    // and a long `r` would carry dead tensor entries. Pin the exact
-    // honest length so neither slips past this verifier.
-    let expected_r_len = prep
-        .structure()
-        .n
-        .next_power_of_two()
-        .max(2)
-        .trailing_zeros() as usize;
-    if claim.r.len() != expected_r_len {
-        return Err(Error::FinalAccumulatorEvaluationPointShapeMismatch {
-            index,
-            expected: expected_r_len,
-            got: claim.r.len(),
-        });
-    }
-
-    let (expected_y, expected_ct) = compute_y_from_Z_and_r(prep.structure(), witness, &claim.r, ell_d, prep.params.b());
-
     // ── y_ring closure ────────────────────────────────────────────────
-    if expected_y.len() != claim.y_ring.len() {
+    if ring_linear_forms.len() != claim.y_ring.len() {
         return Err(Error::FinalAccumulatorCeRelationViolation {
             index,
-            matrix_index: expected_y.len().min(claim.y_ring.len()),
+            matrix_index: ring_linear_forms.len().min(claim.y_ring.len()),
         });
     }
-    for (matrix_index, (expected, recorded)) in expected_y.iter().zip(claim.y_ring.iter()).enumerate() {
-        if expected != recorded {
+    let d_pad = 1usize << ell_d;
+    let z_blocks = SuperneoZBlocks::from_witness_mat(witness, prep.structure().m)
+        .expect("check_ce_relation: witness shape was validated before CE closure");
+    let mut expected_ct = Vec::with_capacity(ring_linear_forms.len());
+    for (matrix_index, (form, recorded)) in ring_linear_forms
+        .iter()
+        .zip(claim.y_ring.iter())
+        .enumerate()
+    {
+        let coeffs = form.eval_real_z_blocks(&z_blocks);
+        let mut expected = coeffs.to_vec();
+        if expected.len() < d_pad {
+            expected.resize(d_pad, K::ZERO);
+        }
+        if expected.as_slice() != recorded.as_slice() {
             return Err(Error::FinalAccumulatorCeRelationViolation { index, matrix_index });
         }
+        expected_ct.push(expected[0]);
     }
 
     // ── ct closure ────────────────────────────────────────────────────

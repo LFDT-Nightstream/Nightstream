@@ -36,6 +36,14 @@ pub(crate) struct ParsedWasmArtifacts {
     pub(crate) module_types: Vec<(u64, u64)>,
     pub(crate) imported_function_count: u32,
     pub(crate) function_metas: BTreeMap<u32, ParsedFunctionMeta>,
+    /// Bytes initialized by active `(data ...)` segments at module
+    /// instantiation, as `(byte_addr, byte_value)` pairs. Used by the memory
+    /// sanity checker to seed `linear_memory` so the RMW Read check at
+    /// data-initialized addresses sees the correct prior value (instead of
+    /// the zero-default that applies to bytes outside any data segment).
+    /// Only active segments targeting memory 0 with an `i32.const` offset are
+    /// recorded; passive segments and globalexpr offsets are skipped.
+    pub(crate) linear_memory_init: Vec<(u64, u8)>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -96,6 +104,7 @@ struct ParsedWasmArtifactsBuilder {
     signature_ids: BTreeMap<String, u32>,
     next_type_id: u32,
     defined_function_type_indices: Vec<u32>,
+    linear_memory_init: Vec<(u64, u8)>,
 }
 
 impl Default for ParsedWasmArtifactsBuilder {
@@ -116,6 +125,7 @@ impl Default for ParsedWasmArtifactsBuilder {
             signature_ids: BTreeMap::new(),
             next_type_id: 1,
             defined_function_type_indices: Vec::new(),
+            linear_memory_init: Vec::new(),
         }
     }
 }
@@ -209,6 +219,7 @@ impl ParsedWasmArtifactsBuilder {
             module_types,
             imported_function_count: self.imported_function_count,
             function_metas: self.function_metas,
+            linear_memory_init: self.linear_memory_init,
         })
     }
 
@@ -544,6 +555,44 @@ impl ParsedWasmArtifactsBuilder {
                         .push((u64::from(function_ref), entry_pc));
                 }
                 self.defined_function_index += 1;
+            }
+            Payload::DataSection(reader) => {
+                for segment_result in reader {
+                    let segment = segment_result
+                        .map_err(|err| WasmBuildError::Trace(format!("failed to decode wasm data segment: {err}")))?;
+                    let (memory_index, offset) = match segment.kind {
+                        wasmparser::DataKind::Active {
+                            memory_index,
+                            offset_expr,
+                        } => {
+                            // Only `i32.const N` offset expressions are supported; everything
+                            // else (e.g., `global.get`) needs runtime evaluation that's out of
+                            // scope for static preload.
+                            let mut reader = offset_expr.get_operators_reader();
+                            let first = reader.read().map_err(|err| {
+                                WasmBuildError::Trace(format!("failed to read data segment offset expr: {err}"))
+                            })?;
+                            let offset = match first {
+                                wasmparser::Operator::I32Const { value } => value as u32 as u64,
+                                other => {
+                                    return Err(WasmBuildError::Unsupported(format!(
+                                        "data segment with non-i32.const offset expr: {other:?}"
+                                    )));
+                                }
+                            };
+                            (memory_index, offset)
+                        }
+                        wasmparser::DataKind::Passive => continue,
+                    };
+                    if memory_index != 0 {
+                        return Err(WasmBuildError::Unsupported(format!(
+                            "data segment targeting non-default memory {memory_index} not supported"
+                        )));
+                    }
+                    for (i, &byte) in segment.data.iter().enumerate() {
+                        self.linear_memory_init.push((offset + i as u64, byte));
+                    }
+                }
             }
             _ => {}
         }

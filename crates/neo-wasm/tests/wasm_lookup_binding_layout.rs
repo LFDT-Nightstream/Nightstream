@@ -189,11 +189,43 @@ fn layout_describes_lookup_families_and_memory_bindings() {
         .iter()
         .find(|memory| memory.name == "linear_memory")
         .expect("linear_memory memory family");
-    assert_eq!(linear_memory.columns.len(), 3);
+    // 3 Read entries (loads, one per lane) + 3 Write+RMW entries (stores).
+    // Each pair shares the same `address_columns` and `value_column` but
+    // differs in kind, gate (`laneN_load_active` vs `laneN_store_active`),
+    // and whether `value_before_column` is set.
+    assert_eq!(linear_memory.columns.len(), 6);
     assert!(linear_memory
         .columns
         .iter()
         .all(|column| matches!(column.activation, WasmMemoryActivation::BooleanGate(_))));
+    let load_specs: Vec<_> = linear_memory
+        .columns
+        .iter()
+        .filter(|c| matches!(c.kind, neo_wasm::WasmMemoryColumnKind::Read))
+        .collect();
+    let store_specs: Vec<_> = linear_memory
+        .columns
+        .iter()
+        .filter(|c| matches!(c.kind, neo_wasm::WasmMemoryColumnKind::Write))
+        .collect();
+    assert_eq!(
+        load_specs.len(),
+        3,
+        "expected 3 lane-Read specs (one per lane) for loads"
+    );
+    assert_eq!(
+        store_specs.len(),
+        3,
+        "expected 3 lane-Write+RMW specs (one per lane) for stores"
+    );
+    assert!(
+        load_specs.iter().all(|c| c.value_before_column.is_none()),
+        "load specs must not name a value_before column (loads emit only Read tuples)",
+    );
+    assert!(
+        store_specs.iter().all(|c| c.value_before_column.is_some()),
+        "store specs must name a value_before column (RMW with paired Read + Write)",
+    );
 }
 
 #[test]

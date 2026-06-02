@@ -139,6 +139,12 @@ pub struct WasmtimeTraceRun {
     /// Values of all locals (params + pure locals) at function entry, indexed by local index.
     /// Params have the argument values; pure locals are zero. Populated from the first frame step.
     pub initial_locals: Vec<u32>,
+    /// Bytes initialized by active `(data ...)` segments before wasm code
+    /// runs, as `(byte_addr, byte_value)` pairs. Consumed by the memory
+    /// sanity checker to seed `linear_memory` cells so the RMW Read at
+    /// data-initialized addresses matches the actual prior value instead of
+    /// failing the `ZeroReadDefault` check.
+    pub linear_memory_init: Vec<(u64, u8)>,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -251,6 +257,7 @@ pub fn collect_wasmtime_steps(
         call_targets: parsed.call_targets,
         module_types: parsed.module_types,
         initial_locals,
+        linear_memory_init: parsed.linear_memory_init,
     })
 }
 
@@ -287,6 +294,7 @@ where
     let module_types = parsed.module_types.clone();
     let pc_edge_kinds = parsed.pc_edge_kinds.clone();
     let pc_function_refs = parsed.pc_function_refs.clone();
+    let linear_memory_init = parsed.linear_memory_init.clone();
     let opcode_map = Arc::new(parsed.opcode_map);
     let function_metas = Arc::new(parsed.function_metas);
 
@@ -369,6 +377,7 @@ where
         call_targets,
         module_types,
         initial_locals,
+        linear_memory_init,
     })
 }
 

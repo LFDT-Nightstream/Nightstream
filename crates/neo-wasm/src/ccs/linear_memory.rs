@@ -73,12 +73,92 @@ pub(super) fn push_linear_memory_constraints(
     push_width_selector_constraints(b, linear_memory);
     push_width_opcode_bindings(b, linear_memory);
     push_lane_usage_constraints(b, linear_memory);
+    push_lane_direction_gates(b, linear_memory);
     push_lane_adjacency_constraints(b, linear_memory);
     push_access_byte_bindings(b, stack, linear_memory, sign_extension);
+    push_byte_preservation_constraints(b, linear_memory);
 
     push_load_routing_constraints(b, stack, linear_memory, sign_extension);
     push_i64_load_extension_constraints(b, stack, linear_memory, sign_extension);
     push_store_routing_constraints(b, stack, linear_memory, sign_extension);
+}
+
+/// On store rows, preserve each touched lane byte outside the store's write
+/// window by constraining `lane_byte == lane_byte_before`.
+///
+/// The same width/offset selectors also fire on loads, where this only shapes
+/// unused `_before` scratch; loads emit only Read tuples in the memory spec.
+/// To keep the CCS small, cases are inverted by byte slot: each row gates a
+/// byte equality by the sum of all cases that preserve that slot.
+fn push_byte_preservation_constraints(b: &mut R1csBuilder, linear_memory: &LinearMemoryColumns) {
+    let lanes = [
+        (linear_memory.lane0_bytes, linear_memory.lane0_bytes_before),
+        (linear_memory.lane1_bytes, linear_memory.lane1_bytes_before),
+        (linear_memory.lane2_bytes, linear_memory.lane2_bytes_before),
+    ];
+    let lane_byte_width = linear_memory.lane0_bytes.len();
+
+    let cases: &[(Column, usize, usize)] = &[
+        (linear_memory.byte_width_offset_is[0], 0, 1),
+        (linear_memory.byte_width_offset_is[1], 1, 1),
+        (linear_memory.byte_width_offset_is[2], 2, 1),
+        (linear_memory.byte_width_offset_is[3], 3, 1),
+        (linear_memory.half_width_offset_is[0], 0, 2),
+        (linear_memory.half_width_offset_is[1], 1, 2),
+        (linear_memory.half_width_offset_is[2], 2, 2),
+        (linear_memory.half_width_offset_is[3], 3, 2),
+        // full-width at offset 0 writes all 4 bytes of lane0, no preservation needed.
+        (linear_memory.full_width_offset_is[1], 1, 4),
+        (linear_memory.full_width_offset_is[2], 2, 4),
+        (linear_memory.full_width_offset_is[3], 3, 4),
+        // double-width offset_is is split by direction (load vs store); cover both.
+        (linear_memory.i64_load_offset_is[1], 1, 8),
+        (linear_memory.i64_load_offset_is[2], 2, 8),
+        (linear_memory.i64_load_offset_is[3], 3, 8),
+        (linear_memory.i64_store_offset_is[1], 1, 8),
+        (linear_memory.i64_store_offset_is[2], 2, 8),
+        (linear_memory.i64_store_offset_is[3], 3, 8),
+    ];
+    let cases_meta: Vec<(
+        // offset selector
+        Column,
+        // tuples of (lane, offset_in_lane) of slots/bytes written to by this offset selector
+        std::collections::BTreeSet<(usize, usize)>,
+        // projection of the first coordinate of the above (so only the lanes affected by this offset selector)
+        std::collections::BTreeSet<usize>,
+    )> = cases
+        .iter()
+        .map(|&(case_sel, offset, width)| {
+            let slots_written: std::collections::BTreeSet<(usize, usize)> = (0..width)
+                .map(|i| ((offset + i) / lane_byte_width, (offset + i) % lane_byte_width))
+                .collect();
+            let lanes_written: std::collections::BTreeSet<usize> = slots_written.iter().map(|&(l, _)| l).collect();
+            (case_sel, slots_written, lanes_written)
+        })
+        .collect();
+    b.with_tag(shared("linear memory byte preservation", &linear_memory_ops()), |b| {
+        for (lane, (bytes, bytes_before)) in lanes.into_iter().enumerate() {
+            for (j, (byte, byte_before)) in bytes.into_iter().zip(bytes_before).enumerate() {
+                let selectors_preserving: Vec<Column> = cases_meta
+                    .iter()
+                    .filter(|(_, slots_written, lanes_written)| {
+                        lanes_written.contains(&lane) && !slots_written.contains(&(lane, j))
+                    })
+                    .map(|(case_sel, _, _)| *case_sel)
+                    .collect();
+                if selectors_preserving.is_empty() {
+                    // No case preserves this slot. lane1[0] and lane2[0] are
+                    // always written whenever their lanes are touched.
+                    continue;
+                }
+                b.push_row(
+                    selectors_preserving.into_iter().map(|c| (idx(c), F::ONE)),
+                    [(idx(byte), F::ONE), (idx(byte_before), -F::ONE)],
+                    [],
+                );
+            }
+        }
+    });
 }
 
 fn push_address_normalization(
@@ -148,6 +228,28 @@ fn push_address_normalization(
                 [op_selector(WasmOpcode::I64Load), op_selector(WasmOpcode::I64Store)],
                 idx(linear_memory.lane2_value),
                 linear_memory.lane2_bytes.map(idx),
+            );
+            // Same byte_decomp on the `_before` columns so per-byte subword
+            // preservation constraints can reference individual bytes of the
+            // prior lane state. Gated identically: `_before` only matters when
+            // the lane is actually accessed.
+            push_u32_le_bytes_decomp(
+                b,
+                linear_memory_selectors.iter().copied(),
+                idx(linear_memory.lane0_value_before),
+                linear_memory.lane0_bytes_before.map(idx),
+            );
+            push_u32_le_bytes_decomp(
+                b,
+                linear_memory_selectors.iter().copied(),
+                idx(linear_memory.lane1_value_before),
+                linear_memory.lane1_bytes_before.map(idx),
+            );
+            push_u32_le_bytes_decomp(
+                b,
+                [op_selector(WasmOpcode::I64Load), op_selector(WasmOpcode::I64Store)],
+                idx(linear_memory.lane2_value_before),
+                linear_memory.lane2_bytes_before.map(idx),
             );
         },
     );
@@ -316,6 +418,51 @@ fn push_lane_usage_constraints(b: &mut R1csBuilder, linear_memory: &LinearMemory
             [],
         );
     });
+}
+
+/// Bind `laneN_load_active = use_laneN · Σ load_selectors` and likewise for
+/// store, via one R1CS quadratic per lane × direction. These are the gate
+/// columns the `linear_memory` `WasmMemorySpec` uses to fire its Read
+/// (load) and Write+RMW (store) entries — keeping load rows from writing
+/// to the cells log.
+fn push_lane_direction_gates(b: &mut R1csBuilder, linear_memory: &LinearMemoryColumns) {
+    let load_ops = memory_ops_by_kind(WasmMemoryAccessKind::Load);
+    let store_ops = memory_ops_by_kind(WasmMemoryAccessKind::Store);
+    b.with_tag(
+        shared("linear memory lane direction gates", &linear_memory_ops()),
+        |b| {
+            for (use_lane_col, load_active_col, store_active_col) in [
+                (
+                    linear_memory.use_lane0,
+                    linear_memory.lane0_load_active,
+                    linear_memory.lane0_store_active,
+                ),
+                (
+                    linear_memory.use_lane1,
+                    linear_memory.lane1_load_active,
+                    linear_memory.lane1_store_active,
+                ),
+                (
+                    linear_memory.use_lane2,
+                    linear_memory.lane2_load_active,
+                    linear_memory.lane2_store_active,
+                ),
+            ] {
+                // `(use_laneN) · (Σ load selectors) = laneN_load_active`.
+                b.push_row(
+                    [(idx(use_lane_col), F::ONE)],
+                    load_ops.iter().map(|&op| (op_selector(op), F::ONE)),
+                    [(idx(load_active_col), F::ONE)],
+                );
+                // `(use_laneN) · (Σ store selectors) = laneN_store_active`.
+                b.push_row(
+                    [(idx(use_lane_col), F::ONE)],
+                    store_ops.iter().map(|&op| (op_selector(op), F::ONE)),
+                    [(idx(store_active_col), F::ONE)],
+                );
+            }
+        },
+    );
 }
 
 fn push_lane_adjacency_constraints(b: &mut R1csBuilder, linear_memory: &LinearMemoryColumns) {

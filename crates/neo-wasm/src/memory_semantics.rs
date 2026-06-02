@@ -72,6 +72,26 @@ pub fn preload_from_wasmtime_run(run: &WasmtimeTraceRun, initial_locals: &[u32])
     for &(raw_type_index, expected_type_id) in &run.module_types {
         preload.insert("module_types", vec![raw_type_index], expected_type_id);
     }
+    // Pack data-section bytes into the word-addressed linear_memory cells.
+    // Bytes outside any data segment stay absent from the preload, so
+    // ZeroReadDefault catches first reads at those addresses (the wasm spec
+    // guarantees them zero at instantiation, and a malicious prover claiming
+    // non-zero `value_before` for an uninitialized byte will fail the check).
+    if !run.linear_memory_init.is_empty() {
+        let mut packed: BTreeMap<u64, u64> = BTreeMap::new();
+        for &(byte_addr, byte_value) in &run.linear_memory_init {
+            let word_addr = byte_addr / 4;
+            let byte_index = (byte_addr % 4) as u32;
+            let word = packed.entry(word_addr).or_insert(0);
+            // Clear any prior occupant at this byte position (later segments
+            // override earlier ones in spec order) and OR the new byte in.
+            *word &= !(0xffu64 << (byte_index * 8));
+            *word |= u64::from(byte_value) << (byte_index * 8);
+        }
+        for (word_addr, word_value) in packed {
+            preload.insert("linear_memory", vec![word_addr], word_value);
+        }
+    }
     preload
 }
 
@@ -192,6 +212,44 @@ fn apply_memory_row(
                 },
             },
             WasmMemoryColumnKind::Write => {
+                // Nebula-style RMW: if `value_before_column` is named, this
+                // row's read tuple must match the prior write at this address
+                // (or the documented init mode). Catches a malicious prover
+                // who writes a word whose unmodified bytes don't preserve the
+                // prior state — see `i32_store8_row_rejects_tampered_...`.
+                if let Some(before_col) = column.value_before_column {
+                    let before_value = witness[before_col.0].as_canonical_u64();
+                    match cells.get(&address).copied() {
+                        Some(expected) if expected != before_value => {
+                            return Err(format!(
+                                "memory `{}` RMW read mismatch at {:?} on row {}: \
+                                 prior write was {}, witness claims {}",
+                                memory.name, address, row_index, expected, before_value
+                            ));
+                        }
+                        Some(_) => {}
+                        None => match init_mode(memory.name) {
+                            DebugInitMode::Strict => {
+                                return Err(format!(
+                                    "memory `{}` RMW read before initialization at {:?} on row {}",
+                                    memory.name, address, row_index
+                                ));
+                            }
+                            DebugInitMode::ZeroReadDefault => {
+                                if before_value != 0 {
+                                    return Err(format!(
+                                        "memory `{}` expected zero-default RMW read at {:?} on row {}, got {}",
+                                        memory.name, address, row_index, before_value
+                                    ));
+                                }
+                                cells.insert(address.clone(), 0);
+                            }
+                            DebugInitMode::FirstReadDefines => {
+                                cells.insert(address.clone(), before_value);
+                            }
+                        },
+                    }
+                }
                 cells.insert(address, value);
             }
         }
@@ -245,6 +303,13 @@ const MEMORY_INIT_MODES: &[(&str, DebugInitMode)] = &[
     ("stack", DebugInitMode::Strict),
     ("call_stack_return_pcs", DebugInitMode::Strict),
     ("call_stack_caller_fbps", DebugInitMode::Strict),
+    // linear_memory: ZeroReadDefault. Bytes initialized by active `(data ...)`
+    // segments are preloaded into the cells in `preload_from_wasmtime_run`
+    // (via `run.linear_memory_init`), so the RMW Read at data-initialized
+    // addresses sees the actual prior word. Bytes outside any data segment
+    // stay absent from the preload, and the wasm spec guarantees them zero
+    // at instantiation — so a malicious prover claiming a non-zero
+    // `value_before` at an uninitialized byte fails this check.
     ("linear_memory", DebugInitMode::ZeroReadDefault),
     ("locals", DebugInitMode::FirstReadDefines),
     ("globals", DebugInitMode::FirstReadDefines),

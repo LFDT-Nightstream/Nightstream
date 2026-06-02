@@ -269,14 +269,15 @@ fn build_superneo_bar_matrix() -> [[Fq; D]; D] {
 
 fn build_ct_gram_matrix() -> [[Fq; D]; D] {
     let mut g = [[Fq::ZERO; D]; D];
+    let neg_one = Fq::ZERO - Fq::ONE;
     for i in 0..D {
         for j in 0..D {
-            let mut ai = [Fq::ZERO; D];
-            ai[i] = Fq::ONE;
-            let mut bj = [Fq::ZERO; D];
-            bj[j] = Fq::ONE;
-            let prod = Rq::mul(&Rq(ai), &Rq(bj));
-            g[i][j] = ct(&prod);
+            g[i][j] = match i + j {
+                0 => Fq::ONE,
+                D => neg_one,
+                ETA => Fq::ONE,
+                _ => Fq::ZERO,
+            };
         }
     }
     g
@@ -393,6 +394,9 @@ impl Mul for Rq {
 
 const KARATSUBA_SPLIT: usize = D / 3;
 const KARATSUBA_CHUNK_OUT: usize = 2 * KARATSUBA_SPLIT - 1;
+const KARATSUBA_TWO: Fq = Fq::TWO;
+const KARATSUBA_FOUR: Fq = Fq::new(4);
+const KARATSUBA_SIXTEEN: Fq = Fq::new(16);
 
 #[inline]
 fn inv_two() -> Fq {
@@ -476,7 +480,6 @@ fn mul_3way_karatsuba_54(lhs: &[Fq; D], rhs: &[Fq; D]) -> [Fq; 2 * D - 1] {
     let mut b0 = [Fq::ZERO; KARATSUBA_SPLIT];
     let mut b1 = [Fq::ZERO; KARATSUBA_SPLIT];
     let mut b2 = [Fq::ZERO; KARATSUBA_SPLIT];
-
     a0.copy_from_slice(&lhs[0..KARATSUBA_SPLIT]);
     a1.copy_from_slice(&lhs[KARATSUBA_SPLIT..2 * KARATSUBA_SPLIT]);
     a2.copy_from_slice(&lhs[2 * KARATSUBA_SPLIT..3 * KARATSUBA_SPLIT]);
@@ -484,9 +487,6 @@ fn mul_3way_karatsuba_54(lhs: &[Fq; D], rhs: &[Fq; D]) -> [Fq; 2 * D - 1] {
     b1.copy_from_slice(&rhs[KARATSUBA_SPLIT..2 * KARATSUBA_SPLIT]);
     b2.copy_from_slice(&rhs[2 * KARATSUBA_SPLIT..3 * KARATSUBA_SPLIT]);
 
-    let two = Fq::from_u64(2);
-    let four = Fq::from_u64(4);
-    let sixteen = Fq::from_u64(16);
     let half = inv_two();
     let sixth = inv_six();
 
@@ -496,9 +496,8 @@ fn mul_3way_karatsuba_54(lhs: &[Fq; D], rhs: &[Fq; D]) -> [Fq; 2 * D - 1] {
     let b012 = add_chunk(&b01, &b2);
     let am1 = add_chunk(&sub_chunk(&a0, &a1), &a2);
     let bm1 = add_chunk(&sub_chunk(&b0, &b1), &b2);
-    let a2eval = add_scaled_chunk(&add_scaled_chunk(&a0, &a1, two), &a2, four);
-    let b2eval = add_scaled_chunk(&add_scaled_chunk(&b0, &b1, two), &b2, four);
-
+    let a2eval = add_scaled_chunk(&add_scaled_chunk(&a0, &a1, KARATSUBA_TWO), &a2, KARATSUBA_FOUR);
+    let b2eval = add_scaled_chunk(&add_scaled_chunk(&b0, &b1, KARATSUBA_TWO), &b2, KARATSUBA_FOUR);
     let p0 = mul_schoolbook_chunk(&a0, &b0);
     let p1 = mul_schoolbook_chunk(&a012, &b012);
     let pm1 = mul_schoolbook_chunk(&am1, &bm1);
@@ -516,10 +515,10 @@ fn mul_3way_karatsuba_54(lhs: &[Fq; D], rhs: &[Fq; D]) -> [Fq; 2 * D - 1] {
     let mut c3 = p2;
     sub_assign_chunk(&mut c3, &c0);
     for i in 0..KARATSUBA_CHUNK_OUT {
-        c3[i] -= c2[i] * four;
-        c3[i] -= c4[i] * sixteen;
+        c3[i] -= c2[i] * KARATSUBA_FOUR;
+        c3[i] -= c4[i] * KARATSUBA_SIXTEEN;
     }
-    c3 = scale_chunk(&sub_chunk(&c3, &scale_chunk(&s, two)), sixth);
+    c3 = scale_chunk(&sub_chunk(&c3, &scale_chunk(&s, KARATSUBA_TWO)), sixth);
 
     let mut c1 = s;
     sub_assign_chunk(&mut c1, &c3);

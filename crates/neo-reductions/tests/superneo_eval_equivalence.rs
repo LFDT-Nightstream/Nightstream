@@ -2,8 +2,9 @@ use neo_ccs::{matrix::Mat, poly::SparsePoly, CcsStructure};
 use neo_math::{superneo_bar_block, KExtensions, Rq};
 use neo_math::{D, F, K};
 use neo_reductions::superneo_eval::{
-    build_superneo_eval_cache, eval_all_mats_cached, eval_all_mats_direct, eval_all_mats_ring_cached,
-    eval_all_mats_ring_cached_with_blocks, eval_all_mats_transformed, SuperneoZBlocks,
+    build_superneo_eval_cache, eval_all_mats_cached, eval_all_mats_cached_with_blocks, eval_all_mats_direct,
+    eval_all_mats_ring_cached, eval_all_mats_ring_cached_with_blocks, eval_all_mats_transformed,
+    eval_ring_linear_forms_real_z_blocks, SuperneoZBlocks,
 };
 use p3_field::PrimeCharacteristicRing;
 
@@ -126,6 +127,121 @@ fn weighted_cache_coefficients_match_monomial_shift_dot() {
         let expected = K::from_coeffs([rq_dot(&weight_re, &shifted), rq_dot(&weight_im, &shifted)]);
         assert_eq!(observed, expected, "basis {basis}");
     }
+}
+
+#[test]
+fn weighted_matrix_cache_matches_direct_weighted_ring_rows_for_complex_witness() {
+    let n = 8usize;
+    let m = 2 * D;
+
+    let mut mat = Mat::zero(n, m, F::ZERO);
+    for row in 0..n {
+        for col in 0..m {
+            if ((row * 17) + (col * 5)) % 19 == 0 {
+                mat[(row, col)] = F::from_u64(((3 * row + 2 * col) % 31 + 1) as u64);
+            }
+        }
+    }
+
+    let s = CcsStructure::new(vec![mat], SparsePoly::new(1, vec![])).expect("valid CCS");
+    let cache = build_superneo_eval_cache(&s).expect("cache should build for D-compatible width");
+    let matrix = cache.matrix(0).expect("matrix cache");
+
+    let mut weights = [K::ZERO; D];
+    for (rho, weight) in weights.iter_mut().enumerate() {
+        *weight = K::from_coeffs([
+            F::from_u64(((11 * rho + 3) % 37 + 1) as u64),
+            F::from_u64(((7 * rho + 5) % 41 + 1) as u64),
+        ]);
+    }
+    let weighted = matrix.compile_weighted_rows(&weights);
+
+    let z: Vec<K> = (0..m)
+        .map(|col| {
+            K::from_coeffs([
+                F::from_u64(((13 * col + 2) % 29 + 1) as u64),
+                F::from_u64(((5 * col + 7) % 23 + 1) as u64),
+            ])
+        })
+        .collect();
+    let z_blocks = SuperneoZBlocks::from_z(&z);
+    assert!(!z_blocks.imag_all_zero());
+
+    for row in 0..n {
+        let direct = matrix.row_dot_ring_weighted_with_blocks(row, &z_blocks, &weights);
+        let cached = weighted.row_dot_with_blocks(row, &z_blocks);
+        assert_eq!(direct, cached, "row {row}");
+    }
+}
+
+#[test]
+fn weighted_row_table_matches_direct_weighted_rows_for_complex_witness() {
+    let n = 16usize;
+    let n_pad = 32usize;
+    let m = 3 * D;
+
+    let mut m0 = Mat::zero(n, m, F::ZERO);
+    let mut m1 = Mat::zero(n, m, F::ZERO);
+    let mut m2 = Mat::zero(n, m, F::ZERO);
+    for row in 0..n {
+        for col in 0..m {
+            if ((row * 17) + (col * 5)) % 19 == 0 {
+                m0[(row, col)] = F::from_u64(((3 * row + 2 * col) % 31 + 1) as u64);
+            }
+            if ((row * 11) + (col * 13)) % 29 == 0 {
+                m1[(row, col)] = F::from_u64(((row + 5 * col) % 37 + 1) as u64);
+            }
+            if ((row * 7) + (col * 3)) % 23 == 0 {
+                m2[(row, col)] = F::from_u64(((2 * row + 7 * col) % 41 + 1) as u64);
+            }
+        }
+    }
+
+    let s = CcsStructure::new(vec![m0, m1, m2], SparsePoly::new(3, vec![])).expect("valid CCS");
+    let cache = build_superneo_eval_cache(&s).expect("cache should build for D-compatible width");
+
+    let mut weights = [K::ZERO; D];
+    for (rho, weight) in weights.iter_mut().enumerate() {
+        *weight = K::from_coeffs([
+            F::from_u64(((11 * rho + 3) % 37 + 1) as u64),
+            F::from_u64(((7 * rho + 5) % 41 + 1) as u64),
+        ]);
+    }
+    let mat_coeffs = vec![
+        K::from_coeffs([F::from_u64(3), F::from_u64(1)]),
+        K::from_coeffs([F::from_u64(5), F::from_u64(2)]),
+        K::from_coeffs([F::ZERO, F::ZERO]),
+    ];
+
+    let z: Vec<K> = (0..m)
+        .map(|col| {
+            K::from_coeffs([
+                F::from_u64(((13 * col + 2) % 29 + 1) as u64),
+                F::from_u64(((5 * col + 7) % 23 + 1) as u64),
+            ])
+        })
+        .collect();
+    let z_blocks = SuperneoZBlocks::from_z(&z);
+    assert!(!z_blocks.imag_all_zero());
+
+    let mut direct = vec![K::ZERO; n_pad];
+    for (row, out) in direct.iter_mut().take(n).enumerate() {
+        let mut row_acc = K::ZERO;
+        for (j, coeff) in mat_coeffs.iter().copied().enumerate() {
+            if coeff == K::ZERO {
+                continue;
+            }
+            let matrix = cache.matrix(j).expect("matrix cache");
+            let y_alpha = matrix.row_dot_ring_weighted_with_blocks(row, &z_blocks, &weights);
+            if y_alpha != K::ZERO {
+                row_acc += coeff * y_alpha;
+            }
+        }
+        *out = row_acc;
+    }
+
+    let projected = cache.eval_weighted_row_table(&z_blocks, &weights, &mat_coeffs, n, n_pad);
+    assert_eq!(projected, direct);
 }
 
 #[test]
@@ -304,6 +420,144 @@ fn cached_superneo_ring_linear_forms_match_ring_eval_for_real_witnesses() {
         .map(|form| form.eval_real_z_blocks(&z_blocks))
         .collect();
     assert_eq!(ring, via_forms);
+
+    let via_batched_forms = eval_ring_linear_forms_real_z_blocks(&forms, &z_blocks);
+    assert_eq!(ring, via_batched_forms);
+}
+
+#[test]
+fn ring_linear_forms_pair_digit_fast_path_matches_ring_eval() {
+    let n = 16usize;
+    let m = 3 * D;
+
+    let mut m0 = Mat::zero(n, m, F::ZERO);
+    let mut m1 = Mat::zero(n, m, F::ZERO);
+    for row in 0..n {
+        for col in 0..m {
+            if ((row * 11) + (col * 7)) % 13 == 0 {
+                m0[(row, col)] = F::from_u64(((row + 3 * col) % 17 + 1) as u64);
+            }
+            if ((row * 5) + (col * 19)) % 23 == 0 {
+                m1[(row, col)] = F::from_u64(((2 * row + col) % 29 + 1) as u64);
+            }
+        }
+    }
+
+    let s = CcsStructure::new(vec![m0, m1], SparsePoly::new(2, vec![])).expect("valid CCS");
+    let cache = build_superneo_eval_cache(&s).expect("cache should build for D-compatible width");
+
+    let neg_one = F::ZERO - F::ONE;
+    let z: Vec<K> = (0..m)
+        .map(|col| {
+            let v = match col % 7 {
+                0 | 3 => F::ONE,
+                1 | 5 => neg_one,
+                _ => F::ZERO,
+            };
+            K::from(v)
+        })
+        .collect();
+    let z_blocks = SuperneoZBlocks::from_z(&z);
+    assert!(z_blocks.imag_all_zero());
+
+    let r = vec![
+        K::from_coeffs([F::from_u64(2), F::from_u64(1)]),
+        K::from_coeffs([F::from_u64(3), F::from_u64(2)]),
+        K::from_coeffs([F::from_u64(5), F::from_u64(1)]),
+        K::from_coeffs([F::from_u64(7), F::from_u64(3)]),
+    ];
+    let chi_r = chi_table(&r);
+
+    let ring = eval_all_mats_ring_cached(&cache, &z, &chi_r, n);
+    let forms = cache.build_ring_linear_forms(&chi_r, n);
+    let via_forms = eval_ring_linear_forms_real_z_blocks(&forms, &z_blocks);
+    assert_eq!(ring, via_forms);
+}
+
+#[test]
+fn ring_linear_forms_chunked_parallel_matches_serial_above_threshold() {
+    let blocks = 4096usize;
+    let n = 1usize;
+    let m = blocks * D;
+
+    let mut row0 = vec![F::ZERO; m];
+    let mut row1 = vec![F::ZERO; m];
+    for blk in 0..blocks {
+        row0[blk * D + ((7 * blk + 3) % D)] = F::from_u64(((blk % 29) + 1) as u64);
+        row1[blk * D + ((11 * blk + 5) % D)] = F::from_u64(((blk % 31) + 1) as u64);
+    }
+
+    let s = CcsStructure::new(
+        vec![Mat::from_row_major(n, m, row0), Mat::from_row_major(n, m, row1)],
+        SparsePoly::new(2, vec![]),
+    )
+    .expect("valid CCS");
+    let cache = build_superneo_eval_cache(&s).expect("cache should build for D-compatible width");
+    let forms = cache.build_ring_linear_forms(&[K::ONE], n);
+
+    let neg_one = F::ZERO - F::ONE;
+    let z: Vec<K> = (0..m)
+        .map(|col| {
+            let v = match col % 5 {
+                0 => F::ONE,
+                1 => neg_one,
+                _ => F::ZERO,
+            };
+            K::from(v)
+        })
+        .collect();
+    let z_blocks = SuperneoZBlocks::from_z(&z);
+
+    let serial: Vec<[K; D]> = forms
+        .iter()
+        .map(|form| form.eval_real_z_blocks(&z_blocks))
+        .collect();
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(2)
+        .build()
+        .expect("build local rayon pool");
+    let chunked = pool.install(|| eval_ring_linear_forms_real_z_blocks(&forms, &z_blocks));
+    assert_eq!(chunked, serial);
+
+    let scalar = eval_all_mats_cached(&cache, &z, &[K::ONE], n);
+    for (j, y_ring) in chunked.iter().enumerate() {
+        assert_eq!(
+            scalar[j], y_ring[0],
+            "matrix {j}: constant term of chunked y_ring must match scalar CE eval"
+        );
+    }
+}
+
+#[test]
+fn cached_superneo_eval_keeps_imaginary_only_blocks() {
+    let n = 4usize;
+    let m = D;
+    let mut mat = Mat::zero(n, m, F::ZERO);
+    mat[(2, 7)] = F::from_u64(9);
+
+    let s = CcsStructure::new(vec![mat], SparsePoly::new(1, vec![])).expect("valid CCS");
+    let cache = build_superneo_eval_cache(&s).expect("cache should build for D-compatible width");
+
+    let mut z_real = vec![K::ZERO; m];
+    z_real[7] = K::from(F::from_u64(5));
+    let real_blocks = SuperneoZBlocks::from_z(&z_real);
+    let i = K::from_coeffs([F::ZERO, F::ONE]);
+    let complex_blocks = SuperneoZBlocks::linear_combination_real(&[real_blocks], &[i]);
+
+    let mut z_complex = vec![K::ZERO; m];
+    z_complex[7] = i * K::from(F::from_u64(5));
+    let r = vec![
+        K::from_coeffs([F::from_u64(3), F::from_u64(1)]),
+        K::from_coeffs([F::from_u64(5), F::from_u64(2)]),
+    ];
+    let chi_r = chi_table(&r);
+
+    let direct = eval_all_mats_direct(&s, &z_complex, &chi_r, n);
+    let cached = eval_all_mats_cached_with_blocks(&cache, &complex_blocks, &chi_r, n);
+    assert_eq!(cached, direct);
+
+    let ring = eval_all_mats_ring_cached_with_blocks(&cache, &complex_blocks, &chi_r, n);
+    assert_eq!(ring[0][0], direct[0]);
 }
 
 #[test]

@@ -207,6 +207,32 @@ fn validate_dec_boundary_inputs(
     Ok(())
 }
 
+fn validate_dec_boundary_inputs_from_trusted_split(
+    s: &CcsStructure<F>,
+    parent: &CeClaim<Cmt, F, K>,
+    z_split: &[Mat<F>],
+    child_commitments: &[Cmt],
+    ell_d: usize,
+) -> Result<(), PiCcsError> {
+    ensure_superneo_width(s)?;
+    validate_ce_claim_shape("dec_parent", s, parent)?;
+    if z_split.len() != child_commitments.len() {
+        return Err(PiCcsError::InvalidInput(format!(
+            "DEC child input mismatch: |Z_split|={} but |child_commitments|={}",
+            z_split.len(),
+            child_commitments.len()
+        )));
+    }
+    if 1usize.checked_shl(ell_d as u32).is_none() {
+        return Err(PiCcsError::InvalidInput(format!("DEC ell_d overflow: ell_d={ell_d}")));
+    }
+    for (idx, z) in z_split.iter().enumerate() {
+        crate::common::validate_superneo_witness_mat(z, s.m)
+            .map_err(|e| PiCcsError::InvalidInput(format!("dec trusted split: Z_split[{idx}] shape failed: {e}")))?;
+    }
+    Ok(())
+}
+
 /// Folding mode selector for engine dispatch.
 #[derive(Clone, Debug)]
 pub enum FoldingMode {
@@ -676,6 +702,152 @@ where
             combine_b_pows,
             superneo_cache,
         ),
+    }
+}
+
+pub fn dec_children_with_commit_superneo_cached_with_digit_flags<Comb>(
+    mode: FoldingMode,
+    s: &CcsStructure<F>,
+    params: &NeoParams,
+    parent: &CeClaim<Cmt, F, K>,
+    Z_split: &[Mat<F>],
+    digit_nonzero: &[bool],
+    ell_d: usize,
+    child_commitments: &[Cmt],
+    combine_b_pows: Comb,
+    superneo_cache: &crate::superneo_eval::SuperneoEvalCache,
+) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool)
+where
+    Comb: Fn(&[Cmt], u32) -> Cmt,
+{
+    use crate::engines::pi_rlc_dec::OptimizedRlcDec;
+    if digit_nonzero.len() != Z_split.len() {
+        eprintln!(
+            "dec_children_with_commit_superneo_cached_with_digit_flags input validation failed: digit flag count {} != split witness count {}",
+            digit_nonzero.len(),
+            Z_split.len()
+        );
+        return (Vec::new(), false, false, false);
+    }
+    if let Err(e) = validate_dec_boundary_inputs(s, params, parent, Z_split, child_commitments, ell_d) {
+        eprintln!("dec_children_with_commit_superneo_cached_with_digit_flags input validation failed: {e}");
+        return (Vec::new(), false, false, false);
+    }
+
+    match mode {
+        FoldingMode::Optimized => OptimizedRlcDec::dec_children_with_commit_superneo_cached_with_digit_flags(
+            s,
+            params,
+            parent,
+            Z_split,
+            digit_nonzero,
+            ell_d,
+            child_commitments,
+            combine_b_pows,
+            superneo_cache,
+        ),
+        #[cfg(feature = "paper-exact")]
+        FoldingMode::PaperExact => crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
+            s,
+            params,
+            parent,
+            Z_split,
+            ell_d,
+            child_commitments,
+            combine_b_pows,
+        ),
+        #[cfg(feature = "paper-exact")]
+        FoldingMode::OptimizedWithCrosscheck(_) => {
+            OptimizedRlcDec::dec_children_with_commit_superneo_cached_with_digit_flags(
+                s,
+                params,
+                parent,
+                Z_split,
+                digit_nonzero,
+                ell_d,
+                child_commitments,
+                combine_b_pows,
+                superneo_cache,
+            )
+        }
+    }
+}
+
+/// DEC for digit planes produced by [`split_b_matrix_k_with_nonzero_flags`].
+///
+/// This is the same computation as
+/// [`dec_children_with_commit_superneo_cached_with_digit_flags`], but it
+/// skips the per-entry NC-range scan over `Z_split`: the split routine
+/// has just decomposed the parent witness into balanced base-`b` digit
+/// planes, so every child entry is already in range. We still validate
+/// parent shape, child count, `ell_d`, and every split matrix's
+/// SuperNeo packed shape. Callers with arbitrary `Z_split` must use the
+/// checked API above.
+pub fn dec_children_with_commit_superneo_cached_from_trusted_split_digits<Comb>(
+    mode: FoldingMode,
+    s: &CcsStructure<F>,
+    params: &NeoParams,
+    parent: &CeClaim<Cmt, F, K>,
+    Z_split: &[Mat<F>],
+    digit_nonzero: &[bool],
+    ell_d: usize,
+    child_commitments: &[Cmt],
+    combine_b_pows: Comb,
+    superneo_cache: &crate::superneo_eval::SuperneoEvalCache,
+) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool)
+where
+    Comb: Fn(&[Cmt], u32) -> Cmt,
+{
+    use crate::engines::pi_rlc_dec::OptimizedRlcDec;
+    if digit_nonzero.len() != Z_split.len() {
+        eprintln!(
+            "dec_children_with_commit_superneo_cached_from_trusted_split_digits input validation failed: digit flag count {} != split witness count {}",
+            digit_nonzero.len(),
+            Z_split.len()
+        );
+        return (Vec::new(), false, false, false);
+    }
+    if let Err(e) = validate_dec_boundary_inputs_from_trusted_split(s, parent, Z_split, child_commitments, ell_d) {
+        eprintln!("dec_children_with_commit_superneo_cached_from_trusted_split_digits input validation failed: {e}");
+        return (Vec::new(), false, false, false);
+    }
+
+    match mode {
+        FoldingMode::Optimized => OptimizedRlcDec::dec_children_with_commit_superneo_cached_with_digit_flags(
+            s,
+            params,
+            parent,
+            Z_split,
+            digit_nonzero,
+            ell_d,
+            child_commitments,
+            combine_b_pows,
+            superneo_cache,
+        ),
+        #[cfg(feature = "paper-exact")]
+        FoldingMode::PaperExact => crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
+            s,
+            params,
+            parent,
+            Z_split,
+            ell_d,
+            child_commitments,
+            combine_b_pows,
+        ),
+        #[cfg(feature = "paper-exact")]
+        FoldingMode::OptimizedWithCrosscheck(_) => {
+            OptimizedRlcDec::dec_children_with_commit_superneo_cached_with_digit_flags(
+                s,
+                params,
+                parent,
+                Z_split,
+                digit_nonzero,
+                ell_d,
+                child_commitments,
+                combine_b_pows,
+                superneo_cache,
+            )
+        }
     }
 }
 

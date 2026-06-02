@@ -971,7 +971,7 @@ where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
 {
-    dec_reduction_paper_exact_inner(s, params, parent, Z_split, ell_d, None)
+    dec_reduction_paper_exact_inner(s, params, parent, Z_split, ell_d, None, None)
 }
 
 /// Same as `dec_reduction_paper_exact`, but uses a prebuilt CSC cache to avoid dense n×m scans.
@@ -988,7 +988,7 @@ where
     K: From<Ff>,
 {
     let _ = sparse;
-    dec_reduction_paper_exact_inner(s, params, parent, Z_split, ell_d, None)
+    dec_reduction_paper_exact_inner(s, params, parent, Z_split, ell_d, None, None)
 }
 
 /// Same as `dec_reduction_paper_exact`, but reuses a prebuilt SuperNeo eval cache.
@@ -1004,7 +1004,36 @@ where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
 {
-    dec_reduction_paper_exact_inner(s, params, parent, Z_split, ell_d, Some(superneo_cache))
+    dec_reduction_paper_exact_inner(s, params, parent, Z_split, ell_d, Some(superneo_cache), None)
+}
+
+pub fn dec_reduction_paper_exact_with_superneo_cache_and_digit_flags<Ff>(
+    s: &CcsStructure<Ff>,
+    params: &NeoParams,
+    parent: &CeClaim<Cmt, Ff, K>,
+    Z_split: &[Mat<Ff>],
+    digit_nonzero: &[bool],
+    ell_d: usize,
+    superneo_cache: &crate::superneo_eval::SuperneoEvalCache,
+) -> (Vec<CeClaim<Cmt, Ff, K>>, bool, bool)
+where
+    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
+    K: From<Ff>,
+{
+    assert_eq!(
+        digit_nonzero.len(),
+        Z_split.len(),
+        "Π_DEC(paper-exact): digit flag count must match split witness count"
+    );
+    dec_reduction_paper_exact_inner(
+        s,
+        params,
+        parent,
+        Z_split,
+        ell_d,
+        Some(superneo_cache),
+        Some(digit_nonzero),
+    )
 }
 
 fn dec_reduction_paper_exact_inner<Ff>(
@@ -1014,6 +1043,7 @@ fn dec_reduction_paper_exact_inner<Ff>(
     Z_split: &[Mat<Ff>],
     ell_d: usize,
     superneo_cache: Option<&crate::superneo_eval::SuperneoEvalCache>,
+    digit_nonzero: Option<&[bool]>,
 ) -> (Vec<CeClaim<Cmt, Ff, K>>, bool, bool)
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
@@ -1036,15 +1066,8 @@ where
     let n_sz = 1usize << ell_n; // 2^{ℓ_n}
     let n_eff = core::cmp::min(s.n, n_sz);
 
-    let mut chi_r = vec![K::ZERO; n_sz];
-    for row in 0..n_sz {
-        let mut w = K::ONE;
-        for (bit, &rb) in parent.r.iter().enumerate() {
-            let is_one = ((row >> bit) & 1) == 1;
-            w *= if is_one { rb } else { K::ONE - rb };
-        }
-        chi_r[row] = w;
-    }
+    let chi_r = neo_ccs::utils::tensor_point_parallel::<K>(&parent.r);
+    debug_assert_eq!(chi_r.len(), n_sz);
     #[cfg(feature = "perf-timers")]
     eprintln!(
         "[pi-dec-inner] chi_r                         {:>7.2}s",
@@ -1114,7 +1137,7 @@ where
             "Π_DEC: parent y_zcol len mismatch (expected {d_pad}, got {})",
             parent.y_zcol.len()
         );
-        let chi = neo_ccs::utils::tensor_point::<K>(&parent.s_col);
+        let chi = neo_ccs::utils::tensor_point_parallel::<K>(&parent.s_col);
         assert!(
             chi.len() >= s.m,
             "Π_DEC: chi(s_col) too short for CCS width (need >= {}, got {})",
@@ -1133,37 +1156,64 @@ where
 
     // Build children (parallel over digits).
     let build_child = |i: usize| {
+        if digit_nonzero.is_some_and(|flags| !flags[i]) {
+            let y_i = vec![vec![K::ZERO; d_pad]; t_mats];
+            let y_zcol = if chi_s.is_empty() {
+                Vec::new()
+            } else {
+                vec![K::ZERO; d_pad]
+            };
+            #[cfg(feature = "perf-timers")]
+            eprintln!("[pi-dec-inner] child {i:02} zero digit plane        0.00s y_ring    0.00s y_zcol    0.00s");
+            return CeClaim::<Cmt, Ff, K> {
+                c_step_coords: vec![],
+                u_offset: 0,
+                u_len: 0,
+                c: parent_c.clone(), // caller patches with L(Z_i)
+                X: Mat::zero(d, m_in, Ff::ZERO),
+                r: parent_r.clone(),
+                s_col: parent.s_col.clone(),
+                y_ring: y_i,
+                ct: vec![K::ZERO; t_mats],
+                aux_openings: if i == 0 {
+                    parent_aux.clone()
+                } else {
+                    vec![K::ZERO; aux_len]
+                },
+                y_zcol,
+                m_in,
+                fold_digest,
+            };
+        }
+
         #[cfg(feature = "perf-timers")]
         let t_project_decode = std::time::Instant::now();
         let Zi = &Z_split[i];
         let Xi = project_x(Zi);
-
-        let z_i = crate::common::decode_superneo_coeffs_from_witness_mat(Zi, s.m)
-            .unwrap_or_else(|e| panic!("Π_DEC: failed to decode packed child witness coefficients: {e}"));
-        let z_blocks = crate::superneo_eval::SuperneoZBlocks::from_z(&z_i);
+        let z_blocks = crate::superneo_eval::SuperneoZBlocks::from_witness_mat(Zi, s.m)
+            .unwrap_or_else(|e| panic!("Π_DEC: failed to build packed child witness block view: {e}"));
         #[cfg(feature = "perf-timers")]
         let project_decode_s = t_project_decode.elapsed().as_secs_f64();
 
         #[cfg(feature = "perf-timers")]
         let t_y_ring = std::time::Instant::now();
-        let y_i: Vec<Vec<K>> = ring_linear_forms
-            .iter()
-            .map(|form| form.eval_real_z_blocks(&z_blocks))
-            .into_iter()
-            .map(|coeffs| {
-                let mut row = coeffs.to_vec();
-                assert!(
-                    row.len() <= d_pad,
-                    "Π_DEC: refusing to truncate y row (len {} > d_pad {})",
-                    row.len(),
-                    d_pad
-                );
-                if row.len() < d_pad {
-                    row.resize(d_pad, K::ZERO);
-                }
-                row
-            })
-            .collect();
+        let y_i: Vec<Vec<K>> =
+            crate::superneo_eval::eval_ring_linear_forms_real_z_blocks(&ring_linear_forms, &z_blocks)
+                .into_iter()
+                .map(|coeffs| {
+                    let mut row = coeffs.to_vec();
+                    assert!(
+                        row.len() <= d_pad,
+                        "Π_DEC: refusing to truncate y row (len {} > d_pad {})",
+                        row.len(),
+                        d_pad
+                    );
+                    if row.len() < d_pad {
+                        row.resize(d_pad, K::ZERO);
+                    }
+                    row
+                })
+                .collect();
         let y_scalars_i = crate::common::ct_from_y_ring_for_ccs_m(&y_i, params, s.m);
         #[cfg(feature = "perf-timers")]
         let y_ring_s = t_y_ring.elapsed().as_secs_f64();

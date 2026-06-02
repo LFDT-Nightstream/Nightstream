@@ -140,6 +140,59 @@ fn build_oracle_with_superneo_shape(b: u32, k_mcs: usize, k_me: usize) -> Optimi
     build_oracle_with_superneo_shape_and_cache_mode(b, k_mcs, k_me, true)
 }
 
+fn build_zero_mcs_constant_term_oracle() -> OptimizedOracle<'static, F> {
+    let n = 2 * D;
+    let mat = Mat::identity(n);
+    let f = SparsePoly::new(
+        1,
+        vec![
+            Term {
+                coeff: F::from_u64(5),
+                exps: vec![0],
+            },
+            Term {
+                coeff: F::from_u64(3),
+                exps: vec![1],
+            },
+        ],
+    );
+    let s = Box::leak(Box::new(CcsStructure::new(vec![mat], f).expect("CCS")));
+    let params = Box::leak(Box::new(build_params_for_b(2, n)));
+    let cols = n / D;
+    let mcs_vec = Box::leak(Box::new(vec![CcsWitness {
+        w: vec![F::ZERO; n],
+        Z: Mat::zero(D, cols, F::ZERO),
+    }]));
+    let ch = Challenges {
+        alpha: (0..6)
+            .map(|i| K::from(F::from_u64((i as u64) + 1)))
+            .collect(),
+        beta_a: (0..6)
+            .map(|i| K::from(F::from_u64((i as u64) + 11)))
+            .collect(),
+        beta_r: (0..7)
+            .map(|i| K::from(F::from_u64((i as u64) + 21)))
+            .collect(),
+        beta_m: Vec::new(),
+        gamma: K::from(F::from_u64(7)),
+    };
+    OptimizedOracle::new_with_sparse_and_superneo_cache(
+        s,
+        params,
+        mcs_vec.as_slice(),
+        &[],
+        ch,
+        6,
+        7,
+        5,
+        None,
+        Arc::new(SparseCache::build(s)),
+        build_superneo_eval_cache(s)
+            .map(Arc::new)
+            .expect("D-compatible superneo cache"),
+    )
+}
+
 #[test]
 fn optimized_oracle_all_base_matches_generic_b2() {
     let oracle = build_oracle(2);
@@ -280,6 +333,32 @@ fn optimized_oracle_superneo_shape_explicit_cache_toggle_b2() {
     ];
     let (fast, generic) = with_cache.__test_row_phase_base_vs_generic(&xs);
     assert_eq!(fast, generic);
+}
+
+#[test]
+fn optimized_oracle_zero_mcs_keeps_f_at_zero_constant_term() {
+    let oracle = build_zero_mcs_constant_term_oracle();
+    assert!(oracle.__test_row_stream_all_base(), "expected all_base=true");
+
+    let xs: Vec<K> = vec![
+        K::from(F::ZERO),
+        K::from(F::ONE),
+        K::from(F::from_u64(2)),
+        K::from(F::from_u64(5)),
+    ];
+    let (fast, generic) = oracle.__test_row_phase_base_vs_generic(&xs);
+    let beta0 = F::from_u64(21);
+    let f_at_zero = F::from_u64(5);
+    let expected: Vec<K> = xs
+        .iter()
+        .map(|&x| {
+            let x = x.real();
+            K::from(f_at_zero * ((F::ONE - x) * (F::ONE - beta0) + x * beta0))
+        })
+        .collect();
+
+    assert_eq!(fast, expected);
+    assert_eq!(generic, expected);
 }
 
 #[test]

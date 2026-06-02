@@ -1,10 +1,10 @@
 //! Isolated coverage for the terminal CE-relation gadget.
 //!
-//! Each test hits one obligation (`commit / X / low-norm / y_ring / ct`)
-//! by mutating exactly the data that feeds that gate, holding the
-//! other four valid. Replaces the older end-to-end "tamper Z, bypass
-//! preflight" test, which couldn't isolate which obligation was
-//! load-bearing.
+//! Each test hits one obligation (`commit / X / low-norm / y_ring / ct`
+//! and the implementation-carried NC sidecar) by mutating exactly the
+//! data that feeds that gate, holding the other obligations valid.
+//! Replaces the older end-to-end "tamper Z, bypass preflight" test,
+//! which couldn't isolate which obligation was load-bearing.
 //!
 //! Two fixtures:
 //! - The toy `(n=1, m=1)` running plucked from a real lifecycle proof
@@ -21,15 +21,41 @@ mod support;
 
 use neo_ajtai::{has_global_pp_for_dims, s_mul_add, scale_commitment_add_inplace, set_global_pp_seeded, Commitment};
 use neo_ccs::traits::SModuleHomomorphism;
+use neo_ccs::utils::tensor_point;
 use neo_ccs::{r1cs_to_ccs, Mat};
 use neo_fold_clean::config;
-use neo_fold_clean::engine::decider::__test_isolation::enforce_ce_relations_against;
+use neo_fold_clean::engine::decider::__test_isolation::{
+    enforce_ce_relations_against, enforce_ce_relations_many_against, enforce_ce_relations_with_wires_against,
+};
+use neo_fold_clean::engine::r1cs_circuit::builder::Var;
 use neo_fold_clean::paper::construction2::ProofState;
 use neo_fold_clean::{preprocess, CeClaim, DecMixer, Params, Preprocessing, RlcMixer, Structure};
 use neo_math::ring::{cf_inv, Rq as RqEl};
 use neo_math::{KExtensions, D, F, K};
 use neo_reductions::common::{compute_y_from_Z_and_r, project_x_from_witness_mat};
 use p3_field::PrimeCharacteristicRing;
+
+fn k_c1_one() -> K {
+    K::from_coeffs([F::ZERO, F::ONE])
+}
+
+fn assert_only_fold_digest_unconstrained(
+    builder: &neo_fold_clean::engine::r1cs_circuit::R1csBuilder,
+    fold_digest_fields: &[[Var; 4]],
+    label: &str,
+) {
+    let unconstrained = builder.unconstrained_columns();
+    let mut allowed: Vec<usize> = fold_digest_fields
+        .iter()
+        .flat_map(|digest| digest.iter().map(|var| var.col()))
+        .collect();
+    allowed.sort_unstable();
+    assert!(
+        unconstrained == allowed,
+        "{label} left unexpected terminal CE wires unconstrained: got {unconstrained:?}, \
+         expected only fold_digest metadata wires {allowed:?}"
+    );
+}
 
 /// Build an honest finished proof, pluck its final running's first
 /// `(claim, witness)` pair, and assert the CE-relation gadget alone
@@ -38,13 +64,39 @@ use p3_field::PrimeCharacteristicRing;
 #[test]
 fn decider_ce_isolation_accepts_honest_terminal_pair() {
     let (prep, claim, witness) = honest_terminal_pair();
-    let builder = enforce_ce_relations_against(&prep, &claim, &witness).expect("synthesis");
+    let output = enforce_ce_relations_with_wires_against(&prep, &claim, &witness).expect("synthesis");
+    let builder = &output.builder;
     assert!(
         builder.is_satisfied(),
         "honest terminal pair must satisfy the CE-relation gadget alone; \
          first unsatisfied row: {:?}",
         builder.first_unsatisfied_row()
     );
+    assert_only_fold_digest_unconstrained(builder, &output.fold_digest_fields, "honest toy terminal CE pair");
+}
+
+/// **Claim/witness pairing isolation.** Every terminal CE child must have
+/// exactly one opened `Z`. This catches the classic iterator-zip footgun:
+/// without an explicit count check, an extra claim or extra witness would
+/// be silently skipped and left outside the CE relation.
+#[test]
+fn decider_ce_isolation_rejects_claim_witness_count_mismatch() {
+    let (prep, claim, witness) = honest_terminal_pair();
+
+    let cases = [
+        ("extra claim", vec![claim.clone(), claim.clone()], vec![witness.clone()]),
+        ("extra witness", vec![claim], vec![witness.clone(), witness]),
+    ];
+
+    for (name, claims, witnesses) in cases {
+        let err = enforce_ce_relations_many_against(&prep, &claims, &witnesses)
+            .err()
+            .unwrap_or_else(|| panic!("{name} must abort CE-relation synthesis"));
+        assert!(
+            err.contains("claim/witness count mismatch"),
+            "expected count-mismatch error for {name}, got: {err}"
+        );
+    }
 }
 
 /// **y_ring isolation.** Mutate one `y_ring` entry on the terminal
@@ -134,12 +186,7 @@ fn decider_ce_isolation_rejects_x_not_projected_from_z() {
     let (prep, mut claim, witness) = honest_terminal_pair();
     let m_in = claim.m_in;
     let required_cols = m_in.div_ceil(neo_math::D);
-    if required_cols == 0 {
-        // Toy structures with m_in = 0 have no active X columns; skip
-        // the X-isolation check for those (commit / y_ring still cover
-        // the witness binding).
-        return;
-    }
+    assert!(required_cols > 0, "test fixture must expose active X columns");
     let original = claim.X[(0, 0)];
     claim.X[(0, 0)] = original + F::ONE;
     assert_ne!(claim.X[(0, 0)], original, "mutation must change X[0, 0]");
@@ -152,6 +199,154 @@ fn decider_ce_isolation_rejects_x_not_projected_from_z() {
     );
 }
 
+/// **Packed X tail isolation.** `m_in` counts scalar public field lanes, but
+/// SuperNeo's `L_in(Z)` projects whole active ring columns. For `m_in = 1`,
+/// row 0 of column 0 is the scalar public input while rows `1..D` in the
+/// same column are still active ring coordinates. Mutate one of those tail
+/// rows, leaving the scalar public lane untouched. A scalar-only projection
+/// check would accept this; the terminal CE closure must reject it by binding
+/// the full active packed column to `Z`.
+#[test]
+fn decider_ce_isolation_rejects_active_x_tail_not_projected_from_z() {
+    let mut fixture = non_trivial_fixture_with_m_in(1);
+    assert_eq!(fixture.claim.m_in, 1, "fixture must expose one scalar public lane");
+    assert!(
+        fixture.claim.X.rows() > 1 && fixture.claim.X.cols() == 1,
+        "fixture must have active packed-tail X lanes"
+    );
+
+    let original = fixture.claim.X[(1, 0)];
+    fixture.claim.X[(1, 0)] = original + F::ONE;
+    assert_ne!(
+        fixture.claim.X[(1, 0)],
+        original,
+        "mutation must change the active packed tail lane without touching X[0,0]"
+    );
+
+    let builder = enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness).expect("synthesis");
+    assert!(
+        !builder.is_satisfied(),
+        "CE-relation gadget accepted an active packed X tail lane that does not project from Z; \
+         terminal X projection must bind full active ring columns, not only scalar public lanes"
+    );
+}
+
+/// **m_in relabel isolation.** Keep the terminal witness and every CE
+/// value locally self-consistent, but relabel the claim as having no
+/// public input. For a zero witness this makes `X = L_in(Z)` vacuously
+/// true under the smaller projection, so commit / X / low-norm / y_ring
+/// / ct can all pass unless the gadget pins `m_in` to the verifier-owned
+/// `Preprocessing.public_input_len`.
+#[test]
+fn decider_ce_isolation_rejects_m_in_relabel_below_preprocessing_public_input_len() {
+    let (prep, mut claim, witness) = honest_terminal_pair();
+    assert_eq!(
+        prep.public_input_len,
+        Some(1),
+        "toy preprocessing fixes a one-element public input"
+    );
+    assert!(
+        witness.as_slice().iter().all(|&entry| entry == F::ZERO),
+        "toy fixture must exercise a self-consistent zero-witness relabel"
+    );
+
+    claim.m_in = 0;
+    claim.X = Mat::zero(D, 0, F::ZERO);
+
+    let err = enforce_ce_relations_against(&prep, &claim, &witness)
+        .err()
+        .expect("m_in relabel must abort CE-relation synthesis");
+    assert!(
+        err.contains("m_in vs prep.public_input_len"),
+        "expected an `m_in vs prep.public_input_len` shape-mismatch error, got: {err}"
+    );
+}
+
+/// Same relabel attack as above, but on a non-zero, non-trivial witness.
+/// This avoids the comforting but weaker "zero witness" case: c, low-norm,
+/// y_ring, and ct all remain valid for the same `Z`; only the verifier-owned
+/// program shape (`prep.public_input_len`) says the claim cannot shrink
+/// `m_in` to zero.
+#[test]
+fn decider_ce_isolation_rejects_nonzero_witness_m_in_relabel_below_preprocessing_public_input_len() {
+    let mut fixture = non_trivial_fixture();
+    assert_eq!(
+        fixture.prep.public_input_len,
+        Some(1),
+        "non-trivial fixture fixes a one-element public input"
+    );
+    assert!(
+        fixture
+            .witness
+            .as_slice()
+            .iter()
+            .any(|&entry| entry != F::ZERO),
+        "test setup must carry a non-zero witness"
+    );
+
+    fixture.claim.m_in = 0;
+    fixture.claim.X = Mat::zero(D, 0, F::ZERO);
+
+    let err = enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness)
+        .err()
+        .expect("non-zero witness m_in relabel must abort CE-relation synthesis");
+    assert!(
+        err.contains("m_in vs prep.public_input_len"),
+        "expected an `m_in vs prep.public_input_len` shape-mismatch error, got: {err}"
+    );
+}
+
+/// **m_in structure-bound isolation.** Leave `public_input_len` unfixed,
+/// set the CCS width to `m = 2D - 1`, and then relabel the CE claim as
+/// `m_in = 2D`. That extra public lane lands exactly in the final packed
+/// padding slot of `Z`, so commit / X / low-norm / y_ring / ct can all be
+/// locally self-consistent unless the gadget rejects `m_in > structure.m`.
+#[test]
+fn decider_ce_isolation_rejects_m_in_exceeding_structure_width_when_public_input_len_unfixed() {
+    let fixture = non_trivial_fixture_with_shape(2 * D - 1, 2 * D, None);
+    assert_eq!(fixture.prep.public_input_len, None, "fixture leaves m_in unfixed");
+    assert_eq!(
+        fixture.prep.structure().m,
+        2 * D - 1,
+        "fixture has one packed padding lane"
+    );
+    assert_eq!(fixture.claim.m_in, 2 * D, "claim overstates m_in by one scalar lane");
+    assert_eq!(
+        fixture.witness.cols(),
+        fixture.claim.m_in.div_ceil(D),
+        "overstated m_in still fits the existing packed witness columns"
+    );
+
+    let err = enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness)
+        .err()
+        .expect("m_in exceeding structure.m must abort CE-relation synthesis");
+    assert!(
+        err.contains("m_in vs structure.m"),
+        "expected an `m_in vs structure.m` shape-mismatch error, got: {err}"
+    );
+}
+
+/// **Unsupported sidecar isolation.** `aux_openings`, Pattern-A coordinates,
+/// and `u_offset/u_len` are accumulator-digested CE-claim fields, but this
+/// clean SplitNc/NIFS path does not implement their algebra. The reference
+/// terminal CE gadget must reject them structurally rather than accept a
+/// CE-valid `(claim, Z)` with extra authoritative-but-unconstrained metadata.
+#[test]
+fn decider_ce_isolation_rejects_unsupported_accumulator_sidecars() {
+    expect_unsupported_sidecar("aux_openings", |claim| {
+        claim.aux_openings.push(K::ONE);
+    });
+    expect_unsupported_sidecar("c_step_coords", |claim| {
+        claim.c_step_coords.push(F::ONE);
+    });
+    expect_unsupported_sidecar("u_offset", |claim| {
+        claim.u_offset = 1;
+    });
+    expect_unsupported_sidecar("u_len", |claim| {
+        claim.u_len = 1;
+    });
+}
+
 /// **inactive-X isolation.** Native `project_x_from_witness_mat`
 /// returns a `D × m_in` matrix and leaves packed columns
 /// `ceil(m_in / D)..m_in` as structural zeros. The terminal CE gadget
@@ -161,14 +356,13 @@ fn decider_ce_isolation_rejects_x_not_projected_from_z() {
 /// the active prefix accepts this; the fixed gadget rejects.
 #[test]
 fn decider_ce_isolation_rejects_inactive_x_not_zero() {
-    let mut fixture = non_trivial_fixture();
+    let mut fixture = non_trivial_fixture_with_m_in(2);
     let mut x = Mat::zero(D, 2, F::ZERO);
     for row in 0..D {
         x[(row, 0)] = fixture.claim.X[(row, 0)];
     }
     x[(0, 1)] = F::ONE;
     fixture.claim.X = x;
-    fixture.claim.m_in = 2;
 
     let builder = enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness).expect("synthesis");
     assert!(
@@ -190,12 +384,19 @@ fn decider_ce_isolation_rejects_inactive_x_not_zero() {
 #[test]
 fn decider_ce_isolation_accepts_honest_pair_log_n_2() {
     let fixture = non_trivial_fixture();
-    let builder = enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness).expect("synthesis");
+    let output =
+        enforce_ce_relations_with_wires_against(&fixture.prep, &fixture.claim, &fixture.witness).expect("synthesis");
+    let builder = &output.builder;
     assert!(
         builder.is_satisfied(),
         "honest non-trivial (n=4, m=16, log_n=2) CE pair must satisfy the gadget; \
          first unsatisfied row: {:?}",
         builder.first_unsatisfied_row()
+    );
+    assert_only_fold_digest_unconstrained(
+        builder,
+        &output.fold_digest_fields,
+        "honest non-trivial terminal CE pair",
     );
 }
 
@@ -240,6 +441,96 @@ fn decider_ce_isolation_rejects_y_ring_tamper_log_n_2() {
     );
 }
 
+#[test]
+fn decider_ce_isolation_rejects_y_ring_c1_limb_tamper_log_n_2() {
+    // Same obligation as the y_ring tamper above, but perturb only the
+    // extension-field c1 limb. This catches a half-bound KVar regression
+    // where the gadget constrains y_ring.c0 but accidentally leaves c1 free.
+    let mut fixture = non_trivial_fixture();
+    let original = fixture.claim.y_ring[0][0];
+    fixture.claim.y_ring[0][0] = original + k_c1_one();
+    assert_eq!(
+        fixture.claim.y_ring[0][0].as_coeffs()[0],
+        original.as_coeffs()[0],
+        "mutation must leave the c0 limb unchanged"
+    );
+    assert_ne!(
+        fixture.claim.y_ring[0][0].as_coeffs()[1],
+        original.as_coeffs()[1],
+        "mutation must change only the c1 limb"
+    );
+
+    let builder = enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness).expect("synthesis");
+    assert!(
+        !builder.is_satisfied(),
+        "CE-relation gadget accepted a c1-only y_ring tamper; both K limbs of y_ring \
+         must be bound to M·Z(r)"
+    );
+}
+
+/// **same-shape r tamper.** Keep the witness, commitment, X projection,
+/// low-norm alphabet, y_ring shape, and ct shape all intact, but mutate the
+/// evaluation point `r` in-place. This is the adversarial case the shape
+/// checks do not prove: the old y_ring was computed at the honest `r`, so
+/// the circuit must reject by recomputing `M·Z(r')` at the tampered point.
+#[test]
+fn decider_ce_isolation_rejects_same_shape_r_tamper() {
+    let mut fixture = non_trivial_fixture();
+    assert_eq!(
+        fixture.claim.r.len(),
+        2,
+        "non-trivial fixture has log_n = 2, so this test keeps r's shape"
+    );
+    let original = fixture.claim.r[0];
+    fixture.claim.r[0] = original + K::ONE;
+    assert_eq!(
+        fixture.claim.r.len(),
+        2,
+        "mutation must preserve the r vector length; this is not a shape test"
+    );
+    assert_ne!(fixture.claim.r[0], original, "mutation must change r[0]");
+
+    let builder = enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness).expect("synthesis");
+    assert!(
+        !builder.is_satisfied(),
+        "CE-relation gadget accepted a same-shape r tamper. Shape checks are only hygiene; \
+         y_ring must be recomputed from the opened Z at the exact terminal-child r"
+    );
+}
+
+#[test]
+fn decider_ce_isolation_rejects_same_shape_r_c1_limb_tamper() {
+    // Same attack as the r-value relabel above, but mutate only the
+    // extension-field c1 limb. This catches a bad chi(r) implementation
+    // that accidentally feeds only r.c0 into the multilinear tensor.
+    let mut fixture = non_trivial_fixture();
+    assert_eq!(
+        fixture.claim.r.len(),
+        2,
+        "non-trivial fixture has log_n = 2, so this test keeps r's shape"
+    );
+    let original = fixture.claim.r[0];
+    fixture.claim.r[0] = original + k_c1_one();
+    assert_eq!(
+        fixture.claim.r[0].as_coeffs()[0],
+        original.as_coeffs()[0],
+        "mutation must leave the c0 limb unchanged"
+    );
+    assert_ne!(
+        fixture.claim.r[0].as_coeffs()[1],
+        original.as_coeffs()[1],
+        "mutation must change only the c1 limb"
+    );
+
+    let builder = enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness).expect("synthesis");
+    assert!(
+        !builder.is_satisfied(),
+        "CE-relation gadget accepted a same-shape c1-only r tamper. Shape checks and \
+         c0-only challenge binding are not enough; the full K-valued evaluation point \
+         must feed M·Z(r)"
+    );
+}
+
 /// **ct isolation.** Mutate `claim.ct[0]` while leaving `y_ring`,
 /// `Z`, `c`, `X`, low-norm all valid. The CE-relation gadget must
 /// reject because `enforce_ct_from_y_ring` binds `ct[j] ==
@@ -260,6 +551,34 @@ fn decider_ce_isolation_rejects_ct_inconsistent_with_y_ring() {
         !builder.is_satisfied(),
         "CE-relation gadget accepted ct inconsistent with y_ring lane-0; \
          enforce_ct_from_y_ring must bind ct[j] == y_ring[j][lane=0] per Paper Theorem 5"
+    );
+}
+
+#[test]
+fn decider_ce_isolation_rejects_ct_c1_limb_inconsistent_with_y_ring() {
+    // `ct` is a K element. A c0-only equality would still pass this
+    // mutation, so this directly guards the second limb of
+    // `ct == y_ring[j][lane 0]`.
+    let mut fixture = non_trivial_fixture();
+    assert!(!fixture.claim.ct.is_empty(), "test setup must have non-empty ct");
+    let original = fixture.claim.ct[0];
+    fixture.claim.ct[0] = original + k_c1_one();
+    assert_eq!(
+        fixture.claim.ct[0].as_coeffs()[0],
+        original.as_coeffs()[0],
+        "mutation must leave the c0 limb unchanged"
+    );
+    assert_ne!(
+        fixture.claim.ct[0].as_coeffs()[1],
+        original.as_coeffs()[1],
+        "mutation must change only the c1 limb"
+    );
+
+    let builder = enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness).expect("synthesis");
+    assert!(
+        !builder.is_satisfied(),
+        "CE-relation gadget accepted a c1-only ct tamper; both K limbs of ct must be \
+         constrained to y_ring[j][lane 0]"
     );
 }
 
@@ -343,6 +662,227 @@ fn decider_ce_isolation_rejects_nonzero_y_ring_padding_lane() {
     );
 }
 
+/// **NC-channel isolation.** `s_col/y_zcol` are not part of the paper CE
+/// tuple, but this implementation carries them in the accumulator digest
+/// and continuity wiring. If they are authoritative, the terminal
+/// in-circuit closure must bind `y_zcol = Z · chi(s_col)`. Mutate only
+/// `y_zcol`: commit / X / low-norm / y_ring / ct all remain valid, so only
+/// the NC-channel row can reject.
+#[test]
+fn decider_ce_isolation_rejects_y_zcol_inconsistent_with_z_at_s_col() {
+    let mut fixture = non_trivial_fixture();
+    attach_nc_channel(&mut fixture);
+    assert!(!fixture.claim.y_zcol.is_empty(), "fixture must carry y_zcol");
+
+    let honest_output =
+        enforce_ce_relations_with_wires_against(&fixture.prep, &fixture.claim, &fixture.witness).expect("synthesis");
+    let honest = &honest_output.builder;
+    assert!(
+        honest.is_satisfied(),
+        "honest non-trivial CE pair with NC channel must satisfy the gadget; first bad row: {:?}",
+        honest.first_unsatisfied_row()
+    );
+    assert_only_fold_digest_unconstrained(
+        honest,
+        &honest_output.fold_digest_fields,
+        "honest terminal CE pair with NC channel",
+    );
+
+    let original = fixture.claim.y_zcol[0];
+    fixture.claim.y_zcol[0] = original + K::ONE;
+    assert_ne!(fixture.claim.y_zcol[0], original, "mutation must change y_zcol[0]");
+
+    let builder = enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness).expect("synthesis");
+    assert!(
+        !builder.is_satisfied(),
+        "CE-relation gadget accepted y_zcol inconsistent with Z · chi(s_col). Because y_zcol \
+         is carried in the accumulator digest, it must be recomputed from the opened terminal Z \
+         or treated as non-authoritative."
+    );
+}
+
+#[test]
+fn decider_ce_isolation_rejects_y_zcol_c1_limb_inconsistent_with_z_at_s_col() {
+    // Mutate only the c1 limb of y_zcol. This is the NC-channel analogue
+    // of the y_ring c1 test above: the sidecar must be a full K-valued
+    // evaluation, not just a c0 scalar.
+    let mut fixture = non_trivial_fixture();
+    attach_nc_channel(&mut fixture);
+    assert!(!fixture.claim.y_zcol.is_empty(), "fixture must carry y_zcol");
+
+    let honest = enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness).expect("synthesis");
+    assert!(
+        honest.is_satisfied(),
+        "honest non-trivial CE pair with NC channel must satisfy the gadget; first bad row: {:?}",
+        honest.first_unsatisfied_row()
+    );
+
+    let original = fixture.claim.y_zcol[0];
+    fixture.claim.y_zcol[0] = original + k_c1_one();
+    assert_eq!(
+        fixture.claim.y_zcol[0].as_coeffs()[0],
+        original.as_coeffs()[0],
+        "mutation must leave the c0 limb unchanged"
+    );
+    assert_ne!(
+        fixture.claim.y_zcol[0].as_coeffs()[1],
+        original.as_coeffs()[1],
+        "mutation must change only the c1 limb"
+    );
+
+    let builder = enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness).expect("synthesis");
+    assert!(
+        !builder.is_satisfied(),
+        "CE-relation gadget accepted a c1-only y_zcol tamper; both K limbs of the \
+         NC-channel sidecar must be bound to Z·chi(s_col)"
+    );
+}
+
+#[test]
+fn decider_ce_isolation_rejects_s_col_c1_limb_inconsistent_with_y_zcol() {
+    // Keep y_zcol honest for the original column point, then mutate only
+    // the c1 limb of s_col. If the chi(s_col) tensor or its equality rows
+    // accidentally bind only c0, the sidecar evaluation would accept a
+    // relabelled K-valued point.
+    let mut fixture = non_trivial_fixture();
+    attach_nc_channel(&mut fixture);
+    assert!(!fixture.claim.s_col.is_empty(), "fixture must carry s_col");
+
+    let honest = enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness).expect("synthesis");
+    assert!(
+        honest.is_satisfied(),
+        "honest non-trivial CE pair with NC channel must satisfy the gadget; first bad row: {:?}",
+        honest.first_unsatisfied_row()
+    );
+
+    let original = fixture.claim.s_col[0];
+    fixture.claim.s_col[0] = original + k_c1_one();
+    assert_eq!(
+        fixture.claim.s_col[0].as_coeffs()[0],
+        original.as_coeffs()[0],
+        "mutation must leave the c0 limb unchanged"
+    );
+    assert_ne!(
+        fixture.claim.s_col[0].as_coeffs()[1],
+        original.as_coeffs()[1],
+        "mutation must change only the c1 limb"
+    );
+
+    let builder = enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness).expect("synthesis");
+    assert!(
+        !builder.is_satisfied(),
+        "CE-relation gadget accepted a c1-only s_col tamper; both K limbs of the \
+         NC-channel point must feed chi(s_col)"
+    );
+}
+
+/// **NC-channel completeness isolation.** Carry `y_zcol` while deleting
+/// the matching `s_col` point. Because `y_zcol` is accumulator-digested
+/// sidecar data, the terminal CE closure must either recompute it from a
+/// concrete column point or reject the claim structurally. A regression
+/// that treats empty `s_col` as "no NC channel" would leave `y_zcol`
+/// authoritative but unconstrained.
+#[test]
+fn decider_ce_isolation_rejects_y_zcol_without_s_col() {
+    let mut fixture = non_trivial_fixture();
+    attach_nc_channel(&mut fixture);
+    assert!(!fixture.claim.y_zcol.is_empty(), "fixture must carry y_zcol");
+    fixture.claim.s_col.clear();
+
+    let err = enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness)
+        .err()
+        .expect("one-sided NC channel must abort CE-relation synthesis");
+    assert!(
+        err.contains("incomplete NC channel"),
+        "expected an `incomplete NC channel` shape-mismatch error, got: {err}"
+    );
+}
+
+/// Same completeness invariant, opposite direction: carry an NC column
+/// point without the evaluation sidecar. This prevents a future guard
+/// from treating missing `y_zcol` as "nothing to bind" while still
+/// letting `s_col` participate in accumulator-authority data.
+#[test]
+fn decider_ce_isolation_rejects_s_col_without_y_zcol() {
+    let mut fixture = non_trivial_fixture();
+    attach_nc_channel(&mut fixture);
+    assert!(!fixture.claim.s_col.is_empty(), "fixture must carry s_col");
+    fixture.claim.y_zcol.clear();
+
+    let err = enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness)
+        .err()
+        .expect("one-sided NC channel must abort CE-relation synthesis");
+    assert!(
+        err.contains("incomplete NC channel"),
+        "expected an `incomplete NC channel` shape-mismatch error, got: {err}"
+    );
+}
+
+/// **NC-channel shape isolation.** Drop one `s_col` challenge while
+/// keeping `y_zcol` in the canonical shape. A short point changes the
+/// `chi(s_col)` tensor domain, so the gadget must reject it structurally
+/// instead of evaluating the sidecar against a truncated column point.
+#[test]
+fn decider_ce_isolation_rejects_s_col_length_mismatch() {
+    let mut fixture = non_trivial_fixture();
+    attach_nc_channel(&mut fixture);
+    assert!(
+        !fixture.claim.s_col.is_empty(),
+        "fixture must carry a non-empty NC column point"
+    );
+    fixture.claim.s_col.pop();
+
+    let err = enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness)
+        .err()
+        .expect("off-shape s_col must abort CE-relation synthesis");
+    assert!(
+        err.contains("claim.s_col length"),
+        "expected a `claim.s_col length` shape-mismatch error, got: {err}"
+    );
+}
+
+/// **NC-channel y_zcol length isolation.** Append one extra K-lane to
+/// `y_zcol`. `alloc_ce_claim` allocates the extra limbs faithfully; an
+/// in-circuit closure that only checks the active prefix would leave the
+/// tail as authoritative-but-unconstrained sidecar data.
+#[test]
+fn decider_ce_isolation_rejects_y_zcol_inner_length_mismatch() {
+    let mut fixture = non_trivial_fixture();
+    attach_nc_channel(&mut fixture);
+    fixture.claim.y_zcol.push(K::ONE);
+
+    let err = enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness)
+        .err()
+        .expect("off-length y_zcol must abort CE-relation synthesis");
+    assert!(
+        err.contains("claim.y_zcol length"),
+        "expected a `claim.y_zcol length` shape-mismatch error, got: {err}"
+    );
+}
+
+/// **NC-channel padding-lane isolation.** `y_zcol` is padded from the
+/// `D` real ring coefficients to `d_pad = D.next_power_of_two()` lanes,
+/// and the padding lanes must be zero. Mutating only the first padding
+/// lane leaves the real `Z · chi(s_col)` coefficients valid, so only the
+/// padding zero rows can reject.
+#[test]
+fn decider_ce_isolation_rejects_nonzero_y_zcol_padding_lane() {
+    let mut fixture = non_trivial_fixture();
+    attach_nc_channel(&mut fixture);
+    assert!(
+        fixture.claim.y_zcol.len() > neo_math::D,
+        "fixture y_zcol must carry zero-padding lanes beyond the D real coefficients"
+    );
+    fixture.claim.y_zcol[neo_math::D] = K::ONE;
+
+    let builder = enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness).expect("synthesis");
+    assert!(
+        !builder.is_satisfied(),
+        "CE-relation gadget accepted a non-zero y_zcol padding lane; the NC sidecar \
+         padding lanes (D..d_pad) must be bound to zero just like y_ring padding"
+    );
+}
+
 /// **Low-norm isolation.** Build a `Z_bad` with one entry OUTSIDE the
 /// alphabet `{-(b-1), …, +(b-1)}`. Recompute `c = Commit(Z_bad)`,
 /// `X = L_in(Z_bad)`, and `y_ring = eval(M · Z_bad, r)` consistently
@@ -362,11 +902,12 @@ fn decider_ce_isolation_rejects_out_of_alphabet_witness() {
     let new_x = project_x_from_witness_mat(&fixture.witness, fixture.prep.structure().m, fixture.claim.m_in)
         .expect("X projection");
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
-    let (new_y_ring, _ct) =
+    let (new_y_ring, new_ct) =
         compute_y_from_Z_and_r(fixture.prep.structure(), &fixture.witness, &fixture.claim.r, ell_d, b);
     fixture.claim.c = new_c;
     fixture.claim.X = new_x;
     fixture.claim.y_ring = new_y_ring;
+    fixture.claim.ct = new_ct;
 
     let builder = enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness).expect("synthesis");
     assert!(
@@ -431,9 +972,16 @@ struct NonTrivialFixture {
 }
 
 fn non_trivial_fixture() -> NonTrivialFixture {
-    let m = 2 * D; // = 16 under Goldilocks D=8 → ceil(m/D) = 2 blocks.
+    non_trivial_fixture_with_m_in(1)
+}
+
+fn non_trivial_fixture_with_m_in(m_in: usize) -> NonTrivialFixture {
+    non_trivial_fixture_with_shape(2 * D, m_in, Some(m_in))
+}
+
+fn non_trivial_fixture_with_shape(m: usize, m_in: usize, public_input_len: Option<usize>) -> NonTrivialFixture {
     let n = 4;
-    let m_in = 1;
+    assert!(m >= n * 3, "non-trivial fixture needs three witness slots per row");
 
     // 4 independent multiplications, layout `[z_a₀, z_b₀, z_c₀, z_a₁, z_b₁, z_c₁, …]`.
     let mut a = Mat::zero(n, m, F::ZERO);
@@ -453,7 +1001,7 @@ fn non_trivial_fixture() -> NonTrivialFixture {
         structure,
         mix_rhos_commits as RlcMixer,
         combine_b_pows as DecMixer,
-        Some(m_in),
+        public_input_len,
     )
     .expect("non-trivial preprocessing");
 
@@ -461,7 +1009,7 @@ fn non_trivial_fixture() -> NonTrivialFixture {
     // `z[3k+2] = z[3k] * z[3k+1]` for `k = 0..4`. Index 12..16 stay
     // zero (padding to a multiple of D).
     let neg_one = F::ZERO - F::ONE;
-    let z: [F; 16] = [
+    let z_pattern: [F; 16] = [
         F::ONE,
         F::ONE,
         F::ONE, // 1 * 1 = 1
@@ -483,12 +1031,16 @@ fn non_trivial_fixture() -> NonTrivialFixture {
     // Pack into the SuperNeo D × ceil(m/D) layout: Z[c % D, c / D] = z[c].
     let cols = m.div_ceil(D);
     let mut witness = Mat::zero(D, cols, F::ZERO);
-    for (col, value) in z.iter().enumerate() {
+    for (col, value) in z_pattern.iter().enumerate().take(m) {
         witness[(col % D, col / D)] = *value;
     }
 
     let c_data = prep.log.commit(&witness);
-    let X = project_x_from_witness_mat(&witness, prep.structure().m, m_in).expect("X projection");
+    let X = if m_in <= prep.structure().m {
+        project_x_from_witness_mat(&witness, prep.structure().m, m_in).expect("X projection")
+    } else {
+        project_x_from_witness_mat_lenient_for_overclaimed_padding(&witness, m_in)
+    };
     // r ∈ K^{log_n} = K². Pick a non-trivial point to exercise the
     // tensor unfold meaningfully.
     let r: Vec<K> = vec![
@@ -515,6 +1067,59 @@ fn non_trivial_fixture() -> NonTrivialFixture {
     };
 
     NonTrivialFixture { prep, claim, witness }
+}
+
+fn project_x_from_witness_mat_lenient_for_overclaimed_padding(
+    witness: &neo_fold_clean::paper::relations::WitnessMat,
+    m_in: usize,
+) -> Mat<F> {
+    let required_cols = m_in.div_ceil(D);
+    assert!(
+        required_cols <= witness.cols(),
+        "overclaimed-padding fixture must still fit the witness packing"
+    );
+    let mut X = Mat::zero(D, m_in, F::ZERO);
+    for col in 0..required_cols {
+        for row in 0..D {
+            X[(row, col)] = witness[(row, col)];
+        }
+    }
+    X
+}
+
+fn attach_nc_channel(fixture: &mut NonTrivialFixture) {
+    let ell_m = fixture
+        .prep
+        .structure()
+        .m
+        .next_power_of_two()
+        .max(2)
+        .trailing_zeros() as usize;
+    fixture.claim.s_col = (0..ell_m)
+        .map(|i| K::from_coeffs([F::from_u64((19 + 2 * i) as u64), F::from_u64((23 + 2 * i) as u64)]))
+        .collect();
+    fixture.claim.y_zcol =
+        compute_linear_y_zcol_for_fixture(fixture.prep.structure().m, &fixture.witness, &fixture.claim.s_col);
+}
+
+fn compute_linear_y_zcol_for_fixture(
+    expected_m: usize,
+    witness: &neo_fold_clean::paper::relations::WitnessMat,
+    s_col: &[K],
+) -> Vec<K> {
+    let d_pad = D.next_power_of_two();
+    let chi_s = tensor_point::<K>(s_col);
+    let mut y_zcol = vec![K::ZERO; d_pad];
+    for logical_col in 0..expected_m {
+        let w = chi_s.get(logical_col).copied().unwrap_or(K::ZERO);
+        if w == K::ZERO {
+            continue;
+        }
+        let off = logical_col % D;
+        let block = logical_col / D;
+        y_zcol[off] += K::from(witness[(off, block)]) * w;
+    }
+    y_zcol
 }
 
 // ── Ajtai setup + mixers (copy of the toy support fixture).
@@ -561,4 +1166,19 @@ fn combine_b_pows(cs: &[Commitment], b: u32) -> Commitment {
         pow *= base;
     }
     acc
+}
+
+fn expect_unsupported_sidecar<FN>(field: &'static str, mutate: FN)
+where
+    FN: FnOnce(&mut CeClaim),
+{
+    let mut fixture = non_trivial_fixture();
+    mutate(&mut fixture.claim);
+    let err = enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness)
+        .err()
+        .unwrap_or_else(|| panic!("unsupported sidecar {field} must abort CE-relation synthesis"));
+    assert!(
+        err.contains(field),
+        "expected a `{field}` shape-mismatch error, got: {err}"
+    );
 }

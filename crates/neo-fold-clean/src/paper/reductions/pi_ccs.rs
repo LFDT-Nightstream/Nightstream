@@ -28,7 +28,7 @@ use crate::engine::optimized as engine;
 use crate::engine::transcript::Transcript;
 use crate::paper::construction2::RunningInstance;
 use crate::paper::params::Params;
-use crate::paper::relations::{superneo_inactive_x_zero, CcsClaim, CcsInstance, CeClaim, Structure};
+use crate::paper::relations::{superneo_inactive_x_zero, CcsClaim, CcsInstance, CcsWitness, CeClaim, Structure};
 
 /// Engine-level sumcheck transcript, opaque at the paper layer.
 pub use neo_reductions::api::PiCcsProof as SumcheckProof;
@@ -67,8 +67,31 @@ pub fn prove(
     fresh: Vec<CcsInstance>,
     running: &RunningInstance,
 ) -> Result<Proof, Error> {
-    validate_input_shape(pp, &fresh, running)?;
-    let (outputs, sumcheck) = engine::prove_pi_ccs(tr.inner_mut(), pp, s, cache, fresh, running, log)?;
+    let (fresh_claims, fresh_witnesses) = split_fresh_instances(fresh);
+    prove_from_parts(tr, pp, s, cache, log, &fresh_claims, &fresh_witnesses, running)
+}
+
+pub(crate) fn prove_from_parts(
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    log: &AjtaiSModule,
+    fresh_claims: &[CcsClaim],
+    fresh_witnesses: &[CcsWitness],
+    running: &RunningInstance,
+) -> Result<Proof, Error> {
+    validate_input_shape(pp, fresh_claims, fresh_witnesses, running)?;
+    let (outputs, sumcheck) = engine::prove_pi_ccs_parts(
+        tr.inner_mut(),
+        pp,
+        s,
+        cache,
+        fresh_claims,
+        fresh_witnesses,
+        running,
+        log,
+    )?;
     Ok(Proof { sumcheck, outputs })
 }
 
@@ -132,9 +155,17 @@ fn validate_inactive_x_zero(claims: &[CeClaim], label: &'static str) -> Result<(
 }
 
 /// Step 0 (prover): K fresh ≥ 1, running length equals `pp.k_rho()` after step 1.
-fn validate_input_shape(pp: &Params, fresh: &[CcsInstance], running: &RunningInstance) -> Result<(), Error> {
-    if fresh.is_empty() {
+fn validate_input_shape(
+    pp: &Params,
+    fresh_claims: &[CcsClaim],
+    fresh_witnesses: &[CcsWitness],
+    running: &RunningInstance,
+) -> Result<(), Error> {
+    if fresh_claims.is_empty() {
         return Err(Error::Shape("K (fresh) must be \u{2265} 1"));
+    }
+    if fresh_claims.len() != fresh_witnesses.len() {
+        return Err(Error::Shape("|fresh_claims| \u{2260} |fresh_witnesses|"));
     }
     if !running.shape_ok() {
         return Err(Error::Shape("running: |claims| \u{2260} |witnesses|"));
@@ -144,6 +175,16 @@ fn validate_input_shape(pp: &Params, fresh: &[CcsInstance], running: &RunningIns
     }
     validate_inactive_x_zero(&running.claims, "running inactive X columns must be zero")?;
     Ok(())
+}
+
+fn split_fresh_instances(fresh: Vec<CcsInstance>) -> (Vec<CcsClaim>, Vec<CcsWitness>) {
+    let mut claims = Vec::with_capacity(fresh.len());
+    let mut witnesses = Vec::with_capacity(fresh.len());
+    for instance in fresh {
+        claims.push(instance.claim);
+        witnesses.push(instance.witness);
+    }
+    (claims, witnesses)
 }
 
 /// Step 0 (verifier): mirror of the prover shape check, on claims only.

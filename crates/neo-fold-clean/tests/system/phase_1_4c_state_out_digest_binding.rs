@@ -26,6 +26,7 @@ use p3_field::PrimeCharacteristicRing;
 fn binding_config(bindings: Vec<OneShotDigestToStateOutBinding>) -> FPrimeImageConfig {
     FPrimeImageConfig {
         limbs: 3,
+        app_private_var_widths: Vec::new(),
         boundary_bits: 0,
         nifs_payload_shapes: vec![],
         kmul_count: 0,

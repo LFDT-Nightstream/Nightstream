@@ -17,7 +17,9 @@
 //!    (Π_RLC samples ρ AFTER catch-up, matching native pi_rlc::verify.)
 //!
 //! 3. Allocate parent + children CE wires (msg.combined, msg.children).
-//!    enforce_split_nc_d_pad_shape verifies y_ring[j]/y_zcol lane counts.
+//!    Pin the Π_RLC parent shape (`c.kappa`, `m_in`) to the Π_CCS outputs
+//!    before folding; then enforce_split_nc_d_pad_shape verifies
+//!    y_ring[j]/y_zcol lane counts.
 //!
 //! 4. Π_RLC.V folds:
 //!      - commitment:  parent.c    = Σ_i ρ_i · output_i.c
@@ -27,10 +29,12 @@
 //!      - y_zcol:      parent.y_zcol = Σ_i ρ_i · output_i.y_zcol
 //!                     (same padded shape)
 //!      - s_col:       output_i.s_col == parent.s_col (consistency)
+//!      - fold_digest: parent.fold_digest == output_i.fold_digest for every i
 //!
 //! 5. Π_DEC.V strict: b-ary recomposition for c/X/y_ring plus r/s_col
-//!    consistency parent↔child. No y_zcol recomposition and no unsigned
-//!    X bitness check; this mirrors native `verify_dec_public`.
+//!    consistency, ct consistency, and fold_digest consistency
+//!    parent↔child. No y_zcol recomposition and no unsigned X bitness
+//!    check; this mirrors native `verify_dec_public`.
 //!
 //! 6. Point binding: dec_wires.parent.r == ccs.r_prime.
 //! ```
@@ -83,7 +87,9 @@ pub struct NifsVCircuitMessages<'a> {
 /// Output wires from one NIFS.V step that F' R1CS composition consumes.
 pub struct NifsVOutputs {
     /// `Σ b^i · child_i.c.data` — the Π_DEC parent commitment's data wires.
-    /// F' R1CS hashes this to form the new `acc_digest`.
+    /// Kept for callers that need the commitment projection; F' binds the
+    /// outgoing accumulator via the full `(children, parent)` CE-claim
+    /// digest below, not by hashing this commitment projection alone.
     pub parent_c_data: Vec<Var>,
     /// Fresh CCS instances' public-input wires `[fresh_idx][x_lane]`.
     /// F' R1CS uses these to enforce the HyperNova recursive link.
@@ -93,17 +99,18 @@ pub struct NifsVOutputs {
     /// running accumulator via the digest below, not via re-hashing
     /// these wires.
     pub running_c_data: Vec<Vec<Var>>,
-    /// Four-lane Poseidon2 digest of the running accumulator's b-ary-
-    /// recomposed commitment data. Already computed inside the SplitNc
-    /// Π_CCS verifier as the ME-input accumulator handle. F' R1CS
-    /// reuses this for its `acc_digest_in` binding, avoiding a duplicate
-    /// Poseidon2 chain.
+    /// Four-lane Poseidon2 digest of the authority-bearing running
+    /// accumulator fields: every running CE claim plus the Π_RLC parent
+    /// authority, excluding non-authority sidecars such as y_zcol. Already
+    /// computed inside the SplitNc Π_CCS verifier as the ME-input
+    /// accumulator handle. F' R1CS reuses this for its `acc_digest_in`
+    /// binding, avoiding a duplicate Poseidon2 chain.
     pub running_acc_digest: [Var; 4],
     /// Per-running-claim CE-claim wire bundles — the running input to
     /// this NIFS.V step. The decider's CE-continuity gate compares the
     /// *previous* step's [`Self::children`] against this step's
-    /// `running` to enforce step-to-step accumulator equality beyond
-    /// commitment-only binding.
+    /// `running` to enforce step-to-step accumulator equality without
+    /// relying on digest equality alone.
     pub running: Vec<SplitNcPiCcsOutputWires>,
     /// Π_RLC parent authority for [`Self::running`], if running is non-empty.
     pub running_parent_authority: Option<SplitNcPiCcsOutputWires>,
@@ -174,7 +181,9 @@ pub fn enforce_nifs_v_circuit_with_transcript(
 
     // ── 3. Parent + children DEC wires + SplitNc shape check ──────────────
     let dec_wires = alloc_dec_inputs(builder, msg.combined, msg.children);
-    enforce_split_nc_d_pad_shape(&dec_wires, d_pad)?;
+    enforce_rlc_output_shape_parity(builder, &ccs.outputs)?;
+    enforce_rlc_parent_shape(builder, &dec_wires, &ccs.outputs, kappa, m_in)?;
+    enforce_split_nc_d_pad_shape(&dec_wires, cfg.pi_ccs.structure.t(), d_pad)?;
 
     // ── 4. Π_RLC.V folds: c, X, per-j y_ring, y_zcol, s_col ──────────────
     enforce_rlc_commitment_fold(builder, &rho_wires, &ccs.outputs, &dec_wires, kappa)?;
@@ -186,6 +195,7 @@ pub fn enforce_nifs_v_circuit_with_transcript(
     enforce_rlc_y_zcol_fold(builder, &rho_wires, &ccs.outputs, &dec_wires, d_pad)?;
     let input_s_cols: Vec<Vec<KVar>> = ccs.outputs.iter().map(|o| o.s_col.clone()).collect();
     enforce_rlc_s_col_consistency(builder, &input_s_cols, &dec_wires.parent.s_col)?;
+    enforce_rlc_fold_digest_consistency(builder, &ccs.outputs, &dec_wires)?;
 
     // ── 5. Π_DEC.V strict ────────────────────────────────────────────────
     enforce_dec_v_strict(builder, pp, &dec_wires)?;
@@ -210,6 +220,60 @@ pub fn enforce_nifs_v_circuit_with_transcript(
 }
 
 // ── Private RLC fold helpers ──────────────────────────────────────────────
+
+fn enforce_rlc_parent_shape(
+    builder: &mut R1csBuilder,
+    dec_wires: &DecInputWires,
+    outputs: &[SplitNcPiCcsOutputWires],
+    kappa: usize,
+    m_in: usize,
+) -> Result<(), Error> {
+    let first_output = outputs
+        .first()
+        .ok_or_else(|| Error::Inner("Π_RLC parent shape requires at least one Π_CCS output".into()))?;
+    let parent = &dec_wires.parent;
+    let expected_c_len = D * kappa;
+    if parent.c_data.len() < expected_c_len {
+        return Err(Error::Inner(format!(
+            "Π_RLC parent commitment lane count {} < D*kappa {expected_c_len}",
+            parent.c_data.len()
+        )));
+    }
+    let expected_x_len = D * m_in;
+    if parent.x.len() < expected_x_len {
+        return Err(Error::Inner(format!(
+            "Π_RLC parent X lane count {} < D*m_in {expected_x_len}",
+            parent.x.len()
+        )));
+    }
+    enforce_var_eq(builder, parent.c_d_var, first_output.c_d_var);
+    enforce_var_eq(builder, parent.c_kappa_var, first_output.c_kappa_var);
+    enforce_var_eq(builder, parent.x_rows_var, first_output.x_rows_var);
+    enforce_var_eq(builder, parent.x_cols_var, first_output.x_cols_var);
+    enforce_var_eq(builder, parent.m_in_var, first_output.m_in_var);
+    Ok(())
+}
+
+fn enforce_rlc_output_shape_parity(
+    builder: &mut R1csBuilder,
+    outputs: &[SplitNcPiCcsOutputWires],
+) -> Result<(), Error> {
+    let first = outputs
+        .first()
+        .ok_or_else(|| Error::Inner("Π_RLC output shape parity requires at least one Π_CCS output".into()))?;
+    for output in outputs.iter().skip(1) {
+        enforce_var_eq(builder, output.c_d_var, first.c_d_var);
+        enforce_var_eq(builder, output.c_kappa_var, first.c_kappa_var);
+        enforce_var_eq(builder, output.x_rows_var, first.x_rows_var);
+        enforce_var_eq(builder, output.x_cols_var, first.x_cols_var);
+        enforce_var_eq(builder, output.m_in_var, first.m_in_var);
+    }
+    Ok(())
+}
+
+fn enforce_var_eq(builder: &mut R1csBuilder, a: Var, b: Var) {
+    builder.enforce_eq(&Lc::from_var(a), &Lc::from_var(b));
+}
 
 fn enforce_rlc_commitment_fold(
     builder: &mut R1csBuilder,
@@ -294,6 +358,27 @@ fn enforce_rlc_y_zcol_fold(
     let combined = kvars_from_flat_dec(&dec_wires.parent.y_zcol)?;
     let wires = padded_k_vector_wires_from_existing(rho_wires, &inputs, &combined, d_pad)?;
     enforce_rlc_padded_k_vector_combination(builder, &wires);
+    Ok(())
+}
+
+fn enforce_rlc_fold_digest_consistency(
+    builder: &mut R1csBuilder,
+    outputs: &[SplitNcPiCcsOutputWires],
+    dec_wires: &DecInputWires,
+) -> Result<(), Error> {
+    if outputs.is_empty() {
+        return Err(Error::Inner(
+            "Π_RLC fold_digest consistency requires at least one Π_CCS output".into(),
+        ));
+    }
+    for output in outputs {
+        for lane in 0..output.fold_digest_fields.len() {
+            builder.enforce_eq(
+                &Lc::from_var(dec_wires.parent.fold_digest_fields[lane]),
+                &Lc::from_var(output.fold_digest_fields[lane]),
+            );
+        }
+    }
     Ok(())
 }
 

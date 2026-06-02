@@ -30,6 +30,8 @@ pub enum Error {
     VerifyRejected,
     #[error("\u{03A0}_DEC: inactive X columns must be zero in {0}")]
     InactiveX(&'static str),
+    #[error("\u{03A0}_DEC: child fold_digest must equal parent fold_digest")]
+    FoldDigest,
     #[error(transparent)]
     Engine(#[from] engine::Error),
 }
@@ -93,6 +95,7 @@ pub fn verify(
         return Err(Error::VerifyRejected);
     }
     validate_inactive_x_zero(parent, &proof.children)?;
+    validate_fold_digest_consistency(parent, &proof.children)?;
     Ok(proof.children.clone())
 }
 
@@ -116,6 +119,19 @@ fn validate_inactive_x_zero(parent: &CeClaim, children: &[CeClaim]) -> Result<()
     for child in children {
         if !superneo_inactive_x_zero(&child.X, child.m_in) {
             return Err(Error::InactiveX("child"));
+        }
+    }
+    Ok(())
+}
+
+/// Π_DEC decomposes one parent CE claim into children; it must not let a
+/// child introduce a fresh Π_CCS transcript digest. The native prover fills
+/// each child from `parent.fold_digest`, and the circuit-side DEC verifier
+/// enforces the same equality lane-by-lane.
+fn validate_fold_digest_consistency(parent: &CeClaim, children: &[CeClaim]) -> Result<(), Error> {
+    for child in children {
+        if child.fold_digest != parent.fold_digest {
+            return Err(Error::FoldDigest);
         }
     }
     Ok(())

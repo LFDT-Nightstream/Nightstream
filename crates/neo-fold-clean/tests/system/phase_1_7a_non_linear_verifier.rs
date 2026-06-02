@@ -32,11 +32,9 @@ use p3_field::PrimeCharacteristicRing;
 use neo_fold_clean::ProofState;
 use support::fibonacci_f_prime;
 
-use support::fibonacci_f_prime::{canonical_threaded_plan, honest_state_threaded_encoded_f_prime_steps};
-
-/// Shared cache of an `n = 2` finalized encoded-F' audit. The big
+/// Shared cache of an `n = 1` finalized encoded-F' audit. The big
 /// canonical plan makes preprocessing + folding expensive (~100s per
-/// chain), and 14 tests in this file would otherwise build 14 copies.
+/// chain), and the ignored verifier tests would otherwise build many copies.
 /// We cache the audit form (which contains everything needed to
 /// derive `Uncompressed` via `audit.proof.clone()`); per-test
 /// tampering happens on a clone, leaving the shared cache pristine.
@@ -45,7 +43,7 @@ struct CachedChain {
     audit: neo_fold_clean::UncompressedAudit,
 }
 
-static CHAIN_N2: OnceLock<CachedChain> = OnceLock::new();
+static CHAIN_N1: OnceLock<CachedChain> = OnceLock::new();
 static VERIFIER_TEST_LOCK: Mutex<()> = Mutex::new(());
 
 /// Keep the high-memory terminal-verifier checks from running in
@@ -58,15 +56,45 @@ fn run_serial<R>(f: impl FnOnce() -> R) -> R {
     f()
 }
 
-fn cached_chain_n2() -> &'static CachedChain {
-    CHAIN_N2.get_or_init(|| {
-        let plan = canonical_threaded_plan();
+fn cached_chain_n1() -> &'static CachedChain {
+    CHAIN_N1.get_or_init(|| {
+        let plan = fibonacci_f_prime::canonical_threaded_plan();
         let prep = fibonacci_f_prime::preprocess_seeded(&plan, 0x1F17_5EED).expect("preprocess");
-        let steps = honest_state_threaded_encoded_f_prime_steps(2);
-        let proof = fibonacci_f_prime::prove_encoded_steps(&prep, &steps).expect("prove");
-        let audit = neo_fold_clean::finish_uncompressed_with_audit(&prep.prep, proof).expect("finish");
+        let mut builder = fibonacci_f_prime::FibonacciChainBuilder::new(&prep).expect("start builder");
+        append_one_fibonacci_step(&mut builder);
+        let audit = builder.finish_with_audit().expect("finish");
         CachedChain { prep, audit }
     })
+}
+
+fn append_one_fibonacci_step(builder: &mut fibonacci_f_prime::FibonacciChainBuilder<'_>) {
+    builder
+        .append_step(valid_app_step(1, 1, 0))
+        .expect("append base step");
+}
+
+fn append_two_fibonacci_steps(builder: &mut fibonacci_f_prime::FibonacciChainBuilder<'_>) {
+    let base = builder
+        .append_step(valid_app_step(1, 1, 0))
+        .expect("append base step");
+    let state = base.app_output.state_out;
+    builder
+        .append_step(fibonacci_f_prime::FibonacciAppStepInput {
+            state_in: state,
+            witness: fibonacci_f_prime::FibonacciAppWitness {
+                next: state.prev + state.curr,
+            },
+        })
+        .expect("append recursive step");
+}
+
+fn valid_app_step(prev_u: u64, curr_u: u64, step_index: u64) -> fibonacci_f_prime::FibonacciAppStepInput {
+    let prev = F::from_u64(prev_u);
+    let curr = F::from_u64(curr_u);
+    fibonacci_f_prime::FibonacciAppStepInput {
+        state_in: fibonacci_f_prime::FibonacciAppState { prev, curr, step_index },
+        witness: fibonacci_f_prime::FibonacciAppWitness { next: prev + curr },
+    }
 }
 
 /// Get `(prep, Uncompressed)` from the shared cache, cloning the
@@ -75,7 +103,7 @@ fn finalized_encoded_f_prime_proof() -> (
     &'static fibonacci_f_prime::FibonacciFPrimePreprocessing,
     neo_fold_clean::Uncompressed,
 ) {
-    let cached = cached_chain_n2();
+    let cached = cached_chain_n1();
     (&cached.prep, cached.audit.proof.clone())
 }
 
@@ -85,7 +113,7 @@ fn finalized_encoded_f_prime_audit_proof() -> (
     &'static fibonacci_f_prime::FibonacciFPrimePreprocessing,
     neo_fold_clean::UncompressedAudit,
 ) {
-    let cached = cached_chain_n2();
+    let cached = cached_chain_n1();
     (&cached.prep, cached.audit.clone())
 }
 
@@ -114,23 +142,16 @@ fn verify_uncompressed_accepts_finalized_encoded_f_prime_chain() {
 #[ignore = "canonical verifier replay is memory-heavy; run explicitly with --ignored"]
 fn verify_uncompressed_ignores_audit_trail_that_verify_uncompressed_audit_catches() {
     run_serial(|| {
-        use neo_fold_clean::paper::construction2::FoldProof;
-
         let (prep, mut audit) = finalized_encoded_f_prime_audit_proof();
         assert!(
-            audit.steps.len() >= 2,
-            "test setup: a 2-step chain must produce at least two historical step proofs"
+            !audit.public_batches.is_empty() && !audit.public_batches[0].is_empty(),
+            "test setup: audit must carry at least one public batch"
         );
 
-        // Mutate the recursive NIFS payload of the second historical step.
-        // (Step 0 is the i=0 NoFold base case; step 1 is the first recursive
-        // step and carries a NIFS proof we can perturb.)
-        match &mut audit.steps[1].fold {
-            FoldProof::Recursive(nifs) => {
-                support::mutate_ce_claim(&mut nifs.pi_dec.children[0]);
-            }
-            FoldProof::NoFold => panic!("test setup: step[1] should be Recursive in a 2-step chain"),
-        }
+        // Mutate audit-only history while leaving `audit.proof` untouched.
+        // The terminal-only verifier consumes only the projected proof, but
+        // audit replay must reject because it replays the recorded batches.
+        audit.public_batches[0][0].x[0] += F::ONE;
 
         // (a) Non-replay IVC verifier accepts: it reads only `audit.proof`.
         neo_fold_clean::verify_uncompressed(&prep.prep, &audit.proof)
@@ -215,10 +236,11 @@ fn verify_uncompressed_rejects_tampered_recorded_acc_digest() {
 #[ignore = "canonical verifier replay is memory-heavy; run explicitly with --ignored"]
 fn verify_uncompressed_rejects_unfinalized_proof_state() {
     run_serial(|| {
-        let plan = canonical_threaded_plan();
+        let plan = fibonacci_f_prime::canonical_threaded_plan();
         let prep = fibonacci_f_prime::preprocess_seeded(&plan, 0x1F17_A105).expect("preprocess");
-        let steps = honest_state_threaded_encoded_f_prime_steps(2);
-        let unfinished = fibonacci_f_prime::prove_encoded_steps(&prep, &steps).expect("prove");
+        let mut builder = fibonacci_f_prime::FibonacciChainBuilder::new(&prep).expect("start builder");
+        append_two_fibonacci_steps(&mut builder);
+        let unfinished = builder.into_audit().expect("unfinished audit");
 
         match &unfinished.proof.state.proof {
             ProofState::Active { latest, .. } => assert!(
@@ -245,11 +267,13 @@ fn verify_uncompressed_rejects_tampered_chunk_count() {
     run_serial(|| {
         let (prep, mut finished) = finalized_encoded_f_prime_proof();
         finished.state.chunk_count += 1;
-        // chunk_count is absorbed into x_out; verify_final_fold's x_out check
-        // surfaces this as a Construction2 error.
+        // chunk_count is absorbed into state_x_out and also linked as
+        // recorded Construction-2 state. A prover-carried relabel must
+        // fail when the verifier re-runs the terminal fold and binds the
+        // derived state back to proof.state.
         assert!(
             neo_fold_clean::verify_uncompressed(&prep.prep, &finished).is_err(),
-            "tampered chunk_count must be rejected via terminal-fold x_out check"
+            "tampered chunk_count must be rejected by derived-state binding"
         );
     });
 }
@@ -263,6 +287,44 @@ fn verify_uncompressed_rejects_tampered_z_i() {
         assert!(
             neo_fold_clean::verify_uncompressed(&prep.prep, &finished).is_err(),
             "tampered z_i must be rejected via terminal-fold x_out check"
+        );
+    });
+}
+
+#[test]
+#[ignore = "canonical verifier replay is memory-heavy; run explicitly with --ignored"]
+fn verify_uncompressed_rejects_tampered_z_0() {
+    run_serial(|| {
+        let (prep, mut finished) = finalized_encoded_f_prime_proof();
+        finished.state.z_0[0] ^= 0xFF;
+        // z_0 is intentionally omitted from the compact state_x_out digest:
+        // it is verifier-derived from preprocessing and linked as recorded
+        // Construction-2 state. The non-replay verifier must still reject a
+        // prover-carried z_0 relabel before it becomes a self-consistent
+        // terminal state.
+        let err =
+            neo_fold_clean::verify_uncompressed(&prep.prep, &finished).expect_err("tampered z_0 must be rejected");
+        assert!(
+            matches!(err, neo_fold_clean::Error::PostStateMismatch),
+            "tampered z_0 should reject through compact-state anchor binding, got {err:?}"
+        );
+    });
+}
+
+#[test]
+#[ignore = "canonical verifier replay is memory-heavy; run explicitly with --ignored"]
+fn verify_uncompressed_rejects_tampered_pc() {
+    run_serial(|| {
+        let (prep, mut finished) = finalized_encoded_f_prime_proof();
+        finished.state.pc += 1;
+        // pc is absorbed into state_x_out and also pinned as the
+        // single-program selector in F'. The non-replay verifier must
+        // reject a prover-carried pc relabel before it becomes a
+        // self-consistent terminal state.
+        let err = neo_fold_clean::verify_uncompressed(&prep.prep, &finished).expect_err("tampered pc must be rejected");
+        assert!(
+            matches!(err, neo_fold_clean::Error::PostStateMismatch),
+            "tampered pc should reject through compact-state anchor binding, got {err:?}"
         );
     });
 }

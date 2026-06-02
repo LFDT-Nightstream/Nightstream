@@ -58,11 +58,12 @@ fn make_c_values() -> [F; D] {
 /// region group.
 fn skeleton_config() -> FPrimeImageConfig {
     FPrimeImageConfig {
-        limbs: 3,                    // LIMBS=3 → 2 carry bits
-        boundary_bits: 704,          // recursive: enc_inst(x_out) + enc_inst(prior_x_out) + 3 u64 counters
-        nifs_payload_shapes: vec![], // placeholder size — Phase 1.3 fills nifs_payloads properly
-        kmul_count: 8,               // small handful of K-muls
-        ring_action_pair_count: 4,   // far below production's 288; enough to test splicing
+        limbs: 3,
+        app_private_var_widths: Vec::new(), // LIMBS=3 → 2 carry bits
+        boundary_bits: 704,                 // recursive: enc_inst(x_out) + enc_inst(prior_x_out) + 3 u64 counters
+        nifs_payload_shapes: vec![],        // placeholder size — Phase 1.3 fills nifs_payloads properly
+        kmul_count: 8,                      // small handful of K-muls
+        ring_action_pair_count: 4,          // far below production's 288; enough to test splicing
         ring_action_pair_layout: signed_digit_ring_layout(),
         poseidon_one_shot_preimage_lens: vec![13, 13, 40, 40, 1235, 1300, 977, 977],
         // 8 one-shots covering boundary_update + public_trace_update +

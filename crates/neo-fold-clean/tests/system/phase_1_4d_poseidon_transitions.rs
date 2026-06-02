@@ -42,6 +42,7 @@ const SOURCE_STATE_LANE_INDICES: [usize; PREIMAGE_LEN] = [4, 5, 6, 7];
 fn enforcement_config(enforcements: Vec<PoseidonTransitionEnforcement>) -> FPrimeImageConfig {
     FPrimeImageConfig {
         limbs: 3,
+        app_private_var_widths: Vec::new(),
         boundary_bits: 0,
         nifs_payload_shapes: vec![],
         kmul_count: 0,

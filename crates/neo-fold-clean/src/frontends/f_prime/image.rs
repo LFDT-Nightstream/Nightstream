@@ -48,8 +48,8 @@ const STATE_OUT_BITS: usize = 2 * POSEIDON2_GOLDILOCKS_BITS + 4 * DIGEST_BITS;
 const CHUNK_DIGEST_BITS: usize = DIGEST_BITS;
 /// Single committed bit marking whether this step is the base case
 /// (`is_base = 1`, no prior fold) or a recursive case (`is_base = 0`).
-/// Used by the unified-accumulator selector constraint to pick which
-/// accumulator Poseidon trace's digest enters `state_out.new_acc_digest`.
+/// Used by base-gated constraints, including the initial semantic-state
+/// anchor. Legacy accumulator-selector tests may also use it directly.
 const IS_BASE_BITS: usize = 1;
 
 /// kmul K-mul Karatsuba intermediate: 3 K-limbs × 2 lanes × 64 bits each.
@@ -69,15 +69,27 @@ impl RegionRange {
 }
 
 /// Knobs sizing the F' image for one recursive step.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FPrimeImageConfig {
     /// Fibonacci `LIMBS`; private bits = `LIMBS - 1` carries.
     pub limbs: usize,
+    /// Optional app-private variable widths, in app variable order.
+    ///
+    /// Empty means legacy app-private semantics: if the app frontend
+    /// wants variables, it interprets the region as consecutive 64-bit
+    /// canonical lanes. R1CS-F' may set this to a mix of 1-bit Boolean
+    /// slots and 64-bit canonical lanes.
+    pub app_private_var_widths: Vec<usize>,
     /// boundary bit count (existing `source_image` BitRange size).
     pub boundary_bits: usize,
-    /// nifs_payloads NIFS payload shapes, in fill order. The layout derives
-    /// `nifs_payloads.bits` from `Σ shape.bits()` and exposes per-payload
-    /// offsets via `nifs_payload_offsets`.
+    /// Source-image NIFS payload shapes, in fill order. Legacy
+    /// non-unified plans use this region to store parent-authority
+    /// payloads; canonical unified plans leave it empty because NIFS
+    /// authority is carried by the in-circuit verifier messages and the
+    /// source image only stores compact accumulator handles.
+    ///
+    /// The layout derives `nifs_payloads.bits` from `Σ shape.bits()` and
+    /// exposes per-payload offsets via `nifs_payload_offsets`.
     pub nifs_payload_shapes: Vec<NifsPayloadShape>,
     /// kmul K-mul Karatsuba intermediate count.
     pub kmul_count: usize,
@@ -93,8 +105,8 @@ pub struct FPrimeImageConfig {
     /// trace at `one_shot_index`'s digest output (4 lanes) equals the
     /// state_out digest at `state_out_target`. Default empty — no bindings emitted.
     /// Used by Phase 1.4c-c to close the "trace produces the committed
-    /// digest" loop for the boundary_update / public_trace_update /
-    /// accumulator state-advance hashes.
+    /// digest" loop for state-advance hashes such as `boundary_update`
+    /// and legacy accumulator paths.
     pub one_shot_digest_to_state_out_bindings: Vec<OneShotDigestToStateOutBinding>,
     /// Optional bindings: each entry asserts that one-shot Poseidon
     /// trace at `one_shot_index`'s digest output (4 lanes) equals the
@@ -112,15 +124,19 @@ pub struct FPrimeImageConfig {
     /// for `poseidon2_hash(preimage)` into the spliced one-shot trace
     /// region. Default empty.
     pub poseidon_transition_enforcements: Vec<PoseidonTransitionEnforcement>,
-    /// Unified accumulator selector — present when the F' structure
-    /// hosts **both** the base-case accumulator preimage (`H(tag, 0)`)
-    /// and the recursive-case accumulator preimage
-    /// (`H(tag, child_count, c_data_entries, c_data ...)`), with
-    /// `state_out.new_acc_digest` selected by the `is_base` lane via
+    /// Legacy unified accumulator selector. The current canonical
+    /// unified plan uses delayed accumulator-handle binding instead and
+    /// leaves this `None`; tests for the older direct producer-side
+    /// trace may still construct configs that set it.
+    ///
+    /// When present, the F' structure hosts the recursive-case
+    /// accumulator preimage (`H(tag, child_count, c_data_entries,
+    /// c_data ...)`) and selects between that trace's digest and the
+    /// constant base-case handle via the `is_base` lane:
     ///
     /// ```text
-    /// (1 - is_base) * (recursive_lane - base_lane)
-    ///   = (new_acc_digest_lane - base_lane)
+    /// (1 - is_base) * (recursive_lane - base_const)
+    ///   = (new_acc_digest_lane - base_const)
     /// ```
     ///
     /// When `Some(..)` the structure builder skips the direct linear
@@ -139,17 +155,20 @@ pub struct FPrimeImageConfig {
     pub initial_semantic_state_digest_anchor: Option<[u8; 32]>,
 }
 
-/// Indices into `poseidon_one_shot_preimage_lens` for the two
-/// accumulator Poseidon traces the unified-mode F' structure hosts.
+/// Legacy accumulator selector for a unified-mode F' structure.
 ///
-/// Both indices are required (the structure emits both bindings + the
-/// selector that picks between them). The `is_base` lane in the image
-/// drives the selector.
+/// The base accumulator handle is a public constant, so
+/// unified mode does not spend columns on a one-shot Poseidon trace for
+/// that branch. In the old selector path the recursive branch remains a
+/// real trace because its preimage reads the post-fold parent commitment
+/// from NIFS payload lanes. The `is_base` lane in the image drives the
+/// selector. The canonical plan no longer uses this selector; it carries
+/// the accumulator handle and checks it when consumed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UnifiedAccumulatorSelector {
-    /// One-shot index of the **base** accumulator trace (preimage
-    /// `H(tag, 0)`, producing the empty-accumulator digest).
-    pub base_trace_index: usize,
+    /// Constant base accumulator handle (`AccumulatorHandle::empty()`)
+    /// as four Goldilocks lanes.
+    pub base_digest: [F; 4],
     /// One-shot index of the **recursive** accumulator trace (preimage
     /// `H(tag, child_count, c_data_entries, c_data ...)`).
     pub recursive_trace_index: usize,
@@ -263,6 +282,14 @@ pub enum PoseidonPreimageLaneSource {
     /// input `x`. The Fibonacci frontend's `app_private` region holds
     /// carries (not 64-bit lanes) and does not use this variant.
     AppAssignmentLane(usize),
+    /// Packed canonical-u64 value of multiple app-assignment variables.
+    ///
+    /// Each listed variable is resolved through its full 64-bit
+    /// canonical lane and weighted by `2^offset` in list order. This
+    /// is only sound for verifier-owned plans where the app R1CS
+    /// constrains those variables to `{0,1}`; then this source packs
+    /// up to 64 public bits into one `state_x_out` preimage lane.
+    AppAssignmentBitPack(Vec<usize>),
 }
 
 /// One Phase 1.4d-a-4 enforcement: bind the trace at `one_shot_index`
@@ -311,7 +338,7 @@ pub struct FPrimeImageLayout {
     /// `fibonacci_structure::build_f_prime_structure`. Always
     /// reserved (one bit) even when the plan has no
     /// `AccumulatorPlanOptions` — the encoder writes `0` there in that
-    /// case, and the structure's bit-validity row covers the binary
+    /// case, and the structure's semantic Boolean row covers the binary
     /// constraint either way.
     pub is_base: RegionRange,
     pub nifs_payloads: RegionRange,
@@ -338,6 +365,22 @@ pub struct FPrimeImageLayout {
 
 impl FPrimeImageLayout {
     pub fn new(config: FPrimeImageConfig) -> Self {
+        if !config.app_private_var_widths.is_empty() {
+            let typed_bits: usize = config.app_private_var_widths.iter().sum();
+            assert_eq!(
+                typed_bits,
+                config.limbs.saturating_sub(1),
+                "typed app-private widths must sum to limbs - 1"
+            );
+            assert!(
+                config
+                    .app_private_var_widths
+                    .iter()
+                    .all(|&w| (1..=64).contains(&w)),
+                "typed app-private widths must be in 1..=64"
+            );
+        }
+
         // z[0] = constant slot; non-constant regions start at offset 1.
         let mut cursor = 1usize;
 

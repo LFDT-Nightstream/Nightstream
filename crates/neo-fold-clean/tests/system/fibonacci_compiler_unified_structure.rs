@@ -9,15 +9,15 @@
 //!   `FINAL_FOLD_TRANSCRIPT_LABEL` path; passes once the compiler
 //!   reconstructs the per-step F' transcript.
 //! - `compiler_recursive_step_emits_unified_structure` — confirms the
-//!   recursive compile path actually emits a unified-mode image (five
-//!   one-shot traces, `unified_accumulator_selector = Some(..)`,
+//!   recursive compile path emits the delayed-handle unified image
+//!   (only the `state_x_out` one-shot trace, no source-image selector,
 //!   `is_base = 0`). Catches a compiler that records `is_base` but
 //!   leaves the structure in legacy single-accumulator shape.
 //! - `compiler_base_step_uses_empty_accumulator_digest` — base step's
-//!   `new_acc_digest` equals `digest32_as_fields(accumulator_digest_from_claims(b, &[]))`.
-//! - `compiler_base_step_emits_perp_nifs_payload` — the base step's
-//!   NIFS payload region is the canonical perp view (zero `c_data` of
-//!   `prep.plan` shape, zero `r`, zero `y_ring`, …).
+//!   `new_acc_digest` equals `AccumulatorHandle::empty()`.
+//! - `compiler_base_step_elides_source_image_nifs_payload` — the base
+//!   step reserves no source-image NIFS payload columns; verifier-plan
+//!   shape metadata still exists for compiler validation.
 //! - `compiler_base_step_rejects_unexpected_prior_fold` — base path
 //!   refuses a caller that left a stale `fold_for_step`.
 //! - `compiler_recursive_step_sets_is_base_false` — recursive image's
@@ -25,22 +25,24 @@
 //! - `compiler_chain_builds_from_scratch_and_verify_uncompressed_accepts`
 //!   — a single base step compiled end-to-end through the lifecycle is
 //!   accepted by the production non-replay verifier.
-//! - `compiler_two_step_chain_builds_from_scratch_and_verify_uncompressed_accepts`
-//!   — ignored by default (runs ~80 s on the current optimized path,
-//!   but remains too heavy for the default compiler-regression suite).
+//! - `compiler_two_step_chain_builds_from_scratch_and_rejects_terminal_only`
+//!   — ignored by default because it is a perf/integration snapshot, not
+//!   a small semantic unit test. It currently runs well under the
+//!   project-wide 5-minute cap on the optimized path.
 //!   Run manually with `--ignored`.
-//!   This is the load-bearing production IVC path: compile a base step,
-//!   fold it through the lifecycle, derive the next step's NIFS proof
-//!   from a shape-equivalent placeholder extend, compile a recursive
-//!   step with that fold, re-extend the original audit with the real
-//!   compiled recursive instance, finalise, and run **both** verifier
-//!   surfaces — `verify_uncompressed_audit` (chain-replay) AND
-//!   `verify_uncompressed` (production terminal-only). The
-//!   chain-replay form guarantees the per-step F'-transcript chain
-//!   matches; the terminal-only form is what an on-chain or
-//!   compressed-snark verifier would port to. Both accepting on a
-//!   compiler-built chain is what closes the SuperNeo / HyperNova
-//!   §6.3 Construction 2 IVC milestone for Fibonacci.
+//!   This is the load-bearing encoded-shell integration path: compile a
+//!   base step, fold it through the lifecycle, derive the next step's
+//!   NIFS proof from a shape-equivalent placeholder extend, compile a
+//!   recursive step with that fold, re-extend the original audit with
+//!   the real compiled recursive instance, finalise, and check both
+//!   verifier surfaces: `verify_uncompressed_audit` accepts the
+//!   chain-replay proof, while terminal-only `verify_uncompressed`
+//!   rejects the multi-chunk F' projection until the compressed decider
+//!   proves the recursive F'/NIFS.V induction. It proves the current
+//!   strict low-norm shell is foldable, and it exposes the shell's cost
+//!   wall. It is not the final compact HyperNova F' verifier shape; that
+//!   path lives in `paper::f_prime::r1cs` and still needs a production
+//!   low-norm `enc(F')` boundary.
 //! - `compiler_base_and_recursive_steps_share_structure` — load-bearing.
 //!   Both paths' encoded steps share `structure_digest`, pinning the
 //!   fixed-`F'_j` invariant for a single `pc`.
@@ -64,7 +66,7 @@ use neo_fold_clean::frontends::f_prime::recursive_plan::{
 };
 use neo_fold_clean::lifecycle;
 use neo_fold_clean::paper::construction2::{FoldProof, ProofState};
-use neo_fold_clean::paper::digest::{accumulator_digest_from_claims, digest32_as_fields, structure_digest};
+use neo_fold_clean::paper::digest::{digest32_as_fields, structure_digest, AccumulatorHandle};
 use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
 use neo_fold_clean::paper::params::Params;
 use neo_params::{goldilocks_paper_b2, NeoParams};
@@ -73,7 +75,6 @@ use support::fibonacci_f_prime::{
     FibonacciChainBuilder, FibonacciChainState, FibonacciCompilerError, FibonacciFPrimePreprocessing,
     FibonacciFoldForStep,
 };
-
 use support::fibonacci_f_prime::{canonical_threaded_plan, BOUNDARY_BITS};
 
 /// One phase of an IVC benchmark, timed and logged via `--nocapture`.
@@ -121,10 +122,23 @@ struct FibIvcReference {
     untimed_s: f64,
 }
 
-/// Local reference captured on 2026-05-31 after the terminal-CE
-/// shared-`r` verifier optimization. Shape fields are deterministic and
-/// asserted below; timings are wall-clock reference values and are only
-/// printed as deltas because they depend on the machine and thermal state.
+/// Local reference captured on 2026-06-01 after the terminal-CE flat batch
+/// evaluator, sparse CSC cleanup, nested PiDEC y-ring batching, parallel
+/// chi-table expansion, cached Fibonacci F' structure reuse, parallel
+/// active-block SuperNeo y-evaluation, Poseidon2 tree matrix digest,
+/// parallel SuperNeo matrix-cache build, compact NC digit tables, and
+/// semantic-Boolean-only F' shell rows, delayed accumulator-handle binding,
+/// duplicate public-trace removal, boundary-update elision, compact
+/// `state_x_out` domain/preimage trimming, and transitive `z_0` binding
+/// through `vk_fs_digest`, stateless duplicate-semantic omission in
+/// `state_x_out`, plus branch-reduced digit-monomial reduction.
+/// Updated after the seeded Ajtai signed-unit `commit_many` batching path,
+/// which reuses each sampled PP column across all terminal child witnesses
+/// instead of committing every signed-unit child independently.
+/// Shape
+/// fields are deterministic and asserted below; timings are wall-clock
+/// reference values and are only printed as deltas because they depend on the
+/// machine and thermal state.
 const FIB_IVC_REFERENCE: FibIvcReference = FibIvcReference {
     kappa: 18,
     lambda: 107,
@@ -132,24 +146,24 @@ const FIB_IVC_REFERENCE: FibIvcReference = FibIvcReference {
     b: 2,
     k_rho: 14,
     t_sampling: 216,
-    structure_n: 6_210_611,
-    structure_m: 6_117_572,
+    structure_n: 2_327,
+    structure_m: 134_788,
     structure_t: 8,
     plan_limbs: 3,
     boundary_bits: 256,
-    preprocess_s: 10.61,
-    step0_s: 12.79,
-    step1_s: 26.40,
-    drop_compiled_s: 0.04,
-    finish_s: 13.66,
-    audit_verify_s: 1.42,
-    terminal_verify_s: 8.76,
-    drop_rest_s: 0.07,
-    total_s: 85.57,
-    prove_total_s: 52.86,
-    verify_total_s: 10.18,
-    amortized_recursive_s: 26.40,
-    untimed_s: 11.81,
+    preprocess_s: 0.08,
+    step0_s: 0.03,
+    step1_s: 0.16,
+    drop_compiled_s: 0.00,
+    finish_s: 0.11,
+    audit_verify_s: 0.12,
+    terminal_verify_s: 0.10,
+    drop_rest_s: 0.00,
+    total_s: 0.64,
+    prove_total_s: 0.31,
+    verify_total_s: 0.22,
+    amortized_recursive_s: 0.16,
+    untimed_s: 0.03,
 };
 
 fn assert_fib_ivc_reference_shape(prep: &FibonacciFPrimePreprocessing, plan: &RecursiveStepImagePlan) {
@@ -201,7 +215,9 @@ fn print_reference_row(label: &str, current_s: f64, reference_s: f64) {
 fn print_fib_ivc_reference_comparison(current: FibIvcReference) {
     eprintln!();
     eprintln!("[fib-ivc] ───────────── reference comparison ─────────────");
-    eprintln!("[fib-ivc] baseline: 2026-05-31 local post terminal-CE shared-r verifier optimization");
+    eprintln!(
+        "[fib-ivc] baseline: 2026-06-01 local post flat CE evaluator + sparse CSC + PiDEC/chi batching + cached F' structure + parallel active-block y_eval + compact NC digit tables + semantic-Boolean F' shell rows + delayed accumulator handle + compact state_x_out + branch-reduced digit monomials + batched signed-unit Ajtai commit_many"
+    );
     eprintln!("[fib-ivc] metric                       current  reference         Δ");
     print_reference_row("preprocess", current.preprocess_s, FIB_IVC_REFERENCE.preprocess_s);
     print_reference_row("step 0 base", current.step0_s, FIB_IVC_REFERENCE.step0_s);
@@ -235,6 +251,41 @@ fn print_fib_ivc_reference_comparison(current: FibIvcReference) {
     eprintln!("[fib-ivc] ─────────────────────────────────────────────────");
 }
 
+fn print_fib_ivc_poseidon_trace_budget(prep: &FibonacciFPrimePreprocessing) {
+    let layout = &prep.structure.layout;
+    let names = ["state_x_out"];
+    eprintln!();
+    eprintln!("[fib-ivc] ───────────── F' one-shot Poseidon trace budget ─────────────");
+    eprintln!("[fib-ivc] trace                    preimage   perms     digits    %cols");
+    let mut total_bits = 0usize;
+    for (idx, trace_layout) in layout.one_shot_poseidon_layouts.iter().enumerate() {
+        let name = names.get(idx).copied().unwrap_or("one_shot");
+        let preimage_len = layout.config.poseidon_one_shot_preimage_lens[idx];
+        total_bits += trace_layout.trace_len;
+        eprintln!(
+            "[fib-ivc] {name:<24} {preimage_len:>8} {perms:>7} {bits:>10} {pct:>7.1}%",
+            perms = trace_layout.absorbs,
+            bits = trace_layout.trace_len,
+            pct = trace_layout.trace_len as f64 * 100.0 / prep.prep.structure().m as f64,
+        );
+    }
+    eprintln!(
+        "[fib-ivc] {total:<24} {blank:>8} {blank:>7} {total_bits:>10} {pct:>7.1}%",
+        total = "one-shot total",
+        blank = "",
+        pct = total_bits as f64 * 100.0 / prep.prep.structure().m as f64,
+    );
+    eprintln!(
+        "[fib-ivc] {total:<24} {blank:>8} {blank:>7} {bits:>10} {pct:>7.1}%",
+        total = "poseidon region",
+        blank = "",
+        bits = layout.poseidon.bits,
+        pct = layout.poseidon.bits as f64 * 100.0 / prep.prep.structure().m as f64,
+    );
+    eprintln!("[fib-ivc] accumulator handle is carried in state_out; no producer-side parent.c_data hash trace");
+    eprintln!("[fib-ivc] ─────────────────────────────────────────────────────────────");
+}
+
 /// Convenience: a Fibonacci app input where `next == prev + curr`.
 fn valid_app_step(prev_u: u64, curr_u: u64, step_index: u64) -> FibonacciAppStepInput {
     let prev = F::from_u64(prev_u);
@@ -246,11 +297,11 @@ fn valid_app_step(prev_u: u64, curr_u: u64, step_index: u64) -> FibonacciAppStep
 }
 
 /// Shared cache of a single bootstrap result — every test that needs a
-/// real intermediate `StepProof::Recursive` clones from this. The big
-/// canonical plan makes each lifecycle fold expensive (~25-50 s), so
-/// 5 tests × 3 folds × 8-way parallelism = quadratic-ish contention
-/// without caching. Caching once flattens that to one bootstrap +
-/// cheap per-test clones.
+/// real intermediate `StepProof::Recursive` clones from this. Even after
+/// the canonical F' shell was shrunk, deriving an intermediate lifecycle
+/// fold is still the expensive part of these compiler tests; caching once
+/// keeps the default regression suite focused on semantic coverage rather
+/// than repeatedly rebuilding the same fold authority.
 ///
 /// The cached values must outlive every test on `'static`, which
 /// `OnceLock` gives us automatically.
@@ -363,19 +414,19 @@ fn compiler_accepts_real_intermediate_fold_proof() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Recursive path emits a unified-mode image.
+// Recursive path emits the delayed-handle unified image.
 // ─────────────────────────────────────────────────────────────────────────
 
 #[test]
 fn compiler_recursive_step_emits_unified_structure() {
     let shared = shared_bootstrap();
     assert!(
-        shared.recursive_has_selector,
-        "recursive compile must emit a unified-mode image (UnifiedAccumulatorSelector = Some)"
+        !shared.recursive_has_selector,
+        "recursive compile must use delayed accumulator-handle binding (no UnifiedAccumulatorSelector)"
     );
     assert_eq!(
-        shared.recursive_one_shot_count, 5,
-        "unified mode requires 5 one-shot traces (boundary, public_trace, base_acc, recursive_acc, state_x_out)"
+        shared.recursive_one_shot_count, 1,
+        "delayed-handle unified mode emits only the state_x_out one-shot trace"
     );
     assert!(!shared.recursive_is_base, "recursive step must commit `is_base = 0`");
 }
@@ -391,10 +442,10 @@ fn compiler_base_step_uses_empty_accumulator_digest() {
 
     let compiled = compile_fibonacci_step(prep, &mut ctx, valid_app_step(1, 1, 0)).expect("base compile");
     let state_out = compiled.encoded.image.decode_state_out();
-    let expected_empty = digest32_as_fields(accumulator_digest_from_claims(prep.prep.params.b(), &[]));
+    let expected_empty = AccumulatorHandle::empty().digest_fields();
     assert_eq!(
         state_out.new_acc_digest, expected_empty,
-        "base step must commit `new_acc_digest = digest32_as_fields(accumulator_digest_from_claims(b, &[]))`"
+        "base step must commit `new_acc_digest = AccumulatorHandle::empty()`"
     );
     assert!(
         compiled.encoded.image.decode_is_base(),
@@ -403,58 +454,19 @@ fn compiler_base_step_uses_empty_accumulator_digest() {
 }
 
 #[test]
-fn compiler_base_step_emits_perp_nifs_payload() {
+fn compiler_base_step_elides_source_image_nifs_payload() {
     let prep = shared_canonical_prep();
     let mut ctx = start_fibonacci_chain(prep).expect("start chain");
 
     let compiled = compile_fibonacci_step(prep, &mut ctx, valid_app_step(1, 1, 0)).expect("base compile");
 
-    // Pull the canonical CE shape out of the prep's plan.
-    let ce_shape: NifsCeClaimShape = {
-        use neo_fold_clean::frontends::f_prime::image::NifsPayloadShape;
-        match &prep.plan.nifs_payload_shapes[0] {
-            NifsPayloadShape::CeClaim(s) => s.clone(),
-            other => panic!("expected CeClaim shape, got {other:?}"),
-        }
-    };
-
-    let decoded = compiled.encoded.image.decode_nifs_ce_claim_at(0, &ce_shape);
-    assert_eq!(decoded.d, 0, "perp.d must be 0");
-    assert_eq!(decoded.kappa, 0, "perp.kappa must be 0");
-    assert!(
-        decoded.c_data.iter().all(|f| *f == F::ZERO),
-        "perp.c_data must be all zeros"
-    );
-    assert_eq!(decoded.x_rows, ce_shape.x_rows as u64);
-    assert_eq!(decoded.x_active_cols, ce_shape.x_active_cols as u64);
-    assert!(
-        decoded.x_active_flat.iter().all(|f| *f == F::ZERO),
-        "perp.x_active_flat must be all zeros"
-    );
-    assert!(
-        decoded.r.iter().all(|pair| pair == &[F::ZERO; 2]),
-        "perp.r must be all zeros"
-    );
-    assert!(
-        decoded
-            .y_ring
-            .iter()
-            .all(|row| row.iter().all(|pair| pair == &[F::ZERO; 2])),
-        "perp.y_ring must be all zeros"
-    );
-    assert!(
-        decoded.y_zcol.iter().all(|pair| pair == &[F::ZERO; 2]),
-        "perp.y_zcol must be all zeros"
-    );
-    assert!(
-        decoded.s_col.iter().all(|pair| pair == &[F::ZERO; 2]),
-        "perp.s_col must be all zeros"
-    );
-    assert_eq!(decoded.m_in, 0, "perp.m_in must be 0");
     assert_eq!(
-        decoded.fold_digest_fields,
-        [F::ZERO; 4],
-        "perp.fold_digest_fields must be all zeros"
+        compiled.encoded.image.layout.nifs_payloads.bits, 0,
+        "unified delayed-handle mode must not reserve source-image NIFS payload columns",
+    );
+    assert!(
+        !prep.plan.nifs_payload_shapes.is_empty(),
+        "the verifier plan still keeps CE-shape metadata for compiler validation",
     );
 }
 
@@ -547,8 +559,11 @@ fn fibonacci_chain_builder_appends_base_step() {
 // only the Ajtai-SIS security parameter is reduced.
 //
 // `c_data_entries = 216` and `child_count = 14` are the params-derived
-// fixed-point CE shape (KAPPA * D and K_RHO respectively); `r_len = 21`
-// is the empirically converged value under this image size. If `Params`
+// fixed-point CE shape (KAPPA * D and K_RHO respectively); `r_len = 12`
+// and `s_col_len = 18` are the empirically converged values after source
+// NIFS payload elision. The tiny fixture uses a wider dummy app-private
+// region to avoid colliding with the canonical test SRS dimensions while
+// keeping the same public input shape. If `Params`
 // or the limb count ever change, this test fails with
 // `PostParentShapeMismatch` and the error message names the new
 // `actual` shape to copy into these constants.
@@ -574,7 +589,9 @@ fn tiny_fibonacci_params() -> Params {
 fn tiny_fibonacci_lifecycle_plan() -> RecursiveStepImagePlan {
     const TINY_C_DATA_ENTRIES: usize = 216;
     const TINY_CHILD_COUNT: u64 = 14;
-    const TINY_R_LEN: usize = 21;
+    const TINY_R_LEN: usize = 12;
+    const TINY_S_COL_LEN: usize = 18;
+    const TINY_LIMBS: usize = 57;
 
     let ce_shape = NifsCeClaimShape {
         c_data_entries: TINY_C_DATA_ENTRIES,
@@ -583,11 +600,12 @@ fn tiny_fibonacci_lifecycle_plan() -> RecursiveStepImagePlan {
         r_len: TINY_R_LEN,
         y_ring_inner_lens: vec![64; 8],
         y_zcol_len: 64,
-        s_col_len: TINY_R_LEN,
+        s_col_len: TINY_S_COL_LEN,
     };
 
     let probe_plan = RecursiveStepImagePlan {
-        limbs: 3,
+        limbs: TINY_LIMBS,
+        app_private_var_widths: Vec::new(),
         boundary_bits: BOUNDARY_BITS,
         kmul_count: 0,
         ring_action_pair_count: 0,
@@ -618,6 +636,7 @@ fn tiny_fibonacci_lifecycle_plan() -> RecursiveStepImagePlan {
         pc: 1,
         public_x_out_lane_bit_starts,
         app_public_input_var_indices: Vec::new(),
+        app_public_input_bit_var_indices: Vec::new(),
         semantic_state_in_var_indices: Vec::new(),
         semantic_state_out_var_indices: Vec::new(),
         initial_semantic_state_digest_anchor: None,
@@ -673,15 +692,15 @@ fn fibonacci_chain_builder_appends_recursive_step_under_tiny_params() {
 }
 
 #[test]
-#[ignore = "production-shape two-step compiler chain runs ~80s; run explicitly with --ignored"]
-fn compiler_two_step_chain_builds_from_scratch_and_verify_uncompressed_accepts() {
+#[ignore = "encoded-shell two-step compiler chain is a perf/integration snapshot; run explicitly with --ignored"]
+fn compiler_two_step_chain_builds_from_scratch_and_rejects_terminal_only() {
     let total = Instant::now();
 
     // 1. Build the canonical F' plan (microseconds — not timed).
     let plan = canonical_threaded_plan();
 
     // 2. Preprocess R1CS-F'. Single largest one-time cost in the test.
-    //    Builds: the F' structure (bitness rows + R1CS recompose rows),
+    //    Builds: the F' structure (semantic Boolean shell rows + R1CS recompose rows),
     //    optimized engine cache, structure_digest, vk, and the Ajtai PP.
     let (prep, prep_s) = phase("preprocess R1CS-F'", || {
         fibonacci_f_prime::preprocess_seeded(&plan, 0xC0DE_0009).expect("preprocess")
@@ -705,6 +724,7 @@ fn compiler_two_step_chain_builds_from_scratch_and_verify_uncompressed_accepts()
         plan.limbs,
         plan.boundary_bits,
     );
+    print_fib_ivc_poseidon_trace_budget(&prep);
     assert_fib_ivc_reference_shape(&prep, &plan);
     let current_kappa = p.kappa();
     let current_lambda = p.lambda();
@@ -789,23 +809,22 @@ fn compiler_two_step_chain_builds_from_scratch_and_verify_uncompressed_accepts()
     let drop_compiled_s = drop_compiled.elapsed().as_secs_f64();
     eprintln!("[fib-ivc] {:<32} {:>7.2}s", "drop compiled steps", drop_compiled_s);
 
-    // 7. Production-shape end-to-end: finalize the chain (one terminal
-    //    NIFS fold), then run **both** verifier surfaces:
+    // 7. Encoded-shell end-to-end: finalize the chain (one terminal
+    //    NIFS fold), then check both verifier surfaces:
     //
     //    - `verify_uncompressed_audit` — chain-replay verifier; walks
     //      every per-step `StepProof::Recursive` under the F'
     //      transcript, then re-runs the terminal fold. Verify cost
     //      grows with chain length.
-    //    - `verify_uncompressed` — production terminal-only verifier;
-    //      the one a thin on-chain (or compressed-snark) IVC verifier
-    //      ports to. Reads `proof.final_fold.terminal_inputs` plus
-    //      `proof.state` and is independent of the historical
-    //      `audit.steps[]`. Verify cost is constant-ish in chain length.
+    //    - `verify_uncompressed` — terminal-only verifier. It must
+    //      reject this two-chunk F' projection because it has dropped
+    //      the intermediate F' witnesses and NIFS.V messages that
+    //      HyperNova's induction needs. Single-chunk F' remains accepted
+    //      by the small test above.
     //
-    //    Both must accept a compiler-built base+recursive chain — they
-    //    pin different soundness properties and a real production
-    //    deployment will rely on `verify_uncompressed` (the audit form
-    //    doesn't survive Spartan compression).
+    //    Audit replay must accept the compiler-built base+recursive
+    //    chain. Terminal-only must fail closed until the compressed
+    //    decider proves the recursive F'/NIFS.V induction.
     let (finalized, finish_s) = phase("finish_with_audit() (terminal fold)", || {
         builder.finish_with_audit().expect("finalize")
     });
@@ -813,8 +832,13 @@ fn compiler_two_step_chain_builds_from_scratch_and_verify_uncompressed_accepts()
     let (_, audit_verify_s) = phase("verify_uncompressed_audit (replay)", || {
         lifecycle::verify_uncompressed_audit(&prep.prep, &finalized).expect("verify_uncompressed_audit")
     });
-    let (_, terminal_verify_s) = phase("verify_uncompressed (terminal)", || {
-        lifecycle::verify_uncompressed(&prep.prep, &finalized.proof).expect("verify_uncompressed")
+    let (_, terminal_verify_s) = phase("verify_uncompressed (expected reject)", || {
+        let err = lifecycle::verify_uncompressed(&prep.prep, &finalized.proof)
+            .expect_err("terminal-only verifier must reject multi-chunk R1CS-F' projection");
+        assert!(
+            matches!(err, lifecycle::Error::FPrimeNonReplayUnsupported { chunk_count: 2 }),
+            "expected FPrimeNonReplayUnsupported(2), got {err:?}"
+        );
     });
 
     // 8. Drop the remaining heavy allocations explicitly so the wall
@@ -832,8 +856,9 @@ fn compiler_two_step_chain_builds_from_scratch_and_verify_uncompressed_accepts()
     // 9. Summary: roll up the timed phases into the numbers a reader of
     //    these logs actually wants — prover wall, verifier wall, and the
     //    one number that scales with chain length (the recursive step).
-    //    Spartan compression is explicitly excluded; this is the IVC
-    //    surface that `verify_uncompressed` accepts.
+    //    Spartan compression is explicitly excluded. For two chunks,
+    //    audit replay is the accepting surface; terminal-only rejection
+    //    is expected and timed separately.
     let recursive_steps = 1.0_f64; // one recursive step in a two-step chain
     let prove_total = step0_s + step1_s + finish_s;
     let verify_total = audit_verify_s + terminal_verify_s;
@@ -849,9 +874,11 @@ fn compiler_two_step_chain_builds_from_scratch_and_verify_uncompressed_accepts()
         "[fib-ivc]   step 1 recursive:            {step1_s:>7.2}s  (≈ 2× prove + compile + NIFS.V; test-support builder)"
     );
     eprintln!("[fib-ivc]   terminal fold (finish):      {finish_s:>7.2}s  (1× NIFS prove)");
-    eprintln!("[fib-ivc] verify wall:                 {verify_total:>7.2}s");
+    eprintln!("[fib-ivc] verify/check wall:           {verify_total:>7.2}s");
     eprintln!("[fib-ivc]   audit replay:                {audit_verify_s:>7.2}s  (scales with chain length)");
-    eprintln!("[fib-ivc]   terminal only:               {terminal_verify_s:>7.2}s  ← production verify cost");
+    eprintln!(
+        "[fib-ivc]   terminal-only reject:        {terminal_verify_s:>7.2}s  (expected multi-chunk F' fail-closed)"
+    );
     eprintln!(
         "[fib-ivc] amortized recursive step:    {amortized_recursive:>7.2}s/op  (step 1 / {} recursive step{})",
         recursive_steps as u64,

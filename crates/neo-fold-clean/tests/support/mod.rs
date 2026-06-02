@@ -28,6 +28,20 @@ pub fn toy_preprocessing() -> Preprocessing {
     .expect("toy preprocessing")
 }
 
+pub fn toy_preprocessing_unfixed_public_input_len() -> Preprocessing {
+    let structure = toy_structure();
+    let params = config::r1cs_params(structure.n, structure.m).expect("production-core toy params");
+    install_ajtai_module(&params, &structure);
+    preprocess(
+        params,
+        structure,
+        mix_rhos_commits as RlcMixer,
+        combine_b_pows as DecMixer,
+        None,
+    )
+    .expect("toy preprocessing with unfixed public input length")
+}
+
 pub fn toy_instance(prep: &Preprocessing, _seed: u64) -> CcsInstance {
     let z = vec![F::ZERO; prep.structure().m];
     CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &z, 1)
@@ -43,7 +57,7 @@ fn toy_structure() -> Structure {
     CcsStructure::new(vec![Mat::identity(1)], SparsePoly::new(1, vec![])).expect("toy CCS structure")
 }
 
-fn install_ajtai_module(params: &Params, structure: &Structure) {
+pub(crate) fn install_ajtai_module(params: &Params, structure: &Structure) {
     let cols = structure.m.div_ceil(D);
     if !has_global_pp_for_dims(D, cols) {
         let mut seed = [0u8; 32];
@@ -64,7 +78,7 @@ fn rot_matrix_to_rq(mat: &Mat<F>) -> RqEl {
     cf_inv(coeffs)
 }
 
-fn mix_rhos_commits(rhos: &[Mat<F>], cs: &[Commitment]) -> Commitment {
+pub(crate) fn mix_rhos_commits(rhos: &[Mat<F>], cs: &[Commitment]) -> Commitment {
     let mut acc = Commitment::zeros(cs[0].d, cs[0].kappa);
     for (rho, c) in rhos.iter().zip(cs.iter()) {
         let rq = rot_matrix_to_rq(rho);
@@ -73,7 +87,7 @@ fn mix_rhos_commits(rhos: &[Mat<F>], cs: &[Commitment]) -> Commitment {
     acc
 }
 
-fn combine_b_pows(cs: &[Commitment], b: u32) -> Commitment {
+pub(crate) fn combine_b_pows(cs: &[Commitment], b: u32) -> Commitment {
     let mut acc = Commitment::zeros(cs[0].d, cs[0].kappa);
     let base = F::from_u64(b as u64);
     let mut pow = F::ONE;

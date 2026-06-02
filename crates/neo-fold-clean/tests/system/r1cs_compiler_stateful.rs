@@ -12,6 +12,8 @@
 #[path = "../support/mod.rs"]
 mod support;
 
+use std::time::{Duration, Instant};
+
 use neo_ccs::matrix::Mat as NeoMat;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
@@ -19,17 +21,28 @@ use p3_field::PrimeCharacteristicRing;
 use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
 use neo_fold_clean::engine::decider::synthesize_statement_r1cs;
 use neo_fold_clean::frontends::direct_ccs::R1cs;
+use neo_fold_clean::frontends::f_prime::compiler::FPrimeShellCompilerError;
 use neo_fold_clean::frontends::f_prime::recursive_plan::build_semantic_state_preimage_fields;
 use neo_fold_clean::frontends::r1cs_f_prime::{
     self, compile_step, start_chain, R1csChainBuilder, R1csCompilerError, R1csFPrimeStepInput,
 };
-use neo_fold_clean::paper::digest::digest_fields_as_digest32;
+use neo_fold_clean::paper::digest::{digest32_as_fields, digest_fields_as_digest32};
 use neo_fold_clean::paper::f_prime::poseidon_trace::encode_poseidon_trace;
 
 use support::r1cs_compiler_fixtures::{
     assignment_one_product, assignment_one_product_with_extras, make_stateful_plan, make_stateful_plan_with_anchor,
     make_tiny_stateful_lifecycle_plan_with_anchor, one_product_r1cs, tiny_params,
 };
+
+fn expect_f_prime_non_replay_unsupported(err: neo_fold_clean::Error, chunk_count: u64) {
+    assert!(
+        matches!(
+            err,
+            neo_fold_clean::Error::FPrimeNonReplayUnsupported { chunk_count: got } if got == chunk_count
+        ),
+        "expected FPrimeNonReplayUnsupported({chunk_count}), got {err:?}"
+    );
+}
 
 // ─────────────────────────────────────────────────────────────────────────
 // Stateful semantic lane — app-state digests link serial R1CS steps.
@@ -45,10 +58,11 @@ fn r1cs_stateful_semantic_digest_binds_private_state_wires() {
         r1cs.m(),
         r1cs.m_in,
         vec![6],
-        vec![7],
+        vec![0, 7],
         Some(semantic_digest_for_single(42)),
     );
-    let prep = r1cs_f_prime::preprocess_seeded(&r1cs, &plan, 0x71C5_0A01).expect("preprocess");
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_0A01).expect("preprocess");
     let mut ctx = start_chain(&prep).expect("start chain");
 
     let compiled = compile_step(
@@ -95,10 +109,11 @@ fn r1cs_stateful_semantic_digest_lane_tamper_rejects() {
         r1cs.m(),
         r1cs.m_in,
         vec![6],
-        vec![7],
+        vec![0, 7],
         Some(semantic_digest_for_single(42)),
     );
-    let prep = r1cs_f_prime::preprocess_seeded(&r1cs, &plan, 0x71C5_0A04).expect("preprocess");
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_0A04).expect("preprocess");
     let mut ctx = start_chain(&prep).expect("start chain");
 
     let compiled = compile_step(
@@ -182,7 +197,8 @@ fn r1cs_stateful_compiler_rejects_disconnected_second_step() {
         vec![0],
         Some(semantic_digest_for_single(3)),
     );
-    let prep = r1cs_f_prime::preprocess_seeded(&r1cs, &plan, 0x71C5_0A02).expect("preprocess");
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_0A02).expect("preprocess");
     let mut ctx = start_chain(&prep).expect("start chain");
 
     let first = compile_step(
@@ -251,8 +267,12 @@ fn r1cs_stateful_chain_builder_rejects_disconnected_chunk_before_stashing_fold()
     chain
         .append_assignment(assignment_fibonacci_transition(1, 2))
         .expect("builder remains usable after rejected disconnected chunk");
-    let finished = chain.finish().expect("finish");
-    neo_fold_clean::verify_uncompressed(&prep.prep, &finished).expect("verify_uncompressed");
+    let audit = chain.finish_with_audit().expect("finish");
+    neo_fold_clean::verify_uncompressed_audit(&prep.prep, &audit).expect("repaired multi-step stateful audit verifies");
+    let finished = neo_fold_clean::finish_uncompressed(&prep.prep, audit).expect("finish terminal-only proof");
+    let err = neo_fold_clean::verify_uncompressed(&prep.prep, &finished)
+        .expect_err("multi-chunk F' proof needs audit/decider path");
+    expect_f_prime_non_replay_unsupported(err, 2);
 }
 
 #[test]
@@ -340,10 +360,42 @@ fn r1cs_stateful_fibonacci_rejects_random_second_step_state() {
 }
 
 #[test]
+fn r1cs_stateful_fibonacci_rejects_forged_constant_lane() {
+    let r1cs = fibonacci_transition_stateful_r1cs();
+    let plan = make_tiny_stateful_lifecycle_plan_with_anchor(
+        r1cs.m(),
+        r1cs.m_in,
+        vec![1, 2],
+        vec![3, 4],
+        Some(semantic_digest_for_pair(1, 1)),
+    );
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_0A15).expect("preprocess");
+    let mut ctx = start_chain(&prep).expect("start chain");
+
+    let mut forged = vec![F::ZERO; neo_math::D];
+    forged[0] = F::from_u64(2);
+    forged[1] = F::ONE;
+    forged[2] = F::ONE;
+    forged[3] = F::from_u64(2);
+    forged[4] = F::from_u64(4);
+    r1cs.is_satisfied_by(&forged)
+        .expect("raw R1CS accepts if z[0] is allowed to impersonate the constant-one lane");
+
+    let err = compile_step(&prep, &mut ctx, R1csFPrimeStepInput { assignment: forged })
+        .expect_err("F' structure must pin the conventional z[0] constant lane");
+    match err {
+        R1csCompilerError::ConstantLaneNotOne { got } => assert_eq!(got, F::from_u64(2)),
+        other => panic!("expected ConstantLaneNotOne, got {other:?}"),
+    }
+}
+
+#[test]
 fn r1cs_stateful_chain_builder_rejects_parallel_chunk() {
     let r1cs = one_product_r1cs();
     let plan = make_stateful_plan(r1cs.m(), r1cs.m_in, vec![1], vec![0]);
-    let prep = r1cs_f_prime::preprocess_seeded(&r1cs, &plan, 0x71C5_0A03).expect("preprocess");
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_0A03).expect("preprocess");
     let mut chain = R1csChainBuilder::new(&prep).expect("start builder");
 
     let err = chain
@@ -355,6 +407,172 @@ fn r1cs_stateful_chain_builder_rejects_parallel_chunk() {
         }
         other => panic!("expected StatefulChunkMustBeSerial, got {other:?}"),
     }
+}
+
+#[test]
+fn r1cs_stateful_serial_k2_fibonacci_step_satisfies_and_binds_intermediate_link() {
+    let r1cs = fibonacci_two_transition_stateful_r1cs();
+    let plan = make_tiny_stateful_lifecycle_plan_with_anchor(
+        r1cs.m(),
+        r1cs.m_in,
+        vec![1, 2],
+        vec![5, 6],
+        Some(semantic_digest_for_pair(1, 1)),
+    );
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_2F10).expect("preprocess");
+    let mut ctx = start_chain(&prep).expect("start chain");
+
+    let compiled = compile_step(
+        &prep,
+        &mut ctx,
+        R1csFPrimeStepInput {
+            assignment: assignment_fibonacci_two_transitions(1, 1),
+        },
+    )
+    .expect("base serial-K2 Fibonacci step");
+
+    assert!(
+        compiled
+            .encoded
+            .structure
+            .is_satisfied(&compiled.encoded.witness),
+        "honest serial-K2 Fibonacci image must satisfy its F' structure"
+    );
+    assert_eq!(
+        digest_fields_as_digest32(compiled.semantic_state_digest_out),
+        semantic_digest_for_pair(2, 3),
+        "one F' step should advance two Fibonacci transitions: (1,1) -> (2,3)"
+    );
+
+    // Tamper only the intermediate state a_1. It is not part of the
+    // chunk's semantic output `(a_2,b_2)`, so rejection must come from
+    // the in-circuit app R1CS rows that enforce
+    // `(a_1,b_1) = (b_0,a_0+b_0)`.
+    let mut tampered = compiled.encoded.witness.clone();
+    let intermediate_a_slot = prep.anchors().app_var_slots[3];
+    tampered[intermediate_a_slot.bit_start] = if tampered[intermediate_a_slot.bit_start] == F::ZERO {
+        F::ONE
+    } else {
+        F::ZERO
+    };
+    let row = compiled
+        .encoded
+        .structure
+        .first_unsatisfied_row(&tampered)
+        .expect("intermediate-link tamper must reject");
+    let r1cs_rows = prep.anchors().r1cs_row_start..prep.anchors().r1cs_row_start + prep.anchors().r1cs_row_count;
+    assert!(
+        r1cs_rows.contains(&row),
+        "intermediate-link tamper should trip an appended app-R1CS row; got {row}, expected {r1cs_rows:?}"
+    );
+}
+
+#[test]
+fn r1cs_stateful_serial_k2_fibonacci_chain_verifies_two_chunks() {
+    let r1cs = fibonacci_two_transition_stateful_r1cs();
+    let plan = make_tiny_stateful_lifecycle_plan_with_anchor(
+        r1cs.m(),
+        r1cs.m_in,
+        vec![1, 2],
+        vec![5, 6],
+        Some(semantic_digest_for_pair(1, 1)),
+    );
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_2F11).expect("preprocess");
+    let mut chain = R1csChainBuilder::new(&prep).expect("start builder");
+
+    let first = chain
+        .append_assignment(assignment_fibonacci_two_transitions(1, 1))
+        .expect("append first serial-K2 chunk");
+    assert_eq!(
+        digest_fields_as_digest32(first.semantic_state_digest_out),
+        semantic_digest_for_pair(2, 3)
+    );
+
+    let second = chain
+        .append_assignment(assignment_fibonacci_two_transitions(2, 3))
+        .expect("append second serial-K2 chunk");
+    assert_eq!(
+        digest_fields_as_digest32(second.semantic_state_digest_out),
+        semantic_digest_for_pair(5, 8),
+        "two F' chunks should cover four Fibonacci transitions"
+    );
+
+    let audit = chain.finish_with_audit().expect("finish serial-K2 chain");
+    assert_eq!(
+        audit.steps.len(),
+        2,
+        "serial-K2 app circuit should use two F' folds for four app transitions"
+    );
+    neo_fold_clean::verify_uncompressed_audit(&prep.prep, &audit)
+        .expect("multi-step serial-K2 stateful audit verifies");
+    let finished_audit =
+        neo_fold_clean::finish_uncompressed_with_audit(&prep.prep, audit).expect("finish uncompressed");
+    let err = neo_fold_clean::verify_uncompressed(&prep.prep, &finished_audit.proof)
+        .expect_err("terminal-only verifier must reject multi-chunk F' proof");
+    expect_f_prime_non_replay_unsupported(err, 2);
+}
+
+#[test]
+#[ignore = "stateful Fibonacci perf snapshot; run manually to compare K=1 versus serial-K2 app circuits"]
+fn r1cs_stateful_serial_k2_fibonacci_perf_snapshot_compares_four_transitions() {
+    let k1 = time_fibonacci_k1_four_transitions();
+    let k2 = time_fibonacci_serial_k2_four_transitions();
+
+    eprintln!();
+    eprintln!("======================================================================");
+    eprintln!("  Stateful Fibonacci serial batching perf snapshot");
+    eprintln!("======================================================================");
+    eprintln!();
+    eprintln!("  Workload");
+    eprintln!("    app transitions                  4");
+    eprintln!("    K=1 F' chunks                    {}", k1.folds);
+    eprintln!("    serial-K2 F' chunks              {}", k2.folds);
+    eprintln!();
+    eprintln!("  Timing (ms)");
+    eprintln!("    stage                 K=1 four chunks   serial-K2 two chunks");
+    eprintln!("    -------------------   -------------   --------------------");
+    eprintln!(
+        "    preprocess            {:>10.3}             {:>10.3}",
+        ms(k1.preprocess),
+        ms(k2.preprocess)
+    );
+    eprintln!(
+        "    append total          {:>10.3}             {:>10.3}",
+        ms(k1.append_total),
+        ms(k2.append_total)
+    );
+    eprintln!(
+        "    finish                {:>10.3}             {:>10.3}",
+        ms(k1.finish),
+        ms(k2.finish)
+    );
+    eprintln!(
+        "    verify                {:>10.3}             {:>10.3}",
+        ms(k1.verify),
+        ms(k2.verify)
+    );
+    eprintln!(
+        "    total                 {:>10.3}             {:>10.3}",
+        ms(k1.total),
+        ms(k2.total)
+    );
+    eprintln!();
+    eprintln!("  Throughput (app transitions/s)");
+    eprintln!("    K=1                  {:>10.2}", 4.0 / k1.total.as_secs_f64());
+    eprintln!("    serial-K2            {:>10.2}", 4.0 / k2.total.as_secs_f64());
+    eprintln!("======================================================================");
+
+    assert_eq!(
+        k1.final_semantic_digest,
+        semantic_digest_for_pair(5, 8),
+        "K=1 baseline should end at Fibonacci state (5,8)"
+    );
+    assert_eq!(
+        k2.final_semantic_digest, k1.final_semantic_digest,
+        "serial-K2 and K=1 should prove the same final Fibonacci state"
+    );
 }
 
 /// Stateful Fibonacci transition:
@@ -390,6 +608,58 @@ fn assignment_fibonacci_transition(a: u64, b: u64) -> Vec<F> {
     z
 }
 
+/// Two serial Fibonacci transitions inside one app R1CS:
+///
+/// ```text
+/// (a_0, b_0) -> (a_1, b_1) -> (a_2, b_2)
+/// where
+/// a_1 = b_0
+/// b_1 = a_0 + b_0
+/// a_2 = b_1
+/// b_2 = a_1 + b_1
+/// ```
+///
+/// Variable layout: `[one, a_0, b_0, a_1, b_1, a_2, b_2, ...]`.
+fn fibonacci_two_transition_stateful_r1cs() -> R1cs {
+    let m = neo_math::D;
+    let mut a = NeoMat::zero(4, m, F::default());
+    a[(0, 2)] = F::ONE; // b_0
+    a[(1, 1)] = F::ONE; // a_0
+    a[(1, 2)] = F::ONE; // + b_0
+    a[(2, 4)] = F::ONE; // b_1
+    a[(3, 3)] = F::ONE; // a_1
+    a[(3, 4)] = F::ONE; // + b_1
+
+    let mut b = NeoMat::zero(4, m, F::default());
+    for row in 0..4 {
+        b[(row, 0)] = F::ONE; // * one
+    }
+
+    let mut c = NeoMat::zero(4, m, F::default());
+    c[(0, 3)] = F::ONE; // a_1 = b_0
+    c[(1, 4)] = F::ONE; // b_1 = a_0 + b_0
+    c[(2, 5)] = F::ONE; // a_2 = b_1
+    c[(3, 6)] = F::ONE; // b_2 = a_1 + b_1
+
+    R1cs { a, b, c, m_in: 3 }
+}
+
+fn assignment_fibonacci_two_transitions(a: u64, b: u64) -> Vec<F> {
+    let a1 = b;
+    let b1 = a + b;
+    let a2 = b1;
+    let b2 = a1 + b1;
+    let mut z = vec![F::ZERO; neo_math::D];
+    z[0] = F::ONE;
+    z[1] = F::from_u64(a);
+    z[2] = F::from_u64(b);
+    z[3] = F::from_u64(a1);
+    z[4] = F::from_u64(b1);
+    z[5] = F::from_u64(a2);
+    z[6] = F::from_u64(b2);
+    z
+}
+
 fn semantic_digest_for_pair(a: u64, b: u64) -> [u8; 32] {
     let fields = [F::from_u64(a), F::from_u64(b)];
     digest_fields_as_digest32(encode_poseidon_trace(&build_semantic_state_preimage_fields(&fields)).digest_native)
@@ -398,6 +668,112 @@ fn semantic_digest_for_pair(a: u64, b: u64) -> [u8; 32] {
 fn semantic_digest_for_single(v: u64) -> [u8; 32] {
     let fields = [F::from_u64(v)];
     digest_fields_as_digest32(encode_poseidon_trace(&build_semantic_state_preimage_fields(&fields)).digest_native)
+}
+
+struct FibonacciPerfSnapshot {
+    folds: usize,
+    preprocess: Duration,
+    append_total: Duration,
+    finish: Duration,
+    verify: Duration,
+    total: Duration,
+    final_semantic_digest: [u8; 32],
+}
+
+fn time_fibonacci_k1_four_transitions() -> FibonacciPerfSnapshot {
+    let total_start = Instant::now();
+    let r1cs = fibonacci_transition_stateful_r1cs();
+    let plan = make_tiny_stateful_lifecycle_plan_with_anchor(
+        r1cs.m(),
+        r1cs.m_in,
+        vec![1, 2],
+        vec![3, 4],
+        Some(semantic_digest_for_pair(1, 1)),
+    );
+    let start = Instant::now();
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_4B10).expect("preprocess K=1");
+    let preprocess = start.elapsed();
+
+    let mut chain = R1csChainBuilder::new(&prep).expect("start K=1 chain");
+    let mut append_total = Duration::ZERO;
+    let mut final_semantic_digest = semantic_digest_for_pair(1, 1);
+    for (a, b) in [(1, 1), (1, 2), (2, 3), (3, 5)] {
+        let start = Instant::now();
+        let compiled = chain
+            .append_assignment(assignment_fibonacci_transition(a, b))
+            .expect("append K=1 Fibonacci transition");
+        append_total += start.elapsed();
+        final_semantic_digest = digest_fields_as_digest32(compiled.semantic_state_digest_out);
+    }
+
+    let start = Instant::now();
+    let audit = chain.finish_with_audit().expect("finish K=1 chain");
+    let finish = start.elapsed();
+
+    let start = Instant::now();
+    neo_fold_clean::verify_uncompressed_audit(&prep.prep, &audit).expect("K=1 stateful audit verifies");
+    let verify = start.elapsed();
+
+    FibonacciPerfSnapshot {
+        folds: 4,
+        preprocess,
+        append_total,
+        finish,
+        verify,
+        total: total_start.elapsed(),
+        final_semantic_digest,
+    }
+}
+
+fn time_fibonacci_serial_k2_four_transitions() -> FibonacciPerfSnapshot {
+    let total_start = Instant::now();
+    let r1cs = fibonacci_two_transition_stateful_r1cs();
+    let plan = make_tiny_stateful_lifecycle_plan_with_anchor(
+        r1cs.m(),
+        r1cs.m_in,
+        vec![1, 2],
+        vec![5, 6],
+        Some(semantic_digest_for_pair(1, 1)),
+    );
+    let start = Instant::now();
+    let prep = r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_4B20)
+        .expect("preprocess serial-K2");
+    let preprocess = start.elapsed();
+
+    let mut chain = R1csChainBuilder::new(&prep).expect("start serial-K2 chain");
+    let mut append_total = Duration::ZERO;
+    let mut final_semantic_digest = semantic_digest_for_pair(1, 1);
+    for (a, b) in [(1, 1), (2, 3)] {
+        let start = Instant::now();
+        let compiled = chain
+            .append_assignment(assignment_fibonacci_two_transitions(a, b))
+            .expect("append serial-K2 Fibonacci chunk");
+        append_total += start.elapsed();
+        final_semantic_digest = digest_fields_as_digest32(compiled.semantic_state_digest_out);
+    }
+
+    let start = Instant::now();
+    let audit = chain.finish_with_audit().expect("finish serial-K2 chain");
+    let finish = start.elapsed();
+
+    let start = Instant::now();
+    neo_fold_clean::verify_uncompressed_audit(&prep.prep, &audit).expect("serial-K2 stateful audit verifies");
+    let verify = start.elapsed();
+
+    FibonacciPerfSnapshot {
+        folds: 2,
+        preprocess,
+        append_total,
+        finish,
+        verify,
+        total: total_start.elapsed(),
+        final_semantic_digest,
+    }
+}
+
+fn ms(duration: Duration) -> f64 {
+    duration.as_secs_f64() * 1000.0
 }
 
 fn validate_decider_statement(
@@ -463,6 +839,31 @@ fn build_linked_fibonacci_fixture() -> LinkedFibonacciFixture {
     }
 }
 
+fn build_single_fibonacci_fixture() -> LinkedFibonacciFixture {
+    let r1cs = fibonacci_transition_stateful_r1cs();
+    let plan = make_tiny_stateful_lifecycle_plan_with_anchor(
+        r1cs.m(),
+        r1cs.m_in,
+        vec![1, 2],
+        vec![3, 4],
+        Some(semantic_digest_for_pair(1, 1)),
+    );
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_0F11).expect("preprocess");
+    let mut chain = R1csChainBuilder::new(&prep).expect("start chain");
+    let compiled = chain
+        .append_assignment(assignment_fibonacci_transition(1, 1))
+        .expect("append base Fibonacci transition");
+    let audit = chain
+        .finish_with_audit()
+        .expect("finish single-step Fibonacci chain");
+    LinkedFibonacciFixture {
+        prep,
+        audit,
+        step_semantic_out: vec![compiled.semantic_state_digest_out],
+    }
+}
+
 #[test]
 fn r1cs_stateful_linked_fibonacci_chain_verifies_end_to_end() {
     let fixture = build_linked_fibonacci_fixture();
@@ -492,19 +893,49 @@ fn r1cs_stateful_linked_fibonacci_chain_verifies_end_to_end() {
         );
     }
 
-    neo_fold_clean::verify_uncompressed(&fixture.prep.prep, &fixture.audit.proof)
-        .expect("non-replay verifier accepts linked Fibonacci proof");
+    let err = neo_fold_clean::verify_uncompressed(&fixture.prep.prep, &fixture.audit.proof)
+        .expect_err("terminal-only verifier must reject multi-chunk F' proof");
+    expect_f_prime_non_replay_unsupported(err, 4);
     neo_fold_clean::verify_uncompressed_audit(&fixture.prep.prep, &fixture.audit)
-        .expect("audit verifier accepts linked Fibonacci proof");
+        .expect("multi-step stateful audit verifies");
 
     let statement = neo_fold_clean::build_decider_statement(&fixture.prep.prep, &fixture.audit);
-    validate_decider_statement(&fixture.prep.prep, &statement).expect("decider preflight accepts");
+    validate_decider_statement(&fixture.prep.prep, &statement).expect("decider preflight accepts stateful audit");
+}
+
+#[test]
+fn r1cs_stateful_terminal_only_rejects_chunk_count_relabel_to_small_counts() {
+    let fixture = build_linked_fibonacci_fixture();
+    let finished = neo_fold_clean::finish_uncompressed(&fixture.prep.prep, fixture.audit.clone())
+        .expect("finalize linked Fibonacci");
+
+    let err = neo_fold_clean::verify_uncompressed(&fixture.prep.prep, &finished)
+        .expect_err("honest multi-chunk F' proof must require audit/decider path");
+    expect_f_prime_non_replay_unsupported(err, 4);
+
+    // Hacker model: `verify_uncompressed` fails closed for multi-chunk F'
+    // proofs by checking `state.chunk_count > 1`. Relabeling the compact
+    // state down to one chunk must not make the terminal-only verifier
+    // accept; the terminal fold's verifier-derived `x_out` still has to
+    // bind the real chain counters.
+    let mut one_chunk = finished.clone();
+    one_chunk.state.chunk_count = 1;
+    neo_fold_clean::verify_uncompressed(&fixture.prep.prep, &one_chunk)
+        .expect_err("chunk_count relabel must break terminal-fold state binding, not bypass stateful scope");
+
+    // Relabeling all the way to zero is a distinct branch: it also disables
+    // the compact `public_trace == z_i` anchor guarded by `chunk_count > 0`.
+    // Terminal-fold state binding must still reject.
+    let mut zero_chunk = finished;
+    zero_chunk.state.chunk_count = 0;
+    neo_fold_clean::verify_uncompressed(&fixture.prep.prep, &zero_chunk)
+        .expect_err("chunk_count=0 relabel must not bypass stateful scope or compact public-trace binding");
 }
 
 #[test]
 fn r1cs_stateful_step_proof_semantic_digest_tamper_rejects_audit() {
-    let mut fixture = build_linked_fibonacci_fixture();
-    fixture.audit.steps[1].semantic_state_digest[0] ^= 0xFF;
+    let mut fixture = build_single_fibonacci_fixture();
+    fixture.audit.steps[0].semantic_state_digest[0] ^= 0xFF;
 
     let err = neo_fold_clean::verify_uncompressed_audit(&fixture.prep.prep, &fixture.audit)
         .expect_err("semantic digest tamper in StepProof must reject");
@@ -521,7 +952,7 @@ fn r1cs_stateful_step_proof_semantic_digest_tamper_rejects_audit() {
 
 #[test]
 fn r1cs_stateful_public_image_semantic_digest_tamper_rejects() {
-    let fixture = build_linked_fibonacci_fixture();
+    let fixture = build_single_fibonacci_fixture();
     let mut statement = neo_fold_clean::build_decider_statement(&fixture.prep.prep, &fixture.audit);
     statement.public.semantic_state_digest[0] ^= 0xFF;
 
@@ -548,7 +979,7 @@ fn r1cs_stateful_public_image_semantic_digest_tamper_rejects() {
 /// the field was exposed on `PublicImage` but bound to no constraint.
 #[test]
 fn r1cs_stateful_public_image_initial_semantic_digest_tamper_rejects() {
-    let fixture = build_linked_fibonacci_fixture();
+    let fixture = build_single_fibonacci_fixture();
     let mut statement = neo_fold_clean::build_decider_statement(&fixture.prep.prep, &fixture.audit);
     // Honest proof verifies cleanly.
     validate_decider_statement(&fixture.prep.prep, &statement).expect("honest preflight accepts");
@@ -578,12 +1009,17 @@ fn r1cs_stateful_public_image_initial_semantic_digest_tamper_rejects() {
 /// accept. With the anchor check in place, this MUST reject.
 #[test]
 fn r1cs_stateful_verify_uncompressed_rejects_tampered_proof_state_initial_semantic() {
-    let fixture = build_linked_fibonacci_fixture();
+    let fixture = build_single_fibonacci_fixture();
     let finished = neo_fold_clean::finish_uncompressed(&fixture.prep.prep, fixture.audit.clone())
         .expect("finalize linked Fibonacci");
 
-    // Honest proof verifies cleanly.
-    neo_fold_clean::verify_uncompressed(&fixture.prep.prep, &finished).expect("honest verify_uncompressed accepts");
+    // Honest single-step stateful proofs are still accepted: the base
+    // anchor binds the private app-state input to the verifier-owned
+    // initial semantic digest, so no recursive state link is needed.
+    neo_fold_clean::verify_uncompressed_audit(&fixture.prep.prep, &fixture.audit)
+        .expect("honest audit verifier accepts");
+    neo_fold_clean::verify_uncompressed(&fixture.prep.prep, &finished)
+        .expect("terminal-only verifier accepts single-step stateful proof");
 
     // Tamper the proof.state field directly (no decider Statement
     // involved). `prep.initial_semantic_state_digest()` is the
@@ -820,5 +1256,125 @@ fn r1cs_stateful_attack_is_base_zero_does_not_make_base_anchor_optional() {
     assert!(
         !compiled.encoded.structure.is_satisfied(&tampered),
         "setting is_base=0 must not make a base image with a tampered semantic-state input lane satisfy"
+    );
+}
+
+/// Red-team test for the production folded F' image's recursive state binding.
+///
+/// This bypasses the friendly [`R1csChainBuilder`] state-threading guard
+/// and constructs two individually satisfying stateful F' images whose
+/// app states do not connect:
+///
+/// ```text
+/// step 0: (1, 1)   -> (1, 2)
+/// step 1: (10, 10) -> (10, 20)   // disconnected from step 0
+/// ```
+///
+/// The hostile path generates a recursive NIFS proof under the honest
+/// post-step semantic state, then tries to replay it while compiling a
+/// disconnected second step whose private `state_in.semantic_state_digest`
+/// is self-consistent with `(10, 10)`. F' must reject because the per-step
+/// transcript is bound to the state-in semantic lane; otherwise the proof
+/// can be replayed under a forged app-state input.
+#[test]
+fn r1cs_stateful_redteam_folded_f_prime_rejects_disconnected_semantic_input() {
+    let r1cs = fibonacci_transition_stateful_r1cs();
+    let verifier_anchor = semantic_digest_for_pair(1, 1);
+    let plan = make_tiny_stateful_lifecycle_plan_with_anchor(
+        r1cs.m(),
+        r1cs.m_in,
+        vec![1, 2],
+        vec![3, 4],
+        Some(verifier_anchor),
+    );
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_D15C).expect("preprocess");
+
+    // Honest first step: H(1,1) -> H(1,2).
+    let mut honest_ctx = start_chain(&prep).expect("start honest context");
+    let first = compile_step(
+        &prep,
+        &mut honest_ctx,
+        R1csFPrimeStepInput {
+            assignment: assignment_fibonacci_transition(1, 1),
+        },
+    )
+    .expect("compile honest first step");
+    let first_instance = r1cs_f_prime::build_instance(&prep, &first.encoded).expect("first instance");
+    let audit_after_first = neo_fold_clean::lifecycle::prove::prove_one_with_semantic_state(
+        &prep.prep,
+        vec![first_instance.clone()],
+        verifier_anchor,
+        semantic_digest_for_pair(1, 2),
+    )
+    .expect("prove first step");
+
+    // Derive the recursive fold authority for the next chunk, but ask
+    // the lifecycle state to advance to the attacker's disconnected
+    // semantic output H(10,20). Replaying this proof under H(10,10) as
+    // the next step's private state-in must fail because F' binds the
+    // NIFS transcript to the state-in semantic lane.
+    let disconnected_output = semantic_digest_for_pair(10, 20);
+    let pending = neo_fold_clean::lifecycle::prove::extend_with_semantic_state(
+        &prep.prep,
+        audit_after_first.clone(),
+        vec![first_instance.clone()],
+        disconnected_output,
+    )
+    .expect("derive recursive fold authority");
+
+    let pre_state = audit_after_first.proof.state.clone();
+    let (pre_running, latest) = match &pre_state.proof {
+        neo_fold_clean::paper::construction2::ProofState::Active { running, latest } => {
+            (running.clone(), latest.clone())
+        }
+        _ => panic!("after first step the chain must be Active"),
+    };
+    let proof = match &pending.steps.last().expect("recursive step appended").fold {
+        neo_fold_clean::paper::construction2::FoldProof::Recursive(nifs) => nifs.clone(),
+        neo_fold_clean::paper::construction2::FoldProof::NoFold => {
+            panic!("second lifecycle step must be recursive")
+        }
+    };
+    let post_running = match &pending.proof.state.proof {
+        neo_fold_clean::paper::construction2::ProofState::Active { running, .. } => running.clone(),
+        _ => panic!("pending recursive state must be Active"),
+    };
+
+    // Forge the compiler context for step 1. All Construction-2 fold
+    // coordinates are copied from the honest chain, but the private
+    // semantic input lane is rewound to H(10,10), allowing the F' image
+    // for the disconnected app assignment to satisfy its local semantic
+    // Poseidon rows.
+    let mut forged_ctx = start_chain(&prep).expect("start forged context");
+    forged_ctx.chain_state = r1cs_f_prime::R1csChainState {
+        chunk_count: pre_state.chunk_count,
+        step_count: pre_state.step_count,
+        z_i: digest32_as_fields(pre_state.z_i),
+        semantic_state_digest: digest32_as_fields(semantic_digest_for_pair(10, 10)),
+        acc_digest: digest32_as_fields(pre_state.acc_digest),
+        public_trace: digest32_as_fields(pre_state.public_trace),
+    };
+    forged_ctx.fold_for_step = Some(r1cs_f_prime::R1csFoldForStep {
+        pre_running,
+        latest,
+        proof,
+        post_running,
+    });
+
+    let err = compile_step(
+        &prep,
+        &mut forged_ctx,
+        R1csFPrimeStepInput {
+            assignment: assignment_fibonacci_transition(10, 10),
+        },
+    )
+    .expect_err("compile disconnected second step via forged context must reject");
+    assert!(
+        matches!(
+            err,
+            R1csCompilerError::Shell(FPrimeShellCompilerError::PriorFoldVerificationFailed { .. })
+        ),
+        "expected prior-fold verification to reject the semantic-state transcript replay, got {err:?}"
     );
 }

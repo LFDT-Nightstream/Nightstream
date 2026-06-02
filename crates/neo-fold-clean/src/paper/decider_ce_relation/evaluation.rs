@@ -133,26 +133,7 @@ pub(crate) fn enforce_y_ring_from_z_at_r(
     //    the LSB. Interleaving `(even, odd)` per-entry would swap
     //    positions `1` and `2` for `log_n ≥ 2` and break the y_ring
     //    consistency check.
-    let log_n = claim.r.len();
-    let mut chi_r_wires: Vec<KLc> = vec![klc_from_base_const(F::ONE)];
-    for j in 0..log_n {
-        let r_j_klc = KLc::from_var(claim.r[j]);
-        let one_minus_r_j_klc = klc_one_minus(&claim.r[j]);
-
-        let old_len = chi_r_wires.len();
-        let mut next_wires = Vec::with_capacity(old_len * 2);
-        // First half: scale by (1 - r[j]).
-        for chi_i in &chi_r_wires {
-            let scaled = enforce_k_mul(builder, chi_i, &one_minus_r_j_klc);
-            next_wires.push(KLc::from_var(scaled));
-        }
-        // Second half: scale by r[j].
-        for chi_i in &chi_r_wires {
-            let scaled = enforce_k_mul(builder, chi_i, &r_j_klc);
-            next_wires.push(KLc::from_var(scaled));
-        }
-        chi_r_wires = next_wires;
-    }
+    let chi_r_wires = build_chi_tensor(builder, &claim.r);
     let row_cap = n.min(chi_r_wires.len());
 
     // ── 2. y_ring[j][rho] = Σ_row chi_r[row] · row_component(row) ──────
@@ -213,6 +194,87 @@ pub(crate) fn enforce_y_ring_from_z_at_r(
             builder.enforce_eq(&acc.c0, &Lc::from_var(y_c0));
             builder.enforce_eq(&acc.c1, &Lc::from_var(y_c1));
         }
+    }
+    Ok(())
+}
+
+/// Bind the optional NC-channel sidecar `y_zcol` to the opened witness:
+/// `claim.y_zcol[rho] == Σ_{col % D = rho} Z[col] · chi_s[col]`, where
+/// `chi_s = tensor_point(claim.s_col)`.
+///
+/// `s_col/y_zcol` are not part of SuperNeo Definition 13's CE tuple, but
+/// this implementation carries them inside the accumulator digest and the
+/// recursive continuity checks. If present, they must therefore be
+/// recomputed from authoritative terminal data instead of trusted as
+/// digest-only sidecar fields.
+pub(crate) fn enforce_y_zcol_from_z_at_s_col(
+    builder: &mut R1csBuilder,
+    prep: &Preprocessing,
+    witness: &FinalWitnessWires,
+    claim: &CeClaimWires,
+) -> Result<(), YRingError> {
+    let has_nc_channel = !(claim.s_col.is_empty() && claim.y_zcol.is_empty());
+    if !has_nc_channel {
+        return Ok(());
+    }
+    if claim.s_col.is_empty() || claim.y_zcol.is_empty() {
+        return Err(YRingError {
+            what: "incomplete NC channel (s_col/y_zcol)",
+            expected: 2,
+            got: 1,
+        });
+    }
+
+    let expected_m = prep.structure().m;
+    let expected_s_col_len = expected_m.next_power_of_two().max(2).trailing_zeros() as usize;
+    if claim.s_col.len() != expected_s_col_len {
+        return Err(YRingError {
+            what: "claim.s_col length",
+            expected: expected_s_col_len,
+            got: claim.s_col.len(),
+        });
+    }
+
+    let d_pad = D.next_power_of_two();
+    let expected_y_zcol_limbs = d_pad * K_LIMBS;
+    if claim.y_zcol_lanes != d_pad || claim.y_zcol.len() != expected_y_zcol_limbs {
+        return Err(YRingError {
+            what: "claim.y_zcol length (d_pad * K_LIMBS)",
+            expected: expected_y_zcol_limbs,
+            got: claim.y_zcol.len(),
+        });
+    }
+
+    let chi_s_wires = build_chi_tensor(builder, &claim.s_col);
+    let col_cap = expected_m.min(chi_s_wires.len());
+    for rho in 0..d_pad {
+        let y_c0 = claim.y_zcol[rho * K_LIMBS];
+        let y_c1 = claim.y_zcol[rho * K_LIMBS + 1];
+        if rho >= D {
+            builder.enforce_eq(&Lc::from_var(y_c0), &Lc::zero());
+            builder.enforce_eq(&Lc::from_var(y_c1), &Lc::zero());
+            continue;
+        }
+
+        let mut acc = klc_from_base_const(F::ZERO);
+        let mut logical_col = rho;
+        while logical_col < col_cap {
+            let z_var = witness
+                .logical_entry(expected_m, logical_col)
+                .ok_or(YRingError {
+                    what: "witness logical entry",
+                    expected: expected_m,
+                    got: logical_col,
+                })?;
+            let z_lc = Lc::from_var(z_var);
+            let chi_col = &chi_s_wires[logical_col];
+            let term_c0 = builder.alloc_mul(&chi_col.c0, &z_lc);
+            let term_c1 = builder.alloc_mul(&chi_col.c1, &z_lc);
+            acc = klc_add(&acc, &KLc::from_var(KVar::new(term_c0, term_c1)));
+            logical_col += D;
+        }
+        builder.enforce_eq(&acc.c0, &Lc::from_var(y_c0));
+        builder.enforce_eq(&acc.c1, &Lc::from_var(y_c1));
     }
     Ok(())
 }
@@ -287,6 +349,29 @@ fn matrix_entry_base_f(matrix: &CcsMatrix<F>, row: usize, col: usize) -> F {
             acc
         }
     }
+}
+
+fn build_chi_tensor(builder: &mut R1csBuilder, point: &[KVar]) -> Vec<KLc> {
+    let mut chi_wires: Vec<KLc> = vec![klc_from_base_const(F::ONE)];
+    for point_j in point {
+        let point_j_klc = KLc::from_var(*point_j);
+        let one_minus_point_j_klc = klc_one_minus(point_j);
+
+        let old_len = chi_wires.len();
+        let mut next_wires = Vec::with_capacity(old_len * 2);
+        // First half: scale by (1 - point[j]).
+        for chi_i in &chi_wires {
+            let scaled = enforce_k_mul(builder, chi_i, &one_minus_point_j_klc);
+            next_wires.push(KLc::from_var(scaled));
+        }
+        // Second half: scale by point[j].
+        for chi_i in &chi_wires {
+            let scaled = enforce_k_mul(builder, chi_i, &point_j_klc);
+            next_wires.push(KLc::from_var(scaled));
+        }
+        chi_wires = next_wires;
+    }
+    chi_wires
 }
 
 /// `K::from_coeffs([c, 0])` lifted into a `KLc`. No constraints.

@@ -7,15 +7,16 @@
 //! `x_out` lanes carved out of the boundary region.
 //!
 //! Tests:
-//! 1. Honest: with all four enforcements (boundary, public_trace,
-//!    accumulator, state_x_out) the fixture image satisfies the
-//!    structure.
+//! 1. Honest: with the accumulator trace, `state_x_out` trace, and the
+//!    direct `chunk_digest -> new_z_i` mirror, the fixture image
+//!    satisfies the structure.
 //! 2. Coherent tamper of `new_chunk_count`'s low half (a counter half
 //!    that feeds state_x_out's preimage) fails.
 //! 3. Coherent tamper of `new_z_i`'s lane (which feeds state_x_out and
-//!    is itself bound to the boundary-update digest) fails.
-//! 4. Coherent tamper of `new_acc_digest`'s lane fails.
-//! 5. Coherent tamper of the public `x_out` lane in boundary fails the
+//!    is itself mirrored from `chunk_digest`) fails.
+//! 4. Coherent tamper of the `chunk_digest` lane fails the mirror.
+//! 5. Coherent tamper of `new_acc_digest`'s lane fails.
+//! 6. Coherent tamper of the public `x_out` lane in boundary fails the
 //!    state_x_out → boundary digest binding.
 
 use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
@@ -23,11 +24,12 @@ use neo_fold_clean::frontends::f_prime::image::{
     FPrimeImage, FPrimeImageLayout, NifsCeClaimShape, NifsCeClaimView, NifsPayloadShape, StateIn, StateOut,
 };
 use neo_fold_clean::frontends::f_prime::recursive_plan::{
-    build_accumulator_preimage_fields, build_boundary_update_preimage_fields,
-    build_public_trace_update_preimage_fields, build_recursive_step_image_config, build_state_x_out_preimage_fields,
-    AccumulatorPlanOptions, RecursiveStepImagePlan, StateXOutPlanOptions,
+    build_accumulator_preimage_fields, build_recursive_step_image_config, build_state_x_out_preimage_fields,
+    AccumulatorPlanOptions, RecursiveStepImagePlan, StateXOutPlanOptions, STATE_LANE_CHUNK_DIGEST_BASE,
+    STATE_LANE_NEW_ACC_DIGEST_BASE, STATE_LANE_NEW_STEP_COUNT, STATE_LANE_NEW_Z_I_BASE,
 };
 use neo_fold_clean::frontends::f_prime::structure::build_f_prime_structure;
+use neo_fold_clean::paper::digest::StateXOutDigestMode;
 use neo_fold_clean::paper::f_prime::poseidon_trace::encode_poseidon_trace;
 use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
 use neo_math::F;
@@ -39,10 +41,6 @@ const NEW_CHUNK_COUNT: u64 = 7;
 const NEW_STEP_COUNT: u64 = 13;
 const PUBLIC_X_OUT_LANE_COUNT: usize = 4;
 const BOUNDARY_BITS: usize = PUBLIC_X_OUT_LANE_COUNT * POSEIDON2_GOLDILOCKS_BITS;
-
-const STATE_LANE_NEW_CHUNK_COUNT: usize = 24;
-const STATE_LANE_NEW_Z_I_BASE: usize = 26;
-const STATE_LANE_NEW_ACC_DIGEST_BASE: usize = 34;
 
 fn make_plan() -> RecursiveStepImagePlan {
     let ce_shape = NifsCeClaimShape {
@@ -56,6 +54,7 @@ fn make_plan() -> RecursiveStepImagePlan {
     };
     RecursiveStepImagePlan {
         limbs: 3,
+        app_private_var_widths: Vec::new(),
         boundary_bits: BOUNDARY_BITS,
         kmul_count: 0,
         ring_action_pair_count: 0,
@@ -97,6 +96,7 @@ fn build_honest_fixture() -> Fixture {
         pc: PC,
         public_x_out_lane_bit_starts,
         app_public_input_var_indices: Vec::new(),
+        app_public_input_bit_var_indices: Vec::new(),
         semantic_state_in_var_indices: Vec::new(),
         semantic_state_out_var_indices: Vec::new(),
         initial_semantic_state_digest_anchor: None,
@@ -170,19 +170,15 @@ fn build_honest_fixture() -> Fixture {
     };
     image.fill_nifs_ce_claim_at(0, &ce_view);
 
-    // Encode the three state-update Poseidon traces and splice them.
-    let boundary_preimage = build_boundary_update_preimage_fields(z_i_in, chunk_digest);
-    let public_trace_preimage = build_public_trace_update_preimage_fields(public_trace_in, chunk_digest);
+    // Encode the accumulator and state_x_out Poseidon traces. The old
+    // boundary_update trace is no longer part of the canonical F' image:
+    // `new_z_i` directly mirrors `chunk_digest`.
     let accumulator_preimage = build_accumulator_preimage_fields(1, &c_data);
-    let boundary_trace = encode_poseidon_trace(&boundary_preimage);
-    let public_trace_trace = encode_poseidon_trace(&public_trace_preimage);
     let accumulator_trace = encode_poseidon_trace(&accumulator_preimage);
-    image.splice_one_shot_poseidon(0, &boundary_trace);
-    image.splice_one_shot_poseidon(1, &public_trace_trace);
-    image.splice_one_shot_poseidon(2, &accumulator_trace);
+    image.splice_one_shot_poseidon(0, &accumulator_trace);
 
-    let new_z_i = boundary_trace.digest_native;
-    let new_public_trace = public_trace_trace.digest_native;
+    let new_z_i = chunk_digest;
+    let new_public_trace = new_z_i;
     let new_acc_digest = accumulator_trace.digest_native;
 
     image.fill_state_out(&StateOut {
@@ -197,6 +193,7 @@ fn build_honest_fixture() -> Fixture {
     // Now build the state_x_out preimage using the real post-step
     // values and splice its trace.
     let state_x_out_preimage = build_state_x_out_preimage_fields(
+        StateXOutDigestMode::Stateless,
         vk_fs_digest,
         structure_digest,
         NEW_CHUNK_COUNT,
@@ -209,7 +206,7 @@ fn build_honest_fixture() -> Fixture {
         new_public_trace,
     );
     let state_x_out_trace = encode_poseidon_trace(&state_x_out_preimage);
-    image.splice_one_shot_poseidon(3, &state_x_out_trace);
+    image.splice_one_shot_poseidon(1, &state_x_out_trace);
 
     // Write state_x_out's digest into boundary's public-x_out lanes.
     for (m, &lane_bit_start) in public_x_out_lane_bit_starts.iter().enumerate() {
@@ -251,30 +248,29 @@ fn phase_1_4f_honest_recursive_step_with_state_x_out_satisfies() {
     let z = structure.extend_witness_from_image(&fix.image);
     assert!(
         structure.is_satisfied(&z),
-        "honest recursive step with all four Poseidon enforcements must satisfy structure (first failing row: {:?})",
+        "honest recursive step with accumulator/state_x_out enforcements must satisfy structure (first failing row: {:?})",
         structure.first_unsatisfied_row(&z),
     );
 }
 
 #[test]
-fn phase_1_4f_tampered_new_chunk_count_trips_state_x_out_absorb() {
+fn phase_1_4f_tampered_new_step_count_trips_state_x_out_absorb() {
     let fix = build_honest_fixture();
     let structure = build_f_prime_structure(fix.layout);
     let mut z = structure.extend_witness_from_image(&fix.image);
     assert!(structure.is_satisfied(&z), "baseline must satisfy");
 
-    // new_chunk_count is one state_lane. Its low half feeds the
+    // new_step_count is one state_lane. Its low half feeds the
     // state_x_out preimage absorb. Coherent tamper still satisfies
-    // bit/decode + the state-out digest binding (since accumulator's
-    // digest binding is unchanged), but the state_x_out absorb sees a
-    // different low-half value.
-    let lane = structure.lane_slots.state_lanes[STATE_LANE_NEW_CHUNK_COUNT];
+    // bit/decode, but the state_x_out absorb sees a different
+    // low-half value.
+    let lane = structure.lane_slots.state_lanes[STATE_LANE_NEW_STEP_COUNT];
     let new_value = decode_lane(&z, lane.bit_start) + F::ONE;
     flip_lane_bits_to(&mut z, lane.bit_start, new_value);
 
     assert!(
         !structure.is_satisfied(&z),
-        "coherent new_chunk_count tamper must trip a state_x_out absorb row (counter-half source mismatch)"
+        "coherent new_step_count tamper must trip a state_x_out absorb row (counter-half source mismatch)"
     );
 }
 
@@ -285,9 +281,9 @@ fn phase_1_4f_tampered_new_z_i_trips_some_state_x_out_row() {
     let mut z = structure.extend_witness_from_image(&fix.image);
     assert!(structure.is_satisfied(&z), "baseline must satisfy");
 
-    // new_z_i lane 0 is both an absorb source for state_x_out AND the
-    // target of boundary_update's digest binding. Tampering it
-    // coherently breaks at least one of those.
+    // new_z_i lane 0 is both an absorb source for state_x_out and the
+    // target of the direct chunk_digest mirror. Tampering it coherently
+    // breaks at least one of those.
     let lane = structure.lane_slots.state_lanes[STATE_LANE_NEW_Z_I_BASE];
     let new_value = decode_lane(&z, lane.bit_start) + F::ONE;
     flip_lane_bits_to(&mut z, lane.bit_start, new_value);
@@ -295,6 +291,23 @@ fn phase_1_4f_tampered_new_z_i_trips_some_state_x_out_row() {
     assert!(
         !structure.is_satisfied(&z),
         "coherent new_z_i tamper must trip a binding involving that lane"
+    );
+}
+
+#[test]
+fn phase_1_4f_tampered_chunk_digest_trips_chunk_boundary_mirror() {
+    let fix = build_honest_fixture();
+    let structure = build_f_prime_structure(fix.layout);
+    let mut z = structure.extend_witness_from_image(&fix.image);
+    assert!(structure.is_satisfied(&z), "baseline must satisfy");
+
+    let lane = structure.lane_slots.state_lanes[STATE_LANE_CHUNK_DIGEST_BASE];
+    let new_value = decode_lane(&z, lane.bit_start) + F::ONE;
+    flip_lane_bits_to(&mut z, lane.bit_start, new_value);
+
+    assert!(
+        !structure.is_satisfied(&z),
+        "coherent chunk_digest tamper must trip the chunk_digest -> new_z_i mirror"
     );
 }
 

@@ -27,10 +27,10 @@ impl VerifierKey {
     ///
     /// `initial_semantic_state_digest` is the chain's claimed starting
     /// app-state digest. Stateless chains MUST pass
-    /// `digest::accumulator_digest_from_claims(b, &[])` (the empty-acc
-    /// constant) so the seed matches what the stateless invariant carries
-    /// natively. Stateful frontends pass `H(initial_app_state)` per their
-    /// plan's `semantic_state_preimage_sources`.
+    /// `digest::empty_semantic_state_digest()` so the seed matches what
+    /// the stateless invariant carries natively. Stateful frontends pass
+    /// `H(initial_app_state)` per their plan's
+    /// `semantic_state_preimage_sources`.
     pub fn derive(
         pp: &Params,
         s: &Structure,

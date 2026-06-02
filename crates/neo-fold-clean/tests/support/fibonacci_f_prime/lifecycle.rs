@@ -107,8 +107,12 @@ impl<'a> FibonacciChainBuilder<'a> {
         self.audit.ok_or(Error::ChainEmpty)
     }
 
-    /// Finalize while dropping the audit trail; output is suitable for
-    /// `lifecycle::verify_uncompressed`.
+    /// Finalize while dropping the audit trail.
+    ///
+    /// This output is suitable for terminal-only
+    /// `lifecycle::verify_uncompressed` only for single-chunk F' chains.
+    /// Multi-chunk F' chains need [`Self::finish_with_audit`] until the
+    /// compressed decider proves the recursive F'/NIFS.V induction.
     pub fn finish(self) -> Result<Uncompressed, Error> {
         let prep = self.prep;
         let audit = self.into_audit()?;

@@ -97,6 +97,9 @@ fn extend_inner(
     if audit.proof.final_fold.is_some() {
         return Err(Error::AlreadyFinalized);
     }
+    if batch.is_empty() {
+        return Err(Error::EmptyBatch);
+    }
     let public_batch: Vec<CcsClaim> = batch.iter().map(|i| i.claim.clone()).collect();
     super::validate_public_input_len(prep, &public_batch)?;
     let (next_state, step_proof) = construction2::step_with_semantic_state(
@@ -121,7 +124,7 @@ fn extend_inner(
 /// Base-case `UncompressedAudit`: empty steps, empty `public_batches`,
 /// base `State`, no terminal fold.
 pub(super) fn start_proof(prep: &Preprocessing) -> UncompressedAudit {
-    let acc_digest = crate::paper::digest::accumulator_digest_from_claims(prep.params.b(), &[]);
+    let acc_digest = crate::paper::digest::AccumulatorHandle::empty().digest();
     start_proof_with_semantic_state(prep, acc_digest)
 }
 
@@ -129,7 +132,7 @@ fn start_proof_with_semantic_state(prep: &Preprocessing, semantic_state_digest: 
     let structure = *prep.structure_digest();
     let z_0 = crate::paper::digest::initial_boundary_digest(&structure, prep.public_input_len);
     let public_trace = crate::paper::digest::public_trace_seed_digest(&structure);
-    let acc_digest = crate::paper::digest::accumulator_digest_from_claims(prep.params.b(), &[]);
+    let acc_digest = crate::paper::digest::AccumulatorHandle::empty().digest();
     UncompressedAudit {
         proof: Uncompressed {
             state: State::base(z_0, public_trace, acc_digest, semantic_state_digest),

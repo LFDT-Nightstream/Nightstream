@@ -165,6 +165,10 @@ impl R1csBuilder {
         &self.audit_ring_muls
     }
 
+    pub(crate) fn audit_trail_enabled(&self) -> bool {
+        self.audit_enabled
+    }
+
     /// Push one K-mul intermediate set. No-op when the audit trail is
     /// disabled. `pub(crate)` so only the K-mul gadget can call it.
     pub(crate) fn record_k_mul(&mut self, p: Var, q: Var, r: Var) {
@@ -263,6 +267,31 @@ impl R1csBuilder {
 
     pub fn witness(&self) -> &[F] {
         &self.witness
+    }
+
+    /// Allocated witness columns that do not appear in any A/B/C row.
+    ///
+    /// This is an audit helper, not a proof of semantic binding: a column
+    /// can appear in rows and still be under-constrained. It catches the
+    /// narrower but dangerous class where a gadget allocates an authoritative
+    /// value and never references it at all.
+    pub fn unconstrained_columns(&self) -> Vec<usize> {
+        let mut used = vec![false; self.witness.len()];
+        used[Var::ONE.col()] = true;
+        for &(_, col, _) in self
+            .a_trips
+            .iter()
+            .chain(self.b_trips.iter())
+            .chain(self.c_trips.iter())
+        {
+            if col < used.len() {
+                used[col] = true;
+            }
+        }
+        used.into_iter()
+            .enumerate()
+            .filter_map(|(col, is_used)| (!is_used).then_some(col))
+            .collect()
     }
 
     /// Evaluate a linear combination against the current witness.

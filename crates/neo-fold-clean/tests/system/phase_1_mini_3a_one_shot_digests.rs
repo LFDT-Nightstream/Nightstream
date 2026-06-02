@@ -7,8 +7,8 @@
 //! - R-04 boundary update      → `paper::digest::boundary_update_digest`
 //! - R-04 public_trace update  → `paper::digest::public_trace_update_digest`
 //! - R-16 fresh CCS digest     → `paper::digest::ccs_claim_digest`
-//! - R-19 acc handle (children) → `paper::digest::accumulator_digest_from_claims`
-//! - R-36 acc digest output    → `paper::digest::accumulator_digest_from_parent_c_data`
+//! - R-19 legacy acc handle (children) → test-local parent-commitment digest mirror
+//! - R-36 legacy acc digest output    → test-local parent-commitment digest mirror
 //!
 //! Out of scope (mini-3b territory): the sponge-mode transcript paths
 //! (R-11, R-12, R-20, R-22, R-23, R-25) and the ring action (mini-4).
@@ -21,8 +21,8 @@ mod support;
 use neo_fold_clean::engine::transcript::Transcript;
 use neo_fold_clean::paper::construction2::RunningInstance;
 use neo_fold_clean::paper::digest::{
-    accumulator_digest_from_claims, accumulator_digest_from_parent_c_data, boundary_update_digest, ccs_claim_digest,
-    digest32_as_fields, public_trace_update_digest,
+    boundary_update_digest, ccs_claim_digest, digest32_as_fields, public_trace_update_digest, AccumulatorHandle,
+    F_PRIME_BOUNDARY_UPDATE_DOMAIN,
 };
 use neo_fold_clean::paper::f_prime::poseidon_trace::{
     assert_committed_coords_are_bits, decode_digest_lanes, encode_poseidon_trace,
@@ -30,7 +30,7 @@ use neo_fold_clean::paper::f_prime::poseidon_trace::{
 use neo_fold_clean::paper::nifs;
 use neo_fold_clean::paper::relations::CcsClaim;
 use neo_fold_clean::CeClaim;
-use neo_math::F;
+use neo_math::{F, K};
 use p3_field::PrimeCharacteristicRing;
 
 // ── Test-local helpers ───────────────────────────────────────────────────
@@ -51,7 +51,7 @@ fn pack_bytes_as_fields(bytes: &[u8]) -> Vec<F> {
 // ── Preimage builders (byte-for-byte mirrors of paper::digest::*) ────────
 
 fn boundary_update_preimage(prev: [u8; 32], chunk_digest: [F; 4]) -> Vec<F> {
-    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/boundary_update/v1");
+    let mut preimage = vec![F::from_u64(F_PRIME_BOUNDARY_UPDATE_DOMAIN)];
     preimage.extend(digest32_as_fields(prev));
     preimage.extend(chunk_digest);
     preimage
@@ -114,6 +114,10 @@ fn accumulator_from_parent_c_data_preimage(child_count: usize, parent_c_data: &[
     preimage
 }
 
+fn poseidon_reference(preimage: &[F]) -> [F; 4] {
+    neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash(preimage)
+}
+
 // ── NIFS fixture ─────────────────────────────────────────────────────────
 
 struct NifsFixture {
@@ -125,6 +129,9 @@ struct NifsFixture {
     running_claims: Vec<CeClaim>,
     /// The Π_RLC parent's commitment data; used for R-36.
     parent_c_data: Vec<F>,
+    /// The Π_RLC parent itself; its `fold_digest` is intentionally not
+    /// the accumulator handle.
+    parent_authority: CeClaim,
     /// Number of Π_DEC children backing the parent; absorbed into R-36's preimage.
     parent_child_count: usize,
 }
@@ -156,6 +163,7 @@ fn build_nifs_fixture() -> NifsFixture {
         fresh_claim,
         running_claims: running.claims.clone(),
         parent_c_data: parent_authority.c.data.clone(),
+        parent_authority,
         parent_child_count: running.claims.len(),
     }
 }
@@ -247,9 +255,9 @@ fn phase_1_mini_3a_fresh_ccs_claim_digest() {
 #[test]
 fn phase_1_mini_3a_accumulator_from_claims_digest() {
     let fixture = build_nifs_fixture();
-    let reference = digest32_as_fields(accumulator_digest_from_claims(fixture.base, &fixture.running_claims));
 
     let preimage = accumulator_from_claims_preimage(fixture.base, &fixture.running_claims);
+    let reference = poseidon_reference(&preimage);
     let image = encode_poseidon_trace(&preimage);
     let decoded = decode_digest_lanes(&image);
 
@@ -257,7 +265,7 @@ fn phase_1_mini_3a_accumulator_from_claims_digest() {
     assert_eq!(decoded, image.digest_native, "decode ↔ builder");
     assert_eq!(
         decoded, reference,
-        "decode ↔ paper::digest::accumulator_digest_from_claims"
+        "decode ↔ test-local legacy accumulator_from_claims mirror"
     );
     eprintln!(
         "accumulator_from_claims: {} F, {} absorbs, {} trace bits (~{:.2} KiB)",
@@ -271,12 +279,9 @@ fn phase_1_mini_3a_accumulator_from_claims_digest() {
 #[test]
 fn phase_1_mini_3a_accumulator_from_parent_c_data_digest() {
     let fixture = build_nifs_fixture();
-    let reference = digest32_as_fields(accumulator_digest_from_parent_c_data(
-        fixture.parent_child_count,
-        &fixture.parent_c_data,
-    ));
 
     let preimage = accumulator_from_parent_c_data_preimage(fixture.parent_child_count, &fixture.parent_c_data);
+    let reference = poseidon_reference(&preimage);
     let image = encode_poseidon_trace(&preimage);
     let decoded = decode_digest_lanes(&image);
 
@@ -284,7 +289,7 @@ fn phase_1_mini_3a_accumulator_from_parent_c_data_digest() {
     assert_eq!(decoded, image.digest_native, "decode ↔ builder");
     assert_eq!(
         decoded, reference,
-        "decode ↔ paper::digest::accumulator_digest_from_parent_c_data"
+        "decode ↔ test-local legacy accumulator_from_parent_c_data mirror"
     );
     eprintln!(
         "accumulator_from_parent_c_data: {} F, {} absorbs, {} trace bits (~{:.2} KiB)",
@@ -293,4 +298,129 @@ fn phase_1_mini_3a_accumulator_from_parent_c_data_digest() {
         image.layout.trace_len,
         image.layout.trace_len as f64 / 8.0 / 1024.0,
     );
+}
+
+#[test]
+fn phase_1_mini_3a_live_accumulator_handle_binds_full_ce_claim_fields() {
+    let fixture = build_nifs_fixture();
+    let baseline =
+        AccumulatorHandle::from_running_parts(&fixture.running_claims, Some(&fixture.parent_authority)).digest();
+
+    macro_rules! assert_child_mutation_changes {
+        ($label:literal, $mutate:expr) => {{
+            let mut claims = fixture.running_claims.clone();
+            ($mutate)(&mut claims[0]);
+            assert_ne!(
+                AccumulatorHandle::from_running_parts(&claims, Some(&fixture.parent_authority)).digest(),
+                baseline,
+                "live Construction-2 handle must bind child {}, not just commitment data",
+                $label
+            );
+        }};
+    }
+
+    macro_rules! assert_parent_mutation_changes {
+        ($label:literal, $mutate:expr) => {{
+            let mut parent = fixture.parent_authority.clone();
+            ($mutate)(&mut parent);
+            assert_ne!(
+                AccumulatorHandle::from_running_parts(&fixture.running_claims, Some(&parent)).digest(),
+                baseline,
+                "live Construction-2 handle must bind parent-authority {}, not just parent commitment data",
+                $label
+            );
+        }};
+    }
+
+    assert_child_mutation_changes!("c.data", |claim: &mut CeClaim| {
+        claim.c.data[0] += F::ONE;
+    });
+    assert_child_mutation_changes!("X", |claim: &mut CeClaim| {
+        claim.X[(0, 0)] += F::ONE;
+    });
+    assert_child_mutation_changes!("r", |claim: &mut CeClaim| {
+        assert!(!claim.r.is_empty(), "fixture child must carry r");
+        claim.r[0] += K::ONE;
+    });
+    assert_child_mutation_changes!("s_col", |claim: &mut CeClaim| {
+        claim.s_col.push(K::ONE);
+    });
+    assert_child_mutation_changes!("y_ring", |claim: &mut CeClaim| {
+        assert!(
+            !claim.y_ring.is_empty() && !claim.y_ring[0].is_empty(),
+            "fixture child must carry y_ring"
+        );
+        claim.y_ring[0][0] += K::ONE;
+    });
+    assert_child_mutation_changes!("ct", |claim: &mut CeClaim| {
+        assert!(!claim.ct.is_empty(), "fixture child must carry ct");
+        claim.ct[0] += K::ONE;
+    });
+    assert_child_mutation_changes!("aux_openings", |claim: &mut CeClaim| {
+        claim.aux_openings.push(K::ONE);
+    });
+    assert_child_mutation_changes!("y_zcol", |claim: &mut CeClaim| {
+        claim.y_zcol.push(K::ONE);
+    });
+    assert_child_mutation_changes!("m_in", |claim: &mut CeClaim| {
+        claim.m_in += 1;
+    });
+    assert_child_mutation_changes!("fold_digest", |claim: &mut CeClaim| {
+        claim.fold_digest[0] ^= 0xA5;
+    });
+    assert_child_mutation_changes!("c_step_coords", |claim: &mut CeClaim| {
+        claim.c_step_coords.push(F::ONE);
+    });
+    assert_child_mutation_changes!("u_offset", |claim: &mut CeClaim| {
+        claim.u_offset += 1;
+    });
+    assert_child_mutation_changes!("u_len", |claim: &mut CeClaim| {
+        claim.u_len += 1;
+    });
+
+    assert_parent_mutation_changes!("c.data", |claim: &mut CeClaim| {
+        claim.c.data[0] += F::ONE;
+    });
+    assert_parent_mutation_changes!("X", |claim: &mut CeClaim| {
+        claim.X[(0, 0)] += F::ONE;
+    });
+    assert_parent_mutation_changes!("r", |claim: &mut CeClaim| {
+        assert!(!claim.r.is_empty(), "fixture parent must carry r");
+        claim.r[0] += K::ONE;
+    });
+    assert_parent_mutation_changes!("s_col", |claim: &mut CeClaim| {
+        claim.s_col.push(K::ONE);
+    });
+    assert_parent_mutation_changes!("y_ring", |claim: &mut CeClaim| {
+        assert!(
+            !claim.y_ring.is_empty() && !claim.y_ring[0].is_empty(),
+            "fixture parent must carry y_ring"
+        );
+        claim.y_ring[0][0] += K::ONE;
+    });
+    assert_parent_mutation_changes!("ct", |claim: &mut CeClaim| {
+        assert!(!claim.ct.is_empty(), "fixture parent must carry ct");
+        claim.ct[0] += K::ONE;
+    });
+    assert_parent_mutation_changes!("aux_openings", |claim: &mut CeClaim| {
+        claim.aux_openings.push(K::ONE);
+    });
+    assert_parent_mutation_changes!("y_zcol", |claim: &mut CeClaim| {
+        claim.y_zcol.push(K::ONE);
+    });
+    assert_parent_mutation_changes!("m_in", |claim: &mut CeClaim| {
+        claim.m_in += 1;
+    });
+    assert_parent_mutation_changes!("fold_digest", |claim: &mut CeClaim| {
+        claim.fold_digest[0] ^= 0x5A;
+    });
+    assert_parent_mutation_changes!("c_step_coords", |claim: &mut CeClaim| {
+        claim.c_step_coords.push(F::ONE);
+    });
+    assert_parent_mutation_changes!("u_offset", |claim: &mut CeClaim| {
+        claim.u_offset += 1;
+    });
+    assert_parent_mutation_changes!("u_len", |claim: &mut CeClaim| {
+        claim.u_len += 1;
+    });
 }

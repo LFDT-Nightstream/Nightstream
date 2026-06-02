@@ -5,8 +5,9 @@
 //!
 //! 1. `bind_header_and_instance_digest_with_digest` (raw absorbs of
 //!    `[11, hb…]` and `[12, id…]`).
-//! 2. `bind_me_inputs` (raw absorbs of `[4]`, `[5, count]`, and the packed
-//!    per-input projection digests with leading tag `[6, …]`).
+//! 2. `bind_me_inputs_accumulator_handle` (raw absorbs of `[4]`,
+//!    `[5, count]`, and the full-running accumulator handle with leading
+//!    tag `[6, …]`).
 //! 3. `sample_challenges` (raw `[2]` then K-batch squeeze for α/β_a/β_r/γ).
 //! 4. `sample_beta_m` (raw `[3]` then K-batch squeeze for β_m).
 //!

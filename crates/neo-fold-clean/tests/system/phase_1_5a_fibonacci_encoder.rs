@@ -14,8 +14,7 @@
 //!    little-endian decomposition the F' R1CS emitter uses
 //!    (`encode_x_out_public_bits` on the state_x_out digest).
 //! 3. Coherently tampering the encoded witness's chunk-digest lane
-//!    trips a Poseidon absorb row that reads chunk-digest as a preimage
-//!    source (boundary_update or public_trace_update). Bit-validity
+//!    trips the direct `chunk_digest -> new_z_i` mirror. Bit-validity
 //!    still holds.
 //! 4. Coherently tampering a boundary public-x_out lane in the encoded witness
 //!    trips the state_x_out → boundary digest binding.
@@ -106,16 +105,15 @@ fn phase_1_5a_encoder_rejects_tampered_chunk_digest() {
     let mut z = encoded.witness.clone();
     assert!(encoded.structure.is_satisfied(&z), "baseline must satisfy");
 
-    // Chunk digest lane 0 feeds boundary_update and public_trace_update
-    // Poseidon absorbs. Coherent tamper keeps bit/decode rows satisfied
-    // but must trip a state-update absorb row.
+    // Chunk digest lane 0 is mirrored into state_out.new_z_i. Coherent
+    // tamper keeps bit/decode rows satisfied but must trip that mirror.
     let lane = encoded.structure.lane_slots.state_lanes[STATE_LANE_CHUNK_DIGEST_BASE];
     let new_value = decode_lane(&z, lane.bit_start) + F::ONE;
     flip_lane_bits_to(&mut z, lane.bit_start, new_value);
 
     assert!(
         !encoded.structure.is_satisfied(&z),
-        "coherent chunk_digest tamper must trip a Poseidon absorb row that reads it"
+        "coherent chunk_digest tamper must trip the chunk_digest -> new_z_i mirror"
     );
 }
 

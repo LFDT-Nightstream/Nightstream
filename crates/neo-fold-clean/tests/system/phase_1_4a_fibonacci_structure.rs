@@ -1,14 +1,13 @@
-//! Phase 1.4a — `enc(F')` CCS structure shape + bit-validity parity.
+//! Phase 1.4a — `enc(F')` CCS structure shape + semantic-Boolean parity.
 //!
 //! Scope:
 //! - **Shape gate**: the structure builder produces a CCS whose width
-//!   matches the image layout end plus decoded state_in/state_out/chunk_digest, kmul, and ring_action
-//!   lane columns, with one boolean row per committed bit, one decode
-//!   row per canonical-u64 lane, and one ring_action product row per `(ρ, c)`
-//!   pair cell. Production-target counts (the Phase 1.3d coverage
+//!   matches the image layout end, with one Boolean row per semantic bit
+//!   (public boundary, `is_base`, tiny app carry regions), and one
+//!   ring_action product row per `(ρ, c)` pair cell. Production-target counts (the Phase 1.3d coverage
 //!   gate's measurements) are pinned in [`production_kmul_ring_action_shell_image_config`].
 //! - **Satisfiability gate**: an honestly-filled Phase 1.3d-style image
-//!   satisfies the structure; tampering one bit to a non-`{0,1}` value
+//!   satisfies the structure; tampering one semantic bit to a non-`{0,1}` value
 //!   trips it.
 //!
 //! Out of scope:
@@ -40,6 +39,7 @@ use p3_field::PrimeCharacteristicRing;
 fn small_test_image_config() -> FPrimeImageConfig {
     FPrimeImageConfig {
         limbs: 3,
+        app_private_var_widths: Vec::new(),
         boundary_bits: 0,
         nifs_payload_shapes: vec![],
         kmul_count: 2,
@@ -111,9 +111,9 @@ fn phase_1_4a_production_config_pins_emitter_counts() {
 }
 
 /// The strict-low-norm structure shape contract (Phase 1.5b-0):
-/// `m == layout.end` (every committed coordinate is a single image bit;
-/// no decoded lane columns are appended). `n` is `(layout.end − 1)` bit
-/// validity rows plus the ring_action product / output rows.
+/// `m == layout.end` (every committed coordinate is a single low-norm
+/// image digit; no decoded lane columns are appended). `n` is the
+/// semantic Boolean rows plus the ring_action product / output rows.
 #[test]
 fn phase_1_4a_structure_shape_matches_image_layout() {
     let layout = FPrimeImageLayout::new(small_test_image_config());
@@ -125,8 +125,10 @@ fn phase_1_4a_structure_shape_matches_image_layout() {
     );
     assert_eq!(
         structure.ccs.n,
-        (layout.end - 1) + structure.ring_action_product_row_count() + structure.ring_action_output_row_count(),
-        "structure.n must equal (layout.end − 1) + ring_action product rows + ring_action output rows"
+        structure.semantic_boolean_row_count()
+            + structure.ring_action_product_row_count()
+            + structure.ring_action_output_row_count(),
+        "structure.n must equal semantic Boolean rows + ring_action product rows + ring_action output rows"
     );
     // Mixed-gate F' CCS: 8 matrices for (bit, prod_l, prod_r, prod_out,
     // sbox_in, sbox_out, lin_l, lin_r); polynomial arity matches.
@@ -177,7 +179,7 @@ fn phase_1_4a_structure_satisfies_honest_image() {
         image.splice_ring_action_pair(i, &trace);
     }
 
-    // Image's own bit-validity invariant (the pre-existing check).
+    // The honest encoder still writes canonical bits.
     assert_committed_coords_are_bits(&image.values);
 
     // Extend image bits with canonical state_in/state_out/chunk_digest lane decoding, then
@@ -231,9 +233,10 @@ fn phase_1_4a_strict_structure_witness_is_low_norm() {
     }
 }
 
-/// Tampering one bit to a non-`{0, 1}` value flips exactly one
-/// constraint row. Confirms the structure actually constrains bits
-/// (i.e., the boolean rows are not vacuously satisfied for any z).
+/// Tampering one semantic bit to a non-`{0, 1}` value flips exactly one
+/// constraint row. Internal field-lane digits are range-owned by the
+/// folding relation's NC channel, but public/control bits remain
+/// Boolean in this structure.
 #[test]
 fn phase_1_4a_structure_rejects_non_bit_witness() {
     let layout = FPrimeImageLayout::new(small_test_image_config());
@@ -244,16 +247,16 @@ fn phase_1_4a_structure_rejects_non_bit_witness() {
     let mut z = structure.extend_witness_from_image(&image);
     assert!(structure.is_satisfied(&z), "baseline must satisfy");
 
-    // Pick a bit inside the kmul region and corrupt it to 2.
-    let target_col = structure.layout.kmul.offset + 1;
+    // Pick the `is_base` control bit and corrupt it to 2.
+    let target_col = structure.layout.is_base.offset;
     z[target_col] = F::from_u64(2);
+    let expected_row = structure.layout.boundary.bits;
 
     let failing = structure.first_unsatisfied_row(&z);
     assert_eq!(
         failing,
-        Some(target_col - 1),
-        "tampered bit at col {target_col} must violate exactly bit-validity row {}",
-        target_col - 1,
+        Some(expected_row),
+        "tampered semantic bit at col {target_col} must violate exactly Boolean row {expected_row}",
     );
     assert!(
         !structure.is_satisfied(&z),

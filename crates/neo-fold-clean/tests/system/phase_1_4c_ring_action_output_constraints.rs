@@ -23,6 +23,7 @@ use p3_field::PrimeCharacteristicRing;
 fn small_ring_action_config() -> FPrimeImageConfig {
     FPrimeImageConfig {
         limbs: 3,
+        app_private_var_widths: Vec::new(),
         boundary_bits: 0,
         nifs_payload_shapes: vec![],
         kmul_count: 0,

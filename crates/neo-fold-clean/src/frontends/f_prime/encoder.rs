@@ -38,7 +38,7 @@ pub enum NifsPayloadInput {
 ///
 /// Everything here is "real prover output": no test-local stand-ins
 /// remain except for explicit `Constant`s in the plan's preimage
-/// sources (domain tags, currently `pc` and `child_count`).
+/// sources (domain tags and legacy non-unified `child_count`).
 pub struct FPrimeStepInput {
     /// The image config plan. Drives layout sizing and which Poseidon
     /// transition enforcements / digest bindings are emitted.
@@ -64,8 +64,12 @@ pub struct FPrimeStepInput {
     /// plan this lane is reserved but algebraically unconstrained; pass
     /// `false` (zero).
     pub is_base: bool,
-    /// NIFS payloads (CcsClaim / CeClaim views), in fill order. Length
-    /// and shape must match `plan.nifs_payload_shapes`.
+    /// NIFS payloads (CcsClaim / CeClaim views), in fill order.
+    ///
+    /// Legacy non-unified plans fill this from `plan.nifs_payload_shapes`.
+    /// Unified plans use delayed accumulator-handle binding and do not
+    /// reserve source-image payload lanes, so this is empty even though
+    /// the plan still keeps CE-shape metadata for compiler validation.
     pub nifs_payloads: Vec<NifsPayloadInput>,
     /// K-mul Karatsuba views, one per K-mul invocation.
     pub kmul_views: Vec<KMulView>,
@@ -102,6 +106,26 @@ pub struct EncodedFPrimeStep {
 /// witness after this function returns.
 pub fn encode_f_prime_step(input: FPrimeStepInput) -> EncodedFPrimeStep {
     let config = build_recursive_step_image_config(&input.plan);
+    let structure = Arc::new(build_f_prime_structure(FPrimeImageLayout::new(config)));
+    encode_f_prime_step_with_structure(input, structure)
+}
+
+/// Encode one `enc(F'_i)` step using a verifier-owned cached structure.
+///
+/// This is the fixed-`pc` path HyperNova Construction 2 wants: all steps
+/// in one chain share the same F' structure, so callers that already
+/// have the cached structure should not rebuild or re-digest it per
+/// step. The config assertion keeps the cached structure tied to the
+/// input plan before any witness bits are filled.
+pub fn encode_f_prime_step_with_structure(
+    input: FPrimeStepInput,
+    structure: Arc<FPrimeStructure>,
+) -> EncodedFPrimeStep {
+    let config = build_recursive_step_image_config(&input.plan);
+    assert_eq!(
+        structure.layout.config, config,
+        "cached F' structure config must match input plan"
+    );
 
     // ── Strict input-shape gate ──────────────────────────────────────
     assert_eq!(
@@ -116,8 +140,8 @@ pub fn encode_f_prime_step(input: FPrimeStepInput) -> EncodedFPrimeStep {
     );
     assert_eq!(
         input.nifs_payloads.len(),
-        input.plan.nifs_payload_shapes.len(),
-        "NIFS payload count must match plan.nifs_payload_shapes"
+        config.nifs_payload_shapes.len(),
+        "NIFS payload count must match source-image config"
     );
     assert_eq!(
         input.kmul_views.len(),
@@ -140,7 +164,7 @@ pub fn encode_f_prime_step(input: FPrimeStepInput) -> EncodedFPrimeStep {
         "sponge_trace presence must match sponge_transcript_permutes > 0"
     );
 
-    let layout = FPrimeImageLayout::new(config);
+    let layout = structure.layout.clone();
     let mut image = FPrimeImage::new(layout.clone());
 
     image.fill_boundary(&input.boundary_bits);
@@ -177,7 +201,6 @@ pub fn encode_f_prime_step(input: FPrimeStepInput) -> EncodedFPrimeStep {
         image.splice_sponge_transcript(trace);
     }
 
-    let structure = Arc::new(build_f_prime_structure(layout));
     let witness = structure.extend_witness_from_image(&image);
 
     assert!(
@@ -205,7 +228,7 @@ impl EncodedFPrimeStep {
     /// Convert this encoded F' step into one foldable [`CcsInstance`].
     ///
     /// The witness is strict low-norm: exactly `image.values`, with
-    /// `z[0] = 1` and every other coordinate in `{0, 1}`. This is the only
+    /// `z[0] = 1` and low-norm image coordinates. This is the only
     /// boundary that should call [`CcsInstance::from_low_norm_assignment`]
     /// for F' steps — downstream code (NIFS, lifecycle) folds
     /// the returned instance directly.

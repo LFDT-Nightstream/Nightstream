@@ -14,8 +14,8 @@
 //! The structure is **not** rebuilt per call: every chain in a given
 //! preprocessing shares one [`Arc<FPrimeStructure>`] held on
 //! [`crate::frontends::r1cs_f_prime::R1csFPrimePreprocessing`]. For
-//! R1CS shapes the size of SHA-256 this saves ~1.5M sparse constraint
-//! rows + bit-validity rows of work per step.
+//! R1CS shapes the size of SHA-256 this saves rebuilding the sparse
+//! app rows plus the shared shell rows per step.
 
 use std::sync::Arc;
 
@@ -32,7 +32,7 @@ use crate::paper::f_prime::poseidon_trace::PoseidonTraceImage;
 use crate::paper::f_prime::ring_action_trace::RingActionTraceImage;
 
 /// One R1CS encoder input. Same shape as the Fibonacci encoder input
-/// except `assignment_bits` carries the bit-decomposed R1CS variable
+/// except `assignment_bits` carries the encoded R1CS variable
 /// assignment instead of Fibonacci's app-private carries.
 pub struct R1csEncoderInput {
     pub plan: RecursiveStepImagePlan,
@@ -40,9 +40,9 @@ pub struct R1csEncoderInput {
     pub state_in: StateIn,
     pub state_out: StateOut,
     pub chunk_digest: [F; 4],
-    /// Bit-decomposed R1CS variable assignment `z` of length
-    /// `r1cs.m() * 64`. Variable `z_j`'s 64 bits occupy
-    /// `assignment_bits[j*64 .. (j+1)*64]` in little-endian order.
+    /// Encoded R1CS variable assignment `z`. Legacy plans use 64
+    /// little-endian bits per variable. Typed plans use the verifier-owned
+    /// bounded width for each variable.
     pub assignment_bits: Vec<F>,
     pub is_base: bool,
     pub nifs_payloads: Vec<NifsPayloadInput>,
@@ -87,24 +87,17 @@ pub fn encode_r1cs_f_prime_step(input: R1csEncoderInput, structure: Arc<FPrimeSt
     assert_eq!(
         input.assignment_bits.len(),
         layout.app_private.bits,
-        "assignment_bits must match cached structure's app_private region (= r1cs.m() * 64)"
+        "assignment_bits must match cached structure's app_private region"
     );
     assert_eq!(
         input.plan.limbs,
         layout.app_private.bits + 1,
-        "plan.limbs must equal app_private.bits + 1 (= r1cs.m() * 64 + 1)"
-    );
-    assert!(
-        layout
-            .app_private
-            .bits
-            .is_multiple_of(POSEIDON2_GOLDILOCKS_BITS),
-        "app_private.bits must be a multiple of 64 (one 64-bit lane per R1CS variable)"
+        "plan.limbs must equal app_private.bits + 1"
     );
     assert_eq!(
         input.nifs_payloads.len(),
-        input.plan.nifs_payload_shapes.len(),
-        "NIFS payload count must match plan.nifs_payload_shapes"
+        config.nifs_payload_shapes.len(),
+        "NIFS payload count must match source-image config"
     );
     assert_eq!(
         input.kmul_views.len(),

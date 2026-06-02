@@ -139,6 +139,7 @@ fn ce_view_shape(view: &NifsCeClaimView) -> NifsCeClaimShape {
 fn skeleton_config_for(fresh_shape: &NifsCcsClaimShape, ce_shape: &NifsCeClaimShape) -> FPrimeImageConfig {
     FPrimeImageConfig {
         limbs: 3,
+        app_private_var_widths: Vec::new(),
         boundary_bits: 704,
         nifs_payload_shapes: vec![
             NifsPayloadShape::CcsClaim(*fresh_shape),

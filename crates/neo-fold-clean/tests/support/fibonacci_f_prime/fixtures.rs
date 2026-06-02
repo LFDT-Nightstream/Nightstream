@@ -21,17 +21,16 @@
 //!   `state_in` of step i+1.
 
 use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
-use neo_fold_clean::frontends::f_prime::encoder::{
-    encode_f_prime_step, EncodedFPrimeStep, FPrimeStepInput, NifsPayloadInput,
-};
+use neo_fold_clean::frontends::f_prime::compiler::nifs_payload_inputs_for_source_image;
+use neo_fold_clean::frontends::f_prime::encoder::{encode_f_prime_step, EncodedFPrimeStep, FPrimeStepInput};
 use neo_fold_clean::frontends::f_prime::image::{
     FPrimeImageLayout, NifsCeClaimShape, NifsCeClaimView, NifsPayloadShape, StateIn, StateOut,
 };
 use neo_fold_clean::frontends::f_prime::recursive_plan::{
-    build_accumulator_preimage_fields, build_boundary_update_preimage_fields,
-    build_public_trace_update_preimage_fields, build_recursive_step_image_config, build_state_x_out_preimage_fields,
-    AccumulatorPlanOptions, RecursiveStepImagePlan, StateXOutPlanOptions,
+    build_recursive_step_image_config, build_state_x_out_preimage_fields, AccumulatorPlanOptions,
+    RecursiveStepImagePlan, StateXOutPlanOptions,
 };
+use neo_fold_clean::paper::digest::{AccumulatorHandle, StateXOutDigestMode};
 use neo_fold_clean::paper::f_prime::poseidon_trace::encode_poseidon_trace;
 use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
 use neo_math::F;
@@ -48,9 +47,10 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 ///    `finish_uncompressed_with_audit`.
 /// 4. Inspect `running.parent_authority`. It comes out with exactly
 ///    these dimensions — i.e. `f(plan) = plan_shape`. (Verified by a
-///    one-off probe; the empirical fix was bumping `r_len` /
-///    `s_col_len` from the small-fixture's `20` to `23` to absorb the
-///    structure's extra rows for the bigger NIFS payload region.)
+///    one-off probe). `r_len` tracks the F' row domain and is smaller
+///    than `s_col_len`, which tracks the still-large column domain. The
+///    values below are re-derived after the stateless `state_x_out`
+///    digest omits the duplicate semantic accumulator lanes.
 ///
 /// Because this is a fixed point, the compiler can use `prep.plan`
 /// for both the base and recursive paths and `nifs_ce_view_from_claim`
@@ -59,11 +59,11 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 const C_DATA_ENTRIES: usize = 972;
 const X_ROWS: usize = 54;
 const X_ACTIVE_COLS: usize = 5;
-const R_LEN: usize = 23;
+const R_LEN: usize = 12;
 const Y_RING_OUTER: usize = 8;
 const Y_RING_INNER: usize = 64;
 const Y_ZCOL_LEN: usize = 64;
-const S_COL_LEN: usize = 23;
+const S_COL_LEN: usize = 18;
 const CHILD_COUNT: u64 = 14;
 const PC: u64 = 1;
 const NEW_CHUNK_COUNT: u64 = 7;
@@ -89,6 +89,7 @@ fn canonical_ce_shape() -> NifsCeClaimShape {
 fn make_plan_without_state_x_out() -> RecursiveStepImagePlan {
     RecursiveStepImagePlan {
         limbs: 3,
+        app_private_var_widths: Vec::new(),
         boundary_bits: BOUNDARY_BITS,
         kmul_count: 0,
         ring_action_pair_count: 0,
@@ -105,10 +106,10 @@ fn make_plan_without_state_x_out() -> RecursiveStepImagePlan {
             c_data_entries: C_DATA_ENTRIES,
             child_count: CHILD_COUNT,
             // Canonical Fibonacci chains are unified-mode end-to-end:
-            // the structure carries one base + one recursive accumulator
-            // preimage and a selector that picks between them. Fixture
-            // steps below model "recursive-shape" chunks (`is_base = 0`),
-            // so the selector chooses the recursive digest.
+            // the producer carries the post-fold accumulator handle in
+            // state_out and the next recursive step / terminal fold checks
+            // it against NIFS.V output. There is no producer-side
+            // accumulator Poseidon trace in the F' image.
             unified: true,
         }),
         state_x_out: None,
@@ -117,9 +118,9 @@ fn make_plan_without_state_x_out() -> RecursiveStepImagePlan {
 
 /// Perp/zero CE view matching `canonical_ce_shape()` — used as the
 /// fixture's deterministic-filler NIFS payload. The recursive
-/// accumulator preimage's `c_data` lanes source from this payload, so
-/// each fixture step's recursive accumulator digest is the
-/// deterministic `H(tag, CHILD_COUNT, c_data_entries, 0, 0, ..., 0)`.
+/// accumulator handle sources from this payload's `c_data`, so each
+/// fixture step's accumulator digest is the deterministic
+/// `H(tag, CHILD_COUNT, c_data_entries, 0, 0, ..., 0)`.
 fn perp_canonical_ce_view() -> NifsCeClaimView {
     let shape = canonical_ce_shape();
     NifsCeClaimView {
@@ -143,7 +144,7 @@ fn perp_canonical_ce_view() -> NifsCeClaimView {
     }
 }
 
-/// Build the four Poseidon traces, post-step state-out digests, boundary
+/// Build the three Poseidon traces, post-step state-out digests, boundary
 /// public-x_out bits, and the matching `FPrimeStepInput`. The
 /// caller hands the returned input directly to
 /// `encode_f_prime_step`.
@@ -164,6 +165,7 @@ pub fn build_honest_step_input() -> (FPrimeStepInput, [F; 4]) {
         pc: PC,
         public_x_out_lane_bit_starts,
         app_public_input_var_indices: Vec::new(),
+        app_public_input_bit_var_indices: Vec::new(),
         semantic_state_in_var_indices: Vec::new(),
         semantic_state_out_var_indices: Vec::new(),
         initial_semantic_state_digest_anchor: None,
@@ -218,24 +220,12 @@ pub fn build_honest_step_input() -> (FPrimeStepInput, [F; 4]) {
         public_trace_in,
     };
 
-    // Encode the four state-update Poseidon traces. Under unified mode
-    // the layout reserves base_acc at one_shot index 2 and recursive_acc
-    // at index 3; the fixture writes `is_base = 0` below so the
-    // selector picks the recursive accumulator's digest into
-    // `state_out.new_acc_digest`. The recursive trace's preimage
-    // sources `c_data` lanes from the canonical perp NIFS payload.
-    let boundary_preimage = build_boundary_update_preimage_fields(z_i_in, chunk_digest);
-    let public_trace_preimage = build_public_trace_update_preimage_fields(public_trace_in, chunk_digest);
-    let base_accumulator_preimage = build_accumulator_preimage_fields(0, &[]);
-    let recursive_accumulator_preimage = build_accumulator_preimage_fields(CHILD_COUNT, &perp_view.c_data);
-    let boundary_trace = encode_poseidon_trace(&boundary_preimage);
-    let public_trace_trace = encode_poseidon_trace(&public_trace_preimage);
-    let base_accumulator_trace = encode_poseidon_trace(&base_accumulator_preimage);
-    let recursive_accumulator_trace = encode_poseidon_trace(&recursive_accumulator_preimage);
-
-    let new_z_i = boundary_trace.digest_native;
-    let new_public_trace = public_trace_trace.digest_native;
-    let new_acc_digest = recursive_accumulator_trace.digest_native;
+    // Encode the state-output Poseidon trace. The local chunk-shape
+    // coordinate mirrors `chunk_digest` linearly; no producer-side
+    // boundary-update hash trace is spliced into this F' image.
+    let new_z_i = chunk_digest;
+    let new_public_trace = new_z_i;
+    let new_acc_digest = AccumulatorHandle::empty().digest_fields();
 
     let state_out = StateOut {
         new_chunk_count: NEW_CHUNK_COUNT,
@@ -247,6 +237,7 @@ pub fn build_honest_step_input() -> (FPrimeStepInput, [F; 4]) {
     };
 
     let state_x_out_preimage = build_state_x_out_preimage_fields(
+        StateXOutDigestMode::Stateless,
         vk_fs_digest,
         structure_digest,
         NEW_CHUNK_COUNT,
@@ -271,6 +262,7 @@ pub fn build_honest_step_input() -> (FPrimeStepInput, [F; 4]) {
         }
     }
 
+    let nifs_payloads = nifs_payload_inputs_for_source_image(&plan, perp_view);
     let input = FPrimeStepInput {
         plan,
         boundary_bits,
@@ -280,16 +272,10 @@ pub fn build_honest_step_input() -> (FPrimeStepInput, [F; 4]) {
         // limbs = 3 → 2 app-private carry bits.
         app_private_carries: vec![F::ZERO, F::ZERO],
         is_base: false,
-        nifs_payloads: vec![NifsPayloadInput::Ce(perp_view)],
+        nifs_payloads,
         kmul_views: vec![],
         ring_action_pairs: vec![],
-        one_shot_traces: vec![
-            boundary_trace,
-            public_trace_trace,
-            base_accumulator_trace,
-            recursive_accumulator_trace,
-            state_x_out_trace,
-        ],
+        one_shot_traces: vec![state_x_out_trace],
         sponge_trace: None,
     };
 
@@ -309,12 +295,11 @@ pub fn build_honest_step_input() -> (FPrimeStepInput, [F; 4]) {
 // The helpers below build a sequence of encoded F' steps where each
 // step's input state is the previous step's output state. Specifically:
 //
-//   - `state_out.new_z_i` (= boundary-update digest)
+//   - `state_out.new_z_i` (= chunk digest)
 //      → next step's `state_in.z_i_in`
-//   - `state_out.new_public_trace` (= public-trace-update digest)
-//      → next step's `state_in.public_trace_in`
-//   - `state_out.new_acc_digest` (= accumulator digest from this step's
-//                                  parent c_data)
+//   - `state_out.new_public_trace` (= `state_out.new_z_i` in this
+//     compact shape) → next step's `state_in.public_trace_in`
+//   - `state_out.new_acc_digest` (= this fixture's empty accumulator handle)
 //      → next step's `state_in.acc_digest_in`
 //   - `chunk_count` and `step_count` increment by 1 per step.
 //   - `vk_fs`, `structure`, `z_0`, `pc` stay constant across the chain
@@ -409,6 +394,7 @@ pub fn canonical_threaded_plan() -> RecursiveStepImagePlan {
         pc: PC,
         public_x_out_lane_bit_starts,
         app_public_input_var_indices: Vec::new(),
+        app_public_input_bit_var_indices: Vec::new(),
         semantic_state_in_var_indices: Vec::new(),
         semantic_state_out_var_indices: Vec::new(),
         initial_semantic_state_digest_anchor: None,
@@ -423,10 +409,9 @@ pub fn canonical_threaded_plan() -> RecursiveStepImagePlan {
 /// degenerate fixed point).
 ///
 /// The NIFS payload is a perp/zero view matching `canonical_ce_shape`;
-/// the fixture chain doesn't model real per-step authority. The
-/// recursive accumulator preimage's `c_data` lanes therefore source
-/// zeros, and `state_out.new_acc_digest` is the deterministic
-/// `H(tag, CHILD_COUNT, c_data_entries, 0, 0, ..., 0)`.
+/// the fixture chain doesn't model real per-step authority. Its
+/// `state_out.new_acc_digest` therefore uses the empty accumulator
+/// handle rather than deriving authority from the filler payload.
 fn build_threaded_step_record(state: &ThreadedFPrimeState, step_idx: u64) -> ThreadedEncodedFPrimeRecord {
     debug_assert_eq!(state.pc, PC, "threaded fixture pins pc = PC across the chain");
     let plan = canonical_threaded_plan();
@@ -439,27 +424,14 @@ fn build_threaded_step_record(state: &ThreadedFPrimeState, step_idx: u64) -> Thr
     ];
 
     let perp_view = perp_canonical_ce_view();
-    let boundary_trace = encode_poseidon_trace(&build_boundary_update_preimage_fields(state.z_i, chunk_digest));
-    let public_trace_trace = encode_poseidon_trace(&build_public_trace_update_preimage_fields(
-        state.public_trace,
-        chunk_digest,
-    ));
-    // Unified-mode layout reserves base_acc (index 2) and recursive_acc
-    // (index 3); the threaded fixture is `is_base = 0` end-to-end, so
-    // the selector picks `recursive_accumulator_trace.digest_native` as
-    // `state_out.new_acc_digest`. Both traces' preimages mirror the
-    // perp view's data so the structure's source-bound rows hold.
-    let base_accumulator_trace = encode_poseidon_trace(&build_accumulator_preimage_fields(0, &[]));
-    let recursive_accumulator_trace =
-        encode_poseidon_trace(&build_accumulator_preimage_fields(CHILD_COUNT, &perp_view.c_data));
-
-    let new_z_i = boundary_trace.digest_native;
-    let new_public_trace = public_trace_trace.digest_native;
-    let new_acc_digest = recursive_accumulator_trace.digest_native;
+    let new_z_i = chunk_digest;
+    let new_public_trace = new_z_i;
+    let new_acc_digest = AccumulatorHandle::empty().digest_fields();
     let new_chunk_count = state.chunk_count + 1;
     let new_step_count = state.step_count + 1;
 
     let state_x_out_trace = encode_poseidon_trace(&build_state_x_out_preimage_fields(
+        StateXOutDigestMode::Stateless,
         state.vk_fs_digest,
         state.structure_digest,
         new_chunk_count,
@@ -480,6 +452,7 @@ fn build_threaded_step_record(state: &ThreadedFPrimeState, step_idx: u64) -> Thr
         }
     }
 
+    let nifs_payloads = nifs_payload_inputs_for_source_image(&plan, perp_view);
     let input = FPrimeStepInput {
         plan,
         boundary_bits,
@@ -504,16 +477,10 @@ fn build_threaded_step_record(state: &ThreadedFPrimeState, step_idx: u64) -> Thr
         // limbs = 3 → 2 app-private carry bits.
         app_private_carries: vec![F::ZERO, F::ZERO],
         is_base: false,
-        nifs_payloads: vec![NifsPayloadInput::Ce(perp_view)],
+        nifs_payloads,
         kmul_views: vec![],
         ring_action_pairs: vec![],
-        one_shot_traces: vec![
-            boundary_trace,
-            public_trace_trace,
-            base_accumulator_trace,
-            recursive_accumulator_trace,
-            state_x_out_trace,
-        ],
+        one_shot_traces: vec![state_x_out_trace],
         sponge_trace: None,
     };
 

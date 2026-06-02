@@ -164,8 +164,11 @@ Sample duration: ${SAMPLE_DURATION}s at ${SAMPLE_INTERVAL}ms intervals
 === TIMING FROM TEST OUTPUT ===
 EOF
 
-# Add timing info
-grep -E "(duration|time|elapsed|took|CCS)" "$TEMP_TEST_OUTPUT" >> "$OUTPUT_FILE" 2>/dev/null || echo "(no timing captured)" >> "$OUTPUT_FILE"
+# Add timing info. Many perf snapshots print title-cased timing tables
+# (`Timing (ms)`, `append`, `finish`, `verify`) rather than lowercase
+# `time`, so keep this deliberately broad enough to preserve the useful
+# benchmark summary while still avoiding a full duplicate of stdout.
+grep -Ei "(duration|timing|time|elapsed|took|CCS|setup|append|finish|verify|online|throughput|rows|vars|total)" "$TEMP_TEST_OUTPUT" >> "$OUTPUT_FILE" 2>/dev/null || echo "(no timing captured)" >> "$OUTPUT_FILE"
 
 cat >> "$OUTPUT_FILE" << EOF
 

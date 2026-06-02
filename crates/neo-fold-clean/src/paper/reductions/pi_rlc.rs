@@ -87,10 +87,22 @@ pub fn prove(
     claims: &[CeClaim],
     witnesses: &[Mat<F>],
 ) -> Result<(Output, Proof), Error> {
+    let witness_refs: Vec<&Mat<F>> = witnesses.iter().collect();
+    prove_refs(tr, pp, s, mix, claims, &witness_refs)
+}
+
+pub(crate) fn prove_refs(
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &crate::paper::relations::Structure,
+    mix: RlcMixer,
+    claims: &[CeClaim],
+    witnesses: &[&Mat<F>],
+) -> Result<(Output, Proof), Error> {
     validate_input_shape(claims, witnesses)?;
     enforce_rlc_bound(pp, claims.len())?;
     let rhos = engine::sample_rho_n(tr.inner_mut(), pp, claims.len())?;
-    let (combined, z_mix) = engine::prove_pi_rlc(pp, s, &rhos, claims, witnesses, |zs, cs| mix(zs, cs))?;
+    let (combined, z_mix) = engine::prove_pi_rlc_refs(pp, s, &rhos, claims, witnesses, |zs, cs| mix(zs, cs))?;
     Ok((
         Output {
             claim: combined.clone(),
@@ -130,7 +142,7 @@ pub fn verify(
 // Step bodies
 // ──────────────────────────────────────────────────────────────────────────
 
-fn validate_input_shape(claims: &[CeClaim], witnesses: &[Mat<F>]) -> Result<(), Error> {
+fn validate_input_shape(claims: &[CeClaim], witnesses: &[&Mat<F>]) -> Result<(), Error> {
     if claims.is_empty() {
         return Err(Error::Shape);
     }

@@ -7,7 +7,7 @@
 //! neo_reductions::optimized_engine::optimized_verify_with_cache_and_instance_digest_and_perf
 //!   → optimized_verify_with_cache_and_public_instance_digest_impl
 //!       → bind_header_and_instance_digest_with_digest    (instance-digest variant)
-//!       → bind_me_inputs                                  (no accumulator handle)
+//!       → bind_me_inputs_accumulator_handle               (full-running U_i handle)
 //!       → sample_challenges  → sample_beta_m
 //!       → FE sumcheck (verify_sumcheck_rounds_poseidon_v3) → FE terminal identity
 //!       → NC sumcheck (verify_sumcheck_rounds_poseidon_v3) → NC terminal identity
@@ -66,8 +66,9 @@ pub mod verifier;
 // `paper::reductions::pi_ccs_split_nc_circuit::*` without touching the
 // internal module split.
 pub use digests::{
-    enforce_ccs_claim_digest, enforce_ce_claim_digest, enforce_pi_ccs_instance_digest,
-    enforce_pi_ccs_instance_digest_parent_authority, CeClaimDigestInputs,
+    enforce_accumulator_ce_claim_digest, enforce_ccs_claim_digest, enforce_ce_claim_digest,
+    enforce_pi_ccs_instance_digest, enforce_pi_ccs_instance_digest_parent_authority, AccumulatorCeClaimDigestInputs,
+    CeClaimDigestInputs,
 };
 pub use fe::{
     enforce_fe_claimed_initial, enforce_fe_sumcheck_driver, enforce_fe_terminal_identity, FeClaimedInitialInputs,

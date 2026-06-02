@@ -28,10 +28,14 @@ use crate::paper::relations::{CcsClaim, CcsInstance};
 ///   into the `PublicImage.semantic_state_digest` field.
 /// - **Stateful**: the chain carries app state. The advanced
 ///   `semantic_state_digest` is the caller-supplied digest. The F'
-///   image's CCS structure carries Poseidon2 binding rows
-///   (`H(state_in_vars) == semantic_state_digest_in_lane` and the
-///   state_out counterpart) so terminal Π_CCS sumcheck authenticates the
-///   digest against the actual app-state wires.
+///   image's CCS structure must authenticate that digest. There are two
+///   supported shapes today:
+///   explicit transition state, where the structure binds
+///   `H(state_in_vars)` / `H(state_out_vars)` to the semantic lanes, and
+///   output/public-only state, where the structure binds the app-public
+///   output bits into the semantic digest. In both cases terminal Π_CCS
+///   sumcheck authenticates the digest against F' wires; `Stateful` does
+///   not by itself imply a linked `state_in -> state_out` transition.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SemanticStateAdvance {
     Stateless,
@@ -44,10 +48,10 @@ pub enum SemanticStateAdvance {
 /// Lives on [`crate::lifecycle::Preprocessing::semantic_state_mode`] —
 /// a `pub(crate)` field with no public setter. In-crate stateful
 /// frontends (today: R1CS-F') flip this to `Stateful` at preprocess
-/// time **only when** their plan declares
-/// `semantic_state_in/out_var_indices`, i.e. when the resulting F'
-/// image's CCS structure actually carries the Poseidon2 binding rows
-/// over the app-state wires. External callers cannot construct a
+/// time when their plan declares either explicit semantic-state indices
+/// or app-public-output binding. In both cases the resulting F' image's
+/// CCS structure must carry Poseidon2 binding rows over the wires that
+/// define the semantic digest. External callers cannot construct a
 /// `Stateful` preprocessing: the only public path
 /// (`lifecycle::preprocess` + `lifecycle::preprocess_with_test_log`)
 /// always returns `Stateless`. This ownership boundary is what makes
@@ -61,7 +65,7 @@ pub enum SemanticStateAdvance {
 ///   `proof.semantic_state_digest == accumulator digest carried
 ///   through finalization`. A mismatch is surfaced as
 ///   [`Error::StatelessSemanticInvariantViolated`].
-/// - `Stateful`: the verifier trusts `proof.semantic_state_digest` as
+/// - `Stateful`: the verifier treats `proof.semantic_state_digest` as
 ///   the new chain coordinate; authenticity is established by the
 ///   terminal NIFS.V re-run inside `verify_uncompressed`, which runs
 ///   Π_CCS sumcheck on the last F' image. That image's CCS structure
@@ -92,30 +96,31 @@ pub(crate) fn state_base_case_check(state: &State) -> Result<(), Error> {
     Ok(())
 }
 
-/// Advance the IVC carrier by one step: bump counters, chain `z_i` and
-/// `public_trace` from the chunk's public-instance digest, and re-derive
-/// `acc_digest` from the new running accumulator.
+/// Advance the IVC carrier by one step: bump counters, carry the
+/// chunk's public-instance digest as `z_i`, mirror `public_trace` to
+/// `z_i`, and re-derive `acc_digest` from the new running accumulator.
 pub(crate) fn advance_state(
-    pp: &Params,
+    _pp: &Params,
     prev: State,
     new_proof: ProofState,
     fresh_count: u64,
     chunk_digest: [F; 4],
     semantic_advance: SemanticStateAdvance,
 ) -> State {
-    let new_z_i = digest::boundary_update_digest(prev.z_i, chunk_digest);
-    let new_public_trace = digest::public_trace_update_digest(prev.public_trace, chunk_digest);
+    let new_z_i = digest::digest_fields_as_digest32(chunk_digest);
+    // `public_trace` has the same domain-separation role as `z_i` in
+    // this direct-CCS build. Keep the state field for existing public
+    // image shape, but do not spend a second Poseidon2 chain on it.
+    let new_public_trace = new_z_i;
     let new_acc_digest = match &new_proof {
-        ProofState::Initial => digest::accumulator_digest_from_claims(pp.b(), &[]),
-        ProofState::Active { running, .. } if running.claims.is_empty() => {
-            digest::accumulator_digest_from_claims(pp.b(), &[])
-        }
+        ProofState::Initial => digest::AccumulatorHandle::empty().digest(),
+        ProofState::Active { running, .. } if running.claims.is_empty() => digest::AccumulatorHandle::empty().digest(),
         ProofState::Active { running, .. } => {
             let parent = running
                 .parent_authority
                 .as_ref()
                 .expect("non-empty running accumulator must carry its Pi_RLC parent authority");
-            digest::accumulator_digest_from_parent_claim(running.claims.len(), parent)
+            digest::AccumulatorHandle::from_running_parts(&running.claims, Some(parent)).digest()
         }
     };
     let new_semantic_state_digest = match semantic_advance {
@@ -156,8 +161,19 @@ pub(crate) fn f_prime_chunk_public_digest_from_claims(start_index: u64, fresh_cl
 /// `structure_digest` is the caller's cached
 /// `paper::digest::structure_digest(&prep.structure)`; passing it in
 /// avoids walking the structure on every step.
-pub(crate) fn compute_x_out(vk: &VerifierKey, _pp: &Params, structure_digest: &[F; 4], state: &State) -> EncInst {
-    let bytes = digest::state_x_out_digest(
+pub(crate) fn compute_x_out(
+    vk: &VerifierKey,
+    _pp: &Params,
+    structure_digest: &[F; 4],
+    state: &State,
+    semantic_mode: SemanticStateMode,
+) -> EncInst {
+    let mode = match semantic_mode {
+        SemanticStateMode::Stateless => digest::StateXOutDigestMode::Stateless,
+        SemanticStateMode::Stateful => digest::StateXOutDigestMode::Stateful,
+    };
+    let bytes = digest::state_x_out_digest_with_mode(
+        mode,
         vk.digest(),
         structure_digest,
         state.chunk_count,

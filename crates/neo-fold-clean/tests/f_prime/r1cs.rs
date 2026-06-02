@@ -37,8 +37,7 @@ use neo_fold_clean::engine::transcript::Transcript;
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
 use neo_fold_clean::paper::construction2::RunningInstance;
 use neo_fold_clean::paper::digest::{
-    accumulator_digest_from_claims, accumulator_digest_from_parent_claim, boundary_update_digest, digest32_as_fields,
-    digest_fields_as_digest32, public_trace_update_digest, state_x_out_digest,
+    digest32_as_fields, digest_fields_as_digest32, state_x_out_digest_with_mode, AccumulatorHandle, StateXOutDigestMode,
 };
 use neo_fold_clean::paper::f_prime::r1cs::{
     encode_f_prime_public_input, enforce_f_prime_base_step_circuit, enforce_f_prime_recursive_step_circuit,
@@ -90,11 +89,26 @@ fn rand_digest(seed: u64) -> [F; 4] {
     std::array::from_fn(|i| F::from_u64(seed.wrapping_mul(31).wrapping_add(i as u64 + 1)))
 }
 
+fn append_f_prime_step_context(tr: &mut Transcript, state: &FPrimeStateIn, chunk_digest: [F; 4]) {
+    tr.append_fields(b"f_prime/vk_fs", &state.vk_fs_digest);
+    tr.append_fields(b"f_prime/structure", &state.structure_digest);
+    tr.append_fields(b"f_prime/chunk_count_in", &[F::from_u64(state.chunk_count_in)]);
+    tr.append_fields(b"f_prime/step_count_in", &[F::from_u64(state.step_count_in)]);
+    tr.append_fields(b"f_prime/z_0", &state.z_0);
+    tr.append_fields(b"f_prime/z_i_in", &state.z_i_in);
+    tr.append_fields(b"f_prime/pc", &[F::from_u64(state.pc)]);
+    tr.append_fields(b"f_prime/semantic_state_in", &state.semantic_state_digest_in);
+    tr.append_fields(b"f_prime/acc_digest_in", &state.acc_digest_in);
+    tr.append_fields(b"f_prime/public_trace_in", &state.public_trace_in);
+    tr.append_fields(b"f_prime/chunk_digest", &chunk_digest);
+}
+
 /// Native counterpart of [`enforce_state_x_out_digest_circuit`]. Same
 /// absorb sequence as [`state_x_out_digest`], driven from the F' state-in
 /// fields.
 fn native_prior_x_out(state: &FPrimeStateIn) -> [F; 4] {
-    digest32_as_fields(state_x_out_digest(
+    digest32_as_fields(state_x_out_digest_with_mode(
+        StateXOutDigestMode::Stateless,
         digest_fields_as_digest32(state.vk_fs_digest),
         &state.structure_digest,
         state.chunk_count_in,
@@ -140,13 +154,7 @@ fn build_fixture_with_divergent_fresh(divergent_index: usize) -> Fixture {
     )
     .expect("first NIFS.P");
 
-    let acc_digest_in = digest32_as_fields(accumulator_digest_from_parent_claim(
-        running.claims.len(),
-        running
-            .parent_authority
-            .as_ref()
-            .expect("seed running has parent authority"),
-    ));
+    let acc_digest_in = running_acc_digest(&running);
     let state = FPrimeStateIn {
         vk_fs_digest: rand_digest(0x10),
         structure_digest: rand_digest(0x20),
@@ -183,12 +191,7 @@ fn build_fixture_with_divergent_fresh(divergent_index: usize) -> Fixture {
 
     let chunk_digest = rand_digest(0x50);
     let mut tr = Transcript::with_label(TRANSCRIPT_LABEL);
-    tr.append_fields(b"f_prime/vk_fs", &state.vk_fs_digest);
-    tr.append_fields(b"f_prime/structure", &state.structure_digest);
-    tr.append_fields(b"f_prime/z_0", &state.z_0);
-    tr.append_fields(b"f_prime/z_i_in", &state.z_i_in);
-    tr.append_fields(b"f_prime/public_trace_in", &state.public_trace_in);
-    tr.append_fields(b"f_prime/chunk_digest", &chunk_digest);
+    append_f_prime_step_context(&mut tr, &state, chunk_digest);
     let (next_running, proof) = neo_fold_clean::paper::nifs::prove(
         &mut tr,
         &prep.params,
@@ -223,6 +226,10 @@ fn build_fixture_with_divergent_fresh(divergent_index: usize) -> Fixture {
 /// "one chunk rooted at a single prior Construction-2 state"
 /// semantics F' R1CS expects.
 fn build_fixture_with_k_fresh(k_fresh: usize) -> Fixture {
+    build_fixture_with_k_fresh_and_public_one(k_fresh, F::ONE)
+}
+
+fn build_fixture_with_k_fresh_and_public_one(k_fresh: usize, public_one: F) -> Fixture {
     assert!(k_fresh >= 1, "build_fixture_with_k_fresh: k_fresh must be \u{2265} 1");
     let r1cs = bit_carrier_r1cs();
     let prep = direct_ccs::preprocess_seeded(&r1cs, 42).expect("preprocess");
@@ -246,15 +253,9 @@ fn build_fixture_with_k_fresh(k_fresh: usize) -> Fixture {
     .expect("first NIFS.P");
 
     // Pin F' state-in so the recursive link is honest:
-    //   acc_digest_in = digest(running.claims)
+    //   acc_digest_in = digest(full running accumulator)
     //   fresh[i].x   = enc_inst(state_x_out(state))   for every i in 0..k_fresh
-    let acc_digest_in = digest32_as_fields(accumulator_digest_from_parent_claim(
-        running.claims.len(),
-        running
-            .parent_authority
-            .as_ref()
-            .expect("seed running has parent authority"),
-    ));
+    let acc_digest_in = running_acc_digest(&running);
     let state = FPrimeStateIn {
         vk_fs_digest: rand_digest(0x10),
         structure_digest: rand_digest(0x20),
@@ -271,7 +272,9 @@ fn build_fixture_with_k_fresh(k_fresh: usize) -> Fixture {
     let prior_x_out = native_prior_x_out(&state);
     let mut z = encode_f_prime_public_input(prior_x_out);
     assert_eq!(z.len(), F_PRIME_PUBLIC_INPUT_LEN);
-    // Carrier R1CS has m = m_in, so the assignment is exactly [1, bits…].
+    z[0] = public_one;
+    // Carrier R1CS has m = m_in, so the assignment is exactly
+    // [public_one, bits…].
     assert_eq!(prep.structure().m, F_PRIME_PUBLIC_INPUT_LEN);
     // Defensive: pad/truncate to structure.m in case those ever diverge.
     z.resize(prep.structure().m, F::ZERO);
@@ -288,12 +291,7 @@ fn build_fixture_with_k_fresh(k_fresh: usize) -> Fixture {
     // boundary.
     let chunk_digest = rand_digest(0x50);
     let mut tr = Transcript::with_label(TRANSCRIPT_LABEL);
-    tr.append_fields(b"f_prime/vk_fs", &state.vk_fs_digest);
-    tr.append_fields(b"f_prime/structure", &state.structure_digest);
-    tr.append_fields(b"f_prime/z_0", &state.z_0);
-    tr.append_fields(b"f_prime/z_i_in", &state.z_i_in);
-    tr.append_fields(b"f_prime/public_trace_in", &state.public_trace_in);
-    tr.append_fields(b"f_prime/chunk_digest", &chunk_digest);
+    append_f_prime_step_context(&mut tr, &state, chunk_digest);
     let (next_running, proof) = neo_fold_clean::paper::nifs::prove(
         &mut tr,
         &prep.params,
@@ -358,11 +356,24 @@ fn make_step_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> FPrimeStepCo
         },
         b: prep.params.b(),
         transcript_label: TRANSCRIPT_LABEL,
+        state_x_out_digest_mode: match prep.semantic_state_mode() {
+            neo_fold_clean::paper::construction2::SemanticStateMode::Stateless => {
+                neo_fold_clean::paper::digest::StateXOutDigestMode::Stateless
+            }
+            neo_fold_clean::paper::construction2::SemanticStateMode::Stateful => {
+                neo_fold_clean::paper::digest::StateXOutDigestMode::Stateful
+            }
+        },
     }
 }
 
+fn running_acc_digest(running: &RunningInstance) -> [F; 4] {
+    AccumulatorHandle::from_running_parts(&running.claims, running.parent_authority.as_ref()).digest_fields()
+}
+
 fn base_state(b: u32, z_0: [F; 4]) -> FPrimeStateIn {
-    let empty_acc = digest32_as_fields(accumulator_digest_from_claims(b, &[]));
+    let _ = b;
+    let empty_acc = AccumulatorHandle::empty().digest_fields();
     FPrimeStateIn {
         vk_fs_digest: rand_digest(0x10),
         structure_digest: rand_digest(0x20),
@@ -399,9 +410,10 @@ fn native_x_out(
     new_chunk_count: u64,
     new_step_count: u64,
 ) -> [F; 4] {
-    let new_z_i = boundary_update_digest(digest_fields_as_digest32(state.z_i_in), chunk_digest);
-    let new_public_trace = public_trace_update_digest(digest_fields_as_digest32(state.public_trace_in), chunk_digest);
-    digest32_as_fields(state_x_out_digest(
+    let new_z_i = digest_fields_as_digest32(chunk_digest);
+    let new_public_trace = new_z_i;
+    digest32_as_fields(state_x_out_digest_with_mode(
+        StateXOutDigestMode::Stateless,
         digest_fields_as_digest32(state.vk_fs_digest),
         &state.structure_digest,
         new_chunk_count,
@@ -419,26 +431,20 @@ fn native_x_out(
 /// 1, rows_in_chunk)`. Callers wrap this in an `FPrimeSourceImage` via
 /// `push_enc_inst` to get the bit-encoded `BitRange`.
 fn base_step_x_out(b: u32, state: &FPrimeStateIn, chunk_digest: [F; 4], rows_in_chunk: u64) -> [F; 4] {
-    let empty_acc = digest32_as_fields(accumulator_digest_from_claims(b, &[]));
+    let _ = b;
+    let empty_acc = AccumulatorHandle::empty().digest_fields();
     native_x_out(state, chunk_digest, empty_acc, empty_acc, 1, rows_in_chunk)
 }
 
 /// Raw `x_out` (`[F; 4]`) for the **recursive** step: post-state's
 /// `acc_digest` is `digest(children)`, `chunk_count' = chunk_count + 1`,
 /// `step_count' = step_count + |fresh|`.
-fn recursive_step_x_out(
-    b: u32,
-    state: &FPrimeStateIn,
-    chunk_digest: [F; 4],
-    children: &[CeClaim],
-    fresh_count: u64,
-) -> [F; 4] {
-    let new_acc = digest32_as_fields(accumulator_digest_from_claims(b, children));
+fn recursive_step_x_out(state: &FPrimeStateIn, chunk_digest: [F; 4], new_acc: [F; 4], fresh_count: u64) -> [F; 4] {
     native_x_out(
         state,
         chunk_digest,
         new_acc,
-        state.semantic_state_digest_in,
+        new_acc,
         state.chunk_count_in + 1,
         state.step_count_in + fresh_count,
     )
@@ -488,6 +494,47 @@ fn f_prime_base_step_emits_and_satisfies() {
         "F' base step must accept honest base witness (first bad row: {:?})",
         b.first_unsatisfied_row()
     );
+    let unconstrained = b.unconstrained_columns();
+    let mut allowed = Vec::new();
+    allowed.extend(out.state_in.structure_digest.iter().map(|v| v.col()));
+    allowed.extend(out.state_in.semantic_state_digest.iter().map(|v| v.col()));
+    allowed.extend(out.state_in.public_trace.iter().map(|v| v.col()));
+    allowed.sort_unstable();
+    assert!(
+        unconstrained == allowed,
+        "base F' step left unexpected unconstrained columns: got {unconstrained:?}, \
+         expected only decider-owned base seed pins {allowed:?}"
+    );
+}
+
+#[test]
+fn f_prime_base_step_rejects_zero_rows_in_chunk() {
+    let fixture = build_fixture();
+    let cfg = make_step_config(&fixture.prep);
+    let z_0 = rand_digest(0x100);
+    let state = base_state(cfg.b, z_0);
+    let chunk_digest = rand_digest(0x50);
+    let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, 0);
+    let source = base_source_image(&state, expected_x_out);
+    let inputs = FPrimeBaseInputs {
+        state: state.clone(),
+        chunk_digest,
+        semantic_state_digest_out: state.semantic_state_digest_in,
+        rows_in_chunk: 0,
+        source_image: &source.image,
+        chunk_count_in_word: source.chunk_count_in_word,
+        step_count_in_word: source.step_count_in_word,
+        pc_word: source.pc_word,
+        public_x_out_bits: source.public_x_out_bits,
+    };
+
+    let mut b = R1csBuilder::new();
+    let result = enforce_f_prime_base_step_circuit(&mut b, &cfg, &inputs);
+    assert!(
+        result.is_err(),
+        "base F' R1CS must reject a zero-row first chunk; lifecycle forbids empty batches, \
+         and the audit circuit should fail closed on the same shape"
+    );
 }
 
 #[test]
@@ -515,6 +562,216 @@ fn f_prime_base_step_rejects_nonzero_chunk_count_in() {
     let mut b = R1csBuilder::new();
     enforce_f_prime_base_step_circuit(&mut b, &cfg, &inputs).expect("emit");
     assert!(!b.is_satisfied(), "base step must reject chunk_count_in != 0");
+}
+
+#[test]
+fn f_prime_base_rejects_noncanonical_zero_chunk_count_source_word() {
+    // `p = 0xFFFF_FFFF_0000_0001` decodes to zero in Goldilocks. Without
+    // the source-word canonicality row, the `chunk_count_in == 0` equality
+    // would accept this noncanonical low-norm source image.
+    let fixture = build_fixture();
+    let cfg = make_step_config(&fixture.prep);
+    let z_0 = rand_digest(0x100);
+    let state = base_state(cfg.b, z_0);
+    let chunk_digest = rand_digest(0x50);
+    let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, 3);
+    let mut source = base_source_image(&state, expected_x_out);
+    let start = source.chunk_count_in_word.bits().start();
+    let noncanonical: u64 = 0xFFFF_FFFF_0000_0001;
+    for i in 0..64 {
+        source
+            .image
+            .set_bit(start + i, ((noncanonical >> i) & 1) == 1);
+    }
+    let inputs = FPrimeBaseInputs {
+        state: state.clone(),
+        chunk_digest,
+        semantic_state_digest_out: state.semantic_state_digest_in,
+        rows_in_chunk: 3,
+        source_image: &source.image,
+        chunk_count_in_word: source.chunk_count_in_word,
+        step_count_in_word: source.step_count_in_word,
+        pc_word: source.pc_word,
+        public_x_out_bits: source.public_x_out_bits,
+    };
+
+    let mut b = R1csBuilder::new();
+    enforce_f_prime_base_step_circuit(&mut b, &cfg, &inputs).expect("emit");
+    assert!(
+        !b.is_satisfied(),
+        "base source-image chunk_count word must be canonical Goldilocks (< p)"
+    );
+}
+
+#[test]
+fn f_prime_base_step_rejects_source_image_step_count_mismatch() {
+    // Base F' also binds `step_count_in` to the source image before
+    // forcing the state field to zero. Mutate only the source-image word:
+    // the base state remains honest, so the source-word equality is the
+    // row that must catch this.
+    let fixture = build_fixture();
+    let cfg = make_step_config(&fixture.prep);
+    let z_0 = rand_digest(0x100);
+    let state = base_state(cfg.b, z_0);
+    let chunk_digest = rand_digest(0x50);
+    let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, 3);
+    let mut source = base_source_image(&state, expected_x_out);
+    let idx = source.step_count_in_word.bits().start();
+    source
+        .image
+        .set_bit(idx, source.image.values()[idx] == F::ZERO);
+    let inputs = FPrimeBaseInputs {
+        state: state.clone(),
+        chunk_digest,
+        semantic_state_digest_out: state.semantic_state_digest_in,
+        rows_in_chunk: 3,
+        source_image: &source.image,
+        chunk_count_in_word: source.chunk_count_in_word,
+        step_count_in_word: source.step_count_in_word,
+        pc_word: source.pc_word,
+        public_x_out_bits: source.public_x_out_bits,
+    };
+
+    let mut b = R1csBuilder::new();
+    enforce_f_prime_base_step_circuit(&mut b, &cfg, &inputs).expect("emit");
+    assert!(
+        !b.is_satisfied(),
+        "base source-image step_count word must match the in-circuit state var"
+    );
+}
+
+#[test]
+fn f_prime_base_step_rejects_tampered_public_x_out_bits() {
+    // HyperNova's F' output is the hash `x_out`. The base step computes it
+    // in-circuit and must pin the source-image/public `enc_inst(x_out)`
+    // bits to that digest. Mutate only the carried output bits while
+    // leaving the base state and chunk digest honest.
+    let fixture = build_fixture();
+    let cfg = make_step_config(&fixture.prep);
+    let z_0 = rand_digest(0x100);
+    let state = base_state(cfg.b, z_0);
+    let chunk_digest = rand_digest(0x50);
+    let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, 3);
+    let mut source = base_source_image(&state, expected_x_out);
+    let idx = source.public_x_out_bits.start();
+    source
+        .image
+        .set_bit(idx, source.image.values()[idx] == F::ZERO);
+    let inputs = FPrimeBaseInputs {
+        state: state.clone(),
+        chunk_digest,
+        semantic_state_digest_out: state.semantic_state_digest_in,
+        rows_in_chunk: 3,
+        source_image: &source.image,
+        chunk_count_in_word: source.chunk_count_in_word,
+        step_count_in_word: source.step_count_in_word,
+        pc_word: source.pc_word,
+        public_x_out_bits: source.public_x_out_bits,
+    };
+
+    let mut b = R1csBuilder::new();
+    enforce_f_prime_base_step_circuit(&mut b, &cfg, &inputs).expect("emit");
+    assert!(
+        !b.is_satisfied(),
+        "base F' accepted tampered enc_inst(x_out) output bits"
+    );
+}
+
+#[test]
+fn f_prime_base_step_rejects_noncanonical_source_image_pc_word() {
+    // The single-program build fixes pc = TRIVIAL_PC = 1. Encode `p + 1`
+    // in the source-image pc word: as a field element it equals 1, so the
+    // pc equality alone would accept. The canonical Goldilocks word row
+    // must reject it.
+    let fixture = build_fixture();
+    let cfg = make_step_config(&fixture.prep);
+    let z_0 = rand_digest(0x100);
+    let state = base_state(cfg.b, z_0);
+    let chunk_digest = rand_digest(0x50);
+    let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, 3);
+    let mut source = base_source_image(&state, expected_x_out);
+    let start = source.pc_word.bits().start();
+    let noncanonical: u64 = 0xFFFF_FFFF_0000_0002;
+    for i in 0..64 {
+        source
+            .image
+            .set_bit(start + i, ((noncanonical >> i) & 1) == 1);
+    }
+    let inputs = FPrimeBaseInputs {
+        state: state.clone(),
+        chunk_digest,
+        semantic_state_digest_out: state.semantic_state_digest_in,
+        rows_in_chunk: 3,
+        source_image: &source.image,
+        chunk_count_in_word: source.chunk_count_in_word,
+        step_count_in_word: source.step_count_in_word,
+        pc_word: source.pc_word,
+        public_x_out_bits: source.public_x_out_bits,
+    };
+
+    let mut b = R1csBuilder::new();
+    enforce_f_prime_base_step_circuit(&mut b, &cfg, &inputs).expect("emit");
+    assert!(
+        !b.is_satisfied(),
+        "base source-image pc word must be canonical Goldilocks (< p)"
+    );
+}
+
+#[test]
+fn f_prime_base_step_rejects_nonzero_step_count_in() {
+    let fixture = build_fixture();
+    let cfg = make_step_config(&fixture.prep);
+    let z_0 = rand_digest(0x100);
+    let mut state = base_state(cfg.b, z_0);
+    state.step_count_in = 1;
+    let chunk_digest = rand_digest(0x50);
+    let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, 3);
+    let source = base_source_image(&state, expected_x_out);
+    let inputs = FPrimeBaseInputs {
+        state: state.clone(),
+        chunk_digest,
+        semantic_state_digest_out: state.semantic_state_digest_in,
+        rows_in_chunk: 3,
+        source_image: &source.image,
+        chunk_count_in_word: source.chunk_count_in_word,
+        step_count_in_word: source.step_count_in_word,
+        pc_word: source.pc_word,
+        public_x_out_bits: source.public_x_out_bits,
+    };
+
+    let mut b = R1csBuilder::new();
+    enforce_f_prime_base_step_circuit(&mut b, &cfg, &inputs).expect("emit");
+    assert!(!b.is_satisfied(), "base step must reject step_count_in != 0");
+}
+
+#[test]
+fn f_prime_base_step_rejects_nonempty_acc_digest_in() {
+    let fixture = build_fixture();
+    let cfg = make_step_config(&fixture.prep);
+    let z_0 = rand_digest(0x100);
+    let mut state = base_state(cfg.b, z_0);
+    state.acc_digest_in[0] += F::ONE;
+    let chunk_digest = rand_digest(0x50);
+    let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, 3);
+    let source = base_source_image(&state, expected_x_out);
+    let inputs = FPrimeBaseInputs {
+        state: state.clone(),
+        chunk_digest,
+        semantic_state_digest_out: state.semantic_state_digest_in,
+        rows_in_chunk: 3,
+        source_image: &source.image,
+        chunk_count_in_word: source.chunk_count_in_word,
+        step_count_in_word: source.step_count_in_word,
+        pc_word: source.pc_word,
+        public_x_out_bits: source.public_x_out_bits,
+    };
+
+    let mut b = R1csBuilder::new();
+    enforce_f_prime_base_step_circuit(&mut b, &cfg, &inputs).expect("emit");
+    assert!(
+        !b.is_satisfied(),
+        "base step must reject an incoming accumulator digest other than u_perp"
+    );
 }
 
 #[test]
@@ -548,12 +805,15 @@ fn f_prime_base_step_rejects_z_i_neq_z_0() {
 
 fn recursive_x_out(fixture: &Fixture) -> [F; 4] {
     recursive_step_x_out(
-        fixture.prep.params.b(),
         &fixture.state,
         fixture.chunk_digest,
-        &fixture.children,
+        recursive_acc_digest(fixture),
         fixture.fresh_claims.len() as u64,
     )
+}
+
+fn recursive_acc_digest(fixture: &Fixture) -> [F; 4] {
+    AccumulatorHandle::from_running_parts(&fixture.children, Some(&fixture.combined)).digest_fields()
 }
 
 /// Bundle of the source image + every handle a base/recursive F' input
@@ -595,13 +855,21 @@ fn base_source_image(state: &FPrimeStateIn, x_out: [F; 4]) -> BaseSourceFixture 
 /// Build a recursive-step source image: counters, then prior public
 /// input (with the leading constant-one), then output enc_inst.
 fn recursive_source_image(fixture: &Fixture) -> RecursiveSourceFixture {
+    recursive_source_image_with_public_x_out(fixture, recursive_x_out(fixture))
+}
+
+fn recursive_source_image_with_public_x_out(fixture: &Fixture, public_x_out: [F; 4]) -> RecursiveSourceFixture {
+    recursive_source_image_for_state(&fixture.state, public_x_out)
+}
+
+fn recursive_source_image_for_state(state: &FPrimeStateIn, public_x_out: [F; 4]) -> RecursiveSourceFixture {
     let mut image = FPrimeSourceImage::new();
-    let chunk_count_in_word = image.push_u64_le(fixture.state.chunk_count_in);
-    let step_count_in_word = image.push_u64_le(fixture.state.step_count_in);
-    let pc_word = image.push_u64_le(fixture.state.pc);
-    let prior_public = image.push_f_prime_public_input(native_prior_x_out(&fixture.state));
+    let chunk_count_in_word = image.push_u64_le(state.chunk_count_in);
+    let step_count_in_word = image.push_u64_le(state.step_count_in);
+    let pc_word = image.push_u64_le(state.pc);
+    let prior_public = image.push_f_prime_public_input(native_prior_x_out(state));
     let prior_x_out_bits = BitRange::new(prior_public.start() + 1, F_PRIME_ENC_INST_BITS);
-    let public_x_out_bits = image.push_enc_inst(recursive_x_out(fixture));
+    let public_x_out_bits = image.push_enc_inst(public_x_out);
     RecursiveSourceFixture {
         image,
         chunk_count_in_word,
@@ -625,7 +893,8 @@ fn f_prime_recursive_step_accepts_real_native_nifs_proof() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
-        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
+        semantic_state_digest_out: recursive_acc_digest(&fixture),
+        acc_digest_out: recursive_acc_digest(&fixture),
         nifs_msg: msg_from_fixture(&fixture),
         rows_in_chunk: 1,
         source_image: &source.image,
@@ -652,6 +921,31 @@ fn f_prime_recursive_step_accepts_real_native_nifs_proof() {
         "real recursive F' step must satisfy (first bad row: {:?})",
         b.first_unsatisfied_row()
     );
+    let unconstrained = b.unconstrained_columns();
+    let mut allowed = Vec::new();
+    if let Some(running) = &out.nifs_running {
+        allowed.extend(
+            running
+                .iter()
+                .flat_map(|claim| claim.y_zcol.iter().flat_map(|v| [v.c0.col(), v.c1.col()])),
+        );
+    }
+    if let Some(parent) = &out.nifs_running_parent_authority {
+        allowed.extend(parent.y_zcol.iter().flat_map(|v| [v.c0.col(), v.c1.col()]));
+    }
+    if let Some(children) = &out.nifs_children {
+        allowed.extend(
+            children
+                .iter()
+                .flat_map(|child| child.y_zcol.iter().map(|v| v.col())),
+        );
+    }
+    allowed.sort_unstable();
+    assert!(
+        unconstrained == allowed,
+        "recursive F' step left unexpected unconstrained columns: got {unconstrained:?}, \
+         expected only non-authority y_zcol sidecar limbs {allowed:?}"
+    );
 }
 
 #[test]
@@ -662,7 +956,8 @@ fn f_prime_recursive_rejects_chunk_count_in_zero() {
     state.chunk_count_in = 0;
     let source = recursive_source_image(&fixture);
     let inputs = FPrimeRecursiveInputs {
-        semantic_state_digest_out: state.semantic_state_digest_in,
+        semantic_state_digest_out: recursive_acc_digest(&fixture),
+        acc_digest_out: recursive_acc_digest(&fixture),
         state,
         chunk_digest: fixture.chunk_digest,
         nifs_msg: msg_from_fixture(&fixture),
@@ -689,7 +984,8 @@ fn f_prime_recursive_rejects_empty_fresh_batch() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
-        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
+        semantic_state_digest_out: recursive_acc_digest(&fixture),
+        acc_digest_out: recursive_acc_digest(&fixture),
         nifs_msg: NifsVCircuitMessages {
             fresh: &empty,
             running: &fixture.running.claims,
@@ -728,7 +1024,8 @@ fn recursive_step_accepts_multi_fresh_batch() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
-        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
+        semantic_state_digest_out: recursive_acc_digest(&fixture),
+        acc_digest_out: recursive_acc_digest(&fixture),
         nifs_msg: msg_from_fixture(&fixture),
         rows_in_chunk: 3,
         source_image: &source.image,
@@ -768,7 +1065,8 @@ fn f_prime_recursive_rejects_multi_fresh_with_divergent_non_first_link() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
-        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
+        semantic_state_digest_out: recursive_acc_digest(&fixture),
+        acc_digest_out: recursive_acc_digest(&fixture),
         nifs_msg: msg_from_fixture(&fixture),
         rows_in_chunk: 3,
         source_image: &source.image,
@@ -800,7 +1098,8 @@ fn f_prime_recursive_rejects_fresh_m_in_mismatch() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
-        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
+        semantic_state_digest_out: recursive_acc_digest(&fixture),
+        acc_digest_out: recursive_acc_digest(&fixture),
         nifs_msg: NifsVCircuitMessages {
             fresh: &bad_fresh,
             running: &fixture.running.claims,
@@ -846,7 +1145,8 @@ fn f_prime_recursive_rejects_tampered_public_x_out_bits() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
-        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
+        semantic_state_digest_out: recursive_acc_digest(&fixture),
+        acc_digest_out: recursive_acc_digest(&fixture),
         nifs_msg: msg_from_fixture(&fixture),
         rows_in_chunk: 1,
         source_image: &source.image,
@@ -873,7 +1173,8 @@ fn f_prime_recursive_rejects_tampered_acc_digest_in() {
     state.acc_digest_in[0] += F::ONE;
     let source = recursive_source_image(&fixture);
     let inputs = FPrimeRecursiveInputs {
-        semantic_state_digest_out: state.semantic_state_digest_in,
+        semantic_state_digest_out: recursive_acc_digest(&fixture),
+        acc_digest_out: recursive_acc_digest(&fixture),
         state,
         chunk_digest: fixture.chunk_digest,
         nifs_msg: msg_from_fixture(&fixture),
@@ -904,7 +1205,8 @@ fn f_prime_recursive_rejects_tampered_chunk_digest() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: bad_chunk_digest,
-        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
+        semantic_state_digest_out: recursive_acc_digest(&fixture),
+        acc_digest_out: recursive_acc_digest(&fixture),
         nifs_msg: msg_from_fixture(&fixture),
         rows_in_chunk: 1,
         source_image: &source.image,
@@ -938,7 +1240,8 @@ fn f_prime_recursive_rejects_tampered_fresh_x_bit() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
-        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
+        semantic_state_digest_out: recursive_acc_digest(&fixture),
+        acc_digest_out: recursive_acc_digest(&fixture),
         nifs_msg: NifsVCircuitMessages {
             fresh: &bad_fresh,
             running: &fixture.running.claims,
@@ -965,6 +1268,38 @@ fn f_prime_recursive_rejects_tampered_fresh_x_bit() {
 }
 
 #[test]
+fn f_prime_recursive_rejects_fresh_public_one_slot_not_one_even_when_nifs_proof_matches() {
+    // Build the NIFS proof honestly for a fresh public input whose body is
+    // the correct enc_inst(prior_x_out), but whose CCS constant-one slot is
+    // zero. NIFS.V itself is consistent with that fresh claim; the F'
+    // recursive-link shell must reject via the explicit x[0] == 1 row.
+    let fixture = build_fixture_with_k_fresh_and_public_one(1, F::ZERO);
+    let cfg = make_step_config(&fixture.prep);
+    let source = recursive_source_image(&fixture);
+    let inputs = FPrimeRecursiveInputs {
+        state: fixture.state.clone(),
+        chunk_digest: fixture.chunk_digest,
+        semantic_state_digest_out: recursive_acc_digest(&fixture),
+        acc_digest_out: recursive_acc_digest(&fixture),
+        nifs_msg: msg_from_fixture(&fixture),
+        rows_in_chunk: 1,
+        source_image: &source.image,
+        chunk_count_in_word: source.chunk_count_in_word,
+        step_count_in_word: source.step_count_in_word,
+        pc_word: source.pc_word,
+        prior_x_out_bits: source.prior_x_out_bits,
+        public_x_out_bits: source.public_x_out_bits,
+    };
+
+    let mut b = R1csBuilder::new();
+    enforce_f_prime_recursive_step_circuit(&mut b, &fixture.prep.params, &cfg, &inputs).expect("emit");
+    assert!(
+        !b.is_satisfied(),
+        "F' recursive accepted a fresh public input with x[0] != 1 even though the NIFS proof matched it"
+    );
+}
+
+#[test]
 fn f_prime_recursive_rejects_nonbinary_source_image_public_bit() {
     // SourceImageWires::alloc enforces bitness on every source-image
     // coordinate. Tamper one of the public-x_out source-image bits to a
@@ -979,7 +1314,8 @@ fn f_prime_recursive_rejects_nonbinary_source_image_public_bit() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
-        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
+        semantic_state_digest_out: recursive_acc_digest(&fixture),
+        acc_digest_out: recursive_acc_digest(&fixture),
         nifs_msg: msg_from_fixture(&fixture),
         rows_in_chunk: 1,
         source_image: &source.image,
@@ -1014,7 +1350,8 @@ fn f_prime_recursive_rejects_tampered_prior_source_image_bit() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
-        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
+        semantic_state_digest_out: recursive_acc_digest(&fixture),
+        acc_digest_out: recursive_acc_digest(&fixture),
         nifs_msg: msg_from_fixture(&fixture),
         rows_in_chunk: 1,
         source_image: &source.image,
@@ -1050,7 +1387,8 @@ fn f_prime_recursive_rejects_fresh_x_not_matching_prior_source_image() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
-        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
+        semantic_state_digest_out: recursive_acc_digest(&fixture),
+        acc_digest_out: recursive_acc_digest(&fixture),
         nifs_msg: NifsVCircuitMessages {
             fresh: &bad_fresh,
             running: &fixture.running.claims,
@@ -1091,7 +1429,8 @@ fn f_prime_recursive_rejects_source_image_chunk_count_mismatch() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
-        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
+        semantic_state_digest_out: recursive_acc_digest(&fixture),
+        acc_digest_out: recursive_acc_digest(&fixture),
         nifs_msg: msg_from_fixture(&fixture),
         rows_in_chunk: 1,
         source_image: &source.image,
@@ -1111,16 +1450,52 @@ fn f_prime_recursive_rejects_source_image_chunk_count_mismatch() {
 }
 
 #[test]
+fn f_prime_recursive_rejects_source_image_step_count_mismatch() {
+    // Same Step-4 source-image binding as chunk_count, but for
+    // `step_count_in`. HyperNova's state hash absorbs the step counter;
+    // a prover must not be able to route a stale or forged source-image
+    // word while keeping the in-circuit state field honest.
+    let fixture = build_fixture();
+    let cfg = make_step_config(&fixture.prep);
+    let mut source = recursive_source_image(&fixture);
+    let idx = source.step_count_in_word.bits().start();
+    source
+        .image
+        .set_bit(idx, source.image.values()[idx] == F::ZERO);
+    let inputs = FPrimeRecursiveInputs {
+        state: fixture.state.clone(),
+        chunk_digest: fixture.chunk_digest,
+        semantic_state_digest_out: recursive_acc_digest(&fixture),
+        acc_digest_out: recursive_acc_digest(&fixture),
+        nifs_msg: msg_from_fixture(&fixture),
+        rows_in_chunk: 1,
+        source_image: &source.image,
+        chunk_count_in_word: source.chunk_count_in_word,
+        step_count_in_word: source.step_count_in_word,
+        pc_word: source.pc_word,
+        prior_x_out_bits: source.prior_x_out_bits,
+        public_x_out_bits: source.public_x_out_bits,
+    };
+
+    let mut b = R1csBuilder::new();
+    enforce_f_prime_recursive_step_circuit(&mut b, &fixture.prep.params, &cfg, &inputs).expect("emit");
+    assert!(
+        !b.is_satisfied(),
+        "source-image step_count word must match in-circuit state var"
+    );
+}
+
+#[test]
 fn f_prime_recursive_rejects_noncanonical_source_image_pc_word() {
-    // Overwrite pc's source-image word with `p = 0xFFFF_FFFF_0000_0001`,
-    // the smallest non-canonical Goldilocks 64-bit encoding. The Step 4
-    // canonicality enforcement (`enforce_goldilocks_word_canonical` on
-    // pc_word) must reject it.
+    // Overwrite pc's source-image word with `p + 1`. This is noncanonical
+    // but field-decodes to the honest single-program pc (`TRIVIAL_PC = 1`).
+    // Without the Step 4 canonicality row, the pc equality row alone would
+    // accept this source image.
     let fixture = build_fixture();
     let cfg = make_step_config(&fixture.prep);
     let mut source = recursive_source_image(&fixture);
     let start = source.pc_word.bits().start();
-    let noncanonical: u64 = 0xFFFF_FFFF_0000_0001;
+    let noncanonical: u64 = 0xFFFF_FFFF_0000_0002;
     for i in 0..64 {
         source
             .image
@@ -1129,7 +1504,8 @@ fn f_prime_recursive_rejects_noncanonical_source_image_pc_word() {
     let inputs = FPrimeRecursiveInputs {
         state: fixture.state.clone(),
         chunk_digest: fixture.chunk_digest,
-        semantic_state_digest_out: fixture.state.semantic_state_digest_in,
+        semantic_state_digest_out: recursive_acc_digest(&fixture),
+        acc_digest_out: recursive_acc_digest(&fixture),
         nifs_msg: msg_from_fixture(&fixture),
         rows_in_chunk: 1,
         source_image: &source.image,

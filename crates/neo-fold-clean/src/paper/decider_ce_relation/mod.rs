@@ -4,13 +4,19 @@
 //! ## Ownership
 //!
 //! Owns the R1CS rows that bind the **final running accumulator's
-//! opened witnesses `Z`** to each claim's `(c, X, r, y_ring, ct)` —
-//! the same SuperNeo CE relation obligations that `lifecycle::verify`
-//! executes natively. The Rust function and the circuit verify the
-//! same equations; both sides must stay in sync.
+//! opened witnesses `Z`** to each claim's `(c, X, r, y_ring, ct)` plus
+//! the optional implementation-side NC channel `(s_col, y_zcol)` when
+//! present — the same SuperNeo CE relation obligations that
+//! `lifecycle::verify` executes natively. The Rust function and the
+//! circuit verify the same equations; both sides must stay in sync.
 //!
 //! For each `(claim, witness Z)` in `statement.witness.final_state.proof.running`:
 //!
+//! 0. **Program public-input shape**: `claim.m_in` must not exceed the
+//!    CCS width `structure.m`. If preprocessing fixed
+//!    `public_input_len`, then `claim.m_in` must equal it. The prover
+//!    cannot relabel the CE claim under a smaller projection or into
+//!    packed padding beyond the structure.
 //! 1. **Commitment opening**: `commit_Ajtai(Z) == claim.c.data`
 //!    (linear in `Z`, coefficients from the Ajtai global setup).
 //! 2. **Public-input projection**: `L_in(Z) == claim.X` for the
@@ -30,6 +36,15 @@
 //!    obligation that makes the circuit's CE-relation contract match
 //!    the native `verify_uncompressed`'s. See
 //!    [`evaluation::enforce_ct_from_y_ring`].
+//! 6. **Optional NC-channel closure**: if `s_col/y_zcol` are carried,
+//!    `claim.y_zcol == Z · chi(claim.s_col)`. These fields are not in
+//!    Definition 13's CE tuple, but this implementation includes them
+//!    in the accumulator digest, so they must be recomputed from the
+//!    opened terminal witness rather than trusted as sidecar bytes.
+//! 7. **Unsupported sidecar rejection**: `aux_openings`, Pattern-A
+//!    coordinates, and `u_offset/u_len` must be absent. The clean
+//!    SplitNc/NIFS circuit does not implement those fields, so they
+//!    cannot be accumulator-digested authority.
 //!
 //! ## Why this lives here, not in `lifecycle::verify`
 //!
@@ -37,7 +52,7 @@
 //! natively. A consumer that runs the Rust verifier sees the
 //! obligation closed there; a SNARK consumer that verifies the
 //! decider R1CS sees it closed here. Both paths must enforce the
-//! same five-obligation set — drifting one without the other is a
+//! same authority set — drifting one without the other is a
 //! soundness regression. The two regressions tests
 //! (`final_witness_authority_rejects_y_ring_inconsistent_with_m_z_at_r`
 //! native and `decider_ce_isolation_rejects_*` in-circuit) check
@@ -83,7 +98,7 @@
 //!   decider circuit only VERIFIES that proof
 //!     ↳ Z stays out-of-circuit
 //!     ↳ constraints are the in-circuit verifier rows for the chosen
-//!       proof backend (Spartan + FRI-PCS per the SuperNeo paper)
+//!       proof backend
 //! ```
 //!
 //! The constraint count under the current shape is roughly
@@ -94,24 +109,20 @@
 //!
 //! **Layering note.** SuperNeo's folding leaves a terminal obligation —
 //! "these CE claims open to some Z". Discharging that obligation is a
-//! SEPARATE proof system. The SuperNeo paper recommends **Spartan +
-//! FRI-PCS** for this layer (paper §1 D5 / §1 contributions: "SNARK-
-//! friendly fields enable efficient proof compression using existing
-//! SNARKs (e.g., Spartan with a FRI-based polynomial commitment
-//! scheme) ... without requiring any non-native arithmetic or field
-//! emulation"). That recommendation preserves SuperNeo's post-quantum
-//! posture (FRI is hash-based) and runs natively over Goldilocks. The
-//! compact terminal-CE decider is out of scope for this branch — see the
-//! `engine::decider::LastStepTerminalSynthesis` docs for the inductive
-//! picture and the open design question.
+//! SEPARATE proof layer. This module does not choose, prepare, or wire a
+//! compact backend; it only defines the direct reference relation that a
+//! future compact proof must prove. See the
+//! `engine::decider::LastStepTerminalSynthesis` docs for the current
+//! inductive picture and scope limits.
 //!
 //! ## Why this still lives in the tree
 //!
 //! 1. **Soundness fallback.** A scalability-wrong-but-sound CE closure
-//!    is better than no CE closure: the F'-image's `acc_digest`-only
-//!    chain hash does not carry `y_ring`, so without these rows the
-//!    SNARK consumer could accept a final witness Z that is not a
-//!    real opening of the terminal accumulator.
+//!    is better than no CE closure: the F'-image's `acc_digest` chain
+//!    commits to the terminal CE claims, but it does not prove that the
+//!    opened witness Z satisfies those claims. Without these rows the
+//!    SNARK consumer could accept a final witness Z that is not a real
+//!    opening of the terminal accumulator.
 //! 2. **Correctness reference.** When the compact terminal CE proof
 //!    verifier lands, its outputs must agree byte-for-byte with what
 //!    this gadget enforces. The gadget defines the relation; the
@@ -119,12 +130,10 @@
 //!
 //! ## What still needs designing (out of scope for this module)
 //!
-//! - **Terminal-CE decider implementation.** The SuperNeo paper's
-//!   recommended backend is Spartan + FRI-PCS. Whatever backend lands,
-//!   the binding rule is a Poseidon2 digest over the full
-//!   `terminal_children` set (every `CeClaim` field — not just
-//!   commitment data), so the compact proof can't be replayed against
-//!   a different set of children.
+//! - **Terminal-CE decider implementation.** Whatever backend lands, the
+//!   binding rule is a Poseidon2 digest over the full `terminal_children`
+//!   set (every `CeClaim` field — not just commitment data), so the
+//!   compact proof can't be replayed against a different set of children.
 //! - **In-circuit verifier rows** for the chosen backend.
 //! - **Wiring** to terminal NIFS children, so the proof's claimed CE
 //!   values are pinned to the verifier-derived `terminal_children`
@@ -140,7 +149,7 @@ mod evaluation;
 mod witness;
 
 pub(crate) use commitment::{enforce_ajtai_opening, enforce_x_projection};
-pub(crate) use evaluation::{enforce_ct_from_y_ring, enforce_y_ring_from_z_at_r};
+pub(crate) use evaluation::{enforce_ct_from_y_ring, enforce_y_ring_from_z_at_r, enforce_y_zcol_from_z_at_s_col};
 pub(crate) use witness::alloc_final_witness;
 
 use thiserror::Error;
@@ -199,6 +208,26 @@ pub(crate) fn enforce_final_ce_relations(
     let b = prep.params.b();
 
     for (index, (claim_wires, witness)) in final_claims_wires.iter().zip(final_witnesses).enumerate() {
+        if claim_wires.m_in > expected_m {
+            return Err(CeRelationError::ShapeMismatch {
+                index,
+                what: "m_in vs structure.m",
+                expected: expected_m,
+                got: claim_wires.m_in,
+            });
+        }
+        if let Some(expected) = prep.public_input_len {
+            if claim_wires.m_in != expected {
+                return Err(CeRelationError::ShapeMismatch {
+                    index,
+                    what: "m_in vs prep.public_input_len",
+                    expected,
+                    got: claim_wires.m_in,
+                });
+            }
+        }
+        reject_unsupported_sidecars(index, claim_wires)?;
+
         let witness_wires =
             alloc_final_witness(builder, witness, expected_m).map_err(|err| witness_shape_err(index, err))?;
 
@@ -230,6 +259,11 @@ pub(crate) fn enforce_final_ce_relations(
         // CE-relation contract so the circuit matches the native
         // `verify_uncompressed` verifier's full obligation set.
         enforce_ct_from_y_ring(builder, claim_wires).map_err(|err| y_ring_err(index, err))?;
+        // `s_col/y_zcol` are an implementation-side NC channel carried in
+        // accumulator digests. If present, bind them to the same terminal
+        // witness Z so they are not digest-only authority.
+        enforce_y_zcol_from_z_at_s_col(builder, prep, &witness_wires, claim_wires)
+            .map_err(|err| y_ring_err(index, err))?;
     }
     Ok(())
 }
@@ -271,4 +305,40 @@ fn y_ring_err(index: usize, err: evaluation::YRingError) -> CeRelationError {
         expected: err.expected(),
         got: err.got(),
     }
+}
+
+fn reject_unsupported_sidecars(index: usize, claim: &CeClaimWires) -> Result<(), CeRelationError> {
+    if claim.aux_openings_len != 0 {
+        return Err(CeRelationError::ShapeMismatch {
+            index,
+            what: "aux_openings",
+            expected: 0,
+            got: claim.aux_openings_len,
+        });
+    }
+    if claim.c_step_coords_len != 0 {
+        return Err(CeRelationError::ShapeMismatch {
+            index,
+            what: "c_step_coords",
+            expected: 0,
+            got: claim.c_step_coords_len,
+        });
+    }
+    if claim.u_offset != 0 {
+        return Err(CeRelationError::ShapeMismatch {
+            index,
+            what: "u_offset",
+            expected: 0,
+            got: claim.u_offset,
+        });
+    }
+    if claim.u_len != 0 {
+        return Err(CeRelationError::ShapeMismatch {
+            index,
+            what: "u_len",
+            expected: 0,
+            got: claim.u_len,
+        });
+    }
+    Ok(())
 }

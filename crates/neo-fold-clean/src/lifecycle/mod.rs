@@ -14,7 +14,7 @@
 //! tests that need to mutate the per-step audit trail.
 //!
 //! ```text
-//! Production (non-replay IVC):
+//! Terminal-only IVC:
 //!   preprocess              one-time
 //!     └─ derive vk_fs from (params, structure)
 //!   prove(prep, batches)  → UncompressedAudit                (per-session)
@@ -26,6 +26,11 @@
 //!   verify_uncompressed(prep, &Uncompressed) → Result<()>
 //!     └─ constant-time IVC verification via terminal-fold re-run
 //!        (HyperNova §6.3 Construction 2 + SuperNeo §7)
+//!        Non-F' terminal folds may use this directly. F' chains are
+//!        accepted here only when they contain a single chunk; multi-
+//!        chunk F' chains need the audit/decider path below because the
+//!        recursive F' / NIFS.V induction lives in per-step rows that
+//!        `Uncompressed` intentionally drops.
 //!
 //! Audit / decider (chain replay, Spartan):
 //!   ... prove + extend as above ...
@@ -90,8 +95,8 @@ pub enum Error {
         "verify_uncompressed: recorded final accumulator claim {index} CE relation violated — \
          `y_ring[{matrix_index}]` does not equal multilinear_eval(M_{matrix_index} · Z, r). \
          The SuperNeo verifier equation on the folded CE relation requires y_ring closure \
-         against the opened witness; the F'-chain `acc_digest` carries only commitment data, \
-         so without this check a malformed y_ring slips through the binding pipeline."
+         against the opened witness; the F'-chain `acc_digest` commits to the public CE claim, \
+         but does not by itself prove that the opened witness Z satisfies that claim."
     )]
     FinalAccumulatorCeRelationViolation { index: usize, matrix_index: usize },
     #[error(
@@ -101,6 +106,13 @@ pub enum Error {
          `ct` independently of `y_ring` — `ct` enters the protocol's consistency checks downstream."
     )]
     FinalAccumulatorCtMismatch { index: usize, matrix_index: usize },
+    #[error(
+        "verify_uncompressed: recorded final accumulator claim {index} optional NC channel \
+         `y_zcol` does not equal the projection `Z · chi(s_col)` from the opened witness. \
+         `y_zcol` is not recursive accumulator-handle authority, but when present in the \
+         terminal claim it must be recomputed from terminal witness authority rather than trusted."
+    )]
+    FinalAccumulatorNcChannelMismatch { index: usize },
     #[error(
         "verify_uncompressed: recorded final accumulator claim {index} evaluation point `r` has the \
          wrong length (expected {expected} = log2(next_pow2(structure.n).max(2)), got {got}). A \
@@ -113,11 +125,34 @@ pub enum Error {
         got: usize,
     },
     #[error(
+        "verify_uncompressed: recorded final accumulator claim {index} carries unsupported sidecar field `{field}` \
+         with length/value {got}. This clean SuperNeo path does not implement that metadata, so terminal witness \
+         authority must reject it rather than let accumulator-digested data remain unconstrained."
+    )]
+    FinalAccumulatorUnsupportedSidecar {
+        index: usize,
+        field: &'static str,
+        got: usize,
+    },
+    #[error(
         "verify_uncompressed: state after re-running the terminal NIFS fold disagrees with the recorded proof.state"
     )]
     PostStateMismatch,
-    #[error("verify_uncompressed: finalized proof has a non-empty final running accumulator but carries no terminal-fold proof")]
+    #[error(
+        "verify_uncompressed: terminal latest claim {index} public input does not encode the pre-final state x_out"
+    )]
+    TerminalLatestPublicInputMismatch { index: usize },
+    #[error(
+        "verify_uncompressed: finalized proofs must carry a terminal-fold proof; \
+         `final_fold = None` has no verifier-driven NIFS proof binding the recorded state"
+    )]
     MissingTerminalFoldProof,
+    #[error(
+        "verify_uncompressed: terminal fold inputs carry a non-empty pre-final running accumulator without \
+         parent authority. That shape cannot be produced by an honest NIFS chain and must fail before any \
+         pre-fold accumulator digest is reconstructed."
+    )]
+    PreFinalAccumulatorMissingParentAuthority,
     #[error("verify_uncompressed: recorded acc_digest does not match the digest of the recorded final running claims")]
     AccDigestMismatch,
     #[error(
@@ -133,8 +168,16 @@ pub enum Error {
          cannot be silently relabelled)"
     )]
     InitialSemanticStateAnchorMismatch,
+    #[error(
+        "verify_uncompressed: terminal-only verification is supported only for a single F' chunk \
+         until the compressed decider proves the recursive F' / NIFS.V induction (got chunk_count={chunk_count}). \
+         Use finish_uncompressed_with_audit + verify_uncompressed_audit / build_decider_statement for multi-chunk F' chains."
+    )]
+    FPrimeNonReplayUnsupported { chunk_count: u64 },
     #[error("extend: cannot extend an already-finalized uncompressed proof")]
     AlreadyFinalized,
+    #[error("extend: cannot fold an empty batch; every extend must contribute at least one CCS instance")]
+    EmptyBatch,
     #[error("finish_uncompressed: already-finalized proof is internally inconsistent")]
     FinalizedProofInconsistent,
     #[error("lifecycle: public input length mismatch (expected {expected}, got {got})")]
@@ -196,10 +239,14 @@ pub struct Preprocessing {
     /// caller-settable**.
     ///
     /// Default `Stateless`; in-crate frontends (the R1CS-F' preprocess
-    /// path) flip this to `Stateful` at their own preprocess time
-    /// **only when** their plan declares `semantic_state_in/out_var_indices`
-    /// — i.e. when the resulting F' image's CCS structure actually
-    /// carries Poseidon2 binding rows over the app-state wires.
+    /// path) flip this to `Stateful` at their own preprocess time when
+    /// their plan declares either explicit semantic-state indices or
+    /// app-public-output binding. The resulting F' image's CCS
+    /// structure must carry Poseidon2 binding rows over the wires that
+    /// define the semantic digest. `Stateful` therefore means
+    /// "independent semantic digest authenticated by F' constraints";
+    /// it does not always mean "explicit transition state with both
+    /// semantic input and semantic output variables."
     ///
     /// The field is `pub(crate)` rather than `pub` precisely because a
     /// public setter would break the ownership boundary: an external
@@ -268,10 +315,11 @@ impl Preprocessing {
 
     /// In-crate hook for stateful frontends to declare the chain's
     /// semantic mode at their own preprocess time. The frontend MUST
-    /// derive `mode` from observable structure properties (e.g. its
-    /// plan's `semantic_state_in/out_var_indices`); it MUST NOT take a
-    /// caller-supplied value. The setter is `pub(crate)` so external
-    /// code cannot lie about the mode to short-circuit
+    /// derive `mode` from observable structure properties: either
+    /// explicit semantic-state input/output variables or app-public
+    /// output variables bound into the semantic digest. It MUST NOT
+    /// take a caller-supplied value. The setter is `pub(crate)` so
+    /// external code cannot lie about the mode to short-circuit
     /// `verify_uncompressed`'s stateless invariant.
     pub(crate) fn with_semantic_state_mode(mut self, mode: SemanticStateMode) -> Self {
         self.semantic_state_mode = mode;
@@ -336,7 +384,9 @@ pub struct Uncompressed {
     /// accumulator at finalization, plus the prover-snapshotted
     /// `terminal_inputs` (pre-fold running + latest) the verifier
     /// re-runs NIFS.V against. `None` only when the chain had nothing
-    /// to flush at finalize.
+    /// to flush inside the low-level finalization helper; public
+    /// terminal/verifier surfaces reject `None` because it carries no
+    /// verifier-driven terminal fold binding.
     pub final_fold: Option<FinalFoldProof>,
 }
 
@@ -378,7 +428,7 @@ pub use crate::paper::decider::PublicImage;
 // Public entry-point re-exports + preprocess (the only one-line entry).
 // ──────────────────────────────────────────────────────────────────────────
 
-// Production path — non-replay IVC.
+// Terminal-only lifecycle path.
 pub use compress::finish_uncompressed;
 pub use prove::{extend, prove};
 pub use verify::{validate_final_witness_authority, verify_uncompressed};
@@ -426,14 +476,43 @@ pub fn preprocess_with_test_log(
     combine_b_pows: DecMixer,
     public_input_len: Option<usize>,
 ) -> Result<Preprocessing, Error> {
-    validate_ajtai_context(&params, &structure, &log)?;
-    // Verifier-derived caches: pure functions of `structure`, computed
-    // once here so engine seams + protocol-binding paths don't recompute
-    // them on every fold/step. The optimized cache carries the Π_CCS
-    // `mat_digest`, which `structure_digest` also binds, so derive the
-    // structure digest from that same matrix digest instead of walking the
-    // matrices twice during preprocess.
     let optimized_cache = OptimizedStructureCache::build(&structure)?;
+    preprocess_with_test_log_and_optimized_cache(
+        params,
+        structure,
+        log,
+        mix_rhos_commits,
+        combine_b_pows,
+        public_input_len,
+        optimized_cache,
+    )
+}
+
+/// Build preprocessing from a verifier-owned optimized cache.
+///
+/// This is intentionally crate-private. Callers must not be able to supply an
+/// arbitrary `(structure, optimized_cache)` pair across a protocol boundary.
+/// Frontends may use it only with cache material they just built from the same
+/// verifier-derived structure artifact.
+pub(crate) fn preprocess_with_test_log_and_optimized_cache(
+    params: Params,
+    structure: Structure,
+    log: AjtaiSModule,
+    mix_rhos_commits: RlcMixer,
+    combine_b_pows: DecMixer,
+    public_input_len: Option<usize>,
+    optimized_cache: OptimizedStructureCache,
+) -> Result<Preprocessing, Error> {
+    validate_ajtai_context(&params, &structure, &log)?;
+    let live_shape = (structure.n, structure.m, structure.t());
+    if optimized_cache.shape() != live_shape {
+        return Err(Error::StructureCacheMismatch);
+    }
+    // Verifier-derived cache: a pure function of `structure`, computed by the
+    // frontend's prepared-structure constructor or by `preprocess_with_test_log`
+    // above. The optimized cache carries the Π_CCS `mat_digest`, which
+    // `structure_digest` also binds, so derive the structure digest from that
+    // same matrix digest instead of walking the matrices twice here.
     let structure_digest =
         crate::paper::digest::structure_digest_from_mat_digest(&structure, optimized_cache.mat_digest());
     // Default seed: `empty_semantic_state_digest()`. Stateful frontends

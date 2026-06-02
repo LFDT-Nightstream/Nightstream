@@ -28,6 +28,7 @@ use p3_field::PrimeCharacteristicRing;
 fn skeleton_config() -> FPrimeImageConfig {
     FPrimeImageConfig {
         limbs: 3,
+        app_private_var_widths: Vec::new(),
         boundary_bits: 704,
         nifs_payload_shapes: vec![],
         kmul_count: 8,

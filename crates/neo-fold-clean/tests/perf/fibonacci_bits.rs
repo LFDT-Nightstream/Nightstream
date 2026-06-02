@@ -17,8 +17,8 @@ use neo_fold_clean::engine::decider::synthesize_statement_r1cs;
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
 use neo_fold_clean::paper::construction2::{self, FoldProof, ProofState, State};
 use neo_fold_clean::paper::digest::{
-    accumulator_digest_from_claims, digest32_as_fields, initial_boundary_digest, public_trace_seed_digest,
-    state_x_out_digest, structure_digest,
+    digest32_as_fields, initial_boundary_digest, public_trace_seed_digest, state_x_out_digest_with_mode,
+    structure_digest, AccumulatorHandle, StateXOutDigestMode,
 };
 use neo_fold_clean::paper::f_prime::r1cs::{encode_f_prime_public_input, F_PRIME_PUBLIC_INPUT_LEN};
 use neo_fold_clean::paper::nifs::NifsProof;
@@ -336,12 +336,17 @@ fn f_prime_base_state(prep: &neo_fold_clean::lifecycle::Preprocessing) -> State 
     let structure = structure_digest(prep.structure());
     let z_0 = initial_boundary_digest(&structure, prep.public_input_len);
     let public_trace = public_trace_seed_digest(&structure);
-    let acc_digest = accumulator_digest_from_claims(prep.params.b(), &[]);
+    let acc_digest = AccumulatorHandle::empty().digest();
     State::base(z_0, public_trace, acc_digest, acc_digest)
 }
 
 fn f_prime_state_x_out(prep: &neo_fold_clean::lifecycle::Preprocessing, state: &State) -> [F; 4] {
-    digest32_as_fields(state_x_out_digest(
+    let mode = match prep.semantic_state_mode() {
+        neo_fold_clean::paper::construction2::SemanticStateMode::Stateless => StateXOutDigestMode::Stateless,
+        neo_fold_clean::paper::construction2::SemanticStateMode::Stateful => StateXOutDigestMode::Stateful,
+    };
+    digest32_as_fields(state_x_out_digest_with_mode(
+        mode,
         prep.vk.digest(),
         &structure_digest(prep.structure()),
         state.chunk_count,

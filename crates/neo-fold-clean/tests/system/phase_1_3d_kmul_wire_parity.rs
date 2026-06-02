@@ -38,6 +38,7 @@ fn alloc_k(builder: &mut R1csBuilder, value: K) -> KVar {
 fn kmul_only_image_config() -> FPrimeImageConfig {
     FPrimeImageConfig {
         limbs: 3,
+        app_private_var_widths: Vec::new(),
         boundary_bits: 0,
         nifs_payload_shapes: vec![],
         kmul_count: 1,

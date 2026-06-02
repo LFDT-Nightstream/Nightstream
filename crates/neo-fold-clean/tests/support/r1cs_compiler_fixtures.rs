@@ -48,9 +48,9 @@ pub fn app_private_bits_for(m: usize) -> usize {
 
 /// Build a small recursive-step plan sized for an R1CS with `m` variables.
 /// `m_in` is the public-input variable count; the plan binds variables
-/// `[0..m_in)` into `state_x_out` so the chain's `public_output_digest`
-/// commits to the proven public input `x`. Uses a 2-entry CE NIFS payload
-/// so the structure is small but still hosts the unified-mode accumulator
+/// `[0..m_in)` into the carried semantic-state digest, which is then
+/// absorbed by `state_x_out`. Uses a 2-entry CE NIFS payload so the
+/// structure is small but still hosts the unified-mode accumulator
 /// selector + Poseidon transitions.
 pub fn make_small_plan(m: usize, m_in: usize) -> RecursiveStepImagePlan {
     // Sized so app_private holds m * 64 bits. limbs = m*64 + 1 because
@@ -70,6 +70,7 @@ pub fn make_small_plan(m: usize, m_in: usize) -> RecursiveStepImagePlan {
 
     let probe_plan = RecursiveStepImagePlan {
         limbs,
+        app_private_var_widths: Vec::new(),
         boundary_bits: BOUNDARY_BITS,
         kmul_count: 0,
         ring_action_pair_count: 0,
@@ -98,9 +99,10 @@ pub fn make_small_plan(m: usize, m_in: usize) -> RecursiveStepImagePlan {
     plan.state_x_out = Some(StateXOutPlanOptions {
         pc: 1,
         public_x_out_lane_bit_starts,
-        // Bind every R1CS public-input variable into state_x_out so the
-        // chain's verifier-visible digest commits to the actual `x`.
+        // Bind every R1CS public-input variable into the carried
+        // semantic-state digest, which `state_x_out` then absorbs.
         app_public_input_var_indices: (0..m_in).collect(),
+        app_public_input_bit_var_indices: Vec::new(),
         semantic_state_in_var_indices: Vec::new(),
         semantic_state_out_var_indices: Vec::new(),
         initial_semantic_state_digest_anchor: None,
@@ -111,9 +113,8 @@ pub fn make_small_plan(m: usize, m_in: usize) -> RecursiveStepImagePlan {
 /// R1CS with one constraint `z[0] = z[1] * z[2]` and `m_in = 1`.
 /// Variable order: [z_0 (out), z_1, z_2, ...]. The matrix is padded to
 /// `neo_math::D` columns for ergonomics — the bottom `(m - 3)` variables
-/// are unconstrained app-private values (they still must be in {0,1} per
-/// the F' bit-validity rows, so we set them to zero in the test
-/// assignments).
+/// are unconstrained app-private values. We set them to zero in the
+/// test assignments so the low-norm F' image stays canonical.
 pub fn one_product_r1cs() -> R1cs {
     let m = neo_math::D;
     let mut a = NeoMat::zero(1, m, F::default());
@@ -229,10 +230,10 @@ pub fn make_tiny_stateful_lifecycle_plan_with_anchor(
         panic!("tiny lifecycle plan uses a CE payload");
     };
     // Stateful semantic binding adds two Poseidon2 traces / binding
-    // blocks, increasing the fixed-point row-domain length by one bit
-    // under the tiny test params.
-    shape.r_len = 22;
-    shape.s_col_len = 22;
+    // blocks. Under the tiny test params this converges to a slightly
+    // larger fixed point than the stateless tiny lifecycle shape.
+    shape.r_len = 13;
+    shape.s_col_len = 19;
     let state_x_out = plan
         .state_x_out
         .as_mut()
@@ -282,10 +283,11 @@ pub fn make_tiny_lifecycle_plan(m: usize, m_in: usize) -> RecursiveStepImagePlan
     const TINY_C_DATA_ENTRIES: usize = 216;
     // child_count = K_RHO = 14 (matches production; not params-dependent).
     const TINY_CHILD_COUNT: u64 = 14;
-    // r_len / s_col_len = ceil(log2(structure.m)) under the larger
-    // (216-entry) NIFS payload region; this is the converged value
-    // after one iteration of the probe.
-    const TINY_R_LEN: usize = 21;
+    // r_len tracks the row domain, while s_col_len tracks the column
+    // domain under the larger (216-entry) NIFS payload region. These
+    // are the converged values after one iteration of the probe.
+    const TINY_R_LEN: usize = 12;
+    const TINY_S_COL_LEN: usize = 18;
 
     let limbs = app_private_bits_for(m) + 1;
     let ce_shape = NifsCeClaimShape {
@@ -295,10 +297,11 @@ pub fn make_tiny_lifecycle_plan(m: usize, m_in: usize) -> RecursiveStepImagePlan
         r_len: TINY_R_LEN,
         y_ring_inner_lens: vec![64; 8],
         y_zcol_len: 64,
-        s_col_len: TINY_R_LEN,
+        s_col_len: TINY_S_COL_LEN,
     };
     let probe_plan = RecursiveStepImagePlan {
         limbs,
+        app_private_var_widths: Vec::new(),
         boundary_bits: BOUNDARY_BITS,
         kmul_count: 0,
         ring_action_pair_count: 0,
@@ -327,6 +330,7 @@ pub fn make_tiny_lifecycle_plan(m: usize, m_in: usize) -> RecursiveStepImagePlan
         pc: 1,
         public_x_out_lane_bit_starts,
         app_public_input_var_indices: (0..m_in).collect(),
+        app_public_input_bit_var_indices: Vec::new(),
         semantic_state_in_var_indices: Vec::new(),
         semantic_state_out_var_indices: Vec::new(),
         initial_semantic_state_digest_anchor: None,

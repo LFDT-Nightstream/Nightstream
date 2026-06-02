@@ -2,7 +2,8 @@
 //!
 //! This module owns app-agnostic compiler state and the protocol-generic
 //! checks every concrete frontend (Fibonacci, R1CS, …) repeats: chain
-//! coordinates, prior-fold authority, NIFS payload views, and
+//! coordinates, prior-fold authority, optional source-image NIFS payload
+//! views, and
 //! transcript-bound prior-fold verification. App frontends keep only
 //! their app-specific witness checks, encoder dispatch, and output
 //! shape.
@@ -14,16 +15,16 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use thiserror::Error;
 
 use crate::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
+use crate::frontends::f_prime::encoder::NifsPayloadInput;
 use crate::frontends::f_prime::image::{NifsCeClaimShape, NifsCeClaimView, NifsPayloadShape, StateIn, StateOut};
 use crate::frontends::f_prime::recursive_plan::{
-    build_accumulator_preimage_fields, build_boundary_update_preimage_fields,
-    build_public_trace_update_preimage_fields, build_state_x_out_preimage_fields_with_app_x, RecursiveStepImagePlan,
+    build_state_x_out_preimage_fields_with_app_x, source_image_emits_nifs_payloads, RecursiveStepImagePlan,
 };
 use crate::lifecycle::Preprocessing;
 use crate::paper::construction2::{LatestInstance, ProofState, RunningInstance, State as PaperState};
 use crate::paper::digest::{
-    accumulator_digest_from_claims, digest32_as_fields, digest_fields_as_digest32, f_prime_chunk_public_digest,
-    initial_boundary_digest, public_trace_seed_digest,
+    digest32_as_fields, digest_fields_as_digest32, f_prime_chunk_public_digest, initial_boundary_digest,
+    public_trace_seed_digest, AccumulatorHandle, StateXOutDigestMode,
 };
 use crate::paper::f_prime::native::f_prime_step_transcript;
 use crate::paper::f_prime::poseidon_trace::{encode_poseidon_trace, PoseidonTraceImage};
@@ -38,7 +39,8 @@ use crate::paper::relations::{CcsClaim, CeClaim};
 ///
 /// The chain header (`vk_fs_digest`, `structure_digest`, `z_0`, `pc`,
 /// `public_input_len`, commitment / boundary / limb shape) is constant
-/// across steps; [`FPrimeChainState`] is updated each step;
+/// across steps. `pc` is pinned as the single-`F'_j` state selector and
+/// absorbed into `state_x_out`. [`FPrimeChainState`] is updated each step;
 /// [`FPrimeFoldForStep`] is the optional per-step fold authority the
 /// caller writes between successive recursive compiles.
 #[derive(Clone, Debug)]
@@ -53,6 +55,7 @@ pub struct FPrimeCompilerContext {
     pub commitment_kappa: usize,
     pub boundary_bits: usize,
     pub limbs: usize,
+    pub state_x_out_digest_mode: StateXOutDigestMode,
     // Threaded F' chain state — compiler updates each step.
     pub chain_state: FPrimeChainState,
     // Prior fold authority boundary — caller writes between steps.
@@ -77,11 +80,13 @@ pub struct FPrimeChainState {
 /// - `pre_running` and `latest` are the **inputs** to the prior fold,
 /// - `proof` is the NIFS witness that authorises the transition,
 /// - `post_running` is the **output**, and is what this F' step
-///   actually commits to via its NIFS payload + accumulator hash.
+///   commits to via the outgoing accumulator handle.
 ///
 /// The recursive plan is derived from `post_running.parent_authority`'s
-/// real CE shape; the NIFS payload view is filled from the same
-/// post-fold parent.
+/// real CE shape. Legacy non-unified plans also fill a source-image
+/// NIFS payload view from that post-fold parent; unified plans keep the
+/// shape metadata for prior-fold verification but elide the payload
+/// columns from the low-norm source image.
 #[derive(Clone, Debug)]
 pub struct FPrimeFoldForStep {
     pub pre_running: RunningInstance,
@@ -90,12 +95,12 @@ pub struct FPrimeFoldForStep {
     pub post_running: RunningInstance,
 }
 
-/// The five Poseidon traces every unified F' step emits.
+/// The Poseidon trace every canonical unified F' step emits.
+///
+/// The accumulator handle is carried in `state_out` and checked when the
+/// next recursive step or terminal fold consumes it. The local chunk
+/// coordinate `new_z_i` mirrors `chunk_digest` linearly.
 pub struct UnifiedStepPoseidonTraces {
-    pub boundary: PoseidonTraceImage,
-    pub public_trace: PoseidonTraceImage,
-    pub base_accumulator: PoseidonTraceImage,
-    pub recursive_accumulator: PoseidonTraceImage,
     pub state_x_out: PoseidonTraceImage,
 }
 
@@ -203,7 +208,7 @@ pub fn start_f_prime_chain_context(
 
     let z_0 = digest32_as_fields(initial_boundary_digest(&structure_digest, Some(public_input_len)));
     let public_trace = digest32_as_fields(public_trace_seed_digest(&structure_digest));
-    let acc_digest = digest32_as_fields(accumulator_digest_from_claims(prep.params.b(), &[]));
+    let acc_digest = AccumulatorHandle::empty().digest_fields();
     let vk_fs_digest = digest32_as_fields(prep.vk.digest());
 
     Ok(FPrimeCompilerContext {
@@ -216,6 +221,10 @@ pub fn start_f_prime_chain_context(
         commitment_kappa: prep.params.kappa() as usize,
         boundary_bits,
         limbs,
+        state_x_out_digest_mode: match prep.semantic_state_mode() {
+            crate::paper::construction2::SemanticStateMode::Stateless => StateXOutDigestMode::Stateless,
+            crate::paper::construction2::SemanticStateMode::Stateful => StateXOutDigestMode::Stateful,
+        },
         chain_state: FPrimeChainState {
             chunk_count: 0,
             step_count: 0,
@@ -233,7 +242,7 @@ pub fn start_f_prime_chain_context(
 /// caller-supplied `post_running`.
 ///
 /// The transcript is the per-step F' transcript
-/// (`F_PRIME_STEP_TRANSCRIPT_LABEL` plus the six F'-step context
+/// (`F_PRIME_STEP_TRANSCRIPT_LABEL` plus the state-bound F'-step context
 /// absorbs over `ctx.chain_state` + this step's `chunk_digest`), so it
 /// matches what `paper::f_prime::native::prove` initialised for the
 /// same fold. Callers must therefore source `fold.proof` from a
@@ -308,17 +317,13 @@ pub fn verify_prior_fold(
 /// unified-mode F' structure binds the NIFS payload region bit-by-bit,
 /// so the perp payload's bits must be deterministic — but the
 /// payload's *authority* (its `c_data`, commitment, fold_digest, etc.)
-/// must not enter the chain's accumulator. The selector achieves this:
-/// when `is_base = 1` the structure forces
-/// `state_out.new_acc_digest = base_trace.digest`, which depends only
-/// on the constant preimage `(tag, 0)`. The recursive accumulator
-/// trace's preimage still sources its `c_data` lanes from this
-/// payload, but its digest is *discarded* by the selector.
+/// must not enter the base step's accumulator. The compiler achieves
+/// this by carrying the constant empty accumulator handle on base
+/// steps; recursive steps carry a handle computed from the full
+/// verified post-fold running accumulator.
 ///
-/// Audit hooks: any future change that weakens the selector binding
-/// (e.g. allowing both branches' digests to enter authority through a
-/// different code path) must keep the perp payload's `c_data` out of
-/// the new authority path, or this filler becomes a soundness bug.
+/// Audit hook: any future change must keep the base-step perp payload's
+/// `c_data` out of authority, or this filler becomes a soundness bug.
 pub fn perp_nifs_ce_view(shape: &NifsCeClaimShape) -> NifsCeClaimView {
     let y_ring: Vec<Vec<[F; 2]>> = shape
         .y_ring_inner_lens
@@ -486,19 +491,16 @@ pub fn canonical_ce_shape_and_child_count(
 
 /// Assemble the app-agnostic shell traces for one unified F' step.
 ///
-/// Produces the five Poseidon traces every unified step emits
-/// (`boundary_update`, `public_trace_update`, base / recursive
-/// accumulator, `state_x_out`), the matching `StateIn` / `StateOut`,
+/// Produces the Poseidon trace every unified step emits
+/// (`state_x_out`), the matching `StateIn` / `StateOut`,
 /// the `boundary_bits` to splice into the image, and the chain state
 /// the caller should advance to after the encoder consumes the
 /// assembly.
 ///
-/// `app_public_input` is the app-level public input appended to the
-/// `state_x_out` preimage. Fibonacci passes `&[]` (the boundary digest
-/// alone commits to the chain's verifier-visible output); R1CS passes
-/// the satisfying assignment's public prefix so the verifier learns
-/// "this `x` was proven," not just "some assignment satisfies the
-/// shape."
+/// `app_public_input` is retained only for older call sites. New
+/// R1CS-F' code binds app-public data through the outgoing semantic-state
+/// digest before calling this shared shell, so native `compute_x_out`
+/// and the F' CCS agree on the `state_x_out` preimage.
 ///
 /// `rows_in_chunk` is the SuperNeo same-shape batch size of *this*
 /// step's deposit (= `next_latest.len()` in native). It drives
@@ -508,36 +510,39 @@ pub fn canonical_ce_shape_and_child_count(
 pub fn assemble_unified_step_traces(
     ctx: &FPrimeCompilerContext,
     is_base: bool,
-    recursive_c_data: &[F],
-    child_count: u64,
+    new_acc_digest: [F; 4],
     app_public_input: &[F],
     rows_in_chunk: usize,
 ) -> UnifiedStepTraceAssembly {
-    let shared = assemble_shared_chunk_traces(ctx, is_base, recursive_c_data, child_count, rows_in_chunk);
+    let shared = assemble_shared_chunk_traces(ctx, is_base, new_acc_digest, rows_in_chunk);
     assemble_step_from_shared(&shared, ctx, app_public_input, None)
 }
 
+pub fn nifs_payload_inputs_for_source_image(
+    plan: &RecursiveStepImagePlan,
+    ce_view: NifsCeClaimView,
+) -> Vec<NifsPayloadInput> {
+    if source_image_emits_nifs_payloads(plan) {
+        vec![NifsPayloadInput::Ce(ce_view)]
+    } else {
+        Vec::new()
+    }
+}
+
 /// The chunk-shared portion of [`assemble_unified_step_traces`]:
-/// everything that does **not** depend on a step's `app_public_input`.
+/// everything that does **not** depend on a step's app-public semantic
+/// output.
 ///
 /// For a K-sized SuperNeo chunk all assignments share the same pre-step
-/// `ctx`, so they share the `chunk_digest`, the four Poseidon traces
-/// (boundary, public_trace, base/recursive accumulator), and the
-/// post-step chain-coordinate advance. Computing this once per chunk and
-/// reusing it (via [`assemble_step_from_shared`]) avoids recomputing the
-/// four Poseidon traces K times — that recomputation was the dominant
-/// per-assignment compile cost. The only per-assignment work left is the
-/// `state_x_out` trace (which absorbs the app public input) and the
-/// `boundary_bits` derived from it.
+/// `ctx`, so they share the `chunk_digest` and the post-step
+/// chain-coordinate advance. Any app-public binding is carried through
+/// the semantic-state digest before `state_x_out`, so this shared shell
+/// has no hidden per-assignment public-input trailer.
 pub struct SharedChunkTraces {
     pub state_in: StateIn,
     pub state_out: StateOut,
     pub chunk_digest: [F; 4],
     pub next_chain_state: FPrimeChainState,
-    boundary: PoseidonTraceImage,
-    public_trace: PoseidonTraceImage,
-    base_accumulator: PoseidonTraceImage,
-    recursive_accumulator: PoseidonTraceImage,
 }
 
 /// Compute the [`SharedChunkTraces`] once for a SuperNeo chunk. See that
@@ -545,8 +550,7 @@ pub struct SharedChunkTraces {
 pub fn assemble_shared_chunk_traces(
     ctx: &FPrimeCompilerContext,
     is_base: bool,
-    recursive_c_data: &[F],
-    child_count: u64,
+    new_acc_digest: [F; 4],
     rows_in_chunk: usize,
 ) -> SharedChunkTraces {
     assert!(
@@ -575,22 +579,9 @@ pub fn assemble_shared_chunk_traces(
         public_trace_in: ctx.chain_state.public_trace,
     };
 
-    let boundary = encode_poseidon_trace(&build_boundary_update_preimage_fields(state_in.z_i_in, chunk_digest));
-    let public_trace = encode_poseidon_trace(&build_public_trace_update_preimage_fields(
-        state_in.public_trace_in,
-        chunk_digest,
-    ));
-    let base_accumulator = encode_poseidon_trace(&build_accumulator_preimage_fields(0, &[]));
-    let recursive_accumulator =
-        encode_poseidon_trace(&build_accumulator_preimage_fields(child_count, recursive_c_data));
-
-    let new_acc_digest = if is_base {
-        base_accumulator.digest_native
-    } else {
-        recursive_accumulator.digest_native
-    };
-    let new_z_i = boundary.digest_native;
-    let new_public_trace = public_trace.digest_native;
+    let _ = is_base;
+    let new_z_i = chunk_digest;
+    let new_public_trace = new_z_i;
     let new_chunk_count = ctx.chain_state.chunk_count + 1;
     // Native `advance_state(prev, _, fresh_count, _)` increments
     // `step_count` by `fresh_count == next_latest.len()` per step. For
@@ -619,19 +610,13 @@ pub fn assemble_shared_chunk_traces(
         state_out,
         chunk_digest,
         next_chain_state,
-        boundary,
-        public_trace,
-        base_accumulator,
-        recursive_accumulator,
     }
 }
 
 /// Build one step's [`UnifiedStepTraceAssembly`] from the chunk-shared
-/// traces plus this step's `app_public_input`. Only the `state_x_out`
-/// trace and the `boundary_bits` it produces are computed here; the four
-/// shared Poseidon traces are cloned from `shared` (a memcpy, far cheaper
-/// than recomputing the permutations). The result is byte-for-byte
-/// identical to calling [`assemble_unified_step_traces`] directly.
+/// traces. App public input is already represented by
+/// `semantic_state_digest_out`; `state_x_out` only hashes Construction-2
+/// state coordinates.
 pub fn assemble_step_from_shared(
     shared: &SharedChunkTraces,
     ctx: &FPrimeCompilerContext,
@@ -643,6 +628,7 @@ pub fn assemble_step_from_shared(
         state_out.new_semantic_state_digest = semantic_state_digest;
     }
     let state_x_out = encode_poseidon_trace(&build_state_x_out_preimage_fields_with_app_x(
+        ctx.state_x_out_digest_mode,
         ctx.vk_fs_digest,
         ctx.structure_digest,
         state_out.new_chunk_count,
@@ -669,12 +655,6 @@ pub fn assemble_step_from_shared(
             semantic_state_digest: state_out.new_semantic_state_digest,
             ..shared.next_chain_state
         },
-        traces: UnifiedStepPoseidonTraces {
-            boundary: shared.boundary.clone(),
-            public_trace: shared.public_trace.clone(),
-            base_accumulator: shared.base_accumulator.clone(),
-            recursive_accumulator: shared.recursive_accumulator.clone(),
-            state_x_out,
-        },
+        traces: UnifiedStepPoseidonTraces { state_x_out },
     }
 }

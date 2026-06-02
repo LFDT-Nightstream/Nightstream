@@ -1,19 +1,11 @@
 //! Phase 1.4e — Recursive-step enforcement plan integration test.
 //!
-//! Builds a Fibonacci F' recursive-step fixture with three state-advance
-//! Poseidon hashes (boundary_update, public_trace_update, accumulator)
-//! and verifies that:
+//! Builds a legacy non-unified Fibonacci F' recursive-step fixture with
+//! the accumulator Poseidon hash and verifies that:
 //!
 //! 1. The planner's config + the honest image satisfies the full Phase
 //!    1.4 structure.
-//! 2. Tampering `z_i_in` (coherent bit+decoded) leaves bit/decode rows
-//!    green but trips a `boundary_update` absorb-binding row.
-//! 3. Tampering `chunk_digest` coherently leaves bit/decode green but
-//!    trips at least one absorb-binding row (both boundary_update and
-//!    public_trace_update consume `chunk_digest`).
-//! 4. Tampering `public_trace_in` coherently leaves bit/decode green
-//!    but trips a `public_trace_update` absorb-binding row.
-//! 5. Tampering a ce-claim `c_data` lane (in `nifs_payload_lanes`)
+//! 2. Tampering a ce-claim `c_data` lane (in `nifs_payload_lanes`)
 //!    coherently leaves bit/decode
 //!    green but trips an accumulator absorb-binding row.
 //!
@@ -26,8 +18,7 @@ use neo_fold_clean::frontends::f_prime::image::{
     FPrimeImage, FPrimeImageLayout, NifsCeClaimShape, NifsCeClaimView, NifsPayloadShape, StateIn, StateOut,
 };
 use neo_fold_clean::frontends::f_prime::recursive_plan::{
-    build_accumulator_preimage_fields, build_boundary_update_preimage_fields,
-    build_public_trace_update_preimage_fields, build_recursive_step_image_config, AccumulatorPlanOptions,
+    build_accumulator_preimage_fields, build_recursive_step_image_config, AccumulatorPlanOptions,
     RecursiveStepImagePlan,
 };
 use neo_fold_clean::frontends::f_prime::structure::build_f_prime_structure;
@@ -41,12 +32,6 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 /// NIFS-payload region.
 const C_DATA_ENTRIES: usize = 2;
 
-/// Lane indices in `state_lanes` for the data we tamper. Mirrors the
-/// constants in `fibonacci_recursive_plan` (verified by inspection).
-const STATE_LANE_Z_I_IN_BASE: usize = 12;
-const STATE_LANE_PUBLIC_TRACE_IN_BASE: usize = 24;
-const STATE_LANE_CHUNK_DIGEST_BASE: usize = 46;
-
 fn make_plan() -> RecursiveStepImagePlan {
     let ce_shape = NifsCeClaimShape {
         c_data_entries: C_DATA_ENTRIES,
@@ -59,6 +44,7 @@ fn make_plan() -> RecursiveStepImagePlan {
     };
     RecursiveStepImagePlan {
         limbs: 3,
+        app_private_var_widths: Vec::new(),
         boundary_bits: 0,
         kmul_count: 0,
         ring_action_pair_count: 0,
@@ -139,23 +125,17 @@ fn build_honest_fixture() -> Fixture {
     };
     image.fill_nifs_ce_claim_at(0, &ce_view);
 
-    let boundary_preimage = build_boundary_update_preimage_fields(z_i_in, chunk_digest);
-    let public_trace_preimage = build_public_trace_update_preimage_fields(public_trace_in, chunk_digest);
     let accumulator_preimage = build_accumulator_preimage_fields(1, &c_data);
 
-    let boundary_trace = encode_poseidon_trace(&boundary_preimage);
-    let public_trace_trace = encode_poseidon_trace(&public_trace_preimage);
     let accumulator_trace = encode_poseidon_trace(&accumulator_preimage);
 
-    image.splice_one_shot_poseidon(0, &boundary_trace);
-    image.splice_one_shot_poseidon(1, &public_trace_trace);
-    image.splice_one_shot_poseidon(2, &accumulator_trace);
+    image.splice_one_shot_poseidon(0, &accumulator_trace);
 
     image.fill_state_out(&StateOut {
         new_chunk_count: 0,
         new_step_count: 0,
-        new_z_i: boundary_trace.digest_native,
-        new_public_trace: public_trace_trace.digest_native,
+        new_z_i: chunk_digest,
+        new_public_trace: chunk_digest,
         new_acc_digest: accumulator_trace.digest_native,
         new_semantic_state_digest: accumulator_trace.digest_native,
     });
@@ -194,57 +174,6 @@ fn phase_1_4e_honest_recursive_step_satisfies_structure() {
         structure.is_satisfied(&z),
         "honest recursive step must satisfy full Phase 1.4 structure (first failing row: {:?})",
         structure.first_unsatisfied_row(&z),
-    );
-}
-
-#[test]
-fn phase_1_4e_tampered_z_i_in_trips_boundary_absorb() {
-    let fix = build_honest_fixture();
-    let structure = build_f_prime_structure(fix.layout);
-    let mut z = structure.extend_witness_from_image(&fix.image);
-    assert!(structure.is_satisfied(&z), "baseline must satisfy");
-
-    let lane = structure.lane_slots.state_lanes[STATE_LANE_Z_I_IN_BASE];
-    let new_value = decode_lane(&z, lane.bit_start) + F::ONE;
-    flip_lane_bits_to(&mut z, lane.bit_start, new_value);
-
-    assert!(
-        !structure.is_satisfied(&z),
-        "coherent z_i_in tamper must trip a boundary_update absorb-binding row"
-    );
-}
-
-#[test]
-fn phase_1_4e_tampered_chunk_digest_trips_some_binding() {
-    let fix = build_honest_fixture();
-    let structure = build_f_prime_structure(fix.layout);
-    let mut z = structure.extend_witness_from_image(&fix.image);
-    assert!(structure.is_satisfied(&z), "baseline must satisfy");
-
-    let lane = structure.lane_slots.state_lanes[STATE_LANE_CHUNK_DIGEST_BASE];
-    let new_value = decode_lane(&z, lane.bit_start) + F::ONE;
-    flip_lane_bits_to(&mut z, lane.bit_start, new_value);
-
-    assert!(
-        !structure.is_satisfied(&z),
-        "coherent chunk_digest tamper must trip boundary_update and/or public_trace_update absorb-binding rows"
-    );
-}
-
-#[test]
-fn phase_1_4e_tampered_public_trace_in_trips_public_trace_absorb() {
-    let fix = build_honest_fixture();
-    let structure = build_f_prime_structure(fix.layout);
-    let mut z = structure.extend_witness_from_image(&fix.image);
-    assert!(structure.is_satisfied(&z), "baseline must satisfy");
-
-    let lane = structure.lane_slots.state_lanes[STATE_LANE_PUBLIC_TRACE_IN_BASE];
-    let new_value = decode_lane(&z, lane.bit_start) + F::ONE;
-    flip_lane_bits_to(&mut z, lane.bit_start, new_value);
-
-    assert!(
-        !structure.is_satisfied(&z),
-        "coherent public_trace_in tamper must trip a public_trace_update absorb-binding row"
     );
 }
 

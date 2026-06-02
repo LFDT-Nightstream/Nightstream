@@ -582,6 +582,7 @@ fn pi_rlc_full_combination_with_transcript_derived_rhos() {
         "full Π_RLC.V (c + X + y_ring) with transcript-derived ρ must accept honest native combination (first bad row: {:?})",
         b.first_unsatisfied_row()
     );
+    assert_no_unconstrained_columns(&b, "full transcript-derived Π_RLC.V c+X+y");
 
     // Spot-check: tampering an X entry breaks satisfaction.
     let target = wires_x.inputs[0].x_flat[0].col();
@@ -701,6 +702,7 @@ fn rlc_y_zcol_combination_accepts_honest_combination_at_production_d_pad() {
         "honest y_zcol combination rejected at production d_pad (first bad row: {:?})",
         b.first_unsatisfied_row()
     );
+    assert_no_unconstrained_columns(&b, "production-shaped Π_RLC.V padded y_zcol");
 }
 
 #[test]
@@ -725,6 +727,30 @@ fn rlc_y_zcol_combination_rejects_nonzero_tail() {
     assert!(
         !b.is_satisfied(),
         "circuit accepted a non-zero combined.y_zcol[D] (tail-must-be-zero violated)"
+    );
+}
+
+#[test]
+fn rlc_y_zcol_combination_rejects_nonzero_input_tail() {
+    // The rotation fold consumes only lanes 0..D. Without explicit input-tail
+    // zero pins, a non-zero padded lane in an input claim would be allocated
+    // but never constrained, while the honest combined output remains zero.
+    let d_pad = D.next_power_of_two();
+    assert!(d_pad > D);
+
+    let rhos = vec![deterministic_rq(741), deterministic_rq(742)];
+    let mut ys = vec![deterministic_padded_y(841, d_pad), deterministic_padded_y(842, d_pad)];
+    let combined = native_padded_y_combine(&rhos, &ys, d_pad);
+    ys[0][D] = K::ONE;
+    let rho_cols: Vec<[F; D]> = rhos.iter().copied().map(cf).collect();
+
+    let mut b = R1csBuilder::new();
+    let wires = alloc_rlc_y_zcol_inputs(&mut b, &rho_cols, &ys, &combined, d_pad).expect("alloc y_zcol");
+    enforce_rlc_y_zcol_combination(&mut b, &wires);
+
+    assert!(
+        !b.is_satisfied(),
+        "circuit accepted a non-zero input.y_zcol[D] padding lane"
     );
 }
 
@@ -807,5 +833,53 @@ fn rlc_s_col_consistency_rejects_tampered_input_s_col() {
     assert!(!bd.is_satisfied(), "tampered input.s_col was accepted");
 }
 
+#[test]
+fn rlc_s_col_consistency_rejects_tampered_combined_s_col() {
+    let mut bd = R1csBuilder::new();
+    let s_col: Vec<K> = (0..3).map(|i| K::from_u64((i + 13) as u64)).collect();
+    let combined_vars: Vec<KVar> = s_col
+        .iter()
+        .copied()
+        .map(|v| {
+            let [c0, c1] = v.as_coeffs();
+            KVar::alloc(&mut bd, c0, c1)
+        })
+        .collect();
+    let input_a: Vec<KVar> = s_col
+        .iter()
+        .copied()
+        .map(|v| {
+            let [c0, c1] = v.as_coeffs();
+            KVar::alloc(&mut bd, c0, c1)
+        })
+        .collect();
+    let input_b: Vec<KVar> = s_col
+        .iter()
+        .copied()
+        .map(|v| {
+            let [c0, c1] = v.as_coeffs();
+            KVar::alloc(&mut bd, c0, c1)
+        })
+        .collect();
+    let inputs = vec![input_a, input_b];
+    enforce_rlc_s_col_consistency(&mut bd, &inputs, &combined_vars).expect("emit");
+    assert!(bd.is_satisfied(), "baseline");
+
+    // Tamper the combined parent side. This catches the opposite
+    // authority-boundary failure from the input-side test: Π_RLC must not
+    // let the parent carry an arbitrary NC column point after folding.
+    let target = combined_vars[0].c1.col();
+    bd.tamper_witness(target, bd.witness()[target] + F::ONE);
+    assert!(!bd.is_satisfied(), "tampered combined.s_col was accepted");
+}
+
 #[allow(dead_code)]
 fn _silence_unused_lc(_x: Lc) {}
+
+fn assert_no_unconstrained_columns(builder: &R1csBuilder, label: &str) {
+    let unconstrained = builder.unconstrained_columns();
+    assert!(
+        unconstrained.is_empty(),
+        "{label} left unconstrained columns: {unconstrained:?}"
+    );
+}

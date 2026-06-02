@@ -108,8 +108,9 @@ impl<'a> R1csChainBuilder<'a> {
     /// Append K satisfying R1CS assignments as **one** SuperNeo chunk.
     /// All assignments must satisfy the same R1CS shape this chain
     /// committed to; they share the pre-step chain state and produce K
-    /// distinct `EncodedFPrimeStep` images (each absorbs its own
-    /// `app_public_input` into its `state_x_out`).
+    /// distinct `EncodedFPrimeStep` images. Plans that bind app public
+    /// input through semantic state are serial today because one chunk
+    /// has one outgoing semantic-state digest.
     ///
     /// Rejects `K == 0` (SuperNeo requires `K \u{2265} 1`) and the
     /// steady-state RLC bound `(K + k_rho) \u{00B7} T \u{00B7} (b-1) < B`
@@ -138,11 +139,13 @@ impl<'a> R1csChainBuilder<'a> {
 
         if is_recursive {
             if let Some(s) = semantic.as_ref() {
-                if self.ctx.chain_state.semantic_state_digest != s.input {
-                    return Err(Error::Compiler(R1csCompilerError::SemanticStateInputMismatch {
-                        expected: self.ctx.chain_state.semantic_state_digest,
-                        got: s.input,
-                    }));
+                if let Some(input) = s.input {
+                    if self.ctx.chain_state.semantic_state_digest != input {
+                        return Err(Error::Compiler(R1csCompilerError::SemanticStateInputMismatch {
+                            expected: self.ctx.chain_state.semantic_state_digest,
+                            got: input,
+                        }));
+                    }
                 }
             }
             #[cfg(feature = "perf-timers")]
@@ -225,10 +228,14 @@ impl<'a> R1csChainBuilder<'a> {
             audit
         } else {
             if let Some(semantic) = semantic {
+                let initial = semantic
+                    .input
+                    .map(digest_fields_as_digest32)
+                    .unwrap_or_else(|| self.prep.prep.initial_semantic_state_digest());
                 crate::lifecycle::prove::prove_one_with_semantic_state(
                     &self.prep.prep,
                     instances.clone(),
-                    digest_fields_as_digest32(semantic.input),
+                    initial,
                     digest_fields_as_digest32(semantic.output),
                 )?
             } else {
@@ -259,8 +266,12 @@ impl<'a> R1csChainBuilder<'a> {
         self.audit.ok_or(Error::ChainEmpty)
     }
 
-    /// Finalize while dropping the audit trail; output is suitable for
-    /// `lifecycle::verify_uncompressed`.
+    /// Finalize while dropping the audit trail.
+    ///
+    /// This output is suitable for terminal-only
+    /// `lifecycle::verify_uncompressed` only for single-chunk F' chains.
+    /// Multi-chunk F' chains need [`Self::finish_with_audit`] until the
+    /// compressed decider proves the recursive F'/NIFS.V induction.
     pub fn finish(self) -> Result<Uncompressed, Error> {
         let prep = self.prep;
         let audit = self.into_audit()?;

@@ -73,6 +73,7 @@ fn alloc_d(builder: &mut R1csBuilder, vals: &[F; D]) -> [Var; D] {
 fn ring_action_only_image_config() -> FPrimeImageConfig {
     FPrimeImageConfig {
         limbs: 3,
+        app_private_var_widths: Vec::new(),
         boundary_bits: 0,
         nifs_payload_shapes: vec![],
         kmul_count: 0,

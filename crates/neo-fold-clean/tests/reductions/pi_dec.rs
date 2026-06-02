@@ -7,14 +7,19 @@
 #[path = "../support/mod.rs"]
 mod support;
 
+use std::collections::BTreeSet;
+
+use neo_ccs::Mat;
 use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
 use neo_fold_clean::engine::transcript::Transcript;
 use neo_fold_clean::paper::construction2::RunningInstance;
 use neo_fold_clean::paper::nifs;
 use neo_fold_clean::paper::reductions::pi_dec_circuit::{
-    alloc_dec_inputs, enforce_dec_v, enforce_dec_v_strict, enforce_r_consistency, enforce_x_bitness,
+    alloc_dec_inputs, enforce_dec_v, enforce_dec_v_strict, enforce_r_consistency, enforce_x_bitness, DecInputWires,
 };
-use p3_field::PrimeCharacteristicRing;
+use neo_math::ring::D;
+use neo_math::{F, K};
+use p3_field::{Field, PrimeCharacteristicRing};
 
 #[test]
 fn pi_dec_circuit_accepts_honest_decomposition() {
@@ -71,10 +76,10 @@ fn pi_dec_circuit_rejects_tampered_y_ring_lane() {
     enforce_dec_v(&mut builder, &prep.params, &wires).expect("dec_v emit");
 
     // Tamper child 0's first y_ring lane (first base-field limb).
-    if wires.children[0].y_ring.is_empty() || wires.children[0].y_ring[0].is_empty() {
-        eprintln!("test fixture has no y_ring lanes — skipping");
-        return;
-    }
+    assert!(
+        !wires.children[0].y_ring.is_empty() && !wires.children[0].y_ring[0].is_empty(),
+        "test fixture must expose child y_ring lanes"
+    );
     let target_col = wires.children[0].y_ring[0][0].col();
     let tampered = builder.witness()[target_col] + neo_math::F::ONE;
     builder.tamper_witness(target_col, tampered);
@@ -142,6 +147,38 @@ fn pi_dec_circuit_strict_accepts_honest_decomposition() {
 }
 
 #[test]
+fn pi_dec_circuit_strict_leaves_only_y_zcol_sidecars_unconstrained() {
+    // Π_DEC owns the b-ary parent→children recomposition for commitment, X,
+    // r, y_ring, ct, s_col, and fold_digest. It intentionally does not own
+    // y_zcol recomposition: SplitNc's NC channel mixes digit-decomposed and
+    // linear y_zcols, so child y_zcol is not recursive accumulator authority.
+    // This test pins that boundary exactly. If any other allocated wire floats,
+    // the strict DEC gadget is missing a row.
+    let (proof, _claims) = drive_nifs(24);
+
+    let parent = &proof.pi_rlc.combined;
+    let children = &proof.pi_dec.children;
+
+    let prep = support::toy_preprocessing();
+    let mut builder = R1csBuilder::new();
+    let wires = alloc_dec_inputs(&mut builder, parent, children);
+    enforce_dec_v_strict(&mut builder, &prep.params, &wires).expect("strict dec_v emit");
+
+    assert!(
+        builder.is_satisfied(),
+        "strict Π_DEC.V must accept native (parent, children) before unconstrained-column audit"
+    );
+
+    let unconstrained: BTreeSet<_> = builder.unconstrained_columns().into_iter().collect();
+    let allowed = y_zcol_sidecar_columns(&wires);
+    assert!(
+        unconstrained == allowed,
+        "strict Π_DEC.V left unexpected unconstrained columns: got {unconstrained:?}, \
+         expected exactly y_zcol sidecars {allowed:?}"
+    );
+}
+
+#[test]
 fn pi_dec_circuit_strict_rejects_child_ct_not_derived_from_y_ring() {
     let (proof, _claims) = drive_nifs(24);
 
@@ -162,6 +199,223 @@ fn pi_dec_circuit_strict_rejects_child_ct_not_derived_from_y_ring() {
     assert!(
         !builder.is_satisfied(),
         "strict Π_DEC.V accepted child ct that no longer equals y_ring[j][lane=0]"
+    );
+}
+
+#[test]
+fn pi_dec_circuit_strict_rejects_parent_ct_c1_not_derived_from_y_ring() {
+    let (proof, _claims) = drive_nifs(25);
+
+    let parent = &proof.pi_rlc.combined;
+    let children = &proof.pi_dec.children;
+
+    let prep = support::toy_preprocessing();
+    let mut builder = R1csBuilder::new();
+    let wires = alloc_dec_inputs(&mut builder, parent, children);
+    enforce_dec_v_strict(&mut builder, &prep.params, &wires).expect("strict emit");
+    assert!(builder.is_satisfied(), "baseline must satisfy");
+
+    assert!(!wires.parent.ct.is_empty(), "fixture must expose parent ct wires");
+    let target_col = wires.parent.ct[0].c1.col();
+    let tampered = builder.witness()[target_col] + neo_math::F::ONE;
+    builder.tamper_witness(target_col, tampered);
+
+    assert!(
+        !builder.is_satisfied(),
+        "strict Π_DEC.V accepted parent ct.c1 that no longer equals y_ring[j][lane=0].c1"
+    );
+}
+
+#[test]
+fn pi_dec_circuit_strict_rejects_canceling_child_y_ring_padding_lanes() {
+    // Plain DEC recomposition only checks the b-weighted sum. Two children can
+    // therefore carry nonzero padded y_ring lanes that cancel in the parent.
+    // Strict DEC must reject that non-canonical output because children become
+    // the next running accumulator.
+    let (proof, _claims) = drive_nifs(61);
+
+    let parent = &proof.pi_rlc.combined;
+    let mut children = proof.pi_dec.children.clone();
+    let d_pad = D.next_power_of_two();
+    assert!(d_pad > D, "fixture must have padded y_ring lanes");
+    assert!(children.len() >= 2, "fixture must have at least two DEC children");
+    assert!(
+        !children[0].y_ring.is_empty() && children[0].y_ring[0].len() == d_pad,
+        "fixture must expose full padded child y_ring rows"
+    );
+
+    let b_inv = K::from_u64(support::toy_preprocessing().params.b() as u64).inverse();
+    children[0].y_ring[0][D] += K::ONE;
+    children[1].y_ring[0][D] -= b_inv;
+
+    let prep = support::toy_preprocessing();
+    let mut builder = R1csBuilder::new();
+    let wires = alloc_dec_inputs(&mut builder, parent, &children);
+    enforce_dec_v_strict(&mut builder, &prep.params, &wires).expect("strict emit");
+    assert!(
+        !builder.is_satisfied(),
+        "strict Π_DEC.V accepted canceling nonzero child y_ring padding lanes"
+    );
+}
+
+#[test]
+fn pi_dec_circuit_strict_rejects_self_consistent_parent_child_y_ring_padding_lane() {
+    // Stronger than a one-sided tamper: make the parent and first child
+    // agree on a nonzero padded y_ring lane, so plain b-ary recomposition
+    // still passes (`b^0 = 1`). Strict DEC must reject the padded lane
+    // itself as non-canonical CE data.
+    let (proof, _claims) = drive_nifs(62);
+
+    let mut parent = proof.pi_rlc.combined.clone();
+    let mut children = proof.pi_dec.children.clone();
+    let d_pad = D.next_power_of_two();
+    assert!(d_pad > D, "fixture must have padded y_ring lanes");
+    assert!(
+        !parent.y_ring.is_empty() && parent.y_ring[0].len() == d_pad,
+        "fixture must expose full padded parent y_ring rows"
+    );
+    assert!(
+        !children[0].y_ring.is_empty() && children[0].y_ring[0].len() == d_pad,
+        "fixture must expose full padded child y_ring rows"
+    );
+
+    parent.y_ring[0][D] += K::ONE;
+    children[0].y_ring[0][D] += K::ONE;
+
+    let prep = support::toy_preprocessing();
+    let mut builder = R1csBuilder::new();
+    let wires = alloc_dec_inputs(&mut builder, &parent, &children);
+    enforce_dec_v_strict(&mut builder, &prep.params, &wires).expect("strict emit");
+    assert!(
+        !builder.is_satisfied(),
+        "strict Π_DEC.V accepted self-consistent nonzero parent/child y_ring padding lanes"
+    );
+}
+
+#[test]
+fn pi_dec_circuit_strict_rejects_parent_aux_openings_sidecar() {
+    let (proof, _claims) = drive_nifs(25);
+
+    let mut parent = proof.pi_rlc.combined.clone();
+    parent.aux_openings.push(K::ONE);
+    let children = &proof.pi_dec.children;
+
+    let prep = support::toy_preprocessing();
+    let mut builder = R1csBuilder::new();
+    let wires = alloc_dec_inputs(&mut builder, &parent, children);
+    let err = enforce_dec_v_strict(&mut builder, &prep.params, &wires)
+        .err()
+        .expect("strict DEC must reject unsupported parent aux_openings");
+    assert!(
+        err.to_string().contains("aux_openings"),
+        "expected aux_openings shape error, got {err}"
+    );
+}
+
+#[test]
+fn pi_dec_circuit_strict_rejects_child_aux_openings_sidecar() {
+    let (proof, _claims) = drive_nifs(26);
+
+    let parent = &proof.pi_rlc.combined;
+    let mut children = proof.pi_dec.children.clone();
+    children[0].aux_openings.push(K::ONE);
+
+    let prep = support::toy_preprocessing();
+    let mut builder = R1csBuilder::new();
+    let wires = alloc_dec_inputs(&mut builder, parent, &children);
+    let err = enforce_dec_v_strict(&mut builder, &prep.params, &wires)
+        .err()
+        .expect("strict DEC must reject unsupported child aux_openings");
+    assert!(
+        err.to_string().contains("aux_openings"),
+        "expected aux_openings shape error, got {err}"
+    );
+}
+
+#[test]
+fn pi_dec_circuit_strict_rejects_pattern_a_metadata_sidecar() {
+    let (proof, _claims) = drive_nifs(27);
+
+    let mut parent = proof.pi_rlc.combined.clone();
+    parent.c_step_coords.push(F::ONE);
+    let children = &proof.pi_dec.children;
+
+    let prep = support::toy_preprocessing();
+    let mut builder = R1csBuilder::new();
+    let wires = alloc_dec_inputs(&mut builder, &parent, children);
+    let err = enforce_dec_v_strict(&mut builder, &prep.params, &wires)
+        .err()
+        .expect("strict DEC must reject unsupported Pattern-A metadata");
+    assert!(
+        err.to_string().contains("c_step_coords"),
+        "expected c_step_coords shape error, got {err}"
+    );
+}
+
+#[test]
+fn pi_dec_circuit_strict_rejects_parent_commitment_shape_metadata_drift() {
+    let (proof, _claims) = drive_nifs(28);
+
+    let mut parent = proof.pi_rlc.combined.clone();
+    parent.c.kappa += 1;
+    let children = &proof.pi_dec.children;
+
+    let prep = support::toy_preprocessing();
+    let mut builder = R1csBuilder::new();
+    let wires = alloc_dec_inputs(&mut builder, &parent, children);
+    let err = enforce_dec_v_strict(&mut builder, &prep.params, &wires)
+        .err()
+        .expect("strict DEC must reject parent commitment metadata drift");
+    assert!(
+        err.to_string().contains("parent commitment lane count"),
+        "expected parent commitment lane-count shape error, got {err}"
+    );
+}
+
+#[test]
+fn pi_dec_circuit_strict_rejects_child_commitment_shape_metadata_drift() {
+    let (proof, _claims) = drive_nifs(30);
+
+    let parent = &proof.pi_rlc.combined;
+    let mut children = proof.pi_dec.children.clone();
+    children[0].c.kappa += 1;
+    children[0]
+        .c
+        .data
+        .extend(std::iter::repeat(F::ZERO).take(D));
+
+    let prep = support::toy_preprocessing();
+    let mut builder = R1csBuilder::new();
+    let wires = alloc_dec_inputs(&mut builder, parent, &children);
+    let err = enforce_dec_v_strict(&mut builder, &prep.params, &wires)
+        .err()
+        .expect("strict DEC must reject child commitment metadata drift");
+    assert!(
+        err.to_string().contains("child commitment kappa"),
+        "expected child commitment-kappa shape error, got {err}"
+    );
+}
+
+#[test]
+fn pi_dec_circuit_strict_rejects_tampered_child_shape_metadata_wire() {
+    let (proof, _claims) = drive_nifs(32);
+
+    let parent = &proof.pi_rlc.combined;
+    let children = &proof.pi_dec.children;
+
+    let prep = support::toy_preprocessing();
+    let mut builder = R1csBuilder::new();
+    let wires = alloc_dec_inputs(&mut builder, parent, children);
+    enforce_dec_v_strict(&mut builder, &prep.params, &wires).expect("strict DEC emit");
+    assert!(builder.is_satisfied(), "baseline must satisfy");
+
+    let target_col = wires.children[0].c_kappa_var.col();
+    let tampered = builder.witness()[target_col] + F::ONE;
+    builder.tamper_witness(target_col, tampered);
+
+    assert!(
+        !builder.is_satisfied(),
+        "strict Π_DEC.V accepted a child c.kappa metadata wire that diverges from the parent"
     );
 }
 
@@ -204,10 +458,10 @@ fn pi_dec_circuit_r_consistency_rejects_tampered_child_r() {
 
     // Tamper child 0's first r limb. The equality `parent.r[0].c0 ==
     // child_0.r[0].c0` must fail.
-    if wires.children[0].r.is_empty() {
-        eprintln!("test fixture has empty r — skipping");
-        return;
-    }
+    assert!(
+        !wires.children[0].r.is_empty(),
+        "test fixture must expose child r lanes"
+    );
     let target_col = wires.children[0].r[0].c0.col();
     let tampered = builder.witness()[target_col] + neo_math::F::ONE;
     builder.tamper_witness(target_col, tampered);
@@ -253,9 +507,10 @@ fn pi_dec_circuit_strict_rejects_tampered_child_r() {
     enforce_dec_v_strict(&mut builder, &prep.params, &wires).expect("strict emit");
     assert!(builder.is_satisfied(), "baseline");
 
-    if wires.children[0].r.is_empty() {
-        return;
-    }
+    assert!(
+        !wires.children[0].r.is_empty(),
+        "test fixture must expose child r lanes"
+    );
     let target_col = wires.children[0].r[0].c1.col();
     let tampered = builder.witness()[target_col] + neo_math::F::ONE;
     builder.tamper_witness(target_col, tampered);
@@ -266,7 +521,7 @@ fn pi_dec_circuit_strict_rejects_tampered_child_r() {
 }
 
 #[test]
-fn pi_dec_circuit_strict_rejects_out_of_range_x() {
+fn pi_dec_circuit_strict_rejects_child_x_recomposition_mismatch() {
     let (proof, _claims) = drive_nifs(43);
 
     let parent = &proof.pi_rlc.combined;
@@ -278,12 +533,17 @@ fn pi_dec_circuit_strict_rejects_out_of_range_x() {
     enforce_dec_v_strict(&mut builder, &prep.params, &wires).expect("strict emit");
     assert!(builder.is_satisfied(), "baseline");
 
-    // Set a child x to `b`. The b-ary recomposition would technically allow
-    // larger values (it just sums), but bitness narrows it to {0..b-1}.
+    // Mutate one child X without updating the parent. Strict Π_DEC.V does
+    // not own unsigned X bitness; this rejection is the b-ary recomposition
+    // row. The separate `pi_dec_circuit_x_bitness_rejects_out_of_range_x`
+    // test covers callers that opt into unsigned range rows.
     let b = prep.params.b();
     let target_col = wires.children[0].x[0].col();
     builder.tamper_witness(target_col, neo_math::F::from_u64(b as u64));
-    assert!(!builder.is_satisfied(), "strict Π_DEC.V must reject child x = b");
+    assert!(
+        !builder.is_satisfied(),
+        "strict Π_DEC.V must reject a child X value that no longer recomposes to the parent"
+    );
 }
 
 // ── SplitNc NC-channel tamper tests ──────────────────────────────────────
@@ -308,10 +568,10 @@ fn pi_dec_circuit_strict_rejects_tampered_child_s_col() {
         builder.first_unsatisfied_row()
     );
 
-    if wires.children[0].s_col.is_empty() {
-        eprintln!("test fixture has no s_col lanes — skipping");
-        return;
-    }
+    assert!(
+        !wires.children[0].s_col.is_empty(),
+        "test fixture must expose child s_col lanes"
+    );
     let target_col = wires.children[0].s_col[0].c0.col();
     let tampered = builder.witness()[target_col] + neo_math::F::ONE;
     builder.tamper_witness(target_col, tampered);
@@ -323,31 +583,48 @@ fn pi_dec_circuit_strict_rejects_tampered_child_s_col() {
 fn pi_dec_circuit_rejects_nonzero_inactive_child_x() {
     // `enforce_dec_v_strict` includes `enforce_inactive_x_zero`, which pins
     // each child's `X[r, c]` to zero for `c >= ceil(m_in / D)`. Tampering
-    // an inactive slot must break strict Π_DEC.V on its own — without this
-    // guard the next running accumulator could carry non-canonical data
-    // that no downstream Π_CCS would re-validate at a terminal state.
+    // inactive slots must break strict Π_DEC.V on its own. The tamper below
+    // is recomposition-canceling (`child0 = b`, `child1 = -1`, parent = 0),
+    // so the ordinary b-ary X equation still holds; only the inactive-X rows
+    // can reject.
     let (proof, _claims) = drive_nifs(59);
-    let parent = &proof.pi_rlc.combined;
-    let children = &proof.pi_dec.children;
+    let mut parent = proof.pi_rlc.combined.clone();
+    let mut children = proof.pi_dec.children.clone();
+    assert!(children.len() >= 2, "fixture must expose at least two DEC children");
+
+    let widen_x = |claim: &mut neo_fold_clean::CeClaim| {
+        let mut widened = Mat::zero(D, 2, F::ZERO);
+        for row in 0..D {
+            widened[(row, 0)] = claim.X[(row, 0)];
+        }
+        claim.X = widened;
+        claim.m_in = 2;
+    };
+    widen_x(&mut parent);
+    for child in &mut children {
+        widen_x(child);
+    }
 
     let prep = support::toy_preprocessing();
     let mut builder = R1csBuilder::new();
-    let wires = alloc_dec_inputs(&mut builder, parent, children);
+    let wires = alloc_dec_inputs(&mut builder, &parent, &children);
     enforce_dec_v_strict(&mut builder, &prep.params, &wires).expect("strict emit");
     assert!(builder.is_satisfied(), "baseline must satisfy");
 
     let child = &wires.children[0];
     let m_in = child.x_cols;
     let active_cols = neo_fold_clean::paper::relations::superneo_public_x_cols(m_in);
-    if active_cols >= m_in {
-        eprintln!("toy fixture has no inactive cols (active={active_cols}, m_in={m_in}) — skipping");
-        return;
-    }
-    let target_col = child.x[0 * m_in + active_cols].col();
-    builder.tamper_witness(target_col, neo_math::F::ONE);
+    assert!(
+        active_cols < m_in,
+        "test fixture must expose inactive child X columns (active={active_cols}, m_in={m_in})"
+    );
+    let child0_col = child.x[active_cols].col();
+    let child1_col = wires.children[1].x[active_cols].col();
+    builder.tamper_witness(child0_col, F::from_u64(prep.params.b() as u64));
+    builder.tamper_witness(child1_col, F::ZERO - F::ONE);
     assert!(
         !builder.is_satisfied(),
-        "strict Π_DEC.V must reject non-zero inactive child X"
+        "strict Π_DEC.V must reject recomposition-canceling non-zero inactive child X"
     );
 }
 
@@ -357,7 +634,7 @@ fn pi_dec_circuit_does_not_constrain_child_y_zcol() {
     // · child_i.y_zcol`. Π_CCS outputs mix MCS digit-decomposed and ME
     // linear y_zcols, and after Π_RLC the parent y_zcol doesn't telescope
     // under b-ary split. Children's y_zcol values are free relative to
-    // Π_DEC and only re-bound by the next step's Π_CCS NC terminal identity.
+    // Π_DEC and only re-bound by the terminal CE relation.
     // This test pins that contract: tampering a child's y_zcol must NOT
     // break Π_DEC.V on its own.
     let (proof, _claims) = drive_nifs(53);
@@ -375,10 +652,10 @@ fn pi_dec_circuit_does_not_constrain_child_y_zcol() {
         builder.first_unsatisfied_row()
     );
 
-    if wires.children[0].y_zcol.is_empty() {
-        eprintln!("test fixture has no y_zcol lanes — skipping");
-        return;
-    }
+    assert!(
+        !wires.children[0].y_zcol.is_empty(),
+        "test fixture must expose child y_zcol lanes"
+    );
     let target_col = wires.children[0].y_zcol[0].col();
     let tampered = builder.witness()[target_col] + neo_math::F::ONE;
     builder.tamper_witness(target_col, tampered);
@@ -411,4 +688,14 @@ fn drive_nifs(seed: u64) -> (nifs::NifsProof, Vec<neo_fold_clean::CcsInstance>) 
     )
     .expect("NIFS.P");
     (proof, claims)
+}
+
+fn y_zcol_sidecar_columns(wires: &DecInputWires) -> BTreeSet<usize> {
+    wires
+        .parent
+        .y_zcol
+        .iter()
+        .chain(wires.children.iter().flat_map(|child| child.y_zcol.iter()))
+        .map(|var| var.col())
+        .collect()
 }

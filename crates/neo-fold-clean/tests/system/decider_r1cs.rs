@@ -18,9 +18,12 @@
 //!     (`cross_step_links == N - 1`).
 //!   - **CE-claim continuity links** wiring every recursive step's
 //!     NIFS children to the next step's (or terminal fold's) running
-//!     (`accumulator_claim_links == recursive_step_count`). Goes beyond
-//!     commitment-only `acc_digest` continuity by pinning every CE
-//!     field wire-for-wire.
+//!     (`accumulator_claim_links == recursive_step_count`). This is an
+//!     explicit wire-for-wire continuity check for every CE field, not a
+//!     substitute for the full-running `acc_digest` handle.
+//!   - **Parent-authority continuity links** wiring every recursive step's
+//!     Π_RLC parent authority to the next step's (or terminal fold's)
+//!     running parent (`parent_authority_links == recursive_step_count`).
 //!   - **Terminal NIFS.V** under `FINAL_FOLD_TRANSCRIPT_LABEL`
 //!     (`terminal_fold_emitted == true`).
 //!   - **Terminal latest link**: `terminal_fresh.x[0] == 1` and
@@ -37,14 +40,25 @@
 #![allow(non_snake_case)]
 
 use neo_ccs::Mat;
-use neo_fold_clean::engine::decider::{synthesize_statement_r1cs, REQUIRED_PUBLIC_IMAGE_PINS};
+use neo_fold_clean::engine::decider::{
+    __test_isolation::{
+        enforce_base_state_constants_against, enforce_ce_continuity_against_self, enforce_public_image_pins_against,
+        enforce_public_image_pins_against_chain, enforce_state_link_against_self,
+        enforce_terminal_fold_against_last_acc_digest, enforce_terminal_fold_children_continuity_against_self,
+        enforce_terminal_fold_parent_authority_against_self, enforce_terminal_latest_link_against,
+        CeContinuityProbeWires,
+    },
+    synthesize_last_step_terminal_r1cs, synthesize_statement_r1cs, REQUIRED_PUBLIC_IMAGE_PINS,
+};
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
-use neo_fold_clean::paper::construction2::{self, State};
+use neo_fold_clean::paper::construction2::{self, EncInst, State, TRIVIAL_PC};
+use neo_fold_clean::paper::decider::{self, PublicImage};
 use neo_fold_clean::paper::digest::{
-    accumulator_digest_from_claims, digest32_as_fields, initial_boundary_digest, public_trace_seed_digest,
-    state_x_out_digest, structure_digest,
+    digest32_as_fields, initial_boundary_digest, public_trace_seed_digest, state_x_out_digest_with_mode,
+    structure_digest, AccumulatorHandle, StateXOutDigestMode,
 };
 use neo_fold_clean::paper::f_prime::r1cs::{encode_f_prime_public_input, F_PRIME_PUBLIC_INPUT_LEN};
+use neo_fold_clean::paper::terminal_ce::{TerminalCeProof, TerminalCePublic};
 use neo_fold_clean::CcsInstance;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
@@ -61,7 +75,12 @@ fn bit_carrier_r1cs() -> R1cs {
 }
 
 fn compute_x_out_native(prep: &neo_fold_clean::Preprocessing, state: &State) -> [F; 4] {
-    digest32_as_fields(state_x_out_digest(
+    let mode = match prep.semantic_state_mode() {
+        neo_fold_clean::paper::construction2::SemanticStateMode::Stateless => StateXOutDigestMode::Stateless,
+        neo_fold_clean::paper::construction2::SemanticStateMode::Stateful => StateXOutDigestMode::Stateful,
+    };
+    digest32_as_fields(state_x_out_digest_with_mode(
+        mode,
         prep.vk.digest(),
         &structure_digest(prep.structure()),
         state.chunk_count,
@@ -75,11 +94,52 @@ fn compute_x_out_native(prep: &neo_fold_clean::Preprocessing, state: &State) -> 
     ))
 }
 
+fn public_image_pin_fixture(prep: &neo_fold_clean::Preprocessing) -> PublicImage {
+    let z_0 = initial_boundary_digest(prep.structure_digest(), prep.public_input_len);
+    let z_i = [7u8; 32];
+    let acc_digest = AccumulatorHandle::empty().digest();
+    let mut public = PublicImage {
+        vk_fs_digest: prep.vk.digest(),
+        chunk_count: 1,
+        step_count: 1,
+        z_0,
+        z_i,
+        pc: TRIVIAL_PC,
+        initial_semantic_state_digest: prep.initial_semantic_state_digest(),
+        semantic_state_digest: acc_digest,
+        acc_digest,
+        public_trace: z_i,
+        x_out: EncInst::from_digest([0u8; 32]),
+    };
+    refresh_public_image_x_out(prep, &mut public);
+    public
+}
+
+fn refresh_public_image_x_out(prep: &neo_fold_clean::Preprocessing, public: &mut PublicImage) {
+    let mode = match prep.semantic_state_mode() {
+        neo_fold_clean::paper::construction2::SemanticStateMode::Stateless => StateXOutDigestMode::Stateless,
+        neo_fold_clean::paper::construction2::SemanticStateMode::Stateful => StateXOutDigestMode::Stateful,
+    };
+    public.x_out = EncInst::from_digest(state_x_out_digest_with_mode(
+        mode,
+        public.vk_fs_digest,
+        prep.structure_digest(),
+        public.chunk_count,
+        public.step_count,
+        public.z_0,
+        public.z_i,
+        public.pc,
+        public.semantic_state_digest,
+        public.acc_digest,
+        public.public_trace,
+    ));
+}
+
 fn base_state(prep: &neo_fold_clean::Preprocessing) -> State {
     let structure = structure_digest(prep.structure());
     let z_0 = initial_boundary_digest(&structure, prep.public_input_len);
     let public_trace = public_trace_seed_digest(&structure);
-    let acc_digest = accumulator_digest_from_claims(prep.params.b(), &[]);
+    let acc_digest = AccumulatorHandle::empty().digest();
     State::base(z_0, public_trace, acc_digest, acc_digest)
 }
 
@@ -237,6 +297,12 @@ fn decider_r1cs_synthesis_accepts_finished_statement() {
         "F' R1CS chain rejected an honest finished statement (first bad row: {:?})",
         synth.builder.first_unsatisfied_row()
     );
+    let unconstrained = synth.builder.unconstrained_columns();
+    assert!(
+        unconstrained.is_empty(),
+        "full-history decider R1CS allocated columns that never appear in any row: {:?}",
+        unconstrained
+    );
 }
 
 #[test]
@@ -317,6 +383,10 @@ fn decider_r1cs_synthesis_replays_all_recursive_steps() {
         synth.accumulator_claim_links, synth.recursive_step_count,
         "every recursive step's children must be linked to the next step's (or terminal fold's) running"
     );
+    assert_eq!(
+        synth.parent_authority_links, synth.recursive_step_count,
+        "every recursive step's parent authority must be linked to the next step's (or terminal fold's) parent"
+    );
     assert!(
         synth.terminal_latest_link,
         "terminal latest must be pinned to last F' step's x_out_bits"
@@ -363,6 +433,10 @@ fn decider_r1cs_synthesis_emits_base_step_and_links_terminal_latest() {
         synth.accumulator_claim_links, synth.recursive_step_count,
         "every recursive step's NIFS children must be linked to the next step's (or terminal fold's) running"
     );
+    assert_eq!(
+        synth.parent_authority_links, synth.recursive_step_count,
+        "every recursive step's NIFS parent must be linked to the next step's (or terminal fold's) parent authority"
+    );
     assert!(
         synth.terminal_latest_link,
         "terminal fold's fresh.x must be pinned to last F' step's x_out_bits"
@@ -389,6 +463,133 @@ fn decider_r1cs_synthesis_emits_base_step_and_links_terminal_latest() {
 }
 
 #[test]
+fn decider_r1cs_synthesis_rejects_missing_terminal_fold() {
+    let (prep, finished) = build_honest_finished_proof(2);
+    let mut statement = neo_fold_clean::build_decider_statement(&prep, &finished);
+    assert!(
+        statement.witness.final_fold.is_some(),
+        "test setup must start with a real terminal fold"
+    );
+
+    statement.witness.final_fold = None;
+    let err = synthesize_statement_r1cs(&prep, &statement)
+        .err()
+        .expect("decider R1CS synthesis must fail closed without terminal final_fold");
+    match err {
+        neo_fold_clean::paper::decider::Error::WalkFailed(reason) => {
+            assert!(
+                reason.contains("terminal final_fold"),
+                "unexpected missing-terminal-fold diagnostic: {reason}"
+            );
+        }
+        other => panic!("expected WalkFailed for missing terminal fold, got {other:?}"),
+    }
+}
+
+#[test]
+fn decider_base_state_pins_reject_tampered_seed_wires() {
+    let (prep, _finished) = build_honest_finished_proof(1);
+    let cases: [(
+        &str,
+        fn(&neo_fold_clean::engine::decider::__test_isolation::BaseStateProbeWires) -> usize,
+    ); 10] = [
+        ("vk_fs_digest", |p| p.vk_fs0.col()),
+        ("structure_digest", |p| p.structure0.col()),
+        ("chunk_count", |p| p.chunk_count.col()),
+        ("step_count", |p| p.step_count.col()),
+        ("z_0", |p| p.z_0_0.col()),
+        ("z_i", |p| p.z_i_0.col()),
+        ("pc", |p| p.pc.col()),
+        ("initial_semantic_state_digest", |p| p.semantic0.col()),
+        ("acc_digest", |p| p.acc0.col()),
+        ("public_trace", |p| p.public_trace0.col()),
+    ];
+
+    for (name, probe_col) in cases {
+        let (mut builder, probes) = enforce_base_state_constants_against(&prep, prep.initial_semantic_state_digest());
+        assert!(
+            builder.is_satisfied(),
+            "honest base-state seed pins must satisfy before {name} tamper (first bad row: {:?})",
+            builder.first_unsatisfied_row()
+        );
+
+        let target_col = probe_col(&probes);
+        builder.tamper_witness(target_col, builder.witness()[target_col] + F::ONE);
+        assert!(
+            !builder.is_satisfied(),
+            "base-state pins accepted a {name} wire diverging from the verifier-owned seed"
+        );
+    }
+}
+
+#[test]
+fn decider_public_image_pins_reject_coherent_preprocessing_anchor_relabels() {
+    let prep = direct_ccs::preprocess_seeded(&bit_carrier_r1cs(), 42).expect("preprocess");
+    let honest = public_image_pin_fixture(&prep);
+    let builder = enforce_public_image_pins_against(&prep, &honest);
+    assert!(
+        builder.is_satisfied(),
+        "honest public-image pin fixture must satisfy (first bad row: {:?})",
+        builder.first_unsatisfied_row()
+    );
+
+    let cases: [(&str, fn(&mut PublicImage)); 3] = [
+        ("vk_fs_digest", |p| p.vk_fs_digest[0] ^= 0x01),
+        ("z_0", |p| p.z_0[0] ^= 0x02),
+        ("initial_semantic_state_digest", |p| {
+            p.initial_semantic_state_digest[0] ^= 0x04
+        }),
+    ];
+
+    for (name, tamper) in cases {
+        let mut public = honest.clone();
+        tamper(&mut public);
+        refresh_public_image_x_out(&prep, &mut public);
+        let builder = enforce_public_image_pins_against(&prep, &public);
+        assert!(
+            !builder.is_satisfied(),
+            "public-image pins accepted a coherent relabel of verifier-owned {name}"
+        );
+    }
+}
+
+#[test]
+fn decider_public_image_pins_reject_coherent_terminal_relabels() {
+    let prep = direct_ccs::preprocess_seeded(&bit_carrier_r1cs(), 42).expect("preprocess");
+    let chain = public_image_pin_fixture(&prep);
+    let builder = enforce_public_image_pins_against_chain(&prep, &chain, &chain);
+    assert!(
+        builder.is_satisfied(),
+        "honest public-image pin fixture must satisfy (first bad row: {:?})",
+        builder.first_unsatisfied_row()
+    );
+
+    let cases: [(&str, fn(&mut PublicImage), bool); 8] = [
+        ("chunk_count", |p| p.chunk_count += 1, true),
+        ("step_count", |p| p.step_count += 1, true),
+        ("z_i", |p| p.z_i[0] ^= 0x08, true),
+        ("pc", |p| p.pc += 1, true),
+        ("semantic_state_digest", |p| p.semantic_state_digest[0] ^= 0x10, true),
+        ("acc_digest", |p| p.acc_digest[0] ^= 0x20, true),
+        ("public_trace", |p| p.public_trace[0] ^= 0x40, true),
+        ("x_out", |p| p.x_out = EncInst::from_digest([0x80; 32]), false),
+    ];
+
+    for (name, tamper, refresh_x_out) in cases {
+        let mut public = chain.clone();
+        tamper(&mut public);
+        if refresh_x_out {
+            refresh_public_image_x_out(&prep, &mut public);
+        }
+        let builder = enforce_public_image_pins_against_chain(&prep, &chain, &public);
+        assert!(
+            !builder.is_satisfied(),
+            "public-image pins accepted a coherent relabel of terminal field {name}"
+        );
+    }
+}
+
+#[test]
 fn decider_r1cs_synthesis_is_self_sufficient_full_history_audit_relation() {
     // Single-call readiness gate: every completeness flag/count is at
     // its full value and the R1CS builder is satisfied. This is a
@@ -396,19 +597,103 @@ fn decider_r1cs_synthesis_is_self_sufficient_full_history_audit_relation() {
     let (prep, finished) = build_honest_finished_proof(5);
     let statement = neo_fold_clean::build_decider_statement(&prep, &finished);
 
-    let synth = synthesize_statement_r1cs(&prep, &statement).expect("synthesize");
+    let mut synth = synthesize_statement_r1cs(&prep, &statement).expect("synthesize");
 
     assert!(synth.base_step_emitted);
     assert!(synth.base_state_pinned);
     assert_eq!(synth.recursive_step_count, 4);
     assert_eq!(synth.cross_step_links, synth.recursive_step_count);
     assert_eq!(synth.accumulator_claim_links, synth.recursive_step_count);
+    assert_eq!(synth.parent_authority_links, synth.recursive_step_count);
     assert!(synth.terminal_latest_link);
     assert!(synth.terminal_fold_emitted);
+    assert!(synth.terminal_ce_direct_relations);
     assert_eq!(synth.public_image_pins, REQUIRED_PUBLIC_IMAGE_PINS);
     assert!(
         synth.is_self_sufficient_relation(),
         "self-sufficient full-history audit relation gate failed"
+    );
+
+    synth.terminal_ce_direct_relations = false;
+    assert!(
+        !synth.is_self_sufficient_relation(),
+        "self-sufficient full-history audit relation must require direct terminal CE rows"
+    );
+
+    synth.terminal_ce_direct_relations = true;
+    synth.parent_authority_links -= 1;
+    assert!(
+        !synth.is_self_sufficient_relation(),
+        "self-sufficient full-history audit relation must require parent-authority continuity links"
+    );
+}
+
+#[test]
+fn decider_r1cs_synthesis_rejects_unsupported_terminal_ce_proof_material() {
+    let (prep, finished) = build_honest_finished_proof(2);
+    let mut statement = neo_fold_clean::build_decider_statement(&prep, &finished);
+    statement.witness.terminal_ce_proof = Some(TerminalCeProof::new_unchecked([F::ZERO; 4], vec![0xA5, 0xCE]));
+
+    let err = synthesize_statement_r1cs(&prep, &statement)
+        .err()
+        .expect("compact terminal CE proof bytes must fail closed until a real verifier is wired");
+    assert!(
+        matches!(err, decider::Error::TerminalCeProofUnsupported),
+        "expected TerminalCeProofUnsupported, got {err:?}"
+    );
+}
+
+#[test]
+fn decider_r1cs_synthesis_rejects_matching_terminal_ce_proof_until_backend_exists() {
+    let (prep, finished) = build_honest_finished_proof(2);
+    let mut statement = neo_fold_clean::build_decider_statement(&prep, &finished);
+    let terminal_children = statement
+        .witness
+        .final_fold
+        .as_ref()
+        .expect("finished proof carries terminal fold")
+        .nifs
+        .pi_dec
+        .children
+        .clone();
+    let terminal_public = TerminalCePublic::from_terminal_children(&prep.params, prep.structure(), &terminal_children)
+        .expect("honest terminal children form compact terminal CE public statement");
+    statement.witness.terminal_ce_proof = Some(TerminalCeProof::new_unchecked(
+        terminal_public.digest(),
+        vec![0xA5, 0xCE],
+    ));
+
+    let err = synthesize_statement_r1cs(&prep, &statement)
+        .err()
+        .expect("well-bound compact terminal CE proof material must still fail closed");
+    assert!(
+        matches!(err, decider::Error::TerminalCeProofUnsupported),
+        "expected TerminalCeProofUnsupported, got {err:?}"
+    );
+}
+
+#[test]
+fn decider_last_step_terminal_synthesis_requires_terminal_ce_relation_rows() {
+    let (prep, finished) = build_honest_finished_proof(2);
+
+    let synth = synthesize_last_step_terminal_r1cs(&prep, &finished).expect("terminal synth");
+
+    assert!(synth.has_final_fold);
+    assert_eq!(synth.public_image_pins, REQUIRED_PUBLIC_IMAGE_PINS);
+    assert!(
+        synth.terminal_ce_direct_relations,
+        "last-step terminal synthesis must emit direct terminal CE-relation rows until a compact proof verifier replaces them"
+    );
+    assert!(
+        synth.builder.is_satisfied(),
+        "last-step terminal synthesis rejected an honest proof (first bad row: {:?})",
+        synth.builder.first_unsatisfied_row()
+    );
+    let unconstrained = synth.builder.unconstrained_columns();
+    assert!(
+        unconstrained.is_empty(),
+        "last-step terminal decider R1CS allocated columns that never appear in any row: {:?}",
+        unconstrained
     );
 }
 
@@ -416,19 +701,17 @@ fn decider_r1cs_synthesis_is_self_sufficient_full_history_audit_relation() {
 fn decider_r1cs_links_full_ce_accumulator_claims() {
     // Full CE-claim continuity between every adjacent NIFS step. For an
     // N-batch chain (1 base + (N-1) recursive + terminal fold), the
-    // expected count is `accumulator_claim_links == recursive_step_count`
-    // because:
+    // expected count is `*_links == recursive_step_count` because:
     //   - the base step has no NIFS.V output, so no link from it;
     //   - each subsequent recursive step links `prev.children ==
-    //     next.running`;
+    //     next.running` and `prev.parent == next.running_parent`;
     //   - the terminal fold links `last_recursive.children ==
-    //     terminal.running`.
+    //     terminal.running` and `last_recursive.parent ==
+    //     terminal.running_parent`.
     //
-    // The structural count is what prevents silently relying on the
-    // commitment-only `acc_digest` continuity for chain soundness. Each
-    // link enforces wire-for-wire equality across (c_data, x, r, y_ring,
-    // y_zcol, s_col, fold_digest_fields) — far beyond what
-    // `acc_digest` (commitment-data Poseidon only) covers.
+    // The structural count prevents silently reducing chain soundness to
+    // any single compact handle. Each link enforces wire-for-wire equality
+    // across the CE fields consumed by the next step or terminal fold.
     for batches in [2, 3, 5] {
         let (prep, finished) = build_honest_finished_proof(batches);
         let statement = neo_fold_clean::build_decider_statement(&prep, &finished);
@@ -440,6 +723,12 @@ fn decider_r1cs_links_full_ce_accumulator_claims() {
              recursive_step_count ({})",
             synth.accumulator_claim_links, synth.recursive_step_count,
         );
+        assert_eq!(
+            synth.parent_authority_links, synth.recursive_step_count,
+            "{batches}-batch chain: parent_authority_links ({}) must equal \
+             recursive_step_count ({})",
+            synth.parent_authority_links, synth.recursive_step_count,
+        );
         assert!(
             synth.builder.is_satisfied(),
             "{batches}-batch CE continuity rejected an honest statement \
@@ -447,6 +736,439 @@ fn decider_r1cs_links_full_ce_accumulator_claims() {
             synth.builder.first_unsatisfied_row()
         );
     }
+}
+
+#[test]
+fn decider_terminal_fold_rejects_tampered_last_acc_digest() {
+    let (prep, finished) = build_honest_finished_proof(3);
+    let final_fold = finished
+        .proof
+        .final_fold
+        .as_ref()
+        .expect("finished proof has terminal fold");
+    let pre_running = &final_fold.terminal_inputs.pre_final_running;
+    let trailing_latest = final_fold.terminal_inputs.latest.claims();
+    let honest_last_acc_digest = if pre_running.claims.is_empty() {
+        AccumulatorHandle::empty().digest()
+    } else {
+        let parent = pre_running
+            .parent_authority
+            .as_ref()
+            .expect("non-empty pre-final running has parent authority");
+        AccumulatorHandle::from_running_parts(&pre_running.claims, Some(parent)).digest()
+    };
+
+    let honest = enforce_terminal_fold_against_last_acc_digest(
+        &prep,
+        pre_running,
+        &trailing_latest,
+        &final_fold.nifs,
+        honest_last_acc_digest,
+    )
+    .expect("honest terminal-fold isolation emits");
+    assert!(
+        honest.is_satisfied(),
+        "honest terminal fold consumed-handle rows must satisfy (first bad row: {:?})",
+        honest.first_unsatisfied_row()
+    );
+
+    let mut tampered = honest_last_acc_digest;
+    tampered[0] ^= 0xFF;
+    let bad =
+        enforce_terminal_fold_against_last_acc_digest(&prep, pre_running, &trailing_latest, &final_fold.nifs, tampered)
+            .expect("tampered terminal-fold isolation emits");
+    assert!(
+        !bad.is_satisfied(),
+        "terminal fold accepted a last-step accumulator handle that does not match its consumed running"
+    );
+}
+
+#[test]
+fn decider_terminal_fold_rejects_tampered_last_parent_authority_wire() {
+    let (prep, finished) = build_honest_finished_proof(3);
+    let final_fold = finished
+        .proof
+        .final_fold
+        .as_ref()
+        .expect("finished proof has terminal fold");
+    let pre_running = &final_fold.terminal_inputs.pre_final_running;
+    let trailing_latest = final_fold.terminal_inputs.latest.claims();
+    let parent = pre_running
+        .parent_authority
+        .as_ref()
+        .expect("pre-final running has parent authority");
+    let honest_last_acc_digest = AccumulatorHandle::from_running_parts(&pre_running.claims, Some(parent)).digest();
+
+    let (mut builder, probes) = enforce_terminal_fold_parent_authority_against_self(
+        &prep,
+        pre_running,
+        &trailing_latest,
+        &final_fold.nifs,
+        honest_last_acc_digest,
+    )
+    .expect("honest terminal-fold parent-authority isolation emits");
+    assert!(
+        builder.is_satisfied(),
+        "honest terminal parent-authority rows must satisfy (first bad row: {:?})",
+        builder.first_unsatisfied_row()
+    );
+
+    let target_col = probes.last_parent_y_ring_c1.col();
+    builder.tamper_witness(target_col, builder.witness()[target_col] + F::ONE);
+    assert!(
+        !builder.is_satisfied(),
+        "terminal fold accepted a last-step parent-authority y_ring limb that diverged from terminal running"
+    );
+}
+
+#[test]
+fn decider_terminal_fold_rejects_tampered_last_child_wire() {
+    let (prep, finished) = build_honest_finished_proof(3);
+    let final_fold = finished
+        .proof
+        .final_fold
+        .as_ref()
+        .expect("finished proof has terminal fold");
+    let pre_running = &final_fold.terminal_inputs.pre_final_running;
+    let trailing_latest = final_fold.terminal_inputs.latest.claims();
+    let parent = pre_running
+        .parent_authority
+        .as_ref()
+        .expect("pre-final running has parent authority");
+    let honest_last_acc_digest = AccumulatorHandle::from_running_parts(&pre_running.claims, Some(parent)).digest();
+
+    let (mut builder, probes) = enforce_terminal_fold_children_continuity_against_self(
+        &prep,
+        pre_running,
+        &trailing_latest,
+        &final_fold.nifs,
+        honest_last_acc_digest,
+    )
+    .expect("honest terminal-fold child-continuity isolation emits");
+    assert!(
+        builder.is_satisfied(),
+        "honest terminal child-continuity rows must satisfy (first bad row: {:?})",
+        builder.first_unsatisfied_row()
+    );
+
+    let target_col = probes.last_child_y_ring_c1.col();
+    builder.tamper_witness(target_col, builder.witness()[target_col] + F::ONE);
+    assert!(
+        !builder.is_satisfied(),
+        "terminal fold accepted a last-step child y_ring limb that diverged from terminal running"
+    );
+}
+
+#[test]
+fn decider_ce_continuity_rejects_tampered_shape_metadata_wire() {
+    let (_prep, finished) = build_honest_finished_proof(2);
+    let claim = finished
+        .proof
+        .state
+        .proof
+        .running()
+        .expect("finished proof has final running")
+        .claims
+        .first()
+        .expect("final running has at least one claim");
+
+    let cases: [(&str, fn(&CeContinuityProbeWires) -> usize); 5] = [
+        ("c_d", |p| p.c_d.col()),
+        ("c_kappa", |p| p.c_kappa.col()),
+        ("x_rows", |p| p.x_rows.col()),
+        ("x_cols", |p| p.x_cols.col()),
+        ("m_in", |p| p.m_in.col()),
+    ];
+    for (name, probe_col) in cases {
+        let (mut builder, probes) = enforce_ce_continuity_against_self(claim).expect("emit continuity rows");
+        assert!(
+            builder.is_satisfied(),
+            "honest CE-continuity isolation must satisfy before {name} tamper (first bad row: {:?})",
+            builder.first_unsatisfied_row()
+        );
+
+        let target_col = probe_col(&probes);
+        builder.tamper_witness(target_col, builder.witness()[target_col] + F::ONE);
+        assert!(
+            !builder.is_satisfied(),
+            "CE continuity accepted a running-side {name} metadata wire that diverged from the child"
+        );
+    }
+}
+
+#[test]
+fn decider_ce_continuity_rejects_tampered_commitment_and_x_wires() {
+    let (_prep, finished) = build_honest_finished_proof(2);
+    let claim = finished
+        .proof
+        .state
+        .proof
+        .running()
+        .expect("finished proof has final running")
+        .claims
+        .first()
+        .expect("final running has at least one claim");
+
+    let cases: [(&str, fn(&CeContinuityProbeWires) -> usize); 2] =
+        [("c_data[0]", |p| p.c_data0.col()), ("x[0]", |p| p.x0.col())];
+    for (name, probe_col) in cases {
+        let (mut builder, probes) = enforce_ce_continuity_against_self(claim).expect("emit continuity rows");
+        assert!(
+            builder.is_satisfied(),
+            "honest CE-continuity isolation must satisfy before {name} tamper (first bad row: {:?})",
+            builder.first_unsatisfied_row()
+        );
+
+        let target_col = probe_col(&probes);
+        builder.tamper_witness(target_col, builder.witness()[target_col] + F::ONE);
+        assert!(
+            !builder.is_satisfied(),
+            "CE continuity accepted a running-side {name} wire that diverged from the child"
+        );
+    }
+}
+
+#[test]
+fn decider_ce_continuity_rejects_tampered_point_limbs() {
+    let (_prep, finished) = build_honest_finished_proof(2);
+    let claim = finished
+        .proof
+        .state
+        .proof
+        .running()
+        .expect("finished proof has final running")
+        .claims
+        .first()
+        .expect("final running has at least one claim");
+
+    let cases: [(&str, fn(&CeContinuityProbeWires) -> usize); 4] = [
+        ("r.c0", |p| p.r_c0.col()),
+        ("r.c1", |p| p.r_c1.col()),
+        ("s_col.c0", |p| p.s_col_c0.col()),
+        ("s_col.c1", |p| p.s_col_c1.col()),
+    ];
+    for (name, probe_col) in cases {
+        let (mut builder, probes) = enforce_ce_continuity_against_self(claim).expect("emit continuity rows");
+        assert!(
+            builder.is_satisfied(),
+            "honest CE-continuity isolation must satisfy before {name} tamper (first bad row: {:?})",
+            builder.first_unsatisfied_row()
+        );
+
+        let target_col = probe_col(&probes);
+        builder.tamper_witness(target_col, builder.witness()[target_col] + F::ONE);
+        assert!(
+            !builder.is_satisfied(),
+            "CE continuity accepted a running-side {name} limb that diverged from the child"
+        );
+    }
+}
+
+#[test]
+fn decider_ce_continuity_rejects_tampered_fold_digest_wire() {
+    let (_prep, finished) = build_honest_finished_proof(2);
+    let claim = finished
+        .proof
+        .state
+        .proof
+        .running()
+        .expect("finished proof has final running")
+        .claims
+        .first()
+        .expect("final running has at least one claim");
+
+    let (mut builder, probes) = enforce_ce_continuity_against_self(claim).expect("emit continuity rows");
+    assert!(
+        builder.is_satisfied(),
+        "honest CE-continuity isolation must satisfy (first bad row: {:?})",
+        builder.first_unsatisfied_row()
+    );
+
+    let target_col = probes.fold_digest0.col();
+    builder.tamper_witness(target_col, builder.witness()[target_col] + F::ONE);
+    assert!(
+        !builder.is_satisfied(),
+        "CE continuity accepted a running-side fold_digest lane that diverged from the child"
+    );
+}
+
+#[test]
+fn decider_ce_continuity_rejects_tampered_ct_c1_limb() {
+    let (_prep, finished) = build_honest_finished_proof(2);
+    let claim = finished
+        .proof
+        .state
+        .proof
+        .running()
+        .expect("finished proof has final running")
+        .claims
+        .first()
+        .expect("final running has at least one claim");
+
+    let (mut builder, probes) = enforce_ce_continuity_against_self(claim).expect("emit continuity rows");
+    assert!(
+        builder.is_satisfied(),
+        "honest CE-continuity isolation must satisfy (first bad row: {:?})",
+        builder.first_unsatisfied_row()
+    );
+
+    let target_col = probes.ct_c1.col();
+    builder.tamper_witness(target_col, builder.witness()[target_col] + F::ONE);
+    assert!(
+        !builder.is_satisfied(),
+        "CE continuity accepted a running-side ct.c1 limb that diverged from the child"
+    );
+}
+
+#[test]
+fn decider_ce_continuity_rejects_tampered_y_ring_c1_limb() {
+    let (_prep, finished) = build_honest_finished_proof(2);
+    let claim = finished
+        .proof
+        .state
+        .proof
+        .running()
+        .expect("finished proof has final running")
+        .claims
+        .first()
+        .expect("final running has at least one claim");
+
+    let (mut builder, probes) = enforce_ce_continuity_against_self(claim).expect("emit continuity rows");
+    assert!(
+        builder.is_satisfied(),
+        "honest CE-continuity isolation must satisfy (first bad row: {:?})",
+        builder.first_unsatisfied_row()
+    );
+
+    let target_col = probes.y_ring_c1.col();
+    builder.tamper_witness(target_col, builder.witness()[target_col] + F::ONE);
+    assert!(
+        !builder.is_satisfied(),
+        "CE continuity accepted a running-side y_ring.c1 limb that diverged from the child"
+    );
+}
+
+#[test]
+fn decider_ce_continuity_rejects_tampered_y_zcol_c1_limb() {
+    let (_prep, finished) = build_honest_finished_proof(2);
+    let claim = finished
+        .proof
+        .state
+        .proof
+        .running()
+        .expect("finished proof has final running")
+        .claims
+        .first()
+        .expect("final running has at least one claim");
+
+    let (mut builder, probes) = enforce_ce_continuity_against_self(claim).expect("emit continuity rows");
+    assert!(
+        builder.is_satisfied(),
+        "honest CE-continuity isolation must satisfy (first bad row: {:?})",
+        builder.first_unsatisfied_row()
+    );
+
+    let target_col = probes.y_zcol_c1.col();
+    builder.tamper_witness(target_col, builder.witness()[target_col] + F::ONE);
+    assert!(
+        !builder.is_satisfied(),
+        "CE continuity accepted a running-side y_zcol.c1 limb that diverged from the child"
+    );
+}
+
+#[test]
+fn decider_state_link_rejects_tampered_state_field_wires() {
+    let cases: [(
+        &str,
+        fn(&neo_fold_clean::engine::decider::__test_isolation::StateLinkProbeWires) -> usize,
+    ); 10] = [
+        ("vk_fs_digest", |p| p.vk_fs0.col()),
+        ("structure_digest", |p| p.structure0.col()),
+        ("chunk_count", |p| p.chunk_count.col()),
+        ("step_count", |p| p.step_count.col()),
+        ("z_0", |p| p.z_0_0.col()),
+        ("z_i", |p| p.z_i_0.col()),
+        ("pc", |p| p.pc.col()),
+        ("semantic_state_digest", |p| p.semantic0.col()),
+        ("acc_digest", |p| p.acc0.col()),
+        ("public_trace", |p| p.public_trace0.col()),
+    ];
+
+    for (name, probe_col) in cases {
+        let (mut builder, probes) = enforce_state_link_against_self();
+        assert!(
+            builder.is_satisfied(),
+            "honest state-link isolation must satisfy before {name} tamper (first bad row: {:?})",
+            builder.first_unsatisfied_row()
+        );
+
+        let target_col = probe_col(&probes);
+        builder.tamper_witness(target_col, builder.witness()[target_col] + F::ONE);
+        assert!(
+            !builder.is_satisfied(),
+            "state link accepted a next-state {name} wire diverging from the prior state"
+        );
+    }
+}
+
+#[test]
+fn decider_terminal_latest_link_rejects_tampered_second_fresh_bit() {
+    let last_bits = vec![F::ZERO; F_PRIME_PUBLIC_INPUT_LEN - 1];
+    let honest_fresh = {
+        let mut x = Vec::with_capacity(F_PRIME_PUBLIC_INPUT_LEN);
+        x.push(F::ONE);
+        x.extend(last_bits.iter().copied());
+        x
+    };
+    let mut fresh_batch = vec![honest_fresh.clone(), honest_fresh.clone(), honest_fresh];
+
+    let honest = enforce_terminal_latest_link_against(&last_bits, &fresh_batch).expect("emit latest-link rows");
+    assert!(
+        honest.is_satisfied(),
+        "honest terminal latest link must satisfy (first bad row: {:?})",
+        honest.first_unsatisfied_row()
+    );
+
+    // Mutate the *second* fresh instance's first encoded bit while leaving
+    // the last F' x_out bits and every other fresh input unchanged. A
+    // regression that checks only fresh[0] or only the constant-one slots
+    // would accept this.
+    fresh_batch[1][F_PRIME_PUBLIC_INPUT_LEN - 1] += F::ONE;
+    let bad = enforce_terminal_latest_link_against(&last_bits, &fresh_batch).expect("emit tampered latest-link rows");
+    assert!(
+        !bad.is_satisfied(),
+        "terminal latest link accepted a tampered bit in fresh[1].x[1..]; \
+         every terminal fresh instance must encode the last F' x_out"
+    );
+}
+
+#[test]
+fn decider_terminal_latest_link_rejects_tampered_fresh_one_slot() {
+    let last_bits = vec![F::ZERO; F_PRIME_PUBLIC_INPUT_LEN - 1];
+    let honest_fresh = {
+        let mut x = Vec::with_capacity(F_PRIME_PUBLIC_INPUT_LEN);
+        x.push(F::ONE);
+        x.extend(last_bits.iter().copied());
+        x
+    };
+    let mut fresh_batch = vec![honest_fresh.clone(), honest_fresh];
+
+    let honest = enforce_terminal_latest_link_against(&last_bits, &fresh_batch).expect("emit latest-link rows");
+    assert!(
+        honest.is_satisfied(),
+        "honest terminal latest one-slot link must satisfy (first bad row: {:?})",
+        honest.first_unsatisfied_row()
+    );
+
+    // Keep every enc_inst body bit correct and mutate only the CCS
+    // constant-one slot. This catches a terminal-link regression that
+    // compares `fresh.x[1..]` but forgets `fresh.x[0] == 1`.
+    fresh_batch[1][0] = F::ZERO;
+    let bad = enforce_terminal_latest_link_against(&last_bits, &fresh_batch).expect("emit tampered latest-link rows");
+    assert!(
+        !bad.is_satisfied(),
+        "terminal latest link accepted a fresh public input with x[0] != 1"
+    );
 }
 
 #[test]
@@ -490,7 +1212,8 @@ fn decider_r1cs_synthesis_accepts_varying_size_batched_chunks() {
 // `!is_satisfied`" test has been replaced by the gadget-level
 // isolation tests in `tests/system/decider_ce_relation_isolation.rs`.
 // Those tests hit the CE-relation gadget directly through the narrow
-// `engine::decider::__test_isolation` surface and prove each of the
-// five obligations (commit / X / low-norm / y_ring / ct) is load-bearing
-// in isolation, without needing to disable the chain-level
+// `engine::decider::__test_isolation` surface and prove each terminal
+// authority obligation (commit / X / low-norm / y_ring / ct, plus the
+// optional NC channel when carried) is load-bearing in isolation,
+// without needing to disable the chain-level
 // `validate_witness` preflight.

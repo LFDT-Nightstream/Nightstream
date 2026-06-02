@@ -4,11 +4,15 @@
 //! Two entry points, mirroring the paper's case split:
 //!   - [`enforce_f_prime_base_step_circuit`] (i = 0). No NIFS.V; enforces
 //!     `z_i = z_0`, `chunk_count_in = 0`, and `acc_digest_in = empty_acc`.
-//!     `acc_digest_out` is the same empty-acc constant.
+//!     `acc_digest_out` is the same empty-acc constant. Strict mode also
+//!     requires `rows_in_chunk >= 1`, matching lifecycle's no-empty-batch
+//!     boundary.
 //!   - [`enforce_f_prime_recursive_step_circuit`] (i ≥ 1). Runs NIFS.V to
-//!     fold `u_i` into `U_i`, enforces the HyperNova recursive link
+//!     fold `u_i` into `U_i` under a transcript bound to the full F' state
+//!     input, enforces the HyperNova recursive link
 //!     `u_i.public == bits(prior_x_out)`, and binds `acc_digest_in` to
-//!     the digest of the actual `running` accumulator.
+//!     the digest of the actual `running` accumulator and
+//!     `acc_digest_out` to the digest of NIFS.V's output accumulator.
 //!
 //! Both functions return the `x_out` wires; the caller pins them against
 //! the public-input slot.
@@ -16,18 +20,20 @@
 //! ## Math (Construction 2)
 //!
 //! ```text
-//!   z_{i+1}         = boundary_update(z_i, chunk_digest)
-//!   public_trace'   = public_trace_update(public_trace, chunk_digest)
+//!   z_{i+1}         = chunk_digest
+//!   public_trace'   = z_{i+1}
 //!   chunk_count'    = chunk_count + 1
 //!   step_count'     = step_count + K
 //!   pc'             = pc                    (TRIVIAL_PC in this build)
 //!
-//!   acc_digest' = base:      accumulator_digest_from_claims(b, &[])
-//!                recursive:  accumulator_digest(NIFS.V.parent.c_data)
+//!   acc_digest' = accumulator handle carried in state_out.
+//!     base:      empty accumulator handle
+//!     recursive: digest of the actual NIFS.V output accumulator
+//!                `(children, parent)` computed in this same relation.
 //!
 //!   x_out = state_x_out_digest(
 //!       vk_fs, structure, chunk_count', step_count',
-//!       z_0, z_{i+1}, pc', semantic_state_digest', acc_digest', public_trace')
+//!       z_0, z_{i+1}, pc', semantic_state_digest', acc_digest')
 //! ```
 //!
 //! ## Bindings enforced (recursive case)
@@ -45,11 +51,18 @@
 //!    and the unresolved private-witness encoding `enc(F')`.
 //! 2. **Running accumulator binding**: `acc_digest_in == digest(running)`,
 //!    where `digest(running)` is computed in-circuit by
-//!    [`enforce_accumulator_digest_from_children_circuit`]. Without this,
+//!    `enforce_accumulator_digest_from_running_circuit`. Without this,
 //!    `u_i.public` could bind to one accumulator while NIFS.V folds a
 //!    different one.
-//! 3. **`pc == TRIVIAL_PC`** (ℓ = 1 in this build).
-//! 4. **Strict-mode shape**: non-empty fresh batch, every fresh `u_i`
+//! 3. **Output accumulator binding**:
+//!    `acc_digest_out == digest(NIFS.V.children, NIFS.V.parent)`. Without
+//!    this, the step could output a self-consistent hash over a forged
+//!    accumulator handle instead of the `U_{i+1}` it just computed.
+//! 4. **`pc == TRIVIAL_PC`** (ℓ = 1 in this build). `pc` is pinned,
+//!    linked as state, and absorbed into `state_x_out` so the local
+//!    recursive link retains HyperNova's `pc_i` binding even before
+//!    multi-program support exists.
+//! 5. **Strict-mode shape**: non-empty fresh batch, every fresh `u_i`
 //!    has `m_in == F_PRIME_PUBLIC_INPUT_LEN` and `x.len() ==
 //!    F_PRIME_PUBLIC_INPUT_LEN`. Enforced against the message shape
 //!    (the SplitNc config carries `params` + `structure` references,
@@ -59,20 +72,23 @@ use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::engine::r1cs_circuit::builder::{Lc, R1csBuilder, Var};
+use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::poseidon2::DIGEST_LEN;
 use crate::engine::r1cs_circuit::transcript::TranscriptGadget;
 use crate::engine::r1cs_circuit::u64_arith::decompose_var_to_u64_bits;
 use crate::paper::construction2::TRIVIAL_PC;
-use crate::paper::digest::{accumulator_digest_from_claims, digest32_as_fields};
-use crate::paper::f_prime::digest_circuit::{
-    enforce_boundary_update_digest_circuit, enforce_public_trace_update_digest_circuit,
-    enforce_state_x_out_digest_circuit, StateXOutDigestInputs,
-};
+use crate::paper::digest::AccumulatorHandle;
+use crate::paper::digest::StateXOutDigestMode;
+use crate::paper::f_prime::digest_circuit::{enforce_state_x_out_digest_circuit, StateXOutDigestInputs};
 use crate::paper::f_prime::source_image::{BitRange, FPrimeSourceImage, Word64Image};
 use crate::paper::f_prime::source_image_circuit::{enforce_goldilocks_word_canonical, SourceImageWires};
 use crate::paper::nifs::circuit::{enforce_nifs_v_circuit_with_transcript, NifsVCircuitConfig, NifsVCircuitMessages};
 use crate::paper::params::Params;
-use crate::paper::reductions::accumulator_digest_circuit::enforce_accumulator_digest_from_parent_circuit;
+use crate::paper::reductions::accumulator_digest_circuit::enforce_accumulator_digest_from_running_circuit;
+use crate::paper::reductions::pi_ccs_split_nc_circuit::{
+    enforce_accumulator_ce_claim_digest, AccumulatorCeClaimDigestInputs,
+};
+use crate::paper::reductions::pi_dec_circuit::CeClaimWires;
 
 /// Canonical bits per `x_out` digest lane. Goldilocks canonical form fits
 /// in 64 bits.
@@ -221,6 +237,9 @@ pub struct FPrimeStepConfig<'a> {
     /// Optional initialization label for the F' transcript. Static so the
     /// in-circuit `TranscriptGadget` can fast-forward its init.
     pub transcript_label: &'static [u8],
+    /// Native/circuit state-x_out preimage mode. Stateless mode omits the
+    /// duplicate semantic digest and this circuit enforces semantic == acc.
+    pub state_x_out_digest_mode: StateXOutDigestMode,
 }
 
 /// Common state-in fields shared between base and recursive F' steps.
@@ -273,6 +292,11 @@ pub struct FPrimeRecursiveInputs<'a> {
     pub state: FPrimeStateIn,
     pub chunk_digest: [F; DIGEST_LEN],
     pub semantic_state_digest_out: [F; DIGEST_LEN],
+    /// Outgoing accumulator handle carried in `state_out` and absorbed by
+    /// `state_x_out`. The recursive F' step recomputes this value from
+    /// NIFS.V's output `(children, parent)` and rejects if the supplied
+    /// witness value disagrees.
+    pub acc_digest_out: [F; DIGEST_LEN],
     pub nifs_msg: NifsVCircuitMessages<'a>,
     /// Size of the **current** chunk being deposited as the new latest —
     /// i.e., `next_latest.len()` in [`crate::paper::f_prime::native::prove`].
@@ -367,12 +391,6 @@ impl From<crate::paper::nifs::circuit::Error> for Error {
     }
 }
 
-impl From<crate::paper::reductions::accumulator_digest_circuit::AccumulatorDigestError> for Error {
-    fn from(e: crate::paper::reductions::accumulator_digest_circuit::AccumulatorDigestError) -> Self {
-        Self::Inner(format!("accumulator digest: {e}"))
-    }
-}
-
 /// Allocate state-in wires + the `pc == TRIVIAL_PC` guard. Shared between
 /// base and recursive F' entry points.
 struct StateInWires {
@@ -450,11 +468,12 @@ fn state_out_wires(
 
 /// Build the `x_out` wires for the post-step state. Common tail between
 /// base and recursive entry points. Returns both the `x_out` digest and
-/// the chained `new_z_i` / `new_public_trace` wires so callers can
+/// the carried `new_z_i` / mirrored `new_public_trace` wires so callers can
 /// thread the post-step state into the next step (decider chain) or
 /// into the terminal-fold gate.
 fn build_x_out(
     builder: &mut R1csBuilder,
+    mode: StateXOutDigestMode,
     sw: &StateInWires,
     chunk_digest: [Var; DIGEST_LEN],
     new_semantic_state_digest: [Var; DIGEST_LEN],
@@ -462,9 +481,13 @@ fn build_x_out(
     new_chunk_count: Var,
     new_step_count: Var,
 ) -> ([Var; DIGEST_LEN], [Var; DIGEST_LEN], [Var; DIGEST_LEN]) {
-    let new_z_i = enforce_boundary_update_digest_circuit(builder, sw.z_i_in, chunk_digest);
-    let new_public_trace = enforce_public_trace_update_digest_circuit(builder, sw.public_trace_in, chunk_digest);
+    if matches!(mode, StateXOutDigestMode::Stateless) {
+        enforce_digest_eq(builder, &new_semantic_state_digest, &new_acc_digest);
+    }
+    let new_z_i = chunk_digest;
+    let new_public_trace = new_z_i;
     let x_out_inputs = StateXOutDigestInputs {
+        mode,
         vk_fs_digest: sw.vk_fs,
         structure_digest: sw.structure,
         chunk_count: new_chunk_count,
@@ -480,14 +503,93 @@ fn build_x_out(
     (x_out, new_z_i, new_public_trace)
 }
 
+fn enforce_digest_eq(builder: &mut R1csBuilder, a: &[Var; DIGEST_LEN], b: &[Var; DIGEST_LEN]) {
+    for lane in 0..DIGEST_LEN {
+        builder.enforce_eq(&Lc::from_var(a[lane]), &Lc::from_var(b[lane]));
+    }
+}
+
+fn enforce_nifs_output_acc_digest(
+    builder: &mut R1csBuilder,
+    parent: &CeClaimWires,
+    children: &[CeClaimWires],
+) -> Result<[Var; DIGEST_LEN], Error> {
+    let mut child_digests = Vec::with_capacity(children.len());
+    for child in children {
+        child_digests.push(enforce_dec_ce_claim_accumulator_digest(builder, child)?);
+    }
+    let parent_digest = enforce_dec_ce_claim_accumulator_digest(builder, parent)?;
+    Ok(enforce_accumulator_digest_from_running_circuit(
+        builder,
+        &child_digests,
+        Some(parent_digest),
+    ))
+}
+
+fn enforce_dec_ce_claim_accumulator_digest(
+    builder: &mut R1csBuilder,
+    claim: &CeClaimWires,
+) -> Result<[Var; DIGEST_LEN], Error> {
+    let y_ring = dec_y_ring_kvars(claim)?;
+    enforce_accumulator_ce_claim_digest(
+        builder,
+        &AccumulatorCeClaimDigestInputs {
+            c_d: claim.c_d,
+            c_kappa: claim.c_kappa,
+            c_data: &claim.c_data,
+            x_rows: claim.x_rows,
+            x_cols: claim.x_cols,
+            x_flat_row_major: &claim.x,
+            r: &claim.r,
+            s_col: &claim.s_col,
+            y_ring: &y_ring,
+            ct: &claim.ct,
+            m_in: claim.m_in,
+            fold_digest_fields: claim.fold_digest_fields,
+        },
+    )
+    .map_err(|e| Error::Inner(format!("output accumulator CE digest: {e}")))
+}
+
+fn dec_y_ring_kvars(claim: &CeClaimWires) -> Result<Vec<Vec<KVar>>, Error> {
+    claim
+        .y_ring
+        .iter()
+        .enumerate()
+        .map(|(j, row)| flat_kvars(row, claim.y_ring_lanes, &format!("y_ring[{j}]")))
+        .collect()
+}
+
+fn flat_kvars(flat: &[Var], lanes: usize, what: &str) -> Result<Vec<KVar>, Error> {
+    let expected = lanes * 2;
+    if flat.len() != expected {
+        return Err(Error::Inner(format!(
+            "{what} has {} base-field limbs, expected {expected} for {lanes} K-lanes",
+            flat.len()
+        )));
+    }
+    Ok((0..lanes)
+        .map(|lane| KVar {
+            c0: flat[2 * lane],
+            c1: flat[2 * lane + 1],
+        })
+        .collect())
+}
+
 /// F' **base** step (i = 0). No NIFS.V. Enforces `chunk_count_in == 0`,
-/// `z_i_in == z_0`, and `acc_digest_in == accumulator_digest_from_claims(b, &[])`.
+/// `z_i_in == z_0`, and `acc_digest_in == AccumulatorHandle::empty()`.
 /// Sets `acc_digest_out = empty_acc_digest`. Returns the `x_out` wires.
 pub fn enforce_f_prime_base_step_circuit(
     builder: &mut R1csBuilder,
-    cfg: &FPrimeStepConfig<'_>,
+    _cfg: &FPrimeStepConfig<'_>,
     inputs: &FPrimeBaseInputs<'_>,
 ) -> Result<FPrimeStepOutput, Error> {
+    if inputs.rows_in_chunk == 0 {
+        return Err(Error::Inner(
+            "strict F' base: rows_in_chunk must be \u{2265} 1 (first chunk must be non-empty)".into(),
+        ));
+    }
+
     let sw = alloc_state_in(builder, &inputs.state);
     let chunk_digest = alloc_4(builder, inputs.chunk_digest);
 
@@ -511,7 +613,7 @@ pub fn enforce_f_prime_base_step_circuit(
     }
 
     // acc_digest_in must equal the empty-accumulator digest constant.
-    let empty_acc = digest32_as_fields(accumulator_digest_from_claims(cfg.b, &[]));
+    let empty_acc = AccumulatorHandle::empty().digest_fields();
     for k in 0..DIGEST_LEN {
         builder.enforce_eq(&Lc::from_var(sw.acc_digest_in[k]), &Lc::from_const(empty_acc[k]));
     }
@@ -534,6 +636,7 @@ pub fn enforce_f_prime_base_step_circuit(
 
     let (x_out, new_z_i, new_public_trace) = build_x_out(
         builder,
+        _cfg.state_x_out_digest_mode,
         &sw,
         chunk_digest,
         new_semantic_state_digest,
@@ -649,8 +752,13 @@ pub fn enforce_f_prime_recursive_step_circuit(
     let mut transcript = TranscriptGadget::new(builder, cfg.transcript_label);
     transcript.append_fields(builder, b"f_prime/vk_fs", &sw.vk_fs);
     transcript.append_fields(builder, b"f_prime/structure", &sw.structure);
+    transcript.append_fields(builder, b"f_prime/chunk_count_in", &[sw.chunk_count_in]);
+    transcript.append_fields(builder, b"f_prime/step_count_in", &[sw.step_count_in]);
     transcript.append_fields(builder, b"f_prime/z_0", &sw.z_0);
     transcript.append_fields(builder, b"f_prime/z_i_in", &sw.z_i_in);
+    transcript.append_fields(builder, b"f_prime/pc", &[sw.pc]);
+    transcript.append_fields(builder, b"f_prime/semantic_state_in", &sw.semantic_state_digest_in);
+    transcript.append_fields(builder, b"f_prime/acc_digest_in", &sw.acc_digest_in);
     transcript.append_fields(builder, b"f_prime/public_trace_in", &sw.public_trace_in);
     transcript.append_fields(builder, b"f_prime/chunk_digest", &chunk_digest);
 
@@ -663,6 +771,7 @@ pub fn enforce_f_prime_recursive_step_circuit(
     // step's `x_out` digest. Raw digest lanes are not low-norm under b=2,
     // so the public input carries canonical Goldilocks bits instead.
     let prior_x_out_inputs = StateXOutDigestInputs {
+        mode: cfg.state_x_out_digest_mode,
         vk_fs_digest: sw.vk_fs,
         structure_digest: sw.structure,
         chunk_count: sw.chunk_count_in,
@@ -674,6 +783,9 @@ pub fn enforce_f_prime_recursive_step_circuit(
         construction2_acc: sw.acc_digest_in,
         public_trace: sw.public_trace_in,
     };
+    if matches!(cfg.state_x_out_digest_mode, StateXOutDigestMode::Stateless) {
+        enforce_digest_eq(builder, &sw.semantic_state_digest_in, &sw.acc_digest_in);
+    }
     let prior_x_out = enforce_state_x_out_digest_circuit(builder, &prior_x_out_inputs);
 
     if nifs_outputs.fresh_x.is_empty() {
@@ -732,13 +844,17 @@ pub fn enforce_f_prime_recursive_step_circuit(
         builder.enforce_eq(&Lc::from_var(running_acc_digest[k]), &Lc::from_var(sw.acc_digest_in[k]));
     }
 
-    // ── State advance: acc_digest_out from NIFS.V's parent ─────────────
+    // ── State advance: bind outgoing accumulator handle ────────────────
     //
-    // `k_carry` comes from the children produced by Π_DEC (= the new
-    // running accumulator's claim count). The accumulator-digest gadget
-    // needs that count to fan out the parent commitment correctly.
-    let k_carry = inputs.nifs_msg.children.len();
-    let new_acc_digest = enforce_accumulator_digest_from_parent_circuit(builder, k_carry, &nifs_outputs.parent_c_data);
+    // HyperNova Construction 2 outputs `hash(..., U_{i+1}, ...)`. In this
+    // codebase `U_{i+1}` is represented by the authority-bearing
+    // accumulator handle over NIFS.V's output `(children, parent)`, so the
+    // producer step must compute that handle here before absorbing it into
+    // `state_x_out`. A later consumer equality is useful continuity, but
+    // not a substitute for this producer-side equation.
+    let claimed_acc_digest = alloc_4(builder, inputs.acc_digest_out);
+    let new_acc_digest = enforce_nifs_output_acc_digest(builder, &nifs_outputs.parent, &nifs_outputs.children)?;
+    enforce_digest_eq(builder, &claimed_acc_digest, &new_acc_digest);
     let new_semantic_state_digest = alloc_4(builder, inputs.semantic_state_digest_out);
 
     // Counter advance.
@@ -763,6 +879,7 @@ pub fn enforce_f_prime_recursive_step_circuit(
 
     let (x_out, new_z_i, new_public_trace) = build_x_out(
         builder,
+        cfg.state_x_out_digest_mode,
         &sw,
         chunk_digest,
         new_semantic_state_digest,

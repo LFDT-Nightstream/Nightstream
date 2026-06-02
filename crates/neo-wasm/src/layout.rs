@@ -526,6 +526,36 @@ define_columns!(
         ColumnWidth::Boolean
     ),
     (
+        COL_LINEAR_MEM_LANE0_LOAD_ACTIVE,
+        "linear-memory lane0 load gate (use_lane0 AND opcode is a load)",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_LINEAR_MEM_LANE1_LOAD_ACTIVE,
+        "linear-memory lane1 load gate (use_lane1 AND opcode is a load)",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_LINEAR_MEM_LANE2_LOAD_ACTIVE,
+        "linear-memory lane2 load gate (use_lane2 AND opcode is a load)",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_LINEAR_MEM_LANE0_STORE_ACTIVE,
+        "linear-memory lane0 store gate (use_lane0 AND opcode is a store)",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_LINEAR_MEM_LANE1_STORE_ACTIVE,
+        "linear-memory lane1 store gate (use_lane1 AND opcode is a store)",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_LINEAR_MEM_LANE2_STORE_ACTIVE,
+        "linear-memory lane2 store gate (use_lane2 AND opcode is a store)",
+        ColumnWidth::Boolean
+    ),
+    (
         COL_LINEAR_MEM_LANE0_ADDR,
         "linear-memory first word-lane address",
         ColumnWidth::U32
@@ -821,6 +851,78 @@ define_columns!(
     (
         COL_LINEAR_MEM_LANE2_BYTE3,
         "linear-memory third word lane byte 3",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_LANE0_VALUE_BEFORE,
+        "linear-memory first word-lane value before this row"
+    ),
+    (
+        COL_LINEAR_MEM_LANE1_VALUE_BEFORE,
+        "linear-memory second word-lane value before this row"
+    ),
+    (
+        COL_LINEAR_MEM_LANE2_VALUE_BEFORE,
+        "linear-memory third word-lane value before this row"
+    ),
+    (
+        COL_LINEAR_MEM_LANE0_BYTE0_BEFORE,
+        "linear-memory first word lane byte 0 before this row",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_LANE0_BYTE1_BEFORE,
+        "linear-memory first word lane byte 1 before this row",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_LANE0_BYTE2_BEFORE,
+        "linear-memory first word lane byte 2 before this row",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_LANE0_BYTE3_BEFORE,
+        "linear-memory first word lane byte 3 before this row",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_LANE1_BYTE0_BEFORE,
+        "linear-memory second word lane byte 0 before this row",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_LANE1_BYTE1_BEFORE,
+        "linear-memory second word lane byte 1 before this row",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_LANE1_BYTE2_BEFORE,
+        "linear-memory second word lane byte 2 before this row",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_LANE1_BYTE3_BEFORE,
+        "linear-memory second word lane byte 3 before this row",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_LANE2_BYTE0_BEFORE,
+        "linear-memory third word lane byte 0 before this row",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_LANE2_BYTE1_BEFORE,
+        "linear-memory third word lane byte 1 before this row",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_LANE2_BYTE2_BEFORE,
+        "linear-memory third word lane byte 2 before this row",
+        ColumnWidth::Byte
+    ),
+    (
+        COL_LINEAR_MEM_LANE2_BYTE3_BEFORE,
+        "linear-memory third word lane byte 3 before this row",
         ColumnWidth::Byte
     ),
     (

@@ -230,45 +230,7 @@ fn normalize_supported_row(row: &WasmtimeTraceStep) -> Result<Option<SupportedRo
         pc_edge_kind,
         opcode,
         info: opcode_info_from_code(code),
-        wide_values_enabled: matches!(
-            opcode,
-            WasmOpcode::I64Const
-                | WasmOpcode::I64Add
-                | WasmOpcode::I64Sub
-                | WasmOpcode::I64Eqz
-                | WasmOpcode::I64Eq
-                | WasmOpcode::I64Ne
-                | WasmOpcode::I64And
-                | WasmOpcode::I64Or
-                | WasmOpcode::I64Xor
-                | WasmOpcode::I64Mul
-                | WasmOpcode::I64Load
-                | WasmOpcode::I64Store
-                | WasmOpcode::I64Store8
-                | WasmOpcode::I64Store16
-                | WasmOpcode::I64Store32
-                | WasmOpcode::I64Load8U
-                | WasmOpcode::I64Load16U
-                | WasmOpcode::I64Load32U
-                | WasmOpcode::I64Load8S
-                | WasmOpcode::I64Load16S
-                | WasmOpcode::I64Load32S
-                | WasmOpcode::I32WrapI64
-                | WasmOpcode::I64ExtendI32U
-                | WasmOpcode::I64ExtendI32S
-                | WasmOpcode::I64Extend8S
-                | WasmOpcode::I64Extend16S
-                | WasmOpcode::I64Extend32S
-                | WasmOpcode::Drop
-                | WasmOpcode::Select
-                | WasmOpcode::Call
-                | WasmOpcode::CallIndirect
-                | WasmOpcode::LocalGet
-                | WasmOpcode::LocalSet
-                | WasmOpcode::LocalTee
-                | WasmOpcode::GlobalGet
-                | WasmOpcode::GlobalSet
-        ),
+        wide_values_enabled: opcode.uses_wide_values(),
         stack_reads_override,
         stack_writes_override,
         operand_stack,

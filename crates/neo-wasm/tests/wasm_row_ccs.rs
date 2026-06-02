@@ -5,6 +5,9 @@ use neo_math::F;
 use neo_wasm::layout::{
     COL_CALL_PARAM_COUNT, COL_CALL_STACK_POP_CALLER_FBP, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_POP_RETURN_PC,
     COL_CALL_STACK_PUSH_PRESENT, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_LINEAR_MEM_LANE0_ADDR,
+    COL_LINEAR_MEM_LANE0_BYTE0_BEFORE, COL_LINEAR_MEM_LANE0_BYTE1, COL_LINEAR_MEM_LANE0_BYTE1_BEFORE,
+    COL_LINEAR_MEM_LANE0_BYTE2, COL_LINEAR_MEM_LANE0_BYTE2_BEFORE, COL_LINEAR_MEM_LANE0_BYTE3,
+    COL_LINEAR_MEM_LANE0_BYTE3_BEFORE, COL_LINEAR_MEM_LANE0_VALUE, COL_LINEAR_MEM_LANE0_VALUE_BEFORE,
     COL_LINEAR_MEM_LANE1_VALUE, COL_LINEAR_MEM_LANE2_VALUE, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE,
     COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_AFTER_INV,
     COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PC_ROM_ACTIVE, COL_STACK_READ0_ACTIVE, COL_STACK_READ1_ACTIVE,
@@ -14,9 +17,10 @@ use neo_wasm::layout::{
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::WasmRowKind;
 use neo_wasm::{
-    collect_wasmtime_steps, opcode_code, opcode_info_from_code, traces_from_rwasm_instr_states,
-    traces_from_wasmtime_steps, traces_from_wasmtime_wasm_bytes, LinearMemoryAccess, StackLaneAccess, WasmAuxOpcode,
-    WasmOpcode, WasmParamInitState, WasmPcEdgeKind, WasmStepTrace,
+    build_wasm_lookup_binding_layout, collect_wasmtime_steps, opcode_code, opcode_info_from_code,
+    preload_from_wasmtime_run, sanity_check_memory_rows, traces_from_rwasm_instr_states, traces_from_wasmtime_steps,
+    traces_from_wasmtime_wasm_bytes, LinearMemoryAccess, StackLaneAccess, WasmAuxOpcode, WasmOpcode,
+    WasmParamInitState, WasmPcEdgeKind, WasmStepTrace,
 };
 use p3_field::PrimeCharacteristicRing;
 use rwasm::mem::{MemoryAccessRecord, MemoryReadRecord, MemoryRecordEnum, MemoryWriteRecord};
@@ -57,7 +61,7 @@ fn step(
         },
         param_init_before: WasmParamInitState::ZERO,
         param_init_after: WasmParamInitState::ZERO,
-        wide_values_enabled: false,
+        wide_values_enabled: opcode_info_from_code(opcode_code).opcode.uses_wide_values(),
         opcode_code,
         opcode: opcode_info_from_code(opcode_code).opcode,
         info: opcode_info_from_code(opcode_code),
@@ -447,6 +451,104 @@ fn i32_load8_u_and_store8_rows_are_accepted() {
         .expect("load8_u row");
     assert_satisfied(&build_witness_vector(store), "i32.store8 row");
     assert_satisfied(&build_witness_vector(load), "i32.load8_u row");
+}
+
+/// Row-local guard: subword stores must reject changed bytes outside the
+/// store's write window unless the claimed prior state changes too.
+#[test]
+fn i32_store8_row_rejects_tampered_unselected_byte() {
+    let trace = trace_from_wat(
+        r#"(module
+             (memory 1)
+             (func (export "main") (result i32)
+               i32.const 0
+               i32.const 255
+               i32.store8
+               i32.const 0
+               i32.load))"#,
+    );
+    let store = trace
+        .iter()
+        .find(|row| row.opcode == WasmOpcode::I32Store8)
+        .expect("store8 row");
+    let mut witness = build_witness_vector(store);
+    // Honest witness: lane0_bytes = [0xFF, 0, 0, 0], lane0_value = 0xFF.
+    // Tamper: lane0_bytes[1] = 0x42 → new lane0_value = 0xFF + 0x42*256 = 0x42FF.
+    witness[COL_LINEAR_MEM_LANE0_BYTE1] = F::from_u64(0x42);
+    witness[COL_LINEAR_MEM_LANE0_VALUE] = F::from_u64(0x42FF);
+    assert_rejected(
+        &witness,
+        "i32.store8 must reject prover-chosen bytes outside the written byte slot",
+    );
+}
+
+/// Memory-layer guard: if the prover changes both the prior and post-state
+/// consistently, row-local CCS accepts, but the RMW read must still match the
+/// memory log's zero-default initial state.
+#[test]
+fn i32_store8_memory_check_rejects_tampered_consistent_prior_state() {
+    let wasm = wat::parse_str(
+        r#"(module
+             (memory 1)
+             (func (export "main") (result i32)
+               i32.const 0
+               i32.const 255
+               i32.store8
+               i32.const 0
+               i32.load8_u))"#,
+    )
+    .expect("valid WAT");
+    let run = collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
+    let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
+    let (store_idx, store_row) = trace
+        .iter()
+        .enumerate()
+        .find(|(_, row)| row.opcode == WasmOpcode::I32Store8)
+        .expect("store8 row");
+    let mut witnesses: Vec<Vec<F>> = trace.iter().map(build_witness_vector).collect();
+
+    // Claim a fake prior word, preserve bytes 1..3, and write only byte 0.
+    // This keeps byte-decomp, byte-write, and preservation rows satisfied.
+    let claimed_prior: u32 = 0xDEAD_BEEF;
+    let stored_byte: u8 = 0xFF;
+    let prior_bytes = claimed_prior.to_le_bytes();
+    let mut after_bytes = prior_bytes;
+    after_bytes[0] = stored_byte;
+    let claimed_after = u32::from_le_bytes(after_bytes);
+
+    let w = &mut witnesses[store_idx];
+    w[COL_LINEAR_MEM_LANE0_VALUE_BEFORE] = F::from_u64(u64::from(claimed_prior));
+    w[COL_LINEAR_MEM_LANE0_BYTE0_BEFORE] = F::from_u64(u64::from(prior_bytes[0]));
+    w[COL_LINEAR_MEM_LANE0_BYTE1_BEFORE] = F::from_u64(u64::from(prior_bytes[1]));
+    w[COL_LINEAR_MEM_LANE0_BYTE2_BEFORE] = F::from_u64(u64::from(prior_bytes[2]));
+    w[COL_LINEAR_MEM_LANE0_BYTE3_BEFORE] = F::from_u64(u64::from(prior_bytes[3]));
+    w[COL_LINEAR_MEM_LANE0_VALUE] = F::from_u64(u64::from(claimed_after));
+    // lane0_bytes[0] = stored_byte already (set by the honest witness builder).
+    // lane0_bytes[1..4] follow the tampered prior so preservation holds.
+    w[COL_LINEAR_MEM_LANE0_BYTE1] = F::from_u64(u64::from(after_bytes[1]));
+    w[COL_LINEAR_MEM_LANE0_BYTE2] = F::from_u64(u64::from(after_bytes[2]));
+    w[COL_LINEAR_MEM_LANE0_BYTE3] = F::from_u64(u64::from(after_bytes[3]));
+
+    // Row-local CCS accepts; only the memory log can reject the fake prior.
+    assert_satisfied(
+        w,
+        "consistent-prior tamper must still pass every row-local CCS constraint",
+    );
+
+    // The memory sanity checker rejects via the RMW read mismatch.
+    let layout = build_wasm_lookup_binding_layout();
+    let preload = preload_from_wasmtime_run(&run, &run.initial_locals);
+    let result = sanity_check_memory_rows(layout, &witnesses, &preload);
+    assert!(
+        result.is_err(),
+        "memory sanity check must reject consistent-prior tamper; instead accepted",
+    );
+    let err = result.unwrap_err();
+    assert!(
+        err.contains("linear_memory") && (err.contains("zero-default") || err.contains("RMW")),
+        "expected the linear_memory RMW / zero-default check to fire, got: {err}",
+    );
+    let _ = store_row; // silence unused: kept for diagnostic clarity
 }
 
 #[test]

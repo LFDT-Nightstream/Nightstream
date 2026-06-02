@@ -19,27 +19,36 @@ use super::layout::{
     COL_LINEAR_MEM_I64_STORE_OFFSET_IS_0, COL_LINEAR_MEM_I64_STORE_OFFSET_IS_1, COL_LINEAR_MEM_I64_STORE_OFFSET_IS_2,
     COL_LINEAR_MEM_I64_STORE_OFFSET_IS_3, COL_LINEAR_MEM_IMM_OFFSET, COL_LINEAR_MEM_IS_BYTE_WIDTH,
     COL_LINEAR_MEM_IS_DOUBLE_WIDTH, COL_LINEAR_MEM_IS_FULL_WIDTH, COL_LINEAR_MEM_IS_HALF_WIDTH,
-    COL_LINEAR_MEM_LANE0_ADDR, COL_LINEAR_MEM_LANE0_BYTE0, COL_LINEAR_MEM_LANE0_BYTE1, COL_LINEAR_MEM_LANE0_BYTE2,
-    COL_LINEAR_MEM_LANE0_BYTE3, COL_LINEAR_MEM_LANE0_VALUE, COL_LINEAR_MEM_LANE1_ADDR, COL_LINEAR_MEM_LANE1_BYTE0,
-    COL_LINEAR_MEM_LANE1_BYTE1, COL_LINEAR_MEM_LANE1_BYTE2, COL_LINEAR_MEM_LANE1_BYTE3, COL_LINEAR_MEM_LANE1_VALUE,
-    COL_LINEAR_MEM_LANE2_ADDR, COL_LINEAR_MEM_LANE2_BYTE0, COL_LINEAR_MEM_LANE2_BYTE1, COL_LINEAR_MEM_LANE2_BYTE2,
-    COL_LINEAR_MEM_LANE2_BYTE3, COL_LINEAR_MEM_LANE2_VALUE, COL_LINEAR_MEM_OFFSET_IS_0, COL_LINEAR_MEM_OFFSET_IS_1,
-    COL_LINEAR_MEM_OFFSET_IS_2, COL_LINEAR_MEM_OFFSET_IS_3, COL_LINEAR_MEM_USE_LANE0, COL_LINEAR_MEM_USE_LANE1,
-    COL_LINEAR_MEM_USE_LANE2, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE, COL_LOCAL_INDEX, COL_LOCAL_VALUE,
-    COL_LOCAL_VALUE_HI, COL_LOCAL_WRITE_ENABLED, COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_OPCODE_CODE,
-    COL_OUTPUT_CAPTURED, COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER,
-    COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE, COL_PADDING_ACTIVE,
-    COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_AFTER,
-    COL_PARAM_INIT_REMAINING_AFTER_INV, COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PARAM_INIT_REMAINING_BEFORE,
-    COL_PC_AFTER, COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE,
-    COL_SHOUT_ENABLED, COL_SHOUT_ID, COL_SHOUT_VALUE, COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7, COL_SP_AFTER, COL_SP_BEFORE,
-    COL_STACK_READ0_ACTIVE, COL_STACK_READ0_ADDR, COL_STACK_READ0_ADDR_HI, COL_STACK_READ0_VALUE,
-    COL_STACK_READ0_VALUE_HI, COL_STACK_READ1_ACTIVE, COL_STACK_READ1_ADDR, COL_STACK_READ1_ADDR_HI,
-    COL_STACK_READ1_VALUE, COL_STACK_READ1_VALUE_HI, COL_STACK_READ2_ACTIVE, COL_STACK_READ2_ADDR,
-    COL_STACK_READ2_ADDR_HI, COL_STACK_READ2_VALUE, COL_STACK_READ2_VALUE_HI, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE,
-    COL_STACK_WRITE0_ADDR, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_VALUE, COL_STACK_WRITE0_VALUE_HI,
-    COL_STACK_WRITES, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE, COL_TABLE_VALUE,
-    COL_TARGET_FUNCTION_IS_GUEST, COL_WIDE_VALUES_ENABLED, WITNESS_WIDTH,
+    COL_LINEAR_MEM_LANE0_ADDR, COL_LINEAR_MEM_LANE0_BYTE0, COL_LINEAR_MEM_LANE0_BYTE0_BEFORE,
+    COL_LINEAR_MEM_LANE0_BYTE1, COL_LINEAR_MEM_LANE0_BYTE1_BEFORE, COL_LINEAR_MEM_LANE0_BYTE2,
+    COL_LINEAR_MEM_LANE0_BYTE2_BEFORE, COL_LINEAR_MEM_LANE0_BYTE3, COL_LINEAR_MEM_LANE0_BYTE3_BEFORE,
+    COL_LINEAR_MEM_LANE0_LOAD_ACTIVE, COL_LINEAR_MEM_LANE0_STORE_ACTIVE, COL_LINEAR_MEM_LANE0_VALUE,
+    COL_LINEAR_MEM_LANE0_VALUE_BEFORE, COL_LINEAR_MEM_LANE1_ADDR, COL_LINEAR_MEM_LANE1_BYTE0,
+    COL_LINEAR_MEM_LANE1_BYTE0_BEFORE, COL_LINEAR_MEM_LANE1_BYTE1, COL_LINEAR_MEM_LANE1_BYTE1_BEFORE,
+    COL_LINEAR_MEM_LANE1_BYTE2, COL_LINEAR_MEM_LANE1_BYTE2_BEFORE, COL_LINEAR_MEM_LANE1_BYTE3,
+    COL_LINEAR_MEM_LANE1_BYTE3_BEFORE, COL_LINEAR_MEM_LANE1_LOAD_ACTIVE, COL_LINEAR_MEM_LANE1_STORE_ACTIVE,
+    COL_LINEAR_MEM_LANE1_VALUE, COL_LINEAR_MEM_LANE1_VALUE_BEFORE, COL_LINEAR_MEM_LANE2_ADDR,
+    COL_LINEAR_MEM_LANE2_BYTE0, COL_LINEAR_MEM_LANE2_BYTE0_BEFORE, COL_LINEAR_MEM_LANE2_BYTE1,
+    COL_LINEAR_MEM_LANE2_BYTE1_BEFORE, COL_LINEAR_MEM_LANE2_BYTE2, COL_LINEAR_MEM_LANE2_BYTE2_BEFORE,
+    COL_LINEAR_MEM_LANE2_BYTE3, COL_LINEAR_MEM_LANE2_BYTE3_BEFORE, COL_LINEAR_MEM_LANE2_LOAD_ACTIVE,
+    COL_LINEAR_MEM_LANE2_STORE_ACTIVE, COL_LINEAR_MEM_LANE2_VALUE, COL_LINEAR_MEM_LANE2_VALUE_BEFORE,
+    COL_LINEAR_MEM_OFFSET_IS_0, COL_LINEAR_MEM_OFFSET_IS_1, COL_LINEAR_MEM_OFFSET_IS_2, COL_LINEAR_MEM_OFFSET_IS_3,
+    COL_LINEAR_MEM_USE_LANE0, COL_LINEAR_MEM_USE_LANE1, COL_LINEAR_MEM_USE_LANE2, COL_LOCALS_FBP_AFTER,
+    COL_LOCALS_FBP_BEFORE, COL_LOCAL_INDEX, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_LOCAL_WRITE_ENABLED,
+    COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_OPCODE_CODE, COL_OUTPUT_CAPTURED, COL_OUTPUT_ENABLED_AFTER,
+    COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER,
+    COL_OUTPUT_VALUE_LO_BEFORE, COL_PADDING_ACTIVE, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE,
+    COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_AFTER_INV, COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO,
+    COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_AFTER, COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_EDGE_KIND_INV,
+    COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE, COL_SHOUT_ENABLED, COL_SHOUT_ID, COL_SHOUT_VALUE, COL_SIGN_EXT_BIT,
+    COL_SIGN_EXT_LOW7, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READ0_ACTIVE, COL_STACK_READ0_ADDR,
+    COL_STACK_READ0_ADDR_HI, COL_STACK_READ0_VALUE, COL_STACK_READ0_VALUE_HI, COL_STACK_READ1_ACTIVE,
+    COL_STACK_READ1_ADDR, COL_STACK_READ1_ADDR_HI, COL_STACK_READ1_VALUE, COL_STACK_READ1_VALUE_HI,
+    COL_STACK_READ2_ACTIVE, COL_STACK_READ2_ADDR, COL_STACK_READ2_ADDR_HI, COL_STACK_READ2_VALUE,
+    COL_STACK_READ2_VALUE_HI, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR,
+    COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_VALUE, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITES, COL_TABLE_ID,
+    COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE, COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST,
+    COL_WIDE_VALUES_ENABLED, WITNESS_WIDTH,
 };
 use super::lookup_semantics::{semantics_for_lookup_family, LookupSemantics};
 use super::tables::WasmLookupArity;
@@ -84,6 +93,14 @@ pub struct WasmMemoryColumnSpec {
     pub value_column: Column,
     pub kind: WasmMemoryColumnKind,
     pub activation: WasmMemoryActivation,
+    /// The column witnessing the prior memory state at `address_columns`.
+    /// `None` means the wasm CCS does not constrain the prior value beyond what
+    /// the memory argument enforces (the read witness still participates in the
+    /// mcc). `Some(c)` means row-local CCS constraints reference `c` — e.g.,
+    /// subword stores' byte-preservation rows compare bytes of `c` against
+    /// bytes of `value_column`. So the MCC needs to either emit an equality
+    /// constraint to this column, or use it directly.
+    pub value_before_column: Option<Column>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -189,6 +206,18 @@ pub struct LinearMemoryColumns {
     pub use_lane0: Column,
     pub use_lane1: Column,
     pub use_lane2: Column,
+    /// Per-lane direction gates: `laneN_load_active = use_laneN · is_load`,
+    /// `laneN_store_active = use_laneN · is_store`. Bound by the CCS via a
+    /// quadratic row each. Used as the activation column for the lane's
+    /// memory spec entry — Read on load, Write+RMW on store — so loads emit
+    /// only a Read tuple into the memory log (no write-modify-memory channel
+    /// available to a malicious prover on a load row).
+    pub lane0_load_active: Column,
+    pub lane1_load_active: Column,
+    pub lane2_load_active: Column,
+    pub lane0_store_active: Column,
+    pub lane1_store_active: Column,
+    pub lane2_store_active: Column,
     pub is_byte_width: Column,
     pub is_half_width: Column,
     pub is_full_width: Column,
@@ -210,6 +239,15 @@ pub struct LinearMemoryColumns {
     pub lane0_bytes: [Column; 4],
     pub lane1_bytes: [Column; 4],
     pub lane2_bytes: [Column; 4],
+    /// Lane values **before** this row's access. Together with `_bytes_before`
+    /// they let row-local CCS constraints relate the prior state to the
+    /// post-state — required for sound byte preservation in subword stores.
+    pub lane0_value_before: Column,
+    pub lane1_value_before: Column,
+    pub lane2_value_before: Column,
+    pub lane0_bytes_before: [Column; 4],
+    pub lane1_bytes_before: [Column; 4],
+    pub lane2_bytes_before: [Column; 4],
     /// High byte view of the value being read or written by i64 load/store
     /// rows. The low byte view lives in `SignExtensionColumns`, because it is
     /// also useful for non-memory sign-extension opcodes.
@@ -343,196 +381,62 @@ pub fn build_wasm_lookup_binding_layout() -> &'static WasmLookupBindingLayout {
 }
 
 fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
-    let opcode_code = Column(COL_OPCODE_CODE);
-    let is_program_row = Column(COL_IS_PROGRAM_ROW);
-    let padding_active = Column(COL_PADDING_ACTIVE);
-    let pc_before = Column(COL_PC_BEFORE);
-    let pc_after = Column(COL_PC_AFTER);
-    let pc_rom_active = Column(COL_PC_ROM_ACTIVE);
-    let pc_edge_kind_is_static = Column(COL_PC_EDGE_KIND_IS_STATIC);
-    let pc_edge_kind_inv = Column(COL_PC_EDGE_KIND_INV);
-    let param_init_active_before = Column(COL_PARAM_INIT_ACTIVE_BEFORE);
-    let param_init_active_after = Column(COL_PARAM_INIT_ACTIVE_AFTER);
-    let param_init_remaining_before = Column(COL_PARAM_INIT_REMAINING_BEFORE);
-    let param_init_remaining_after = Column(COL_PARAM_INIT_REMAINING_AFTER);
-    let param_init_remaining_after_is_zero = Column(COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO);
-    let param_init_remaining_after_inv = Column(COL_PARAM_INIT_REMAINING_AFTER_INV);
-    let call_stack_push_present = Column(COL_CALL_STACK_PUSH_PRESENT);
-    let control_choice = Column(COL_CONTROL_CHOICE);
-    let pc_edge_kind = Column(COL_PC_EDGE_KIND);
-    let wide_values_enabled = Column(COL_WIDE_VALUES_ENABLED);
-    let sp_before = Column(COL_SP_BEFORE);
-    let sp_after = Column(COL_SP_AFTER);
-    let output_enabled_before = Column(COL_OUTPUT_ENABLED_BEFORE);
-    let output_enabled_after = Column(COL_OUTPUT_ENABLED_AFTER);
-    let output_value_lo_before = Column(COL_OUTPUT_VALUE_LO_BEFORE);
-    let output_value_lo_after = Column(COL_OUTPUT_VALUE_LO_AFTER);
-    let output_value_hi_before = Column(COL_OUTPUT_VALUE_HI_BEFORE);
-    let output_value_hi_after = Column(COL_OUTPUT_VALUE_HI_AFTER);
-    let output_captured = Column(COL_OUTPUT_CAPTURED);
-    let halted = Column(COL_HALTED);
-    let call_stack_pop_present = Column(COL_CALL_STACK_POP_PRESENT);
-    let call_stack_access_return_pc = Column(COL_CALL_STACK_POP_RETURN_PC);
-    let call_stack_access_caller_fbp = Column(COL_CALL_STACK_POP_CALLER_FBP);
-    let call_stack_depth_before = Column(COL_CALL_STACK_DEPTH_BEFORE);
-    let call_stack_depth_after = Column(COL_CALL_STACK_DEPTH_AFTER);
-    let call_stack_addr = Column(COL_CALL_STACK_ADDR);
-    let call_stack_return_pc_choice = Column(COL_CALL_STACK_RETURN_PC_CHOICE);
-    let current_function_ref = Column(COL_CURRENT_FUNCTION_REF);
-    let current_function_num_locals = Column(COL_CURRENT_FUNCTION_NUM_LOCALS);
-    let stack_reads = Column(COL_STACK_READS);
-    let stack_writes = Column(COL_STACK_WRITES);
-    let stack_read0_active = Column(COL_STACK_READ0_ACTIVE);
-    let stack_read1_active = Column(COL_STACK_READ1_ACTIVE);
-    let stack_read2_active = Column(COL_STACK_READ2_ACTIVE);
-    let stack_write0_active = Column(COL_STACK_WRITE0_ACTIVE);
-    let shout_enabled = Column(COL_SHOUT_ENABLED);
-    let locals_fbp = Column(COL_LOCALS_FBP_BEFORE);
-    let locals_fbp_after = Column(COL_LOCALS_FBP_AFTER);
-    let local_index = Column(COL_LOCAL_INDEX);
-    let local_write_enabled = Column(COL_LOCAL_WRITE_ENABLED);
-    let local_value = Column(COL_LOCAL_VALUE);
-    let local_value_hi = Column(COL_LOCAL_VALUE_HI);
-    let linear_mem_imm_offset = Column(COL_LINEAR_MEM_IMM_OFFSET);
-    let linear_mem_byte_offset = Column(COL_LINEAR_MEM_BYTE_OFFSET);
-    let linear_mem_use_lane1 = Column(COL_LINEAR_MEM_USE_LANE1);
-    let linear_mem_use_lane2 = Column(COL_LINEAR_MEM_USE_LANE2);
-    let linear_mem_use_lane0 = Column(COL_LINEAR_MEM_USE_LANE0);
-    let linear_mem_lane0_addr = Column(COL_LINEAR_MEM_LANE0_ADDR);
-    let linear_mem_lane0_value = Column(COL_LINEAR_MEM_LANE0_VALUE);
-    let linear_mem_lane1_addr = Column(COL_LINEAR_MEM_LANE1_ADDR);
-    let linear_mem_lane1_value = Column(COL_LINEAR_MEM_LANE1_VALUE);
-    let linear_mem_lane2_addr = Column(COL_LINEAR_MEM_LANE2_ADDR);
-    let linear_mem_lane2_value = Column(COL_LINEAR_MEM_LANE2_VALUE);
-    let linear_mem_offset_is_0 = Column(COL_LINEAR_MEM_OFFSET_IS_0);
-    let linear_mem_offset_is_1 = Column(COL_LINEAR_MEM_OFFSET_IS_1);
-    let linear_mem_offset_is_2 = Column(COL_LINEAR_MEM_OFFSET_IS_2);
-    let linear_mem_offset_is_3 = Column(COL_LINEAR_MEM_OFFSET_IS_3);
-    let linear_mem_is_byte_width = Column(COL_LINEAR_MEM_IS_BYTE_WIDTH);
-    let linear_mem_byte_width_offset_is_0 = Column(COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0);
-    let linear_mem_byte_width_offset_is_1 = Column(COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1);
-    let linear_mem_byte_width_offset_is_2 = Column(COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_2);
-    let linear_mem_byte_width_offset_is_3 = Column(COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_3);
-    let linear_mem_is_half_width = Column(COL_LINEAR_MEM_IS_HALF_WIDTH);
-    let linear_mem_half_width_offset_is_0 = Column(COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_0);
-    let linear_mem_half_width_offset_is_1 = Column(COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_1);
-    let linear_mem_half_width_offset_is_2 = Column(COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_2);
-    let linear_mem_half_width_offset_is_3 = Column(COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_3);
-    let linear_mem_is_full_width = Column(COL_LINEAR_MEM_IS_FULL_WIDTH);
-    let linear_mem_full_width_offset_is_0 = Column(COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_0);
-    let linear_mem_full_width_offset_is_1 = Column(COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_1);
-    let linear_mem_full_width_offset_is_2 = Column(COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_2);
-    let linear_mem_full_width_offset_is_3 = Column(COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_3);
-    let linear_mem_is_double_width = Column(COL_LINEAR_MEM_IS_DOUBLE_WIDTH);
-    let linear_mem_double_width_offset_is_0 = Column(COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_0);
-    let linear_mem_double_width_offset_is_1 = Column(COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_1);
-    let linear_mem_double_width_offset_is_2 = Column(COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_2);
-    let linear_mem_double_width_offset_is_3 = Column(COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_3);
-    let linear_mem_i64_load_offset_is_0 = Column(COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_0);
-    let linear_mem_i64_load_offset_is_1 = Column(COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_1);
-    let linear_mem_i64_load_offset_is_2 = Column(COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_2);
-    let linear_mem_i64_load_offset_is_3 = Column(COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_3);
-    let linear_mem_i64_store_offset_is_0 = Column(COL_LINEAR_MEM_I64_STORE_OFFSET_IS_0);
-    let linear_mem_i64_store_offset_is_1 = Column(COL_LINEAR_MEM_I64_STORE_OFFSET_IS_1);
-    let linear_mem_i64_store_offset_is_2 = Column(COL_LINEAR_MEM_I64_STORE_OFFSET_IS_2);
-    let linear_mem_i64_store_offset_is_3 = Column(COL_LINEAR_MEM_I64_STORE_OFFSET_IS_3);
-    let linear_mem_lane0_byte0 = Column(COL_LINEAR_MEM_LANE0_BYTE0);
-    let linear_mem_lane0_byte1 = Column(COL_LINEAR_MEM_LANE0_BYTE1);
-    let linear_mem_lane0_byte2 = Column(COL_LINEAR_MEM_LANE0_BYTE2);
-    let linear_mem_lane0_byte3 = Column(COL_LINEAR_MEM_LANE0_BYTE3);
-    let linear_mem_lane1_byte0 = Column(COL_LINEAR_MEM_LANE1_BYTE0);
-    let linear_mem_lane1_byte1 = Column(COL_LINEAR_MEM_LANE1_BYTE1);
-    let linear_mem_lane1_byte2 = Column(COL_LINEAR_MEM_LANE1_BYTE2);
-    let linear_mem_lane1_byte3 = Column(COL_LINEAR_MEM_LANE1_BYTE3);
-    let linear_mem_lane2_byte0 = Column(COL_LINEAR_MEM_LANE2_BYTE0);
-    let linear_mem_lane2_byte1 = Column(COL_LINEAR_MEM_LANE2_BYTE1);
-    let linear_mem_lane2_byte2 = Column(COL_LINEAR_MEM_LANE2_BYTE2);
-    let linear_mem_lane2_byte3 = Column(COL_LINEAR_MEM_LANE2_BYTE3);
-    let linear_mem_access_byte0 = Column(COL_LINEAR_MEM_ACCESS_BYTE0);
-    let linear_mem_access_byte1 = Column(COL_LINEAR_MEM_ACCESS_BYTE1);
-    let linear_mem_access_byte2 = Column(COL_LINEAR_MEM_ACCESS_BYTE2);
-    let linear_mem_access_byte3 = Column(COL_LINEAR_MEM_ACCESS_BYTE3);
-    let linear_mem_access_byte4 = Column(COL_LINEAR_MEM_ACCESS_BYTE4);
-    let linear_mem_access_byte5 = Column(COL_LINEAR_MEM_ACCESS_BYTE5);
-    let linear_mem_access_byte6 = Column(COL_LINEAR_MEM_ACCESS_BYTE6);
-    let linear_mem_access_byte7 = Column(COL_LINEAR_MEM_ACCESS_BYTE7);
-    let sign_ext_low7 = Column(COL_SIGN_EXT_LOW7);
-    let sign_ext_bit = Column(COL_SIGN_EXT_BIT);
-    let global_index = Column(COL_GLOBAL_INDEX);
-    let global_value = Column(COL_GLOBAL_VALUE);
-    let global_value_hi = Column(COL_GLOBAL_VALUE_HI);
-    let memory_pages_before = Column(COL_MEMORY_PAGES_BEFORE);
-    let memory_pages_after = Column(COL_MEMORY_PAGES_AFTER);
-    let table_id = Column(COL_TABLE_ID);
-    let table_read_enabled = Column(COL_TABLE_READ_ENABLED);
-    let table_index = Column(COL_TABLE_INDEX);
-    let table_value = Column(COL_TABLE_VALUE);
-    let table_size = Column(COL_TABLE_SIZE);
-    let function_ref = Column(COL_FUNCTION_REF);
-    let call_param_count = Column(COL_CALL_PARAM_COUNT);
-    let call_result_count = Column(COL_CALL_RESULT_COUNT);
-    let target_function_is_guest = Column(COL_TARGET_FUNCTION_IS_GUEST);
-    let function_type_id = Column(COL_FUNCTION_TYPE_ID);
-    let call_indirect_type_index = Column(COL_CALL_INDIRECT_TYPE_INDEX);
-    let expected_type_id = Column(COL_EXPECTED_TYPE_ID);
-    let shout_id = Column(COL_SHOUT_ID);
-    let shout_value = Column(COL_SHOUT_VALUE);
     let control = ControlColumns {
-        opcode_code,
-        is_program_row,
-        padding_active,
-        pc_rom_active,
-        pc_edge_kind_is_static,
-        pc_edge_kind_inv,
-        control_choice,
-        pc_edge_kind,
-        wide_values_enabled,
-        halted,
-        stack_reads,
-        stack_writes,
-        stack_read0_active,
-        stack_read1_active,
-        stack_read2_active,
-        stack_write0_active,
+        opcode_code: Column(COL_OPCODE_CODE),
+        is_program_row: Column(COL_IS_PROGRAM_ROW),
+        padding_active: Column(COL_PADDING_ACTIVE),
+        pc_rom_active: Column(COL_PC_ROM_ACTIVE),
+        pc_edge_kind_is_static: Column(COL_PC_EDGE_KIND_IS_STATIC),
+        pc_edge_kind_inv: Column(COL_PC_EDGE_KIND_INV),
+        control_choice: Column(COL_CONTROL_CHOICE),
+        pc_edge_kind: Column(COL_PC_EDGE_KIND),
+        wide_values_enabled: Column(COL_WIDE_VALUES_ENABLED),
+        halted: Column(COL_HALTED),
+        stack_reads: Column(COL_STACK_READS),
+        stack_writes: Column(COL_STACK_WRITES),
+        stack_read0_active: Column(COL_STACK_READ0_ACTIVE),
+        stack_read1_active: Column(COL_STACK_READ1_ACTIVE),
+        stack_read2_active: Column(COL_STACK_READ2_ACTIVE),
+        stack_write0_active: Column(COL_STACK_WRITE0_ACTIVE),
     };
     let state = StateColumns {
-        pc_before,
-        pc_after,
-        sp_before,
-        sp_after,
+        pc_before: Column(COL_PC_BEFORE),
+        pc_after: Column(COL_PC_AFTER),
+        sp_before: Column(COL_SP_BEFORE),
+        sp_after: Column(COL_SP_AFTER),
     };
     let output = OutputColumns {
-        enabled_before: output_enabled_before,
-        enabled_after: output_enabled_after,
-        value_lo_before: output_value_lo_before,
-        value_lo_after: output_value_lo_after,
-        value_hi_before: output_value_hi_before,
-        value_hi_after: output_value_hi_after,
-        captured: output_captured,
+        enabled_before: Column(COL_OUTPUT_ENABLED_BEFORE),
+        enabled_after: Column(COL_OUTPUT_ENABLED_AFTER),
+        value_lo_before: Column(COL_OUTPUT_VALUE_LO_BEFORE),
+        value_lo_after: Column(COL_OUTPUT_VALUE_LO_AFTER),
+        value_hi_before: Column(COL_OUTPUT_VALUE_HI_BEFORE),
+        value_hi_after: Column(COL_OUTPUT_VALUE_HI_AFTER),
+        captured: Column(COL_OUTPUT_CAPTURED),
     };
     let param_init = ParamInitColumns {
-        param_init_active_before,
-        param_init_active_after,
-        param_init_remaining_before,
-        param_init_remaining_after,
-        param_init_remaining_after_is_zero,
-        param_init_remaining_after_inv,
+        param_init_active_before: Column(COL_PARAM_INIT_ACTIVE_BEFORE),
+        param_init_active_after: Column(COL_PARAM_INIT_ACTIVE_AFTER),
+        param_init_remaining_before: Column(COL_PARAM_INIT_REMAINING_BEFORE),
+        param_init_remaining_after: Column(COL_PARAM_INIT_REMAINING_AFTER),
+        param_init_remaining_after_is_zero: Column(COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO),
+        param_init_remaining_after_inv: Column(COL_PARAM_INIT_REMAINING_AFTER_INV),
     };
     let call = CallColumns {
-        call_stack_push_present,
-        call_stack_pop_present,
-        call_stack_access_return_pc,
-        call_stack_access_caller_fbp,
-        call_stack_depth_before,
-        call_stack_depth_after,
-        call_stack_addr,
-        call_stack_return_pc_choice,
+        call_stack_push_present: Column(COL_CALL_STACK_PUSH_PRESENT),
+        call_stack_pop_present: Column(COL_CALL_STACK_POP_PRESENT),
+        call_stack_access_return_pc: Column(COL_CALL_STACK_POP_RETURN_PC),
+        call_stack_access_caller_fbp: Column(COL_CALL_STACK_POP_CALLER_FBP),
+        call_stack_depth_before: Column(COL_CALL_STACK_DEPTH_BEFORE),
+        call_stack_depth_after: Column(COL_CALL_STACK_DEPTH_AFTER),
+        call_stack_addr: Column(COL_CALL_STACK_ADDR),
+        call_stack_return_pc_choice: Column(COL_CALL_STACK_RETURN_PC_CHOICE),
     };
     let frame = FrameColumns {
-        current_function_ref,
-        current_function_num_locals,
-        locals_fbp_before: locals_fbp,
-        locals_fbp_after,
+        current_function_ref: Column(COL_CURRENT_FUNCTION_REF),
+        current_function_num_locals: Column(COL_CURRENT_FUNCTION_NUM_LOCALS),
+        locals_fbp_before: Column(COL_LOCALS_FBP_BEFORE),
+        locals_fbp_after: Column(COL_LOCALS_FBP_AFTER),
     };
     let stack = OperandStackColumns {
         read0_addr: Column(COL_STACK_READ0_ADDR),
@@ -553,139 +457,166 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
         write0_value_hi: Column(COL_STACK_WRITE0_VALUE_HI),
     };
     let locals = LocalsColumns {
-        write_enabled: local_write_enabled,
-        index: local_index,
-        value_lo: local_value,
-        value_hi: local_value_hi,
+        write_enabled: Column(COL_LOCAL_WRITE_ENABLED),
+        index: Column(COL_LOCAL_INDEX),
+        value_lo: Column(COL_LOCAL_VALUE),
+        value_hi: Column(COL_LOCAL_VALUE_HI),
     };
     let globals = GlobalsColumns {
-        index: global_index,
-        value: global_value,
-        value_hi: global_value_hi,
+        index: Column(COL_GLOBAL_INDEX),
+        value: Column(COL_GLOBAL_VALUE),
+        value_hi: Column(COL_GLOBAL_VALUE_HI),
     };
     let memory_pages = MemoryPagesColumns {
-        before: memory_pages_before,
-        after: memory_pages_after,
+        before: Column(COL_MEMORY_PAGES_BEFORE),
+        after: Column(COL_MEMORY_PAGES_AFTER),
     };
     let table = TableColumns {
-        read_enabled: table_read_enabled,
-        id: table_id,
-        index: table_index,
-        value: table_value,
+        read_enabled: Column(COL_TABLE_READ_ENABLED),
+        id: Column(COL_TABLE_ID),
+        index: Column(COL_TABLE_INDEX),
+        value: Column(COL_TABLE_VALUE),
     };
     let table_sizes = TableSizeColumns {
-        id: table_id,
-        value: table_size,
+        id: Column(COL_TABLE_ID),
+        value: Column(COL_TABLE_SIZE),
     };
     let function_types = FunctionTypeColumns {
-        function_ref,
-        type_id: function_type_id,
-        param_count: call_param_count,
-        result_count: call_result_count,
-        is_guest: target_function_is_guest,
+        function_ref: Column(COL_FUNCTION_REF),
+        type_id: Column(COL_FUNCTION_TYPE_ID),
+        param_count: Column(COL_CALL_PARAM_COUNT),
+        result_count: Column(COL_CALL_RESULT_COUNT),
+        is_guest: Column(COL_TARGET_FUNCTION_IS_GUEST),
     };
     let module_types = ModuleTypeColumns {
-        raw_type_index: call_indirect_type_index,
-        expected_type_id,
+        raw_type_index: Column(COL_CALL_INDIRECT_TYPE_INDEX),
+        expected_type_id: Column(COL_EXPECTED_TYPE_ID),
     };
     let linear_memory = LinearMemoryColumns {
-        imm_offset: linear_mem_imm_offset,
-        byte_offset: linear_mem_byte_offset,
-        use_lane0: linear_mem_use_lane0,
-        use_lane1: linear_mem_use_lane1,
-        use_lane2: linear_mem_use_lane2,
-        is_byte_width: linear_mem_is_byte_width,
-        is_half_width: linear_mem_is_half_width,
-        is_full_width: linear_mem_is_full_width,
-        is_double_width: linear_mem_is_double_width,
-        lane0_addr: linear_mem_lane0_addr,
-        lane0_value: linear_mem_lane0_value,
-        lane1_addr: linear_mem_lane1_addr,
-        lane1_value: linear_mem_lane1_value,
-        lane2_addr: linear_mem_lane2_addr,
-        lane2_value: linear_mem_lane2_value,
+        imm_offset: Column(COL_LINEAR_MEM_IMM_OFFSET),
+        byte_offset: Column(COL_LINEAR_MEM_BYTE_OFFSET),
+        use_lane0: Column(COL_LINEAR_MEM_USE_LANE0),
+        use_lane1: Column(COL_LINEAR_MEM_USE_LANE1),
+        use_lane2: Column(COL_LINEAR_MEM_USE_LANE2),
+        lane0_load_active: Column(COL_LINEAR_MEM_LANE0_LOAD_ACTIVE),
+        lane1_load_active: Column(COL_LINEAR_MEM_LANE1_LOAD_ACTIVE),
+        lane2_load_active: Column(COL_LINEAR_MEM_LANE2_LOAD_ACTIVE),
+        lane0_store_active: Column(COL_LINEAR_MEM_LANE0_STORE_ACTIVE),
+        lane1_store_active: Column(COL_LINEAR_MEM_LANE1_STORE_ACTIVE),
+        lane2_store_active: Column(COL_LINEAR_MEM_LANE2_STORE_ACTIVE),
+        is_byte_width: Column(COL_LINEAR_MEM_IS_BYTE_WIDTH),
+        is_half_width: Column(COL_LINEAR_MEM_IS_HALF_WIDTH),
+        is_full_width: Column(COL_LINEAR_MEM_IS_FULL_WIDTH),
+        is_double_width: Column(COL_LINEAR_MEM_IS_DOUBLE_WIDTH),
+        lane0_addr: Column(COL_LINEAR_MEM_LANE0_ADDR),
+        lane0_value: Column(COL_LINEAR_MEM_LANE0_VALUE),
+        lane1_addr: Column(COL_LINEAR_MEM_LANE1_ADDR),
+        lane1_value: Column(COL_LINEAR_MEM_LANE1_VALUE),
+        lane2_addr: Column(COL_LINEAR_MEM_LANE2_ADDR),
+        lane2_value: Column(COL_LINEAR_MEM_LANE2_VALUE),
         offset_is: [
-            linear_mem_offset_is_0,
-            linear_mem_offset_is_1,
-            linear_mem_offset_is_2,
-            linear_mem_offset_is_3,
+            Column(COL_LINEAR_MEM_OFFSET_IS_0),
+            Column(COL_LINEAR_MEM_OFFSET_IS_1),
+            Column(COL_LINEAR_MEM_OFFSET_IS_2),
+            Column(COL_LINEAR_MEM_OFFSET_IS_3),
         ],
         byte_width_offset_is: [
-            linear_mem_byte_width_offset_is_0,
-            linear_mem_byte_width_offset_is_1,
-            linear_mem_byte_width_offset_is_2,
-            linear_mem_byte_width_offset_is_3,
+            Column(COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0),
+            Column(COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1),
+            Column(COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_2),
+            Column(COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_3),
         ],
         half_width_offset_is: [
-            linear_mem_half_width_offset_is_0,
-            linear_mem_half_width_offset_is_1,
-            linear_mem_half_width_offset_is_2,
-            linear_mem_half_width_offset_is_3,
+            Column(COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_0),
+            Column(COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_1),
+            Column(COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_2),
+            Column(COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_3),
         ],
         full_width_offset_is: [
-            linear_mem_full_width_offset_is_0,
-            linear_mem_full_width_offset_is_1,
-            linear_mem_full_width_offset_is_2,
-            linear_mem_full_width_offset_is_3,
+            Column(COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_0),
+            Column(COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_1),
+            Column(COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_2),
+            Column(COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_3),
         ],
         double_width_offset_is: [
-            linear_mem_double_width_offset_is_0,
-            linear_mem_double_width_offset_is_1,
-            linear_mem_double_width_offset_is_2,
-            linear_mem_double_width_offset_is_3,
+            Column(COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_0),
+            Column(COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_1),
+            Column(COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_2),
+            Column(COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_3),
         ],
         i64_load_offset_is: [
-            linear_mem_i64_load_offset_is_0,
-            linear_mem_i64_load_offset_is_1,
-            linear_mem_i64_load_offset_is_2,
-            linear_mem_i64_load_offset_is_3,
+            Column(COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_0),
+            Column(COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_1),
+            Column(COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_2),
+            Column(COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_3),
         ],
         i64_store_offset_is: [
-            linear_mem_i64_store_offset_is_0,
-            linear_mem_i64_store_offset_is_1,
-            linear_mem_i64_store_offset_is_2,
-            linear_mem_i64_store_offset_is_3,
+            Column(COL_LINEAR_MEM_I64_STORE_OFFSET_IS_0),
+            Column(COL_LINEAR_MEM_I64_STORE_OFFSET_IS_1),
+            Column(COL_LINEAR_MEM_I64_STORE_OFFSET_IS_2),
+            Column(COL_LINEAR_MEM_I64_STORE_OFFSET_IS_3),
         ],
         lane0_bytes: [
-            linear_mem_lane0_byte0,
-            linear_mem_lane0_byte1,
-            linear_mem_lane0_byte2,
-            linear_mem_lane0_byte3,
+            Column(COL_LINEAR_MEM_LANE0_BYTE0),
+            Column(COL_LINEAR_MEM_LANE0_BYTE1),
+            Column(COL_LINEAR_MEM_LANE0_BYTE2),
+            Column(COL_LINEAR_MEM_LANE0_BYTE3),
         ],
         lane1_bytes: [
-            linear_mem_lane1_byte0,
-            linear_mem_lane1_byte1,
-            linear_mem_lane1_byte2,
-            linear_mem_lane1_byte3,
+            Column(COL_LINEAR_MEM_LANE1_BYTE0),
+            Column(COL_LINEAR_MEM_LANE1_BYTE1),
+            Column(COL_LINEAR_MEM_LANE1_BYTE2),
+            Column(COL_LINEAR_MEM_LANE1_BYTE3),
         ],
         lane2_bytes: [
-            linear_mem_lane2_byte0,
-            linear_mem_lane2_byte1,
-            linear_mem_lane2_byte2,
-            linear_mem_lane2_byte3,
+            Column(COL_LINEAR_MEM_LANE2_BYTE0),
+            Column(COL_LINEAR_MEM_LANE2_BYTE1),
+            Column(COL_LINEAR_MEM_LANE2_BYTE2),
+            Column(COL_LINEAR_MEM_LANE2_BYTE3),
+        ],
+        lane0_value_before: Column(COL_LINEAR_MEM_LANE0_VALUE_BEFORE),
+        lane1_value_before: Column(COL_LINEAR_MEM_LANE1_VALUE_BEFORE),
+        lane2_value_before: Column(COL_LINEAR_MEM_LANE2_VALUE_BEFORE),
+        lane0_bytes_before: [
+            Column(COL_LINEAR_MEM_LANE0_BYTE0_BEFORE),
+            Column(COL_LINEAR_MEM_LANE0_BYTE1_BEFORE),
+            Column(COL_LINEAR_MEM_LANE0_BYTE2_BEFORE),
+            Column(COL_LINEAR_MEM_LANE0_BYTE3_BEFORE),
+        ],
+        lane1_bytes_before: [
+            Column(COL_LINEAR_MEM_LANE1_BYTE0_BEFORE),
+            Column(COL_LINEAR_MEM_LANE1_BYTE1_BEFORE),
+            Column(COL_LINEAR_MEM_LANE1_BYTE2_BEFORE),
+            Column(COL_LINEAR_MEM_LANE1_BYTE3_BEFORE),
+        ],
+        lane2_bytes_before: [
+            Column(COL_LINEAR_MEM_LANE2_BYTE0_BEFORE),
+            Column(COL_LINEAR_MEM_LANE2_BYTE1_BEFORE),
+            Column(COL_LINEAR_MEM_LANE2_BYTE2_BEFORE),
+            Column(COL_LINEAR_MEM_LANE2_BYTE3_BEFORE),
         ],
         access_bytes_hi: [
-            linear_mem_access_byte4,
-            linear_mem_access_byte5,
-            linear_mem_access_byte6,
-            linear_mem_access_byte7,
+            Column(COL_LINEAR_MEM_ACCESS_BYTE4),
+            Column(COL_LINEAR_MEM_ACCESS_BYTE5),
+            Column(COL_LINEAR_MEM_ACCESS_BYTE6),
+            Column(COL_LINEAR_MEM_ACCESS_BYTE7),
         ],
     };
     let sign_extension = SignExtensionColumns {
         bytes: [
-            linear_mem_access_byte0,
-            linear_mem_access_byte1,
-            linear_mem_access_byte2,
-            linear_mem_access_byte3,
+            Column(COL_LINEAR_MEM_ACCESS_BYTE0),
+            Column(COL_LINEAR_MEM_ACCESS_BYTE1),
+            Column(COL_LINEAR_MEM_ACCESS_BYTE2),
+            Column(COL_LINEAR_MEM_ACCESS_BYTE3),
         ],
-        low7: sign_ext_low7,
-        bit: sign_ext_bit,
+        low7: Column(COL_SIGN_EXT_LOW7),
+        bit: Column(COL_SIGN_EXT_BIT),
     };
 
     let shout = ShoutColumns {
-        enabled: shout_enabled,
-        id: shout_id,
-        value: shout_value,
+        enabled: Column(COL_SHOUT_ENABLED),
+        id: Column(COL_SHOUT_ID),
+        value: Column(COL_SHOUT_VALUE),
     };
 
     let mut lookup_families: Vec<WasmLookupFamilySpec> = WasmShoutOpcode::all()
@@ -777,72 +708,84 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     value_column: stack.read0_value,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(control.stack_read0_active),
+                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![stack.read0_addr_hi],
                     value_column: stack.read0_value_hi,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(control.stack_read0_active),
+                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![stack.read0_addr],
                     value_column: stack.read0_value,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(output.captured),
+                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![stack.read0_addr_hi],
                     value_column: stack.read0_value_hi,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(output.captured),
+                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![stack.read0_addr],
                     value_column: stack.read0_value,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(param_init.param_init_active_before),
+                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![stack.read0_addr_hi],
                     value_column: stack.read0_value_hi,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(param_init.param_init_active_before),
+                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![stack.read1_addr],
                     value_column: stack.read1_value,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(control.stack_read1_active),
+                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![stack.read1_addr_hi],
                     value_column: stack.read1_value_hi,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(control.stack_read1_active),
+                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![stack.read2_addr],
                     value_column: stack.read2_value,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(control.stack_read2_active),
+                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![stack.read2_addr_hi],
                     value_column: stack.read2_value_hi,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(control.stack_read2_active),
+                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![stack.write0_addr],
                     value_column: stack.write0_value,
                     kind: WasmMemoryColumnKind::Write,
                     activation: WasmMemoryActivation::BooleanGate(control.stack_write0_active),
+                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![stack.write0_addr_hi],
                     value_column: stack.write0_value_hi,
                     kind: WasmMemoryColumnKind::Write,
                     activation: WasmMemoryActivation::BooleanGate(control.stack_write0_active),
+                    value_before_column: None,
                 },
             ],
             is_rom: false,
@@ -855,12 +798,14 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     value_column: call.call_stack_access_return_pc,
                     kind: WasmMemoryColumnKind::Write,
                     activation: WasmMemoryActivation::BooleanGate(call.call_stack_push_present),
+                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![call.call_stack_addr],
                     value_column: call.call_stack_access_return_pc,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(call.call_stack_pop_present),
+                    value_before_column: None,
                 },
             ],
             is_rom: false,
@@ -873,12 +818,14 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     value_column: call.call_stack_access_caller_fbp,
                     kind: WasmMemoryColumnKind::Write,
                     activation: WasmMemoryActivation::BooleanGate(call.call_stack_push_present),
+                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![call.call_stack_addr],
                     value_column: call.call_stack_access_caller_fbp,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(call.call_stack_pop_present),
+                    value_before_column: None,
                 },
             ],
             is_rom: false,
@@ -886,23 +833,58 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
         WasmMemorySpec {
             name: "linear_memory",
             columns: vec![
+                // Linear-memory rows are split into pure-Read (loads) and
+                // RMW Write (stores) per the Nebula-style memory argument:
+                // a load emits one Read tuple `(addr, lane*_value, t_r)`
+                // — the memory argument enforces it matches the latest
+                // write at `addr`, with no write tuple from the load. A
+                // store emits a paired Read at `lane*_value_before` and
+                // Write at `lane*_value`, so the cells log records the
+                // new state only on real stores. This is what stops a
+                // malicious prover from corrupting memory via a load row.
+                // See `i32_store8_memory_check_rejects_tampered_consistent_prior_state`
+                // for the test guarding the store side.
+                WasmMemoryColumnSpec {
+                    address_columns: vec![linear_memory.lane0_addr],
+                    value_column: linear_memory.lane0_value,
+                    kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(linear_memory.lane0_load_active),
+                    value_before_column: None,
+                },
+                WasmMemoryColumnSpec {
+                    address_columns: vec![linear_memory.lane1_addr],
+                    value_column: linear_memory.lane1_value,
+                    kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(linear_memory.lane1_load_active),
+                    value_before_column: None,
+                },
+                WasmMemoryColumnSpec {
+                    address_columns: vec![linear_memory.lane2_addr],
+                    value_column: linear_memory.lane2_value,
+                    kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(linear_memory.lane2_load_active),
+                    value_before_column: None,
+                },
                 WasmMemoryColumnSpec {
                     address_columns: vec![linear_memory.lane0_addr],
                     value_column: linear_memory.lane0_value,
                     kind: WasmMemoryColumnKind::Write,
-                    activation: WasmMemoryActivation::BooleanGate(linear_memory.use_lane0),
+                    activation: WasmMemoryActivation::BooleanGate(linear_memory.lane0_store_active),
+                    value_before_column: Some(linear_memory.lane0_value_before),
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![linear_memory.lane1_addr],
                     value_column: linear_memory.lane1_value,
                     kind: WasmMemoryColumnKind::Write,
-                    activation: WasmMemoryActivation::BooleanGate(linear_memory.use_lane1),
+                    activation: WasmMemoryActivation::BooleanGate(linear_memory.lane1_store_active),
+                    value_before_column: Some(linear_memory.lane1_value_before),
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![linear_memory.lane2_addr],
                     value_column: linear_memory.lane2_value,
                     kind: WasmMemoryColumnKind::Write,
-                    activation: WasmMemoryActivation::BooleanGate(linear_memory.use_lane2),
+                    activation: WasmMemoryActivation::BooleanGate(linear_memory.lane2_store_active),
+                    value_before_column: Some(linear_memory.lane2_value_before),
                 },
             ],
             is_rom: false,
@@ -917,18 +899,21 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::LocalGet).unwrap(),
                     )),
+                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![frame.locals_fbp_before, locals.index],
                     value_column: locals.value_lo,
                     kind: WasmMemoryColumnKind::Write,
                     activation: WasmMemoryActivation::BooleanGate(locals.write_enabled),
+                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![frame.locals_fbp_before, locals.index],
                     value_column: locals.value_lo,
                     kind: WasmMemoryColumnKind::Write,
                     activation: WasmMemoryActivation::BooleanGate(param_init.param_init_active_before),
+                    value_before_column: None,
                 },
             ],
             is_rom: false,
@@ -943,6 +928,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::GlobalGet).unwrap(),
                     )),
+                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![globals.index],
@@ -951,6 +937,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::GlobalSet).unwrap(),
                     )),
+                    value_before_column: None,
                 },
             ],
             is_rom: false,
@@ -963,6 +950,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     value_column: table.value,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(table.read_enabled),
+                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![table.id, table.index],
@@ -971,6 +959,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::TableSet).unwrap(),
                     )),
+                    value_before_column: None,
                 },
             ],
             is_rom: false,
@@ -984,6 +973,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                 activation: WasmMemoryActivation::BooleanGate(Column(
                     selector_col(super::isa::WasmOpcode::TableSize).unwrap(),
                 )),
+                value_before_column: None,
             }],
             is_rom: false,
         },
@@ -996,6 +986,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                 activation: WasmMemoryActivation::BooleanGate(Column(
                     selector_col(super::isa::WasmOpcode::CallIndirect).unwrap(),
                 )),
+                value_before_column: None,
             }],
             is_rom: true,
         },
@@ -1006,6 +997,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                 value_column: frame.current_function_num_locals,
                 kind: WasmMemoryColumnKind::Read,
                 activation: WasmMemoryActivation::BooleanGate(control.is_program_row),
+                value_before_column: None,
             }],
             is_rom: true,
         },
@@ -1016,6 +1008,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                 value_column: frame.current_function_ref,
                 kind: WasmMemoryColumnKind::Read,
                 activation: WasmMemoryActivation::Always,
+                value_before_column: None,
             }],
             is_rom: true,
         },
@@ -1029,6 +1022,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::Call).unwrap(),
                     )),
+                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![function_types.function_ref],
@@ -1037,6 +1031,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::CallIndirect).unwrap(),
                     )),
+                    value_before_column: None,
                 },
             ],
             is_rom: true,
@@ -1051,6 +1046,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::Call).unwrap(),
                     )),
+                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![function_types.function_ref],
@@ -1059,12 +1055,14 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::CallIndirect).unwrap(),
                     )),
+                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![frame.current_function_ref],
                     value_column: function_types.param_count,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(param_init.param_init_active_before),
+                    value_before_column: None,
                 },
             ],
             is_rom: true,
@@ -1079,6 +1077,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::Call).unwrap(),
                     )),
+                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![function_types.function_ref],
@@ -1087,6 +1086,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::CallIndirect).unwrap(),
                     )),
+                    value_before_column: None,
                 },
             ],
             is_rom: true,
@@ -1100,6 +1100,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                 activation: WasmMemoryActivation::BooleanGate(Column(
                     selector_col(super::isa::WasmOpcode::CallIndirect).unwrap(),
                 )),
+                value_before_column: None,
             }],
             is_rom: true,
         },
@@ -1112,6 +1113,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                 activation: WasmMemoryActivation::BooleanGate(Column(
                     selector_col(super::isa::WasmOpcode::Call).unwrap(),
                 )),
+                value_before_column: None,
             }],
             is_rom: true,
         },
@@ -1124,6 +1126,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                 activation: WasmMemoryActivation::BooleanGate(Column(
                     selector_col(super::isa::WasmOpcode::CallIndirect).unwrap(),
                 )),
+                value_before_column: None,
             }],
             is_rom: true,
         },
@@ -1134,6 +1137,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                 value_column: control.pc_edge_kind,
                 kind: WasmMemoryColumnKind::Read,
                 activation: WasmMemoryActivation::BooleanGate(control.is_program_row),
+                value_before_column: None,
             }],
             is_rom: true,
         },
@@ -1145,12 +1149,14 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     value_column: state.pc_after,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(control.pc_rom_active),
+                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![state.pc_before, call.call_stack_return_pc_choice],
                     value_column: call.call_stack_access_return_pc,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(call.call_stack_push_present),
+                    value_before_column: None,
                 },
             ],
             is_rom: true,

@@ -82,44 +82,16 @@ impl WasmVmSpec {
     }
 }
 
-const I64_OPS: &[WasmOpcode] = &[
-    WasmOpcode::I64Const,
-    WasmOpcode::I64Add,
-    WasmOpcode::I64Sub,
-    WasmOpcode::I64Load,
-    WasmOpcode::I64Store,
-    WasmOpcode::I64Store8,
-    WasmOpcode::I64Store16,
-    WasmOpcode::I64Store32,
-    WasmOpcode::I64Load8U,
-    WasmOpcode::I64Load16U,
-    WasmOpcode::I64Load32U,
-    WasmOpcode::I64Load8S,
-    WasmOpcode::I64Load16S,
-    WasmOpcode::I64Load32S,
-    WasmOpcode::I32WrapI64,
-    WasmOpcode::I64ExtendI32U,
-    WasmOpcode::I64ExtendI32S,
-    WasmOpcode::I64Extend8S,
-    WasmOpcode::I64Extend16S,
-    WasmOpcode::I64Extend32S,
-    WasmOpcode::I64Eqz,
-    WasmOpcode::I64Eq,
-    WasmOpcode::I64Ne,
-    WasmOpcode::I64And,
-    WasmOpcode::I64Or,
-    WasmOpcode::I64Xor,
-    WasmOpcode::I64Mul,
-    WasmOpcode::Drop,
-    WasmOpcode::Select,
-    WasmOpcode::Call,
-    WasmOpcode::CallIndirect,
-    WasmOpcode::LocalGet,
-    WasmOpcode::LocalSet,
-    WasmOpcode::LocalTee,
-    WasmOpcode::GlobalGet,
-    WasmOpcode::GlobalSet,
-];
+/// Opcodes whose rows participate in the wide-value gating constraint.
+/// Spec-derived from [`WasmOpcode::uses_wide_values`] so this set cannot
+/// drift from the witness builder or the test-row helpers — see the doc
+/// on the method.
+pub(super) fn wide_value_ops() -> Vec<WasmOpcode> {
+    WasmOpcode::supported()
+        .into_iter()
+        .filter(|op| op.uses_wide_values())
+        .collect()
+}
 
 /// Opcodes whose CCS gates fire on linear-memory rows. Spec-derived from
 /// [`WasmOpcode::uses_linear_memory`] so the list cannot drift from the
@@ -223,16 +195,17 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
     let shout = layout.shout;
     let mut b = WasmTaggedR1csBuilder::new(WITNESS_WIDTH, COL_ONE)?;
 
-    b.with_tag(shared("wide value gating", I64_OPS), |b| {
-        // is_program_row · (wide_values_enabled − Σ i64-op selectors) = 0, so
-        // on a program row wide_values_enabled = 1 iff an i64-shaped op is
-        // active. Derived from `I64_OPS` so the gate can't drift from it.
+    b.with_tag(shared("wide value gating", &wide_value_ops()), |b| {
+        // is_program_row · (wide_values_enabled − Σ wide-value-op selectors) = 0,
+        // so on a program row wide_values_enabled = 1 iff a wide-value op is
+        // active. Spec-derived from `WasmOpcode::uses_wide_values` so the gate
+        // cannot drift from the witness builder or the test-row helpers.
         b.push_row(
             [(idx(control.is_program_row), F::ONE)],
             std::iter::once((idx(control.wide_values_enabled), F::ONE)).chain(
-                I64_OPS
-                    .iter()
-                    .map(|&op| (selector_col(op).expect("i64 op selector"), -F::ONE)),
+                wide_value_ops()
+                    .into_iter()
+                    .map(|op| (selector_col(op).expect("wide value op selector"), -F::ONE)),
             ),
             [],
         );

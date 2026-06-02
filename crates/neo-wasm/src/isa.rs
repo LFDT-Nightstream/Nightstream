@@ -467,6 +467,59 @@ impl WasmOpcode {
         self.memory_access_info().is_some()
     }
 
+    /// True for opcodes whose row carries a meaningful `wide_values_enabled`
+    /// (= 1) flag: rows that consume or produce an i64 stack value, plus the
+    /// polymorphic ops (`Drop`, `Select`, `Call`, `CallIndirect`,
+    /// `local.*`, `global.*`) which can act on i64 values and whose CCS rows
+    /// gate the wide-stack-lane machinery accordingly.
+    ///
+    /// Single source of truth for the wide-value gating row in
+    /// [`crate::ccs::build_core_ccs_spec`], the `wide_values_enabled`
+    /// determination in `adapters::wasmtime::normalize`, and the test-row
+    /// builders. The constraint `is_program_row · (wide_values_enabled −
+    /// Σ uses_wide_values selectors) = 0` forces these flags into agreement.
+    pub fn uses_wide_values(self) -> bool {
+        matches!(
+            self,
+            Self::I64Const
+                | Self::I64Add
+                | Self::I64Sub
+                | Self::I64Load
+                | Self::I64Store
+                | Self::I64Store8
+                | Self::I64Store16
+                | Self::I64Store32
+                | Self::I64Load8U
+                | Self::I64Load16U
+                | Self::I64Load32U
+                | Self::I64Load8S
+                | Self::I64Load16S
+                | Self::I64Load32S
+                | Self::I32WrapI64
+                | Self::I64ExtendI32U
+                | Self::I64ExtendI32S
+                | Self::I64Extend8S
+                | Self::I64Extend16S
+                | Self::I64Extend32S
+                | Self::I64Eqz
+                | Self::I64Eq
+                | Self::I64Ne
+                | Self::I64And
+                | Self::I64Or
+                | Self::I64Xor
+                | Self::I64Mul
+                | Self::Drop
+                | Self::Select
+                | Self::Call
+                | Self::CallIndirect
+                | Self::LocalGet
+                | Self::LocalSet
+                | Self::LocalTee
+                | Self::GlobalGet
+                | Self::GlobalSet
+        )
+    }
+
     pub fn memory_access_info(self) -> Option<WasmMemoryAccessInfo> {
         use WasmMemoryAccessKind::{Load, Store};
         use WasmMemoryExtension::{Sign, Zero};

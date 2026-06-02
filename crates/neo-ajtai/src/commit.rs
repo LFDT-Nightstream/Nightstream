@@ -17,7 +17,7 @@ use neo_math::ring::{cf, cf_inv as cf_unmap, Rq as RqEl, D, ETA};
 const _: () = assert!(ETA == 81, "rot_step is specialized for η=81 (D=54)");
 const _: () = assert!(D == 54, "D must be 54 when η=81");
 const DENSE_BINARY_MASK_THRESHOLD: u32 = 32;
-const SEEDED_RQ_BATCH: usize = 32;
+pub(crate) const SEEDED_RQ_BATCH: usize = 32;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct SeededBinaryColsCommitAudit {
@@ -92,7 +92,7 @@ pub fn sample_uniform_rq<R: RngCore + CryptoRng>(rng: &mut R) -> RqEl {
 
 /// Sample a uniform coefficient vector in F_q^D that corresponds to a uniform R_q element.
 #[inline]
-fn sample_uniform_rq_coeffs<R: RngCore + CryptoRng>(rng: &mut R) -> [Fq; D] {
+pub(crate) fn sample_uniform_rq_coeffs<R: RngCore + CryptoRng>(rng: &mut R) -> [Fq; D] {
     const Q: u64 = <Fq as PrimeField64>::ORDER_U64;
     let mut bytes = [0u8; D * 8];
     rng.fill_bytes(&mut bytes);
@@ -109,7 +109,7 @@ fn sample_uniform_rq_coeffs<R: RngCore + CryptoRng>(rng: &mut R) -> [Fq; D] {
 
 /// Advance the seeded PP stream by one ring element without materializing coefficients.
 #[inline]
-fn skip_uniform_rq_coeffs<R: RngCore + CryptoRng>(rng: &mut R) {
+pub(crate) fn skip_uniform_rq_coeffs<R: RngCore + CryptoRng>(rng: &mut R) {
     const Q: u64 = <Fq as PrimeField64>::ORDER_U64;
     let mut bytes = [0u8; D * 8];
     rng.fill_bytes(&mut bytes);
@@ -128,7 +128,7 @@ fn raw_u64_rejects_goldilocks(x: u64) -> bool {
 }
 
 #[inline]
-fn fill_uniform_rq_coeff_words_batch(
+pub(crate) fn fill_uniform_rq_coeff_words_batch(
     rng: &mut ChaCha8Rng,
     count: usize,
     words: &mut [u64; SEEDED_RQ_BATCH * D],
@@ -149,7 +149,7 @@ fn fill_uniform_rq_coeff_words_batch(
 }
 
 #[inline]
-fn advance_uniform_rq_coeff_validity_batch(rng: &mut ChaCha8Rng, count: usize) -> bool {
+pub(crate) fn advance_uniform_rq_coeff_validity_batch(rng: &mut ChaCha8Rng, count: usize) -> bool {
     debug_assert!(count <= SEEDED_RQ_BATCH);
     let checkpoint_word_pos = rng.get_word_pos();
     let mut all_valid = true;
@@ -163,7 +163,7 @@ fn advance_uniform_rq_coeff_validity_batch(rng: &mut ChaCha8Rng, count: usize) -
 }
 
 #[inline(always)]
-fn copy_uniform_rq_coeffs_from_words(words: &[u64], out: &mut [Fq; D]) {
+pub(crate) fn copy_uniform_rq_coeffs_from_words(words: &[u64], out: &mut [Fq; D]) {
     debug_assert_eq!(words.len(), D);
     for (idx, word) in words.iter().enumerate() {
         out[idx] = Fq::from_u64(*word);
@@ -1133,66 +1133,76 @@ pub fn commit_row_major_seeded_many(
             #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
             {
                 if chunk_seeds.len() == 1 {
-                    let mut rng = ChaCha8Rng::from_seed(chunk_seeds[0]);
-                    let base_cols: Vec<[Fq; D]> = (0..m).map(|_| sample_uniform_rq_coeffs(&mut rng)).collect();
+                    if n == 1 {
+                        vec![commit_row_major_seeded_row(
+                            chunk_size,
+                            chunk_seeds,
+                            m,
+                            &z_rows_all[0],
+                            &last_nonzero_all[0],
+                        )]
+                    } else {
+                        let mut rng = ChaCha8Rng::from_seed(chunk_seeds[0]);
+                        let base_cols: Vec<[Fq; D]> = (0..m).map(|_| sample_uniform_rq_coeffs(&mut rng)).collect();
 
-                    if allow_parallel && n > 1 {
-                        (0..n)
-                            .into_par_iter()
-                            .map(|z_idx| {
-                                let mut acc = [Fq::ZERO; D];
-                                let z_rows = &z_rows_all[z_idx];
-                                let last_nonzero = &last_nonzero_all[z_idx];
-                                let mut nxt = [Fq::ZERO; D];
-                                for col_idx in 0..m {
-                                    let last_t = last_nonzero[col_idx];
+                        if allow_parallel && n > 1 {
+                            (0..n)
+                                .into_par_iter()
+                                .map(|z_idx| {
+                                    let mut acc = [Fq::ZERO; D];
+                                    let z_rows = &z_rows_all[z_idx];
+                                    let last_nonzero = &last_nonzero_all[z_idx];
+                                    let mut nxt = [Fq::ZERO; D];
+                                    for col_idx in 0..m {
+                                        let last_t = last_nonzero[col_idx];
+                                        if last_t == usize::MAX {
+                                            continue;
+                                        }
+                                        let mut rot_col = base_cols[col_idx];
+                                        for t in 0..last_t {
+                                            let mask = z_rows[t][col_idx];
+                                            if mask != Fq::ZERO {
+                                                acc_mul_add_inplace(&mut acc, &rot_col, mask);
+                                            }
+                                            rot_step(&rot_col, &mut nxt);
+                                            core::mem::swap(&mut rot_col, &mut nxt);
+                                        }
+                                        let mask = z_rows[last_t][col_idx];
+                                        if mask != Fq::ZERO {
+                                            acc_mul_add_inplace(&mut acc, &rot_col, mask);
+                                        }
+                                    }
+                                    acc
+                                })
+                                .collect()
+                        } else {
+                            let mut local = vec![[Fq::ZERO; D]; n];
+                            let mut nxt = [Fq::ZERO; D];
+                            for col_idx in 0..m {
+                                let base_col = base_cols[col_idx];
+                                for z_idx in 0..n {
+                                    let mut rot_col = base_col;
+                                    let last_t = last_nonzero_all[z_idx][col_idx];
                                     if last_t == usize::MAX {
                                         continue;
                                     }
-                                    let mut rot_col = base_cols[col_idx];
+                                    let z_rows = &z_rows_all[z_idx];
                                     for t in 0..last_t {
                                         let mask = z_rows[t][col_idx];
                                         if mask != Fq::ZERO {
-                                            acc_mul_add_inplace(&mut acc, &rot_col, mask);
+                                            acc_mul_add_inplace(&mut local[z_idx], &rot_col, mask);
                                         }
                                         rot_step(&rot_col, &mut nxt);
                                         core::mem::swap(&mut rot_col, &mut nxt);
                                     }
                                     let mask = z_rows[last_t][col_idx];
                                     if mask != Fq::ZERO {
-                                        acc_mul_add_inplace(&mut acc, &rot_col, mask);
-                                    }
-                                }
-                                acc
-                            })
-                            .collect()
-                    } else {
-                        let mut local = vec![[Fq::ZERO; D]; n];
-                        let mut nxt = [Fq::ZERO; D];
-                        for col_idx in 0..m {
-                            let base_col = base_cols[col_idx];
-                            for z_idx in 0..n {
-                                let mut rot_col = base_col;
-                                let last_t = last_nonzero_all[z_idx][col_idx];
-                                if last_t == usize::MAX {
-                                    continue;
-                                }
-                                let z_rows = &z_rows_all[z_idx];
-                                for t in 0..last_t {
-                                    let mask = z_rows[t][col_idx];
-                                    if mask != Fq::ZERO {
                                         acc_mul_add_inplace(&mut local[z_idx], &rot_col, mask);
                                     }
-                                    rot_step(&rot_col, &mut nxt);
-                                    core::mem::swap(&mut rot_col, &mut nxt);
-                                }
-                                let mask = z_rows[last_t][col_idx];
-                                if mask != Fq::ZERO {
-                                    acc_mul_add_inplace(&mut local[z_idx], &rot_col, mask);
                                 }
                             }
+                            local
                         }
-                        local
                     }
                 } else if allow_parallel {
                     (0..chunk_seeds.len())

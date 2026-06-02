@@ -1153,10 +1153,16 @@ where
 
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     {
-        out.par_chunks_mut(D)
-            .zip(masks.par_chunks_mut(D))
-            .enumerate()
-            .try_for_each(|(blk, (out_chunk, mask_chunk))| process_block(blk, out_chunk, mask_chunk))?;
+        if rayon::current_thread_index().is_none() {
+            out.par_chunks_mut(D)
+                .zip(masks.par_chunks_mut(D))
+                .enumerate()
+                .try_for_each(|(blk, (out_chunk, mask_chunk))| process_block(blk, out_chunk, mask_chunk))?;
+        } else {
+            for (blk, (out_chunk, mask_chunk)) in out.chunks_mut(D).zip(masks.chunks_mut(D)).enumerate() {
+                process_block(blk, out_chunk, mask_chunk)?;
+            }
+        }
     }
     #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
     {
@@ -1307,7 +1313,7 @@ where
     Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
     K: From<Ff>,
 {
-    let rb = neo_ccs::utils::tensor_point::<K>(r);
+    let rb = neo_ccs::utils::tensor_point_parallel::<K>(r);
     let superneo_cache = crate::superneo_eval::build_superneo_eval_cache(s);
     compute_y_from_Z_and_rb_with_cache(s, Z, &rb, ell_d, superneo_cache.as_ref())
 }

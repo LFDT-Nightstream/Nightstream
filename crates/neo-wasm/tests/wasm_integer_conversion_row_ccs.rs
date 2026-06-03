@@ -4,7 +4,7 @@ mod common;
 
 use common::{assert_rejected, assert_satisfied};
 use neo_math::F;
-use neo_wasm::layout::{COL_STACK_WRITE0_VALUE, COL_STACK_WRITE0_VALUE_HI};
+use neo_wasm::layout::{COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO};
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{
     opcode_code, opcode_info_from_code, StackLaneAccess, WasmOpcode, WasmParamInitState, WasmPcEdgeKind, WasmRowKind,
@@ -131,7 +131,7 @@ fn integer_sign_extension_rows_reject_tampered_low_output() {
     ] {
         let row = conversion_row(opcode, value, width_bytes, writes_i64);
         let mut witness = build_witness_vector(&row);
-        witness[COL_STACK_WRITE0_VALUE] += F::ONE;
+        witness[COL_STACK_WRITE0_VALUE_LO] += F::ONE;
         assert_rejected(&witness, opcode.name());
     }
 }

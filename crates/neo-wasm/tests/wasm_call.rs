@@ -1,6 +1,6 @@
 mod common;
 
-use neo_wasm::layout::{COL_CALL_STACK_RETURN_PC_CHOICE, COL_OUTPUT_VALUE_LO_AFTER, COL_STACK_READ0_VALUE};
+use neo_wasm::layout::{COL_CALL_STACK_RETURN_PC_CHOICE, COL_OUTPUT_VALUE_LO_AFTER, COL_STACK_READ0_VALUE_LO};
 use neo_wasm::{
     build_wasm_lookup_binding_layout, collect_wasmtime_steps, extract_wasm_program_artifacts,
     preload_from_program_artifacts, sanity_check_memory_rows, traces_from_wasmtime_steps, WasmAuxOpcode, WasmOpcode,
@@ -301,7 +301,7 @@ fn final_halt_output_low_is_stack_memory_bound() {
     let final_idx = trace.iter().position(|row| row.halted).expect("halted row");
 
     witnesses[final_idx][COL_OUTPUT_VALUE_LO_AFTER] = neo_math::F::from_u64(7);
-    witnesses[final_idx][COL_STACK_READ0_VALUE] = neo_math::F::from_u64(7);
+    witnesses[final_idx][COL_STACK_READ0_VALUE_LO] = neo_math::F::from_u64(7);
 
     let preload = preload_from_program_artifacts(&artifacts, &run.initial_locals);
     let err = sanity_check_memory_rows(layout, &witnesses, &preload)

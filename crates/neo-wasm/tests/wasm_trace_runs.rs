@@ -269,7 +269,7 @@ fn i64_load8_u_zero_extension_is_enforced() {
 /// ties the loaded bytes to what was stored.
 #[test]
 fn wasm_trace_run_with_i64_signed_loads() {
-    use neo_wasm::layout::{COL_STACK_WRITE0_VALUE, COL_STACK_WRITE0_VALUE_HI};
+    use neo_wasm::layout::{COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO};
     use neo_wasm::witness_builder::build_witness_vector;
     use p3_field::PrimeField64;
 
@@ -300,7 +300,7 @@ fn wasm_trace_run_with_i64_signed_loads() {
             .unwrap_or_else(|| panic!("expected a {load_op} row"));
         let wit = build_witness_vector(load);
         assert_eq!(
-            wit[COL_STACK_WRITE0_VALUE].as_canonical_u64(),
+            wit[COL_STACK_WRITE0_VALUE_LO].as_canonical_u64(),
             expected_lo,
             "{load_op}({value}) lo limb"
         );

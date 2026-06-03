@@ -141,7 +141,7 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder, layout: &WasmLookupBind
         push_gated_linear_zero(
             b,
             param_init_row_gate,
-            [(idx(stack.read0_value), F::ONE), (idx(locals.value_lo), -F::ONE)],
+            [(idx(stack.read0_value_lo), F::ONE), (idx(locals.value_lo), -F::ONE)],
         );
         push_gated_linear_zero(
             b,
@@ -253,7 +253,7 @@ fn push_simple_output_constraints(
         b.push_row(
             [(idx(output.captured), F::ONE)],
             [
-                (idx(stack.read0_addr), F::ONE),
+                (idx(stack.read0_addr_lo), F::ONE),
                 (idx(state.sp_before), -F::from_u64(2)),
                 (COL_ONE, F::from_u64(2)),
             ],
@@ -261,7 +261,10 @@ fn push_simple_output_constraints(
         );
         b.push_row(
             [(idx(output.captured), F::ONE)],
-            [(idx(output.value_lo_after), F::ONE), (idx(stack.read0_value), -F::ONE)],
+            [
+                (idx(output.value_lo_after), F::ONE),
+                (idx(stack.read0_value_lo), -F::ONE),
+            ],
             [],
         );
         b.push_row(
@@ -417,7 +420,7 @@ fn push_call_param_init_aux_row_constraints(
             // stack_addr + remaining = sp_before + param_count
             //
             // remaining goes down, so stack_addr may go up (the rhs is constant while selector is on)
-            (idx(stack.read0_addr), F::ONE),
+            (idx(stack.read0_addr_lo), F::ONE),
             (idx(state.sp_before), -F::from_u64(2)),
             (idx(function_types.param_count), -F::from_u64(2)),
             (idx(param_init.param_init_remaining_before), F::from_u64(2)),

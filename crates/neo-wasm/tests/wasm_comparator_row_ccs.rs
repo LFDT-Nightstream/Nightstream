@@ -9,8 +9,8 @@ use common::{assert_rejected, assert_satisfied};
 use neo_math::F;
 use neo_wasm::layout::{
     COL_CMP_AND, COL_CMP_HI_DIFF, COL_CMP_HI_INV, COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF, COL_CMP_LO_INV,
-    COL_CMP_LO_IS_ZERO, COL_STACK_READ0_VALUE, COL_STACK_READ0_VALUE_HI, COL_STACK_READ1_VALUE,
-    COL_STACK_READ1_VALUE_HI, COL_STACK_WRITE0_VALUE,
+    COL_CMP_LO_IS_ZERO, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_VALUE_HI,
+    COL_STACK_READ1_VALUE_LO, COL_STACK_WRITE0_VALUE_LO,
 };
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{
@@ -155,7 +155,7 @@ fn i32_eqz_row_rejects_tampered_output() {
         Some(StackLaneAccess { addr: 0, value: 1 }),
         false,
     ));
-    row[COL_STACK_WRITE0_VALUE] = F::ONE;
+    row[COL_STACK_WRITE0_VALUE_LO] = F::ONE;
     assert_rejected(&row, "tampered i32.eqz output");
 }
 
@@ -173,7 +173,7 @@ fn i64_eqz_row_accepts_zero_and_nonzero_inputs() {
         ));
         // The `step` helper doesn't populate stack_read0_hi; set it directly
         // and recompute the comparator scratch.
-        row[COL_STACK_READ0_VALUE] = F::from_u64(u64::from(lo));
+        row[COL_STACK_READ0_VALUE_LO] = F::from_u64(u64::from(lo));
         row[COL_STACK_READ0_VALUE_HI] = F::from_u64(u64::from(hi));
         set_i64_eqz_cmp_scratch(&mut row, lo, hi);
         assert_satisfied(&row, &format!("i64.eqz(lo={lo}, hi={hi})"));
@@ -196,7 +196,7 @@ fn i64_eqz_row_rejects_goldilocks_modulus_collision() {
         Some(StackLaneAccess { addr: 0, value: 1 }),
         true,
     ));
-    row[COL_STACK_READ0_VALUE] = F::from_u64(1);
+    row[COL_STACK_READ0_VALUE_LO] = F::from_u64(1);
     row[COL_STACK_READ0_VALUE_HI] = F::from_u64(0xFFFF_FFFFu64);
     row[COL_CMP_LO_DIFF] = F::ZERO;
     row[COL_CMP_LO_INV] = F::ZERO;
@@ -241,7 +241,7 @@ fn i32_eq_row_rejects_tampered_output() {
         Some(StackLaneAccess { addr: 0, value: 1 }),
         false,
     ));
-    row[COL_STACK_WRITE0_VALUE] = F::ZERO;
+    row[COL_STACK_WRITE0_VALUE_LO] = F::ZERO;
     assert_rejected(&row, "tampered i32.eq output");
 }
 
@@ -292,9 +292,9 @@ fn i64_eq_and_ne_rows_accept_equal_and_distinct_inputs() {
             ));
             // The `step` helper doesn't populate stack_read*_hi; set them
             // directly along with wide-values gate and comparator scratch.
-            row[COL_STACK_READ0_VALUE] = F::from_u64(u64::from(l_lo));
+            row[COL_STACK_READ0_VALUE_LO] = F::from_u64(u64::from(l_lo));
             row[COL_STACK_READ0_VALUE_HI] = F::from_u64(u64::from(l_hi));
-            row[COL_STACK_READ1_VALUE] = F::from_u64(u64::from(r_lo));
+            row[COL_STACK_READ1_VALUE_LO] = F::from_u64(u64::from(r_lo));
             row[COL_STACK_READ1_VALUE_HI] = F::from_u64(u64::from(r_hi));
             let lo_diff = F::from_u64(u64::from(l_lo)) - F::from_u64(u64::from(r_lo));
             let hi_diff = F::from_u64(u64::from(l_hi)) - F::from_u64(u64::from(r_hi));
@@ -319,9 +319,9 @@ fn i64_eq_row_rejects_goldilocks_modulus_collision() {
         Some(StackLaneAccess { addr: 0, value: 1 }),
         true,
     ));
-    row[COL_STACK_READ0_VALUE] = F::from_u64(1);
+    row[COL_STACK_READ0_VALUE_LO] = F::from_u64(1);
     row[COL_STACK_READ0_VALUE_HI] = F::from_u64(0xFFFF_FFFFu64);
-    row[COL_STACK_READ1_VALUE] = F::ZERO;
+    row[COL_STACK_READ1_VALUE_LO] = F::ZERO;
     row[COL_STACK_READ1_VALUE_HI] = F::ZERO;
     row[COL_CMP_LO_DIFF] = F::ZERO;
     row[COL_CMP_LO_INV] = F::ZERO;
@@ -341,9 +341,9 @@ fn i64_ne_row_rejects_tampered_output() {
         Some(StackLaneAccess { addr: 0, value: 0 }),
         true,
     ));
-    row[COL_STACK_READ0_VALUE] = F::from_u64(5);
-    row[COL_STACK_READ1_VALUE] = F::from_u64(5);
+    row[COL_STACK_READ0_VALUE_LO] = F::from_u64(5);
+    row[COL_STACK_READ1_VALUE_LO] = F::from_u64(5);
     set_i64_cmp_scratch(&mut row, F::ZERO, F::ZERO);
-    row[COL_STACK_WRITE0_VALUE] = F::ONE;
+    row[COL_STACK_WRITE0_VALUE_LO] = F::ONE;
     assert_rejected(&row, "tampered i64.ne output");
 }

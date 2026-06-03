@@ -17,25 +17,49 @@ use crate::layout::CALL_RETURN_PC_CHOICE;
 use std::collections::BTreeMap;
 use wasmparser::{Parser, Payload};
 
-pub(crate) struct ParsedWasmArtifacts {
-    // Static decode table keyed by Wasmtime's `(defined_function_index, pc)` pair so guest-debug
-    // frames can recover opcode/immediate metadata without reparsing at trace time.
-    pub(crate) opcode_map: BTreeMap<(u32, u32), DecodedOpcode>,
-    pub(crate) pc_rom: Vec<(u64, u64, u64)>,
-    pub(crate) pc_edge_kinds: Vec<(u64, u64)>,
-    pub(crate) pc_function_refs: Vec<(u64, u64)>,
-    // Static `(function_ref, entry_pc)` pairs keyed by the normalized funcref id space used in
-    // tables and direct/indirect calls.
-    pub(crate) function_entries: Vec<(u64, u64)>,
-    pub(crate) function_types: Vec<(u64, u64)>,
-    pub(crate) function_param_counts: Vec<(u64, u64)>,
-    pub(crate) function_result_counts: Vec<(u64, u64)>,
-    pub(crate) function_local_counts: Vec<(u64, u64)>,
-    pub(crate) function_guest_flags: Vec<(u64, u64)>,
-    pub(crate) call_targets: Vec<(u64, u64)>,
-    pub(crate) module_types: Vec<(u64, u64)>,
-    pub(crate) imported_function_count: u32,
-    pub(crate) function_metas: BTreeMap<u32, ParsedFunctionMeta>,
+#[derive(Clone, Debug)]
+pub struct WasmProgramArtifacts {
+    /// Verifier/proof-bound static tables derived only from the wasm program.
+    pub tables: WasmProgramTables,
+    // Adapter-only helper state needed to turn Wasmtime debug frames into trace rows.
+    pub(crate) trace: WasmTraceLoweringTables,
+}
+
+#[derive(Clone, Debug)]
+pub struct WasmProgramTables {
+    /// Static next-PC ROM rows `(pc_before, control_choice, pc_after)`.
+    /// Program rows read this table to bind the witnessed PC transition to
+    /// the parsed control-flow graph.
+    pub pc_rom: Vec<(u64, u64, u64)>,
+    /// Static `(pc_before, edge_kind)` rows classifying how a PC chooses its
+    /// successor, such as fallthrough, conditional branch, call, or return.
+    pub pc_edge_kinds: Vec<(u64, u64)>,
+    /// Static `(pc_before, function_ref)` rows binding each code PC to the
+    /// normalized function reference of its containing function.
+    pub pc_function_refs: Vec<(u64, u64)>,
+    /// Static `(function_ref, entry_pc)` rows keyed by the normalized funcref
+    /// id space used in tables and direct/indirect calls.
+    pub function_entries: Vec<(u64, u64)>,
+    /// Static `(function_ref, type_id)` rows for call-indirect signature
+    /// checks. `type_id` is a normalized id assigned by signature shape.
+    pub function_types: Vec<(u64, u64)>,
+    /// Static `(function_ref, param_count)` rows used by call-frame and
+    /// parameter-initialization bookkeeping.
+    pub function_param_counts: Vec<(u64, u64)>,
+    /// Static `(function_ref, result_count)` rows used by call-frame return
+    /// bookkeeping.
+    pub function_result_counts: Vec<(u64, u64)>,
+    /// Static `(function_ref, params_plus_declared_locals)` rows used to bind
+    /// frame-base transitions and local-slot addressing.
+    pub function_local_counts: Vec<(u64, u64)>,
+    /// Static `(function_ref, is_guest)` rows distinguishing guest wasm
+    /// functions from imported host functions at call boundaries.
+    pub function_guest_flags: Vec<(u64, u64)>,
+    /// Static `(pc_before, function_ref)` rows for direct `call` targets.
+    pub call_targets: Vec<(u64, u64)>,
+    /// Static `(raw_type_index, expected_type_id)` rows mapping module type
+    /// section indexes to normalized type ids for `call_indirect`.
+    pub module_types: Vec<(u64, u64)>,
     /// Bytes initialized by active `(data ...)` segments at module
     /// instantiation, as `(byte_addr, byte_value)` pairs. Used by the memory
     /// sanity checker to seed `linear_memory` so the RMW Read check at
@@ -43,10 +67,25 @@ pub(crate) struct ParsedWasmArtifacts {
     /// the zero-default that applies to bytes outside any data segment).
     /// Only active segments targeting memory 0 with an `i32.const` offset are
     /// recorded; passive segments and globalexpr offsets are skipped.
-    pub(crate) linear_memory_init: Vec<(u64, u8)>,
+    pub linear_memory_init: Vec<(u64, u8)>,
     /// Initial declared-global values as `(global_index, lo_limb, hi_limb)`.
     /// Imported globals are not represented here.
-    pub(crate) globals_init: Vec<(u32, u32, u32)>,
+    pub globals_init: Vec<(u32, u32, u32)>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct WasmTraceLoweringTables {
+    /// Static decode table keyed by Wasmtime's `(defined_function_index, pc)`
+    /// pair so guest-debug frames can recover opcode/immediate metadata
+    /// without reparsing at trace time.
+    pub(crate) opcode_map: BTreeMap<(u32, u32), DecodedOpcode>,
+    /// Count of imported functions used to normalize defined function refs
+    /// into the same 1-based funcref id space as runtime table values.
+    pub(crate) imported_function_count: u32,
+    /// Per-function metadata used by the Wasmtime debug adapter while turning
+    /// raw frames into trace rows; verifier-facing function tables are derived
+    /// from this map.
+    pub(crate) function_metas: BTreeMap<u32, ParsedFunctionMeta>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -58,7 +97,7 @@ pub(crate) struct ParsedFunctionMeta {
     entry_pc: Option<u64>,
 }
 
-pub(crate) fn parse_wasm_artifacts(wasm_bytes: &[u8]) -> Result<ParsedWasmArtifacts, WasmBuildError> {
+pub(super) fn parse_wasm_artifacts(wasm_bytes: &[u8]) -> Result<WasmProgramArtifacts, WasmBuildError> {
     let mut builder = ParsedWasmArtifactsBuilder::default();
     for payload in Parser::new(0).parse_all(wasm_bytes) {
         let payload = payload.map_err(|err| WasmBuildError::Trace(format!("failed to parse wasm payload: {err}")))?;
@@ -69,7 +108,7 @@ pub(crate) fn parse_wasm_artifacts(wasm_bytes: &[u8]) -> Result<ParsedWasmArtifa
 
 pub(crate) fn parse_first_component_core_module_artifacts(
     component_bytes: &[u8],
-) -> Result<ParsedWasmArtifacts, WasmBuildError> {
+) -> Result<WasmProgramArtifacts, WasmBuildError> {
     let mut builder = ParsedWasmArtifactsBuilder::default();
     let mut inside_first_module = false;
 
@@ -142,7 +181,7 @@ impl ParsedWasmArtifactsBuilder {
         self.pc_rom.push((pc_before, control_choice, pc_after));
     }
 
-    fn finish(mut self) -> Result<ParsedWasmArtifacts, WasmBuildError> {
+    fn finish(mut self) -> Result<WasmProgramArtifacts, WasmBuildError> {
         let unresolved_call_edges = std::mem::take(&mut self.unresolved_call_edges);
         for (pc_before, function_ref) in unresolved_call_edges {
             let entry_pc = self
@@ -211,23 +250,27 @@ impl ParsedWasmArtifactsBuilder {
             .collect::<Vec<_>>();
         module_types.sort_unstable();
         module_types.dedup();
-        Ok(ParsedWasmArtifacts {
-            opcode_map: self.opcode_map,
-            pc_rom: self.pc_rom,
-            pc_edge_kinds: self.pc_edge_kinds,
-            pc_function_refs: self.pc_function_refs,
-            function_entries: self.function_entries,
-            function_types,
-            function_param_counts,
-            function_result_counts,
-            function_local_counts,
-            function_guest_flags,
-            call_targets: self.call_targets,
-            module_types,
-            imported_function_count: self.imported_function_count,
-            function_metas: self.function_metas,
-            linear_memory_init: self.linear_memory_init,
-            globals_init: self.globals_init,
+        Ok(WasmProgramArtifacts {
+            tables: WasmProgramTables {
+                pc_rom: self.pc_rom,
+                pc_edge_kinds: self.pc_edge_kinds,
+                pc_function_refs: self.pc_function_refs,
+                function_entries: self.function_entries,
+                function_types,
+                function_param_counts,
+                function_result_counts,
+                function_local_counts,
+                function_guest_flags,
+                call_targets: self.call_targets,
+                module_types,
+                linear_memory_init: self.linear_memory_init,
+                globals_init: self.globals_init,
+            },
+            trace: WasmTraceLoweringTables {
+                opcode_map: self.opcode_map,
+                imported_function_count: self.imported_function_count,
+                function_metas: self.function_metas,
+            },
         })
     }
 

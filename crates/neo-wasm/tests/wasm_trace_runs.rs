@@ -32,9 +32,9 @@ fn compile_and_trace_with(
     Vec<(u64, u64)>,
 ) {
     let checked = common::checked_wasm_run(wat_src, export, params);
-    let pc_rom = checked.run.pc_rom.clone();
-    let pc_edge_kinds = checked.run.pc_edge_kinds.clone();
-    let function_entries = checked.run.function_entries.clone();
+    let pc_rom = checked.artifacts.tables.pc_rom.clone();
+    let pc_edge_kinds = checked.artifacts.tables.pc_edge_kinds.clone();
+    let function_entries = checked.artifacts.tables.function_entries.clone();
     (checked.wasm, checked.trace, pc_rom, pc_edge_kinds, function_entries)
 }
 

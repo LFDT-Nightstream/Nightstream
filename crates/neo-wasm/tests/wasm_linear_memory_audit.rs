@@ -12,8 +12,9 @@ use neo_wasm::layout::{
 };
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{
-    build_wasm_lookup_binding_layout, collect_wasmtime_steps, preload_from_wasmtime_run, sanity_check_memory_rows,
-    traces_from_wasmtime_steps, traces_from_wasmtime_wasm_bytes, WasmOpcode, WasmStepTrace,
+    build_wasm_lookup_binding_layout, collect_wasmtime_steps, extract_wasm_program_artifacts,
+    preload_from_program_artifacts, sanity_check_memory_rows, traces_from_wasmtime_steps,
+    traces_from_wasmtime_wasm_bytes, WasmOpcode, WasmStepTrace,
 };
 use p3_field::PrimeCharacteristicRing;
 
@@ -61,6 +62,7 @@ fn i32_store8_memory_check_rejects_tampered_consistent_prior_state() {
                i32.load8_u))"#,
     )
     .expect("valid WAT");
+    let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
     let run = collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
     let (store_idx, store_row) = trace
@@ -95,7 +97,7 @@ fn i32_store8_memory_check_rejects_tampered_consistent_prior_state() {
     );
 
     let layout = build_wasm_lookup_binding_layout();
-    let preload = preload_from_wasmtime_run(&run, &run.initial_locals);
+    let preload = preload_from_program_artifacts(&artifacts, &run.initial_locals);
     let result = sanity_check_memory_rows(layout, &witnesses, &preload);
     assert!(
         result.is_err(),

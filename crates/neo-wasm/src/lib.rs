@@ -23,8 +23,9 @@ pub mod tagged_r1cs_builder;
 pub use adapters::rwasm::{traces_from_rwasm_instr_states, traces_from_rwasm_tracer};
 pub use adapters::wasmtime::{
     build_pc_rom_from_binary, collect_wasmtime_component_run, collect_wasmtime_component_run_with_linker,
-    collect_wasmtime_steps, traces_from_wasmtime_component, traces_from_wasmtime_component_with_linker,
-    traces_from_wasmtime_steps, traces_from_wasmtime_wasm_bytes, WasmtimeTraceMemoryAccess, WasmtimeTraceRun,
+    collect_wasmtime_steps, extract_first_component_core_program_artifacts, extract_wasm_program_artifacts,
+    traces_from_wasmtime_component, traces_from_wasmtime_component_with_linker, traces_from_wasmtime_steps,
+    traces_from_wasmtime_wasm_bytes, WasmProgramArtifacts, WasmtimeTraceMemoryAccess, WasmtimeTraceRun,
     WasmtimeTraceState, WasmtimeTraceStep,
 };
 pub use ccs::WasmVmSpec;
@@ -46,7 +47,7 @@ pub use lookup_binding_builder::{
 };
 pub use lookup_semantics::{sanity_check_lookup_row, LookupBuiltin, LookupExpr, LookupPredicate, LookupSemantics};
 pub use lower::{build_row_traces, normalize_source, normalize_tracer, WasmExecutionStep, WasmTraceSource};
-pub use memory_semantics::{preload_from_wasmtime_run, sanity_check_memory_rows, WasmMemoryPreload};
+pub use memory_semantics::{preload_from_program_artifacts, sanity_check_memory_rows, WasmMemoryPreload};
 pub use prove::{prove, prove_batched, verify, WasmProof, WasmProveError};
 pub use tables::{lookup_payload, WasmLookupArity, WasmLookupPayload};
 pub use tagged_r1cs_builder::{WasmConstraintCatalog, WasmConstraintScope, WasmConstraintTag};

@@ -1,6 +1,7 @@
 //! Witness-driven debug memory checker over `WasmMemorySpec`.
 
 use super::adapters::wasmtime::WasmProgramArtifacts;
+use super::layout::COLUMN_SPECS;
 use super::lookup_binding_builder::{
     WasmLookupBindingLayout, WasmMemoryActivation, WasmMemoryColumnKind, WasmMemorySpec,
 };
@@ -8,23 +9,46 @@ use neo_math::F;
 use p3_field::PrimeField64;
 use std::collections::BTreeMap;
 
+/// Per-column-limb width for the cells log. Every column the wasm VM
+/// stores or compares through the memory checker carries one Goldilocks
+/// limb that is supposed to be width-pinned to u32 by the bit-decomp /
+/// booleanity rows; narrowing here surfaces any column where that
+/// pinning is missing or broken — the cells log itself would otherwise
+/// happily round-trip a witness value up to `q - 1 ≈ 2^64`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct WasmMemoryPreload {
-    cells: BTreeMap<&'static str, BTreeMap<Vec<u64>, u64>>,
+    cells: BTreeMap<&'static str, BTreeMap<Vec<u32>, u32>>,
 }
 
 impl WasmMemoryPreload {
-    pub fn insert(&mut self, memory: &'static str, address: Vec<u64>, value: u64) {
+    pub fn insert(&mut self, memory: &'static str, address: Vec<u32>, value: u32) {
         self.cells.entry(memory).or_default().insert(address, value);
     }
 
-    pub fn remove(&mut self, memory: &'static str, address: &[u64]) -> Option<u64> {
+    pub fn remove(&mut self, memory: &'static str, address: &[u32]) -> Option<u32> {
         self.cells.get_mut(memory)?.remove(address)
     }
 
-    fn clone_cells(&self) -> BTreeMap<&'static str, BTreeMap<Vec<u64>, u64>> {
+    fn clone_cells(&self) -> BTreeMap<&'static str, BTreeMap<Vec<u32>, u32>> {
         self.cells.clone()
     }
+}
+
+/// Read a witness column and narrow to u32, returning a descriptive
+/// error if the field-element representative does not fit. A failure
+/// here means the column carried a value the witness layer was supposed
+/// to pin to 32 bits but did not — i.e., a missing or broken bit-width
+/// constraint upstream. Naming the column and row makes the offender
+/// trivial to find from the test failure message.
+fn read_u32_column(witness: &[F], col: usize, row_index: usize, role: &str) -> Result<u32, String> {
+    let canonical = witness[col].as_canonical_u64();
+    u32::try_from(canonical).map_err(|_| {
+        let name = COLUMN_SPECS.get(col).map(|spec| spec.name).unwrap_or("?");
+        format!(
+            "{role} column `{name}` (col {col}) carried value {canonical} that does not fit in u32 on row {row_index} \
+             — missing or broken bit-width constraint upstream",
+        )
+    })
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -37,49 +61,104 @@ enum DebugInitMode {
 pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts, initial_locals: &[u32]) -> WasmMemoryPreload {
     let tables = &artifacts.tables;
     let mut preload = WasmMemoryPreload::default();
+    // Program-table fields are typed as u64 in the parse output even
+    // though every wasm-VM column they feed is width-pinned to u32; the
+    // helper centralises the narrowing so an out-of-range static table
+    // entry fails loudly with the source field name.
+    fn narrow(value: u64, field: &str) -> u32 {
+        u32::try_from(value)
+            .unwrap_or_else(|_| panic!("program table field `{field}` value {value} does not fit in u32"))
+    }
     // Entry-frame locals use `fbp = 0`; callee params are written by
     // CallParamInit rows before use.
     for (idx, &value) in initial_locals.iter().enumerate() {
-        let address = vec![0u64, idx as u64];
-        preload.insert("locals", address.clone(), u64::from(value));
+        let address = vec![0u32, idx as u32];
+        preload.insert("locals", address.clone(), value);
         preload.insert("locals_hi", address, 0);
     }
     for &(index, lo, hi) in &tables.globals_init {
-        preload.insert("globals", vec![u64::from(index)], u64::from(lo));
-        preload.insert("globals_hi", vec![u64::from(index)], u64::from(hi));
+        preload.insert("globals", vec![index], lo);
+        preload.insert("globals_hi", vec![index], hi);
     }
     for &(pc_before, control_choice, pc_after) in &tables.pc_rom {
-        preload.insert("pc_rom", vec![pc_before, control_choice], pc_after);
+        preload.insert(
+            "pc_rom",
+            vec![
+                narrow(pc_before, "pc_rom.pc_before"),
+                narrow(control_choice, "pc_rom.control_choice"),
+            ],
+            narrow(pc_after, "pc_rom.pc_after"),
+        );
     }
     for &(pc_before, edge_kind) in &tables.pc_edge_kinds {
-        preload.insert("pc_edge_kinds", vec![pc_before], edge_kind);
+        preload.insert(
+            "pc_edge_kinds",
+            vec![narrow(pc_before, "pc_edge_kinds.pc_before")],
+            narrow(edge_kind, "pc_edge_kinds.edge_kind"),
+        );
     }
     for &(pc_before, function_ref) in &tables.pc_function_refs {
-        preload.insert("pc_function_refs", vec![pc_before], function_ref);
+        preload.insert(
+            "pc_function_refs",
+            vec![narrow(pc_before, "pc_function_refs.pc_before")],
+            narrow(function_ref, "pc_function_refs.function_ref"),
+        );
     }
     for &(function_ref, entry_pc) in &tables.function_entries {
-        preload.insert("function_entries", vec![function_ref], entry_pc);
+        preload.insert(
+            "function_entries",
+            vec![narrow(function_ref, "function_entries.function_ref")],
+            narrow(entry_pc, "function_entries.entry_pc"),
+        );
     }
     for &(function_ref, type_id) in &tables.function_types {
-        preload.insert("function_types", vec![function_ref], type_id);
+        preload.insert(
+            "function_types",
+            vec![narrow(function_ref, "function_types.function_ref")],
+            narrow(type_id, "function_types.type_id"),
+        );
     }
     for &(function_ref, param_count) in &tables.function_param_counts {
-        preload.insert("function_param_counts", vec![function_ref], param_count);
+        preload.insert(
+            "function_param_counts",
+            vec![narrow(function_ref, "function_param_counts.function_ref")],
+            narrow(param_count, "function_param_counts.param_count"),
+        );
     }
     for &(function_ref, result_count) in &tables.function_result_counts {
-        preload.insert("function_result_counts", vec![function_ref], result_count);
+        preload.insert(
+            "function_result_counts",
+            vec![narrow(function_ref, "function_result_counts.function_ref")],
+            narrow(result_count, "function_result_counts.result_count"),
+        );
     }
     for &(function_ref, local_count) in &tables.function_local_counts {
-        preload.insert("function_local_counts", vec![function_ref], local_count);
+        preload.insert(
+            "function_local_counts",
+            vec![narrow(function_ref, "function_local_counts.function_ref")],
+            narrow(local_count, "function_local_counts.local_count"),
+        );
     }
     for &(function_ref, is_guest) in &tables.function_guest_flags {
-        preload.insert("function_guest_flags", vec![function_ref], is_guest);
+        preload.insert(
+            "function_guest_flags",
+            vec![narrow(function_ref, "function_guest_flags.function_ref")],
+            narrow(is_guest, "function_guest_flags.is_guest"),
+        );
     }
     for &(pc_before, function_ref) in &tables.call_targets {
-        preload.insert("call_targets", vec![pc_before], function_ref);
+        preload.insert(
+            "call_targets",
+            vec![narrow(pc_before, "call_targets.pc_before")],
+            narrow(function_ref, "call_targets.function_ref"),
+        );
     }
     for &(raw_type_index, expected_type_id) in &tables.module_types {
-        preload.insert("module_types", vec![raw_type_index], expected_type_id);
+        preload.insert(
+            "module_types",
+            vec![narrow(raw_type_index, "module_types.raw_type_index")],
+            narrow(expected_type_id, "module_types.expected_type_id"),
+        );
     }
     // Pack data-section bytes into the word-addressed linear_memory cells.
     // Bytes outside any data segment stay absent from the preload, so
@@ -87,15 +166,15 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts, initial_
     // guarantees them zero at instantiation, and a malicious prover claiming
     // non-zero `value_before` for an uninitialized byte will fail the check).
     if !tables.linear_memory_init.is_empty() {
-        let mut packed: BTreeMap<u64, u64> = BTreeMap::new();
+        let mut packed: BTreeMap<u32, u32> = BTreeMap::new();
         for &(byte_addr, byte_value) in &tables.linear_memory_init {
-            let word_addr = byte_addr / 4;
+            let word_addr = narrow(byte_addr / 4, "linear_memory_init.word_addr");
             let byte_index = (byte_addr % 4) as u32;
             let word = packed.entry(word_addr).or_insert(0);
             // Clear any prior occupant at this byte position (later segments
             // override earlier ones in spec order) and OR the new byte in.
-            *word &= !(0xffu64 << (byte_index * 8));
-            *word |= u64::from(byte_value) << (byte_index * 8);
+            *word &= !(0xffu32 << (byte_index * 8));
+            *word |= u32::from(byte_value) << (byte_index * 8);
         }
         for (word_addr, word_value) in packed {
             preload.insert("linear_memory", vec![word_addr], word_value);
@@ -134,8 +213,9 @@ fn sanity_check_cross_step_links(layout: &WasmLookupBindingLayout, witness_rows:
         let next = &pair[1];
         for link in &layout.cross_step_links {
             for column_pair in &link.column_pairs {
-                let prev_value = prev[column_pair.prev_after.0].as_canonical_u64();
-                let next_value = next[column_pair.next_before.0].as_canonical_u64();
+                let prev_value = read_u32_column(prev, column_pair.prev_after.0, row_index, "cross-step prev_after")?;
+                let next_value =
+                    read_u32_column(next, column_pair.next_before.0, row_index + 1, "cross-step next_before")?;
                 if prev_value != next_value {
                     return Err(format!(
                         "cross-step link `{}` failed at rows {} -> {}: column {} value {} != column {} value {}",
@@ -158,7 +238,7 @@ fn apply_memory_row(
     memory: &WasmMemorySpec,
     witness: &[F],
     row_index: usize,
-    state: &mut BTreeMap<&'static str, BTreeMap<Vec<u64>, u64>>,
+    state: &mut BTreeMap<&'static str, BTreeMap<Vec<u32>, u32>>,
 ) -> Result<(), String> {
     let cells = state.entry(memory.name).or_default();
     for column in &memory.columns {
@@ -169,9 +249,9 @@ fn apply_memory_row(
         let address = column
             .address_columns
             .iter()
-            .map(|column| witness[column.0].as_canonical_u64())
-            .collect::<Vec<_>>();
-        let value = witness[column.value_column.0].as_canonical_u64();
+            .map(|column| read_u32_column(witness, column.0, row_index, "address"))
+            .collect::<Result<Vec<_>, _>>()?;
+        let value = read_u32_column(witness, column.value_column.0, row_index, "value")?;
         if memory.is_rom {
             match cells.get(&address).copied() {
                 Some(expected) if expected != value => {
@@ -227,7 +307,7 @@ fn apply_memory_row(
                 // who writes a word whose unmodified bytes don't preserve the
                 // prior state — see `i32_store8_row_rejects_tampered_...`.
                 if let Some(before_col) = column.value_before_column {
-                    let before_value = witness[before_col.0].as_canonical_u64();
+                    let before_value = read_u32_column(witness, before_col.0, row_index, "value_before")?;
                     match cells.get(&address).copied() {
                         Some(expected) if expected != before_value => {
                             return Err(format!(

@@ -78,7 +78,7 @@ fn memory_semantics_reject_missing_pc_rom_edge() {
         .iter()
         .find(|row| matches!(row.opcode, WasmOpcode::Call))
         .expect("call row");
-    preload.remove("pc_rom", &[call_row.pc_before, u64::from(call_row.control_choice)]);
+    preload.remove("pc_rom", &[call_row.pc_before as u32, call_row.control_choice]);
     let layout = build_wasm_lookup_binding_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("missing edge must fail");
     assert!(err.contains("memory `pc_rom` ROM read before initialization"));
@@ -101,7 +101,7 @@ fn memory_semantics_reject_missing_call_return_pc_rom_edge() {
         .iter()
         .find(|row| row.call_stack_push.is_some())
         .expect("call row");
-    preload.remove("pc_rom", &[call_row.pc_before, CALL_RETURN_PC_CHOICE]);
+    preload.remove("pc_rom", &[call_row.pc_before as u32, CALL_RETURN_PC_CHOICE as u32]);
     let layout = build_wasm_lookup_binding_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("missing return edge must fail");
     assert!(err.contains("memory `pc_rom` ROM read before initialization"));
@@ -244,9 +244,13 @@ fn memory_semantics_rejects_wrong_call_indirect_target() {
         .iter()
         .find(|row| matches!(row.opcode, WasmOpcode::CallIndirect))
         .expect("call_indirect row");
-    let function_ref = u64::from(row.table_value.expect("call_indirect function ref"));
+    let function_ref = row.table_value.expect("call_indirect function ref");
     preload.remove("function_entries", &[function_ref]);
-    preload.insert("function_entries", vec![function_ref], row.pc_after.saturating_add(1));
+    preload.insert(
+        "function_entries",
+        vec![function_ref],
+        row.pc_after.saturating_add(1) as u32,
+    );
     let layout = build_wasm_lookup_binding_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("wrong call_indirect target must fail");
     assert!(err.contains("memory `function_entries` ROM mismatch"));
@@ -270,7 +274,7 @@ fn memory_semantics_rejects_missing_if_taken_edge() {
         .find(|row| matches!(row.opcode, WasmOpcode::If))
         .expect("if row");
     assert_eq!(row.control_choice, 1);
-    preload.remove("pc_rom", &[row.pc_before, u64::from(row.control_choice)]);
+    preload.remove("pc_rom", &[row.pc_before as u32, row.control_choice]);
     let layout = build_wasm_lookup_binding_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("missing if edge must fail");
     assert!(err.contains("memory `pc_rom` ROM read before initialization"));
@@ -294,7 +298,7 @@ fn memory_semantics_rejects_missing_br_if_taken_edge() {
         .find(|row| matches!(row.opcode, WasmOpcode::BrIf))
         .expect("br_if row");
     assert_eq!(row.control_choice, 1);
-    preload.remove("pc_rom", &[row.pc_before, u64::from(row.control_choice)]);
+    preload.remove("pc_rom", &[row.pc_before as u32, row.control_choice]);
     let layout = build_wasm_lookup_binding_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("missing br_if edge must fail");
     assert!(err.contains("memory `pc_rom` ROM read before initialization"));

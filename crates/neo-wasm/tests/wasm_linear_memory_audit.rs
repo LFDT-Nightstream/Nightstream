@@ -8,7 +8,8 @@ use neo_wasm::layout::{
     COL_LINEAR_MEM_LANE0_ADDR, COL_LINEAR_MEM_LANE0_BYTE0_BEFORE, COL_LINEAR_MEM_LANE0_BYTE1,
     COL_LINEAR_MEM_LANE0_BYTE1_BEFORE, COL_LINEAR_MEM_LANE0_BYTE2, COL_LINEAR_MEM_LANE0_BYTE2_BEFORE,
     COL_LINEAR_MEM_LANE0_BYTE3, COL_LINEAR_MEM_LANE0_BYTE3_BEFORE, COL_LINEAR_MEM_LANE0_VALUE,
-    COL_LINEAR_MEM_LANE0_VALUE_BEFORE, COL_LINEAR_MEM_LANE1_VALUE, COL_LINEAR_MEM_LANE2_VALUE, COL_STACK_WRITE0_VALUE,
+    COL_LINEAR_MEM_LANE0_VALUE_BEFORE, COL_LINEAR_MEM_LANE1_VALUE, COL_LINEAR_MEM_LANE2_VALUE,
+    COL_STACK_WRITE0_VALUE_LO,
 };
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{
@@ -248,6 +249,6 @@ fn i32_load_row_rejects_tampered_unaligned_output() {
         .find(|row| row.opcode == WasmOpcode::I32Load)
         .expect("unaligned load row");
     let mut row = build_witness_vector(load);
-    row[COL_STACK_WRITE0_VALUE] = F::from_u64(0);
+    row[COL_STACK_WRITE0_VALUE_LO] = F::from_u64(0);
     assert_rejected(&row, "tampered unaligned i32.load output");
 }

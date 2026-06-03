@@ -84,22 +84,22 @@ fn push_local_value_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::LocalGet).unwrap(),
-        [(idx(locals.value_lo), F::ONE), (idx(stack.write0_value), -F::ONE)],
+        [(idx(locals.value_lo), F::ONE), (idx(stack.write0_value_lo), -F::ONE)],
     );
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::LocalSet).unwrap(),
-        [(idx(locals.value_lo), F::ONE), (idx(stack.read0_value), -F::ONE)],
+        [(idx(locals.value_lo), F::ONE), (idx(stack.read0_value_lo), -F::ONE)],
     );
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::LocalTee).unwrap(),
-        [(idx(locals.value_lo), F::ONE), (idx(stack.read0_value), -F::ONE)],
+        [(idx(locals.value_lo), F::ONE), (idx(stack.read0_value_lo), -F::ONE)],
     );
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::LocalTee).unwrap(),
-        [(idx(locals.value_lo), F::ONE), (idx(stack.write0_value), -F::ONE)],
+        [(idx(locals.value_lo), F::ONE), (idx(stack.write0_value_lo), -F::ONE)],
     );
     // Mirror the low-limb local bindings for i64 high limbs.
     push_gated_linear_zero(
@@ -128,12 +128,12 @@ fn push_global_value_constraints(b: &mut R1csBuilder, stack: &OperandStackColumn
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::GlobalGet).unwrap(),
-        [(idx(globals.value), F::ONE), (idx(stack.write0_value), -F::ONE)],
+        [(idx(globals.value), F::ONE), (idx(stack.write0_value_lo), -F::ONE)],
     );
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::GlobalSet).unwrap(),
-        [(idx(globals.value), F::ONE), (idx(stack.read0_value), -F::ONE)],
+        [(idx(globals.value), F::ONE), (idx(stack.read0_value_lo), -F::ONE)],
     );
     push_gated_linear_zero(
         b,
@@ -151,22 +151,22 @@ fn push_table_value_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::TableGet).unwrap(),
-        [(idx(table.value), F::ONE), (idx(stack.write0_value), -F::ONE)],
+        [(idx(table.value), F::ONE), (idx(stack.write0_value_lo), -F::ONE)],
     );
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::TableSet).unwrap(),
-        [(idx(table.value), F::ONE), (idx(stack.read1_value), -F::ONE)],
+        [(idx(table.value), F::ONE), (idx(stack.read1_value_lo), -F::ONE)],
     );
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::TableGet).unwrap(),
-        [(idx(table.index), F::ONE), (idx(stack.read0_value), -F::ONE)],
+        [(idx(table.index), F::ONE), (idx(stack.read0_value_lo), -F::ONE)],
     );
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::TableSet).unwrap(),
-        [(idx(table.index), F::ONE), (idx(stack.read0_value), -F::ONE)],
+        [(idx(table.index), F::ONE), (idx(stack.read0_value_lo), -F::ONE)],
     );
 }
 
@@ -174,7 +174,10 @@ fn push_memory_pages_constraints(b: &mut R1csBuilder, stack: &OperandStackColumn
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::MemorySize).unwrap(),
-        [(idx(memory_pages.before), F::ONE), (idx(stack.write0_value), -F::ONE)],
+        [
+            (idx(memory_pages.before), F::ONE),
+            (idx(stack.write0_value_lo), -F::ONE),
+        ],
     );
     push_gated_linear_zero(
         b,
@@ -184,7 +187,10 @@ fn push_memory_pages_constraints(b: &mut R1csBuilder, stack: &OperandStackColumn
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::MemoryGrow).unwrap(),
-        [(idx(memory_pages.before), F::ONE), (idx(stack.write0_value), -F::ONE)],
+        [
+            (idx(memory_pages.before), F::ONE),
+            (idx(stack.write0_value_lo), -F::ONE),
+        ],
     );
 }
 
@@ -192,6 +198,6 @@ fn push_table_size_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns,
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::TableSize).unwrap(),
-        [(idx(table_sizes.value), F::ONE), (idx(stack.write0_value), -F::ONE)],
+        [(idx(table_sizes.value), F::ONE), (idx(stack.write0_value_lo), -F::ONE)],
     );
 }

@@ -205,7 +205,7 @@ fn push_address_normalization(
                 [
                     (idx(linear_memory.lane0_addr), f_u64(4)),
                     (idx(linear_memory.byte_offset), F::ONE),
-                    (idx(stack.read0_value), -F::ONE),
+                    (idx(stack.read0_value_lo), -F::ONE),
                     (idx(linear_memory.imm_offset), -F::ONE),
                 ],
                 [],
@@ -504,7 +504,7 @@ fn push_access_byte_bindings(
         push_u32_le_bytes_decomp(
             b,
             load_low_byte_ops.iter().copied().map(op_selector),
-            idx(stack.write0_value),
+            idx(stack.write0_value_lo),
             sign_extension.bytes.map(idx),
         );
     });
@@ -513,7 +513,7 @@ fn push_access_byte_bindings(
         push_u32_le_bytes_decomp(
             b,
             store_low_byte_ops.iter().copied().map(op_selector),
-            idx(stack.read1_value),
+            idx(stack.read1_value_lo),
             sign_extension.bytes.map(idx),
         );
     });
@@ -916,7 +916,7 @@ fn push_linear_memory_load64_constraints(
         b,
         idx(linear_memory.i64_load_offset_is[0]),
         [
-            (idx(stack.write0_value), F::ONE),
+            (idx(stack.write0_value_lo), F::ONE),
             (idx(linear_memory.lane0_value), -F::ONE),
         ],
     );
@@ -998,7 +998,7 @@ fn push_linear_memory_store64_constraints(
         b,
         idx(linear_memory.i64_store_offset_is[0]),
         [
-            (idx(stack.read1_value), F::ONE),
+            (idx(stack.read1_value_lo), F::ONE),
             (idx(linear_memory.lane0_value), -F::ONE),
         ],
     );

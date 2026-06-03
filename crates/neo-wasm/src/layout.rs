@@ -419,7 +419,7 @@ define_columns!(
         ColumnWidth::U32
     ),
     (
-        COL_STACK_READ0_ADDR,
+        COL_STACK_READ0_ADDR_LO,
         "operand-stack read lane 0 low-limb physical address",
         ColumnWidth::U32
     ),
@@ -429,7 +429,7 @@ define_columns!(
         ColumnWidth::U32
     ),
     (
-        COL_STACK_READ0_VALUE,
+        COL_STACK_READ0_VALUE_LO,
         "operand-stack read lane 0 value",
         ColumnWidth::U32
     ),
@@ -439,7 +439,7 @@ define_columns!(
         ColumnWidth::U32
     ),
     (
-        COL_STACK_READ1_ADDR,
+        COL_STACK_READ1_ADDR_LO,
         "operand-stack read lane 1 low-limb physical address",
         ColumnWidth::U32
     ),
@@ -449,7 +449,7 @@ define_columns!(
         ColumnWidth::U32
     ),
     (
-        COL_STACK_READ1_VALUE,
+        COL_STACK_READ1_VALUE_LO,
         "operand-stack read lane 1 value",
         ColumnWidth::U32
     ),
@@ -459,7 +459,7 @@ define_columns!(
         ColumnWidth::U32
     ),
     (
-        COL_STACK_READ2_ADDR,
+        COL_STACK_READ2_ADDR_LO,
         "operand-stack read lane 2 low-limb physical address",
         ColumnWidth::U32
     ),
@@ -469,7 +469,7 @@ define_columns!(
         ColumnWidth::U32
     ),
     (
-        COL_STACK_READ2_VALUE,
+        COL_STACK_READ2_VALUE_LO,
         "operand-stack read lane 2 value",
         ColumnWidth::U32
     ),
@@ -479,7 +479,7 @@ define_columns!(
         ColumnWidth::U32
     ),
     (
-        COL_STACK_WRITE0_ADDR,
+        COL_STACK_WRITE0_ADDR_LO,
         "operand-stack write lane 0 low-limb physical address",
         ColumnWidth::U32
     ),
@@ -489,7 +489,7 @@ define_columns!(
         ColumnWidth::U32
     ),
     (
-        COL_STACK_WRITE0_VALUE,
+        COL_STACK_WRITE0_VALUE_LO,
         "operand-stack write lane 0 value",
         ColumnWidth::U32
     ),

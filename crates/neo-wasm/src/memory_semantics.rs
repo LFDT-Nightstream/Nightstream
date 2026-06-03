@@ -36,8 +36,16 @@ enum DebugInitMode {
 
 pub fn preload_from_wasmtime_run(run: &WasmtimeTraceRun, initial_locals: &[u32]) -> WasmMemoryPreload {
     let mut preload = WasmMemoryPreload::default();
-    for (addr, &value) in initial_locals.iter().enumerate() {
-        preload.insert("locals", vec![addr as u64], u64::from(value));
+    // Entry-frame locals use `fbp = 0`; callee params are written by
+    // CallParamInit rows before use.
+    for (idx, &value) in initial_locals.iter().enumerate() {
+        let address = vec![0u64, idx as u64];
+        preload.insert("locals", address.clone(), u64::from(value));
+        preload.insert("locals_hi", address, 0);
+    }
+    for &(index, lo, hi) in &run.globals_init {
+        preload.insert("globals", vec![u64::from(index)], u64::from(lo));
+        preload.insert("globals_hi", vec![u64::from(index)], u64::from(hi));
     }
     for &(pc_before, control_choice, pc_after) in &run.pc_rom {
         preload.insert("pc_rom", vec![pc_before, control_choice], pc_after);
@@ -311,8 +319,13 @@ const MEMORY_INIT_MODES: &[(&str, DebugInitMode)] = &[
     // at instantiation — so a malicious prover claiming a non-zero
     // `value_before` at an uninitialized byte fails this check.
     ("linear_memory", DebugInitMode::ZeroReadDefault),
-    ("locals", DebugInitMode::FirstReadDefines),
-    ("globals", DebugInitMode::FirstReadDefines),
+    // Locals are either preloaded entry-frame slots, call-param writes, or
+    // wasm-zero initialized slots.
+    ("locals", DebugInitMode::ZeroReadDefault),
+    ("locals_hi", DebugInitMode::ZeroReadDefault),
+    // Declared globals are preloaded from their wasm initializer.
+    ("globals", DebugInitMode::ZeroReadDefault),
+    ("globals_hi", DebugInitMode::ZeroReadDefault),
     ("tables", DebugInitMode::FirstReadDefines),
     ("table_sizes", DebugInitMode::FirstReadDefines),
     ("function_types", DebugInitMode::FirstReadDefines),

@@ -101,6 +101,27 @@ fn push_local_value_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns
         selector_col(WasmOpcode::LocalTee).unwrap(),
         [(idx(locals.value_lo), F::ONE), (idx(stack.write0_value), -F::ONE)],
     );
+    // Mirror the low-limb local bindings for i64 high limbs.
+    push_gated_linear_zero(
+        b,
+        selector_col(WasmOpcode::LocalGet).unwrap(),
+        [(idx(locals.value_hi), F::ONE), (idx(stack.write0_value_hi), -F::ONE)],
+    );
+    push_gated_linear_zero(
+        b,
+        selector_col(WasmOpcode::LocalSet).unwrap(),
+        [(idx(locals.value_hi), F::ONE), (idx(stack.read0_value_hi), -F::ONE)],
+    );
+    push_gated_linear_zero(
+        b,
+        selector_col(WasmOpcode::LocalTee).unwrap(),
+        [(idx(locals.value_hi), F::ONE), (idx(stack.read0_value_hi), -F::ONE)],
+    );
+    push_gated_linear_zero(
+        b,
+        selector_col(WasmOpcode::LocalTee).unwrap(),
+        [(idx(locals.value_hi), F::ONE), (idx(stack.write0_value_hi), -F::ONE)],
+    );
 }
 
 fn push_global_value_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns, globals: &GlobalsColumns) {
@@ -113,6 +134,16 @@ fn push_global_value_constraints(b: &mut R1csBuilder, stack: &OperandStackColumn
         b,
         selector_col(WasmOpcode::GlobalSet).unwrap(),
         [(idx(globals.value), F::ONE), (idx(stack.read0_value), -F::ONE)],
+    );
+    push_gated_linear_zero(
+        b,
+        selector_col(WasmOpcode::GlobalGet).unwrap(),
+        [(idx(globals.value_hi), F::ONE), (idx(stack.write0_value_hi), -F::ONE)],
+    );
+    push_gated_linear_zero(
+        b,
+        selector_col(WasmOpcode::GlobalSet).unwrap(),
+        [(idx(globals.value_hi), F::ONE), (idx(stack.read0_value_hi), -F::ONE)],
     );
 }
 

@@ -918,6 +918,36 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
             ],
             is_rom: false,
         },
+        // Parallel high-limb cells log for locals, keyed like `locals`.
+        WasmMemorySpec {
+            name: "locals_hi",
+            columns: vec![
+                WasmMemoryColumnSpec {
+                    address_columns: vec![frame.locals_fbp_before, locals.index],
+                    value_column: locals.value_hi,
+                    kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(Column(
+                        selector_col(super::isa::WasmOpcode::LocalGet).unwrap(),
+                    )),
+                    value_before_column: None,
+                },
+                WasmMemoryColumnSpec {
+                    address_columns: vec![frame.locals_fbp_before, locals.index],
+                    value_column: locals.value_hi,
+                    kind: WasmMemoryColumnKind::Write,
+                    activation: WasmMemoryActivation::BooleanGate(locals.write_enabled),
+                    value_before_column: None,
+                },
+                WasmMemoryColumnSpec {
+                    address_columns: vec![frame.locals_fbp_before, locals.index],
+                    value_column: locals.value_hi,
+                    kind: WasmMemoryColumnKind::Write,
+                    activation: WasmMemoryActivation::BooleanGate(param_init.param_init_active_before),
+                    value_before_column: None,
+                },
+            ],
+            is_rom: false,
+        },
         WasmMemorySpec {
             name: "globals",
             columns: vec![
@@ -933,6 +963,31 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                 WasmMemoryColumnSpec {
                     address_columns: vec![globals.index],
                     value_column: globals.value,
+                    kind: WasmMemoryColumnKind::Write,
+                    activation: WasmMemoryActivation::BooleanGate(Column(
+                        selector_col(super::isa::WasmOpcode::GlobalSet).unwrap(),
+                    )),
+                    value_before_column: None,
+                },
+            ],
+            is_rom: false,
+        },
+        // Parallel high-limb cells log for globals.
+        WasmMemorySpec {
+            name: "globals_hi",
+            columns: vec![
+                WasmMemoryColumnSpec {
+                    address_columns: vec![globals.index],
+                    value_column: globals.value_hi,
+                    kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(Column(
+                        selector_col(super::isa::WasmOpcode::GlobalGet).unwrap(),
+                    )),
+                    value_before_column: None,
+                },
+                WasmMemoryColumnSpec {
+                    address_columns: vec![globals.index],
+                    value_column: globals.value_hi,
                     kind: WasmMemoryColumnKind::Write,
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::GlobalSet).unwrap(),

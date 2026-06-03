@@ -44,6 +44,28 @@ fn layout_describes_lookup_families_and_memory_bindings() {
         WasmMemoryActivation::BooleanGate(_)
     ));
 
+    let globals_hi_memory = layout
+        .memories
+        .iter()
+        .find(|memory| memory.name == "globals_hi")
+        .expect("globals_hi memory family");
+    assert_eq!(globals_hi_memory.columns.len(), 2);
+    assert!(globals_hi_memory
+        .columns
+        .iter()
+        .all(|column| matches!(column.activation, WasmMemoryActivation::BooleanGate(_))));
+    for (lo, hi) in globals_memory
+        .columns
+        .iter()
+        .zip(&globals_hi_memory.columns)
+    {
+        assert_eq!(lo.kind, hi.kind, "globals_hi kind must mirror globals");
+        assert_eq!(
+            lo.address_columns, hi.address_columns,
+            "globals_hi address columns must mirror globals",
+        );
+    }
+
     let tables_memory = layout
         .memories
         .iter()
@@ -78,6 +100,24 @@ fn layout_describes_lookup_families_and_memory_bindings() {
         locals_memory.columns[2].activation,
         WasmMemoryActivation::BooleanGate(_)
     ));
+
+    let locals_hi_memory = layout
+        .memories
+        .iter()
+        .find(|memory| memory.name == "locals_hi")
+        .expect("locals_hi memory family");
+    assert_eq!(locals_hi_memory.columns.len(), 3);
+    assert!(locals_hi_memory
+        .columns
+        .iter()
+        .all(|column| matches!(column.activation, WasmMemoryActivation::BooleanGate(_))));
+    for (lo, hi) in locals_memory.columns.iter().zip(&locals_hi_memory.columns) {
+        assert_eq!(lo.kind, hi.kind, "locals_hi kind must mirror locals");
+        assert_eq!(
+            lo.address_columns, hi.address_columns,
+            "locals_hi address columns must mirror locals",
+        );
+    }
 
     let table_sizes_memory = layout
         .memories

@@ -44,6 +44,9 @@ pub(crate) struct ParsedWasmArtifacts {
     /// Only active segments targeting memory 0 with an `i32.const` offset are
     /// recorded; passive segments and globalexpr offsets are skipped.
     pub(crate) linear_memory_init: Vec<(u64, u8)>,
+    /// Initial declared-global values as `(global_index, lo_limb, hi_limb)`.
+    /// Imported globals are not represented here.
+    pub(crate) globals_init: Vec<(u32, u32, u32)>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -105,6 +108,8 @@ struct ParsedWasmArtifactsBuilder {
     next_type_id: u32,
     defined_function_type_indices: Vec<u32>,
     linear_memory_init: Vec<(u64, u8)>,
+    globals_init: Vec<(u32, u32, u32)>,
+    next_declared_global_index: u32,
 }
 
 impl Default for ParsedWasmArtifactsBuilder {
@@ -126,6 +131,8 @@ impl Default for ParsedWasmArtifactsBuilder {
             next_type_id: 1,
             defined_function_type_indices: Vec::new(),
             linear_memory_init: Vec::new(),
+            globals_init: Vec::new(),
+            next_declared_global_index: 0,
         }
     }
 }
@@ -220,6 +227,7 @@ impl ParsedWasmArtifactsBuilder {
             imported_function_count: self.imported_function_count,
             function_metas: self.function_metas,
             linear_memory_init: self.linear_memory_init,
+            globals_init: self.globals_init,
         })
     }
 
@@ -247,6 +255,10 @@ impl ParsedWasmArtifactsBuilder {
                 for import_result in reader {
                     let import = import_result
                         .map_err(|err| WasmBuildError::Trace(format!("failed to decode wasm import: {err}")))?;
+                    if matches!(import.ty, wasmparser::TypeRef::Global(_)) {
+                        // Imported globals occupy the leading global indexes.
+                        self.next_declared_global_index = self.next_declared_global_index.saturating_add(1);
+                    }
                     if let wasmparser::TypeRef::Func(raw_type_index) = import.ty {
                         let function_ref = self.imported_function_count.saturating_add(1);
                         self.imported_function_count = self.imported_function_count.saturating_add(1);
@@ -592,6 +604,36 @@ impl ParsedWasmArtifactsBuilder {
                     for (i, &byte) in segment.data.iter().enumerate() {
                         self.linear_memory_init.push((offset + i as u64, byte));
                     }
+                }
+            }
+            Payload::GlobalSection(reader) => {
+                for global_result in reader {
+                    let global = global_result
+                        .map_err(|err| WasmBuildError::Trace(format!("failed to decode wasm global: {err}")))?;
+                    let mut ops = global.init_expr.get_operators_reader();
+                    let first = ops
+                        .read()
+                        .map_err(|err| WasmBuildError::Trace(format!("failed to read wasm global init expr: {err}")))?;
+                    let (lo, hi) = match first {
+                        wasmparser::Operator::I32Const { value } => (value as u32, 0),
+                        wasmparser::Operator::I64Const { value } => {
+                            let v = value as u64;
+                            (v as u32, (v >> 32) as u32)
+                        }
+                        wasmparser::Operator::F32Const { value } => (value.bits(), 0),
+                        wasmparser::Operator::F64Const { value } => {
+                            let v = value.bits();
+                            (v as u32, (v >> 32) as u32)
+                        }
+                        other => {
+                            return Err(WasmBuildError::Unsupported(format!(
+                                "wasm global with non-const init expr: {other:?}"
+                            )));
+                        }
+                    };
+                    let index = self.next_declared_global_index;
+                    self.next_declared_global_index = self.next_declared_global_index.saturating_add(1);
+                    self.globals_init.push((index, lo, hi));
                 }
             }
             _ => {}

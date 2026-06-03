@@ -4,17 +4,19 @@ use neo_wasm::layout::{
     COL_CURRENT_FUNCTION_REF, COL_LOCALS_FBP_AFTER, COL_STACK_READ0_VALUE_HI,
 };
 use neo_wasm::{
-    build_wasm_lookup_binding_layout, collect_wasmtime_steps, preload_from_wasmtime_run, sanity_check_memory_rows,
-    traces_from_wasmtime_steps, witness_builder::build_witness_vector, WasmMemoryPreload, WasmOpcode,
+    build_wasm_lookup_binding_layout, collect_wasmtime_steps, extract_wasm_program_artifacts,
+    preload_from_program_artifacts, sanity_check_memory_rows, traces_from_wasmtime_steps,
+    witness_builder::build_witness_vector, WasmMemoryPreload, WasmOpcode,
 };
 use p3_field::PrimeCharacteristicRing;
 
 fn witness_run(wat_src: &str) -> (Vec<neo_wasm::WasmStepTrace>, Vec<Vec<F>>, WasmMemoryPreload) {
     let wasm = wat::parse_str(wat_src).expect("wat");
+    let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
     let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
     let witnesses = trace.iter().map(build_witness_vector).collect();
-    let preload = preload_from_wasmtime_run(&run, &run.initial_locals);
+    let preload = preload_from_program_artifacts(&artifacts, &run.initial_locals);
     (trace, witnesses, preload)
 }
 

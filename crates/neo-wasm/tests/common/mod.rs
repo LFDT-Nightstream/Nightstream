@@ -4,13 +4,14 @@ use neo_ccs::check_ccs_rowwise_zero;
 use neo_math::F;
 use neo_wasm::layout::COLUMN_SPECS;
 use neo_wasm::{
-    build_wasm_lookup_binding_layout, collect_wasmtime_steps, preload_from_wasmtime_run, sanity_check_lookup_row,
-    sanity_check_memory_rows, traces_from_wasmtime_steps, witness_builder::build_witness_vector, WasmStepTrace,
-    WasmVmSpec, WasmtimeTraceRun,
+    build_wasm_lookup_binding_layout, collect_wasmtime_steps, extract_wasm_program_artifacts,
+    preload_from_program_artifacts, sanity_check_lookup_row, sanity_check_memory_rows, traces_from_wasmtime_steps,
+    witness_builder::build_witness_vector, WasmProgramArtifacts, WasmStepTrace, WasmVmSpec, WasmtimeTraceRun,
 };
 
 pub struct CheckedWasmRun {
     pub wasm: Vec<u8>,
+    pub artifacts: WasmProgramArtifacts,
     pub run: WasmtimeTraceRun,
     pub trace: Vec<WasmStepTrace>,
     pub witnesses: Vec<Vec<F>>,
@@ -22,19 +23,25 @@ pub fn checked_main(wat_src: &str) -> CheckedWasmRun {
 
 pub fn checked_wasm_run(wat_src: &str, export: &str, params: &[i32]) -> CheckedWasmRun {
     let wasm = wat::parse_str(wat_src).expect("valid WAT");
+    let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
     let run = collect_wasmtime_steps(&wasm, export, params).expect("wasmtime trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
-    let witnesses = sanity_check_trace(&trace, &run);
+    let witnesses = sanity_check_trace(&trace, &artifacts, &run.initial_locals);
     ccs_check_trace(&trace);
     CheckedWasmRun {
         wasm,
+        artifacts,
         run,
         trace,
         witnesses,
     }
 }
 
-pub fn sanity_check_trace(trace: &[WasmStepTrace], run: &WasmtimeTraceRun) -> Vec<Vec<F>> {
+pub fn sanity_check_trace(
+    trace: &[WasmStepTrace],
+    artifacts: &WasmProgramArtifacts,
+    initial_locals: &[u32],
+) -> Vec<Vec<F>> {
     let layout = build_wasm_lookup_binding_layout();
     let mut witnesses = Vec::with_capacity(trace.len());
     for row in trace {
@@ -43,7 +50,7 @@ pub fn sanity_check_trace(trace: &[WasmStepTrace], run: &WasmtimeTraceRun) -> Ve
             .unwrap_or_else(|err| panic!("lookup semantics rejected {:?}: {err}", row.opcode));
         witnesses.push(witness);
     }
-    let preload = preload_from_wasmtime_run(run, &run.initial_locals);
+    let preload = preload_from_program_artifacts(artifacts, initial_locals);
     sanity_check_memory_rows(layout, &witnesses, &preload)
         .unwrap_or_else(|err| panic!("memory semantics rejected trace: {err}"));
     witnesses

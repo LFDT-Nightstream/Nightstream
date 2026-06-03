@@ -24,6 +24,7 @@ use runtime_read::{build_debug_function_id_map, build_store_debug_function_id_ma
 // Public path `adapters::wasmtime::traces_from_wasmtime_steps` is preserved via this re-export
 // (also brings the name into scope for the WasmTraceSource impls and component wrappers below).
 pub use normalize::traces_from_wasmtime_steps;
+pub use parse::WasmProgramArtifacts;
 
 #[derive(Clone, Debug, Eq, PartialEq, Default)]
 pub struct WasmtimeTraceStep {
@@ -115,38 +116,9 @@ pub struct WasmtimeTraceRun {
     /// checks only.
     pub results: Vec<String>,
     pub steps: Vec<WasmtimeTraceStep>,
-    /// Static `(pc_before, control_choice, pc_after)` rows for the witness-facing pc ROM.
-    pub pc_rom: Vec<(u64, u64, u64)>,
-    pub pc_edge_kinds: Vec<(u64, u64)>,
-    /// Static `(pc_before, function_ref)` rows binding each code PC to its containing function.
-    pub pc_function_refs: Vec<(u64, u64)>,
-    /// Static `(function_ref, entry_pc)` pairs for defined functions in the embedded core module.
-    pub function_entries: Vec<(u64, u64)>,
-    /// Static `(function_ref, type_id)` pairs for call-indirect type checks.
-    pub function_types: Vec<(u64, u64)>,
-    /// Static `(function_ref, param_count)` pairs for dynamic call stack arity.
-    pub function_param_counts: Vec<(u64, u64)>,
-    /// Static `(function_ref, result_count)` pairs for dynamic call stack arity.
-    pub function_result_counts: Vec<(u64, u64)>,
-    /// Static `(function_ref, params + declared locals)` pairs for frame-base transitions.
-    pub function_local_counts: Vec<(u64, u64)>,
-    /// Static `(function_ref, is_guest)` pairs for call-frame entry.
-    pub function_guest_flags: Vec<(u64, u64)>,
-    /// Static `(pc_before, function_ref)` pairs for direct call targets.
-    pub call_targets: Vec<(u64, u64)>,
-    /// Static `(raw_type_index, expected_type_id)` pairs for call-indirect type checks.
-    pub module_types: Vec<(u64, u64)>,
     /// Values of all locals (params + pure locals) at function entry, indexed by local index.
     /// Params have the argument values; pure locals are zero. Populated from the first frame step.
     pub initial_locals: Vec<u32>,
-    /// Bytes initialized by active `(data ...)` segments before wasm code
-    /// runs, as `(byte_addr, byte_value)` pairs. Consumed by the memory
-    /// sanity checker to seed `linear_memory` cells so the RMW Read at
-    /// data-initialized addresses matches the actual prior value instead of
-    /// failing the `ZeroReadDefault` check.
-    pub linear_memory_init: Vec<(u64, u8)>,
-    /// Initial declared-global values as `(global_index, lo, hi)`.
-    pub globals_init: Vec<(u32, u32, u32)>,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -183,9 +155,9 @@ pub fn collect_wasmtime_steps(
     params: &[i32],
 ) -> Result<WasmtimeTraceRun, WasmBuildError> {
     let parsed = parse_wasm_artifacts(wasm_bytes)?;
-    let imported_function_count = parsed.imported_function_count;
-    let opcode_map = Arc::new(parsed.opcode_map);
-    let function_metas = Arc::new(parsed.function_metas);
+    let imported_function_count = parsed.trace.imported_function_count;
+    let opcode_map = Arc::new(parsed.trace.opcode_map);
+    let function_metas = Arc::new(parsed.trace.function_metas);
 
     let mut config = Config::new();
     config.guest_debug(true);
@@ -247,20 +219,7 @@ pub fn collect_wasmtime_steps(
     Ok(WasmtimeTraceRun {
         results,
         steps,
-        pc_rom: parsed.pc_rom,
-        pc_edge_kinds: parsed.pc_edge_kinds,
-        pc_function_refs: parsed.pc_function_refs,
-        function_entries: parsed.function_entries,
-        function_types: parsed.function_types,
-        function_param_counts: parsed.function_param_counts,
-        function_result_counts: parsed.function_result_counts,
-        function_local_counts: parsed.function_local_counts,
-        function_guest_flags: parsed.function_guest_flags,
-        call_targets: parsed.call_targets,
-        module_types: parsed.module_types,
         initial_locals,
-        linear_memory_init: parsed.linear_memory_init,
-        globals_init: parsed.globals_init,
     })
 }
 
@@ -285,22 +244,9 @@ where
     F: FnOnce(&mut WasmtimeComponentLinker<WasmtimeTraceState>) -> Result<(), WasmBuildError>,
 {
     let parsed = parse_first_component_core_module_artifacts(component_bytes)?;
-    let imported_function_count = parsed.imported_function_count;
-    let pc_rom = parsed.pc_rom.clone();
-    let function_entries = parsed.function_entries.clone();
-    let function_types = parsed.function_types.clone();
-    let function_param_counts = parsed.function_param_counts.clone();
-    let function_result_counts = parsed.function_result_counts.clone();
-    let function_local_counts = parsed.function_local_counts.clone();
-    let function_guest_flags = parsed.function_guest_flags.clone();
-    let call_targets = parsed.call_targets.clone();
-    let module_types = parsed.module_types.clone();
-    let pc_edge_kinds = parsed.pc_edge_kinds.clone();
-    let pc_function_refs = parsed.pc_function_refs.clone();
-    let linear_memory_init = parsed.linear_memory_init.clone();
-    let globals_init = parsed.globals_init.clone();
-    let opcode_map = Arc::new(parsed.opcode_map);
-    let function_metas = Arc::new(parsed.function_metas);
+    let imported_function_count = parsed.trace.imported_function_count;
+    let opcode_map = Arc::new(parsed.trace.opcode_map);
+    let function_metas = Arc::new(parsed.trace.function_metas);
 
     let mut config = Config::new();
     config.guest_debug(true);
@@ -369,20 +315,7 @@ where
             .map(component_val_to_string)
             .collect::<Result<_, _>>()?,
         steps,
-        pc_rom,
-        pc_edge_kinds,
-        pc_function_refs,
-        function_entries,
-        function_types,
-        function_param_counts,
-        function_result_counts,
-        function_local_counts,
-        function_guest_flags,
-        call_targets,
-        module_types,
         initial_locals,
-        linear_memory_init,
-        globals_init,
     })
 }
 
@@ -486,11 +419,23 @@ impl DebugHandler for WasmtimeDebugHandler {
     }
 }
 
+/// Parse a wasm binary into the static program artifacts used to seed
+/// verifier/prover memory tables.
+pub fn extract_wasm_program_artifacts(wasm_bytes: &[u8]) -> Result<WasmProgramArtifacts, WasmBuildError> {
+    parse_wasm_artifacts(wasm_bytes)
+}
+
+pub fn extract_first_component_core_program_artifacts(
+    component_bytes: &[u8],
+) -> Result<WasmProgramArtifacts, WasmBuildError> {
+    parse_first_component_core_module_artifacts(component_bytes)
+}
+
 /// Build the next-PC ROM from validated WASM bytecode using statically resolved control edges.
 ///
 /// Conditional control rows (`if`, `br_if`) emit both possible successors. Structural rows
 /// (`block`, `loop`, `else`, inner `end`) are kept as explicit ROM entries so the trace can
 /// carry them as regular witness rows.
 pub fn build_pc_rom_from_binary(wasm_bytes: &[u8]) -> Result<Vec<(u64, u64, u64)>, WasmBuildError> {
-    Ok(parse_wasm_artifacts(wasm_bytes)?.pc_rom)
+    Ok(extract_wasm_program_artifacts(wasm_bytes)?.tables.pc_rom)
 }

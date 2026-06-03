@@ -1,6 +1,7 @@
 use neo_wasm::{
-    build_pc_rom_from_binary, collect_wasmtime_steps, opcode_code, traces_from_wasmtime_steps,
-    traces_from_wasmtime_wasm_bytes, StackLaneAccess, WasmOpcode, WasmPcEdgeKind, WasmtimeTraceStep,
+    build_pc_rom_from_binary, collect_wasmtime_steps, extract_wasm_program_artifacts, opcode_code,
+    traces_from_wasmtime_steps, traces_from_wasmtime_wasm_bytes, StackLaneAccess, WasmOpcode, WasmPcEdgeKind,
+    WasmtimeTraceStep,
 };
 use wasmparser::{Parser, Payload};
 
@@ -329,6 +330,7 @@ fn wasmtime_trace_normalizes_call_indirect_row() {
     )
     .expect("wat");
 
+    let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
     let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
     let row = trace
@@ -344,7 +346,9 @@ fn wasmtime_trace_normalizes_call_indirect_row() {
     assert_eq!(row.expected_type_id, Some(1));
     assert_eq!(row.stack_reads_override, Some(1));
     assert_eq!(
-        run.function_entries
+        artifacts
+            .tables
+            .function_entries
             .iter()
             .find(|(f, _)| *f == 1)
             .map(|(_, pc)| *pc),
@@ -732,6 +736,7 @@ fn wasmtime_trace_normalizes_br_table_rows() {
         "#,
     )
     .expect("wat");
+    let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
 
     for (param, expected_value, expected_choice) in [(0, 10, 1_u32), (1, 20, 2_u32), (5, 30, 0_u32)] {
         let run = collect_wasmtime_steps(&wasm, "run", &[param]).expect("trace run");
@@ -744,7 +749,8 @@ fn wasmtime_trace_normalizes_br_table_rows() {
             row.control_choice, expected_choice,
             "wrong control choice for param={param}"
         );
-        let edges_from_row = run
+        let edges_from_row = artifacts
+            .tables
             .pc_rom
             .iter()
             .filter(|(pc, _, _)| *pc == row.pc_before)

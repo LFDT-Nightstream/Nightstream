@@ -1,8 +1,9 @@
 mod common;
 
 use neo_wasm::{
-    collect_wasmtime_component_run, collect_wasmtime_component_run_with_linker, traces_from_wasmtime_component,
-    traces_from_wasmtime_steps, WasmBuildError, WasmOpcode,
+    collect_wasmtime_component_run, collect_wasmtime_component_run_with_linker,
+    extract_first_component_core_program_artifacts, traces_from_wasmtime_component, traces_from_wasmtime_steps,
+    WasmBuildError, WasmOpcode,
 };
 use wasmtime::{
     component::{Component, Linker},
@@ -124,7 +125,8 @@ fn wasm_component_import_kernel_roundtrip_for_embedded_core_trace() {
     })
     .expect("component trace run");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("component trace normalization");
-    check_component_trace(&trace, &run);
+    let artifacts = extract_first_component_core_program_artifacts(&component_bytes).expect("program artifacts");
+    check_component_trace(&trace, &artifacts, &run);
 }
 
 #[test]
@@ -132,15 +134,20 @@ fn wasm_component_kernel_roundtrip_for_embedded_core_trace() {
     let component_bytes = wat::parse_str(component_wat()).expect("component wat");
     let run = collect_wasmtime_component_run(&component_bytes, "run").expect("component trace run");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("component trace normalization");
-    check_component_trace(&trace, &run);
+    let artifacts = extract_first_component_core_program_artifacts(&component_bytes).expect("program artifacts");
+    check_component_trace(&trace, &artifacts, &run);
 }
 
-fn check_component_trace(trace: &[neo_wasm::WasmStepTrace], run: &neo_wasm::WasmtimeTraceRun) {
+fn check_component_trace(
+    trace: &[neo_wasm::WasmStepTrace],
+    artifacts: &neo_wasm::WasmProgramArtifacts,
+    run: &neo_wasm::WasmtimeTraceRun,
+) {
     // TODO: Add CCS row checks once lowered component host-call rows have a
     // protocol model. The import fixture currently includes a host-backed
     // `call` whose stack-result behavior is accepted by lookup/memory sanity
     // but is not represented by the guest-call CCS arity constraints.
-    common::sanity_check_trace(trace, run);
+    common::sanity_check_trace(trace, artifacts, &run.initial_locals);
 }
 
 #[test]

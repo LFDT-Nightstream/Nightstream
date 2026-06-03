@@ -1,6 +1,6 @@
 //! Witness-driven debug memory checker over `WasmMemorySpec`.
 
-use super::adapters::wasmtime::WasmtimeTraceRun;
+use super::adapters::wasmtime::WasmProgramArtifacts;
 use super::lookup_binding_builder::{
     WasmLookupBindingLayout, WasmMemoryActivation, WasmMemoryColumnKind, WasmMemorySpec,
 };
@@ -34,7 +34,8 @@ enum DebugInitMode {
     FirstReadDefines,
 }
 
-pub fn preload_from_wasmtime_run(run: &WasmtimeTraceRun, initial_locals: &[u32]) -> WasmMemoryPreload {
+pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts, initial_locals: &[u32]) -> WasmMemoryPreload {
+    let tables = &artifacts.tables;
     let mut preload = WasmMemoryPreload::default();
     // Entry-frame locals use `fbp = 0`; callee params are written by
     // CallParamInit rows before use.
@@ -43,41 +44,41 @@ pub fn preload_from_wasmtime_run(run: &WasmtimeTraceRun, initial_locals: &[u32])
         preload.insert("locals", address.clone(), u64::from(value));
         preload.insert("locals_hi", address, 0);
     }
-    for &(index, lo, hi) in &run.globals_init {
+    for &(index, lo, hi) in &tables.globals_init {
         preload.insert("globals", vec![u64::from(index)], u64::from(lo));
         preload.insert("globals_hi", vec![u64::from(index)], u64::from(hi));
     }
-    for &(pc_before, control_choice, pc_after) in &run.pc_rom {
+    for &(pc_before, control_choice, pc_after) in &tables.pc_rom {
         preload.insert("pc_rom", vec![pc_before, control_choice], pc_after);
     }
-    for &(pc_before, edge_kind) in &run.pc_edge_kinds {
+    for &(pc_before, edge_kind) in &tables.pc_edge_kinds {
         preload.insert("pc_edge_kinds", vec![pc_before], edge_kind);
     }
-    for &(pc_before, function_ref) in &run.pc_function_refs {
+    for &(pc_before, function_ref) in &tables.pc_function_refs {
         preload.insert("pc_function_refs", vec![pc_before], function_ref);
     }
-    for &(function_ref, entry_pc) in &run.function_entries {
+    for &(function_ref, entry_pc) in &tables.function_entries {
         preload.insert("function_entries", vec![function_ref], entry_pc);
     }
-    for &(function_ref, type_id) in &run.function_types {
+    for &(function_ref, type_id) in &tables.function_types {
         preload.insert("function_types", vec![function_ref], type_id);
     }
-    for &(function_ref, param_count) in &run.function_param_counts {
+    for &(function_ref, param_count) in &tables.function_param_counts {
         preload.insert("function_param_counts", vec![function_ref], param_count);
     }
-    for &(function_ref, result_count) in &run.function_result_counts {
+    for &(function_ref, result_count) in &tables.function_result_counts {
         preload.insert("function_result_counts", vec![function_ref], result_count);
     }
-    for &(function_ref, local_count) in &run.function_local_counts {
+    for &(function_ref, local_count) in &tables.function_local_counts {
         preload.insert("function_local_counts", vec![function_ref], local_count);
     }
-    for &(function_ref, is_guest) in &run.function_guest_flags {
+    for &(function_ref, is_guest) in &tables.function_guest_flags {
         preload.insert("function_guest_flags", vec![function_ref], is_guest);
     }
-    for &(pc_before, function_ref) in &run.call_targets {
+    for &(pc_before, function_ref) in &tables.call_targets {
         preload.insert("call_targets", vec![pc_before], function_ref);
     }
-    for &(raw_type_index, expected_type_id) in &run.module_types {
+    for &(raw_type_index, expected_type_id) in &tables.module_types {
         preload.insert("module_types", vec![raw_type_index], expected_type_id);
     }
     // Pack data-section bytes into the word-addressed linear_memory cells.
@@ -85,9 +86,9 @@ pub fn preload_from_wasmtime_run(run: &WasmtimeTraceRun, initial_locals: &[u32])
     // ZeroReadDefault catches first reads at those addresses (the wasm spec
     // guarantees them zero at instantiation, and a malicious prover claiming
     // non-zero `value_before` for an uninitialized byte will fail the check).
-    if !run.linear_memory_init.is_empty() {
+    if !tables.linear_memory_init.is_empty() {
         let mut packed: BTreeMap<u64, u64> = BTreeMap::new();
-        for &(byte_addr, byte_value) in &run.linear_memory_init {
+        for &(byte_addr, byte_value) in &tables.linear_memory_init {
             let word_addr = byte_addr / 4;
             let byte_index = (byte_addr % 4) as u32;
             let word = packed.entry(word_addr).or_insert(0);
@@ -312,8 +313,8 @@ const MEMORY_INIT_MODES: &[(&str, DebugInitMode)] = &[
     ("call_stack_return_pcs", DebugInitMode::Strict),
     ("call_stack_caller_fbps", DebugInitMode::Strict),
     // linear_memory: ZeroReadDefault. Bytes initialized by active `(data ...)`
-    // segments are preloaded into the cells in `preload_from_wasmtime_run`
-    // (via `run.linear_memory_init`), so the RMW Read at data-initialized
+    // segments are preloaded into the cells in `preload_from_program_artifacts`
+    // (via `artifacts.tables.linear_memory_init`), so the RMW Read at data-initialized
     // addresses sees the actual prior word. Bytes outside any data segment
     // stay absent from the preload, and the wasm spec guarantees them zero
     // at instantiation — so a malicious prover claiming a non-zero

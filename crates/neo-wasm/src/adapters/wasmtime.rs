@@ -145,6 +145,8 @@ pub struct WasmtimeTraceRun {
     /// data-initialized addresses matches the actual prior value instead of
     /// failing the `ZeroReadDefault` check.
     pub linear_memory_init: Vec<(u64, u8)>,
+    /// Initial declared-global values as `(global_index, lo, hi)`.
+    pub globals_init: Vec<(u32, u32, u32)>,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -258,6 +260,7 @@ pub fn collect_wasmtime_steps(
         module_types: parsed.module_types,
         initial_locals,
         linear_memory_init: parsed.linear_memory_init,
+        globals_init: parsed.globals_init,
     })
 }
 
@@ -295,6 +298,7 @@ where
     let pc_edge_kinds = parsed.pc_edge_kinds.clone();
     let pc_function_refs = parsed.pc_function_refs.clone();
     let linear_memory_init = parsed.linear_memory_init.clone();
+    let globals_init = parsed.globals_init.clone();
     let opcode_map = Arc::new(parsed.opcode_map);
     let function_metas = Arc::new(parsed.function_metas);
 
@@ -378,6 +382,7 @@ where
         module_types,
         initial_locals,
         linear_memory_init,
+        globals_init,
     })
 }
 

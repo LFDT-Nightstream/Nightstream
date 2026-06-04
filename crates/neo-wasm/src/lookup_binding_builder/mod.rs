@@ -93,27 +93,27 @@ pub struct WasmMemoryColumnSpec {
     pub value_column: Column,
     pub kind: WasmMemoryColumnKind,
     pub activation: WasmMemoryActivation,
-    /// The column witnessing the prior memory state at `address_columns`.
-    /// `None` means the wasm CCS does not constrain the prior value beyond what
-    /// the memory argument enforces (the read witness still participates in the
-    /// mcc). `Some(c)` means row-local CCS constraints reference `c` — e.g.,
-    /// subword stores' byte-preservation rows compare bytes of `c` against
-    /// bytes of `value_column`. So the MCC needs to either emit an equality
-    /// constraint to this column, or use it directly.
-    pub value_before_column: Option<Column>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WasmMemoryColumnKind {
     Read,
-    Write,
+    Write {
+        /// The column witnessing the prior memory state at `address_columns`.
+        /// `None` means the wasm CCS does not constrain the prior value beyond what
+        /// the memory argument enforces (the read witness still participates in the
+        /// mcc). `Some(c)` means row-local CCS constraints reference `c` — e.g.,
+        /// subword stores' byte-preservation rows compare bytes of `c` against
+        /// bytes of `value_column`. So the MCC needs to either emit an equality
+        /// constraint to this column, or use it directly.
+        value_before_column: Option<Column>,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WasmMemoryActivation {
     Always,
     BooleanGate(Column),
-    ColumnEquals { column: Column, value: u64 },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -713,84 +713,76 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     value_column: stack.read0_value_lo,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(control.stack_read0_active),
-                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![stack.read0_addr_hi],
                     value_column: stack.read0_value_hi,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(control.stack_read0_active),
-                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![stack.read0_addr_lo],
                     value_column: stack.read0_value_lo,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(output.captured),
-                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![stack.read0_addr_hi],
                     value_column: stack.read0_value_hi,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(output.captured),
-                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![stack.read0_addr_lo],
                     value_column: stack.read0_value_lo,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(param_init.param_init_active_before),
-                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![stack.read0_addr_hi],
                     value_column: stack.read0_value_hi,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(param_init.param_init_active_before),
-                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![stack.read1_addr_lo],
                     value_column: stack.read1_value_lo,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(control.stack_read1_active),
-                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![stack.read1_addr_hi],
                     value_column: stack.read1_value_hi,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(control.stack_read1_active),
-                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![stack.read2_addr_lo],
                     value_column: stack.read2_value_lo,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(control.stack_read2_active),
-                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![stack.read2_addr_hi],
                     value_column: stack.read2_value_hi,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(control.stack_read2_active),
-                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![stack.write0_addr_lo],
                     value_column: stack.write0_value_lo,
-                    kind: WasmMemoryColumnKind::Write,
+                    kind: WasmMemoryColumnKind::Write {
+                        value_before_column: None,
+                    },
                     activation: WasmMemoryActivation::BooleanGate(control.stack_write0_active),
-                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![stack.write0_addr_hi],
                     value_column: stack.write0_value_hi,
-                    kind: WasmMemoryColumnKind::Write,
+                    kind: WasmMemoryColumnKind::Write {
+                        value_before_column: None,
+                    },
                     activation: WasmMemoryActivation::BooleanGate(control.stack_write0_active),
-                    value_before_column: None,
                 },
             ],
             is_rom: false,
@@ -801,16 +793,16 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                 WasmMemoryColumnSpec {
                     address_columns: vec![call.call_stack_addr],
                     value_column: call.call_stack_access_return_pc,
-                    kind: WasmMemoryColumnKind::Write,
+                    kind: WasmMemoryColumnKind::Write {
+                        value_before_column: None,
+                    },
                     activation: WasmMemoryActivation::BooleanGate(call.call_stack_push_present),
-                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![call.call_stack_addr],
                     value_column: call.call_stack_access_return_pc,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(call.call_stack_pop_present),
-                    value_before_column: None,
                 },
             ],
             is_rom: false,
@@ -821,16 +813,16 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                 WasmMemoryColumnSpec {
                     address_columns: vec![call.call_stack_addr],
                     value_column: call.call_stack_access_caller_fbp,
-                    kind: WasmMemoryColumnKind::Write,
+                    kind: WasmMemoryColumnKind::Write {
+                        value_before_column: None,
+                    },
                     activation: WasmMemoryActivation::BooleanGate(call.call_stack_push_present),
-                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![call.call_stack_addr],
                     value_column: call.call_stack_access_caller_fbp,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(call.call_stack_pop_present),
-                    value_before_column: None,
                 },
             ],
             is_rom: false,
@@ -854,42 +846,42 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     value_column: linear_memory.lane0_value,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(linear_memory.lane0_load_active),
-                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![linear_memory.lane1_addr],
                     value_column: linear_memory.lane1_value,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(linear_memory.lane1_load_active),
-                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![linear_memory.lane2_addr],
                     value_column: linear_memory.lane2_value,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(linear_memory.lane2_load_active),
-                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![linear_memory.lane0_addr],
                     value_column: linear_memory.lane0_value,
-                    kind: WasmMemoryColumnKind::Write,
+                    kind: WasmMemoryColumnKind::Write {
+                        value_before_column: Some(linear_memory.lane0_value_before),
+                    },
                     activation: WasmMemoryActivation::BooleanGate(linear_memory.lane0_store_active),
-                    value_before_column: Some(linear_memory.lane0_value_before),
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![linear_memory.lane1_addr],
                     value_column: linear_memory.lane1_value,
-                    kind: WasmMemoryColumnKind::Write,
+                    kind: WasmMemoryColumnKind::Write {
+                        value_before_column: Some(linear_memory.lane1_value_before),
+                    },
                     activation: WasmMemoryActivation::BooleanGate(linear_memory.lane1_store_active),
-                    value_before_column: Some(linear_memory.lane1_value_before),
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![linear_memory.lane2_addr],
                     value_column: linear_memory.lane2_value,
-                    kind: WasmMemoryColumnKind::Write,
+                    kind: WasmMemoryColumnKind::Write {
+                        value_before_column: Some(linear_memory.lane2_value_before),
+                    },
                     activation: WasmMemoryActivation::BooleanGate(linear_memory.lane2_store_active),
-                    value_before_column: Some(linear_memory.lane2_value_before),
                 },
             ],
             is_rom: false,
@@ -904,21 +896,22 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::LocalGet).unwrap(),
                     )),
-                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![frame.locals_fbp_before, locals.index],
                     value_column: locals.value_lo,
-                    kind: WasmMemoryColumnKind::Write,
+                    kind: WasmMemoryColumnKind::Write {
+                        value_before_column: None,
+                    },
                     activation: WasmMemoryActivation::BooleanGate(locals.write_enabled),
-                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![frame.locals_fbp_before, locals.index],
                     value_column: locals.value_lo,
-                    kind: WasmMemoryColumnKind::Write,
+                    kind: WasmMemoryColumnKind::Write {
+                        value_before_column: None,
+                    },
                     activation: WasmMemoryActivation::BooleanGate(param_init.param_init_active_before),
-                    value_before_column: None,
                 },
             ],
             is_rom: false,
@@ -934,21 +927,22 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::LocalGet).unwrap(),
                     )),
-                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![frame.locals_fbp_before, locals.index],
                     value_column: locals.value_hi,
-                    kind: WasmMemoryColumnKind::Write,
+                    kind: WasmMemoryColumnKind::Write {
+                        value_before_column: None,
+                    },
                     activation: WasmMemoryActivation::BooleanGate(locals.write_enabled),
-                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![frame.locals_fbp_before, locals.index],
                     value_column: locals.value_hi,
-                    kind: WasmMemoryColumnKind::Write,
+                    kind: WasmMemoryColumnKind::Write {
+                        value_before_column: None,
+                    },
                     activation: WasmMemoryActivation::BooleanGate(param_init.param_init_active_before),
-                    value_before_column: None,
                 },
             ],
             is_rom: false,
@@ -963,16 +957,16 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::GlobalGet).unwrap(),
                     )),
-                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![globals.index],
                     value_column: globals.value,
-                    kind: WasmMemoryColumnKind::Write,
+                    kind: WasmMemoryColumnKind::Write {
+                        value_before_column: None,
+                    },
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::GlobalSet).unwrap(),
                     )),
-                    value_before_column: None,
                 },
             ],
             is_rom: false,
@@ -988,16 +982,16 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::GlobalGet).unwrap(),
                     )),
-                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![globals.index],
                     value_column: globals.value_hi,
-                    kind: WasmMemoryColumnKind::Write,
+                    kind: WasmMemoryColumnKind::Write {
+                        value_before_column: None,
+                    },
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::GlobalSet).unwrap(),
                     )),
-                    value_before_column: None,
                 },
             ],
             is_rom: false,
@@ -1010,16 +1004,16 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     value_column: table.value,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(table.read_enabled),
-                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![table.id, table.index],
                     value_column: table.value,
-                    kind: WasmMemoryColumnKind::Write,
+                    kind: WasmMemoryColumnKind::Write {
+                        value_before_column: None,
+                    },
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::TableSet).unwrap(),
                     )),
-                    value_before_column: None,
                 },
             ],
             is_rom: false,
@@ -1033,7 +1027,6 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                 activation: WasmMemoryActivation::BooleanGate(Column(
                     selector_col(super::isa::WasmOpcode::TableSize).unwrap(),
                 )),
-                value_before_column: None,
             }],
             is_rom: false,
         },
@@ -1046,7 +1039,6 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                 activation: WasmMemoryActivation::BooleanGate(Column(
                     selector_col(super::isa::WasmOpcode::CallIndirect).unwrap(),
                 )),
-                value_before_column: None,
             }],
             is_rom: true,
         },
@@ -1057,7 +1049,6 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                 value_column: frame.current_function_num_locals,
                 kind: WasmMemoryColumnKind::Read,
                 activation: WasmMemoryActivation::BooleanGate(control.is_program_row),
-                value_before_column: None,
             }],
             is_rom: true,
         },
@@ -1068,7 +1059,6 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                 value_column: frame.current_function_ref,
                 kind: WasmMemoryColumnKind::Read,
                 activation: WasmMemoryActivation::Always,
-                value_before_column: None,
             }],
             is_rom: true,
         },
@@ -1082,7 +1072,6 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::Call).unwrap(),
                     )),
-                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![function_types.function_ref],
@@ -1091,7 +1080,6 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::CallIndirect).unwrap(),
                     )),
-                    value_before_column: None,
                 },
             ],
             is_rom: true,
@@ -1106,7 +1094,6 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::Call).unwrap(),
                     )),
-                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![function_types.function_ref],
@@ -1115,14 +1102,12 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::CallIndirect).unwrap(),
                     )),
-                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![frame.current_function_ref],
                     value_column: function_types.param_count,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(param_init.param_init_active_before),
-                    value_before_column: None,
                 },
             ],
             is_rom: true,
@@ -1137,7 +1122,6 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::Call).unwrap(),
                     )),
-                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![function_types.function_ref],
@@ -1146,7 +1130,6 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::CallIndirect).unwrap(),
                     )),
-                    value_before_column: None,
                 },
             ],
             is_rom: true,
@@ -1160,7 +1143,6 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                 activation: WasmMemoryActivation::BooleanGate(Column(
                     selector_col(super::isa::WasmOpcode::CallIndirect).unwrap(),
                 )),
-                value_before_column: None,
             }],
             is_rom: true,
         },
@@ -1173,7 +1155,6 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                 activation: WasmMemoryActivation::BooleanGate(Column(
                     selector_col(super::isa::WasmOpcode::Call).unwrap(),
                 )),
-                value_before_column: None,
             }],
             is_rom: true,
         },
@@ -1186,7 +1167,6 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                 activation: WasmMemoryActivation::BooleanGate(Column(
                     selector_col(super::isa::WasmOpcode::CallIndirect).unwrap(),
                 )),
-                value_before_column: None,
             }],
             is_rom: true,
         },
@@ -1197,7 +1177,6 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                 value_column: control.pc_edge_kind,
                 kind: WasmMemoryColumnKind::Read,
                 activation: WasmMemoryActivation::BooleanGate(control.is_program_row),
-                value_before_column: None,
             }],
             is_rom: true,
         },
@@ -1209,14 +1188,12 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     value_column: state.pc_after,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(control.pc_rom_active),
-                    value_before_column: None,
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![state.pc_before, call.call_stack_return_pc_choice],
                     value_column: call.call_stack_access_return_pc,
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(call.call_stack_push_present),
-                    value_before_column: None,
                 },
             ],
             is_rom: true,

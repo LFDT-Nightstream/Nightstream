@@ -246,7 +246,13 @@ fn layout_describes_lookup_families_and_memory_bindings() {
     let store_specs: Vec<_> = linear_memory
         .columns
         .iter()
-        .filter(|c| matches!(c.kind, neo_wasm::WasmMemoryColumnKind::Write))
+        .filter_map(|c| {
+            if let neo_wasm::WasmMemoryColumnKind::Write { value_before_column } = c.kind {
+                Some(value_before_column)
+            } else {
+                None
+            }
+        })
         .collect();
     assert_eq!(
         load_specs.len(),
@@ -259,11 +265,7 @@ fn layout_describes_lookup_families_and_memory_bindings() {
         "expected 3 lane-Write+RMW specs (one per lane) for stores"
     );
     assert!(
-        load_specs.iter().all(|c| c.value_before_column.is_none()),
-        "load specs must not name a value_before column (loads emit only Read tuples)",
-    );
-    assert!(
-        store_specs.iter().all(|c| c.value_before_column.is_some()),
+        store_specs.iter().all(|c| c.is_some()),
         "store specs must name a value_before column (RMW with paired Read + Write)",
     );
 }

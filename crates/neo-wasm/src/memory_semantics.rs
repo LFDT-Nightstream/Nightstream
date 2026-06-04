@@ -300,13 +300,13 @@ fn apply_memory_row(
                     }
                 },
             },
-            WasmMemoryColumnKind::Write => {
+            WasmMemoryColumnKind::Write { value_before_column } => {
                 // Nebula-style RMW: if `value_before_column` is named, this
                 // row's read tuple must match the prior write at this address
                 // (or the documented init mode). Catches a malicious prover
                 // who writes a word whose unmodified bytes don't preserve the
                 // prior state — see `i32_store8_row_rejects_tampered_...`.
-                if let Some(before_col) = column.value_before_column {
+                if let Some(before_col) = value_before_column {
                     let before_value = read_u32_column(witness, before_col.0, row_index, "value_before")?;
                     match cells.get(&address).copied() {
                         Some(expected) if expected != before_value => {
@@ -362,7 +362,6 @@ fn activation_active(
                 memory_name, other, row_index
             )),
         },
-        WasmMemoryActivation::ColumnEquals { column, value } => Ok(witness[column.0].as_canonical_u64() == value),
     }
 }
 

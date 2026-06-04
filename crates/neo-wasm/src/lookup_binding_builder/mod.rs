@@ -375,6 +375,24 @@ pub struct WasmLookupBindingLayout {
     pub shout: ShoutColumns,
 }
 
+fn rom_read_spec(
+    name: &'static str,
+    address_columns: Vec<Column>,
+    value_column: Column,
+    activation: WasmMemoryActivation,
+) -> WasmMemorySpec {
+    WasmMemorySpec {
+        name,
+        columns: vec![WasmMemoryColumnSpec {
+            address_columns,
+            value_column,
+            kind: WasmMemoryColumnKind::Read,
+            activation,
+        }],
+        is_rom: true,
+    }
+}
+
 pub fn build_wasm_lookup_binding_layout() -> &'static WasmLookupBindingLayout {
     static LAYOUT: OnceLock<WasmLookupBindingLayout> = OnceLock::new();
     LAYOUT.get_or_init(build_wasm_lookup_binding_layout_uncached)
@@ -1030,38 +1048,90 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
             }],
             is_rom: false,
         },
-        WasmMemorySpec {
-            name: "function_types",
-            columns: vec![WasmMemoryColumnSpec {
-                address_columns: vec![function_types.function_ref],
-                value_column: function_types.type_id,
-                kind: WasmMemoryColumnKind::Read,
-                activation: WasmMemoryActivation::BooleanGate(Column(
-                    selector_col(super::isa::WasmOpcode::CallIndirect).unwrap(),
-                )),
-            }],
-            is_rom: true,
-        },
-        WasmMemorySpec {
-            name: "function_local_counts",
-            columns: vec![WasmMemoryColumnSpec {
-                address_columns: vec![frame.current_function_ref],
-                value_column: frame.current_function_num_locals,
-                kind: WasmMemoryColumnKind::Read,
-                activation: WasmMemoryActivation::BooleanGate(control.is_program_row),
-            }],
-            is_rom: true,
-        },
-        WasmMemorySpec {
-            name: "pc_function_refs",
-            columns: vec![WasmMemoryColumnSpec {
-                address_columns: vec![state.pc_before],
-                value_column: frame.current_function_ref,
-                kind: WasmMemoryColumnKind::Read,
-                activation: WasmMemoryActivation::Always,
-            }],
-            is_rom: true,
-        },
+        rom_read_spec(
+            "program_opcodes",
+            vec![state.pc_before],
+            control.opcode_code,
+            WasmMemoryActivation::BooleanGate(control.is_program_row),
+        ),
+        rom_read_spec(
+            "program_local_indices",
+            vec![state.pc_before],
+            locals.index,
+            WasmMemoryActivation::BooleanGate(control.is_program_row),
+        ),
+        rom_read_spec(
+            "program_global_indices",
+            vec![state.pc_before],
+            globals.index,
+            WasmMemoryActivation::BooleanGate(control.is_program_row),
+        ),
+        rom_read_spec(
+            "program_table_ids",
+            vec![state.pc_before],
+            table.id,
+            WasmMemoryActivation::BooleanGate(control.is_program_row),
+        ),
+        rom_read_spec(
+            "program_memory_offsets",
+            vec![state.pc_before],
+            linear_memory.imm_offset,
+            WasmMemoryActivation::BooleanGate(control.is_program_row),
+        ),
+        rom_read_spec(
+            "program_call_indirect_type_indices",
+            vec![state.pc_before],
+            module_types.raw_type_index,
+            WasmMemoryActivation::BooleanGate(control.is_program_row),
+        ),
+        rom_read_spec(
+            "program_call_indirect_expected_type_ids",
+            vec![state.pc_before],
+            module_types.expected_type_id,
+            WasmMemoryActivation::BooleanGate(control.is_program_row),
+        ),
+        rom_read_spec(
+            "program_i32_const_values",
+            vec![state.pc_before],
+            stack.write0_value_lo,
+            WasmMemoryActivation::BooleanGate(Column(selector_col(super::isa::WasmOpcode::I32Const).unwrap())),
+        ),
+        rom_read_spec(
+            "program_i64_const_values_lo",
+            vec![state.pc_before],
+            stack.write0_value_lo,
+            WasmMemoryActivation::BooleanGate(Column(selector_col(super::isa::WasmOpcode::I64Const).unwrap())),
+        ),
+        rom_read_spec(
+            "program_i64_const_values_hi",
+            vec![state.pc_before],
+            stack.write0_value_hi,
+            WasmMemoryActivation::BooleanGate(Column(selector_col(super::isa::WasmOpcode::I64Const).unwrap())),
+        ),
+        rom_read_spec(
+            "program_ref_func_refs",
+            vec![state.pc_before],
+            stack.write0_value_lo,
+            WasmMemoryActivation::BooleanGate(Column(selector_col(super::isa::WasmOpcode::RefFunc).unwrap())),
+        ),
+        rom_read_spec(
+            "function_types",
+            vec![function_types.function_ref],
+            function_types.type_id,
+            WasmMemoryActivation::BooleanGate(Column(selector_col(super::isa::WasmOpcode::CallIndirect).unwrap())),
+        ),
+        rom_read_spec(
+            "function_local_counts",
+            vec![frame.current_function_ref],
+            frame.current_function_num_locals,
+            WasmMemoryActivation::BooleanGate(control.is_program_row),
+        ),
+        rom_read_spec(
+            "pc_function_refs",
+            vec![state.pc_before],
+            frame.current_function_ref,
+            WasmMemoryActivation::Always,
+        ),
         WasmMemorySpec {
             name: "function_guest_flags",
             columns: vec![
@@ -1134,52 +1204,30 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
             ],
             is_rom: true,
         },
-        WasmMemorySpec {
-            name: "module_types",
-            columns: vec![WasmMemoryColumnSpec {
-                address_columns: vec![module_types.raw_type_index],
-                value_column: module_types.expected_type_id,
-                kind: WasmMemoryColumnKind::Read,
-                activation: WasmMemoryActivation::BooleanGate(Column(
-                    selector_col(super::isa::WasmOpcode::CallIndirect).unwrap(),
-                )),
-            }],
-            is_rom: true,
-        },
-        WasmMemorySpec {
-            name: "call_targets",
-            columns: vec![WasmMemoryColumnSpec {
-                address_columns: vec![state.pc_before],
-                value_column: function_types.function_ref,
-                kind: WasmMemoryColumnKind::Read,
-                activation: WasmMemoryActivation::BooleanGate(Column(
-                    selector_col(super::isa::WasmOpcode::Call).unwrap(),
-                )),
-            }],
-            is_rom: true,
-        },
-        WasmMemorySpec {
-            name: "function_entries",
-            columns: vec![WasmMemoryColumnSpec {
-                address_columns: vec![function_types.function_ref],
-                value_column: state.pc_after,
-                kind: WasmMemoryColumnKind::Read,
-                activation: WasmMemoryActivation::BooleanGate(Column(
-                    selector_col(super::isa::WasmOpcode::CallIndirect).unwrap(),
-                )),
-            }],
-            is_rom: true,
-        },
-        WasmMemorySpec {
-            name: "pc_edge_kinds",
-            columns: vec![WasmMemoryColumnSpec {
-                address_columns: vec![state.pc_before],
-                value_column: control.pc_edge_kind,
-                kind: WasmMemoryColumnKind::Read,
-                activation: WasmMemoryActivation::BooleanGate(control.is_program_row),
-            }],
-            is_rom: true,
-        },
+        rom_read_spec(
+            "module_types",
+            vec![module_types.raw_type_index],
+            module_types.expected_type_id,
+            WasmMemoryActivation::BooleanGate(Column(selector_col(super::isa::WasmOpcode::CallIndirect).unwrap())),
+        ),
+        rom_read_spec(
+            "call_targets",
+            vec![state.pc_before],
+            function_types.function_ref,
+            WasmMemoryActivation::BooleanGate(Column(selector_col(super::isa::WasmOpcode::Call).unwrap())),
+        ),
+        rom_read_spec(
+            "function_entries",
+            vec![function_types.function_ref],
+            state.pc_after,
+            WasmMemoryActivation::BooleanGate(Column(selector_col(super::isa::WasmOpcode::CallIndirect).unwrap())),
+        ),
+        rom_read_spec(
+            "pc_edge_kinds",
+            vec![state.pc_before],
+            control.pc_edge_kind,
+            WasmMemoryActivation::BooleanGate(control.is_program_row),
+        ),
         WasmMemorySpec {
             name: "pc_rom",
             columns: vec![

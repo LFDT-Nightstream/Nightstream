@@ -1,7 +1,8 @@
 use neo_math::F;
 use neo_wasm::layout::{
     CALL_RETURN_PC_CHOICE, COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_POP_RETURN_PC, COL_CURRENT_FUNCTION_NUM_LOCALS,
-    COL_CURRENT_FUNCTION_REF, COL_LOCALS_FBP_AFTER, COL_STACK_READ0_VALUE_HI,
+    COL_CURRENT_FUNCTION_REF, COL_EXPECTED_TYPE_ID, COL_LINEAR_MEM_IMM_OFFSET, COL_LOCALS_FBP_AFTER, COL_LOCAL_INDEX,
+    COL_OPCODE_CODE, COL_STACK_READ0_VALUE_HI, COL_STACK_WRITE0_VALUE_HI,
 };
 use neo_wasm::{
     build_wasm_lookup_binding_layout, collect_wasmtime_steps, extract_wasm_program_artifacts,
@@ -82,6 +83,111 @@ fn memory_semantics_reject_missing_pc_rom_edge() {
     let layout = build_wasm_lookup_binding_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("missing edge must fail");
     assert!(err.contains("memory `pc_rom` ROM read before initialization"));
+}
+
+#[test]
+fn memory_semantics_rejects_wrong_program_opcode() {
+    let (trace, mut witnesses, preload) = witness_run(
+        r#"(module
+            (func (export "run") (result i32)
+                i32.const 5))
+        "#,
+    );
+    let row_index = trace
+        .iter()
+        .position(|row| row.row_kind.is_program())
+        .expect("program row");
+    witnesses[row_index][COL_OPCODE_CODE] += F::ONE;
+
+    let layout = build_wasm_lookup_binding_layout();
+    let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("wrong opcode must fail");
+    assert!(err.contains("memory `program_opcodes` ROM mismatch"));
+}
+
+#[test]
+fn memory_semantics_rejects_wrong_program_local_index() {
+    let (trace, mut witnesses, preload) = witness_run(
+        r#"(module
+            (func (export "run") (result i32)
+                (local i32)
+                local.get 0))
+        "#,
+    );
+    let row_index = trace
+        .iter()
+        .position(|row| row.opcode == WasmOpcode::LocalGet)
+        .expect("local.get row");
+    witnesses[row_index][COL_LOCAL_INDEX] += F::ONE;
+
+    let layout = build_wasm_lookup_binding_layout();
+    let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("wrong local index must fail");
+    assert!(err.contains("memory `program_local_indices` ROM mismatch"));
+}
+
+#[test]
+fn memory_semantics_rejects_wrong_program_memory_offset() {
+    let (trace, mut witnesses, preload) = witness_run(
+        r#"(module
+            (memory 1)
+            (func (export "run") (result i32)
+                i32.const 0
+                i32.load offset=8))
+        "#,
+    );
+    let row_index = trace
+        .iter()
+        .position(|row| row.opcode == WasmOpcode::I32Load)
+        .expect("i32.load row");
+    witnesses[row_index][COL_LINEAR_MEM_IMM_OFFSET] += F::ONE;
+
+    let layout = build_wasm_lookup_binding_layout();
+    let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("wrong memory offset must fail");
+    assert!(err.contains("memory `program_memory_offsets` ROM mismatch"));
+}
+
+#[test]
+fn memory_semantics_rejects_wrong_program_i64_const_high_limb() {
+    let (trace, mut witnesses, preload) = witness_run(
+        r#"(module
+            (func (export "run") (result i64)
+                i64.const 0x0000_0001_0000_0002))
+        "#,
+    );
+    let row_index = trace
+        .iter()
+        .position(|row| row.opcode == WasmOpcode::I64Const)
+        .expect("i64.const row");
+    witnesses[row_index][COL_STACK_WRITE0_VALUE_HI] += F::ONE;
+
+    let layout = build_wasm_lookup_binding_layout();
+    let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("wrong i64 const hi must fail");
+    assert!(err.contains("memory `program_i64_const_values_hi` ROM mismatch"));
+}
+
+#[test]
+fn memory_semantics_rejects_wrong_program_call_indirect_expected_type() {
+    let (trace, mut witnesses, preload) = witness_run(
+        r#"(module
+            (type $t (func (result i32)))
+            (func $f (type $t) (result i32)
+                i32.const 7)
+            (table 1 funcref)
+            (elem (i32.const 0) func $f)
+            (func (export "run") (result i32)
+                i32.const 0
+                call_indirect (type $t)))
+        "#,
+    );
+    let row_index = trace
+        .iter()
+        .position(|row| row.opcode == WasmOpcode::CallIndirect)
+        .expect("call_indirect row");
+    witnesses[row_index][COL_EXPECTED_TYPE_ID] += F::ONE;
+
+    let layout = build_wasm_lookup_binding_layout();
+    let err = sanity_check_memory_rows(layout, &witnesses, &preload)
+        .expect_err("wrong call_indirect expected type must fail");
+    assert!(err.contains("memory `program_call_indirect_expected_type_ids` ROM mismatch"));
 }
 
 #[test]

@@ -12,7 +12,7 @@ use super::decode::{
     decode_control_opcode, decode_memory_opcode, decode_opcode, ControlFrame, ControlFrameKind, DecodedOpcode,
 };
 use crate::ir::{WasmBuildError, WasmPcEdgeKind};
-use crate::isa::WasmOpcode;
+use crate::isa::{opcode_code, WasmOpcode};
 use crate::layout::CALL_RETURN_PC_CHOICE;
 use std::collections::BTreeMap;
 use wasmparser::{Parser, Payload};
@@ -27,6 +27,10 @@ pub struct WasmProgramArtifacts {
 
 #[derive(Clone, Debug)]
 pub struct WasmProgramTables {
+    /// Static per-PC decode rows. These bind each real program row to the
+    /// opcode and immediate-bearing witness columns that are derived from the
+    /// wasm bytes. Non-applicable immediate slots are encoded as zero.
+    pub program_decode: Vec<WasmProgramDecodeEntry>,
     /// Static next-PC ROM rows `(pc_before, control_choice, pc_after)`.
     /// Program rows read this table to bind the witnessed PC transition to
     /// the parsed control-flow graph.
@@ -71,6 +75,25 @@ pub struct WasmProgramTables {
     /// Initial declared-global values as `(global_index, lo_limb, hi_limb)`.
     /// Imported globals are not represented here.
     pub globals_init: Vec<(u32, u32, u32)>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WasmProgramDecodeEntry {
+    pub pc: u64,
+    pub opcode_code: u32,
+    pub local_index: u32,
+    pub global_index: u32,
+    pub table_id: u32,
+    pub memory_offset: u32,
+    pub call_indirect_type_index: u32,
+    /// Normalized type id derived from the same module type-section entry
+    /// checked by the `module_types` ROM, but keyed by program PC so the
+    /// static opcode/immediate row is bound directly to the wasm bytes.
+    pub call_indirect_expected_type_id: u32,
+    pub i32_const_value: u32,
+    pub i64_const_value_lo: u32,
+    pub i64_const_value_hi: u32,
+    pub ref_func_ref: u32,
 }
 
 #[derive(Clone, Debug)]
@@ -133,6 +156,7 @@ pub(crate) fn parse_first_component_core_module_artifacts(
 struct ParsedWasmArtifactsBuilder {
     opcode_map: BTreeMap<(u32, u32), DecodedOpcode>,
     pc_rom: Vec<(u64, u64, u64)>,
+    program_decode: Vec<WasmProgramDecodeEntry>,
     pc_edge_kinds: Vec<(u64, u64)>,
     pc_function_refs: Vec<(u64, u64)>,
     unresolved_call_edges: Vec<(u64, u32)>,
@@ -156,6 +180,7 @@ impl Default for ParsedWasmArtifactsBuilder {
         Self {
             opcode_map: BTreeMap::new(),
             pc_rom: Vec::new(),
+            program_decode: Vec::new(),
             pc_edge_kinds: Vec::new(),
             pc_function_refs: Vec::new(),
             unresolved_call_edges: Vec::new(),
@@ -177,6 +202,14 @@ impl Default for ParsedWasmArtifactsBuilder {
 }
 
 impl ParsedWasmArtifactsBuilder {
+    fn narrow_u32(value: u64, field: &str) -> Result<u32, WasmBuildError> {
+        u32::try_from(value).map_err(|_| {
+            WasmBuildError::Unsupported(format!(
+                "wasm program field `{field}` value {value} does not fit in u32"
+            ))
+        })
+    }
+
     fn push_pc_rom_edge(&mut self, pc_before: u64, control_choice: u64, pc_after: u64) {
         self.pc_rom.push((pc_before, control_choice, pc_after));
     }
@@ -252,6 +285,7 @@ impl ParsedWasmArtifactsBuilder {
         module_types.dedup();
         Ok(WasmProgramArtifacts {
             tables: WasmProgramTables {
+                program_decode: self.program_decode,
                 pc_rom: self.pc_rom,
                 pc_edge_kinds: self.pc_edge_kinds,
                 pc_function_refs: self.pc_function_refs,
@@ -422,6 +456,7 @@ impl ParsedWasmArtifactsBuilder {
                         }
                         _ => decode_opcode(&operator),
                     };
+                    let memory = decode_memory_opcode(&operator);
                     let call_return_pc = match &operator {
                         wasmparser::Operator::Call { .. } | wasmparser::Operator::CallIndirect { .. } => {
                             Some(reader.original_position() as u64)
@@ -439,6 +474,50 @@ impl ParsedWasmArtifactsBuilder {
                         }
                         _ => (None, None),
                     };
+                    if let Some((opcode, immediate)) = decoded {
+                        let i64_const = match operator {
+                            wasmparser::Operator::I64Const { value } => Some(value as u64),
+                            _ => None,
+                        };
+                        let memory_offset = match memory {
+                            Some(memory) => Self::narrow_u32(memory.offset, "program_decode.memory_offset")?,
+                            None => 0,
+                        };
+                        self.program_decode.push(WasmProgramDecodeEntry {
+                            pc: pc_before,
+                            opcode_code: u32::from(opcode_code(opcode)),
+                            local_index: match opcode {
+                                WasmOpcode::LocalGet | WasmOpcode::LocalSet | WasmOpcode::LocalTee => {
+                                    immediate.unwrap_or(0)
+                                }
+                                _ => 0,
+                            },
+                            global_index: match opcode {
+                                WasmOpcode::GlobalGet | WasmOpcode::GlobalSet => immediate.unwrap_or(0),
+                                _ => 0,
+                            },
+                            table_id: match opcode {
+                                WasmOpcode::TableGet
+                                | WasmOpcode::TableSet
+                                | WasmOpcode::TableSize
+                                | WasmOpcode::CallIndirect => immediate.unwrap_or(0),
+                                _ => 0,
+                            },
+                            memory_offset,
+                            call_indirect_type_index: call_indirect_type_index.unwrap_or(0),
+                            call_indirect_expected_type_id: expected_type_id.unwrap_or(0),
+                            i32_const_value: match opcode {
+                                WasmOpcode::I32Const => immediate.unwrap_or(0),
+                                _ => 0,
+                            },
+                            i64_const_value_lo: i64_const.map_or(0, |value| value as u32),
+                            i64_const_value_hi: i64_const.map_or(0, |value| (value >> 32) as u32),
+                            ref_func_ref: match opcode {
+                                WasmOpcode::RefFunc => immediate.unwrap_or(0),
+                                _ => 0,
+                            },
+                        });
+                    }
                     let pc_edge_kind = match &operator {
                         wasmparser::Operator::Return => WasmPcEdgeKind::ReturnLike,
                         wasmparser::Operator::End if is_function_end => WasmPcEdgeKind::ReturnLike,
@@ -454,7 +533,7 @@ impl ParsedWasmArtifactsBuilder {
                         (self.defined_function_index, offset),
                         DecodedOpcode {
                             text: format!("{operator:?}"),
-                            memory: decode_memory_opcode(&operator),
+                            memory,
                             decoded,
                             control: decode_control_opcode(&operator),
                             pc_edge_kind,

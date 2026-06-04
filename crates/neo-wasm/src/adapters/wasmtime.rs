@@ -24,7 +24,7 @@ use runtime_read::{build_debug_function_id_map, build_store_debug_function_id_ma
 // Public path `adapters::wasmtime::traces_from_wasmtime_steps` is preserved via this re-export
 // (also brings the name into scope for the WasmTraceSource impls and component wrappers below).
 pub use normalize::traces_from_wasmtime_steps;
-pub use parse::WasmProgramArtifacts;
+pub use parse::{WasmProgramArtifacts, WasmProgramDecodeEntry, WasmProgramTables};
 
 #[derive(Clone, Debug, Eq, PartialEq, Default)]
 pub struct WasmtimeTraceStep {

@@ -76,6 +76,28 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts, initial_
         preload.insert("locals", address.clone(), value);
         preload.insert("locals_hi", address, 0);
     }
+    for entry in &tables.program_decode {
+        let pc = narrow(entry.pc, "program_decode.pc");
+        preload.insert("program_opcodes", vec![pc], entry.opcode_code);
+        preload.insert("program_local_indices", vec![pc], entry.local_index);
+        preload.insert("program_global_indices", vec![pc], entry.global_index);
+        preload.insert("program_table_ids", vec![pc], entry.table_id);
+        preload.insert("program_memory_offsets", vec![pc], entry.memory_offset);
+        preload.insert(
+            "program_call_indirect_type_indices",
+            vec![pc],
+            entry.call_indirect_type_index,
+        );
+        preload.insert(
+            "program_call_indirect_expected_type_ids",
+            vec![pc],
+            entry.call_indirect_expected_type_id,
+        );
+        preload.insert("program_i32_const_values", vec![pc], entry.i32_const_value);
+        preload.insert("program_i64_const_values_lo", vec![pc], entry.i64_const_value_lo);
+        preload.insert("program_i64_const_values_hi", vec![pc], entry.i64_const_value_hi);
+        preload.insert("program_ref_func_refs", vec![pc], entry.ref_func_ref);
+    }
     for &(index, lo, hi) in &tables.globals_init {
         preload.insert("globals", vec![index], lo);
         preload.insert("globals_hi", vec![index], hi);
@@ -366,7 +388,8 @@ fn activation_active(
 }
 
 fn init_mode(memory_name: &str) -> DebugInitMode {
-    memory_init_mode(memory_name).unwrap_or(DebugInitMode::FirstReadDefines)
+    memory_init_mode(memory_name)
+        .unwrap_or_else(|| panic!("memory semantics missing init-mode coverage for non-ROM memory `{memory_name}`"))
 }
 
 fn memory_init_mode(memory_name: &str) -> Option<DebugInitMode> {
@@ -377,7 +400,7 @@ fn memory_init_mode(memory_name: &str) -> Option<DebugInitMode> {
 
 fn assert_all_memory_specs_have_init_modes(layout: &WasmLookupBindingLayout) -> Result<(), String> {
     for memory in &layout.memories {
-        if memory_init_mode(memory.name).is_none() {
+        if !memory.is_rom && memory_init_mode(memory.name).is_none() {
             return Err(format!(
                 "memory semantics missing init-mode coverage for `{}`",
                 memory.name
@@ -408,15 +431,4 @@ const MEMORY_INIT_MODES: &[(&str, DebugInitMode)] = &[
     ("globals_hi", DebugInitMode::ZeroReadDefault),
     ("tables", DebugInitMode::FirstReadDefines),
     ("table_sizes", DebugInitMode::FirstReadDefines),
-    ("function_types", DebugInitMode::FirstReadDefines),
-    ("function_param_counts", DebugInitMode::FirstReadDefines),
-    ("function_result_counts", DebugInitMode::FirstReadDefines),
-    ("function_local_counts", DebugInitMode::FirstReadDefines),
-    ("function_guest_flags", DebugInitMode::FirstReadDefines),
-    ("call_targets", DebugInitMode::FirstReadDefines),
-    ("module_types", DebugInitMode::FirstReadDefines),
-    ("function_entries", DebugInitMode::FirstReadDefines),
-    ("pc_edge_kinds", DebugInitMode::FirstReadDefines),
-    ("pc_function_refs", DebugInitMode::FirstReadDefines),
-    ("pc_rom", DebugInitMode::FirstReadDefines),
 ];

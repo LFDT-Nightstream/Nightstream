@@ -202,7 +202,7 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder, layout: &WasmLookupBind
     );
 
     b.with_tag(always("dynamic call stack arity"), |b| {
-        push_dynamic_call_stack_arity_constraints(b, &control, &function_types, &table);
+        push_dynamic_call_stack_arity_constraints(b, &control, &call, &function_types, &table);
     });
 }
 
@@ -296,12 +296,16 @@ fn push_call_indirect_type_constraints(
 fn push_dynamic_call_stack_arity_constraints(
     b: &mut R1csBuilder,
     control: &ControlColumns,
+    call: &CallColumns,
     function_types: &FunctionTypeColumns,
     table: &TableColumns,
 ) {
+    let call_selector = selector_col(WasmOpcode::Call).unwrap();
+    let call_indirect = selector_col(WasmOpcode::CallIndirect).unwrap();
+
     push_gated_linear_zero(
         b,
-        selector_col(WasmOpcode::Call).unwrap(),
+        call_selector,
         [
             (idx(control.stack_reads), F::ONE),
             (idx(function_types.param_count), -F::ONE),
@@ -309,27 +313,42 @@ fn push_dynamic_call_stack_arity_constraints(
     );
     push_gated_linear_zero(
         b,
-        selector_col(WasmOpcode::Call).unwrap(),
-        [(idx(control.stack_writes), F::ONE)],
-    );
-    push_gated_linear_zero(
-        b,
-        selector_col(WasmOpcode::CallIndirect).unwrap(),
+        call_indirect,
         [(idx(function_types.function_ref), F::ONE), (idx(table.value), -F::ONE)],
     );
     push_gated_linear_zero(
         b,
-        selector_col(WasmOpcode::CallIndirect).unwrap(),
+        call_indirect,
         [
             (idx(control.stack_reads), F::ONE),
             (idx(function_types.param_count), -F::ONE),
             (COL_ONE, -F::ONE),
         ],
     );
-    push_gated_linear_zero(
-        b,
-        selector_col(WasmOpcode::CallIndirect).unwrap(),
+
+    // stack_writes on call rows splits on guest vs host:
+    // - guest call (call_stack_push_present == 1): results land later on
+    //   the matching Return/End, so the call row itself writes 0.
+    // - host call (Call/CallIndirect selector == 1, push_present == 0):
+    //   the host's results land on this row, so writes == result_count.
+    // This pins the host call's stack footprint to its declared type
+    // signature; the host cannot push more results than result_count.
+    b.push_row(
+        [(idx(call.call_stack_push_present), F::ONE)],
         [(idx(control.stack_writes), F::ONE)],
+        [],
+    );
+    b.push_row(
+        [
+            (call_selector, F::ONE),
+            (call_indirect, F::ONE),
+            (idx(call.call_stack_push_present), -F::ONE),
+        ],
+        [
+            (idx(control.stack_writes), F::ONE),
+            (idx(function_types.result_count), -F::ONE),
+        ],
+        [],
     );
 }
 

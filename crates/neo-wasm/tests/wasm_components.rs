@@ -143,11 +143,8 @@ fn check_component_trace(
     artifacts: &neo_wasm::WasmProgramArtifacts,
     run: &neo_wasm::WasmtimeTraceRun,
 ) {
-    // TODO: Add CCS row checks once lowered component host-call rows have a
-    // protocol model. The import fixture currently includes a host-backed
-    // `call` whose stack-result behavior is accepted by lookup/memory sanity
-    // but is not represented by the guest-call CCS arity constraints.
     common::sanity_check_trace(trace, artifacts, &run.initial_locals);
+    common::ccs_check_trace(trace);
 }
 
 #[test]

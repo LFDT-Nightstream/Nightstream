@@ -65,7 +65,6 @@ fn step(
             _ => WasmPcEdgeKind::Static,
         },
         wide_values_enabled: opcode_info_from_code(opcode_code).opcode.uses_wide_values(),
-        opcode_code,
         opcode: opcode_info_from_code(opcode_code).opcode,
         info: opcode_info_from_code(opcode_code),
         stack_reads_override: None,

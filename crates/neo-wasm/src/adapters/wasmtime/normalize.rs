@@ -1079,7 +1079,6 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
             control_choice: current.control_choice,
             pc_edge_kind: current.pc_edge_kind,
             wide_values_enabled: current.wide_values_enabled,
-            opcode_code: current.info.code,
             opcode: current.opcode,
             info: current.info,
             stack_reads_override: current.stack_reads_override,
@@ -1218,7 +1217,6 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                     pc_edge_kind: WasmPcEdgeKind::Static,
                     wide_values_enabled: read_lane_hi(&current.operand_stack_hi, stack_reads, param_index)
                         .is_some_and(|hi| hi != 0),
-                    opcode_code: 0,
                     opcode: WasmOpcode::Nop,
                     info: opcode_info_from_code(opcode_code(WasmOpcode::Nop)),
                     stack_reads_override: Some(0),

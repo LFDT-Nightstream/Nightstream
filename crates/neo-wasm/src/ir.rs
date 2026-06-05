@@ -168,13 +168,20 @@ pub struct WasmStepTrace {
     pub row_kind: WasmRowKind,
     pub state_before: WasmStepState,
     pub state_after: WasmStepState,
+    /// Branch/discriminant used when one opcode has multiple valid next-PC edges.
+    /// For example, `br_if` chooses taken vs fallthrough, and `br_table`
+    /// chooses one table arm/default. Static fallthrough rows use 0.
     pub control_choice: u32,
     pub pc_edge_kind: WasmPcEdgeKind,
     pub wide_values_enabled: bool,
-    pub opcode_code: u16,
     pub opcode: WasmOpcode,
     pub info: WasmOpcodeInfo,
+    /// Dynamic stack read count when opcode metadata is not enough.
+    /// Calls use callee arity; `call_indirect` also reads the table index.
     pub stack_reads_override: Option<u8>,
+    /// Dynamic stack write count when opcode metadata is not enough.
+    /// Guest calls produce their return values in later guest rows, while host
+    /// calls write results directly on this row.
     pub stack_writes_override: Option<u8>,
     pub output_captured: bool,
     /// Normalized function reference for the currently executing frame.

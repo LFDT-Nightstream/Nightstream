@@ -263,7 +263,6 @@ pub fn padding_step_after(prev: &WasmStepTrace) -> WasmStepTrace {
         // opcode_code = 0: no opcode selector fires on this row (the
         // selector one-hot demands `sum(selectors) = is_program_row`,
         // which is 0 for padding).
-        opcode_code: 0,
         opcode: WasmOpcode::Nop,
         info: opcode_info_from_code(0),
         stack_reads_override: Some(0),

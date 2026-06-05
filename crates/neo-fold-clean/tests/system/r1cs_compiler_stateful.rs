@@ -28,6 +28,7 @@ use neo_fold_clean::frontends::r1cs_f_prime::{
 };
 use neo_fold_clean::paper::digest::{digest32_as_fields, digest_fields_as_digest32};
 use neo_fold_clean::paper::f_prime::poseidon_trace::encode_poseidon_trace;
+use neo_fold_clean::paper::f_prime::r1cs::F_PRIME_ENC_INST_OFFSET;
 
 use support::r1cs_compiler_fixtures::{
     assignment_one_product, assignment_one_product_with_extras, make_stateful_plan, make_stateful_plan_with_anchor,
@@ -786,10 +787,11 @@ fn validate_decider_statement(
         prep.optimized_cache(),
         prep.structure_digest(),
         &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
         &prep.vk,
         prep.public_input_len,
+        prep.enforces_f_prime_recursive_link(),
         prep.semantic_state_mode(),
         prep.initial_semantic_state_digest(),
         statement,
@@ -901,6 +903,46 @@ fn r1cs_stateful_linked_fibonacci_chain_verifies_end_to_end() {
 
     let statement = neo_fold_clean::build_decider_statement(&fixture.prep.prep, &fixture.audit);
     validate_decider_statement(&fixture.prep.prep, &statement).expect("decider preflight accepts stateful audit");
+}
+
+#[test]
+fn r1cs_stateful_audit_rejects_intermediate_public_input_not_linked_to_prior_x_out() {
+    let mut fixture = build_linked_fibonacci_fixture();
+    fixture.audit.public_batches[1][0].x[F_PRIME_ENC_INST_OFFSET] += F::ONE;
+
+    let err = neo_fold_clean::verify_uncompressed_audit(&fixture.prep.prep, &fixture.audit)
+        .expect_err("audit replay must reject an intermediate F' public input not linked to prior x_out");
+    assert!(
+        matches!(
+            err,
+            neo_fold_clean::Error::Decider(
+                neo_fold_clean::paper::decider::Error::TerminalLatestPublicInputMismatch { index: 0 }
+            )
+        ),
+        "expected intermediate F' latest-link mismatch, got {err:?}"
+    );
+}
+
+#[test]
+fn r1cs_stateful_terminal_fold_rejects_latest_public_input_not_linked_to_pre_final_x_out() {
+    let fixture = build_single_fibonacci_fixture();
+    let mut finished =
+        neo_fold_clean::finish_uncompressed(&fixture.prep.prep, fixture.audit).expect("finish single-step Fibonacci");
+    let final_fold = finished
+        .final_fold
+        .as_mut()
+        .expect("single-step proof carries terminal final_fold");
+    final_fold.terminal_inputs.latest.instances[0].claim.x[F_PRIME_ENC_INST_OFFSET] += F::ONE;
+
+    let err = neo_fold_clean::verify_uncompressed(&fixture.prep.prep, &finished)
+        .expect_err("terminal verifier must reject F' public input not linked to pre-final x_out");
+    assert!(
+        matches!(
+            err,
+            neo_fold_clean::Error::TerminalLatestPublicInputMismatch { index: 0 }
+        ),
+        "expected terminal F' latest-link mismatch, got {err:?}"
+    );
 }
 
 #[test]

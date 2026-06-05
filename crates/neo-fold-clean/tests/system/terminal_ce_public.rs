@@ -13,7 +13,7 @@ use neo_fold_clean::paper::digest::{terminal_ce_public_digest, terminal_ce_relat
 use neo_fold_clean::paper::terminal_ce::{
     TerminalCeProof, TerminalCePublic, TerminalCePublicError, TerminalCeVerifyError,
 };
-use neo_fold_clean::{config, preprocess, CeClaim, DecMixer, Params, Preprocessing, RlcMixer};
+use neo_fold_clean::{config, preprocess, CeClaim, Params, Preprocessing};
 use neo_math::{KExtensions, D, F, K};
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
@@ -51,16 +51,10 @@ fn two_col_terminal_ce_preprocessing() -> Preprocessing {
     m0[(0, 0)] = F::ONE;
     let structure =
         CcsStructure::new(vec![m0], SparsePoly::new(1, vec![])).expect("two-column terminal CE structure fixture");
-    let params = config::r1cs_params(structure.n, structure.m).expect("two-column terminal CE params");
+    let params = config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
+        .expect("two-column terminal CE params");
     support::install_ajtai_module(&params, &structure);
-    preprocess(
-        params,
-        structure,
-        support::mix_rhos_commits as RlcMixer,
-        support::combine_b_pows as DecMixer,
-        Some(1),
-    )
-    .expect("two-column terminal CE preprocessing")
+    preprocess(params, structure, Some(1)).expect("two-column terminal CE preprocessing")
 }
 
 fn terminal_child_fixture() -> CeClaim {

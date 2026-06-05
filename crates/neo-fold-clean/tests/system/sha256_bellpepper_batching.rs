@@ -737,7 +737,8 @@ fn sha256_production_core_serial_quad_prepared_key_amortization_snapshot() {
     let structure_n = derived.structure().ccs.n;
     let structure_m = derived.structure().ccs.m;
     let structure_t = derived.structure().ccs.t();
-    let params = Params::for_r1cs_shape(structure_n).expect("packed serial-quad production params");
+    let params = Params::for_ccs_shape(structure_n, structure_t, derived.structure().ccs.max_degree())
+        .expect("packed serial-quad production params");
 
     let start = Instant::now();
     let prepared = r1cs_f_prime::prepare_derived_structure(derived).expect("packed serial-quad prepare");
@@ -967,7 +968,12 @@ fn time_ordered_batch_sha_statements(artifacts: &[BellpepperCcs], batch_size: us
     }
 
     let (plan, structure_probe) = sha256_production_core_lifecycle_plan_for_r1cs(&batches[0].r1cs);
-    let params = Params::for_r1cs_shape(structure_probe.ccs.n).expect("ordered-batch production params");
+    let params = Params::for_ccs_shape(
+        structure_probe.ccs.n,
+        structure_probe.ccs.t(),
+        structure_probe.ccs.max_degree(),
+    )
+    .expect("ordered-batch production params");
 
     let start = Instant::now();
     let prep = r1cs_f_prime::preprocess_sparse_seeded_with_params(&batches[0].r1cs, &plan, params, SHA256_AJTAI_SEED)
@@ -1031,7 +1037,8 @@ fn time_serial_sha_packed_state_transitions(chunks: &[BellpepperCcs], initial_st
     let structure_n = derived.structure().ccs.n;
     let structure_m = derived.structure().ccs.m;
     let structure_t = derived.structure().ccs.t();
-    let params = Params::for_r1cs_shape(structure_n).expect("packed serial-pair production params");
+    let params = Params::for_ccs_shape(structure_n, structure_t, derived.structure().ccs.max_degree())
+        .expect("packed serial-pair production params");
 
     let start = Instant::now();
     let prepared = r1cs_f_prime::prepare_derived_structure(derived).expect("packed serial-pair prepare");

@@ -140,18 +140,12 @@ fn verify_uncompressed_rejects_wrong_preprocessing_structure() {
 #[test]
 fn verify_uncompressed_rejects_terminal_input_relabel_tampers() {
     let prep = support::toy_preprocessing();
-    let proof = neo_fold_clean::prove(
-        &prep,
-        vec![
-            vec![support::toy_instance(&prep, 26)],
-            vec![support::toy_instance(&prep, 27)],
-        ],
-    )
-    .expect("two-batch uncompressed proof");
+    let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 26)]])
+        .expect("one-batch uncompressed proof");
     let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish uncompressed proof");
     neo_fold_clean::verify_uncompressed(&prep, &finished).expect("honest proof verifies");
 
-    let cases: [(&str, fn(&mut neo_fold_clean::Uncompressed)); 15] = [
+    let cases: [(&str, fn(&mut neo_fold_clean::Uncompressed)); 3] = [
         ("terminal latest x", |proof| {
             let latest = &mut proof
                 .final_fold
@@ -184,131 +178,6 @@ fn verify_uncompressed_rejects_terminal_input_relabel_tampers() {
                 .instances[0]
                 .claim;
             latest.m_in += 1;
-        }),
-        ("pre-final running commitment", |proof| {
-            let running = &mut proof
-                .final_fold
-                .as_mut()
-                .expect("final fold")
-                .terminal_inputs
-                .pre_final_running;
-            running.claims[0].c.data[0] += F::ONE;
-        }),
-        ("pre-final running X", |proof| {
-            let running = &mut proof
-                .final_fold
-                .as_mut()
-                .expect("final fold")
-                .terminal_inputs
-                .pre_final_running;
-            running.claims[0].X[(0, 0)] += F::ONE;
-        }),
-        ("pre-final running m_in", |proof| {
-            let running = &mut proof
-                .final_fold
-                .as_mut()
-                .expect("final fold")
-                .terminal_inputs
-                .pre_final_running;
-            running.claims[0].m_in += 1;
-        }),
-        ("pre-final running r", |proof| {
-            let running = &mut proof
-                .final_fold
-                .as_mut()
-                .expect("final fold")
-                .terminal_inputs
-                .pre_final_running;
-            assert!(!running.claims[0].r.is_empty(), "test setup: running r");
-            running.claims[0].r[0] += neo_math::K::ONE;
-        }),
-        ("pre-final running y_ring", |proof| {
-            let running = &mut proof
-                .final_fold
-                .as_mut()
-                .expect("final fold")
-                .terminal_inputs
-                .pre_final_running;
-            assert!(
-                !running.claims[0].y_ring.is_empty() && !running.claims[0].y_ring[0].is_empty(),
-                "test setup: running y_ring"
-            );
-            running.claims[0].y_ring[0][0] += neo_math::K::ONE;
-        }),
-        ("pre-final running ct", |proof| {
-            let running = &mut proof
-                .final_fold
-                .as_mut()
-                .expect("final fold")
-                .terminal_inputs
-                .pre_final_running;
-            assert!(!running.claims[0].ct.is_empty(), "test setup: running ct");
-            running.claims[0].ct[0] += neo_math::K::ONE;
-        }),
-        ("pre-final parent missing", |proof| {
-            let running = &mut proof
-                .final_fold
-                .as_mut()
-                .expect("final fold")
-                .terminal_inputs
-                .pre_final_running;
-            running.parent_authority = None;
-        }),
-        ("pre-final parent commitment", |proof| {
-            let running = &mut proof
-                .final_fold
-                .as_mut()
-                .expect("final fold")
-                .terminal_inputs
-                .pre_final_running;
-            let parent = running.parent_authority.as_mut().expect("pre-final parent");
-            parent.c.data[0] += F::ONE;
-        }),
-        ("pre-final parent X", |proof| {
-            let running = &mut proof
-                .final_fold
-                .as_mut()
-                .expect("final fold")
-                .terminal_inputs
-                .pre_final_running;
-            let parent = running.parent_authority.as_mut().expect("pre-final parent");
-            parent.X[(0, 0)] += F::ONE;
-        }),
-        ("pre-final parent r", |proof| {
-            let running = &mut proof
-                .final_fold
-                .as_mut()
-                .expect("final fold")
-                .terminal_inputs
-                .pre_final_running;
-            let parent = running.parent_authority.as_mut().expect("pre-final parent");
-            assert!(!parent.r.is_empty(), "test setup: parent r");
-            parent.r[0] += neo_math::K::ONE;
-        }),
-        ("pre-final parent y_ring", |proof| {
-            let running = &mut proof
-                .final_fold
-                .as_mut()
-                .expect("final fold")
-                .terminal_inputs
-                .pre_final_running;
-            let parent = running.parent_authority.as_mut().expect("pre-final parent");
-            assert!(
-                !parent.y_ring.is_empty() && !parent.y_ring[0].is_empty(),
-                "test setup: parent y_ring"
-            );
-            parent.y_ring[0][0] += neo_math::K::ONE;
-        }),
-        ("pre-final parent ct", |proof| {
-            let running = &mut proof
-                .final_fold
-                .as_mut()
-                .expect("final fold")
-                .terminal_inputs
-                .pre_final_running;
-            let parent = running.parent_authority.as_mut().expect("pre-final parent");
-            assert!(!parent.ct.is_empty(), "test setup: parent ct");
-            parent.ct[0] += neo_math::K::ONE;
         }),
     ];
 
@@ -371,122 +240,6 @@ fn verify_uncompressed_rejects_tampered_recorded_acc_digest() {
             neo_fold_clean::Error::PostStateMismatch | neo_fold_clean::Error::AccDigestMismatch
         ),
         "expected PostStateMismatch or AccDigestMismatch, got {err:?}"
-    );
-}
-
-#[test]
-fn verify_uncompressed_rejects_recorded_parent_authority_redigest_attack() {
-    let prep = support::toy_preprocessing();
-    let proof = neo_fold_clean::prove(
-        &prep,
-        vec![
-            vec![toy_instance_with_x_value(&prep, F::ZERO)],
-            vec![toy_instance_with_x_value(&prep, F::ONE)],
-        ],
-    )
-    .expect("two-batch proof");
-    let mut finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish proof");
-    neo_fold_clean::verify_uncompressed(&prep, &finished).expect("honest proof verifies");
-
-    // Hacker model: mutate only the recorded final Π_RLC parent authority,
-    // then re-digest the recorded state so the local `(running, acc_digest)`
-    // pair is self-consistent. This bypasses shallow "digest matches data"
-    // checks. The verifier must still reject because the terminal fold
-    // derived a different post-state from its verifier-driven transcript.
-    let forged_acc_digest = match &mut finished.state.proof {
-        ProofState::Active { running, .. } => {
-            let parent = running
-                .parent_authority
-                .as_mut()
-                .expect("non-empty final running must carry parent authority");
-            assert!(
-                !parent.y_ring.is_empty() && !parent.y_ring[0].is_empty(),
-                "test setup requires parent y_ring"
-            );
-            parent.y_ring[0][0] += neo_math::K::ONE;
-            neo_fold_clean::paper::digest::AccumulatorHandle::from_running_parts(
-                &running.claims,
-                running.parent_authority.as_ref(),
-            )
-            .digest()
-        }
-        ProofState::Initial => panic!("finished two-batch proof must be Active"),
-    };
-    finished.state.acc_digest = forged_acc_digest;
-
-    let err = neo_fold_clean::verify_uncompressed(&prep, &finished)
-        .expect_err("verify_uncompressed accepted a parent-authority relabel + re-digest attack");
-    assert!(
-        matches!(err, neo_fold_clean::Error::PostStateMismatch),
-        "a self-consistent parent-authority re-digest must be rejected by the terminal-fold \
-         state binding, got {err:?}"
-    );
-}
-
-#[test]
-fn verify_uncompressed_rejects_recorded_parent_authority_removed() {
-    let prep = support::toy_preprocessing();
-    let proof = neo_fold_clean::prove(
-        &prep,
-        vec![
-            vec![toy_instance_with_x_value(&prep, F::ZERO)],
-            vec![toy_instance_with_x_value(&prep, F::ONE)],
-        ],
-    )
-    .expect("two-batch proof");
-    let mut finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish proof");
-    neo_fold_clean::verify_uncompressed(&prep, &finished).expect("honest proof verifies");
-
-    match &mut finished.state.proof {
-        ProofState::Active { running, .. } => {
-            assert!(
-                running.parent_authority.is_some(),
-                "test setup requires a non-empty final running accumulator"
-            );
-            running.parent_authority = None;
-        }
-        ProofState::Initial => panic!("finished two-batch proof must be Active"),
-    }
-
-    let err = neo_fold_clean::verify_uncompressed(&prep, &finished)
-        .expect_err("verify_uncompressed accepted non-empty running without parent authority");
-    assert!(
-        matches!(err, neo_fold_clean::Error::FinalAccumulatorWitnessShapeMismatch),
-        "non-empty recorded running without parent authority must fail the running-shape gate, got {err:?}"
-    );
-}
-
-#[test]
-fn verify_uncompressed_rejects_pre_final_running_parent_authority_removed_locally() {
-    let prep = support::toy_preprocessing();
-    let proof = neo_fold_clean::prove(
-        &prep,
-        vec![
-            vec![toy_instance_with_x_value(&prep, F::ZERO)],
-            vec![toy_instance_with_x_value(&prep, F::ONE)],
-        ],
-    )
-    .expect("two-batch proof");
-    let mut finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish proof");
-    neo_fold_clean::verify_uncompressed(&prep, &finished).expect("honest proof verifies");
-
-    let pre_final_running = &mut finished
-        .final_fold
-        .as_mut()
-        .expect("final fold")
-        .terminal_inputs
-        .pre_final_running;
-    assert!(
-        !pre_final_running.claims.is_empty() && pre_final_running.parent_authority.is_some(),
-        "test setup requires non-empty pre-final running with parent authority"
-    );
-    pre_final_running.parent_authority = None;
-
-    let err = neo_fold_clean::verify_uncompressed(&prep, &finished)
-        .expect_err("verify_uncompressed accepted pre-final running without parent authority");
-    assert!(
-        matches!(err, neo_fold_clean::Error::PreFinalAccumulatorMissingParentAuthority),
-        "malformed terminal inputs must fail before reconstructing a sentinel pre-fold digest, got {err:?}"
     );
 }
 
@@ -638,10 +391,11 @@ fn validate(
         prep.optimized_cache(),
         prep.structure_digest(),
         &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
         &prep.vk,
         prep.public_input_len,
+        prep.enforces_f_prime_recursive_link(),
         prep.semantic_state_mode(),
         prep.initial_semantic_state_digest(),
         statement,

@@ -141,7 +141,7 @@ struct FibIvcReference {
 /// machine and thermal state.
 const FIB_IVC_REFERENCE: FibIvcReference = FibIvcReference {
     kappa: 18,
-    lambda: 107,
+    lambda: 106,
     params_m: 1_073_741_824,
     b: 2,
     k_rho: 14,

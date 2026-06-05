@@ -22,7 +22,9 @@ use neo_fold_clean::paper::digest::{
 };
 use neo_fold_clean::paper::f_prime::r1cs::{encode_f_prime_public_input, F_PRIME_PUBLIC_INPUT_LEN};
 use neo_fold_clean::paper::nifs::NifsProof;
-use neo_fold_clean::{extend, finish_uncompressed_with_audit, prove, verify_uncompressed, CcsInstance, FoldSchedule};
+use neo_fold_clean::{
+    extend, finish_uncompressed_with_audit, prove, verify_uncompressed_audit, CcsInstance, FoldSchedule,
+};
 
 const LIMBS: usize = 12;
 const DECIDER_LIMBS: usize = 3;
@@ -371,8 +373,8 @@ fn f_prime_peek_next_state(
         prep.optimized_cache(),
         prep.structure_digest(),
         &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
         &prep.vk,
         state.clone(),
         vec![batch],
@@ -541,7 +543,7 @@ fn fibonacci_bits_perf_snapshot() {
     let finish_ms = finish_start.elapsed().as_secs_f64() * 1000.0;
 
     let verify_start = Instant::now();
-    verify_uncompressed(&prep, &finished.proof).expect("verify_uncompressed");
+    verify_uncompressed_audit(&prep, &finished).expect("verify_uncompressed_audit");
     let verify_ms = verify_start.elapsed().as_secs_f64() * 1000.0;
 
     let total_ms = wall_start.elapsed().as_secs_f64() * 1000.0;
@@ -629,8 +631,8 @@ fn fibonacci_decider_r1cs_shape_snapshot() {
             prep.optimized_cache(),
             prep.structure_digest(),
             &prep.log,
-            prep.mix_rhos_commits,
-            prep.combine_b_pows,
+            prep.mix_rhos_commits(),
+            prep.combine_b_pows(),
             &prep.vk,
             state,
             vec![batch],
@@ -656,7 +658,7 @@ fn fibonacci_decider_r1cs_shape_snapshot() {
     let finish_ms = finish_start.elapsed().as_secs_f64() * 1000.0;
 
     let verify_start = Instant::now();
-    verify_uncompressed(&prep, &finished.proof).expect("verify_uncompressed");
+    verify_uncompressed_audit(&prep, &finished).expect("verify_uncompressed_audit");
     let verify_ms = verify_start.elapsed().as_secs_f64() * 1000.0;
 
     let synth_start = Instant::now();

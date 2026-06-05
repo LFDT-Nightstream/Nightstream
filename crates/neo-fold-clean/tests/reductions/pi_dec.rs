@@ -14,12 +14,13 @@ use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
 use neo_fold_clean::engine::transcript::Transcript;
 use neo_fold_clean::paper::construction2::RunningInstance;
 use neo_fold_clean::paper::nifs;
+use neo_fold_clean::paper::pi_dec;
 use neo_fold_clean::paper::reductions::pi_dec_circuit::{
     alloc_dec_inputs, enforce_dec_v, enforce_dec_v_strict, enforce_r_consistency, enforce_x_bitness, DecInputWires,
 };
 use neo_math::ring::D;
 use neo_math::{F, K};
-use p3_field::{Field, PrimeCharacteristicRing};
+use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 
 #[test]
 fn pi_dec_circuit_accepts_honest_decomposition() {
@@ -147,6 +148,28 @@ fn pi_dec_circuit_strict_accepts_honest_decomposition() {
 }
 
 #[test]
+fn pi_dec_circuit_strict_rejects_noncanonical_fold_digest_limb_alias() {
+    let (proof, _claims) = drive_nifs(31);
+
+    let mut parent = proof.pi_rlc.combined.clone();
+    let mut children = proof.pi_dec.children.clone();
+    parent.fold_digest[..8].copy_from_slice(&F::ORDER_U64.to_le_bytes());
+    for child in &mut children {
+        child.fold_digest[..8].copy_from_slice(&F::ORDER_U64.to_le_bytes());
+    }
+
+    let prep = support::toy_preprocessing();
+    let mut builder = R1csBuilder::new();
+    let wires = alloc_dec_inputs(&mut builder, &parent, &children);
+    enforce_dec_v_strict(&mut builder, &prep.params, &wires).expect("strict DEC emit");
+
+    assert!(
+        !builder.is_satisfied(),
+        "strict Π_DEC.V accepted a noncanonical fold_digest limb aliasing to zero"
+    );
+}
+
+#[test]
 fn pi_dec_circuit_strict_leaves_only_y_zcol_sidecars_unconstrained() {
     // Π_DEC owns the b-ary parent→children recomposition for commitment, X,
     // r, y_ring, ct, s_col, and fold_digest. It intentionally does not own
@@ -199,6 +222,204 @@ fn pi_dec_circuit_strict_rejects_child_ct_not_derived_from_y_ring() {
     assert!(
         !builder.is_satisfied(),
         "strict Π_DEC.V accepted child ct that no longer equals y_ring[j][lane=0]"
+    );
+}
+
+#[test]
+fn pi_dec_native_rejects_child_ct_not_derived_from_y_ring() {
+    let (proof, _claims) = drive_nifs(24);
+
+    let parent = proof.pi_rlc.combined;
+    let mut children = proof.pi_dec.children;
+    assert!(!children[0].ct.is_empty(), "fixture must expose child ct");
+    children[0].ct[0] += K::ONE;
+
+    let prep = support::toy_preprocessing();
+    let err = pi_dec::verify(
+        &prep.params,
+        prep.structure(),
+        prep.combine_b_pows(),
+        &parent,
+        &pi_dec::Proof { children },
+    )
+    .expect_err("native Π_DEC.V accepted child ct that no longer equals y_ring[j][lane=0]");
+    assert!(
+        matches!(err, pi_dec::Error::CtConsistency("child")),
+        "expected child ct-consistency rejection, got {err:?}"
+    );
+}
+
+#[test]
+fn pi_dec_native_rejects_child_s_col_relabel() {
+    let (proof, _claims) = drive_nifs(47);
+
+    let parent = proof.pi_rlc.combined;
+    let mut children = proof.pi_dec.children;
+    assert!(!children[0].s_col.is_empty(), "fixture must expose child s_col");
+    children[0].s_col[0] += K::ONE;
+
+    let prep = support::toy_preprocessing();
+    let err = pi_dec::verify(
+        &prep.params,
+        prep.structure(),
+        prep.combine_b_pows(),
+        &parent,
+        &pi_dec::Proof { children },
+    )
+    .expect_err("native Π_DEC.V accepted a child s_col that diverges from parent.s_col");
+    assert!(
+        matches!(err, pi_dec::Error::SColConsistency),
+        "expected s_col-consistency rejection, got {err:?}"
+    );
+}
+
+#[test]
+fn pi_dec_native_rejects_noncanonical_fold_digest_limb_alias() {
+    let (proof, _claims) = drive_nifs(52);
+
+    let mut parent = proof.pi_rlc.combined;
+    let mut children = proof.pi_dec.children;
+    let mut noncanonical_zero = [0u8; 32];
+    noncanonical_zero[..8].copy_from_slice(&F::ORDER_U64.to_le_bytes());
+    parent.fold_digest = noncanonical_zero;
+    for child in &mut children {
+        child.fold_digest = noncanonical_zero;
+    }
+
+    let prep = support::toy_preprocessing();
+    let err = pi_dec::verify(
+        &prep.params,
+        prep.structure(),
+        prep.combine_b_pows(),
+        &parent,
+        &pi_dec::Proof { children },
+    )
+    .expect_err("native Π_DEC.V accepted a noncanonical fold_digest limb aliasing to zero");
+    assert!(
+        matches!(
+            err,
+            pi_dec::Error::FoldDigestCanonicality {
+                owner: "parent",
+                lane: 0
+            }
+        ),
+        "expected parent fold-digest canonicality rejection, got {err:?}"
+    );
+}
+
+#[test]
+fn pi_dec_native_rejects_extra_self_consistent_s_col_limb() {
+    let (proof, _claims) = drive_nifs(48);
+
+    let mut parent = proof.pi_rlc.combined;
+    let mut children = proof.pi_dec.children;
+    parent.s_col.push(K::ZERO);
+    for child in &mut children {
+        child.s_col.push(K::ZERO);
+    }
+
+    let prep = support::toy_preprocessing();
+    let err = pi_dec::verify(
+        &prep.params,
+        prep.structure(),
+        prep.combine_b_pows(),
+        &parent,
+        &pi_dec::Proof { children },
+    )
+    .expect_err("native Π_DEC.V accepted an extra self-consistent s_col limb");
+    assert!(
+        matches!(
+            err,
+            pi_dec::Error::SColShape("parent") | pi_dec::Error::SColShape("child")
+        ),
+        "expected s_col shape rejection, got {err:?}"
+    );
+}
+
+#[test]
+fn pi_dec_native_rejects_extra_self_consistent_r_limb() {
+    let (proof, _claims) = drive_nifs(49);
+
+    let mut parent = proof.pi_rlc.combined;
+    let mut children = proof.pi_dec.children;
+    parent.r.push(K::ZERO);
+    for child in &mut children {
+        child.r.push(K::ZERO);
+    }
+
+    let prep = support::toy_preprocessing();
+    let err = pi_dec::verify(
+        &prep.params,
+        prep.structure(),
+        prep.combine_b_pows(),
+        &parent,
+        &pi_dec::Proof { children },
+    )
+    .expect_err("native Π_DEC.V accepted an extra self-consistent r limb");
+    assert!(
+        matches!(err, pi_dec::Error::RShape("parent") | pi_dec::Error::RShape("child")),
+        "expected r shape rejection, got {err:?}"
+    );
+}
+
+#[test]
+fn pi_dec_native_rejects_self_consistent_parent_child_y_ring_padding_lane() {
+    let (proof, _claims) = drive_nifs(62);
+
+    let mut parent = proof.pi_rlc.combined;
+    let mut children = proof.pi_dec.children;
+    let d_pad = D.next_power_of_two();
+    assert!(d_pad > D, "fixture must have padded y_ring lanes");
+    parent.y_ring[0][D] += K::ONE;
+    children[0].y_ring[0][D] += K::ONE;
+
+    let prep = support::toy_preprocessing();
+    let err = pi_dec::verify(
+        &prep.params,
+        prep.structure(),
+        prep.combine_b_pows(),
+        &parent,
+        &pi_dec::Proof { children },
+    )
+    .expect_err("native Π_DEC.V accepted self-consistent nonzero y_ring padding");
+    assert!(
+        matches!(
+            err,
+            pi_dec::Error::YRingPadding("parent") | pi_dec::Error::YRingPadding("child")
+        ),
+        "expected y_ring padding rejection, got {err:?}"
+    );
+}
+
+#[test]
+fn pi_dec_native_rejects_extra_self_consistent_y_ring_row() {
+    let (proof, _claims) = drive_nifs(63);
+
+    let mut parent = proof.pi_rlc.combined;
+    let mut children = proof.pi_dec.children;
+    let extra_row = vec![K::ZERO; D.next_power_of_two()];
+    parent.y_ring.push(extra_row.clone());
+    parent.ct.push(K::ZERO);
+    for child in &mut children {
+        child.y_ring.push(extra_row.clone());
+        child.ct.push(K::ZERO);
+    }
+
+    let prep = support::toy_preprocessing();
+    let err = pi_dec::verify(
+        &prep.params,
+        prep.structure(),
+        prep.combine_b_pows(),
+        &parent,
+        &pi_dec::Proof { children },
+    )
+    .expect_err("native Π_DEC.V accepted an extra self-consistent y_ring/ct row");
+    assert!(
+        matches!(
+            err,
+            pi_dec::Error::YRingShape("parent") | pi_dec::Error::YRingShape("child")
+        ),
+        "expected y_ring row-count rejection, got {err:?}"
     );
 }
 
@@ -681,8 +902,8 @@ fn drive_nifs(seed: u64) -> (nifs::NifsProof, Vec<neo_fold_clean::CcsInstance>) 
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
         fresh,
         &running,
     )

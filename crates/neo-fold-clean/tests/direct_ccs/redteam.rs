@@ -23,8 +23,11 @@ use neo_fold_clean::config;
 use neo_fold_clean::frontends::direct_ccs::{self, FrontendError, R1cs};
 use neo_fold_clean::lifecycle;
 use neo_fold_clean::lifecycle::preprocess_with_test_log;
+use neo_fold_clean::paper::construction2::{EncInst, SemanticStateMode};
+use neo_fold_clean::paper::digest::{self, StateXOutDigestMode};
+use neo_fold_clean::paper::f_prime::r1cs::F_PRIME_PUBLIC_INPUT_LEN;
 use neo_fold_clean::preprocess as lifecycle_preprocess;
-use neo_fold_clean::{finish_uncompressed, prove, verify_uncompressed, FoldSchedule};
+use neo_fold_clean::{finish_uncompressed, prove, verify_uncompressed, Preprocessing, Uncompressed};
 
 fn three_term_addition() -> R1cs {
     wide_three_term_addition(1)
@@ -51,6 +54,16 @@ fn one_term_copy() -> R1cs {
     let mut c = NeoMat::zero(1, m, F::default());
     c[(0, 3)] = F::ONE;
     R1cs { a, b, c, m_in: 3 }
+}
+
+fn zero_direct_ccs_with_f_prime_width() -> R1cs {
+    let m = F_PRIME_PUBLIC_INPUT_LEN;
+    R1cs {
+        a: NeoMat::zero(1, m, F::default()),
+        b: NeoMat::zero(1, m, F::default()),
+        c: NeoMat::zero(1, m, F::default()),
+        m_in: F_PRIME_PUBLIC_INPUT_LEN,
+    }
 }
 
 #[test]
@@ -117,6 +130,20 @@ fn build_instance_rejects_preprocessing_structure_mismatch() {
 }
 
 #[test]
+fn verify_uncompressed_does_not_treat_direct_ccs_f_prime_width_as_recursive_f_prime() {
+    let r1cs = zero_direct_ccs_with_f_prime_width();
+    let prep = direct_ccs::preprocess_seeded(&r1cs, /* seed = */ 21).expect("preprocess");
+    let z = vec![F::ZERO; r1cs.m()];
+    let instance = direct_ccs::build_instance(&prep, &r1cs, &z).expect("build honest direct-CCS instance");
+
+    let proof = prove(&prep, vec![vec![instance]]).expect("prove honest direct-CCS batch");
+    let finished = finish_uncompressed(&prep, proof).expect("finish honest direct-CCS proof");
+
+    verify_uncompressed(&prep, &finished)
+        .expect("direct-CCS proof must not be forced through F' recursive-link public input checks");
+}
+
+#[test]
 fn build_instance_rejects_preprocessing_polynomial_mismatch() {
     let r1cs_for_prep = three_term_addition();
     let mut bad_structure = r1cs_for_prep.to_structure();
@@ -129,14 +156,8 @@ fn build_instance_rejects_preprocessing_polynomial_mismatch() {
     );
     let params = config::r1cs_params(bad_structure.n, bad_structure.m).expect("production-core R1CS params");
     let _ = direct_ccs::ajtai::setup_seeded(&params, &bad_structure, /* seed = */ 15);
-    let prep = lifecycle_preprocess(
-        params,
-        bad_structure,
-        direct_ccs::ajtai_rlc_mixer,
-        direct_ccs::ajtai_dec_mixer,
-        Some(r1cs_for_prep.m_in),
-    )
-    .expect("preprocess with deliberately bad polynomial");
+    let prep = lifecycle_preprocess(params, bad_structure, Some(r1cs_for_prep.m_in))
+        .expect("preprocess with deliberately bad polynomial");
 
     let z = satisfying_three_term_assignment();
     match direct_ccs::build_instance(&prep, &r1cs_for_prep, &z) {
@@ -154,14 +175,7 @@ fn preprocess_rejects_ajtai_dimension_mismatch() {
     let wrong_cols = expected_cols + 41;
     let log = global_log(D, wrong_cols, params.kappa() as usize, 0xA170_0001);
 
-    match preprocess_with_test_log(
-        params,
-        structure,
-        log,
-        direct_ccs::ajtai_rlc_mixer,
-        direct_ccs::ajtai_dec_mixer,
-        Some(r1cs.m_in),
-    ) {
+    match preprocess_with_test_log(params, structure, log, Some(r1cs.m_in)) {
         Err(lifecycle::Error::AjtaiDimensionMismatch {
             expected_d: D,
             expected_cols: got_expected_cols,
@@ -182,14 +196,7 @@ fn preprocess_rejects_ajtai_kappa_mismatch() {
     let wrong_kappa = params.kappa() as usize + 1;
     let log = global_log(D, cols, wrong_kappa, 0xA170_0002);
 
-    match preprocess_with_test_log(
-        params.clone(),
-        structure,
-        log,
-        direct_ccs::ajtai_rlc_mixer,
-        direct_ccs::ajtai_dec_mixer,
-        Some(r1cs.m_in),
-    ) {
+    match preprocess_with_test_log(params.clone(), structure, log, Some(r1cs.m_in)) {
         Err(lifecycle::Error::AjtaiKappaMismatch { expected, got })
             if expected == params.kappa() as usize && got == wrong_kappa => {}
         Ok(_) => panic!("expected AjtaiKappaMismatch, got Ok"),
@@ -204,26 +211,12 @@ fn verifier_rejects_proof_committed_with_different_same_shaped_ajtai_setup() {
     let structure = r1cs.to_structure();
     let params = verifier_prep.params.clone();
     let wrong_log = owned_log(D, structure.m.div_ceil(D), params.kappa() as usize, 0xA170_0200);
-    let prover_prep = preprocess_with_test_log(
-        params,
-        structure,
-        wrong_log,
-        direct_ccs::ajtai_rlc_mixer,
-        direct_ccs::ajtai_dec_mixer,
-        Some(r1cs.m_in),
-    )
-    .expect("same-shaped non-canonical prover prep");
+    let prover_prep = preprocess_with_test_log(params, structure, wrong_log, Some(r1cs.m_in))
+        .expect("same-shaped non-canonical prover prep");
 
     let z1 = satisfying_three_term_assignment();
-    let mut z2 = satisfying_three_term_assignment();
-    z2[1] = F::ZERO;
-    z2[2] = F::ONE;
-
     let i1 = direct_ccs::build_instance(&prover_prep, &r1cs, &z1).expect("instance 1");
-    let i2 = direct_ccs::build_instance(&prover_prep, &r1cs, &z2).expect("instance 2");
-    let batches = FoldSchedule::RowsPerStep(1)
-        .partition(vec![i1, i2])
-        .expect("partition");
+    let batches = vec![vec![i1]];
     let proof = prove(&prover_prep, batches).expect("prove with non-canonical setup");
     let finished = finish_uncompressed(&prover_prep, proof).expect("finish with non-canonical setup");
 
@@ -232,6 +225,49 @@ fn verifier_rejects_proof_committed_with_different_same_shaped_ajtai_setup() {
         verify_uncompressed(&verifier_prep, &finished).is_err(),
         "canonical verifier accepted a proof generated with a different same-shaped Ajtai setup"
     );
+}
+
+#[test]
+fn verify_uncompressed_rejects_direct_ccs_boundary_relabel_even_if_x_out_is_repaired() {
+    let r1cs = three_term_addition();
+    let prep = direct_ccs::preprocess_seeded(&r1cs, /* seed = */ 0xA170_0300).expect("preprocess");
+    let instance = direct_ccs::build_instance(&prep, &r1cs, &satisfying_three_term_assignment()).expect("instance");
+    let proof = prove(&prep, vec![vec![instance]]).expect("prove");
+    let mut finished = finish_uncompressed(&prep, proof).expect("finish");
+    verify_uncompressed(&prep, &finished).expect("honest proof verifies");
+
+    finished.state.z_i = [0xA5; 32];
+    finished.state.public_trace = finished.state.z_i;
+    let repaired_x_out = recompute_terminal_x_out(&prep, &finished);
+    finished
+        .final_fold
+        .as_mut()
+        .expect("one-step proof has a terminal fold")
+        .x_out = repaired_x_out;
+
+    verify_uncompressed(&prep, &finished)
+        .expect_err("verify_uncompressed accepted a direct-CCS public-boundary relabel with repaired x_out");
+}
+
+#[test]
+fn verify_uncompressed_rejects_direct_ccs_chunk_count_relabel_even_if_x_out_is_repaired() {
+    let r1cs = three_term_addition();
+    let prep = direct_ccs::preprocess_seeded(&r1cs, /* seed = */ 0xA170_0301).expect("preprocess");
+    let instance = direct_ccs::build_instance(&prep, &r1cs, &satisfying_three_term_assignment()).expect("instance");
+    let proof = prove(&prep, vec![vec![instance]]).expect("prove");
+    let mut finished = finish_uncompressed(&prep, proof).expect("finish");
+    verify_uncompressed(&prep, &finished).expect("honest proof verifies");
+
+    finished.state.chunk_count += 41;
+    let repaired_x_out = recompute_terminal_x_out(&prep, &finished);
+    finished
+        .final_fold
+        .as_mut()
+        .expect("one-step proof has a terminal fold")
+        .x_out = repaired_x_out;
+
+    verify_uncompressed(&prep, &finished)
+        .expect_err("verify_uncompressed accepted a direct-CCS chunk-count relabel with repaired x_out");
 }
 
 #[test]
@@ -309,4 +345,24 @@ fn owned_log(d: usize, cols: usize, kappa: usize, seed: u64) -> AjtaiSModule {
     let mut rng = ChaCha8Rng::from_seed(seed_bytes);
     let pp = setup_par(&mut rng, d, kappa, cols).expect("owned test Ajtai setup");
     AjtaiSModule::new(Arc::new(pp))
+}
+
+fn recompute_terminal_x_out(prep: &Preprocessing, proof: &Uncompressed) -> EncInst {
+    let mode = match prep.semantic_state_mode() {
+        SemanticStateMode::Stateless => StateXOutDigestMode::Stateless,
+        SemanticStateMode::Stateful => StateXOutDigestMode::Stateful,
+    };
+    EncInst::from_digest(digest::state_x_out_digest_with_mode(
+        mode,
+        prep.vk.digest(),
+        prep.structure_digest(),
+        proof.state.chunk_count,
+        proof.state.step_count,
+        proof.state.z_0,
+        proof.state.z_i,
+        proof.state.pc,
+        proof.state.semantic_state_digest,
+        proof.state.acc_digest,
+        proof.state.public_trace,
+    ))
 }

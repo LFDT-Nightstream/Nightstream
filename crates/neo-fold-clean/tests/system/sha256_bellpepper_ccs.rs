@@ -543,8 +543,12 @@ fn sha256_production_core_r1cs_f_prime_static_shape_budget() {
 
     let tiny_plan = sha256_tiny_lifecycle_plan_for_r1cs(&artifact.sparse_r1cs);
     let (prod_plan, prod_structure) = sha256_production_core_lifecycle_plan_for_r1cs(&artifact.sparse_r1cs);
-    let prod_params =
-        Params::for_r1cs_shape(prod_structure.ccs.n).expect("production-core params for SHA-256 F' shape");
+    let prod_params = Params::for_ccs_shape(
+        prod_structure.ccs.n,
+        prod_structure.ccs.t(),
+        prod_structure.ccs.max_degree(),
+    )
+    .expect("production-core params for SHA-256 F' shape");
     let prod_layout = FPrimeImageLayout::new(build_recursive_step_image_config(&prod_plan));
     let typed_bits: usize = prod_plan.app_private_var_widths.iter().sum();
     let acc = prod_plan
@@ -1041,7 +1045,12 @@ fn sha256_production_core_bellpepper_ivc_chain_two_steps_perf_snapshot() {
         .expect("synthesize SHA-256(abc)")
     });
     let (plan, structure_probe) = sha256_production_core_lifecycle_plan_for_r1cs(&artifact_a.sparse_r1cs);
-    let params = Params::for_r1cs_shape(structure_probe.ccs.n).expect("production-core params");
+    let params = Params::for_ccs_shape(
+        structure_probe.ccs.n,
+        structure_probe.ccs.t(),
+        structure_probe.ccs.max_degree(),
+    )
+    .expect("production-core params");
     eprintln!(
         "[sha-prod-ivc] params: kappa={}, lambda={}, m={}, b={}, k_rho={}, T={}",
         params.kappa(),
@@ -1128,7 +1137,12 @@ fn sha256_production_core_bellpepper_ivc_chain_five_steps_perf_snapshot() {
     })
     .expect("reference SHA synth");
     let (plan, structure_probe) = sha256_production_core_lifecycle_plan_for_r1cs(&reference.sparse_r1cs);
-    let params = Params::for_r1cs_shape(structure_probe.ccs.n).expect("production-core params");
+    let params = Params::for_ccs_shape(
+        structure_probe.ccs.n,
+        structure_probe.ccs.t(),
+        structure_probe.ccs.max_degree(),
+    )
+    .expect("production-core params");
     let prep = phase("prod-5 preprocess R1CS-F'", || {
         r1cs_f_prime::preprocess_sparse_seeded_with_params(&reference.sparse_r1cs, &plan, params, SHA256_AJTAI_SEED)
             .expect("production-core SHA-256 R1CS-F' preprocess")

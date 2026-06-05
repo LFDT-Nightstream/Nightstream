@@ -14,7 +14,7 @@ use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::WasmRowKind;
 use neo_wasm::{
     collect_wasmtime_steps, opcode_code, opcode_info_from_code, traces_from_rwasm_instr_states,
-    traces_from_wasmtime_steps, traces_from_wasmtime_wasm_bytes, LinearMemoryAccess, StackLaneAccess, WasmAuxOpcode,
+    traces_from_wasmtime_steps, traces_from_wasmtime_wasm_bytes, LinearMemoryAccess, StackValueAccess, WasmAuxOpcode,
     WasmOpcode, WasmParamInitState, WasmPcEdgeKind, WasmStepTrace,
 };
 use p3_field::PrimeCharacteristicRing;
@@ -27,19 +27,16 @@ fn step(
     opcode_code: u16,
     sp_before: u64,
     sp_after: u64,
-    stack_read0: Option<StackLaneAccess>,
-    stack_read1: Option<StackLaneAccess>,
-    stack_read2: Option<StackLaneAccess>,
-    stack_write0: Option<StackLaneAccess>,
+    stack_read0: Option<StackValueAccess>,
+    stack_read1: Option<StackValueAccess>,
+    stack_read2: Option<StackValueAccess>,
+    stack_write0: Option<StackValueAccess>,
     linear_memory: Option<LinearMemoryAccess>,
     linear_memory_offset: u64,
     halted: bool,
 ) -> WasmStepTrace {
-    fn physical(access: Option<StackLaneAccess>) -> Option<StackLaneAccess> {
-        access.map(|lane| StackLaneAccess {
-            addr: lane.addr * 2,
-            value: lane.value,
-        })
+    fn physical(access: Option<StackValueAccess>) -> Option<StackValueAccess> {
+        access.map(|lane| StackValueAccess::new(lane.addr_lo * 2, lane.value_lo))
     }
 
     WasmStepTrace {
@@ -76,13 +73,9 @@ fn step(
         current_function_ref: 0,
         current_function_num_locals: 0,
         stack_read0: physical(stack_read0),
-        stack_read0_hi: None,
         stack_read1: physical(stack_read1),
-        stack_read1_hi: None,
         stack_read2: physical(stack_read2),
-        stack_read2_hi: None,
         stack_write0: physical(stack_write0),
-        stack_write0_hi: None,
         linear_memory,
         linear_memory_offset,
         memory_pages_before: None,
@@ -172,9 +165,9 @@ fn normalization_tracks_stack_pointer_for_binary_op() {
     assert_eq!(trace[1].sp_after, 2);
     assert_eq!(trace[2].sp_before, 2);
     assert_eq!(trace[2].sp_after, 1);
-    assert_eq!(trace[2].stack_read0.expect("lhs").addr, 0);
-    assert_eq!(trace[2].stack_read1.expect("rhs").addr, 2);
-    assert_eq!(trace[2].stack_write0.expect("out").addr, 0);
+    assert_eq!(trace[2].stack_read0.expect("lhs").addr_lo, 0);
+    assert_eq!(trace[2].stack_read1.expect("rhs").addr_lo, 2);
+    assert_eq!(trace[2].stack_write0.expect("out").addr_lo, 0);
     assert_eq!(trace[2].opcode, WasmOpcode::I32Add);
 }
 
@@ -190,7 +183,7 @@ fn direct_rows_satisfy_real_wasm_ccs() {
             None,
             None,
             None,
-            Some(StackLaneAccess { addr: 0, value: 7 }),
+            Some(StackValueAccess::new(0, 7)),
             None,
             0,
             false,
@@ -204,7 +197,7 @@ fn direct_rows_satisfy_real_wasm_ccs() {
             None,
             None,
             None,
-            Some(StackLaneAccess { addr: 1, value: 9 }),
+            Some(StackValueAccess::new(1, 9)),
             None,
             0,
             false,
@@ -215,10 +208,10 @@ fn direct_rows_satisfy_real_wasm_ccs() {
             opcode_code(WasmOpcode::I32Add),
             2,
             1,
-            Some(StackLaneAccess { addr: 0, value: 7 }),
-            Some(StackLaneAccess { addr: 1, value: 9 }),
+            Some(StackValueAccess::new(0, 7)),
+            Some(StackValueAccess::new(1, 9)),
             None,
-            Some(StackLaneAccess { addr: 0, value: 16 }),
+            Some(StackValueAccess::new(0, 16)),
             None,
             0,
             false,
@@ -229,10 +222,10 @@ fn direct_rows_satisfy_real_wasm_ccs() {
             opcode_code(WasmOpcode::I32Sub),
             2,
             1,
-            Some(StackLaneAccess { addr: 0, value: 20 }),
-            Some(StackLaneAccess { addr: 1, value: 5 }),
+            Some(StackValueAccess::new(0, 20)),
+            Some(StackValueAccess::new(1, 5)),
             None,
-            Some(StackLaneAccess { addr: 0, value: 15 }),
+            Some(StackValueAccess::new(0, 15)),
             None,
             0,
             false,
@@ -243,10 +236,10 @@ fn direct_rows_satisfy_real_wasm_ccs() {
             opcode_code(WasmOpcode::Select),
             3,
             1,
-            Some(StackLaneAccess { addr: 0, value: 11 }),
-            Some(StackLaneAccess { addr: 1, value: 22 }),
-            Some(StackLaneAccess { addr: 2, value: 1 }),
-            Some(StackLaneAccess { addr: 0, value: 11 }),
+            Some(StackValueAccess::new(0, 11)),
+            Some(StackValueAccess::new(1, 22)),
+            Some(StackValueAccess::new(2, 1)),
+            Some(StackValueAccess::new(0, 11)),
             None,
             0,
             false,
@@ -280,10 +273,10 @@ fn add_row_rejects_tampered_output_value() {
         opcode_code(WasmOpcode::I32Add),
         2,
         0,
-        Some(StackLaneAccess { addr: 0, value: 7 }),
-        Some(StackLaneAccess { addr: 1, value: 9 }),
+        Some(StackValueAccess::new(0, 7)),
+        Some(StackValueAccess::new(1, 9)),
         None,
-        Some(StackLaneAccess { addr: 0, value: 16 }),
+        Some(StackValueAccess::new(0, 16)),
         None,
         0,
         false,
@@ -300,10 +293,10 @@ fn add_row_rejects_tampered_static_stack_arity() {
         opcode_code(WasmOpcode::I32Add),
         2,
         1,
-        Some(StackLaneAccess { addr: 0, value: 7 }),
-        Some(StackLaneAccess { addr: 1, value: 9 }),
+        Some(StackValueAccess::new(0, 7)),
+        Some(StackValueAccess::new(1, 9)),
         None,
-        Some(StackLaneAccess { addr: 0, value: 16 }),
+        Some(StackValueAccess::new(0, 16)),
         None,
         0,
         false,
@@ -328,13 +321,10 @@ fn i32_add_wraps_on_overflow() {
         opcode_code(WasmOpcode::I32Add),
         2,
         1,
-        Some(StackLaneAccess {
-            addr: 0,
-            value: 0xFFFF_FFFF,
-        }),
-        Some(StackLaneAccess { addr: 1, value: 1 }),
+        Some(StackValueAccess::new(0, 0xFFFF_FFFF)),
+        Some(StackValueAccess::new(1, 1)),
         None,
-        Some(StackLaneAccess { addr: 0, value: 0 }),
+        Some(StackValueAccess::new(0, 0)),
         None,
         0,
         false,
@@ -351,13 +341,10 @@ fn i32_sub_wraps_on_underflow() {
         opcode_code(WasmOpcode::I32Sub),
         2,
         1,
-        Some(StackLaneAccess { addr: 0, value: 0 }),
-        Some(StackLaneAccess { addr: 1, value: 1 }),
+        Some(StackValueAccess::new(0, 0)),
+        Some(StackValueAccess::new(1, 1)),
         None,
-        Some(StackLaneAccess {
-            addr: 0,
-            value: 0xFFFF_FFFF,
-        }),
+        Some(StackValueAccess::new(0, 0xFFFF_FFFF)),
         None,
         0,
         false,
@@ -373,10 +360,10 @@ fn selector_opcode_mismatch_is_rejected() {
         opcode_code(WasmOpcode::I32Add),
         2,
         0,
-        Some(StackLaneAccess { addr: 0, value: 7 }),
-        Some(StackLaneAccess { addr: 1, value: 9 }),
+        Some(StackValueAccess::new(0, 7)),
+        Some(StackValueAccess::new(1, 9)),
         None,
-        Some(StackLaneAccess { addr: 0, value: 16 }),
+        Some(StackValueAccess::new(0, 16)),
         None,
         0,
         false,
@@ -605,7 +592,7 @@ fn ref_func_and_table_rows_are_accepted() {
         .iter()
         .find(|row| row.opcode == WasmOpcode::TableGet)
         .expect("table.get row");
-    assert_eq!(ref_func.stack_write0.expect("ref.func write").value, 1);
+    assert_eq!(ref_func.stack_write0.expect("ref.func write").value_lo, 1);
     assert_eq!(ref_func.function_type_id, Some(1));
     assert_eq!(table_set.table_id, Some(0));
     assert_eq!(table_set.table_index, Some(0));
@@ -764,23 +751,19 @@ fn i32_wrap_i64_row_projects_low_limb() {
         opcode_code(WasmOpcode::I32WrapI64),
         1,
         1,
-        Some(StackLaneAccess {
-            addr: 0,
-            value: 0x89ab_cdef,
-        }),
+        Some(StackValueAccess::new(0, 0x89ab_cdef)),
         None,
         None,
-        Some(StackLaneAccess {
-            addr: 0,
-            value: 0x89ab_cdef,
-        }),
+        Some(StackValueAccess::new(0, 0x89ab_cdef)),
         None,
         0,
         false,
     );
     row.wide_values_enabled = true;
-    row.stack_read0_hi = Some(0x1234_5678);
-    row.stack_write0_hi = Some(0);
+    row.stack_read0 = row
+        .stack_read0
+        .map(|lane| lane.with_optional_hi(Some(0x1234_5678)));
+    row.stack_write0 = row.stack_write0.map(|lane| lane.with_optional_hi(Some(0)));
 
     assert_satisfied(&build_witness_vector(&row), "i32.wrap_i64 row");
 }
@@ -793,23 +776,19 @@ fn i32_wrap_i64_row_rejects_tampered_output() {
         opcode_code(WasmOpcode::I32WrapI64),
         1,
         1,
-        Some(StackLaneAccess {
-            addr: 0,
-            value: 0x89ab_cdef,
-        }),
+        Some(StackValueAccess::new(0, 0x89ab_cdef)),
         None,
         None,
-        Some(StackLaneAccess {
-            addr: 0,
-            value: 0x89ab_cdee,
-        }),
+        Some(StackValueAccess::new(0, 0x89ab_cdee)),
         None,
         0,
         false,
     );
     row.wide_values_enabled = true;
-    row.stack_read0_hi = Some(0x1234_5678);
-    row.stack_write0_hi = Some(0);
+    row.stack_read0 = row
+        .stack_read0
+        .map(|lane| lane.with_optional_hi(Some(0x1234_5678)));
+    row.stack_write0 = row.stack_write0.map(|lane| lane.with_optional_hi(Some(0)));
 
     assert_rejected(&build_witness_vector(&row), "i32.wrap_i64 row with tampered output");
 }
@@ -822,22 +801,18 @@ fn i32_wrap_i64_row_rejects_tampered_high_output() {
         opcode_code(WasmOpcode::I32WrapI64),
         1,
         1,
-        Some(StackLaneAccess {
-            addr: 0,
-            value: 0x89ab_cdef,
-        }),
+        Some(StackValueAccess::new(0, 0x89ab_cdef)),
         None,
         None,
-        Some(StackLaneAccess {
-            addr: 0,
-            value: 0x89ab_cdef,
-        }),
+        Some(StackValueAccess::new(0, 0x89ab_cdef)),
         None,
         0,
         false,
     );
     row.wide_values_enabled = true;
-    row.stack_read0_hi = Some(0x1234_5678);
+    row.stack_read0 = row
+        .stack_read0
+        .map(|lane| lane.with_optional_hi(Some(0x1234_5678)));
     let mut witness = build_witness_vector(&row);
     witness[COL_STACK_WRITE0_VALUE_HI] = F::ONE;
 
@@ -852,22 +827,16 @@ fn i64_extend_i32_u_row_zero_extends() {
         opcode_code(WasmOpcode::I64ExtendI32U),
         1,
         1,
-        Some(StackLaneAccess {
-            addr: 0,
-            value: 0x89ab_cdef,
-        }),
+        Some(StackValueAccess::new(0, 0x89ab_cdef)),
         None,
         None,
-        Some(StackLaneAccess {
-            addr: 0,
-            value: 0x89ab_cdef,
-        }),
+        Some(StackValueAccess::new(0, 0x89ab_cdef)),
         None,
         0,
         false,
     );
     row.wide_values_enabled = true;
-    row.stack_write0_hi = Some(0);
+    row.stack_write0 = row.stack_write0.map(|lane| lane.with_optional_hi(Some(0)));
 
     assert_satisfied(&build_witness_vector(&row), "i64.extend_i32_u row");
 }
@@ -880,16 +849,10 @@ fn i64_extend_i32_u_row_rejects_nonzero_high_output() {
         opcode_code(WasmOpcode::I64ExtendI32U),
         1,
         1,
-        Some(StackLaneAccess {
-            addr: 0,
-            value: 0x89ab_cdef,
-        }),
+        Some(StackValueAccess::new(0, 0x89ab_cdef)),
         None,
         None,
-        Some(StackLaneAccess {
-            addr: 0,
-            value: 0x89ab_cdef,
-        }),
+        Some(StackValueAccess::new(0, 0x89ab_cdef)),
         None,
         0,
         false,
@@ -909,22 +872,18 @@ fn i64_extend_i32_s_row_sign_extends_negative_value() {
         opcode_code(WasmOpcode::I64ExtendI32S),
         1,
         1,
-        Some(StackLaneAccess {
-            addr: 0,
-            value: 0x89ab_cdef,
-        }),
+        Some(StackValueAccess::new(0, 0x89ab_cdef)),
         None,
         None,
-        Some(StackLaneAccess {
-            addr: 0,
-            value: 0x89ab_cdef,
-        }),
+        Some(StackValueAccess::new(0, 0x89ab_cdef)),
         None,
         0,
         false,
     );
     row.wide_values_enabled = true;
-    row.stack_write0_hi = Some(0xffff_ffff);
+    row.stack_write0 = row
+        .stack_write0
+        .map(|lane| lane.with_optional_hi(Some(0xffff_ffff)));
 
     assert_satisfied(&build_witness_vector(&row), "i64.extend_i32_s negative row");
 }
@@ -937,22 +896,16 @@ fn i64_extend_i32_s_row_sign_extends_positive_value() {
         opcode_code(WasmOpcode::I64ExtendI32S),
         1,
         1,
-        Some(StackLaneAccess {
-            addr: 0,
-            value: 0x09ab_cdef,
-        }),
+        Some(StackValueAccess::new(0, 0x09ab_cdef)),
         None,
         None,
-        Some(StackLaneAccess {
-            addr: 0,
-            value: 0x09ab_cdef,
-        }),
+        Some(StackValueAccess::new(0, 0x09ab_cdef)),
         None,
         0,
         false,
     );
     row.wide_values_enabled = true;
-    row.stack_write0_hi = Some(0);
+    row.stack_write0 = row.stack_write0.map(|lane| lane.with_optional_hi(Some(0)));
 
     assert_satisfied(&build_witness_vector(&row), "i64.extend_i32_s positive row");
 }
@@ -965,16 +918,10 @@ fn i64_extend_i32_s_row_rejects_tampered_high_output() {
         opcode_code(WasmOpcode::I64ExtendI32S),
         1,
         1,
-        Some(StackLaneAccess {
-            addr: 0,
-            value: 0x89ab_cdef,
-        }),
+        Some(StackValueAccess::new(0, 0x89ab_cdef)),
         None,
         None,
-        Some(StackLaneAccess {
-            addr: 0,
-            value: 0x89ab_cdef,
-        }),
+        Some(StackValueAccess::new(0, 0x89ab_cdef)),
         None,
         0,
         false,
@@ -1068,7 +1015,7 @@ fn drop_row_is_accepted() {
         opcode_code(WasmOpcode::Drop),
         1,
         0,
-        Some(StackLaneAccess { addr: 0, value: 77 }),
+        Some(StackValueAccess::new(0, 77)),
         None,
         None,
         None,
@@ -1097,7 +1044,7 @@ fn drop_i64_row_zeroes_unused_high_limb_in_witness() {
         .iter()
         .find(|row| row.opcode == WasmOpcode::Drop)
         .expect("drop row");
-    assert_eq!(row.stack_read0_hi, Some(1));
+    assert_eq!(row.stack_read0.and_then(|lane| lane.value_hi), Some(1));
     assert_satisfied(&build_witness_vector(row), "i64 drop row");
 }
 
@@ -1147,7 +1094,7 @@ fn if_row_is_accepted() {
         opcode_code(WasmOpcode::If),
         1,
         0,
-        Some(StackLaneAccess { addr: 0, value: 1 }),
+        Some(StackValueAccess::new(0, 1)),
         None,
         None,
         None,
@@ -1429,7 +1376,7 @@ fn i64_call_param_init_aux_row_is_wide_and_accepted() {
         .find(|row| row.row_kind == WasmRowKind::Aux(WasmAuxOpcode::CallParamInit))
         .expect("i64 param-init aux row");
     assert!(aux.wide_values_enabled, "i64 param aux row must allow high limbs");
-    assert_eq!(aux.stack_read0_hi, Some(1));
+    assert_eq!(aux.stack_read0.and_then(|lane| lane.value_hi), Some(1));
     assert_eq!(aux.local_write_value_hi, Some(1));
     let witness = build_witness_vector(aux);
     assert_satisfied(&witness, "i64 call param init aux row");
@@ -1443,10 +1390,10 @@ fn select_row_accepts_nonzero_condition() {
         opcode_code(WasmOpcode::Select),
         3,
         1,
-        Some(StackLaneAccess { addr: 0, value: 11 }),
-        Some(StackLaneAccess { addr: 1, value: 22 }),
-        Some(StackLaneAccess { addr: 2, value: 2 }),
-        Some(StackLaneAccess { addr: 0, value: 11 }),
+        Some(StackValueAccess::new(0, 11)),
+        Some(StackValueAccess::new(1, 22)),
+        Some(StackValueAccess::new(2, 2)),
+        Some(StackValueAccess::new(0, 11)),
         None,
         0,
         false,
@@ -1462,10 +1409,10 @@ fn select_row_rejects_nonzero_condition_with_rhs_output() {
         opcode_code(WasmOpcode::Select),
         3,
         1,
-        Some(StackLaneAccess { addr: 0, value: 11 }),
-        Some(StackLaneAccess { addr: 1, value: 22 }),
-        Some(StackLaneAccess { addr: 2, value: 2 }),
-        Some(StackLaneAccess { addr: 0, value: 22 }),
+        Some(StackValueAccess::new(0, 11)),
+        Some(StackValueAccess::new(1, 22)),
+        Some(StackValueAccess::new(2, 2)),
+        Some(StackValueAccess::new(0, 22)),
         None,
         0,
         false,

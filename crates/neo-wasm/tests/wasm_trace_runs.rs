@@ -911,8 +911,8 @@ fn wasm_trace_run_with_i32_wrap_i64() {
         .find(|row| row.opcode == neo_wasm::WasmOpcode::I32WrapI64)
         .expect("i32.wrap_i64 row");
     assert!(row.wide_values_enabled, "i32.wrap_i64 should read an i64 input");
-    assert_eq!(row.stack_write0.map(|lane| lane.value), Some(0x89ab_cdef));
-    assert_eq!(row.stack_write0_hi, Some(0));
+    assert_eq!(row.stack_write0.map(|lane| lane.value_lo), Some(0x89ab_cdef));
+    assert_eq!(row.stack_write0.and_then(|lane| lane.value_hi), Some(0));
 }
 
 #[test]
@@ -939,8 +939,8 @@ fn wasm_trace_run_with_i64_extend_i32() {
         .find(|row| row.opcode == neo_wasm::WasmOpcode::I64ExtendI32U)
         .expect("i64.extend_i32_u row");
     assert!(unsigned.wide_values_enabled, "i64.extend_i32_u should write an i64");
-    assert_eq!(unsigned.stack_write0.map(|lane| lane.value), Some(0x89ab_cdef));
-    assert_eq!(unsigned.stack_write0_hi, Some(0));
+    assert_eq!(unsigned.stack_write0.map(|lane| lane.value_lo), Some(0x89ab_cdef));
+    assert_eq!(unsigned.stack_write0.and_then(|lane| lane.value_hi), Some(0));
 
     let signed = checked
         .trace
@@ -948,8 +948,8 @@ fn wasm_trace_run_with_i64_extend_i32() {
         .find(|row| row.opcode == neo_wasm::WasmOpcode::I64ExtendI32S)
         .expect("i64.extend_i32_s row");
     assert!(signed.wide_values_enabled, "i64.extend_i32_s should write an i64");
-    assert_eq!(signed.stack_write0.map(|lane| lane.value), Some(0x89ab_cdef));
-    assert_eq!(signed.stack_write0_hi, Some(0xffff_ffff));
+    assert_eq!(signed.stack_write0.map(|lane| lane.value_lo), Some(0x89ab_cdef));
+    assert_eq!(signed.stack_write0.and_then(|lane| lane.value_hi), Some(0xffff_ffff));
 }
 
 #[test]

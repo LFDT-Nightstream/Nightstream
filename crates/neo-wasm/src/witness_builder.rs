@@ -190,9 +190,9 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
         }
     }
     if let Some(read) = trace.stack_read0 {
-        wit[COL_STACK_READ0_ADDR_LO] = F::from_u64(read.addr);
-        wit[COL_STACK_READ0_ADDR_HI] = F::from_u64(read.addr + 1);
-        wit[COL_STACK_READ0_VALUE_LO] = F::from_u64(u64::from(read.value));
+        wit[COL_STACK_READ0_ADDR_LO] = F::from_u64(read.addr_lo);
+        wit[COL_STACK_READ0_ADDR_HI] = F::from_u64(read.addr_lo + 1);
+        wit[COL_STACK_READ0_VALUE_LO] = F::from_u64(u64::from(read.value_lo));
     }
     if trace.output_captured {
         debug_assert_eq!(
@@ -207,37 +207,37 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
         wit[COL_STACK_READ0_VALUE_HI] = F::from_u64(u64::from(trace.output_value_hi_after));
     }
     if trace.wide_values_enabled {
-        if let Some(read0_value_hi) = trace.stack_read0_hi {
+        if let Some(read0_value_hi) = trace.stack_read0.and_then(|read| read.value_hi) {
             wit[COL_STACK_READ0_VALUE_HI] = F::from_u64(u64::from(read0_value_hi));
         }
     }
     if let Some(read) = trace.stack_read1 {
-        wit[COL_STACK_READ1_ADDR_LO] = F::from_u64(read.addr);
-        wit[COL_STACK_READ1_ADDR_HI] = F::from_u64(read.addr + 1);
-        wit[COL_STACK_READ1_VALUE_LO] = F::from_u64(u64::from(read.value));
+        wit[COL_STACK_READ1_ADDR_LO] = F::from_u64(read.addr_lo);
+        wit[COL_STACK_READ1_ADDR_HI] = F::from_u64(read.addr_lo + 1);
+        wit[COL_STACK_READ1_VALUE_LO] = F::from_u64(u64::from(read.value_lo));
     }
     if trace.wide_values_enabled {
-        if let Some(read1_value_hi) = trace.stack_read1_hi {
+        if let Some(read1_value_hi) = trace.stack_read1.and_then(|read| read.value_hi) {
             wit[COL_STACK_READ1_VALUE_HI] = F::from_u64(u64::from(read1_value_hi));
         }
     }
     if let Some(read) = trace.stack_read2 {
-        wit[COL_STACK_READ2_ADDR_LO] = F::from_u64(read.addr);
-        wit[COL_STACK_READ2_ADDR_HI] = F::from_u64(read.addr + 1);
-        wit[COL_STACK_READ2_VALUE_LO] = F::from_u64(u64::from(read.value));
+        wit[COL_STACK_READ2_ADDR_LO] = F::from_u64(read.addr_lo);
+        wit[COL_STACK_READ2_ADDR_HI] = F::from_u64(read.addr_lo + 1);
+        wit[COL_STACK_READ2_VALUE_LO] = F::from_u64(u64::from(read.value_lo));
     }
     if trace.wide_values_enabled {
-        if let Some(read2_value_hi) = trace.stack_read2_hi {
+        if let Some(read2_value_hi) = trace.stack_read2.and_then(|read| read.value_hi) {
             wit[COL_STACK_READ2_VALUE_HI] = F::from_u64(u64::from(read2_value_hi));
         }
     }
     if let Some(write) = trace.stack_write0 {
-        wit[COL_STACK_WRITE0_ADDR_LO] = F::from_u64(write.addr);
-        wit[COL_STACK_WRITE0_ADDR_HI] = F::from_u64(write.addr + 1);
-        wit[COL_STACK_WRITE0_VALUE_LO] = F::from_u64(u64::from(write.value));
+        wit[COL_STACK_WRITE0_ADDR_LO] = F::from_u64(write.addr_lo);
+        wit[COL_STACK_WRITE0_ADDR_HI] = F::from_u64(write.addr_lo + 1);
+        wit[COL_STACK_WRITE0_VALUE_LO] = F::from_u64(u64::from(write.value_lo));
     }
     if trace.wide_values_enabled {
-        if let Some(write0_value_hi) = trace.stack_write0_hi {
+        if let Some(write0_value_hi) = trace.stack_write0.and_then(|write| write.value_hi) {
             wit[COL_STACK_WRITE0_VALUE_HI] = F::from_u64(u64::from(write0_value_hi));
         }
     }
@@ -444,20 +444,26 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
             | super::isa::WasmOpcode::I64Load32U
             | super::isa::WasmOpcode::I64Load8S
             | super::isa::WasmOpcode::I64Load16S
-            | super::isa::WasmOpcode::I64Load32S => (trace.stack_write0.map(|lane| lane.value).unwrap_or(0), 0),
+            | super::isa::WasmOpcode::I64Load32S => (trace.stack_write0.map(|lane| lane.value_lo).unwrap_or(0), 0),
             super::isa::WasmOpcode::I32Store
             | super::isa::WasmOpcode::I32Store8
             | super::isa::WasmOpcode::I32Store16
             | super::isa::WasmOpcode::I64Store8
             | super::isa::WasmOpcode::I64Store16
-            | super::isa::WasmOpcode::I64Store32 => (trace.stack_read1.map(|lane| lane.value).unwrap_or(0), 0),
+            | super::isa::WasmOpcode::I64Store32 => (trace.stack_read1.map(|lane| lane.value_lo).unwrap_or(0), 0),
             super::isa::WasmOpcode::I64Load => (
-                trace.stack_write0.map(|lane| lane.value).unwrap_or(0),
-                trace.stack_write0_hi.unwrap_or(0),
+                trace.stack_write0.map(|lane| lane.value_lo).unwrap_or(0),
+                trace
+                    .stack_write0
+                    .and_then(|lane| lane.value_hi)
+                    .unwrap_or(0),
             ),
             super::isa::WasmOpcode::I64Store => (
-                trace.stack_read1.map(|lane| lane.value).unwrap_or(0),
-                trace.stack_read1_hi.unwrap_or(0),
+                trace.stack_read1.map(|lane| lane.value_lo).unwrap_or(0),
+                trace
+                    .stack_read1
+                    .and_then(|lane| lane.value_hi)
+                    .unwrap_or(0),
             ),
             _ => (0, 0),
         };
@@ -502,7 +508,7 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
         _ => None,
     };
     if let Some(byte_index) = integer_sign_extend_source {
-        let value = trace.stack_read0.map(|lane| lane.value).unwrap_or(0);
+        let value = trace.stack_read0.map(|lane| lane.value_lo).unwrap_or(0);
         write_u32_le_bytes(
             &mut wit,
             [
@@ -523,7 +529,12 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
     }
     if let Some(shout) = trace.info.shout_opcode {
         wit[COL_SHOUT_ID] = F::from_u64(u64::from(shout.to_shout_id()));
-        wit[COL_SHOUT_VALUE] = F::from_u64(trace.stack_write0.map(|w| u64::from(w.value)).unwrap_or(0));
+        wit[COL_SHOUT_VALUE] = F::from_u64(
+            trace
+                .stack_write0
+                .map(|w| u64::from(w.value_lo))
+                .unwrap_or(0),
+        );
     }
 
     if matches!(
@@ -603,32 +614,48 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
 
     match trace.opcode {
         super::isa::WasmOpcode::I32Add => {
-            let lhs = u64::from(trace.stack_read0.map(|lane| lane.value).unwrap_or(0));
-            let rhs = u64::from(trace.stack_read1.map(|lane| lane.value).unwrap_or(0));
+            let lhs = u64::from(trace.stack_read0.map(|lane| lane.value_lo).unwrap_or(0));
+            let rhs = u64::from(trace.stack_read1.map(|lane| lane.value_lo).unwrap_or(0));
             let carry = (lhs + rhs) >> 32;
             wit[COL_WIDE_AUX0] = F::from_u64(carry);
         }
         super::isa::WasmOpcode::I32Sub => {
-            let lhs = trace.stack_read0.map(|lane| lane.value).unwrap_or(0);
-            let rhs = trace.stack_read1.map(|lane| lane.value).unwrap_or(0);
+            let lhs = trace.stack_read0.map(|lane| lane.value_lo).unwrap_or(0);
+            let rhs = trace.stack_read1.map(|lane| lane.value_lo).unwrap_or(0);
             let borrow = u64::from(lhs < rhs);
             wit[COL_WIDE_AUX0] = F::from_u64(borrow);
         }
         super::isa::WasmOpcode::I64Add => {
-            let lhs_lo = u64::from(trace.stack_read0.map(|lane| lane.value).unwrap_or(0));
-            let rhs_lo = u64::from(trace.stack_read1.map(|lane| lane.value).unwrap_or(0));
-            let lhs_hi = u64::from(trace.stack_read0_hi.unwrap_or(0));
-            let rhs_hi = u64::from(trace.stack_read1_hi.unwrap_or(0));
+            let lhs_lo = u64::from(trace.stack_read0.map(|lane| lane.value_lo).unwrap_or(0));
+            let rhs_lo = u64::from(trace.stack_read1.map(|lane| lane.value_lo).unwrap_or(0));
+            let lhs_hi = u64::from(
+                trace
+                    .stack_read0
+                    .and_then(|lane| lane.value_hi)
+                    .unwrap_or(0),
+            );
+            let rhs_hi = u64::from(
+                trace
+                    .stack_read1
+                    .and_then(|lane| lane.value_hi)
+                    .unwrap_or(0),
+            );
             let carry0 = (lhs_lo + rhs_lo) >> 32;
             let carry1 = (lhs_hi + rhs_hi + carry0) >> 32;
             wit[COL_WIDE_AUX0] = F::from_u64(carry0);
             wit[COL_WIDE_AUX1] = F::from_u64(carry1);
         }
         super::isa::WasmOpcode::I64Sub => {
-            let lhs_lo = trace.stack_read0.map(|lane| lane.value).unwrap_or(0);
-            let rhs_lo = trace.stack_read1.map(|lane| lane.value).unwrap_or(0);
-            let lhs_hi = trace.stack_read0_hi.unwrap_or(0);
-            let rhs_hi = trace.stack_read1_hi.unwrap_or(0);
+            let lhs_lo = trace.stack_read0.map(|lane| lane.value_lo).unwrap_or(0);
+            let rhs_lo = trace.stack_read1.map(|lane| lane.value_lo).unwrap_or(0);
+            let lhs_hi = trace
+                .stack_read0
+                .and_then(|lane| lane.value_hi)
+                .unwrap_or(0);
+            let rhs_hi = trace
+                .stack_read1
+                .and_then(|lane| lane.value_hi)
+                .unwrap_or(0);
             let borrow0 = u64::from(lhs_lo < rhs_lo);
             let borrow1 = u64::from(u64::from(lhs_hi) < u64::from(rhs_hi) + borrow0);
             wit[COL_WIDE_AUX0] = F::from_u64(borrow0);
@@ -637,10 +664,10 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
         _ => {}
     }
 
-    let select_cond = trace.stack_read2.map(|lane| lane.value).unwrap_or(0);
+    let select_cond = trace.stack_read2.map(|lane| lane.value_lo).unwrap_or(0);
     let (select_cond_is_zero, select_cond_inv) = zero_test_witness_u64(u64::from(select_cond));
-    let select_lhs = F::from_u64(u64::from(trace.stack_read0.map(|lane| lane.value).unwrap_or(0)));
-    let select_rhs = F::from_u64(u64::from(trace.stack_read1.map(|lane| lane.value).unwrap_or(0)));
+    let select_lhs = F::from_u64(u64::from(trace.stack_read0.map(|lane| lane.value_lo).unwrap_or(0)));
+    let select_rhs = F::from_u64(u64::from(trace.stack_read1.map(|lane| lane.value_lo).unwrap_or(0)));
     wit[COL_SELECT_COND_IS_ZERO] = select_cond_is_zero;
     wit[COL_SELECT_SCRATCH_INV] = select_cond_inv;
     wit[COL_SELECT_OUT_DELTA] = (F::ONE - select_cond_is_zero) * (select_lhs - select_rhs);
@@ -650,23 +677,38 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
     // is_zero flags to 1, so cmp_and = 1.
     let cmp_lo_diff = match trace.opcode {
         super::isa::WasmOpcode::I32Eqz | super::isa::WasmOpcode::I64Eqz => {
-            F::from_u64(u64::from(trace.stack_read0.map(|l| l.value).unwrap_or(0)))
+            F::from_u64(u64::from(trace.stack_read0.map(|l| l.value_lo).unwrap_or(0)))
         }
         super::isa::WasmOpcode::I32Eq
         | super::isa::WasmOpcode::I32Ne
         | super::isa::WasmOpcode::I64Eq
         | super::isa::WasmOpcode::I64Ne => {
-            let lhs = F::from_u64(u64::from(trace.stack_read0.map(|l| l.value).unwrap_or(0)));
-            let rhs = F::from_u64(u64::from(trace.stack_read1.map(|l| l.value).unwrap_or(0)));
+            let lhs = F::from_u64(u64::from(trace.stack_read0.map(|l| l.value_lo).unwrap_or(0)));
+            let rhs = F::from_u64(u64::from(trace.stack_read1.map(|l| l.value_lo).unwrap_or(0)));
             lhs - rhs
         }
         _ => F::ZERO,
     };
     let cmp_hi_diff = match trace.opcode {
-        super::isa::WasmOpcode::I64Eqz => F::from_u64(u64::from(trace.stack_read0_hi.unwrap_or(0))),
+        super::isa::WasmOpcode::I64Eqz => F::from_u64(u64::from(
+            trace
+                .stack_read0
+                .and_then(|lane| lane.value_hi)
+                .unwrap_or(0),
+        )),
         super::isa::WasmOpcode::I64Eq | super::isa::WasmOpcode::I64Ne => {
-            let lhs = F::from_u64(u64::from(trace.stack_read0_hi.unwrap_or(0)));
-            let rhs = F::from_u64(u64::from(trace.stack_read1_hi.unwrap_or(0)));
+            let lhs = F::from_u64(u64::from(
+                trace
+                    .stack_read0
+                    .and_then(|lane| lane.value_hi)
+                    .unwrap_or(0),
+            ));
+            let rhs = F::from_u64(u64::from(
+                trace
+                    .stack_read1
+                    .and_then(|lane| lane.value_hi)
+                    .unwrap_or(0),
+            ));
             lhs - rhs
         }
         _ => F::ZERO,

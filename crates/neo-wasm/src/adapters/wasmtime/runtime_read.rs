@@ -8,7 +8,7 @@
 //! parent module and `normalize` decide what to do with the answers.
 
 use super::WasmtimeTraceState;
-use crate::ir::{StackLaneAccess, WasmBuildError};
+use crate::ir::{StackValueAccess, WasmBuildError};
 use std::collections::BTreeMap;
 use wasmtime::{FrameHandle, Store, StoreContextMut, Val};
 
@@ -243,7 +243,7 @@ pub(crate) fn parse_signed_u32(value: &str) -> Result<u32, WasmBuildError> {
     Ok((parsed as i32) as u32)
 }
 
-pub(crate) fn read_lane(stack: &[u32], sp_before: u64, reads: u8, lane: usize) -> Option<StackLaneAccess> {
+pub(crate) fn read_lane(stack: &[u32], sp_before: u64, reads: u8, lane: usize) -> Option<StackValueAccess> {
     let reads = reads as usize;
     if reads == 0 || lane >= reads {
         return None;
@@ -256,7 +256,7 @@ pub(crate) fn read_lane(stack: &[u32], sp_before: u64, reads: u8, lane: usize) -
     stack
         .get(stack_index)
         .copied()
-        .map(|value| StackLaneAccess { addr, value })
+        .map(|value| StackValueAccess::new(addr, value))
 }
 
 pub(crate) fn read_lane_hi(stack_hi: &[u32], reads: u8, lane: usize) -> Option<u32> {

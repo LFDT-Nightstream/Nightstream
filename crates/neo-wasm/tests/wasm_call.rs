@@ -113,7 +113,7 @@ fn call_trace_has_correct_fbp_and_call_stack_fields() {
     assert_eq!(aux.param_init_before.remaining, 1);
     assert_eq!(aux.param_init_after.remaining, 0);
     assert!(!aux.param_init_after.active, "last aux row must exit param-init mode");
-    assert_eq!(aux.stack_read0.expect("aux stack read").value, 5);
+    assert_eq!(aux.stack_read0.expect("aux stack read").value_lo, 5);
     assert_eq!(aux.local_index, Some(0), "callee param at local addr 0");
     assert_eq!(
         aux.locals_fbp, aux.locals_fbp_after,
@@ -210,7 +210,7 @@ fn call_indirect_guest_target_initializes_params() {
         .filter(|row| row.row_kind == WasmRowKind::Aux(WasmAuxOpcode::CallParamInit))
         .collect();
     assert_eq!(aux_rows.len(), 1);
-    assert_eq!(aux_rows[0].stack_read0.expect("param read").value, 5);
+    assert_eq!(aux_rows[0].stack_read0.expect("param read").value_lo, 5);
     assert_eq!(aux_rows[0].local_write_value, Some(5));
 }
 

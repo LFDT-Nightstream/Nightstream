@@ -4,17 +4,20 @@
 //! in-circuit gadgets and the native ones are required to produce
 //! byte-identical outputs for the same inputs.
 
+use neo_ccs::{CcsMatrix, CcsStructure, SparsePoly, Term};
 use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
 use neo_fold_clean::paper::digest::{
     boundary_update_digest, digest32_as_fields, public_trace_update_digest, state_x_out_digest,
-    state_x_out_digest_with_mode, StateXOutDigestMode,
+    state_x_out_digest_with_mode, structure_digest, vk_fs_digest, StateXOutDigestMode,
 };
 use neo_fold_clean::paper::f_prime::digest_circuit::{
     enforce_boundary_update_digest_circuit, enforce_public_trace_update_digest_circuit,
     enforce_state_x_out_digest_circuit, StateXOutDigestInputs,
 };
 use neo_math::F;
-use p3_field::PrimeCharacteristicRing;
+use neo_params::{goldilocks_paper_b2, NeoParams};
+use neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
@@ -48,6 +51,102 @@ fn seeded_bytes(seed: u64) -> [u8; 32] {
 
 fn seeded_digest_fields(seed: u64) -> [F; 4] {
     digest32_as_fields(seeded_bytes(seed))
+}
+
+#[test]
+fn vk_fs_digest_binds_large_u64_params_without_field_aliasing() {
+    let structure = seeded_digest_fields(0xFA11);
+    let initial_semantic = seeded_bytes(0x51A7E);
+    let base = NeoParams::new(
+        goldilocks_paper_b2::Q,
+        goldilocks_paper_b2::ETA as u32,
+        goldilocks_paper_b2::D as u32,
+        goldilocks_paper_b2::KAPPA,
+        1,
+        goldilocks_paper_b2::B_BASE,
+        goldilocks_paper_b2::K_RHO,
+        goldilocks_paper_b2::T,
+        goldilocks_paper_b2::EXTENSION_DEGREE,
+        goldilocks_paper_b2::LAMBDA,
+    )
+    .expect("base params");
+    let aliased_m = NeoParams::new(
+        goldilocks_paper_b2::Q,
+        goldilocks_paper_b2::ETA as u32,
+        goldilocks_paper_b2::D as u32,
+        goldilocks_paper_b2::KAPPA,
+        goldilocks_paper_b2::Q + 1,
+        goldilocks_paper_b2::B_BASE,
+        goldilocks_paper_b2::K_RHO,
+        goldilocks_paper_b2::T,
+        goldilocks_paper_b2::EXTENSION_DEGREE,
+        goldilocks_paper_b2::LAMBDA,
+    )
+    .expect("params with m = field modulus + 1");
+
+    let base_digest = vk_fs_digest(&base, &structure, Some(1), initial_semantic);
+    let aliased_digest = vk_fs_digest(&aliased_m, &structure, Some(1), initial_semantic);
+
+    assert_ne!(
+        base_digest, aliased_digest,
+        "vk_fs_digest must encode u64 params injectively; m=1 and m=p+1 \
+         are distinct verifier contexts even though F::from_u64 aliases them"
+    );
+}
+
+#[test]
+fn structure_digest_binds_sparse_identity_dimensions_without_field_aliasing() {
+    fn identity_structure(n: usize) -> CcsStructure<F> {
+        CcsStructure::new_sparse(
+            vec![CcsMatrix::Identity { n }],
+            SparsePoly::new(
+                1,
+                vec![Term {
+                    coeff: F::ONE,
+                    exps: vec![1],
+                }],
+            ),
+        )
+        .expect("identity CCS structure")
+    }
+
+    let base = identity_structure(1);
+    let aliased = identity_structure((F::ORDER_U64 + 1) as usize);
+
+    assert_ne!(
+        structure_digest(&base),
+        structure_digest(&aliased),
+        "structure_digest must encode sparse/identity dimensions injectively; \
+         n=m=1 and n=m=p+1 are distinct verifier structures even though \
+         F::from_u64 aliases their dimension words"
+    );
+}
+
+#[test]
+fn ccs_matrix_digest_binds_sparse_identity_dimensions_without_field_aliasing() {
+    fn identity_structure(n: usize) -> CcsStructure<F> {
+        CcsStructure::new_sparse(
+            vec![CcsMatrix::Identity { n }],
+            SparsePoly::new(
+                1,
+                vec![Term {
+                    coeff: F::ONE,
+                    exps: vec![1],
+                }],
+            ),
+        )
+        .expect("identity CCS structure")
+    }
+
+    let base = identity_structure(1);
+    let aliased = identity_structure((F::ORDER_U64 + 1) as usize);
+
+    assert_ne!(
+        digest_ccs_matrices_with_sparse_cache(&base, None),
+        digest_ccs_matrices_with_sparse_cache(&aliased, None),
+        "Π_CCS matrix digest must encode sparse/identity dimensions injectively; \
+         the header transcript must not alias n=m=1 with n=m=p+1"
+    );
 }
 
 // ── boundary_update parity ───────────────────────────────────────────────

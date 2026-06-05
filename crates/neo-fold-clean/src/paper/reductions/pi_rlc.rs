@@ -169,11 +169,11 @@ pub fn verify(
     validate_inputs_before_rho(s, claims)?;
     bind_input_claims_for_rho(tr, claims);
     let rhos = engine::sample_rho_n(tr.inner_mut(), pp, claims.len())?;
+    validate_nc_sidecars(s, &rhos, claims, &proof.combined)?;
     let ok = engine::verify_pi_rlc(pp, s, &rhos, claims, &proof.combined, |zs, cs| mix(zs, cs))?;
     if !ok {
         return Err(Error::VerifyRejected);
     }
-    validate_nc_sidecars(s, &rhos, claims, &proof.combined)?;
     Ok(proof.combined.clone())
 }
 

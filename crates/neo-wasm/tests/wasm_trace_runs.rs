@@ -614,7 +614,7 @@ fn wasm_trace_run_with_br_table() {
     assert_eq!(
         pc_rom
             .iter()
-            .filter(|(pc, _, _)| *pc == row.pc_before)
+            .filter(|(pc, _, _)| *pc == row.state_before.pc)
             .count(),
         3
     );

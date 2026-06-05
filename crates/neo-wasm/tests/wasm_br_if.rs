@@ -40,7 +40,12 @@ fn print_br_if_raw_trace() {
     for step in &trace {
         println!(
             "  cycle={} pc={}->{} opcode={} sp={}->{}",
-            step.cycle, step.pc_before, step.pc_after, step.info.name, step.sp_before, step.sp_after,
+            step.cycle,
+            step.state_before.pc,
+            step.state_after.pc,
+            step.info.name,
+            step.state_before.sp,
+            step.state_after.sp,
         );
     }
 }

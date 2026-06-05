@@ -3,7 +3,7 @@
 //!
 //! The single-step wasm CCS proves *one* step satisfies the row constraints
 //! but does not, on its own, enforce that consecutive steps form a coherent
-//! execution — e.g., that `step[i].pc_after == step[i+1].pc_before`. The
+//! execution — e.g., that `step[i].state_after.pc == step[i+1].state_before.pc`. The
 //! cross-step links live in [`WasmLookupBindingLayout::cross_step_links`]
 //! as metadata; this module compiles them into actual R1CS rows by:
 //!
@@ -43,7 +43,7 @@ use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
 use crate::ccs::WasmVmSpec;
-use crate::ir::{WasmAuxOpcode, WasmParamInitState, WasmPcEdgeKind, WasmRowKind, WasmStepTrace};
+use crate::ir::{WasmAuxOpcode, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmStepTrace};
 use crate::isa::{opcode_info_from_code, WasmOpcode};
 use crate::layout::{ColumnWidth, COLUMN_SPECS, COL_ONE, WITNESS_WIDTH};
 use crate::lookup_binding_builder::build_wasm_lookup_binding_layout;
@@ -224,12 +224,12 @@ pub fn batch_count(trace_len: usize, batch_size: usize) -> usize {
 /// preservation` constraint groups in `ccs/call.rs`); the witness we
 /// build here is just the values that satisfy those rows.
 pub fn padding_step_after(prev: &WasmStepTrace) -> WasmStepTrace {
-    let pages = prev.memory_pages_after;
-    let fbp = prev.locals_fbp_after;
-    let pc = prev.pc_after;
-    let sp = prev.sp_after;
-    let call_stack_depth = prev.call_stack_depth_after;
-    let param_init = prev.param_init_after;
+    let pages = prev.state_after.memory_pages;
+    let fbp = prev.state_after.locals_fbp;
+    let pc = prev.state_after.pc;
+    let sp = prev.state_after.sp;
+    let call_stack_depth = prev.state_after.call_stack_depth;
+    let param_init = prev.state_after.param_init;
     debug_assert!(
         !param_init.active,
         "padding inside a param-init aux sequence is unsupported"
@@ -237,12 +237,28 @@ pub fn padding_step_after(prev: &WasmStepTrace) -> WasmStepTrace {
     WasmStepTrace {
         cycle: prev.cycle + 1,
         row_kind: WasmRowKind::Aux(WasmAuxOpcode::Padding),
-        pc_before: pc,
-        pc_after: pc,
+        state_before: WasmStepState {
+            pc,
+            sp,
+            output: prev.state_after.output,
+            call_stack_depth,
+            memory_pages: pages,
+            locals_fbp: fbp,
+            halted: false,
+            param_init,
+        },
+        state_after: WasmStepState {
+            pc,
+            sp,
+            output: prev.state_after.output,
+            call_stack_depth,
+            memory_pages: pages,
+            locals_fbp: fbp,
+            halted: false,
+            param_init,
+        },
         control_choice: 0,
         pc_edge_kind: WasmPcEdgeKind::Static,
-        param_init_before: WasmParamInitState::ZERO,
-        param_init_after: WasmParamInitState::ZERO,
         wide_values_enabled: false,
         // opcode_code = 0: no opcode selector fires on this row (the
         // selector one-hot demands `sum(selectors) = is_program_row`,
@@ -252,17 +268,7 @@ pub fn padding_step_after(prev: &WasmStepTrace) -> WasmStepTrace {
         info: opcode_info_from_code(0),
         stack_reads_override: Some(0),
         stack_writes_override: Some(0),
-        sp_before: sp,
-        sp_after: sp,
-        output_enabled_before: prev.output_enabled_after,
-        output_enabled_after: prev.output_enabled_after,
-        output_value_lo_before: prev.output_value_lo_after,
-        output_value_lo_after: prev.output_value_lo_after,
-        output_value_hi_before: prev.output_value_hi_after,
-        output_value_hi_after: prev.output_value_hi_after,
         output_captured: false,
-        call_stack_depth_before: call_stack_depth,
-        call_stack_depth_after: call_stack_depth,
         current_function_ref: prev.current_function_ref,
         current_function_num_locals: prev.current_function_num_locals,
         stack_read0: None,
@@ -271,11 +277,6 @@ pub fn padding_step_after(prev: &WasmStepTrace) -> WasmStepTrace {
         stack_write0: None,
         linear_memory: None,
         linear_memory_offset: 0,
-        memory_pages_before: pages,
-        memory_pages_after: pages,
-        halted: false,
-        locals_fbp: fbp,
-        locals_fbp_after: fbp,
         local_index: None,
         local_read_value: None,
         local_read_value_hi: None,

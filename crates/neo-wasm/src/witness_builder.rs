@@ -89,35 +89,43 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
     wit[COL_STACK_READ2_ADDR_HI] = F::ONE;
     wit[COL_STACK_WRITE0_ADDR_HI] = F::ONE;
     wit[COL_OPCODE_CODE] = F::from_u64(u64::from(trace.opcode_code));
-    wit[COL_PC_BEFORE] = F::from_u64(trace.pc_before);
-    wit[COL_PC_AFTER] = F::from_u64(trace.pc_after);
+    wit[COL_PC_BEFORE] = F::from_u64(trace.state_before.pc);
+    wit[COL_PC_AFTER] = F::from_u64(trace.state_after.pc);
     wit[COL_CONTROL_CHOICE] = F::from_u64(u64::from(trace.control_choice));
     wit[COL_PC_EDGE_KIND] = F::from_u64(u64::from(trace.pc_edge_kind.as_u32()));
     let (pc_edge_kind_is_static, pc_edge_kind_inv) = zero_test_witness_u64(u64::from(trace.pc_edge_kind.as_u32()));
     wit[COL_PC_EDGE_KIND_IS_STATIC] = pc_edge_kind_is_static;
     wit[COL_PC_EDGE_KIND_INV] = pc_edge_kind_inv;
-    write_param_init_state(&mut wit, true, trace.param_init_before);
-    write_param_init_state(&mut wit, false, trace.param_init_after);
-    let (remaining_is_zero, remaining_inv) = zero_test_witness_u64(u64::from(trace.param_init_after.remaining));
+    write_param_init_state(&mut wit, true, trace.state_before.param_init);
+    write_param_init_state(&mut wit, false, trace.state_after.param_init);
+    let (remaining_is_zero, remaining_inv) = zero_test_witness_u64(u64::from(trace.state_after.param_init.remaining));
     wit[COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO] = remaining_is_zero;
     wit[COL_PARAM_INIT_REMAINING_AFTER_INV] = remaining_inv;
     wit[COL_WIDE_VALUES_ENABLED] = if trace.wide_values_enabled { F::ONE } else { F::ZERO };
-    wit[COL_SP_BEFORE] = F::from_u64(trace.sp_before);
-    wit[COL_SP_AFTER] = F::from_u64(trace.sp_after);
-    wit[COL_OUTPUT_ENABLED_BEFORE] = if trace.output_enabled_before { F::ONE } else { F::ZERO };
-    wit[COL_OUTPUT_ENABLED_AFTER] = if trace.output_enabled_after { F::ONE } else { F::ZERO };
-    wit[COL_OUTPUT_VALUE_LO_BEFORE] = F::from_u64(u64::from(trace.output_value_lo_before));
-    wit[COL_OUTPUT_VALUE_LO_AFTER] = F::from_u64(u64::from(trace.output_value_lo_after));
-    wit[COL_OUTPUT_VALUE_HI_BEFORE] = F::from_u64(u64::from(trace.output_value_hi_before));
-    wit[COL_OUTPUT_VALUE_HI_AFTER] = F::from_u64(u64::from(trace.output_value_hi_after));
+    wit[COL_SP_BEFORE] = F::from_u64(trace.state_before.sp);
+    wit[COL_SP_AFTER] = F::from_u64(trace.state_after.sp);
+    wit[COL_OUTPUT_ENABLED_BEFORE] = if trace.state_before.output.enabled {
+        F::ONE
+    } else {
+        F::ZERO
+    };
+    wit[COL_OUTPUT_ENABLED_AFTER] = if trace.state_after.output.enabled {
+        F::ONE
+    } else {
+        F::ZERO
+    };
+    wit[COL_OUTPUT_VALUE_LO_BEFORE] = F::from_u64(u64::from(trace.state_before.output.value_lo));
+    wit[COL_OUTPUT_VALUE_LO_AFTER] = F::from_u64(u64::from(trace.state_after.output.value_lo));
+    wit[COL_OUTPUT_VALUE_HI_BEFORE] = F::from_u64(u64::from(trace.state_before.output.value_hi));
+    wit[COL_OUTPUT_VALUE_HI_AFTER] = F::from_u64(u64::from(trace.state_after.output.value_hi));
     wit[COL_OUTPUT_CAPTURED] = if trace.output_captured { F::ONE } else { F::ZERO };
-    wit[COL_CALL_STACK_DEPTH_BEFORE] = F::from_u64(trace.call_stack_depth_before);
-    wit[COL_CALL_STACK_DEPTH_AFTER] = F::from_u64(trace.call_stack_depth_after);
+    wit[COL_CALL_STACK_DEPTH_BEFORE] = F::from_u64(trace.state_before.call_stack_depth);
+    wit[COL_CALL_STACK_DEPTH_AFTER] = F::from_u64(trace.state_after.call_stack_depth);
     wit[COL_CURRENT_FUNCTION_REF] = F::from_u64(u64::from(trace.current_function_ref));
     wit[COL_CURRENT_FUNCTION_NUM_LOCALS] = F::from_u64(u64::from(trace.current_function_num_locals));
-    wit[COL_LOCALS_FBP_BEFORE] = F::from_u64(trace.locals_fbp);
-    wit[COL_LOCALS_FBP_AFTER] = F::from_u64(trace.locals_fbp_after);
-    wit[COL_HALTED] = if trace.halted { F::ONE } else { F::ZERO };
+    wit[COL_LOCALS_FBP_BEFORE] = F::from_u64(trace.state_before.locals_fbp);
+    wit[COL_LOCALS_FBP_AFTER] = F::from_u64(trace.state_after.locals_fbp);
+    wit[COL_HALTED] = if trace.state_after.halted { F::ONE } else { F::ZERO };
     wit[COL_IS_PROGRAM_ROW] = if trace.row_kind.is_program() { F::ONE } else { F::ZERO };
     wit[COL_PADDING_ACTIVE] = if trace.row_kind.is_padding() { F::ONE } else { F::ZERO };
     wit[COL_PC_ROM_ACTIVE] = if trace.row_kind.is_program() && trace.pc_edge_kind.as_u32() == 0 {
@@ -140,15 +148,15 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
         wit[COL_CALL_STACK_POP_CALLER_FBP] = F::from_u64(caller_fbp);
     }
     if trace.call_stack_push.is_some() {
-        wit[COL_CALL_STACK_ADDR] = F::from_u64(trace.call_stack_depth_before);
+        wit[COL_CALL_STACK_ADDR] = F::from_u64(trace.state_before.call_stack_depth);
         wit[COL_CALL_STACK_RETURN_PC_CHOICE] = F::from_u64(CALL_RETURN_PC_CHOICE);
     } else if trace.call_stack_pop.is_some() {
-        wit[COL_CALL_STACK_ADDR] = F::from_u64(trace.call_stack_depth_after);
+        wit[COL_CALL_STACK_ADDR] = F::from_u64(trace.state_after.call_stack_depth);
     }
-    if let Some(pages) = trace.memory_pages_before {
+    if let Some(pages) = trace.state_before.memory_pages {
         wit[COL_MEMORY_PAGES_BEFORE] = F::from_u64(u64::from(pages));
     }
-    if let Some(pages) = trace.memory_pages_after {
+    if let Some(pages) = trace.state_after.memory_pages {
         wit[COL_MEMORY_PAGES_AFTER] = F::from_u64(u64::from(pages));
     }
     wit[COL_STACK_READS] = F::from_u64(u64::from(trace.stack_reads_override.unwrap_or(trace.info.stack_reads)));
@@ -200,11 +208,11 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
             0,
             "output capture reuses inactive stack_read0 columns"
         );
-        let output_addr = trace.sp_before.saturating_sub(1).saturating_mul(2);
+        let output_addr = trace.state_before.sp.saturating_sub(1).saturating_mul(2);
         wit[COL_STACK_READ0_ADDR_LO] = F::from_u64(output_addr);
         wit[COL_STACK_READ0_ADDR_HI] = F::from_u64(output_addr + 1);
-        wit[COL_STACK_READ0_VALUE_LO] = F::from_u64(u64::from(trace.output_value_lo_after));
-        wit[COL_STACK_READ0_VALUE_HI] = F::from_u64(u64::from(trace.output_value_hi_after));
+        wit[COL_STACK_READ0_VALUE_LO] = F::from_u64(u64::from(trace.state_after.output.value_lo));
+        wit[COL_STACK_READ0_VALUE_HI] = F::from_u64(u64::from(trace.state_after.output.value_hi));
     }
     if trace.wide_values_enabled {
         if let Some(read0_value_hi) = trace.stack_read0.and_then(|read| read.value_hi) {

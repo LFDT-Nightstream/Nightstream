@@ -15,7 +15,7 @@ use neo_wasm::WasmRowKind;
 use neo_wasm::{
     collect_wasmtime_steps, opcode_code, opcode_info_from_code, traces_from_rwasm_instr_states,
     traces_from_wasmtime_steps, traces_from_wasmtime_wasm_bytes, LinearMemoryAccess, StackValueAccess, WasmAuxOpcode,
-    WasmOpcode, WasmParamInitState, WasmPcEdgeKind, WasmStepTrace,
+    WasmOpcode, WasmOutputState, WasmParamInitState, WasmPcEdgeKind, WasmStepState, WasmStepTrace,
 };
 use p3_field::PrimeCharacteristicRing;
 use rwasm::mem::{MemoryAccessRecord, MemoryReadRecord, MemoryRecordEnum, MemoryWriteRecord};
@@ -35,6 +35,19 @@ fn step(
     linear_memory_offset: u64,
     halted: bool,
 ) -> WasmStepTrace {
+    fn state(pc: u64, sp: u64, halted: bool) -> WasmStepState {
+        WasmStepState {
+            pc,
+            sp,
+            output: WasmOutputState::ZERO,
+            call_stack_depth: 0,
+            memory_pages: None,
+            locals_fbp: 0,
+            halted,
+            param_init: WasmParamInitState::ZERO,
+        }
+    }
+
     fn physical(access: Option<StackValueAccess>) -> Option<StackValueAccess> {
         access.map(|lane| StackValueAccess::new(lane.addr_lo * 2, lane.value_lo))
     }
@@ -42,8 +55,8 @@ fn step(
     WasmStepTrace {
         cycle,
         row_kind: WasmRowKind::Program,
-        pc_before,
-        pc_after: pc_before + 1,
+        state_before: state(pc_before, sp_before, false),
+        state_after: state(pc_before + 1, sp_after, halted),
         control_choice: 0,
         pc_edge_kind: match opcode_info_from_code(opcode_code).opcode {
             WasmOpcode::Return | WasmOpcode::End => WasmPcEdgeKind::ReturnLike,
@@ -51,25 +64,13 @@ fn step(
             WasmOpcode::Unreachable => WasmPcEdgeKind::Terminal,
             _ => WasmPcEdgeKind::Static,
         },
-        param_init_before: WasmParamInitState::ZERO,
-        param_init_after: WasmParamInitState::ZERO,
         wide_values_enabled: opcode_info_from_code(opcode_code).opcode.uses_wide_values(),
         opcode_code,
         opcode: opcode_info_from_code(opcode_code).opcode,
         info: opcode_info_from_code(opcode_code),
         stack_reads_override: None,
         stack_writes_override: None,
-        sp_before,
-        sp_after,
-        output_enabled_before: false,
-        output_enabled_after: false,
-        output_value_lo_before: 0,
-        output_value_lo_after: 0,
-        output_value_hi_before: 0,
-        output_value_hi_after: 0,
         output_captured: false,
-        call_stack_depth_before: 0,
-        call_stack_depth_after: 0,
         current_function_ref: 0,
         current_function_num_locals: 0,
         stack_read0: physical(stack_read0),
@@ -78,11 +79,6 @@ fn step(
         stack_write0: physical(stack_write0),
         linear_memory,
         linear_memory_offset,
-        memory_pages_before: None,
-        memory_pages_after: None,
-        halted,
-        locals_fbp: 0,
-        locals_fbp_after: 0,
         local_index: None,
         local_read_value: None,
         local_read_value_hi: None,
@@ -159,12 +155,12 @@ fn normalization_tracks_stack_pointer_for_binary_op() {
     ];
 
     let trace = traces_from_rwasm_instr_states(&rows, 0).expect("normalize");
-    assert_eq!(trace[0].sp_before, 0);
-    assert_eq!(trace[0].sp_after, 1);
-    assert_eq!(trace[1].sp_before, 1);
-    assert_eq!(trace[1].sp_after, 2);
-    assert_eq!(trace[2].sp_before, 2);
-    assert_eq!(trace[2].sp_after, 1);
+    assert_eq!(trace[0].state_before.sp, 0);
+    assert_eq!(trace[0].state_after.sp, 1);
+    assert_eq!(trace[1].state_before.sp, 1);
+    assert_eq!(trace[1].state_after.sp, 2);
+    assert_eq!(trace[2].state_before.sp, 2);
+    assert_eq!(trace[2].state_after.sp, 1);
     assert_eq!(trace[2].stack_read0.expect("lhs").addr_lo, 0);
     assert_eq!(trace[2].stack_read1.expect("rhs").addr_lo, 2);
     assert_eq!(trace[2].stack_write0.expect("out").addr_lo, 0);
@@ -1118,7 +1114,7 @@ fn structured_end_row_is_accepted() {
     );
     let row = trace
         .iter()
-        .find(|row| row.opcode == WasmOpcode::End && !row.halted)
+        .find(|row| row.opcode == WasmOpcode::End && !row.state_after.halted)
         .expect("structured end row");
     assert_eq!(row.pc_edge_kind, WasmPcEdgeKind::Static);
     assert_satisfied(&build_witness_vector(row), "structured end row");

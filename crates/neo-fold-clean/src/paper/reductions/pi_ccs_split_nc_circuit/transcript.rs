@@ -19,7 +19,7 @@ use neo_reductions::engines::utils::{
     PI_CCS_HEADER_BUNDLE_RAW_TAG, PI_CCS_INSTANCE_DIGEST_RAW_TAG, PI_CCS_ME_ACCUMULATOR_HANDLE_RAW_TAG,
     PI_CCS_ME_COUNT_RAW_TAG, PI_CCS_ME_INPUTS_RAW_DOMAIN_TAG,
 };
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::{alloc_constant_var, Error};
 use crate::engine::r1cs_circuit::builder::{Lc, Var};
@@ -191,9 +191,11 @@ pub fn absorb_engine_me_inputs_accumulator_handle(
 /// Goldilocks lanes that [`TranscriptGadget::digest_fields`] (and the native
 /// `Poseidon2Transcript::digest32`) emit.
 ///
-/// Each lane is 8 little-endian bytes read as a `u64` then embedded into `F`,
-/// matching the encoding in `paper::digest::digest32_as_fields` and the
-/// native `digest32` byte layout.
+/// Each lane is 8 little-endian bytes read as a canonical Goldilocks element,
+/// matching the native `digest32` byte layout. Reject noncanonical limbs
+/// instead of reducing them with `F::from_u64`; otherwise a proof byte string
+/// containing `p + x` would alias to the transcript lane `x` in-circuit while
+/// the native verifier rejects the raw bytes.
 pub fn header_digest_bytes_to_fields(bytes: &[u8]) -> Result<[F; 4], Error> {
     if bytes.len() != 32 {
         return Err(Error::Shape(format!(
@@ -201,11 +203,20 @@ pub fn header_digest_bytes_to_fields(bytes: &[u8]) -> Result<[F; 4], Error> {
             bytes.len()
         )));
     }
-    Ok(std::array::from_fn(|i| {
+    let mut out = [F::ZERO; 4];
+    for (i, slot) in out.iter_mut().enumerate() {
         let mut limb = [0u8; 8];
         limb.copy_from_slice(&bytes[i * 8..(i + 1) * 8]);
-        F::from_u64(u64::from_le_bytes(limb))
-    }))
+        let value = u64::from_le_bytes(limb);
+        if value >= F::ORDER_U64 {
+            return Err(Error::Shape(format!(
+                "Π_CCS header_digest limb {i} is noncanonical: {value} >= field modulus {}",
+                F::ORDER_U64
+            )));
+        }
+        *slot = F::from_u64(value);
+    }
+    Ok(out)
 }
 
 /// Native `crate::engine::optimized::verify_pi_ccs` performs a catch-up

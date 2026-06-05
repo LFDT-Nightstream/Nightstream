@@ -100,6 +100,13 @@ fn extend_inner(
     if batch.is_empty() {
         return Err(Error::EmptyBatch);
     }
+    let max_fresh = prep.params.max_fresh_count();
+    if batch.len() > max_fresh {
+        return Err(Error::BatchTooLarge {
+            got: batch.len(),
+            max: max_fresh,
+        });
+    }
     let public_batch: Vec<CcsClaim> = batch.iter().map(|i| i.claim.clone()).collect();
     super::validate_public_input_len(prep, &public_batch)?;
     let (next_state, step_proof) = construction2::step_with_semantic_state(

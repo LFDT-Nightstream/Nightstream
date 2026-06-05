@@ -75,7 +75,9 @@ use crate::engine::r1cs_circuit::builder::{Lc, R1csBuilder, Var};
 use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::poseidon2::DIGEST_LEN;
 use crate::engine::r1cs_circuit::transcript::TranscriptGadget;
-use crate::engine::r1cs_circuit::u64_arith::decompose_var_to_u64_bits;
+use crate::engine::r1cs_circuit::u64_arith::{
+    alloc_u64_bits, decompose_var_to_u64_bits, enforce_u64_add, enforce_u64_constant, enforce_u64_increment,
+};
 use crate::paper::construction2::TRIVIAL_PC;
 use crate::paper::digest::AccumulatorHandle;
 use crate::paper::digest::StateXOutDigestMode;
@@ -194,6 +196,24 @@ fn enforce_var_matches_source_word64(
     enforce_goldilocks_word_canonical(builder, source_wires, word);
     let decoded = source_wires.word64_lc(word);
     builder.enforce_eq(&Lc::from_var(var), &decoded);
+}
+
+fn source_word_bits(source_wires: &SourceImageWires, word: Word64Image) -> [Var; 64] {
+    let bits = source_wires.range(word.bits());
+    assert_eq!(bits.len(), 64, "F' counter source word must be 64 bits");
+    std::array::from_fn(|i| bits[i])
+}
+
+fn enforce_counter_increment_no_wrap(builder: &mut R1csBuilder, old_bits: &[Var; 64], new_counter: Var) {
+    let new_bits = decompose_var_to_u64_bits(builder, new_counter);
+    enforce_u64_increment(builder, old_bits, &new_bits);
+}
+
+fn enforce_counter_add_no_wrap(builder: &mut R1csBuilder, old_bits: &[Var; 64], increment: u64, new_counter: Var) {
+    let increment_bits = alloc_u64_bits(builder, increment);
+    enforce_u64_constant(builder, &increment_bits, increment);
+    let new_bits = decompose_var_to_u64_bits(builder, new_counter);
+    enforce_u64_add(builder, old_bits, &increment_bits, &new_bits);
 }
 
 /// Given pre-allocated source-image bit wires `expected_bits`, constrain
@@ -633,6 +653,10 @@ pub fn enforce_f_prime_base_step_circuit(
         &Lc::from_var(new_step_count),
         &Lc::from_const(F::from_u64(inputs.rows_in_chunk)),
     );
+    let chunk_count_in_bits = source_word_bits(&source_wires, inputs.chunk_count_in_word);
+    let step_count_in_bits = source_word_bits(&source_wires, inputs.step_count_in_word);
+    enforce_counter_increment_no_wrap(builder, &chunk_count_in_bits, new_chunk_count);
+    enforce_counter_add_no_wrap(builder, &step_count_in_bits, inputs.rows_in_chunk, new_step_count);
 
     let (x_out, new_z_i, new_public_trace) = build_x_out(
         builder,
@@ -713,7 +737,10 @@ pub fn enforce_f_prime_recursive_step_circuit(
         }
     }
 
-    // Recursive means i ≥ 1; chunk_count_in must be nonzero.
+    // Recursive means i ≥ 1; both counters must have advanced past the
+    // true base state. `chunk_count_in != 0` separates the recursive
+    // branch from NoFold; `step_count_in != 0` prevents a forged Active
+    // state from representing "some prior chunk, but zero folded rows."
     if inputs.state.chunk_count_in == 0 {
         return Err(Error::Inner(
             "strict F' recursive: chunk_count_in must be nonzero".into(),
@@ -733,10 +760,12 @@ pub fn enforce_f_prime_recursive_step_circuit(
     enforce_var_matches_source_word64(builder, &source_wires, inputs.step_count_in_word, sw.step_count_in);
     enforce_var_matches_source_word64(builder, &source_wires, inputs.pc_word, sw.pc);
 
-    // In-circuit nonzero gadget: prove chunk_count_in · inv == 1 with
-    // `inv = chunk_count_in^{-1}`. If a malicious prover sets the wire to
-    // zero, no inverse exists and the constraint fails. The native-side
-    // check above ensures honest witness construction.
+    // In-circuit nonzero gadgets: prove counter · inv == 1. If a malicious
+    // prover sets a counter wire to zero, no inverse can satisfy the row.
+    // The native chunk-count check above keeps honest witness construction
+    // from taking the zero inverse path; the step-count row is intentionally
+    // still emitted for forged witnesses so the circuit itself owns the
+    // branch invariant.
     {
         use p3_field::Field;
         let cc_in_f = F::from_u64(inputs.state.chunk_count_in);
@@ -744,6 +773,15 @@ pub fn enforce_f_prime_recursive_step_circuit(
         builder.enforce(
             &Lc::from_var(sw.chunk_count_in),
             &Lc::from_var(inv),
+            &Lc::from_const(F::ONE),
+        );
+
+        let sc_in_f = F::from_u64(inputs.state.step_count_in);
+        let sc_inv_val = if sc_in_f == F::ZERO { F::ZERO } else { sc_in_f.inverse() };
+        let sc_inv = builder.alloc(sc_inv_val);
+        builder.enforce(
+            &Lc::from_var(sw.step_count_in),
+            &Lc::from_var(sc_inv),
             &Lc::from_const(F::ONE),
         );
     }
@@ -876,6 +914,10 @@ pub fn enforce_f_prime_recursive_step_circuit(
     let mut step_sum = Lc::from_var(sw.step_count_in);
     step_sum.add_constant(F::from_u64(rows_in_chunk));
     builder.enforce_eq(&Lc::from_var(new_step_count), &step_sum);
+    let chunk_count_in_bits = source_word_bits(&source_wires, inputs.chunk_count_in_word);
+    let step_count_in_bits = source_word_bits(&source_wires, inputs.step_count_in_word);
+    enforce_counter_increment_no_wrap(builder, &chunk_count_in_bits, new_chunk_count);
+    enforce_counter_add_no_wrap(builder, &step_count_in_bits, rows_in_chunk, new_step_count);
 
     let (x_out, new_z_i, new_public_trace) = build_x_out(
         builder,

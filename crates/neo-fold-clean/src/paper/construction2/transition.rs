@@ -88,10 +88,23 @@ pub(crate) fn enforce_pc_in_range(state: &State) -> Result<(), Error> {
     }
 }
 
-/// Base case: at i = 0, z_0 must equal z_i.
+/// Branch coherence for HyperNova Construction 2.
+///
+/// The `NoFold`/Initial branch is valid only for the true initial state.
+/// Once either counter has advanced, the verifier must take the Active
+/// recursive branch so NIFS.V replays the running/latest fold.
 pub(crate) fn state_base_case_check(state: &State) -> Result<(), Error> {
-    if state.chunk_count == 0 && state.z_0 != state.z_i {
-        return Err(Error::BaseCaseMismatch);
+    match &state.proof {
+        ProofState::Initial => {
+            if state.chunk_count != 0 || state.step_count != 0 || state.z_0 != state.z_i {
+                return Err(Error::BaseCaseMismatch);
+            }
+        }
+        ProofState::Active { .. } => {
+            if state.chunk_count == 0 || state.step_count == 0 {
+                return Err(Error::BaseCaseMismatch);
+            }
+        }
     }
     Ok(())
 }

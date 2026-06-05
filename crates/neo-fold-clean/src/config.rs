@@ -68,3 +68,23 @@ pub fn r1cs_params(ccs_rows: usize, ccs_vars: usize) -> Result<Params, neo_param
         EXTENSION_SAFETY_MARGIN_BITS,
     )
 }
+
+/// Return Appendix B.2 core params for a concrete CCS shape.
+///
+/// This charges SuperNeo D.4's soundness factor using the actual matrix count
+/// `t` and polynomial degree `u`. R1CS callers should keep using
+/// [`r1cs_params`], which is the `(t=3, u=2)` specialization.
+pub fn ccs_params(
+    ccs_rows: usize,
+    ccs_vars: usize,
+    matrix_count: usize,
+    poly_degree: u32,
+) -> Result<Params, neo_params::ParamsError> {
+    Params::for_ccs_shape_with(
+        ccs_rows.max(ccs_vars),
+        matrix_count,
+        poly_degree,
+        MIN_EFFECTIVE_LAMBDA,
+        EXTENSION_SAFETY_MARGIN_BITS,
+    )
+}

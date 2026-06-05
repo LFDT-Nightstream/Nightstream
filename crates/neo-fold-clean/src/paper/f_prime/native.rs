@@ -173,6 +173,9 @@ pub fn prove_with_semantic_state(
 ) -> Result<(State, StepProof), Error> {
     construction2::enforce_pc_in_range(&state)?;
     construction2::state_base_case_check(&state)?;
+    if next_latest.is_empty() {
+        return Err(Error::EmptyStep);
+    }
 
     let fresh_count = next_latest.len() as u64;
     let chunk_digest = construction2::f_prime_chunk_public_digest_for_step(state.step_count, &next_latest);
@@ -311,6 +314,9 @@ pub fn verify(
 ) -> Result<State, Error> {
     construction2::enforce_pc_in_range(&state)?;
     construction2::state_base_case_check(&state)?;
+    if next_latest_claims.is_empty() {
+        return Err(Error::EmptyStep);
+    }
 
     let fresh_count = next_latest_claims.len() as u64;
     let chunk_digest = construction2::f_prime_chunk_public_digest_from_claims(state.step_count, next_latest_claims);

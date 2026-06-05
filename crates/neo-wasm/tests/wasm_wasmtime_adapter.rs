@@ -75,7 +75,7 @@ fn wasmtime_steps_normalize_to_wasm_ir() {
     assert_eq!(trace.len(), 4);
 
     assert_eq!(trace[0].opcode, WasmOpcode::I32Const);
-    assert_eq!(trace[0].opcode_code, opcode_code(WasmOpcode::I32Const));
+    assert_eq!(trace[0].info.code, opcode_code(WasmOpcode::I32Const));
     assert_eq!(trace[0].stack_write0, Some(StackValueAccess::new(0, 7)));
 
     assert_eq!(trace[2].opcode, WasmOpcode::I32Add);

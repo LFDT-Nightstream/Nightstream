@@ -54,7 +54,6 @@ fn step(
         control_choice: 0,
         pc_edge_kind: WasmPcEdgeKind::Static,
         wide_values_enabled,
-        opcode_code: code,
         opcode,
         info: opcode_info_from_code(code),
         stack_reads_override: None,

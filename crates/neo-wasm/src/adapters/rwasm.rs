@@ -65,8 +65,6 @@ pub fn traces_from_rwasm_instr_states(
             matches!(info.opcode, WasmOpcode::I32Const),
             row.value as u32,
         );
-        let opcode_code = u16::try_from(row.opcode.code())
-            .map_err(|_| WasmBuildError::Trace(format!("opcode code does not fit u16 at row {idx}")))?;
         let halted = matches!(info.opcode, WasmOpcode::Return | WasmOpcode::Trap);
         let output_before = WasmOutputState {
             enabled: output_enabled,
@@ -112,7 +110,6 @@ pub fn traces_from_rwasm_instr_states(
             control_choice: 0,
             pc_edge_kind: WasmPcEdgeKind::Static,
             wide_values_enabled: false,
-            opcode_code,
             opcode: info.opcode,
             info,
             stack_reads_override: None,

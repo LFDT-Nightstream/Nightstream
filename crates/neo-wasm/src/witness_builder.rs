@@ -88,7 +88,12 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
     wit[COL_STACK_READ1_ADDR_HI] = F::ONE;
     wit[COL_STACK_READ2_ADDR_HI] = F::ONE;
     wit[COL_STACK_WRITE0_ADDR_HI] = F::ONE;
-    wit[COL_OPCODE_CODE] = F::from_u64(u64::from(trace.opcode_code));
+    let opcode_code = if trace.row_kind.is_program() {
+        trace.info.code
+    } else {
+        0
+    };
+    wit[COL_OPCODE_CODE] = F::from_u64(u64::from(opcode_code));
     wit[COL_PC_BEFORE] = F::from_u64(trace.state_before.pc);
     wit[COL_PC_AFTER] = F::from_u64(trace.state_after.pc);
     wit[COL_CONTROL_CHOICE] = F::from_u64(u64::from(trace.control_choice));

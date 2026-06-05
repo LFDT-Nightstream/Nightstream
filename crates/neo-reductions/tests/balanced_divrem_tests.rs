@@ -1,6 +1,6 @@
-//! Tests for balanced base-b digit decomposition.
+//! Tests for signed base-b digit decomposition.
 //!
-//! Validates that balanced_divrem correctly decomposes values into balanced digits
+//! Validates that the DEC splitter decomposes values into signed norm-bound digits
 //! that terminate (quotient reaches 0) for both positive and negative inputs.
 
 use neo_ccs::Mat;
@@ -8,25 +8,16 @@ use neo_math::F;
 use neo_reductions::split_b_matrix_k;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-/// Helper to test balanced decomposition by manually applying the algorithm
+/// Helper to test signed decomposition by manually applying the algorithm
 fn test_balanced_decomposition(initial_value: i128, b: i128, max_digits: usize) -> (Vec<i128>, i128, i128) {
     let mut v = initial_value;
     let mut digits = Vec::new();
 
     for i in 0..max_digits {
-        // Mimic the balanced_divrem logic from common.rs
-        let mut r = v % b;
-        let mut q = (v - r) / b;
-
-        let half = b / 2;
-
-        if r > half {
-            r -= b;
-            q += 1;
-        } else if r < -half {
-            r += b;
-            q -= 1;
-        }
+        // Mimic the signed norm-bound digit logic from common.rs:
+        // r is in {-(b-1), ..., +(b-1)}, so |r| < b.
+        let r = v % b;
+        let q = (v - r) / b;
 
         eprintln!(
             "Step {}: v={} -> (r={}, q={}), check: {}*{} + {} = {}",
@@ -112,7 +103,6 @@ fn test_balanced_divrem_various_values_base2() {
 }
 
 #[test]
-#[ignore = "base-3 balanced decomposition has edge cases - needs investigation"]
 fn test_balanced_divrem_base3() {
     // Test base-3 decomposition
     let test_cases = vec![
@@ -217,4 +207,21 @@ fn test_split_b_matrix_k_simple() {
             );
         }
     }
+}
+
+#[test]
+fn test_split_b_matrix_k_base3_accepts_full_norm_bound_digit() {
+    // SuperNeo split_b requires each digit to satisfy ||z_i||_inf < b.
+    // For b=3,k=1, both +2 and -2 are valid one-digit values. A narrower
+    // signed-ternary alphabet would falsely reject them.
+    let b = 3u32;
+    let k = 1usize;
+    #[allow(non_snake_case)]
+    let Z = Mat::from_row_major(1, 2, vec![F::from_u64(2), F::ZERO - F::from_u64(2)]);
+
+    let split = split_b_matrix_k(&Z, k, b).expect("values with |z| < b must split in one digit");
+
+    assert_eq!(split.len(), 1);
+    assert_eq!(split[0][(0, 0)], F::from_u64(2));
+    assert_eq!(split[0][(0, 1)], F::ZERO - F::from_u64(2));
 }

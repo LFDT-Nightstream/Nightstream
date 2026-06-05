@@ -50,7 +50,7 @@ use neo_fold_clean::paper::nifs::NifsProof;
 use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsVConfig;
 use neo_fold_clean::paper::relations::{CcsClaim, CeClaim};
 use neo_math::F;
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 const TRANSCRIPT_LABEL: &[u8] = b"neo.test.f_prime/step/v1";
 
@@ -147,8 +147,8 @@ fn build_fixture_with_divergent_fresh(divergent_index: usize) -> Fixture {
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
         vec![first],
         &RunningInstance::default(),
     )
@@ -198,8 +198,8 @@ fn build_fixture_with_divergent_fresh(divergent_index: usize) -> Fixture {
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
         fresh_instances,
         &running,
     )
@@ -245,8 +245,8 @@ fn build_fixture_with_k_fresh_and_public_one(k_fresh: usize, public_one: F) -> F
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
         vec![first],
         &RunningInstance::default(),
     )
@@ -298,8 +298,8 @@ fn build_fixture_with_k_fresh_and_public_one(k_fresh: usize, public_one: F) -> F
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
         fresh_instances,
         &running,
     )
@@ -318,6 +318,39 @@ fn build_fixture_with_k_fresh_and_public_one(k_fresh: usize, public_one: F) -> F
         state,
         chunk_digest,
     }
+}
+
+fn rebuild_recursive_fixture_for_state(mut fixture: Fixture, state: FPrimeStateIn) -> Fixture {
+    let prior_x_out = native_prior_x_out(&state);
+    let mut z = encode_f_prime_public_input(prior_x_out);
+    z.resize(fixture.prep.structure().m, F::ZERO);
+
+    let fresh_instances: Vec<_> = (0..fixture.fresh_claims.len())
+        .map(|_| direct_ccs::build_instance(&fixture.prep, &bit_carrier_r1cs(), &z).expect("fresh instance"))
+        .collect();
+    let fresh_claims: Vec<_> = fresh_instances.iter().map(|i| i.claim.clone()).collect();
+
+    let mut tr = Transcript::with_label(TRANSCRIPT_LABEL);
+    append_f_prime_step_context(&mut tr, &state, fixture.chunk_digest);
+    let (next_running, proof) = neo_fold_clean::paper::nifs::prove(
+        &mut tr,
+        &fixture.prep.params,
+        fixture.prep.structure(),
+        fixture.prep.optimized_cache(),
+        &fixture.prep.log,
+        fixture.prep.mix_rhos_commits(),
+        fixture.prep.combine_b_pows(),
+        fresh_instances,
+        &fixture.running,
+    )
+    .expect("rebuilt NIFS.P");
+
+    fixture.fresh_claims = fresh_claims;
+    fixture.proof = proof;
+    fixture.combined = fixture.proof.pi_rlc.combined.clone();
+    fixture.children = next_running.claims;
+    fixture.state = state;
+    fixture
 }
 
 fn split_nc_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> SplitNcPiCcsVConfig<'a> {
@@ -945,6 +978,90 @@ fn f_prime_recursive_step_accepts_real_native_nifs_proof() {
         unconstrained == allowed,
         "recursive F' step left unexpected unconstrained columns: got {unconstrained:?}, \
          expected only non-authority y_zcol sidecar limbs {allowed:?}"
+    );
+}
+
+#[test]
+fn f_prime_recursive_rejects_chunk_counter_field_modulus_wrap() {
+    let fixture = build_fixture();
+    let mut state = fixture.state.clone();
+    state.chunk_count_in = F::ORDER_U64 - 1;
+    state.step_count_in = 1;
+    let fixture = rebuild_recursive_fixture_for_state(fixture, state);
+    let cfg = make_step_config(&fixture.prep);
+
+    let acc = recursive_acc_digest(&fixture);
+    let wrapped_x_out = native_x_out(
+        &fixture.state,
+        fixture.chunk_digest,
+        acc,
+        acc,
+        0,
+        fixture.state.step_count_in + 1,
+    );
+    let source = recursive_source_image_with_public_x_out(&fixture, wrapped_x_out);
+    let inputs = FPrimeRecursiveInputs {
+        state: fixture.state.clone(),
+        chunk_digest: fixture.chunk_digest,
+        semantic_state_digest_out: acc,
+        acc_digest_out: acc,
+        nifs_msg: msg_from_fixture(&fixture),
+        rows_in_chunk: 1,
+        source_image: &source.image,
+        chunk_count_in_word: source.chunk_count_in_word,
+        step_count_in_word: source.step_count_in_word,
+        pc_word: source.pc_word,
+        prior_x_out_bits: source.prior_x_out_bits,
+        public_x_out_bits: source.public_x_out_bits,
+    };
+
+    let mut b = R1csBuilder::new();
+    enforce_f_prime_recursive_step_circuit(&mut b, &fixture.prep.params, &cfg, &inputs).expect("emit");
+    assert!(
+        !b.is_satisfied(),
+        "F' must reject chunk_count transition p - 1 -> 0; Construction 2 counters are integers, not field elements"
+    );
+}
+
+#[test]
+fn f_prime_recursive_rejects_step_counter_field_modulus_wrap() {
+    let fixture = build_fixture();
+    let mut state = fixture.state.clone();
+    state.chunk_count_in = 1;
+    state.step_count_in = F::ORDER_U64 - 1;
+    let fixture = rebuild_recursive_fixture_for_state(fixture, state);
+    let cfg = make_step_config(&fixture.prep);
+
+    let acc = recursive_acc_digest(&fixture);
+    let wrapped_x_out = native_x_out(
+        &fixture.state,
+        fixture.chunk_digest,
+        acc,
+        acc,
+        fixture.state.chunk_count_in + 1,
+        0,
+    );
+    let source = recursive_source_image_with_public_x_out(&fixture, wrapped_x_out);
+    let inputs = FPrimeRecursiveInputs {
+        state: fixture.state.clone(),
+        chunk_digest: fixture.chunk_digest,
+        semantic_state_digest_out: acc,
+        acc_digest_out: acc,
+        nifs_msg: msg_from_fixture(&fixture),
+        rows_in_chunk: 1,
+        source_image: &source.image,
+        chunk_count_in_word: source.chunk_count_in_word,
+        step_count_in_word: source.step_count_in_word,
+        pc_word: source.pc_word,
+        prior_x_out_bits: source.prior_x_out_bits,
+        public_x_out_bits: source.public_x_out_bits,
+    };
+
+    let mut b = R1csBuilder::new();
+    enforce_f_prime_recursive_step_circuit(&mut b, &fixture.prep.params, &cfg, &inputs).expect("emit");
+    assert!(
+        !b.is_satisfied(),
+        "F' must reject step_count transition p - 1 -> 0; Construction 2 counters are integers, not field elements"
     );
 }
 

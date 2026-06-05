@@ -23,6 +23,8 @@ pub fn verify(
     running: &RunningInstance,
     proof: &NifsProof,
 ) -> Result<RunningInstance, Error> {
+    validate_running_parent_authority(pp, s, combine_b_pows, running)?;
+
     // 1. Π_CCS — re-run the sumcheck and terminal identity check; the K+k
     //    output claims live inside `proof.pi_ccs.outputs`, so the verifier
     //    sees them on the wire (no placeholder, no replay).
@@ -34,4 +36,24 @@ pub fn verify(
         witnesses: Vec::new(),
         parent_authority: Some(combined),
     })
+}
+
+fn validate_running_parent_authority(
+    pp: &Params,
+    s: &Structure,
+    combine: DecMixer,
+    running: &RunningInstance,
+) -> Result<(), Error> {
+    match (running.claims.is_empty(), running.parent_authority.as_ref()) {
+        (true, None) => Ok(()),
+        (true, Some(_)) => Err(pi_dec::Error::VerifyRejected.into()),
+        (false, None) => Err(pi_dec::Error::VerifyRejected.into()),
+        (false, Some(parent)) => {
+            let proof = pi_dec::Proof {
+                children: running.claims.clone(),
+            };
+            pi_dec::verify(pp, s, combine, parent, &proof)?;
+            Ok(())
+        }
+    }
 }

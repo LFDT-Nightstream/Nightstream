@@ -412,7 +412,8 @@ struct AuditFixture {
 fn small_ccs_audit_fixture(target_m: usize) -> AuditFixture {
     let m = target_m.max(1);
     let structure = CcsStructure::new(vec![Mat::identity(m)], SparsePoly::new(1, vec![])).expect("audit CCS structure");
-    let params = config::r1cs_params(structure.n, structure.m).expect("audit params");
+    let params =
+        config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree()).expect("audit params");
 
     let cols = structure.m.div_ceil(D);
     if !has_global_pp_for_dims(D, cols) {

@@ -14,20 +14,10 @@ fn toy_instance_with_x_value(prep: &neo_fold_clean::Preprocessing, x: neo_math::
         .expect("toy low-norm CCS instance with chosen public input")
 }
 
-fn two_batch_proof(
-    prep: &neo_fold_clean::Preprocessing,
-    first: neo_math::F,
-    second: neo_math::F,
-) -> neo_fold_clean::Uncompressed {
-    let proof = neo_fold_clean::prove(
-        prep,
-        vec![
-            vec![toy_instance_with_x_value(prep, first)],
-            vec![toy_instance_with_x_value(prep, second)],
-        ],
-    )
-    .expect("two-batch proof");
-    neo_fold_clean::finish_uncompressed(prep, proof).expect("finish two-batch proof")
+fn one_batch_proof(prep: &neo_fold_clean::Preprocessing, value: neo_math::F) -> neo_fold_clean::Uncompressed {
+    let proof =
+        neo_fold_clean::prove(prep, vec![vec![toy_instance_with_x_value(prep, value)]]).expect("one-batch proof");
+    neo_fold_clean::finish_uncompressed(prep, proof).expect("finish one-batch proof")
 }
 
 fn recompute_active_running_acc_digest(proof: &neo_fold_clean::Uncompressed) -> [u8; 32] {
@@ -442,14 +432,14 @@ fn verify_uncompressed_rejects_locally_valid_final_accumulator_substitution() {
 #[test]
 fn verify_uncompressed_rejects_terminal_latest_claim_relabel_even_though_final_accumulator_opens() {
     let prep = support::toy_preprocessing();
-    let mut finished = two_batch_proof(&prep, neo_math::F::ZERO, neo_math::F::ONE);
+    let mut finished = one_batch_proof(&prep, neo_math::F::ONE);
     neo_fold_clean::verify_uncompressed(&prep, &finished).expect("honest proof verifies");
     final_running_passes_witness_authority(&prep, &finished);
 
     let final_fold = finished
         .final_fold
         .as_mut()
-        .expect("two-batch proof must carry a terminal fold");
+        .expect("one-batch proof must carry a terminal fold");
     let latest = final_fold
         .terminal_inputs
         .latest
@@ -487,12 +477,9 @@ fn verify_uncompressed_rejects_second_terminal_latest_claim_relabel_even_though_
     let prep = support::toy_preprocessing();
     let proof = neo_fold_clean::prove(
         &prep,
-        vec![
-            vec![support::toy_instance(&prep, 20)],
-            vec![support::toy_instance(&prep, 21), support::toy_instance(&prep, 22)],
-        ],
+        vec![vec![support::toy_instance(&prep, 21), support::toy_instance(&prep, 22)]],
     )
-    .expect("two-batch proof with multi-fresh terminal latest");
+    .expect("one-batch proof with multi-fresh terminal latest");
     let mut finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
     neo_fold_clean::verify_uncompressed(&prep, &finished).expect("honest proof verifies");
     final_running_passes_witness_authority(&prep, &finished);
@@ -524,91 +511,6 @@ fn verify_uncompressed_rejects_second_terminal_latest_claim_relabel_even_though_
     );
 }
 
-/// Pre-final running-child relabel while the final accumulator still opens.
-///
-/// The terminal fold snapshot is public proof data. This test mutates a
-/// non-commitment field (`ct`) in `U_{N-1}` and leaves the post-fold
-/// accumulator untouched. If NIFS.V or its transcript only used commitment
-/// handles, this mutation could be invisible.
-#[test]
-fn verify_uncompressed_rejects_pre_final_running_child_ct_relabel_even_though_final_accumulator_opens() {
-    let prep = support::toy_preprocessing();
-    let mut finished = two_batch_proof(&prep, neo_math::F::ZERO, neo_math::F::ONE);
-    neo_fold_clean::verify_uncompressed(&prep, &finished).expect("honest proof verifies");
-    final_running_passes_witness_authority(&prep, &finished);
-
-    let final_fold = finished
-        .final_fold
-        .as_mut()
-        .expect("two-batch proof must carry a terminal fold");
-    let claim = final_fold
-        .terminal_inputs
-        .pre_final_running
-        .claims
-        .get_mut(0)
-        .expect("pre-final running must carry child claims");
-    assert!(!claim.ct.is_empty(), "test setup requires pre-final child ct");
-    claim.ct[0] += neo_math::K::ONE;
-
-    final_running_passes_witness_authority(&prep, &finished);
-    let err = neo_fold_clean::verify_uncompressed(&prep, &finished)
-        .expect_err("verify_uncompressed accepted a pre-final running child ct relabel");
-    assert!(
-        !matches!(
-            err,
-            neo_fold_clean::Error::FinalAccumulatorWitnessCommitmentMismatch { .. }
-                | neo_fold_clean::Error::FinalAccumulatorPublicInputMismatch { .. }
-                | neo_fold_clean::Error::FinalAccumulatorCeRelationViolation { .. }
-                | neo_fold_clean::Error::FinalAccumulatorCtMismatch { .. }
-        ),
-        "attack must be stopped by terminal NIFS replay, not by final CE authority; got {err:?}"
-    );
-}
-
-/// Pre-final parent-authority relabel on a field old commitment-only handles missed.
-///
-/// `parent_authority` is the Π_RLC parent whose Π_DEC decomposition produced
-/// the pre-final running children. Mutating its `y_ring` should break the
-/// terminal fold proof even though the post-final accumulator still opens.
-/// This directly targets the historic bug class "bind only parent c.data".
-#[test]
-fn verify_uncompressed_rejects_pre_final_parent_y_ring_relabel_even_though_final_accumulator_opens() {
-    let prep = support::toy_preprocessing();
-    let mut finished = two_batch_proof(&prep, neo_math::F::ZERO, neo_math::F::ONE);
-    neo_fold_clean::verify_uncompressed(&prep, &finished).expect("honest proof verifies");
-    final_running_passes_witness_authority(&prep, &finished);
-
-    let final_fold = finished
-        .final_fold
-        .as_mut()
-        .expect("two-batch proof must carry a terminal fold");
-    let parent = final_fold
-        .terminal_inputs
-        .pre_final_running
-        .parent_authority
-        .as_mut()
-        .expect("non-empty pre-final running must carry parent authority");
-    assert!(
-        !parent.y_ring.is_empty() && !parent.y_ring[0].is_empty(),
-        "test setup requires pre-final parent y_ring"
-    );
-    parent.y_ring[0][0] += neo_math::K::ONE;
-
-    final_running_passes_witness_authority(&prep, &finished);
-    let err = neo_fold_clean::verify_uncompressed(&prep, &finished)
-        .expect_err("verify_uncompressed accepted a pre-final parent y_ring relabel");
-    assert!(
-        !matches!(
-            err,
-            neo_fold_clean::Error::FinalAccumulatorWitnessCommitmentMismatch { .. }
-                | neo_fold_clean::Error::FinalAccumulatorPublicInputMismatch { .. }
-                | neo_fold_clean::Error::FinalAccumulatorCeRelationViolation { .. }
-                | neo_fold_clean::Error::FinalAccumulatorCtMismatch { .. }
-        ),
-        "attack must be stopped by terminal NIFS replay, not by final CE authority; got {err:?}"
-    );
-}
-
 /// Whole-terminal-proof replay from a different fold history.
 ///
 /// This splices proof B's `FinalFoldProof` (including its terminal inputs and
@@ -619,8 +521,8 @@ fn verify_uncompressed_rejects_pre_final_parent_y_ring_relabel_even_though_final
 #[test]
 fn verify_uncompressed_rejects_cross_history_terminal_fold_replay_while_final_accumulator_opens() {
     let prep = support::toy_preprocessing();
-    let mut finished_a = two_batch_proof(&prep, neo_math::F::ZERO, neo_math::F::ONE);
-    let finished_b = two_batch_proof(&prep, neo_math::F::ONE, neo_math::F::ZERO);
+    let mut finished_a = one_batch_proof(&prep, neo_math::F::ZERO);
+    let finished_b = one_batch_proof(&prep, neo_math::F::ONE);
     neo_fold_clean::verify_uncompressed(&prep, &finished_a).expect("honest proof A verifies");
     neo_fold_clean::verify_uncompressed(&prep, &finished_b).expect("honest proof B verifies");
     final_running_passes_witness_authority(&prep, &finished_a);

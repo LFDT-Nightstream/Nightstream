@@ -18,28 +18,14 @@ pub fn toy_preprocessing() -> Preprocessing {
     let structure = toy_structure();
     let params = config::r1cs_params(structure.n, structure.m).expect("production-core toy params");
     install_ajtai_module(&params, &structure);
-    preprocess(
-        params,
-        structure,
-        mix_rhos_commits as RlcMixer,
-        combine_b_pows as DecMixer,
-        Some(1),
-    )
-    .expect("toy preprocessing")
+    preprocess(params, structure, Some(1)).expect("toy preprocessing")
 }
 
 pub fn toy_preprocessing_unfixed_public_input_len() -> Preprocessing {
     let structure = toy_structure();
     let params = config::r1cs_params(structure.n, structure.m).expect("production-core toy params");
     install_ajtai_module(&params, &structure);
-    preprocess(
-        params,
-        structure,
-        mix_rhos_commits as RlcMixer,
-        combine_b_pows as DecMixer,
-        None,
-    )
-    .expect("toy preprocessing with unfixed public input length")
+    preprocess(params, structure, None).expect("toy preprocessing with unfixed public input length")
 }
 
 pub fn toy_instance(prep: &Preprocessing, _seed: u64) -> CcsInstance {

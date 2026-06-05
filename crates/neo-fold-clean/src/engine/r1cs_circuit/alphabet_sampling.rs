@@ -237,8 +237,11 @@ fn process_chunk(builder: &mut R1csBuilder, chunk_bits: &[Var], cum_prev: Var) -
     let idx = builder.alloc(F::from_u64(idx_val));
     let q = builder.alloc(F::from_u64(q_val));
 
-    // idx ∈ {0..4} via low-norm chain.
-    crate::engine::r1cs_circuit::boolean::enforce_low_norm(builder, idx, ALPHABET_SIZE as u32);
+    // idx ∈ {0, 1, 2, 3, 4}. This is an unsigned residue, not a centered
+    // low-norm value: allowing negative residues would let the prover encode
+    // the same transcript chunk as `5 * (q + 1) + (idx - 5)` and sample
+    // symbols outside the native alphabet.
+    enforce_mod5_index(builder, idx);
 
     // q ∈ [0, 2^14) — bit-decomposition (Q_MAX < 2^14 = 16384).
     let mut q_lc = Lc::zero();
@@ -283,6 +286,20 @@ fn process_chunk(builder: &mut R1csBuilder, chunk_bits: &[Var], cum_prev: Var) -
         accept,
         symbol,
         cum_after,
+    }
+}
+
+fn enforce_mod5_index(builder: &mut R1csBuilder, idx: Var) {
+    let mut acc = Lc::from_var(idx);
+    for a in 1..=4 {
+        let mut factor = Lc::from_var(idx);
+        factor.add_constant(-F::from_u64(a));
+        if a == 4 {
+            builder.enforce(&acc, &factor, &Lc::zero());
+        } else {
+            let next = builder.alloc_mul(&acc, &factor);
+            acc = Lc::from_var(next);
+        }
     }
 }
 

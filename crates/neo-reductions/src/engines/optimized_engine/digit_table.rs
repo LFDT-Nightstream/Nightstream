@@ -10,13 +10,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::error::PiCcsError;
 
-/// NC digit rows for one SuperNeo packed witness.
+/// NC coefficient rows for one SuperNeo packed witness.
 ///
-/// F' witnesses are commonly bit-valued in the packed layout, so each live
-/// logical column occupies only digit lane 0. Keeping those tables dense as
-/// `[K; D]` rows creates huge zero-heavy allocations. `Lane0` keeps the same
-/// folding semantics with one `K` per logical column and falls back to `Dense`
-/// whenever a witness actually needs higher digit lanes.
+/// When all live logical columns sit in ring lane 0, `Lane0` keeps one `K`
+/// per logical column and avoids a dense `[K; D]` row per column. As soon as
+/// a live coefficient appears in another lane, the table falls back to
+/// `Dense` so the NC range polynomial checks the raw witness coefficient in
+/// its actual SuperNeo lane.
 #[derive(Debug)]
 pub enum NcDigitTable {
     Lane0(Vec<K>),
@@ -108,19 +108,11 @@ where
             if raw == Ff::ZERO {
                 continue;
             }
-            if raw == Ff::ONE {
-                *dst = K::ONE;
+            if rho == 0 {
+                *dst = K::from(raw);
                 *mask_slot = 1;
-                continue;
-            }
-            match crate::common::decompose_balanced_fixed_d_digits_k(raw, params.b) {
-                Ok(digits) if digits[1..].iter().all(|&digit| digit == K::ZERO) => {
-                    *dst = digits[0];
-                    *mask_slot = 1;
-                }
-                _ => {
-                    needs_dense.store(true, Ordering::Relaxed);
-                }
+            } else {
+                needs_dense.store(true, Ordering::Relaxed);
             }
         }
     };

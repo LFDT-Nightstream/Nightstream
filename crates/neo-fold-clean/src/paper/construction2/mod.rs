@@ -47,8 +47,13 @@ pub enum Error {
     PiRlc(#[from] crate::paper::pi_rlc::Error),
     #[error(transparent)]
     PiDec(#[from] crate::paper::pi_dec::Error),
-    #[error("Construction 2: base-case check failed (z_0 \u{2260} z_i at i = 0)")]
+    #[error(
+        "Construction 2: base/recursive branch check failed \
+         (Initial requires zero counters and z_0 = z_i; Active requires nonzero counters)"
+    )]
     BaseCaseMismatch,
+    #[error("Construction 2: F' step must carry at least one fresh/latest instance")]
+    EmptyStep,
     #[error(
         "Construction 2: pc out of range (expected 1 \u{2264} pc \u{2264} \u{2113}; this build hardcodes \u{2113}=1)"
     )]

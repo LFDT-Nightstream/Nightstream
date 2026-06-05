@@ -53,8 +53,8 @@ fn build_nifs_fixture() -> NifsFixture {
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
         fresh_inst,
         &RunningInstance::default(),
     )

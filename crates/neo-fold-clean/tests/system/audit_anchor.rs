@@ -31,14 +31,12 @@ fn base_case_state_has_paper_fields() {
 fn lifecycle_surface_compiles() {
     // Compile-time anchor: if any of the lifecycle public names or types
     // disappear, the README is wrong. `preprocess` takes the Ajtai
-    // homomorphism, the Π_RLC and Π_DEC mixers, and the optional
-    // program-fixed `public_input_len`.
+    // homomorphism from verifier-owned setup and does not accept
+    // caller-supplied Π_RLC / Π_DEC mixers.
     fn _surface_check(
         _: fn(
             neo_fold_clean::Params,
             neo_fold_clean::Structure,
-            neo_fold_clean::RlcMixer,
-            neo_fold_clean::DecMixer,
             Option<usize>,
         ) -> Result<neo_fold_clean::Preprocessing, neo_fold_clean::Error>,
     ) {

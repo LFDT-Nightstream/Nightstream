@@ -66,6 +66,17 @@ fn r1cs_params_are_sized_by_rows_or_variables_whichever_is_larger() {
 }
 
 #[test]
+fn ccs_params_charge_matrix_count_and_degree() {
+    let r1cs = config::r1cs_params(60, 54).expect("R1CS params");
+    let t8 = config::ccs_params(60, 54, 8, 2).expect("t=8 CCS params");
+    let degree7 = config::ccs_params(60, 54, 3, 7).expect("degree-7 CCS params");
+
+    assert_eq!(r1cs.lambda(), 107);
+    assert_eq!(t8.lambda(), 106);
+    assert_eq!(degree7.lambda(), 107);
+}
+
+#[test]
 fn r1cs_params_reject_when_full_d4_floor_is_too_high_for_s2() {
     let err = Params::for_r1cs_shape_with(60, 108, config::EXTENSION_SAFETY_MARGIN_BITS)
         .expect_err("s=2 cannot satisfy a higher full-D4 floor for this profile");

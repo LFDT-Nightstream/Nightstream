@@ -54,14 +54,14 @@ use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
 use neo_fold_clean::paper::construction2::{self, EncInst, State, TRIVIAL_PC};
 use neo_fold_clean::paper::decider::{self, PublicImage};
 use neo_fold_clean::paper::digest::{
-    digest32_as_fields, initial_boundary_digest, public_trace_seed_digest, state_x_out_digest_with_mode,
-    structure_digest, AccumulatorHandle, StateXOutDigestMode,
+    digest32_as_fields, digest_fields_as_digest32, initial_boundary_digest, public_trace_seed_digest,
+    state_x_out_digest_with_mode, structure_digest, AccumulatorHandle, StateXOutDigestMode,
 };
 use neo_fold_clean::paper::f_prime::r1cs::{encode_f_prime_public_input, F_PRIME_PUBLIC_INPUT_LEN};
 use neo_fold_clean::paper::terminal_ce::{TerminalCeProof, TerminalCePublic};
 use neo_fold_clean::CcsInstance;
 use neo_math::F;
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 // ── Fixture helpers ─────────────────────────────────────────────────────────
 
@@ -135,6 +135,17 @@ fn refresh_public_image_x_out(prep: &neo_fold_clean::Preprocessing, public: &mut
     ));
 }
 
+fn add_field_modulus_to_digest_limb(digest: &mut [u8; 32], limb: usize) {
+    let start = limb * 8;
+    let mut bytes = [0u8; 8];
+    bytes.copy_from_slice(&digest[start..start + 8]);
+    let value = u64::from_le_bytes(bytes);
+    let aliased = value
+        .checked_add(F::ORDER_U64)
+        .expect("test fixture digest limb must be small enough to alias");
+    digest[start..start + 8].copy_from_slice(&aliased.to_le_bytes());
+}
+
 fn base_state(prep: &neo_fold_clean::Preprocessing) -> State {
     let structure = structure_digest(prep.structure());
     let z_0 = initial_boundary_digest(&structure, prep.public_input_len);
@@ -156,8 +167,8 @@ fn peek_next_state(prep: &neo_fold_clean::Preprocessing, state: &State, batch: &
         prep.optimized_cache(),
         prep.structure_digest(),
         &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
         &prep.vk,
         state.clone(),
         batch.to_vec(),
@@ -192,8 +203,8 @@ fn build_honest_finished_proof(len: usize) -> (neo_fold_clean::Preprocessing, ne
             prep.optimized_cache(),
             prep.structure_digest(),
             &prep.log,
-            prep.mix_rhos_commits,
-            prep.combine_b_pows,
+            prep.mix_rhos_commits(),
+            prep.combine_b_pows(),
             &prep.vk,
             state,
             vec![batch],
@@ -257,8 +268,8 @@ fn build_honest_finished_proof_with_sizes(
             prep.optimized_cache(),
             prep.structure_digest(),
             &prep.log,
-            prep.mix_rhos_commits,
-            prep.combine_b_pows,
+            prep.mix_rhos_commits(),
+            prep.combine_b_pows(),
             &prep.vk,
             state,
             batch,
@@ -587,6 +598,55 @@ fn decider_public_image_pins_reject_coherent_terminal_relabels() {
             "public-image pins accepted a coherent relabel of terminal field {name}"
         );
     }
+}
+
+#[test]
+fn decider_public_image_pins_reject_field_modulus_u64_aliases() {
+    let prep = direct_ccs::preprocess_seeded(&bit_carrier_r1cs(), 42).expect("preprocess");
+    let chain = public_image_pin_fixture(&prep);
+    let q = F::ORDER_U64;
+
+    let cases: [(&str, fn(&mut PublicImage, u64)); 3] = [
+        ("chunk_count", |p, q| p.chunk_count += q),
+        ("step_count", |p, q| p.step_count += q),
+        ("pc", |p, q| p.pc += q),
+    ];
+
+    for (name, tamper) in cases {
+        let mut public = chain.clone();
+        tamper(&mut public, q);
+        // Deliberately keep x_out unchanged. Before this regression was
+        // fixed, `pin_u64` compared through `F::from_u64`, so public values
+        // offset by the Goldilocks modulus were indistinguishable from the
+        // honest chain wire and the whole public-image pin family accepted.
+        let builder = enforce_public_image_pins_against_chain(&prep, &chain, &public);
+        assert!(
+            !builder.is_satisfied(),
+            "public-image pins accepted {name} relabeled by the Goldilocks modulus"
+        );
+    }
+}
+
+#[test]
+fn decider_public_image_pins_reject_noncanonical_digest_limb_aliases() {
+    let prep = direct_ccs::preprocess_seeded(&bit_carrier_r1cs(), 42).expect("preprocess");
+    let mut chain = public_image_pin_fixture(&prep);
+    let small_digest = digest_fields_as_digest32([F::ONE, F::ZERO, F::ZERO, F::ZERO]);
+    chain.z_i = small_digest;
+    chain.public_trace = small_digest;
+    refresh_public_image_x_out(&prep, &mut chain);
+
+    let mut public = chain.clone();
+    add_field_modulus_to_digest_limb(&mut public.z_i, 0);
+    // Keep x_out unchanged. Before this regression was fixed, the public
+    // z_i bytes decoded to the same field element as the honest chain wire,
+    // so the public image could carry a non-canonical digest limb and still
+    // satisfy every pin.
+    let builder = enforce_public_image_pins_against_chain(&prep, &chain, &public);
+    assert!(
+        !builder.is_satisfied(),
+        "public-image pins accepted a non-canonical digest limb alias"
+    );
 }
 
 #[test]

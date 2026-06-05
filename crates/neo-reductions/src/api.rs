@@ -284,7 +284,7 @@ pub fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     validate_ce_claims_shape("prove: me_inputs", s, me_inputs)?;
     let _ = crate::engines::utils::shared_me_input_r(me_inputs, ell_n_for_ccs(s))?;
     for (idx, wit) in mcs_witnesses.iter().enumerate() {
-        crate::common::validate_packed_witness_nc_range(
+        crate::common::validate_packed_witness_nc_alphabet(
             params,
             &wit.Z,
             s.m,
@@ -292,7 +292,7 @@ pub fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         )?;
     }
     for (idx, z) in me_witnesses.iter().enumerate() {
-        crate::common::validate_packed_witness_nc_range(params, z, s.m, &format!("prove: me_witnesses[{idx}]"))?;
+        crate::common::validate_packed_witness_nc_alphabet(params, z, s.m, &format!("prove: me_witnesses[{idx}]"))?;
     }
     match mode {
         FoldingMode::Optimized => {

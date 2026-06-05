@@ -147,8 +147,8 @@ fn build_nifs_fixture() -> NifsFixture {
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
         fresh_inst,
         &RunningInstance::default(),
     )
@@ -301,7 +301,7 @@ fn phase_1_mini_3a_accumulator_from_parent_c_data_digest() {
 }
 
 #[test]
-fn phase_1_mini_3a_live_accumulator_handle_binds_full_ce_claim_fields() {
+fn phase_1_mini_3a_live_accumulator_handle_binds_authority_ce_claim_fields() {
     let fixture = build_nifs_fixture();
     let baseline =
         AccumulatorHandle::from_running_parts(&fixture.running_claims, Some(&fixture.parent_authority)).digest();
@@ -328,6 +328,30 @@ fn phase_1_mini_3a_live_accumulator_handle_binds_full_ce_claim_fields() {
                 baseline,
                 "live Construction-2 handle must bind parent-authority {}, not just parent commitment data",
                 $label
+            );
+        }};
+    }
+
+    macro_rules! assert_child_y_zcol_is_non_authority {
+        ($mutate:expr) => {{
+            let mut claims = fixture.running_claims.clone();
+            ($mutate)(&mut claims[0]);
+            assert_eq!(
+                AccumulatorHandle::from_running_parts(&claims, Some(&fixture.parent_authority)).digest(),
+                baseline,
+                "live Construction-2 handle must not treat child y_zcol as recursive accumulator authority"
+            );
+        }};
+    }
+
+    macro_rules! assert_parent_y_zcol_is_non_authority {
+        ($mutate:expr) => {{
+            let mut parent = fixture.parent_authority.clone();
+            ($mutate)(&mut parent);
+            assert_eq!(
+                AccumulatorHandle::from_running_parts(&fixture.running_claims, Some(&parent)).digest(),
+                baseline,
+                "live Construction-2 handle must not treat parent-authority y_zcol as recursive accumulator authority"
             );
         }};
     }
@@ -359,7 +383,7 @@ fn phase_1_mini_3a_live_accumulator_handle_binds_full_ce_claim_fields() {
     assert_child_mutation_changes!("aux_openings", |claim: &mut CeClaim| {
         claim.aux_openings.push(K::ONE);
     });
-    assert_child_mutation_changes!("y_zcol", |claim: &mut CeClaim| {
+    assert_child_y_zcol_is_non_authority!(|claim: &mut CeClaim| {
         claim.y_zcol.push(K::ONE);
     });
     assert_child_mutation_changes!("m_in", |claim: &mut CeClaim| {
@@ -405,7 +429,7 @@ fn phase_1_mini_3a_live_accumulator_handle_binds_full_ce_claim_fields() {
     assert_parent_mutation_changes!("aux_openings", |claim: &mut CeClaim| {
         claim.aux_openings.push(K::ONE);
     });
-    assert_parent_mutation_changes!("y_zcol", |claim: &mut CeClaim| {
+    assert_parent_y_zcol_is_non_authority!(|claim: &mut CeClaim| {
         claim.y_zcol.push(K::ONE);
     });
     assert_parent_mutation_changes!("m_in", |claim: &mut CeClaim| {

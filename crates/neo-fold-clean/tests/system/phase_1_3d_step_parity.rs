@@ -132,8 +132,8 @@ fn build_fixture() -> Fixture {
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
         vec![first],
         &RunningInstance::default(),
     )
@@ -167,8 +167,13 @@ fn build_fixture() -> Fixture {
     let mut tr = Transcript::with_label(TRANSCRIPT_LABEL);
     tr.append_fields(b"f_prime/vk_fs", &state.vk_fs_digest);
     tr.append_fields(b"f_prime/structure", &state.structure_digest);
+    tr.append_fields(b"f_prime/chunk_count_in", &[F::from_u64(state.chunk_count_in)]);
+    tr.append_fields(b"f_prime/step_count_in", &[F::from_u64(state.step_count_in)]);
     tr.append_fields(b"f_prime/z_0", &state.z_0);
     tr.append_fields(b"f_prime/z_i_in", &state.z_i_in);
+    tr.append_fields(b"f_prime/pc", &[F::from_u64(state.pc)]);
+    tr.append_fields(b"f_prime/semantic_state_in", &state.semantic_state_digest_in);
+    tr.append_fields(b"f_prime/acc_digest_in", &state.acc_digest_in);
     tr.append_fields(b"f_prime/public_trace_in", &state.public_trace_in);
     tr.append_fields(b"f_prime/chunk_digest", &chunk_digest);
     let (next_running, proof) = neo_fold_clean::paper::nifs::prove(
@@ -177,8 +182,8 @@ fn build_fixture() -> Fixture {
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
         vec![second],
         &running,
     )
@@ -502,7 +507,7 @@ fn u64_halves(value: u64) -> [F; 2] {
 
 fn build_state_x_out_preimage_from_fixture(
     fixture: &Fixture,
-    _new_chunk_count: u64,
+    new_chunk_count: u64,
     new_step_count: u64,
     new_acc_digest: [F; 4],
 ) -> Vec<F> {
@@ -511,7 +516,9 @@ fn build_state_x_out_preimage_from_fixture(
     p.extend(digest32_as_fields(digest_fields_as_digest32(
         fixture.state.vk_fs_digest,
     )));
+    p.extend(u64_halves(new_chunk_count));
     p.extend(u64_halves(new_step_count));
+    p.extend(u64_halves(fixture.state.pc));
     p.extend(digest32_as_fields(new_z_i));
     p.extend(digest32_as_fields(digest_fields_as_digest32(new_acc_digest)));
     p

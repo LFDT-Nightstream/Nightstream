@@ -71,7 +71,7 @@ pub use lifecycle::{prove_encoded_steps, FibonacciChainBuilder};
 
 use thiserror::Error;
 
-use neo_fold_clean::frontends::direct_ccs::{ajtai, ajtai_dec_mixer, ajtai_rlc_mixer};
+use neo_fold_clean::frontends::direct_ccs::ajtai;
 use neo_fold_clean::frontends::f_prime::image::FPrimeImageLayout;
 use neo_fold_clean::frontends::f_prime::recursive_plan::{build_recursive_step_image_config, RecursiveStepImagePlan};
 use neo_fold_clean::frontends::f_prime::structure::{build_f_prime_structure, FPrimeStructure};
@@ -137,13 +137,7 @@ pub enum Error {
 /// deterministic test/demo setup derived from a seed.
 pub fn preprocess(plan: &RecursiveStepImagePlan, params: Params) -> Result<FibonacciFPrimePreprocessing, Error> {
     let (structure, public_input_len) = derive_canonical_structure(plan);
-    let prep = lifecycle_preprocess(
-        params,
-        structure.ccs.clone(),
-        ajtai_rlc_mixer,
-        ajtai_dec_mixer,
-        Some(public_input_len),
-    )?;
+    let prep = lifecycle_preprocess(params, structure.ccs.clone(), Some(public_input_len))?;
     Ok(FibonacciFPrimePreprocessing {
         prep,
         plan: plan.clone(),
@@ -153,7 +147,7 @@ pub fn preprocess(plan: &RecursiveStepImagePlan, params: Params) -> Result<Fibon
 
 /// Test/demo helper: derive structure from the verifier-owned `plan`,
 /// derive params from the resulting CCS shape via
-/// [`neo_fold_clean::config::r1cs_params`], install an Ajtai PP for the shape
+/// [`neo_fold_clean::config::ccs_params`], install an Ajtai PP for the shape
 /// deterministically from `seed`, then build preprocessing.
 ///
 /// Production callers should install the canonical Ajtai setup out of
@@ -162,15 +156,14 @@ pub fn preprocess(plan: &RecursiveStepImagePlan, params: Params) -> Result<Fibon
 /// [`neo_fold_clean::frontends::direct_ccs::preprocess_seeded`].
 pub fn preprocess_seeded(plan: &RecursiveStepImagePlan, seed: u64) -> Result<FibonacciFPrimePreprocessing, Error> {
     let (structure, public_input_len) = derive_canonical_structure(plan);
-    let params = neo_fold_clean::config::r1cs_params(structure.ccs.n, structure.ccs.m)?;
-    let _ = ajtai::setup_seeded(&params, &structure.ccs, seed);
-    let prep = lifecycle_preprocess(
-        params,
-        structure.ccs.clone(),
-        ajtai_rlc_mixer,
-        ajtai_dec_mixer,
-        Some(public_input_len),
+    let params = neo_fold_clean::config::ccs_params(
+        structure.ccs.n,
+        structure.ccs.m,
+        structure.ccs.t(),
+        structure.ccs.max_degree(),
     )?;
+    let _ = ajtai::setup_seeded(&params, &structure.ccs, seed);
+    let prep = lifecycle_preprocess(params, structure.ccs.clone(), Some(public_input_len))?;
     Ok(FibonacciFPrimePreprocessing {
         prep,
         plan: plan.clone(),
@@ -190,13 +183,7 @@ pub fn preprocess_seeded_with_params(
 ) -> Result<FibonacciFPrimePreprocessing, Error> {
     let (structure, public_input_len) = derive_canonical_structure(plan);
     let _ = ajtai::setup_seeded(&params, &structure.ccs, seed);
-    let prep = lifecycle_preprocess(
-        params,
-        structure.ccs.clone(),
-        ajtai_rlc_mixer,
-        ajtai_dec_mixer,
-        Some(public_input_len),
-    )?;
+    let prep = lifecycle_preprocess(params, structure.ccs.clone(), Some(public_input_len))?;
     Ok(FibonacciFPrimePreprocessing {
         prep,
         plan: plan.clone(),

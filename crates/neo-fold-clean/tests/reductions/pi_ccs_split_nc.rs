@@ -35,7 +35,7 @@ use neo_reductions::engines::utils::{
     PI_CCS_INSTANCE_DIGEST_RAW_TAG,
 };
 use neo_transcript::{Poseidon2Transcript, Transcript};
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 type CeClaim = NeoCeClaim<Commitment, F, K>;
 
@@ -1418,4 +1418,20 @@ fn header_digest_bytes_rejects_wrong_length() {
     assert!(header_digest_bytes_to_fields(&[0u8; 33]).is_err());
     assert!(header_digest_bytes_to_fields(&[]).is_err());
     assert!(header_digest_bytes_to_fields(&[0u8; 32]).is_ok());
+}
+
+#[test]
+fn header_digest_bytes_rejects_noncanonical_field_limb_alias() {
+    // Native `digest32()` serializes canonical Goldilocks field elements. The
+    // circuit verifier must not accept a different byte string whose u64 limb
+    // aliases to the same field element via `F::from_u64`; otherwise the
+    // in-circuit proof verifier accepts a Pi_CCS proof object the native
+    // verifier rejects byte-for-byte.
+    let mut bytes = [0u8; 32];
+    bytes[..8].copy_from_slice(&F::ORDER_U64.to_le_bytes());
+
+    assert!(
+        header_digest_bytes_to_fields(&bytes).is_err(),
+        "noncanonical digest limb p aliases to zero and must be rejected"
+    );
 }

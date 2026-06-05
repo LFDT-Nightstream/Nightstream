@@ -179,7 +179,8 @@ fn phase_1_5b_encoded_f_prime_converts_to_ccs_instance() {
     let encoded = encode_f_prime_step(input);
 
     let structure = encoded.structure.ccs.clone();
-    let params = config::r1cs_params(structure.n, structure.m).expect("encoded F' params");
+    let params =
+        config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree()).expect("encoded F' params");
     let log = ajtai::setup_seeded(&params, &structure, 0xF15B_0001);
 
     let instance = encoded
@@ -211,7 +212,8 @@ fn phase_1_5b_encoded_f_prime_instance_folds_through_nifs() {
     let encoded = encode_f_prime_step(input);
 
     let structure = encoded.structure.ccs.clone();
-    let params = config::r1cs_params(structure.n, structure.m).expect("encoded F' params");
+    let params =
+        config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree()).expect("encoded F' params");
     let log = ajtai::setup_seeded(&params, &structure, 0xF15B_0002);
     let cache = neo_reductions::optimized_engine::OptimizedStructureCache::build(&structure).expect("cache build");
 

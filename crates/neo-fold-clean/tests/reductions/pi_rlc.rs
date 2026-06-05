@@ -9,19 +9,29 @@
 //!     native `sample_rot_rhos_n`.
 //!   - Tamper rejection across input/combined/ρ wires.
 
+#[path = "../support/mod.rs"]
+mod support;
+
 use neo_ajtai::{s_mul_add, Commitment};
-use neo_ccs::Mat;
+use neo_ccs::{CcsStructure, Mat, SparsePoly};
+use neo_fold_clean::engine::optimized;
 use neo_fold_clean::engine::r1cs_circuit::field_ext::KVar;
 use neo_fold_clean::engine::r1cs_circuit::Lc;
 use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
+use neo_fold_clean::engine::transcript::Transcript as PaperTranscript;
+use neo_fold_clean::paper::construction2::RunningInstance;
+use neo_fold_clean::paper::digest::pi_ccs_outputs_digest;
 use neo_fold_clean::paper::reductions::pi_rlc_circuit::{
     alloc_rlc_commitment_inputs, alloc_rlc_x_inputs, alloc_rlc_y_row_inputs, alloc_rlc_y_zcol_inputs,
     enforce_rlc_commitment_combination, enforce_rlc_s_col_consistency, enforce_rlc_x_combination,
     enforce_rlc_y_row_combination, enforce_rlc_y_zcol_combination,
 };
+use neo_fold_clean::paper::relations::CcsClaim;
+use neo_fold_clean::paper::{nifs, pi_ccs, pi_rlc};
+use neo_fold_clean::{config, preprocess, CcsInstance, Preprocessing};
 use neo_math::ring::{cf, rot_apply_vec, Rq, D};
 use neo_math::{KExtensions, F, K};
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 const KAPPA: usize = 4; // small for fast tests; the gadget is κ-generic
 
@@ -620,6 +630,632 @@ fn pi_rlc_commitment_combination_rejects_tampered_rho_under_transcript() {
     assert!(
         !b.is_satisfied(),
         "tampered transcript-derived ρ coefficient must be rejected"
+    );
+}
+
+// ── Native Π_RLC.V sidecar authority ─────────────────────────────────────
+
+#[test]
+fn pi_rlc_native_rejects_combined_s_col_not_inherited_from_outputs() {
+    let (prep, fresh_claims, running, mut proof) = native_pi_rlc_fixture(901);
+    assert!(!proof.pi_rlc.combined.s_col.is_empty(), "fixture must carry s_col");
+    proof.pi_rlc.combined.s_col[0] += K::ONE;
+
+    let err = verify_pi_rlc_only(&prep, &fresh_claims, &running, &proof)
+        .expect_err("native Π_RLC.V accepted a same-shape combined.s_col relabel");
+    assert!(
+        matches!(err, pi_rlc::Error::SColConsistency),
+        "expected SColConsistency, got {err:?}"
+    );
+}
+
+#[test]
+fn pi_rlc_native_rejects_combined_y_zcol_not_folded_from_outputs() {
+    let (prep, fresh_claims, running, mut proof) = native_pi_rlc_fixture(902);
+    assert!(!proof.pi_rlc.combined.y_zcol.is_empty(), "fixture must carry y_zcol");
+    proof.pi_rlc.combined.y_zcol[0] += K::ONE;
+
+    let err = verify_pi_rlc_only(&prep, &fresh_claims, &running, &proof)
+        .expect_err("native Π_RLC.V accepted combined.y_zcol not equal to the RLC of Π_CCS outputs");
+    assert!(
+        matches!(err, pi_rlc::Error::YZcolConsistency),
+        "expected YZcolConsistency, got {err:?}"
+    );
+}
+
+#[test]
+fn pi_rlc_native_rejects_combined_ct_not_derived_from_y_ring() {
+    let (prep, fresh_claims, running, mut proof) = native_pi_rlc_fixture(903);
+    assert!(!proof.pi_rlc.combined.ct.is_empty(), "fixture must carry ct");
+    proof.pi_rlc.combined.ct[0] += K::ONE;
+
+    let err = verify_pi_rlc_only(&prep, &fresh_claims, &running, &proof)
+        .expect_err("native Π_RLC.V accepted combined.ct not derived from combined.y_ring");
+    assert!(
+        matches!(err, pi_rlc::Error::CtConsistency("combined")),
+        "expected combined ct-consistency rejection, got {err:?}"
+    );
+}
+
+#[test]
+fn pi_rlc_native_rejects_extra_self_consistent_y_ring_row() {
+    let (prep, fresh_claims, running, mut proof) = native_pi_rlc_fixture(904);
+    let mut tr = PaperTranscript::session();
+    let mut outputs = pi_ccs::verify(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &fresh_claims,
+        &running,
+        &proof.pi_ccs,
+    )
+    .expect("Π_CCS.V fixture must accept");
+
+    let extra_row = vec![K::ZERO; D.next_power_of_two()];
+    for output in &mut outputs {
+        output.y_ring.push(extra_row.clone());
+        output.ct.push(K::ZERO);
+    }
+    proof.pi_rlc.combined.y_ring.push(extra_row);
+    proof.pi_rlc.combined.ct.push(K::ZERO);
+
+    let err = pi_rlc::verify(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.mix_rhos_commits(),
+        &outputs,
+        &proof.pi_rlc,
+    )
+    .expect_err("native Π_RLC.V accepted an extra self-consistent y_ring/ct row");
+    assert!(
+        matches!(
+            err,
+            pi_rlc::Error::YRingShape("input") | pi_rlc::Error::YRingShape("combined")
+        ),
+        "expected y_ring row-count rejection, got {err:?}"
+    );
+}
+
+#[test]
+fn pi_rlc_native_rejects_extra_self_consistent_s_col_limb() {
+    let (prep, fresh_claims, running, mut proof) = native_pi_rlc_fixture(905);
+    let mut tr = PaperTranscript::session();
+    let mut outputs = pi_ccs::verify(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &fresh_claims,
+        &running,
+        &proof.pi_ccs,
+    )
+    .expect("Π_CCS.V fixture must accept");
+
+    for output in &mut outputs {
+        output.s_col.push(K::ZERO);
+    }
+    proof.pi_rlc.combined.s_col.push(K::ZERO);
+
+    let err = pi_rlc::verify(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.mix_rhos_commits(),
+        &outputs,
+        &proof.pi_rlc,
+    )
+    .expect_err("native Π_RLC.V accepted an extra self-consistent s_col limb");
+    assert!(
+        matches!(
+            err,
+            pi_rlc::Error::SColShape("input") | pi_rlc::Error::SColShape("combined")
+        ),
+        "expected s_col shape rejection, got {err:?}"
+    );
+}
+
+#[test]
+fn pi_rlc_native_rejects_extra_self_consistent_r_limb() {
+    let (prep, fresh_claims, running, mut proof) = native_pi_rlc_fixture(906);
+    let mut tr = PaperTranscript::session();
+    let mut outputs = pi_ccs::verify(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &fresh_claims,
+        &running,
+        &proof.pi_ccs,
+    )
+    .expect("Π_CCS.V fixture must accept");
+
+    for output in &mut outputs {
+        output.r.push(K::ZERO);
+    }
+    proof.pi_rlc.combined.r.push(K::ZERO);
+
+    let err = pi_rlc::verify(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.mix_rhos_commits(),
+        &outputs,
+        &proof.pi_rlc,
+    )
+    .expect_err("native Π_RLC.V accepted an extra self-consistent r limb");
+    assert!(
+        matches!(err, pi_rlc::Error::RShape("input") | pi_rlc::Error::RShape("combined")),
+        "expected r shape rejection, got {err:?}"
+    );
+}
+
+#[test]
+fn pi_rlc_native_rejects_input_r_not_shared_by_all_outputs() {
+    let (prep, fresh_claims, running, proof) = native_pi_rlc_fixture_many(910, 2);
+    let mut tr = PaperTranscript::session();
+    let mut outputs = pi_ccs::verify(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &fresh_claims,
+        &running,
+        &proof.pi_ccs,
+    )
+    .expect("Π_CCS.V fixture must accept");
+    assert!(outputs.len() > 1, "fixture must expose at least two Π_CCS outputs");
+    assert!(!outputs[1].r.is_empty(), "fixture must carry an r point");
+
+    outputs[1].r[0] += K::ONE;
+
+    let err = pi_rlc::verify(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.mix_rhos_commits(),
+        &outputs,
+        &proof.pi_rlc,
+    )
+    .expect_err("native Π_RLC.V accepted inputs with different evaluation points");
+    assert!(
+        matches!(err, pi_rlc::Error::RConsistency),
+        "expected r-consistency rejection, got {err:?}"
+    );
+}
+
+#[test]
+fn pi_rlc_native_rejects_input_fold_digest_not_inherited_by_combined_parent() {
+    let (prep, fresh_claims, running, proof) = native_pi_rlc_fixture_many(907, 2);
+    let mut tr = PaperTranscript::session();
+    let mut outputs = pi_ccs::verify(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &fresh_claims,
+        &running,
+        &proof.pi_ccs,
+    )
+    .expect("Π_CCS.V fixture must accept");
+    assert!(outputs.len() > 1, "fixture must expose at least two Π_CCS outputs");
+
+    outputs[1].fold_digest[0] ^= 1;
+
+    let err = pi_rlc::verify(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.mix_rhos_commits(),
+        &outputs,
+        &proof.pi_rlc,
+    )
+    .expect_err("native Π_RLC.V accepted an input fold_digest not inherited by the combined parent");
+    assert!(
+        matches!(err, pi_rlc::Error::FoldDigest),
+        "expected fold_digest propagation rejection, got {err:?}"
+    );
+}
+
+#[test]
+fn pi_rlc_native_rejects_extra_self_consistent_aux_openings_sidecar() {
+    let (prep, fresh_claims, running, mut proof) = native_pi_rlc_fixture_many(908, 2);
+    let mut tr = PaperTranscript::session();
+    let mut outputs = pi_ccs::verify(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &fresh_claims,
+        &running,
+        &proof.pi_ccs,
+    )
+    .expect("Π_CCS.V fixture must accept");
+
+    for output in &mut outputs {
+        output.aux_openings.push(K::ZERO);
+    }
+    proof.pi_rlc.combined.aux_openings.push(K::ZERO);
+
+    let err = pi_rlc::verify(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.mix_rhos_commits(),
+        &outputs,
+        &proof.pi_rlc,
+    )
+    .expect_err("native Π_RLC.V accepted an unsupported self-consistent aux_openings sidecar");
+    assert!(
+        matches!(
+            err,
+            pi_rlc::Error::UnsupportedSidecar {
+                owner: "input",
+                field: "aux_openings"
+            }
+        ),
+        "expected aux_openings sidecar rejection, got {err:?}"
+    );
+}
+
+#[test]
+fn pi_rlc_native_rejects_input_pattern_a_sidecar() {
+    let (prep, fresh_claims, running, proof) = native_pi_rlc_fixture_many(909, 2);
+    let mut tr = PaperTranscript::session();
+    let mut outputs = pi_ccs::verify(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &fresh_claims,
+        &running,
+        &proof.pi_ccs,
+    )
+    .expect("Π_CCS.V fixture must accept");
+
+    outputs[0].c_step_coords.push(F::ONE);
+
+    let err = pi_rlc::verify(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.mix_rhos_commits(),
+        &outputs,
+        &proof.pi_rlc,
+    )
+    .expect_err("native Π_RLC.V accepted an unsupported input c_step_coords sidecar");
+    assert!(
+        matches!(
+            err,
+            pi_rlc::Error::UnsupportedSidecar {
+                owner: "input",
+                field: "c_step_coords"
+            }
+        ),
+        "expected c_step_coords sidecar rejection, got {err:?}"
+    );
+}
+
+#[test]
+fn pi_rlc_native_rejects_nonzero_inactive_input_x() {
+    let (prep, fresh_claims, running, mut proof) = native_pi_rlc_fixture_public_input_len_2(911, 2);
+
+    let mut raw_tr = Poseidon2Transcript::new(b"neo.fold.clean/session/v1");
+    let pi_ccs_ok = neo_fold_clean::engine::optimized::verify_pi_ccs(
+        &mut raw_tr,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &fresh_claims,
+        &running,
+        &proof.pi_ccs.outputs,
+        &proof.pi_ccs.sumcheck,
+    )
+    .expect("raw Π_CCS.V must run");
+    assert!(pi_ccs_ok, "fixture Π_CCS proof must verify");
+    let rhos = neo_fold_clean::engine::optimized::sample_rho_n(&mut raw_tr, &prep.params, proof.pi_ccs.outputs.len())
+        .expect("sample Π_RLC rhos");
+
+    let mut tr = PaperTranscript::session();
+    let mut outputs = pi_ccs::verify(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &fresh_claims,
+        &running,
+        &proof.pi_ccs,
+    )
+    .expect("paper Π_CCS.V fixture must accept");
+
+    let active_cols = neo_fold_clean::paper::relations::superneo_public_x_cols(outputs[0].m_in);
+    assert!(
+        active_cols < outputs[0].X.cols(),
+        "fixture must expose at least one inactive X column"
+    );
+
+    outputs[0].X.set(0, active_cols, F::ONE);
+    let rho0 = rhos[0].as_mat();
+    for row in 0..D {
+        let cur = proof.pi_rlc.combined.X[(row, active_cols)];
+        proof
+            .pi_rlc
+            .combined
+            .X
+            .set(row, active_cols, cur + rho0[(row, 0)]);
+    }
+
+    let err = pi_rlc::verify(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.mix_rhos_commits(),
+        &outputs,
+        &proof.pi_rlc,
+    )
+    .expect_err("native Π_RLC.V accepted a self-consistent non-zero inactive input X column");
+    assert!(
+        matches!(err, pi_rlc::Error::InactiveX("input")),
+        "expected inactive-X rejection, got {err:?}"
+    );
+}
+
+#[test]
+fn pi_rlc_native_rejects_nonzero_input_y_ring_padding_lane() {
+    let (prep, fresh_claims, running, proof) = native_pi_rlc_fixture(912);
+    let mut tr = PaperTranscript::session();
+    let mut outputs = pi_ccs::verify(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &fresh_claims,
+        &running,
+        &proof.pi_ccs,
+    )
+    .expect("Π_CCS.V fixture must accept");
+    assert!(outputs[0].y_ring[0].len() > D, "fixture must carry padded y_ring lanes");
+
+    outputs[0].y_ring[0][D] += K::ONE;
+
+    let err = pi_rlc::verify(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.mix_rhos_commits(),
+        &outputs,
+        &proof.pi_rlc,
+    )
+    .expect_err("native Π_RLC.V accepted a non-zero input y_ring padding lane");
+    assert!(
+        matches!(err, pi_rlc::Error::YRingPadding("input")),
+        "expected y_ring padding rejection, got {err:?}"
+    );
+}
+
+#[test]
+fn pi_rlc_native_rejects_truncated_input_y_ring_row() {
+    let (prep, fresh_claims, running, proof) = native_pi_rlc_fixture(913);
+    let mut tr = PaperTranscript::session();
+    let mut outputs = pi_ccs::verify(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &fresh_claims,
+        &running,
+        &proof.pi_ccs,
+    )
+    .expect("Π_CCS.V fixture must accept");
+    assert!(outputs[0].y_ring[0].len() > D, "fixture must carry padded y_ring lanes");
+
+    outputs[0].y_ring[0].truncate(D);
+
+    let err = pi_rlc::verify(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.mix_rhos_commits(),
+        &outputs,
+        &proof.pi_rlc,
+    )
+    .expect_err("native Π_RLC.V accepted a non-canonical truncated input y_ring row");
+    assert!(
+        matches!(err, pi_rlc::Error::YRingShape("input")),
+        "expected y_ring shape rejection, got {err:?}"
+    );
+}
+
+fn native_pi_rlc_fixture(
+    seed: u64,
+) -> (
+    neo_fold_clean::Preprocessing,
+    Vec<CcsClaim>,
+    RunningInstance,
+    nifs::NifsProof,
+) {
+    let prep = support::toy_preprocessing();
+    let fresh = vec![support::toy_instance(&prep, seed)];
+    let fresh_claims = fresh
+        .iter()
+        .map(|instance| instance.claim.clone())
+        .collect::<Vec<_>>();
+    let running = RunningInstance::default();
+    let mut tr = PaperTranscript::session();
+    let (_next, proof) = nifs::prove(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &prep.log,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
+        fresh,
+        &running,
+    )
+    .expect("NIFS.P fixture");
+    (prep, fresh_claims, running, proof)
+}
+
+fn native_pi_rlc_fixture_many(
+    seed: u64,
+    fresh_count: usize,
+) -> (
+    neo_fold_clean::Preprocessing,
+    Vec<CcsClaim>,
+    RunningInstance,
+    nifs::NifsProof,
+) {
+    assert!(fresh_count > 0);
+    let prep = support::toy_preprocessing();
+    let fresh = (0..fresh_count)
+        .map(|idx| support::toy_instance(&prep, seed + idx as u64))
+        .collect::<Vec<_>>();
+    let fresh_claims = fresh
+        .iter()
+        .map(|instance| instance.claim.clone())
+        .collect::<Vec<_>>();
+    let running = RunningInstance::default();
+    let mut tr = PaperTranscript::session();
+    let (_next, proof) = nifs::prove(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &prep.log,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
+        fresh,
+        &running,
+    )
+    .expect("NIFS.P fixture");
+    (prep, fresh_claims, running, proof)
+}
+
+fn native_pi_rlc_fixture_public_input_len_2(
+    seed: u64,
+    fresh_count: usize,
+) -> (Preprocessing, Vec<CcsClaim>, RunningInstance, nifs::NifsProof) {
+    assert!(fresh_count > 0);
+    let structure =
+        CcsStructure::new(vec![Mat::identity(2)], SparsePoly::new(1, vec![])).expect("m_in=2 toy CCS structure");
+    let params = config::r1cs_params(structure.n, structure.m).expect("production-core toy params");
+    support::install_ajtai_module(&params, &structure);
+    let prep = preprocess(params, structure, Some(2)).expect("m_in=2 toy preprocessing");
+    let fresh = (0..fresh_count)
+        .map(|idx| {
+            CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &[F::ZERO, F::ZERO], 2)
+                .unwrap_or_else(|err| panic!("m_in=2 toy instance {}: {err}", seed + idx as u64))
+        })
+        .collect::<Vec<_>>();
+    let fresh_claims = fresh
+        .iter()
+        .map(|instance| instance.claim.clone())
+        .collect::<Vec<_>>();
+    let running = RunningInstance::default();
+    let mut tr = PaperTranscript::session();
+    let (_next, proof) = nifs::prove(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &prep.log,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
+        fresh,
+        &running,
+    )
+    .expect("NIFS.P m_in=2 fixture");
+    (prep, fresh_claims, running, proof)
+}
+
+fn verify_pi_rlc_only(
+    prep: &neo_fold_clean::Preprocessing,
+    fresh_claims: &[CcsClaim],
+    running: &RunningInstance,
+    proof: &nifs::NifsProof,
+) -> Result<neo_fold_clean::CeClaim, pi_rlc::Error> {
+    let mut tr = PaperTranscript::session();
+    let outputs = pi_ccs::verify(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        fresh_claims,
+        running,
+        &proof.pi_ccs,
+    )
+    .expect("Π_CCS.V fixture must accept");
+    pi_rlc::verify(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.mix_rhos_commits(),
+        &outputs,
+        &proof.pi_rlc,
+    )
+}
+
+#[test]
+fn pi_rlc_native_rejects_noncanonical_fold_digest_limb_alias() {
+    let (prep, fresh_claims, running, proof) = native_pi_rlc_fixture(971);
+    let mut tr = PaperTranscript::session();
+    let mut outputs = pi_ccs::verify(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &fresh_claims,
+        &running,
+        &proof.pi_ccs,
+    )
+    .expect("Π_CCS.V fixture must accept");
+
+    let mut noncanonical_zero = [0u8; 32];
+    noncanonical_zero[..8].copy_from_slice(&F::ORDER_U64.to_le_bytes());
+    for output in &mut outputs {
+        output.fold_digest = noncanonical_zero;
+    }
+
+    let mut rho_tr = Poseidon2Transcript::new(b"neo.fold.clean/session/v1");
+    let input_claims_digest = pi_ccs_outputs_digest(&outputs);
+    rho_tr.append_fields(b"pi_rlc/input_claims_digest", &input_claims_digest);
+    let rhos = optimized::sample_rho_n(&mut rho_tr, &prep.params, outputs.len()).expect("sample forged rhos");
+    let dummy_witnesses = outputs
+        .iter()
+        .map(|_| Mat::zero(D, prep.structure().m, F::ZERO))
+        .collect::<Vec<_>>();
+    let (combined, _) = optimized::prove_pi_rlc(
+        &prep.params,
+        prep.structure(),
+        &rhos,
+        &outputs,
+        &dummy_witnesses,
+        prep.mix_rhos_commits(),
+    )
+    .expect("recompute forged public RLC parent");
+
+    let forged = pi_rlc::Proof { combined };
+    let mut verify_tr = PaperTranscript::session();
+    let err = pi_rlc::verify(
+        &mut verify_tr,
+        &prep.params,
+        prep.structure(),
+        prep.mix_rhos_commits(),
+        &outputs,
+        &forged,
+    )
+    .expect_err("native Π_RLC.V accepted a noncanonical fold_digest limb aliasing to zero");
+    assert!(
+        matches!(
+            err,
+            pi_rlc::Error::FoldDigestCanonicality {
+                owner: "input",
+                lane: 0
+            }
+        ),
+        "expected input fold-digest canonicality rejection, got {err:?}"
     );
 }
 

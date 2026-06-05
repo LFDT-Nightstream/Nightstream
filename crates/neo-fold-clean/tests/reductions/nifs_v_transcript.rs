@@ -66,8 +66,8 @@ fn build_honest_fixture() -> Fixture {
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
         vec![first],
         &RunningInstance::default(),
     )
@@ -83,8 +83,8 @@ fn build_honest_fixture() -> Fixture {
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
         vec![second],
         &running,
     )
@@ -112,8 +112,8 @@ fn build_wrong_rlc_phase_fixture() -> Fixture {
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
         vec![first],
         &RunningInstance::default(),
     )
@@ -130,8 +130,8 @@ fn build_wrong_rlc_phase_fixture() -> Fixture {
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
         vec![second],
         &running,
     )
@@ -152,7 +152,7 @@ fn build_wrong_rlc_phase_fixture() -> Fixture {
         &mut wrong_rlc_tr,
         &prep.params,
         prep.structure(),
-        prep.mix_rhos_commits,
+        prep.mix_rhos_commits(),
         &proof.pi_ccs.outputs,
         &all_witnesses,
     )
@@ -163,7 +163,7 @@ fn build_wrong_rlc_phase_fixture() -> Fixture {
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
-        prep.combine_b_pows,
+        prep.combine_b_pows(),
         &wrong_rlc.claim,
         &wrong_rlc.witness,
     )

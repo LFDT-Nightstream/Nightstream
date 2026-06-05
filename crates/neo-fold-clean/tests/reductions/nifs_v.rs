@@ -6,6 +6,8 @@
 //!
 //! Tests:
 //! - `nifs_v_accepts_native_proof`
+//! - `nifs_v_rejects_fresh_count_above_rlc_guard_native`
+//! - `nifs_v_circuit_rejects_fresh_count_above_rlc_guard`
 //! - `nifs_v_rejects_tampered_fe_round`
 //! - `nifs_v_rejects_parent_authority_when_running_is_empty`
 //! - `nifs_v_rejects_nonempty_running_without_parent_authority`
@@ -57,6 +59,7 @@
 
 #![allow(non_snake_case)]
 
+use neo_ajtai::Commitment;
 use neo_ccs::Mat;
 use neo_fold_clean::engine::r1cs_circuit::{R1csBuilder, TranscriptGadget};
 use neo_fold_clean::engine::transcript::Transcript;
@@ -70,6 +73,7 @@ use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsVCon
 use neo_fold_clean::paper::relations::{CcsClaim, CeClaim};
 use neo_math::ring::D;
 use neo_math::{KExtensions, F, K};
+use neo_transcript::{Poseidon2Transcript, Transcript as NeoTranscript};
 use p3_field::{Field, PrimeCharacteristicRing};
 
 const SESSION_LABEL: &[u8] = b"neo.fold.clean/session/v1";
@@ -123,8 +127,8 @@ fn build_fixture() -> Fixture {
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
         vec![first],
         &RunningInstance::default(),
     )
@@ -141,8 +145,8 @@ fn build_fixture() -> Fixture {
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
         vec![second],
         &running,
     )
@@ -168,6 +172,37 @@ fn build_fixture() -> Fixture {
 fn append_zero_commitment_column(claim: &mut neo_fold_clean::CeClaim) {
     claim.c.kappa += 1;
     claim.c.data.extend(std::iter::repeat(F::ZERO).take(D));
+}
+
+fn trivial_public_dec_children(
+    prep: &neo_fold_clean::Preprocessing,
+    parent: &neo_fold_clean::CeClaim,
+) -> Vec<neo_fold_clean::CeClaim> {
+    let k = prep.params.k_rho() as usize;
+    let d_pad = D.next_power_of_two();
+    let mut children = Vec::with_capacity(k);
+    for idx in 0..k {
+        if idx == 0 {
+            children.push(parent.clone());
+            continue;
+        }
+        children.push(neo_fold_clean::CeClaim {
+            c: Commitment::zeros(parent.c.d, parent.c.kappa),
+            X: Mat::zero(parent.X.rows(), parent.X.cols(), F::ZERO),
+            r: parent.r.clone(),
+            s_col: parent.s_col.clone(),
+            y_ring: vec![vec![K::ZERO; d_pad]; parent.y_ring.len()],
+            ct: vec![K::ZERO; parent.ct.len()],
+            aux_openings: Vec::new(),
+            y_zcol: vec![K::ZERO; parent.y_zcol.len()],
+            m_in: parent.m_in,
+            fold_digest: parent.fold_digest,
+            c_step_coords: Vec::new(),
+            u_offset: 0,
+            u_len: 0,
+        });
+    }
+    children
 }
 
 fn widen_x_with_zero_col(x: &Mat<F>) -> Mat<F> {
@@ -270,8 +305,8 @@ fn nifs_v_accepts_native_proof() {
             &fixture.prep.params,
             fixture.prep.structure(),
             fixture.prep.optimized_cache(),
-            fixture.prep.mix_rhos_commits,
-            fixture.prep.combine_b_pows,
+            fixture.prep.mix_rhos_commits(),
+            fixture.prep.combine_b_pows(),
             &fixture.fresh_claims,
             &fixture.running,
             &fixture.proof,
@@ -283,6 +318,59 @@ fn nifs_v_accepts_native_proof() {
         builder.is_satisfied(),
         "native nifs::prove proof must satisfy NIFS.V circuit; first bad row {:?}",
         builder.first_unsatisfied_row()
+    );
+}
+
+fn make_oversized_fresh_claims(fixture: &Fixture) -> Vec<CcsClaim> {
+    vec![fixture.fresh_claims[0].clone(); fixture.prep.params.max_fresh_count() + 1]
+}
+
+fn pad_pi_ccs_outputs_for_current_fresh_len(fixture: &mut Fixture) {
+    let target = fixture.fresh_claims.len() + fixture.running.claims.len();
+    let template = fixture.proof.pi_ccs.outputs[0].clone();
+    while fixture.proof.pi_ccs.outputs.len() < target {
+        fixture.proof.pi_ccs.outputs.push(template.clone());
+    }
+    fixture.proof.pi_ccs.outputs.truncate(target);
+}
+
+#[test]
+fn nifs_v_rejects_fresh_count_above_rlc_guard_native() {
+    let mut fixture = build_fixture();
+    fixture.fresh_claims = make_oversized_fresh_claims(&fixture);
+    pad_pi_ccs_outputs_for_current_fresh_len(&mut fixture);
+
+    let mut tr = Transcript::session();
+    let err = neo_fold_clean::paper::nifs::verify(
+        &mut tr,
+        &fixture.prep.params,
+        fixture.prep.structure(),
+        fixture.prep.optimized_cache(),
+        fixture.prep.mix_rhos_commits(),
+        fixture.prep.combine_b_pows(),
+        &fixture.fresh_claims,
+        &fixture.running,
+        &fixture.proof,
+    )
+    .expect_err("NIFS.V must reject K above the SuperNeo RLC guard");
+    assert!(
+        err.to_string().contains("max_fresh_count"),
+        "expected max_fresh_count shape rejection, got {err}"
+    );
+}
+
+#[test]
+fn nifs_v_circuit_rejects_fresh_count_above_rlc_guard() {
+    let mut fixture = build_fixture();
+    fixture.fresh_claims = make_oversized_fresh_claims(&fixture);
+    pad_pi_ccs_outputs_for_current_fresh_len(&mut fixture);
+
+    let err = emit_verifier(&fixture)
+        .err()
+        .expect("NIFS.V circuit synthesis must reject K above the SuperNeo RLC guard");
+    assert!(
+        err.to_string().contains("max_fresh_count"),
+        "expected max_fresh_count shape rejection, got {err}"
     );
 }
 
@@ -358,6 +446,65 @@ fn nifs_v_rejects_tampered_running_parent_authority() {
     assert!(
         !builder.is_satisfied(),
         "tampered running Pi_RLC parent authority must be rejected"
+    );
+}
+
+#[test]
+fn nifs_v_rejects_proof_generated_with_inconsistent_running_parent_authority() {
+    // This is stronger than post-hoc tampering: construct the next NIFS proof
+    // using a running parent authority that does not decompose to the running
+    // children. If NIFS.V treats the parent sidecar as HyperNova authority, it
+    // must reject the malformed input rather than merely binding it into the
+    // Fiat-Shamir transcript self-consistently.
+    let mut fixture = build_fixture();
+    let parent = fixture
+        .running
+        .parent_authority
+        .as_mut()
+        .expect("running parent authority");
+    parent.X.set(0, 0, parent.X[(0, 0)] + F::ONE);
+
+    let r1cs = three_term_addition();
+    let second = direct_ccs::build_instance(&fixture.prep, &r1cs, &assignment(0, 1)).expect("second instance");
+    fixture.fresh_claims = vec![second.claim.clone()];
+    let mut tr = Transcript::session();
+    let (next_running, proof) = neo_fold_clean::paper::nifs::prove(
+        &mut tr,
+        &fixture.prep.params,
+        fixture.prep.structure(),
+        fixture.prep.optimized_cache(),
+        &fixture.prep.log,
+        fixture.prep.mix_rhos_commits(),
+        fixture.prep.combine_b_pows(),
+        vec![second],
+        &fixture.running,
+    )
+    .expect("NIFS.P over malformed running");
+    fixture.combined = proof.pi_rlc.combined.clone();
+    fixture.children = next_running.claims.clone();
+    fixture.proof = proof;
+
+    let mut native_tr = Transcript::session();
+    let native = neo_fold_clean::paper::nifs::verify(
+        &mut native_tr,
+        &fixture.prep.params,
+        fixture.prep.structure(),
+        fixture.prep.optimized_cache(),
+        fixture.prep.mix_rhos_commits(),
+        fixture.prep.combine_b_pows(),
+        &fixture.fresh_claims,
+        &fixture.running,
+        &fixture.proof,
+    );
+    assert!(
+        native.is_err(),
+        "native NIFS.V accepted a proof generated from inconsistent running parent authority"
+    );
+
+    let builder = emit_verifier(&fixture).expect("emit verifier");
+    assert!(
+        !builder.is_satisfied(),
+        "in-circuit NIFS.V accepted a proof generated from inconsistent running parent authority"
     );
 }
 
@@ -613,6 +760,90 @@ fn nifs_v_rejects_tampered_pi_ccs_fresh_output_y_ring_non_ct_lane() {
 }
 
 #[test]
+fn nifs_v_rejects_coherent_fresh_output_non_ct_y_ring_relabel() {
+    // A single stale-field tamper is easy to catch. This is the adversarial
+    // version: mutate a fresh Π_CCS output lane that standalone Π_CCS does
+    // not consume, then recompute the Π_RLC parent and a public Π_DEC
+    // decomposition coherently under the same transcript-derived ρ values.
+    let mut fixture = build_fixture();
+    assert!(
+        !fixture.proof.pi_ccs.outputs[0].y_ring.is_empty() && fixture.proof.pi_ccs.outputs[0].y_ring[0].len() > 1,
+        "fixture must have a fresh output non-ct y_ring lane"
+    );
+
+    fixture.proof.pi_ccs.outputs[0].y_ring[0][1] += K::ONE;
+
+    let mut tr = Poseidon2Transcript::new(SESSION_LABEL);
+    let ccs_ok = neo_fold_clean::engine::optimized::verify_pi_ccs(
+        &mut tr,
+        &fixture.prep.params,
+        fixture.prep.structure(),
+        fixture.prep.optimized_cache(),
+        &fixture.fresh_claims,
+        &fixture.running,
+        &fixture.proof.pi_ccs.outputs,
+        &fixture.proof.pi_ccs.sumcheck,
+    )
+    .expect("Π_CCS verifier should run");
+    assert!(
+        ccs_ok,
+        "fixture no longer probes the intended gap: Π_CCS alone rejected the non-ct fresh-output relabel"
+    );
+
+    let rhos = neo_fold_clean::engine::optimized::sample_rho_n(
+        &mut tr,
+        &fixture.prep.params,
+        fixture.proof.pi_ccs.outputs.len(),
+    )
+    .expect("sample rho");
+    let raw_params = neo_params::NeoParams::goldilocks_auto_r1cs_ccs_with(
+        fixture.prep.structure().n.max(fixture.prep.structure().m),
+        neo_fold_clean::config::MIN_EFFECTIVE_LAMBDA,
+        neo_fold_clean::config::EXTENSION_SAFETY_MARGIN_BITS,
+    )
+    .expect("raw params reconstruction");
+    let dims =
+        neo_reductions::engines::utils::build_dims_and_policy(&raw_params, fixture.prep.structure()).expect("dims");
+    let combined = neo_reductions::api::rlc_public(
+        fixture.prep.structure(),
+        &raw_params,
+        &rhos,
+        &fixture.proof.pi_ccs.outputs,
+        |rho_mats, commitments| (fixture.prep.mix_rhos_commits())(rho_mats, commitments),
+        dims.ell_d,
+    )
+    .expect("public RLC recompute");
+
+    fixture.proof.pi_rlc.combined = combined.clone();
+    fixture.combined = combined.clone();
+    fixture.proof.pi_dec.children = trivial_public_dec_children(&fixture.prep, &combined);
+    fixture.children = fixture.proof.pi_dec.children.clone();
+
+    let mut native_tr = Transcript::session();
+    let native = neo_fold_clean::paper::nifs::verify(
+        &mut native_tr,
+        &fixture.prep.params,
+        fixture.prep.structure(),
+        fixture.prep.optimized_cache(),
+        fixture.prep.mix_rhos_commits(),
+        fixture.prep.combine_b_pows(),
+        &fixture.fresh_claims,
+        &fixture.running,
+        &fixture.proof,
+    );
+    assert!(
+        native.is_err(),
+        "native NIFS.V accepted a coherent non-ct y_ring relabel"
+    );
+
+    let builder = emit_verifier(&fixture).expect("emit verifier");
+    assert!(
+        !builder.is_satisfied(),
+        "in-circuit NIFS.V accepted a coherent non-ct y_ring relabel"
+    );
+}
+
+#[test]
 fn nifs_v_rejects_tampered_pi_ccs_fresh_output_y_ring_padding_lane() {
     // Native SuperNeo computes y_ring as D real ring coefficients padded to
     // d_pad = next_power_of_two(D). The padding lanes are not semantic
@@ -825,6 +1056,36 @@ fn nifs_v_rejects_tampered_child_x_active_lane() {
 
     let builder = emit_verifier(&fixture).expect("emit verifier");
     assert!(!builder.is_satisfied(), "tampered Π_DEC child X lane must be rejected");
+}
+
+#[test]
+fn nifs_v_rejects_recomposition_preserving_out_of_alphabet_child_x() {
+    // SuperNeo §7.5 outputs CE(b) children. Checking only
+    // `parent.X = Σ b^i child_i.X` is not enough: child X values must still
+    // be compatible with low-norm child witnesses. This tamper preserves the
+    // b-ary X recomposition (`child0 += 2b`, `child1 -= 2`) while moving an
+    // active child public-input lane outside the balanced CE(b) alphabet.
+    let mut fixture = build_fixture();
+    assert!(
+        fixture.children.len() >= 2,
+        "fixture must expose at least two DEC children"
+    );
+    assert!(
+        fixture.children[0].X.rows() > 0 && fixture.children[0].X.cols() > 0,
+        "fixture must have a non-empty child X"
+    );
+
+    let b = F::from_u64(fixture.prep.params.b() as u64);
+    let child0 = fixture.children[0].X[(0, 0)] + b + b;
+    let child1 = fixture.children[1].X[(0, 0)] - F::from_u64(2);
+    fixture.children[0].X.set(0, 0, child0);
+    fixture.children[1].X.set(0, 0, child1);
+
+    let builder = emit_verifier(&fixture).expect("emit verifier");
+    assert!(
+        !builder.is_satisfied(),
+        "NIFS.V circuit accepted recomposition-preserving active child X outside CE(b)"
+    );
 }
 
 #[test]
@@ -1044,8 +1305,8 @@ fn native_nifs_verify_rejects_extra_self_consistent_y_ring_row() {
         &fixture.prep.params,
         fixture.prep.structure(),
         fixture.prep.optimized_cache(),
-        fixture.prep.mix_rhos_commits,
-        fixture.prep.combine_b_pows,
+        fixture.prep.mix_rhos_commits(),
+        fixture.prep.combine_b_pows(),
         &fixture.fresh_claims,
         &fixture.running,
         &fixture.proof,
@@ -1105,8 +1366,8 @@ fn native_nifs_verify_rejects_extra_self_consistent_running_y_ring_row() {
         &fixture.prep.params,
         fixture.prep.structure(),
         fixture.prep.optimized_cache(),
-        fixture.prep.mix_rhos_commits,
-        fixture.prep.combine_b_pows,
+        fixture.prep.mix_rhos_commits(),
+        fixture.prep.combine_b_pows(),
         &fixture.fresh_claims,
         &fixture.running,
         &fixture.proof,
@@ -1406,8 +1667,8 @@ fn native_nifs_verify_rejects_tampered_dec_child_fold_digest() {
         &fixture.prep.params,
         fixture.prep.structure(),
         fixture.prep.optimized_cache(),
-        fixture.prep.mix_rhos_commits,
-        fixture.prep.combine_b_pows,
+        fixture.prep.mix_rhos_commits(),
+        fixture.prep.combine_b_pows(),
         &fixture.fresh_claims,
         &fixture.running,
         &fixture.proof,
@@ -1439,8 +1700,8 @@ fn native_nifs_verify_rejects_nonzero_inactive_x_in_dec_child() {
         &fixture.prep.params,
         fixture.prep.structure(),
         fixture.prep.optimized_cache(),
-        fixture.prep.mix_rhos_commits,
-        fixture.prep.combine_b_pows,
+        fixture.prep.mix_rhos_commits(),
+        fixture.prep.combine_b_pows(),
         &fixture.fresh_claims,
         &fixture.running,
         &fixture.proof,
@@ -1448,6 +1709,38 @@ fn native_nifs_verify_rejects_nonzero_inactive_x_in_dec_child() {
     assert!(
         result.is_err(),
         "native nifs::verify must reject non-zero inactive X in Π_DEC child"
+    );
+}
+
+#[test]
+fn native_nifs_verify_rejects_recomposition_preserving_out_of_alphabet_child_x() {
+    let mut fixture = build_fixture();
+    assert!(
+        fixture.proof.pi_dec.children.len() >= 2,
+        "fixture must expose at least two DEC children"
+    );
+
+    let b = F::from_u64(fixture.prep.params.b() as u64);
+    let child0 = fixture.proof.pi_dec.children[0].X[(0, 0)] + b + b;
+    let child1 = fixture.proof.pi_dec.children[1].X[(0, 0)] - F::from_u64(2);
+    fixture.proof.pi_dec.children[0].X.set(0, 0, child0);
+    fixture.proof.pi_dec.children[1].X.set(0, 0, child1);
+
+    let mut tr = Transcript::session();
+    let result = neo_fold_clean::paper::nifs::verify(
+        &mut tr,
+        &fixture.prep.params,
+        fixture.prep.structure(),
+        fixture.prep.optimized_cache(),
+        fixture.prep.mix_rhos_commits(),
+        fixture.prep.combine_b_pows(),
+        &fixture.fresh_claims,
+        &fixture.running,
+        &fixture.proof,
+    );
+    assert!(
+        result.is_err(),
+        "native NIFS.V accepted recomposition-preserving active child X outside CE(b)"
     );
 }
 
@@ -1472,8 +1765,8 @@ fn native_nifs_verify_rejects_nonzero_inactive_x_in_running() {
         &fixture.prep.params,
         fixture.prep.structure(),
         fixture.prep.optimized_cache(),
-        fixture.prep.mix_rhos_commits,
-        fixture.prep.combine_b_pows,
+        fixture.prep.mix_rhos_commits(),
+        fixture.prep.combine_b_pows(),
         &fixture.fresh_claims,
         &fixture.running,
         &fixture.proof,

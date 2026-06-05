@@ -28,6 +28,22 @@ pub fn digest32_as_fields(digest: [u8; 32]) -> [F; 4] {
     ]
 }
 
+/// Return the first noncanonical 8-byte Goldilocks digest limb, if any.
+///
+/// Protocol byte digests that are interpreted as four in-circuit
+/// Goldilocks lanes must be canonical. Otherwise `p` aliases to zero
+/// through `F::from_u64`, letting two byte strings describe the same
+/// field statement.
+pub fn noncanonical_digest32_lane(digest: [u8; 32]) -> Option<usize> {
+    for (lane, chunk) in digest.chunks_exact(8).enumerate() {
+        let value = u64::from_le_bytes(chunk.try_into().expect("8-byte digest limb"));
+        if value >= F::ORDER_U64 {
+            return Some(lane);
+        }
+    }
+    None
+}
+
 /// 4 Goldilocks limbs → 32 bytes (inverse of `digest32_as_fields`).
 pub fn digest_fields_as_digest32(fields: [F; 4]) -> [u8; 32] {
     let mut out = [0u8; 32];
@@ -133,19 +149,19 @@ pub fn terminal_ce_relation_digest() -> [F; 4] {
 /// `mat_digest(structure)`; this helper only avoids recomputing it.
 pub(crate) fn structure_digest_from_mat_digest(structure: &CcsStructure<F>, matrix_digest: &[F; 4]) -> [F; 4] {
     let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/structure_digest/v1");
-    preimage.push(F::from_u64(structure.n as u64));
-    preimage.push(F::from_u64(structure.m as u64));
-    preimage.push(F::from_u64(structure.t() as u64));
+    preimage.extend(u64_halves(structure.n as u64));
+    preimage.extend(u64_halves(structure.m as u64));
+    preimage.extend(u64_halves(structure.t() as u64));
     preimage.extend_from_slice(matrix_digest);
 
-    preimage.push(F::from_u64(structure.f.arity() as u64));
-    preimage.push(F::from_u64(structure.f.max_degree() as u64));
-    preimage.push(F::from_u64(structure.f.terms().len() as u64));
+    preimage.extend(u64_halves(structure.f.arity() as u64));
+    preimage.extend(u64_halves(structure.f.max_degree() as u64));
+    preimage.extend(u64_halves(structure.f.terms().len() as u64));
     for term in structure.f.terms() {
         preimage.push(term.coeff);
-        preimage.push(F::from_u64(term.exps.len() as u64));
+        preimage.extend(u64_halves(term.exps.len() as u64));
         for exp in &term.exps {
-            preimage.push(F::from_u64(*exp as u64));
+            preimage.extend(u64_halves(*exp as u64));
         }
     }
     poseidon_digest_fields(&preimage)
@@ -345,6 +361,23 @@ pub fn terminal_children_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] 
     poseidon_digest_fields(&preimage)
 }
 
+/// Digest the full Π_CCS output messages before Π_RLC samples `ρ`.
+///
+/// SuperNeo's interactive order is "Π_CCS sends output CE claims, then Π_RLC
+/// samples random linear-combination coefficients." In the Fiat-Shamir
+/// transcript, those output claims therefore need an explicit, verifier-
+/// recomputable absorb before `ρ` is derived. This digest binds the whole
+/// clean CE-claim output surface, including the implementation sidecars that
+/// Π_RLC/Π_DEC consume (`s_col`, `ct`, `y_zcol`, and `fold_digest`).
+pub fn pi_ccs_outputs_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] {
+    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/pi_ccs_outputs_digest/v1");
+    preimage.push(F::from_u64(claims.len() as u64));
+    for claim in claims {
+        preimage.extend_from_slice(&pi_ccs_output_claim_digest(claim));
+    }
+    poseidon_digest_fields(&preimage)
+}
+
 /// Digest of the compact terminal-CE proof's public statement.
 ///
 /// This is the single backend-neutral public input a future compact proof
@@ -368,6 +401,12 @@ pub fn terminal_ce_public_digest(
 
 fn terminal_ce_claim_digest(claim: &CeClaim<Commitment, F, K>) -> [F; 4] {
     let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/terminal_ce_claim_digest/v1");
+    append_terminal_ce_claim_public_fields(&mut preimage, claim);
+    poseidon_digest_fields(&preimage)
+}
+
+fn pi_ccs_output_claim_digest(claim: &CeClaim<Commitment, F, K>) -> [F; 4] {
+    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/pi_ccs_output_claim_digest/v1");
     append_terminal_ce_claim_public_fields(&mut preimage, claim);
     poseidon_digest_fields(&preimage)
 }
@@ -663,20 +702,18 @@ pub fn vk_fs_digest(
 ) -> [u8; 32] {
     let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/vk_fs/v1");
     preimage.extend(structure_digest.iter().copied());
-    preimage.extend([
-        F::from_u64(params.q),
-        F::from_u64(params.eta as u64),
-        F::from_u64(params.d as u64),
-        F::from_u64(params.kappa as u64),
-        F::from_u64(params.m),
-        F::from_u64(params.b as u64),
-        F::from_u64(params.k_rho as u64),
-        F::from_u64(params.B),
-        F::from_u64(params.T as u64),
-        F::from_u64(params.s as u64),
-        F::from_u64(params.lambda as u64),
-        F::from_u64(public_input_len.map_or(u64::MAX, |n| n as u64)),
-    ]);
+    preimage.extend(u64_halves(params.q));
+    preimage.push(F::from_u64(params.eta as u64));
+    preimage.push(F::from_u64(params.d as u64));
+    preimage.push(F::from_u64(params.kappa as u64));
+    preimage.extend(u64_halves(params.m));
+    preimage.push(F::from_u64(params.b as u64));
+    preimage.push(F::from_u64(params.k_rho as u64));
+    preimage.extend(u64_halves(params.B));
+    preimage.push(F::from_u64(params.T as u64));
+    preimage.push(F::from_u64(params.s as u64));
+    preimage.push(F::from_u64(params.lambda as u64));
+    preimage.extend(u64_halves(public_input_len.map_or(u64::MAX, |n| n as u64)));
     preimage.extend(digest32_as_fields(initial_semantic_state_digest));
     digest_fields_as_digest32(poseidon_digest_fields(&preimage))
 }

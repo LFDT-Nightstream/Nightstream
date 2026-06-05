@@ -58,6 +58,8 @@ pub fn prove_one_with_semantic_state(
     semantic_state_digest_initial: [u8; 32],
     semantic_state_digest_next: [u8; 32],
 ) -> Result<UncompressedAudit, Error> {
+    super::validate_semantic_state_digest_canonical("initial_semantic_state_digest", semantic_state_digest_initial)?;
+    super::validate_semantic_state_digest_canonical("semantic_state_digest_next", semantic_state_digest_next)?;
     let audit = start_proof_with_semantic_state(prep, semantic_state_digest_initial);
     extend_inner(
         prep,
@@ -80,6 +82,7 @@ pub fn extend_with_semantic_state(
     batch: Vec<CcsInstance>,
     semantic_state_digest_next: [u8; 32],
 ) -> Result<UncompressedAudit, Error> {
+    super::validate_semantic_state_digest_canonical("semantic_state_digest_next", semantic_state_digest_next)?;
     extend_inner(
         prep,
         audit,
@@ -99,6 +102,13 @@ fn extend_inner(
     }
     if batch.is_empty() {
         return Err(Error::EmptyBatch);
+    }
+    let max_fresh = prep.params.max_fresh_count();
+    if batch.len() > max_fresh {
+        return Err(Error::BatchTooLarge {
+            got: batch.len(),
+            max: max_fresh,
+        });
     }
     let public_batch: Vec<CcsClaim> = batch.iter().map(|i| i.claim.clone()).collect();
     super::validate_public_input_len(prep, &public_batch)?;

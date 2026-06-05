@@ -189,8 +189,8 @@ fn peek_next_state(prep: &neo_fold_clean::Preprocessing, state: &State, batch: &
         prep.optimized_cache(),
         prep.structure_digest(),
         &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
         &prep.vk,
         state.clone(),
         batch.to_vec(),
@@ -246,8 +246,8 @@ fn build_f_prime_honest_chain(len: usize) -> ChainFixture {
             prep.optimized_cache(),
             prep.structure_digest(),
             &prep.log,
-            prep.mix_rhos_commits,
-            prep.combine_b_pows,
+            prep.mix_rhos_commits(),
+            prep.combine_b_pows(),
             &prep.vk,
             state,
             vec![batch],
@@ -577,6 +577,203 @@ fn lifecycle_base_step_rejects_pc_not_trivial_even_if_source_word_matches() {
     assert!(
         !b.is_satisfied(),
         "base F' R1CS accepted pc != TRIVIAL_PC even though the source-image pc word matched"
+    );
+}
+
+#[test]
+fn native_f_prime_verify_rejects_nofold_when_chunk_count_nonzero() {
+    let chain = build_f_prime_honest_chain(1);
+    let snapshot = &chain.snapshots[0];
+    assert!(
+        matches!(snapshot.step_proof.fold, FoldProof::NoFold),
+        "fixture's first lifecycle step must be the F' NoFold branch"
+    );
+
+    // HyperNova's NoFold/base branch is only valid at i=0. This forges a
+    // same-shape public step with the Initial proof tag retained but the
+    // chunk counter advanced, then recomputes the outward hash fields so
+    // a self-consistent digest chain alone cannot catch the branch skip.
+    let mut forged_state_in = snapshot.state_in.clone();
+    forged_state_in.chunk_count = 1;
+    forged_state_in.step_count = 1;
+    forged_state_in.proof = ProofState::Initial;
+
+    let chunk_digest = f_prime_chunk_public_digest(forged_state_in.step_count, &snapshot.public_batch);
+    let empty_acc = AccumulatorHandle::empty().digest();
+    let mut forged_state_out = forged_state_in.clone();
+    forged_state_out.chunk_count += 1;
+    forged_state_out.step_count += snapshot.public_batch.len() as u64;
+    forged_state_out.z_i = digest_fields_as_digest32(chunk_digest);
+    forged_state_out.public_trace = forged_state_out.z_i;
+    forged_state_out.acc_digest = empty_acc;
+    forged_state_out.semantic_state_digest = empty_acc;
+    let forged_x_out = compute_x_out_native(&chain.prep, &forged_state_out);
+    let forged_step = StepProof {
+        fold: FoldProof::NoFold,
+        semantic_state_digest: empty_acc,
+        x_out: construction2::EncInst::from_digest(digest_fields_as_digest32(forged_x_out)),
+    };
+
+    let err = construction2::verify_step(
+        &chain.prep.params,
+        chain.prep.structure(),
+        chain.prep.optimized_cache(),
+        chain.prep.structure_digest(),
+        chain.prep.mix_rhos_commits(),
+        chain.prep.combine_b_pows(),
+        &chain.prep.vk,
+        forged_state_in,
+        &snapshot.public_batch,
+        &forged_step,
+        chain.prep.semantic_state_mode(),
+    )
+    .err()
+    .expect("native F' verify_step accepted NoFold with chunk_count > 0");
+    assert!(
+        matches!(err, construction2::Error::BaseCaseMismatch),
+        "wrong rejection for nonzero-counter NoFold branch: {err:?}"
+    );
+}
+
+#[test]
+fn native_f_prime_verify_rejects_empty_nofold_step() {
+    let chain = build_f_prime_honest_chain(1);
+    let state_in = base_state(&chain.prep);
+    let empty_acc = AccumulatorHandle::empty().digest();
+    let chunk_digest = f_prime_chunk_public_digest(state_in.step_count, &[]);
+
+    let mut state_out = state_in.clone();
+    state_out.chunk_count += 1;
+    state_out.z_i = digest_fields_as_digest32(chunk_digest);
+    state_out.public_trace = state_out.z_i;
+    state_out.acc_digest = empty_acc;
+    state_out.semantic_state_digest = empty_acc;
+    let x_out = compute_x_out_native(&chain.prep, &state_out);
+    let step = StepProof {
+        fold: FoldProof::NoFold,
+        semantic_state_digest: empty_acc,
+        x_out: construction2::EncInst::from_digest(digest_fields_as_digest32(x_out)),
+    };
+
+    let err = construction2::verify_step(
+        &chain.prep.params,
+        chain.prep.structure(),
+        chain.prep.optimized_cache(),
+        chain.prep.structure_digest(),
+        chain.prep.mix_rhos_commits(),
+        chain.prep.combine_b_pows(),
+        &chain.prep.vk,
+        state_in,
+        &[],
+        &step,
+        chain.prep.semantic_state_mode(),
+    )
+    .err()
+    .expect("native F' verify_step accepted an empty NoFold step");
+    assert!(
+        matches!(err, construction2::Error::EmptyStep),
+        "wrong rejection for empty F' step: {err:?}"
+    );
+}
+
+#[test]
+fn lifecycle_recursive_step_rejects_zero_step_count_even_with_matching_fresh_and_nifs_proof() {
+    let chain = build_f_prime_honest_chain(3);
+    let snapshot = &chain.snapshots[2];
+    let ProofState::Active { running, .. } = &snapshot.state_in.proof else {
+        panic!("step 2 must enter the recursive branch");
+    };
+    assert!(
+        !running.claims.is_empty(),
+        "fixture must carry a non-empty running accumulator"
+    );
+
+    // Forge an impossible Construction-2 coordinate: Active recursive
+    // state, nonzero chunk counter, but zero total folded-row counter.
+    // Then rebuild the folded fresh CCS instance, NIFS proof, and both
+    // x_out links around that forged state. A rejection now has to come
+    // from the recursive-branch counter rows, not from ordinary transcript
+    // or public-input mismatch.
+    let mut forged_state_in = snapshot.state_in.clone();
+    forged_state_in.step_count = 0;
+    let forged_prior_x_out = compute_x_out_native(&chain.prep, &forged_state_in);
+    let forged_fresh = build_link_instance(&chain.prep, &bit_carrier_r1cs(), forged_prior_x_out);
+    let fresh_claims = vec![forged_fresh.claim.clone()];
+
+    let forged_chunk_digest = f_prime_chunk_public_digest(forged_state_in.step_count, &snapshot.public_batch);
+    let mut tr = neo_fold_clean::paper::f_prime::native::f_prime_step_transcript(
+        &chain.prep.vk,
+        chain.prep.structure_digest(),
+        &forged_state_in,
+        forged_chunk_digest,
+    );
+    let (forged_running_out, forged_nifs) = neo_fold_clean::paper::nifs::prove(
+        &mut tr,
+        &chain.prep.params,
+        chain.prep.structure(),
+        chain.prep.optimized_cache(),
+        &chain.prep.log,
+        chain.prep.mix_rhos_commits(),
+        chain.prep.combine_b_pows(),
+        vec![forged_fresh],
+        running,
+    )
+    .expect("forge internally consistent NIFS proof under zero step_count");
+    let forged_parent = forged_running_out
+        .parent_authority
+        .as_ref()
+        .expect("recursive output must carry parent authority");
+    let forged_acc_digest =
+        AccumulatorHandle::from_running_parts(&forged_running_out.claims, Some(forged_parent)).digest();
+
+    let mut forged_state_out = forged_state_in.clone();
+    forged_state_out.chunk_count += 1;
+    forged_state_out.step_count += snapshot.public_batch.len() as u64;
+    forged_state_out.z_i = digest_fields_as_digest32(forged_chunk_digest);
+    forged_state_out.public_trace = forged_state_out.z_i;
+    forged_state_out.acc_digest = forged_acc_digest;
+    forged_state_out.semantic_state_digest = forged_acc_digest;
+    let forged_public_x_out = compute_x_out_native(&chain.prep, &forged_state_out);
+
+    let f_state = f_prime_state_in(&forged_state_in, &chain.prep);
+    let mut image = FPrimeSourceImage::new();
+    let chunk_count_in_word = image.push_u64_le(f_state.chunk_count_in);
+    let step_count_in_word = image.push_u64_le(f_state.step_count_in);
+    let pc_word = image.push_u64_le(f_state.pc);
+    let prior_public = image.push_f_prime_public_input(forged_prior_x_out);
+    let prior_x_out_bits = BitRange::new(prior_public.start() + 1, F_PRIME_ENC_INST_BITS);
+    let public_x_out_bits = image.push_enc_inst(forged_public_x_out);
+
+    let cfg = make_step_config(&chain.prep);
+    let inputs = FPrimeRecursiveInputs {
+        semantic_state_digest_out: digest32_as_fields(forged_acc_digest),
+        acc_digest_out: digest32_as_fields(forged_acc_digest),
+        state: f_state,
+        chunk_digest: forged_chunk_digest,
+        nifs_msg: NifsVCircuitMessages {
+            fresh: &fresh_claims,
+            running: &running.claims,
+            running_parent_authority: running.parent_authority.as_ref(),
+            pi_ccs: &forged_nifs.pi_ccs,
+            combined: &forged_nifs.pi_rlc.combined,
+            children: &forged_nifs.pi_dec.children,
+        },
+        rows_in_chunk: snapshot.public_batch.len() as u64,
+        source_image: &image,
+        chunk_count_in_word,
+        step_count_in_word,
+        pc_word,
+        prior_x_out_bits,
+        public_x_out_bits,
+    };
+
+    let mut b = R1csBuilder::new();
+    enforce_f_prime_recursive_step_circuit(&mut b, &chain.prep.params, &cfg, &inputs)
+        .expect("emit forged recursive F' R1CS");
+    assert!(
+        !b.is_satisfied(),
+        "F' recursive R1CS accepted Active branch with step_count_in = 0 after the folded fresh \
+         instance, NIFS proof, and x_out links were rebuilt around that impossible coordinate"
     );
 }
 
@@ -1103,60 +1300,6 @@ fn lifecycle_all_recursive_steps_satisfy_f_prime_r1cs() {
 }
 
 #[test]
-fn lifecycle_verify_uncompressed_rejects_terminal_latest_public_input_not_linked_to_state() {
-    let r1cs = bit_carrier_r1cs();
-    let chain = build_f_prime_honest_chain(1);
-    let state = chain
-        .snapshots
-        .last()
-        .expect("chain has at least one step")
-        .state_out
-        .clone();
-    let expected_x_out = compute_x_out_native(&chain.prep, &state);
-    let mut wrong_x_out = expected_x_out;
-    wrong_x_out[0] += F::ONE;
-    let wrong_latest = build_link_instance(&chain.prep, &r1cs, wrong_x_out);
-
-    let mut state_with_bad_latest = state.clone();
-    match &mut state_with_bad_latest.proof {
-        ProofState::Active { latest, .. } => {
-            assert_eq!(latest.instances.len(), 1, "fixture uses one latest instance");
-            latest.instances[0] = wrong_latest;
-        }
-        ProofState::Initial => panic!("fixture must be active after two steps"),
-    }
-
-    let audit = UncompressedAudit {
-        proof: Uncompressed {
-            state: state_with_bad_latest,
-            final_fold: None,
-        },
-        steps: chain
-            .snapshots
-            .iter()
-            .map(|s| s.step_proof.clone())
-            .collect(),
-        public_batches: chain
-            .snapshots
-            .iter()
-            .map(|s| s.public_batch.clone())
-            .collect(),
-    };
-    let finished = neo_fold_clean::finish_uncompressed(&chain.prep, audit)
-        .expect("wrong latest is still terminal-fold provable for the zero carrier CCS");
-
-    let err = neo_fold_clean::verify_uncompressed(&chain.prep, &finished)
-        .expect_err("verify_uncompressed accepted a terminal latest not linked to pre-final x_out");
-    assert!(
-        matches!(
-            err,
-            neo_fold_clean::Error::TerminalLatestPublicInputMismatch { index: 0 }
-        ),
-        "expected terminal latest link mismatch, got {err:?}"
-    );
-}
-
-#[test]
 fn lifecycle_verify_uncompressed_rejects_multi_chunk_f_prime_terminal_only_scope() {
     let chain = build_f_prime_honest_chain(2);
     let audit = UncompressedAudit {
@@ -1183,13 +1326,13 @@ fn lifecycle_verify_uncompressed_rejects_multi_chunk_f_prime_terminal_only_scope
     let finished = neo_fold_clean::finish_uncompressed_with_audit(&chain.prep, audit).expect("finish linked chain");
 
     let err = neo_fold_clean::verify_uncompressed(&chain.prep, &finished.proof)
-        .expect_err("terminal-only verifier accepted a multi-chunk F' proof without replaying F' induction");
+        .expect_err("terminal-only verifier accepted a multi-chunk proof without replaying the induction");
     assert!(
         matches!(
             err,
-            neo_fold_clean::Error::FPrimeNonReplayUnsupported { chunk_count: 2 }
+            neo_fold_clean::Error::TerminalOnlyMultiChunkUnsupported { chunk_count: 2 }
         ),
-        "expected FPrimeNonReplayUnsupported(2), got {err:?}"
+        "expected TerminalOnlyMultiChunkUnsupported(2), got {err:?}"
     );
 
     neo_fold_clean::verify_uncompressed_audit(&chain.prep, &finished)
@@ -1230,83 +1373,6 @@ fn lifecycle_compress_uses_audit_path_for_multi_chunk_f_prime_until_decider_land
             neo_fold_clean::Error::Decider(neo_fold_clean::paper::decider::Error::Unsupported)
         ),
         "compress must use the audit replay path for multi-chunk F' before hitting the decider placeholder; got {err:?}"
-    );
-}
-
-#[test]
-fn audit_replay_rejects_intermediate_latest_public_input_not_linked_to_state() {
-    let r1cs = bit_carrier_r1cs();
-    let prep = direct_ccs::preprocess_seeded(&r1cs, 42).expect("preprocess");
-    let placeholder_z = vec![F::ZERO; prep.structure().m];
-    let dummy_inst = || direct_ccs::build_instance(&prep, &r1cs, &placeholder_z).expect("dummy");
-
-    let state0 = base_state(&prep);
-    let predicted0 = peek_next_state(&prep, &state0, &[dummy_inst()]);
-    let mut wrong_step0_x = compute_x_out_native(&prep, &predicted0);
-    wrong_step0_x[0] += F::ONE;
-    let wrong_step0_latest = build_link_instance(&prep, &r1cs, wrong_step0_x);
-    let wrong_step0_claim = wrong_step0_latest.claim.clone();
-
-    // Prove step 0 with a deliberately wrong public input. Because the
-    // F' chunk digest is shape-only, this still advances to the same
-    // verifier state as an honest step; the wrong claim becomes the
-    // pending `latest` that step 1 will fold.
-    let (state1, step0_proof) = construction2::step(
-        &prep.params,
-        prep.structure(),
-        prep.optimized_cache(),
-        prep.structure_digest(),
-        &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
-        &prep.vk,
-        state0,
-        vec![wrong_step0_latest],
-    )
-    .expect("malicious step 0 is internally provable");
-
-    // Now prove step 1 honestly over the malformed pending latest. The
-    // NIFS proof is self-consistent with the bad claim, so a replay that
-    // only checks the final trailing latest would accept this history.
-    let predicted1 = peek_next_state(&prep, &state1, &[dummy_inst()]);
-    let step1_x = compute_x_out_native(&prep, &predicted1);
-    let step1_latest = build_link_instance(&prep, &r1cs, step1_x);
-    let step1_claim = step1_latest.claim.clone();
-    let (state2, step1_proof) = construction2::step(
-        &prep.params,
-        prep.structure(),
-        prep.optimized_cache(),
-        prep.structure_digest(),
-        &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
-        &prep.vk,
-        state1,
-        vec![step1_latest],
-    )
-    .expect("step 1 folds the malformed latest with a matching proof");
-
-    let audit = UncompressedAudit {
-        proof: Uncompressed {
-            state: state2,
-            final_fold: None,
-        },
-        steps: vec![step0_proof, step1_proof],
-        public_batches: vec![vec![wrong_step0_claim], vec![step1_claim]],
-    };
-    let finished = neo_fold_clean::finish_uncompressed_with_audit(&prep, audit)
-        .expect("malformed intermediate latest is terminal-fold provable");
-
-    let err = neo_fold_clean::verify_uncompressed_audit(&prep, &finished)
-        .expect_err("audit replay must reject an intermediate latest not linked to prior x_out");
-    assert!(
-        matches!(
-            err,
-            neo_fold_clean::Error::Decider(
-                neo_fold_clean::paper::decider::Error::TerminalLatestPublicInputMismatch { index: 0 }
-            )
-        ),
-        "expected intermediate latest link mismatch, got {err:?}"
     );
 }
 
@@ -1451,15 +1517,15 @@ fn nifs_transcript_binds_chunk_contents_even_though_f_prime_digest_is_shape_only
     let finished = neo_fold_clean::finish_uncompressed_with_audit(&chain.prep, audit).expect("finish linked chain");
 
     // Sanity: the original proof verifies under audit replay. The
-    // terminal-only projection must fail closed for multi-chunk F'
-    // histories because it has dropped the intermediate F' witnesses
-    // and NIFS.V messages that HyperNova's induction needs.
+    // terminal-only projection must fail closed for multi-chunk direct-CCS
+    // histories because the terminal fold starts from a non-empty running
+    // accumulator.
     assert!(
         matches!(
             neo_fold_clean::verify_uncompressed(&chain.prep, &finished.proof),
-            Err(neo_fold_clean::Error::FPrimeNonReplayUnsupported { chunk_count: 2 })
+            Err(neo_fold_clean::Error::TerminalOnlyMultiChunkUnsupported { chunk_count: 2 })
         ),
-        "terminal-only verifier must reject multi-chunk F' history"
+        "terminal-only verifier must reject multi-chunk direct-CCS history"
     );
     neo_fold_clean::verify_uncompressed_audit(&chain.prep, &finished).expect("untampered audit proof verifies");
     let untampered_statement = neo_fold_clean::build_decider_statement(&chain.prep, &finished);
@@ -1469,10 +1535,11 @@ fn nifs_transcript_binds_chunk_contents_even_though_f_prime_digest_is_shape_only
         chain.prep.optimized_cache(),
         chain.prep.structure_digest(),
         &chain.prep.log,
-        chain.prep.mix_rhos_commits,
-        chain.prep.combine_b_pows,
+        chain.prep.mix_rhos_commits(),
+        chain.prep.combine_b_pows(),
         &chain.prep.vk,
         chain.prep.public_input_len,
+        chain.prep.enforces_f_prime_recursive_link(),
         chain.prep.semantic_state_mode(),
         chain.prep.initial_semantic_state_digest(),
         &untampered_statement,
@@ -1492,10 +1559,11 @@ fn nifs_transcript_binds_chunk_contents_even_though_f_prime_digest_is_shape_only
             chain.prep.optimized_cache(),
             chain.prep.structure_digest(),
             &chain.prep.log,
-            chain.prep.mix_rhos_commits,
-            chain.prep.combine_b_pows,
+            chain.prep.mix_rhos_commits(),
+            chain.prep.combine_b_pows(),
             &chain.prep.vk,
             chain.prep.public_input_len,
+            chain.prep.enforces_f_prime_recursive_link(),
             chain.prep.semantic_state_mode(),
             chain.prep.initial_semantic_state_digest(),
             &tampered_statement,

@@ -255,6 +255,12 @@ pub fn enforce_split_nc_pi_ccs_v(
             "SplitNc Π_CCS.V requires at least one fresh CCS claim".into(),
         ));
     }
+    if k_mcs > cfg.params.max_fresh_count() {
+        return Err(Error::Shape(format!(
+            "fresh length {k_mcs} exceeds params.max_fresh_count()={}",
+            cfg.params.max_fresh_count()
+        )));
+    }
     if msg.outputs.len() != k_total {
         return Err(Error::Shape(format!(
             "outputs.len={} expected fresh+running={k_total}",

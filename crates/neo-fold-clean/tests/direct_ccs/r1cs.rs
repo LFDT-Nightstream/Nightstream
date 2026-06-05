@@ -14,7 +14,10 @@ use p3_field::PrimeCharacteristicRing;
 
 use neo_fold_clean::config;
 use neo_fold_clean::frontends::direct_ccs::{self, FrontendError, R1cs};
-use neo_fold_clean::{finish_uncompressed, prove, verify_uncompressed, FoldSchedule};
+use neo_fold_clean::{
+    finish_uncompressed, finish_uncompressed_with_audit, prove, verify_uncompressed_audit, FoldSchedule,
+    LatestInstance, ProofState, State,
+};
 
 /// Minimal R1CS: one constraint `(z[1] + z[2]) · z[0] = z[3]`.
 /// `z[0] = 1` (constant), `z[1] = a`, `z[2] = b`, `z[3] = c`.
@@ -104,8 +107,8 @@ fn end_to_end_chain_proof_for_three_term_addition() {
         .expect("partition");
 
     let proof = prove(&prep, batches).expect("prove");
-    let finished = finish_uncompressed(&prep, proof).expect("finish_uncompressed");
-    verify_uncompressed(&prep, &finished).expect("verify_uncompressed");
+    let finished = finish_uncompressed_with_audit(&prep, proof).expect("finish_uncompressed_with_audit");
+    verify_uncompressed_audit(&prep, &finished).expect("verify_uncompressed_audit");
 }
 
 /// SuperNeo steady-state max-fresh path: `MAX_FRESH_K = 61` fresh + 14
@@ -141,15 +144,14 @@ fn end_to_end_chain_proof_for_max_fresh_k61_steady_state() {
     assert_eq!(batches[1].len(), k);
 
     let proof = prove(&prep, batches).expect("prove K=MAX_FRESH_K");
-    let finished = finish_uncompressed(&prep, proof).expect("finish at K=61, k_rho=14 must pass RLC bound");
-    verify_uncompressed(&prep, &finished).expect("verify_uncompressed");
+    let finished = finish_uncompressed_with_audit(&prep, proof).expect("finish at K=61, k_rho=14 must pass RLC bound");
+    verify_uncompressed_audit(&prep, &finished).expect("verify_uncompressed_audit");
 }
 
-/// Steady-state RLC bound violation. First batch = 61 (passes Π_RLC at
-/// `61 + 0 = 61` claims), second batch = 62 ends up as the trailing
-/// `latest`; finalization folds it against the 14-claim running, giving
-/// `62 + 14 = 76` RLC claims and `76 · 216 = 16416 ≥ 2^14 = 16384` —
-/// `finish_uncompressed` must reject.
+/// Steady-state max-fresh violation. A second batch of K=62 would eventually
+/// be folded against the 14-claim running accumulator, giving `62 + 14 = 76`
+/// RLC claims and `76 · 216 = 16416 ≥ 2^14`. The lifecycle rejects the batch
+/// at `extend` time so an oversized chunk never enters the proof state.
 #[test]
 fn finish_uncompressed_rejects_steady_state_above_max_fresh() {
     let r1cs = three_term_addition();
@@ -164,14 +166,144 @@ fn finish_uncompressed_rejects_steady_state_above_max_fresh() {
     let first: Vec<_> = (0..k).map(|_| build()).collect();
     let second: Vec<_> = (0..(k + 1)).map(|_| build()).collect();
 
-    let proof = prove(&prep, [first, second]).expect("prove (RLC bound only checked on next fold)");
-    let err = finish_uncompressed(&prep, proof)
+    let err = prove(&prep, [first, second])
         .err()
-        .expect("finish_uncompressed must reject 62 fresh + 14 running (steady-state \u{03A0}_RLC bound)");
+        .expect("prove must reject 62 fresh before it can become trailing latest");
     let msg = format!("{err:?}");
     assert!(
-        msg.contains("RlcBoundViolated") || msg.to_lowercase().contains("rlc"),
-        "expected steady-state \u{03A0}_RLC bound violation, got {msg}",
+        msg.contains("BatchTooLarge"),
+        "expected steady-state max-fresh rejection, got {msg}",
+    );
+}
+
+/// Transient first-fold K must obey the same profile-level K cap as the
+/// steady-state path. A first batch of K=62 still satisfies the *current*
+/// Π_RLC norm bound when the running accumulator is empty (`62·216 < 2^14`),
+/// but the effective-λ parameter selection is budgeted for Appendix-B.2's
+/// `K <= 61`. Accepting this would let a prover use a larger fresh batch than
+/// the verifier's advertised parameter profile.
+#[test]
+fn prove_rejects_transient_batch_above_max_fresh() {
+    let r1cs = three_term_addition();
+    let prep = direct_ccs::preprocess_seeded(&r1cs, /* seed = */ 17).expect("preprocess");
+
+    let k = neo_params::goldilocks_paper_b2::MAX_FRESH_K as usize;
+    let build = || {
+        let z = pad_z(vec![F::ONE, F::ONE, F::ZERO, F::ONE], prep.structure().m);
+        direct_ccs::build_instance(&prep, &r1cs, &z).expect("instance")
+    };
+
+    let first: Vec<_> = (0..(k + 1)).map(|_| build()).collect();
+    let second = vec![build()];
+
+    let err = prove(&prep, [first, second])
+        .err()
+        .expect("prove must reject K above the Appendix-B.2 max-fresh profile");
+    assert!(
+        format!("{err:?}").contains("BatchTooLarge"),
+        "expected BatchTooLarge, got {err:?}"
+    );
+}
+
+/// Same oversized-K attack, but bypass the normal `prove/extend` funnel by
+/// editing the public audit carrier before finalization. The forged state is
+/// internally consistent for `latest.len() = 62` (counters and boundary digest
+/// repaired), so `finish_uncompressed` itself must enforce the profile cap.
+#[test]
+fn finish_uncompressed_rejects_manual_oversized_latest() {
+    let r1cs = three_term_addition();
+    let prep = direct_ccs::preprocess_seeded(&r1cs, /* seed = */ 23).expect("preprocess");
+
+    let build = || {
+        let z = pad_z(vec![F::ONE, F::ONE, F::ZERO, F::ONE], prep.structure().m);
+        direct_ccs::build_instance(&prep, &r1cs, &z).expect("instance")
+    };
+
+    let mut audit = prove(&prep, [vec![build()]]).expect("honest one-step proof");
+    let k = neo_params::goldilocks_paper_b2::MAX_FRESH_K as usize;
+    let oversized: Vec<_> = (0..(k + 1)).map(|_| build()).collect();
+    let claims: Vec<_> = oversized
+        .iter()
+        .map(|instance| instance.claim.clone())
+        .collect();
+    let chunk_digest = neo_fold_clean::paper::digest::f_prime_chunk_public_digest(0, &claims);
+    let repaired_boundary = neo_fold_clean::paper::digest::digest_fields_as_digest32(chunk_digest);
+
+    audit.proof.state.chunk_count = 1;
+    audit.proof.state.step_count = oversized.len() as u64;
+    audit.proof.state.z_i = repaired_boundary;
+    audit.proof.state.public_trace = repaired_boundary;
+    match &mut audit.proof.state.proof {
+        ProofState::Active { running, latest } => {
+            assert!(running.is_empty(), "one-step fixture must have empty running");
+            *latest = LatestInstance::from_instances(oversized);
+        }
+        ProofState::Initial => panic!("one-step fixture must be active"),
+    }
+    audit.public_batches = vec![claims];
+
+    let err = finish_uncompressed(&prep, audit)
+        .err()
+        .expect("finish_uncompressed must reject a manually oversized latest batch");
+    assert!(
+        format!("{err:?}").contains("BatchTooLarge"),
+        "expected BatchTooLarge, got {err:?}"
+    );
+}
+
+/// Same cap, but below the public lifecycle funnel. Step 0 manually deposits
+/// K=MAX+1 as `latest`; step 1 tries to fold that oversized prior latest
+/// directly through Construction 2. The recursive fold must reject before an
+/// audit trail can be assembled.
+#[test]
+fn construction2_step_rejects_manual_oversized_prior_latest() {
+    let r1cs = three_term_addition();
+    let prep = direct_ccs::preprocess_seeded(&r1cs, /* seed = */ 29).expect("preprocess");
+
+    let build = || {
+        let z = pad_z(vec![F::ONE, F::ONE, F::ZERO, F::ONE], prep.structure().m);
+        direct_ccs::build_instance(&prep, &r1cs, &z).expect("instance")
+    };
+    let k = neo_params::goldilocks_paper_b2::MAX_FRESH_K as usize;
+    let oversized: Vec<_> = (0..(k + 1)).map(|_| build()).collect();
+    let next = vec![build()];
+
+    let z_0 = neo_fold_clean::paper::digest::initial_boundary_digest(prep.structure_digest(), prep.public_input_len);
+    let public_trace = neo_fold_clean::paper::digest::public_trace_seed_digest(prep.structure_digest());
+    let empty_acc = neo_fold_clean::paper::digest::AccumulatorHandle::empty().digest();
+    let state0 = State::base(z_0, public_trace, empty_acc, empty_acc);
+
+    let (state1, _step0) = neo_fold_clean::paper::construction2::step(
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        prep.structure_digest(),
+        &prep.log,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
+        &prep.vk,
+        state0,
+        oversized,
+    )
+    .expect("manual base step can deposit oversized latest");
+    let err = neo_fold_clean::paper::construction2::step(
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        prep.structure_digest(),
+        &prep.log,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
+        &prep.vk,
+        state1,
+        next,
+    )
+    .err()
+    .expect("recursive Construction-2 step must reject a prior latest larger than the SuperNeo parameter profile");
+    let msg = format!("{err:?}");
+    assert!(
+        msg.contains("max_fresh_count"),
+        "expected max_fresh_count guard rejection, got {msg}"
     );
 }
 

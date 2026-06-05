@@ -322,15 +322,10 @@ pub fn preprocess(
     r1cs.validate_shape()?;
     let r1cs = R1csShape::Dense(r1cs.clone());
     let (structure, anchors, public_input_len) = derive_structure(plan, &r1cs)?;
-    let prep = lifecycle_preprocess(
-        params,
-        structure.ccs.clone(),
-        ajtai_rlc_mixer,
-        ajtai_dec_mixer,
-        Some(public_input_len),
-    )?
-    .with_semantic_state_mode(semantic_state_mode_for_plan(plan))
-    .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan));
+    let prep = lifecycle_preprocess(params, structure.ccs.clone(), Some(public_input_len))?
+        .with_f_prime_recursive_link()
+        .with_semantic_state_mode(semantic_state_mode_for_plan(plan))
+        .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan))?;
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: plan.clone(),
@@ -350,15 +345,10 @@ pub fn preprocess_sparse(
     r1cs.validate_shape()?;
     let r1cs = R1csShape::Sparse(r1cs.clone());
     let (structure, anchors, public_input_len) = derive_structure(plan, &r1cs)?;
-    let prep = lifecycle_preprocess(
-        params,
-        structure.ccs.clone(),
-        ajtai_rlc_mixer,
-        ajtai_dec_mixer,
-        Some(public_input_len),
-    )?
-    .with_semantic_state_mode(semantic_state_mode_for_plan(plan))
-    .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan));
+    let prep = lifecycle_preprocess(params, structure.ccs.clone(), Some(public_input_len))?
+        .with_f_prime_recursive_link()
+        .with_semantic_state_mode(semantic_state_mode_for_plan(plan))
+        .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan))?;
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: plan.clone(),
@@ -370,7 +360,7 @@ pub fn preprocess_sparse(
 
 /// Test/demo helper: derive the structure, install an Ajtai PP
 /// deterministically from `seed`, and build preprocessing under
-/// `config::r1cs_params` for the derived CCS shape.
+/// `config::ccs_params` for the derived CCS shape.
 pub fn preprocess_seeded(
     r1cs: &R1cs,
     plan: &RecursiveStepImagePlan,
@@ -379,17 +369,17 @@ pub fn preprocess_seeded(
     r1cs.validate_shape()?;
     let r1cs = R1csShape::Dense(r1cs.clone());
     let (structure, anchors, public_input_len) = derive_structure(plan, &r1cs)?;
-    let params = crate::config::r1cs_params(structure.ccs.n, structure.ccs.m)?;
+    let params = crate::config::ccs_params(
+        structure.ccs.n,
+        structure.ccs.m,
+        structure.ccs.t(),
+        structure.ccs.max_degree(),
+    )?;
     let _ = ajtai::setup_seeded(&params, &structure.ccs, seed);
-    let prep = lifecycle_preprocess(
-        params,
-        structure.ccs.clone(),
-        ajtai_rlc_mixer,
-        ajtai_dec_mixer,
-        Some(public_input_len),
-    )?
-    .with_semantic_state_mode(semantic_state_mode_for_plan(plan))
-    .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan));
+    let prep = lifecycle_preprocess(params, structure.ccs.clone(), Some(public_input_len))?
+        .with_f_prime_recursive_link()
+        .with_semantic_state_mode(semantic_state_mode_for_plan(plan))
+        .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan))?;
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: plan.clone(),
@@ -408,17 +398,17 @@ pub fn preprocess_sparse_seeded(
     r1cs.validate_shape()?;
     let r1cs = R1csShape::Sparse(r1cs.clone());
     let (structure, anchors, public_input_len) = derive_structure(plan, &r1cs)?;
-    let params = crate::config::r1cs_params(structure.ccs.n, structure.ccs.m)?;
+    let params = crate::config::ccs_params(
+        structure.ccs.n,
+        structure.ccs.m,
+        structure.ccs.t(),
+        structure.ccs.max_degree(),
+    )?;
     let _ = ajtai::setup_seeded(&params, &structure.ccs, seed);
-    let prep = lifecycle_preprocess(
-        params,
-        structure.ccs.clone(),
-        ajtai_rlc_mixer,
-        ajtai_dec_mixer,
-        Some(public_input_len),
-    )?
-    .with_semantic_state_mode(semantic_state_mode_for_plan(plan))
-    .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan));
+    let prep = lifecycle_preprocess(params, structure.ccs.clone(), Some(public_input_len))?
+        .with_f_prime_recursive_link()
+        .with_semantic_state_mode(semantic_state_mode_for_plan(plan))
+        .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan))?;
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: plan.clone(),
@@ -443,15 +433,10 @@ pub fn preprocess_seeded_with_params(
     let r1cs = R1csShape::Dense(r1cs.clone());
     let (structure, anchors, public_input_len) = derive_structure(plan, &r1cs)?;
     let _ = ajtai::setup_seeded(&params, &structure.ccs, seed);
-    let prep = lifecycle_preprocess(
-        params,
-        structure.ccs.clone(),
-        ajtai_rlc_mixer,
-        ajtai_dec_mixer,
-        Some(public_input_len),
-    )?
-    .with_semantic_state_mode(semantic_state_mode_for_plan(plan))
-    .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan));
+    let prep = lifecycle_preprocess(params, structure.ccs.clone(), Some(public_input_len))?
+        .with_f_prime_recursive_link()
+        .with_semantic_state_mode(semantic_state_mode_for_plan(plan))
+        .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan))?;
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: plan.clone(),
@@ -472,15 +457,10 @@ pub fn preprocess_sparse_seeded_with_params(
     let r1cs = R1csShape::Sparse(r1cs.clone());
     let (structure, anchors, public_input_len) = derive_structure(plan, &r1cs)?;
     let _ = ajtai::setup_seeded(&params, &structure.ccs, seed);
-    let prep = lifecycle_preprocess(
-        params,
-        structure.ccs.clone(),
-        ajtai_rlc_mixer,
-        ajtai_dec_mixer,
-        Some(public_input_len),
-    )?
-    .with_semantic_state_mode(semantic_state_mode_for_plan(plan))
-    .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan));
+    let prep = lifecycle_preprocess(params, structure.ccs.clone(), Some(public_input_len))?
+        .with_f_prime_recursive_link()
+        .with_semantic_state_mode(semantic_state_mode_for_plan(plan))
+        .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan))?;
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: plan.clone(),
@@ -599,8 +579,9 @@ pub fn preprocess_seeded_prepared_with_params(
         Some(prepared.public_input_len),
         prepared.optimized_cache,
     )?
+    .with_f_prime_recursive_link()
     .with_semantic_state_mode(semantic_state_mode_for_plan(&prepared.plan))
-    .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(&prepared.plan));
+    .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(&prepared.plan))?;
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: prepared.plan,

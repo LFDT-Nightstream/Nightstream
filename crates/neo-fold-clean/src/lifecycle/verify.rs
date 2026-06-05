@@ -8,8 +8,8 @@
 //! - [`verify_uncompressed`] **(terminal-only IVC verifier)** consumes
 //!   the terminal-only [`Uncompressed`]. Constant verifier work in chain
 //!   length. Authenticates the terminal fold, never iterating per-step
-//!   proofs. It accepts F' chains only when they contain a single chunk;
-//!   multi-chunk F' histories require audit/decider replay.
+//!   proofs. It accepts only single-chunk histories; multi-chunk histories
+//!   require audit/decider replay.
 //! - [`verify_uncompressed_audit`] **(chain-replay / audit verifier)**
 //!   consumes the audit-bearing [`crate::lifecycle::UncompressedAudit`].
 //!   Linear in chain length. Replays every `extend`'s NIFS.V to catch
@@ -30,13 +30,13 @@
 //! [`verify_uncompressed_audit`] (and the decider's `validate_witness`);
 //! audit-trail tampers are caught there, not here.
 //!
-//! This distinction is load-bearing for F' chains. The terminal-only
-//! artifact has dropped the intermediate F' image witnesses and NIFS.V
-//! messages, so it cannot re-check the HyperNova induction across
-//! multiple chunks. That recursive-link obligation lives in the
+//! This distinction is load-bearing. The terminal-only artifact has
+//! dropped the intermediate step witnesses and NIFS.V messages, so it
+//! cannot re-check the HyperNova induction or rederive earlier chunks'
+//! counters/boundary coordinates. Those obligations live in the
 //! audit/decider path. For that reason, `verify_uncompressed` rejects
-//! F' proofs with `chunk_count > 1` until the compressed decider is
-//! wired.
+//! any proof whose terminal fold starts from a non-empty running
+//! accumulator.
 //!
 //! Specifically, given a finalized proof with the terminal-fold inputs
 //! the prover stored in `final_fold.terminal_inputs`, the verifier:
@@ -87,11 +87,11 @@
 //! The load-bearing soundness step in §1–4 is the Π_CCS sumcheck inside
 //! step 2: at random row `α` it implies CCS satisfaction for the latest
 //! and correct CE evaluation for `pre_final_running` at its
-//! (prover-supplied but circuit-bound) `r`. For non-F' terminal folds and
-//! single-chunk F' chains, the terminal fold is sufficient for this
-//! verifier. For multi-chunk F' chains, the cross-step induction is not
-//! available after dropping the audit trail, so this verifier fails closed
-//! instead of relying on a digest-only story.
+//! (prover-supplied but circuit-bound) `r`. For single-chunk histories,
+//! the terminal fold is sufficient for this verifier. For multi-chunk
+//! histories, the cross-step induction and public-boundary reconstruction
+//! are not available after dropping the audit trail, so this verifier
+//! fails closed instead of relying on a digest-only story.
 //! `pc` is pinned/linked as a state field and absorbed directly into the
 //! per-step `state_x_out` preimage. In this single-`F'_j` build it is
 //! always `TRIVIAL_PC`, but the binding remains explicit for the
@@ -118,7 +118,7 @@ use crate::paper::construction2::{
     self, FinalFoldProof, LatestInstance, ProofState, RunningInstance, State, TerminalFoldInputs,
 };
 use crate::paper::decider;
-use crate::paper::digest::{initial_boundary_digest, AccumulatorHandle};
+use crate::paper::digest::{digest_fields_as_digest32, initial_boundary_digest, AccumulatorHandle};
 use crate::paper::f_prime::r1cs::{F_PRIME_ENC_INST_OFFSET, F_PRIME_PUBLIC_INPUT_LEN, F_PRIME_PUBLIC_ONE_OFFSET};
 use crate::paper::relations::{CeClaim, WitnessMat};
 use neo_ajtai::Commitment;
@@ -326,7 +326,7 @@ fn check_stateless_semantic_invariant(prep: &Preprocessing, proof: &Uncompressed
 }
 
 fn check_f_prime_non_replay_scope(prep: &Preprocessing, proof: &Uncompressed) -> Result<(), Error> {
-    if prep.public_input_len == Some(F_PRIME_PUBLIC_INPUT_LEN) && proof.state.chunk_count > 1 {
+    if prep.enforces_f_prime_recursive_link() && proof.state.chunk_count > 1 {
         return Err(Error::FPrimeNonReplayUnsupported {
             chunk_count: proof.state.chunk_count,
         });
@@ -358,6 +358,7 @@ fn verify_terminal_fold_case(
     recorded_running: &RunningInstance,
     final_fold: &FinalFoldProof,
 ) -> Result<(), Error> {
+    check_terminal_boundary_from_latest(prep, &proof.state, final_fold)?;
     let pre_state = build_pre_final_state(&proof.state, &final_fold.terminal_inputs)?;
     check_terminal_latest_link(prep, &pre_state, &final_fold.terminal_inputs.latest)?;
     let derived_state = construction2::verify_final_fold(
@@ -388,8 +389,47 @@ fn verify_terminal_fold_case(
     Ok(())
 }
 
+fn check_terminal_boundary_from_latest(
+    prep: &Preprocessing,
+    post: &State,
+    final_fold: &FinalFoldProof,
+) -> Result<(), Error> {
+    let latest_count = final_fold.terminal_inputs.latest.instances.len() as u64;
+    if latest_count == 0 || latest_count > post.step_count {
+        return Err(Error::PostStateMismatch);
+    }
+    let max_fresh = prep.params.max_fresh_count();
+    if latest_count as usize > max_fresh {
+        return Err(Error::BatchTooLarge {
+            got: latest_count as usize,
+            max: max_fresh,
+        });
+    }
+    if !final_fold
+        .terminal_inputs
+        .pre_final_running
+        .claims
+        .is_empty()
+    {
+        return Err(Error::TerminalOnlyMultiChunkUnsupported {
+            chunk_count: post.chunk_count,
+        });
+    }
+    if post.chunk_count != 1 || post.step_count != latest_count {
+        return Err(Error::PostStateMismatch);
+    }
+    let start_index = post.step_count - latest_count;
+    let latest_claims = final_fold.terminal_inputs.latest.claims();
+    let expected_chunk_digest = construction2::f_prime_chunk_public_digest_from_claims(start_index, &latest_claims);
+    let expected_boundary = digest_fields_as_digest32(expected_chunk_digest);
+    if post.z_i != expected_boundary || post.public_trace != expected_boundary {
+        return Err(Error::PostStateMismatch);
+    }
+    Ok(())
+}
+
 fn check_terminal_latest_link(prep: &Preprocessing, pre_state: &State, latest: &LatestInstance) -> Result<(), Error> {
-    if prep.public_input_len != Some(F_PRIME_PUBLIC_INPUT_LEN) {
+    if !prep.enforces_f_prime_recursive_link() {
         return Ok(());
     }
 
@@ -1065,6 +1105,7 @@ pub fn verify_uncompressed_audit(prep: &Preprocessing, audit: &UncompressedAudit
         prep.combine_b_pows,
         &prep.vk,
         prep.public_input_len,
+        prep.enforces_f_prime_recursive_link(),
         prep.semantic_state_mode,
         prep.initial_semantic_state_digest(),
         &statement,

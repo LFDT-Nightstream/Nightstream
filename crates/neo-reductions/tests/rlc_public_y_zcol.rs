@@ -108,7 +108,7 @@ fn rlc_public_mixes_y_zcol_when_present() {
 }
 
 #[test]
-fn rlc_public_matches_ignores_y_zcol_and_s_col_shell() {
+fn rlc_public_matches_rejects_y_zcol_and_s_col_shell_tamper() {
     let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let d_pad = 1usize << ell_d;
@@ -200,5 +200,5 @@ fn rlc_public_matches_ignores_y_zcol_and_s_col_shell() {
         ell_d,
     )
     .expect("rlc_public_matches_with_perf");
-    assert!(ok, "public RLC check must ignore y_zcol and s_col shell");
+    assert!(!ok, "public RLC check must reject same-shape y_zcol/s_col tamper");
 }

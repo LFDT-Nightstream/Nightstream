@@ -888,13 +888,24 @@ fn new_ccs_digest_poseidon2() -> Poseidon2Goldilocks<16> {
 }
 
 #[inline]
-fn absorb_digest_u64(poseidon2: &Poseidon2Goldilocks<16>, state: &mut [Goldilocks; 16], absorbed: &mut usize, v: u64) {
+fn absorb_digest_limb(
+    poseidon2: &Poseidon2Goldilocks<16>,
+    state: &mut [Goldilocks; 16],
+    absorbed: &mut usize,
+    v: Goldilocks,
+) {
     if *absorbed >= 15 {
         poseidon2.permute_mut(state);
         *absorbed = 0;
     }
-    state[*absorbed] = Goldilocks::from_u64(v);
+    state[*absorbed] = v;
     *absorbed += 1;
+}
+
+#[inline]
+fn absorb_digest_u64(poseidon2: &Poseidon2Goldilocks<16>, state: &mut [Goldilocks; 16], absorbed: &mut usize, v: u64) {
+    absorb_digest_limb(poseidon2, state, absorbed, Goldilocks::from_u64(v & 0xffff_ffff));
+    absorb_digest_limb(poseidon2, state, absorbed, Goldilocks::from_u64(v >> 32));
 }
 
 #[inline]

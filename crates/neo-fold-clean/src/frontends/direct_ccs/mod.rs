@@ -92,13 +92,7 @@ pub enum FrontendError {
 pub fn preprocess(params: Params, r1cs: &R1cs) -> Result<Preprocessing, FrontendError> {
     r1cs.validate_shape()?;
     let structure = r1cs.to_structure();
-    Ok(lifecycle_preprocess(
-        params,
-        structure,
-        ajtai_rlc_mixer,
-        ajtai_dec_mixer,
-        Some(r1cs.m_in),
-    )?)
+    Ok(lifecycle_preprocess(params, structure, Some(r1cs.m_in))?)
 }
 
 /// Test/demo helper: use the production R1CS profile, derive the Ajtai
@@ -114,11 +108,5 @@ pub fn preprocess_seeded(r1cs: &R1cs, seed: u64) -> Result<Preprocessing, Fronte
     let structure = r1cs.to_structure();
     let params = crate::config::r1cs_params(structure.n, structure.m)?;
     let _ = ajtai::setup_seeded(&params, &structure, seed);
-    Ok(lifecycle_preprocess(
-        params,
-        structure,
-        ajtai_rlc_mixer,
-        ajtai_dec_mixer,
-        Some(r1cs.m_in),
-    )?)
+    Ok(lifecycle_preprocess(params, structure, Some(r1cs.m_in))?)
 }

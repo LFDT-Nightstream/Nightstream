@@ -162,9 +162,12 @@ where
 }
 
 /// Evaluate NC_i at Boolean X=(xa,xr), literally (§4.4):
-///   NC_i(X) = ∏_{t=-(b-1)}^{b-1} ( Ẽ(Z_i M_1^T ẑ_r)(X_a) - t )
-/// where ẑ_r is χ_{X_r} (here a one-hot row selector since X_r is Boolean),
-/// and Ẽ(·)(X_a) reduces to picking the Ajtai row `xa`.
+///   NC_i(X) = ∏_{t=-(b-1)}^{b-1} ( Ẽ(Z_i)(X_a, X_r) - t )
+///
+/// SuperNeo writes this as `Z_i M_1^T χ_{X_r}` after the WLOG
+/// normalization `M_1 = I`. The implementation must not trust the caller's
+/// first CCS matrix to be identity: NC is the norm check for the witness
+/// itself, so read the packed witness coordinate directly.
 #[inline]
 fn NC_i_at_bool_point<Ff>(s: &CcsStructure<Ff>, Z_i: &Mat<Ff>, xa_mask: usize, xr_mask: usize, b: u32) -> K
 where
@@ -173,13 +176,10 @@ where
 {
     crate::common::validate_superneo_witness_mat(Z_i, s.m)
         .unwrap_or_else(|e| panic!("NC_i_at_bool_point: invalid witness shape for m={}: {e}", s.m));
-    // Ẑ_i M_1^T χ_{X_r} evaluated at X_a, with (xa,xr) Boolean
-    let mut y_val = K::ZERO;
-    for c in 0..s.m {
-        let z = crate::common::witness_mat_get_k(Z_i, s.m, xa_mask, c);
-        let m = K::from(get_M(&s.matrices[0], xr_mask, c));
-        y_val += z * m;
-    }
+    // Ẑ_i evaluated at Boolean (X_a, X_r). For a packed field coordinate
+    // `col`, only Ajtai coefficient row `col % D` is active; all other
+    // rows are zero-padding under `witness_mat_get_k`.
+    let y_val = crate::common::witness_mat_get_k(Z_i, s.m, xa_mask, xr_mask);
     range_product::<Ff>(y_val, b)
 }
 

@@ -67,8 +67,8 @@ pub mod verifier;
 // internal module split.
 pub use digests::{
     enforce_accumulator_ce_claim_digest, enforce_ccs_claim_digest, enforce_ce_claim_digest,
-    enforce_pi_ccs_instance_digest, enforce_pi_ccs_instance_digest_parent_authority, AccumulatorCeClaimDigestInputs,
-    CeClaimDigestInputs,
+    enforce_pi_ccs_instance_digest, enforce_pi_ccs_instance_digest_parent_authority, enforce_pi_ccs_outputs_digest,
+    AccumulatorCeClaimDigestInputs, CeClaimDigestInputs, PiCcsOutputClaimDigestInputs,
 };
 pub use fe::{
     enforce_fe_claimed_initial, enforce_fe_sumcheck_driver, enforce_fe_terminal_identity, FeClaimedInitialInputs,

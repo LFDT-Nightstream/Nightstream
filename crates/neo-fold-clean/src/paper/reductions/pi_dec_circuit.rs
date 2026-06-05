@@ -34,12 +34,11 @@
 use neo_ajtai::Commitment;
 use neo_math::ring::D;
 use neo_math::{KExtensions, F, K};
-use p3_field::{BasedVectorSpace, PrimeCharacteristicRing};
+use p3_field::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
 
 use crate::engine::r1cs_circuit::boolean;
 use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
-use crate::paper::digest::digest32_as_fields;
 use crate::paper::params::Params;
 use crate::paper::relations::CeClaim;
 
@@ -190,6 +189,43 @@ pub fn enforce_x_bitness(builder: &mut R1csBuilder, pp: &Params, wires: &DecInpu
     }
 }
 
+/// Enforce that each active packed child `X` entry lies in the centered
+/// CE(b) alphabet `{-(b-1), ..., +(b-1)}`. Π_DEC outputs CE(b) children;
+/// b-ary recomposition alone would allow out-of-alphabet child public
+/// projections that cancel in the parent.
+pub fn enforce_child_x_balanced_alphabet(
+    builder: &mut R1csBuilder,
+    pp: &Params,
+    wires: &DecInputWires,
+) -> Result<(), Error> {
+    let b = pp.b();
+    if b < 2 {
+        return Err(Error::ShapeMismatch {
+            what: "child X alphabet bound",
+            expected: 2,
+            got: b as usize,
+            idx: 0,
+        });
+    }
+    for (idx, child) in wires.children.iter().enumerate() {
+        let active_cols = crate::paper::relations::superneo_public_x_cols(child.m_in);
+        if active_cols > child.x_cols {
+            return Err(Error::ShapeMismatch {
+                what: "child active X columns",
+                expected: child.x_cols,
+                got: active_cols,
+                idx,
+            });
+        }
+        for r in 0..child.x_rows {
+            for c in 0..active_cols {
+                enforce_centered_alphabet(builder, child.x[r * child.x_cols + c], b);
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Enforce `parent.r == child_i.r` for every child `i`. The CE evaluation
 /// point is shared between parent and children by paper §7.5 definition.
 ///
@@ -219,10 +255,12 @@ pub fn enforce_r_consistency(builder: &mut R1csBuilder, wires: &DecInputWires) -
 ///   1. [`enforce_dec_v`] — `(c, X, y_ring)` b-ary recomposition.
 ///   2. [`enforce_r_consistency`] — `parent.r == child_i.r` for all `i`.
 ///   3. [`enforce_s_col_consistency`] — `parent.s_col == child_i.s_col`.
-///   4. [`enforce_ct_consistency`] — every claim's cached `ct[j]` is the
+///   4. [`enforce_child_x_balanced_alphabet`] — child `X` active entries
+///      remain in the centered CE(b) alphabet.
+///   5. [`enforce_ct_consistency`] — every claim's cached `ct[j]` is the
 ///      lane-0 K-element of `y_ring[j]`.
-///   5. `y_ring[D..] == 0` — SplitNc's padded CE representation is canonical.
-///   6. [`enforce_fold_digest_consistency`] — children carry the same
+///   6. `y_ring[D..] == 0` — SplitNc's padded CE representation is canonical.
+///   7. [`enforce_fold_digest_consistency`] — children carry the same
 ///      transcript digest as their Π_DEC parent.
 ///
 /// Notably absent (and absent on the native side):
@@ -230,18 +268,18 @@ pub fn enforce_r_consistency(builder: &mut R1csBuilder, wires: &DecInputWires) -
 ///     and ME linear y_zcols; after Π_RLC the parent's y_zcol doesn't
 ///     telescope under Π_DEC's b-ary split. Children's y_zcols are not
 ///     DEC authority.
-///   - **No x bitness check.** `decompose_balanced_fixed_d_digits_k`
+///   - **No unsigned x bitness check.** `decompose_balanced_fixed_d_digits_k`
 ///     produces signed digits (e.g. -1 ↦ p-1 in F), so an unsigned
-///     `{0..b-1}` check would reject honest provers. Low-norm soundness is
-///     carried by Ajtai-commitment binding, not by a verifier-side range
-///     check on `child.X`. [`enforce_x_bitness`] remains available for
-///     callers that have an unsigned range invariant to enforce.
+///     `{0..b-1}` check would reject honest provers. Strict mode enforces the
+///     centered CE(b) alphabet instead. [`enforce_x_bitness`] remains
+///     available for callers that have an unsigned range invariant to enforce.
 pub fn enforce_dec_v_strict(builder: &mut R1csBuilder, pp: &Params, wires: &DecInputWires) -> Result<(), Error> {
     enforce_dec_v(builder, pp, wires)?;
     enforce_shape_metadata_consistency(builder, wires);
     enforce_r_consistency(builder, wires)?;
     enforce_s_col_consistency(builder, wires)?;
     enforce_inactive_x_zero(builder, wires)?;
+    enforce_child_x_balanced_alphabet(builder, pp, wires)?;
     enforce_ct_consistency(builder, wires)?;
     enforce_y_ring_padding_zero(builder, wires);
     enforce_fold_digest_consistency(builder, wires)?;
@@ -551,10 +589,12 @@ pub(crate) fn alloc_ce_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> CeCl
             y_zcol.push(builder.alloc(*limb));
         }
     }
-    // Allocate the CE claim's fold_digest as four base-field wires so
-    // downstream gadgets (decider CE-continuity gate) can pin it equal
-    // to the next step's running's `fold_digest_fields`.
-    let fold_digest_lanes = digest32_as_fields(claim.fold_digest);
+    // Allocate the CE claim's fold_digest as four canonical base-field wires
+    // so downstream gadgets (decider CE-continuity gate) can pin it equal to
+    // the next step's running's `fold_digest_fields`. Reject noncanonical
+    // byte limbs instead of reducing them modulo F; proof bytes should not be
+    // able to alias a different transcript digest in-circuit.
+    let fold_digest_lanes = canonical_digest32_fields_or_unsat(builder, claim.fold_digest);
     let fold_digest_fields: [Var; 4] = [
         builder.alloc(fold_digest_lanes[0]),
         builder.alloc(fold_digest_lanes[1]),
@@ -589,6 +629,24 @@ pub(crate) fn alloc_ce_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> CeCl
     }
 }
 
+fn canonical_digest32_fields_or_unsat(builder: &mut R1csBuilder, bytes: [u8; 32]) -> [F; 4] {
+    let mut fields = [F::ZERO; 4];
+    for (lane, out) in fields.iter_mut().enumerate() {
+        let start = lane * 8;
+        let value = u64::from_le_bytes(
+            bytes[start..start + 8]
+                .try_into()
+                .expect("8-byte digest limb"),
+        );
+        if value >= F::ORDER_U64 {
+            builder.enforce_eq(&Lc::zero(), &Lc::from_const(F::ONE));
+            return [F::ZERO; 4];
+        }
+        *out = F::from_u64(value);
+    }
+    fields
+}
+
 fn alloc_usize(builder: &mut R1csBuilder, value: usize) -> Var {
     let v = builder.alloc(F::from_u64(value as u64));
     builder.enforce_eq(&Lc::from_var(v), &Lc::from_const(F::from_u64(value as u64)));
@@ -597,6 +655,34 @@ fn alloc_usize(builder: &mut R1csBuilder, value: usize) -> Var {
 
 fn enforce_var_eq(builder: &mut R1csBuilder, a: Var, b: Var) {
     builder.enforce_eq(&Lc::from_var(a), &Lc::from_var(b));
+}
+
+fn enforce_centered_alphabet(builder: &mut R1csBuilder, v: Var, b: u32) {
+    debug_assert!(b >= 2, "caller gates b >= 2");
+    let bound = b as i64 - 1;
+    let alphabet: Vec<i64> = (-bound..=bound).collect();
+    let mut acc: Option<Lc> = None;
+    let total = alphabet.len();
+    for (i, a) in alphabet.iter().enumerate() {
+        let mut factor = Lc::from_var(v);
+        let neg_a = if *a >= 0 {
+            -F::from_u64(*a as u64)
+        } else {
+            F::from_u64((-*a) as u64)
+        };
+        factor.add_constant(neg_a);
+        match acc.take() {
+            None => acc = Some(factor),
+            Some(prev) => {
+                if i + 1 == total {
+                    builder.enforce(&prev, &factor, &Lc::zero());
+                    return;
+                }
+                let next = builder.alloc_mul(&prev, &factor);
+                acc = Some(Lc::from_var(next));
+            }
+        }
+    }
 }
 
 fn check_shapes(parent: &CeClaimWires, children: &[CeClaimWires]) -> Result<(), Error> {

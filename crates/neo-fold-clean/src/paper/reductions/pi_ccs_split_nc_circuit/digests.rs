@@ -32,6 +32,8 @@ use crate::engine::r1cs_circuit::R1csBuilder;
 const CCS_CLAIM_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/ccs_claim_digest/v1";
 const CE_CLAIM_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/ce_claim_digest/v2";
 const ACCUMULATOR_CE_CLAIM_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/accumulator_ce_claim_digest/v1";
+const PI_CCS_OUTPUT_CLAIM_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/pi_ccs_output_claim_digest/v1";
+const PI_CCS_OUTPUTS_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/pi_ccs_outputs_digest/v1";
 const PI_CCS_INSTANCE_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/pi_ccs_instance_digest/v1";
 const PI_CCS_PARENT_AUTHORITY_INSTANCE_DIGEST_DOMAIN: &[u8] =
     b"neo.fold.clean/pi_ccs_instance_digest/parent_authority/v1";
@@ -111,6 +113,24 @@ pub struct AccumulatorCeClaimDigestInputs<'a> {
     pub s_col: &'a [KVar],
     pub y_ring: &'a [Vec<KVar>],
     pub ct: &'a [KVar],
+    pub m_in: usize,
+    pub fold_digest_fields: [Var; 4],
+}
+
+/// Witness wires for one Π_CCS output CE claim, in the exact full-public-field
+/// shape consumed by `paper::digest::pi_ccs_outputs_digest`.
+pub struct PiCcsOutputClaimDigestInputs<'a> {
+    pub c_d: usize,
+    pub c_kappa: usize,
+    pub c_data: &'a [Var],
+    pub x_rows: usize,
+    pub x_cols: usize,
+    pub x_flat_row_major: &'a [Var],
+    pub r: &'a [KVar],
+    pub s_col: &'a [KVar],
+    pub y_ring: &'a [Vec<KVar>],
+    pub ct: &'a [KVar],
+    pub y_zcol: &'a [KVar],
     pub m_in: usize,
     pub fold_digest_fields: [Var; 4],
 }
@@ -261,6 +281,91 @@ pub fn enforce_accumulator_ce_claim_digest(
     extend_kvar_rows(builder, &mut preimage, input.y_ring);
     extend_kvar_slice(builder, &mut preimage, input.ct);
     // aux_openings: empty in the current clean pipeline.
+    preimage.push(alloc_constant_var(builder, F::ZERO));
+    preimage.push(alloc_constant_var(builder, F::from_u64(input.m_in as u64)));
+    preimage.extend_from_slice(&input.fold_digest_fields);
+    // c_step_coords.len, u_offset, u_len: all zero in this pipeline.
+    preimage.push(alloc_constant_var(builder, F::ZERO));
+    preimage.push(alloc_constant_var(builder, F::ZERO));
+    preimage.push(alloc_constant_var(builder, F::ZERO));
+
+    Ok(enforce_poseidon2_hash(builder, &preimage))
+}
+
+/// Mirror of `crate::paper::digest::pi_ccs_outputs_digest`.
+///
+/// This binds the Π_CCS output messages as Fiat-Shamir transcript input before
+/// Π_RLC derives `ρ`, matching the interactive order from SuperNeo §7.3-§7.4.
+pub fn enforce_pi_ccs_outputs_digest(
+    builder: &mut R1csBuilder,
+    inputs: &[PiCcsOutputClaimDigestInputs<'_>],
+) -> Result<[Var; 4], Error> {
+    let mut output_digests = Vec::with_capacity(inputs.len());
+    for input in inputs {
+        output_digests.push(enforce_pi_ccs_output_claim_digest(builder, input)?);
+    }
+
+    let mut preimage = Vec::new();
+    extend_packed_bytes_as_fields_wires(builder, &mut preimage, PI_CCS_OUTPUTS_DIGEST_DOMAIN);
+    preimage.push(alloc_constant_var(builder, F::from_u64(inputs.len() as u64)));
+    for digest in &output_digests {
+        preimage.extend_from_slice(digest);
+    }
+
+    Ok(enforce_poseidon2_hash(builder, &preimage))
+}
+
+fn enforce_pi_ccs_output_claim_digest(
+    builder: &mut R1csBuilder,
+    input: &PiCcsOutputClaimDigestInputs<'_>,
+) -> Result<[Var; 4], Error> {
+    if input.x_flat_row_major.len() != input.x_rows * input.x_cols {
+        return Err(Error::Shape(format!(
+            "enforce_pi_ccs_output_claim_digest: x_flat_row_major.len ({}) must equal x_rows*x_cols ({}*{}={})",
+            input.x_flat_row_major.len(),
+            input.x_rows,
+            input.x_cols,
+            input.x_rows * input.x_cols
+        )));
+    }
+    let active_x_cols = crate::paper::relations::superneo_public_x_cols(input.m_in);
+    if active_x_cols > input.x_cols {
+        return Err(Error::Shape(format!(
+            "enforce_pi_ccs_output_claim_digest: active_x_cols ({active_x_cols}) > x_cols ({})",
+            input.x_cols
+        )));
+    }
+    for r in 0..input.x_rows {
+        for c in active_x_cols..input.x_cols {
+            builder.enforce_eq(
+                &crate::engine::r1cs_circuit::builder::Lc::from_var(input.x_flat_row_major[r * input.x_cols + c]),
+                &crate::engine::r1cs_circuit::builder::Lc::zero(),
+            );
+        }
+    }
+
+    let mut preimage = Vec::new();
+    extend_packed_bytes_as_fields_wires(builder, &mut preimage, PI_CCS_OUTPUT_CLAIM_DIGEST_DOMAIN);
+
+    preimage.push(alloc_constant_var(builder, F::from_u64(input.c_d as u64)));
+    preimage.push(alloc_constant_var(builder, F::from_u64(input.c_kappa as u64)));
+    extend_f_slice_wires(builder, &mut preimage, input.c_data);
+
+    preimage.push(alloc_constant_var(builder, F::from_u64(input.x_rows as u64)));
+    preimage.push(alloc_constant_var(builder, F::from_u64(input.x_cols as u64)));
+    preimage.push(alloc_constant_var(builder, F::from_u64(active_x_cols as u64)));
+    for r in 0..input.x_rows {
+        for c in 0..active_x_cols {
+            preimage.push(input.x_flat_row_major[r * input.x_cols + c]);
+        }
+    }
+
+    extend_kvar_slice(builder, &mut preimage, input.r);
+    extend_kvar_slice(builder, &mut preimage, input.s_col);
+    extend_kvar_rows(builder, &mut preimage, input.y_ring);
+    extend_kvar_slice(builder, &mut preimage, input.ct);
+    extend_kvar_slice(builder, &mut preimage, input.y_zcol);
+    // aux_openings: empty in the current clean SplitNc pipeline.
     preimage.push(alloc_constant_var(builder, F::ZERO));
     preimage.push(alloc_constant_var(builder, F::from_u64(input.m_in as u64)));
     preimage.extend_from_slice(&input.fold_digest_fields);

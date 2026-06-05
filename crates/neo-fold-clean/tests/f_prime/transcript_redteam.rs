@@ -508,8 +508,8 @@ fn build_transcript_replay_fixture_with_mode_and_context(
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
         vec![first],
         &RunningInstance::default(),
     )
@@ -576,8 +576,8 @@ fn build_transcript_replay_fixture_with_mode_and_context(
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
         vec![fresh],
         &running,
     )

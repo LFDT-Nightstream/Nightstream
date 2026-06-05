@@ -126,7 +126,7 @@ fn decider_r1cs_size_must_be_constant_in_chain_length() {
     let synth_short =
         synthesize_last_step_terminal_r1cs(&prep_short.prep, &finished_short).expect("terminal synth N=2");
     assert!(
-        synth_short.terminal_ce_relations,
+        synth_short.terminal_ce_direct_relations,
         "terminal synthesis must emit terminal CE-relation rows for the short chain"
     );
 
@@ -137,7 +137,7 @@ fn decider_r1cs_size_must_be_constant_in_chain_length() {
         neo_fold_clean::finish_uncompressed_with_audit(&prep_long.prep, proof_long).expect("finish N=3");
     let synth_long = synthesize_last_step_terminal_r1cs(&prep_long.prep, &finished_long).expect("terminal synth N=3");
     assert!(
-        synth_long.terminal_ce_relations,
+        synth_long.terminal_ce_direct_relations,
         "terminal synthesis must emit terminal CE-relation rows for the long chain"
     );
 

@@ -62,6 +62,8 @@ pub enum Error {
     WitnessCommitmentMismatch { index: usize },
     #[error("decider: public_batches / steps length mismatch (got {batches} batches, {steps} steps)")]
     StepsBatchesLengthMismatch { batches: usize, steps: usize },
+    #[error("decider: public batch has {got} fresh instances, but this parameter profile supports at most {max}")]
+    BatchTooLarge { got: usize, max: usize },
     #[error("decider: terminal latest claim {index} public input does not encode the pre-final state x_out")]
     TerminalLatestPublicInputMismatch { index: usize },
     #[error(
@@ -159,6 +161,7 @@ pub fn validate_witness(
     combine_b_pows: DecMixer,
     vk: &VerifierKey,
     public_input_len: Option<usize>,
+    f_prime_recursive_link: bool,
     semantic_mode: SemanticStateMode,
     // Verifier-owned initial app/VM semantic-state seed. Pulled from
     // `prep.initial_semantic_state_digest()` at the lifecycle layer;
@@ -217,7 +220,21 @@ pub fn validate_witness(
     // enforced — for stateful chains the F' image's binding rows
     // authenticate the digest instead.
     for (public_batch, step_proof) in public_batches.iter().zip(steps) {
-        check_terminal_latest_link(params, structure_digest_v, vk, public_input_len, &state, semantic_mode)?;
+        let max_fresh = params.max_fresh_count();
+        if public_batch.len() > max_fresh {
+            return Err(Error::BatchTooLarge {
+                got: public_batch.len(),
+                max: max_fresh,
+            });
+        }
+        check_terminal_latest_link(
+            params,
+            structure_digest_v,
+            vk,
+            f_prime_recursive_link,
+            &state,
+            semantic_mode,
+        )?;
         state = construction2::verify_step(
             params,
             structure,
@@ -234,7 +251,14 @@ pub fn validate_witness(
         .map_err(|e| Error::WalkFailed(format!("step: {e}")))?;
     }
 
-    check_terminal_latest_link(params, structure_digest_v, vk, public_input_len, &state, semantic_mode)?;
+    check_terminal_latest_link(
+        params,
+        structure_digest_v,
+        vk,
+        f_prime_recursive_link,
+        &state,
+        semantic_mode,
+    )?;
 
     // Flush trailing latest through the terminal fold.
     state = construction2::verify_final_fold(
@@ -340,11 +364,11 @@ fn check_terminal_latest_link(
     params: &Params,
     structure_digest: &[F; 4],
     vk: &VerifierKey,
-    public_input_len: Option<usize>,
+    f_prime_recursive_link: bool,
     state: &State,
     semantic_mode: SemanticStateMode,
 ) -> Result<(), Error> {
-    if public_input_len != Some(F_PRIME_PUBLIC_INPUT_LEN) {
+    if !f_prime_recursive_link {
         return Ok(());
     }
     let ProofState::Active { latest, .. } = &state.proof else {

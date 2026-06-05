@@ -26,11 +26,11 @@
 //!   verify_uncompressed(prep, &Uncompressed) → Result<()>
 //!     └─ constant-time IVC verification via terminal-fold re-run
 //!        (HyperNova §6.3 Construction 2 + SuperNeo §7)
-//!        Non-F' terminal folds may use this directly. F' chains are
-//!        accepted here only when they contain a single chunk; multi-
-//!        chunk F' chains need the audit/decider path below because the
-//!        recursive F' / NIFS.V induction lives in per-step rows that
-//!        `Uncompressed` intentionally drops.
+//!        Accepted only when the terminal fold starts from an empty
+//!        running accumulator (a single chunk). Multi-chunk histories
+//!        need the audit/decider path below because the evidence needed
+//!        to bind earlier chunks' counters and boundary coordinates lives
+//!        in per-step rows that `Uncompressed` intentionally drops.
 //!
 //! Audit / decider (chain replay, Spartan):
 //!   ... prove + extend as above ...
@@ -69,7 +69,7 @@ use thiserror::Error;
 use crate::paper::construction2::{FinalFoldProof, SemanticStateMode, State, StepProof, VerifierKey};
 use crate::paper::decider;
 use crate::paper::params::Params;
-use crate::paper::relations::{CcsClaim, DecMixer, RlcMixer, Structure};
+use crate::paper::relations::{ajtai_dec_mixer, ajtai_rlc_mixer, CcsClaim, DecMixer, RlcMixer, Structure};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -169,15 +169,28 @@ pub enum Error {
     )]
     InitialSemanticStateAnchorMismatch,
     #[error(
+        "lifecycle: noncanonical semantic-state digest byte limb in {owner} at lane {lane}; \
+         semantic digests are interpreted as four Goldilocks lanes in F' and must use canonical lane bytes"
+    )]
+    SemanticStateDigestCanonicality { owner: &'static str, lane: usize },
+    #[error(
         "verify_uncompressed: terminal-only verification is supported only for a single F' chunk \
          until the compressed decider proves the recursive F' / NIFS.V induction (got chunk_count={chunk_count}). \
          Use finish_uncompressed_with_audit + verify_uncompressed_audit / build_decider_statement for multi-chunk F' chains."
     )]
     FPrimeNonReplayUnsupported { chunk_count: u64 },
+    #[error(
+        "verify_uncompressed: terminal-only verification is supported only when the terminal fold starts \
+         from an empty running accumulator (single chunk). This proof carries chunk_count={chunk_count}; \
+         use finish_uncompressed_with_audit + verify_uncompressed_audit / build_decider_statement for multi-chunk chains."
+    )]
+    TerminalOnlyMultiChunkUnsupported { chunk_count: u64 },
     #[error("extend: cannot extend an already-finalized uncompressed proof")]
     AlreadyFinalized,
     #[error("extend: cannot fold an empty batch; every extend must contribute at least one CCS instance")]
     EmptyBatch,
+    #[error("extend: batch has {got} fresh instances, but this SuperNeo profile supports at most {max}")]
+    BatchTooLarge { got: usize, max: usize },
     #[error("finish_uncompressed: already-finalized proof is internally inconsistent")]
     FinalizedProofInconsistent,
     #[error("lifecycle: public input length mismatch (expected {expected}, got {got})")]
@@ -214,8 +227,8 @@ pub struct Preprocessing {
     structure: Structure,
     pub log: AjtaiSModule,
     pub vk: VerifierKey,
-    pub mix_rhos_commits: RlcMixer,
-    pub combine_b_pows: DecMixer,
+    pub(crate) mix_rhos_commits: RlcMixer,
+    pub(crate) combine_b_pows: DecMixer,
     /// Program-fixed public-input length; absorbed into `vk_fs_digest` so
     /// the chain binds to a specific m_in. `None` means "unfixed at the
     /// program level" — encoded as `u64::MAX` in the absorb.
@@ -256,6 +269,13 @@ pub struct Preprocessing {
     /// `semantic_state_digest` that no constraint authenticates. Read
     /// access goes through [`Preprocessing::semantic_state_mode`].
     pub(crate) semantic_state_mode: SemanticStateMode,
+    /// Whether this verifier context owns an R1CS-F' recursive-link public
+    /// input. This is not inferable from `public_input_len`: ordinary direct
+    /// CCS programs may coincidentally have the same public width as F'.
+    ///
+    /// The field is verifier-owned and crate-private. R1CS-F' frontends set
+    /// it during preprocess; generic CCS frontends leave it false.
+    pub(crate) f_prime_recursive_link: bool,
     /// Memoized 4-limb digest of the full CCS structure
     /// (`paper::digest::structure_digest(&structure)`). Verifier-owned,
     /// computed once at preprocess time; protocol code reads this field
@@ -280,6 +300,12 @@ impl Preprocessing {
         self.semantic_state_mode
     }
 
+    /// True when this preprocessing context must enforce HyperNova's F'
+    /// recursive-link public input (`u_i.x == enc_inst(prior_x_out)`).
+    pub fn enforces_f_prime_recursive_link(&self) -> bool {
+        self.f_prime_recursive_link
+    }
+
     /// Read-only view of the verifier-owned initial app/VM
     /// semantic-state digest. Stateless preprocessings carry
     /// `empty_semantic_state_digest()`; stateful frontends carry
@@ -302,7 +328,8 @@ impl Preprocessing {
     /// caller is `frontends/r1cs_f_prime::preprocess`, which reads
     /// the anchor from `RecursiveStepImagePlan` and applies the same
     /// value here that the structure builder baked into the CCS.
-    pub(crate) fn with_initial_semantic_state_digest(mut self, initial: [u8; 32]) -> Self {
+    pub(crate) fn with_initial_semantic_state_digest(mut self, initial: [u8; 32]) -> Result<Self, Error> {
+        validate_semantic_state_digest_canonical("initial_semantic_state_digest", initial)?;
         self.initial_semantic_state_digest = initial;
         self.vk = VerifierKey::derive_from_structure_digest(
             &self.params,
@@ -310,7 +337,7 @@ impl Preprocessing {
             self.public_input_len,
             initial,
         );
-        self
+        Ok(self)
     }
 
     /// In-crate hook for stateful frontends to declare the chain's
@@ -326,12 +353,38 @@ impl Preprocessing {
         self
     }
 
+    /// In-crate hook for R1CS-F' frontends to enable F'-specific recursive
+    /// public-input checks. This must not be public: the mode is a verifier
+    /// ownership boundary, not a prover/caller choice.
+    pub(crate) fn with_f_prime_recursive_link(mut self) -> Self {
+        self.f_prime_recursive_link = true;
+        self
+    }
+
     pub fn structure_digest(&self) -> &[F; 4] {
         &self.structure_digest
     }
 
     pub fn optimized_cache(&self) -> &OptimizedStructureCache {
         &self.optimized_cache
+    }
+
+    /// Low-level Π_RLC commitment action fixed by preprocessing.
+    ///
+    /// Exposed read-only for reduction tests and circuit builders that call
+    /// NIFS directly. Public preprocessing always installs the canonical
+    /// Ajtai action; callers cannot replace it after construction.
+    pub fn mix_rhos_commits(&self) -> RlcMixer {
+        self.mix_rhos_commits
+    }
+
+    /// Low-level Π_DEC commitment action fixed by preprocessing.
+    ///
+    /// Exposed read-only for reduction tests and circuit builders that call
+    /// NIFS directly. Public preprocessing always installs the canonical
+    /// Ajtai action; callers cannot replace it after construction.
+    pub fn combine_b_pows(&self) -> DecMixer {
+        self.combine_b_pows
     }
 
     /// Cheap integrity check that the memoized `structure_digest` and
@@ -356,6 +409,13 @@ impl Preprocessing {
         }
         Ok(())
     }
+}
+
+pub(crate) fn validate_semantic_state_digest_canonical(owner: &'static str, digest: [u8; 32]) -> Result<(), Error> {
+    if let Some(lane) = crate::paper::digest::noncanonical_digest32_lane(digest) {
+        return Err(Error::SemanticStateDigestCanonicality { owner, lane });
+    }
+    Ok(())
 }
 
 /// Terminal-only uncompressed proof — the **non-replay IVC verifier**'s
@@ -446,20 +506,11 @@ pub use schedule::{FoldSchedule, ScheduleError};
 pub fn preprocess(
     params: Params,
     structure: Structure,
-    mix_rhos_commits: RlcMixer,
-    combine_b_pows: DecMixer,
     public_input_len: Option<usize>,
 ) -> Result<Preprocessing, Error> {
     let cols = structure.m.div_ceil(D);
     let log = AjtaiSModule::from_global_for_dims(D, cols)?;
-    preprocess_with_test_log(
-        params,
-        structure,
-        log,
-        mix_rhos_commits,
-        combine_b_pows,
-        public_input_len,
-    )
+    preprocess_with_test_log(params, structure, log, public_input_len)
 }
 
 /// Build preprocessing with an explicitly supplied Ajtai module.
@@ -472,8 +523,6 @@ pub fn preprocess_with_test_log(
     params: Params,
     structure: Structure,
     log: AjtaiSModule,
-    mix_rhos_commits: RlcMixer,
-    combine_b_pows: DecMixer,
     public_input_len: Option<usize>,
 ) -> Result<Preprocessing, Error> {
     let optimized_cache = OptimizedStructureCache::build(&structure)?;
@@ -481,8 +530,8 @@ pub fn preprocess_with_test_log(
         params,
         structure,
         log,
-        mix_rhos_commits,
-        combine_b_pows,
+        ajtai_rlc_mixer,
+        ajtai_dec_mixer,
         public_input_len,
         optimized_cache,
     )
@@ -540,6 +589,7 @@ pub(crate) fn preprocess_with_test_log_and_optimized_cache(
         // [`Preprocessing::with_semantic_state_mode`] after preprocess to
         // upgrade the mode based on their plan.
         semantic_state_mode: SemanticStateMode::Stateless,
+        f_prime_recursive_link: false,
         structure_digest,
         optimized_cache,
     })

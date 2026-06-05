@@ -2684,7 +2684,7 @@ where
                 row
             } else if let Some(chi_s) = chi_s.as_ref() {
                 debug_assert!(chi_s.len() >= self.s.m, "chi_s too short for CCS width");
-                crate::common::compute_y_zcol_from_witness_digits(self.params, &wit.Z, self.s.m, chi_s, d_pad)
+                crate::common::compute_y_zcol_from_witness(self.params, &wit.Z, self.s.m, chi_s, d_pad)
                     .unwrap_or_else(|e| panic!("ME output builder: y_zcol compute failed (MCS): {e}"))
             } else {
                 Vec::new()
@@ -2718,7 +2718,7 @@ where
                 row
             } else if let Some(chi_s) = chi_s.as_ref() {
                 debug_assert!(chi_s.len() >= self.s.m, "chi_s too short for CCS width");
-                crate::common::compute_y_zcol_from_witness_digits(self.params, Zi, self.s.m, chi_s, d_pad)
+                crate::common::compute_y_zcol_from_witness(self.params, Zi, self.s.m, chi_s, d_pad)
                     .unwrap_or_else(|e| panic!("ME output builder: y_zcol compute failed (ME): {e}"))
             } else {
                 Vec::new()

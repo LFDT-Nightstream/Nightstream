@@ -71,7 +71,7 @@ fn dec_digit_bound() {
     let cols = 4;
     let b: u32 = 8;
     let k: usize = 8;
-    let half = (b / 2) as u64;
+    let bound = (b - 1) as u64;
     let p = F::ORDER_U64;
 
     let data: Vec<F> = (0..rows * cols)
@@ -92,10 +92,10 @@ fn dec_digit_bound() {
         for r in 0..rows {
             for c in 0..cols {
                 let val = digit_mat[(r, c)].as_canonical_u64();
-                let in_range = val <= half || val >= p - half;
+                let in_range = val <= bound || val >= p - bound;
                 assert!(
                     in_range,
-                    "digit[{i}][{r},{c}] = {val} out of balanced range [-{half}, {half}] (mod p)"
+                    "digit[{i}][{r},{c}] = {val} out of SuperNeo digit range [-{bound}, {bound}] (mod p)"
                 );
             }
         }

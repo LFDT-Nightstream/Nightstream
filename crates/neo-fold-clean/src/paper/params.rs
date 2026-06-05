@@ -65,6 +65,31 @@ impl Params {
         })
     }
 
+    /// Appendix B.2 Goldilocks core with shape-specific effective λ for a
+    /// concrete CCS shape. `matrix_count` is SuperNeo's `t`; `poly_degree` is
+    /// SuperNeo's `u`.
+    pub fn for_ccs_shape_with(
+        n_rows: usize,
+        matrix_count: usize,
+        poly_degree: u32,
+        min_lambda: u32,
+        safety_margin: u32,
+    ) -> Result<Self, neo_params::ParamsError> {
+        Ok(Self {
+            inner: NeoParams::goldilocks_auto_ccs_with(n_rows, matrix_count, poly_degree, min_lambda, safety_margin)?,
+        })
+    }
+
+    /// Same as [`Params::for_ccs_shape_with`], with the default effective-λ
+    /// floor and safety margin used by [`Params::for_r1cs_shape`].
+    pub fn for_ccs_shape(
+        n_rows: usize,
+        matrix_count: usize,
+        poly_degree: u32,
+    ) -> Result<Self, neo_params::ParamsError> {
+        Self::for_ccs_shape_with(n_rows, matrix_count, poly_degree, 96, 2)
+    }
+
     /// Test/probe escape hatch for wrapping a caller-built [`NeoParams`].
     ///
     /// This can lower cryptographic security parameters. Do not use in
@@ -93,6 +118,24 @@ impl Params {
     #[allow(non_snake_case)]
     pub fn T(&self) -> u32 {
         self.inner.T
+    }
+
+    /// Maximum fresh CCS instances (`K`) allowed in one lifecycle step under
+    /// this parameter profile.
+    ///
+    /// Definition 14 requires `(K + k)T(b - 1) < B`; the running side has
+    /// `k = k_rho` after Π_DEC. We use the same cap even for transient
+    /// empty-running steps so every proof stays inside the verifier's
+    /// advertised parameter profile.
+    pub fn max_fresh_count(&self) -> usize {
+        let denom = (self.T() as u128) * (self.b().saturating_sub(1) as u128);
+        if denom == 0 {
+            return 0;
+        }
+        let max_total = (self.big_b() as u128).saturating_sub(1) / denom;
+        max_total
+            .saturating_sub(self.k_rho() as u128)
+            .min(usize::MAX as u128) as usize
     }
 
     /// Ajtai commitment width κ (Definition 18).

@@ -89,6 +89,7 @@ pub fn finish_uncompressed_with_audit(
         check_already_finalized_consistency(prep, &result.proof)?;
         return Ok(result);
     }
+    check_trailing_latest_batch_size(prep, &state)?;
 
     let (post_state, final_fold) = construction2::prove_final_fold(
         &prep.params,
@@ -110,6 +111,23 @@ pub fn finish_uncompressed_with_audit(
         steps,
         public_batches,
     })
+}
+
+fn check_trailing_latest_batch_size(
+    prep: &Preprocessing,
+    state: &crate::paper::construction2::State,
+) -> Result<(), Error> {
+    let ProofState::Active { latest, .. } = &state.proof else {
+        return Ok(());
+    };
+    let max = prep.params.max_fresh_count();
+    if latest.instances.len() > max {
+        return Err(Error::BatchTooLarge {
+            got: latest.instances.len(),
+            max,
+        });
+    }
+    Ok(())
 }
 
 fn check_already_finalized_consistency(prep: &Preprocessing, proof: &Uncompressed) -> Result<(), Error> {

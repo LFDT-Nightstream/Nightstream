@@ -19,7 +19,7 @@
 #[path = "../support/mod.rs"]
 mod support;
 
-use neo_ajtai::{has_global_pp_for_dims, s_mul_add, scale_commitment_add_inplace, set_global_pp_seeded, Commitment};
+use neo_ajtai::{has_global_pp_for_dims, set_global_pp_seeded};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::utils::tensor_point;
 use neo_ccs::{r1cs_to_ccs, Mat};
@@ -29,8 +29,7 @@ use neo_fold_clean::engine::decider::__test_isolation::{
 };
 use neo_fold_clean::engine::r1cs_circuit::builder::Var;
 use neo_fold_clean::paper::construction2::ProofState;
-use neo_fold_clean::{preprocess, CeClaim, DecMixer, Params, Preprocessing, RlcMixer, Structure};
-use neo_math::ring::{cf_inv, Rq as RqEl};
+use neo_fold_clean::{preprocess, CeClaim, Params, Preprocessing, Structure};
 use neo_math::{KExtensions, D, F, K};
 use neo_reductions::common::{compute_y_from_Z_and_r, project_x_from_witness_mat};
 use p3_field::PrimeCharacteristicRing;
@@ -996,14 +995,7 @@ fn non_trivial_fixture_with_shape(m: usize, m_in: usize, public_input_len: Optio
     let structure = r1cs_to_ccs(a, b, c);
     let params = config::r1cs_params(n, m).expect("non-trivial fixture params");
     install_ajtai_module_local(&params, &structure);
-    let prep = preprocess(
-        params,
-        structure,
-        mix_rhos_commits as RlcMixer,
-        combine_b_pows as DecMixer,
-        public_input_len,
-    )
-    .expect("non-trivial preprocessing");
+    let prep = preprocess(params, structure, public_input_len).expect("non-trivial preprocessing");
 
     // Satisfying assignment with all entries in `{-1, 0, 1}`:
     // `z[3k+2] = z[3k] * z[3k+1]` for `k = 0..4`. Index 12..16 stay
@@ -1138,34 +1130,6 @@ fn install_ajtai_module_local(params: &Params, structure: &Structure) {
             Err(err) => panic!("Ajtai global setup: {err}"),
         }
     }
-}
-
-fn rot_matrix_to_rq(mat: &Mat<F>) -> RqEl {
-    let mut coeffs = [F::ZERO; D];
-    for i in 0..D {
-        coeffs[i] = mat[(i, 0)];
-    }
-    cf_inv(coeffs)
-}
-
-fn mix_rhos_commits(rhos: &[Mat<F>], cs: &[Commitment]) -> Commitment {
-    let mut acc = Commitment::zeros(cs[0].d, cs[0].kappa);
-    for (rho, c) in rhos.iter().zip(cs.iter()) {
-        let rq = rot_matrix_to_rq(rho);
-        s_mul_add(&mut acc, &rq, c);
-    }
-    acc
-}
-
-fn combine_b_pows(cs: &[Commitment], b: u32) -> Commitment {
-    let mut acc = Commitment::zeros(cs[0].d, cs[0].kappa);
-    let base = F::from_u64(b as u64);
-    let mut pow = F::ONE;
-    for c in cs {
-        scale_commitment_add_inplace(&mut acc, pow, c);
-        pow *= base;
-    }
-    acc
 }
 
 fn expect_unsupported_sidecar<FN>(field: &'static str, mutate: FN)

@@ -120,10 +120,6 @@ pub fn verify(
     }
     validate_r_shape(s, parent, &proof.children)?;
     validate_y_ring_shape(s, parent, &proof.children)?;
-    let ok = engine::verify_pi_dec(pp, s, parent, &proof.children, |cs, b| combine(cs, b));
-    if !ok {
-        return Err(Error::VerifyRejected);
-    }
     validate_inactive_x_zero(parent, &proof.children)?;
     validate_child_x_low_norm(pp, &proof.children)?;
     validate_supported_sidecars(parent, &proof.children)?;
@@ -132,6 +128,10 @@ pub fn verify(
     validate_ct_consistency(parent, &proof.children)?;
     validate_y_ring_padding_zero(parent, &proof.children)?;
     validate_fold_digest_consistency(parent, &proof.children)?;
+    let ok = engine::verify_pi_dec(pp, s, parent, &proof.children, |cs, b| combine(cs, b));
+    if !ok {
+        return Err(Error::VerifyRejected);
+    }
     Ok(proof.children.clone())
 }
 

@@ -523,7 +523,10 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
         verified_ok_stale, full_ok_stale,
         "fast path must agree on stale-ct shell inputs"
     );
-    assert!(verified_ok_stale, "stale ct shell must not fail the public RLC check");
+    assert!(
+        !verified_ok_stale,
+        "same-shape stale combined.ct must fail the public RLC check"
+    );
 
     let rhos_tampered = typed_rhos(&params, &[diag_rho(9), diag_rho(3), diag_rho(4), diag_rho(7)]);
     let (full_bad, _) = rlc_public_matches_with_perf(
@@ -672,11 +675,37 @@ fn dec_children_with_commit_k4_public_and_tamper_checks() {
 
     let mut tampered_child = children.clone();
     tampered_child[2].ct[0] += K::ONE;
-    assert!(verify_dec_public(
+    assert!(!verify_dec_public(
         &s,
         &params,
         &parent,
         &tampered_child,
+        combine_commitments_b_pows,
+        ell_d
+    ));
+
+    let ell_m = s.m.next_power_of_two().max(2).trailing_zeros() as usize;
+    let mut parent_with_s_col = parent.clone();
+    parent_with_s_col.s_col = vec![k(23); ell_m];
+    let mut children_with_s_col = children.clone();
+    for child in &mut children_with_s_col {
+        child.s_col = parent_with_s_col.s_col.clone();
+    }
+    assert!(verify_dec_public(
+        &s,
+        &params,
+        &parent_with_s_col,
+        &children_with_s_col,
+        combine_commitments_b_pows,
+        ell_d
+    ));
+
+    children_with_s_col[1].s_col[0] += K::ONE;
+    assert!(!verify_dec_public(
+        &s,
+        &params,
+        &parent_with_s_col,
+        &children_with_s_col,
         combine_commitments_b_pows,
         ell_d
     ));

@@ -345,6 +345,23 @@ pub fn terminal_children_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] 
     poseidon_digest_fields(&preimage)
 }
 
+/// Digest the full Π_CCS output messages before Π_RLC samples `ρ`.
+///
+/// SuperNeo's interactive order is "Π_CCS sends output CE claims, then Π_RLC
+/// samples random linear-combination coefficients." In the Fiat-Shamir
+/// transcript, those output claims therefore need an explicit, verifier-
+/// recomputable absorb before `ρ` is derived. This digest binds the whole
+/// clean CE-claim output surface, including the implementation sidecars that
+/// Π_RLC/Π_DEC consume (`s_col`, `ct`, `y_zcol`, and `fold_digest`).
+pub fn pi_ccs_outputs_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] {
+    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/pi_ccs_outputs_digest/v1");
+    preimage.push(F::from_u64(claims.len() as u64));
+    for claim in claims {
+        preimage.extend_from_slice(&pi_ccs_output_claim_digest(claim));
+    }
+    poseidon_digest_fields(&preimage)
+}
+
 /// Digest of the compact terminal-CE proof's public statement.
 ///
 /// This is the single backend-neutral public input a future compact proof
@@ -368,6 +385,12 @@ pub fn terminal_ce_public_digest(
 
 fn terminal_ce_claim_digest(claim: &CeClaim<Commitment, F, K>) -> [F; 4] {
     let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/terminal_ce_claim_digest/v1");
+    append_terminal_ce_claim_public_fields(&mut preimage, claim);
+    poseidon_digest_fields(&preimage)
+}
+
+fn pi_ccs_output_claim_digest(claim: &CeClaim<Commitment, F, K>) -> [F; 4] {
+    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/pi_ccs_output_claim_digest/v1");
     append_terminal_ce_claim_public_fields(&mut preimage, claim);
     poseidon_digest_fields(&preimage)
 }

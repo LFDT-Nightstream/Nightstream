@@ -24,7 +24,7 @@
 //! production-compression claim.
 
 use neo_math::F;
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::{Lc, R1csBuilder, TranscriptGadget, Var};
@@ -124,6 +124,7 @@ pub fn synthesize_statement_r1cs(
         prep.combine_b_pows,
         &prep.vk,
         prep.public_input_len,
+        prep.enforces_f_prime_recursive_link(),
         prep.semantic_state_mode,
         prep.initial_semantic_state_digest(),
         statement,
@@ -441,6 +442,7 @@ pub fn synthesize_last_step_terminal_r1cs(
         prep.combine_b_pows,
         &prep.vk,
         prep.public_input_len,
+        prep.enforces_f_prime_recursive_link(),
         prep.semantic_state_mode,
         prep.initial_semantic_state_digest(),
         &statement,
@@ -1207,22 +1209,58 @@ fn enforce_public_preprocessing_anchors(builder: &mut R1csBuilder, prep: &Prepro
 }
 
 fn enforce_digest32_const_eq(builder: &mut R1csBuilder, actual: [u8; 32], expected: [u8; 32]) {
-    let actual = digest32_as_fields(actual);
-    let expected = digest32_as_fields(expected);
+    let Some(actual) = canonical_digest32_fields(actual) else {
+        enforce_unsat(builder);
+        return;
+    };
+    let Some(expected) = canonical_digest32_fields(expected) else {
+        enforce_unsat(builder);
+        return;
+    };
     for k in 0..4 {
         builder.enforce_eq(&Lc::from_const(actual[k]), &Lc::from_const(expected[k]));
     }
 }
 
 fn pin_digest32(builder: &mut R1csBuilder, wires: &[Var; 4], expected: [u8; 32]) {
-    let expected_lanes = digest32_as_fields(expected);
+    let Some(expected_lanes) = canonical_digest32_fields(expected) else {
+        enforce_unsat(builder);
+        return;
+    };
     for k in 0..4 {
         builder.enforce_eq(&Lc::from_var(wires[k]), &Lc::from_const(expected_lanes[k]));
     }
 }
 
 fn pin_u64(builder: &mut R1csBuilder, wire: Var, expected: u64) {
+    // Public u64s are pinned to single Goldilocks state wires. Values
+    // outside the canonical field range would alias through F::from_u64.
+    if expected >= F::ORDER_U64 {
+        enforce_unsat(builder);
+        return;
+    }
     builder.enforce_eq(&Lc::from_var(wire), &Lc::from_const(F::from_u64(expected)));
+}
+
+fn canonical_digest32_fields(bytes: [u8; 32]) -> Option<[F; 4]> {
+    let mut fields = [F::ZERO; 4];
+    for (lane, out) in fields.iter_mut().enumerate() {
+        let start = lane * 8;
+        let value = u64::from_le_bytes(
+            bytes[start..start + 8]
+                .try_into()
+                .expect("8-byte digest limb"),
+        );
+        if value >= F::ORDER_U64 {
+            return None;
+        }
+        *out = F::from_u64(value);
+    }
+    Some(fields)
+}
+
+fn enforce_unsat(builder: &mut R1csBuilder) {
+    builder.enforce_eq(&Lc::zero(), &Lc::from_const(F::ONE));
 }
 
 fn state_x_out_lanes(prep: &Preprocessing, state: &State) -> [F; 4] {

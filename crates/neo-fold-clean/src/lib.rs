@@ -35,9 +35,9 @@
 //! // Finalize. `finish_uncompressed` flushes the trailing latest into the
 //! // running accumulator AND drops the per-step audit trail — leaving an
 //! // `Uncompressed` that carries only the fields the terminal verifier reads.
-//! // This path verifies non-F' terminal folds and single-chunk F' chains.
-//! // Multi-chunk F' chains need the audit/compressed-decider path because
-//! // the recursive F'/NIFS.V induction lives in the dropped per-step rows.
+//! // This terminal-only path verifies single-chunk chains. Multi-chunk
+//! // chains need the audit/compressed-decider path because the verifier
+//! // evidence for earlier chunks lives in the dropped per-step rows.
 //! let proof = finish_uncompressed(&prep, audit)?;
 //! verify_uncompressed(&prep, &proof)?;
 //!
@@ -55,8 +55,8 @@
 //!
 //! let audit_finalized = finish_uncompressed_with_audit(&prep, audit)?;
 //!
-//! // Terminal-only check on the projected proof. For F' chains this accepts
-//! // only the single-chunk case; multi-chunk F' needs audit replay until
+//! // Terminal-only check on the projected proof. This accepts only the
+//! // single-chunk case; multi-chunk histories need audit replay until
 //! // the compressed decider is wired.
 //! verify_uncompressed(&prep, &audit_finalized.proof)?;
 //!
@@ -66,11 +66,11 @@
 //! verify_uncompressed_audit(&prep, &audit_finalized)?;
 //! ```
 //!
-//! Callers that need multi-chunk F' verification should keep the audit
-//! trail (`finish_uncompressed_with_audit` + `verify_uncompressed_audit`)
-//! or use the compressed decider once it is wired. Reach for the audit
-//! variants for diagnostics, the Spartan decider statement, or red-team
-//! tests that mutate audit-trail fields.
+//! Callers that need multi-chunk verification should keep the audit trail
+//! (`finish_uncompressed_with_audit` + `verify_uncompressed_audit`) or use
+//! the compressed decider once it is wired. Reach for the audit variants
+//! for diagnostics, the Spartan decider statement, or red-team tests that
+//! mutate audit-trail fields.
 //!
 //! ## Where do `(z, m_in)` come from?
 //!

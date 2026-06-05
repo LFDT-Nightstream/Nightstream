@@ -169,6 +169,11 @@ pub enum Error {
     )]
     InitialSemanticStateAnchorMismatch,
     #[error(
+        "lifecycle: noncanonical semantic-state digest byte limb in {owner} at lane {lane}; \
+         semantic digests are interpreted as four Goldilocks lanes in F' and must use canonical lane bytes"
+    )]
+    SemanticStateDigestCanonicality { owner: &'static str, lane: usize },
+    #[error(
         "verify_uncompressed: terminal-only verification is supported only for a single F' chunk \
          until the compressed decider proves the recursive F' / NIFS.V induction (got chunk_count={chunk_count}). \
          Use finish_uncompressed_with_audit + verify_uncompressed_audit / build_decider_statement for multi-chunk F' chains."
@@ -323,7 +328,8 @@ impl Preprocessing {
     /// caller is `frontends/r1cs_f_prime::preprocess`, which reads
     /// the anchor from `RecursiveStepImagePlan` and applies the same
     /// value here that the structure builder baked into the CCS.
-    pub(crate) fn with_initial_semantic_state_digest(mut self, initial: [u8; 32]) -> Self {
+    pub(crate) fn with_initial_semantic_state_digest(mut self, initial: [u8; 32]) -> Result<Self, Error> {
+        validate_semantic_state_digest_canonical("initial_semantic_state_digest", initial)?;
         self.initial_semantic_state_digest = initial;
         self.vk = VerifierKey::derive_from_structure_digest(
             &self.params,
@@ -331,7 +337,7 @@ impl Preprocessing {
             self.public_input_len,
             initial,
         );
-        self
+        Ok(self)
     }
 
     /// In-crate hook for stateful frontends to declare the chain's
@@ -403,6 +409,13 @@ impl Preprocessing {
         }
         Ok(())
     }
+}
+
+pub(crate) fn validate_semantic_state_digest_canonical(owner: &'static str, digest: [u8; 32]) -> Result<(), Error> {
+    if let Some(lane) = crate::paper::digest::noncanonical_digest32_lane(digest) {
+        return Err(Error::SemanticStateDigestCanonicality { owner, lane });
+    }
+    Ok(())
 }
 
 /// Terminal-only uncompressed proof — the **non-replay IVC verifier**'s

@@ -16,7 +16,7 @@ use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
 use neo_fold_clean::frontends::direct_ccs::R1cs;
 use neo_fold_clean::frontends::r1cs_f_prime;
 use neo_math::F;
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use support::r1cs_compiler_fixtures::{expect_preprocess_err, make_small_plan, one_product_r1cs, tiny_params};
 
@@ -478,6 +478,30 @@ fn r1cs_preprocess_rejects_stateful_indices_without_anchor() {
     assert!(
         matches!(&err, r1cs_f_prime::Error::PlanSemanticStateMissingAnchor),
         "expected PlanSemanticStateMissingAnchor, got {err:?}"
+    );
+}
+
+/// Semantic-state digests are carried as 32 bytes at the lifecycle
+/// boundary but as four Goldilocks lanes inside the F' image and hash
+/// chain. A noncanonical byte limb such as `p` aliases to field zero,
+/// so accepting it would let two different public byte digests share
+/// the same in-circuit statement.
+#[test]
+fn r1cs_preprocess_rejects_noncanonical_initial_semantic_anchor() {
+    let r1cs = one_product_r1cs();
+    let mut plan = make_small_plan(r1cs.m(), r1cs.m_in);
+    let sxo = plan.state_x_out.as_mut().expect("plan has state_x_out");
+    sxo.semantic_state_in_var_indices = vec![1];
+    sxo.semantic_state_out_var_indices = vec![0];
+    let mut noncanonical_zero = [0u8; 32];
+    noncanonical_zero[..8].copy_from_slice(&F::ORDER_U64.to_le_bytes());
+    sxo.initial_semantic_state_digest_anchor = Some(noncanonical_zero);
+
+    let err = expect_preprocess_err(&r1cs, &plan, 0x71C5_C009);
+    assert!(
+        err.to_string()
+            .contains("noncanonical semantic-state digest"),
+        "expected noncanonical semantic-state digest rejection, got {err:?}"
     );
 }
 

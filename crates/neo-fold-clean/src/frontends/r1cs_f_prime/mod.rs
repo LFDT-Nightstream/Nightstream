@@ -325,7 +325,7 @@ pub fn preprocess(
     let prep = lifecycle_preprocess(params, structure.ccs.clone(), Some(public_input_len))?
         .with_f_prime_recursive_link()
         .with_semantic_state_mode(semantic_state_mode_for_plan(plan))
-        .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan));
+        .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan))?;
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: plan.clone(),
@@ -348,7 +348,7 @@ pub fn preprocess_sparse(
     let prep = lifecycle_preprocess(params, structure.ccs.clone(), Some(public_input_len))?
         .with_f_prime_recursive_link()
         .with_semantic_state_mode(semantic_state_mode_for_plan(plan))
-        .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan));
+        .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan))?;
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: plan.clone(),
@@ -379,7 +379,7 @@ pub fn preprocess_seeded(
     let prep = lifecycle_preprocess(params, structure.ccs.clone(), Some(public_input_len))?
         .with_f_prime_recursive_link()
         .with_semantic_state_mode(semantic_state_mode_for_plan(plan))
-        .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan));
+        .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan))?;
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: plan.clone(),
@@ -408,7 +408,7 @@ pub fn preprocess_sparse_seeded(
     let prep = lifecycle_preprocess(params, structure.ccs.clone(), Some(public_input_len))?
         .with_f_prime_recursive_link()
         .with_semantic_state_mode(semantic_state_mode_for_plan(plan))
-        .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan));
+        .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan))?;
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: plan.clone(),
@@ -436,7 +436,7 @@ pub fn preprocess_seeded_with_params(
     let prep = lifecycle_preprocess(params, structure.ccs.clone(), Some(public_input_len))?
         .with_f_prime_recursive_link()
         .with_semantic_state_mode(semantic_state_mode_for_plan(plan))
-        .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan));
+        .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan))?;
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: plan.clone(),
@@ -460,7 +460,7 @@ pub fn preprocess_sparse_seeded_with_params(
     let prep = lifecycle_preprocess(params, structure.ccs.clone(), Some(public_input_len))?
         .with_f_prime_recursive_link()
         .with_semantic_state_mode(semantic_state_mode_for_plan(plan))
-        .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan));
+        .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(plan))?;
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: plan.clone(),
@@ -581,7 +581,7 @@ pub fn preprocess_seeded_prepared_with_params(
     )?
     .with_f_prime_recursive_link()
     .with_semantic_state_mode(semantic_state_mode_for_plan(&prepared.plan))
-    .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(&prepared.plan));
+    .with_initial_semantic_state_digest(initial_semantic_state_digest_for_plan(&prepared.plan))?;
     Ok(R1csFPrimePreprocessing {
         prep,
         plan: prepared.plan,

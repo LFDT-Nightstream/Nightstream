@@ -3,7 +3,9 @@
 use rwasm::mem::MemoryRecordEnum;
 use rwasm::{Tracer, TracerInstrState};
 
-use super::super::ir::{StackValueAccess, WasmBuildError, WasmPcEdgeKind, WasmStepTrace};
+use super::super::ir::{
+    StackValueAccess, WasmBuildError, WasmOutputState, WasmPcEdgeKind, WasmStepState, WasmStepTrace,
+};
 use super::super::isa::{opcode_info_from_concrete, WasmOpcode};
 
 pub fn traces_from_rwasm_tracer(tracer: &Tracer) -> Result<Vec<WasmStepTrace>, WasmBuildError> {
@@ -66,8 +68,11 @@ pub fn traces_from_rwasm_instr_states(
         let opcode_code = u16::try_from(row.opcode.code())
             .map_err(|_| WasmBuildError::Trace(format!("opcode code does not fit u16 at row {idx}")))?;
         let halted = matches!(info.opcode, WasmOpcode::Return | WasmOpcode::Trap);
-        let output_enabled_before = output_enabled;
-        let output_value_lo_before = output_value_lo;
+        let output_before = WasmOutputState {
+            enabled: output_enabled,
+            value_lo: output_value_lo,
+            value_hi: output_value_hi,
+        };
         let mut output_captured = false;
         if halted && !output_enabled {
             if let Some(read) = stack_read0 {
@@ -80,29 +85,39 @@ pub fn traces_from_rwasm_instr_states(
         out.push(WasmStepTrace {
             cycle: idx as u64,
             row_kind: super::super::ir::WasmRowKind::Program,
-            pc_before,
-            pc_after,
+            state_before: WasmStepState {
+                pc: pc_before,
+                sp: sp_before,
+                output: output_before,
+                call_stack_depth: 0,
+                memory_pages: None,
+                locals_fbp: 0,
+                halted: false,
+                param_init: super::super::ir::WasmParamInitState::ZERO,
+            },
+            state_after: WasmStepState {
+                pc: pc_after,
+                sp: sp_after,
+                output: WasmOutputState {
+                    enabled: output_enabled,
+                    value_lo: output_value_lo,
+                    value_hi: output_value_hi,
+                },
+                call_stack_depth: 0,
+                memory_pages: None,
+                locals_fbp: 0,
+                halted,
+                param_init: super::super::ir::WasmParamInitState::ZERO,
+            },
             control_choice: 0,
             pc_edge_kind: WasmPcEdgeKind::Static,
-            param_init_before: super::super::ir::WasmParamInitState::ZERO,
-            param_init_after: super::super::ir::WasmParamInitState::ZERO,
             wide_values_enabled: false,
             opcode_code,
             opcode: info.opcode,
             info,
             stack_reads_override: None,
             stack_writes_override: None,
-            sp_before,
-            sp_after,
-            output_enabled_before,
-            output_enabled_after: output_enabled,
-            output_value_lo_before,
-            output_value_lo_after: output_value_lo,
-            output_value_hi_before: output_value_hi,
-            output_value_hi_after: output_value_hi,
             output_captured,
-            call_stack_depth_before: 0,
-            call_stack_depth_after: 0,
             current_function_ref: 0,
             current_function_num_locals: 0,
             stack_read0,
@@ -111,11 +126,6 @@ pub fn traces_from_rwasm_instr_states(
             stack_write0,
             linear_memory: None,
             linear_memory_offset: 0,
-            memory_pages_before: None,
-            memory_pages_after: None,
-            halted,
-            locals_fbp: 0,
-            locals_fbp_after: 0,
             local_index: None,
             local_read_value: None,
             local_read_value_hi: None,

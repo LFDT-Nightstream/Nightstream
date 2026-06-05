@@ -7,8 +7,8 @@ use neo_math::F;
 use neo_wasm::layout::{COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO};
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{
-    opcode_code, opcode_info_from_code, StackValueAccess, WasmOpcode, WasmParamInitState, WasmPcEdgeKind, WasmRowKind,
-    WasmStepTrace,
+    opcode_code, opcode_info_from_code, StackValueAccess, WasmOpcode, WasmOutputState, WasmParamInitState,
+    WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmStepTrace,
 };
 use p3_field::PrimeCharacteristicRing;
 
@@ -34,32 +34,40 @@ fn conversion_row(opcode: WasmOpcode, value: u32, width_bytes: usize, writes_i64
     } else {
         None
     };
+    let state_before = WasmStepState {
+        pc: 2,
+        sp: 1,
+        output: WasmOutputState::ZERO,
+        call_stack_depth: 0,
+        memory_pages: None,
+        locals_fbp: 0,
+        halted: false,
+        param_init: WasmParamInitState::ZERO,
+    };
+    let state_after = WasmStepState {
+        pc: 3,
+        sp: 1,
+        output: WasmOutputState::ZERO,
+        call_stack_depth: 0,
+        memory_pages: None,
+        locals_fbp: 0,
+        halted: false,
+        param_init: WasmParamInitState::ZERO,
+    };
     WasmStepTrace {
         cycle: 0,
         row_kind: WasmRowKind::Program,
-        pc_before: 2,
-        pc_after: 3,
+        state_before,
+        state_after,
         control_choice: 0,
         pc_edge_kind: WasmPcEdgeKind::Static,
-        param_init_before: WasmParamInitState::ZERO,
-        param_init_after: WasmParamInitState::ZERO,
         wide_values_enabled: writes_i64,
         opcode_code: code,
         opcode,
         info: opcode_info_from_code(code),
         stack_reads_override: None,
         stack_writes_override: None,
-        sp_before: 1,
-        sp_after: 1,
-        output_enabled_before: false,
-        output_enabled_after: false,
-        output_value_lo_before: 0,
-        output_value_lo_after: 0,
-        output_value_hi_before: 0,
-        output_value_hi_after: 0,
         output_captured: false,
-        call_stack_depth_before: 0,
-        call_stack_depth_after: 0,
         current_function_ref: 0,
         current_function_num_locals: 0,
         stack_read0: Some(StackValueAccess::new(0, value).with_optional_hi(if writes_i64 {
@@ -72,11 +80,6 @@ fn conversion_row(opcode: WasmOpcode, value: u32, width_bytes: usize, writes_i64
         stack_write0: Some(StackValueAccess::new(0, output_lo).with_optional_hi(output_hi)),
         linear_memory: None,
         linear_memory_offset: 0,
-        memory_pages_before: None,
-        memory_pages_after: None,
-        halted: false,
-        locals_fbp: 0,
-        locals_fbp_after: 0,
         local_index: None,
         local_read_value: None,
         local_read_value_hi: None,

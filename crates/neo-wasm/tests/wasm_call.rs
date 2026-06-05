@@ -104,19 +104,25 @@ fn call_trace_has_correct_fbp_and_call_stack_fields() {
         .collect();
     assert_eq!(aux_param_steps.len(), 1, "expected one call-param init row");
     let aux = aux_param_steps[0];
-    assert!(call_step.param_init_after.active, "call must enter param-init mode");
-    assert_eq!(call_step.param_init_after.remaining, 1);
     assert!(
-        aux.param_init_before.active,
+        call_step.state_after.param_init.active,
+        "call must enter param-init mode"
+    );
+    assert_eq!(call_step.state_after.param_init.remaining, 1);
+    assert!(
+        aux.state_before.param_init.active,
         "aux row must execute inside param-init mode"
     );
-    assert_eq!(aux.param_init_before.remaining, 1);
-    assert_eq!(aux.param_init_after.remaining, 0);
-    assert!(!aux.param_init_after.active, "last aux row must exit param-init mode");
+    assert_eq!(aux.state_before.param_init.remaining, 1);
+    assert_eq!(aux.state_after.param_init.remaining, 0);
+    assert!(
+        !aux.state_after.param_init.active,
+        "last aux row must exit param-init mode"
+    );
     assert_eq!(aux.stack_read0.expect("aux stack read").value_lo, 5);
     assert_eq!(aux.local_index, Some(0), "callee param at local addr 0");
     assert_eq!(
-        aux.locals_fbp, aux.locals_fbp_after,
+        aux.state_before.locals_fbp, aux.state_after.locals_fbp,
         "aux row must stay in the callee frame while initializing params"
     );
     assert_eq!(aux.local_write_value, Some(5), "callee param value must be 5");
@@ -145,9 +151,13 @@ fn call_trace_has_correct_fbp_and_call_stack_fields() {
 
     // Only the very last step is halted.
     let last = trace.last().expect("non-empty trace");
-    assert!(last.halted, "last step must be halted");
+    assert!(last.state_after.halted, "last step must be halted");
     for step in &trace[..trace.len() - 1] {
-        assert!(!step.halted, "intermediate step {} must not be halted", step.cycle);
+        assert!(
+            !step.state_after.halted,
+            "intermediate step {} must not be halted",
+            step.cycle
+        );
     }
 }
 
@@ -165,23 +175,23 @@ fn nested_two_param_call_trace_counts_down_param_init_rows() {
     assert_eq!(aux_rows.len(), 4, "two 2-param guest calls require four aux rows");
 
     for chunk in aux_rows.chunks_exact(2) {
-        assert_eq!(chunk[0].param_init_before.remaining, 2);
-        assert_eq!(chunk[0].param_init_after.remaining, 1);
-        assert!(chunk[0].param_init_after.active);
-        assert_eq!(chunk[1].param_init_before.remaining, 1);
-        assert_eq!(chunk[1].param_init_after.remaining, 0);
-        assert!(!chunk[1].param_init_after.active);
+        assert_eq!(chunk[0].state_before.param_init.remaining, 2);
+        assert_eq!(chunk[0].state_after.param_init.remaining, 1);
+        assert!(chunk[0].state_after.param_init.active);
+        assert_eq!(chunk[1].state_before.param_init.remaining, 1);
+        assert_eq!(chunk[1].state_after.param_init.remaining, 0);
+        assert!(!chunk[1].state_after.param_init.active);
         for (param_index, row) in chunk.iter().enumerate() {
             assert_eq!(row.local_index, Some(param_index as u32));
             assert_eq!(
-                row.locals_fbp, row.locals_fbp_after,
+                row.state_before.locals_fbp, row.state_after.locals_fbp,
                 "aux row must stay in the callee frame while initializing params"
             );
         }
     }
 
     assert!(
-        aux_rows.iter().any(|row| row.locals_fbp > 0),
+        aux_rows.iter().any(|row| row.state_before.locals_fbp > 0),
         "nested call should exercise a non-zero callee frame base"
     );
 }
@@ -203,7 +213,7 @@ fn call_indirect_guest_target_initializes_params() {
         .expect("call_indirect row");
     assert!(call.target_function_is_guest);
     assert!(call.call_stack_push.is_some());
-    assert_eq!(call.param_init_after.remaining, 1);
+    assert_eq!(call.state_after.param_init.remaining, 1);
 
     let aux_rows: Vec<_> = trace
         .iter()
@@ -240,11 +250,11 @@ fn halted_row_requires_empty_call_stack_depth() {
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
     let mut final_row = trace
         .iter()
-        .find(|row| row.halted)
+        .find(|row| row.state_after.halted)
         .expect("halted row")
         .clone();
-    final_row.call_stack_depth_before = 1;
-    final_row.call_stack_depth_after = 1;
+    final_row.state_before.call_stack_depth = 1;
+    final_row.state_after.call_stack_depth = 1;
 
     let witness = neo_wasm::witness_builder::build_witness_vector(&final_row);
     common::assert_rejected(&witness, "halted row with non-empty call stack depth");
@@ -269,12 +279,15 @@ fn final_halt_captures_simple_output() {
     let wasm = add_one_wasm();
     let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
-    let final_row = trace.iter().find(|row| row.halted).expect("halted row");
+    let final_row = trace
+        .iter()
+        .find(|row| row.state_after.halted)
+        .expect("halted row");
 
     assert!(final_row.output_captured, "halted row should capture the result");
-    assert!(final_row.output_enabled_after, "result carry should be enabled");
-    assert_eq!(final_row.output_value_lo_after, 6);
-    assert_eq!(final_row.output_value_hi_after, 0);
+    assert!(final_row.state_after.output.enabled, "result carry should be enabled");
+    assert_eq!(final_row.state_after.output.value_lo, 6);
+    assert_eq!(final_row.state_after.output.value_hi, 0);
 }
 
 #[test]
@@ -282,7 +295,10 @@ fn final_halt_output_low_is_row_bound() {
     let wasm = add_one_wasm();
     let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
-    let final_row = trace.iter().find(|row| row.halted).expect("halted row");
+    let final_row = trace
+        .iter()
+        .find(|row| row.state_after.halted)
+        .expect("halted row");
     let mut witness = neo_wasm::witness_builder::build_witness_vector(final_row);
 
     witness[COL_OUTPUT_VALUE_LO_AFTER] = neo_math::F::from_u64(7);
@@ -298,7 +314,10 @@ fn final_halt_output_low_is_stack_memory_bound() {
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
     let layout = build_wasm_lookup_binding_layout();
     let mut witnesses = build_witnesses(&trace);
-    let final_idx = trace.iter().position(|row| row.halted).expect("halted row");
+    let final_idx = trace
+        .iter()
+        .position(|row| row.state_after.halted)
+        .expect("halted row");
 
     witnesses[final_idx][COL_OUTPUT_VALUE_LO_AFTER] = neo_math::F::from_u64(7);
     witnesses[final_idx][COL_STACK_READ0_VALUE_LO] = neo_math::F::from_u64(7);

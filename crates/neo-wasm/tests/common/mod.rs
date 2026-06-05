@@ -106,7 +106,7 @@ pub fn ccs_check_trace(trace: &[WasmStepTrace]) {
                 .unwrap_or_else(|| "terms unavailable".to_string());
             panic!(
                 "trace row {idx} {:?} pc {}->{} sp {}->{} halted={} failed CCS satisfaction: {err}; tag={tag:?}; {terms}",
-                row.opcode, row.pc_before, row.pc_after, row.sp_before, row.sp_after, row.halted
+                row.opcode, row.state_before.pc, row.state_after.pc, row.state_before.sp, row.state_after.sp, row.state_after.halted
             );
         });
     }

@@ -94,6 +94,45 @@ pub struct WasmBoundaryState {
     pub param_init: WasmParamInitState,
 }
 
+/// Carry state for binding the whole execution's claimed output.
+///
+/// This is not the result produced by this row's opcode. It is protocol-side
+/// state maintained by the tracer/normalizer so the final top-level function
+/// result can be carried into the proof/public-input boundary.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WasmOutputState {
+    pub enabled: bool,
+    pub value_lo: u32,
+    pub value_hi: u32,
+}
+
+impl WasmOutputState {
+    pub const ZERO: Self = Self {
+        enabled: false,
+        value_lo: 0,
+        value_hi: 0,
+    };
+}
+
+impl Default for WasmOutputState {
+    fn default() -> Self {
+        Self::ZERO
+    }
+}
+
+/// Carried VM/IVC state at one side of a normalized trace row.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WasmStepState {
+    pub pc: u64,
+    pub sp: u64,
+    pub output: WasmOutputState,
+    pub call_stack_depth: u64,
+    pub memory_pages: Option<u32>,
+    pub locals_fbp: u64,
+    pub halted: bool,
+    pub param_init: WasmParamInitState,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WasmAuxOpcode {
     CallParamInit,
@@ -127,29 +166,17 @@ impl WasmRowKind {
 pub struct WasmStepTrace {
     pub cycle: u64,
     pub row_kind: WasmRowKind,
-    pub pc_before: u64,
-    pub pc_after: u64,
+    pub state_before: WasmStepState,
+    pub state_after: WasmStepState,
     pub control_choice: u32,
     pub pc_edge_kind: WasmPcEdgeKind,
-    pub param_init_before: WasmParamInitState,
-    pub param_init_after: WasmParamInitState,
     pub wide_values_enabled: bool,
     pub opcode_code: u16,
     pub opcode: WasmOpcode,
     pub info: WasmOpcodeInfo,
     pub stack_reads_override: Option<u8>,
     pub stack_writes_override: Option<u8>,
-    pub sp_before: u64,
-    pub sp_after: u64,
-    pub output_enabled_before: bool,
-    pub output_enabled_after: bool,
-    pub output_value_lo_before: u32,
-    pub output_value_lo_after: u32,
-    pub output_value_hi_before: u32,
-    pub output_value_hi_after: u32,
     pub output_captured: bool,
-    pub call_stack_depth_before: u64,
-    pub call_stack_depth_after: u64,
     /// Normalized function reference for the currently executing frame.
     /// `function_ref` below is opcode-target metadata, not this frame identity.
     pub current_function_ref: u32,
@@ -160,15 +187,6 @@ pub struct WasmStepTrace {
     pub stack_write0: Option<StackValueAccess>,
     pub linear_memory: Option<LinearMemoryAccess>,
     pub linear_memory_offset: u64,
-    pub memory_pages_before: Option<u32>,
-    pub memory_pages_after: Option<u32>,
-    pub halted: bool,
-    /// Frame base pointer for locals before this row. Absolute local address is
-    /// `locals_fbp + local_index`.
-    pub locals_fbp: u64,
-    /// Frame base pointer after this row. Equal to `locals_fbp` except across
-    /// traced guest calls and non-final returns.
-    pub locals_fbp_after: u64,
     /// Index of the local variable accessed (for local.get / local.set / local.tee).
     pub local_index: Option<u32>,
     /// Value of the local before this step (populated for local.get: the value pushed).
@@ -240,26 +258,26 @@ pub fn boundary_states(trace: &[WasmStepTrace]) -> Vec<(WasmBoundaryState, WasmB
         .map(|row| {
             (
                 WasmBoundaryState {
-                    pc: row.pc_before,
-                    sp: row.sp_before,
-                    output_enabled: row.output_enabled_before,
-                    output_value_lo: row.output_value_lo_before,
-                    output_value_hi: row.output_value_hi_before,
-                    memory_pages: row.memory_pages_before,
-                    locals_fbp: row.locals_fbp,
-                    halted: false,
-                    param_init: row.param_init_before,
+                    pc: row.state_before.pc,
+                    sp: row.state_before.sp,
+                    output_enabled: row.state_before.output.enabled,
+                    output_value_lo: row.state_before.output.value_lo,
+                    output_value_hi: row.state_before.output.value_hi,
+                    memory_pages: row.state_before.memory_pages,
+                    locals_fbp: row.state_before.locals_fbp,
+                    halted: row.state_before.halted,
+                    param_init: row.state_before.param_init,
                 },
                 WasmBoundaryState {
-                    pc: row.pc_after,
-                    sp: row.sp_after,
-                    output_enabled: row.output_enabled_after,
-                    output_value_lo: row.output_value_lo_after,
-                    output_value_hi: row.output_value_hi_after,
-                    memory_pages: row.memory_pages_after,
-                    locals_fbp: row.locals_fbp_after,
-                    halted: row.halted,
-                    param_init: row.param_init_after,
+                    pc: row.state_after.pc,
+                    sp: row.state_after.sp,
+                    output_enabled: row.state_after.output.enabled,
+                    output_value_lo: row.state_after.output.value_lo,
+                    output_value_hi: row.state_after.output.value_hi,
+                    memory_pages: row.state_after.memory_pages,
+                    locals_fbp: row.state_after.locals_fbp,
+                    halted: row.state_after.halted,
+                    param_init: row.state_after.param_init,
                 },
             )
         })

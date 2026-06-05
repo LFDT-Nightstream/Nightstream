@@ -106,23 +106,23 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts, initial_
         preload.insert(
             "pc_rom",
             vec![
-                narrow(pc_before, "pc_rom.pc_before"),
+                narrow(pc_before, "pc_rom.state_before.pc"),
                 narrow(control_choice, "pc_rom.control_choice"),
             ],
-            narrow(pc_after, "pc_rom.pc_after"),
+            narrow(pc_after, "pc_rom.state_after.pc"),
         );
     }
     for &(pc_before, edge_kind) in &tables.pc_edge_kinds {
         preload.insert(
             "pc_edge_kinds",
-            vec![narrow(pc_before, "pc_edge_kinds.pc_before")],
+            vec![narrow(pc_before, "pc_edge_kinds.state_before.pc")],
             narrow(edge_kind, "pc_edge_kinds.edge_kind"),
         );
     }
     for &(pc_before, function_ref) in &tables.pc_function_refs {
         preload.insert(
             "pc_function_refs",
-            vec![narrow(pc_before, "pc_function_refs.pc_before")],
+            vec![narrow(pc_before, "pc_function_refs.state_before.pc")],
             narrow(function_ref, "pc_function_refs.function_ref"),
         );
     }
@@ -171,7 +171,7 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts, initial_
     for &(pc_before, function_ref) in &tables.call_targets {
         preload.insert(
             "call_targets",
-            vec![narrow(pc_before, "call_targets.pc_before")],
+            vec![narrow(pc_before, "call_targets.state_before.pc")],
             narrow(function_ref, "call_targets.function_ref"),
         );
     }

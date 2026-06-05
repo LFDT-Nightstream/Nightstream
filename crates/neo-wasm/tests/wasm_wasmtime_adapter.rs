@@ -84,7 +84,7 @@ fn wasmtime_steps_normalize_to_wasm_ir() {
     assert_eq!(trace[2].stack_write0, Some(StackValueAccess::new(0, 16)));
 
     assert_eq!(trace[3].opcode, WasmOpcode::End);
-    assert!(trace[3].halted);
+    assert!(trace[3].state_after.halted);
 }
 
 #[test]
@@ -235,14 +235,14 @@ fn wasmtime_trace_normalizes_memory_size_and_grow_rows() {
         .expect("memory.grow row");
 
     assert_eq!(size_rows.len(), 2, "expected two memory.size rows");
-    assert_eq!(size_rows[0].memory_pages_before, Some(1));
-    assert_eq!(size_rows[0].memory_pages_after, Some(1));
+    assert_eq!(size_rows[0].state_before.memory_pages, Some(1));
+    assert_eq!(size_rows[0].state_after.memory_pages, Some(1));
     assert_eq!(size_rows[0].stack_write0.map(|w| w.value_lo), Some(1));
-    assert_eq!(grow_row.memory_pages_before, Some(1));
-    assert_eq!(grow_row.memory_pages_after, Some(2));
+    assert_eq!(grow_row.state_before.memory_pages, Some(1));
+    assert_eq!(grow_row.state_after.memory_pages, Some(2));
     assert_eq!(grow_row.stack_read0.map(|r| r.value_lo), Some(1));
     assert_eq!(grow_row.stack_write0.map(|w| w.value_lo), Some(1));
-    assert_eq!(size_rows[1].memory_pages_before, Some(2));
+    assert_eq!(size_rows[1].state_before.memory_pages, Some(2));
     assert_eq!(size_rows[1].stack_write0.map(|w| w.value_lo), Some(2));
 }
 
@@ -352,7 +352,7 @@ fn wasmtime_trace_normalizes_call_indirect_row() {
             .iter()
             .find(|(f, _)| *f == 1)
             .map(|(_, pc)| *pc),
-        Some(row.pc_after)
+        Some(row.state_after.pc)
     );
 }
 
@@ -753,7 +753,7 @@ fn wasmtime_trace_normalizes_br_table_rows() {
             .tables
             .pc_rom
             .iter()
-            .filter(|(pc, _, _)| *pc == row.pc_before)
+            .filter(|(pc, _, _)| *pc == row.state_before.pc)
             .count();
         assert_eq!(edges_from_row, 3, "expected three br_table edges in pc rom");
         assert_eq!(

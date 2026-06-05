@@ -17,9 +17,33 @@ impl WasmPcEdgeKind {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct StackLaneAccess {
-    pub addr: u64,
-    pub value: u32,
+pub struct StackValueAccess {
+    pub addr_lo: u64,
+    pub value_lo: u32,
+    pub value_hi: Option<u32>,
+}
+
+impl StackValueAccess {
+    pub const fn new(addr_lo: u64, value_lo: u32) -> Self {
+        Self {
+            addr_lo,
+            value_lo,
+            value_hi: None,
+        }
+    }
+
+    pub const fn with_hi(addr_lo: u64, value_lo: u32, value_hi: u32) -> Self {
+        Self {
+            addr_lo,
+            value_lo,
+            value_hi: Some(value_hi),
+        }
+    }
+
+    pub const fn with_optional_hi(mut self, value_hi: Option<u32>) -> Self {
+        self.value_hi = value_hi;
+        self
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -130,14 +154,10 @@ pub struct WasmStepTrace {
     /// `function_ref` below is opcode-target metadata, not this frame identity.
     pub current_function_ref: u32,
     pub current_function_num_locals: u32,
-    pub stack_read0: Option<StackLaneAccess>,
-    pub stack_read0_hi: Option<u32>,
-    pub stack_read1: Option<StackLaneAccess>,
-    pub stack_read1_hi: Option<u32>,
-    pub stack_read2: Option<StackLaneAccess>,
-    pub stack_read2_hi: Option<u32>,
-    pub stack_write0: Option<StackLaneAccess>,
-    pub stack_write0_hi: Option<u32>,
+    pub stack_read0: Option<StackValueAccess>,
+    pub stack_read1: Option<StackValueAccess>,
+    pub stack_read2: Option<StackValueAccess>,
+    pub stack_write0: Option<StackValueAccess>,
     pub linear_memory: Option<LinearMemoryAccess>,
     pub linear_memory_offset: u64,
     pub memory_pages_before: Option<u32>,

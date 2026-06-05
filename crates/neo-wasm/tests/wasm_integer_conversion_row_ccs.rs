@@ -7,7 +7,7 @@ use neo_math::F;
 use neo_wasm::layout::{COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO};
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{
-    opcode_code, opcode_info_from_code, StackLaneAccess, WasmOpcode, WasmParamInitState, WasmPcEdgeKind, WasmRowKind,
+    opcode_code, opcode_info_from_code, StackValueAccess, WasmOpcode, WasmParamInitState, WasmPcEdgeKind, WasmRowKind,
     WasmStepTrace,
 };
 use p3_field::PrimeCharacteristicRing;
@@ -62,17 +62,14 @@ fn conversion_row(opcode: WasmOpcode, value: u32, width_bytes: usize, writes_i64
         call_stack_depth_after: 0,
         current_function_ref: 0,
         current_function_num_locals: 0,
-        stack_read0: Some(StackLaneAccess { addr: 0, value }),
-        stack_read0_hi: if writes_i64 { Some(0x1234_5678) } else { None },
+        stack_read0: Some(StackValueAccess::new(0, value).with_optional_hi(if writes_i64 {
+            Some(0x1234_5678)
+        } else {
+            None
+        })),
         stack_read1: None,
-        stack_read1_hi: None,
         stack_read2: None,
-        stack_read2_hi: None,
-        stack_write0: Some(StackLaneAccess {
-            addr: 0,
-            value: output_lo,
-        }),
-        stack_write0_hi: output_hi,
+        stack_write0: Some(StackValueAccess::new(0, output_lo).with_optional_hi(output_hi)),
         linear_memory: None,
         linear_memory_offset: 0,
         memory_pages_before: None,

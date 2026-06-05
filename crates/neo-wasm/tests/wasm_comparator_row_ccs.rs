@@ -14,7 +14,7 @@ use neo_wasm::layout::{
 };
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{
-    opcode_code, opcode_info_from_code, StackLaneAccess, WasmOpcode, WasmParamInitState, WasmPcEdgeKind, WasmRowKind,
+    opcode_code, opcode_info_from_code, StackValueAccess, WasmOpcode, WasmParamInitState, WasmPcEdgeKind, WasmRowKind,
     WasmStepTrace,
 };
 use p3_field::{Field, PrimeCharacteristicRing};
@@ -23,16 +23,13 @@ fn step(
     opcode: WasmOpcode,
     sp_before: u64,
     sp_after: u64,
-    stack_read0: Option<StackLaneAccess>,
-    stack_read1: Option<StackLaneAccess>,
-    stack_write0: Option<StackLaneAccess>,
+    stack_read0: Option<StackValueAccess>,
+    stack_read1: Option<StackValueAccess>,
+    stack_write0: Option<StackValueAccess>,
     wide_values_enabled: bool,
 ) -> WasmStepTrace {
-    fn physical(access: Option<StackLaneAccess>) -> Option<StackLaneAccess> {
-        access.map(|lane| StackLaneAccess {
-            addr: lane.addr * 2,
-            value: lane.value,
-        })
+    fn physical(access: Option<StackValueAccess>) -> Option<StackValueAccess> {
+        access.map(|lane| StackValueAccess::new(lane.addr_lo * 2, lane.value_lo))
     }
 
     let code = opcode_code(opcode);
@@ -65,13 +62,9 @@ fn step(
         current_function_ref: 0,
         current_function_num_locals: 0,
         stack_read0: physical(stack_read0),
-        stack_read0_hi: None,
         stack_read1: physical(stack_read1),
-        stack_read1_hi: None,
         stack_read2: None,
-        stack_read2_hi: None,
         stack_write0: physical(stack_write0),
-        stack_write0_hi: None,
         linear_memory: None,
         linear_memory_offset: 0,
         memory_pages_before: None,
@@ -134,9 +127,9 @@ fn i32_eqz_row_accepts_zero_and_nonzero_inputs() {
             WasmOpcode::I32Eqz,
             1,
             1,
-            Some(StackLaneAccess { addr: 0, value: input }),
+            Some(StackValueAccess::new(0, input)),
             None,
-            Some(StackLaneAccess { addr: 0, value: result }),
+            Some(StackValueAccess::new(0, result)),
             false,
         ));
         assert_satisfied(&row, &format!("i32.eqz({input})"));
@@ -150,9 +143,9 @@ fn i32_eqz_row_rejects_tampered_output() {
         WasmOpcode::I32Eqz,
         1,
         1,
-        Some(StackLaneAccess { addr: 0, value: 5 }),
+        Some(StackValueAccess::new(0, 5)),
         None,
-        Some(StackLaneAccess { addr: 0, value: 1 }),
+        Some(StackValueAccess::new(0, 1)),
         false,
     ));
     row[COL_STACK_WRITE0_VALUE_LO] = F::ONE;
@@ -166,13 +159,13 @@ fn i64_eqz_row_accepts_zero_and_nonzero_inputs() {
             WasmOpcode::I64Eqz,
             1,
             1,
-            Some(StackLaneAccess { addr: 0, value: lo }),
+            Some(StackValueAccess::new(0, lo)),
             None,
-            Some(StackLaneAccess { addr: 0, value: result }),
+            Some(StackValueAccess::new(0, result)),
             true,
         ));
-        // The `step` helper doesn't populate stack_read0_hi; set it directly
-        // and recompute the comparator scratch.
+        // The `step` helper only builds the low stack limb; set the high witness
+        // column directly and recompute the comparator scratch.
         row[COL_STACK_READ0_VALUE_LO] = F::from_u64(u64::from(lo));
         row[COL_STACK_READ0_VALUE_HI] = F::from_u64(u64::from(hi));
         set_i64_eqz_cmp_scratch(&mut row, lo, hi);
@@ -191,9 +184,9 @@ fn i64_eqz_row_rejects_goldilocks_modulus_collision() {
         WasmOpcode::I64Eqz,
         1,
         1,
-        Some(StackLaneAccess { addr: 0, value: 1 }),
+        Some(StackValueAccess::new(0, 1)),
         None,
-        Some(StackLaneAccess { addr: 0, value: 1 }),
+        Some(StackValueAccess::new(0, 1)),
         true,
     ));
     row[COL_STACK_READ0_VALUE_LO] = F::from_u64(1);
@@ -211,9 +204,9 @@ fn i32_eq_and_ne_rows_accept_equal_and_distinct_inputs() {
             WasmOpcode::I32Eq,
             2,
             1,
-            Some(StackLaneAccess { addr: 0, value: lhs }),
-            Some(StackLaneAccess { addr: 1, value: rhs }),
-            Some(StackLaneAccess { addr: 0, value: eq_out }),
+            Some(StackValueAccess::new(0, lhs)),
+            Some(StackValueAccess::new(1, rhs)),
+            Some(StackValueAccess::new(0, eq_out)),
             false,
         ));
         assert_satisfied(&eq_row, &format!("i32.eq({lhs}, {rhs})"));
@@ -221,9 +214,9 @@ fn i32_eq_and_ne_rows_accept_equal_and_distinct_inputs() {
             WasmOpcode::I32Ne,
             2,
             1,
-            Some(StackLaneAccess { addr: 0, value: lhs }),
-            Some(StackLaneAccess { addr: 1, value: rhs }),
-            Some(StackLaneAccess { addr: 0, value: ne_out }),
+            Some(StackValueAccess::new(0, lhs)),
+            Some(StackValueAccess::new(1, rhs)),
+            Some(StackValueAccess::new(0, ne_out)),
             false,
         ));
         assert_satisfied(&ne_row, &format!("i32.ne({lhs}, {rhs})"));
@@ -236,9 +229,9 @@ fn i32_eq_row_rejects_tampered_output() {
         WasmOpcode::I32Eq,
         2,
         1,
-        Some(StackLaneAccess { addr: 0, value: 7 }),
-        Some(StackLaneAccess { addr: 1, value: 7 }),
-        Some(StackLaneAccess { addr: 0, value: 1 }),
+        Some(StackValueAccess::new(0, 7)),
+        Some(StackValueAccess::new(1, 7)),
+        Some(StackValueAccess::new(0, 1)),
         false,
     ));
     row[COL_STACK_WRITE0_VALUE_LO] = F::ZERO;
@@ -282,12 +275,9 @@ fn i64_eq_and_ne_rows_accept_equal_and_distinct_inputs() {
                 opcode,
                 2,
                 1,
-                Some(StackLaneAccess { addr: 0, value: l_lo }),
-                Some(StackLaneAccess { addr: 1, value: r_lo }),
-                Some(StackLaneAccess {
-                    addr: 0,
-                    value: expected,
-                }),
+                Some(StackValueAccess::new(0, l_lo)),
+                Some(StackValueAccess::new(1, r_lo)),
+                Some(StackValueAccess::new(0, expected)),
                 true,
             ));
             // The `step` helper doesn't populate stack_read*_hi; set them
@@ -314,9 +304,9 @@ fn i64_eq_row_rejects_goldilocks_modulus_collision() {
         WasmOpcode::I64Eq,
         2,
         1,
-        Some(StackLaneAccess { addr: 0, value: 1 }),
-        Some(StackLaneAccess { addr: 1, value: 0 }),
-        Some(StackLaneAccess { addr: 0, value: 1 }),
+        Some(StackValueAccess::new(0, 1)),
+        Some(StackValueAccess::new(1, 0)),
+        Some(StackValueAccess::new(0, 1)),
         true,
     ));
     row[COL_STACK_READ0_VALUE_LO] = F::from_u64(1);
@@ -336,9 +326,9 @@ fn i64_ne_row_rejects_tampered_output() {
         WasmOpcode::I64Ne,
         2,
         1,
-        Some(StackLaneAccess { addr: 0, value: 5 }),
-        Some(StackLaneAccess { addr: 1, value: 5 }),
-        Some(StackLaneAccess { addr: 0, value: 0 }),
+        Some(StackValueAccess::new(0, 5)),
+        Some(StackValueAccess::new(1, 5)),
+        Some(StackValueAccess::new(0, 0)),
         true,
     ));
     row[COL_STACK_READ0_VALUE_LO] = F::from_u64(5);

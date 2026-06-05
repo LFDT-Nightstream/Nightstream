@@ -3,7 +3,7 @@
 use rwasm::mem::MemoryRecordEnum;
 use rwasm::{Tracer, TracerInstrState};
 
-use super::super::ir::{StackLaneAccess, WasmBuildError, WasmPcEdgeKind, WasmStepTrace};
+use super::super::ir::{StackValueAccess, WasmBuildError, WasmPcEdgeKind, WasmStepTrace};
 use super::super::isa::{opcode_info_from_concrete, WasmOpcode};
 
 pub fn traces_from_rwasm_tracer(tracer: &Tracer) -> Result<Vec<WasmStepTrace>, WasmBuildError> {
@@ -72,7 +72,7 @@ pub fn traces_from_rwasm_instr_states(
         if halted && !output_enabled {
             if let Some(read) = stack_read0 {
                 output_enabled = true;
-                output_value_lo = read.value;
+                output_value_lo = read.value_lo;
                 output_captured = true;
             }
         }
@@ -106,13 +106,9 @@ pub fn traces_from_rwasm_instr_states(
             current_function_ref: 0,
             current_function_num_locals: 0,
             stack_read0,
-            stack_read0_hi: None,
             stack_read1,
-            stack_read1_hi: None,
             stack_read2,
-            stack_read2_hi: None,
             stack_write0,
-            stack_write0_hi: None,
             linear_memory: None,
             linear_memory_offset: 0,
             memory_pages_before: None,
@@ -150,12 +146,9 @@ pub fn traces_from_rwasm_instr_states(
     Ok(out)
 }
 
-fn read_lane(slot: Option<MemoryRecordEnum>, addr: Option<u64>) -> Option<StackLaneAccess> {
+fn read_lane(slot: Option<MemoryRecordEnum>, addr: Option<u64>) -> Option<StackValueAccess> {
     match (slot, addr) {
-        (Some(MemoryRecordEnum::Read(read)), Some(addr)) => Some(StackLaneAccess {
-            addr,
-            value: read.value,
-        }),
+        (Some(MemoryRecordEnum::Read(read)), Some(addr)) => Some(StackValueAccess::new(addr, read.value)),
         _ => None,
     }
 }
@@ -165,16 +158,10 @@ fn write_lane(
     addr: Option<u64>,
     fallback_enabled: bool,
     fallback_value: u32,
-) -> Option<StackLaneAccess> {
+) -> Option<StackValueAccess> {
     match (slot, addr) {
-        (Some(MemoryRecordEnum::Write(write)), Some(addr)) => Some(StackLaneAccess {
-            addr,
-            value: write.value,
-        }),
-        (None, Some(addr)) if fallback_enabled => Some(StackLaneAccess {
-            addr,
-            value: fallback_value,
-        }),
+        (Some(MemoryRecordEnum::Write(write)), Some(addr)) => Some(StackValueAccess::new(addr, write.value)),
+        (None, Some(addr)) if fallback_enabled => Some(StackValueAccess::new(addr, fallback_value)),
         _ => None,
     }
 }

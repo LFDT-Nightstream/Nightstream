@@ -35,31 +35,40 @@ pub fn lookup_payload(trace: &WasmStepTrace) -> Option<WasmLookupPayload> {
             arity: WasmLookupArity::Tuple(4),
             shout_id: shout.to_shout_id(),
             inputs: vec![
-                trace.stack_read0.map(|lane| lane.value).unwrap_or(0),
-                trace.stack_read0_hi.unwrap_or(0),
-                trace.stack_read1.map(|lane| lane.value).unwrap_or(0),
-                trace.stack_read1_hi.unwrap_or(0),
+                trace.stack_read0.map(|lane| lane.value_lo).unwrap_or(0),
+                trace
+                    .stack_read0
+                    .and_then(|lane| lane.value_hi)
+                    .unwrap_or(0),
+                trace.stack_read1.map(|lane| lane.value_lo).unwrap_or(0),
+                trace
+                    .stack_read1
+                    .and_then(|lane| lane.value_hi)
+                    .unwrap_or(0),
             ],
             outputs: vec![
-                trace.stack_write0.map(|lane| lane.value).unwrap_or(0),
-                trace.stack_write0_hi.unwrap_or(0),
+                trace.stack_write0.map(|lane| lane.value_lo).unwrap_or(0),
+                trace
+                    .stack_write0
+                    .and_then(|lane| lane.value_hi)
+                    .unwrap_or(0),
             ],
         },
         _ => match trace.info.stack_reads {
             1 => WasmLookupPayload {
                 arity: WasmLookupArity::Unary,
                 shout_id: shout.to_shout_id(),
-                inputs: vec![trace.stack_read0.map(|lane| lane.value).unwrap_or(0)],
-                outputs: vec![trace.stack_write0.map(|lane| lane.value).unwrap_or(0)],
+                inputs: vec![trace.stack_read0.map(|lane| lane.value_lo).unwrap_or(0)],
+                outputs: vec![trace.stack_write0.map(|lane| lane.value_lo).unwrap_or(0)],
             },
             2 => WasmLookupPayload {
                 arity: WasmLookupArity::Binary,
                 shout_id: shout.to_shout_id(),
                 inputs: vec![
-                    trace.stack_read0.map(|lane| lane.value).unwrap_or(0),
-                    trace.stack_read1.map(|lane| lane.value).unwrap_or(0),
+                    trace.stack_read0.map(|lane| lane.value_lo).unwrap_or(0),
+                    trace.stack_read1.map(|lane| lane.value_lo).unwrap_or(0),
                 ],
-                outputs: vec![trace.stack_write0.map(|lane| lane.value).unwrap_or(0)],
+                outputs: vec![trace.stack_write0.map(|lane| lane.value_lo).unwrap_or(0)],
             },
             _ => return None,
         },

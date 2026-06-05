@@ -18,7 +18,7 @@ use super::runtime_read::{
 };
 use super::{WasmtimeTraceMemoryAccess, WasmtimeTraceMemoryWordLane, WasmtimeTraceState, WasmtimeTraceStep};
 use crate::ir::{
-    LinearMemoryAccess, LinearMemoryWordLane, StackLaneAccess, WasmAuxOpcode, WasmBuildError, WasmParamInitState,
+    LinearMemoryAccess, LinearMemoryWordLane, StackValueAccess, WasmAuxOpcode, WasmBuildError, WasmParamInitState,
     WasmPcEdgeKind, WasmRowKind, WasmStepTrace,
 };
 use crate::isa::{opcode_code, opcode_info_from_code, WasmOpcode, WasmOpcodeInfo};
@@ -741,7 +741,7 @@ fn write_lane(
     next: Option<&SupportedRow>,
     sp_after: u64,
     stack_writes: u8,
-) -> Result<Option<StackLaneAccess>, WasmBuildError> {
+) -> Result<Option<StackValueAccess>, WasmBuildError> {
     if stack_writes == 0 {
         return Ok(None);
     }
@@ -794,10 +794,10 @@ fn write_lane(
             })?,
     };
 
-    Ok(Some(StackLaneAccess {
-        addr: sp_after.saturating_sub(1).saturating_mul(2),
+    Ok(Some(StackValueAccess::new(
+        sp_after.saturating_sub(1).saturating_mul(2),
         value,
-    }))
+    )))
 }
 
 fn write_lane_hi(
@@ -805,7 +805,7 @@ fn write_lane_hi(
     next: Option<&SupportedRow>,
     stack_writes: u8,
 ) -> Result<Option<u32>, WasmBuildError> {
-    if stack_writes == 0 {
+    if stack_writes == 0 || !current.wide_values_enabled {
         return Ok(None);
     }
 
@@ -891,10 +891,21 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
         let sp_after = next
             .map(|row| row.operand_stack.len() as u64)
             .unwrap_or(expected_sp_after);
-        let stack_read0 = read_lane(&current.operand_stack, sp_before, stack_reads, 0);
-        let stack_read1 = read_lane(&current.operand_stack, sp_before, stack_reads, 1);
-        let stack_read2 = read_lane(&current.operand_stack, sp_before, stack_reads, 2);
-        let stack_write0 = write_lane(current, next, sp_after, stack_writes)?;
+        let stack_read_hi = |lane| {
+            current
+                .wide_values_enabled
+                .then(|| read_lane_hi(&current.operand_stack_hi, stack_reads, lane))
+                .flatten()
+        };
+        let stack_read0 = read_lane(&current.operand_stack, sp_before, stack_reads, 0)
+            .map(|read| read.with_optional_hi(stack_read_hi(0)));
+        let stack_read1 = read_lane(&current.operand_stack, sp_before, stack_reads, 1)
+            .map(|read| read.with_optional_hi(stack_read_hi(1)));
+        let stack_read2 = read_lane(&current.operand_stack, sp_before, stack_reads, 2)
+            .map(|read| read.with_optional_hi(stack_read_hi(2)));
+        let write_value_hi = write_lane_hi(current, next, stack_writes)?;
+        let stack_write0 =
+            write_lane(current, next, sp_after, stack_writes)?.map(|write| write.with_optional_hi(write_value_hi));
         // Only the very last step of the whole trace is halted.
         let halted = next.is_none();
         let output_enabled_before = output_enabled;
@@ -1063,13 +1074,9 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
             current_function_ref: current.current_function_ref.unwrap_or(0),
             current_function_num_locals: current.num_locals,
             stack_read0,
-            stack_read0_hi: read_lane_hi(&current.operand_stack_hi, stack_reads, 0),
             stack_read1,
-            stack_read1_hi: read_lane_hi(&current.operand_stack_hi, stack_reads, 1),
             stack_read2,
-            stack_read2_hi: read_lane_hi(&current.operand_stack_hi, stack_reads, 2),
             stack_write0,
-            stack_write0_hi: write_lane_hi(current, next, stack_writes)?,
             linear_memory: current.linear_memory,
             linear_memory_offset: current.linear_memory_offset,
             memory_pages_before: current.memory_pages_before,
@@ -1196,14 +1203,17 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                     call_stack_depth_after,
                     current_function_ref: callee_function_ref,
                     current_function_num_locals: current.num_locals,
-                    stack_read0: Some(src),
-                    stack_read0_hi: read_lane_hi(&current.operand_stack_hi, stack_reads, param_index),
+                    stack_read0: Some(
+                        src.with_optional_hi(
+                            current
+                                .wide_values_enabled
+                                .then(|| read_lane_hi(&current.operand_stack_hi, stack_reads, param_index))
+                                .flatten(),
+                        ),
+                    ),
                     stack_read1: None,
-                    stack_read1_hi: None,
                     stack_read2: None,
-                    stack_read2_hi: None,
                     stack_write0: None,
-                    stack_write0_hi: None,
                     linear_memory: None,
                     linear_memory_offset: 0,
                     memory_pages_before: current.memory_pages_after,

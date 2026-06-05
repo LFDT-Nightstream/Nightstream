@@ -1,6 +1,6 @@
 use neo_wasm::{
     build_pc_rom_from_binary, collect_wasmtime_steps, extract_wasm_program_artifacts, opcode_code,
-    traces_from_wasmtime_steps, traces_from_wasmtime_wasm_bytes, StackLaneAccess, WasmOpcode, WasmPcEdgeKind,
+    traces_from_wasmtime_steps, traces_from_wasmtime_wasm_bytes, StackValueAccess, WasmOpcode, WasmPcEdgeKind,
     WasmtimeTraceStep,
 };
 use wasmparser::{Parser, Payload};
@@ -76,12 +76,12 @@ fn wasmtime_steps_normalize_to_wasm_ir() {
 
     assert_eq!(trace[0].opcode, WasmOpcode::I32Const);
     assert_eq!(trace[0].opcode_code, opcode_code(WasmOpcode::I32Const));
-    assert_eq!(trace[0].stack_write0, Some(StackLaneAccess { addr: 0, value: 7 }));
+    assert_eq!(trace[0].stack_write0, Some(StackValueAccess::new(0, 7)));
 
     assert_eq!(trace[2].opcode, WasmOpcode::I32Add);
-    assert_eq!(trace[2].stack_read0, Some(StackLaneAccess { addr: 0, value: 7 }));
-    assert_eq!(trace[2].stack_read1, Some(StackLaneAccess { addr: 2, value: 9 }));
-    assert_eq!(trace[2].stack_write0, Some(StackLaneAccess { addr: 0, value: 16 }));
+    assert_eq!(trace[2].stack_read0, Some(StackValueAccess::new(0, 7)));
+    assert_eq!(trace[2].stack_read1, Some(StackValueAccess::new(2, 9)));
+    assert_eq!(trace[2].stack_write0, Some(StackValueAccess::new(0, 16)));
 
     assert_eq!(trace[3].opcode, WasmOpcode::End);
     assert!(trace[3].halted);
@@ -112,7 +112,7 @@ fn wasmtime_runtime_trace_normalizes_supported_rows() {
             WasmOpcode::End,
         ]
     );
-    assert_eq!(trace[2].stack_write0.unwrap().value, 16);
+    assert_eq!(trace[2].stack_write0.unwrap().value_lo, 16);
     assert!(run
         .steps
         .iter()
@@ -154,7 +154,7 @@ fn wasmtime_trace_normalizes_local_get_and_set() {
         assert!(row.local_read_value.is_some(), "local.get missing local_read_value");
         // The pushed value must match the local's pre-step value.
         assert_eq!(
-            row.stack_write0.map(|w| w.value),
+            row.stack_write0.map(|w| w.value_lo),
             row.local_read_value,
             "local.get write != local_read_value"
         );
@@ -165,7 +165,7 @@ fn wasmtime_trace_normalizes_local_get_and_set() {
         assert!(row.local_write_value.is_some(), "local.set missing local_write_value");
         // The consumed stack value must match what is stored.
         assert_eq!(
-            row.stack_read0.map(|r| r.value),
+            row.stack_read0.map(|r| r.value_lo),
             row.local_write_value,
             "local.set read0 != local_write_value"
         );
@@ -200,12 +200,12 @@ fn wasmtime_trace_normalizes_global_get_and_set() {
     assert_eq!(get_rows.len(), 2, "expected two global.get rows");
     assert_eq!(get_rows[0].global_index, Some(0));
     assert_eq!(get_rows[0].global_read_value, Some(7));
-    assert_eq!(get_rows[0].stack_write0.map(|w| w.value), Some(7));
+    assert_eq!(get_rows[0].stack_write0.map(|w| w.value_lo), Some(7));
     assert_eq!(set_row.global_index, Some(0));
     assert_eq!(set_row.global_write_value, Some(9));
-    assert_eq!(set_row.stack_read0.map(|r| r.value), Some(9));
+    assert_eq!(set_row.stack_read0.map(|r| r.value_lo), Some(9));
     assert_eq!(get_rows[1].global_read_value, Some(9));
-    assert_eq!(get_rows[1].stack_write0.map(|w| w.value), Some(9));
+    assert_eq!(get_rows[1].stack_write0.map(|w| w.value_lo), Some(9));
 }
 
 #[test]
@@ -237,13 +237,13 @@ fn wasmtime_trace_normalizes_memory_size_and_grow_rows() {
     assert_eq!(size_rows.len(), 2, "expected two memory.size rows");
     assert_eq!(size_rows[0].memory_pages_before, Some(1));
     assert_eq!(size_rows[0].memory_pages_after, Some(1));
-    assert_eq!(size_rows[0].stack_write0.map(|w| w.value), Some(1));
+    assert_eq!(size_rows[0].stack_write0.map(|w| w.value_lo), Some(1));
     assert_eq!(grow_row.memory_pages_before, Some(1));
     assert_eq!(grow_row.memory_pages_after, Some(2));
-    assert_eq!(grow_row.stack_read0.map(|r| r.value), Some(1));
-    assert_eq!(grow_row.stack_write0.map(|w| w.value), Some(1));
+    assert_eq!(grow_row.stack_read0.map(|r| r.value_lo), Some(1));
+    assert_eq!(grow_row.stack_write0.map(|w| w.value_lo), Some(1));
     assert_eq!(size_rows[1].memory_pages_before, Some(2));
-    assert_eq!(size_rows[1].stack_write0.map(|w| w.value), Some(2));
+    assert_eq!(size_rows[1].stack_write0.map(|w| w.value_lo), Some(2));
 }
 
 #[test]
@@ -265,7 +265,7 @@ fn wasmtime_trace_normalizes_table_size_rows() {
 
     assert_eq!(row.table_id, Some(0));
     assert_eq!(row.table_size, Some(4));
-    assert_eq!(row.stack_write0.map(|w| w.value), Some(4));
+    assert_eq!(row.stack_write0.map(|w| w.value_lo), Some(4));
 }
 
 #[test]
@@ -302,7 +302,7 @@ fn wasmtime_trace_normalizes_funcref_table_rows() {
         .find(|r| r.opcode == WasmOpcode::TableGet)
         .expect("table.get row");
 
-    assert_eq!(ref_func.stack_write0.map(|w| w.value), Some(1));
+    assert_eq!(ref_func.stack_write0.map(|w| w.value_lo), Some(1));
     assert_eq!(ref_func.function_type_id, Some(1));
     assert_eq!(table_set.table_id, Some(0));
     assert_eq!(table_set.table_index, Some(0));
@@ -420,43 +420,43 @@ fn wasmtime_trace_normalizes_basic_i64_rows() {
         .expect("i64.eqz row");
 
     assert!(add.wide_values_enabled);
-    assert_eq!(add.stack_read0.map(|w| w.value), Some(0xffff_ffff));
-    assert_eq!(add.stack_read0_hi, Some(0));
-    assert_eq!(add.stack_read1.map(|w| w.value), Some(1));
-    assert_eq!(add.stack_write0.map(|w| w.value), Some(0));
-    assert_eq!(add.stack_write0_hi, Some(1));
+    assert_eq!(add.stack_read0.map(|w| w.value_lo), Some(0xffff_ffff));
+    assert_eq!(add.stack_read0.and_then(|lane| lane.value_hi), Some(0));
+    assert_eq!(add.stack_read1.map(|w| w.value_lo), Some(1));
+    assert_eq!(add.stack_write0.map(|w| w.value_lo), Some(0));
+    assert_eq!(add.stack_write0.and_then(|lane| lane.value_hi), Some(1));
 
     assert!(sub.wide_values_enabled);
-    assert_eq!(sub.stack_read0.map(|w| w.value), Some(0));
-    assert_eq!(sub.stack_read0_hi, Some(1));
-    assert_eq!(sub.stack_read1.map(|w| w.value), Some(0));
-    assert_eq!(sub.stack_read1_hi, Some(1));
-    assert_eq!(sub.stack_write0.map(|w| w.value), Some(0));
-    assert_eq!(sub.stack_write0_hi, Some(0));
+    assert_eq!(sub.stack_read0.map(|w| w.value_lo), Some(0));
+    assert_eq!(sub.stack_read0.and_then(|lane| lane.value_hi), Some(1));
+    assert_eq!(sub.stack_read1.map(|w| w.value_lo), Some(0));
+    assert_eq!(sub.stack_read1.and_then(|lane| lane.value_hi), Some(1));
+    assert_eq!(sub.stack_write0.map(|w| w.value_lo), Some(0));
+    assert_eq!(sub.stack_write0.and_then(|lane| lane.value_hi), Some(0));
 
     assert!(mul.wide_values_enabled);
-    assert_eq!(mul.stack_read0.map(|w| w.value), Some(6));
-    assert_eq!(mul.stack_read1.map(|w| w.value), Some(7));
-    assert_eq!(mul.stack_write0.map(|w| w.value), Some(42));
-    assert_eq!(mul.stack_write0_hi, Some(0));
+    assert_eq!(mul.stack_read0.map(|w| w.value_lo), Some(6));
+    assert_eq!(mul.stack_read1.map(|w| w.value_lo), Some(7));
+    assert_eq!(mul.stack_write0.map(|w| w.value_lo), Some(42));
+    assert_eq!(mul.stack_write0.and_then(|lane| lane.value_hi), Some(0));
 
     assert!(and.wide_values_enabled);
-    assert_eq!(and.stack_write0.map(|w| w.value), Some(0x000f000f));
-    assert_eq!(and.stack_write0_hi, Some(0x000f000f));
+    assert_eq!(and.stack_write0.map(|w| w.value_lo), Some(0x000f000f));
+    assert_eq!(and.stack_write0.and_then(|lane| lane.value_hi), Some(0x000f000f));
 
     assert!(or.wide_values_enabled);
-    assert_eq!(or.stack_write0.map(|w| w.value), Some(0x0fff0fff));
-    assert_eq!(or.stack_write0_hi, Some(0x0fff0fff));
+    assert_eq!(or.stack_write0.map(|w| w.value_lo), Some(0x0fff0fff));
+    assert_eq!(or.stack_write0.and_then(|lane| lane.value_hi), Some(0x0fff0fff));
 
     assert!(xor.wide_values_enabled);
-    assert_eq!(xor.stack_write0.map(|w| w.value), Some(0x0ff00ff0));
-    assert_eq!(xor.stack_write0_hi, Some(0x0ff00ff0));
+    assert_eq!(xor.stack_write0.map(|w| w.value_lo), Some(0x0ff00ff0));
+    assert_eq!(xor.stack_write0.and_then(|lane| lane.value_hi), Some(0x0ff00ff0));
 
     assert!(eqz.wide_values_enabled);
-    assert_eq!(eqz.stack_read0.map(|w| w.value), Some(0));
-    assert_eq!(eqz.stack_read0_hi, Some(0));
-    assert_eq!(eqz.stack_write0.map(|w| w.value), Some(1));
-    assert_eq!(eqz.stack_write0_hi, Some(0));
+    assert_eq!(eqz.stack_read0.map(|w| w.value_lo), Some(0));
+    assert_eq!(eqz.stack_read0.and_then(|lane| lane.value_hi), Some(0));
+    assert_eq!(eqz.stack_write0.map(|w| w.value_lo), Some(1));
+    assert_eq!(eqz.stack_write0.and_then(|lane| lane.value_hi), Some(0));
 }
 
 #[test]
@@ -488,9 +488,9 @@ fn wasmtime_trace_normalizes_aligned_i64_memory_rows() {
         .expect("i64.load row");
 
     assert!(store.wide_values_enabled);
-    assert_eq!(store.stack_read0.map(|w| w.value), Some(8));
-    assert_eq!(store.stack_read1.map(|w| w.value), Some(0x5566_7788));
-    assert_eq!(store.stack_read1_hi, Some(0x1122_3344));
+    assert_eq!(store.stack_read0.map(|w| w.value_lo), Some(8));
+    assert_eq!(store.stack_read1.map(|w| w.value_lo), Some(0x5566_7788));
+    assert_eq!(store.stack_read1.and_then(|lane| lane.value_hi), Some(0x1122_3344));
     let store_mem = store.linear_memory.expect("store memory");
     assert_eq!(store_mem.width_bytes, 8);
     assert_eq!(store_mem.byte_offset, 0);
@@ -498,9 +498,9 @@ fn wasmtime_trace_normalizes_aligned_i64_memory_rows() {
     assert_eq!(store_mem.lane1.expect("store lane1").value_after, 0x1122_3344);
 
     assert!(load.wide_values_enabled);
-    assert_eq!(load.stack_read0.map(|w| w.value), Some(8));
-    assert_eq!(load.stack_write0.map(|w| w.value), Some(0x5566_7788));
-    assert_eq!(load.stack_write0_hi, Some(0x1122_3344));
+    assert_eq!(load.stack_read0.map(|w| w.value_lo), Some(8));
+    assert_eq!(load.stack_write0.map(|w| w.value_lo), Some(0x5566_7788));
+    assert_eq!(load.stack_write0.and_then(|lane| lane.value_hi), Some(0x1122_3344));
     let load_mem = load.linear_memory.expect("load memory");
     assert_eq!(load_mem.width_bytes, 8);
     assert_eq!(load_mem.byte_offset, 0);
@@ -549,8 +549,8 @@ fn wasmtime_trace_normalizes_unaligned_i64_memory_rows() {
     assert_eq!(load_mem.lane0.value_before, 0x6677_8800);
     assert_eq!(load_mem.lane1.expect("load lane1").value_before, 0x2233_4455);
     assert_eq!(load_mem.lane2.expect("load lane2").value_before, 0x0000_0011);
-    assert_eq!(load.stack_write0.map(|w| w.value), Some(0x5566_7788));
-    assert_eq!(load.stack_write0_hi, Some(0x1122_3344));
+    assert_eq!(load.stack_write0.map(|w| w.value_lo), Some(0x5566_7788));
+    assert_eq!(load.stack_write0.and_then(|lane| lane.value_hi), Some(0x1122_3344));
 }
 
 #[test]
@@ -619,7 +619,7 @@ fn wasmtime_trace_normalizes_shift_div_rem_rows() {
             .find(|r| r.opcode == opcode)
             .expect("opcode row");
         assert_eq!(
-            row.stack_write0.map(|w| w.value),
+            row.stack_write0.map(|w| w.value_lo),
             Some(output),
             "wrong output for {opcode:?}"
         );
@@ -708,7 +708,7 @@ fn wasmtime_trace_normalizes_compare_unary_and_rotate_rows() {
             .find(|r| r.opcode == opcode)
             .expect("opcode row");
         assert_eq!(
-            row.stack_write0.map(|w| w.value),
+            row.stack_write0.map(|w| w.value_lo),
             Some(output),
             "wrong output for {opcode:?}"
         );
@@ -855,7 +855,7 @@ fn wasmtime_trace_normalizes_byte_memory_rows() {
         .iter()
         .find(|row| row.opcode == WasmOpcode::I32Load8U)
         .expect("load8_u row");
-    assert_eq!(load.stack_write0.expect("load result").value, 255);
+    assert_eq!(load.stack_write0.expect("load result").value_lo, 255);
 }
 
 #[test]
@@ -881,7 +881,7 @@ fn wasmtime_trace_normalizes_halfword_memory_rows() {
         .iter()
         .find(|row| row.opcode == WasmOpcode::I32Load16U)
         .expect("load16_u row");
-    assert_eq!(load.stack_write0.expect("load result").value, 4660);
+    assert_eq!(load.stack_write0.expect("load result").value_lo, 4660);
     assert!(load.linear_memory.expect("linear memory").lane1.is_some());
 }
 
@@ -915,8 +915,8 @@ fn wasmtime_trace_normalizes_signed_subword_load_rows() {
         .iter()
         .find(|row| row.opcode == WasmOpcode::I32Load16S)
         .expect("load16_s row");
-    assert_eq!(load8.stack_write0.expect("load8 result").value, (-127i32) as u32);
-    assert_eq!(load16.stack_write0.expect("load16 result").value, (-32767i32) as u32);
+    assert_eq!(load8.stack_write0.expect("load8 result").value_lo, (-127i32) as u32);
+    assert_eq!(load16.stack_write0.expect("load16 result").value_lo, (-32767i32) as u32);
     assert!(load16.linear_memory.expect("linear memory").lane1.is_some());
 }
 

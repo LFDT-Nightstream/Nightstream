@@ -66,7 +66,7 @@ The first point matters: it shapes the verification strategy below.
 
 The Rust wasm zkVM produces R1CS as flat sparse matrices (`A`, `B`, `C`)
 plus per-row tags (opcode scope + label) via `WasmTaggedR1csBuilder`
-(see `crates/neo-fold-next/src/wasm/tagged_r1cs_builder.rs`). The high-level
+(see `crates/neo-wasm/src/tagged_r1cs_builder.rs`). The high-level
 gadgets it composes from (conditional-select, zero-test, u32 byte
 decomposition, …) are *not* preserved as structure post-build — only the
 flattened rows survive.
@@ -134,7 +134,7 @@ The Rust exporter emits, per circuit, three pieces of data into the
        instructions.flatMap instrToRows = actualRows := by native_decide
    ```
    If the Rust gadget for, say, `ZeroTest` drifts from `instrToRows
-   .ZeroTest`, this fails at `lake build` time.
+   .ZeroTest`, this fails at `lake build WasmCircuit` time.
 
 `instrToRows` is the "small fold" the original design wanted — but it
 operates on the coarser `Instr` type we control, not on a `ZKBuilder`, so
@@ -273,15 +273,15 @@ formal/wasm-zklean/
 
 `Gadgets.lean` is buildable on a clean checkout without running the
 exporter. `Generated.lean` (and the `Columns.lean` it imports) require a
-prior `cargo run --bin export_wasm_zklean`. The `lean_lib WasmCircuit`
-glob in `lakefile.toml` picks all three up when present.
+prior `cargo run -p neo-wasm --bin export_wasm_zklean`. The
+`lean_lib WasmCircuit` glob in `lakefile.toml` picks all three up when present.
 
 ---
 
 ## Rust-side wiring
 
 The exporter lives at
-[`crates/neo-fold-next/src/bin/export_wasm_zklean.rs`](../../crates/neo-fold-next/src/bin/export_wasm_zklean.rs).
+[`crates/neo-wasm/src/bin/export_wasm_zklean.rs`](../../crates/neo-wasm/src/bin/export_wasm_zklean.rs).
 It currently emits a tiny demo circuit: one call to the real
 `push_zero_test_gadget` (now `pub` in `wasm::gadgets`), plus the matching
 `Instr.ZeroTest` trace and the `trace_matches_actual` cross-check. Future
@@ -291,13 +291,14 @@ the exporter.
 
 ```bash
 # Regenerate WasmCircuit/Generated.lean:
-cargo run --bin export_wasm_zklean --release
+cargo run -p neo-wasm --bin export_wasm_zklean --release
 
 # Then, from formal/wasm-zklean/:
-lake build
+lake exe cache get
+lake build WasmCircuit
 ```
 
-The exporter is intentionally placed in `neo-fold-next` (where
+The exporter is intentionally placed in `neo-wasm` (where
 `WasmTaggedR1csBuilder` lives) rather than a separate crate, because its
 real input is the wasm constraint catalog produced by that crate.
 
@@ -311,11 +312,17 @@ From this directory:
 # First time: fetch zkLean and its transitive deps (mathlib, cslib, bvmod_eq)
 lake update
 
-# Then build:
-lake build
+# First time after dependency changes: fetch prebuilt mathlib artifacts.
+lake exe cache get
+
+# Then build the wasm package target.
+lake build WasmCircuit
 ```
 
 `elan` will pick the v4.25.2 toolchain automatically from `lean-toolchain`.
+Avoid `lake build zkLean` unless you intentionally want to build the full
+upstream dependency target; it can pull in a much larger mathlib closure than
+the wasm package needs.
 
 ---
 
@@ -343,7 +350,7 @@ lake build
    in each gadget. Start with tag-based; reassess if any tag becomes
    ambiguous.
 6. **CI cadence.** Because `Generated.lean` is gitignored, CI runs the
-   exporter then `lake build` on this package; success implies
+   exporter then `lake build WasmCircuit` on this package; success implies
    `trace_matches_actual` held under `native_decide`. This catches
    Rust↔Lean drift without requiring contributors to keep a generated
    file in sync by hand.

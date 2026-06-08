@@ -21,7 +21,7 @@ fn add_commitments(a: &Commitment, b: &Commitment) -> Commitment {
 }
 
 #[test]
-fn verify_dec_public_ignores_stale_ct_shell_but_checks_y_aux_and_x_entries() {
+fn verify_dec_public_rejects_stale_ct_shell_and_checks_y_aux_and_x_entries() {
     let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize; // 64 -> 6
     let d_pad = 1usize << ell_d;
@@ -160,10 +160,12 @@ fn verify_dec_public_ignores_stale_ct_shell_but_checks_y_aux_and_x_entries() {
         ell_d
     ));
 
-    // Tamper only ct shell on the parent and ensure DEC public still accepts.
+    // Tamper only ct shell on the parent. `ct` is denormalized from
+    // `y_ring`, but it is still a public CE field consumed by downstream
+    // authority digests, so DEC public verification must reject stale ct.
     let mut parent_bad2 = parent.clone();
     parent_bad2.ct[t_eff - 1] += K::ONE;
-    assert!(neo_reductions::api::verify_dec_public(
+    assert!(!neo_reductions::api::verify_dec_public(
         &s,
         &params,
         &parent_bad2,
@@ -172,10 +174,11 @@ fn verify_dec_public_ignores_stale_ct_shell_but_checks_y_aux_and_x_entries() {
         ell_d
     ));
 
-    // Tamper only ct shell on a child and ensure DEC public still accepts.
+    // Same for child ct: the shape is unchanged and `y_ring` still
+    // recomposes, but the child CE claim itself is stale.
     let mut child1_bad = child1.clone();
     child1_bad.ct[t_eff - 1] += K::ONE;
-    assert!(neo_reductions::api::verify_dec_public(
+    assert!(!neo_reductions::api::verify_dec_public(
         &s,
         &params,
         &parent,
@@ -210,7 +213,7 @@ fn verify_dec_public_ignores_stale_ct_shell_but_checks_y_aux_and_x_entries() {
 }
 
 #[test]
-fn verify_dec_public_ignores_y_zcol_and_s_col_shell_when_present() {
+fn verify_dec_public_ignores_y_zcol_but_checks_s_col_when_present() {
     let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let d_pad = 1usize << ell_d;
@@ -220,7 +223,8 @@ fn verify_dec_public_ignores_y_zcol_and_s_col_shell_when_present() {
 
     let m_in = 1usize;
     let r = vec![K::from(F::from_u64(3)), K::from(F::from_u64(5))];
-    let s_col = vec![K::from(F::from_u64(7))];
+    let ell_m = s.m.next_power_of_two().max(2).trailing_zeros() as usize;
+    let s_col = vec![K::from(F::from_u64(7)); ell_m];
     let t_eff = 1usize;
 
     // Child y / scalars (any consistent values).
@@ -338,7 +342,9 @@ fn verify_dec_public_ignores_y_zcol_and_s_col_shell_when_present() {
         ell_d
     ));
 
-    // y_zcol is transport shell on the public DEC boundary.
+    // y_zcol is transport shell on the public DEC boundary. It is not
+    // b-ary recomposed through DEC; terminal CE authority re-binds it
+    // against the opened witness.
     let mut parent_bad = parent.clone();
     parent_bad.y_zcol[0] += K::ONE;
     assert!(neo_reductions::api::verify_dec_public(
@@ -350,10 +356,12 @@ fn verify_dec_public_ignores_y_zcol_and_s_col_shell_when_present() {
         ell_d
     ));
 
-    // s_col is transport shell on the public DEC boundary as well.
+    // s_col is different: it is the point at which y_zcol is later
+    // interpreted, so the DEC public boundary requires the shared point
+    // to agree across parent and children.
     let mut child1_bad = child1.clone();
-    child1_bad.s_col = vec![K::from(F::from_u64(9))];
-    assert!(neo_reductions::api::verify_dec_public(
+    child1_bad.s_col[0] += K::ONE;
+    assert!(!neo_reductions::api::verify_dec_public(
         &s,
         &params,
         &parent,

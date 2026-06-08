@@ -34,6 +34,7 @@ RAM_PROBLEM.md
 .mco-runs/
 /checklists/
 docs/hypernova-paper
+/docs/
 .mco-sessions
 personal_notes
 .claude

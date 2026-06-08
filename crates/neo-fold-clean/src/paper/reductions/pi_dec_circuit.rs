@@ -16,6 +16,8 @@
 //!     - `parent.y_ring[j][ℓ] == Σ_{i∈[k]} b^{i-1} · child_i.y_ring[j][ℓ]`
 //!   (`y_ring` lanes hold `K`-elements; the sum is enforced separately on
 //!   each of the `s` base-field coefficients of `K`.)
+//! - Equality constraints that enforce
+//!   `parent.fold_digest == child_i.fold_digest`.
 //!
 //! ## What this gadget does NOT own
 //!
@@ -30,13 +32,13 @@
 //!   does not range-check the child `X` digits.
 
 use neo_ajtai::Commitment;
+use neo_math::ring::D;
 use neo_math::{KExtensions, F, K};
-use p3_field::{BasedVectorSpace, PrimeCharacteristicRing};
+use p3_field::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
 
 use crate::engine::r1cs_circuit::boolean;
 use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
-use crate::paper::digest::digest32_as_fields;
 use crate::paper::params::Params;
 use crate::paper::relations::CeClaim;
 
@@ -49,24 +51,48 @@ use crate::paper::relations::CeClaim;
 /// the verifier already pinned implicitly via `check_shapes`; they are
 /// re-exposed so downstream gadgets (e.g. the decider's CE-continuity
 /// gate) can branch on them without re-walking the underlying CE claim.
+///
+/// `aux_openings` / Pattern-A metadata are deliberately represented only
+/// by shape counters. The clean SplitNc/NIFS circuit does not implement
+/// those sidecar fields; strict DEC rejects them before relying on this
+/// wire bundle.
 #[derive(Clone, Debug)]
 pub struct CeClaimWires {
     /// `d * kappa` columns, column-major (matches `Commitment::data`).
     pub c_data: Vec<Var>,
     /// Ajtai dimension `d` of the commitment.
     pub c_d: usize,
+    pub c_d_var: Var,
     /// Ajtai dimension `kappa` of the commitment.
     pub c_kappa: usize,
+    pub c_kappa_var: Var,
     /// `rows * cols` columns, row-major.
     pub x: Vec<Var>,
     pub x_rows: usize,
+    pub x_rows_var: Var,
     pub x_cols: usize,
+    pub x_cols_var: Var,
     /// Public input length the claim was constructed under.
     pub m_in: usize,
+    pub m_in_var: Var,
+    /// Unsupported in the clean SplitNc/NIFS circuit. Must be zero.
+    pub aux_openings_len: usize,
+    /// Unsupported Pattern-A metadata. Must be zero.
+    pub c_step_coords_len: usize,
+    pub u_offset: usize,
+    pub u_len: usize,
     /// `t` outer × `d` lanes × `s` base-field columns per K-element.
     /// Index as `y_ring[j][lane * s + limb]`.
     pub y_ring: Vec<Vec<Var>>,
     pub y_ring_lanes: usize,
+    /// SuperNeo scalar/constant-term view of `y_ring`. Per Theorem 5 of
+    /// the SuperNeo paper, `ct(y_j) = M̄_j z(r)` — the constant term of
+    /// the K-valued ring evaluation equals the field-level multilinear
+    /// eval. In flat-limb form, `ct[j] == (y_ring[j][0], y_ring[j][1])`
+    /// (the lane-0 K-element of `y_ring[j]`). One `KVar` per CCS matrix.
+    /// Bound to the y_ring layout by
+    /// `paper::decider_ce_relation::evaluation::enforce_ct_from_y_ring`.
+    pub ct: Vec<KVar>,
     /// CE evaluation point `r ∈ K^{log n}`. Shared between parent and all
     /// children in a Π_DEC.V step; enforced via [`enforce_r_consistency`].
     pub r: Vec<KVar>,
@@ -78,8 +104,7 @@ pub struct CeClaimWires {
     /// column). Index as `y_zcol[lane * s + limb]`. **Not** subject to
     /// b-ary recomposition: Π_CCS outputs mix MCS digit-decomposed and ME
     /// linear y_zcols, so `Σ b^{i-1} · child.y_zcol ≠ parent.y_zcol` in
-    /// general. Children's y_zcol values are re-bound by the next step's
-    /// Π_CCS NC terminal identity. Mirrors native `verify_dec_public`.
+    /// general. Children's y_zcol values are not DEC authority.
     pub y_zcol: Vec<Var>,
     pub y_zcol_lanes: usize,
     /// `fold_digest` field of the CE claim, projected to four base-field
@@ -147,12 +172,6 @@ pub fn enforce_dec_v(builder: &mut R1csBuilder, pp: &Params, wires: &DecInputWir
     for j in 0..wires.parent.y_ring.len() {
         enforce_lane_combination_y(builder, j, &wires.parent.y_ring[j], &wires.children, &b_pows);
     }
-    // NOTE: No y_zcol b-ary recomposition. Native `verify_dec_public` does
-    // not enforce `parent.y_zcol == Σ b^{i-1} · child.y_zcol`. The identity
-    // doesn't hold in production because Π_CCS outputs mix MCS y_zcol
-    // (digit-decomposed) and ME y_zcol (linear) — their Π_RLC combination
-    // doesn't telescope under Π_DEC's b-ary split. Children's y_zcol are
-    // re-bound by the next step's Π_CCS NC terminal identity.
     Ok(())
 }
 
@@ -168,6 +187,43 @@ pub fn enforce_x_bitness(builder: &mut R1csBuilder, pp: &Params, wires: &DecInpu
             boolean::enforce_low_norm(builder, x_var, b);
         }
     }
+}
+
+/// Enforce that each active packed child `X` entry lies in the centered
+/// CE(b) alphabet `{-(b-1), ..., +(b-1)}`. Π_DEC outputs CE(b) children;
+/// b-ary recomposition alone would allow out-of-alphabet child public
+/// projections that cancel in the parent.
+pub fn enforce_child_x_balanced_alphabet(
+    builder: &mut R1csBuilder,
+    pp: &Params,
+    wires: &DecInputWires,
+) -> Result<(), Error> {
+    let b = pp.b();
+    if b < 2 {
+        return Err(Error::ShapeMismatch {
+            what: "child X alphabet bound",
+            expected: 2,
+            got: b as usize,
+            idx: 0,
+        });
+    }
+    for (idx, child) in wires.children.iter().enumerate() {
+        let active_cols = crate::paper::relations::superneo_public_x_cols(child.m_in);
+        if active_cols > child.x_cols {
+            return Err(Error::ShapeMismatch {
+                what: "child active X columns",
+                expected: child.x_cols,
+                got: active_cols,
+                idx,
+            });
+        }
+        for r in 0..child.x_rows {
+            for c in 0..active_cols {
+                enforce_centered_alphabet(builder, child.x[r * child.x_cols + c], b);
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Enforce `parent.r == child_i.r` for every child `i`. The CE evaluation
@@ -199,23 +255,102 @@ pub fn enforce_r_consistency(builder: &mut R1csBuilder, wires: &DecInputWires) -
 ///   1. [`enforce_dec_v`] — `(c, X, y_ring)` b-ary recomposition.
 ///   2. [`enforce_r_consistency`] — `parent.r == child_i.r` for all `i`.
 ///   3. [`enforce_s_col_consistency`] — `parent.s_col == child_i.s_col`.
+///   4. [`enforce_child_x_balanced_alphabet`] — child `X` active entries
+///      remain in the centered CE(b) alphabet.
+///   5. [`enforce_ct_consistency`] — every claim's cached `ct[j]` is the
+///      lane-0 K-element of `y_ring[j]`.
+///   6. `y_ring[D..] == 0` — SplitNc's padded CE representation is canonical.
+///   7. [`enforce_fold_digest_consistency`] — children carry the same
+///      transcript digest as their Π_DEC parent.
 ///
 /// Notably absent (and absent on the native side):
 ///   - **No `y_zcol` b-ary check.** Π_CCS outputs mix MCS digit-decomposed
 ///     and ME linear y_zcols; after Π_RLC the parent's y_zcol doesn't
-///     telescope under Π_DEC's b-ary split. Children's y_zcols are re-bound
-///     by the next step's Π_CCS NC terminal identity.
-///   - **No x bitness check.** `decompose_balanced_fixed_d_digits_k`
+///     telescope under Π_DEC's b-ary split. Children's y_zcols are not
+///     DEC authority.
+///   - **No unsigned x bitness check.** `decompose_balanced_fixed_d_digits_k`
 ///     produces signed digits (e.g. -1 ↦ p-1 in F), so an unsigned
-///     `{0..b-1}` check would reject honest provers. Low-norm soundness is
-///     carried by Ajtai-commitment binding, not by a verifier-side range
-///     check on `child.X`. [`enforce_x_bitness`] remains available for
-///     callers that have an unsigned range invariant to enforce.
+///     `{0..b-1}` check would reject honest provers. Strict mode enforces the
+///     centered CE(b) alphabet instead. [`enforce_x_bitness`] remains
+///     available for callers that have an unsigned range invariant to enforce.
 pub fn enforce_dec_v_strict(builder: &mut R1csBuilder, pp: &Params, wires: &DecInputWires) -> Result<(), Error> {
     enforce_dec_v(builder, pp, wires)?;
+    enforce_shape_metadata_consistency(builder, wires);
     enforce_r_consistency(builder, wires)?;
     enforce_s_col_consistency(builder, wires)?;
     enforce_inactive_x_zero(builder, wires)?;
+    enforce_child_x_balanced_alphabet(builder, pp, wires)?;
+    enforce_ct_consistency(builder, wires)?;
+    enforce_y_ring_padding_zero(builder, wires);
+    enforce_fold_digest_consistency(builder, wires)?;
+    Ok(())
+}
+
+/// Enforce parent/child equality for non-wire CE shape metadata as rows.
+/// `check_shapes` still fail-closes malformed vector lengths before any
+/// indexing; this helper prevents scalar metadata (`c.d`, `c.kappa`,
+/// `X.rows`, `X.cols`, `m_in`) from becoming an unconstrained side channel
+/// when the malformed values are large enough to synthesize a circuit.
+pub fn enforce_shape_metadata_consistency(builder: &mut R1csBuilder, wires: &DecInputWires) {
+    for child in &wires.children {
+        enforce_var_eq(builder, wires.parent.c_d_var, child.c_d_var);
+        enforce_var_eq(builder, wires.parent.c_kappa_var, child.c_kappa_var);
+        enforce_var_eq(builder, wires.parent.x_rows_var, child.x_rows_var);
+        enforce_var_eq(builder, wires.parent.x_cols_var, child.x_cols_var);
+        enforce_var_eq(builder, wires.parent.m_in_var, child.m_in_var);
+    }
+}
+
+/// Enforce the SuperNeo implementation invariant `ct[j] == y_ring[j][0]`
+/// for the parent and every child. The paper CE instance carries
+/// `y_ring`; `ct` is a cached scalar/constant-term view used by later
+/// verifier equations. Keeping it derived here prevents it from becoming
+/// a shadow authoritative field.
+pub fn enforce_ct_consistency(builder: &mut R1csBuilder, wires: &DecInputWires) -> Result<(), Error> {
+    enforce_ct_consistency_one(builder, &wires.parent, 0)?;
+    for (idx, child) in wires.children.iter().enumerate() {
+        enforce_ct_consistency_one(builder, child, idx)?;
+    }
+    Ok(())
+}
+
+fn enforce_ct_consistency_one(builder: &mut R1csBuilder, claim: &CeClaimWires, idx: usize) -> Result<(), Error> {
+    if claim.ct.len() != claim.y_ring.len() {
+        return Err(Error::ShapeMismatch {
+            what: "ct length",
+            expected: claim.y_ring.len(),
+            got: claim.ct.len(),
+            idx,
+        });
+    }
+    for (j, (ct, row)) in claim.ct.iter().zip(claim.y_ring.iter()).enumerate() {
+        if row.len() < K_LIMBS {
+            return Err(Error::ShapeMismatch {
+                what: "y_ring[j] constant-term limbs",
+                expected: K_LIMBS,
+                got: row.len(),
+                idx: j,
+            });
+        }
+        builder.enforce_eq(&Lc::from_var(ct.c0), &Lc::from_var(row[0]));
+        builder.enforce_eq(&Lc::from_var(ct.c1), &Lc::from_var(row[1]));
+    }
+    Ok(())
+}
+
+/// Enforce that Π_DEC does not mint fresh transcript authorities. The
+/// children are a b-ary decomposition of the parent CE claim; their
+/// `fold_digest` is the Π_CCS transcript digest carried through the CE
+/// claim and must remain equal to the parent's digest.
+pub fn enforce_fold_digest_consistency(builder: &mut R1csBuilder, wires: &DecInputWires) -> Result<(), Error> {
+    for child in &wires.children {
+        for lane in 0..wires.parent.fold_digest_fields.len() {
+            builder.enforce_eq(
+                &Lc::from_var(child.fold_digest_fields[lane]),
+                &Lc::from_var(wires.parent.fold_digest_fields[lane]),
+            );
+        }
+    }
     Ok(())
 }
 
@@ -253,22 +388,30 @@ fn enforce_inactive_x_zero_one(builder: &mut R1csBuilder, claim: &CeClaimWires, 
     Ok(())
 }
 
-/// Validate that parent + every child have SplitNc-shaped `y_ring` rows and
-/// `y_zcol` of exactly `d_pad = 2^ell_d` K-element lanes.
+/// Validate that parent + every child have exactly `t` SplitNc-shaped
+/// `y_ring` rows and `y_zcol` of exactly `d_pad = 2^ell_d` K-element lanes.
 ///
 /// `enforce_dec_v`'s generic [`check_shapes`] only enforces parent ↔ child
 /// length parity — that's enough for the b-ary recomposition algebra but
-/// doesn't catch the case where both sides are silently un-padded. The
-/// SplitNc verifier path requires the Ajtai-padded shape; NIFS.V layers
-/// this check on top of [`enforce_dec_v_strict`] before consuming the
-/// wires.
-pub fn enforce_split_nc_d_pad_shape(wires: &DecInputWires, d_pad: usize) -> Result<(), Error> {
+/// doesn't catch the case where both sides carry extra rows or silently
+/// un-padded rows. The SplitNc verifier path requires the structure-owned
+/// matrix count plus Ajtai-padded lane shape; NIFS.V layers this check on
+/// top of [`enforce_dec_v_strict`] before consuming the wires.
+pub fn enforce_split_nc_d_pad_shape(wires: &DecInputWires, t: usize, d_pad: usize) -> Result<(), Error> {
     let label = |what: &'static str, got: usize, idx: usize| Error::ShapeMismatch {
         what,
         expected: d_pad,
         got,
         idx,
     };
+    if wires.parent.y_ring.len() != t {
+        return Err(Error::ShapeMismatch {
+            what: "parent.y_ring outer length",
+            expected: t,
+            got: wires.parent.y_ring.len(),
+            idx: 0,
+        });
+    }
     for (j, row) in wires.parent.y_ring.iter().enumerate() {
         if wires.parent.y_ring_lanes != d_pad || row.len() != d_pad * K_LIMBS {
             return Err(label("parent.y_ring[j] lane count", wires.parent.y_ring_lanes, j));
@@ -278,6 +421,14 @@ pub fn enforce_split_nc_d_pad_shape(wires: &DecInputWires, d_pad: usize) -> Resu
         return Err(label("parent.y_zcol lane count", wires.parent.y_zcol_lanes, 0));
     }
     for (idx, child) in wires.children.iter().enumerate() {
+        if child.y_ring.len() != t {
+            return Err(Error::ShapeMismatch {
+                what: "child.y_ring outer length",
+                expected: t,
+                got: child.y_ring.len(),
+                idx,
+            });
+        }
         for row in child.y_ring.iter() {
             if child.y_ring_lanes != d_pad || row.len() != d_pad * K_LIMBS {
                 return Err(label("child.y_ring[j] lane count", child.y_ring_lanes, idx));
@@ -288,6 +439,28 @@ pub fn enforce_split_nc_d_pad_shape(wires: &DecInputWires, d_pad: usize) -> Resu
         }
     }
     Ok(())
+}
+
+/// Enforce canonical SplitNc `y_ring` padding: lanes `D..` must be zero.
+///
+/// Native Π_CCS / terminal CE construction computes `y_ring` as the real
+/// `D` ring coefficients padded up to `d_pad = 2^ell_d` with zeros. Π_DEC's
+/// b-ary recomposition alone would allow children to carry nonzero padding
+/// lanes that cancel in the parent. Since children are the next running
+/// accumulator, they must be canonical outputs, not just recomposition-valid.
+fn enforce_y_ring_padding_zero(builder: &mut R1csBuilder, wires: &DecInputWires) {
+    enforce_y_ring_padding_zero_one(builder, &wires.parent);
+    for child in &wires.children {
+        enforce_y_ring_padding_zero_one(builder, child);
+    }
+}
+
+fn enforce_y_ring_padding_zero_one(builder: &mut R1csBuilder, claim: &CeClaimWires) {
+    for row in &claim.y_ring {
+        for limb in row.iter().skip(D * K_LIMBS) {
+            builder.enforce_eq(&Lc::from_var(*limb), &Lc::zero());
+        }
+    }
 }
 
 /// Enforce `parent.s_col == child_i.s_col` for every child `i`. The NC
@@ -356,7 +529,7 @@ fn enforce_lane_combination_y(
     }
 }
 
-fn alloc_ce_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> CeClaimWires {
+pub(crate) fn alloc_ce_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> CeClaimWires {
     let c_data = builder.alloc_vec(&claim.c.data);
     let x_rows = claim.X.rows();
     let x_cols = claim.X.cols();
@@ -380,6 +553,19 @@ fn alloc_ce_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> CeClaimWires {
         })
         .collect::<Vec<_>>();
     let y_ring_lanes = claim.y_ring.first().map(|row| row.len()).unwrap_or(0);
+    // `ct[j]` is the SuperNeo scalar/constant-term view of `y_ring[j]`.
+    // Native value (= `ct_from_y_digits(y_ring[j])` = `y_ring[j][0]`)
+    // is filled here; the wire-equality binding `ct[j] == y_ring[j][lane=0]`
+    // is enforced by
+    // `paper::decider_ce_relation::evaluation::enforce_ct_from_y_ring`.
+    let ct = claim
+        .ct
+        .iter()
+        .map(|k| {
+            let [c0, c1] = k.as_coeffs();
+            KVar::alloc(builder, c0, c1)
+        })
+        .collect();
     let r = claim
         .r
         .iter()
@@ -403,10 +589,12 @@ fn alloc_ce_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> CeClaimWires {
             y_zcol.push(builder.alloc(*limb));
         }
     }
-    // Allocate the CE claim's fold_digest as four base-field wires so
-    // downstream gadgets (decider CE-continuity gate) can pin it equal
-    // to the next step's running's `fold_digest_fields`.
-    let fold_digest_lanes = digest32_as_fields(claim.fold_digest);
+    // Allocate the CE claim's fold_digest as four canonical base-field wires
+    // so downstream gadgets (decider CE-continuity gate) can pin it equal to
+    // the next step's running's `fold_digest_fields`. Reject noncanonical
+    // byte limbs instead of reducing them modulo F; proof bytes should not be
+    // able to alias a different transcript digest in-circuit.
+    let fold_digest_lanes = canonical_digest32_fields_or_unsat(builder, claim.fold_digest);
     let fold_digest_fields: [Var; 4] = [
         builder.alloc(fold_digest_lanes[0]),
         builder.alloc(fold_digest_lanes[1]),
@@ -416,13 +604,23 @@ fn alloc_ce_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> CeClaimWires {
     CeClaimWires {
         c_data,
         c_d: claim.c.d,
+        c_d_var: alloc_usize(builder, claim.c.d),
         c_kappa: claim.c.kappa,
+        c_kappa_var: alloc_usize(builder, claim.c.kappa),
         x,
         x_rows,
+        x_rows_var: alloc_usize(builder, x_rows),
         x_cols,
+        x_cols_var: alloc_usize(builder, x_cols),
         m_in: claim.m_in,
+        m_in_var: alloc_usize(builder, claim.m_in),
+        aux_openings_len: claim.aux_openings.len(),
+        c_step_coords_len: claim.c_step_coords.len(),
+        u_offset: claim.u_offset,
+        u_len: claim.u_len,
         y_ring,
         y_ring_lanes,
+        ct,
         r,
         s_col,
         y_zcol,
@@ -431,8 +629,148 @@ fn alloc_ce_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> CeClaimWires {
     }
 }
 
+fn canonical_digest32_fields_or_unsat(builder: &mut R1csBuilder, bytes: [u8; 32]) -> [F; 4] {
+    let mut fields = [F::ZERO; 4];
+    for (lane, out) in fields.iter_mut().enumerate() {
+        let start = lane * 8;
+        let value = u64::from_le_bytes(
+            bytes[start..start + 8]
+                .try_into()
+                .expect("8-byte digest limb"),
+        );
+        if value >= F::ORDER_U64 {
+            builder.enforce_eq(&Lc::zero(), &Lc::from_const(F::ONE));
+            return [F::ZERO; 4];
+        }
+        *out = F::from_u64(value);
+    }
+    fields
+}
+
+fn alloc_usize(builder: &mut R1csBuilder, value: usize) -> Var {
+    let v = builder.alloc(F::from_u64(value as u64));
+    builder.enforce_eq(&Lc::from_var(v), &Lc::from_const(F::from_u64(value as u64)));
+    v
+}
+
+fn enforce_var_eq(builder: &mut R1csBuilder, a: Var, b: Var) {
+    builder.enforce_eq(&Lc::from_var(a), &Lc::from_var(b));
+}
+
+fn enforce_centered_alphabet(builder: &mut R1csBuilder, v: Var, b: u32) {
+    debug_assert!(b >= 2, "caller gates b >= 2");
+    let bound = b as i64 - 1;
+    let alphabet: Vec<i64> = (-bound..=bound).collect();
+    let mut acc: Option<Lc> = None;
+    let total = alphabet.len();
+    for (i, a) in alphabet.iter().enumerate() {
+        let mut factor = Lc::from_var(v);
+        let neg_a = if *a >= 0 {
+            -F::from_u64(*a as u64)
+        } else {
+            F::from_u64((-*a) as u64)
+        };
+        factor.add_constant(neg_a);
+        match acc.take() {
+            None => acc = Some(factor),
+            Some(prev) => {
+                if i + 1 == total {
+                    builder.enforce(&prev, &factor, &Lc::zero());
+                    return;
+                }
+                let next = builder.alloc_mul(&prev, &factor);
+                acc = Some(Lc::from_var(next));
+            }
+        }
+    }
+}
+
 fn check_shapes(parent: &CeClaimWires, children: &[CeClaimWires]) -> Result<(), Error> {
+    reject_unsupported_sidecar_fields(parent, 0)?;
+    if parent.c_d != D {
+        return Err(Error::ShapeMismatch {
+            what: "parent commitment d",
+            expected: D,
+            got: parent.c_d,
+            idx: 0,
+        });
+    }
+    let parent_c_len = D * parent.c_kappa;
+    if parent.c_data.len() != parent_c_len {
+        return Err(Error::ShapeMismatch {
+            what: "parent commitment lane count",
+            expected: parent_c_len,
+            got: parent.c_data.len(),
+            idx: 0,
+        });
+    }
+    if parent.x_rows != D {
+        return Err(Error::ShapeMismatch {
+            what: "parent X rows",
+            expected: D,
+            got: parent.x_rows,
+            idx: 0,
+        });
+    }
+    if parent.x_cols != parent.m_in {
+        return Err(Error::ShapeMismatch {
+            what: "parent X cols vs m_in",
+            expected: parent.m_in,
+            got: parent.x_cols,
+            idx: 0,
+        });
+    }
     for (idx, child) in children.iter().enumerate() {
+        reject_unsupported_sidecar_fields(child, idx)?;
+        if child.c_d != parent.c_d {
+            return Err(Error::ShapeMismatch {
+                what: "child commitment d",
+                expected: parent.c_d,
+                got: child.c_d,
+                idx,
+            });
+        }
+        if child.c_kappa != parent.c_kappa {
+            return Err(Error::ShapeMismatch {
+                what: "child commitment kappa",
+                expected: parent.c_kappa,
+                got: child.c_kappa,
+                idx,
+            });
+        }
+        let child_c_len = D * child.c_kappa;
+        if child.c_data.len() != child_c_len {
+            return Err(Error::ShapeMismatch {
+                what: "child commitment lane count",
+                expected: child_c_len,
+                got: child.c_data.len(),
+                idx,
+            });
+        }
+        if child.m_in != parent.m_in {
+            return Err(Error::ShapeMismatch {
+                what: "child m_in",
+                expected: parent.m_in,
+                got: child.m_in,
+                idx,
+            });
+        }
+        if child.x_rows != D {
+            return Err(Error::ShapeMismatch {
+                what: "child X rows",
+                expected: D,
+                got: child.x_rows,
+                idx,
+            });
+        }
+        if child.x_cols != child.m_in {
+            return Err(Error::ShapeMismatch {
+                what: "child X cols vs m_in",
+                expected: child.m_in,
+                got: child.x_cols,
+                idx,
+            });
+        }
         if child.c_data.len() != parent.c_data.len() {
             return Err(Error::ShapeMismatch {
                 what: "commitment lane count",
@@ -483,6 +821,42 @@ fn check_shapes(parent: &CeClaimWires, children: &[CeClaimWires]) -> Result<(), 
                 idx,
             });
         }
+    }
+    Ok(())
+}
+
+fn reject_unsupported_sidecar_fields(claim: &CeClaimWires, idx: usize) -> Result<(), Error> {
+    if claim.aux_openings_len != 0 {
+        return Err(Error::ShapeMismatch {
+            what: "aux_openings",
+            expected: 0,
+            got: claim.aux_openings_len,
+            idx,
+        });
+    }
+    if claim.c_step_coords_len != 0 {
+        return Err(Error::ShapeMismatch {
+            what: "c_step_coords",
+            expected: 0,
+            got: claim.c_step_coords_len,
+            idx,
+        });
+    }
+    if claim.u_offset != 0 {
+        return Err(Error::ShapeMismatch {
+            what: "u_offset",
+            expected: 0,
+            got: claim.u_offset,
+            idx,
+        });
+    }
+    if claim.u_len != 0 {
+        return Err(Error::ShapeMismatch {
+            what: "u_len",
+            expected: 0,
+            got: claim.u_len,
+            idx,
+        });
     }
     Ok(())
 }

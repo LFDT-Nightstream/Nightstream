@@ -17,7 +17,9 @@ use std::sync::Arc;
 
 // Common types and utility functions shared across engines
 mod common;
+mod digit_table;
 mod rlc;
+mod row_poly;
 mod sparse;
 mod terminal_identities;
 
@@ -109,6 +111,7 @@ pub use common::{
     dec_reduction_paper_exact_with_commit_check,
     dec_reduction_paper_exact_with_sparse_cache,
     dec_reduction_paper_exact_with_superneo_cache,
+    dec_reduction_paper_exact_with_superneo_cache_and_digit_flags,
     // Core equalities & helpers
     eq_points,
     // Q(X) and sums

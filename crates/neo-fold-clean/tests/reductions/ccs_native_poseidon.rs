@@ -157,7 +157,7 @@ struct Fixture {
 
 fn build_fixture() -> Fixture {
     let structure = degree7_sbox_structure();
-    let params = config::r1cs_params(structure.n, structure.m).expect("params");
+    let params = config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree()).expect("params");
     install_ajtai_module(&params, &structure);
     let cols = structure.m.div_ceil(D);
     let log = AjtaiSModule::from_global_for_dims(D, cols).expect("Ajtai module");
@@ -174,7 +174,7 @@ fn build_fixture() -> Fixture {
 
 fn build_bit_backed_fixture(x: F) -> Fixture {
     let structure = bit_backed_sbox_structure();
-    let params = config::r1cs_params(structure.n, structure.m).expect("params");
+    let params = config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree()).expect("params");
     install_ajtai_module(&params, &structure);
     let cols = structure.m.div_ceil(D);
     let log = AjtaiSModule::from_global_for_dims(D, cols).expect("Ajtai module");
@@ -190,7 +190,7 @@ fn build_bit_backed_fixture(x: F) -> Fixture {
 }
 
 fn prove_verify_single_fresh(structure: &Structure, z: Vec<F>) -> Result<Vec<neo_fold_clean::CeClaim>, pi_ccs::Error> {
-    let params = config::r1cs_params(structure.n, structure.m).expect("params");
+    let params = config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree()).expect("params");
     install_ajtai_module(&params, structure);
     let cols = structure.m.div_ceil(D);
     let log = AjtaiSModule::from_global_for_dims(D, cols).expect("Ajtai module");
@@ -358,7 +358,7 @@ fn native_pi_ccs_accepts_bit_backed_degree7_sbox_relation() {
 #[test]
 fn native_pi_ccs_rejects_wrong_bit_backed_degree7_output() {
     let structure = bit_backed_sbox_structure();
-    let params = config::r1cs_params(structure.n, structure.m).expect("params");
+    let params = config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree()).expect("params");
     install_ajtai_module(&params, &structure);
     let cols = structure.m.div_ceil(D);
     let log = AjtaiSModule::from_global_for_dims(D, cols).expect("Ajtai module");

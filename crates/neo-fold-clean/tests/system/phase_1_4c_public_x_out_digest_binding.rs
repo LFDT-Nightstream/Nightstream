@@ -37,6 +37,7 @@ fn public_x_out_lane_bit_starts(layout: &FPrimeImageLayout) -> [usize; 4] {
 fn binding_config(boundary_bindings: Vec<OneShotDigestToPublicXOutBinding>) -> FPrimeImageConfig {
     FPrimeImageConfig {
         limbs: 3,
+        app_private_var_widths: Vec::new(),
         boundary_bits: BOUNDARY_BITS,
         nifs_payload_shapes: vec![],
         kmul_count: 0,
@@ -50,9 +51,11 @@ fn binding_config(boundary_bindings: Vec<OneShotDigestToPublicXOutBinding>) -> F
         poseidon_one_shot_preimage_lens: vec![3],
         sponge_transcript_permutes: 0,
         one_shot_digest_to_state_out_bindings: vec![],
+        one_shot_digest_to_state_in_bindings: vec![],
         one_shot_digest_to_public_x_out_bindings: boundary_bindings,
         poseidon_transition_enforcements: vec![],
         unified_accumulator_selector: None,
+        initial_semantic_state_digest_anchor: None,
     }
 }
 
@@ -118,8 +121,8 @@ fn phase_1_4c_poseidon_boundary_binding_row_shape() {
     assert_eq!(structure.public_x_out_binding_row_count(), POSEIDON2_DIGEST_LEN);
     assert_eq!(
         structure.public_x_out_binding_row_start(),
-        structure.state_out_digest_binding_row_start() + structure.state_out_digest_binding_row_count(),
-        "poseidon↔boundary binding rows come after poseidon↔state_out binding rows"
+        structure.public_trace_mirror_row_start() + structure.public_trace_mirror_row_count(),
+        "poseidon↔boundary binding rows come after the canonical public_trace mirror rows"
     );
     assert_eq!(
         structure.public_x_out_binding_row(0, 0),

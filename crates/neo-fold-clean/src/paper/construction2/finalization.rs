@@ -20,7 +20,7 @@ use crate::paper::construction2::running::RunningInstance;
 use crate::paper::construction2::state::State;
 use crate::paper::construction2::step_proof::{FinalFoldProof, TerminalFoldInputs};
 use crate::paper::construction2::verifier_key::VerifierKey;
-use crate::paper::construction2::{transition, Error};
+use crate::paper::construction2::{transition, Error, SemanticStateMode};
 use crate::paper::digest;
 use crate::paper::nifs;
 use crate::paper::params::Params;
@@ -56,6 +56,7 @@ pub(crate) fn prove_final_fold(
     combine_b_pows: DecMixer,
     vk: &VerifierKey,
     state: State,
+    semantic_mode: SemanticStateMode,
 ) -> Result<(State, Option<FinalFoldProof>), Error> {
     let State {
         chunk_count,
@@ -63,6 +64,8 @@ pub(crate) fn prove_final_fold(
         z_0,
         z_i,
         pc,
+        initial_semantic_state_digest,
+        semantic_state_digest,
         acc_digest: _, // recomputed from post-flush running below
         public_trace,
         proof,
@@ -77,7 +80,9 @@ pub(crate) fn prove_final_fold(
                     z_0,
                     z_i,
                     pc,
-                    acc_digest: digest::accumulator_digest_from_claims(pp.b(), &[]),
+                    initial_semantic_state_digest,
+                    semantic_state_digest,
+                    acc_digest: digest::AccumulatorHandle::empty().digest(),
                     public_trace,
                     proof: ProofState::Initial,
                 },
@@ -113,13 +118,13 @@ pub(crate) fn prove_final_fold(
 
     // Re-derive acc_digest from the post-flush running's Π_RLC parent.
     let post_acc_digest = if post_running.claims.is_empty() {
-        digest::accumulator_digest_from_claims(pp.b(), &[])
+        digest::AccumulatorHandle::empty().digest()
     } else {
         let parent = post_running
             .parent_authority
             .as_ref()
             .expect("post-flush running must carry its Pi_RLC parent authority");
-        digest::accumulator_digest_from_parent_claim(post_running.claims.len(), parent)
+        digest::AccumulatorHandle::from_running_parts(&post_running.claims, Some(parent)).digest()
     };
 
     let state_after = State {
@@ -128,6 +133,8 @@ pub(crate) fn prove_final_fold(
         z_0,
         z_i,
         pc,
+        initial_semantic_state_digest,
+        semantic_state_digest,
         acc_digest: post_acc_digest,
         public_trace,
         proof: ProofState::Active {
@@ -136,7 +143,7 @@ pub(crate) fn prove_final_fold(
         },
     };
     let final_proof = nifs_with_inputs.map(|(nifs, terminal_inputs)| FinalFoldProof {
-        x_out: transition::compute_x_out(vk, pp, structure_digest, &state_after),
+        x_out: transition::compute_x_out(vk, pp, structure_digest, &state_after, semantic_mode),
         nifs,
         terminal_inputs,
     });
@@ -187,6 +194,7 @@ pub(crate) fn verify_final_fold(
     vk: &VerifierKey,
     state: State,
     proof: Option<&FinalFoldProof>,
+    semantic_mode: SemanticStateMode,
 ) -> Result<State, Error> {
     let State {
         chunk_count,
@@ -194,6 +202,8 @@ pub(crate) fn verify_final_fold(
         z_0,
         z_i,
         pc,
+        initial_semantic_state_digest,
+        semantic_state_digest,
         acc_digest: _,
         public_trace,
         proof: prev_proof,
@@ -210,7 +220,9 @@ pub(crate) fn verify_final_fold(
                 z_0,
                 z_i,
                 pc,
-                acc_digest: digest::accumulator_digest_from_claims(pp.b(), &[]),
+                initial_semantic_state_digest,
+                semantic_state_digest,
+                acc_digest: digest::AccumulatorHandle::empty().digest(),
                 public_trace,
                 proof: ProofState::Initial,
             });
@@ -239,13 +251,13 @@ pub(crate) fn verify_final_fold(
     };
 
     let post_acc_digest = if post_running.claims.is_empty() {
-        digest::accumulator_digest_from_claims(pp.b(), &[])
+        digest::AccumulatorHandle::empty().digest()
     } else {
         let parent = post_running
             .parent_authority
             .as_ref()
             .expect("post-flush running must carry its Pi_RLC parent authority");
-        digest::accumulator_digest_from_parent_claim(post_running.claims.len(), parent)
+        digest::AccumulatorHandle::from_running_parts(&post_running.claims, Some(parent)).digest()
     };
     let state_after = State {
         chunk_count,
@@ -253,6 +265,8 @@ pub(crate) fn verify_final_fold(
         z_0,
         z_i,
         pc,
+        initial_semantic_state_digest,
+        semantic_state_digest,
         acc_digest: post_acc_digest,
         public_trace,
         proof: ProofState::Active {
@@ -262,7 +276,7 @@ pub(crate) fn verify_final_fold(
     };
 
     if let Some(proof) = proof {
-        let x_out = transition::compute_x_out(vk, pp, structure_digest, &state_after);
+        let x_out = transition::compute_x_out(vk, pp, structure_digest, &state_after, semantic_mode);
         if x_out != proof.x_out {
             return Err(Error::XOutMismatch);
         }

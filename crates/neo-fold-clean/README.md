@@ -100,15 +100,18 @@ Concretely:
 - **Non-replay terminal verifier.** `verify_uncompressed` re-runs the
   terminal NIFS fold against the snapshotted `terminal_inputs` and
   binds the derived state to the recorded `proof.state`; it does **not**
-  iterate `audit.steps`. The audit-form verifier
-  `verify_uncompressed_audit` adds the chain-replay layer on top.
+  iterate `audit.steps`. It accepts non-F' terminal folds and single-
+  chunk F' chains; multi-chunk F' chains fail closed until the compressed
+  decider proves the recursive F'/NIFS.V induction. The audit-form
+  verifier `verify_uncompressed_audit` adds the chain-replay layer on top.
 - **End-to-end on compiler-built chains.** `FibonacciChainBuilder` and
   `R1csChainBuilder` own the compile → prove → derive-next-fold →
   compile → extend loop. Default tests cover single-step terminal verify
   and recursive builder append under smaller test params. The canonical
   big-plan Fibonacci two-step test remains `#[ignore]` because it runs
-  the full production-shape compile + 2× extend + finalise + audit verify
-  + terminal verify path.
+  the full compile + recursive extend + finalise path, proves audit
+  replay accepts, and proves terminal-only verification rejects the
+  multi-chunk F' projection.
 - **Generic R1CS support.** The `r1cs_f_prime` frontend has
   default-green coverage for:
   - R1CS row embedding (satisfying / unsatisfying witness
@@ -145,7 +148,7 @@ following tests are `#[ignore]`'d by default and run only with
 
 | Binary | Ignored test(s) | Why ignored | How to run |
 |---|---|---|---|
-| `system_fibonacci_compiler_unified_structure` | `compiler_two_step_chain_builds_from_scratch_and_verify_uncompressed_accepts` | ~500 s end-to-end (compile + 2× extend + finalize + audit verify + terminal verify) under big plan | `cargo test --release -p neo-fold-clean --test system_fibonacci_compiler_unified_structure -- --ignored compiler_two_step_chain_builds_from_scratch_and_verify_uncompressed_accepts` |
+| `system_fibonacci_compiler_unified_structure` | `compiler_two_step_chain_builds_from_scratch_and_rejects_terminal_only` | Perf/integration snapshot: audit replay accepts a two-step F' chain while terminal-only verification rejects multi-chunk F' until the compressed decider proves the recursive F'/NIFS.V induction. | `cargo test --release -p neo-fold-clean --test system_fibonacci_compiler_unified_structure -- --ignored compiler_two_step_chain_builds_from_scratch_and_rejects_terminal_only` |
 | `system_phase_1_7a_non_linear_verifier` | All 14 tests | Each re-runs the terminal NIFS fold (~70 s × 14 ≫ 5-min cap even with shared bootstrap) | `cargo test --release -p neo-fold-clean --test system_phase_1_7a_non_linear_verifier -- --ignored` |
 | `system_ivc_invariants` | `decider_r1cs_size_must_be_constant_in_chain_length` | Two big-plan chains + two finalisations + two terminal syntheses | `cargo test --release -p neo-fold-clean --test system_ivc_invariants -- --ignored` |
 

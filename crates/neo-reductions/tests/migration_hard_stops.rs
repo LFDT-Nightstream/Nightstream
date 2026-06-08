@@ -64,5 +64,5 @@ fn legacy_me_mcs_identifiers_do_not_reappear_in_core_src() {
     ];
     assert_absent_tokens_in_src("crates/neo-ccs", &banned);
     assert_absent_tokens_in_src("crates/neo-reductions", &banned);
-    assert_absent_tokens_in_src("crates/neo-fold-prototype", &banned);
+    assert_absent_tokens_in_src("crates/neo-fold-clean", &banned);
 }

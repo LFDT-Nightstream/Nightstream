@@ -22,13 +22,14 @@
 use thiserror::Error;
 
 use neo_ajtai::AjtaiSModule;
+use neo_math::{D, K};
 use neo_reductions::optimized_engine::OptimizedStructureCache;
 
 use crate::engine::optimized as engine;
 use crate::engine::transcript::Transcript;
 use crate::paper::construction2::RunningInstance;
 use crate::paper::params::Params;
-use crate::paper::relations::{superneo_inactive_x_zero, CcsClaim, CcsInstance, CeClaim, Structure};
+use crate::paper::relations::{superneo_inactive_x_zero, CcsClaim, CcsInstance, CcsWitness, CeClaim, Structure};
 
 /// Engine-level sumcheck transcript, opaque at the paper layer.
 pub use neo_reductions::api::PiCcsProof as SumcheckProof;
@@ -67,8 +68,32 @@ pub fn prove(
     fresh: Vec<CcsInstance>,
     running: &RunningInstance,
 ) -> Result<Proof, Error> {
-    validate_input_shape(pp, &fresh, running)?;
-    let (outputs, sumcheck) = engine::prove_pi_ccs(tr.inner_mut(), pp, s, cache, fresh, running, log)?;
+    let (fresh_claims, fresh_witnesses) = split_fresh_instances(fresh);
+    prove_from_parts(tr, pp, s, cache, log, &fresh_claims, &fresh_witnesses, running)
+}
+
+pub(crate) fn prove_from_parts(
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    log: &AjtaiSModule,
+    fresh_claims: &[CcsClaim],
+    fresh_witnesses: &[CcsWitness],
+    running: &RunningInstance,
+) -> Result<Proof, Error> {
+    validate_input_shape(pp, s, fresh_claims, fresh_witnesses, running)?;
+    let (outputs, sumcheck) = engine::prove_pi_ccs_parts(
+        tr.inner_mut(),
+        pp,
+        s,
+        cache,
+        fresh_claims,
+        fresh_witnesses,
+        running,
+        log,
+    )?;
+    validate_clean_split_nc_claims(s, &outputs)?;
     Ok(Proof { sumcheck, outputs })
 }
 
@@ -96,7 +121,7 @@ pub fn verify(
     running: &RunningInstance,
     proof: &Proof,
 ) -> Result<Vec<CeClaim>, Error> {
-    validate_verifier_shape(pp, fresh_claims, &running.claims, &proof.outputs)?;
+    validate_verifier_shape(pp, s, fresh_claims, &running.claims, &proof.outputs)?;
     let ok = engine::verify_pi_ccs(
         tr.inner_mut(),
         pp,
@@ -132,9 +157,19 @@ fn validate_inactive_x_zero(claims: &[CeClaim], label: &'static str) -> Result<(
 }
 
 /// Step 0 (prover): K fresh ≥ 1, running length equals `pp.k_rho()` after step 1.
-fn validate_input_shape(pp: &Params, fresh: &[CcsInstance], running: &RunningInstance) -> Result<(), Error> {
-    if fresh.is_empty() {
+fn validate_input_shape(
+    pp: &Params,
+    s: &Structure,
+    fresh_claims: &[CcsClaim],
+    fresh_witnesses: &[CcsWitness],
+    running: &RunningInstance,
+) -> Result<(), Error> {
+    if fresh_claims.is_empty() {
         return Err(Error::Shape("K (fresh) must be \u{2265} 1"));
+    }
+    validate_fresh_count_within_rlc_guard(pp, fresh_claims.len())?;
+    if fresh_claims.len() != fresh_witnesses.len() {
+        return Err(Error::Shape("|fresh_claims| \u{2260} |fresh_witnesses|"));
     }
     if !running.shape_ok() {
         return Err(Error::Shape("running: |claims| \u{2260} |witnesses|"));
@@ -142,13 +177,39 @@ fn validate_input_shape(pp: &Params, fresh: &[CcsInstance], running: &RunningIns
     if !running.is_empty() && running.claims.len() as u32 != pp.k_rho() {
         return Err(Error::Shape("running length does not match params.k_rho()"));
     }
+    for (idx, claim) in fresh_claims.iter().enumerate() {
+        if claim.m_in > s.m {
+            return Err(Error::Shape("fresh m_in exceeds structure.m"));
+        }
+        if claim.x.len() != claim.m_in {
+            return Err(Error::Shape("fresh x length does not match m_in"));
+        }
+        let z_len = claim
+            .m_in
+            .checked_add(fresh_witnesses[idx].w.len())
+            .ok_or(Error::Shape("fresh m_in + witness length overflow"))?;
+        if z_len != s.m {
+            return Err(Error::Shape("fresh m_in + witness length must equal structure.m"));
+        }
+    }
     validate_inactive_x_zero(&running.claims, "running inactive X columns must be zero")?;
     Ok(())
+}
+
+fn split_fresh_instances(fresh: Vec<CcsInstance>) -> (Vec<CcsClaim>, Vec<CcsWitness>) {
+    let mut claims = Vec::with_capacity(fresh.len());
+    let mut witnesses = Vec::with_capacity(fresh.len());
+    for instance in fresh {
+        claims.push(instance.claim);
+        witnesses.push(instance.witness);
+    }
+    (claims, witnesses)
 }
 
 /// Step 0 (verifier): mirror of the prover shape check, on claims only.
 fn validate_verifier_shape(
     pp: &Params,
+    s: &Structure,
     fresh_claims: &[CcsClaim],
     running_claims: &[CeClaim],
     fold_outputs: &[CeClaim],
@@ -156,6 +217,7 @@ fn validate_verifier_shape(
     if fresh_claims.is_empty() {
         return Err(Error::Shape("K (fresh) must be \u{2265} 1"));
     }
+    validate_fresh_count_within_rlc_guard(pp, fresh_claims.len())?;
     if !running_claims.is_empty() && running_claims.len() as u32 != pp.k_rho() {
         return Err(Error::Shape("running length does not match params.k_rho()"));
     }
@@ -165,5 +227,71 @@ fn validate_verifier_shape(
     }
     validate_inactive_x_zero(running_claims, "running inactive X columns must be zero")?;
     validate_inactive_x_zero(fold_outputs, "fold output inactive X columns must be zero")?;
+    validate_clean_split_nc_claims(s, running_claims)?;
+    validate_clean_split_nc_claims(s, fold_outputs)?;
+    Ok(())
+}
+
+fn validate_fresh_count_within_rlc_guard(pp: &Params, fresh_len: usize) -> Result<(), Error> {
+    if fresh_len > pp.max_fresh_count() {
+        return Err(Error::Shape("K (fresh) exceeds params.max_fresh_count()"));
+    }
+    Ok(())
+}
+
+fn validate_clean_split_nc_claims(s: &Structure, claims: &[CeClaim]) -> Result<(), Error> {
+    for claim in claims {
+        validate_clean_split_nc_claim(s, claim)?;
+    }
+    Ok(())
+}
+
+fn validate_clean_split_nc_claim(s: &Structure, claim: &CeClaim) -> Result<(), Error> {
+    let d_pad = D.next_power_of_two();
+    let ell_n = s.n.next_power_of_two().max(2).trailing_zeros() as usize;
+    let ell_m = s.m.next_power_of_two().max(2).trailing_zeros() as usize;
+
+    if claim.r.len() != ell_n {
+        return Err(Error::Shape("CE r length must match SplitNc row point"));
+    }
+    if claim.s_col.len() != ell_m {
+        return Err(Error::Shape("CE s_col length must match SplitNc column point"));
+    }
+    if claim.y_ring.len() != s.t() {
+        return Err(Error::Shape("CE y_ring length must match structure.t"));
+    }
+    if claim.ct.len() != s.t() {
+        return Err(Error::Shape("CE ct length must match structure.t"));
+    }
+    if claim.y_zcol.len() != d_pad {
+        return Err(Error::Shape("CE y_zcol length must match padded ring degree"));
+    }
+    if !claim.aux_openings.is_empty() || !claim.c_step_coords.is_empty() || claim.u_offset != 0 || claim.u_len != 0 {
+        return Err(Error::Shape("CE claim carries unsupported SplitNc sidecars"));
+    }
+
+    for (ct, row) in claim.ct.iter().zip(&claim.y_ring) {
+        let Some(&constant_term) = row.first() else {
+            return Err(Error::Shape("CE y_ring row must expose a constant term"));
+        };
+        if *ct != constant_term {
+            return Err(Error::Shape("CE ct must equal y_ring constant term"));
+        }
+        if row.len() != d_pad {
+            return Err(Error::Shape("CE y_ring rows must use padded ring degree"));
+        }
+        if row.iter().skip(D).any(|&lane| lane != K::default()) {
+            return Err(Error::Shape("CE y_ring padding lanes must be zero"));
+        }
+    }
+    if claim
+        .y_zcol
+        .iter()
+        .skip(D)
+        .any(|&lane| lane != K::default())
+    {
+        return Err(Error::Shape("CE y_zcol padding lanes must be zero"));
+    }
+
     Ok(())
 }

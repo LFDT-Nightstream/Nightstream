@@ -125,6 +125,10 @@ fn decider_r1cs_size_must_be_constant_in_chain_length() {
         neo_fold_clean::finish_uncompressed_with_audit(&prep_short.prep, proof_short).expect("finish N=2");
     let synth_short =
         synthesize_last_step_terminal_r1cs(&prep_short.prep, &finished_short).expect("terminal synth N=2");
+    assert!(
+        synth_short.terminal_ce_direct_relations,
+        "terminal synthesis must emit terminal CE-relation rows for the short chain"
+    );
 
     let prep_long = fibonacci_f_prime::preprocess_seeded(&plan, 0x1F15_D004).expect("preprocess N=3");
     let steps_long = honest_state_threaded_encoded_f_prime_steps(3);
@@ -132,6 +136,10 @@ fn decider_r1cs_size_must_be_constant_in_chain_length() {
     let finished_long =
         neo_fold_clean::finish_uncompressed_with_audit(&prep_long.prep, proof_long).expect("finish N=3");
     let synth_long = synthesize_last_step_terminal_r1cs(&prep_long.prep, &finished_long).expect("terminal synth N=3");
+    assert!(
+        synth_long.terminal_ce_direct_relations,
+        "terminal synthesis must emit terminal CE-relation rows for the long chain"
+    );
 
     let short_chain_steps = finished_short.steps.len(); // = 2
     let long_chain_steps = finished_long.steps.len(); // = 3

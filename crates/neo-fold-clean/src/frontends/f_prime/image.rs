@@ -35,20 +35,21 @@ use crate::paper::f_prime::ring_action_trace::{RingActionTraceImage, RingActionT
 /// 4 lanes × 64 bits = 256 bits per digest.
 const DIGEST_BITS: usize = 4 * POSEIDON2_GOLDILOCKS_BITS;
 
-/// state_in state-in: 6 four-lane digests (vk_fs, structure, z_0, z_i_in,
-/// acc_digest_in, public_trace_in).
-const STATE_IN_BITS: usize = 6 * DIGEST_BITS;
+/// state_in state-in: 7 four-lane digests (vk_fs, structure, z_0, z_i_in,
+/// semantic_state_digest_in, acc_digest_in, public_trace_in).
+const STATE_IN_BITS: usize = 7 * DIGEST_BITS;
 
-/// state_out state-out: 2 u64 counters (new chunk_count, new step_count) + 3
-/// four-lane digests (new z_i, new public_trace, new acc_digest).
-const STATE_OUT_BITS: usize = 2 * POSEIDON2_GOLDILOCKS_BITS + 3 * DIGEST_BITS;
+/// state_out state-out: 2 u64 counters (new chunk_count, new step_count) + 4
+/// four-lane digests (new z_i, new public_trace, new semantic_state_digest,
+/// new acc_digest).
+const STATE_OUT_BITS: usize = 2 * POSEIDON2_GOLDILOCKS_BITS + 4 * DIGEST_BITS;
 
 /// chunk_digest chunk digest: one four-lane digest.
 const CHUNK_DIGEST_BITS: usize = DIGEST_BITS;
 /// Single committed bit marking whether this step is the base case
 /// (`is_base = 1`, no prior fold) or a recursive case (`is_base = 0`).
-/// Used by the unified-accumulator selector constraint to pick which
-/// accumulator Poseidon trace's digest enters `state_out.new_acc_digest`.
+/// Used by base-gated constraints, including the initial semantic-state
+/// anchor. Legacy accumulator-selector tests may also use it directly.
 const IS_BASE_BITS: usize = 1;
 
 /// kmul K-mul Karatsuba intermediate: 3 K-limbs × 2 lanes × 64 bits each.
@@ -68,15 +69,27 @@ impl RegionRange {
 }
 
 /// Knobs sizing the F' image for one recursive step.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FPrimeImageConfig {
     /// Fibonacci `LIMBS`; private bits = `LIMBS - 1` carries.
     pub limbs: usize,
+    /// Optional app-private variable widths, in app variable order.
+    ///
+    /// Empty means legacy app-private semantics: if the app frontend
+    /// wants variables, it interprets the region as consecutive 64-bit
+    /// canonical lanes. R1CS-F' may set this to a mix of 1-bit Boolean
+    /// slots and 64-bit canonical lanes.
+    pub app_private_var_widths: Vec<usize>,
     /// boundary bit count (existing `source_image` BitRange size).
     pub boundary_bits: usize,
-    /// nifs_payloads NIFS payload shapes, in fill order. The layout derives
-    /// `nifs_payloads.bits` from `Σ shape.bits()` and exposes per-payload
-    /// offsets via `nifs_payload_offsets`.
+    /// Source-image NIFS payload shapes, in fill order. Legacy
+    /// non-unified plans use this region to store parent-authority
+    /// payloads; canonical unified plans leave it empty because NIFS
+    /// authority is carried by the in-circuit verifier messages and the
+    /// source image only stores compact accumulator handles.
+    ///
+    /// The layout derives `nifs_payloads.bits` from `Σ shape.bits()` and
+    /// exposes per-payload offsets via `nifs_payload_offsets`.
     pub nifs_payload_shapes: Vec<NifsPayloadShape>,
     /// kmul K-mul Karatsuba intermediate count.
     pub kmul_count: usize,
@@ -92,9 +105,13 @@ pub struct FPrimeImageConfig {
     /// trace at `one_shot_index`'s digest output (4 lanes) equals the
     /// state_out digest at `state_out_target`. Default empty — no bindings emitted.
     /// Used by Phase 1.4c-c to close the "trace produces the committed
-    /// digest" loop for the boundary_update / public_trace_update /
-    /// accumulator state-advance hashes.
+    /// digest" loop for state-advance hashes such as `boundary_update`
+    /// and legacy accumulator paths.
     pub one_shot_digest_to_state_out_bindings: Vec<OneShotDigestToStateOutBinding>,
+    /// Optional bindings: each entry asserts that one-shot Poseidon
+    /// trace at `one_shot_index`'s digest output (4 lanes) equals the
+    /// state_in digest at `state_in_target`.
+    pub one_shot_digest_to_state_in_bindings: Vec<OneShotDigestToStateInBinding>,
     /// Optional bindings: each entry asserts that the one-shot Poseidon
     /// trace at `one_shot_index`'s digest output (4 lanes) equals the
     /// 4 canonical-u64 lanes at the listed bit offsets inside the
@@ -107,15 +124,19 @@ pub struct FPrimeImageConfig {
     /// for `poseidon2_hash(preimage)` into the spliced one-shot trace
     /// region. Default empty.
     pub poseidon_transition_enforcements: Vec<PoseidonTransitionEnforcement>,
-    /// Unified accumulator selector — present when the F' structure
-    /// hosts **both** the base-case accumulator preimage (`H(tag, 0)`)
-    /// and the recursive-case accumulator preimage
-    /// (`H(tag, child_count, c_data_entries, c_data ...)`), with
-    /// `state_out.new_acc_digest` selected by the `is_base` lane via
+    /// Legacy unified accumulator selector. The current canonical
+    /// unified plan uses delayed accumulator-handle binding instead and
+    /// leaves this `None`; tests for the older direct producer-side
+    /// trace may still construct configs that set it.
+    ///
+    /// When present, the F' structure hosts the recursive-case
+    /// accumulator preimage (`H(tag, child_count, c_data_entries,
+    /// c_data ...)`) and selects between that trace's digest and the
+    /// constant base-case handle via the `is_base` lane:
     ///
     /// ```text
-    /// (1 - is_base) * (recursive_lane - base_lane)
-    ///   = (new_acc_digest_lane - base_lane)
+    /// (1 - is_base) * (recursive_lane - base_const)
+    ///   = (new_acc_digest_lane - base_const)
     /// ```
     ///
     /// When `Some(..)` the structure builder skips the direct linear
@@ -123,19 +144,31 @@ pub struct FPrimeImageConfig {
     /// four selector product rows instead. When `None`, the legacy
     /// single-accumulator path applies.
     pub unified_accumulator_selector: Option<UnifiedAccumulatorSelector>,
+    /// **Base-step initial semantic-state anchor**. When `Some`, the
+    /// F' image's CCS structure emits four product rows enforcing
+    /// `is_base * (state_in.semantic_state_digest_in_lane[k] - anchor[k]) == 0`
+    /// for each digest lane. The anchor is baked into `structure_digest`
+    /// (since the constraint references the constant lanes), so it
+    /// transitively binds into `vk_fs_digest` and every step's
+    /// `state_x_out`. `None` means stateless seed semantics — no
+    /// constraint emitted.
+    pub initial_semantic_state_digest_anchor: Option<[u8; 32]>,
 }
 
-/// Indices into `poseidon_one_shot_preimage_lens` for the two
-/// accumulator Poseidon traces the unified-mode F' structure hosts.
+/// Legacy accumulator selector for a unified-mode F' structure.
 ///
-/// Both indices are required (the structure emits both bindings + the
-/// selector that picks between them). The `is_base` lane in the image
-/// drives the selector.
+/// The base accumulator handle is a public constant, so
+/// unified mode does not spend columns on a one-shot Poseidon trace for
+/// that branch. In the old selector path the recursive branch remains a
+/// real trace because its preimage reads the post-fold parent commitment
+/// from NIFS payload lanes. The `is_base` lane in the image drives the
+/// selector. The canonical plan no longer uses this selector; it carries
+/// the accumulator handle and checks it when consumed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UnifiedAccumulatorSelector {
-    /// One-shot index of the **base** accumulator trace (preimage
-    /// `H(tag, 0)`, producing the empty-accumulator digest).
-    pub base_trace_index: usize,
+    /// Constant base accumulator handle (`AccumulatorHandle::empty()`)
+    /// as four Goldilocks lanes.
+    pub base_digest: [F; 4],
     /// One-shot index of the **recursive** accumulator trace (preimage
     /// `H(tag, child_count, c_data_entries, c_data ...)`).
     pub recursive_trace_index: usize,
@@ -148,8 +181,17 @@ pub enum StateOutDigestTarget {
     NewZI,
     /// state_out's `new_public_trace` (4 lanes after `new_z_i`).
     NewPublicTrace,
-    /// state_out's `new_acc_digest` (4 lanes after `new_public_trace`).
+    /// state_out's `new_semantic_state_digest` (4 lanes after `new_public_trace`).
+    NewSemanticStateDigest,
+    /// state_out's `new_acc_digest` (4 lanes after `new_semantic_state_digest`).
     NewAccDigest,
+}
+
+/// Which state_in digest a one-shot trace's output binds to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StateInDigestTarget {
+    /// state_in's `semantic_state_digest_in`.
+    SemanticStateDigestIn,
 }
 
 /// One Phase 1.4c-c binding: trace's digest output ↔ state_out digest lanes.
@@ -158,6 +200,14 @@ pub struct OneShotDigestToStateOutBinding {
     /// Index into `poseidon_one_shot_preimage_lens` / `one_shot_poseidon_splices`.
     pub one_shot_index: usize,
     pub state_out_target: StateOutDigestTarget,
+}
+
+/// One Phase 1.4c-c binding: trace's digest output ↔ state_in digest lanes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OneShotDigestToStateInBinding {
+    /// Index into `poseidon_one_shot_preimage_lens` / `one_shot_poseidon_splices`.
+    pub one_shot_index: usize,
+    pub state_in_target: StateInDigestTarget,
 }
 
 /// One Phase 1.4c-d binding: trace's digest output ↔ four canonical-u64
@@ -232,6 +282,14 @@ pub enum PoseidonPreimageLaneSource {
     /// input `x`. The Fibonacci frontend's `app_private` region holds
     /// carries (not 64-bit lanes) and does not use this variant.
     AppAssignmentLane(usize),
+    /// Packed canonical-u64 value of multiple app-assignment variables.
+    ///
+    /// Each listed variable is resolved through its full 64-bit
+    /// canonical lane and weighted by `2^offset` in list order. This
+    /// is only sound for verifier-owned plans where the app R1CS
+    /// constrains those variables to `{0,1}`; then this source packs
+    /// up to 64 public bits into one `state_x_out` preimage lane.
+    AppAssignmentBitPack(Vec<usize>),
 }
 
 /// One Phase 1.4d-a-4 enforcement: bind the trace at `one_shot_index`
@@ -280,7 +338,7 @@ pub struct FPrimeImageLayout {
     /// `fibonacci_structure::build_f_prime_structure`. Always
     /// reserved (one bit) even when the plan has no
     /// `AccumulatorPlanOptions` — the encoder writes `0` there in that
-    /// case, and the structure's bit-validity row covers the binary
+    /// case, and the structure's semantic Boolean row covers the binary
     /// constraint either way.
     pub is_base: RegionRange,
     pub nifs_payloads: RegionRange,
@@ -307,6 +365,22 @@ pub struct FPrimeImageLayout {
 
 impl FPrimeImageLayout {
     pub fn new(config: FPrimeImageConfig) -> Self {
+        if !config.app_private_var_widths.is_empty() {
+            let typed_bits: usize = config.app_private_var_widths.iter().sum();
+            assert_eq!(
+                typed_bits,
+                config.limbs.saturating_sub(1),
+                "typed app-private widths must sum to limbs - 1"
+            );
+            assert!(
+                config
+                    .app_private_var_widths
+                    .iter()
+                    .all(|&w| (1..=64).contains(&w)),
+                "typed app-private widths must be in 1..=64"
+            );
+        }
+
         // z[0] = constant slot; non-constant regions start at offset 1.
         let mut cursor = 1usize;
 
@@ -569,6 +643,7 @@ pub struct StateIn {
     pub structure_digest: [F; 4],
     pub z_0: [F; 4],
     pub z_i_in: [F; 4],
+    pub semantic_state_digest_in: [F; 4],
     pub acc_digest_in: [F; 4],
     pub public_trace_in: [F; 4],
 }
@@ -581,6 +656,7 @@ pub struct StateOut {
     pub new_step_count: u64,
     pub new_z_i: [F; 4],
     pub new_public_trace: [F; 4],
+    pub new_semantic_state_digest: [F; 4],
     pub new_acc_digest: [F; 4],
 }
 
@@ -628,7 +704,7 @@ impl FPrimeImage {
         self.values[range].copy_from_slice(bits);
     }
 
-    /// Bit-decompose the 6 state-in digests into state_in.
+    /// Bit-decompose the 7 state-in digests into state_in.
     pub fn fill_state_in(&mut self, state: &StateIn) {
         let mut cursor = self.layout.state_in.offset;
         let digests = [
@@ -636,6 +712,7 @@ impl FPrimeImage {
             state.structure_digest,
             state.z_0,
             state.z_i_in,
+            state.semantic_state_digest_in,
             state.acc_digest_in,
             state.public_trace_in,
         ];
@@ -653,7 +730,12 @@ impl FPrimeImage {
         cursor += POSEIDON2_GOLDILOCKS_BITS;
         write_u64_bits(&mut self.values, cursor, state.new_step_count);
         cursor += POSEIDON2_GOLDILOCKS_BITS;
-        for digest in [state.new_z_i, state.new_public_trace, state.new_acc_digest] {
+        for digest in [
+            state.new_z_i,
+            state.new_public_trace,
+            state.new_semantic_state_digest,
+            state.new_acc_digest,
+        ] {
             write_digest_bits(&mut self.values, cursor, digest);
             cursor += 4 * POSEIDON2_GOLDILOCKS_BITS;
         }
@@ -685,7 +767,7 @@ impl FPrimeImage {
         self.values[self.layout.boundary.offset..self.layout.boundary.end()].to_vec()
     }
 
-    /// Decode state_in's 6 state-in digests by canonical 64-bit recomposition.
+    /// Decode state_in's 7 state-in digests by canonical 64-bit recomposition.
     pub fn decode_state_in(&self) -> StateIn {
         let mut cursor = self.layout.state_in.offset;
         let mut next = || {
@@ -698,6 +780,7 @@ impl FPrimeImage {
             structure_digest: next(),
             z_0: next(),
             z_i_in: next(),
+            semantic_state_digest_in: next(),
             acc_digest_in: next(),
             public_trace_in: next(),
         }
@@ -714,12 +797,15 @@ impl FPrimeImage {
         cursor += 4 * POSEIDON2_GOLDILOCKS_BITS;
         let new_public_trace = read_digest_bits(&self.values, cursor);
         cursor += 4 * POSEIDON2_GOLDILOCKS_BITS;
+        let new_semantic_state_digest = read_digest_bits(&self.values, cursor);
+        cursor += 4 * POSEIDON2_GOLDILOCKS_BITS;
         let new_acc_digest = read_digest_bits(&self.values, cursor);
         StateOut {
             new_chunk_count,
             new_step_count,
             new_z_i,
             new_public_trace,
+            new_semantic_state_digest,
             new_acc_digest,
         }
     }

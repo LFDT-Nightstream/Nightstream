@@ -45,6 +45,30 @@ fn r1cs_auto_params_charge_full_superneo_d4_budget() {
 }
 
 #[test]
+fn ccs_auto_params_charge_actual_matrix_count() {
+    let r1cs = NeoParams::goldilocks_auto_r1cs_ccs_with(60, 100, 2).expect("R1CS params");
+    let t8 = NeoParams::goldilocks_auto_ccs_with(60, 8, 2, 100, 2).expect("t=8 CCS params");
+
+    assert_eq!(r1cs.lambda, 107);
+    assert_eq!(
+        t8.lambda, 106,
+        "charging t=8 in SuperNeo D.4 needs one more slack bit than the R1CS t=3 specialization"
+    );
+}
+
+#[test]
+fn ccs_auto_params_charge_actual_polynomial_degree() {
+    let degree2 = NeoParams::goldilocks_auto_ccs_with(60, 3, 2, 100, 2).expect("quadratic CCS params");
+    let degree7 = NeoParams::goldilocks_auto_ccs_with(60, 3, 7, 100, 2).expect("degree-7 CCS params");
+
+    assert_eq!(degree2.lambda, 107);
+    assert_eq!(
+        degree7.lambda, 107,
+        "this small shape remains SZ-dominated, but the selector must accept the actual u"
+    );
+}
+
+#[test]
 fn r1cs_auto_params_reject_120_bit_full_d4_budget_under_s2() {
     let err = NeoParams::goldilocks_auto_r1cs_ccs_with(60, 120, 2)
         .expect_err("s=2 cannot satisfy a 120-bit full-D4 floor for this profile");

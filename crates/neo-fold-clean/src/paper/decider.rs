@@ -1,13 +1,13 @@
-//! Spartan terminal-compression contract.
+//! Terminal-compression contract.
 //!
-//! Owns the *statement* the SNARK proves and a non-SNARK
-//! `validate_witness` that runs the **chain-replay** authority path —
-//! walking every per-step NIFS.V plus the terminal fold. This is a
-//! superset of `lifecycle::verify_uncompressed` (non-replay IVC, which
-//! authenticates only the terminal fold) and is the gatekeeper the
-//! Spartan SNARK must reproduce in zero knowledge. Spartan itself is
-//! wired in a later PR (`prove` / `verify` are `Unsupported`
-//! placeholders until then).
+//! Owns the *statement* a compact terminal proof must bind and a
+//! non-SNARK `validate_witness` preflight that runs the **chain-replay**
+//! authority path — walking every per-step NIFS.V plus the terminal fold.
+//! This is a superset of `lifecycle::verify_uncompressed` (non-replay IVC,
+//! which authenticates only the terminal fold), but it is not the whole proof
+//! relation: the future compact proof must reproduce the decider R1CS in
+//! `crate::engine::decider`, including terminal CE rows. `prove` / `verify`
+//! are `Unsupported` placeholders until that verifier is implemented.
 //!
 //! ## Authority boundary
 //!
@@ -19,28 +19,36 @@
 //!   fold proof, and the post-finalization state (with its final running
 //!   accumulator and witness matrices).
 //!
-//! `validate_witness` ties the two together: replay every step + the
-//! final fold, recompute the public image from the resulting verifier
-//! state, and assert it matches `statement.public`. It also checks that
-//! the final running's witness matrices commit to the claims' commitments,
-//! so a prover that supplies a public image disconnected from any witness
-//! is rejected before Spartan is even invoked.
+//! `validate_witness` ties the two together before circuit synthesis:
+//! replay every step + the final fold, recompute the public image from
+//! the resulting verifier state, and assert it matches
+//! `statement.public`. It also checks that the final running's witness
+//! matrices commit to the claims' commitments, so a prover that supplies
+//! a public image disconnected from any witness is rejected before the
+//! decider R1CS is even emitted. The remaining terminal CE obligations
+//! (`X`, low-norm, `y_ring`, `ct`, and NC sidecars) are circuit rows in
+//! `engine::decider` / `paper::decider_ce_relation`; do not replace them
+//! with this Rust preflight.
 
 use neo_ajtai::AjtaiSModule;
 use neo_ccs::traits::SModuleHomomorphism;
+use neo_math::F;
 use neo_reductions::optimized_engine::OptimizedStructureCache;
+use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
 
 use crate::paper::construction2::{
-    self, EncInst, FinalFoldProof, ProofState, RunningInstance, State, StepProof, VerifierKey,
+    self, EncInst, FinalFoldProof, ProofState, RunningInstance, SemanticStateMode, State, StepProof, VerifierKey,
 };
-use crate::paper::digest::{accumulator_digest_from_claims, initial_boundary_digest, public_trace_seed_digest};
+use crate::paper::digest::{initial_boundary_digest, public_trace_seed_digest, AccumulatorHandle};
+use crate::paper::f_prime::r1cs::{F_PRIME_ENC_INST_OFFSET, F_PRIME_PUBLIC_INPUT_LEN, F_PRIME_PUBLIC_ONE_OFFSET};
 use crate::paper::params::Params;
 use crate::paper::relations::{CcsClaim, DecMixer, RlcMixer, Structure};
+use crate::paper::terminal_ce::TerminalCeProof;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("decider: Spartan terminal compression is not implemented yet")]
+    #[error("decider: terminal compression is not implemented yet")]
     Unsupported,
     #[error("decider: validation walk failed: {0}")]
     WalkFailed(String),
@@ -54,9 +62,17 @@ pub enum Error {
     WitnessCommitmentMismatch { index: usize },
     #[error("decider: public_batches / steps length mismatch (got {batches} batches, {steps} steps)")]
     StepsBatchesLengthMismatch { batches: usize, steps: usize },
+    #[error("decider: public batch has {got} fresh instances, but this parameter profile supports at most {max}")]
+    BatchTooLarge { got: usize, max: usize },
+    #[error("decider: terminal latest claim {index} public input does not encode the pre-final state x_out")]
+    TerminalLatestPublicInputMismatch { index: usize },
+    #[error(
+        "decider: compact terminal CE proof verification is not implemented; direct terminal CE rows are required"
+    )]
+    TerminalCeProofUnsupported,
 }
 
-/// Public coordinates the Spartan SNARK binds — same fields the verifier
+/// Public coordinates the compact terminal proof binds — same fields the verifier
 /// recomputes from preprocessing. Paper-named; matches the absorb order
 /// of [`paper::construction2::compute_x_out`].
 ///
@@ -77,6 +93,8 @@ pub struct PublicImage {
     pub z_0: [u8; 32],
     pub z_i: [u8; 32],
     pub pc: u64,
+    pub initial_semantic_state_digest: [u8; 32],
+    pub semantic_state_digest: [u8; 32],
     pub acc_digest: [u8; 32],
     pub public_trace: [u8; 32],
     pub x_out: EncInst,
@@ -91,16 +109,26 @@ pub struct Witness {
     pub steps: Vec<StepProof>,
     /// Public claims of each step's deposited batch. Length must match `steps`.
     pub public_batches: Vec<Vec<CcsClaim>>,
-    /// Final NIFS proof that flushes the trailing latest. `None` only if
-    /// finalization had nothing to flush (Initial / empty latest).
+    /// Final NIFS proof that flushes the trailing latest. The decider
+    /// statement always requires this proof: `validate_witness` is the
+    /// chain-replay gatekeeper for the compressed verifier, so it must not
+    /// accept an already-empty recorded state as authority without a
+    /// verifier-driven terminal fold.
     pub final_fold: Option<FinalFoldProof>,
     /// Post-finalization state. Carries the final running accumulator's
     /// claims and witness matrices; `validate_witness` requires
     /// `proof = Active { running, latest: empty }`.
     pub final_state: State,
+    /// Future compact terminal-CE proof material.
+    ///
+    /// Current decider synthesis rejects `Some(_)` and keeps using the direct
+    /// terminal CE rows. This field exists so the eventual compact verifier has
+    /// an explicit data-flow slot instead of treating terminal-child digests as
+    /// authority.
+    pub terminal_ce_proof: Option<TerminalCeProof>,
 }
 
-/// What the Spartan SNARK proves. Bundles the public coordinates and the
+/// What the compact terminal proof proves. Bundles the public coordinates and the
 /// prover-side witness. The verifier-side `compress::verify` consumes only
 /// `public` (the witness stays prover-private).
 #[derive(Clone, Debug)]
@@ -118,10 +146,11 @@ pub struct Statement {
 /// verifies the final running's witness matrices commit to the claims'
 /// commitments under `log`.
 ///
-/// This is the contract the Spartan SNARK must reproduce in zero
-/// knowledge. Building Spartan around an underspecified statement risks
-/// soundness gaps that `validate_witness` cannot catch later, so this
-/// non-SNARK check is the gatekeeper.
+/// This is the preflight for the contract the compact proof must reproduce.
+/// The full contract is the decider R1CS emitted by `crate::engine::decider`;
+/// it adds the terminal CE closure rows that a Rust preflight cannot stand in
+/// for. Building a proof around only this function would be underspecified.
+#[allow(clippy::too_many_arguments)]
 pub fn validate_witness(
     params: &Params,
     structure: &Structure,
@@ -132,14 +161,35 @@ pub fn validate_witness(
     combine_b_pows: DecMixer,
     vk: &VerifierKey,
     public_input_len: Option<usize>,
+    f_prime_recursive_link: bool,
+    semantic_mode: SemanticStateMode,
+    // Verifier-owned initial app/VM semantic-state seed. Pulled from
+    // `prep.initial_semantic_state_digest()` at the lifecycle layer;
+    // MUST equal `statement.public.initial_semantic_state_digest` or
+    // `validate_witness` returns `Error::PublicImageMismatch`.
+    initial_semantic_state_digest_anchor: [u8; 32],
     statement: &Statement,
 ) -> Result<(), Error> {
+    // (0) Pin the prover's claimed initial app-state to the verifier's
+    //     preprocessing-derived anchor. `vk_fs_digest` already absorbs
+    //     `initial_semantic_state_digest_anchor`, so a mismatched
+    //     `statement.public.initial_semantic_state_digest` would also
+    //     fail the chain-x_out check downstream — but surfacing the
+    //     dedicated error here gives the caller a precise diagnostic.
+    if statement.public.initial_semantic_state_digest != initial_semantic_state_digest_anchor {
+        return Err(Error::PublicImageMismatch);
+    }
     let Witness {
         steps,
         public_batches,
         final_fold,
         final_state,
+        terminal_ce_proof,
     } = &statement.witness;
+
+    if terminal_ce_proof.is_some() {
+        return Err(Error::TerminalCeProofUnsupported);
+    }
 
     if steps.len() != public_batches.len() {
         return Err(Error::StepsBatchesLengthMismatch {
@@ -147,15 +197,44 @@ pub fn validate_witness(
             steps: steps.len(),
         });
     }
+    if final_fold.is_none() {
+        return Err(Error::WalkFailed(
+            "decider witness must carry a terminal final_fold".into(),
+        ));
+    }
 
     // Rebuild verifier state from preprocessing.
     let z_0 = initial_boundary_digest(structure_digest_v, public_input_len);
     let public_trace = public_trace_seed_digest(structure_digest_v);
-    let acc_digest = accumulator_digest_from_claims(params.b(), &[]);
-    let mut state = State::base(z_0, public_trace, acc_digest);
+    let acc_digest = AccumulatorHandle::empty().digest();
+    let mut state = State::base(z_0, public_trace, acc_digest, initial_semantic_state_digest_anchor);
 
-    // Walk each step through F'.verify.
+    // Walk each step through F'.verify. Before every recursive fold, pin
+    // the currently pending `latest` claim's public input to the current
+    // verifier-derived `state.x_out`. This is the native replay version
+    // of HyperNova's recursive-link check `u_i.x == enc_inst(prior_x_out)`;
+    // without it, only the final trailing latest would be linked.
+    //
+    // The mode discriminates whether the stateless invariant
+    // (`StepProof.semantic_state_digest == new accumulator digest`) is
+    // enforced — for stateful chains the F' image's binding rows
+    // authenticate the digest instead.
     for (public_batch, step_proof) in public_batches.iter().zip(steps) {
+        let max_fresh = params.max_fresh_count();
+        if public_batch.len() > max_fresh {
+            return Err(Error::BatchTooLarge {
+                got: public_batch.len(),
+                max: max_fresh,
+            });
+        }
+        check_terminal_latest_link(
+            params,
+            structure_digest_v,
+            vk,
+            f_prime_recursive_link,
+            &state,
+            semantic_mode,
+        )?;
         state = construction2::verify_step(
             params,
             structure,
@@ -167,9 +246,19 @@ pub fn validate_witness(
             state,
             public_batch,
             step_proof,
+            semantic_mode,
         )
         .map_err(|e| Error::WalkFailed(format!("step: {e}")))?;
     }
+
+    check_terminal_latest_link(
+        params,
+        structure_digest_v,
+        vk,
+        f_prime_recursive_link,
+        &state,
+        semantic_mode,
+    )?;
 
     // Flush trailing latest through the terminal fold.
     state = construction2::verify_final_fold(
@@ -182,12 +271,13 @@ pub fn validate_witness(
         vk,
         state,
         final_fold.as_ref(),
+        semantic_mode,
     )
     .map_err(|e| Error::WalkFailed(format!("final_fold: {e}")))?;
 
     // Derive the public image from the walked state and compare to the
     // statement's declared public.
-    let x_out = construction2::compute_x_out(vk, params, structure_digest_v, &state);
+    let x_out = construction2::compute_x_out(vk, params, structure_digest_v, &state, semantic_mode);
     let derived = PublicImage {
         vk_fs_digest: vk.digest(),
         chunk_count: state.chunk_count,
@@ -195,6 +285,8 @@ pub fn validate_witness(
         z_0: state.z_0,
         z_i: state.z_i,
         pc: state.pc,
+        initial_semantic_state_digest: state.initial_semantic_state_digest,
+        semantic_state_digest: state.semantic_state_digest,
         acc_digest: state.acc_digest,
         public_trace: state.public_trace,
         x_out,
@@ -221,6 +313,8 @@ pub fn validate_witness(
         || final_state.z_0 != state.z_0
         || final_state.z_i != state.z_i
         || final_state.pc != state.pc
+        || final_state.initial_semantic_state_digest != state.initial_semantic_state_digest
+        || final_state.semantic_state_digest != state.semantic_state_digest
         || final_state.acc_digest != state.acc_digest
         || final_state.public_trace != state.public_trace
     {
@@ -235,7 +329,11 @@ pub fn validate_witness(
     }
 
     // Now check that the prover's witness matrices open the walked CE
-    // claims' commitments under `log`.
+    // claims' commitments under `log`. This preflight only checks
+    // chain/public-image binding plus commitment openings for fast
+    // diagnostics. The decider R1CS, not this Rust preflight, owns the
+    // full terminal CE closure: X projection, low-norm, y_ring, ct, and
+    // NC sidecars (see `paper::decider_ce_relation` / `engine::decider`).
     if prover_running.claims.len() != prover_running.witnesses.len() {
         return Err(Error::WitnessLengthMismatch);
     }
@@ -262,11 +360,48 @@ fn final_running(state: &State) -> Result<&RunningInstance, Error> {
     }
 }
 
+fn check_terminal_latest_link(
+    params: &Params,
+    structure_digest: &[F; 4],
+    vk: &VerifierKey,
+    f_prime_recursive_link: bool,
+    state: &State,
+    semantic_mode: SemanticStateMode,
+) -> Result<(), Error> {
+    if !f_prime_recursive_link {
+        return Ok(());
+    }
+    let ProofState::Active { latest, .. } = &state.proof else {
+        return Ok(());
+    };
+    if latest.instances.is_empty() {
+        return Ok(());
+    }
+
+    let expected = construction2::compute_x_out(vk, params, structure_digest, state, semantic_mode).bits();
+    for (index, instance) in latest.instances.iter().enumerate() {
+        let claim = &instance.claim;
+        if claim.m_in != F_PRIME_PUBLIC_INPUT_LEN || claim.x.len() != F_PRIME_PUBLIC_INPUT_LEN {
+            return Err(Error::TerminalLatestPublicInputMismatch { index });
+        }
+        if claim.x[F_PRIME_PUBLIC_ONE_OFFSET] != F::ONE {
+            return Err(Error::TerminalLatestPublicInputMismatch { index });
+        }
+        for (offset, &bit) in expected.iter().enumerate() {
+            let expected_bit = if bit == 0 { F::ZERO } else { F::ONE };
+            if claim.x[F_PRIME_ENC_INST_OFFSET + offset] != expected_bit {
+                return Err(Error::TerminalLatestPublicInputMismatch { index });
+            }
+        }
+    }
+    Ok(())
+}
+
 /// The compressed proof handed to the verifier.
 ///
-/// PR5 will populate this with the Spartan SNARK bytes (and any auxiliary
-/// public-IO fields the decider's R1CS exposes). Today it is a placeholder
-/// type so the lifecycle wiring compiles end-to-end.
+/// Future code will populate this with compact terminal proof bytes (and any
+/// auxiliary public-IO fields the decider's R1CS exposes). Today it is a
+/// placeholder type so the lifecycle wiring compiles end-to-end.
 #[derive(Clone, Debug, Default)]
 pub struct Proof;
 
@@ -275,15 +410,15 @@ pub struct Proof;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VerifierKeyDigest(pub [u8; 32]);
 
-/// Run the Spartan terminal compression on the IVC statement. Placeholder
-/// until Spartan is wired; the contract `validate_witness` enforces is the
-/// relation that the SNARK must reproduce in zero knowledge.
+/// Run terminal compression on the IVC statement. Placeholder until a compact
+/// verifier is wired; the contract `validate_witness` enforces is only the
+/// native preflight for the relation the proof must reproduce.
 pub fn prove(_statement: &Statement) -> Result<(Proof, VerifierKeyDigest), Error> {
     Err(Error::Unsupported)
 }
 
-/// Verify a Spartan-compressed proof against the expected public image.
-/// Placeholder until Spartan is wired.
+/// Verify a compact terminal proof against the expected public image.
+/// Placeholder until a compact verifier is wired.
 pub fn verify(_public: &PublicImage, _vk_digest: &VerifierKeyDigest, _proof: &Proof) -> Result<(), Error> {
     Err(Error::Unsupported)
 }

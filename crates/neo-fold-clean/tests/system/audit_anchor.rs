@@ -14,7 +14,7 @@ fn base_case_state_has_paper_fields() {
     let z_0 = [7u8; 32];
     let public_trace = [3u8; 32];
     let acc_digest = [5u8; 32];
-    let s = State::base(z_0, public_trace, acc_digest);
+    let s = State::base(z_0, public_trace, acc_digest, acc_digest);
 
     // chunk_count = 0, z_0 = z_i, pc = TRIVIAL_PC, ProofState = Initial.
     assert_eq!(s.chunk_count, 0);
@@ -31,14 +31,12 @@ fn base_case_state_has_paper_fields() {
 fn lifecycle_surface_compiles() {
     // Compile-time anchor: if any of the lifecycle public names or types
     // disappear, the README is wrong. `preprocess` takes the Ajtai
-    // homomorphism, the Π_RLC and Π_DEC mixers, and the optional
-    // program-fixed `public_input_len`.
+    // homomorphism from verifier-owned setup and does not accept
+    // caller-supplied Π_RLC / Π_DEC mixers.
     fn _surface_check(
         _: fn(
             neo_fold_clean::Params,
             neo_fold_clean::Structure,
-            neo_fold_clean::RlcMixer,
-            neo_fold_clean::DecMixer,
             Option<usize>,
         ) -> Result<neo_fold_clean::Preprocessing, neo_fold_clean::Error>,
     ) {

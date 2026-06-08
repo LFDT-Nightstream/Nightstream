@@ -4,19 +4,27 @@
 //! length K+k for Π_RLC after Π_CCS hands it back the K+k output claims.
 //! These helpers are pure data-movement — no math.
 
-use crate::paper::relations::{CcsInstance, WitnessMat};
+use crate::paper::relations::{CcsClaim, CcsInstance, CcsWitness, WitnessMat};
 
-/// Pull the witness `Z` matrix out of every fresh CCS instance, in input
-/// order. These are the prover-side data Π_RLC and Π_DEC consume.
-pub(super) fn collect_fresh_witness_mats(fresh: &[CcsInstance]) -> Vec<WitnessMat> {
-    fresh.iter().map(|i| i.witness.Z.clone()).collect()
+/// Split fresh CCS instances by moving their public claims and private
+/// witnesses into parallel arrays. No witness matrix is cloned here.
+pub(super) fn split_fresh_instances(fresh: Vec<CcsInstance>) -> (Vec<CcsClaim>, Vec<CcsWitness>) {
+    let mut claims = Vec::with_capacity(fresh.len());
+    let mut witnesses = Vec::with_capacity(fresh.len());
+    for instance in fresh {
+        claims.push(instance.claim);
+        witnesses.push(instance.witness);
+    }
+    (claims, witnesses)
 }
 
-/// Concatenate the K fresh witness Z's and the k running witness Z's into
-/// the K+k array Π_RLC expects, parallel to the Π_CCS output claims.
-pub(super) fn chain_witnesses(fresh: Vec<WitnessMat>, running: Vec<WitnessMat>) -> Vec<WitnessMat> {
+/// Build the borrowed K+k witness array Π_RLC expects, parallel to the
+/// Π_CCS output claims. The fresh witnesses live in the split arrays
+/// above; the carried witnesses remain borrowed from the running
+/// accumulator.
+pub(super) fn chain_witness_refs<'a>(fresh: &'a [CcsWitness], running: &'a [WitnessMat]) -> Vec<&'a WitnessMat> {
     let mut out = Vec::with_capacity(fresh.len() + running.len());
-    out.extend(fresh);
-    out.extend(running);
+    out.extend(fresh.iter().map(|w| &w.Z));
+    out.extend(running.iter());
     out
 }

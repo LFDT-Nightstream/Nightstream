@@ -47,14 +47,24 @@ pub enum Error {
     PiRlc(#[from] crate::paper::pi_rlc::Error),
     #[error(transparent)]
     PiDec(#[from] crate::paper::pi_dec::Error),
-    #[error("Construction 2: base-case check failed (z_0 \u{2260} z_i at i = 0)")]
+    #[error(
+        "Construction 2: base/recursive branch check failed \
+         (Initial requires zero counters and z_0 = z_i; Active requires nonzero counters)"
+    )]
     BaseCaseMismatch,
+    #[error("Construction 2: F' step must carry at least one fresh/latest instance")]
+    EmptyStep,
     #[error(
         "Construction 2: pc out of range (expected 1 \u{2264} pc \u{2264} \u{2113}; this build hardcodes \u{2113}=1)"
     )]
     PcOutOfRange,
     #[error("Construction 2: x_out hash chain mismatch (proof's x_out != recomputed)")]
     XOutMismatch,
+    #[error(
+        "Construction 2: stateless chain claimed semantic_state_digest \u{2260} accumulator digest \
+         (stateless plans have no F' image binding rows; the field must equal the new acc_digest)"
+    )]
+    StatelessSemanticInvariantViolated,
     #[error("Construction 2: FoldProof variant disagrees with ProofState (base/active mismatch)")]
     FoldProofVariantMismatch,
     #[error("Construction 2: final fold proof missing while latest is non-empty")]
@@ -78,6 +88,7 @@ pub use verifier_key::VerifierKey;
 // Step entry points live in `paper::f_prime`; re-exported here under the
 // canonical Construction-2 names so call sites use one path.
 pub use crate::paper::f_prime::prove as step;
+pub use crate::paper::f_prime::prove_with_semantic_state as step_with_semantic_state;
 pub use crate::paper::f_prime::verify as verify_step;
 
 // Transition + finalization helpers exposed `pub(crate)` for f_prime and lifecycle.
@@ -86,3 +97,4 @@ pub(crate) use transition::{
     advance_state, compute_x_out, enforce_pc_in_range, f_prime_chunk_public_digest_for_step,
     f_prime_chunk_public_digest_from_claims, state_base_case_check,
 };
+pub use transition::{SemanticStateAdvance, SemanticStateMode};

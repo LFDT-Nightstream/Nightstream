@@ -110,8 +110,8 @@ fn build_parent_authority_fixture() -> CeClaim {
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
         fresh,
         &RunningInstance::default(),
     )
@@ -183,12 +183,12 @@ fn phase_1_mini_2_parent_authority_layout_sanity() {
     assert!(layout.final_state_start() < layout.end());
 
     // The parent_authority preimage MUST be strictly larger than the
-    // state_x_out preimage (~40 F). For any non-degenerate CCS claim
+    // state_x_out preimage (~32 F). For any non-degenerate CCS claim
     // the commitment data (`c.d * c.kappa`) plus the K-extension r and
     // y_ring fields alone exceed that.
     assert!(
-        preimage.len() > 40,
-        "parent_authority preimage ({}) must exceed state_x_out's (~40 F)",
+        preimage.len() > 32,
+        "parent_authority preimage ({}) must exceed state_x_out's (~32 F)",
         preimage.len()
     );
 

@@ -5,7 +5,7 @@
 //! Turn a Fibonacci app step into an [`EncodedFPrimeStep`] the
 //! lifecycle can fold. The shared shell
 //! ([`neo_fold_clean::frontends::f_prime::compiler`]) assembles the unified
-//! F' traces (chunk digest, state_in / state_out, the five Poseidon
+//! F' traces (chunk digest, state_in / state_out, the canonical Poseidon
 //! traces, boundary bits, next chain state); this frontend supplies the
 //! Fibonacci transition check, the app-state output, and the encoder
 //! input (`FPrimeStepInput`) that splices the shell-built pieces with
@@ -28,12 +28,12 @@
 //! - **Base step** (`chunk_count == 0`): caller must NOT pass
 //!   `fold_for_step` (rejected with
 //!   `FibonacciCompilerError::Shell(FPrimeShellCompilerError::BaseStepUnexpectedPriorFold)`).
-//!   The shell assembles `is_base = 1` traces (the base accumulator
-//!   digest comes from `H(tag, 0)`); this frontend fills the NIFS
+//!   The shell assembles `is_base = 1` with the base accumulator handle
+//!   taken from `AccumulatorHandle::empty()`; this frontend fills the NIFS
 //!   payload with a **perp** view via the shell's
 //!   [`perp_nifs_ce_view`][`neo_fold_clean::frontends::f_prime::compiler::perp_nifs_ce_view`]
 //!   — deterministic filler, NOT authority. The unified structure's
-//!   selector picks the base accumulator trace's digest into
+//!   selector picks the constant base accumulator digest into
 //!   `state_out.new_acc_digest`, so the perp payload's `c_data` does
 //!   not enter authority via this path. (Audit: any future weakening
 //!   of the selector binding must keep the perp payload out of
@@ -49,15 +49,16 @@
 //!   then fills the NIFS payload via the shell's
 //!   [`nifs_ce_view_from_claim`][`neo_fold_clean::frontends::f_prime::compiler::nifs_ce_view_from_claim`]
 //!   from `post_running.parent_authority`'s real CE claim and the
-//!   shell assembles `is_base = 0` traces (the recursive accumulator
-//!   digest comes from `H(tag, child_count, c_data...)`).
+//!   shell assembles `is_base = 0` traces. The recursive accumulator
+//!   handle is derived from the full verified `post_running`, not from
+//!   a short parent-commitment digest.
 //!
 //! ## Internal NIFS verification (recursive only)
 //!
 //! The shell's `verify_prior_fold` calls `paper::nifs::verify` on
 //! `(fold.pre_running, fold.latest, fold.proof)` under the **per-step
-//! F' transcript** (`F_PRIME_STEP_TRANSCRIPT_LABEL` + the six F'-step
-//! context absorbs over `ctx.chain_state`) — the same transcript
+//! F' transcript** (`F_PRIME_STEP_TRANSCRIPT_LABEL` + the state-bound
+//! F'-step context absorbs over `ctx.chain_state`) — the same transcript
 //! prefix `paper::f_prime::native::prove` initialises for the fold
 //! inside the lifecycle's `extend` call. Callers must therefore source
 //! `fold.proof` from a per-step `StepProof::Recursive`
@@ -75,7 +76,7 @@
 //! | F' chain header / state and prior-fold verification                               | `f_prime::compiler` ([`FPrimeCompilerContext`], `verify_prior_fold`)                                                                               | Hidden under `ctx`       |
 //! | Image plan (NIFS shape, accumulator options, canonical CE shape validation)       | `prep.plan` + `f_prime::compiler::canonical_ce_shape_and_child_count`; recursive path shape-validates `post_running.parent_authority` against `prep.plan` and rejects on mismatch | Hidden                   |
 //! | NIFS payload views                                                                | `f_prime::compiler` (`perp_nifs_ce_view` for base, `nifs_ce_view_from_claim` for recursive); selected by Fibonacci branch logic                    | Hidden                   |
-//! | Poseidon traces (boundary, public_trace, base_acc, recursive_acc, state_x_out)    | `f_prime::compiler::assemble_unified_step_traces`                                                                                                  | Hidden                   |
+//! | Poseidon trace (`state_x_out`)                                                  | `f_prime::compiler::assemble_unified_step_traces`                                                                                                  | Hidden                   |
 //! | `is_base` lane + `app_private_carries`                                            | This frontend                                                                                                                                            | Hidden                   |
 //! | `FPrimeStepInput` (splices shell assembly with `app_private_carries`, `is_base`, NIFS payload view) and `EncodedFPrimeStep` encoder output | This frontend                                                                                                                                            | **Never exposed** / returned via `encoded` |
 
@@ -84,16 +85,17 @@ use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
 
 use neo_fold_clean::frontends::f_prime::compiler::{
-    assemble_unified_step_traces, canonical_ce_shape_and_child_count, nifs_ce_view_from_claim, perp_nifs_ce_view,
-    start_f_prime_chain_context, verify_prior_fold, FPrimeChainState, FPrimeCompilerContext, FPrimeFoldForStep,
-    FPrimeShellCompilerError,
+    assemble_unified_step_traces, canonical_ce_shape_and_child_count, nifs_ce_view_from_claim,
+    nifs_payload_inputs_for_source_image, perp_nifs_ce_view, start_f_prime_chain_context, verify_prior_fold,
+    FPrimeChainState, FPrimeCompilerContext, FPrimeFoldForStep, FPrimeShellCompilerError,
 };
 use neo_fold_clean::frontends::f_prime::encoder::{
-    encode_f_prime_step, EncodedFPrimeStep, FPrimeStepInput, NifsPayloadInput,
+    encode_f_prime_step_with_structure, EncodedFPrimeStep, FPrimeStepInput,
 };
 use neo_fold_clean::frontends::f_prime::image::NifsCeClaimView;
 use neo_fold_clean::frontends::f_prime::recursive_plan::RecursiveStepImagePlan;
 use neo_fold_clean::paper::construction2::TRIVIAL_PC;
+use neo_fold_clean::paper::digest::AccumulatorHandle;
 
 // ─────────────────────────────────────────────────────────────────────────
 // App surface — the only types the caller writes per step.
@@ -160,11 +162,13 @@ pub type FibonacciFoldForStep = FPrimeFoldForStep;
 ///
 /// Thin wrapper over
 /// [`neo_fold_clean::frontends::f_prime::compiler::start_f_prime_chain_context`]
-/// that pins Fibonacci's `pc` and `limbs` (3 — two carry bits).
+/// that pins Fibonacci's `pc`; the app-private width comes from the
+/// verifier-owned plan so tiny test fixtures can pad the source image
+/// without changing Fibonacci's public transition.
 pub fn start_fibonacci_chain(
     prep: &super::FibonacciFPrimePreprocessing,
 ) -> Result<FibonacciCompilerContext, FibonacciCompilerError> {
-    Ok(start_f_prime_chain_context(&prep.prep, FIBONACCI_PC, 3)?)
+    Ok(start_f_prime_chain_context(&prep.prep, FIBONACCI_PC, prep.plan.limbs)?)
 }
 
 /// Compile one Fibonacci app step into a foldable
@@ -224,7 +228,7 @@ pub fn compile_fibonacci_step(
         // - mutated NIFS proof (NIFS.V rejects → PriorFoldVerificationFailed)
         // - mutated post_running (claims / parent_authority differ
         //   from derived → PriorFoldPostRunningMismatch)
-        verify_prior_fold(&prep.prep, ctx, &fold)?;
+        verify_prior_fold(&prep.prep, ctx, &fold, 1)?;
         compile_recursive_step(prep, ctx, input, fold)
     }
 }
@@ -237,19 +241,19 @@ fn compile_base_step(
     let plan = prep.plan.clone();
     let (ce_shape, child_count) = canonical_ce_shape_and_child_count(&plan)?;
 
-    // Base step: perp NIFS payload, `is_base = 1`. The recursive
-    // accumulator trace must still be emitted (unified mode binds its
-    // digest output); we feed it the perp payload's zero `c_data` so
-    // the trace is satisfying but the selector discards it.
+    // Base step: perp NIFS payload, `is_base = 1`. The perp payload is
+    // deterministic filler only; the authoritative accumulator handle
+    // is the empty base handle selected by the shell.
     let perp_view = perp_nifs_ce_view(&ce_shape);
-    let recursive_c_data = perp_view.c_data.clone();
+    let new_acc_digest = AccumulatorHandle::empty().digest_fields();
     finalize_compile(
+        prep,
         ctx,
         input,
         plan,
         /* is_base = */ true,
         perp_view,
-        recursive_c_data,
+        new_acc_digest,
         child_count,
     )
 }
@@ -310,37 +314,41 @@ fn compile_recursive_step(
     }
 
     let ce_view = nifs_ce_view_from_claim(post_parent, ctx.public_input_len);
-    let recursive_c_data = ce_view.c_data.clone();
+    let new_acc_digest = AccumulatorHandle::from_running_parts(&post_running.claims, Some(post_parent)).digest_fields();
     finalize_compile(
+        prep,
         ctx,
         input,
         plan,
         /* is_base = */ false,
         ce_view,
-        recursive_c_data,
+        new_acc_digest,
         child_count,
     )
 }
 
 /// Compose the encoded F' step around the shared shell assembly.
 ///
-/// `recursive_c_data` supplies the `c_data` lanes the recursive
-/// accumulator preimage absorbs (taken from the NIFS CE view); the
-/// selector picks the matching trace's digest based on `is_base`.
+/// `new_acc_digest` is the full-running accumulator handle carried through
+/// state and checked by the consumer step/terminal fold, so the producer image
+/// does not emit a dedicated accumulator Poseidon trace.
 fn finalize_compile(
+    prep: &super::FibonacciFPrimePreprocessing,
     ctx: &mut FibonacciCompilerContext,
     input: FibonacciAppStepInput,
     plan: RecursiveStepImagePlan,
     is_base: bool,
     ce_view: NifsCeClaimView,
-    recursive_c_data: Vec<F>,
-    child_count: u64,
+    new_acc_digest: [F; 4],
+    _child_count: u64,
 ) -> Result<FibonacciCompiledStep, FibonacciCompilerError> {
     // Fibonacci does not bind app public input into `state_x_out` — the
     // boundary digest alone commits to the chain's verifier-visible
     // output. R1CS passes its public assignment prefix here instead.
-    let assembly = assemble_unified_step_traces(ctx, is_base, &recursive_c_data, child_count, &[]);
+    // Fibonacci is K=1 per step (one app row per F' step).
+    let assembly = assemble_unified_step_traces(ctx, is_base, new_acc_digest, &[], 1);
 
+    let nifs_payloads = nifs_payload_inputs_for_source_image(&plan, ce_view);
     let encoder_input = FPrimeStepInput {
         plan,
         boundary_bits: assembly.boundary_bits,
@@ -354,20 +362,14 @@ fn finalize_compile(
         // populate honest zeros (the canonical low-norm choice).
         app_private_carries: vec![F::ZERO; ctx.limbs.saturating_sub(1)],
         is_base,
-        nifs_payloads: vec![NifsPayloadInput::Ce(ce_view)],
+        nifs_payloads,
         kmul_views: vec![],
         ring_action_pairs: vec![],
-        one_shot_traces: vec![
-            assembly.traces.boundary,
-            assembly.traces.public_trace,
-            assembly.traces.base_accumulator,
-            assembly.traces.recursive_accumulator,
-            assembly.traces.state_x_out,
-        ],
+        one_shot_traces: vec![assembly.traces.state_x_out],
         sponge_trace: None,
     };
 
-    let encoded = encode_f_prime_step(encoder_input);
+    let encoded = encode_f_prime_step_with_structure(encoder_input, prep.structure.clone());
 
     ctx.chain_state = assembly.next_chain_state;
     ctx.fold_for_step = None;

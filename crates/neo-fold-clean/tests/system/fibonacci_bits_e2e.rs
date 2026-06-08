@@ -17,7 +17,7 @@ use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
 
 use neo_fold_clean::frontends::direct_ccs::{self, FrontendError, R1cs};
-use neo_fold_clean::{finish_uncompressed, prove, verify_uncompressed, FoldSchedule};
+use neo_fold_clean::{finish_uncompressed_with_audit, prove, verify_uncompressed_audit, FoldSchedule};
 
 const LIMBS: usize = 5;
 const ONE: usize = 0;
@@ -188,6 +188,6 @@ fn fibonacci_bits_prove_verify_uncompressed() {
         .expect("partition");
 
     let proof = prove(&prep, batches).expect("prove");
-    let finished = finish_uncompressed(&prep, proof).expect("finish_uncompressed");
-    verify_uncompressed(&prep, &finished).expect("verify_uncompressed");
+    let finished = finish_uncompressed_with_audit(&prep, proof).expect("finish_uncompressed_with_audit");
+    verify_uncompressed_audit(&prep, &finished).expect("verify_uncompressed_audit");
 }

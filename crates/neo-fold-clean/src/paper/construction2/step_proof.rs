@@ -30,6 +30,10 @@ pub enum FoldProof {
 #[derive(Clone, Debug)]
 pub struct StepProof {
     pub fold: FoldProof,
+    /// Outgoing semantic state digest for this F' step. Stateless
+    /// frontends set this equal to the outgoing accumulator digest,
+    /// preserving the legacy `semantic_acc == construction2_acc` path.
+    pub semantic_state_digest: [u8; 32],
     pub x_out: EncInst,
 }
 

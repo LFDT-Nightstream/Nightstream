@@ -33,9 +33,12 @@ use crate::paper::construction2::TRIVIAL_PC;
 ///   per-step NIFS chain, so a tamper to a public batch's `x` or
 ///   `c.data` breaks an algebraic check before `acc_digest` is even
 ///   compared.
-/// - `z_i` / `public_trace` are still useful for **domain separation
-///   per step** inside the F' transcript prefix; they are not the
-///   authority for "this chunk had these claims."
+/// - `z_i` is still useful for **domain separation per step** inside
+///   the F' transcript prefix; it is not the authority for "this chunk
+///   had these claims." `public_trace` is retained in the public image
+///   shape but mirrors `z_i` after the first step so the hot F' image
+///   does not spend a second bit-backed hash trace over the same
+///   shape-only chunk digest.
 #[derive(Clone, Debug)]
 pub struct State {
     /// i — chunk counter (number of `extend` calls).
@@ -50,6 +53,15 @@ pub struct State {
     /// terminal-fold re-run that `verify_uncompressed` performs via
     /// `final_fold.terminal_inputs`).
     pub z_i: [u8; 32],
+    /// Initial app / VM semantic state digest, fixed at `State::base` time.
+    /// Exposed on the terminal public image so external verifiers can pin
+    /// the start state. Never mutated by `advance_state`.
+    pub initial_semantic_state_digest: [u8; 32],
+    /// Current app / VM semantic state digest. Fed to the `semantic_acc`
+    /// lane of `state_x_out_digest`; `acc_digest` remains the
+    /// Construction-2 / SuperNeo accumulator handle in the
+    /// `construction2_acc` lane.
+    pub semantic_state_digest: [u8; 32],
     /// pc_i — program counter (always `TRIVIAL_PC` in this build).
     pub pc: u64,
     /// Derived accumulator handle. After finalization, equals the digest
@@ -64,8 +76,10 @@ pub struct State {
     /// Pre-finalization (trailing `latest` still un-folded), this is a
     /// derived handle, not the final authority.
     pub acc_digest: [u8; 32],
-    /// Chained F' step/shape digest, same role as `z_i`: useful for
-    /// per-step domain separation, not the chunk-content authority.
+    /// Chained F' step/shape digest, same role as `z_i`. In the current
+    /// compact F' shape this mirrors `z_i` after a step advances; the
+    /// field remains present for public-image compatibility while we
+    /// avoid a duplicate `public_trace_update` hash trace.
     pub public_trace: [u8; 32],
     /// The fold pair `(U_i, u_i)`, tagged Initial/Active.
     pub proof: ProofState,
@@ -74,13 +88,15 @@ pub struct State {
 impl State {
     /// Initial case — `chunk_count = 0`, `proof = ProofState::Initial`, `z_i = z_0`.
     /// Constructed via [`crate::lifecycle::preprocess`] then `prove(&prep, [])`.
-    pub fn base(z_0: [u8; 32], public_trace: [u8; 32], acc_digest: [u8; 32]) -> Self {
+    pub fn base(z_0: [u8; 32], public_trace: [u8; 32], acc_digest: [u8; 32], semantic_state_digest: [u8; 32]) -> Self {
         Self {
             chunk_count: 0,
             step_count: 0,
             z_0,
             z_i: z_0,
             pc: TRIVIAL_PC,
+            initial_semantic_state_digest: semantic_state_digest,
+            semantic_state_digest,
             acc_digest,
             public_trace,
             proof: ProofState::Initial,

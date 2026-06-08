@@ -1,6 +1,6 @@
 //! `neo-fold-clean` — paper-faithful, audit-first SuperNeo IVC integrator.
 //!
-//! ## Public lifecycle (non-replay IVC, the production path)
+//! ## Public lifecycle (terminal-only IVC path)
 //!
 //! ```ignore
 //! use neo_fold_clean::{
@@ -34,8 +34,10 @@
 //!
 //! // Finalize. `finish_uncompressed` flushes the trailing latest into the
 //! // running accumulator AND drops the per-step audit trail — leaving an
-//! // `Uncompressed` that carries only the fields the IVC verifier reads.
-//! // The chain is verifiable in O(1) work via `verify_uncompressed`.
+//! // `Uncompressed` that carries only the fields the terminal verifier reads.
+//! // This terminal-only path verifies single-chunk chains. Multi-chunk
+//! // chains need the audit/compressed-decider path because the verifier
+//! // evidence for earlier chunks lives in the dropped per-step rows.
 //! let proof = finish_uncompressed(&prep, audit)?;
 //! verify_uncompressed(&prep, &proof)?;
 //!
@@ -53,7 +55,9 @@
 //!
 //! let audit_finalized = finish_uncompressed_with_audit(&prep, audit)?;
 //!
-//! // Constant-time IVC check on the terminal-only projection.
+//! // Terminal-only check on the projected proof. This accepts only the
+//! // single-chunk case; multi-chunk histories need audit replay until
+//! // the compressed decider is wired.
 //! verify_uncompressed(&prep, &audit_finalized.proof)?;
 //!
 //! // Linear-time chain replay — catches audit-trail tampers (steps,
@@ -62,10 +66,11 @@
 //! verify_uncompressed_audit(&prep, &audit_finalized)?;
 //! ```
 //!
-//! Production code that just wants to verify the IVC chain should use
-//! `finish_uncompressed` + `verify_uncompressed`. Reach for the audit
-//! variants only for diagnostics, the Spartan decider statement, or
-//! red-team tests that mutate audit-trail fields.
+//! Callers that need multi-chunk verification should keep the audit trail
+//! (`finish_uncompressed_with_audit` + `verify_uncompressed_audit`) or use
+//! the compressed decider once it is wired. Reach for the audit variants
+//! for diagnostics, the Spartan decider statement, or red-team tests that
+//! mutate audit-trail fields.
 //!
 //! ## Where do `(z, m_in)` come from?
 //!
@@ -88,7 +93,7 @@ pub mod paper;
 
 // ── Public lifecycle re-exports. Keep this surface small. ─────────────────
 
-// Production path — non-replay IVC.
+// Terminal-only lifecycle path.
 pub use lifecycle::{
     extend, finish_uncompressed, preprocess, prove, verify_uncompressed, Compressed, Error, Preprocessing, PublicImage,
     Uncompressed,

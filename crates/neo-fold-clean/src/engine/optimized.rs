@@ -13,7 +13,7 @@ use neo_ccs::Mat;
 use neo_math::F;
 use neo_reductions::api as nr;
 use neo_reductions::api::FoldingMode;
-use neo_reductions::common::{sample_rot_rhos_n_typed, split_b_matrix_k, RotRho};
+use neo_reductions::common::{sample_rot_rhos_n_typed, split_b_matrix_k_with_nonzero_flags, RotRho};
 use neo_reductions::optimized_engine::{
     optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf,
     optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf, OptimizedStructureCache,
@@ -21,10 +21,7 @@ use neo_reductions::optimized_engine::{
 use thiserror::Error;
 
 use crate::paper::construction2::RunningInstance;
-use crate::paper::digest::{
-    accumulator_digest_from_claims, accumulator_digest_from_parent_claim, digest32_as_fields,
-    pi_ccs_instance_digest_parent_authority,
-};
+use crate::paper::digest::{pi_ccs_instance_digest_parent_authority, AccumulatorHandle};
 use crate::paper::params::Params;
 use crate::paper::relations::{CcsClaim, CcsInstance, CcsWitness, CeClaim, Structure};
 
@@ -75,24 +72,38 @@ pub fn prove_pi_ccs<L>(
 where
     L: neo_ccs::traits::SModuleHomomorphism<neo_math::F, neo_ajtai::Commitment> + Sync,
 {
+    let (mcs, mcs_witnesses) = split_fresh_for_engine(fresh);
+    prove_pi_ccs_parts(tr, pp, s, cache, &mcs, &mcs_witnesses, running, log)
+}
+
+pub fn prove_pi_ccs_parts<L>(
+    tr: &mut neo_transcript::Poseidon2Transcript,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    fresh_claims: &[CcsClaim],
+    fresh_witnesses: &[CcsWitness],
+    running: &RunningInstance,
+    log: &L,
+) -> Result<(Vec<CeClaim>, nr::PiCcsProof), Error>
+where
+    L: neo_ccs::traits::SModuleHomomorphism<neo_math::F, neo_ajtai::Commitment> + Sync,
+{
     // Validate inputs and compute the instance digest BEFORE moving `fresh`
     // into engine arrays — both sides hash the same public claims.
-    let fresh_claims_for_digest: Vec<CcsClaim> = fresh.iter().map(|i| i.claim.clone()).collect();
     let parent_authority = running_parent_authority(running)?;
-    let instance_digest =
-        pi_ccs_instance_digest_parent_authority(&fresh_claims_for_digest, running.claims.len(), parent_authority);
+    let instance_digest = pi_ccs_instance_digest_parent_authority(fresh_claims, running.claims.len(), parent_authority);
     // Accumulator-handle ME-input binding: bind the same Π_RLC parent
     // authority as the public-instance digest. The Π_DEC children remain the
     // algebraic running inputs, but they do not steer this Fiat-Shamir absorb.
     let me_handle = running_parent_accumulator_handle(running)?;
 
-    let (mcs, mcs_witnesses) = split_fresh_for_engine(fresh);
     let (outputs, proof, _perf) = optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf(
         tr,
         pp.inner(),
         s,
-        &mcs,
-        &mcs_witnesses,
+        fresh_claims,
+        fresh_witnesses,
         &running.claims,
         &running.witnesses,
         instance_digest,
@@ -155,6 +166,11 @@ pub fn verify_pi_ccs(
     if proof.header_digest.as_slice() != observed {
         return Ok(false);
     }
+    for output in fold_outputs {
+        if output.fold_digest != observed {
+            return Ok(false);
+        }
+    }
     let _ = FoldingMode::Optimized; // keep the explicit folding-mode dependency visible
     Ok(true)
 }
@@ -194,11 +210,11 @@ fn running_parent_authority(running: &RunningInstance) -> Result<Option<&CeClaim
 }
 
 fn running_parent_accumulator_handle(running: &RunningInstance) -> Result<[F; 4], Error> {
-    let digest = match running_parent_authority(running)? {
-        Some(parent) => accumulator_digest_from_parent_claim(running.claims.len(), parent),
-        None => accumulator_digest_from_claims(0, &[]),
+    let handle = match running_parent_authority(running)? {
+        Some(parent) => AccumulatorHandle::from_running_parts(&running.claims, Some(parent)),
+        None => AccumulatorHandle::empty(),
     };
-    Ok(digest32_as_fields(digest))
+    Ok(handle.digest_fields())
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -230,6 +246,30 @@ where
     MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment,
 {
     nr::rlc_with_commit(
+        FoldingMode::Optimized,
+        s,
+        pp.inner(),
+        rhos,
+        me_inputs,
+        witnesses,
+        ell_d(),
+        mix_rhos_commits,
+    )
+    .map_err(Into::into)
+}
+
+pub fn prove_pi_rlc_refs<MR>(
+    pp: &Params,
+    s: &Structure,
+    rhos: &[RotRho],
+    me_inputs: &[CeClaim],
+    witnesses: &[&Mat<F>],
+    mix_rhos_commits: MR,
+) -> Result<(CeClaim, Mat<F>), Error>
+where
+    MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment,
+{
+    nr::rlc_with_commit_refs(
         FoldingMode::Optimized,
         s,
         pp.inner(),
@@ -295,7 +335,7 @@ where
     let k = pp.k_rho() as usize;
     #[cfg(feature = "perf-timers")]
     let t_split = std::time::Instant::now();
-    let z_split = split_b_matrix_k(parent_witness, k, pp.b())?;
+    let (z_split, digit_nonzero) = split_b_matrix_k_with_nonzero_flags(parent_witness, k, pp.b())?;
     #[cfg(feature = "perf-timers")]
     eprintln!(
         "[pi-dec] split_b                         {:>7.2}s",
@@ -304,21 +344,45 @@ where
 
     #[cfg(feature = "perf-timers")]
     let t_commit = std::time::Instant::now();
-    let child_commitments: Vec<Commitment> = z_split.iter().map(|z| log.commit(z)).collect();
+    let nonzero_refs: Vec<&Mat<F>> = z_split
+        .iter()
+        .zip(digit_nonzero.iter())
+        .filter_map(|(z, &nonzero)| nonzero.then_some(z))
+        .collect();
+    let nonzero_commitments = log.commit_many(&nonzero_refs);
+    let mut nonzero_iter = nonzero_commitments.into_iter();
+    let child_commitments: Vec<Commitment> = digit_nonzero
+        .iter()
+        .map(|&nonzero| {
+            if nonzero {
+                nonzero_iter
+                    .next()
+                    .expect("Π_DEC: nonzero commitment count must match nonzero digit planes")
+            } else {
+                Commitment::zeros(parent.c.d, parent.c.kappa)
+            }
+        })
+        .collect();
+    debug_assert!(
+        nonzero_iter.next().is_none(),
+        "Π_DEC: unused nonzero commitments after digit-plane assignment"
+    );
     #[cfg(feature = "perf-timers")]
     eprintln!(
-        "[pi-dec] child commitments               {:>7.2}s",
-        t_commit.elapsed().as_secs_f64()
+        "[pi-dec] child commitments               {:>7.2}s (nonzero {}/{k})",
+        t_commit.elapsed().as_secs_f64(),
+        nonzero_refs.len()
     );
 
     #[cfg(feature = "perf-timers")]
     let t_children = std::time::Instant::now();
-    let (children, ok_y, ok_x, ok_c) = nr::dec_children_with_commit_superneo_cached(
+    let (children, ok_y, ok_x, ok_c) = nr::dec_children_with_commit_superneo_cached_from_trusted_split_digits(
         FoldingMode::Optimized,
         s,
         pp.inner(),
         parent,
         &z_split,
+        &digit_nonzero,
         ell_d(),
         &child_commitments,
         combine_b_pows,

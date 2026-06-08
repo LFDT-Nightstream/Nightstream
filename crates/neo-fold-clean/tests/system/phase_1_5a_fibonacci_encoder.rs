@@ -14,8 +14,7 @@
 //!    little-endian decomposition the F' R1CS emitter uses
 //!    (`encode_x_out_public_bits` on the state_x_out digest).
 //! 3. Coherently tampering the encoded witness's chunk-digest lane
-//!    trips a Poseidon absorb row that reads chunk-digest as a preimage
-//!    source (boundary_update or public_trace_update). Bit-validity
+//!    trips the direct `chunk_digest -> new_z_i` mirror. Bit-validity
 //!    still holds.
 //! 4. Coherently tampering a boundary public-x_out lane in the encoded witness
 //!    trips the state_x_out → boundary digest binding.
@@ -45,8 +44,8 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use support::fibonacci_f_prime::{build_honest_step_input, BOUNDARY_BITS};
 
 // State-lane base indices inside `FPrimeLaneSlots::state_lanes`:
-// state_in occupies lanes 0..24, state_out lanes 24..38, chunk_digest lanes 38..42.
-const STATE_LANE_CHUNK_DIGEST_BASE: usize = 38;
+// state_in occupies lanes 0..28, state_out lanes 28..46, chunk_digest lanes 46..50.
+const STATE_LANE_CHUNK_DIGEST_BASE: usize = 46;
 
 /// Recompose a 64-bit lane to its canonical-u64 F value from the
 /// committed bits.
@@ -106,16 +105,15 @@ fn phase_1_5a_encoder_rejects_tampered_chunk_digest() {
     let mut z = encoded.witness.clone();
     assert!(encoded.structure.is_satisfied(&z), "baseline must satisfy");
 
-    // Chunk digest lane 0 feeds boundary_update and public_trace_update
-    // Poseidon absorbs. Coherent tamper keeps bit/decode rows satisfied
-    // but must trip a state-update absorb row.
+    // Chunk digest lane 0 is mirrored into state_out.new_z_i. Coherent
+    // tamper keeps bit/decode rows satisfied but must trip that mirror.
     let lane = encoded.structure.lane_slots.state_lanes[STATE_LANE_CHUNK_DIGEST_BASE];
     let new_value = decode_lane(&z, lane.bit_start) + F::ONE;
     flip_lane_bits_to(&mut z, lane.bit_start, new_value);
 
     assert!(
         !encoded.structure.is_satisfied(&z),
-        "coherent chunk_digest tamper must trip a Poseidon absorb row that reads it"
+        "coherent chunk_digest tamper must trip the chunk_digest -> new_z_i mirror"
     );
 }
 
@@ -181,7 +179,8 @@ fn phase_1_5b_encoded_f_prime_converts_to_ccs_instance() {
     let encoded = encode_f_prime_step(input);
 
     let structure = encoded.structure.ccs.clone();
-    let params = config::r1cs_params(structure.n, structure.m).expect("encoded F' params");
+    let params =
+        config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree()).expect("encoded F' params");
     let log = ajtai::setup_seeded(&params, &structure, 0xF15B_0001);
 
     let instance = encoded
@@ -213,7 +212,8 @@ fn phase_1_5b_encoded_f_prime_instance_folds_through_nifs() {
     let encoded = encode_f_prime_step(input);
 
     let structure = encoded.structure.ccs.clone();
-    let params = config::r1cs_params(structure.n, structure.m).expect("encoded F' params");
+    let params =
+        config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree()).expect("encoded F' params");
     let log = ajtai::setup_seeded(&params, &structure, 0xF15B_0002);
     let cache = neo_reductions::optimized_engine::OptimizedStructureCache::build(&structure).expect("cache build");
 

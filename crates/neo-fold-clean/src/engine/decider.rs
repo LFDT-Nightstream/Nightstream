@@ -10,74 +10,31 @@
 //! lifecycle is currently folding application CCS instances, not encoded
 //! `F'` instances.
 //!
-//! This module does **not** create, verify, or serialize a Spartan proof.
+//! This module does **not** create, verify, or serialize a compact proof.
 //! Do not use this full-history builder for production compression sizing.
 //! The constant-size terminal decider belongs to the future `F'` frontend
 //! path, where each online step folds `enc(F')` and the final SNARK proves
 //! only the terminal folded accumulator.
 //!
-//! ## What the relation enforces (in-circuit only)
-//!
-//! 1. **Native preflight** ([`crate::paper::decider::validate_witness`]):
-//!    sanity check that errors out early; **not part of the SNARK
-//!    statement**. The R1CS below stands on its own.
-//! 2. **Base F' step + canonical base-state pins**: the first lifecycle
-//!    step (`FoldProof::NoFold`) emits
-//!    [`enforce_f_prime_base_step_circuit`], then
-//!    `enforce_base_state_constants` pins every base-state seed wire
-//!    (`vk_fs_digest`, `structure_digest`, `z_0`, `z_i = z_0`,
-//!    `public_trace_seed`, empty `acc_digest`, counters = 0, pc =
-//!    `TRIVIAL_PC`) to the canonical preprocessing-derived constants.
-//!    This anchors the start of the chain to preprocessing in-circuit;
-//!    a SNARK verifier can reject a statement whose base seeds disagree
-//!    with `prep.vk.digest()` etc. without trusting native preflight.
-//! 3. **Recursive F' steps**: every `FoldProof::Recursive` emits
-//!    [`enforce_f_prime_recursive_step_circuit`]. The source-image
-//!    `prior_x_out_bits` chain implicitly carries each step's `x_out`
-//!    into the next step's `fresh.x` under Poseidon collision-resistance.
-//! 4. **Cross-step state-link constraints**: for every adjacent pair of
-//!    F' steps `(prev, next)`, `enforce_state_link(prev.state_out,
-//!    next.state_in)` pins every state field wire-to-wire. The chain is
-//!    one continuous in-circuit object, not a series of islands.
-//! 5. **CE-claim continuity links**: between every adjacent NIFS.V step
-//!    (recursive→recursive and last-recursive→terminal-fold),
-//!    `enforce_children_equal_running` pins `prev.children ==
-//!    next.running` wire-for-wire across every CE field — `c_data`,
-//!    `x`, `r`, `s_col`, `y_ring`, `y_zcol`, `fold_digest_fields`, plus
-//!    shape constants. This goes beyond the commitment-only continuity
-//!    that `state_out.acc_digest` chaining provides.
-//! 6. **Terminal final-fold NIFS.V**: the witness's `final_fold.nifs` is
-//!    replayed under [`FINAL_FOLD_TRANSCRIPT_LABEL`]. The terminal
-//!    fold's input running is pinned to the last F' step's `acc_digest`
-//!    via [`NifsVOutputs::running_acc_digest`] *and* to the last
-//!    recursive step's NIFS children via the CE-continuity link.
-//! 7. **Terminal latest link**: the terminal fold's `fresh.x[0]` is
-//!    pinned to `1` (CCS constant-one slot) and `fresh.x[1..]` is pinned
-//!    to the last F' step's `x_out_bits`. The trailing latest is bound
-//!    to the actual chain output, not an attacker-chosen value.
-//! 8. **Nine public-image pins**: every field of
-//!    [`crate::paper::decider::PublicImage`] is bound to chain-derived
-//!    wires. The terminal `x_out` is recomputed in-circuit from the
-//!    post-fold state and pinned to `statement.public.x_out`.
-//!
-//! Each audit layer's completeness is reported on [`DeciderR1csSynthesis`].
-//! [`DeciderR1csSynthesis::is_self_sufficient_relation`] returns `true`
-//! iff every flag/count is at its full value and the builder is
-//! satisfied — that is a full-history audit readiness marker, nothing
-//! more.
+//! The R1CS itself, not native preflight, enforces canonical base-state
+//! pins, every base/recursive F' step, adjacent state links, full CE
+//! continuity, terminal NIFS.V, terminal latest-link rows, public-image
+//! pins, and terminal CE rows against NIFS-output children. Completeness
+//! is summarized by [`DeciderR1csSynthesis`]; it is an audit marker, not a
+//! production-compression claim.
 
 use neo_math::F;
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::{Lc, R1csBuilder, TranscriptGadget, Var};
 use crate::lifecycle::Preprocessing;
 use crate::paper::construction2::finalization::FINAL_FOLD_TRANSCRIPT_LABEL;
-use crate::paper::construction2::{self, FoldProof, ProofState, State, TRIVIAL_PC};
+use crate::paper::construction2::{self, FoldProof, ProofState, SemanticStateMode, State, TRIVIAL_PC};
 use crate::paper::decider::{self, PublicImage, Statement};
 use crate::paper::digest::{
-    accumulator_digest_from_claims, digest32_as_fields, f_prime_chunk_public_digest, initial_boundary_digest,
-    public_trace_seed_digest, state_x_out_digest,
+    digest32_as_fields, f_prime_chunk_public_digest, initial_boundary_digest, public_trace_seed_digest,
+    state_x_out_digest_with_mode, AccumulatorHandle, StateXOutDigestMode,
 };
 use crate::paper::f_prime::digest_circuit::{enforce_state_x_out_digest_circuit, StateXOutDigestInputs};
 use crate::paper::f_prime::native::F_PRIME_STEP_TRANSCRIPT_LABEL;
@@ -89,91 +46,65 @@ use crate::paper::f_prime::r1cs::{
 use crate::paper::f_prime::source_image::{BitRange, FPrimeSourceImage};
 use crate::paper::nifs::circuit::{enforce_nifs_v_circuit_with_transcript, NifsVCircuitConfig, NifsVCircuitMessages};
 use crate::paper::nifs::NifsProof;
-use crate::paper::reductions::accumulator_digest_circuit::enforce_accumulator_digest_from_parent_circuit;
-use crate::paper::reductions::pi_ccs_split_nc_circuit::{SplitNcPiCcsOutputWires, SplitNcPiCcsVConfig};
+use crate::paper::reductions::accumulator_digest_circuit::enforce_accumulator_digest_from_running_circuit;
+use crate::paper::reductions::pi_ccs_split_nc_circuit::{
+    enforce_accumulator_ce_claim_digest, AccumulatorCeClaimDigestInputs, SplitNcPiCcsOutputWires, SplitNcPiCcsVConfig,
+};
 use crate::paper::reductions::pi_dec_circuit::CeClaimWires;
 use crate::paper::relations::CcsClaim;
 
-/// Full-history audit R1CS output plus relation-completeness tracking.
-///
-/// This builder replays the whole direct-CCS interim transcript. It is
-/// intentionally self-contained, but it is not the constant-size IVC
-/// terminal decider. `is_self_sufficient_relation()` means the audit
-/// relation is complete and satisfied:
-///
-/// - `base_step_emitted == true`
-/// - `base_state_pinned == true` (base seed values pinned to canonical
-///   preprocessing-derived constants in-circuit)
-/// - `recursive_step_count == N - 1` for an N-batch chain
-/// - `cross_step_links == N - 1` (one link per adjacent pair)
-/// - `accumulator_claim_links == recursive_step_count` (full CE
-///   continuity between every adjacent NIFS.V step)
-/// - `terminal_latest_link == true`
-/// - `terminal_fold_emitted == true`
-/// - `public_image_pins == REQUIRED_PUBLIC_IMAGE_PINS`
+/// Full-history audit R1CS output plus completeness tracking.
 pub struct DeciderR1csSynthesis {
     pub builder: R1csBuilder,
-    /// `true` once the base F' step has been emitted in-circuit.
+    /// Base F' step emitted in-circuit.
     pub base_step_emitted: bool,
-    /// `true` once the base step's seed wires (vk_fs_digest,
-    /// structure_digest, z_0, z_i, public_trace, empty acc_digest, plus
-    /// the zero counters and `pc == TRIVIAL_PC`) are pinned to their
-    /// canonical preprocessing-derived values in-circuit.
+    /// Base seed wires pinned to preprocessing-derived constants.
     pub base_state_pinned: bool,
     /// Number of `FoldProof::Recursive` steps emitted.
     pub recursive_step_count: usize,
-    /// Count of `enforce_state_link` invocations between adjacent F' steps.
-    /// For an N-batch chain there are `N - 1` links (base→rec, rec→rec, ...).
+    /// Adjacent F' state links emitted.
     pub cross_step_links: usize,
-    /// `true` once `terminal_fresh.x[1..] == last.x_out_bits` is enforced
-    /// (with `x[0] == 1`).
+    /// Terminal latest `fresh.x == enc(last.x_out)` link emitted.
     pub terminal_latest_link: bool,
-    /// `true` once the terminal `final_fold` NIFS.V is re-emitted
-    /// in-circuit under [`FINAL_FOLD_TRANSCRIPT_LABEL`].
+    /// Terminal `final_fold` NIFS.V emitted in-circuit.
     pub terminal_fold_emitted: bool,
-    /// Count of in-circuit `statement.public` field pins (out of
-    /// [`REQUIRED_PUBLIC_IMAGE_PINS`]).
+    /// Terminal `statement.public` field pins emitted by `pin_public_image`.
     pub public_image_pins: usize,
-    /// Number of CE-claim continuity links emitted between adjacent
-    /// NIFS.V steps. For an N-batch chain (1 base + (N-1) recursive +
-    /// terminal fold) this equals `recursive_step_count`: each
-    /// recursive step's `nifs_children` is pinned wire-for-wire to the
-    /// next step's `nifs_running` (or to the terminal fold's running
-    /// for the last recursive step). This goes beyond the
-    /// commitment-only continuity that `state_out.acc_digest` chaining
-    /// provides — it binds `(c_data, x, r, y_ring, y_zcol, s_col,
-    /// fold_digest)` across every step boundary.
+    /// Wire-for-wire CE continuity links between NIFS.V step boundaries.
     pub accumulator_claim_links: usize,
+    /// Wire-for-wire Π_RLC parent-authority continuity links between NIFS.V
+    /// step boundaries.
+    pub parent_authority_links: usize,
+    /// Direct terminal CE-relation rows emitted against NIFS-output children.
+    ///
+    /// Until a real compact terminal-CE proof verifier exists, the readiness
+    /// gate must require these direct rows specifically.
+    pub terminal_ce_direct_relations: bool,
 }
 
-/// Number of fields in `decider::PublicImage` that must be pinned
-/// in-circuit before the R1CS is a self-sufficient SNARK relation.
-pub const REQUIRED_PUBLIC_IMAGE_PINS: usize = 9;
+/// `pin_public_image` pins every public field except the initial semantic
+/// seed, which is part of the base-state pin.
+pub const REQUIRED_PUBLIC_IMAGE_PINS: usize = 10;
 
 impl DeciderR1csSynthesis {
-    /// Single-call readiness gate. Returns `true` exactly when every
-    /// completeness flag/count is at its full value **and** the builder
-    /// is satisfied — i.e. the synthesized full-history audit R1CS is
-    /// self-contained.
-    ///
-    /// This is not a production compression gate. The production IVC
-    /// terminal decider should be constant-size in the number of steps
-    /// and must be built around folded `enc(F')` instances.
+    /// Readiness gate for the self-contained full-history audit relation.
     pub fn is_self_sufficient_relation(&self) -> bool {
         self.base_step_emitted
             && self.base_state_pinned
             && self.cross_step_links == self.recursive_step_count
             && self.accumulator_claim_links == self.recursive_step_count
+            && self.parent_authority_links == self.recursive_step_count
             && self.terminal_latest_link
             && self.terminal_fold_emitted
             && self.public_image_pins == REQUIRED_PUBLIC_IMAGE_PINS
+            && self.terminal_ce_direct_relations
             && self.builder.is_satisfied()
     }
 }
 
 /// Run the non-SNARK preflight on `statement`, then synthesize the
 /// full-history audit R1CS for the direct-CCS interim path. This module
-/// stops here: no Spartan proof is created, verified, or serialized.
+/// stops here: no compact proof is created, verified, or serialized.
 ///
 /// Errors propagate from [`crate::paper::decider::validate_witness`] and
 /// from in-circuit emission (wrapped in [`decider::Error::WalkFailed`]).
@@ -183,7 +114,6 @@ pub fn synthesize_statement_r1cs(
     prep: &Preprocessing,
     statement: &Statement,
 ) -> Result<DeciderR1csSynthesis, decider::Error> {
-    // 1. Preflight (sanity, not part of SNARK).
     decider::validate_witness(
         &prep.params,
         prep.structure(),
@@ -194,15 +124,35 @@ pub fn synthesize_statement_r1cs(
         prep.combine_b_pows,
         &prep.vk,
         prep.public_input_len,
+        prep.enforces_f_prime_recursive_link(),
+        prep.semantic_state_mode,
+        prep.initial_semantic_state_digest(),
         statement,
     )?;
+    synthesize_statement_r1cs_inner(prep, statement)
+}
 
-    // 2-4. F' chain (base + recursive steps + cross-step links).
+/// **TEST-ONLY GADGET HARNESS.** Narrow integration-test access to
+/// individual decider row families. Production code MUST NOT touch this.
+#[doc(hidden)]
+#[path = "decider_test_isolation.rs"]
+pub mod __test_isolation;
+
+fn synthesize_statement_r1cs_inner(
+    prep: &Preprocessing,
+    statement: &Statement,
+) -> Result<DeciderR1csSynthesis, decider::Error> {
+    // 1-3. F' chain (base + recursive steps + cross-step links).
     let structure_digest_v = *prep.structure_digest();
     let z_0 = initial_boundary_digest(&structure_digest_v, prep.public_input_len);
     let public_trace = public_trace_seed_digest(&structure_digest_v);
-    let acc_digest = accumulator_digest_from_claims(prep.params.b(), &[]);
-    let mut state = State::base(z_0, public_trace, acc_digest);
+    let acc_digest = AccumulatorHandle::empty().digest();
+    let mut state = State::base(
+        z_0,
+        public_trace,
+        acc_digest,
+        statement.public.initial_semantic_state_digest,
+    );
 
     let mut builder = R1csBuilder::new();
     let mut base_step_emitted = false;
@@ -210,6 +160,7 @@ pub fn synthesize_statement_r1cs(
     let mut recursive_step_count = 0;
     let mut cross_step_links = 0;
     let mut accumulator_claim_links = 0;
+    let mut parent_authority_links = 0;
     let mut last_output: Option<FPrimeStepOutput> = None;
     let mut previous_children: Option<Vec<CeClaimWires>> = None;
     let mut previous_parent: Option<CeClaimWires> = None;
@@ -233,6 +184,7 @@ pub fn synthesize_statement_r1cs(
             state,
             public_batch,
             step_proof,
+            prep.semantic_state_mode,
         )
         .map_err(|e| decider::Error::WalkFailed(format!("step {idx}: {e}")))?;
 
@@ -241,7 +193,7 @@ pub fn synthesize_statement_r1cs(
                 base_step_emitted = true;
                 let out = emit_base_step_r1cs(&mut builder, prep, &state_in, &state, public_batch)
                     .map_err(|e| decider::Error::WalkFailed(format!("emit F' base step {idx}: {e}")))?;
-                enforce_base_state_constants(&mut builder, prep, &out);
+                enforce_base_state_constants(&mut builder, prep, &statement.public, &out);
                 base_state_pinned = true;
                 out
             }
@@ -274,6 +226,7 @@ pub fn synthesize_statement_r1cs(
                 std::slice::from_ref(curr_parent),
             )
             .map_err(|e| decider::Error::WalkFailed(format!("parent-authority continuity step {idx}: {e}")))?;
+            parent_authority_links += 1;
         }
         previous_children = output.nifs_children.clone();
         previous_parent = output.nifs_parent.clone();
@@ -301,7 +254,14 @@ pub fn synthesize_statement_r1cs(
         .last()
         .ok_or_else(|| decider::Error::WalkFailed("final_fold present but public_batches empty".into()))?;
 
-    let (terminal_fold_emitted, terminal_latest_link, final_acc_digest, terminal_running) = emit_terminal_fold(
+    let (
+        terminal_fold_emitted,
+        terminal_latest_link,
+        terminal_parent_authority_link,
+        final_acc_digest,
+        terminal_running,
+        terminal_children,
+    ) = emit_terminal_fold(
         &mut builder,
         prep,
         &last,
@@ -317,9 +277,45 @@ pub fn synthesize_statement_r1cs(
             .map_err(|e| decider::Error::WalkFailed(format!("CE continuity terminal fold: {e}")))?;
         accumulator_claim_links += 1;
     }
+    if terminal_parent_authority_link {
+        parent_authority_links += 1;
+    }
 
     // 7. Public-image pins.
     let public_image_pins = pin_public_image(&mut builder, &statement.public, prep, &last, &final_acc_digest);
+
+    // 8. Terminal CE-relation closure — SOUND DIRECT PATH, NOT COMPACT.
+    //    These rows ARE the decider R1CS's current soundness contract:
+    //    they allocate Z and directly enforce commit(Z) == c, X ==
+    //    L_in(Z), low-norm, y_ring == M·Z(r), and ct == const-term(y_ring)
+    //    against the opened terminal witnesses. Do not remove them — the
+    //    F'-chain `acc_digest` commits to the terminal CE claims, but it
+    //    does not prove that the opened witness Z satisfies those claims.
+    //    Without this closure a SNARK consumer could accept a final Z that
+    //    is not a real opening of the terminal accumulator.
+    //
+    //    Not the eventual COMPACT shape: a future off-circuit terminal-CE
+    //    proof could replace these direct rows with in-circuit verifier
+    //    rows for that proof, keeping Z out-of-circuit at real F'-image
+    //    sizes (n, m ~ 10⁶+). No compact backend is wired here; see
+    //    `paper::decider_ce_relation` module docs.
+    let ProofState::Active {
+        running: final_running,
+        latest: _final_latest,
+    } = &statement.witness.final_state.proof
+    else {
+        return Err(decider::Error::WalkFailed(
+            "statement.witness.final_state must be Active after finalization".into(),
+        ));
+    };
+    crate::paper::decider_ce_relation::enforce_final_ce_relations(
+        &mut builder,
+        prep,
+        &terminal_children,
+        &final_running.witnesses,
+    )
+    .map_err(|e| decider::Error::WalkFailed(format!("terminal CE relation: {e}")))?;
+    let terminal_ce_direct_relations = true;
 
     Ok(DeciderR1csSynthesis {
         builder,
@@ -331,6 +327,8 @@ pub fn synthesize_statement_r1cs(
         terminal_fold_emitted,
         public_image_pins,
         accumulator_claim_links,
+        parent_authority_links,
+        terminal_ce_direct_relations,
     })
 }
 
@@ -360,10 +358,20 @@ pub fn synthesize_statement_r1cs(
 /// (NIFS payloads, ring-action traces, Poseidon traces). Verifying the
 /// latest binds the chain transitively.
 ///
+/// **Important scope limit.** This helper is still an audit/row-shape
+/// synthesis path, not a deployable compressed verifier. It receives an
+/// [`crate::lifecycle::UncompressedAudit`], runs the native chain replay to
+/// recover the last step's `state_in`, and only then emits the last-step
+/// rows. A real terminal verifier must not rely on that native replay as
+/// authority; it must either prove the full audit relation, or prove a
+/// compact relation whose public/proof inputs bind the last state and
+/// terminal CE statement in-circuit. Until that proof layer exists,
+/// `crate::lifecycle::compress` remains fail-closed.
+///
 /// A future "pure accumulator-only" terminal decider would emit just
-/// (b) + (c) and pin the latest F' relation's correctness via an
-/// in-circuit Spartan verification of the running accumulator. That
-/// is out of scope for this milestone.
+/// (b) + (c) and pin the latest F' relation's correctness via in-circuit
+/// verification of a compact proof for the running accumulator. That is out
+/// of scope for this milestone.
 pub struct LastStepTerminalSynthesis {
     pub builder: R1csBuilder,
     /// Count of CE claims carried by the final running accumulator
@@ -375,6 +383,11 @@ pub struct LastStepTerminalSynthesis {
     /// [`REQUIRED_PUBLIC_IMAGE_PINS`] for the relation to be
     /// self-sufficient).
     pub public_image_pins: usize,
+    /// Direct terminal CE-relation rows emitted against NIFS-output children.
+    ///
+    /// The future compact verifier must use a separate marker once it really
+    /// verifies proof bytes; this field means the current direct rows exist.
+    pub terminal_ce_direct_relations: bool,
 }
 
 /// Synthesize the steady-state O(1) "last F' step + terminal fold +
@@ -386,9 +399,11 @@ pub struct LastStepTerminalSynthesis {
 /// for the scope. What it *does* deliver is: the per-step `for`-loop
 /// emission that grows with chain length is gone. The native walk over
 /// `proof.steps` is still O(N) (it has to derive the last step's
-/// state_in), but only one F' step's R1CS lands in the builder, so
+/// state_in), and that walk is **not** a substitute for a proof checked by
+/// the final verifier. Only one F' step's R1CS lands in the builder, so
 /// `builder.rows()` is constant in the steady-state (last step folding
-/// `k_rho` → `k_rho`).
+/// `k_rho` → `k_rho`), but this helper is not the final compressed
+/// verifier contract.
 ///
 /// Use [`synthesize_statement_r1cs`] for the audit-replay path that
 /// emits one F' shell per historical step.
@@ -427,6 +442,9 @@ pub fn synthesize_last_step_terminal_r1cs(
         prep.combine_b_pows,
         &prep.vk,
         prep.public_input_len,
+        prep.enforces_f_prime_recursive_link(),
+        prep.semantic_state_mode,
+        prep.initial_semantic_state_digest(),
         &statement,
     )?;
 
@@ -435,8 +453,13 @@ pub fn synthesize_last_step_terminal_r1cs(
     let structure_digest_v = *prep.structure_digest();
     let z_0 = initial_boundary_digest(&structure_digest_v, prep.public_input_len);
     let public_trace = public_trace_seed_digest(&structure_digest_v);
-    let acc_digest = accumulator_digest_from_claims(prep.params.b(), &[]);
-    let mut state = State::base(z_0, public_trace, acc_digest);
+    let acc_digest = AccumulatorHandle::empty().digest();
+    let mut state = State::base(
+        z_0,
+        public_trace,
+        acc_digest,
+        statement.public.initial_semantic_state_digest,
+    );
 
     let last_idx = audit.steps.len() - 1;
     let mut last_state_in: Option<State> = None;
@@ -463,6 +486,7 @@ pub fn synthesize_last_step_terminal_r1cs(
             state,
             public_batch,
             step_proof,
+            prep.semantic_state_mode,
         )
         .map_err(|e| decider::Error::WalkFailed(format!("native walk step {idx}: {e}")))?;
         if idx == last_idx {
@@ -482,7 +506,7 @@ pub fn synthesize_last_step_terminal_r1cs(
         FoldProof::NoFold => {
             let out = emit_base_step_r1cs(&mut builder, prep, &last_state_in, &last_state_out, last_public_batch)
                 .map_err(|e| decider::Error::WalkFailed(format!("emit last (base) step: {e}")))?;
-            enforce_base_state_constants(&mut builder, prep, &out);
+            enforce_base_state_constants(&mut builder, prep, &statement.public, &out);
             out
         }
         FoldProof::Recursive(nifs) => emit_recursive_step_r1cs(
@@ -502,7 +526,14 @@ pub fn synthesize_last_step_terminal_r1cs(
         .final_fold
         .as_ref()
         .expect("proof.final_fold checked above");
-    let (_terminal_fold_emitted, _terminal_latest_link, final_acc_digest, terminal_running) = emit_terminal_fold(
+    let (
+        _terminal_fold_emitted,
+        _terminal_latest_link,
+        _terminal_parent_authority_link,
+        final_acc_digest,
+        terminal_running,
+        terminal_children,
+    ) = emit_terminal_fold(
         &mut builder,
         prep,
         &last_output,
@@ -511,15 +542,54 @@ pub fn synthesize_last_step_terminal_r1cs(
         &final_fold.nifs,
     )?;
 
+    // 4b. CE-claim continuity: the last recursive F' step's Π_DEC
+    //     children must equal the terminal fold's Π_CCS running input
+    //     wire-for-wire, across every carried CE field (c_data, X, r,
+    //     s_col, y_ring, ct, y_zcol, fold_digest_fields). The accumulator
+    //     digest omits non-authority sidecars such as y_zcol, so this
+    //     direct equality is the terminal-boundary continuity gate. Mirrors
+    //     the analogous check in
+    //     `synthesize_statement_r1cs_inner` (full-history audit). Base
+    //     last-step has no nifs_children, so this is guarded by `if let Some`.
+    if let Some(prev_children) = last_output.nifs_children.as_ref() {
+        enforce_children_equal_running(&mut builder, prev_children, &terminal_running)
+            .map_err(|e| decider::Error::WalkFailed(format!("CE continuity terminal fold (last-step): {e}")))?;
+    }
+
     // 5. Public-image pins. Anchors the relation to a SNARK-verifiable
     //    public statement.
     let public_image_pins = pin_public_image(&mut builder, &statement.public, prep, &last_output, &final_acc_digest);
+
+    // 6. Terminal CE-relation closure — SOUND DIRECT PATH, NOT COMPACT.
+    //    Same contract as `synthesize_statement_r1cs_inner` step 8: these
+    //    rows directly enforce the CE relation against the opened terminal
+    //    witnesses and are the current soundness contract — do not remove.
+    //    A future compact terminal-CE proof could replace them with
+    //    in-circuit verifier rows. See `paper::decider_ce_relation` docs.
+    let ProofState::Active {
+        running: final_running,
+        latest: _final_latest,
+    } = &statement.witness.final_state.proof
+    else {
+        return Err(decider::Error::WalkFailed(
+            "statement.witness.final_state must be Active after finalization".into(),
+        ));
+    };
+    crate::paper::decider_ce_relation::enforce_final_ce_relations(
+        &mut builder,
+        prep,
+        &terminal_children,
+        &final_running.witnesses,
+    )
+    .map_err(|e| decider::Error::WalkFailed(format!("terminal CE relation: {e}")))?;
+    let terminal_ce_direct_relations = true;
 
     Ok(LastStepTerminalSynthesis {
         builder,
         running_claim_count: terminal_running.len(),
         has_final_fold: true,
         public_image_pins,
+        terminal_ce_direct_relations,
     })
 }
 
@@ -545,6 +615,7 @@ fn emit_base_step_r1cs(
         z_0: digest32_as_fields(state_in.z_0),
         z_i_in: digest32_as_fields(state_in.z_i),
         pc: state_in.pc,
+        semantic_state_digest_in: digest32_as_fields(state_in.semantic_state_digest),
         acc_digest_in: digest32_as_fields(state_in.acc_digest),
         public_trace_in: digest32_as_fields(state_in.public_trace),
     };
@@ -561,11 +632,13 @@ fn emit_base_step_r1cs(
         },
         b: prep.params.b(),
         transcript_label: F_PRIME_STEP_TRANSCRIPT_LABEL,
+        state_x_out_digest_mode: state_x_out_digest_mode(prep),
     };
     let rows_in_chunk = public_batch.len() as u64;
     let inputs = FPrimeBaseInputs {
         state: f_state,
         chunk_digest,
+        semantic_state_digest_out: digest32_as_fields(state_out.semantic_state_digest),
         rows_in_chunk,
         source_image: &image,
         chunk_count_in_word,
@@ -607,6 +680,7 @@ fn emit_recursive_step_r1cs(
         z_0: digest32_as_fields(state_in.z_0),
         z_i_in: digest32_as_fields(state_in.z_i),
         pc: state_in.pc,
+        semantic_state_digest_in: digest32_as_fields(state_in.semantic_state_digest),
         acc_digest_in: digest32_as_fields(state_in.acc_digest),
         public_trace_in: digest32_as_fields(state_in.public_trace),
     };
@@ -625,10 +699,13 @@ fn emit_recursive_step_r1cs(
         },
         b: prep.params.b(),
         transcript_label: F_PRIME_STEP_TRANSCRIPT_LABEL,
+        state_x_out_digest_mode: state_x_out_digest_mode(prep),
     };
     let inputs = FPrimeRecursiveInputs {
         state: f_state,
         chunk_digest,
+        semantic_state_digest_out: digest32_as_fields(state_out.semantic_state_digest),
+        acc_digest_out: digest32_as_fields(state_out.acc_digest),
         nifs_msg: NifsVCircuitMessages {
             fresh: &fresh,
             running: running_claims,
@@ -637,6 +714,12 @@ fn emit_recursive_step_r1cs(
             combined: &nifs.pi_rlc.combined,
             children: &nifs.pi_dec.children,
         },
+        // The current-step chunk size = number of fresh claims deposited
+        // at this step (= `public_batch.len()`, mirroring native
+        // `advance_state(..., fresh_count, ...)`). This may differ from
+        // `nifs_msg.fresh.len()` (the previous step's batch being folded
+        // by NIFS.V) when batch sizes vary across steps.
+        rows_in_chunk: public_batch.len() as u64,
         source_image: &image,
         chunk_count_in_word,
         step_count_in_word,
@@ -658,11 +741,16 @@ fn emit_recursive_step_r1cs(
 /// step itself only enforces shape (counters=0, z_i==z_0, acc==empty), not
 /// the seed values. Native `validate_witness` catches it, but the R1CS
 /// must stand alone.
-fn enforce_base_state_constants(builder: &mut R1csBuilder, prep: &Preprocessing, base: &FPrimeStepOutput) {
+fn enforce_base_state_constants(
+    builder: &mut R1csBuilder,
+    prep: &Preprocessing,
+    public: &PublicImage,
+    base: &FPrimeStepOutput,
+) {
     let structure_lanes = *prep.structure_digest();
     let z_0_bytes = initial_boundary_digest(&structure_lanes, prep.public_input_len);
     let public_trace_bytes = public_trace_seed_digest(&structure_lanes);
-    let empty_acc_bytes = accumulator_digest_from_claims(prep.params.b(), &[]);
+    let empty_acc_bytes = AccumulatorHandle::empty().digest();
 
     pin_digest32(builder, &base.state_in.vk_fs_digest, prep.vk.digest());
     pin_digest_fields(builder, &base.state_in.structure_digest, structure_lanes);
@@ -670,6 +758,11 @@ fn enforce_base_state_constants(builder: &mut R1csBuilder, prep: &Preprocessing,
     // Base step also enforces z_i == z_0 in-circuit, but pinning here
     // gives the SNARK verifier a direct constant to compare against.
     pin_digest32(builder, &base.state_in.z_i, z_0_bytes);
+    pin_digest32(
+        builder,
+        &base.state_in.semantic_state_digest,
+        public.initial_semantic_state_digest,
+    );
     pin_digest32(builder, &base.state_in.public_trace, public_trace_bytes);
     pin_digest32(builder, &base.state_in.acc_digest, empty_acc_bytes);
     pin_u64(builder, base.state_in.chunk_count, 0);
@@ -693,6 +786,7 @@ fn enforce_state_link(builder: &mut R1csBuilder, a: &FPrimeStateWires, b: &FPrim
     enforce_digest_eq(builder, &a.z_0, &b.z_0);
     enforce_digest_eq(builder, &a.z_i, &b.z_i);
     builder.enforce_eq(&Lc::from_var(a.pc), &Lc::from_var(b.pc));
+    enforce_digest_eq(builder, &a.semantic_state_digest, &b.semantic_state_digest);
     enforce_digest_eq(builder, &a.acc_digest, &b.acc_digest);
     enforce_digest_eq(builder, &a.public_trace, &b.public_trace);
 }
@@ -712,7 +806,7 @@ fn enforce_digest_eq(builder: &mut R1csBuilder, a: &[Var; 4], b: &[Var; 4]) {
 /// Π_CCS verifier's input-running view. They carry the same data in two
 /// representations:
 ///   - both share Vec<Var> for c_data / x.
-///   - both share Vec<KVar> for r / s_col.
+///   - both share Vec<KVar> for r / s_col / ct.
 ///   - children's y_ring / y_zcol are flattened K_LIMBS=2 base-field
 ///     limbs (Vec<Var>); running's are Vec<KVar>. The helper expands
 ///     each KVar back into (c0, c1) and pins limb-by-limb.
@@ -753,9 +847,18 @@ fn enforce_children_equal_running(
         // c_data + x are Vec<Var> in both representations.
         enforce_vec_var_eq(builder, &child.c_data, &run.c_data, "c_data", idx)?;
         enforce_vec_var_eq(builder, &child.x, &run.x, "x", idx)?;
-        // r, s_col are Vec<KVar> in both — KVar exposes c0/c1 directly.
+        // Shape metadata is also represented as scalar wires inside the
+        // verifier circuit. Pin it here so CE continuity is genuinely
+        // wire-for-wire, not only a Rust-side shape precheck.
+        builder.enforce_eq(&Lc::from_var(child.c_d_var), &Lc::from_var(run.c_d_var));
+        builder.enforce_eq(&Lc::from_var(child.c_kappa_var), &Lc::from_var(run.c_kappa_var));
+        builder.enforce_eq(&Lc::from_var(child.x_rows_var), &Lc::from_var(run.x_rows_var));
+        builder.enforce_eq(&Lc::from_var(child.x_cols_var), &Lc::from_var(run.x_cols_var));
+        builder.enforce_eq(&Lc::from_var(child.m_in_var), &Lc::from_var(run.m_in_var));
+        // r, s_col, ct are Vec<KVar> in both — KVar exposes c0/c1 directly.
         enforce_vec_kvar_eq(builder, &child.r, &run.r, "r", idx)?;
         enforce_vec_kvar_eq(builder, &child.s_col, &run.s_col, "s_col", idx)?;
+        enforce_vec_kvar_eq(builder, &child.ct, &run.ct, "ct", idx)?;
         // y_ring representation differs: child has [j][lane*2 + limb]
         // base-field wires; run has [j][lane] KVars.
         if child.y_ring.len() != run.y_ring.len() {
@@ -851,12 +954,32 @@ fn enforce_flat_limbs_vs_kvar_row(
     Ok(())
 }
 
+fn flat_kvars(flat: &[Var], lanes: usize) -> Result<Vec<KVar>, String> {
+    const K_LIMBS: usize = 2;
+    if flat.len() != lanes * K_LIMBS {
+        return Err(format!(
+            "flat limb length {} does not match lanes {} × K_LIMBS {}",
+            flat.len(),
+            lanes,
+            K_LIMBS
+        ));
+    }
+    Ok(flat
+        .chunks_exact(K_LIMBS)
+        .map(|chunk| KVar::new(chunk[0], chunk[1]))
+        .collect())
+}
+
 /// Emit the terminal final-fold NIFS.V inside the builder + enforce the
 /// terminal latest recursive link. Returns
-/// `(terminal_fold_emitted, terminal_latest_link, post_fold_acc_digest,
-/// terminal_running_wires)`. The decider uses the running wires for the
-/// final CE-claim continuity link (terminal fold's running == last
-/// recursive F' step's children).
+/// `(terminal_fold_emitted, terminal_latest_link,
+/// terminal_parent_authority_link, post_fold_acc_digest,
+/// terminal_running_wires, terminal_children)`. The decider uses the
+/// running wires for the final CE-claim continuity link (terminal fold's
+/// running == last recursive F' step's children), and the children wires
+/// as the terminal CE-relation closure's claim inputs — the NIFS-output
+/// CE claims that `enforce_final_ce_relations` binds to the opened
+/// witnesses.
 fn emit_terminal_fold(
     builder: &mut R1csBuilder,
     prep: &Preprocessing,
@@ -864,7 +987,17 @@ fn emit_terminal_fold(
     running_pre_final_fold: &crate::paper::construction2::RunningInstance,
     trailing_latest: &[CcsClaim],
     final_fold_nifs: &NifsProof,
-) -> Result<(bool, bool, [Var; 4], Vec<SplitNcPiCcsOutputWires>), decider::Error> {
+) -> Result<
+    (
+        bool,
+        bool,
+        bool,
+        [Var; 4],
+        Vec<SplitNcPiCcsOutputWires>,
+        Vec<crate::paper::reductions::pi_dec_circuit::CeClaimWires>,
+    ),
+    decider::Error,
+> {
     let nifs_config = NifsVCircuitConfig {
         pi_ccs: split_nc_config(prep).map_err(|e| decider::Error::WalkFailed(format!("split_nc_config: {e}")))?,
     };
@@ -884,6 +1017,7 @@ fn emit_terminal_fold(
 
     // Pin terminal fold's input running to last F' step's acc_digest.
     enforce_digest_eq(builder, &nifs_outputs.running_acc_digest, &last.state_out.acc_digest);
+    let mut terminal_parent_authority_link = false;
     if let (Some(prev_parent), Some(curr_parent)) = (
         last.nifs_parent.as_ref(),
         nifs_outputs.running_parent_authority.as_ref(),
@@ -894,57 +1028,110 @@ fn emit_terminal_fold(
             std::slice::from_ref(curr_parent),
         )
         .map_err(|e| decider::Error::WalkFailed(format!("terminal parent-authority continuity: {e}")))?;
+        terminal_parent_authority_link = true;
     }
 
     // Terminal latest recursive link: fresh.x[0]==1 and
     // fresh.x[1..]==last.x_out_bits.
     enforce_terminal_latest_link(builder, &nifs_outputs.fresh_x, &last.x_out_bits)?;
 
-    // Compute post-fold accumulator digest from NIFS.V's parent.
-    let k_carry = final_fold_nifs.pi_dec.children.len();
+    // Compute post-fold accumulator digest from the full NIFS.V output
+    // accumulator: every child CE claim plus the Π_RLC parent authority.
+    let mut child_digests = Vec::with_capacity(nifs_outputs.children.len());
+    for child in &nifs_outputs.children {
+        child_digests.push(enforce_dec_ce_claim_accumulator_digest(builder, child)?);
+    }
+    let parent_digest = enforce_dec_ce_claim_accumulator_digest(builder, &nifs_outputs.parent)?;
     let post_fold_acc_digest =
-        enforce_accumulator_digest_from_parent_circuit(builder, k_carry, &nifs_outputs.parent_c_data);
+        enforce_accumulator_digest_from_running_circuit(builder, &child_digests, Some(parent_digest));
 
-    Ok((true, true, post_fold_acc_digest, nifs_outputs.running))
+    Ok((
+        true,
+        true,
+        terminal_parent_authority_link,
+        post_fold_acc_digest,
+        nifs_outputs.running,
+        nifs_outputs.children,
+    ))
 }
 
-/// Constrain the terminal fold's only fresh CCS instance's public input
-/// to encode the last F' step's `x_out`. Specifically:
-///   - `fresh.x[0] == 1` (CCS constant-one slot).
-///   - `fresh.x[1..] == last.x_out_bits` (bit-by-bit).
+fn enforce_dec_ce_claim_accumulator_digest(
+    builder: &mut R1csBuilder,
+    claim: &CeClaimWires,
+) -> Result<[Var; 4], decider::Error> {
+    let y_ring = dec_y_ring_kvars(claim)
+        .map_err(|e| decider::Error::WalkFailed(format!("terminal accumulator CE digest y_ring: {e}")))?;
+    enforce_accumulator_ce_claim_digest(
+        builder,
+        &AccumulatorCeClaimDigestInputs {
+            c_d: claim.c_d,
+            c_kappa: claim.c_kappa,
+            c_data: &claim.c_data,
+            x_rows: claim.x_rows,
+            x_cols: claim.x_cols,
+            x_flat_row_major: &claim.x,
+            r: &claim.r,
+            s_col: &claim.s_col,
+            y_ring: &y_ring,
+            ct: &claim.ct,
+            m_in: claim.m_in,
+            fold_digest_fields: claim.fold_digest_fields,
+        },
+    )
+    .map_err(|e| decider::Error::WalkFailed(format!("terminal accumulator CE digest: {e}")))
+}
+
+fn dec_y_ring_kvars(claim: &CeClaimWires) -> Result<Vec<Vec<KVar>>, String> {
+    let mut rows = Vec::with_capacity(claim.y_ring.len());
+    for (j, row) in claim.y_ring.iter().enumerate() {
+        rows.push(flat_kvars(row, claim.y_ring_lanes).map_err(|e| format!("y_ring[{j}] {e}"))?);
+    }
+    Ok(rows)
+}
+
+/// Constrain every terminal-fold fresh CCS instance's public input to
+/// encode the last F' step's `x_out`. The trailing latest is one
+/// SuperNeo chunk rooted at the last step's `x_out`, so every fresh in
+/// the batch shares the same recursive link. Specifically, for every
+/// `fresh_x[i]`:
+///   - `fresh_x[i].len() == F_PRIME_PUBLIC_INPUT_LEN`.
+///   - `fresh_x[i][0] == 1` (CCS constant-one slot).
+///   - `fresh_x[i][1..] == last_x_out_bits` (bit-by-bit).
 fn enforce_terminal_latest_link(
     builder: &mut R1csBuilder,
     fresh_x: &[Vec<Var>],
     last_x_out_bits: &[Var],
 ) -> Result<(), decider::Error> {
-    if fresh_x.len() != 1 {
-        return Err(decider::Error::WalkFailed(format!(
-            "terminal fold must have exactly one fresh claim, got {}",
-            fresh_x.len()
-        )));
+    if fresh_x.is_empty() {
+        return Err(decider::Error::WalkFailed(
+            "terminal fold must have a non-empty fresh batch".into(),
+        ));
     }
-    let x = &fresh_x[0];
-    if x.len() != F_PRIME_PUBLIC_INPUT_LEN {
-        return Err(decider::Error::WalkFailed(format!(
-            "terminal fresh public input has length {}, expected {F_PRIME_PUBLIC_INPUT_LEN}",
-            x.len()
-        )));
-    }
-    builder.enforce_eq(&Lc::from_var(x[F_PRIME_PUBLIC_ONE_OFFSET]), &Lc::from_const(F::ONE));
     if last_x_out_bits.len() != F_PRIME_ENC_INST_BITS {
         return Err(decider::Error::WalkFailed(format!(
             "last step's x_out_bits length {} != F_PRIME_ENC_INST_BITS ({F_PRIME_ENC_INST_BITS})",
             last_x_out_bits.len()
         )));
     }
-    for (fresh_bit, out_bit) in x[F_PRIME_ENC_INST_OFFSET..].iter().zip(last_x_out_bits) {
-        builder.enforce_eq(&Lc::from_var(*fresh_bit), &Lc::from_var(*out_bit));
+    for (idx, x) in fresh_x.iter().enumerate() {
+        if x.len() != F_PRIME_PUBLIC_INPUT_LEN {
+            return Err(decider::Error::WalkFailed(format!(
+                "terminal fresh[{idx}] public input has length {}, expected {F_PRIME_PUBLIC_INPUT_LEN}",
+                x.len()
+            )));
+        }
+        builder.enforce_eq(&Lc::from_var(x[F_PRIME_PUBLIC_ONE_OFFSET]), &Lc::from_const(F::ONE));
+        for (fresh_bit, out_bit) in x[F_PRIME_ENC_INST_OFFSET..].iter().zip(last_x_out_bits) {
+            builder.enforce_eq(&Lc::from_var(*fresh_bit), &Lc::from_var(*out_bit));
+        }
     }
     Ok(())
 }
 
-/// Pin every field of `statement.public` to chain-derived wires. Returns
-/// [`REQUIRED_PUBLIC_IMAGE_PINS`].
+/// Pin every terminal field of `statement.public` to chain-derived
+/// wires. The initial semantic-state digest is pinned in
+/// `enforce_base_state_constants`, because it is part of the base seed.
+/// Returns [`REQUIRED_PUBLIC_IMAGE_PINS`].
 fn pin_public_image(
     builder: &mut R1csBuilder,
     public: &PublicImage,
@@ -953,6 +1140,7 @@ fn pin_public_image(
     final_acc_digest: &[Var; 4],
 ) -> usize {
     let so = &last.state_out;
+    enforce_public_preprocessing_anchors(builder, prep, public);
     // 1. vk_fs_digest.
     pin_digest32(builder, &so.vk_fs_digest, public.vk_fs_digest);
     // 2. chunk_count — final-fold does not advance counters.
@@ -965,12 +1153,23 @@ fn pin_public_image(
     pin_digest32(builder, &so.z_i, public.z_i);
     // 6. pc.
     pin_u64(builder, so.pc, public.pc);
-    // 7. acc_digest — post-final-fold value.
+    // 7. semantic_state_digest — final app / VM state.
+    pin_digest32(builder, &so.semantic_state_digest, public.semantic_state_digest);
+    if matches!(prep.semantic_state_mode(), SemanticStateMode::Stateless) {
+        // Stateless finalization does not advance the semantic coordinate:
+        // it remains the pre-terminal accumulator digest carried by the last
+        // F' step. The stateless `state_x_out` preimage omits the duplicate
+        // semantic lanes, so this equality is load-bearing for public-image
+        // binding.
+        enforce_digest_eq(builder, &so.semantic_state_digest, &so.acc_digest);
+    }
+    // 8. acc_digest — post-final-fold Construction-2 accumulator.
     pin_digest32(builder, final_acc_digest, public.acc_digest);
-    // 8. public_trace — last F' step's value.
+    // 9. public_trace — last F' step's value.
     pin_digest32(builder, &so.public_trace, public.public_trace);
-    // 9. x_out — recomputed in-circuit from the post-fold state.
+    // 10. x_out — recomputed in-circuit from the post-fold state.
     let terminal_x_out_inputs = StateXOutDigestInputs {
+        mode: state_x_out_digest_mode(prep),
         vk_fs_digest: so.vk_fs_digest,
         structure_digest: so.structure_digest,
         chunk_count: so.chunk_count,
@@ -978,7 +1177,7 @@ fn pin_public_image(
         initial_boundary: so.z_0,
         current_boundary: so.z_i,
         pc: so.pc,
-        semantic_acc: *final_acc_digest,
+        semantic_acc: so.semantic_state_digest,
         construction2_acc: *final_acc_digest,
         public_trace: so.public_trace,
     };
@@ -996,19 +1195,77 @@ fn pin_public_image(
     REQUIRED_PUBLIC_IMAGE_PINS
 }
 
+fn enforce_public_preprocessing_anchors(builder: &mut R1csBuilder, prep: &Preprocessing, public: &PublicImage) {
+    let structure_lanes = *prep.structure_digest();
+    let expected_z_0 = initial_boundary_digest(&structure_lanes, prep.public_input_len);
+
+    enforce_digest32_const_eq(builder, public.vk_fs_digest, prep.vk.digest());
+    enforce_digest32_const_eq(builder, public.z_0, expected_z_0);
+    enforce_digest32_const_eq(
+        builder,
+        public.initial_semantic_state_digest,
+        prep.initial_semantic_state_digest(),
+    );
+}
+
+fn enforce_digest32_const_eq(builder: &mut R1csBuilder, actual: [u8; 32], expected: [u8; 32]) {
+    let Some(actual) = canonical_digest32_fields(actual) else {
+        enforce_unsat(builder);
+        return;
+    };
+    let Some(expected) = canonical_digest32_fields(expected) else {
+        enforce_unsat(builder);
+        return;
+    };
+    for k in 0..4 {
+        builder.enforce_eq(&Lc::from_const(actual[k]), &Lc::from_const(expected[k]));
+    }
+}
+
 fn pin_digest32(builder: &mut R1csBuilder, wires: &[Var; 4], expected: [u8; 32]) {
-    let expected_lanes = digest32_as_fields(expected);
+    let Some(expected_lanes) = canonical_digest32_fields(expected) else {
+        enforce_unsat(builder);
+        return;
+    };
     for k in 0..4 {
         builder.enforce_eq(&Lc::from_var(wires[k]), &Lc::from_const(expected_lanes[k]));
     }
 }
 
 fn pin_u64(builder: &mut R1csBuilder, wire: Var, expected: u64) {
+    // Public u64s are pinned to single Goldilocks state wires. Values
+    // outside the canonical field range would alias through F::from_u64.
+    if expected >= F::ORDER_U64 {
+        enforce_unsat(builder);
+        return;
+    }
     builder.enforce_eq(&Lc::from_var(wire), &Lc::from_const(F::from_u64(expected)));
 }
 
+fn canonical_digest32_fields(bytes: [u8; 32]) -> Option<[F; 4]> {
+    let mut fields = [F::ZERO; 4];
+    for (lane, out) in fields.iter_mut().enumerate() {
+        let start = lane * 8;
+        let value = u64::from_le_bytes(
+            bytes[start..start + 8]
+                .try_into()
+                .expect("8-byte digest limb"),
+        );
+        if value >= F::ORDER_U64 {
+            return None;
+        }
+        *out = F::from_u64(value);
+    }
+    Some(fields)
+}
+
+fn enforce_unsat(builder: &mut R1csBuilder) {
+    builder.enforce_eq(&Lc::zero(), &Lc::from_const(F::ONE));
+}
+
 fn state_x_out_lanes(prep: &Preprocessing, state: &State) -> [F; 4] {
-    digest32_as_fields(state_x_out_digest(
+    digest32_as_fields(state_x_out_digest_with_mode(
+        state_x_out_digest_mode(prep),
         prep.vk.digest(),
         prep.structure_digest(),
         state.chunk_count,
@@ -1016,10 +1273,17 @@ fn state_x_out_lanes(prep: &Preprocessing, state: &State) -> [F; 4] {
         state.z_0,
         state.z_i,
         state.pc,
-        state.acc_digest,
+        state.semantic_state_digest,
         state.acc_digest,
         state.public_trace,
     ))
+}
+
+fn state_x_out_digest_mode(prep: &Preprocessing) -> StateXOutDigestMode {
+    match prep.semantic_state_mode() {
+        SemanticStateMode::Stateless => StateXOutDigestMode::Stateless,
+        SemanticStateMode::Stateful => StateXOutDigestMode::Stateful,
+    }
 }
 
 fn split_nc_config(prep: &Preprocessing) -> Result<SplitNcPiCcsVConfig<'_>, String> {

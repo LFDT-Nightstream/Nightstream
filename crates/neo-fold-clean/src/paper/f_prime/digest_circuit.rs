@@ -10,15 +10,22 @@
 //! the native `digest::*` it mirrors. Parity is enforced by the tests in
 //! `tests/f_prime/digest_circuit.rs`.
 //!
-//! ## Domain tag encoding
+//! ## Domain constants
 //!
-//! Native `pack_bytes_as_fields(bytes)` lays the static tag out as:
+//! The hot canonical `state_x_out` hash uses a compact single-field
+//! domain ID instead of a byte-packed ASCII tag. The legacy
+//! `boundary_update` helper uses the same compact-domain convention, even
+//! though the canonical F' image no longer emits that trace.
+//!
+//! Legacy helpers that are no longer emitted in the canonical F' image
+//! still mirror native `pack_bytes_as_fields(bytes)`, where the static tag
+//! is laid out as:
+//!
 //!   - `F[0] = bytes.len() as u64`
 //!   - `F[i+1] = u64::from_le_bytes([bytes[7i..7i+7], 0])` for i = 0..ceil(len/7)
 //!
-//! Since tags are `&'static [u8]`, we precompute this F-sequence at
-//! gadget-emit time and bind each entry to a constant wire (mirrors the
-//! pattern used by [`crate::engine::r1cs_circuit::transcript::TranscriptGadget`]).
+//! Since those tags are `&'static [u8]`, we precompute this F-sequence at
+//! gadget-emit time and bind each entry to a constant wire.
 
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
@@ -26,18 +33,15 @@ use p3_field::PrimeCharacteristicRing;
 use crate::engine::r1cs_circuit::builder::{Lc, R1csBuilder, Var};
 use crate::engine::r1cs_circuit::poseidon2::{enforce_poseidon2_hash, DIGEST_LEN};
 use crate::engine::r1cs_circuit::u64_arith::decompose_var_to_u64_bits;
-
-/// Tag for `state_x_out_digest` — must match `paper::digest::state_x_out_digest`.
-pub const STATE_X_OUT_TAG: &[u8] = b"neo.fold.clean/state_x_out/v1";
-
-/// Tag for `boundary_update_digest`.
-pub const BOUNDARY_UPDATE_TAG: &[u8] = b"neo.fold.clean/boundary_update/v1";
+use crate::paper::digest::{StateXOutDigestMode, F_PRIME_BOUNDARY_UPDATE_DOMAIN, F_PRIME_STATE_X_OUT_DOMAIN};
 
 /// Tag for `public_trace_update_digest`.
 pub const PUBLIC_TRACE_UPDATE_TAG: &[u8] = b"neo.fold.clean/public_trace_update/v1";
 
-/// `z_{i+1} = H(prev_z_i ‖ chunk_digest)`, mirrors
+/// Legacy `z_{i+1} = H(prev_z_i ‖ chunk_digest)`, mirrors
 /// [`crate::paper::digest::boundary_update_digest`].
+///
+/// Canonical F' now uses `new_z_i = chunk_digest` plus a linear mirror row.
 ///
 /// Both inputs are 4-limb digests (each limb is one Goldilocks F value
 /// interpreted as 8 LE bytes natively). Output is the 4-limb result.
@@ -46,7 +50,7 @@ pub fn enforce_boundary_update_digest_circuit(
     prev: [Var; DIGEST_LEN],
     chunk_digest: [Var; DIGEST_LEN],
 ) -> [Var; DIGEST_LEN] {
-    let mut input = alloc_const_tag(builder, BOUNDARY_UPDATE_TAG);
+    let mut input = vec![alloc_constant(builder, F::from_u64(F_PRIME_BOUNDARY_UPDATE_DOMAIN))];
     input.extend_from_slice(&prev);
     input.extend_from_slice(&chunk_digest);
     enforce_poseidon2_hash(builder, &input)
@@ -68,20 +72,35 @@ pub fn enforce_public_trace_update_digest_circuit(
 /// Inputs to [`enforce_state_x_out_digest_circuit`]. Mirrors the argument
 /// list of native [`crate::paper::digest::state_x_out_digest`].
 pub struct StateXOutDigestInputs {
+    pub mode: StateXOutDigestMode,
     /// `vk_fs_digest` — 4 limbs (from 32 LE bytes natively).
     pub vk_fs_digest: [Var; DIGEST_LEN],
     /// CCS structure digest — 4 native F limbs.
+    ///
+    /// Retained on the input struct because callers already carry it,
+    /// but not absorbed directly: `vk_fs_digest` is verifier-derived
+    /// from the structure digest, params, public-input length, and
+    /// semantic-state seed.
     pub structure_digest: [Var; DIGEST_LEN],
-    /// `chunk_count` as a single F wire. The gadget bit-decomposes it
-    /// into lo/hi 32-bit halves for the absorb (matching native
-    /// `u64_halves`).
+    /// Chunk counter carried by Construction-2 state. It is absorbed by
+    /// `state_x_out`; unlike `z_0`, the O(1) verifier cannot rederive it
+    /// from preprocessing alone.
     pub chunk_count: Var,
     pub step_count: Var,
+    /// `z_0` — retained for call-site parity, but not absorbed directly.
+    /// It is verifier-derived from `structure_digest` and
+    /// `public_input_len`, both already absorbed by `vk_fs_digest`.
     pub initial_boundary: [Var; DIGEST_LEN],
     pub current_boundary: [Var; DIGEST_LEN],
+    /// Program counter in HyperNova's recursive-link preimage. This build
+    /// has a single `F'_j`, so callers also pin it to `TRIVIAL_PC`, but
+    /// the digest still absorbs it directly.
     pub pc: Var,
     pub semantic_acc: [Var; DIGEST_LEN],
     pub construction2_acc: [Var; DIGEST_LEN],
+    /// Retained for call-site shape parity with native `state_x_out_digest`.
+    /// Canonical F' constrains `public_trace == z_i` separately, so the
+    /// digest does not absorb this duplicate lane.
     pub public_trace: [Var; DIGEST_LEN],
 }
 
@@ -92,9 +111,8 @@ pub fn enforce_state_x_out_digest_circuit(
     builder: &mut R1csBuilder,
     inputs: &StateXOutDigestInputs,
 ) -> [Var; DIGEST_LEN] {
-    let mut preimage = alloc_const_tag(builder, STATE_X_OUT_TAG);
+    let mut preimage = vec![alloc_constant(builder, F::from_u64(F_PRIME_STATE_X_OUT_DOMAIN))];
     preimage.extend_from_slice(&inputs.vk_fs_digest);
-    preimage.extend_from_slice(&inputs.structure_digest);
 
     let [chunk_lo, chunk_hi] = enforce_u64_halves_from_var(builder, inputs.chunk_count);
     preimage.push(chunk_lo);
@@ -104,25 +122,24 @@ pub fn enforce_state_x_out_digest_circuit(
     preimage.push(step_lo);
     preimage.push(step_hi);
 
-    preimage.extend_from_slice(&inputs.initial_boundary);
-    preimage.extend_from_slice(&inputs.current_boundary);
-
     let [pc_lo, pc_hi] = enforce_u64_halves_from_var(builder, inputs.pc);
     preimage.push(pc_lo);
     preimage.push(pc_hi);
 
-    preimage.extend_from_slice(&inputs.semantic_acc);
+    preimage.extend_from_slice(&inputs.current_boundary);
+
+    if matches!(inputs.mode, StateXOutDigestMode::Stateful) {
+        preimage.extend_from_slice(&inputs.semantic_acc);
+    }
     preimage.extend_from_slice(&inputs.construction2_acc);
-    preimage.extend_from_slice(&inputs.public_trace);
 
     enforce_poseidon2_hash(builder, &preimage)
 }
 
 // Accumulator-digest circuit lives in
 // `crate::paper::reductions::accumulator_digest_circuit` — see that module
-// for `enforce_accumulator_digest_from_parent_circuit`,
-// `enforce_accumulator_digest_from_children_circuit`, and
-// `AccumulatorDigestError`. It is shared between F' and SplitNc Π_CCS.V.
+// for the full-running Construction-2 handle that binds HyperNova's `U_i`
+// as child CE-claim digests plus the Π_RLC parent-authority digest.
 
 // ── Internal helpers ──────────────────────────────────────────────────────
 

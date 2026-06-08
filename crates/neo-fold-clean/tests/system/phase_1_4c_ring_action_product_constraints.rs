@@ -24,6 +24,7 @@ use p3_field::PrimeCharacteristicRing;
 fn small_ring_action_config() -> FPrimeImageConfig {
     FPrimeImageConfig {
         limbs: 3,
+        app_private_var_widths: Vec::new(),
         boundary_bits: 0,
         nifs_payload_shapes: vec![],
         kmul_count: 0,
@@ -37,9 +38,11 @@ fn small_ring_action_config() -> FPrimeImageConfig {
         poseidon_one_shot_preimage_lens: vec![],
         sponge_transcript_permutes: 0,
         one_shot_digest_to_state_out_bindings: vec![],
+        one_shot_digest_to_state_in_bindings: vec![],
         one_shot_digest_to_public_x_out_bindings: vec![],
         poseidon_transition_enforcements: vec![],
         unified_accumulator_selector: None,
+        initial_semantic_state_digest_anchor: None,
     }
 }
 
@@ -91,11 +94,11 @@ fn phase_1_4c_ring_action_product_row_count_shape() {
     );
     assert_eq!(
         structure.ccs.n,
-        (layout.end - 1) + product_rows + output_rows,
-        "structure.n must include bit rows + ring_action product rows + ring_action output rows (no decode rows in the strict low-norm structure)"
+        structure.semantic_boolean_row_count() + product_rows + output_rows,
+        "structure.n must include semantic Boolean rows + ring_action product rows + ring_action output rows (no decode rows in the strict low-norm structure)"
     );
 
-    let start = layout.end - 1;
+    let start = structure.semantic_boolean_row_count();
     assert_eq!(structure.ring_action_product_row_start(), start);
     assert_eq!(structure.ring_action_product_row(0, 0, 0), start);
     assert_eq!(

@@ -1,4 +1,6 @@
 use p3_field::Field;
+#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+use rayon::prelude::*;
 
 /// Validate n is a power-of-two.
 pub fn validate_power_of_two(n: usize) -> bool {
@@ -28,6 +30,55 @@ pub fn tensor_point<K: Field>(r: &[K]) -> Vec<K> {
             idx += 2 * stride;
         }
     }
+    out
+}
+
+/// Compute [`tensor_point`] with parallel stage updates for large domains.
+pub fn tensor_point_parallel<K>(r: &[K]) -> Vec<K>
+where
+    K: Field + Send + Sync,
+{
+    let ell = r.len();
+    let n = 1usize << ell;
+    let mut out = vec![K::ONE; n];
+
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    const PAR_THRESHOLD: usize = 1 << 14;
+
+    for (i, &ri) in r.iter().enumerate() {
+        let stride = 1usize << i;
+        let block_len = 2 * stride;
+        let one_minus = K::ONE - ri;
+
+        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+        {
+            if n >= PAR_THRESHOLD && rayon::current_num_threads() > 1 {
+                out.par_chunks_mut(block_len).for_each(|block| {
+                    let (lo, hi) = block.split_at_mut(stride);
+                    for slot in lo.iter_mut() {
+                        *slot *= one_minus;
+                    }
+                    for slot in hi.iter_mut() {
+                        *slot *= ri;
+                    }
+                });
+                continue;
+            }
+        }
+
+        let block_count = 1usize << (ell - i - 1);
+        let mut idx = 0usize;
+        for _ in 0..block_count {
+            for j in 0..stride {
+                out[idx + j] *= one_minus;
+            }
+            for j in 0..stride {
+                out[idx + stride + j] *= ri;
+            }
+            idx += block_len;
+        }
+    }
+
     out
 }
 

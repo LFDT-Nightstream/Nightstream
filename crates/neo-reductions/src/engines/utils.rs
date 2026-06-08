@@ -13,6 +13,8 @@ use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
 use p3_symmetric::Permutation;
+#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+use rayon::prelude::*;
 
 /// Computed dimensions for the CCS reduction
 #[derive(Debug, Clone, Copy)]
@@ -841,51 +843,198 @@ pub fn digest_ccs_matrices<F: Field + PrimeField64>(s: &CcsStructure<F>) -> Vec<
     state[0..4].to_vec()
 }
 
+const CCS_DIGEST_SEED: u64 = 0x434353445F4D4154;
+const CCS_DIGEST_CHUNK_WORDS: usize = 65_536;
+
+const CCS_MATRIX_LEAF_METADATA: u64 = 1;
+const CCS_MATRIX_LEAF_IDENTITY: u64 = 2;
+const CCS_MATRIX_LEAF_COL_PTR: u64 = 3;
+const CCS_MATRIX_LEAF_ROW_IDX: u64 = 4;
+const CCS_MATRIX_LEAF_VALS: u64 = 5;
+
+enum CcsDigestLeaf<'a, Ff> {
+    Identity {
+        matrix: usize,
+        n: usize,
+    },
+    Metadata {
+        matrix: usize,
+        nrows: usize,
+        ncols: usize,
+        col_ptr_len: usize,
+        row_idx_len: usize,
+        vals_len: usize,
+    },
+    UsizeChunk {
+        matrix: usize,
+        segment: u64,
+        chunk: usize,
+        start: usize,
+        values: &'a [usize],
+    },
+    FieldChunk {
+        matrix: usize,
+        chunk: usize,
+        start: usize,
+        values: &'a [Ff],
+    },
+}
+
+fn new_ccs_digest_poseidon2() -> Poseidon2Goldilocks<16> {
+    use rand_chacha_p3::{rand_core::SeedableRng, ChaCha8Rng};
+
+    let mut rng = ChaCha8Rng::seed_from_u64(CCS_DIGEST_SEED);
+    Poseidon2Goldilocks::<16>::new_from_rng_128(&mut rng)
+}
+
+#[inline]
+fn absorb_digest_limb(
+    poseidon2: &Poseidon2Goldilocks<16>,
+    state: &mut [Goldilocks; 16],
+    absorbed: &mut usize,
+    v: Goldilocks,
+) {
+    if *absorbed >= 15 {
+        poseidon2.permute_mut(state);
+        *absorbed = 0;
+    }
+    state[*absorbed] = v;
+    *absorbed += 1;
+}
+
+#[inline]
+fn absorb_digest_u64(poseidon2: &Poseidon2Goldilocks<16>, state: &mut [Goldilocks; 16], absorbed: &mut usize, v: u64) {
+    absorb_digest_limb(poseidon2, state, absorbed, Goldilocks::from_u64(v & 0xffff_ffff));
+    absorb_digest_limb(poseidon2, state, absorbed, Goldilocks::from_u64(v >> 32));
+}
+
+#[inline]
+fn absorb_digest_bytes(
+    poseidon2: &Poseidon2Goldilocks<16>,
+    state: &mut [Goldilocks; 16],
+    absorbed: &mut usize,
+    bytes: &[u8],
+) {
+    for &byte in bytes {
+        absorb_digest_u64(poseidon2, state, absorbed, byte as u64);
+    }
+}
+
+fn digest_ccs_matrix_leaf<Ff: PrimeField64>(leaf: &CcsDigestLeaf<'_, Ff>) -> [Goldilocks; 4] {
+    let poseidon2 = new_ccs_digest_poseidon2();
+    let mut state = [Goldilocks::ZERO; 16];
+    let mut absorbed = 0usize;
+
+    absorb_digest_bytes(&poseidon2, &mut state, &mut absorbed, b"neo/ccs/matrix-leaf/v3");
+    match leaf {
+        CcsDigestLeaf::Identity { matrix, n } => {
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, *matrix as u64);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, CCS_MATRIX_LEAF_IDENTITY);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, 0);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, 0);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, 1);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, *n as u64);
+        }
+        CcsDigestLeaf::Metadata {
+            matrix,
+            nrows,
+            ncols,
+            col_ptr_len,
+            row_idx_len,
+            vals_len,
+        } => {
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, *matrix as u64);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, CCS_MATRIX_LEAF_METADATA);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, 0);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, 0);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, 5);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, *nrows as u64);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, *ncols as u64);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, *col_ptr_len as u64);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, *row_idx_len as u64);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, *vals_len as u64);
+        }
+        CcsDigestLeaf::UsizeChunk {
+            matrix,
+            segment,
+            chunk,
+            start,
+            values,
+        } => {
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, *matrix as u64);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, *segment);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, *chunk as u64);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, *start as u64);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, values.len() as u64);
+            for &v in *values {
+                absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, v as u64);
+            }
+        }
+        CcsDigestLeaf::FieldChunk {
+            matrix,
+            chunk,
+            start,
+            values,
+        } => {
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, *matrix as u64);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, CCS_MATRIX_LEAF_VALS);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, *chunk as u64);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, *start as u64);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, values.len() as u64);
+            for &v in *values {
+                absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, v.as_canonical_u64());
+            }
+        }
+    }
+
+    poseidon2.permute_mut(&mut state);
+    [state[0], state[1], state[2], state[3]]
+}
+
+fn push_usize_digest_chunks<'a, Ff>(
+    leaves: &mut Vec<CcsDigestLeaf<'a, Ff>>,
+    matrix: usize,
+    segment: u64,
+    values: &'a [usize],
+) {
+    for (chunk, slice) in values.chunks(CCS_DIGEST_CHUNK_WORDS).enumerate() {
+        leaves.push(CcsDigestLeaf::UsizeChunk {
+            matrix,
+            segment,
+            chunk,
+            start: chunk * CCS_DIGEST_CHUNK_WORDS,
+            values: slice,
+        });
+    }
+}
+
+fn push_field_digest_chunks<'a, Ff>(leaves: &mut Vec<CcsDigestLeaf<'a, Ff>>, matrix: usize, values: &'a [Ff]) {
+    for (chunk, slice) in values.chunks(CCS_DIGEST_CHUNK_WORDS).enumerate() {
+        leaves.push(CcsDigestLeaf::FieldChunk {
+            matrix,
+            chunk,
+            start: chunk * CCS_DIGEST_CHUNK_WORDS,
+            values: slice,
+        });
+    }
+}
+
 /// Compute the CCS matrix digest, optionally using a prebuilt sparse cache.
 ///
-/// This cache-aware variant uses a native CSC encoding (`v2-csc`) to avoid the expensive
-/// to avoid the expensive row-major reconstruction/allocation required by `digest_ccs_matrices`.
-/// Prover/verifier soundness is preserved because both sides bind this digest into transcript
-/// under the same domain and full structural content.
-pub fn digest_ccs_matrices_with_sparse_cache<Ff: Field + PrimeField64>(
+/// This cache-aware variant binds a native CSC encoding under a Poseidon2 tree (`v3-tree`).
+/// Matrix/segment leaves are hashed independently so preprocessing can use CPU parallelism,
+/// then the root absorbs the ordered leaf digests. Prover/verifier soundness is preserved
+/// because both sides bind the same domain, dimensions, matrix order, and full CSC content.
+pub fn digest_ccs_matrices_with_sparse_cache<Ff: Field + PrimeField64 + Sync>(
     s: &CcsStructure<Ff>,
     sparse: Option<&crate::engines::optimized_engine::oracle::SparseCache<Ff>>,
 ) -> Vec<Goldilocks> {
-    use rand_chacha_p3::{rand_core::SeedableRng, ChaCha8Rng};
-
-    #[inline]
-    fn absorb_u64(poseidon2: &Poseidon2Goldilocks<16>, state: &mut [Goldilocks; 16], absorbed: &mut usize, v: u64) {
-        if *absorbed >= 15 {
-            poseidon2.permute_mut(state);
-            *absorbed = 0;
-        }
-        state[*absorbed] = Goldilocks::from_u64(v);
-        *absorbed += 1;
-    }
-
-    const CCS_DIGEST_SEED: u64 = 0x434353445F4D4154;
-    let mut rng = ChaCha8Rng::seed_from_u64(CCS_DIGEST_SEED);
-    let poseidon2 = Poseidon2Goldilocks::<16>::new_from_rng_128(&mut rng);
-
-    let mut state = [Goldilocks::ZERO; 16];
-    let mut absorbed = 0usize;
-    const DOMAIN_STRING: &[u8] = b"neo/ccs/matrices/v2-csc";
-    for &byte in DOMAIN_STRING {
-        absorb_u64(&poseidon2, &mut state, &mut absorbed, byte as u64);
-    }
-    absorb_u64(&poseidon2, &mut state, &mut absorbed, s.n as u64);
-    absorb_u64(&poseidon2, &mut state, &mut absorbed, s.m as u64);
-    absorb_u64(&poseidon2, &mut state, &mut absorbed, s.t() as u64);
-    poseidon2.permute_mut(&mut state);
+    let mut leaves = Vec::new();
 
     for (j, matrix) in s.matrices.iter().enumerate() {
-        absorbed = 0;
-        absorb_u64(&poseidon2, &mut state, &mut absorbed, j as u64);
-
         match matrix {
             CcsMatrix::Identity { n } => {
-                absorb_u64(&poseidon2, &mut state, &mut absorbed, 1); // tag=identity
-                absorb_u64(&poseidon2, &mut state, &mut absorbed, *n as u64);
+                leaves.push(CcsDigestLeaf::Identity { matrix: j, n: *n });
             }
             CcsMatrix::Csc(csc_from_s) => {
                 let cached_csc = sparse.and_then(|sp| sp.csc(j));
@@ -921,26 +1070,45 @@ pub fn digest_ccs_matrices_with_sparse_cache<Ff: Field + PrimeField64>(
                     )
                 };
 
-                absorb_u64(&poseidon2, &mut state, &mut absorbed, 2); // tag=CSC
-                absorb_u64(&poseidon2, &mut state, &mut absorbed, nrows as u64);
-                absorb_u64(&poseidon2, &mut state, &mut absorbed, ncols as u64);
-                absorb_u64(&poseidon2, &mut state, &mut absorbed, vals.len() as u64);
-                absorb_u64(&poseidon2, &mut state, &mut absorbed, col_ptr.len() as u64);
-
-                for &cp in col_ptr {
-                    absorb_u64(&poseidon2, &mut state, &mut absorbed, cp as u64);
-                }
-                for &r in row_idx {
-                    absorb_u64(&poseidon2, &mut state, &mut absorbed, r as u64);
-                }
-                for &v in vals {
-                    absorb_u64(&poseidon2, &mut state, &mut absorbed, v.as_canonical_u64());
-                }
+                leaves.push(CcsDigestLeaf::Metadata {
+                    matrix: j,
+                    nrows,
+                    ncols,
+                    col_ptr_len: col_ptr.len(),
+                    row_idx_len: row_idx.len(),
+                    vals_len: vals.len(),
+                });
+                push_usize_digest_chunks(&mut leaves, j, CCS_MATRIX_LEAF_COL_PTR, col_ptr);
+                push_usize_digest_chunks(&mut leaves, j, CCS_MATRIX_LEAF_ROW_IDX, row_idx);
+                push_field_digest_chunks(&mut leaves, j, vals);
             }
         }
-
-        poseidon2.permute_mut(&mut state);
     }
+
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    let leaf_digests: Vec<[Goldilocks; 4]> = leaves.par_iter().map(digest_ccs_matrix_leaf).collect();
+
+    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+    let leaf_digests: Vec<[Goldilocks; 4]> = leaves.iter().map(digest_ccs_matrix_leaf).collect();
+
+    let poseidon2 = new_ccs_digest_poseidon2();
+    let mut state = [Goldilocks::ZERO; 16];
+    let mut absorbed = 0usize;
+    absorb_digest_bytes(&poseidon2, &mut state, &mut absorbed, b"neo/ccs/matrices/v3-tree");
+    absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, s.n as u64);
+    absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, s.m as u64);
+    absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, s.t() as u64);
+    absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, leaf_digests.len() as u64);
+    poseidon2.permute_mut(&mut state);
+    absorbed = 0;
+
+    for (idx, leaf) in leaf_digests.iter().enumerate() {
+        absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, idx as u64);
+        for &limb in leaf {
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, limb.as_canonical_u64());
+        }
+    }
+    poseidon2.permute_mut(&mut state);
 
     state[0..4].to_vec()
 }

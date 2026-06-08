@@ -10,7 +10,7 @@
 #![allow(non_snake_case)]
 
 use neo_ccs::{CcsStructure, Mat};
-use neo_math::{balanced::to_balanced_i128, KExtensions, D, F, K};
+use neo_math::{balanced::to_balanced_i128, balanced::within_nc_bound, KExtensions, D, F, K};
 use neo_params::{goldilocks_paper_b2, NeoParams};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
@@ -23,30 +23,18 @@ use crate::error::PiCcsError;
 // Balanced Base-b Digit Splitting
 // ---------------------------------------------------------------------------
 
-/// Helper: returns (r, q) with r in balanced range around zero.
+/// Helper: returns (r, q) with r in the SuperNeo digit range `|r| < b`.
 ///
 /// Matches the Ajtai decomp_b balanced style (Definition 11):
-/// Digits in approximately [-(b-1)/2, (b-1)/2], choosing residue with smallest absolute value.
+/// digits are signed, but the norm bound is the full `{-(b-1), ..., +(b-1)}`
+/// alphabet required by `split_b`.
 ///
 /// This ensures termination for both positive and negative values.
 fn balanced_divrem(v: i128, b: i128) -> (i128, i128) {
     debug_assert!(b >= 2);
 
-    // Start with standard division
-    let mut r = v % b;
-    let mut q = (v - r) / b;
-
-    // Shift remainder to balanced range (minimize |r|)
-    let half = b / 2; // floor(b/2)
-
-    if r > half {
-        r -= b;
-        q += 1;
-    } else if r < -half {
-        r += b;
-        q -= 1;
-    }
-
+    let r = v % b;
+    let q = (v - r) / b;
     (r, q)
 }
 
@@ -54,18 +42,8 @@ fn balanced_divrem(v: i128, b: i128) -> (i128, i128) {
 fn balanced_divrem_i64(v: i64, b: i64) -> (i64, i64) {
     debug_assert!(b >= 2);
 
-    let mut r = v % b;
-    let mut q = (v - r) / b;
-
-    let half = b / 2; // floor(b/2)
-    if r > half {
-        r -= b;
-        q += 1;
-    } else if r < -half {
-        r += b;
-        q -= 1;
-    }
-
+    let r = v % b;
+    let q = (v - r) / b;
     (r, q)
 }
 
@@ -82,9 +60,9 @@ fn balanced_divrem_i64_base2(v: i64) -> (i64, i64) {
 
 #[inline]
 fn build_balanced_digit_lut(b: u32) -> (i64, Vec<F>) {
-    let half = (b as i64) / 2;
-    let mut lut = Vec::with_capacity((2 * half + 1) as usize);
-    for d in -half..=half {
+    let bound = (b as i64) - 1;
+    let mut lut = Vec::with_capacity((2 * bound + 1) as usize);
+    for d in -bound..=bound {
         let f = if d >= 0 {
             F::from_u64(d as u64)
         } else {
@@ -92,12 +70,11 @@ fn build_balanced_digit_lut(b: u32) -> (i64, Vec<F>) {
         };
         lut.push(f);
     }
-    (half, lut)
+    (bound, lut)
 }
 
 /// Split Z into **balanced base-b digits** Z = Σ_{i=0}^{k-1} b^i · Z_i, entrywise.
-/// Each digit lies in [-floor(b/2), +floor(b/2)] for even b (inclusive upper bound),
-/// and the analogous balanced range for odd b.
+/// Each digit lies in `{-(b-1), ..., +(b-1)}`, so `||Z_i||_∞ < b`.
 /// Returns an error if an entry cannot be represented within k digits (i.e., if |value| ≥ b^k)
 /// — this indicates a bad RLC sample or overflow.
 pub fn split_b_matrix_k_with_nonzero_flags(
@@ -118,7 +95,7 @@ pub fn split_b_matrix_k_with_nonzero_flags(
     for _ in 0..k {
         B = B.saturating_mul(b_i);
     } // b^k
-    let (digit_half, digit_lut) = build_balanced_digit_lut(b);
+    let (digit_bound, digit_lut) = build_balanced_digit_lut(b);
 
     // Helpers to interpret field element as a small signed integer in (-(B-1), B-1)
     let p: u128 = F::ORDER_U64 as u128; // Goldilocks prime fits in u64
@@ -186,8 +163,8 @@ pub fn split_b_matrix_k_with_nonzero_flags(
                         balanced_divrem_i64(v, b_i64)
                     };
                     if r_i != 0 {
-                        debug_assert!(r_i >= -digit_half && r_i <= digit_half);
-                        let digit_f = digit_lut[(r_i + digit_half) as usize];
+                        debug_assert!(r_i >= -digit_bound && r_i <= digit_bound);
+                        let digit_f = digit_lut[(r_i + digit_bound) as usize];
                         out_slices[i][idx] = digit_f;
                         digit_nonzero[i] = true;
                     }
@@ -278,8 +255,8 @@ pub fn split_b_matrix_k_with_nonzero_flags(
                             balanced_divrem_i64(v64, b_i64)
                         };
                         if r_i != 0 {
-                            debug_assert!(r_i >= -digit_half && r_i <= digit_half);
-                            let digit_f = digit_lut[(r_i + digit_half) as usize];
+                            debug_assert!(r_i >= -digit_bound && r_i <= digit_bound);
+                            let digit_f = digit_lut[(r_i + digit_bound) as usize];
                             out_slices[i][idx] = digit_f;
                             digit_nonzero[i] = true;
                         }
@@ -322,8 +299,8 @@ pub fn split_b_matrix_k_with_nonzero_flags(
                     let (r_i, q) = balanced_divrem(v, b_i);
                     if r_i != 0 {
                         let r_i64 = r_i as i64;
-                        debug_assert!(r_i64 >= -digit_half && r_i64 <= digit_half);
-                        let digit_f = digit_lut[(r_i64 + digit_half) as usize];
+                        debug_assert!(r_i64 >= -digit_bound && r_i64 <= digit_bound);
+                        let digit_f = digit_lut[(r_i64 + digit_bound) as usize];
                         out_slices[i][idx] = digit_f;
                         digit_nonzero[i] = true;
                     }
@@ -982,43 +959,6 @@ where
     }
 }
 
-/// Check whether one value is representable in exactly `D` balanced base-`b` digits.
-#[inline]
-fn is_representable_balanced_fixed_d_digits<Ff>(val: Ff, b: u32) -> Result<bool, PiCcsError>
-where
-    Ff: PrimeField64 + PrimeCharacteristicRing + Copy,
-{
-    if b < 2 {
-        return Err(PiCcsError::InvalidInput(format!(
-            "is_representable_balanced_fixed_d_digits: invalid base b={b}"
-        )));
-    }
-
-    let b_i = b as i128;
-    let mut rem = to_balanced_i128(val);
-    if rem >= i64::MIN as i128 && rem <= i64::MAX as i128 {
-        let mut rem64 = rem as i64;
-        let b_i64 = b as i64;
-        for _ in 0..D {
-            if rem64 == 0 {
-                return Ok(true);
-            }
-            let (_, q) = balanced_divrem_i64(rem64, b_i64);
-            rem64 = q;
-        }
-        return Ok(rem64 == 0);
-    }
-
-    for _ in 0..D {
-        if rem == 0 {
-            return Ok(true);
-        }
-        let (_, q) = balanced_divrem(rem, b_i);
-        rem = q;
-    }
-    Ok(rem == 0)
-}
-
 /// Balanced base-`b` decomposition of one field value into exactly `D` digits.
 ///
 /// Returns an error when the value is not representable with `D` balanced digits for this base.
@@ -1080,9 +1020,53 @@ where
     Ok(out)
 }
 
-/// Build NC digit rows (`D` digits per logical column) for a witness matrix.
+/// Check whether one value is representable in exactly `D` balanced base-`b` digits.
+#[inline]
+fn is_representable_balanced_fixed_d_digits<Ff>(val: Ff, b: u32) -> Result<bool, PiCcsError>
+where
+    Ff: PrimeField64 + PrimeCharacteristicRing + Copy,
+{
+    if b < 2 {
+        return Err(PiCcsError::InvalidInput(format!(
+            "is_representable_balanced_fixed_d_digits: invalid base b={b}"
+        )));
+    }
+
+    let b_i = b as i128;
+    let mut rem = to_balanced_i128(val);
+    if rem >= i64::MIN as i128 && rem <= i64::MAX as i128 {
+        let mut rem64 = rem as i64;
+        let b_i64 = b as i64;
+        for _ in 0..D {
+            if rem64 == 0 {
+                return Ok(true);
+            }
+            let (_, q) = if b == 2 {
+                balanced_divrem_i64_base2(rem64)
+            } else {
+                balanced_divrem_i64(rem64, b_i64)
+            };
+            rem64 = q;
+        }
+        return Ok(rem64 == 0);
+    }
+
+    for _ in 0..D {
+        if rem == 0 {
+            return Ok(true);
+        }
+        let (_, q) = balanced_divrem(rem, b_i);
+        rem = q;
+    }
+    Ok(rem == 0)
+}
+
+/// Build NC rows (`D` coefficient lanes per logical column) for a witness matrix.
 ///
-/// SuperNeo packed layout: decomposes each packed logical value into `D` balanced base-`b` digits.
+/// SuperNeo's NC polynomial checks the witness coefficient itself:
+/// `range_product(z_i[col], b)`. It must not check a balanced base-`b`
+/// decomposition of that coefficient; otherwise a high-norm value such as
+/// `2` at `b=2` decomposes into low-norm digits and evades the NC check.
 pub fn build_witness_nc_digit_table<Ff>(
     params: &NeoParams,
     Z: &Mat<Ff>,
@@ -1105,6 +1089,12 @@ where
     K: From<Ff>,
 {
     validate_superneo_witness_mat(Z, expected_m)?;
+    if params.b < 2 {
+        return Err(PiCcsError::InvalidInput(format!(
+            "NC witness table: invalid b={} (must be >= 2)",
+            params.b
+        )));
+    }
     let mut out = vec![[K::ZERO; D]; expected_m];
     let mut masks = vec![0u64; expected_m];
     let active_cols = expected_m.div_ceil(D);
@@ -1132,31 +1122,24 @@ where
             if raw == Ff::ZERO {
                 continue;
             }
-            if raw == Ff::ONE {
-                dst[0] = K::ONE;
-                *mask_slot = 1;
-                continue;
-            }
-            *dst = decompose_balanced_fixed_d_digits_k(raw, params.b).map_err(|e| {
-                PiCcsError::InvalidInput(format!("witness logical_col={col} decomposition failed: {e}"))
-            })?;
-            let mut mask = 0u64;
-            for (lane, &digit) in dst.iter().enumerate() {
-                if digit != K::ZERO {
-                    mask |= 1u64 << lane;
-                }
-            }
-            *mask_slot = mask;
+            dst[rho] = K::from(raw);
+            *mask_slot = 1u64 << rho;
         }
         Ok(())
     };
 
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     {
-        out.par_chunks_mut(D)
-            .zip(masks.par_chunks_mut(D))
-            .enumerate()
-            .try_for_each(|(blk, (out_chunk, mask_chunk))| process_block(blk, out_chunk, mask_chunk))?;
+        if rayon::current_thread_index().is_none() {
+            out.par_chunks_mut(D)
+                .zip(masks.par_chunks_mut(D))
+                .enumerate()
+                .try_for_each(|(blk, (out_chunk, mask_chunk))| process_block(blk, out_chunk, mask_chunk))?;
+        } else {
+            for (blk, (out_chunk, mask_chunk)) in out.chunks_mut(D).zip(masks.chunks_mut(D)).enumerate() {
+                process_block(blk, out_chunk, mask_chunk)?;
+            }
+        }
     }
     #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
     {
@@ -1166,38 +1149,6 @@ where
     }
 
     Ok((out, masks))
-}
-
-/// Compute NC channel opening `y_zcol := Z_digits · χ_s`, padded to `d_pad`.
-///
-/// `Z_digits` is the balanced decomposition rows for SuperNeo packed layout.
-pub fn compute_y_zcol_from_witness_digits<Ff>(
-    params: &NeoParams,
-    Z: &Mat<Ff>,
-    expected_m: usize,
-    chi_s: &[K],
-    d_pad: usize,
-) -> Result<Vec<K>, PiCcsError>
-where
-    Ff: PrimeField64 + PrimeCharacteristicRing + Copy,
-    K: From<Ff>,
-{
-    validate_superneo_witness_mat(Z, expected_m)?;
-    let mut yz = vec![K::ZERO; d_pad.max(D)];
-    for col in 0..expected_m {
-        let w = chi_s.get(col).copied().unwrap_or(K::ZERO);
-        if w == K::ZERO {
-            continue;
-        }
-        let raw = witness_mat_get_f(Z, expected_m, col % D, col);
-        let digits = decompose_balanced_fixed_d_digits_k(raw, params.b)
-            .map_err(|e| PiCcsError::InvalidInput(format!("witness logical_col={col} decomposition failed: {e}")))?;
-        for rho in 0..D {
-            yz[rho] += digits[rho] * w;
-        }
-    }
-    yz.truncate(d_pad);
-    Ok(yz)
 }
 
 /// Compute linear channel opening `y_zcol := Z · χ_s`, padded to `d_pad`.
@@ -1228,7 +1179,45 @@ where
     Ok(yz)
 }
 
-/// Enforce NC-range compatibility for SuperNeo packed witnesses.
+/// Compute NC channel opening `y_zcol := Z_digits · χ_s`, padded to `d_pad`.
+///
+/// `Z_digits` is the balanced decomposition rows for the PaperExact
+/// reference path. Optimized/lifecycle paths should use
+/// [`compute_y_zcol_from_witness`], which is linear in the packed witness.
+pub fn compute_y_zcol_from_witness_digits<Ff>(
+    params: &NeoParams,
+    Z: &Mat<Ff>,
+    expected_m: usize,
+    chi_s: &[K],
+    d_pad: usize,
+) -> Result<Vec<K>, PiCcsError>
+where
+    Ff: PrimeField64 + PrimeCharacteristicRing + Copy,
+    K: From<Ff>,
+{
+    validate_superneo_witness_mat(Z, expected_m)?;
+    let mut yz = vec![K::ZERO; d_pad.max(D)];
+    for col in 0..expected_m {
+        let w = chi_s.get(col).copied().unwrap_or(K::ZERO);
+        if w == K::ZERO {
+            continue;
+        }
+        let raw = witness_mat_get_f(Z, expected_m, col % D, col);
+        let digits = decompose_balanced_fixed_d_digits_k(raw, params.b)
+            .map_err(|e| PiCcsError::InvalidInput(format!("witness logical_col={col} decomposition failed: {e}")))?;
+        for rho in 0..D {
+            yz[rho] += digits[rho] * w;
+        }
+    }
+    yz.truncate(d_pad);
+    Ok(yz)
+}
+
+/// Enforce DEC/RLC packed-witness representability.
+///
+/// This is not the Π_CCS low-norm predicate. It only checks that each entry
+/// can be represented by the fixed `D`-digit balanced base-`b` machinery used
+/// by split/decomposition paths.
 pub fn validate_packed_witness_nc_range<Ff>(
     params: &NeoParams,
     Z: &Mat<Ff>,
@@ -1253,9 +1242,38 @@ where
             let x = to_balanced_i128(v);
             return Err(PiCcsError::InvalidInput(format!(
                 "{label}: witness logical_col={col} is not representable in D={} balanced base-{} digits (centered value {})",
-                D,
-                params.b,
-                x,
+                D, params.b, x,
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Enforce the SuperNeo Π_CCS NC alphabet `|x| < b` on packed witness coefficients.
+pub fn validate_packed_witness_nc_alphabet<Ff>(
+    params: &NeoParams,
+    Z: &Mat<Ff>,
+    expected_m: usize,
+    label: &str,
+) -> Result<(), PiCcsError>
+where
+    Ff: PrimeField64 + PrimeCharacteristicRing + Copy,
+{
+    validate_superneo_witness_mat(Z, expected_m)?;
+    if params.b < 2 {
+        return Err(PiCcsError::InvalidInput(format!(
+            "{label}: invalid b={} (must be >= 2)",
+            params.b
+        )));
+    }
+    for col in 0..expected_m {
+        let off = col % D;
+        let v = witness_mat_get_f(Z, expected_m, off, col);
+        if !within_nc_bound(v, params.b) {
+            let x = to_balanced_i128(v);
+            return Err(PiCcsError::InvalidInput(format!(
+                "{label}: witness logical_col={col} violates NC alphabet |x| < b={} (centered value {})",
+                params.b, x,
             )));
         }
     }
@@ -1307,7 +1325,7 @@ where
     Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
     K: From<Ff>,
 {
-    let rb = neo_ccs::utils::tensor_point::<K>(r);
+    let rb = neo_ccs::utils::tensor_point_parallel::<K>(r);
     let superneo_cache = crate::superneo_eval::build_superneo_eval_cache(s);
     compute_y_from_Z_and_rb_with_cache(s, Z, &rb, ell_d, superneo_cache.as_ref())
 }

@@ -1,67 +1,9 @@
-//! App-agnostic CCS structure for one `enc(F')` step.
+//! App-agnostic CCS structure for one low-norm `enc(F')` source image.
 //!
-//! The image layout's regions are owned by
-//! [`crate::frontends::f_prime::image`]; for quick reference:
-//!
-//! | Region | Holds |
-//! |---|---|
-//! | boundary (`boundary`)         | public-IO bits — `enc_inst(x_out)`, `enc_inst(prior_x_out)`, counter words |
-//! | state_in (`state_in`)         | six four-lane state-in digests (vk_fs, structure, z_0, z_i_in, acc_digest_in, public_trace_in) |
-//! | state_out (`state_out`)        | two u64 counters + three four-lane post-step digests (new_z_i, new_public_trace, new_acc_digest) |
-//! | chunk_digest (`chunk_digest`)     | one four-lane chunk digest |
-//! | app_private (`app_private`)      | app-private carry bits (Fibonacci witness or R1CS bit-decomposed assignment) |
-//! | nifs_payloads (`nifs_payloads`)    | NIFS CcsClaim / CeClaim payloads (parent_authority etc.) |
-//! | kmul (`kmul`)             | K-mul Karatsuba intermediates (one slot per K-mul invocation) |
-//! | ring_action (`ring_action`)      | ring-action pair traces (ρ, c, products, output per pair) |
-//! | poseidon (`poseidon`)         | one-shot Poseidon traces + the F' sponge transcript |
-//!
-//! This file owns:
-//! - **Bit validity**: `z[k] · (z[k] − 1) = 0` for every committed bit.
-//! - **Ring-action products** in ring_action: `ρ[i] · c[j] = prod[i][j]`.
-//! - **Ring-action outputs** in ring_action: `out[m] = Σ Φ_TABLE[i+j][m] · prod[i][j]`.
-//! - **One-shot trace digest ↔ state-out digest** binding (poseidon → state_out).
-//! - **One-shot trace digest ↔ public-x_out** binding (poseidon → boundary).
-//! - The carrier `CcsStructure` (`m`, `n`, matrices, polynomial `f`).
-//!
-//! ## Layout
-//!
-//! Strict SuperNeo low-norm shape: every committed coordinate is in
-//! `{0, 1}` except the constant slot `z[0] = 1`. Canonical-u64 lanes are
-//! **not** materialised as fresh witness columns — every constraint that
-//! reads a lane substitutes `Σ_{i<64} 2^i · z[bit_start + i]` (or its
-//! 32-bit half variants) directly.
-//!
-//! - **Witness columns** (`m = layout.end`):
-//!     - `z[0]              = F::ONE`              (CCS constant slot)
-//!     - `z[1..layout.end]` = the committed image bits (norm 1).
-//! - **Rows** (`n` = bit-validity + product + output + binding rows):
-//!     - bit-validity rows                 (one per committed bit)
-//!     - ring-action product rows          (D² per ring_action pair)
-//!     - ring-action output rows           (D per ring_action pair)
-//!     - state-out digest binding rows     (`POSEIDON2_DIGEST_LEN` per binding)
-//!     - public-x_out binding rows         (`POSEIDON2_DIGEST_LEN` per binding)
-//!
-//! ## Out of scope
-//!
-//! - Functional app_private constraints.
-//! - Remaining functional F' relations (e.g., `new_chunk_count == chunk_count_in + 1`).
-//! - Lifecycle wiring: `preprocess_seeded` still folds the bit-carrier R1CS;
-//!   nothing here is plumbed into the prover flow yet.
-//!
-//! ## Encoding contract
-//!
-//! Every lane this module references is a canonical-u64 lane (64 bits
-//! per lane, coefficient `2^i` for bit `i`). For ring_action this requires the
-//! [`RingActionTraceLayout`] to use [`LowNormEncoding::U64`] on all four
-//! subregions; [`f_prime_lane_slots`] panics otherwise.
-//!
-//! ## Production count pinning
-//!
-//! [`PRODUCTION_KMUL_COUNT`] / [`PRODUCTION_RING_ACTION_PAIR_COUNT`]
-//! are pinned to what the Phase 1.3d coverage gate observed the F' R1CS
-//! emitter actually invoking per recursive step. A future emitter change
-//! must update these constants in lock-step or
-//! `phase_1_4a_production_config_pins_emitter_counts` regresses.
+//! The image layout lives in `frontends::f_prime::image`; this module
+//! turns it into the mixed-gate [`CcsStructure`]. Canonical-u64 lanes
+//! are not materialized as fresh columns: rows substitute
+//! `Σ 2^i · z[bit_start+i]` directly.
 
 use neo_ccs::{CcsMatrix, CcsStructure, CscMat, SparsePoly, Term};
 use neo_math::ring::D;
@@ -72,27 +14,19 @@ use crate::engine::ccs_native::poseidon2::{POSEIDON2_DIGEST_LEN, POSEIDON2_GOLDI
 use crate::engine::r1cs_circuit::ring_action::phi_reduction_coeff;
 use crate::frontends::f_prime::image::{
     FPrimeImage, FPrimeImageConfig, FPrimeImageLayout, NifsPayloadShape, PoseidonPreimageLaneSource,
-    StateOutDigestTarget,
+    StateInDigestTarget, StateOutDigestTarget,
 };
+use crate::frontends::f_prime::recursive_plan::{STATE_LANE_NEW_ACC_DIGEST_BASE, STATE_LANE_NEW_SEMANTIC_STATE_BASE};
 use crate::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
 
-/// Number of state_in four-lane digests (vk_fs, structure, z_0, z_i_in, acc, public_trace).
-const STATE_IN_DIGEST_COUNT: usize = 6;
-/// Number of state_out u64 counters (new chunk_count, new step_count).
+const STATE_IN_DIGEST_COUNT: usize = 7;
 const STATE_OUT_COUNTER_COUNT: usize = 2;
-/// Number of state_out four-lane digests (new z_i, new public_trace, new acc).
-const STATE_OUT_DIGEST_COUNT: usize = 3;
-/// chunk_digest holds one chunk_digest (four lanes).
+const STATE_OUT_DIGEST_COUNT: usize = 4;
 const CHUNK_DIGEST_LANE_COUNT: usize = 4;
-/// kmul K-mul slot: 3 K-pairs `(p, q, r)`, each pair has low + high lane.
 const KMUL_LANES_PER_SLOT: usize = 6;
-/// kmul K-mul slot bit width: 6 lanes × 64 bits.
 const KMUL_SLOT_BITS: usize = KMUL_LANES_PER_SLOT * POSEIDON2_GOLDILOCKS_BITS;
-/// ring_action ring-action pair lanes: D ρ + D c + D² prod + D out.
 const RING_ACTION_LANES_PER_PAIR: usize = 3 * D + D * D;
-/// ring_action product matrix lanes per ring-action pair.
 const RING_ACTION_PRODUCT_LANES_PER_PAIR: usize = D * D;
-/// ring_action output lanes per ring-action pair.
 const RING_ACTION_OUTPUT_LANES_PER_PAIR: usize = D;
 
 /// kmul K-mul invocations per F' recursive step. Pinned by the Phase 1.3d
@@ -104,15 +38,11 @@ pub const PRODUCTION_KMUL_COUNT: usize = 7100;
 /// Phase 1.3d coverage gate's measurement.
 pub const PRODUCTION_RING_ACTION_PAIR_COUNT: usize = 465;
 
-/// The currently pinned production **kmul/ring_action shell** configuration.
-///
-/// This is not the final full F' image configuration: boundary/nifs_payloads/poseidon remain
-/// zero-sized until later slices wire their functional regions into the
-/// structure. What it does pin today is the production kmul/ring_action audit count
-/// and the U64 ring-action encoding choice.
+/// Pinned production kmul/ring-action shell; boundary/poseidon are empty here.
 pub fn production_kmul_ring_action_shell_image_config() -> FPrimeImageConfig {
     FPrimeImageConfig {
         limbs: 3,
+        app_private_var_widths: Vec::new(),
         boundary_bits: 0,
         nifs_payload_shapes: vec![],
         kmul_count: PRODUCTION_KMUL_COUNT,
@@ -126,26 +56,39 @@ pub fn production_kmul_ring_action_shell_image_config() -> FPrimeImageConfig {
         poseidon_one_shot_preimage_lens: vec![],
         sponge_transcript_permutes: 0,
         one_shot_digest_to_state_out_bindings: vec![],
+        one_shot_digest_to_state_in_bindings: vec![],
         one_shot_digest_to_public_x_out_bindings: vec![],
         poseidon_transition_enforcements: vec![],
         unified_accumulator_selector: None,
+        initial_semantic_state_digest_anchor: None,
     }
 }
 
 /// One canonical-u64 lane: a 64-bit window inside the image's `values`.
-///
-/// Constraints that need the lane's recomposed F-value substitute
-/// `Σ_{i<64} 2^i · z[bit_start + i]` (see [`lane_terms`]); no fresh
-/// witness column is allocated.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LaneSlot {
     pub bit_start: usize,
 }
 
-/// Linear combination that recomposes a canonical-u64 lane from its 64
-/// committed bits: `Σ_{i<64} 2^i · z[bit_start + i]`.
+/// One app-private variable slot. R1CS-F' may use fewer than 64 committed
+/// bits when the R1CS shape proves the variable is bounded.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AppVariableSlot {
+    pub bit_start: usize,
+    pub bits: usize,
+}
+
+/// Recompose a canonical-u64 lane from its 64 committed bits.
 pub(crate) fn lane_terms(slot: LaneSlot) -> impl Iterator<Item = (usize, F)> {
     (0..POSEIDON2_GOLDILOCKS_BITS).map(move |i| (slot.bit_start + i, F::from_u64(1u64 << i)))
+}
+
+/// Recompose an app variable from its committed slot.
+pub(crate) fn app_variable_terms(slot: AppVariableSlot) -> Vec<(usize, F)> {
+    assert!((1..=POSEIDON2_GOLDILOCKS_BITS).contains(&slot.bits));
+    (0..slot.bits)
+        .map(move |i| (slot.bit_start + i, F::from_u64(1u64 << i)))
+        .collect()
 }
 
 /// Linear combination that recomposes a lane's low 32 bits.
@@ -165,36 +108,21 @@ fn scaled_lane_terms(slot: LaneSlot, coeff: F) -> impl Iterator<Item = (usize, F
 }
 
 /// All lane-decode positions, grouped by region.
-///
-/// Decoded columns appear in the extended witness `z` in this order:
-/// `state_lanes`, `nifs_payload_lanes` (per payload), `kmul_lanes`,
-/// `ring_action_lanes`, `poseidon_trace_lanes` (per trace),
-/// `sponge_transcript_lanes`, `public_x_out_binding_lanes` (per binding).
-/// Tests can access each region's slots directly via its field.
 #[derive(Clone, Debug)]
 pub struct FPrimeLaneSlots {
     pub state_lanes: Vec<LaneSlot>,
-    /// One inner `Vec<LaneSlot>` per spliced nifs_payloads NIFS payload. Each
-    /// inner Vec enumerates every 64-bit lane in the payload's fill
-    /// order (u64 counters, F values, K-element halves).
+    /// One inner `Vec<LaneSlot>` per spliced nifs_payloads payload.
     pub nifs_payload_lanes: Vec<Vec<LaneSlot>>,
     pub kmul_lanes: Vec<LaneSlot>,
     pub ring_action_lanes: Vec<LaneSlot>,
     /// One inner `Vec<LaneSlot>` per spliced one-shot Poseidon trace.
-    /// Each inner Vec enumerates the trace's `trace_len / 64` lanes in
-    /// trace order.
     pub poseidon_trace_lanes: Vec<Vec<LaneSlot>>,
     /// One canonical-u64 lane per 64-bit word in the poseidon sponge transcript.
     pub sponge_transcript_lanes: Vec<LaneSlot>,
-    /// boundary digest lanes pulled in by each [`OneShotDigestToPublicXOutBinding`]. Each
-    /// outer entry is one binding's 4 digest lanes; allocation order
-    /// matches `config.one_shot_digest_to_public_x_out_bindings`.
+    /// Boundary digest lanes pulled in by each public-x_out binding.
     pub public_x_out_binding_lanes: Vec<[LaneSlot; 4]>,
-    /// One canonical-u64 lane per app-assignment variable when
-    /// `app_private` is laid out as 64-bit lanes (R1CS frontends). For
-    /// frontends whose `app_private` region is not a multiple of 64 bits
-    /// (Fibonacci carries), this Vec is empty.
-    pub app_assignment_lanes: Vec<LaneSlot>,
+    /// One slot per app-assignment variable when applicable.
+    pub app_assignment_lanes: Vec<AppVariableSlot>,
 }
 
 impl FPrimeLaneSlots {
@@ -214,10 +142,7 @@ impl FPrimeLaneSlots {
     }
 }
 
-/// Enumerate every canonical-u64 lane the structure references, in fixed
-/// order. Lanes only describe 64-bit windows into `image.values`; the
-/// structure substitutes `Σ 2^i · bit` directly where it needs the lane's
-/// recomposed value, so no fresh witness columns are minted here.
+/// Enumerate every canonical-u64 lane the structure references.
 pub fn f_prime_lane_slots(layout: &FPrimeImageLayout) -> FPrimeLaneSlots {
     FPrimeLaneSlots {
         state_lanes: collect_state_lane_slots(layout),
@@ -231,12 +156,25 @@ pub fn f_prime_lane_slots(layout: &FPrimeImageLayout) -> FPrimeLaneSlots {
     }
 }
 
-/// Enumerate `app_private` as 64-bit canonical-u64 lanes (one lane per
-/// app-assignment variable). Used by app frontends that bit-decompose
-/// the R1CS assignment into `app_private`. Returns an empty Vec when
-/// the region size isn't a multiple of 64 (e.g. Fibonacci's 2-bit
-/// carries).
-fn collect_app_assignment_lane_slots(layout: &FPrimeImageLayout) -> Vec<LaneSlot> {
+/// Enumerate `app_private` as app-variable slots when applicable.
+fn collect_app_assignment_lane_slots(layout: &FPrimeImageLayout) -> Vec<AppVariableSlot> {
+    if !layout.config.app_private_var_widths.is_empty() {
+        let mut cursor = layout.app_private.offset;
+        return layout
+            .config
+            .app_private_var_widths
+            .iter()
+            .map(|&bits| {
+                let slot = AppVariableSlot {
+                    bit_start: cursor,
+                    bits,
+                };
+                cursor += bits;
+                slot
+            })
+            .collect();
+    }
+
     let bits = layout.app_private.bits;
     if bits == 0 || bits % POSEIDON2_GOLDILOCKS_BITS != 0 {
         return Vec::new();
@@ -247,7 +185,38 @@ fn collect_app_assignment_lane_slots(layout: &FPrimeImageLayout) -> Vec<LaneSlot
         .map(|i| LaneSlot {
             bit_start: base + i * POSEIDON2_GOLDILOCKS_BITS,
         })
+        .map(|slot| AppVariableSlot {
+            bit_start: slot.bit_start,
+            bits: POSEIDON2_GOLDILOCKS_BITS,
+        })
         .collect()
+}
+
+/// Columns that remain semantically Boolean in the F' image itself.
+fn semantic_boolean_columns(layout: &FPrimeImageLayout) -> Vec<usize> {
+    let mut cols = Vec::with_capacity(semantic_boolean_row_count(layout));
+    cols.extend(layout.boundary.offset..layout.boundary.end());
+    cols.extend(layout.is_base.offset..layout.is_base.end());
+    if app_private_is_semantic_bits(layout) {
+        cols.extend(layout.app_private.offset..layout.app_private.end());
+    }
+    cols
+}
+
+fn semantic_boolean_row_count(layout: &FPrimeImageLayout) -> usize {
+    layout.boundary.bits
+        + layout.is_base.bits
+        + if app_private_is_semantic_bits(layout) {
+            layout.app_private.bits
+        } else {
+            0
+        }
+}
+
+fn app_private_is_semantic_bits(layout: &FPrimeImageLayout) -> bool {
+    layout.config.app_private_var_widths.is_empty()
+        && layout.app_private.bits > 0
+        && layout.app_private.bits % POSEIDON2_GOLDILOCKS_BITS != 0
 }
 
 fn collect_public_x_out_binding_slots(layout: &FPrimeImageLayout) -> Vec<[LaneSlot; 4]> {
@@ -506,10 +475,7 @@ fn collect_ring_action_slots(layout: &FPrimeImageLayout) -> Vec<LaneSlot> {
     slots
 }
 
-/// Phase 1.4 CCS structure for one `enc(F')` step. Carries the
-/// [`FPrimeImageLayout`] it was built from plus the per-region
-/// lane-slot lists so downstream consumers (1.4c, 1.4d) can extend the
-/// witness without re-deriving offsets.
+/// Phase 1.4 CCS structure for one `enc(F')` step.
 #[derive(Clone, Debug)]
 pub struct FPrimeStructure {
     pub layout: FPrimeImageLayout,
@@ -518,15 +484,7 @@ pub struct FPrimeStructure {
     pub lane_slots: FPrimeLaneSlots,
 }
 
-/// Build the CCS structure: bit-validity (1.4a), state_in/state_out/chunk_digest (1.4b-a)
-/// plus nifs_payloads/kmul/ring_action/poseidon lane decode binding, ring_action product binding (1.4c-a),
-/// ring_action output binding (1.4c-b), and poseidon↔state_out digest binding (1.4c-c).
-///
-/// Panics if `layout.end < 2` (need at least the constant slot + one
-/// bit column to form a valid CCS structure) or if ring_action uses a non-U64
-/// encoding.
-/// Matrix-index assignment for the mixed-gate F' CCS polynomial:
-/// bitness + product + Poseidon S-box + linear equality.
+/// Matrix-index assignment for the mixed-gate F' CCS polynomial.
 pub(crate) mod gate {
     pub const BITNESS: usize = 0;
     pub const PRODUCT_LEFT: usize = 1;
@@ -539,19 +497,7 @@ pub(crate) mod gate {
     pub const ARITY: usize = 8;
 }
 
-/// Mixed-gate row builder for the F' CCS structure.
-///
-/// Each public method appends exactly one constraint row, populating
-/// only the matrices its gate uses; the others are zero at that row.
-/// The polynomial is
-///
-/// ```text
-/// f = (B² − B) + (Pl·Pr − Po) + (X⁷ − Y) + (Ll − Lr)
-/// ```
-///
-/// so each row's contribution to `f` is the relevant gate's term in
-/// isolation. `finish` builds the eight `CscMat` matrices and the
-/// corresponding `SparsePoly`.
+/// Row builder for `f = (B²-B) + (Pl·Pr-Po) + (X⁷-Y) + (Ll-Lr)`.
 pub(crate) struct MixedGateBuilder {
     trips: [Vec<(usize, usize, F)>; gate::ARITY],
     rows: usize,
@@ -565,14 +511,11 @@ impl MixedGateBuilder {
         }
     }
 
-    /// Current row count. Useful for sibling structure builders that
-    /// need to know where their appended row block starts.
     #[allow(dead_code)]
     pub(crate) fn rows(&self) -> usize {
         self.rows
     }
 
-    /// `z[col] · (z[col] − 1) = 0`. Populates the BITNESS matrix only.
     pub(crate) fn bitness(&mut self, col: usize) -> usize {
         let row = self.rows;
         self.trips[gate::BITNESS].push((row, col, F::ONE));
@@ -580,9 +523,7 @@ impl MixedGateBuilder {
         row
     }
 
-    /// `(Σ left) · (Σ right) = (Σ out)`. Populates the three product matrices.
-    /// Each operand is an arbitrary linear combination `(col, coeff)` so the
-    /// builder can represent products of lane-recomposed values directly.
+    /// `(Σ left) · (Σ right) = (Σ out)`.
     pub(crate) fn product<L, R, O>(&mut self, left: L, right: R, out: O) -> usize
     where
         L: IntoIterator<Item = (usize, F)>,
@@ -603,7 +544,7 @@ impl MixedGateBuilder {
         row
     }
 
-    /// `(Σ lhs) = (Σ rhs)`. Populates the LINEAR_LHS / LINEAR_RHS matrices.
+    /// `(Σ lhs) = (Σ rhs)`.
     pub(crate) fn linear<L, R>(&mut self, lhs: L, rhs: R) -> usize
     where
         L: IntoIterator<Item = (usize, F)>,
@@ -620,11 +561,7 @@ impl MixedGateBuilder {
         row
     }
 
-    /// `(Σ sbox_in)^7 = (Σ sbox_out)`. Populates the SBOX_IN / SBOX_OUT matrices.
-    /// Both sides accept arbitrary linear combinations; this mirrors the
-    /// native Poseidon2 row shape where the S-box input is an Expr
-    /// (state-word + round-constant) and the output is a single Word
-    /// expanded to its 64 bit-coefficients.
+    /// `(Σ sbox_in)^7 = (Σ sbox_out)`.
     fn sbox7_general<I, O>(&mut self, sbox_in: I, sbox_out: O) -> usize
     where
         I: IntoIterator<Item = (usize, F)>,
@@ -641,7 +578,6 @@ impl MixedGateBuilder {
         row
     }
 
-    /// Build the eight sparse matrices + the mixed-gate polynomial.
     pub(crate) fn finish(self, cols: usize) -> CcsStructure<F> {
         let n = self.rows;
         let matrices: Vec<CcsMatrix<F>> = self
@@ -706,11 +642,11 @@ pub fn build_f_prime_structure(layout: FPrimeImageLayout) -> FPrimeStructure {
     let image_end = layout.end;
     assert!(
         image_end >= 2,
-        "FPrimeImageLayout::end = {image_end} too small; need constant slot + ≥1 bit column"
+        "FPrimeImageLayout::end = {image_end} too small; need constant slot + ≥1 image coordinate"
     );
 
     let lane_slots = f_prime_lane_slots(&layout);
-    let mut builder = MixedGateBuilder::with_estimated_rows(image_end);
+    let mut builder = MixedGateBuilder::with_estimated_rows(estimated_shell_row_capacity(&layout));
     emit_shell_rows(&layout, &lane_slots, &mut builder);
     let ccs = builder.finish(image_end);
 
@@ -721,48 +657,108 @@ pub fn build_f_prime_structure(layout: FPrimeImageLayout) -> FPrimeStructure {
     }
 }
 
-/// Emit every shell row the F' structure owns into `builder`:
-/// bit-validity, ring-action products/outputs, trace↔state-out digest
-/// bindings, the unified-accumulator selector, trace↔public-x_out
-/// bindings, and the Poseidon transition enforcements.
-///
-/// Sibling structure builders (e.g. R1CS F') call this on a fresh
-/// `MixedGateBuilder`, then append their app-level rows, then finish.
-/// The image layout (column count, bit positions, lane slots) is
-/// identical to the Fibonacci build; only the appended rows differ.
+fn estimated_shell_row_capacity(layout: &FPrimeImageLayout) -> usize {
+    semantic_boolean_row_count(layout)
+        + layout.config.ring_action_pair_count
+            * (RING_ACTION_PRODUCT_LANES_PER_PAIR + RING_ACTION_OUTPUT_LANES_PER_PAIR)
+        + (layout.config.one_shot_digest_to_state_in_bindings.len()
+            + layout.config.one_shot_digest_to_state_out_bindings.len()
+            + layout.config.one_shot_digest_to_public_x_out_bindings.len())
+            * POSEIDON2_DIGEST_LEN
+        + if layout
+            .config
+            .one_shot_digest_to_public_x_out_bindings
+            .is_empty()
+        {
+            0
+        } else {
+            POSEIDON2_DIGEST_LEN
+        }
+        + layout
+            .config
+            .unified_accumulator_selector
+            .map_or(0, |_| POSEIDON2_DIGEST_LEN)
+        + if has_stateless_state_x_out(&layout.config) {
+            POSEIDON2_DIGEST_LEN
+        } else {
+            0
+        }
+        + layout
+            .config
+            .initial_semantic_state_digest_anchor
+            .map_or(0, |_| POSEIDON2_DIGEST_LEN)
+}
+
+/// Emit every shell row the F' structure owns into `builder`.
 pub(crate) fn emit_shell_rows(
     layout: &FPrimeImageLayout,
     lane_slots: &FPrimeLaneSlots,
     builder: &mut MixedGateBuilder,
 ) {
-    let image_end = layout.end;
-    let bit_count = image_end - 1;
+    let semantic_boolean_count = semantic_boolean_row_count(layout);
     let ring_action_product_count = layout.config.ring_action_pair_count * RING_ACTION_PRODUCT_LANES_PER_PAIR;
     let ring_action_output_count = layout.config.ring_action_pair_count * RING_ACTION_OUTPUT_LANES_PER_PAIR;
+    let state_in_binding_count = layout.config.one_shot_digest_to_state_in_bindings.len() * POSEIDON2_DIGEST_LEN;
     let state_out_binding_count = layout.config.one_shot_digest_to_state_out_bindings.len() * POSEIDON2_DIGEST_LEN;
+    // Canonical unified F' carries `new_z_i = chunk_digest` directly.
+    let chunk_boundary_mirror_count = if layout
+        .config
+        .one_shot_digest_to_public_x_out_bindings
+        .is_empty()
+    {
+        0
+    } else {
+        POSEIDON2_DIGEST_LEN
+    };
+    // Emit mirror rows when a `state_x_out` public binding is present.
+    let public_trace_mirror_count = if layout
+        .config
+        .one_shot_digest_to_public_x_out_bindings
+        .is_empty()
+    {
+        0
+    } else {
+        POSEIDON2_DIGEST_LEN
+    };
     let public_x_out_binding_count =
         layout.config.one_shot_digest_to_public_x_out_bindings.len() * POSEIDON2_DIGEST_LEN;
-    // Unified accumulator selector: 4 product rows (one per digest
-    // lane). `is_base`'s binary constraint is already covered by the
-    // bit-validity loop above.
+    // Unified accumulator selector: 4 product rows, one per digest lane.
     let unified_selector_count = if layout.config.unified_accumulator_selector.is_some() {
         POSEIDON2_DIGEST_LEN
     } else {
         0
     };
-    let total_shell_rows = bit_count
+    // Base-step semantic anchor:
+    // `is_base * (state_in.semantic_state_digest_in[k] - anchor[k]) = 0`.
+    let initial_semantic_anchor_count = if layout.config.initial_semantic_state_digest_anchor.is_some() {
+        POSEIDON2_DIGEST_LEN
+    } else {
+        0
+    };
+    let stateless_semantic_acc_count = if has_stateless_state_x_out(&layout.config) {
+        POSEIDON2_DIGEST_LEN
+    } else {
+        0
+    };
+    let total_shell_rows = semantic_boolean_count
         + ring_action_product_count
         + ring_action_output_count
+        + state_in_binding_count
         + state_out_binding_count
+        + chunk_boundary_mirror_count
+        + public_trace_mirror_count
         + public_x_out_binding_count
-        + unified_selector_count;
+        + unified_selector_count
+        + initial_semantic_anchor_count
+        + stateless_semantic_acc_count;
     let base_row = builder.rows();
 
-    // ── Bit-validity rows: `z[col] · (z[col] − 1) = 0` for every committed bit.
-    for col in 1..image_end {
+    // ── Semantic Boolean rows: `z[col] · (z[col] − 1) = 0`
+    // for public boundary bits, control bits, and tiny app carry bits.
+    for col in semantic_boolean_columns(layout) {
         builder.bitness(col);
     }
-    debug_assert_eq!(builder.rows() - base_row, bit_count);
+    debug_assert_eq!(builder.rows() - base_row, semantic_boolean_count);
 
     // ── Ring-action product rows: `(Σ 2^i · ρ_bits) · (Σ 2^i · c_bits) = (Σ 2^i · prod_bits)`.
     for pair_idx in 0..layout.config.ring_action_pair_count {
@@ -776,7 +772,10 @@ pub(crate) fn emit_shell_rows(
             }
         }
     }
-    debug_assert_eq!(builder.rows() - base_row, bit_count + ring_action_product_count);
+    debug_assert_eq!(
+        builder.rows() - base_row,
+        semantic_boolean_count + ring_action_product_count
+    );
 
     // ── Ring-action output rows: `Σ 2^i · out_m_bits = Σ Φ[i+j][m] · (Σ 2^i · prod_ij_bits)`.
     for pair_idx in 0..layout.config.ring_action_pair_count {
@@ -798,7 +797,23 @@ pub(crate) fn emit_shell_rows(
     }
     debug_assert_eq!(
         builder.rows() - base_row,
-        bit_count + ring_action_product_count + ring_action_output_count
+        semantic_boolean_count + ring_action_product_count + ring_action_output_count
+    );
+
+    // ── Trace digest ↔ state-in digest binding rows.
+    for binding in &layout.config.one_shot_digest_to_state_in_bindings {
+        let trace_slots = &lane_slots.poseidon_trace_lanes[binding.one_shot_index];
+        let digest_lane_base = trace_slots.len() - POSEIDON2_WIDTH;
+        let state_in_lane_base = state_in_digest_lane_base(binding.state_in_target);
+        for lane in 0..POSEIDON2_DIGEST_LEN {
+            let trace = trace_slots[digest_lane_base + lane];
+            let state_in = lane_slots.state_lanes[state_in_lane_base + lane];
+            builder.linear(lane_terms(trace), lane_terms(state_in));
+        }
+    }
+    debug_assert_eq!(
+        builder.rows() - base_row,
+        semantic_boolean_count + ring_action_product_count + ring_action_output_count + state_in_binding_count
     );
 
     // ── Trace digest ↔ state-out digest binding rows.
@@ -817,62 +832,149 @@ pub(crate) fn emit_shell_rows(
     }
     debug_assert_eq!(
         builder.rows() - base_row,
-        bit_count + ring_action_product_count + ring_action_output_count + state_out_binding_count
+        semantic_boolean_count
+            + ring_action_product_count
+            + ring_action_output_count
+            + state_in_binding_count
+            + state_out_binding_count
     );
 
-    // ── Unified-accumulator selector rows.
+    // ── Canonical chunk-boundary mirror rows.
+    if chunk_boundary_mirror_count != 0 {
+        let new_z_i_lane_base = state_out_digest_lane_base(StateOutDigestTarget::NewZI);
+        let chunk_digest_lane_base = STATE_IN_DIGEST_COUNT * 4 + STATE_OUT_COUNTER_COUNT + STATE_OUT_DIGEST_COUNT * 4;
+        for lane in 0..POSEIDON2_DIGEST_LEN {
+            let z_i = lane_slots.state_lanes[new_z_i_lane_base + lane];
+            let chunk = lane_slots.state_lanes[chunk_digest_lane_base + lane];
+            builder.linear(lane_terms(z_i), lane_terms(chunk));
+        }
+    }
+    debug_assert_eq!(
+        builder.rows() - base_row,
+        semantic_boolean_count
+            + ring_action_product_count
+            + ring_action_output_count
+            + state_in_binding_count
+            + state_out_binding_count
+            + chunk_boundary_mirror_count
+    );
+
+    // ── Canonical public_trace mirror rows.
     //
-    // For each `new_acc_digest` lane (4 lanes total):
-    //     (1 - is_base) · (recursive_lane − base_lane)
-    //   = (new_acc_digest_lane − base_lane)
-    //
-    // - `is_base = 1` ⇒ left side is 0, so RHS forces
-    //   `new_acc_digest_lane = base_lane`.
-    // - `is_base = 0` ⇒ left side is `(recursive − base)`, so RHS
-    //   forces `new_acc_digest_lane = recursive_lane`.
-    //
-    // `is_base ∈ {0, 1}` is enforced by the bit-validity loop above
-    // (the `is_base` lane sits in `layout.is_base`, a single bit column).
-    //
-    // `base_lane` and `recursive_lane` are the digest lanes of the two
-    // accumulator Poseidon traces the plan emitted at
-    // `selector.base_trace_index` / `selector.recursive_trace_index`.
-    // Both traces are constraint-bound by their own Poseidon transition
-    // enforcements, so the selected digest is backed by an authoritative
-    // preimage — it is not pure digest authority.
+    // `public_trace` is kept in the state/public image for now, but the
+    // canonical F' transition sets `new_public_trace = new_z_i`. This
+    // lets `state_x_out` avoid absorbing the same digest twice while
+    // still constraining the retained state lane.
+    if public_trace_mirror_count != 0 {
+        let new_z_i_lane_base = state_out_digest_lane_base(StateOutDigestTarget::NewZI);
+        let new_public_trace_lane_base = state_out_digest_lane_base(StateOutDigestTarget::NewPublicTrace);
+        for lane in 0..POSEIDON2_DIGEST_LEN {
+            let z_i = lane_slots.state_lanes[new_z_i_lane_base + lane];
+            let public_trace = lane_slots.state_lanes[new_public_trace_lane_base + lane];
+            builder.linear(lane_terms(public_trace), lane_terms(z_i));
+        }
+    }
+    debug_assert_eq!(
+        builder.rows() - base_row,
+        semantic_boolean_count
+            + ring_action_product_count
+            + ring_action_output_count
+            + state_in_binding_count
+            + state_out_binding_count
+            + chunk_boundary_mirror_count
+            + public_trace_mirror_count
+    );
+
+    // ── Unified-accumulator selector rows:
+    // `(1 - is_base) · (recursive_lane - base) = new_acc_digest_lane - base`.
     if let Some(selector) = layout.config.unified_accumulator_selector {
         let is_base_col = layout.is_base.offset;
-        let base_trace_slots = &lane_slots.poseidon_trace_lanes[selector.base_trace_index];
         let rec_trace_slots = &lane_slots.poseidon_trace_lanes[selector.recursive_trace_index];
-        let base_digest_lane_base = base_trace_slots.len() - POSEIDON2_WIDTH;
         let rec_digest_lane_base = rec_trace_slots.len() - POSEIDON2_WIDTH;
         let acc_digest_lane_base = state_out_digest_lane_base(StateOutDigestTarget::NewAccDigest);
 
         for lane in 0..POSEIDON2_DIGEST_LEN {
-            let base_lane = base_trace_slots[base_digest_lane_base + lane];
+            let base_const = selector.base_digest[lane];
             let rec_lane = rec_trace_slots[rec_digest_lane_base + lane];
             let acc_lane = lane_slots.state_lanes[acc_digest_lane_base + lane];
 
-            // left = 1 - is_base = (constant column 0, +1) + (is_base column, -1)
             let left: Vec<(usize, F)> = vec![(0, F::ONE), (is_base_col, F::ZERO - F::ONE)];
-            // right = recursive_lane - base_lane
             let right: Vec<(usize, F)> = lane_terms(rec_lane)
-                .chain(scaled_lane_terms(base_lane, F::ZERO - F::ONE))
+                .chain(std::iter::once((0, F::ZERO - base_const)))
                 .collect();
-            // out = new_acc_digest_lane - base_lane
             let out: Vec<(usize, F)> = lane_terms(acc_lane)
-                .chain(scaled_lane_terms(base_lane, F::ZERO - F::ONE))
+                .chain(std::iter::once((0, F::ZERO - base_const)))
                 .collect();
             builder.product(left, right, out);
         }
     }
     debug_assert_eq!(
         builder.rows() - base_row,
-        bit_count
+        semantic_boolean_count
             + ring_action_product_count
             + ring_action_output_count
+            + state_in_binding_count
             + state_out_binding_count
+            + chunk_boundary_mirror_count
+            + public_trace_mirror_count
             + unified_selector_count
+    );
+
+    // ── Stateless semantic/accumulator equality rows.
+    //
+    // When the state_x_out preimage omits `new_semantic_state_digest`, the
+    // semantic coordinate is only sound because stateless mode requires it to
+    // equal the outgoing accumulator handle. This row is the CCS-side
+    // authority for that mode.
+    if stateless_semantic_acc_count != 0 {
+        let semantic_base = state_out_digest_lane_base(StateOutDigestTarget::NewSemanticStateDigest);
+        let acc_base = state_out_digest_lane_base(StateOutDigestTarget::NewAccDigest);
+        for lane in 0..POSEIDON2_DIGEST_LEN {
+            let semantic = lane_slots.state_lanes[semantic_base + lane];
+            let acc = lane_slots.state_lanes[acc_base + lane];
+            builder.linear(lane_terms(semantic), lane_terms(acc));
+        }
+    }
+    debug_assert_eq!(
+        builder.rows() - base_row,
+        semantic_boolean_count
+            + ring_action_product_count
+            + ring_action_output_count
+            + state_in_binding_count
+            + state_out_binding_count
+            + chunk_boundary_mirror_count
+            + public_trace_mirror_count
+            + unified_selector_count
+            + stateless_semantic_acc_count
+    );
+
+    // ── Initial semantic-state anchor rows (base-step gated).
+    if let Some(anchor_bytes) = layout.config.initial_semantic_state_digest_anchor {
+        let is_base_col = layout.is_base.offset;
+        let anchor_lanes = crate::paper::digest::digest32_as_fields(anchor_bytes);
+        let semantic_in_lane_base = state_in_digest_lane_base(StateInDigestTarget::SemanticStateDigestIn);
+        for lane in 0..POSEIDON2_DIGEST_LEN {
+            let semantic_in_lane = lane_slots.state_lanes[semantic_in_lane_base + lane];
+            let left: Vec<(usize, F)> = vec![(is_base_col, F::ONE)];
+            let right: Vec<(usize, F)> = lane_terms(semantic_in_lane)
+                .chain(std::iter::once((0, F::ZERO - anchor_lanes[lane])))
+                .collect();
+            let out: Vec<(usize, F)> = Vec::new();
+            builder.product(left, right, out);
+        }
+    }
+    debug_assert_eq!(
+        builder.rows() - base_row,
+        semantic_boolean_count
+            + ring_action_product_count
+            + ring_action_output_count
+            + state_in_binding_count
+            + state_out_binding_count
+            + chunk_boundary_mirror_count
+            + public_trace_mirror_count
+            + unified_selector_count
+            + stateless_semantic_acc_count
+            + initial_semantic_anchor_count
     );
 
     // ── Trace digest ↔ public-x_out binding rows.
@@ -893,20 +995,7 @@ pub(crate) fn emit_shell_rows(
     }
     debug_assert_eq!(builder.rows() - base_row, total_shell_rows);
 
-    // ── Optional Poseidon transition rows + variable preimage binding (1.4d-a-4) ──
-    // For each enforcement:
-    //   1. Build the native CCS using a *dummy zero preimage* of the
-    //      correct length. The structure shape (round constraints,
-    //      bitness, S-boxes, MDS, etc.) depends only on preimage length,
-    //      not values.
-    //   2. Lift every non-bitness, non-absorb row through the mixed-gate
-    //      builder. Absorb rows are skipped because they bake the
-    //      (dummy) preimage as row constants — they don't match the
-    //      caller's source-based preimage.
-    //   3. Re-emit absorb rows ourselves: each post-absorb state word
-    //      equals previous state's last lane (or 0 for the first
-    //      absorb) plus the source-lane value (or 0 if no addition for
-    //      this lane in this absorb).
+    // ── Optional Poseidon transition rows + variable preimage binding.
     for enforcement in &layout.config.poseidon_transition_enforcements {
         let dummy_preimage: Vec<F> = vec![F::ZERO; enforcement.preimage_lanes.len()];
         let native_bundle = crate::engine::ccs_native::poseidon2::build_bit_backed_poseidon2_hash(&dummy_preimage);
@@ -922,17 +1011,7 @@ pub(crate) fn emit_shell_rows(
     }
 }
 
-/// Mechanically port the non-bitness, non-skipped rows of a bit-backed
-/// Poseidon2 native CCS into the F' mixed-gate builder.
-///
-/// Native column remap: `0 → 0` (shared CCS constant slot); `k ≥ 1 →
-/// splice + k − 1` (the bit at native z-index `k` lives at this image
-/// position once `splice_one_shot_poseidon` has run). Bitness rows are
-/// skipped because the F' builder already enforces every committed bit
-/// is in `{0, 1}` via its own bitness block. `skip_rows` carries the
-/// extra row indices the caller wants to handle externally (typically
-/// absorb rows, which 1.4d-a-4 re-emits with source-bound preimage
-/// lanes instead of baked constants).
+/// Lift non-bitness, non-skipped rows of a bit-backed Poseidon2 CCS.
 fn lift_native_poseidon_rows_skipping(
     native: &CcsStructure<F>,
     splice: usize,
@@ -968,9 +1047,7 @@ fn lift_native_poseidon_rows_skipping(
         entries
     };
 
-    // Native matrix indices (per `engine::ccs_native::poseidon2`):
-    //   0 = B (bitness), 1 = X (sbox in), 2 = Y (sbox out),
-    //   3 = Lhs (linear lhs), 4 = Rhs (linear rhs).
+    // Native matrix indices: 0=B, 1=X, 2=Y, 3=Lhs, 4=Rhs.
     let bitness_rows = per_row(&native.matrices[0]);
     let sbox_in_rows = per_row(&native.matrices[1]);
     let sbox_out_rows = per_row(&native.matrices[2]);
@@ -986,7 +1063,6 @@ fn lift_native_poseidon_rows_skipping(
         let linear_active = !lhs_rows[r].is_empty() || !rhs_rows[r].is_empty();
 
         if bit_active {
-            // F' already constrains every committed bit; skip.
             debug_assert!(
                 !sbox_active && !linear_active,
                 "native row {r} mixes bitness with another gate"
@@ -999,67 +1075,91 @@ fn lift_native_poseidon_rows_skipping(
         } else if linear_active {
             builder.linear(lhs_rows[r].clone(), rhs_rows[r].clone());
         }
-        // else: empty row — should not happen in a well-formed native CCS,
-        //       but quietly ignored so we don't crash on degenerate inputs.
     }
 }
 
-/// Resolve one preimage source to its `(col, coeff)` terms in the F'
-/// bit-frame. A `Constant` becomes `(0, value)` (col 0 = ONE). Every
-/// image-region source expands to its 64-bit (or 32-bit half) lane sum
-/// directly; no decoded witness column is referenced.
+/// Resolve one preimage source to `(col, coeff)` terms in the F' bit-frame.
 fn poseidon_preimage_source_terms(
     source: &PoseidonPreimageLaneSource,
     lane_slots: &FPrimeLaneSlots,
 ) -> Vec<(usize, F)> {
-    match *source {
+    match source {
         PoseidonPreimageLaneSource::Constant(v) => {
-            if v == F::ZERO {
+            if *v == F::ZERO {
                 Vec::new()
             } else {
-                vec![(0, v)]
+                vec![(0, *v)]
             }
         }
-        PoseidonPreimageLaneSource::StateLane(i) => lane_terms(lane_slots.state_lanes[i]).collect(),
-        PoseidonPreimageLaneSource::StateLaneLowHalf(i) => lane_low_half_terms(lane_slots.state_lanes[i]).collect(),
-        PoseidonPreimageLaneSource::StateLaneHighHalf(i) => lane_high_half_terms(lane_slots.state_lanes[i]).collect(),
+        PoseidonPreimageLaneSource::StateLane(i) => lane_terms(lane_slots.state_lanes[*i]).collect(),
+        PoseidonPreimageLaneSource::StateLaneLowHalf(i) => lane_low_half_terms(lane_slots.state_lanes[*i]).collect(),
+        PoseidonPreimageLaneSource::StateLaneHighHalf(i) => lane_high_half_terms(lane_slots.state_lanes[*i]).collect(),
         PoseidonPreimageLaneSource::NifsPayloadLane {
             payload_index,
             lane_index,
-        } => lane_terms(lane_slots.nifs_payload_lanes[payload_index][lane_index]).collect(),
-        PoseidonPreimageLaneSource::RingActionLane(i) => lane_terms(lane_slots.ring_action_lanes[i]).collect(),
+        } => lane_terms(lane_slots.nifs_payload_lanes[*payload_index][*lane_index]).collect(),
+        PoseidonPreimageLaneSource::RingActionLane(i) => lane_terms(lane_slots.ring_action_lanes[*i]).collect(),
         PoseidonPreimageLaneSource::PoseidonTraceLane {
             trace_index,
             lane_index,
-        } => lane_terms(lane_slots.poseidon_trace_lanes[trace_index][lane_index]).collect(),
+        } => lane_terms(lane_slots.poseidon_trace_lanes[*trace_index][*lane_index]).collect(),
         PoseidonPreimageLaneSource::SpongeTranscriptLane(i) => {
-            lane_terms(lane_slots.sponge_transcript_lanes[i]).collect()
+            lane_terms(lane_slots.sponge_transcript_lanes[*i]).collect()
         }
         PoseidonPreimageLaneSource::PublicXOutBindingLane { binding_index, lane } => {
-            lane_terms(lane_slots.public_x_out_binding_lanes[binding_index][lane]).collect()
+            lane_terms(lane_slots.public_x_out_binding_lanes[*binding_index][*lane]).collect()
         }
         PoseidonPreimageLaneSource::AppAssignmentLane(var_index) => {
-            lane_terms(lane_slots.app_assignment_lanes[var_index]).collect()
+            app_variable_terms(lane_slots.app_assignment_lanes[*var_index])
+        }
+        PoseidonPreimageLaneSource::AppAssignmentBitPack(var_indices) => {
+            let mut terms = Vec::new();
+            let mut bit_weight = F::ONE;
+            for &var_index in var_indices {
+                terms.extend(
+                    app_variable_terms(lane_slots.app_assignment_lanes[var_index])
+                        .into_iter()
+                        .map(|(col, coeff)| (col, coeff * bit_weight)),
+                );
+                bit_weight *= F::from_u64(2);
+            }
+            terms
         }
     }
 }
 
+fn has_stateless_state_x_out(config: &FPrimeImageConfig) -> bool {
+    config
+        .one_shot_digest_to_public_x_out_bindings
+        .iter()
+        .filter_map(|binding| {
+            config
+                .poseidon_transition_enforcements
+                .iter()
+                .find(|enforcement| enforcement.one_shot_index == binding.one_shot_index)
+        })
+        .any(|enforcement| {
+            let mut absorbs_acc = false;
+            let mut absorbs_semantic = false;
+            for source in &enforcement.preimage_lanes {
+                if let PoseidonPreimageLaneSource::StateLane(index) = source {
+                    if (STATE_LANE_NEW_ACC_DIGEST_BASE..STATE_LANE_NEW_ACC_DIGEST_BASE + POSEIDON2_DIGEST_LEN)
+                        .contains(index)
+                    {
+                        absorbs_acc = true;
+                    }
+                    if (STATE_LANE_NEW_SEMANTIC_STATE_BASE..STATE_LANE_NEW_SEMANTIC_STATE_BASE + POSEIDON2_DIGEST_LEN)
+                        .contains(index)
+                    {
+                        absorbs_semantic = true;
+                    }
+                }
+            }
+            absorbs_acc && !absorbs_semantic
+        })
+}
+
 /// Emit absorb-binding rows for one Poseidon transition enforcement.
-///
-/// For each absorb (sponge chunk + final padding), the bit-backed
-/// builder commits 8 post-absorb state words at the start of that
-/// absorb's permutation. We constrain each of those 8 words:
-///
-/// ```text
-/// post_state_lane = previous_final_state_lane  +  preimage_source_lane (if absorbed this chunk)
-///                  + 1 (if padding chunk, lane 0)
-/// ```
-///
-/// `previous_final_state_lane` is zero for the first absorb (sponge
-/// starts at all-zero state). The 8 post-absorb words sit at the first
-/// `WIDTH` words of each permutation's word block; the previous
-/// permutation's final 8 words sit at the last `WIDTH` words of the
-/// preceding permutation's block.
 fn emit_variable_poseidon_absorb_rows(
     enforcement: &super::image::PoseidonTransitionEnforcement,
     lane_slots: &FPrimeLaneSlots,
@@ -1074,26 +1174,18 @@ fn emit_variable_poseidon_absorb_rows(
 
     for absorb_idx in 0..absorbs {
         for lane in 0..POSEIDON2_WIDTH {
-            // Post-absorb state word: first `WIDTH` words of this absorb's
-            // permutation block.
             let post_word = absorb_idx * BIT_BACKED_PERMUTATION_WORDS + lane;
             let post_slot = trace_slots[post_word];
 
-            // Build the RHS: previous final state lane (if any) + absorbed
-            // value (if this lane absorbs in this absorb) + padding +1
-            // (if last absorb, lane 0).
             let mut rhs: Vec<(usize, F)> = Vec::new();
 
             if absorb_idx > 0 {
-                // Last `WIDTH` words of previous permutation block.
                 let prev_final_word = absorb_idx * BIT_BACKED_PERMUTATION_WORDS - POSEIDON2_WIDTH + lane;
                 rhs.extend(lane_terms(trace_slots[prev_final_word]));
             }
 
             let is_padding_absorb = absorb_idx == absorbs - 1;
             if is_padding_absorb {
-                // Padding: state[0] += F::ONE before the final permutation;
-                // all other lanes have no extra addition.
                 if lane == 0 {
                     rhs.push((0, F::ONE));
                 }
@@ -1115,7 +1207,7 @@ impl FPrimeStructure {
     /// Return the strict low-norm witness for this image: just `image.values`.
     ///
     /// Strict-encoding invariant (Phase 1.5b-0): the CCS witness is
-    /// exactly the committed bit-vector, all entries in `{0, 1}` except
+    /// exactly the committed image vector, with low-norm entries and
     /// `z[0] = 1`. Lane-recomposed u64 values appear inside constraint
     /// rows as `Σ 2^i · z[bit_start + i]`, never as fresh witness columns.
     pub fn extend_witness_from_image(&self, image: &FPrimeImage) -> Vec<F> {
@@ -1176,6 +1268,15 @@ impl FPrimeStructure {
         self.layout.config.ring_action_pair_count * RING_ACTION_OUTPUT_LANES_PER_PAIR
     }
 
+    /// Number of explicit Boolean rows emitted by this structure.
+    ///
+    /// This intentionally counts only semantic bits (public boundary,
+    /// `is_base`, and tiny app carry regions), not every low-norm digit
+    /// used to encode internal field lanes.
+    pub fn semantic_boolean_row_count(&self) -> usize {
+        semantic_boolean_row_count(&self.layout)
+    }
+
     /// Row index for the ring_action constraint `ρ[i] · c[j] = prod[i][j]`.
     pub fn ring_action_product_row(&self, pair_idx: usize, i: usize, j: usize) -> usize {
         assert!(
@@ -1189,9 +1290,9 @@ impl FPrimeStructure {
     }
 
     /// First row of the ring_action product-constraint block. Rows preceding it
-    /// are the bit-validity rows (one per committed bit, i.e. `layout.end - 1`).
+    /// are the explicit semantic Boolean rows.
     pub fn ring_action_product_row_start(&self) -> usize {
-        self.layout.end - 1
+        self.semantic_boolean_row_count()
     }
 
     /// Row index for the ring_action constraint
@@ -1223,7 +1324,7 @@ impl FPrimeStructure {
 
     /// First row of the poseidon↔state_out binding block.
     pub fn state_out_digest_binding_row_start(&self) -> usize {
-        self.ring_action_output_row_start() + self.ring_action_output_row_count()
+        self.state_in_digest_binding_row_start() + self.state_in_digest_binding_row_count()
     }
 
     /// Row index for the constraint
@@ -1249,6 +1350,57 @@ impl FPrimeStructure {
         self.state_out_digest_binding_row_start() + binding_idx * POSEIDON2_DIGEST_LEN + lane
     }
 
+    /// Number of rows enforcing canonical `new_public_trace == new_z_i`.
+    pub fn public_trace_mirror_row_count(&self) -> usize {
+        if self
+            .layout
+            .config
+            .one_shot_digest_to_public_x_out_bindings
+            .is_empty()
+        {
+            0
+        } else {
+            POSEIDON2_DIGEST_LEN
+        }
+    }
+
+    fn chunk_boundary_mirror_row_count(&self) -> usize {
+        if self
+            .layout
+            .config
+            .one_shot_digest_to_public_x_out_bindings
+            .is_empty()
+        {
+            0
+        } else {
+            POSEIDON2_DIGEST_LEN
+        }
+    }
+
+    fn chunk_boundary_mirror_row_start(&self) -> usize {
+        self.state_out_digest_binding_row_start() + self.state_out_digest_binding_row_count()
+    }
+
+    /// First row of the canonical `new_public_trace == new_z_i` block.
+    pub fn public_trace_mirror_row_start(&self) -> usize {
+        self.chunk_boundary_mirror_row_start() + self.chunk_boundary_mirror_row_count()
+    }
+
+    /// Number of poseidon↔state_in digest binding rows
+    /// (`POSEIDON2_DIGEST_LEN` per binding).
+    pub fn state_in_digest_binding_row_count(&self) -> usize {
+        self.layout
+            .config
+            .one_shot_digest_to_state_in_bindings
+            .len()
+            * POSEIDON2_DIGEST_LEN
+    }
+
+    /// First row of the poseidon↔state_in binding block.
+    pub fn state_in_digest_binding_row_start(&self) -> usize {
+        self.ring_action_output_row_start() + self.ring_action_output_row_count()
+    }
+
     /// Number of one-shot-trace ↔ public-x_out binding rows
     /// (`POSEIDON2_DIGEST_LEN` per binding).
     pub fn public_x_out_binding_row_count(&self) -> usize {
@@ -1261,7 +1413,11 @@ impl FPrimeStructure {
 
     /// First row of the public-x_out binding block.
     pub fn public_x_out_binding_row_start(&self) -> usize {
-        self.state_out_digest_binding_row_start() + self.state_out_digest_binding_row_count()
+        self.public_trace_mirror_row_start()
+            + self.public_trace_mirror_row_count()
+            + self.unified_accumulator_selector_row_count()
+            + self.stateless_semantic_acc_row_count()
+            + self.initial_semantic_anchor_row_count()
     }
 
     /// Row index for the constraint
@@ -1286,20 +1442,51 @@ impl FPrimeStructure {
         );
         self.public_x_out_binding_row_start() + binding_idx * POSEIDON2_DIGEST_LEN + lane
     }
+
+    fn unified_accumulator_selector_row_count(&self) -> usize {
+        if self.layout.config.unified_accumulator_selector.is_some() {
+            POSEIDON2_DIGEST_LEN
+        } else {
+            0
+        }
+    }
+
+    fn stateless_semantic_acc_row_count(&self) -> usize {
+        if has_stateless_state_x_out(&self.layout.config) {
+            POSEIDON2_DIGEST_LEN
+        } else {
+            0
+        }
+    }
+
+    fn initial_semantic_anchor_row_count(&self) -> usize {
+        if self
+            .layout
+            .config
+            .initial_semantic_state_digest_anchor
+            .is_some()
+        {
+            POSEIDON2_DIGEST_LEN
+        } else {
+            0
+        }
+    }
 }
 
-/// First state_in/state_out/chunk_digest lane slot index for the four-lane state_out digest at
-/// `target`. state_in occupies the first 24 lanes; state_out starts at index 24
-/// with two u64 counters (chunk_count, step_count), then three
-/// four-lane digests in fill order: new_z_i, new_public_trace,
-/// new_acc_digest.
+fn state_in_digest_lane_base(target: StateInDigestTarget) -> usize {
+    match target {
+        StateInDigestTarget::SemanticStateDigestIn => 16,
+    }
+}
+
 fn state_out_digest_lane_base(target: StateOutDigestTarget) -> usize {
-    const STATE_IN_LANES: usize = 24;
+    const STATE_IN_LANES: usize = 28;
     const STATE_OUT_COUNTER_LANES: usize = 2;
     let state_out_digests_start = STATE_IN_LANES + STATE_OUT_COUNTER_LANES;
     match target {
         StateOutDigestTarget::NewZI => state_out_digests_start,
         StateOutDigestTarget::NewPublicTrace => state_out_digests_start + 4,
-        StateOutDigestTarget::NewAccDigest => state_out_digests_start + 8,
+        StateOutDigestTarget::NewSemanticStateDigest => state_out_digests_start + 8,
+        StateOutDigestTarget::NewAccDigest => state_out_digests_start + 12,
     }
 }

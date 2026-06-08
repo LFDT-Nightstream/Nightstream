@@ -26,7 +26,7 @@
 use neo_fold_clean::engine::ccs_native::poseidon2::{
     POSEIDON2_DIGEST_LEN, POSEIDON2_GOLDILOCKS_BITS, POSEIDON2_RATE, POSEIDON2_WIDTH,
 };
-use neo_fold_clean::paper::digest::{digest32_as_fields, state_x_out_digest};
+use neo_fold_clean::paper::digest::{digest32_as_fields, state_x_out_digest, F_PRIME_STATE_X_OUT_DOMAIN};
 use neo_fold_clean::paper::f_prime::poseidon_trace::{
     assert_committed_coords_are_bits, decode_digest_lanes, encode_poseidon_trace, PoseidonTraceLayout,
     BITS_PER_PERMUTATION,
@@ -36,23 +36,6 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 // ── Preimage helpers (mirror `paper::digest::state_x_out_digest`) ────────
 
-/// Mirror of the private `paper::digest::pack_bytes_as_fields`. The first
-/// field carries `bytes.len()`; subsequent fields pack 7 bytes each
-/// little-endian. Reimplemented here so the test can construct the same
-/// preimage the production `state_x_out_digest` builds, without exposing
-/// `pack_bytes_as_fields` as `pub`.
-fn pack_bytes_as_fields(bytes: &[u8]) -> Vec<F> {
-    const BYTES_PER_LIMB: usize = 7;
-    let mut out = Vec::with_capacity(1 + bytes.len().div_ceil(BYTES_PER_LIMB));
-    out.push(F::from_u64(bytes.len() as u64));
-    for chunk in bytes.chunks(BYTES_PER_LIMB) {
-        let mut limb = [0u8; 8];
-        limb[..chunk.len()].copy_from_slice(chunk);
-        out.push(F::from_u64(u64::from_le_bytes(limb)));
-    }
-    out
-}
-
 #[inline]
 fn u64_halves(value: u64) -> [F; 2] {
     [F::from_u64(value & 0xffff_ffff), F::from_u64(value >> 32)]
@@ -61,27 +44,24 @@ fn u64_halves(value: u64) -> [F; 2] {
 #[allow(clippy::too_many_arguments)]
 fn build_state_x_out_preimage(
     vk_fs_digest: [u8; 32],
-    structure_digest: &[F; 4],
+    _structure_digest: &[F; 4],
     chunk_count: u64,
     step_count: u64,
-    initial_boundary: [u8; 32],
+    _initial_boundary: [u8; 32],
     current_boundary: [u8; 32],
     pc: u64,
     semantic_acc: [u8; 32],
     construction2_acc: [u8; 32],
-    public_trace: [u8; 32],
+    _public_trace: [u8; 32],
 ) -> Vec<F> {
-    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/state_x_out/v1");
+    let mut preimage = vec![F::from_u64(F_PRIME_STATE_X_OUT_DOMAIN)];
     preimage.extend(digest32_as_fields(vk_fs_digest));
-    preimage.extend(structure_digest.iter().copied());
     preimage.extend(u64_halves(chunk_count));
     preimage.extend(u64_halves(step_count));
-    preimage.extend(digest32_as_fields(initial_boundary));
-    preimage.extend(digest32_as_fields(current_boundary));
     preimage.extend(u64_halves(pc));
+    preimage.extend(digest32_as_fields(current_boundary));
     preimage.extend(digest32_as_fields(semantic_acc));
     preimage.extend(digest32_as_fields(construction2_acc));
-    preimage.extend(digest32_as_fields(public_trace));
     preimage
 }
 
@@ -118,7 +98,7 @@ fn deterministic_state_x_out_inputs() -> (
     let step_count: u64 = 5;
     let initial_boundary = mk_digest(0x20);
     let current_boundary = mk_digest(0x30);
-    let pc: u64 = 0; // TRIVIAL_PC
+    let pc: u64 = 1; // TRIVIAL_PC
     let semantic_acc = mk_digest(0x40);
     let construction2_acc = mk_digest(0x50);
     let public_trace = mk_digest(0x60);
@@ -140,9 +120,9 @@ fn deterministic_state_x_out_inputs() -> (
 
 #[test]
 fn phase_1_mini_1_layout_offsets_monotonic_and_non_overlapping() {
-    // Cover the typical state_x_out preimage length (~40 F values),
+    // Cover the typical state_x_out preimage length (~32 F values),
     // plus boundary cases that exercise the absorb-rounding path.
-    for preimage_len in [1, 4, 5, 7, 8, 40, 41, 100] {
+    for preimage_len in [1, 4, 5, 7, 8, 32, 33, 100] {
         let layout = PoseidonTraceLayout::from_preimage_len(preimage_len);
 
         assert_eq!(layout.constant_slot, 0);

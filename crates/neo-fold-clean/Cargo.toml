@@ -33,6 +33,7 @@ p3-field       = { workspace = true }
 # 0.9-vs-0.10 trait-version mismatch by sampling u64s directly.
 p3-goldilocks  = { workspace = true }
 rand_chacha_p3 = { workspace = true }
+rayon          = { workspace = true }
 spartan2       = { workspace = true }
 serde          = { workspace = true }
 thiserror      = { workspace = true }
@@ -116,6 +117,10 @@ name = "reductions_nifs_v"
 path = "tests/reductions/nifs_v.rs"
 
 [[test]]
+name = "reductions_nifs_v_transcript"
+path = "tests/reductions/nifs_v_transcript.rs"
+
+[[test]]
 name = "reductions_degree7_pi_ccs"
 path = "tests/reductions/degree7_pi_ccs.rs"
 
@@ -144,6 +149,10 @@ name = "f_prime_r1cs"
 path = "tests/f_prime/r1cs.rs"
 
 [[test]]
+name = "f_prime_transcript_redteam"
+path = "tests/f_prime/transcript_redteam.rs"
+
+[[test]]
 name = "f_prime_source_image"
 path = "tests/f_prime/source_image.rs"
 
@@ -158,6 +167,10 @@ path = "tests/system/fibonacci_bits_e2e.rs"
 [[test]]
 name = "system_lifecycle_finalization"
 path = "tests/system/lifecycle_finalization.rs"
+
+[[test]]
+name = "system_lifecycle_redteam"
+path = "tests/system/lifecycle_redteam.rs"
 
 [[test]]
 name = "system_lifecycle_f_prime_link"
@@ -272,12 +285,36 @@ name = "system_fibonacci_unified_accumulator_selector"
 path = "tests/system/fibonacci_unified_accumulator_selector.rs"
 
 [[test]]
+name = "system_fibonacci_f_prime_layout_budget"
+path = "tests/system/fibonacci_f_prime_layout_budget.rs"
+
+[[test]]
 name = "system_fibonacci_compiler_unified_structure"
 path = "tests/system/fibonacci_compiler_unified_structure.rs"
 
 [[test]]
+name = "system_decider_ce_relation_isolation"
+path = "tests/system/decider_ce_relation_isolation.rs"
+
+[[test]]
+name = "system_terminal_ce_public"
+path = "tests/system/terminal_ce_public.rs"
+
+[[test]]
+name = "system_terminal_ce_merkle"
+path = "tests/system/terminal_ce_merkle.rs"
+
+[[test]]
 name = "system_r1cs_compiler"
 path = "tests/system/r1cs_compiler.rs"
+
+[[test]]
+name = "system_r1cs_compiler_stateful"
+path = "tests/system/r1cs_compiler_stateful.rs"
+
+[[test]]
+name = "system_r1cs_preprocess"
+path = "tests/system/r1cs_preprocess.rs"
 
 [[test]]
 name = "system_production_params"
@@ -290,6 +327,10 @@ path = "tests/system/preprocessing_cache_hygiene.rs"
 [[test]]
 name = "system_sha256_bellpepper_ccs"
 path = "tests/system/sha256_bellpepper_ccs.rs"
+
+[[test]]
+name = "system_sha256_bellpepper_batching"
+path = "tests/system/sha256_bellpepper_batching.rs"
 
 [[test]]
 name = "perf_fibonacci_bits"

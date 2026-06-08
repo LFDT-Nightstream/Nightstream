@@ -10,6 +10,7 @@ use super::{Error, FibonacciFPrimePreprocessing};
 use neo_fold_clean::frontends::f_prime::encoder::EncodedFPrimeStep;
 use neo_fold_clean::paper::digest::structure_digest;
 use neo_fold_clean::paper::relations::CcsInstance;
+use std::sync::Arc;
 
 /// Build one `CcsInstance` from an encoded F' step.
 ///
@@ -19,13 +20,15 @@ use neo_fold_clean::paper::relations::CcsInstance;
 /// `prep.log` under the canonical public-input split
 /// (`step.public_input_len()` = `1 + boundary_bits`).
 pub fn build_instance(prep: &FibonacciFPrimePreprocessing, step: &EncodedFPrimeStep) -> Result<CcsInstance, Error> {
-    let prep_digest = *prep.prep.structure_digest();
-    let step_digest = structure_digest(&step.structure.ccs);
-    if prep_digest != step_digest {
-        return Err(Error::StructureMismatch {
-            prep_digest,
-            step_digest,
-        });
+    if !Arc::ptr_eq(&prep.structure, &step.structure) {
+        let prep_digest = *prep.prep.structure_digest();
+        let step_digest = structure_digest(&step.structure.ccs);
+        if prep_digest != step_digest {
+            return Err(Error::StructureMismatch {
+                prep_digest,
+                step_digest,
+            });
+        }
     }
 
     Ok(step.to_public_ccs_instance(&prep.prep.params, &prep.prep.log)?)

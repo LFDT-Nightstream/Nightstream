@@ -12,6 +12,23 @@ use neo_math::ring::{cf, Rq, D};
 use neo_math::{KExtensions, F, K};
 use p3_field::PrimeCharacteristicRing;
 
+// ── builder diagnostics ─────────────────────────────────────────────────
+
+#[test]
+fn unconstrained_columns_reports_allocated_wires_with_no_rows() {
+    let mut b = R1csBuilder::new();
+    let bound = b.alloc(F::from_u64(7));
+    let unbound = b.alloc(F::from_u64(11));
+
+    b.enforce_eq(&Lc::from_var(bound), &Lc::from_const(F::from_u64(7)));
+
+    assert_eq!(
+        b.unconstrained_columns(),
+        vec![unbound.col()],
+        "audit helper must report allocated columns that never appear in A/B/C rows"
+    );
+}
+
 // ── boolean ───────────────────────────────────────────────────────────────
 
 #[test]
@@ -225,6 +242,31 @@ fn ring_mul_circuit_matches_native_rq_mul() {
             );
         }
     }
+}
+
+#[test]
+fn ring_mul_toom3_circuit_matches_native_with_lower_row_count() {
+    use neo_fold_clean::engine::r1cs_circuit::ring_action::alloc_and_enforce_ring_mul_toom3;
+
+    let rho = rq_from_seed(31);
+    let c = rq_from_seed(37);
+    let expected = cf(rho.mul(&c));
+    let mut b = R1csBuilder::new();
+    let out = alloc_and_enforce_ring_mul_toom3(&mut b, &cf(rho), &cf(c));
+
+    assert!(
+        b.is_satisfied(),
+        "toom3 ring_mul unsatisfied (first bad row: {:?})",
+        b.first_unsatisfied_row()
+    );
+    for (idx, &want) in expected.iter().enumerate() {
+        assert_eq!(b.witness()[out[idx].col()], want, "toom3 coeff {idx}");
+    }
+    assert_eq!(
+        b.rows(),
+        5 * 18 * 18 + D,
+        "3-way ring_mul should use five 18x18 products plus D output rows"
+    );
 }
 
 #[test]

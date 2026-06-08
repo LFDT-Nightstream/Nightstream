@@ -73,6 +73,7 @@ fn alloc_d(builder: &mut R1csBuilder, vals: &[F; D]) -> [Var; D] {
 fn ring_action_only_image_config() -> FPrimeImageConfig {
     FPrimeImageConfig {
         limbs: 3,
+        app_private_var_widths: Vec::new(),
         boundary_bits: 0,
         nifs_payload_shapes: vec![],
         kmul_count: 0,
@@ -81,9 +82,11 @@ fn ring_action_only_image_config() -> FPrimeImageConfig {
         poseidon_one_shot_preimage_lens: vec![],
         sponge_transcript_permutes: 0,
         one_shot_digest_to_state_out_bindings: vec![],
+        one_shot_digest_to_state_in_bindings: vec![],
         one_shot_digest_to_public_x_out_bindings: vec![],
         poseidon_transition_enforcements: vec![],
         unified_accumulator_selector: None,
+        initial_semantic_state_digest_anchor: None,
     }
 }
 

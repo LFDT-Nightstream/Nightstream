@@ -104,6 +104,38 @@ impl OptimizedRlcDec {
         let ok_c = combine_b_pows(child_commitments, params.b) == parent.c;
         (children, ok_y, ok_X, ok_c)
     }
+
+    pub fn dec_children_with_commit_superneo_cached_with_digit_flags<Comb>(
+        s: &CcsStructure<F>,
+        params: &NeoParams,
+        parent: &CeClaim<Cmt, F, K>,
+        Z_split: &[Mat<F>],
+        digit_nonzero: &[bool],
+        ell_d: usize,
+        child_commitments: &[Cmt],
+        combine_b_pows: Comb,
+        superneo_cache: &crate::superneo_eval::SuperneoEvalCache,
+    ) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool)
+    where
+        Comb: Fn(&[Cmt], u32) -> Cmt,
+    {
+        let (mut children, ok_y, ok_X) =
+            super::optimized_engine::dec_reduction_paper_exact_with_superneo_cache_and_digit_flags::<F>(
+                s,
+                params,
+                parent,
+                Z_split,
+                digit_nonzero,
+                ell_d,
+                superneo_cache,
+            );
+
+        for (ch, c) in children.iter_mut().zip(child_commitments.iter()) {
+            ch.c = c.clone();
+        }
+        let ok_c = combine_b_pows(child_commitments, params.b) == parent.c;
+        (children, ok_y, ok_X, ok_c)
+    }
 }
 
 impl RlcDecOps for OptimizedRlcDec {

@@ -51,6 +51,8 @@ pub mod fixtures;
 pub mod instance;
 pub mod lifecycle;
 
+use std::sync::Arc;
+
 // Re-export the threaded-chain fixtures used by Phase 1.5a/1.6a/1.7a tests
 // directly under the Fibonacci namespace so call sites don't need to know
 // they live in a separate submodule.
@@ -69,10 +71,10 @@ pub use lifecycle::{prove_encoded_steps, FibonacciChainBuilder};
 
 use thiserror::Error;
 
-use neo_fold_clean::frontends::direct_ccs::{ajtai, ajtai_dec_mixer, ajtai_rlc_mixer};
+use neo_fold_clean::frontends::direct_ccs::ajtai;
 use neo_fold_clean::frontends::f_prime::image::FPrimeImageLayout;
 use neo_fold_clean::frontends::f_prime::recursive_plan::{build_recursive_step_image_config, RecursiveStepImagePlan};
-use neo_fold_clean::frontends::f_prime::structure::build_f_prime_structure;
+use neo_fold_clean::frontends::f_prime::structure::{build_f_prime_structure, FPrimeStructure};
 use neo_fold_clean::lifecycle::{preprocess as lifecycle_preprocess, Preprocessing};
 use neo_fold_clean::paper::params::Params;
 
@@ -93,6 +95,7 @@ use neo_fold_clean::paper::params::Params;
 pub struct FibonacciFPrimePreprocessing {
     pub prep: Preprocessing,
     pub plan: RecursiveStepImagePlan,
+    pub structure: Arc<FPrimeStructure>,
 }
 
 #[derive(Debug, Error)]
@@ -134,22 +137,17 @@ pub enum Error {
 /// deterministic test/demo setup derived from a seed.
 pub fn preprocess(plan: &RecursiveStepImagePlan, params: Params) -> Result<FibonacciFPrimePreprocessing, Error> {
     let (structure, public_input_len) = derive_canonical_structure(plan);
-    let prep = lifecycle_preprocess(
-        params,
-        structure,
-        ajtai_rlc_mixer,
-        ajtai_dec_mixer,
-        Some(public_input_len),
-    )?;
+    let prep = lifecycle_preprocess(params, structure.ccs.clone(), Some(public_input_len))?;
     Ok(FibonacciFPrimePreprocessing {
         prep,
         plan: plan.clone(),
+        structure,
     })
 }
 
 /// Test/demo helper: derive structure from the verifier-owned `plan`,
 /// derive params from the resulting CCS shape via
-/// [`neo_fold_clean::config::r1cs_params`], install an Ajtai PP for the shape
+/// [`neo_fold_clean::config::ccs_params`], install an Ajtai PP for the shape
 /// deterministically from `seed`, then build preprocessing.
 ///
 /// Production callers should install the canonical Ajtai setup out of
@@ -158,18 +156,18 @@ pub fn preprocess(plan: &RecursiveStepImagePlan, params: Params) -> Result<Fibon
 /// [`neo_fold_clean::frontends::direct_ccs::preprocess_seeded`].
 pub fn preprocess_seeded(plan: &RecursiveStepImagePlan, seed: u64) -> Result<FibonacciFPrimePreprocessing, Error> {
     let (structure, public_input_len) = derive_canonical_structure(plan);
-    let params = neo_fold_clean::config::r1cs_params(structure.n, structure.m)?;
-    let _ = ajtai::setup_seeded(&params, &structure, seed);
-    let prep = lifecycle_preprocess(
-        params,
-        structure,
-        ajtai_rlc_mixer,
-        ajtai_dec_mixer,
-        Some(public_input_len),
+    let params = neo_fold_clean::config::ccs_params(
+        structure.ccs.n,
+        structure.ccs.m,
+        structure.ccs.t(),
+        structure.ccs.max_degree(),
     )?;
+    let _ = ajtai::setup_seeded(&params, &structure.ccs, seed);
+    let prep = lifecycle_preprocess(params, structure.ccs.clone(), Some(public_input_len))?;
     Ok(FibonacciFPrimePreprocessing {
         prep,
         plan: plan.clone(),
+        structure,
     })
 }
 
@@ -184,17 +182,12 @@ pub fn preprocess_seeded_with_params(
     seed: u64,
 ) -> Result<FibonacciFPrimePreprocessing, Error> {
     let (structure, public_input_len) = derive_canonical_structure(plan);
-    let _ = ajtai::setup_seeded(&params, &structure, seed);
-    let prep = lifecycle_preprocess(
-        params,
-        structure,
-        ajtai_rlc_mixer,
-        ajtai_dec_mixer,
-        Some(public_input_len),
-    )?;
+    let _ = ajtai::setup_seeded(&params, &structure.ccs, seed);
+    let prep = lifecycle_preprocess(params, structure.ccs.clone(), Some(public_input_len))?;
     Ok(FibonacciFPrimePreprocessing {
         prep,
         plan: plan.clone(),
+        structure,
     })
 }
 
@@ -202,9 +195,9 @@ pub fn preprocess_seeded_with_params(
 /// structure builders. Returns `(structure, public_input_len)`; the
 /// caller wraps them into [`Preprocessing`]. Centralised here so
 /// `preprocess` and `preprocess_seeded` share one derivation.
-fn derive_canonical_structure(plan: &RecursiveStepImagePlan) -> (neo_ccs::CcsStructure<neo_math::F>, usize) {
+fn derive_canonical_structure(plan: &RecursiveStepImagePlan) -> (Arc<FPrimeStructure>, usize) {
     let layout = FPrimeImageLayout::new(build_recursive_step_image_config(plan));
     let public_input_len = 1 + layout.boundary.bits;
-    let structure = build_f_prime_structure(layout).ccs;
+    let structure = Arc::new(build_f_prime_structure(layout));
     (structure, public_input_len)
 }

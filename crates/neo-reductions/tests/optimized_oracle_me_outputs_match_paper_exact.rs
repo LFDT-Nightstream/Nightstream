@@ -317,5 +317,32 @@ fn optimized_oracle_outputs_match_paper_exact_builder_superneo_shape() {
         &l,
     );
 
-    assert_eq!(out_fast, out_ref);
+    let mut out_fast_shared = out_fast.clone();
+    let mut out_ref_shared = out_ref.clone();
+    for out in &mut out_fast_shared {
+        out.y_zcol.clear();
+    }
+    for out in &mut out_ref_shared {
+        out.y_zcol.clear();
+    }
+    assert_eq!(
+        out_fast_shared, out_ref_shared,
+        "optimized and PaperExact builders should agree on all non-NC-shell fields"
+    );
+
+    let chi_s = neo_ccs::utils::tensor_point::<K>(&s_col);
+    for (idx, (out, z)) in out_fast
+        .iter()
+        .zip(
+            mcs_witnesses
+                .iter()
+                .map(|w| &w.Z)
+                .chain(me_witnesses.iter()),
+        )
+        .enumerate()
+    {
+        let want = neo_reductions::common::compute_y_zcol_from_witness(&params, z, m, &chi_s, 1usize << dims.ell_d)
+            .expect("production y_zcol");
+        assert_eq!(out.y_zcol, want, "optimized y_zcol mismatch at output {idx}");
+    }
 }

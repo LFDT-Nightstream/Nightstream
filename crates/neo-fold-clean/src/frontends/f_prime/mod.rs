@@ -1,9 +1,9 @@
 //! Shared F' shell used by concrete app frontends.
 //!
 //! This module owns the app-agnostic encoded-F' image: boundary,
-//! lifecycle state, NIFS payloads, accumulator selector, Poseidon
-//! traces, recursive-step image plan, and the base shell CCS rows. App
-//! frontends such as [`fibonacci_f_prime`] and
+//! lifecycle state, optional source-image NIFS payloads, accumulator
+//! handles/selectors, Poseidon traces, recursive-step image plan, and
+//! the base shell CCS rows. App frontends such as [`fibonacci_f_prime`] and
 //! [`crate::frontends::r1cs_f_prime`] add their own app semantics on
 //! top of this shell.
 

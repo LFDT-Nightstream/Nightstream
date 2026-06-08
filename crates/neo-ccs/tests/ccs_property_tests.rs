@@ -7,7 +7,7 @@ use neo_ccs::{
     poly::{SparsePoly, Term},
     r1cs::r1cs_to_ccs,
     relations::check_ccs_rowwise_relaxed,
-    utils::{tensor_point, validate_power_of_two},
+    utils::{tensor_point, tensor_point_parallel, validate_power_of_two},
     CcsStructure,
 };
 use neo_math::F;
@@ -92,6 +92,14 @@ fn test_tensor_point_nested_comparison() {
     let tensor1 = tensor_point(&r1);
     let expected1 = vec![F::ONE - r1[0], r1[0]];
     assert_eq!(tensor1, expected1, "tensor_point expansion failed for ell=1");
+}
+
+#[test]
+fn test_tensor_point_parallel_matches_serial() {
+    for ell in [0usize, 1, 2, 5, 14] {
+        let r: Vec<F> = (0..ell).map(|i| F::from_u64(19 + 7 * i as u64)).collect();
+        assert_eq!(tensor_point_parallel(&r), tensor_point(&r), "ell={ell}");
+    }
 }
 
 /// Test 4: CCS→R1CS rejection of mixed terms

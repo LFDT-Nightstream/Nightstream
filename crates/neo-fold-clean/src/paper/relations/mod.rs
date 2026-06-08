@@ -11,8 +11,8 @@
 //!   aliases over `neo-ccs` (so paper layer and engine speak one wire format).
 //! - `CcsInstance` — the (claim, witness) pair the caller hands to NIFS,
 //!   plus its low-norm constructor.
-//! - `RlcMixer`, `DecMixer` — the homomorphic-action closures the caller
-//!   supplies (their semantics depend on the commitment scheme).
+//! - `RlcMixer`, `DecMixer` — low-level homomorphic-action function pointer
+//!   types, plus the canonical Ajtai action used by lifecycle preprocessing.
 //! - `WitnessMat` — `Mat<F>`, the Z matrix that flows through the protocol.
 //!
 //! ## What this module does *not* own
@@ -35,7 +35,7 @@ use thiserror::Error;
 // Re-exports — flat surface for consumers, structured layout for auditors.
 pub use ccs::{CcsClaim, CcsWitness, Structure};
 pub use ce::CeClaim;
-pub use commitment_ops::{DecMixer, RlcMixer};
+pub use commitment_ops::{ajtai_dec_mixer, ajtai_rlc_mixer, DecMixer, RlcMixer};
 pub use instance::CcsInstance;
 
 /// Witness matrix Z used both as the CCS decomposition and as the carried

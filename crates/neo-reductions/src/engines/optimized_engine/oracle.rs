@@ -20,6 +20,8 @@ use std::sync::Arc;
 use crate::sumcheck::RoundOracle;
 
 use super::common::Challenges;
+use super::digit_table::{build_nc_digit_table_compact, NcDigitTable};
+use super::row_poly::{accumulate_fast_term, accumulate_fast_term_base, CompiledPolyTerm, CompiledPolyTermKind};
 pub use super::sparse::SparseCache;
 use crate::superneo_eval::{SuperneoEvalCache, SuperneoZBlocks};
 
@@ -54,8 +56,8 @@ where
     eq_beta_m_tbl: Vec<K>,
     // digits_tables[i][col_mask][rho] = balanced base-b digit lane for live logical columns.
     // Zero padding to the power-of-two sumcheck domain is implicit.
-    digits_tables: Vec<Vec<[K; D]>>,
-    // Bitmask of live digit lanes for each row in `digits_tables`; dense rows remain authority.
+    digits_tables: Vec<NcDigitTable>,
+    // Bitmask of live digit lanes for each row in `digits_tables`; table rows remain authority.
     digit_lane_masks: Vec<Vec<u64>>,
     // weights[i][rho] = γ^{i+1} * χ_{β_a}(rho)
     weights: Vec<[K; D]>,
@@ -148,23 +150,33 @@ where
         // Column-domain digit tables.
         #[cfg(feature = "perf-timers")]
         let t_digits = std::time::Instant::now();
-        let built_digit_tables: Vec<(Vec<[K; D]>, Vec<u64>)> = {
+        let built_digit_tables: Vec<(NcDigitTable, Vec<u64>)> = {
             #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
             {
-                all_witnesses
-                    .par_iter()
-                    .map(|Zi| {
-                        crate::common::build_witness_nc_digit_table_with_masks(params, Zi, s.m)
-                            .unwrap_or_else(|e| panic!("NcOracle::new: failed to build NC digit table: {e}"))
-                    })
-                    .collect()
+                if all_witnesses.len() > 1 {
+                    all_witnesses
+                        .par_iter()
+                        .map(|Zi| {
+                            build_nc_digit_table_compact(params, Zi, s.m)
+                                .unwrap_or_else(|e| panic!("NcOracle::new: failed to build NC digit table: {e}"))
+                        })
+                        .collect()
+                } else {
+                    all_witnesses
+                        .iter()
+                        .map(|Zi| {
+                            build_nc_digit_table_compact(params, Zi, s.m)
+                                .unwrap_or_else(|e| panic!("NcOracle::new: failed to build NC digit table: {e}"))
+                        })
+                        .collect()
+                }
             }
             #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
             {
                 all_witnesses
                     .iter()
                     .map(|Zi| {
-                        crate::common::build_witness_nc_digit_table_with_masks(params, Zi, s.m)
+                        build_nc_digit_table_compact(params, Zi, s.m)
                             .unwrap_or_else(|e| panic!("NcOracle::new: failed to build NC digit table: {e}"))
                     })
                     .collect()
@@ -233,61 +245,6 @@ where
     }
 
     #[inline]
-    fn fold_digits_table_inplace(table: &mut Vec<[K; D]>, masks: &mut Vec<u64>, r: K) {
-        debug_assert!(!table.is_empty());
-        debug_assert_eq!(table.len(), masks.len(), "NC digit table/mask length mismatch");
-        let half = table.len().div_ceil(2);
-        // One-way invariant maintained across rounds:
-        //   masks[i] == 0  =>  table[i] == [K::ZERO; D]
-        // (The reverse is not true: a live lane can fold to zero by
-        // cancellation. We only rely on the forward direction here.)
-        // It lets us skip the zero-write when active_mask is 0 AND the slot
-        // was already zero on entry (i.e., old masks[i] was already 0).
-        for i in 0..half {
-            let base = 2 * i;
-            let active_mask = masks[base] | if base + 1 < masks.len() { masks[base + 1] } else { 0 };
-            let was_zero = masks[i] == 0;
-            masks[i] = active_mask;
-            if active_mask == 0 {
-                if !was_zero {
-                    // Old masks[i] != 0 means the slot may hold non-zero
-                    // data (mask is only a one-way "has live lanes" hint);
-                    // explicitly clear so the forward invariant holds.
-                    table[i] = [K::ZERO; D];
-                }
-                continue;
-            }
-
-            let lo_row = table[base];
-            let hi_row = if base + 1 < table.len() {
-                table[base + 1]
-            } else {
-                [K::ZERO; D]
-            };
-            if active_mask == 1 {
-                let lo = lo_row[0];
-                let hi = hi_row[0];
-                let mut out = [K::ZERO; D];
-                out[0] = if hi == lo { lo } else { lo + (hi - lo) * r };
-                table[i] = out;
-                continue;
-            }
-            let mut out = [K::ZERO; D];
-            let mut lanes = active_mask;
-            while lanes != 0 {
-                let rho = lanes.trailing_zeros() as usize;
-                lanes &= lanes - 1;
-                let lo = lo_row[rho];
-                let hi = hi_row[rho];
-                out[rho] = if hi == lo { lo } else { lo + (hi - lo) * r };
-            }
-            table[i] = out;
-        }
-        table.truncate(half);
-        masks.truncate(half);
-    }
-
-    #[inline]
     fn active_col_tail_len(&self, tail_len: usize) -> usize {
         self.digits_tables
             .first()
@@ -323,17 +280,20 @@ where
                 }
 
                 for (wit_idx, tbl) in self.digits_tables.iter().enumerate() {
-                    let lo = &tbl[idx];
-                    let hi = (idx + 1 < tbl.len()).then(|| &tbl[idx + 1]);
-                    let mut lane_mask =
-                        self.digit_lane_masks[wit_idx][idx] | hi.map_or(0, |_| self.digit_lane_masks[wit_idx][idx + 1]);
+                    let hi_exists = idx + 1 < tbl.len();
+                    let mut lane_mask = self.digit_lane_masks[wit_idx][idx]
+                        | if hi_exists {
+                            self.digit_lane_masks[wit_idx][idx + 1]
+                        } else {
+                            0
+                        };
                     let weights = &self.weights[wit_idx];
 
                     while lane_mask != 0 {
                         let rho = lane_mask.trailing_zeros() as usize;
                         lane_mask &= lane_mask - 1;
-                        let y0 = lo[rho];
-                        let y1 = hi.map_or(K::ZERO, |row| row[rho]);
+                        let y0 = tbl.lane(idx, rho);
+                        let y1 = if hi_exists { tbl.lane(idx + 1, rho) } else { K::ZERO };
                         let dy = y1 - y0;
                         let w = weights[rho];
                         for (x_idx, &x) in xs.iter().enumerate() {
@@ -370,17 +330,20 @@ where
                             }
 
                             for (wit_idx, tbl) in self.digits_tables.iter().enumerate() {
-                                let lo = &tbl[idx];
-                                let hi = (idx + 1 < tbl.len()).then(|| &tbl[idx + 1]);
+                                let hi_exists = idx + 1 < tbl.len();
                                 let mut lane_mask = self.digit_lane_masks[wit_idx][idx]
-                                    | hi.map_or(0, |_| self.digit_lane_masks[wit_idx][idx + 1]);
+                                    | if hi_exists {
+                                        self.digit_lane_masks[wit_idx][idx + 1]
+                                    } else {
+                                        0
+                                    };
                                 let weights = &self.weights[wit_idx];
 
                                 while lane_mask != 0 {
                                     let rho = lane_mask.trailing_zeros() as usize;
                                     lane_mask &= lane_mask - 1;
-                                    let y0 = lo[rho];
-                                    let y1 = hi.map_or(K::ZERO, |row| row[rho]);
+                                    let y0 = tbl.lane(idx, rho);
+                                    let y1 = if hi_exists { tbl.lane(idx + 1, rho) } else { K::ZERO };
                                     let dy = y1 - y0;
                                     let w = weights[rho];
                                     for (x_idx, &x) in xs.iter().enumerate() {
@@ -427,10 +390,13 @@ where
         if self.digit_tables_all_real {
             let three_fq = Fq::from_u64(3);
             for (wit_idx, tbl) in self.digits_tables.iter().enumerate() {
-                let lo = &tbl[idx];
-                let hi = (idx + 1 < tbl.len()).then(|| &tbl[idx + 1]);
-                let mut lane_mask =
-                    self.digit_lane_masks[wit_idx][idx] | hi.map_or(0, |_| self.digit_lane_masks[wit_idx][idx + 1]);
+                let hi_exists = idx + 1 < tbl.len();
+                let mut lane_mask = self.digit_lane_masks[wit_idx][idx]
+                    | if hi_exists {
+                        self.digit_lane_masks[wit_idx][idx + 1]
+                    } else {
+                        0
+                    };
                 let weights = &self.weights[wit_idx];
 
                 while lane_mask != 0 {
@@ -440,8 +406,12 @@ where
                     if w == K::ZERO {
                         continue;
                     }
-                    let a = lo[rho].real();
-                    let y1 = hi.map_or(Fq::ZERO, |row| row[rho].real());
+                    let a = tbl.lane_real(idx, rho);
+                    let y1 = if hi_exists {
+                        tbl.lane_real(idx + 1, rho)
+                    } else {
+                        Fq::ZERO
+                    };
                     let b = y1 - a;
                     if a == Fq::ZERO && b == Fq::ZERO {
                         continue;
@@ -464,10 +434,13 @@ where
         } else {
             let three = K::from(F::from_u64(3));
             for (wit_idx, tbl) in self.digits_tables.iter().enumerate() {
-                let lo = &tbl[idx];
-                let hi = (idx + 1 < tbl.len()).then(|| &tbl[idx + 1]);
-                let mut lane_mask =
-                    self.digit_lane_masks[wit_idx][idx] | hi.map_or(0, |_| self.digit_lane_masks[wit_idx][idx + 1]);
+                let hi_exists = idx + 1 < tbl.len();
+                let mut lane_mask = self.digit_lane_masks[wit_idx][idx]
+                    | if hi_exists {
+                        self.digit_lane_masks[wit_idx][idx + 1]
+                    } else {
+                        0
+                    };
                 let weights = &self.weights[wit_idx];
 
                 while lane_mask != 0 {
@@ -477,8 +450,8 @@ where
                     if w == K::ZERO {
                         continue;
                     }
-                    let a = lo[rho];
-                    let y1 = hi.map_or(K::ZERO, |row| row[rho]);
+                    let a = tbl.lane(idx, rho);
+                    let y1 = if hi_exists { tbl.lane(idx + 1, rho) } else { K::ZERO };
                     let b = y1 - a;
                     if a == K::ZERO && b == K::ZERO {
                         continue;
@@ -614,10 +587,13 @@ where
 
                 let mut inner = [K::ZERO; 6];
                 for (wit_idx, tbl) in self.digits_tables.iter().enumerate() {
-                    let lo = &tbl[idx];
-                    let hi = (idx + 1 < tbl.len()).then(|| &tbl[idx + 1]);
-                    let mut lane_mask =
-                        self.digit_lane_masks[wit_idx][idx] | hi.map_or(0, |_| self.digit_lane_masks[wit_idx][idx + 1]);
+                    let hi_exists = idx + 1 < tbl.len();
+                    let mut lane_mask = self.digit_lane_masks[wit_idx][idx]
+                        | if hi_exists {
+                            self.digit_lane_masks[wit_idx][idx + 1]
+                        } else {
+                            0
+                        };
                     let weights = &self.weights[wit_idx];
 
                     while lane_mask != 0 {
@@ -627,8 +603,8 @@ where
                         if w == K::ZERO {
                             continue;
                         }
-                        let a = lo[rho];
-                        let y1 = hi.map_or(K::ZERO, |row| row[rho]);
+                        let a = tbl.lane(idx, rho);
+                        let y1 = if hi_exists { tbl.lane(idx + 1, rho) } else { K::ZERO };
                         let b = y1 - a;
                         if a == K::ZERO && b == K::ZERO {
                             continue;
@@ -696,10 +672,13 @@ where
 
                             let mut inner = [K::ZERO; 6];
                             for (wit_idx, tbl) in self.digits_tables.iter().enumerate() {
-                                let lo = &tbl[idx];
-                                let hi = (idx + 1 < tbl.len()).then(|| &tbl[idx + 1]);
+                                let hi_exists = idx + 1 < tbl.len();
                                 let mut lane_mask = self.digit_lane_masks[wit_idx][idx]
-                                    | hi.map_or(0, |_| self.digit_lane_masks[wit_idx][idx + 1]);
+                                    | if hi_exists {
+                                        self.digit_lane_masks[wit_idx][idx + 1]
+                                    } else {
+                                        0
+                                    };
                                 let weights = &self.weights[wit_idx];
 
                                 while lane_mask != 0 {
@@ -709,8 +688,8 @@ where
                                     if w == K::ZERO {
                                         continue;
                                     }
-                                    let a = lo[rho];
-                                    let y1 = hi.map_or(K::ZERO, |row| row[rho]);
+                                    let a = tbl.lane(idx, rho);
+                                    let y1 = if hi_exists { tbl.lane(idx + 1, rho) } else { K::ZERO };
                                     let b = y1 - a;
                                     if a == K::ZERO && b == K::ZERO {
                                         continue;
@@ -829,7 +808,7 @@ where
             .iter()
             .map(|tbl| {
                 debug_assert_eq!(tbl.len(), 1, "expected folded NC digit table to have exactly one entry");
-                tbl[0]
+                tbl.row(0)
             })
             .collect()
     }
@@ -873,7 +852,7 @@ where
         // Prefold packed-coefficient rows by Ajtai prefix bits once per round.
         let mut digits_pref: Vec<[K; D]> = Vec::with_capacity(self.digits_tables.len());
         for tbl in self.digits_tables.iter() {
-            let mut d = tbl[0];
+            let mut d = tbl.row(0);
             for b in 0..j {
                 fold_bit_inplace(&mut d, b, self.ajtai_chals[b]);
             }
@@ -931,7 +910,7 @@ where
                 self.digits_tables
                     .par_iter_mut()
                     .zip(self.digit_lane_masks.par_iter_mut())
-                    .for_each(|(tbl, masks)| Self::fold_digits_table_inplace(tbl, masks, r_i));
+                    .for_each(|(tbl, masks)| tbl.fold_inplace(masks, r_i));
             }
             #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
             {
@@ -940,7 +919,7 @@ where
                     .iter_mut()
                     .zip(self.digit_lane_masks.iter_mut())
                 {
-                    Self::fold_digits_table_inplace(tbl, masks, r_i);
+                    tbl.fold_inplace(masks, r_i);
                 }
             }
             if r_i.imag() != Fq::ZERO {
@@ -954,14 +933,6 @@ where
     }
 }
 
-#[derive(Clone, Debug)]
-struct CompiledPolyTerm {
-    coeff: K,
-    /// (var_pos, exponent), where `var_pos` indexes the inner `Vec<Vec<K>>`
-    /// of each `RowStreamState::f_var_tables_by_mcs` entry.
-    vars: Vec<(usize, u32)>,
-}
-
 /// Row-phase streaming state (over the row/time hypercube).
 ///
 /// This replaces the old `evals_row_phase` strategy of enumerating row tails and repeatedly
@@ -970,6 +941,14 @@ struct CompiledPolyTerm {
 struct RowStreamState {
     /// Current table length = 2^(remaining row bits).
     cur_len: usize,
+    /// Current support length inside the padded row-domain table.
+    ///
+    /// When `f(0, ..., 0) == 0`, rows beyond `s.n` are provably zero across
+    /// the MCS and Eval terms. Folding preserves that with `ceil(len / 2)`, so
+    /// the row-phase sumcheck only needs to scan this prefix. If compact
+    /// all-zero MCS slots contribute `f(0, ..., 0)`, padded rows may be nonzero
+    /// and this stays equal to `cur_len`.
+    active_len: usize,
 
     /// χ_{β_r}(row) table over the padded row domain (len = cur_len).
     eq_beta_r_tbl: Vec<K>,
@@ -979,15 +958,19 @@ struct RowStreamState {
     /// γ^{i-1} weights for the MCS slots (i is 1-based).
     gamma_pow_mcs: Vec<K>,
 
-    /// Recomposition of each MCS witness `Z_i` into row vectors:
-    /// `z_i[c] = Σ_{ρ=0..D-1} b^ρ · Z_i[ρ,c]`.
-    z_mcs: Vec<Vec<K>>,
-
     /// Per-MCS tables for the variables used by the CCS polynomial `f`.
     /// Each entry is a row-domain table of `m_j(row) = (M_j · z_i)[row]` at boolean row points.
     f_var_tables_by_mcs: Vec<Vec<Vec<K>>>,
+    /// True when the corresponding MCS witness is all zero and its row tables are omitted.
+    zero_mcs: Vec<bool>,
+    /// Number of row-table variables used by `f`.
+    f_var_count: usize,
     /// Compiled sparse polynomial terms for `f` using `f_var_tables_by_mcs[i]` indices.
     f_terms: Vec<CompiledPolyTerm>,
+    /// Exact value of `f(0, ..., 0)` for compact all-zero MCS slots.
+    f_at_zero: K,
+    /// Maximum univariate degree needed for row-phase sumcheck coefficients.
+    row_phase_deg_max: usize,
 
     /// Combined Eval block table over rows (already summed over α' and (i,j) coefficients).
     /// When present, Eval contribution is: `eq_r_inputs(r') * gamma_to_k * eval_tbl(r')`.
@@ -1039,11 +1022,8 @@ impl RowStreamState {
             "chi(beta_r) length mismatch (ell_n={ell_n})"
         );
 
-        let eq_r_inputs_tbl = r_inputs.map(|r| {
-            let tbl = chi_tail_weights(r);
-            debug_assert_eq!(tbl.len(), n_pad, "chi(r_inputs) length mismatch");
-            tbl
-        });
+        let eval_inputs_present = r_inputs.is_some();
+        let mut eq_r_inputs_tbl = None;
         #[cfg(feature = "perf-timers")]
         eprintln!(
             "RowStreamState::build: 1. chi tables                {:.2?}",
@@ -1106,12 +1086,30 @@ impl RowStreamState {
                             vars.push((pos, exp));
                         }
                     }
+                    let kind = CompiledPolyTermKind::from_vars(&vars);
                     CompiledPolyTerm {
                         coeff: K::from(term.coeff),
                         vars,
+                        kind,
                     }
                 })
                 .collect();
+        let f_at_zero = f_terms
+            .iter()
+            .filter(|term| term.vars.is_empty())
+            .fold(K::ZERO, |acc, term| acc + term.coeff);
+        let f_max_term_deg = f_terms
+            .iter()
+            .map(|term| {
+                term.vars
+                    .iter()
+                    .map(|&(_, exp)| exp as usize)
+                    .sum::<usize>()
+            })
+            .max()
+            .unwrap_or(0);
+        // eq_beta_r(X) adds one degree; Eval block is quadratic.
+        let row_phase_deg_max = core::cmp::max(2, f_max_term_deg + 1);
         #[cfg(feature = "perf-timers")]
         eprintln!(
             "RowStreamState::build: 2. f compile / f_var_indices {:.2?} (used_vars={}, terms={})",
@@ -1138,34 +1136,6 @@ impl RowStreamState {
                 ch.beta_a.len()
             );
         }
-        #[cfg(feature = "perf-timers")]
-        let t_decode = std::time::Instant::now();
-        // Build z_i (logical field witness vectors) from each MCS witness matrix.
-        let mut z_mcs: Vec<Vec<K>> = Vec::with_capacity(k_mcs);
-        for (mcs_idx, Zi) in mcs_witnesses.iter().map(|w| &w.Z).enumerate() {
-            let z_i = crate::common::decode_superneo_coeffs_from_witness_mat(Zi, s.m).unwrap_or_else(|e| {
-                panic!(
-                    "RowStreamState::new: invalid packed MCS witness[{mcs_idx}] shape for m={}: {e}",
-                    s.m
-                )
-            });
-            z_mcs.push(z_i);
-        }
-        #[cfg(feature = "perf-timers")]
-        eprintln!(
-            "RowStreamState::build: 3. decode z_mcs              {:.2?} (k_mcs={k_mcs}, s.m={})",
-            t_decode.elapsed(),
-            s.m
-        );
-        #[cfg(feature = "debug-logs")]
-        for (mcs_idx, z_i) in z_mcs.iter().enumerate() {
-            eprintln!(
-                "RowStreamState::build: mcs[{mcs_idx}] decoded coeff len={}, s.m={}",
-                z_i.len(),
-                s.m
-            );
-        }
-
         let mut gamma_pow_mcs = vec![K::ONE; k_mcs];
         for i in 1..k_mcs {
             gamma_pow_mcs[i] = gamma_pow_mcs[i - 1] * ch.gamma;
@@ -1178,8 +1148,15 @@ impl RowStreamState {
         let t_f_var_tables = std::time::Instant::now();
         // f-var tables: m_j(row) = (M_j * z_i)[row] for each used variable and each MCS slot.
         let mut f_var_tables_by_mcs: Vec<Vec<Vec<K>>> = Vec::with_capacity(k_mcs);
-        for z_i in &z_mcs {
-            let z_blocks = crate::superneo_eval::SuperneoZBlocks::from_z(z_i);
+        let mut zero_mcs = Vec::with_capacity(k_mcs);
+        for mcs_idx in 0..k_mcs {
+            let z_blocks = &witness_z_blocks[mcs_idx];
+            if z_blocks.all_zero() {
+                zero_mcs.push(true);
+                f_var_tables_by_mcs.push(Vec::new());
+                continue;
+            }
+            zero_mcs.push(false);
             #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
             let f_tables_i: Vec<Vec<K>> = f_var_indices
                 .par_iter()
@@ -1192,7 +1169,7 @@ impl RowStreamState {
                         .par_iter_mut()
                         .enumerate()
                         .for_each(|(r, out_r)| {
-                            *out_r = mat_cache.row_dot_with_blocks(r, &z_blocks);
+                            *out_r = mat_cache.row_dot_with_blocks(r, z_blocks);
                         });
                     out
                 })
@@ -1206,7 +1183,7 @@ impl RowStreamState {
                         .matrix(j)
                         .unwrap_or_else(|| panic!("superneo cache missing matrix j={j}"));
                     for (r, out_r) in out.iter_mut().take(n_eff).enumerate() {
-                        *out_r = mat_cache.row_dot_with_blocks(r, &z_blocks);
+                        *out_r = mat_cache.row_dot_with_blocks(r, z_blocks);
                     }
                     out
                 })
@@ -1226,94 +1203,52 @@ impl RowStreamState {
             gamma_to_k *= ch.gamma;
         }
 
-        let eval_tbl = if k_total > k_mcs && eq_r_inputs_tbl.is_some() {
-            let mut w_alpha = [K::ZERO; D];
-            for (rho, slot) in w_alpha.iter_mut().enumerate() {
-                *slot = eq_points_bool_mask(rho, &ch.alpha);
-            }
-            #[cfg(feature = "perf-timers")]
-            let t_weighted = std::time::Instant::now();
-            let weighted_mats = superneo_cache.build_weighted_matrix_caches(&w_alpha);
-            #[cfg(feature = "perf-timers")]
-            eprintln!(
-                "RowStreamState::build: 5. build_weighted_matrix_caches {:.2?} (t_mats={t_mats})",
-                t_weighted.elapsed()
-            );
+        let eval_tbl = if k_total > k_mcs && eval_inputs_present {
             let mut gamma_pow_i = vec![K::ONE; k_total];
             for i in 1..k_total {
                 gamma_pow_i[i] = gamma_pow_i[i - 1] * ch.gamma;
             }
-            let mut gamma_k_pow_j = vec![K::ONE; t_mats];
-            for j in 1..t_mats {
-                gamma_k_pow_j[j] = gamma_k_pow_j[j - 1] * gamma_to_k;
+            let carried_coeffs: Vec<K> = gamma_pow_i[k_mcs..k_total].to_vec();
+            let carried_z_blocks =
+                SuperneoZBlocks::linear_combination_real(&witness_z_blocks[k_mcs..k_total], &carried_coeffs);
+
+            if carried_z_blocks.all_zero() {
+                #[cfg(feature = "perf-timers")]
+                eprintln!("RowStreamState::build: 6. eval_tbl skipped       (carried linear combination is zero)");
+                None
+            } else {
+                let r_inputs = r_inputs.expect("r_inputs checked above");
+                let tbl = chi_tail_weights(r_inputs);
+                debug_assert_eq!(tbl.len(), n_pad, "chi(r_inputs) length mismatch");
+                eq_r_inputs_tbl = Some(tbl);
+
+                let mut w_alpha = [K::ZERO; D];
+                for (rho, slot) in w_alpha.iter_mut().enumerate() {
+                    *slot = eq_points_bool_mask(rho, &ch.alpha);
+                }
+                let mut gamma_k_pow_j = vec![K::ONE; t_mats];
+                for j in 1..t_mats {
+                    gamma_k_pow_j[j] = gamma_k_pow_j[j - 1] * gamma_to_k;
+                }
+
+                #[cfg(feature = "perf-timers")]
+                let t_eval = std::time::Instant::now();
+                let eval_tbl =
+                    superneo_cache.eval_weighted_row_table(&carried_z_blocks, &w_alpha, &gamma_k_pow_j, n_eff, n_pad);
+                #[cfg(feature = "perf-timers")]
+                eprintln!(
+                    "RowStreamState::build: 6. eval_tbl loop             {:.2?} (carried={}, t_mats={t_mats}, n_eff={n_eff})",
+                    t_eval.elapsed(),
+                    k_total - k_mcs
+                );
+
+                Some(eval_tbl)
             }
-
-            #[cfg(feature = "perf-timers")]
-            let t_eval = std::time::Instant::now();
-            let mut eval_tbl = vec![K::ZERO; n_pad];
-            for i_abs in k_mcs..k_total {
-                let coeff_i = gamma_pow_i[i_abs];
-                if coeff_i == K::ZERO {
-                    continue;
-                }
-                let z_blocks = &witness_z_blocks[i_abs];
-
-                #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-                {
-                    eval_tbl
-                        .par_iter_mut()
-                        .take(n_eff)
-                        .enumerate()
-                        .for_each(|(r, out_r)| {
-                            let mut row_acc = K::ZERO;
-                            for (j, mat_cache) in weighted_mats.iter().enumerate() {
-                                let coeff = coeff_i * gamma_k_pow_j[j];
-                                if coeff == K::ZERO {
-                                    continue;
-                                }
-                                let y_alpha = mat_cache.row_dot_real_with_blocks(r, &z_blocks);
-                                if y_alpha != K::ZERO {
-                                    row_acc += coeff * y_alpha;
-                                }
-                            }
-                            if row_acc != K::ZERO {
-                                *out_r += row_acc;
-                            }
-                        });
-                }
-                #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-                {
-                    for (r, out_r) in eval_tbl.iter_mut().take(n_eff).enumerate() {
-                        let mut row_acc = K::ZERO;
-                        for (j, mat_cache) in weighted_mats.iter().enumerate() {
-                            let coeff = coeff_i * gamma_k_pow_j[j];
-                            if coeff == K::ZERO {
-                                continue;
-                            }
-                            let y_alpha = mat_cache.row_dot_real_with_blocks(r, &z_blocks);
-                            if y_alpha != K::ZERO {
-                                row_acc += coeff * y_alpha;
-                            }
-                        }
-                        if row_acc != K::ZERO {
-                            *out_r += row_acc;
-                        }
-                    }
-                }
-            }
-            #[cfg(feature = "perf-timers")]
-            eprintln!(
-                "RowStreamState::build: 6. eval_tbl loop             {:.2?} (carried={}, t_mats={t_mats}, n_eff={n_eff})",
-                t_eval.elapsed(),
-                k_total - k_mcs
-            );
-
-            Some(eval_tbl)
         } else {
             #[cfg(feature = "perf-timers")]
             eprintln!(
                 "RowStreamState::build: 5+6. eval_tbl skipped       (k_total={k_total}, k_mcs={k_mcs}, r_inputs={})",
-                eq_r_inputs_tbl.is_some()
+                eval_inputs_present
             );
             None
         };
@@ -1324,14 +1259,20 @@ impl RowStreamState {
             t_total.elapsed()
         );
 
+        let active_len = if f_at_zero == K::ZERO { n_eff.max(1) } else { n_pad };
+
         Self {
             cur_len: n_pad,
+            active_len,
             eq_beta_r_tbl,
             eq_r_inputs_tbl,
             gamma_pow_mcs,
-            z_mcs,
             f_var_tables_by_mcs,
+            zero_mcs,
+            f_var_count: f_var_indices.len(),
             f_terms,
+            f_at_zero,
+            row_phase_deg_max,
             eval_tbl,
             gamma_to_k,
             b,
@@ -1394,6 +1335,7 @@ impl RowStreamState {
                 Self::fold_table_inplace(tbl, r);
             }
         }
+        self.active_len = self.active_len.div_ceil(2).max(1);
         self.cur_len /= 2;
     }
 
@@ -1435,10 +1377,18 @@ impl RowStreamState {
             if g == Fq::ZERO {
                 continue;
             }
+            if self.zero_mcs[mcs_idx] {
+                inner[0] += self.f_at_zero.real() * g;
+                continue;
+            }
 
             for term in &self.f_terms {
+                let coeff = term.coeff.real() * g;
+                if accumulate_fast_term_base(&term.kind, per_mcs_tables, idx, deg_max, inner, coeff) {
+                    continue;
+                }
                 term_poly.fill(Fq::ZERO);
-                term_poly[0] = term.coeff.real() * g;
+                term_poly[0] = coeff;
                 let mut current_deg = 0usize;
                 for &(var_pos, exp) in &term.vars {
                     let tbl = &per_mcs_tables[var_pos];
@@ -1465,10 +1415,18 @@ impl RowStreamState {
             if g == K::ZERO {
                 continue;
             }
+            if self.zero_mcs[mcs_idx] {
+                inner[0] += self.f_at_zero * g;
+                continue;
+            }
 
             for term in &self.f_terms {
+                let coeff = term.coeff * g;
+                if accumulate_fast_term(&term.kind, per_mcs_tables, idx, deg_max, inner, coeff) {
+                    continue;
+                }
                 term_poly.fill(K::ZERO);
-                term_poly[0] = term.coeff * g;
+                term_poly[0] = coeff;
                 let mut current_deg = 0usize;
                 for &(var_pos, exp) in &term.vars {
                     let tbl = &per_mcs_tables[var_pos];
@@ -1487,21 +1445,7 @@ impl RowStreamState {
     }
 
     fn evals_row_phase_b2_base(&self, tail_len: usize, xs: &[K]) -> Vec<K> {
-        let xs_base: Vec<Fq> = xs.iter().map(|&x| x.real()).collect();
-
-        let f_max_term_deg: usize = self
-            .f_terms
-            .iter()
-            .map(|term| {
-                term.vars
-                    .iter()
-                    .map(|&(_, exp)| exp as usize)
-                    .sum::<usize>()
-            })
-            .max()
-            .unwrap_or(0);
-        // eq_beta_r(X) adds one degree; Eval block is quadratic.
-        let deg_max = core::cmp::max(2, f_max_term_deg + 1);
+        let deg_max = self.row_phase_deg_max;
 
         const PAR_THRESHOLD: usize = 1 << 14;
         let coeffs_seq = |tail_len: usize| -> Vec<Fq> {
@@ -1601,28 +1545,13 @@ impl RowStreamState {
             coeffs_seq(tail_len)
         };
 
-        xs_base
-            .iter()
-            .map(|&x| K::from(Self::poly_eval_base(&coeffs, x)))
+        xs.iter()
+            .map(|&x| K::from(Self::poly_eval_base(&coeffs, x.real())))
             .collect()
     }
 
     fn evals_row_phase_b3_base(&self, tail_len: usize, xs: &[K]) -> Vec<K> {
-        let xs_base: Vec<Fq> = xs.iter().map(|&x| x.real()).collect();
-
-        let f_max_term_deg: usize = self
-            .f_terms
-            .iter()
-            .map(|term| {
-                term.vars
-                    .iter()
-                    .map(|&(_, exp)| exp as usize)
-                    .sum::<usize>()
-            })
-            .max()
-            .unwrap_or(0);
-        // eq_beta_r(X) adds one degree; Eval block is quadratic.
-        let deg_max = core::cmp::max(2, f_max_term_deg + 1);
+        let deg_max = self.row_phase_deg_max;
 
         const PAR_THRESHOLD: usize = 1 << 14;
         let coeffs_seq = |tail_len: usize| -> Vec<Fq> {
@@ -1722,9 +1651,8 @@ impl RowStreamState {
             coeffs_seq(tail_len)
         };
 
-        xs_base
-            .iter()
-            .map(|&x| K::from(Self::poly_eval_base(&coeffs, x)))
+        xs.iter()
+            .map(|&x| K::from(Self::poly_eval_base(&coeffs, x.real())))
             .collect()
     }
 
@@ -1747,7 +1675,8 @@ impl RowStreamState {
         K: From<Ff>,
     {
         debug_assert!(self.cur_len >= 2 && self.cur_len % 2 == 0);
-        let tail_len = self.cur_len / 2;
+        let tail_len = self.active_len.div_ceil(2);
+        debug_assert!(tail_len <= self.cur_len / 2);
         let xs_are_base = xs.iter().all(|&x| x.imag() == Fq::ZERO);
         let xs_all_base = allow_base && self.all_base && xs_are_base;
 
@@ -1758,19 +1687,7 @@ impl RowStreamState {
                 return self.evals_row_phase_b2_base(tail_len, xs);
             }
 
-            let f_max_term_deg: usize = self
-                .f_terms
-                .iter()
-                .map(|term| {
-                    term.vars
-                        .iter()
-                        .map(|&(_, exp)| exp as usize)
-                        .sum::<usize>()
-                })
-                .max()
-                .unwrap_or(0);
-            // eq_beta_r(X) adds one degree; Eval block is quadratic.
-            let deg_max = core::cmp::max(2, f_max_term_deg + 1);
+            let deg_max = self.row_phase_deg_max;
 
             // Sequential per-`t` step, factored out so seq and par paths share one body.
             let step = |coeffs: &mut [K], inner: &mut [K], term_poly: &mut [K], t: usize| {
@@ -1872,19 +1789,7 @@ impl RowStreamState {
                 return self.evals_row_phase_b3_base(tail_len, xs);
             }
 
-            let f_max_term_deg: usize = self
-                .f_terms
-                .iter()
-                .map(|term| {
-                    term.vars
-                        .iter()
-                        .map(|&(_, exp)| exp as usize)
-                        .sum::<usize>()
-                })
-                .max()
-                .unwrap_or(0);
-            // eq_beta_r(X) adds one degree; Eval block is quadratic.
-            let deg_max = core::cmp::max(2, f_max_term_deg + 1);
+            let deg_max = self.row_phase_deg_max;
 
             let coeffs = {
                 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
@@ -1991,11 +1896,7 @@ impl RowStreamState {
         }
 
         // Generic fallback: evaluate directly at each x (slower, but supports any b / K>1).
-        let f_arity = self
-            .f_var_tables_by_mcs
-            .first()
-            .map(|v| v.len())
-            .unwrap_or(0);
+        let f_arity = self.f_var_count;
 
         // `xs` is typically very small (sumcheck evaluation points), so Rayon overhead dominates here.
         xs.iter()
@@ -2011,6 +1912,12 @@ impl RowStreamState {
                     let mut f_prime = K::ZERO;
 
                     for (mcs_idx, per_mcs_tables) in self.f_var_tables_by_mcs.iter().enumerate() {
+                        let g_i = self.gamma_pow_mcs.get(mcs_idx).copied().unwrap_or(K::ONE);
+                        if self.zero_mcs[mcs_idx] {
+                            f_prime += g_i * self.f_at_zero;
+                            continue;
+                        }
+
                         // f variables at (prefix, x, tail) for this MCS slot
                         for (pos, tbl) in per_mcs_tables.iter().enumerate() {
                             var_vals[pos] = one_minus * tbl[2 * t] + x * tbl[2 * t + 1];
@@ -2030,7 +1937,6 @@ impl RowStreamState {
                             f_i += acc;
                         }
 
-                        let g_i = self.gamma_pow_mcs.get(mcs_idx).copied().unwrap_or(K::ONE);
                         f_prime += g_i * f_i;
                     }
 
@@ -2449,6 +2355,9 @@ where
                     .map(|idx| {
                         let w = idx / t;
                         let m = idx % t;
+                        if self.witness_z_blocks[w].all_zero() {
+                            return [K::ZERO; D];
+                        }
                         ring_forms[m].eval_real_z_blocks(&self.witness_z_blocks[w])
                     })
                     .collect();
@@ -2461,6 +2370,9 @@ where
                 self.witness_z_blocks
                     .iter()
                     .map(|z_blocks| {
+                        if z_blocks.all_zero() {
+                            return vec![[K::ZERO; D]; t];
+                        }
                         ring_forms
                             .iter()
                             .map(|form| form.eval_real_z_blocks(&z_blocks))
@@ -2479,18 +2391,28 @@ where
             }
             #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
             {
-                self.witness_z_blocks
-                    .par_iter()
-                    .map(|z_blocks| {
-                        crate::superneo_eval::eval_all_mats_ring_cached_with_split_chi(
-                            superneo_cache,
-                            &z_blocks,
-                            &chi_re,
-                            &chi_im,
-                            n_eff,
-                        )
-                    })
-                    .collect()
+                if self.witness_z_blocks.len() == 1 {
+                    vec![crate::superneo_eval::eval_all_mats_ring_cached_with_split_chi(
+                        superneo_cache,
+                        &self.witness_z_blocks[0],
+                        &chi_re,
+                        &chi_im,
+                        n_eff,
+                    )]
+                } else {
+                    self.witness_z_blocks
+                        .par_iter()
+                        .map(|z_blocks| {
+                            crate::superneo_eval::eval_all_mats_ring_cached_with_split_chi(
+                                superneo_cache,
+                                &z_blocks,
+                                &chi_re,
+                                &chi_im,
+                                n_eff,
+                            )
+                        })
+                        .collect()
+                }
             }
             #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
             {
@@ -2523,7 +2445,7 @@ where
         #[cfg(feature = "perf-timers")]
         let t_f_prime = std::time::Instant::now();
         let mut f_prime = K::ZERO;
-        for mcs_idx in 0..self.row_stream.z_mcs.len() {
+        for mcs_idx in 0..self.row_stream.gamma_pow_mcs.len() {
             let m_vals: Vec<K> = y_eval[mcs_idx].iter().map(|coeffs| coeffs[0]).collect();
             let g_i = self
                 .row_stream
@@ -2762,7 +2684,7 @@ where
                 row
             } else if let Some(chi_s) = chi_s.as_ref() {
                 debug_assert!(chi_s.len() >= self.s.m, "chi_s too short for CCS width");
-                crate::common::compute_y_zcol_from_witness_digits(self.params, &wit.Z, self.s.m, chi_s, d_pad)
+                crate::common::compute_y_zcol_from_witness(self.params, &wit.Z, self.s.m, chi_s, d_pad)
                     .unwrap_or_else(|e| panic!("ME output builder: y_zcol compute failed (MCS): {e}"))
             } else {
                 Vec::new()
@@ -2796,7 +2718,7 @@ where
                 row
             } else if let Some(chi_s) = chi_s.as_ref() {
                 debug_assert!(chi_s.len() >= self.s.m, "chi_s too short for CCS width");
-                crate::common::compute_y_zcol_from_witness_digits(self.params, Zi, self.s.m, chi_s, d_pad)
+                crate::common::compute_y_zcol_from_witness(self.params, Zi, self.s.m, chi_s, d_pad)
                     .unwrap_or_else(|e| panic!("ME output builder: y_zcol compute failed (ME): {e}"))
             } else {
                 Vec::new()

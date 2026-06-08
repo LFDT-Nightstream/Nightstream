@@ -25,7 +25,18 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CscMat<Ff> {
     /// Build CSC from a list of (row, col, val) triplets (skipping zeros and combining duplicates).
     pub fn from_triplets(mut triplets: Vec<(usize, usize, Ff)>, nrows: usize, ncols: usize) -> Self {
         triplets.retain(|&(_, _, v)| v != Ff::ZERO);
-        triplets.sort_unstable_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
+        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+        {
+            if rayon::current_num_threads() > 1 && rayon::current_thread_index().is_none() && triplets.len() >= 16_384 {
+                triplets.par_sort_unstable_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
+            } else {
+                triplets.sort_unstable_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
+            }
+        }
+        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+        {
+            triplets.sort_unstable_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
+        }
 
         let mut entries: Vec<(usize, usize, Ff)> = Vec::with_capacity(triplets.len());
         for (r, c, v) in triplets {
@@ -44,26 +55,18 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CscMat<Ff> {
         }
 
         let mut col_counts = vec![0usize; ncols];
-        for &(_, c, _) in &entries {
+        let mut row_idx = Vec::with_capacity(entries.len());
+        let mut vals = Vec::with_capacity(entries.len());
+        for (r, c, v) in entries {
             col_counts[c] += 1;
+            row_idx.push(r);
+            vals.push(v);
         }
 
         let mut col_ptr = Vec::with_capacity(ncols + 1);
         col_ptr.push(0);
         for c in 0..ncols {
             col_ptr.push(col_ptr[c] + col_counts[c]);
-        }
-
-        let nnz = col_ptr[ncols];
-        let mut row_idx = vec![0usize; nnz];
-        let mut vals = vec![Ff::ZERO; nnz];
-
-        let mut next = col_ptr.clone();
-        for (r, c, v) in entries {
-            let k = next[c];
-            row_idx[k] = r;
-            vals[k] = v;
-            next[c] += 1;
         }
 
         Self {

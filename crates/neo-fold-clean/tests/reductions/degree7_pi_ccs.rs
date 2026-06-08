@@ -65,7 +65,8 @@ fn degree7_ccs_pi_ccs_prove_verify_accepts_honest_instance() {
     // Use m = 2 (the minimum). cols = 1 ring column under D = 54.
     let structure = degree7_structure(2);
     assert_eq!(structure.f.max_degree(), 7, "polynomial must have degree 7");
-    let params = config::r1cs_params(structure.n, structure.m).expect("production-core params");
+    let params = config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
+        .expect("production-core params");
     let cols = structure.m.div_ceil(D);
     install_ajtai(&params, cols);
     let log = AjtaiSModule::from_global_for_dims(D, cols).expect("Ajtai log for degree-7 test");

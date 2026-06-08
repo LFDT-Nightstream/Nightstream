@@ -63,6 +63,135 @@ fn verify_uncompressed_rejects_unfolded_trailing_latest() {
 }
 
 #[test]
+fn prove_rejects_empty_batch() {
+    let prep = support::toy_preprocessing();
+
+    let err = neo_fold_clean::prove(&prep, vec![Vec::<CcsInstance>::new()])
+        .expect_err("prover must reject an empty batch before it creates an empty active state");
+
+    assert!(
+        matches!(err, neo_fold_clean::Error::EmptyBatch),
+        "expected EmptyBatch, got {err:?}"
+    );
+}
+
+#[test]
+fn verify_uncompressed_rejects_forged_active_empty_without_terminal_fold() {
+    let prep = support::toy_preprocessing();
+    let mut forged = neo_fold_clean::prove(&prep, std::iter::empty::<Vec<CcsInstance>>())
+        .expect("zero-batch constructor gives us the base state to mutate")
+        .proof;
+
+    // Bypass the prover entrypoint and forge the exact shape that used to be
+    // accepted: finalized-looking Active state, empty running, empty latest,
+    // and no terminal fold. The verifier must reject this artifact itself.
+    forged.state.proof = ProofState::Active {
+        running: neo_fold_clean::RunningInstance::default(),
+        latest: neo_fold_clean::LatestInstance::from_instances(Vec::new()),
+    };
+
+    let err = neo_fold_clean::verify_uncompressed(&prep, &forged)
+        .expect_err("verify_uncompressed must reject Active+empty+final_fold=None");
+    assert!(
+        matches!(err, neo_fold_clean::Error::MissingTerminalFoldProof),
+        "expected MissingTerminalFoldProof, got {err:?}"
+    );
+}
+
+#[test]
+fn verify_uncompressed_rejects_compact_anchor_tampers() {
+    let prep = support::toy_preprocessing();
+    let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 24)]])
+        .expect("one-batch uncompressed proof");
+    let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish uncompressed proof");
+
+    let cases: [(&str, fn(&mut neo_fold_clean::Uncompressed)); 3] = [
+        ("z_0", |proof| proof.state.z_0[0] ^= 0xA5),
+        ("pc", |proof| proof.state.pc += 1),
+        ("public_trace", |proof| proof.state.public_trace[0] ^= 0x5A),
+    ];
+
+    for (label, tamper) in cases {
+        let mut tampered = finished.clone();
+        tamper(&mut tampered);
+        let err = neo_fold_clean::verify_uncompressed(&prep, &tampered)
+            .expect_err(&format!("verify_uncompressed must reject tampered {label}"));
+        assert!(
+            matches!(err, neo_fold_clean::Error::PostStateMismatch),
+            "tampered {label} should reject through compact-state anchor binding, got {err:?}"
+        );
+    }
+}
+
+#[test]
+fn verify_uncompressed_rejects_wrong_preprocessing_structure() {
+    let honest_prep = support::toy_preprocessing();
+    let proof = neo_fold_clean::prove(&honest_prep, vec![vec![support::toy_instance(&honest_prep, 25)]])
+        .expect("one-batch uncompressed proof");
+    let finished = neo_fold_clean::finish_uncompressed(&honest_prep, proof).expect("finish uncompressed proof");
+
+    let wrong_prep = direct_ccs::preprocess_seeded(&bitness_r1cs(), 0x51_7A_C7).expect("wrong-shape preprocessing");
+    assert!(
+        neo_fold_clean::verify_uncompressed(&wrong_prep, &finished).is_err(),
+        "verify_uncompressed accepted a proof under a different verifier-owned structure"
+    );
+}
+
+#[test]
+fn verify_uncompressed_rejects_terminal_input_relabel_tampers() {
+    let prep = support::toy_preprocessing();
+    let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 26)]])
+        .expect("one-batch uncompressed proof");
+    let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish uncompressed proof");
+    neo_fold_clean::verify_uncompressed(&prep, &finished).expect("honest proof verifies");
+
+    let cases: [(&str, fn(&mut neo_fold_clean::Uncompressed)); 3] = [
+        ("terminal latest x", |proof| {
+            let latest = &mut proof
+                .final_fold
+                .as_mut()
+                .expect("final fold")
+                .terminal_inputs
+                .latest
+                .instances[0]
+                .claim;
+            latest.x[0] += F::ONE;
+        }),
+        ("terminal latest commitment", |proof| {
+            let latest = &mut proof
+                .final_fold
+                .as_mut()
+                .expect("final fold")
+                .terminal_inputs
+                .latest
+                .instances[0]
+                .claim;
+            latest.c.data[0] += F::ONE;
+        }),
+        ("terminal latest m_in", |proof| {
+            let latest = &mut proof
+                .final_fold
+                .as_mut()
+                .expect("final fold")
+                .terminal_inputs
+                .latest
+                .instances[0]
+                .claim;
+            latest.m_in += 1;
+        }),
+    ];
+
+    for (label, tamper) in cases {
+        let mut tampered = finished.clone();
+        tamper(&mut tampered);
+        assert!(
+            neo_fold_clean::verify_uncompressed(&prep, &tampered).is_err(),
+            "verify_uncompressed accepted terminal-input relabel attack on {label}"
+        );
+    }
+}
+
+#[test]
 fn finish_uncompressed_folds_trailing_latest_and_verifies() {
     let prep = support::toy_preprocessing();
     let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 29)]])
@@ -243,23 +372,6 @@ fn prove_rejects_public_input_len_mismatch() {
     );
 }
 
-#[test]
-fn compress_returns_unsupported_until_decider_lands() {
-    let prep = support::toy_preprocessing();
-    let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 47)]])
-        .expect("one-batch uncompressed proof");
-
-    assert!(
-        matches!(
-            neo_fold_clean::compress(&prep, proof),
-            Err(neo_fold_clean::Error::Decider(
-                neo_fold_clean::paper::decider::Error::Unsupported
-            ))
-        ),
-        "compress should return an explicit unsupported error, not panic"
-    );
-}
-
 // ── Decider contract preflight (`decider::validate_witness`) ───────────────
 //
 // `validate_witness` is the non-SNARK preflight the Spartan PR will package.
@@ -279,10 +391,13 @@ fn validate(
         prep.optimized_cache(),
         prep.structure_digest(),
         &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
         &prep.vk,
         prep.public_input_len,
+        prep.enforces_f_prime_recursive_link(),
+        prep.semantic_state_mode(),
+        prep.initial_semantic_state_digest(),
         statement,
     )
 }
@@ -380,10 +495,17 @@ fn decider_validate_witness_rejects_missing_final_fold() {
     // must error out and `validate_witness` must surface that.
     statement.witness.final_fold = None;
 
-    assert!(
-        validate(&prep, &statement).is_err(),
-        "validate_witness accepted a statement whose final fold proof was missing"
-    );
+    let err = validate(&prep, &statement)
+        .expect_err("validate_witness accepted a statement whose final fold proof was missing");
+    match err {
+        neo_fold_clean::paper::decider::Error::WalkFailed(reason) => {
+            assert!(
+                reason.contains("decider witness must carry a terminal final_fold"),
+                "expected decider-level terminal-fold requirement, got {reason}"
+            );
+        }
+        other => panic!("expected decider WalkFailed for missing final_fold, got {other:?}"),
+    }
 }
 
 #[test]
@@ -597,4 +719,535 @@ fn same_shape_different_batches_have_same_f_prime_trace_but_different_acc_digest
     // their own running accumulators.
     neo_fold_clean::verify_uncompressed(&prep, &finished_a).expect("proof a verifies");
     neo_fold_clean::verify_uncompressed(&prep, &finished_b).expect("proof b verifies");
+}
+
+// ── H2 regression: stateless semantic invariant ──────────────────────────────
+//
+// The toy preprocessing is stateless (no `semantic_state_in/out_var_indices`
+// in its plan), so the F' image's CCS structure has no Poseidon2 binding
+// rows for the `semantic_state_digest` lane. The verifier must therefore
+// enforce the protocol invariant `semantic_state_digest == accumulator
+// digest carried through finalization` itself; without this check, a
+// malicious prover could self-consistently inject arbitrary bytes into
+// `PublicImage.semantic_state_digest`.
+
+#[test]
+fn verify_uncompressed_rejects_tampered_stateless_semantic_state_digest() {
+    let prep = support::toy_preprocessing();
+    let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 51)]]).expect("one-batch proof");
+    let mut finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finalize");
+
+    // Honest stateless proof must verify cleanly under verify_uncompressed.
+    neo_fold_clean::verify_uncompressed(&prep, &finished).expect("honest stateless proof verifies");
+
+    // Tamper just the terminal semantic_state_digest. The accumulator
+    // digest stays untouched, so the only invariant that should now fail
+    // is the stateless `semantic == acc` carry-through.
+    finished.state.semantic_state_digest[0] ^= 0xFF;
+
+    let err = neo_fold_clean::verify_uncompressed(&prep, &finished)
+        .expect_err("stateless verify must reject a tampered semantic_state_digest");
+    assert!(
+        matches!(err, neo_fold_clean::Error::StatelessSemanticInvariantViolated),
+        "expected StatelessSemanticInvariantViolated, got {err:?}"
+    );
+}
+
+#[test]
+fn verify_uncompressed_audit_rejects_tampered_stateless_step_proof_semantic_state_digest() {
+    let prep = support::toy_preprocessing();
+    let proof = neo_fold_clean::prove(
+        &prep,
+        vec![
+            vec![support::toy_instance(&prep, 61)],
+            vec![support::toy_instance(&prep, 62)],
+        ],
+    )
+    .expect("two-batch proof");
+    let mut audit = neo_fold_clean::finish_uncompressed_with_audit(&prep, proof).expect("finalize with audit");
+
+    // Honest audit verifies cleanly.
+    neo_fold_clean::verify_uncompressed_audit(&prep, &audit).expect("honest stateless audit verifies");
+
+    // Tamper the first step's StepProof.semantic_state_digest. Per-step
+    // f_prime::verify walks this and must reject with
+    // StatelessSemanticInvariantViolated (not XOutMismatch) because the
+    // dedicated check fires before x_out comparison.
+    audit.steps[0].semantic_state_digest[0] ^= 0xFF;
+
+    let err = neo_fold_clean::verify_uncompressed_audit(&prep, &audit)
+        .expect_err("stateless audit must reject a tampered per-step semantic_state_digest");
+    // The per-step f_prime::verify surfaces
+    // `Construction2(StatelessSemanticInvariantViolated)` wrapped in the
+    // decider's `WalkFailed` (which carries the inner error as a string).
+    // Match on the message text and confirm it identifies the stateless
+    // invariant — not the generic XOutMismatch.
+    let msg = format!("{err}");
+    assert!(
+        msg.contains("stateless chain claimed semantic_state_digest"),
+        "expected the per-step verifier to surface the stateless invariant error, got {err}"
+    );
+}
+
+// `verify_uncompressed`'s witness-authority block (step 5) must enforce
+// all five terminal obligations against each `(claim, witness Z)`:
+//
+//   commit(Z) == claim.c          | Ajtai opening
+//   project_x(Z) == claim.X       | public-input projection
+//   ||Z||_∞ < b                   | low-norm digit-range
+//   y_ring[j] == M_j · Z(r)       | CE-relation closure (this test)
+//   ct[j] == const-term(y_ring[j]) | scalar-view closure
+// The `acc_digest` chain hash only carries commitment data, so a
+// malformed `y_ring` slips past the binding pipeline. The CE-relation
+// row is what catches it. Test exercises `validate_final_witness_authority`
+// directly (the per-claim helper) so the rejection is unambiguously
+// the CE-relation check, not the chain-replay binding step.
+
+#[test]
+fn final_witness_authority_rejects_y_ring_inconsistent_with_m_z_at_r() {
+    use neo_fold_clean::ProofState;
+
+    let prep = support::toy_preprocessing();
+    let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 71)]])
+        .expect("one-batch uncompressed proof");
+    let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish uncompressed proof");
+
+    let honest_running = match &finished.state.proof {
+        ProofState::Active { running, .. } => running.clone(),
+        ProofState::Initial => panic!("finalized proof must be Active"),
+    };
+    // Sanity: honest running passes the full witness-authority block,
+    // including the new CE-relation check.
+    neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &honest_running)
+        .expect("honest running passes the full witness-authority gate");
+
+    // Tamper: mutate y_ring[0][0] on the first claim. Witness Z stays
+    // honest, so commit/X/low-norm still pass. Only the CE-relation
+    // row can fail.
+    let mut tampered_running = honest_running;
+    assert!(
+        !tampered_running.claims.is_empty()
+            && !tampered_running.claims[0].y_ring.is_empty()
+            && !tampered_running.claims[0].y_ring[0].is_empty(),
+        "test setup requires a non-empty y_ring"
+    );
+    let original = tampered_running.claims[0].y_ring[0][0];
+    tampered_running.claims[0].y_ring[0][0] = original + neo_math::K::ONE;
+    assert_ne!(
+        tampered_running.claims[0].y_ring[0][0], original,
+        "mutation must actually change y_ring[0][0]"
+    );
+
+    let err = neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &tampered_running)
+        .expect_err("verify_uncompressed's witness-authority gate must reject y_ring inconsistent with M·Z at r");
+    assert!(
+        matches!(err, neo_fold_clean::Error::FinalAccumulatorCeRelationViolation { .. }),
+        "expected FinalAccumulatorCeRelationViolation on y_ring tamper, got {err:?}"
+    );
+}
+
+#[test]
+fn final_witness_authority_rejects_extra_claim_without_witness() {
+    use neo_fold_clean::ProofState;
+
+    let prep = support::toy_preprocessing();
+    let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 76)]])
+        .expect("one-batch uncompressed proof");
+    let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
+    let mut running = match &finished.state.proof {
+        ProofState::Active { running, .. } => running.clone(),
+        ProofState::Initial => panic!("finalized must be Active"),
+    };
+
+    running.claims.push(running.claims[0].clone());
+
+    let err = neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &running)
+        .expect_err("extra claim without matching witness must reject");
+    assert!(
+        matches!(err, neo_fold_clean::Error::FinalAccumulatorWitnessShapeMismatch),
+        "expected FinalAccumulatorWitnessShapeMismatch, got {err:?}"
+    );
+}
+
+#[test]
+fn final_witness_authority_rejects_extra_witness_without_claim() {
+    use neo_fold_clean::ProofState;
+
+    let prep = support::toy_preprocessing();
+    let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 77)]])
+        .expect("one-batch uncompressed proof");
+    let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
+    let mut running = match &finished.state.proof {
+        ProofState::Active { running, .. } => running.clone(),
+        ProofState::Initial => panic!("finalized must be Active"),
+    };
+
+    running.witnesses.push(running.witnesses[0].clone());
+
+    let err = neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &running)
+        .expect_err("extra witness without matching claim must reject");
+    assert!(
+        matches!(err, neo_fold_clean::Error::FinalAccumulatorWitnessShapeMismatch),
+        "expected FinalAccumulatorWitnessShapeMismatch, got {err:?}"
+    );
+}
+
+#[test]
+fn final_witness_authority_rejects_zero_commitment_with_wrong_ajtai_shape() {
+    use neo_fold_clean::ProofState;
+
+    let prep = support::toy_preprocessing();
+    let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 78)]])
+        .expect("one-batch uncompressed proof");
+    let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
+    let mut running = match &finished.state.proof {
+        ProofState::Active { running, .. } => running.clone(),
+        ProofState::Initial => panic!("finalized must be Active"),
+    };
+
+    assert!(
+        running.witnesses[0]
+            .as_slice()
+            .iter()
+            .all(|&entry| entry == F::ZERO),
+        "toy fixture must exercise the zero-witness fast path"
+    );
+
+    // Keep the zero commitment internally self-consistent, but make it a
+    // commitment to the wrong Ajtai target dimension. Before the shape check,
+    // the zero-witness fast path compared against `Commitment::zeros` using
+    // the prover-supplied shape and accepted this forged opening.
+    let claim = &mut running.claims[0];
+    claim.c.kappa += 1;
+    claim
+        .c
+        .data
+        .extend(std::iter::repeat(F::ZERO).take(claim.c.d));
+    assert_eq!(
+        claim.c.data.len(),
+        claim.c.d * claim.c.kappa,
+        "test mutation keeps the forged zero commitment internally consistent"
+    );
+
+    let err = neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &running)
+        .expect_err("zero-witness fast path must reject wrong Ajtai commitment shape");
+    assert!(
+        matches!(
+            err,
+            neo_fold_clean::Error::FinalAccumulatorWitnessCommitmentMismatch { .. }
+        ),
+        "expected FinalAccumulatorWitnessCommitmentMismatch, got {err:?}"
+    );
+}
+
+#[test]
+fn final_witness_authority_rejects_zero_witness_with_wrong_packed_shape() {
+    use neo_fold_clean::ProofState;
+
+    let prep = support::toy_preprocessing();
+    let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 79)]])
+        .expect("one-batch uncompressed proof");
+    let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
+    let mut running = match &finished.state.proof {
+        ProofState::Active { running, .. } => running.clone(),
+        ProofState::Initial => panic!("finalized must be Active"),
+    };
+
+    assert!(
+        running.witnesses[0]
+            .as_slice()
+            .iter()
+            .all(|&entry| entry == F::ZERO),
+        "toy fixture must exercise the zero-witness fast path"
+    );
+    let wrong_cols = running.witnesses[0].cols() + 1;
+    running.witnesses[0] = Mat::zero(neo_math::D, wrong_cols, F::ZERO);
+
+    let err = neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &running)
+        .expect_err("zero-witness fast path must reject wrong packed witness shape");
+    assert!(
+        matches!(err, neo_fold_clean::Error::FinalAccumulatorWitnessShapeMismatch),
+        "expected FinalAccumulatorWitnessShapeMismatch, got {err:?}"
+    );
+}
+
+#[test]
+fn final_witness_authority_rejects_zero_witness_m_in_exceeds_structure_m() {
+    use neo_fold_clean::ProofState;
+
+    let prep = support::toy_preprocessing_unfixed_public_input_len();
+    assert!(
+        prep.public_input_len.is_none(),
+        "this test intentionally bypasses the program public_input_len guard so it reaches the structure-width guard"
+    );
+    let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 80)]])
+        .expect("one-batch uncompressed proof");
+    let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
+    let mut running = match &finished.state.proof {
+        ProofState::Active { running, .. } => running.clone(),
+        ProofState::Initial => panic!("finalized must be Active"),
+    };
+
+    assert!(
+        running.witnesses[0]
+            .as_slice()
+            .iter()
+            .all(|&entry| entry == F::ZERO),
+        "toy fixture must exercise the zero-witness fast path"
+    );
+
+    // Keep the claim locally self-consistent for a zero witness, but set
+    // `m_in` beyond the verifier-owned CCS structure width. The nonzero
+    // path rejects this via `project_x_from_witness_mat`; the zero path
+    // must not skip that same public-input projection shape check.
+    let too_wide_m_in = prep.structure().m + 1;
+    running.claims[0].m_in = too_wide_m_in;
+    running.claims[0].X = Mat::zero(neo_math::D, too_wide_m_in, F::ZERO);
+
+    let err = neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &running)
+        .expect_err("zero-witness path must reject m_in beyond the structure width");
+    assert!(
+        matches!(err, neo_fold_clean::Error::FinalAccumulatorPublicInputMismatch { .. }),
+        "expected FinalAccumulatorPublicInputMismatch, got {err:?}"
+    );
+}
+
+#[test]
+fn final_witness_authority_rejects_m_in_relabel_below_program_public_input_len() {
+    use neo_fold_clean::ProofState;
+
+    let prep = support::toy_preprocessing();
+    assert_eq!(
+        prep.public_input_len,
+        Some(1),
+        "toy preprocessing fixes a one-element public input"
+    );
+    let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 81)]])
+        .expect("one-batch uncompressed proof");
+    let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
+    let mut running = match &finished.state.proof {
+        ProofState::Active { running, .. } => running.clone(),
+        ProofState::Initial => panic!("finalized must be Active"),
+    };
+
+    assert!(
+        running.witnesses[0]
+            .as_slice()
+            .iter()
+            .all(|&entry| entry == F::ZERO),
+        "toy fixture must exercise a self-consistent zero-witness relabel"
+    );
+
+    // Hacker model: relabel the final CE claim under a smaller public
+    // projection. With a zero witness, commit(Z), X=L_in(Z), low-norm,
+    // y_ring, and ct all remain locally self-consistent if m_in is
+    // allowed to shrink to zero. The verifier must still reject because
+    // `public_input_len` is a verifier-owned program-shape boundary.
+    running.claims[0].m_in = 0;
+    running.claims[0].X = Mat::zero(neo_math::D, 0, F::ZERO);
+
+    let err = neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &running)
+        .expect_err("terminal CE authority must reject m_in relabelled below program public_input_len");
+    assert!(
+        matches!(
+            err,
+            neo_fold_clean::Error::PublicInputLenMismatch { expected: 1, got: 0 }
+        ),
+        "expected PublicInputLenMismatch {{ expected: 1, got: 0 }}, got {err:?}"
+    );
+}
+
+#[test]
+fn final_witness_authority_rejects_nonzero_witness_m_in_relabel_below_program_public_input_len() {
+    use neo_fold_clean::ProofState;
+
+    let prep = support::toy_preprocessing();
+    assert_eq!(
+        prep.public_input_len,
+        Some(1),
+        "toy preprocessing fixes a one-element public input"
+    );
+    let proof = neo_fold_clean::prove(&prep, vec![vec![toy_instance_with_x_value(&prep, F::ONE)]])
+        .expect("one-batch uncompressed proof");
+    let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
+    let mut running = match &finished.state.proof {
+        ProofState::Active { running, .. } => running.clone(),
+        ProofState::Initial => panic!("finalized must be Active"),
+    };
+
+    assert!(
+        running.witnesses[0]
+            .as_slice()
+            .iter()
+            .any(|&entry| entry != F::ZERO),
+        "test setup must carry a non-zero terminal witness so this is not a zero-fast-path check"
+    );
+
+    // Hacker model: keep c, y_ring, ct, and Z untouched, but relabel the
+    // terminal CE claim as having no public input and make X empty. If
+    // `m_in` were treated as prover-owned, the local CE equations would
+    // still be self-consistent: commit(Z) still opens, low-norm still
+    // holds, and y_ring/ct are independent of L_in's projection width.
+    // The verifier must reject because the program fixed m_in = 1.
+    running.claims[0].m_in = 0;
+    running.claims[0].X = Mat::zero(neo_math::D, 0, F::ZERO);
+
+    let err = neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &running)
+        .expect_err("terminal CE authority must reject non-zero witness m_in relabel");
+    assert!(
+        matches!(
+            err,
+            neo_fold_clean::Error::PublicInputLenMismatch { expected: 1, got: 0 }
+        ),
+        "expected PublicInputLenMismatch {{ expected: 1, got: 0 }}, got {err:?}"
+    );
+}
+
+/// End-to-end version of the y_ring tamper attack: build a real
+/// finished proof, mutate `proof.state.proof.running.claims[0].y_ring[0][0]`
+/// on the recorded final accumulator, leave the NIFS proof outputs and
+/// witness `Z` untouched, then call `verify_uncompressed`.
+///
+/// **Expected rejection path: `PostStateMismatch`** — NOT
+/// `FinalAccumulatorCeRelationViolation`. Reason: the verifier-derived
+/// running comes from `nifs::verify(proof.final_fold.nifs, ...)` which
+/// returns the NIFS proof's *honest* outputs. The binding step
+/// (`derived.running.claims == recorded.running.claims`) fires first
+/// and catches the mismatch before reaching the witness-authority block.
+///
+/// The dedicated CE-relation isolation test
+/// [`final_witness_authority_rejects_y_ring_inconsistent_with_m_z_at_r`]
+/// hits the witness-authority block directly via
+/// `validate_final_witness_authority`, so it sees the precise
+/// `FinalAccumulatorCeRelationViolation`. Both tests together prove
+/// y_ring is bound end-to-end:
+///
+///   - Helper-direct test: CE-relation rows are load-bearing.
+///   - This end-to-end test: ANY y_ring tamper in the recorded state
+///     is rejected by *some* gate in the verifier pipeline.
+#[test]
+fn verify_uncompressed_rejects_recorded_y_ring_tamper_via_binding_step() {
+    use neo_fold_clean::ProofState;
+
+    let prep = support::toy_preprocessing();
+    let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 72)]])
+        .expect("one-batch uncompressed proof");
+    let mut finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish uncompressed proof");
+
+    neo_fold_clean::verify_uncompressed(&prep, &finished).expect("honest finished proof verifies");
+
+    match &mut finished.state.proof {
+        ProofState::Active { running, .. } => {
+            assert!(
+                !running.claims.is_empty()
+                    && !running.claims[0].y_ring.is_empty()
+                    && !running.claims[0].y_ring[0].is_empty(),
+                "test setup requires non-empty y_ring on the recorded running"
+            );
+            running.claims[0].y_ring[0][0] = running.claims[0].y_ring[0][0] + neo_math::K::ONE;
+        }
+        ProofState::Initial => panic!("finished proof must be Active"),
+    }
+
+    let err = neo_fold_clean::verify_uncompressed(&prep, &finished)
+        .expect_err("verify_uncompressed must reject a recorded-y_ring tamper");
+    assert!(
+        matches!(err, neo_fold_clean::Error::PostStateMismatch),
+        "expected PostStateMismatch (binding step fires first); see this test's docstring for why \
+         the CE-relation variant isn't reached via this attack vector. Got: {err:?}"
+    );
+}
+
+/// `claim.y_ring.len() != structure.t()` — outer-dimension shape
+/// mismatch. The CE-relation gadget cannot compute expected values for
+/// the missing matrix and rejects up-front.
+#[test]
+fn final_witness_authority_rejects_y_ring_outer_length_mismatch() {
+    use neo_fold_clean::ProofState;
+
+    let prep = support::toy_preprocessing();
+    let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 73)]])
+        .expect("one-batch uncompressed proof");
+    let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
+    let mut running = match &finished.state.proof {
+        ProofState::Active { running, .. } => running.clone(),
+        ProofState::Initial => panic!("finalized must be Active"),
+    };
+
+    running.claims[0].y_ring.pop();
+
+    let err = neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &running)
+        .expect_err("y_ring outer-length mismatch must reject");
+    assert!(
+        matches!(err, neo_fold_clean::Error::FinalAccumulatorCeRelationViolation { .. }),
+        "expected FinalAccumulatorCeRelationViolation, got {err:?}"
+    );
+}
+
+/// `claim.ct[j] != constant_term(y_ring[j])` — the scalar view must
+/// agree with the lane it summarises. `ct` enters downstream
+/// consistency checks, so leaving it unbound would let a prover lie
+/// about it independently of `y_ring`.
+#[test]
+fn final_witness_authority_rejects_ct_inconsistent_with_y_ring() {
+    use neo_fold_clean::ProofState;
+
+    let prep = support::toy_preprocessing();
+    let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 74)]])
+        .expect("one-batch uncompressed proof");
+    let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
+    let mut running = match &finished.state.proof {
+        ProofState::Active { running, .. } => running.clone(),
+        ProofState::Initial => panic!("finalized must be Active"),
+    };
+
+    assert!(
+        !running.claims[0].ct.is_empty(),
+        "test setup requires a non-empty ct vector"
+    );
+    let original = running.claims[0].ct[0];
+    running.claims[0].ct[0] = original + neo_math::K::ONE;
+    assert_ne!(running.claims[0].ct[0], original, "mutation must change ct[0]");
+
+    let err = neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &running)
+        .expect_err("ct inconsistent with y_ring must reject");
+    assert!(
+        matches!(err, neo_fold_clean::Error::FinalAccumulatorCtMismatch { .. }),
+        "expected FinalAccumulatorCtMismatch, got {err:?}"
+    );
+}
+
+/// `claim.r.len() != log2(next_pow2(structure.n).max(2))` — the multilinear
+/// evaluation point is the wrong shape. `compute_y_from_Z_and_r` clamps
+/// its eval domain to `min(n, 2^|r|)`, so a short `r` would silently
+/// truncate the closure and a long `r` would over-extend it. The
+/// CE-relation check must reject an off-shape `r` before evaluating
+/// `M · Z(r)`. Lengthening the honest `r` by one element is the minimal
+/// off-shape mutation that holds for any `structure.n`.
+#[test]
+fn final_witness_authority_rejects_r_length_mismatch() {
+    use neo_fold_clean::ProofState;
+
+    let prep = support::toy_preprocessing();
+    let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 75)]])
+        .expect("one-batch uncompressed proof");
+    let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
+    let mut running = match &finished.state.proof {
+        ProofState::Active { running, .. } => running.clone(),
+        ProofState::Initial => panic!("finalized must be Active"),
+    };
+
+    // Honest `r` is correctly shaped; pushing one extra element makes it
+    // disagree with `log2(next_pow2(structure.n).max(2))` for any `n`.
+    running.claims[0].r.push(neo_math::K::ONE);
+
+    let err = neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &running)
+        .expect_err("off-shape r must reject");
+    assert!(
+        matches!(
+            err,
+            neo_fold_clean::Error::FinalAccumulatorEvaluationPointShapeMismatch { .. }
+        ),
+        "expected FinalAccumulatorEvaluationPointShapeMismatch, got {err:?}"
+    );
 }

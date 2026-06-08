@@ -53,8 +53,8 @@ fn build_nifs_fixture() -> NifsFixture {
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
         fresh_inst,
         &RunningInstance::default(),
     )
@@ -139,6 +139,7 @@ fn ce_view_shape(view: &NifsCeClaimView) -> NifsCeClaimShape {
 fn skeleton_config_for(fresh_shape: &NifsCcsClaimShape, ce_shape: &NifsCeClaimShape) -> FPrimeImageConfig {
     FPrimeImageConfig {
         limbs: 3,
+        app_private_var_widths: Vec::new(),
         boundary_bits: 704,
         nifs_payload_shapes: vec![
             NifsPayloadShape::CcsClaim(*fresh_shape),
@@ -155,9 +156,11 @@ fn skeleton_config_for(fresh_shape: &NifsCcsClaimShape, ce_shape: &NifsCeClaimSh
         poseidon_one_shot_preimage_lens: vec![13, 40],
         sponge_transcript_permutes: 16,
         one_shot_digest_to_state_out_bindings: vec![],
+        one_shot_digest_to_state_in_bindings: vec![],
         one_shot_digest_to_public_x_out_bindings: vec![],
         poseidon_transition_enforcements: vec![],
         unified_accumulator_selector: None,
+        initial_semantic_state_digest_anchor: None,
     }
 }
 

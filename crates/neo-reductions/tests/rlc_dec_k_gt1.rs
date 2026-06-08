@@ -5,12 +5,16 @@ use neo_ccs::{poly::SparsePoly, poly::Term, CcsStructure, CeClaim, Mat};
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::api::{
-    dec_children_with_commit, rlc_public, rlc_public_matches_verified_inputs_with_perf, rlc_public_matches_with_perf,
-    rlc_with_commit, verify_dec_public, FoldingMode,
+    dec_children_with_commit, dec_children_with_commit_superneo_cached_from_trusted_split_digits,
+    dec_children_with_commit_superneo_cached_with_digit_flags, rlc_public,
+    rlc_public_matches_verified_inputs_with_perf, rlc_public_matches_with_perf, rlc_with_commit, verify_dec_public,
+    FoldingMode,
 };
 use neo_reductions::common::{
-    compute_y_from_Z_and_r, left_mul_acc, project_x_from_witness_mat, sample_rot_rhos_n, RotRing,
+    compute_y_from_Z_and_r, left_mul_acc, project_x_from_witness_mat, rot_rhos_to_mats, sample_rot_rhos_n,
+    sample_rot_rhos_n_typed, split_b_matrix_k_with_nonzero_flags, RotRing,
 };
+use neo_reductions::superneo_eval::build_superneo_eval_cache;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 
@@ -40,6 +44,31 @@ fn build_structure(n: usize, m: usize) -> CcsStructure<F> {
     CcsStructure::new(vec![m0, m1], f).expect("valid CCS structure")
 }
 
+fn build_wide_structure(n: usize, m: usize) -> CcsStructure<F> {
+    let mut m0 = Mat::zero(n, m, F::ZERO);
+    for r in 0..n {
+        m0[(r, r)] = F::ONE;
+    }
+    let mut m1 = Mat::zero(n, m, F::ZERO);
+    for r in 0..n {
+        m1[(r, (r + 1) % m)] = F::ONE;
+    }
+    let f = SparsePoly::new(
+        2,
+        vec![
+            Term {
+                coeff: F::ONE,
+                exps: vec![1, 0],
+            },
+            Term {
+                coeff: F::ONE,
+                exps: vec![0, 1],
+            },
+        ],
+    );
+    CcsStructure::new(vec![m0, m1], f).expect("valid wide CCS structure")
+}
+
 fn make_z(seed: u64, m: usize) -> Mat<F> {
     assert!(m.is_multiple_of(D), "SuperNeo-only test requires m divisible by D");
     let cols = m / D;
@@ -51,6 +80,18 @@ fn make_z(seed: u64, m: usize) -> Mat<F> {
         }
     }
     Mat::from_row_major(D, cols, data)
+}
+
+fn make_sparse_signed_unit_z(seed: usize, m: usize) -> Mat<F> {
+    assert!(m.is_multiple_of(D), "SuperNeo-only test requires m divisible by D");
+    let cols = m / D;
+    let mut out = Mat::zero(D, cols, F::ZERO);
+    let neg_one = F::ZERO - F::ONE;
+    for col in 0..cols {
+        let row = (seed + col * 7) % D;
+        out[(row, col)] = if (seed + col) % 2 == 0 { F::ONE } else { neg_one };
+    }
+    out
 }
 
 fn make_commitment(params: &NeoParams, seed: u64) -> Commitment {
@@ -230,6 +271,114 @@ fn rlc_with_commit_k4_matches_public_recompute_and_detects_rho_tamper() {
 }
 
 #[test]
+fn rlc_with_commit_sampled_rotation_rhos_matches_public_z_mix() {
+    let params = NeoParams::goldilocks_paper_b2();
+    let ell_d = D.next_power_of_two().trailing_zeros() as usize;
+    let s = build_structure(D, D);
+    let m_in = 2usize;
+    let r = vec![k(31); 6];
+
+    let mut Zs = Vec::new();
+    let mut me_inputs = Vec::new();
+    for i in 0..5usize {
+        let Z = make_z(4_200 + i as u64 * 137, s.m);
+        let c = make_commitment(&params, 5_200 + i as u64);
+        me_inputs.push(build_me_from_z(
+            &params,
+            &s,
+            &Z,
+            &r,
+            ell_d,
+            m_in,
+            c,
+            6_200 + i as u64 * 11,
+        ));
+        Zs.push(Z);
+    }
+
+    let mut transcript = Poseidon2Transcript::new(b"rlc sampled rotation rho test");
+    let rhos_typed =
+        sample_rot_rhos_n_typed(&mut transcript, &params, &RotRing::goldilocks(), Zs.len()).expect("sample rhos");
+    let rho_mats = rot_rhos_to_mats(&rhos_typed);
+
+    let (parent, Z_mix) = rlc_with_commit(
+        FoldingMode::Optimized,
+        &s,
+        &params,
+        &rhos_typed,
+        &me_inputs,
+        &Zs,
+        ell_d,
+        mix_commitments_from_rhos,
+    )
+    .expect("optimized rlc_with_commit with sampled rotation rhos");
+
+    let want_Z_mix = combine_z_with_rhos(&rho_mats, &Zs);
+    assert_eq!(
+        Z_mix, want_Z_mix,
+        "Z_mix must equal Σ ρ_i · Z_i for non-diagonal rotation rhos"
+    );
+
+    let parent_public =
+        rlc_public(&s, &params, &rhos_typed, &me_inputs, mix_commitments_from_rhos, ell_d).expect("rlc_public");
+    assert_eq!(parent, parent_public, "public RLC recompute must match engine output");
+}
+
+#[test]
+fn rlc_with_commit_sparse_rotation_rhs_matches_public_z_mix() {
+    let params = NeoParams::goldilocks_paper_b2();
+    let ell_d = D.next_power_of_two().trailing_zeros() as usize;
+    let s = build_wide_structure(D, D * 512);
+    let m_in = 2usize;
+    let r = vec![k(37); 6];
+
+    let mut Zs = Vec::new();
+    let mut me_inputs = Vec::new();
+    for i in 0..5usize {
+        let Z = make_sparse_signed_unit_z(i, s.m);
+        let c = make_commitment(&params, 7_200 + i as u64);
+        me_inputs.push(build_me_from_z(
+            &params,
+            &s,
+            &Z,
+            &r,
+            ell_d,
+            m_in,
+            c,
+            8_200 + i as u64 * 11,
+        ));
+        Zs.push(Z);
+    }
+
+    let mut transcript = Poseidon2Transcript::new(b"rlc sparse rotation rhs test");
+    let rhos_typed =
+        sample_rot_rhos_n_typed(&mut transcript, &params, &RotRing::goldilocks(), Zs.len()).expect("sample rhos");
+    let rho_mats = rot_rhos_to_mats(&rhos_typed);
+
+    let (parent, Z_mix) = rlc_with_commit(
+        FoldingMode::Optimized,
+        &s,
+        &params,
+        &rhos_typed,
+        &me_inputs,
+        &Zs,
+        ell_d,
+        mix_commitments_from_rhos,
+    )
+    .expect("optimized rlc_with_commit with sparse rotation RHS");
+
+    let want_Z_mix = combine_z_with_rhos(&rho_mats, &Zs);
+    assert_eq!(
+        Z_mix, want_Z_mix,
+        "sparse RHS rotation fast path must equal generic Σ ρ_i · Z_i"
+    );
+
+    let parent_public =
+        rlc_public(&s, &params, &rhos_typed, &me_inputs, mix_commitments_from_rhos, ell_d).expect("rlc_public");
+    assert_eq!(parent, parent_public, "public RLC recompute must match engine output");
+}
+
+#[test]
 fn rlc_x_projection_tracks_mixed_witness_under_rotation_rhos() {
     let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
@@ -374,7 +523,10 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
         verified_ok_stale, full_ok_stale,
         "fast path must agree on stale-ct shell inputs"
     );
-    assert!(verified_ok_stale, "stale ct shell must not fail the public RLC check");
+    assert!(
+        !verified_ok_stale,
+        "same-shape stale combined.ct must fail the public RLC check"
+    );
 
     let rhos_tampered = typed_rhos(&params, &[diag_rho(9), diag_rho(3), diag_rho(4), diag_rho(7)]);
     let (full_bad, _) = rlc_public_matches_with_perf(
@@ -523,11 +675,37 @@ fn dec_children_with_commit_k4_public_and_tamper_checks() {
 
     let mut tampered_child = children.clone();
     tampered_child[2].ct[0] += K::ONE;
-    assert!(verify_dec_public(
+    assert!(!verify_dec_public(
         &s,
         &params,
         &parent,
         &tampered_child,
+        combine_commitments_b_pows,
+        ell_d
+    ));
+
+    let ell_m = s.m.next_power_of_two().max(2).trailing_zeros() as usize;
+    let mut parent_with_s_col = parent.clone();
+    parent_with_s_col.s_col = vec![k(23); ell_m];
+    let mut children_with_s_col = children.clone();
+    for child in &mut children_with_s_col {
+        child.s_col = parent_with_s_col.s_col.clone();
+    }
+    assert!(verify_dec_public(
+        &s,
+        &params,
+        &parent_with_s_col,
+        &children_with_s_col,
+        combine_commitments_b_pows,
+        ell_d
+    ));
+
+    children_with_s_col[1].s_col[0] += K::ONE;
+    assert!(!verify_dec_public(
+        &s,
+        &params,
+        &parent_with_s_col,
+        &children_with_s_col,
         combine_commitments_b_pows,
         ell_d
     ));
@@ -542,6 +720,75 @@ fn dec_children_with_commit_k4_public_and_tamper_checks() {
         combine_commitments_b_pows,
         ell_d
     ));
+}
+
+#[test]
+fn dec_children_trusted_split_digits_matches_checked_path() {
+    let params = NeoParams::goldilocks_paper_b2();
+    let ell_d = D.next_power_of_two().trailing_zeros() as usize;
+    let s = build_structure(D, D);
+    let m_in = 2usize;
+    let r = vec![k(17); 6];
+    let k_dec = 4usize;
+
+    let cols = s.m / D;
+    let mut z_parent = Mat::zero(D, cols, F::ZERO);
+    for rho in 0..D {
+        for blk in 0..cols {
+            let logical_col = blk * D + rho;
+            let value = (logical_col % 7) as u64;
+            z_parent[(rho, blk)] = F::from_u64(value);
+        }
+    }
+
+    let (z_split, digit_nonzero) =
+        split_b_matrix_k_with_nonzero_flags(&z_parent, k_dec, params.b).expect("split small witness");
+    let child_commitments: Vec<Commitment> = (0..k_dec)
+        .map(|i| make_commitment(&params, 72_000 + i as u64))
+        .collect();
+    let mut parent = build_me_from_z(
+        &params,
+        &s,
+        &z_parent,
+        &r,
+        ell_d,
+        m_in,
+        make_commitment(&params, 71_000),
+        91_000,
+    );
+    parent.c = combine_commitments_b_pows(&child_commitments, params.b);
+    let superneo_cache = build_superneo_eval_cache(&s).expect("SuperNeo-compatible test structure");
+
+    let checked = dec_children_with_commit_superneo_cached_with_digit_flags(
+        FoldingMode::Optimized,
+        &s,
+        &params,
+        &parent,
+        &z_split,
+        &digit_nonzero,
+        ell_d,
+        &child_commitments,
+        combine_commitments_b_pows,
+        &superneo_cache,
+    );
+    let trusted = dec_children_with_commit_superneo_cached_from_trusted_split_digits(
+        FoldingMode::Optimized,
+        &s,
+        &params,
+        &parent,
+        &z_split,
+        &digit_nonzero,
+        ell_d,
+        &child_commitments,
+        combine_commitments_b_pows,
+        &superneo_cache,
+    );
+
+    assert_eq!(trusted.1, checked.1, "ok_y mismatch");
+    assert_eq!(trusted.2, checked.2, "ok_X mismatch");
+    assert_eq!(trusted.3, checked.3, "ok_c mismatch");
+    assert_eq!(trusted.0, checked.0, "trusted split DEC children diverged");
+    assert!(trusted.1 && trusted.2 && trusted.3, "trusted split DEC must verify");
 }
 
 #[cfg(feature = "paper-exact")]

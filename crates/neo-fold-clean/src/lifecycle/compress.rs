@@ -26,7 +26,7 @@ use crate::paper::digest;
 /// to bind the public image to a verifiable history.
 pub fn compress(prep: &Preprocessing, audit: UncompressedAudit) -> Result<Compressed, Error> {
     let post_audit = finish_uncompressed_with_audit(prep, audit)?;
-    super::verify::verify_uncompressed(prep, &post_audit.proof)?;
+    super::verify::verify_uncompressed_audit(prep, &post_audit)?;
     let statement = build_decider_statement(prep, &post_audit);
     let public_image = statement.public.clone();
     let (snark_proof, vk_digest) = decider::prove(&statement)?;
@@ -65,9 +65,11 @@ pub fn finish_uncompressed(prep: &Preprocessing, audit: UncompressedAudit) -> Re
 /// 3. Tests that intentionally mutate `steps` / `public_batches` to
 ///    exercise the chain-replay verifier.
 ///
-/// **Production IVC callers** should use [`finish_uncompressed`] +
+/// Terminal-only callers use [`finish_uncompressed`] +
 /// [`super::verify::verify_uncompressed`]; the audit trail is dropped
-/// because the non-replay IVC verifier never reads it.
+/// because that verifier never reads it. Multi-chunk F' callers
+/// must keep this audit-bearing form until the compressed decider is
+/// wired, because the per-step recursive-link evidence lives here.
 pub fn finish_uncompressed_with_audit(
     prep: &Preprocessing,
     audit: UncompressedAudit,
@@ -87,6 +89,7 @@ pub fn finish_uncompressed_with_audit(
         check_already_finalized_consistency(prep, &result.proof)?;
         return Ok(result);
     }
+    check_trailing_latest_batch_size(prep, &state)?;
 
     let (post_state, final_fold) = construction2::prove_final_fold(
         &prep.params,
@@ -98,6 +101,7 @@ pub fn finish_uncompressed_with_audit(
         prep.combine_b_pows,
         &prep.vk,
         state,
+        prep.semantic_state_mode,
     )?;
     Ok(UncompressedAudit {
         proof: Uncompressed {
@@ -107,6 +111,23 @@ pub fn finish_uncompressed_with_audit(
         steps,
         public_batches,
     })
+}
+
+fn check_trailing_latest_batch_size(
+    prep: &Preprocessing,
+    state: &crate::paper::construction2::State,
+) -> Result<(), Error> {
+    let ProofState::Active { latest, .. } = &state.proof else {
+        return Ok(());
+    };
+    let max = prep.params.max_fresh_count();
+    if latest.instances.len() > max {
+        return Err(Error::BatchTooLarge {
+            got: latest.instances.len(),
+            max,
+        });
+    }
+    Ok(())
 }
 
 fn check_already_finalized_consistency(prep: &Preprocessing, proof: &Uncompressed) -> Result<(), Error> {
@@ -121,12 +142,26 @@ fn check_already_finalized_consistency(prep: &Preprocessing, proof: &Uncompresse
         return Err(Error::FinalizedProofInconsistent);
     }
 
-    let expected_acc_digest = digest::accumulator_digest_from_claims(prep.params.b(), &running.claims);
+    let expected_acc_digest = if running.claims.is_empty() {
+        digest::AccumulatorHandle::empty().digest()
+    } else {
+        let parent = running
+            .parent_authority
+            .as_ref()
+            .ok_or(Error::FinalizedProofInconsistent)?;
+        digest::AccumulatorHandle::from_running_parts(&running.claims, Some(parent)).digest()
+    };
     if proof.state.acc_digest != expected_acc_digest {
         return Err(Error::FinalizedProofInconsistent);
     }
 
-    let expected_x_out = construction2::compute_x_out(&prep.vk, &prep.params, prep.structure_digest(), &proof.state);
+    let expected_x_out = construction2::compute_x_out(
+        &prep.vk,
+        &prep.params,
+        prep.structure_digest(),
+        &proof.state,
+        prep.semantic_state_mode,
+    );
     if final_fold.x_out != expected_x_out {
         return Err(Error::FinalizedProofInconsistent);
     }
@@ -158,6 +193,8 @@ fn build_public_image(prep: &Preprocessing, audit: &UncompressedAudit) -> Public
         z_0: audit.proof.state.z_0,
         z_i: audit.proof.state.z_i,
         pc: audit.proof.state.pc,
+        initial_semantic_state_digest: audit.proof.state.initial_semantic_state_digest,
+        semantic_state_digest: audit.proof.state.semantic_state_digest,
         acc_digest: audit.proof.state.acc_digest,
         public_trace: audit.proof.state.public_trace,
         x_out,
@@ -178,6 +215,7 @@ pub fn build_decider_statement(prep: &Preprocessing, audit: &UncompressedAudit) 
         public_batches: audit.public_batches.clone(),
         final_fold: audit.proof.final_fold.clone(),
         final_state: audit.proof.state.clone(),
+        terminal_ce_proof: None,
     };
     decider::Statement { public, witness }
 }

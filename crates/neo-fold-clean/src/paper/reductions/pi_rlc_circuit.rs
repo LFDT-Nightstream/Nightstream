@@ -15,9 +15,9 @@
 //! ## What this gadget owns
 //!
 //! - [`enforce_rlc_commitment_combination`] — `combined.c = Σ_i ρ_i · c_i`
-//!   via [`crate::engine::r1cs_circuit::ring_action::enforce_ring_mul`]
+//!   via [`crate::engine::r1cs_circuit::ring_action::enforce_ring_mul_toom3`]
 //!   per (lane, pair). Most expensive of the three; for Goldilocks
-//!   Appendix B.2 (κ = 18, d = 54, K + k = 15) this is ~800k R1CS rows.
+//!   Appendix B.2 (κ = 18, d = 54, K + k = 15) this is ~450k R1CS rows.
 //! - [`enforce_rlc_x_combination`] — `combined.X = Σ_i ρ_i · X_i` per
 //!   column.
 //! - [`enforce_rlc_y_row_combination`] — K-element row mixing via
@@ -42,7 +42,7 @@ use neo_math::{KExtensions, F, K};
 use p3_field::PrimeCharacteristicRing;
 
 use crate::engine::r1cs_circuit::field_ext::KVar;
-use crate::engine::r1cs_circuit::ring_action::enforce_ring_mul;
+use crate::engine::r1cs_circuit::ring_action::enforce_ring_mul_toom3;
 use crate::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
 
 /// Wires for one commitment + the matching ρ polynomial coefficients.
@@ -194,7 +194,7 @@ pub fn enforce_rlc_commitment_combination(builder: &mut R1csBuilder, wires: &Rlc
             {
                 *slot = *src;
             }
-            let out = enforce_ring_mul(builder, &pair.rho_coeffs, &c_lane);
+            let out = enforce_ring_mul_toom3(builder, &pair.rho_coeffs, &c_lane);
             per_pair_out.push(out);
         }
 
@@ -362,7 +362,7 @@ pub fn enforce_rlc_x_combination(builder: &mut R1csBuilder, wires: &RlcXWires) {
             for (rr, slot) in x_col.iter_mut().enumerate() {
                 *slot = pair.x_flat[rr * m_in + col];
             }
-            let out = enforce_ring_mul(builder, &pair.rho_coeffs, &x_col);
+            let out = enforce_ring_mul_toom3(builder, &pair.rho_coeffs, &x_col);
             per_col.push(out);
         }
         per_pair_per_col.push(per_col);
@@ -537,13 +537,13 @@ pub fn alloc_rlc_y_row_inputs_with_rhos(
 /// Enforce `combined.y[rr] = Σ_i (M_{ρ_i} · y_{i})[rr]` for one j-row.
 ///
 /// `M_{ρ_i}` acts on a `K`-valued vector by acting separately on each base-field
-/// limb. Reuses [`enforce_ring_mul`] on each `(c0, c1)` track.
+/// limb. Reuses [`enforce_ring_mul_toom3`] on each `(c0, c1)` track.
 pub fn enforce_rlc_y_row_combination(builder: &mut R1csBuilder, wires: &RlcYRowWires) {
     let mut per_pair_c0: Vec<[Var; D]> = Vec::with_capacity(wires.inputs.len());
     let mut per_pair_c1: Vec<[Var; D]> = Vec::with_capacity(wires.inputs.len());
     for pair in &wires.inputs {
-        per_pair_c0.push(enforce_ring_mul(builder, &pair.rho_coeffs, &pair.y_c0));
-        per_pair_c1.push(enforce_ring_mul(builder, &pair.rho_coeffs, &pair.y_c1));
+        per_pair_c0.push(enforce_ring_mul_toom3(builder, &pair.rho_coeffs, &pair.y_c0));
+        per_pair_c1.push(enforce_ring_mul_toom3(builder, &pair.rho_coeffs, &pair.y_c1));
     }
     for rr in 0..D {
         let mut combo0 = Lc::zero();
@@ -562,10 +562,11 @@ pub fn enforce_rlc_y_row_combination(builder: &mut R1csBuilder, wires: &RlcYRowW
 /// Wires for a length-`d_pad` K-vector input under RLC combination, where
 /// `d_pad = D.next_power_of_two()` is the Ajtai-padded ring dimension.
 ///
-/// Native SplitNc emits `y_ring[j]` rows and `y_zcol` columns as
-/// length-`d_pad` `Vec<K>`. The rotation matrix `ρ_i` acts only on the
-/// first `D` lanes (it's a `D × D` matrix); the tail `[D, d_pad)` of the
-/// combined output is identically zero in native:
+/// Native SplitNc emits `y_ring[j]` rows and `y_zcol` columns as canonical
+/// length-`d_pad` `Vec<K>` values: real data in `0..D`, zero padding in
+/// `[D, d_pad)`. The rotation matrix `ρ_i` acts only on the first `D` lanes
+/// (it's a `D × D` matrix); the tail `[D, d_pad)` of the combined output is
+/// identically zero in native:
 ///
 /// ```text
 /// combined[0..D]      = Σ_i (ρ_i · input_i[0..D])
@@ -573,7 +574,11 @@ pub fn enforce_rlc_y_row_combination(builder: &mut R1csBuilder, wires: &RlcYRowW
 /// ```
 ///
 /// We mirror that in-circuit: rotation on the first `D` lanes (via
-/// [`enforce_ring_mul`]) plus a lane-wise zero pin on the tail.
+/// [`enforce_ring_mul_toom3`]) plus lane-wise zero pins on every input tail
+/// and the combined tail. The input-tail pins are redundant when this helper
+/// is called from NIFS.V after SplitNc output canonicalization, but they make
+/// the Π_RLC helper's own contract self-contained and prevent future callers
+/// from treating padded lanes as unconstrained sidecar data.
 #[derive(Clone, Debug)]
 pub struct RlcPaddedKVectorPairWires {
     pub rho_coeffs: [Var; D],
@@ -700,8 +705,7 @@ pub fn alloc_rlc_padded_k_vector_inputs_with_rhos(
 
 /// Enforce `combined.padded_y = Σ_i ρ_i · input_i.padded_y`:
 /// - First `D` lanes via rotation (mirrors native `M_{ρ_i}` action).
-/// - Tail lanes `[D, d_pad)` constrained to zero (mirrors native's
-///   `acc[D..d_pad] = 0` after the rotation-only fold).
+/// - Input and combined tail lanes `[D, d_pad)` constrained to zero.
 ///
 /// SplitNc requires this for both `y_zcol` (NC channel) and per-`j`
 /// `y_ring` rows when consumed at production shape (`D = 54`, `d_pad = 64`).
@@ -717,8 +721,8 @@ pub fn enforce_rlc_padded_k_vector_combination(builder: &mut R1csBuilder, wires:
             y0_d[i] = pair.y_c0[i];
             y1_d[i] = pair.y_c1[i];
         }
-        per_pair_c0.push(enforce_ring_mul(builder, &pair.rho_coeffs, &y0_d));
-        per_pair_c1.push(enforce_ring_mul(builder, &pair.rho_coeffs, &y1_d));
+        per_pair_c0.push(enforce_ring_mul_toom3(builder, &pair.rho_coeffs, &y0_d));
+        per_pair_c1.push(enforce_ring_mul_toom3(builder, &pair.rho_coeffs, &y1_d));
     }
 
     // 2. Sum the rotated outputs into combined[0..D] lane-wise.
@@ -733,7 +737,14 @@ pub fn enforce_rlc_padded_k_vector_combination(builder: &mut R1csBuilder, wires:
         builder.enforce_eq(&Lc::from_var(wires.combined_c1[rr]), &combo1);
     }
 
-    // 3. Tail lanes [D, d_pad) must equal zero (native sets them to 0).
+    // 3. Tail lanes [D, d_pad) must equal zero. Native inputs are
+    // canonicalized to zero padding and native outputs leave the tail zero.
+    for pair in &wires.inputs {
+        for rr in D..wires.d_pad {
+            builder.enforce_eq(&Lc::from_var(pair.y_c0[rr]), &Lc::zero());
+            builder.enforce_eq(&Lc::from_var(pair.y_c1[rr]), &Lc::zero());
+        }
+    }
     for rr in D..wires.d_pad {
         builder.enforce_eq(&Lc::from_var(wires.combined_c0[rr]), &Lc::zero());
         builder.enforce_eq(&Lc::from_var(wires.combined_c1[rr]), &Lc::zero());

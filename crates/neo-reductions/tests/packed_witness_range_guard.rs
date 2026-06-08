@@ -35,7 +35,8 @@ fn prove_rejects_out_of_range_packed_witness_early() {
     let pp = ajtai_setup(&mut rng, D, params.kappa as usize, ccs.m / D).expect("Ajtai setup");
     let l = AjtaiSModule::new(Arc::new(pp));
 
-    // Packed layout is D x (m/D); fill with values outside the DEC-compatible bound |x| < b^k_rho.
+    // Packed layout is D x (m/D); fill with values outside the SuperNeo
+    // input NC alphabet |x| < b.
     let mut Z = Mat::zero(D, ccs.m / D, F::ZERO);
     for rho in 0..D {
         Z[(rho, 0)] = F::from_u64((1u64 << 60) + rho as u64);
@@ -60,11 +61,14 @@ fn prove_rejects_out_of_range_packed_witness_early() {
     )
     .expect_err("prove must reject packed witnesses that violate NC range");
 
-    assert!(err.to_string().contains("not representable"), "unexpected error: {err}");
+    assert!(
+        err.to_string().contains("violates NC alphabet"),
+        "unexpected error: {err}"
+    );
 }
 
 #[test]
-fn prove_accepts_representable_packed_witness_values() {
+fn prove_accepts_nc_alphabet_packed_witness_values() {
     let n = D; // SuperNeo-packed compatible width
     let ccs = identity_ccs(n);
     let params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");

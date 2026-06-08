@@ -21,11 +21,12 @@
 //! Shape per Poseidon2 permutation (Goldilocks, WIDTH = 8,
 //! HALF_FULL_ROUNDS = 4, PARTIAL_ROUNDS = 22):
 //!
-//! - 334 committed bit-words per permutation (8 pre-external +
-//!   4 × 16 initial full + 22 × 9 partial + 4 × 16 terminal full).
+//! - 342 committed bit-words per permutation (8 absorb words +
+//!   8 pre-external words + 4 × 16 initial full + 22 × 9 partial +
+//!   4 × 16 terminal full).
 //! - 86 S-box rows per permutation.
 //! - 248 linear rows per permutation.
-//! - 21,376 bitness rows per permutation (1 per committed bit).
+//! - 21,888 bitness rows per permutation (1 per committed bit).
 //!
 //! For a `poseidon2_hash(input)` of input length `n`, the sponge runs
 //! `ceil(n / RATE) + 1` permutations (one per absorb chunk plus the
@@ -38,6 +39,7 @@ use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use rand_chacha_p3::rand_core::{Rng as RandCoreRng, SeedableRng};
 use rand_chacha_p3::ChaCha8Rng;
+use std::sync::OnceLock;
 
 use crate::paper::relations::Structure;
 
@@ -257,6 +259,7 @@ impl Expr {
     }
 }
 
+#[derive(Clone, Copy)]
 struct Poseidon2Constants {
     initial: [[F; POSEIDON2_WIDTH]; POSEIDON2_HALF_FULL_ROUNDS],
     terminal: [[F; POSEIDON2_WIDTH]; POSEIDON2_HALF_FULL_ROUNDS],
@@ -273,6 +276,11 @@ fn sample_goldilocks(rng: &mut ChaCha8Rng) -> F {
 }
 
 fn poseidon2_constants() -> Poseidon2Constants {
+    static CONSTANTS: OnceLock<Poseidon2Constants> = OnceLock::new();
+    *CONSTANTS.get_or_init(sample_poseidon2_constants)
+}
+
+fn sample_poseidon2_constants() -> Poseidon2Constants {
     let mut rng = ChaCha8Rng::from_seed(neo_params::poseidon2_goldilocks::SEED);
     let mut initial = [[F::ZERO; POSEIDON2_WIDTH]; POSEIDON2_HALF_FULL_ROUNDS];
     for round in initial.iter_mut() {

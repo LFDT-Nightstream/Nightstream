@@ -238,9 +238,27 @@ impl NeoParams {
         min_lambda: u32,
         safety_margin: u32,
     ) -> Result<Self, ParamsError> {
+        Self::goldilocks_auto_ccs_with(n_rows, 3, 2, min_lambda, safety_margin)
+    }
+
+    /// Auto-pick Appendix B.2 core params for a concrete CCS shape.
+    ///
+    /// This is the generic version of [`Self::goldilocks_auto_r1cs_ccs_with`].
+    /// `matrix_count` is SuperNeo's `t`; `poly_degree` is SuperNeo's `u`.
+    pub fn goldilocks_auto_ccs_with(
+        n_rows: usize,
+        matrix_count: usize,
+        poly_degree: u32,
+        min_lambda: u32,
+        safety_margin: u32,
+    ) -> Result<Self, ParamsError> {
+        if matrix_count == 0 {
+            return Err(ParamsError::Invalid("matrix_count must be > 0"));
+        }
+
         let mut p = Self::goldilocks_paper_b2();
 
-        // Compute SuperNeo D.4's Π_CCS soundness factor specialized for R1CS→CCS.
+        // Compute SuperNeo D.4's Π_CCS soundness factor for this CCS shape.
         // pad rows to power of two (min 2)
         let padded_rows = if n_rows == 0 {
             2
@@ -252,7 +270,7 @@ impl NeoParams {
         let ell: u32 = ceil_log2_u128(prod);
 
         let fresh_count = p.max_fresh_count_from_rlc_guard()?;
-        let soundness_factor = p.r1cs_pi_ccs_soundness_factor(ell, fresh_count)?;
+        let soundness_factor = p.pi_ccs_soundness_factor(ell, fresh_count, matrix_count, poly_degree)?;
 
         // Search λ downward (keep s=2) until extension_check passes with slack
         let mut lam = p.lambda.max(min_lambda);
@@ -379,12 +397,15 @@ impl NeoParams {
             .map_err(|_| ParamsError::GuardInequality)
     }
 
-    /// SuperNeo D.4 Π_CCS soundness numerator for the standard R1CS→CCS embedding.
-    fn r1cs_pi_ccs_soundness_factor(&self, ell: u32, fresh_count: u32) -> Result<u128, ParamsError> {
-        const R1CS_POLY_DEGREE: u32 = 2;
-        const R1CS_CCS_MATRIX_COUNT: u32 = 3;
-
-        let d_sc = R1CS_POLY_DEGREE
+    /// SuperNeo D.4 Π_CCS soundness numerator for a concrete CCS shape.
+    fn pi_ccs_soundness_factor(
+        &self,
+        ell: u32,
+        fresh_count: u32,
+        matrix_count: usize,
+        poly_degree: u32,
+    ) -> Result<u128, ParamsError> {
+        let d_sc = poly_degree
             .max(self.b.saturating_mul(2).saturating_add(1))
             .max(2);
         let epsilon_sc = (ell as u128)
@@ -392,7 +413,7 @@ impl NeoParams {
             .ok_or(ParamsError::UnsupportedExtension { required: 3 })?;
 
         let ktd = (self.k_rho as u128)
-            .checked_mul(R1CS_CCS_MATRIX_COUNT as u128)
+            .checked_mul(matrix_count as u128)
             .and_then(|v| v.checked_mul(self.d as u128))
             .ok_or(ParamsError::UnsupportedExtension { required: 3 })?;
         let sz_degree = (ell as u128).max(ktd);

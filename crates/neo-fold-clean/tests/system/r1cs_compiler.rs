@@ -1,4 +1,5 @@
-//! R1CS-F' frontend integration tests.
+//! R1CS-F' frontend integration tests — basic compile/satisfaction +
+//! structure shape coverage.
 //!
 //! Every test is designed to fail under a plausible bad encoder /
 //! structure builder / compiler:
@@ -20,157 +21,38 @@
 //!   prove + extend + recursive-compile flow fits under the 5-min cap.
 //!   The algebra is unchanged (Goldilocks ring, k_rho, T, B all match
 //!   production); only the Ajtai-SIS security parameter is reduced.
+//!
+//! Stateful semantic-digest tests live in the sibling
+//! `r1cs_compiler_stateful.rs`. Preprocess-time plan validation lives
+//! in `r1cs_preprocess.rs`. Shared fixtures live in
+//! `tests/support/r1cs_compiler_fixtures.rs`.
 
 #![allow(non_snake_case)]
 
-use neo_ccs::matrix::Mat as NeoMat;
+#[path = "../support/mod.rs"]
+mod support;
+
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
+use neo_ccs::matrix::Mat as NeoMat;
 use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
 use neo_fold_clean::frontends::direct_ccs::R1cs;
-use neo_fold_clean::frontends::f_prime::image::{FPrimeImageLayout, NifsCeClaimShape, NifsPayloadShape};
-use neo_fold_clean::frontends::f_prime::recursive_plan::{
-    build_recursive_step_image_config, AccumulatorPlanOptions, RecursiveStepImagePlan, StateXOutPlanOptions,
-};
+use neo_fold_clean::frontends::f_prime::compiler::{verify_prior_fold, FPrimeShellCompilerError};
+use neo_fold_clean::frontends::f_prime::image::FPrimeImageLayout;
+use neo_fold_clean::frontends::f_prime::recursive_plan::build_recursive_step_image_config;
 use neo_fold_clean::frontends::r1cs_f_prime::{
     self, build_r1cs_f_prime_structure, compile_step, start_chain, R1csChainBuilder, R1csCompilerError,
-    R1csFPrimeStepInput,
+    R1csFPrimeStepInput, R1csFoldForStep,
 };
+use neo_fold_clean::paper::construction2::{FoldProof, ProofState};
 use neo_fold_clean::paper::digest::structure_digest;
-use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
-use neo_fold_clean::paper::params::Params;
-use neo_params::{goldilocks_paper_b2, NeoParams};
+use neo_params::goldilocks_paper_b2;
 
-/// Number of `c_data` lanes in the test NIFS payload. Small enough to
-/// keep structure construction cheap; large enough to exercise the
-/// recursive-accumulator hash plumbing.
-const TEST_C_DATA_ENTRIES: usize = 2;
-
-/// `preprocess_seeded` wrapper that returns the error directly.
-/// `Result::expect_err` would require `R1csFPrimePreprocessing: Debug`,
-/// which the type intentionally doesn't carry (the inner `Preprocessing`
-/// doesn't either).
-fn expect_preprocess_err(r1cs: &R1cs, plan: &RecursiveStepImagePlan, seed: u64) -> r1cs_f_prime::Error {
-    match r1cs_f_prime::preprocess_seeded(r1cs, plan, seed) {
-        Ok(_) => panic!("preprocess_seeded must reject this plan; it accepted instead"),
-        Err(e) => e,
-    }
-}
-
-/// One R1CS variable occupies 64 bits in `app_private`.
-fn app_private_bits_for(m: usize) -> usize {
-    m * POSEIDON2_GOLDILOCKS_BITS
-}
-
-/// Canonical 4-lane boundary for state_x_out's public digest.
-const BOUNDARY_BITS: usize = 4 * POSEIDON2_GOLDILOCKS_BITS;
-
-/// Build a small recursive-step plan sized for an R1CS with `m` variables.
-/// `m_in` is the public-input variable count; the plan binds variables
-/// `[0..m_in)` into `state_x_out` so the chain's `public_output_digest`
-/// commits to the proven public input `x`. Uses a 2-entry CE NIFS payload
-/// so the structure is small but still hosts the unified-mode accumulator
-/// selector + Poseidon transitions.
-fn make_small_plan(m: usize, m_in: usize) -> RecursiveStepImagePlan {
-    // Sized so app_private holds m * 64 bits. limbs = m*64 + 1 because
-    // image::FPrimeImageLayout::new puts app_private at
-    // `limbs - 1` bits.
-    let limbs = app_private_bits_for(m) + 1;
-
-    let ce_shape = NifsCeClaimShape {
-        c_data_entries: TEST_C_DATA_ENTRIES,
-        x_rows: 0,
-        x_active_cols: 0,
-        r_len: 0,
-        y_ring_inner_lens: vec![],
-        y_zcol_len: 0,
-        s_col_len: 0,
-    };
-
-    let probe_plan = RecursiveStepImagePlan {
-        limbs,
-        boundary_bits: BOUNDARY_BITS,
-        kmul_count: 0,
-        ring_action_pair_count: 0,
-        ring_action_pair_layout: RingActionTraceLayout::new(
-            LowNormEncoding::U64,
-            LowNormEncoding::U64,
-            LowNormEncoding::U64,
-            LowNormEncoding::U64,
-        ),
-        sponge_transcript_permutes: 0,
-        nifs_payload_shapes: vec![NifsPayloadShape::CeClaim(ce_shape.clone())],
-        accumulator: Some(AccumulatorPlanOptions {
-            ce_claim_payload_index: 0,
-            c_data_entries: TEST_C_DATA_ENTRIES,
-            child_count: 1,
-            unified: true,
-        }),
-        state_x_out: None,
-    };
-    let probe_layout = FPrimeImageLayout::new(build_recursive_step_image_config(&probe_plan));
-    let boundary_start = probe_layout.boundary.offset;
-    let public_x_out_lane_bit_starts: [usize; 4] =
-        std::array::from_fn(|i| boundary_start + i * POSEIDON2_GOLDILOCKS_BITS);
-
-    let mut plan = probe_plan;
-    plan.state_x_out = Some(StateXOutPlanOptions {
-        pc: 1,
-        public_x_out_lane_bit_starts,
-        // Bind every R1CS public-input variable into state_x_out so the
-        // chain's verifier-visible digest commits to the actual `x`.
-        app_public_input_var_indices: (0..m_in).collect(),
-    });
-    plan
-}
-
-/// R1CS with one constraint `z[0] = z[1] * z[2]` and `m_in = 1`.
-/// Variable order: [z_0 (out), z_1, z_2, ...]. The matrix is padded to
-/// `neo_math::D` columns for ergonomics — the bottom `(m - 3)` variables
-/// are unconstrained app-private values (they still must be in {0,1} per
-/// the F' bit-validity rows, so we set them to zero in the test
-/// assignments).
-fn one_product_r1cs() -> R1cs {
-    let m = neo_math::D;
-    let mut a = NeoMat::zero(1, m, F::default());
-    a[(0, 1)] = F::ONE;
-    let mut b = NeoMat::zero(1, m, F::default());
-    b[(0, 2)] = F::ONE;
-    let mut c = NeoMat::zero(1, m, F::default());
-    c[(0, 0)] = F::ONE;
-    R1cs { a, b, c, m_in: 1 }
-}
-
-/// R1CS with two constraints `z[0] = z[1] * z[2]` and `z[3] = z[4] * z[5]`.
-fn two_product_r1cs() -> R1cs {
-    let m = neo_math::D;
-    let mut a = NeoMat::zero(2, m, F::default());
-    a[(0, 1)] = F::ONE;
-    a[(1, 4)] = F::ONE;
-    let mut b = NeoMat::zero(2, m, F::default());
-    b[(0, 2)] = F::ONE;
-    b[(1, 5)] = F::ONE;
-    let mut c = NeoMat::zero(2, m, F::default());
-    c[(0, 0)] = F::ONE;
-    c[(1, 3)] = F::ONE;
-    R1cs { a, b, c, m_in: 1 }
-}
-
-/// Assignment for `one_product_r1cs`: z[1] = a, z[2] = b, z[0] = a*b,
-/// rest zero. `a` and `b` must be small enough that `a*b` fits in 64
-/// bits unsigned (the encoder writes 64 little-endian bits per variable
-/// and the structure recomposes them as `Σ 2^i · bit`; values outside
-/// `[0, 2^64)` would silently truncate). For Goldilocks we stay well
-/// under that.
-fn assignment_one_product(a: u64, b: u64) -> Vec<F> {
-    let m = neo_math::D;
-    let mut z = vec![F::ZERO; m];
-    z[1] = F::from_u64(a);
-    z[2] = F::from_u64(b);
-    z[0] = F::from_u64(a * b);
-    z
-}
+use support::r1cs_compiler_fixtures::{
+    assignment_one_product, fibonacci_r1cs, make_small_plan, make_tiny_lifecycle_plan, one_product_r1cs, tiny_params,
+    two_product_r1cs, BOUNDARY_BITS,
+};
 
 // ─────────────────────────────────────────────────────────────────────────
 // Happy + sad path: compile_step accept / reject on app-level R1CS.
@@ -180,7 +62,8 @@ fn assignment_one_product(a: u64, b: u64) -> Vec<F> {
 fn r1cs_compiler_accepts_satisfying_witness() {
     let r1cs = one_product_r1cs();
     let plan = make_small_plan(r1cs.m(), r1cs.m_in);
-    let prep = r1cs_f_prime::preprocess_seeded(&r1cs, &plan, 0x71C5_0001).expect("preprocess");
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_0001).expect("preprocess");
     let mut ctx = start_chain(&prep).expect("start chain");
 
     let input = R1csFPrimeStepInput {
@@ -199,7 +82,8 @@ fn r1cs_compiler_accepts_satisfying_witness() {
 fn r1cs_chain_builder_appends_base_step_and_tracks_audit() {
     let r1cs = one_product_r1cs();
     let plan = make_small_plan(r1cs.m(), r1cs.m_in);
-    let prep = r1cs_f_prime::preprocess_seeded(&r1cs, &plan, 0x71C5_0008).expect("preprocess");
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_0008).expect("preprocess");
     let mut chain = R1csChainBuilder::new(&prep).expect("start builder");
 
     let compiled = chain
@@ -224,7 +108,8 @@ fn r1cs_chain_builder_appends_base_step_and_tracks_audit() {
 fn r1cs_compiler_rejects_unsatisfying_witness() {
     let r1cs = one_product_r1cs();
     let plan = make_small_plan(r1cs.m(), r1cs.m_in);
-    let prep = r1cs_f_prime::preprocess_seeded(&r1cs, &plan, 0x71C5_0002).expect("preprocess");
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_0002).expect("preprocess");
     let mut ctx = start_chain(&prep).expect("start chain");
 
     // 3 * 7 = 21, but we set z[0] = 22.
@@ -246,7 +131,8 @@ fn r1cs_compiler_rejects_unsatisfying_witness() {
 fn r1cs_compiler_bit_flip_in_app_assignment_fails_structure() {
     let r1cs = one_product_r1cs();
     let plan = make_small_plan(r1cs.m(), r1cs.m_in);
-    let prep = r1cs_f_prime::preprocess_seeded(&r1cs, &plan, 0x71C5_0003).expect("preprocess");
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_0003).expect("preprocess");
     let mut ctx = start_chain(&prep).expect("start chain");
 
     let compiled = compile_step(
@@ -265,12 +151,8 @@ fn r1cs_compiler_bit_flip_in_app_assignment_fails_structure() {
         .is_satisfied(&compiled.encoded.witness));
 
     // Tamper one bit inside the app_private region. The structure's
-    // R1CS rows recompose z[1] from those bits; flipping one alters
-    // the product (z[1] · z[2]) and forces either the R1CS row to
-    // fail or the bit-validity row to fail (since the flipped bit was
-    // either 0→1 or 1→0, but the row enforces `b(b-1)=0`, so flipping
-    // 0→1 actually stays valid for the bitness row alone — only the
-    // R1CS row catches it).
+    // R1CS rows recompose z[1] from those digits; flipping one alters
+    // the product (z[1] · z[2]) and forces the R1CS row to fail.
     let app_offset = compiled.encoded.image.layout.app_private.offset;
     let mut tampered = compiled.encoded.witness.clone();
     // Flip bit 0 of variable z[1]: bit_start = app_offset + 1*64.
@@ -279,7 +161,87 @@ fn r1cs_compiler_bit_flip_in_app_assignment_fails_structure() {
 
     assert!(
         !compiled.encoded.structure.is_satisfied(&tampered),
-        "bit-flip inside app_private must break either the bitness row or an R1CS row"
+        "bit-flip inside app_private must break an R1CS row"
+    );
+}
+
+#[test]
+fn r1cs_compiler_pins_constant_lane_when_boolean_width_relies_on_it() {
+    let m = neo_math::D;
+    let mut a = NeoMat::zero(1, m, F::default());
+    a[(0, 1)] = F::ONE;
+    let mut b = NeoMat::zero(1, m, F::default());
+    b[(0, 0)] = F::ONE;
+    b[(0, 1)] = F::ZERO - F::ONE;
+    let c = NeoMat::zero(1, m, F::default());
+    let r1cs = R1cs { a, b, c, m_in: 0 };
+
+    let mut plan = make_small_plan(r1cs.m(), r1cs.m_in);
+    plan.app_private_var_widths = vec![POSEIDON2_GOLDILOCKS_BITS; r1cs.m()];
+    plan.app_private_var_widths[1] = 1;
+    plan.limbs = plan.app_private_var_widths.iter().sum::<usize>() + 1;
+
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_00C1).expect("preprocess");
+    let mut ctx = start_chain(&prep).expect("start chain");
+    let mut assignment = vec![F::ZERO; m];
+    assignment[0] = F::ONE;
+    assignment[1] = F::ZERO;
+    let compiled = compile_step(&prep, &mut ctx, R1csFPrimeStepInput { assignment }).expect("compile");
+
+    let mut tampered = compiled.encoded.witness.clone();
+    let z0_slot = prep.anchors().app_var_slots[0];
+    for offset in 0..z0_slot.bits {
+        tampered[z0_slot.bit_start + offset] = F::ZERO;
+    }
+
+    assert!(
+        !compiled.encoded.structure.is_satisfied(&tampered),
+        "a Boolean-width plan relies on R1CS z[0] as the constant-one lane; \
+         tampering z[0] to zero must fail even when the Boolean row z1*(z0-z1)=0 \
+         remains satisfied with z1=0"
+    );
+}
+
+#[test]
+fn r1cs_compiler_pins_constant_lane_when_multibit_width_relies_on_it() {
+    let m = neo_math::D;
+    let mut a = NeoMat::zero(1, m, F::default());
+    a[(0, 0)] = F::ONE;
+    let mut b = NeoMat::zero(1, m, F::default());
+    b[(0, 0)] = F::from_u64(2);
+    let mut c = NeoMat::zero(1, m, F::default());
+    c[(0, 1)] = F::ONE;
+    let r1cs = R1cs { a, b, c, m_in: 0 };
+
+    let mut plan = make_small_plan(r1cs.m(), r1cs.m_in);
+    plan.app_private_var_widths = vec![POSEIDON2_GOLDILOCKS_BITS; r1cs.m()];
+    plan.app_private_var_widths[1] = 2;
+    plan.limbs = plan.app_private_var_widths.iter().sum::<usize>() + 1;
+
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_00C2).expect("preprocess");
+    let mut ctx = start_chain(&prep).expect("start chain");
+    let mut assignment = vec![F::ZERO; m];
+    assignment[0] = F::ONE;
+    assignment[1] = F::from_u64(2);
+    let compiled = compile_step(&prep, &mut ctx, R1csFPrimeStepInput { assignment }).expect("compile");
+
+    let mut tampered = compiled.encoded.witness.clone();
+    let z0_slot = prep.anchors().app_var_slots[0];
+    for offset in 0..z0_slot.bits {
+        tampered[z0_slot.bit_start + offset] = F::ZERO;
+    }
+    let z1_slot = prep.anchors().app_var_slots[1];
+    for offset in 0..z1_slot.bits {
+        tampered[z1_slot.bit_start + offset] = F::ZERO;
+    }
+
+    assert!(
+        !compiled.encoded.structure.is_satisfied(&tampered),
+        "a multibit typed-width plan can still rely on R1CS z[0] as the \
+         constant-one lane; coherently tampering z[0] and the bounded output \
+         must fail, otherwise the folded image admits a non-constant z[0]"
     );
 }
 
@@ -353,7 +315,8 @@ fn honest_witness_with_assignment_for(
 ) -> Vec<F> {
     let r1cs = one_product_r1cs();
     let plan = make_small_plan(r1cs.m(), r1cs.m_in);
-    let prep = r1cs_f_prime::preprocess_seeded(&r1cs, &plan, 0x71C5_0444).expect("preprocess");
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_0444).expect("preprocess");
     let mut ctx = start_chain(&prep).expect("start chain");
     let compiled = compile_step(
         &prep,
@@ -376,11 +339,11 @@ fn honest_witness_with_assignment_for(
 // ─────────────────────────────────────────────────────────────────────────
 // Soundness — `public_output_digest` binds to the proven public input `x`.
 //
-// Council finding [P0]: without binding `x = assignment[..m_in]` into the
-// chain's `state_x_out` Poseidon hash, two different satisfying assignments
-// with different `x` produce the same `public_output_digest`. The verifier
-// learns only "some `(x, w)` satisfies the R1CS" — not which `x`. These
-// tests pin down both halves of the contract.
+// Council finding [P0]: without binding `x = assignment[..m_in]` into a
+// carried state coordinate, two different satisfying assignments with
+// different `x` produce the same `public_output_digest`. The verifier learns
+// only "some `(x, w)` satisfies the R1CS" — not which `x`. These tests pin
+// down both halves of the contract.
 // ─────────────────────────────────────────────────────────────────────────
 
 #[test]
@@ -392,7 +355,8 @@ fn r1cs_compiler_public_output_depends_on_public_input() {
     let r1cs = one_product_r1cs();
     assert_eq!(r1cs.m_in, 1, "test relies on z[..1] being the public input");
     let plan = make_small_plan(r1cs.m(), r1cs.m_in);
-    let prep = r1cs_f_prime::preprocess_seeded(&r1cs, &plan, 0x71C5_00A0).expect("preprocess");
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_00A0).expect("preprocess");
 
     let mut ctx_a = start_chain(&prep).expect("start chain a");
     let mut ctx_b = start_chain(&prep).expect("start chain b");
@@ -425,7 +389,8 @@ fn r1cs_compiler_public_output_independent_of_private_witness() {
     let r1cs = one_product_r1cs();
     assert_eq!(r1cs.m_in, 1, "test relies on z[..1] being the public input");
     let plan = make_small_plan(r1cs.m(), r1cs.m_in);
-    let prep = r1cs_f_prime::preprocess_seeded(&r1cs, &plan, 0x71C5_00B0).expect("preprocess");
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_00B0).expect("preprocess");
 
     let mut ctx_a = start_chain(&prep).expect("start chain a");
     let mut ctx_b = start_chain(&prep).expect("start chain b");
@@ -476,26 +441,12 @@ fn r1cs_compiler_two_different_shapes_have_different_structure_digests() {
 // Cross-check: Fibonacci-as-R1CS round-trips through the R1CS encoder.
 // ─────────────────────────────────────────────────────────────────────────
 
-/// Fibonacci step expressed as a 1-row R1CS:
-/// `z[3] = (z[1] + z[2]) · z[0]`  ⟺  next = prev + curr  (`z[0] = 1`).
-/// Variable layout: `[1, prev, curr, next, ...zero pads to D]`.
-fn fibonacci_r1cs() -> R1cs {
-    let m = neo_math::D;
-    let mut a = NeoMat::zero(1, m, F::default());
-    a[(0, 1)] = F::ONE;
-    a[(0, 2)] = F::ONE;
-    let mut b = NeoMat::zero(1, m, F::default());
-    b[(0, 0)] = F::ONE;
-    let mut c = NeoMat::zero(1, m, F::default());
-    c[(0, 3)] = F::ONE;
-    R1cs { a, b, c, m_in: 3 }
-}
-
 #[test]
 fn r1cs_compiler_satisfies_fibonacci_relation() {
     let r1cs = fibonacci_r1cs();
     let plan = make_small_plan(r1cs.m(), r1cs.m_in);
-    let prep = r1cs_f_prime::preprocess_seeded(&r1cs, &plan, 0x71C5_0007).expect("preprocess");
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_0007).expect("preprocess");
     let mut ctx = start_chain(&prep).expect("start chain");
 
     // Concrete Fibonacci step: prev=1, curr=1, next=2.
@@ -529,11 +480,11 @@ fn r1cs_compiler_satisfies_fibonacci_relation() {
 // Needs a real intermediate fold proof, which only the lifecycle can
 // produce. The lifecycle's parent-authority CE shape is a fixed point
 // of Π_RLC + Π_DEC under the active `Params` — under production
-// `paper_b2` that fixed point is `c_data = 972, child_count = 14,
-// r_len = 23`, and one prove + extend takes > 5 min. Under a
+// `paper_b2` that fixed point has a much larger `c_data` domain, and
+// one prove + extend takes > 5 min. Under a
 // test-only smaller params profile (kappa = 4, m = 2^16, lambda = 60)
 // the same fixed point structure shrinks to `c_data = 216, child_count
-// = 14, r_len = 21` and the full base → prove → extend →
+// = 14, r_len = 13, s_col_len = 19` and the full base → prove → extend →
 // recursive-compile flow fits in ~55 s.
 //
 // The smaller profile preserves the protocol's algebraic correctness:
@@ -542,94 +493,6 @@ fn r1cs_compiler_satisfies_fibonacci_relation() {
 // holds bit-for-bit. Only the Ajtai-SIS security parameter is reduced
 // (which is irrelevant for an algebraic-correctness fixture).
 // ─────────────────────────────────────────────────────────────────────────
-
-/// Test-only smaller `Params` profile.
-///
-/// Reuses the production Goldilocks ring + decomposition constants
-/// (Q, ETA, D, B_BASE, K_RHO, T, EXTENSION_DEGREE) so every algebraic
-/// identity in Π_RLC / Π_DEC holds bit-for-bit. Only the
-/// commitment-width `kappa`, constraint count `m`, and security
-/// parameter `lambda` are shrunk so the lifecycle fits under the
-/// 5-minute test cap.
-fn tiny_params() -> Params {
-    let inner = NeoParams::new(
-        goldilocks_paper_b2::Q,
-        goldilocks_paper_b2::ETA as u32,
-        goldilocks_paper_b2::D as u32,
-        /* kappa  */ 4,
-        /* m      */ 1u64 << 16,
-        goldilocks_paper_b2::B_BASE,
-        goldilocks_paper_b2::K_RHO,
-        goldilocks_paper_b2::T,
-        goldilocks_paper_b2::EXTENSION_DEGREE,
-        /* lambda */ 60,
-    )
-    .expect("tiny NeoParams must satisfy the Π_RLC guard");
-    Params::test_only_from_neo_params(inner)
-}
-
-/// Plan with the empirically-discovered fixed-point CE shape under
-/// [`tiny_params`]. These constants come from running the lifecycle
-/// once with a stub plan and reading the actual post-fold parent
-/// shape; the recursive-compile path then converges in one iteration
-/// because the plan matches the parent.
-///
-/// If `tiny_params` ever changes, the recursive-compile step will
-/// fail with `PostParentShapeMismatch` and surface the new shape in
-/// the error message — update these constants from that output.
-fn make_tiny_lifecycle_plan(m: usize, m_in: usize) -> RecursiveStepImagePlan {
-    // c_data_entries = kappa * D = 4 * 54 = 216 under tiny_params.
-    const TINY_C_DATA_ENTRIES: usize = 216;
-    // child_count = K_RHO = 14 (matches production; not params-dependent).
-    const TINY_CHILD_COUNT: u64 = 14;
-    // r_len / s_col_len = ceil(log2(structure.m)) under the larger
-    // (216-entry) NIFS payload region; this is the converged value
-    // after one iteration of the probe.
-    const TINY_R_LEN: usize = 21;
-
-    let limbs = app_private_bits_for(m) + 1;
-    let ce_shape = NifsCeClaimShape {
-        c_data_entries: TINY_C_DATA_ENTRIES,
-        x_rows: 54,
-        x_active_cols: 5,
-        r_len: TINY_R_LEN,
-        y_ring_inner_lens: vec![64; 8],
-        y_zcol_len: 64,
-        s_col_len: TINY_R_LEN,
-    };
-    let probe_plan = RecursiveStepImagePlan {
-        limbs,
-        boundary_bits: BOUNDARY_BITS,
-        kmul_count: 0,
-        ring_action_pair_count: 0,
-        ring_action_pair_layout: RingActionTraceLayout::new(
-            LowNormEncoding::U64,
-            LowNormEncoding::U64,
-            LowNormEncoding::U64,
-            LowNormEncoding::U64,
-        ),
-        sponge_transcript_permutes: 0,
-        nifs_payload_shapes: vec![NifsPayloadShape::CeClaim(ce_shape)],
-        accumulator: Some(AccumulatorPlanOptions {
-            ce_claim_payload_index: 0,
-            c_data_entries: TINY_C_DATA_ENTRIES,
-            child_count: TINY_CHILD_COUNT,
-            unified: true,
-        }),
-        state_x_out: None,
-    };
-    let probe_layout = FPrimeImageLayout::new(build_recursive_step_image_config(&probe_plan));
-    let boundary_start = probe_layout.boundary.offset;
-    let public_x_out_lane_bit_starts: [usize; 4] =
-        std::array::from_fn(|i| boundary_start + i * POSEIDON2_GOLDILOCKS_BITS);
-    let mut plan = probe_plan;
-    plan.state_x_out = Some(StateXOutPlanOptions {
-        pc: 1,
-        public_x_out_lane_bit_starts,
-        app_public_input_var_indices: (0..m_in).collect(),
-    });
-    plan
-}
 
 #[test]
 fn r1cs_compiler_base_and_recursive_share_structure() {
@@ -665,69 +528,154 @@ fn r1cs_compiler_base_and_recursive_share_structure() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// `preprocess` validates the plan's public-input binding.
+// Batched R1CS-F' chain — app-public semantic output is serial-only.
 // ─────────────────────────────────────────────────────────────────────────
 
-/// A plan with the wrong `app_public_input_var_indices` would silently
-/// miss the public-input binding (the chain's `public_output_digest`
-/// would not commit to `x`). `preprocess` must reject this at the
-/// verifier-owned-plan boundary, not let a misconfigured chain reach
-/// the encoder.
+/// R1CS plans bind app-public output through one carried semantic-state
+/// digest. Until we add an aggregate digest for K app-public outputs,
+/// K>1 chunks would be ambiguous and must reject.
 #[test]
-fn r1cs_preprocess_rejects_app_public_input_var_indices_mismatch() {
-    let r1cs = one_product_r1cs(); // m_in = 1
-    let mut plan = make_small_plan(r1cs.m(), r1cs.m_in);
-    // Corrupt the plan: tell `preprocess` that no app variables are
-    // public, even though `r1cs.m_in = 1`. A naive preprocess would
-    // accept this and compile silently-wrong chains.
-    let sxo = plan.state_x_out.as_mut().expect("plan has state_x_out");
-    sxo.app_public_input_var_indices = vec![];
-
-    let err = expect_preprocess_err(&r1cs, &plan, 0x71C5_C001);
-    assert!(
-        matches!(
-            &err,
-            r1cs_f_prime::Error::PlanAppPublicInputMismatch { actual, m_in }
-                if actual.is_empty() && *m_in == 1
-        ),
-        "expected PlanAppPublicInputMismatch with actual=[] m_in=1, got {err:?}"
-    );
-}
-
-/// Same gate, but the indices are present and span the right *count*
-/// while pointing at the wrong variables (`[3]` instead of `[0]`).
-/// `state_x_out` would then bind some private witness lane as if it
-/// were public — equally fatal — and `preprocess` must reject.
-#[test]
-fn r1cs_preprocess_rejects_misnamed_public_input_indices() {
-    let r1cs = one_product_r1cs(); // m_in = 1, m = neo_math::D
-    let mut plan = make_small_plan(r1cs.m(), r1cs.m_in);
-    let sxo = plan.state_x_out.as_mut().expect("plan has state_x_out");
-    sxo.app_public_input_var_indices = vec![3]; // pointing at a private variable
-
-    let err = expect_preprocess_err(&r1cs, &plan, 0x71C5_C002);
-    assert!(
-        matches!(
-            &err,
-            r1cs_f_prime::Error::PlanAppPublicInputMismatch { actual, m_in }
-                if actual == &vec![3] && *m_in == 1
-        ),
-        "expected PlanAppPublicInputMismatch with actual=[3] m_in=1, got {err:?}"
-    );
-}
-
-/// `preprocess` must also reject a plan with `state_x_out = None` —
-/// without the state-x_out hash there is nowhere to absorb the
-/// app-level public input at all.
-#[test]
-fn r1cs_preprocess_rejects_plan_without_state_x_out() {
+fn r1cs_chain_builder_rejects_batched_app_public_chunk_K3() {
     let r1cs = one_product_r1cs();
-    let mut plan = make_small_plan(r1cs.m(), r1cs.m_in);
-    plan.state_x_out = None;
+    let plan = make_tiny_lifecycle_plan(r1cs.m(), r1cs.m_in);
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_00B3).expect("preprocess");
 
-    let err = expect_preprocess_err(&r1cs, &plan, 0x71C5_C003);
+    let mut chain = R1csChainBuilder::new(&prep).expect("start builder");
+
+    let k = 3usize;
+    let batch_0: Vec<Vec<F>> = (0..k)
+        .map(|i| assignment_one_product(3 + i as u64, 7))
+        .collect();
+
+    let err = match chain.append_assignments(batch_0) {
+        Ok(_) => panic!("K=3 app-public semantic chunk must reject"),
+        Err(err) => err,
+    };
     assert!(
-        matches!(&err, r1cs_f_prime::Error::PlanMissingStateXOut),
-        "expected PlanMissingStateXOut, got {err:?}"
+        matches!(err, r1cs_f_prime::Error::Compiler(R1csCompilerError::StatefulChunkMustBeSerial { got }) if got == k),
+        "expected StatefulChunkMustBeSerial(K=3), got {err:?}"
+    );
+}
+
+/// Varying K is rejected for the same reason as K=3: one outgoing
+/// semantic-state digest cannot faithfully represent multiple distinct
+/// app-public outputs.
+#[test]
+fn r1cs_chain_builder_rejects_varying_batched_app_public_chunks() {
+    let r1cs = one_product_r1cs();
+    let plan = make_tiny_lifecycle_plan(r1cs.m(), r1cs.m_in);
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_00D7).expect("preprocess");
+
+    let mut chain = R1csChainBuilder::new(&prep).expect("start builder");
+
+    let batch_0: Vec<Vec<F>> = (0..3)
+        .map(|i| assignment_one_product(3 + i as u64, 7))
+        .collect();
+
+    let err = match chain.append_assignments(batch_0) {
+        Ok(_) => panic!("K=3 app-public semantic chunk must reject"),
+        Err(err) => err,
+    };
+    assert!(
+        matches!(err, r1cs_f_prime::Error::Compiler(R1csCompilerError::StatefulChunkMustBeSerial { got }) if got == 3),
+        "expected StatefulChunkMustBeSerial(K=3), got {err:?}"
+    );
+}
+
+#[test]
+fn r1cs_chain_builder_rejects_recursive_batched_app_public_chunk() {
+    let r1cs = one_product_r1cs();
+    let plan = make_tiny_lifecycle_plan(r1cs.m(), r1cs.m_in);
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_00E1).expect("preprocess");
+
+    let mut chain = R1csChainBuilder::new(&prep).expect("start builder");
+    chain
+        .append_assignments(vec![assignment_one_product(3, 7)])
+        .expect("base chunk");
+
+    let real_batch = vec![assignment_one_product(2, 5), assignment_one_product(4, 6)];
+    let err = match chain.append_assignments(real_batch) {
+        Ok(_) => panic!("recursive K=2 app-public semantic chunk must reject"),
+        Err(err) => err,
+    };
+    assert!(
+        matches!(err, r1cs_f_prime::Error::Compiler(R1csCompilerError::StatefulChunkMustBeSerial { got }) if got == 2),
+        "expected StatefulChunkMustBeSerial(K=2), got {err:?}"
+    );
+}
+
+#[test]
+fn r1cs_verify_prior_fold_rejects_wrong_k_transcript() {
+    let r1cs = one_product_r1cs();
+    let plan = make_tiny_lifecycle_plan(r1cs.m(), r1cs.m_in);
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_00E2).expect("preprocess");
+
+    let mut chain = R1csChainBuilder::new(&prep).expect("start builder");
+    let compiled_base = chain
+        .append_assignments(vec![assignment_one_product(3, 7)])
+        .expect("base chunk");
+    let ctx_before_recursive = chain.context().clone();
+    let prev_audit = chain.audit().expect("audit after base").clone();
+
+    let placeholder = r1cs_f_prime::build_instance(&prep, &compiled_base[0].encoded).expect("placeholder instance");
+    let derived = neo_fold_clean::lifecycle::extend(&prep.prep, prev_audit.clone(), vec![placeholder])
+        .expect("K=1 prepared fold");
+
+    let (pre_running, latest) = match &prev_audit.proof.state.proof {
+        ProofState::Active { running, latest } => (running.clone(), latest.clone()),
+        other => panic!("expected active pre-state, got {other:?}"),
+    };
+    let proof = match &derived.steps.last().expect("derived step").fold {
+        FoldProof::Recursive(proof) => proof.clone(),
+        FoldProof::NoFold => panic!("recursive extend must emit a fold proof"),
+    };
+    let post_running = match &derived.proof.state.proof {
+        ProofState::Active { running, .. } => running.clone(),
+        other => panic!("expected active post-state, got {other:?}"),
+    };
+    let fold = R1csFoldForStep {
+        pre_running,
+        latest,
+        proof,
+        post_running,
+    };
+
+    verify_prior_fold(&prep.prep, &ctx_before_recursive, &fold, 1).expect("correct K=1 transcript verifies");
+    let err = verify_prior_fold(&prep.prep, &ctx_before_recursive, &fold, 2)
+        .expect_err("a fold prepared for K=1 must not verify as K=2");
+    assert!(
+        matches!(err, FPrimeShellCompilerError::PriorFoldVerificationFailed { .. }),
+        "expected PriorFoldVerificationFailed for wrong K transcript, got {err:?}"
+    );
+}
+
+/// Max-fresh K is rejected for app-public R1CS plans until the frontend
+/// has a sound aggregate semantic-state output for multiple public
+/// values in one chunk.
+#[test]
+fn r1cs_chain_builder_rejects_max_fresh_app_public_chunk() {
+    let r1cs = one_product_r1cs();
+    let plan = make_tiny_lifecycle_plan(r1cs.m(), r1cs.m_in);
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_00C1).expect("preprocess");
+
+    let mut chain = R1csChainBuilder::new(&prep).expect("start builder");
+
+    let k = goldilocks_paper_b2::MAX_FRESH_K as usize;
+    let batch_0: Vec<Vec<F>> = (0..k)
+        .map(|i| assignment_one_product(1 + i as u64, 7))
+        .collect();
+
+    let err = match chain.append_assignments(batch_0) {
+        Ok(_) => panic!("K=MAX_FRESH_K app-public semantic chunk must reject"),
+        Err(err) => err,
+    };
+    assert!(
+        matches!(err, r1cs_f_prime::Error::Compiler(R1csCompilerError::StatefulChunkMustBeSerial { got }) if got == k),
+        "expected StatefulChunkMustBeSerial(K={k}), got {err:?}"
     );
 }

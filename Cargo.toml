@@ -8,9 +8,7 @@ members = [
   "crates/neo-ajtai",
   "crates/neo-ccs",
   "crates/neo-reductions",
-  "crates/neo-fold-prototype",
   "crates/neo-fold-clean",
-  "crates/nstream-midnight-bridge",
 ]
 exclude = [
   "external/Spartan2",

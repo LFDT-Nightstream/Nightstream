@@ -5,11 +5,10 @@
 //!
 //! - **TransitionMismatch coverage** — catches a compiler that
 //!   doesn't enforce the Fibonacci app step.
-//! - **Whole post-fold parent-authority encoding** — catches a
-//!   compiler that fills only `c_data` and leaves
-//!   `d`/`kappa`/`m_in`/`fold_digest`/`X`/`r`/`y`/`s` at defaults.
-//!   The expected view is built test-locally from the real `CeClaim`,
-//!   so the assertion isn't tautological.
+//! - **Post-fold accumulator binding** — catches a compiler that
+//!   computes the outgoing accumulator handle from anything other than
+//!   the verified full post-fold running accumulator. Unified mode no
+//!   longer stores the full CE payload in the low-norm source image.
 //! - **Post vs pre confusion** — catches a compiler that uses
 //!   `pre_running.parent_authority` instead of
 //!   `post_running.parent_authority`. The fixture ensures pre and
@@ -23,7 +22,7 @@
 //! - **Chain state advancement** — catches a compiler that emits an
 //!   encoded step but doesn't move the chain coordinates forward.
 //! - **Missing prior fold** — catches a compiler that silently emits
-//!   a perp/zero NIFS payload on a recursive step.
+//!   a perp/zero accumulator handle on a recursive step.
 //!
 //! The fold input is bootstrapped from a real lifecycle output: the
 //! fixture builds a chain, the lifecycle folds it, and the test
@@ -44,15 +43,13 @@ mod support;
 
 use std::sync::OnceLock;
 
-use neo_ccs::matrix::Mat;
-use neo_math::{F, K};
+use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
 use neo_fold_clean::frontends::f_prime::compiler::FPrimeShellCompilerError;
-use neo_fold_clean::frontends::f_prime::image::{NifsCeClaimShape, NifsCeClaimView};
 use neo_fold_clean::lifecycle;
 use neo_fold_clean::paper::construction2::{FoldProof, ProofState};
-use neo_fold_clean::paper::digest::digest32_as_fields;
+use neo_fold_clean::paper::digest::{digest32_as_fields, AccumulatorHandle};
 use support::fibonacci_f_prime::{
     self, compile_fibonacci_step, start_fibonacci_chain, FibonacciAppState, FibonacciAppStepInput, FibonacciAppWitness,
     FibonacciChainState, FibonacciCompilerError, FibonacciFPrimePreprocessing, FibonacciFoldForStep,
@@ -136,6 +133,7 @@ fn build_real_fold_uncached(
         chunk_count: pre_state.chunk_count,
         step_count: pre_state.step_count,
         z_i: digest32_as_fields(pre_state.z_i),
+        semantic_state_digest: digest32_as_fields(pre_state.semantic_state_digest),
         acc_digest: digest32_as_fields(pre_state.acc_digest),
         public_trace: digest32_as_fields(pre_state.public_trace),
     };
@@ -168,69 +166,6 @@ fn valid_app_step(prev_u: u64, curr_u: u64, step_index: u64) -> FibonacciAppStep
     FibonacciAppStepInput {
         state_in: FibonacciAppState { prev, curr, step_index },
         witness: FibonacciAppWitness { next: prev + curr },
-    }
-}
-
-/// Test-local helper: build the expected `NifsCeClaimView` directly
-/// from a real post-fold parent `CeClaim`. **This is intentionally a
-/// separate implementation from the compiler's helper** — if the
-/// compiler's view differs from this one for any field, the
-/// `compiler_encodes_full_post_fold_ce_claim` test fails.
-fn expected_view_from_post_parent(post_parent: &neo_fold_clean::CeClaim) -> NifsCeClaimView {
-    let active_cols = neo_fold_clean::paper::relations::superneo_public_x_cols(post_parent.m_in);
-    let x_active_flat: Vec<F> = collect_active_x_test(&post_parent.X, active_cols);
-    let r_pairs: Vec<[F; 2]> = post_parent.r.iter().map(k_to_pair_test).collect();
-    let y_ring_pairs: Vec<Vec<[F; 2]>> = post_parent
-        .y_ring
-        .iter()
-        .map(|row| row.iter().map(k_to_pair_test).collect())
-        .collect();
-    let y_zcol_pairs: Vec<[F; 2]> = post_parent.y_zcol.iter().map(k_to_pair_test).collect();
-    let s_col_pairs: Vec<[F; 2]> = post_parent.s_col.iter().map(k_to_pair_test).collect();
-    NifsCeClaimView {
-        d: post_parent.c.d as u64,
-        kappa: post_parent.c.kappa as u64,
-        c_data: post_parent.c.data.clone(),
-        x_rows: post_parent.X.rows() as u64,
-        x_cols: post_parent.X.cols() as u64,
-        x_active_cols: active_cols as u64,
-        x_active_flat,
-        r: r_pairs,
-        y_ring: y_ring_pairs,
-        y_zcol: y_zcol_pairs,
-        s_col: s_col_pairs,
-        m_in: post_parent.m_in as u64,
-        fold_digest_fields: digest32_as_fields(post_parent.fold_digest),
-    }
-}
-
-fn collect_active_x_test(x: &Mat<F>, active_cols: usize) -> Vec<F> {
-    let mut out = Vec::with_capacity(x.rows() * active_cols);
-    for row in 0..x.rows() {
-        for col in 0..active_cols {
-            out.push(x[(row, col)]);
-        }
-    }
-    out
-}
-
-fn k_to_pair_test(k: &K) -> [F; 2] {
-    let coeffs = neo_math::field::KExtensions::as_coeffs(k);
-    [coeffs[0], coeffs[1]]
-}
-
-/// Shape matching the compiler's derivation from a `post_parent`
-/// `CeClaim`. Tests use this to decode the encoded image's NIFS
-/// payload region.
-fn shape_for_post_parent(post_parent: &neo_fold_clean::CeClaim) -> NifsCeClaimShape {
-    NifsCeClaimShape {
-        c_data_entries: post_parent.c.data.len(),
-        x_rows: post_parent.X.rows(),
-        x_active_cols: neo_fold_clean::paper::relations::superneo_public_x_cols(post_parent.m_in),
-        r_len: post_parent.r.len(),
-        y_ring_inner_lens: post_parent.y_ring.iter().map(|row| row.len()).collect(),
-        y_zcol_len: post_parent.y_zcol.len(),
-        s_col_len: post_parent.s_col.len(),
     }
 }
 
@@ -288,7 +223,8 @@ fn compiler_rejects_recursive_step_without_prior_fold() {
     // Recursive branch: chunk_count > 0 but caller forgot to supply
     // ctx.fold_for_step. The compiler must reject with
     // `PriorFoldMissingForRecursiveStep` (and NOT silently emit a
-    // perp/zero NIFS payload — that would silently corrupt authority).
+    // perp/zero accumulator handle — that would silently corrupt
+    // authority).
     let cached = cached_n2();
     let mut ctx = start_fibonacci_chain(&cached.prep).expect("start chain");
     let expected_chunk_count = cached.chain_state.chunk_count;
@@ -306,10 +242,10 @@ fn compiler_rejects_recursive_step_without_prior_fold() {
     );
 }
 
-// ── Whole post-fold CE-claim encoding (non-tautological) ───────────────────
+// ── Post-fold parent authority binding (non-tautological) ─────────────────
 
 #[test]
-fn compiler_encodes_full_post_fold_ce_claim() {
+fn compiler_binds_post_fold_full_running_to_state_out_acc_digest() {
     let cached = cached_n2();
     assert_fold_fixture_preconditions(&cached.fold);
     let post_parent = cached
@@ -327,22 +263,23 @@ fn compiler_encodes_full_post_fold_ce_claim() {
     let compiled = compile_fibonacci_step(&cached.prep, &mut ctx, valid_app_step(1, 1, 1))
         .expect("recursive compile with real fold");
 
-    // Decode the NIFS payload using a shape matching the compiler's
-    // derivation, then compare whole view against an expected view
-    // built test-locally from the real CeClaim (no compiler code).
-    let shape = shape_for_post_parent(&post_parent);
-    let decoded = compiled.encoded.image.decode_nifs_ce_claim_at(0, &shape);
-    let expected = expected_view_from_post_parent(&post_parent);
+    let expected =
+        AccumulatorHandle::from_running_parts(&cached.fold.post_running.claims, Some(&post_parent)).digest_fields();
     assert_eq!(
-        decoded, expected,
-        "decoded NIFS CE payload must equal expected view built from post_parent"
+        compiled.encoded.image.decode_state_out().new_acc_digest,
+        expected,
+        "recursive source image must carry the accumulator handle derived from the verified full post-fold running accumulator"
+    );
+    assert_eq!(
+        compiled.encoded.image.layout.nifs_payloads.bits, 0,
+        "unified mode must not re-store the full post-fold CE payload in the source image"
     );
 }
 
 // ── Post vs pre confusion (anti-bug) ───────────────────────────────────────
 
 #[test]
-#[ignore = "n=3 fixture chain under the canonical big plan — preprocess + 3 fixture-step encodes + 2 lifecycle extends + 1 final extend pushes the binary over the 5-min per-test cap when other recursive-step tests run in the same invocation. Run manually with `cargo test --release -p neo-fold-clean --test system_fibonacci_compiler_recursive_step -- --ignored compiler_uses_post_fold_parent_authority_not_pre_fold`. The anti-bug property (compiler uses post-fold parent authority, not pre-fold) is also covered by the lighter `compiler_encodes_full_post_fold_ce_claim` test that runs by default."]
+#[ignore = "n=3 fixture chain under the canonical big plan — preprocess + 3 fixture-step encodes + 2 lifecycle extends + 1 final extend pushes the binary over the 5-min per-test cap when other recursive-step tests run in the same invocation. Run manually with `cargo test --release -p neo-fold-clean --test system_fibonacci_compiler_recursive_step -- --ignored compiler_uses_post_fold_parent_authority_not_pre_fold`. The anti-bug property (compiler uses post-fold accumulator authority, not pre-fold) is also covered by the lighter `compiler_binds_post_fold_full_running_to_state_out_acc_digest` test that runs by default."]
 fn compiler_uses_post_fold_parent_authority_not_pre_fold() {
     // 3-step chain so both pre_running and post_running have parent
     // authorities (running becomes non-empty after the first recursive
@@ -366,6 +303,10 @@ fn compiler_uses_post_fold_parent_authority_not_pre_fold() {
         pre_parent.c.data, post_parent.c.data,
         "fixture precondition: pre and post commitments must be distinct after a real fold"
     );
+    let expected_post =
+        AccumulatorHandle::from_running_parts(&fold.post_running.claims, Some(&post_parent)).digest_fields();
+    let expected_pre =
+        AccumulatorHandle::from_running_parts(&fold.pre_running.claims, Some(&pre_parent)).digest_fields();
 
     let mut ctx = start_fibonacci_chain(&prep).expect("start chain");
     ctx.chain_state = chain_state;
@@ -374,16 +315,15 @@ fn compiler_uses_post_fold_parent_authority_not_pre_fold() {
     let compiled =
         compile_fibonacci_step(&prep, &mut ctx, valid_app_step(1, 2, 2)).expect("recursive compile with real fold");
 
-    let shape = shape_for_post_parent(&post_parent);
-    let decoded = compiled.encoded.image.decode_nifs_ce_claim_at(0, &shape);
+    let decoded = compiled.encoded.image.decode_state_out().new_acc_digest;
 
     assert_eq!(
-        decoded.c_data, post_parent.c.data,
-        "compiler must use post-fold parent c_data"
+        decoded, expected_post,
+        "compiler must derive state_out.acc_digest from the post-fold full running accumulator"
     );
     assert_ne!(
-        decoded.c_data, pre_parent.c.data,
-        "anti-bug: compiler used pre-fold parent c_data instead of post-fold"
+        decoded, expected_pre,
+        "anti-bug: compiler used pre-fold running accumulator instead of post-fold"
     );
 }
 

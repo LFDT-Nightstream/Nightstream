@@ -16,11 +16,16 @@ use neo_ccs::{CeClaim as NeoCeClaim, Mat};
 use neo_fold_clean::engine::r1cs_circuit::builder::Var;
 use neo_fold_clean::engine::r1cs_circuit::field_ext::KVar;
 use neo_fold_clean::engine::r1cs_circuit::{Lc, R1csBuilder, TranscriptGadget};
-use neo_fold_clean::paper::digest::{ccs_claim_digest, ce_claim_digest, pi_ccs_instance_digest};
+use neo_fold_clean::paper::digest::{
+    accumulator_ce_claim_digest, accumulator_digest_from_running_parts, ccs_claim_digest, ce_claim_digest,
+    digest32_as_fields, pi_ccs_instance_digest, pi_ccs_instance_digest_parent_authority,
+};
+use neo_fold_clean::paper::reductions::accumulator_digest_circuit::enforce_accumulator_digest_from_running_circuit;
 use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::{
     absorb_engine_header_bundle_and_instance_digest, absorb_engine_me_inputs_accumulator_handle,
-    enforce_ccs_claim_digest, enforce_ce_claim_digest, enforce_fe_claimed_initial, enforce_header_digest_catch_up,
-    enforce_pi_ccs_instance_digest, header_digest_bytes_to_fields, sample_engine_beta_m, sample_engine_challenges,
+    enforce_accumulator_ce_claim_digest, enforce_ccs_claim_digest, enforce_ce_claim_digest, enforce_fe_claimed_initial,
+    enforce_header_digest_catch_up, enforce_pi_ccs_instance_digest, enforce_pi_ccs_instance_digest_parent_authority,
+    header_digest_bytes_to_fields, sample_engine_beta_m, sample_engine_challenges, AccumulatorCeClaimDigestInputs,
     CeClaimDigestInputs, FeClaimedInitialInputs,
 };
 use neo_math::ring::D;
@@ -30,7 +35,7 @@ use neo_reductions::engines::utils::{
     PI_CCS_INSTANCE_DIGEST_RAW_TAG,
 };
 use neo_transcript::{Poseidon2Transcript, Transcript};
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 type CeClaim = NeoCeClaim<Commitment, F, K>;
 
@@ -116,6 +121,93 @@ fn build_test_ce_claim(seed: u64, m_in: usize, t: usize, d: usize, kappa: usize,
         u_offset: 0,
         u_len: 0,
     }
+}
+
+fn build_test_accumulator_ce_claim(seed: u64) -> CeClaim {
+    let mut claim = build_test_ce_claim(
+        seed, /*m_in*/ 4, /*t*/ 3, /*d*/ 4, /*kappa*/ 2, /*r_len*/ 3,
+    );
+    let mut s = seed ^ 0xACC0_5EED;
+    let mut next_f = || -> F {
+        s = s
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        F::from_u64(s & 0xFFFF)
+    };
+
+    claim.s_col = (0..2)
+        .map(|_| K::from_coeffs([next_f(), next_f()]))
+        .collect();
+    claim.ct = claim.y_ring.iter().map(|row| row[0]).collect();
+    claim.y_zcol = (0..4)
+        .map(|_| K::from_coeffs([next_f(), next_f()]))
+        .collect();
+    for (idx, byte) in claim.fold_digest.iter_mut().enumerate() {
+        s = s
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        *byte = ((s >> 8) as u8).wrapping_add(idx as u8);
+    }
+    claim
+}
+
+fn enforce_accumulator_claim_digest_for_test(b: &mut R1csBuilder, claim: &CeClaim) -> [Var; 4] {
+    let c_data_vars: Vec<Var> = claim
+        .c
+        .data
+        .iter()
+        .map(|&v| alloc_witness_var(b, v))
+        .collect();
+    let mut x_flat_vars: Vec<Var> = Vec::with_capacity(claim.X.rows() * claim.X.cols());
+    for r in 0..claim.X.rows() {
+        for c in 0..claim.X.cols() {
+            x_flat_vars.push(alloc_witness_var(b, claim.X[(r, c)]));
+        }
+    }
+    let r_vars: Vec<KVar> = claim
+        .r
+        .iter()
+        .copied()
+        .map(|v| alloc_witness_k(b, v))
+        .collect();
+    let s_col_vars: Vec<KVar> = claim
+        .s_col
+        .iter()
+        .copied()
+        .map(|v| alloc_witness_k(b, v))
+        .collect();
+    let y_ring_vars: Vec<Vec<KVar>> = claim
+        .y_ring
+        .iter()
+        .map(|row| row.iter().copied().map(|v| alloc_witness_k(b, v)).collect())
+        .collect();
+    let ct_vars: Vec<KVar> = claim
+        .ct
+        .iter()
+        .copied()
+        .map(|v| alloc_witness_k(b, v))
+        .collect();
+    let fold_lanes = digest32_as_fields(claim.fold_digest);
+    let fold_digest_wires: [Var; 4] = std::array::from_fn(|i| alloc_witness_var(b, fold_lanes[i]));
+
+    enforce_accumulator_ce_claim_digest(
+        b,
+        &AccumulatorCeClaimDigestInputs {
+            c_d: claim.c.d,
+            c_kappa: claim.c.kappa,
+            c_data: &c_data_vars,
+            x_rows: claim.X.rows(),
+            x_cols: claim.X.cols(),
+            x_flat_row_major: &x_flat_vars,
+            r: &r_vars,
+            s_col: &s_col_vars,
+            y_ring: &y_ring_vars,
+            ct: &ct_vars,
+            m_in: claim.m_in,
+            fold_digest_fields: fold_digest_wires,
+        },
+    )
+    .expect("accumulator CE claim digest")
 }
 
 // ── sub-step B: K-batch challenge sampling ───────────────────────────────
@@ -374,7 +466,7 @@ fn sample_engine_beta_m_matches_native_for_various_ell_m() {
 #[test]
 fn sample_engine_challenges_matches_native_after_nonempty_prior_absorbs() {
     // In production, `sample_challenges` runs AFTER `bind_header_and_instance_digest`
-    // and `bind_me_inputs`. The sponge state at that point is mid-rate with
+    // and `bind_me_inputs_accumulator_handle`. The sponge state at that point is mid-rate with
     // some `absorbed > 0`, so the `[2]` domain tag may or may not trigger a
     // permute before the squeeze loop. This test fakes a "prior absorbs"
     // prefix of varying length and shapes to catch rate-boundary bugs.
@@ -683,6 +775,107 @@ fn enforce_ce_claim_digest_rejects_nonzero_inactive_x() {
 }
 
 #[test]
+fn enforce_accumulator_ce_claim_digest_matches_native_authority_fields() {
+    // This is the HyperNova U_i handle's per-claim building block. Unlike
+    // the paper-layer `ce_claim_digest`, it must bind implementation-carried
+    // authority fields too: s_col, ct, and fold_digest. It deliberately
+    // omits y_zcol because Π_DEC children do not prove a verifier-checkable
+    // radix-b y_zcol recomposition equation.
+    let claim = build_test_accumulator_ce_claim(0xACCE_551);
+    let native_digest = accumulator_ce_claim_digest(&claim);
+
+    let mut b = R1csBuilder::new();
+    let digest = enforce_accumulator_claim_digest_for_test(&mut b, &claim);
+
+    for (i, var) in digest.iter().enumerate() {
+        assert_eq!(b.witness()[var.col()], native_digest[i], "lane {i}");
+        b.enforce_eq(&Lc::from_var(*var), &Lc::from_const(native_digest[i]));
+    }
+    assert!(
+        b.is_satisfied(),
+        "accumulator_ce_claim_digest parity (first bad row: {:?})",
+        b.first_unsatisfied_row()
+    );
+}
+
+#[test]
+fn accumulator_ce_claim_digest_ignores_y_zcol_non_authority() {
+    // y_zcol is consumed by the same-step NC/RLC equations, but child
+    // y_zcol is not verifier-checkably recomposed by Π_DEC. If this digest
+    // absorbed it, the prover would get an unconstrained Fiat-Shamir salt in
+    // the recursive accumulator handle.
+    let claim = build_test_accumulator_ce_claim(0xA11C_E5A17);
+    assert!(!claim.y_zcol.is_empty(), "fixture must expose y_zcol");
+
+    let digest = accumulator_ce_claim_digest(&claim);
+
+    let mut c0_tampered = claim.clone();
+    c0_tampered.y_zcol[0] += K::ONE;
+    assert_eq!(
+        accumulator_ce_claim_digest(&c0_tampered),
+        digest,
+        "accumulator digest must not absorb c0 of non-authority y_zcol"
+    );
+
+    let mut c1_tampered = claim.clone();
+    c1_tampered.y_zcol[0] += K::from_coeffs([F::ZERO, F::ONE]);
+    assert_eq!(
+        accumulator_ce_claim_digest(&c1_tampered),
+        digest,
+        "accumulator digest must not absorb c1 of non-authority y_zcol"
+    );
+
+    let mut y_ring_tampered = claim.clone();
+    y_ring_tampered.y_ring[0][0] += K::ONE;
+    assert_ne!(
+        accumulator_ce_claim_digest(&y_ring_tampered),
+        digest,
+        "contrast check: authority y_ring must still be absorbed"
+    );
+
+    let mut s_col_tampered = claim.clone();
+    s_col_tampered.s_col[0] += K::ONE;
+    assert_ne!(
+        accumulator_ce_claim_digest(&s_col_tampered),
+        digest,
+        "contrast check: authority s_col must still be absorbed"
+    );
+}
+
+#[test]
+fn enforce_full_running_accumulator_digest_matches_native_with_parent() {
+    // The running-accumulator handle is the in-circuit replacement for
+    // hashing HyperNova's U_i in `state_x_out`: all authority-bearing child
+    // fields plus the Π_RLC parent authority. This test pins the exact
+    // native/circuit Poseidon2 preimage, independently of the larger SplitNc
+    // verifier.
+    let child_a = build_test_accumulator_ce_claim(0xA11CE);
+    let child_b = build_test_accumulator_ce_claim(0xB0B);
+    let parent = build_test_accumulator_ce_claim(0xFA12_EA7E_u64);
+    let native_digest = digest32_as_fields(accumulator_digest_from_running_parts(
+        &[child_a.clone(), child_b.clone()],
+        Some(&parent),
+    ));
+
+    let mut b = R1csBuilder::new();
+    let child_a_digest = enforce_accumulator_claim_digest_for_test(&mut b, &child_a);
+    let child_b_digest = enforce_accumulator_claim_digest_for_test(&mut b, &child_b);
+    let parent_digest = enforce_accumulator_claim_digest_for_test(&mut b, &parent);
+    let digest =
+        enforce_accumulator_digest_from_running_circuit(&mut b, &[child_a_digest, child_b_digest], Some(parent_digest));
+
+    for (i, var) in digest.iter().enumerate() {
+        assert_eq!(b.witness()[var.col()], native_digest[i], "lane {i}");
+        b.enforce_eq(&Lc::from_var(*var), &Lc::from_const(native_digest[i]));
+    }
+    assert!(
+        b.is_satisfied(),
+        "running-accumulator authority digest parity (first bad row: {:?})",
+        b.first_unsatisfied_row()
+    );
+}
+
+#[test]
 fn enforce_pi_ccs_instance_digest_matches_native_for_one_fresh_one_running() {
     // Native `pi_ccs_instance_digest(fresh, running)` hashes per-claim
     // digests under the `neo.fold.clean/pi_ccs_instance_digest/v1` domain.
@@ -791,6 +984,59 @@ fn enforce_pi_ccs_instance_digest_matches_native_for_one_fresh_one_running() {
     assert!(
         b.is_satisfied(),
         "pi_ccs_instance_digest parity (first bad row: {:?})",
+        b.first_unsatisfied_row()
+    );
+}
+
+#[test]
+fn enforce_pi_ccs_parent_authority_instance_digest_matches_native_missing_parent_sentinel() {
+    // The composed SplitNc verifier rejects `running_count > 0` with no
+    // parent authority before this helper is reached. Still, the helper is
+    // documented as a byte-for-byte mirror of native
+    // `pi_ccs_instance_digest_parent_authority`, whose malformed branch
+    // absorbs `u64::MAX` rather than the empty-running `0` marker. Pin the
+    // sentinel branch here so future standalone uses cannot drift from the
+    // verifier transcript layout.
+    use neo_ccs::CcsClaim;
+
+    let c_d = D;
+    let c_kappa = 1usize;
+    let c_data = (0..(c_d * c_kappa))
+        .map(|i| F::from_u64(0xD16E57_u64 + i as u64))
+        .collect::<Vec<_>>();
+    let x = vec![F::ONE, F::from_u64(2)];
+    let m_in = x.len();
+    let fresh = CcsClaim::<Commitment, F> {
+        c: Commitment {
+            d: c_d,
+            kappa: c_kappa,
+            data: c_data.clone(),
+        },
+        x: x.clone(),
+        m_in,
+    };
+    let running_count = 1usize;
+    let native_digest = pi_ccs_instance_digest_parent_authority(&[fresh], running_count, None);
+
+    let mut b = R1csBuilder::new();
+    let c_data_vars = c_data
+        .iter()
+        .map(|&v| alloc_witness_var(&mut b, v))
+        .collect::<Vec<_>>();
+    let x_vars = x
+        .iter()
+        .map(|&v| alloc_witness_var(&mut b, v))
+        .collect::<Vec<_>>();
+    let fresh_digest = enforce_ccs_claim_digest(&mut b, c_d, c_kappa, &c_data_vars, &x_vars, m_in);
+    let digest = enforce_pi_ccs_instance_digest_parent_authority(&mut b, &[fresh_digest], running_count, None);
+
+    for (i, var) in digest.iter().enumerate() {
+        assert_eq!(b.witness()[var.col()], native_digest[i], "lane {i}");
+        b.enforce_eq(&Lc::from_var(*var), &Lc::from_const(native_digest[i]));
+    }
+    assert!(
+        b.is_satisfied(),
+        "pi_ccs parent-authority malformed-sentinel digest parity (first bad row: {:?})",
         b.first_unsatisfied_row()
     );
 }
@@ -1172,4 +1418,20 @@ fn header_digest_bytes_rejects_wrong_length() {
     assert!(header_digest_bytes_to_fields(&[0u8; 33]).is_err());
     assert!(header_digest_bytes_to_fields(&[]).is_err());
     assert!(header_digest_bytes_to_fields(&[0u8; 32]).is_ok());
+}
+
+#[test]
+fn header_digest_bytes_rejects_noncanonical_field_limb_alias() {
+    // Native `digest32()` serializes canonical Goldilocks field elements. The
+    // circuit verifier must not accept a different byte string whose u64 limb
+    // aliases to the same field element via `F::from_u64`; otherwise the
+    // in-circuit proof verifier accepts a Pi_CCS proof object the native
+    // verifier rejects byte-for-byte.
+    let mut bytes = [0u8; 32];
+    bytes[..8].copy_from_slice(&F::ORDER_U64.to_le_bytes());
+
+    assert!(
+        header_digest_bytes_to_fields(&bytes).is_err(),
+        "noncanonical digest limb p aliases to zero and must be rejected"
+    );
 }

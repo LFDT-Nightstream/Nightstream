@@ -8,6 +8,8 @@ profile-xctrace-sym.trace
 profile-xctrace-user.trace
 profile-xctrace-user-sym.trace
 crates/deprecated-neo-fold/sha256-tests/circuit-cache
+crates/neo-fold-prototype/
+crates/nstream-midnight-bridge/
 dist
 demos/ios-demo/TestingWasm.xcodeproj/project.xcworkspace/xcuserdata/nicolasarqueros.xcuserdatad/UserInterfaceState.xcuserstate
 profile-xctrace-poseidon.trace

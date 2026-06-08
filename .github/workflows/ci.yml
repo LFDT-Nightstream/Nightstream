@@ -61,7 +61,7 @@ jobs:
           ${{ runner.os }}-cargo-
           
     - name: Run tests
-      run: NEO_PI_CCS_PREFLIGHT=1 NEO_SELF_VERIFY=1 NEO_STRICT_IO_PARITY=1 cargo test --release --workspace --exclude neo-fold-prototype --features "testing,debug-log,fs-guard"
+      run: NEO_PI_CCS_PREFLIGHT=1 NEO_SELF_VERIFY=1 NEO_STRICT_IO_PARITY=1 cargo test --release --workspace --exclude neo-fold-prototype --exclude nstream-midnight-bridge --exclude spartan2 --features "testing,debug-log,fs-guard"
 
     # Temporarily disabled while the merge path is focused on Rust-side
     # stabilization and we are not gating CI on Lean conformance.

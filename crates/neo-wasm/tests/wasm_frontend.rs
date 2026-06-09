@@ -1,5 +1,5 @@
 use neo_fold_clean::frontends::r1cs_f_prime::R1csChainBuilder;
-use neo_fold_clean::lifecycle::verify_uncompressed;
+use neo_fold_clean::lifecycle::verify_uncompressed_audit;
 use neo_wasm::preprocess::preprocess_seeded;
 use neo_wasm::{
     build_steps, opcode_code, StackValueAccess, WasmOpcode, WasmOutputState, WasmParamInitState, WasmPcEdgeKind,
@@ -215,6 +215,6 @@ fn wasm_frontend_scaffold_runs_through_clean_lifecycle() {
             .append_assignment(step.assignment.clone())
             .expect("append assignment");
     }
-    let proof = chain.finish().expect("finish");
-    verify_uncompressed(&prep.prep, &proof).expect("verify");
+    let proof = chain.finish_with_audit().expect("finish");
+    verify_uncompressed_audit(&prep.prep, &proof).expect("verify");
 }

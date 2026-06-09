@@ -31,10 +31,11 @@
 //! padding row's `_before` to equal the last real row's `_after` — which
 //! [`padding_step_after`] handles by construction.
 //!
-//! Scope: links only fire *within* a batch. The boundary between batch
-//! `i`'s last block and batch `i+1`'s first block is not currently
-//! enforced — see [`crate::prove::verify`] for the soundness
-//! implication. Cross-batch linking is open follow-up work.
+//! Scope: this module emits only the equality rows *within* one batch.
+//! Cross-batch continuity is carried by preprocessing built with
+//! [`crate::preprocess::preprocess_seeded_batched`],
+//! which uses spec-derived state columns and a verifier-owned initial
+//! semantic-state digest.
 
 use neo_ccs::{CcsMatrix, CscMat};
 use neo_fold_clean::frontends::direct_ccs::FrontendError;
@@ -192,14 +193,14 @@ pub fn build_batched_witness(traces: &[WasmStepTrace], batch_size: usize, batch_
     }
     if real_witnesses.len() < batch_size {
         let last_real = &traces[real_end - 1];
-        let mut anchor = padding_step_after(last_real);
+        let mut padding = padding_step_after(last_real);
         let pad_count = batch_size - real_witnesses.len();
         for _ in 0..pad_count {
-            witness.extend(build_witness_vector(&anchor));
-            // Each subsequent padding row anchors on the previous one,
+            witness.extend(build_witness_vector(&padding));
+            // Each subsequent padding row starts from the previous one,
             // which is state-preserving — so `_after` is the same as the
-            // first padding row's `_after`. Reuse `anchor` directly.
-            anchor = padding_step_after(&anchor);
+            // first padding row's `_after`. Reuse `padding` directly.
+            padding = padding_step_after(&padding);
         }
     }
     debug_assert_eq!(witness.len(), batch_size * WITNESS_WIDTH);

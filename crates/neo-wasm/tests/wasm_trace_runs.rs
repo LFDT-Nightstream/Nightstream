@@ -3,8 +3,10 @@ mod common;
 use neo_fold_clean::frontends::r1cs_f_prime;
 use neo_fold_clean::paper::params::Params;
 use neo_params::{goldilocks_paper_b2, NeoParams};
-use neo_wasm::preprocess::preprocess_seeded;
-use neo_wasm::{prove, verify, WasmStepTrace, WasmVmSpec};
+use neo_wasm::{
+    preprocess::canonical_wasm_f_prime_shape_batched_with_initial_state_digest, preprocess_seeded_batched, prove,
+    verify, WasmStepTrace, WasmVmSpec,
+};
 
 /// Compile a WAT module, run it through the wasmtime adapter, exercise the
 /// witness-derived sanity checks, and return the trace + ROMs.
@@ -1017,29 +1019,33 @@ fn wasm_trace_run_with_integer_sign_extensions() {
 
 #[test]
 fn wasm_trace_run_folding_proof() {
-    let (_, trace, ..) = compile_and_trace(
+    let (wasm, trace, ..) = compile_and_trace(
         r#"(module (func (export "main") (result i32)
              i32.const 7
              i32.const 9
              i32.add))"#,
     );
-    let prep = preprocess_seeded(&WasmVmSpec::default()).expect("prep");
+    let artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm).expect("program artifacts");
+    let digest = common::verifier_initial_state_digest(&artifacts);
+    let prep = preprocess_seeded_batched(&WasmVmSpec::default(), 1, digest).expect("prep");
     let proof = prove(&prep, &trace).expect("prove kernel run");
     verify(&prep, &proof).expect("verify kernel run");
 }
 
 #[test]
 fn wasm_verify_rejects_preprocessing_with_wrong_widths() {
-    let (_, trace, ..) = compile_and_trace(
+    let (wasm, trace, ..) = compile_and_trace(
         r#"(module (func (export "main") (result i32)
              i32.const 7
              i32.const 9
              i32.add))"#,
     );
-    let prep = preprocess_seeded(&WasmVmSpec::default()).expect("prep");
+    let artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm).expect("program artifacts");
+    let digest = common::verifier_initial_state_digest(&artifacts);
+    let prep = preprocess_seeded_batched(&WasmVmSpec::default(), 1, digest).expect("prep");
     let proof = prove(&prep, &trace).expect("prove with canonical prep");
 
-    let mut canonical = neo_wasm::preprocess::canonical_wasm_f_prime_shape(&WasmVmSpec::default()).expect("shape");
+    let mut canonical = canonical_wasm_f_prime_shape_batched_with_initial_state_digest(1, digest).expect("shape");
     canonical.plan.app_private_var_widths = vec![64; canonical.plan.app_private_var_widths.len()];
     canonical.plan.limbs = canonical.plan.app_private_var_widths.iter().sum::<usize>() + 1;
     let verifier_prep = r1cs_f_prime::preprocess_sparse_seeded_with_params(

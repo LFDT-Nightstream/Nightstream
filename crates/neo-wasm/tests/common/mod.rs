@@ -5,8 +5,9 @@ use neo_math::F;
 use neo_wasm::layout::COLUMN_SPECS;
 use neo_wasm::{
     build_wasm_lookup_binding_layout, collect_wasmtime_steps, extract_wasm_program_artifacts,
-    preload_from_program_artifacts, sanity_check_lookup_row, sanity_check_memory_rows, traces_from_wasmtime_steps,
-    witness_builder::build_witness_vector, WasmProgramArtifacts, WasmStepTrace, WasmVmSpec, WasmtimeTraceRun,
+    preload_from_program_artifacts, sanity_check_lookup_row, sanity_check_memory_rows, top_level_initial_state_digest,
+    traces_from_wasmtime_steps, witness_builder::build_witness_vector, WasmProgramArtifacts, WasmStepTrace, WasmVmSpec,
+    WasmtimeTraceRun,
 };
 
 pub struct CheckedWasmRun {
@@ -110,6 +111,28 @@ pub fn ccs_check_trace(trace: &[WasmStepTrace]) {
             );
         });
     }
+}
+
+pub fn verifier_initial_state_digest(artifacts: &WasmProgramArtifacts) -> [u8; 32] {
+    let entry_pc = single_function_entry_pc(artifacts);
+    top_level_initial_state_digest(&artifacts.tables, entry_pc)
+}
+
+pub fn single_function_entry_pc(artifacts: &WasmProgramArtifacts) -> u64 {
+    let mut entries = artifacts
+        .tables
+        .function_entries
+        .iter()
+        .map(|&(_, entry_pc)| entry_pc)
+        .collect::<Vec<_>>();
+    entries.sort_unstable();
+    entries.dedup();
+    assert_eq!(
+        entries.len(),
+        1,
+        "test helper can only infer the entry PC for single-entry wasm fixtures"
+    );
+    entries[0]
 }
 
 fn format_terms(terms: &[(usize, F)]) -> String {

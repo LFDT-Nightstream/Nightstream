@@ -1,7 +1,6 @@
 mod common;
 
-use neo_wasm::preprocess::preprocess_seeded_batched;
-use neo_wasm::{prove_batched, verify, WasmVmSpec};
+use neo_wasm::{preprocess_seeded_batched, prove_batched, verify, WasmVmSpec};
 use std::time::Instant;
 
 // Iterative fibonacci (do-while loop, valid for n >= 1).
@@ -46,13 +45,13 @@ fn wasm_fibonacci_sanity_roundtrip() {
 }
 
 #[test]
-#[ignore = "folding proof is currently too slow for the normal wasm test suite"]
 fn wasm_fibonacci_folding_proof_covers_control_flow() {
     let checked = common::checked_wasm_run(FIB_WAT, "main", &[3]);
     assert_eq!(checked.run.results.as_slice(), &["2".to_string()]);
 
     let batch_size = 20;
-    let prep = preprocess_seeded_batched(&WasmVmSpec::default(), batch_size).expect("prep");
+    let digest = common::verifier_initial_state_digest(&checked.artifacts);
+    let prep = preprocess_seeded_batched(&WasmVmSpec::default(), batch_size, digest).expect("prep");
     let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove fibonacci run");
     verify(&prep, &proof).expect("verify fibonacci run");
 }
@@ -65,7 +64,6 @@ fn wasm_fibonacci_folding_proof_covers_control_flow() {
 /// Cases beyond fib(5) need padding (their trace isn't a multiple of 9),
 /// which adds at most one extra padded fold.
 #[test]
-#[ignore = "folding proof; gated by the 5-min test cap"]
 fn wasm_fibonacci_folding_proof_batched() {
     // (fib_n, batch_size, expected fold count via div_ceil).
     let cases = [(5u32, 63usize, 1usize), (5, 21, 3), (5, 9, 7), (7, 9, 10)];
@@ -76,7 +74,8 @@ fn wasm_fibonacci_folding_proof_batched() {
         assert_eq!(trace_len.div_ceil(batch_size), expected_folds);
 
         let t0 = Instant::now();
-        let prep = preprocess_seeded_batched(&WasmVmSpec::default(), batch_size).expect("prep");
+        let digest = common::verifier_initial_state_digest(&checked.artifacts);
+        let prep = preprocess_seeded_batched(&WasmVmSpec::default(), batch_size, digest).expect("prep");
         let t_prep = t0.elapsed();
         let t0 = Instant::now();
         let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");

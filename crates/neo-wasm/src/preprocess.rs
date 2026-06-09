@@ -12,22 +12,35 @@
 //! compile and reading the `PostParentShapeMismatch` error — same fixed-point
 //! discovery used by the SHA-256 R1CS-F' plan.
 
+use crate::adapters::wasmtime::WasmProgramTables;
+use crate::batch::{self, BatchError};
+use crate::ccs::WasmVmSpec;
+use crate::ir::{WasmOutputState, WasmParamInitState, WasmStepState};
+use crate::layout::{
+    COL_CALL_STACK_DEPTH_BEFORE, COL_LOCALS_FBP_BEFORE, COL_MEMORY_PAGES_BEFORE, COL_OUTPUT_ENABLED_BEFORE,
+    COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_PARAM_INIT_ACTIVE_BEFORE,
+    COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_BEFORE, COL_SP_BEFORE, WITNESS_WIDTH,
+};
+use crate::lookup_binding_builder::build_wasm_lookup_binding_layout;
+use crate::lookup_binding_builder::Column;
 use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
 use neo_fold_clean::frontends::f_prime::image::{FPrimeImageLayout, NifsPayloadShape};
 use neo_fold_clean::frontends::f_prime::recursive_plan::{
-    build_recursive_step_image_config, AccumulatorPlanOptions, RecursiveStepImagePlan, StateXOutPlanOptions,
+    build_recursive_step_image_config, build_semantic_state_preimage_fields, AccumulatorPlanOptions,
+    RecursiveStepImagePlan, StateXOutPlanOptions,
 };
 use neo_fold_clean::frontends::f_prime::structure::FPrimeStructure;
 use neo_fold_clean::frontends::f_prime::NifsCeClaimShape;
 use neo_fold_clean::frontends::r1cs_f_prime::{
     self, build_r1cs_f_prime_structure, R1csFPrimePreprocessing, SparseR1cs,
 };
+use neo_fold_clean::paper::digest::digest_fields_as_digest32;
+use neo_fold_clean::paper::f_prime::poseidon_trace::encode_poseidon_trace;
 use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
 use neo_fold_clean::paper::params::Params;
+use neo_math::F;
 use neo_params::{goldilocks_paper_b2, NeoParams};
-
-use crate::batch::{self, BatchError};
-use crate::ccs::WasmVmSpec;
+use p3_field::PrimeCharacteristicRing;
 
 /// Test/demo Ajtai SRS seed. The Ajtai PP is shape-keyed in the global
 /// registry, so any consistent value across prover + verifier in the same
@@ -57,57 +70,46 @@ pub struct WasmCanonicalFPrimeShape {
     pub structure: FPrimeStructure,
 }
 
-/// Canonical wasm F' shape at `batch_size = 1`.
-///
-/// Thin wrapper over [`canonical_wasm_f_prime_shape_batched`] for callers
-/// that only care about the single-step shape. Internally, single-step
-/// and batched share the same construction path — at `batch_size = 1`
-/// the batched matrices reduce to the single-step matrices with no
-/// linking rows.
-pub fn canonical_wasm_f_prime_shape(vm: &WasmVmSpec) -> Result<WasmCanonicalFPrimeShape, WasmPreprocessError> {
-    canonical_wasm_f_prime_shape_batched(vm, 1)
-}
-
-/// Canonical wasm F' shape for a given batch size.
-///
-/// Block-diagonalises the wasm R1CS `batch_size` times and adds the
-/// cross-step linking rows from
-/// [`WasmLookupBindingLayout::cross_step_links`]. See
-/// [`crate::batch`] for the construction details.
-pub fn canonical_wasm_f_prime_shape_batched(
-    _vm: &WasmVmSpec,
+pub fn canonical_wasm_f_prime_shape_batched_with_initial_state_digest(
     batch_size: usize,
+    initial_semantic_state_digest: [u8; 32],
 ) -> Result<WasmCanonicalFPrimeShape, WasmPreprocessError> {
     let batched = batch::build_batched_wasm_ccs(batch_size)?;
-    let (plan, structure) =
-        wasm_recursive_plan_and_structure(&batched.sparse_r1cs, &batched.widths, batched.sparse_r1cs.m_in);
+    let mut sparse_r1cs = batched.sparse_r1cs;
+    sparse_r1cs.m_in = 1;
+    let (plan, structure) = wasm_recursive_plan_and_structure(
+        &sparse_r1cs,
+        &batched.widths,
+        batched.batch_size,
+        sparse_r1cs.m_in,
+        initial_semantic_state_digest,
+    );
     Ok(WasmCanonicalFPrimeShape {
-        sparse_r1cs: batched.sparse_r1cs,
+        sparse_r1cs,
         plan,
         structure,
     })
 }
 
-/// Build preprocessing for the wasm VM at `batch_size = 1`. Thin wrapper
-/// over [`preprocess_seeded_batched`].
-pub fn preprocess_seeded(vm: &WasmVmSpec) -> Result<R1csFPrimePreprocessing, WasmPreprocessError> {
-    preprocess_seeded_batched(vm, 1)
-}
-
-/// Build preprocessing for the wasm VM at an arbitrary `batch_size`.
+/// Build preprocessing with cross-batch VM-state continuity enabled.
 ///
-/// Tests can pick any `batch_size >= 1`; the resulting prep folds N
-/// wasm steps per F'-shell fold, amortising the per-fold cost (Poseidon
-/// traces, ring-action products, NIFS prover work) across the batch.
+/// The carried columns are derived from
+/// [`WasmLookupBindingLayout::cross_step_links`]: the first block's
+/// `*_before` columns are hashed as semantic input, and the last block's
+/// `*_after` columns are hashed as semantic output. `initial_state_digest`
+/// is verifier-owned: callers must derive or otherwise agree on it from
+/// authoritative initial VM state, not from prover-supplied proof material.
 pub fn preprocess_seeded_batched(
     vm: &WasmVmSpec,
     batch_size: usize,
+    initial_state_digest: [u8; 32],
 ) -> Result<R1csFPrimePreprocessing, WasmPreprocessError> {
+    let _ = vm;
     let WasmCanonicalFPrimeShape {
         sparse_r1cs,
         plan,
         structure: _,
-    } = canonical_wasm_f_prime_shape_batched(vm, batch_size)?;
+    } = canonical_wasm_f_prime_shape_batched_with_initial_state_digest(batch_size, initial_state_digest)?;
     let params = wasm_tiny_params();
     Ok(r1cs_f_prime::preprocess_sparse_seeded_with_params(
         &sparse_r1cs,
@@ -115,6 +117,66 @@ pub fn preprocess_seeded_batched(
         Params::test_only_from_neo_params(params),
         WASM_AJTAI_SEED,
     )?)
+}
+
+/// Top-level VM state before executing an exported wasm function.
+///
+/// The entry PC is an explicit verifier claim: callers should resolve it from
+/// the export they intend to prove. The remaining state is the canonical empty
+/// top-level call boundary plus the module's static initial memory page count.
+pub fn top_level_initial_state(tables: &WasmProgramTables, entry_pc: u64) -> WasmStepState {
+    WasmStepState {
+        pc: entry_pc,
+        sp: 0,
+        output: WasmOutputState::ZERO,
+        call_stack_depth: 0,
+        memory_pages: tables.initial_memory_pages,
+        locals_fbp: 0,
+        halted: false,
+        param_init: WasmParamInitState::ZERO,
+    }
+}
+
+/// Hash the verifier-owned initial VM state into the semantic-state digest
+/// expected by [`preprocess_seeded_batched`].
+pub fn initial_semantic_state_digest(initial_state: WasmStepState) -> [u8; 32] {
+    let layout = build_wasm_lookup_binding_layout();
+    let fields = layout
+        .cross_step_links
+        .iter()
+        .flat_map(|link| link.column_pairs.iter())
+        .map(|pair| initial_state_field(initial_state, pair.next_before))
+        .collect::<Vec<_>>();
+    digest_fields_as_digest32(encode_poseidon_trace(&build_semantic_state_preimage_fields(&fields)).digest_native)
+}
+
+/// Convenience wrapper for the common top-level export-entry boundary.
+pub fn top_level_initial_state_digest(tables: &WasmProgramTables, entry_pc: u64) -> [u8; 32] {
+    initial_semantic_state_digest(top_level_initial_state(tables, entry_pc))
+}
+
+fn initial_state_field(state: WasmStepState, column: Column) -> F {
+    match column.0 {
+        COL_PC_BEFORE => F::from_u64(state.pc),
+        COL_SP_BEFORE => F::from_u64(state.sp),
+        COL_OUTPUT_ENABLED_BEFORE => bool_field(state.output.enabled),
+        COL_OUTPUT_VALUE_LO_BEFORE => F::from_u64(u64::from(state.output.value_lo)),
+        COL_OUTPUT_VALUE_HI_BEFORE => F::from_u64(u64::from(state.output.value_hi)),
+        COL_CALL_STACK_DEPTH_BEFORE => F::from_u64(state.call_stack_depth),
+        COL_MEMORY_PAGES_BEFORE => F::from_u64(u64::from(state.memory_pages.unwrap_or(0))),
+        COL_LOCALS_FBP_BEFORE => F::from_u64(state.locals_fbp),
+        COL_PARAM_INIT_ACTIVE_BEFORE => bool_field(state.param_init.active),
+        COL_PARAM_INIT_REMAINING_BEFORE => F::from_u64(u64::from(state.param_init.remaining)),
+        other => panic!("unsupported initial semantic-state column {other}"),
+    }
+}
+
+fn bool_field(value: bool) -> F {
+    if value {
+        F::ONE
+    } else {
+        F::ZERO
+    }
 }
 
 /// Test-only `NeoParams` profile, mirroring `sha256_tiny_neo_params`.
@@ -163,7 +225,9 @@ fn wasm_tiny_params() -> NeoParams {
 fn wasm_recursive_plan_and_structure(
     sparse_r1cs: &SparseR1cs,
     app_private_var_widths: &[usize],
+    batch_size: usize,
     m_in: usize,
+    initial_semantic_state_digest: [u8; 32],
 ) -> (RecursiveStepImagePlan, FPrimeStructure) {
     // kappa * D for `wasm_tiny_params` = 2 * 54 = 108.
     const C_DATA_ENTRIES: usize = 108;
@@ -178,6 +242,7 @@ fn wasm_recursive_plan_and_structure(
     let limbs = app_private_var_widths.iter().sum::<usize>() + 1;
     let mut r_len = 8usize;
     let mut s_col_len = 8usize;
+    let semantic_state_indices = wasm_batch_semantic_state_indices(batch_size);
 
     for _ in 0..MAX_ITERATIONS {
         let ce_shape = NifsCeClaimShape {
@@ -215,14 +280,15 @@ fn wasm_recursive_plan_and_structure(
         let public_x_out_lane_bit_starts: [usize; 4] =
             std::array::from_fn(|i| probe_layout.boundary.offset + i * POSEIDON2_GOLDILOCKS_BITS);
         let mut plan = probe_plan;
+        let (semantic_state_in_var_indices, semantic_state_out_var_indices) = semantic_state_indices.clone();
         plan.state_x_out = Some(StateXOutPlanOptions {
             pc: 1,
             public_x_out_lane_bit_starts,
             app_public_input_var_indices: (0..m_in).collect(),
             app_public_input_bit_var_indices: Vec::new(),
-            semantic_state_in_var_indices: Vec::new(),
-            semantic_state_out_var_indices: Vec::new(),
-            initial_semantic_state_digest_anchor: None,
+            semantic_state_in_var_indices,
+            semantic_state_out_var_indices,
+            initial_semantic_state_digest_anchor: Some(initial_semantic_state_digest),
         });
 
         let layout = FPrimeImageLayout::new(build_recursive_step_image_config(&plan));
@@ -246,4 +312,21 @@ fn wasm_recursive_plan_and_structure(
 fn ceil_log2(n: usize) -> usize {
     assert!(n > 0, "ceil_log2 requires n >= 1");
     (usize::BITS - (n - 1).leading_zeros()) as usize
+}
+
+pub(crate) fn wasm_batch_semantic_state_indices(batch_size: usize) -> (Vec<usize>, Vec<usize>) {
+    assert!(batch_size >= 1, "batch_size must be at least 1");
+    let layout = build_wasm_lookup_binding_layout();
+    let mut input = Vec::new();
+    let mut output = Vec::new();
+    let last_block_offset = (batch_size - 1) * WITNESS_WIDTH;
+    for pair in layout
+        .cross_step_links
+        .iter()
+        .flat_map(|link| link.column_pairs.iter())
+    {
+        input.push(pair.next_before.0);
+        output.push(last_block_offset + pair.prev_after.0);
+    }
+    (input, output)
 }

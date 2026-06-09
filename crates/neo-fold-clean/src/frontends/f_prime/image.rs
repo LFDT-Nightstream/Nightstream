@@ -23,7 +23,7 @@
 
 use neo_math::ring::D;
 use neo_math::F;
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{Field, PrimeCharacteristicRing};
 
 use p3_field::PrimeField64;
 
@@ -46,11 +46,12 @@ const STATE_OUT_BITS: usize = 2 * POSEIDON2_GOLDILOCKS_BITS + 4 * DIGEST_BITS;
 
 /// chunk_digest chunk digest: one four-lane digest.
 const CHUNK_DIGEST_BITS: usize = DIGEST_BITS;
-/// Single committed bit marking whether this step is the base case
-/// (`is_base = 1`, no prior fold) or a recursive case (`is_base = 0`).
-/// Used by base-gated constraints, including the initial semantic-state
-/// anchor. Legacy accumulator-selector tests may also use it directly.
-const IS_BASE_BITS: usize = 1;
+/// Base-step control region:
+/// - lane 0: committed bit marking whether this step is the base case
+///   (`is_base = 1`, no prior fold) or a recursive case (`is_base = 0`);
+/// - lane 1: 64-bit inverse witness for `state_out.new_chunk_count - 1`,
+///   used to derive `is_base` from the counter inside the F' image relation.
+const IS_BASE_BITS: usize = 1 + POSEIDON2_GOLDILOCKS_BITS;
 
 /// kmul K-mul Karatsuba intermediate: 3 K-limbs × 2 lanes × 64 bits each.
 const KMUL_SLOT_BITS: usize = 3 * 2 * POSEIDON2_GOLDILOCKS_BITS;
@@ -523,15 +524,29 @@ impl FPrimeImage {
     pub fn new(layout: FPrimeImageLayout) -> Self {
         let mut values = vec![F::ZERO; layout.end];
         values[0] = F::ONE;
-        Self { layout, values }
+        let mut image = Self { layout, values };
+        image.refresh_is_base_inverse();
+        image
     }
 
-    /// Write the `is_base` bit (1 for base step, 0 for recursive). The
-    /// unified-accumulator selector reads this lane to pick which
-    /// accumulator Poseidon trace's digest enters
-    /// `state_out.new_acc_digest`.
+    /// Write the `is_base` bit (1 for base step, 0 for recursive) and
+    /// its counter zero-test inverse. The structure enforces
+    /// `is_base == 1` exactly when `state_out.new_chunk_count == 1`.
     pub fn fill_is_base(&mut self, is_base: bool) {
         self.values[self.layout.is_base.offset] = if is_base { F::ONE } else { F::ZERO };
+        self.refresh_is_base_inverse();
+    }
+
+    fn refresh_is_base_inverse(&mut self) {
+        if self.layout.is_base.bits > 1 {
+            let count_minus_one = F::from_u64(self.decode_state_out().new_chunk_count) - F::ONE;
+            let inv = if count_minus_one == F::ZERO {
+                0
+            } else {
+                count_minus_one.inverse().as_canonical_u64()
+            };
+            write_u64_bits(&mut self.values, self.layout.is_base.offset + 1, inv);
+        }
     }
 
     /// Read the `is_base` bit. Returns `true` if the step is the base
@@ -740,6 +755,7 @@ impl FPrimeImage {
             cursor += 4 * POSEIDON2_GOLDILOCKS_BITS;
         }
         debug_assert_eq!(cursor, self.layout.state_out.end());
+        self.refresh_is_base_inverse();
     }
 
     /// Bit-decompose the chunk_digest into chunk_digest.

@@ -1078,8 +1078,9 @@ impl ProofStateBinding for ProofState {
 
 // ── Chain-replay / audit verifier ─────────────────────────────────────────
 
-/// Diagnostic / chain-replay verifier — replays every step's NIFS.V on
-/// top of the terminal-fold check.
+/// Diagnostic / chain-replay verifier — replays every step's NIFS.V, checks
+/// the terminal fold, and discharges the final running accumulator's
+/// SuperNeo CE witness-authority obligations.
 ///
 /// **Not the production IVC verifier.** It does the same work as
 /// `paper::decider::validate_witness`, walking `audit.steps` and
@@ -1090,9 +1091,10 @@ impl ProofStateBinding for ProofState {
 /// Reach for `verify_uncompressed_audit` only when you need to detect
 /// tampers on the per-step audit trail (`steps`, `public_batches`,
 /// `final_fold.nifs`) that an attacker might attempt while leaving the
-/// final running accumulator self-consistent. Concretely that means:
-/// red-team tests for the audit trail, the Spartan compressed-decider
-/// preflight, and chain-replay debugging.
+/// final running accumulator self-consistent, or when you need the linear-cost
+/// verifier for multi-chunk audit artifacts. Concretely that means red-team
+/// tests for the audit trail, the Spartan compressed-decider preflight, and
+/// chain-replay debugging.
 pub fn verify_uncompressed_audit(prep: &Preprocessing, audit: &UncompressedAudit) -> Result<(), Error> {
     let statement = super::build_decider_statement(prep, audit);
     decider::validate_witness(
@@ -1110,5 +1112,13 @@ pub fn verify_uncompressed_audit(prep: &Preprocessing, audit: &UncompressedAudit
         prep.initial_semantic_state_digest(),
         &statement,
     )
-    .map_err(Error::from)
+    .map_err(Error::from)?;
+
+    let ProofState::Active { running, latest } = &audit.proof.state.proof else {
+        return Err(Error::PostStateMismatch);
+    };
+    if !latest.instances.is_empty() {
+        return Err(Error::PostStateMismatch);
+    }
+    check_running_witnesses_authority(prep, running)
 }

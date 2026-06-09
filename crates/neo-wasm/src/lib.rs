@@ -48,6 +48,9 @@ pub use lookup_binding_builder::{
 pub use lookup_semantics::{sanity_check_lookup_row, LookupBuiltin, LookupExpr, LookupPredicate, LookupSemantics};
 pub use lower::{build_row_traces, normalize_source, normalize_tracer, WasmExecutionStep, WasmTraceSource};
 pub use memory_semantics::{preload_from_program_artifacts, sanity_check_memory_rows, WasmMemoryPreload};
+pub use preprocess::{
+    initial_semantic_state_digest, preprocess_seeded_batched, top_level_initial_state, top_level_initial_state_digest,
+};
 pub use prove::{prove, prove_batched, verify, WasmProof, WasmProveError};
 pub use tables::{lookup_payload, WasmLookupArity, WasmLookupPayload};
 pub use tagged_r1cs_builder::{WasmConstraintCatalog, WasmConstraintScope, WasmConstraintTag};

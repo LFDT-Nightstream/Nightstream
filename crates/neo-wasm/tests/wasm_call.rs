@@ -328,21 +328,3 @@ fn final_halt_output_low_is_stack_memory_bound() {
         .expect("must reject output stack memory mismatch");
     assert!(err.contains("memory `stack`"), "unexpected error: {err}");
 }
-
-#[test]
-fn memory_semantics_rejects_missing_param_init_aux_row() {
-    let wasm = add_one_wasm();
-    let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
-    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
-    let mut trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
-
-    trace.retain(|row| row.row_kind != WasmRowKind::Aux(WasmAuxOpcode::CallParamInit));
-
-    let layout = build_wasm_lookup_binding_layout();
-    let witnesses = build_witnesses(&trace);
-    let preload = preload_from_program_artifacts(&artifacts, &run.initial_locals);
-    let err = sanity_check_memory_rows(layout, &witnesses, &preload)
-        .err()
-        .expect("must reject missing param-init aux row");
-    assert!(err.contains("param_init_continuity"), "unexpected error: {err}");
-}

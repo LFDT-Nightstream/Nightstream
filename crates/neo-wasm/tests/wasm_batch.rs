@@ -4,9 +4,9 @@
 
 mod common;
 
+use neo_fold_clean::frontends::r1cs_f_prime::{R1csChainBuilder, R1csCompilerError};
 use neo_math::F;
 use neo_wasm::batch::{batch_count, build_batched_wasm_ccs, build_batched_witness};
-use neo_wasm::preprocess::preprocess_seeded_batched;
 use neo_wasm::{prove_batched, verify, WasmStepTrace, WasmVmSpec};
 use p3_field::PrimeCharacteristicRing;
 
@@ -84,6 +84,19 @@ fn batched_witness_satisfies_batched_ccs_with_padding() {
 }
 
 #[test]
+fn initial_state_digest_covers_all_cross_step_inputs() {
+    let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main", &[]);
+    let entry_pc = common::single_function_entry_pc(&checked.artifacts);
+    let initial_state = neo_wasm::top_level_initial_state(&checked.artifacts.tables, entry_pc);
+
+    let digest = neo_wasm::initial_semantic_state_digest(initial_state);
+    assert_eq!(
+        digest,
+        neo_wasm::top_level_initial_state_digest(&checked.artifacts.tables, entry_pc)
+    );
+}
+
+#[test]
 fn cross_step_link_rejects_inconsistent_pc() {
     let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main", &[]);
     let batch_size = 2;
@@ -104,6 +117,25 @@ fn cross_step_link_rejects_inconsistent_pc() {
         .sparse_r1cs
         .is_satisfied_by(&witness)
         .expect_err("batched CCS must reject pc_after[0] != pc_before[1]");
+}
+
+#[test]
+fn cross_step_link_rejects_inconsistent_locals_fbp() {
+    let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main", &[]);
+    let batch_size = 2;
+    let batched = build_batched_wasm_ccs(batch_size).expect("batched");
+    let mut witness = build_batched_witness(&checked.trace, batch_size, 0);
+
+    let locals_fbp_after_col = {
+        let layout = neo_wasm::build_wasm_lookup_binding_layout();
+        layout.frame.locals_fbp_after.0
+    };
+    witness[locals_fbp_after_col] += F::ONE;
+
+    batched
+        .sparse_r1cs
+        .is_satisfied_by(&witness)
+        .expect_err("batched CCS must reject locals_fbp_after[0] != locals_fbp_before[1]");
 }
 
 #[test]
@@ -145,13 +177,41 @@ fn local_constant_link_rejects_non_one_constant() {
 }
 
 #[test]
+fn semantic_state_rejects_rewound_cross_batch_boundary() {
+    let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main", &[]);
+    let batch_size = 2;
+    assert!(
+        batch_count(checked.trace.len(), batch_size) >= 2,
+        "test needs at least two batches"
+    );
+    let digest = common::verifier_initial_state_digest(&checked.artifacts);
+    let prep = neo_wasm::preprocess_seeded_batched(&WasmVmSpec::default(), batch_size, digest).expect("prep");
+    let mut chain = R1csChainBuilder::new(&prep).expect("chain");
+
+    chain
+        .append_assignment(build_batched_witness(&checked.trace, batch_size, 0))
+        .expect("first batch");
+    let err = chain
+        .append_assignment(build_batched_witness(&checked.trace, batch_size, 0))
+        .expect_err("rewound second batch must not match the carried output state");
+
+    match err {
+        neo_fold_clean::frontends::r1cs_f_prime::Error::Compiler(R1csCompilerError::SemanticStateInputMismatch {
+            ..
+        }) => {}
+        other => panic!("expected SemanticStateInputMismatch, got {other:?}"),
+    }
+}
+
+#[test]
 #[ignore = "folding proof; gated by the 5-min test cap"]
 fn batched_prove_verify_simple_add() {
     let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main", &[]);
     // Cover both dividing (2, 4) and padding-required (3) sizes.
     for batch_size in [2usize, 3, 4] {
         let vm = WasmVmSpec::default();
-        let prep = preprocess_seeded_batched(&vm, batch_size).expect("prep");
+        let digest = common::verifier_initial_state_digest(&checked.artifacts);
+        let prep = neo_wasm::preprocess_seeded_batched(&vm, batch_size, digest).expect("prep");
         let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
         verify(&prep, &proof).expect("verify");
     }

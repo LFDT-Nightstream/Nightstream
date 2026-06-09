@@ -19,10 +19,9 @@ use neo_fold_clean::paper::digest::structure_digest;
 use neo_fold_clean::UncompressedAudit;
 
 use crate::batch;
-use crate::ccs::WasmVmSpec;
 use crate::ir::WasmStepTrace;
 use crate::layout::WITNESS_WIDTH;
-use crate::preprocess::canonical_wasm_f_prime_shape_batched;
+use crate::preprocess::canonical_wasm_f_prime_shape_batched_with_initial_state_digest;
 
 pub struct WasmProof {
     pub audit_run: UncompressedAudit,
@@ -89,24 +88,21 @@ pub fn prove_batched(
 /// Verify the IVC chain against `prep`.
 ///
 /// **Does not** bind the chain to a specific trace — that binding is the
-/// shout/twist layer's job (program ROM is a public input, the shout proof
+/// lookup layer's job (program ROM is a public input, the lookup proof
 /// indexes into it via the (pc, opcode) columns). Until that lands, callers
 /// must treat this as "the chain is *some* valid wasm execution under this
 /// preprocessing" rather than "the chain is the specific wasm execution for
 /// some intended trace".
 ///
-/// **Also does not enforce inter-batch state continuity.** Cross-step
-/// links pin `pc / sp / memory_pages / locals_fbp / param_init` equality
-/// *within* each batch (block `i`'s `_after` equals block `i+1`'s
-/// `_before`), but the boundary between batch `i`'s last block and
-/// batch `i+1`'s first block is not linked. A prover could submit a
-/// chain where batch `i+1` starts in arbitrary state, unrelated to
-/// batch `i`'s end. Until cross-batch linking lands, treat a
-/// multi-batch verified chain as "each batch is internally consistent"
-/// rather than "the batches compose into one continuous execution".
+/// Cross-batch state continuity is enforced when `prep` includes
+/// semantic-state in/out indices derived from the wasm cross-step spec and a
+/// verifier-owned initial semantic-state digest. `verify` checks the proof
+/// against that preprocessing; it does not derive the digest from a trace.
+/// The older shape-only preprocessing path does not install semantic-state
+/// in/out indices, so it remains useful for structural tests but should not be
+/// treated as a full execution-continuity proof for multi-batch traces.
 pub fn verify(prep: &R1csFPrimePreprocessing, proof: &WasmProof) -> Result<(), WasmProveError> {
-    let vm = WasmVmSpec::default();
-    validate_wasm_preprocessing(prep, &vm)?;
+    validate_wasm_preprocessing(prep)?;
     clean_verify_uncompressed_audit(&prep.prep, &proof.audit_run)
         .map_err(|err| WasmProveError::Bridge(format!("verify_uncompressed_audit: {err}")))?;
     Ok(())
@@ -119,7 +115,7 @@ pub fn verify(prep: &R1csFPrimePreprocessing, proof: &WasmProof) -> Result<(), W
 /// Batch-size aware: infers the prep's `batch_size` from its plan width-vector
 /// length (= `batch_size * single_step_witness_width`) and compares
 /// against `canonical_wasm_f_prime_shape_batched` at that size.
-fn validate_wasm_preprocessing(prep: &R1csFPrimePreprocessing, vm: &WasmVmSpec) -> Result<(), WasmProveError> {
+fn validate_wasm_preprocessing(prep: &R1csFPrimePreprocessing) -> Result<(), WasmProveError> {
     let prep_widths = &prep.plan().app_private_var_widths;
     if prep_widths.len() % WITNESS_WIDTH != 0 || prep_widths.is_empty() {
         return Err(WasmProveError::Bridge(format!(
@@ -129,8 +125,15 @@ fn validate_wasm_preprocessing(prep: &R1csFPrimePreprocessing, vm: &WasmVmSpec) 
         )));
     }
     let batch_size = prep_widths.len() / WITNESS_WIDTH;
-    let canonical = canonical_wasm_f_prime_shape_batched(vm, batch_size)
-        .map_err(|err| WasmProveError::Bridge(format!("canonical wasm F' shape: {err}")))?;
+    let initial_semantic_state_digest = prep
+        .plan()
+        .state_x_out
+        .as_ref()
+        .map(|_state_x_out| prep.prep.initial_semantic_state_digest())
+        .ok_or_else(|| WasmProveError::Bridge("wasm preprocessing is missing semantic-state carrying".into()))?;
+    let canonical =
+        canonical_wasm_f_prime_shape_batched_with_initial_state_digest(batch_size, initial_semantic_state_digest)
+            .map_err(|err| WasmProveError::Bridge(format!("canonical wasm F' shape: {err}")))?;
     if prep.plan().app_private_var_widths != canonical.plan.app_private_var_widths {
         return Err(WasmProveError::Bridge(
             "preprocessing widths do not match the canonical wasm column widths".into(),

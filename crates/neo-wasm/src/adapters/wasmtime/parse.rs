@@ -27,6 +27,10 @@ pub struct WasmProgramArtifacts {
 
 #[derive(Clone, Debug)]
 pub struct WasmProgramTables {
+    /// Initial page count for default linear memory 0, or `None` when the
+    /// module has no default memory. This seeds the VM boundary state; data
+    /// segment contents are tracked separately in `linear_memory_init`.
+    pub initial_memory_pages: Option<u32>,
     /// Static per-PC decode rows. These bind each real program row to the
     /// opcode and immediate-bearing witness columns that are derived from the
     /// wasm bytes. Non-applicable immediate slots are encoded as zero.
@@ -170,6 +174,7 @@ struct ParsedWasmArtifactsBuilder {
     signature_ids: BTreeMap<String, u32>,
     next_type_id: u32,
     defined_function_type_indices: Vec<u32>,
+    initial_memory_pages: Option<u32>,
     linear_memory_init: Vec<(u64, u8)>,
     globals_init: Vec<(u32, u32, u32)>,
     next_declared_global_index: u32,
@@ -194,6 +199,7 @@ impl Default for ParsedWasmArtifactsBuilder {
             signature_ids: BTreeMap::new(),
             next_type_id: 1,
             defined_function_type_indices: Vec::new(),
+            initial_memory_pages: None,
             linear_memory_init: Vec::new(),
             globals_init: Vec::new(),
             next_declared_global_index: 0,
@@ -285,6 +291,7 @@ impl ParsedWasmArtifactsBuilder {
         module_types.dedup();
         Ok(WasmProgramArtifacts {
             tables: WasmProgramTables {
+                initial_memory_pages: self.initial_memory_pages,
                 program_decode: self.program_decode,
                 pc_rom: self.pc_rom,
                 pc_edge_kinds: self.pc_edge_kinds,
@@ -336,6 +343,9 @@ impl ParsedWasmArtifactsBuilder {
                         // Imported globals occupy the leading global indexes.
                         self.next_declared_global_index = self.next_declared_global_index.saturating_add(1);
                     }
+                    if let wasmparser::TypeRef::Memory(memory) = import.ty {
+                        self.set_initial_memory_pages(memory)?;
+                    }
                     if let wasmparser::TypeRef::Func(raw_type_index) = import.ty {
                         let function_ref = self.imported_function_count.saturating_add(1);
                         self.imported_function_count = self.imported_function_count.saturating_add(1);
@@ -374,6 +384,13 @@ impl ParsedWasmArtifactsBuilder {
                         WasmBuildError::Trace(format!("failed to decode wasm function type index: {err}"))
                     })?;
                     self.defined_function_type_indices.push(raw_type_index);
+                }
+            }
+            Payload::MemorySection(reader) => {
+                for memory_result in reader {
+                    let memory = memory_result
+                        .map_err(|err| WasmBuildError::Trace(format!("failed to decode wasm memory: {err}")))?;
+                    self.set_initial_memory_pages(memory)?;
                 }
             }
             Payload::CodeSectionEntry(body) => {
@@ -760,6 +777,21 @@ impl ParsedWasmArtifactsBuilder {
             }
             _ => {}
         }
+        Ok(())
+    }
+
+    fn set_initial_memory_pages(&mut self, memory: wasmparser::MemoryType) -> Result<(), WasmBuildError> {
+        if memory.memory64 {
+            return Err(WasmBuildError::Unsupported(
+                "memory64 default memory is not supported by the wasm proof tables".to_string(),
+            ));
+        }
+        if self.initial_memory_pages.is_some() {
+            return Err(WasmBuildError::Unsupported(
+                "multiple memories are not supported by the wasm proof tables".to_string(),
+            ));
+        }
+        self.initial_memory_pages = Some(Self::narrow_u32(memory.initial, "memory.initial")?);
         Ok(())
     }
 }

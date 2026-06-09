@@ -211,7 +211,6 @@ pub fn sanity_check_memory_rows(
     preload: &WasmMemoryPreload,
 ) -> Result<(), String> {
     assert_all_memory_specs_have_init_modes(layout)?;
-    sanity_check_cross_step_links(layout, witness_rows)?;
     let mut state = preload.clone_cells();
     for (row_index, witness) in witness_rows.iter().enumerate() {
         if witness.len() != layout.witness_width {
@@ -224,33 +223,6 @@ pub fn sanity_check_memory_rows(
         }
         for memory in &layout.memories {
             apply_memory_row(memory, witness, row_index, &mut state)?;
-        }
-    }
-    Ok(())
-}
-
-fn sanity_check_cross_step_links(layout: &WasmLookupBindingLayout, witness_rows: &[Vec<F>]) -> Result<(), String> {
-    for (row_index, pair) in witness_rows.windows(2).enumerate() {
-        let prev = &pair[0];
-        let next = &pair[1];
-        for link in &layout.cross_step_links {
-            for column_pair in &link.column_pairs {
-                let prev_value = read_u32_column(prev, column_pair.prev_after.0, row_index, "cross-step prev_after")?;
-                let next_value =
-                    read_u32_column(next, column_pair.next_before.0, row_index + 1, "cross-step next_before")?;
-                if prev_value != next_value {
-                    return Err(format!(
-                        "cross-step link `{}` failed at rows {} -> {}: column {} value {} != column {} value {}",
-                        link.name,
-                        row_index,
-                        row_index + 1,
-                        column_pair.prev_after.0,
-                        prev_value,
-                        column_pair.next_before.0,
-                        next_value
-                    ));
-                }
-            }
         }
     }
     Ok(())

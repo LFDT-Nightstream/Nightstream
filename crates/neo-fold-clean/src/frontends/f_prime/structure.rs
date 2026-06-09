@@ -659,6 +659,7 @@ pub fn build_f_prime_structure(layout: FPrimeImageLayout) -> FPrimeStructure {
 
 fn estimated_shell_row_capacity(layout: &FPrimeImageLayout) -> usize {
     semantic_boolean_row_count(layout)
+        + 2
         + layout.config.ring_action_pair_count
             * (RING_ACTION_PRODUCT_LANES_PER_PAIR + RING_ACTION_OUTPUT_LANES_PER_PAIR)
         + (layout.config.one_shot_digest_to_state_in_bindings.len()
@@ -696,6 +697,8 @@ pub(crate) fn emit_shell_rows(
     builder: &mut MixedGateBuilder,
 ) {
     let semantic_boolean_count = semantic_boolean_row_count(layout);
+    let is_base_counter_link_count = 2;
+    let control_count = semantic_boolean_count + is_base_counter_link_count;
     let ring_action_product_count = layout.config.ring_action_pair_count * RING_ACTION_PRODUCT_LANES_PER_PAIR;
     let ring_action_output_count = layout.config.ring_action_pair_count * RING_ACTION_OUTPUT_LANES_PER_PAIR;
     let state_in_binding_count = layout.config.one_shot_digest_to_state_in_bindings.len() * POSEIDON2_DIGEST_LEN;
@@ -740,7 +743,7 @@ pub(crate) fn emit_shell_rows(
     } else {
         0
     };
-    let total_shell_rows = semantic_boolean_count
+    let total_shell_rows = control_count
         + ring_action_product_count
         + ring_action_output_count
         + state_in_binding_count
@@ -760,6 +763,28 @@ pub(crate) fn emit_shell_rows(
     }
     debug_assert_eq!(builder.rows() - base_row, semantic_boolean_count);
 
+    // ── Base selector ↔ counter link.
+    //
+    // The base branch selector is derived from the post-step counter,
+    // not trusted as prover advice. Base emits `new_chunk_count == 1`;
+    // every recursive step emits a larger counter. The adjacent 64-bit
+    // lane witnesses `1 / (new_chunk_count - 1)` on recursive steps.
+    let is_base_col = layout.is_base.offset;
+    let is_base_inv = LaneSlot {
+        bit_start: layout.is_base.offset + 1,
+    };
+    let new_chunk_count = lane_terms(lane_slots.state_lanes[STATE_IN_DIGEST_COUNT * 4]);
+    let count_minus_one: Vec<(usize, F)> = new_chunk_count
+        .chain(std::iter::once((0, F::ZERO - F::ONE)))
+        .collect();
+    builder.product(count_minus_one.clone(), vec![(is_base_col, F::ONE)], Vec::new());
+    builder.product(
+        count_minus_one,
+        lane_terms(is_base_inv),
+        vec![(0, F::ONE), (is_base_col, F::ZERO - F::ONE)],
+    );
+    debug_assert_eq!(builder.rows() - base_row, control_count);
+
     // ── Ring-action product rows: `(Σ 2^i · ρ_bits) · (Σ 2^i · c_bits) = (Σ 2^i · prod_bits)`.
     for pair_idx in 0..layout.config.ring_action_pair_count {
         let pair_base = pair_idx * RING_ACTION_LANES_PER_PAIR;
@@ -772,10 +797,7 @@ pub(crate) fn emit_shell_rows(
             }
         }
     }
-    debug_assert_eq!(
-        builder.rows() - base_row,
-        semantic_boolean_count + ring_action_product_count
-    );
+    debug_assert_eq!(builder.rows() - base_row, control_count + ring_action_product_count);
 
     // ── Ring-action output rows: `Σ 2^i · out_m_bits = Σ Φ[i+j][m] · (Σ 2^i · prod_ij_bits)`.
     for pair_idx in 0..layout.config.ring_action_pair_count {
@@ -797,7 +819,7 @@ pub(crate) fn emit_shell_rows(
     }
     debug_assert_eq!(
         builder.rows() - base_row,
-        semantic_boolean_count + ring_action_product_count + ring_action_output_count
+        control_count + ring_action_product_count + ring_action_output_count
     );
 
     // ── Trace digest ↔ state-in digest binding rows.
@@ -813,7 +835,7 @@ pub(crate) fn emit_shell_rows(
     }
     debug_assert_eq!(
         builder.rows() - base_row,
-        semantic_boolean_count + ring_action_product_count + ring_action_output_count + state_in_binding_count
+        control_count + ring_action_product_count + ring_action_output_count + state_in_binding_count
     );
 
     // ── Trace digest ↔ state-out digest binding rows.
@@ -832,7 +854,7 @@ pub(crate) fn emit_shell_rows(
     }
     debug_assert_eq!(
         builder.rows() - base_row,
-        semantic_boolean_count
+        control_count
             + ring_action_product_count
             + ring_action_output_count
             + state_in_binding_count
@@ -851,7 +873,7 @@ pub(crate) fn emit_shell_rows(
     }
     debug_assert_eq!(
         builder.rows() - base_row,
-        semantic_boolean_count
+        control_count
             + ring_action_product_count
             + ring_action_output_count
             + state_in_binding_count
@@ -876,7 +898,7 @@ pub(crate) fn emit_shell_rows(
     }
     debug_assert_eq!(
         builder.rows() - base_row,
-        semantic_boolean_count
+        control_count
             + ring_action_product_count
             + ring_action_output_count
             + state_in_binding_count
@@ -910,7 +932,7 @@ pub(crate) fn emit_shell_rows(
     }
     debug_assert_eq!(
         builder.rows() - base_row,
-        semantic_boolean_count
+        control_count
             + ring_action_product_count
             + ring_action_output_count
             + state_in_binding_count
@@ -937,7 +959,7 @@ pub(crate) fn emit_shell_rows(
     }
     debug_assert_eq!(
         builder.rows() - base_row,
-        semantic_boolean_count
+        control_count
             + ring_action_product_count
             + ring_action_output_count
             + state_in_binding_count
@@ -965,7 +987,7 @@ pub(crate) fn emit_shell_rows(
     }
     debug_assert_eq!(
         builder.rows() - base_row,
-        semantic_boolean_count
+        control_count
             + ring_action_product_count
             + ring_action_output_count
             + state_in_binding_count

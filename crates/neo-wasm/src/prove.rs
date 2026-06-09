@@ -14,9 +14,9 @@
 //! [`sanity_check_memory_rows`]: crate::sanity_check_memory_rows
 
 use neo_fold_clean::frontends::r1cs_f_prime::{R1csChainBuilder, R1csFPrimePreprocessing};
-use neo_fold_clean::lifecycle::verify_uncompressed as clean_verify_uncompressed;
+use neo_fold_clean::lifecycle::verify_uncompressed_audit as clean_verify_uncompressed_audit;
 use neo_fold_clean::paper::digest::structure_digest;
-use neo_fold_clean::Uncompressed;
+use neo_fold_clean::UncompressedAudit;
 
 use crate::batch;
 use crate::ccs::WasmVmSpec;
@@ -25,7 +25,7 @@ use crate::layout::WITNESS_WIDTH;
 use crate::preprocess::canonical_wasm_f_prime_shape_batched;
 
 pub struct WasmProof {
-    pub main_run: Uncompressed,
+    pub audit_run: UncompressedAudit,
 }
 
 #[derive(Debug)]
@@ -79,11 +79,11 @@ pub fn prove_batched(
             .append_assignment(assignment)
             .map_err(|err| WasmProveError::Bridge(format!("append_assignment: {err}")))?;
     }
-    let main_run = chain
-        .finish()
+    let audit_run = chain
+        .finish_with_audit()
         .map_err(|err| WasmProveError::Bridge(format!("finish: {err}")))?;
 
-    Ok(WasmProof { main_run })
+    Ok(WasmProof { audit_run })
 }
 
 /// Verify the IVC chain against `prep`.
@@ -107,8 +107,8 @@ pub fn prove_batched(
 pub fn verify(prep: &R1csFPrimePreprocessing, proof: &WasmProof) -> Result<(), WasmProveError> {
     let vm = WasmVmSpec::default();
     validate_wasm_preprocessing(prep, &vm)?;
-    clean_verify_uncompressed(&prep.prep, &proof.main_run)
-        .map_err(|err| WasmProveError::Bridge(format!("verify_uncompressed: {err}")))?;
+    clean_verify_uncompressed_audit(&prep.prep, &proof.audit_run)
+        .map_err(|err| WasmProveError::Bridge(format!("verify_uncompressed_audit: {err}")))?;
     Ok(())
 }
 

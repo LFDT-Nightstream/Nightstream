@@ -75,19 +75,13 @@
 
 ## Perf & Constraint Debugging
 
-Use these commands based on what you are measuring. `NS_DEBUG_N` is the number of VM instructions plus halt.
+Use these commands based on what you are measuring. All perf snapshots are `--ignored` by default.
 
 | Question | Command |
 |---|---|
-| How many constraints/aux variables are handed to Spartan before compression? | `NS_DEBUG_N=10 cargo run -p neo-fold-prototype --bin rv64im_main_recursion_shape_probe` |
-| How expensive is no-Spartan IVC append/build work? | `NS_DEBUG_N=5 cargo test -p neo-fold-prototype --release --test perf_rv64im_no_spartan -- --ignored --nocapture rv64im_mixed_opcode_no_spartan_ivc_perf_snapshot` |
-| What does final Spartan compression + verify cost for a live RV64IM IVC artifact? | `NS_DEBUG_N=2 cargo test -p neo-fold-prototype --release --test perf_rv64im_with_spartan rv64im_ivc_product_surface_with_spartan_compress_and_verify_snapshot -- --ignored --exact --nocapture` |
-| Need the broad architecture report across main CCS, bus, Route-A claims, openings, and timing? | `NS_DEBUG_N=10000 cargo test -p neo-fold-prototype --release --test perf_rv64im_with_spartan -- --ignored --nocapture rv64im_mixed_opcode_perf_snapshot` |
-
-For product-surface compression chunk sizing, append either `-- --chunk-size 2` or `-- --rows-per-chunk 2` after the libtest args:
-```bash
-NS_DEBUG_N=5 cargo test -p neo-fold-prototype --release --test perf_rv64im_with_spartan rv64im_ivc_product_surface_with_spartan_compress_and_verify_snapshot -- --ignored --exact --nocapture -- --chunk-size 2
-```
+| How expensive is lifecycle fold/IVC append work for an F′ chain? | `cargo test -p neo-fold-clean --release --test perf_fibonacci_bits -- --ignored --nocapture fibonacci_bits_perf_snapshot` |
+| What R1CS shape does the full-history audit circuit hand to the decider? | `cargo test -p neo-fold-clean --release --test perf_fibonacci_bits -- --ignored --nocapture fibonacci_decider_r1cs_shape_snapshot` (chain length via `NEO_FOLD_FIB_DECIDER_VALUES`) |
+| How do low-norm ring-action encodings compare in committed width/rows? | `cargo test -p neo-fold-clean --release --test perf_ring_action_low_norm_prototype -- --nocapture` |
 
 ## Profiling
 

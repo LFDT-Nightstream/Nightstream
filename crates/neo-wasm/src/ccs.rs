@@ -364,38 +364,14 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         );
     });
 
+    // Spec-derived from `WasmOpTable::all()` so the gate cannot drift
+    // from the set of op-table-routed opcodes.
     b.push_linear_zero(
-        [
-            (idx(op_table.enabled), F::ONE),
-            (selector_for_lookup(WasmOpcode::I32Clz), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I32Ctz), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I32LtS), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I32LtU), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I32GtS), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I32GtU), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I32LeS), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I32LeU), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I32GeS), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I32GeU), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I32And), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I32Or), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I32Xor), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I32Mul), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I64And), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I64Or), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I64Xor), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I64Mul), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I32Shl), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I32ShrU), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I32ShrS), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I32Rotl), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I32Rotr), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I32DivU), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I32DivS), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I32RemU), -F::ONE),
-            (selector_for_lookup(WasmOpcode::I32RemS), -F::ONE),
-        ]
-        .into_iter(),
+        core::iter::once((idx(op_table.enabled), F::ONE)).chain(
+            WasmOpTable::all()
+                .into_iter()
+                .map(|op| (selector_for_op_table(op), -F::ONE)),
+        ),
     );
 
     let stack_write0_at_sp_before_ops = opcodes_with_stack_signature(0, 1);
@@ -523,7 +499,7 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
     });
 
     b.with_tag(always("op_table constraints"), |b| {
-        push_op_table_constraints(b, &stack, &op_table);
+        push_shout_constraints(b, &stack, &op_table);
     });
     let (structure, constraint_catalog) = b.build()?;
 
@@ -1011,7 +987,7 @@ fn push_comparator_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns)
     );
 }
 
-fn push_op_table_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns, op_table: &OpTableColumns) {
+fn push_shout_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns, op_table: &OpTableColumns) {
     b.push_row(
         WasmOpTable::all()
             .into_iter()
@@ -1061,5 +1037,26 @@ fn selector_for_op_table(op: WasmOpTable) -> usize {
         WasmOpTable::I32DivS => WasmOpcode::I32DivS,
         WasmOpTable::I32RemU => WasmOpcode::I32RemU,
         WasmOpTable::I32RemS => WasmOpcode::I32RemS,
+        WasmOpTable::I32Popcnt => WasmOpcode::I32Popcnt,
+        WasmOpTable::I64LtS => WasmOpcode::I64LtS,
+        WasmOpTable::I64LtU => WasmOpcode::I64LtU,
+        WasmOpTable::I64GtS => WasmOpcode::I64GtS,
+        WasmOpTable::I64GtU => WasmOpcode::I64GtU,
+        WasmOpTable::I64LeS => WasmOpcode::I64LeS,
+        WasmOpTable::I64LeU => WasmOpcode::I64LeU,
+        WasmOpTable::I64GeS => WasmOpcode::I64GeS,
+        WasmOpTable::I64GeU => WasmOpcode::I64GeU,
+        WasmOpTable::I64Shl => WasmOpcode::I64Shl,
+        WasmOpTable::I64ShrS => WasmOpcode::I64ShrS,
+        WasmOpTable::I64ShrU => WasmOpcode::I64ShrU,
+        WasmOpTable::I64Rotl => WasmOpcode::I64Rotl,
+        WasmOpTable::I64Rotr => WasmOpcode::I64Rotr,
+        WasmOpTable::I64DivS => WasmOpcode::I64DivS,
+        WasmOpTable::I64DivU => WasmOpcode::I64DivU,
+        WasmOpTable::I64RemS => WasmOpcode::I64RemS,
+        WasmOpTable::I64RemU => WasmOpcode::I64RemU,
+        WasmOpTable::I64Clz => WasmOpcode::I64Clz,
+        WasmOpTable::I64Ctz => WasmOpcode::I64Ctz,
+        WasmOpTable::I64Popcnt => WasmOpcode::I64Popcnt,
     })
 }

@@ -643,10 +643,9 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
             let family = WasmLookupFamilySpec {
                 name: op_table.name(),
                 arity: match op_table {
-                    WasmOpTable::I32Clz | WasmOpTable::I32Ctz => WasmLookupArity::Unary,
-                    WasmOpTable::I64And | WasmOpTable::I64Or | WasmOpTable::I64Xor | WasmOpTable::I64Mul => {
-                        WasmLookupArity::Tuple(4)
-                    }
+                    WasmOpTable::I32Clz | WasmOpTable::I32Ctz | WasmOpTable::I32Popcnt => WasmLookupArity::Unary,
+                    op if op.is_i64_binary() => WasmLookupArity::Tuple(4),
+                    op if op.is_i64_unary() => WasmLookupArity::Tuple(2),
                     _ => WasmLookupArity::Binary,
                 },
                 kind: WasmLookupFamilyKind::OpTable(op_table),
@@ -680,12 +679,19 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
             name: table.name(),
             family: table.name(),
             columns: match table {
-                WasmOpTable::I64And | WasmOpTable::I64Or | WasmOpTable::I64Xor | WasmOpTable::I64Mul => vec![
+                op if op.is_i64_binary() => vec![
                     op_table.id,
                     stack.read0_value_lo,
                     stack.read0_value_hi,
                     stack.read1_value_lo,
                     stack.read1_value_hi,
+                    stack.write0_value_lo,
+                    stack.write0_value_hi,
+                ],
+                op if op.is_i64_unary() => vec![
+                    op_table.id,
+                    stack.read0_value_lo,
+                    stack.read0_value_hi,
                     stack.write0_value_lo,
                     stack.write0_value_hi,
                 ],

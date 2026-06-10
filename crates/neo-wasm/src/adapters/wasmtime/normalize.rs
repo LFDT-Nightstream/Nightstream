@@ -825,6 +825,18 @@ fn write_lane_hi(
         | WasmOpcode::I64Or
         | WasmOpcode::I64Xor
         | WasmOpcode::I64Mul
+        | WasmOpcode::I64Shl
+        | WasmOpcode::I64ShrS
+        | WasmOpcode::I64ShrU
+        | WasmOpcode::I64Rotl
+        | WasmOpcode::I64Rotr
+        | WasmOpcode::I64DivS
+        | WasmOpcode::I64DivU
+        | WasmOpcode::I64RemS
+        | WasmOpcode::I64RemU
+        | WasmOpcode::I64Clz
+        | WasmOpcode::I64Ctz
+        | WasmOpcode::I64Popcnt
         // Signed subword/word loads sign-extend into the hi limb; wasmtime's
         // post-state operand_stack_hi already holds the replicated sign bits.
         | WasmOpcode::I64Load8S

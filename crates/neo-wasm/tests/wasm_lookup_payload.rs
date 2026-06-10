@@ -212,3 +212,27 @@ fn i64_binary_lookup_payload_uses_four_inputs_and_two_outputs() {
     assert_eq!(payload.inputs, vec![3, 1, 5, 2]);
     assert_eq!(payload.outputs, vec![15, 7]);
 }
+
+#[test]
+fn i64_unary_lookup_payload_uses_two_inputs_and_two_outputs() {
+    // Distinct lo/hi limb values so a swapped limb order cannot pass.
+    let cases = [
+        // clz(0x1_0000_1234) = 31
+        (WasmOpcode::I64Clz, WasmOpTable::I64Clz, (0x1234, 1), (31, 0)),
+        // ctz(0x10_0000_0000) = 36
+        (WasmOpcode::I64Ctz, WasmOpTable::I64Ctz, (0, 0x10), (36, 0)),
+        // popcnt(0xF_0000_F0F0) = 12
+        (WasmOpcode::I64Popcnt, WasmOpTable::I64Popcnt, (0xF0F0, 0xF), (12, 0)),
+    ];
+    for (opcode, op_table, (in_lo, in_hi), (out_lo, out_hi)) in cases {
+        let mut trace = step(opcode, in_lo, None, out_lo);
+        trace.wide_values_enabled = true;
+        trace.stack_read0 = Some(StackValueAccess::with_hi(0, in_lo, in_hi));
+        trace.stack_write0 = Some(StackValueAccess::with_hi(0, out_lo, out_hi));
+        let payload = lookup_payload(&trace).expect("payload");
+        assert_eq!(payload.arity, neo_wasm::WasmLookupArity::Tuple(2));
+        assert_eq!(payload.op_table_id, op_table.op_table_id());
+        assert_eq!(payload.inputs, vec![in_lo, in_hi]);
+        assert_eq!(payload.outputs, vec![out_lo, out_hi]);
+    }
+}

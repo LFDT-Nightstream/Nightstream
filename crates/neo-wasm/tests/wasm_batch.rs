@@ -204,6 +204,34 @@ fn semantic_state_rejects_rewound_cross_batch_boundary() {
 }
 
 #[test]
+fn semantic_state_rejects_wrong_initial_state_digest() {
+    let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main", &[]);
+    let batch_size = 2;
+    let mut digest = common::verifier_initial_state_digest(&checked.artifacts);
+    digest[0] ^= 0xA5;
+    let prep = neo_wasm::preprocess_seeded_batched(&WasmVmSpec::default(), batch_size, digest).expect("prep");
+    let mut chain = R1csChainBuilder::new(&prep).expect("chain");
+    let witness = build_batched_witness(&checked.trace, batch_size, 0);
+
+    // The base-step path panics (rather than returning Err) when the
+    // trace-derived `_before` digest disagrees with the verifier-baked
+    // anchor; match on the encoder's structure-violation message so an
+    // unrelated panic upstream of the digest check can't masquerade as
+    // a successful rejection.
+    let panic_payload = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| chain.append_assignment(witness)))
+        .expect_err("wrong verifier-owned initial state digest must reject the first batch");
+    let panic_msg = panic_payload
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+        .unwrap_or("<non-string panic>");
+    assert!(
+        panic_msg.contains("encoded R1CS F' step must satisfy its structure"),
+        "expected encoder structure-violation panic, got: {panic_msg}"
+    );
+}
+
+#[test]
 #[ignore = "folding proof; gated by the 5-min test cap"]
 fn batched_prove_verify_simple_add() {
     let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main", &[]);

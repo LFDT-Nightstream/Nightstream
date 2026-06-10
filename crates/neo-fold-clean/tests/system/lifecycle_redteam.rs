@@ -366,6 +366,73 @@ fn final_witness_authority_rejects_y_zcol_inconsistent_with_z_at_s_col() {
     );
 }
 
+/// Pins the self-guard of the hoisted NC-channel χ(s_col) tensor.
+///
+/// Hacker model: in a multi-claim running accumulator where every Π_DEC
+/// child shares `s_col`, relabel ONE claim's `s_col` (keeping its length
+/// and its `y_zcol` — which stays consistent with the *shared* point).
+/// A verifier that reuses the hoisted shared tensor without checking the
+/// claim's own `s_col` would accept; the correct check evaluates
+/// `Z · χ(claim.s_col)` against the mutated point and rejects.
+#[test]
+fn final_witness_authority_rejects_relabel_of_one_claims_s_col() {
+    let prep = support::toy_preprocessing();
+    // The shared `toy_instance` is the all-zero assignment, whose DEC
+    // children all carry y_zcol = 0 — useless here, because a zero
+    // claim's NC relation holds at every point. The toy structure's
+    // empty `f` accepts any low-norm z, so use a nonzero one.
+    let nonzero_z = vec![F::ONE; prep.structure().m];
+    let instance =
+        neo_fold_clean::CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &nonzero_z, 1)
+            .expect("nonzero low-norm toy instance");
+    let proof = neo_fold_clean::prove(&prep, vec![vec![instance]]).expect("one-batch uncompressed proof");
+    let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
+    let mut running = match &finished.state.proof {
+        ProofState::Active { running, .. } => running.clone(),
+        ProofState::Initial => panic!("finalized must be Active"),
+    };
+
+    assert!(
+        running.claims.len() > 1,
+        "test setup requires multiple shared-point claims (got {})",
+        running.claims.len()
+    );
+    // The tampered claim must NOT be the one the hoist sources χ from
+    // (the first claim with a non-empty s_col): tampering the source
+    // would be rejected even by a guardless hoist. The toy fold's DEC
+    // children put all content in digit 0, so swap claims[0] ↔ [1]
+    // (with their witnesses, preserving claim↔witness pairing); the
+    // hoist then sources the shared point from the zero claim while the
+    // nonzero claim sits at index 1.
+    assert!(
+        running.claims[0]
+            .y_zcol
+            .iter()
+            .any(|&v| v != neo_math::K::ZERO),
+        "test setup requires a nonzero NC channel on the first DEC child"
+    );
+    running.claims.swap(0, 1);
+    running.witnesses.swap(0, 1);
+    let tampered = 1usize;
+    assert!(
+        !running.claims[tampered].s_col.is_empty(),
+        "test setup requires a carried NC channel"
+    );
+    let original = running.claims[tampered].s_col[0];
+    running.claims[tampered].s_col[0] = original + neo_math::K::ONE;
+    assert_ne!(
+        running.claims[tampered].s_col[0], original,
+        "mutation must change s_col"
+    );
+
+    let err = neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &running)
+        .expect_err("a claim whose s_col diverges from the shared point must be re-checked against its own point");
+    assert!(
+        matches!(err, neo_fold_clean::Error::FinalAccumulatorNcChannelMismatch { .. }),
+        "expected FinalAccumulatorNcChannelMismatch, got {err:?}"
+    );
+}
+
 /// Unsupported accumulator sidecars are digest-bound public claim fields, but
 /// this clean SplitNc/SuperNeo path does not implement their algebra. A
 /// terminal authority check must reject them rather than accept CE-valid

@@ -601,6 +601,20 @@ fn check_running_witnesses_authority(prep: &Preprocessing, running: &RunningInst
         {
             let t_forms = std::time::Instant::now();
             let forms = build_ring_linear_forms_for_r(prep, superneo_cache, first_r);
+            // Hoist the NC-channel χ(s_col) tensor: every Π_DEC child of one
+            // fold carries the same `s_col`, so the tensor is shared. Each
+            // claim still uses it only after a bit-identical `s_col` match
+            // (see `check_nc_channel_relation`), so a heterogeneous claim
+            // falls back to its own tensor and the checked relation is
+            // unchanged.
+            let shared_nc = running
+                .claims
+                .iter()
+                .find(|claim| !claim.s_col.is_empty())
+                .map(|claim| SharedNcChi {
+                    s_col: claim.s_col.clone(),
+                    chi_s: tensor_point_parallel::<K>(&claim.s_col),
+                });
             perf.add_forms(t_forms.elapsed());
             let results: Vec<Result<(), Error>> = running
                 .claims
@@ -620,6 +634,7 @@ fn check_running_witnesses_authority(prep: &Preprocessing, running: &RunningInst
                         expected_r_len,
                         ell_d,
                         &forms,
+                        shared_nc.as_ref(),
                         &perf,
                     )
                 })
@@ -654,6 +669,7 @@ fn check_running_witnesses_authority(prep: &Preprocessing, running: &RunningInst
             expected_r_len,
             ell_d,
             forms,
+            None,
             &perf,
         )?;
     }
@@ -734,6 +750,15 @@ fn commit_running_witnesses(
     opened
 }
 
+/// NC-channel evaluation point and its tensor, hoisted once per shared
+/// `s_col`. Consumers must use `chi_s` only for claims whose `s_col`
+/// equals `s_col` bit-for-bit.
+struct SharedNcChi {
+    s_col: Vec<K>,
+    chi_s: Vec<K>,
+}
+
+#[allow(clippy::too_many_arguments)]
 fn check_running_claim_authority(
     prep: &Preprocessing,
     index: usize,
@@ -744,6 +769,7 @@ fn check_running_claim_authority(
     expected_r_len: usize,
     ell_d: usize,
     ring_linear_forms: &[SuperneoRingLinearForm],
+    shared_nc: Option<&SharedNcChi>,
     perf: &WitnessAuthorityPerf,
 ) -> Result<(), Error> {
     check_claim_commitment_shape(prep, index, claim)?;
@@ -766,7 +792,7 @@ fn check_running_claim_authority(
         }
         let t_ce = std::time::Instant::now();
         let result = check_zero_ce_relation(index, claim, ring_linear_forms.len(), 1usize << ell_d)
-            .and_then(|()| check_nc_channel_relation(prep, index, claim, witness, ell_d));
+            .and_then(|()| check_nc_channel_relation(prep, index, claim, witness, ell_d, shared_nc));
         perf.add_ce(t_ce.elapsed());
         return result;
     }
@@ -785,7 +811,7 @@ fn check_running_claim_authority(
         });
     }
     let t_ce = std::time::Instant::now();
-    let result = check_ce_relation(prep, index, claim, witness, ell_d, ring_linear_forms);
+    let result = check_ce_relation(prep, index, claim, witness, ell_d, ring_linear_forms, shared_nc);
     perf.add_ce(t_ce.elapsed());
     result
 }
@@ -914,6 +940,7 @@ fn check_ce_relation(
     witness: &WitnessMat,
     ell_d: usize,
     ring_linear_forms: &[SuperneoRingLinearForm],
+    shared_nc: Option<&SharedNcChi>,
 ) -> Result<(), Error> {
     // ── y_ring closure ────────────────────────────────────────────────
     if ring_linear_forms.len() != claim.y_ring.len() {
@@ -960,7 +987,7 @@ fn check_ce_relation(
             return Err(Error::FinalAccumulatorCtMismatch { index, matrix_index });
         }
     }
-    check_nc_channel_relation(prep, index, claim, witness, ell_d)?;
+    check_nc_channel_relation(prep, index, claim, witness, ell_d, shared_nc)?;
     Ok(())
 }
 
@@ -970,6 +997,7 @@ fn check_nc_channel_relation(
     claim: &CeClaim,
     witness: &WitnessMat,
     ell_d: usize,
+    shared_nc: Option<&SharedNcChi>,
 ) -> Result<(), Error> {
     let has_nc_channel = !(claim.s_col.is_empty() && claim.y_zcol.is_empty());
     if !has_nc_channel {
@@ -985,8 +1013,19 @@ fn check_nc_channel_relation(
     if claim.s_col.len() != expected_s_len || claim.y_zcol.len() != d_pad {
         return Err(Error::FinalAccumulatorNcChannelMismatch { index });
     }
-    let chi_s = tensor_point_parallel::<K>(&claim.s_col);
-    let expected = compute_y_zcol_from_witness(prep.params.inner(), witness, prep.structure().m, &chi_s, d_pad)
+    // The hoisted tensor is only a cache: it is used iff this claim's
+    // `s_col` is bit-identical to the point it was built from, so the
+    // relation checked below is exactly `y_zcol == Z · χ(claim.s_col)`
+    // either way.
+    let chi_owned;
+    let chi_s: &[K] = match shared_nc {
+        Some(shared) if shared.s_col == claim.s_col => &shared.chi_s,
+        _ => {
+            chi_owned = tensor_point_parallel::<K>(&claim.s_col);
+            &chi_owned
+        }
+    };
+    let expected = compute_y_zcol_from_witness(prep.params.inner(), witness, prep.structure().m, chi_s, d_pad)
         .map_err(|_| Error::FinalAccumulatorNcChannelMismatch { index })?;
     if expected != claim.y_zcol {
         return Err(Error::FinalAccumulatorNcChannelMismatch { index });

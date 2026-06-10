@@ -8,7 +8,7 @@
 //! constraints (the wasm CCS), but does *not* bind the ROM/memory/lookup
 //! semantics — those rely on debug checkers ([`sanity_check_lookup_row`],
 //! [`sanity_check_memory_rows`]) today and will move under a lookup
-//! argument when the shout/twist layer lands.
+//! argument when the lookup/memory-argument layer lands.
 //!
 //! [`sanity_check_lookup_row`]: crate::sanity_check_lookup_row
 //! [`sanity_check_memory_rows`]: crate::sanity_check_memory_rows

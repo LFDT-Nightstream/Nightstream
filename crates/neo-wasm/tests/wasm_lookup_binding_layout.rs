@@ -13,13 +13,15 @@ fn layout_describes_lookup_families_and_memory_bindings() {
     let bounds_family = family_named(&layout.lookup_families, "linear_memory_bounds");
     assert!(matches!(bounds_family.kind, WasmLookupFamilyKind::LinearMemoryBounds));
 
-    let shout_bindings: Vec<_> = layout
+    let op_table_bindings: Vec<_> = layout
         .lookup_bindings
         .iter()
-        .filter(|binding| binding.role == "shout row binding")
+        .filter(|binding| binding.role == "op-table row binding")
         .collect();
-    assert!(!shout_bindings.is_empty());
-    assert!(shout_bindings.iter().all(|binding| binding.gate.is_some()));
+    assert!(!op_table_bindings.is_empty());
+    assert!(op_table_bindings
+        .iter()
+        .all(|binding| binding.gate.is_some()));
 
     let bounds_binding = layout
         .lookup_bindings

@@ -20,20 +20,20 @@ impl WasmLookupArity {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WasmLookupPayload {
     pub arity: WasmLookupArity,
-    pub shout_id: u32,
+    pub op_table_id: u32,
     pub inputs: Vec<u32>,
     pub outputs: Vec<u32>,
 }
 
 pub fn lookup_payload(trace: &WasmStepTrace) -> Option<WasmLookupPayload> {
-    let shout = trace.info.shout_opcode?;
-    Some(match shout {
-        super::isa::WasmShoutOpcode::I64And
-        | super::isa::WasmShoutOpcode::I64Or
-        | super::isa::WasmShoutOpcode::I64Xor
-        | super::isa::WasmShoutOpcode::I64Mul => WasmLookupPayload {
+    let op_table = trace.info.op_table?;
+    Some(match op_table {
+        super::isa::WasmOpTable::I64And
+        | super::isa::WasmOpTable::I64Or
+        | super::isa::WasmOpTable::I64Xor
+        | super::isa::WasmOpTable::I64Mul => WasmLookupPayload {
             arity: WasmLookupArity::Tuple(4),
-            shout_id: shout.to_shout_id(),
+            op_table_id: op_table.op_table_id(),
             inputs: vec![
                 trace.stack_read0.map(|lane| lane.value_lo).unwrap_or(0),
                 trace
@@ -57,13 +57,13 @@ pub fn lookup_payload(trace: &WasmStepTrace) -> Option<WasmLookupPayload> {
         _ => match trace.info.stack_reads {
             1 => WasmLookupPayload {
                 arity: WasmLookupArity::Unary,
-                shout_id: shout.to_shout_id(),
+                op_table_id: op_table.op_table_id(),
                 inputs: vec![trace.stack_read0.map(|lane| lane.value_lo).unwrap_or(0)],
                 outputs: vec![trace.stack_write0.map(|lane| lane.value_lo).unwrap_or(0)],
             },
             2 => WasmLookupPayload {
                 arity: WasmLookupArity::Binary,
-                shout_id: shout.to_shout_id(),
+                op_table_id: op_table.op_table_id(),
                 inputs: vec![
                     trace.stack_read0.map(|lane| lane.value_lo).unwrap_or(0),
                     trace.stack_read1.map(|lane| lane.value_lo).unwrap_or(0),

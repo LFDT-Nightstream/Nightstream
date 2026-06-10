@@ -241,7 +241,7 @@ define_columns!(
         "stack lane 0 write activity flag",
         ColumnWidth::Boolean
     ),
-    (COL_SHOUT_ENABLED, "lookup gate", ColumnWidth::Boolean),
+    (COL_OP_TABLE_ENABLED, "lookup gate", ColumnWidth::Boolean),
     (COL_SEL_NOP, "", ColumnWidth::Boolean),
     (COL_SEL_I32_CONST, "", ColumnWidth::Boolean),
     (COL_SEL_I64_CONST, "", ColumnWidth::Boolean),
@@ -582,8 +582,8 @@ define_columns!(
         COL_LINEAR_MEM_LANE2_VALUE,
         "linear-memory third word-lane accessed value"
     ),
-    (COL_SHOUT_ID, "lookup table row selector", ColumnWidth::U32),
-    (COL_SHOUT_VALUE, "lookup payload witness"),
+    (COL_OP_TABLE_ID, "lookup table row selector", ColumnWidth::U32),
+    (COL_OP_TABLE_VALUE, "lookup payload witness"),
     // `COL_SELECT_COND_IS_ZERO` is forced to {0, 1} by the zero-test rows
     // emitted by `add_conditional_select_gadget`. Declared `Boolean` so the
     // spec reflects its actual range; whichever path eventually enforces

@@ -28,7 +28,7 @@ pub use parse::{WasmProgramArtifacts, WasmProgramDecodeEntry, WasmProgramTables}
 
 #[derive(Clone, Debug, Eq, PartialEq, Default)]
 pub struct WasmtimeTraceStep {
-    /// The cycle for twist and shout
+    /// The cycle for memory and op-table lookups
     pub step: u64,
     pub frame_depth: usize,
     pub function: String,

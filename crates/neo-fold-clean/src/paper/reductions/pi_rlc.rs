@@ -19,8 +19,8 @@
 //! ## Why `combined` is on the wire
 //!
 //! In principle the verifier can recompute `combined = Σ ρ_i · u_i` from
-//! public-coin ρ and the K+k Π_CCS outputs. We mirror `neo-fold-prototype`'s
-//! contract and have the prover send its parent: the verifier *checks* the
+//! public-coin ρ and the K+k Π_CCS outputs. Instead the prover sends its
+//! parent: the verifier *checks* the
 //! recomputation matches before feeding Π_DEC. Why not just recompute and
 //! drop the field?
 //!

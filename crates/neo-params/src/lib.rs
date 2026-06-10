@@ -221,7 +221,7 @@ impl NeoParams {
     ///   - set ℓ = ceil(log2(d * padded_rows))   // d = φ(η) from the preset
     ///   - use SuperNeo D.4's
     ///     ε_SC + ε_SZ numerator:
-    ///       max(u, 2b + 1, 2)·ℓ + (2K + k)·max(ℓ, ktd)
+    ///     max(u, 2b + 1, 2)·ℓ + (2K + k)·max(ℓ, ktd)
     ///     with u=2, t=3, and conservative K=max fresh count allowed by the
     ///     Appendix B.2 RLC guard,
     ///   - keep s=2 (policy v1), and search the largest λ ≤ preset λ with ≥ `safety_margin` slack.

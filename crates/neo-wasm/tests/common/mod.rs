@@ -135,6 +135,16 @@ pub fn single_function_entry_pc(artifacts: &WasmProgramArtifacts) -> u64 {
     entries[0]
 }
 
+pub fn entry_pc_for_function_ref(artifacts: &WasmProgramArtifacts, function_ref: u64) -> u64 {
+    artifacts
+        .tables
+        .function_entries
+        .iter()
+        .find(|&&(fref, _)| fref == function_ref)
+        .map(|&(_, pc)| pc)
+        .unwrap_or_else(|| panic!("function_ref {function_ref} not in function_entries"))
+}
+
 fn format_terms(terms: &[(usize, F)]) -> String {
     terms
         .iter()

@@ -52,6 +52,6 @@ pub use preprocess::{
     initial_semantic_state_digest, preprocess_seeded_batched, top_level_initial_state, top_level_initial_state_digest,
 };
 pub use prove::{prove, prove_batched, verify, WasmProof, WasmProveError};
-pub use tables::{lookup_payload, WasmLookupArity, WasmLookupPayload};
+pub use tables::WasmLookupArity;
 pub use tagged_r1cs_builder::{WasmConstraintCatalog, WasmConstraintScope, WasmConstraintTag};
 pub use witness_builder::{build_steps, build_witness_vector};

@@ -1,5 +1,5 @@
 use neo_math::F;
-use neo_wasm::layout::{COL_MEMORY_PAGES_BEFORE, COL_STACK_WRITE0_VALUE_LO};
+use neo_wasm::layout::{COL_MEMORY_PAGES_BEFORE, COL_STACK_READ0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO};
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{
     build_wasm_lookup_binding_layout, sanity_check_lookup_row, traces_from_wasmtime_wasm_bytes, WasmOpcode,
@@ -21,6 +21,13 @@ fn trace_rows() -> Vec<neo_wasm::WasmStepTrace> {
                 i64.const 3
                 i64.const 5
                 i64.mul
+                drop
+                i64.const 0x100000001
+                i64.clz
+                drop
+                i64.const -2
+                i64.const 1
+                i64.lt_s
                 drop
                 i32.const 0
                 i32.load)
@@ -51,6 +58,32 @@ fn lookup_semantics_reject_tampered_shout_output() {
     witness[COL_STACK_WRITE0_VALUE_LO] = F::from_u64(1234);
     let err = sanity_check_lookup_row(layout, &witness).expect_err("tampered op_table output should fail");
     assert!(err.contains("i32_mul"));
+}
+
+#[test]
+fn lookup_semantics_reject_tampered_i64_unary_input_hi() {
+    let layout = build_wasm_lookup_binding_layout();
+    let row = trace_rows()
+        .into_iter()
+        .find(|row| row.opcode == WasmOpcode::I64Clz)
+        .expect("i64.clz row");
+    let mut witness = build_witness_vector(&row);
+    witness[COL_STACK_READ0_VALUE_HI] = F::from_u64(2);
+    let err = sanity_check_lookup_row(layout, &witness).expect_err("tampered i64 unary input should fail");
+    assert!(err.contains("i64_clz"));
+}
+
+#[test]
+fn lookup_semantics_reject_tampered_i64_binary_input_hi() {
+    let layout = build_wasm_lookup_binding_layout();
+    let row = trace_rows()
+        .into_iter()
+        .find(|row| row.opcode == WasmOpcode::I64LtS)
+        .expect("i64.lt_s row");
+    let mut witness = build_witness_vector(&row);
+    witness[COL_STACK_READ0_VALUE_HI] = F::ZERO;
+    let err = sanity_check_lookup_row(layout, &witness).expect_err("tampered i64 binary input should fail");
+    assert!(err.contains("i64_lt_s"));
 }
 
 #[test]

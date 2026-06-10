@@ -28,6 +28,11 @@ const KMUL_SLOT_BITS: usize = KMUL_LANES_PER_SLOT * POSEIDON2_GOLDILOCKS_BITS;
 const RING_ACTION_LANES_PER_PAIR: usize = 3 * D + D * D;
 const RING_ACTION_PRODUCT_LANES_PER_PAIR: usize = D * D;
 const RING_ACTION_OUTPUT_LANES_PER_PAIR: usize = D;
+/// Rows linking the base selector to the outgoing chunk counter:
+/// `(new_chunk_count - 1) · is_base = 0` and
+/// `(new_chunk_count - 1) · inv = 1 - is_base`. Emitted directly after
+/// the semantic Boolean block.
+const IS_BASE_COUNTER_LINK_ROWS: usize = 2;
 
 /// kmul K-mul invocations per F' recursive step. Pinned by the Phase 1.3d
 /// coverage gate's measurement of the actual `enforce_k_mul_with_intermediates`
@@ -659,7 +664,7 @@ pub fn build_f_prime_structure(layout: FPrimeImageLayout) -> FPrimeStructure {
 
 fn estimated_shell_row_capacity(layout: &FPrimeImageLayout) -> usize {
     semantic_boolean_row_count(layout)
-        + 2
+        + IS_BASE_COUNTER_LINK_ROWS
         + layout.config.ring_action_pair_count
             * (RING_ACTION_PRODUCT_LANES_PER_PAIR + RING_ACTION_OUTPUT_LANES_PER_PAIR)
         + (layout.config.one_shot_digest_to_state_in_bindings.len()
@@ -697,8 +702,7 @@ pub(crate) fn emit_shell_rows(
     builder: &mut MixedGateBuilder,
 ) {
     let semantic_boolean_count = semantic_boolean_row_count(layout);
-    let is_base_counter_link_count = 2;
-    let control_count = semantic_boolean_count + is_base_counter_link_count;
+    let control_count = semantic_boolean_count + IS_BASE_COUNTER_LINK_ROWS;
     let ring_action_product_count = layout.config.ring_action_pair_count * RING_ACTION_PRODUCT_LANES_PER_PAIR;
     let ring_action_output_count = layout.config.ring_action_pair_count * RING_ACTION_OUTPUT_LANES_PER_PAIR;
     let state_in_binding_count = layout.config.one_shot_digest_to_state_in_bindings.len() * POSEIDON2_DIGEST_LEN;
@@ -1299,6 +1303,12 @@ impl FPrimeStructure {
         semantic_boolean_row_count(&self.layout)
     }
 
+    /// Number of rows deriving `is_base` from `state_out.new_chunk_count`
+    /// (emitted directly after the semantic Boolean block).
+    pub fn is_base_counter_link_row_count(&self) -> usize {
+        IS_BASE_COUNTER_LINK_ROWS
+    }
+
     /// Row index for the ring_action constraint `ρ[i] · c[j] = prod[i][j]`.
     pub fn ring_action_product_row(&self, pair_idx: usize, i: usize, j: usize) -> usize {
         assert!(
@@ -1312,9 +1322,10 @@ impl FPrimeStructure {
     }
 
     /// First row of the ring_action product-constraint block. Rows preceding it
-    /// are the explicit semantic Boolean rows.
+    /// are the explicit semantic Boolean rows plus the base-selector ↔
+    /// counter link rows.
     pub fn ring_action_product_row_start(&self) -> usize {
-        self.semantic_boolean_row_count()
+        self.semantic_boolean_row_count() + IS_BASE_COUNTER_LINK_ROWS
     }
 
     /// Row index for the ring_action constraint

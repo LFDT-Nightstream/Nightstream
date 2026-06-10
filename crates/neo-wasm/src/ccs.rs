@@ -11,14 +11,11 @@ mod call;
 mod linear_memory;
 mod stack_io;
 
-use super::gadgets::{
-    add_conditional_select_gadget, push_gated_linear_zero, push_u32_le_bytes_decomp, push_zero_test_gadget,
-    ConditionalSelectCols,
-};
+use super::gadgets::{push_gated_linear_zero, push_u32_le_bytes_decomp, push_zero_test_gadget};
 use super::isa::{opcode_code, opcode_info_from_code, WasmOpTable, WasmOpcode};
 use super::layout::{
-    selector_col, COL_ONE, COL_PC_EDGE_KIND, COL_SELECT_OUT_DELTA, COL_WIDE_AUX0, COL_WIDE_AUX1, PUBLIC_INPUTS,
-    SELECTOR_COLS, WITNESS_WIDTH,
+    selector_col, COL_ONE, COL_PC_EDGE_KIND, COL_SELECT_OUT_DELTA_HI, COL_SELECT_OUT_DELTA_LO, COL_WIDE_AUX0,
+    COL_WIDE_AUX1, PUBLIC_INPUTS, SELECTOR_COLS, WITNESS_WIDTH,
 };
 use super::lookup_binding_builder::{
     build_wasm_lookup_binding_layout, Column, ControlColumns, OpTableColumns, OperandStackColumns,
@@ -429,7 +426,6 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         },
     );
 
-    let sel_select = selector_col(WasmOpcode::Select).unwrap();
     b.with_tag(opcode_tag("select stack addrs", WasmOpcode::Select), |b| {
         push_select_stack_addrs(b, &state, &stack);
     });
@@ -482,20 +478,8 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         push_comparator_constraints(b, &stack);
     });
     linear_memory::push_linear_memory_constraints(&mut b, &stack, &linear_memory, &layout.sign_extension);
-    b.with_tag(opcode_tag("select conditional gadget", WasmOpcode::Select), |b| {
-        add_conditional_select_gadget(
-            b,
-            ConditionalSelectCols {
-                selector: sel_select,
-                cond: idx(stack.read2_value_lo),
-                lhs: idx(stack.read0_value_lo),
-                rhs: idx(stack.read1_value_lo),
-                out: idx(stack.write0_value_lo),
-                scratch_out_delta: COL_SELECT_OUT_DELTA,
-                scratch_inverse: COL_SELECT_SCRATCH_INV,
-                cond_is_zero: COL_SELECT_COND_IS_ZERO,
-            },
-        )
+    b.with_tag(opcode_tag("select conditional mux", WasmOpcode::Select), |b| {
+        push_select_constraints(b, &stack);
     });
 
     b.with_tag(always("op_table constraints"), |b| {
@@ -614,6 +598,49 @@ fn push_select_stack_addrs(b: &mut R1csBuilder, state: &StateColumns, stack: &Op
             (COL_ONE, f_u64(6)),
         ],
     );
+}
+
+/// `selector · (out − (cond != 0 ? lhs : rhs)) = 0` for both value limbs,
+/// where cond is the i32 at stack read2 and lhs/rhs are reads 0/1.
+///
+/// The zero-test and delta rows are intentionally global: the witness builder
+/// populates `COL_SELECT_COND_IS_ZERO`, `COL_SELECT_SCRATCH_INV`, and both
+/// delta columns on every row.
+fn push_select_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns) {
+    let selector = selector_col(WasmOpcode::Select).unwrap();
+    push_zero_test_gadget(
+        b,
+        idx(stack.read2_value_lo),
+        COL_SELECT_SCRATCH_INV,
+        COL_SELECT_COND_IS_ZERO,
+    );
+    push_select_mux_limb(
+        b,
+        selector,
+        idx(stack.read0_value_lo),
+        idx(stack.read1_value_lo),
+        idx(stack.write0_value_lo),
+        COL_SELECT_OUT_DELTA_LO,
+    );
+    push_select_mux_limb(
+        b,
+        selector,
+        idx(stack.read0_value_hi),
+        idx(stack.read1_value_hi),
+        idx(stack.write0_value_hi),
+        COL_SELECT_OUT_DELTA_HI,
+    );
+}
+
+fn push_select_mux_limb(b: &mut R1csBuilder, selector: usize, lhs: usize, rhs: usize, out: usize, delta: usize) {
+    // delta = (cond != 0) · (lhs − rhs)
+    b.push_row(
+        [(COL_ONE, F::ONE), (COL_SELECT_COND_IS_ZERO, -F::ONE)],
+        [(lhs, F::ONE), (rhs, -F::ONE)],
+        [(delta, F::ONE)],
+    );
+    // selector · ((out − rhs) − delta) = 0
+    push_gated_linear_zero(b, selector, [(out, F::ONE), (rhs, -F::ONE), (delta, -F::ONE)]);
 }
 
 fn push_stack_read0_addr_sp_minus_2(

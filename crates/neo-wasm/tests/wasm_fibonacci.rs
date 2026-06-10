@@ -1,6 +1,6 @@
 mod common;
 
-use neo_wasm::{preprocess_seeded_batched, prove_batched, verify, WasmVmSpec};
+use neo_wasm::{preprocess_seeded_batched, prove_batched, verify};
 use std::time::Instant;
 
 // Iterative fibonacci (do-while loop, valid for n >= 1).
@@ -51,7 +51,7 @@ fn wasm_fibonacci_folding_proof_covers_control_flow() {
 
     let batch_size = 20;
     let digest = common::verifier_initial_state_digest(&checked.artifacts);
-    let prep = preprocess_seeded_batched(&WasmVmSpec::default(), batch_size, digest).expect("prep");
+    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
     let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove fibonacci run");
     verify(&prep, &proof).expect("verify fibonacci run");
 }
@@ -75,7 +75,7 @@ fn wasm_fibonacci_folding_proof_batched() {
 
         let t0 = Instant::now();
         let digest = common::verifier_initial_state_digest(&checked.artifacts);
-        let prep = preprocess_seeded_batched(&WasmVmSpec::default(), batch_size, digest).expect("prep");
+        let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
         let t_prep = t0.elapsed();
         let t0 = Instant::now();
         let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");

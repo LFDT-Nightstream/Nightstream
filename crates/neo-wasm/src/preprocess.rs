@@ -14,7 +14,6 @@
 
 use crate::adapters::wasmtime::WasmProgramTables;
 use crate::batch::{self, BatchError};
-use crate::ccs::WasmVmSpec;
 use crate::ir::{WasmOutputState, WasmParamInitState, WasmStepState};
 use crate::layout::{
     COL_CALL_STACK_DEPTH_BEFORE, COL_LOCALS_FBP_BEFORE, COL_MEMORY_PAGES_BEFORE, COL_OUTPUT_ENABLED_BEFORE,
@@ -100,11 +99,9 @@ pub fn canonical_wasm_f_prime_shape_batched_with_initial_state_digest(
 /// is verifier-owned: callers must derive or otherwise agree on it from
 /// authoritative initial VM state, not from prover-supplied proof material.
 pub fn preprocess_seeded_batched(
-    vm: &WasmVmSpec,
     batch_size: usize,
     initial_state_digest: [u8; 32],
 ) -> Result<R1csFPrimePreprocessing, WasmPreprocessError> {
-    let _ = vm;
     let WasmCanonicalFPrimeShape {
         sparse_r1cs,
         plan,

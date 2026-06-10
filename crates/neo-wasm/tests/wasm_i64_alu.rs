@@ -84,6 +84,22 @@ fn i64_shift_count_is_masked_mod_64() {
 }
 
 #[test]
+fn i64_select_preserves_selected_high_limb() {
+    let checked = common::checked_main(
+        r#"(module
+            (func (export "main") (result i32)
+                i64.const 0x200000007
+                i64.const 0x300000009
+                i32.const 1
+                select
+                i64.const 32
+                i64.shr_u
+                i32.wrap_i64))"#,
+    );
+    assert_eq!(checked.run.results.as_slice(), &["2".to_string()]);
+}
+
+#[test]
 fn i64_div_and_rem_signed_unsigned() {
     let checked = common::checked_main(
         r#"(module

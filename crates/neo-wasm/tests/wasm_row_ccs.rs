@@ -1414,3 +1414,26 @@ fn select_row_rejects_nonzero_condition_with_rhs_output() {
     ));
     assert_rejected(&row, "select row with nonzero condition and rhs output");
 }
+
+#[test]
+fn i64_select_row_rejects_tampered_high_output() {
+    let wasm = wat::parse_str(
+        r#"(module
+            (func (export "run") (result i64)
+                i64.const 0x20000000b
+                i64.const 0x300000016
+                i32.const 2
+                select))"#,
+    )
+    .expect("wat");
+    let trace = traces_from_wasmtime_wasm_bytes(&wasm, "run").expect("normalize");
+    let select = trace
+        .iter()
+        .find(|row| row.opcode == WasmOpcode::Select)
+        .expect("i64 select row");
+    assert_eq!(select.stack_write0.and_then(|lane| lane.value_hi), Some(2));
+    let mut witness = build_witness_vector(select);
+    assert_satisfied(&witness, "i64 select row with nonzero condition");
+    witness[COL_STACK_WRITE0_VALUE_HI] = F::ZERO;
+    assert_rejected(&witness, "i64 select row with tampered high output");
+}

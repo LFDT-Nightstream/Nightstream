@@ -185,7 +185,7 @@ fn semantic_state_rejects_rewound_cross_batch_boundary() {
         "test needs at least two batches"
     );
     let digest = common::verifier_initial_state_digest(&checked.artifacts);
-    let prep = neo_wasm::preprocess_seeded_batched(&WasmVmSpec::default(), batch_size, digest).expect("prep");
+    let prep = neo_wasm::preprocess_seeded_batched(batch_size, digest).expect("prep");
     let mut chain = R1csChainBuilder::new(&prep).expect("chain");
 
     chain
@@ -209,7 +209,7 @@ fn semantic_state_rejects_wrong_initial_state_digest() {
     let batch_size = 2;
     let mut digest = common::verifier_initial_state_digest(&checked.artifacts);
     digest[0] ^= 0xA5;
-    let prep = neo_wasm::preprocess_seeded_batched(&WasmVmSpec::default(), batch_size, digest).expect("prep");
+    let prep = neo_wasm::preprocess_seeded_batched(batch_size, digest).expect("prep");
     let mut chain = R1csChainBuilder::new(&prep).expect("chain");
     let witness = build_batched_witness(&checked.trace, batch_size, 0);
 
@@ -237,9 +237,8 @@ fn batched_prove_verify_simple_add() {
     let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main", &[]);
     // Cover both dividing (2, 4) and padding-required (3) sizes.
     for batch_size in [2usize, 3, 4] {
-        let vm = WasmVmSpec::default();
         let digest = common::verifier_initial_state_digest(&checked.artifacts);
-        let prep = neo_wasm::preprocess_seeded_batched(&vm, batch_size, digest).expect("prep");
+        let prep = neo_wasm::preprocess_seeded_batched(batch_size, digest).expect("prep");
         let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
         verify(&prep, &proof).expect("verify");
     }

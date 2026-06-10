@@ -61,10 +61,31 @@ pub enum WasmOpTable {
     I32DivS,
     I32RemU,
     I32RemS,
+    I32Popcnt,
+    I64LtS,
+    I64LtU,
+    I64GtS,
+    I64GtU,
+    I64LeS,
+    I64LeU,
+    I64GeS,
+    I64GeU,
+    I64Shl,
+    I64ShrS,
+    I64ShrU,
+    I64Rotl,
+    I64Rotr,
+    I64DivS,
+    I64DivU,
+    I64RemS,
+    I64RemU,
+    I64Clz,
+    I64Ctz,
+    I64Popcnt,
 }
 
 impl WasmOpTable {
-    pub fn all() -> [Self; 27] {
+    pub fn all() -> [Self; 48] {
         [
             Self::I32Clz,
             Self::I32Ctz,
@@ -93,6 +114,27 @@ impl WasmOpTable {
             Self::I32DivS,
             Self::I32RemU,
             Self::I32RemS,
+            Self::I32Popcnt,
+            Self::I64LtS,
+            Self::I64LtU,
+            Self::I64GtS,
+            Self::I64GtU,
+            Self::I64LeS,
+            Self::I64LeU,
+            Self::I64GeS,
+            Self::I64GeU,
+            Self::I64Shl,
+            Self::I64ShrS,
+            Self::I64ShrU,
+            Self::I64Rotl,
+            Self::I64Rotr,
+            Self::I64DivS,
+            Self::I64DivU,
+            Self::I64RemS,
+            Self::I64RemU,
+            Self::I64Clz,
+            Self::I64Ctz,
+            Self::I64Popcnt,
         ]
     }
 
@@ -125,7 +167,64 @@ impl WasmOpTable {
             Self::I32DivS => "i32_div_s",
             Self::I32RemU => "i32_rem_u",
             Self::I32RemS => "i32_rem_s",
+            Self::I32Popcnt => "i32_popcnt",
+            Self::I64LtS => "i64_lt_s",
+            Self::I64LtU => "i64_lt_u",
+            Self::I64GtS => "i64_gt_s",
+            Self::I64GtU => "i64_gt_u",
+            Self::I64LeS => "i64_le_s",
+            Self::I64LeU => "i64_le_u",
+            Self::I64GeS => "i64_ge_s",
+            Self::I64GeU => "i64_ge_u",
+            Self::I64Shl => "i64_shl",
+            Self::I64ShrS => "i64_shr_s",
+            Self::I64ShrU => "i64_shr_u",
+            Self::I64Rotl => "i64_rotl",
+            Self::I64Rotr => "i64_rotr",
+            Self::I64DivS => "i64_div_s",
+            Self::I64DivU => "i64_div_u",
+            Self::I64RemS => "i64_rem_s",
+            Self::I64RemU => "i64_rem_u",
+            Self::I64Clz => "i64_clz",
+            Self::I64Ctz => "i64_ctz",
+            Self::I64Popcnt => "i64_popcnt",
         }
+    }
+
+    /// True for op-table families whose two operands and result are 64-bit
+    /// values carried as lo/hi limb pairs in the binding columns
+    /// (`[id, r0_lo, r0_hi, r1_lo, r1_hi, w0_lo, w0_hi]`).
+    pub fn is_i64_binary(self) -> bool {
+        matches!(
+            self,
+            Self::I64And
+                | Self::I64Or
+                | Self::I64Xor
+                | Self::I64Mul
+                | Self::I64LtS
+                | Self::I64LtU
+                | Self::I64GtS
+                | Self::I64GtU
+                | Self::I64LeS
+                | Self::I64LeU
+                | Self::I64GeS
+                | Self::I64GeU
+                | Self::I64Shl
+                | Self::I64ShrS
+                | Self::I64ShrU
+                | Self::I64Rotl
+                | Self::I64Rotr
+                | Self::I64DivS
+                | Self::I64DivU
+                | Self::I64RemS
+                | Self::I64RemU
+        )
+    }
+
+    /// True for op-table families with one 64-bit operand and a 64-bit
+    /// result (`[id, r0_lo, r0_hi, w0_lo, w0_hi]` binding columns).
+    pub fn is_i64_unary(self) -> bool {
+        matches!(self, Self::I64Clz | Self::I64Ctz | Self::I64Popcnt)
     }
 
     pub fn op_table_id(self) -> u32 {
@@ -158,6 +257,27 @@ impl WasmOpTable {
             Self::I32DivS => 28,
             Self::I32RemU => 29,
             Self::I32RemS => 30,
+            Self::I64LtS => 38,
+            Self::I64LtU => 39,
+            Self::I64GtS => 40,
+            Self::I64GtU => 41,
+            Self::I64LeS => 42,
+            Self::I64LeU => 43,
+            Self::I64GeS => 44,
+            Self::I64GeU => 45,
+            Self::I64Shl => 46,
+            Self::I64ShrS => 47,
+            Self::I64ShrU => 48,
+            Self::I64Rotl => 49,
+            Self::I64Rotr => 50,
+            Self::I64DivS => 51,
+            Self::I64DivU => 52,
+            Self::I64RemS => 53,
+            Self::I64RemU => 54,
+            Self::I64Clz => 55,
+            Self::I64Ctz => 56,
+            Self::I64Popcnt => 57,
+            Self::I32Popcnt => 58,
         };
         BASE + offset
     }
@@ -247,6 +367,26 @@ pub enum WasmOpcode {
     I32DivS,
     I32RemU,
     I32RemS,
+    I64LtS,
+    I64LtU,
+    I64GtS,
+    I64GtU,
+    I64LeS,
+    I64LeU,
+    I64GeS,
+    I64GeU,
+    I64Shl,
+    I64ShrS,
+    I64ShrU,
+    I64Rotl,
+    I64Rotr,
+    I64DivS,
+    I64DivU,
+    I64RemS,
+    I64RemU,
+    I64Clz,
+    I64Ctz,
+    I64Popcnt,
     Select,
     BrIf,
     BrTable,
@@ -263,7 +403,7 @@ pub enum WasmOpcode {
 }
 
 impl WasmOpcode {
-    pub fn supported() -> [Self; 93] {
+    pub fn supported() -> [Self; 113] {
         [
             Self::Nop,
             Self::I32Const,
@@ -358,6 +498,26 @@ impl WasmOpcode {
             Self::LocalTee,
             Self::GlobalGet,
             Self::GlobalSet,
+            Self::I64LtS,
+            Self::I64LtU,
+            Self::I64GtS,
+            Self::I64GtU,
+            Self::I64LeS,
+            Self::I64LeU,
+            Self::I64GeS,
+            Self::I64GeU,
+            Self::I64Shl,
+            Self::I64ShrS,
+            Self::I64ShrU,
+            Self::I64Rotl,
+            Self::I64Rotr,
+            Self::I64DivS,
+            Self::I64DivU,
+            Self::I64RemS,
+            Self::I64RemU,
+            Self::I64Clz,
+            Self::I64Ctz,
+            Self::I64Popcnt,
         ]
     }
 
@@ -456,6 +616,26 @@ impl WasmOpcode {
             Self::I64Extend8S => Some(90),
             Self::I64Extend16S => Some(91),
             Self::I64Extend32S => Some(92),
+            Self::I64LtS => Some(93),
+            Self::I64LtU => Some(94),
+            Self::I64GtS => Some(95),
+            Self::I64GtU => Some(96),
+            Self::I64LeS => Some(97),
+            Self::I64LeU => Some(98),
+            Self::I64GeS => Some(99),
+            Self::I64GeU => Some(100),
+            Self::I64Shl => Some(101),
+            Self::I64ShrS => Some(102),
+            Self::I64ShrU => Some(103),
+            Self::I64Rotl => Some(104),
+            Self::I64Rotr => Some(105),
+            Self::I64DivS => Some(106),
+            Self::I64DivU => Some(107),
+            Self::I64RemS => Some(108),
+            Self::I64RemU => Some(109),
+            Self::I64Clz => Some(110),
+            Self::I64Ctz => Some(111),
+            Self::I64Popcnt => Some(112),
             Self::Trap | Self::Unsupported => None,
         }
     }
@@ -508,6 +688,26 @@ impl WasmOpcode {
                 | Self::I64Or
                 | Self::I64Xor
                 | Self::I64Mul
+                | Self::I64LtS
+                | Self::I64LtU
+                | Self::I64GtS
+                | Self::I64GtU
+                | Self::I64LeS
+                | Self::I64LeU
+                | Self::I64GeS
+                | Self::I64GeU
+                | Self::I64Shl
+                | Self::I64ShrS
+                | Self::I64ShrU
+                | Self::I64Rotl
+                | Self::I64Rotr
+                | Self::I64DivS
+                | Self::I64DivU
+                | Self::I64RemS
+                | Self::I64RemU
+                | Self::I64Clz
+                | Self::I64Ctz
+                | Self::I64Popcnt
                 | Self::Drop
                 | Self::Select
                 | Self::Call
@@ -708,6 +908,26 @@ impl WasmOpcode {
             Self::I32DivS => "i32_div_s",
             Self::I32RemU => "i32_rem_u",
             Self::I32RemS => "i32_rem_s",
+            Self::I64LtS => "i64_lt_s",
+            Self::I64LtU => "i64_lt_u",
+            Self::I64GtS => "i64_gt_s",
+            Self::I64GtU => "i64_gt_u",
+            Self::I64LeS => "i64_le_s",
+            Self::I64LeU => "i64_le_u",
+            Self::I64GeS => "i64_ge_s",
+            Self::I64GeU => "i64_ge_u",
+            Self::I64Shl => "i64_shl",
+            Self::I64ShrS => "i64_shr_s",
+            Self::I64ShrU => "i64_shr_u",
+            Self::I64Rotl => "i64_rotl",
+            Self::I64Rotr => "i64_rotr",
+            Self::I64DivS => "i64_div_s",
+            Self::I64DivU => "i64_div_u",
+            Self::I64RemS => "i64_rem_s",
+            Self::I64RemU => "i64_rem_u",
+            Self::I64Clz => "i64_clz",
+            Self::I64Ctz => "i64_ctz",
+            Self::I64Popcnt => "i64_popcnt",
             Self::Select => "select",
             Self::BrIf => "br_if",
             Self::BrTable => "br_table",
@@ -864,7 +1084,7 @@ pub fn opcode_info_from_code(code: u16) -> WasmOpcodeInfo {
         Op::Unreachable => info(op, code, Class::System, 0, 0, false, None),
         Op::I32Clz => info(op, code, Class::Numeric, 1, 1, true, Some(WasmOpTable::I32Clz)),
         Op::I32Ctz => info(op, code, Class::Numeric, 1, 1, true, Some(WasmOpTable::I32Ctz)),
-        Op::I32Popcnt => info(op, code, Class::Numeric, 1, 1, false, None),
+        Op::I32Popcnt => info(op, code, Class::Numeric, 1, 1, true, Some(WasmOpTable::I32Popcnt)),
         Op::I32Eqz => info(op, code, Class::Compare, 1, 1, false, None),
         Op::I64Eqz => info(op, code, Class::Compare, 1, 1, false, None),
         Op::I32Eq => info(op, code, Class::Compare, 2, 1, false, None),
@@ -898,6 +1118,28 @@ pub fn opcode_info_from_code(code: u16) -> WasmOpcodeInfo {
         Op::I32DivS => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I32DivS)),
         Op::I32RemU => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I32RemU)),
         Op::I32RemS => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I32RemS)),
+        Op::I64LtS => info(op, code, Class::Compare, 2, 1, true, Some(WasmOpTable::I64LtS)),
+        Op::I64LtU => info(op, code, Class::Compare, 2, 1, true, Some(WasmOpTable::I64LtU)),
+        Op::I64GtS => info(op, code, Class::Compare, 2, 1, true, Some(WasmOpTable::I64GtS)),
+        Op::I64GtU => info(op, code, Class::Compare, 2, 1, true, Some(WasmOpTable::I64GtU)),
+        Op::I64LeS => info(op, code, Class::Compare, 2, 1, true, Some(WasmOpTable::I64LeS)),
+        Op::I64LeU => info(op, code, Class::Compare, 2, 1, true, Some(WasmOpTable::I64LeU)),
+        Op::I64GeS => info(op, code, Class::Compare, 2, 1, true, Some(WasmOpTable::I64GeS)),
+        Op::I64GeU => info(op, code, Class::Compare, 2, 1, true, Some(WasmOpTable::I64GeU)),
+        Op::I64Shl => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I64Shl)),
+        Op::I64ShrS => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I64ShrS)),
+        Op::I64ShrU => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I64ShrU)),
+        Op::I64Rotl => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I64Rotl)),
+        Op::I64Rotr => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I64Rotr)),
+        // Same status as the i32 variants above: op-table-routed until the
+        // lookup path is actually enforced.
+        Op::I64DivS => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I64DivS)),
+        Op::I64DivU => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I64DivU)),
+        Op::I64RemS => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I64RemS)),
+        Op::I64RemU => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I64RemU)),
+        Op::I64Clz => info(op, code, Class::Numeric, 1, 1, true, Some(WasmOpTable::I64Clz)),
+        Op::I64Ctz => info(op, code, Class::Numeric, 1, 1, true, Some(WasmOpTable::I64Ctz)),
+        Op::I64Popcnt => info(op, code, Class::Numeric, 1, 1, true, Some(WasmOpTable::I64Popcnt)),
         Op::Select => info(op, code, Class::ControlFlow, 3, 1, false, None),
         Op::BrIf => info(op, code, Class::ControlFlow, 1, 0, false, None),
         Op::BrTable => info(op, code, Class::ControlFlow, 1, 0, false, None),
@@ -1006,6 +1248,26 @@ pub fn opcode_code(op: WasmOpcode) -> u16 {
         WasmOpcode::I32DivU => 0x6E,
         WasmOpcode::I32RemS => 0x6F,
         WasmOpcode::I32RemU => 0x70,
+        WasmOpcode::I64LtS => 0x53,
+        WasmOpcode::I64LtU => 0x54,
+        WasmOpcode::I64GtS => 0x55,
+        WasmOpcode::I64GtU => 0x56,
+        WasmOpcode::I64LeS => 0x57,
+        WasmOpcode::I64LeU => 0x58,
+        WasmOpcode::I64GeS => 0x59,
+        WasmOpcode::I64GeU => 0x5A,
+        WasmOpcode::I64Clz => 0x79,
+        WasmOpcode::I64Ctz => 0x7A,
+        WasmOpcode::I64Popcnt => 0x7B,
+        WasmOpcode::I64DivS => 0x7F,
+        WasmOpcode::I64DivU => 0x80,
+        WasmOpcode::I64RemS => 0x81,
+        WasmOpcode::I64RemU => 0x82,
+        WasmOpcode::I64Shl => 0x86,
+        WasmOpcode::I64ShrS => 0x87,
+        WasmOpcode::I64ShrU => 0x88,
+        WasmOpcode::I64Rotl => 0x89,
+        WasmOpcode::I64Rotr => 0x8A,
         WasmOpcode::Select => 0x1B,
         WasmOpcode::BrIf => 0x0D,
         WasmOpcode::BrTable => 0x0E,
@@ -1106,6 +1368,26 @@ fn opcode_from_code(code: u16) -> WasmOpcode {
         x if x == opcode_code(WasmOpcode::I32DivS) => WasmOpcode::I32DivS,
         x if x == opcode_code(WasmOpcode::I32RemU) => WasmOpcode::I32RemU,
         x if x == opcode_code(WasmOpcode::I32RemS) => WasmOpcode::I32RemS,
+        x if x == opcode_code(WasmOpcode::I64LtS) => WasmOpcode::I64LtS,
+        x if x == opcode_code(WasmOpcode::I64LtU) => WasmOpcode::I64LtU,
+        x if x == opcode_code(WasmOpcode::I64GtS) => WasmOpcode::I64GtS,
+        x if x == opcode_code(WasmOpcode::I64GtU) => WasmOpcode::I64GtU,
+        x if x == opcode_code(WasmOpcode::I64LeS) => WasmOpcode::I64LeS,
+        x if x == opcode_code(WasmOpcode::I64LeU) => WasmOpcode::I64LeU,
+        x if x == opcode_code(WasmOpcode::I64GeS) => WasmOpcode::I64GeS,
+        x if x == opcode_code(WasmOpcode::I64GeU) => WasmOpcode::I64GeU,
+        x if x == opcode_code(WasmOpcode::I64Shl) => WasmOpcode::I64Shl,
+        x if x == opcode_code(WasmOpcode::I64ShrS) => WasmOpcode::I64ShrS,
+        x if x == opcode_code(WasmOpcode::I64ShrU) => WasmOpcode::I64ShrU,
+        x if x == opcode_code(WasmOpcode::I64Rotl) => WasmOpcode::I64Rotl,
+        x if x == opcode_code(WasmOpcode::I64Rotr) => WasmOpcode::I64Rotr,
+        x if x == opcode_code(WasmOpcode::I64DivS) => WasmOpcode::I64DivS,
+        x if x == opcode_code(WasmOpcode::I64DivU) => WasmOpcode::I64DivU,
+        x if x == opcode_code(WasmOpcode::I64RemS) => WasmOpcode::I64RemS,
+        x if x == opcode_code(WasmOpcode::I64RemU) => WasmOpcode::I64RemU,
+        x if x == opcode_code(WasmOpcode::I64Clz) => WasmOpcode::I64Clz,
+        x if x == opcode_code(WasmOpcode::I64Ctz) => WasmOpcode::I64Ctz,
+        x if x == opcode_code(WasmOpcode::I64Popcnt) => WasmOpcode::I64Popcnt,
         x if x == opcode_code(WasmOpcode::Select) => WasmOpcode::Select,
         x if x == opcode_code(WasmOpcode::BrIf) => WasmOpcode::BrIf,
         x if x == opcode_code(WasmOpcode::BrTable) => WasmOpcode::BrTable,

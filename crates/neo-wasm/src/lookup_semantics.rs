@@ -57,6 +57,27 @@ pub enum LookupBuiltin {
     I32Rotr,
     I32DivU,
     I32DivS,
+    I32Popcnt,
+    I64LtS,
+    I64LtU,
+    I64GtS,
+    I64GtU,
+    I64LeS,
+    I64LeU,
+    I64GeS,
+    I64GeU,
+    I64Shl,
+    I64ShrS,
+    I64ShrU,
+    I64Rotl,
+    I64Rotr,
+    I64DivS,
+    I64DivU,
+    I64RemS,
+    I64RemU,
+    I64Clz,
+    I64Ctz,
+    I64Popcnt,
     I32RemU,
     I32RemS,
 }
@@ -176,6 +197,27 @@ fn op_table_semantics(op: WasmOpTable) -> LookupSemantics {
         WasmOpTable::I32DivS => predicate_with_i32_binary(op, LookupBuiltin::I32DivS),
         WasmOpTable::I32RemU => predicate_with_i32_binary(op, LookupBuiltin::I32RemU),
         WasmOpTable::I32RemS => predicate_with_i32_binary(op, LookupBuiltin::I32RemS),
+        WasmOpTable::I32Popcnt => predicate_with_i32_unary(op, LookupBuiltin::I32Popcnt),
+        WasmOpTable::I64LtS => predicate_with_i64_binary(op, LookupBuiltin::I64LtS),
+        WasmOpTable::I64LtU => predicate_with_i64_binary(op, LookupBuiltin::I64LtU),
+        WasmOpTable::I64GtS => predicate_with_i64_binary(op, LookupBuiltin::I64GtS),
+        WasmOpTable::I64GtU => predicate_with_i64_binary(op, LookupBuiltin::I64GtU),
+        WasmOpTable::I64LeS => predicate_with_i64_binary(op, LookupBuiltin::I64LeS),
+        WasmOpTable::I64LeU => predicate_with_i64_binary(op, LookupBuiltin::I64LeU),
+        WasmOpTable::I64GeS => predicate_with_i64_binary(op, LookupBuiltin::I64GeS),
+        WasmOpTable::I64GeU => predicate_with_i64_binary(op, LookupBuiltin::I64GeU),
+        WasmOpTable::I64Shl => predicate_with_i64_binary(op, LookupBuiltin::I64Shl),
+        WasmOpTable::I64ShrS => predicate_with_i64_binary(op, LookupBuiltin::I64ShrS),
+        WasmOpTable::I64ShrU => predicate_with_i64_binary(op, LookupBuiltin::I64ShrU),
+        WasmOpTable::I64Rotl => predicate_with_i64_binary(op, LookupBuiltin::I64Rotl),
+        WasmOpTable::I64Rotr => predicate_with_i64_binary(op, LookupBuiltin::I64Rotr),
+        WasmOpTable::I64DivS => predicate_with_i64_binary(op, LookupBuiltin::I64DivS),
+        WasmOpTable::I64DivU => predicate_with_i64_binary(op, LookupBuiltin::I64DivU),
+        WasmOpTable::I64RemS => predicate_with_i64_binary(op, LookupBuiltin::I64RemS),
+        WasmOpTable::I64RemU => predicate_with_i64_binary(op, LookupBuiltin::I64RemU),
+        WasmOpTable::I64Clz => predicate_with_i64_unary(op, LookupBuiltin::I64Clz),
+        WasmOpTable::I64Ctz => predicate_with_i64_unary(op, LookupBuiltin::I64Ctz),
+        WasmOpTable::I64Popcnt => predicate_with_i64_unary(op, LookupBuiltin::I64Popcnt),
     };
     LookupSemantics { predicate }
 }
@@ -203,6 +245,15 @@ fn predicate_with_i64_binary(op: WasmOpTable, builtin: LookupBuiltin) -> LookupP
         LookupPredicate::Eq(slot(0), LookupExpr::Const(op.op_table_id() as u64)),
         LookupPredicate::Eq(slot(5), apply(LookupBuiltin::Low32, vec![result.clone()])),
         LookupPredicate::Eq(slot(6), apply(LookupBuiltin::High32, vec![result])),
+    ])
+}
+
+fn predicate_with_i64_unary(op: WasmOpTable, builtin: LookupBuiltin) -> LookupPredicate {
+    let result = apply(builtin, vec![compose_u64(slot(1), slot(2))]);
+    LookupPredicate::And(vec![
+        LookupPredicate::Eq(slot(0), LookupExpr::Const(op.op_table_id() as u64)),
+        LookupPredicate::Eq(slot(3), apply(LookupBuiltin::Low32, vec![result.clone()])),
+        LookupPredicate::Eq(slot(4), apply(LookupBuiltin::High32, vec![result])),
     ])
 }
 
@@ -364,6 +415,77 @@ fn evaluate_builtin(builtin: LookupBuiltin, values: &[u64]) -> Result<u64, Strin
                 (lhs % rhs) as u32 as u64
             }
         }
+        LookupBuiltin::I32Popcnt => {
+            require_arity(builtin, values, 1)?;
+            u64::from(trunc_u32(values[0]).count_ones())
+        }
+        LookupBuiltin::I64LtS => compare_i64(values, |lhs, rhs| lhs < rhs)?,
+        LookupBuiltin::I64LtU => compare_u64(values, |lhs, rhs| lhs < rhs)?,
+        LookupBuiltin::I64GtS => compare_i64(values, |lhs, rhs| lhs > rhs)?,
+        LookupBuiltin::I64GtU => compare_u64(values, |lhs, rhs| lhs > rhs)?,
+        LookupBuiltin::I64LeS => compare_i64(values, |lhs, rhs| lhs <= rhs)?,
+        LookupBuiltin::I64LeU => compare_u64(values, |lhs, rhs| lhs <= rhs)?,
+        LookupBuiltin::I64GeS => compare_i64(values, |lhs, rhs| lhs >= rhs)?,
+        LookupBuiltin::I64GeU => compare_u64(values, |lhs, rhs| lhs >= rhs)?,
+        LookupBuiltin::I64Shl => binary_u64(values, |lhs, rhs| lhs.wrapping_shl(rhs as u32 & 63))?,
+        LookupBuiltin::I64ShrU => binary_u64(values, |lhs, rhs| lhs.wrapping_shr(rhs as u32 & 63))?,
+        LookupBuiltin::I64ShrS => {
+            require_arity(builtin, values, 2)?;
+            (values[0] as i64).wrapping_shr(values[1] as u32 & 63) as u64
+        }
+        LookupBuiltin::I64Rotl => binary_u64(values, |lhs, rhs| lhs.rotate_left(rhs as u32 & 63))?,
+        LookupBuiltin::I64Rotr => binary_u64(values, |lhs, rhs| lhs.rotate_right(rhs as u32 & 63))?,
+        LookupBuiltin::I64DivU => {
+            require_arity(builtin, values, 2)?;
+            if values[1] == 0 {
+                return Err("i64.div_u with divisor 0".to_string());
+            }
+            values[0] / values[1]
+        }
+        LookupBuiltin::I64DivS => {
+            require_arity(builtin, values, 2)?;
+            let lhs = values[0] as i64;
+            let rhs = values[1] as i64;
+            if rhs == 0 {
+                return Err("i64.div_s with divisor 0".to_string());
+            }
+            if lhs == i64::MIN && rhs == -1 {
+                return Err("i64.div_s overflow".to_string());
+            }
+            (lhs / rhs) as u64
+        }
+        LookupBuiltin::I64RemU => {
+            require_arity(builtin, values, 2)?;
+            if values[1] == 0 {
+                return Err("i64.rem_u with divisor 0".to_string());
+            }
+            values[0] % values[1]
+        }
+        LookupBuiltin::I64RemS => {
+            require_arity(builtin, values, 2)?;
+            let lhs = values[0] as i64;
+            let rhs = values[1] as i64;
+            if rhs == 0 {
+                return Err("i64.rem_s with divisor 0".to_string());
+            }
+            if lhs == i64::MIN && rhs == -1 {
+                0
+            } else {
+                (lhs % rhs) as u64
+            }
+        }
+        LookupBuiltin::I64Clz => {
+            require_arity(builtin, values, 1)?;
+            u64::from(values[0].leading_zeros())
+        }
+        LookupBuiltin::I64Ctz => {
+            require_arity(builtin, values, 1)?;
+            u64::from(values[0].trailing_zeros())
+        }
+        LookupBuiltin::I64Popcnt => {
+            require_arity(builtin, values, 1)?;
+            u64::from(values[0].count_ones())
+        }
     })
 }
 
@@ -375,6 +497,16 @@ fn compare_u32(values: &[u64], f: impl FnOnce(u32, u32) -> bool) -> Result<u64, 
 fn compare_i32(values: &[u64], f: impl FnOnce(i32, i32) -> bool) -> Result<u64, String> {
     require_arity_name(values, 2, "i32 compare")?;
     Ok(u64::from(f(i32v(values[0]), i32v(values[1]))))
+}
+
+fn compare_u64(values: &[u64], f: impl FnOnce(u64, u64) -> bool) -> Result<u64, String> {
+    require_arity_name(values, 2, "u64 compare")?;
+    Ok(u64::from(f(values[0], values[1])))
+}
+
+fn compare_i64(values: &[u64], f: impl FnOnce(i64, i64) -> bool) -> Result<u64, String> {
+    require_arity_name(values, 2, "i64 compare")?;
+    Ok(u64::from(f(values[0] as i64, values[1] as i64)))
 }
 
 fn binary_u32(values: &[u64], f: impl FnOnce(u32, u32) -> u32) -> Result<u64, String> {
@@ -441,6 +573,27 @@ impl LookupBuiltin {
             LookupBuiltin::I32DivS => "i32_div_s",
             LookupBuiltin::I32RemU => "i32_rem_u",
             LookupBuiltin::I32RemS => "i32_rem_s",
+            LookupBuiltin::I32Popcnt => "i32_popcnt",
+            LookupBuiltin::I64LtS => "i64_lt_s",
+            LookupBuiltin::I64LtU => "i64_lt_u",
+            LookupBuiltin::I64GtS => "i64_gt_s",
+            LookupBuiltin::I64GtU => "i64_gt_u",
+            LookupBuiltin::I64LeS => "i64_le_s",
+            LookupBuiltin::I64LeU => "i64_le_u",
+            LookupBuiltin::I64GeS => "i64_ge_s",
+            LookupBuiltin::I64GeU => "i64_ge_u",
+            LookupBuiltin::I64Shl => "i64_shl",
+            LookupBuiltin::I64ShrS => "i64_shr_s",
+            LookupBuiltin::I64ShrU => "i64_shr_u",
+            LookupBuiltin::I64Rotl => "i64_rotl",
+            LookupBuiltin::I64Rotr => "i64_rotr",
+            LookupBuiltin::I64DivS => "i64_div_s",
+            LookupBuiltin::I64DivU => "i64_div_u",
+            LookupBuiltin::I64RemS => "i64_rem_s",
+            LookupBuiltin::I64RemU => "i64_rem_u",
+            LookupBuiltin::I64Clz => "i64_clz",
+            LookupBuiltin::I64Ctz => "i64_ctz",
+            LookupBuiltin::I64Popcnt => "i64_popcnt",
         }
     }
 
@@ -477,6 +630,27 @@ impl LookupBuiltin {
             LookupBuiltin::I32DivS => 33,
             LookupBuiltin::I32RemU => 34,
             LookupBuiltin::I32RemS => 35,
+            LookupBuiltin::I32Popcnt => 36,
+            LookupBuiltin::I64LtS => 37,
+            LookupBuiltin::I64LtU => 38,
+            LookupBuiltin::I64GtS => 39,
+            LookupBuiltin::I64GtU => 40,
+            LookupBuiltin::I64LeS => 41,
+            LookupBuiltin::I64LeU => 42,
+            LookupBuiltin::I64GeS => 43,
+            LookupBuiltin::I64GeU => 44,
+            LookupBuiltin::I64Shl => 45,
+            LookupBuiltin::I64ShrS => 46,
+            LookupBuiltin::I64ShrU => 47,
+            LookupBuiltin::I64Rotl => 48,
+            LookupBuiltin::I64Rotr => 49,
+            LookupBuiltin::I64DivS => 50,
+            LookupBuiltin::I64DivU => 51,
+            LookupBuiltin::I64RemS => 52,
+            LookupBuiltin::I64RemU => 53,
+            LookupBuiltin::I64Clz => 54,
+            LookupBuiltin::I64Ctz => 55,
+            LookupBuiltin::I64Popcnt => 56,
         }
     }
 }

@@ -28,10 +28,25 @@ pub struct WasmLookupPayload {
 pub fn lookup_payload(trace: &WasmStepTrace) -> Option<WasmLookupPayload> {
     let op_table = trace.info.op_table?;
     Some(match op_table {
-        super::isa::WasmOpTable::I64And
-        | super::isa::WasmOpTable::I64Or
-        | super::isa::WasmOpTable::I64Xor
-        | super::isa::WasmOpTable::I64Mul => WasmLookupPayload {
+        op if op.is_i64_unary() => WasmLookupPayload {
+            arity: WasmLookupArity::Tuple(2),
+            op_table_id: op_table.op_table_id(),
+            inputs: vec![
+                trace.stack_read0.map(|lane| lane.value_lo).unwrap_or(0),
+                trace
+                    .stack_read0
+                    .and_then(|lane| lane.value_hi)
+                    .unwrap_or(0),
+            ],
+            outputs: vec![
+                trace.stack_write0.map(|lane| lane.value_lo).unwrap_or(0),
+                trace
+                    .stack_write0
+                    .and_then(|lane| lane.value_hi)
+                    .unwrap_or(0),
+            ],
+        },
+        op if op.is_i64_binary() => WasmLookupPayload {
             arity: WasmLookupArity::Tuple(4),
             op_table_id: op_table.op_table_id(),
             inputs: vec![

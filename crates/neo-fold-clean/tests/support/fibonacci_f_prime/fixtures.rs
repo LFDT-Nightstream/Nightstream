@@ -476,7 +476,10 @@ fn build_threaded_step_record(state: &ThreadedFPrimeState, step_idx: u64) -> Thr
         chunk_digest,
         // limbs = 3 → 2 app-private carry bits.
         app_private_carries: vec![F::ZERO, F::ZERO],
-        is_base: false,
+        // The structure derives the base selector from the outgoing
+        // counter (`is_base == 1` iff `new_chunk_count == 1`), so the
+        // honest chain's first step must carry `is_base = true`.
+        is_base: state.chunk_count == 0,
         nifs_payloads,
         kmul_views: vec![],
         ring_action_pairs: vec![],

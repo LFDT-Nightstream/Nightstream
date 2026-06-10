@@ -22,7 +22,7 @@ use neo_fold_clean::paper::f_prime::ring_action_trace::{
 };
 use neo_math::ring::{Rq, D};
 use neo_math::F;
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -163,7 +163,20 @@ fn phase_1_2_sub_region_splices_lie_within_their_parents() {
 fn phase_1_2_empty_image_satisfies_low_norm_invariant() {
     let image = FPrimeImage::new(skeleton_layout());
     assert_eq!(image.values[0], F::ONE, "constant slot");
+    // A fresh image pre-fills the is_base counter zero-test inverse lane
+    // so it satisfies the `is_base ↔ new_chunk_count` link rows with
+    // `new_chunk_count = 0`: the lane holds the bits of
+    // `(0 - 1)^{-1} = -1`. Every other coordinate is ZERO.
+    let inv_lane = (image.layout.is_base.offset + 1)..image.layout.is_base.end();
+    let expected_inv = (F::ZERO - F::ONE).as_canonical_u64();
+    for (bit, i) in inv_lane.clone().enumerate() {
+        let expected = F::from_u64((expected_inv >> bit) & 1);
+        assert_eq!(image.values[i], expected, "inverse lane bit {bit} mismatch");
+    }
     for (i, v) in image.values.iter().enumerate().skip(1) {
+        if inv_lane.contains(&i) {
+            continue;
+        }
         assert_eq!(*v, F::ZERO, "empty image z[{i}] must be ZERO");
     }
     // The shared bit invariant from the poseidon_trace module accepts {0,1}.

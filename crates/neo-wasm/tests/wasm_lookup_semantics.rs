@@ -49,7 +49,7 @@ fn lookup_semantics_reject_tampered_shout_output() {
         .expect("i32.mul row");
     let mut witness = build_witness_vector(&row);
     witness[COL_STACK_WRITE0_VALUE_LO] = F::from_u64(1234);
-    let err = sanity_check_lookup_row(layout, &witness).expect_err("tampered shout output should fail");
+    let err = sanity_check_lookup_row(layout, &witness).expect_err("tampered op_table output should fail");
     assert!(err.contains("i32_mul"));
 }
 

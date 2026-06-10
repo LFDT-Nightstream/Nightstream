@@ -15,14 +15,14 @@ use super::gadgets::{
     add_conditional_select_gadget, push_gated_linear_zero, push_u32_le_bytes_decomp, push_zero_test_gadget,
     ConditionalSelectCols,
 };
-use super::isa::{opcode_code, opcode_info_from_code, WasmOpcode, WasmShoutOpcode};
+use super::isa::{opcode_code, opcode_info_from_code, WasmOpTable, WasmOpcode};
 use super::layout::{
     selector_col, COL_ONE, COL_PC_EDGE_KIND, COL_SELECT_OUT_DELTA, COL_WIDE_AUX0, COL_WIDE_AUX1, PUBLIC_INPUTS,
     SELECTOR_COLS, WITNESS_WIDTH,
 };
 use super::lookup_binding_builder::{
-    build_wasm_lookup_binding_layout, Column, ControlColumns, OperandStackColumns, ShoutColumns, SignExtensionColumns,
-    StateColumns,
+    build_wasm_lookup_binding_layout, Column, ControlColumns, OpTableColumns, OperandStackColumns,
+    SignExtensionColumns, StateColumns,
 };
 use super::tagged_r1cs_builder::{
     WasmConstraintCatalog, WasmConstraintScope, WasmConstraintTag, WasmTaggedR1csBuilder,
@@ -192,7 +192,7 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
     let locals = layout.locals;
     let globals = layout.globals;
     let linear_memory = layout.linear_memory;
-    let shout = layout.shout;
+    let op_table = layout.op_table;
     let mut b = WasmTaggedR1csBuilder::new(WITNESS_WIDTH, COL_ONE)?;
 
     b.with_tag(shared("wide value gating", &wide_value_ops()), |b| {
@@ -366,7 +366,7 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
 
     b.push_linear_zero(
         [
-            (idx(shout.enabled), F::ONE),
+            (idx(op_table.enabled), F::ONE),
             (selector_for_lookup(WasmOpcode::I32Clz), -F::ONE),
             (selector_for_lookup(WasmOpcode::I32Ctz), -F::ONE),
             (selector_for_lookup(WasmOpcode::I32LtS), -F::ONE),
@@ -522,8 +522,8 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         )
     });
 
-    b.with_tag(always("shout constraints"), |b| {
-        push_shout_constraints(b, &stack, &shout);
+    b.with_tag(always("op_table constraints"), |b| {
+        push_op_table_constraints(b, &stack, &op_table);
     });
     let (structure, constraint_catalog) = b.build()?;
 
@@ -1011,20 +1011,20 @@ fn push_comparator_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns)
     );
 }
 
-fn push_shout_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns, shout: &ShoutColumns) {
+fn push_op_table_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns, op_table: &OpTableColumns) {
     b.push_row(
-        WasmShoutOpcode::all()
+        WasmOpTable::all()
             .into_iter()
-            .map(|op| (selector_for_shout(op), F::ONE)),
-        [(idx(shout.value), F::ONE), (idx(stack.write0_value_lo), -F::ONE)],
+            .map(|op| (selector_for_op_table(op), F::ONE)),
+        [(idx(op_table.value), F::ONE), (idx(stack.write0_value_lo), -F::ONE)],
         [],
     );
     b.push_row(
-        WasmShoutOpcode::all()
+        WasmOpTable::all()
             .into_iter()
-            .map(|op| (selector_for_shout(op), F::from_u64(u64::from(op.to_shout_id())))),
+            .map(|op| (selector_for_op_table(op), F::from_u64(u64::from(op.op_table_id())))),
         [(COL_ONE, F::ONE)],
-        [(idx(shout.id), F::ONE)],
+        [(idx(op_table.id), F::ONE)],
     );
 }
 
@@ -1032,34 +1032,34 @@ pub(super) fn idx(column: Column) -> usize {
     column.0
 }
 
-fn selector_for_shout(op: WasmShoutOpcode) -> usize {
+fn selector_for_op_table(op: WasmOpTable) -> usize {
     selector_for_lookup(match op {
-        WasmShoutOpcode::I32Clz => WasmOpcode::I32Clz,
-        WasmShoutOpcode::I32Ctz => WasmOpcode::I32Ctz,
-        WasmShoutOpcode::I32LtS => WasmOpcode::I32LtS,
-        WasmShoutOpcode::I32LtU => WasmOpcode::I32LtU,
-        WasmShoutOpcode::I32GtS => WasmOpcode::I32GtS,
-        WasmShoutOpcode::I32GtU => WasmOpcode::I32GtU,
-        WasmShoutOpcode::I32LeS => WasmOpcode::I32LeS,
-        WasmShoutOpcode::I32LeU => WasmOpcode::I32LeU,
-        WasmShoutOpcode::I32GeS => WasmOpcode::I32GeS,
-        WasmShoutOpcode::I32GeU => WasmOpcode::I32GeU,
-        WasmShoutOpcode::I32And => WasmOpcode::I32And,
-        WasmShoutOpcode::I32Or => WasmOpcode::I32Or,
-        WasmShoutOpcode::I32Xor => WasmOpcode::I32Xor,
-        WasmShoutOpcode::I32Mul => WasmOpcode::I32Mul,
-        WasmShoutOpcode::I64And => WasmOpcode::I64And,
-        WasmShoutOpcode::I64Or => WasmOpcode::I64Or,
-        WasmShoutOpcode::I64Xor => WasmOpcode::I64Xor,
-        WasmShoutOpcode::I64Mul => WasmOpcode::I64Mul,
-        WasmShoutOpcode::I32Shl => WasmOpcode::I32Shl,
-        WasmShoutOpcode::I32ShrU => WasmOpcode::I32ShrU,
-        WasmShoutOpcode::I32ShrS => WasmOpcode::I32ShrS,
-        WasmShoutOpcode::I32Rotl => WasmOpcode::I32Rotl,
-        WasmShoutOpcode::I32Rotr => WasmOpcode::I32Rotr,
-        WasmShoutOpcode::I32DivU => WasmOpcode::I32DivU,
-        WasmShoutOpcode::I32DivS => WasmOpcode::I32DivS,
-        WasmShoutOpcode::I32RemU => WasmOpcode::I32RemU,
-        WasmShoutOpcode::I32RemS => WasmOpcode::I32RemS,
+        WasmOpTable::I32Clz => WasmOpcode::I32Clz,
+        WasmOpTable::I32Ctz => WasmOpcode::I32Ctz,
+        WasmOpTable::I32LtS => WasmOpcode::I32LtS,
+        WasmOpTable::I32LtU => WasmOpcode::I32LtU,
+        WasmOpTable::I32GtS => WasmOpcode::I32GtS,
+        WasmOpTable::I32GtU => WasmOpcode::I32GtU,
+        WasmOpTable::I32LeS => WasmOpcode::I32LeS,
+        WasmOpTable::I32LeU => WasmOpcode::I32LeU,
+        WasmOpTable::I32GeS => WasmOpcode::I32GeS,
+        WasmOpTable::I32GeU => WasmOpcode::I32GeU,
+        WasmOpTable::I32And => WasmOpcode::I32And,
+        WasmOpTable::I32Or => WasmOpcode::I32Or,
+        WasmOpTable::I32Xor => WasmOpcode::I32Xor,
+        WasmOpTable::I32Mul => WasmOpcode::I32Mul,
+        WasmOpTable::I64And => WasmOpcode::I64And,
+        WasmOpTable::I64Or => WasmOpcode::I64Or,
+        WasmOpTable::I64Xor => WasmOpcode::I64Xor,
+        WasmOpTable::I64Mul => WasmOpcode::I64Mul,
+        WasmOpTable::I32Shl => WasmOpcode::I32Shl,
+        WasmOpTable::I32ShrU => WasmOpcode::I32ShrU,
+        WasmOpTable::I32ShrS => WasmOpcode::I32ShrS,
+        WasmOpTable::I32Rotl => WasmOpcode::I32Rotl,
+        WasmOpTable::I32Rotr => WasmOpcode::I32Rotr,
+        WasmOpTable::I32DivU => WasmOpcode::I32DivU,
+        WasmOpTable::I32DivS => WasmOpcode::I32DivS,
+        WasmOpTable::I32RemU => WasmOpcode::I32RemU,
+        WasmOpTable::I32RemS => WasmOpcode::I32RemS,
     })
 }

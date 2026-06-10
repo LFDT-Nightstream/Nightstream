@@ -34,13 +34,13 @@ pub use ir::{
     WasmBuildError, WasmOutputState, WasmParamInitState, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmStepTrace,
 };
 pub use isa::{
-    opcode_code, opcode_info_from_code, WasmMemoryAccessInfo, WasmMemoryAccessKind, WasmMemoryExtension, WasmOpcode,
-    WasmOpcodeClass, WasmOpcodeInfo, WasmShoutOpcode,
+    opcode_code, opcode_info_from_code, WasmMemoryAccessInfo, WasmMemoryAccessKind, WasmMemoryExtension, WasmOpTable,
+    WasmOpcode, WasmOpcodeClass, WasmOpcodeInfo,
 };
 pub use layout::{ColumnWidth, WasmColumnSpec, COLUMN_SPECS};
 pub use lookup_binding_builder::{
     build_wasm_lookup_binding_layout, CallColumns, Column, ControlColumns, FrameColumns, GlobalsColumns,
-    LinearMemoryColumns, LocalsColumns, OperandStackColumns, OutputColumns, ParamInitColumns, ShoutColumns,
+    LinearMemoryColumns, LocalsColumns, OpTableColumns, OperandStackColumns, OutputColumns, ParamInitColumns,
     SignExtensionColumns, StateColumns, WasmCrossStepColumnPair, WasmCrossStepLinkSpec, WasmLookupBindingLayout,
     WasmLookupBindingSpec, WasmLookupFamilyKind, WasmLookupFamilySpec, WasmMemoryActivation, WasmMemoryColumnKind,
     WasmMemoryColumnSpec, WasmMemorySpec,

@@ -1,6 +1,6 @@
 //! IMPORTANT: this doesn't prove anything, it's just a sanity checker for now
 
-use super::isa::WasmShoutOpcode;
+use super::isa::WasmOpTable;
 use super::layout::{ColumnWidth, COLUMN_SPECS};
 use super::lookup_binding_builder::{WasmLookupBindingLayout, WasmLookupFamilyKind, WasmLookupFamilySpec};
 use neo_math::F;
@@ -63,7 +63,7 @@ pub enum LookupBuiltin {
 
 pub fn semantics_for_lookup_family(family: &WasmLookupFamilySpec) -> LookupSemantics {
     match family.kind {
-        WasmLookupFamilyKind::Shout(op) => shout_semantics(op),
+        WasmLookupFamilyKind::OpTable(op) => op_table_semantics(op),
         WasmLookupFamilyKind::LinearMemoryBounds => LookupSemantics {
             predicate: LookupPredicate::Eq(
                 apply(
@@ -142,65 +142,65 @@ fn binding_is_active(
         return false;
     }
     match family.kind {
-        WasmLookupFamilyKind::Shout(op) => slot_values.first().copied() == Some(op.to_shout_id() as u64),
+        WasmLookupFamilyKind::OpTable(op) => slot_values.first().copied() == Some(op.op_table_id() as u64),
         _ => true,
     }
 }
 
-fn shout_semantics(op: WasmShoutOpcode) -> LookupSemantics {
+fn op_table_semantics(op: WasmOpTable) -> LookupSemantics {
     let predicate = match op {
-        WasmShoutOpcode::I32Clz => predicate_with_i32_unary(op, LookupBuiltin::I32Clz),
-        WasmShoutOpcode::I32Ctz => predicate_with_i32_unary(op, LookupBuiltin::I32Ctz),
-        WasmShoutOpcode::I32LtS => predicate_with_i32_binary(op, LookupBuiltin::I32LtS),
-        WasmShoutOpcode::I32LtU => predicate_with_i32_binary(op, LookupBuiltin::I32LtU),
-        WasmShoutOpcode::I32GtS => predicate_with_i32_binary(op, LookupBuiltin::I32GtS),
-        WasmShoutOpcode::I32GtU => predicate_with_i32_binary(op, LookupBuiltin::I32GtU),
-        WasmShoutOpcode::I32LeS => predicate_with_i32_binary(op, LookupBuiltin::I32LeS),
-        WasmShoutOpcode::I32LeU => predicate_with_i32_binary(op, LookupBuiltin::I32LeU),
-        WasmShoutOpcode::I32GeS => predicate_with_i32_binary(op, LookupBuiltin::I32GeS),
-        WasmShoutOpcode::I32GeU => predicate_with_i32_binary(op, LookupBuiltin::I32GeU),
-        WasmShoutOpcode::I32And => predicate_with_i32_binary(op, LookupBuiltin::I32And),
-        WasmShoutOpcode::I32Or => predicate_with_i32_binary(op, LookupBuiltin::I32Or),
-        WasmShoutOpcode::I32Xor => predicate_with_i32_binary(op, LookupBuiltin::I32Xor),
-        WasmShoutOpcode::I32Mul => predicate_with_i32_binary(op, LookupBuiltin::I32Mul),
-        WasmShoutOpcode::I64And => predicate_with_i64_binary(op, LookupBuiltin::I64And),
-        WasmShoutOpcode::I64Or => predicate_with_i64_binary(op, LookupBuiltin::I64Or),
-        WasmShoutOpcode::I64Xor => predicate_with_i64_binary(op, LookupBuiltin::I64Xor),
-        WasmShoutOpcode::I64Mul => predicate_with_i64_binary(op, LookupBuiltin::I64Mul),
-        WasmShoutOpcode::I32Shl => predicate_with_i32_binary(op, LookupBuiltin::I32Shl),
-        WasmShoutOpcode::I32ShrU => predicate_with_i32_binary(op, LookupBuiltin::I32ShrU),
-        WasmShoutOpcode::I32ShrS => predicate_with_i32_binary(op, LookupBuiltin::I32ShrS),
-        WasmShoutOpcode::I32Rotl => predicate_with_i32_binary(op, LookupBuiltin::I32Rotl),
-        WasmShoutOpcode::I32Rotr => predicate_with_i32_binary(op, LookupBuiltin::I32Rotr),
-        WasmShoutOpcode::I32DivU => predicate_with_i32_binary(op, LookupBuiltin::I32DivU),
-        WasmShoutOpcode::I32DivS => predicate_with_i32_binary(op, LookupBuiltin::I32DivS),
-        WasmShoutOpcode::I32RemU => predicate_with_i32_binary(op, LookupBuiltin::I32RemU),
-        WasmShoutOpcode::I32RemS => predicate_with_i32_binary(op, LookupBuiltin::I32RemS),
+        WasmOpTable::I32Clz => predicate_with_i32_unary(op, LookupBuiltin::I32Clz),
+        WasmOpTable::I32Ctz => predicate_with_i32_unary(op, LookupBuiltin::I32Ctz),
+        WasmOpTable::I32LtS => predicate_with_i32_binary(op, LookupBuiltin::I32LtS),
+        WasmOpTable::I32LtU => predicate_with_i32_binary(op, LookupBuiltin::I32LtU),
+        WasmOpTable::I32GtS => predicate_with_i32_binary(op, LookupBuiltin::I32GtS),
+        WasmOpTable::I32GtU => predicate_with_i32_binary(op, LookupBuiltin::I32GtU),
+        WasmOpTable::I32LeS => predicate_with_i32_binary(op, LookupBuiltin::I32LeS),
+        WasmOpTable::I32LeU => predicate_with_i32_binary(op, LookupBuiltin::I32LeU),
+        WasmOpTable::I32GeS => predicate_with_i32_binary(op, LookupBuiltin::I32GeS),
+        WasmOpTable::I32GeU => predicate_with_i32_binary(op, LookupBuiltin::I32GeU),
+        WasmOpTable::I32And => predicate_with_i32_binary(op, LookupBuiltin::I32And),
+        WasmOpTable::I32Or => predicate_with_i32_binary(op, LookupBuiltin::I32Or),
+        WasmOpTable::I32Xor => predicate_with_i32_binary(op, LookupBuiltin::I32Xor),
+        WasmOpTable::I32Mul => predicate_with_i32_binary(op, LookupBuiltin::I32Mul),
+        WasmOpTable::I64And => predicate_with_i64_binary(op, LookupBuiltin::I64And),
+        WasmOpTable::I64Or => predicate_with_i64_binary(op, LookupBuiltin::I64Or),
+        WasmOpTable::I64Xor => predicate_with_i64_binary(op, LookupBuiltin::I64Xor),
+        WasmOpTable::I64Mul => predicate_with_i64_binary(op, LookupBuiltin::I64Mul),
+        WasmOpTable::I32Shl => predicate_with_i32_binary(op, LookupBuiltin::I32Shl),
+        WasmOpTable::I32ShrU => predicate_with_i32_binary(op, LookupBuiltin::I32ShrU),
+        WasmOpTable::I32ShrS => predicate_with_i32_binary(op, LookupBuiltin::I32ShrS),
+        WasmOpTable::I32Rotl => predicate_with_i32_binary(op, LookupBuiltin::I32Rotl),
+        WasmOpTable::I32Rotr => predicate_with_i32_binary(op, LookupBuiltin::I32Rotr),
+        WasmOpTable::I32DivU => predicate_with_i32_binary(op, LookupBuiltin::I32DivU),
+        WasmOpTable::I32DivS => predicate_with_i32_binary(op, LookupBuiltin::I32DivS),
+        WasmOpTable::I32RemU => predicate_with_i32_binary(op, LookupBuiltin::I32RemU),
+        WasmOpTable::I32RemS => predicate_with_i32_binary(op, LookupBuiltin::I32RemS),
     };
     LookupSemantics { predicate }
 }
 
-fn predicate_with_i32_unary(op: WasmShoutOpcode, builtin: LookupBuiltin) -> LookupPredicate {
+fn predicate_with_i32_unary(op: WasmOpTable, builtin: LookupBuiltin) -> LookupPredicate {
     LookupPredicate::And(vec![
-        LookupPredicate::Eq(slot(0), LookupExpr::Const(op.to_shout_id() as u64)),
+        LookupPredicate::Eq(slot(0), LookupExpr::Const(op.op_table_id() as u64)),
         LookupPredicate::Eq(slot(3), apply(builtin, vec![slot(1)])),
     ])
 }
 
-fn predicate_with_i32_binary(op: WasmShoutOpcode, builtin: LookupBuiltin) -> LookupPredicate {
+fn predicate_with_i32_binary(op: WasmOpTable, builtin: LookupBuiltin) -> LookupPredicate {
     LookupPredicate::And(vec![
-        LookupPredicate::Eq(slot(0), LookupExpr::Const(op.to_shout_id() as u64)),
+        LookupPredicate::Eq(slot(0), LookupExpr::Const(op.op_table_id() as u64)),
         LookupPredicate::Eq(slot(3), apply(builtin, vec![slot(1), slot(2)])),
     ])
 }
 
-fn predicate_with_i64_binary(op: WasmShoutOpcode, builtin: LookupBuiltin) -> LookupPredicate {
+fn predicate_with_i64_binary(op: WasmOpTable, builtin: LookupBuiltin) -> LookupPredicate {
     let result = apply(
         builtin,
         vec![compose_u64(slot(1), slot(2)), compose_u64(slot(3), slot(4))],
     );
     LookupPredicate::And(vec![
-        LookupPredicate::Eq(slot(0), LookupExpr::Const(op.to_shout_id() as u64)),
+        LookupPredicate::Eq(slot(0), LookupExpr::Const(op.op_table_id() as u64)),
         LookupPredicate::Eq(slot(5), apply(LookupBuiltin::Low32, vec![result.clone()])),
         LookupPredicate::Eq(slot(6), apply(LookupBuiltin::High32, vec![result])),
     ])

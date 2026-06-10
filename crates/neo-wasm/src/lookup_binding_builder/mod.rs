@@ -1,4 +1,4 @@
-use super::isa::WasmShoutOpcode;
+use super::isa::WasmOpTable;
 use super::layout::{
     selector_col, COL_CALL_INDIRECT_TYPE_INDEX, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR,
     COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE, COL_CALL_STACK_POP_CALLER_FBP, COL_CALL_STACK_POP_PRESENT,
@@ -35,13 +35,13 @@ use super::layout::{
     COL_LINEAR_MEM_OFFSET_IS_0, COL_LINEAR_MEM_OFFSET_IS_1, COL_LINEAR_MEM_OFFSET_IS_2, COL_LINEAR_MEM_OFFSET_IS_3,
     COL_LINEAR_MEM_USE_LANE0, COL_LINEAR_MEM_USE_LANE1, COL_LINEAR_MEM_USE_LANE2, COL_LOCALS_FBP_AFTER,
     COL_LOCALS_FBP_BEFORE, COL_LOCAL_INDEX, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_LOCAL_WRITE_ENABLED,
-    COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_OPCODE_CODE, COL_OUTPUT_CAPTURED, COL_OUTPUT_ENABLED_AFTER,
-    COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER,
-    COL_OUTPUT_VALUE_LO_BEFORE, COL_PADDING_ACTIVE, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE,
-    COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_AFTER_INV, COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO,
-    COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_AFTER, COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_EDGE_KIND_INV,
-    COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE, COL_SHOUT_ENABLED, COL_SHOUT_ID, COL_SHOUT_VALUE, COL_SIGN_EXT_BIT,
-    COL_SIGN_EXT_LOW7, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READ0_ACTIVE, COL_STACK_READ0_ADDR_HI,
+    COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_OPCODE_CODE, COL_OP_TABLE_ENABLED, COL_OP_TABLE_ID,
+    COL_OP_TABLE_VALUE, COL_OUTPUT_CAPTURED, COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE,
+    COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE,
+    COL_PADDING_ACTIVE, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_AFTER,
+    COL_PARAM_INIT_REMAINING_AFTER_INV, COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PARAM_INIT_REMAINING_BEFORE,
+    COL_PC_AFTER, COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE,
+    COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READ0_ACTIVE, COL_STACK_READ0_ADDR_HI,
     COL_STACK_READ0_ADDR_LO, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_ACTIVE,
     COL_STACK_READ1_ADDR_HI, COL_STACK_READ1_ADDR_LO, COL_STACK_READ1_VALUE_HI, COL_STACK_READ1_VALUE_LO,
     COL_STACK_READ2_ACTIVE, COL_STACK_READ2_ADDR_HI, COL_STACK_READ2_ADDR_LO, COL_STACK_READ2_VALUE_HI,
@@ -67,7 +67,7 @@ pub struct WasmLookupFamilySpec {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WasmLookupFamilyKind {
-    Shout(WasmShoutOpcode),
+    OpTable(WasmOpTable),
     LinearMemoryBounds,
 }
 
@@ -343,7 +343,7 @@ pub struct FrameColumns {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ShoutColumns {
+pub struct OpTableColumns {
     pub enabled: Column,
     pub id: Column,
     pub value: Column,
@@ -372,7 +372,7 @@ pub struct WasmLookupBindingLayout {
     pub module_types: ModuleTypeColumns,
     pub linear_memory: LinearMemoryColumns,
     pub sign_extension: SignExtensionColumns,
-    pub shout: ShoutColumns,
+    pub op_table: OpTableColumns,
 }
 
 fn rom_read_spec(
@@ -631,26 +631,25 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
         bit: Column(COL_SIGN_EXT_BIT),
     };
 
-    let shout = ShoutColumns {
-        enabled: Column(COL_SHOUT_ENABLED),
-        id: Column(COL_SHOUT_ID),
-        value: Column(COL_SHOUT_VALUE),
+    let op_table = OpTableColumns {
+        enabled: Column(COL_OP_TABLE_ENABLED),
+        id: Column(COL_OP_TABLE_ID),
+        value: Column(COL_OP_TABLE_VALUE),
     };
 
-    let mut lookup_families: Vec<WasmLookupFamilySpec> = WasmShoutOpcode::all()
+    let mut lookup_families: Vec<WasmLookupFamilySpec> = WasmOpTable::all()
         .into_iter()
-        .map(|shout_opcode| {
+        .map(|op_table| {
             let family = WasmLookupFamilySpec {
-                name: shout_opcode.name(),
-                arity: match shout_opcode {
-                    WasmShoutOpcode::I32Clz | WasmShoutOpcode::I32Ctz => WasmLookupArity::Unary,
-                    WasmShoutOpcode::I64And
-                    | WasmShoutOpcode::I64Or
-                    | WasmShoutOpcode::I64Xor
-                    | WasmShoutOpcode::I64Mul => WasmLookupArity::Tuple(4),
+                name: op_table.name(),
+                arity: match op_table {
+                    WasmOpTable::I32Clz | WasmOpTable::I32Ctz => WasmLookupArity::Unary,
+                    WasmOpTable::I64And | WasmOpTable::I64Or | WasmOpTable::I64Xor | WasmOpTable::I64Mul => {
+                        WasmLookupArity::Tuple(4)
+                    }
                     _ => WasmLookupArity::Binary,
                 },
-                kind: WasmLookupFamilyKind::Shout(shout_opcode),
+                kind: WasmLookupFamilyKind::OpTable(op_table),
                 semantics: LookupSemantics {
                     predicate: super::lookup_semantics::LookupPredicate::And(Vec::new()),
                 },
@@ -675,17 +674,14 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
         ..linear_memory_bounds_family
     });
 
-    let mut lookup_bindings: Vec<WasmLookupBindingSpec> = WasmShoutOpcode::all()
+    let mut lookup_bindings: Vec<WasmLookupBindingSpec> = WasmOpTable::all()
         .into_iter()
-        .map(|shout_opcode| WasmLookupBindingSpec {
-            name: shout_opcode.name(),
-            family: shout_opcode.name(),
-            columns: match shout_opcode {
-                WasmShoutOpcode::I64And
-                | WasmShoutOpcode::I64Or
-                | WasmShoutOpcode::I64Xor
-                | WasmShoutOpcode::I64Mul => vec![
-                    shout.id,
+        .map(|table| WasmLookupBindingSpec {
+            name: table.name(),
+            family: table.name(),
+            columns: match table {
+                WasmOpTable::I64And | WasmOpTable::I64Or | WasmOpTable::I64Xor | WasmOpTable::I64Mul => vec![
+                    op_table.id,
                     stack.read0_value_lo,
                     stack.read0_value_hi,
                     stack.read1_value_lo,
@@ -694,14 +690,14 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     stack.write0_value_hi,
                 ],
                 _ => vec![
-                    shout.id,
+                    op_table.id,
                     stack.read0_value_lo,
                     stack.read1_value_lo,
                     stack.write0_value_lo,
                 ],
             },
-            gate: Some(shout.enabled),
-            role: "shout row binding",
+            gate: Some(op_table.enabled),
+            role: "op-table row binding",
         })
         .collect();
 
@@ -1345,6 +1341,6 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
         module_types,
         linear_memory,
         sign_extension,
-        shout,
+        op_table,
     }
 }

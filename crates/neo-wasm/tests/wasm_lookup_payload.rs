@@ -1,6 +1,6 @@
 use neo_wasm::{
-    lookup_payload, opcode_code, opcode_info_from_code, StackValueAccess, WasmOpcode, WasmOutputState,
-    WasmParamInitState, WasmPcEdgeKind, WasmRowKind, WasmShoutOpcode, WasmStepState, WasmStepTrace,
+    lookup_payload, opcode_code, opcode_info_from_code, StackValueAccess, WasmOpTable, WasmOpcode, WasmOutputState,
+    WasmParamInitState, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmStepTrace,
 };
 
 fn step(opcode: WasmOpcode, lhs: u32, rhs: Option<u32>, out: u32) -> WasmStepTrace {
@@ -78,7 +78,7 @@ fn binary_lookup_payload_is_emitted_for_i32_xor() {
     let trace = step(WasmOpcode::I32Xor, 0x55aa, Some(0x0ff0), 0x5a5a);
     let payload = lookup_payload(&trace).expect("payload");
     assert_eq!(payload.arity, neo_wasm::WasmLookupArity::Binary);
-    assert_eq!(payload.shout_id, WasmShoutOpcode::I32Xor.to_shout_id());
+    assert_eq!(payload.op_table_id, WasmOpTable::I32Xor.op_table_id());
     assert_eq!(payload.inputs, vec![0x55aa, 0x0ff0]);
     assert_eq!(payload.outputs, vec![0x5a5a]);
 }
@@ -86,37 +86,19 @@ fn binary_lookup_payload_is_emitted_for_i32_xor() {
 #[test]
 fn binary_lookup_payload_is_emitted_for_new_i32_lookup_family() {
     let cases = [
-        (WasmOpcode::I32Shl, WasmShoutOpcode::I32Shl, 3, 4, 48),
-        (WasmOpcode::I32ShrU, WasmShoutOpcode::I32ShrU, 128, 3, 16),
-        (
-            WasmOpcode::I32ShrS,
-            WasmShoutOpcode::I32ShrS,
-            0xffff_ff80,
-            3,
-            0xffff_fff0,
-        ),
-        (WasmOpcode::I32DivU, WasmShoutOpcode::I32DivU, 22, 5, 4),
-        (
-            WasmOpcode::I32DivS,
-            WasmShoutOpcode::I32DivS,
-            0xffff_ffea,
-            5,
-            0xffff_fffc,
-        ),
-        (WasmOpcode::I32RemU, WasmShoutOpcode::I32RemU, 22, 5, 2),
-        (
-            WasmOpcode::I32RemS,
-            WasmShoutOpcode::I32RemS,
-            0xffff_ffea,
-            5,
-            0xffff_fffe,
-        ),
+        (WasmOpcode::I32Shl, WasmOpTable::I32Shl, 3, 4, 48),
+        (WasmOpcode::I32ShrU, WasmOpTable::I32ShrU, 128, 3, 16),
+        (WasmOpcode::I32ShrS, WasmOpTable::I32ShrS, 0xffff_ff80, 3, 0xffff_fff0),
+        (WasmOpcode::I32DivU, WasmOpTable::I32DivU, 22, 5, 4),
+        (WasmOpcode::I32DivS, WasmOpTable::I32DivS, 0xffff_ffea, 5, 0xffff_fffc),
+        (WasmOpcode::I32RemU, WasmOpTable::I32RemU, 22, 5, 2),
+        (WasmOpcode::I32RemS, WasmOpTable::I32RemS, 0xffff_ffea, 5, 0xffff_fffe),
     ];
-    for (opcode, shout_opcode, lhs, rhs, out) in cases {
+    for (opcode, op_table, lhs, rhs, out) in cases {
         let trace = step(opcode, lhs, Some(rhs), out);
         let payload = lookup_payload(&trace).expect("payload");
         assert_eq!(payload.arity, neo_wasm::WasmLookupArity::Binary);
-        assert_eq!(payload.shout_id, shout_opcode.to_shout_id());
+        assert_eq!(payload.op_table_id, op_table.op_table_id());
         assert_eq!(payload.inputs, vec![lhs, rhs]);
         assert_eq!(payload.outputs, vec![out]);
     }
@@ -125,45 +107,33 @@ fn binary_lookup_payload_is_emitted_for_new_i32_lookup_family() {
 #[test]
 fn lookup_payload_is_emitted_for_compare_unary_and_rotate_family() {
     let unary_cases = [
-        (WasmOpcode::I32Clz, WasmShoutOpcode::I32Clz, 16, 27),
-        (WasmOpcode::I32Ctz, WasmShoutOpcode::I32Ctz, 24, 3),
+        (WasmOpcode::I32Clz, WasmOpTable::I32Clz, 16, 27),
+        (WasmOpcode::I32Ctz, WasmOpTable::I32Ctz, 24, 3),
     ];
-    for (opcode, shout_opcode, input, output) in unary_cases {
+    for (opcode, op_table, input, output) in unary_cases {
         let trace = step(opcode, input, None, output);
         let payload = lookup_payload(&trace).expect("payload");
         assert_eq!(payload.arity, neo_wasm::WasmLookupArity::Unary);
-        assert_eq!(payload.shout_id, shout_opcode.to_shout_id());
+        assert_eq!(payload.op_table_id, op_table.op_table_id());
         assert_eq!(payload.inputs, vec![input]);
         assert_eq!(payload.outputs, vec![output]);
     }
 
     let binary_cases = [
-        (WasmOpcode::I32GtS, WasmShoutOpcode::I32GtS, 9, 3, 1),
-        (WasmOpcode::I32GtU, WasmShoutOpcode::I32GtU, 9, 3, 1),
-        (WasmOpcode::I32LeS, WasmShoutOpcode::I32LeS, 3, 9, 1),
-        (WasmOpcode::I32LeU, WasmShoutOpcode::I32LeU, 3, 9, 1),
-        (WasmOpcode::I32GeS, WasmShoutOpcode::I32GeS, 9, 3, 1),
-        (WasmOpcode::I32GeU, WasmShoutOpcode::I32GeU, 9, 3, 1),
-        (
-            WasmOpcode::I32Rotl,
-            WasmShoutOpcode::I32Rotl,
-            0x1234_5678,
-            8,
-            0x3456_7812,
-        ),
-        (
-            WasmOpcode::I32Rotr,
-            WasmShoutOpcode::I32Rotr,
-            0x1234_5678,
-            8,
-            0x7812_3456,
-        ),
+        (WasmOpcode::I32GtS, WasmOpTable::I32GtS, 9, 3, 1),
+        (WasmOpcode::I32GtU, WasmOpTable::I32GtU, 9, 3, 1),
+        (WasmOpcode::I32LeS, WasmOpTable::I32LeS, 3, 9, 1),
+        (WasmOpcode::I32LeU, WasmOpTable::I32LeU, 3, 9, 1),
+        (WasmOpcode::I32GeS, WasmOpTable::I32GeS, 9, 3, 1),
+        (WasmOpcode::I32GeU, WasmOpTable::I32GeU, 9, 3, 1),
+        (WasmOpcode::I32Rotl, WasmOpTable::I32Rotl, 0x1234_5678, 8, 0x3456_7812),
+        (WasmOpcode::I32Rotr, WasmOpTable::I32Rotr, 0x1234_5678, 8, 0x7812_3456),
     ];
-    for (opcode, shout_opcode, lhs, rhs, output) in binary_cases {
+    for (opcode, op_table, lhs, rhs, output) in binary_cases {
         let trace = step(opcode, lhs, Some(rhs), output);
         let payload = lookup_payload(&trace).expect("payload");
         assert_eq!(payload.arity, neo_wasm::WasmLookupArity::Binary);
-        assert_eq!(payload.shout_id, shout_opcode.to_shout_id());
+        assert_eq!(payload.op_table_id, op_table.op_table_id());
         assert_eq!(payload.inputs, vec![lhs, rhs]);
         assert_eq!(payload.outputs, vec![output]);
     }
@@ -238,7 +208,7 @@ fn i64_binary_lookup_payload_uses_four_inputs_and_two_outputs() {
     };
     let payload = lookup_payload(&trace).expect("payload");
     assert_eq!(payload.arity, neo_wasm::WasmLookupArity::Tuple(4));
-    assert_eq!(payload.shout_id, WasmShoutOpcode::I64Mul.to_shout_id());
+    assert_eq!(payload.op_table_id, WasmOpTable::I64Mul.op_table_id());
     assert_eq!(payload.inputs, vec![3, 1, 5, 2]);
     assert_eq!(payload.outputs, vec![15, 7]);
 }

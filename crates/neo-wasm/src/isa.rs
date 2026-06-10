@@ -33,7 +33,7 @@ pub struct WasmMemoryAccessInfo {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub enum WasmShoutOpcode {
+pub enum WasmOpTable {
     I32Clz,
     I32Ctz,
     I32LtS,
@@ -63,7 +63,7 @@ pub enum WasmShoutOpcode {
     I32RemS,
 }
 
-impl WasmShoutOpcode {
+impl WasmOpTable {
     pub fn all() -> [Self; 27] {
         [
             Self::I32Clz,
@@ -128,7 +128,7 @@ impl WasmShoutOpcode {
         }
     }
 
-    pub fn to_shout_id(self) -> u32 {
+    pub fn op_table_id(self) -> u32 {
         const BASE: u32 = 10_000;
         let offset = match self {
             Self::I32Clz => 5,
@@ -799,8 +799,8 @@ pub struct WasmOpcodeInfo {
     pub stack_reads: u8,
     pub stack_writes: u8,
     pub memory_access: Option<WasmMemoryAccessInfo>,
-    pub uses_shout: bool,
-    pub shout_opcode: Option<WasmShoutOpcode>,
+    pub uses_op_table: bool,
+    pub op_table: Option<WasmOpTable>,
 }
 
 pub fn opcode_info_from_concrete(op: ConcreteOpcode) -> WasmOpcodeInfo {
@@ -811,7 +811,6 @@ pub fn opcode_info_from_concrete(op: ConcreteOpcode) -> WasmOpcodeInfo {
 pub fn opcode_info_from_code(code: u16) -> WasmOpcodeInfo {
     use WasmOpcode as Op;
     use WasmOpcodeClass as Class;
-    use WasmShoutOpcode as Shout;
 
     let op = opcode_from_code(code);
     match op {
@@ -863,8 +862,8 @@ pub fn opcode_info_from_code(code: u16) -> WasmOpcodeInfo {
         Op::Else => info(op, code, Class::ControlFlow, 0, 0, false, None),
         Op::End => info(op, code, Class::ControlFlow, 0, 0, false, None),
         Op::Unreachable => info(op, code, Class::System, 0, 0, false, None),
-        Op::I32Clz => info(op, code, Class::Numeric, 1, 1, true, Some(Shout::I32Clz)),
-        Op::I32Ctz => info(op, code, Class::Numeric, 1, 1, true, Some(Shout::I32Ctz)),
+        Op::I32Clz => info(op, code, Class::Numeric, 1, 1, true, Some(WasmOpTable::I32Clz)),
+        Op::I32Ctz => info(op, code, Class::Numeric, 1, 1, true, Some(WasmOpTable::I32Ctz)),
         Op::I32Popcnt => info(op, code, Class::Numeric, 1, 1, false, None),
         Op::I32Eqz => info(op, code, Class::Compare, 1, 1, false, None),
         Op::I64Eqz => info(op, code, Class::Compare, 1, 1, false, None),
@@ -872,33 +871,33 @@ pub fn opcode_info_from_code(code: u16) -> WasmOpcodeInfo {
         Op::I32Ne => info(op, code, Class::Compare, 2, 1, false, None),
         Op::I64Eq => info(op, code, Class::Compare, 2, 1, false, None),
         Op::I64Ne => info(op, code, Class::Compare, 2, 1, false, None),
-        Op::I32LtS => info(op, code, Class::Compare, 2, 1, true, Some(Shout::I32LtS)),
-        Op::I32LtU => info(op, code, Class::Compare, 2, 1, true, Some(Shout::I32LtU)),
-        Op::I32GtS => info(op, code, Class::Compare, 2, 1, true, Some(Shout::I32GtS)),
-        Op::I32GtU => info(op, code, Class::Compare, 2, 1, true, Some(Shout::I32GtU)),
-        Op::I32LeS => info(op, code, Class::Compare, 2, 1, true, Some(Shout::I32LeS)),
-        Op::I32LeU => info(op, code, Class::Compare, 2, 1, true, Some(Shout::I32LeU)),
-        Op::I32GeS => info(op, code, Class::Compare, 2, 1, true, Some(Shout::I32GeS)),
-        Op::I32GeU => info(op, code, Class::Compare, 2, 1, true, Some(Shout::I32GeU)),
-        Op::I32And => info(op, code, Class::Numeric, 2, 1, true, Some(Shout::I32And)),
-        Op::I32Or => info(op, code, Class::Numeric, 2, 1, true, Some(Shout::I32Or)),
-        Op::I32Xor => info(op, code, Class::Numeric, 2, 1, true, Some(Shout::I32Xor)),
-        Op::I32Mul => info(op, code, Class::Numeric, 2, 1, true, Some(Shout::I32Mul)),
-        Op::I64And => info(op, code, Class::Numeric, 2, 1, true, Some(Shout::I64And)),
-        Op::I64Or => info(op, code, Class::Numeric, 2, 1, true, Some(Shout::I64Or)),
-        Op::I64Xor => info(op, code, Class::Numeric, 2, 1, true, Some(Shout::I64Xor)),
-        Op::I64Mul => info(op, code, Class::Numeric, 2, 1, true, Some(Shout::I64Mul)),
-        Op::I32Shl => info(op, code, Class::Numeric, 2, 1, true, Some(Shout::I32Shl)),
-        Op::I32ShrU => info(op, code, Class::Numeric, 2, 1, true, Some(Shout::I32ShrU)),
-        Op::I32ShrS => info(op, code, Class::Numeric, 2, 1, true, Some(Shout::I32ShrS)),
-        Op::I32Rotl => info(op, code, Class::Numeric, 2, 1, true, Some(Shout::I32Rotl)),
-        Op::I32Rotr => info(op, code, Class::Numeric, 2, 1, true, Some(Shout::I32Rotr)),
+        Op::I32LtS => info(op, code, Class::Compare, 2, 1, true, Some(WasmOpTable::I32LtS)),
+        Op::I32LtU => info(op, code, Class::Compare, 2, 1, true, Some(WasmOpTable::I32LtU)),
+        Op::I32GtS => info(op, code, Class::Compare, 2, 1, true, Some(WasmOpTable::I32GtS)),
+        Op::I32GtU => info(op, code, Class::Compare, 2, 1, true, Some(WasmOpTable::I32GtU)),
+        Op::I32LeS => info(op, code, Class::Compare, 2, 1, true, Some(WasmOpTable::I32LeS)),
+        Op::I32LeU => info(op, code, Class::Compare, 2, 1, true, Some(WasmOpTable::I32LeU)),
+        Op::I32GeS => info(op, code, Class::Compare, 2, 1, true, Some(WasmOpTable::I32GeS)),
+        Op::I32GeU => info(op, code, Class::Compare, 2, 1, true, Some(WasmOpTable::I32GeU)),
+        Op::I32And => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I32And)),
+        Op::I32Or => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I32Or)),
+        Op::I32Xor => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I32Xor)),
+        Op::I32Mul => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I32Mul)),
+        Op::I64And => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I64And)),
+        Op::I64Or => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I64Or)),
+        Op::I64Xor => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I64Xor)),
+        Op::I64Mul => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I64Mul)),
+        Op::I32Shl => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I32Shl)),
+        Op::I32ShrU => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I32ShrU)),
+        Op::I32ShrS => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I32ShrS)),
+        Op::I32Rotl => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I32Rotl)),
+        Op::I32Rotr => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I32Rotr)),
         // These could later be implemented efficiently with arithmetic/remainder constraints,
-        // but they stay shout-routed for now until the lookup path is actually enforced.
-        Op::I32DivU => info(op, code, Class::Numeric, 2, 1, true, Some(Shout::I32DivU)),
-        Op::I32DivS => info(op, code, Class::Numeric, 2, 1, true, Some(Shout::I32DivS)),
-        Op::I32RemU => info(op, code, Class::Numeric, 2, 1, true, Some(Shout::I32RemU)),
-        Op::I32RemS => info(op, code, Class::Numeric, 2, 1, true, Some(Shout::I32RemS)),
+        // but they stay op-table-routed for now until the lookup path is actually enforced.
+        Op::I32DivU => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I32DivU)),
+        Op::I32DivS => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I32DivS)),
+        Op::I32RemU => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I32RemU)),
+        Op::I32RemS => info(op, code, Class::Numeric, 2, 1, true, Some(WasmOpTable::I32RemS)),
         Op::Select => info(op, code, Class::ControlFlow, 3, 1, false, None),
         Op::BrIf => info(op, code, Class::ControlFlow, 1, 0, false, None),
         Op::BrTable => info(op, code, Class::ControlFlow, 1, 0, false, None),
@@ -1129,8 +1128,8 @@ fn info(
     class: WasmOpcodeClass,
     stack_reads: u8,
     stack_writes: u8,
-    uses_shout: bool,
-    shout_opcode: Option<WasmShoutOpcode>,
+    uses_op_table: bool,
+    op_table: Option<WasmOpTable>,
 ) -> WasmOpcodeInfo {
     WasmOpcodeInfo {
         opcode,
@@ -1140,7 +1139,7 @@ fn info(
         stack_reads,
         stack_writes,
         memory_access: opcode.memory_access_info(),
-        uses_shout,
-        shout_opcode,
+        uses_op_table,
+        op_table,
     }
 }

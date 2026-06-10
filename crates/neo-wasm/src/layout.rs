@@ -585,7 +585,7 @@ define_columns!(
     (COL_OP_TABLE_ID, "lookup table row selector", ColumnWidth::U32),
     (COL_OP_TABLE_VALUE, "lookup payload witness"),
     // `COL_SELECT_COND_IS_ZERO` is forced to {0, 1} by the zero-test rows
-    // emitted by `add_conditional_select_gadget`. Declared `Boolean` so the
+    // emitted by `push_select_constraints`. Declared `Boolean` so the
     // spec reflects its actual range; whichever path eventually enforces
     // `ColumnWidth::Boolean` will overlap with the gadget's constraint and
     // one of the two becomes redundant — an optimization to revisit later.
@@ -593,16 +593,20 @@ define_columns!(
     // for this case — premature complexity.
     (
         COL_SELECT_COND_IS_ZERO,
-        "scratch column for add_conditional_select_gadget for select opcode",
+        "scratch column for push_select_constraints for select opcode",
         ColumnWidth::Boolean
     ),
     (
         COL_SELECT_SCRATCH_INV,
-        "scratch column for add_conditional_select_gadget for select opcode"
+        "scratch column for push_select_constraints for select opcode"
     ),
     (
-        COL_SELECT_OUT_DELTA,
-        "scratch column for add_conditional_select_gadget for select opcode"
+        COL_SELECT_OUT_DELTA_LO,
+        "scratch column for push_select_constraints low-limb mux"
+    ),
+    (
+        COL_SELECT_OUT_DELTA_HI,
+        "scratch column for push_select_constraints high-limb mux"
     ),
     // Shared zero-test scratch columns for the CCS-native comparators:
     // i32.eqz / i64.eqz / i32.eq / i32.ne / i64.eq / i64.ne. The active

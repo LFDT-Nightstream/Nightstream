@@ -45,14 +45,15 @@ use super::layout::{
     COL_PADDING_ACTIVE, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_AFTER,
     COL_PARAM_INIT_REMAINING_AFTER_INV, COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PARAM_INIT_REMAINING_BEFORE,
     COL_PC_AFTER, COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE,
-    COL_SELECT_OUT_DELTA, COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READ0_ACTIVE,
-    COL_STACK_READ0_ADDR_HI, COL_STACK_READ0_ADDR_LO, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO,
-    COL_STACK_READ1_ACTIVE, COL_STACK_READ1_ADDR_HI, COL_STACK_READ1_ADDR_LO, COL_STACK_READ1_VALUE_HI,
-    COL_STACK_READ1_VALUE_LO, COL_STACK_READ2_ACTIVE, COL_STACK_READ2_ADDR_HI, COL_STACK_READ2_ADDR_LO,
-    COL_STACK_READ2_VALUE_HI, COL_STACK_READ2_VALUE_LO, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE,
-    COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO,
-    COL_STACK_WRITES, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE, COL_TABLE_VALUE,
-    COL_TARGET_FUNCTION_IS_GUEST, COL_WIDE_AUX0, COL_WIDE_AUX1, COL_WIDE_VALUES_ENABLED, WITNESS_WIDTH,
+    COL_SELECT_OUT_DELTA_HI, COL_SELECT_OUT_DELTA_LO, COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7, COL_SP_AFTER, COL_SP_BEFORE,
+    COL_STACK_READ0_ACTIVE, COL_STACK_READ0_ADDR_HI, COL_STACK_READ0_ADDR_LO, COL_STACK_READ0_VALUE_HI,
+    COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_ACTIVE, COL_STACK_READ1_ADDR_HI, COL_STACK_READ1_ADDR_LO,
+    COL_STACK_READ1_VALUE_HI, COL_STACK_READ1_VALUE_LO, COL_STACK_READ2_ACTIVE, COL_STACK_READ2_ADDR_HI,
+    COL_STACK_READ2_ADDR_LO, COL_STACK_READ2_VALUE_HI, COL_STACK_READ2_VALUE_LO, COL_STACK_READS,
+    COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI,
+    COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE,
+    COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST, COL_WIDE_AUX0, COL_WIDE_AUX1, COL_WIDE_VALUES_ENABLED,
+    WITNESS_WIDTH,
 };
 use super::step_build::WasmStepBuild;
 use crate::layout::{
@@ -680,9 +681,22 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
     let (select_cond_is_zero, select_cond_inv) = zero_test_witness_u64(u64::from(select_cond));
     let select_lhs = F::from_u64(u64::from(trace.stack_read0.map(|lane| lane.value_lo).unwrap_or(0)));
     let select_rhs = F::from_u64(u64::from(trace.stack_read1.map(|lane| lane.value_lo).unwrap_or(0)));
+    let select_lhs_hi = F::from_u64(u64::from(
+        trace
+            .stack_read0
+            .and_then(|lane| lane.value_hi)
+            .unwrap_or(0),
+    ));
+    let select_rhs_hi = F::from_u64(u64::from(
+        trace
+            .stack_read1
+            .and_then(|lane| lane.value_hi)
+            .unwrap_or(0),
+    ));
     wit[COL_SELECT_COND_IS_ZERO] = select_cond_is_zero;
     wit[COL_SELECT_SCRATCH_INV] = select_cond_inv;
-    wit[COL_SELECT_OUT_DELTA] = (F::ONE - select_cond_is_zero) * (select_lhs - select_rhs);
+    wit[COL_SELECT_OUT_DELTA_LO] = (F::ONE - select_cond_is_zero) * (select_lhs - select_rhs);
+    wit[COL_SELECT_OUT_DELTA_HI] = (F::ONE - select_cond_is_zero) * (select_lhs_hi - select_rhs_hi);
 
     // Comparator zero-test scratch (see `push_comparator_constraints` in ccs.rs).
     // For non-comparator opcodes both diffs are 0 and the gadget pins both

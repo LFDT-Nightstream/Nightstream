@@ -858,6 +858,9 @@ fn write_lane_hi(
         WasmOpcode::Call | WasmOpcode::CallIndirect => next
             .and_then(|row| row.operand_stack_hi.last().copied())
             .unwrap_or(0),
+        WasmOpcode::Select => next
+            .and_then(|row| row.operand_stack_hi.last().copied())
+            .unwrap_or(0),
         _ => 0,
     };
 

@@ -1027,7 +1027,7 @@ fn wasm_trace_run_folding_proof() {
     );
     let artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm).expect("program artifacts");
     let digest = common::verifier_initial_state_digest(&artifacts);
-    let prep = preprocess_seeded_batched(&WasmVmSpec::default(), 1, digest).expect("prep");
+    let prep = preprocess_seeded_batched(1, digest).expect("prep");
     let proof = prove(&prep, &trace).expect("prove kernel run");
     verify(&prep, &proof).expect("verify kernel run");
 }
@@ -1042,7 +1042,7 @@ fn wasm_verify_rejects_preprocessing_with_wrong_widths() {
     );
     let artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm).expect("program artifacts");
     let digest = common::verifier_initial_state_digest(&artifacts);
-    let prep = preprocess_seeded_batched(&WasmVmSpec::default(), 1, digest).expect("prep");
+    let prep = preprocess_seeded_batched(1, digest).expect("prep");
     let proof = prove(&prep, &trace).expect("prove with canonical prep");
 
     let mut canonical = canonical_wasm_f_prime_shape_batched_with_initial_state_digest(1, digest).expect("shape");

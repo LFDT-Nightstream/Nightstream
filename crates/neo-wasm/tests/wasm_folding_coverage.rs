@@ -12,7 +12,7 @@
 
 mod common;
 
-use neo_wasm::{preprocess_seeded_batched, prove_batched, top_level_initial_state_digest, verify, WasmVmSpec};
+use neo_wasm::{preprocess_seeded_batched, prove_batched, top_level_initial_state_digest, verify};
 
 #[test]
 fn folding_proof_covers_nested_calls() {
@@ -38,7 +38,7 @@ fn folding_proof_covers_nested_calls() {
     // call/return crosses a batch edge, so the semantic-state digest must
     // carry `call_stack_depth` / `locals_fbp` / `param_init` correctly.
     let batch_size = 4;
-    let prep = preprocess_seeded_batched(&WasmVmSpec::default(), batch_size, digest).expect("prep");
+    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
     let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
     verify(&prep, &proof).expect("verify");
 }
@@ -73,7 +73,7 @@ fn folding_proof_covers_memory_mutation() {
 
     let digest = common::verifier_initial_state_digest(&checked.artifacts);
     let batch_size = 6;
-    let prep = preprocess_seeded_batched(&WasmVmSpec::default(), batch_size, digest).expect("prep");
+    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
     let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
     verify(&prep, &proof).expect("verify");
 }
@@ -91,7 +91,7 @@ fn folding_proof_covers_i64_arithmetic() {
 
     let digest = common::verifier_initial_state_digest(&checked.artifacts);
     let batch_size = 2;
-    let prep = preprocess_seeded_batched(&WasmVmSpec::default(), batch_size, digest).expect("prep");
+    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
     let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
     verify(&prep, &proof).expect("verify");
 }

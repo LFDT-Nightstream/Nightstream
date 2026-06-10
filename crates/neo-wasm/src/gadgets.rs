@@ -1,47 +1,6 @@
-use crate::layout::COL_ONE;
-
 use super::tagged_r1cs_builder::WasmTaggedR1csBuilder as R1csBuilder;
 use neo_math::F;
 use p3_field::{Field, PrimeCharacteristicRing};
-
-#[derive(Clone, Copy, Debug)]
-pub struct ConditionalSelectCols {
-    pub selector: usize,
-    pub cond: usize,
-    pub cond_is_zero: usize,
-    pub lhs: usize,
-    pub rhs: usize,
-    pub out: usize,
-    pub scratch_out_delta: usize,
-    pub scratch_inverse: usize,
-}
-
-/// Constraints for `selector * (out - (cond != 0 ? lhs : rhs)) = 0`.
-///
-/// The zero-test and scratch product rows are intentionally global: callers
-/// must populate `cond_is_zero`, `scratch_inverse`, and `scratch_out_delta` on
-/// every witness row.
-pub fn add_conditional_select_gadget(b: &mut R1csBuilder, cols: ConditionalSelectCols) {
-    push_zero_test_gadget(b, cols.cond, cols.scratch_inverse, cols.cond_is_zero);
-
-    // scratch_out_delta = (cond != 0) * (lhs - rhs)
-    b.push_row(
-        [(COL_ONE, F::ONE), (cols.cond_is_zero, -F::ONE)],
-        [(cols.lhs, F::ONE), (cols.rhs, -F::ONE)],
-        [(cols.scratch_out_delta, F::ONE)],
-    );
-
-    push_gated_linear_zero(
-        b,
-        cols.selector,
-        // (out - rhs) - (cond != 0) * (lhs - rhs) = 0
-        [
-            (cols.out, F::ONE),
-            (cols.rhs, -F::ONE),
-            (cols.scratch_out_delta, -F::ONE),
-        ],
-    );
-}
 
 pub(crate) fn push_gated_linear_zero<const N: usize>(b: &mut R1csBuilder, selector: usize, terms: [(usize, F); N]) {
     b.push_row([(selector, F::ONE)], terms, []);

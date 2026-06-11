@@ -193,8 +193,18 @@ impl R1csShape {
     ///
     /// Variables proven Boolean get width 1. Variables proven to be a
     /// non-negative affine combination of already bounded variables get the
-    /// minimum bit width that covers that range. Everything else remains a
+    /// minimum bit width that covers that range; variables determined by a
+    /// solo `±1` row get the exact integer range of that row over its
+    /// (bounded or definition-computed) support. Everything else remains a
     /// full canonical Goldilocks lane.
+    ///
+    /// Completeness invariant (oracle-tested in
+    /// `tests/system/width_inference_oracle.rs`): for every satisfying
+    /// assignment whose values fit canonical 64-bit lanes, the returned
+    /// width of each variable covers that variable's value. Every rule may
+    /// only narrow when that is derivable; on any doubt (negative local
+    /// range, unresolved support, cycles, non-unit coefficients, cap
+    /// overflow) the variable keeps the full lane.
     pub fn conservative_app_private_var_widths(&self) -> Vec<usize> {
         let rows = r1cs_coeff_rows(self);
         let booleans = boolean_constrained_variables_from_rows(&rows, self.n(), self.m());
@@ -206,6 +216,7 @@ impl R1csShape {
             bounds[0] = Some(1);
         }
 
+        let defs = determining_rows(&rows, self.n(), self.m());
         let mut changed = true;
         while changed {
             changed = false;
@@ -213,6 +224,12 @@ impl R1csShape {
                 if let Some((target, bound)) =
                     bounded_affine_output_var(&rows.a[row], &rows.b[row], &rows.c[row], &bounds)
                 {
+                    if bounds[target].is_none_or(|old| bound < old) {
+                        bounds[target] = Some(bound);
+                        changed = true;
+                    }
+                }
+                if let Some((target, bound)) = corner_bounded_output_var(&rows, row, &bounds, &defs) {
                     if bounds[target].is_none_or(|old| bound < old) {
                         bounds[target] = Some(bound);
                         changed = true;
@@ -274,6 +291,321 @@ fn boolean_constrained_variables_from_rows(rows: &R1csCoeffRows, row_count: usiz
         }
     }
     out
+}
+
+/// Total support assignments the corner rule will enumerate per row.
+const CORNER_RULE_MAX_COMBINATIONS: u128 = 4096;
+/// Largest balanced coefficient magnitude the corner rule evaluates.
+const CORNER_RULE_MAX_COEFF: i128 = 1 << 62;
+/// Cap on the definition-closure size the corner rule will chase.
+const CORNER_RULE_MAX_CLOSURE: usize = 32;
+/// Recursion cap for definition evaluation.
+const CORNER_RULE_MAX_DEPTH: usize = 6;
+
+/// For each variable, one row that determines it: the variable occurs
+/// exactly once in the row, in `C`, with coefficient `±1`, and nowhere in
+/// `A`/`B` — so `v = ±((A·z)(B·z) − C_rest(z))` given the row's other
+/// variables. Used by the corner rule to *compute* support variables from
+/// their definitions instead of ranging over their bounds, which preserves
+/// cross-variable correlation (e.g. bellpepper's `bc = b·c` feeding the
+/// `maj` row).
+fn determining_rows(rows: &R1csCoeffRows, row_count: usize, var_count: usize) -> Vec<Option<u32>> {
+    let mut defs: Vec<Option<u32>> = vec![None; var_count];
+    for row in 0..row_count {
+        for &(var, coeff) in &rows.c[row] {
+            if var == 0 || defs[var].is_some() {
+                continue;
+            }
+            let Some(signed) = balanced_coeff(coeff) else { continue };
+            if signed != 1 && signed != -1 {
+                continue;
+            }
+            if rows.c[row].iter().filter(|&&(v, _)| v == var).count() != 1 {
+                continue;
+            }
+            if rows.a[row]
+                .iter()
+                .chain(rows.b[row].iter())
+                .any(|&(v, _)| v == var)
+            {
+                continue;
+            }
+            defs[var] = Some(row as u32);
+        }
+    }
+    defs
+}
+
+/// Exact-range rule for a row that *determines* one unbounded variable.
+///
+/// Shape: `(A·z)·(B·z) = (C·z)` where the target appears exactly once, in
+/// `C`, with coefficient `±1`. Every other variable in the row (and in the
+/// transitive closure of their determining rows) must be either bounded —
+/// in which case its integer range is enumerated — or determined by a
+/// definition row, in which case it is computed exactly per assignment.
+/// The resulting range of `t = ±((A·z)(B·z) − C_rest(z))` over all
+/// enumerated assignments is therefore a superset of `t`'s range over
+/// satisfying assignments (conservative-complete). Returns the max when
+/// the range is non-negative.
+///
+/// Catching bellpepper's gadgets needs both halves: the mux/select row
+/// `(b − a)·s = (t − a)` falls to plain enumeration; the SHA-256 `maj`
+/// pair `b·c = bc`, `(2bc − b − c)·a = bc − maj` additionally needs
+/// `bc` computed from its definition, since ranging `bc` freely admits
+/// corners (`b = c = 0, bc = 1`) that drive the local range negative.
+fn corner_bounded_output_var(
+    rows: &R1csCoeffRows,
+    row: usize,
+    bounds: &[Option<u128>],
+    defs: &[Option<u32>],
+) -> Option<(usize, u128)> {
+    let (a, b, c) = (&rows.a[row], &rows.b[row], &rows.c[row]);
+
+    // Target: the unique unbounded row variable; must be a ±1 solo C term.
+    let mut target: Option<(usize, i128)> = None;
+    for &(var, coeff) in c {
+        if var == 0 || bounds.get(var).copied().flatten().is_some() {
+            continue;
+        }
+        let signed = balanced_coeff(coeff)?;
+        if signed != 1 && signed != -1 {
+            return None;
+        }
+        if target.map(|(v, _)| v != var).unwrap_or(false) {
+            return None;
+        }
+        target = Some((var, signed));
+    }
+    let (target, target_coeff) = target?;
+    if c.iter().filter(|&&(var, _)| var == target).count() != 1 {
+        return None;
+    }
+    if a.iter().chain(b.iter()).any(|&(var, _)| var == target) {
+        return None;
+    }
+
+    // Closure walk: classify every reachable variable as enumerated
+    // (bounded, no usable definition) or computed (has a definition row).
+    let mut enumerated: Vec<(usize, u128)> = Vec::new();
+    let mut seen: Vec<usize> = vec![target];
+    let mut worklist: Vec<usize> = a
+        .iter()
+        .chain(b.iter())
+        .chain(c.iter())
+        .map(|&(var, _)| var)
+        .filter(|&var| var != 0 && var != target)
+        .collect();
+    let mut combinations: u128 = 1;
+    while let Some(var) = worklist.pop() {
+        if seen.contains(&var) {
+            continue;
+        }
+        if seen.len() >= CORNER_RULE_MAX_CLOSURE {
+            return None;
+        }
+        seen.push(var);
+        if let Some(def_row) = defs.get(var).copied().flatten() {
+            let def_row = def_row as usize;
+            if def_row != row {
+                // Computed: pull its definition's variables into the closure.
+                for &(dep, _) in rows.a[def_row]
+                    .iter()
+                    .chain(rows.b[def_row].iter())
+                    .chain(rows.c[def_row].iter())
+                {
+                    if dep == 0 || dep == var {
+                        continue;
+                    }
+                    if dep == target {
+                        return None;
+                    }
+                    worklist.push(dep);
+                }
+                continue;
+            }
+        }
+        let bound = bounds.get(var).copied().flatten()?;
+        combinations = combinations.checked_mul(bound.checked_add(1)?)?;
+        if combinations > CORNER_RULE_MAX_COMBINATIONS {
+            return None;
+        }
+        enumerated.push((var, bound));
+    }
+
+    // Enumerate every integer assignment of the enumerated set; computed
+    // variables are evaluated from their definitions per assignment.
+    let mut assignment = vec![0u128; enumerated.len()];
+    let mut min_t: Option<i128> = None;
+    let mut max_t: Option<i128> = None;
+    loop {
+        let mut visiting: Vec<usize> = Vec::new();
+        let a_val = corner_eval_lc(
+            rows,
+            defs,
+            &enumerated,
+            &assignment,
+            target,
+            row,
+            a,
+            usize::MAX,
+            &mut visiting,
+        )?;
+        let b_val = corner_eval_lc(
+            rows,
+            defs,
+            &enumerated,
+            &assignment,
+            target,
+            row,
+            b,
+            usize::MAX,
+            &mut visiting,
+        )?;
+        let c_rest = corner_eval_lc(
+            rows,
+            defs,
+            &enumerated,
+            &assignment,
+            target,
+            row,
+            c,
+            target,
+            &mut visiting,
+        )?;
+        let t = a_val
+            .checked_mul(b_val)?
+            .checked_sub(c_rest)?
+            .checked_mul(target_coeff)?;
+        min_t = Some(min_t.map_or(t, |m| m.min(t)));
+        max_t = Some(max_t.map_or(t, |m| m.max(t)));
+
+        // Advance the mixed-radix assignment counter.
+        let mut pos = 0;
+        loop {
+            if pos == enumerated.len() {
+                let (min_t, max_t) = (min_t?, max_t?);
+                if min_t < 0 || max_t < 0 {
+                    return None;
+                }
+                let max_t = max_t as u128;
+                if max_t >= (1u128 << POSEIDON2_GOLDILOCKS_BITS) {
+                    return None;
+                }
+                return Some((target, max_t));
+            }
+            if assignment[pos] < enumerated[pos].1 {
+                assignment[pos] += 1;
+                break;
+            }
+            assignment[pos] = 0;
+            pos += 1;
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn corner_eval_lc(
+    rows: &R1csCoeffRows,
+    defs: &[Option<u32>],
+    enumerated: &[(usize, u128)],
+    assignment: &[u128],
+    target: usize,
+    origin_row: usize,
+    lc: &[(usize, F)],
+    skip: usize,
+    visiting: &mut Vec<usize>,
+) -> Option<i128> {
+    let mut acc: i128 = 0;
+    for &(var, coeff) in lc {
+        if var == skip {
+            continue;
+        }
+        let signed = balanced_coeff(coeff)?;
+        let value = corner_eval_var(rows, defs, enumerated, assignment, target, origin_row, var, visiting)?;
+        acc = acc.checked_add(signed.checked_mul(value)?)?;
+    }
+    Some(acc)
+}
+
+fn corner_eval_var(
+    rows: &R1csCoeffRows,
+    defs: &[Option<u32>],
+    enumerated: &[(usize, u128)],
+    assignment: &[u128],
+    target: usize,
+    origin_row: usize,
+    var: usize,
+    visiting: &mut Vec<usize>,
+) -> Option<i128> {
+    if var == 0 {
+        return Some(1);
+    }
+    if let Some(pos) = enumerated.iter().position(|&(v, _)| v == var) {
+        return Some(assignment[pos] as i128);
+    }
+    if var == target {
+        return None;
+    }
+    let def_row = defs.get(var).copied().flatten()? as usize;
+    if def_row == origin_row || visiting.contains(&var) || visiting.len() >= CORNER_RULE_MAX_DEPTH {
+        return None;
+    }
+    visiting.push(var);
+    let kappa = rows.c[def_row]
+        .iter()
+        .find(|&&(v, _)| v == var)
+        .and_then(|&(_, coeff)| balanced_coeff(coeff))?;
+    let a_val = corner_eval_lc(
+        rows,
+        defs,
+        enumerated,
+        assignment,
+        target,
+        origin_row,
+        &rows.a[def_row],
+        usize::MAX,
+        visiting,
+    )?;
+    let b_val = corner_eval_lc(
+        rows,
+        defs,
+        enumerated,
+        assignment,
+        target,
+        origin_row,
+        &rows.b[def_row],
+        usize::MAX,
+        visiting,
+    )?;
+    let c_rest = corner_eval_lc(
+        rows,
+        defs,
+        enumerated,
+        assignment,
+        target,
+        origin_row,
+        &rows.c[def_row],
+        var,
+        visiting,
+    )?;
+    visiting.pop();
+    a_val
+        .checked_mul(b_val)?
+        .checked_sub(c_rest)?
+        .checked_mul(kappa)
+}
+
+/// Balanced signed lift of a coefficient, rejecting magnitudes the corner
+/// rule cannot evaluate without overflow risk.
+fn balanced_coeff(coeff: F) -> Option<i128> {
+    let canonical = coeff.as_canonical_u64() as i128;
+    let p = F::ORDER_U64 as i128;
+    let signed = if canonical > p / 2 { canonical - p } else { canonical };
+    if signed.abs() > CORNER_RULE_MAX_COEFF {
+        None
+    } else {
+        Some(signed)
+    }
 }
 
 fn bounded_affine_output_var(

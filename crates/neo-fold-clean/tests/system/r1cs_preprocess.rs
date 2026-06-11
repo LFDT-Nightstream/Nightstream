@@ -251,9 +251,6 @@ fn r1cs_preprocess_rejects_one_bit_slot_without_boolean_row() {
     assert!(
         matches!(
             &err,
-            r1cs_f_prime::Error::PlanAppPrivateBooleanWidthUnconstrained { index } if *index == 1
-        ) || matches!(
-            &err,
             r1cs_f_prime::Error::PlanAppPrivateWidthTooNarrow {
                 index,
                 width: 1,
@@ -392,9 +389,6 @@ fn r1cs_preprocess_rejects_one_bit_slot_for_scaled_product_output() {
     assert!(
         matches!(
             &err,
-            r1cs_f_prime::Error::PlanAppPrivateBooleanWidthUnconstrained { index } if *index == 3
-        ) || matches!(
-            &err,
             r1cs_f_prime::Error::PlanAppPrivateWidthTooNarrow {
                 index,
                 width: 1,
@@ -522,5 +516,192 @@ fn r1cs_preprocess_rejects_anchor_without_stateful_indices() {
     assert!(
         matches!(&err, r1cs_f_prime::Error::PlanSemanticStateAnchorWithoutIndices),
         "expected PlanSemanticStateAnchorWithoutIndices, got {err:?}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Width-inference pins for the determining-row corner rule.
+// ---------------------------------------------------------------------------
+
+/// Builds rows over `m = 12` vars: v0 is the constant lane; v1..=v3 carry
+/// explicit Boolean rows `v * (1 - v) = 0`. Extra rows are appended by each
+/// test before width derivation.
+fn boolean_seeded_rows(extra: usize) -> (NeoMat<F>, NeoMat<F>, NeoMat<F>) {
+    let m = 12;
+    let n = 3 + extra;
+    let mut a = NeoMat::zero(n, m, F::default());
+    let mut b = NeoMat::zero(n, m, F::default());
+    let c = NeoMat::zero(n, m, F::default());
+    for (row, var) in (1..=3usize).enumerate() {
+        a[(row, var)] = F::ONE;
+        b[(row, 0)] = F::ONE;
+        b[(row, var)] = F::ZERO - F::ONE;
+    }
+    (a, b, c)
+}
+
+fn widths_of(r1cs: &R1cs) -> Vec<usize> {
+    r1cs_f_prime::R1csShape::from(r1cs).conservative_app_private_var_widths()
+}
+
+/// bellpepper's ch/select gadget `(b - c) * a = ch - c` must prove the
+/// output Boolean via plain corner enumeration.
+#[test]
+fn width_inference_corner_rule_proves_ch_output_boolean() {
+    let (mut a, mut b, mut c) = boolean_seeded_rows(1);
+    a[(3, 2)] = F::ONE;
+    a[(3, 3)] = F::ZERO - F::ONE;
+    b[(3, 1)] = F::ONE;
+    c[(3, 4)] = F::ONE;
+    c[(3, 3)] = F::ZERO - F::ONE;
+    let r1cs = R1cs { a, b, c, m_in: 1 };
+    let widths = widths_of(&r1cs);
+    assert_eq!(widths[4], 1, "ch output must be proven Boolean");
+}
+
+/// bellpepper's maj pair `b*c = bc`, `(2bc - b - c) * a = bc - maj` needs
+/// the definition substitution: `bc` must be computed as `b*c`, not ranged
+/// freely, for the output range to stay non-negative.
+#[test]
+fn width_inference_corner_rule_proves_maj_output_via_definition() {
+    let (mut a, mut b, mut c) = boolean_seeded_rows(2);
+    // row 3: v2 * v3 = v5
+    a[(3, 2)] = F::ONE;
+    b[(3, 3)] = F::ONE;
+    c[(3, 5)] = F::ONE;
+    // row 4: (2*v5 - v2 - v3) * v1 = v5 - v6
+    a[(4, 5)] = F::from_u64(2);
+    a[(4, 2)] = F::ZERO - F::ONE;
+    a[(4, 3)] = F::ZERO - F::ONE;
+    b[(4, 1)] = F::ONE;
+    c[(4, 5)] = F::ONE;
+    c[(4, 6)] = F::ZERO - F::ONE;
+    let r1cs = R1cs { a, b, c, m_in: 1 };
+    let widths = widths_of(&r1cs);
+    assert_eq!(
+        widths[6], 1,
+        "maj output must be proven Boolean via bc = b*c definition"
+    );
+}
+
+/// Conservativeness pin: the same maj-shaped row whose helper variable has
+/// a Boolean bound but NO determining row must stay at the full lane width.
+/// Free enumeration of the helper admits corners (helper = 1, b = c = 0)
+/// that drive the local range negative, and a negative range must never be
+/// narrowed — doing so would break completeness for satisfying witnesses.
+#[test]
+fn width_inference_corner_rule_refuses_negative_local_range() {
+    let (mut a, mut b, mut c) = boolean_seeded_rows(1);
+    // row 3: (2*v1 - v2 - v3) * v1 = v1 - v7, with v1 Boolean-bounded but
+    // its only "definition" being the C-empty Boolean row (not usable).
+    a[(3, 1)] = F::from_u64(2);
+    a[(3, 2)] = F::ZERO - F::ONE;
+    a[(3, 3)] = F::ZERO - F::ONE;
+    b[(3, 1)] = F::ONE;
+    c[(3, 1)] = F::ONE;
+    c[(3, 7)] = F::ZERO - F::ONE;
+    let r1cs = R1cs { a, b, c, m_in: 1 };
+    let widths = widths_of(&r1cs);
+    assert_eq!(
+        widths[7], POSEIDON2_GOLDILOCKS_BITS,
+        "negative local range must not be narrowed"
+    );
+}
+
+/// Exact-integer-enumeration pin: `t = (3 - a) * a` with `a = b1 + 2*b2`
+/// computed from its definition has range {0, 2, 2, 0} over the integer
+/// points — max 2, width 2. Endpoint-only enumeration would claim width 1
+/// (incomplete: honest `a = 1` gives `t = 2`); naive interval arithmetic
+/// would claim width 4 (max 9). Both regressions fail this pin.
+#[test]
+fn width_inference_interior_extremum_uses_exact_integer_range() {
+    let (mut a, mut b, mut c) = boolean_seeded_rows(2);
+    // row 3: (v1 + 2*v2) * v0 = v8   — defines a := v8, bound 3
+    a[(3, 1)] = F::ONE;
+    a[(3, 2)] = F::from_u64(2);
+    b[(3, 0)] = F::ONE;
+    c[(3, 8)] = F::ONE;
+    // row 4: (3*v0 - v8) * v8 = v9   — t := v9 = (3 - a) * a
+    a[(4, 0)] = F::from_u64(3);
+    a[(4, 8)] = F::ZERO - F::ONE;
+    b[(4, 8)] = F::ONE;
+    c[(4, 9)] = F::ONE;
+    let r1cs = R1cs { a, b, c, m_in: 1 };
+    let widths = widths_of(&r1cs);
+    assert_eq!(widths[8], 2, "a = b1 + 2*b2 must prove width 2");
+    assert_eq!(widths[9], 2, "(3 - a) * a peaks at 2 on interior integer points");
+}
+
+/// Termination + conservativeness pin for cyclic definitions: `v5` and
+/// `v6` determine each other; chasing either definition must hit the
+/// cycle guard, bail, and leave every involved variable at full width.
+#[test]
+fn width_inference_definition_cycle_terminates_and_stays_wide() {
+    let (mut a, mut b, mut c) = boolean_seeded_rows(3);
+    // row 3: v6 * v0 = v5      row 4: v5 * v0 = v6   (cyclic definitions)
+    a[(3, 6)] = F::ONE;
+    b[(3, 0)] = F::ONE;
+    c[(3, 5)] = F::ONE;
+    a[(4, 5)] = F::ONE;
+    b[(4, 0)] = F::ONE;
+    c[(4, 6)] = F::ONE;
+    // row 5: v5 * v1 = v7      (target whose support is the cycle)
+    a[(5, 5)] = F::ONE;
+    b[(5, 1)] = F::ONE;
+    c[(5, 7)] = F::ONE;
+    let r1cs = R1cs { a, b, c, m_in: 1 };
+    let widths = widths_of(&r1cs);
+    assert_eq!(widths[5], POSEIDON2_GOLDILOCKS_BITS);
+    assert_eq!(widths[6], POSEIDON2_GOLDILOCKS_BITS);
+    assert_eq!(widths[7], POSEIDON2_GOLDILOCKS_BITS);
+}
+
+/// A target carried with coefficient 2 is not a ±1 solo output; the row
+/// determines `2t`, not `t`, and must not be narrowed.
+#[test]
+fn width_inference_non_unit_target_coefficient_stays_wide() {
+    let (mut a, mut b, mut c) = boolean_seeded_rows(1);
+    a[(3, 1)] = F::ONE;
+    b[(3, 2)] = F::ONE;
+    c[(3, 8)] = F::from_u64(2);
+    let r1cs = R1cs { a, b, c, m_in: 1 };
+    let widths = widths_of(&r1cs);
+    assert_eq!(widths[8], POSEIDON2_GOLDILOCKS_BITS);
+}
+
+/// Combination-cap pin: a mux whose data operand is a 12-bit recomposed
+/// word would need 2^14 support assignments — over the cap. The rule must
+/// refuse (stay wide) and return quickly instead of blowing up.
+#[test]
+fn width_inference_wide_support_respects_combination_cap() {
+    let m = 24;
+    let n_bool = 14; // v1..=v14 Boolean
+    let n = n_bool + 2;
+    let mut a = NeoMat::zero(n, m, F::default());
+    let mut b = NeoMat::zero(n, m, F::default());
+    let mut c = NeoMat::zero(n, m, F::default());
+    for (row, var) in (1..=n_bool).enumerate() {
+        a[(row, var)] = F::ONE;
+        b[(row, 0)] = F::ONE;
+        b[(row, var)] = F::ZERO - F::ONE;
+    }
+    // row 14: (sum 2^i * v(i+1) for 12 bits) * v0 = v20  — 12-bit word
+    for bit in 0..12 {
+        a[(n_bool, bit + 1)] = F::from_u64(1 << bit);
+    }
+    b[(n_bool, 0)] = F::ONE;
+    c[(n_bool, 20)] = F::ONE;
+    // row 15: (v13 - v14) * v20 = v21 - v14  — mux selected by the word
+    a[(n_bool + 1, 13)] = F::ONE;
+    a[(n_bool + 1, 14)] = F::ZERO - F::ONE;
+    b[(n_bool + 1, 20)] = F::ONE;
+    c[(n_bool + 1, 21)] = F::ONE;
+    c[(n_bool + 1, 14)] = F::ZERO - F::ONE;
+    let r1cs = R1cs { a, b, c, m_in: 1 };
+    let widths = widths_of(&r1cs);
+    assert_eq!(widths[20], 12, "12-bit word must prove width 12 via the affine rule");
+    assert_eq!(
+        widths[21], POSEIDON2_GOLDILOCKS_BITS,
+        "support beyond the combination cap must refuse to narrow"
     );
 }

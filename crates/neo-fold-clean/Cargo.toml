@@ -317,6 +317,10 @@ name = "system_r1cs_preprocess"
 path = "tests/system/r1cs_preprocess.rs"
 
 [[test]]
+name = "system_width_inference_oracle"
+path = "tests/system/width_inference_oracle.rs"
+
+[[test]]
 name = "system_production_params"
 path = "tests/system/production_params.rs"
 

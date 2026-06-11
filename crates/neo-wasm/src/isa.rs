@@ -720,6 +720,23 @@ impl WasmOpcode {
         )
     }
 
+    /// Div/rem opcodes that trap on a zero divisor (stack read1). Single
+    /// source of truth for the CCS `div_trap` gate, the witness builder, and
+    /// the trace normalizer's trap-row synthesis.
+    pub fn traps_on_zero_divisor(self) -> bool {
+        matches!(
+            self,
+            Self::I32DivS
+                | Self::I32DivU
+                | Self::I32RemS
+                | Self::I32RemU
+                | Self::I64DivS
+                | Self::I64DivU
+                | Self::I64RemS
+                | Self::I64RemU
+        )
+    }
+
     pub fn memory_access_info(self) -> Option<WasmMemoryAccessInfo> {
         use WasmMemoryAccessKind::{Load, Store};
         use WasmMemoryExtension::{Sign, Zero};

@@ -199,10 +199,18 @@ pub fn collect_wasmtime_steps(
     let mut results = vec![Val::I32(0)];
     let results = match block_on(func.call_async(&mut store, &param_vals, &mut results)) {
         Ok(()) => results.iter().map(|&v| val_to_string(v)).collect(),
-        // An `unreachable` trap is a modeled terminal state: keep the
-        // collected steps (the faulting row included) and report no results.
-        // Other trap causes are not provable yet and stay hard errors.
-        Err(err) if matches!(err.downcast_ref::<Trap>(), Some(Trap::UnreachableCodeReached)) => Vec::new(),
+        // Traps with a modeled terminal state: keep the collected steps
+        // (the faulting row included) and report no results. Other trap
+        // causes (e.g. signed-division overflow, OOB access) are not
+        // provable yet and stay hard errors.
+        Err(err)
+            if matches!(
+                err.downcast_ref::<Trap>(),
+                Some(Trap::UnreachableCodeReached | Trap::IntegerDivisionByZero)
+            ) =>
+        {
+            Vec::new()
+        }
         Err(err) => {
             return Err(WasmBuildError::Trace(format!(
                 "failed to execute Wasmtime export '{export}': {err}"

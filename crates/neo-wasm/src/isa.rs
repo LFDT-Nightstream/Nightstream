@@ -1,7 +1,5 @@
 //! Owns WASM opcode taxonomy and stable lookup ids.
 
-use rwasm::Opcode as ConcreteOpcode;
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum WasmOpcodeClass {
     System,
@@ -960,71 +958,6 @@ impl WasmOpcode {
             Self::Unsupported => "unsupported",
         }
     }
-
-    pub fn from_concrete(op: ConcreteOpcode) -> Self {
-        match op {
-            ConcreteOpcode::Unreachable => Self::Unreachable,
-            ConcreteOpcode::I32Const(_) => Self::I32Const,
-            ConcreteOpcode::RefFunc(_) => Self::RefFunc,
-            ConcreteOpcode::I32Add => Self::I32Add,
-            ConcreteOpcode::I32Sub => Self::I32Sub,
-            ConcreteOpcode::I32Load(_) => Self::I32Load,
-            ConcreteOpcode::I32Load8S(_) => Self::I32Load8S,
-            ConcreteOpcode::I32Load8U(_) => Self::I32Load8U,
-            ConcreteOpcode::I32Load16S(_) => Self::I32Load16S,
-            ConcreteOpcode::I32Load16U(_) => Self::I32Load16U,
-            ConcreteOpcode::I32Store(_) => Self::I32Store,
-            ConcreteOpcode::I32Store8(_) => Self::I32Store8,
-            ConcreteOpcode::I32Store16(_) => Self::I32Store16,
-            ConcreteOpcode::MemorySize => Self::MemorySize,
-            ConcreteOpcode::MemoryGrow => Self::MemoryGrow,
-            ConcreteOpcode::TableSize(_) => Self::TableSize,
-            ConcreteOpcode::TableGet(_) => Self::TableGet,
-            ConcreteOpcode::TableSet(_) => Self::TableSet,
-            ConcreteOpcode::Drop => Self::Drop,
-            ConcreteOpcode::Br(_) => Self::Br,
-            ConcreteOpcode::I32Clz => Self::I32Clz,
-            ConcreteOpcode::I32Ctz => Self::I32Ctz,
-            ConcreteOpcode::I32Popcnt => Self::I32Popcnt,
-            ConcreteOpcode::I32Eqz => Self::I32Eqz,
-            ConcreteOpcode::I32Eq => Self::I32Eq,
-            ConcreteOpcode::I32Ne => Self::I32Ne,
-            ConcreteOpcode::I32LtS => Self::I32LtS,
-            ConcreteOpcode::I32LtU => Self::I32LtU,
-            ConcreteOpcode::I32GtS => Self::I32GtS,
-            ConcreteOpcode::I32GtU => Self::I32GtU,
-            ConcreteOpcode::I32LeS => Self::I32LeS,
-            ConcreteOpcode::I32LeU => Self::I32LeU,
-            ConcreteOpcode::I32GeS => Self::I32GeS,
-            ConcreteOpcode::I32GeU => Self::I32GeU,
-            ConcreteOpcode::I32And => Self::I32And,
-            ConcreteOpcode::I32Or => Self::I32Or,
-            ConcreteOpcode::I32Xor => Self::I32Xor,
-            ConcreteOpcode::I32Mul => Self::I32Mul,
-            ConcreteOpcode::I32Shl => Self::I32Shl,
-            ConcreteOpcode::I32ShrU => Self::I32ShrU,
-            ConcreteOpcode::I32ShrS => Self::I32ShrS,
-            ConcreteOpcode::I32Rotl => Self::I32Rotl,
-            ConcreteOpcode::I32Rotr => Self::I32Rotr,
-            ConcreteOpcode::I32DivU => Self::I32DivU,
-            ConcreteOpcode::I32DivS => Self::I32DivS,
-            ConcreteOpcode::I32RemU => Self::I32RemU,
-            ConcreteOpcode::I32RemS => Self::I32RemS,
-            ConcreteOpcode::Select => Self::Select,
-            ConcreteOpcode::BrIfEqz(_) => Self::BrIf,
-            ConcreteOpcode::BrTable(_) => Self::BrTable,
-            ConcreteOpcode::CallInternal(_) => Self::Call,
-            ConcreteOpcode::CallIndirect(_) => Self::CallIndirect,
-            ConcreteOpcode::Return => Self::Return,
-            ConcreteOpcode::LocalGet(_) => Self::LocalGet,
-            ConcreteOpcode::LocalSet(_) => Self::LocalSet,
-            ConcreteOpcode::LocalTee(_) => Self::LocalTee,
-            ConcreteOpcode::GlobalGet(_) => Self::GlobalGet,
-            ConcreteOpcode::GlobalSet(_) => Self::GlobalSet,
-            ConcreteOpcode::Trap(_) => Self::Trap,
-            _ => Self::Unsupported,
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1038,11 +971,6 @@ pub struct WasmOpcodeInfo {
     pub memory_access: Option<WasmMemoryAccessInfo>,
     pub uses_op_table: bool,
     pub op_table: Option<WasmOpTable>,
-}
-
-pub fn opcode_info_from_concrete(op: ConcreteOpcode) -> WasmOpcodeInfo {
-    let wasm_opcode = WasmOpcode::from_concrete(op);
-    opcode_info_from_code(opcode_code(wasm_opcode))
 }
 
 pub fn opcode_info_from_code(code: u16) -> WasmOpcodeInfo {

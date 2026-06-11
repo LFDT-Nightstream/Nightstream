@@ -13,13 +13,11 @@ use neo_wasm::layout::{
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::WasmRowKind;
 use neo_wasm::{
-    collect_wasmtime_steps, opcode_code, opcode_info_from_code, traces_from_rwasm_instr_states,
-    traces_from_wasmtime_steps, traces_from_wasmtime_wasm_bytes, LinearMemoryAccess, StackValueAccess, WasmAuxOpcode,
-    WasmOpcode, WasmOutputState, WasmParamInitState, WasmPcEdgeKind, WasmStepState, WasmStepTrace,
+    collect_wasmtime_steps, opcode_code, opcode_info_from_code, traces_from_wasmtime_steps,
+    traces_from_wasmtime_wasm_bytes, LinearMemoryAccess, StackValueAccess, WasmAuxOpcode, WasmOpcode, WasmOutputState,
+    WasmParamInitState, WasmPcEdgeKind, WasmStepState, WasmStepTrace,
 };
 use p3_field::PrimeCharacteristicRing;
-use rwasm::mem::{MemoryAccessRecord, MemoryReadRecord, MemoryRecordEnum, MemoryWriteRecord};
-use rwasm::{Opcode as ConcreteOpcode, TracerInstrState};
 
 fn step(
     cycle: u64,
@@ -115,62 +113,6 @@ fn trace_from_wat(wat_src: &str) -> Vec<WasmStepTrace> {
     let wasm = wat::parse_str(wat_src).expect("valid WAT");
     let run = collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
     traces_from_wasmtime_steps(&run.steps).expect("normalize trace")
-}
-
-#[test]
-fn normalization_tracks_stack_pointer_for_binary_op() {
-    let rows = vec![
-        TracerInstrState {
-            program_counter: 0,
-            opcode: ConcreteOpcode::I32Const(7u32.into()),
-            value: 7,
-            memory_changes: vec![],
-            table_changes: vec![],
-            table_size_changes: vec![],
-            next_table_idx: None,
-            call_id: 0,
-            memory_access: MemoryAccessRecord::default(),
-        },
-        TracerInstrState {
-            program_counter: 1,
-            opcode: ConcreteOpcode::I32Const(9u32.into()),
-            value: 9,
-            memory_changes: vec![],
-            table_changes: vec![],
-            table_size_changes: vec![],
-            next_table_idx: None,
-            call_id: 0,
-            memory_access: MemoryAccessRecord::default(),
-        },
-        TracerInstrState {
-            program_counter: 2,
-            opcode: ConcreteOpcode::I32Add,
-            value: 0,
-            memory_changes: vec![],
-            table_changes: vec![],
-            table_size_changes: vec![],
-            next_table_idx: None,
-            call_id: 0,
-            memory_access: MemoryAccessRecord {
-                a: Some(MemoryRecordEnum::Read(MemoryReadRecord::new(7, 1, 1, 0, 0))),
-                b: Some(MemoryRecordEnum::Read(MemoryReadRecord::new(9, 1, 2, 0, 0))),
-                c: Some(MemoryRecordEnum::Write(MemoryWriteRecord::new(16, 1, 3, 0, 0, 0))),
-                memory: None,
-            },
-        },
-    ];
-
-    let trace = traces_from_rwasm_instr_states(&rows, 0).expect("normalize");
-    assert_eq!(trace[0].state_before.sp, 0);
-    assert_eq!(trace[0].state_after.sp, 1);
-    assert_eq!(trace[1].state_before.sp, 1);
-    assert_eq!(trace[1].state_after.sp, 2);
-    assert_eq!(trace[2].state_before.sp, 2);
-    assert_eq!(trace[2].state_after.sp, 1);
-    assert_eq!(trace[2].stack_read0.expect("lhs").addr_lo, 0);
-    assert_eq!(trace[2].stack_read1.expect("rhs").addr_lo, 2);
-    assert_eq!(trace[2].stack_write0.expect("out").addr_lo, 0);
-    assert_eq!(trace[2].opcode, WasmOpcode::I32Add);
 }
 
 #[test]

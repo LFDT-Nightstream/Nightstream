@@ -2,7 +2,6 @@
 
 use super::super::ir::{WasmBuildError, WasmPcEdgeKind, WasmStepTrace};
 use super::super::isa::WasmOpcode;
-use super::super::lower::WasmTraceSource;
 use futures::executor::block_on;
 use std::collections::BTreeMap;
 use std::future::Future;
@@ -22,7 +21,7 @@ use normalize::capture_frame;
 use parse::{parse_first_component_core_module_artifacts, parse_wasm_artifacts, ParsedFunctionMeta};
 use runtime_read::{build_debug_function_id_map, build_store_debug_function_id_map, val_to_string};
 // Public path `adapters::wasmtime::traces_from_wasmtime_steps` is preserved via this re-export
-// (also brings the name into scope for the WasmTraceSource impls and component wrappers below).
+// (also brings the name into scope for the component wrappers below).
 pub use normalize::traces_from_wasmtime_steps;
 pub use parse::{WasmProgramArtifacts, WasmProgramDecodeEntry, WasmProgramTables};
 
@@ -132,18 +131,6 @@ pub struct WasmtimeTraceState {
     func_ref_ids: Arc<BTreeMap<usize, u32>>,
     function_metas: Arc<BTreeMap<u32, ParsedFunctionMeta>>,
     imported_function_count: u32,
-}
-
-impl WasmTraceSource for [WasmtimeTraceStep] {
-    fn lower_to_wasm_ir(&self) -> Result<Vec<WasmStepTrace>, WasmBuildError> {
-        traces_from_wasmtime_steps(self)
-    }
-}
-
-impl WasmTraceSource for Vec<WasmtimeTraceStep> {
-    fn lower_to_wasm_ir(&self) -> Result<Vec<WasmStepTrace>, WasmBuildError> {
-        traces_from_wasmtime_steps(self)
-    }
 }
 
 pub fn collect_wasmtime_steps(

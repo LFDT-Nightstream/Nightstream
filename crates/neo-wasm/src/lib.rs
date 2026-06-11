@@ -11,7 +11,6 @@ pub mod isa;
 pub mod layout;
 pub mod lookup_binding_builder;
 pub mod lookup_semantics;
-pub mod lower;
 pub mod memory_semantics;
 pub mod preprocess;
 pub mod prove;
@@ -20,7 +19,6 @@ pub mod step_build;
 pub mod tables;
 pub mod tagged_r1cs_builder;
 
-pub use adapters::rwasm::{traces_from_rwasm_instr_states, traces_from_rwasm_tracer};
 pub use adapters::wasmtime::{
     build_pc_rom_from_binary, collect_wasmtime_component_run, collect_wasmtime_component_run_with_linker,
     collect_wasmtime_steps, extract_first_component_core_program_artifacts, extract_wasm_program_artifacts,
@@ -46,7 +44,6 @@ pub use lookup_binding_builder::{
     WasmMemoryColumnSpec, WasmMemorySpec,
 };
 pub use lookup_semantics::{sanity_check_lookup_row, LookupBuiltin, LookupExpr, LookupPredicate, LookupSemantics};
-pub use lower::{build_row_traces, normalize_source, normalize_tracer, WasmExecutionStep, WasmTraceSource};
 pub use memory_semantics::{preload_from_program_artifacts, sanity_check_memory_rows, WasmMemoryPreload};
 pub use preprocess::{
     preprocess_seeded_batched, semantic_state_digest, top_level_initial_state, top_level_initial_state_digest,

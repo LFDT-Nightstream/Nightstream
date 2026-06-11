@@ -28,7 +28,6 @@ p3-goldilocks = { workspace = true }
 p3-poseidon2 = { workspace = true }
 rayon = { workspace = true }
 rand_chacha_p3 = { workspace = true }
-rwasm = { git = "https://github.com/ecioppettini/rwasm", branch = "nightstream-wip", default-features = false, features = ["tracing"] }
 serde = { workspace = true }
 sha2 = "0.10"
 spartan2 = { workspace = true }

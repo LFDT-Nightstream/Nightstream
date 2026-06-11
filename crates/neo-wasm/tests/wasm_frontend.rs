@@ -14,6 +14,7 @@ fn state(pc: u64, sp: u64, halted: bool) -> WasmStepState {
         memory_pages: None,
         locals_fbp: 0,
         halted,
+        trapped: false,
         param_init: WasmParamInitState::ZERO,
     }
 }

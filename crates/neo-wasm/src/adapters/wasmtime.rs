@@ -10,7 +10,7 @@ use std::sync::Arc;
 use wasmtime::component::{Type as ComponentType, Val as ComponentVal};
 use wasmtime::{
     component::{Component as WasmtimeComponent, Linker as WasmtimeComponentLinker},
-    Config, DebugEvent, DebugHandler, Engine, FrameHandle, Func, Linker, Module, Store, StoreContextMut, Val,
+    Config, DebugEvent, DebugHandler, Engine, FrameHandle, Func, Linker, Module, Store, StoreContextMut, Trap, Val,
 };
 
 mod decode;
@@ -197,9 +197,18 @@ pub fn collect_wasmtime_steps(
         .ok_or_else(|| WasmBuildError::Trace(format!("export '{export}' not found")))?;
     let param_vals: Vec<Val> = params.iter().map(|&v| Val::I32(v)).collect();
     let mut results = vec![Val::I32(0)];
-    block_on(func.call_async(&mut store, &param_vals, &mut results))
-        .map_err(|err| WasmBuildError::Trace(format!("failed to execute Wasmtime export '{export}': {err}")))?;
-    let results = results.iter().map(|&v| val_to_string(v)).collect();
+    let results = match block_on(func.call_async(&mut store, &param_vals, &mut results)) {
+        Ok(()) => results.iter().map(|&v| val_to_string(v)).collect(),
+        // An `unreachable` trap is a modeled terminal state: keep the
+        // collected steps (the faulting row included) and report no results.
+        // Other trap causes are not provable yet and stay hard errors.
+        Err(err) if matches!(err.downcast_ref::<Trap>(), Some(Trap::UnreachableCodeReached)) => Vec::new(),
+        Err(err) => {
+            return Err(WasmBuildError::Trace(format!(
+                "failed to execute Wasmtime export '{export}': {err}"
+            )));
+        }
+    };
 
     let steps = store.data().steps.clone();
     let initial_locals = steps

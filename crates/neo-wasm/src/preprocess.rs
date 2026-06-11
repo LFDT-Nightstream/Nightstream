@@ -18,7 +18,7 @@ use crate::ir::{WasmOutputState, WasmParamInitState, WasmStepState};
 use crate::layout::{
     COL_CALL_STACK_DEPTH_BEFORE, COL_LOCALS_FBP_BEFORE, COL_MEMORY_PAGES_BEFORE, COL_OUTPUT_ENABLED_BEFORE,
     COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_PARAM_INIT_ACTIVE_BEFORE,
-    COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_BEFORE, COL_SP_BEFORE, WITNESS_WIDTH,
+    COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_BEFORE, COL_SP_BEFORE, COL_TRAPPED_BEFORE, WITNESS_WIDTH,
 };
 use crate::lookup_binding_builder::build_wasm_lookup_binding_layout;
 use crate::lookup_binding_builder::Column;
@@ -130,6 +130,7 @@ pub fn top_level_initial_state(tables: &WasmProgramTables, entry_pc: u64) -> Was
         memory_pages: tables.initial_memory_pages,
         locals_fbp: 0,
         halted: false,
+        trapped: false,
         param_init: WasmParamInitState::ZERO,
     }
 }
@@ -169,6 +170,7 @@ fn carried_state_field(state: WasmStepState, column: Column) -> F {
         COL_LOCALS_FBP_BEFORE => F::from_u64(state.locals_fbp),
         COL_PARAM_INIT_ACTIVE_BEFORE => bool_field(state.param_init.active),
         COL_PARAM_INIT_REMAINING_BEFORE => F::from_u64(u64::from(state.param_init.remaining)),
+        COL_TRAPPED_BEFORE => bool_field(state.trapped),
         other => panic!("unsupported initial semantic-state column {other}"),
     }
 }

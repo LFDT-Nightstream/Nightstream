@@ -246,6 +246,7 @@ pub fn padding_step_after(prev: &WasmStepTrace) -> WasmStepTrace {
             memory_pages: pages,
             locals_fbp: fbp,
             halted: false,
+            trapped: prev.state_after.trapped,
             param_init,
         },
         state_after: WasmStepState {
@@ -256,6 +257,7 @@ pub fn padding_step_after(prev: &WasmStepTrace) -> WasmStepTrace {
             memory_pages: pages,
             locals_fbp: fbp,
             halted: false,
+            trapped: prev.state_after.trapped,
             param_init,
         },
         control_choice: 0,

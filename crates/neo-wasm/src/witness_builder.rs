@@ -52,8 +52,8 @@ use super::layout::{
     COL_STACK_READ2_ADDR_LO, COL_STACK_READ2_VALUE_HI, COL_STACK_READ2_VALUE_LO, COL_STACK_READS,
     COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI,
     COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE,
-    COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST, COL_WIDE_AUX0, COL_WIDE_AUX1, COL_WIDE_VALUES_ENABLED,
-    WITNESS_WIDTH,
+    COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_WIDE_AUX0, COL_WIDE_AUX1,
+    COL_WIDE_VALUES_ENABLED, WITNESS_WIDTH,
 };
 use super::step_build::WasmStepBuild;
 use crate::layout::{
@@ -131,6 +131,8 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
     wit[COL_LOCALS_FBP_BEFORE] = F::from_u64(trace.state_before.locals_fbp);
     wit[COL_LOCALS_FBP_AFTER] = F::from_u64(trace.state_after.locals_fbp);
     wit[COL_HALTED] = if trace.state_after.halted { F::ONE } else { F::ZERO };
+    wit[COL_TRAPPED_BEFORE] = if trace.state_before.trapped { F::ONE } else { F::ZERO };
+    wit[COL_TRAPPED_AFTER] = if trace.state_after.trapped { F::ONE } else { F::ZERO };
     wit[COL_IS_PROGRAM_ROW] = if trace.row_kind.is_program() { F::ONE } else { F::ZERO };
     wit[COL_PADDING_ACTIVE] = if trace.row_kind.is_padding() { F::ONE } else { F::ZERO };
     wit[COL_PC_ROM_ACTIVE] = if trace.row_kind.is_program() && trace.pc_edge_kind.as_u32() == 0 {

@@ -37,6 +37,7 @@ fn step(
             memory_pages: None,
             locals_fbp: 0,
             halted: false,
+            trapped: false,
             param_init: WasmParamInitState::ZERO,
         }
     }

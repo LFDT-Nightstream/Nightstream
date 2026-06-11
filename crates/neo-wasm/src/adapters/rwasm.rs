@@ -30,6 +30,11 @@ pub fn traces_from_rwasm_instr_states(
                 row.opcode.code()
             )));
         }
+        if matches!(info.opcode, WasmOpcode::Trap) {
+            return Err(WasmBuildError::Unsupported(format!(
+                "trap row at row {idx}: the rwasm adapter does not model trapped executions"
+            )));
+        }
         if matches!(
             info.opcode,
             WasmOpcode::LocalGet
@@ -65,7 +70,7 @@ pub fn traces_from_rwasm_instr_states(
             matches!(info.opcode, WasmOpcode::I32Const),
             row.value as u32,
         );
-        let halted = matches!(info.opcode, WasmOpcode::Return | WasmOpcode::Trap);
+        let halted = matches!(info.opcode, WasmOpcode::Return);
         let output_before = WasmOutputState {
             enabled: output_enabled,
             value_lo: output_value_lo,
@@ -91,6 +96,7 @@ pub fn traces_from_rwasm_instr_states(
                 memory_pages: None,
                 locals_fbp: 0,
                 halted: false,
+                trapped: false,
                 param_init: super::super::ir::WasmParamInitState::ZERO,
             },
             state_after: WasmStepState {
@@ -105,6 +111,7 @@ pub fn traces_from_rwasm_instr_states(
                 memory_pages: None,
                 locals_fbp: 0,
                 halted,
+                trapped: false,
                 param_init: super::super::ir::WasmParamInitState::ZERO,
             },
             control_choice: 0,

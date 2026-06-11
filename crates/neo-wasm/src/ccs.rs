@@ -347,6 +347,31 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
             [(COL_PC_EDGE_KIND, F::ONE), (COL_ONE, -F::from_u64(3))],
         );
     });
+    b.with_tag(always("trap transition"), |b| {
+        // trapped_after = trapped_before + (this row traps); only
+        // `unreachable` traps today. Non-program rows (padding, param-init
+        // aux) fire no selector, so they preserve the flag, and the Boolean
+        // width on trapped_after rejects trapping an already-trapped row.
+        b.push_linear_zero([
+            (idx(state.trapped_after), F::ONE),
+            (idx(state.trapped_before), -F::ONE),
+            (selector_col(WasmOpcode::Unreachable).unwrap(), -F::ONE),
+        ]);
+        // Nothing executes after a trap: a trapped chain only extends with
+        // state-preserving non-program rows.
+        b.push_row(
+            [(idx(control.is_program_row), F::ONE)],
+            [(idx(state.trapped_before), F::ONE)],
+            [],
+        );
+        // A trapped execution has no captured output.
+        b.push_row(
+            [(idx(layout.output.captured), F::ONE)],
+            [(idx(state.trapped_after), F::ONE)],
+            [],
+        );
+    });
+
     b.with_tag(always("pc rom active gate"), |b| {
         push_zero_test_gadget(
             b,

@@ -105,7 +105,11 @@ fn normalize_supported_row(row: &WasmtimeTraceStep) -> Result<Option<SupportedRo
     };
 
     if matches!(opcode, WasmOpcode::Trap | WasmOpcode::Unsupported) {
-        return Ok(None);
+        return Err(WasmBuildError::Unsupported(format!(
+            "row decodes to {} at step {}: this execution cannot be proven",
+            opcode.name(),
+            row.step
+        )));
     }
 
     let operand_stack = row.operand_stack_words.clone();
@@ -923,11 +927,22 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
             write_lane(current, next, sp_after, stack_writes)?.map(|write| write.with_optional_hi(write_value_hi));
         // Only the very last step of the whole trace is halted.
         let halted = next.is_none();
+        // A trap is terminal: wasmtime stops stepping at the faulting
+        // instruction, so a trapping opcode can only be the last row.
+        let trapped = matches!(current.opcode, WasmOpcode::Unreachable);
+        if trapped && !halted {
+            return Err(WasmBuildError::Trace(format!(
+                "trapping {} row at cycle {} is not the final step",
+                current.info.name, current.cycle
+            )));
+        }
         let output_enabled_before = output_enabled;
         let output_value_lo_before = output_value_lo;
         let output_value_hi_before = output_value_hi;
         let mut output_captured = false;
-        if halted && !output_enabled {
+        // A trapped execution has no output: capture is for clean halts only
+        // (the CCS enforces the same exclusion).
+        if halted && !trapped && !output_enabled {
             if let Some(value) = current.operand_stack.last().copied() {
                 output_enabled = true;
                 output_value_lo = value;
@@ -1075,6 +1090,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                 memory_pages: current.memory_pages_before,
                 locals_fbp: current_fbp,
                 halted: false,
+                trapped: false,
                 param_init: param_init_before,
             },
             state_after: WasmStepState {
@@ -1089,6 +1105,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                 memory_pages: current.memory_pages_after,
                 locals_fbp: fbp,
                 halted,
+                trapped,
                 param_init: param_init_after,
             },
             control_choice: current.control_choice,
@@ -1212,6 +1229,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                         memory_pages: current.memory_pages_after,
                         locals_fbp: callee_fbp,
                         halted: false,
+                        trapped: false,
                         param_init: aux_param_init_before,
                     },
                     state_after: WasmStepState {
@@ -1226,6 +1244,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                         memory_pages: current.memory_pages_after,
                         locals_fbp: callee_fbp,
                         halted: false,
+                        trapped: false,
                         param_init: aux_param_init_after,
                     },
                     control_choice: 0,

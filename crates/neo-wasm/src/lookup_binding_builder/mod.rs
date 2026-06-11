@@ -48,7 +48,7 @@ use super::layout::{
     COL_STACK_READ2_VALUE_LO, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI,
     COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TABLE_ID,
     COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE, COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST,
-    COL_WIDE_VALUES_ENABLED, WITNESS_WIDTH,
+    COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_WIDE_VALUES_ENABLED, WITNESS_WIDTH,
 };
 use super::lookup_semantics::{semantics_for_lookup_family, LookupSemantics};
 use super::tables::WasmLookupArity;
@@ -299,6 +299,8 @@ pub struct StateColumns {
     pub pc_after: Column,
     pub sp_before: Column,
     pub sp_after: Column,
+    pub trapped_before: Column,
+    pub trapped_after: Column,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -422,6 +424,8 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
         pc_after: Column(COL_PC_AFTER),
         sp_before: Column(COL_SP_BEFORE),
         sp_after: Column(COL_SP_AFTER),
+        trapped_before: Column(COL_TRAPPED_BEFORE),
+        trapped_after: Column(COL_TRAPPED_AFTER),
     };
     let output = OutputColumns {
         enabled_before: Column(COL_OUTPUT_ENABLED_BEFORE),
@@ -1307,6 +1311,14 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
             column_pairs: vec![WasmCrossStepColumnPair {
                 prev_after: frame.locals_fbp_after,
                 next_before: frame.locals_fbp_before,
+            }],
+        },
+        WasmCrossStepLinkSpec {
+            name: "trapped_continuity",
+            description: "row[i].trapped_after must match row[i+1].trapped_before",
+            column_pairs: vec![WasmCrossStepColumnPair {
+                prev_after: state.trapped_after,
+                next_before: state.trapped_before,
             }],
         },
         WasmCrossStepLinkSpec {

@@ -42,6 +42,7 @@ fn conversion_row(opcode: WasmOpcode, value: u32, width_bytes: usize, writes_i64
         memory_pages: None,
         locals_fbp: 0,
         halted: false,
+        trapped: false,
         param_init: WasmParamInitState::ZERO,
     };
     let state_after = WasmStepState {
@@ -52,6 +53,7 @@ fn conversion_row(opcode: WasmOpcode, value: u32, width_bytes: usize, writes_i64
         memory_pages: None,
         locals_fbp: 0,
         halted: false,
+        trapped: false,
         param_init: WasmParamInitState::ZERO,
     };
     WasmStepTrace {

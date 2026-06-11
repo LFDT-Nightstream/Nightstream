@@ -134,25 +134,30 @@ pub fn top_level_initial_state(tables: &WasmProgramTables, entry_pc: u64) -> Was
     }
 }
 
-/// Hash the verifier-owned initial VM state into the semantic-state digest
-/// expected by [`preprocess_seeded_batched`].
-pub fn initial_semantic_state_digest(initial_state: WasmStepState) -> [u8; 32] {
+/// Hash a carried VM state into the IVC semantic-state digest: the
+/// verifier-owned initial anchor expected by [`preprocess_seeded_batched`],
+/// and the final-state claim checked by [`crate::verify`].
+///
+/// Note `halted` is not a carried field — it is not part of the digest. A
+/// final state with `output.enabled = true` provably halted (output capture
+/// is CCS-gated on the halting row).
+pub fn semantic_state_digest(state: WasmStepState) -> [u8; 32] {
     let layout = build_wasm_lookup_binding_layout();
     let fields = layout
         .cross_step_links
         .iter()
         .flat_map(|link| link.column_pairs.iter())
-        .map(|pair| initial_state_field(initial_state, pair.next_before))
+        .map(|pair| carried_state_field(state, pair.next_before))
         .collect::<Vec<_>>();
     digest_fields_as_digest32(encode_poseidon_trace(&build_semantic_state_preimage_fields(&fields)).digest_native)
 }
 
 /// Convenience wrapper for the common top-level export-entry boundary.
 pub fn top_level_initial_state_digest(tables: &WasmProgramTables, entry_pc: u64) -> [u8; 32] {
-    initial_semantic_state_digest(top_level_initial_state(tables, entry_pc))
+    semantic_state_digest(top_level_initial_state(tables, entry_pc))
 }
 
-fn initial_state_field(state: WasmStepState, column: Column) -> F {
+fn carried_state_field(state: WasmStepState, column: Column) -> F {
     match column.0 {
         COL_PC_BEFORE => F::from_u64(state.pc),
         COL_SP_BEFORE => F::from_u64(state.sp),

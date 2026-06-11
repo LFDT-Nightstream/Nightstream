@@ -1,7 +1,7 @@
 use neo_fold_clean::frontends::r1cs_f_prime::R1csChainBuilder;
 use neo_fold_clean::lifecycle::verify_uncompressed_audit;
 use neo_wasm::{
-    build_steps, initial_semantic_state_digest, opcode_code, preprocess_seeded_batched, StackValueAccess, WasmOpcode,
+    build_steps, opcode_code, preprocess_seeded_batched, semantic_state_digest, StackValueAccess, WasmOpcode,
     WasmOutputState, WasmParamInitState, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmStepTrace,
 };
 
@@ -21,7 +21,7 @@ fn state(pc: u64, sp: u64, halted: bool) -> WasmStepState {
 #[test]
 fn wasm_frontend_scaffold_runs_through_clean_lifecycle() {
     let initial_state = state(0, 0, false);
-    let digest = initial_semantic_state_digest(initial_state);
+    let digest = semantic_state_digest(initial_state);
     let prep = preprocess_seeded_batched(1, digest).expect("prep");
 
     let steps = vec![

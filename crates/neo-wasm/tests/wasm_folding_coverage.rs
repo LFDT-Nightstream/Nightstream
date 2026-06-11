@@ -40,7 +40,7 @@ fn folding_proof_covers_nested_calls() {
     let batch_size = 4;
     let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
     let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
-    verify(&prep, &proof).expect("verify");
+    verify(&prep, &proof, common::final_state(&checked.trace)).expect("verify");
 }
 
 #[test]
@@ -75,7 +75,7 @@ fn folding_proof_covers_memory_mutation() {
     let batch_size = 6;
     let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
     let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
-    verify(&prep, &proof).expect("verify");
+    verify(&prep, &proof, common::final_state(&checked.trace)).expect("verify");
 }
 
 #[test]
@@ -93,5 +93,5 @@ fn folding_proof_covers_i64_arithmetic() {
     let batch_size = 2;
     let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
     let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
-    verify(&prep, &proof).expect("verify");
+    verify(&prep, &proof, common::final_state(&checked.trace)).expect("verify");
 }

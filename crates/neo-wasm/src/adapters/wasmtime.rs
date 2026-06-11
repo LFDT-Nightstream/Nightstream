@@ -106,14 +106,11 @@ pub struct WasmtimeTraceRun {
     /// Normalized string form of the export results, as produced by the
     /// reference wasmtime interpreter (`func.call_async`).
     ///
-    /// TODO(output-binding): this is the *reference* output and is NOT bound
-    /// to the proof in any way — the witness/CCS pipeline is built from
-    /// `steps`, independently of this field. Tests must not treat asserting on
-    /// `results` as evidence the prover computed the value; it only confirms
-    /// what wasmtime computed. Eventually the protocol needs to bind the
-    /// claimed program output into the public digest / transcript so a
-    /// verifier can check it; until then `results` is for fixture/intent
-    /// checks only.
+    /// This is the *reference* output and is NOT bound to the proof — the
+    /// witness/CCS pipeline is built from `steps`, independently of this
+    /// field, so it is for fixture/intent checks only. The proof-bound
+    /// output is the `output` carried in the final semantic state, checked
+    /// by `verify` against the prover-disclosed final `WasmStepState`.
     pub results: Vec<String>,
     pub steps: Vec<WasmtimeTraceStep>,
     /// Values of all locals (params + pure locals) at function entry, indexed by local index.

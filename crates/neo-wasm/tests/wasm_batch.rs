@@ -89,7 +89,7 @@ fn initial_state_digest_covers_all_cross_step_inputs() {
     let entry_pc = common::single_function_entry_pc(&checked.artifacts);
     let initial_state = neo_wasm::top_level_initial_state(&checked.artifacts.tables, entry_pc);
 
-    let digest = neo_wasm::initial_semantic_state_digest(initial_state);
+    let digest = neo_wasm::semantic_state_digest(initial_state);
     assert_eq!(
         digest,
         neo_wasm::top_level_initial_state_digest(&checked.artifacts.tables, entry_pc)
@@ -240,6 +240,6 @@ fn batched_prove_verify_simple_add() {
         let digest = common::verifier_initial_state_digest(&checked.artifacts);
         let prep = neo_wasm::preprocess_seeded_batched(batch_size, digest).expect("prep");
         let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
-        verify(&prep, &proof).expect("verify");
+        verify(&prep, &proof, common::final_state(&checked.trace)).expect("verify");
     }
 }

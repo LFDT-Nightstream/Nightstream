@@ -922,20 +922,29 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
             .map(|read| read.with_optional_hi(stack_read_hi(1)));
         let stack_read2 = read_lane(&current.operand_stack, sp_before, stack_reads, 2)
             .map(|read| read.with_optional_hi(stack_read_hi(2)));
-        let write_value_hi = write_lane_hi(current, next, stack_writes)?;
-        let stack_write0 =
-            write_lane(current, next, sp_after, stack_writes)?.map(|write| write.with_optional_hi(write_value_hi));
+        let div_zero_trap = current.opcode.traps_on_zero_divisor()
+            && stack_read1.is_some_and(|lane| lane.value_lo == 0 && lane.value_hi.unwrap_or(0) == 0);
+        let stack_write0 = if div_zero_trap {
+            // No post-state result exists; CCS pins this synthetic write to zero.
+            let addr = sp_after.saturating_sub(1).saturating_mul(2);
+            let hi = current.wide_values_enabled.then_some(0);
+            Some(StackValueAccess::new(addr, 0).with_optional_hi(hi))
+        } else {
+            let write_value_hi = write_lane_hi(current, next, stack_writes)?;
+            write_lane(current, next, sp_after, stack_writes)?.map(|write| write.with_optional_hi(write_value_hi))
+        };
         // Only the very last step of the whole trace is halted.
         let halted = next.is_none();
         // A trap is terminal: wasmtime stops stepping at the faulting
         // instruction, so a trapping opcode can only be the last row.
-        let trapped = matches!(current.opcode, WasmOpcode::Unreachable);
+        let trapped = matches!(current.opcode, WasmOpcode::Unreachable) || div_zero_trap;
         if trapped && !halted {
             return Err(WasmBuildError::Trace(format!(
                 "trapping {} row at cycle {} is not the final step",
                 current.info.name, current.cycle
             )));
         }
+        // Div/rem traps keep the parse-derived Static edge; `trapped` marks termination.
         let output_enabled_before = output_enabled;
         let output_value_lo_before = output_value_lo;
         let output_value_hi_before = output_value_hi;

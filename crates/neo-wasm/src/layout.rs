@@ -1048,6 +1048,18 @@ define_columns!(
         "carried trapped-execution flag after this row",
         ColumnWidth::Boolean
     ),
+    // Div/rem trap scratch; see the `trap transition` constraints in ccs.rs.
+    (
+        COL_DIV_DIVISOR_IS_ZERO,
+        "zero-test flag for the divisor (stack read1) on this row",
+        ColumnWidth::Boolean
+    ),
+    (COL_DIV_DIVISOR_INV, "inverse witness for the divisor zero test"),
+    (
+        COL_DIV_TRAP,
+        "this row is a div/rem op trapping on a zero divisor",
+        ColumnWidth::Boolean
+    ),
 );
 
 pub const SELECTOR_COLS: [usize; 113] = [

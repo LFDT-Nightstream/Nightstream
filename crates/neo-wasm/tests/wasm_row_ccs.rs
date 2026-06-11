@@ -4,11 +4,11 @@ use common::{assert_rejected, assert_satisfied};
 use neo_math::F;
 use neo_wasm::layout::{
     COL_CALL_PARAM_COUNT, COL_CALL_STACK_POP_CALLER_FBP, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_POP_RETURN_PC,
-    COL_CALL_STACK_PUSH_PRESENT, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE,
-    COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_AFTER_INV,
-    COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PC_ROM_ACTIVE, COL_STACK_READ0_ACTIVE, COL_STACK_READ1_ACTIVE,
-    COL_STACK_READ2_ACTIVE, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_VALUE_HI,
-    COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
+    COL_CALL_STACK_PUSH_PRESENT, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_DIV_TRAP, COL_LOCALS_FBP_AFTER,
+    COL_LOCALS_FBP_BEFORE, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_REMAINING_AFTER,
+    COL_PARAM_INIT_REMAINING_AFTER_INV, COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PC_ROM_ACTIVE,
+    COL_STACK_READ0_ACTIVE, COL_STACK_READ1_ACTIVE, COL_STACK_READ2_ACTIVE, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE,
+    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
 };
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::WasmRowKind;
@@ -53,16 +53,19 @@ fn step(
         access.map(|lane| StackValueAccess::new(lane.addr_lo * 2, lane.value_lo))
     }
 
+    let opcode = opcode_info_from_code(opcode_code).opcode;
+    let div_zero_trap = opcode.traps_on_zero_divisor()
+        && stack_read1.is_some_and(|lane| lane.value_lo == 0 && lane.value_hi.unwrap_or(0) == 0);
     WasmStepTrace {
         cycle,
         row_kind: WasmRowKind::Program,
         state_before: state(pc_before, sp_before, false),
         state_after: WasmStepState {
-            trapped: matches!(opcode_info_from_code(opcode_code).opcode, WasmOpcode::Unreachable),
+            trapped: matches!(opcode, WasmOpcode::Unreachable) || div_zero_trap,
             ..state(pc_before + 1, sp_after, halted)
         },
         control_choice: 0,
-        pc_edge_kind: match opcode_info_from_code(opcode_code).opcode {
+        pc_edge_kind: match opcode {
             WasmOpcode::Return | WasmOpcode::End => WasmPcEdgeKind::ReturnLike,
             WasmOpcode::CallIndirect => WasmPcEdgeKind::DynamicCallIndirect,
             WasmOpcode::Unreachable => WasmPcEdgeKind::Terminal,
@@ -1221,6 +1224,52 @@ fn program_row_rejects_execution_after_trap() {
     witness[COL_TRAPPED_BEFORE] = F::ONE;
     witness[COL_TRAPPED_AFTER] = F::ONE;
     assert_rejected(&witness, "program row executing after a trap");
+}
+
+#[test]
+fn div_by_zero_row_rejects_clean_claim() {
+    let mut witness = build_witness_vector(&step(
+        0,
+        5,
+        opcode_code(WasmOpcode::I32DivU),
+        2,
+        1,
+        Some(StackValueAccess::new(0, 7)),
+        Some(StackValueAccess::new(1, 0)),
+        None,
+        Some(StackValueAccess::new(0, 0)),
+        None,
+        0,
+        true,
+    ));
+    assert_satisfied(&witness, "i32.div_u row trapping on a zero divisor");
+    // Hiding the trap: div_trap = 0 contradicts (Σ div sel) · divisor_is_zero.
+    witness[COL_DIV_TRAP] = F::ZERO;
+    assert_rejected(&witness, "div-by-zero row claiming no trap");
+}
+
+#[test]
+fn div_row_rejects_fake_trap_on_nonzero_divisor() {
+    let mut witness = build_witness_vector(&step(
+        0,
+        5,
+        opcode_code(WasmOpcode::I32DivU),
+        2,
+        1,
+        Some(StackValueAccess::new(0, 7)),
+        Some(StackValueAccess::new(1, 2)),
+        None,
+        Some(StackValueAccess::new(0, 3)),
+        None,
+        0,
+        false,
+    ));
+    assert_satisfied(&witness, "i32.div_u row with a nonzero divisor");
+    // Faking the trap: divisor_is_zero is pinned to 0 by the zero test, so
+    // div_trap = (Σ div sel) · 0 must be 0.
+    witness[COL_DIV_TRAP] = F::ONE;
+    witness[COL_TRAPPED_AFTER] = F::ONE;
+    assert_rejected(&witness, "div row faking a trap on a nonzero divisor");
 }
 
 #[test]

@@ -26,7 +26,8 @@ use super::tagged_r1cs_builder::{
 };
 use crate::layout::{
     COL_CMP_AND, COL_CMP_HI_DIFF, COL_CMP_HI_INV, COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF, COL_CMP_LO_INV,
-    COL_CMP_LO_IS_ZERO, COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV,
+    COL_CMP_LO_IS_ZERO, COL_DIV_DIVISOR_INV, COL_DIV_DIVISOR_IS_ZERO, COL_DIV_TRAP, COL_SELECT_COND_IS_ZERO,
+    COL_SELECT_SCRATCH_INV,
 };
 use neo_ccs::CcsStructure;
 use neo_math::F;
@@ -97,6 +98,15 @@ pub(super) fn linear_memory_ops() -> Vec<WasmOpcode> {
     WasmOpcode::supported()
         .into_iter()
         .filter(|op| op.uses_linear_memory())
+        .collect()
+}
+
+/// Div/rem opcodes that trap on a zero divisor. Spec-derived from
+/// [`WasmOpcode::traps_on_zero_divisor`].
+fn div_rem_ops() -> Vec<WasmOpcode> {
+    WasmOpcode::supported()
+        .into_iter()
+        .filter(|op| op.traps_on_zero_divisor())
         .collect()
 }
 
@@ -320,7 +330,10 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         // 3 = terminal unreachable. Return-like rows are identified by
         // `halted` for the final frame and by `call_stack_pop_present` for
         // non-final returns; the latter intentionally covers both explicit
-        // `return` and a callee's function-ending `end`.
+        // `return` and a callee's function-ending `end`. A zero-divisor
+        // div/rem row halts but keeps its Static edge kind (the per-pc
+        // edge-kind ROM binds it); the −div_trap term absorbs its `halted`
+        // contribution.
         b.push_linear_zero(
             [
                 (idx(control.halted), F::ONE),
@@ -328,6 +341,7 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
                 (COL_PC_EDGE_KIND, -F::ONE),
                 (selector_col(WasmOpcode::CallIndirect).unwrap(), F::from_u64(2)),
                 (selector_col(WasmOpcode::Unreachable).unwrap(), F::from_u64(2)),
+                (COL_DIV_TRAP, -F::ONE),
             ]
             .into_iter(),
         );
@@ -348,23 +362,38 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         );
     });
     b.with_tag(always("trap transition"), |b| {
-        // trapped_after = trapped_before + (this row traps); only
-        // `unreachable` traps today. Non-program rows (padding, param-init
-        // aux) fire no selector, so they preserve the flag, and the Boolean
-        // width on trapped_after rejects trapping an already-trapped row.
+        // Div/rem by zero is terminal. Since both divisor limbs are U32,
+        // read1_lo + read1_hi is below the field modulus, so the sum is zero
+        // exactly when both limbs are zero.
+        let divisor = [(idx(stack.read1_value_lo), F::ONE), (idx(stack.read1_value_hi), F::ONE)];
+        b.push_row(
+            divisor,
+            [(COL_DIV_DIVISOR_INV, F::ONE)],
+            [(COL_ONE, F::ONE), (COL_DIV_DIVISOR_IS_ZERO, -F::ONE)],
+        );
+        b.push_row(divisor, [(COL_DIV_DIVISOR_IS_ZERO, F::ONE)], []);
+        b.push_row(
+            div_rem_ops()
+                .into_iter()
+                .map(|op| (selector_col(op).expect("div/rem selector"), F::ONE)),
+            [(COL_DIV_DIVISOR_IS_ZERO, F::ONE)],
+            [(COL_DIV_TRAP, F::ONE)],
+        );
+        // The faulting row has normal stack arity, but no real result: pin
+        // the synthetic write to zero and de-gate the op-table lookup below.
+        push_gated_linear_zero(b, COL_DIV_TRAP, [(idx(stack.write0_value_lo), F::ONE)]);
+        push_gated_linear_zero(b, COL_DIV_TRAP, [(idx(stack.write0_value_hi), F::ONE)]);
         b.push_linear_zero([
             (idx(state.trapped_after), F::ONE),
             (idx(state.trapped_before), -F::ONE),
             (selector_col(WasmOpcode::Unreachable).unwrap(), -F::ONE),
+            (COL_DIV_TRAP, -F::ONE),
         ]);
-        // Nothing executes after a trap: a trapped chain only extends with
-        // state-preserving non-program rows.
         b.push_row(
             [(idx(control.is_program_row), F::ONE)],
             [(idx(state.trapped_before), F::ONE)],
             [],
         );
-        // A trapped execution has no captured output.
         b.push_row(
             [(idx(layout.output.captured), F::ONE)],
             [(idx(state.trapped_after), F::ONE)],
@@ -386,14 +415,16 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         );
     });
 
-    // Spec-derived from `WasmOpTable::all()` so the gate cannot drift
-    // from the set of op-table-routed opcodes.
+    // A zero-divisor trap de-gates the op-table relation; div/rem lookup
+    // tables only model completed, non-trapping arithmetic.
     b.push_linear_zero(
-        core::iter::once((idx(op_table.enabled), F::ONE)).chain(
-            WasmOpTable::all()
-                .into_iter()
-                .map(|op| (selector_for_op_table(op), -F::ONE)),
-        ),
+        core::iter::once((idx(op_table.enabled), F::ONE))
+            .chain(
+                WasmOpTable::all()
+                    .into_iter()
+                    .map(|op| (selector_for_op_table(op), -F::ONE)),
+            )
+            .chain(core::iter::once((COL_DIV_TRAP, F::ONE))),
     );
 
     let stack_write0_at_sp_before_ops = opcodes_with_stack_signature(0, 1);

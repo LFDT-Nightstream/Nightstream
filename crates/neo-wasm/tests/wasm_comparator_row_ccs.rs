@@ -8,16 +8,15 @@ mod common;
 use common::{assert_rejected, assert_satisfied};
 use neo_math::F;
 use neo_wasm::layout::{
-    COL_CMP_AND, COL_CMP_HI_DIFF, COL_CMP_HI_INV, COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF, COL_CMP_LO_INV,
-    COL_CMP_LO_IS_ZERO, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_VALUE_HI,
-    COL_STACK_READ1_VALUE_LO, COL_STACK_WRITE0_VALUE_LO,
+    COL_CMP_LO_DIFF, COL_CMP_LO_INV, COL_CMP_LO_IS_ZERO, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO,
+    COL_STACK_READ1_VALUE_HI, COL_STACK_READ1_VALUE_LO, COL_STACK_WRITE0_VALUE_LO,
 };
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{
     opcode_code, opcode_info_from_code, StackValueAccess, WasmOpcode, WasmOutputState, WasmParamInitState,
     WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmStepTrace,
 };
-use p3_field::{Field, PrimeCharacteristicRing};
+use p3_field::PrimeCharacteristicRing;
 
 fn step(
     opcode: WasmOpcode,
@@ -43,7 +42,7 @@ fn step(
     }
 
     fn physical(access: Option<StackValueAccess>) -> Option<StackValueAccess> {
-        access.map(|lane| StackValueAccess::new(lane.addr_lo * 2, lane.value_lo))
+        access.map(|lane| StackValueAccess::new(lane.addr_lo * 2, lane.value_lo).with_optional_hi(lane.value_hi))
     }
 
     let code = opcode_code(opcode);
@@ -94,28 +93,6 @@ fn step(
     }
 }
 
-fn set_i64_eqz_cmp_scratch(row: &mut [F], lo: u32, hi: u32) {
-    let lo_diff = F::from_u64(u64::from(lo));
-    let hi_diff = F::from_u64(u64::from(hi));
-    row[COL_CMP_LO_DIFF] = lo_diff;
-    row[COL_CMP_HI_DIFF] = hi_diff;
-    let (lo_is_zero, lo_inv) = if lo_diff == F::ZERO {
-        (F::ONE, F::ZERO)
-    } else {
-        (F::ZERO, lo_diff.try_inverse().unwrap())
-    };
-    let (hi_is_zero, hi_inv) = if hi_diff == F::ZERO {
-        (F::ONE, F::ZERO)
-    } else {
-        (F::ZERO, hi_diff.try_inverse().unwrap())
-    };
-    row[COL_CMP_LO_IS_ZERO] = lo_is_zero;
-    row[COL_CMP_LO_INV] = lo_inv;
-    row[COL_CMP_HI_IS_ZERO] = hi_is_zero;
-    row[COL_CMP_HI_INV] = hi_inv;
-    row[COL_CMP_AND] = lo_is_zero * hi_is_zero;
-}
-
 #[test]
 fn i32_eqz_row_accepts_zero_and_nonzero_inputs() {
     for (input, result) in [(0u32, 1u32), (1, 0), (0xFFFF_FFFF, 0)] {
@@ -151,20 +128,15 @@ fn i32_eqz_row_rejects_tampered_output() {
 #[test]
 fn i64_eqz_row_accepts_zero_and_nonzero_inputs() {
     for (lo, hi, result) in [(0u32, 0u32, 1u32), (1, 0, 0), (0, 1, 0), (0xFFFF_FFFF, 0xFFFF_FFFF, 0)] {
-        let mut row = build_witness_vector(&step(
+        let row = build_witness_vector(&step(
             WasmOpcode::I64Eqz,
             1,
             1,
-            Some(StackValueAccess::new(0, lo)),
+            Some(StackValueAccess::with_hi(0, lo, hi)),
             None,
             Some(StackValueAccess::new(0, result)),
             true,
         ));
-        // The `step` helper only builds the low stack limb; set the high witness
-        // column directly and recompute the comparator scratch.
-        row[COL_STACK_READ0_VALUE_LO] = F::from_u64(u64::from(lo));
-        row[COL_STACK_READ0_VALUE_HI] = F::from_u64(u64::from(hi));
-        set_i64_eqz_cmp_scratch(&mut row, lo, hi);
         assert_satisfied(&row, &format!("i64.eqz(lo={lo}, hi={hi})"));
     }
 }
@@ -234,26 +206,6 @@ fn i32_eq_row_rejects_tampered_output() {
     assert_rejected(&row, "tampered i32.eq output");
 }
 
-fn set_i64_cmp_scratch(row: &mut [F], lo_diff: F, hi_diff: F) {
-    row[COL_CMP_LO_DIFF] = lo_diff;
-    row[COL_CMP_HI_DIFF] = hi_diff;
-    let (lo_is_zero, lo_inv) = if lo_diff == F::ZERO {
-        (F::ONE, F::ZERO)
-    } else {
-        (F::ZERO, lo_diff.try_inverse().unwrap())
-    };
-    let (hi_is_zero, hi_inv) = if hi_diff == F::ZERO {
-        (F::ONE, F::ZERO)
-    } else {
-        (F::ZERO, hi_diff.try_inverse().unwrap())
-    };
-    row[COL_CMP_LO_IS_ZERO] = lo_is_zero;
-    row[COL_CMP_LO_INV] = lo_inv;
-    row[COL_CMP_HI_IS_ZERO] = hi_is_zero;
-    row[COL_CMP_HI_INV] = hi_inv;
-    row[COL_CMP_AND] = lo_is_zero * hi_is_zero;
-}
-
 #[test]
 fn i64_eq_and_ne_rows_accept_equal_and_distinct_inputs() {
     // (lhs_lo, lhs_hi, rhs_lo, rhs_hi, eq_out, ne_out)
@@ -267,24 +219,15 @@ fn i64_eq_and_ne_rows_accept_equal_and_distinct_inputs() {
     ];
     for (l_lo, l_hi, r_lo, r_hi, eq_out, ne_out) in cases {
         for (opcode, expected) in [(WasmOpcode::I64Eq, eq_out), (WasmOpcode::I64Ne, ne_out)] {
-            let mut row = build_witness_vector(&step(
+            let row = build_witness_vector(&step(
                 opcode,
                 2,
                 1,
-                Some(StackValueAccess::new(0, l_lo)),
-                Some(StackValueAccess::new(1, r_lo)),
+                Some(StackValueAccess::with_hi(0, l_lo, l_hi)),
+                Some(StackValueAccess::with_hi(1, r_lo, r_hi)),
                 Some(StackValueAccess::new(0, expected)),
                 true,
             ));
-            // The `step` helper doesn't populate stack_read*_hi; set them
-            // directly along with wide-values gate and comparator scratch.
-            row[COL_STACK_READ0_VALUE_LO] = F::from_u64(u64::from(l_lo));
-            row[COL_STACK_READ0_VALUE_HI] = F::from_u64(u64::from(l_hi));
-            row[COL_STACK_READ1_VALUE_LO] = F::from_u64(u64::from(r_lo));
-            row[COL_STACK_READ1_VALUE_HI] = F::from_u64(u64::from(r_hi));
-            let lo_diff = F::from_u64(u64::from(l_lo)) - F::from_u64(u64::from(r_lo));
-            let hi_diff = F::from_u64(u64::from(l_hi)) - F::from_u64(u64::from(r_hi));
-            set_i64_cmp_scratch(&mut row, lo_diff, hi_diff);
             assert_satisfied(&row, &format!("{opcode:?}(lhs=({l_lo},{l_hi}), rhs=({r_lo},{r_hi}))"));
         }
     }
@@ -327,9 +270,6 @@ fn i64_ne_row_rejects_tampered_output() {
         Some(StackValueAccess::new(0, 0)),
         true,
     ));
-    row[COL_STACK_READ0_VALUE_LO] = F::from_u64(5);
-    row[COL_STACK_READ1_VALUE_LO] = F::from_u64(5);
-    set_i64_cmp_scratch(&mut row, F::ZERO, F::ZERO);
     row[COL_STACK_WRITE0_VALUE_LO] = F::ONE;
     assert_rejected(&row, "tampered i64.ne output");
 }

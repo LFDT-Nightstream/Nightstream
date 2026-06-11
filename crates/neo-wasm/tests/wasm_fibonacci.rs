@@ -53,7 +53,7 @@ fn wasm_fibonacci_folding_proof_covers_control_flow() {
     let digest = common::verifier_initial_state_digest(&checked.artifacts);
     let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
     let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove fibonacci run");
-    verify(&prep, &proof).expect("verify fibonacci run");
+    verify(&prep, &proof, common::final_state(&checked.trace)).expect("verify fibonacci run");
 }
 
 /// Batched-folding timing demo: prove fib traces at multiple fold counts
@@ -81,7 +81,7 @@ fn wasm_fibonacci_folding_proof_batched() {
         let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
         let t_prove = t0.elapsed();
         let t0 = Instant::now();
-        verify(&prep, &proof).expect("verify");
+        verify(&prep, &proof, common::final_state(&checked.trace)).expect("verify");
         let t_verify = t0.elapsed();
 
         eprintln!(

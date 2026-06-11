@@ -19,9 +19,9 @@ use neo_fold_clean::paper::digest::structure_digest;
 use neo_fold_clean::UncompressedAudit;
 
 use crate::batch;
-use crate::ir::WasmStepTrace;
+use crate::ir::{WasmStepState, WasmStepTrace};
 use crate::layout::WITNESS_WIDTH;
-use crate::preprocess::canonical_wasm_f_prime_shape_batched_with_initial_state_digest;
+use crate::preprocess::{canonical_wasm_f_prime_shape_batched_with_initial_state_digest, semantic_state_digest};
 
 pub struct WasmProof {
     pub audit_run: UncompressedAudit,
@@ -30,12 +30,19 @@ pub struct WasmProof {
 #[derive(Debug)]
 pub enum WasmProveError {
     Bridge(String),
+    FinalStateMismatch,
 }
 
 impl core::fmt::Display for WasmProveError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Bridge(msg) => write!(f, "bridge failed: {msg}"),
+            Self::FinalStateMismatch => {
+                write!(
+                    f,
+                    "claimed final VM state does not match the proof's final semantic-state digest"
+                )
+            }
         }
     }
 }
@@ -85,26 +92,41 @@ pub fn prove_batched(
     Ok(WasmProof { audit_run })
 }
 
-/// Verify the IVC chain against `prep`.
+/// Verify the IVC chain against `prep` and bind it to `claimed_final_state`.
 ///
-/// **Does not** bind the chain to a specific trace — that binding is the
+/// The chain starts from the verifier-owned initial semantic-state digest
+/// anchored in `prep` and must end in a state whose digest matches
+/// `claimed_final_state` (prover-disclosed; typically the last trace row's
+/// `state_after`). A passing verify therefore authenticates every carried
+/// field of the claim — in particular the output: `output.enabled = true`
+/// with `value_lo/hi = X` means "the VM halted with result X", since output
+/// capture is CCS-gated on the halting row and frozen afterwards. `halted`
+/// itself is not a carried field and is not bound by the digest.
+///
+/// **Does not** bind the chain to a specific program — that binding is the
 /// lookup layer's job (program ROM is a public input, the lookup proof
 /// indexes into it via the (pc, opcode) columns). Until that lands, callers
-/// must treat this as "the chain is *some* valid wasm execution under this
-/// preprocessing" rather than "the chain is the specific wasm execution for
-/// some intended trace".
+/// must treat this as "*some* valid wasm execution under this preprocessing
+/// ended in the claimed state".
 ///
 /// Cross-batch state continuity is enforced when `prep` includes
 /// semantic-state in/out indices derived from the wasm cross-step spec and a
 /// verifier-owned initial semantic-state digest. `verify` checks the proof
 /// against that preprocessing; it does not derive the digest from a trace.
-/// The older shape-only preprocessing path does not install semantic-state
-/// in/out indices, so it remains useful for structural tests but should not be
-/// treated as a full execution-continuity proof for multi-batch traces.
-pub fn verify(prep: &R1csFPrimePreprocessing, proof: &WasmProof) -> Result<(), WasmProveError> {
+pub fn verify(
+    prep: &R1csFPrimePreprocessing,
+    proof: &WasmProof,
+    claimed_final_state: WasmStepState,
+) -> Result<(), WasmProveError> {
     validate_wasm_preprocessing(prep)?;
     clean_verify_uncompressed_audit(&prep.prep, &proof.audit_run)
         .map_err(|err| WasmProveError::Bridge(format!("verify_uncompressed_audit: {err}")))?;
+    // The carried digest is authoritative only after the audit verification
+    // above: the decider replays the chain from the anchored initial digest
+    // and rejects unless this field equals the walked final digest.
+    if proof.audit_run.proof.state.semantic_state_digest != semantic_state_digest(claimed_final_state) {
+        return Err(WasmProveError::FinalStateMismatch);
+    }
     Ok(())
 }
 

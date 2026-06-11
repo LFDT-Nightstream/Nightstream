@@ -1029,7 +1029,29 @@ fn wasm_trace_run_folding_proof() {
     let digest = common::verifier_initial_state_digest(&artifacts);
     let prep = preprocess_seeded_batched(1, digest).expect("prep");
     let proof = prove(&prep, &trace).expect("prove kernel run");
-    verify(&prep, &proof).expect("verify kernel run");
+    let final_state = common::final_state(&trace);
+    verify(&prep, &proof, final_state).expect("verify kernel run");
+
+    // Output binding: the claimed final state is part of the verified
+    // statement, so a tampered output claim must fail.
+    let mut wrong_output = final_state;
+    wrong_output.output.value_lo ^= 1;
+    assert!(
+        matches!(
+            verify(&prep, &proof, wrong_output),
+            Err(neo_wasm::WasmProveError::FinalStateMismatch)
+        ),
+        "verify must reject a tampered claimed output value"
+    );
+    let mut disabled_output = final_state;
+    disabled_output.output.enabled = false;
+    assert!(
+        matches!(
+            verify(&prep, &proof, disabled_output),
+            Err(neo_wasm::WasmProveError::FinalStateMismatch)
+        ),
+        "verify must reject a claimed final state without the captured output"
+    );
 }
 
 #[test]
@@ -1056,7 +1078,7 @@ fn wasm_verify_rejects_preprocessing_with_wrong_widths() {
     )
     .expect("wrong-width prep");
 
-    let err = match verify(&verifier_prep, &proof) {
+    let err = match verify(&verifier_prep, &proof, common::final_state(&trace)) {
         Ok(_) => panic!("verify must reject a wasm preprocessing with non-canonical widths"),
         Err(err) => err,
     };

@@ -6,8 +6,8 @@ use neo_wasm::layout::COLUMN_SPECS;
 use neo_wasm::{
     build_wasm_lookup_binding_layout, collect_wasmtime_steps, extract_wasm_program_artifacts,
     preload_from_program_artifacts, sanity_check_lookup_row, sanity_check_memory_rows, top_level_initial_state_digest,
-    traces_from_wasmtime_steps, witness_builder::build_witness_vector, WasmProgramArtifacts, WasmStepTrace, WasmVmSpec,
-    WasmtimeTraceRun,
+    traces_from_wasmtime_steps, witness_builder::build_witness_vector, WasmProgramArtifacts, WasmStepState,
+    WasmStepTrace, WasmVmSpec, WasmtimeTraceRun,
 };
 
 pub struct CheckedWasmRun {
@@ -29,6 +29,7 @@ pub fn checked_wasm_run(wat_src: &str, export: &str, params: &[i32]) -> CheckedW
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
     let witnesses = sanity_check_trace(&trace, &artifacts, &run.initial_locals);
     ccs_check_trace(&trace);
+    assert_output_matches_reference(&trace, &run.results);
     CheckedWasmRun {
         wasm,
         artifacts,
@@ -36,6 +37,33 @@ pub fn checked_wasm_run(wat_src: &str, export: &str, params: &[i32]) -> CheckedW
         trace,
         witnesses,
     }
+}
+
+/// Cross-check the proof-bound output (the `output` carried into the final
+/// semantic state by the normalizer) against wasmtime's reference return
+/// value, which reaches us through `func.call_async` without touching the
+/// step stream or the normalizer. This is the only end-to-end check that
+/// the value the proof binds is the value the program actually produced.
+fn assert_output_matches_reference(trace: &[WasmStepTrace], results: &[String]) {
+    let output = final_state(trace).output;
+    if !output.enabled {
+        return;
+    }
+    let [reference] = results else {
+        panic!("captured output but reference results are not single-valued: {results:?}");
+    };
+    let reference: i128 = reference
+        .parse()
+        .unwrap_or_else(|err| panic!("non-integer reference result '{reference}': {err}"));
+    let got = (u64::from(output.value_hi) << 32) | u64::from(output.value_lo);
+    // The reference is a decimal string with the result type erased, so a
+    // negative value's bit pattern is ambiguous between i32 and i64.
+    let as_i64_bits = (reference as i64) as u64;
+    let as_i32_bits = u64::from((reference as i32) as u32);
+    assert!(
+        got == as_i64_bits || got == as_i32_bits,
+        "proof-bound output {got:#x} does not match wasmtime reference result {reference}",
+    );
 }
 
 pub fn sanity_check_trace(
@@ -116,6 +144,11 @@ pub fn ccs_check_trace(trace: &[WasmStepTrace]) {
 pub fn verifier_initial_state_digest(artifacts: &WasmProgramArtifacts) -> [u8; 32] {
     let entry_pc = single_function_entry_pc(artifacts);
     top_level_initial_state_digest(&artifacts.tables, entry_pc)
+}
+
+/// Prover-disclosed final VM state for `neo_wasm::verify`.
+pub fn final_state(trace: &[WasmStepTrace]) -> WasmStepState {
+    trace.last().expect("non-empty trace").state_after
 }
 
 pub fn single_function_entry_pc(artifacts: &WasmProgramArtifacts) -> u64 {

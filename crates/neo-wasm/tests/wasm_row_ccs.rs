@@ -8,7 +8,7 @@ use neo_wasm::layout::{
     COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_AFTER_INV,
     COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PC_ROM_ACTIVE, COL_STACK_READ0_ACTIVE, COL_STACK_READ1_ACTIVE,
     COL_STACK_READ2_ACTIVE, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_VALUE_HI,
-    COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES,
+    COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
 };
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::WasmRowKind;
@@ -44,6 +44,7 @@ fn step(
             memory_pages: None,
             locals_fbp: 0,
             halted,
+            trapped: false,
             param_init: WasmParamInitState::ZERO,
         }
     }
@@ -56,7 +57,10 @@ fn step(
         cycle,
         row_kind: WasmRowKind::Program,
         state_before: state(pc_before, sp_before, false),
-        state_after: state(pc_before + 1, sp_after, halted),
+        state_after: WasmStepState {
+            trapped: matches!(opcode_info_from_code(opcode_code).opcode, WasmOpcode::Unreachable),
+            ..state(pc_before + 1, sp_after, halted)
+        },
         control_choice: 0,
         pc_edge_kind: match opcode_info_from_code(opcode_code).opcode {
             WasmOpcode::Return | WasmOpcode::End => WasmPcEdgeKind::ReturnLike,
@@ -1152,6 +1156,71 @@ fn unreachable_row_requires_halted_boundary() {
         false,
     ));
     assert_rejected(&rejected, "unreachable row with halted=0");
+}
+
+#[test]
+fn unreachable_row_rejects_clean_trapped_flag() {
+    let mut witness = build_witness_vector(&step(
+        0,
+        14,
+        opcode_code(WasmOpcode::Unreachable),
+        0,
+        0,
+        None,
+        None,
+        None,
+        None,
+        None,
+        0,
+        true,
+    ));
+    assert_satisfied(&witness, "unreachable row with trapped_after=1");
+    witness[COL_TRAPPED_AFTER] = F::ZERO;
+    assert_rejected(&witness, "unreachable row claiming a clean (non-trapped) exit");
+}
+
+#[test]
+fn non_trap_row_rejects_fake_trapped_flag() {
+    let mut witness = build_witness_vector(&step(
+        0,
+        1,
+        opcode_code(WasmOpcode::Nop),
+        0,
+        0,
+        None,
+        None,
+        None,
+        None,
+        None,
+        0,
+        false,
+    ));
+    assert_satisfied(&witness, "nop row");
+    witness[COL_TRAPPED_AFTER] = F::ONE;
+    assert_rejected(&witness, "nop row claiming a trap");
+}
+
+#[test]
+fn program_row_rejects_execution_after_trap() {
+    let mut witness = build_witness_vector(&step(
+        0,
+        1,
+        opcode_code(WasmOpcode::Nop),
+        0,
+        0,
+        None,
+        None,
+        None,
+        None,
+        None,
+        0,
+        false,
+    ));
+    // trapped_before = trapped_after = 1 satisfies the transition row, so
+    // the rejection must come from `is_program_row · trapped_before = 0`.
+    witness[COL_TRAPPED_BEFORE] = F::ONE;
+    witness[COL_TRAPPED_AFTER] = F::ONE;
+    assert_rejected(&witness, "program row executing after a trap");
 }
 
 #[test]

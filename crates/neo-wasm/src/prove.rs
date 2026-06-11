@@ -103,6 +103,10 @@ pub fn prove_batched(
 /// capture is CCS-gated on the halting row and frozen afterwards. `halted`
 /// itself is not a carried field and is not bound by the digest.
 ///
+/// `trapped = true` means the execution provably ended in a wasm trap
+/// (only `unreachable` is a modeled cause today). It is terminal and
+/// mutually exclusive with a captured output.
+///
 /// **Does not** bind the chain to a specific program — that binding is the
 /// lookup layer's job (program ROM is a public input, the lookup proof
 /// indexes into it via the (pc, opcode) columns). Until that lands, callers

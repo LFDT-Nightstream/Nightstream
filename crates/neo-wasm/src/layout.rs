@@ -1038,6 +1038,16 @@ define_columns!(
     (COL_SEL_I64_CLZ, "selector for i64.clz", ColumnWidth::Boolean),
     (COL_SEL_I64_CTZ, "selector for i64.ctz", ColumnWidth::Boolean),
     (COL_SEL_I64_POPCNT, "selector for i64.popcnt", ColumnWidth::Boolean),
+    (
+        COL_TRAPPED_BEFORE,
+        "carried trapped-execution flag before this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_TRAPPED_AFTER,
+        "carried trapped-execution flag after this row",
+        ColumnWidth::Boolean
+    ),
 );
 
 pub const SELECTOR_COLS: [usize; 113] = [

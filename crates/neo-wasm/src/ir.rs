@@ -91,6 +91,7 @@ pub struct WasmBoundaryState {
     pub memory_pages: Option<u32>,
     pub locals_fbp: u64,
     pub halted: bool,
+    pub trapped: bool,
     pub param_init: WasmParamInitState,
 }
 
@@ -130,6 +131,10 @@ pub struct WasmStepState {
     pub memory_pages: Option<u32>,
     pub locals_fbp: u64,
     pub halted: bool,
+    /// Execution ended in a wasm trap. Terminal and mutually exclusive with
+    /// a captured output; carried into the semantic-state digest so a
+    /// verifier can assert "this execution trapped".
+    pub trapped: bool,
     pub param_init: WasmParamInitState,
 }
 
@@ -273,6 +278,7 @@ pub fn boundary_states(trace: &[WasmStepTrace]) -> Vec<(WasmBoundaryState, WasmB
                     memory_pages: row.state_before.memory_pages,
                     locals_fbp: row.state_before.locals_fbp,
                     halted: row.state_before.halted,
+                    trapped: row.state_before.trapped,
                     param_init: row.state_before.param_init,
                 },
                 WasmBoundaryState {
@@ -284,6 +290,7 @@ pub fn boundary_states(trace: &[WasmStepTrace]) -> Vec<(WasmBoundaryState, WasmB
                     memory_pages: row.state_after.memory_pages,
                     locals_fbp: row.state_after.locals_fbp,
                     halted: row.state_after.halted,
+                    trapped: row.state_after.trapped,
                     param_init: row.state_after.param_init,
                 },
             )

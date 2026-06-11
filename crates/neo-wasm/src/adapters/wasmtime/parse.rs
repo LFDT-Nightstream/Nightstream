@@ -759,10 +759,10 @@ impl ParsedWasmArtifactsBuilder {
                             let v = value as u64;
                             (v as u32, (v >> 32) as u32)
                         }
-                        wasmparser::Operator::F32Const { value } => (value.bits(), 0),
-                        wasmparser::Operator::F64Const { value } => {
-                            let v = value.bits();
-                            (v as u32, (v >> 32) as u32)
+                        wasmparser::Operator::F32Const { .. } | wasmparser::Operator::F64Const { .. } => {
+                            return Err(WasmBuildError::Unsupported(
+                                "wasm global with float initializer: floats are unsupported".to_string(),
+                            ));
                         }
                         other => {
                             return Err(WasmBuildError::Unsupported(format!(

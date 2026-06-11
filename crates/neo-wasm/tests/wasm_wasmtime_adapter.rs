@@ -209,6 +209,24 @@ fn wasmtime_trace_normalizes_global_get_and_set() {
 }
 
 #[test]
+fn float_global_initializer_is_rejected_at_parse() {
+    let wasm = wat::parse_str(
+        r#"(module
+            (global f64 (f64.const 3.5))
+            (func (export "run") (result i32)
+                i32.const 1)
+        )"#,
+    )
+    .expect("wat");
+
+    let err = extract_wasm_program_artifacts(&wasm).expect_err("float global initializer must be rejected");
+    assert!(
+        err.to_string().contains("float initializer"),
+        "expected float-initializer rejection, got: {err}",
+    );
+}
+
+#[test]
 fn wasmtime_trace_normalizes_memory_size_and_grow_rows() {
     let wasm = wat::parse_str(
         r#"(module

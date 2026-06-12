@@ -12,7 +12,10 @@
 
 mod common;
 
-use neo_wasm::{preprocess_seeded_batched, prove_batched, top_level_initial_state_digest, verify};
+use neo_wasm::{
+    collect_wasmtime_steps, extract_wasm_program_artifacts, preprocess_seeded_batched, prove_batched,
+    top_level_initial_state_digest, traces_from_wasmtime_steps, verify,
+};
 
 #[test]
 fn folding_proof_covers_nested_calls() {
@@ -41,6 +44,40 @@ fn folding_proof_covers_nested_calls() {
     let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
     let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
     verify(&prep, &proof, common::final_state(&checked.trace)).expect("verify");
+}
+
+/// Regression for global operand-stack addressing: the caller holds `10`
+/// under the call's argument, so the callee's slots must not restart at
+/// address 0 (per-frame aliasing) and the sp chain must stay continuous
+/// across the frame boundary. Builds the trace without the debug checkers
+/// so the proof pipeline itself is what accepts or rejects the witness.
+#[test]
+fn folding_proof_covers_operand_held_across_call() {
+    let wasm = wat::parse_str(
+        r#"(module
+            (func $one (param i32) (result i32)
+                i32.const 1)
+            (func (export "main") (result i32)
+                i32.const 10
+                i32.const 5
+                call $one
+                i32.add))"#,
+    )
+    .expect("wat");
+    let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
+    let run = collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
+    let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
+    assert_eq!(run.results.as_slice(), &["11".to_string()]);
+
+    let entry_pc = common::entry_pc_for_function_ref(&artifacts, 2);
+    let digest = top_level_initial_state_digest(&artifacts.tables, entry_pc);
+    // batch_size 2 forces the call/return frame boundary across a batch
+    // edge, so sp continuity is enforced by the carried digest as well as
+    // the in-batch links.
+    let batch_size = 2;
+    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
+    let proof = prove_batched(&prep, &trace, batch_size).expect("prove");
+    verify(&prep, &proof, common::final_state(&trace)).expect("verify");
 }
 
 #[test]

@@ -881,9 +881,14 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
     }
 
     let mut out = Vec::with_capacity(supported.len());
-    // Runtime call stack: (return_pc, caller_fbp). Grows on Call, shrinks on non-final Return.
-    let mut call_stack: Vec<(u64, u64)> = Vec::new();
+    // Runtime call stack: (return_pc, caller_fbp, caller_stack_base) per live
+    // guest frame. Grows on Call, shrinks on non-final Return.
+    let mut call_stack: Vec<(u64, u64, u64)> = Vec::new();
     let mut call_stack_depth: u64 = 0;
+    // Wasmtime snapshots the operand stack per frame, but the VM's `stack`
+    // memory is one global address space. Each frame's slots live above the
+    // caller's residual operands: global sp = stack_base + frame-local len.
+    let mut stack_base: u64 = 0;
     // Frame base pointer: absolute offset in the flat locals array where current function's
     // locals start. FBP_callee = FBP_caller + num_locals_caller.
     let mut fbp: u64 = 0;
@@ -904,17 +909,25 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
         let stack_writes = current
             .stack_writes_override
             .unwrap_or(current.info.stack_writes);
-        let sp_before = current.operand_stack.len() as u64;
+        let sp_before = stack_base + current.operand_stack.len() as u64;
         let expected_sp_after = sp_before
             .saturating_sub(u64::from(stack_reads))
             .saturating_add(u64::from(stack_writes));
         // Guest call args are popped by aux rows, so derive call-row sp_after
         // from this row's own arity instead of the next Wasmtime frame.
         let is_call_row = matches!(current.opcode, WasmOpcode::Call | WasmOpcode::CallIndirect);
+        // A non-final return continues in the caller frame, whose base is on
+        // the call stack (popped in the opcode match below).
+        let is_return_row = matches!(current.opcode, WasmOpcode::Return | WasmOpcode::End) && !call_stack.is_empty();
+        let next_row_base = if is_return_row {
+            call_stack.last().map(|&(_, _, base)| base).unwrap_or(0)
+        } else {
+            stack_base
+        };
         let sp_after = if is_call_row {
             expected_sp_after
         } else {
-            next.map(|row| row.operand_stack.len() as u64)
+            next.map(|row| next_row_base + row.operand_stack.len() as u64)
                 .unwrap_or(expected_sp_after)
         };
         let stack_read_hi = |lane| {
@@ -1060,16 +1073,28 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                     call_stack_pop = None;
                     callee_initial_params = collect_callee_initial_params(next, callee_fbp, param_count);
                     guest_callee_fbp = Some(callee_fbp);
-                    call_stack.push((return_pc, current_fbp));
+                    call_stack.push((return_pc, current_fbp, stack_base));
                     call_stack_depth = call_stack_depth.checked_add(1).ok_or_else(|| {
                         WasmBuildError::Trace(format!("call stack depth overflow at cycle {}", current.cycle))
                     })?;
                     fbp = callee_fbp;
+                    // Callee slots start above the caller's residual operands,
+                    // i.e. at global sp after the index pop and the aux-row
+                    // arg pops.
+                    stack_base = sp_after
+                        .checked_sub(u64::from(param_count))
+                        .ok_or_else(|| {
+                            WasmBuildError::Trace(format!(
+                                "operand stack underflow popping call args at cycle {}",
+                                current.cycle
+                            ))
+                        })?;
                 }
             }
             WasmOpcode::Return | WasmOpcode::End if !call_stack.is_empty() => {
-                // Non-final return: restore caller's FBP from the call stack.
-                let (ret_pc, caller_fbp) = call_stack.pop().unwrap();
+                // Non-final return: restore the caller's FBP and operand-stack
+                // base from the call stack.
+                let (ret_pc, caller_fbp, caller_base) = call_stack.pop().unwrap();
                 call_stack_push = None;
                 call_stack_pop = Some((ret_pc, caller_fbp));
                 callee_initial_params = vec![];
@@ -1078,6 +1103,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                     WasmBuildError::Trace(format!("call stack depth underflow at cycle {}", current.cycle))
                 })?;
                 fbp = caller_fbp;
+                stack_base = caller_base;
             }
             _ => {
                 call_stack_push = None;

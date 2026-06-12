@@ -181,8 +181,15 @@ fn nested_two_param_call_trace_counts_down_param_init_rows() {
         assert_eq!(chunk[1].state_before.param_init.remaining, 1);
         assert_eq!(chunk[1].state_after.param_init.remaining, 0);
         assert!(!chunk[1].state_after.param_init.active);
-        for (param_index, row) in chunk.iter().enumerate() {
-            assert_eq!(row.local_index, Some(param_index as u32));
+        for (pop_index, row) in chunk.iter().enumerate() {
+            // Aux rows pop the operand-stack top, so locals initialize in
+            // reverse param order.
+            assert_eq!(row.local_index, Some(1 - pop_index as u32));
+            assert_eq!(
+                row.state_before.sp,
+                row.state_after.sp + 1,
+                "each aux row pops one arg slot"
+            );
             assert_eq!(
                 row.state_before.locals_fbp, row.state_after.locals_fbp,
                 "aux row must stay in the callee frame while initializing params"

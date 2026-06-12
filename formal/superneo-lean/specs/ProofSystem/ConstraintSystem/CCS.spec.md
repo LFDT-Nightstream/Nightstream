@@ -92,7 +92,7 @@
 - **Consumers**:
   - `SuperNeo.ProofSystem.ConstraintSystem`: barrel re-export.
   - `SuperNeo.ProtocolRelations`: specializes compact protocol contexts to these Section 7.1 objects.
-  - `SuperNeo.ProofSystem.Folding`: intended proof-system consumer of CCS/CE relation objects.
+  - `SuperNeo.FoldingProtocol.ProtocolRelations`: `ProtocolSection71TheoremInstance` bridges these CCS/CE objects to the compact protocol relations.
 
 ## Quality Expectations
 

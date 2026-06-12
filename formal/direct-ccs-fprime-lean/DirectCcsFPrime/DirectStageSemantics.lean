@@ -1,8 +1,8 @@
 import DirectCcsFPrime.DirectProgramStep
 import DirectCcsFPrime.CompressedFPrimeAuthority
 import DirectCcsFPrime.SuperNeoBridge
-import SuperNeo.PiCCSInterface
-import SuperNeo.PiRLCInterface
+import SuperNeo.FoldingProtocol.PiCCSInterface
+import SuperNeo.FoldingProtocol.PiRLCInterface
 
 /-!
 Verified SuperNeo stage computations for direct CCS F'.

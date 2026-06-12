@@ -6,7 +6,7 @@
 - **Key property**: Under compatible preconditions, evaluation preserves linear combinations:
   `eval(ρ₁·y₁ + ρ₂·y₂) = ρ₁·eval(y₁) + ρ₂·eval(y₂)`,
   instantiated with `y₁ := matrixVecCtBar bar m z₁`, `y₂ := matrixVecCtBar bar m z₂`.
-- **Protocol role**: ArithmeticBundle checks `evalHomAssumption`. ProtocolMathTarget depends on closed eval-hom for the folding protocol.
+- **Protocol role**: ArithmeticBundle checks `evalHomAssumption`. The protocol-target layer depends on closed eval-hom for the folding protocol.
 
 ## Target Formulas (Paper → Lean)
 
@@ -40,7 +40,7 @@
 |---|---|---|---|---|---|
 | Evaluator | `evalBarMzAt` | None | Multilinear evaluation (`mleInnerProductForm`) on input `z` at challenge `r` | Theorem-Target | `ArithmeticBundle.lean` |
 | Eval-hom prop | `evalHom2Prop`, `evalHom2` | `z1.size = z2.size`, row compatibility | Theorem-5 linearity equation over `matrixVecCtBar` images | Theorem-Target | `ArithmeticBundle.lean` |
-| Theorem-facing boundary | `evalHomAssumption bar m r ρ1 ρ2` | None | `∀ z1 z2, ... → evalHom2Prop ...` | Theorem-Target | `ProtocolMathTarget` |
+| Theorem-facing boundary | `evalHomAssumption bar m r ρ1 ρ2` | None | `∀ z1 z2, ... → evalHom2Prop ...` | Theorem-Target | `ProtocolTarget` |
 | Check-facing boundary | `evalHomCheckAssumption bar m r ρ1 ρ2` | None | `∀ z1 z2, ... → evalHom2 = true` | Theorem-Target | — |
 | Constructive closure | `evalHomAssumption_constructive` | None | `evalHomAssumption bar m r ρ1 ρ2` (derived from MLE linearity; theorem-native) | Theorem-Target | — |
 | Compatibility alias | `evalHomAssumption_native` | None | Backward-compatible alias to constructive closure | Theorem-Target | — |
@@ -69,7 +69,7 @@ No open boundary assumptions in this module.
   - `SuperNeo/EmbeddingTheory/ModuleHom.lean`: imports `vecModuleAssumption`, `scalarModuleAssumption` for eval-hom constructor.
 - Downstream consumers:
   - `SuperNeo/FoldingProtocol/ArithmeticBundle.lean`: uses `evalHomAssumption` for checks.
-  - `SuperNeo/FoldingProtocol/ProtocolMathTarget.lean`: depends on closed eval-hom for the folding protocol.
+  - `SuperNeo/FoldingProtocol/ProtocolTarget.lean`: `protocolTargetProp` carries the closed eval-hom obligation.
 
 ## Implementation Plan
 
@@ -94,4 +94,4 @@ No open boundary assumptions in this module.
 
 ## Out of Scope
 
-- Protocol-level composition (belongs to ProtocolMathTarget).
+- Protocol-level composition (belongs to the protocol-target layer).

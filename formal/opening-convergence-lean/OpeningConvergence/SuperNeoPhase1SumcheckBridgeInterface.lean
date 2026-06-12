@@ -1,7 +1,7 @@
 import OpeningConvergence.BatchEvalReductionInterface
-import SuperNeo.ExtensionFieldInterface
-import SuperNeo.ExtensionMLEInterface
-import SuperNeo.ExtensionSumCheckInterface
+import SuperNeo.Primitives.ExtensionFieldInterface
+import SuperNeo.Primitives.ExtensionMLEInterface
+import SuperNeo.Primitives.ExtensionSumCheckInterface
 
 /-!
 # Module 8: SuperNeoPhase1SumcheckBridge — Interface

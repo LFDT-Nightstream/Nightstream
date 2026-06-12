@@ -36,14 +36,6 @@ abbrev FinalTheoremShape := SuperNeo.FinalTheoremShape
 def finalErrorPackageOfComponentBoundaries :=
   @SuperNeo.FinalErrorPackage.ofComponentBoundaries
 
-/-- [Role: Theorem-Target] Canonical constructor for aligned final error packages. -/
-def finalErrorPackageOfAlignedComponents :=
-  @SuperNeo.FinalErrorPackage.ofAlignedComponents
-
-/-- [Role: Theorem-Target] Canonical constructor for aligned final error packages on the proved `paperCarrier` path, deriving Ajtai reduction data from the MSIS boundary. -/
-def finalErrorPackageOfAlignedPaperCarrierFromThreeDLe :=
-  @SuperNeo.FinalErrorPackage.ofAlignedPaperCarrierFromThreeDLe
-
 /-- [Role: Theorem-Target] Canonical constructor for aligned final error packages on the Goldilocks Appendix B.2 paper-parameter family. -/
 def finalErrorPackageOfGoldilocksPaperCarrier :=
   @SuperNeo.FinalErrorPackage.ofGoldilocksPaperCarrier
@@ -51,18 +43,6 @@ def finalErrorPackageOfGoldilocksPaperCarrier :=
 /-- [Role: Theorem-Target] Canonical constructor for final theorem assumptions from boundary packages. -/
 def finalTheoremAssumptionsOfBoundaryPackages :=
   @SuperNeo.FinalTheoremAssumptions.ofBoundaryPackages
-
-/-- [Role: Theorem-Target] Canonical constructor for final theorem assumptions on the proved `paperCarrier` path, deriving Ajtai reduction data from the MSIS boundary. -/
-def finalTheoremAssumptionsOfAlignedPaperCarrierBoundaryPackages :=
-  @SuperNeo.FinalTheoremAssumptions.ofAlignedPaperCarrierBoundaryPackages
-
-/-- [Role: Theorem-Target] Canonical constructor for final theorem assumptions on the paper-facing `paperCarrier`-difference path, deriving Ajtai reduction data from the MSIS boundary. -/
-def finalTheoremAssumptionsOfAlignedPaperCarrierDiffBoundaryPackages :=
-  @SuperNeo.FinalTheoremAssumptions.ofAlignedPaperCarrierDiffBoundaryPackages
-
-/-- [Role: Theorem-Target] Canonical constructor for final theorem assumptions on the proved `paperCarrier` path from a stronger strict low-norm invertibility theorem with threshold at least `5`. -/
-def finalTheoremAssumptionsOfAlignedPaperCarrierLowNormBoundaryPackages :=
-  @SuperNeo.FinalTheoremAssumptions.ofAlignedPaperCarrierLowNormBoundaryPackages
 
 /-- [Role: Theorem-Target] Canonical constructor for final theorem assumptions on the Goldilocks Appendix B.2 paper-parameter family. -/
 def finalTheoremAssumptionsOfGoldilocksPaperCarrierBoundaryPackages :=
@@ -72,45 +52,13 @@ def finalTheoremAssumptionsOfGoldilocksPaperCarrierBoundaryPackages :=
 noncomputable def finalTheoremAssumptionsOfGoldilocksPaperCarrierDerivedSumcheck :=
   @SuperNeo.FinalTheoremAssumptions.ofGoldilocksPaperCarrierDerivedSumcheck
 
-/-- [Role: Theorem-Target] Canonical constructor for final theorem assumptions on the Goldilocks Appendix B.2 paper-parameter family and active `paperCarrier`-difference path. -/
-def finalTheoremAssumptionsOfGoldilocksPaperCarrierDiffBoundaryPackages :=
-  @SuperNeo.FinalTheoremAssumptions.ofGoldilocksPaperCarrierDiffBoundaryPackages
-
 /-- [Role: Theorem-Target] Canonical constructor for final theorem assumptions on the Goldilocks Appendix B.2 paper-parameter family and active native-bar `paperCarrier`-difference path, discharging the generic Theorem-3 boundary from `thm3CoreAssumption_native`, deriving the witness-level SumCheck and local Schwartz-Zippel boundaries internally, and keeping only the theorem-level MSIS hardness assumption explicit. -/
 noncomputable def finalTheoremAssumptionsOfGoldilocksNativePaperCarrierDiffBoundaryPackages :=
   @SuperNeo.FinalTheoremAssumptions.ofGoldilocksNativePaperCarrierDiffBoundaryPackages
 
-/-- [Role: Theorem-Target] Canonical constructor for final theorem assumptions on the Goldilocks Appendix B.2 paper-parameter family from a stronger strict low-norm invertibility theorem with threshold at least `5`. -/
-def finalTheoremAssumptionsOfGoldilocksPaperCarrierLowNormBoundaryPackages :=
-  @SuperNeo.FinalTheoremAssumptions.ofGoldilocksPaperCarrierLowNormBoundaryPackages
-
-/-- [Role: Theorem-Target] Canonical final theorem specialized to the proved `paperCarrier` path. -/
-def finalTheoremShapeOfAlignedPaperCarrierBoundaryPackages :=
-  @SuperNeo.finalTheoremShape_of_alignedPaperCarrierBoundaryPackages
-
-/-- [Role: Theorem-Target] Canonical final theorem specialized to the paper-facing `paperCarrier`-difference path. -/
-def finalTheoremShapeOfAlignedPaperCarrierDiffBoundaryPackages :=
-  @SuperNeo.finalTheoremShape_of_alignedPaperCarrierDiffBoundaryPackages
-
-/-- [Role: Theorem-Target] Canonical final theorem specialized to the proved `paperCarrier` path from a stronger strict low-norm invertibility theorem with threshold at least `5`. -/
-def finalTheoremShapeOfAlignedPaperCarrierLowNormBoundaryPackages :=
-  @SuperNeo.finalTheoremShape_of_alignedPaperCarrierLowNormBoundaryPackages
-
-/-- [Role: Theorem-Target] Canonical final theorem specialized to the Goldilocks Appendix B.2 paper-parameter family. -/
-def finalTheoremShapeOfGoldilocksPaperCarrierBoundaryPackages :=
-  @SuperNeo.finalTheoremShape_of_goldilocksPaperCarrierBoundaryPackages
-
-/-- [Role: Theorem-Target] Canonical final theorem specialized to the Goldilocks Appendix B.2 paper-parameter family and active `paperCarrier`-difference path. -/
-def finalTheoremShapeOfGoldilocksPaperCarrierDiffBoundaryPackages :=
-  @SuperNeo.finalTheoremShape_of_goldilocksPaperCarrierDiffBoundaryPackages
-
 /-- [Role: Theorem-Target] Canonical final theorem specialized to the Goldilocks Appendix B.2 paper-parameter family and active native-bar `paperCarrier`-difference path. -/
 def finalTheoremShapeOfGoldilocksNativePaperCarrierDiffBoundaryPackages :=
   @SuperNeo.finalTheoremShape_of_goldilocksNativePaperCarrierDiffBoundaryPackages
-
-/-- [Role: Theorem-Target] Canonical final theorem specialized to the Goldilocks Appendix B.2 paper-parameter family from a stronger strict low-norm invertibility theorem with threshold at least `5`. -/
-def finalTheoremShapeOfGoldilocksPaperCarrierLowNormBoundaryPackages :=
-  @SuperNeo.finalTheoremShape_of_goldilocksPaperCarrierLowNormBoundaryPackages
 
 /-! ## Boundary Surfaces -/
 

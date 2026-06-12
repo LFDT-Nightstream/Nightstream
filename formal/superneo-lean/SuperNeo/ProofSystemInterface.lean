@@ -30,7 +30,6 @@ def exportedModuleNames : List String :=
   , "SuperNeo.ProofSystem.Lattice"
   , "SuperNeo.ProofSystem.ConstraintSystem"
   , "SuperNeo.ProofSystem.SumCheck"
-  , "SuperNeo.ProofSystem.Folding"
   , "SuperNeo.ProofSystem.Protocol"
   ]
 

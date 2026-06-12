@@ -1,5 +1,5 @@
 import DirectCcsFPrime.DirectStageSemantics
-import SuperNeo.ProtocolSection71Context
+import SuperNeo.FoldingProtocol.ProtocolSection71Context
 
 /-!
 Adapters from theorem-native SuperNeo stage contexts to direct CCS F' stages.

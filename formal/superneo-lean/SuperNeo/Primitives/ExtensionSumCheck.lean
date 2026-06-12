@@ -1,5 +1,4 @@
 import SuperNeo.Primitives.ExtensionMLEInterface
-import Mathlib
 
 /-!
 Extension-field SumCheck scaffold.

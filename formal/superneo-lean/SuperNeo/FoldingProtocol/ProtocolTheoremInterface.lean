@@ -33,32 +33,111 @@ abbrev LatticeParams := SuperNeo.LatticeParams
 abbrev FinalTheoremShape := SuperNeo.FinalTheoremShape
 
 /-- [Role: Theorem-Target] Canonical constructor for final error packages from component boundaries. -/
-def finalErrorPackageOfComponentBoundaries :=
-  @SuperNeo.FinalErrorPackage.ofComponentBoundaries
+def finalErrorPackageOfComponentBoundaries
+  {ctx : ProtocolTargetContext}
+  {params : SuperNeo.LatticeParams}
+  (sumcheckError : SuperNeo.ProofSystem.Sumcheck.SoundnessErrorBoundary)
+  (schwartzZippelBoundary : SuperNeo.SchwartzZippelBoundary ctx)
+  (msisBoundary : SuperNeo.ProofSystem.MSISHardnessBoundary params)
+  (msisToAjtai : SuperNeo.ProofSystem.MSISToAjtaiReductions params) :
+  SuperNeo.FinalErrorPackage ctx params :=
+  SuperNeo.FinalErrorPackage.ofComponentBoundaries
+    sumcheckError schwartzZippelBoundary msisBoundary msisToAjtai
 
-/-- [Role: Theorem-Target] Canonical constructor for aligned final error packages on the Goldilocks Appendix B.2 paper-parameter family. -/
-def finalErrorPackageOfGoldilocksPaperCarrier :=
-  @SuperNeo.FinalErrorPackage.ofGoldilocksPaperCarrier
+/-- [Role: Theorem-Target] Canonical constructor for final error packages on the Goldilocks Appendix B.2 paper-parameter family. -/
+def finalErrorPackageOfGoldilocksPaperCarrier
+  {ctx : ProtocolTargetContext}
+  (messageLength : Nat)
+  (sumcheckError : SuperNeo.ProofSystem.Sumcheck.SoundnessErrorBoundary)
+  (schwartzZippelBoundary : SuperNeo.SchwartzZippelBoundary ctx)
+  (msisBoundary :
+    SuperNeo.ProofSystem.MSISHardnessBoundary
+      (SuperNeo.ProofSystem.goldilocksPaperAjtaiParams messageLength)) :
+  SuperNeo.FinalErrorPackage ctx
+    (SuperNeo.ProofSystem.goldilocksPaperAjtaiParams messageLength) :=
+  SuperNeo.FinalErrorPackage.ofGoldilocksPaperCarrier
+    messageLength sumcheckError schwartzZippelBoundary msisBoundary
 
 /-- [Role: Theorem-Target] Canonical constructor for final theorem assumptions from boundary packages. -/
-def finalTheoremAssumptionsOfBoundaryPackages :=
-  @SuperNeo.FinalTheoremAssumptions.ofBoundaryPackages
+def finalTheoremAssumptionsOfBoundaryPackages
+  {ctx : ProtocolTargetContext}
+  {params : SuperNeo.LatticeParams}
+  (reduction : SuperNeo.InteractiveReductionAssumptions ctx)
+  (errorPackage : SuperNeo.FinalErrorPackage ctx params) :
+  SuperNeo.FinalTheoremAssumptions ctx :=
+  SuperNeo.FinalTheoremAssumptions.ofBoundaryPackages reduction errorPackage
 
 /-- [Role: Theorem-Target] Canonical constructor for final theorem assumptions on the Goldilocks Appendix B.2 paper-parameter family. -/
-def finalTheoremAssumptionsOfGoldilocksPaperCarrierBoundaryPackages :=
-  @SuperNeo.FinalTheoremAssumptions.ofGoldilocksPaperCarrierBoundaryPackages
+def finalTheoremAssumptionsOfGoldilocksPaperCarrierBoundaryPackages
+  {ctx : ProtocolTargetContext}
+  (messageLength : Nat)
+  (reduction : SuperNeo.InteractiveReductionAssumptions ctx)
+  (sumcheckError : SuperNeo.ProofSystem.Sumcheck.SoundnessErrorBoundary)
+  (schwartzZippelBoundary : SuperNeo.SchwartzZippelBoundary ctx)
+  (msisBoundary :
+    SuperNeo.ProofSystem.MSISHardnessBoundary
+      (SuperNeo.ProofSystem.goldilocksPaperAjtaiParams messageLength)) :
+  SuperNeo.FinalTheoremAssumptions ctx :=
+  SuperNeo.FinalTheoremAssumptions.ofGoldilocksPaperCarrierBoundaryPackages
+    messageLength reduction sumcheckError schwartzZippelBoundary msisBoundary
 
 /-- [Role: Theorem-Target] Canonical constructor for final theorem assumptions on the Goldilocks Appendix B.2 paper-parameter family, deriving the witness-level SumCheck and local Schwartz-Zippel boundaries directly from the carried transition witness and reduction arithmetic and reconstructing the internal MSIS boundary from the theorem-level hardness assumption. -/
-noncomputable def finalTheoremAssumptionsOfGoldilocksPaperCarrierDerivedSumcheck :=
-  @SuperNeo.FinalTheoremAssumptions.ofGoldilocksPaperCarrierDerivedSumcheck
+noncomputable def finalTheoremAssumptionsOfGoldilocksPaperCarrierDerivedSumcheck
+  {ctx : ProtocolTargetContext}
+  (messageLength : Nat)
+  (reduction : SuperNeo.InteractiveReductionAssumptions ctx)
+  (hMsis :
+    SuperNeo.msisHardnessAssumption
+      (SuperNeo.ProofSystem.goldilocksPaperAjtaiParams messageLength)) :
+  SuperNeo.FinalTheoremAssumptions ctx :=
+  SuperNeo.FinalTheoremAssumptions.ofGoldilocksPaperCarrierDerivedSumcheck
+    messageLength reduction hMsis
 
 /-- [Role: Theorem-Target] Canonical constructor for final theorem assumptions on the Goldilocks Appendix B.2 paper-parameter family and active native-bar `paperCarrier`-difference path, discharging the generic Theorem-3 boundary from `thm3CoreAssumption_native`, deriving the witness-level SumCheck and local Schwartz-Zippel boundaries internally, and keeping only the theorem-level MSIS hardness assumption explicit. -/
-noncomputable def finalTheoremAssumptionsOfGoldilocksNativePaperCarrierDiffBoundaryPackages :=
-  @SuperNeo.FinalTheoremAssumptions.ofGoldilocksNativePaperCarrierDiffBoundaryPackages
+noncomputable def finalTheoremAssumptionsOfGoldilocksNativePaperCarrierDiffBoundaryPackages
+  {ctx : ProtocolTargetContext}
+  (messageLength : Nat)
+  (hBarNative : ctx.bar = nativeBarMatrix)
+  (hArithmetic : ArithmeticObligations
+    ctx.bar ctx.m ctx.r ctx.rho1 ctx.rho2
+    ctx.hVec ctx.hScal
+    ctx.splitScalar ctx.kSplit
+    ctx.cset ctx.samples
+    ctx.xs ctx.ys ctx.qVals ctx.coeffs
+    ctx.xEval ctx.expectedEval)
+  (hDiff : samplingDiffSet paperCarrier ctx.invDelta)
+  (hNe : ctx.invDelta ≠ zeroRq)
+  (hWitness : SuperNeo.SumCheckTransitionWitness ctx)
+  (hMsis :
+    SuperNeo.msisHardnessAssumption
+      (SuperNeo.ProofSystem.goldilocksPaperAjtaiParams messageLength)) :
+  SuperNeo.FinalTheoremAssumptions ctx :=
+  SuperNeo.FinalTheoremAssumptions.ofGoldilocksNativePaperCarrierDiffBoundaryPackages
+    messageLength hBarNative hArithmetic hDiff hNe hWitness hMsis
 
 /-- [Role: Theorem-Target] Canonical final theorem specialized to the Goldilocks Appendix B.2 paper-parameter family and active native-bar `paperCarrier`-difference path. -/
-def finalTheoremShapeOfGoldilocksNativePaperCarrierDiffBoundaryPackages :=
-  @SuperNeo.finalTheoremShape_of_goldilocksNativePaperCarrierDiffBoundaryPackages
+theorem finalTheoremShapeOfGoldilocksNativePaperCarrierDiffBoundaryPackages
+  {ctx : ProtocolTargetContext}
+  (messageLength : Nat)
+  (hBarNative : ctx.bar = nativeBarMatrix)
+  (hArithmetic : ArithmeticObligations
+    ctx.bar ctx.m ctx.r ctx.rho1 ctx.rho2
+    ctx.hVec ctx.hScal
+    ctx.splitScalar ctx.kSplit
+    ctx.cset ctx.samples
+    ctx.xs ctx.ys ctx.qVals ctx.coeffs
+    ctx.xEval ctx.expectedEval)
+  (hDiff : samplingDiffSet paperCarrier ctx.invDelta)
+  (hNe : ctx.invDelta ≠ zeroRq)
+  (hWitness : SuperNeo.SumCheckTransitionWitness ctx)
+  (hMsis :
+    SuperNeo.msisHardnessAssumption
+      (SuperNeo.ProofSystem.goldilocksPaperAjtaiParams messageLength)) :
+  SuperNeo.FinalTheoremShape ctx
+    (SuperNeo.FinalTheoremAssumptions.ofGoldilocksNativePaperCarrierDiffBoundaryPackages
+      messageLength hBarNative hArithmetic hDiff hNe hWitness hMsis) :=
+  SuperNeo.finalTheoremShape_of_goldilocksNativePaperCarrierDiffBoundaryPackages
+    messageLength hBarNative hArithmetic hDiff hNe hWitness hMsis
 
 /-! ## Boundary Surfaces -/
 

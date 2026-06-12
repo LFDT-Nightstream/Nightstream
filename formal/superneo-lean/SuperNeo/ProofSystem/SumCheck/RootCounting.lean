@@ -1,4 +1,5 @@
 import SuperNeo.ProofSystem.SumCheck.Game
+import Mathlib.Algebra.Polynomial.OfFn
 
 /-!
 Full-field round-event cardinality via polynomial root counting:

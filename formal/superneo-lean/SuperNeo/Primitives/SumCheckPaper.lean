@@ -1,6 +1,5 @@
 import SuperNeo.Primitives.SumCheckCore
 import SuperNeo.Primitives.PolynomialBridge
-import Mathlib
 
 namespace SuperNeo
 

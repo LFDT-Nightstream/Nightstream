@@ -1,57 +1,9 @@
 import SuperNeo.FoldingProtocol
 
 /-!
-Contract interface for `SuperNeo.FoldingProtocol`.
+Barrel interface for `SuperNeo.FoldingProtocol` (Section 7 (Folding protocol)).
 
-Paper anchors:
-- `./formal/superneo-lean/SuperNeo.pdf.md`, Section 7
-  (Neo's folding scheme for CCS), lines 447-596
-- Definition 11 (Structure), Definition 12 (Norm-bounded CCS),
-  Definition 13 (Norm-bounded CCS Evaluation Relation),
-  Definition 14 (Global Reduction Parameters)
-- Section 7.3: Π_CCS, Lemma 3 (Π_CCS is strong)
-- Section 7.4: Π_RLC, Lemma 4 (Π_RLC is weak)
-- Section 7.5: Π_DEC, Theorem 7 (Π_DEC is a reduction of knowledge)
-- Theorem 1 (Full composition)
+The authoritative export set is the import list of `SuperNeo/FoldingProtocol.lean`;
+per-module theorem boundaries live in the colocated `*Interface.lean` files
+next to each implementation module.
 -/
-
-namespace SuperNeo
-
-namespace FoldingProtocolInterface
-
-/-- Canonical implementation module name for this interface. -/
-def implementationModule : String := "SuperNeo.FoldingProtocol"
-
-/-- Canonical paper source used for this module-level interface/spec pair. -/
-def paperSource : String := "./formal/superneo-lean/SuperNeo.pdf.md"
-
-/-- Paper sections used to ground this barrel interface. -/
-def paperAnchors : List String :=
-  ["§7 Folding protocol", "Appendix D deferred protocol proofs"]
-
-/-- Modules re-exported by the Section 7 folding barrel. -/
-def exportedModuleNames : List String :=
-  [ "SuperNeo.ProofSystem.ConstraintSystem"
-  , "SuperNeo.ProofSystem.SumCheck"
-  , "SuperNeo.FoldingProtocol.ProtocolRelations"
-  , "SuperNeo.FoldingProtocol.ProtocolSection71Context"
-  , "SuperNeo.FoldingProtocol.PiCCS"
-  , "SuperNeo.FoldingProtocol.PiRLC"
-  , "SuperNeo.FoldingProtocol.PiDEC"
-  , "SuperNeo.FoldingProtocol.ArithmeticBundle"
-  , "SuperNeo.FoldingProtocol.ArithmeticObligations"
-  , "SuperNeo.FoldingProtocol.ProtocolTarget"
-  , "SuperNeo.FoldingProtocol.ProtocolTheorem"
-  , "SuperNeo.FoldingProtocol.FiatShamirReroute"
-  , "SuperNeo.ProofSystem.Protocol"
-  ]
-
-/-- [Role: Definitional] Barrel contract: importing `SuperNeo.FoldingProtocol` exposes the full Section 7 protocol stack. -/
-def barrelContract : Prop := True
-
-theorem barrelContract_true : barrelContract := by
-  trivial
-
-end FoldingProtocolInterface
-
-end SuperNeo

@@ -11,12 +11,25 @@ pub(crate) fn push_gated_linear_zero<const N: usize>(b: &mut R1csBuilder, select
 /// The witness must set `inverse = value^{-1}` when `value != 0`, and `inverse = 0`
 /// when `value == 0`.
 pub fn push_zero_test_gadget(b: &mut R1csBuilder, value: usize, inverse: usize, is_zero: usize) {
+    push_zero_test_expr_gadget(b, [(value, F::ONE)], inverse, is_zero);
+}
+
+/// Constrains `is_zero` to be exactly the zero-test of a linear expression.
+///
+/// The witness must set `inverse` to the expression's field inverse when it
+/// is nonzero, and `inverse = 0` when it is zero.
+pub(crate) fn push_zero_test_expr_gadget<const N: usize>(
+    b: &mut R1csBuilder,
+    expr: [(usize, F); N],
+    inverse: usize,
+    is_zero: usize,
+) {
     b.push_row(
-        [(value, F::ONE)],
+        expr,
         [(inverse, F::ONE)],
         [(super::layout::COL_ONE, F::ONE), (is_zero, -F::ONE)],
     );
-    b.push_row([(value, F::ONE)], [(is_zero, F::ONE)], []);
+    b.push_row(expr, [(is_zero, F::ONE)], []);
 }
 
 pub(crate) fn zero_test_witness_u64(value: u64) -> (F, F) {

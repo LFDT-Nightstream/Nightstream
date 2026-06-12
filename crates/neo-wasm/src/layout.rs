@@ -1057,7 +1057,29 @@ define_columns!(
     (COL_DIV_DIVISOR_INV, "inverse witness for the divisor zero test"),
     (
         COL_DIV_TRAP,
-        "this row is a div/rem op trapping on a zero divisor",
+        "this row is a div/rem op trapping on a zero divisor or signed overflow",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_DIV_DIVIDEND_IS_MIN,
+        "zero-test flag: the dividend (stack read0) equals the active div_s width's MIN",
+        ColumnWidth::Boolean
+    ),
+    (COL_DIV_DIVIDEND_MIN_INV, "inverse witness for the dividend MIN test"),
+    (
+        COL_DIV_DIVISOR_IS_NEG1,
+        "zero-test flag: the divisor (stack read1) equals the active div_s width's -1",
+        ColumnWidth::Boolean
+    ),
+    (COL_DIV_DIVISOR_NEG1_INV, "inverse witness for the divisor -1 test"),
+    (
+        COL_DIV_OVERFLOW_COND,
+        "product of the dividend-is-MIN and divisor-is--1 flags",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_DIV_OVERFLOW,
+        "this row is a signed div op trapping on MIN / -1 overflow",
         ColumnWidth::Boolean
     ),
 );

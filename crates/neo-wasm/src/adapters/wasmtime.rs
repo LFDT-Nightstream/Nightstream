@@ -188,12 +188,12 @@ pub fn collect_wasmtime_steps(
         Ok(()) => results.iter().map(|&v| val_to_string(v)).collect(),
         // Traps with a modeled terminal state: keep the collected steps
         // (the faulting row included) and report no results. Other trap
-        // causes (e.g. signed-division overflow, OOB access) are not
-        // provable yet and stay hard errors.
+        // causes (e.g. OOB access) are not provable yet and stay hard
+        // errors.
         Err(err)
             if matches!(
                 err.downcast_ref::<Trap>(),
-                Some(Trap::UnreachableCodeReached | Trap::IntegerDivisionByZero)
+                Some(Trap::UnreachableCodeReached | Trap::IntegerDivisionByZero | Trap::IntegerOverflow)
             ) =>
         {
             Vec::new()

@@ -1,113 +1,22 @@
 mod common;
 
-use common::{assert_rejected, assert_satisfied};
+use common::{assert_rejected, assert_satisfied, step};
 use neo_math::F;
 use neo_wasm::layout::{
     COL_CALL_PARAM_COUNT, COL_CALL_STACK_POP_CALLER_FBP, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_POP_RETURN_PC,
-    COL_CALL_STACK_PUSH_PRESENT, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_DIV_TRAP, COL_LOCALS_FBP_AFTER,
-    COL_LOCALS_FBP_BEFORE, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_REMAINING_AFTER,
-    COL_PARAM_INIT_REMAINING_AFTER_INV, COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PC_ROM_ACTIVE,
-    COL_STACK_READ0_ACTIVE, COL_STACK_READ1_ACTIVE, COL_STACK_READ2_ACTIVE, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE,
-    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
+    COL_CALL_STACK_PUSH_PRESENT, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE,
+    COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_AFTER_INV,
+    COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PC_ROM_ACTIVE, COL_STACK_READ0_ACTIVE, COL_STACK_READ1_ACTIVE,
+    COL_STACK_READ2_ACTIVE, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_VALUE_HI,
+    COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES,
 };
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::WasmRowKind;
 use neo_wasm::{
-    collect_wasmtime_steps, opcode_code, opcode_info_from_code, traces_from_wasmtime_steps,
-    traces_from_wasmtime_wasm_bytes, LinearMemoryAccess, StackValueAccess, WasmAuxOpcode, WasmOpcode, WasmOutputState,
-    WasmParamInitState, WasmPcEdgeKind, WasmStepState, WasmStepTrace,
+    collect_wasmtime_steps, opcode_code, traces_from_wasmtime_steps, traces_from_wasmtime_wasm_bytes, StackValueAccess,
+    WasmAuxOpcode, WasmOpcode, WasmPcEdgeKind, WasmStepTrace,
 };
 use p3_field::PrimeCharacteristicRing;
-
-fn step(
-    cycle: u64,
-    pc_before: u64,
-    opcode_code: u16,
-    sp_before: u64,
-    sp_after: u64,
-    stack_read0: Option<StackValueAccess>,
-    stack_read1: Option<StackValueAccess>,
-    stack_read2: Option<StackValueAccess>,
-    stack_write0: Option<StackValueAccess>,
-    linear_memory: Option<LinearMemoryAccess>,
-    linear_memory_offset: u64,
-    halted: bool,
-) -> WasmStepTrace {
-    fn state(pc: u64, sp: u64, halted: bool) -> WasmStepState {
-        WasmStepState {
-            pc,
-            sp,
-            output: WasmOutputState::ZERO,
-            call_stack_depth: 0,
-            memory_pages: None,
-            locals_fbp: 0,
-            halted,
-            trapped: false,
-            param_init: WasmParamInitState::ZERO,
-        }
-    }
-
-    fn physical(access: Option<StackValueAccess>) -> Option<StackValueAccess> {
-        access.map(|lane| StackValueAccess::new(lane.addr_lo * 2, lane.value_lo))
-    }
-
-    let opcode = opcode_info_from_code(opcode_code).opcode;
-    let div_zero_trap = opcode.traps_on_zero_divisor()
-        && stack_read1.is_some_and(|lane| lane.value_lo == 0 && lane.value_hi.unwrap_or(0) == 0);
-    WasmStepTrace {
-        cycle,
-        row_kind: WasmRowKind::Program,
-        state_before: state(pc_before, sp_before, false),
-        state_after: WasmStepState {
-            trapped: matches!(opcode, WasmOpcode::Unreachable) || div_zero_trap,
-            ..state(pc_before + 1, sp_after, halted)
-        },
-        control_choice: 0,
-        pc_edge_kind: match opcode {
-            WasmOpcode::Return | WasmOpcode::End => WasmPcEdgeKind::ReturnLike,
-            WasmOpcode::CallIndirect => WasmPcEdgeKind::DynamicCallIndirect,
-            WasmOpcode::Unreachable => WasmPcEdgeKind::Terminal,
-            _ => WasmPcEdgeKind::Static,
-        },
-        wide_values_enabled: opcode_info_from_code(opcode_code).opcode.uses_wide_values(),
-        opcode: opcode_info_from_code(opcode_code).opcode,
-        info: opcode_info_from_code(opcode_code),
-        stack_reads_override: None,
-        stack_writes_override: None,
-        output_captured: false,
-        current_function_ref: 0,
-        current_function_num_locals: 0,
-        stack_read0: physical(stack_read0),
-        stack_read1: physical(stack_read1),
-        stack_read2: physical(stack_read2),
-        stack_write0: physical(stack_write0),
-        linear_memory,
-        linear_memory_offset,
-        local_index: None,
-        local_read_value: None,
-        local_read_value_hi: None,
-        local_write_value: None,
-        local_write_value_hi: None,
-        global_index: None,
-        global_read_value: None,
-        global_read_value_hi: None,
-        global_write_value: None,
-        global_write_value_hi: None,
-        table_id: None,
-        table_index: None,
-        table_value: None,
-        function_ref: None,
-        target_function_is_guest: false,
-        function_type_id: None,
-        call_indirect_type_index: None,
-        expected_type_id: None,
-        table_size: None,
-        call_param_count: None,
-        call_result_count: None,
-        call_stack_push: None,
-        call_stack_pop: None,
-    }
-}
 
 fn trace_from_wat(wat_src: &str) -> Vec<WasmStepTrace> {
     let wasm = wat::parse_str(wat_src).expect("valid WAT");
@@ -1066,152 +975,6 @@ fn structured_end_row_is_accepted() {
         .expect("structured end row");
     assert_eq!(row.pc_edge_kind, WasmPcEdgeKind::Static);
     assert_satisfied(&build_witness_vector(row), "structured end row");
-}
-
-#[test]
-fn unreachable_row_requires_halted_boundary() {
-    let accepted = build_witness_vector(&step(
-        0,
-        14,
-        opcode_code(WasmOpcode::Unreachable),
-        0,
-        0,
-        None,
-        None,
-        None,
-        None,
-        None,
-        0,
-        true,
-    ));
-    assert_satisfied(&accepted, "unreachable row");
-
-    let rejected = build_witness_vector(&step(
-        0,
-        14,
-        opcode_code(WasmOpcode::Unreachable),
-        0,
-        0,
-        None,
-        None,
-        None,
-        None,
-        None,
-        0,
-        false,
-    ));
-    assert_rejected(&rejected, "unreachable row with halted=0");
-}
-
-#[test]
-fn unreachable_row_rejects_clean_trapped_flag() {
-    let mut witness = build_witness_vector(&step(
-        0,
-        14,
-        opcode_code(WasmOpcode::Unreachable),
-        0,
-        0,
-        None,
-        None,
-        None,
-        None,
-        None,
-        0,
-        true,
-    ));
-    assert_satisfied(&witness, "unreachable row with trapped_after=1");
-    witness[COL_TRAPPED_AFTER] = F::ZERO;
-    assert_rejected(&witness, "unreachable row claiming a clean (non-trapped) exit");
-}
-
-#[test]
-fn non_trap_row_rejects_fake_trapped_flag() {
-    let mut witness = build_witness_vector(&step(
-        0,
-        1,
-        opcode_code(WasmOpcode::Nop),
-        0,
-        0,
-        None,
-        None,
-        None,
-        None,
-        None,
-        0,
-        false,
-    ));
-    assert_satisfied(&witness, "nop row");
-    witness[COL_TRAPPED_AFTER] = F::ONE;
-    assert_rejected(&witness, "nop row claiming a trap");
-}
-
-#[test]
-fn program_row_rejects_execution_after_trap() {
-    let mut witness = build_witness_vector(&step(
-        0,
-        1,
-        opcode_code(WasmOpcode::Nop),
-        0,
-        0,
-        None,
-        None,
-        None,
-        None,
-        None,
-        0,
-        false,
-    ));
-    // trapped_before = trapped_after = 1 satisfies the transition row, so
-    // the rejection must come from `is_program_row · trapped_before = 0`.
-    witness[COL_TRAPPED_BEFORE] = F::ONE;
-    witness[COL_TRAPPED_AFTER] = F::ONE;
-    assert_rejected(&witness, "program row executing after a trap");
-}
-
-#[test]
-fn div_by_zero_row_rejects_clean_claim() {
-    let mut witness = build_witness_vector(&step(
-        0,
-        5,
-        opcode_code(WasmOpcode::I32DivU),
-        2,
-        1,
-        Some(StackValueAccess::new(0, 7)),
-        Some(StackValueAccess::new(1, 0)),
-        None,
-        Some(StackValueAccess::new(0, 0)),
-        None,
-        0,
-        true,
-    ));
-    assert_satisfied(&witness, "i32.div_u row trapping on a zero divisor");
-    // Hiding the trap: div_trap = 0 contradicts (Σ div sel) · divisor_is_zero.
-    witness[COL_DIV_TRAP] = F::ZERO;
-    assert_rejected(&witness, "div-by-zero row claiming no trap");
-}
-
-#[test]
-fn div_row_rejects_fake_trap_on_nonzero_divisor() {
-    let mut witness = build_witness_vector(&step(
-        0,
-        5,
-        opcode_code(WasmOpcode::I32DivU),
-        2,
-        1,
-        Some(StackValueAccess::new(0, 7)),
-        Some(StackValueAccess::new(1, 2)),
-        None,
-        Some(StackValueAccess::new(0, 3)),
-        None,
-        0,
-        false,
-    ));
-    assert_satisfied(&witness, "i32.div_u row with a nonzero divisor");
-    // Faking the trap: divisor_is_zero is pinned to 0 by the zero test, so
-    // div_trap = (Σ div sel) · 0 must be 0.
-    witness[COL_DIV_TRAP] = F::ONE;
-    witness[COL_TRAPPED_AFTER] = F::ONE;
-    assert_rejected(&witness, "div row faking a trap on a nonzero divisor");
 }
 
 #[test]

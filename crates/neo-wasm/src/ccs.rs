@@ -11,7 +11,9 @@ mod call;
 mod linear_memory;
 mod stack_io;
 
-use super::gadgets::{push_gated_linear_zero, push_u32_le_bytes_decomp, push_zero_test_gadget};
+use super::gadgets::{
+    push_gated_linear_zero, push_u32_le_bytes_decomp, push_zero_test_expr_gadget, push_zero_test_gadget,
+};
 use super::isa::{opcode_code, opcode_info_from_code, WasmOpTable, WasmOpcode};
 use super::layout::{
     selector_col, COL_ONE, COL_PC_EDGE_KIND, COL_SELECT_OUT_DELTA_HI, COL_SELECT_OUT_DELTA_LO, COL_WIDE_AUX0,
@@ -26,8 +28,9 @@ use super::tagged_r1cs_builder::{
 };
 use crate::layout::{
     COL_CMP_AND, COL_CMP_HI_DIFF, COL_CMP_HI_INV, COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF, COL_CMP_LO_INV,
-    COL_CMP_LO_IS_ZERO, COL_DIV_DIVISOR_INV, COL_DIV_DIVISOR_IS_ZERO, COL_DIV_TRAP, COL_SELECT_COND_IS_ZERO,
-    COL_SELECT_SCRATCH_INV,
+    COL_CMP_LO_IS_ZERO, COL_DIV_DIVIDEND_IS_MIN, COL_DIV_DIVIDEND_MIN_INV, COL_DIV_DIVISOR_INV,
+    COL_DIV_DIVISOR_IS_NEG1, COL_DIV_DIVISOR_IS_ZERO, COL_DIV_DIVISOR_NEG1_INV, COL_DIV_OVERFLOW,
+    COL_DIV_OVERFLOW_COND, COL_DIV_TRAP, COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV,
 };
 use neo_ccs::CcsStructure;
 use neo_math::F;
@@ -107,6 +110,15 @@ fn div_rem_ops() -> Vec<WasmOpcode> {
     WasmOpcode::supported()
         .into_iter()
         .filter(|op| op.traps_on_zero_divisor())
+        .collect()
+}
+
+/// Signed div opcodes that trap on overflow (MIN / -1). Spec-derived from
+/// [`WasmOpcode::traps_on_signed_overflow`].
+fn signed_div_ops() -> Vec<WasmOpcode> {
+    WasmOpcode::supported()
+        .into_iter()
+        .filter(|op| op.traps_on_signed_overflow())
         .collect()
 }
 
@@ -330,10 +342,9 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         // 3 = terminal unreachable. Return-like rows are identified by
         // `halted` for the final frame and by `call_stack_pop_present` for
         // non-final returns; the latter intentionally covers both explicit
-        // `return` and a callee's function-ending `end`. A zero-divisor
-        // div/rem row halts but keeps its Static edge kind (the per-pc
-        // edge-kind ROM binds it); the −div_trap term absorbs its `halted`
-        // contribution.
+        // `return` and a callee's function-ending `end`. A div trap row
+        // halts but keeps its Static edge kind (the per-pc edge-kind ROM
+        // binds it); the -div_trap term absorbs its `halted` contribution.
         b.push_linear_zero(
             [
                 (idx(control.halted), F::ONE),
@@ -361,45 +372,8 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
             [(COL_PC_EDGE_KIND, F::ONE), (COL_ONE, -F::from_u64(3))],
         );
     });
-    b.with_tag(always("trap transition"), |b| {
-        // Div/rem by zero is terminal. Since both divisor limbs are U32,
-        // read1_lo + read1_hi is below the field modulus, so the sum is zero
-        // exactly when both limbs are zero.
-        let divisor = [(idx(stack.read1_value_lo), F::ONE), (idx(stack.read1_value_hi), F::ONE)];
-        b.push_row(
-            divisor,
-            [(COL_DIV_DIVISOR_INV, F::ONE)],
-            [(COL_ONE, F::ONE), (COL_DIV_DIVISOR_IS_ZERO, -F::ONE)],
-        );
-        b.push_row(divisor, [(COL_DIV_DIVISOR_IS_ZERO, F::ONE)], []);
-        b.push_row(
-            div_rem_ops()
-                .into_iter()
-                .map(|op| (selector_col(op).expect("div/rem selector"), F::ONE)),
-            [(COL_DIV_DIVISOR_IS_ZERO, F::ONE)],
-            [(COL_DIV_TRAP, F::ONE)],
-        );
-        // The faulting row has normal stack arity, but no real result: pin
-        // the synthetic write to zero and de-gate the op-table lookup below.
-        push_gated_linear_zero(b, COL_DIV_TRAP, [(idx(stack.write0_value_lo), F::ONE)]);
-        push_gated_linear_zero(b, COL_DIV_TRAP, [(idx(stack.write0_value_hi), F::ONE)]);
-        b.push_linear_zero([
-            (idx(state.trapped_after), F::ONE),
-            (idx(state.trapped_before), -F::ONE),
-            (selector_col(WasmOpcode::Unreachable).unwrap(), -F::ONE),
-            (COL_DIV_TRAP, -F::ONE),
-        ]);
-        b.push_row(
-            [(idx(control.is_program_row), F::ONE)],
-            [(idx(state.trapped_before), F::ONE)],
-            [],
-        );
-        b.push_row(
-            [(idx(layout.output.captured), F::ONE)],
-            [(idx(state.trapped_after), F::ONE)],
-            [],
-        );
-    });
+
+    push_trap_transition_constraints(&mut b, control, state, stack, layout.output.captured);
 
     b.with_tag(always("pc rom active gate"), |b| {
         push_zero_test_gadget(
@@ -415,8 +389,8 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         );
     });
 
-    // A zero-divisor trap de-gates the op-table relation; div/rem lookup
-    // tables only model completed, non-trapping arithmetic.
+    // A div trap de-gates the op-table relation; div/rem lookup tables only
+    // model completed, non-trapping arithmetic.
     b.push_linear_zero(
         core::iter::once((idx(op_table.enabled), F::ONE))
             .chain(
@@ -552,6 +526,119 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         },
         constraint_catalog,
     ))
+}
+
+fn push_trap_transition_constraints(
+    b: &mut R1csBuilder,
+    control: ControlColumns,
+    state: StateColumns,
+    stack: OperandStackColumns,
+    output_captured: Column,
+) {
+    b.with_tag(always("trap transition"), |b| {
+        // Div/rem by zero is terminal. Since both divisor limbs are U32,
+        // read1_lo + read1_hi is below the field modulus, so the sum is zero
+        // exactly when both limbs are zero.
+        let divisor = [(idx(stack.read1_value_lo), F::ONE), (idx(stack.read1_value_hi), F::ONE)];
+        push_zero_test_expr_gadget(b, divisor, COL_DIV_DIVISOR_INV, COL_DIV_DIVISOR_IS_ZERO);
+
+        // Signed division overflow (MIN / -1) is a trap because the result
+        // is not representable in 2's complement.
+        //
+        // The dividend test packs U32 limbs as lo + 2^32 * hi and subtracts the
+        // selector-chosen MIN.
+        //
+        // For i64, the result of the packing may overflow the field element, so
+        // this test is not a general equality check.
+        //
+        // However, in this case we are specifically comparing to 2^63, and for
+        // limbs compared to 32-bits, there is only one combination that equals
+        // to it.
+        //
+        // The reason for this is that the result is in [0, 2^64) and the
+        // Goldilocks modulus is q = 2^64 - 2^32 + 1
+        //
+        // This means only the last 2^64 - q = 2^32 - 1 values overflow/are aliased.
+        //
+        // So for values in [0, 2^32 - 1) there are two preimages, but 2^63 >
+        // 2^32 - 2 so it has a unique combination of limbs.
+        //
+        // For i32 the combination is just straight-forwardly injective in the
+        // whole range. And the high limb is pinned to zero in that case by the
+        // `narrow high limbs zero` constraint (wide_values_enabled = 0 on
+        // i32.div_s rows).
+        let i32_div_s = selector_col(WasmOpcode::I32DivS).expect("i32.div_s selector");
+        let i64_div_s = selector_col(WasmOpcode::I64DivS).expect("i64.div_s selector");
+        let dividend_min = [
+            (idx(stack.read0_value_lo), F::ONE),
+            (idx(stack.read0_value_hi), F::from_u64(1 << 32)),
+            (i32_div_s, -F::from_u64(1 << 31)),
+            (i64_div_s, -F::from_u64(1 << 63)),
+        ];
+        push_zero_test_expr_gadget(b, dividend_min, COL_DIV_DIVIDEND_MIN_INV, COL_DIV_DIVIDEND_IS_MIN);
+        // NOTE: this is not a limb composition, just a limb sum.
+        //
+        // Composition is not needed because we just need both limbs to equal
+        // specific values.
+        //
+        // Since the limbs are 32-bit constrained, there is only one way to
+        // add to u32::MAX * 2 in the 64-bit case, and in the other case the
+        // high limb is pinned to zero (same `narrow high limbs zero`
+        // constraint as above), so it degrades to a simple equality check.
+        let divisor_neg1 = [
+            (idx(stack.read1_value_lo), F::ONE),
+            (idx(stack.read1_value_hi), F::ONE),
+            // limb sum of -1i32: u32::MAX (the high limb is 0)
+            (i32_div_s, -F::from_u64(u32::MAX as u64)),
+            // limb sum of -1i64: both limbs are u32::MAX
+            (i64_div_s, -F::from_u64(u32::MAX as u64 + u32::MAX as u64)),
+        ];
+        push_zero_test_expr_gadget(b, divisor_neg1, COL_DIV_DIVISOR_NEG1_INV, COL_DIV_DIVISOR_IS_NEG1);
+        b.push_row(
+            [(COL_DIV_DIVIDEND_IS_MIN, F::ONE)],
+            [(COL_DIV_DIVISOR_IS_NEG1, F::ONE)],
+            [(COL_DIV_OVERFLOW_COND, F::ONE)],
+        );
+        // The scratch flags above are only meaningful on div_s rows; this
+        // selector-gated product makes them harmless everywhere else.
+        b.push_row(
+            signed_div_ops()
+                .into_iter()
+                .map(|op| (selector_col(op).expect("signed div selector"), F::ONE)),
+            [(COL_DIV_OVERFLOW_COND, F::ONE)],
+            [(COL_DIV_OVERFLOW, F::ONE)],
+        );
+        // Zero and -1 divisors are mutually exclusive, so combining the
+        // zero-divisor and signed-overflow trap causes still leaves div_trap
+        // boolean.
+        b.push_row(
+            div_rem_ops()
+                .into_iter()
+                .map(|op| (selector_col(op).expect("div/rem selector"), F::ONE)),
+            [(COL_DIV_DIVISOR_IS_ZERO, F::ONE)],
+            [(COL_DIV_TRAP, F::ONE), (COL_DIV_OVERFLOW, -F::ONE)],
+        );
+        // The faulting row has normal stack arity, but no real result: pin
+        // the synthetic write to zero and de-gate the op-table lookup below.
+        push_gated_linear_zero(b, COL_DIV_TRAP, [(idx(stack.write0_value_lo), F::ONE)]);
+        push_gated_linear_zero(b, COL_DIV_TRAP, [(idx(stack.write0_value_hi), F::ONE)]);
+        b.push_linear_zero([
+            (idx(state.trapped_after), F::ONE),
+            (idx(state.trapped_before), -F::ONE),
+            (selector_col(WasmOpcode::Unreachable).unwrap(), -F::ONE),
+            (COL_DIV_TRAP, -F::ONE),
+        ]);
+        b.push_row(
+            [(idx(control.is_program_row), F::ONE)],
+            [(idx(state.trapped_before), F::ONE)],
+            [],
+        );
+        b.push_row(
+            [(idx(output_captured), F::ONE)],
+            [(idx(state.trapped_after), F::ONE)],
+            [],
+        );
+    });
 }
 
 fn f_u16(v: u16) -> F {

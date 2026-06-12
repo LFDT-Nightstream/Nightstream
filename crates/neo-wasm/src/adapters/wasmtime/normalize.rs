@@ -924,7 +924,19 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
             .map(|read| read.with_optional_hi(stack_read_hi(2)));
         let div_zero_trap = current.opcode.traps_on_zero_divisor()
             && stack_read1.is_some_and(|lane| lane.value_lo == 0 && lane.value_hi.unwrap_or(0) == 0);
-        let stack_write0 = if div_zero_trap {
+        // Signed division overflow: MIN / -1 for the op's width. The wide
+        // flag doubles as the width discriminant for the two div_s opcodes.
+        let (min_lo, min_hi) = if current.wide_values_enabled {
+            (0, 0x8000_0000)
+        } else {
+            (0x8000_0000, 0)
+        };
+        let neg1_hi = if current.wide_values_enabled { u32::MAX } else { 0 };
+        let div_overflow_trap = current.opcode.traps_on_signed_overflow()
+            && stack_read0.is_some_and(|lane| lane.value_lo == min_lo && lane.value_hi.unwrap_or(0) == min_hi)
+            && stack_read1.is_some_and(|lane| lane.value_lo == u32::MAX && lane.value_hi.unwrap_or(0) == neg1_hi);
+        let div_trap = div_zero_trap || div_overflow_trap;
+        let stack_write0 = if div_trap {
             // No post-state result exists; CCS pins this synthetic write to zero.
             let addr = sp_after.saturating_sub(1).saturating_mul(2);
             let hi = current.wide_values_enabled.then_some(0);
@@ -937,7 +949,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
         let halted = next.is_none();
         // A trap is terminal: wasmtime stops stepping at the faulting
         // instruction, so a trapping opcode can only be the last row.
-        let trapped = matches!(current.opcode, WasmOpcode::Unreachable) || div_zero_trap;
+        let trapped = matches!(current.opcode, WasmOpcode::Unreachable) || div_trap;
         if trapped && !halted {
             return Err(WasmBuildError::Trace(format!(
                 "trapping {} row at cycle {} is not the final step",

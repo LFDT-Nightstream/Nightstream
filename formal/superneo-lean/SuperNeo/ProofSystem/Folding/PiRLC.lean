@@ -1,4 +1,4 @@
-import SuperNeo.PiRLC
+import SuperNeo.FoldingProtocol.PiRLC
 import SuperNeo.ProofSystem.Types
 
 namespace SuperNeo.ProofSystem.Folding

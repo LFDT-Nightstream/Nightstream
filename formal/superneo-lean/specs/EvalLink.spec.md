@@ -51,10 +51,10 @@ No open boundary assumptions in this module.
 ## Dependency and Consumer Map
 
 - Upstream dependencies:
-  - `SuperNeo/MatrixTransform.lean`: imports `matrixTransformIdentity`, `matrixTransformIdentityProp`, `matrixTransformAssumption` for delegation and constructors.
+  - `SuperNeo/EmbeddingTheory/MatrixTransform.lean`: imports `matrixTransformIdentity`, `matrixTransformIdentityProp`, `matrixTransformAssumption` for delegation and constructors.
 - Downstream consumers:
-  - `SuperNeo/EvalHom.lean`: uses `evalLinkAssumption` to derive `evalHomAssumption` (Theorem 5).
-  - `SuperNeo/ProtocolTarget.lean`: depends on eval-link for the evaluation-hom pipeline.
+  - `SuperNeo/EmbeddingTheory/EvalHom.lean`: uses `evalLinkAssumption` to derive `evalHomAssumption` (Theorem 5).
+  - `SuperNeo/FoldingProtocol/ProtocolTarget.lean`: depends on eval-link for the evaluation-hom pipeline.
 
 ## Implementation Plan
 

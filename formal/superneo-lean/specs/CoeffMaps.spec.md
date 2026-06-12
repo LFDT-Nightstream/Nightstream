@@ -23,7 +23,7 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 
 | Lean file | Paper section |
 |---|---|
-| `SuperNeo/CoeffMaps.lean` | Definition 2 |
+| `SuperNeo/Primitives/CoeffMaps.lean` | Definition 2 |
 
 ## Contract Surface
 
@@ -57,11 +57,11 @@ No open boundary assumptions in this module.
 ## Dependency and Consumer Map
 
 Upstream dependencies:
-- `SuperNeo/Ring.lean`: `Coeffs`, `ct`, `hasRingDegreeShape`, `mulRq`.
+- `SuperNeo/Primitives/Ring.lean`: `Coeffs`, `ct`, `hasRingDegreeShape`, `mulRq`.
 
 Downstream consumers:
-- `SuperNeo/Embedding.lean`: uses `cf`/`cfInv` to convert between ring and field representations for `embedElem`.
-- `SuperNeo/Thm3Core.lean`: uses `cfInv_cf` for the core embedding theorem.
+- `SuperNeo/EmbeddingTheory/Embedding.lean`: uses `cf`/`cfInv` to convert between ring and field representations for `embedElem`.
+- `SuperNeo/EmbeddingTheory/Thm3Core.lean`: uses `cfInv_cf` for the core embedding theorem.
 
 ## Implementation Plan
 

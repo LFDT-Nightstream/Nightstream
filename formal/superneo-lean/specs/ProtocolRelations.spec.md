@@ -55,7 +55,7 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 
 | Lean file | Paper section |
 |---|---|
-| `SuperNeo/ProtocolRelations.lean` | Section 7.1, Definitions 12–13 |
+| `SuperNeo/FoldingProtocol/ProtocolRelations.lean` | Section 7.1, Definitions 12–13 |
 
 ## Contract Surface
 
@@ -171,15 +171,14 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 ## Dependency and Consumer Map
 
 Upstream dependencies:
-- `SuperNeo/ProtocolTarget.lean`: imports `protocolTargetProp`, `ProtocolTargetAssumptions`, `ProtocolTargetNativeAssumptions`, `ProtocolTargetContext`.
-- `SuperNeo/SumCheck.lean`: imports `SumCheckInstance`, `SumCheckTranscript`, `SumCheckAccepted`, `SumCheckClaimTrue`, `sumcheckSoundness_constructive`, `sumcheckCompleteness_constructive`.
+- `SuperNeo/FoldingProtocol/ProtocolTarget.lean`: imports `protocolTargetProp`, `ProtocolTargetAssumptions`, `ProtocolTargetNativeAssumptions`, `ProtocolTargetContext`.
+- `SuperNeo/Primitives/SumCheck.lean`: imports `SumCheckInstance`, `SumCheckTranscript`, `SumCheckAccepted`, `SumCheckClaimTrue`, `sumcheckSoundness_constructive`, `sumcheckCompleteness_constructive`.
 
 Downstream consumers:
-- `SuperNeo/PiCCS.lean`: uses `ceRelation`, `ceRelation_of_ccsRelation`, `ceClaimTrue_of_ce`, `SumCheckTransitionWitness`, `sumcheckInstanceOfContext`.
-- `SuperNeo/PiRLC.lean`: uses `ceRelaxedRelation`, `ceRelaxedRelation_of_ce`, `piCCSStrongStatement`.
-- `SuperNeo/PiDEC.lean`: uses `ceRelaxedRelation`, `piRLCWeakStatement`.
+- `SuperNeo/FoldingProtocol/PiCCS.lean`: uses `ceRelation`, `ceRelation_of_ccsRelation`, `ceClaimTrue_of_ce`, `SumCheckTransitionWitness`, `sumcheckInstanceOfContext`.
+- `SuperNeo/FoldingProtocol/PiRLC.lean`: uses `ceRelaxedRelation`, `ceRelaxedRelation_of_ce`, `piCCSStrongStatement`.
+- `SuperNeo/FoldingProtocol/PiDEC.lean`: uses `ceRelaxedRelation`, `piRLCWeakStatement`.
 - `SuperNeo/FoldingProtocol.lean`: imports ProtocolRelations for folding relation predicates.
-- `SuperNeo/ProtocolReduction.lean`: imports ProtocolRelations.
 
 ## Design Notes
 

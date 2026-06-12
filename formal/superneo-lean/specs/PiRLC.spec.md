@@ -37,7 +37,7 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 
 | Lean file | Paper section |
 |---|---|
-| `SuperNeo/PiRLC.lean` | Section 7.4, Lemma 4 |
+| `SuperNeo/FoldingProtocol/PiRLC.lean` | Section 7.4, Lemma 4 |
 
 ## Contract Surface
 
@@ -84,11 +84,11 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 ## Dependency and Consumer Map
 
 Upstream dependencies:
-- `SuperNeo/PiCCS.lean`: uses `piCCSStrongStatement`, `piCCSStrong_of_assumptions`, `PiCCSAssumptions`.
-- `SuperNeo/ProtocolRelations.lean`: uses `ceRelaxedRelation`, `ceRelaxedRelation_of_ce`.
+- `SuperNeo/FoldingProtocol/PiCCS.lean`: uses `piCCSStrongStatement`, `piCCSStrong_of_assumptions`, `PiCCSAssumptions`.
+- `SuperNeo/FoldingProtocol/ProtocolRelations.lean`: uses `ceRelaxedRelation`, `ceRelaxedRelation_of_ce`.
 
 Downstream consumers:
-- `SuperNeo/PiDEC.lean`: uses `piRLCWeakStatement`, `piRLCWeak_of_assumptions`, `PiRLCAssumptions`.
+- `SuperNeo/FoldingProtocol/PiDEC.lean`: uses `piRLCWeakStatement`, `piRLCWeak_of_assumptions`, `PiRLCAssumptions`.
 - `SuperNeo/ProofSystem/Folding/PiRLC.lean`: imports PiRLC for weak reduction step.
 
 ## Implementation Plan

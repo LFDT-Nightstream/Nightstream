@@ -65,11 +65,11 @@ No open boundary assumptions in this module.
 ## Dependency and Consumer Map
 
 - Upstream dependencies:
-  - `SuperNeo/EvalLink.lean`: imports `evalLinkAssumption` for eval-hom constructor.
-  - `SuperNeo/ModuleHom.lean`: imports `vecModuleAssumption`, `scalarModuleAssumption` for eval-hom constructor.
+  - `SuperNeo/EmbeddingTheory/EvalLink.lean`: imports `evalLinkAssumption` for eval-hom constructor.
+  - `SuperNeo/EmbeddingTheory/ModuleHom.lean`: imports `vecModuleAssumption`, `scalarModuleAssumption` for eval-hom constructor.
 - Downstream consumers:
-  - `SuperNeo/ArithmeticBundle.lean`: uses `evalHomAssumption` for checks.
-  - `SuperNeo/ProtocolMathTarget.lean`: depends on closed eval-hom for the folding protocol.
+  - `SuperNeo/FoldingProtocol/ArithmeticBundle.lean`: uses `evalHomAssumption` for checks.
+  - `SuperNeo/FoldingProtocol/ProtocolMathTarget.lean`: depends on closed eval-hom for the folding protocol.
 
 ## Implementation Plan
 

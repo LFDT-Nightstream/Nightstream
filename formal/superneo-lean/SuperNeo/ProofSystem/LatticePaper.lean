@@ -1,4 +1,4 @@
-import SuperNeo.Parameters
+import SuperNeo.Primitives.Parameters
 import SuperNeo.ProofSystem.Lattice
 import SuperNeo.ProofSystem.LatticeReductionsDerived
 

@@ -43,7 +43,7 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 
 | Lean file | Paper section |
 |---|---|
-| `SuperNeo/InteractiveReductions.lean` | Theorem 6, Definitions 9–10 |
+| `SuperNeo/SecurityModel/InteractiveReductions.lean` | Theorem 6, Definitions 9–10 |
 
 ## Contract Surface
 
@@ -102,11 +102,11 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 ## Dependency and Consumer Map
 
 Upstream dependencies:
-- `SuperNeo/PiDEC.lean`: imports `PiDECAssumptions`, `piDECKnowledgeStatement`, `ceRelaxedRelation`, `SumCheckClaimTrue`, `sumcheckInstanceOfContext`, `piDEC_of_assumptions`.
-- `SuperNeo/SumCheck.lean`: constructive SumCheck truth is used directly in witness-level failure-advantage bounds.
+- `SuperNeo/FoldingProtocol/PiDEC.lean`: imports `PiDECAssumptions`, `piDECKnowledgeStatement`, `ceRelaxedRelation`, `SumCheckClaimTrue`, `sumcheckInstanceOfContext`, `piDEC_of_assumptions`.
+- `SuperNeo/Primitives/SumCheck.lean`: constructive SumCheck truth is used directly in witness-level failure-advantage bounds.
 
 Downstream consumers:
-- `SuperNeo/ProtocolTheorem.lean`: uses composition statements for the full protocol reduction.
+- `SuperNeo/FoldingProtocol/ProtocolTheorem.lean`: uses composition statements for the full protocol reduction.
 
 ## Implementation Plan
 

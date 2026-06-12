@@ -99,7 +99,7 @@ theorem weak_relaxed_of_section71Data
   {ctx : SuperNeo.ProtocolTargetContext} :
   SuperNeo.ProtocolSection71Data ctx →
   WeakStatement ctx :=
-  SuperNeo.ProofSystem.Folding.weak_relaxed_of_section71Data
+  fun h => SuperNeo.ProofSystem.Folding.weak_relaxed_of_section71Context h.context
 
 /-- Weak `Π_RLC` from one protocol-side Section 7.5 target-data owner and a SumCheck witness. -/
 theorem weak_relaxed_of_protocolTargetData

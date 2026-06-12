@@ -4,7 +4,7 @@
 
 - **What it is**: The first protocol-facing math target extracted from the arithmetic bundle; the bridge interface that the eventual protocol proof consumes. Defines `protocolMathTargetProp` (arithmetic-only) and `protocolMathTargetWithThm3Prop` (P10 + arithmetic).
 - **Key property**: `arithmeticBundleProp → protocolMathTargetProp`; `p10CoreProp ∧ arithmeticBundleProp → protocolMathTargetWithThm3Prop`; check-driven preconditions imply both via soundness.
-- **Protocol role**: ProtocolReduction and ProtocolRelations use these targets to derive CE valid and compose the protocol skeleton.
+- **Protocol role**: the protocol-composition layer consumes these targets as the arithmetic bridge for deriving CE validity.
 
 ## Target Formulas (Paper → Lean)
 
@@ -30,12 +30,12 @@
 
 | Contract group | Lean surface | Preconditions | Guarantee | Role | Used by |
 |---|---|---|---|---|---|
-| Math target | `protocolMathTargetProp` | None | Conjunction of arithmetic decomp, matrix, eval hom, invertibility, sampling, poly, interp | Definitional | ProtocolReduction |
-| With Thm3 | `protocolMathTargetWithThm3Prop` | None | `p10CoreProp ∧ protocolMathTargetProp` | Definitional | ProtocolReduction |
+| Math target | `protocolMathTargetProp` | None | Conjunction of arithmetic decomp, matrix, eval hom, invertibility, sampling, poly, interp | Definitional | — |
+| With Thm3 | `protocolMathTargetWithThm3Prop` | None | `p10CoreProp ∧ protocolMathTargetProp` | Definitional | — |
 | From bundle | `protocolMathTargetProp_of_arithmeticBundle` | `arithmeticBundleProp` | `protocolMathTargetProp` | Theorem-Target | — |
 | From P10+bundle | `protocolMathTargetWithThm3Prop_of_p10_arithmeticBundle` | `p10CoreProp`, `arithmeticBundleProp` | `protocolMathTargetWithThm3Prop` | Theorem-Target | — |
 | From preconditions | `protocolMathTargetWithThm3Prop_of_thm3_preconditions` | IsDBarMatrix, IsDVec, p10CoreCheck, arithmeticBundleProp | `protocolMathTargetWithThm3Prop` | Theorem-Target | — |
-| From Thm3 assumption | `protocolMathTargetWithThm3Prop_of_thm3_assumption` | IsDBarMatrix, IsDVec, thm3CoreAssumption, arithmeticBundleProp | `protocolMathTargetWithThm3Prop` | Theorem-Target | ProtocolReduction |
+| From Thm3 assumption | `protocolMathTargetWithThm3Prop_of_thm3_assumption` | IsDBarMatrix, IsDVec, thm3CoreAssumption, arithmeticBundleProp | `protocolMathTargetWithThm3Prop` | Theorem-Target | — |
 | From checks | `protocolMathTargetProp_of_checks`. `protocolMathTargetWithThm3Prop_of_checks` | Check-driven assumptions (P6, P12, P14, module, P17, P18, P19) | `protocolMathTargetProp` / `protocolMathTargetWithThm3Prop` | Theorem-Target | — |
 
 ## Proof Obligations and Closure Plan
@@ -49,11 +49,10 @@ No open boundary assumptions in this module.
 ## Dependency and Consumer Map
 
 - Upstream dependencies:
-  - `SuperNeo/ArithmeticBundle.lean`: imports `arithmeticBundleProp`
-  - `SuperNeo/Thm3Core.lean`: imports `p10CoreProp`, `p10CoreCheck`, `thm3CoreAssumption`
+  - `SuperNeo/FoldingProtocol/ArithmeticBundle.lean`: imports `arithmeticBundleProp`
+  - `SuperNeo/EmbeddingTheory/Thm3Core.lean`: imports `p10CoreProp`, `p10CoreCheck`, `thm3CoreAssumption`
 - Downstream consumers:
-  - `SuperNeo/ProtocolReduction.lean`: uses `protocolMathTargetProp`, `protocolMathTargetWithThm3Prop`, `protocolMathTargetProp_of_arithmeticBundle`, `protocolMathTargetWithThm3Prop_of_checks`, `protocolMathTargetWithThm3Prop_of_thm3_assumption`
-  - `SuperNeo/ProtocolRelations.lean`: uses `protocolMathTargetProp_to_CEValid`, `protocolMathTargetWithThm3Prop_to_CEValid`
+  - `SuperNeo/FoldingProtocol/ProtocolMathTargetInterface.lean`: re-exports the curated theorem surface.
 
 ## Implementation Plan
 

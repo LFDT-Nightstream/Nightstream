@@ -37,7 +37,7 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 
 | Lean file | Paper section |
 |---|---|
-| `SuperNeo/PiCCS.lean` | Section 7.3, Lemma 3 |
+| `SuperNeo/FoldingProtocol/PiCCS.lean` | Section 7.3, Lemma 3 |
 
 ## Contract Surface
 
@@ -84,11 +84,11 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 ## Dependency and Consumer Map
 
 Upstream dependencies:
-- `SuperNeo/ProtocolTarget.lean`: uses `protocolTargetProp_of_assumptions`, `ceRelation`, `SumCheckTransitionWitness`, `sumcheckInstanceOfContext`, `ProtocolTargetAssumptions`.
-- `SuperNeo/SumCheck.lean`: uses `sumcheckSoundness_constructive`.
+- `SuperNeo/FoldingProtocol/ProtocolTarget.lean`: uses `protocolTargetProp_of_assumptions`, `ceRelation`, `SumCheckTransitionWitness`, `sumcheckInstanceOfContext`, `ProtocolTargetAssumptions`.
+- `SuperNeo/Primitives/SumCheck.lean`: uses `sumcheckSoundness_constructive`.
 
 Downstream consumers:
-- `SuperNeo/PiRLC.lean`: uses `piCCSStrongStatement`, `piCCSStrong_of_assumptions`, `PiCCSAssumptions`.
+- `SuperNeo/FoldingProtocol/PiRLC.lean`: uses `piCCSStrongStatement`, `piCCSStrong_of_assumptions`, `PiCCSAssumptions`.
 - `SuperNeo/ProofSystem/Folding/PiCCS.lean`: imports PiCCS for strong reduction step.
 
 ## Implementation Plan

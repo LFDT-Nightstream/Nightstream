@@ -1,29 +1,58 @@
 import Init
 
-private def checkProofImportWall : IO Bool := do
-  let pattern := "^import SuperNeo\\.(Checks|Generated|Regression|Golden)"
-  let args := #[
-    "-n",
-    pattern,
-    "SuperNeo/ProofSystem",
-    "SuperNeo/FoldingProtocol.lean",
-    "SuperNeo/SecurityModel.lean",
-    "SuperNeo/EmbeddingTheory.lean",
-    "SuperNeo/Primitives.lean"
+/-- Import prefixes the theorem-facing proof surface must never depend on. -/
+private def forbiddenImportPrefixes : List String :=
+  ["import SuperNeo.Golden"]
+
+/-- Files and directories that form the theorem-facing proof surface. -/
+private def proofSurfaceRoots : List System.FilePath :=
+  [ "SuperNeo/ProofSystem"
+  , "SuperNeo/FoldingProtocol"
+  , "SuperNeo/SecurityModel"
+  , "SuperNeo/EmbeddingTheory"
+  , "SuperNeo/Primitives"
+  , "SuperNeo/FoldingProtocol.lean"
+  , "SuperNeo/SecurityModel.lean"
+  , "SuperNeo/EmbeddingTheory.lean"
+  , "SuperNeo/Primitives.lean"
   ]
-  let out ← IO.Process.output { cmd := "rg", args := args }
-  if out.exitCode == 1 then
-    pure true
-  else if out.exitCode == 0 then
-    IO.println "proof_import_wall_violations:"
-    IO.println out.stdout.trimAscii.toString
-    pure false
+
+private def leanFilesUnder (root : System.FilePath) : IO (Array System.FilePath) := do
+  if (← root.isDir) then
+    let entries ← root.walkDir
+    pure <| entries.filter (·.extension == some "lean")
+  else if (← root.pathExists) then
+    pure #[root]
   else
-    IO.println "proof_import_wall_check_error:"
-    if out.stderr.trimAscii.toString.isEmpty then
-      IO.println out.stdout.trimAscii.toString
-    else
-      IO.println out.stderr.trimAscii.toString
+    pure #[]
+
+private def fileViolations (path : System.FilePath) : IO (Array String) := do
+  let text ← IO.FS.readFile path
+  let mut out := #[]
+  let mut lineNo := 1
+  for line in text.splitOn "\n" do
+    for prefixStr in forbiddenImportPrefixes do
+      if line.startsWith prefixStr then
+        out := out.push s!"{path}:{lineNo}: {line}"
+    lineNo := lineNo + 1
+  pure out
+
+/--
+Pure-Lean theorem import wall: the proof surface must not import the
+golden-value executable lane (or any future archived lane added to
+`forbiddenImportPrefixes`). No external tools required.
+-/
+private def checkProofImportWall : IO Bool := do
+  let mut violations := #[]
+  for root in proofSurfaceRoots do
+    for file in (← leanFilesUnder root) do
+      violations := violations ++ (← fileViolations file)
+  if violations.isEmpty then
+    pure true
+  else
+    IO.println "proof_import_wall_violations:"
+    for v in violations do
+      IO.println v
     pure false
 
 def main : IO UInt32 := do

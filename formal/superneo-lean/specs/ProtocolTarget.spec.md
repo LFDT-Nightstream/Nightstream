@@ -66,13 +66,13 @@
 ## Dependency and Consumer Map
 
 - Upstream dependencies:
-  - `SuperNeo/Thm3Core.lean`: imports `thm3CoreAssumption`
-  - `SuperNeo/ArithmeticObligations.lean`: uses `ArithmeticObligations` for arithmetic bundle
+  - `SuperNeo/EmbeddingTheory/Thm3Core.lean`: imports `thm3CoreAssumption`
+  - `SuperNeo/FoldingProtocol/ArithmeticObligations.lean`: uses `ArithmeticObligations` for arithmetic bundle
 - Downstream consumers:
-  - `SuperNeo/ProtocolTargetData.lean`: packages the paper-facing Section 7.5 inputs as one theorem-native owner
-  - `SuperNeo/ProtocolRelations.lean`: uses `protocolTargetProp`, `protocolTargetProp_of_assumptions`, `ProtocolTargetContext` to define CCS/CE relations
-  - `SuperNeo/PiCCS.lean`: depends on ProtocolRelations
-  - `SuperNeo/ProtocolTheorem.lean`: uses `ProtocolTargetContext` for final theorem shape
+  - `SuperNeo/FoldingProtocol/ProtocolTargetData.lean`: packages the paper-facing Section 7.5 inputs as one theorem-native owner
+  - `SuperNeo/FoldingProtocol/ProtocolRelations.lean`: uses `protocolTargetProp`, `protocolTargetProp_of_assumptions`, `ProtocolTargetContext` to define CCS/CE relations
+  - `SuperNeo/FoldingProtocol/PiCCS.lean`: depends on ProtocolRelations
+  - `SuperNeo/FoldingProtocol/ProtocolTheorem.lean`: uses `ProtocolTargetContext` for final theorem shape
 
 ## Implementation Plan
 

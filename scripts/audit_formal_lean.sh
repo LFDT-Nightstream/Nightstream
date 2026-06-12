@@ -8,7 +8,7 @@ cd "$ROOT"
 
 echo "[audit] scanning Lean sources for forbidden trusted holes"
 
-if rg -n '\b(sorry|axiom|admit|postulate|unsafe)\b' "$FORMAL_DIR" --glob '*.lean'; then
+if grep -rwEn --include='*.lean' --exclude-dir='.lake' '(sorry|axiom|admit|postulate|unsafe)' "$FORMAL_DIR"; then
   echo "[audit] forbidden token found in formal Lean sources" >&2
   exit 1
 fi

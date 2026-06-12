@@ -1,6 +1,6 @@
 import SuperNeo.ProofSystem.Lattice
-import SuperNeo.RingMulComm
-import SuperNeo.SamplingSet
+import SuperNeo.Primitives.RingMulComm
+import SuperNeo.SecurityModel.SamplingSet
 import Init.GrindInstances.Ring.Fin
 
 namespace SuperNeo.ProofSystem

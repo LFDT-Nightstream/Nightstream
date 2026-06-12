@@ -1,7 +1,7 @@
 import SuperNeo.ProofSystem.SumCheck.SingleRound
 import SuperNeo.ProofSystem.Types
 import SuperNeo.ProofSystem.Security
-import SuperNeo.GoldilocksPrime
+import SuperNeo.Primitives.GoldilocksPrime
 import Mathlib
 import Init.Data.List.Lemmas
 import Init.Data.Rat.Lemmas

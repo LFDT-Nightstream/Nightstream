@@ -1,4 +1,4 @@
-import SuperNeo.PiCCS
+import SuperNeo.FoldingProtocol.PiCCS
 import SuperNeo.ProofSystem.Types
 
 namespace SuperNeo.ProofSystem.Folding

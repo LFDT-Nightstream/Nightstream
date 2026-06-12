@@ -1,4 +1,4 @@
-import SuperNeo.Field
+import SuperNeo.Primitives.Field
 
 namespace SuperNeo
 

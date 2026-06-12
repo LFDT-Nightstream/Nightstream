@@ -1,19 +1,19 @@
-import SuperNeo.Goldilocks
-import SuperNeo.Field
-import SuperNeo.ExtensionField
-import SuperNeo.ExtensionMLE
-import SuperNeo.ExtensionSumCheckPaper
-import SuperNeo.Dimensions
-import SuperNeo.Ring
-import SuperNeo.CoeffMaps
-import SuperNeo.Norm
-import SuperNeo.Decomp
-import SuperNeo.DecompBase2
-import SuperNeo.EqPoly
-import SuperNeo.MLE
-import SuperNeo.SumCheck
-import SuperNeo.PolyLemmas
-import SuperNeo.Interp
-import SuperNeo.Parameters
+import SuperNeo.Primitives.Goldilocks
+import SuperNeo.Primitives.Field
+import SuperNeo.Primitives.ExtensionField
+import SuperNeo.Primitives.ExtensionMLE
+import SuperNeo.Primitives.ExtensionSumCheckPaper
+import SuperNeo.Primitives.Dimensions
+import SuperNeo.Primitives.Ring
+import SuperNeo.Primitives.CoeffMaps
+import SuperNeo.Primitives.Norm
+import SuperNeo.Primitives.Decomp
+import SuperNeo.Primitives.DecompBase2
+import SuperNeo.Primitives.EqPoly
+import SuperNeo.Primitives.MLE
+import SuperNeo.Primitives.SumCheck
+import SuperNeo.Primitives.PolyLemmas
+import SuperNeo.Primitives.Interp
+import SuperNeo.Primitives.Parameters
 
 /-! Section 4 (Preliminaries) barrel: fields, rings, norms, polynomials, sum-check. -/

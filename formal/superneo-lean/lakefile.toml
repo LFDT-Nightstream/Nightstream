@@ -8,7 +8,7 @@ rev = "v4.28.0"
 
 [[lean_lib]]
 name = "SuperNeo"
-globs = ["SuperNeo"]
+globs = ["SuperNeo", "SuperNeo.+"]
 
 [[lean_exe]]
 name = "check"

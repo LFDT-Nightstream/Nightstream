@@ -1,4 +1,4 @@
-import SuperNeo.SumCheck
+import SuperNeo.Primitives.SumCheck
 
 namespace SuperNeo.ProofSystem.Sumcheck.SingleRound
 

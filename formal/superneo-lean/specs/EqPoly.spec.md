@@ -49,12 +49,11 @@ No open boundary assumptions in this module.
 
 ## Dependency and Consumer Map
 - Upstream dependencies:
-  - `SuperNeo/Field.lean` (field type `F` and arithmetic)
+  - `SuperNeo/Primitives/Field.lean` (field type `F` and arithmetic)
 - Downstream consumers:
-  - `SuperNeo/MLE.lean`: uses `eqPoly`, `bitsToFArray`, `eqPolyAssumption` to define and close the MLE sum-form identity `mleEval f r = Σ_i f[i] * eqPoly(bits(i), r)`.
-  - `SuperNeo/PolyLemmas.lean`: uses `eqPoly_eq_delta_of_isBitVec` for polynomial simplification lemmas over the Boolean cube.
-  - `SuperNeo/ArithmeticObligations.lean`: uses `eqPolyAssumption_holds` to close the MLE delta bridge package.
-  - `SuperNeo/Checks.lean`: uses `eqPoly`, `bitsToFArray` for executable sanity checks.
+  - `SuperNeo/Primitives/MLE.lean`: uses `eqPoly`, `bitsToFArray`, `eqPolyAssumption` to define and close the MLE sum-form identity `mleEval f r = Σ_i f[i] * eqPoly(bits(i), r)`.
+  - `SuperNeo/Primitives/PolyLemmas.lean`: uses `eqPoly_eq_delta_of_isBitVec` for polynomial simplification lemmas over the Boolean cube.
+  - `SuperNeo/FoldingProtocol/ArithmeticObligations.lean`: uses `eqPolyAssumption_holds` to close the MLE delta bridge package.
 
 ## Implementation Plan (How to Achieve)
 1. `eqTerm_eq_delta_of_isBit` proved by case-splitting on `IsBit` disjunctions and `decide`.

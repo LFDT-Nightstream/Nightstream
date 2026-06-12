@@ -27,8 +27,8 @@ Source: `./formal/superneo-lean/SuperNeo.pdf.md`
 
 | Lean file | Role |
 |---|---|
-| `SuperNeo/ExtensionField.lean` | Concrete carrier and arithmetic |
-| `SuperNeo/ExtensionFieldInterface.lean` | Theorem-facing surface |
+| `SuperNeo/Primitives/ExtensionField.lean` | Concrete carrier and arithmetic |
+| `SuperNeo/Primitives/ExtensionFieldInterface.lean` | Theorem-facing surface |
 
 ## Contract Surface
 
@@ -45,8 +45,8 @@ Source: `./formal/superneo-lean/SuperNeo.pdf.md`
 ## Dependency and Consumer Map
 
 Upstream dependencies:
-- `SuperNeo/Field.lean`: base field `F`
-- `SuperNeo/Parameters.lean`: extension degree `extDegreeK = 2`
+- `SuperNeo/Primitives/Field.lean`: base field `F`
+- `SuperNeo/Primitives/Parameters.lean`: extension degree `extDegreeK = 2`
 
 Downstream consumers:
 - opening-convergence formalization: concrete carrier for packed-column claims and extension-field points

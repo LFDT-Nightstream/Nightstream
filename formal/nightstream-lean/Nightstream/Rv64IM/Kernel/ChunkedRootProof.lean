@@ -1,7 +1,7 @@
 import Nightstream.ChunkLayout
 import Nightstream.BridgeTypes
 import Nightstream.Rv64IM.Trace.MainLaneTraceBoundary
-import SuperNeo.PiDECInterface
+import SuperNeo.FoldingProtocol.PiDECInterface
 
 /-!
 Owns the theorem-facing chunked root execution proof surface for RV64IM. This

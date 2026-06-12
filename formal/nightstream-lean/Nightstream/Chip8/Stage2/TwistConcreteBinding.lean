@@ -1,5 +1,5 @@
 import Nightstream.Chip8.Stage2.WitnessMemoryBinding
-import SuperNeo.PolynomialBridge
+import SuperNeo.Primitives.PolynomialBridge
 
 /-!
 Owns the concrete CHIP-8 Twist instantiation formulas for the register and RAM

@@ -1,4 +1,4 @@
-import SuperNeo.PiDEC
+import SuperNeo.FoldingProtocol.PiDEC
 import SuperNeo.ProofSystem.Types
 
 namespace SuperNeo.ProofSystem.Folding

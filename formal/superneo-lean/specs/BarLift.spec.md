@@ -73,10 +73,10 @@
 ## Dependency and Consumer Map
 
 - Upstream dependencies:
-  - `SuperNeo/Embedding.lean`: imports `p9EmbeddingAssumption`, `p9EmbeddingAssumption_holds` for P9-threaded closure.
+  - `SuperNeo/EmbeddingTheory/Embedding.lean`: imports `p9EmbeddingAssumption`, `p9EmbeddingAssumption_holds` for P9-threaded closure.
 - Downstream consumers:
-  - `SuperNeo/Thm3Core.lean`: imports BarLift for `superneoBarBlock` (block-level bar transform used by Theorem-3 boundary).
-  - `SuperNeo/MatrixTransform.lean`: depends on `barLiftLinearityAssumption` for P10+P11 dependency accounting.
+  - `SuperNeo/EmbeddingTheory/Thm3Core.lean`: imports BarLift for `superneoBarBlock` (block-level bar transform used by Theorem-3 boundary).
+  - `SuperNeo/EmbeddingTheory/MatrixTransform.lean`: depends on `barLiftLinearityAssumption` for P10+P11 dependency accounting.
 
 ## Implementation Plan
 

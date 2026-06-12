@@ -37,7 +37,7 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 
 | Lean file | Paper section |
 |---|---|
-| `SuperNeo/PolyLemmas.lean` | Lemma 5 (SZ), Lemma 6 (eq-lift) |
+| `SuperNeo/Primitives/PolyLemmas.lean` | Lemma 5 (SZ), Lemma 6 (eq-lift) |
 
 ## Contract Surface
 
@@ -73,12 +73,11 @@ None.
 ## Dependency and Consumer Map
 
 Upstream dependencies:
-- `SuperNeo/EqPoly.lean`: `eqPoly`, `bitsToFArray`, and Boolean-cube selector facts.
-- `SuperNeo/MLE.lean`: `bitsToFieldArray` and the MLE truth-table embedding.
+- `SuperNeo/Primitives/EqPoly.lean`: `eqPoly`, `bitsToFArray`, and Boolean-cube selector facts.
+- `SuperNeo/Primitives/MLE.lean`: `bitsToFieldArray` and the MLE truth-table embedding.
 
 Downstream consumers:
-- `SuperNeo/Checks.lean`: uses `polyLemmaSanity` for cross-check validation.
-- `SuperNeo/ArithmeticObligations.lean`: consumes theorem-native Boolean-cube recovery.
+- `SuperNeo/FoldingProtocol/ArithmeticObligations.lean`: consumes theorem-native Boolean-cube recovery.
 - `SuperNeo/ProofSystem/SumCheck/General.lean`: consumes the degree-vs-set-size arithmetic surface in the full Schwartz-Zippel/soundness layer.
 
 ## Regression Expectations

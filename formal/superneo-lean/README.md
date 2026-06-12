@@ -7,9 +7,9 @@ Lean is the mathematical source of truth.
 
 Operationally:
 - Lean theorem/definition surfaces are authoritative.
-- The default maintenance boundary is now Lean-only.
-- Rust-generated vectors, artifact corpora, and cross-language conformance gates
-  are currently out of the maintained build path.
+- The maintenance boundary is Lean-only.
+- The older Rust-vector/artifact conformance lanes were removed; they remain
+  available in git history if a cross-language gate is ever revived.
 
 ## What is checked
 
@@ -33,90 +33,28 @@ Operationally:
 
 ## Layout
 
-The module structure mirrors the paper's four main sections.
+The directory structure mirrors the paper's four main sections. Each section
+directory is paired with a same-named top-level barrel module that re-exports
+it, and every implementation module `X.lean` sits next to its machine-checked
+boundary `XInterface.lean` (human spec in `specs/X.spec.md`).
 
-### Barrel files (top-level re-exports)
+All modules under `SuperNeo/` — including every `*Interface.lean` — are part
+of the default `lake build` (recursive lib glob), so a drifted interface fails
+the build instead of rotting silently.
 
-| Barrel | Paper section | Re-exports |
-|---|---|---|
-| `SuperNeo/Primitives.lean` | Section 4 (Preliminaries) | Goldilocks, Field, ExtensionField, ExtensionMLE, ExtensionSumCheck, Dimensions, Ring, CoeffMaps, Norm, Decomp, EqPoly, MLE, SumCheck, PolyLemmas, Interp, Parameters |
-| `SuperNeo/EmbeddingTheory.lean` | Section 5 (Embedding + Eval Hom) | Embedding, Thm3Core, BarLift, MatrixTransform, EvalLink, ModuleHom, EvalHom |
-| `SuperNeo/SecurityModel.lean` | Section 6 + Appendix C security | InteractiveReductions, ProofSystem/{Types,Security,Negligible,Lattice,LatticePaper,LatticeReductions}, InvertibilityAxioms, InvertibilityGoldilocks, SamplingSet |
-| `SuperNeo/FoldingProtocol.lean` | Section 7 (Folding scheme) | ProofSystem/{ConstraintSystem,SumCheck,Folding}, ProtocolRelations, ProtocolSection71Data, ProtocolSection71Context, PiCCS, PiRLC, PiDEC, ArithmeticBundle, ArithmeticObligations, ProtocolTarget, ProtocolTargetData, ProtocolMathTarget, ProtocolTheorem, ProofSystem/Protocol |
+| Directory | Barrel | Paper section | Contents |
+|---|---|---|---|
+| `SuperNeo/Primitives/` | `SuperNeo/Primitives.lean` | Section 4 (Preliminaries) | Goldilocks field/extension, ring `R_q`, coefficient maps, norms, balanced decomposition, `eq`/MLE/sum-check cores, interpolation, Appendix B.2 parameters |
+| `SuperNeo/EmbeddingTheory/` | `SuperNeo/EmbeddingTheory.lean` | Section 5 (Defs 7-8, Thms 3-5) | Definition 7 embeddings, Theorem 3 core, Definition 8 bar-lift, Theorem 4 matrix transform, Remark 2 eval linkage, Definition 15 module homs, Theorem 5 eval homomorphism |
+| `SuperNeo/SecurityModel/` | `SuperNeo/SecurityModel.lean` | Section 6 (Defs 9-10, 16-18, Thms 2, 6, 8-9) | Weak/strong interactive reductions, Theorem 8 invertibility (axioms + constructive Goldilocks), Definition 17/Theorem 9 sampling sets |
+| `SuperNeo/FoldingProtocol/` | `SuperNeo/FoldingProtocol.lean` | Section 7 (Defs 11-14, Lemmas 3-4, Thm 7) | Section 7.1 relations/data/context owners, Π_CCS, Π_RLC, Π_DEC, arithmetic bundle/obligations, protocol target(s), final protocol theorem, parent-authority Fiat-Shamir reroute lemma |
+| `SuperNeo/ProofSystem/` | `SuperNeo/ProofSystem.lean` | Proof-system facade | Types, probability/error model, lattice assumptions (MSIS/Ajtai), CCS constraint system, sum-check facade, folding wrappers, protocol entrypoint |
+| `SuperNeo/Golden/` | — (separate `goldilocks-golden` exe) | — | Golden-value executable, excluded from the theorem import wall |
 
-### Section 4: Primitives (Definitions 1-6, polynomial tools)
-
-- `SuperNeo/Goldilocks.lean`: Goldilocks field constants
-- `SuperNeo/Field.lean`: Goldilocks modular arithmetic implementation
-- `SuperNeo/ExtensionField.lean`: quadratic extension-field carrier used by opening convergence
-- `SuperNeo/ExtensionMLE.lean`: extension-field equality polynomial and MLE evaluator surfaces
-- `SuperNeo/ExtensionSumCheck.lean`: extension-field Definition-6 sum-check scaffold surface
-- `SuperNeo/Dimensions.lean`: concrete `η`, `d`, and shape helpers
-- `SuperNeo/Ring.lean`: ring multiplication/reduction, `ct`, bar-block mat-vec
-- `SuperNeo/CoeffMaps.lean`: `cf` / `cf⁻¹` map definitions and round-trips
-- `SuperNeo/Norm.lean`: centered-representative norms
-- `SuperNeo/Decomp.lean`: balanced base-`b` decomposition (`split_b`) helpers
-- `SuperNeo/EqPoly.lean`: `eq` polynomial helpers
-- `SuperNeo/MLE.lean`: multilinear-extension identities (`r_hat`, folding)
-- `SuperNeo/SumCheck.lean`: standalone Definition-6 sum-check scaffold plus paper-facing verifier view and constructive theorem witness surface
-- `SuperNeo/PolyLemmas.lean`: reusable polynomial helpers for Lemma 5/6
-- `SuperNeo/Interp.lean`: polynomial eval + interpolation
-- `SuperNeo/Parameters.lean`: Appendix B.2 concrete parameter constants
-
-### Section 5: Embedding Theory (Definitions 7-8, Theorems 3-5)
-
-- `SuperNeo/Embedding.lean`: Definition 7 element/vector/matrix embeddings
-- `SuperNeo/Thm3Core.lean`: Theorem 3 core proposition + dimensional preconditions
-- `SuperNeo/BarLift.lean`: Definition 8 blockwise lifting transform
-- `SuperNeo/MatrixTransform.lean`: Theorem 4 computational transform identity
-- `SuperNeo/EvalLink.lean`: Remark 2 coefficientwise evaluation linkage
-- `SuperNeo/ModuleHom.lean`: Definition 15 module-hom interfaces + linearity
-- `SuperNeo/EvalHom.lean`: Theorem 5 computational evaluation homomorphism
-
-### Section 6: Security Model (Definitions 9-10, 16-18, Theorems 2, 6, 8-9)
-
-- `SuperNeo/InteractiveReductions.lean`: Definitions 9-10 weak/strong reductions, Theorem 6 composition
-- `SuperNeo/ProofSystem/Types.lean`: proof-system facade types (Context, Claim, Witness)
-- `SuperNeo/ProofSystem/Security.lean`: probability/error model
-- `SuperNeo/ProofSystem/Negligible.lean`: `ErrorFn`, `IsNegligible`
-- `SuperNeo/ProofSystem/Lattice.lean`: Definition 16 (MSIS), Definition 18 (Ajtai), Theorem 2
-- `SuperNeo/ProofSystem/LatticePaper.lean`: Goldilocks Appendix B.2 lattice parameter family + active paper-carrier specialization
-- `SuperNeo/ProofSystem/LatticeReductions.lean`: MSIS-to-Ajtai security reductions
-- `SuperNeo/InvertibilityAxioms.lean`: Theorem 8 assumption boundary and concrete precondition checks
-- `SuperNeo/InvertibilityGoldilocks.lean`: constructive Goldilocks Theorem 8 proof at the paper floor `b_inv = 383`
-- `SuperNeo/SamplingSet.lean`: Definition 17/Theorem 9 sampling-set and expansion checks
-
-### Section 7: Folding Protocol (Definitions 11-14, Lemmas 3-4, Theorem 7)
-
-- `SuperNeo/ProofSystem/ConstraintSystem/CCS.lean`: Definitions 11-13 (CCS structure)
-- `SuperNeo/ProofSystem/SumCheck/`: proof-system-level sum-check facade
-- `SuperNeo/ProtocolRelations.lean`: Section 7.1 relation predicates
-- `SuperNeo/ProtocolSection71Data.lean`: explicit protocol-side Definition-14 data owner
-- `SuperNeo/ProtocolSection71Context.lean`: single-object compact theorem-native Section 7.1 owner
-- `SuperNeo/ProtocolTargetData.lean`: explicit protocol-side Section 7.5 target-data owner
-- `SuperNeo/PiCCS.lean`: Section 7.3 Π_CCS, Lemma 3
-- `SuperNeo/PiRLC.lean`: Section 7.4 Π_RLC, Lemma 4
-- `SuperNeo/PiDEC.lean`: Section 7.5 Π_DEC, Theorem 7
-- `SuperNeo/ArithmeticBundle.lean`: bundled arithmetic prerequisites
-- `SuperNeo/ArithmeticObligations.lean`: arithmetic side-conditions for protocol reduction
-- `SuperNeo/ProtocolTarget.lean`: protocol-target bridge (Thm 3 + obligations)
-- `SuperNeo/ProtocolMathTarget.lean`: protocol math-target from arithmetic bundle
-- `SuperNeo/ProtocolTheorem.lean`: final theorem shape (completeness + knowledge-soundness)
-- `SuperNeo/ProofSystem/Protocol.lean`: proof-system entrypoint (final theorem wiring)
-- `SuperNeo/ProofSystem/Folding/`: proof-system folding wrappers
-
-### Infrastructure
-
-- `SuperNeo/ProtocolReduction.lean`: medium-term theorem skeletons
-- `SuperNeo/Regression.lean`: theorem-local regression harness
-- `SuperNeo/Checks.lean`: archived vector-backed executable checks, currently
-  outside the maintained default build path
-- `SuperNeo/OracleExport.lean`: archived Lean-to-Rust oracle export surface,
-  currently outside the maintained default build path
-- `SuperNeo/Generated/`: archived generated corpora from older Rust/Lean
-  conformance lanes, currently outside the maintained default build path
-- `SuperNeo/RustRefinement/`: archived Rust-integration refinement surfaces,
-  currently outside the maintained default build path
+To locate a paper claim: pick the section directory, open the module named
+after the construction (for example `FoldingProtocol/PiDEC.lean` for Section
+7.5), and read its `...Interface.lean` neighbor for the curated theorem
+surface with paper line anchors.
 
 ## Run Lean checks
 
@@ -228,10 +166,10 @@ own local closure:
 
 The first two prerequisite layers are now in place:
 
-1. `SuperNeo/ExtensionField.lean` provides the quadratic extension carrier,
-2. `SuperNeo/ExtensionMLE.lean` provides the extension-field MLE/equality +
+1. `SuperNeo/Primitives/ExtensionField.lean` provides the quadratic extension carrier,
+2. `SuperNeo/Primitives/ExtensionMLE.lean` provides the extension-field MLE/equality +
    linearity layer,
-3. `SuperNeo/ExtensionSumCheck.lean` provides the extension-field
+3. `SuperNeo/Primitives/ExtensionSumCheck.lean` provides the extension-field
    Definition-6 protocol surface and verifier-side acceptance scaffold.
 
 So the next paper-faithful closure target is the **soundness/completeness
@@ -257,8 +195,8 @@ If you only need the conclusion, read in this order:
    - `Status Summary`
 2. The capstone theorem docs:
    - `specs/ProtocolTheorem.spec.md`
-   - `SuperNeo/ProtocolTheoremInterface.lean`
-   - `SuperNeo/ProtocolTheorem.lean`
+   - `SuperNeo/FoldingProtocol/ProtocolTheoremInterface.lean`
+   - `SuperNeo/FoldingProtocol/ProtocolTheorem.lean`
 3. The main prerequisite bridges:
    - `specs/SumCheck.spec.md`
    - `specs/ProtocolRelations.spec.md`
@@ -452,7 +390,7 @@ Source references:
 
 | ID | Item | Lean target | Status |
 |---|---|---|---|
-| M39 | Executable cross-check harness | `Main.lean` + `Checks.lean` | Done (all checks pass) |
+| M39 | Theorem import wall (`lake exe check`) | `Main.lean` | Done (all checks pass) |
 
 ### Status Summary
 

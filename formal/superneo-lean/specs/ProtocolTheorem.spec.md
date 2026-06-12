@@ -78,9 +78,9 @@
 ## Dependency and Consumer Map
 
 - Upstream dependencies:
-  - `SuperNeo/InteractiveReductions.lean`
-  - `SuperNeo/Interp.lean`
-  - `SuperNeo/ProtocolRelations.lean`
+  - `SuperNeo/SecurityModel/InteractiveReductions.lean`
+  - `SuperNeo/Primitives/Interp.lean`
+  - `SuperNeo/FoldingProtocol/ProtocolRelations.lean`
   - `SuperNeo/ProofSystem/Lattice.lean`
   - `SuperNeo/ProofSystem/LatticeReductions.lean`
   - `SuperNeo/ProofSystem/SumCheck.lean`

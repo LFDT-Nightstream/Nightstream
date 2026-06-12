@@ -88,7 +88,7 @@
 ## Dependency and Consumer Map
 
 - **Dependencies**:
-  - `SuperNeo/Norm.lean`: `normInfCoeffs`.
+  - `SuperNeo/Primitives/Norm.lean`: `normInfCoeffs`.
 - **Consumers**:
   - `SuperNeo.ProofSystem.ConstraintSystem`: barrel re-export.
   - `SuperNeo.ProtocolRelations`: specializes compact protocol contexts to these Section 7.1 objects.

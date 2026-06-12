@@ -101,7 +101,7 @@ theorem soundness_relations_of_section71Data
   {ctx : SuperNeo.ProtocolTargetContext} :
   SuperNeo.ProtocolSection71Data ctx →
   StrongStatement ctx :=
-  SuperNeo.ProofSystem.Folding.soundness_relations_of_section71Data
+  fun h => SuperNeo.ProofSystem.Folding.soundness_relations_of_section71Context h.context
 
 /-- Strong `Π_CCS` from one protocol-side Section 7.5 target-data owner and a SumCheck witness. -/
 theorem soundness_relations_of_protocolTargetData

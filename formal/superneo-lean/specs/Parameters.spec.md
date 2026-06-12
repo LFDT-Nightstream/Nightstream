@@ -25,7 +25,7 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 
 | Lean file | Paper section |
 |---|---|
-| `SuperNeo/Parameters.lean` | Appendix B.2 |
+| `SuperNeo/Primitives/Parameters.lean` | Appendix B.2 |
 
 ## Contract Surface
 
@@ -54,14 +54,14 @@ No open boundary assumptions in this module.
 ## Dependency and Consumer Map
 
 Upstream dependencies:
-- `SuperNeo/Field.lean`: uses `F` type.
-- `SuperNeo/Dimensions.lean`: uses `eta`, `d` for sanity cross-checks.
+- `SuperNeo/Primitives/Field.lean`: uses `F` type.
+- `SuperNeo/Primitives/Dimensions.lean`: uses `eta`, `d` for sanity cross-checks.
 
 Downstream consumers:
-- `SuperNeo/Thm3Core.lean`: uses `d_eq_54`, `eta_eq_81` for dimensional preconditions.
-- `SuperNeo/InvertibilityAxioms.lean`: uses `kappa`, `B`, `b` for Theorem 8 preconditions.
-- `SuperNeo/SamplingSet.lean`: uses `B`, `T` for expansion-factor checks.
-- `SuperNeo/Decomp.lean`: uses `b`, `k` for decomposition base and depth.
+- `SuperNeo/EmbeddingTheory/Thm3Core.lean`: uses `d_eq_54`, `eta_eq_81` for dimensional preconditions.
+- `SuperNeo/SecurityModel/InvertibilityAxioms.lean`: uses `kappa`, `B`, `b` for Theorem 8 preconditions.
+- `SuperNeo/SecurityModel/SamplingSet.lean`: uses `B`, `T` for expansion-factor checks.
+- `SuperNeo/Primitives/Decomp.lean`: uses `b`, `k` for decomposition base and depth.
 
 ## Implementation Plan
 

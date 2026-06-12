@@ -99,7 +99,7 @@ theorem final_of_section71Data
   {ctx : SuperNeo.ProtocolTargetContext} :
   SuperNeo.ProtocolSection71Data ctx →
   FinalStatement ctx :=
-  SuperNeo.ProofSystem.Folding.final_of_section71Data
+  fun h => SuperNeo.ProofSystem.Folding.final_of_section71Context h.context
 
 /-- Final `Π_DEC` theorem from one protocol-side Section 7.5 target-data owner and a SumCheck witness. -/
 theorem final_of_protocolTargetData

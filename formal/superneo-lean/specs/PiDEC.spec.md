@@ -38,7 +38,7 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 
 | Lean file | Paper section |
 |---|---|
-| `SuperNeo/PiDEC.lean` | Section 7.5, Theorem 7 |
+| `SuperNeo/FoldingProtocol/PiDEC.lean` | Section 7.5, Theorem 7 |
 
 ## Contract Surface
 
@@ -86,11 +86,11 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 ## Dependency and Consumer Map
 
 Upstream dependencies:
-- `SuperNeo/PiRLC.lean`: uses `piRLCWeakStatement`, `piRLCWeak_of_assumptions`, `PiRLCAssumptions`.
-- `SuperNeo/ProtocolTarget.lean`: `protocolTargetProp` carries `invertibleRq ctx.invDelta`.
+- `SuperNeo/FoldingProtocol/PiRLC.lean`: uses `piRLCWeakStatement`, `piRLCWeak_of_assumptions`, `PiRLCAssumptions`.
+- `SuperNeo/FoldingProtocol/ProtocolTarget.lean`: `protocolTargetProp` carries `invertibleRq ctx.invDelta`.
 
 Downstream consumers:
-- `SuperNeo/ProtocolTheorem.lean`: depends on PiDEC for knowledge reduction chain.
+- `SuperNeo/FoldingProtocol/ProtocolTheorem.lean`: depends on PiDEC for knowledge reduction chain.
 - `SuperNeo/ProofSystem/Folding/PiDEC.lean`: imports PiDEC for decomposition step.
 
 ## Implementation Plan

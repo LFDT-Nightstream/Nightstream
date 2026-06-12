@@ -22,7 +22,7 @@
 
 | Lean file | Paper section |
 |---|---|
-| `SuperNeo/InvertibilityGoldilocks.lean` | Theorem 8 + Appendix B.2 concrete Goldilocks specialization |
+| `SuperNeo/SecurityModel/InvertibilityGoldilocks.lean` | Theorem 8 + Appendix B.2 concrete Goldilocks specialization |
 
 ## Contract Surface
 
@@ -39,12 +39,12 @@
 ## Dependency and Consumer Map
 
 - **Dependencies**:
-  - `SuperNeo/InvertibilityAxioms.lean`
-  - `SuperNeo/PolynomialBridge.lean`
-  - `SuperNeo/Parameters.lean`
+  - `SuperNeo/SecurityModel/InvertibilityAxioms.lean`
+  - `SuperNeo/Primitives/PolynomialBridge.lean`
+  - `SuperNeo/Primitives/Parameters.lean`
 - **Consumers**:
-  - `SuperNeo/ProtocolTarget.lean`
-  - `SuperNeo/ProtocolTheorem.lean`
+  - `SuperNeo/FoldingProtocol/ProtocolTarget.lean`
+  - `SuperNeo/FoldingProtocol/ProtocolTheorem.lean`
 
 ## Quality Expectations
 

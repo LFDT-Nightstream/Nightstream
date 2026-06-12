@@ -65,12 +65,12 @@
 ## Dependency and Consumer Map
 
 - Upstream dependencies:
-  - `SuperNeo/ProtocolSection71Context.lean`
+  - `SuperNeo/FoldingProtocol/ProtocolSection71Context.lean`
 - Downstream consumers:
-  - `SuperNeo/PiCCS.lean`
-  - `SuperNeo/PiRLC.lean`
-  - `SuperNeo/PiDEC.lean`
-  - `SuperNeo/InteractiveReductions.lean`
+  - `SuperNeo/FoldingProtocol/PiCCS.lean`
+  - `SuperNeo/FoldingProtocol/PiRLC.lean`
+  - `SuperNeo/FoldingProtocol/PiDEC.lean`
+  - `SuperNeo/SecurityModel/InteractiveReductions.lean`
   - `SuperNeo/ProofSystem/Folding/*`
 
 ## Quality Expectations

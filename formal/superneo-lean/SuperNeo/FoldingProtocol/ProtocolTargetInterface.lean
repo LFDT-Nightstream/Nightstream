@@ -63,9 +63,20 @@ theorem invertibleRq_of_paperCarrierDiff
 [Role: Theorem-Target] Canonical protocol-target constructor from the
 paper-facing challenge-difference route.
 -/
-abbrev ProtocolTargetAssumptions_ofPaperCarrierDiff
-  {ctx : ProtocolTargetContext} :=
-  SuperNeo.ProtocolTargetAssumptions.ofPaperCarrierDiff (ctx := ctx)
+def ProtocolTargetAssumptions_ofPaperCarrierDiff
+  {ctx : ProtocolTargetContext}
+  (thm3 : thm3CoreAssumption ctx.bar)
+  (arithmetic : ArithmeticObligations
+    ctx.bar ctx.m ctx.r ctx.rho1 ctx.rho2
+    ctx.hVec ctx.hScal
+    ctx.splitScalar ctx.kSplit
+    ctx.cset ctx.samples
+    ctx.xs ctx.ys ctx.qVals ctx.coeffs
+    ctx.xEval ctx.expectedEval)
+  (hDiff : samplingDiffSet paperCarrier ctx.invDelta)
+  (hNe : ctx.invDelta ≠ zeroRq) :
+  SuperNeo.ProtocolTargetAssumptions ctx :=
+  SuperNeo.ProtocolTargetAssumptions.ofPaperCarrierDiff thm3 arithmetic hDiff hNe
 
 end ProtocolTargetInterface
 

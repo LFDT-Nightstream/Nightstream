@@ -29,22 +29,33 @@ abbrev weakCompositionStatement := SuperNeo.weakCompositionStatement
 abbrev InteractiveReductionAssumptions := SuperNeo.InteractiveReductionAssumptions
 
 /-- [Role: Theorem-Target] Curated theorem surface `strongComposition_of_assumptions`. -/
-abbrev strongComposition_of_assumptions
-  {ctx : SuperNeo.ProtocolTargetContext} :=
-  SuperNeo.strongComposition_of_assumptions (ctx := ctx)
+theorem strongComposition_of_assumptions
+  {ctx : SuperNeo.ProtocolTargetContext}
+  (h : SuperNeo.InteractiveReductionAssumptions ctx) :
+  SuperNeo.strongCompositionStatement ctx :=
+  SuperNeo.strongComposition_of_assumptions h
 
 /-- [Role: Theorem-Target] Curated theorem surface `weakComposition_of_assumptions`. -/
-abbrev weakComposition_of_assumptions
-  {ctx : SuperNeo.ProtocolTargetContext} :=
-  SuperNeo.weakComposition_of_assumptions (ctx := ctx)
+theorem weakComposition_of_assumptions
+  {ctx : SuperNeo.ProtocolTargetContext}
+  (h : SuperNeo.InteractiveReductionAssumptions ctx) :
+  SuperNeo.weakCompositionStatement ctx :=
+  SuperNeo.weakComposition_of_assumptions h
 
 /--
 [Role: Theorem-Target] Witness-level SumCheck failure-advantage bound from
 interactive-reduction assumptions.
 -/
-abbrev sumcheckFailureAdvantageBound_of_assumptions
-  {ctx : SuperNeo.ProtocolTargetContext} :=
-  SuperNeo.sumcheckFailureAdvantageBound_of_assumptions (ctx := ctx)
+theorem sumcheckFailureAdvantageBound_of_assumptions
+  {ctx : SuperNeo.ProtocolTargetContext}
+  (h : SuperNeo.InteractiveReductionAssumptions ctx)
+  (eps : SuperNeo.ProofSystem.ErrorFn)
+  (hEpsNonneg : ∀ n : Nat, 0 ≤ eps n) :
+  SuperNeo.ProofSystem.Sumcheck.SoundnessFailureAdvantageBound
+      (SuperNeo.sumcheckInstanceOfContext ctx)
+      h.sumcheckTransitionWitness.transcript
+      eps :=
+  SuperNeo.sumcheckFailureAdvantageBound_of_assumptions h eps hEpsNonneg
 
 end InteractiveReductionsInterface
 

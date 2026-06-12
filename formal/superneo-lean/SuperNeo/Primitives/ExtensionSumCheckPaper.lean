@@ -1,5 +1,4 @@
 import SuperNeo.Primitives.ExtensionSumCheck
-import Mathlib
 
 namespace SuperNeo
 

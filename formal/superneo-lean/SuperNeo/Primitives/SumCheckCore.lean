@@ -1,6 +1,6 @@
 import SuperNeo.Primitives.MLE
 import SuperNeo.Primitives.EqPoly
-import Mathlib
+import Mathlib.Algebra.BigOperators.Ring.Finset
 
 /-!
 SumCheck protocol scaffold.

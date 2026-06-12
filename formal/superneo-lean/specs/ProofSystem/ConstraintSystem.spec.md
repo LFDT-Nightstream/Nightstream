@@ -42,7 +42,7 @@ This barrel introduces no additional boundary assumptions.
 
 - **Dependencies**: imports `SuperNeo.ProofSystem.ConstraintSystem.CCS`.
 - **Consumers**:
-  - `SuperNeo.ProofSystem.Folding`, `SuperNeo.FoldingProtocol`: use CCS types for folding reductions.
+  - `SuperNeo.FoldingProtocol`: use CCS types for folding reductions.
   - `SuperNeo.ProofSystem.ConstraintSystemInterface`: imports this module for interface boundary.
 
 ## Implementation Plan

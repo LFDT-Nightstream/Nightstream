@@ -1,5 +1,5 @@
 import DirectCcsFPrime.DecDigitUniqueness
-import SuperNeo.Goldilocks
+import SuperNeo.Primitives.Goldilocks
 
 /-!
 Goldilocks no-wrap facts for fixed-length binary DEC authorization.

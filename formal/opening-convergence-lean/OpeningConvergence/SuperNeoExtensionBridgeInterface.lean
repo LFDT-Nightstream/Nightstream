@@ -1,6 +1,6 @@
 import OpeningConvergence.Basic
 import OpeningConvergence.SuperNeoBoundaryInterface
-import SuperNeo.ExtensionFieldInterface
+import SuperNeo.Primitives.ExtensionFieldInterface
 
 /-!
 # Module 6: SuperNeoExtensionBridge — Interface

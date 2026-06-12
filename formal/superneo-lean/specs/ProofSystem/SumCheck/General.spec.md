@@ -204,7 +204,7 @@
 - **Dependencies**: imports `SuperNeo.ProofSystem.SumCheck.SingleRound`, `SuperNeo.ProofSystem.Types`, `SuperNeo.ProofSystem.Security`, `SuperNeo.GoldilocksPrime`.
 - **Consumers**:
   - `SuperNeo.ProofSystem.SumCheck`: imports General for barrel.
-  - `SuperNeo.ProofSystem.Folding.PiCCS`, `PiRLC`: depend on sum-check acceptance/claim for Π_CCS and Π_RLC.
+  - `SuperNeo.FoldingProtocol.ProtocolTheorem`: consumes the prefix-soundness/Lund endpoint surfaces.
 
 ## Implementation Plan
 

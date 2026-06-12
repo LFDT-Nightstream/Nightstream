@@ -2,9 +2,9 @@ import DirectCcsFPrime.AjtaiResidueBinding
 import DirectCcsFPrime.GoldilocksChildTableAuthorization
 import DirectCcsFPrime.ParentEncoding
 import DirectCcsFPrime.ParentOpeningAuthorization
-import SuperNeo.PiCCSInterface
-import SuperNeo.PiDECInterface
-import SuperNeo.PiRLCInterface
+import SuperNeo.FoldingProtocol.PiCCSInterface
+import SuperNeo.FoldingProtocol.PiDECInterface
+import SuperNeo.FoldingProtocol.PiRLCInterface
 import SuperNeo.ProofSystem.ConstraintSystem.CCS
 import SuperNeo.ProofSystem.Lattice
 

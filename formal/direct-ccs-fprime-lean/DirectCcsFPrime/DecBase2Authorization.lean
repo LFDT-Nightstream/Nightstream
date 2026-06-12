@@ -1,5 +1,5 @@
 import DirectCcsFPrime.DecAuthorization
-import SuperNeo.DecompInterface
+import SuperNeo.Primitives.DecompInterface
 
 /-!
 Concrete base-2 DEC authorization bridge.

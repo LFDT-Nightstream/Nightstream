@@ -1,6 +1,6 @@
-import SuperNeo.PiCCSInterface
-import SuperNeo.PiRLCInterface
-import SuperNeo.PiDECInterface
+import SuperNeo.FoldingProtocol.PiCCSInterface
+import SuperNeo.FoldingProtocol.PiRLCInterface
+import SuperNeo.FoldingProtocol.PiDECInterface
 import TwistShout.ShoutCoreInterface
 import TwistShout.TwistValueEvalInterface
 

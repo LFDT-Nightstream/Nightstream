@@ -136,12 +136,12 @@ fn call_indirect_rejects_index_read_redirected_to_other_slot() {
     common::assert_rejected(&witness, "index read redirected away from sp - 1");
 }
 
-/// Known bug, kept as a failing probe: the wasmtime adapter snapshots the
-/// operand stack per frame, so a callee's slots alias the caller's from
-/// address 0 and any operand held across a call is clobbered in the memory
-/// checker. Needs global stack-base accounting through call/return.
+/// Wasmtime snapshots the operand stack per frame; the normalizer rebases
+/// each frame onto the global stack address space (callee slots start above
+/// the caller's residual operands), so an operand held across a call must
+/// survive the callee's pushes. The folding-pipeline counterpart is
+/// `folding_proof_covers_operand_held_across_call`.
 #[test]
-#[ignore = "per-frame operand-stack aliasing: operands held across a call collide with callee slots"]
 fn operand_held_across_call_survives() {
     common::checked_wasm_run(
         r#"(module

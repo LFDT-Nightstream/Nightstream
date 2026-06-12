@@ -55,7 +55,6 @@ fn read_u32_column(witness: &[F], col: usize, row_index: usize, role: &str) -> R
 enum DebugInitMode {
     Strict,
     ZeroReadDefault,
-    FirstReadDefines,
 }
 
 pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts, initial_locals: &[u32]) -> WasmMemoryPreload {
@@ -101,6 +100,12 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts, initial_
     for &(index, lo, hi) in &tables.globals_init {
         preload.insert("globals", vec![index], lo);
         preload.insert("globals_hi", vec![index], hi);
+    }
+    for &(table_id, size) in &tables.table_sizes_init {
+        preload.insert("table_sizes", vec![table_id], size);
+    }
+    for &(table_id, index, funcref) in &tables.tables_init {
+        preload.insert("tables", vec![table_id, index], funcref);
     }
     for &(pc_before, control_choice, pc_after) in &tables.pc_rom {
         preload.insert(
@@ -289,9 +294,6 @@ fn apply_memory_row(
                         }
                         cells.insert(address, 0);
                     }
-                    DebugInitMode::FirstReadDefines => {
-                        cells.insert(address, value);
-                    }
                 },
             },
             WasmMemoryColumnKind::Write { value_before_column } => {
@@ -326,9 +328,6 @@ fn apply_memory_row(
                                     ));
                                 }
                                 cells.insert(address.clone(), 0);
-                            }
-                            DebugInitMode::FirstReadDefines => {
-                                cells.insert(address.clone(), before_value);
                             }
                         },
                     }
@@ -401,6 +400,12 @@ const MEMORY_INIT_MODES: &[(&str, DebugInitMode)] = &[
     // Declared globals are preloaded from their wasm initializer.
     ("globals", DebugInitMode::ZeroReadDefault),
     ("globals_hi", DebugInitMode::ZeroReadDefault),
-    ("tables", DebugInitMode::FirstReadDefines),
-    ("table_sizes", DebugInitMode::FirstReadDefines),
+    // tables: entries covered by an active element segment are preloaded from
+    // `tables_init`; every other in-bounds entry is a null funcref at
+    // instantiation, which normalizes to 0.
+    ("tables", DebugInitMode::ZeroReadDefault),
+    // table_sizes: every declared table's size is preloaded from
+    // `table_sizes_init` and `table.grow` is unsupported, so an unpreloaded
+    // read is always a bug.
+    ("table_sizes", DebugInitMode::Strict),
 ];

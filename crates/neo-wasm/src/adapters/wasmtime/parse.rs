@@ -79,6 +79,16 @@ pub struct WasmProgramTables {
     /// Initial declared-global values as `(global_index, lo_limb, hi_limb)`.
     /// Imported globals are not represented here.
     pub globals_init: Vec<(u32, u32, u32)>,
+    /// Declared table sizes as `(table_id, element_count)` rows, one per
+    /// table-section entry. Authoritative for the whole execution because
+    /// `table.grow` is unsupported; imported tables are rejected at parse
+    /// time.
+    pub table_sizes_init: Vec<(u32, u32)>,
+    /// Function-table entries initialized by active `(elem ...)` segments at
+    /// instantiation, as `(table_id, element_index, funcref)` rows in the
+    /// normalized 1-based funcref id space (0 = null). Entries outside any
+    /// element segment are null at instantiation.
+    pub tables_init: Vec<(u32, u32, u32)>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -178,6 +188,8 @@ struct ParsedWasmArtifactsBuilder {
     linear_memory_init: Vec<(u64, u8)>,
     globals_init: Vec<(u32, u32, u32)>,
     next_declared_global_index: u32,
+    table_sizes_init: Vec<(u32, u32)>,
+    tables_init: Vec<(u32, u32, u32)>,
 }
 
 impl Default for ParsedWasmArtifactsBuilder {
@@ -203,6 +215,8 @@ impl Default for ParsedWasmArtifactsBuilder {
             linear_memory_init: Vec::new(),
             globals_init: Vec::new(),
             next_declared_global_index: 0,
+            table_sizes_init: Vec::new(),
+            tables_init: Vec::new(),
         }
     }
 }
@@ -306,6 +320,8 @@ impl ParsedWasmArtifactsBuilder {
                 module_types,
                 linear_memory_init: self.linear_memory_init,
                 globals_init: self.globals_init,
+                table_sizes_init: self.table_sizes_init,
+                tables_init: self.tables_init,
             },
             trace: WasmTraceLoweringTables {
                 opcode_map: self.opcode_map,
@@ -342,6 +358,13 @@ impl ParsedWasmArtifactsBuilder {
                     if matches!(import.ty, wasmparser::TypeRef::Global(_)) {
                         // Imported globals occupy the leading global indexes.
                         self.next_declared_global_index = self.next_declared_global_index.saturating_add(1);
+                    }
+                    if matches!(import.ty, wasmparser::TypeRef::Table(_)) {
+                        // An imported table's size and contents are host-defined, so the
+                        // static `tables` / `table_sizes` preload cannot be authoritative.
+                        return Err(WasmBuildError::Unsupported(
+                            "imported tables are not supported by the wasm proof tables".to_string(),
+                        ));
                     }
                     if let wasmparser::TypeRef::Memory(memory) = import.ty {
                         self.set_initial_memory_pages(memory)?;
@@ -706,6 +729,97 @@ impl ParsedWasmArtifactsBuilder {
                         .push((u64::from(function_ref), entry_pc));
                 }
                 self.defined_function_index += 1;
+            }
+            Payload::TableSection(reader) => {
+                for table_result in reader {
+                    let table = table_result
+                        .map_err(|err| WasmBuildError::Trace(format!("failed to decode wasm table: {err}")))?;
+                    if table.ty.table64 {
+                        return Err(WasmBuildError::Unsupported(
+                            "table64 tables are not supported by the wasm proof tables".to_string(),
+                        ));
+                    }
+                    if !matches!(table.init, wasmparser::TableInit::RefNull) {
+                        return Err(WasmBuildError::Unsupported(
+                            "tables with explicit init expressions are not supported".to_string(),
+                        ));
+                    }
+                    let table_id = self.table_sizes_init.len() as u32;
+                    let initial = Self::narrow_u32(table.ty.initial, "table.initial")?;
+                    self.table_sizes_init.push((table_id, initial));
+                }
+            }
+            Payload::ElementSection(reader) => {
+                for element_result in reader {
+                    let element = element_result.map_err(|err| {
+                        WasmBuildError::Trace(format!("failed to decode wasm element segment: {err}"))
+                    })?;
+                    let (table_id, offset_expr) = match element.kind {
+                        wasmparser::ElementKind::Active {
+                            table_index,
+                            offset_expr,
+                        } => (table_index.unwrap_or(0), offset_expr),
+                        // Passive segments only reach a table through `table.init`,
+                        // which is an unsupported opcode; declared segments never
+                        // initialize a table.
+                        wasmparser::ElementKind::Passive | wasmparser::ElementKind::Declared => continue,
+                    };
+                    // Only `i32.const N` offset expressions are supported, same
+                    // policy as active data segments.
+                    let mut ops = offset_expr.get_operators_reader();
+                    let first = ops.read().map_err(|err| {
+                        WasmBuildError::Trace(format!("failed to read element segment offset expr: {err}"))
+                    })?;
+                    let offset = match first {
+                        wasmparser::Operator::I32Const { value } => value as u32,
+                        other => {
+                            return Err(WasmBuildError::Unsupported(format!(
+                                "element segment with non-i32.const offset expr: {other:?}"
+                            )));
+                        }
+                    };
+                    // Items land in the normalized 1-based funcref id space shared
+                    // with `call` / `ref.func`; 0 encodes a null entry.
+                    let mut funcrefs = Vec::new();
+                    match element.items {
+                        wasmparser::ElementItems::Functions(items) => {
+                            for item in items {
+                                let function_index = item.map_err(|err| {
+                                    WasmBuildError::Trace(format!("failed to decode element function index: {err}"))
+                                })?;
+                                funcrefs.push(function_index.saturating_add(1));
+                            }
+                        }
+                        wasmparser::ElementItems::Expressions(_, items) => {
+                            for item in items {
+                                let expr = item.map_err(|err| {
+                                    WasmBuildError::Trace(format!("failed to decode element init expr: {err}"))
+                                })?;
+                                let mut ops = expr.get_operators_reader();
+                                let first = ops.read().map_err(|err| {
+                                    WasmBuildError::Trace(format!("failed to read element init expr: {err}"))
+                                })?;
+                                match first {
+                                    wasmparser::Operator::RefFunc { function_index } => {
+                                        funcrefs.push(function_index.saturating_add(1));
+                                    }
+                                    wasmparser::Operator::RefNull { .. } => funcrefs.push(0),
+                                    other => {
+                                        return Err(WasmBuildError::Unsupported(format!(
+                                            "element segment with non-funcref init expr: {other:?}"
+                                        )));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    for (i, funcref) in funcrefs.into_iter().enumerate() {
+                        let index = offset
+                            .checked_add(i as u32)
+                            .ok_or_else(|| WasmBuildError::Trace("element segment index overflow".to_string()))?;
+                        self.tables_init.push((table_id, index, funcref));
+                    }
+                }
             }
             Payload::DataSection(reader) => {
                 for segment_result in reader {

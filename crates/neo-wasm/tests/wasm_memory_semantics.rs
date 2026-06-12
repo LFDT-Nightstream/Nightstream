@@ -2,7 +2,7 @@ use neo_math::F;
 use neo_wasm::layout::{
     CALL_RETURN_PC_CHOICE, COL_CALL_STACK_POP_RETURN_PC, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_CURRENT_FUNCTION_REF,
     COL_EXPECTED_TYPE_ID, COL_LINEAR_MEM_IMM_OFFSET, COL_LOCAL_INDEX, COL_OPCODE_CODE, COL_STACK_READ0_VALUE_HI,
-    COL_STACK_WRITE0_VALUE_HI,
+    COL_STACK_WRITE0_VALUE_HI, COL_TABLE_INDEX, COL_TABLE_SIZE, COL_TABLE_VALUE,
 };
 use neo_wasm::{
     build_wasm_lookup_binding_layout, collect_wasmtime_steps, extract_wasm_program_artifacts,
@@ -362,4 +362,78 @@ fn memory_semantics_rejects_missing_br_if_taken_edge() {
     let layout = build_wasm_lookup_binding_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("missing br_if edge must fail");
     assert!(err.contains("memory `pc_rom` ROM read before initialization"));
+}
+
+/// Table with a non-zero element-segment offset plus a `table.size` read;
+/// exercises both authoritative init sets (`tables_init` / `table_sizes_init`).
+const TABLE_INIT_WAT: &str = r#"(module
+    (type $t (func (param i32) (result i32)))
+    (func $add_one (type $t)
+        local.get 0
+        i32.const 1
+        i32.add)
+    (table 4 funcref)
+    (elem (i32.const 2) func $add_one)
+    (func (export "run") (result i32)
+        i32.const 5
+        i32.const 2
+        call_indirect (type $t)
+        table.size
+        i32.add))
+"#;
+
+#[test]
+fn memory_semantics_accept_element_segment_table_init() {
+    let (_, witnesses, preload) = witness_run(TABLE_INIT_WAT);
+    let layout = build_wasm_lookup_binding_layout();
+    sanity_check_memory_rows(layout, &witnesses, &preload).expect("memory sanity");
+}
+
+#[test]
+fn memory_semantics_rejects_tampered_table_funcref() {
+    let (trace, mut witnesses, preload) = witness_run(TABLE_INIT_WAT);
+    let row_index = trace
+        .iter()
+        .position(|row| row.opcode == WasmOpcode::CallIndirect)
+        .expect("call_indirect row");
+    witnesses[row_index][COL_TABLE_VALUE] += F::ONE;
+
+    let layout = build_wasm_lookup_binding_layout();
+    let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("tampered table funcref must fail");
+    assert!(err.contains("memory `tables` read mismatch"), "unexpected error: {err}");
+}
+
+#[test]
+fn memory_semantics_rejects_nonnull_read_of_uninitialized_table_entry() {
+    let (trace, mut witnesses, preload) = witness_run(TABLE_INIT_WAT);
+    let row_index = trace
+        .iter()
+        .position(|row| row.opcode == WasmOpcode::CallIndirect)
+        .expect("call_indirect row");
+    // Redirect the read to index 0 — in bounds but outside the element
+    // segment, so it must be a null funcref (0) at instantiation. Claiming a
+    // live funcref there was exactly what `FirstReadDefines` allowed.
+    witnesses[row_index][COL_TABLE_INDEX] = F::ZERO;
+
+    let layout = build_wasm_lookup_binding_layout();
+    let err =
+        sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("non-null uninitialized read must fail");
+    assert!(err.contains("memory `tables`"), "unexpected error: {err}");
+}
+
+#[test]
+fn memory_semantics_rejects_tampered_table_size() {
+    let (trace, mut witnesses, preload) = witness_run(TABLE_INIT_WAT);
+    let row_index = trace
+        .iter()
+        .position(|row| row.opcode == WasmOpcode::TableSize)
+        .expect("table.size row");
+    witnesses[row_index][COL_TABLE_SIZE] += F::ONE;
+
+    let layout = build_wasm_lookup_binding_layout();
+    let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("tampered table size must fail");
+    assert!(
+        err.contains("memory `table_sizes` read mismatch"),
+        "unexpected error: {err}"
+    );
 }

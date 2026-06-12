@@ -193,7 +193,13 @@ pub fn collect_wasmtime_steps(
         Err(err)
             if matches!(
                 err.downcast_ref::<Trap>(),
-                Some(Trap::UnreachableCodeReached | Trap::IntegerDivisionByZero | Trap::IntegerOverflow)
+                Some(
+                    Trap::UnreachableCodeReached
+                        | Trap::IntegerDivisionByZero
+                        | Trap::IntegerOverflow
+                        | Trap::IndirectCallToNull
+                        | Trap::BadSignature
+                )
             ) =>
         {
             Vec::new()

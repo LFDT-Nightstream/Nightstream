@@ -1,8 +1,8 @@
 use neo_math::F;
 use neo_wasm::layout::{
     CALL_RETURN_PC_CHOICE, COL_CALL_STACK_POP_RETURN_PC, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_CURRENT_FUNCTION_REF,
-    COL_EXPECTED_TYPE_ID, COL_LINEAR_MEM_IMM_OFFSET, COL_LOCAL_INDEX, COL_OPCODE_CODE, COL_STACK_READ0_VALUE_HI,
-    COL_STACK_WRITE0_VALUE_HI, COL_TABLE_INDEX, COL_TABLE_SIZE, COL_TABLE_VALUE,
+    COL_EXPECTED_TYPE_ID, COL_FUNCTION_TYPE_ID, COL_LINEAR_MEM_IMM_OFFSET, COL_LOCAL_INDEX, COL_OPCODE_CODE,
+    COL_STACK_READ0_VALUE_HI, COL_STACK_WRITE0_VALUE_HI, COL_TABLE_INDEX, COL_TABLE_SIZE, COL_TABLE_VALUE,
 };
 use neo_wasm::{
     build_wasm_lookup_binding_layout, collect_wasmtime_steps, extract_wasm_program_artifacts,
@@ -434,6 +434,41 @@ fn memory_semantics_rejects_tampered_table_size() {
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("tampered table size must fail");
     assert!(
         err.contains("memory `table_sizes` read mismatch"),
+        "unexpected error: {err}"
+    );
+}
+
+/// On a type-mismatch trap row the `function_types` ROM read stays active
+/// (the entry is non-null), so forging the callee type id to match the
+/// expected type — hiding the mismatch from the CCS zero-test — must fail
+/// against the ROM.
+#[test]
+fn memory_semantics_rejects_forged_callee_type_on_mismatch_trap() {
+    let (trace, mut witnesses, preload) = witness_run(
+        r#"(module
+            (type $t (func (param i32) (result i32)))
+            (type $u (func (result i64)))
+            (func $wide (type $u)
+                i64.const 7)
+            (table 1 funcref)
+            (elem (i32.const 0) func $wide)
+            (func (export "run") (result i32)
+                i32.const 5
+                i32.const 0
+                call_indirect (type $t)))
+        "#,
+    );
+    let row_index = trace
+        .iter()
+        .position(|row| row.opcode == WasmOpcode::CallIndirect)
+        .expect("call_indirect row");
+    assert!(trace[row_index].state_after.trapped);
+    witnesses[row_index][COL_FUNCTION_TYPE_ID] = witnesses[row_index][COL_EXPECTED_TYPE_ID];
+
+    let layout = build_wasm_lookup_binding_layout();
+    let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("forged callee type must fail");
+    assert!(
+        err.contains("memory `function_types` ROM mismatch"),
         "unexpected error: {err}"
     );
 }

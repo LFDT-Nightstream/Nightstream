@@ -7,7 +7,10 @@ mod common;
 
 use common::{assert_rejected, assert_satisfied, step};
 use neo_math::F;
-use neo_wasm::layout::{COL_DIV_OVERFLOW, COL_DIV_TRAP, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE};
+use neo_wasm::layout::{
+    COL_CI_ENTRY_IS_NULL, COL_CI_ENTRY_LIVE, COL_CI_LIVE, COL_CI_TRAP, COL_DIV_OVERFLOW, COL_DIV_TRAP, COL_HALTED,
+    COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
+};
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{opcode_code, StackValueAccess, WasmOpcode};
 use p3_field::PrimeCharacteristicRing;
@@ -205,4 +208,89 @@ fn div_s_row_rejects_fake_overflow_trap() {
     witness[COL_DIV_TRAP] = F::ONE;
     witness[COL_TRAPPED_AFTER] = F::ONE;
     assert_rejected(&witness, "div_s row faking an overflow trap");
+}
+
+const VALID_CALL_INDIRECT_WAT: &str = r#"(module
+    (type $t (func (param i32) (result i32)))
+    (func $add_one (type $t)
+        local.get 0
+        i32.const 1
+        i32.add)
+    (table 1 funcref)
+    (elem (i32.const 0) func $add_one)
+    (func (export "main") (result i32)
+        i32.const 5
+        i32.const 0
+        call_indirect (type $t)))"#;
+
+const NULL_ENTRY_CALL_INDIRECT_WAT: &str = r#"(module
+    (type $t (func (param i32) (result i32)))
+    (func $add_one (type $t)
+        local.get 0
+        i32.const 1
+        i32.add)
+    (table 2 funcref)
+    (elem (i32.const 0) func $add_one)
+    (func (export "main") (result i32)
+        i32.const 5
+        i32.const 1
+        call_indirect (type $t)))"#;
+
+/// Faking a trap on a healthy `call_indirect` must fail even when the
+/// trapped/halted/live columns are adjusted consistently: the trap flag is
+/// the selector-gated product of the bound null/mismatch evidence, which is
+/// zero here.
+#[test]
+fn healthy_call_indirect_row_rejects_faked_trap() {
+    let checked = common::checked_main(VALID_CALL_INDIRECT_WAT);
+    let row_index = checked
+        .trace
+        .iter()
+        .position(|row| row.opcode == WasmOpcode::CallIndirect)
+        .expect("call_indirect row");
+    let mut witness = checked.witnesses[row_index].clone();
+    witness[COL_CI_TRAP] = F::ONE;
+    witness[COL_TRAPPED_AFTER] = F::ONE;
+    witness[COL_HALTED] = F::ONE;
+    witness[COL_CI_LIVE] = F::ZERO;
+    assert_rejected(&witness, "faked trap on a valid call_indirect");
+}
+
+/// Hiding a null-entry trap must fail even when the trapped/halted/live
+/// columns are adjusted consistently: the table entry is zero, so the
+/// zero-test forces the null flag and the trap product.
+#[test]
+fn null_entry_call_indirect_row_rejects_hidden_trap() {
+    let checked = common::checked_main(NULL_ENTRY_CALL_INDIRECT_WAT);
+    let row_index = checked
+        .trace
+        .iter()
+        .position(|row| row.opcode == WasmOpcode::CallIndirect)
+        .expect("call_indirect row");
+    let mut witness = checked.witnesses[row_index].clone();
+    witness[COL_CI_TRAP] = F::ZERO;
+    witness[COL_TRAPPED_AFTER] = F::ZERO;
+    witness[COL_HALTED] = F::ZERO;
+    witness[COL_CI_LIVE] = F::ONE;
+    assert_rejected(&witness, "hidden null-entry call_indirect trap");
+}
+
+/// Hiding a null-entry trap by also forging the null flag itself must fail
+/// on the zero-test gadget (the table entry value is zero).
+#[test]
+fn null_entry_call_indirect_row_rejects_forged_null_flag() {
+    let checked = common::checked_main(NULL_ENTRY_CALL_INDIRECT_WAT);
+    let row_index = checked
+        .trace
+        .iter()
+        .position(|row| row.opcode == WasmOpcode::CallIndirect)
+        .expect("call_indirect row");
+    let mut witness = checked.witnesses[row_index].clone();
+    witness[COL_CI_ENTRY_IS_NULL] = F::ZERO;
+    witness[COL_CI_TRAP] = F::ZERO;
+    witness[COL_TRAPPED_AFTER] = F::ZERO;
+    witness[COL_HALTED] = F::ZERO;
+    witness[COL_CI_LIVE] = F::ONE;
+    witness[COL_CI_ENTRY_LIVE] = F::ONE;
+    assert_rejected(&witness, "forged null flag on a null table entry");
 }

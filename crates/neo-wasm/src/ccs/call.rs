@@ -19,9 +19,12 @@
 //!    `CallIndirect` are dynamic — their arities come from the callee's
 //!    declared type via the `function_types` lookup family.
 
-use super::super::gadgets::{push_gated_linear_zero, push_zero_test_gadget};
+use super::super::gadgets::{push_gated_linear_zero, push_zero_test_expr_gadget, push_zero_test_gadget};
 use super::super::isa::WasmOpcode;
-use super::super::layout::{selector_col, CALL_RETURN_PC_CHOICE, COL_ONE};
+use super::super::layout::{
+    selector_col, CALL_RETURN_PC_CHOICE, COL_CI_ENTRY_IS_NULL, COL_CI_ENTRY_LIVE, COL_CI_ENTRY_NULL_INV, COL_CI_LIVE,
+    COL_CI_TRAP, COL_CI_TYPE_EQ, COL_CI_TYPE_EQ_INV, COL_CI_TYPE_MISMATCH, COL_ONE,
+};
 use super::super::lookup_binding_builder::{
     CallColumns, ControlColumns, FrameColumns, FunctionTypeColumns, LocalsColumns, ModuleTypeColumns,
     OperandStackColumns, OutputColumns, ParamInitColumns, StateColumns, TableColumns, WasmLookupBindingLayout,
@@ -194,12 +197,9 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder, layout: &WasmLookupBind
         push_locals_fbp_transition_constraints(b, &call, &frame);
     });
 
-    b.with_tag(
-        super::opcode_tag("call_indirect type constraints", WasmOpcode::CallIndirect),
-        |b| {
-            push_call_indirect_type_constraints(b, &function_types, &module_types);
-        },
-    );
+    b.with_tag(super::opcode_tag("call_indirect trap", WasmOpcode::CallIndirect), |b| {
+        push_call_indirect_trap_constraints(b, &call, &table, &function_types, &module_types);
+    });
 
     b.with_tag(always("dynamic call stack arity"), |b| {
         push_dynamic_call_stack_arity_constraints(b, &control, &state, &stack, &call, &function_types, &table);
@@ -278,18 +278,72 @@ fn push_simple_output_constraints(
     });
 }
 
-fn push_call_indirect_type_constraints(
+/// `call_indirect` trap causes: a null table entry or a callee whose
+/// normalized type id differs from the instruction's expected type id.
+///
+/// The evidence is bound on both sides, so the prover can neither fabricate
+/// nor hide a trap:
+/// - the table entry is bound by the `tables` memory read (gated on
+///   `table.read_enabled`, which stays on for trapping rows),
+/// - the callee type id is bound by the `function_types` ROM read gated on
+///   `COL_CI_ENTRY_LIVE` (active exactly when the entry is non-null),
+/// - the expected type id is bound by the per-pc program decode ROM.
+///
+/// A trapping row's `COL_CI_TRAP` feeds the trapped-flag transition and the
+/// pc-edge-kind equation in ccs.rs (mirroring `COL_DIV_TRAP`), de-gates the
+/// callee metadata / entry-pc reads via `COL_CI_LIVE`, and forbids a
+/// call-stack push.
+fn push_call_indirect_trap_constraints(
     b: &mut R1csBuilder,
+    call: &CallColumns,
+    table: &TableColumns,
     function_types: &FunctionTypeColumns,
     module_types: &ModuleTypeColumns,
 ) {
-    push_gated_linear_zero(
+    let call_indirect = selector_col(WasmOpcode::CallIndirect).unwrap();
+
+    push_zero_test_gadget(b, idx(table.value), COL_CI_ENTRY_NULL_INV, COL_CI_ENTRY_IS_NULL);
+    push_zero_test_expr_gadget(
         b,
-        selector_col(WasmOpcode::CallIndirect).unwrap(),
         [
             (idx(function_types.type_id), F::ONE),
             (idx(module_types.expected_type_id), -F::ONE),
         ],
+        COL_CI_TYPE_EQ_INV,
+        COL_CI_TYPE_EQ,
+    );
+    // mismatch = (1 - is_null) · (1 - type_eq). Scratch on non-call_indirect
+    // rows, made harmless by the selector-gated trap product below.
+    b.push_row(
+        [(COL_ONE, F::ONE), (COL_CI_ENTRY_IS_NULL, -F::ONE)],
+        [(COL_ONE, F::ONE), (COL_CI_TYPE_EQ, -F::ONE)],
+        [(COL_CI_TYPE_MISMATCH, F::ONE)],
+    );
+    // trap = ind · (is_null + mismatch); the two causes are mutually
+    // exclusive (mismatch carries a 1 - is_null factor), so the sum is
+    // boolean. On a healthy call_indirect row this forces is_null = 0 and
+    // type_eq = 1, subsuming the old standalone type-equality constraint.
+    b.push_row(
+        [(call_indirect, F::ONE)],
+        [(COL_CI_ENTRY_IS_NULL, F::ONE), (COL_CI_TYPE_MISMATCH, F::ONE)],
+        [(COL_CI_TRAP, F::ONE)],
+    );
+    b.push_row(
+        [(call_indirect, F::ONE)],
+        [(COL_ONE, F::ONE), (COL_CI_ENTRY_IS_NULL, -F::ONE)],
+        [(COL_CI_ENTRY_LIVE, F::ONE)],
+    );
+    b.push_row(
+        [(call_indirect, F::ONE)],
+        [(COL_ONE, F::ONE), (COL_CI_TRAP, -F::ONE)],
+        [(COL_CI_LIVE, F::ONE)],
+    );
+    // A trapping row never enters the callee: no call-stack push (and via
+    // the existing enter-mode gating, no param-init mode).
+    b.push_row(
+        [(COL_CI_TRAP, F::ONE)],
+        [(idx(call.call_stack_push_present), F::ONE)],
+        [],
     );
 }
 

@@ -1082,6 +1082,40 @@ define_columns!(
         "this row is a signed div op trapping on MIN / -1 overflow",
         ColumnWidth::Boolean
     ),
+    // call_indirect trap scratch; see `call indirect trap` constraints in
+    // ccs/call.rs.
+    (
+        COL_CI_ENTRY_IS_NULL,
+        "zero-test flag: the table entry (table value) read by this row is a null funcref",
+        ColumnWidth::Boolean
+    ),
+    (COL_CI_ENTRY_NULL_INV, "inverse witness for the null-funcref zero test"),
+    (
+        COL_CI_TYPE_EQ,
+        "zero-test flag: callee type id equals the call_indirect expected type id",
+        ColumnWidth::Boolean
+    ),
+    (COL_CI_TYPE_EQ_INV, "inverse witness for the callee-type equality test"),
+    (
+        COL_CI_TYPE_MISMATCH,
+        "product flag: non-null table entry with a mismatched callee type",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_CI_TRAP,
+        "this row is a call_indirect trapping on a null entry or callee type mismatch",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_CI_ENTRY_LIVE,
+        "call_indirect row with a non-null table entry: gates the function_types read",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_CI_LIVE,
+        "non-trapping call_indirect row: gates the callee metadata and entry-pc reads",
+        ColumnWidth::Boolean
+    ),
 );
 
 pub const SELECTOR_COLS: [usize; 113] = [

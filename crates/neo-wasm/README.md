@@ -37,13 +37,15 @@ exposes ROM/memory/lookup access tuples as metadata
   carried `trapped` flag enters the semantic-state digest, nothing executes
   after it, and it is mutually exclusive with a captured output (see
   `tests/wasm_trap.rs`). Proven causes so far: `unreachable`, div/rem by
-  zero, and signed division overflow (`min_value / -1`) — zero-test gates
-  on the faulting row feed `div_trap`, which de-gates the row's op-table
-  lookup and pins its phantom write to zero. Other trapping executions
-  fail loudly at trace time. Remaining causes:
+  zero, signed division overflow (`min_value / -1`), and `call_indirect`
+  null entry / callee type mismatch — zero-test gates on the faulting row
+  feed `div_trap` / `ci_trap`, which de-gate the row's op-table lookup or
+  callee-metadata reads. Other trapping executions fail loudly at trace
+  time. Remaining causes:
   - [ ] OOB linear-memory access — land together with the
     `linear_memory_bounds` argument (same comparison, complementary sides).
-  - [ ] `call_indirect` null/OOB entry and type mismatch.
+  - [ ] `call_indirect` OOB entry (`index >= table size`) — needs the same
+    comparison primitive as the bounds argument; land them together.
 - [ ] **Linear-memory bounds proof.** The `linear_memory_bounds` binding is
   explicitly "unproven" (see the TODO in `lookup_binding_builder/mod.rs`);
   nothing constrains accesses against `memory_pages` yet. Revisit the

@@ -735,6 +735,14 @@ impl WasmOpcode {
         )
     }
 
+    /// Signed div opcodes that trap on overflow (MIN_value / -1). Single
+    /// source of truth for the CCS `div_overflow` gate, the witness builder,
+    /// and the trace normalizer's trap-row synthesis. `rem_s` is excluded:
+    /// wasm defines `MIN rem -1 = 0` without trapping.
+    pub fn traps_on_signed_overflow(self) -> bool {
+        matches!(self, Self::I32DivS | Self::I64DivS)
+    }
+
     pub fn memory_access_info(self) -> Option<WasmMemoryAccessInfo> {
         use WasmMemoryAccessKind::{Load, Store};
         use WasmMemoryExtension::{Sign, Zero};

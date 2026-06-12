@@ -4,9 +4,10 @@ use neo_ccs::check_ccs_rowwise_zero;
 use neo_math::F;
 use neo_wasm::layout::COLUMN_SPECS;
 use neo_wasm::{
-    build_wasm_lookup_binding_layout, collect_wasmtime_steps, extract_wasm_program_artifacts,
+    build_wasm_lookup_binding_layout, collect_wasmtime_steps, extract_wasm_program_artifacts, opcode_info_from_code,
     preload_from_program_artifacts, sanity_check_lookup_row, sanity_check_memory_rows, top_level_initial_state_digest,
-    traces_from_wasmtime_steps, witness_builder::build_witness_vector, WasmProgramArtifacts, WasmStepState,
+    traces_from_wasmtime_steps, witness_builder::build_witness_vector, LinearMemoryAccess, StackValueAccess,
+    WasmOpcode, WasmOutputState, WasmParamInitState, WasmPcEdgeKind, WasmProgramArtifacts, WasmRowKind, WasmStepState,
     WasmStepTrace, WasmVmSpec, WasmtimeTraceRun,
 };
 
@@ -83,6 +84,112 @@ pub fn sanity_check_trace(
     sanity_check_memory_rows(layout, &witnesses, &preload)
         .unwrap_or_else(|err| panic!("memory semantics rejected trace: {err}"));
     witnesses
+}
+
+/// Hand-build a single program row for direct row-CCS tests. Stack lanes are
+/// given as logical (slot, value) pairs; addresses are doubled into the
+/// physical layout and `value_hi` limbs are dropped, so wide rows built here
+/// carry zero high limbs. Trap synthesis (zero divisor, signed overflow)
+/// mirrors the trace normalizer.
+#[allow(clippy::too_many_arguments)]
+pub fn step(
+    cycle: u64,
+    pc_before: u64,
+    opcode_code: u16,
+    sp_before: u64,
+    sp_after: u64,
+    stack_read0: Option<StackValueAccess>,
+    stack_read1: Option<StackValueAccess>,
+    stack_read2: Option<StackValueAccess>,
+    stack_write0: Option<StackValueAccess>,
+    linear_memory: Option<LinearMemoryAccess>,
+    linear_memory_offset: u64,
+    halted: bool,
+) -> WasmStepTrace {
+    fn state(pc: u64, sp: u64, halted: bool) -> WasmStepState {
+        WasmStepState {
+            pc,
+            sp,
+            output: WasmOutputState::ZERO,
+            call_stack_depth: 0,
+            memory_pages: None,
+            locals_fbp: 0,
+            halted,
+            trapped: false,
+            param_init: WasmParamInitState::ZERO,
+        }
+    }
+
+    fn physical(access: Option<StackValueAccess>) -> Option<StackValueAccess> {
+        access.map(|lane| StackValueAccess::new(lane.addr_lo * 2, lane.value_lo))
+    }
+
+    let opcode = opcode_info_from_code(opcode_code).opcode;
+    let div_zero_trap = opcode.traps_on_zero_divisor()
+        && stack_read1.is_some_and(|lane| lane.value_lo == 0 && lane.value_hi.unwrap_or(0) == 0);
+    let (min_lo, min_hi) = if opcode.uses_wide_values() {
+        (0, 0x8000_0000)
+    } else {
+        (0x8000_0000, 0)
+    };
+    let neg1_hi = if opcode.uses_wide_values() { u32::MAX } else { 0 };
+    let div_overflow_trap = opcode.traps_on_signed_overflow()
+        && stack_read0.is_some_and(|lane| lane.value_lo == min_lo && lane.value_hi.unwrap_or(0) == min_hi)
+        && stack_read1.is_some_and(|lane| lane.value_lo == u32::MAX && lane.value_hi.unwrap_or(0) == neg1_hi);
+    let div_trap = div_zero_trap || div_overflow_trap;
+    WasmStepTrace {
+        cycle,
+        row_kind: WasmRowKind::Program,
+        state_before: state(pc_before, sp_before, false),
+        state_after: WasmStepState {
+            trapped: matches!(opcode, WasmOpcode::Unreachable) || div_trap,
+            ..state(pc_before + 1, sp_after, halted)
+        },
+        control_choice: 0,
+        pc_edge_kind: match opcode {
+            WasmOpcode::Return | WasmOpcode::End => WasmPcEdgeKind::ReturnLike,
+            WasmOpcode::CallIndirect => WasmPcEdgeKind::DynamicCallIndirect,
+            WasmOpcode::Unreachable => WasmPcEdgeKind::Terminal,
+            _ => WasmPcEdgeKind::Static,
+        },
+        wide_values_enabled: opcode_info_from_code(opcode_code).opcode.uses_wide_values(),
+        opcode: opcode_info_from_code(opcode_code).opcode,
+        info: opcode_info_from_code(opcode_code),
+        stack_reads_override: None,
+        stack_writes_override: None,
+        output_captured: false,
+        current_function_ref: 0,
+        current_function_num_locals: 0,
+        stack_read0: physical(stack_read0),
+        stack_read1: physical(stack_read1),
+        stack_read2: physical(stack_read2),
+        stack_write0: physical(stack_write0),
+        linear_memory,
+        linear_memory_offset,
+        local_index: None,
+        local_read_value: None,
+        local_read_value_hi: None,
+        local_write_value: None,
+        local_write_value_hi: None,
+        global_index: None,
+        global_read_value: None,
+        global_read_value_hi: None,
+        global_write_value: None,
+        global_write_value_hi: None,
+        table_id: None,
+        table_index: None,
+        table_value: None,
+        function_ref: None,
+        target_function_is_guest: false,
+        function_type_id: None,
+        call_indirect_type_index: None,
+        expected_type_id: None,
+        table_size: None,
+        call_param_count: None,
+        call_result_count: None,
+        call_stack_push: None,
+        call_stack_pop: None,
+    }
 }
 
 pub fn assert_satisfied(z: &[F], label: &str) {

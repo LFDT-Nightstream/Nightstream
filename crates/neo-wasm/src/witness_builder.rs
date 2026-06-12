@@ -7,11 +7,13 @@ use super::layout::{
     COL_CALL_STACK_ADDR, COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE, COL_CALL_STACK_POP_CALLER_FBP,
     COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_POP_RETURN_PC, COL_CALL_STACK_PUSH_PRESENT,
     COL_CALL_STACK_RETURN_PC_CHOICE, COL_CONTROL_CHOICE, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_CURRENT_FUNCTION_REF,
-    COL_DIV_DIVISOR_INV, COL_DIV_DIVISOR_IS_ZERO, COL_DIV_TRAP, COL_EXPECTED_TYPE_ID, COL_FUNCTION_REF,
-    COL_FUNCTION_TYPE_ID, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI, COL_HALTED, COL_IS_PROGRAM_ROW,
-    COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1, COL_LINEAR_MEM_ACCESS_BYTE2, COL_LINEAR_MEM_ACCESS_BYTE3,
-    COL_LINEAR_MEM_ACCESS_BYTE4, COL_LINEAR_MEM_ACCESS_BYTE5, COL_LINEAR_MEM_ACCESS_BYTE6, COL_LINEAR_MEM_ACCESS_BYTE7,
-    COL_LINEAR_MEM_BYTE_OFFSET, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1,
+    COL_DIV_DIVIDEND_IS_MIN, COL_DIV_DIVIDEND_MIN_INV, COL_DIV_DIVISOR_INV, COL_DIV_DIVISOR_IS_NEG1,
+    COL_DIV_DIVISOR_IS_ZERO, COL_DIV_DIVISOR_NEG1_INV, COL_DIV_OVERFLOW, COL_DIV_OVERFLOW_COND, COL_DIV_TRAP,
+    COL_EXPECTED_TYPE_ID, COL_FUNCTION_REF, COL_FUNCTION_TYPE_ID, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE,
+    COL_GLOBAL_VALUE_HI, COL_HALTED, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1,
+    COL_LINEAR_MEM_ACCESS_BYTE2, COL_LINEAR_MEM_ACCESS_BYTE3, COL_LINEAR_MEM_ACCESS_BYTE4, COL_LINEAR_MEM_ACCESS_BYTE5,
+    COL_LINEAR_MEM_ACCESS_BYTE6, COL_LINEAR_MEM_ACCESS_BYTE7, COL_LINEAR_MEM_BYTE_OFFSET,
+    COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1,
     COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_2, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_3,
     COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_1,
     COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_2, COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_3,
@@ -257,12 +259,32 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
         }
     }
 
-    // Mirror the CCS div/rem trap gate.
+    // Mirror the CCS div/rem trap gates (zero divisor and MIN / -1 overflow).
     let divisor = wit[COL_STACK_READ1_VALUE_LO] + wit[COL_STACK_READ1_VALUE_HI];
     let (divisor_is_zero, divisor_inv) = zero_test_witness_field(divisor);
     wit[COL_DIV_DIVISOR_IS_ZERO] = divisor_is_zero;
     wit[COL_DIV_DIVISOR_INV] = divisor_inv;
-    if trace.row_kind.is_program() && trace.opcode.traps_on_zero_divisor() && divisor_is_zero == F::ONE {
+    let sel_i32_div_s = wit[selector_col(super::isa::WasmOpcode::I32DivS).expect("i32.div_s selector")];
+    let sel_i64_div_s = wit[selector_col(super::isa::WasmOpcode::I64DivS).expect("i64.div_s selector")];
+    let dividend_min = wit[COL_STACK_READ0_VALUE_LO] + wit[COL_STACK_READ0_VALUE_HI] * F::from_u64(1 << 32)
+        - sel_i32_div_s * F::from_u64(1 << 31)
+        - sel_i64_div_s * F::from_u64(1 << 63);
+    let (dividend_is_min, dividend_min_inv) = zero_test_witness_field(dividend_min);
+    wit[COL_DIV_DIVIDEND_IS_MIN] = dividend_is_min;
+    wit[COL_DIV_DIVIDEND_MIN_INV] = dividend_min_inv;
+    let divisor_neg1 = wit[COL_STACK_READ1_VALUE_LO] + wit[COL_STACK_READ1_VALUE_HI]
+        - sel_i32_div_s * F::from_u64(0xFFFF_FFFF)
+        - sel_i64_div_s * F::from_u64(0x1_FFFF_FFFE);
+    let (divisor_is_neg1, divisor_neg1_inv) = zero_test_witness_field(divisor_neg1);
+    wit[COL_DIV_DIVISOR_IS_NEG1] = divisor_is_neg1;
+    wit[COL_DIV_DIVISOR_NEG1_INV] = divisor_neg1_inv;
+    let overflow_cond = dividend_is_min * divisor_is_neg1;
+    wit[COL_DIV_OVERFLOW_COND] = overflow_cond;
+    let div_overflow = (sel_i32_div_s + sel_i64_div_s) * overflow_cond;
+    wit[COL_DIV_OVERFLOW] = div_overflow;
+    let div_zero_trap =
+        trace.row_kind.is_program() && trace.opcode.traps_on_zero_divisor() && divisor_is_zero == F::ONE;
+    if div_zero_trap || div_overflow == F::ONE {
         wit[COL_DIV_TRAP] = F::ONE;
         wit[COL_OP_TABLE_ENABLED] = F::ZERO;
     }

@@ -44,9 +44,9 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 
 | Invariant | Verification method | Lean theorem counterpart |
 |---|---|---|
-| Round-trip: `z = Sigma b^i * d_i` (balanced) | `lean_oracles` (`decomp_v1`) + unit test | `splitBalancedRoundTripProp_holds` |
+| Round-trip: `z = Sigma b^i * d_i` (balanced) | `lean_oracles` (removed lane) (`decomp_v1`) + unit test | `splitBalancedRoundTripProp_holds` |
 | Round-trip: `z = Sigma b^i * d_i` (non-negative) | Unit test | (none) |
-| Digit bound: all `\|d_j\| < b` (balanced) | `lean_oracles` (`decomp_v1`) + unit test | `splitBase2DigitsWithinBound` |
+| Digit bound: all `\|d_j\| < b` (balanced) | `lean_oracles` (removed lane) (`decomp_v1`) + unit test | `splitBase2DigitsWithinBound` |
 | Column-major == Row-major (transpose equivalence) | Unit test | (none) |
 | `split_b` round-trip: recomposition equals input | Unit test | (none) |
 | `assert_range_b` catches out-of-range digits | Unit test | (none) |

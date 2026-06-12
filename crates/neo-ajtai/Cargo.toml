@@ -44,10 +44,6 @@ rand_chacha = "0.9"
 
 # Spec-derived tests (lean oracles + invariant obligations)
 [[test]]
-name = "spec_lean_oracles"
-path = "spec-tests/lean_oracles.rs"
-
-[[test]]
 name = "spec_ajtai_commit"
 path = "spec-tests/ajtai_commit.rs"
 

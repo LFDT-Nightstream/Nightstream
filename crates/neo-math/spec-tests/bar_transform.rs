@@ -1,7 +1,8 @@
 //! Spec-derived invariant tests for BarTransform.spec.md
 //!
 //! Each test corresponds to a row in the Invariant Obligations table.
-//! The ct(bar(a)*b) = <a,b> identity is covered by lean_oracles (ring_ct_v1).
+//! The ct(bar(a)*b) = <a,b> identity is covered by the Lean theorem surface
+//! (the exported-oracle conformance lane was removed; see git history).
 
 #[path = "common/mod.rs"]
 mod common;

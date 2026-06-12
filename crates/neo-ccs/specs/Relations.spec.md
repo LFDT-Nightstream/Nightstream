@@ -87,8 +87,8 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 | Structure validation: mismatched matrix shapes rejected | Unit test | (none) |
 | Structure validation: wrong polynomial arity rejected | Unit test | (none) |
 | R1CS embedding: `r1cs_to_ccs` produces CCS satisfying `A*z . B*z = C*z` | Unit test | (none) |
-| `tensor_point`: entries sum to 1 for any input | Unit test + `lean_oracles` | `mle_tensor` |
-| `tensor_point`: Lean oracle conformance (`mle_tensor_v1.json`) | `lean_oracles` | Direct |
+| `tensor_point`: entries sum to 1 for any input | Unit test + `lean_oracles` (removed lane) | `mle_tensor` |
+| `tensor_point`: Lean oracle conformance (`mle_tensor_v1.json`) | `lean_oracles` (removed lane) | Direct |
 | `direct_sum`: block-diagonal preserves independent satisfaction | Unit test | (none) |
 | `direct_sum_transcript_mixed`: beta != 0 and beta != 1 | Unit test | (none) |
 | `ensure_identity_first`: inserts I_n when M_0 != I | Unit test | (none) |
@@ -134,7 +134,7 @@ Downstream consumers:
 ## Acceptance Criteria
 
 - `cargo test -p neo-ccs --release` succeeds (runs both `tests/` and `spec-tests/`)
-- All `lean_oracles` families (`mle_tensor_v1`, `matrix_eval_v1`) pass
+- All `lean_oracles` (removed lane) families (`mle_tensor_v1`, `matrix_eval_v1`) pass
 - Spec-derived tests in `spec-tests/relations.rs` pass
 - `cargo clippy -p neo-ccs --all-targets --release -- -D warnings` clean
 

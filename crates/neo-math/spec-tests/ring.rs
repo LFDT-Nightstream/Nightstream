@@ -1,7 +1,6 @@
 //! Spec-derived invariant tests for Ring.spec.md
 //!
 //! Each test corresponds to a row in the Invariant Obligations table.
-//! Lean oracle conformance tests are in spec-tests/lean_oracles.rs.
 
 #[path = "common/mod.rs"]
 mod common;

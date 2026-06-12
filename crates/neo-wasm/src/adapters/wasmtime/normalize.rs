@@ -91,6 +91,14 @@ fn collect_callee_initial_params(next: Option<&SupportedRow>, callee_fbp: u64, p
         .collect()
 }
 
+/// `call_indirect` traps before calling when the table entry is a null
+/// funcref or the callee's normalized type id differs from the
+/// instruction's expected type id. Mirrors the CCS trap gates in
+/// `ccs/call.rs`.
+fn call_indirect_traps(table_value: Option<u32>, expected_type_id: Option<u32>, function_type_id: Option<u32>) -> bool {
+    table_value == Some(0) || (expected_type_id.is_some() && expected_type_id != function_type_id)
+}
+
 fn normalize_supported_row(row: &WasmtimeTraceStep) -> Result<Option<SupportedRow>, WasmBuildError> {
     if row.frame_depth != 0 {
         return Ok(None);
@@ -126,6 +134,13 @@ fn normalize_supported_row(row: &WasmtimeTraceStep) -> Result<Option<SupportedRo
                 (Some(params), Some(row.call_result_count.unwrap_or(0)))
             }
         }),
+        // A null entry / type-mismatch call_indirect pops only the index and
+        // traps before any call happens.
+        WasmOpcode::CallIndirect
+            if call_indirect_traps(row.table_value, row.expected_type_id, row.function_type_id) =>
+        {
+            Some((Some(1), Some(0)))
+        }
         WasmOpcode::CallIndirect => row.call_param_count.map(|params| {
             if row.target_function_is_guest {
                 (Some(1), Some(0))
@@ -977,9 +992,11 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
         };
         // Only the very last step of the whole trace is halted.
         let halted = next.is_none();
+        let ci_trap = matches!(current.opcode, WasmOpcode::CallIndirect)
+            && call_indirect_traps(current.table_value, current.expected_type_id, current.function_type_id);
         // A trap is terminal: wasmtime stops stepping at the faulting
         // instruction, so a trapping opcode can only be the last row.
-        let trapped = matches!(current.opcode, WasmOpcode::Unreachable) || div_trap;
+        let trapped = matches!(current.opcode, WasmOpcode::Unreachable) || div_trap || ci_trap;
         if trapped && !halted {
             return Err(WasmBuildError::Trace(format!(
                 "trapping {} row at cycle {} is not the final step",
@@ -1040,10 +1057,11 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
         match current.opcode {
             WasmOpcode::Call | WasmOpcode::CallIndirect => {
                 let return_pc = current.call_return_pc.unwrap_or(pc_after);
-                if !current.target_function_is_guest {
+                if !current.target_function_is_guest || ci_trap {
                     // Imported/host callees do not produce guest core rows. In that case the next
                     // guest row is already the post-call continuation, so there is no guest
-                    // call-stack boundary to model in this trace.
+                    // call-stack boundary to model in this trace. A trapping call_indirect never
+                    // enters the callee either, regardless of the target's guest flag.
                     call_stack_push = None;
                     call_stack_pop = None;
                     callee_initial_params = vec![];
@@ -1211,13 +1229,16 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
             table_index: current.table_index,
             table_value: current.table_value,
             function_ref: current.function_ref,
-            target_function_is_guest: current.target_function_is_guest,
+            // A trapping call_indirect never calls: its callee-metadata ROM
+            // reads are de-gated in the CCS, and the freed columns must
+            // satisfy the host-shaped arity rows (is_guest = 0, counts = 0).
+            target_function_is_guest: current.target_function_is_guest && !ci_trap,
             function_type_id: current.function_type_id,
             expected_type_id: current.expected_type_id,
             call_indirect_type_index: current.call_indirect_type_index,
             table_size: current.table_size,
-            call_param_count: current.call_param_count,
-            call_result_count: current.call_result_count,
+            call_param_count: current.call_param_count.filter(|_| !ci_trap),
+            call_result_count: current.call_result_count.filter(|_| !ci_trap),
             call_stack_push,
             call_stack_pop,
         });

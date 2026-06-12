@@ -27,7 +27,7 @@ use super::tagged_r1cs_builder::{
     WasmConstraintCatalog, WasmConstraintScope, WasmConstraintTag, WasmTaggedR1csBuilder,
 };
 use crate::layout::{
-    COL_CMP_AND, COL_CMP_HI_DIFF, COL_CMP_HI_INV, COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF, COL_CMP_LO_INV,
+    COL_CI_TRAP, COL_CMP_AND, COL_CMP_HI_DIFF, COL_CMP_HI_INV, COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF, COL_CMP_LO_INV,
     COL_CMP_LO_IS_ZERO, COL_DIV_DIVIDEND_IS_MIN, COL_DIV_DIVIDEND_MIN_INV, COL_DIV_DIVISOR_INV,
     COL_DIV_DIVISOR_IS_NEG1, COL_DIV_DIVISOR_IS_ZERO, COL_DIV_DIVISOR_NEG1_INV, COL_DIV_OVERFLOW,
     COL_DIV_OVERFLOW_COND, COL_DIV_TRAP, COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV,
@@ -343,8 +343,10 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         // `halted` for the final frame and by `call_stack_pop_present` for
         // non-final returns; the latter intentionally covers both explicit
         // `return` and a callee's function-ending `end`. A div trap row
-        // halts but keeps its Static edge kind (the per-pc edge-kind ROM
-        // binds it); the -div_trap term absorbs its `halted` contribution.
+        // halts but keeps its Static edge kind, and a call_indirect trap
+        // row halts but keeps its DynamicCallIndirect edge kind (the per-pc
+        // edge-kind ROM binds both); the -trap terms absorb their `halted`
+        // contributions.
         b.push_linear_zero(
             [
                 (idx(control.halted), F::ONE),
@@ -353,6 +355,7 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
                 (selector_col(WasmOpcode::CallIndirect).unwrap(), F::from_u64(2)),
                 (selector_col(WasmOpcode::Unreachable).unwrap(), F::from_u64(2)),
                 (COL_DIV_TRAP, -F::ONE),
+                (COL_CI_TRAP, -F::ONE),
             ]
             .into_iter(),
         );
@@ -627,6 +630,7 @@ fn push_trap_transition_constraints(
             (idx(state.trapped_before), -F::ONE),
             (selector_col(WasmOpcode::Unreachable).unwrap(), -F::ONE),
             (COL_DIV_TRAP, -F::ONE),
+            (COL_CI_TRAP, -F::ONE),
         ]);
         b.push_row(
             [(idx(control.is_program_row), F::ONE)],

@@ -22,9 +22,14 @@ use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
 use neo_fold_clean::engine::decider::synthesize_statement_r1cs;
 use neo_fold_clean::frontends::direct_ccs::R1cs;
 use neo_fold_clean::frontends::f_prime::compiler::FPrimeShellCompilerError;
+use neo_fold_clean::frontends::f_prime::compiler::{
+    assemble_shared_chunk_traces, assemble_step_from_shared, nifs_payload_inputs_for_source_image, perp_nifs_ce_view,
+};
+use neo_fold_clean::frontends::f_prime::image::NifsPayloadShape;
 use neo_fold_clean::frontends::f_prime::recursive_plan::build_semantic_state_preimage_fields;
 use neo_fold_clean::frontends::r1cs_f_prime::{
-    self, compile_step, start_chain, R1csChainBuilder, R1csCompilerError, R1csFPrimeStepInput,
+    self, assignment_to_bits, compile_step, encode_r1cs_f_prime_step, start_chain, R1csChainBuilder, R1csCompilerError,
+    R1csEncoderInput, R1csFPrimeStepInput,
 };
 use neo_fold_clean::paper::digest::{digest32_as_fields, digest_fields_as_digest32};
 use neo_fold_clean::paper::f_prime::poseidon_trace::encode_poseidon_trace;
@@ -1298,6 +1303,101 @@ fn r1cs_stateful_attack_is_base_zero_does_not_make_base_anchor_optional() {
     assert!(
         !compiled.encoded.structure.is_satisfied(&tampered),
         "setting is_base=0 must not make a base image with a tampered semantic-state input lane satisfy"
+    );
+}
+
+#[test]
+fn r1cs_stateful_attack_low_level_base_is_base_zero_forge_rejected_by_verifier() {
+    let r1cs = fibonacci_transition_stateful_r1cs();
+    let verifier_anchor = semantic_digest_for_pair(1, 1);
+    let plan = make_tiny_stateful_lifecycle_plan_with_anchor(
+        r1cs.m(),
+        r1cs.m_in,
+        vec![1, 2],
+        vec![3, 4],
+        Some(verifier_anchor),
+    );
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_EA5E).expect("preprocess");
+
+    let forged_in = semantic_digest_for_pair(10, 10);
+    let forged_out = semantic_digest_for_pair(10, 20);
+    let mut ctx = start_chain(&prep).expect("start chain");
+    ctx.chain_state.semantic_state_digest = digest32_as_fields(forged_in);
+
+    let assignment = assignment_fibonacci_transition(10, 10);
+    let shared = assemble_shared_chunk_traces(&ctx, false, ctx.chain_state.acc_digest, 1);
+    let assembly = assemble_step_from_shared(&shared, &ctx, &[], Some(digest32_as_fields(forged_out)));
+    let ce_shape = match prep
+        .plan()
+        .nifs_payload_shapes
+        .first()
+        .expect("plan must have CE payload")
+    {
+        NifsPayloadShape::CeClaim(shape) => shape.clone(),
+        NifsPayloadShape::CcsClaim(_) => panic!("test expects CE payload shape"),
+    };
+    let encoded = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        encode_r1cs_f_prime_step(
+            R1csEncoderInput {
+                plan: prep.plan().clone(),
+                boundary_bits: assembly.boundary_bits,
+                state_in: assembly.state_in,
+                state_out: assembly.state_out,
+                chunk_digest: assembly.chunk_digest,
+                assignment_bits: assignment_to_bits(&assignment),
+                is_base: false,
+                nifs_payloads: nifs_payload_inputs_for_source_image(prep.plan(), perp_nifs_ce_view(&ce_shape)),
+                kmul_views: vec![],
+                ring_action_pairs: vec![],
+                one_shot_traces: vec![
+                    encode_poseidon_trace(&build_semantic_state_preimage_fields(&[
+                        F::from_u64(10),
+                        F::from_u64(10),
+                    ])),
+                    encode_poseidon_trace(&build_semantic_state_preimage_fields(&[
+                        F::from_u64(10),
+                        F::from_u64(20),
+                    ])),
+                    assembly.traces.state_x_out,
+                ],
+                sponge_trace: None,
+            },
+            std::sync::Arc::clone(prep.structure()),
+        )
+    })) {
+        Ok(encoded) => encoded,
+        Err(payload) => {
+            let message = payload
+                .downcast_ref::<&'static str>()
+                .copied()
+                .or_else(|| payload.downcast_ref::<String>().map(String::as_str))
+                .unwrap_or("<non-string panic>");
+            assert!(
+                message.contains("encoded R1CS F' step must satisfy its structure"),
+                "unexpected panic while encoding the low-level is_base forge: {message}"
+            );
+            return;
+        }
+    };
+    let instance = r1cs_f_prime::build_instance(&prep, &encoded).expect("build forged low-level instance");
+    let proof = neo_fold_clean::lifecycle::prove::prove_one_with_semantic_state(
+        &prep.prep,
+        vec![instance],
+        verifier_anchor,
+        forged_out,
+    )
+    .expect("prove forged low-level base image");
+    let finished = neo_fold_clean::finish_uncompressed(&prep.prep, proof).expect("finish forged low-level image");
+    let err = neo_fold_clean::verify_uncompressed(&prep.prep, &finished)
+        .expect_err("verifier accepted a base image with is_base=0 and a forged initial app state");
+    assert!(
+        matches!(
+            err,
+            neo_fold_clean::Error::PostStateMismatch
+                | neo_fold_clean::Error::FinalAccumulatorCeRelationViolation { .. }
+        ),
+        "expected verifier to reject forged initial app state, got {err:?}"
     );
 }
 

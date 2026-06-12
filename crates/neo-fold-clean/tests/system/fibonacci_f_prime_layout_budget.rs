@@ -20,7 +20,9 @@ use support::fibonacci_f_prime::canonical_threaded_plan;
 
 const LEGACY_ACCUMULATOR_TAG: &[u8] = b"neo.fold.next/direct_ccs/accumulator_phi_dec_parent/v1";
 
-const CURRENT_IMAGE_WIDTH: usize = 134_788;
+// Includes the 65-bit is_base region: the selector bit plus the 64-bit
+// inverse lane that derives `is_base` from `state_out.new_chunk_count`.
+const CURRENT_IMAGE_WIDTH: usize = 134_852;
 const REMOVED_RECURSIVE_ACCUMULATOR_TRACE_DIGITS: usize = 5_406_336;
 const REMOVED_PUBLIC_TRACE_UPDATE_DIGITS: usize = 109_440;
 const REMOVED_BOUNDARY_UPDATE_TRACE_DIGITS: usize = 87_552;

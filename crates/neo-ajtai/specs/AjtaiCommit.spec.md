@@ -87,7 +87,7 @@ Upstream dependencies:
 - `neo-params`: concrete protocol parameters
 
 Downstream consumers:
-- `neo-fold-prototype`: root-lane and opening commitments
+- `neo-fold-clean`: root-lane and opening commitments
 - `neo-reductions`: `Pi_DEC`
 
 ## Lean Oracle Conformance

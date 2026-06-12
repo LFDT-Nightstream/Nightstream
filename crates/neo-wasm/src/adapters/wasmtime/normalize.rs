@@ -115,22 +115,23 @@ fn normalize_supported_row(row: &WasmtimeTraceStep) -> Result<Option<SupportedRo
     let operand_stack = row.operand_stack_words.clone();
     let operand_stack_hi = row.operand_stack_words_hi.clone();
     let code = opcode_code(opcode);
+    // Guest calls pop args through CallParamInit aux rows; the call row
+    // itself reads only the indirect table index, if any. Host calls still
+    // keep their full on-row pop/push footprint.
     let (stack_reads_override, stack_writes_override) = match opcode {
         WasmOpcode::Call => row.call_param_count.map(|params| {
-            let writes = if row.target_function_is_guest {
-                0
+            if row.target_function_is_guest {
+                (Some(0), Some(0))
             } else {
-                row.call_result_count.unwrap_or(0)
-            };
-            (Some(params), Some(writes))
+                (Some(params), Some(row.call_result_count.unwrap_or(0)))
+            }
         }),
         WasmOpcode::CallIndirect => row.call_param_count.map(|params| {
-            let writes = if row.target_function_is_guest {
-                0
+            if row.target_function_is_guest {
+                (Some(1), Some(0))
             } else {
-                row.call_result_count.unwrap_or(0)
-            };
-            (Some(params.saturating_add(1)), Some(writes))
+                (Some(params.saturating_add(1)), Some(row.call_result_count.unwrap_or(0)))
+            }
         }),
         _ => Some((None, None)),
     }
@@ -907,21 +908,37 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
         let expected_sp_after = sp_before
             .saturating_sub(u64::from(stack_reads))
             .saturating_add(u64::from(stack_writes));
-        let sp_after = next
-            .map(|row| row.operand_stack.len() as u64)
-            .unwrap_or(expected_sp_after);
+        // Guest call args are popped by aux rows, so derive call-row sp_after
+        // from this row's own arity instead of the next Wasmtime frame.
+        let is_call_row = matches!(current.opcode, WasmOpcode::Call | WasmOpcode::CallIndirect);
+        let sp_after = if is_call_row {
+            expected_sp_after
+        } else {
+            next.map(|row| row.operand_stack.len() as u64)
+                .unwrap_or(expected_sp_after)
+        };
         let stack_read_hi = |lane| {
             current
                 .wide_values_enabled
                 .then(|| read_lane_hi(&current.operand_stack_hi, stack_reads, lane))
                 .flatten()
         };
-        let stack_read0 = read_lane(&current.operand_stack, sp_before, stack_reads, 0)
-            .map(|read| read.with_optional_hi(stack_read_hi(0)));
-        let stack_read1 = read_lane(&current.operand_stack, sp_before, stack_reads, 1)
-            .map(|read| read.with_optional_hi(stack_read_hi(1)));
-        let stack_read2 = read_lane(&current.operand_stack, sp_before, stack_reads, 2)
-            .map(|read| read.with_optional_hi(stack_read_hi(2)));
+        let lane_read = |lane| {
+            read_lane(&current.operand_stack, sp_before, stack_reads, lane)
+                .map(|read: StackValueAccess| read.with_optional_hi(stack_read_hi(lane)))
+        };
+        // Keep the call_indirect table index in lane 0; host-call args trail
+        // in lanes 1..2, while guest indirect rows read only the index.
+        let (stack_read0, stack_read1, stack_read2) = if matches!(current.opcode, WasmOpcode::CallIndirect) {
+            let index_lane = usize::from(stack_reads.saturating_sub(1));
+            (
+                lane_read(index_lane),
+                (stack_reads >= 2).then(|| lane_read(0)).flatten(),
+                (stack_reads >= 3).then(|| lane_read(1)).flatten(),
+            )
+        } else {
+            (lane_read(0), lane_read(1), lane_read(2))
+        };
         let div_zero_trap = current.opcode.traps_on_zero_divisor()
             && stack_read1.is_some_and(|lane| lane.value_lo == 0 && lane.value_hi.unwrap_or(0) == 0);
         // Signed division overflow: MIN / -1 for the op's width. The wide
@@ -1025,16 +1042,9 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                             current.cycle
                         ))
                     })?;
-                    let expected_stack_reads = if matches!(current.opcode, WasmOpcode::CallIndirect) {
-                        param_count.checked_add(1).ok_or_else(|| {
-                            WasmBuildError::Trace(format!(
-                                "call_indirect parameter count overflow at cycle {}",
-                                current.cycle
-                            ))
-                        })?
-                    } else {
-                        param_count
-                    };
+                    // Guest call rows pop only the table index (indirect) or
+                    // nothing (direct); args are popped by the aux rows.
+                    let expected_stack_reads = u8::from(matches!(current.opcode, WasmOpcode::CallIndirect));
                     if stack_reads != expected_stack_reads {
                         return Err(WasmBuildError::Trace(format!(
                             "call stack read count {} does not match expected count {} at cycle {}",
@@ -1200,7 +1210,11 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                     current.cycle
                 ))
             })?;
-            for (param_index, (dst_addr, value)) in callee_initial_params.into_iter().enumerate() {
+            // Aux rows pop stack args top-down, so locals initialize in
+            // reverse parameter order.
+            let index_pops = usize::from(matches!(current.opcode, WasmOpcode::CallIndirect));
+            for (pop_index, &(dst_addr, value)) in callee_initial_params.iter().rev().enumerate() {
+                let param_index = param_count - 1 - pop_index;
                 let expected_dst_addr = callee_fbp.checked_add(param_index as u64).ok_or_else(|| {
                     WasmBuildError::Trace(format!(
                         "callee local address overflow at call cycle {} param {}",
@@ -1216,13 +1230,23 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                 let param_index_u32 = u32::try_from(param_index).map_err(|_| {
                     WasmBuildError::Trace(format!("call parameter index {param_index} does not fit u32"))
                 })?;
-                let Some(src) = read_lane(&current.operand_stack, sp_before, stack_reads, param_index) else {
-                    return Err(WasmBuildError::Trace(format!(
-                        "missing call argument lane {param_index} at cycle {}",
-                        current.cycle
-                    )));
-                };
-                let remaining_before = param_count - param_index;
+                // The arg sits below the already-popped indirect table index.
+                let aux_sp_before = sp_after - pop_index as u64;
+                let aux_sp_after = aux_sp_before - 1;
+                let stack_pos = current
+                    .operand_stack
+                    .len()
+                    .checked_sub(index_pops + 1 + pop_index)
+                    .ok_or_else(|| {
+                        WasmBuildError::Trace(format!(
+                            "missing call argument for param {param_index} at cycle {}",
+                            current.cycle
+                        ))
+                    })?;
+                let src_value = current.operand_stack[stack_pos];
+                let src_value_hi = current.operand_stack_hi.get(stack_pos).copied();
+                let src = StackValueAccess::new((aux_sp_before - 1).saturating_mul(2), src_value);
+                let remaining_before = param_count - pop_index;
                 let remaining_after = remaining_before - 1;
                 let remaining_after_u32 = u32::try_from(remaining_after).map_err(|_| {
                     WasmBuildError::Trace(format!(
@@ -1240,7 +1264,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                     row_kind: WasmRowKind::Aux(WasmAuxOpcode::CallParamInit),
                     state_before: WasmStepState {
                         pc: pc_after,
-                        sp: sp_after,
+                        sp: aux_sp_before,
                         output: WasmOutputState {
                             enabled: output_enabled,
                             value_lo: output_value_lo,
@@ -1255,7 +1279,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                     },
                     state_after: WasmStepState {
                         pc: pc_after,
-                        sp: sp_after,
+                        sp: aux_sp_after,
                         output: WasmOutputState {
                             enabled: output_enabled,
                             value_lo: output_value_lo,
@@ -1270,22 +1294,16 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                     },
                     control_choice: 0,
                     pc_edge_kind: WasmPcEdgeKind::Static,
-                    wide_values_enabled: read_lane_hi(&current.operand_stack_hi, stack_reads, param_index)
-                        .is_some_and(|hi| hi != 0),
+                    wide_values_enabled: src_value_hi.is_some_and(|hi| hi != 0),
                     opcode: WasmOpcode::Nop,
                     info: opcode_info_from_code(opcode_code(WasmOpcode::Nop)),
-                    stack_reads_override: Some(0),
+                    stack_reads_override: Some(1),
                     stack_writes_override: Some(0),
                     output_captured: false,
                     current_function_ref: callee_function_ref,
                     current_function_num_locals: current.num_locals,
                     stack_read0: Some(
-                        src.with_optional_hi(
-                            current
-                                .wide_values_enabled
-                                .then(|| read_lane_hi(&current.operand_stack_hi, stack_reads, param_index))
-                                .flatten(),
-                        ),
+                        src.with_optional_hi(current.wide_values_enabled.then(|| src_value_hi).flatten()),
                     ),
                     stack_read1: None,
                     stack_read2: None,
@@ -1296,7 +1314,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                     local_read_value: None,
                     local_read_value_hi: None,
                     local_write_value: Some(value),
-                    local_write_value_hi: read_lane_hi(&current.operand_stack_hi, stack_reads, param_index),
+                    local_write_value_hi: src_value_hi,
                     global_index: None,
                     global_read_value: None,
                     global_read_value_hi: None,

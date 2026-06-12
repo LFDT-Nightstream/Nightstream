@@ -757,18 +757,6 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     activation: WasmMemoryActivation::BooleanGate(output.captured),
                 },
                 WasmMemoryColumnSpec {
-                    address_columns: vec![stack.read0_addr_lo],
-                    value_column: stack.read0_value_lo,
-                    kind: WasmMemoryColumnKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(param_init.param_init_active_before),
-                },
-                WasmMemoryColumnSpec {
-                    address_columns: vec![stack.read0_addr_hi],
-                    value_column: stack.read0_value_hi,
-                    kind: WasmMemoryColumnKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(param_init.param_init_active_before),
-                },
-                WasmMemoryColumnSpec {
                     address_columns: vec![stack.read1_addr_lo],
                     value_column: stack.read1_value_lo,
                     kind: WasmMemoryColumnKind::Read,
@@ -1178,12 +1166,6 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::CallIndirect).unwrap(),
                     )),
-                },
-                WasmMemoryColumnSpec {
-                    address_columns: vec![frame.current_function_ref],
-                    value_column: function_types.param_count,
-                    kind: WasmMemoryColumnKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(param_init.param_init_active_before),
                 },
             ],
             is_rom: true,

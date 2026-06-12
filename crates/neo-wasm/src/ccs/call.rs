@@ -111,15 +111,8 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder, layout: &WasmLookupBind
     push_simple_output_constraints(b, &control, &state, &stack, &output);
 
     b.with_tag(always("non-program row shape"), |b| {
-        // pc_after == pc_before; stack_reads == stack_writes == 0
-        // (which together with the global sp linear constraint imply
-        // sp_after == sp_before).
-        //
-        // Shared by param-init aux rows (which advance state machine
-        // bookkeeping but don't change pc/sp) and padding rows (which
-        // preserve everything). The two gate columns are mutually
-        // exclusive booleans by the row-kind one-hot, so their sum is
-        // still in {0, 1}.
+        // Aux rows keep pc fixed and write no stack values. Padding rows read
+        // nothing; param-init rows pop one arg slot.
         let aux_row_gate = [
             (idx(param_init.param_init_active_before), F::ONE),
             (idx(control.padding_active), F::ONE),
@@ -130,14 +123,21 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder, layout: &WasmLookupBind
             [(idx(state.pc_after), F::ONE), (idx(state.pc_before), -F::ONE)],
             [],
         );
-        b.push_row(aux_row_gate, [(idx(control.stack_reads), F::ONE)], []);
+        b.push_row(
+            [(idx(control.padding_active), F::ONE)],
+            [(idx(control.stack_reads), F::ONE)],
+            [],
+        );
+        push_gated_linear_zero(
+            b,
+            idx(param_init.param_init_active_before),
+            [(idx(control.stack_reads), F::ONE), (COL_ONE, -F::ONE)],
+        );
         b.push_row(aux_row_gate, [(idx(control.stack_writes), F::ONE)], []);
 
         let param_init_row_gate = idx(param_init.param_init_active_before);
 
-        // write to the locals memory the value read from the stack
-        //
-        // remember that there is only one lane for locals access
+        // Param-init writes the popped stack value into the callee local.
         push_gated_linear_zero(
             b,
             param_init_row_gate,
@@ -163,7 +163,7 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder, layout: &WasmLookupBind
     });
 
     b.with_tag(always("call param init aux row"), |b| {
-        push_call_param_init_aux_row_constraints(b, &state, &param_init, &function_types, &stack, &locals);
+        push_call_param_init_aux_row_constraints(b, &state, &param_init, &stack, &locals);
     });
 
     b.with_tag(always("return pc restoration"), |b| {
@@ -202,7 +202,7 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder, layout: &WasmLookupBind
     );
 
     b.with_tag(always("dynamic call stack arity"), |b| {
-        push_dynamic_call_stack_arity_constraints(b, &control, &call, &function_types, &table);
+        push_dynamic_call_stack_arity_constraints(b, &control, &state, &stack, &call, &function_types, &table);
     });
 }
 
@@ -296,6 +296,8 @@ fn push_call_indirect_type_constraints(
 fn push_dynamic_call_stack_arity_constraints(
     b: &mut R1csBuilder,
     control: &ControlColumns,
+    state: &StateColumns,
+    stack: &OperandStackColumns,
     call: &CallColumns,
     function_types: &FunctionTypeColumns,
     table: &TableColumns,
@@ -303,26 +305,45 @@ fn push_dynamic_call_stack_arity_constraints(
     let call_selector = selector_col(WasmOpcode::Call).unwrap();
     let call_indirect = selector_col(WasmOpcode::CallIndirect).unwrap();
 
+    // Guest call rows read nothing for direct calls, or only the table index
+    // for indirect calls; args are popped by param-init aux rows.
     push_gated_linear_zero(
         b,
-        call_selector,
+        idx(call.call_stack_push_present),
+        [(idx(control.stack_reads), F::ONE), (call_indirect, -F::ONE)],
+    );
+    // Host calls still pop args on-row; see README for the remaining arity cap.
+    b.push_row(
+        [
+            (call_selector, F::ONE),
+            (call_indirect, F::ONE),
+            (idx(call.call_stack_push_present), -F::ONE),
+        ],
         [
             (idx(control.stack_reads), F::ONE),
             (idx(function_types.param_count), -F::ONE),
+            (call_indirect, -F::ONE),
         ],
+        [],
     );
     push_gated_linear_zero(
         b,
         call_indirect,
         [(idx(function_types.function_ref), F::ONE), (idx(table.value), -F::ONE)],
     );
+    // Bind the table read to the index popped from the stack top.
+    push_gated_linear_zero(
+        b,
+        call_indirect,
+        [(idx(table.index), F::ONE), (idx(stack.read0_value_lo), -F::ONE)],
+    );
     push_gated_linear_zero(
         b,
         call_indirect,
         [
-            (idx(control.stack_reads), F::ONE),
-            (idx(function_types.param_count), -F::ONE),
-            (COL_ONE, -F::ONE),
+            (idx(stack.read0_addr_lo), F::ONE),
+            (idx(state.sp_before), -F::from_u64(2)),
+            (COL_ONE, F::from_u64(2)),
         ],
     );
 
@@ -415,7 +436,6 @@ fn push_call_param_init_aux_row_constraints(
     b: &mut R1csBuilder,
     state: &StateColumns,
     param_init: &ParamInitColumns,
-    function_types: &FunctionTypeColumns,
     stack: &OperandStackColumns,
     locals: &LocalsColumns,
 ) {
@@ -432,28 +452,25 @@ fn push_call_param_init_aux_row_constraints(
         ],
     );
 
+    // Param-init reads the current stack top.
     push_gated_linear_zero(
         b,
         selector,
         [
-            // stack_addr + remaining = sp_before + param_count
-            //
-            // remaining goes down, so stack_addr may go up (the rhs is constant while selector is on)
             (idx(stack.read0_addr_lo), F::ONE),
             (idx(state.sp_before), -F::from_u64(2)),
-            (idx(function_types.param_count), -F::from_u64(2)),
-            (idx(param_init.param_init_remaining_before), F::from_u64(2)),
+            (COL_ONE, F::from_u64(2)),
         ],
     );
 
+    // Pops run top-down, so this row initializes local `remaining_before - 1`.
     push_gated_linear_zero(
         b,
         selector,
-        // The aux row writes callee local `param_count - remaining_before`.
         [
             (idx(locals.index), F::ONE),
-            (idx(function_types.param_count), -F::ONE),
-            (idx(param_init.param_init_remaining_before), F::ONE),
+            (idx(param_init.param_init_remaining_before), -F::ONE),
+            (COL_ONE, F::ONE),
         ],
     );
 

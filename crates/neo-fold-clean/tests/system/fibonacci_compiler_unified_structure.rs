@@ -146,8 +146,10 @@ const FIB_IVC_REFERENCE: FibIvcReference = FibIvcReference {
     b: 2,
     k_rho: 14,
     t_sampling: 216,
-    structure_n: 2_327,
-    structure_m: 134_788,
+    // Includes the derived-is_base region: +64 inverse-lane boolean rows
+    // and +2 counter-link rows (n), +64 inverse-lane columns (m).
+    structure_n: 2_393,
+    structure_m: 134_852,
     structure_t: 8,
     plan_limbs: 3,
     boundary_bits: 256,
@@ -836,8 +838,11 @@ fn compiler_two_step_chain_builds_from_scratch_and_rejects_terminal_only() {
         let err = lifecycle::verify_uncompressed(&prep.prep, &finalized.proof)
             .expect_err("terminal-only verifier must reject multi-chunk R1CS-F' projection");
         assert!(
-            matches!(err, lifecycle::Error::FPrimeNonReplayUnsupported { chunk_count: 2 }),
-            "expected FPrimeNonReplayUnsupported(2), got {err:?}"
+            matches!(
+                err,
+                lifecycle::Error::TerminalOnlyMultiChunkUnsupported { chunk_count: 2 }
+            ),
+            "expected TerminalOnlyMultiChunkUnsupported(2), got {err:?}"
         );
     });
 

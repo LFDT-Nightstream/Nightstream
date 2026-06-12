@@ -679,3 +679,85 @@ fn r1cs_chain_builder_rejects_max_fresh_app_public_chunk() {
         "expected StatefulChunkMustBeSerial(K={k}), got {err:?}"
     );
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Corner-rule-narrowed slots must still be enforced by the relation.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// End-to-end soundness pin for derivation-narrowed widths: the mux output
+/// `v4` in `(v2 - v3) * v1 = (v4 - v3)` is proven width-1 only by the
+/// determining-row corner rule (no explicit Boolean row). After encoding,
+/// tampering its single image slot must break structure satisfaction — a
+/// layout/recomposition bug that dropped the narrowed slot's term from the
+/// R1CS rows would silently accept the tamper and fail this test.
+#[test]
+fn r1cs_compiler_tampered_corner_narrowed_slot_fails_structure() {
+    let m = neo_math::D;
+    let n = 4;
+    let mut a = NeoMat::zero(n, m, F::default());
+    let mut b = NeoMat::zero(n, m, F::default());
+    let mut c = NeoMat::zero(n, m, F::default());
+    // rows 0..3: explicit Boolean rows for v1, v2, v3.
+    for (row, var) in (1..=3usize).enumerate() {
+        a[(row, var)] = F::ONE;
+        b[(row, 0)] = F::ONE;
+        b[(row, var)] = F::ZERO - F::ONE;
+    }
+    // row 3: (v2 - v3) * v1 = v4 - v3   (bellpepper ch/select shape)
+    a[(3, 2)] = F::ONE;
+    a[(3, 3)] = F::ZERO - F::ONE;
+    b[(3, 1)] = F::ONE;
+    c[(3, 4)] = F::ONE;
+    c[(3, 3)] = F::ZERO - F::ONE;
+    let r1cs = R1cs { a, b, c, m_in: 1 };
+
+    // Derive widths; the mux output must be corner-proven width 1 while
+    // having no explicit Boolean row (otherwise this test pins nothing).
+    let widths = r1cs_f_prime::R1csShape::from(&r1cs).conservative_app_private_var_widths();
+    assert_eq!(widths[4], 1, "mux output must be corner-proven Boolean");
+    let booleans = r1cs_f_prime::R1csShape::from(&r1cs).boolean_constrained_variables();
+    assert!(
+        !booleans[4],
+        "v4 must have no explicit Boolean row for this pin to bite"
+    );
+
+    let mut plan = make_small_plan(r1cs.m(), r1cs.m_in);
+    plan.app_private_var_widths = widths;
+    plan.limbs = plan.app_private_var_widths.iter().sum::<usize>() + 1;
+
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_00C7).expect("preprocess");
+    let mut ctx = start_chain(&prep).expect("start chain");
+
+    // Honest assignment: v1 = 1 (select), v2 = 1, v3 = 0 => v4 = v2 = 1.
+    let mut assignment = vec![F::ZERO; m];
+    assignment[0] = F::ONE;
+    assignment[1] = F::ONE;
+    assignment[2] = F::ONE;
+    assignment[4] = F::ONE;
+    let compiled = compile_step(&prep, &mut ctx, R1csFPrimeStepInput { assignment }).expect("compile");
+    assert!(compiled
+        .encoded
+        .structure
+        .is_satisfied(&compiled.encoded.witness));
+
+    let v4_slot = prep.anchors().app_var_slots[4];
+    assert_eq!(v4_slot.bits, 1, "narrowed slot must be a single bit");
+
+    // Flip the bit (1 -> 0): the mux row must reject.
+    let mut tampered = compiled.encoded.witness.clone();
+    tampered[v4_slot.bit_start] = F::ZERO;
+    assert!(
+        !compiled.encoded.structure.is_satisfied(&tampered),
+        "flipping the corner-narrowed mux output slot must break the mux row"
+    );
+
+    // Out-of-range value (2): must also reject — the slot's value reaches
+    // the mux row through recomposition, not through any trusted width.
+    let mut tampered = compiled.encoded.witness.clone();
+    tampered[v4_slot.bit_start] = F::from_u64(2);
+    assert!(
+        !compiled.encoded.structure.is_satisfied(&tampered),
+        "a non-bit value in the narrowed slot must break the mux row"
+    );
+}

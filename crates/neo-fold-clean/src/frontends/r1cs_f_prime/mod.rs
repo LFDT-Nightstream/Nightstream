@@ -233,10 +233,6 @@ pub enum Error {
         proven_width: usize,
     },
     #[error(
-        "R1CS-F' preprocessing: typed app-private variable {index} uses a 1-bit slot but the R1CS shape has no explicit Boolean row for that variable"
-    )]
-    PlanAppPrivateBooleanWidthUnconstrained { index: usize },
-    #[error(
         "R1CS-F' preprocessing: packed public-input variable {index} is not explicitly Boolean-constrained by the R1CS shape"
     )]
     PlanPackedPublicInputBooleanUnconstrained { index: usize },
@@ -646,18 +642,12 @@ fn derive_structure(
                 proven_width: proven_widths[index],
             });
         }
-        if let Some((index, _)) = plan
-            .app_private_var_widths
-            .iter()
-            .enumerate()
-            .find(|(index, &width)| {
-                let checked_by_packed_public_input =
-                    packed_public_input_ok && state_x_out.app_public_input_bit_var_indices.contains(index);
-                width == 1 && *index != 0 && !checked_by_packed_public_input && !boolean_vars[*index]
-            })
-        {
-            return Err(Error::PlanAppPrivateBooleanWidthUnconstrained { index });
-        }
+        // One-bit slots need no separate explicit-Boolean-row gate: the
+        // `PlanAppPrivateWidthTooNarrow` check above already requires every
+        // declared width to cover the derivation's proven width, and the
+        // derivation (`conservative_app_private_var_widths`) only proves
+        // width 1 when the R1CS rows force the variable into {0, 1} — via
+        // an explicit Boolean row or the determining-row corner rule.
     }
     let expected_app_private_bits = if plan.app_private_var_widths.is_empty() {
         r1cs.m() * crate::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS

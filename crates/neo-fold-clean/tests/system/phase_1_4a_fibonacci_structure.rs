@@ -126,9 +126,10 @@ fn phase_1_4a_structure_shape_matches_image_layout() {
     assert_eq!(
         structure.ccs.n,
         structure.semantic_boolean_row_count()
+            + structure.is_base_counter_link_row_count()
             + structure.ring_action_product_row_count()
             + structure.ring_action_output_row_count(),
-        "structure.n must equal semantic Boolean rows + ring_action product rows + ring_action output rows"
+        "structure.n must equal semantic Boolean rows + is_base↔counter link rows + ring_action product rows + ring_action output rows"
     );
     // Mixed-gate F' CCS: 8 matrices for (bit, prod_l, prod_r, prod_out,
     // sbox_in, sbox_out, lin_l, lin_r); polynomial arity matches.

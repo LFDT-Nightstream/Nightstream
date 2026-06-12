@@ -45,7 +45,7 @@ impl Params {
     /// Appendix B.2 Goldilocks core with shape-specific effective λ for
     /// an R1CS-derived CCS of `n_rows` constraints.
     ///
-    /// Mirrors the production path in `neo-fold-prototype`: q, eta, d, kappa,
+    /// Production policy: q, eta, d, kappa,
     /// m, b, k_rho, B, T, and s remain the Appendix B.2 values; λ is
     /// lowered only when the concrete sumcheck shape cannot satisfy the
     /// current `s = 2` extension policy at λ = 125.

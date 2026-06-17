@@ -472,3 +472,40 @@ fn memory_semantics_rejects_forged_callee_type_on_mismatch_trap() {
         "unexpected error: {err}"
     );
 }
+
+/// The OOB-index trap compares the table index against the table size, so the
+/// size must be authoritative on a `call_indirect` row. Forging it (to claim
+/// an OOB index is in bounds) must fail against the `table_sizes` read, which
+/// is now gated on for call_indirect, not just `table.size`.
+#[test]
+fn memory_semantics_rejects_forged_table_size_on_oob_trap() {
+    let (trace, mut witnesses, preload) = witness_run(
+        r#"(module
+            (type $t (func (param i32) (result i32)))
+            (func $add_one (type $t)
+                local.get 0
+                i32.const 1
+                i32.add)
+            (table 1 funcref)
+            (elem (i32.const 0) func $add_one)
+            (func (export "run") (result i32)
+                i32.const 9
+                i32.const 5
+                call_indirect (type $t)))
+        "#,
+    );
+    let row_index = trace
+        .iter()
+        .position(|row| row.opcode == WasmOpcode::CallIndirect)
+        .expect("call_indirect row");
+    assert!(trace[row_index].state_after.trapped);
+    // Claim the table is large enough to make index 5 in bounds.
+    witnesses[row_index][COL_TABLE_SIZE] = F::from_u64(6);
+
+    let layout = build_wasm_lookup_binding_layout();
+    let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("forged table size must fail");
+    assert!(
+        err.contains("memory `table_sizes` read mismatch"),
+        "unexpected error: {err}"
+    );
+}

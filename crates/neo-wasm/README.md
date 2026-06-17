@@ -38,14 +38,17 @@ exposes ROM/memory/lookup access tuples as metadata
   after it, and it is mutually exclusive with a captured output (see
   `tests/wasm_trap.rs`). Proven causes so far: `unreachable`, div/rem by
   zero, signed division overflow (`min_value / -1`), and `call_indirect`
-  null entry / callee type mismatch — zero-test gates on the faulting row
-  feed `div_trap` / `ci_trap`, which de-gate the row's op-table lookup or
-  callee-metadata reads. Other trapping executions fail loudly at trace
-  time. Remaining causes:
-  - [ ] OOB linear-memory access — land together with the
-    `linear_memory_bounds` argument (same comparison, complementary sides).
-  - [ ] `call_indirect` OOB entry (`index >= table size`) — needs the same
-    comparison primitive as the bounds argument; land them together.
+  OOB index / null entry / callee type mismatch — zero-test and unsigned
+  `>=` gates (`push_unsigned_ge_gadget`) on the faulting row feed `div_trap`
+  / `call_indirect_is_trap`, which de-gate the row's op-table lookup or callee-metadata
+  reads. The OOB index compares the popped index against the `table_sizes`
+  read (now gated on for call_indirect, the authoritative size); it is the
+  most upstream cause and de-gates the entry read. Other trapping
+  executions fail loudly at trace time. Remaining causes:
+  - [ ] OOB linear-memory access — compare the highest word lane touched
+    against `memory_pages · 16384` with the same `push_unsigned_ge_gadget`
+    primitive (word-granular, exact because a page is a whole number of
+    4-byte lanes); retire the unproven `linear_memory_bounds` lookup stub.
 - [ ] **Linear-memory bounds proof.** The `linear_memory_bounds` binding is
   explicitly "unproven" (see the TODO in `lookup_binding_builder/mod.rs`);
   nothing constrains accesses against `memory_pages` yet. Revisit the

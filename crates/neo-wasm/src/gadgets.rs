@@ -76,3 +76,39 @@ pub(crate) fn push_u32_le_bytes_decomp<const N: usize>(
         [],
     );
 }
+
+/// Unsigned `x >= y` for two values known to be in `[0, 2^32)`.
+///
+/// Enforces the borrow-bit (ge) decomposition `x - y + 2^32 = low + ge·2^32`, where
+/// `low` is also known to be in `[0, 2^32)` and `ge` is boolean.
+///
+/// Since `x, y < 2^32`, the left side is a genuine integer in `(0, 2^33)` so
+/// the split is unique and `ge ?= (x >= y)`.
+///
+/// `gate_cols` are assumed to be one-hot selectors.
+pub(crate) fn push_unsigned_ge_gadget(
+    b: &mut R1csBuilder,
+    gate_cols: impl IntoIterator<Item = usize>,
+    x: usize,
+    y: usize,
+    low: usize,
+    ge: usize,
+) {
+    let shift = F::from_u64(1u64 << 32);
+    let mut terms = vec![(x, F::ONE), (y, -F::ONE)];
+
+    terms.push((super::layout::COL_ONE, shift));
+    terms.push((low, -F::ONE));
+    terms.push((ge, -shift));
+    b.push_row(gate_cols.into_iter().map(|col| (col, F::ONE)), terms, []);
+}
+
+/// Witness for [`push_unsigned_ge_gadget`]: returns `(low, ge)` for the
+/// borrow-bit split of `x - y + 2^32`. `x` and `y` must be `< 2^32`.
+pub(crate) fn unsigned_ge_witness(x: u64, y: u64) -> (F, F) {
+    debug_assert!(x < (1u64 << 32) && y < (1u64 << 32));
+    let shifted = x + (1u64 << 32) - y;
+    let ge = shifted >> 32;
+    let low = shifted & 0xffff_ffff;
+    (F::from_u64(low), F::from_u64(ge))
+}

@@ -16,7 +16,7 @@
 
 use super::super::gadgets::push_gated_linear_zero;
 use super::super::isa::WasmOpcode;
-use super::super::layout::selector_col;
+use super::super::layout::{selector_col, COL_CI_OOB};
 use super::super::lookup_binding_builder::{
     GlobalsColumns, LocalsColumns, MemoryPagesColumns, OperandStackColumns, TableColumns, TableSizeColumns,
     WasmLookupBindingLayout,
@@ -30,6 +30,7 @@ type R1csBuilder = WasmTaggedR1csBuilder;
 
 const LOCAL_WRITE_OPS: &[WasmOpcode] = &[WasmOpcode::LocalSet, WasmOpcode::LocalTee];
 const TABLE_READ_OPS: &[WasmOpcode] = &[WasmOpcode::TableGet, WasmOpcode::CallIndirect];
+const TABLE_SIZE_READ_OPS: &[WasmOpcode] = &[WasmOpcode::TableSize, WasmOpcode::CallIndirect];
 const LOCAL_VALUE_OPS: &[WasmOpcode] = &[WasmOpcode::LocalGet, WasmOpcode::LocalSet, WasmOpcode::LocalTee];
 const GLOBAL_VALUE_OPS: &[WasmOpcode] = &[WasmOpcode::GlobalGet, WasmOpcode::GlobalSet];
 const MEMORY_PAGE_OPS: &[WasmOpcode] = &[WasmOpcode::MemorySize, WasmOpcode::MemoryGrow];
@@ -56,9 +57,20 @@ pub(super) fn push_stack_io_constraints(b: &mut R1csBuilder, layout: &WasmLookup
     });
 
     b.with_tag(shared("table read gate", TABLE_READ_OPS), |b| {
+        // The table-entry read is off on an OOB call_indirect row: there is no
+        // valid entry to read, and the OOB trap must not depend on it.
         b.push_linear_zero([
             (idx(table.read_enabled), F::ONE),
             (selector_col(WasmOpcode::TableGet).unwrap(), -F::ONE),
+            (selector_col(WasmOpcode::CallIndirect).unwrap(), -F::ONE),
+            (COL_CI_OOB, F::ONE),
+        ]);
+    });
+
+    b.with_tag(shared("table size read gate", TABLE_SIZE_READ_OPS), |b| {
+        b.push_linear_zero([
+            (idx(table_sizes.read_enabled), F::ONE),
+            (selector_col(WasmOpcode::TableSize).unwrap(), -F::ONE),
             (selector_col(WasmOpcode::CallIndirect).unwrap(), -F::ONE),
         ]);
     });

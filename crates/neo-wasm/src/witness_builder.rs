@@ -1,17 +1,15 @@
-//! Owns packaging normalized WASM rows into `StepBuild`.
-
-use super::gadgets::{zero_test_witness_field, zero_test_witness_u64};
+use super::gadgets::{unsigned_ge_witness, zero_test_witness_field, zero_test_witness_u64};
 use super::ir::{WasmRowKind, WasmStepTrace};
 use super::layout::{
-    selector_col, CALL_RETURN_PC_CHOICE, COL_CALL_INDIRECT_TYPE_INDEX, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT,
-    COL_CALL_STACK_ADDR, COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE, COL_CALL_STACK_POP_CALLER_FBP,
-    COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_POP_RETURN_PC, COL_CALL_STACK_PUSH_PRESENT,
-    COL_CALL_STACK_RETURN_PC_CHOICE, COL_CI_ENTRY_IS_NULL, COL_CI_ENTRY_LIVE, COL_CI_ENTRY_NULL_INV, COL_CI_LIVE,
-    COL_CI_TRAP, COL_CI_TYPE_EQ, COL_CI_TYPE_EQ_INV, COL_CI_TYPE_MISMATCH, COL_CONTROL_CHOICE,
+    selector_col, CALL_RETURN_PC_CHOICE, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_IS_TRAP,
+    COL_CALL_INDIRECT_TYPE_INDEX, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR,
+    COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE, COL_CALL_STACK_POP_CALLER_FBP, COL_CALL_STACK_POP_PRESENT,
+    COL_CALL_STACK_POP_RETURN_PC, COL_CALL_STACK_PUSH_PRESENT, COL_CALL_STACK_RETURN_PC_CHOICE, COL_CI_ENTRY_IS_NULL,
+    COL_CI_ENTRY_NULL_INV, COL_CI_OOB, COL_CI_TYPE_EQ, COL_CI_TYPE_EQ_INV, COL_CMP_GE, COL_CMP_LOW, COL_CONTROL_CHOICE,
     COL_CURRENT_FUNCTION_NUM_LOCALS, COL_CURRENT_FUNCTION_REF, COL_DIV_DIVIDEND_IS_MIN, COL_DIV_DIVIDEND_MIN_INV,
     COL_DIV_DIVISOR_INV, COL_DIV_DIVISOR_IS_NEG1, COL_DIV_DIVISOR_IS_ZERO, COL_DIV_DIVISOR_NEG1_INV, COL_DIV_OVERFLOW,
-    COL_DIV_OVERFLOW_COND, COL_DIV_TRAP, COL_EXPECTED_TYPE_ID, COL_FUNCTION_REF, COL_FUNCTION_TYPE_ID,
-    COL_GLOBAL_INDEX, COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI, COL_HALTED, COL_IS_PROGRAM_ROW,
+    COL_DIV_OVERFLOW_COND, COL_DIV_TRAP, COL_EXPECTED_TYPE_ID, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF,
+    COL_FUNCTION_TYPE_ID, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI, COL_HALTED, COL_IS_PROGRAM_ROW,
     COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1, COL_LINEAR_MEM_ACCESS_BYTE2, COL_LINEAR_MEM_ACCESS_BYTE3,
     COL_LINEAR_MEM_ACCESS_BYTE4, COL_LINEAR_MEM_ACCESS_BYTE5, COL_LINEAR_MEM_ACCESS_BYTE6, COL_LINEAR_MEM_ACCESS_BYTE7,
     COL_LINEAR_MEM_BYTE_OFFSET, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1,
@@ -55,8 +53,8 @@ use super::layout::{
     COL_STACK_READ2_ADDR_LO, COL_STACK_READ2_VALUE_HI, COL_STACK_READ2_VALUE_LO, COL_STACK_READS,
     COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI,
     COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE,
-    COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_WIDE_AUX0, COL_WIDE_AUX1,
-    COL_WIDE_VALUES_ENABLED, WITNESS_WIDTH,
+    COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
+    COL_WIDE_AUX0, COL_WIDE_AUX1, COL_WIDE_VALUES_ENABLED, WITNESS_WIDTH,
 };
 use super::step_build::WasmStepBuild;
 use crate::layout::{
@@ -196,6 +194,15 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
     wit[COL_TABLE_READ_ENABLED] = if matches!(
         trace.opcode,
         super::isa::WasmOpcode::TableGet | super::isa::WasmOpcode::CallIndirect
+    ) {
+        F::ONE
+    } else {
+        F::ZERO
+    };
+    // table_sizes is read by table.size and by call_indirect (the OOB check).
+    wit[COL_TABLE_SIZE_READ_ENABLED] = if matches!(
+        trace.opcode,
+        super::isa::WasmOpcode::TableSize | super::isa::WasmOpcode::CallIndirect
     ) {
         F::ONE
     } else {
@@ -660,22 +667,46 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
         wit[COL_EXPECTED_TYPE_ID] = F::from_u64(u64::from(expected_type_id));
     }
 
-    // Mirror the CCS call_indirect trap gates (null table entry / callee
-    // type mismatch) and the derived read-activation gates. Placed after
-    // the table/type columns above, which the zero tests read.
+    // Mirror the CCS call_indirect trap gates (OOB index / null table entry /
+    // callee type mismatch) and the derived read-activation gates. Placed
+    // after the table/type columns above, which the comparison and zero tests
+    // read.
+    let sel_call_indirect = wit[selector_col(super::isa::WasmOpcode::CallIndirect).expect("call_indirect selector")];
+    // ge = (table_index >= table_size); the gadget is gated on call_indirect,
+    // so the columns only carry meaning (and ci_oob) on those rows.
+    if sel_call_indirect == F::ONE {
+        let (cmp_low, cmp_ge) = unsigned_ge_witness(
+            trace
+                .table_index
+                .expect("call_indirect binds a table index")
+                .into(),
+            trace
+                .table_size
+                .expect("call_indirect binds a table size")
+                .into(),
+        );
+        wit[COL_CMP_LOW] = cmp_low;
+        wit[COL_CMP_GE] = cmp_ge;
+    }
+    let ci_oob = sel_call_indirect * wit[COL_CMP_GE];
+    wit[COL_CI_OOB] = ci_oob;
+    // No table entry exists at an OOB index: the entry read is de-gated.
+    wit[COL_TABLE_READ_ENABLED] -= ci_oob;
+
     let (entry_is_null, entry_null_inv) = zero_test_witness_field(wit[COL_TABLE_VALUE]);
     wit[COL_CI_ENTRY_IS_NULL] = entry_is_null;
     wit[COL_CI_ENTRY_NULL_INV] = entry_null_inv;
     let (type_eq, type_eq_inv) = zero_test_witness_field(wit[COL_FUNCTION_TYPE_ID] - wit[COL_EXPECTED_TYPE_ID]);
     wit[COL_CI_TYPE_EQ] = type_eq;
     wit[COL_CI_TYPE_EQ_INV] = type_eq_inv;
-    let type_mismatch = (F::ONE - entry_is_null) * (F::ONE - type_eq);
-    wit[COL_CI_TYPE_MISMATCH] = type_mismatch;
-    let sel_call_indirect = wit[selector_col(super::isa::WasmOpcode::CallIndirect).expect("call_indirect selector")];
-    let ci_trap = sel_call_indirect * (entry_is_null + type_mismatch);
-    wit[COL_CI_TRAP] = ci_trap;
-    wit[COL_CI_ENTRY_LIVE] = sel_call_indirect * (F::ONE - entry_is_null);
-    wit[COL_CI_LIVE] = sel_call_indirect * (F::ONE - ci_trap);
+
+    // A call_indirect is clean exactly when it has a live non-null table entry
+    // and that entry's callee type matches the instruction's expected type.
+    let ci_type_lookup = (sel_call_indirect - ci_oob) * (F::ONE - entry_is_null);
+    let ci_trap = sel_call_indirect - (ci_type_lookup * type_eq);
+    wit[COL_CALL_INDIRECT_IS_TRAP] = ci_trap;
+    wit[COL_FUNCTION_CALL_TYPE_LOOKUP_GATE] = ci_type_lookup;
+    wit[COL_CALL_INDIRECT_IS_NOT_TRAP] = sel_call_indirect * (F::ONE - ci_trap);
 
     match trace.opcode {
         super::isa::WasmOpcode::I32Add => {

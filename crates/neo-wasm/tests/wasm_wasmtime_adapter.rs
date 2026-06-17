@@ -286,6 +286,27 @@ fn wasmtime_trace_normalizes_table_size_rows() {
     assert_eq!(row.stack_write0.map(|w| w.value_lo), Some(4));
 }
 
+/// `table.get` OOB raises the same `TableOutOfBounds` trap as `call_indirect`
+/// OOB, but only the latter is modeled. The adapter must keep it a loud error
+/// rather than presenting it as a clean terminal run with no results.
+#[test]
+fn table_get_out_of_bounds_stays_a_loud_error() {
+    let wasm = wat::parse_str(
+        r#"(module
+            (table 1 funcref)
+            (func (export "run") (result i32)
+                i32.const 5
+                table.get 0
+                ref.is_null))"#,
+    )
+    .expect("valid WAT");
+    let err = collect_wasmtime_steps(&wasm, "run", &[]).expect_err("table.get OOB must be a hard error");
+    assert!(
+        format!("{err:?}").contains("failed to execute"),
+        "unexpected error: {err:?}"
+    );
+}
+
 #[test]
 fn wasmtime_trace_normalizes_funcref_table_rows() {
     let wasm = wat::parse_str(

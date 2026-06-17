@@ -99,6 +99,14 @@ fn call_indirect_traps(table_value: Option<u32>, expected_type_id: Option<u32>, 
     table_value == Some(0) || (expected_type_id.is_some() && expected_type_id != function_type_id)
 }
 
+/// `call_indirect` also traps when the table index is out of bounds. This is
+/// the most upstream cause: there is no entry to read, so the funcref read is
+/// skipped (`table_value` stays `None`) and the null/type-mismatch causes do
+/// not apply. Mirrors `COL_CI_OOB` in `ccs/trap.rs`.
+fn call_indirect_oob(table_index: Option<u32>, table_size: Option<u32>) -> bool {
+    matches!((table_index, table_size), (Some(index), Some(size)) if index >= size)
+}
+
 fn normalize_supported_row(row: &WasmtimeTraceStep) -> Result<Option<SupportedRow>, WasmBuildError> {
     if row.frame_depth != 0 {
         return Ok(None);
@@ -134,10 +142,11 @@ fn normalize_supported_row(row: &WasmtimeTraceStep) -> Result<Option<SupportedRo
                 (Some(params), Some(row.call_result_count.unwrap_or(0)))
             }
         }),
-        // A null entry / type-mismatch call_indirect pops only the index and
-        // traps before any call happens.
+        // An OOB-index / null-entry / type-mismatch call_indirect pops only the
+        // index and traps before any call happens.
         WasmOpcode::CallIndirect
-            if call_indirect_traps(row.table_value, row.expected_type_id, row.function_type_id) =>
+            if call_indirect_oob(row.table_index, row.table_size)
+                || call_indirect_traps(row.table_value, row.expected_type_id, row.function_type_id) =>
         {
             Some((Some(1), Some(0)))
         }
@@ -394,8 +403,12 @@ pub(crate) fn capture_frame(
             _ => None,
         },
         Some(WasmOpcode::TableSet) => operand_stack_words.last().copied(),
-        Some(WasmOpcode::CallIndirect) => match (table_id, table_index) {
-            (Some(table_id), Some(table_index)) => Some(read_table_funcref_u32(table_id, table_index, frame, store)?),
+        // Skip the funcref read on an OOB index: there is no entry, and the
+        // trap is derived from the index/size comparison instead.
+        Some(WasmOpcode::CallIndirect) => match (table_id, table_index, table_size) {
+            (Some(table_id), Some(table_index), Some(table_size)) if table_index < table_size => {
+                Some(read_table_funcref_u32(table_id, table_index, frame, store)?)
+            }
             _ => None,
         },
         _ => None,
@@ -993,7 +1006,8 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
         // Only the very last step of the whole trace is halted.
         let halted = next.is_none();
         let ci_trap = matches!(current.opcode, WasmOpcode::CallIndirect)
-            && call_indirect_traps(current.table_value, current.expected_type_id, current.function_type_id);
+            && (call_indirect_oob(current.table_index, current.table_size)
+                || call_indirect_traps(current.table_value, current.expected_type_id, current.function_type_id));
         // A trap is terminal: wasmtime stops stepping at the faulting
         // instruction, so a trapping opcode can only be the last row.
         let trapped = matches!(current.opcode, WasmOpcode::Unreachable) || div_trap || ci_trap;

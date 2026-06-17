@@ -133,6 +133,32 @@ pub struct WasmtimeTraceState {
     imported_function_count: u32,
 }
 
+/// Whether a wasmtime trap has a modeled terminal state, so the collected
+/// steps (faulting row included) can stand in for a clean run with no results.
+///
+/// Most accepted traps are raised by a unique opcode. `TableOutOfBounds` is
+/// the exception: wasmtime raises it for `table.get` / `table.set` /
+/// `table.init` OOB too, but only `call_indirect` OOB is modeled, so it is
+/// accepted only when the faulting (last collected) step is a `call_indirect`.
+fn is_modeled_terminal_trap(trap: Option<&Trap>, last_step: Option<&WasmtimeTraceStep>) -> bool {
+    match trap {
+        Some(
+            Trap::UnreachableCodeReached
+            | Trap::IntegerDivisionByZero
+            | Trap::IntegerOverflow
+            | Trap::IndirectCallToNull
+            | Trap::BadSignature,
+        ) => true,
+        Some(Trap::TableOutOfBounds) => {
+            matches!(
+                last_step.and_then(|step| step.opcode_decoded),
+                Some(WasmOpcode::CallIndirect)
+            )
+        }
+        _ => false,
+    }
+}
+
 pub fn collect_wasmtime_steps(
     wasm_bytes: &[u8],
     export: &str,
@@ -190,20 +216,7 @@ pub fn collect_wasmtime_steps(
         // (the faulting row included) and report no results. Other trap
         // causes (e.g. OOB access) are not provable yet and stay hard
         // errors.
-        Err(err)
-            if matches!(
-                err.downcast_ref::<Trap>(),
-                Some(
-                    Trap::UnreachableCodeReached
-                        | Trap::IntegerDivisionByZero
-                        | Trap::IntegerOverflow
-                        | Trap::IndirectCallToNull
-                        | Trap::BadSignature
-                )
-            ) =>
-        {
-            Vec::new()
-        }
+        Err(err) if is_modeled_terminal_trap(err.downcast_ref::<Trap>(), store.data().steps.last()) => Vec::new(),
         Err(err) => {
             return Err(WasmBuildError::Trace(format!(
                 "failed to execute Wasmtime export '{export}': {err}"

@@ -26,8 +26,8 @@ use super::tagged_r1cs_builder::{
     WasmConstraintCatalog, WasmConstraintScope, WasmConstraintTag, WasmTaggedR1csBuilder,
 };
 use crate::layout::{
-    COL_CI_TRAP, COL_CMP_AND, COL_CMP_HI_DIFF, COL_CMP_HI_INV, COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF, COL_CMP_LO_INV,
-    COL_CMP_LO_IS_ZERO, COL_DIV_TRAP, COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV,
+    COL_CALL_INDIRECT_IS_TRAP, COL_CMP_AND, COL_CMP_HI_DIFF, COL_CMP_HI_INV, COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF,
+    COL_CMP_LO_INV, COL_CMP_LO_IS_ZERO, COL_DIV_TRAP, COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV,
 };
 use neo_ccs::CcsStructure;
 use neo_math::F;
@@ -334,7 +334,7 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
                 (selector_col(WasmOpcode::CallIndirect).unwrap(), F::from_u64(2)),
                 (selector_col(WasmOpcode::Unreachable).unwrap(), F::from_u64(2)),
                 (COL_DIV_TRAP, -F::ONE),
-                (COL_CI_TRAP, -F::ONE),
+                (COL_CALL_INDIRECT_IS_TRAP, -F::ONE),
             ]
             .into_iter(),
         );

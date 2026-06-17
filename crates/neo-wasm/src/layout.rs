@@ -1097,23 +1097,42 @@ define_columns!(
     ),
     (COL_CI_TYPE_EQ_INV, "inverse witness for the callee-type equality test"),
     (
-        COL_CI_TYPE_MISMATCH,
-        "product flag: non-null table entry with a mismatched callee type",
+        COL_CALL_INDIRECT_IS_TRAP,
+        "this row is a call_indirect trapping on OOB index, null entry, or callee type mismatch",
         ColumnWidth::Boolean
     ),
     (
-        COL_CI_TRAP,
-        "this row is a call_indirect trapping on a null entry or callee type mismatch",
+        COL_CALL_INDIRECT_IS_NOT_TRAP,
+        "non-trapping call_indirect row: gates callee metadata and entry-pc reads",
         ColumnWidth::Boolean
     ),
     (
-        COL_CI_ENTRY_LIVE,
-        "call_indirect row with a non-null table entry: gates the function_types read",
+        COL_FUNCTION_CALL_TYPE_LOOKUP_GATE,
+        "call_indirect row with an (in-bounds) non-null table entry: gates the function_types read",
+        ColumnWidth::Boolean
+    ),
+    // Shared unsigned-comparison scratch for the bounds traps (see
+    // `push_unsigned_ge_gadget`). `low` is the range-checked borrow-bit
+    // remainder; `ge` is `a >= b` for whichever mutually-exclusive comparison
+    // the row's opcode selects.
+    (
+        COL_CMP_LOW,
+        "borrow-bit remainder of the active unsigned comparison",
+        ColumnWidth::U32
+    ),
+    (
+        COL_CMP_GE,
+        "result a >= b of the active unsigned comparison",
         ColumnWidth::Boolean
     ),
     (
-        COL_CI_LIVE,
-        "non-trapping call_indirect row: gates the callee metadata and entry-pc reads",
+        COL_CI_OOB,
+        "whether call_indirect traps because the table index is >= the table size",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_TABLE_SIZE_READ_ENABLED,
+        "table_sizes read gate: table.size, or call_indirect (binds the size for the OOB check)",
         ColumnWidth::Boolean
     ),
 );

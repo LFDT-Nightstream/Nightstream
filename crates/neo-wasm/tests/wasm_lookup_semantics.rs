@@ -1,5 +1,5 @@
 use neo_math::F;
-use neo_wasm::layout::{COL_MEMORY_PAGES_BEFORE, COL_STACK_READ0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO};
+use neo_wasm::layout::{COL_STACK_READ0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO};
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{
     build_wasm_lookup_binding_layout, sanity_check_lookup_row, traces_from_wasmtime_wasm_bytes, WasmOpcode,
@@ -84,17 +84,4 @@ fn lookup_semantics_reject_tampered_i64_binary_input_hi() {
     witness[COL_STACK_READ0_VALUE_HI] = F::ZERO;
     let err = sanity_check_lookup_row(layout, &witness).expect_err("tampered i64 binary input should fail");
     assert!(err.contains("i64_lt_s"));
-}
-
-#[test]
-fn lookup_semantics_reject_tampered_linear_memory_bounds() {
-    let layout = build_wasm_lookup_binding_layout();
-    let row = trace_rows()
-        .into_iter()
-        .find(|row| row.opcode == WasmOpcode::I32Load)
-        .expect("i32.load row");
-    let mut witness = build_witness_vector(&row);
-    witness[COL_MEMORY_PAGES_BEFORE] = F::ZERO;
-    let err = sanity_check_lookup_row(layout, &witness).expect_err("tampered bounds witness should fail");
-    assert!(err.contains("linear_memory_bounds"));
 }

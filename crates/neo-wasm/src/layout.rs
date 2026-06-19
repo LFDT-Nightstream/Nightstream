@@ -419,6 +419,16 @@ define_columns!(
         ColumnWidth::U32
     ),
     (
+        COL_MAX_MEMORY_PAGES_BEFORE,
+        "verifier-authoritative max linear-memory page count before this step (carried constant)",
+        ColumnWidth::U32
+    ),
+    (
+        COL_MAX_MEMORY_PAGES_AFTER,
+        "verifier-authoritative max linear-memory page count after this step (carried constant)",
+        ColumnWidth::U32
+    ),
+    (
         COL_STACK_READ0_ADDR_LO,
         "operand-stack read lane 0 low-limb physical address",
         ColumnWidth::U32
@@ -1133,6 +1143,26 @@ define_columns!(
     (
         COL_TABLE_SIZE_READ_ENABLED,
         "table_sizes read gate: table.size, or call_indirect (binds the size for the OOB check)",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_MEM_OOB,
+        "whether this load/store traps because the access is past the end of linear memory",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_MEM_LOAD_LIVE,
+        "load lane gate factor: a load row that is not OOB (de-gates lane reads on an OOB trap)",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_MEM_STORE_LIVE,
+        "store lane gate factor: a store row that is not OOB (de-gates lane writes on an OOB trap)",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_GROW_SUCCESS,
+        "memory.grow row: the growth fits under max pages (before + delta <= max)",
         ColumnWidth::Boolean
     ),
 );

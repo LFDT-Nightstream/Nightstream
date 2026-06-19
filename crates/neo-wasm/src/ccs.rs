@@ -9,6 +9,7 @@
 
 mod call;
 mod linear_memory;
+mod memory_pages;
 mod stack_io;
 mod trap;
 
@@ -27,7 +28,7 @@ use super::tagged_r1cs_builder::{
 };
 use crate::layout::{
     COL_CALL_INDIRECT_IS_TRAP, COL_CMP_AND, COL_CMP_HI_DIFF, COL_CMP_HI_INV, COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF,
-    COL_CMP_LO_INV, COL_CMP_LO_IS_ZERO, COL_DIV_TRAP, COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV,
+    COL_CMP_LO_INV, COL_CMP_LO_IS_ZERO, COL_DIV_TRAP, COL_MEM_OOB, COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV,
 };
 use neo_ccs::CcsStructure;
 use neo_math::F;
@@ -223,6 +224,7 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
     });
 
     stack_io::push_stack_io_constraints(&mut b, layout);
+    memory_pages::push_memory_pages_constraints(&mut b, layout);
 
     b.with_tag(always("narrow high limbs zero"), |b| {
         b.push_row(
@@ -335,6 +337,8 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
                 (selector_col(WasmOpcode::Unreachable).unwrap(), F::from_u64(2)),
                 (COL_DIV_TRAP, -F::ONE),
                 (COL_CALL_INDIRECT_IS_TRAP, -F::ONE),
+                // An OOB load/store halts but keeps its Static edge kind.
+                (COL_MEM_OOB, -F::ONE),
             ]
             .into_iter(),
         );

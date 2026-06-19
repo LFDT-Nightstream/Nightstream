@@ -9,7 +9,7 @@ use common::{assert_rejected, assert_satisfied, step};
 use neo_math::F;
 use neo_wasm::layout::{
     COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_IS_TRAP, COL_CI_ENTRY_IS_NULL, COL_DIV_OVERFLOW, COL_DIV_TRAP,
-    COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_HALTED, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
+    COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_HALTED, COL_MEM_OOB, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
 };
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{opcode_code, StackValueAccess, WasmOpcode};
@@ -326,4 +326,55 @@ fn oob_call_indirect_row_rejects_hidden_trap() {
     witness[COL_HALTED] = F::ZERO;
     witness[COL_CALL_INDIRECT_IS_NOT_TRAP] = F::ONE;
     assert_rejected(&witness, "hidden OOB-index call_indirect trap");
+}
+
+const OOB_LOAD_WAT: &str = r#"(module
+    (memory 1)
+    (func (export "main") (result i32)
+        i32.const 1000000
+        i32.load))"#;
+
+/// Hiding an OOB linear-memory trap must fail: `mem_oob` is the selector-gated
+/// bound comparison (highest word lane >= memory size in words), and it both
+/// feeds the trapped-flag transition and gates the lane reads, so a clean claim
+/// cannot satisfy the CCS even with the trapped/halted columns adjusted.
+#[test]
+fn oob_load_row_rejects_hidden_trap() {
+    let checked = common::checked_main(OOB_LOAD_WAT);
+    let row_index = checked
+        .trace
+        .iter()
+        .position(|row| row.opcode == WasmOpcode::I32Load)
+        .expect("i32.load row");
+    let mut witness = checked.witnesses[row_index].clone();
+    witness[COL_MEM_OOB] = F::ZERO;
+    witness[COL_TRAPPED_AFTER] = F::ZERO;
+    witness[COL_HALTED] = F::ZERO;
+    assert_rejected(&witness, "hidden OOB linear-memory trap");
+}
+
+const OOB_STORE_WAT: &str = r#"(module
+    (memory 1)
+    (func (export "main") (result i32)
+        i32.const 1000000
+        i32.const 42
+        i32.store
+        i32.const 0))"#;
+
+/// The store side of the OOB de-gating: hiding an OOB store trap must fail the
+/// same way as a load (the `mem_oob` bound comparison is direction-independent
+/// and gates `store_live`).
+#[test]
+fn oob_store_row_rejects_hidden_trap() {
+    let checked = common::checked_main(OOB_STORE_WAT);
+    let row_index = checked
+        .trace
+        .iter()
+        .position(|row| row.opcode == WasmOpcode::I32Store)
+        .expect("i32.store row");
+    let mut witness = checked.witnesses[row_index].clone();
+    witness[COL_MEM_OOB] = F::ZERO;
+    witness[COL_TRAPPED_AFTER] = F::ZERO;
+    witness[COL_HALTED] = F::ZERO;
+    assert_rejected(&witness, "hidden OOB linear-memory store trap");
 }

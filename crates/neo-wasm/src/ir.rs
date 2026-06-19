@@ -129,6 +129,11 @@ pub struct WasmStepState {
     pub output: WasmOutputState,
     pub call_stack_depth: u64,
     pub memory_pages: Option<u32>,
+    /// Maximum linear-memory page count (module's declared memory maximum,
+    /// capped at the wasm32 limit of 65536). Constant for the whole execution
+    /// and carried in the semantic-state digest so it is verifier-authoritative
+    /// — `memory.grow` and the OOB bound check depend on it not being forgeable.
+    pub max_memory_pages: Option<u32>,
     pub locals_fbp: u64,
     pub halted: bool,
     /// Execution ended in a wasm trap. Terminal and mutually exclusive with

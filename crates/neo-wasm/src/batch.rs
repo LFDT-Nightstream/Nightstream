@@ -226,6 +226,7 @@ pub fn batch_count(trace_len: usize, batch_size: usize) -> usize {
 /// build here is just the values that satisfy those rows.
 pub fn padding_step_after(prev: &WasmStepTrace) -> WasmStepTrace {
     let pages = prev.state_after.memory_pages;
+    let max_pages = prev.state_after.max_memory_pages;
     let fbp = prev.state_after.locals_fbp;
     let pc = prev.state_after.pc;
     let sp = prev.state_after.sp;
@@ -244,6 +245,7 @@ pub fn padding_step_after(prev: &WasmStepTrace) -> WasmStepTrace {
             output: prev.state_after.output,
             call_stack_depth,
             memory_pages: pages,
+            max_memory_pages: max_pages,
             locals_fbp: fbp,
             halted: false,
             trapped: prev.state_after.trapped,
@@ -255,6 +257,7 @@ pub fn padding_step_after(prev: &WasmStepTrace) -> WasmStepTrace {
             output: prev.state_after.output,
             call_stack_depth,
             memory_pages: pages,
+            max_memory_pages: max_pages,
             locals_fbp: fbp,
             halted: false,
             trapped: prev.state_after.trapped,

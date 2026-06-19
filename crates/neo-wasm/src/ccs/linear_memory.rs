@@ -9,7 +9,7 @@
 
 use super::super::gadgets::{push_gated_linear_zero, push_u32_le_bytes_decomp};
 use super::super::isa::{WasmMemoryAccessKind, WasmMemoryExtension, WasmOpcode};
-use super::super::layout::{selector_col, COL_ONE};
+use super::super::layout::{selector_col, COL_MEM_LOAD_LIVE, COL_MEM_STORE_LIVE, COL_ONE};
 use super::super::lookup_binding_builder::{Column, LinearMemoryColumns, OperandStackColumns, SignExtensionColumns};
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::{f_u64, idx, linear_memory_ops, opcode_tag, shared};
@@ -73,6 +73,9 @@ pub(super) fn push_linear_memory_constraints(
     push_width_selector_constraints(b, linear_memory);
     push_width_opcode_bindings(b, linear_memory);
     push_lane_usage_constraints(b, linear_memory);
+    // The OOB-trap derivation (mem_oob + the load_live/store_live de-gating
+    // factors these lane direction gates consume) lives in `trap.rs` with the
+    // other trap causes.
     push_lane_direction_gates(b, linear_memory);
     push_lane_adjacency_constraints(b, linear_memory);
     push_access_byte_bindings(b, stack, linear_memory, sign_extension);
@@ -426,8 +429,6 @@ fn push_lane_usage_constraints(b: &mut R1csBuilder, linear_memory: &LinearMemory
 /// (load) and Write+RMW (store) entries — keeping load rows from writing
 /// to the cells log.
 fn push_lane_direction_gates(b: &mut R1csBuilder, linear_memory: &LinearMemoryColumns) {
-    let load_ops = memory_ops_by_kind(WasmMemoryAccessKind::Load);
-    let store_ops = memory_ops_by_kind(WasmMemoryAccessKind::Store);
     b.with_tag(
         shared("linear memory lane direction gates", &linear_memory_ops()),
         |b| {
@@ -448,16 +449,17 @@ fn push_lane_direction_gates(b: &mut R1csBuilder, linear_memory: &LinearMemoryCo
                     linear_memory.lane2_store_active,
                 ),
             ] {
-                // `(use_laneN) · (Σ load selectors) = laneN_load_active`.
+                // `load_live = (Σ load selectors)·(1 - mem_oob)`, so it zeroes
+                // the lane activation on an OOB trap (no real access happens).
                 b.push_row(
                     [(idx(use_lane_col), F::ONE)],
-                    load_ops.iter().map(|&op| (op_selector(op), F::ONE)),
+                    [(COL_MEM_LOAD_LIVE, F::ONE)],
                     [(idx(load_active_col), F::ONE)],
                 );
-                // `(use_laneN) · (Σ store selectors) = laneN_store_active`.
+                // idem
                 b.push_row(
                     [(idx(use_lane_col), F::ONE)],
-                    store_ops.iter().map(|&op| (op_selector(op), F::ONE)),
+                    [(COL_MEM_STORE_LIVE, F::ONE)],
                     [(idx(store_active_col), F::ONE)],
                 );
             }

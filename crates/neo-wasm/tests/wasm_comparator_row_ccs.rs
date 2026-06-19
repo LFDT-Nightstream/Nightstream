@@ -34,6 +34,7 @@ fn step(
             output: WasmOutputState::ZERO,
             call_stack_depth: 0,
             memory_pages: None,
+            max_memory_pages: None,
             locals_fbp: 0,
             halted: false,
             trapped: false,

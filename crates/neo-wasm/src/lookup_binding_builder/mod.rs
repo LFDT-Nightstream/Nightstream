@@ -36,13 +36,14 @@ use super::layout::{
     COL_LINEAR_MEM_OFFSET_IS_0, COL_LINEAR_MEM_OFFSET_IS_1, COL_LINEAR_MEM_OFFSET_IS_2, COL_LINEAR_MEM_OFFSET_IS_3,
     COL_LINEAR_MEM_USE_LANE0, COL_LINEAR_MEM_USE_LANE1, COL_LINEAR_MEM_USE_LANE2, COL_LOCALS_FBP_AFTER,
     COL_LOCALS_FBP_BEFORE, COL_LOCAL_INDEX, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_LOCAL_WRITE_ENABLED,
-    COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_OPCODE_CODE, COL_OP_TABLE_ENABLED, COL_OP_TABLE_ID,
-    COL_OP_TABLE_VALUE, COL_OUTPUT_CAPTURED, COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE,
-    COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE,
-    COL_PADDING_ACTIVE, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_AFTER,
-    COL_PARAM_INIT_REMAINING_AFTER_INV, COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PARAM_INIT_REMAINING_BEFORE,
-    COL_PC_AFTER, COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE,
-    COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READ0_ACTIVE, COL_STACK_READ0_ADDR_HI,
+    COL_MAX_MEMORY_PAGES_AFTER, COL_MAX_MEMORY_PAGES_BEFORE, COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE,
+    COL_OPCODE_CODE, COL_OP_TABLE_ENABLED, COL_OP_TABLE_ID, COL_OP_TABLE_VALUE, COL_OUTPUT_CAPTURED,
+    COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE,
+    COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE, COL_PADDING_ACTIVE, COL_PARAM_INIT_ACTIVE_AFTER,
+    COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_AFTER_INV,
+    COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_AFTER, COL_PC_BEFORE,
+    COL_PC_EDGE_KIND, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE, COL_SIGN_EXT_BIT,
+    COL_SIGN_EXT_LOW7, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READ0_ACTIVE, COL_STACK_READ0_ADDR_HI,
     COL_STACK_READ0_ADDR_LO, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_ACTIVE,
     COL_STACK_READ1_ADDR_HI, COL_STACK_READ1_ADDR_LO, COL_STACK_READ1_VALUE_HI, COL_STACK_READ1_VALUE_LO,
     COL_STACK_READ2_ACTIVE, COL_STACK_READ2_ADDR_HI, COL_STACK_READ2_ADDR_LO, COL_STACK_READ2_VALUE_HI,
@@ -69,7 +70,6 @@ pub struct WasmLookupFamilySpec {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WasmLookupFamilyKind {
     OpTable(WasmOpTable),
-    LinearMemoryBounds,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -169,6 +169,9 @@ pub struct GlobalsColumns {
 pub struct MemoryPagesColumns {
     pub before: Column,
     pub after: Column,
+    /// Carried-constant module max page count (verifier-authoritative).
+    pub max_before: Column,
+    pub max_after: Column,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -494,6 +497,8 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
     let memory_pages = MemoryPagesColumns {
         before: Column(COL_MEMORY_PAGES_BEFORE),
         after: Column(COL_MEMORY_PAGES_AFTER),
+        max_before: Column(COL_MAX_MEMORY_PAGES_BEFORE),
+        max_after: Column(COL_MAX_MEMORY_PAGES_AFTER),
     };
     let table = TableColumns {
         read_enabled: Column(COL_TABLE_READ_ENABLED),
@@ -644,7 +649,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
         value: Column(COL_OP_TABLE_VALUE),
     };
 
-    let mut lookup_families: Vec<WasmLookupFamilySpec> = WasmOpTable::all()
+    let lookup_families: Vec<WasmLookupFamilySpec> = WasmOpTable::all()
         .into_iter()
         .map(|op_table| {
             let family = WasmLookupFamilySpec {
@@ -667,20 +672,10 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
         })
         .collect();
 
-    let linear_memory_bounds_family = WasmLookupFamilySpec {
-        name: "linear_memory_bounds",
-        arity: WasmLookupArity::Tuple(4),
-        kind: WasmLookupFamilyKind::LinearMemoryBounds,
-        semantics: LookupSemantics {
-            predicate: super::lookup_semantics::LookupPredicate::And(Vec::new()),
-        },
-    };
-    lookup_families.push(WasmLookupFamilySpec {
-        semantics: semantics_for_lookup_family(&linear_memory_bounds_family),
-        ..linear_memory_bounds_family
-    });
+    // Linear-memory bounds are no longer a lookup family: they are proven
+    // in-CCS as a `mem_oob` trap (see `push_oob_trap_constraints`).
 
-    let mut lookup_bindings: Vec<WasmLookupBindingSpec> = WasmOpTable::all()
+    let lookup_bindings: Vec<WasmLookupBindingSpec> = WasmOpTable::all()
         .into_iter()
         .map(|table| WasmLookupBindingSpec {
             name: table.name(),
@@ -714,22 +709,10 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
         })
         .collect();
 
-    lookup_bindings.push(WasmLookupBindingSpec {
-        name: "linear_memory_bounds",
-        family: "linear_memory_bounds",
-        // TODO: Revisit this lookup shape when the bounds proof is wired.
-        // A multi-key lookup over page count + optional lane flags is easy to
-        // scaffold, but we may want a denser single-key encoding once the
-        // actual lookup argument and table shape are implemented.
-        columns: vec![
-            memory_pages.before,
-            linear_memory.lane0_addr,
-            linear_memory.use_lane1,
-            linear_memory.use_lane2,
-        ],
-        gate: Some(linear_memory.use_lane0),
-        role: "unproven linear-memory bounds lookup binding over normalized word-addressed access shape",
-    });
+    // Linear-memory bounds are proven in-CCS (see `push_oob_trap_constraints`):
+    // the highest word lane touched is compared against `16384·memory_pages`
+    // with `push_unsigned_ge_gadget`, and an out-of-bounds access becomes a
+    // modeled `mem_oob` trap. No lookup family is needed for the bound.
 
     let memories = vec![
         WasmMemorySpec {
@@ -1289,6 +1272,14 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
             column_pairs: vec![WasmCrossStepColumnPair {
                 prev_after: memory_pages.after,
                 next_before: memory_pages.before,
+            }],
+        },
+        WasmCrossStepLinkSpec {
+            name: "max_memory_pages_continuity",
+            description: "row[i].max_memory_pages_after must match row[i+1].max_memory_pages_before (carried constant)",
+            column_pairs: vec![WasmCrossStepColumnPair {
+                prev_after: memory_pages.max_after,
+                next_before: memory_pages.max_before,
             }],
         },
         WasmCrossStepLinkSpec {

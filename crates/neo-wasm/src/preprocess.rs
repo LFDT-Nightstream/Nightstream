@@ -16,8 +16,8 @@ use crate::adapters::wasmtime::WasmProgramTables;
 use crate::batch::{self, BatchError};
 use crate::ir::{WasmOutputState, WasmParamInitState, WasmStepState};
 use crate::layout::{
-    COL_CALL_STACK_DEPTH_BEFORE, COL_LOCALS_FBP_BEFORE, COL_MEMORY_PAGES_BEFORE, COL_OUTPUT_ENABLED_BEFORE,
-    COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_PARAM_INIT_ACTIVE_BEFORE,
+    COL_CALL_STACK_DEPTH_BEFORE, COL_LOCALS_FBP_BEFORE, COL_MAX_MEMORY_PAGES_BEFORE, COL_MEMORY_PAGES_BEFORE,
+    COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_PARAM_INIT_ACTIVE_BEFORE,
     COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_BEFORE, COL_SP_BEFORE, COL_TRAPPED_BEFORE, WITNESS_WIDTH,
 };
 use crate::lookup_binding_builder::build_wasm_lookup_binding_layout;
@@ -128,6 +128,7 @@ pub fn top_level_initial_state(tables: &WasmProgramTables, entry_pc: u64) -> Was
         output: WasmOutputState::ZERO,
         call_stack_depth: 0,
         memory_pages: tables.initial_memory_pages,
+        max_memory_pages: tables.max_memory_pages,
         locals_fbp: 0,
         halted: false,
         trapped: false,
@@ -167,6 +168,7 @@ fn carried_state_field(state: WasmStepState, column: Column) -> F {
         COL_OUTPUT_VALUE_HI_BEFORE => F::from_u64(u64::from(state.output.value_hi)),
         COL_CALL_STACK_DEPTH_BEFORE => F::from_u64(state.call_stack_depth),
         COL_MEMORY_PAGES_BEFORE => F::from_u64(u64::from(state.memory_pages.unwrap_or(0))),
+        COL_MAX_MEMORY_PAGES_BEFORE => F::from_u64(u64::from(state.max_memory_pages.unwrap_or(0))),
         COL_LOCALS_FBP_BEFORE => F::from_u64(state.locals_fbp),
         COL_PARAM_INIT_ACTIVE_BEFORE => bool_field(state.param_init.active),
         COL_PARAM_INIT_REMAINING_BEFORE => F::from_u64(u64::from(state.param_init.remaining)),

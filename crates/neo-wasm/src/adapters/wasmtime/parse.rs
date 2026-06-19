@@ -17,6 +17,8 @@ use crate::layout::CALL_RETURN_PC_CHOICE;
 use std::collections::BTreeMap;
 use wasmparser::{Parser, Payload};
 
+const WASM32_MAX_PAGES: u32 = 65_536;
+
 #[derive(Clone, Debug)]
 pub struct WasmProgramArtifacts {
     /// Verifier/proof-bound static tables derived only from the wasm program.
@@ -31,6 +33,11 @@ pub struct WasmProgramTables {
     /// module has no default memory. This seeds the VM boundary state; data
     /// segment contents are tracked separately in `linear_memory_init`.
     pub initial_memory_pages: Option<u32>,
+    /// Declared maximum page count for default linear memory 0, capped at the
+    /// wasm32 limit (65536). `None` when the module has no default memory.
+    /// Seeds the verifier-authoritative `max_memory_pages` boundary so
+    /// `memory.grow` and the OOB bound check have a non-forgeable limit.
+    pub max_memory_pages: Option<u32>,
     /// Static per-PC decode rows. These bind each real program row to the
     /// opcode and immediate-bearing witness columns that are derived from the
     /// wasm bytes. Non-applicable immediate slots are encoded as zero.
@@ -185,6 +192,7 @@ struct ParsedWasmArtifactsBuilder {
     next_type_id: u32,
     defined_function_type_indices: Vec<u32>,
     initial_memory_pages: Option<u32>,
+    max_memory_pages: Option<u32>,
     linear_memory_init: Vec<(u64, u8)>,
     globals_init: Vec<(u32, u32, u32)>,
     next_declared_global_index: u32,
@@ -212,6 +220,7 @@ impl Default for ParsedWasmArtifactsBuilder {
             next_type_id: 1,
             defined_function_type_indices: Vec::new(),
             initial_memory_pages: None,
+            max_memory_pages: None,
             linear_memory_init: Vec::new(),
             globals_init: Vec::new(),
             next_declared_global_index: 0,
@@ -306,6 +315,7 @@ impl ParsedWasmArtifactsBuilder {
         Ok(WasmProgramArtifacts {
             tables: WasmProgramTables {
                 initial_memory_pages: self.initial_memory_pages,
+                max_memory_pages: self.max_memory_pages,
                 program_decode: self.program_decode,
                 pc_rom: self.pc_rom,
                 pc_edge_kinds: self.pc_edge_kinds,
@@ -580,6 +590,7 @@ impl ParsedWasmArtifactsBuilder {
                             call_indirect_type_index,
                             expected_type_id,
                             call_return_pc,
+                            pc_after_instruction: pc_after,
                         },
                     );
 
@@ -900,12 +911,23 @@ impl ParsedWasmArtifactsBuilder {
                 "memory64 default memory is not supported by the wasm proof tables".to_string(),
             ));
         }
+
         if self.initial_memory_pages.is_some() {
             return Err(WasmBuildError::Unsupported(
                 "multiple memories are not supported by the wasm proof tables".to_string(),
             ));
         }
+
         self.initial_memory_pages = Some(Self::narrow_u32(memory.initial, "memory.initial")?);
+
+        let declared_max = memory
+            .maximum
+            .map(|m| Self::narrow_u32(m, "memory.maximum"))
+            .transpose()?
+            .unwrap_or(WASM32_MAX_PAGES);
+
+        self.max_memory_pages = Some(declared_max.min(WASM32_MAX_PAGES));
+
         Ok(())
     }
 }

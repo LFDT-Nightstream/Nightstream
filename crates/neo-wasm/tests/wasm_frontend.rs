@@ -12,6 +12,7 @@ fn state(pc: u64, sp: u64, halted: bool) -> WasmStepState {
         output: WasmOutputState::ZERO,
         call_stack_depth: 0,
         memory_pages: None,
+        max_memory_pages: None,
         locals_fbp: 0,
         halted,
         trapped: false,

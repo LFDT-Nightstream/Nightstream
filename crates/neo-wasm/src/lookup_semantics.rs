@@ -28,7 +28,6 @@ pub enum LookupExpr {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LookupBuiltin {
-    LinearMemoryInBounds,
     ComposeU64,
     Low32,
     High32,
@@ -85,15 +84,6 @@ pub enum LookupBuiltin {
 pub fn semantics_for_lookup_family(family: &WasmLookupFamilySpec) -> LookupSemantics {
     match family.kind {
         WasmLookupFamilyKind::OpTable(op) => op_table_semantics(op),
-        WasmLookupFamilyKind::LinearMemoryBounds => LookupSemantics {
-            predicate: LookupPredicate::Eq(
-                apply(
-                    LookupBuiltin::LinearMemoryInBounds,
-                    vec![slot(0), slot(1), slot(2), slot(3)],
-                ),
-                LookupExpr::Const(1),
-            ),
-        },
     }
 }
 
@@ -164,7 +154,6 @@ fn binding_is_active(
     }
     match family.kind {
         WasmLookupFamilyKind::OpTable(op) => slot_values.first().copied() == Some(op.op_table_id() as u64),
-        _ => true,
     }
 }
 
@@ -308,28 +297,6 @@ fn evaluate_expr(expr: &LookupExpr, slots: &[u64]) -> Result<u64, String> {
 
 fn evaluate_builtin(builtin: LookupBuiltin, values: &[u64]) -> Result<u64, String> {
     Ok(match builtin {
-        LookupBuiltin::LinearMemoryInBounds => {
-            require_arity(builtin, values, 4)?;
-            let pages_before = values[0];
-            let lane0_addr = values[1];
-            let use_lane1 = values[2] != 0;
-            let use_lane2 = values[3] != 0;
-            let touched_words = if use_lane2 {
-                3
-            } else if use_lane1 {
-                2
-            } else {
-                1
-            };
-            let words_per_page = 65_536_u64 / 4_u64;
-            let total_words = pages_before.saturating_mul(words_per_page);
-            u64::from(
-                lane0_addr
-                    .checked_add(touched_words - 1)
-                    .map(|last_word| last_word < total_words)
-                    .unwrap_or(false),
-            )
-        }
         LookupBuiltin::ComposeU64 => {
             require_arity(builtin, values, 2)?;
             trunc_u32(values[0]) as u64 | ((trunc_u32(values[1]) as u64) << 32)
@@ -542,7 +509,6 @@ fn i32v(value: u64) -> i32 {
 impl LookupBuiltin {
     fn name(self) -> &'static str {
         match self {
-            LookupBuiltin::LinearMemoryInBounds => "linear_memory_in_bounds",
             LookupBuiltin::ComposeU64 => "compose_u64",
             LookupBuiltin::Low32 => "low32",
             LookupBuiltin::High32 => "high32",
@@ -599,7 +565,6 @@ impl LookupBuiltin {
 
     fn digest_id(self) -> u64 {
         match self {
-            LookupBuiltin::LinearMemoryInBounds => 1,
             LookupBuiltin::ComposeU64 => 2,
             LookupBuiltin::Low32 => 3,
             LookupBuiltin::High32 => 4,

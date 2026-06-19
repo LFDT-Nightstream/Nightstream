@@ -77,26 +77,32 @@ pub(crate) fn push_u32_le_bytes_decomp<const N: usize>(
     );
 }
 
-/// Unsigned `x >= y` for two values known to be in `[0, 2^32)`.
+/// Gated unsigned comparison for two caller-bounded integer expressions.
 ///
-/// Enforces the borrow-bit (ge) decomposition `x - y + 2^32 = low + ge·2^32`, where
-/// `low` is also known to be in `[0, 2^32)` and `ge` is boolean.
+/// On active rows, `lhs` and `rhs` must evaluate as canonical integers in
+/// `[0, 2^32)`. They may be linear combinations of columns, but callers must
+/// ensure those combinations do not rely on field wraparound and do not become
+/// negative. This gadget only proves the comparison once those bounds are true.
 ///
-/// Since `x, y < 2^32`, the left side is a genuine integer in `(0, 2^33)` so
-/// the split is unique and `ge ?= (x >= y)`.
+/// It enforces `lhs - rhs + 2^32 = low + ge * 2^32`, where `low` is `U32` and
+/// `ge` is boolean. Since `lhs, rhs < 2^32`, the shifted value is in
+/// `[1, 2^33)`, below the Goldilocks modulus, so the split is unique:
+/// `ge = 1` iff `lhs >= rhs`.
 ///
-/// `gate_cols` are assumed to be one-hot selectors.
+/// `gate_cols` activate the row through their sum. Callers normally pass
+/// mutually exclusive opcode selectors.
 pub(crate) fn push_unsigned_ge_gadget(
     b: &mut R1csBuilder,
     gate_cols: impl IntoIterator<Item = usize>,
-    x: usize,
-    y: usize,
+    lhs: impl IntoIterator<Item = (usize, F)>,
+    rhs: impl IntoIterator<Item = (usize, F)>,
     low: usize,
     ge: usize,
 ) {
     let shift = F::from_u64(1u64 << 32);
-    let mut terms = vec![(x, F::ONE), (y, -F::ONE)];
-
+    // diff = lhs - rhs, then `diff + 2^32 = low + ge·2^32`.
+    let mut terms: Vec<(usize, F)> = lhs.into_iter().collect();
+    terms.extend(rhs.into_iter().map(|(col, coeff)| (col, -coeff)));
     terms.push((super::layout::COL_ONE, shift));
     terms.push((low, -F::ONE));
     terms.push((ge, -shift));

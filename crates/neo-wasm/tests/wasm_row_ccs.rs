@@ -5,10 +5,10 @@ use neo_math::F;
 use neo_wasm::layout::{
     COL_CALL_PARAM_COUNT, COL_CALL_STACK_POP_CALLER_FBP, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_POP_RETURN_PC,
     COL_CALL_STACK_PUSH_PRESENT, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE,
-    COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_AFTER_INV,
-    COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PC_ROM_ACTIVE, COL_STACK_READ0_ACTIVE, COL_STACK_READ1_ACTIVE,
-    COL_STACK_READ2_ACTIVE, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_VALUE_HI,
-    COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES,
+    COL_MEMORY_PAGES_AFTER, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_REMAINING_AFTER,
+    COL_PARAM_INIT_REMAINING_AFTER_INV, COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PC_ROM_ACTIVE,
+    COL_STACK_READ0_ACTIVE, COL_STACK_READ1_ACTIVE, COL_STACK_READ2_ACTIVE, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE,
+    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES,
 };
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::WasmRowKind;
@@ -243,6 +243,80 @@ fn i32_load_row_is_accepted() {
         .expect("load row");
     let row = build_witness_vector(load);
     assert_satisfied(&row, "i32.load row");
+}
+
+/// Only memory.grow may change the page count: every other row carries it
+/// (`(1 - grow)·(after - before) = 0`). This anchors the threaded page count
+/// so the linear-memory OOB bound check cannot be defeated by inflating the
+/// size on a non-grow row.
+#[test]
+fn non_grow_row_rejects_changed_memory_pages() {
+    let trace = trace_from_wat(
+        r#"(module
+             (memory 1)
+             (func (export "main") (result i32)
+               i32.const 0
+               i32.load))"#,
+    );
+    let load = trace
+        .iter()
+        .find(|row| row.opcode == WasmOpcode::I32Load)
+        .expect("load row");
+    let mut row = build_witness_vector(load);
+    assert_satisfied(&row, "in-bounds i32.load row");
+    // Inflate the page count on a non-grow row: the carry constraint rejects it.
+    row[COL_MEMORY_PAGES_AFTER] += F::ONE;
+    assert_rejected(&row, "memory_pages changed on a non-grow row");
+}
+
+/// memory.grow within the declared max succeeds: it returns the old page count
+/// and the new size is before + delta.
+#[test]
+fn memory_grow_success_row_is_accepted() {
+    let trace = trace_from_wat(
+        r#"(module
+             (memory 1 3)
+             (func (export "main") (result i32)
+               i32.const 1
+               memory.grow))"#,
+    );
+    let grow = trace
+        .iter()
+        .find(|row| row.opcode == WasmOpcode::MemoryGrow)
+        .expect("memory.grow row");
+    assert_eq!(grow.state_before.memory_pages, Some(1));
+    assert_eq!(grow.state_after.memory_pages, Some(2), "grew 1 -> 2");
+    assert_eq!(grow.stack_write0.map(|w| w.value_lo), Some(1), "returns old size");
+    assert_satisfied(&build_witness_vector(grow), "memory.grow success row");
+}
+
+/// memory.grow past the declared max fails: it returns -1 (0xFFFFFFFF) and the
+/// page count is unchanged. The bound is the verifier-authoritative max.
+#[test]
+fn memory_grow_overflow_row_returns_neg1() {
+    let trace = trace_from_wat(
+        r#"(module
+             (memory 1 1)
+             (func (export "main") (result i32)
+               i32.const 5
+               memory.grow))"#,
+    );
+    let grow = trace
+        .iter()
+        .find(|row| row.opcode == WasmOpcode::MemoryGrow)
+        .expect("memory.grow row");
+    assert_eq!(
+        grow.state_after.memory_pages,
+        Some(1),
+        "page count unchanged on failure"
+    );
+    assert_eq!(grow.stack_write0.map(|w| w.value_lo), Some(u32::MAX), "returns -1");
+    let mut row = build_witness_vector(grow);
+    assert_satisfied(&row, "memory.grow overflow row");
+    // Forging a successful grow on the failing row (inflating the new size)
+    // breaks `success·delta = after - before` (success is 0 here).
+    row[COL_MEMORY_PAGES_AFTER] = F::from_u64(6);
+    assert_rejected(&row, "forged successful grow past max");
 }
 
 #[test]

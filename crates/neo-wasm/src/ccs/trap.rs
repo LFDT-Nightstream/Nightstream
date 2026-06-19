@@ -1,19 +1,19 @@
 use super::super::gadgets::{
     push_gated_linear_zero, push_unsigned_ge_gadget, push_zero_test_expr_gadget, push_zero_test_gadget,
 };
-use super::super::isa::WasmOpcode;
+use super::super::isa::{WasmMemoryAccessKind, WasmOpcode};
 use super::super::layout::{
     selector_col, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_IS_TRAP, COL_CI_ENTRY_IS_NULL,
     COL_CI_ENTRY_NULL_INV, COL_CI_OOB, COL_CI_TYPE_EQ, COL_CI_TYPE_EQ_INV, COL_CMP_GE, COL_CMP_LOW,
     COL_DIV_DIVIDEND_IS_MIN, COL_DIV_DIVIDEND_MIN_INV, COL_DIV_DIVISOR_INV, COL_DIV_DIVISOR_IS_NEG1,
     COL_DIV_DIVISOR_IS_ZERO, COL_DIV_DIVISOR_NEG1_INV, COL_DIV_OVERFLOW, COL_DIV_OVERFLOW_COND, COL_DIV_TRAP,
-    COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_ONE,
+    COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_MEM_LOAD_LIVE, COL_MEM_OOB, COL_MEM_STORE_LIVE, COL_ONE,
 };
 use super::super::lookup_binding_builder::{
-    CallColumns, Column, ControlColumns, FunctionTypeColumns, ModuleTypeColumns, OperandStackColumns, StateColumns,
-    TableColumns, TableSizeColumns, WasmLookupBindingLayout,
+    CallColumns, Column, ControlColumns, FunctionTypeColumns, LinearMemoryColumns, MemoryPagesColumns,
+    ModuleTypeColumns, OperandStackColumns, StateColumns, TableColumns, TableSizeColumns, WasmLookupBindingLayout,
 };
-use super::{always, idx, opcode_tag, R1csBuilder};
+use super::{always, idx, opcode_tag, shared, R1csBuilder};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
@@ -32,9 +32,81 @@ pub(super) fn push_trap_constraints(b: &mut R1csBuilder, layout: &WasmLookupBind
             &layout.module_types,
         );
     });
+    b.with_tag(shared("linear memory oob trap", &linear_memory_ops()), |b| {
+        push_linear_memory_oob_trap_constraints(b, &layout.linear_memory, &layout.memory_pages);
+    });
     b.with_tag(always("trap transition"), |b| {
         push_trapped_state_transition_constraints(b, &layout.control, &layout.state, layout.output.captured);
     });
+}
+
+fn linear_memory_ops() -> Vec<WasmOpcode> {
+    WasmOpcode::supported()
+        .into_iter()
+        .filter(|op| op.memory_access_info().is_some())
+        .collect()
+}
+
+fn memory_ops_of_kind(kind: WasmMemoryAccessKind) -> Vec<WasmOpcode> {
+    WasmOpcode::supported()
+        .into_iter()
+        .filter(|op| {
+            op.memory_access_info()
+                .is_some_and(|access| access.kind == kind)
+        })
+        .collect()
+}
+
+/// Derives the linear-memory OOB trap bit.
+///
+/// The bound is word-lane based:
+/// `lane0_addr + use_lane1 + use_lane2 >= 16384 * memory_pages_before`.
+/// This is exact because wasm pages are aligned to 4-byte lanes.
+///
+/// OOB rows de-gate memory tuples; the trap transition consumes `COL_MEM_OOB`.
+fn push_linear_memory_oob_trap_constraints(
+    b: &mut R1csBuilder,
+    linear_memory: &LinearMemoryColumns,
+    memory_pages: &MemoryPagesColumns,
+) {
+    let mem_selectors: Vec<usize> = linear_memory_ops()
+        .into_iter()
+        .map(|op| selector_col(op).expect("linear memory selector"))
+        .collect();
+    // ge = highest touched lane >= memory size in lanes.
+    push_unsigned_ge_gadget(
+        b,
+        mem_selectors.iter().copied(),
+        [
+            (idx(linear_memory.lane0_addr), F::ONE),
+            (idx(linear_memory.use_lane1), F::ONE),
+            (idx(linear_memory.use_lane2), F::ONE),
+        ],
+        [(idx(memory_pages.before), F::from_u64(16384))],
+        COL_CMP_LOW,
+        COL_CMP_GE,
+    );
+    // mem_oob = (Σ load/store selectors) · ge.
+    b.push_row(
+        mem_selectors.iter().map(|&s| (s, F::ONE)),
+        [(COL_CMP_GE, F::ONE)],
+        [(COL_MEM_OOB, F::ONE)],
+    );
+    // OOB rows assert no real memory access.
+    b.push_row(
+        memory_ops_of_kind(WasmMemoryAccessKind::Load)
+            .into_iter()
+            .map(|op| (selector_col(op).expect("load selector"), F::ONE)),
+        [(COL_ONE, F::ONE), (COL_MEM_OOB, -F::ONE)],
+        [(COL_MEM_LOAD_LIVE, F::ONE)],
+    );
+    b.push_row(
+        memory_ops_of_kind(WasmMemoryAccessKind::Store)
+            .into_iter()
+            .map(|op| (selector_col(op).expect("store selector"), F::ONE)),
+        [(COL_ONE, F::ONE), (COL_MEM_OOB, -F::ONE)],
+        [(COL_MEM_STORE_LIVE, F::ONE)],
+    );
 }
 
 /// Div/rem opcodes that trap on a zero divisor. Spec-derived from
@@ -159,8 +231,8 @@ fn push_call_indirect_trap_constraints(
     push_unsigned_ge_gadget(
         b,
         [call_indirect],
-        idx(table.index),
-        idx(table_sizes.value),
+        [(idx(table.index), F::ONE)],
+        [(idx(table_sizes.value), F::ONE)],
         COL_CMP_LOW,
         COL_CMP_GE,
     );
@@ -250,6 +322,7 @@ fn push_trapped_state_transition_constraints(
         (selector_col(WasmOpcode::Unreachable).unwrap(), -F::ONE),
         (COL_DIV_TRAP, -F::ONE),
         (COL_CALL_INDIRECT_IS_TRAP, -F::ONE),
+        (COL_MEM_OOB, -F::ONE),
     ]);
     b.push_row(
         [(idx(control.is_program_row), F::ONE)],

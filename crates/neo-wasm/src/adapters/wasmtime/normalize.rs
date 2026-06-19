@@ -66,8 +66,12 @@ struct SupportedRow {
     expected_type_id: Option<u32>,
     memory_pages_before: Option<u32>,
     memory_pages_after: Option<u32>,
+    /// Declared max page count (carried constant), capped at the wasm32 limit.
+    max_memory_pages: Option<u32>,
     /// For `call` instructions: binary offset of the instruction after the call (= return address).
     call_return_pc: Option<u64>,
+    /// Byte offset immediately after this instruction's encoding.
+    pc_after_instruction: Option<u64>,
     /// Total number of locals (params + declared) in this frame at this step.
     num_locals: u32,
     /// Parsed local values at this step (before execution). Used to build aux param-init rows at
@@ -287,7 +291,9 @@ fn normalize_supported_row(row: &WasmtimeTraceStep) -> Result<Option<SupportedRo
         expected_type_id: row.expected_type_id,
         memory_pages_before,
         memory_pages_after,
+        max_memory_pages: row.memory_max_pages,
         call_return_pc: row.call_return_pc,
+        pc_after_instruction: row.pc_after_instruction,
         num_locals: row.num_locals,
         locals_snapshot,
         linear_memory,
@@ -368,6 +374,8 @@ pub(crate) fn capture_frame(
         _ => None,
     };
     let memory_pages_now = read_memory_pages_if_present(0, frame, store)?;
+    // Module constant seeded from parse artifacts.
+    let memory_max_now = store.data().memory_max_pages;
     let (global_value_before, global_value_before_hi) = match global_index {
         Some(index) => {
             let (lo, hi) = read_global_lanes(index, frame, store)?;
@@ -460,8 +468,12 @@ pub(crate) fn capture_frame(
                 WasmBuildError::Trace("memory.grow observed without memory 0 in current frame".to_string())
             })?;
             let delta = operand_stack_words.last().copied().unwrap_or(0);
-            let pages_after = delta.checked_add(pages_before).unwrap_or(pages_before);
-            (Some(pages_before), Some(pages_after))
+            // memory.grow takes a delta; failure leaves the size unchanged.
+            let max = memory_max_now.unwrap_or(u32::MAX);
+            let grown = pages_before
+                .checked_add(delta)
+                .filter(|after| *after <= max);
+            (Some(pages_before), Some(grown.unwrap_or(pages_before)))
         }
         _ => (memory_pages_now, memory_pages_now),
     };
@@ -516,6 +528,7 @@ pub(crate) fn capture_frame(
         call_result_count,
         memory_pages_before,
         memory_pages_after,
+        memory_max_pages: memory_max_now,
         memory,
         locals,
         locals_words_hi,
@@ -524,6 +537,7 @@ pub(crate) fn capture_frame(
         operand_stack_words_hi,
         num_locals: num_locals as u32,
         call_return_pc: decoded_opcode.as_ref().and_then(|d| d.call_return_pc),
+        pc_after_instruction: decoded_opcode.as_ref().map(|d| d.pc_after_instruction),
     })
 }
 
@@ -570,36 +584,46 @@ fn capture_memory_access(
     };
 
     let width_bytes = memory_opcode.kind.width_bytes();
-    let loaded_value_i32 = match memory_opcode.kind {
-        DecodedMemoryAccessKind::I32Load
-        | DecodedMemoryAccessKind::I32Store
-        | DecodedMemoryAccessKind::I64Store32
-        | DecodedMemoryAccessKind::I64Load32U
-        | DecodedMemoryAccessKind::I64Load32S => {
-            read_word(memory_opcode.memory_index, effective_address, frame, store)? as i32
+
+    // On OOB, record the faulting row but skip memory reads; CCS derives the trap.
+    let memory_bytes = read_memory_pages_if_present(memory_opcode.memory_index, frame, store)?
+        .map_or(0, |pages| u64::from(pages) * 65536);
+    let is_oob = effective_address + u64::from(width_bytes) > memory_bytes;
+
+    let loaded_value_i32 = if is_oob {
+        0
+    } else {
+        match memory_opcode.kind {
+            DecodedMemoryAccessKind::I32Load
+            | DecodedMemoryAccessKind::I32Store
+            | DecodedMemoryAccessKind::I64Store32
+            | DecodedMemoryAccessKind::I64Load32U
+            | DecodedMemoryAccessKind::I64Load32S => {
+                read_word(memory_opcode.memory_index, effective_address, frame, store)? as i32
+            }
+            DecodedMemoryAccessKind::I32Load8S | DecodedMemoryAccessKind::I64Load8S => {
+                i32::from(read_byte(memory_opcode.memory_index, effective_address, frame, store)? as i8)
+            }
+            DecodedMemoryAccessKind::I32Load8U
+            | DecodedMemoryAccessKind::I32Store8
+            | DecodedMemoryAccessKind::I64Store8
+            | DecodedMemoryAccessKind::I64Load8U => {
+                i32::from(read_byte(memory_opcode.memory_index, effective_address, frame, store)?)
+            }
+            DecodedMemoryAccessKind::I32Load16S | DecodedMemoryAccessKind::I64Load16S => {
+                i32::from(read_halfword(memory_opcode.memory_index, effective_address, frame, store)? as i16)
+            }
+            DecodedMemoryAccessKind::I32Load16U
+            | DecodedMemoryAccessKind::I32Store16
+            | DecodedMemoryAccessKind::I64Store16
+            | DecodedMemoryAccessKind::I64Load16U => i32::from(read_halfword(
+                memory_opcode.memory_index,
+                effective_address,
+                frame,
+                store,
+            )?),
+            DecodedMemoryAccessKind::I64Load | DecodedMemoryAccessKind::I64Store => 0,
         }
-        DecodedMemoryAccessKind::I32Load8S | DecodedMemoryAccessKind::I64Load8S => {
-            i32::from(read_byte(memory_opcode.memory_index, effective_address, frame, store)? as i8)
-        }
-        DecodedMemoryAccessKind::I32Load8U
-        | DecodedMemoryAccessKind::I32Store8
-        | DecodedMemoryAccessKind::I64Store8
-        | DecodedMemoryAccessKind::I64Load8U => {
-            i32::from(read_byte(memory_opcode.memory_index, effective_address, frame, store)?)
-        }
-        DecodedMemoryAccessKind::I32Load16S | DecodedMemoryAccessKind::I64Load16S => {
-            i32::from(read_halfword(memory_opcode.memory_index, effective_address, frame, store)? as i16)
-        }
-        DecodedMemoryAccessKind::I32Load16U
-        | DecodedMemoryAccessKind::I32Store16
-        | DecodedMemoryAccessKind::I64Store16
-        | DecodedMemoryAccessKind::I64Load16U => i32::from(read_halfword(
-            memory_opcode.memory_index,
-            effective_address,
-            frame,
-            store,
-        )?),
-        DecodedMemoryAccessKind::I64Load | DecodedMemoryAccessKind::I64Store => 0,
     };
     let value_after_i32 = match memory_opcode.kind {
         DecodedMemoryAccessKind::I32Load
@@ -628,19 +652,26 @@ fn capture_memory_access(
 
     let base_word_addr = effective_address / 4;
     let byte_offset = (effective_address & 0b11) as u8;
-    let lane0_before = read_word(memory_opcode.memory_index, base_word_addr * 4, frame, store)?;
-    let lane1_before = read_word(memory_opcode.memory_index, (base_word_addr + 1) * 4, frame, store)?;
+    let lane0_before = if is_oob {
+        0
+    } else {
+        read_word(memory_opcode.memory_index, base_word_addr * 4, frame, store)?
+    };
+    let lane1_before = if is_oob {
+        0
+    } else {
+        read_word(memory_opcode.memory_index, (base_word_addr + 1) * 4, frame, store)?
+    };
     let uses_lane2 = matches!(
         memory_opcode.kind,
         DecodedMemoryAccessKind::I64Load | DecodedMemoryAccessKind::I64Store
     ) && byte_offset + width_bytes > 8;
     let lane2_before = if uses_lane2 {
-        Some(read_word(
-            memory_opcode.memory_index,
-            (base_word_addr + 2) * 4,
-            frame,
-            store,
-        )?)
+        Some(if is_oob {
+            0
+        } else {
+            read_word(memory_opcode.memory_index, (base_word_addr + 2) * 4, frame, store)?
+        })
     } else {
         None
     };
@@ -928,9 +959,13 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
     for (idx, current) in supported.iter().enumerate() {
         let next = supported.get(idx + 1);
         let pc_before = u64::from(current.pc);
-        let pc_after = next
-            .map(|row| u64::from(row.pc))
-            .unwrap_or_else(|| pc_before.saturating_add(1));
+        // Terminal traps have no next row; static-edge traps still bind the PC
+        // ROM to the PC after the faulting instruction.
+        let pc_after = next.map(|row| u64::from(row.pc)).unwrap_or_else(|| {
+            current
+                .pc_after_instruction
+                .unwrap_or_else(|| pc_before.saturating_add(1))
+        });
         let stack_reads = current
             .stack_reads_override
             .unwrap_or(current.info.stack_reads);
@@ -994,7 +1029,13 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
             && stack_read0.is_some_and(|lane| lane.value_lo == min_lo && lane.value_hi.unwrap_or(0) == min_hi)
             && stack_read1.is_some_and(|lane| lane.value_lo == u32::MAX && lane.value_hi.unwrap_or(0) == neg1_hi);
         let div_trap = div_zero_trap || div_overflow_trap;
-        let stack_write0 = if div_trap {
+        // Mirrors the CCS `mem_oob` comparison.
+        let mem_oob = current.linear_memory.as_ref().is_some_and(|access| {
+            let last_lane =
+                access.lane0.word_addr + u64::from(access.lane1.is_some()) + u64::from(access.lane2.is_some());
+            last_lane >= u64::from(current.memory_pages_before.unwrap_or(0)) * 16384
+        });
+        let stack_write0 = if div_trap || mem_oob {
             // No post-state result exists; CCS pins this synthetic write to zero.
             let addr = sp_after.saturating_sub(1).saturating_mul(2);
             let hi = current.wide_values_enabled.then_some(0);
@@ -1010,7 +1051,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                 || call_indirect_traps(current.table_value, current.expected_type_id, current.function_type_id));
         // A trap is terminal: wasmtime stops stepping at the faulting
         // instruction, so a trapping opcode can only be the last row.
-        let trapped = matches!(current.opcode, WasmOpcode::Unreachable) || div_trap || ci_trap;
+        let trapped = matches!(current.opcode, WasmOpcode::Unreachable) || div_trap || ci_trap || mem_oob;
         if trapped && !halted {
             return Err(WasmBuildError::Trace(format!(
                 "trapping {} row at cycle {} is not the final step",
@@ -1177,6 +1218,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                 },
                 call_stack_depth: call_stack_depth_before,
                 memory_pages: current.memory_pages_before,
+                max_memory_pages: current.max_memory_pages,
                 locals_fbp: current_fbp,
                 halted: false,
                 trapped: false,
@@ -1192,6 +1234,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                 },
                 call_stack_depth: call_stack_depth_after,
                 memory_pages: current.memory_pages_after,
+                max_memory_pages: current.max_memory_pages,
                 locals_fbp: fbp,
                 halted,
                 trapped,
@@ -1333,6 +1376,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                         },
                         call_stack_depth: call_stack_depth_after,
                         memory_pages: current.memory_pages_after,
+                        max_memory_pages: current.max_memory_pages,
                         locals_fbp: callee_fbp,
                         halted: false,
                         trapped: false,
@@ -1348,6 +1392,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                         },
                         call_stack_depth: call_stack_depth_after,
                         memory_pages: current.memory_pages_after,
+                        max_memory_pages: current.max_memory_pages,
                         locals_fbp: callee_fbp,
                         halted: false,
                         trapped: false,

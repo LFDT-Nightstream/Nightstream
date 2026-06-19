@@ -64,6 +64,9 @@ pub struct WasmtimeTraceStep {
     pub call_result_count: Option<u8>,
     pub memory_pages_before: Option<u32>,
     pub memory_pages_after: Option<u32>,
+    /// Declared max page count (capped at the wasm32 limit), constant for the
+    /// execution. Threaded into the carried `max_memory_pages` boundary.
+    pub memory_max_pages: Option<u32>,
     pub memory: Option<WasmtimeTraceMemoryAccess>,
     pub locals: Vec<String>,
     pub locals_words_hi: Vec<u32>,
@@ -75,6 +78,10 @@ pub struct WasmtimeTraceStep {
     /// For `call` instructions: the binary offset of the instruction immediately after
     /// the call (= the return address). Populated at map-build time.
     pub call_return_pc: Option<u64>,
+    /// Byte offset immediately after this instruction's encoding. For `call`
+    /// this is the return PC; for branches it is the linear successor, not
+    /// necessarily the runtime next PC.
+    pub pc_after_instruction: Option<u64>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -131,6 +138,10 @@ pub struct WasmtimeTraceState {
     func_ref_ids: Arc<BTreeMap<usize, u32>>,
     function_metas: Arc<BTreeMap<u32, ParsedFunctionMeta>>,
     imported_function_count: u32,
+    /// Declared max pages for memory 0 (a module constant), seeded from the
+    /// parse artifacts at construction. `None` when the module has no default
+    /// memory. Carried into each row's `max_memory_pages` boundary.
+    memory_max_pages: Option<u32>,
 }
 
 /// Whether a wasmtime trap has a modeled terminal state, so the collected
@@ -155,6 +166,10 @@ fn is_modeled_terminal_trap(trap: Option<&Trap>, last_step: Option<&WasmtimeTrac
                 Some(WasmOpcode::CallIndirect)
             )
         }
+        // OOB linear-memory access is modeled only for load/store opcodes.
+        Some(Trap::MemoryOutOfBounds) => last_step
+            .and_then(|step| step.opcode_decoded)
+            .is_some_and(|op| op.memory_access_info().is_some()),
         _ => false,
     }
 }
@@ -168,6 +183,7 @@ pub fn collect_wasmtime_steps(
     let imported_function_count = parsed.trace.imported_function_count;
     let opcode_map = Arc::new(parsed.trace.opcode_map);
     let function_metas = Arc::new(parsed.trace.function_metas);
+    let memory_max_pages = parsed.tables.max_memory_pages;
 
     let mut config = Config::new();
     config.guest_debug(true);
@@ -188,6 +204,7 @@ pub fn collect_wasmtime_steps(
             func_ref_ids: Arc::new(BTreeMap::new()),
             function_metas,
             imported_function_count,
+            memory_max_pages,
         },
     );
     store.set_debug_handler(WasmtimeDebugHandler);
@@ -267,6 +284,7 @@ where
     let imported_function_count = parsed.trace.imported_function_count;
     let opcode_map = Arc::new(parsed.trace.opcode_map);
     let function_metas = Arc::new(parsed.trace.function_metas);
+    let memory_max_pages = parsed.tables.max_memory_pages;
 
     let mut config = Config::new();
     config.guest_debug(true);
@@ -288,6 +306,7 @@ where
             func_ref_ids: Arc::new(BTreeMap::new()),
             function_metas,
             imported_function_count,
+            memory_max_pages,
         },
     );
     store.set_debug_handler(WasmtimeDebugHandler);

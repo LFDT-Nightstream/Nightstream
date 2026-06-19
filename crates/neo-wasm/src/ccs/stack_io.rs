@@ -18,8 +18,7 @@ use super::super::gadgets::push_gated_linear_zero;
 use super::super::isa::WasmOpcode;
 use super::super::layout::{selector_col, COL_CI_OOB};
 use super::super::lookup_binding_builder::{
-    GlobalsColumns, LocalsColumns, MemoryPagesColumns, OperandStackColumns, TableColumns, TableSizeColumns,
-    WasmLookupBindingLayout,
+    GlobalsColumns, LocalsColumns, OperandStackColumns, TableColumns, TableSizeColumns, WasmLookupBindingLayout,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::{idx, opcode_tag, shared};
@@ -33,7 +32,6 @@ const TABLE_READ_OPS: &[WasmOpcode] = &[WasmOpcode::TableGet, WasmOpcode::CallIn
 const TABLE_SIZE_READ_OPS: &[WasmOpcode] = &[WasmOpcode::TableSize, WasmOpcode::CallIndirect];
 const LOCAL_VALUE_OPS: &[WasmOpcode] = &[WasmOpcode::LocalGet, WasmOpcode::LocalSet, WasmOpcode::LocalTee];
 const GLOBAL_VALUE_OPS: &[WasmOpcode] = &[WasmOpcode::GlobalGet, WasmOpcode::GlobalSet];
-const MEMORY_PAGE_OPS: &[WasmOpcode] = &[WasmOpcode::MemorySize, WasmOpcode::MemoryGrow];
 const TABLE_VALUE_OPS: &[WasmOpcode] = &[WasmOpcode::TableGet, WasmOpcode::TableSet, WasmOpcode::CallIndirect];
 
 /// Emit every operand-stack ↔ memory-family binding the wasm VM
@@ -44,7 +42,6 @@ pub(super) fn push_stack_io_constraints(b: &mut R1csBuilder, layout: &WasmLookup
     let stack = layout.stack;
     let locals = layout.locals;
     let globals = layout.globals;
-    let memory_pages = layout.memory_pages;
     let table = layout.table;
     let table_sizes = layout.table_sizes;
 
@@ -80,9 +77,6 @@ pub(super) fn push_stack_io_constraints(b: &mut R1csBuilder, layout: &WasmLookup
     });
     b.with_tag(shared("globals value constraints", GLOBAL_VALUE_OPS), |b| {
         push_global_value_constraints(b, &stack, &globals);
-    });
-    b.with_tag(shared("memory page constraints", MEMORY_PAGE_OPS), |b| {
-        push_memory_pages_constraints(b, &stack, &memory_pages);
     });
     b.with_tag(shared("table value constraints", TABLE_VALUE_OPS), |b| {
         push_table_value_constraints(b, &stack, &table);
@@ -179,30 +173,6 @@ fn push_table_value_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns
         b,
         selector_col(WasmOpcode::TableSet).unwrap(),
         [(idx(table.index), F::ONE), (idx(stack.read0_value_lo), -F::ONE)],
-    );
-}
-
-fn push_memory_pages_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns, memory_pages: &MemoryPagesColumns) {
-    push_gated_linear_zero(
-        b,
-        selector_col(WasmOpcode::MemorySize).unwrap(),
-        [
-            (idx(memory_pages.before), F::ONE),
-            (idx(stack.write0_value_lo), -F::ONE),
-        ],
-    );
-    push_gated_linear_zero(
-        b,
-        selector_col(WasmOpcode::MemorySize).unwrap(),
-        [(idx(memory_pages.after), F::ONE), (idx(memory_pages.before), -F::ONE)],
-    );
-    push_gated_linear_zero(
-        b,
-        selector_col(WasmOpcode::MemoryGrow).unwrap(),
-        [
-            (idx(memory_pages.before), F::ONE),
-            (idx(stack.write0_value_lo), -F::ONE),
-        ],
     );
 }
 

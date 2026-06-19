@@ -21,6 +21,9 @@ pub(crate) struct DecodedOpcode {
     pub(crate) expected_type_id: Option<u32>,
     /// For `call` instructions: binary offset of the instruction after the call = return address.
     pub(crate) call_return_pc: Option<u64>,
+    /// Byte offset immediately after this instruction's encoding. For `call`
+    /// this is the return PC; for branches it is the linear successor.
+    pub(crate) pc_after_instruction: u64,
 }
 
 #[derive(Clone, Copy, Debug)]

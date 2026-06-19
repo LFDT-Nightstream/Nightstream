@@ -1,12 +1,11 @@
 //! Trapped executions as a provable terminal state.
 //!
 //! Modeled trap causes (`unreachable`, div/rem by zero, signed division
-//! overflow, `call_indirect` OOB index / null entry / callee type mismatch) end the
-//! trace at the faulting row, the carried `trapped` flag enters the
-//! semantic-state digest, and `verify` authenticates a prover-disclosed
-//! final state with `trapped: true` and no captured output. Unmodeled
-//! causes (e.g. OOB linear-memory or non-call_indirect table access) stay loud
-//! trace-collection errors.
+//! overflow, `call_indirect` OOB index / null entry / callee type mismatch,
+//! and linear-memory load/store OOB) end the trace at the faulting row. The
+//! carried `trapped` flag enters the semantic-state digest, and `verify`
+//! authenticates a prover-disclosed final state with `trapped: true` and no
+//! captured output. Unmodeled causes still stay loud trace-collection errors.
 
 mod common;
 
@@ -172,6 +171,78 @@ fn i64_signed_division_overflow_traps_only_on_exact_min_and_neg1() {
     // (MIN + 1) / -1 = i64::MAX, wrapped to i32 = -1.
     assert_eq!(not_trapping.run.results.as_slice(), &["-1".to_string()]);
     assert!(!common::final_state(&not_trapping.trace).trapped);
+}
+
+#[test]
+fn linear_memory_oob_load_trap_is_a_provable_terminal_state() {
+    // The memory is one page (65536 bytes); loading at byte 1_000_000 is far
+    // out of bounds and traps before any byte is read.
+    let checked = common::checked_main(
+        r#"(module
+            (memory 1)
+            (func (export "main") (result i32)
+                i32.const 1000000
+                i32.load))"#,
+    );
+
+    assert!(checked.run.results.is_empty());
+    let last = checked.trace.last().expect("non-empty trace");
+    assert_eq!(last.opcode, WasmOpcode::I32Load);
+    assert!(last.state_after.trapped);
+    assert!(!last.state_after.output.enabled);
+
+    let batch_size = 2;
+    let digest = common::verifier_initial_state_digest(&checked.artifacts);
+    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
+    let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
+
+    let final_state = common::final_state(&checked.trace);
+    assert!(final_state.trapped);
+    verify(&prep, &proof, final_state).expect("verify trapped final state");
+
+    let mut clean_claim = final_state;
+    clean_claim.trapped = false;
+    assert!(matches!(
+        verify(&prep, &proof, clean_claim),
+        Err(WasmProveError::FinalStateMismatch)
+    ));
+}
+
+#[test]
+fn linear_memory_oob_store_trap_is_a_provable_terminal_state() {
+    // Storing at byte 1_000_000 is out of bounds and traps before any byte is
+    // written. Exercises the store lane de-gating (store_live = 0).
+    let checked = common::checked_main(
+        r#"(module
+            (memory 1)
+            (func (export "main") (result i32)
+                i32.const 1000000
+                i32.const 42
+                i32.store
+                i32.const 0))"#,
+    );
+
+    assert!(checked.run.results.is_empty());
+    let last = checked.trace.last().expect("non-empty trace");
+    assert_eq!(last.opcode, WasmOpcode::I32Store);
+    assert!(last.state_after.trapped);
+    assert!(!last.state_after.output.enabled);
+
+    let batch_size = 2;
+    let digest = common::verifier_initial_state_digest(&checked.artifacts);
+    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
+    let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
+
+    let final_state = common::final_state(&checked.trace);
+    assert!(final_state.trapped);
+    verify(&prep, &proof, final_state).expect("verify trapped final state");
+
+    let mut clean_claim = final_state;
+    clean_claim.trapped = false;
+    assert!(matches!(
+        verify(&prep, &proof, clean_claim),
+        Err(WasmProveError::FinalStateMismatch)
+    ));
 }
 
 #[test]

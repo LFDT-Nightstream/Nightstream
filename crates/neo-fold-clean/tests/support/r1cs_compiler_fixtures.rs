@@ -71,6 +71,7 @@ pub fn make_small_plan(m: usize, m_in: usize) -> RecursiveStepImagePlan {
     let probe_plan = RecursiveStepImagePlan {
         limbs,
         app_private_var_widths: Vec::new(),
+        app_private_widths_are_range_constraints: false,
         boundary_bits: BOUNDARY_BITS,
         kmul_count: 0,
         ring_action_pair_count: 0,
@@ -302,6 +303,7 @@ pub fn make_tiny_lifecycle_plan(m: usize, m_in: usize) -> RecursiveStepImagePlan
     let probe_plan = RecursiveStepImagePlan {
         limbs,
         app_private_var_widths: Vec::new(),
+        app_private_widths_are_range_constraints: false,
         boundary_bits: BOUNDARY_BITS,
         kmul_count: 0,
         ring_action_pair_count: 0,

@@ -90,6 +90,7 @@ fn make_plan_without_state_x_out() -> RecursiveStepImagePlan {
     RecursiveStepImagePlan {
         limbs: 3,
         app_private_var_widths: Vec::new(),
+        app_private_widths_are_range_constraints: false,
         boundary_bits: BOUNDARY_BITS,
         kmul_count: 0,
         ring_action_pair_count: 0,

@@ -216,6 +216,7 @@ fn sha256_lifecycle_plan_with_ce_shape(
     let probe_plan = RecursiveStepImagePlan {
         limbs,
         app_private_var_widths: Vec::new(),
+        app_private_widths_are_range_constraints: false,
         boundary_bits: 4 * POSEIDON2_GOLDILOCKS_BITS,
         kmul_count: 0,
         ring_action_pair_count: 0,

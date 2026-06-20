@@ -261,6 +261,23 @@ fn r1cs_preprocess_rejects_one_bit_slot_without_boolean_row() {
     );
 }
 
+/// The same unconstrained-variable-in-one-bit plan the fail-closed test
+/// rejects is accepted when declared widths are range constraints:
+/// `app_private_widths_are_range_constraints` opts out of the conservative
+/// `PlanAppPrivateWidthTooNarrow` proof obligation.
+#[test]
+fn r1cs_preprocess_range_constraint_widths_bypass_too_narrow() {
+    let r1cs = one_product_r1cs();
+    let mut plan = make_small_plan(r1cs.m(), r1cs.m_in);
+    plan.app_private_var_widths = vec![POSEIDON2_GOLDILOCKS_BITS; r1cs.m()];
+    plan.app_private_var_widths[1] = 1;
+    plan.limbs = plan.app_private_var_widths.iter().sum::<usize>() + 1;
+    plan.app_private_widths_are_range_constraints = true;
+
+    r1cs_f_prime::preprocess_seeded(&r1cs, &plan, 0x71C5_C004)
+        .expect("range-constraint widths bypass the PlanAppPrivateWidthTooNarrow check");
+}
+
 #[test]
 fn r1cs_preprocess_accepts_one_bit_slot_copied_from_boolean_row() {
     let m = neo_math::D;

@@ -337,6 +337,15 @@ pub struct RecursiveStepImagePlan {
     /// R1CS variable so explicit Boolean variables occupy one bit and
     /// field variables occupy 64 bits.
     pub app_private_var_widths: Vec<usize>,
+    /// If true, declared app-private widths are verifier-owned range
+    /// assertions, so preprocessing does not require the app R1CS to prove
+    /// those bounds syntactically. This can make F' stricter than the app
+    /// R1CS by adding the declared range constraints.
+    ///
+    /// Use this when F' bit decomposition is the intended range-check
+    /// mechanism and duplicating those same checks as app-R1CS rows would
+    /// only bloat the relation.
+    pub app_private_widths_are_range_constraints: bool,
     pub boundary_bits: usize,
     pub kmul_count: usize,
     pub ring_action_pair_count: usize,

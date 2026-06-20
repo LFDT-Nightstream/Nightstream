@@ -601,11 +601,6 @@ fn derive_structure(
     r1cs: &R1csShape,
 ) -> Result<(Arc<FPrimeStructure>, R1csRowAnchors, usize), Error> {
     let boolean_vars = r1cs.boolean_constrained_variables();
-    let proven_widths = if plan.app_private_var_widths.is_empty() {
-        Vec::new()
-    } else {
-        r1cs.conservative_app_private_var_widths()
-    };
     let state_x_out = plan
         .state_x_out
         .as_ref()
@@ -629,7 +624,8 @@ fn derive_structure(
     {
         return Err(Error::PlanAppPrivateWidthInvalid { index, width });
     }
-    if !plan.app_private_var_widths.is_empty() {
+    if !plan.app_private_var_widths.is_empty() && !plan.app_private_widths_are_range_constraints {
+        let proven_widths = r1cs.conservative_app_private_var_widths();
         if let Some((index, &width)) = plan
             .app_private_var_widths
             .iter()

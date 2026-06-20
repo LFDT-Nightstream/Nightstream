@@ -608,6 +608,7 @@ fn tiny_fibonacci_lifecycle_plan() -> RecursiveStepImagePlan {
     let probe_plan = RecursiveStepImagePlan {
         limbs: TINY_LIMBS,
         app_private_var_widths: Vec::new(),
+        app_private_widths_are_range_constraints: false,
         boundary_bits: BOUNDARY_BITS,
         kmul_count: 0,
         ring_action_pair_count: 0,

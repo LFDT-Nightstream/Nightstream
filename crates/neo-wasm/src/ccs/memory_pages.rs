@@ -13,20 +13,19 @@
 
 use super::super::gadgets::{push_gated_linear_zero, push_unsigned_ge_gadget};
 use super::super::isa::WasmOpcode;
-use super::super::layout::{selector_col, COL_CMP_GE, COL_CMP_LOW, COL_GROW_SUCCESS, COL_ONE};
-use super::super::lookup_binding_builder::{MemoryPagesColumns, OperandStackColumns, WasmLookupBindingLayout};
-use super::{always, idx, shared, R1csBuilder};
+use super::super::layout::{
+    selector_col, COL_CMP_GE, COL_CMP_LOW, COL_GROW_SUCCESS, COL_MAX_MEMORY_PAGES_AFTER, COL_MAX_MEMORY_PAGES_BEFORE,
+    COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_ONE, COL_STACK_READ0_VALUE_LO, COL_STACK_WRITE0_VALUE_LO,
+};
+use super::{always, shared, R1csBuilder};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
 const MEMORY_PAGE_OPS: &[WasmOpcode] = &[WasmOpcode::MemorySize, WasmOpcode::MemoryGrow];
 
-pub(super) fn push_memory_pages_constraints(b: &mut R1csBuilder, layout: &WasmLookupBindingLayout) {
-    let stack = layout.stack;
-    let memory_pages = layout.memory_pages;
-
+pub(super) fn push_memory_pages_constraints(b: &mut R1csBuilder) {
     b.with_tag(shared("memory page constraints", MEMORY_PAGE_OPS), |b| {
-        push_size_and_grow_constraints(b, &stack, &memory_pages);
+        push_size_and_grow_constraints(b);
     });
     b.with_tag(always("memory pages carry"), |b| {
         // Only memory.grow may change the threaded page count.
@@ -35,25 +34,22 @@ pub(super) fn push_memory_pages_constraints(b: &mut R1csBuilder, layout: &WasmLo
                 (COL_ONE, F::ONE),
                 (selector_col(WasmOpcode::MemoryGrow).unwrap(), -F::ONE),
             ],
-            [(idx(memory_pages.after), F::ONE), (idx(memory_pages.before), -F::ONE)],
+            [(COL_MEMORY_PAGES_AFTER, F::ONE), (COL_MEMORY_PAGES_BEFORE, -F::ONE)],
             [],
         );
         // Max pages are verifier-carried and constant.
         b.push_linear_zero([
-            (idx(memory_pages.max_after), F::ONE),
-            (idx(memory_pages.max_before), -F::ONE),
+            (COL_MAX_MEMORY_PAGES_AFTER, F::ONE),
+            (COL_MAX_MEMORY_PAGES_BEFORE, -F::ONE),
         ]);
     });
 }
 
-fn push_size_and_grow_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns, memory_pages: &MemoryPagesColumns) {
+fn push_size_and_grow_constraints(b: &mut R1csBuilder) {
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::MemorySize).unwrap(),
-        [
-            (idx(memory_pages.before), F::ONE),
-            (idx(stack.write0_value_lo), -F::ONE),
-        ],
+        [(COL_MEMORY_PAGES_BEFORE, F::ONE), (COL_STACK_WRITE0_VALUE_LO, -F::ONE)],
     );
     // memory.grow takes a page delta. The initial state has `before <= max`
     // from the validated memory type, and this transition preserves it.
@@ -64,10 +60,10 @@ fn push_size_and_grow_constraints(b: &mut R1csBuilder, stack: &OperandStackColum
         b,
         [grow],
         [
-            (idx(memory_pages.max_before), F::ONE),
-            (idx(memory_pages.before), -F::ONE),
+            (COL_MAX_MEMORY_PAGES_BEFORE, F::ONE),
+            (COL_MEMORY_PAGES_BEFORE, -F::ONE),
         ],
-        [(idx(stack.read0_value_lo), F::ONE)],
+        [(COL_STACK_READ0_VALUE_LO, F::ONE)],
         COL_CMP_LOW,
         COL_CMP_GE,
     );
@@ -75,22 +71,19 @@ fn push_size_and_grow_constraints(b: &mut R1csBuilder, stack: &OperandStackColum
     // after = before + success * delta.
     b.push_row(
         [(COL_GROW_SUCCESS, F::ONE)],
-        [(idx(stack.read0_value_lo), F::ONE)],
-        [(idx(memory_pages.after), F::ONE), (idx(memory_pages.before), -F::ONE)],
+        [(COL_STACK_READ0_VALUE_LO, F::ONE)],
+        [(COL_MEMORY_PAGES_AFTER, F::ONE), (COL_MEMORY_PAGES_BEFORE, -F::ONE)],
     );
     // result = success ? before : 0xFFFFFFFF.
     push_gated_linear_zero(
         b,
         COL_GROW_SUCCESS,
-        [
-            (idx(stack.write0_value_lo), F::ONE),
-            (idx(memory_pages.before), -F::ONE),
-        ],
+        [(COL_STACK_WRITE0_VALUE_LO, F::ONE), (COL_MEMORY_PAGES_BEFORE, -F::ONE)],
     );
     b.push_row(
         [(grow, F::ONE), (COL_GROW_SUCCESS, -F::ONE)],
         [
-            (idx(stack.write0_value_lo), F::ONE),
+            (COL_STACK_WRITE0_VALUE_LO, F::ONE),
             (COL_ONE, -F::from_u64(u32::MAX as u64)),
         ],
         [],

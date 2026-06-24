@@ -21,10 +21,15 @@
 
 use super::super::gadgets::{push_gated_linear_zero, push_zero_test_gadget};
 use super::super::isa::WasmOpcode;
-use super::super::layout::{selector_col, CALL_RETURN_PC_CHOICE, COL_ONE};
+use super::super::layout::{
+    selector_col, CALL_RETURN_PC_CHOICE, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_FUNCTION_REF,
+    COL_LOCAL_INDEX, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_ONE,
+    COL_OUTPUT_CAPTURED, COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER,
+    COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE, COL_STACK_READ0_ADDR_LO,
+    COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_TABLE_INDEX, COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST,
+};
 use super::super::lookup_binding_builder::{
-    CallColumns, ControlColumns, FrameColumns, FunctionTypeColumns, LocalsColumns, OperandStackColumns, OutputColumns,
-    ParamInitColumns, StateColumns, TableColumns, WasmLookupBindingLayout,
+    CallColumns, ControlColumns, FrameColumns, ParamInitColumns, StateColumns, WasmLookupBindingLayout,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::{always, idx};
@@ -44,10 +49,6 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder, layout: &WasmLookupBind
     let param_init = layout.param_init;
     let call = layout.call;
     let frame = layout.frame;
-    let stack = layout.stack;
-    let output = layout.output;
-    let locals = layout.locals;
-    let function_types = layout.function_types;
 
     b.with_tag(always("row kind one hot"), |b| {
         b.push_linear_zero([
@@ -58,7 +59,6 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder, layout: &WasmLookupBind
         ]);
     });
 
-    let memory_pages = layout.memory_pages;
     b.with_tag(always("padding row state preservation"), |b| {
         // Padding rows are synthetic state-preserving placeholders used
         // to round a trace up to a multiple of the F'-shell batch size.
@@ -70,7 +70,7 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder, layout: &WasmLookupBind
         push_gated_linear_zero(
             b,
             padding_gate,
-            [(idx(memory_pages.after), F::ONE), (idx(memory_pages.before), -F::ONE)],
+            [(COL_MEMORY_PAGES_AFTER, F::ONE), (COL_MEMORY_PAGES_BEFORE, -F::ONE)],
         );
         push_gated_linear_zero(
             b,
@@ -106,7 +106,7 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder, layout: &WasmLookupBind
         );
     });
 
-    push_simple_output_constraints(b, &control, &state, &stack, &output);
+    push_simple_output_constraints(b, &control, &state);
 
     b.with_tag(always("non-program row shape"), |b| {
         // Aux rows keep pc fixed and write no stack values. Padding rows read
@@ -139,21 +139,21 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder, layout: &WasmLookupBind
         push_gated_linear_zero(
             b,
             param_init_row_gate,
-            [(idx(stack.read0_value_lo), F::ONE), (idx(locals.value_lo), -F::ONE)],
+            [(COL_STACK_READ0_VALUE_LO, F::ONE), (COL_LOCAL_VALUE, -F::ONE)],
         );
         push_gated_linear_zero(
             b,
             param_init_row_gate,
-            [(idx(stack.read0_value_hi), F::ONE), (idx(locals.value_hi), -F::ONE)],
+            [(COL_STACK_READ0_VALUE_HI, F::ONE), (COL_LOCAL_VALUE_HI, -F::ONE)],
         );
     });
 
     b.with_tag(always("guest call flag"), |b| {
-        push_guest_call_flag_constraints(b, &call, &function_types);
+        push_guest_call_flag_constraints(b, &call);
     });
 
     b.with_tag(always("call param init enter mode"), |b| {
-        push_call_param_init_enter_mode_constraints(b, &control, &param_init, &call, &function_types);
+        push_call_param_init_enter_mode_constraints(b, &control, &param_init, &call);
     });
 
     b.with_tag(always("call param init exit mode"), |b| {
@@ -161,7 +161,7 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder, layout: &WasmLookupBind
     });
 
     b.with_tag(always("call param init aux row"), |b| {
-        push_call_param_init_aux_row_constraints(b, &state, &param_init, &stack, &locals);
+        push_call_param_init_aux_row_constraints(b, &state, &param_init);
     });
 
     b.with_tag(always("return pc restoration"), |b| {
@@ -193,77 +193,58 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder, layout: &WasmLookupBind
     });
 
     b.with_tag(always("dynamic call stack arity"), |b| {
-        push_dynamic_call_stack_arity_constraints(b, &control, &state, &stack, &call, &function_types, &layout.table);
+        push_dynamic_call_stack_arity_constraints(b, &control, &state, &call);
     });
 }
 
-fn push_simple_output_constraints(
-    b: &mut R1csBuilder,
-    control: &ControlColumns,
-    state: &StateColumns,
-    stack: &OperandStackColumns,
-    output: &OutputColumns,
-) {
-    let enabled_delta = [
-        (idx(output.enabled_after), F::ONE),
-        (idx(output.enabled_before), -F::ONE),
-    ];
+fn push_simple_output_constraints(b: &mut R1csBuilder, control: &ControlColumns, state: &StateColumns) {
+    let enabled_delta = [(COL_OUTPUT_ENABLED_AFTER, F::ONE), (COL_OUTPUT_ENABLED_BEFORE, -F::ONE)];
     b.with_tag(always("simple output carry"), |b| {
         for (after, before) in [
-            (output.enabled_after, output.enabled_before),
-            (output.value_lo_after, output.value_lo_before),
-            (output.value_hi_after, output.value_hi_before),
+            (COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE),
+            (COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE),
+            (COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE),
         ] {
             b.push_row(
                 [(COL_ONE, F::ONE), (idx(control.halted), -F::ONE)],
-                [(idx(after), F::ONE), (idx(before), -F::ONE)],
+                [(after, F::ONE), (before, -F::ONE)],
                 [],
             );
-            push_gated_linear_zero(
-                b,
-                idx(output.enabled_before),
-                [(idx(after), F::ONE), (idx(before), -F::ONE)],
-            );
+            push_gated_linear_zero(b, COL_OUTPUT_ENABLED_BEFORE, [(after, F::ONE), (before, -F::ONE)]);
         }
 
         b.push_linear_zero(
             enabled_delta
                 .into_iter()
-                .chain([(idx(output.captured), -F::ONE)]),
+                .chain([(COL_OUTPUT_CAPTURED, -F::ONE)]),
         );
         b.push_row(
-            [(idx(output.captured), F::ONE)],
+            [(COL_OUTPUT_CAPTURED, F::ONE)],
             [(COL_ONE, F::ONE), (idx(control.halted), -F::ONE)],
             [],
         );
         b.push_row(
-            [(idx(output.captured), F::ONE)],
-            [(idx(output.enabled_before), F::ONE)],
+            [(COL_OUTPUT_CAPTURED, F::ONE)],
+            [(COL_OUTPUT_ENABLED_BEFORE, F::ONE)],
             [],
         );
         b.push_row(
-            [(idx(output.captured), F::ONE)],
+            [(COL_OUTPUT_CAPTURED, F::ONE)],
             [
-                (idx(stack.read0_addr_lo), F::ONE),
+                (COL_STACK_READ0_ADDR_LO, F::ONE),
                 (idx(state.sp_before), -F::from_u64(2)),
                 (COL_ONE, F::from_u64(2)),
             ],
             [],
         );
         b.push_row(
-            [(idx(output.captured), F::ONE)],
-            [
-                (idx(output.value_lo_after), F::ONE),
-                (idx(stack.read0_value_lo), -F::ONE),
-            ],
+            [(COL_OUTPUT_CAPTURED, F::ONE)],
+            [(COL_OUTPUT_VALUE_LO_AFTER, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
             [],
         );
         b.push_row(
-            [(idx(output.captured), F::ONE)],
-            [
-                (idx(output.value_hi_after), F::ONE),
-                (idx(stack.read0_value_hi), -F::ONE),
-            ],
+            [(COL_OUTPUT_CAPTURED, F::ONE)],
+            [(COL_OUTPUT_VALUE_HI_AFTER, F::ONE), (COL_STACK_READ0_VALUE_HI, -F::ONE)],
             [],
         );
     });
@@ -273,10 +254,7 @@ fn push_dynamic_call_stack_arity_constraints(
     b: &mut R1csBuilder,
     control: &ControlColumns,
     state: &StateColumns,
-    stack: &OperandStackColumns,
     call: &CallColumns,
-    function_types: &FunctionTypeColumns,
-    table: &TableColumns,
 ) {
     let call_selector = selector_col(WasmOpcode::Call).unwrap();
     let call_indirect = selector_col(WasmOpcode::CallIndirect).unwrap();
@@ -297,7 +275,7 @@ fn push_dynamic_call_stack_arity_constraints(
         ],
         [
             (idx(control.stack_reads), F::ONE),
-            (idx(function_types.param_count), -F::ONE),
+            (COL_CALL_PARAM_COUNT, -F::ONE),
             (call_indirect, -F::ONE),
         ],
         [],
@@ -305,19 +283,19 @@ fn push_dynamic_call_stack_arity_constraints(
     push_gated_linear_zero(
         b,
         call_indirect,
-        [(idx(function_types.function_ref), F::ONE), (idx(table.value), -F::ONE)],
+        [(COL_FUNCTION_REF, F::ONE), (COL_TABLE_VALUE, -F::ONE)],
     );
     // Bind the table read to the index popped from the stack top.
     push_gated_linear_zero(
         b,
         call_indirect,
-        [(idx(table.index), F::ONE), (idx(stack.read0_value_lo), -F::ONE)],
+        [(COL_TABLE_INDEX, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
     );
     push_gated_linear_zero(
         b,
         call_indirect,
         [
-            (idx(stack.read0_addr_lo), F::ONE),
+            (COL_STACK_READ0_ADDR_LO, F::ONE),
             (idx(state.sp_before), -F::from_u64(2)),
             (COL_ONE, F::from_u64(2)),
         ],
@@ -341,21 +319,18 @@ fn push_dynamic_call_stack_arity_constraints(
             (call_indirect, F::ONE),
             (idx(call.call_stack_push_present), -F::ONE),
         ],
-        [
-            (idx(control.stack_writes), F::ONE),
-            (idx(function_types.result_count), -F::ONE),
-        ],
+        [(idx(control.stack_writes), F::ONE), (COL_CALL_RESULT_COUNT, -F::ONE)],
         [],
     );
 }
 
-fn push_guest_call_flag_constraints(b: &mut R1csBuilder, call: &CallColumns, function_types: &FunctionTypeColumns) {
+fn push_guest_call_flag_constraints(b: &mut R1csBuilder, call: &CallColumns) {
     let call_selector = selector_col(WasmOpcode::Call).unwrap();
     let call_indirect = selector_col(WasmOpcode::CallIndirect).unwrap();
 
     b.push_row(
         [(call_selector, F::ONE), (call_indirect, F::ONE)],
-        [(idx(function_types.is_guest), F::ONE)],
+        [(COL_TARGET_FUNCTION_IS_GUEST, F::ONE)],
         [(idx(call.call_stack_push_present), F::ONE)],
     );
 }
@@ -365,7 +340,6 @@ fn push_call_param_init_enter_mode_constraints(
     control: &ControlColumns,
     param_init: &ParamInitColumns,
     call: &CallColumns,
-    function_types: &FunctionTypeColumns,
 ) {
     let guest_call = idx(call.call_stack_push_present);
 
@@ -387,7 +361,7 @@ fn push_call_param_init_enter_mode_constraints(
         guest_call,
         [
             (idx(param_init.param_init_remaining_after), F::ONE),
-            (idx(function_types.param_count), -F::ONE),
+            (COL_CALL_PARAM_COUNT, -F::ONE),
         ],
     );
 }
@@ -408,13 +382,7 @@ fn push_call_param_init_exit_mode_constraints(b: &mut R1csBuilder, param_init: &
     );
 }
 
-fn push_call_param_init_aux_row_constraints(
-    b: &mut R1csBuilder,
-    state: &StateColumns,
-    param_init: &ParamInitColumns,
-    stack: &OperandStackColumns,
-    locals: &LocalsColumns,
-) {
+fn push_call_param_init_aux_row_constraints(b: &mut R1csBuilder, state: &StateColumns, param_init: &ParamInitColumns) {
     let selector = idx(param_init.param_init_active_before);
 
     // in_param_init_mode => param_init_remaining' = param_init_remaining - 1
@@ -433,7 +401,7 @@ fn push_call_param_init_aux_row_constraints(
         b,
         selector,
         [
-            (idx(stack.read0_addr_lo), F::ONE),
+            (COL_STACK_READ0_ADDR_LO, F::ONE),
             (idx(state.sp_before), -F::from_u64(2)),
             (COL_ONE, F::from_u64(2)),
         ],
@@ -444,7 +412,7 @@ fn push_call_param_init_aux_row_constraints(
         b,
         selector,
         [
-            (idx(locals.index), F::ONE),
+            (COL_LOCAL_INDEX, F::ONE),
             (idx(param_init.param_init_remaining_before), -F::ONE),
             (COL_ONE, F::ONE),
         ],

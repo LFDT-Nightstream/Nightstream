@@ -20,15 +20,20 @@ use super::layout::{
     COL_WIDE_AUX1, PUBLIC_INPUTS, SELECTOR_COLS, WITNESS_WIDTH,
 };
 use super::lookup_binding_builder::{
-    build_wasm_lookup_binding_layout, Column, ControlColumns, OpTableColumns, OperandStackColumns,
-    SignExtensionColumns, StateColumns,
+    build_wasm_lookup_binding_layout, Column, ControlColumns, SignExtensionColumns, StateColumns,
 };
 use super::tagged_r1cs_builder::{
     WasmConstraintCatalog, WasmConstraintScope, WasmConstraintTag, WasmTaggedR1csBuilder,
 };
 use crate::layout::{
     COL_CALL_INDIRECT_IS_TRAP, COL_CMP_AND, COL_CMP_HI_DIFF, COL_CMP_HI_INV, COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF,
-    COL_CMP_LO_INV, COL_CMP_LO_IS_ZERO, COL_DIV_TRAP, COL_MEM_OOB, COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV,
+    COL_CMP_LO_INV, COL_CMP_LO_IS_ZERO, COL_DIV_TRAP, COL_GLOBAL_VALUE_HI, COL_LOCAL_VALUE_HI, COL_MEM_OOB,
+    COL_OP_TABLE_ENABLED, COL_OP_TABLE_ID, COL_OP_TABLE_VALUE, COL_OUTPUT_CAPTURED, COL_SELECT_COND_IS_ZERO,
+    COL_SELECT_SCRATCH_INV, COL_STACK_READ0_ADDR_HI, COL_STACK_READ0_ADDR_LO, COL_STACK_READ0_VALUE_HI,
+    COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_ADDR_HI, COL_STACK_READ1_ADDR_LO, COL_STACK_READ1_VALUE_HI,
+    COL_STACK_READ1_VALUE_LO, COL_STACK_READ2_ADDR_HI, COL_STACK_READ2_ADDR_LO, COL_STACK_READ2_VALUE_HI,
+    COL_STACK_READ2_VALUE_LO, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI,
+    COL_STACK_WRITE0_VALUE_LO,
 };
 use neo_ccs::CcsStructure;
 use neo_math::F;
@@ -187,11 +192,7 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
     let control = layout.control;
     let state = layout.state;
     let call = layout.call;
-    let stack = layout.stack;
-    let locals = layout.locals;
-    let globals = layout.globals;
     let linear_memory = layout.linear_memory;
-    let op_table = layout.op_table;
     let mut b = WasmTaggedR1csBuilder::new(WITNESS_WIDTH, COL_ONE)?;
 
     b.with_tag(shared("wide value gating", &wide_value_ops()), |b| {
@@ -223,28 +224,28 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         );
     });
 
-    stack_io::push_stack_io_constraints(&mut b, layout);
-    memory_pages::push_memory_pages_constraints(&mut b, layout);
+    stack_io::push_stack_io_constraints(&mut b);
+    memory_pages::push_memory_pages_constraints(&mut b);
 
     b.with_tag(always("narrow high limbs zero"), |b| {
         b.push_row(
-            [(idx(stack.read0_value_hi), F::ONE)],
+            [(COL_STACK_READ0_VALUE_HI, F::ONE)],
             [
                 (COL_ONE, F::ONE),
                 (idx(control.wide_values_enabled), -F::ONE),
-                (idx(layout.output.captured), -F::ONE),
+                (COL_OUTPUT_CAPTURED, -F::ONE),
             ],
             [],
         );
         for column in [
-            stack.read1_value_hi,
-            stack.read2_value_hi,
-            stack.write0_value_hi,
-            locals.value_hi,
-            globals.value_hi,
+            COL_STACK_READ1_VALUE_HI,
+            COL_STACK_READ2_VALUE_HI,
+            COL_STACK_WRITE0_VALUE_HI,
+            COL_LOCAL_VALUE_HI,
+            COL_GLOBAL_VALUE_HI,
         ] {
             b.push_row(
-                [(idx(column), F::ONE)],
+                [(column, F::ONE)],
                 [(COL_ONE, F::ONE), (idx(control.wide_values_enabled), -F::ONE)],
                 [],
             );
@@ -378,7 +379,7 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
     // A div trap de-gates the op-table relation; div/rem lookup tables only
     // model completed, non-trapping arithmetic.
     b.push_linear_zero(
-        core::iter::once((idx(op_table.enabled), F::ONE))
+        core::iter::once((COL_OP_TABLE_ENABLED, F::ONE))
             .chain(
                 WasmOpTable::all()
                     .into_iter()
@@ -395,79 +396,79 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
 
     b.with_tag(always("stack high limb addresses"), |b| {
         for (addr_hi, addr_lo) in [
-            (stack.read0_addr_hi, stack.read0_addr_lo),
-            (stack.read1_addr_hi, stack.read1_addr_lo),
-            (stack.read2_addr_hi, stack.read2_addr_lo),
-            (stack.write0_addr_hi, stack.write0_addr_lo),
+            (COL_STACK_READ0_ADDR_HI, COL_STACK_READ0_ADDR_LO),
+            (COL_STACK_READ1_ADDR_HI, COL_STACK_READ1_ADDR_LO),
+            (COL_STACK_READ2_ADDR_HI, COL_STACK_READ2_ADDR_LO),
+            (COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO),
         ] {
-            b.push_linear_zero([(idx(addr_hi), F::ONE), (idx(addr_lo), -F::ONE), (COL_ONE, -F::ONE)]);
+            b.push_linear_zero([(addr_hi, F::ONE), (addr_lo, -F::ONE), (COL_ONE, -F::ONE)]);
         }
     });
 
     b.with_tag(
         shared("stack write0 addr = sp_before", &stack_write0_at_sp_before_ops),
         |b| {
-            push_stack_write0_addr_sp_before(b, &stack_write0_at_sp_before_ops, &state, &stack);
+            push_stack_write0_addr_sp_before(b, &stack_write0_at_sp_before_ops, &state);
         },
     );
     b.with_tag(
         shared("stack read0 addr = sp_before - 1", &stack_read_at_sp_minus1_ops),
         |b| {
-            push_stack_read0_addr_sp_minus_1(b, &stack_read_at_sp_minus1_ops, &state, &stack);
+            push_stack_read0_addr_sp_minus_1(b, &stack_read_at_sp_minus1_ops, &state);
         },
     );
     b.with_tag(
         shared("stack write0 addr = sp_before - 1", &stack_write0_at_sp_minus1_ops),
         |b| {
-            push_stack_write0_addr_sp_minus_1(b, &stack_write0_at_sp_minus1_ops, &state, &stack);
+            push_stack_write0_addr_sp_minus_1(b, &stack_write0_at_sp_minus1_ops, &state);
         },
     );
 
     b.with_tag(
         shared("stack read0 addr = sp_before - 2", &stack_read_at_sp_minus2_ops),
         |b| {
-            push_stack_read0_addr_sp_minus_2(b, &stack_read_at_sp_minus2_ops, &state, &stack);
+            push_stack_read0_addr_sp_minus_2(b, &stack_read_at_sp_minus2_ops, &state);
         },
     );
     b.with_tag(
         shared("stack read1 addr = sp_before - 1", &stack_read_at_sp_minus2_ops),
         |b| {
-            push_stack_read1_addr_sp_minus_1(b, &stack_read_at_sp_minus2_ops, &state, &stack);
+            push_stack_read1_addr_sp_minus_1(b, &stack_read_at_sp_minus2_ops, &state);
         },
     );
     b.with_tag(
         shared("stack write0 addr = sp_before - 2", &stack_write0_at_sp_minus2_ops),
         |b| {
-            push_stack_write0_addr_sp_minus_2(b, &stack_write0_at_sp_minus2_ops, &state, &stack);
+            push_stack_write0_addr_sp_minus_2(b, &stack_write0_at_sp_minus2_ops, &state);
         },
     );
 
     b.with_tag(opcode_tag("select stack addrs", WasmOpcode::Select), |b| {
-        push_select_stack_addrs(b, &state, &stack);
+        push_select_stack_addrs(b, &state);
     });
 
     b.with_tag(opcode_tag("i32.add relation", WasmOpcode::I32Add), |b| {
-        push_add_relation(b, &stack)
+        push_add_relation(b)
     });
     b.with_tag(opcode_tag("i32.sub relation", WasmOpcode::I32Sub), |b| {
-        push_sub_relation(b, &stack)
+        push_sub_relation(b)
     });
     b.with_tag(opcode_tag("i64.add relation", WasmOpcode::I64Add), |b| {
-        push_i64_add_relation(b, &stack)
+        push_i64_add_relation(b)
     });
     b.with_tag(opcode_tag("i64.sub relation", WasmOpcode::I64Sub), |b| {
-        push_i64_sub_relation(b, &stack)
+        push_i64_sub_relation(b)
     });
     b.with_tag(opcode_tag("i32.wrap_i64 relation", WasmOpcode::I32WrapI64), |b| {
-        push_i32_wrap_i64_relation(b, &stack)
+        push_i32_wrap_i64_relation(b)
     });
     b.with_tag(
         opcode_tag("i64.extend_i32_u low relation", WasmOpcode::I64ExtendI32U),
-        |b| push_i64_extend_i32_u_low_relation(b, &stack),
+        |b| push_i64_extend_i32_u_low_relation(b),
     );
     b.with_tag(
         opcode_tag("i64.extend_i32_u high zero", WasmOpcode::I64ExtendI32U),
-        |b| push_i64_extend_i32_u_high_relation(b, &stack),
+        |b| push_i64_extend_i32_u_high_relation(b),
     );
     for (opcode, width_bytes, writes_i64) in [
         (WasmOpcode::I64ExtendI32S, 4, true),
@@ -478,7 +479,7 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         (WasmOpcode::I64Extend32S, 4, true),
     ] {
         b.with_tag(opcode_tag("integer sign-extension relation", opcode), |b| {
-            push_integer_sign_extend_relation(b, &stack, &layout.sign_extension, opcode, width_bytes, writes_i64);
+            push_integer_sign_extend_relation(b, &layout.sign_extension, opcode, width_bytes, writes_i64);
         });
     }
     b.with_tag(
@@ -487,19 +488,19 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
             &[WasmOpcode::I64Eqz, WasmOpcode::I64Eq, WasmOpcode::I64Ne],
         ),
         |b| {
-            push_i64_comparator_high_zero(b, &stack);
+            push_i64_comparator_high_zero(b);
         },
     );
     b.with_tag(shared("comparator zero-test", COMPARATOR_OPS), |b| {
-        push_comparator_constraints(b, &stack);
+        push_comparator_constraints(b);
     });
-    linear_memory::push_linear_memory_constraints(&mut b, &stack, &linear_memory, &layout.sign_extension);
+    linear_memory::push_linear_memory_constraints(&mut b, &linear_memory, &layout.sign_extension);
     b.with_tag(opcode_tag("select conditional mux", WasmOpcode::Select), |b| {
-        push_select_constraints(b, &stack);
+        push_select_constraints(b);
     });
 
     b.with_tag(always("op_table constraints"), |b| {
-        push_shout_constraints(b, &stack, &op_table);
+        push_shout_constraints(b);
     });
     let (structure, constraint_catalog) = b.build()?;
 
@@ -526,31 +527,21 @@ fn selector_for_lookup(op: WasmOpcode) -> usize {
     selector_col(op).expect("lookup opcode selector column")
 }
 
-fn push_stack_write0_addr_sp_before(
-    b: &mut R1csBuilder,
-    ops: &[WasmOpcode],
-    state: &StateColumns,
-    stack: &OperandStackColumns,
-) {
+fn push_stack_write0_addr_sp_before(b: &mut R1csBuilder, ops: &[WasmOpcode], state: &StateColumns) {
     b.push_row(
         ops.iter()
             .map(|&op| (selector_col(op).expect("stack write0 sp selector"), F::ONE)),
-        [(idx(stack.write0_addr_lo), F::ONE), (idx(state.sp_before), -f_u64(2))],
+        [(COL_STACK_WRITE0_ADDR_LO, F::ONE), (idx(state.sp_before), -f_u64(2))],
         [],
     );
 }
 
-fn push_stack_read0_addr_sp_minus_1(
-    b: &mut R1csBuilder,
-    ops: &[WasmOpcode],
-    state: &StateColumns,
-    stack: &OperandStackColumns,
-) {
+fn push_stack_read0_addr_sp_minus_1(b: &mut R1csBuilder, ops: &[WasmOpcode], state: &StateColumns) {
     b.push_row(
         ops.iter()
             .map(|&op| (selector_col(op).expect("stack read0 sp-1 selector"), F::ONE)),
         [
-            (idx(stack.read0_addr_lo), F::ONE),
+            (COL_STACK_READ0_ADDR_LO, F::ONE),
             (idx(state.sp_before), -f_u64(2)),
             (COL_ONE, f_u64(2)),
         ],
@@ -558,17 +549,12 @@ fn push_stack_read0_addr_sp_minus_1(
     );
 }
 
-fn push_stack_write0_addr_sp_minus_1(
-    b: &mut R1csBuilder,
-    ops: &[WasmOpcode],
-    state: &StateColumns,
-    stack: &OperandStackColumns,
-) {
+fn push_stack_write0_addr_sp_minus_1(b: &mut R1csBuilder, ops: &[WasmOpcode], state: &StateColumns) {
     b.push_row(
         ops.iter()
             .map(|&op| (selector_col(op).expect("stack write0 sp-1 selector"), F::ONE)),
         [
-            (idx(stack.write0_addr_lo), F::ONE),
+            (COL_STACK_WRITE0_ADDR_LO, F::ONE),
             (idx(state.sp_before), -f_u64(2)),
             (COL_ONE, f_u64(2)),
         ],
@@ -576,13 +562,13 @@ fn push_stack_write0_addr_sp_minus_1(
     );
 }
 
-fn push_select_stack_addrs(b: &mut R1csBuilder, state: &StateColumns, stack: &OperandStackColumns) {
+fn push_select_stack_addrs(b: &mut R1csBuilder, state: &StateColumns) {
     let selector = selector_col(WasmOpcode::Select).unwrap();
     push_gated_linear_zero(
         b,
         selector,
         [
-            (idx(stack.read0_addr_lo), F::ONE),
+            (COL_STACK_READ0_ADDR_LO, F::ONE),
             (idx(state.sp_before), -f_u64(2)),
             (COL_ONE, f_u64(6)),
         ],
@@ -591,7 +577,7 @@ fn push_select_stack_addrs(b: &mut R1csBuilder, state: &StateColumns, stack: &Op
         b,
         selector,
         [
-            (idx(stack.read1_addr_lo), F::ONE),
+            (COL_STACK_READ1_ADDR_LO, F::ONE),
             (idx(state.sp_before), -f_u64(2)),
             (COL_ONE, f_u64(4)),
         ],
@@ -600,7 +586,7 @@ fn push_select_stack_addrs(b: &mut R1csBuilder, state: &StateColumns, stack: &Op
         b,
         selector,
         [
-            (idx(stack.read2_addr_lo), F::ONE),
+            (COL_STACK_READ2_ADDR_LO, F::ONE),
             (idx(state.sp_before), -f_u64(2)),
             (COL_ONE, f_u64(2)),
         ],
@@ -609,7 +595,7 @@ fn push_select_stack_addrs(b: &mut R1csBuilder, state: &StateColumns, stack: &Op
         b,
         selector,
         [
-            (idx(stack.write0_addr_lo), F::ONE),
+            (COL_STACK_WRITE0_ADDR_LO, F::ONE),
             (idx(state.sp_before), -f_u64(2)),
             (COL_ONE, f_u64(6)),
         ],
@@ -622,28 +608,28 @@ fn push_select_stack_addrs(b: &mut R1csBuilder, state: &StateColumns, stack: &Op
 /// The zero-test and delta rows are intentionally global: the witness builder
 /// populates `COL_SELECT_COND_IS_ZERO`, `COL_SELECT_SCRATCH_INV`, and both
 /// delta columns on every row.
-fn push_select_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns) {
+fn push_select_constraints(b: &mut R1csBuilder) {
     let selector = selector_col(WasmOpcode::Select).unwrap();
     push_zero_test_gadget(
         b,
-        idx(stack.read2_value_lo),
+        COL_STACK_READ2_VALUE_LO,
         COL_SELECT_SCRATCH_INV,
         COL_SELECT_COND_IS_ZERO,
     );
     push_select_mux_limb(
         b,
         selector,
-        idx(stack.read0_value_lo),
-        idx(stack.read1_value_lo),
-        idx(stack.write0_value_lo),
+        COL_STACK_READ0_VALUE_LO,
+        COL_STACK_READ1_VALUE_LO,
+        COL_STACK_WRITE0_VALUE_LO,
         COL_SELECT_OUT_DELTA_LO,
     );
     push_select_mux_limb(
         b,
         selector,
-        idx(stack.read0_value_hi),
-        idx(stack.read1_value_hi),
-        idx(stack.write0_value_hi),
+        COL_STACK_READ0_VALUE_HI,
+        COL_STACK_READ1_VALUE_HI,
+        COL_STACK_WRITE0_VALUE_HI,
         COL_SELECT_OUT_DELTA_HI,
     );
 }
@@ -659,17 +645,12 @@ fn push_select_mux_limb(b: &mut R1csBuilder, selector: usize, lhs: usize, rhs: u
     push_gated_linear_zero(b, selector, [(out, F::ONE), (rhs, -F::ONE), (delta, -F::ONE)]);
 }
 
-fn push_stack_read0_addr_sp_minus_2(
-    b: &mut R1csBuilder,
-    ops: &[WasmOpcode],
-    state: &StateColumns,
-    stack: &OperandStackColumns,
-) {
+fn push_stack_read0_addr_sp_minus_2(b: &mut R1csBuilder, ops: &[WasmOpcode], state: &StateColumns) {
     b.push_row(
         ops.iter()
             .map(|&op| (selector_col(op).expect("stack read0 sp-2 selector"), F::ONE)),
         [
-            (idx(stack.read0_addr_lo), F::ONE),
+            (COL_STACK_READ0_ADDR_LO, F::ONE),
             (idx(state.sp_before), -f_u64(2)),
             (COL_ONE, f_u64(4)),
         ],
@@ -677,17 +658,12 @@ fn push_stack_read0_addr_sp_minus_2(
     );
 }
 
-fn push_stack_read1_addr_sp_minus_1(
-    b: &mut R1csBuilder,
-    ops: &[WasmOpcode],
-    state: &StateColumns,
-    stack: &OperandStackColumns,
-) {
+fn push_stack_read1_addr_sp_minus_1(b: &mut R1csBuilder, ops: &[WasmOpcode], state: &StateColumns) {
     b.push_row(
         ops.iter()
             .map(|&op| (selector_col(op).expect("stack read1 sp-1 selector"), F::ONE)),
         [
-            (idx(stack.read1_addr_lo), F::ONE),
+            (COL_STACK_READ1_ADDR_LO, F::ONE),
             (idx(state.sp_before), -f_u64(2)),
             (COL_ONE, f_u64(2)),
         ],
@@ -695,17 +671,12 @@ fn push_stack_read1_addr_sp_minus_1(
     );
 }
 
-fn push_stack_write0_addr_sp_minus_2(
-    b: &mut R1csBuilder,
-    ops: &[WasmOpcode],
-    state: &StateColumns,
-    stack: &OperandStackColumns,
-) {
+fn push_stack_write0_addr_sp_minus_2(b: &mut R1csBuilder, ops: &[WasmOpcode], state: &StateColumns) {
     b.push_row(
         ops.iter()
             .map(|&op| (selector_col(op).expect("stack write0 sp-2 selector"), F::ONE)),
         [
-            (idx(stack.write0_addr_lo), F::ONE),
+            (COL_STACK_WRITE0_ADDR_LO, F::ONE),
             (idx(state.sp_before), -f_u64(2)),
             (COL_ONE, f_u64(4)),
         ],
@@ -713,7 +684,7 @@ fn push_stack_write0_addr_sp_minus_2(
     );
 }
 
-fn push_add_relation(b: &mut R1csBuilder, stack: &OperandStackColumns) {
+fn push_add_relation(b: &mut R1csBuilder) {
     // write0 = (read0 + read1) mod 2^32. COL_WIDE_AUX0 holds the carry bit.
     // Soundness relies on COL_WIDE_AUX0's `ColumnWidth::Boolean` tag: without
     // that, a cheating prover could pick any field element for the carry and
@@ -723,15 +694,15 @@ fn push_add_relation(b: &mut R1csBuilder, stack: &OperandStackColumns) {
         b,
         selector_col(WasmOpcode::I32Add).unwrap(),
         [
-            (idx(stack.read0_value_lo), F::ONE),
-            (idx(stack.read1_value_lo), F::ONE),
-            (idx(stack.write0_value_lo), -F::ONE),
+            (COL_STACK_READ0_VALUE_LO, F::ONE),
+            (COL_STACK_READ1_VALUE_LO, F::ONE),
+            (COL_STACK_WRITE0_VALUE_LO, -F::ONE),
             (COL_WIDE_AUX0, -f_u64(1_u64 << 32)),
         ],
     );
 }
 
-fn push_sub_relation(b: &mut R1csBuilder, stack: &OperandStackColumns) {
+fn push_sub_relation(b: &mut R1csBuilder) {
     // write0 = (read0 - read1) mod 2^32. COL_WIDE_AUX0 holds the borrow bit
     // (1 iff read0 < read1); same soundness argument as [`push_add_relation`]:
     // the Boolean width tag on COL_WIDE_AUX0 is what pins the borrow to {0, 1},
@@ -740,21 +711,21 @@ fn push_sub_relation(b: &mut R1csBuilder, stack: &OperandStackColumns) {
         b,
         selector_col(WasmOpcode::I32Sub).unwrap(),
         [
-            (idx(stack.read0_value_lo), F::ONE),
-            (idx(stack.read1_value_lo), -F::ONE),
-            (idx(stack.write0_value_lo), -F::ONE),
+            (COL_STACK_READ0_VALUE_LO, F::ONE),
+            (COL_STACK_READ1_VALUE_LO, -F::ONE),
+            (COL_STACK_WRITE0_VALUE_LO, -F::ONE),
             (COL_WIDE_AUX0, f_u64(1_u64 << 32)),
         ],
     );
 }
 
-fn push_i64_add_relation(b: &mut R1csBuilder, stack: &OperandStackColumns) {
+fn push_i64_add_relation(b: &mut R1csBuilder) {
     let selector = selector_col(WasmOpcode::I64Add).unwrap();
     b.push_row(
         [
-            (idx(stack.read0_value_lo), F::ONE),
-            (idx(stack.read1_value_lo), F::ONE),
-            (idx(stack.write0_value_lo), -F::ONE),
+            (COL_STACK_READ0_VALUE_LO, F::ONE),
+            (COL_STACK_READ1_VALUE_LO, F::ONE),
+            (COL_STACK_WRITE0_VALUE_LO, -F::ONE),
             (COL_WIDE_AUX0, -f_u64(1_u64 << 32)),
         ],
         [(selector, F::ONE)],
@@ -762,9 +733,9 @@ fn push_i64_add_relation(b: &mut R1csBuilder, stack: &OperandStackColumns) {
     );
     b.push_row(
         [
-            (idx(stack.read0_value_hi), F::ONE),
-            (idx(stack.read1_value_hi), F::ONE),
-            (idx(stack.write0_value_hi), -F::ONE),
+            (COL_STACK_READ0_VALUE_HI, F::ONE),
+            (COL_STACK_READ1_VALUE_HI, F::ONE),
+            (COL_STACK_WRITE0_VALUE_HI, -F::ONE),
             (COL_WIDE_AUX0, F::ONE),
             (COL_WIDE_AUX1, -f_u64(1_u64 << 32)),
         ],
@@ -773,24 +744,24 @@ fn push_i64_add_relation(b: &mut R1csBuilder, stack: &OperandStackColumns) {
     );
 }
 
-fn push_i64_sub_relation(b: &mut R1csBuilder, stack: &OperandStackColumns) {
+fn push_i64_sub_relation(b: &mut R1csBuilder) {
     let selector = selector_col(WasmOpcode::I64Sub).unwrap();
     b.push_row(
         [
-            (idx(stack.read0_value_lo), F::ONE),
+            (COL_STACK_READ0_VALUE_LO, F::ONE),
             (COL_WIDE_AUX0, f_u64(1_u64 << 32)),
-            (idx(stack.write0_value_lo), -F::ONE),
-            (idx(stack.read1_value_lo), -F::ONE),
+            (COL_STACK_WRITE0_VALUE_LO, -F::ONE),
+            (COL_STACK_READ1_VALUE_LO, -F::ONE),
         ],
         [(selector, F::ONE)],
         [],
     );
     b.push_row(
         [
-            (idx(stack.read0_value_hi), F::ONE),
+            (COL_STACK_READ0_VALUE_HI, F::ONE),
             (COL_WIDE_AUX1, f_u64(1_u64 << 32)),
-            (idx(stack.write0_value_hi), -F::ONE),
-            (idx(stack.read1_value_hi), -F::ONE),
+            (COL_STACK_WRITE0_VALUE_HI, -F::ONE),
+            (COL_STACK_READ1_VALUE_HI, -F::ONE),
             (COL_WIDE_AUX0, -F::ONE),
         ],
         [(selector, F::ONE)],
@@ -798,41 +769,34 @@ fn push_i64_sub_relation(b: &mut R1csBuilder, stack: &OperandStackColumns) {
     );
 }
 
-fn push_i32_wrap_i64_relation(b: &mut R1csBuilder, stack: &OperandStackColumns) {
+fn push_i32_wrap_i64_relation(b: &mut R1csBuilder) {
     let selector = selector_col(WasmOpcode::I32WrapI64).unwrap();
     push_gated_linear_zero(
         b,
         selector,
-        [
-            (idx(stack.write0_value_lo), F::ONE),
-            (idx(stack.read0_value_lo), -F::ONE),
-        ],
+        [(COL_STACK_WRITE0_VALUE_LO, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
     );
-    push_gated_linear_zero(b, selector, [(idx(stack.write0_value_hi), F::ONE)]);
+    push_gated_linear_zero(b, selector, [(COL_STACK_WRITE0_VALUE_HI, F::ONE)]);
 }
 
-fn push_i64_extend_i32_u_low_relation(b: &mut R1csBuilder, stack: &OperandStackColumns) {
+fn push_i64_extend_i32_u_low_relation(b: &mut R1csBuilder) {
     b.push_row(
         [(selector_col(WasmOpcode::I64ExtendI32U).unwrap(), F::ONE)],
-        [
-            (idx(stack.write0_value_lo), F::ONE),
-            (idx(stack.read0_value_lo), -F::ONE),
-        ],
+        [(COL_STACK_WRITE0_VALUE_LO, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
         [],
     );
 }
 
-fn push_i64_extend_i32_u_high_relation(b: &mut R1csBuilder, stack: &OperandStackColumns) {
+fn push_i64_extend_i32_u_high_relation(b: &mut R1csBuilder) {
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::I64ExtendI32U).unwrap(),
-        [(idx(stack.write0_value_hi), F::ONE)],
+        [(COL_STACK_WRITE0_VALUE_HI, F::ONE)],
     );
 }
 
 fn push_integer_sign_extend_relation(
     b: &mut R1csBuilder,
-    stack: &OperandStackColumns,
     sign_extension: &SignExtensionColumns,
     opcode: WasmOpcode,
     width_bytes: usize,
@@ -840,7 +804,7 @@ fn push_integer_sign_extend_relation(
 ) {
     debug_assert!((1..=4).contains(&width_bytes));
     let selector = selector_col(opcode).unwrap();
-    push_u32_le_bytes_decomp(b, [selector], idx(stack.read0_value_lo), sign_extension.bytes.map(idx));
+    push_u32_le_bytes_decomp(b, [selector], COL_STACK_READ0_VALUE_LO, sign_extension.bytes.map(idx));
 
     let sign_source = sign_extension.bytes[width_bytes - 1];
     push_gated_linear_zero(
@@ -865,7 +829,7 @@ fn push_integer_sign_extend_relation(
         .map(|(byte_index, &byte)| (idx(byte), -f_u64(1u64 << (byte_index * 8))));
     b.push_row(
         [(selector, F::ONE)],
-        std::iter::once((idx(stack.write0_value_lo), F::ONE))
+        std::iter::once((COL_STACK_WRITE0_VALUE_LO, F::ONE))
             .chain(retained_bytes)
             .chain(std::iter::once((idx(sign_extension.bit), -f_u64(u64::from(sign_fill))))),
         [],
@@ -875,7 +839,7 @@ fn push_integer_sign_extend_relation(
         b.push_row(
             [(selector, F::ONE)],
             [
-                (idx(stack.write0_value_hi), F::ONE),
+                (COL_STACK_WRITE0_VALUE_HI, F::ONE),
                 (idx(sign_extension.bit), -f_u64(0xffff_ffff)),
             ],
             [],
@@ -887,14 +851,14 @@ fn push_integer_sign_extend_relation(
 /// u32 result. i64.eqz / i64.eq / i64.ne have `wide_values_enabled = 1`
 /// for their inputs, which disables the "narrow high limbs zero" rule for
 /// `write0_value_hi`; this constraint pins the output hi limb back to 0.
-fn push_i64_comparator_high_zero(b: &mut R1csBuilder, stack: &OperandStackColumns) {
+fn push_i64_comparator_high_zero(b: &mut R1csBuilder) {
     b.push_row(
         [
             (selector_col(WasmOpcode::I64Eqz).unwrap(), F::ONE),
             (selector_col(WasmOpcode::I64Eq).unwrap(), F::ONE),
             (selector_col(WasmOpcode::I64Ne).unwrap(), F::ONE),
         ],
-        [(idx(stack.write0_value_hi), F::ONE)],
+        [(COL_STACK_WRITE0_VALUE_HI, F::ONE)],
         [],
     );
 }
@@ -929,7 +893,7 @@ const COMPARATOR_OPS: &[WasmOpcode] = &[
 /// gates degenerate, and the witness sets `cmp_lo_diff = cmp_hi_diff = 0`
 /// → both flags = 1, `cmp_and = 1`. None of those values are observed
 /// elsewhere on non-comparator rows.
-fn push_comparator_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns) {
+fn push_comparator_constraints(b: &mut R1csBuilder) {
     let sel_eqz_i32 = selector_col(WasmOpcode::I32Eqz).unwrap();
     let sel_eqz_i64 = selector_col(WasmOpcode::I64Eqz).unwrap();
     let sel_eq = selector_col(WasmOpcode::I32Eq).unwrap();
@@ -941,13 +905,13 @@ fn push_comparator_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns)
     push_gated_linear_zero(
         b,
         sel_eqz_i32,
-        [(COL_CMP_LO_DIFF, F::ONE), (idx(stack.read0_value_lo), -F::ONE)],
+        [(COL_CMP_LO_DIFF, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
     );
     // cmp_lo_diff = read0_value (lo limb only) on i64.eqz rows.
     push_gated_linear_zero(
         b,
         sel_eqz_i64,
-        [(COL_CMP_LO_DIFF, F::ONE), (idx(stack.read0_value_lo), -F::ONE)],
+        [(COL_CMP_LO_DIFF, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
     );
     // cmp_lo_diff = read0_value - read1_value on i32.eq/ne and i64.eq/ne rows.
     // (Same lo-limb diff expression for all four; hi-limb diff is pinned
@@ -961,8 +925,8 @@ fn push_comparator_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns)
         ],
         [
             (COL_CMP_LO_DIFF, F::ONE),
-            (idx(stack.read0_value_lo), -F::ONE),
-            (idx(stack.read1_value_lo), F::ONE),
+            (COL_STACK_READ0_VALUE_LO, -F::ONE),
+            (COL_STACK_READ1_VALUE_LO, F::ONE),
         ],
         [],
     );
@@ -975,14 +939,14 @@ fn push_comparator_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns)
     push_gated_linear_zero(
         b,
         sel_eqz_i64,
-        [(COL_CMP_HI_DIFF, F::ONE), (idx(stack.read0_value_hi), -F::ONE)],
+        [(COL_CMP_HI_DIFF, F::ONE), (COL_STACK_READ0_VALUE_HI, -F::ONE)],
     );
     b.push_row(
         [(sel_i64_eq, F::ONE), (sel_i64_ne, F::ONE)],
         [
             (COL_CMP_HI_DIFF, F::ONE),
-            (idx(stack.read0_value_hi), -F::ONE),
-            (idx(stack.read1_value_hi), F::ONE),
+            (COL_STACK_READ0_VALUE_HI, -F::ONE),
+            (COL_STACK_READ1_VALUE_HI, F::ONE),
         ],
         [],
     );
@@ -999,13 +963,13 @@ fn push_comparator_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns)
     // write0_value = cmp_lo_is_zero on i32.eqz / i32.eq rows.
     b.push_row(
         [(sel_eqz_i32, F::ONE), (sel_eq, F::ONE)],
-        [(idx(stack.write0_value_lo), F::ONE), (COL_CMP_LO_IS_ZERO, -F::ONE)],
+        [(COL_STACK_WRITE0_VALUE_LO, F::ONE), (COL_CMP_LO_IS_ZERO, -F::ONE)],
         [],
     );
     // write0_value = cmp_and on i64.eqz / i64.eq rows.
     b.push_row(
         [(sel_eqz_i64, F::ONE), (sel_i64_eq, F::ONE)],
-        [(idx(stack.write0_value_lo), F::ONE), (COL_CMP_AND, -F::ONE)],
+        [(COL_STACK_WRITE0_VALUE_LO, F::ONE), (COL_CMP_AND, -F::ONE)],
         [],
     );
     // write0_value = 1 - cmp_lo_is_zero on i32.ne rows.
@@ -1013,7 +977,7 @@ fn push_comparator_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns)
         b,
         sel_ne,
         [
-            (idx(stack.write0_value_lo), F::ONE),
+            (COL_STACK_WRITE0_VALUE_LO, F::ONE),
             (COL_CMP_LO_IS_ZERO, F::ONE),
             (COL_ONE, -F::ONE),
         ],
@@ -1023,19 +987,19 @@ fn push_comparator_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns)
         b,
         sel_i64_ne,
         [
-            (idx(stack.write0_value_lo), F::ONE),
+            (COL_STACK_WRITE0_VALUE_LO, F::ONE),
             (COL_CMP_AND, F::ONE),
             (COL_ONE, -F::ONE),
         ],
     );
 }
 
-fn push_shout_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns, op_table: &OpTableColumns) {
+fn push_shout_constraints(b: &mut R1csBuilder) {
     b.push_row(
         WasmOpTable::all()
             .into_iter()
             .map(|op| (selector_for_op_table(op), F::ONE)),
-        [(idx(op_table.value), F::ONE), (idx(stack.write0_value_lo), -F::ONE)],
+        [(COL_OP_TABLE_VALUE, F::ONE), (COL_STACK_WRITE0_VALUE_LO, -F::ONE)],
         [],
     );
     b.push_row(
@@ -1043,7 +1007,7 @@ fn push_shout_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns, op_t
             .into_iter()
             .map(|op| (selector_for_op_table(op), F::from_u64(u64::from(op.op_table_id())))),
         [(COL_ONE, F::ONE)],
-        [(idx(op_table.id), F::ONE)],
+        [(COL_OP_TABLE_ID, F::ONE)],
     );
 }
 

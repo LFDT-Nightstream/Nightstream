@@ -9,8 +9,11 @@
 
 use super::super::gadgets::{push_gated_linear_zero, push_u32_le_bytes_decomp};
 use super::super::isa::{WasmMemoryAccessKind, WasmMemoryExtension, WasmOpcode};
-use super::super::layout::{selector_col, COL_MEM_LOAD_LIVE, COL_MEM_STORE_LIVE, COL_ONE};
-use super::super::lookup_binding_builder::{Column, LinearMemoryColumns, OperandStackColumns, SignExtensionColumns};
+use super::super::layout::{
+    selector_col, COL_MEM_LOAD_LIVE, COL_MEM_STORE_LIVE, COL_ONE, COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_VALUE_HI,
+    COL_STACK_READ1_VALUE_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO,
+};
+use super::super::lookup_binding_builder::{Column, LinearMemoryColumns, SignExtensionColumns};
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::{f_u64, idx, linear_memory_ops, opcode_tag, shared};
 use neo_math::F;
@@ -61,7 +64,6 @@ fn load_ops_by_result_extension(result_bits: u8, extension: WasmMemoryExtension)
 
 pub(super) fn push_linear_memory_constraints(
     b: &mut R1csBuilder,
-    stack: &OperandStackColumns,
     linear_memory: &LinearMemoryColumns,
     sign_extension: &SignExtensionColumns,
 ) {
@@ -69,7 +71,7 @@ pub(super) fn push_linear_memory_constraints(
     // with the single declaration on `WasmOpcodeInfo`. Adding a new memory
     // opcode here is a no-op once `uses_linear_memory` returns true for it.
     let linear_memory_selectors: Vec<usize> = linear_memory_ops().into_iter().map(op_selector).collect();
-    push_address_normalization(b, stack, linear_memory, &linear_memory_selectors);
+    push_address_normalization(b, linear_memory, &linear_memory_selectors);
     push_width_selector_constraints(b, linear_memory);
     push_width_opcode_bindings(b, linear_memory);
     push_lane_usage_constraints(b, linear_memory);
@@ -78,12 +80,12 @@ pub(super) fn push_linear_memory_constraints(
     // other trap causes.
     push_lane_direction_gates(b, linear_memory);
     push_lane_adjacency_constraints(b, linear_memory);
-    push_access_byte_bindings(b, stack, linear_memory, sign_extension);
+    push_access_byte_bindings(b, linear_memory, sign_extension);
     push_byte_preservation_constraints(b, linear_memory);
 
-    push_load_routing_constraints(b, stack, linear_memory, sign_extension);
-    push_i64_load_extension_constraints(b, stack, linear_memory, sign_extension);
-    push_store_routing_constraints(b, stack, linear_memory, sign_extension);
+    push_load_routing_constraints(b, linear_memory, sign_extension);
+    push_i64_load_extension_constraints(b, linear_memory, sign_extension);
+    push_store_routing_constraints(b, linear_memory, sign_extension);
 }
 
 /// On store rows, preserve each touched lane byte outside the store's write
@@ -166,7 +168,6 @@ fn push_byte_preservation_constraints(b: &mut R1csBuilder, linear_memory: &Linea
 
 fn push_address_normalization(
     b: &mut R1csBuilder,
-    stack: &OperandStackColumns,
     linear_memory: &LinearMemoryColumns,
     linear_memory_selectors: &[usize],
 ) {
@@ -208,7 +209,7 @@ fn push_address_normalization(
                 [
                     (idx(linear_memory.lane0_addr), f_u64(4)),
                     (idx(linear_memory.byte_offset), F::ONE),
-                    (idx(stack.read0_value_lo), -F::ONE),
+                    (COL_STACK_READ0_VALUE_LO, -F::ONE),
                     (idx(linear_memory.imm_offset), -F::ONE),
                 ],
                 [],
@@ -492,7 +493,6 @@ fn push_lane_adjacency_constraints(b: &mut R1csBuilder, linear_memory: &LinearMe
 
 fn push_access_byte_bindings(
     b: &mut R1csBuilder,
-    stack: &OperandStackColumns,
     linear_memory: &LinearMemoryColumns,
     sign_extension: &SignExtensionColumns,
 ) {
@@ -506,7 +506,7 @@ fn push_access_byte_bindings(
         push_u32_le_bytes_decomp(
             b,
             load_low_byte_ops.iter().copied().map(op_selector),
-            idx(stack.write0_value_lo),
+            COL_STACK_WRITE0_VALUE_LO,
             sign_extension.bytes.map(idx),
         );
     });
@@ -515,7 +515,7 @@ fn push_access_byte_bindings(
         push_u32_le_bytes_decomp(
             b,
             store_low_byte_ops.iter().copied().map(op_selector),
-            idx(stack.read1_value_lo),
+            COL_STACK_READ1_VALUE_LO,
             sign_extension.bytes.map(idx),
         );
     });
@@ -528,13 +528,13 @@ fn push_access_byte_bindings(
             push_u32_le_bytes_decomp(
                 b,
                 [op_selector(WasmOpcode::I64Load)],
-                idx(stack.write0_value_hi),
+                COL_STACK_WRITE0_VALUE_HI,
                 linear_memory.access_bytes_hi.map(idx),
             );
             push_u32_le_bytes_decomp(
                 b,
                 [op_selector(WasmOpcode::I64Store)],
-                idx(stack.read1_value_hi),
+                COL_STACK_READ1_VALUE_HI,
                 linear_memory.access_bytes_hi.map(idx),
             );
         },
@@ -543,7 +543,6 @@ fn push_access_byte_bindings(
 
 fn push_load_routing_constraints(
     b: &mut R1csBuilder,
-    stack: &OperandStackColumns,
     linear_memory: &LinearMemoryColumns,
     sign_extension: &SignExtensionColumns,
 ) {
@@ -607,13 +606,12 @@ fn push_load_routing_constraints(
         },
     );
     b.with_tag(opcode_tag("linear memory load64 routing", WasmOpcode::I64Load), |b| {
-        push_linear_memory_load64_constraints(b, stack, linear_memory, sign_extension);
+        push_linear_memory_load64_constraints(b, linear_memory, sign_extension);
     });
 }
 
 fn push_i64_load_extension_constraints(
     b: &mut R1csBuilder,
-    stack: &OperandStackColumns,
     linear_memory: &LinearMemoryColumns,
     sign_extension: &SignExtensionColumns,
 ) {
@@ -623,7 +621,7 @@ fn push_i64_load_extension_constraints(
         |b| {
             b.push_row(
                 op_selectors(&i64_unsigned_load_ops),
-                [(idx(stack.write0_value_hi), F::ONE)],
+                [(COL_STACK_WRITE0_VALUE_HI, F::ONE)],
                 [],
             );
         },
@@ -684,7 +682,7 @@ fn push_i64_load_extension_constraints(
             b.push_row(
                 op_selectors(&i64_signed_load_ops),
                 [
-                    (idx(stack.write0_value_hi), F::ONE),
+                    (COL_STACK_WRITE0_VALUE_HI, F::ONE),
                     (idx(sign_extension.bit), -f_u64(0xFFFF_FFFF)),
                 ],
                 [],
@@ -695,7 +693,6 @@ fn push_i64_load_extension_constraints(
 
 fn push_store_routing_constraints(
     b: &mut R1csBuilder,
-    stack: &OperandStackColumns,
     linear_memory: &LinearMemoryColumns,
     sign_extension: &SignExtensionColumns,
 ) {
@@ -715,7 +712,7 @@ fn push_store_routing_constraints(
         },
     );
     b.with_tag(opcode_tag("linear memory store64 routing", WasmOpcode::I64Store), |b| {
-        push_linear_memory_store64_constraints(b, stack, linear_memory, sign_extension);
+        push_linear_memory_store64_constraints(b, linear_memory, sign_extension);
     });
     // i64.storeN ops truncate the lo limb to N bytes and reuse the same
     // byte-selection / subword machinery as i32.storeN. The hi limb is read
@@ -907,7 +904,6 @@ fn push_linear_memory_load16_u_constraints(
 
 fn push_linear_memory_load64_constraints(
     b: &mut R1csBuilder,
-    stack: &OperandStackColumns,
     linear_memory: &LinearMemoryColumns,
     sign_extension: &SignExtensionColumns,
 ) {
@@ -918,7 +914,7 @@ fn push_linear_memory_load64_constraints(
         b,
         idx(linear_memory.i64_load_offset_is[0]),
         [
-            (idx(stack.write0_value_lo), F::ONE),
+            (COL_STACK_WRITE0_VALUE_LO, F::ONE),
             (idx(linear_memory.lane0_value), -F::ONE),
         ],
     );
@@ -926,7 +922,7 @@ fn push_linear_memory_load64_constraints(
         b,
         idx(linear_memory.i64_load_offset_is[0]),
         [
-            (idx(stack.write0_value_hi), F::ONE),
+            (COL_STACK_WRITE0_VALUE_HI, F::ONE),
             (idx(linear_memory.lane1_value), -F::ONE),
         ],
     );
@@ -992,7 +988,6 @@ fn push_linear_memory_load64_constraints(
 
 fn push_linear_memory_store64_constraints(
     b: &mut R1csBuilder,
-    stack: &OperandStackColumns,
     linear_memory: &LinearMemoryColumns,
     sign_extension: &SignExtensionColumns,
 ) {
@@ -1000,7 +995,7 @@ fn push_linear_memory_store64_constraints(
         b,
         idx(linear_memory.i64_store_offset_is[0]),
         [
-            (idx(stack.read1_value_lo), F::ONE),
+            (COL_STACK_READ1_VALUE_LO, F::ONE),
             (idx(linear_memory.lane0_value), -F::ONE),
         ],
     );
@@ -1008,7 +1003,7 @@ fn push_linear_memory_store64_constraints(
         b,
         idx(linear_memory.i64_store_offset_is[0]),
         [
-            (idx(stack.read1_value_hi), F::ONE),
+            (COL_STACK_READ1_VALUE_HI, F::ONE),
             (idx(linear_memory.lane1_value), -F::ONE),
         ],
     );

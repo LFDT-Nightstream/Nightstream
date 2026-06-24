@@ -7,11 +7,13 @@ use super::super::layout::{
     COL_CI_ENTRY_NULL_INV, COL_CI_OOB, COL_CI_TYPE_EQ, COL_CI_TYPE_EQ_INV, COL_CMP_GE, COL_CMP_LOW,
     COL_DIV_DIVIDEND_IS_MIN, COL_DIV_DIVIDEND_MIN_INV, COL_DIV_DIVISOR_INV, COL_DIV_DIVISOR_IS_NEG1,
     COL_DIV_DIVISOR_IS_ZERO, COL_DIV_DIVISOR_NEG1_INV, COL_DIV_OVERFLOW, COL_DIV_OVERFLOW_COND, COL_DIV_TRAP,
-    COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_MEM_LOAD_LIVE, COL_MEM_OOB, COL_MEM_STORE_LIVE, COL_ONE,
+    COL_EXPECTED_TYPE_ID, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_TYPE_ID, COL_MEMORY_PAGES_BEFORE,
+    COL_MEM_LOAD_LIVE, COL_MEM_OOB, COL_MEM_STORE_LIVE, COL_ONE, COL_OUTPUT_CAPTURED, COL_STACK_READ0_VALUE_HI,
+    COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_VALUE_HI, COL_STACK_READ1_VALUE_LO, COL_STACK_WRITE0_VALUE_HI,
+    COL_STACK_WRITE0_VALUE_LO, COL_TABLE_INDEX, COL_TABLE_SIZE, COL_TABLE_VALUE,
 };
 use super::super::lookup_binding_builder::{
-    CallColumns, Column, ControlColumns, FunctionTypeColumns, LinearMemoryColumns, MemoryPagesColumns,
-    ModuleTypeColumns, OperandStackColumns, StateColumns, TableColumns, TableSizeColumns, WasmLookupBindingLayout,
+    CallColumns, ControlColumns, LinearMemoryColumns, StateColumns, WasmLookupBindingLayout,
 };
 use super::{always, idx, opcode_tag, shared, R1csBuilder};
 use neo_math::F;
@@ -20,23 +22,16 @@ use p3_field::PrimeCharacteristicRing;
 /// Emit trap-cause flags and the state transition that carries `trapped`.
 pub(super) fn push_trap_constraints(b: &mut R1csBuilder, layout: &WasmLookupBindingLayout) {
     b.with_tag(always("div trap"), |b| {
-        push_div_trap_constraints(b, &layout.stack);
+        push_div_trap_constraints(b);
     });
     b.with_tag(opcode_tag("call_indirect trap", WasmOpcode::CallIndirect), |b| {
-        push_call_indirect_trap_constraints(
-            b,
-            &layout.call,
-            &layout.table,
-            &layout.table_sizes,
-            &layout.function_types,
-            &layout.module_types,
-        );
+        push_call_indirect_trap_constraints(b, &layout.call);
     });
     b.with_tag(shared("linear memory oob trap", &linear_memory_ops()), |b| {
-        push_linear_memory_oob_trap_constraints(b, &layout.linear_memory, &layout.memory_pages);
+        push_linear_memory_oob_trap_constraints(b, &layout.linear_memory);
     });
     b.with_tag(always("trap transition"), |b| {
-        push_trapped_state_transition_constraints(b, &layout.control, &layout.state, layout.output.captured);
+        push_trapped_state_transition_constraints(b, &layout.control, &layout.state);
     });
 }
 
@@ -64,11 +59,7 @@ fn memory_ops_of_kind(kind: WasmMemoryAccessKind) -> Vec<WasmOpcode> {
 /// This is exact because wasm pages are aligned to 4-byte lanes.
 ///
 /// OOB rows de-gate memory tuples; the trap transition consumes `COL_MEM_OOB`.
-fn push_linear_memory_oob_trap_constraints(
-    b: &mut R1csBuilder,
-    linear_memory: &LinearMemoryColumns,
-    memory_pages: &MemoryPagesColumns,
-) {
+fn push_linear_memory_oob_trap_constraints(b: &mut R1csBuilder, linear_memory: &LinearMemoryColumns) {
     let mem_selectors: Vec<usize> = linear_memory_ops()
         .into_iter()
         .map(|op| selector_col(op).expect("linear memory selector"))
@@ -82,7 +73,7 @@ fn push_linear_memory_oob_trap_constraints(
             (idx(linear_memory.use_lane1), F::ONE),
             (idx(linear_memory.use_lane2), F::ONE),
         ],
-        [(idx(memory_pages.before), F::from_u64(16384))],
+        [(COL_MEMORY_PAGES_BEFORE, F::from_u64(16384))],
         COL_CMP_LOW,
         COL_CMP_GE,
     );
@@ -127,11 +118,11 @@ fn signed_div_ops() -> Vec<WasmOpcode> {
         .collect()
 }
 
-fn push_div_trap_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns) {
+fn push_div_trap_constraints(b: &mut R1csBuilder) {
     // Div/rem by zero is terminal. Since both divisor limbs are U32,
     // read1_lo + read1_hi is below the field modulus, so the sum is zero
     // exactly when both limbs are zero.
-    let divisor = [(idx(stack.read1_value_lo), F::ONE), (idx(stack.read1_value_hi), F::ONE)];
+    let divisor = [(COL_STACK_READ1_VALUE_LO, F::ONE), (COL_STACK_READ1_VALUE_HI, F::ONE)];
     push_zero_test_expr_gadget(b, divisor, COL_DIV_DIVISOR_INV, COL_DIV_DIVISOR_IS_ZERO);
 
     // Signed division overflow (MIN / -1) is a trap because the result
@@ -162,8 +153,8 @@ fn push_div_trap_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns) {
     let i32_div_s = selector_col(WasmOpcode::I32DivS).expect("i32.div_s selector");
     let i64_div_s = selector_col(WasmOpcode::I64DivS).expect("i64.div_s selector");
     let dividend_min = [
-        (idx(stack.read0_value_lo), F::ONE),
-        (idx(stack.read0_value_hi), F::from_u64(1 << 32)),
+        (COL_STACK_READ0_VALUE_LO, F::ONE),
+        (COL_STACK_READ0_VALUE_HI, F::from_u64(1 << 32)),
         (i32_div_s, -F::from_u64(1 << 31)),
         (i64_div_s, -F::from_u64(1 << 63)),
     ];
@@ -179,8 +170,8 @@ fn push_div_trap_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns) {
     // high limb is pinned to zero (same `narrow high limbs zero`
     // constraint as above), so it degrades to a simple equality check.
     let divisor_neg1 = [
-        (idx(stack.read1_value_lo), F::ONE),
-        (idx(stack.read1_value_hi), F::ONE),
+        (COL_STACK_READ1_VALUE_LO, F::ONE),
+        (COL_STACK_READ1_VALUE_HI, F::ONE),
         // limb sum of -1i32: u32::MAX (the high limb is 0)
         (i32_div_s, -F::from_u64(u32::MAX as u64)),
         // limb sum of -1i64: both limbs are u32::MAX
@@ -213,26 +204,19 @@ fn push_div_trap_constraints(b: &mut R1csBuilder, stack: &OperandStackColumns) {
     );
     // The faulting row has normal stack arity, but no real result: pin
     // the synthetic write to zero and de-gate the op-table lookup below.
-    push_gated_linear_zero(b, COL_DIV_TRAP, [(idx(stack.write0_value_lo), F::ONE)]);
-    push_gated_linear_zero(b, COL_DIV_TRAP, [(idx(stack.write0_value_hi), F::ONE)]);
+    push_gated_linear_zero(b, COL_DIV_TRAP, [(COL_STACK_WRITE0_VALUE_LO, F::ONE)]);
+    push_gated_linear_zero(b, COL_DIV_TRAP, [(COL_STACK_WRITE0_VALUE_HI, F::ONE)]);
 }
 
-fn push_call_indirect_trap_constraints(
-    b: &mut R1csBuilder,
-    call: &CallColumns,
-    table: &TableColumns,
-    table_sizes: &TableSizeColumns,
-    function_types: &FunctionTypeColumns,
-    module_types: &ModuleTypeColumns,
-) {
+fn push_call_indirect_trap_constraints(b: &mut R1csBuilder, call: &CallColumns) {
     let call_indirect = selector_col(WasmOpcode::CallIndirect).unwrap();
 
     // ge = selector * ( table_index >= table_size )
     push_unsigned_ge_gadget(
         b,
         [call_indirect],
-        [(idx(table.index), F::ONE)],
-        [(idx(table_sizes.value), F::ONE)],
+        [(COL_TABLE_INDEX, F::ONE)],
+        [(COL_TABLE_SIZE, F::ONE)],
         COL_CMP_LOW,
         COL_CMP_GE,
     );
@@ -245,15 +229,12 @@ fn push_call_indirect_trap_constraints(
     );
 
     // 0 encodes the null funcref
-    push_zero_test_gadget(b, idx(table.value), COL_CI_ENTRY_NULL_INV, COL_CI_ENTRY_IS_NULL);
+    push_zero_test_gadget(b, COL_TABLE_VALUE, COL_CI_ENTRY_NULL_INV, COL_CI_ENTRY_IS_NULL);
 
     // typecheck
     push_zero_test_expr_gadget(
         b,
-        [
-            (idx(function_types.type_id), F::ONE),
-            (idx(module_types.expected_type_id), -F::ONE),
-        ],
+        [(COL_FUNCTION_TYPE_ID, F::ONE), (COL_EXPECTED_TYPE_ID, -F::ONE)],
         COL_CI_TYPE_EQ_INV,
         COL_CI_TYPE_EQ,
     );
@@ -310,12 +291,7 @@ fn push_call_indirect_trap_constraints(
     );
 }
 
-fn push_trapped_state_transition_constraints(
-    b: &mut R1csBuilder,
-    control: &ControlColumns,
-    state: &StateColumns,
-    output_captured: Column,
-) {
+fn push_trapped_state_transition_constraints(b: &mut R1csBuilder, control: &ControlColumns, state: &StateColumns) {
     b.push_linear_zero([
         (idx(state.trapped_after), F::ONE),
         (idx(state.trapped_before), -F::ONE),
@@ -330,7 +306,7 @@ fn push_trapped_state_transition_constraints(
         [],
     );
     b.push_row(
-        [(idx(output_captured), F::ONE)],
+        [(COL_OUTPUT_CAPTURED, F::ONE)],
         [(idx(state.trapped_after), F::ONE)],
         [],
     );

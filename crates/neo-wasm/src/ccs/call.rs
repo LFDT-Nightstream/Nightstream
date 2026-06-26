@@ -21,6 +21,7 @@
 
 use super::super::gadgets::{push_gated_linear_zero, push_zero_test_gadget};
 use super::super::isa::WasmOpcode;
+use super::super::ivc_state::StateColumns;
 use super::super::layout::{
     selector_col, CALL_RETURN_PC_CHOICE, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_FUNCTION_REF,
     COL_LOCAL_INDEX, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_ONE,
@@ -29,7 +30,7 @@ use super::super::layout::{
     COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_TABLE_INDEX, COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST,
 };
 use super::super::lookup_binding_builder::{
-    CallColumns, ControlColumns, FrameColumns, ParamInitColumns, StateColumns, WasmLookupBindingLayout,
+    CallColumns, ControlColumns, FrameColumns, ParamInitColumns, WasmLookupBindingLayout,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::{always, idx};

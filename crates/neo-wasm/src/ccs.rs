@@ -15,13 +15,12 @@ mod trap;
 
 use super::gadgets::{push_gated_linear_zero, push_u32_le_bytes_decomp, push_zero_test_gadget};
 use super::isa::{opcode_code, opcode_info_from_code, WasmOpTable, WasmOpcode};
+use super::ivc_state::StateColumns;
 use super::layout::{
     selector_col, COL_ONE, COL_PC_EDGE_KIND, COL_SELECT_OUT_DELTA_HI, COL_SELECT_OUT_DELTA_LO, COL_WIDE_AUX0,
     COL_WIDE_AUX1, PUBLIC_INPUTS, SELECTOR_COLS, WITNESS_WIDTH,
 };
-use super::lookup_binding_builder::{
-    build_wasm_lookup_binding_layout, Column, ControlColumns, SignExtensionColumns, StateColumns,
-};
+use super::lookup_binding_builder::{build_wasm_lookup_binding_layout, Column, ControlColumns, SignExtensionColumns};
 use super::tagged_r1cs_builder::{
     WasmConstraintCatalog, WasmConstraintScope, WasmConstraintTag, WasmTaggedR1csBuilder,
 };

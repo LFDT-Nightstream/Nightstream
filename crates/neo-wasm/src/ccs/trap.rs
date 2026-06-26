@@ -2,6 +2,7 @@ use super::super::gadgets::{
     push_gated_linear_zero, push_unsigned_ge_gadget, push_zero_test_expr_gadget, push_zero_test_gadget,
 };
 use super::super::isa::{WasmMemoryAccessKind, WasmOpcode};
+use super::super::ivc_state::StateColumns;
 use super::super::layout::{
     selector_col, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_IS_TRAP, COL_CI_ENTRY_IS_NULL,
     COL_CI_ENTRY_NULL_INV, COL_CI_OOB, COL_CI_TYPE_EQ, COL_CI_TYPE_EQ_INV, COL_CMP_GE, COL_CMP_LOW,
@@ -12,9 +13,7 @@ use super::super::layout::{
     COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_VALUE_HI, COL_STACK_READ1_VALUE_LO, COL_STACK_WRITE0_VALUE_HI,
     COL_STACK_WRITE0_VALUE_LO, COL_TABLE_INDEX, COL_TABLE_SIZE, COL_TABLE_VALUE,
 };
-use super::super::lookup_binding_builder::{
-    CallColumns, ControlColumns, LinearMemoryColumns, StateColumns, WasmLookupBindingLayout,
-};
+use super::super::lookup_binding_builder::{CallColumns, ControlColumns, LinearMemoryColumns, WasmLookupBindingLayout};
 use super::{always, idx, opcode_tag, shared, R1csBuilder};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;

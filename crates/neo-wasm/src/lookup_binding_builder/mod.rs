@@ -1,4 +1,5 @@
 use super::isa::WasmOpTable;
+use super::ivc_state::{build_ivc_state_continuity_links, StateColumns, WasmCrossStepLinkSpec};
 use super::layout::{
     selector_col, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_TYPE_INDEX, COL_CALL_PARAM_COUNT,
     COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR, COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE,
@@ -36,21 +37,18 @@ use super::layout::{
     COL_LINEAR_MEM_OFFSET_IS_0, COL_LINEAR_MEM_OFFSET_IS_1, COL_LINEAR_MEM_OFFSET_IS_2, COL_LINEAR_MEM_OFFSET_IS_3,
     COL_LINEAR_MEM_USE_LANE0, COL_LINEAR_MEM_USE_LANE1, COL_LINEAR_MEM_USE_LANE2, COL_LOCALS_FBP_AFTER,
     COL_LOCALS_FBP_BEFORE, COL_LOCAL_INDEX, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_LOCAL_WRITE_ENABLED,
-    COL_MAX_MEMORY_PAGES_AFTER, COL_MAX_MEMORY_PAGES_BEFORE, COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE,
-    COL_OPCODE_CODE, COL_OP_TABLE_ENABLED, COL_OP_TABLE_ID, COL_OUTPUT_CAPTURED, COL_OUTPUT_ENABLED_AFTER,
-    COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER,
-    COL_OUTPUT_VALUE_LO_BEFORE, COL_PADDING_ACTIVE, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE,
-    COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_AFTER_INV, COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO,
-    COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_AFTER, COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_EDGE_KIND_INV,
-    COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE, COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7, COL_SP_AFTER, COL_SP_BEFORE,
-    COL_STACK_READ0_ACTIVE, COL_STACK_READ0_ADDR_HI, COL_STACK_READ0_ADDR_LO, COL_STACK_READ0_VALUE_HI,
-    COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_ACTIVE, COL_STACK_READ1_ADDR_HI, COL_STACK_READ1_ADDR_LO,
-    COL_STACK_READ1_VALUE_HI, COL_STACK_READ1_VALUE_LO, COL_STACK_READ2_ACTIVE, COL_STACK_READ2_ADDR_HI,
-    COL_STACK_READ2_ADDR_LO, COL_STACK_READ2_VALUE_HI, COL_STACK_READ2_VALUE_LO, COL_STACK_READS,
-    COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI,
-    COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE,
-    COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
-    COL_WIDE_VALUES_ENABLED, WITNESS_WIDTH,
+    COL_OPCODE_CODE, COL_OP_TABLE_ENABLED, COL_OP_TABLE_ID, COL_OUTPUT_CAPTURED, COL_PADDING_ACTIVE,
+    COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_AFTER,
+    COL_PARAM_INIT_REMAINING_AFTER_INV, COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PARAM_INIT_REMAINING_BEFORE,
+    COL_PC_AFTER, COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE,
+    COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READ0_ACTIVE, COL_STACK_READ0_ADDR_HI,
+    COL_STACK_READ0_ADDR_LO, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_ACTIVE,
+    COL_STACK_READ1_ADDR_HI, COL_STACK_READ1_ADDR_LO, COL_STACK_READ1_VALUE_HI, COL_STACK_READ1_VALUE_LO,
+    COL_STACK_READ2_ACTIVE, COL_STACK_READ2_ADDR_HI, COL_STACK_READ2_ADDR_LO, COL_STACK_READ2_VALUE_HI,
+    COL_STACK_READ2_VALUE_LO, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI,
+    COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TABLE_ID,
+    COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE,
+    COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_WIDE_VALUES_ENABLED, WITNESS_WIDTH,
 };
 use super::lookup_semantics::{semantics_for_lookup_family, LookupSemantics};
 use super::tables::WasmLookupArity;
@@ -115,19 +113,6 @@ pub enum WasmMemoryColumnKind {
 pub enum WasmMemoryActivation {
     Always,
     BooleanGate(Column),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct WasmCrossStepLinkSpec {
-    pub name: &'static str,
-    pub description: &'static str,
-    pub column_pairs: Vec<WasmCrossStepColumnPair>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct WasmCrossStepColumnPair {
-    pub prev_after: Column,
-    pub next_before: Column,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -222,16 +207,6 @@ pub struct ControlColumns {
     pub stack_read1_active: Column,
     pub stack_read2_active: Column,
     pub stack_write0_active: Column,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct StateColumns {
-    pub pc_before: Column,
-    pub pc_after: Column,
-    pub sp_before: Column,
-    pub sp_after: Column,
-    pub trapped_before: Column,
-    pub trapped_after: Column,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -498,9 +473,6 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
         })
         .collect();
 
-    // Linear-memory bounds are no longer a lookup family: they are proven
-    // in-CCS as a `mem_oob` trap (see `push_oob_trap_constraints`).
-
     let lookup_bindings: Vec<WasmLookupBindingSpec> = WasmOpTable::all()
         .into_iter()
         .map(|table| WasmLookupBindingSpec {
@@ -534,11 +506,6 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
             role: "op-table row binding",
         })
         .collect();
-
-    // Linear-memory bounds are proven in-CCS (see `push_oob_trap_constraints`):
-    // the highest word lane touched is compared against `16384·memory_pages`
-    // with `push_unsigned_ge_gadget`, and an out-of-bounds access becomes a
-    // modeled `mem_oob` trap. No lookup family is needed for the bound.
 
     let memories = vec![
         WasmMemorySpec {
@@ -1049,96 +1016,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
         },
     ];
 
-    let cross_step_links = vec![
-        WasmCrossStepLinkSpec {
-            name: "pc_continuity",
-            description: "row[i].pc_after must match row[i+1].pc_before",
-            column_pairs: vec![WasmCrossStepColumnPair {
-                prev_after: state.pc_after,
-                next_before: state.pc_before,
-            }],
-        },
-        WasmCrossStepLinkSpec {
-            name: "sp_continuity",
-            description: "row[i].sp_after must match row[i+1].sp_before",
-            column_pairs: vec![WasmCrossStepColumnPair {
-                prev_after: state.sp_after,
-                next_before: state.sp_before,
-            }],
-        },
-        WasmCrossStepLinkSpec {
-            name: "output_continuity",
-            description: "row[i].simple output carry must match row[i+1].simple output carry",
-            column_pairs: vec![
-                WasmCrossStepColumnPair {
-                    prev_after: Column(COL_OUTPUT_ENABLED_AFTER),
-                    next_before: Column(COL_OUTPUT_ENABLED_BEFORE),
-                },
-                WasmCrossStepColumnPair {
-                    prev_after: Column(COL_OUTPUT_VALUE_LO_AFTER),
-                    next_before: Column(COL_OUTPUT_VALUE_LO_BEFORE),
-                },
-                WasmCrossStepColumnPair {
-                    prev_after: Column(COL_OUTPUT_VALUE_HI_AFTER),
-                    next_before: Column(COL_OUTPUT_VALUE_HI_BEFORE),
-                },
-            ],
-        },
-        WasmCrossStepLinkSpec {
-            name: "call_stack_depth_continuity",
-            description: "row[i].call_stack_depth_after must match row[i+1].call_stack_depth_before",
-            column_pairs: vec![WasmCrossStepColumnPair {
-                prev_after: call.call_stack_depth_after,
-                next_before: call.call_stack_depth_before,
-            }],
-        },
-        WasmCrossStepLinkSpec {
-            name: "memory_pages_continuity",
-            description: "row[i].memory_pages_after must match row[i+1].memory_pages_before",
-            column_pairs: vec![WasmCrossStepColumnPair {
-                prev_after: Column(COL_MEMORY_PAGES_AFTER),
-                next_before: Column(COL_MEMORY_PAGES_BEFORE),
-            }],
-        },
-        WasmCrossStepLinkSpec {
-            name: "max_memory_pages_continuity",
-            description: "row[i].max_memory_pages_after must match row[i+1].max_memory_pages_before (carried constant)",
-            column_pairs: vec![WasmCrossStepColumnPair {
-                prev_after: Column(COL_MAX_MEMORY_PAGES_AFTER),
-                next_before: Column(COL_MAX_MEMORY_PAGES_BEFORE),
-            }],
-        },
-        WasmCrossStepLinkSpec {
-            name: "locals_fbp_continuity",
-            description: "row[i].locals_fbp_after must match row[i+1].locals_fbp_before",
-            column_pairs: vec![WasmCrossStepColumnPair {
-                prev_after: frame.locals_fbp_after,
-                next_before: frame.locals_fbp_before,
-            }],
-        },
-        WasmCrossStepLinkSpec {
-            name: "trapped_continuity",
-            description: "row[i].trapped_after must match row[i+1].trapped_before",
-            column_pairs: vec![WasmCrossStepColumnPair {
-                prev_after: state.trapped_after,
-                next_before: state.trapped_before,
-            }],
-        },
-        WasmCrossStepLinkSpec {
-            name: "param_init_continuity",
-            description: "row[i].param_init_after state must match row[i+1].param_init_before state",
-            column_pairs: vec![
-                WasmCrossStepColumnPair {
-                    prev_after: param_init.param_init_active_after,
-                    next_before: param_init.param_init_active_before,
-                },
-                WasmCrossStepColumnPair {
-                    prev_after: param_init.param_init_remaining_after,
-                    next_before: param_init.param_init_remaining_before,
-                },
-            ],
-        },
-    ];
+    let cross_step_links = build_ivc_state_continuity_links(&state, &param_init, &call, &frame);
 
     WasmLookupBindingLayout {
         witness_width: WITNESS_WIDTH,

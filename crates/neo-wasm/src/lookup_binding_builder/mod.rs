@@ -1,15 +1,15 @@
 use super::isa::WasmOpTable;
-use super::ivc_state::{build_ivc_state_continuity_links, StateColumns, WasmCrossStepLinkSpec};
+use super::ivc_state::{build_ivc_state_continuity_links, WasmCrossStepLinkSpec};
 use super::layout::{
-    selector_col, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_TYPE_INDEX, COL_CALL_PARAM_COUNT,
-    COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR, COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE,
-    COL_CALL_STACK_POP_CALLER_FBP, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_POP_RETURN_PC,
-    COL_CALL_STACK_PUSH_PRESENT, COL_CALL_STACK_RETURN_PC_CHOICE, COL_CONTROL_CHOICE, COL_CURRENT_FUNCTION_NUM_LOCALS,
-    COL_CURRENT_FUNCTION_REF, COL_EXPECTED_TYPE_ID, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF,
-    COL_FUNCTION_TYPE_ID, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI, COL_HALTED, COL_IS_PROGRAM_ROW,
-    COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1, COL_LINEAR_MEM_ACCESS_BYTE2, COL_LINEAR_MEM_ACCESS_BYTE3,
-    COL_LINEAR_MEM_ACCESS_BYTE4, COL_LINEAR_MEM_ACCESS_BYTE5, COL_LINEAR_MEM_ACCESS_BYTE6, COL_LINEAR_MEM_ACCESS_BYTE7,
-    COL_LINEAR_MEM_BYTE_OFFSET, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1,
+    selector_col, Column, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_TYPE_INDEX, COL_CALL_PARAM_COUNT,
+    COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR, COL_CALL_STACK_POP_CALLER_FBP, COL_CALL_STACK_POP_PRESENT,
+    COL_CALL_STACK_POP_RETURN_PC, COL_CALL_STACK_PUSH_PRESENT, COL_CALL_STACK_RETURN_PC_CHOICE, COL_CONTROL_CHOICE,
+    COL_CURRENT_FUNCTION_NUM_LOCALS, COL_CURRENT_FUNCTION_REF, COL_EXPECTED_TYPE_ID,
+    COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF, COL_FUNCTION_TYPE_ID, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE,
+    COL_GLOBAL_VALUE_HI, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1,
+    COL_LINEAR_MEM_ACCESS_BYTE2, COL_LINEAR_MEM_ACCESS_BYTE3, COL_LINEAR_MEM_ACCESS_BYTE4, COL_LINEAR_MEM_ACCESS_BYTE5,
+    COL_LINEAR_MEM_ACCESS_BYTE6, COL_LINEAR_MEM_ACCESS_BYTE7, COL_LINEAR_MEM_BYTE_OFFSET,
+    COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1,
     COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_2, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_3,
     COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_1,
     COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_2, COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_3,
@@ -35,27 +35,21 @@ use super::layout::{
     COL_LINEAR_MEM_LANE2_BYTE3, COL_LINEAR_MEM_LANE2_BYTE3_BEFORE, COL_LINEAR_MEM_LANE2_LOAD_ACTIVE,
     COL_LINEAR_MEM_LANE2_STORE_ACTIVE, COL_LINEAR_MEM_LANE2_VALUE, COL_LINEAR_MEM_LANE2_VALUE_BEFORE,
     COL_LINEAR_MEM_OFFSET_IS_0, COL_LINEAR_MEM_OFFSET_IS_1, COL_LINEAR_MEM_OFFSET_IS_2, COL_LINEAR_MEM_OFFSET_IS_3,
-    COL_LINEAR_MEM_USE_LANE0, COL_LINEAR_MEM_USE_LANE1, COL_LINEAR_MEM_USE_LANE2, COL_LOCALS_FBP_AFTER,
-    COL_LOCALS_FBP_BEFORE, COL_LOCAL_INDEX, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_LOCAL_WRITE_ENABLED,
-    COL_OPCODE_CODE, COL_OP_TABLE_ENABLED, COL_OP_TABLE_ID, COL_OUTPUT_CAPTURED, COL_PADDING_ACTIVE,
-    COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_AFTER,
-    COL_PARAM_INIT_REMAINING_AFTER_INV, COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PARAM_INIT_REMAINING_BEFORE,
-    COL_PC_AFTER, COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE,
-    COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READ0_ACTIVE, COL_STACK_READ0_ADDR_HI,
-    COL_STACK_READ0_ADDR_LO, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_ACTIVE,
-    COL_STACK_READ1_ADDR_HI, COL_STACK_READ1_ADDR_LO, COL_STACK_READ1_VALUE_HI, COL_STACK_READ1_VALUE_LO,
-    COL_STACK_READ2_ACTIVE, COL_STACK_READ2_ADDR_HI, COL_STACK_READ2_ADDR_LO, COL_STACK_READ2_VALUE_HI,
-    COL_STACK_READ2_VALUE_LO, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI,
-    COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TABLE_ID,
-    COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE,
-    COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_WIDE_VALUES_ENABLED, WITNESS_WIDTH,
+    COL_LINEAR_MEM_USE_LANE0, COL_LINEAR_MEM_USE_LANE1, COL_LINEAR_MEM_USE_LANE2, COL_LOCALS_FBP_BEFORE,
+    COL_LOCAL_INDEX, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_LOCAL_WRITE_ENABLED, COL_OPCODE_CODE,
+    COL_OP_TABLE_ENABLED, COL_OP_TABLE_ID, COL_OUTPUT_CAPTURED, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PC_AFTER,
+    COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_ROM_ACTIVE, COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7, COL_STACK_READ0_ACTIVE,
+    COL_STACK_READ0_ADDR_HI, COL_STACK_READ0_ADDR_LO, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO,
+    COL_STACK_READ1_ACTIVE, COL_STACK_READ1_ADDR_HI, COL_STACK_READ1_ADDR_LO, COL_STACK_READ1_VALUE_HI,
+    COL_STACK_READ1_VALUE_LO, COL_STACK_READ2_ACTIVE, COL_STACK_READ2_ADDR_HI, COL_STACK_READ2_ADDR_LO,
+    COL_STACK_READ2_VALUE_HI, COL_STACK_READ2_VALUE_LO, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI,
+    COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_TABLE_ID, COL_TABLE_INDEX,
+    COL_TABLE_READ_ENABLED, COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST,
+    WITNESS_WIDTH,
 };
 use super::lookup_semantics::{semantics_for_lookup_family, LookupSemantics};
 use super::tables::WasmLookupArity;
 use std::sync::OnceLock;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct Column(pub usize);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WasmLookupFamilySpec {
@@ -182,63 +176,6 @@ pub struct SignExtensionColumns {
     pub bit: Column,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ControlColumns {
-    pub opcode_code: Column,
-    // 1 if this is an opcode in the real wasm program (meaning we need to check
-    // that is in fact in the checked binary)
-    //
-    // 0 if this is a helper/aux/micro-opcode
-    pub is_program_row: Column,
-    /// Synthetic state-preserving row marker. Mutually exclusive with
-    /// `is_program_row` and `param_init.param_init_active_before` via the
-    /// row-kind one-hot.
-    pub padding_active: Column,
-    pub pc_rom_active: Column,
-    pub pc_edge_kind_is_static: Column,
-    pub pc_edge_kind_inv: Column,
-    pub control_choice: Column,
-    pub pc_edge_kind: Column,
-    pub wide_values_enabled: Column,
-    pub halted: Column,
-    pub stack_reads: Column,
-    pub stack_writes: Column,
-    pub stack_read0_active: Column,
-    pub stack_read1_active: Column,
-    pub stack_read2_active: Column,
-    pub stack_write0_active: Column,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ParamInitColumns {
-    pub param_init_active_before: Column,
-    pub param_init_active_after: Column,
-    pub param_init_remaining_before: Column,
-    pub param_init_remaining_after: Column,
-    pub param_init_remaining_after_is_zero: Column,
-    pub param_init_remaining_after_inv: Column,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct CallColumns {
-    pub call_stack_push_present: Column,
-    pub call_stack_pop_present: Column,
-    pub call_stack_access_return_pc: Column,
-    pub call_stack_access_caller_fbp: Column,
-    pub call_stack_depth_before: Column,
-    pub call_stack_depth_after: Column,
-    pub call_stack_addr: Column,
-    pub call_stack_return_pc_choice: Column,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct FrameColumns {
-    pub current_function_ref: Column,
-    pub current_function_num_locals: Column,
-    pub locals_fbp_before: Column,
-    pub locals_fbp_after: Column,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WasmLookupBindingLayout {
     pub witness_width: usize,
@@ -246,11 +183,6 @@ pub struct WasmLookupBindingLayout {
     pub lookup_bindings: Vec<WasmLookupBindingSpec>,
     pub memories: Vec<WasmMemorySpec>,
     pub cross_step_links: Vec<WasmCrossStepLinkSpec>,
-    pub control: ControlColumns,
-    pub state: StateColumns,
-    pub param_init: ParamInitColumns,
-    pub call: CallColumns,
-    pub frame: FrameColumns,
     pub linear_memory: LinearMemoryColumns,
     pub sign_extension: SignExtensionColumns,
 }
@@ -279,56 +211,6 @@ pub fn build_wasm_lookup_binding_layout() -> &'static WasmLookupBindingLayout {
 }
 
 fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
-    let control = ControlColumns {
-        opcode_code: Column(COL_OPCODE_CODE),
-        is_program_row: Column(COL_IS_PROGRAM_ROW),
-        padding_active: Column(COL_PADDING_ACTIVE),
-        pc_rom_active: Column(COL_PC_ROM_ACTIVE),
-        pc_edge_kind_is_static: Column(COL_PC_EDGE_KIND_IS_STATIC),
-        pc_edge_kind_inv: Column(COL_PC_EDGE_KIND_INV),
-        control_choice: Column(COL_CONTROL_CHOICE),
-        pc_edge_kind: Column(COL_PC_EDGE_KIND),
-        wide_values_enabled: Column(COL_WIDE_VALUES_ENABLED),
-        halted: Column(COL_HALTED),
-        stack_reads: Column(COL_STACK_READS),
-        stack_writes: Column(COL_STACK_WRITES),
-        stack_read0_active: Column(COL_STACK_READ0_ACTIVE),
-        stack_read1_active: Column(COL_STACK_READ1_ACTIVE),
-        stack_read2_active: Column(COL_STACK_READ2_ACTIVE),
-        stack_write0_active: Column(COL_STACK_WRITE0_ACTIVE),
-    };
-    let state = StateColumns {
-        pc_before: Column(COL_PC_BEFORE),
-        pc_after: Column(COL_PC_AFTER),
-        sp_before: Column(COL_SP_BEFORE),
-        sp_after: Column(COL_SP_AFTER),
-        trapped_before: Column(COL_TRAPPED_BEFORE),
-        trapped_after: Column(COL_TRAPPED_AFTER),
-    };
-    let param_init = ParamInitColumns {
-        param_init_active_before: Column(COL_PARAM_INIT_ACTIVE_BEFORE),
-        param_init_active_after: Column(COL_PARAM_INIT_ACTIVE_AFTER),
-        param_init_remaining_before: Column(COL_PARAM_INIT_REMAINING_BEFORE),
-        param_init_remaining_after: Column(COL_PARAM_INIT_REMAINING_AFTER),
-        param_init_remaining_after_is_zero: Column(COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO),
-        param_init_remaining_after_inv: Column(COL_PARAM_INIT_REMAINING_AFTER_INV),
-    };
-    let call = CallColumns {
-        call_stack_push_present: Column(COL_CALL_STACK_PUSH_PRESENT),
-        call_stack_pop_present: Column(COL_CALL_STACK_POP_PRESENT),
-        call_stack_access_return_pc: Column(COL_CALL_STACK_POP_RETURN_PC),
-        call_stack_access_caller_fbp: Column(COL_CALL_STACK_POP_CALLER_FBP),
-        call_stack_depth_before: Column(COL_CALL_STACK_DEPTH_BEFORE),
-        call_stack_depth_after: Column(COL_CALL_STACK_DEPTH_AFTER),
-        call_stack_addr: Column(COL_CALL_STACK_ADDR),
-        call_stack_return_pc_choice: Column(COL_CALL_STACK_RETURN_PC_CHOICE),
-    };
-    let frame = FrameColumns {
-        current_function_ref: Column(COL_CURRENT_FUNCTION_REF),
-        current_function_num_locals: Column(COL_CURRENT_FUNCTION_NUM_LOCALS),
-        locals_fbp_before: Column(COL_LOCALS_FBP_BEFORE),
-        locals_fbp_after: Column(COL_LOCALS_FBP_AFTER),
-    };
     let linear_memory = LinearMemoryColumns {
         imm_offset: Column(COL_LINEAR_MEM_IMM_OFFSET),
         byte_offset: Column(COL_LINEAR_MEM_BYTE_OFFSET),
@@ -515,13 +397,13 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     address_columns: vec![Column(COL_STACK_READ0_ADDR_LO)],
                     value_column: Column(COL_STACK_READ0_VALUE_LO),
                     kind: WasmMemoryColumnKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(control.stack_read0_active),
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_STACK_READ0_ACTIVE)),
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![Column(COL_STACK_READ0_ADDR_HI)],
                     value_column: Column(COL_STACK_READ0_VALUE_HI),
                     kind: WasmMemoryColumnKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(control.stack_read0_active),
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_STACK_READ0_ACTIVE)),
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![Column(COL_STACK_READ0_ADDR_LO)],
@@ -539,25 +421,25 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     address_columns: vec![Column(COL_STACK_READ1_ADDR_LO)],
                     value_column: Column(COL_STACK_READ1_VALUE_LO),
                     kind: WasmMemoryColumnKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(control.stack_read1_active),
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_STACK_READ1_ACTIVE)),
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![Column(COL_STACK_READ1_ADDR_HI)],
                     value_column: Column(COL_STACK_READ1_VALUE_HI),
                     kind: WasmMemoryColumnKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(control.stack_read1_active),
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_STACK_READ1_ACTIVE)),
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![Column(COL_STACK_READ2_ADDR_LO)],
                     value_column: Column(COL_STACK_READ2_VALUE_LO),
                     kind: WasmMemoryColumnKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(control.stack_read2_active),
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_STACK_READ2_ACTIVE)),
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![Column(COL_STACK_READ2_ADDR_HI)],
                     value_column: Column(COL_STACK_READ2_VALUE_HI),
                     kind: WasmMemoryColumnKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(control.stack_read2_active),
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_STACK_READ2_ACTIVE)),
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![Column(COL_STACK_WRITE0_ADDR_LO)],
@@ -565,7 +447,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     kind: WasmMemoryColumnKind::Write {
                         value_before_column: None,
                     },
-                    activation: WasmMemoryActivation::BooleanGate(control.stack_write0_active),
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_STACK_WRITE0_ACTIVE)),
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![Column(COL_STACK_WRITE0_ADDR_HI)],
@@ -573,7 +455,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     kind: WasmMemoryColumnKind::Write {
                         value_before_column: None,
                     },
-                    activation: WasmMemoryActivation::BooleanGate(control.stack_write0_active),
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_STACK_WRITE0_ACTIVE)),
                 },
             ],
             is_rom: false,
@@ -582,18 +464,18 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
             name: "call_stack_return_pcs",
             columns: vec![
                 WasmMemoryColumnSpec {
-                    address_columns: vec![call.call_stack_addr],
-                    value_column: call.call_stack_access_return_pc,
+                    address_columns: vec![Column(COL_CALL_STACK_ADDR)],
+                    value_column: Column(COL_CALL_STACK_POP_RETURN_PC),
                     kind: WasmMemoryColumnKind::Write {
                         value_before_column: None,
                     },
-                    activation: WasmMemoryActivation::BooleanGate(call.call_stack_push_present),
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_CALL_STACK_PUSH_PRESENT)),
                 },
                 WasmMemoryColumnSpec {
-                    address_columns: vec![call.call_stack_addr],
-                    value_column: call.call_stack_access_return_pc,
+                    address_columns: vec![Column(COL_CALL_STACK_ADDR)],
+                    value_column: Column(COL_CALL_STACK_POP_RETURN_PC),
                     kind: WasmMemoryColumnKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(call.call_stack_pop_present),
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_CALL_STACK_POP_PRESENT)),
                 },
             ],
             is_rom: false,
@@ -602,18 +484,18 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
             name: "call_stack_caller_fbps",
             columns: vec![
                 WasmMemoryColumnSpec {
-                    address_columns: vec![call.call_stack_addr],
-                    value_column: call.call_stack_access_caller_fbp,
+                    address_columns: vec![Column(COL_CALL_STACK_ADDR)],
+                    value_column: Column(COL_CALL_STACK_POP_CALLER_FBP),
                     kind: WasmMemoryColumnKind::Write {
                         value_before_column: None,
                     },
-                    activation: WasmMemoryActivation::BooleanGate(call.call_stack_push_present),
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_CALL_STACK_PUSH_PRESENT)),
                 },
                 WasmMemoryColumnSpec {
-                    address_columns: vec![call.call_stack_addr],
-                    value_column: call.call_stack_access_caller_fbp,
+                    address_columns: vec![Column(COL_CALL_STACK_ADDR)],
+                    value_column: Column(COL_CALL_STACK_POP_CALLER_FBP),
                     kind: WasmMemoryColumnKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(call.call_stack_pop_present),
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_CALL_STACK_POP_PRESENT)),
                 },
             ],
             is_rom: false,
@@ -681,7 +563,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
             name: "locals",
             columns: vec![
                 WasmMemoryColumnSpec {
-                    address_columns: vec![frame.locals_fbp_before, Column(COL_LOCAL_INDEX)],
+                    address_columns: vec![Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)],
                     value_column: Column(COL_LOCAL_VALUE),
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(Column(
@@ -689,7 +571,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     )),
                 },
                 WasmMemoryColumnSpec {
-                    address_columns: vec![frame.locals_fbp_before, Column(COL_LOCAL_INDEX)],
+                    address_columns: vec![Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)],
                     value_column: Column(COL_LOCAL_VALUE),
                     kind: WasmMemoryColumnKind::Write {
                         value_before_column: None,
@@ -697,12 +579,12 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     activation: WasmMemoryActivation::BooleanGate(Column(COL_LOCAL_WRITE_ENABLED)),
                 },
                 WasmMemoryColumnSpec {
-                    address_columns: vec![frame.locals_fbp_before, Column(COL_LOCAL_INDEX)],
+                    address_columns: vec![Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)],
                     value_column: Column(COL_LOCAL_VALUE),
                     kind: WasmMemoryColumnKind::Write {
                         value_before_column: None,
                     },
-                    activation: WasmMemoryActivation::BooleanGate(param_init.param_init_active_before),
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_PARAM_INIT_ACTIVE_BEFORE)),
                 },
             ],
             is_rom: false,
@@ -712,7 +594,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
             name: "locals_hi",
             columns: vec![
                 WasmMemoryColumnSpec {
-                    address_columns: vec![frame.locals_fbp_before, Column(COL_LOCAL_INDEX)],
+                    address_columns: vec![Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)],
                     value_column: Column(COL_LOCAL_VALUE_HI),
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(Column(
@@ -720,7 +602,7 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     )),
                 },
                 WasmMemoryColumnSpec {
-                    address_columns: vec![frame.locals_fbp_before, Column(COL_LOCAL_INDEX)],
+                    address_columns: vec![Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)],
                     value_column: Column(COL_LOCAL_VALUE_HI),
                     kind: WasmMemoryColumnKind::Write {
                         value_before_column: None,
@@ -728,12 +610,12 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
                     activation: WasmMemoryActivation::BooleanGate(Column(COL_LOCAL_WRITE_ENABLED)),
                 },
                 WasmMemoryColumnSpec {
-                    address_columns: vec![frame.locals_fbp_before, Column(COL_LOCAL_INDEX)],
+                    address_columns: vec![Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)],
                     value_column: Column(COL_LOCAL_VALUE_HI),
                     kind: WasmMemoryColumnKind::Write {
                         value_before_column: None,
                     },
-                    activation: WasmMemoryActivation::BooleanGate(param_init.param_init_active_before),
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_PARAM_INIT_ACTIVE_BEFORE)),
                 },
             ],
             is_rom: false,
@@ -824,67 +706,67 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
         },
         rom_read_spec(
             "program_opcodes",
-            vec![state.pc_before],
-            control.opcode_code,
-            WasmMemoryActivation::BooleanGate(control.is_program_row),
+            vec![Column(COL_PC_BEFORE)],
+            Column(COL_OPCODE_CODE),
+            WasmMemoryActivation::BooleanGate(Column(COL_IS_PROGRAM_ROW)),
         ),
         rom_read_spec(
             "program_local_indices",
-            vec![state.pc_before],
+            vec![Column(COL_PC_BEFORE)],
             Column(COL_LOCAL_INDEX),
-            WasmMemoryActivation::BooleanGate(control.is_program_row),
+            WasmMemoryActivation::BooleanGate(Column(COL_IS_PROGRAM_ROW)),
         ),
         rom_read_spec(
             "program_global_indices",
-            vec![state.pc_before],
+            vec![Column(COL_PC_BEFORE)],
             Column(COL_GLOBAL_INDEX),
-            WasmMemoryActivation::BooleanGate(control.is_program_row),
+            WasmMemoryActivation::BooleanGate(Column(COL_IS_PROGRAM_ROW)),
         ),
         rom_read_spec(
             "program_table_ids",
-            vec![state.pc_before],
+            vec![Column(COL_PC_BEFORE)],
             Column(COL_TABLE_ID),
-            WasmMemoryActivation::BooleanGate(control.is_program_row),
+            WasmMemoryActivation::BooleanGate(Column(COL_IS_PROGRAM_ROW)),
         ),
         rom_read_spec(
             "program_memory_offsets",
-            vec![state.pc_before],
+            vec![Column(COL_PC_BEFORE)],
             linear_memory.imm_offset,
-            WasmMemoryActivation::BooleanGate(control.is_program_row),
+            WasmMemoryActivation::BooleanGate(Column(COL_IS_PROGRAM_ROW)),
         ),
         rom_read_spec(
             "program_call_indirect_type_indices",
-            vec![state.pc_before],
+            vec![Column(COL_PC_BEFORE)],
             Column(COL_CALL_INDIRECT_TYPE_INDEX),
-            WasmMemoryActivation::BooleanGate(control.is_program_row),
+            WasmMemoryActivation::BooleanGate(Column(COL_IS_PROGRAM_ROW)),
         ),
         rom_read_spec(
             "program_call_indirect_expected_type_ids",
-            vec![state.pc_before],
+            vec![Column(COL_PC_BEFORE)],
             Column(COL_EXPECTED_TYPE_ID),
-            WasmMemoryActivation::BooleanGate(control.is_program_row),
+            WasmMemoryActivation::BooleanGate(Column(COL_IS_PROGRAM_ROW)),
         ),
         rom_read_spec(
             "program_i32_const_values",
-            vec![state.pc_before],
+            vec![Column(COL_PC_BEFORE)],
             Column(COL_STACK_WRITE0_VALUE_LO),
             WasmMemoryActivation::BooleanGate(Column(selector_col(super::isa::WasmOpcode::I32Const).unwrap())),
         ),
         rom_read_spec(
             "program_i64_const_values_lo",
-            vec![state.pc_before],
+            vec![Column(COL_PC_BEFORE)],
             Column(COL_STACK_WRITE0_VALUE_LO),
             WasmMemoryActivation::BooleanGate(Column(selector_col(super::isa::WasmOpcode::I64Const).unwrap())),
         ),
         rom_read_spec(
             "program_i64_const_values_hi",
-            vec![state.pc_before],
+            vec![Column(COL_PC_BEFORE)],
             Column(COL_STACK_WRITE0_VALUE_HI),
             WasmMemoryActivation::BooleanGate(Column(selector_col(super::isa::WasmOpcode::I64Const).unwrap())),
         ),
         rom_read_spec(
             "program_ref_func_refs",
-            vec![state.pc_before],
+            vec![Column(COL_PC_BEFORE)],
             Column(COL_STACK_WRITE0_VALUE_LO),
             WasmMemoryActivation::BooleanGate(Column(selector_col(super::isa::WasmOpcode::RefFunc).unwrap())),
         ),
@@ -898,14 +780,14 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
         ),
         rom_read_spec(
             "function_local_counts",
-            vec![frame.current_function_ref],
-            frame.current_function_num_locals,
-            WasmMemoryActivation::BooleanGate(control.is_program_row),
+            vec![Column(COL_CURRENT_FUNCTION_REF)],
+            Column(COL_CURRENT_FUNCTION_NUM_LOCALS),
+            WasmMemoryActivation::BooleanGate(Column(COL_IS_PROGRAM_ROW)),
         ),
         rom_read_spec(
             "pc_function_refs",
-            vec![state.pc_before],
-            frame.current_function_ref,
+            vec![Column(COL_PC_BEFORE)],
+            Column(COL_CURRENT_FUNCTION_REF),
             WasmMemoryActivation::Always,
         ),
         WasmMemorySpec {
@@ -978,45 +860,45 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
         ),
         rom_read_spec(
             "call_targets",
-            vec![state.pc_before],
+            vec![Column(COL_PC_BEFORE)],
             Column(COL_FUNCTION_REF),
             WasmMemoryActivation::BooleanGate(Column(selector_col(super::isa::WasmOpcode::Call).unwrap())),
         ),
         rom_read_spec(
             "function_entries",
             vec![Column(COL_FUNCTION_REF)],
-            state.pc_after,
+            Column(COL_PC_AFTER),
             // De-gated on call_indirect trap rows: a trapping row is
             // terminal and never binds a callee entry pc.
             WasmMemoryActivation::BooleanGate(Column(COL_CALL_INDIRECT_IS_NOT_TRAP)),
         ),
         rom_read_spec(
             "pc_edge_kinds",
-            vec![state.pc_before],
-            control.pc_edge_kind,
-            WasmMemoryActivation::BooleanGate(control.is_program_row),
+            vec![Column(COL_PC_BEFORE)],
+            Column(COL_PC_EDGE_KIND),
+            WasmMemoryActivation::BooleanGate(Column(COL_IS_PROGRAM_ROW)),
         ),
         WasmMemorySpec {
             name: "pc_rom",
             columns: vec![
                 WasmMemoryColumnSpec {
-                    address_columns: vec![state.pc_before, control.control_choice],
-                    value_column: state.pc_after,
+                    address_columns: vec![Column(COL_PC_BEFORE), Column(COL_CONTROL_CHOICE)],
+                    value_column: Column(COL_PC_AFTER),
                     kind: WasmMemoryColumnKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(control.pc_rom_active),
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_PC_ROM_ACTIVE)),
                 },
                 WasmMemoryColumnSpec {
-                    address_columns: vec![state.pc_before, call.call_stack_return_pc_choice],
-                    value_column: call.call_stack_access_return_pc,
+                    address_columns: vec![Column(COL_PC_BEFORE), Column(COL_CALL_STACK_RETURN_PC_CHOICE)],
+                    value_column: Column(COL_CALL_STACK_POP_RETURN_PC),
                     kind: WasmMemoryColumnKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(call.call_stack_push_present),
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_CALL_STACK_PUSH_PRESENT)),
                 },
             ],
             is_rom: true,
         },
     ];
 
-    let cross_step_links = build_ivc_state_continuity_links(&state, &param_init, &call, &frame);
+    let cross_step_links = build_ivc_state_continuity_links();
 
     WasmLookupBindingLayout {
         witness_width: WITNESS_WIDTH,
@@ -1024,11 +906,6 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
         lookup_bindings,
         memories,
         cross_step_links,
-        control,
-        state,
-        param_init,
-        call,
-        frame,
         linear_memory,
         sign_extension,
     }

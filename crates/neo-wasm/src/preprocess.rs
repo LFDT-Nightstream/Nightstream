@@ -15,13 +15,13 @@
 use crate::adapters::wasmtime::WasmProgramTables;
 use crate::batch::{self, BatchError};
 use crate::ir::{WasmOutputState, WasmParamInitState, WasmStepState};
+use crate::layout::Column;
 use crate::layout::{
     COL_CALL_STACK_DEPTH_BEFORE, COL_LOCALS_FBP_BEFORE, COL_MAX_MEMORY_PAGES_BEFORE, COL_MEMORY_PAGES_BEFORE,
     COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_PARAM_INIT_ACTIVE_BEFORE,
     COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_BEFORE, COL_SP_BEFORE, COL_TRAPPED_BEFORE, WITNESS_WIDTH,
 };
 use crate::lookup_binding_builder::build_wasm_lookup_binding_layout;
-use crate::lookup_binding_builder::Column;
 use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
 use neo_fold_clean::frontends::f_prime::image::{FPrimeImageLayout, NifsPayloadShape};
 use neo_fold_clean::frontends::f_prime::recursive_plan::{

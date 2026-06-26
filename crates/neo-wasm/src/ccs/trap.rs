@@ -2,18 +2,18 @@ use super::super::gadgets::{
     push_gated_linear_zero, push_unsigned_ge_gadget, push_zero_test_expr_gadget, push_zero_test_gadget,
 };
 use super::super::isa::{WasmMemoryAccessKind, WasmOpcode};
-use super::super::ivc_state::StateColumns;
 use super::super::layout::{
-    selector_col, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_IS_TRAP, COL_CI_ENTRY_IS_NULL,
-    COL_CI_ENTRY_NULL_INV, COL_CI_OOB, COL_CI_TYPE_EQ, COL_CI_TYPE_EQ_INV, COL_CMP_GE, COL_CMP_LOW,
-    COL_DIV_DIVIDEND_IS_MIN, COL_DIV_DIVIDEND_MIN_INV, COL_DIV_DIVISOR_INV, COL_DIV_DIVISOR_IS_NEG1,
+    selector_col, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_IS_TRAP, COL_CALL_STACK_PUSH_PRESENT,
+    COL_CI_ENTRY_IS_NULL, COL_CI_ENTRY_NULL_INV, COL_CI_OOB, COL_CI_TYPE_EQ, COL_CI_TYPE_EQ_INV, COL_CMP_GE,
+    COL_CMP_LOW, COL_DIV_DIVIDEND_IS_MIN, COL_DIV_DIVIDEND_MIN_INV, COL_DIV_DIVISOR_INV, COL_DIV_DIVISOR_IS_NEG1,
     COL_DIV_DIVISOR_IS_ZERO, COL_DIV_DIVISOR_NEG1_INV, COL_DIV_OVERFLOW, COL_DIV_OVERFLOW_COND, COL_DIV_TRAP,
-    COL_EXPECTED_TYPE_ID, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_TYPE_ID, COL_MEMORY_PAGES_BEFORE,
-    COL_MEM_LOAD_LIVE, COL_MEM_OOB, COL_MEM_STORE_LIVE, COL_ONE, COL_OUTPUT_CAPTURED, COL_STACK_READ0_VALUE_HI,
-    COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_VALUE_HI, COL_STACK_READ1_VALUE_LO, COL_STACK_WRITE0_VALUE_HI,
-    COL_STACK_WRITE0_VALUE_LO, COL_TABLE_INDEX, COL_TABLE_SIZE, COL_TABLE_VALUE,
+    COL_EXPECTED_TYPE_ID, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_TYPE_ID, COL_IS_PROGRAM_ROW,
+    COL_MEMORY_PAGES_BEFORE, COL_MEM_LOAD_LIVE, COL_MEM_OOB, COL_MEM_STORE_LIVE, COL_ONE, COL_OUTPUT_CAPTURED,
+    COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_VALUE_HI, COL_STACK_READ1_VALUE_LO,
+    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_TABLE_INDEX, COL_TABLE_SIZE, COL_TABLE_VALUE,
+    COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
 };
-use super::super::lookup_binding_builder::{CallColumns, ControlColumns, LinearMemoryColumns, WasmLookupBindingLayout};
+use super::super::lookup_binding_builder::{LinearMemoryColumns, WasmLookupBindingLayout};
 use super::{always, idx, opcode_tag, shared, R1csBuilder};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
@@ -24,13 +24,13 @@ pub(super) fn push_trap_constraints(b: &mut R1csBuilder, layout: &WasmLookupBind
         push_div_trap_constraints(b);
     });
     b.with_tag(opcode_tag("call_indirect trap", WasmOpcode::CallIndirect), |b| {
-        push_call_indirect_trap_constraints(b, &layout.call);
+        push_call_indirect_trap_constraints(b);
     });
     b.with_tag(shared("linear memory oob trap", &linear_memory_ops()), |b| {
         push_linear_memory_oob_trap_constraints(b, &layout.linear_memory);
     });
     b.with_tag(always("trap transition"), |b| {
-        push_trapped_state_transition_constraints(b, &layout.control, &layout.state);
+        push_trapped_state_transition_constraints(b);
     });
 }
 
@@ -207,7 +207,7 @@ fn push_div_trap_constraints(b: &mut R1csBuilder) {
     push_gated_linear_zero(b, COL_DIV_TRAP, [(COL_STACK_WRITE0_VALUE_HI, F::ONE)]);
 }
 
-fn push_call_indirect_trap_constraints(b: &mut R1csBuilder, call: &CallColumns) {
+fn push_call_indirect_trap_constraints(b: &mut R1csBuilder) {
     let call_indirect = selector_col(WasmOpcode::CallIndirect).unwrap();
 
     // ge = selector * ( table_index >= table_size )
@@ -285,28 +285,20 @@ fn push_call_indirect_trap_constraints(b: &mut R1csBuilder, call: &CallColumns) 
     // the existing enter-mode gating, no param-init mode).
     b.push_row(
         [(COL_CALL_INDIRECT_IS_TRAP, F::ONE)],
-        [(idx(call.call_stack_push_present), F::ONE)],
+        [(COL_CALL_STACK_PUSH_PRESENT, F::ONE)],
         [],
     );
 }
 
-fn push_trapped_state_transition_constraints(b: &mut R1csBuilder, control: &ControlColumns, state: &StateColumns) {
+fn push_trapped_state_transition_constraints(b: &mut R1csBuilder) {
     b.push_linear_zero([
-        (idx(state.trapped_after), F::ONE),
-        (idx(state.trapped_before), -F::ONE),
+        (COL_TRAPPED_AFTER, F::ONE),
+        (COL_TRAPPED_BEFORE, -F::ONE),
         (selector_col(WasmOpcode::Unreachable).unwrap(), -F::ONE),
         (COL_DIV_TRAP, -F::ONE),
         (COL_CALL_INDIRECT_IS_TRAP, -F::ONE),
         (COL_MEM_OOB, -F::ONE),
     ]);
-    b.push_row(
-        [(idx(control.is_program_row), F::ONE)],
-        [(idx(state.trapped_before), F::ONE)],
-        [],
-    );
-    b.push_row(
-        [(COL_OUTPUT_CAPTURED, F::ONE)],
-        [(idx(state.trapped_after), F::ONE)],
-        [],
-    );
+    b.push_row([(COL_IS_PROGRAM_ROW, F::ONE)], [(COL_TRAPPED_BEFORE, F::ONE)], []);
+    b.push_row([(COL_OUTPUT_CAPTURED, F::ONE)], [(COL_TRAPPED_AFTER, F::ONE)], []);
 }

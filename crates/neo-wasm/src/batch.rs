@@ -4,7 +4,7 @@
 //! The single-step wasm CCS proves *one* step satisfies the row constraints
 //! but does not, on its own, enforce that consecutive steps form a coherent
 //! execution — e.g., that `step[i].state_after.pc == step[i+1].state_before.pc`. The
-//! cross-step links live in [`WasmLookupBindingLayout::cross_step_links`]
+//! cross-step links live in `WasmRelationLayout::auxiliary.ivc_state_links`
 //! as metadata; this module compiles them into actual R1CS rows by:
 //!
 //! 1. **Block-diagonalising** the single-step matrices `A`, `B`, `C`: each
@@ -47,7 +47,7 @@ use crate::ccs::WasmVmSpec;
 use crate::ir::{WasmAuxOpcode, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmStepTrace};
 use crate::isa::{opcode_info_from_code, WasmOpcode};
 use crate::layout::{ColumnWidth, COLUMN_SPECS, COL_ONE, WITNESS_WIDTH};
-use crate::lookup_binding_builder::build_wasm_lookup_binding_layout;
+use crate::relation_layout::build_wasm_relation_layout;
 use crate::witness_builder::build_witness_vector;
 
 /// Block-diagonal R1CS shape for a batch of `batch_size` consecutive wasm steps.
@@ -68,7 +68,7 @@ pub enum BatchError {
 /// Build the batched wasm R1CS for the requested batch size.
 ///
 /// Sources the single-step matrices from [`WasmVmSpec::default`] and the
-/// cross-step link spec from [`build_wasm_lookup_binding_layout`]. Every
+/// cross-step link spec from [`build_wasm_relation_layout`]. Every
 /// `(prev_after, next_before)` column pair in every spec link is emitted
 /// as a linking row; the `flat_map` over `column_pairs` happens to also
 /// be a no-op for any future link whose invariant can't be expressed as
@@ -84,9 +84,10 @@ pub fn build_batched_wasm_ccs(batch_size: usize) -> Result<BatchedWasmCcs, Batch
     let n_single = core.structure.n;
     assert_eq!(m_single, WITNESS_WIDTH);
 
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let link_pairs: Vec<(usize, usize)> = layout
-        .cross_step_links
+        .auxiliary
+        .ivc_state_links
         .iter()
         .flat_map(|link| link.column_pairs.iter())
         .map(|pair| (pair.prev_after.0, pair.next_before.0))

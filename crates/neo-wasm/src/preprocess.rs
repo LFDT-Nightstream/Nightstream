@@ -21,7 +21,7 @@ use crate::layout::{
     COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_PARAM_INIT_ACTIVE_BEFORE,
     COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_BEFORE, COL_SP_BEFORE, COL_TRAPPED_BEFORE, WITNESS_WIDTH,
 };
-use crate::lookup_binding_builder::build_wasm_lookup_binding_layout;
+use crate::relation_layout::build_wasm_relation_layout;
 use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
 use neo_fold_clean::frontends::f_prime::image::{FPrimeImageLayout, NifsPayloadShape};
 use neo_fold_clean::frontends::f_prime::recursive_plan::{
@@ -93,7 +93,7 @@ pub fn canonical_wasm_f_prime_shape_batched_with_initial_state_digest(
 /// Build preprocessing with cross-batch VM-state continuity enabled.
 ///
 /// The carried columns are derived from
-/// [`WasmLookupBindingLayout::cross_step_links`]: the first block's
+/// `WasmRelationLayout::auxiliary.ivc_state_links`: the first block's
 /// `*_before` columns are hashed as semantic input, and the last block's
 /// `*_after` columns are hashed as semantic output. `initial_state_digest`
 /// is verifier-owned: callers must derive or otherwise agree on it from
@@ -144,9 +144,10 @@ pub fn top_level_initial_state(tables: &WasmProgramTables, entry_pc: u64) -> Was
 /// final state with `output.enabled = true` provably halted (output capture
 /// is CCS-gated on the halting row).
 pub fn semantic_state_digest(state: WasmStepState) -> [u8; 32] {
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let fields = layout
-        .cross_step_links
+        .auxiliary
+        .ivc_state_links
         .iter()
         .flat_map(|link| link.column_pairs.iter())
         .map(|pair| carried_state_field(state, pair.next_before))
@@ -322,12 +323,13 @@ fn ceil_log2(n: usize) -> usize {
 
 pub(crate) fn wasm_batch_semantic_state_indices(batch_size: usize) -> (Vec<usize>, Vec<usize>) {
     assert!(batch_size >= 1, "batch_size must be at least 1");
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let mut input = Vec::new();
     let mut output = Vec::new();
     let last_block_offset = (batch_size - 1) * WITNESS_WIDTH;
     for pair in layout
-        .cross_step_links
+        .auxiliary
+        .ivc_state_links
         .iter()
         .flat_map(|link| link.column_pairs.iter())
     {

@@ -5,9 +5,9 @@ use neo_wasm::layout::{
     COL_STACK_READ0_VALUE_HI, COL_STACK_WRITE0_VALUE_HI, COL_TABLE_INDEX, COL_TABLE_SIZE, COL_TABLE_VALUE,
 };
 use neo_wasm::{
-    build_wasm_lookup_binding_layout, collect_wasmtime_steps, extract_wasm_program_artifacts,
-    preload_from_program_artifacts, sanity_check_memory_rows, traces_from_wasmtime_steps,
-    witness_builder::build_witness_vector, WasmMemoryPreload, WasmOpcode,
+    build_wasm_relation_layout, collect_wasmtime_steps, extract_wasm_program_artifacts, preload_from_program_artifacts,
+    sanity_check_memory_rows, traces_from_wasmtime_steps, witness_builder::build_witness_vector, WasmMemoryPreload,
+    WasmOpcode,
 };
 use p3_field::PrimeCharacteristicRing;
 
@@ -34,7 +34,7 @@ fn memory_semantics_accept_real_direct_call_trace() {
                 call $add_one))
         "#,
     );
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     sanity_check_memory_rows(layout, &witnesses, &preload).expect("memory sanity");
 }
 
@@ -55,7 +55,7 @@ fn memory_semantics_rejects_tampered_i64_stack_high_limb() {
 
     witnesses[add_idx][COL_STACK_READ0_VALUE_HI] = F::from_u64(9);
 
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload)
         .err()
         .expect("must reject tampered i64 stack high limb");
@@ -80,7 +80,7 @@ fn memory_semantics_reject_missing_pc_rom_edge() {
         .find(|row| matches!(row.opcode, WasmOpcode::Call))
         .expect("call row");
     preload.remove("pc_rom", &[call_row.state_before.pc as u32, call_row.control_choice]);
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("missing edge must fail");
     assert!(err.contains("memory `pc_rom` ROM read before initialization"));
 }
@@ -99,7 +99,7 @@ fn memory_semantics_rejects_wrong_program_opcode() {
         .expect("program row");
     witnesses[row_index][COL_OPCODE_CODE] += F::ONE;
 
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("wrong opcode must fail");
     assert!(err.contains("memory `program_opcodes` ROM mismatch"));
 }
@@ -119,7 +119,7 @@ fn memory_semantics_rejects_wrong_program_local_index() {
         .expect("local.get row");
     witnesses[row_index][COL_LOCAL_INDEX] += F::ONE;
 
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("wrong local index must fail");
     assert!(err.contains("memory `program_local_indices` ROM mismatch"));
 }
@@ -140,7 +140,7 @@ fn memory_semantics_rejects_wrong_program_memory_offset() {
         .expect("i32.load row");
     witnesses[row_index][COL_LINEAR_MEM_IMM_OFFSET] += F::ONE;
 
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("wrong memory offset must fail");
     assert!(err.contains("memory `program_memory_offsets` ROM mismatch"));
 }
@@ -159,7 +159,7 @@ fn memory_semantics_rejects_wrong_program_i64_const_high_limb() {
         .expect("i64.const row");
     witnesses[row_index][COL_STACK_WRITE0_VALUE_HI] += F::ONE;
 
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("wrong i64 const hi must fail");
     assert!(err.contains("memory `program_i64_const_values_hi` ROM mismatch"));
 }
@@ -184,7 +184,7 @@ fn memory_semantics_rejects_wrong_program_call_indirect_expected_type() {
         .expect("call_indirect row");
     witnesses[row_index][COL_EXPECTED_TYPE_ID] += F::ONE;
 
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload)
         .expect_err("wrong call_indirect expected type must fail");
     assert!(err.contains("memory `program_call_indirect_expected_type_ids` ROM mismatch"));
@@ -211,7 +211,7 @@ fn memory_semantics_reject_missing_call_return_pc_rom_edge() {
         "pc_rom",
         &[call_row.state_before.pc as u32, CALL_RETURN_PC_CHOICE as u32],
     );
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("missing return edge must fail");
     assert!(err.contains("memory `pc_rom` ROM read before initialization"));
 }
@@ -235,7 +235,7 @@ fn memory_semantics_rejects_return_pc_not_read_from_call_stack() {
         .expect("non-final return row");
     witnesses[return_index][COL_CALL_STACK_POP_RETURN_PC] += F::ONE;
 
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("broken return pc read must fail");
     assert!(err.contains("memory `call_stack_return_pcs` read mismatch"));
 }
@@ -255,7 +255,7 @@ fn memory_semantics_rejects_wrong_current_function_local_count() {
         .expect("program row");
     witnesses[row_index][COL_CURRENT_FUNCTION_NUM_LOCALS] += F::ONE;
 
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("wrong local count must fail");
     assert!(err.contains("memory `function_local_counts` ROM mismatch"));
 }
@@ -281,7 +281,7 @@ fn memory_semantics_rejects_wrong_current_function_ref() {
     };
     witnesses[row_index][COL_CURRENT_FUNCTION_REF] = F::from_u64(wrong_existing_function_ref);
 
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("wrong function ref must fail");
     assert!(err.contains("memory `pc_function_refs` ROM mismatch"));
 }
@@ -311,7 +311,7 @@ fn memory_semantics_rejects_wrong_call_indirect_target() {
         vec![function_ref],
         row.state_after.pc.saturating_add(1) as u32,
     );
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("wrong call_indirect target must fail");
     assert!(err.contains("memory `function_entries` ROM mismatch"));
 }
@@ -335,7 +335,7 @@ fn memory_semantics_rejects_missing_if_taken_edge() {
         .expect("if row");
     assert_eq!(row.control_choice, 1);
     preload.remove("pc_rom", &[row.state_before.pc as u32, row.control_choice]);
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("missing if edge must fail");
     assert!(err.contains("memory `pc_rom` ROM read before initialization"));
 }
@@ -359,7 +359,7 @@ fn memory_semantics_rejects_missing_br_if_taken_edge() {
         .expect("br_if row");
     assert_eq!(row.control_choice, 1);
     preload.remove("pc_rom", &[row.state_before.pc as u32, row.control_choice]);
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("missing br_if edge must fail");
     assert!(err.contains("memory `pc_rom` ROM read before initialization"));
 }
@@ -385,7 +385,7 @@ const TABLE_INIT_WAT: &str = r#"(module
 #[test]
 fn memory_semantics_accept_element_segment_table_init() {
     let (_, witnesses, preload) = witness_run(TABLE_INIT_WAT);
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     sanity_check_memory_rows(layout, &witnesses, &preload).expect("memory sanity");
 }
 
@@ -398,7 +398,7 @@ fn memory_semantics_rejects_tampered_table_funcref() {
         .expect("call_indirect row");
     witnesses[row_index][COL_TABLE_VALUE] += F::ONE;
 
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("tampered table funcref must fail");
     assert!(err.contains("memory `tables` read mismatch"), "unexpected error: {err}");
 }
@@ -415,7 +415,7 @@ fn memory_semantics_rejects_nonnull_read_of_uninitialized_table_entry() {
     // live funcref there was exactly what `FirstReadDefines` allowed.
     witnesses[row_index][COL_TABLE_INDEX] = F::ZERO;
 
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let err =
         sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("non-null uninitialized read must fail");
     assert!(err.contains("memory `tables`"), "unexpected error: {err}");
@@ -430,7 +430,7 @@ fn memory_semantics_rejects_tampered_table_size() {
         .expect("table.size row");
     witnesses[row_index][COL_TABLE_SIZE] += F::ONE;
 
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("tampered table size must fail");
     assert!(
         err.contains("memory `table_sizes` read mismatch"),
@@ -465,7 +465,7 @@ fn memory_semantics_rejects_forged_callee_type_on_mismatch_trap() {
     assert!(trace[row_index].state_after.trapped);
     witnesses[row_index][COL_FUNCTION_TYPE_ID] = witnesses[row_index][COL_EXPECTED_TYPE_ID];
 
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("forged callee type must fail");
     assert!(
         err.contains("memory `function_types` ROM mismatch"),
@@ -502,7 +502,7 @@ fn memory_semantics_rejects_forged_table_size_on_oob_trap() {
     // Claim the table is large enough to make index 5 in bounds.
     witnesses[row_index][COL_TABLE_SIZE] = F::from_u64(6);
 
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("forged table size must fail");
     assert!(
         err.contains("memory `table_sizes` read mismatch"),

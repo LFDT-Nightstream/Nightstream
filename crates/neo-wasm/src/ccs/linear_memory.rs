@@ -14,7 +14,7 @@ use super::super::layout::{
     selector_col, COL_MEM_LOAD_LIVE, COL_MEM_STORE_LIVE, COL_ONE, COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_VALUE_HI,
     COL_STACK_READ1_VALUE_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO,
 };
-use super::super::lookup_binding_builder::{LinearMemoryColumns, SignExtensionColumns};
+use super::super::relation_layout::{LinearMemoryColumns, SignExtensionColumns};
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::{f_u64, idx, linear_memory_ops, opcode_tag, shared};
 use neo_math::F;

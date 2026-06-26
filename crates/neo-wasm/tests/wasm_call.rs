@@ -2,9 +2,8 @@ mod common;
 
 use neo_wasm::layout::{COL_CALL_STACK_RETURN_PC_CHOICE, COL_OUTPUT_VALUE_LO_AFTER, COL_STACK_READ0_VALUE_LO};
 use neo_wasm::{
-    build_wasm_lookup_binding_layout, collect_wasmtime_steps, extract_wasm_program_artifacts,
-    preload_from_program_artifacts, sanity_check_memory_rows, traces_from_wasmtime_steps, WasmAuxOpcode, WasmOpcode,
-    WasmRowKind, WasmStepTrace,
+    build_wasm_relation_layout, collect_wasmtime_steps, extract_wasm_program_artifacts, preload_from_program_artifacts,
+    sanity_check_memory_rows, traces_from_wasmtime_steps, WasmAuxOpcode, WasmOpcode, WasmRowKind, WasmStepTrace,
 };
 use p3_field::PrimeCharacteristicRing;
 
@@ -319,7 +318,7 @@ fn final_halt_output_low_is_stack_memory_bound() {
     let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
     let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let mut witnesses = build_witnesses(&trace);
     let final_idx = trace
         .iter()

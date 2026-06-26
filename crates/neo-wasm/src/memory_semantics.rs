@@ -1,10 +1,8 @@
 //! Witness-driven debug memory checker over `WasmMemorySpec`.
 
 use super::adapters::wasmtime::WasmProgramArtifacts;
-use super::layout::COLUMN_SPECS;
-use super::lookup_binding_builder::{
-    WasmLookupBindingLayout, WasmMemoryActivation, WasmMemoryColumnKind, WasmMemorySpec,
-};
+use super::layout::{COLUMN_SPECS, WITNESS_WIDTH};
+use super::relation_layout::{WasmMemoryActivation, WasmMemoryColumnKind, WasmMemorySpec, WasmRelationLayout};
 use neo_math::F;
 use p3_field::PrimeField64;
 use std::collections::BTreeMap;
@@ -211,22 +209,22 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts, initial_
 }
 
 pub fn sanity_check_memory_rows(
-    layout: &WasmLookupBindingLayout,
+    layout: &WasmRelationLayout,
     witness_rows: &[Vec<F>],
     preload: &WasmMemoryPreload,
 ) -> Result<(), String> {
     assert_all_memory_specs_have_init_modes(layout)?;
     let mut state = preload.clone_cells();
     for (row_index, witness) in witness_rows.iter().enumerate() {
-        if witness.len() != layout.witness_width {
+        if witness.len() != WITNESS_WIDTH {
             return Err(format!(
                 "memory sanity check expected witness width {}, got {} on row {}",
-                layout.witness_width,
+                WITNESS_WIDTH,
                 witness.len(),
                 row_index
             ));
         }
-        for memory in &layout.memories {
+        for memory in &layout.auxiliary.memories {
             apply_memory_row(memory, witness, row_index, &mut state)?;
         }
     }
@@ -369,8 +367,8 @@ fn memory_init_mode(memory_name: &str) -> Option<DebugInitMode> {
         .find_map(|(name, mode)| (*name == memory_name).then_some(*mode))
 }
 
-fn assert_all_memory_specs_have_init_modes(layout: &WasmLookupBindingLayout) -> Result<(), String> {
-    for memory in &layout.memories {
+fn assert_all_memory_specs_have_init_modes(layout: &WasmRelationLayout) -> Result<(), String> {
+    for memory in &layout.auxiliary.memories {
         if !memory.is_rom && memory_init_mode(memory.name).is_none() {
             return Err(format!(
                 "memory semantics missing init-mode coverage for `{}`",

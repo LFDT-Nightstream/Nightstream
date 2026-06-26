@@ -5,6 +5,9 @@ use p3_field::PrimeCharacteristicRing;
 
 use super::isa::{opcode_code, WasmOpcode};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Column(pub usize);
+
 pub const PUBLIC_INPUTS: usize = 7;
 pub const CALL_RETURN_PC_CHOICE: u64 = 1;
 

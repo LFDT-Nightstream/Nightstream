@@ -36,12 +36,12 @@ pub use isa::{
     opcode_code, opcode_info_from_code, WasmMemoryAccessInfo, WasmMemoryAccessKind, WasmMemoryExtension, WasmOpTable,
     WasmOpcode, WasmOpcodeClass, WasmOpcodeInfo,
 };
-pub use ivc_state::{StateColumns, WasmCrossStepColumnPair, WasmCrossStepLinkSpec};
-pub use layout::{ColumnWidth, WasmColumnSpec, COLUMN_SPECS};
+pub use ivc_state::{WasmCrossStepColumnPair, WasmCrossStepLinkSpec};
+pub use layout::{Column, ColumnWidth, WasmColumnSpec, COLUMN_SPECS};
 pub use lookup_binding_builder::{
-    build_wasm_lookup_binding_layout, CallColumns, Column, ControlColumns, FrameColumns, LinearMemoryColumns,
-    ParamInitColumns, SignExtensionColumns, WasmLookupBindingLayout, WasmLookupBindingSpec, WasmLookupFamilyKind,
-    WasmLookupFamilySpec, WasmMemoryActivation, WasmMemoryColumnKind, WasmMemoryColumnSpec, WasmMemorySpec,
+    build_wasm_lookup_binding_layout, LinearMemoryColumns, SignExtensionColumns, WasmLookupBindingLayout,
+    WasmLookupBindingSpec, WasmLookupFamilyKind, WasmLookupFamilySpec, WasmMemoryActivation, WasmMemoryColumnKind,
+    WasmMemoryColumnSpec, WasmMemorySpec,
 };
 pub use lookup_semantics::{sanity_check_lookup_row, LookupBuiltin, LookupExpr, LookupPredicate, LookupSemantics};
 pub use memory_semantics::{preload_from_program_artifacts, sanity_check_memory_rows, WasmMemoryPreload};

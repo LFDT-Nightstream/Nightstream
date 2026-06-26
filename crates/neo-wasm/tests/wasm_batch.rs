@@ -7,6 +7,7 @@ mod common;
 use neo_fold_clean::frontends::r1cs_f_prime::{R1csChainBuilder, R1csCompilerError};
 use neo_math::F;
 use neo_wasm::batch::{batch_count, build_batched_wasm_ccs, build_batched_witness};
+use neo_wasm::layout::{COL_LOCALS_FBP_AFTER, COL_PC_BEFORE, COL_SP_BEFORE};
 use neo_wasm::{prove_batched, verify, WasmStepTrace, WasmVmSpec};
 use p3_field::PrimeCharacteristicRing;
 
@@ -107,11 +108,7 @@ fn cross_step_link_rejects_inconsistent_pc() {
 
     // Tamper with step 1's pc_before to break the pc continuity link.
     let m_single = batched.sparse_r1cs.m / batch_size;
-    let pc_before_col = {
-        let layout = neo_wasm::build_wasm_lookup_binding_layout();
-        layout.state.pc_before.0
-    };
-    witness[m_single + pc_before_col] += F::ONE;
+    witness[m_single + COL_PC_BEFORE] += F::ONE;
 
     batched
         .sparse_r1cs
@@ -126,11 +123,7 @@ fn cross_step_link_rejects_inconsistent_locals_fbp() {
     let batched = build_batched_wasm_ccs(batch_size).expect("batched");
     let mut witness = build_batched_witness(&checked.trace, batch_size, 0);
 
-    let locals_fbp_after_col = {
-        let layout = neo_wasm::build_wasm_lookup_binding_layout();
-        layout.frame.locals_fbp_after.0
-    };
-    witness[locals_fbp_after_col] += F::ONE;
+    witness[COL_LOCALS_FBP_AFTER] += F::ONE;
 
     batched
         .sparse_r1cs
@@ -146,11 +139,7 @@ fn cross_step_link_rejects_inconsistent_sp() {
     let mut witness = build_batched_witness(&checked.trace, batch_size, 0);
 
     let m_single = batched.sparse_r1cs.m / batch_size;
-    let sp_before_col = {
-        let layout = neo_wasm::build_wasm_lookup_binding_layout();
-        layout.state.sp_before.0
-    };
-    witness[m_single + sp_before_col] += F::ONE;
+    witness[m_single + COL_SP_BEFORE] += F::ONE;
 
     batched
         .sparse_r1cs

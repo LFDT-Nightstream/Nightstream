@@ -4,21 +4,13 @@
 //! columns from row `i` must equal `_before` columns in row `i + 1`.
 
 use super::layout::{
+    Column, COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE,
     COL_MAX_MEMORY_PAGES_AFTER, COL_MAX_MEMORY_PAGES_BEFORE, COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE,
     COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE,
-    COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE,
+    COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE,
+    COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_AFTER, COL_PC_BEFORE, COL_SP_AFTER,
+    COL_SP_BEFORE, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
 };
-use super::lookup_binding_builder::{CallColumns, Column, FrameColumns, ParamInitColumns};
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct StateColumns {
-    pub pc_before: Column,
-    pub pc_after: Column,
-    pub sp_before: Column,
-    pub sp_after: Column,
-    pub trapped_before: Column,
-    pub trapped_after: Column,
-}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WasmCrossStepLinkSpec {
@@ -33,27 +25,22 @@ pub struct WasmCrossStepColumnPair {
     pub next_before: Column,
 }
 
-pub(crate) fn build_ivc_state_continuity_links(
-    state: &StateColumns,
-    param_init: &ParamInitColumns,
-    call: &CallColumns,
-    frame: &FrameColumns,
-) -> Vec<WasmCrossStepLinkSpec> {
+pub(crate) fn build_ivc_state_continuity_links() -> Vec<WasmCrossStepLinkSpec> {
     vec![
         WasmCrossStepLinkSpec {
             name: "pc_continuity",
             description: "row[i].pc_after must match row[i+1].pc_before",
             column_pairs: vec![WasmCrossStepColumnPair {
-                prev_after: state.pc_after,
-                next_before: state.pc_before,
+                prev_after: Column(COL_PC_AFTER),
+                next_before: Column(COL_PC_BEFORE),
             }],
         },
         WasmCrossStepLinkSpec {
             name: "sp_continuity",
             description: "row[i].sp_after must match row[i+1].sp_before",
             column_pairs: vec![WasmCrossStepColumnPair {
-                prev_after: state.sp_after,
-                next_before: state.sp_before,
+                prev_after: Column(COL_SP_AFTER),
+                next_before: Column(COL_SP_BEFORE),
             }],
         },
         WasmCrossStepLinkSpec {
@@ -78,8 +65,8 @@ pub(crate) fn build_ivc_state_continuity_links(
             name: "call_stack_depth_continuity",
             description: "row[i].call_stack_depth_after must match row[i+1].call_stack_depth_before",
             column_pairs: vec![WasmCrossStepColumnPair {
-                prev_after: call.call_stack_depth_after,
-                next_before: call.call_stack_depth_before,
+                prev_after: Column(COL_CALL_STACK_DEPTH_AFTER),
+                next_before: Column(COL_CALL_STACK_DEPTH_BEFORE),
             }],
         },
         WasmCrossStepLinkSpec {
@@ -102,16 +89,16 @@ pub(crate) fn build_ivc_state_continuity_links(
             name: "locals_fbp_continuity",
             description: "row[i].locals_fbp_after must match row[i+1].locals_fbp_before",
             column_pairs: vec![WasmCrossStepColumnPair {
-                prev_after: frame.locals_fbp_after,
-                next_before: frame.locals_fbp_before,
+                prev_after: Column(COL_LOCALS_FBP_AFTER),
+                next_before: Column(COL_LOCALS_FBP_BEFORE),
             }],
         },
         WasmCrossStepLinkSpec {
             name: "trapped_continuity",
             description: "row[i].trapped_after must match row[i+1].trapped_before",
             column_pairs: vec![WasmCrossStepColumnPair {
-                prev_after: state.trapped_after,
-                next_before: state.trapped_before,
+                prev_after: Column(COL_TRAPPED_AFTER),
+                next_before: Column(COL_TRAPPED_BEFORE),
             }],
         },
         WasmCrossStepLinkSpec {
@@ -119,12 +106,12 @@ pub(crate) fn build_ivc_state_continuity_links(
             description: "row[i].param_init_after state must match row[i+1].param_init_before state",
             column_pairs: vec![
                 WasmCrossStepColumnPair {
-                    prev_after: param_init.param_init_active_after,
-                    next_before: param_init.param_init_active_before,
+                    prev_after: Column(COL_PARAM_INIT_ACTIVE_AFTER),
+                    next_before: Column(COL_PARAM_INIT_ACTIVE_BEFORE),
                 },
                 WasmCrossStepColumnPair {
-                    prev_after: param_init.param_init_remaining_after,
-                    next_before: param_init.param_init_remaining_before,
+                    prev_after: Column(COL_PARAM_INIT_REMAINING_AFTER),
+                    next_before: Column(COL_PARAM_INIT_REMAINING_BEFORE),
                 },
             ],
         },

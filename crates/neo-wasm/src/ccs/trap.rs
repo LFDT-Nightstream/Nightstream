@@ -13,13 +13,13 @@ use super::super::layout::{
     COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_TABLE_INDEX, COL_TABLE_SIZE, COL_TABLE_VALUE,
     COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
 };
-use super::super::lookup_binding_builder::{LinearMemoryColumns, WasmLookupBindingLayout};
+use super::super::relation_layout::{LinearMemoryColumns, WasmRelationLayout};
 use super::{always, idx, opcode_tag, shared, R1csBuilder};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
 /// Emit trap-cause flags and the state transition that carries `trapped`.
-pub(super) fn push_trap_constraints(b: &mut R1csBuilder, layout: &WasmLookupBindingLayout) {
+pub(super) fn push_trap_constraints(b: &mut R1csBuilder, layout: &WasmRelationLayout) {
     b.with_tag(always("div trap"), |b| {
         push_div_trap_constraints(b);
     });

@@ -1,9 +1,7 @@
 use neo_math::F;
 use neo_wasm::layout::{COL_STACK_READ0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO};
 use neo_wasm::witness_builder::build_witness_vector;
-use neo_wasm::{
-    build_wasm_lookup_binding_layout, sanity_check_lookup_row, traces_from_wasmtime_wasm_bytes, WasmOpcode,
-};
+use neo_wasm::{build_wasm_relation_layout, sanity_check_lookup_row, traces_from_wasmtime_wasm_bytes, WasmOpcode};
 use p3_field::PrimeCharacteristicRing;
 
 fn trace_rows() -> Vec<neo_wasm::WasmStepTrace> {
@@ -39,49 +37,49 @@ fn trace_rows() -> Vec<neo_wasm::WasmStepTrace> {
 
 #[test]
 fn lookup_semantics_accept_real_wasm_rows() {
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     for row in trace_rows() {
         let witness = build_witness_vector(&row);
-        sanity_check_lookup_row(layout, &witness)
+        sanity_check_lookup_row(&layout.auxiliary, &witness)
             .unwrap_or_else(|err| panic!("expected lookup semantics to accept {:?}: {err}", row.opcode));
     }
 }
 
 #[test]
 fn lookup_semantics_reject_tampered_shout_output() {
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let row = trace_rows()
         .into_iter()
         .find(|row| row.opcode == WasmOpcode::I32Mul)
         .expect("i32.mul row");
     let mut witness = build_witness_vector(&row);
     witness[COL_STACK_WRITE0_VALUE_LO] = F::from_u64(1234);
-    let err = sanity_check_lookup_row(layout, &witness).expect_err("tampered op_table output should fail");
+    let err = sanity_check_lookup_row(&layout.auxiliary, &witness).expect_err("tampered op_table output should fail");
     assert!(err.contains("i32_mul"));
 }
 
 #[test]
 fn lookup_semantics_reject_tampered_i64_unary_input_hi() {
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let row = trace_rows()
         .into_iter()
         .find(|row| row.opcode == WasmOpcode::I64Clz)
         .expect("i64.clz row");
     let mut witness = build_witness_vector(&row);
     witness[COL_STACK_READ0_VALUE_HI] = F::from_u64(2);
-    let err = sanity_check_lookup_row(layout, &witness).expect_err("tampered i64 unary input should fail");
+    let err = sanity_check_lookup_row(&layout.auxiliary, &witness).expect_err("tampered i64 unary input should fail");
     assert!(err.contains("i64_clz"));
 }
 
 #[test]
 fn lookup_semantics_reject_tampered_i64_binary_input_hi() {
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let row = trace_rows()
         .into_iter()
         .find(|row| row.opcode == WasmOpcode::I64LtS)
         .expect("i64.lt_s row");
     let mut witness = build_witness_vector(&row);
     witness[COL_STACK_READ0_VALUE_HI] = F::ZERO;
-    let err = sanity_check_lookup_row(layout, &witness).expect_err("tampered i64 binary input should fail");
+    let err = sanity_check_lookup_row(&layout.auxiliary, &witness).expect_err("tampered i64 binary input should fail");
     assert!(err.contains("i64_lt_s"));
 }

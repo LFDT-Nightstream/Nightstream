@@ -45,7 +45,6 @@ use super::layout::{
     COL_STACK_READ2_VALUE_HI, COL_STACK_READ2_VALUE_LO, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI,
     COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_TABLE_ID, COL_TABLE_INDEX,
     COL_TABLE_READ_ENABLED, COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST,
-    WITNESS_WIDTH,
 };
 use super::lookup_semantics::{semantics_for_lookup_family, LookupSemantics};
 use super::tables::WasmLookupArity;
@@ -177,12 +176,16 @@ pub struct SignExtensionColumns {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct WasmLookupBindingLayout {
-    pub witness_width: usize,
+pub struct WasmAuxiliaryRelations {
     pub lookup_families: Vec<WasmLookupFamilySpec>,
     pub lookup_bindings: Vec<WasmLookupBindingSpec>,
     pub memories: Vec<WasmMemorySpec>,
-    pub cross_step_links: Vec<WasmCrossStepLinkSpec>,
+    pub ivc_state_links: Vec<WasmCrossStepLinkSpec>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WasmRelationLayout {
+    pub auxiliary: WasmAuxiliaryRelations,
     pub linear_memory: LinearMemoryColumns,
     pub sign_extension: SignExtensionColumns,
 }
@@ -205,12 +208,12 @@ fn rom_read_spec(
     }
 }
 
-pub fn build_wasm_lookup_binding_layout() -> &'static WasmLookupBindingLayout {
-    static LAYOUT: OnceLock<WasmLookupBindingLayout> = OnceLock::new();
-    LAYOUT.get_or_init(build_wasm_lookup_binding_layout_uncached)
+pub fn build_wasm_relation_layout() -> &'static WasmRelationLayout {
+    static LAYOUT: OnceLock<WasmRelationLayout> = OnceLock::new();
+    LAYOUT.get_or_init(build_wasm_relation_layout_uncached)
 }
 
-fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
+fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
     let linear_memory = LinearMemoryColumns {
         imm_offset: Column(COL_LINEAR_MEM_IMM_OFFSET),
         byte_offset: Column(COL_LINEAR_MEM_BYTE_OFFSET),
@@ -898,14 +901,15 @@ fn build_wasm_lookup_binding_layout_uncached() -> WasmLookupBindingLayout {
         },
     ];
 
-    let cross_step_links = build_ivc_state_continuity_links();
+    let ivc_state_links = build_ivc_state_continuity_links();
 
-    WasmLookupBindingLayout {
-        witness_width: WITNESS_WIDTH,
-        lookup_families,
-        lookup_bindings,
-        memories,
-        cross_step_links,
+    WasmRelationLayout {
+        auxiliary: WasmAuxiliaryRelations {
+            lookup_families,
+            lookup_bindings,
+            memories,
+            ivc_state_links,
+        },
         linear_memory,
         sign_extension,
     }

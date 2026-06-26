@@ -10,12 +10,12 @@ pub mod ir;
 pub mod isa;
 mod ivc_state;
 pub mod layout;
-pub mod lookup_binding_builder;
 pub mod lookup_semantics;
 pub mod memory_semantics;
 pub mod preprocess;
 pub mod prove;
 mod r1cs_builder;
+pub mod relation_layout;
 pub mod step_build;
 pub mod tables;
 pub mod tagged_r1cs_builder;
@@ -38,17 +38,17 @@ pub use isa::{
 };
 pub use ivc_state::{WasmCrossStepColumnPair, WasmCrossStepLinkSpec};
 pub use layout::{Column, ColumnWidth, WasmColumnSpec, COLUMN_SPECS};
-pub use lookup_binding_builder::{
-    build_wasm_lookup_binding_layout, LinearMemoryColumns, SignExtensionColumns, WasmLookupBindingLayout,
-    WasmLookupBindingSpec, WasmLookupFamilyKind, WasmLookupFamilySpec, WasmMemoryActivation, WasmMemoryColumnKind,
-    WasmMemoryColumnSpec, WasmMemorySpec,
-};
 pub use lookup_semantics::{sanity_check_lookup_row, LookupBuiltin, LookupExpr, LookupPredicate, LookupSemantics};
 pub use memory_semantics::{preload_from_program_artifacts, sanity_check_memory_rows, WasmMemoryPreload};
 pub use preprocess::{
     preprocess_seeded_batched, semantic_state_digest, top_level_initial_state, top_level_initial_state_digest,
 };
 pub use prove::{prove, prove_batched, verify, WasmProof, WasmProveError};
+pub use relation_layout::{
+    build_wasm_relation_layout, LinearMemoryColumns, SignExtensionColumns, WasmAuxiliaryRelations,
+    WasmLookupBindingSpec, WasmLookupFamilyKind, WasmLookupFamilySpec, WasmMemoryActivation, WasmMemoryColumnKind,
+    WasmMemoryColumnSpec, WasmMemorySpec, WasmRelationLayout,
+};
 pub use tables::WasmLookupArity;
 pub use tagged_r1cs_builder::{WasmConstraintCatalog, WasmConstraintScope, WasmConstraintTag};
 pub use witness_builder::{build_steps, build_witness_vector};

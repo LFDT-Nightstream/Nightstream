@@ -1,8 +1,10 @@
 //! IMPORTANT: this doesn't prove anything, it's just a sanity checker for now
 
 use super::isa::WasmOpTable;
-use super::layout::{ColumnWidth, COLUMN_SPECS};
-use super::lookup_binding_builder::{WasmLookupBindingLayout, WasmLookupFamilyKind, WasmLookupFamilySpec};
+use super::layout::{ColumnWidth, COLUMN_SPECS, WITNESS_WIDTH};
+use super::relation_layout::{
+    WasmAuxiliaryRelations, WasmLookupBindingSpec, WasmLookupFamilyKind, WasmLookupFamilySpec,
+};
 use neo_math::F;
 use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeField64;
@@ -91,11 +93,11 @@ pub fn append_lookup_semantics_digest(tr: &mut Poseidon2Transcript, semantics: &
     append_predicate_digest(tr, &semantics.predicate);
 }
 
-pub fn sanity_check_lookup_row(layout: &WasmLookupBindingLayout, witness: &[F]) -> Result<(), String> {
-    if witness.len() != layout.witness_width {
+pub fn sanity_check_lookup_row(auxiliary: &WasmAuxiliaryRelations, witness: &[F]) -> Result<(), String> {
+    if witness.len() != WITNESS_WIDTH {
         return Err(format!(
             "lookup sanity check expected witness width {}, got {}",
-            layout.witness_width,
+            WITNESS_WIDTH,
             witness.len()
         ));
     }
@@ -111,12 +113,12 @@ pub fn sanity_check_lookup_row(layout: &WasmLookupBindingLayout, witness: &[F]) 
             ));
         }
     }
-    let families = layout
+    let families = auxiliary
         .lookup_families
         .iter()
         .map(|family| (family.name, family))
         .collect::<BTreeMap<_, _>>();
-    for binding in &layout.lookup_bindings {
+    for binding in &auxiliary.lookup_bindings {
         let family = families
             .get(binding.family)
             .ok_or_else(|| format!("lookup sanity check missing family `{}`", binding.family))?;
@@ -140,7 +142,7 @@ pub fn sanity_check_lookup_row(layout: &WasmLookupBindingLayout, witness: &[F]) 
 }
 
 fn binding_is_active(
-    binding: &super::lookup_binding_builder::WasmLookupBindingSpec,
+    binding: &WasmLookupBindingSpec,
     family: &WasmLookupFamilySpec,
     witness: &[F],
     slot_values: &[u64],

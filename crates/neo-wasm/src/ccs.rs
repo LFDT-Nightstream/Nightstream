@@ -19,7 +19,7 @@ use super::layout::{
     selector_col, Column, COL_ONE, COL_PC_EDGE_KIND, COL_SELECT_OUT_DELTA_HI, COL_SELECT_OUT_DELTA_LO, COL_WIDE_AUX0,
     COL_WIDE_AUX1, PUBLIC_INPUTS, SELECTOR_COLS, WITNESS_WIDTH,
 };
-use super::lookup_binding_builder::{build_wasm_lookup_binding_layout, SignExtensionColumns};
+use super::relation_layout::{build_wasm_relation_layout, SignExtensionColumns};
 use super::tagged_r1cs_builder::{
     WasmConstraintCatalog, WasmConstraintScope, WasmConstraintTag, WasmTaggedR1csBuilder,
 };
@@ -189,7 +189,7 @@ fn fixed_stack_arity_gate_terms() -> [(usize, F); 3] {
 }
 
 fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String> {
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let linear_memory = layout.linear_memory;
     let mut b = WasmTaggedR1csBuilder::new(WITNESS_WIDTH, COL_ONE)?;
 

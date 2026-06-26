@@ -13,9 +13,8 @@ use neo_wasm::layout::{
 };
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{
-    build_wasm_lookup_binding_layout, collect_wasmtime_steps, extract_wasm_program_artifacts,
-    preload_from_program_artifacts, sanity_check_memory_rows, traces_from_wasmtime_steps,
-    traces_from_wasmtime_wasm_bytes, WasmOpcode, WasmStepTrace,
+    build_wasm_relation_layout, collect_wasmtime_steps, extract_wasm_program_artifacts, preload_from_program_artifacts,
+    sanity_check_memory_rows, traces_from_wasmtime_steps, traces_from_wasmtime_wasm_bytes, WasmOpcode, WasmStepTrace,
 };
 use p3_field::PrimeCharacteristicRing;
 
@@ -97,7 +96,7 @@ fn i32_store8_memory_check_rejects_tampered_consistent_prior_state() {
         "consistent-prior tamper must still pass every row-local CCS constraint",
     );
 
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let preload = preload_from_program_artifacts(&artifacts, &run.initial_locals);
     let result = sanity_check_memory_rows(layout, &witnesses, &preload);
     assert!(

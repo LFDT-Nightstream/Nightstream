@@ -4,7 +4,7 @@ use neo_ccs::check_ccs_rowwise_zero;
 use neo_math::F;
 use neo_wasm::layout::COLUMN_SPECS;
 use neo_wasm::{
-    build_wasm_lookup_binding_layout, collect_wasmtime_steps, extract_wasm_program_artifacts, opcode_info_from_code,
+    build_wasm_relation_layout, collect_wasmtime_steps, extract_wasm_program_artifacts, opcode_info_from_code,
     preload_from_program_artifacts, sanity_check_lookup_row, sanity_check_memory_rows, top_level_initial_state_digest,
     traces_from_wasmtime_steps, witness_builder::build_witness_vector, LinearMemoryAccess, StackValueAccess,
     WasmOpcode, WasmOutputState, WasmParamInitState, WasmPcEdgeKind, WasmProgramArtifacts, WasmRowKind, WasmStepState,
@@ -72,11 +72,11 @@ pub fn sanity_check_trace(
     artifacts: &WasmProgramArtifacts,
     initial_locals: &[u32],
 ) -> Vec<Vec<F>> {
-    let layout = build_wasm_lookup_binding_layout();
+    let layout = build_wasm_relation_layout();
     let mut witnesses = Vec::with_capacity(trace.len());
     for row in trace {
         let witness = build_witness_vector(row);
-        sanity_check_lookup_row(layout, &witness)
+        sanity_check_lookup_row(&layout.auxiliary, &witness)
             .unwrap_or_else(|err| panic!("lookup semantics rejected {:?}: {err}", row.opcode));
         witnesses.push(witness);
     }
@@ -194,8 +194,8 @@ pub fn step(
 }
 
 pub fn assert_satisfied(z: &[F], label: &str) {
-    let layout = build_wasm_lookup_binding_layout();
-    sanity_check_lookup_row(layout, z)
+    let layout = build_wasm_relation_layout();
+    sanity_check_lookup_row(&layout.auxiliary, z)
         .unwrap_or_else(|e| panic!("{label}: expected lookup semantics satisfied, got: {e}"));
     let vm = WasmVmSpec::default();
     let ccs = &vm.core_ccs_spec().structure;

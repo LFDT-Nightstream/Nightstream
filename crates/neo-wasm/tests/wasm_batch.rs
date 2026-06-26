@@ -46,10 +46,11 @@ fn batched_at_one_matches_single_step_shape() {
 fn batched_shape_grows_with_batch_size() {
     let single = build_batched_wasm_ccs(1).expect("single");
     let n_links_per_boundary = {
-        let layout = neo_wasm::build_wasm_lookup_binding_layout();
+        let layout = neo_wasm::build_wasm_relation_layout();
         // 1 local-constant link + one per state-continuity column pair.
         1 + layout
-            .cross_step_links
+            .auxiliary
+            .ivc_state_links
             .iter()
             .map(|l| l.column_pairs.len())
             .sum::<usize>()

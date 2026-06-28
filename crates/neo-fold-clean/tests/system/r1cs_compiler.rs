@@ -33,7 +33,7 @@
 mod support;
 
 use neo_math::F;
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use neo_ccs::matrix::Mat as NeoMat;
 use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
@@ -50,9 +50,16 @@ use neo_fold_clean::paper::digest::structure_digest;
 use neo_params::goldilocks_paper_b2;
 
 use support::r1cs_compiler_fixtures::{
-    assignment_one_product, fibonacci_r1cs, make_small_plan, make_tiny_lifecycle_plan, one_product_r1cs, tiny_params,
-    two_product_r1cs, BOUNDARY_BITS,
+    assignment_one_product, constant_lane_assignment, constant_lane_passthrough_r1cs, fibonacci_r1cs, make_small_plan,
+    make_stateful_plan_with_anchor, make_tiny_lifecycle_plan, one_product_r1cs, tiny_params, two_product_r1cs,
+    BOUNDARY_BITS,
 };
+
+fn overwrite_little_endian_u64_bits(witness: &mut [F], bit_start: usize, value: u64) {
+    for bit in 0..POSEIDON2_GOLDILOCKS_BITS {
+        witness[bit_start + bit] = if ((value >> bit) & 1) == 1 { F::ONE } else { F::ZERO };
+    }
+}
 
 // ─────────────────────────────────────────────────────────────────────────
 // Happy + sad path: compile_step accept / reject on app-level R1CS.
@@ -162,6 +169,189 @@ fn r1cs_compiler_bit_flip_in_app_assignment_fails_structure() {
     assert!(
         !compiled.encoded.structure.is_satisfied(&tampered),
         "bit-flip inside app_private must break an R1CS row"
+    );
+}
+
+#[test]
+fn r1cs_redteam_range_constraint_flag_rejects_nonbit_unused_slot() {
+    let r1cs = constant_lane_passthrough_r1cs();
+    let mut plan = make_small_plan(r1cs.m(), r1cs.m_in);
+    plan.app_private_var_widths = vec![POSEIDON2_GOLDILOCKS_BITS; r1cs.m()];
+    plan.app_private_var_widths[3] = 1;
+    plan.limbs = plan.app_private_var_widths.iter().sum::<usize>() + 1;
+    plan.app_private_widths_are_range_constraints = true;
+
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_00D1).expect("preprocess");
+    let mut ctx = start_chain(&prep).expect("start chain");
+    let compiled = compile_step(
+        &prep,
+        &mut ctx,
+        R1csFPrimeStepInput {
+            assignment: constant_lane_assignment(&[(3, 1)]),
+        },
+    )
+    .expect("compile");
+    assert!(compiled
+        .encoded
+        .structure
+        .is_satisfied(&compiled.encoded.witness));
+
+    let slot = prep.anchors().app_var_slots[3];
+    assert_eq!(slot.bits, 1);
+
+    // Red team: z[3] is unused by the app R1CS. If the flag only bypasses
+    // width validation without adding F' bitness rows, this forged value
+    // satisfies every remaining row.
+    let mut tampered = compiled.encoded.witness.clone();
+    tampered[slot.bit_start] = F::from_u64(2);
+    assert!(
+        !compiled.encoded.structure.is_satisfied(&tampered),
+        "an unused opt-in range slot must still be constrained to a bit by F' rows"
+    );
+}
+
+#[test]
+fn r1cs_redteam_range_constraint_width_rejects_truncating_assignment() {
+    let r1cs = constant_lane_passthrough_r1cs();
+    let mut plan = make_small_plan(r1cs.m(), r1cs.m_in);
+    plan.app_private_var_widths = vec![POSEIDON2_GOLDILOCKS_BITS; r1cs.m()];
+    plan.app_private_var_widths[3] = 2;
+    plan.limbs = plan.app_private_var_widths.iter().sum::<usize>() + 1;
+    plan.app_private_widths_are_range_constraints = true;
+
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_00D2).expect("preprocess");
+    let mut ctx = start_chain(&prep).expect("start chain");
+    let err = match compile_step(
+        &prep,
+        &mut ctx,
+        R1csFPrimeStepInput {
+            assignment: constant_lane_assignment(&[(3, 4)]),
+        },
+    ) {
+        Ok(_) => panic!("compiler must reject typed witness truncation"),
+        Err(err) => err,
+    };
+
+    assert!(
+        matches!(
+            err,
+            R1csCompilerError::TypedVariableOutOfRange { index: 3, width: 2, .. }
+        ),
+        "expected TypedVariableOutOfRange for z[3] in a 2-bit slot, got {err:?}"
+    );
+}
+
+#[test]
+fn r1cs_redteam_full_width_slot_rejects_goldilocks_alias() {
+    let r1cs = constant_lane_passthrough_r1cs();
+    let mut plan = make_small_plan(r1cs.m(), r1cs.m_in);
+    plan.app_private_var_widths = vec![POSEIDON2_GOLDILOCKS_BITS; r1cs.m()];
+    plan.limbs = plan.app_private_var_widths.iter().sum::<usize>() + 1;
+    plan.app_private_widths_are_range_constraints = true;
+
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_00D4).expect("preprocess");
+    let mut ctx = start_chain(&prep).expect("start chain");
+    let compiled = compile_step(
+        &prep,
+        &mut ctx,
+        R1csFPrimeStepInput {
+            assignment: constant_lane_assignment(&[]),
+        },
+    )
+    .expect("compile");
+    assert!(compiled
+        .encoded
+        .structure
+        .is_satisfied(&compiled.encoded.witness));
+
+    let alias = F::ORDER_U64 + 5;
+    let z1_slot = prep.anchors().app_var_slots[1];
+    assert_eq!(z1_slot.bits, POSEIDON2_GOLDILOCKS_BITS);
+    let mut tampered = compiled.encoded.witness.clone();
+    overwrite_little_endian_u64_bits(&mut tampered, z1_slot.bit_start, alias);
+
+    assert!(
+        !compiled.encoded.structure.is_satisfied(&tampered),
+        "a full-width app-private lane must reject the noncanonical Goldilocks alias p + 5"
+    );
+}
+
+#[test]
+fn r1cs_redteam_public_full_width_slot_rejects_goldilocks_alias() {
+    let m = neo_math::D;
+    let mut a = NeoMat::zero(1, m, F::default());
+    a[(0, 1)] = F::ONE;
+    let mut b = NeoMat::zero(1, m, F::default());
+    b[(0, 0)] = F::ONE;
+    let mut c = NeoMat::zero(1, m, F::default());
+    c[(0, 1)] = F::ONE;
+    let r1cs = R1cs { a, b, c, m_in: 2 };
+
+    let mut plan = make_small_plan(r1cs.m(), r1cs.m_in);
+    plan.app_private_var_widths = vec![POSEIDON2_GOLDILOCKS_BITS; r1cs.m()];
+    plan.limbs = plan.app_private_var_widths.iter().sum::<usize>() + 1;
+    plan.app_private_widths_are_range_constraints = true;
+
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_00D5).expect("preprocess");
+    let mut ctx = start_chain(&prep).expect("start chain");
+    let mut assignment = vec![F::ZERO; r1cs.m()];
+    assignment[0] = F::ONE;
+    assignment[1] = F::from_u64(5);
+    let compiled = compile_step(&prep, &mut ctx, R1csFPrimeStepInput { assignment }).expect("compile");
+    assert!(compiled
+        .encoded
+        .structure
+        .is_satisfied(&compiled.encoded.witness));
+
+    let alias = F::ORDER_U64 + 5;
+    let z1_slot = prep.anchors().app_var_slots[1];
+    assert_eq!(z1_slot.bits, POSEIDON2_GOLDILOCKS_BITS);
+    let mut tampered = compiled.encoded.witness.clone();
+    overwrite_little_endian_u64_bits(&mut tampered, z1_slot.bit_start, alias);
+
+    assert!(
+        !compiled.encoded.structure.is_satisfied(&tampered),
+        "public semantic binding must reject a noncanonical Goldilocks alias for a full-width public lane"
+    );
+}
+
+#[test]
+fn r1cs_redteam_semantic_state_full_width_slot_rejects_goldilocks_alias() {
+    let r1cs = constant_lane_passthrough_r1cs();
+    let mut plan = make_stateful_plan_with_anchor(r1cs.m(), r1cs.m_in, Vec::new(), vec![1], None);
+    plan.app_private_var_widths = vec![POSEIDON2_GOLDILOCKS_BITS; r1cs.m()];
+    plan.limbs = plan.app_private_var_widths.iter().sum::<usize>() + 1;
+    plan.app_private_widths_are_range_constraints = true;
+
+    let prep =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_00D6).expect("preprocess");
+    let mut ctx = start_chain(&prep).expect("start chain");
+    let compiled = compile_step(
+        &prep,
+        &mut ctx,
+        R1csFPrimeStepInput {
+            assignment: constant_lane_assignment(&[]),
+        },
+    )
+    .expect("compile");
+    assert!(compiled
+        .encoded
+        .structure
+        .is_satisfied(&compiled.encoded.witness));
+
+    let alias = F::ORDER_U64 + 5;
+    let z1_slot = prep.anchors().app_var_slots[1];
+    assert_eq!(z1_slot.bits, POSEIDON2_GOLDILOCKS_BITS);
+    let mut tampered = compiled.encoded.witness.clone();
+    overwrite_little_endian_u64_bits(&mut tampered, z1_slot.bit_start, alias);
+
+    assert!(
+        !compiled.encoded.structure.is_satisfied(&tampered),
+        "semantic-state output binding must reject a noncanonical Goldilocks alias for a full-width lane"
     );
 }
 

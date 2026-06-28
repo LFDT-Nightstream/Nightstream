@@ -17,7 +17,9 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use crate::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
 use crate::frontends::direct_ccs::FrontendError;
 use crate::frontends::direct_ccs::R1cs;
-use crate::frontends::f_prime::image::{FPrimeImageLayout, PoseidonPreimageLaneSource};
+use crate::frontends::f_prime::image::{
+    FPrimeImageLayout, PoseidonPreimageLaneSource, APP_PRIVATE_CANONICAL_AUX_BITS_PER_SLOT,
+};
 use crate::frontends::f_prime::structure::{
     app_variable_terms, emit_shell_rows, f_prime_lane_slots, AppVariableSlot, FPrimeStructure, MixedGateBuilder,
 };
@@ -981,6 +983,7 @@ where
 
     let mut builder = MixedGateBuilder::with_estimated_rows(image_end);
     emit_shell_rows(&layout, &lane_slots, &mut builder);
+    append_app_private_range_rows(&layout, &app_var_slots, &mut builder);
     let constant_lane_pinned = requires_r1cs_constant_lane_pin(&layout);
     if constant_lane_pinned {
         pin_r1cs_constant_lane(&app_var_slots, &mut builder);
@@ -1039,6 +1042,78 @@ fn requires_r1cs_constant_lane_pin(layout: &FPrimeImageLayout) -> bool {
                     .iter()
                     .any(|source| matches!(source, PoseidonPreimageLaneSource::AppAssignmentBitPack(_)))
             })
+}
+
+fn append_app_private_range_rows(
+    layout: &FPrimeImageLayout,
+    app_var_slots: &[AppVariableSlot],
+    builder: &mut MixedGateBuilder,
+) {
+    if !layout.app_private_widths_are_range_constraints || layout.config.app_private_var_widths.is_empty() {
+        debug_assert_eq!(layout.app_private_canonical_aux.bits, 0);
+        return;
+    }
+
+    let mut aux_cursor = layout.app_private_canonical_aux.offset;
+    for &slot in app_var_slots {
+        if slot.bits != POSEIDON2_GOLDILOCKS_BITS {
+            continue;
+        }
+
+        for col in slot.bit_start..slot.bit_start + slot.bits {
+            builder.bitness(col);
+        }
+        let hi_is_max_col = aux_cursor;
+        let inv_start = aux_cursor + 1;
+        builder.bitness(hi_is_max_col);
+        for col in inv_start..inv_start + POSEIDON2_GOLDILOCKS_BITS {
+            builder.bitness(col);
+        }
+        emit_goldilocks_canonical_rows(slot, hi_is_max_col, inv_start, builder);
+        aux_cursor += APP_PRIVATE_CANONICAL_AUX_BITS_PER_SLOT;
+    }
+    debug_assert_eq!(aux_cursor, layout.app_private_canonical_aux.end());
+}
+
+fn emit_goldilocks_canonical_rows(
+    slot: AppVariableSlot,
+    hi_is_max_col: usize,
+    inv_start: usize,
+    builder: &mut MixedGateBuilder,
+) {
+    debug_assert_eq!(slot.bits, POSEIDON2_GOLDILOCKS_BITS);
+    let hi_max = F::from_u64(0xFFFF_FFFF);
+    let hi_diff: Vec<(usize, F)> = high_half_terms(slot)
+        .chain(std::iter::once((0, F::ZERO - hi_max)))
+        .collect();
+
+    // hi_is_max = 1 implies hi == 0xffff_ffff.
+    builder.product(vec![(hi_is_max_col, F::ONE)], hi_diff.clone(), Vec::new());
+
+    // If hi != 0xffff_ffff, the inverse lane proves the difference is nonzero;
+    // if hi == max, this row forces hi_is_max = 1.
+    builder.product(
+        hi_diff,
+        u64_terms(inv_start),
+        vec![(0, F::ONE), (hi_is_max_col, F::ZERO - F::ONE)],
+    );
+
+    // Canonical Goldilocks: values with hi == max must have lo == 0.
+    builder.product(vec![(hi_is_max_col, F::ONE)], low_half_terms(slot), Vec::new());
+}
+
+fn low_half_terms(slot: AppVariableSlot) -> impl Iterator<Item = (usize, F)> {
+    debug_assert_eq!(slot.bits, POSEIDON2_GOLDILOCKS_BITS);
+    (0..32).map(move |i| (slot.bit_start + i, F::from_u64(1u64 << i)))
+}
+
+fn high_half_terms(slot: AppVariableSlot) -> impl Iterator<Item = (usize, F)> {
+    debug_assert_eq!(slot.bits, POSEIDON2_GOLDILOCKS_BITS);
+    (0..32).map(move |i| (slot.bit_start + 32 + i, F::from_u64(1u64 << i)))
+}
+
+fn u64_terms(bit_start: usize) -> impl Iterator<Item = (usize, F)> {
+    (0..POSEIDON2_GOLDILOCKS_BITS).map(move |i| (bit_start + i, F::from_u64(1u64 << i)))
 }
 
 fn pin_r1cs_constant_lane(app_var_slots: &[AppVariableSlot], builder: &mut MixedGateBuilder) {

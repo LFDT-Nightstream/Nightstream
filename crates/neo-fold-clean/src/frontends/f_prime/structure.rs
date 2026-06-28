@@ -77,6 +77,7 @@ pub struct LaneSlot {
 
 /// One app-private variable slot. R1CS-F' may use fewer than 64 committed
 /// bits when the R1CS shape proves the variable is bounded.
+/// F'-owned range rows can also make the declared bound verifier-owned.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct AppVariableSlot {
     pub bit_start: usize,
@@ -199,23 +200,25 @@ fn collect_app_assignment_lane_slots(layout: &FPrimeImageLayout) -> Vec<AppVaria
 
 /// Columns that remain semantically Boolean in the F' image itself.
 fn semantic_boolean_columns(layout: &FPrimeImageLayout) -> Vec<usize> {
-    let mut cols = Vec::with_capacity(semantic_boolean_row_count(layout));
+    let mut cols = Vec::new();
     cols.extend(layout.boundary.offset..layout.boundary.end());
     cols.extend(layout.is_base.offset..layout.is_base.end());
-    if app_private_is_semantic_bits(layout) {
+    if layout.app_private_widths_are_range_constraints && !layout.config.app_private_var_widths.is_empty() {
+        let mut cursor = layout.app_private.offset;
+        for &bits in &layout.config.app_private_var_widths {
+            if bits < POSEIDON2_GOLDILOCKS_BITS {
+                cols.extend(cursor..cursor + bits);
+            }
+            cursor += bits;
+        }
+    } else if app_private_is_semantic_bits(layout) {
         cols.extend(layout.app_private.offset..layout.app_private.end());
     }
     cols
 }
 
 fn semantic_boolean_row_count(layout: &FPrimeImageLayout) -> usize {
-    layout.boundary.bits
-        + layout.is_base.bits
-        + if app_private_is_semantic_bits(layout) {
-            layout.app_private.bits
-        } else {
-            0
-        }
+    semantic_boolean_columns(layout).len()
 }
 
 fn app_private_is_semantic_bits(layout: &FPrimeImageLayout) -> bool {
@@ -649,6 +652,15 @@ pub fn build_f_prime_structure(layout: FPrimeImageLayout) -> FPrimeStructure {
         image_end >= 2,
         "FPrimeImageLayout::end = {image_end} too small; need constant slot + ≥1 image coordinate"
     );
+    assert!(
+        !layout.app_private_widths_are_range_constraints
+            || !layout
+                .config
+                .app_private_var_widths
+                .iter()
+                .any(|&bits| bits == POSEIDON2_GOLDILOCKS_BITS),
+        "generic F' structure cannot enforce full-width typed app-private canonicality; use the R1CS-F' builder"
+    );
 
     let lane_slots = f_prime_lane_slots(&layout);
     let mut builder = MixedGateBuilder::with_estimated_rows(estimated_shell_row_capacity(&layout));
@@ -762,6 +774,7 @@ pub(crate) fn emit_shell_rows(
 
     // ── Semantic Boolean rows: `z[col] · (z[col] − 1) = 0`
     // for public boundary bits, control bits, and tiny app carry bits.
+    // Range-owned typed app slots also contribute their declared app bits.
     for col in semantic_boolean_columns(layout) {
         builder.bitness(col);
     }
@@ -1299,6 +1312,7 @@ impl FPrimeStructure {
     /// This intentionally counts only semantic bits (public boundary,
     /// `is_base`, and tiny app carry regions), not every low-norm digit
     /// used to encode internal field lanes.
+    /// Range-owned typed app slots are counted as semantic bits too.
     pub fn semantic_boolean_row_count(&self) -> usize {
         semantic_boolean_row_count(&self.layout)
     }

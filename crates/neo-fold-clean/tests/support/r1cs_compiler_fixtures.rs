@@ -127,6 +127,19 @@ pub fn one_product_r1cs() -> R1cs {
     R1cs { a, b, c, m_in: 1 }
 }
 
+/// R1CS with conventional constant lane `z[0] = 1` and one tautological
+/// row `z[1] * z[0] = z[1]`. Private variables `z[2..]` are unused.
+pub fn constant_lane_passthrough_r1cs() -> R1cs {
+    let m = neo_math::D;
+    let mut a = NeoMat::zero(1, m, F::default());
+    a[(0, 1)] = F::ONE;
+    let mut b = NeoMat::zero(1, m, F::default());
+    b[(0, 0)] = F::ONE;
+    let mut c = NeoMat::zero(1, m, F::default());
+    c[(0, 1)] = F::ONE;
+    R1cs { a, b, c, m_in: 0 }
+}
+
 /// R1CS with two constraints `z[0] = z[1] * z[2]` and `z[3] = z[4] * z[5]`.
 pub fn two_product_r1cs() -> R1cs {
     let m = neo_math::D;
@@ -174,6 +187,17 @@ pub fn assignment_one_product(a: u64, b: u64) -> Vec<F> {
 
 pub fn assignment_one_product_with_extras(a: u64, b: u64, extras: &[(usize, u64)]) -> Vec<F> {
     let mut z = assignment_one_product(a, b);
+    for &(index, value) in extras {
+        z[index] = F::from_u64(value);
+    }
+    z
+}
+
+pub fn constant_lane_assignment(extras: &[(usize, u64)]) -> Vec<F> {
+    let m = neo_math::D;
+    let mut z = vec![F::ZERO; m];
+    z[0] = F::ONE;
+    z[1] = F::from_u64(5);
     for &(index, value) in extras {
         z[index] = F::from_u64(value);
     }

@@ -112,10 +112,12 @@ fn phase_1_3a_each_fill_writes_only_its_region() {
         assert_eq!(*v, F::ZERO, "state_in fill must not perturb boundary");
     }
     // state_out, chunk_digest, app_private, nifs_payloads, kmul, ring_action, poseidon should also be all zero.
+    // The app-private canonicality aux region is also untouched here.
     let post_state_in_offsets = [
         image.layout.state_out,
         image.layout.chunk_digest,
         image.layout.app_private,
+        image.layout.app_private_canonical_aux,
         image.layout.nifs_payloads,
         image.layout.kmul,
         image.layout.ring_action,

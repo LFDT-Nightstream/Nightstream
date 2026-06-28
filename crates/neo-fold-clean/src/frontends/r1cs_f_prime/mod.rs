@@ -687,7 +687,8 @@ fn derive_structure(
             // Boolean-heavy frontends (Bellpepper/SHA). The structure pins
             // that lane when packed public bits are used, so it is safe to
             // pack as a bit even though it has no `z0 * (1-z0)` row.
-            if index != 0 && !boolean_vars[index] {
+            let f_prime_proves_bit = plan.app_private_widths_are_range_constraints;
+            if index != 0 && !boolean_vars[index] && !f_prime_proves_bit {
                 return Err(Error::PlanPackedPublicInputBooleanUnconstrained { index });
             }
         }
@@ -739,7 +740,10 @@ fn derive_structure(
         return Err(Error::PlanSemanticStateAnchorWithoutIndices);
     }
 
-    let layout = FPrimeImageLayout::new(build_recursive_step_image_config(plan));
+    let layout = FPrimeImageLayout::new_with_app_private_range_constraints(
+        build_recursive_step_image_config(plan),
+        plan.app_private_widths_are_range_constraints,
+    );
     let public_input_len = 1 + layout.boundary.bits;
     let (structure, anchors) = structure::build_r1cs_f_prime_structure(layout, r1cs);
     Ok((Arc::new(structure), anchors, public_input_len))

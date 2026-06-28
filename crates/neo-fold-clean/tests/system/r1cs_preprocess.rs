@@ -18,7 +18,9 @@ use neo_fold_clean::frontends::r1cs_f_prime;
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-use support::r1cs_compiler_fixtures::{expect_preprocess_err, make_small_plan, one_product_r1cs, tiny_params};
+use support::r1cs_compiler_fixtures::{
+    constant_lane_passthrough_r1cs, expect_preprocess_err, make_small_plan, one_product_r1cs, tiny_params,
+};
 
 /// A plan with the wrong `app_public_input_var_indices` would silently
 /// miss the public-input binding (the chain's `public_output_digest`
@@ -114,6 +116,59 @@ fn r1cs_preprocess_prepared_structure_matches_standard_preprocess() {
 }
 
 #[test]
+fn r1cs_preprocess_prepared_structure_preserves_f_prime_range_options() {
+    let r1cs = constant_lane_passthrough_r1cs();
+    let mut plan = make_small_plan(r1cs.m(), r1cs.m_in);
+    plan.app_private_var_widths = vec![POSEIDON2_GOLDILOCKS_BITS; r1cs.m()];
+    plan.app_private_var_widths[3] = 1;
+    plan.limbs = plan.app_private_var_widths.iter().sum::<usize>() + 1;
+
+    let default_err = match r1cs_f_prime::prepare_preprocessing_structure(&r1cs, &plan) {
+        Ok(_) => panic!("default prepared path must still require an app-R1CS width proof"),
+        Err(err) => err,
+    };
+    assert!(
+        matches!(
+            default_err,
+            r1cs_f_prime::Error::PlanAppPrivateWidthTooNarrow { index: 3, width: 1, .. }
+        ),
+        "expected fail-closed default prepared rejection, got {default_err:?}"
+    );
+
+    let params = tiny_params();
+    let seed = 0x71C5_C019;
+    plan.app_private_widths_are_range_constraints = true;
+    let direct = r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, params.clone(), seed)
+        .expect("direct range-aware preprocess");
+    let prepared =
+        r1cs_f_prime::prepare_preprocessing_structure(&r1cs, &plan).expect("option-aware prepared structure");
+    assert!(
+        prepared
+            .structure()
+            .layout
+            .app_private_widths_are_range_constraints,
+        "prepared structure must retain the range-row construction mode"
+    );
+    assert_eq!(
+        prepared.structure().ccs.n,
+        direct.structure().ccs.n,
+        "prepared and direct option-aware structures must emit the same rows"
+    );
+
+    let from_prepared = r1cs_f_prime::preprocess_seeded_prepared_with_params(prepared, params, seed)
+        .expect("prepared option-aware preprocess");
+    assert_eq!(
+        direct.prep.structure_digest(),
+        from_prepared.prep.structure_digest(),
+        "prepared preprocessing must preserve the option-aware structure digest"
+    );
+    from_prepared
+        .prep
+        .validate_cached_structure()
+        .expect("prepared option-aware cache must validate");
+}
+
+#[test]
 fn r1cs_preprocess_prepare_rejects_public_input_mismatch() {
     let r1cs = one_product_r1cs();
     let mut plan = make_small_plan(r1cs.m(), r1cs.m_in);
@@ -138,6 +193,8 @@ fn r1cs_preprocess_prepare_rejects_public_input_mismatch() {
 /// a proven bit. The honest compiler rejects non-bit assignments, but
 /// that is prover-side hygiene; the verifier-owned plan must reject an
 /// R1CS shape whose rows do not prove the bitness relation.
+/// F'-owned range rows are the explicit opt-in replacement for duplicate
+/// app-R1CS Boolean rows.
 #[test]
 fn r1cs_preprocess_rejects_packed_public_input_without_boolean_row() {
     let m = neo_math::D;
@@ -170,6 +227,28 @@ fn r1cs_preprocess_rejects_packed_public_input_without_boolean_row() {
         ),
         "expected fail-closed rejection for packing unconstrained variable 1 as one bit, got {err:?}"
     );
+}
+
+#[test]
+fn r1cs_preprocess_accepts_packed_public_input_with_f_prime_range_rows() {
+    let m = neo_math::D;
+    let a = NeoMat::zero(1, m, F::default());
+    let b = NeoMat::zero(1, m, F::default());
+    let c = NeoMat::zero(1, m, F::default());
+    let r1cs = R1cs { a, b, c, m_in: 2 };
+
+    let mut plan = make_small_plan(r1cs.m(), r1cs.m_in);
+    plan.app_private_var_widths = vec![POSEIDON2_GOLDILOCKS_BITS; r1cs.m()];
+    plan.app_private_var_widths[0] = 1;
+    plan.app_private_var_widths[1] = 1;
+    plan.limbs = plan.app_private_var_widths.iter().sum::<usize>() + 1;
+    plan.app_private_widths_are_range_constraints = true;
+    let sxo = plan.state_x_out.as_mut().expect("plan has state_x_out");
+    sxo.app_public_input_var_indices = vec![];
+    sxo.app_public_input_bit_var_indices = vec![0, 1];
+
+    r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_C018)
+        .expect("F'-owned one-bit slots may replace duplicate app-R1CS Boolean rows for packed public input");
 }
 
 #[test]
@@ -265,17 +344,56 @@ fn r1cs_preprocess_rejects_one_bit_slot_without_boolean_row() {
 /// rejects is accepted when declared widths are range constraints:
 /// `app_private_widths_are_range_constraints` opts out of the conservative
 /// `PlanAppPrivateWidthTooNarrow` proof obligation.
+/// The sound version also emits F' rows that prove the declared range.
 #[test]
-fn r1cs_preprocess_range_constraint_widths_bypass_too_narrow() {
-    let r1cs = one_product_r1cs();
+fn r1cs_preprocess_accepts_range_constraint_width_when_f_prime_owns_bitness() {
+    let r1cs = constant_lane_passthrough_r1cs();
     let mut plan = make_small_plan(r1cs.m(), r1cs.m_in);
     plan.app_private_var_widths = vec![POSEIDON2_GOLDILOCKS_BITS; r1cs.m()];
-    plan.app_private_var_widths[1] = 1;
+    plan.app_private_var_widths[3] = 1;
     plan.limbs = plan.app_private_var_widths.iter().sum::<usize>() + 1;
     plan.app_private_widths_are_range_constraints = true;
 
-    r1cs_f_prime::preprocess_seeded(&r1cs, &plan, 0x71C5_C004)
-        .expect("range-constraint widths bypass the PlanAppPrivateWidthTooNarrow check");
+    let prep = r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x71C5_C004)
+        .expect("F'-owned range rows may replace syntactic R1CS width proof");
+
+    assert_eq!(prep.anchors().app_var_slots[3].bits, 1);
+}
+
+#[test]
+fn r1cs_redteam_range_constraint_flag_adds_bitness_rows() {
+    let r1cs = constant_lane_passthrough_r1cs();
+
+    let mut full_width_plan = make_small_plan(r1cs.m(), r1cs.m_in);
+    full_width_plan.app_private_var_widths = vec![POSEIDON2_GOLDILOCKS_BITS; r1cs.m()];
+    full_width_plan.limbs = full_width_plan.app_private_var_widths.iter().sum::<usize>() + 1;
+    full_width_plan.app_private_widths_are_range_constraints = true;
+    let full_width_rows =
+        r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &full_width_plan, tiny_params(), 0x71C5_C011)
+            .expect("full-width range plan preprocesses")
+            .structure()
+            .ccs
+            .n;
+
+    let mut narrowed_plan = full_width_plan;
+    narrowed_plan.app_private_var_widths[3] = 1;
+    narrowed_plan.app_private_var_widths[4] = 2;
+    narrowed_plan.limbs = narrowed_plan.app_private_var_widths.iter().sum::<usize>() + 1;
+    let narrowed_rows = r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &narrowed_plan, tiny_params(), 0x71C5_C012)
+        .expect("narrow range plan preprocesses")
+        .structure()
+        .ccs
+        .n;
+
+    let full_width_slot_rows = POSEIDON2_GOLDILOCKS_BITS + (1 + POSEIDON2_GOLDILOCKS_BITS) + 3;
+    let narrowed_slot_rows = 1 + 2;
+    let constant_lane_pin_rows = 1;
+    assert_eq!(
+        narrowed_rows,
+        full_width_rows - 2 * full_width_slot_rows + narrowed_slot_rows + constant_lane_pin_rows,
+        "narrowing two full-width slots must remove their full canonicality rows, \
+         keep the narrowed bitness rows, and add the constant-lane pin"
+    );
 }
 
 #[test]

@@ -153,6 +153,17 @@ fn phase_1_4a_structure_shape_matches_image_layout() {
     );
 }
 
+#[test]
+#[should_panic(expected = "generic F' structure cannot enforce full-width typed app-private canonicality")]
+fn phase_1_4a_generic_builder_rejects_full_width_app_range_flag() {
+    let mut config = small_test_image_config();
+    config.limbs = 65;
+    config.app_private_var_widths = vec![64];
+
+    let layout = FPrimeImageLayout::new_with_app_private_range_constraints(config, true);
+    let _ = build_f_prime_structure(layout);
+}
+
 /// An honestly-filled image (kmul / ring_action slots populated via the
 /// production fill paths) satisfies every constraint of the structure
 /// once extended with the canonical state_in/state_out/chunk_digest lane decoding.

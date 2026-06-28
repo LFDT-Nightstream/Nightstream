@@ -56,6 +56,11 @@ const IS_BASE_BITS: usize = 1 + POSEIDON2_GOLDILOCKS_BITS;
 /// kmul K-mul Karatsuba intermediate: 3 K-limbs × 2 lanes × 64 bits each.
 const KMUL_SLOT_BITS: usize = 3 * 2 * POSEIDON2_GOLDILOCKS_BITS;
 
+/// Per full-width typed app-private slot, the R1CS-F' range rows carry
+/// one `hi_is_max` bit plus one 64-bit inverse lane for
+/// `hi - 0xffff_ffff`.
+pub(crate) const APP_PRIVATE_CANONICAL_AUX_BITS_PER_SLOT: usize = 1 + POSEIDON2_GOLDILOCKS_BITS;
+
 /// A contiguous bit range within the F' source image.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RegionRange {
@@ -329,11 +334,14 @@ impl NifsPayloadShape {
 #[derive(Clone, Debug)]
 pub struct FPrimeImageLayout {
     pub config: FPrimeImageConfig,
+    /// Whether typed app-private widths are verifier-owned range constraints.
+    pub app_private_widths_are_range_constraints: bool,
     pub boundary: RegionRange,
     pub state_in: RegionRange,
     pub state_out: RegionRange,
     pub chunk_digest: RegionRange,
     pub app_private: RegionRange,
+    pub app_private_canonical_aux: RegionRange,
     /// Single committed bit; `1` for base step, `0` for recursive step.
     /// Drives the unified-accumulator selector constraint emitted in
     /// `fibonacci_structure::build_f_prime_structure`. Always
@@ -366,6 +374,13 @@ pub struct FPrimeImageLayout {
 
 impl FPrimeImageLayout {
     pub fn new(config: FPrimeImageConfig) -> Self {
+        Self::new_with_app_private_range_constraints(config, false)
+    }
+
+    pub fn new_with_app_private_range_constraints(
+        config: FPrimeImageConfig,
+        app_private_widths_are_range_constraints: bool,
+    ) -> Self {
         if !config.app_private_var_widths.is_empty() {
             let typed_bits: usize = config.app_private_var_widths.iter().sum();
             assert_eq!(
@@ -414,6 +429,12 @@ impl FPrimeImageLayout {
             bits: config.limbs.saturating_sub(1),
         };
         cursor = app_private.end();
+
+        let app_private_canonical_aux = RegionRange {
+            offset: cursor,
+            bits: app_private_canonical_aux_bits(&config, app_private_widths_are_range_constraints),
+        };
+        cursor = app_private_canonical_aux.end();
 
         let is_base = RegionRange {
             offset: cursor,
@@ -473,11 +494,13 @@ impl FPrimeImageLayout {
 
         Self {
             config,
+            app_private_widths_are_range_constraints,
             boundary,
             state_in,
             state_out,
             chunk_digest,
             app_private,
+            app_private_canonical_aux,
             is_base,
             nifs_payloads,
             nifs_payload_offsets,
@@ -494,13 +517,14 @@ impl FPrimeImageLayout {
     }
 
     /// Top-level region ranges in spec order (boundary..poseidon).
-    pub fn top_level_regions(&self) -> [RegionRange; 10] {
+    pub fn top_level_regions(&self) -> [RegionRange; 11] {
         [
             self.boundary,
             self.state_in,
             self.state_out,
             self.chunk_digest,
             self.app_private,
+            self.app_private_canonical_aux,
             self.is_base,
             self.nifs_payloads,
             self.kmul,
@@ -526,6 +550,7 @@ impl FPrimeImage {
         values[0] = F::ONE;
         let mut image = Self { layout, values };
         image.refresh_is_base_inverse();
+        image.refresh_app_private_canonical_aux();
         image
     }
 
@@ -776,6 +801,7 @@ impl FPrimeImage {
         }
         let range = self.layout.app_private.offset..self.layout.app_private.end();
         self.values[range].copy_from_slice(carries);
+        self.refresh_app_private_canonical_aux();
     }
 
     /// Copy boundary bits out for parity.
@@ -834,6 +860,61 @@ impl FPrimeImage {
     /// Copy app_private carries out for parity.
     pub fn decode_app_private(&self) -> Vec<F> {
         self.values[self.layout.app_private.offset..self.layout.app_private.end()].to_vec()
+    }
+}
+
+fn app_private_canonical_aux_bits(config: &FPrimeImageConfig, app_private_widths_are_range_constraints: bool) -> usize {
+    if !app_private_widths_are_range_constraints {
+        return 0;
+    }
+    config
+        .app_private_var_widths
+        .iter()
+        .filter(|&&bits| bits == POSEIDON2_GOLDILOCKS_BITS)
+        .count()
+        * APP_PRIVATE_CANONICAL_AUX_BITS_PER_SLOT
+}
+
+fn read_u32_bits(values: &[F], offset: usize) -> u64 {
+    let mut acc = 0u64;
+    for bit in 0..32 {
+        let v = values[offset + bit];
+        assert!(v == F::ZERO || v == F::ONE);
+        if v == F::ONE {
+            acc |= 1u64 << bit;
+        }
+    }
+    acc
+}
+
+impl FPrimeImage {
+    fn refresh_app_private_canonical_aux(&mut self) {
+        if self.layout.app_private_canonical_aux.bits == 0 {
+            return;
+        }
+
+        let hi_max = F::from_u64(0xFFFF_FFFF);
+        let mut app_cursor = self.layout.app_private.offset;
+        let mut aux_cursor = self.layout.app_private_canonical_aux.offset;
+        for &bits in &self.layout.config.app_private_var_widths {
+            if bits == POSEIDON2_GOLDILOCKS_BITS {
+                let hi = read_u32_bits(&self.values, app_cursor + 32);
+                let hi_is_max = hi == 0xFFFF_FFFF;
+                self.values[aux_cursor] = if hi_is_max { F::ONE } else { F::ZERO };
+
+                let diff = F::from_u64(hi) - hi_max;
+                let inv = if diff == F::ZERO {
+                    0
+                } else {
+                    diff.inverse().as_canonical_u64()
+                };
+                write_u64_bits(&mut self.values, aux_cursor + 1, inv);
+                aux_cursor += APP_PRIVATE_CANONICAL_AUX_BITS_PER_SLOT;
+            }
+            app_cursor += bits;
+        }
+        debug_assert_eq!(app_cursor, self.layout.app_private.end());
+        debug_assert_eq!(aux_cursor, self.layout.app_private_canonical_aux.end());
     }
 }
 

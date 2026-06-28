@@ -540,6 +540,9 @@ fn assignment_to_plan_bits(plan: &RecursiveStepImagePlan, assignment: &[F]) -> R
         if width == 1 && raw >= 2 {
             return Err(R1csCompilerError::TypedBooleanVariableNotBit { index, value });
         }
+        if width < POSEIDON2_GOLDILOCKS_BITS && raw >= (1u64 << width) {
+            return Err(R1csCompilerError::TypedVariableOutOfRange { index, width, value });
+        }
         for bit in 0..width {
             bits.push(if ((raw >> bit) & 1) == 1 { F::ONE } else { F::ZERO });
         }
@@ -580,6 +583,15 @@ pub enum R1csCompilerError {
 
     #[error("R1CS compiler: typed Boolean app variable z[{index}] is not Boolean (got {value:?})")]
     TypedBooleanVariableNotBit { index: usize, value: F },
+
+    #[error(
+        "R1CS compiler: typed app variable z[{index}] does not fit in its declared {width}-bit slot (got {value:?})"
+    )]
+    TypedVariableOutOfRange {
+        index: usize,
+        width: usize,
+        value: F,
+    },
 
     #[error("R1CS compiler: conventional constant lane z[0] must be ONE when the plan relies on it (got {got:?})")]
     ConstantLaneNotOne { got: F },

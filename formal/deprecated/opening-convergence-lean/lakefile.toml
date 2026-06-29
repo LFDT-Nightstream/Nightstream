@@ -3,7 +3,7 @@ defaultTargets = ["OpeningConvergence"]
 
 [[require]]
 name = "superneo_lean"
-path = "../superneo-lean"
+path = "../../superneo-lean"
 
 [[lean_lib]]
 name = "OpeningConvergence"

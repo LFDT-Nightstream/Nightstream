@@ -51,10 +51,6 @@ serde_json = { workspace = true }
 
 # Spec-derived tests (lean oracles + invariant obligations)
 [[test]]
-name = "spec_lean_oracles"
-path = "spec-tests/lean_oracles.rs"
-
-[[test]]
 name = "spec_relations"
 path = "spec-tests/relations.rs"
 

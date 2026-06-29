@@ -22,12 +22,9 @@
   - `SuperNeo.ProofSystem.IsNegligible hA.errorModel.epsTotal`
 - `FinalTheoremAssumptions.sumcheckAdvantageBound` is the canonical witness-level SumCheck failure bound aligned to `epsSumcheck`.
 - `FinalErrorPackage.ofComponentBoundaries` assembles a canonical shared `ErrorModel` from explicit SumCheck/SZ/MSIS/Ajtai component boundaries.
-- `FinalErrorPackage.ofAlignedComponents` assembles the same package from explicit components plus one alignment witness.
-- `FinalErrorPackage.ofAlignedPaperCarrierFromThreeDLe` specializes to the proved `paperCarrier` route and derives the MSIS-to-Ajtai reduction data from the MSIS boundary plus `3 * d <= params.relaxedExpansion`.
-- `FinalErrorPackage.ofGoldilocksPaperCarrier` specializes further to the Goldilocks Appendix B.2 parameter family, leaving only `messageLength` explicit.
+- `FinalErrorPackage.ofGoldilocksPaperCarrier` specializes to the Goldilocks Appendix B.2 parameter family, leaving only `messageLength` explicit.
 - `FinalTheoremAssumptions.ofBoundaryPackages` is the canonical constructor from a reduction bundle and one canonical final error package.
-- `FinalTheoremAssumptions.ofAlignedPaperCarrierBoundaryPackages`, `.ofAlignedPaperCarrierDiffBoundaryPackages`, and `.ofAlignedPaperCarrierLowNormBoundaryPackages` are the aligned constructors for the proved `paperCarrier`, paper-facing difference, and stronger low-norm routes.
-- `FinalTheoremAssumptions.ofGoldilocksPaperCarrierBoundaryPackages`, `.ofGoldilocksPaperCarrierDerivedSumcheck`, `.ofGoldilocksPaperCarrierDiffBoundaryPackages`, `.ofGoldilocksNativePaperCarrierDiffBoundaryPackages`, and `.ofGoldilocksPaperCarrierLowNormBoundaryPackages` are the Goldilocks Appendix B.2 constructors.
+- `FinalTheoremAssumptions.ofGoldilocksPaperCarrierBoundaryPackages`, `.ofGoldilocksPaperCarrierDerivedSumcheck`, and `.ofGoldilocksNativePaperCarrierDiffBoundaryPackages` are the Goldilocks Appendix B.2 constructors; the native-bar variant is the active paper-faithful final route.
 - On the native-bar Goldilocks route, the constructor derives the witness-level SumCheck boundary and the local Schwartz-Zippel boundary internally from the carried `SumCheckTransitionWitness` and arithmetic obligations.
 
 ## Paper Anchors
@@ -51,21 +48,14 @@
 | Local replay surfaces | `SumcheckPrefixLundBoundary ctx`, `GoldilocksFullFieldLundBoundary ctx` | `ProtocolTargetContext` | Local faithful Lund replay/setup surfaces | Definitional | Internal protocol replay constructions |
 | Canonical error package | `FinalErrorPackage ctx params` | `ctx : ProtocolTargetContext` | Bundles SumCheck/SZ/MSIS/MSIS-to-Ajtai error surfaces plus one shared `ErrorModel` | Definitional | `FinalTheoremAssumptions` |
 | Constructor | `FinalErrorPackage.ofComponentBoundaries` | Explicit SumCheck/SZ/MSIS/Ajtai component boundaries | Canonical final-error assembly deriving the shared `ErrorModel` internally | Theorem-Target | `FinalTheoremAssumptions` |
-| Constructor | `FinalErrorPackage.ofAlignedComponents` | Explicit component packages + one alignment witness | Canonical aligned final-error assembly | Theorem-Target | `FinalTheoremAssumptions` |
-| Constructor | `FinalErrorPackage.ofAlignedPaperCarrierFromThreeDLe` | `3 * d <= params.relaxedExpansion`, `0 < params.relaxedExpansion`, aligned SumCheck/SZ/MSIS components | Canonical final-error assembly specialized to the proved `paperCarrier` path | Theorem-Target | `FinalTheoremAssumptions` |
 | Constructor | `FinalErrorPackage.ofGoldilocksPaperCarrier` | `messageLength` + SumCheck/SZ/MSIS component boundaries | Canonical final-error assembly specialized to the Goldilocks Appendix B.2 family | Theorem-Target | `FinalTheoremAssumptions` |
 | Final assumptions | `FinalTheoremAssumptions ctx` | None | Bundles the reduction data, lattice parameters, and one canonical final error package | Definitional | Final theorem constructors |
 | Constructor | `FinalTheoremAssumptions.ofBoundaryPackages` | Reduction + canonical final error package | Canonical final-theorem assembly | Theorem-Target | `ProofSystem.Protocol` |
-| Constructor | `FinalTheoremAssumptions.ofAlignedPaperCarrierBoundaryPackages` | Reduction + aligned SumCheck/SZ/MSIS components + `3 * d <= params.relaxedExpansion` | Canonical final-theorem assembly on the proved `paperCarrier` path | Theorem-Target | `ProofSystem.Protocol` |
-| Constructor | `FinalTheoremAssumptions.ofAlignedPaperCarrierDiffBoundaryPackages` | `thm3` + arithmetic + `samplingDiffSet paperCarrier ctx.invDelta` + `ctx.invDelta != 0` + SumCheck witness + aligned SumCheck/SZ/MSIS components + `3 * d <= params.relaxedExpansion` | Canonical final-theorem assembly on the paper-facing difference path | Theorem-Target | `ProofSystem.Protocol` |
-| Constructor | `FinalTheoremAssumptions.ofAlignedPaperCarrierLowNormBoundaryPackages` | `thm3` + arithmetic + `lowNormInvertibilityAssumption B` with `5 <= B` + `samplingDiffSet paperCarrier ctx.invDelta` + `ctx.invDelta != 0` + SumCheck witness + aligned SumCheck/SZ/MSIS components + `3 * d <= params.relaxedExpansion` | Canonical final-theorem assembly on the stronger low-norm route | Theorem-Target | `ProofSystem.Protocol` |
 | Constructor | `FinalTheoremAssumptions.ofGoldilocksPaperCarrierBoundaryPackages` | Reduction + `messageLength` + SumCheck/SZ/MSIS boundaries | Canonical Goldilocks final-theorem assembly on the proved `paperCarrier` path | Theorem-Target | `ProofSystem.Protocol` |
 | Constructor | `FinalTheoremAssumptions.ofGoldilocksPaperCarrierDerivedSumcheck` | Reduction + `messageLength` + theorem-level MSIS hardness assumption | Canonical Goldilocks final-theorem assembly deriving the witness-level SumCheck and local Schwartz-Zippel boundaries internally and reconstructing the internal MSIS boundary theorem-natively | Theorem-Target | `ProofSystem.Protocol` |
-| Constructor | `FinalTheoremAssumptions.ofGoldilocksPaperCarrierDiffBoundaryPackages` | `thm3` + arithmetic + `samplingDiffSet paperCarrier ctx.invDelta` + `ctx.invDelta != 0` + SumCheck witness + `messageLength` + SumCheck/SZ/MSIS boundaries | Canonical Goldilocks final-theorem assembly on the paper-facing difference path | Theorem-Target | `ProofSystem.Protocol` |
 | Constructor | `FinalTheoremAssumptions.ofGoldilocksNativePaperCarrierDiffBoundaryPackages` | `ctx.bar = nativeBarMatrix` + arithmetic + `samplingDiffSet paperCarrier ctx.invDelta` + `ctx.invDelta != 0` + SumCheck witness + `messageLength` + theorem-level MSIS hardness assumption | Canonical active native-bar Goldilocks final-theorem assembly, deriving Theorem 3, witness-level SumCheck, local Schwartz-Zippel pieces, and the internal MSIS boundary package internally | Theorem-Target | `ProofSystem.Protocol` |
-| Constructor | `FinalTheoremAssumptions.ofGoldilocksPaperCarrierLowNormBoundaryPackages` | `thm3` + arithmetic + `lowNormInvertibilityAssumption B` with `5 <= B` + `samplingDiffSet paperCarrier ctx.invDelta` + `ctx.invDelta != 0` + SumCheck witness + `messageLength` + SumCheck/SZ/MSIS boundaries | Canonical Goldilocks final-theorem assembly on the stronger low-norm route | Theorem-Target | `ProofSystem.Protocol` |
 | Accessors | `FinalTheoremAssumptions.sumcheckErrorBoundary`, `sumcheckAdvantageBound`, `schwartzZippelBoundary`, `schwartzZippelAdvantageBound`, `msisHardnessBoundary`, `msisAdvantageBound`, `bindingAdvantageBound`, `relaxedBindingAdvantageBound`, `totalErrorDecompFromModel`, `totalErrorNegligible` | `FinalTheoremAssumptions` | Derived per-component theorem surfaces aligned to the shared `ErrorModel` | Theorem-Target | `ProofSystem.Protocol` |
-| Final theorem | `FinalTheoremShape`, `finalTheoremShape_of_assumptions`, and the specialized `finalTheoremShape_of_*` wrappers | `FinalTheoremAssumptions` or the corresponding constructor inputs | Completeness plus knowledge-soundness | Theorem-Target | `ProofSystem.Protocol` |
+| Final theorem | `FinalTheoremShape`, `finalTheoremShape_of_assumptions`, and `finalTheoremShape_of_goldilocksNativePaperCarrierDiffBoundaryPackages` | `FinalTheoremAssumptions` or the corresponding constructor inputs | Completeness plus knowledge-soundness | Theorem-Target | `ProofSystem.Protocol` |
 
 ## Design Notes
 
@@ -78,9 +68,9 @@
 ## Dependency and Consumer Map
 
 - Upstream dependencies:
-  - `SuperNeo/InteractiveReductions.lean`
-  - `SuperNeo/Interp.lean`
-  - `SuperNeo/ProtocolRelations.lean`
+  - `SuperNeo/SecurityModel/InteractiveReductions.lean`
+  - `SuperNeo/Primitives/Interp.lean`
+  - `SuperNeo/FoldingProtocol/ProtocolRelations.lean`
   - `SuperNeo/ProofSystem/Lattice.lean`
   - `SuperNeo/ProofSystem/LatticeReductions.lean`
   - `SuperNeo/ProofSystem/SumCheck.lean`

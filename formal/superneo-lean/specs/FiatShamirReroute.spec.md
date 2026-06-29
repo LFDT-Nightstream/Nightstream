@@ -46,8 +46,8 @@
 
 | Lean file | Role |
 |---|---|
-| `SuperNeo/FiatShamirReroute.lean` | Deterministic reroute theorem implementation |
-| `SuperNeo/FiatShamirRerouteInterface.lean` | Curated theorem-facing interface |
+| `SuperNeo/FoldingProtocol/FiatShamirReroute.lean` | Deterministic reroute theorem implementation |
+| `SuperNeo/FoldingProtocol/FiatShamirRerouteInterface.lean` | Curated theorem-facing interface |
 
 ## Contract Surface
 
@@ -83,8 +83,8 @@
 ## Dependency and Consumer Map
 
 Upstream dependencies:
-- `SuperNeo/PiDEC.lean`: provides `piDEC_of_weak`.
-- `SuperNeo/PiRLC.lean`: provides `piRLCWeakStatement`.
+- `SuperNeo/FoldingProtocol/PiDEC.lean`: provides `piDEC_of_weak`.
+- `SuperNeo/FoldingProtocol/PiRLC.lean`: provides `piRLCWeakStatement`.
 
 Downstream consumers:
 - F' low-norm encoding design can use this module to justify hashing the RLC

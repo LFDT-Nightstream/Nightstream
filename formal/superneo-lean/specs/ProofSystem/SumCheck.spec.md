@@ -40,7 +40,7 @@ No open boundary assumptions in this module.
 
 - **Dependencies**: imports `SuperNeo.ProofSystem.SumCheck.General`, `SuperNeo.ProofSystem.SumCheck.PrefixSoundnessEndpoint`.
 - **Consumers**:
-  - `SuperNeo.ProofSystem.Folding`, `SuperNeo.FoldingProtocol`: use sum-check for folding reductions.
+  - `SuperNeo.FoldingProtocol`: use sum-check for folding reductions.
   - `SuperNeo.ProofSystem.SumCheckInterface`: imports this module for interface boundary.
 
 ## Implementation Plan

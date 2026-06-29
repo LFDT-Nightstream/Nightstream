@@ -3,7 +3,7 @@ import Nightstream.Chip8.Execution.BurstSession
 import Nightstream.Chip8.Stage2.WitnessMemoryBinding
 import Nightstream.Chip8.Stage3.ContinuityBridge
 import Nightstream.ClaimedMemorySemantics
-import SuperNeo.PolynomialBridge
+import SuperNeo.Primitives.PolynomialBridge
 
 namespace Nightstream.Chip8.StepComposition
 

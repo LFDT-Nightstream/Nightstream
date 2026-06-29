@@ -92,7 +92,7 @@ All spec-derived tests (lean oracles + invariant obligations) live in `spec-test
 ## Acceptance Criteria
 
 - `cargo test -p neo-math --release` succeeds (runs both `tests/` and `spec-tests/`)
-- `lean_oracles` conformance tests pass (exercises `Fq` arithmetic indirectly)
+- `lean_oracles` (removed lane) conformance tests pass (exercises `Fq` arithmetic indirectly)
 - Spec-derived tests in `spec-tests/goldilocks.rs` pass
 - All `KExtensions` methods are consistent with their mathematical definitions
 

@@ -48,15 +48,15 @@ No open boundary assumptions in this module.
 ## Dependency and Consumer Map
 
 - Upstream dependencies:
-  - `SuperNeo/Decomp.lean`: imports decomposition and split predicates
-  - `SuperNeo/MatrixTransform.lean`: imports matrix transform
-  - `SuperNeo/EvalHom.lean`: imports evalHomAssumption
-  - `SuperNeo/ModuleHom.lean`: imports vec/scalar module assumptions
-  - `SuperNeo/SamplingSet.lean`: imports samplingExpansionProp
-  - `SuperNeo/MLE.lean`: imports mleEval, mleInnerProductForm, mleIdentityAssumption_holds
-  - `SuperNeo/Interp.lean`: imports interpolationProp
+  - `SuperNeo/Primitives/Decomp.lean`: imports decomposition and split predicates
+  - `SuperNeo/EmbeddingTheory/MatrixTransform.lean`: imports matrix transform
+  - `SuperNeo/EmbeddingTheory/EvalHom.lean`: imports evalHomAssumption
+  - `SuperNeo/EmbeddingTheory/ModuleHom.lean`: imports vec/scalar module assumptions
+  - `SuperNeo/SecurityModel/SamplingSet.lean`: imports samplingExpansionProp
+  - `SuperNeo/Primitives/MLE.lean`: imports mleEval, mleInnerProductForm, mleIdentityAssumption_holds
+  - `SuperNeo/Primitives/Interp.lean`: imports interpolationProp
 - Downstream consumers:
-  - `SuperNeo/ProtocolTarget.lean`: uses `ArithmeticObligations` to define `ProtocolTargetAssumptions` and derive `protocolTargetProp`
+  - `SuperNeo/FoldingProtocol/ProtocolTarget.lean`: uses `ArithmeticObligations` to define `ProtocolTargetAssumptions` and derive `protocolTargetProp`
 
 ## Implementation Plan
 

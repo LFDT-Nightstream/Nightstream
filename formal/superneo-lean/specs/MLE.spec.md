@@ -25,7 +25,7 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 
 | Lean file | Paper section |
 |---|---|
-| `SuperNeo/MLE.lean` | MLE definition (Section 4), sum-check linkage (Definition 6) |
+| `SuperNeo/Primitives/MLE.lean` | MLE definition (Section 4), sum-check linkage (Definition 6) |
 
 ## Contract Surface
 
@@ -72,12 +72,12 @@ No open boundary assumptions. The `eqPolyDeltaOnBitsAssumption` is bridged from 
 ## Dependency and Consumer Map
 
 Upstream dependencies:
-- `SuperNeo/EqPoly.lean`: `eqPoly`, `eqPolyAssumption` for MLE weights.
+- `SuperNeo/Primitives/EqPoly.lean`: `eqPoly`, `eqPolyAssumption` for MLE weights.
 
 Downstream consumers:
-- `SuperNeo/SumCheck.lean`: uses MLE evaluators for sum-check claims.
-- `SuperNeo/EvalLink.lean`: uses MLE identity for evaluation linkage.
-- `SuperNeo/ProtocolRelations.lean`: uses `mleEval` for CCS relation checks.
+- `SuperNeo/Primitives/SumCheck.lean`: uses MLE evaluators for sum-check claims.
+- `SuperNeo/EmbeddingTheory/EvalLink.lean`: uses MLE identity for evaluation linkage.
+- `SuperNeo/FoldingProtocol/ProtocolRelations.lean`: uses `mleEval` for CCS relation checks.
 
 ## Implementation Plan
 

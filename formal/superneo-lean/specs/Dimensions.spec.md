@@ -26,7 +26,7 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 
 | Lean file | Paper section |
 |---|---|
-| `SuperNeo/Dimensions.lean` | Definition 1 (dimensions) |
+| `SuperNeo/Primitives/Dimensions.lean` | Definition 1 (dimensions) |
 
 ## Contract Surface
 
@@ -53,10 +53,10 @@ No open boundary assumptions in this module.
 Upstream dependencies: none.
 
 Downstream consumers:
-- `SuperNeo/Ring.lean`: uses `d` for `D := d` and `hasRingDegreeShape`.
-- `SuperNeo/Embedding.lean`: uses `d` for block size in `embedElem`/`unembedElem`.
-- `SuperNeo/BarLift.lean`: uses `d` for chunk block sizes.
-- `SuperNeo/Parameters.lean`: uses `eta`, `d` for sanity checks.
+- `SuperNeo/Primitives/Ring.lean`: uses `d` for `D := d` and `hasRingDegreeShape`.
+- `SuperNeo/EmbeddingTheory/Embedding.lean`: uses `d` for block size in `embedElem`/`unembedElem`.
+- `SuperNeo/EmbeddingTheory/BarLift.lean`: uses `d` for chunk block sizes.
+- `SuperNeo/Primitives/Parameters.lean`: uses `eta`, `d` for sanity checks.
 
 ## Implementation Plan
 

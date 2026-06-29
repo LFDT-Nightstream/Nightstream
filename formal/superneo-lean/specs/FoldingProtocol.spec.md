@@ -13,11 +13,8 @@
 | Module | Paper item |
 |---|---|
 | `ProofSystem.ConstraintSystem` | Definitions 11-13 (CCS structure, relations) |
-| `ProtocolSection71Data` | Explicit protocol-side Definition-14 data owner |
 | `ProtocolSection71Context` | Packaged compact Section 7.1 theorem-native owner |
-| `ProtocolTargetData` | Explicit protocol-side Section 7.5 target-data owner |
 | `ProofSystem.SumCheck` | Proof-system-level sum-check facade |
-| `ProofSystem.Folding` | Proof-system folding wrappers (PiCCS/PiRLC/PiDEC) |
 | `ProtocolRelations` | Section 7.1 relation predicates |
 | `PiCCS` | Section 7.3, Lemma 3 (Π_CCS is strong) |
 | `PiRLC` | Section 7.4, Lemma 4 (Π_RLC is weak) |
@@ -25,7 +22,6 @@
 | `ArithmeticBundle` | Bundled arithmetic prerequisites for protocol |
 | `ArithmeticObligations` | Arithmetic side-conditions for protocol reduction |
 | `ProtocolTarget` | Protocol-target bridge (Thm 3 + obligations) |
-| `ProtocolMathTarget` | Protocol math-target from arithmetic bundle |
 | `ProtocolTheorem` | Final theorem shape (completeness + knowledge-soundness) |
 | `ProofSystem.Protocol` | Proof-system entrypoint (final theorem wiring) |
 

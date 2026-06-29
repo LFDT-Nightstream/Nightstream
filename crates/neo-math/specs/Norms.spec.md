@@ -45,7 +45,7 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 | `to_balanced_i128(v)` is in `[-(q-1)/2, (q-1)/2]` | Property test | Norm definition in `Norm.lean` |
 | `within_nc_bound(v, 2)` iff `v ∈ {-1, 0, 1}` | Unit test | `digitsWithinBaseProp` with `b = 2` |
 | `within_nc_bound(v, b)` returns false for `b < 2` | Unit test | (guard condition) |
-| Norm of ring element equals max norm of coefficients | `lean_oracles` (`invertibility_v1`) | Ring norm = max coefficient norm |
+| Norm of ring element equals max norm of coefficients | `lean_oracles` (removed lane) (`invertibility_v1`) | Ring norm = max coefficient norm |
 
 ## Assumption Ledger
 
@@ -79,7 +79,7 @@ All spec-derived tests (lean oracles + invariant obligations) live in `spec-test
 ## Acceptance Criteria
 
 - `cargo test -p neo-math --release` succeeds (runs both `tests/` and `spec-tests/`)
-- `lean_oracles` `invertibility_v1` tests pass (norm values and window checks match Lean)
+- `lean_oracles` (removed lane) `invertibility_v1` tests pass (norm values and window checks match Lean)
 - Spec-derived tests in `spec-tests/norms.rs` pass
 
 ## Out of Scope

@@ -1,6 +1,6 @@
 import SuperNeo.ProofSystem.LatticeReductions
 import SuperNeo.ProofSystem.LatticeReductionsDerived
-import SuperNeo.SamplingSet
+import SuperNeo.SecurityModel.SamplingSet
 
 /-!
 Contract interface for `SuperNeo.ProofSystem.LatticeReductions`.

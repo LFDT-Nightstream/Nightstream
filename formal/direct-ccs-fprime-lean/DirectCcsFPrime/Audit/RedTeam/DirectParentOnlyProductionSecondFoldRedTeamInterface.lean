@@ -1,0 +1,37 @@
+import DirectCcsFPrime.Audit.RedTeam.DirectParentOnlyProductionSecondFoldRedTeam
+
+/-!
+Typed interface for second-fold child-swap red-team checks.
+-/
+
+namespace DirectCcsFPrime
+
+namespace DirectParentOnlyProductionSecondFoldRedTeamInterface
+
+abbrev RowChanged :=
+  @DirectParentOnlyProductionSecondFoldRedTeam.RowChanged
+
+abbrev firstFoldChildren :=
+  DirectParentOnlyProductionSecondFoldRedTeam.firstFoldChildren
+
+abbrev secondFoldMutatedChildren :=
+  DirectParentOnlyProductionSecondFoldRedTeam.secondFoldMutatedChildren
+
+abbrev WeakAggregateAuthorized :=
+  DirectParentOnlyProductionSecondFoldRedTeam.WeakAggregateAuthorized
+
+abbrev WeakParentSourceStep :=
+  DirectParentOnlyProductionSecondFoldRedTeam.WeakParentSourceStep
+
+abbrev weakAggregateAllowsSelfConsistentSecondFoldSwap :=
+  DirectParentOnlyProductionSecondFoldRedTeam.weakAggregateAllowsSelfConsistentSecondFoldSwap
+
+abbrev terminalAuditRejectsSecondFoldSwap :=
+  @DirectParentOnlyProductionSecondFoldRedTeam.terminalAuditRejectsSecondFoldSwap
+
+abbrev terminalAuditRejectsChangedChildRow :=
+  @DirectParentOnlyProductionSecondFoldRedTeam.terminalAuditRejectsChangedChildRow
+
+end DirectParentOnlyProductionSecondFoldRedTeamInterface
+
+end DirectCcsFPrime

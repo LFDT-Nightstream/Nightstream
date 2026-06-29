@@ -26,7 +26,7 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 
 | Lean file | Paper section |
 |---|---|
-| `SuperNeo/Decomp.lean` | `split_b` (Section 4), Π_DEC (Section 7.5) |
+| `SuperNeo/Primitives/Decomp.lean` | `split_b` (Section 4), Π_DEC (Section 7.5) |
 
 ## Contract Surface
 
@@ -78,12 +78,12 @@ No open boundary assumptions. All proofs are constructive.
 ## Dependency and Consumer Map
 
 Upstream dependencies:
-- `SuperNeo/Norm.lean`: `normInfF` for digit-bound predicates.
+- `SuperNeo/Primitives/Norm.lean`: `normInfF` for digit-bound predicates.
 
 Downstream consumers:
-- `SuperNeo/PiDEC.lean`: uses `splitBalancedVec`, `splitBalancedRoundTripProp` for Π_DEC protocol definition.
-- `SuperNeo/ArithmeticObligations.lean`: uses decomposition predicates for arithmetic obligation statements.
-- `SuperNeo/ProtocolRelations.lean`: uses decomposition conditions in folding-step relation checks.
+- `SuperNeo/FoldingProtocol/PiDEC.lean`: uses `splitBalancedVec`, `splitBalancedRoundTripProp` for Π_DEC protocol definition.
+- `SuperNeo/FoldingProtocol/ArithmeticObligations.lean`: uses decomposition predicates for arithmetic obligation statements.
+- `SuperNeo/FoldingProtocol/ProtocolRelations.lean`: uses decomposition conditions in folding-step relation checks.
 
 ## Implementation Plan
 

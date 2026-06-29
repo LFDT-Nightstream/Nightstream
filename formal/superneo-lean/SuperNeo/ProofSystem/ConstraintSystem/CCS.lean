@@ -1,4 +1,4 @@
-import SuperNeo.Norm
+import SuperNeo.Primitives.Norm
 
 namespace SuperNeo.ProofSystem.ConstraintSystem
 

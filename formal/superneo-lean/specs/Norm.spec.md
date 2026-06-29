@@ -23,7 +23,7 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 
 | Lean file | Paper section |
 |---|---|
-| `SuperNeo/Norm.lean` | Definition 3 |
+| `SuperNeo/Primitives/Norm.lean` | Definition 3 |
 
 ## Contract Surface
 
@@ -56,13 +56,13 @@ No open boundary assumptions in this module. The four `*NormBoundFromOperands` d
 ## Dependency and Consumer Map
 
 Upstream dependencies:
-- `SuperNeo/Ring.lean`: `Coeffs`, `vecAdd`, `vecScale`, `mulRq` for bound statements.
+- `SuperNeo/Primitives/Ring.lean`: `Coeffs`, `vecAdd`, `vecScale`, `mulRq` for bound statements.
 
 Downstream consumers:
-- `SuperNeo/Decomp.lean`: uses norm bounds for digit-decomposition analysis.
-- `SuperNeo/InvertibilityAxioms.lean`: uses `normInfCoeffs` bounds for Theorem 8 preconditions.
-- `SuperNeo/ProtocolRelations.lean`: uses norm predicates for folding-step witness constraints.
-- `SuperNeo/ArithmeticObligations.lean`: uses bound bundles for arithmetic obligation statements.
+- `SuperNeo/Primitives/Decomp.lean`: uses norm bounds for digit-decomposition analysis.
+- `SuperNeo/SecurityModel/InvertibilityAxioms.lean`: uses `normInfCoeffs` bounds for Theorem 8 preconditions.
+- `SuperNeo/FoldingProtocol/ProtocolRelations.lean`: uses norm predicates for folding-step witness constraints.
+- `SuperNeo/FoldingProtocol/ArithmeticObligations.lean`: uses bound bundles for arithmetic obligation statements.
 
 ## Implementation Plan
 

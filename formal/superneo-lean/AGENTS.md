@@ -3,8 +3,9 @@
 ## Formal Lean Subproject
 - Use this 3-layer layout for each formalized component:
   - Human spec: `specs/<Name>.spec.md`
-  - Typed Lean interface: `SuperNeo/<Name>Interface.lean`
-  - Lean implementation: `SuperNeo/<Name>.lean`
+  - Typed Lean interface: `SuperNeo/<Section>/<Name>Interface.lean` (colocated with the implementation; top-level barrels keep `SuperNeo/<Name>Interface.lean`)
+  - Lean implementation: `SuperNeo/<Section>/<Name>.lean`
+- File-size cap exceptions (owner-confirmed): `SuperNeo/Primitives/Ring.lean`, `SuperNeo/EmbeddingTheory/Thm3Core.lean`, and `SuperNeo/Primitives/Decomp.lean` exceed the repo's 1,500-line cap as single cohesive proof developments over file-spanning `private` lemma substrates. Do not split them mechanically (that would force de-privatizing their helpers); revisit a split only when one of them is reopened for substantive work.
 - Lean build discipline:
   - During iteration, build only the target module(s) you changed and their dependencies, not the whole package.
   - Prefer narrow commands such as `lake build SuperNeo.<Name>` while working.
@@ -24,7 +25,7 @@
 - Project-local skill for this workflow:
   - Path: `../../.codex/skills/superneo-lean-interface-spec/SKILL.md`
   - Purpose: create/update per-module Lean contract pairs
-    (`SuperNeo/<Name>Interface.lean` + `specs/<Name>.spec.md`).
+    (`SuperNeo/<Section>/<Name>Interface.lean` + `specs/<Name>.spec.md`).
   - Use when: standardizing specs, adding missing interface/spec files, or
     auditing assumptions/consumers against `./SuperNeo.pdf.md`.
 - Keep interface files colocated with implementations (Objective-C style), not in a separate top-level folder.

@@ -69,7 +69,7 @@ Downstream consumers:
 ## Lean Oracle Conformance
 
 All spec-derived tests (lean oracles + invariant obligations) live in `spec-tests/`.
-No dedicated `lean_oracles` test family for S-action. Coverage is indirect through
+No dedicated `lean_oracles` (removed lane) test family for S-action. Coverage is indirect through
 ring multiplication oracles (`ring_ct_v1`) which exercise the same `Rq::mul` path.
 
 ## Quality Expectations

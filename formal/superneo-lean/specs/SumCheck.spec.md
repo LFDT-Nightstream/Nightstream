@@ -28,7 +28,7 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 
 | Lean file | Paper section |
 |---|---|
-| `SuperNeo/SumCheck.lean` | Definition 6 (sum-check) |
+| `SuperNeo/Primitives/SumCheck.lean` | Definition 6 (sum-check) |
 
 ## Contract Surface
 
@@ -117,12 +117,12 @@ The module target is to provide:
 ## Dependency and Consumer Map
 
 Upstream dependencies:
-- `SuperNeo/MLE.lean`: MLE evaluators for sum-check claims.
-- `SuperNeo/EqPoly.lean`: `eqPoly` for sum-check polynomial construction.
+- `SuperNeo/Primitives/MLE.lean`: MLE evaluators for sum-check claims.
+- `SuperNeo/Primitives/EqPoly.lean`: `eqPoly` for sum-check polynomial construction.
 
 Downstream consumers:
-- `SuperNeo/PiCCS.lean`: uses `SumCheckInstance`, `sumcheckAccepted` for Π_CCS.
-- `SuperNeo/PiRLC.lean`: uses sum-check for Π_RLC.
+- `SuperNeo/FoldingProtocol/PiCCS.lean`: uses `SumCheckInstance`, `sumcheckAccepted` for Π_CCS.
+- `SuperNeo/FoldingProtocol/PiRLC.lean`: uses sum-check for Π_RLC.
 - `SuperNeo/ProofSystem.SumCheck`: uses `SumCheckAssumptions` for proof-system composition.
 
 ## Implementation Plan

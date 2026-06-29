@@ -1,6 +1,6 @@
-import SuperNeo.Ring
-import SuperNeo.Norm
-import SuperNeo.SamplingSet
+import SuperNeo.Primitives.Ring
+import SuperNeo.Primitives.Norm
+import SuperNeo.SecurityModel.SamplingSet
 import SuperNeo.ProofSystem.Negligible
 import SuperNeo.ProofSystem.Security
 

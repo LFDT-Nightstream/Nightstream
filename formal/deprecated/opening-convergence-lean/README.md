@@ -1,5 +1,8 @@
 # Opening Convergence — Lean Formalization
 
+Status: deprecated / parked. This package is retained for historical theorem
+context and does not describe the current active Rust implementation path.
+
 Standalone Lean 4 project proving the soundness of Nightstream's opening
 convergence pipeline: the reduction from ~600 family-level evaluation
 claims down to 6 final Ajtai PCS openings.
@@ -11,7 +14,7 @@ probability.
 ## Project Structure
 
 ```
-opening-convergence-lean/
+formal/deprecated/opening-convergence-lean/
   lakefile.toml
   lean-toolchain                  (leanprover/lean4:v4.28.0)
   OpeningConvergence.lean         (root import)
@@ -256,7 +259,7 @@ would be premature and would risk proving the wrong protocol.
 ## Build
 
 ```bash
-cd formal/opening-convergence-lean
+cd formal/deprecated/opening-convergence-lean
 lake build
 ```
 

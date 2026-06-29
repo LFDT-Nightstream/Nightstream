@@ -1,0 +1,82 @@
+import DirectCcsFPrime.ProofSystem.Production.Security.Opening.DirectParentOnlyProductionConcreteFPrimePriorTerminalIOOpening
+
+/-!
+Typed interface for opening-level terminal public-IO binding in the concrete
+prior F' verifier.
+
+Spec: `specs/ProofSystem/Production/Security/Opening/DirectParentOnlyProductionConcreteFPrimePriorTerminalIOOpening.spec.md`
+-/
+
+namespace DirectCcsFPrime
+
+namespace DirectParentOnlyProductionConcreteFPrimePriorTerminalIOOpeningInterface
+
+abbrev ProductionContext :=
+  DirectParentOnlyProductionConcreteFPrimePriorTerminalIOOpening.ProductionContext
+
+abbrev PublicImage :=
+  DirectParentOnlyProductionConcreteFPrimePriorTerminalIOOpening.PublicImage
+
+abbrev ProofCarryingPriorProof :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIOOpening.ProofCarryingPriorProof
+
+abbrev TerminalIOOpeningSurface :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIOOpening.TerminalIOOpeningSurface
+
+abbrev VerifyPrior :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIOOpening.VerifyPrior
+
+abbrev authorityOpener :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIOOpening.authorityOpener
+
+abbrev AcceptedTerminalIOEvidence :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIOOpening.AcceptedTerminalIOEvidence
+
+abbrev acceptedOpens :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIOOpening.acceptedOpens
+
+abbrev verifyPrior_evidence :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIOOpening.verifyPrior_evidence
+
+abbrev verifyPrior_openAuthority_ne_none :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIOOpening.verifyPrior_openAuthority_ne_none
+
+abbrev verifyPrior_openedAuthority_accepts :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIOOpening.verifyPrior_openedAuthority_accepts
+
+abbrev verifyPrior_reaches_prior :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIOOpening.verifyPrior_reaches_prior
+
+abbrev verifyPrior_cannot_accept_unreachable_prior :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIOOpening.verifyPrior_cannot_accept_unreachable_prior
+
+abbrev verifyPrior_publicImageInvariants :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIOOpening.verifyPrior_publicImageInvariants
+
+abbrev priorVerifierAuthorityOpening :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIOOpening.priorVerifierAuthorityOpening
+
+abbrev certifiedVerifier :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIOOpening.certifiedVerifier
+
+abbrev certifiedVerifier_verify :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIOOpening.certifiedVerifier_verify
+
+abbrev soundVerifier :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIOOpening.soundVerifier
+
+abbrev soundVerifier_accepts_iff :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIOOpening.soundVerifier_accepts_iff
+
+abbrev proofFunctional :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIOOpening.proofFunctional
+
+abbrev soundVerifierProofFunctional :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIOOpening.soundVerifierProofFunctional
+
+abbrev certifiedEndToEndOfLatestStep :=
+  @DirectParentOnlyProductionConcreteFPrimePriorTerminalIOOpening.certifiedEndToEndOfLatestStep
+
+end DirectParentOnlyProductionConcreteFPrimePriorTerminalIOOpeningInterface
+
+end DirectCcsFPrime

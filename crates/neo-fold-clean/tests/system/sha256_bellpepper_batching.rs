@@ -221,6 +221,122 @@ fn sha256_serial_pair_packed_state_r1cs_binds_state_in_and_state_out() {
         .expect_err("tampering the packed public state_out limb must reject");
 }
 
+/// Width-policy analysis snapshot: histogram of inferred app-private var
+/// widths for the production serial-quad SHA shape. `plan.limbs` (and with
+/// it most of the F' image) is `Σ widths + 1`, so this is the measurement
+/// study for any limb-policy change. Analysis only — no assertion beyond
+/// shape sanity.
+#[test]
+#[ignore = "analysis snapshot; run manually with --ignored --nocapture"]
+fn sha256_serial_quad_app_var_width_histogram_snapshot() {
+    let states = sha_state_trace(&initial_sha_state(), 4);
+    let serial = synthesize_to_ccs(Sha256SerialPackedStateCircuit {
+        state_in: states[0].clone(),
+        transitions: 4,
+    })
+    .expect("synthesize packed-state serial SHA quad");
+    let shape = r1cs_f_prime::R1csShape::from(&serial.sparse_r1cs);
+    let widths = shape.conservative_app_private_var_widths();
+    assert_eq!(widths.len(), serial.sparse_r1cs.m, "one width per app var");
+
+    let mut count_by_width = std::collections::BTreeMap::<usize, (usize, usize)>::new();
+    for &w in &widths {
+        let entry = count_by_width.entry(w).or_insert((0, 0));
+        entry.0 += 1;
+        entry.1 += w;
+    }
+    let total_vars: usize = widths.len();
+    let total_limbs: usize = widths.iter().sum();
+    eprintln!("  app vars {total_vars}, total width limbs {total_limbs} (plan.limbs = total + 1)");
+    eprintln!(
+        "  {:>6} {:>10} {:>12} {:>8} {:>8}",
+        "width", "vars", "limbs", "vars%", "limbs%"
+    );
+    for (w, (vars, limbs)) in &count_by_width {
+        eprintln!(
+            "  {:>6} {:>10} {:>12} {:>7.2}% {:>7.2}%",
+            w,
+            vars,
+            limbs,
+            *vars as f64 * 100.0 / total_vars as f64,
+            *limbs as f64 * 100.0 / total_limbs as f64,
+        );
+    }
+
+    // Dump the defining rows of the first few width-64 (inference-failed)
+    // vars so the escape patterns are visible.
+    let rows_of = |mat: &CcsMatrix<F>| -> std::collections::BTreeMap<usize, Vec<(usize, u64)>> {
+        let mut map = std::collections::BTreeMap::<usize, Vec<(usize, u64)>>::new();
+        if let CcsMatrix::Csc(csc) = mat {
+            for col in 0..csc.ncols {
+                for k in csc.col_ptr[col]..csc.col_ptr[col + 1] {
+                    map.entry(csc.row_idx[k])
+                        .or_default()
+                        .push((col, csc.vals[k].as_canonical_u64()));
+                }
+            }
+        }
+        map
+    };
+    let (ra, rb, rc) = (
+        rows_of(&serial.sparse_r1cs.a),
+        rows_of(&serial.sparse_r1cs.b),
+        rows_of(&serial.sparse_r1cs.c),
+    );
+    let signed = |v: u64| -> i128 {
+        let p = F::ORDER_U64 as i128;
+        if (v as i128) > p / 2 {
+            v as i128 - p
+        } else {
+            v as i128
+        }
+    };
+    let fmt_lc = |lc: Option<&Vec<(usize, u64)>>| -> String {
+        lc.map(|terms| {
+            terms
+                .iter()
+                .map(|&(var, coeff)| format!("{}*v{}", signed(coeff), var))
+                .collect::<Vec<_>>()
+                .join(" + ")
+        })
+        .unwrap_or_else(|| "0".into())
+    };
+    let mut dumped = 0;
+    for (var, &w) in widths.iter().enumerate() {
+        if w != POSEIDON2_GOLDILOCKS_BITS || dumped >= 2 || var % 2 == 1 {
+            continue;
+        }
+        dumped += 1;
+        eprintln!("  -- unproven var v{var}: rows mentioning it --");
+        let mentions = |map: &std::collections::BTreeMap<usize, Vec<(usize, u64)>>| -> Vec<usize> {
+            map.iter()
+                .filter(|(_, terms)| terms.iter().any(|&(v, _)| v == var))
+                .map(|(&row, _)| row)
+                .collect()
+        };
+        let mut rows: Vec<usize> = mentions(&ra);
+        rows.extend(mentions(&rb));
+        rows.extend(mentions(&rc));
+        eprintln!(
+            "     (width of neighbours: v{} -> {}, v{} -> {})",
+            var - 1,
+            widths[var - 1],
+            var + 1,
+            widths[var + 1]
+        );
+        rows.sort_unstable();
+        rows.dedup();
+        for row in rows.into_iter().take(4) {
+            eprintln!(
+                "     row {row}: ({}) * ({}) = ({})",
+                fmt_lc(ra.get(&row)),
+                fmt_lc(rb.get(&row)),
+                fmt_lc(rc.get(&row)),
+            );
+        }
+    }
+}
+
 #[test]
 fn sha256_serial_quad_packed_state_r1cs_binds_state_in_and_state_out() {
     let state_in = initial_sha_state();

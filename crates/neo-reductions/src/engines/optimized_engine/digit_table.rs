@@ -12,14 +12,28 @@ use crate::error::PiCcsError;
 
 /// NC coefficient rows for one SuperNeo packed witness.
 ///
-/// When all live logical columns sit in ring lane 0, `Lane0` keeps one `K`
-/// per logical column and avoids a dense `[K; D]` row per column. As soon as
-/// a live coefficient appears in another lane, the table falls back to
-/// `Dense` so the NC range polynomial checks the raw witness coefficient in
-/// its actual SuperNeo lane.
+/// The unfolded table is always *diagonal*: logical column `col`'s single
+/// live lane is `col % D` (that is where the SuperNeo packing places the
+/// digit), so one `K` per column suffices. Folding merges pairs of rows;
+/// after `k` folds, row `idx` covers `width = 2^k` original columns whose
+/// lanes form one contiguous window `(idx·width .. idx·width+width) % D`.
+/// The two operand windows of a merge stay lane-disjoint while
+/// `2·width <= D`, so the fold is an in-place slot transform on a flat
+/// vector and no dense rows exist at all until `width` would exceed the
+/// disjointness bound.
+///
+/// - `Lane0`: every live column sits in ring lane 0 (`col % D == 0`); kept
+///   as its own variant because `lane(idx, rho)` never needs the modulus.
+/// - `Strided`: compact windowed rows. `width == 1` is the unfolded
+///   diagonal table; `values[idx·width + j]` is the value at lane
+///   `(idx·width + j) % D`. Invariant: `values.len() == len() · width`.
+/// - `Dense`: full `[K; D]` rows, materialized only when a merge's lane
+///   windows would collide (`2·width > D`), i.e. at ~1/64 of the
+///   original row count.
 #[derive(Debug)]
 pub enum NcDigitTable {
     Lane0(Vec<K>),
+    Strided { width: usize, values: Vec<K> },
     Dense(Vec<[K; D]>),
 }
 
@@ -28,6 +42,7 @@ impl NcDigitTable {
     pub fn len(&self) -> usize {
         match self {
             Self::Lane0(values) => values.len(),
+            Self::Strided { width, values } => values.len() / width,
             Self::Dense(rows) => rows.len(),
         }
     }
@@ -38,6 +53,15 @@ impl NcDigitTable {
             Self::Lane0(values) => {
                 if rho == 0 {
                     values[idx]
+                } else {
+                    K::ZERO
+                }
+            }
+            Self::Strided { width, values } => {
+                let start = (idx * width) % D;
+                let j = (rho + D - start) % D;
+                if j < *width {
+                    values[idx * width + j]
                 } else {
                     K::ZERO
                 }
@@ -59,6 +83,14 @@ impl NcDigitTable {
                 out[0] = values[idx];
                 out
             }
+            Self::Strided { width, values } => {
+                let mut out = [K::ZERO; D];
+                for j in 0..*width {
+                    let flat = idx * width + j;
+                    out[flat % D] = values[flat];
+                }
+                out
+            }
             Self::Dense(rows) => rows[idx],
         }
     }
@@ -67,6 +99,15 @@ impl NcDigitTable {
     pub fn fold_inplace(&mut self, masks: &mut Vec<u64>, r: K) {
         match self {
             Self::Lane0(values) => fold_lane0_table_inplace(values, masks, r),
+            Self::Strided { width, values } => {
+                if 2 * *width <= D {
+                    fold_strided_table_inplace(values, masks, *width, r);
+                    *width *= 2;
+                } else {
+                    let folded = fold_strided_table_to_dense(values, masks, *width, r);
+                    *self = Self::Dense(folded);
+                }
+            }
             Self::Dense(rows) => fold_dense_table_inplace(rows, masks, r),
         }
     }
@@ -82,8 +123,14 @@ where
     K: From<Ff>,
 {
     crate::common::validate_superneo_witness_mat(Z, expected_m)?;
+    if params.b < 2 {
+        return Err(PiCcsError::InvalidInput(format!(
+            "NC witness table: invalid b={} (must be >= 2)",
+            params.b
+        )));
+    }
 
-    let mut lane0 = vec![K::ZERO; expected_m];
+    let mut values = vec![K::ZERO; expected_m];
     let mut masks = vec![0u64; expected_m];
     let active_cols = expected_m.div_ceil(D);
     let rows: [&[Ff]; D] = {
@@ -94,12 +141,20 @@ where
         tmp
     };
 
-    let needs_dense = AtomicBool::new(false);
-    let process_block = |blk: usize, lane_chunk: &mut [K], mask_chunk: &mut [u64]| {
+    // The unfolded table is diagonal by construction: column `col`'s digit
+    // lives in lane `col % D`, so one pass fills the compact value/mask
+    // vectors. Track whether any live column sits outside lane 0 only to
+    // pick the cheaper `Lane0` accessor when possible.
+    let saw_nonzero_lane = AtomicBool::new(false);
+    let process_block = |blk: usize, value_chunk: &mut [K], mask_chunk: &mut [u64]| {
         if blk >= active_cols {
             return;
         }
-        for (rho, (dst, mask_slot)) in lane_chunk.iter_mut().zip(mask_chunk.iter_mut()).enumerate() {
+        for (rho, (dst, mask_slot)) in value_chunk
+            .iter_mut()
+            .zip(mask_chunk.iter_mut())
+            .enumerate()
+        {
             let col = blk * D + rho;
             if col >= expected_m {
                 break;
@@ -108,11 +163,10 @@ where
             if raw == Ff::ZERO {
                 continue;
             }
-            if rho == 0 {
-                *dst = K::from(raw);
-                *mask_slot = 1;
-            } else {
-                needs_dense.store(true, Ordering::Relaxed);
+            *dst = K::from(raw);
+            *mask_slot = 1u64 << rho;
+            if rho != 0 {
+                saw_nonzero_lane.store(true, Ordering::Relaxed);
             }
         }
     };
@@ -120,30 +174,122 @@ where
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     {
         if rayon::current_thread_index().is_none() {
-            lane0
+            values
                 .par_chunks_mut(D)
                 .zip(masks.par_chunks_mut(D))
                 .enumerate()
-                .for_each(|(blk, (lane_chunk, mask_chunk))| process_block(blk, lane_chunk, mask_chunk));
+                .for_each(|(blk, (value_chunk, mask_chunk))| process_block(blk, value_chunk, mask_chunk));
         } else {
-            for (blk, (lane_chunk, mask_chunk)) in lane0.chunks_mut(D).zip(masks.chunks_mut(D)).enumerate() {
-                process_block(blk, lane_chunk, mask_chunk);
+            for (blk, (value_chunk, mask_chunk)) in values.chunks_mut(D).zip(masks.chunks_mut(D)).enumerate() {
+                process_block(blk, value_chunk, mask_chunk);
             }
         }
     }
     #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
     {
-        for (blk, (lane_chunk, mask_chunk)) in lane0.chunks_mut(D).zip(masks.chunks_mut(D)).enumerate() {
-            process_block(blk, lane_chunk, mask_chunk);
+        for (blk, (value_chunk, mask_chunk)) in values.chunks_mut(D).zip(masks.chunks_mut(D)).enumerate() {
+            process_block(blk, value_chunk, mask_chunk);
         }
     }
 
-    if needs_dense.load(Ordering::Relaxed) {
-        let (rows, masks) = crate::common::build_witness_nc_digit_table_with_masks(params, Z, expected_m)?;
-        Ok((NcDigitTable::Dense(rows), masks))
+    if saw_nonzero_lane.load(Ordering::Relaxed) {
+        Ok((NcDigitTable::Strided { width: 1, values }, masks))
     } else {
-        Ok((NcDigitTable::Lane0(lane0), masks))
+        Ok((NcDigitTable::Lane0(values), masks))
     }
+}
+
+/// In-place fold of a strided table while merge windows are lane-disjoint
+/// (`2·width <= D`). Row `i`'s output occupies exactly the flat range of its
+/// two source rows (`i·2w == (2i)·w`), so the transform is per-slot: a live
+/// lo-window lane sees `(lo, hi=0)` and a live hi-window lane `(lo=0, hi)`,
+/// giving `v·(1-r)` and `v·r` respectively — exactly
+/// `fold_dense_table_inplace`'s arithmetic on the implicit dense rows
+/// (non-live lanes hold zero by invariant and stay zero under either form).
+fn fold_strided_table_inplace(values: &mut Vec<K>, masks: &mut Vec<u64>, width: usize, r: K) {
+    debug_assert!(!values.is_empty());
+    debug_assert_eq!(values.len() % width, 0, "strided table length must be a width multiple");
+    let rows = values.len() / width;
+    debug_assert_eq!(rows, masks.len(), "NC digit table/mask length mismatch");
+    let half = rows.div_ceil(2);
+    let new_width = 2 * width;
+    // A ragged tail (odd row count) needs one extra zero half-row.
+    values.resize(half * new_width, K::ZERO);
+    let one_minus_r = K::ONE - r;
+    for i in 0..half {
+        let base = 2 * i;
+        let lo_mask = masks[base];
+        let hi_mask = if base + 1 < rows { masks[base + 1] } else { 0 };
+        masks[i] = lo_mask | hi_mask;
+        let off = i * new_width;
+        if lo_mask != 0 {
+            for slot in &mut values[off..off + width] {
+                if *slot != K::ZERO {
+                    *slot *= one_minus_r;
+                }
+            }
+        }
+        if hi_mask != 0 {
+            for slot in &mut values[off + width..off + new_width] {
+                if *slot != K::ZERO {
+                    *slot *= r;
+                }
+            }
+        }
+    }
+    values.truncate(half * new_width);
+    masks.truncate(half);
+}
+
+/// Terminal strided fold: merge windows would collide (`2·width > D`), so
+/// materialize the half-size dense rows with the general per-lane formula —
+/// identical to folding the implicit dense form with
+/// `fold_dense_table_inplace`.
+fn fold_strided_table_to_dense(values: &mut Vec<K>, masks: &mut Vec<u64>, width: usize, r: K) -> Vec<[K; D]> {
+    debug_assert!(!values.is_empty());
+    debug_assert_eq!(values.len() % width, 0, "strided table length must be a width multiple");
+    let rows = values.len() / width;
+    debug_assert_eq!(rows, masks.len(), "NC digit table/mask length mismatch");
+    let lane_value = |row: usize, rho: usize| -> K {
+        let start = (row * width) % D;
+        let j = (rho + D - start) % D;
+        if j < width {
+            values[row * width + j]
+        } else {
+            K::ZERO
+        }
+    };
+    let half = rows.div_ceil(2);
+    let mut folded = Vec::with_capacity(half);
+    for i in 0..half {
+        let base = 2 * i;
+        let lo_mask = masks[base];
+        let hi_mask = if base + 1 < rows { masks[base + 1] } else { 0 };
+        let active_mask = lo_mask | hi_mask;
+        masks[i] = active_mask;
+        let mut out = [K::ZERO; D];
+        let mut lanes = active_mask;
+        while lanes != 0 {
+            let rho = lanes.trailing_zeros() as usize;
+            lanes &= lanes - 1;
+            let lo = if lo_mask & (1u64 << rho) != 0 {
+                lane_value(base, rho)
+            } else {
+                K::ZERO
+            };
+            let hi = if hi_mask & (1u64 << rho) != 0 {
+                lane_value(base + 1, rho)
+            } else {
+                K::ZERO
+            };
+            out[rho] = if hi == lo { lo } else { lo + (hi - lo) * r };
+        }
+        folded.push(out);
+    }
+    masks.truncate(half);
+    values.clear();
+    values.shrink_to_fit();
+    folded
 }
 
 #[inline]

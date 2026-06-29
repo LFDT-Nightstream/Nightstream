@@ -1,17 +1,118 @@
 #[path = "../support/mod.rs"]
 mod support;
 
-use neo_ccs::traits::SModuleHomomorphism;
+use neo_ajtai::{get_global_pp_for_dims, precompute_rot_columns, PP};
+use neo_ccs::{traits::SModuleHomomorphism, CcsStructure, Mat, SparsePoly};
 use neo_fold_clean::paper::construction2::ProofState;
+use neo_math::ring::Rq as RqEl;
 use neo_math::KExtensions;
+use neo_math::{D, F};
 use neo_reductions::common::{compute_y_from_Z_and_r, project_x_from_witness_mat};
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{Field, PrimeCharacteristicRing};
 
 fn toy_instance_with_x_value(prep: &neo_fold_clean::Preprocessing, x: neo_math::F) -> neo_fold_clean::CcsInstance {
     let mut z = vec![neo_math::F::ZERO; prep.structure().m];
     z[0] = x;
     neo_fold_clean::CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &z, 1)
         .expect("toy low-norm CCS instance with chosen public input")
+}
+
+fn wide_kernel_preprocessing() -> neo_fold_clean::Preprocessing {
+    let cols = neo_fold_clean::config::KAPPA as usize + 1;
+    let vars = D * cols;
+    let structure = CcsStructure::new(vec![Mat::zero(1, vars, F::ZERO)], SparsePoly::new(1, vec![])).expect("wide CCS");
+    let params = neo_fold_clean::config::ccs_params(structure.n, structure.m, 1, 1).expect("wide-kernel params");
+    support::install_ajtai_module(&params, &structure);
+    neo_fold_clean::preprocess(params, structure, Some(1)).expect("wide-kernel preprocessing")
+}
+
+fn ajtai_row_major_rows(pp: &PP<RqEl>) -> Vec<Vec<F>> {
+    let d = pp.d;
+    let cols = pp.m;
+    let mut rows = Vec::with_capacity(d * pp.kappa);
+    for commit_col in 0..pp.kappa {
+        for commit_row in 0..d {
+            let mut row = vec![F::ZERO; d * cols];
+            for col in 0..cols {
+                let mut rot_cols = vec![[F::ZERO; D]; D].into_boxed_slice();
+                precompute_rot_columns(pp.m_rows[commit_col][col], &mut rot_cols);
+                for input_row in 0..d {
+                    row[input_row * cols + col] = rot_cols[input_row][commit_row];
+                }
+            }
+            rows.push(row);
+        }
+    }
+    rows
+}
+
+fn right_kernel_vector(mut rows: Vec<Vec<F>>) -> Vec<F> {
+    let row_count = rows.len();
+    let col_count = rows
+        .first()
+        .expect("kernel finder needs at least one row")
+        .len();
+    let mut pivot_cols = Vec::new();
+    let mut pivot_row = 0usize;
+
+    for col in 0..col_count {
+        let Some(pivot) = (pivot_row..row_count).find(|&row| rows[row][col] != F::ZERO) else {
+            continue;
+        };
+        rows.swap(pivot_row, pivot);
+        let inv = rows[pivot_row][col].inverse();
+        for entry in &mut rows[pivot_row][col..] {
+            *entry *= inv;
+        }
+        let normalized = rows[pivot_row].clone();
+        for row in (pivot_row + 1)..row_count {
+            let factor = rows[row][col];
+            if factor == F::ZERO {
+                continue;
+            }
+            for j in col..col_count {
+                rows[row][j] -= factor * normalized[j];
+            }
+        }
+        pivot_cols.push(col);
+        pivot_row += 1;
+        if pivot_row == row_count {
+            break;
+        }
+    }
+
+    let free_col = (0..col_count)
+        .find(|col| !pivot_cols.contains(col))
+        .expect("wide Ajtai map must have a nontrivial right kernel");
+    let mut vector = vec![F::ZERO; col_count];
+    vector[free_col] = F::ONE;
+    for (row, &pivot_col) in pivot_cols.iter().enumerate().rev() {
+        let mut sum = F::ZERO;
+        for col in (pivot_col + 1)..col_count {
+            sum += rows[row][col] * vector[col];
+        }
+        vector[pivot_col] = -sum;
+    }
+
+    assert!(
+        vector.iter().any(|&entry| entry != F::ZERO),
+        "kernel vector must be nonzero"
+    );
+    vector
+}
+
+fn commitment_kernel_vector(prep: &neo_fold_clean::Preprocessing) -> Vec<F> {
+    let pp = get_global_pp_for_dims(D, prep.structure().m.div_ceil(D)).expect("Ajtai PP for prep");
+    let rows = ajtai_row_major_rows(&pp);
+    let vector = right_kernel_vector(rows.clone());
+    for row in rows {
+        let dot = row
+            .iter()
+            .zip(&vector)
+            .fold(F::ZERO, |acc, (&a, &b)| acc + a * b);
+        assert_eq!(dot, F::ZERO, "computed vector must be in the Ajtai kernel");
+    }
+    vector
 }
 
 fn one_batch_proof(prep: &neo_fold_clean::Preprocessing, value: neo_math::F) -> neo_fold_clean::Uncompressed {
@@ -125,6 +226,60 @@ fn compressed_verify_returns_unsupported_until_decider_lands() {
 }
 
 #[test]
+fn verify_uncompressed_audit_rejects_commitment_kernel_terminal_witness_forge() {
+    let prep = wide_kernel_preprocessing();
+    let instance = neo_fold_clean::CcsInstance::from_low_norm_assignment(
+        &prep.params,
+        &prep.log,
+        prep.structure(),
+        &vec![F::ZERO; prep.structure().m],
+        1,
+    )
+    .expect("zero wide instance");
+    let audit = neo_fold_clean::prove(&prep, vec![vec![instance]]).expect("prove wide instance");
+    let mut finished = neo_fold_clean::finish_uncompressed_with_audit(&prep, audit).expect("finish wide audit");
+    neo_fold_clean::verify_uncompressed_audit(&prep, &finished).expect("honest audit verifies");
+
+    let delta = commitment_kernel_vector(&prep);
+    match &mut finished.proof.state.proof {
+        ProofState::Active { running, latest } => {
+            assert!(latest.instances.is_empty(), "finished audit must have empty latest");
+            let witness = running
+                .witnesses
+                .get_mut(0)
+                .expect("test fixture must carry a terminal witness");
+            assert_eq!(
+                witness.as_slice().len(),
+                delta.len(),
+                "kernel vector must match packed witness length"
+            );
+            let before = prep.log.commit(witness);
+            for (entry, delta) in witness.as_mut_slice().iter_mut().zip(delta) {
+                *entry += delta;
+            }
+            assert_eq!(
+                prep.log.commit(witness),
+                before,
+                "test setup must mutate inside the verifier-owned Ajtai commitment kernel"
+            );
+        }
+        ProofState::Initial => panic!("finished audit must be Active"),
+    }
+
+    let err = neo_fold_clean::verify_uncompressed_audit(&prep, &finished)
+        .expect_err("audit verifier accepted a same-commitment forged terminal witness");
+    assert!(
+        matches!(
+            err,
+            neo_fold_clean::Error::FinalAccumulatorLowNormViolation { .. }
+                | neo_fold_clean::Error::FinalAccumulatorPublicInputMismatch { .. }
+                | neo_fold_clean::Error::FinalAccumulatorCeRelationViolation { .. }
+        ),
+        "commitment-kernel witness forge must be rejected by terminal authority, got {err:?}"
+    );
+}
+
+#[test]
 fn compress_returns_unsupported_until_decider_lands() {
     let prep = support::toy_preprocessing();
     let audit =
@@ -205,6 +360,73 @@ fn final_witness_authority_rejects_y_zcol_inconsistent_with_z_at_s_col() {
 
     let err = neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &running)
         .expect_err("y_zcol inconsistent with Z · chi(s_col) must reject");
+    assert!(
+        matches!(err, neo_fold_clean::Error::FinalAccumulatorNcChannelMismatch { .. }),
+        "expected FinalAccumulatorNcChannelMismatch, got {err:?}"
+    );
+}
+
+/// Pins the self-guard of the hoisted NC-channel χ(s_col) tensor.
+///
+/// Hacker model: in a multi-claim running accumulator where every Π_DEC
+/// child shares `s_col`, relabel ONE claim's `s_col` (keeping its length
+/// and its `y_zcol` — which stays consistent with the *shared* point).
+/// A verifier that reuses the hoisted shared tensor without checking the
+/// claim's own `s_col` would accept; the correct check evaluates
+/// `Z · χ(claim.s_col)` against the mutated point and rejects.
+#[test]
+fn final_witness_authority_rejects_relabel_of_one_claims_s_col() {
+    let prep = support::toy_preprocessing();
+    // The shared `toy_instance` is the all-zero assignment, whose DEC
+    // children all carry y_zcol = 0 — useless here, because a zero
+    // claim's NC relation holds at every point. The toy structure's
+    // empty `f` accepts any low-norm z, so use a nonzero one.
+    let nonzero_z = vec![F::ONE; prep.structure().m];
+    let instance =
+        neo_fold_clean::CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &nonzero_z, 1)
+            .expect("nonzero low-norm toy instance");
+    let proof = neo_fold_clean::prove(&prep, vec![vec![instance]]).expect("one-batch uncompressed proof");
+    let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
+    let mut running = match &finished.state.proof {
+        ProofState::Active { running, .. } => running.clone(),
+        ProofState::Initial => panic!("finalized must be Active"),
+    };
+
+    assert!(
+        running.claims.len() > 1,
+        "test setup requires multiple shared-point claims (got {})",
+        running.claims.len()
+    );
+    // The tampered claim must NOT be the one the hoist sources χ from
+    // (the first claim with a non-empty s_col): tampering the source
+    // would be rejected even by a guardless hoist. The toy fold's DEC
+    // children put all content in digit 0, so swap claims[0] ↔ [1]
+    // (with their witnesses, preserving claim↔witness pairing); the
+    // hoist then sources the shared point from the zero claim while the
+    // nonzero claim sits at index 1.
+    assert!(
+        running.claims[0]
+            .y_zcol
+            .iter()
+            .any(|&v| v != neo_math::K::ZERO),
+        "test setup requires a nonzero NC channel on the first DEC child"
+    );
+    running.claims.swap(0, 1);
+    running.witnesses.swap(0, 1);
+    let tampered = 1usize;
+    assert!(
+        !running.claims[tampered].s_col.is_empty(),
+        "test setup requires a carried NC channel"
+    );
+    let original = running.claims[tampered].s_col[0];
+    running.claims[tampered].s_col[0] = original + neo_math::K::ONE;
+    assert_ne!(
+        running.claims[tampered].s_col[0], original,
+        "mutation must change s_col"
+    );
+
+    let err = neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &running)
+        .expect_err("a claim whose s_col diverges from the shared point must be re-checked against its own point");
     assert!(
         matches!(err, neo_fold_clean::Error::FinalAccumulatorNcChannelMismatch { .. }),
         "expected FinalAccumulatorNcChannelMismatch, got {err:?}"

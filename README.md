@@ -1,40 +1,20 @@
-# Nightstream: Lattice-based Folding with Twist/Shout Memory
+# Nightstream: Lattice-based Folding for CCS
 
 [![GitHub License](https://img.shields.io/github/license/nicarq/nightstream)](LICENSE)
 
-Nightstream is a **post-quantum** proving system built around a lattice-based folding scheme for **CCS** plus sum-check-based memory arguments (Twist/Shout). The active proving path targets CCS over the **Goldilocks** field with a degree-2 extension for sum-check soundness, and exposes a **compact published proof boundary** for RV32IM.
+Nightstream is a **post-quantum** proving system built around a lattice-based folding scheme for **CCS** (SuperNeo, building on Neo, ePrint 2025/294) with a HyperNova-style recursive IVC layer. The active proving path targets CCS over the **Goldilocks** field with a degree-2 extension for sum-check soundness, Ajtai (module-SIS) commitments, and a Poseidon2-only transcript.
 
-- **Twist** for read/write memory (register and RAM timelines)
-- **Shout** for read-only lookups (bytecode fetch, decode, ALU tables)
-
-Nightstream implements the protocol from the Neo paper "Lattice-based folding scheme for CCS over small fields" (Nguyen & Setty, 2025/294), extended with Twist/Shout memory arguments and a Spartan2 outer layer.
-
-> **Status**: Research prototype, mid-migration. `neo-fold-clean` is the new main crate — it will orchestrate the F′ IVC core, the frontends, and the published Nightstream proof boundary. `neo-fold-prototype` is the sandbox where ideas are tested and benchmarked; today it still runs the full RV32IM end-to-end pipeline and produces the published Nightstream artifact, but that role is migrating to `neo-fold-clean`. CHIP-8 is an earlier prototype that also lives in `neo-fold-prototype`; it is not slated for migration. Chain-facing deployment wiring and independent audit are still unfinished. Not production-ready.
+> **Status**: Research software under active development. `neo-fold-clean` is the main proving crate: it owns the lifecycle API, the F′ recursive-step circuit, and the decider. The earlier `neo-fold-prototype` sandbox (RV32IM/CHIP-8 end-to-end pipelines) has been removed from the tree. Chain-facing deployment wiring and independent audit are still unfinished. Not production-ready.
 
 ---
 
 ## What Works Today
 
-- Full RV32IM public-proof → accepted-proof → final relation → IVC recursion SNARK → published Nightstream pipeline
-- Twist/Shout integrated as register, RAM, and TwistLink events inside Stage 2 semantics (no separate sidecar crate)
-- Side-claim / side-opening / side-terminal relations wrap the RV32IM value-lane content into publishable artifacts
-- End-to-end RV32IM integration tests (`crates/neo-fold-prototype/tests/nightstream.rs`) proving and verifying the active published boundary
-- Optional Midnight outer-compression bridge (`crates/nstream-midnight-bridge`) for theorem-facing proof exports
-
-### Published Nightstream Boundary
-
-The compact published boundary lives in `crates/neo-fold-prototype/src/nightstream/` and is published as a `NightstreamStatement` + ISA-specific nightstream proof:
-
-- RV32IM carried Nightstream artifact: ~524 bytes
-These numbers refer to the *carried* published boundary, not the larger internal Spartan2 proof exchanged below the seam. The RV32IM IVC recursion SNARK and side binding proofs are backend-accounted and verifier-relevant, but they are not carried inside the published Nightstream artifact itself.
-
-Measured via the perf snapshots:
-
-```bash
-# RV32IM (NS_DEBUG_N controls instruction count)
-NS_DEBUG_N=1000 cargo test -p neo-fold-prototype --release --test perf -- \
-  --ignored --nocapture rv32im_mixed_opcode_perf_snapshot
-```
+- SuperNeo folding pipeline Π_CCS → Π_RLC → Π_DEC (`neo-reductions`, optimized + paper-exact engines)
+- IVC lifecycle in `neo-fold-clean`: `prove` / `extend` a chain of CCS step instances, `finish_uncompressed` or `compress`, then `verify`
+- F′ recursive-step shell: a low-norm bit-image layout, mixed-gate CCS structure, encoder, and R1CS compiler for stateful step functions
+- Spartan2-backed decider and terminal-CE relation checks
+- Red-team suites (`crates/neo-fold-clean/tests/system/lifecycle_redteam.rs` and friends) for tamper resistance on the lifecycle path
 
 ---
 
@@ -53,9 +33,8 @@ cargo build --release
 # Full workspace tests
 cargo test --workspace --release
 
-# Canonical RV32IM round-trip (prove + verify via nightstream seam)
-cargo test -p neo-fold-prototype --release --test nightstream -- --nocapture
-
+# Canonical end-to-end chain (encode F' steps, fold, finalize, verify)
+cargo test -p neo-fold-clean --release --test system_fibonacci_bits_e2e -- --nocapture
 ```
 
 ### WASM Demo (Browser)
@@ -85,52 +64,33 @@ Most tests use `FoldingMode::Optimized`. The `FoldingMode::PaperExact` engine is
 
 ## Architecture Overview
 
-`neo-fold-prototype` is the single active proving path. It has three layers: a generic SuperNeo shard spine, the RV32IM frontend, and a compact publication boundary. CHIP-8 code remains parked for development reference.
+`neo-fold-clean` is the main proving crate. Its module map:
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│  nightstream/               Published proof boundary (compact)   │  ← chain-facing
-│    mod.rs                   NightstreamStatement + proof binding │
-│    rv32im.rs                Rv32imNightstreamProof               │
-│      side_claim / side_opening / side_binding / side_eval_claim  │
-│      opening_artifact / side_bridges                             │
-│    chip8.rs                 parked CHIP-8 audit/development path │
-├──────────────────────────────────────────────────────────────────┤
-│  decider/spartan2/          Generic Spartan2 final decider       │
-├──────────────────────────────────────────────────────────────────┤
-│  rv32im/                    active ISA frontend                  │
-│    isa / execute / lower    trace capture and expansion          │
-│    builder / tables         parity manifests, ISA tables         │
-│    stage1 / stage2 / stage3 row binding / temporal / continuity  │
-│    kernel/                  three-stage kernel prover+verifier   │
-│    ccs / layout             root CCS and column layout           │
-│    final_relation           build final recursion artifacts       │
-│    ivc_snark                compress final Construction-2 state   │
-│    trace_expand/            RV32IM only: MUL/DIV lowering        │
-├──────────────────────────────────────────────────────────────────┤
-│  Generic spine (ISA-agnostic)                                    │
-│    proof.rs          StepInput, ChunkInput, RunProof, Carry,     │
-│                      FoldSchedule, PackagedProof                 │
-│    run.rs            prove_chunks / verify_chunks drivers        │
-│    prover.rs         ShardProver::prove_chunk                    │
-│    verifier.rs       ShardVerifier::verify_chunk                 │
-│    chunk_relation.rs Π_CCS → Π_RLC → Π_DEC per chunk             │
-│    finalize.rs       PackagedProof digest footer                 │
-│    opening.rs        opening-claim / time-opening surfaces       │
-│    time_opening.rs   grouped opening reduction / unification     │
-│    step_build.rs     frontend StepBuild + extension records      │
-│    witness_layout.rs packed-witness helpers                      │
-├──────────────────────────────────────────────────────────────────┤
-│  vm/                 Static VM contracts (VmSpec trait)          │
-└──────────────────────────────────────────────────────────────────┘
+crates/neo-fold-clean/src/
+  lifecycle/        Public chain API: preprocess, prove, extend, compress,
+                    finish_uncompressed, verify, verify_uncompressed(_audit)
+  paper/            Paper-faithful protocol layer:
+    construction2/  HyperNova-style IVC state transition + finalization
+    reductions/     Π_CCS → Π_RLC → Π_DEC sequencing
+    f_prime/        F′ step relation, R1CS lowering, Poseidon traces
+    terminal_ce/    Terminal CE relation circuit + digest contract
+    decider.rs      Decider-side x_out / state replay checks
+    digest.rs       Poseidon2 structure/params/relation digests
+  frontends/        F′ source-image frontends:
+    f_prime/        Bit-image layout, mixed-gate structure, encoder,
+                    stateful R1CS step compiler, recursive plan
+    r1cs_f_prime/   Bellpepper-style R1CS → F′ instance builder
+  engine/           Optimized execution: Π wrappers, CCS-native Poseidon2
+                    gadgets, R1CS circuit builder, Spartan2 decider
 ```
 
 ### Per-chunk Folding Flow
 
-At each chunk of the session, `chunk_relation::compute_chunk_relation_with_perf` runs the folding triple:
+Each lifecycle step folds fresh CCS claims into the running accumulator via the SuperNeo triple:
 
 ```
-incoming main Carry + fresh CCS step claims
+incoming running accumulator + fresh CCS step claims
             │
             ▼
     ┌──────────────────┐
@@ -148,231 +108,79 @@ incoming main Carry + fresh CCS step claims
     └────────┬─────────┘
              │
              ▼
-      next main Carry  →  carried to the next chunk
+   next running accumulator  →  carried to the next step
 ```
 
-All Fiat-Shamir challenges are sampled from a Poseidon2 transcript bound to `neo.fold.next/session`.
+All Fiat-Shamir challenges are sampled from a Poseidon2 transcript; protocol-binding paths are Poseidon2-only.
 
-### RV32IM Side Lane
+### Lifecycle API
 
-The RV32IM frontend also emits stage-level eval, opening, and terminal claims that cannot be folded together with the main-lane `Carry` (they are not single-point ME claims at the same point). These are published alongside the main proof as **side artifacts** under `nightstream/rv32im/side_*.rs`:
+```rust
+use neo_fold_clean::lifecycle;
 
-| Side artifact              | Content                                                         |
-|----------------------------|-----------------------------------------------------------------|
-| `side_claim_relation`      | Stage-claim bundle consistency                                  |
-| `side_eval_claim_relation` | Phase-0 opened objects + stage proof bindings + eval claims     |
-| `side_opening_relation`    | Stage selected rows vs carried opening claims                   |
-| `side_relation_spartan`    | Spartan2-backed side binding proof                              |
-| `opening_artifact`         | Phase-0/1/2 opening convergence artifact                        |
-| `side_bridges`             | Projects accepted kernel artifacts into side relation witnesses |
+let prep = lifecycle::preprocess(params, structure, public_input_len)?;
 
-The parked CHIP-8 path does not participate in the active RV32IM published boundary.
+let mut audit = lifecycle::prove(&prep, [vec![step_0]])?;   // base step
+audit = lifecycle::extend(&prep, audit, vec![step_1])?;     // fold one more step
+lifecycle::verify_uncompressed_audit(&prep, &audit)?;       // replay-check the chain
+
+let proof = lifecycle::finish_uncompressed(&prep, audit)?;  // close the chain
+lifecycle::verify_uncompressed(&prep, &proof)?;
+```
+
+`lifecycle::compress` produces the Spartan2-compressed form checked by `lifecycle::verify`.
 
 ---
 
 ## Developer Onboarding
 
-### 1. Read the Protocol + Implementation Overview
+### 1. Read the Protocol + Implementation Docs
 
-| Doc                                                                                                   | Purpose                                                                 |
-|-------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------|
-| [`docs/superneo-paper/`](docs/superneo-paper/)                                                        | Neo paper text (source of truth for the folding protocol)               |
-| [`docs/twist-and-shout-paper/`](docs/twist-and-shout-paper/)                                          | Twist / Shout paper text (source of truth for memory arguments)         |
-| [`docs/jolt-paper/`](docs/jolt-paper/)                                                                | Jolt paper text (source for RV32IM lowering and lookup tables)          |
-| [`docs/system-architecture.md`](docs/system-architecture.md)                                          | IVC architecture + emission policies                                    |
-| [`docs/glossary.md`](docs/glossary.md)                                                                | Protocol terminology                                                    |
-| [`docs/assurance-strategy.md`](docs/assurance-strategy.md)                                            | Testing / soundness assurance plan                                      |
-| [`docs/explanations/zkvm-main-lane-vs-twist-shout.md`](docs/explanations/zkvm-main-lane-vs-twist-shout.md) | Main-lane vs. Twist/Shout split                                    |
-| [`crates/neo-fold-prototype/specs/riscv-kernel.md`](crates/neo-fold-prototype/specs/riscv-kernel.md)            | RV32IM kernel spec (staging, parity, Jolt-inspired lowering)            |
-| [`crates/neo-fold-prototype/specs/chip8-kernel.md`](crates/neo-fold-prototype/specs/chip8-kernel.md)            | CHIP-8 kernel spec                                                      |
-| [`formal/superneo-lean/README.md`](formal/superneo-lean/README.md)                                    | Lean proof-facing model and dependency graph                            |
+| Doc                                                          | Purpose                                                       |
+|---------------------------------------------------------------|---------------------------------------------------------------|
+| [`docs/hypernova-paper/`](docs/hypernova-paper/)              | HyperNova paper text (source for the IVC layer)               |
+| [`docs/architecture/`](docs/architecture/)                    | Design notes: terminal-CE proof, accumulator openings, perf   |
+| [`docs/audits/`](docs/audits/)                                | Internal soundness-audit reports                              |
+| [`docs/plans/`](docs/plans/)                                  | Design and implementation plans                               |
+| [`formal/superneo-lean/README.md`](formal/superneo-lean/README.md) | Lean theorem-facing model (mathematical source of truth) |
 
 ### 2. Run Tests
 
 ```bash
 cargo test --workspace --release
 
-# End-to-end nightstream round-trip for RV32IM
-cargo test -p neo-fold-prototype --release --test nightstream -- --nocapture
+# End-to-end F' chain: encode, fold, finalize, verify
+cargo test -p neo-fold-clean --release --test system_fibonacci_bits_e2e -- --nocapture
 
-# Generic spine Π_CCS → Π_RLC → Π_DEC prove/verify
-cargo test -p neo-fold-prototype --release --test prover_pipeline -- --nocapture
-cargo test -p neo-fold-prototype --release --test finalized_proof  -- --nocapture
+# Lifecycle red-team (tamper-rejection) suite
+cargo test -p neo-fold-clean --release --test system_lifecycle_redteam
 
-# Per-stage RV32IM suites
-cargo test -p neo-fold-prototype --release --test rv32im_stage1 -- --nocapture
-cargo test -p neo-fold-prototype --release --test rv32im_stage2 -- --nocapture
-cargo test -p neo-fold-prototype --release --test rv32im_stage3 -- --nocapture
+# Reduction engines
+cargo test -p neo-reductions --release
 ```
 
 ### 3. Where to Start in the Code
 
-**Generic SuperNeo spine** in [`crates/neo-fold-prototype/src/`](crates/neo-fold-prototype/src/):
-
-- [`proof.rs`](crates/neo-fold-prototype/src/proof.rs) defines the session types (`StepInput`, `ChunkInput`, `RunProof`, `Carry`, `FoldSchedule`, `PackagedProof`).
-- [`run.rs`](crates/neo-fold-prototype/src/run.rs) hosts the `prove_chunks*`, `verify_chunks*`, `prove_and_package`, and `verify_packaged` drivers.
-- [`prover.rs`](crates/neo-fold-prototype/src/prover.rs) holds the `ShardProver::prove_chunk` script.
-- [`verifier.rs`](crates/neo-fold-prototype/src/verifier.rs) holds `ShardVerifier::verify_chunk`.
-- [`chunk_relation.rs`](crates/neo-fold-prototype/src/chunk_relation.rs) sequences Π_CCS → Π_RLC → Π_DEC explicitly and defines `CommitmentMixers`.
-- [`finalize.rs`](crates/neo-fold-prototype/src/finalize.rs) packages `PackagedProof` and emits the digest footer.
-
-**RV32IM frontend** in [`crates/neo-fold-prototype/src/rv32im/`](crates/neo-fold-prototype/src/rv32im/):
-
-- `isa.rs`, `execute.rs`, `lower.rs`, `builder.rs`, `tables.rs` cover ISA semantics, tracing, and lowering to `Rv32ExpandedRow`.
-- `trace_expand/` contains the RV32IM-only multi-cycle MUL/DIV expansion (`mul/`, `divrem/`).
-- `stage1/`, `stage2/`, `stage3/` cover row binding, the register/RAM/Twist-link timeline, and continuity.
-- `kernel/` holds the three-stage kernel prover/verifier (`kernel/stages/`, `kernel/main_lane/`, `kernel/openings/`, `kernel/proof/`, `kernel/parity/`).
-- `final_relation.rs`, `decider.rs`, `ivc.rs`, `ivc_snark.rs` build the final recursion artifacts and compressed IVC proof boundary.
-
-**Parked CHIP-8 frontend** in [`crates/neo-fold-prototype/src/chip8/`](crates/neo-fold-prototype/src/chip8/):
-
-- `spec.rs`, `isa.rs`, `execute.rs`, `lower.rs`, `builder.rs`, `tables.rs`, `poly.rs`, `trace.rs` cover CHIP-8 ISA semantics and trace capture.
-- `stage1/`, `stage2/`, `stage3/`, `kernel/` mirror the three-stage structure from RV32IM.
-- `ccs.rs`, `layout.rs`, `chunk_relation.rs`, `final_relation.rs`, `decider.rs` are audit/development scaffolding and are not part of the active theorem-facing published path.
-
-**Published Nightstream boundary** in [`crates/neo-fold-prototype/src/nightstream/`](crates/neo-fold-prototype/src/nightstream/):
-
-- `mod.rs` defines `NightstreamStatement`, `NightstreamProofBindingInputs`, and the core digest helpers.
-- `rv32im.rs` and `rv32im/side_*.rs` build the RV32IM `Rv32imNightstreamProof` with its side-lane artifacts.
-- `chip8.rs` is parked with the CHIP-8 audit/development path.
+- [`crates/neo-fold-clean/src/lifecycle/`](crates/neo-fold-clean/src/lifecycle/) — the public chain API (`preprocess`, `prove`, `extend`, `compress`, `verify*`).
+- [`crates/neo-fold-clean/src/paper/construction2/`](crates/neo-fold-clean/src/paper/construction2/) — IVC state transition, x_out binding, finalization.
+- [`crates/neo-fold-clean/src/frontends/f_prime/`](crates/neo-fold-clean/src/frontends/f_prime/) — the F′ source image, structure, encoder, and the stateful R1CS step compiler.
+- [`crates/neo-reductions/src/api.rs`](crates/neo-reductions/src/api.rs) — `FoldingMode` and the Π_CCS / Π_RLC / Π_DEC engine entry points.
 
 ---
 
 ## Core Concepts (Paper → Code)
 
-| Concept            | Meaning                                                                 | Code entry points                                                                              |
-|--------------------|-------------------------------------------------------------------------|------------------------------------------------------------------------------------------------|
-| **CCS**            | Customizable Constraint System                                          | `neo_ccs::CcsStructure`                                                                        |
-| **MCS / CcsClaim** | CCS + commitment                                                        | `neo_ccs::CcsClaim`                                                                            |
-| **ME / CeClaim**   | Universal foldable claim (single-point matrix evaluation)               | `neo_ccs::CeClaim`                                                                             |
-| **Π_CCS**          | CCS/MCS → ME claims via sum-check                                       | [`neo_reductions::api::PiCcsProof`], sequenced in `neo-fold-prototype/src/chunk_relation.rs`        |
-| **Π_RLC / Π_DEC**  | Aggregate then decompose (norm control)                                 | `neo-fold-prototype/src/chunk_relation.rs`; artifacts `PiRlcArtifact`, `PiDecArtifact` in `proof.rs` |
-| **Chunk**          | Unit of per-chunk folding (one or more CCS rows)                        | `neo_fold_prototype::proof::ChunkInput` + `FoldSchedule`                                            |
-| **Carry**          | Running main-lane ME claims + witnesses across chunks                   | `neo_fold_prototype::proof::Carry`                                                                  |
-| **Run / Session**  | A full prove session over a sequence of chunks                          | `neo_fold_prototype::run::{prove_chunks, verify_chunks, prove_and_package}`                         |
-| **PackagedProof**  | Final packaged proof + public statement                                 | `neo_fold_prototype::proof::PackagedProof`; built by `neo_fold_prototype::finalize`                      |
-| **Twist**          | R/W memory argument (register + RAM timelines via sparse increments)    | `neo_fold_prototype::rv32im::stage2::semantics`: `RegisterWriteEvent`, `RamEvent`, `TwistLinkEvent`  |
-| **Shout**          | Read-only lookup argument (bytecode fetch / decode / ALU / tables)      | `neo_fold_prototype::rv32im::stage1` row-binding families                                           |
-| **Nightstream**    | Published compact statement + proof boundary                            | `neo_fold_prototype::nightstream::{NightstreamStatement, rv32im}`                                   |
-| **Spartan2**       | Backend used for final recursion and side-binding proofs                | `neo_fold_prototype::decider::spartan2`                                                             |
-
-### Key Types
-
-```rust
-// Generic session spine:
-neo_fold_prototype::proof::StepInput {
-    label: String,
-    mcs: CcsClaim<Commitment, F>,
-    witness: CcsWitness<F>,
-}
-
-neo_fold_prototype::proof::RunProof {
-    fold_schedule: FoldSchedule,
-    chunks: Vec<ChunkProof>,
-    final_main_claims: Vec<CeClaim<Commitment, F, K>>,
-}
-
-neo_fold_prototype::proof::PackagedProof {
-    statement: PublicStatement,
-    proof: FinalProof,
-}
-
-// Published Nightstream boundary:
-neo_fold_prototype::nightstream::NightstreamStatement {
-    public_io_digest: [u8; 32],
-    verifier_context_digest: [u8; 32],
-    fold_schedule: FoldSchedule,
-    semantic_step_count: u64,
-    chunk_summaries: Vec<FixedShapeChunkSummary>,
-    linkage_root: [u8; 32],
-    proof_binding_root: [u8; 32],
-}
-```
-
----
-
-## End-to-End: RV32IM
-
-The following is pseudocode matching the flow in [`crates/neo-fold-prototype/tests/nightstream.rs`](crates/neo-fold-prototype/tests/nightstream.rs) (see `external_fixture` and `verify_fixture`).
-
-```rust
-use neo_fold_prototype::rv32im::{
-    prove_rv32im_public_proof,
-    build_rv32im_accepted_proof_artifact,
-    Rv32imProofInput,
-};
-use neo_fold_prototype::rv32im::final_relation::prove_rv32im_final_statement_from_accepted;
-use neo_fold_prototype::rv32im::ivc_snark::setup_rv32im_ivc_snark_from_final_cached;
-use neo_fold_prototype::nightstream::rv32im::{
-    build_rv32im_nightstream_from_public_proof,
-    verify_rv32im_nightstream,
-};
-
-// 1. Produce the public RV32IM proof (stages 1/2/3 + kernel + accepted artifact)
-let proof_input: Rv32imProofInput = /* program_words + max_steps */;
-let public_proof = prove_rv32im_public_proof(&proof_input)?;
-
-// 2. Build final artifacts and the IVC recursion SNARK verifier key
-let accepted = build_rv32im_accepted_proof_artifact(&public_proof)?;
-let (final_statement, final_proof) =
-    prove_rv32im_final_statement_from_accepted(&accepted)?;
-let ivc_recursion_snark_keys =
-    setup_rv32im_ivc_snark_from_final_cached(&final_statement, &final_proof)?;
-
-// 3. Build the published Nightstream statement + proof
-let (statement, nightstream_proof) =
-    build_rv32im_nightstream_from_public_proof(&public_proof)?;
-
-// 4. Verify the compressed published boundary
-let side_opening_vk = /* side-opening verifier key */;
-let side_binding_vk = /* side-binding verifier key */;
-verify_rv32im_nightstream(
-    &statement,
-    &nightstream_proof,
-    public_proof.statement.root_params_id,
-    &ivc_recursion_snark_keys.1,
-    &side_opening_vk,
-    &side_binding_vk,
-    &public_proof.statement,
-)?;
-```
-
-For direct use of the generic spine (bring your own CCS and `StepInput`s), use `neo_fold_prototype::run::{prove_and_package, verify_packaged}`.
-
----
-
-## Memory Arguments: Twist & Shout
-
-In `neo-fold-prototype`, Twist and Shout live directly inside the ISA frontends as deterministic row-binding and temporal-event semantics.
-
-### Twist (Register and RAM R/W)
-
-Stage 2 of each ISA captures the register and RAM timelines as events against the expanded trace:
-
-- `RegisterReadEvent`: rs1/rs2 reads tagged by role
-- `RegisterWriteEvent`: rd writes
-- `RamEvent`: RAM reads and writes at canonical addresses
-- `TwistLinkEvent`: link rows connecting the memory timeline to the committed execution
-
-Stage 2 reduces these into canonical-family digests and summaries in `stage2/proof.rs`; Stage 2 sum-check logic and `r_twist_cycle` point derivation are specified in `crates/neo-fold-prototype/specs/riscv-kernel.md`.
-
-**Code:** [`crates/neo-fold-prototype/src/rv32im/stage2/`](crates/neo-fold-prototype/src/rv32im/stage2/) and [`crates/neo-fold-prototype/src/chip8/stage2/`](crates/neo-fold-prototype/src/chip8/stage2/)
-
-### Shout (Read-only Lookups)
-
-Stage 1 of each ISA binds each executed row against read-only lookup families: bytecode fetch, decode, ALU tables, and (RV32IM) branch/address families. Each family produces a row-binding proof and digest that is carried through the kernel transcript and opened at phase-0 points by the openings subsystem.
-
-**Code:** [`crates/neo-fold-prototype/src/rv32im/stage1/`](crates/neo-fold-prototype/src/rv32im/stage1/), [`crates/neo-fold-prototype/src/chip8/stage1/`](crates/neo-fold-prototype/src/chip8/stage1/), [`crates/neo-fold-prototype/src/rv32im/tables.rs`](crates/neo-fold-prototype/src/rv32im/tables.rs)
-
-### Opening Convergence
-
-Stage / main-lane / side-lane claims converge through a three-phase opening pipeline before being published:
-
-- **Phase 0**: opened object bundles, stage proof bindings, eval claim bundles
-- **Phase 1**: bucketed reduction of eval claims
-- **Phase 2**: collapse to final openings
-
-**Code:** [`crates/neo-fold-prototype/src/rv32im/kernel/openings/`](crates/neo-fold-prototype/src/rv32im/kernel/openings/), `crates/neo-fold-prototype/src/nightstream/rv32im/opening_artifact.rs`, `crates/neo-fold-prototype/src/opening.rs`, `crates/neo-fold-prototype/src/time_opening.rs`
+| Concept            | Meaning                                                    | Code entry points                                              |
+|--------------------|-------------------------------------------------------------|----------------------------------------------------------------|
+| **CCS**            | Customizable Constraint System                              | `neo_ccs::CcsStructure`                                        |
+| **MCS / CcsClaim** | CCS + commitment                                            | `neo_ccs::CcsClaim`                                            |
+| **ME / CeClaim**   | Universal foldable claim (single-point matrix evaluation)   | `neo_ccs::CeClaim`                                             |
+| **Π_CCS**          | CCS/MCS → ME claims via sum-check                           | `neo_reductions::api`, wrapped by `neo-fold-clean/src/engine/` |
+| **Π_RLC / Π_DEC**  | Aggregate then decompose (norm control)                     | `neo-fold-clean/src/paper/reductions/`                         |
+| **F′**             | Augmented recursive-step relation (HyperNova §6)            | `neo-fold-clean/src/frontends/f_prime/`                        |
+| **Construction 2** | IVC chain state + per-step fold proof                       | `neo-fold-clean/src/paper/construction2/`                      |
+| **Decider**        | Terminal check of the folded accumulator                    | `neo-fold-clean/src/engine/decider.rs`, `paper/terminal_ce/`   |
+| **Spartan2**       | Backend for compressed final proofs                         | `crates/spartan2`                                              |
 
 ---
 
@@ -390,26 +198,27 @@ Per project policy in [`CLAUDE.md`](CLAUDE.md), tests always use `FoldingMode::O
 
 ### Debugging and Profiling
 
-Constraint / perf dumps live in [`crates/neo-fold-prototype/tests/perf.rs`](crates/neo-fold-prototype/tests/perf.rs). All perf snapshots are `--ignored` by default.
+Perf snapshots live in [`crates/neo-fold-clean/tests/perf/`](crates/neo-fold-clean/tests/perf/) and are `--ignored` by default:
 
 ```bash
-# Full constraint + timing snapshot for RV32IM (N = instructions + 1 halt)
-NS_DEBUG_N=10000 cargo test -p neo-fold-prototype --release --test perf -- \
-  --ignored --nocapture rv32im_mixed_opcode_perf_snapshot
+# Lifecycle fold/IVC perf snapshot
+cargo test -p neo-fold-clean --release --test perf_fibonacci_bits -- --ignored --nocapture fibonacci_bits_perf_snapshot
+
+# Full-history audit-circuit R1CS shape handed to the decider
+cargo test -p neo-fold-clean --release --test perf_fibonacci_bits -- --ignored --nocapture fibonacci_decider_r1cs_shape_snapshot
 ```
 
 For CPU/memory profiling see [`scripts/profile_for_ai.sh`](scripts/profile_for_ai.sh), [`scripts/profile_xctrace.sh`](scripts/profile_xctrace.sh), and [`scripts/profile_memory_deep.sh`](scripts/profile_memory_deep.sh). Usage is documented in [`CLAUDE.md`](CLAUDE.md).
 
 ### Formal (Lean)
 
-Four Lean subprojects hold proof-facing models:
-
-| Subproject                                                                | Purpose                                                       |
-|---------------------------------------------------------------------------|---------------------------------------------------------------|
-| [`formal/superneo-lean/`](formal/superneo-lean/)                          | Main SuperNeo theorem-facing model and dependency graph       |
-| [`formal/nightstream-lean/`](formal/nightstream-lean/)                    | Published Nightstream boundary model                          |
-| [`formal/twist-shout-lean/`](formal/twist-shout-lean/)                    | Twist/Shout memory-argument model                             |
-| [`formal/opening-convergence-lean/`](formal/opening-convergence-lean/)    | Opening convergence pipeline model                            |
+| Subproject                                                                 | Purpose                                                  |
+|-----------------------------------------------------------------------------|----------------------------------------------------------|
+| [`formal/superneo-lean/`](formal/superneo-lean/)                            | Main SuperNeo theorem-facing model (source of truth)     |
+| [`formal/direct-ccs-fprime-lean/`](formal/direct-ccs-fprime-lean/)          | Direct-CCS F′ model                                      |
+| [`formal/nightstream-lean/`](formal/nightstream-lean/)                      | Published-boundary model (prototype-era, parked)         |
+| [`formal/twist-shout-lean/`](formal/twist-shout-lean/)                      | Twist/Shout memory-argument model                        |
+| [`formal/opening-convergence-lean/`](formal/opening-convergence-lean/)      | Opening convergence pipeline model                       |
 
 See [`CLAUDE.md`](CLAUDE.md) for the spec/interface/implementation layout and closure standard.
 
@@ -419,11 +228,10 @@ See [`CLAUDE.md`](CLAUDE.md) for the spec/interface/implementation layout and cl
 
 ### Implemented Safeguards
 
-- **Parameter validation** for the RLC soundness bound
+- **Parameter validation** for the RLC soundness bound (`neo-params`, SuperNeo Appendix B.2 profile)
 - **Transcript binding** via Poseidon2 domain separation across every phase (protocol-binding paths are Poseidon2-only)
-- **ME claim alignment** checks before Π_RLC
-- **Side-lane artifact digests** bound into the `NightstreamProofBindingInputs` root
-- **Red-team test suite** ([`crates/neo-fold-prototype/tests/rv32im_redteam.rs`](crates/neo-fold-prototype/tests/rv32im_redteam.rs)) for tamper resistance on the RV32IM path
+- **Structure/params digests** recomputed from authoritative inputs, never trusted from the wire
+- **Red-team test suites** (`crates/neo-fold-clean/tests/system/lifecycle_redteam.rs`, `r1cs_compiler_stateful.rs`) for tamper resistance
 
 ### Security Posture
 
@@ -431,11 +239,10 @@ See [`CLAUDE.md`](CLAUDE.md) for the spec/interface/implementation layout and cl
 
 Specific caveats:
 
-- No independent audit or formal verification of the Rust implementation
+- No independent audit or formal verification of the Rust implementation (internal audit notes live in [`docs/audits/`](docs/audits/))
 - Potential side-channel issues (Rust big-int / norm computations, etc.)
 - Parameter selection not hardened for production
-- Transcript domain separation is implemented but still research-grade
-- Chain-facing deployment wiring for the published Nightstream boundary is still in progress
+- Chain-facing deployment wiring is still in progress
 
 ---
 
@@ -443,37 +250,27 @@ Specific caveats:
 
 ```
 crates/
-  neo-params/             Parameter bundles + Poseidon2 config
-  neo-math/               Field/ring utilities, extension field, norms
-  spartan2/               Vendored Spartan2 backend
-  neo-transcript/         Poseidon2 transcript (Fiat-Shamir)
-  neo-ajtai/              Ajtai (lattice) commitments; module-SIS binding
-  neo-ccs/                CCS/MCS/ME relations, matrices, arithmetization
-  neo-reductions/         Π_CCS / Π_RLC / Π_DEC engines (optimized + paper-exact)
-  neo-fold-clean/         Main proving crate (in progress): orchestrates the F′ IVC core,
-                          frontends (Bellpepper R1CS, F′ shell), and the published
-                          proof boundary. Becoming the single path once migration completes.
-  neo-fold-prototype/     Sandbox crate. Tests and benchmarks ideas before they land in
-                          `neo-fold-clean`. Today still hosts the full RV32IM + Nightstream
-                          end-to-end pipeline; that role is migrating out.
-  nstream-midnight-bridge/ Midnight outer-compression bridge for proof exports
+  neo-params/      Parameter bundles + Poseidon2 config
+  neo-math/        Field/ring utilities, extension field, norms
+  spartan2/        Vendored Spartan2 backend
+  neo-transcript/  Poseidon2 transcript (Fiat-Shamir)
+  neo-ajtai/       Ajtai (lattice) commitments; module-SIS binding
+  neo-ccs/         CCS/MCS/ME relations, matrices, arithmetization
+  neo-reductions/  Π_CCS / Π_RLC / Π_DEC engines (optimized + paper-exact)
+  neo-fold-clean/  Main proving crate: lifecycle API, F′ recursive shell,
+                   frontends, decider, terminal-CE relation
 
 docs/
-  superneo-paper/         Neo paper text
-  twist-and-shout-paper/  Twist/Shout paper text
-  jolt-paper/             Jolt paper text
-  system-architecture.md  IVC architecture + emission policies
-  glossary.md             Protocol terminology
-  assurance-strategy.md   Assurance / testing plan
-  rust-code-quality.md    Rust code-quality guidelines
-  explanations/           Targeted explainers
-  plans/                  Design and implementation plans
-  soundness-specs/        Soundness requirement specs
+  hypernova-paper/ HyperNova paper text
+  architecture/    Design notes (terminal CE, accumulator openings, perf)
+  audits/          Internal soundness-audit reports
+  plans/           Design and implementation plans
 
 formal/
-  superneo-lean/          Main Lean model + dependency graph
-  nightstream-lean/       Published boundary Lean model
-  twist-shout-lean/       Twist/Shout Lean model
+  superneo-lean/   Main Lean model (source of truth)
+  direct-ccs-fprime-lean/ Direct-CCS F′ model
+  nightstream-lean/ Published-boundary model (prototype-era, parked)
+  twist-shout-lean/ Twist/Shout Lean model
   opening-convergence-lean/ Opening convergence Lean model
 ```
 
@@ -482,10 +279,9 @@ formal/
 ## Roadmap
 
 ### Near Term
-- Finish the chain-facing verifier/deployment story for the published Nightstream boundary
-- Decide which backend-accounted proof material must become explicitly carried for chain verification
-- Add criterion benchmarks
-- Sparse weight optimizations along the opening convergence path
+- Compact terminal-CE proof for the folded accumulator (see [`docs/architecture/compact-terminal-ce-proof-requirements.md`](docs/architecture/compact-terminal-ce-proof-requirements.md))
+- Twist/Shout memory arguments as projection protocols feeding the main fold lane (see [`docs/plans/`](docs/plans/) and `TODO.md`)
+- Criterion benchmarks
 
 ### Medium Term
 - GPU acceleration exploration
@@ -501,9 +297,8 @@ See [`TODO.md`](TODO.md) for in-flight work.
 
 ## References
 
-- **Neo**: Wilson Nguyen & Srinath Setty, "[Neo: Lattice-based folding scheme for CCS over small fields](https://eprint.iacr.org/2025/294)" (ePrint 2025/294). Local text: [`docs/superneo-paper/`](docs/superneo-paper/).
-- **Twist / Shout**: Local text in [`docs/twist-and-shout-paper/`](docs/twist-and-shout-paper/).
-- **Jolt**: Local text in [`docs/jolt-paper/`](docs/jolt-paper/); source for RV32IM instruction lowering, virtual composition, and lookup-table structure.
+- **Neo**: Wilson Nguyen & Srinath Setty, "[Neo: Lattice-based folding scheme for CCS over small fields](https://eprint.iacr.org/2025/294)" (ePrint 2025/294).
+- **HyperNova**: Abhiram Kothapalli & Srinath Setty, "HyperNova: Recursive arguments for customizable constraint systems". Local text: [`docs/hypernova-paper/`](docs/hypernova-paper/).
 - **Spartan2**: Srinath Setty, "Spartan: Efficient and general-purpose zkSNARKs without trusted setup" (CRYPTO 2020). Vendored in [`crates/spartan2`](crates/spartan2).
 - **Plonky3**: Goldilocks field and Poseidon2 primitives used by Nightstream.
 
@@ -511,11 +306,7 @@ See [`TODO.md`](TODO.md) for in-flight work.
 
 ## Acknowledgements
 
-### Jolt zkVM
-
-The RV32IM frontend's handling of MUL/MULH/MULHSU/MULHU and DIV/DIVU/REM/REMU, the bitmask+apply pattern for RV32 shift instructions, the virtual assertion pattern for control/assertion instructions, and the dense slot manifest structure for Stage 1 row binding are all Jolt-inspired. The detailed mapping is documented in [`crates/neo-fold-prototype/specs/riscv-kernel.md`](crates/neo-fold-prototype/specs/riscv-kernel.md).
-
-Thanks to the Jolt team for releasing their zkVM work as open source.
+The earlier RV32IM prototype frontend drew on the Jolt zkVM's instruction lowering and lookup-table structure. Thanks to the Jolt team for releasing their work as open source.
 
 ---
 

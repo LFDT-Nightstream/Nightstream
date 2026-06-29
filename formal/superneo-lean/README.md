@@ -198,9 +198,9 @@ closure standard's "quantified theorem level" bar remains open for them.
 
 ## Opening-Convergence Follow-On Frontier
 
-The tracked SuperNeo milestone set is closed, but there is one important
-follow-on theorem frontier now that `opening-convergence-lean` has reached its
-own local closure:
+The tracked SuperNeo milestone set is closed, but there is one historical
+follow-on theorem frontier from `formal/deprecated/opening-convergence-lean`,
+which reached its own local closure:
 
 - the existing SumCheck formalization is still base-field (`SuperNeo.F`) only
 - Nightstream opening convergence Phase 1 is over the extension field
@@ -219,7 +219,8 @@ closure of extension-field SumCheck**:
 
 1. accepted-transcript to claim-truth closure over `SuperNeo.KExt`,
 2. the terminal-value / honest-table theorem needed to replace the carried
-   `sumcheckTerminalCorrect` hypothesis in `opening-convergence-lean`,
+   `sumcheckTerminalCorrect` hypothesis in the deprecated
+   `opening-convergence-lean` package,
 3. the proof-system-level generalization or specialization needed to connect
    that closure into `ProofSystem/SumCheck/General.lean`
 

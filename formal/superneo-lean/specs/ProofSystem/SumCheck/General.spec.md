@@ -186,7 +186,7 @@
 - `LundSoundnessAssumption` [Boundary-surface]: explicit probabilistic game-level soundness bound over verifier-coin events with non-anticipatory prover strategy.
 - `LundRoundBoundaryAssumption` [Boundary-surface]: if per-game round-by-round failure boundaries are provided, `LundSoundnessAssumption` is constructively discharged by `lundSoundnessAssumption_of_roundBoundary`.
 - `SchwartzZippelRoundEventAssumption` [Boundary-surface, theorem-native lower layer]: packages the per-game SZ/round-event lemmas required to derive `LundSoundnessAssumption` via a fully constructive chain.
-- `Fact (Nat.Prime Goldilocks.q)` [Closed prerequisite]: discharged in-repo by `SuperNeo.Goldilocks.q_prime` (`SuperNeo/GoldilocksPrime.lean`) and used by the Mathlib root-count bridge over `ZMod q`.
+- `Fact (Nat.Prime Goldilocks.q)` [Closed prerequisite]: discharged in-repo by `SuperNeo.Goldilocks.q_prime` (`SuperNeo/Primitives/GoldilocksPrime.lean`) and used by the Mathlib root-count bridge over `ZMod q`.
 - `FullFieldRoundPolynomialRootMathlibAssumption` [Boundary-surface, theorem-native lower layer]: packages per-game bridged-polynomial nonzero/shape/count witnesses; constructively discharges `FullFieldRoundPolynomialRootAssumption`.
 - `FullFieldRoundPolynomialRootMathlibAssumptionAligned` [Boundary-surface, theorem-native lower layer]: aligned-game variant (`|K| = |F|`) of the Mathlib-root package.
 - `FullFieldRoundPolynomialRootMathlibWitnessAssumption` [Boundary-surface, theorem-native lower layer]: existential all-games witness surface (`∃ hSz, witness`) used to instantiate `FullFieldRoundPolynomialRootMathlibAssumption` without requiring witness lemmas for arbitrary externally supplied `hSz`.
@@ -204,7 +204,7 @@
 - **Dependencies**: imports `SuperNeo.ProofSystem.SumCheck.SingleRound`, `SuperNeo.ProofSystem.Types`, `SuperNeo.ProofSystem.Security`, `SuperNeo.GoldilocksPrime`.
 - **Consumers**:
   - `SuperNeo.ProofSystem.SumCheck`: imports General for barrel.
-  - `SuperNeo.ProofSystem.Folding.PiCCS`, `PiRLC`: depend on sum-check acceptance/claim for Π_CCS and Π_RLC.
+  - `SuperNeo.FoldingProtocol.ProtocolTheorem`: consumes the prefix-soundness/Lund endpoint surfaces.
 
 ## Implementation Plan
 

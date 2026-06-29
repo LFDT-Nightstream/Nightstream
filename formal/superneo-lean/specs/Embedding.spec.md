@@ -58,11 +58,10 @@ No open boundary assumptions in this module.
 
 ## Dependency and Consumer Map
 - Upstream dependencies:
-  - `SuperNeo/Ring.lean` (provides `Coeffs` type, `vecAdd`, `vecScale`, dimension `d`)
+  - `SuperNeo/Primitives/Ring.lean` (provides `Coeffs` type, `vecAdd`, `vecScale`, dimension `d`)
 - Downstream consumers:
-  - `SuperNeo/BarLift.lean`: uses `p9EmbeddingAssumption_holds` to derive `barLiftLinearityAssumption` (bar-transform linearity from embedding linearity).
-  - `SuperNeo/MatrixTransform.lean`: uses `p9EmbeddingAssumption_holds` to derive `matrixTransformAssumption` (Theorem 4 transport from embedding linearity).
-  - `SuperNeo/Checks.lean`: uses `embedVec`, `unembedVec`, `embedMatrix`, `unembedMatrix`, `embeddingVecRoundTrip`, `embeddingMatrixRoundTrip`, `embeddingSanity` for executable deterministic checks.
+  - `SuperNeo/EmbeddingTheory/BarLift.lean`: uses `p9EmbeddingAssumption_holds` to derive `barLiftLinearityAssumption` (bar-transform linearity from embedding linearity).
+  - `SuperNeo/EmbeddingTheory/MatrixTransform.lean`: uses `p9EmbeddingAssumption_holds` to derive `matrixTransformAssumption` (Theorem 4 transport from embedding linearity).
 
 ## Implementation Plan (How to Achieve)
 1. Element bijection/linearity are trivial (`rfl`) since `embedElem`/`unembedElem` are identity on the `Coeffs` type alias.

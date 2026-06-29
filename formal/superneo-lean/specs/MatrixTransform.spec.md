@@ -61,14 +61,13 @@
 ## Dependency and Consumer Map
 
 - Upstream dependencies:
-  - `SuperNeo/Thm3Core.lean`: uses `thm3CoreAssumption`, `thm3BasisKernelAssumption`, `thm3BasisKernelCheck`, and `innerProduct` for Theorem-3-based derivation.
-  - `SuperNeo/Ring.lean` (transitive): uses `ct`, `mulRqPhi`, `superneoBarBlock` for ring-level computation.
-  - `SuperNeo/BarLift.lean`: only for compatibility constructor `matrixTransformAssumption_of_p10_p11`; core closure path is P10-only.
+  - `SuperNeo/EmbeddingTheory/Thm3Core.lean`: uses `thm3CoreAssumption`, `thm3BasisKernelAssumption`, `thm3BasisKernelCheck`, and `innerProduct` for Theorem-3-based derivation.
+  - `SuperNeo/Primitives/Ring.lean` (transitive): uses `ct`, `mulRqPhi`, `superneoBarBlock` for ring-level computation.
+  - `SuperNeo/EmbeddingTheory/BarLift.lean`: only for compatibility constructor `matrixTransformAssumption_of_p10_p11`; core closure path is P10-only.
 - Downstream consumers:
-  - `SuperNeo/EvalLink.lean`: depends on `matrixTransformAssumption` for evaluation link.
-  - `SuperNeo/EvalHom.lean`: uses `matrixVecCtBar` in eval-hom proposition.
-  - `SuperNeo/Checks.lean`: uses `matrixVecCtBar` in check functions.
-  - `SuperNeo/ArithmeticBundle.lean`: uses `matrixTransformAssumption` in theorem stack.
+  - `SuperNeo/EmbeddingTheory/EvalLink.lean`: depends on `matrixTransformAssumption` for evaluation link.
+  - `SuperNeo/EmbeddingTheory/EvalHom.lean`: uses `matrixVecCtBar` in eval-hom proposition.
+  - `SuperNeo/FoldingProtocol/ArithmeticBundle.lean`: uses `matrixTransformAssumption` in theorem stack.
 
 ## Implementation Plan
 

@@ -25,7 +25,7 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 
 | Lean file | Paper section |
 |---|---|
-| `SuperNeo/Goldilocks.lean` | Definition 1 (field modulus), Appendix B.2 |
+| `SuperNeo/Primitives/Goldilocks.lean` | Definition 1 (field modulus), Appendix B.2 |
 
 ## Contract Surface
 
@@ -53,9 +53,9 @@ No open boundary assumptions in this module.
 Upstream dependencies: none.
 
 Downstream consumers:
-- `SuperNeo/Field.lean`: uses `q` to define `F := Fin q`; uses `q_pos` for `Fin q` inhabitedness.
-- `SuperNeo/Decomp.lean`: uses `q` for field-element bounds in digit decomposition.
-- `SuperNeo/Parameters.lean`: uses `q` via `modulus_def : modulus = q`.
+- `SuperNeo/Primitives/Field.lean`: uses `q` to define `F := Fin q`; uses `q_pos` for `Fin q` inhabitedness.
+- `SuperNeo/Primitives/Decomp.lean`: uses `q` for field-element bounds in digit decomposition.
+- `SuperNeo/Primitives/Parameters.lean`: uses `q` via `modulus_def : modulus = q`.
 
 ## Implementation Plan
 

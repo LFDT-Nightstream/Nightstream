@@ -68,14 +68,14 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 
 | Invariant | Verification method | Lean theorem counterpart |
 |---|---|---|
-| `cf(cf_inv(v)) = v` for all `v ∈ F_q^d` | `lean_oracles` (`coeff_maps_v1`) | `unembedElem_embedElem` |
-| `cf_inv(cf(a)) = a` for all `a ∈ R_q` | `lean_oracles` (`coeff_maps_v1`) | `embedElem_unembedElem` |
+| `cf(cf_inv(v)) = v` for all `v ∈ F_q^d` | `lean_oracles` (removed lane) (`coeff_maps_v1`) | `unembedElem_embedElem` |
+| `cf_inv(cf(a)) = a` for all `a ∈ R_q` | `lean_oracles` (removed lane) (`coeff_maps_v1`) | `embedElem_unembedElem` |
 | `ct(a) = cf(a)[0]` | Unit test | `ct` definition in `CoeffMaps` |
-| Ring mul is correct: `a·b mod Phi_81` | `lean_oracles` (`ring_ct_v1`) | Ring multiplication in Lean |
+| Ring mul is correct: `a·b mod Phi_81` | `lean_oracles` (removed lane) (`ring_ct_v1`) | Ring multiplication in Lean |
 | `Phi_81` reduction: `X^54 ≡ -X^27 - 1` | Unit test | Cyclotomic reduction identity |
-| `ct(bar(a) · b) = <a, b>` (Theorem 3) | `lean_oracles` (`ring_ct_v1`) | `thm3CoreAssumption_native` |
+| `ct(bar(a) · b) = <a, b>` (Theorem 3) | `lean_oracles` (removed lane) (`ring_ct_v1`) | `thm3CoreAssumption_native` |
 | Bar matrix is inverse of ct-Gram matrix | Internal assertion in `build_superneo_bar_matrix` | `superneoBarBlock_eq_id` |
-| `inf_norm` uses centered representatives | `lean_oracles` (`invertibility_v1`) | Norm definition in `Norm.lean` |
+| `inf_norm` uses centered representatives | `lean_oracles` (removed lane) (`invertibility_v1`) | Norm definition in `Norm.lean` |
 
 ## Assumption Ledger
 
@@ -116,7 +116,7 @@ All spec-derived tests (lean oracles + invariant obligations) live in `spec-test
 ## Acceptance Criteria
 
 - `cargo test -p neo-math --release` succeeds (runs both `tests/` and `spec-tests/`)
-- All three `lean_oracles` families (`ring_ct_v1`, `coeff_maps_v1`, `embedding_bar_v1`) pass
+- All three `lean_oracles` (removed lane) families (`ring_ct_v1`, `coeff_maps_v1`, `embedding_bar_v1`) pass
 - Spec-derived tests in `spec-tests/ring.rs` pass
 - `superneo_bar_matrix()` internal sanity check (`M^T G = I`) does not panic
 

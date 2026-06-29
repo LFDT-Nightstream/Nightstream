@@ -1,0 +1,24 @@
+import DirectCcsFPrime.ProofSystem.Production.Impl.RawProduction.DirectParentOnlyProductionConcreteFPrimePriorRawProductionRuntimeAuthorityCompressed
+
+/-!
+Thin interface for the runtime-authority to compressed-soundness bridge.
+-/
+
+namespace DirectCcsFPrime
+
+namespace DirectParentOnlyProductionConcreteFPrimePriorRawProductionRuntimeAuthorityCompressedInterface
+
+export DirectParentOnlyProductionConcreteFPrimePriorRawProduction (
+  compressedSoundnessOfRuntimeAuthority
+  runtimeAuthorityAuditOpens
+  certifiedVerifierOfRuntimeAuthorityAudit
+  certifiedVerifierAcceptsRuntimeAuthorityAudit
+  soundVerifierOfRuntimeAuthorityAudit
+  soundVerifierAcceptsRuntimeAuthorityAudit
+  acceptedTerminalOfRuntimeAuthorityAudit
+  certifiedEndToEndOfRuntimeAuthorityAudit
+)
+
+end DirectParentOnlyProductionConcreteFPrimePriorRawProductionRuntimeAuthorityCompressedInterface
+
+end DirectCcsFPrime

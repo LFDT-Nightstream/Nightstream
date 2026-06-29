@@ -26,7 +26,7 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 
 | Lean file | Paper section |
 |---|---|
-| `SuperNeo/ArithmeticBundle.lean` | Sections 4–5, 7 (composition) |
+| `SuperNeo/FoldingProtocol/ArithmeticBundle.lean` | Sections 4–5, 7 (composition) |
 
 ## Contract Surface
 
@@ -59,18 +59,18 @@ No open boundary assumptions in this module. The theorem-native path uses `thm3C
 ## Dependency and Consumer Map
 
 Upstream dependencies:
-- `SuperNeo/MatrixTransform.lean`: uses `matrixVecDirect`, `matrixVecCtBar`, `MatrixRowsCompatible`, `matrixTransformIdentity`.
-- `SuperNeo/EvalHom.lean`: uses `evalHom2Prop`, `evalHomAssumption`.
-- `SuperNeo/ModuleHom.lean`: uses `VecModuleHom`, `ScalarModuleHom`, `vecModuleAssumption`, `scalarModuleAssumption`.
-- `SuperNeo/InvertibilityAxioms.lean`: uses `invertibilityPreconditionsProp`.
-- `SuperNeo/SamplingSet.lean`: uses `samplingExpansionProp`.
-- `SuperNeo/PolyLemmas.lean`: uses `eqLiftAllBoolean`, `schwartzZippelBoundLeOne`.
-- `SuperNeo/Decomp.lean`: uses `splitRoundTrip`, `splitBalancedRoundTripProp`.
-- `SuperNeo/Interp.lean`: uses `interpolationProp`, `interpolationCase`.
+- `SuperNeo/EmbeddingTheory/MatrixTransform.lean`: uses `matrixVecDirect`, `matrixVecCtBar`, `MatrixRowsCompatible`, `matrixTransformIdentity`.
+- `SuperNeo/EmbeddingTheory/EvalHom.lean`: uses `evalHom2Prop`, `evalHomAssumption`.
+- `SuperNeo/EmbeddingTheory/ModuleHom.lean`: uses `VecModuleHom`, `ScalarModuleHom`, `vecModuleAssumption`, `scalarModuleAssumption`.
+- `SuperNeo/SecurityModel/InvertibilityAxioms.lean`: uses `invertibilityPreconditionsProp`.
+- `SuperNeo/SecurityModel/SamplingSet.lean`: uses `samplingExpansionProp`.
+- `SuperNeo/Primitives/PolyLemmas.lean`: uses `eqLiftAllBoolean`, `schwartzZippelBoundLeOne`.
+- `SuperNeo/Primitives/Decomp.lean`: uses `splitRoundTrip`, `splitBalancedRoundTripProp`.
+- `SuperNeo/Primitives/Interp.lean`: uses `interpolationProp`, `interpolationCase`.
 
 Downstream consumers:
-- `SuperNeo/ProtocolTarget.lean`: depends on arithmetic bundle for protocol-target context.
-- `SuperNeo/ArithmeticObligations.lean`: uses arithmetic bundle for obligation composition.
+- `SuperNeo/FoldingProtocol/ProtocolTarget.lean`: depends on arithmetic bundle for protocol-target context.
+- `SuperNeo/FoldingProtocol/ArithmeticObligations.lean`: uses arithmetic bundle for obligation composition.
 
 ## Implementation Plan
 

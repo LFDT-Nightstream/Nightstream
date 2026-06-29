@@ -72,10 +72,10 @@ Remaining for broader generalization (not required for native paper-faithful pro
 ## Dependency and Consumer Map
 
 - Upstream dependencies:
-  - `SuperNeo/BarLift.lean`: imports `superneoBarBlock` for the bar-transform kernel.
-  - `SuperNeo/Ring.lean` (transitive): uses `ct`, `mulRqPhi` for ring-level operations.
+  - `SuperNeo/EmbeddingTheory/BarLift.lean`: imports `superneoBarBlock` for the bar-transform kernel.
+  - `SuperNeo/Primitives/Ring.lean` (transitive): uses `ct`, `mulRqPhi` for ring-level operations.
 - Downstream consumers:
-  - `SuperNeo/MatrixTransform.lean`: uses `thm3CoreAssumption` and `innerProduct` to derive `matrixTransformAssumption` (Theorem 4).
+  - `SuperNeo/EmbeddingTheory/MatrixTransform.lean`: uses `thm3CoreAssumption` and `innerProduct` to derive `matrixTransformAssumption` (Theorem 4).
 
 ## Implementation Plan
 

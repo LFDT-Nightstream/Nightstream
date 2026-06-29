@@ -1,0 +1,10 @@
+name = "opening_convergence"
+defaultTargets = ["OpeningConvergence"]
+
+[[require]]
+name = "superneo_lean"
+path = "../../superneo-lean"
+
+[[lean_lib]]
+name = "OpeningConvergence"
+globs = ["OpeningConvergence"]

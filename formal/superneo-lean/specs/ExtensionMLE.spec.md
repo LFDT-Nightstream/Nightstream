@@ -12,7 +12,7 @@ This module owns the `SuperNeo.KExt` versions of:
 - folding-style MLE evaluation.
 
 It is the prerequisite layer for any paper-faithful extension-field SumCheck
-component. The current base-field `SuperNeo/MLE.lean` and `SuperNeo/EqPoly.lean`
+component. The current base-field `SuperNeo/Primitives/MLE.lean` and `SuperNeo/Primitives/EqPoly.lean`
 remain the canonical Section 4 closure for the base carrier `SuperNeo.F`;
 this module closes the same evaluator surface for the quadratic extension
 carrier used by opening convergence.

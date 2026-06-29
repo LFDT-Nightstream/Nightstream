@@ -26,7 +26,7 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 
 | Lean file | Paper section |
 |---|---|
-| `SuperNeo/Ring.lean` | Definition 1 (ring `R_q`) |
+| `SuperNeo/Primitives/Ring.lean` | Definition 1 (ring `R_q`) |
 
 ## Contract Surface
 
@@ -68,15 +68,15 @@ No open boundary assumptions in this module.
 ## Dependency and Consumer Map
 
 Upstream dependencies:
-- `SuperNeo/Field.lean`: `F` type and arithmetic.
-- `SuperNeo/Dimensions.lean`: `d` for ring degree.
+- `SuperNeo/Primitives/Field.lean`: `F` type and arithmetic.
+- `SuperNeo/Primitives/Dimensions.lean`: `d` for ring degree.
 
 Downstream consumers:
-- `SuperNeo/CoeffMaps.lean`: uses `Coeffs`, `ct`, `mulRq`, `hasRingDegreeShape`.
-- `SuperNeo/Norm.lean`: uses `Coeffs`, `vecAdd`, `vecScale`, `mulRq` for norm bounds.
-- `SuperNeo/EqPoly.lean`: uses `F` arithmetic (indirectly via `Field`).
-- `SuperNeo/Embedding.lean`: uses `Coeffs`, `vecAdd`, `vecScale` for block embedding.
-- `SuperNeo/ProtocolRelations.lean`: uses `linComb2Vec` for folding relations.
+- `SuperNeo/Primitives/CoeffMaps.lean`: uses `Coeffs`, `ct`, `mulRq`, `hasRingDegreeShape`.
+- `SuperNeo/Primitives/Norm.lean`: uses `Coeffs`, `vecAdd`, `vecScale`, `mulRq` for norm bounds.
+- `SuperNeo/Primitives/EqPoly.lean`: uses `F` arithmetic (indirectly via `Field`).
+- `SuperNeo/EmbeddingTheory/Embedding.lean`: uses `Coeffs`, `vecAdd`, `vecScale` for block embedding.
+- `SuperNeo/FoldingProtocol/ProtocolRelations.lean`: uses `linComb2Vec` for folding relations.
 
 ## Implementation Plan
 

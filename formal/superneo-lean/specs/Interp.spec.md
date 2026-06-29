@@ -37,7 +37,7 @@ Source: `./formal/superneo-lean/SuperNeo.pdf.md`
 
 | Lean file | Paper role |
 |---|---|
-| `SuperNeo/Interp.lean` | Constructive interpolation/evaluation infrastructure for protocol arithmetic obligations |
+| `SuperNeo/Primitives/Interp.lean` | Constructive interpolation/evaluation infrastructure for protocol arithmetic obligations |
 
 ## Contract Surface
 
@@ -66,13 +66,13 @@ Source: `./formal/superneo-lean/SuperNeo.pdf.md`
 ## Dependencies and Consumers
 
 Upstream dependencies:
-- `SuperNeo/Field.lean`
-- `SuperNeo/PolynomialBridge.lean`
+- `SuperNeo/Primitives/Field.lean`
+- `SuperNeo/Primitives/PolynomialBridge.lean`
 
 Downstream consumers:
-- `SuperNeo/ArithmeticObligations.lean`
-- `SuperNeo/ArithmeticBundle.lean`
-- `SuperNeo/ProtocolTarget.lean`
+- `SuperNeo/FoldingProtocol/ArithmeticObligations.lean`
+- `SuperNeo/FoldingProtocol/ArithmeticBundle.lean`
+- `SuperNeo/FoldingProtocol/ProtocolTarget.lean`
 
 ## Regression Expectations
 

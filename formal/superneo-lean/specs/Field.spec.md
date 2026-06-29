@@ -26,7 +26,7 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 
 | Lean file | Paper section |
 |---|---|
-| `SuperNeo/Field.lean` | Definition 1 (field `F`) |
+| `SuperNeo/Primitives/Field.lean` | Definition 1 (field `F`) |
 
 ## Contract Surface
 
@@ -56,14 +56,14 @@ No open boundary assumptions in this module.
 ## Dependency and Consumer Map
 
 Upstream dependencies:
-- `SuperNeo/Goldilocks.lean`: uses `q`, `halfQ`, `q_pos`.
+- `SuperNeo/Primitives/Goldilocks.lean`: uses `q`, `halfQ`, `q_pos`.
 
 Downstream consumers:
-- `SuperNeo/Ring.lean`: uses `F` as coefficient type for `Coeffs := Array F`.
-- `SuperNeo/Norm.lean`: uses `centeredRep`/`centeredAbs` for `normInfF`.
-- `SuperNeo/EqPoly.lean`: uses `F` arithmetic for `eqTerm`/`eqPoly`.
-- `SuperNeo/MLE.lean`: uses `F` arithmetic for inner-product and folding evaluators.
-- `SuperNeo/Decomp.lean`: uses `centeredRep` for balanced digit decomposition.
+- `SuperNeo/Primitives/Ring.lean`: uses `F` as coefficient type for `Coeffs := Array F`.
+- `SuperNeo/Primitives/Norm.lean`: uses `centeredRep`/`centeredAbs` for `normInfF`.
+- `SuperNeo/Primitives/EqPoly.lean`: uses `F` arithmetic for `eqTerm`/`eqPoly`.
+- `SuperNeo/Primitives/MLE.lean`: uses `F` arithmetic for inner-product and folding evaluators.
+- `SuperNeo/Primitives/Decomp.lean`: uses `centeredRep` for balanced digit decomposition.
 
 ## Implementation Plan
 

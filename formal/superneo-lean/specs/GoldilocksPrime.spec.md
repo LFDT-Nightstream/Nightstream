@@ -23,7 +23,7 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 
 | Lean file | Paper section |
 |---|---|
-| `SuperNeo/GoldilocksPrime.lean` | Definition 1 + Appendix B.2 |
+| `SuperNeo/Primitives/GoldilocksPrime.lean` | Definition 1 + Appendix B.2 |
 
 ## Contract Surface
 
@@ -42,7 +42,7 @@ No open boundary assumptions in this module.
 
 ## Dependency and Consumer Map
 
-- **Dependencies**: `SuperNeo/Goldilocks.lean`, `Mathlib/NumberTheory/LucasPrimality`.
+- **Dependencies**: `SuperNeo/Primitives/Goldilocks.lean`, `Mathlib/NumberTheory/LucasPrimality`.
 - **Consumers**:
   - `SuperNeo/ProofSystem/SumCheck/General.lean`: discharges the prime-field prerequisite for `Polynomial.card_roots` over `ZMod q`.
 

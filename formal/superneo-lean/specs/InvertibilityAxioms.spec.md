@@ -32,7 +32,7 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 
 | Lean file | Paper section |
 |---|---|
-| `SuperNeo/InvertibilityAxioms.lean` | Theorem 8 |
+| `SuperNeo/SecurityModel/InvertibilityAxioms.lean` | Theorem 8 |
 
 ## Contract Surface
 
@@ -79,12 +79,12 @@ The theorem-facing standalone boundary must quantify over actual ring elements, 
 ## Dependency and Consumer Map
 
 Upstream dependencies:
-- `SuperNeo/Norm.lean`: imports `normInfCoeffs` for `invertibilityWindowProp`.
-- `SuperNeo/Field.lean`: used indirectly through `normInfF_eq_zero_iff` in the zero-norm ring-shape theorem.
+- `SuperNeo/Primitives/Norm.lean`: imports `normInfCoeffs` for `invertibilityWindowProp`.
+- `SuperNeo/Primitives/Field.lean`: used indirectly through `normInfF_eq_zero_iff` in the zero-norm ring-shape theorem.
 
 Downstream consumers:
-- `SuperNeo/ProtocolTarget.lean`: consumes direct `invertibleRq` witnesses in the active protocol path and now also exposes the stricter `paperCarrier` challenge-difference bridge into those witnesses.
-- `SuperNeo/ArithmeticBundle.lean`: depends on invertibility preconditions.
+- `SuperNeo/FoldingProtocol/ProtocolTarget.lean`: consumes direct `invertibleRq` witnesses in the active protocol path and now also exposes the stricter `paperCarrier` challenge-difference bridge into those witnesses.
+- `SuperNeo/FoldingProtocol/ArithmeticBundle.lean`: depends on invertibility preconditions.
 
 ## Implementation Plan
 

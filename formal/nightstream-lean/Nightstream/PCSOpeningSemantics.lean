@@ -1,4 +1,4 @@
-import SuperNeo.PolynomialBridge
+import SuperNeo.Primitives.PolynomialBridge
 import SuperNeo.ProofSystem.Lattice
 
 namespace Nightstream.PCSOpeningSemantics

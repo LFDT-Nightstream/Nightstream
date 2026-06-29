@@ -56,10 +56,10 @@ No open boundary assumptions in this module.
 ## Dependency and Consumer Map
 
 - Upstream dependencies:
-  - `SuperNeo/Ring.lean`: imports `vecAdd`, `vecScale` for linearity definitions.
+  - `SuperNeo/Primitives/Ring.lean`: imports `vecAdd`, `vecScale` for linearity definitions.
 - Downstream consumers:
-  - `SuperNeo/EvalHom.lean`: uses `vecModuleAssumption` and `scalarModuleAssumption` to derive `evalHomAssumption` (Theorem 5).
-  - `SuperNeo/ArithmeticBundle.lean`: imports and checks module-hom properties.
+  - `SuperNeo/EmbeddingTheory/EvalHom.lean`: uses `vecModuleAssumption` and `scalarModuleAssumption` to derive `evalHomAssumption` (Theorem 5).
+  - `SuperNeo/FoldingProtocol/ArithmeticBundle.lean`: imports and checks module-hom properties.
 
 ## Implementation Plan
 

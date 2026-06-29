@@ -1,5 +1,5 @@
 import Nightstream.Chip8.Kernel.Root0Preimage
-import SuperNeo.Field
+import SuperNeo.Primitives.Field
 
 /-!
 Owns the exact Rust-compatible packing semantics for the CHIP-8

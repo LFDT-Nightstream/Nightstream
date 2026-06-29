@@ -11,7 +11,7 @@
 | Paper notation | Paper reference | Rust identifier | Notes |
 |---|---|---|---|
 | `bar(·) : F^d → F^d` | Thm 3, Section 5, line 368 | `superneo_bar_block(v: [Fq; D]) -> [Fq; D]` | Linear transform on one block |
-| `ct(bar(a) · bar(b)) = <a, b>` | Thm 3, line 370 | Verified by `lean_oracles` `ring_ct_v1` | Inner-product identity |
+| `ct(bar(a) · bar(b)) = <a, b>` | Thm 3, line 370 | Verified by `lean_oracles` (removed lane) `ring_ct_v1` | Inner-product identity |
 | `bar(v)` for `v ∈ F^{n_F}` | Def 8, Section 5, line 378 | `superneo_bar_vec(v: &[Fq]) -> Vec<Fq>` | Block-wise lift; `len` must be multiple of `D` |
 | `Mz = ct(M_bar · z)` | Thm 4, Section 5, line 384 | (composition of `superneo_bar_vec` + ring mul + `ct`) | Matrix-vector product transform |
 
@@ -46,11 +46,11 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 
 | Invariant | Verification method | Lean theorem counterpart |
 |---|---|---|
-| `ct(cf_inv(bar(a)) * cf_inv(b)) = <a, b>` | `lean_oracles` (`ring_ct_v1`): `expected_ct_bar_dot = expected_dot` | `thm3CoreAssumption_native` |
+| `ct(cf_inv(bar(a)) * cf_inv(b)) = <a, b>` | `lean_oracles` (removed lane) (`ring_ct_v1`): `expected_ct_bar_dot = expected_dot` | `thm3CoreAssumption_native` |
 | Bar matrix `M` satisfies `M^T · G = I` | Runtime assertion in `build_superneo_bar_matrix` | `superneoBarBlock_eq_id` |
 | `superneo_bar_vec` is linear: `bar(a + b) = bar(a) + bar(b)` | Property test | `barLiftVector_add` |
 | `superneo_bar_vec` is linear: `bar(s · a) = s · bar(a)` | Property test | `barLiftVector_scale` |
-| Block chunking matches embedding: blocks are `D`-sized | `lean_oracles` (`embedding_bar_v1`) | `embedVec_map_superneoBarBlock_eq` |
+| Block chunking matches embedding: blocks are `D`-sized | `lean_oracles` (removed lane) (`embedding_bar_v1`) | `embedVec_map_superneoBarBlock_eq` |
 
 ## Assumption Ledger
 
@@ -87,7 +87,7 @@ All spec-derived tests (lean oracles + invariant obligations) live in `spec-test
 ## Acceptance Criteria
 
 - `cargo test -p neo-math --release` succeeds (runs both `tests/` and `spec-tests/`)
-- `lean_oracles` `ring_ct_v1` and `embedding_bar_v1` pass
+- `lean_oracles` (removed lane) `ring_ct_v1` and `embedding_bar_v1` pass
 - Spec-derived tests in `spec-tests/bar_transform.rs` pass
 - Bar matrix sanity check (`M^T G = I`) passes on first invocation
 

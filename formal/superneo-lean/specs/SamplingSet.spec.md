@@ -25,7 +25,7 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 
 | Lean file | Paper section |
 |---|---|
-| `SuperNeo/SamplingSet.lean` | Definition 17, Theorem 9 |
+| `SuperNeo/SecurityModel/SamplingSet.lean` | Definition 17, Theorem 9 |
 
 ## Contract Surface
 
@@ -64,12 +64,12 @@ No open boundary assumptions in this module.
 ## Dependency and Consumer Map
 
 Upstream dependencies:
-- `SuperNeo/Norm.lean`: imports `normInfCoeffs` for bound predicates.
+- `SuperNeo/Primitives/Norm.lean`: imports `normInfCoeffs` for bound predicates.
 
 Downstream consumers:
-- `SuperNeo/ArithmeticBundle.lean`: uses sampling properties for bound checks.
-- `SuperNeo/ProtocolTarget.lean`: uses the `paperCarrier` difference theorem to derive the strict invertibility window `< 5` from protocol-facing challenge differences.
-- `SuperNeo/ProtocolTheorem.lean`: depends on sampling set assumptions.
+- `SuperNeo/FoldingProtocol/ArithmeticBundle.lean`: uses sampling properties for bound checks.
+- `SuperNeo/FoldingProtocol/ProtocolTarget.lean`: uses the `paperCarrier` difference theorem to derive the strict invertibility window `< 5` from protocol-facing challenge differences.
+- `SuperNeo/FoldingProtocol/ProtocolTheorem.lean`: depends on sampling set assumptions.
 
 ## Implementation Plan
 

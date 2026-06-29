@@ -1,6 +1,6 @@
 import Nightstream.Chip8.Stage2.WitnessMemoryBinding
 import Nightstream.Chip8.Stage3.ContinuityBridge
-import SuperNeo.PolynomialBridge
+import SuperNeo.Primitives.PolynomialBridge
 
 namespace Nightstream.Chip8.ExecutionSemantics
 

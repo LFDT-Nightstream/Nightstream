@@ -1,0 +1,37 @@
+import DirectCcsFPrime.ProofSystem.Stage.Spec.DirectParentOnlyStageSemantics
+
+/-!
+Typed interface for parent-only terminal soundness over verified SuperNeo
+stage semantics.
+
+Spec: `specs/ProofSystem/Stage/Spec/DirectParentOnlyStageSemantics.spec.md`
+-/
+
+namespace DirectCcsFPrime
+
+namespace DirectParentOnlyStageSemanticsInterface
+
+abbrev verifiedStageOfContextual :=
+  @DirectParentOnlyStageSemantics.verifiedStageOfContextual
+
+abbrev parentSourceFrom_verified_stage_eq_compute :=
+  @DirectParentOnlyStageSemantics.parentSourceFrom_verified_stage_eq_compute
+
+abbrev terminal_soundness_of_verified_stage_program_and_msis_of_prior_authority_sound :=
+  @DirectParentOnlyStageSemantics.terminal_soundness_of_verified_stage_program_and_msis_of_prior_authority_sound
+
+abbrev terminal_soundness_of_verified_stage_program_and_msis_of_sound_verifier :=
+  @DirectParentOnlyStageSemantics.terminal_soundness_of_verified_stage_program_and_msis_of_sound_verifier
+
+abbrev terminal_soundness_of_contextual_reused_stage_program_and_msis_of_sound_verifier :=
+  @DirectParentOnlyStageSemantics.terminal_soundness_of_contextual_reused_stage_program_and_msis_of_sound_verifier
+
+abbrev terminal_soundness_of_parent_hash_contextual_reused_stage_program_and_msis_of_sound_verifier :=
+  @DirectParentOnlyStageSemantics.terminal_soundness_of_parent_hash_contextual_reused_stage_program_and_msis_of_sound_verifier
+
+abbrev terminal_soundness_of_poseidon2_parent_hash_contextual_reused_stage_program_and_msis_of_sound_verifier :=
+  @DirectParentOnlyStageSemantics.terminal_soundness_of_poseidon2_parent_hash_contextual_reused_stage_program_and_msis_of_sound_verifier
+
+end DirectParentOnlyStageSemanticsInterface
+
+end DirectCcsFPrime

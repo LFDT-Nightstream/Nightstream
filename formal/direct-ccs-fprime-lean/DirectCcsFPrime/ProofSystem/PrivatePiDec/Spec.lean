@@ -1,0 +1,5 @@
+import DirectCcsFPrime.ProofSystem.PrivatePiDec.Spec.Base2TranscriptAuthorization
+import DirectCcsFPrime.ProofSystem.PrivatePiDec.Spec.DecAuthorization
+import DirectCcsFPrime.ProofSystem.PrivatePiDec.Spec.DecAuthorizationInterface
+import DirectCcsFPrime.ProofSystem.PrivatePiDec.Spec.DecProofAuthorization
+import DirectCcsFPrime.ProofSystem.PrivatePiDec.Spec.TranscriptAuthorization

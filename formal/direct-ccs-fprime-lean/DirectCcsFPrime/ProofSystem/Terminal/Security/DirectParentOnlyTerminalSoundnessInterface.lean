@@ -1,0 +1,51 @@
+import DirectCcsFPrime.ProofSystem.Terminal.Security.DirectParentOnlyTerminalSoundness
+
+/-!
+Typed interface for parent-only terminal direct CCS F' soundness.
+
+Spec: `specs/ProofSystem/Terminal/Security/DirectParentOnlyTerminalSoundness.spec.md`
+-/
+
+namespace DirectCcsFPrime
+
+namespace DirectParentOnlyTerminalSoundnessInterface
+
+abbrev AccHandle :=
+  @DirectParentOnlyTerminalSoundness.AccHandle
+
+abbrev AccumulatorStep :=
+  @DirectParentOnlyTerminalSoundness.AccumulatorStep
+
+abbrev Transition :=
+  @DirectParentOnlyTerminalSoundness.Transition
+
+abbrev Authority :=
+  @DirectParentOnlyTerminalSoundness.Authority
+
+abbrev latest_publicImage_functional_of_parentSource :=
+  @DirectParentOnlyTerminalSoundness.latest_publicImage_functional_of_parentSource
+
+abbrev latest_step_pointwise_prior_dec_requirements :=
+  @DirectParentOnlyTerminalSoundness.latest_step_pointwise_prior_dec_requirements
+
+abbrev latest_parentSource_functional_of_stages_and_ajtaiCEOpening :=
+  @DirectParentOnlyTerminalSoundness.latest_parentSource_functional_of_stages_and_ajtaiCEOpening
+
+abbrev latest_common_prior_dec_requirements_of_stages_and_ajtaiCEOpening :=
+  @DirectParentOnlyTerminalSoundness.latest_common_prior_dec_requirements_of_stages_and_ajtaiCEOpening
+
+abbrev latest_parentSource_functional_of_statementCommitment_stages_and_msis :=
+  @DirectParentOnlyTerminalSoundness.latest_parentSource_functional_of_statementCommitment_stages_and_msis
+
+abbrev latest_common_prior_dec_requirements_of_statementCommitment_stages_and_msis :=
+  @DirectParentOnlyTerminalSoundness.latest_common_prior_dec_requirements_of_statementCommitment_stages_and_msis
+
+abbrev terminal_soundness_of_prior_authority_sound_and_msis :=
+  @DirectParentOnlyTerminalSoundness.terminal_soundness_of_prior_authority_sound_and_msis
+
+abbrev terminal_soundness_of_sound_verifier_and_msis :=
+  @DirectParentOnlyTerminalSoundness.terminal_soundness_of_sound_verifier_and_msis
+
+end DirectParentOnlyTerminalSoundnessInterface
+
+end DirectCcsFPrime

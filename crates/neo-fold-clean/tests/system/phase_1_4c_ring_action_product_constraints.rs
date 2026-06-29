@@ -94,11 +94,14 @@ fn phase_1_4c_ring_action_product_row_count_shape() {
     );
     assert_eq!(
         structure.ccs.n,
-        structure.semantic_boolean_row_count() + product_rows + output_rows,
-        "structure.n must include semantic Boolean rows + ring_action product rows + ring_action output rows (no decode rows in the strict low-norm structure)"
+        structure.semantic_boolean_row_count()
+            + structure.is_base_counter_link_row_count()
+            + product_rows
+            + output_rows,
+        "structure.n must include semantic Boolean rows + is_base↔counter link rows + ring_action product rows + ring_action output rows (no decode rows in the strict low-norm structure)"
     );
 
-    let start = structure.semantic_boolean_row_count();
+    let start = structure.semantic_boolean_row_count() + structure.is_base_counter_link_row_count();
     assert_eq!(structure.ring_action_product_row_start(), start);
     assert_eq!(structure.ring_action_product_row(0, 0, 0), start);
     assert_eq!(

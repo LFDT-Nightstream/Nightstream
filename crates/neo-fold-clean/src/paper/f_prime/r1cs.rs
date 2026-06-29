@@ -117,8 +117,7 @@ pub const F_PRIME_ENC_INST_OFFSET: usize = 1;
 ///
 /// Standard R1CS-as-CCS layout requires a fixed constant-one slot so
 /// affine terms have a column to ride on; without it the CCS instance
-/// is not committable as a real `u_i` (matches `neo-fold-prototype` which
-/// used `public_input_len = 257`).
+/// is not committable as a real `u_i`.
 ///
 /// HyperNova §6.3 has `u_{i+1}.public == enc_inst(F'.x_out)` where
 /// `enc_inst` is the protocol's mapping from the raw augmented-step

@@ -61,3 +61,53 @@ fn cache_aware_matrix_digest_changes_when_matrix_order_changes() {
     let changed = digest_ccs_matrices_with_sparse_cache(&swapped, Some(&SparseCache::build(&swapped)));
     assert_ne!(baseline, changed);
 }
+
+/// Structure with one nonzero at `(row, col)`; everything else (dims,
+/// value, nonzero count) is held fixed so position-only mutations can
+/// be isolated.
+fn single_entry_structure(row: usize, col: usize) -> CcsStructure<F> {
+    let mut m0 = Mat::zero(8, 12, F::ZERO);
+    m0[(row, col)] = F::from_u64(42);
+    CcsStructure::new(vec![m0], SparsePoly::new(1, vec![])).expect("valid CCS")
+}
+
+fn csc_vals(s: &CcsStructure<F>) -> &[F] {
+    let CcsMatrix::Csc(csc) = &s.matrices[0] else {
+        panic!("expected sparse matrix");
+    };
+    &csc.vals
+}
+
+/// A digest that only mixes dimensions, values, or nonzero counts —
+/// not the sparse `(row, col)` placement — collapses these two
+/// structures. The digest must bind `row_idx`.
+#[test]
+fn cache_aware_matrix_digest_changes_when_nonzero_moves_to_another_row() {
+    let base = single_entry_structure(2, 5);
+    let moved = single_entry_structure(3, 5);
+    assert_eq!(csc_vals(&base), csc_vals(&moved), "value lists must be identical");
+
+    let baseline = digest_ccs_matrices_with_sparse_cache(&base, Some(&SparseCache::build(&base)));
+    let changed = digest_ccs_matrices_with_sparse_cache(&moved, Some(&SparseCache::build(&moved)));
+    assert_ne!(
+        baseline, changed,
+        "digest must bind nonzero row placement, not just dims/values"
+    );
+}
+
+/// Same as above for the column coordinate: moving the entry across
+/// columns leaves `row_idx` and `vals` identical and only shifts
+/// `col_ptr`. The digest must bind `col_ptr`.
+#[test]
+fn cache_aware_matrix_digest_changes_when_nonzero_moves_to_another_column() {
+    let base = single_entry_structure(2, 5);
+    let moved = single_entry_structure(2, 6);
+    assert_eq!(csc_vals(&base), csc_vals(&moved), "value lists must be identical");
+
+    let baseline = digest_ccs_matrices_with_sparse_cache(&base, Some(&SparseCache::build(&base)));
+    let changed = digest_ccs_matrices_with_sparse_cache(&moved, Some(&SparseCache::build(&moved)));
+    assert_ne!(
+        baseline, changed,
+        "digest must bind nonzero column placement, not just dims/values"
+    );
+}

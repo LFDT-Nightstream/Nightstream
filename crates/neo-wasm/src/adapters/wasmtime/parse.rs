@@ -153,19 +153,22 @@ pub(super) fn parse_wasm_artifacts(wasm_bytes: &[u8]) -> Result<WasmProgramArtif
 pub(crate) fn parse_first_component_core_module_artifacts(
     component_bytes: &[u8],
 ) -> Result<WasmProgramArtifacts, WasmBuildError> {
-    let mut builder = ParsedWasmArtifactsBuilder::default();
-    let mut inside_first_module = false;
-
+    // Parse the embedded module slice so bytecode PCs are module-relative,
+    // matching Wasmtime component frame PCs. Multi-module components need a
+    // resolver for the actually executed core module.
     for payload in Parser::new(0).parse_all(component_bytes) {
         let payload =
             payload.map_err(|err| WasmBuildError::Trace(format!("failed to parse component payload: {err}")))?;
-        match payload {
-            // Current component tests execute the first embedded core module directly. Multi-module
-            // components need an explicit resolution step for the actually executed core module.
-            Payload::ModuleSection { .. } if !inside_first_module => inside_first_module = true,
-            Payload::End(_) if inside_first_module => return builder.finish(),
-            _ if inside_first_module => builder.consume_payload(payload)?,
-            _ => {}
+        if let Payload::ModuleSection { unchecked_range, .. } = payload {
+            let module_bytes = component_bytes
+                .get(unchecked_range.clone())
+                .ok_or_else(|| {
+                    WasmBuildError::Trace(format!(
+                        "embedded core module range {unchecked_range:?} out of bounds for component of {} bytes",
+                        component_bytes.len()
+                    ))
+                })?;
+            return parse_wasm_artifacts(module_bytes);
         }
     }
 

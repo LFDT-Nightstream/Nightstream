@@ -1,9 +1,9 @@
 use neo_wasm::{
-    build_pc_rom_from_binary, build_store_debug_function_id_map, collect_wasmtime_steps,
-    extract_wasm_program_artifacts, opcode_code, traces_from_wasmtime_steps, traces_from_wasmtime_wasm_bytes,
-    HasWasmTraceState, StackValueAccess, WasmOpcode, WasmPcEdgeKind, WasmtimeTraceHandler, WasmtimeTraceState,
-    WasmtimeTraceStep,
+    build_debug_function_id_map, build_pc_rom_from_binary, collect_wasmtime_steps, extract_wasm_program_artifacts,
+    opcode_code, traces_from_wasmtime_steps, traces_from_wasmtime_wasm_bytes, StackValueAccess, WasmOpcode,
+    WasmPcEdgeKind, WasmTraceSink, WasmtimeTraceHandler, WasmtimeTraceState, WasmtimeTraceStep,
 };
+use std::collections::{HashMap, HashSet};
 use wasmparser::{Parser, Payload};
 use wasmtime::{Config, Engine, Linker, Module, Store, Val};
 
@@ -12,14 +12,17 @@ struct EmbedderStoreData {
     host_counter: u32,
 }
 
-impl HasWasmTraceState for EmbedderStoreData {
-    fn wasm_trace_state(&self) -> &WasmtimeTraceState {
-        &self.trace
+impl WasmTraceSink for EmbedderStoreData {
+    // Single traced instance: ignore the index and route to the one trace.
+    fn wasm_trace_state(&self, _instance_index: u32) -> Option<&WasmtimeTraceState> {
+        Some(&self.trace)
     }
 
-    fn wasm_trace_state_mut(&mut self) -> &mut WasmtimeTraceState {
-        &mut self.trace
+    fn wasm_trace_state_mut(&mut self, _instance_index: u32) -> Option<&mut WasmtimeTraceState> {
+        Some(&mut self.trace)
     }
+
+    fn record_untraced_instance(&mut self, _instance_index: u32) {}
 }
 
 fn sample_steps() -> Vec<WasmtimeTraceStep> {
@@ -122,10 +125,12 @@ fn wasmtime_trace_handler_records_into_embedder_store_data() {
 
     let linker = Linker::new(&engine);
     let instance = futures::executor::block_on(linker.instantiate_async(&mut store, &module)).expect("instantiate");
-    let func_ref_ids = build_store_debug_function_id_map(&mut store).expect("funcref map");
+    let instance_index = instance.debug_index_in_store();
+    let func_ref_ids = build_debug_function_id_map(&instance, &mut store).expect("funcref map");
     store
         .data_mut()
-        .wasm_trace_state_mut()
+        .wasm_trace_state_mut(instance_index)
+        .expect("registered trace")
         .set_func_ref_ids(func_ref_ids);
 
     let func = instance.get_func(&mut store, "run").expect("exported func");
@@ -140,6 +145,212 @@ fn wasmtime_trace_handler_records_into_embedder_store_data() {
             .any(|step| step.opcode_decoded == Some(WasmOpcode::I32Add)),
         "expected traced i32.add row, got {steps:?}"
     );
+}
+
+/// Embedder store data keyed by `Instance::debug_index_in_store()`.
+struct MultiInstanceSink {
+    traces: HashMap<u32, WasmtimeTraceState>,
+    untraced: HashSet<u32>,
+}
+
+impl WasmTraceSink for MultiInstanceSink {
+    fn wasm_trace_state(&self, instance_index: u32) -> Option<&WasmtimeTraceState> {
+        self.traces.get(&instance_index)
+    }
+    fn wasm_trace_state_mut(&mut self, instance_index: u32) -> Option<&mut WasmtimeTraceState> {
+        self.traces.get_mut(&instance_index)
+    }
+    fn record_untraced_instance(&mut self, instance_index: u32) {
+        self.untraced.insert(instance_index);
+    }
+}
+
+/// The `ref.func` row pushes the funcref; the following `drop` row captures it on
+/// its pre-state operand stack. Returns the normalized funcref id seen there.
+fn funcref_seen_at_drop(trace: &WasmtimeTraceState) -> Option<u32> {
+    trace
+        .steps()
+        .iter()
+        .find(|step| step.opcode_decoded == Some(WasmOpcode::Drop))
+        .and_then(|step| step.operand_stack_words.last().copied())
+}
+
+fn split_after_first_end(steps: &[WasmtimeTraceStep]) -> Option<(&[WasmtimeTraceStep], &[WasmtimeTraceStep])> {
+    let end = steps
+        .iter()
+        .position(|step| step.opcode_decoded == Some(WasmOpcode::End))?;
+    Some(steps.split_at(end + 1))
+}
+
+/// Cross-instance imports must route rows and normalize funcrefs in each
+/// instance's own module-local namespace.
+#[test]
+fn wasmtime_trace_routes_per_instance_with_per_instance_funcref_ids() {
+    // `shared` is defined function index 1 (after `unused`) -> A funcref id 2.
+    let wasm_a = wat::parse_str(
+        r#"(module
+            (func $unused (result i32) i32.const 1)
+            (func (export "shared") (result i32)
+                i32.const 3
+                i32.const 4
+                i32.add)
+            (elem declare func 1)
+            (func (export "run_a") (result i32)
+                ref.func 1
+                drop
+                i32.const 0))
+        "#,
+    )
+    .expect("wat a");
+
+    // B imports A's `shared` as function index 0 -> B funcref id 1.
+    let wasm_b = wat::parse_str(
+        r#"(module
+            (import "a" "shared" (func $s (result i32)))
+            (elem declare func 0)
+            (func $double (param i32) (result i32)
+                local.get 0
+                i32.const 2
+                i32.mul)
+            (func (export "run_b") (result i32)
+                ref.func 0
+                drop
+                call $s
+                call $double))
+        "#,
+    )
+    .expect("wat b");
+
+    let mut config = Config::new();
+    config.guest_debug(true);
+    config.wasm_reference_types(true);
+    config.wasm_function_references(true);
+    let engine = Engine::new(&config).expect("engine");
+
+    let module_a = Module::from_binary(&engine, &wasm_a).expect("module a");
+    let module_b = Module::from_binary(&engine, &wasm_b).expect("module b");
+
+    let mut store = Store::new(
+        &engine,
+        MultiInstanceSink {
+            traces: HashMap::new(),
+            untraced: HashSet::new(),
+        },
+    );
+    store.set_debug_handler(WasmtimeTraceHandler::<MultiInstanceSink>::new());
+    store
+        .edit_breakpoints()
+        .expect("guest debug enabled")
+        .single_step(true)
+        .expect("single-step mode");
+
+    // Register A with its own lowering state.
+    let linker_a = Linker::new(&engine);
+    let instance_a = futures::executor::block_on(linker_a.instantiate_async(&mut store, &module_a)).expect("inst a");
+    let idx_a = instance_a.debug_index_in_store();
+    let map_a = build_debug_function_id_map(&instance_a, &mut store).expect("funcref map a");
+    let mut trace_a =
+        WasmtimeTraceState::from_program_artifacts(&extract_wasm_program_artifacts(&wasm_a).expect("art a"));
+    trace_a.set_func_ref_ids(map_a);
+    store.data_mut().traces.insert(idx_a, trace_a);
+
+    // Register B with A's `shared` wired in as its import.
+    let shared = instance_a
+        .get_func(&mut store, "shared")
+        .expect("shared export");
+    let mut linker_b = Linker::new(&engine);
+    linker_b
+        .define(&store, "a", "shared", shared)
+        .expect("define import");
+    let instance_b = futures::executor::block_on(linker_b.instantiate_async(&mut store, &module_b)).expect("inst b");
+    let idx_b = instance_b.debug_index_in_store();
+    let map_b = build_debug_function_id_map(&instance_b, &mut store).expect("funcref map b");
+    let mut trace_b =
+        WasmtimeTraceState::from_program_artifacts(&extract_wasm_program_artifacts(&wasm_b).expect("art b"));
+    trace_b.set_func_ref_ids(map_b);
+    store.data_mut().traces.insert(idx_b, trace_b);
+
+    assert_ne!(idx_a, idx_b, "instances must have distinct debug indices");
+
+    let run_a = instance_a.get_func(&mut store, "run_a").expect("run_a");
+    futures::executor::block_on(run_a.call_async(&mut store, &[], &mut [Val::I32(0)])).expect("call run_a");
+    let run_b = instance_b.get_func(&mut store, "run_b").expect("run_b");
+    futures::executor::block_on(run_b.call_async(&mut store, &[], &mut [Val::I32(0)])).expect("call run_b");
+
+    assert!(
+        store.data().untraced.is_empty(),
+        "unexpected untraced instances: {:?}",
+        store.data().untraced
+    );
+
+    let trace_a = &store.data().traces[&idx_a];
+    let trace_b = &store.data().traces[&idx_b];
+    assert!(
+        trace_a.steps().iter().any(|s| s.function_index.is_some()),
+        "A captured no wasm frames"
+    );
+    assert!(
+        trace_b.steps().iter().any(|s| s.function_index.is_some()),
+        "B captured no wasm frames"
+    );
+
+    // Only executing frames are captured.
+    assert!(
+        trace_a.steps().iter().all(|s| s.frame_depth == 0),
+        "A trace has non-innermost frames"
+    );
+    assert!(
+        trace_b.steps().iter().all(|s| s.frame_depth == 0),
+        "B trace has non-innermost frames"
+    );
+
+    // Distinctive ops stay in the instance that executed them.
+    let a_ops: Vec<_> = trace_a
+        .steps()
+        .iter()
+        .filter_map(|s| s.opcode_decoded)
+        .collect();
+    let b_ops: Vec<_> = trace_b
+        .steps()
+        .iter()
+        .filter_map(|s| s.opcode_decoded)
+        .collect();
+    assert!(
+        a_ops.contains(&WasmOpcode::I32Add),
+        "A trace missing its own i32.add: {a_ops:?}"
+    );
+    assert!(
+        !a_ops.contains(&WasmOpcode::I32Mul),
+        "A trace contaminated with B's i32.mul: {a_ops:?}"
+    );
+    assert!(
+        b_ops.contains(&WasmOpcode::I32Mul),
+        "B trace missing its own i32.mul: {b_ops:?}"
+    );
+    assert!(
+        !b_ops.contains(&WasmOpcode::I32Add),
+        "B trace contaminated with A's i32.add: {b_ops:?}"
+    );
+
+    // The same raw function normalizes to each instance's own id.
+    assert_eq!(
+        funcref_seen_at_drop(trace_a),
+        Some(2),
+        "module A funcref id (own module-local)"
+    );
+    assert_eq!(
+        funcref_seen_at_drop(trace_b),
+        Some(1),
+        "module B funcref id (own module-local)"
+    );
+
+    let (a_run_steps, a_shared_steps) = split_after_first_end(trace_a.steps()).expect("A run_a segment");
+    let a_run_trace = traces_from_wasmtime_steps(a_run_steps).expect("normalize A run_a");
+    let a_shared_trace = traces_from_wasmtime_steps(a_shared_steps).expect("normalize A shared");
+    let b_trace = traces_from_wasmtime_steps(trace_b.steps()).expect("normalize B run_b");
+    assert!(!a_run_trace.is_empty());
+    assert!(!a_shared_trace.is_empty());
+    assert!(!b_trace.is_empty());
 }
 
 #[test]

@@ -7,12 +7,13 @@
 //! and what normalized funcref id does this value map to". Callers in the
 //! parent module and `normalize` decide what to do with the answers.
 
-use super::HasWasmTraceState;
+use super::parse::ParsedFunctionMeta;
 use crate::ir::{StackValueAccess, WasmBuildError};
 use std::collections::BTreeMap;
 use wasmtime::{FrameHandle, Store, StoreContextMut, Val};
 
-pub(crate) fn build_debug_function_id_map<T: 'static>(
+/// Build the raw-funcref to module-local function-id map for one instance.
+pub fn build_debug_function_id_map<T: 'static>(
     instance: &wasmtime::Instance,
     mut store: impl wasmtime::AsContextMut<Data = T>,
 ) -> Result<BTreeMap<usize, u32>, WasmBuildError> {
@@ -26,8 +27,7 @@ pub(crate) fn build_debug_function_id_map<T: 'static>(
     Ok(out)
 }
 
-/// Build the normalized funcref-id map across every instance in the store.
-pub fn build_store_debug_function_id_map<T: 'static>(
+pub(crate) fn build_single_trace_store_debug_function_id_map<T: 'static>(
     store: &mut Store<T>,
 ) -> Result<BTreeMap<usize, u32>, WasmBuildError> {
     let mut out = BTreeMap::new();
@@ -39,29 +39,21 @@ pub fn build_store_debug_function_id_map<T: 'static>(
     Ok(out)
 }
 
-pub(crate) fn function_type_id_from_ref<T: HasWasmTraceState>(
+pub(crate) fn function_type_id_from_ref(
     function_ref: u32,
-    store: &StoreContextMut<'_, T>,
+    function_metas: &BTreeMap<u32, ParsedFunctionMeta>,
 ) -> Option<u32> {
     if function_ref == 0 {
         return Some(0);
     }
-    store
-        .data()
-        .wasm_trace_state()
-        .function_metas
-        .get(&function_ref)
-        .map(|meta| meta.type_id)
+    function_metas.get(&function_ref).map(|meta| meta.type_id)
 }
 
-pub(crate) fn function_arity_from_ref<T: HasWasmTraceState>(
+pub(crate) fn function_arity_from_ref(
     function_ref: u32,
-    store: &StoreContextMut<'_, T>,
+    function_metas: &BTreeMap<u32, ParsedFunctionMeta>,
 ) -> Option<(u8, u8)> {
-    store
-        .data()
-        .wasm_trace_state()
-        .function_metas
+    function_metas
         .get(&function_ref)
         .map(|meta| (meta.param_count, meta.result_count))
 }
@@ -92,10 +84,11 @@ pub(crate) fn normalize_value_lanes<T>(
     }
 }
 
-pub(crate) fn read_global_lanes<T: HasWasmTraceState>(
+pub(crate) fn read_global_lanes<T>(
     global_index: u32,
     frame: &FrameHandle,
     store: &mut StoreContextMut<'_, T>,
+    func_ref_ids: &BTreeMap<usize, u32>,
 ) -> Result<(u32, u32), WasmBuildError> {
     let instance = frame
         .instance(&mut *store)
@@ -103,15 +96,15 @@ pub(crate) fn read_global_lanes<T: HasWasmTraceState>(
     let global = instance
         .debug_global(&mut *store, global_index)
         .ok_or_else(|| WasmBuildError::Trace(format!("missing Wasmtime global {} at current frame", global_index)))?;
-    let func_ref_ids = store.data().wasm_trace_state().func_ref_ids.clone();
-    normalize_value_lanes(global.get(&mut *store), func_ref_ids.as_ref(), store)
+    normalize_value_lanes(global.get(&mut *store), func_ref_ids, store)
 }
 
-pub(crate) fn read_table_funcref_u32<T: HasWasmTraceState>(
+pub(crate) fn read_table_funcref_u32<T>(
     table_id: u32,
     table_index: u32,
     frame: &FrameHandle,
     store: &mut StoreContextMut<'_, T>,
+    func_ref_ids: &BTreeMap<usize, u32>,
 ) -> Result<u32, WasmBuildError> {
     let instance = frame
         .instance(&mut *store)
@@ -123,15 +116,9 @@ pub(crate) fn read_table_funcref_u32<T: HasWasmTraceState>(
         Some(wasmtime::Ref::Func(None)) => Ok(0),
         Some(wasmtime::Ref::Func(Some(func))) => {
             let raw = func.to_raw(&mut *store) as usize;
-            store
-                .data()
-                .wasm_trace_state()
-                .func_ref_ids
-                .get(&raw)
-                .copied()
-                .ok_or_else(|| {
-                    WasmBuildError::Trace(format!("missing normalized function id for table funcref 0x{raw:x}"))
-                })
+            func_ref_ids.get(&raw).copied().ok_or_else(|| {
+                WasmBuildError::Trace(format!("missing normalized function id for table funcref 0x{raw:x}"))
+            })
         }
         Some(other) => Err(WasmBuildError::Unsupported(format!(
             "only funcref tables are supported right now, found value {other:?}"

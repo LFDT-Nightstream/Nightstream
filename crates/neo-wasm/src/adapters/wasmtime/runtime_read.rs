@@ -7,14 +7,14 @@
 //! and what normalized funcref id does this value map to". Callers in the
 //! parent module and `normalize` decide what to do with the answers.
 
-use super::WasmtimeTraceState;
+use super::HasWasmTraceState;
 use crate::ir::{StackValueAccess, WasmBuildError};
 use std::collections::BTreeMap;
 use wasmtime::{FrameHandle, Store, StoreContextMut, Val};
 
-pub(crate) fn build_debug_function_id_map(
+pub(crate) fn build_debug_function_id_map<T: 'static>(
     instance: &wasmtime::Instance,
-    mut store: impl wasmtime::AsContextMut<Data = WasmtimeTraceState>,
+    mut store: impl wasmtime::AsContextMut<Data = T>,
 ) -> Result<BTreeMap<usize, u32>, WasmBuildError> {
     let mut out = BTreeMap::new();
     let mut function_index = 0_u32;
@@ -26,8 +26,9 @@ pub(crate) fn build_debug_function_id_map(
     Ok(out)
 }
 
-pub(crate) fn build_store_debug_function_id_map(
-    store: &mut Store<WasmtimeTraceState>,
+/// Build the normalized funcref-id map across every instance in the store.
+pub fn build_store_debug_function_id_map<T: 'static>(
+    store: &mut Store<T>,
 ) -> Result<BTreeMap<usize, u32>, WasmBuildError> {
     let mut out = BTreeMap::new();
     for instance in store.debug_all_instances() {
@@ -38,35 +39,37 @@ pub(crate) fn build_store_debug_function_id_map(
     Ok(out)
 }
 
-pub(crate) fn function_type_id_from_ref(
+pub(crate) fn function_type_id_from_ref<T: HasWasmTraceState>(
     function_ref: u32,
-    store: &StoreContextMut<'_, WasmtimeTraceState>,
+    store: &StoreContextMut<'_, T>,
 ) -> Option<u32> {
     if function_ref == 0 {
         return Some(0);
     }
     store
         .data()
+        .wasm_trace_state()
         .function_metas
         .get(&function_ref)
         .map(|meta| meta.type_id)
 }
 
-pub(crate) fn function_arity_from_ref(
+pub(crate) fn function_arity_from_ref<T: HasWasmTraceState>(
     function_ref: u32,
-    store: &StoreContextMut<'_, WasmtimeTraceState>,
+    store: &StoreContextMut<'_, T>,
 ) -> Option<(u8, u8)> {
     store
         .data()
+        .wasm_trace_state()
         .function_metas
         .get(&function_ref)
         .map(|meta| (meta.param_count, meta.result_count))
 }
 
-pub(crate) fn normalize_value_lanes(
+pub(crate) fn normalize_value_lanes<T>(
     val: Val,
     func_ref_ids: &BTreeMap<usize, u32>,
-    store: &mut StoreContextMut<'_, WasmtimeTraceState>,
+    store: &mut StoreContextMut<'_, T>,
 ) -> Result<(u32, u32), WasmBuildError> {
     match val {
         Val::I32(v) => Ok((v as u32, 0)),
@@ -89,10 +92,10 @@ pub(crate) fn normalize_value_lanes(
     }
 }
 
-pub(crate) fn read_global_lanes(
+pub(crate) fn read_global_lanes<T: HasWasmTraceState>(
     global_index: u32,
     frame: &FrameHandle,
-    store: &mut StoreContextMut<'_, WasmtimeTraceState>,
+    store: &mut StoreContextMut<'_, T>,
 ) -> Result<(u32, u32), WasmBuildError> {
     let instance = frame
         .instance(&mut *store)
@@ -100,15 +103,15 @@ pub(crate) fn read_global_lanes(
     let global = instance
         .debug_global(&mut *store, global_index)
         .ok_or_else(|| WasmBuildError::Trace(format!("missing Wasmtime global {} at current frame", global_index)))?;
-    let func_ref_ids = store.data().func_ref_ids.clone();
+    let func_ref_ids = store.data().wasm_trace_state().func_ref_ids.clone();
     normalize_value_lanes(global.get(&mut *store), func_ref_ids.as_ref(), store)
 }
 
-pub(crate) fn read_table_funcref_u32(
+pub(crate) fn read_table_funcref_u32<T: HasWasmTraceState>(
     table_id: u32,
     table_index: u32,
     frame: &FrameHandle,
-    store: &mut StoreContextMut<'_, WasmtimeTraceState>,
+    store: &mut StoreContextMut<'_, T>,
 ) -> Result<u32, WasmBuildError> {
     let instance = frame
         .instance(&mut *store)
@@ -120,9 +123,15 @@ pub(crate) fn read_table_funcref_u32(
         Some(wasmtime::Ref::Func(None)) => Ok(0),
         Some(wasmtime::Ref::Func(Some(func))) => {
             let raw = func.to_raw(&mut *store) as usize;
-            store.data().func_ref_ids.get(&raw).copied().ok_or_else(|| {
-                WasmBuildError::Trace(format!("missing normalized function id for table funcref 0x{raw:x}"))
-            })
+            store
+                .data()
+                .wasm_trace_state()
+                .func_ref_ids
+                .get(&raw)
+                .copied()
+                .ok_or_else(|| {
+                    WasmBuildError::Trace(format!("missing normalized function id for table funcref 0x{raw:x}"))
+                })
         }
         Some(other) => Err(WasmBuildError::Unsupported(format!(
             "only funcref tables are supported right now, found value {other:?}"
@@ -134,10 +143,10 @@ pub(crate) fn read_table_funcref_u32(
     }
 }
 
-pub(crate) fn read_table_size(
+pub(crate) fn read_table_size<T>(
     table_id: u32,
     frame: &FrameHandle,
-    store: &mut StoreContextMut<'_, WasmtimeTraceState>,
+    store: &mut StoreContextMut<'_, T>,
 ) -> Result<u32, WasmBuildError> {
     let instance = frame
         .instance(&mut *store)
@@ -149,10 +158,10 @@ pub(crate) fn read_table_size(
         .map_err(|_| WasmBuildError::Trace(format!("table {table_id} size exceeded u32")))
 }
 
-pub(crate) fn read_memory_pages_if_present(
+pub(crate) fn read_memory_pages_if_present<T>(
     memory_index: u32,
     frame: &FrameHandle,
-    store: &mut StoreContextMut<'_, WasmtimeTraceState>,
+    store: &mut StoreContextMut<'_, T>,
 ) -> Result<Option<u32>, WasmBuildError> {
     let instance = frame
         .instance(&mut *store)
@@ -165,11 +174,11 @@ pub(crate) fn read_memory_pages_if_present(
     Ok(Some(pages))
 }
 
-pub(crate) fn read_memory_bytes<const N: usize>(
+pub(crate) fn read_memory_bytes<const N: usize, T>(
     memory_index: u32,
     effective_address: u64,
     frame: &FrameHandle,
-    store: &mut StoreContextMut<'_, WasmtimeTraceState>,
+    store: &mut StoreContextMut<'_, T>,
 ) -> Result<[u8; N], WasmBuildError> {
     let instance = frame
         .instance(&mut *store)
@@ -194,13 +203,13 @@ pub(crate) fn read_memory_bytes<const N: usize>(
     Ok(bytes)
 }
 
-pub(crate) fn read_word(
+pub(crate) fn read_word<T>(
     memory_index: u32,
     effective_address: u64,
     frame: &FrameHandle,
-    store: &mut StoreContextMut<'_, WasmtimeTraceState>,
+    store: &mut StoreContextMut<'_, T>,
 ) -> Result<u32, WasmBuildError> {
-    Ok(u32::from_le_bytes(read_memory_bytes::<4>(
+    Ok(u32::from_le_bytes(read_memory_bytes::<4, T>(
         memory_index,
         effective_address,
         frame,
@@ -208,22 +217,22 @@ pub(crate) fn read_word(
     )?))
 }
 
-pub(crate) fn read_byte(
+pub(crate) fn read_byte<T>(
     memory_index: u32,
     effective_address: u64,
     frame: &FrameHandle,
-    store: &mut StoreContextMut<'_, WasmtimeTraceState>,
+    store: &mut StoreContextMut<'_, T>,
 ) -> Result<u8, WasmBuildError> {
-    Ok(read_memory_bytes::<1>(memory_index, effective_address, frame, store)?[0])
+    Ok(read_memory_bytes::<1, T>(memory_index, effective_address, frame, store)?[0])
 }
 
-pub(crate) fn read_halfword(
+pub(crate) fn read_halfword<T>(
     memory_index: u32,
     effective_address: u64,
     frame: &FrameHandle,
-    store: &mut StoreContextMut<'_, WasmtimeTraceState>,
+    store: &mut StoreContextMut<'_, T>,
 ) -> Result<u16, WasmBuildError> {
-    Ok(u16::from_le_bytes(read_memory_bytes::<2>(
+    Ok(u16::from_le_bytes(read_memory_bytes::<2, T>(
         memory_index,
         effective_address,
         frame,

@@ -16,7 +16,7 @@ use super::runtime_read::{
     read_global_lanes, read_halfword, read_lane, read_lane_hi, read_memory_pages_if_present, read_table_funcref_u32,
     read_table_size, read_word, val_to_string,
 };
-use super::{WasmtimeTraceMemoryAccess, WasmtimeTraceMemoryWordLane, WasmtimeTraceState, WasmtimeTraceStep};
+use super::{HasWasmTraceState, WasmtimeTraceMemoryAccess, WasmtimeTraceMemoryWordLane, WasmtimeTraceStep};
 use crate::ir::{
     LinearMemoryAccess, LinearMemoryWordLane, StackValueAccess, WasmAuxOpcode, WasmBuildError, WasmOutputState,
     WasmParamInitState, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmStepTrace,
@@ -301,11 +301,11 @@ fn normalize_supported_row(row: &WasmtimeTraceStep) -> Result<Option<SupportedRo
     }))
 }
 
-pub(crate) fn capture_frame(
+pub(crate) fn capture_frame<T: HasWasmTraceState>(
     step: u64,
     frame_depth: usize,
     frame: &FrameHandle,
-    store: &mut StoreContextMut<'_, WasmtimeTraceState>,
+    store: &mut StoreContextMut<'_, T>,
 ) -> Result<WasmtimeTraceStep, WasmBuildError> {
     let (function, function_index, pc) = match frame
         .wasm_function_index_and_pc(&mut *store)
@@ -313,16 +313,23 @@ pub(crate) fn capture_frame(
     {
         Some((func_index, pc)) => {
             let function_index = func_index.as_u32();
-            (format!("{func_index:?}"), Some(function_index), Some(pc))
+            // The opcode map is keyed by raw module byte offset.
+            (format!("{func_index:?}"), Some(function_index), Some(pc.raw()))
         }
         None => ("<host-or-unknown>".to_string(), None, None),
     };
-    let decoded_opcode = function_index
-        .zip(pc)
-        .and_then(|key| store.data().opcode_map.get(&key).cloned());
+    let decoded_opcode = function_index.zip(pc).and_then(|key| {
+        store
+            .data()
+            .wasm_trace_state()
+            .opcode_map
+            .get(&key)
+            .cloned()
+    });
     let current_function_ref = function_index.and_then(|index| {
         store
             .data()
+            .wasm_trace_state()
             .imported_function_count
             .checked_add(index)
             .and_then(|function_ref| function_ref.checked_add(1))
@@ -336,7 +343,7 @@ pub(crate) fn capture_frame(
     let num_locals = frame
         .num_locals(&mut *store)
         .map_err(|err| WasmBuildError::Trace(format!("failed to inspect Wasmtime locals length: {err}")))?;
-    let func_ref_ids = store.data().func_ref_ids.clone();
+    let func_ref_ids = store.data().wasm_trace_state().func_ref_ids.clone();
     let mut locals = Vec::with_capacity(num_locals as usize);
     let mut locals_words_hi = Vec::with_capacity(num_locals as usize);
     for index in 0..num_locals {
@@ -375,7 +382,7 @@ pub(crate) fn capture_frame(
     };
     let memory_pages_now = read_memory_pages_if_present(0, frame, store)?;
     // Module constant seeded from parse artifacts.
-    let memory_max_now = store.data().memory_max_pages;
+    let memory_max_now = store.data().wasm_trace_state().memory_max_pages;
     let (global_value_before, global_value_before_hi) = match global_index {
         Some(index) => {
             let (lo, hi) = read_global_lanes(index, frame, store)?;
@@ -520,7 +527,7 @@ pub(crate) fn capture_frame(
         function_ref,
         current_function_ref,
         target_function_is_guest: function_ref
-            .is_some_and(|function_ref| function_ref > store.data().imported_function_count),
+            .is_some_and(|function_ref| function_ref > store.data().wasm_trace_state().imported_function_count),
         function_type_id,
         call_indirect_type_index,
         expected_type_id: decoded_opcode.as_ref().and_then(|d| d.expected_type_id),
@@ -541,10 +548,10 @@ pub(crate) fn capture_frame(
     })
 }
 
-fn capture_memory_access(
+fn capture_memory_access<T: HasWasmTraceState>(
     decoded_opcode: Option<&DecodedOpcode>,
     frame: &FrameHandle,
-    store: &mut StoreContextMut<'_, WasmtimeTraceState>,
+    store: &mut StoreContextMut<'_, T>,
     operand_stack: &[u32],
     operand_stack_hi: &[u32],
 ) -> Result<Option<WasmtimeTraceMemoryAccess>, WasmBuildError> {

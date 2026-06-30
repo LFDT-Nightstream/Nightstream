@@ -5,6 +5,7 @@ use super::super::isa::WasmOpcode;
 use futures::executor::block_on;
 use std::collections::BTreeMap;
 use std::future::Future;
+use std::marker::PhantomData;
 use std::sync::Arc;
 use wasmtime::component::{Type as ComponentType, Val as ComponentVal};
 use wasmtime::{
@@ -19,7 +20,8 @@ mod runtime_read;
 use decode::DecodedOpcode;
 use normalize::capture_frame;
 use parse::{parse_first_component_core_module_artifacts, parse_wasm_artifacts, ParsedFunctionMeta};
-use runtime_read::{build_debug_function_id_map, build_store_debug_function_id_map, val_to_string};
+pub use runtime_read::build_store_debug_function_id_map;
+use runtime_read::{build_debug_function_id_map, val_to_string};
 // Public path `adapters::wasmtime::traces_from_wasmtime_steps` is preserved via this re-export
 // (also brings the name into scope for the component wrappers below).
 pub use normalize::traces_from_wasmtime_steps;
@@ -124,8 +126,35 @@ pub struct WasmtimeTraceRun {
     pub initial_locals: Vec<u32>,
 }
 
-#[derive(Clone, Copy, Debug, Default)]
-struct WasmtimeDebugHandler;
+/// Single-step tracing hook for store data that exposes [`WasmtimeTraceState`].
+pub struct WasmtimeTraceHandler<T>(PhantomData<fn() -> T>);
+
+impl<T> WasmtimeTraceHandler<T> {
+    pub fn new() -> Self {
+        WasmtimeTraceHandler(PhantomData)
+    }
+}
+
+// Avoid derive-imposed bounds on `T`; the handler stores only PhantomData.
+impl<T> Default for WasmtimeTraceHandler<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T> Clone for WasmtimeTraceHandler<T> {
+    fn clone(&self) -> Self {
+        WasmtimeTraceHandler(PhantomData)
+    }
+}
+
+impl<T> Copy for WasmtimeTraceHandler<T> {}
+
+impl<T> std::fmt::Debug for WasmtimeTraceHandler<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("WasmtimeTraceHandler")
+    }
+}
 
 #[derive(Debug, Default)]
 /// Store data used by Wasmtime guest-debug tracing. This is public so callers can
@@ -142,6 +171,62 @@ pub struct WasmtimeTraceState {
     /// parse artifacts at construction. `None` when the module has no default
     /// memory. Carried into each row's `max_memory_pages` boundary.
     memory_max_pages: Option<u32>,
+}
+
+/// Lets the debug tracer record into trace state embedded in custom store data.
+pub trait HasWasmTraceState {
+    fn wasm_trace_state(&self) -> &WasmtimeTraceState;
+    fn wasm_trace_state_mut(&mut self) -> &mut WasmtimeTraceState;
+}
+
+impl HasWasmTraceState for WasmtimeTraceState {
+    fn wasm_trace_state(&self) -> &WasmtimeTraceState {
+        self
+    }
+    fn wasm_trace_state_mut(&mut self) -> &mut WasmtimeTraceState {
+        self
+    }
+}
+
+impl WasmtimeTraceState {
+    /// Build trace state from parsed program artifacts.
+    ///
+    /// Funcref normalization also requires a post-instantiation
+    /// [`WasmtimeTraceState::set_func_ref_ids`] call.
+    pub fn from_program_artifacts(artifacts: &WasmProgramArtifacts) -> Self {
+        WasmtimeTraceState {
+            next_step: 0,
+            steps: Vec::new(),
+            opcode_map: Arc::new(artifacts.trace.opcode_map.clone()),
+            func_ref_ids: Arc::new(BTreeMap::new()),
+            function_metas: Arc::new(artifacts.trace.function_metas.clone()),
+            imported_function_count: artifacts.trace.imported_function_count,
+            memory_max_pages: artifacts.tables.max_memory_pages,
+        }
+    }
+
+    /// The trace rows collected so far, in capture order.
+    pub fn steps(&self) -> &[WasmtimeTraceStep] {
+        &self.steps
+    }
+
+    /// Take ownership of the collected trace rows, leaving the state empty so it
+    /// can be reused for a subsequent run.
+    pub fn take_steps(&mut self) -> Vec<WasmtimeTraceStep> {
+        std::mem::take(&mut self.steps)
+    }
+
+    /// Install the normalized funcref-id map built after instantiation.
+    ///
+    /// (we need to create a Store to get an Instance, and to create a Store we
+    /// need to pass the initial state, so this needs late-init)
+    ///
+    /// This maps runtime funcref ids into function in the index domain (the
+    /// order they appear in the module). This is necessary because we need to
+    /// bind the proof to a static set.
+    pub fn set_func_ref_ids(&mut self, func_ref_ids: BTreeMap<usize, u32>) {
+        self.func_ref_ids = Arc::new(func_ref_ids);
+    }
 }
 
 /// Whether a wasmtime trap has a modeled terminal state, so the collected
@@ -207,7 +292,7 @@ pub fn collect_wasmtime_steps(
             memory_max_pages,
         },
     );
-    store.set_debug_handler(WasmtimeDebugHandler);
+    store.set_debug_handler(WasmtimeTraceHandler::<WasmtimeTraceState>::new());
 
     {
         let mut edit = store
@@ -309,7 +394,7 @@ where
             memory_max_pages,
         },
     );
-    store.set_debug_handler(WasmtimeDebugHandler);
+    store.set_debug_handler(WasmtimeTraceHandler::<WasmtimeTraceState>::new());
 
     {
         let mut edit = store
@@ -422,8 +507,8 @@ fn component_val_to_string(val: &ComponentVal) -> Result<String, WasmBuildError>
     })
 }
 
-impl DebugHandler for WasmtimeDebugHandler {
-    type Data = WasmtimeTraceState;
+impl<T: HasWasmTraceState + Send + 'static> DebugHandler for WasmtimeTraceHandler<T> {
+    type Data = T;
 
     fn handle(
         &self,
@@ -436,7 +521,7 @@ impl DebugHandler for WasmtimeDebugHandler {
             }
 
             let frames = store.debug_exit_frames().collect::<Vec<FrameHandle>>();
-            let step = store.data().next_step;
+            let step = store.data().wasm_trace_state().next_step;
             let mut rows = Vec::with_capacity(frames.len());
             for (frame_depth, frame) in frames.iter().enumerate() {
                 match capture_frame(step, frame_depth, frame, &mut store) {
@@ -451,7 +536,7 @@ impl DebugHandler for WasmtimeDebugHandler {
                 }
             }
 
-            let state = store.data_mut();
+            let state = store.data_mut().wasm_trace_state_mut();
             state.next_step += 1;
             state.steps.extend(rows);
         }

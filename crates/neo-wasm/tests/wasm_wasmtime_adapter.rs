@@ -1,9 +1,26 @@
 use neo_wasm::{
-    build_pc_rom_from_binary, collect_wasmtime_steps, extract_wasm_program_artifacts, opcode_code,
-    traces_from_wasmtime_steps, traces_from_wasmtime_wasm_bytes, StackValueAccess, WasmOpcode, WasmPcEdgeKind,
+    build_pc_rom_from_binary, build_store_debug_function_id_map, collect_wasmtime_steps,
+    extract_wasm_program_artifacts, opcode_code, traces_from_wasmtime_steps, traces_from_wasmtime_wasm_bytes,
+    HasWasmTraceState, StackValueAccess, WasmOpcode, WasmPcEdgeKind, WasmtimeTraceHandler, WasmtimeTraceState,
     WasmtimeTraceStep,
 };
 use wasmparser::{Parser, Payload};
+use wasmtime::{Config, Engine, Linker, Module, Store, Val};
+
+struct EmbedderStoreData {
+    trace: WasmtimeTraceState,
+    host_counter: u32,
+}
+
+impl HasWasmTraceState for EmbedderStoreData {
+    fn wasm_trace_state(&self) -> &WasmtimeTraceState {
+        &self.trace
+    }
+
+    fn wasm_trace_state_mut(&mut self) -> &mut WasmtimeTraceState {
+        &mut self.trace
+    }
+}
 
 fn sample_steps() -> Vec<WasmtimeTraceStep> {
     vec![
@@ -67,6 +84,62 @@ fn sample_steps() -> Vec<WasmtimeTraceStep> {
             ..Default::default()
         },
     ]
+}
+
+#[test]
+fn wasmtime_trace_handler_records_into_embedder_store_data() {
+    let wasm = wat::parse_str(
+        r#"(module
+            (func (export "run") (result i32)
+                i32.const 7
+                i32.const 9
+                i32.add)
+        )"#,
+    )
+    .expect("wat");
+    let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
+
+    let mut config = Config::new();
+    config.guest_debug(true);
+    config.wasm_reference_types(true);
+    config.wasm_function_references(true);
+
+    let engine = Engine::new(&config).expect("engine");
+    let module = Module::from_binary(&engine, &wasm).expect("module");
+    let mut store = Store::new(
+        &engine,
+        EmbedderStoreData {
+            trace: WasmtimeTraceState::from_program_artifacts(&artifacts),
+            host_counter: 7,
+        },
+    );
+    store.set_debug_handler(WasmtimeTraceHandler::<EmbedderStoreData>::new());
+    store
+        .edit_breakpoints()
+        .expect("guest debug enabled")
+        .single_step(true)
+        .expect("single-step mode");
+
+    let linker = Linker::new(&engine);
+    let instance = futures::executor::block_on(linker.instantiate_async(&mut store, &module)).expect("instantiate");
+    let func_ref_ids = build_store_debug_function_id_map(&mut store).expect("funcref map");
+    store
+        .data_mut()
+        .wasm_trace_state_mut()
+        .set_func_ref_ids(func_ref_ids);
+
+    let func = instance.get_func(&mut store, "run").expect("exported func");
+    let mut results = vec![Val::I32(0)];
+    futures::executor::block_on(func.call_async(&mut store, &[], &mut results)).expect("call");
+
+    assert_eq!(store.data().host_counter, 7);
+    let steps = store.data().trace.steps();
+    assert!(
+        steps
+            .iter()
+            .any(|step| step.opcode_decoded == Some(WasmOpcode::I32Add)),
+        "expected traced i32.add row, got {steps:?}"
+    );
 }
 
 #[test]

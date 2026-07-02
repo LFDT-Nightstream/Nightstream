@@ -1,3 +1,3 @@
-import DirectCcsFPrime.ProofSystem.Production.Impl.Runtime.DirectParentOnlyProductionExactRuntimeInstantiation
-import DirectCcsFPrime.ProofSystem.Production.Impl.Runtime.DirectParentOnlyProductionFPrimePriorVerifier
-import DirectCcsFPrime.ProofSystem.Production.Impl.Runtime.DirectParentOnlyProductionFPrimeRuntimeVerifier
+import DirectCcsFPrime.ProofSystem.Production.Impl.Runtime.ExactInstantiation
+import DirectCcsFPrime.ProofSystem.Production.Impl.Runtime.PriorVerifier
+import DirectCcsFPrime.ProofSystem.Production.Impl.Runtime.Verifier

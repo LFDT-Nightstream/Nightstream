@@ -12,7 +12,7 @@ This module owns the `SuperNeo.KExt` versions of:
 - final-oracle linkage to extension-field MLE evaluation.
 
 It is the natural successor to `ExtensionMLE`: the current base-field
-`SuperNeo/Primitives/SumCheck.lean` remains the canonical Section 4 closure for `F`,
+`SuperNeo/SumCheck.lean` remains the canonical Section 4 closure for `F`,
 while this module carries the same theorem-facing protocol boundary over the
 quadratic extension carrier used by opening convergence.
 

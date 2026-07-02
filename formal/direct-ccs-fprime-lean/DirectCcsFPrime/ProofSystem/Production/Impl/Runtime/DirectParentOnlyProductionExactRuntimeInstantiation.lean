@@ -4,7 +4,7 @@ import DirectCcsFPrime.Audit.RedTeam.DirectParentOnlyProductionPrivateDecNoSwapA
 /-!
 Production exact-runtime instantiation for the parent-only terminal theorem.
 
-Spec: `specs/ProofSystem/Production/Impl/Runtime/DirectParentOnlyProductionExactRuntimeInstantiation.spec.md`
+Spec: `specs/Production/Impl/Runtime/DirectParentOnlyProductionExactRuntimeInstantiation.spec.md`
 
 This file owns the short production entry points for the concrete exact-runtime
 F' prior verifier path. It packages production verifier checks plus the trusted

@@ -44,7 +44,7 @@ No open boundary assumptions in this module.
 
 - **Dependencies**: `SuperNeo/Primitives/Goldilocks.lean`, `Mathlib/NumberTheory/LucasPrimality`.
 - **Consumers**:
-  - `SuperNeo/ProofSystem/SumCheck/General.lean`: discharges the prime-field prerequisite for `Polynomial.card_roots` over `ZMod q`.
+  - `SuperNeo/SumCheck/General.lean`: discharges the prime-field prerequisite for `Polynomial.card_roots` over `ZMod q`.
 
 ## Acceptance Criteria
 

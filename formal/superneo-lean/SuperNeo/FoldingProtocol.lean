@@ -1,5 +1,5 @@
-import SuperNeo.ProofSystem.ConstraintSystem
-import SuperNeo.ProofSystem.SumCheck
+import SuperNeo.FoldingProtocol.ConstraintSystem
+import SuperNeo.SumCheck
 import SuperNeo.FoldingProtocol.ProtocolRelations
 import SuperNeo.FoldingProtocol.ProtocolSection71Context
 import SuperNeo.FoldingProtocol.PiCCS
@@ -9,7 +9,6 @@ import SuperNeo.FoldingProtocol.ArithmeticBundle
 import SuperNeo.FoldingProtocol.ArithmeticObligations
 import SuperNeo.FoldingProtocol.ProtocolTarget
 import SuperNeo.FoldingProtocol.ProtocolTheorem
-import SuperNeo.ProofSystem.Protocol
 import SuperNeo.FoldingProtocol.FiatShamirReroute
 
 /-! Section 7 (Neo's folding scheme for CCS) barrel:

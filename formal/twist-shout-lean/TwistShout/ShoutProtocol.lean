@@ -1,4 +1,3 @@
-import TwistShout.ShoutProtocolInterface
 import TwistShout.ShoutCore
 import TwistShout.ShoutOneHot
 import TwistShout.FastShoutSmallMemory

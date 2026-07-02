@@ -1,2 +1,1 @@
 import DirectCcsFPrime.Bridge.SuperNeoBridge
-import DirectCcsFPrime.Bridge.SuperNeoBridgeInterface

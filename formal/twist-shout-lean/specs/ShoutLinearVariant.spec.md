@@ -16,7 +16,7 @@ Specify the Appendix C Shout variation with linear prover dependence on `d`.
 ## Module Mapping
 
 - Spec: `specs/ShoutLinearVariant.spec.md`
-- Interface: `TwistShout/ShoutLinearVariantInterface.lean`
+- Interface: `TwistShout/ShoutLinearVariant.lean`
 - Implementation: `TwistShout/ShoutLinearVariant.lean`
 
 ## Contract Surface

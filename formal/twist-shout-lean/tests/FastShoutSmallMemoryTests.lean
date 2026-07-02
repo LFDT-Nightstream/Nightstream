@@ -1,9 +1,9 @@
-import TwistShout.FastShoutSmallMemoryInterface
-import TwistShout.MLEInterface
+import TwistShout.FastShoutSmallMemory
+import TwistShout.MLE
 
 open scoped BigOperators
-open TwistShout.FastShoutSmallMemoryInterface
-open TwistShout.MLEInterface
+open TwistShout
+open TwistShout
 
 namespace tests.fastshoutsmall
 

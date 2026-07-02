@@ -17,7 +17,7 @@ Specify the paper-level sum-check protocol used throughout Shout and Twist.
 ## Module Mapping
 
 - Spec: `specs/SumCheck.spec.md`
-- Interface: `TwistShout/SumCheckInterface.lean`
+- Interface: `TwistShout/SumCheck.lean`
 - Implementation: `TwistShout/SumCheck.lean`
 
 ## Contract Surface

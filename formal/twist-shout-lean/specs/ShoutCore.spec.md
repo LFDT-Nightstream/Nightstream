@@ -17,7 +17,7 @@ Specify the read-only memory-checking argument at the heart of Shout.
 ## Module Mapping
 
 - Spec: `specs/ShoutCore.spec.md`
-- Interface: `TwistShout/ShoutCoreInterface.lean`
+- Interface: `TwistShout/ShoutCore.lean`
 - Implementation: `TwistShout/ShoutCore.lean`
 
 ## Contract Surface

@@ -47,7 +47,7 @@
 | Lean file | Role |
 |---|---|
 | `SuperNeo/FoldingProtocol/FiatShamirReroute.lean` | Deterministic reroute theorem implementation |
-| `SuperNeo/FoldingProtocol/FiatShamirRerouteInterface.lean` | Curated theorem-facing interface |
+| `SuperNeo/FoldingProtocol/FiatShamirReroute.lean` | Curated theorem-facing interface |
 
 ## Contract Surface
 

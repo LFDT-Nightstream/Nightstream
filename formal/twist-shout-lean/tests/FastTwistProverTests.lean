@@ -1,6 +1,6 @@
-import TwistShout.FastTwistProverInterface
+import TwistShout.FastTwistProver
 
-open TwistShout.FastTwistProverInterface
+open TwistShout
 
 namespace tests.fasttwistprover
 

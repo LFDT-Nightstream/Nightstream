@@ -1,6 +1,6 @@
-import TwistShout.TwistValueEvalInterface
+import TwistShout.TwistValueEval
 
-open TwistShout.TwistValueEvalInterface
+open TwistShout
 
 namespace tests.twistvalueeval
 

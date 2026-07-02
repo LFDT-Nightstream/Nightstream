@@ -1,8 +1,8 @@
-import TwistShout.ShoutLinearVariantInterface
-import TwistShout.MLEInterface
+import TwistShout.ShoutLinearVariant
+import TwistShout.MLE
 
-open TwistShout.ShoutLinearVariantInterface
-open TwistShout.MLEInterface
+open TwistShout
+open TwistShout
 
 namespace tests.shoutlinear
 

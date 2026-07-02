@@ -1,4 +1,4 @@
-import SuperNeo.Primitives.ExtensionMLEInterface
+import SuperNeo.Primitives.ExtensionMLE
 
 /-!
 Extension-field SumCheck scaffold.

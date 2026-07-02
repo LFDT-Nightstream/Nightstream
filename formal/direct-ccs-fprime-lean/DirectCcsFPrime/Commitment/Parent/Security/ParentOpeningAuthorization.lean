@@ -1,5 +1,5 @@
 import DirectCcsFPrime.Commitment.Parent.Spec.ParentEncoding
-import SuperNeo.ProofSystem.ConstraintSystem.CCS
+import SuperNeo.FoldingProtocol.ConstraintSystem.CCS
 
 /-!
 Parent opening authorization for reduced `CE(B)` handles.

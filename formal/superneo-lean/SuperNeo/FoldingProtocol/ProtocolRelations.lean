@@ -1,6 +1,6 @@
 import SuperNeo.FoldingProtocol.ProtocolTarget
-import SuperNeo.Primitives.SumCheck
-import SuperNeo.ProofSystem.ConstraintSystem
+import SuperNeo.SumCheck
+import SuperNeo.FoldingProtocol.ConstraintSystem
 
 /-!
 CCS/CE relation layer.

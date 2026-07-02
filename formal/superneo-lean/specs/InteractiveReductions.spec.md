@@ -58,7 +58,7 @@ only the composed registry and the canonical composition theorems.
 
 Upstream dependencies:
 - `SuperNeo/FoldingProtocol/PiDEC.lean`: imports `piDECKnowledgeStatement`, `ceRelaxedRelation`, `SumCheckClaimTrue`, `sumcheckInstanceOfContext`, `piDEC_of_assumptions`.
-- `SuperNeo/Primitives/SumCheck.lean`: constructive SumCheck truth is used directly in witness-level failure-advantage bounds.
+- `SuperNeo/SumCheck.lean`: constructive SumCheck truth is used directly in witness-level failure-advantage bounds.
 
 Downstream consumers:
 - `SuperNeo/FoldingProtocol/ProtocolTheorem.lean`: embeds `InteractiveReductionAssumptions` in `FinalTheoremAssumptions` and uses the composition statements and the witness-level SumCheck advantage bound.

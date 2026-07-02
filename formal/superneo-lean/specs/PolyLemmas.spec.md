@@ -78,7 +78,7 @@ Upstream dependencies:
 
 Downstream consumers:
 - `SuperNeo/FoldingProtocol/ArithmeticObligations.lean`: consumes theorem-native Boolean-cube recovery.
-- `SuperNeo/ProofSystem/SumCheck/General.lean`: consumes the degree-vs-set-size arithmetic surface in the full Schwartz-Zippel/soundness layer.
+- `SuperNeo/SumCheck/General.lean`: consumes the degree-vs-set-size arithmetic surface in the full Schwartz-Zippel/soundness layer.
 
 ## Regression Expectations
 

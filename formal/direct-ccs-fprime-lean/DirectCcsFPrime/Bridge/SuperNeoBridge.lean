@@ -5,8 +5,8 @@ import DirectCcsFPrime.Commitment.Parent.Security.ParentOpeningAuthorization
 import SuperNeo.FoldingProtocol.PiCCSInterface
 import SuperNeo.FoldingProtocol.PiDECInterface
 import SuperNeo.FoldingProtocol.PiRLCInterface
-import SuperNeo.ProofSystem.ConstraintSystem.CCS
-import SuperNeo.ProofSystem.Lattice
+import SuperNeo.FoldingProtocol.ConstraintSystem.CCS
+import SuperNeo.Commitment.Lattice
 
 /-!
 Bridge from the direct-CCS reduced-handle proof to the existing SuperNeo Lean

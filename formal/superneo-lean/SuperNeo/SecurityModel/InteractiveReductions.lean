@@ -1,5 +1,5 @@
 import SuperNeo.FoldingProtocol.PiDEC
-import SuperNeo.ProofSystem.SumCheck
+import SuperNeo.SumCheck
 
 /-!
 Composition of reduction steps (`Π_CCS`, `Π_RLC`, `Π_DEC`).

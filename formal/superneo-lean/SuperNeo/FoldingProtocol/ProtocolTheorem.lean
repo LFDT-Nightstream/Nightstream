@@ -1,11 +1,11 @@
 import SuperNeo.SecurityModel.InteractiveReductions
 import SuperNeo.Primitives.Interp
-import SuperNeo.ProofSystem.Lattice
-import SuperNeo.ProofSystem.LatticePaper
-import SuperNeo.ProofSystem.LatticeReductions
-import SuperNeo.ProofSystem.LatticeReductionsDerived
-import SuperNeo.ProofSystem.SumCheck
-import SuperNeo.ProofSystem.Security
+import SuperNeo.Commitment.Lattice
+import SuperNeo.Commitment.LatticePaper
+import SuperNeo.Commitment.LatticeReductions
+import SuperNeo.Commitment.LatticeReductionsDerived
+import SuperNeo.SumCheck
+import SuperNeo.SecurityModel.Security
 
 /-!
 Canonical final theorem shape for the SuperNeo scaffold.

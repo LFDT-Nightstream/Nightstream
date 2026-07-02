@@ -1,6 +1,6 @@
 import DirectCcsFPrime.Commitment.Parent.Security.ParentOpeningAuthorization
-import SuperNeo.ProofSystem.Lattice
-import SuperNeo.ProofSystem.LatticeReductions
+import SuperNeo.Commitment.Lattice
+import SuperNeo.Commitment.LatticeReductions
 
 /-!
 Ajtai-backed residue binding for reduced parent handles.

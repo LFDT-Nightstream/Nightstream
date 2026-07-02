@@ -75,7 +75,7 @@ Upstream dependencies:
 - `SuperNeo/Primitives/EqPoly.lean`: `eqPoly`, `eqPolyAssumption` for MLE weights.
 
 Downstream consumers:
-- `SuperNeo/Primitives/SumCheck.lean`: uses MLE evaluators for sum-check claims.
+- `SuperNeo/SumCheck.lean`: uses MLE evaluators for sum-check claims.
 - `SuperNeo/EmbeddingTheory/EvalLink.lean`: uses MLE identity for evaluation linkage.
 - `SuperNeo/FoldingProtocol/ProtocolRelations.lean`: uses `mleEval` for CCS relation checks.
 

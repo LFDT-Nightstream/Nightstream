@@ -16,7 +16,7 @@
 //!   `native_decide`-checked cross-check theorem.
 
 use neo_math::F;
-use neo_wasm::layout::{COLUMN_SPECS, COL_ONE, WITNESS_WIDTH};
+use neo_wasm::layout::{COLUMN_SPECS, COL_ONE, NAMED_COLUMN_COUNT};
 use neo_wasm::push_zero_test_gadget;
 use neo_wasm::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use p3_field::PrimeField64;
@@ -84,7 +84,7 @@ fn emit_columns() -> String {
         out.push_str(&format!("def {camel} : Nat := {}\n", spec.index));
     }
     out.push('\n');
-    out.push_str(&format!("def witnessWidth : Nat := {WITNESS_WIDTH}\n"));
+    out.push_str(&format!("def namedColumnCount : Nat := {NAMED_COLUMN_COUNT}\n"));
     out.push('\n');
     out.push_str("end WasmCircuit.Columns\n");
     out

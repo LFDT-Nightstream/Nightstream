@@ -257,6 +257,8 @@ fn i64_load8_u_zero_extension_is_enforced() {
     check_ccs_rowwise_zero(ccs, &wit[..1], &wit[1..]).expect("honest i64.load8_u row should satisfy the CCS");
 
     wit[COL_STACK_WRITE0_VALUE_HI] = F::ONE;
+    // Keep aux bits consistent so the zero-extension gate rejects the forgery.
+    neo_wasm::write_range_check_bits(&mut wit);
     assert!(
         check_ccs_rowwise_zero(ccs, &wit[..1], &wit[1..]).is_err(),
         "a nonzero output hi limb must be rejected (zero-extension)"
@@ -346,6 +348,8 @@ fn i64_load8_s_sign_extension_is_enforced() {
 
     // Forge the hi limb to 0 (as if it zero-extended); the sign-fill gate rejects it.
     wit[COL_STACK_WRITE0_VALUE_HI] = F::ZERO;
+    // Keep aux bits consistent so the sign-fill gate rejects the forgery.
+    neo_wasm::write_range_check_bits(&mut wit);
     assert!(
         check_ccs_rowwise_zero(ccs, &wit[..1], &wit[1..]).is_err(),
         "a zeroed hi limb on a negative signed load must be rejected"

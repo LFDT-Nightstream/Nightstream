@@ -9,12 +9,11 @@
 //!
 //! 1. **Block-diagonalising** the single-step matrices `A`, `B`, `C`: each
 //!    of `batch_size` step blocks gets its own copy, with no cross-block
-//!    entries on the diagonal portion of the matrix.
-//! 2. **Adding link rows** between adjacent blocks. Two families:
-//!    - **Local-constant link**: every step has its own copy of `COL_ONE`;
-//!      link rows force them all equal to the global `z[0]`.
-//!    - **State continuity**: for each `(prev_after, next_before)` pair in
-//!      the spec, an equality row across adjacent blocks.
+//!    entries on the diagonal portion of the matrix — except `COL_ONE`
+//!    references, which all blocks share as the global `z[0]`.
+//! 2. **Adding state-continuity link rows** between adjacent blocks: for
+//!    each `(prev_after, next_before)` pair in the spec, an equality row
+//!    across adjacent blocks.
 //!
 //! Witness shape: `m_batch = batch_size * m_single`. Step `s`'s columns
 //! live at `z[s * m_single .. (s+1) * m_single]`. The first step's public
@@ -46,7 +45,8 @@ use p3_field::PrimeCharacteristicRing;
 use crate::ccs::WasmVmSpec;
 use crate::ir::{WasmAuxOpcode, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmStepTrace};
 use crate::isa::{opcode_info_from_code, WasmOpcode};
-use crate::layout::{ColumnWidth, COLUMN_SPECS, COL_ONE, WITNESS_WIDTH};
+use crate::layout::{ColumnWidth, COLUMN_SPECS, COL_ONE};
+use crate::range_checked_witness_width;
 use crate::relation_layout::build_wasm_relation_layout;
 use crate::witness_builder::build_witness_vector;
 
@@ -82,7 +82,7 @@ pub fn build_batched_wasm_ccs(batch_size: usize) -> Result<BatchedWasmCcs, Batch
     let core = vm.core_ccs_spec();
     let m_single = core.structure.m;
     let n_single = core.structure.n;
-    assert_eq!(m_single, WITNESS_WIDTH);
+    assert_eq!(m_single, core.witness_width);
 
     let layout = build_wasm_relation_layout();
     let link_pairs: Vec<(usize, usize)> = layout
@@ -93,8 +93,8 @@ pub fn build_batched_wasm_ccs(batch_size: usize) -> Result<BatchedWasmCcs, Batch
         .map(|pair| (pair.prev_after.0, pair.next_before.0))
         .collect();
 
-    // Per boundary: 1 local-constant link + one row per state-continuity pair.
-    let n_link_per_boundary = 1 + link_pairs.len();
+    // Per boundary: one row per state-continuity pair.
+    let n_link_per_boundary = link_pairs.len();
     let n_link = batch_size.saturating_sub(1) * n_link_per_boundary;
 
     let m_batch = batch_size * m_single;
@@ -108,35 +108,31 @@ pub fn build_batched_wasm_ccs(batch_size: usize) -> Result<BatchedWasmCcs, Batch
     let mut b_triplets: Vec<(usize, usize, F)> = Vec::with_capacity(batch_size * single_b.len());
     let mut c_triplets: Vec<(usize, usize, F)> = Vec::with_capacity(batch_size * single_c.len());
 
-    // Block-diagonal replication.
+    // Block-diagonal replication. Sharing `COL_ONE` as global `z[0]` keeps
+    // constant-anchored rows in the shape expected by F' width inference.
+    // Block-local `COL_ONE` slots after block 0 remain unreferenced.
     for step in 0..batch_size {
         let row_offset = step * n_single;
         let col_offset = step * m_single;
+        let map_col = |c: usize| if c == COL_ONE { COL_ONE } else { col_offset + c };
         for &(r, c, v) in &single_a {
-            a_triplets.push((row_offset + r, col_offset + c, v));
+            a_triplets.push((row_offset + r, map_col(c), v));
         }
         for &(r, c, v) in &single_b {
-            b_triplets.push((row_offset + r, col_offset + c, v));
+            b_triplets.push((row_offset + r, map_col(c), v));
         }
         for &(r, c, v) in &single_c {
-            c_triplets.push((row_offset + r, col_offset + c, v));
+            c_triplets.push((row_offset + r, map_col(c), v));
         }
     }
 
     // Linking rows. Each row enforces `(A_row · z) * (B_row · z) = C_row · z`
     // with `A_row = z[lhs] - z[rhs]`, `B_row = z[COL_ONE]`, `C_row = 0` —
-    // i.e. `z[lhs] - z[rhs] = 0`. Step 0's `COL_ONE` IS the global `z[0]`
-    // (col_offset = 0), so we only link steps 1..batch_size.
+    // i.e. `z[lhs] - z[rhs] = 0`.
     let mut link_row = batch_size * n_single;
     for boundary in 0..batch_size.saturating_sub(1) {
         let curr_offset = boundary * m_single;
         let next_offset = (boundary + 1) * m_single;
-
-        // Local-constant link: z[next_offset + COL_ONE] = z[COL_ONE].
-        a_triplets.push((link_row, next_offset + COL_ONE, F::ONE));
-        a_triplets.push((link_row, COL_ONE, -F::ONE));
-        b_triplets.push((link_row, COL_ONE, F::ONE));
-        link_row += 1;
 
         // Spec-driven state continuity links.
         for &(prev_col, next_col) in &link_pairs {
@@ -154,7 +150,7 @@ pub fn build_batched_wasm_ccs(batch_size: usize) -> Result<BatchedWasmCcs, Batch
 
     let sparse_r1cs = SparseR1cs::new(a, b, c, n_batch, m_batch, core.m_in)?;
 
-    let widths_single = wasm_app_private_var_widths();
+    let widths_single = wasm_app_private_var_widths(m_single);
     let mut all_widths = Vec::with_capacity(m_batch);
     for _ in 0..batch_size {
         all_widths.extend(widths_single.iter().copied());
@@ -174,6 +170,7 @@ pub fn build_batched_wasm_ccs(batch_size: usize) -> Result<BatchedWasmCcs, Batch
 /// `batch_size`, the tail is padded with synthetic state-preserving
 /// padding rows (see [`padding_step_after`]).
 pub fn build_batched_witness(traces: &[WasmStepTrace], batch_size: usize, batch_idx: usize) -> Vec<F> {
+    let single_width = crate::range_check::range_checked_witness_width();
     assert!(batch_size >= 1, "batch_size must be at least 1");
     let start = batch_idx * batch_size;
     assert!(
@@ -188,23 +185,23 @@ pub fn build_batched_witness(traces: &[WasmStepTrace], batch_size: usize, batch_
         .map(build_witness_vector)
         .collect();
 
-    let mut witness = Vec::with_capacity(batch_size * WITNESS_WIDTH);
+    let mut witness = Vec::with_capacity(batch_size * single_width);
     for w in &real_witnesses {
-        witness.extend(w);
+        witness.extend_from_slice(w);
     }
     if real_witnesses.len() < batch_size {
         let last_real = &traces[real_end - 1];
         let mut padding = padding_step_after(last_real);
         let pad_count = batch_size - real_witnesses.len();
         for _ in 0..pad_count {
-            witness.extend(build_witness_vector(&padding));
+            witness.extend_from_slice(&build_witness_vector(&padding));
             // Each subsequent padding row starts from the previous one,
             // which is state-preserving — so `_after` is the same as the
             // first padding row's `_after`. Reuse `padding` directly.
             padding = padding_step_after(&padding);
         }
     }
-    debug_assert_eq!(witness.len(), batch_size * WITNESS_WIDTH);
+    debug_assert_eq!(witness.len(), batch_size * single_width);
     witness
 }
 
@@ -324,8 +321,8 @@ fn matrix_triplets(m: &CcsMatrix<F>) -> Vec<(usize, usize, F)> {
     }
 }
 
-fn wasm_app_private_var_widths() -> Vec<usize> {
-    COLUMN_SPECS
+fn wasm_app_private_var_widths(witness_width: usize) -> Vec<usize> {
+    let mut widths: Vec<usize> = COLUMN_SPECS
         .iter()
         .map(|spec| match spec.width {
             ColumnWidth::Boolean => 1,
@@ -333,5 +330,11 @@ fn wasm_app_private_var_widths() -> Vec<usize> {
             ColumnWidth::U32 => 32,
             ColumnWidth::Field => 64,
         })
-        .collect()
+        .collect();
+
+    debug_assert_eq!(witness_width, range_checked_witness_width());
+    // Columns added for range checks land after the base columns. All of those
+    // are bits, since they are used for the binary recomposition.
+    widths.resize(witness_width, 1);
+    widths
 }

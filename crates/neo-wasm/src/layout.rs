@@ -15,9 +15,8 @@ pub const CALL_RETURN_PC_CHOICE: u64 = 1;
 ///
 /// These declarations are meant to be enforced; otherwise the proof is not
 /// sound. Enforcement can happen in the wasm CCS itself, as part of a lookup
-/// argument, or as part of the bounded-CCS preprocessing for folding (which
-/// bit-decomposes columns to preserve low norms). The chosen approach is
-/// not supposed to change the semantics, but may affect performance.
+/// argument. The selected approach is not supposed to change the semantics, but
+/// may affect performance.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ColumnWidth {
     /// Constrained to {0, 1}.
@@ -47,14 +46,14 @@ pub struct WasmColumnSpec {
     pub width: ColumnWidth,
 }
 
+/// Used to define named columns directly related to wasm/vm semantics. More
+/// generic constraints like range-checks and lookups are supposed to be added
+/// modularly on top of the base CSS.
 macro_rules! define_columns {
     ($( ( $name:ident, $role:literal $(, $width:expr)? ) ),+ $(,)?) => {
         define_columns!(@assign 0usize; $($name),+);
 
-        /// Macro-generated table of column metadata. Single source of truth:
-        /// the `pub const COL_*`, the `name`, the `role`, and the declared
-        /// `width` here all come from the same macro entry, so they cannot
-        /// drift from each other.
+        /// Macro-generated table of column metadata.i
         pub const COLUMN_SPECS: &[WasmColumnSpec] = &[
             $(WasmColumnSpec {
                 index: $name,
@@ -72,7 +71,10 @@ macro_rules! define_columns {
     };
     (@assign $idx:expr; $name:ident) => {
         pub const $name: usize = $idx;
-        pub const WITNESS_WIDTH: usize = $idx + 1usize;
+        /// Number of macro-declared named columns. NOT the final witness
+        /// width. Range constraints may be added, plus the F' transformation,
+        /// lookup/mcc related constraints derived from the specs.
+        pub const NAMED_COLUMN_COUNT: usize = $idx + 1usize;
     };
 }
 
@@ -1407,8 +1409,8 @@ pub fn selector_col(op: WasmOpcode) -> Option<usize> {
     }
 }
 
-pub fn build_pad_row() -> [F; WITNESS_WIDTH] {
-    let mut row = [F::ZERO; WITNESS_WIDTH];
+pub fn build_pad_row() -> [F; NAMED_COLUMN_COUNT] {
+    let mut row = [F::ZERO; NAMED_COLUMN_COUNT];
     row[COL_ONE] = F::ONE;
     row[COL_OPCODE_CODE] = F::from_u64(u64::from(opcode_code(WasmOpcode::Return)));
     row[COL_IS_PROGRAM_ROW] = F::ONE;

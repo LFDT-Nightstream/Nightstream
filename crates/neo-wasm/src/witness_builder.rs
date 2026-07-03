@@ -56,7 +56,7 @@ use super::layout::{
     COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO,
     COL_STACK_WRITES, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE,
     COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
-    COL_WIDE_AUX0, COL_WIDE_AUX1, COL_WIDE_VALUES_ENABLED, WITNESS_WIDTH,
+    COL_WIDE_AUX0, COL_WIDE_AUX1, COL_WIDE_VALUES_ENABLED, NAMED_COLUMN_COUNT,
 };
 use super::step_build::WasmStepBuild;
 use crate::layout::{
@@ -71,6 +71,8 @@ use p3_field::PrimeCharacteristicRing;
 /// The R1CS-F' chain builder in `neo-fold-clean` bit-decomposes each
 /// assignment during `compile_step` and constructs the foldable F'-encoded
 /// `CcsInstance` internally — neo-wasm does not commit to the assignment.
+/// Assignments match the canonical (range-checked) wasm CCS: the declared
+/// columns followed by the range-check bit columns.
 pub fn build_steps(steps: &[WasmStepTrace]) -> Vec<WasmStepBuild> {
     steps
         .iter()
@@ -81,7 +83,7 @@ pub fn build_steps(steps: &[WasmStepTrace]) -> Vec<WasmStepBuild> {
 }
 
 pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
-    let mut wit = vec![F::ZERO; WITNESS_WIDTH];
+    let mut wit = vec![F::ZERO; NAMED_COLUMN_COUNT];
     wit[COL_ONE] = F::ONE;
     // High-limb stack addresses are constrained unconditionally as
     // `addr_hi = addr_lo + 1`. Inactive low addresses default to 0 and
@@ -865,6 +867,7 @@ pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
     wit[COL_CMP_HI_IS_ZERO] = cmp_hi_is_zero;
     wit[COL_CMP_AND] = cmp_lo_is_zero * cmp_hi_is_zero;
 
+    crate::range_check::write_range_check_bits(&mut wit);
     wit
 }
 

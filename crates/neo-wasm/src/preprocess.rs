@@ -19,7 +19,7 @@ use crate::layout::Column;
 use crate::layout::{
     COL_CALL_STACK_DEPTH_BEFORE, COL_LOCALS_FBP_BEFORE, COL_MAX_MEMORY_PAGES_BEFORE, COL_MEMORY_PAGES_BEFORE,
     COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_PARAM_INIT_ACTIVE_BEFORE,
-    COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_BEFORE, COL_SP_BEFORE, COL_TRAPPED_BEFORE, WITNESS_WIDTH,
+    COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_BEFORE, COL_SP_BEFORE, COL_TRAPPED_BEFORE,
 };
 use crate::relation_layout::build_wasm_relation_layout;
 use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
@@ -249,7 +249,13 @@ fn wasm_recursive_plan_and_structure(
     let limbs = app_private_var_widths.iter().sum::<usize>() + 1;
     let mut r_len = 8usize;
     let mut s_col_len = 8usize;
-    let semantic_state_indices = wasm_batch_semantic_state_indices(batch_size);
+    assert_eq!(
+        sparse_r1cs.m % batch_size,
+        0,
+        "batched R1CS width must be a multiple of batch_size"
+    );
+    let single_width = sparse_r1cs.m / batch_size;
+    let semantic_state_indices = wasm_batch_semantic_state_indices(batch_size, single_width);
 
     for _ in 0..MAX_ITERATIONS {
         let ce_shape = NifsCeClaimShape {
@@ -321,12 +327,12 @@ fn ceil_log2(n: usize) -> usize {
     (usize::BITS - (n - 1).leading_zeros()) as usize
 }
 
-pub(crate) fn wasm_batch_semantic_state_indices(batch_size: usize) -> (Vec<usize>, Vec<usize>) {
+pub(crate) fn wasm_batch_semantic_state_indices(batch_size: usize, single_width: usize) -> (Vec<usize>, Vec<usize>) {
     assert!(batch_size >= 1, "batch_size must be at least 1");
     let layout = build_wasm_relation_layout();
     let mut input = Vec::new();
     let mut output = Vec::new();
-    let last_block_offset = (batch_size - 1) * WITNESS_WIDTH;
+    let last_block_offset = (batch_size - 1) * single_width;
     for pair in layout
         .auxiliary
         .ivc_state_links

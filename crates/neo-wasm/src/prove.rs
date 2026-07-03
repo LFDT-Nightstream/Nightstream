@@ -20,8 +20,8 @@ use neo_fold_clean::UncompressedAudit;
 
 use crate::batch;
 use crate::ir::{WasmStepState, WasmStepTrace};
-use crate::layout::WITNESS_WIDTH;
 use crate::preprocess::{canonical_wasm_f_prime_shape_batched_with_initial_state_digest, semantic_state_digest};
+use crate::range_check::range_checked_witness_width;
 
 pub struct WasmProof {
     pub audit_run: UncompressedAudit,
@@ -136,21 +136,22 @@ pub fn verify(
 
 /// Reject a `prep` whose full F' structure does not match the canonical
 /// wasm VM. The width map is load-bearing: Boolean/Byte/U32 annotations are
-/// enforced by the R1CS-F' bit frame, not by redundant rows in the wasm CCS.
+/// enforced by the wasm CCS range rows and audited by F' preprocessing.
 ///
 /// Batch-size aware: infers the prep's `batch_size` from its plan width-vector
 /// length (= `batch_size * single_step_witness_width`) and compares
 /// against `canonical_wasm_f_prime_shape_batched` at that size.
 fn validate_wasm_preprocessing(prep: &R1csFPrimePreprocessing) -> Result<(), WasmProveError> {
     let prep_widths = &prep.plan().app_private_var_widths;
-    if prep_widths.len() % WITNESS_WIDTH != 0 || prep_widths.is_empty() {
+    let single_width = range_checked_witness_width();
+    if prep_widths.len() % single_width != 0 || prep_widths.is_empty() {
         return Err(WasmProveError::Bridge(format!(
             "preprocessing width-vector length {} is not a positive multiple of \
-             the single-step wasm witness width {WITNESS_WIDTH}",
+             the single-step wasm witness width {single_width}",
             prep_widths.len()
         )));
     }
-    let batch_size = prep_widths.len() / WITNESS_WIDTH;
+    let batch_size = prep_widths.len() / single_width;
     let initial_semantic_state_digest = prep
         .plan()
         .state_x_out

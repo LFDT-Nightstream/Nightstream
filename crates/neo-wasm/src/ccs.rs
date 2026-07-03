@@ -17,7 +17,7 @@ use super::gadgets::{push_gated_linear_zero, push_u32_le_bytes_decomp, push_zero
 use super::isa::{opcode_code, opcode_info_from_code, WasmOpTable, WasmOpcode};
 use super::layout::{
     selector_col, Column, COL_ONE, COL_PC_EDGE_KIND, COL_SELECT_OUT_DELTA_HI, COL_SELECT_OUT_DELTA_LO, COL_WIDE_AUX0,
-    COL_WIDE_AUX1, PUBLIC_INPUTS, SELECTOR_COLS, WITNESS_WIDTH,
+    COL_WIDE_AUX1, PUBLIC_INPUTS, SELECTOR_COLS,
 };
 use super::relation_layout::{build_wasm_relation_layout, SignExtensionColumns};
 use super::tagged_r1cs_builder::{
@@ -189,9 +189,10 @@ fn fixed_stack_arity_gate_terms() -> [(usize, F); 3] {
 }
 
 fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String> {
+    let witness_width = crate::range_check::range_checked_witness_width();
     let layout = build_wasm_relation_layout();
     let linear_memory = layout.linear_memory;
-    let mut b = WasmTaggedR1csBuilder::new(WITNESS_WIDTH, COL_ONE)?;
+    let mut b = WasmTaggedR1csBuilder::new(witness_width, COL_ONE)?;
 
     b.with_tag(shared("wide value gating", &wide_value_ops()), |b| {
         // is_program_row · (wide_values_enabled − Σ wide-value-op selectors) = 0,
@@ -484,13 +485,14 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
     b.with_tag(always("op_table constraints"), |b| {
         push_shout_constraints(b);
     });
+    crate::range_check::push_range_check_rows(&mut b);
     let (structure, constraint_catalog) = b.build()?;
 
     Ok((
         WasmCoreCcs {
             structure,
             m_in: PUBLIC_INPUTS,
-            witness_width: WITNESS_WIDTH,
+            witness_width,
             const_one_col: COL_ONE,
         },
         constraint_catalog,

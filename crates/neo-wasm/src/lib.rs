@@ -15,6 +15,7 @@ pub mod memory_semantics;
 pub mod preprocess;
 pub mod prove;
 mod r1cs_builder;
+pub mod range_check;
 pub mod relation_layout;
 pub mod step_build;
 pub mod tables;
@@ -45,6 +46,7 @@ pub use preprocess::{
     preprocess_seeded_batched, semantic_state_digest, top_level_initial_state, top_level_initial_state_digest,
 };
 pub use prove::{prove, prove_batched, verify, WasmProof, WasmProveError};
+pub use range_check::{range_checked_witness_width, write_range_check_bits};
 pub use relation_layout::{
     build_wasm_relation_layout, LinearMemoryColumns, SignExtensionColumns, WasmAuxiliaryRelations,
     WasmLookupBindingSpec, WasmLookupFamilyKind, WasmLookupFamilySpec, WasmMemoryActivation, WasmMemoryColumnKind,

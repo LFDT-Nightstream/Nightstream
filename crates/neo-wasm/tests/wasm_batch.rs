@@ -47,8 +47,8 @@ fn batched_shape_grows_with_batch_size() {
     let single = build_batched_wasm_ccs(1).expect("single");
     let n_links_per_boundary = {
         let layout = neo_wasm::build_wasm_relation_layout();
-        // 1 local-constant link + one per state-continuity column pair.
-        1 + layout
+        // One link row per state-continuity column pair.
+        layout
             .auxiliary
             .ivc_state_links
             .iter()
@@ -148,22 +148,30 @@ fn cross_step_link_rejects_inconsistent_sp() {
         .expect_err("batched CCS must reject sp_after[0] != sp_before[1]");
 }
 
+// TODO: the intra-batch 1-constant columns are currently ignored and
+// replaced with the global one at 0. The cost is minimal, but for the sake of
+// cleanliness we should probably remove them.
+//
+// Batching is currently done in a straight-forward naive way, so maybe batch
+// that with other improvements like inlining the duplicated variables (using
+// the output column of the previous step directly rather than the input column
+// that is equal to it).
 #[test]
-fn local_constant_link_rejects_non_one_constant() {
+fn block_local_constant_is_an_unreferenced_dont_care() {
+    // Replicated rows must read the shared global `COL_ONE`, not block-local
+    // constant slots after block 0.
     let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main", &[]);
     let batch_size = 2;
     let batched = build_batched_wasm_ccs(batch_size).expect("batched");
     let mut witness = build_batched_witness(&checked.trace, batch_size, 0);
 
-    // Replace step 1's local constant with a different value; the link
-    // row should catch it.
     let m_single = batched.sparse_r1cs.m / batch_size;
     witness[m_single /* + COL_ONE = 0 */] = F::from_u64(7);
 
     batched
         .sparse_r1cs
         .is_satisfied_by(&witness)
-        .expect_err("local-constant link must reject z[m_single + COL_ONE] != 1");
+        .expect("block-local constant slots after block 0 must be unreferenced");
 }
 
 #[test]

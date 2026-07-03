@@ -1,7 +1,7 @@
 //! IMPORTANT: this doesn't prove anything, it's just a sanity checker for now
 
 use super::isa::WasmOpTable;
-use super::layout::{ColumnWidth, COLUMN_SPECS, WITNESS_WIDTH};
+use super::layout::{ColumnWidth, COLUMN_SPECS};
 use super::relation_layout::{
     WasmAuxiliaryRelations, WasmLookupBindingSpec, WasmLookupFamilyKind, WasmLookupFamilySpec,
 };
@@ -94,10 +94,11 @@ pub fn append_lookup_semantics_digest(tr: &mut Poseidon2Transcript, semantics: &
 }
 
 pub fn sanity_check_lookup_row(auxiliary: &WasmAuxiliaryRelations, witness: &[F]) -> Result<(), String> {
-    if witness.len() != WITNESS_WIDTH {
+    let expected = crate::range_check::range_checked_witness_width();
+    if witness.len() != expected {
         return Err(format!(
             "lookup sanity check expected witness width {}, got {}",
-            WITNESS_WIDTH,
+            expected,
             witness.len()
         ));
     }

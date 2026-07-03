@@ -1,10 +1,10 @@
 #[test]
 fn column_specs_are_dense_and_in_order() {
-    use neo_wasm::layout::{COLUMN_SPECS, WITNESS_WIDTH};
+    use neo_wasm::layout::{COLUMN_SPECS, NAMED_COLUMN_COUNT};
 
     assert_eq!(
         COLUMN_SPECS.len(),
-        WITNESS_WIDTH,
+        NAMED_COLUMN_COUNT,
         "macro must emit one spec per witness column"
     );
     for (i, spec) in COLUMN_SPECS.iter().enumerate() {

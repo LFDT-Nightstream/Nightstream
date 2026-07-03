@@ -1,7 +1,7 @@
 //! Witness-driven debug memory checker over `WasmMemorySpec`.
 
 use super::adapters::wasmtime::WasmProgramArtifacts;
-use super::layout::{COLUMN_SPECS, WITNESS_WIDTH};
+use super::layout::COLUMN_SPECS;
 use super::relation_layout::{WasmMemoryActivation, WasmMemoryColumnKind, WasmMemorySpec, WasmRelationLayout};
 use neo_math::F;
 use p3_field::PrimeField64;
@@ -216,10 +216,11 @@ pub fn sanity_check_memory_rows(
     assert_all_memory_specs_have_init_modes(layout)?;
     let mut state = preload.clone_cells();
     for (row_index, witness) in witness_rows.iter().enumerate() {
-        if witness.len() != WITNESS_WIDTH {
+        let expected = crate::range_check::range_checked_witness_width();
+        if witness.len() != expected {
             return Err(format!(
                 "memory sanity check expected witness width {}, got {} on row {}",
-                WITNESS_WIDTH,
+                expected,
                 witness.len(),
                 row_index
             ));

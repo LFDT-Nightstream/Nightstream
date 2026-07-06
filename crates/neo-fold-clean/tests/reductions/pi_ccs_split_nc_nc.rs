@@ -362,6 +362,7 @@ fn build_test_ce_claim_with_zcol(seed: u64, t: usize, d_sz: usize, ell_m: usize)
         .collect();
 
     CeClaim {
+        adv: None,
         c,
         X: x,
         r,

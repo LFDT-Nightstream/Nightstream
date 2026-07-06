@@ -11,7 +11,7 @@
 //! gadget that recomputes the same digest in PR5's `engine::decider`.
 
 use neo_ajtai::Commitment;
-use neo_ccs::{CcsClaim, CcsStructure, CeClaim};
+use neo_ccs::{CcsClaim, CcsStructure, CeClaim, LaneCommitments};
 use neo_math::{F, K};
 use neo_params::NeoParams;
 use p3_field::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
@@ -183,7 +183,66 @@ pub fn ccs_claim_digest(claim: &CcsClaim<Commitment, F>) -> [F; 4] {
     preimage.push(F::from_u64(claim.x.len() as u64));
     preimage.extend_from_slice(&claim.x);
     preimage.push(F::from_u64(claim.m_in as u64));
+    append_adv_leaves(&mut preimage, &claim.adv);
     poseidon_digest_fields(&preimage)
+}
+
+// ── Nebula lane-commitment leaves (spec §6.1, absorb rule §5.2 R1) ─────────
+
+/// Leaf-digest tag for the ops lane.
+pub const NEBULA_LEAF_OPS_TAG: &[u8] = b"neo.fold.clean/nebula/leaf/ops/v3";
+/// Leaf-digest tag shared by the `is` and `fs` lanes. Lane-NEUTRAL by
+/// design: the memory-boundary chains of consecutive segments compare
+/// `fs`-side digests against `is`-side digests, which is only meaningful
+/// if both sides hash with the identical formula (spec §6.1 tag
+/// discipline; lane identity is positional, never tag-borne).
+pub const NEBULA_LEAF_MEM_TAG: &[u8] = b"neo.fold.clean/nebula/leaf/mem/v3";
+
+/// Nonzero marker prefixing the `adv` extension of a claim-digest
+/// preimage, so a `Some(adv)` preimage can never alias a `None` one.
+const NEBULA_ADV_PRESENT_MARKER: u64 = 0x4e42_4c41; // "NBLA"
+
+/// One lane commitment crosses Poseidon2 exactly once, here (spec §6.1):
+/// every chain link and transcript absorb downstream consumes the
+/// 4-element leaf, never the raw `κ·d`-element commitment.
+fn nebula_leaf_digest(tag: &'static [u8], c: &Commitment) -> [F; 4] {
+    let mut preimage = pack_bytes_as_fields(tag);
+    preimage.push(F::from_u64(c.d as u64));
+    preimage.push(F::from_u64(c.kappa as u64));
+    preimage.push(F::from_u64(c.data.len() as u64));
+    preimage.extend_from_slice(&c.data);
+    poseidon_digest_fields(&preimage)
+}
+
+/// Per-lane leaf digests of a claim's `adv` tuple, ordered (ops, is, fs).
+///
+/// `pub` so the F′ `NebulaLane` chains (spec §6.3) and their tests
+/// recompute leaves from the same authority-bearing definition.
+pub fn nebula_lane_leaf_digests(adv: &LaneCommitments<Commitment>) -> [[F; 4]; 3] {
+    [
+        nebula_leaf_digest(NEBULA_LEAF_OPS_TAG, &adv.ops),
+        nebula_leaf_digest(NEBULA_LEAF_MEM_TAG, &adv.is),
+        nebula_leaf_digest(NEBULA_LEAF_MEM_TAG, &adv.fs),
+    ]
+}
+
+/// Absorb rule R1 (spec §5.2): wherever a claim digest binds `c.data`, a
+/// present `adv` tuple is bound too, as its three leaves.
+///
+/// Present-only on purpose: a `None` claim's preimage stays byte-identical
+/// to the pre-Nebula format, so the SplitNcV1 in-circuit digest mirrors
+/// (`pi_ccs_split_nc_circuit/digests.rs`) remain in parity untouched —
+/// Nebula claims do not cross that surface until the F′ R1CS lands (spec
+/// §13 step 9), which is when the mirrors gain the same conditional.
+/// Unambiguous despite the sponge's zero-fill final chunk: the extension
+/// is a nonzero marker plus 12 leaf elements, always > RATE.
+fn append_adv_leaves(preimage: &mut Vec<F>, adv: &Option<LaneCommitments<Commitment>>) {
+    if let Some(adv) = adv {
+        preimage.push(F::from_u64(NEBULA_ADV_PRESENT_MARKER));
+        for leaf in nebula_lane_leaf_digests(adv) {
+            preimage.extend_from_slice(&leaf);
+        }
+    }
 }
 
 /// F'-specific digest of one `CcsClaim`. Deliberately **does not** absorb
@@ -438,6 +497,7 @@ fn append_ce_claim_public_fields(preimage: &mut Vec<F>, claim: &CeClaim<Commitme
     preimage.extend_from_slice(&claim.c_step_coords);
     preimage.push(F::from_u64(claim.u_offset as u64));
     preimage.push(F::from_u64(claim.u_len as u64));
+    append_adv_leaves(preimage, &claim.adv);
 }
 
 fn append_k_slice(preimage: &mut Vec<F>, values: &[K]) {
@@ -484,6 +544,7 @@ fn append_terminal_ce_claim_public_fields(preimage: &mut Vec<F>, claim: &CeClaim
     preimage.extend_from_slice(&claim.c_step_coords);
     preimage.push(F::from_u64(claim.u_offset as u64));
     preimage.push(F::from_u64(claim.u_len as u64));
+    append_adv_leaves(preimage, &claim.adv);
 }
 
 /// Public-instance digest absorbed by Π_CCS prove and verify so the two

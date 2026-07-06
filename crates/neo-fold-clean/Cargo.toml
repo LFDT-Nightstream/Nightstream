@@ -47,6 +47,7 @@ p3-field    = { workspace = true }
 rand_chacha = { workspace = true }
 bellpepper  = { workspace = true }
 sha2        = "0.10"
+serde_json  = { workspace = true }
 bincode     = { workspace = true }
 
 # Integration tests live under `tests/<category>/<file>.rs`. Cargo only picks
@@ -355,3 +356,7 @@ path = "tests/nebula/reference.rs"
 [[test]]
 name = "nebula_circuit"
 path = "tests/nebula/circuit.rs"
+
+[[test]]
+name = "nebula_adv"
+path = "tests/nebula/adv.rs"

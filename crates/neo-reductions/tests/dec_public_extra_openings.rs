@@ -60,6 +60,7 @@ fn verify_dec_public_rejects_stale_ct_shell_and_checks_y_aux_and_x_entries() {
     c1.data[0] = F::from_u64(13);
 
     let child0 = CeClaim::<Commitment, F, K> {
+        adv: None,
         c: c0.clone(),
         X: X0.clone(),
         r: r.clone(),
@@ -75,6 +76,7 @@ fn verify_dec_public_rejects_stale_ct_shell_and_checks_y_aux_and_x_entries() {
         u_len: 0,
     };
     let child1 = CeClaim::<Commitment, F, K> {
+        adv: None,
         c: c1.clone(),
         X: X1.clone(),
         r: r.clone(),
@@ -112,6 +114,7 @@ fn verify_dec_public_rejects_stale_ct_shell_and_checks_y_aux_and_x_entries() {
     let c_parent = add_commitments(&c0, &scale_commitment(&c1, bF));
 
     let parent = CeClaim::<Commitment, F, K> {
+        adv: None,
         c: c_parent.clone(),
         X: X_parent,
         r: r.clone(),
@@ -252,6 +255,7 @@ fn verify_dec_public_ignores_y_zcol_but_checks_s_col_when_present() {
     c1.data[0] = F::from_u64(23);
 
     let child0 = CeClaim::<Commitment, F, K> {
+        adv: None,
         c: c0.clone(),
         X: X0.clone(),
         r: r.clone(),
@@ -267,6 +271,7 @@ fn verify_dec_public_ignores_y_zcol_but_checks_s_col_when_present() {
         u_len: 0,
     };
     let child1 = CeClaim::<Commitment, F, K> {
+        adv: None,
         c: c1.clone(),
         X: X1.clone(),
         r: r.clone(),
@@ -306,6 +311,7 @@ fn verify_dec_public_ignores_y_zcol_but_checks_s_col_when_present() {
     let c_parent = add_commitments(&c0, &scale_commitment(&c1, bF));
 
     let parent = CeClaim::<Commitment, F, K> {
+        adv: None,
         c: c_parent.clone(),
         X: X_parent,
         r: r.clone(),

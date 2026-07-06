@@ -187,6 +187,7 @@ fn trivial_public_dec_children(
             continue;
         }
         children.push(neo_fold_clean::CeClaim {
+            adv: None,
             c: Commitment::zeros(parent.c.d, parent.c.kappa),
             X: Mat::zero(parent.X.rows(), parent.X.cols(), F::ZERO),
             r: parent.r.clone(),

@@ -67,7 +67,7 @@ fn honest_segment(mem: &mut Memory, rng: &mut Rng) -> SegmentTrace {
             assert_eq!(seg.read(RAM, 3).unwrap(), i as u32);
         }
     }
-    seg.finish()
+    seg.finish().expect("segment close")
 }
 
 #[test]
@@ -95,7 +95,10 @@ fn reads_return_last_write_and_rom_returns_image() {
     assert_eq!(seg.read(RAM, 7).unwrap(), 9);
     assert_eq!(seg.read(RAM, 8).unwrap(), 0); // untouched RAM starts zeroed
     assert_eq!(seg.read(ROM, 3).unwrap(), image[3]);
-    assert!(seg.finish().balanced(&Rng(1).gammas()));
+    assert!(seg
+        .finish()
+        .expect("segment close")
+        .balanced(&Rng(1).gammas()));
 }
 
 #[test]
@@ -172,7 +175,7 @@ fn rom_is_write_protected_and_bounds_are_checked() {
     ));
     // Failed ops must not consume timestamps.
     assert_eq!(seg.read(RAM, 0).unwrap(), 0);
-    let trace = seg.finish();
+    let trace = seg.finish().expect("segment close");
     assert_eq!(trace.ops.len(), 1);
     assert!(trace.balanced(&Rng(1).gammas()));
 }
@@ -212,7 +215,7 @@ fn memory_reset_between_segments_is_detected() {
     let mut mem = Memory::new(p, &rom_image(&p)).unwrap();
     let mut seg = mem.begin_segment().unwrap();
     seg.write(RAM, 0, 42).unwrap();
-    let t1 = seg.finish();
+    let t1 = seg.finish().expect("segment close");
 
     // A cheating prover restarts from fresh memory for "segment 1".
     let mut fresh = Memory::new(p, &rom_image(&p)).unwrap();
@@ -229,11 +232,11 @@ fn cross_segment_reads_see_earlier_segments() {
 
     let mut seg = mem.begin_segment().unwrap();
     seg.write(RAM, 11, 77).unwrap();
-    let t1 = seg.finish();
+    let t1 = seg.finish().expect("segment close");
 
     let mut seg = mem.begin_segment().unwrap();
     assert_eq!(seg.read(RAM, 11).unwrap(), 77);
-    let t2 = seg.finish();
+    let t2 = seg.finish().expect("segment close");
 
     assert!(t1.balanced(&Rng(3).gammas()));
     assert!(t2.balanced(&Rng(4).gammas()));
@@ -247,7 +250,7 @@ fn step_chunking_is_sequential_fill() {
     for _ in 0..20 {
         seg.read(RAM, 1).unwrap();
     }
-    let trace = seg.finish();
+    let trace = seg.finish().expect("segment close");
 
     assert_eq!(trace.step_ops(0).len(), p.b_ops);
     assert_eq!(trace.step_ops(1).len(), p.b_ops);

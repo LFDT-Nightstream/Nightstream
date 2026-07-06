@@ -266,6 +266,7 @@ pub fn nebula_lane_digest(
     ts: u64,
     gamma: Option<&[K; 2]>,
     h: &[K; 4],
+    sp: &[u64; 2],
     d_pre: &[[F; 4]; 3],
     d_seen: &[[F; 4]; 3],
     d_mem: &[F; 4],
@@ -274,6 +275,7 @@ pub fn nebula_lane_digest(
     preimage.push(F::from_u64(seg_idx));
     preimage.push(F::from_u64(idx));
     preimage.push(F::from_u64(ts));
+    preimage.extend(sp.iter().map(|&s| F::from_u64(s)));
     match gamma {
         None => {
             preimage.push(F::ZERO);

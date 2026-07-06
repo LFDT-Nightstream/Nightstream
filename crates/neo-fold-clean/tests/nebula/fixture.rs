@@ -46,7 +46,7 @@ pub fn segment0(memory: &mut Memory) -> SegmentTrace {
     run.write(true, 1, 9).expect("write RAM[1]");
     assert_eq!(run.read(false, 2).expect("read ROM[2]"), 30);
     assert_eq!(run.read(true, 0).expect("read back RAM[0]"), 7);
-    run.finish()
+    run.finish().expect("segment close")
 }
 
 /// Segment 1: read segment 0's writes (cross-segment continuity) and the
@@ -57,7 +57,7 @@ pub fn segment1(memory: &mut Memory) -> SegmentTrace {
     assert_eq!(run.read(true, 1).expect("continuity RAM[1]"), 9);
     run.write(true, 2, 5).expect("write RAM[2]");
     assert_eq!(run.read(false, 0).expect("read ROM[0]"), 10);
-    run.finish()
+    run.finish().expect("segment close")
 }
 
 /// The honest two-segment chain, proved and finalized.

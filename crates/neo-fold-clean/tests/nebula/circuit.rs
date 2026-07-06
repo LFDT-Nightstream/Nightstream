@@ -9,7 +9,7 @@
 use neo_ccs::relations::check_ccs_rowwise_zero;
 use neo_fold_clean::frontends::nebula::circuit::{SMemCircuit, StepData};
 use neo_fold_clean::frontends::nebula::fingerprint::Gammas;
-use neo_fold_clean::frontends::nebula::layout::{MemOpRecord, NebulaParams, H_RS};
+use neo_fold_clean::frontends::nebula::layout::{MemOpRecord, MemSpace, NebulaParams, H_RS};
 use neo_fold_clean::frontends::nebula::trace::{Memory, SegmentTrace};
 use neo_math::field::KExtensions;
 use neo_math::{F, K};
@@ -60,7 +60,7 @@ fn native_segment(p: &NebulaParams, seed: u64) -> SegmentTrace {
             }
         }
     }
-    seg.finish()
+    seg.finish().expect("segment close")
 }
 
 /// Step `i`'s inputs from a segment trace plus the incoming carry.
@@ -71,6 +71,7 @@ fn step_data<'a>(trace: &'a SegmentTrace, i: usize, ts_in: u64, h_in: [K; 4]) ->
         idx: i as u64,
         ts_in,
         h_in,
+        sp_in: [0; 2],
         ops: trace.step_ops(i),
         is_cells: &trace.is_cells[i * b_scan..(i + 1) * b_scan],
         fs_cells: &trace.fs_cells[i * b_scan..(i + 1) * b_scan],
@@ -153,14 +154,14 @@ fn forged_ops_are_rejected_by_rows() {
 
     // E5: write into ROM.
     assert!(forge(&|op| {
-        op.seg = false;
+        op.space = MemSpace::Rom;
         op.addr %= 16;
         op.is_write = true;
     })
     .is_err());
     // E6: ROM address past R.
     assert!(forge(&|op| {
-        op.seg = false;
+        op.space = MemSpace::Rom;
         op.addr = 16 + (op.addr % 16);
         op.is_write = false;
         op.v_w = op.v_r;

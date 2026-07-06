@@ -65,6 +65,50 @@ fn nebula_v3_targets_structure_snapshot() {
     );
 }
 
+/// §10 stacks-delta actuals (v3.1, `S = 2, σ = 12` on the v3 targets):
+/// row/column/nnz growth of `S_mem` and the widened `x`. Budget line:
+/// ≈ +2.5k rows (≈ +4%), `x` +48 bits — off-by-2× reopens the spec.
+#[test]
+#[ignore]
+fn nebula_v3_targets_stacks_delta_snapshot() {
+    use neo_fold_clean::frontends::nebula::circuit::SMemCircuit;
+
+    let base = NebulaParams::v3_targets();
+    let stacked = base.with_stacks(2, 12).expect("v3 targets + stacks");
+    let c0 = SMemCircuit::new(base);
+    let c1 = SMemCircuit::new(stacked);
+
+    let d_rows = c1.rows() - c0.rows();
+    println!("== Nebula §10 stacks delta, v3 targets + (S = 2, σ = 12) ==");
+    println!(
+        "S_mem rows                {:>10}   (+{} vs S = 0, {:+.1}%)",
+        c1.rows(),
+        d_rows,
+        100.0 * d_rows as f64 / c0.rows() as f64
+    );
+    println!(
+        "S_mem witness columns     {:>10}   (+{})",
+        c1.cols(),
+        c1.cols() - c0.cols()
+    );
+    println!(
+        "S_mem nnz                 {:>10}   (+{})",
+        c1.nnz(),
+        c1.nnz() - c0.nnz()
+    );
+    println!(
+        "x bits                    {:>10}   (+{})",
+        stacked.x_bits(),
+        stacked.x_bits() - base.x_bits()
+    );
+
+    assert!(
+        d_rows < 2 * 2_500,
+        "stack rows delta {d_rows} exceeds 2× the §10 budget"
+    );
+    assert_eq!(stacked.x_bits() - base.x_bits(), 48);
+}
+
 /// End-to-end timing at the spec §2 test profile (`r = 4, μ = 8,
 /// B_ops = B_scan = 8, N = 34`): one full segment — native pass, lane
 /// commits, γ, 34 witnesses, 34 folds — plus finalization and audit
@@ -92,7 +136,7 @@ fn nebula_test_profile_segment_snapshot() {
         run.write(true, addr, (i + 1) as u32).expect("write");
         assert_eq!(run.read(true, addr).expect("read"), (i + 1) as u32);
     }
-    let trace = run.finish();
+    let trace = run.finish().expect("segment close");
 
     let t = Instant::now();
     let audit = lifecycle::prove(&prep, Vec::<Vec<_>>::new()).expect("base");

@@ -41,8 +41,9 @@ pub const K_LIMB_BITS: usize = 64;
 pub const K_BITS: usize = 2 * K_LIMB_BITS;
 /// Bits per scan-lane slot: value then timestamp. Spec §3.3.
 pub const CELL_BITS: usize = VAL_BITS + TS_BITS;
-/// Bits of the step public input. Spec §4.4 (`= 1,400`).
-pub const X_BITS: usize = SEG_IDX_BITS + STEP_IDX_BITS + 2 * TS_BITS + 2 * K_BITS + 8 * K_BITS;
+/// Bits of the stack-less step public input (spec §4.4, `= 1,400`); a
+/// plan's full width is [`NebulaParams::x_bits`].
+pub use crate::paper::construction2::nebula_lane::{StackShape, MAX_STACKS, X_BASE_BITS};
 
 /// Bit offsets of each field inside the encoded step public input.
 ///
@@ -62,6 +63,9 @@ pub mod x_offsets {
     pub const H_IN: usize = GAMMA + 2 * K_BITS;
     /// Four outgoing products, order per [`super::H_RS`].
     pub const H_OUT: usize = H_IN + 4 * K_BITS;
+    /// Stack-pointer slots (v3.1, appended): per stack `s`, `sp_in` at
+    /// `SP + s·2σ` and `sp_out` at `SP + s·2σ + σ`, each σ bits.
+    pub const SP: usize = H_OUT + 4 * K_BITS;
 }
 
 /// Order of the four running products wherever `[K; 4]` appears in this
@@ -90,6 +94,10 @@ pub enum LayoutError {
     },
     #[error("address {addr} out of range for namespace of {cells} cells")]
     AddrRange { addr: u64, cells: u64 },
+    #[error("stack {got} does not exist (plan has {stacks} stacks)")]
+    StackIndex { got: u8, stacks: usize },
+    #[error("op slot {0} sets more than one namespace selector")]
+    SelectorNotOneHot(usize),
     #[error("lane bit at index {0} is not 0/1")]
     NonBit(usize),
     #[error("pad slot {0} violates canonicality (nonzero field bits)")]
@@ -104,9 +112,9 @@ pub enum LayoutError {
 /// fingerprint-packing bound.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NebulaParams {
-    /// Public-ROM cells = `2^r`, namespace `seg = 0`, addresses `[0, 2^r)`.
+    /// Public-ROM cells = `2^r`, addresses `[0, 2^r)`.
     pub r: u32,
-    /// RAM cells = `2^mu`, namespace `seg = 1`, addresses `[0, 2^mu)`.
+    /// RAM cells = `2^mu`, addresses `[0, 2^mu)`.
     pub mu: u32,
     /// Memory-op slots per step.
     pub b_ops: usize,
@@ -114,47 +122,77 @@ pub struct NebulaParams {
     pub b_scan: usize,
     /// Maximum segments per chain (bounds the global timestamp).
     pub seg_max: u64,
+    /// `S`: segment-local stacks (spec §2, v3.1; `≤ MAX_STACKS`).
+    pub num_stacks: usize,
+    /// `σ`: stack-pointer width in bits (0 iff `num_stacks == 0`);
+    /// capacity per stack is `2^σ − 1` cells.
+    pub sigma: u32,
 }
 
 impl NebulaParams {
-    /// Validate and construct. Rules (spec §2):
+    /// Validate and construct a stack-less plan (v3 shape; add stacks
+    /// with [`Self::with_stacks`]). Rules (spec §2):
     ///
     /// 1. exact cover: `B_scan` divides `R + M` (steps per segment
     ///    `N = (R + M) / B_scan`);
-    /// 2. packing: `TS_BITS + bits(R + M) ≤ 62` so
+    /// 2. packing: `TS_BITS + bits(address space) ≤ 62` so
     ///    `packed(t, g) = t + 2^TS_BITS · g` cannot overflow Goldilocks;
     /// 3. timestamps: `seg_max · N · B_ops < 2^TS_BITS`;
     /// 4. `r ≤ μ`: the ops-lane `addr` is `max(r, μ)` bits and only ROM
     ///    addresses are range-gated (E6), so RAM bitness bounds
     ///    `addr < M` only when `μ = max(r, μ)`.
     pub fn new(r: u32, mu: u32, b_ops: usize, b_scan: usize, seg_max: u64) -> Result<Self, LayoutError> {
-        if b_ops == 0 || b_scan == 0 {
-            return Err(LayoutError::Params("b_ops and b_scan must be nonzero"));
-        }
-        if r >= 32 || mu >= 32 {
-            return Err(LayoutError::Params(
-                "r and mu must be < 32 (u32 cell values, u64 indices)",
-            ));
-        }
-        if r > mu {
-            return Err(LayoutError::Params(
-                "r must be ≤ mu: RAM addresses are bounded by bitness alone (spec §2)",
-            ));
-        }
-        let p = Self {
+        Self::validated(Self {
             r,
             mu,
             b_ops,
             b_scan,
             seg_max,
-        };
-        if p.total_cells() % (b_scan as u64) != 0 {
+            num_stacks: 0,
+            sigma: 0,
+        })
+    }
+
+    /// Add segment-local stacks (spec §2, v3.1): `num_stacks ≤ MAX_STACKS`
+    /// namespaces of `2^σ − 1` cells each, `1 ≤ σ ≤ μ` — σ at most μ keeps
+    /// the stack address inside the `addr` field's bitness.
+    pub fn with_stacks(self, num_stacks: usize, sigma: u32) -> Result<Self, LayoutError> {
+        if num_stacks == 0 || num_stacks > MAX_STACKS {
+            return Err(LayoutError::Params("num_stacks must be in 1..=MAX_STACKS"));
+        }
+        if sigma == 0 || sigma > self.mu {
+            return Err(LayoutError::Params("sigma must satisfy 1 ≤ σ ≤ μ (spec §2)"));
+        }
+        Self::validated(Self {
+            num_stacks,
+            sigma,
+            ..self
+        })
+    }
+
+    fn validated(p: Self) -> Result<Self, LayoutError> {
+        if p.b_ops == 0 || p.b_scan == 0 {
+            return Err(LayoutError::Params("b_ops and b_scan must be nonzero"));
+        }
+        if p.r >= 32 || p.mu >= 32 {
+            return Err(LayoutError::Params(
+                "r and mu must be < 32 (u32 cell values, u64 indices)",
+            ));
+        }
+        if p.r > p.mu {
+            return Err(LayoutError::Params(
+                "r must be ≤ mu: RAM addresses are bounded by bitness alone (spec §2)",
+            ));
+        }
+        if p.scanned_cells() % (p.b_scan as u64) != 0 {
             return Err(LayoutError::Params("exact cover: b_scan must divide R + M"));
         }
-        if TS_BITS + p.cell_index_bits() > 62 {
-            return Err(LayoutError::Params("packing bound: TS_BITS + bits(R + M) must be ≤ 62"));
+        if TS_BITS + p.address_space_bits() > 62 {
+            return Err(LayoutError::Params(
+                "packing bound: TS_BITS + bits(R + M + S·2^σ) must be ≤ 62",
+            ));
         }
-        let ts_capacity = (seg_max as u128) * (p.steps_per_segment() as u128) * (b_ops as u128);
+        let ts_capacity = (p.seg_max as u128) * (p.steps_per_segment() as u128) * (p.b_ops as u128);
         if ts_capacity >= 1u128 << TS_BITS {
             return Err(LayoutError::Params("seg_max · N · b_ops must stay below 2^TS_BITS"));
         }
@@ -181,14 +219,33 @@ impl NebulaParams {
         1 << self.mu
     }
 
-    /// `R + M`: total cells, also the global-index space (spec §3.1).
-    pub fn total_cells(&self) -> u64 {
+    /// `R + M`: the scanned cells — ROM then RAM, the scan/global-index
+    /// prefix. Stacks live above and are never scanned (spec §3.1).
+    pub fn scanned_cells(&self) -> u64 {
         self.rom_cells() + self.ram_cells()
+    }
+
+    /// Cells per stack namespace (`2^σ`; usable capacity `2^σ − 1`).
+    pub fn stack_cells(&self) -> u64 {
+        1 << self.sigma
+    }
+
+    /// The plan's stack geometry, as the verifier side carries it.
+    pub fn stack_shape(&self) -> StackShape {
+        StackShape {
+            count: self.num_stacks,
+            sigma: self.sigma as usize,
+        }
+    }
+
+    /// Bits of the step public input under this plan (spec §4.4).
+    pub fn x_bits(&self) -> usize {
+        self.stack_shape().x_bits()
     }
 
     /// `N = (R + M) / B_scan`: steps per segment (exact cover, spec §2).
     pub fn steps_per_segment(&self) -> usize {
-        (self.total_cells() / self.b_scan as u64) as usize
+        (self.scanned_cells() / self.b_scan as u64) as usize
     }
 
     /// Op capacity of one segment (`N · B_ops`).
@@ -201,15 +258,17 @@ impl NebulaParams {
         self.r.max(self.mu) as usize
     }
 
-    /// Bits needed for a global cell index `g < R + M`.
-    pub fn cell_index_bits(&self) -> usize {
-        (64 - (self.total_cells() - 1).leading_zeros()) as usize
+    /// Bits needed for a global cell index over the full address space
+    /// `R + M + S·2^σ` (the §2 packing bound's operand).
+    pub fn address_space_bits(&self) -> usize {
+        let top = self.scanned_cells() + self.num_stacks as u64 * self.stack_cells() - 1;
+        (64 - top.leading_zeros()) as usize
     }
 
-    /// `OP_BITS`: one ops-lane slot — `pad, is_write, seg, addr, v_r, v_w,
-    /// rt` in that order (spec §3.2).
+    /// `OP_BITS`: one ops-lane slot — `pad, is_write, ram, stk_0..,
+    /// addr, v_r, v_w, rt` in that order (spec §3.2).
     pub fn op_bits(&self) -> usize {
-        3 + self.addr_bits() + 2 * VAL_BITS + TS_BITS
+        3 + self.num_stacks + self.addr_bits() + 2 * VAL_BITS + TS_BITS
     }
 
     /// Ops-lane width in bits, L-ALIGN padded to whole ring columns.
@@ -222,14 +281,28 @@ impl NebulaParams {
         align_to_ring_columns(self.b_scan * CELL_BITS)
     }
 
-    /// Global cell index `g = addr + seg · R` (spec §3.1/§4.3). Injective
-    /// onto `(seg, addr)` because ROM addresses are bounded below `R`.
-    pub fn global_index(&self, seg: bool, addr: u64) -> Result<u64, LayoutError> {
-        let cells = if seg { self.ram_cells() } else { self.rom_cells() };
+    /// Global cell index (spec §3.1/§4.3): ROM at `[0, R)`, RAM at
+    /// `[R, R + M)`, stack `s` at `[R + M + s·2^σ, ·)`. Injective onto
+    /// `(namespace, addr)` because every namespace's addresses are
+    /// range-bound below its span.
+    pub fn global_index(&self, space: MemSpace, addr: u64) -> Result<u64, LayoutError> {
+        let (cells, base) = match space {
+            MemSpace::Rom => (self.rom_cells(), 0),
+            MemSpace::Ram => (self.ram_cells(), self.rom_cells()),
+            MemSpace::Stack(s) => {
+                if s as usize >= self.num_stacks {
+                    return Err(LayoutError::StackIndex {
+                        got: s,
+                        stacks: self.num_stacks,
+                    });
+                }
+                (self.stack_cells(), self.scanned_cells() + s as u64 * self.stack_cells())
+            }
+        };
         if addr >= cells {
             return Err(LayoutError::AddrRange { addr, cells });
         }
-        Ok(addr + if seg { self.rom_cells() } else { 0 })
+        Ok(base + addr)
     }
 }
 
@@ -238,23 +311,36 @@ pub fn align_to_ring_columns(bits: usize) -> usize {
     bits.div_ceil(D) * D
 }
 
+/// A memory namespace (spec §3.1): the two random-access spaces, plus
+/// the segment-local stacks (v3.1). Encoded in the ops lane as one-hot
+/// selector bits (`ram`, then `stk_s`; ROM = none set).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MemSpace {
+    /// Public ROM, addresses `[0, R)`; read-only.
+    Rom,
+    /// RAM, addresses `[0, M)`.
+    Ram,
+    /// Stack `s < S`; access only through push/pop at the stack pointer.
+    Stack(u8),
+}
+
 /// One real memory operation, as the ops lane stores it (spec §3.2). Pad
 /// slots are not represented — encoders append them, decoders drop them.
 ///
 /// `rt` is the prover-supplied timestamp of the previous access to this
-/// cell; the write timestamp is *not* stored (it is `ts_in + cnt_j` by
-/// construction, spec §3.2).
+/// cell (for pops: the push time; for pushes: 0); the write timestamp is
+/// *not* stored (it is `ts_in + cnt_j` by construction, spec §3.2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MemOpRecord {
-    /// `false` = read, `true` = write.
+    /// `false` = read/pop, `true` = write/push.
     pub is_write: bool,
-    /// Namespace: `false` = public ROM, `true` = RAM.
-    pub seg: bool,
-    /// Address within the namespace.
+    /// The namespace this op touches.
+    pub space: MemSpace,
+    /// Address within the namespace (stacks: the E13-bound `sp` slot).
     pub addr: u64,
-    /// Value read (for writes: the old value).
+    /// Value read (writes: the old value; pushes: 0 per E14).
     pub v_r: u32,
-    /// Value written back (reads: equals `v_r`).
+    /// Value written back (reads/pops: equals `v_r`).
     pub v_w: u32,
     /// Timestamp of the previous access to this cell.
     pub rt: u64,
@@ -274,7 +360,8 @@ pub struct CellRecord {
 /// canonical struct lives with its F′ consumer
 /// (`paper::construction2::nebula_lane`); this module owns its bit
 /// encoding: field order `seg_idx`, `idx`, `ts_in`, `ts_out`,
-/// `gamma[0..2]`, `h_in[0..4]`, `h_out[0..4]`; product order per [`H_RS`].
+/// `gamma[0..2]`, `h_in[0..4]`, `h_out[0..4]`, then per stack
+/// `sp_in`/`sp_out` (v3.1); product order per [`H_RS`].
 pub use crate::paper::construction2::nebula_lane::NebulaStepX as StepPublicInput;
 
 impl NebulaParams {
@@ -291,11 +378,14 @@ impl NebulaParams {
         let mut bits = BitSink::with_capacity(self.ops_lane_bits());
         for op in ops {
             // Range checks mirror the circuit's bitness exactly.
-            self.global_index(op.seg, op.addr)?; // validates addr for its namespace
+            self.global_index(op.space, op.addr)?; // validates addr for its namespace
             check_width("rt", op.rt, TS_BITS)?;
             bits.push_bit(false); // pad = 0
             bits.push_bit(op.is_write);
-            bits.push_bit(op.seg);
+            bits.push_bit(op.space == MemSpace::Ram);
+            for s in 0..self.num_stacks {
+                bits.push_bit(op.space == MemSpace::Stack(s as u8));
+            }
             bits.push_u64(op.addr, self.addr_bits());
             bits.push_u64(op.v_r as u64, VAL_BITS);
             bits.push_u64(op.v_w as u64, VAL_BITS);
@@ -322,13 +412,27 @@ impl NebulaParams {
         for slot in 0..self.b_ops {
             let pad = src.read_bit()?;
             let is_write = src.read_bit()?;
-            let seg = src.read_bit()?;
+            let ram = src.read_bit()?;
+            let mut stack = None;
+            for s in 0..self.num_stacks {
+                if src.read_bit()? {
+                    if ram || stack.is_some() {
+                        return Err(LayoutError::SelectorNotOneHot(slot));
+                    }
+                    stack = Some(s as u8);
+                }
+            }
             let addr = src.read_u64(self.addr_bits())?;
             let v_r = src.read_u64(VAL_BITS)? as u32;
             let v_w = src.read_u64(VAL_BITS)? as u32;
             let rt = src.read_u64(TS_BITS)?;
+            let space = match (ram, stack) {
+                (true, _) => MemSpace::Ram,
+                (false, Some(s)) => MemSpace::Stack(s),
+                (false, None) => MemSpace::Rom,
+            };
             if pad {
-                if is_write || seg || addr != 0 || v_r != 0 || v_w != 0 || rt != 0 {
+                if is_write || space != MemSpace::Rom || addr != 0 || v_r != 0 || v_w != 0 || rt != 0 {
                     return Err(LayoutError::PadNotCanonical(slot));
                 }
             } else {
@@ -338,7 +442,7 @@ impl NebulaParams {
                 }
                 ops.push(MemOpRecord {
                     is_write,
-                    seg,
+                    space,
                     addr,
                     v_r,
                     v_w,
@@ -389,13 +493,14 @@ impl NebulaParams {
 }
 
 impl StepPublicInput {
-    /// Encode to the [`X_BITS`] public-input bits (spec §4.4 order).
-    pub fn encode(&self) -> Result<Vec<F>, LayoutError> {
+    /// Encode to the `stacks.x_bits()` public-input bits (spec §4.4
+    /// order; the trailing `sp` slots are the plan's, v3.1).
+    pub fn encode(&self, stacks: StackShape) -> Result<Vec<F>, LayoutError> {
         check_width("seg_idx", self.seg_idx, SEG_IDX_BITS)?;
         check_width("idx", self.idx, STEP_IDX_BITS)?;
         check_width("ts_in", self.ts_in, TS_BITS)?;
         check_width("ts_out", self.ts_out, TS_BITS)?;
-        let mut bits = BitSink::with_capacity(X_BITS);
+        let mut bits = BitSink::with_capacity(stacks.x_bits());
         bits.push_u64(self.seg_idx, SEG_IDX_BITS);
         bits.push_u64(self.idx, STEP_IDX_BITS);
         bits.push_u64(self.ts_in, TS_BITS);
@@ -410,14 +515,21 @@ impl StepPublicInput {
             bits.push_u64(c0, K_LIMB_BITS);
             bits.push_u64(c1, K_LIMB_BITS);
         }
+        for s in 0..stacks.count {
+            check_width("sp_in", self.sp_in[s], stacks.sigma)?;
+            check_width("sp_out", self.sp_out[s], stacks.sigma)?;
+            bits.push_u64(self.sp_in[s], stacks.sigma);
+            bits.push_u64(self.sp_out[s], stacks.sigma);
+        }
         Ok(bits.finish_exact())
     }
 
-    /// Decode from [`X_BITS`] bits, validating bitness and counter widths.
-    pub fn decode(bits: &[F]) -> Result<Self, LayoutError> {
-        if bits.len() != X_BITS {
+    /// Decode from `stacks.x_bits()` bits, validating bitness and counter
+    /// widths.
+    pub fn decode(bits: &[F], stacks: StackShape) -> Result<Self, LayoutError> {
+        if bits.len() != stacks.x_bits() {
             return Err(LayoutError::ScanLen {
-                want: X_BITS,
+                want: stacks.x_bits(),
                 got: bits.len(),
             });
         }
@@ -437,6 +549,12 @@ impl StepPublicInput {
         };
         let h_in = h(&mut src)?;
         let h_out = h(&mut src)?;
+        let mut sp_in = [0u64; MAX_STACKS];
+        let mut sp_out = [0u64; MAX_STACKS];
+        for s in 0..stacks.count {
+            sp_in[s] = src.read_u64(stacks.sigma)?;
+            sp_out[s] = src.read_u64(stacks.sigma)?;
+        }
         Ok(Self {
             seg_idx,
             idx,
@@ -445,6 +563,8 @@ impl StepPublicInput {
             gamma,
             h_in,
             h_out,
+            sp_in,
+            sp_out,
         })
     }
 }

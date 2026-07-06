@@ -14,7 +14,7 @@ use neo_fold_clean::lifecycle::{
     self, extend, extend_nebula_open, finish_uncompressed_with_audit, preprocess, verify_uncompressed_audit, Error,
     Preprocessing, UncompressedAudit,
 };
-use neo_fold_clean::paper::construction2::NebulaConfig;
+use neo_fold_clean::paper::construction2::{NebulaConfig, StackShape};
 use neo_fold_clean::paper::digest;
 use neo_fold_clean::paper::relations::{CcsInstance, LaneRanges, LaneScheme};
 use neo_math::{D, F, K};
@@ -102,6 +102,7 @@ fn nebula_preprocessing() -> (Preprocessing, Vec<LaneCommitments<Commitment>>, [
     let cfg = NebulaConfig {
         scheme,
         steps_per_segment: N,
+        stacks: StackShape::NONE,
         plan_digest: [F::from_u64(11); 4],
         d_init: d_pre[1],
     };
@@ -119,8 +120,10 @@ fn step_instance(prep: &Preprocessing, gamma: [K; 2], step: u64, adv: &LaneCommi
         gamma,
         h_in: [K::ONE; 4],
         h_out: [K::ONE; 4],
+        sp_in: [0; 2],
+        sp_out: [0; 2],
     };
-    let bits = x.encode().expect("x encode");
+    let bits = x.encode(StackShape::NONE).expect("x encode");
     let mut z = vec![F::ZERO; M];
     z[0] = F::ONE;
     z[1..1 + bits.len()].copy_from_slice(&bits);

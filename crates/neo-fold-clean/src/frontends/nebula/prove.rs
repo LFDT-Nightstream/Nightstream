@@ -124,16 +124,19 @@ pub fn prove_segment(
     };
 
     // Pass 2: step witnesses with γ-dependent running products, built in
-    // step order (`ts`/`h` chain through consecutive x's).
+    // step order (`ts`/`h`/`sp` chain through consecutive x's; stacks
+    // open at 0 — they are segment-local, spec §3.1).
     let mut instances = Vec::with_capacity(n);
     let mut ts_in = trace.ts_in;
     let mut h_in = [K::ONE; 4];
+    let mut sp_in = [0u64; 2];
     for i in 0..n {
         let data = StepData {
             seg_idx: trace.seg_idx,
             idx: i as u64,
             ts_in,
             h_in,
+            sp_in,
             ops: trace.step_ops(i),
             is_cells: &trace.is_cells[i * params.b_scan..(i + 1) * params.b_scan],
             fs_cells: &trace.fs_cells[i * params.b_scan..(i + 1) * params.b_scan],
@@ -141,6 +144,7 @@ pub fn prove_segment(
         let (z, x) = plan.circuit().witness(&gammas, &data)?;
         ts_in = x.ts_out;
         h_in = x.h_out;
+        sp_in = x.sp_out;
 
         let mut instance = CcsInstance::from_low_norm_assignment(
             &prep.params,

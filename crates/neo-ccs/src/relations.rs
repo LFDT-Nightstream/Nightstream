@@ -293,6 +293,25 @@ fn transform_ccs_matrix_superneo(
     Ok(CcsMatrix::Csc(CscMat::from_triplets(triplets, nrows, ncols)))
 }
 
+/// Nebula split-witness lane commitments — the `adv` tuple of
+/// `specs/nebula-superneo-implementation.md` §5.1.
+///
+/// Exactly three commitments, one per memory lane, each under its own
+/// Ajtai matrix (`ops` under `A_ops`; `is` and `fs` under a shared
+/// `A_mem`, which is what makes cross-segment boundary equality
+/// meaningful). The all-or-nothing shape is deliberate: a claim either
+/// carries a complete tuple or none (`Option<LaneCommitments<C>>`), so a
+/// partial tuple is unrepresentable rather than merely invalid.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct LaneCommitments<C> {
+    /// Ops-lane commitment (`A_ops · embed(lane_ops)`).
+    pub ops: C,
+    /// Initial-scan-lane commitment (`A_mem · embed(lane_is)`).
+    pub is: C,
+    /// Final-scan-lane commitment (`A_mem · embed(lane_fs)`).
+    pub fs: C,
+}
+
 /// CCS claim: (c, x) with public inputs x ⊂ z.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct CcsClaim<C, F> {
@@ -302,6 +321,11 @@ pub struct CcsClaim<C, F> {
     pub x: Vec<F>,
     /// m_in
     pub m_in: usize,
+    /// Nebula lane-commitment tuple; `None` for non-Nebula claims.
+    /// Folds component-wise beside `c` and is opened by the terminal
+    /// decider against its lane slices (spec §5.2).
+    #[serde(default = "Option::default")]
+    pub adv: Option<LaneCommitments<C>>,
 }
 
 /// CCS witness: w and its decomposition Z = Decomp_b(z).
@@ -363,6 +387,12 @@ pub struct CeClaim<C, F, K> {
     pub u_offset: usize,
     /// Pattern A: Length of the ρ-dependent part (unused in Pattern B)
     pub u_len: usize,
+    /// Nebula lane-commitment tuple; `None` for non-Nebula claims.
+    /// Mixed by the same public ρ/`b`-power arithmetic as `c` through
+    /// Π_RLC/Π_DEC (spec §5.2 R2) — never semantically inspected by the
+    /// reductions themselves.
+    #[serde(default = "Option::default")]
+    pub adv: Option<LaneCommitments<C>>,
 }
 
 /// CE witness: Z.

@@ -78,6 +78,7 @@ fn terminal_child_fixture() -> CeClaim {
     }
 
     CeClaim {
+        adv: None,
         c: Commitment {
             d: D,
             kappa,

@@ -64,6 +64,7 @@ fn make_y_ring(seed: u64, t: usize, d_pad: usize) -> Vec<Vec<K>> {
 
 fn make_ce_claim(seed: u64, t: usize, d_pad: usize, ell_n: usize, m_in: usize) -> CeClaim<Cmt, F, K> {
     CeClaim {
+        adv: None,
         c_step_coords: vec![],
         u_offset: 0,
         u_len: 0,

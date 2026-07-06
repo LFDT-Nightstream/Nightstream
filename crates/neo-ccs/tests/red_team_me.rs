@@ -84,6 +84,7 @@ fn me_consistency_rejects_tamper() {
     let ct0 = y0_padded[0];
 
     let inst = CeClaim::<_, Fq, K> {
+        adv: None,
         c_step_coords: vec![],
         u_offset: 0,
         u_len: 0,

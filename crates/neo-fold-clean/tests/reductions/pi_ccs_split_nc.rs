@@ -107,6 +107,7 @@ fn build_test_ce_claim(seed: u64, m_in: usize, t: usize, d: usize, kappa: usize,
         .collect();
 
     CeClaim {
+        adv: None,
         c,
         X: x,
         r,
@@ -589,6 +590,7 @@ fn enforce_ccs_claim_digest_matches_native_paper_layer() {
     let m_in = 3usize;
 
     let native_claim = CcsClaim::<Commitment, F> {
+        adv: None,
         c: Commitment {
             d: c_d,
             kappa: c_kappa,
@@ -899,6 +901,7 @@ fn enforce_pi_ccs_instance_digest_matches_native_for_one_fresh_one_running() {
     let fresh_x: Vec<F> = (0..2).map(|_| next_f()).collect();
     let fresh_m_in = 2usize;
     let fresh = CcsClaim::<Commitment, F> {
+        adv: None,
         c: Commitment {
             d: c_d,
             kappa: c_kappa,
@@ -1007,6 +1010,7 @@ fn enforce_pi_ccs_parent_authority_instance_digest_matches_native_missing_parent
     let x = vec![F::ONE, F::from_u64(2)];
     let m_in = x.len();
     let fresh = CcsClaim::<Commitment, F> {
+        adv: None,
         c: Commitment {
             d: c_d,
             kappa: c_kappa,

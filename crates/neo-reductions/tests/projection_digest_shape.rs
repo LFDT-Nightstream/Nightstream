@@ -7,6 +7,7 @@ use p3_field::PrimeCharacteristicRing;
 
 fn claim_with_x_shape(rows: usize, cols: usize, m_in: usize) -> CeClaim<Commitment, F, K> {
     CeClaim {
+        adv: None,
         c: Commitment {
             d: D,
             kappa: 1,

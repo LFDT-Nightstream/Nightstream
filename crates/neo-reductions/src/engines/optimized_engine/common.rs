@@ -886,6 +886,7 @@ where
     }
 
     let out = CeClaim::<Cmt, Ff, K> {
+        adv: None,
         c_step_coords: vec![],
         u_offset: 0,
         u_len: 0,
@@ -1166,6 +1167,7 @@ where
             #[cfg(feature = "perf-timers")]
             eprintln!("[pi-dec-inner] child {i:02} zero digit plane        0.00s y_ring    0.00s y_zcol    0.00s");
             return CeClaim::<Cmt, Ff, K> {
+                adv: None,
                 c_step_coords: vec![],
                 u_offset: 0,
                 u_len: 0,
@@ -1235,6 +1237,7 @@ where
         );
 
         CeClaim::<Cmt, Ff, K> {
+            adv: None,
             c_step_coords: vec![],
             u_offset: 0,
             u_len: 0,

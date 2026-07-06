@@ -105,6 +105,7 @@ fn nifs_rejects_high_norm_fresh_witness_even_when_digits_are_low_norm() {
     z_mat[(1, 0)] = F::from_u64(prep.params.b() as u64);
     let fresh = CcsInstance {
         claim: CcsClaim {
+            adv: None,
             c: prep.log.commit(&z_mat),
             x: vec![z_mat[(0, 0)]],
             m_in: 1,

@@ -175,6 +175,7 @@ fn build_me_from_z(
     let (y_ring, ct) = compute_y_from_Z_and_r(s, Z, r, ell_d, params.b);
     let X = neo_reductions::common::project_x_from_witness_mat(Z, s.m, m_in).expect("project X");
     CeClaim {
+        adv: None,
         c_step_coords: vec![],
         u_offset: 0,
         u_len: 0,

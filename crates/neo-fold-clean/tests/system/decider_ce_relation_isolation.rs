@@ -1043,6 +1043,7 @@ fn non_trivial_fixture_with_shape(m: usize, m_in: usize, public_input_len: Optio
     let (y_ring, ct) = compute_y_from_Z_and_r(prep.structure(), &witness, &r, ell_d, prep.params.b());
 
     let claim = CeClaim {
+        adv: None,
         c: c_data,
         X,
         r,

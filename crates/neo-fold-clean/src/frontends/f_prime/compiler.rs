@@ -429,6 +429,7 @@ pub fn chunk_digest_for_shape_count(
         "chunk_digest_for_shape_count: SuperNeo K \u{2265} 1 (got 0)"
     );
     let shape_claim = CcsClaim {
+        adv: None,
         c: Commitment {
             d,
             kappa,

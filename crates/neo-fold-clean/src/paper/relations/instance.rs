@@ -48,6 +48,7 @@ impl CcsInstance {
         let c = log.commit(&z_mat);
         Ok(Self {
             claim: CcsClaim {
+                adv: None,
                 c,
                 x: z[..m_in].to_vec(),
                 m_in,

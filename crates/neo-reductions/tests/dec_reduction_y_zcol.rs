@@ -73,6 +73,7 @@ fn dec_reduction_emits_and_checks_y_zcol() {
     assert_eq!(y_zcol_parent.len(), d_pad);
 
     let parent = CeClaim::<Commitment, F, K> {
+        adv: None,
         c: Commitment::zeros(params.d as usize, 1),
         X: X_parent,
         r: r.clone(),
@@ -164,6 +165,7 @@ fn dec_reduction_superneo_shape_optimized_matches_paper_exact() {
     let y_zcol_parent = eval_zcol(&params, &Z_parent, &s_col, m, ell_d);
 
     let parent = CeClaim::<Commitment, F, K> {
+        adv: None,
         c: Commitment::zeros(params.d as usize, 1),
         X: X_parent,
         r: r.clone(),

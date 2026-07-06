@@ -45,6 +45,7 @@ fn claimed_initial_sum_optimized_matches_paper_exact() {
     }
 
     let me_inputs: Vec<CeClaim<Cmt, F, K>> = vec![CeClaim {
+        adv: None,
         c_step_coords: vec![],
         u_offset: 0,
         u_len: 0,

@@ -2691,6 +2691,7 @@ where
             };
 
             out.push(CeClaim {
+                adv: None,
                 c_step_coords: vec![],
                 u_offset: 0,
                 u_len: 0,
@@ -2725,6 +2726,7 @@ where
             };
 
             out.push(CeClaim {
+                adv: None,
                 c_step_coords: vec![],
                 u_offset: 0,
                 u_len: 0,

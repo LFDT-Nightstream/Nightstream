@@ -89,6 +89,7 @@ fn optimized_oracle_outputs_match_paper_exact_builder() {
     let m_in = 4usize;
     let z_mcs = z_witness(100, m);
     let mcs_inst = CcsClaim {
+        adv: None,
         c: l.commit(&z_mcs),
         x: vec![F::ONE; m_in],
         m_in,
@@ -103,6 +104,7 @@ fn optimized_oracle_outputs_match_paper_exact_builder() {
         .map(|i| k(9000 + i as u64, 10000 + i as u64))
         .collect();
     let me_inputs = vec![CeClaim {
+        adv: None,
         c: l.commit(&z_me),
         X: neo_reductions::common::project_x_from_witness_mat(&z_me, m, m_in).expect("project X"),
         r: me_inputs_r.clone(),
@@ -228,11 +230,13 @@ fn optimized_oracle_outputs_match_paper_exact_builder_superneo_shape() {
     ];
     let mcs_list = vec![
         CcsClaim {
+            adv: None,
             c: l.commit(&mcs_witnesses[0].Z),
             x: vec![F::ONE; m_in],
             m_in,
         },
         CcsClaim {
+            adv: None,
             c: l.commit(&mcs_witnesses[1].Z),
             x: vec![F::ONE; m_in],
             m_in,
@@ -248,6 +252,7 @@ fn optimized_oracle_outputs_match_paper_exact_builder_superneo_shape() {
         .collect();
 
     let mk_me_input = |z: &Mat<F>| CeClaim {
+        adv: None,
         c: l.commit(z),
         X: neo_reductions::common::project_x_from_witness_mat(z, m, m_in).expect("project X"),
         r: me_inputs_r.clone(),

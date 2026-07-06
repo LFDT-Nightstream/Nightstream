@@ -33,6 +33,7 @@
 
 pub mod digest_circuit;
 pub mod native;
+pub mod nebula_lane_circuit;
 pub mod poseidon_trace;
 pub mod r1cs;
 pub mod ring_action_trace;

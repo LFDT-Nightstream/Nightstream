@@ -150,6 +150,10 @@ name = "f_prime_digest_circuit"
 path = "tests/f_prime/digest_circuit.rs"
 
 [[test]]
+name = "f_prime_nebula_lane_circuit"
+path = "tests/f_prime/nebula_lane_circuit.rs"
+
+[[test]]
 name = "f_prime_r1cs"
 path = "tests/f_prime/r1cs.rs"
 

@@ -71,6 +71,10 @@ pub enum Error {
     SColShape(&'static str),
     #[error("\u{03A0}_RLC: combined y_zcol must equal the RLC of input y_zcol values")]
     YZcolConsistency,
+    #[error("\u{03A0}_RLC: adv presence must be all-or-nothing across inputs ({present}/{total} present)")]
+    AdvPresence { present: usize, total: usize },
+    #[error("\u{03A0}_RLC: combined adv must equal the component-wise RLC of input adv tuples")]
+    AdvConsistency,
     #[error("\u{03A0}_RLC: y_zcol padding lanes must be zero in {0}")]
     YZcolPadding(&'static str),
     #[error("\u{03A0}_RLC: cached ct must equal the constant term of y_ring in {0}")]
@@ -137,8 +141,9 @@ pub(crate) fn prove_refs(
     validate_inputs_before_rho(s, claims)?;
     bind_input_claims_for_rho(tr, claims);
     let rhos = engine::sample_rho_n(tr.inner_mut(), pp, claims.len())?;
-    let (combined, z_mix) = engine::prove_pi_rlc_refs(pp, s, &rhos, claims, witnesses, |zs, cs| mix(zs, cs))?;
-    validate_nc_sidecars(s, &rhos, claims, &combined)?;
+    let (mut combined, z_mix) = engine::prove_pi_rlc_refs(pp, s, &rhos, claims, witnesses, |zs, cs| mix(zs, cs))?;
+    combined.adv = mixed_adv(mix, &rhos, claims)?;
+    validate_nc_sidecars(s, mix, &rhos, claims, &combined)?;
     Ok((
         Output {
             claim: combined.clone(),
@@ -169,7 +174,7 @@ pub fn verify(
     validate_inputs_before_rho(s, claims)?;
     bind_input_claims_for_rho(tr, claims);
     let rhos = engine::sample_rho_n(tr.inner_mut(), pp, claims.len())?;
-    validate_nc_sidecars(s, &rhos, claims, &proof.combined)?;
+    validate_nc_sidecars(s, mix, &rhos, claims, &proof.combined)?;
     let ok = engine::verify_pi_rlc(pp, s, &rhos, claims, &proof.combined, |zs, cs| mix(zs, cs))?;
     if !ok {
         return Err(Error::VerifyRejected);
@@ -222,6 +227,7 @@ fn enforce_rlc_bound(pp: &Params, count: usize) -> Result<(), Error> {
 
 fn validate_nc_sidecars(
     s: &crate::paper::relations::Structure,
+    mix: RlcMixer,
     rhos: &[neo_reductions::common::RotRho],
     inputs: &[CeClaim],
     combined: &CeClaim,
@@ -236,9 +242,41 @@ fn validate_nc_sidecars(
     validate_s_col_shape(s, inputs, combined)?;
     validate_s_col_consistency(inputs, combined)?;
     validate_y_zcol_combination(rhos, inputs, combined)?;
+    validate_adv_combination(mix, rhos, inputs, combined)?;
     validate_fold_digest_consistency(inputs, combined)?;
     validate_supported_sidecars(inputs, combined)?;
     Ok(())
+}
+
+/// Spec §5.2 R2 (Π_RLC side): the combined claim's `adv` must equal the
+/// component-wise ρ-mix of the input tuples — the same public arithmetic
+/// that combines `c`, recomputed here on both prove and verify paths.
+fn validate_adv_combination(
+    mix: RlcMixer,
+    rhos: &[neo_reductions::common::RotRho],
+    inputs: &[CeClaim],
+    combined: &CeClaim,
+) -> Result<(), Error> {
+    let expected = mixed_adv(mix, rhos, inputs)?;
+    if combined.adv != expected {
+        return Err(Error::AdvConsistency);
+    }
+    Ok(())
+}
+
+/// Component-wise ρ-mix of the inputs' `adv` tuples (`None` for a plain
+/// fold; all-or-nothing presence enforced).
+fn mixed_adv(
+    mix: RlcMixer,
+    rhos: &[neo_reductions::common::RotRho],
+    inputs: &[CeClaim],
+) -> Result<Option<neo_ccs::LaneCommitments<neo_ajtai::Commitment>>, Error> {
+    let rho_mats: Vec<Mat<F>> = rhos.iter().map(|rho| rho.as_mat().clone()).collect();
+    let advs: Vec<_> = inputs.iter().map(|claim| claim.adv.clone()).collect();
+    crate::paper::relations::mix_adv(mix, &rho_mats, &advs).map_err(|e| Error::AdvPresence {
+        present: e.present,
+        total: e.total,
+    })
 }
 
 fn validate_inactive_x_zero(inputs: &[CeClaim], combined: &CeClaim) -> Result<(), Error> {

@@ -147,6 +147,7 @@ fn build_nifs_fixture() -> NifsFixture {
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
+        None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         fresh_inst,

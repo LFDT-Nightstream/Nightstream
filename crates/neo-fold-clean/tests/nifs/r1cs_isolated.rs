@@ -50,6 +50,7 @@ fn nifs_round_trip_on_r1cs_structure() {
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
+        None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         vec![instance],

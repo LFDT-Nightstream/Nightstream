@@ -8,18 +8,23 @@ use crate::paper::construction2::RunningInstance;
 use crate::paper::nifs::work::{chain_witness_refs, split_fresh_instances};
 use crate::paper::nifs::{Error, NifsProof};
 use crate::paper::params::Params;
-use crate::paper::relations::{CcsInstance, DecMixer, RlcMixer, Structure};
+use crate::paper::relations::{CcsInstance, DecMixer, LaneScheme, RlcMixer, Structure};
 use crate::paper::{pi_ccs, pi_dec, pi_rlc};
 
 /// Run Π_CCS → Π_RLC → Π_DEC in order. Returns the new k-claim
 /// `RunningInstance` (with prover-side witness matrices) plus the
 /// `NifsProof` the verifier will replay.
+///
+/// `lanes` is the Nebula lane-commitment context (spec §5.2 R2); `None`
+/// for plain chains. It is prover-only plumbing — Π_DEC needs it to
+/// commit child lane slices; NIFS.V's adv checks are public arithmetic.
 pub fn prove(
     tr: &mut Transcript,
     pp: &Params,
     s: &Structure,
     cache: &OptimizedStructureCache,
     log: &AjtaiSModule,
+    lanes: Option<&LaneScheme>,
     mix_rhos_commits: RlcMixer,
     combine_b_pows: DecMixer,
     fresh: Vec<CcsInstance>,
@@ -67,7 +72,16 @@ pub fn prove(
     // 3. Π_DEC — split_b back to k CE claims of norm b.
     #[cfg(feature = "perf-timers")]
     let t_dec = std::time::Instant::now();
-    let (dec_out, pi_dec_proof) = pi_dec::prove(pp, s, cache, log, combine_b_pows, &rlc_out.claim, &rlc_out.witness)?;
+    let (dec_out, pi_dec_proof) = pi_dec::prove(
+        pp,
+        s,
+        cache,
+        log,
+        lanes,
+        combine_b_pows,
+        &rlc_out.claim,
+        &rlc_out.witness,
+    )?;
     #[cfg(feature = "perf-timers")]
     eprintln!(
         "[nifs-prove] pi_dec                         {:>7.2}s",

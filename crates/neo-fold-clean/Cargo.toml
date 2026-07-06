@@ -32,6 +32,10 @@ p3-field       = { workspace = true }
 # 0.10, brings `rand_core 0.10`'s `RngCore`) is needed — we sidestep the rand
 # 0.9-vs-0.10 trait-version mismatch by sampling u64s directly.
 p3-goldilocks  = { workspace = true }
+# LaneScheme's seeded A_ops/A_mem setup feeds `neo-ajtai::setup_par`, whose
+# RNG generics are rand 0.9's — the matching `rand_chacha` 0.9 (already in
+# the graph via neo-ajtai) is required there; the p3 alias cannot serve it.
+rand_chacha    = { workspace = true }
 rand_chacha_p3 = { workspace = true }
 rayon          = { workspace = true }
 spartan2       = { workspace = true }
@@ -360,3 +364,7 @@ path = "tests/nebula/circuit.rs"
 [[test]]
 name = "nebula_adv"
 path = "tests/nebula/adv.rs"
+
+[[test]]
+name = "nebula_adv_fold"
+path = "tests/nebula/adv_fold.rs"

@@ -223,6 +223,10 @@ pub fn prove_with_semantic_state(
                 s,
                 cache,
                 log,
+                // Nebula lanes arrive here when Preprocessing carries a
+                // LaneScheme (spec §13 step 4); until then adv-bearing
+                // parents fail closed at Π_DEC.
+                None,
                 mix_rhos_commits,
                 combine_b_pows,
                 latest.instances,

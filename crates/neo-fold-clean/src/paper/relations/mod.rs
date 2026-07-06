@@ -26,6 +26,7 @@ pub mod ccs;
 pub mod ce;
 pub mod commitment_ops;
 pub mod instance;
+pub mod lanes;
 
 use neo_ccs::Mat;
 use neo_math::F;
@@ -35,8 +36,11 @@ use thiserror::Error;
 // Re-exports — flat surface for consumers, structured layout for auditors.
 pub use ccs::{CcsClaim, CcsWitness, Structure};
 pub use ce::CeClaim;
-pub use commitment_ops::{ajtai_dec_mixer, ajtai_rlc_mixer, DecMixer, RlcMixer};
+pub use commitment_ops::{
+    ajtai_dec_mixer, ajtai_rlc_mixer, mix_adv, recompose_adv, AdvPresenceError, DecMixer, RlcMixer,
+};
 pub use instance::CcsInstance;
+pub use lanes::{LaneRanges, LaneScheme, LaneSchemeError};
 
 /// Witness matrix Z used both as the CCS decomposition and as the carried
 /// witness for CE claims after Π_CCS / Π_RLC / Π_DEC.

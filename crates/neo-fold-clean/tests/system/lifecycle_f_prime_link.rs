@@ -713,6 +713,7 @@ fn lifecycle_recursive_step_rejects_zero_step_count_even_with_matching_fresh_and
         chain.prep.structure(),
         chain.prep.optimized_cache(),
         &chain.prep.log,
+        None,
         chain.prep.mix_rhos_commits(),
         chain.prep.combine_b_pows(),
         vec![forged_fresh],

@@ -110,6 +110,7 @@ fn build_parent_authority_fixture() -> CeClaim {
         prep.structure(),
         prep.optimized_cache(),
         &prep.log,
+        None,
         prep.mix_rhos_commits(),
         prep.combine_b_pows(),
         fresh,

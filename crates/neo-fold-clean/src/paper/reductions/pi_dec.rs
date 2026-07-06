@@ -22,7 +22,9 @@ use thiserror::Error;
 
 use crate::engine::optimized as engine;
 use crate::paper::params::Params;
-use crate::paper::relations::{superneo_inactive_x_zero, superneo_public_x_cols, CeClaim, DecMixer, Structure};
+use crate::paper::relations::{
+    recompose_adv, superneo_inactive_x_zero, superneo_public_x_cols, CeClaim, DecMixer, LaneScheme, Structure,
+};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -46,6 +48,16 @@ pub enum Error {
     YRingShape(&'static str),
     #[error("\u{03A0}_DEC: child s_col must equal parent s_col")]
     SColConsistency,
+    #[error(
+        "\u{03A0}_DEC: adv presence must be all-or-nothing across parent and children ({present}/{total} present)"
+    )]
+    AdvPresence { present: usize, total: usize },
+    #[error("\u{03A0}_DEC: children adv must recompose to the parent adv component-wise")]
+    AdvRecomposition,
+    #[error("\u{03A0}_DEC: adv-bearing parent requires a LaneScheme to commit child lane slices")]
+    AdvLaneSchemeMissing,
+    #[error("\u{03A0}_DEC: lane scheme rejected a child witness: {0}")]
+    AdvLaneCommit(#[from] crate::paper::relations::LaneSchemeError),
     #[error("\u{03A0}_DEC: s_col length must match the SplitNc column point in {0}")]
     SColShape(&'static str),
     #[error("\u{03A0}_DEC: y_ring padding lanes must be zero in {0}")]
@@ -84,15 +96,18 @@ pub fn prove(
     s: &Structure,
     cache: &OptimizedStructureCache,
     log: &AjtaiSModule,
+    lanes: Option<&LaneScheme>,
     combine: DecMixer,
     parent: &CeClaim,
     parent_witness: &Mat<F>,
 ) -> Result<(Children, Proof), Error> {
-    let (children, witnesses) =
+    let (mut children, witnesses) =
         engine::prove_pi_dec(pp, s, cache, log, parent, parent_witness, |cs, b| combine(cs, b))?;
+    attach_child_adv(lanes, parent, &mut children, &witnesses)?;
     validate_child_count(pp, children.len())?;
     validate_inactive_x_zero(parent, &children)?;
     validate_child_x_low_norm(pp, &children)?;
+    validate_adv_recomposition(pp, combine, parent, &children)?;
     Ok((
         Children {
             claims: children.clone(),
@@ -100,6 +115,51 @@ pub fn prove(
         },
         Proof { children },
     ))
+}
+
+/// Spec §5.2 R2 (Π_DEC prover side): an adv-bearing parent's children each
+/// carry the lane commitments of their own digit witness — `adv_{i,L} =
+/// A_L · Z_i[L]` — so the tuples recompose to the parent by the same
+/// `b`-power linearity as `c`, and each child opens its slices at the
+/// terminal decider (R3).
+fn attach_child_adv(
+    lanes: Option<&LaneScheme>,
+    parent: &CeClaim,
+    children: &mut [CeClaim],
+    witnesses: &[Mat<F>],
+) -> Result<(), Error> {
+    if parent.adv.is_none() {
+        return Ok(());
+    }
+    let Some(lanes) = lanes else {
+        return Err(Error::AdvLaneSchemeMissing);
+    };
+    for (child, witness) in children.iter_mut().zip(witnesses.iter()) {
+        child.adv = Some(lanes.commit(witness)?);
+    }
+    Ok(())
+}
+
+/// Spec §5.2 R2 (Π_DEC verifier side): the children's tuples must
+/// recompose to the parent's, component-wise, under the same `Σ b^{i−1}`
+/// combiner that reconstructs `parent.c` — pure public arithmetic, no
+/// lane scheme needed. Presence is all-or-nothing; a plain parent with
+/// plain children passes as `None == None`.
+fn validate_adv_recomposition(
+    pp: &Params,
+    combine: DecMixer,
+    parent: &CeClaim,
+    children: &[CeClaim],
+) -> Result<(), Error> {
+    let advs: Vec<_> = children.iter().map(|child| child.adv.clone()).collect();
+    let recomposed = recompose_adv(combine, pp.b(), &advs).map_err(|e| Error::AdvPresence {
+        present: e.present,
+        total: e.total,
+    })?;
+    if recomposed != parent.adv {
+        return Err(Error::AdvRecomposition);
+    }
+    Ok(())
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -128,6 +188,7 @@ pub fn verify(
     validate_ct_consistency(parent, &proof.children)?;
     validate_y_ring_padding_zero(parent, &proof.children)?;
     validate_fold_digest_consistency(parent, &proof.children)?;
+    validate_adv_recomposition(pp, combine, parent, &proof.children)?;
     let ok = engine::verify_pi_dec(pp, s, parent, &proof.children, |cs, b| combine(cs, b));
     if !ok {
         return Err(Error::VerifyRejected);

@@ -17,11 +17,18 @@
 //!   never verifier authority.
 //! - [`circuit`] — the uniform `S_mem` step circuit (spec §4): one CCS
 //!   structure per plan, plus the step witness builder.
+//! - [`plan`] — the §11 plan artifact: constants, structure, lane scheme,
+//!   `D_init` (the verifier's ROM handle), plan digest.
+//! - [`prove`] — the two-pass segment prover (spec §1): one
+//!   [`trace::SegmentTrace`] in, `N` folded `S_mem` steps out.
 //!
-//! Does not own (later spec §13 steps): lane commitments on the claim, the
-//! F′ `NebulaLane` carry, or the segment prover.
+//! Does not own: the fold pipeline's `adv` mirroring
+//! (`paper/relations`, `paper/reductions`) or the F′ `NebulaLane` carry
+//! (`paper/construction2/nebula_lane.rs`).
 
 pub mod circuit;
 pub mod fingerprint;
 pub mod layout;
+pub mod plan;
+pub mod prove;
 pub mod trace;

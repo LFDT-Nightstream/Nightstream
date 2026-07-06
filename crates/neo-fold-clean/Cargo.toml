@@ -376,3 +376,11 @@ path = "tests/nebula/lane.rs"
 [[test]]
 name = "nebula_lifecycle"
 path = "tests/nebula/lifecycle.rs"
+
+[[test]]
+name = "nebula_segment"
+path = "tests/nebula/segment.rs"
+
+[[test]]
+name = "nebula_redteam"
+path = "tests/nebula/redteam.rs"

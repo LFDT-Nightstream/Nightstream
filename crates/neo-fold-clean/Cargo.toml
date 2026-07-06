@@ -343,3 +343,15 @@ path = "tests/perf/fibonacci_bits.rs"
 [[test]]
 name = "perf_ring_action_low_norm_prototype"
 path = "tests/perf/ring_action_low_norm_prototype.rs"
+
+[[test]]
+name = "nebula_layout"
+path = "tests/nebula/layout.rs"
+
+[[test]]
+name = "nebula_reference"
+path = "tests/nebula/reference.rs"
+
+[[test]]
+name = "nebula_circuit"
+path = "tests/nebula/circuit.rs"

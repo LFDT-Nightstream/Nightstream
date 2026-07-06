@@ -4,7 +4,10 @@
 //! `S_mem` instances: lane encodings → lane commitments → `D_pre` → γ →
 //! step witnesses with running products → `extend` loop. Also the γ
 //! pre-derivation ([`derive_segment_gamma`]) the instances need before
-//! the lifecycle's own `open_segment` runs.
+//! the lifecycle's own `open_segment` runs, and the §6.4 prover resume
+//! ([`resume_segment`]): the carried lane is the checkpoint, the trace
+//! is the "remaining witness plan", and recompute-vs-`D_pre` is what
+//! authenticates the pair.
 //!
 //! Does not own: memory semantics ([`super::trace`] produced the trace),
 //! the plan ([`super::plan`]), the lane transition (the lifecycle runs
@@ -40,6 +43,10 @@ pub enum SegmentError {
         lane_seg: u64,
         lane_ts: u64,
     },
+    #[error("segment prover: resume requires a mid-segment lane (segment open, steps remaining); this chain is at a segment boundary")]
+    NotMidSegment,
+    #[error("segment prover: trace does not reproduce the open segment's pre-committed lane chains (D_pre mismatch — wrong or mutated trace)")]
+    ResumeTraceMismatch,
     #[error("segment prover: {0}")]
     Layout(#[from] LayoutError),
     #[error("segment prover: {0}")]
@@ -105,6 +112,83 @@ pub fn prove_segment(
 
     // Pass 1 (spec §1): lane encodings and MSIS-binding commitments for
     // every step, before γ exists anywhere.
+    let (advs, d_pre) = commit_segment_lanes(plan, trace)?;
+
+    // Commit-then-challenge (spec §6.2): γ from the chain transcript over
+    // the claimed D_pre — the same squeeze the lifecycle will replay.
+    let gamma = derive_segment_gamma(prep, &audit, d_pre)?;
+
+    // Pass 2 + deposit: the whole segment, opening on the first chunk.
+    let carry = StepCarry {
+        next_step: 0,
+        ts_in: trace.ts_in,
+        h_in: [K::ONE; 4],
+        sp_in: [0; 2],
+    };
+    fold_steps(prep, plan, trace, gamma, &advs, carry, audit, Some(d_pre))
+}
+
+/// Resume a segment whose chain paused mid-segment (spec §6.4's prover
+/// resume): some chunks already folded, γ squeezed, segment not yet
+/// closed. The carried lane **is** the checkpoint — γ, `D_pre`, the step
+/// index, and the `ts`/`h`/`sp` carry all live in `state.nebula` — so
+/// the only thing the caller must re-supply is the segment's trace, and
+/// the only thing to validate is that this trace reproduces the open
+/// segment's pre-committed chains (recompute-vs-`D_pre`; a wrong or
+/// mutated trace cannot pass, because γ was squeezed over `D_pre`).
+///
+/// Completes the segment: on return the lane has closed, exactly as if
+/// `prove_segment` had run uninterrupted.
+pub fn resume_segment(
+    prep: &Preprocessing,
+    plan: &NebulaPlan,
+    audit: UncompressedAudit,
+    trace: &SegmentTrace,
+) -> Result<UncompressedAudit, SegmentError> {
+    let params = plan.params();
+    if trace.params() != params {
+        return Err(SegmentError::PlanMismatch);
+    }
+    if prep.structure().m != plan.circuit().cols() || prep.structure().n != plan.circuit().rows() {
+        return Err(SegmentError::StructureMismatch);
+    }
+    let lane = audit
+        .proof
+        .state
+        .nebula
+        .as_ref()
+        .ok_or(SegmentError::LaneMissing)?;
+    let Some(gamma) = lane.gamma else {
+        return Err(SegmentError::NotMidSegment);
+    };
+    if lane.seg_idx != trace.seg_idx || lane.idx == 0 || lane.idx as usize >= params.steps_per_segment() {
+        return Err(SegmentError::NotMidSegment);
+    }
+
+    // The trace must be the segment the chain opened: its lane
+    // commitments must chain to the exact `D_pre` γ was squeezed over.
+    let (advs, d_pre) = commit_segment_lanes(plan, trace)?;
+    if d_pre != lane.d_pre {
+        return Err(SegmentError::ResumeTraceMismatch);
+    }
+
+    let carry = StepCarry {
+        next_step: lane.idx as usize,
+        ts_in: lane.ts,
+        h_in: lane.h,
+        sp_in: lane.sp,
+    };
+    fold_steps(prep, plan, trace, gamma, &advs, carry, audit, None)
+}
+
+/// Pass 1 (spec §1): per-step lane encodings and their MSIS-binding
+/// commitments for the whole segment, plus the `D_pre` chains — all
+/// γ-independent.
+fn commit_segment_lanes(
+    plan: &NebulaPlan,
+    trace: &SegmentTrace,
+) -> Result<(Vec<neo_ccs::LaneCommitments<neo_ajtai::Commitment>>, [[F; 4]; 3]), SegmentError> {
+    let params = plan.params();
     let n = params.steps_per_segment();
     let mut advs = Vec::with_capacity(n);
     for i in 0..n {
@@ -114,23 +198,50 @@ pub fn prove_segment(
         advs.push(plan.scheme().commit_bits(&ops_bits, &is_bits, &fs_bits)?);
     }
     let d_pre = digest::nebula_lane_chains(advs.iter());
+    Ok((advs, d_pre))
+}
 
-    // Commit-then-challenge (spec §6.2): γ from the chain transcript over
-    // the claimed D_pre — the same squeeze the lifecycle will replay.
-    let gamma = derive_segment_gamma(prep, &audit, d_pre)?;
+/// The carry entering the next step to build — `x`-threading state
+/// (spec §4.4). At segment open everything is at its reset value; on
+/// resume it is read straight off the carried lane.
+struct StepCarry {
+    next_step: usize,
+    ts_in: u64,
+    h_in: [K; 4],
+    sp_in: [u64; 2],
+}
+
+/// Pass 2 + deposit (spec §1): build the step witnesses from
+/// `carry.next_step` to the segment's end and fold them in chunks of
+/// the fold arity — Nebula §5's amortization: one recursion step covers
+/// up to `max_fresh_count` S_mem steps (61 at the Goldilocks preset).
+/// The lane transition is chunk-agnostic (`advance_for_batch` walks the
+/// deposited claims in order); `open_d_pre` rides the first chunk when
+/// this call opens the segment (`None` on resume — γ is already
+/// squeezed).
+#[allow(clippy::too_many_arguments)]
+fn fold_steps(
+    prep: &Preprocessing,
+    plan: &NebulaPlan,
+    trace: &SegmentTrace,
+    gamma: [K; 2],
+    advs: &[neo_ccs::LaneCommitments<neo_ajtai::Commitment>],
+    carry: StepCarry,
+    audit: UncompressedAudit,
+    open_d_pre: Option<[[F; 4]; 3]>,
+) -> Result<UncompressedAudit, SegmentError> {
+    let params = plan.params();
     let gammas = Gammas {
         gamma1: gamma[0],
         gamma2: gamma[1],
     };
 
-    // Pass 2: step witnesses with γ-dependent running products, built in
-    // step order (`ts`/`h`/`sp` chain through consecutive x's; stacks
-    // open at 0 — they are segment-local, spec §3.1).
-    let mut instances = Vec::with_capacity(n);
-    let mut ts_in = trace.ts_in;
-    let mut h_in = [K::ONE; 4];
-    let mut sp_in = [0u64; 2];
-    for i in 0..n {
+    let n = params.steps_per_segment();
+    let mut instances = Vec::with_capacity(n - carry.next_step);
+    let mut ts_in = carry.ts_in;
+    let mut h_in = carry.h_in;
+    let mut sp_in = carry.sp_in;
+    for i in carry.next_step..n {
         let data = StepData {
             seg_idx: trace.seg_idx,
             idx: i as u64,
@@ -164,26 +275,18 @@ pub fn prove_segment(
         instances.push(instance);
     }
 
-    // Deposit in chunks of the fold arity — Nebula §5's amortization: one
-    // recursion step covers up to `max_fresh_count` S_mem steps (61 at
-    // the Goldilocks preset), so a segment costs ⌈N / max_fresh⌉ F′ steps
-    // instead of N. The lane transition is chunk-agnostic
-    // (`advance_for_batch` walks the deposited claims in order); the
-    // first chunk carries the segment-open payload.
     let max_batch = prep.params.max_fresh_count().max(1);
     let mut audit = audit;
     let mut instances = instances.into_iter();
-    let mut first = true;
+    let mut open_d_pre = open_d_pre;
     loop {
         let batch: Vec<CcsInstance> = instances.by_ref().take(max_batch).collect();
         if batch.is_empty() {
             break;
         }
-        audit = if first {
-            first = false;
-            lifecycle::extend_nebula_open(prep, audit, batch, d_pre)?
-        } else {
-            lifecycle::extend(prep, audit, batch)?
+        audit = match open_d_pre.take() {
+            Some(d_pre) => lifecycle::extend_nebula_open(prep, audit, batch, d_pre)?,
+            None => lifecycle::extend(prep, audit, batch)?,
         };
     }
     Ok(audit)

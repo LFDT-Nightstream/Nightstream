@@ -144,8 +144,9 @@ pub fn enforce_state_x_out_digest_circuit(
 // ── Internal helpers ──────────────────────────────────────────────────────
 
 /// Allocate constant wires for a packed domain tag — `pack_bytes_as_fields`
-/// at gadget-emit time. Output length is `1 + ceil(len/7)`.
-fn alloc_const_tag(builder: &mut R1csBuilder, tag: &'static [u8]) -> Vec<Var> {
+/// at gadget-emit time. Output length is `1 + ceil(len/7)`. Shared with
+/// the Nebula lane mirrors (`nebula_lane_circuit`).
+pub(crate) fn alloc_const_tag(builder: &mut R1csBuilder, tag: &'static [u8]) -> Vec<Var> {
     const BYTES_PER_LIMB: usize = 7;
     let mut out = Vec::with_capacity(1 + tag.len().div_ceil(BYTES_PER_LIMB));
     out.push(alloc_constant(builder, F::from_u64(tag.len() as u64)));
@@ -157,7 +158,7 @@ fn alloc_const_tag(builder: &mut R1csBuilder, tag: &'static [u8]) -> Vec<Var> {
     out
 }
 
-fn alloc_constant(builder: &mut R1csBuilder, c: F) -> Var {
+pub(crate) fn alloc_constant(builder: &mut R1csBuilder, c: F) -> Var {
     let v = builder.alloc(c);
     builder.enforce_eq(&Lc::from_var(v), &Lc::from_const(c));
     v

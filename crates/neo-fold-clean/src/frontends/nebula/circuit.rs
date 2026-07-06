@@ -148,6 +148,18 @@ impl SMemCircuit {
         self.zmap.op_slot(j)
     }
 
+    /// The three lane regions as whole ring-column ranges of the packed
+    /// witness — the geometry a `LaneScheme` is built from (spec §5.1).
+    /// Single source of truth: the same `ZMap` that laid out the rows.
+    pub fn lane_ranges(&self) -> crate::paper::relations::LaneRanges {
+        use neo_math::D;
+        crate::paper::relations::LaneRanges {
+            ops: self.zmap.ops_lane / D..self.zmap.is_lane / D,
+            is: self.zmap.is_lane / D..self.zmap.fs_lane / D,
+            fs: self.zmap.fs_lane / D..(self.zmap.fs_lane / D) + (self.zmap.fs_lane - self.zmap.is_lane) / D,
+        }
+    }
+
     /// Build the full assignment for one step. Returns `z` (length
     /// [`Self::cols`]) and the [`StepPublicInput`] it encodes — with
     /// `ts_out`/`h_out` computed from the data, so callers chain steps by

@@ -292,6 +292,30 @@ pub fn nebula_lane_digest(
     poseidon_digest_fields(&preimage)
 }
 
+/// Mem-domain leaf of a single commitment — the plan generator's `D_init`
+/// path (spec §7) uses this for initial-memory lane commitments; identical
+/// to the `is`/`fs` leaves of [`nebula_lane_leaf_digests`] by shared tag.
+pub fn nebula_mem_leaf(c: &Commitment) -> [F; 4] {
+    nebula_leaf_digest(NEBULA_LEAF_MEM_TAG, c)
+}
+
+/// The three per-lane chains over a segment's tuple sequence — the
+/// prover's `D_pre` computation (spec §6.2) and the reference for every
+/// `D_seen` comparison: headers, then one link per tuple per lane, with
+/// the §6.1 tag discipline (ops-domain; shared mem-domain for is/fs).
+pub fn nebula_lane_chains<'a>(advs: impl IntoIterator<Item = &'a LaneCommitments<Commitment>>) -> [[F; 4]; 3] {
+    let mem = nebula_chain_mem_header();
+    let mut chains = [nebula_chain_ops_header(), mem, mem];
+    let tags: [&'static [u8]; 3] = [NEBULA_CHAIN_OPS_TAG, NEBULA_CHAIN_MEM_TAG, NEBULA_CHAIN_MEM_TAG];
+    for adv in advs {
+        let leaves = nebula_lane_leaf_digests(adv);
+        for lane_id in 0..3 {
+            chains[lane_id] = nebula_chain_link(&chains[lane_id], tags[lane_id], &leaves[lane_id]);
+        }
+    }
+    chains
+}
+
 /// Absorb rule R1 (spec §5.2): wherever a claim digest binds `c.data`, a
 /// present `adv` tuple is bound too, as its three leaves.
 ///

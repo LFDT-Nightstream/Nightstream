@@ -22,6 +22,7 @@ use neo_ajtai::{setup_par, AjtaiSModule, Commitment};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{LaneCommitments, Mat};
 use neo_math::{D, F};
+use p3_field::PrimeCharacteristicRing;
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use thiserror::Error;
@@ -101,6 +102,35 @@ impl LaneScheme {
         })
     }
 
+    /// Commit the three lanes from their bit vectors directly — the
+    /// pre-γ path of the two-pass prover (spec §1): lane contents exist
+    /// before any `x` (hence any full witness) does. Packs each lane
+    /// column-major exactly as `CcsInstance::from_low_norm_assignment`
+    /// packs `z`, so the tuple equals [`Self::commit`] of the eventual
+    /// full witness (pinned by test).
+    pub fn commit_bits(&self, ops: &[F], is: &[F], fs: &[F]) -> Result<LaneCommitments<Commitment>, LaneSchemeError> {
+        Ok(LaneCommitments {
+            ops: self
+                .a_ops
+                .commit(&pack_lane_bits(ops, self.ranges.ops.len())?),
+            is: self
+                .a_mem
+                .commit(&pack_lane_bits(is, self.ranges.is.len())?),
+            fs: self
+                .a_mem
+                .commit(&pack_lane_bits(fs, self.ranges.fs.len())?),
+        })
+    }
+
+    /// Commit one mem-domain lane (IS or FS layout) from its bits — the
+    /// plan generator's path for `D_init` (spec §7): the initial-memory
+    /// scan lanes are committed under `A_mem` with no witness in sight.
+    pub fn commit_mem_lane_bits(&self, bits: &[F]) -> Result<Commitment, LaneSchemeError> {
+        Ok(self
+            .a_mem
+            .commit(&pack_lane_bits(bits, self.ranges.is.len())?))
+    }
+
     /// Terminal decider slice-opening (R3): does each published component
     /// open to its lane slice of this witness? Recomputes; never trusts.
     pub fn open_matches(&self, adv: &LaneCommitments<Commitment>, z: &Mat<F>) -> Result<bool, LaneSchemeError> {
@@ -122,6 +152,24 @@ impl std::fmt::Debug for LaneScheme {
             .field("ranges", &self.ranges)
             .finish()
     }
+}
+
+/// Column-major pack of one lane's bits into its `D × cols` sub-message —
+/// the same layout `pack_assignment_into_ring_matrix` gives the full `z`
+/// (bit `k` lands at row `k % D`, column `k / D`), so bit-level commits
+/// and witness-slice commits agree.
+fn pack_lane_bits(bits: &[F], cols: usize) -> Result<Mat<F>, LaneSchemeError> {
+    if bits.len() != cols * D {
+        return Err(LaneSchemeError::WitnessWidth {
+            need: cols * D,
+            got: bits.len(),
+        });
+    }
+    let mut out = Mat::zero(D, cols, F::ZERO);
+    for (k, &bit) in bits.iter().enumerate() {
+        out[(k % D, k / D)] = bit;
+    }
+    Ok(out)
 }
 
 /// Row-major copy of `z[.., cols]`; lanes are whole ring columns, so the

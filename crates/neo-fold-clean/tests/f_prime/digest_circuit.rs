@@ -295,6 +295,7 @@ fn stateless_state_x_out_circuit_matches_native_without_semantic_lanes() {
         sa,
         ca,
         pt,
+        None,
     ));
 
     let mut b = R1csBuilder::new();

@@ -68,6 +68,12 @@ pub enum Error {
     StatelessSemanticInvariantViolated,
     #[error("Construction 2: FoldProof variant disagrees with ProofState (base/active mismatch)")]
     FoldProofVariantMismatch,
+    #[error("Construction 2: step proof's nebula_open payload disagrees with the verifier's segment-open replay")]
+    NebulaOpenMismatch,
+    #[error(transparent)]
+    Nebula(#[from] crate::paper::construction2::nebula_lane::NebulaError),
+    #[error(transparent)]
+    NebulaX(#[from] crate::paper::construction2::nebula_lane::NebulaXError),
     #[error("Construction 2: final fold proof missing while latest is non-empty")]
     MissingFinalFoldProof,
     #[error("Construction 2: final fold proof present but no trailing latest exists")]
@@ -80,7 +86,7 @@ pub enum Error {
 pub use enc_inst::EncInst;
 pub use finalization::FINAL_FOLD_TRANSCRIPT_LABEL;
 pub use latest::LatestInstance;
-pub use nebula_lane::{NebulaConfig, NebulaError, NebulaLane, NebulaStepX};
+pub use nebula_lane::{NebulaAdvance, NebulaConfig, NebulaError, NebulaLane, NebulaStepX, NebulaXError};
 pub use proof_state::ProofState;
 pub use running::RunningInstance;
 pub use state::State;

@@ -97,6 +97,7 @@ fn compute_x_out_native(prep: &neo_fold_clean::Preprocessing, state: &State) -> 
         state.semantic_state_digest,
         state.acc_digest,
         state.public_trace,
+        None,
     ))
 }
 
@@ -627,6 +628,7 @@ fn native_f_prime_verify_rejects_nofold_when_chunk_count_nonzero() {
         &snapshot.public_batch,
         &forged_step,
         chain.prep.semantic_state_mode(),
+        None,
     )
     .err()
     .expect("native F' verify_step accepted NoFold with chunk_count > 0");
@@ -669,6 +671,7 @@ fn native_f_prime_verify_rejects_empty_nofold_step() {
         &[],
         &step,
         chain.prep.semantic_state_mode(),
+        None,
     )
     .err()
     .expect("native F' verify_step accepted an empty NoFold step");
@@ -1205,6 +1208,7 @@ fn lifecycle_recursive_step_rejects_transcript_prefix_tamper_after_x_out_repair(
                     digest_fields_as_digest32(f_state.semantic_state_digest_in),
                     digest_fields_as_digest32(f_state.acc_digest_in),
                     digest_fields_as_digest32(f_state.public_trace_in),
+                    None,
                 ));
                 overwrite_enc_inst_bits(&mut source.image, source.prior_x_out_bits, forged_prior_x_out);
 
@@ -1220,6 +1224,7 @@ fn lifecycle_recursive_step_rejects_transcript_prefix_tamper_after_x_out_repair(
                     digest_fields_as_digest32(*semantic_state_digest_out),
                     digest_fields_as_digest32(*acc_digest_out),
                     view.state_out.public_trace,
+                    None,
                 ));
                 overwrite_enc_inst_bits(&mut source.image, source.public_x_out_bits, forged_public_x_out);
             },
@@ -1545,6 +1550,7 @@ fn nifs_transcript_binds_chunk_contents_even_though_f_prime_digest_is_shape_only
         chain.prep.enforces_f_prime_recursive_link(),
         chain.prep.semantic_state_mode(),
         chain.prep.initial_semantic_state_digest(),
+        None,
         &untampered_statement,
     )
     .expect("untampered statement passes validate_witness");
@@ -1569,6 +1575,7 @@ fn nifs_transcript_binds_chunk_contents_even_though_f_prime_digest_is_shape_only
             chain.prep.enforces_f_prime_recursive_link(),
             chain.prep.semantic_state_mode(),
             chain.prep.initial_semantic_state_digest(),
+            None,
             &tampered_statement,
         )
         .is_err(),

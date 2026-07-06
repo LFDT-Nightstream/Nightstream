@@ -119,6 +119,7 @@ pub(crate) fn advance_state(
     fresh_count: u64,
     chunk_digest: [F; 4],
     semantic_advance: SemanticStateAdvance,
+    nebula_next: Option<crate::paper::construction2::NebulaLane>,
 ) -> State {
     let new_z_i = digest::digest_fields_as_digest32(chunk_digest);
     // `public_trace` has the same domain-separation role as `z_i` in
@@ -151,7 +152,9 @@ pub(crate) fn advance_state(
         acc_digest: new_acc_digest,
         public_trace: new_public_trace,
         proof: new_proof,
-        nebula: prev.nebula,
+        // A Nebula step installs the advanced lane (spec §6.3); plain
+        // steps carry the previous lane coordinate unchanged.
+        nebula: nebula_next.or(prev.nebula),
     }
 }
 
@@ -198,6 +201,7 @@ pub(crate) fn compute_x_out(
         state.semantic_state_digest,
         state.acc_digest,
         state.public_trace,
+        state.nebula.as_ref().map(|lane| lane.digest()),
     );
     EncInst::from_digest(bytes)
 }

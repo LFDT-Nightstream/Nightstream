@@ -100,6 +100,7 @@ pub fn finish_uncompressed_with_audit(
         prep.mix_rhos_commits,
         prep.combine_b_pows,
         &prep.vk,
+        prep.nebula().map(|cfg| &cfg.scheme),
         state,
         prep.semantic_state_mode,
     )?;

@@ -398,6 +398,7 @@ fn validate(
         prep.enforces_f_prime_recursive_link(),
         prep.semantic_state_mode(),
         prep.initial_semantic_state_digest(),
+        None,
         statement,
     )
 }

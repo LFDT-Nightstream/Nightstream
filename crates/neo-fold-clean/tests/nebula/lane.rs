@@ -5,7 +5,7 @@
 
 use neo_ajtai::Commitment;
 use neo_ccs::LaneCommitments;
-use neo_fold_clean::paper::construction2::{NebulaConfig, NebulaError, NebulaLane, NebulaStepX};
+use neo_fold_clean::paper::construction2::{NebulaConfig, NebulaError, NebulaLane, NebulaStepX, StackShape};
 use neo_fold_clean::paper::digest;
 use neo_fold_clean::paper::relations::{LaneRanges, LaneScheme};
 use neo_math::{F, K};
@@ -68,6 +68,7 @@ fn config(d_init: [F; 4]) -> NebulaConfig {
     NebulaConfig {
         scheme,
         steps_per_segment: N,
+        stacks: StackShape::NONE,
         plan_digest: [F::from_u64(7); 4],
         d_init,
     }
@@ -90,6 +91,8 @@ fn honest_x(lane: &NebulaLane) -> NebulaStepX {
         gamma: lane.gamma.expect("segment open"),
         h_in: lane.h,
         h_out: [K::ONE; 4],
+        sp_in: [0; 2],
+        sp_out: [0; 2],
     }
 }
 
@@ -168,6 +171,8 @@ fn advance_before_open_is_rejected() {
         gamma: [K::ONE; 2],
         h_in: [K::ONE; 4],
         h_out: [K::ONE; 4],
+        sp_in: [0; 2],
+        sp_out: [0; 2],
     };
     assert_eq!(lane.advance(&cfg, &x, Some(&adv(0))), Err(NebulaError::SegmentNotOpen));
 }
@@ -211,7 +216,40 @@ fn per_step_equalities_reject_tampered_x() {
         Err(NebulaError::ProductThreadMismatch)
     );
 
+    let mut x = honest.clone();
+    x.sp_in = [1, 0];
+    assert_eq!(
+        lane.clone().advance(&cfg, &x, Some(&tuple)),
+        Err(NebulaError::StackPointerMismatch)
+    );
+
     assert_eq!(lane.clone().advance(&cfg, &honest, None), Err(NebulaError::MissingAdv));
+}
+
+/// A segment whose last step leaves a stack pointer nonzero violates the
+/// segment-local discipline (spec §3.1) — the deterministic close check
+/// fires before the product equation gets its say.
+#[test]
+fn close_rejects_live_stack_cells() {
+    let advs: Vec<_> = (0..N).map(adv).collect();
+    let d_pre = honest_d_pre(&advs);
+    let cfg = config(d_pre[1]);
+    let mut lane = NebulaLane::base(&cfg);
+    open(&mut lane, &cfg, d_pre);
+
+    for (i, tuple) in advs.iter().enumerate() {
+        let mut x = honest_x(&lane);
+        x.sp_in = lane.sp;
+        if i as u64 == N - 1 {
+            x.sp_out = [1, 0]; // an unpopped push survives to close
+            assert_eq!(
+                lane.advance(&cfg, &x, Some(tuple)),
+                Err(NebulaError::StackNotEmptyAtClose)
+            );
+            return;
+        }
+        lane.advance(&cfg, &x, Some(tuple)).expect("honest prefix");
+    }
 }
 
 /// Fold a different tuple than the pre-committed one: the segment closes

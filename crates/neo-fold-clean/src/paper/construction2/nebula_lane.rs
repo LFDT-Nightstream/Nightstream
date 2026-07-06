@@ -52,8 +52,35 @@ pub const TS_BITS: usize = 44;
 pub const K_LIMB_BITS: usize = 64;
 /// Bits per `K` element (two limbs: real, then imaginary).
 pub const K_BITS: usize = 2 * K_LIMB_BITS;
-/// Bits of the step public input (spec §4.4, `= 1,400`).
-pub const X_BITS: usize = SEG_IDX_BITS + STEP_IDX_BITS + 2 * TS_BITS + 2 * K_BITS + 8 * K_BITS;
+/// Bits of the stack-less step public input (spec §4.4, `= 1,400`); the
+/// full width is [`StackShape::x_bits`].
+pub const X_BASE_BITS: usize = SEG_IDX_BITS + STEP_IDX_BITS + 2 * TS_BITS + 2 * K_BITS + 8 * K_BITS;
+/// Maximum stacks per plan (spec §2, v3.1). Fixed-size `sp` arrays are
+/// sized by this; unused entries stay 0 everywhere.
+pub const MAX_STACKS: usize = 2;
+
+/// Stack geometry of a plan (spec §2, v3.1): how many segment-local
+/// stacks and the σ-bit stack-pointer width. [`Self::NONE`] is the v3
+/// shape. The step-x width derives from this, so it rides
+/// [`NebulaConfig`] to every verifier-side decode.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StackShape {
+    /// `S`: number of stacks (`≤ MAX_STACKS`).
+    pub count: usize,
+    /// `σ`: stack-pointer width in bits; capacity is `2^σ − 1` cells.
+    pub sigma: usize,
+}
+
+impl StackShape {
+    /// The v3 shape: no stacks, 1,400-bit x.
+    pub const NONE: Self = Self { count: 0, sigma: 0 };
+
+    /// Bits of the step public input (spec §4.4): the 1,400 v3 slots
+    /// plus `sp_in`/`sp_out` per stack, appended.
+    pub fn x_bits(&self) -> usize {
+        X_BASE_BITS + 2 * self.count * self.sigma
+    }
+}
 
 /// The decoded `S_mem` step public input (spec §4.4). The canonical
 /// struct and the **verifier-side decode** live here because the F′
@@ -76,7 +103,15 @@ pub struct NebulaStepX {
     pub h_in: [K; 4],
     /// Running products leaving this step (order: [`H_RS`]).
     pub h_out: [K; 4],
+    /// Stack pointers entering this step (v3.1); unused stacks stay 0.
+    /// (Length is [`MAX_STACKS`], written literally — rustc 1.94 ICEs on
+    /// re-exported consts in array lengths under struct-update syntax.)
+    pub sp_in: [u64; 2],
+    /// Stack pointers leaving this step (v3.1); unused stacks stay 0.
+    pub sp_out: [u64; 2],
 }
+
+const _: () = assert!(MAX_STACKS == 2, "sp arrays above are written as [u64; 2]");
 
 /// Rejections of a claim's public input as an `S_mem` step x.
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -95,14 +130,15 @@ pub enum NebulaXError {
 
 impl NebulaStepX {
     /// Decode a claim's full public input `x = [1 ‖ bits]` (length
-    /// `1 + X_BITS`, the `S_mem` `m_in` prefix), validating the leading
-    /// constant and every slot's bitness. Little-endian multi-bit fields,
-    /// spec §3's encoding contract.
-    pub fn decode_claim_x(x: &[F]) -> Result<Self, NebulaXError> {
-        if x.len() != 1 + X_BITS {
+    /// `1 + stacks.x_bits()`, the `S_mem` `m_in` prefix), validating the
+    /// leading constant and every slot's bitness. Little-endian multi-bit
+    /// fields, spec §3's encoding contract; the plan's [`StackShape`]
+    /// fixes the trailing `sp` slots (spec §4.4, v3.1).
+    pub fn decode_claim_x(x: &[F], stacks: StackShape) -> Result<Self, NebulaXError> {
+        if x.len() != 1 + stacks.x_bits() {
             return Err(NebulaXError::Length {
-                label: "claim x (1 + X_BITS)",
-                want: 1 + X_BITS,
+                label: "claim x (1 + x_bits)",
+                want: 1 + stacks.x_bits(),
                 got: x.len(),
             });
         }
@@ -120,6 +156,12 @@ impl NebulaStepX {
         };
         let h_in = h()?;
         let h_out = h()?;
+        let mut sp_in = [0u64; MAX_STACKS];
+        let mut sp_out = [0u64; MAX_STACKS];
+        for s in 0..stacks.count {
+            sp_in[s] = reader.read_u64(stacks.sigma)?;
+            sp_out[s] = reader.read_u64(stacks.sigma)?;
+        }
         Ok(Self {
             seg_idx,
             idx,
@@ -128,6 +170,8 @@ impl NebulaStepX {
             gamma,
             h_in,
             h_out,
+            sp_in,
+            sp_out,
         })
     }
 }
@@ -183,6 +227,9 @@ pub struct NebulaConfig {
     pub scheme: LaneScheme,
     /// `N` — steps per segment under exact cover (spec §2).
     pub steps_per_segment: u64,
+    /// Stack geometry (spec §2, v3.1); fixes the x decode width and the
+    /// `sp` carry. [`StackShape::NONE`] for stack-less plans.
+    pub stacks: StackShape,
     /// Poseidon2 digest of the canonical plan serialization (spec §11).
     pub plan_digest: [F; 4],
     /// The verifier's ROM handle: mem-domain chain over the initial
@@ -210,6 +257,10 @@ pub enum NebulaError {
     GammaMismatch,
     #[error("nebula: claim h_in does not match the lane's running products")]
     ProductThreadMismatch,
+    #[error("nebula: claim sp_in does not match the lane's running stack pointers")]
+    StackPointerMismatch,
+    #[error("nebula: segment close — stacks must end empty (segment-local discipline, sp != 0)")]
+    StackNotEmptyAtClose,
     #[error("nebula: deposited claim carries no adv tuple inside an open Nebula segment")]
     MissingAdv,
     #[error("nebula: segment close — folded lane chains do not match the pre-committed chains (D_seen != D_pre)")]
@@ -235,6 +286,9 @@ pub struct NebulaLane {
     pub gamma: Option<[K; 2]>,
     /// Running `(h_rs, h_ws, h_is, h_fs)` (order: [`H_RS`]).
     pub h: [K; 4],
+    /// Running stack pointers (v3.1); `0` at every segment boundary —
+    /// stacks are segment-local (spec §3.1). Unused stacks stay 0.
+    pub sp: [u64; MAX_STACKS],
     /// Per-lane pre-committed chain digests (ops, is, fs), claimed at
     /// open (L0b) and given authority retroactively by the close check.
     pub d_pre: [[F; 4]; 3],
@@ -270,6 +324,7 @@ impl NebulaLane {
             ts: 0,
             gamma: None,
             h: [K::ONE; 4],
+            sp: [0; MAX_STACKS],
             d_pre: chain_headers(),
             d_seen: chain_headers(),
             d_mem: cfg.d_init,
@@ -358,6 +413,9 @@ impl NebulaLane {
         if x.h_in != self.h {
             return Err(NebulaError::ProductThreadMismatch);
         }
+        if x.sp_in != self.sp {
+            return Err(NebulaError::StackPointerMismatch);
+        }
 
         let leaves = digest::nebula_lane_leaf_digests(adv);
         for lane_id in 0..3 {
@@ -365,6 +423,7 @@ impl NebulaLane {
                 digest::nebula_chain_link(&self.d_seen[lane_id], LINK_TAGS[lane_id], &leaves[lane_id]);
         }
         self.h = x.h_out;
+        self.sp = x.sp_out;
         self.ts = x.ts_out;
         self.idx += 1;
 
@@ -375,8 +434,14 @@ impl NebulaLane {
     }
 
     /// Segment close (spec §6.3): the three equalities, the boundary
-    /// handoff, and the reset that never touches `ts`.
+    /// handoff, and the reset that never touches `ts`. The `sp == 0`
+    /// check is the deterministic companion to the product equation,
+    /// which already rejects an unpopped push w.h.p. (segment-local
+    /// stack discipline, spec §3.1).
     fn close(&mut self, _cfg: &NebulaConfig) -> Result<(), NebulaError> {
+        if self.sp != [0; MAX_STACKS] {
+            return Err(NebulaError::StackNotEmptyAtClose);
+        }
         if self.d_seen != self.d_pre {
             return Err(NebulaError::PreSeenMismatch);
         }
@@ -425,7 +490,7 @@ impl NebulaLane {
             self.open_segment(cfg, vk_digest, z_i, acc_digest, d_pre)?;
         }
         for claim in claims {
-            let x = NebulaStepX::decode_claim_x(&claim.x)?;
+            let x = NebulaStepX::decode_claim_x(&claim.x, cfg.stacks)?;
             self.advance(cfg, &x, claim.adv.as_ref())?;
         }
         Ok(())
@@ -440,6 +505,7 @@ impl NebulaLane {
             self.ts,
             self.gamma.as_ref(),
             &self.h,
+            &self.sp,
             &self.d_pre,
             &self.d_seen,
             &self.d_mem,

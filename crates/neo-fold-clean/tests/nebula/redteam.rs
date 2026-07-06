@@ -43,7 +43,7 @@ fn stale_read_fails_the_product_equation() {
     run.write(true, 2, 5).expect("write");
     assert_eq!(run.read(true, 2).expect("read back"), 5);
     assert_eq!(run.read(false, 0).expect("rom"), 10);
-    let mut trace1 = run.finish();
+    let mut trace1 = run.finish().expect("segment close");
 
     // The lie: RAM[0] read returns the pre-segment-0 value (0 at t = 0)
     // instead of the 7 written in segment 0. Row-level checks all pass
@@ -78,12 +78,12 @@ fn fresh_memory_at_segment_start_fails_the_boundary() {
     for _ in 0..4 {
         run.write(true, 3, 1).expect("write");
     }
-    let _other_trace0 = run.finish();
+    let _other_trace0 = run.finish().expect("segment close");
     let mut run = other.begin_segment().expect("other segment 1");
     for _ in 0..4 {
         assert_eq!(run.read(true, 3).expect("read"), 1);
     }
-    let spliced_trace1 = run.finish();
+    let spliced_trace1 = run.finish().expect("segment close");
 
     let audit = lifecycle::prove(&prep, Vec::<Vec<_>>::new()).expect("base");
     let audit = prove_segment(&prep, &plan, audit, &trace0).expect("segment 0");
@@ -117,7 +117,7 @@ fn timestamp_reset_between_segments_is_rejected() {
     let trace0 = segment0(&mut memory);
     let mut run = memory.begin_segment().expect("segment 1");
     assert_eq!(run.read(true, 0).expect("read"), 7);
-    let mut trace1 = run.finish();
+    let mut trace1 = run.finish().expect("segment close");
     trace1.ts_in = 0; // pretend history restarted
 
     let audit = lifecycle::prove(&prep, Vec::<Vec<_>>::new()).expect("base");

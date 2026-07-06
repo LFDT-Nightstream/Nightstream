@@ -386,5 +386,9 @@ name = "nebula_redteam"
 path = "tests/nebula/redteam.rs"
 
 [[test]]
+name = "nebula_stack"
+path = "tests/nebula/stack.rs"
+
+[[test]]
 name = "perf_nebula"
 path = "tests/perf/nebula.rs"

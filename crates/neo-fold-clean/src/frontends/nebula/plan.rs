@@ -21,7 +21,7 @@ use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
 
 /// Version string bound into the plan digest.
-pub const PLAN_VERSION: &[u8] = b"nebula-superneo/v3";
+pub const PLAN_VERSION: &[u8] = b"nebula-superneo/v3.1";
 /// Domain label for deriving the `A_ops` seed from the plan seed.
 const A_OPS_LABEL: &[u8] = b"nebula/A_ops/v3";
 /// Domain label for deriving the `A_mem` seed from the plan seed.
@@ -93,6 +93,7 @@ impl NebulaPlan {
         NebulaConfig {
             scheme: self.scheme.clone(),
             steps_per_segment: self.params.steps_per_segment() as u64,
+            stacks: self.params.stack_shape(),
             plan_digest: self.plan_digest,
             d_init: self.d_init,
         }
@@ -130,7 +131,7 @@ impl NebulaPlan {
     /// Derived from constants already bound by the plan digest.
     pub fn error_budget(&self) -> ErrorBudget {
         let p = &self.params;
-        let m_seg = 2 * (p.steps_per_segment() as u64 * p.b_ops as u64 + p.total_cells());
+        let m_seg = 2 * (p.steps_per_segment() as u64 * p.b_ops as u64 + p.scanned_cells());
         ErrorBudget {
             m_seg,
             // |K| = q² ≈ 2^128 for Goldilocks².
@@ -152,7 +153,7 @@ pub struct ErrorBudget {
 /// identical mem-domain leaf/link formula and header as the live IS/FS
 /// chains (spec §6.1/§7): `D_init = fold_{j ∈ [0,N)} link("mem", leaf_mem(c_j))`.
 fn compute_d_init(params: &NebulaParams, scheme: &LaneScheme, rom_image: &[u32]) -> Result<[F; 4], PlanError> {
-    let cells: Vec<CellRecord> = (0..params.total_cells())
+    let cells: Vec<CellRecord> = (0..params.scanned_cells())
         .map(|g| CellRecord {
             v: rom_image.get(g as usize).copied().unwrap_or(0),
             t: 0,
@@ -193,6 +194,8 @@ fn plan_digest(params: &NebulaParams, rom_image: &[u32], plan_seed: [u8; 32], ka
     preimage.push(F::from_u64(params.b_ops as u64));
     preimage.push(F::from_u64(params.b_scan as u64));
     preimage.push(F::from_u64(params.seg_max));
+    preimage.push(F::from_u64(params.num_stacks as u64));
+    preimage.push(F::from_u64(params.sigma as u64));
     preimage.push(F::from_u64(kappa as u64));
     preimage.push(F::from_u64(D as u64));
     preimage.extend(digest::digest32_as_fields(plan_seed));

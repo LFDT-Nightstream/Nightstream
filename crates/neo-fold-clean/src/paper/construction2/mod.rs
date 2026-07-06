@@ -86,7 +86,7 @@ pub enum Error {
 pub use enc_inst::EncInst;
 pub use finalization::FINAL_FOLD_TRANSCRIPT_LABEL;
 pub use latest::LatestInstance;
-pub use nebula_lane::{NebulaAdvance, NebulaConfig, NebulaError, NebulaLane, NebulaStepX, NebulaXError};
+pub use nebula_lane::{NebulaAdvance, NebulaConfig, NebulaError, NebulaLane, NebulaStepX, NebulaXError, StackShape};
 pub use proof_state::ProofState;
 pub use running::RunningInstance;
 pub use state::State;

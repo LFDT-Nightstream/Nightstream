@@ -123,6 +123,29 @@ impl NebulaPlan {
     pub fn plan_digest(&self) -> [F; 4] {
         self.plan_digest
     }
+
+    /// The evaluated §9 fingerprint error budget (security-note Cor. 4.1):
+    /// per Fiat–Shamir attempt, a false-but-balancing segment survives
+    /// with probability `m_seg / |K|`, `m_seg = |IS|+|WS|+|RS|+|FS|`.
+    /// Derived from constants already bound by the plan digest.
+    pub fn error_budget(&self) -> ErrorBudget {
+        let p = &self.params;
+        let m_seg = 2 * (p.steps_per_segment() as u64 * p.b_ops as u64 + p.total_cells());
+        ErrorBudget {
+            m_seg,
+            // |K| = q² ≈ 2^128 for Goldilocks².
+            log2_bound_per_attempt: (m_seg as f64).log2() - 128.0,
+        }
+    }
+}
+
+/// The §9 budget line the plan records (spec §11 `error_budget`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ErrorBudget {
+    /// Total multiset size per segment: `2·(N·B_ops + R + M)`.
+    pub m_seg: u64,
+    /// `log2(m_seg / |K|)` — the Lemma-3 term per Fiat–Shamir attempt.
+    pub log2_bound_per_attempt: f64,
 }
 
 /// Chain the initial memory's per-step IS-lane commitments with the

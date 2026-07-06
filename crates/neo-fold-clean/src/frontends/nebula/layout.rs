@@ -270,27 +270,12 @@ pub struct CellRecord {
     pub t: u64,
 }
 
-/// Step public input — the carried slots of `x` (spec §4.4).
-///
-/// Field order in the encoding: `seg_idx`, `idx`, `ts_in`, `ts_out`,
+/// Step public input — the carried slots of `x` (spec §4.4). The
+/// canonical struct lives with its F′ consumer
+/// (`paper::construction2::nebula_lane`); this module owns its bit
+/// encoding: field order `seg_idx`, `idx`, `ts_in`, `ts_out`,
 /// `gamma[0..2]`, `h_in[0..4]`, `h_out[0..4]`; product order per [`H_RS`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct StepPublicInput {
-    /// Segment counter `k`.
-    pub seg_idx: u64,
-    /// Step counter within the segment.
-    pub idx: u64,
-    /// Global timestamp entering this step.
-    pub ts_in: u64,
-    /// Global timestamp leaving this step.
-    pub ts_out: u64,
-    /// Segment challenges `(γ1, γ2)`.
-    pub gamma: [K; 2],
-    /// Running products entering this step (order: [`H_RS`]).
-    pub h_in: [K; 4],
-    /// Running products leaving this step (order: [`H_RS`]).
-    pub h_out: [K; 4],
-}
+pub use crate::paper::construction2::nebula_lane::NebulaStepX as StepPublicInput;
 
 impl NebulaParams {
     /// Encode up to `B_ops` real ops into one ops lane; remaining slots are

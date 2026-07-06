@@ -151,6 +151,7 @@ pub(crate) fn advance_state(
         acc_digest: new_acc_digest,
         public_trace: new_public_trace,
         proof: new_proof,
+        nebula: prev.nebula,
     }
 }
 

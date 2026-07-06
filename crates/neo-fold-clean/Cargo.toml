@@ -368,3 +368,7 @@ path = "tests/nebula/adv.rs"
 [[test]]
 name = "nebula_adv_fold"
 path = "tests/nebula/adv_fold.rs"
+
+[[test]]
+name = "nebula_lane"
+path = "tests/nebula/lane.rs"

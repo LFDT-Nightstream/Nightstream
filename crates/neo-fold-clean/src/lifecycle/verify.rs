@@ -492,6 +492,7 @@ fn build_pre_final_state(post: &State, terminal: &TerminalFoldInputs) -> Result<
             running: terminal.pre_final_running.clone(),
             latest: terminal.latest.clone(),
         },
+        nebula: post.nebula.clone(),
     })
 }
 

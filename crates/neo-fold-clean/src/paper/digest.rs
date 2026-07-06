@@ -226,6 +226,72 @@ pub fn nebula_lane_leaf_digests(adv: &LaneCommitments<Commitment>) -> [[F; 4]; 3
     ]
 }
 
+/// Link tag of the ops `D` chain (spec §6.1 tag discipline).
+pub const NEBULA_CHAIN_OPS_TAG: &[u8] = b"neo.fold.clean/nebula/chain/ops/v3";
+/// Link tag shared by the `is` and `fs` chains — lane-NEUTRAL so segment
+/// k's FS chain and segment k+1's IS chain are formula-identical (the
+/// §6.4 boundary equality compares identically-computed digests).
+pub const NEBULA_CHAIN_MEM_TAG: &[u8] = b"neo.fold.clean/nebula/chain/mem/v3";
+
+/// Header (initial value) of the ops chain.
+pub fn nebula_chain_ops_header() -> [F; 4] {
+    poseidon_digest_fields(&pack_bytes_as_fields(b"neo.fold.clean/nebula/chain/ops/header/v3"))
+}
+
+/// Header shared by the `is` and `fs` chains. Shared on purpose — header
+/// symmetry is half of the formula identity the boundary equality needs
+/// (the other half is the shared link tag above).
+pub fn nebula_chain_mem_header() -> [F; 4] {
+    poseidon_digest_fields(&pack_bytes_as_fields(b"neo.fold.clean/nebula/chain/mem/header/v3"))
+}
+
+/// One `D ← Poseidon2(D_prev, tag, leaf)` chain link (spec §6.1/§6.3) —
+/// the paper's `C_i ← hash(C_{i−1}, C_ω)` with the leaf hop.
+pub fn nebula_chain_link(prev: &[F; 4], link_tag: &'static [u8], leaf: &[F; 4]) -> [F; 4] {
+    let mut preimage = pack_bytes_as_fields(link_tag);
+    preimage.extend_from_slice(prev);
+    preimage.extend_from_slice(leaf);
+    poseidon_digest_fields(&preimage)
+}
+
+/// Compact digest of the carried `NebulaLane` (spec §6.1) — the value the
+/// F′ state hash and step transcript absorb (present-only, like the
+/// claim-digest `adv` extension). Field order is part of the protocol
+/// binding; `gamma: None` (`⊥` before the segment's squeeze) absorbs as a
+/// zero flag with zeroed slots, `Some` as a one flag plus coefficients.
+#[allow(clippy::too_many_arguments)]
+pub fn nebula_lane_digest(
+    seg_idx: u64,
+    idx: u64,
+    ts: u64,
+    gamma: Option<&[K; 2]>,
+    h: &[K; 4],
+    d_pre: &[[F; 4]; 3],
+    d_seen: &[[F; 4]; 3],
+    d_mem: &[F; 4],
+) -> [F; 4] {
+    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/nebula/lane_digest/v3");
+    preimage.push(F::from_u64(seg_idx));
+    preimage.push(F::from_u64(idx));
+    preimage.push(F::from_u64(ts));
+    match gamma {
+        None => {
+            preimage.push(F::ZERO);
+            preimage.extend(std::iter::repeat_n(F::ZERO, 4));
+        }
+        Some(gamma) => {
+            preimage.push(F::ONE);
+            append_k_slice(&mut preimage, gamma.as_slice());
+        }
+    }
+    append_k_slice(&mut preimage, h.as_slice());
+    for chain in d_pre.iter().chain(d_seen.iter()) {
+        preimage.extend_from_slice(chain);
+    }
+    preimage.extend_from_slice(d_mem);
+    poseidon_digest_fields(&preimage)
+}
+
 /// Absorb rule R1 (spec §5.2): wherever a claim digest binds `c.data`, a
 /// present `adv` tuple is bound too, as its three leaves.
 ///

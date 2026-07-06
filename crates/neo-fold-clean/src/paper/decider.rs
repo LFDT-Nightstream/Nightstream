@@ -168,6 +168,7 @@ pub fn validate_witness(
     // MUST equal `statement.public.initial_semantic_state_digest` or
     // `validate_witness` returns `Error::PublicImageMismatch`.
     initial_semantic_state_digest_anchor: [u8; 32],
+    nebula: Option<&crate::paper::construction2::NebulaConfig>,
     statement: &Statement,
 ) -> Result<(), Error> {
     // (0) Pin the prover's claimed initial app-state to the verifier's
@@ -208,6 +209,9 @@ pub fn validate_witness(
     let public_trace = public_trace_seed_digest(structure_digest_v);
     let acc_digest = AccumulatorHandle::empty().digest();
     let mut state = State::base(z_0, public_trace, acc_digest, initial_semantic_state_digest_anchor);
+    if let Some(cfg) = nebula {
+        state.nebula = Some(crate::paper::construction2::NebulaLane::base(cfg));
+    }
 
     // Walk each step through F'.verify. Before every recursive fold, pin
     // the currently pending `latest` claim's public input to the current
@@ -235,6 +239,35 @@ pub fn validate_witness(
             &state,
             semantic_mode,
         )?;
+        // Nebula lane replay (spec §6.3): recompute the advanced lane
+        // from the deposited claims and the step's segment-open payload —
+        // the same shared transition the prover ran. Divergence surfaces
+        // as the specific §6.3 check that failed, before x_out.
+        let nebula_advance = match (nebula, &state.nebula) {
+            (Some(cfg), Some(lane)) => {
+                let mut lane_out = lane.clone();
+                lane_out
+                    .advance_for_batch(
+                        cfg,
+                        vk.digest(),
+                        state.z_i,
+                        state.acc_digest,
+                        step_proof.nebula_open,
+                        public_batch,
+                    )
+                    .map_err(|e| Error::WalkFailed(format!("nebula lane: {e}")))?;
+                Some(crate::paper::construction2::NebulaAdvance {
+                    lane_out,
+                    open: step_proof.nebula_open,
+                })
+            }
+            (None, None) => None,
+            _ => {
+                return Err(Error::WalkFailed(
+                    "nebula config/lane presence mismatch between preprocessing and chain state".into(),
+                ))
+            }
+        };
         state = construction2::verify_step(
             params,
             structure,
@@ -247,6 +280,7 @@ pub fn validate_witness(
             public_batch,
             step_proof,
             semantic_mode,
+            nebula_advance,
         )
         .map_err(|e| Error::WalkFailed(format!("step: {e}")))?;
     }

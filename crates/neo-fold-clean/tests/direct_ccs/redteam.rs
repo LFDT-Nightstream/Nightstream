@@ -364,5 +364,6 @@ fn recompute_terminal_x_out(prep: &Preprocessing, proof: &Uncompressed) -> EncIn
         proof.state.semantic_state_digest,
         proof.state.acc_digest,
         proof.state.public_trace,
+        None,
     ))
 }

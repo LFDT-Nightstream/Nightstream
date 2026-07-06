@@ -75,6 +75,16 @@ use crate::paper::relations::{ajtai_dec_mixer, ajtai_rlc_mixer, CcsClaim, DecMix
 pub enum Error {
     #[error(transparent)]
     Construction2(#[from] crate::paper::construction2::Error),
+    #[error("nebula: segment-open payload supplied but this preprocessing carries no Nebula plan")]
+    NebulaNotConfigured,
+    #[error("nebula: preprocessing/plan and chain-state lane presence disagree (config without lane, or lane without config)")]
+    NebulaLanePresenceMismatch,
+    #[error("nebula: externally accepted proofs must end at a closed segment (§6.3 finalization rule: idx == 0, γ == ⊥, header chains)")]
+    NebulaSegmentOpenAtTerminal,
+    #[error("nebula: terminal claim's adv tuple failed the lane slice-opening (spec §5.2 R3)")]
+    NebulaSliceOpeningFailed,
+    #[error("nebula: terminal claim carries no adv tuple on a Nebula chain (or a tuple on a plain chain)")]
+    NebulaAdvPresenceMismatch,
     #[error(transparent)]
     Decider(#[from] decider::Error),
     #[error("verify_uncompressed: proof is not finalized (state is Initial, or trailing latest is non-empty)")]
@@ -229,6 +239,12 @@ pub struct Preprocessing {
     pub vk: VerifierKey,
     pub(crate) mix_rhos_commits: RlcMixer,
     pub(crate) combine_b_pows: DecMixer,
+    /// Nebula memory-checking plan context (spec §6): the lane-commitment
+    /// scheme, segment length, plan digest, and the verifier's ROM handle
+    /// `D_init`. `None` for plain chains. Set by
+    /// [`Preprocessing::with_nebula`]; every extend on a Nebula
+    /// preprocessing runs the §6.3 lane transition.
+    pub(crate) nebula: Option<std::sync::Arc<crate::paper::construction2::NebulaConfig>>,
     /// Program-fixed public-input length; absorbed into `vk_fs_digest` so
     /// the chain binds to a specific m_in. `None` means "unfixed at the
     /// program level" — encoded as `u64::MAX` in the absorb.
@@ -304,6 +320,22 @@ impl Preprocessing {
     /// recursive-link public input (`u_i.x == enc_inst(prior_x_out)`).
     pub fn enforces_f_prime_recursive_link(&self) -> bool {
         self.f_prime_recursive_link
+    }
+
+    /// Read-only view of the Nebula plan context; `None` for plain chains.
+    pub fn nebula(&self) -> Option<&crate::paper::construction2::NebulaConfig> {
+        self.nebula.as_deref()
+    }
+
+    /// Attach the Nebula memory-checking plan (spec §11 constants +
+    /// `D_init`) to this preprocessing. Every subsequent chain started
+    /// from it carries a `NebulaLane` from the base state, every extend
+    /// runs the §6.3 transition over the deposited claims, and the
+    /// verifiers enforce the finalization rule and the terminal
+    /// slice-openings (spec §5.2 R3).
+    pub fn with_nebula(mut self, cfg: crate::paper::construction2::NebulaConfig) -> Self {
+        self.nebula = Some(std::sync::Arc::new(cfg));
+        self
     }
 
     /// Read-only view of the verifier-owned initial app/VM
@@ -490,7 +522,7 @@ pub use crate::paper::decider::PublicImage;
 
 // Terminal-only lifecycle path.
 pub use compress::finish_uncompressed;
-pub use prove::{extend, prove};
+pub use prove::{extend, extend_nebula_open, prove};
 pub use verify::{validate_final_witness_authority, verify_uncompressed};
 
 // Audit / decider path — chain replay, Spartan, diagnostic tests.
@@ -592,6 +624,7 @@ pub(crate) fn preprocess_with_test_log_and_optimized_cache(
         f_prime_recursive_link: false,
         structure_digest,
         optimized_cache,
+        nebula: None,
     })
 }
 

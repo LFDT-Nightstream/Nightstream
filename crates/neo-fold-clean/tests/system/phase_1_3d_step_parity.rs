@@ -115,6 +115,7 @@ fn native_prior_x_out(state: &FPrimeStateIn) -> [F; 4] {
         digest_fields_as_digest32(state.acc_digest_in),
         digest_fields_as_digest32(state.acc_digest_in),
         digest_fields_as_digest32(state.public_trace_in),
+        None,
     ))
 }
 
@@ -285,6 +286,7 @@ fn native_x_out(
         digest_fields_as_digest32(new_semantic_state_digest),
         digest_fields_as_digest32(new_acc_digest),
         new_public_trace,
+        None,
     ))
 }
 

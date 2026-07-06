@@ -24,7 +24,7 @@ use crate::paper::construction2::{transition, Error, SemanticStateMode};
 use crate::paper::digest;
 use crate::paper::nifs;
 use crate::paper::params::Params;
-use crate::paper::relations::{CcsInstance, CcsWitness, DecMixer, RlcMixer, Structure};
+use crate::paper::relations::{CcsInstance, CcsWitness, DecMixer, LaneScheme, RlcMixer, Structure};
 
 /// Init label for the terminal finalization NIFS transcript. Distinct from
 /// the F'-step label so an auditor sees finalization as its own slot in the
@@ -55,6 +55,7 @@ pub(crate) fn prove_final_fold(
     mix_rhos_commits: RlcMixer,
     combine_b_pows: DecMixer,
     vk: &VerifierKey,
+    lanes: Option<&LaneScheme>,
     state: State,
     semantic_mode: SemanticStateMode,
 ) -> Result<(State, Option<FinalFoldProof>), Error> {
@@ -109,10 +110,7 @@ pub(crate) fn prove_final_fold(
                 s,
                 cache,
                 log,
-                // Nebula lanes arrive here when Preprocessing carries a
-                // LaneScheme (spec §13 step 4); until then adv-bearing
-                // parents fail closed at Π_DEC.
-                None,
+                lanes,
                 mix_rhos_commits,
                 combine_b_pows,
                 latest.instances,

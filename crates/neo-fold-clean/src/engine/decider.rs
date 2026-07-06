@@ -127,6 +127,7 @@ pub fn synthesize_statement_r1cs(
         prep.enforces_f_prime_recursive_link(),
         prep.semantic_state_mode,
         prep.initial_semantic_state_digest(),
+        prep.nebula(),
         statement,
     )?;
     synthesize_statement_r1cs_inner(prep, statement)
@@ -173,6 +174,31 @@ fn synthesize_statement_r1cs_inner(
         .zip(&statement.witness.steps);
     for (idx, (public_batch, step_proof)) in zipped.enumerate() {
         let state_in = state.clone();
+        let nebula_advance = match (prep.nebula(), &state.nebula) {
+            (Some(cfg), Some(lane)) => {
+                let mut lane_out = lane.clone();
+                lane_out
+                    .advance_for_batch(
+                        cfg,
+                        prep.vk.digest(),
+                        state.z_i,
+                        state.acc_digest,
+                        step_proof.nebula_open,
+                        public_batch,
+                    )
+                    .map_err(|e| decider::Error::WalkFailed(format!("nebula lane: {e}")))?;
+                Some(construction2::NebulaAdvance {
+                    lane_out,
+                    open: step_proof.nebula_open,
+                })
+            }
+            (None, None) => None,
+            _ => {
+                return Err(decider::Error::WalkFailed(
+                    "nebula config/lane presence mismatch between preprocessing and chain state".into(),
+                ))
+            }
+        };
         state = construction2::verify_step(
             &prep.params,
             prep.structure(),
@@ -185,6 +211,7 @@ fn synthesize_statement_r1cs_inner(
             public_batch,
             step_proof,
             prep.semantic_state_mode,
+            nebula_advance,
         )
         .map_err(|e| decider::Error::WalkFailed(format!("step {idx}: {e}")))?;
 
@@ -445,6 +472,7 @@ pub fn synthesize_last_step_terminal_r1cs(
         prep.enforces_f_prime_recursive_link(),
         prep.semantic_state_mode,
         prep.initial_semantic_state_digest(),
+        prep.nebula(),
         &statement,
     )?;
 
@@ -475,6 +503,31 @@ pub fn synthesize_last_step_terminal_r1cs(
         if idx == last_idx {
             last_state_in = Some(state.clone());
         }
+        let nebula_advance = match (prep.nebula(), &state.nebula) {
+            (Some(cfg), Some(lane)) => {
+                let mut lane_out = lane.clone();
+                lane_out
+                    .advance_for_batch(
+                        cfg,
+                        prep.vk.digest(),
+                        state.z_i,
+                        state.acc_digest,
+                        step_proof.nebula_open,
+                        public_batch,
+                    )
+                    .map_err(|e| decider::Error::WalkFailed(format!("nebula lane: {e}")))?;
+                Some(construction2::NebulaAdvance {
+                    lane_out,
+                    open: step_proof.nebula_open,
+                })
+            }
+            (None, None) => None,
+            _ => {
+                return Err(decider::Error::WalkFailed(
+                    "nebula config/lane presence mismatch between preprocessing and chain state".into(),
+                ))
+            }
+        };
         state = construction2::verify_step(
             &prep.params,
             prep.structure(),
@@ -487,6 +540,7 @@ pub fn synthesize_last_step_terminal_r1cs(
             public_batch,
             step_proof,
             prep.semantic_state_mode,
+            nebula_advance,
         )
         .map_err(|e| decider::Error::WalkFailed(format!("native walk step {idx}: {e}")))?;
         if idx == last_idx {
@@ -1276,6 +1330,7 @@ fn state_x_out_lanes(prep: &Preprocessing, state: &State) -> [F; 4] {
         state.semantic_state_digest,
         state.acc_digest,
         state.public_trace,
+        state.nebula.as_ref().map(|lane| lane.digest()),
     ))
 }
 

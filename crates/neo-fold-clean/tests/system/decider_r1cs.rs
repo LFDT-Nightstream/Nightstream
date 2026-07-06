@@ -91,6 +91,7 @@ fn compute_x_out_native(prep: &neo_fold_clean::Preprocessing, state: &State) -> 
         state.semantic_state_digest,
         state.acc_digest,
         state.public_trace,
+        None,
     ))
 }
 
@@ -132,6 +133,7 @@ fn refresh_public_image_x_out(prep: &neo_fold_clean::Preprocessing, public: &mut
         public.semantic_state_digest,
         public.acc_digest,
         public.public_trace,
+        None,
     ));
 }
 

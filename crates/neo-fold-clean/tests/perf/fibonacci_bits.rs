@@ -359,6 +359,7 @@ fn f_prime_state_x_out(prep: &neo_fold_clean::lifecycle::Preprocessing, state: &
         state.acc_digest,
         state.acc_digest,
         state.public_trace,
+        None,
     ))
 }
 

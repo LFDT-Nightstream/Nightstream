@@ -894,6 +894,7 @@ pub fn state_x_out_digest(
         semantic_acc,
         construction2_acc,
         _public_trace,
+        None,
     )
 }
 
@@ -924,6 +925,7 @@ pub fn state_x_out_digest_with_mode(
     semantic_acc: [u8; 32],
     construction2_acc: [u8; 32],
     _public_trace: [u8; 32],
+    nebula_lane: Option<[F; 4]>,
 ) -> [u8; 32] {
     let mut preimage = vec![F::from_u64(F_PRIME_STATE_X_OUT_DOMAIN)];
     preimage.extend(digest32_as_fields(vk_fs_digest));
@@ -935,6 +937,15 @@ pub fn state_x_out_digest_with_mode(
         preimage.extend(digest32_as_fields(semantic_acc));
     }
     preimage.extend(digest32_as_fields(construction2_acc));
+    // Nebula lane binding (spec §6.1): present-only, so plain chains keep
+    // the pre-Nebula preimage byte-identical and the in-circuit x_out
+    // mirror stays in parity until the F′ R1CS carries the lane
+    // (spec §13 step 9). The marker is nonzero and the extension exceeds
+    // the sponge rate, so a `Some` preimage never aliases a `None` one.
+    if let Some(lane) = nebula_lane {
+        preimage.push(F::from_u64(NEBULA_ADV_PRESENT_MARKER));
+        preimage.extend_from_slice(&lane);
+    }
     digest_fields_as_digest32(poseidon_digest_fields(&preimage))
 }
 

@@ -2,16 +2,16 @@
 //! (spec §6, the CC-IVC realization of Nebula Construction 2).
 //!
 //! Owns: the carried lane struct, its §6.3 per-step transition
-//! (`open_segment` / `advance` with every guard, close check, and reset),
-//! the §6.2 γ transcript, and the §6.3 finalization predicate. One typed
-//! error per check so every rejection test lands on the specific assert
-//! it targets.
+//! (`open_segment` / `advance` / `advance_for_batch` with every guard,
+//! close check, and reset), the §6.2 γ transcript, the §4.4 x contract
+//! (`NebulaStepX` and its verifier-side decode), and the §6.3
+//! finalization predicate. One typed error per check so every rejection
+//! test lands on the specific assert it targets.
 //!
-//! Does not own: the `S_mem` x bit-encoding (`frontends/nebula/layout.rs`
-//! implements `NebulaStepX::{encode, decode}` beside its lane encoders —
-//! lifecycle decodes at the boundary and hands this module decoded
-//! values), lane commitments (`relations/lanes.rs`), or the absorb
-//! formulas (`paper/digest.rs`).
+//! Does not own: the prover-side x bit-*encode*
+//! (`frontends/nebula/layout.rs`, beside its lane encoders — the layout
+//! owner mirrors this module's field order), lane commitments
+//! (`relations/lanes.rs`), or the absorb formulas (`paper/digest.rs`).
 //!
 //! Enforcement status (spec §6.3): these transitions run natively in the
 //! lifecycle today — the same trust path as NIFS transcript checks — and
@@ -42,10 +42,24 @@ pub const H_FS: usize = 3;
 /// Label of the per-segment γ transcript (spec §6.2).
 pub const NEBULA_GAMMA_TRANSCRIPT_LABEL: &[u8] = b"neo.fold.clean/nebula/gamma/v3";
 
+/// Width of the segment-counter slot in `x` (spec §4.4).
+pub const SEG_IDX_BITS: usize = 16;
+/// Width of the step-counter slot in `x` (spec §4.4).
+pub const STEP_IDX_BITS: usize = 16;
+/// Timestamp width (spec §2).
+pub const TS_BITS: usize = 44;
+/// Bits per `K` coefficient (canonical Goldilocks limb).
+pub const K_LIMB_BITS: usize = 64;
+/// Bits per `K` element (two limbs: real, then imaginary).
+pub const K_BITS: usize = 2 * K_LIMB_BITS;
+/// Bits of the step public input (spec §4.4, `= 1,400`).
+pub const X_BITS: usize = SEG_IDX_BITS + STEP_IDX_BITS + 2 * TS_BITS + 2 * K_BITS + 8 * K_BITS;
+
 /// The decoded `S_mem` step public input (spec §4.4). The canonical
-/// struct lives here because the F′ transition consumes it; the bit
-/// encode/decode lives with the layout owner
-/// (`frontends/nebula/layout.rs`), which re-exports this type.
+/// struct and the **verifier-side decode** live here because the F′
+/// transition consumes them; the prover-side bit *encode* lives with the
+/// layout owner (`frontends/nebula/layout.rs`), which re-exports this
+/// type and mirrors the same field order.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NebulaStepX {
     /// Segment counter `k`.
@@ -62,6 +76,103 @@ pub struct NebulaStepX {
     pub h_in: [K; 4],
     /// Running products leaving this step (order: [`H_RS`]).
     pub h_out: [K; 4],
+}
+
+/// Rejections of a claim's public input as an `S_mem` step x.
+#[derive(Debug, Error, PartialEq, Eq)]
+pub enum NebulaXError {
+    #[error("nebula x: expected {want} slots ({label}), got {got}")]
+    Length {
+        label: &'static str,
+        want: usize,
+        got: usize,
+    },
+    #[error("nebula x: slot {0} is not a bit")]
+    NonBit(usize),
+    #[error("nebula x: leading public slot must be the constant 1")]
+    MissingConstantOne,
+}
+
+impl NebulaStepX {
+    /// Decode a claim's full public input `x = [1 ‖ bits]` (length
+    /// `1 + X_BITS`, the `S_mem` `m_in` prefix), validating the leading
+    /// constant and every slot's bitness. Little-endian multi-bit fields,
+    /// spec §3's encoding contract.
+    pub fn decode_claim_x(x: &[F]) -> Result<Self, NebulaXError> {
+        if x.len() != 1 + X_BITS {
+            return Err(NebulaXError::Length {
+                label: "claim x (1 + X_BITS)",
+                want: 1 + X_BITS,
+                got: x.len(),
+            });
+        }
+        if x[0] != F::ONE {
+            return Err(NebulaXError::MissingConstantOne);
+        }
+        let mut reader = BitReader { bits: &x[1..], at: 0 };
+        let seg_idx = reader.read_u64(SEG_IDX_BITS)?;
+        let idx = reader.read_u64(STEP_IDX_BITS)?;
+        let ts_in = reader.read_u64(TS_BITS)?;
+        let ts_out = reader.read_u64(TS_BITS)?;
+        let gamma = [reader.read_k()?, reader.read_k()?];
+        let mut h = || -> Result<[K; 4], NebulaXError> {
+            Ok([reader.read_k()?, reader.read_k()?, reader.read_k()?, reader.read_k()?])
+        };
+        let h_in = h()?;
+        let h_out = h()?;
+        Ok(Self {
+            seg_idx,
+            idx,
+            ts_in,
+            ts_out,
+            gamma,
+            h_in,
+            h_out,
+        })
+    }
+}
+
+/// Minimal little-endian bit reader over `{0,1}`-valued field slots.
+struct BitReader<'a> {
+    bits: &'a [F],
+    at: usize,
+}
+
+impl BitReader<'_> {
+    fn read_u64(&mut self, nbits: usize) -> Result<u64, NebulaXError> {
+        let mut value = 0u64;
+        for k in 0..nbits {
+            let slot = self.at + k;
+            let bit = self.bits[slot];
+            if bit == F::ONE {
+                value |= 1 << k;
+            } else if bit != F::ZERO {
+                return Err(NebulaXError::NonBit(slot + 1));
+            }
+        }
+        self.at += nbits;
+        Ok(value)
+    }
+
+    fn read_k(&mut self) -> Result<K, NebulaXError> {
+        let c0 = F::from_u64(self.read_u64(K_LIMB_BITS)?);
+        let c1 = F::from_u64(self.read_u64(K_LIMB_BITS)?);
+        Ok(K::from_coeffs([c0, c1]))
+    }
+}
+
+/// One F′ step's Nebula payload, computed by the lifecycle (which owns
+/// the decode-and-advance loop) and consumed by `f_prime::{prove,
+/// verify}` — the same shape-parameter pattern as `SemanticStateAdvance`.
+#[derive(Clone, Debug)]
+pub struct NebulaAdvance {
+    /// The lane after advancing over the deposited batch (spec §6.3);
+    /// installed on the next `State` and bound by `x_out`.
+    pub lane_out: NebulaLane,
+    /// The segment-open `D_pre` claim, present exactly when this step
+    /// opened a segment (L0b); recorded on `StepProof.nebula_open` so the
+    /// verifier replays the same open.
+    pub open: Option<[[F; 4]; 3]>,
 }
 
 /// Plan-derived constants the transition needs — set once on
@@ -291,6 +402,33 @@ impl NebulaLane {
     /// equation and `D_seen == D_pre` binding were never checked.
     pub fn is_closed(&self) -> bool {
         self.idx == 0 && self.gamma.is_none() && self.d_pre == chain_headers() && self.d_seen == chain_headers()
+    }
+
+    /// Advance over one deposited batch — the shared prove/verify
+    /// transition (spec §6.3): an optional segment open (L0b payload)
+    /// followed by one advance per deposited claim, in order. Both sides
+    /// call exactly this, so a divergence is impossible by construction.
+    ///
+    /// `vk_digest`, `z_i`, and `acc_digest` are the F′ carried state at
+    /// this step's input — the §6.2 γ-transcript seed when the batch
+    /// opens a segment.
+    pub fn advance_for_batch(
+        &mut self,
+        cfg: &NebulaConfig,
+        vk_digest: [u8; 32],
+        z_i: [u8; 32],
+        acc_digest: [u8; 32],
+        open: Option<[[F; 4]; 3]>,
+        claims: &[neo_ccs::CcsClaim<Commitment, F>],
+    ) -> Result<(), crate::paper::construction2::Error> {
+        if let Some(d_pre) = open {
+            self.open_segment(cfg, vk_digest, z_i, acc_digest, d_pre)?;
+        }
+        for claim in claims {
+            let x = NebulaStepX::decode_claim_x(&claim.x)?;
+            self.advance(cfg, &x, claim.adv.as_ref())?;
+        }
+        Ok(())
     }
 
     /// The compact handle absorbed into `state_x_out` and the F′ step

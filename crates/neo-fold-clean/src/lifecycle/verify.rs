@@ -262,6 +262,13 @@ pub fn verify_uncompressed(prep: &Preprocessing, proof: &Uncompressed) -> Result
     // terminal fold.
     check_f_prime_non_replay_scope(prep, proof)?;
 
+    // (0e) Nebula finalization rule (spec §6.3): an externally accepted
+    // proof must end at a closed segment — a trailing open segment has
+    // folded op rows whose product equation and D_seen == D_pre binding
+    // were never checked. Mid-segment State is prover resume material
+    // only (spec §6.4).
+    check_nebula_terminal_state(prep, &proof.state)?;
+
     // (1)–(2) Reconstruct pre-fold state from terminal_inputs and run the
     // terminal fold verifier. Three sub-cases mirror `prove_final_fold`:
     match &proof.final_fold {
@@ -779,6 +786,23 @@ fn check_running_claim_authority(
     if opened != &claim.c {
         return Err(Error::FinalAccumulatorWitnessCommitmentMismatch { index });
     }
+    // Nebula terminal slice-openings (spec §5.2 R3): each published lane
+    // commitment must open against its lane slice of the *same* witness
+    // the full-`z` commitment just opened — the check that pins the
+    // mirrored fold algebra to lane content (security-note Lemma 1).
+    match (prep.nebula(), &claim.adv) {
+        (Some(cfg), Some(adv)) => {
+            let opens = cfg
+                .scheme
+                .open_matches(adv, witness)
+                .map_err(|_| Error::NebulaSliceOpeningFailed)?;
+            if !opens {
+                return Err(Error::NebulaSliceOpeningFailed);
+            }
+        }
+        (None, None) => {}
+        _ => return Err(Error::NebulaAdvPresenceMismatch),
+    }
     if !witness_nonzero {
         let t_project = std::time::Instant::now();
         let result = check_zero_public_projection(prep, index, claim);
@@ -1150,6 +1174,7 @@ pub fn verify_uncompressed_audit(prep: &Preprocessing, audit: &UncompressedAudit
         prep.enforces_f_prime_recursive_link(),
         prep.semantic_state_mode,
         prep.initial_semantic_state_digest(),
+        prep.nebula(),
         &statement,
     )
     .map_err(Error::from)?;
@@ -1160,5 +1185,20 @@ pub fn verify_uncompressed_audit(prep: &Preprocessing, audit: &UncompressedAudit
     if !latest.instances.is_empty() {
         return Err(Error::PostStateMismatch);
     }
+    check_nebula_terminal_state(prep, &audit.proof.state)?;
     check_running_witnesses_authority(prep, running)
+}
+
+/// Spec §6.3 finalization rule + lane/config presence coherence.
+fn check_nebula_terminal_state(prep: &Preprocessing, state: &State) -> Result<(), Error> {
+    match (prep.nebula(), &state.nebula) {
+        (Some(_), Some(lane)) => {
+            if !lane.is_closed() {
+                return Err(Error::NebulaSegmentOpenAtTerminal);
+            }
+            Ok(())
+        }
+        (None, None) => Ok(()),
+        _ => Err(Error::NebulaLanePresenceMismatch),
+    }
 }

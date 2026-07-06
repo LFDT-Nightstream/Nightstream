@@ -123,9 +123,9 @@ pub fn prove_segment(
         gamma2: gamma[1],
     };
 
-    // Pass 2: step witnesses with γ-dependent running products, folded in
-    // order; the first extend carries the segment-open payload.
-    let mut audit = audit;
+    // Pass 2: step witnesses with γ-dependent running products, built in
+    // step order (`ts`/`h` chain through consecutive x's).
+    let mut instances = Vec::with_capacity(n);
     let mut ts_in = trace.ts_in;
     let mut h_in = [K::ONE; 4];
     for i in 0..n {
@@ -157,11 +157,29 @@ pub fn prove_segment(
             advs[i],
             "bit-level and witness-slice lane commits must agree"
         );
+        instances.push(instance);
+    }
 
-        audit = if i == 0 {
-            lifecycle::extend_nebula_open(prep, audit, vec![instance], d_pre)?
+    // Deposit in chunks of the fold arity — Nebula §5's amortization: one
+    // recursion step covers up to `max_fresh_count` S_mem steps (61 at
+    // the Goldilocks preset), so a segment costs ⌈N / max_fresh⌉ F′ steps
+    // instead of N. The lane transition is chunk-agnostic
+    // (`advance_for_batch` walks the deposited claims in order); the
+    // first chunk carries the segment-open payload.
+    let max_batch = prep.params.max_fresh_count().max(1);
+    let mut audit = audit;
+    let mut instances = instances.into_iter();
+    let mut first = true;
+    loop {
+        let batch: Vec<CcsInstance> = instances.by_ref().take(max_batch).collect();
+        if batch.is_empty() {
+            break;
+        }
+        audit = if first {
+            first = false;
+            lifecycle::extend_nebula_open(prep, audit, batch, d_pre)?
         } else {
-            lifecycle::extend(prep, audit, vec![instance])?
+            lifecycle::extend(prep, audit, batch)?
         };
     }
     Ok(audit)

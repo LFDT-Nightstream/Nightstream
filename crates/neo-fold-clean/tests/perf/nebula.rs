@@ -110,6 +110,10 @@ fn nebula_test_profile_segment_snapshot() {
     let n = params.steps_per_segment();
     println!("== Nebula segment timing, §2 test profile (N = {n}) ==");
     println!(
+        "F' steps (chunks)        {:>8}   (batched folding: ⌈N / max_fresh⌉ — the recursion-overhead amortization of Nebula §5)",
+        audit.steps.len()
+    );
+    println!(
         "S_mem rows / cols        {:>8} / {:>8}",
         plan.circuit().rows(),
         plan.circuit().cols()

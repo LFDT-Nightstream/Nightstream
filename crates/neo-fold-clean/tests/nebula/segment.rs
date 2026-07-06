@@ -25,6 +25,14 @@ fn two_segment_chain_with_memory_continuity_verifies() {
     assert!(lane.is_closed());
     assert_eq!(lane.seg_idx, 2, "two segments closed");
     assert_eq!(lane.ts, 8, "4 ops per segment, ts never resets");
+    let max_fresh = prep.params.max_fresh_count().max(1);
+    let n = 2usize; // fixture steps per segment
+    let chunks_per_segment = n.div_ceil(max_fresh);
+    assert_eq!(
+        audit.steps.len(),
+        2 * chunks_per_segment,
+        "batched folding: each segment is ⌈N / max_fresh⌉ F′ steps (max_fresh = {max_fresh})"
+    );
 }
 
 /// The plan digest and `D_init` bind the ROM image (spec §7/§11): a

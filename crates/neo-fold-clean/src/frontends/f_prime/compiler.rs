@@ -269,6 +269,7 @@ pub fn verify_prior_fold(
         acc_digest: digest_fields_as_digest32(ctx.chain_state.acc_digest),
         public_trace: digest_fields_as_digest32(ctx.chain_state.public_trace),
         proof: ProofState::Initial,
+        nebula: None,
     };
     // `rows_in_chunk` is the size of the **current** batch being deposited
     // at this step (= `next_latest.len()` in native). The native fold

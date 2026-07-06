@@ -25,6 +25,7 @@
 pub mod enc_inst;
 pub mod finalization;
 pub mod latest;
+pub mod nebula_lane;
 pub mod proof_state;
 pub mod running;
 pub mod state;
@@ -79,6 +80,7 @@ pub enum Error {
 pub use enc_inst::EncInst;
 pub use finalization::FINAL_FOLD_TRANSCRIPT_LABEL;
 pub use latest::LatestInstance;
+pub use nebula_lane::{NebulaConfig, NebulaError, NebulaLane, NebulaStepX};
 pub use proof_state::ProofState;
 pub use running::RunningInstance;
 pub use state::State;

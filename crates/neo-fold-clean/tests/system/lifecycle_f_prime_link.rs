@@ -609,6 +609,7 @@ fn native_f_prime_verify_rejects_nofold_when_chunk_count_nonzero() {
     forged_state_out.semantic_state_digest = empty_acc;
     let forged_x_out = compute_x_out_native(&chain.prep, &forged_state_out);
     let forged_step = StepProof {
+        nebula_open: None,
         fold: FoldProof::NoFold,
         semantic_state_digest: empty_acc,
         x_out: construction2::EncInst::from_digest(digest_fields_as_digest32(forged_x_out)),
@@ -650,6 +651,7 @@ fn native_f_prime_verify_rejects_empty_nofold_step() {
     state_out.semantic_state_digest = empty_acc;
     let x_out = compute_x_out_native(&chain.prep, &state_out);
     let step = StepProof {
+        nebula_open: None,
         fold: FoldProof::NoFold,
         semantic_state_digest: empty_acc,
         x_out: construction2::EncInst::from_digest(digest_fields_as_digest32(x_out)),

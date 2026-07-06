@@ -193,6 +193,7 @@ pub fn prove_with_semantic_state(
         acc_digest,
         public_trace,
         proof: prev_proof,
+        nebula,
     } = state;
 
     // F' fold step — branch on the tagged ProofState.
@@ -215,6 +216,7 @@ pub fn prove_with_semantic_state(
                 acc_digest,
                 public_trace,
                 proof: ProofState::Initial,
+                nebula: nebula.clone(),
             };
             let mut tr = f_prime_step_transcript(vk, structure_digest, &state_in, chunk_digest);
             let (next_running, nifs_proof) = nifs::prove(
@@ -254,6 +256,7 @@ pub fn prove_with_semantic_state(
         acc_digest,
         public_trace,
         proof: ProofState::Initial, // placeholder; advance_state reads new_proof for the new state
+        nebula: nebula.clone(),
     };
     let next_state = construction2::advance_state(
         pp,
@@ -273,6 +276,8 @@ pub fn prove_with_semantic_state(
         next_state.clone(),
         StepProof {
             fold,
+            // M2b wires the segment-open payload; plain steps carry None.
+            nebula_open: None,
             semantic_state_digest: next_state.semantic_state_digest,
             x_out,
         },
@@ -336,6 +341,7 @@ pub fn verify(
         acc_digest,
         public_trace,
         proof: prev_proof,
+        nebula,
     } = state;
 
     // F' fold-step verifier — branch on (prev_proof, proof.fold).
@@ -357,6 +363,7 @@ pub fn verify(
                 acc_digest,
                 public_trace,
                 proof: ProofState::Initial,
+                nebula: nebula.clone(),
             };
             let mut tr = f_prime_step_transcript(vk, structure_digest, &state_in, chunk_digest);
             nifs::verify(
@@ -392,6 +399,7 @@ pub fn verify(
         acc_digest,
         public_trace,
         proof: ProofState::Initial, // placeholder; advance reads new_proof
+        nebula: nebula.clone(),
     };
     let semantic_advance = match semantic_mode {
         // Stateless plans have no F' image binding rows for the semantic

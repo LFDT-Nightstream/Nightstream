@@ -69,6 +69,7 @@ pub(crate) fn prove_final_fold(
         acc_digest: _, // recomputed from post-flush running below
         public_trace,
         proof,
+        nebula,
     } = state;
 
     let (post_running, nifs_with_inputs) = match proof {
@@ -85,6 +86,7 @@ pub(crate) fn prove_final_fold(
                     acc_digest: digest::AccumulatorHandle::empty().digest(),
                     public_trace,
                     proof: ProofState::Initial,
+                    nebula,
                 },
                 None,
             ));
@@ -141,6 +143,7 @@ pub(crate) fn prove_final_fold(
         semantic_state_digest,
         acc_digest: post_acc_digest,
         public_trace,
+        nebula: nebula.clone(),
         proof: ProofState::Active {
             running: post_running,
             latest: LatestInstance::from_instances(Vec::new()),
@@ -211,6 +214,7 @@ pub(crate) fn verify_final_fold(
         acc_digest: _,
         public_trace,
         proof: prev_proof,
+        nebula,
     } = state;
 
     let post_running = match prev_proof {
@@ -228,6 +232,7 @@ pub(crate) fn verify_final_fold(
                 semantic_state_digest,
                 acc_digest: digest::AccumulatorHandle::empty().digest(),
                 public_trace,
+                nebula,
                 proof: ProofState::Initial,
             });
         }
@@ -273,6 +278,7 @@ pub(crate) fn verify_final_fold(
         semantic_state_digest,
         acc_digest: post_acc_digest,
         public_trace,
+        nebula: nebula.clone(),
         proof: ProofState::Active {
             running: post_running,
             latest: LatestInstance::from_instances(Vec::new()),

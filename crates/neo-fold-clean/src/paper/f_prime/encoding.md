@@ -59,19 +59,32 @@ backs:
 
 It does **not** yet encode the full private F' witness.
 
-## Open design questions for `enc(F')`
+## Open design questions for `enc(F')` — now answered quantitatively
 
-These need an answer before `enc(F')` can be implemented:
+The 2026-07-06 inventory (design note in the local `specs/` working
+directory; every figure reproduces from the tests named below) answered
+these:
 
-- What exactly is the low-norm assignment `z = [x, w]` for an F'
-  execution?
-- Which values are public `x`? Which values are private `w`?
-- Which field computations are represented by bits/digits in `w`?
-- Which values are merely derived linear combinations and never
-  committed directly?
-- How does this interact with the cost wall measured earlier (F' ≈ 10M
-  rows post-optimization; naive lowering of all field vars was ~3.2B
-  bit slots)?
+- *What is the low-norm assignment for an F' execution?* The production
+  shell measures **94,330,948 committed bits per recursive step**
+  (`system_phase_1_4a_fibonacci_structure::phase_1_4a_production_config_pins_emitter_counts`):
+  465 ring-action pairs × 196,992 bits (97 %, dominated by each pair's
+  D² partial-product region), 7,100 K-mul slots × 384 bits (2.7M), and
+  ~135k for the state-hash trace + boundary + counters.
+- *Which values are public `x`?* Only the 257-slot `enc_inst` boundary.
+- *Which are derived, never committed?* Canonical-u64 lanes — rows
+  substitute `Σ 2^i · z[bit]` directly; already implemented.
+- *Do digit encodings help?* No: the measured SignedDigit ladder
+  (`perf_ring_action_low_norm_prototype`: 3,079 full-field / 39,853
+  SignedDigit / 200,071 U64 cols per pair) is **invalid on production
+  wires** — the ring action acts on commitments, which are full-range
+  mod q; only ρ is low-norm (a 1.6 % saving). The earlier figures once
+  quoted here ("F' ≈ 10M rows post-optimization", "~3.2B bit slots
+  naive") are historical estimates superseded by this measurement.
 
-Until those are settled, do not extend source-image plumbing to internal
-F' field values. The current scope is the right stopping point.
+What remains open is the *regime decision*, not a measurement: fold F'
+(requires new protocol work on the ring-action check to escape the D²
+term — e.g., a projection check, which needs its own soundness lemma) or
+prove the terminal relation field-native (PR5). Until that decision, do
+not extend source-image plumbing to internal F' field values. The
+current scope is the right stopping point.

@@ -11,7 +11,7 @@ use neo_wasm::{
 };
 use p3_field::PrimeCharacteristicRing;
 
-fn witness_run(wat_src: &str) -> (Vec<neo_wasm::WasmStepTrace>, Vec<Vec<F>>, WasmMemoryPreload) {
+fn witness_run(wat_src: &str) -> (Vec<neo_wasm::WasmVmStep>, Vec<Vec<F>>, WasmMemoryPreload) {
     let wasm = wat::parse_str(wat_src).expect("wat");
     let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
     let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");

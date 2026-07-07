@@ -201,7 +201,7 @@ impl WasmRowKind {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct WasmStepTrace {
+pub struct WasmVmStep {
     pub cycle: u64,
     pub row_kind: WasmRowKind,
     pub state_before: WasmStepState,
@@ -298,7 +298,7 @@ impl core::fmt::Display for WasmBuildError {
 
 impl std::error::Error for WasmBuildError {}
 
-pub fn boundary_states(trace: &[WasmStepTrace]) -> Vec<(WasmBoundaryState, WasmBoundaryState)> {
+pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoundaryState)> {
     trace
         .iter()
         .map(|row| {

@@ -14,11 +14,11 @@ use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::WasmRowKind;
 use neo_wasm::{
     collect_wasmtime_steps, opcode_code, traces_from_wasmtime_steps, traces_from_wasmtime_wasm_bytes, StackValueAccess,
-    WasmAuxOpcode, WasmOpcode, WasmPcEdgeKind, WasmStepTrace,
+    WasmAuxOpcode, WasmOpcode, WasmPcEdgeKind, WasmVmStep,
 };
 use p3_field::PrimeCharacteristicRing;
 
-fn trace_from_wat(wat_src: &str) -> Vec<WasmStepTrace> {
+fn trace_from_wat(wat_src: &str) -> Vec<WasmVmStep> {
     let wasm = wat::parse_str(wat_src).expect("valid WAT");
     let run = collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
     traces_from_wasmtime_steps(&run.steps).expect("normalize trace")

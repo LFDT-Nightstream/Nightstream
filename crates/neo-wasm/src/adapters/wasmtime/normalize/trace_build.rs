@@ -1,4 +1,4 @@
-//! Assembly of normalized `SupportedRow`s into proof-facing `WasmStepTrace`
+//! Assembly of normalized `NormalizedStep`s into proof-facing `WasmVmStep`
 //! rows.
 //!
 //! Owns the cross-row work: the running trace state machine (sp, fbp, call
@@ -6,20 +6,20 @@
 //! adjacent rows, and the synthesis of aux rows that do not exist in
 //! wasmtime's step stream — guest `CallParamInit` and host
 //! `HostCallArg`/`HostCallResult` rows. Per-row decoding lives in the parent
-//! `normalize` module; this module reads it only through `SupportedRow`.
+//! `normalize` module; this module reads it only through `NormalizedStep`.
 
 use super::super::runtime_read::{read_lane, read_lane_hi};
 use super::super::WasmtimeTraceStep;
-use super::{normalize_supported_row, SupportedRow};
+use super::{normalize_step, NormalizedStep};
 use crate::ir::{
     StackValueAccess, WasmAuxOpcode, WasmBuildError, WasmCountdownState, WasmOutputState, WasmPcEdgeKind, WasmRowKind,
-    WasmStepState, WasmStepTrace,
+    WasmStepState, WasmVmStep,
 };
 use crate::isa::{opcode_code, opcode_info_from_code, WasmOpcode};
 
 /// Extracts initial parameter locals from the callee's first step's locals snapshot,
 /// converting local indices to absolute addresses using the callee's FBP.
-fn collect_callee_initial_params(next: Option<&SupportedRow>, callee_fbp: u64, param_count: u8) -> Vec<(u64, u32)> {
+fn collect_callee_initial_params(next: Option<&NormalizedStep>, callee_fbp: u64, param_count: u8) -> Vec<(u64, u32)> {
     let Some(next) = next else {
         return vec![];
     };
@@ -48,8 +48,8 @@ fn call_indirect_oob(table_index: Option<u32>, table_size: Option<u32>) -> bool 
 }
 
 fn write_lane(
-    current: &SupportedRow,
-    next: Option<&SupportedRow>,
+    current: &NormalizedStep,
+    next: Option<&NormalizedStep>,
     sp_after: u64,
     stack_writes: u8,
 ) -> Result<Option<StackValueAccess>, WasmBuildError> {
@@ -104,8 +104,8 @@ fn write_lane(
 }
 
 fn write_lane_hi(
-    current: &SupportedRow,
-    next: Option<&SupportedRow>,
+    current: &NormalizedStep,
+    next: Option<&NormalizedStep>,
     stack_writes: u8,
 ) -> Result<Option<u32>, WasmBuildError> {
     if stack_writes == 0 || !current.wide_values_enabled {
@@ -170,10 +170,10 @@ fn write_lane_hi(
     Ok(Some(write_value_hi))
 }
 
-pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<WasmStepTrace>, WasmBuildError> {
+pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<WasmVmStep>, WasmBuildError> {
     let mut supported = Vec::new();
     for row in rows {
-        if let Some(normalized) = normalize_supported_row(row)? {
+        if let Some(normalized) = normalize_step(row)? {
             supported.push(normalized);
         }
     }
@@ -473,7 +473,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
             host_call_arity = Some((param_count, result_count));
         }
 
-        out.push(WasmStepTrace {
+        out.push(WasmVmStep {
             // Sequential index within the normalized trace. Structural-only opcodes
             // (loop, block, inner End) are filtered before this loop, so this is
             // always consecutive — matching Stage 3's cycle_delta == 1 invariant.
@@ -641,7 +641,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                     active: remaining_after != 0,
                     remaining: remaining_after_u32,
                 };
-                out.push(WasmStepTrace {
+                out.push(WasmVmStep {
                     cycle: out.len() as u64,
                     row_kind: WasmRowKind::Aux(WasmAuxOpcode::CallParamInit),
                     state_before: WasmStepState {
@@ -751,7 +751,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
             let host_aux_row = |cycle: u64,
                                 aux_opcode: WasmAuxOpcode,
                                 state_before: WasmStepState,
-                                state_after: WasmStepState| WasmStepTrace {
+                                state_after: WasmStepState| WasmVmStep {
                 cycle,
                 row_kind: WasmRowKind::Aux(aux_opcode),
                 state_before,
@@ -825,7 +825,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                     active: host_args_before.remaining > 1,
                     remaining: host_args_before.remaining - 1,
                 };
-                out.push(WasmStepTrace {
+                out.push(WasmVmStep {
                     wide_values_enabled: src_value_hi.is_some_and(|hi| hi != 0),
                     stack_reads_override: Some(1),
                     stack_read0: Some(src),
@@ -854,7 +854,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                 let aux_sp_before = sp_after - u64::from(param_count);
                 let write = StackValueAccess::new(aux_sp_before.saturating_mul(2), result_value)
                     .with_optional_hi(result_value_hi);
-                out.push(WasmStepTrace {
+                out.push(WasmVmStep {
                     wide_values_enabled: result_value_hi.is_some_and(|hi| hi != 0),
                     stack_writes_override: Some(1),
                     stack_write0: Some(write),

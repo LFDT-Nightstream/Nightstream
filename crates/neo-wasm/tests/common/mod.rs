@@ -8,14 +8,14 @@ use neo_wasm::{
     preload_from_program_artifacts, sanity_check_lookup_row, sanity_check_memory_rows, top_level_initial_state_digest,
     traces_from_wasmtime_steps, witness_builder::build_witness_vector, LinearMemoryAccess, StackValueAccess,
     WasmCountdownState, WasmOpcode, WasmOutputState, WasmPcEdgeKind, WasmProgramArtifacts, WasmRowKind, WasmStepState,
-    WasmStepTrace, WasmVmSpec, WasmtimeTraceRun,
+    WasmVmSpec, WasmVmStep, WasmtimeTraceRun,
 };
 
 pub struct CheckedWasmRun {
     pub wasm: Vec<u8>,
     pub artifacts: WasmProgramArtifacts,
     pub run: WasmtimeTraceRun,
-    pub trace: Vec<WasmStepTrace>,
+    pub trace: Vec<WasmVmStep>,
     pub witnesses: Vec<Vec<F>>,
 }
 
@@ -45,7 +45,7 @@ pub fn checked_wasm_run(wat_src: &str, export: &str, params: &[i32]) -> CheckedW
 /// value, which reaches us through `func.call_async` without touching the
 /// step stream or the normalizer. This is the only end-to-end check that
 /// the value the proof binds is the value the program actually produced.
-fn assert_output_matches_reference(trace: &[WasmStepTrace], results: &[String]) {
+fn assert_output_matches_reference(trace: &[WasmVmStep], results: &[String]) {
     let output = final_state(trace).output;
     if !output.enabled {
         return;
@@ -68,7 +68,7 @@ fn assert_output_matches_reference(trace: &[WasmStepTrace], results: &[String]) 
 }
 
 pub fn sanity_check_trace(
-    trace: &[WasmStepTrace],
+    trace: &[WasmVmStep],
     artifacts: &WasmProgramArtifacts,
     initial_locals: &[u32],
 ) -> Vec<Vec<F>> {
@@ -105,7 +105,7 @@ pub fn step(
     linear_memory: Option<LinearMemoryAccess>,
     linear_memory_offset: u64,
     halted: bool,
-) -> WasmStepTrace {
+) -> WasmVmStep {
     fn state(pc: u64, sp: u64, halted: bool) -> WasmStepState {
         WasmStepState {
             pc,
@@ -140,7 +140,7 @@ pub fn step(
         && stack_read0.is_some_and(|lane| lane.value_lo == min_lo && lane.value_hi.unwrap_or(0) == min_hi)
         && stack_read1.is_some_and(|lane| lane.value_lo == u32::MAX && lane.value_hi.unwrap_or(0) == neg1_hi);
     let div_trap = div_zero_trap || div_overflow_trap;
-    WasmStepTrace {
+    WasmVmStep {
         cycle,
         row_kind: WasmRowKind::Program,
         state_before: state(pc_before, sp_before, false),
@@ -223,7 +223,7 @@ pub fn assert_rejected(z: &[F], label: &str) {
     );
 }
 
-pub fn ccs_check_trace(trace: &[WasmStepTrace]) {
+pub fn ccs_check_trace(trace: &[WasmVmStep]) {
     let vm = WasmVmSpec::default();
     let ccs = &vm.core_ccs_spec().structure;
     let catalog = vm.constraint_catalog();
@@ -263,7 +263,7 @@ pub fn verifier_initial_state_digest(artifacts: &WasmProgramArtifacts) -> [u8; 3
 }
 
 /// Prover-disclosed final VM state for `neo_wasm::verify`.
-pub fn final_state(trace: &[WasmStepTrace]) -> WasmStepState {
+pub fn final_state(trace: &[WasmVmStep]) -> WasmStepState {
     trace.last().expect("non-empty trace").state_after
 }
 

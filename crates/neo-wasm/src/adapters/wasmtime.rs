@@ -1,6 +1,6 @@
 //! Owns direct Wasmtime tracing and normalization into the generic WASM IR.
 
-use super::super::ir::{WasmBuildError, WasmPcEdgeKind, WasmStepTrace};
+use super::super::ir::{WasmBuildError, WasmPcEdgeKind, WasmVmStep};
 use super::super::isa::WasmOpcode;
 use futures::executor::block_on;
 use std::collections::BTreeMap;
@@ -342,7 +342,7 @@ pub fn collect_wasmtime_steps(
     })
 }
 
-pub fn traces_from_wasmtime_wasm_bytes(wasm_bytes: &[u8], export: &str) -> Result<Vec<WasmStepTrace>, WasmBuildError> {
+pub fn traces_from_wasmtime_wasm_bytes(wasm_bytes: &[u8], export: &str) -> Result<Vec<WasmVmStep>, WasmBuildError> {
     let run = collect_wasmtime_steps(wasm_bytes, export, &[])?;
     traces_from_wasmtime_steps(&run.steps)
 }
@@ -425,10 +425,7 @@ where
     })
 }
 
-pub fn traces_from_wasmtime_component(
-    component_bytes: &[u8],
-    export: &str,
-) -> Result<Vec<WasmStepTrace>, WasmBuildError> {
+pub fn traces_from_wasmtime_component(component_bytes: &[u8], export: &str) -> Result<Vec<WasmVmStep>, WasmBuildError> {
     let run = collect_wasmtime_component_run(component_bytes, export)?;
     traces_from_wasmtime_steps(&run.steps)
 }
@@ -437,7 +434,7 @@ pub fn traces_from_wasmtime_component_with_linker<F>(
     component_bytes: &[u8],
     export: &str,
     configure_linker: F,
-) -> Result<Vec<WasmStepTrace>, WasmBuildError>
+) -> Result<Vec<WasmVmStep>, WasmBuildError>
 where
     F: FnOnce(&mut WasmtimeComponentLinker<WasmtimeTraceState>) -> Result<(), WasmBuildError>,
 {

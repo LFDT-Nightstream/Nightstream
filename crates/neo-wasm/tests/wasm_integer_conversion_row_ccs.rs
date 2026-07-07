@@ -8,7 +8,7 @@ use neo_wasm::layout::{COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO};
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{
     opcode_code, opcode_info_from_code, StackValueAccess, WasmCountdownState, WasmOpcode, WasmOutputState,
-    WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmStepTrace,
+    WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
 };
 use p3_field::PrimeCharacteristicRing;
 
@@ -26,7 +26,7 @@ fn sign_extend_high(value: u32, width_bytes: usize) -> u32 {
     }
 }
 
-fn conversion_row(opcode: WasmOpcode, value: u32, width_bytes: usize, writes_i64: bool) -> WasmStepTrace {
+fn conversion_row(opcode: WasmOpcode, value: u32, width_bytes: usize, writes_i64: bool) -> WasmVmStep {
     let code = opcode_code(opcode);
     let output_lo = sign_extend_u32(value, width_bytes);
     let output_hi = if writes_i64 {
@@ -62,7 +62,7 @@ fn conversion_row(opcode: WasmOpcode, value: u32, width_bytes: usize, writes_i64
         host_args: WasmCountdownState::ZERO,
         host_result_pending: false,
     };
-    WasmStepTrace {
+    WasmVmStep {
         cycle: 0,
         row_kind: WasmRowKind::Program,
         state_before,

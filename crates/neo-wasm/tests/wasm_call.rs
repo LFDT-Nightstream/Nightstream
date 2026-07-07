@@ -3,7 +3,7 @@ mod common;
 use neo_wasm::layout::{COL_CALL_STACK_RETURN_PC_CHOICE, COL_OUTPUT_VALUE_LO_AFTER, COL_STACK_READ0_VALUE_LO};
 use neo_wasm::{
     build_wasm_relation_layout, collect_wasmtime_steps, extract_wasm_program_artifacts, preload_from_program_artifacts,
-    sanity_check_memory_rows, traces_from_wasmtime_steps, WasmAuxOpcode, WasmOpcode, WasmRowKind, WasmStepTrace,
+    sanity_check_memory_rows, traces_from_wasmtime_steps, WasmAuxOpcode, WasmOpcode, WasmRowKind, WasmVmStep,
 };
 use p3_field::PrimeCharacteristicRing;
 
@@ -61,7 +61,7 @@ fn call_indirect_param_wasm() -> Vec<u8> {
     .expect("wat parse")
 }
 
-fn build_witnesses(trace: &[WasmStepTrace]) -> Vec<Vec<neo_math::F>> {
+fn build_witnesses(trace: &[WasmVmStep]) -> Vec<Vec<neo_math::F>> {
     trace
         .iter()
         .map(neo_wasm::witness_builder::build_witness_vector)

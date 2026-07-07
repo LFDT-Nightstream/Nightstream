@@ -139,7 +139,7 @@ fn wasm_component_kernel_roundtrip_for_embedded_core_trace() {
 }
 
 fn check_component_trace(
-    trace: &[neo_wasm::WasmStepTrace],
+    trace: &[neo_wasm::WasmVmStep],
     artifacts: &neo_wasm::WasmProgramArtifacts,
     run: &neo_wasm::WasmtimeTraceRun,
 ) {

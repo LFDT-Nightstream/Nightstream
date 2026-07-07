@@ -14,7 +14,7 @@ use neo_wasm::layout::{
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{
     opcode_code, opcode_info_from_code, StackValueAccess, WasmCountdownState, WasmOpcode, WasmOutputState,
-    WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmStepTrace,
+    WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
 };
 use p3_field::PrimeCharacteristicRing;
 
@@ -26,7 +26,7 @@ fn step(
     stack_read1: Option<StackValueAccess>,
     stack_write0: Option<StackValueAccess>,
     wide_values_enabled: bool,
-) -> WasmStepTrace {
+) -> WasmVmStep {
     fn state(pc: u64, sp: u64) -> WasmStepState {
         WasmStepState {
             pc,
@@ -49,7 +49,7 @@ fn step(
     }
 
     let code = opcode_code(opcode);
-    WasmStepTrace {
+    WasmVmStep {
         cycle: 0,
         row_kind: WasmRowKind::Program,
         state_before: state(2, sp_before),

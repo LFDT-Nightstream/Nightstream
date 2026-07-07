@@ -2,7 +2,7 @@
 //!
 //! Owns two per-row phases: `capture_frame` runs inside the guest-debug
 //! breakpoint handler and snapshots one frame into a `WasmtimeTraceStep`;
-//! `normalize_supported_row` decodes one step into a `SupportedRow`, the
+//! `normalize_step` decodes one step into a `NormalizedStep`, the
 //! private intermediate carrying the per-step facts. Neither phase looks at
 //! neighboring steps. The cross-row trace assembly (state machine, aux-row
 //! synthesis) lives in the `trace_build` child module. Reads raw values
@@ -25,7 +25,7 @@ use crate::isa::{opcode_code, opcode_info_from_code, WasmOpcode, WasmOpcodeInfo}
 use wasmtime::{FrameHandle, StoreContextMut};
 
 #[derive(Clone, Debug)]
-struct SupportedRow {
+struct NormalizedStep {
     cycle: u64,
     pc: u32,
     control_choice: u32,
@@ -81,7 +81,7 @@ struct SupportedRow {
     linear_memory_offset: u64,
 }
 
-fn normalize_supported_row(row: &WasmtimeTraceStep) -> Result<Option<SupportedRow>, WasmBuildError> {
+fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, WasmBuildError> {
     if row.frame_depth != 0 {
         return Ok(None);
     }
@@ -205,7 +205,7 @@ fn normalize_supported_row(row: &WasmtimeTraceStep) -> Result<Option<SupportedRo
         .map(|v| v.parse::<i128>().map(|n| (n as i32) as u32).unwrap_or(0))
         .collect();
 
-    Ok(Some(SupportedRow {
+    Ok(Some(NormalizedStep {
         cycle: row.step,
         pc,
         control_choice,

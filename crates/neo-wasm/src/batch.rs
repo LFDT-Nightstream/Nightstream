@@ -43,7 +43,7 @@ use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
 use crate::ccs::WasmVmSpec;
-use crate::ir::{WasmAuxOpcode, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmStepTrace};
+use crate::ir::{WasmAuxOpcode, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep};
 use crate::isa::{opcode_info_from_code, WasmOpcode};
 use crate::layout::{ColumnWidth, COLUMN_SPECS, COL_ONE};
 use crate::range_checked_witness_width;
@@ -169,7 +169,7 @@ pub fn build_batched_wasm_ccs(batch_size: usize) -> Result<BatchedWasmCcs, Batch
 /// in trace order. If `traces[batch_idx * batch_size..]` is shorter than
 /// `batch_size`, the tail is padded with synthetic state-preserving
 /// padding rows (see [`padding_step_after`]).
-pub fn build_batched_witness(traces: &[WasmStepTrace], batch_size: usize, batch_idx: usize) -> Vec<F> {
+pub fn build_batched_witness(traces: &[WasmVmStep], batch_size: usize, batch_idx: usize) -> Vec<F> {
     let single_width = crate::range_check::range_checked_witness_width();
     assert!(batch_size >= 1, "batch_size must be at least 1");
     let start = batch_idx * batch_size;
@@ -214,7 +214,7 @@ pub fn batch_count(trace_len: usize, batch_size: usize) -> usize {
     trace_len.div_ceil(batch_size)
 }
 
-/// Build a synthetic state-preserving `WasmStepTrace` whose `_before`
+/// Build a synthetic state-preserving `WasmVmStep` whose `_before`
 /// matches `prev`'s `_after`. Used to pad a trace up to a multiple of
 /// `batch_size` without breaking cross-step continuity.
 ///
@@ -222,7 +222,7 @@ pub fn batch_count(trace_len: usize, batch_size: usize) -> usize {
 /// rows (see the `non-program row shape` and `padding row state
 /// preservation` constraint groups in `ccs/call.rs`); the witness we
 /// build here is just the values that satisfy those rows.
-pub fn padding_step_after(prev: &WasmStepTrace) -> WasmStepTrace {
+pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
     let pages = prev.state_after.memory_pages;
     let max_pages = prev.state_after.max_memory_pages;
     let fbp = prev.state_after.locals_fbp;
@@ -240,7 +240,7 @@ pub fn padding_step_after(prev: &WasmStepTrace) -> WasmStepTrace {
         !host_args.active && !host_result_pending,
         "padding inside a host-call aux sequence is unsupported"
     );
-    WasmStepTrace {
+    WasmVmStep {
         cycle: prev.cycle + 1,
         row_kind: WasmRowKind::Aux(WasmAuxOpcode::Padding),
         state_before: WasmStepState {

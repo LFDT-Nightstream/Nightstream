@@ -2,7 +2,7 @@ use neo_fold_clean::frontends::r1cs_f_prime::R1csChainBuilder;
 use neo_fold_clean::lifecycle::verify_uncompressed_audit;
 use neo_wasm::{
     build_steps, opcode_code, preprocess_seeded_batched, semantic_state_digest, StackValueAccess, WasmCountdownState,
-    WasmOpcode, WasmOutputState, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmStepTrace,
+    WasmOpcode, WasmOutputState, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
 };
 
 fn state(pc: u64, sp: u64, halted: bool) -> WasmStepState {
@@ -29,7 +29,7 @@ fn wasm_frontend_scaffold_runs_through_clean_lifecycle() {
     let prep = preprocess_seeded_batched(1, digest).expect("prep");
 
     let steps = vec![
-        WasmStepTrace {
+        WasmVmStep {
             cycle: 0,
             row_kind: WasmRowKind::Program,
             state_before: state(0, 0, false),
@@ -74,7 +74,7 @@ fn wasm_frontend_scaffold_runs_through_clean_lifecycle() {
             call_stack_push: None,
             call_stack_pop: None,
         },
-        WasmStepTrace {
+        WasmVmStep {
             cycle: 1,
             row_kind: WasmRowKind::Program,
             state_before: state(1, 1, false),
@@ -119,7 +119,7 @@ fn wasm_frontend_scaffold_runs_through_clean_lifecycle() {
             call_stack_push: None,
             call_stack_pop: None,
         },
-        WasmStepTrace {
+        WasmVmStep {
             cycle: 2,
             row_kind: WasmRowKind::Program,
             state_before: state(2, 2, false),
@@ -164,7 +164,7 @@ fn wasm_frontend_scaffold_runs_through_clean_lifecycle() {
             call_stack_push: None,
             call_stack_pop: None,
         },
-        WasmStepTrace {
+        WasmVmStep {
             cycle: 3,
             row_kind: WasmRowKind::Program,
             state_before: state(3, 1, false),

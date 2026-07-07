@@ -13,15 +13,14 @@ use neo_wasm::layout::{
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{
     collect_wasmtime_component_run_with_linker, extract_first_component_core_program_artifacts,
-    traces_from_wasmtime_steps, WasmAuxOpcode, WasmBuildError, WasmOpcode, WasmRowKind, WasmStepTrace,
-    WasmtimeTraceState,
+    traces_from_wasmtime_steps, WasmAuxOpcode, WasmBuildError, WasmOpcode, WasmRowKind, WasmVmStep, WasmtimeTraceState,
 };
 use p3_field::PrimeCharacteristicRing;
 
 fn checked_component_run(
     component_wat: &str,
     define_host: impl FnOnce(&mut wasmtime::component::Linker<WasmtimeTraceState>) -> Result<(), WasmBuildError>,
-) -> Vec<WasmStepTrace> {
+) -> Vec<WasmVmStep> {
     let component_bytes = wat::parse_str(component_wat).expect("component wat");
     let run =
         collect_wasmtime_component_run_with_linker(&component_bytes, "run", define_host).expect("component trace run");
@@ -32,14 +31,14 @@ fn checked_component_run(
     trace
 }
 
-fn host_arg_rows(trace: &[WasmStepTrace]) -> Vec<&WasmStepTrace> {
+fn host_arg_rows(trace: &[WasmVmStep]) -> Vec<&WasmVmStep> {
     trace
         .iter()
         .filter(|row| row.row_kind == WasmRowKind::Aux(WasmAuxOpcode::HostCallArg))
         .collect()
 }
 
-fn host_result_rows(trace: &[WasmStepTrace]) -> Vec<&WasmStepTrace> {
+fn host_result_rows(trace: &[WasmVmStep]) -> Vec<&WasmVmStep> {
     trace
         .iter()
         .filter(|row| row.row_kind == WasmRowKind::Aux(WasmAuxOpcode::HostCallResult))
@@ -76,7 +75,7 @@ fn five_arg_component_wat() -> &'static str {
     "#
 }
 
-fn five_arg_trace() -> Vec<WasmStepTrace> {
+fn five_arg_trace() -> Vec<WasmVmStep> {
     checked_component_run(five_arg_component_wat(), |linker| {
         linker
             .root()

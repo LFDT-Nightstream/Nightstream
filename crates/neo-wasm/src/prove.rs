@@ -19,7 +19,7 @@ use neo_fold_clean::paper::digest::structure_digest;
 use neo_fold_clean::UncompressedAudit;
 
 use crate::batch;
-use crate::ir::{WasmStepState, WasmStepTrace};
+use crate::ir::{WasmStepState, WasmVmStep};
 use crate::preprocess::{canonical_wasm_f_prime_shape_batched_with_initial_state_digest, semantic_state_digest};
 use crate::range_check::range_checked_witness_width;
 
@@ -50,7 +50,7 @@ impl core::fmt::Display for WasmProveError {
 impl std::error::Error for WasmProveError {}
 
 /// Single-step prove. Thin wrapper over [`prove_batched`] at `batch_size = 1`.
-pub fn prove(prep: &R1csFPrimePreprocessing, trace: &[WasmStepTrace]) -> Result<WasmProof, WasmProveError> {
+pub fn prove(prep: &R1csFPrimePreprocessing, trace: &[WasmVmStep]) -> Result<WasmProof, WasmProveError> {
     prove_batched(prep, trace, 1)
 }
 
@@ -70,7 +70,7 @@ pub fn prove(prep: &R1csFPrimePreprocessing, trace: &[WasmStepTrace]) -> Result<
 /// (that's a verifier-side responsibility, currently elided).
 pub fn prove_batched(
     prep: &R1csFPrimePreprocessing,
-    trace: &[WasmStepTrace],
+    trace: &[WasmVmStep],
     batch_size: usize,
 ) -> Result<WasmProof, WasmProveError> {
     assert!(batch_size >= 1, "batch_size must be at least 1");

@@ -1,5 +1,5 @@
 use super::gadgets::{unsigned_ge_witness, zero_test_witness_field, zero_test_witness_u64};
-use super::ir::{WasmRowKind, WasmStepTrace};
+use super::ir::{WasmRowKind, WasmVmStep};
 use super::layout::{
     selector_col, CALL_RETURN_PC_CHOICE, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_IS_TRAP,
     COL_CALL_INDIRECT_TYPE_INDEX, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR,
@@ -76,7 +76,7 @@ use p3_field::PrimeCharacteristicRing;
 /// `CcsInstance` internally — neo-wasm does not commit to the assignment.
 /// Assignments match the canonical (range-checked) wasm CCS: the declared
 /// columns followed by the range-check bit columns.
-pub fn build_steps(steps: &[WasmStepTrace]) -> Vec<WasmStepBuild> {
+pub fn build_steps(steps: &[WasmVmStep]) -> Vec<WasmStepBuild> {
     steps
         .iter()
         .map(|step| WasmStepBuild {
@@ -85,7 +85,7 @@ pub fn build_steps(steps: &[WasmStepTrace]) -> Vec<WasmStepBuild> {
         .collect()
 }
 
-pub fn build_witness_vector(trace: &WasmStepTrace) -> Vec<F> {
+pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     let mut wit = vec![F::ZERO; NAMED_COLUMN_COUNT];
     wit[COL_ONE] = F::ONE;
     // High-limb stack addresses are constrained unconditionally as

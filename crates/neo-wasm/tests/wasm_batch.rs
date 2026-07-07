@@ -8,7 +8,7 @@ use neo_fold_clean::frontends::r1cs_f_prime::{R1csChainBuilder, R1csCompilerErro
 use neo_math::F;
 use neo_wasm::batch::{batch_count, build_batched_wasm_ccs, build_batched_witness};
 use neo_wasm::layout::{COL_LOCALS_FBP_AFTER, COL_PC_BEFORE, COL_SP_BEFORE};
-use neo_wasm::{prove_batched, verify, WasmStepTrace, WasmVmSpec};
+use neo_wasm::{prove_batched, verify, WasmVmSpec, WasmVmStep};
 use p3_field::PrimeCharacteristicRing;
 
 const SIMPLE_ADD_WAT: &str = r#"
@@ -18,7 +18,7 @@ const SIMPLE_ADD_WAT: &str = r#"
    i32.add))
 "#;
 
-fn satisfies_batched_ccs(traces: &[WasmStepTrace], batch_size: usize) {
+fn satisfies_batched_ccs(traces: &[WasmVmStep], batch_size: usize) {
     let batched = build_batched_wasm_ccs(batch_size).expect("build batched CCS");
     let n_batches = batch_count(traces.len(), batch_size);
     for batch_idx in 0..n_batches {

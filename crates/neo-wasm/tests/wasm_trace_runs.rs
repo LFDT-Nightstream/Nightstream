@@ -5,7 +5,7 @@ use neo_fold_clean::paper::params::Params;
 use neo_params::{goldilocks_paper_b2, NeoParams};
 use neo_wasm::{
     preprocess::canonical_wasm_f_prime_shape_batched_with_initial_state_digest, preprocess_seeded_batched, prove,
-    verify, WasmStepTrace, WasmVmSpec,
+    verify, WasmVmSpec, WasmVmStep,
 };
 
 /// Compile a WAT module, run it through the wasmtime adapter, exercise the
@@ -14,7 +14,7 @@ fn compile_and_trace(
     wat_src: &str,
 ) -> (
     Vec<u8>,
-    Vec<WasmStepTrace>,
+    Vec<WasmVmStep>,
     Vec<(u64, u64, u64)>,
     Vec<(u64, u64)>,
     Vec<(u64, u64)>,
@@ -28,7 +28,7 @@ fn compile_and_trace_with(
     params: &[i32],
 ) -> (
     Vec<u8>,
-    Vec<WasmStepTrace>,
+    Vec<WasmVmStep>,
     Vec<(u64, u64, u64)>,
     Vec<(u64, u64)>,
     Vec<(u64, u64)>,

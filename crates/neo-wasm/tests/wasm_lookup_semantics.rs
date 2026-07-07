@@ -4,7 +4,7 @@ use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{build_wasm_relation_layout, sanity_check_lookup_row, traces_from_wasmtime_wasm_bytes, WasmOpcode};
 use p3_field::PrimeCharacteristicRing;
 
-fn trace_rows() -> Vec<neo_wasm::WasmStepTrace> {
+fn trace_rows() -> Vec<neo_wasm::WasmVmStep> {
     let wasm = wat::parse_str(
         r#"(module
             (memory 1)

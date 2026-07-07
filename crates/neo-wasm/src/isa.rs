@@ -1097,8 +1097,9 @@ pub fn opcode_info_from_code(code: u16) -> WasmOpcodeInfo {
         Op::BrIf => info(op, code, Class::ControlFlow, 1, 0, false, None),
         Op::BrTable => info(op, code, Class::ControlFlow, 1, 0, false, None),
         // Call/CallIndirect: static arity is 0 here; the trace overrides it
-        // per row (guest: 0, or 1 for the indirect table index; host: full
-        // on-row pops/pushes) and param-init aux rows pop guest args.
+        // per row (0, or 1 for the indirect table index). Args are popped by
+        // aux rows: param-init for guest callees, host-arg for host callees,
+        // and a host-result aux row pushes the host's single result.
         Op::Call => info(op, code, Class::ControlFlow, 0, 0, false, None),
         Op::CallIndirect => info(op, code, Class::ControlFlow, 0, 0, false, None),
         Op::Return => info(op, code, Class::System, 0, 0, false, None),

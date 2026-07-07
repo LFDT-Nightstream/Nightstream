@@ -175,6 +175,55 @@ define_columns!(
         "inverse witness for remaining call parameters after this row"
     ),
     (
+        COL_HOST_ARGS_ACTIVE_BEFORE,
+        "host-call argument-pop mode before this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_HOST_ARGS_ACTIVE_AFTER,
+        "host-call argument-pop mode after this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_HOST_ARGS_REMAINING_BEFORE,
+        "remaining host-call arguments to pop before this row",
+        ColumnWidth::U32
+    ),
+    (
+        COL_HOST_ARGS_REMAINING_AFTER,
+        "remaining host-call arguments to pop after this row",
+        ColumnWidth::U32
+    ),
+    (
+        COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO,
+        "zero-test flag for remaining host-call arguments after this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_HOST_ARGS_REMAINING_AFTER_INV,
+        "inverse witness for remaining host-call arguments after this row"
+    ),
+    (
+        COL_HOST_RESULT_PENDING_BEFORE,
+        "host-call result push still owed before this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_HOST_RESULT_PENDING_AFTER,
+        "host-call result push still owed after this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_HOST_RESULT_ACTIVE,
+        "this row pushes the pending host-call result",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_CI_HOST_CALL,
+        "non-trapping call_indirect row targeting a host import",
+        ColumnWidth::Boolean
+    ),
+    (
         COL_CALL_STACK_PUSH_PRESENT,
         "flag indicating that this row enters a traced guest callee",
         ColumnWidth::Boolean
@@ -1416,6 +1465,7 @@ pub fn build_pad_row() -> [F; NAMED_COLUMN_COUNT] {
     row[COL_IS_PROGRAM_ROW] = F::ONE;
     row[COL_PC_EDGE_KIND] = F::ONE;
     row[COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO] = F::ONE;
+    row[COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO] = F::ONE;
     row[COL_HALTED] = F::ONE;
     row[COL_SEL_RETURN] = F::ONE;
     row

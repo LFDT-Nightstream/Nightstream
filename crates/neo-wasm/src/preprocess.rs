@@ -14,10 +14,11 @@
 
 use crate::adapters::wasmtime::WasmProgramTables;
 use crate::batch::{self, BatchError};
-use crate::ir::{WasmOutputState, WasmParamInitState, WasmStepState};
+use crate::ir::{WasmCountdownState, WasmOutputState, WasmStepState};
 use crate::layout::Column;
 use crate::layout::{
-    COL_CALL_STACK_DEPTH_BEFORE, COL_LOCALS_FBP_BEFORE, COL_MAX_MEMORY_PAGES_BEFORE, COL_MEMORY_PAGES_BEFORE,
+    COL_CALL_STACK_DEPTH_BEFORE, COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_ARGS_REMAINING_BEFORE,
+    COL_HOST_RESULT_PENDING_BEFORE, COL_LOCALS_FBP_BEFORE, COL_MAX_MEMORY_PAGES_BEFORE, COL_MEMORY_PAGES_BEFORE,
     COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_PARAM_INIT_ACTIVE_BEFORE,
     COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_BEFORE, COL_SP_BEFORE, COL_TRAPPED_BEFORE,
 };
@@ -132,7 +133,9 @@ pub fn top_level_initial_state(tables: &WasmProgramTables, entry_pc: u64) -> Was
         locals_fbp: 0,
         halted: false,
         trapped: false,
-        param_init: WasmParamInitState::ZERO,
+        param_init: WasmCountdownState::ZERO,
+        host_args: WasmCountdownState::ZERO,
+        host_result_pending: false,
     }
 }
 
@@ -173,6 +176,9 @@ fn carried_state_field(state: WasmStepState, column: Column) -> F {
         COL_LOCALS_FBP_BEFORE => F::from_u64(state.locals_fbp),
         COL_PARAM_INIT_ACTIVE_BEFORE => bool_field(state.param_init.active),
         COL_PARAM_INIT_REMAINING_BEFORE => F::from_u64(u64::from(state.param_init.remaining)),
+        COL_HOST_ARGS_ACTIVE_BEFORE => bool_field(state.host_args.active),
+        COL_HOST_ARGS_REMAINING_BEFORE => F::from_u64(u64::from(state.host_args.remaining)),
+        COL_HOST_RESULT_PENDING_BEFORE => bool_field(state.host_result_pending),
         COL_TRAPPED_BEFORE => bool_field(state.trapped),
         other => panic!("unsupported initial semantic-state column {other}"),
     }

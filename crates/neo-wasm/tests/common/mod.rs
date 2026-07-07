@@ -7,7 +7,7 @@ use neo_wasm::{
     build_wasm_relation_layout, collect_wasmtime_steps, extract_wasm_program_artifacts, opcode_info_from_code,
     preload_from_program_artifacts, sanity_check_lookup_row, sanity_check_memory_rows, top_level_initial_state_digest,
     traces_from_wasmtime_steps, witness_builder::build_witness_vector, LinearMemoryAccess, StackValueAccess,
-    WasmOpcode, WasmOutputState, WasmParamInitState, WasmPcEdgeKind, WasmProgramArtifacts, WasmRowKind, WasmStepState,
+    WasmCountdownState, WasmOpcode, WasmOutputState, WasmPcEdgeKind, WasmProgramArtifacts, WasmRowKind, WasmStepState,
     WasmStepTrace, WasmVmSpec, WasmtimeTraceRun,
 };
 
@@ -117,7 +117,9 @@ pub fn step(
             locals_fbp: 0,
             halted,
             trapped: false,
-            param_init: WasmParamInitState::ZERO,
+            param_init: WasmCountdownState::ZERO,
+            host_args: WasmCountdownState::ZERO,
+            host_result_pending: false,
         }
     }
 

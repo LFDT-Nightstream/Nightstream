@@ -7,7 +7,7 @@ use neo_math::F;
 use neo_wasm::layout::{COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO};
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{
-    opcode_code, opcode_info_from_code, StackValueAccess, WasmOpcode, WasmOutputState, WasmParamInitState,
+    opcode_code, opcode_info_from_code, StackValueAccess, WasmCountdownState, WasmOpcode, WasmOutputState,
     WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmStepTrace,
 };
 use p3_field::PrimeCharacteristicRing;
@@ -44,7 +44,9 @@ fn conversion_row(opcode: WasmOpcode, value: u32, width_bytes: usize, writes_i64
         locals_fbp: 0,
         halted: false,
         trapped: false,
-        param_init: WasmParamInitState::ZERO,
+        param_init: WasmCountdownState::ZERO,
+        host_args: WasmCountdownState::ZERO,
+        host_result_pending: false,
     };
     let state_after = WasmStepState {
         pc: 3,
@@ -56,7 +58,9 @@ fn conversion_row(opcode: WasmOpcode, value: u32, width_bytes: usize, writes_i64
         locals_fbp: 0,
         halted: false,
         trapped: false,
-        param_init: WasmParamInitState::ZERO,
+        param_init: WasmCountdownState::ZERO,
+        host_args: WasmCountdownState::ZERO,
+        host_result_pending: false,
     };
     WasmStepTrace {
         cycle: 0,

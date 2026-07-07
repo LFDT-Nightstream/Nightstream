@@ -8,7 +8,8 @@ use neo_math::F;
 use neo_wasm::layout::{
     COL_HOST_ARGS_ACTIVE_AFTER, COL_HOST_ARGS_REMAINING_AFTER, COL_HOST_ARGS_REMAINING_AFTER_INV,
     COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO, COL_HOST_RESULT_PENDING_AFTER, COL_HOST_RESULT_PENDING_BEFORE,
-    COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO,
+    COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_AFTER_INV,
+    COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO,
 };
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{
@@ -396,4 +397,47 @@ fn guest_call_row_rejects_forged_host_arg_mode() {
     witness[COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO] = F::ZERO;
     witness[COL_HOST_ARGS_REMAINING_AFTER_INV] = F::ONE;
     common::assert_rejected(&witness, "guest call row entering host-arg mode");
+}
+
+/// Param-init aux rows must preserve host-call state; they cannot forge a
+/// pending host result while guest-call params are being initialized.
+#[test]
+fn param_init_row_rejects_forged_host_result_pending() {
+    let checked = common::checked_wasm_run(
+        r#"(module
+            (func $double (param i32) (result i32)
+                local.get 0
+                local.get 0
+                i32.add)
+            (func (export "run") (result i32)
+                i32.const 21
+                call $double))
+        "#,
+        "run",
+        &[],
+    );
+    let param_init_row = checked
+        .trace
+        .iter()
+        .find(|row| row.row_kind.is_call_param_init())
+        .expect("param-init aux row");
+    let mut witness = build_witness_vector(param_init_row);
+    common::assert_satisfied(&witness, "untampered param-init row");
+    witness[COL_HOST_RESULT_PENDING_AFTER] = F::ONE;
+    common::assert_rejected(&witness, "param-init row forging an owed host result");
+}
+
+/// Host-arg aux rows must preserve param-init state; they cannot enter guest
+/// param-init mode while host args are being popped.
+#[test]
+fn host_arg_row_rejects_forged_param_init_mode() {
+    let trace = five_arg_trace();
+    let arg_row = host_arg_rows(&trace)[0];
+    let mut witness = build_witness_vector(arg_row);
+    common::assert_satisfied(&witness, "untampered host arg row");
+    witness[COL_PARAM_INIT_ACTIVE_AFTER] = F::ONE;
+    witness[COL_PARAM_INIT_REMAINING_AFTER] = F::ONE;
+    witness[COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO] = F::ZERO;
+    witness[COL_PARAM_INIT_REMAINING_AFTER_INV] = F::ONE;
+    common::assert_rejected(&witness, "host arg row entering param-init mode");
 }

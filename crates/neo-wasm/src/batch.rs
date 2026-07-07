@@ -234,6 +234,12 @@ pub fn padding_step_after(prev: &WasmStepTrace) -> WasmStepTrace {
         !param_init.active,
         "padding inside a param-init aux sequence is unsupported"
     );
+    let host_args = prev.state_after.host_args;
+    let host_result_pending = prev.state_after.host_result_pending;
+    debug_assert!(
+        !host_args.active && !host_result_pending,
+        "padding inside a host-call aux sequence is unsupported"
+    );
     WasmStepTrace {
         cycle: prev.cycle + 1,
         row_kind: WasmRowKind::Aux(WasmAuxOpcode::Padding),
@@ -248,6 +254,8 @@ pub fn padding_step_after(prev: &WasmStepTrace) -> WasmStepTrace {
             halted: false,
             trapped: prev.state_after.trapped,
             param_init,
+            host_args,
+            host_result_pending,
         },
         state_after: WasmStepState {
             pc,
@@ -260,6 +268,8 @@ pub fn padding_step_after(prev: &WasmStepTrace) -> WasmStepTrace {
             halted: false,
             trapped: prev.state_after.trapped,
             param_init,
+            host_args,
+            host_result_pending,
         },
         control_choice: 0,
         pc_edge_kind: WasmPcEdgeKind::Static,

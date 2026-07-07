@@ -3,8 +3,8 @@ use super::ivc_state::{build_ivc_state_continuity_links, WasmCrossStepLinkSpec};
 use super::layout::{
     selector_col, Column, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_TYPE_INDEX, COL_CALL_PARAM_COUNT,
     COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR, COL_CALL_STACK_POP_CALLER_FBP, COL_CALL_STACK_POP_PRESENT,
-    COL_CALL_STACK_POP_RETURN_PC, COL_CALL_STACK_PUSH_PRESENT, COL_CALL_STACK_RETURN_PC_CHOICE, COL_CONTROL_CHOICE,
-    COL_CURRENT_FUNCTION_NUM_LOCALS, COL_CURRENT_FUNCTION_REF, COL_EXPECTED_TYPE_ID,
+    COL_CALL_STACK_POP_RETURN_PC, COL_CALL_STACK_PUSH_PRESENT, COL_CALL_STACK_RETURN_PC_CHOICE, COL_CI_HOST_CALL,
+    COL_CONTROL_CHOICE, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_CURRENT_FUNCTION_REF, COL_EXPECTED_TYPE_ID,
     COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF, COL_FUNCTION_TYPE_ID, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE,
     COL_GLOBAL_VALUE_HI, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1,
     COL_LINEAR_MEM_ACCESS_BYTE2, COL_LINEAR_MEM_ACCESS_BYTE3, COL_LINEAR_MEM_ACCESS_BYTE4, COL_LINEAR_MEM_ACCESS_BYTE5,
@@ -871,9 +871,11 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             "function_entries",
             vec![Column(COL_FUNCTION_REF)],
             Column(COL_PC_AFTER),
-            // De-gated on call_indirect trap rows: a trapping row is
-            // terminal and never binds a callee entry pc.
-            WasmMemoryActivation::BooleanGate(Column(COL_CALL_INDIRECT_IS_NOT_TRAP)),
+            // Gated on guest-call rows only: host imports have no entry pc
+            // (host calls fall through to pc+1, pinned by a CCS row), and a
+            // trapping call_indirect row is terminal and never binds a
+            // callee entry pc.
+            WasmMemoryActivation::BooleanGate(Column(COL_CALL_STACK_PUSH_PRESENT)),
         ),
         rom_read_spec(
             "pc_edge_kinds",
@@ -895,6 +897,16 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     value_column: Column(COL_CALL_STACK_POP_RETURN_PC),
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(Column(COL_CALL_STACK_PUSH_PRESENT)),
+                },
+                // An indirect host call binds its fall-through pc_after to
+                // the call site's return-pc slot: host imports have no
+                // `function_entries` entry, and the DynamicCallIndirect edge
+                // kind bypasses the static pc ROM read.
+                WasmMemoryColumnSpec {
+                    address_columns: vec![Column(COL_PC_BEFORE), Column(COL_CALL_STACK_RETURN_PC_CHOICE)],
+                    value_column: Column(COL_PC_AFTER),
+                    kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_CI_HOST_CALL)),
                 },
             ],
             is_rom: true,

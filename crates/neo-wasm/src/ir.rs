@@ -62,20 +62,24 @@ pub struct LinearMemoryAccess {
     pub lane2: Option<LinearMemoryWordLane>,
 }
 
+/// Carried state of an aux-row countdown mode: `active` while `remaining`
+/// counts down to zero, one aux row per tick. Used by both call-argument
+/// modes — param-init (guest) and host-arg (host) — which differ only in
+/// what each popped value feeds.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct WasmParamInitState {
+pub struct WasmCountdownState {
     pub active: bool,
     pub remaining: u32,
 }
 
-impl WasmParamInitState {
+impl WasmCountdownState {
     pub const ZERO: Self = Self {
         active: false,
         remaining: 0,
     };
 }
 
-impl Default for WasmParamInitState {
+impl Default for WasmCountdownState {
     fn default() -> Self {
         Self::ZERO
     }
@@ -92,7 +96,9 @@ pub struct WasmBoundaryState {
     pub locals_fbp: u64,
     pub halted: bool,
     pub trapped: bool,
-    pub param_init: WasmParamInitState,
+    pub param_init: WasmCountdownState,
+    pub host_args: WasmCountdownState,
+    pub host_result_pending: bool,
 }
 
 /// Carry state for binding the whole execution's claimed output.
@@ -140,12 +146,26 @@ pub struct WasmStepState {
     /// a captured output; carried into the semantic-state digest so a
     /// verifier can assert "this execution trapped".
     pub trapped: bool,
-    pub param_init: WasmParamInitState,
+    pub param_init: WasmCountdownState,
+    /// Host-call argument-pop mode: each `HostCallArg` aux row pops one
+    /// pre-call operand while `remaining` counts down to zero.
+    pub host_args: WasmCountdownState,
+    /// A host call with `result_count = 1` still owes its result push; the
+    /// `HostCallResult` aux row consumes this flag.
+    pub host_result_pending: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WasmAuxOpcode {
     CallParamInit,
+    /// Pops one host-call argument off the operand stack. The program call row
+    /// pops only the indirect table index; argument arity is handled by these
+    /// aux rows.
+    HostCallArg,
+    /// Pushes the host call's single result at the post-pop stack top.
+    /// Emitted after the `HostCallArg` rows iff `result_count = 1` (the
+    /// canonical ABI caps flat results at 1).
+    HostCallResult,
     /// Synthetic state-preserving row used to pad a trace up to a
     /// multiple of `batch_size`. Not a real wasm opcode — the CCS gates
     /// these rows so that `_after == _before` for every state column.
@@ -165,6 +185,14 @@ impl WasmRowKind {
 
     pub fn is_call_param_init(self) -> bool {
         matches!(self, Self::Aux(WasmAuxOpcode::CallParamInit))
+    }
+
+    pub fn is_host_call_arg(self) -> bool {
+        matches!(self, Self::Aux(WasmAuxOpcode::HostCallArg))
+    }
+
+    pub fn is_host_call_result(self) -> bool {
+        matches!(self, Self::Aux(WasmAuxOpcode::HostCallResult))
     }
 
     pub fn is_padding(self) -> bool {
@@ -187,11 +215,12 @@ pub struct WasmStepTrace {
     pub opcode: WasmOpcode,
     pub info: WasmOpcodeInfo,
     /// Dynamic stack read count when opcode metadata is not enough.
-    /// Calls use callee arity; `call_indirect` also reads the table index.
+    /// Call rows read only the `call_indirect` table index; args are popped
+    /// by param-init (guest) or host-arg (host) aux rows.
     pub stack_reads_override: Option<u8>,
     /// Dynamic stack write count when opcode metadata is not enough.
-    /// Guest calls produce their return values in later guest rows, while host
-    /// calls write results directly on this row.
+    /// Guest calls produce their return values in later guest rows; host
+    /// calls push their result on a trailing host-result aux row.
     pub stack_writes_override: Option<u8>,
     pub output_captured: bool,
     /// Normalized function reference for the currently executing frame.
@@ -285,6 +314,8 @@ pub fn boundary_states(trace: &[WasmStepTrace]) -> Vec<(WasmBoundaryState, WasmB
                     halted: row.state_before.halted,
                     trapped: row.state_before.trapped,
                     param_init: row.state_before.param_init,
+                    host_args: row.state_before.host_args,
+                    host_result_pending: row.state_before.host_result_pending,
                 },
                 WasmBoundaryState {
                     pc: row.state_after.pc,
@@ -297,6 +328,8 @@ pub fn boundary_states(trace: &[WasmStepTrace]) -> Vec<(WasmBoundaryState, WasmB
                     halted: row.state_after.halted,
                     trapped: row.state_after.trapped,
                     param_init: row.state_after.param_init,
+                    host_args: row.state_after.host_args,
+                    host_result_pending: row.state_after.host_result_pending,
                 },
             )
         })

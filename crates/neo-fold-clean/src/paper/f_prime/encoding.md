@@ -96,14 +96,17 @@ current scope is the right stopping point.
 | B | SignedDigit as measured | — | invalid: operands are full-range commitments |
 | C | Mixed (ρ = SignedDigit{5}, rest U64) | 90.1M | valid; saves 1.6 % — not a lever |
 | D | Digit-decompose c, act on digits | ~260M | valid; strictly worse (14 SignedDigit pairs vs 1 U64 pair, ×2.8) |
-| E | Projection check (verify `out = RotRho·c` at a challenge; O(D) intermediates instead of O(D²)) | ~5–10M est. | the only in-regime lever; needs a soundness lemma, a spec amendment, and a challenge-uniformity design (challenge enters as witness bits; check becomes degree-3) |
+| E | Projection check — **prototyped and measured**: verify `Σ_i ρ_i·c_i = out (mod Φ)` as the polynomial identity `Σ ρ_i(X)c_i(X) = q(X)Φ(X) + out(X)` tested at a post-commitment challenge `β ∈ K` (`engine/r1cs_circuit/ring_action.rs::enforce_ring_action_projection_batch`; SZ error ≤ (2D−2)/\|K\| ≈ 2^−121 per identity) | measured **330 cols/pair marginal** vs 3,078 full-field / ~21k vs ~196k bits bit-backed → **9.3× per pair**; ring-action surface ≈ 9.8M bits/step at production counts | parity + rejection tests in `tests/system/ring_action_projection.rs`. Still owed before integration: β's transcript binding (commit-then-challenge over all operands incl. `q`), the soundness lemma written up for non-author review, and the F' image wiring |
 | F | Fewer pairs (arity/κ trades) | linear only | doesn't touch the 197k/pair |
 | G | SIS accumulators (C14/L2) | — | helps the absorb (Poseidon) side, already small; not the fold math |
 | H | Terminal-proof regime (PR5): never commit F' | 0 per step | field-native cost once per chain (~1–3M-constraint relation); sidesteps enc(F') entirely |
 
 Bottom line: encodings alone cannot move the wall (best honest bit
 encoding ≈ 90M). The data favors H as plan of record; E is the only
-folded-regime path worth research effort.
+folded-regime path worth research effort — and its measured prototype
+brings the folded-regime step to ≈ 12.5M committed bits (9.8M ring
+action + 2.7M K-mul), ~220× the S_mem app circuit instead of ~1,650×.
+The K-mul/sumcheck region is a candidate for the same treatment.
 
 ## Reproduce every number
 

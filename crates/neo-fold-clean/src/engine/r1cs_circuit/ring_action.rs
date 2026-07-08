@@ -358,3 +358,145 @@ fn reduce_lcs_mod_phi_81(coeffs: &mut [Lc]) {
         }
     }
 }
+
+// ── Projection-checked batched ring action (encoding.md candidate E) ──────
+//
+// The gadgets above materialize all `D²` partial products of one `ρ · c`
+// — the measured wall of the folded `enc(F')` regime (~197k committed
+// bits per pair at U64). The projection check replaces materialization
+// with a polynomial-identity test at a transcript challenge `β ∈ K`:
+//
+//   out = Σ_i ρ_i · c_i (mod Φ)
+//     ⟺  Σ_i ρ_i(X)·c_i(X) = q(X)·Φ(X) + out(X)      (q = the quotient)
+//     ⟸  the same identity at a random β, except w.p. ≤ (2D−2)/|K|
+//         over β — Schwartz–Zippel, sound only if β is sampled AFTER
+//         ρ_i, c_i, out, q are committed (commit-then-challenge, the
+//         same discipline as γ and the fold challenges).
+//
+// Committed material per input pair drops from O(D²) products to O(D)
+// evaluation terms; the β power ladder is shared across every pair of a
+// step. Everything here is prototype-stage: the caller owns β's
+// transcript binding, and integration into the folded F' image is the
+// enc(F') milestone's call (soundness lemma flagged for non-author
+// review in encoding.md).
+
+use crate::engine::r1cs_circuit::field_ext::{alloc_klc, enforce_k_mul, KLc, KVar};
+
+/// Quotient length for the batched identity: `deg(Σ ρ_i·c_i) ≤ 2D − 2`,
+/// so `deg q = 2D − 2 − D = D − 2` → `D − 1` coefficients.
+pub const PROJECTION_QUOTIENT_LEN: usize = D - 1;
+
+/// `β^0 .. β^top` as constrained `KVar`s (one K-mult per power).
+/// `top = D` covers everything the batched check needs: evaluations use
+/// `β^0..β^{D−1}`, and `Φ(β)` reads `β^{27}` and `β^{54}`.
+pub fn enforce_beta_ladder(builder: &mut R1csBuilder, beta: KVar, top: usize) -> Vec<KVar> {
+    let one_c0 = builder.alloc(F::ONE);
+    builder.enforce_eq(&Lc::from_var(one_c0), &Lc::from_const(F::ONE));
+    let zero_c1 = builder.alloc(F::ZERO);
+    builder.enforce_zero(&Lc::from_var(zero_c1));
+    let mut powers = Vec::with_capacity(top + 1);
+    powers.push(KVar::new(one_c0, zero_c1));
+    for k in 1..=top {
+        let prev = powers[k - 1];
+        powers.push(enforce_k_mul(builder, &KLc::from_var(prev), &KLc::from_var(beta)));
+    }
+    powers
+}
+
+/// `p(β) = Σ_j coeffs[j] · β^j` as a constrained `KVar`. Two committed
+/// product wires per coefficient (the `j = 0` term is free: `β^0 = 1`).
+pub fn enforce_eval_at_beta(builder: &mut R1csBuilder, coeffs: &[Var], powers: &[KVar]) -> KVar {
+    assert!(coeffs.len() <= powers.len(), "ladder too short for this polynomial");
+    let mut sum = KLc::zero();
+    for (j, &coeff) in coeffs.iter().enumerate() {
+        if j == 0 {
+            sum.c0.add_term(coeff, F::ONE);
+            continue;
+        }
+        let p0 = builder.alloc_mul(&Lc::from_var(coeff), &Lc::from_var(powers[j].c0));
+        let p1 = builder.alloc_mul(&Lc::from_var(coeff), &Lc::from_var(powers[j].c1));
+        sum.c0.add_term(p0, F::ONE);
+        sum.c1.add_term(p1, F::ONE);
+    }
+    alloc_klc(builder, &sum)
+}
+
+/// Enforce `out = Σ_i ρ_i · c_i (mod Φ)` via the projection identity at
+/// β: `Σ_i ρ_i(β)·c_i(β) = q(β)·Φ(β) + out(β)`.
+///
+/// The caller supplies the shared `enforce_beta_ladder(β, D)` powers,
+/// the committed operand coefficient wires, and the committed quotient
+/// wires (prover side: [`projection_quotient`]). β MUST be a
+/// transcript challenge sampled after every operand and the quotient
+/// are committed — this gadget only enforces the algebra.
+pub fn enforce_ring_action_projection_batch(
+    builder: &mut R1csBuilder,
+    powers: &[KVar],
+    pairs: &[(&[Var; D], &[Var; D])],
+    out: &[Var; D],
+    quotient: &[Var; PROJECTION_QUOTIENT_LEN],
+) {
+    assert!(powers.len() > D, "ladder must reach β^D for Φ(β)");
+    // Σ_i ρ_i(β) · c_i(β), one K-mult per pair.
+    let mut lhs = KLc::zero();
+    for (rho, c) in pairs {
+        let rho_eval = enforce_eval_at_beta(builder, rho.as_slice(), powers);
+        let c_eval = enforce_eval_at_beta(builder, c.as_slice(), powers);
+        let term = enforce_k_mul(builder, &KLc::from_var(rho_eval), &KLc::from_var(c_eval));
+        lhs.c0.add_term(term.c0, F::ONE);
+        lhs.c1.add_term(term.c1, F::ONE);
+    }
+
+    // q(β)·Φ(β) + out(β), with Φ(β) = β^D + β^{PHI_MID_DEGREE} + 1 as a
+    // linear form over the shared ladder.
+    let out_eval = enforce_eval_at_beta(builder, out.as_slice(), powers);
+    let q_eval = enforce_eval_at_beta(builder, quotient.as_slice(), powers);
+    let mut phi_beta = KLc::zero();
+    phi_beta.c0.add_term(powers[D].c0, F::ONE);
+    phi_beta.c0.add_term(powers[PHI_MID_DEGREE].c0, F::ONE);
+    phi_beta.c0.add_constant(F::ONE);
+    phi_beta.c1.add_term(powers[D].c1, F::ONE);
+    phi_beta.c1.add_term(powers[PHI_MID_DEGREE].c1, F::ONE);
+    let q_phi = enforce_k_mul(builder, &KLc::from_var(q_eval), &phi_beta);
+
+    let mut rhs = KLc::zero();
+    rhs.c0.add_term(q_phi.c0, F::ONE);
+    rhs.c0.add_term(out_eval.c0, F::ONE);
+    rhs.c1.add_term(q_phi.c1, F::ONE);
+    rhs.c1.add_term(out_eval.c1, F::ONE);
+
+    builder.enforce_eq(&lhs.c0, &rhs.c0);
+    builder.enforce_eq(&lhs.c1, &rhs.c1);
+}
+
+/// Prover-side companion of [`enforce_ring_action_projection_batch`]:
+/// the reduced result `out` and the division quotient `q` with
+/// `Σ_i ρ_i(X)·c_i(X) = q(X)·Φ(X) + out(X)` exactly (monic long
+/// division by `Φ = X^D + X^{27} + 1`).
+pub fn projection_quotient(pairs: &[([F; D], [F; D])]) -> ([F; D], [F; PROJECTION_QUOTIENT_LEN]) {
+    let mut p = [F::ZERO; TABLE_LEN];
+    for (rho, c) in pairs {
+        for i in 0..D {
+            if rho[i] == F::ZERO {
+                continue;
+            }
+            for j in 0..D {
+                p[i + j] += rho[i] * c[j];
+            }
+        }
+    }
+    let mut q = [F::ZERO; PROJECTION_QUOTIENT_LEN];
+    for k in (D..TABLE_LEN).rev() {
+        let t = p[k];
+        if t == F::ZERO {
+            continue;
+        }
+        q[k - D] = t;
+        p[k] = F::ZERO;
+        p[k - PHI_MID_DEGREE] -= t;
+        p[k - D] -= t;
+    }
+    let mut out = [F::ZERO; D];
+    out.copy_from_slice(&p[..D]);
+    (out, q)
+}

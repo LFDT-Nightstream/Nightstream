@@ -154,7 +154,7 @@ fn nebula_test_profile_segment_snapshot() {
     let n = params.steps_per_segment();
     println!("== Nebula segment timing, §2 test profile (N = {n}) ==");
     println!(
-        "F' steps (chunks)        {:>8}   (batched folding: ⌈N / max_fresh⌉ — the recursion-overhead amortization of Nebula §5)",
+        "F' steps (chunks)        {:>8}   (batched folding: ⌈N / max_fresh⌉ — SuperNeo multi-folding, Theorem 1's K ≤ 61 arity)",
         audit.steps.len()
     );
     println!(

@@ -2,7 +2,7 @@ mod common;
 
 use neo_ccs::check_ccs_rowwise_zero;
 use neo_math::F;
-use neo_wasm::layout::{ColumnWidth, COLUMN_SPECS, COL_CALL_STACK_POP_RETURN_PC, NAMED_COLUMN_COUNT};
+use neo_wasm::layout::{ColumnWidth, COLUMN_SPECS, COL_CALL_STACK_RETURN_PC_VALUE, NAMED_COLUMN_COUNT};
 use neo_wasm::{range_checked_witness_width, write_range_check_bits, WasmOpcode, WasmVmSpec};
 use p3_field::PrimeCharacteristicRing;
 
@@ -26,14 +26,14 @@ fn range_checked_width_bookkeeping() {
     assert_eq!(vm.core_ccs_spec().structure.m, range_checked_witness_width());
 }
 
-/// An out-of-range value in a column no semantic row pins (a call-stack pop
-/// field on a non-pop row) must be rejected, and the failing row must be one
-/// of that column's own range-check rows — proving nothing else constrains
-/// the value.
+/// An out-of-range value in a column no semantic row pins (the call-stack
+/// return-pc cell on a row that neither pushes nor pops) must be rejected,
+/// and the failing row must be one of that column's own range-check rows,
+/// proving nothing else constrains the value.
 #[test]
 fn out_of_range_u32_is_rejected_by_the_column_range_row() {
     // The invariant under attack: the column is declared as a 32-bit value.
-    assert_eq!(COLUMN_SPECS[COL_CALL_STACK_POP_RETURN_PC].width, ColumnWidth::U32);
+    assert_eq!(COLUMN_SPECS[COL_CALL_STACK_RETURN_PC_VALUE].width, ColumnWidth::U32);
 
     let checked =
         common::checked_main(r#"(module (func (export "main") (result i32) i32.const 20 i32.const 22 i32.add))"#);
@@ -44,13 +44,13 @@ fn out_of_range_u32_is_rejected_by_the_column_range_row() {
         .expect("i32.add row");
     let mut wit = checked.witnesses[add_idx].clone();
 
-    wit[COL_CALL_STACK_POP_RETURN_PC] = F::from_u64(1u64 << 32);
+    wit[COL_CALL_STACK_RETURN_PC_VALUE] = F::from_u64(1u64 << 32);
     write_range_check_bits(&mut wit);
 
     let vm = WasmVmSpec::default();
     let m_in = vm.core_ccs_spec().m_in;
     let err = check_ccs_rowwise_zero(&vm.core_ccs_spec().structure, &wit[..m_in], &wit[m_in..])
-        .expect_err("the range-checked CCS must reject an out-of-range pop return pc");
+        .expect_err("the range-checked CCS must reject an out-of-range call-stack return pc value");
 
     let detail = err.to_string();
     let row_idx = detail
@@ -60,7 +60,7 @@ fn out_of_range_u32_is_rejected_by_the_column_range_row() {
         .unwrap_or_else(|| panic!("could not parse failing row from: {detail}"));
     let tag = &vm.constraint_catalog().row_tags[row_idx];
     assert_eq!(
-        tag.label, "COL_CALL_STACK_POP_RETURN_PC",
+        tag.label, "COL_CALL_STACK_RETURN_PC_VALUE",
         "rejection must come from the column's own range-check row, failed row {row_idx} is tagged {tag:?}"
     );
 }
@@ -72,7 +72,7 @@ fn out_of_range_u32_is_rejected_by_the_column_range_row() {
 /// tripling the committed limbs and making the unconditional F' width
 /// audit vacuous. Declaring the widths is what makes preprocessing
 /// re-derive each one from the range rows and hard-error on any it cannot
-/// prove — so this passing also certifies the pass covers every column.
+/// prove, so this passing also certifies the pass covers every column.
 #[test]
 fn canonical_preprocessing_audits_declared_widths() {
     let digest = [0u8; 32];

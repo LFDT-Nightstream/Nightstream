@@ -3,8 +3,8 @@ mod common;
 use common::{assert_rejected, assert_satisfied, step};
 use neo_math::F;
 use neo_wasm::layout::{
-    COL_CALL_PARAM_COUNT, COL_CALL_STACK_POP_CALLER_FBP, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_POP_RETURN_PC,
-    COL_CALL_STACK_PUSH_PRESENT, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE,
+    COL_CALL_PARAM_COUNT, COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_RETURN_PC_VALUE,
+    COL_CURRENT_FUNCTION_NUM_LOCALS, COL_GUEST_CALL_ACTIVE, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE,
     COL_MEMORY_PAGES_AFTER, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_REMAINING_AFTER,
     COL_PARAM_INIT_REMAINING_AFTER_INV, COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PC_ROM_ACTIVE,
     COL_STACK_READ0_ACTIVE, COL_STACK_READ1_ACTIVE, COL_STACK_READ2_ACTIVE, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE,
@@ -1114,7 +1114,7 @@ fn non_final_return_row_rejects_tampered_return_pc() {
         .find(|row| row.call_stack_pop.is_some())
         .expect("non-final return row");
     let mut witness = build_witness_vector(row);
-    witness[COL_CALL_STACK_POP_RETURN_PC] += F::ONE;
+    witness[COL_CALL_STACK_RETURN_PC_VALUE] += F::ONE;
     assert_rejected(&witness, "non-final return row with tampered return pc");
 }
 
@@ -1139,7 +1139,7 @@ fn non_final_return_row_rejects_tampered_caller_fbp() {
         .find(|row| row.call_stack_pop.is_some())
         .expect("non-final return row");
     let mut witness = build_witness_vector(row);
-    witness[COL_CALL_STACK_POP_CALLER_FBP] += F::ONE;
+    witness[COL_CALL_STACK_CALLER_FBP_VALUE] += F::ONE;
     assert_rejected(&witness, "non-final return row with tampered caller fbp");
 }
 
@@ -1216,7 +1216,7 @@ fn static_program_row_rejects_disabled_pc_rom_active() {
 }
 
 #[test]
-fn guest_call_row_rejects_suppressed_call_stack_push() {
+fn guest_call_row_rejects_suppressed_guest_call_flag() {
     let wasm = wat::parse_str(
         r#"(module
             (func $add_one (param i32) (result i32)
@@ -1237,7 +1237,7 @@ fn guest_call_row_rejects_suppressed_call_stack_push() {
         .expect("call row");
     assert!(row.target_function_is_guest);
     let mut witness = build_witness_vector(row);
-    witness[COL_CALL_STACK_PUSH_PRESENT] = F::ZERO;
+    witness[COL_GUEST_CALL_ACTIVE] = F::ZERO;
     witness[COL_PARAM_INIT_ACTIVE_AFTER] = F::ZERO;
     witness[COL_PARAM_INIT_REMAINING_AFTER] = F::ZERO;
     witness[COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO] = F::ONE;

@@ -9,7 +9,13 @@ use super::isa::{opcode_code, WasmOpcode};
 pub struct Column(pub usize);
 
 pub const PUBLIC_INPUTS: usize = 7;
-pub const CALL_RETURN_PC_CHOICE: u64 = 1;
+/// Reserved `control_choice` value under which `pc_rom` stores a call site's
+/// continuation pc (the instruction after the call): the return address for
+/// guest calls, the fall-through target for indirect host calls. Shares the
+/// choice axis with the per-opcode branch discriminants (`br_if`, `if`,
+/// `br_table` arms), which use 0/1/arm-index at their own pcs; the
+/// reservation is per call-site pc, not global.
+pub const PC_ROM_CALL_RETURN_CHOICE: u64 = 1;
 
 /// Declared intrinsic range for a witness column.
 ///
@@ -25,7 +31,7 @@ pub enum ColumnWidth {
     Byte,
     /// Constrained to [0, 2^32).
     U32,
-    /// No declared bound — the value is treated as a full field element.
+    /// No declared bound: the value is treated as a full field element.
     /// Use for columns whose intrinsic range has not been audited yet, or
     /// whose width depends on a row gate (e.g. wide limbs that are 64-bit
     /// only when `wide_values_enabled = 1`).
@@ -224,8 +230,8 @@ define_columns!(
         ColumnWidth::Boolean
     ),
     (
-        COL_CALL_STACK_PUSH_PRESENT,
-        "flag indicating that this row enters a traced guest callee",
+        COL_GUEST_CALL_ACTIVE,
+        "guest-call row flag: this row enters a traced guest callee (and pushes its return context)",
         ColumnWidth::Boolean
     ),
     (
@@ -234,13 +240,13 @@ define_columns!(
         ColumnWidth::Boolean
     ),
     (
-        COL_CALL_STACK_POP_RETURN_PC,
-        "saved return pc restored by a non-final return row",
+        COL_CALL_STACK_RETURN_PC_VALUE,
+        "call-stack return-pc cell value: written on guest-call push, read back on pop into pc_after",
         ColumnWidth::U32
     ),
     (
-        COL_CALL_STACK_POP_CALLER_FBP,
-        "saved caller locals frame base restored by a non-final return row",
+        COL_CALL_STACK_CALLER_FBP_VALUE,
+        "call-stack caller-fbp cell value: written on guest-call push, read back on pop into locals_fbp_after",
         ColumnWidth::U32
     ),
     (
@@ -259,8 +265,8 @@ define_columns!(
         ColumnWidth::U32
     ),
     (
-        COL_CALL_STACK_RETURN_PC_CHOICE,
-        "pc-rom control choice used to bind a pushed call return pc",
+        COL_PC_ROM_CALL_RETURN_CHOICE,
+        "pc-rom control-choice coordinate for the call-site continuation-pc read (guest pushes and indirect host fall-through)",
         ColumnWidth::U32
     ),
     (
@@ -652,9 +658,9 @@ define_columns!(
     // emitted by `push_select_constraints`. Declared `Boolean` so the
     // spec reflects its actual range; whichever path eventually enforces
     // `ColumnWidth::Boolean` will overlap with the gadget's constraint and
-    // one of the two becomes redundant — an optimization to revisit later.
+    // one of the two becomes redundant; an optimization to revisit later.
     // We deliberately do not introduce a dedicated `ImpliedBoolean` width
-    // for this case — premature complexity.
+    // for this case because that would be premature complexity.
     (
         COL_SELECT_COND_IS_ZERO,
         "scratch column for push_select_constraints for select opcode",

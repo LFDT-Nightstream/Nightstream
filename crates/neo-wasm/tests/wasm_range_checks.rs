@@ -19,7 +19,10 @@ fn expected_aux_bits() -> usize {
 
 #[test]
 fn range_checked_width_bookkeeping() {
-    assert_eq!(range_checked_witness_width(), NAMED_COLUMN_COUNT + expected_aux_bits());
+    assert_eq!(
+        range_checked_witness_width(),
+        NAMED_COLUMN_COUNT + neo_wasm::ccs::poseidon::PERM_GADGET_AUX_WIDTH + expected_aux_bits()
+    );
 
     let vm = WasmVmSpec::default();
     assert_eq!(vm.core_ccs_spec().witness_width, range_checked_witness_width());

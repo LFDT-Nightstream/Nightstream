@@ -85,6 +85,88 @@ impl Default for WasmCountdownState {
     }
 }
 
+/// Carried state of the in-circuit host-event absorb machinery.
+///
+/// Host-call rows stream the event's words (header, popped args, result)
+/// into `evbuf`; when the 8-word block fills — or the event's stream ends —
+/// `perm_pending` is raised and a group of `HostEventPerm` aux rows runs the
+/// width-12 permutation one round-row at a time (`perm_round` is the position
+/// inside that group, 0 when idle). The group's last row folds the block into
+/// `WasmStepState::comm_chain`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WasmEventAbsorbState {
+    /// The 8-word block currently being filled (already-absorbed slots are
+    /// zeroed by the group's first perm row).
+    pub evbuf: [u64; 8],
+    /// Next buffer pair slot (0..=3) an event word pair lands in.
+    pub evbuf_slot: u8,
+    /// A filled block (or completed event stream) awaits its perm rows.
+    pub perm_pending: bool,
+    /// Row position inside the current perm group (0 when idle).
+    pub perm_round: u8,
+    /// Running permutation state. Meaningful only from the absorb (the row
+    /// raising `perm_pending` premixes `[chain | evbuf]` with the initial
+    /// external linear layer) through the group's rows; carried junk
+    /// in between and never cleared.
+    pub perm_state: [u64; 12],
+}
+
+impl WasmEventAbsorbState {
+    pub const ZERO: Self = Self {
+        evbuf: [0; 8],
+        evbuf_slot: 0,
+        perm_pending: false,
+        perm_round: 0,
+        perm_state: [0; 12],
+    };
+}
+
+impl Default for WasmEventAbsorbState {
+    fn default() -> Self {
+        Self::ZERO
+    }
+}
+
+/// Carried state of the grammar-mode gather machinery (all zero in raw
+/// mode): the per-call event schedule, the argument-region base for
+/// addressed slot reads, the slot cursor inside the block being staged,
+/// and the per-call oracle cells (see [`crate::event_grammar`]).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WasmGrammarState {
+    /// Events still owed in the current phase; loaded from the event-count
+    /// ROM on the call row (pre) and the result row (post), decremented as
+    /// each block's last slot row stages it. Program rows require zero.
+    pub events_remaining: u32,
+    /// Current event's index within the template (the ROM key component);
+    /// zeroed on the call row, incremented per completed block.
+    pub event_index: u32,
+    /// Stack slot index of the call's first argument:
+    /// `sp_at_call - index_pops - param_count`; latched on the call row.
+    pub args_base: u64,
+    /// Next block word a slot row stages (0..=7).
+    pub slot_cursor: u8,
+    /// Per-call oracle cells; reloaded (prover-supplied) on host-call rows,
+    /// preserved elsewhere so template slots referencing the same oracle
+    /// index provably read the same value.
+    pub oracles: [u64; 4],
+}
+
+impl WasmGrammarState {
+    pub const ZERO: Self = Self {
+        events_remaining: 0,
+        event_index: 0,
+        args_base: 0,
+        slot_cursor: 0,
+        oracles: [0; 4],
+    };
+}
+
+impl Default for WasmGrammarState {
+    fn default() -> Self {
+        Self::ZERO
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WasmBoundaryState {
     pub pc: u64,
@@ -99,6 +181,11 @@ pub struct WasmBoundaryState {
     pub param_init: WasmCountdownState,
     pub host_args: WasmCountdownState,
     pub host_result_pending: bool,
+    pub host_callee_fref: u32,
+    pub comm_chain: [u64; 4],
+    pub event_absorb: WasmEventAbsorbState,
+    pub grammar_mode: bool,
+    pub grammar: WasmGrammarState,
 }
 
 /// Carry state for binding the whole execution's claimed output.
@@ -153,6 +240,28 @@ pub struct WasmStepState {
     /// A host call with `result_count = 1` still owes its result push; the
     /// `HostCallResult` aux row consumes this flag.
     pub host_result_pending: bool,
+    /// Callee attribution for host-call events: set from the call row's
+    /// (ROM/table-bound) `COL_FUNCTION_REF` on every host call and preserved
+    /// on all other rows until the next host call overwrites it. Consumers
+    /// (the event absorb) read it only on rows of the event that set it, so
+    /// the stale value between events is inert.
+    pub host_callee_fref: u32,
+    /// Host-event commitment chain state (canonical Goldilocks limbs; see
+    /// [`crate::comm_chain`]). Genesis is all-zero; the last row of each
+    /// absorbed block's `HostEventPerm` group folds the block in
+    /// (feed-forward); every other row carries it unchanged.
+    pub comm_chain: [u64; 4],
+    /// In-circuit host-event absorb machinery (block buffer + perm rows).
+    pub event_absorb: WasmEventAbsorbState,
+    /// The chain absorbs embedder grammar events instead of raw host-call
+    /// records (see [`crate::event_grammar`]). A per-program constant
+    /// carried like `max_memory_pages`: verifier-pinned through the initial
+    /// semantic digest, preserved on every row. In grammar mode the raw
+    /// absorb machinery (header/buffer writes, pending formulas) is
+    /// de-gated and `HostEventGather` rows stage each event block instead.
+    pub grammar_mode: bool,
+    /// Grammar-mode gather machinery state (zero in raw mode).
+    pub grammar: WasmGrammarState,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -166,6 +275,16 @@ pub enum WasmAuxOpcode {
     /// Emitted after the `HostCallArg` rows iff `result_count = 1` (the
     /// canonical ABI caps flat results at 1).
     HostCallResult,
+    /// One row of the host-event chain permutation group: a full-round row or
+    /// a partial-pair row of the width-12 Poseidon2 block absorb (see
+    /// [`crate::comm_chain::COMM_CHAIN_PERM_ROWS`]). Scheduled whenever
+    /// `WasmEventAbsorbState::perm_pending` is raised.
+    HostEventPerm,
+    /// Grammar mode only: stages one expanded event block into the absorb
+    /// buffer and raises `perm_pending` for its perm group. One gather row
+    /// precedes every grammar block; stage C replaces its free buffer with
+    /// ROM-bound slot fills (see `docs/host-event-grammar-tables.md`).
+    HostEventGather,
     /// Synthetic state-preserving row used to pad a trace up to a
     /// multiple of `batch_size`. Not a real wasm opcode — the CCS gates
     /// these rows so that `_after == _before` for every state column.
@@ -195,9 +314,31 @@ impl WasmRowKind {
         matches!(self, Self::Aux(WasmAuxOpcode::HostCallResult))
     }
 
+    pub fn is_host_event_perm(self) -> bool {
+        matches!(self, Self::Aux(WasmAuxOpcode::HostEventPerm))
+    }
+
+    pub fn is_host_event_gather(self) -> bool {
+        matches!(self, Self::Aux(WasmAuxOpcode::HostEventGather))
+    }
+
     pub fn is_padding(self) -> bool {
         matches!(self, Self::Aux(WasmAuxOpcode::Padding))
     }
+}
+
+/// The grammar-ROM entry a gather row claims (bound by the `grammar_slot_*`
+/// families at key `(fref, event_index, slot_cursor)`).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WasmGrammarRomEntry {
+    /// 0 const, 1 arg element, 2 result element, 3 oracle.
+    pub kind: u8,
+    /// Arg index (kind 1), 0 (kind 2), oracle index (kind 3).
+    pub arg: u8,
+    /// Limb select for kinds 1-2: 0 lo, 1 hi.
+    pub limb: u8,
+    pub const_lo: u32,
+    pub const_hi: u32,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -279,6 +420,12 @@ pub struct WasmVmStep {
     /// Popped from the runtime call stack at this step (populated for non-final `return`).
     /// Contains (return_pc, caller_fbp) — restored when returning to the caller.
     pub call_stack_pop: Option<(u64, u64)>,
+    /// Grammar-ROM slot entry for `HostEventGather` rows.
+    pub grammar_rom_slot: Option<WasmGrammarRomEntry>,
+    /// Grammar-ROM pre-result event count, read on grammar host-call rows.
+    pub grammar_pre_count: Option<u32>,
+    /// Grammar-ROM post-result event count, read on grammar result rows.
+    pub grammar_post_count: Option<u32>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -316,6 +463,11 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     param_init: row.state_before.param_init,
                     host_args: row.state_before.host_args,
                     host_result_pending: row.state_before.host_result_pending,
+                    host_callee_fref: row.state_before.host_callee_fref,
+                    comm_chain: row.state_before.comm_chain,
+                    event_absorb: row.state_before.event_absorb,
+                    grammar_mode: row.state_before.grammar_mode,
+                    grammar: row.state_before.grammar,
                 },
                 WasmBoundaryState {
                     pc: row.state_after.pc,
@@ -330,6 +482,11 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     param_init: row.state_after.param_init,
                     host_args: row.state_after.host_args,
                     host_result_pending: row.state_after.host_result_pending,
+                    host_callee_fref: row.state_after.host_callee_fref,
+                    comm_chain: row.state_after.comm_chain,
+                    event_absorb: row.state_after.event_absorb,
+                    grammar_mode: row.state_after.grammar_mode,
+                    grammar: row.state_after.grammar,
                 },
             )
         })

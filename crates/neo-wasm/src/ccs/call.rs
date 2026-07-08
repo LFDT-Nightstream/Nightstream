@@ -30,18 +30,20 @@ use super::super::layout::{
     selector_col, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR,
     COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE,
     COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_RETURN_PC_VALUE, COL_CI_HOST_CALL, COL_CURRENT_FUNCTION_NUM_LOCALS,
-    COL_FUNCTION_REF, COL_GUEST_CALL_ACTIVE, COL_HALTED, COL_HOST_ARGS_ACTIVE_AFTER, COL_HOST_ARGS_ACTIVE_BEFORE,
-    COL_HOST_ARGS_REMAINING_AFTER, COL_HOST_ARGS_REMAINING_AFTER_INV, COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO,
-    COL_HOST_ARGS_REMAINING_BEFORE, COL_HOST_RESULT_ACTIVE, COL_HOST_RESULT_PENDING_AFTER,
-    COL_HOST_RESULT_PENDING_BEFORE, COL_IS_PROGRAM_ROW, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE, COL_LOCAL_INDEX,
-    COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_ONE, COL_OUTPUT_CAPTURED,
+    COL_FUNCTION_REF, COL_GATHER_ACTIVE, COL_GUEST_CALL_ACTIVE, COL_HALTED, COL_HOST_ARGS_ACTIVE_AFTER,
+    COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_ARGS_REMAINING_AFTER, COL_HOST_ARGS_REMAINING_AFTER_INV,
+    COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO, COL_HOST_ARGS_REMAINING_BEFORE, COL_HOST_CALLEE_FREF_AFTER,
+    COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_RESULT_ACTIVE, COL_HOST_RESULT_PENDING_AFTER, COL_HOST_RESULT_PENDING_BEFORE,
+    COL_IS_PROGRAM_ROW, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE, COL_LOCAL_INDEX, COL_LOCAL_VALUE,
+    COL_LOCAL_VALUE_HI, COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_ONE, COL_OUTPUT_CAPTURED,
     COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE,
     COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE, COL_PADDING_ACTIVE, COL_PARAM_INIT_ACTIVE_AFTER,
     COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_AFTER_INV,
     COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_AFTER, COL_PC_BEFORE,
-    COL_PC_ROM_CALL_RETURN_CHOICE, COL_SP_BEFORE, COL_STACK_READ0_ADDR_LO, COL_STACK_READ0_VALUE_HI,
-    COL_STACK_READ0_VALUE_LO, COL_STACK_READS, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITES, COL_TABLE_INDEX,
-    COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST, PC_ROM_CALL_RETURN_CHOICE,
+    COL_PC_ROM_CALL_RETURN_CHOICE, COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_BEFORE_IS_ZERO,
+    COL_SP_BEFORE, COL_STACK_READ0_ADDR_LO, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_STACK_READS,
+    COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITES, COL_TABLE_INDEX, COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST,
+    PC_ROM_CALL_RETURN_CHOICE,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::always;
@@ -57,21 +59,37 @@ type R1csBuilder = WasmTaggedR1csBuilder;
 /// transition → dynamic call-arity lookups.
 pub(super) fn push_call_constraints(b: &mut R1csBuilder) {
     b.with_tag(always("row kind one hot"), |b| {
+        // The host-event perm row kind is the derived flag
+        // `perm_pending_before + (perm_round_before != 0)`; writing the sum
+        // as `... + pending - round_is_zero = 0` folds its `+1` into the
+        // one-hot's `-1`. `pending = 1 ∧ round != 0` would double-count, but
+        // is unreachable: every row that raises `pending` provably lands
+        // `round_after = 0` (see `ccs/poseidon.rs`).
         b.push_linear_zero([
             (COL_IS_PROGRAM_ROW, F::ONE),
             (COL_PARAM_INIT_ACTIVE_BEFORE, F::ONE),
             (COL_HOST_ARGS_ACTIVE_BEFORE, F::ONE),
             (COL_HOST_RESULT_ACTIVE, F::ONE),
             (COL_PADDING_ACTIVE, F::ONE),
-            (COL_ONE, -F::ONE),
+            (COL_GATHER_ACTIVE, F::ONE),
+            (COL_PERM_PENDING_BEFORE, F::ONE),
+            (COL_PERM_ROUND_BEFORE_IS_ZERO, -F::ONE),
         ]);
-        // host_result_active = host_result_pending_before · ¬host_args_active_before:
-        // the result row is the first row after the arg pops while a push is
-        // still owed. Feeding the one-hot above, this also forces the pending
-        // flag to be consumed before the next program row.
+        // host_result_active = pending_before · ¬(args mode or perm rows
+        // active): the result row is the first row after the arg pops — and
+        // after any interleaved perm group — while a push is still owed.
+        // `¬(args ∨ perm)` expands to `round_is_zero - args_active - pending`
+        // (the perm-row flag is `pending + 1 - round_is_zero`). Feeding the
+        // one-hot above, this also forces the owed push to be consumed
+        // before the next program row.
         b.push_row(
             [(COL_HOST_RESULT_PENDING_BEFORE, F::ONE)],
-            [(COL_ONE, F::ONE), (COL_HOST_ARGS_ACTIVE_BEFORE, -F::ONE)],
+            [
+                (COL_PERM_ROUND_BEFORE_IS_ZERO, F::ONE),
+                (COL_HOST_ARGS_ACTIVE_BEFORE, -F::ONE),
+                (COL_PERM_PENDING_BEFORE, -F::ONE),
+                (COL_GATHER_ACTIVE, -F::ONE),
+            ],
             [(COL_HOST_RESULT_ACTIVE, F::ONE)],
         );
     });
@@ -149,15 +167,26 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder) {
     b.with_tag(always("non-program row shape"), |b| {
         // Aux rows keep pc fixed. Padding rows read and write nothing;
         // param-init and host-arg rows pop one arg slot each; host-result
-        // rows push the single host result.
-        let aux_row_gate = [
+        // rows push the single host result. (Host-event perm rows read and
+        // write nothing too; their rows live in `ccs/poseidon.rs`.) The
+        // pc-pin gate folds the perm-row flag `pending + 1 - round_is_zero`
+        // in directly.
+        let aux_row_gate_with_perm = [
             (COL_PARAM_INIT_ACTIVE_BEFORE, F::ONE),
             (COL_HOST_ARGS_ACTIVE_BEFORE, F::ONE),
             (COL_HOST_RESULT_ACTIVE, F::ONE),
             (COL_PADDING_ACTIVE, F::ONE),
+            (COL_GATHER_ACTIVE, F::ONE),
+            (COL_PERM_PENDING_BEFORE, F::ONE),
+            (COL_ONE, F::ONE),
+            (COL_PERM_ROUND_BEFORE_IS_ZERO, -F::ONE),
         ];
 
-        b.push_row(aux_row_gate, [(COL_PC_AFTER, F::ONE), (COL_PC_BEFORE, -F::ONE)], []);
+        b.push_row(
+            aux_row_gate_with_perm,
+            [(COL_PC_AFTER, F::ONE), (COL_PC_BEFORE, -F::ONE)],
+            [],
+        );
         b.push_row(
             [(COL_PADDING_ACTIVE, F::ONE), (COL_HOST_RESULT_ACTIVE, F::ONE)],
             [(COL_STACK_READS, F::ONE)],
@@ -367,7 +396,7 @@ fn push_dynamic_call_stack_arity_constraints(b: &mut R1csBuilder) {
 /// `guest_call_active = (call + ci)·is_guest` and `ci_not_trap = ci·¬trap`, so the
 /// sum is exactly 1 on host-call rows and 0 everywhere else (guest calls,
 /// ci-trap rows, non-call rows, aux rows).
-fn host_call_gate_terms() -> [(usize, F); 3] {
+pub(super) fn host_call_gate_terms() -> [(usize, F); 3] {
     [
         (selector_col(WasmOpcode::Call).unwrap(), F::ONE),
         (COL_CALL_INDIRECT_IS_NOT_TRAP, F::ONE),
@@ -418,6 +447,29 @@ fn push_host_call_enter_mode_constraints(b: &mut R1csBuilder) {
         ],
     );
 
+    // Callee attribution carry: a host call latches the (ROM/table-bound)
+    // callee fref; every other row — program, aux, padding — preserves it.
+    // Consumers (the event absorb) read it only on rows of the event that
+    // set it, so the stale value between events is inert.
+    b.push_row(
+        host_call_gate_terms(),
+        [(COL_HOST_CALLEE_FREF_AFTER, F::ONE), (COL_FUNCTION_REF, -F::ONE)],
+        [],
+    );
+    b.push_row(
+        [
+            (COL_ONE, F::ONE),
+            (selector_col(WasmOpcode::Call).unwrap(), -F::ONE),
+            (COL_CALL_INDIRECT_IS_NOT_TRAP, -F::ONE),
+            (COL_GUEST_CALL_ACTIVE, F::ONE),
+        ],
+        [
+            (COL_HOST_CALLEE_FREF_AFTER, F::ONE),
+            (COL_HOST_CALLEE_FREF_BEFORE, -F::ONE),
+        ],
+        [],
+    );
+
     // host call => remaining' == param_count and pending' == result_count,
     // both ROM-bound to the callee's declared type. `pending` is a Boolean
     // column, so a host signature with more than one result is unsatisfiable
@@ -438,11 +490,24 @@ fn push_host_call_enter_mode_constraints(b: &mut R1csBuilder) {
 }
 
 fn push_host_call_exit_mode_constraints(b: &mut R1csBuilder) {
-    b.push_linear_zero([
-        (COL_HOST_ARGS_ACTIVE_AFTER, F::ONE),
-        (COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO, F::ONE),
-        (COL_ONE, -F::ONE),
-    ]);
+    // active' = ¬iszero(remaining') · ¬(perm group active next). The second
+    // factor suspends arg mode while a filled event block runs its perm rows
+    // (`pending'` raised, or the round counter is mid-group: `round' != 0`
+    // exactly when this is a perm row that is not the group's last, i.e.
+    // `perm_row_gate - P_last`), and hands it back on the group's last row.
+    // Both factors are {0,1}: pending' and a nonzero round counter are
+    // mutually exclusive (see `ccs/poseidon.rs`). Forcing `active' = 0` on
+    // idle rows still forces `remaining' = 0` through the first factor.
+    b.push_row(
+        [(COL_ONE, F::ONE), (COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO, -F::ONE)],
+        [
+            (COL_PERM_ROUND_BEFORE_IS_ZERO, F::ONE),
+            (super::poseidon::perm_last_pos_col(), F::ONE),
+            (COL_PERM_PENDING_AFTER, -F::ONE),
+            (COL_PERM_PENDING_BEFORE, -F::ONE),
+        ],
+        [(COL_HOST_ARGS_ACTIVE_AFTER, F::ONE)],
+    );
 
     push_zero_test_gadget(
         b,
@@ -525,7 +590,15 @@ fn push_host_call_state_preservation_constraints(b: &mut R1csBuilder) {
         (COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_BEFORE),
     ] {
         b.push_row(
-            [(COL_HOST_ARGS_ACTIVE_BEFORE, F::ONE), (COL_HOST_RESULT_ACTIVE, F::ONE)],
+            [
+                (COL_HOST_ARGS_ACTIVE_BEFORE, F::ONE),
+                (COL_HOST_RESULT_ACTIVE, F::ONE),
+                (COL_GATHER_ACTIVE, F::ONE),
+                // ... and host-event perm rows: `pending + 1 - round_is_zero`.
+                (COL_PERM_PENDING_BEFORE, F::ONE),
+                (COL_ONE, F::ONE),
+                (COL_PERM_ROUND_BEFORE_IS_ZERO, -F::ONE),
+            ],
             [(after, F::ONE), (before, -F::ONE)],
             [],
         );

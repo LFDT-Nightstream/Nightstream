@@ -419,6 +419,35 @@ same discipline as R1's absorb-site inventory):**
    aliased bit-encodings agree everywhere compared (same argument as
    spec §4.4's note).
 
+**Completeness caveat (author self-review, attack 9).** If β lands on
+a root of Φ in K (possible only if K contains 81st roots of unity),
+the `q(β)·Φ(β)` term vanishes and the identity degenerates to
+`Σ ρ_i c_i(β) = c*(β)` — which an **honest** prover generally fails,
+since `Σ ρ_i c_i` has degree up to 2d − 2 while `c*` is its reduction.
+Probability ≤ `d/|K| ≈ 2^−122` per squeeze: negligible, but it is a
+nonzero completeness error and any adoption should either accept it in
+the completeness budget or re-squeeze β when `Φ(β) = 0` (one native
+check; the circuit never sees the rejected β). Soundness is unaffected
+(at such β the check is still a valid SZ test of `Σρc − c*`).
+
+**Author adversarial self-review (2026-07-08, at Nico's direction —
+does NOT discharge the non-author review, which remains open).**
+Attacks attempted and their outcomes: (1) schedule ordering — absorb
+set before each squeeze verified sufficient; grinding on ρ and β both
+`q_H`-lifted. (2) adversarial quotient — the proof quantifies over
+*all* committed `q` (for a wrong `c*`, no `q` makes `G ≡ 0`), so a
+lying `q` buys nothing. (3) F-coefficients-evaluated-in-K — `G ≠ 0`
+in `F[X] ⊂ K[X]`, SZ over K applies. (4) degree bounds — `deg q ≤
+d − 2` is structural in the d − 1 wire slots; no range rows needed.
+(5) shared-β union bound — no independence needed across the J
+identities; all operands precede the one squeeze. (6) negative ρ
+coefficients — enter as their canonical F representatives on both the
+native and circuit sides; no norm claim is made anywhere (Lemma 1's
+remark applies). (7) in-identity batching over inputs — sound because
+the consumer is the aggregate (the batching rule). (8) Φ(β) = 0 —
+found; recorded above as a completeness caveat. Verdict: no soundness
+break found; one completeness caveat added.
+
 **Optimization recorded, not adopted:** the κ identities could be
 RLC-combined under a second challenge τ into one identity
 (`Σ_m τ^m·G_m(β) = 0`), saving κ − 1 final rows for an extra

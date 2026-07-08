@@ -81,12 +81,21 @@ below and in the "Reproduce" section) answered these:
   quoted here ("F' ≈ 10M rows post-optimization", "~3.2B bit slots
   naive") are historical estimates superseded by this measurement.
 
-What remains open is the *regime decision*, not a measurement: fold F'
-(requires new protocol work on the ring-action check to escape the D²
-term — e.g., a projection check, which needs its own soundness lemma) or
-prove the terminal relation field-native (PR5). Until that decision, do
-not extend source-image plumbing to internal F' field values. The
-current scope is the right stopping point.
+**REGIME DECIDED (Nico, 2026-07-08): the folded regime (Road A).**
+F' becomes a foldable low-norm instance each step, with the ring-action
+obligations discharged by the projection check (candidate E below).
+The terminal-Spartan road (H) remains the compression story for
+proof-size/portability later, but is not the induction mechanism.
+Integration order: (1) β transcript schedule on the F' step transcript
+(native prover computes β and the quotients; the circuit re-derives β
+from the replayed transcript), (2) projection regions replace the D²
+ring-action regions in the F' image/structure (flips the
+`folded_f_prime_shell_must_adopt_projection_budget` gate), (3) Nebula
+lane transition joins the F' state bundle (spec §13 step 9), (4) the
+terminal-only verifier consumes the induction (flips the two
+multi-chunk gates). Lemma 5 carries an author self-review (schedule,
+adversarial quotient, Φ(β) = 0 completeness caveat); the non-author
+review remains an open tracked flag, proceeding at Nico's direction.
 
 ## Candidates, costed (ring-action term per step)
 

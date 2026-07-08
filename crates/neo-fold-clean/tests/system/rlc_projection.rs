@@ -147,6 +147,32 @@ fn projection_variant_rejects_forged_mix_and_quotient() {
     assert!(!b.is_satisfied(), "a forged quotient must be rejected");
 }
 
+/// The native quotient helper polices input shapes instead of slicing
+/// blind — a κ-mismatched commitment must be rejected, not silently
+/// turned into quotients over inconsistent data.
+#[test]
+fn quotient_helper_rejects_malformed_inputs() {
+    let f = fixture(31);
+
+    let mut wrong_kappa = f.inputs.clone();
+    wrong_kappa[1] = Commitment {
+        d: D,
+        kappa: KAPPA + 1,
+        data: vec![F::ZERO; (KAPPA + 1) * D],
+    };
+    assert!(rlc_projection_quotients(&f.rhos, &wrong_kappa).is_err());
+
+    let mut short_data = f.inputs.clone();
+    short_data[2].data.truncate(D);
+    assert!(rlc_projection_quotients(&f.rhos, &short_data).is_err());
+
+    assert!(
+        rlc_projection_quotients(&f.rhos[..2], &f.inputs).is_err(),
+        "pair-count mismatch"
+    );
+    assert!(rlc_projection_quotients(&f.rhos, &[]).is_err(), "empty inputs");
+}
+
 /// Head-to-head committed-wire cost, same operands. Pinned so a
 /// regression reopens the design (the module header's ~450k-row cost
 /// note is what this replaces at production shape).

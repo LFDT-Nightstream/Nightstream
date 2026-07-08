@@ -237,6 +237,15 @@ pub fn rlc_projection_quotients(
         });
     }
     let kappa = inputs[0].kappa;
+    for (idx, c) in inputs.iter().enumerate() {
+        if c.kappa != kappa || c.d != D || c.data.len() != kappa * D {
+            return Err(Error::ShapeMismatch {
+                what: "projection input commitment shape",
+                expected: format!("(d={D}, kappa={kappa}, data={})", kappa * D),
+                got: format!("(d={}, kappa={}, data={}) at idx {idx}", c.d, c.kappa, c.data.len()),
+            });
+        }
+    }
     let mut per_lane = Vec::with_capacity(kappa);
     for lane in 0..kappa {
         let pairs: Vec<([F; D], [F; D])> = rhos_first_col

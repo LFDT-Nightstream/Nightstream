@@ -419,16 +419,19 @@ same discipline as R1's absorb-site inventory):**
    aliased bit-encodings agree everywhere compared (same argument as
    spec §4.4's note).
 
-**Completeness caveat (author self-review, attack 9).** If β lands on
-a root of Φ in K (possible only if K contains 81st roots of unity),
-the `q(β)·Φ(β)` term vanishes and the identity degenerates to
-`Σ ρ_i c_i(β) = c*(β)` — which an **honest** prover generally fails,
-since `Σ ρ_i c_i` has degree up to 2d − 2 while `c*` is its reduction.
-Probability ≤ `d/|K| ≈ 2^−122` per squeeze: negligible, but it is a
-nonzero completeness error and any adoption should either accept it in
-the completeness budget or re-squeeze β when `Φ(β) = 0` (one native
-check; the circuit never sees the rejected β). Soundness is unaffected
-(at such β the check is still a valid SZ test of `Σρc − c*`).
+**The `Φ(β) = 0` non-caveat (author self-review attack 9 — REFUTED by
+external review; retained as a correction record).** The self-review
+initially claimed a completeness error when β lands on a root of Φ.
+That claim was algebraically backwards: for the honest pair,
+`P − out = q·Φ` *identically*, so `P(β) = out(β)` holds **exactly** at
+any root of Φ — the honest prover never fails there, and no
+re-squeeze is needed. Soundness at such β is likewise already inside
+the SZ bound (`G` is a fixed nonzero polynomial; its roots, wherever
+they lie, are counted once). Moreover the event is unreachable at our
+parameters: `q ≡ 4 (mod 81)` gives `81 ∤ q² − 1`, so `K = F_{q²}`
+contains no 81st roots of unity and `Φ_81` has **no roots in K at
+all** (its roots live in `F_{q^27}`; `Φ` splits mod q into two
+degree-27 factors). Nothing to handle, in two independent ways.
 
 **Author adversarial self-review (2026-07-08, at Nico's direction —
 does NOT discharge the non-author review, which remains open).**
@@ -444,9 +447,15 @@ identities; all operands precede the one squeeze. (6) negative ρ
 coefficients — enter as their canonical F representatives on both the
 native and circuit sides; no norm claim is made anywhere (Lemma 1's
 remark applies). (7) in-identity batching over inputs — sound because
-the consumer is the aggregate (the batching rule). (8) Φ(β) = 0 —
-found; recorded above as a completeness caveat. Verdict: no soundness
-break found; one completeness caveat added.
+the consumer is the aggregate (the batching rule). (8) evaluation-wire
+shortcuts (`β^0` term folded linearly) — algebraically identical.
+(9) Φ(β) = 0 — the self-review claimed a completeness caveat here;
+**external review refuted it** (see the correction record above: the
+honest identity holds identically, and Φ has no roots in K at these
+parameters). Verdict: no soundness break found; and the refuted attack
+9 is itself the demonstration of why this self-review does NOT
+substitute for the non-author pass — the author's one novel "finding"
+was wrong, and a fresh reader caught it in one reading.
 
 **Optimization recorded, not adopted:** the κ identities could be
 RLC-combined under a second challenge τ into one identity

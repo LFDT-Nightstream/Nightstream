@@ -93,9 +93,13 @@ ring-action regions in the F' image/structure (flips the
 `folded_f_prime_shell_must_adopt_projection_budget` gate), (3) Nebula
 lane transition joins the F' state bundle (spec §13 step 9), (4) the
 terminal-only verifier consumes the induction (flips the two
-multi-chunk gates). Lemma 5 carries an author self-review (schedule,
-adversarial quotient, Φ(β) = 0 completeness caveat); the non-author
-review remains an open tracked flag, proceeding at Nico's direction.
+multi-chunk gates). Lemma 5 carries an author self-review whose one
+novel claim (a Φ(β) = 0 completeness caveat) was **refuted by external
+review** and is retained in the note as a correction record — the
+honest identity holds identically at roots of Φ, and Φ_81 has no roots
+in K at these parameters anyway. The non-author review remains an open
+tracked flag, proceeding at Nico's direction; the refuted self-review
+finding is itself the argument for keeping that flag.
 
 ## Candidates, costed (ring-action term per step)
 

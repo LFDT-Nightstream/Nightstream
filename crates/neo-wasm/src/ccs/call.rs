@@ -4,7 +4,7 @@
 //!
 //! 1. **Call-stack frame plumbing**: `frame.locals_fbp_*` advances on
 //!    push (enter callee) and rewinds on pop (return to caller);
-//!    `state.pc_after` is restored from `call.call_stack_pop_return_pc`
+//!    `state.pc_after` is restored from the call-stack return-pc cell
 //!    on returns.
 //! 2. **Parameter initialization**: a guest call pushes
 //!    `function_types.param_count` parameters onto the stack, which the
@@ -27,21 +27,21 @@
 use super::super::gadgets::{push_gated_linear_zero, push_zero_test_gadget};
 use super::super::isa::WasmOpcode;
 use super::super::layout::{
-    selector_col, CALL_RETURN_PC_CHOICE, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT,
-    COL_CALL_STACK_ADDR, COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE, COL_CALL_STACK_POP_CALLER_FBP,
-    COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_POP_RETURN_PC, COL_CALL_STACK_PUSH_PRESENT,
-    COL_CALL_STACK_RETURN_PC_CHOICE, COL_CI_HOST_CALL, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_FUNCTION_REF, COL_HALTED,
-    COL_HOST_ARGS_ACTIVE_AFTER, COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_ARGS_REMAINING_AFTER,
-    COL_HOST_ARGS_REMAINING_AFTER_INV, COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO, COL_HOST_ARGS_REMAINING_BEFORE,
-    COL_HOST_RESULT_ACTIVE, COL_HOST_RESULT_PENDING_AFTER, COL_HOST_RESULT_PENDING_BEFORE, COL_IS_PROGRAM_ROW,
-    COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE, COL_LOCAL_INDEX, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI,
-    COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_ONE, COL_OUTPUT_CAPTURED, COL_OUTPUT_ENABLED_AFTER,
-    COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER,
-    COL_OUTPUT_VALUE_LO_BEFORE, COL_PADDING_ACTIVE, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE,
-    COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_AFTER_INV, COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO,
-    COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_AFTER, COL_PC_BEFORE, COL_SP_BEFORE, COL_STACK_READ0_ADDR_LO,
-    COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_STACK_READS, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITES,
-    COL_TABLE_INDEX, COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST,
+    selector_col, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR,
+    COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE,
+    COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_RETURN_PC_VALUE, COL_CI_HOST_CALL, COL_CURRENT_FUNCTION_NUM_LOCALS,
+    COL_FUNCTION_REF, COL_GUEST_CALL_ACTIVE, COL_HALTED, COL_HOST_ARGS_ACTIVE_AFTER, COL_HOST_ARGS_ACTIVE_BEFORE,
+    COL_HOST_ARGS_REMAINING_AFTER, COL_HOST_ARGS_REMAINING_AFTER_INV, COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO,
+    COL_HOST_ARGS_REMAINING_BEFORE, COL_HOST_RESULT_ACTIVE, COL_HOST_RESULT_PENDING_AFTER,
+    COL_HOST_RESULT_PENDING_BEFORE, COL_IS_PROGRAM_ROW, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE, COL_LOCAL_INDEX,
+    COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_ONE, COL_OUTPUT_CAPTURED,
+    COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE,
+    COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE, COL_PADDING_ACTIVE, COL_PARAM_INIT_ACTIVE_AFTER,
+    COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_AFTER_INV,
+    COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_AFTER, COL_PC_BEFORE,
+    COL_PC_ROM_CALL_RETURN_CHOICE, COL_SP_BEFORE, COL_STACK_READ0_ADDR_LO, COL_STACK_READ0_VALUE_HI,
+    COL_STACK_READ0_VALUE_LO, COL_STACK_READS, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITES, COL_TABLE_INDEX,
+    COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST, PC_ROM_CALL_RETURN_CHOICE,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::always;
@@ -240,7 +240,7 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder) {
     b.with_tag(always("return pc restoration"), |b| {
         b.push_row(
             [(COL_CALL_STACK_POP_PRESENT, F::ONE)],
-            [(COL_PC_AFTER, F::ONE), (COL_CALL_STACK_POP_RETURN_PC, -F::ONE)],
+            [(COL_PC_AFTER, F::ONE), (COL_CALL_STACK_RETURN_PC_VALUE, -F::ONE)],
             [],
         );
         b.push_row(
@@ -364,14 +364,14 @@ fn push_dynamic_call_stack_arity_constraints(b: &mut R1csBuilder) {
 
 /// Linear gate terms selecting host-call program rows: a `call` or
 /// non-trapping `call_indirect` whose callee is not a traced guest function.
-/// `push_present = (call + ci)·is_guest` and `ci_not_trap = ci·¬trap`, so the
+/// `guest_call_active = (call + ci)·is_guest` and `ci_not_trap = ci·¬trap`, so the
 /// sum is exactly 1 on host-call rows and 0 everywhere else (guest calls,
 /// ci-trap rows, non-call rows, aux rows).
 fn host_call_gate_terms() -> [(usize, F); 3] {
     [
         (selector_col(WasmOpcode::Call).unwrap(), F::ONE),
         (COL_CALL_INDIRECT_IS_NOT_TRAP, F::ONE),
-        (COL_CALL_STACK_PUSH_PRESENT, -F::ONE),
+        (COL_GUEST_CALL_ACTIVE, -F::ONE),
     ]
 }
 
@@ -388,7 +388,7 @@ fn push_host_call_enter_mode_constraints(b: &mut R1csBuilder) {
         // generalizing in the future?
         (selector_col(WasmOpcode::Call).unwrap(), -F::ONE),
         (COL_CALL_INDIRECT_IS_NOT_TRAP, -F::ONE),
-        (COL_CALL_STACK_PUSH_PRESENT, F::ONE),
+        (COL_GUEST_CALL_ACTIVE, F::ONE),
     ];
     b.push_row(non_host_program, [(COL_HOST_ARGS_ACTIVE_AFTER, F::ONE)], []);
     b.push_row(non_host_program, [(COL_HOST_RESULT_PENDING_AFTER, F::ONE)], []);
@@ -408,13 +408,13 @@ fn push_host_call_enter_mode_constraints(b: &mut R1csBuilder) {
         COL_CI_HOST_CALL,
         [
             // force the control-choice of the next pc lookup to equal
-            // CALL_RETURN_PC_CHOICE
+            // PC_ROM_CALL_RETURN_CHOICE
             //
             // this is sound because the synthetic aux opcodes don't allow
             // changing the pc, so we can set it in advance before entering the
             // host call mode
-            (COL_CALL_STACK_RETURN_PC_CHOICE, F::ONE),
-            (COL_ONE, -F::from_u64(CALL_RETURN_PC_CHOICE)),
+            (COL_PC_ROM_CALL_RETURN_CHOICE, F::ONE),
+            (COL_ONE, -F::from_u64(PC_ROM_CALL_RETURN_CHOICE)),
         ],
     );
 
@@ -539,15 +539,15 @@ fn push_guest_call_flag_constraints(b: &mut R1csBuilder) {
     b.push_row(
         [(call_selector, F::ONE), (call_indirect, F::ONE)],
         [(COL_TARGET_FUNCTION_IS_GUEST, F::ONE)],
-        [(COL_CALL_STACK_PUSH_PRESENT, F::ONE)],
+        [(COL_GUEST_CALL_ACTIVE, F::ONE)],
     );
 }
 
 fn push_call_param_init_enter_mode_constraints(b: &mut R1csBuilder) {
-    let guest_call = COL_CALL_STACK_PUSH_PRESENT;
+    let guest_call = COL_GUEST_CALL_ACTIVE;
 
     b.push_row(
-        [(COL_IS_PROGRAM_ROW, F::ONE), (COL_CALL_STACK_PUSH_PRESENT, -F::ONE)],
+        [(COL_IS_PROGRAM_ROW, F::ONE), (COL_GUEST_CALL_ACTIVE, -F::ONE)],
         // Only guest calls may enter param-init mode from a program row.
         // Aux rows are excluded by `is_program_row = 0`, so multi-param init
         // can continue until the global remaining-after zero test turns it off.
@@ -626,7 +626,7 @@ fn push_call_param_init_aux_row_constraints(b: &mut R1csBuilder) {
 }
 
 fn push_call_stack_transition_constraints(b: &mut R1csBuilder) {
-    let push = COL_CALL_STACK_PUSH_PRESENT;
+    let push = COL_GUEST_CALL_ACTIVE;
     let pop = COL_CALL_STACK_POP_PRESENT;
 
     // Push increments the return-context stack, pop decrements it, and every
@@ -648,8 +648,8 @@ fn push_call_stack_transition_constraints(b: &mut R1csBuilder) {
         b,
         push,
         [
-            (COL_CALL_STACK_RETURN_PC_CHOICE, F::ONE),
-            (COL_ONE, -F::from_u64(CALL_RETURN_PC_CHOICE)),
+            (COL_PC_ROM_CALL_RETURN_CHOICE, F::ONE),
+            (COL_ONE, -F::from_u64(PC_ROM_CALL_RETURN_CHOICE)),
         ],
     );
     push_gated_linear_zero(
@@ -661,7 +661,7 @@ fn push_call_stack_transition_constraints(b: &mut R1csBuilder) {
         b,
         push,
         [
-            (COL_CALL_STACK_POP_CALLER_FBP, F::ONE),
+            (COL_CALL_STACK_CALLER_FBP_VALUE, F::ONE),
             (COL_LOCALS_FBP_BEFORE, -F::ONE),
         ],
     );
@@ -669,7 +669,7 @@ fn push_call_stack_transition_constraints(b: &mut R1csBuilder) {
 }
 
 fn push_locals_fbp_transition_constraints(b: &mut R1csBuilder) {
-    let guest_call = COL_CALL_STACK_PUSH_PRESENT;
+    let guest_call = COL_GUEST_CALL_ACTIVE;
     let pop = COL_CALL_STACK_POP_PRESENT;
 
     push_gated_linear_zero(
@@ -684,7 +684,10 @@ fn push_locals_fbp_transition_constraints(b: &mut R1csBuilder) {
     push_gated_linear_zero(
         b,
         pop,
-        [(COL_LOCALS_FBP_AFTER, F::ONE), (COL_CALL_STACK_POP_CALLER_FBP, -F::ONE)],
+        [
+            (COL_LOCALS_FBP_AFTER, F::ONE),
+            (COL_CALL_STACK_CALLER_FBP_VALUE, -F::ONE),
+        ],
     );
     b.push_row(
         [(COL_ONE, F::ONE), (guest_call, -F::ONE), (pop, -F::ONE)],

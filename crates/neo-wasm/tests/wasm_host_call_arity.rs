@@ -367,7 +367,7 @@ fn program_row_rejects_pending_host_result() {
 
 /// Only host-call rows may enter host-arg mode. A guest call to a zero-param
 /// callee never activates param-init, so without the full
-/// `is_program − call − ci_not_trap + push_present` gate a prover could enter
+/// `is_program − call − ci_not_trap + guest_call_active` gate a prover could enter
 /// host-arg mode there and append phantom arg pops that shift sp inside the
 /// callee. The forgery keeps the exit-mode identity and zero-test gadget
 /// satisfied (remaining = 1, inv = 1, is_zero = 0), so only the enter-mode

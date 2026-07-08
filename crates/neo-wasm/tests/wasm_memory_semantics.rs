@@ -1,8 +1,8 @@
 use neo_math::F;
 use neo_wasm::layout::{
-    CALL_RETURN_PC_CHOICE, COL_CALL_STACK_POP_RETURN_PC, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_CURRENT_FUNCTION_REF,
-    COL_EXPECTED_TYPE_ID, COL_FUNCTION_TYPE_ID, COL_LINEAR_MEM_IMM_OFFSET, COL_LOCAL_INDEX, COL_OPCODE_CODE,
-    COL_STACK_READ0_VALUE_HI, COL_STACK_WRITE0_VALUE_HI, COL_TABLE_INDEX, COL_TABLE_SIZE, COL_TABLE_VALUE,
+    COL_CALL_STACK_RETURN_PC_VALUE, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_CURRENT_FUNCTION_REF, COL_EXPECTED_TYPE_ID,
+    COL_FUNCTION_TYPE_ID, COL_LINEAR_MEM_IMM_OFFSET, COL_LOCAL_INDEX, COL_OPCODE_CODE, COL_STACK_READ0_VALUE_HI,
+    COL_STACK_WRITE0_VALUE_HI, COL_TABLE_INDEX, COL_TABLE_SIZE, COL_TABLE_VALUE, PC_ROM_CALL_RETURN_CHOICE,
 };
 use neo_wasm::{
     build_wasm_relation_layout, collect_wasmtime_steps, extract_wasm_program_artifacts, preload_from_program_artifacts,
@@ -209,7 +209,7 @@ fn memory_semantics_reject_missing_call_return_pc_rom_edge() {
         .expect("call row");
     preload.remove(
         "pc_rom",
-        &[call_row.state_before.pc as u32, CALL_RETURN_PC_CHOICE as u32],
+        &[call_row.state_before.pc as u32, PC_ROM_CALL_RETURN_CHOICE as u32],
     );
     let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("missing return edge must fail");
@@ -233,7 +233,7 @@ fn memory_semantics_rejects_return_pc_not_read_from_call_stack() {
         .iter()
         .position(|row| row.call_stack_pop.is_some())
         .expect("non-final return row");
-    witnesses[return_index][COL_CALL_STACK_POP_RETURN_PC] += F::ONE;
+    witnesses[return_index][COL_CALL_STACK_RETURN_PC_VALUE] += F::ONE;
 
     let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("broken return pc read must fail");

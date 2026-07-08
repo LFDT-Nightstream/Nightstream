@@ -1,6 +1,6 @@
 mod common;
 
-use neo_wasm::layout::{COL_CALL_STACK_RETURN_PC_CHOICE, COL_OUTPUT_VALUE_LO_AFTER, COL_STACK_READ0_VALUE_LO};
+use neo_wasm::layout::{COL_OUTPUT_VALUE_LO_AFTER, COL_PC_ROM_CALL_RETURN_CHOICE, COL_STACK_READ0_VALUE_LO};
 use neo_wasm::{
     build_wasm_relation_layout, collect_wasmtime_steps, extract_wasm_program_artifacts, preload_from_program_artifacts,
     sanity_check_memory_rows, traces_from_wasmtime_steps, WasmAuxOpcode, WasmOpcode, WasmRowKind, WasmVmStep,
@@ -276,7 +276,7 @@ fn call_row_pins_return_pc_rom_choice() {
         .find(|row| row.call_stack_push.is_some())
         .expect("call row");
     let mut witness = neo_wasm::witness_builder::build_witness_vector(call_row);
-    witness[COL_CALL_STACK_RETURN_PC_CHOICE] = neo_math::F::ZERO;
+    witness[COL_PC_ROM_CALL_RETURN_CHOICE] = neo_math::F::ZERO;
     common::assert_rejected(&witness, "call row with unpinned return pc choice");
 }
 

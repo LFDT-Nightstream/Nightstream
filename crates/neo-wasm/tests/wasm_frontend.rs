@@ -20,6 +20,11 @@ fn state(pc: u64, sp: u64, halted: bool) -> WasmStepState {
         param_init: WasmCountdownState::ZERO,
         host_args: WasmCountdownState::ZERO,
         host_result_pending: false,
+        host_callee_fref: 0,
+        comm_chain: [0; 4],
+        event_absorb: neo_wasm::WasmEventAbsorbState::ZERO,
+        grammar_mode: false,
+        grammar: neo_wasm::WasmGrammarState::ZERO,
     }
 }
 
@@ -74,6 +79,9 @@ fn wasm_frontend_scaffold_runs_through_clean_lifecycle() {
             call_result_count: None,
             call_stack_push: None,
             call_stack_pop: None,
+            grammar_rom_slot: None,
+            grammar_pre_count: None,
+            grammar_post_count: None,
         },
         WasmVmStep {
             cycle: 1,
@@ -119,6 +127,9 @@ fn wasm_frontend_scaffold_runs_through_clean_lifecycle() {
             call_result_count: None,
             call_stack_push: None,
             call_stack_pop: None,
+            grammar_rom_slot: None,
+            grammar_pre_count: None,
+            grammar_post_count: None,
         },
         WasmVmStep {
             cycle: 2,
@@ -164,6 +175,9 @@ fn wasm_frontend_scaffold_runs_through_clean_lifecycle() {
             call_result_count: None,
             call_stack_push: None,
             call_stack_pop: None,
+            grammar_rom_slot: None,
+            grammar_pre_count: None,
+            grammar_post_count: None,
         },
         WasmVmStep {
             cycle: 3,
@@ -209,6 +223,9 @@ fn wasm_frontend_scaffold_runs_through_clean_lifecycle() {
             call_result_count: None,
             call_stack_push: None,
             call_stack_pop: None,
+            grammar_rom_slot: None,
+            grammar_pre_count: None,
+            grammar_post_count: None,
         },
     ];
 

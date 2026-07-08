@@ -327,19 +327,27 @@ Poseidon2-trace replay that pins ρ and the sum-check challenges today
 (`paper/nifs/circuit.rs` messages discipline) — the gadget enforces
 only the algebra; the schedule is the soundness.
 
-**Statement.** Under the schedule above, with all operand coefficient
-wires bound as in the Integration obligations below: let `J` be the
-**total number of projection identities the fold runs** — one per ring
-component per ring-action client, all sharing the one β. If every
-identity holds at β, then except with probability `≤ J·(2d − 2)/|K|`
-per fold (per Fiat–Shamir attempt; ×`q_H` under grinding), every
-checked output equals its true linear mix in `R_q`.
+**Two counts, deliberately distinct.** Let `P` be the total number of
+ring-action **product pairs** the F′ shell covers — `P` drives
+committed width (the Phase 1.3d coverage gate reports
+`P_total = 465` per step). Let `J` be the total number of **projection
+identities** emitted after batching — `J` drives the Schwartz–Zippel
+error. The batching rule: a projection identity may batch many product
+pairs **only when the protocol consumer uses the batched aggregate as
+the authoritative value**. A client that consumes only an aggregate
+mix — `c* = Σ_i ρ_i·c_i` — contributes one identity per output ring
+component (κ), not one per input pair. A client whose individual
+product outputs are consumed separately contributes one identity per
+consumed output, unless an additional reviewed aggregation argument is
+introduced. **Until the adoption census proves a smaller `J`, this
+lemma uses the conservative bound `J ≤ P_total = 465`.**
 
-`J` composes per client, and its census is adoption audit item 4:
-the pipeline commitment mix contributes `κ` identities; the Nebula
-`adv` tuple mirror (spec §5.2 R2) contributes `3κ` more on memory
-chains; any `y`-side RotRho sites the coverage gate counts add their
-own. For the two known clients, `J = 4κ = 72`.
+**Statement.** Under the schedule above, with all operand coefficient
+wires bound as in the Integration obligations below, and all `J`
+identities sharing the one β: if every identity holds at β, then
+except with probability `≤ J·(2d − 2)/|K|` per fold (per Fiat–Shamir
+attempt; ×`q_H` under grinding), every checked output equals its true
+linear mix in `R_q`.
 
 **Proof.** Fix one identity (index it by its client and component `m`;
 the argument is identical for every client, so we write the
@@ -359,14 +367,16 @@ precede the one squeeze). Completeness: the honest `q_m` is the unique
 quotient from division by the monic polynomial Φ
 (`projection_quotient`), for which each `G_m` is identically zero. ∎
 
-Worked bound for the known clients
-(`J = 4κ = 72`; commitment mix + `adv` mirror):
-`72 · 106 / 2^128 ≈ 2^−115.1` per fold — below the Lemma-3 term
-(≈ 2^−110 per segment), so the composition budget's shape is
-unchanged; but the bound scales with `J`, so the adoption-time site
-census (audit item 4) is what fixes the final number, not this
-paragraph. β **must** live in `K`: over `F` the same term is ≈ 2^−57
-per fold, unacceptable across `n_f · q_H`.
+Conservative worked bound:
+`J_max·(2d − 2)/|K| = 465 · 106 / 2^128 ≈ 2^−112.4` per fold — below
+the Lemma-3 term (≈ 2^−110 per segment), so the composition budget's
+shape is unchanged even without any batching credit. If the adoption
+census (audit item 4) proves the only projection clients are the
+pipeline commitment mix and the Nebula `adv` mirror, then `J = 4κ =
+72` and the tighter bound is ≈ `2^−115.1` per fold — **the tighter
+number is not assumed until the census is reviewed.** β **must** live
+in `K`: over `F` even the tighter term is ≈ 2^−57 per fold,
+unacceptable across `n_f · q_H`.
 
 **Composition with Lemma 1.** Lemma 1 Step 2 consumes the verifier's
 computation `adv*_L = Σ_i adv_{i,L}·ρ_i` (and the pipeline's
@@ -388,12 +398,23 @@ same discipline as R1's absorb-site inventory):**
 3. `c*`'s wires must be the ones carried forward as the folded
    accumulator's commitment (what `D_seen`-style consumers and the
    next fold read).
-4. Site exhaustiveness: every ring-action site the Phase 1.3d coverage
-   gate counts (465 pairs/step) maps to one component identity here —
-   Π_RLC's commitment mix (κ·n identities), the Nebula `adv` tuple
-   mirror (3 more κ-vector mixes on memory chains, spec §5.2 R2), and
-   any `y`-side RotRho sites the gate counts. Π_DEC's recomposition is
-   scalar `b`-powers — linear, **not** a projection client.
+4. Site exhaustiveness — **the adoption census**: every Phase 1.3d
+   ring-action product pair is assigned to exactly one
+   projection-client row. Each row records the client, its product-pair
+   count `P_j`, its projection-identity count `J_j`, the output
+   consumer, and why batching is sound for that consumer. The final
+   bound uses `J = Σ_j J_j`; until the census is reviewed, Lemma 5's
+   conservative `J ≤ 465` stands. Known rows:
+
+   | client | pairs `P_j` | identities `J_j` | consumer | batching justification |
+   |---|---:|---:|---|---|
+   | Π_RLC commitment mix | `κ·n` | `κ` | folded `c*` | only the aggregate mix is consumed |
+   | Nebula `adv` tuple mirror (spec §5.2 R2) | `3κ·n` | `3κ` | folded `adv*` tuple | only the aggregate lane tuple is consumed |
+   | `y`-side RotRho sites | TBD | TBD | TBD | census required |
+   | **total** | 465 | **≤ 465 until reviewed** | F′ shell | conservative bound |
+
+   Π_DEC's recomposition is scalar `b`-powers — linear, **not** a
+   projection client.
 5. Limb canonicality: evaluation rows reduce mod q on both sides, so
    aliased bit-encodings agree everywhere compared (same argument as
    spec §4.4's note).

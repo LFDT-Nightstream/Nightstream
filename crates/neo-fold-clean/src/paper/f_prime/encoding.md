@@ -61,9 +61,8 @@ It does **not** yet encode the full private F' witness.
 
 ## Open design questions for `enc(F')` — now answered quantitatively
 
-The 2026-07-06 inventory (design note in the local `specs/` working
-directory; every figure reproduces from the tests named below) answered
-these:
+The 2026-07-06 inventory (every figure reproduces from the tests named
+below and in the "Reproduce" section) answered these:
 
 - *What is the low-norm assignment for an F' execution?* The production
   shell measures **94,330,948 committed bits per recursive step**
@@ -88,3 +87,38 @@ term — e.g., a projection check, which needs its own soundness lemma) or
 prove the terminal relation field-native (PR5). Until that decision, do
 not extend source-image plumbing to internal F' field values. The
 current scope is the right stopping point.
+
+## Candidates, costed (ring-action term per step)
+
+| # | Candidate | Bits/step | Status |
+|---|---|---|---|
+| A | U64 status quo | 91.6M (94.3M total) | works; ~1,650× the S_mem app circuit it recurses |
+| B | SignedDigit as measured | — | invalid: operands are full-range commitments |
+| C | Mixed (ρ = SignedDigit{5}, rest U64) | 90.1M | valid; saves 1.6 % — not a lever |
+| D | Digit-decompose c, act on digits | ~260M | valid; strictly worse (14 SignedDigit pairs vs 1 U64 pair, ×2.8) |
+| E | Projection check (verify `out = RotRho·c` at a challenge; O(D) intermediates instead of O(D²)) | ~5–10M est. | the only in-regime lever; needs a soundness lemma, a spec amendment, and a challenge-uniformity design (challenge enters as witness bits; check becomes degree-3) |
+| F | Fewer pairs (arity/κ trades) | linear only | doesn't touch the 197k/pair |
+| G | SIS accumulators (C14/L2) | — | helps the absorb (Poseidon) side, already small; not the fold math |
+| H | Terminal-proof regime (PR5): never commit F' | 0 per step | field-native cost once per chain (~1–3M-constraint relation); sidesteps enc(F') entirely |
+
+Bottom line: encodings alone cannot move the wall (best honest bit
+encoding ≈ 90M). The data favors H as plan of record; E is the only
+folded-regime path worth research effort.
+
+## Reproduce every number
+
+```bash
+# 94,330,948-bit production shell (7,100 K-muls, 465 ring pairs):
+cargo test -p neo-fold-clean --release --test system_phase_1_4a_fibonacci_structure \
+  phase_1_4a_production_config_pins_emitter_counts -- --nocapture
+
+# Encoding ladder (3,079 full-field / 39,853 SignedDigit / 200,071 U64 cols per pair):
+cargo test -p neo-fold-clean --release --test perf_ring_action_low_norm_prototype -- --nocapture
+
+# 134,852-bit canonical shipped image (state-hash authority only):
+cargo test -p neo-fold-clean --release --test system_fibonacci_f_prime_layout_budget -- --nocapture
+
+# S_mem app-circuit comparison point (55,434 rows / 57,244 cols):
+cargo test -p neo-fold-clean --release --test perf_nebula -- --ignored --nocapture \
+  nebula_v3_targets_structure_snapshot
+```

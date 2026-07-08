@@ -148,11 +148,22 @@ fn projection_variant_rejects_forged_mix_and_quotient() {
 }
 
 /// The native quotient helper polices input shapes instead of slicing
-/// blind — a κ-mismatched commitment must be rejected, not silently
-/// turned into quotients over inconsistent data.
+/// blind — each malformed input must land on its exact error variant,
+/// not merely "some error".
 #[test]
 fn quotient_helper_rejects_malformed_inputs() {
+    use neo_fold_clean::paper::reductions::pi_rlc_circuit::Error;
+
     let f = fixture(31);
+    let shape_mismatch = |r: Result<_, Error>| {
+        matches!(
+            r,
+            Err(Error::ShapeMismatch {
+                what: "projection input commitment shape",
+                ..
+            })
+        )
+    };
 
     let mut wrong_kappa = f.inputs.clone();
     wrong_kappa[1] = Commitment {
@@ -160,17 +171,17 @@ fn quotient_helper_rejects_malformed_inputs() {
         kappa: KAPPA + 1,
         data: vec![F::ZERO; (KAPPA + 1) * D],
     };
-    assert!(rlc_projection_quotients(&f.rhos, &wrong_kappa).is_err());
+    assert!(shape_mismatch(rlc_projection_quotients(&f.rhos, &wrong_kappa)));
 
     let mut short_data = f.inputs.clone();
     short_data[2].data.truncate(D);
-    assert!(rlc_projection_quotients(&f.rhos, &short_data).is_err());
+    assert!(shape_mismatch(rlc_projection_quotients(&f.rhos, &short_data)));
 
-    assert!(
-        rlc_projection_quotients(&f.rhos[..2], &f.inputs).is_err(),
-        "pair-count mismatch"
-    );
-    assert!(rlc_projection_quotients(&f.rhos, &[]).is_err(), "empty inputs");
+    assert!(matches!(
+        rlc_projection_quotients(&f.rhos[..2], &f.inputs),
+        Err(Error::PairCountMismatch { rhos: 2, inputs: 3 })
+    ));
+    assert!(matches!(rlc_projection_quotients(&f.rhos, &[]), Err(Error::Empty)));
 }
 
 /// Head-to-head committed-wire cost, same operands. Pinned so a

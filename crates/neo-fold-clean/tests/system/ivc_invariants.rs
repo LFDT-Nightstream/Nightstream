@@ -11,6 +11,10 @@
 //! | `per_step_ccs_structure_must_encode_f_prime` | ✓ | Folds one threaded encoded F' step; `prep.structure().m` ≥ 50_000 |
 //! | `running_accumulator_witness_must_carry_f_prime_encoded_size` | ✓ | Folds three threaded encoded F' steps; running.witnesses[0] ≥ 50_000 cells |
 //! | `decider_r1cs_size_must_be_constant_in_chain_length` | ignored | Synthesizes the steady-state last-step terminal R1CS for two threaded chains; asserts ≤ 10% per-step growth. Under the canonical fixed-point plan this exceeds the 5-min default-test budget, so it runs only with `--ignored`. |
+//! | `multi_chunk_f_prime_chain_must_verify_terminal_only` | **ignored: fails by design** | The induction-gap milestone gate (Path 1/2 of the enc(F') decision): a 3-chunk F' chain must be accepted by `verify_uncompressed` in O(1). Fails today — the terminal-only verifier fails closed for multi-chunk chains. Un-ignore when the recursive F'/NIFS.V induction becomes checkable. |
+//! | `multi_chunk_terminal_only_verification_fails_closed_today` | ✓ | The tripwire twin of the gate above: pins today's exact fail-closed rejection. The day the guard lifts, this fails — flip BOTH tests together, deliberately. |
+//! | `nebula_chain_must_verify_terminal_only_with_memory` | **ignored: fails by design** | Spec §13 step 9's end-state: a multi-segment memory chain accepted terminal-only, lane closed. Fails today for the same induction gap. |
+//! | `nebula_terminal_only_verification_fails_closed_today` | ✓ | Tripwire twin of the Nebula gate. |
 //!
 //! The implementation that turned each invariant green:
 //!   - Phase 1.5b: encoded F' image / structure / encoder + foldable `CcsInstance`.
@@ -221,5 +225,95 @@ fn running_accumulator_witness_must_carry_f_prime_encoded_size() {
          expected at least {MIN_F_PRIME_WITNESS_CELLS} for `enc(F'_i)` \
          content. If this regresses, the lifecycle has stopped folding \
          the encoded F' image and is back to a raw-app-CCS shape.",
+    );
+}
+
+// ── The induction gap (milestone gates + tripwires) ────────────────────────
+//
+// Today, `verify_uncompressed` (the O(1) terminal-only verifier) fails
+// closed for multi-chunk chains: the folded F' images bind the state-hash
+// chain but do not yet constrain the previous fold's NIFS.V, so nothing
+// in the terminal artifact vouches for earlier chunks — multi-chunk
+// soundness authority is the audit-replay path. Closing this is the
+// enc(F') regime milestone (folded in-circuit NIFS.V, or the terminal
+// compressed decider). Each gate below is an `#[ignore]`d acceptance
+// test that FAILS today by design and defines the milestone's done
+// state; its active twin pins today's exact fail-closed rejection so
+// the guard cannot silently lift — the day it does, flip both together.
+
+#[path = "../nebula/fixture.rs"]
+mod nebula_fixture;
+
+/// MILESTONE GATE (ignored; fails today): a multi-chunk F' chain must be
+/// accepted by the terminal-only verifier — HyperNova's "accumulator +
+/// latest fold" check, with the recursive F'/NIFS.V induction carrying
+/// the earlier chunks.
+#[test]
+#[ignore = "induction-gap milestone gate: fails until the recursive F'/NIFS.V induction is checkable terminal-only (enc(F') regime milestone)"]
+fn multi_chunk_f_prime_chain_must_verify_terminal_only() {
+    let plan = canonical_threaded_plan();
+    let prep = fibonacci_f_prime::preprocess_seeded(&plan, 0x1F15_C004).expect("preprocess");
+    let steps = honest_state_threaded_encoded_f_prime_steps(3);
+    let audit = fibonacci_f_prime::prove_encoded_steps(&prep, &steps).expect("prove");
+    let proof = neo_fold_clean::lifecycle::finish_uncompressed(&prep.prep, audit).expect("finalize");
+    neo_fold_clean::lifecycle::verify_uncompressed(&prep.prep, &proof)
+        .expect("milestone: an honest 3-chunk F' chain must verify in O(1), terminal-only");
+}
+
+/// TRIPWIRE (active): pins today's fail-closed rejection for the gate
+/// above. If this test ever fails, the non-replay guard has lifted —
+/// either the milestone landed (un-ignore the gate, delete this pin) or
+/// soundness just regressed (investigate immediately).
+#[test]
+fn multi_chunk_terminal_only_verification_fails_closed_today() {
+    let plan = canonical_threaded_plan();
+    let prep = fibonacci_f_prime::preprocess_seeded(&plan, 0x1F15_C005).expect("preprocess");
+    let steps = honest_state_threaded_encoded_f_prime_steps(3);
+    let audit = fibonacci_f_prime::prove_encoded_steps(&prep, &steps).expect("prove");
+    let proof = neo_fold_clean::lifecycle::finish_uncompressed(&prep.prep, audit).expect("finalize");
+    let err = neo_fold_clean::lifecycle::verify_uncompressed(&prep.prep, &proof)
+        .expect_err("fail-closed today: multi-chunk terminal-only verification");
+    assert!(
+        matches!(
+            err,
+            neo_fold_clean::lifecycle::Error::TerminalOnlyMultiChunkUnsupported { chunk_count: 3 }
+        ),
+        "expected the multi-chunk fail-closed guard, got: {err}"
+    );
+}
+
+/// MILESTONE GATE (ignored; fails today): spec §13 step 9's end state —
+/// a multi-segment Nebula memory chain accepted by the terminal-only
+/// verifier, with the lane's finalization rule checked on the accepted
+/// result. Note the future chain that satisfies this folds S_mem through
+/// an F' shell that carries the §6.3 transition in-circuit; this test
+/// intentionally pins only the OUTCOME (honest chain, terminal-only
+/// accept), not today's chain shape.
+#[test]
+#[ignore = "spec §13 step 9 milestone gate: fails until the Nebula lane transition rides a terminal-only-verifiable F' chain"]
+fn nebula_chain_must_verify_terminal_only_with_memory() {
+    let (_, prep, audit) = nebula_fixture::honest_two_segment_chain();
+    neo_fold_clean::lifecycle::verify_uncompressed(&prep, &audit.proof)
+        .expect("milestone: an honest two-segment memory chain must verify in O(1), terminal-only");
+    let lane = audit.proof.state.nebula.as_ref().expect("lane");
+    assert!(
+        lane.is_closed(),
+        "accepted terminal state satisfies the finalization rule"
+    );
+}
+
+/// TRIPWIRE (active): pins today's fail-closed rejection for the Nebula
+/// gate above. Same flip discipline as the F' tripwire.
+#[test]
+fn nebula_terminal_only_verification_fails_closed_today() {
+    let (_, prep, audit) = nebula_fixture::honest_two_segment_chain();
+    let err = neo_fold_clean::lifecycle::verify_uncompressed(&prep, &audit.proof)
+        .expect_err("fail-closed today: multi-chunk Nebula terminal-only verification");
+    assert!(
+        matches!(
+            err,
+            neo_fold_clean::lifecycle::Error::TerminalOnlyMultiChunkUnsupported { .. }
+        ),
+        "expected the multi-chunk fail-closed guard, got: {err}"
     );
 }

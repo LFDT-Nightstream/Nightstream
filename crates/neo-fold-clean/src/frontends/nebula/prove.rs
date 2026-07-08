@@ -213,7 +213,8 @@ struct StepCarry {
 
 /// Pass 2 + deposit (spec §1): build the step witnesses from
 /// `carry.next_step` to the segment's end and fold them in chunks of
-/// the fold arity — Nebula §5's amortization: one recursion step covers
+/// the fold arity — SuperNeo multi-folding (Theorem 1's `CCS(b)^K`
+/// arity, spec §6.3 chunking note): one recursion step covers
 /// up to `max_fresh_count` S_mem steps (61 at the Goldilocks preset).
 /// The lane transition is chunk-agnostic (`advance_for_batch` walks the
 /// deposited claims in order); `open_d_pre` rides the first chunk when

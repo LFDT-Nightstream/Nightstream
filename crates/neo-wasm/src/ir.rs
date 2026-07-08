@@ -99,6 +99,7 @@ pub struct WasmBoundaryState {
     pub param_init: WasmCountdownState,
     pub host_args: WasmCountdownState,
     pub host_result_pending: bool,
+    pub host_callee_fref: u32,
 }
 
 /// Carry state for binding the whole execution's claimed output.
@@ -153,6 +154,12 @@ pub struct WasmStepState {
     /// A host call with `result_count = 1` still owes its result push; the
     /// `HostCallResult` aux row consumes this flag.
     pub host_result_pending: bool,
+    /// Callee attribution for host-call events: set from the call row's
+    /// (ROM/table-bound) `COL_FUNCTION_REF` on every host call and preserved
+    /// on all other rows until the next host call overwrites it. Consumers
+    /// (the event absorb) read it only on rows of the event that set it, so
+    /// the stale value between events is inert.
+    pub host_callee_fref: u32,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -316,6 +323,7 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     param_init: row.state_before.param_init,
                     host_args: row.state_before.host_args,
                     host_result_pending: row.state_before.host_result_pending,
+                    host_callee_fref: row.state_before.host_callee_fref,
                 },
                 WasmBoundaryState {
                     pc: row.state_after.pc,
@@ -330,6 +338,7 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     param_init: row.state_after.param_init,
                     host_args: row.state_after.host_args,
                     host_result_pending: row.state_after.host_result_pending,
+                    host_callee_fref: row.state_after.host_callee_fref,
                 },
             )
         })

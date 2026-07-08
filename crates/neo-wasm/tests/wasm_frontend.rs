@@ -20,6 +20,7 @@ fn state(pc: u64, sp: u64, halted: bool) -> WasmStepState {
         param_init: WasmCountdownState::ZERO,
         host_args: WasmCountdownState::ZERO,
         host_result_pending: false,
+        host_callee_fref: 0,
     }
 }
 

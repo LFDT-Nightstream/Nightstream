@@ -41,6 +41,7 @@ fn step(
             param_init: WasmCountdownState::ZERO,
             host_args: WasmCountdownState::ZERO,
             host_result_pending: false,
+            host_callee_fref: 0,
         }
     }
 

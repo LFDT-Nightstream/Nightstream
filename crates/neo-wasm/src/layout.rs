@@ -220,6 +220,16 @@ define_columns!(
         ColumnWidth::Boolean
     ),
     (
+        COL_HOST_CALLEE_FREF_BEFORE,
+        "callee function ref of the most recent host call before this row (event attribution carry)",
+        ColumnWidth::U32
+    ),
+    (
+        COL_HOST_CALLEE_FREF_AFTER,
+        "callee function ref of the most recent host call after this row (event attribution carry)",
+        ColumnWidth::U32
+    ),
+    (
         COL_HOST_RESULT_ACTIVE,
         "this row pushes the pending host-call result",
         ColumnWidth::Boolean

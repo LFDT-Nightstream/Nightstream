@@ -191,6 +191,9 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
     // locals start. FBP_callee = FBP_caller + num_locals_caller.
     let mut fbp: u64 = 0;
     let mut param_init_state = WasmCountdownState::ZERO;
+    // Callee attribution carry: set on host-call rows, preserved everywhere
+    // else (no clearing — see `WasmStepState::host_callee_fref`).
+    let mut host_callee_fref: u32 = 0;
     let mut output_enabled = false;
     let mut output_value_lo = 0;
     let mut output_value_hi = 0;
@@ -439,7 +442,14 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
         let mut host_args_after = WasmCountdownState::ZERO;
         let mut host_result_pending_after = false;
         let mut host_call_arity = None;
+        let host_callee_fref_before = host_callee_fref;
         if is_host_call {
+            host_callee_fref = current.function_ref.ok_or_else(|| {
+                WasmBuildError::Trace(format!(
+                    "missing callee function ref for host call at cycle {}",
+                    current.cycle
+                ))
+            })?;
             let param_count = current.call_param_count.ok_or_else(|| {
                 WasmBuildError::Trace(format!(
                     "missing call parameter count for host call at cycle {}",
@@ -499,6 +509,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                 // host-call state fully unwound.
                 host_args: WasmCountdownState::ZERO,
                 host_result_pending: false,
+                host_callee_fref: host_callee_fref_before,
             },
             state_after: WasmStepState {
                 pc: pc_after,
@@ -517,6 +528,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                 param_init: param_init_after,
                 host_args: host_args_after,
                 host_result_pending: host_result_pending_after,
+                host_callee_fref,
             },
             control_choice: current.control_choice,
             pc_edge_kind: current.pc_edge_kind,
@@ -661,6 +673,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                         param_init: aux_param_init_before,
                         host_args: WasmCountdownState::ZERO,
                         host_result_pending: false,
+                        host_callee_fref,
                     },
                     state_after: WasmStepState {
                         pc: pc_after,
@@ -679,6 +692,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                         param_init: aux_param_init_after,
                         host_args: WasmCountdownState::ZERO,
                         host_result_pending: false,
+                        host_callee_fref,
                     },
                     control_choice: 0,
                     pc_edge_kind: WasmPcEdgeKind::Static,
@@ -747,6 +761,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                 param_init: WasmCountdownState::ZERO,
                 host_args,
                 host_result_pending,
+                host_callee_fref,
             };
             let host_aux_row = |cycle: u64,
                                 aux_opcode: WasmAuxOpcode,

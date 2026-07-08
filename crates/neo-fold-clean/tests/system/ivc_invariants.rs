@@ -15,6 +15,8 @@
 //! | `multi_chunk_terminal_only_verification_fails_closed_today` | ✓ | The tripwire twin of the gate above: pins today's exact fail-closed rejection. The day the guard lifts, this fails — flip BOTH tests together, deliberately. |
 //! | `nebula_chain_must_verify_terminal_only_with_memory` | **ignored: fails by design** | Spec §13 step 9's end-state: a multi-segment memory chain accepted terminal-only, lane closed. Fails today for the same induction gap. |
 //! | `nebula_terminal_only_verification_fails_closed_today` | ✓ | Tripwire twin of the Nebula gate. |
+//! | `recursive_link_multi_chunk_fails_closed_today` | ✓ | The stricter guard layer: an `r1cs_f_prime` chain (recursive-link flag SET) must reject multi-chunk terminal-only verification via `FPrimeNonReplayUnsupported`, not just the generic non-empty-running guard. |
+//! | `folded_f_prime_shell_must_adopt_projection_budget` | **ignored: fails by design** | enc(F') candidate-E gate: the production F' shell's committed width must fit the projection-checked budget (16M bits vs today's measured 94,330,948). Turns the candidate-E extrapolation into an integrated measurement when it passes. |
 //!
 //! The implementation that turned each invariant green:
 //!   - Phase 1.5b: encoded F' image / structure / encoder + foldable `CcsInstance`.
@@ -315,5 +317,79 @@ fn nebula_terminal_only_verification_fails_closed_today() {
             neo_fold_clean::lifecycle::Error::TerminalOnlyMultiChunkUnsupported { .. }
         ),
         "expected the multi-chunk fail-closed guard, got: {err}"
+    );
+}
+
+/// TRIPWIRE (active): the STRICTER guard path. The Fibonacci fixture
+/// above does not set the F' recursive-link flag, so its rejection
+/// comes from the generic non-empty-running guard
+/// (`TerminalOnlyMultiChunkUnsupported`). The `r1cs_f_prime` frontend
+/// DOES set `with_f_prime_recursive_link`, and its multi-chunk chains
+/// must reject through the dedicated recursive-link guard
+/// (`FPrimeNonReplayUnsupported`) — pinned here so both fail-closed
+/// layers are covered. Same flip discipline as the other tripwires.
+#[test]
+fn recursive_link_multi_chunk_fails_closed_today() {
+    use support::r1cs_compiler_fixtures::{
+        assignment_one_product, make_tiny_lifecycle_plan, one_product_r1cs, tiny_params,
+    };
+
+    let r1cs = one_product_r1cs();
+    let plan = make_tiny_lifecycle_plan(r1cs.m(), r1cs.m_in);
+    let prep = neo_fold_clean::frontends::r1cs_f_prime::preprocess_seeded_with_params(
+        &r1cs,
+        &plan,
+        tiny_params(),
+        0x1F15_C006,
+    )
+    .expect("preprocess");
+    assert!(
+        prep.prep.enforces_f_prime_recursive_link(),
+        "r1cs_f_prime preprocessing must set the recursive-link flag"
+    );
+
+    let mut chain = neo_fold_clean::frontends::r1cs_f_prime::R1csChainBuilder::new(&prep).expect("builder");
+    chain
+        .append_assignment(assignment_one_product(3, 7))
+        .expect("base step");
+    chain
+        .append_assignment(assignment_one_product(3, 7))
+        .expect("recursive step");
+    let proof = chain.finish().expect("finalize");
+
+    let err = neo_fold_clean::lifecycle::verify_uncompressed(&prep.prep, &proof)
+        .expect_err("fail-closed today: recursive-link multi-chunk terminal-only verification");
+    assert!(
+        matches!(
+            err,
+            neo_fold_clean::lifecycle::Error::FPrimeNonReplayUnsupported { chunk_count: 2 }
+        ),
+        "expected the recursive-link fail-closed guard, got: {err}"
+    );
+}
+
+/// MILESTONE GATE (ignored; fails today): the production folded F' shell
+/// must adopt the projection-checked ring action (encoding.md candidate
+/// E). Today the shell materializes D² partial products per pair —
+/// 94,330,948 committed bits per step, measured. The candidate-E
+/// extrapolation (measured marginal gadget cost × production pair
+/// counts) is ≈ 12.5M; this gate pins a generous 16M ceiling, so it
+/// passes only when the integrated `FPrimeImageLayout` actually carries
+/// projection regions instead of D² regions — turning the extrapolation
+/// into an integrated measurement.
+#[test]
+#[ignore = "enc(F') candidate-E milestone gate: fails until the folded F' shell swaps D² ring-action materialization for the projection check"]
+fn folded_f_prime_shell_must_adopt_projection_budget() {
+    use neo_fold_clean::frontends::f_prime::image::FPrimeImageLayout;
+    use neo_fold_clean::frontends::f_prime::structure::production_kmul_ring_action_shell_image_config;
+
+    let layout = FPrimeImageLayout::new(production_kmul_ring_action_shell_image_config());
+    const PROJECTION_BUDGET_BITS: usize = 16_000_000;
+    assert!(
+        layout.end <= PROJECTION_BUDGET_BITS,
+        "production F' shell commits {} bits/step; the projection-checked budget is {} \
+         (encoding.md candidate E — integrate `enforce_ring_action_projection_batch`)",
+        layout.end,
+        PROJECTION_BUDGET_BITS
     );
 }

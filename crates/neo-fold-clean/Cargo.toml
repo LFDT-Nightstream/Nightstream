@@ -194,6 +194,10 @@ name = "system_ring_action_projection"
 path = "tests/system/ring_action_projection.rs"
 
 [[test]]
+name = "system_rlc_projection"
+path = "tests/system/rlc_projection.rs"
+
+[[test]]
 name = "system_ivc_invariants"
 path = "tests/system/ivc_invariants.rs"
 

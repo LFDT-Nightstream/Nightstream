@@ -42,7 +42,9 @@ use neo_math::{KExtensions, F, K};
 use p3_field::PrimeCharacteristicRing;
 
 use crate::engine::r1cs_circuit::field_ext::KVar;
-use crate::engine::r1cs_circuit::ring_action::enforce_ring_mul_toom3;
+use crate::engine::r1cs_circuit::ring_action::{
+    enforce_ring_action_projection_batch, enforce_ring_mul_toom3, projection_quotient, PROJECTION_QUOTIENT_LEN,
+};
 use crate::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
 
 /// Wires for one commitment + the matching ρ polynomial coefficients.
@@ -208,6 +210,110 @@ pub fn enforce_rlc_commitment_combination(builder: &mut R1csBuilder, wires: &Rlc
             builder.enforce_eq(&Lc::from_var(target), &combo);
         }
     }
+}
+
+// ── Projection-checked commitment combination (Road A, candidate E) ──────
+
+/// Native prover companion for
+/// [`enforce_rlc_commitment_combination_projection`]: the per-lane
+/// division quotients `q_lane` with
+/// `Σ_i ρ_i(X)·c_{i,lane}(X) = q_lane(X)·Φ(X) + combined_lane(X)`.
+///
+/// **Lemma 5 schedule**: the caller absorbs `combined` and every
+/// quotient returned here into the transcript **before** squeezing β.
+/// Compute-then-absorb-then-squeeze is the soundness; the circuit
+/// function below only enforces the algebra.
+pub fn rlc_projection_quotients(
+    rhos_first_col: &[[F; D]],
+    inputs: &[Commitment],
+) -> Result<Vec<[F; PROJECTION_QUOTIENT_LEN]>, Error> {
+    if inputs.is_empty() {
+        return Err(Error::Empty);
+    }
+    if rhos_first_col.len() != inputs.len() {
+        return Err(Error::PairCountMismatch {
+            rhos: rhos_first_col.len(),
+            inputs: inputs.len(),
+        });
+    }
+    let kappa = inputs[0].kappa;
+    let mut per_lane = Vec::with_capacity(kappa);
+    for lane in 0..kappa {
+        let pairs: Vec<([F; D], [F; D])> = rhos_first_col
+            .iter()
+            .zip(inputs.iter())
+            .map(|(rho, c)| {
+                let mut lane_coeffs = [F::ZERO; D];
+                lane_coeffs.copy_from_slice(&c.data[lane * D..(lane + 1) * D]);
+                (*rho, lane_coeffs)
+            })
+            .collect();
+        let (_, q) = projection_quotient(&pairs);
+        per_lane.push(q);
+    }
+    Ok(per_lane)
+}
+
+/// Projection-checked variant of
+/// [`enforce_rlc_commitment_combination`] — Road A of the enc(F')
+/// decision (encoding.md candidate E; soundness case: security-note
+/// Lemma 5). Per κ-lane, **one** polynomial identity at β replaces the
+/// `(K+k)` Toom-3 ring products: the inputs batch inside the identity
+/// because the consumer is the aggregate mix (Lemma 5's batching rule;
+/// J = κ identities from this client).
+///
+/// `powers` is the shared [`enforce_beta_ladder`] output for a β that
+/// the caller squeezed AFTER absorbing the inputs, `combined`, and the
+/// `quotients` (which must be the values
+/// [`rlc_projection_quotients`] computed — the returned wires exist so
+/// the integration can bind them to the absorbed values, Lemma 5
+/// adoption audit item 1).
+pub fn enforce_rlc_commitment_combination_projection(
+    builder: &mut R1csBuilder,
+    powers: &[KVar],
+    wires: &RlcCommitmentWires,
+    quotients: &[[F; PROJECTION_QUOTIENT_LEN]],
+) -> Result<Vec<[Var; PROJECTION_QUOTIENT_LEN]>, Error> {
+    let kappa = wires.kappa;
+    if quotients.len() != kappa {
+        return Err(Error::ShapeMismatch {
+            what: "projection quotient count",
+            expected: format!("kappa = {kappa}"),
+            got: format!("{}", quotients.len()),
+        });
+    }
+    let mut quotient_wires = Vec::with_capacity(kappa);
+    for lane in 0..kappa {
+        // Owned per-pair lane arrays first (the batch API borrows).
+        let pair_arrays: Vec<([Var; D], [Var; D])> = wires
+            .inputs
+            .iter()
+            .map(|pair| {
+                let mut c_lane = [Var::ONE; D];
+                for (slot, src) in c_lane
+                    .iter_mut()
+                    .zip(pair.c_data[lane * D..(lane + 1) * D].iter())
+                {
+                    *slot = *src;
+                }
+                (pair.rho_coeffs, c_lane)
+            })
+            .collect();
+        let pair_refs: Vec<(&[Var; D], &[Var; D])> = pair_arrays.iter().map(|(rho, c)| (rho, c)).collect();
+
+        let mut out_lane = [Var::ONE; D];
+        for (slot, src) in out_lane
+            .iter_mut()
+            .zip(wires.combined_c_data[lane * D..(lane + 1) * D].iter())
+        {
+            *slot = *src;
+        }
+
+        let q_wires: [Var; PROJECTION_QUOTIENT_LEN] = quotients[lane].map(|value| builder.alloc(value));
+        enforce_ring_action_projection_batch(builder, powers, &pair_refs, &out_lane, &q_wires);
+        quotient_wires.push(q_wires);
+    }
+    Ok(quotient_wires)
 }
 
 // ── X-combination: `combined.X = Σ ρ_i · X_i` ─────────────────────────────

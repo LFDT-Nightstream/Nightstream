@@ -6,7 +6,12 @@
 //!
 //! Also provides the function to compute the corresponding witness assignment.
 
+use crate::ccs::poseidon::PERM_GADGET_AUX_WIDTH;
 use crate::layout::{ColumnWidth, COLUMN_SPECS, COL_ONE, NAMED_COLUMN_COUNT};
+
+/// First aux bit column: the bits sit after the named layout and the
+/// host-event gadget's internal block (see `ccs::poseidon`).
+const BITS_BASE: usize = NAMED_COLUMN_COUNT + PERM_GADGET_AUX_WIDTH;
 use crate::tagged_r1cs_builder::{WasmConstraintScope, WasmConstraintTag, WasmTaggedR1csBuilder};
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -20,10 +25,11 @@ fn decomposed_bits(width: ColumnWidth) -> usize {
     }
 }
 
-/// Witness width of the range-checked wasm CCS: the declared columns plus
-/// one aux bit column per decomposed bit.
+/// Witness width of the range-checked wasm CCS: the declared columns, the
+/// host-event gadget's internal block, and one aux bit column per
+/// decomposed bit.
 pub fn range_checked_witness_width() -> usize {
-    NAMED_COLUMN_COUNT
+    BITS_BASE
         + COLUMN_SPECS
             .iter()
             .map(|spec| decomposed_bits(spec.width))
@@ -47,7 +53,7 @@ pub fn range_checked_bit_columns(column: usize) -> Option<Range<usize>> {
 /// Emit the range-check rows. Each row is tagged with the column's
 /// `COL_*` name so constraint provenance dumps itemize the cost per column.
 pub(crate) fn push_range_check_rows(b: &mut WasmTaggedR1csBuilder) {
-    let mut aux = NAMED_COLUMN_COUNT;
+    let mut aux = BITS_BASE;
     for spec in COLUMN_SPECS {
         let bits = decomposed_bits(spec.width);
         let tag = WasmConstraintTag {
@@ -88,14 +94,14 @@ pub(crate) fn push_range_check_rows(b: &mut WasmTaggedR1csBuilder) {
 /// — the CCS failure then carries the column's name via the row tag.
 pub fn write_range_check_bits(witness: &mut Vec<F>) {
     assert!(
-        witness.len() == NAMED_COLUMN_COUNT || witness.len() == range_checked_witness_width(),
+        witness.len() == BITS_BASE || witness.len() == range_checked_witness_width(),
         "witness length {} is neither the base width {} nor the range-checked width {}",
         witness.len(),
-        NAMED_COLUMN_COUNT,
+        BITS_BASE,
         range_checked_witness_width(),
     );
-    witness.truncate(NAMED_COLUMN_COUNT);
-    witness.reserve(range_checked_witness_width() - NAMED_COLUMN_COUNT);
+    witness.truncate(BITS_BASE);
+    witness.reserve(range_checked_witness_width() - BITS_BASE);
     for spec in COLUMN_SPECS {
         let bits = decomposed_bits(spec.width);
         if bits == 0 {

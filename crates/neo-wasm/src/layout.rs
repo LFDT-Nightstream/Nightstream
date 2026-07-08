@@ -1,9 +1,6 @@
 //! Owns the static WASM row layout.
 
-use neo_math::F;
-use p3_field::PrimeCharacteristicRing;
-
-use super::isa::{opcode_code, WasmOpcode};
+use super::isa::WasmOpcode;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Column(pub usize);
@@ -218,6 +215,234 @@ define_columns!(
         COL_HOST_RESULT_PENDING_AFTER,
         "host-call result push still owed after this row",
         ColumnWidth::Boolean
+    ),
+    (
+        COL_HOST_CALLEE_FREF_BEFORE,
+        "callee function ref of the most recent host call before this row (event attribution carry)",
+        ColumnWidth::U32
+    ),
+    (
+        COL_HOST_CALLEE_FREF_AFTER,
+        "callee function ref of the most recent host call after this row (event attribution carry)",
+        ColumnWidth::U32
+    ),
+    (
+        COL_COMM_CHAIN0_BEFORE,
+        "host-event commitment chain limb 0 before this row"
+    ),
+    (
+        COL_COMM_CHAIN1_BEFORE,
+        "host-event commitment chain limb 1 before this row"
+    ),
+    (
+        COL_COMM_CHAIN2_BEFORE,
+        "host-event commitment chain limb 2 before this row"
+    ),
+    (
+        COL_COMM_CHAIN3_BEFORE,
+        "host-event commitment chain limb 3 before this row"
+    ),
+    (
+        COL_COMM_CHAIN0_AFTER,
+        "host-event commitment chain limb 0 after this row"
+    ),
+    (
+        COL_COMM_CHAIN1_AFTER,
+        "host-event commitment chain limb 1 after this row"
+    ),
+    (
+        COL_COMM_CHAIN2_AFTER,
+        "host-event commitment chain limb 2 after this row"
+    ),
+    (
+        COL_COMM_CHAIN3_AFTER,
+        "host-event commitment chain limb 3 after this row"
+    ),
+    // Host-event absorb machinery: the 8-word block buffer host-call rows
+    // stream event words into, the one-hot pair-slot cursor, the
+    // pending-permutation flag, and the perm-row group state (round cursor +
+    // 12-lane running permutation state). See `ir::WasmEventAbsorbState`.
+    (COL_EVBUF0_BEFORE, "host-event block buffer word 0 before this row"),
+    (COL_EVBUF1_BEFORE, "host-event block buffer word 1 before this row"),
+    (COL_EVBUF2_BEFORE, "host-event block buffer word 2 before this row"),
+    (COL_EVBUF3_BEFORE, "host-event block buffer word 3 before this row"),
+    (COL_EVBUF4_BEFORE, "host-event block buffer word 4 before this row"),
+    (COL_EVBUF5_BEFORE, "host-event block buffer word 5 before this row"),
+    (COL_EVBUF6_BEFORE, "host-event block buffer word 6 before this row"),
+    (COL_EVBUF7_BEFORE, "host-event block buffer word 7 before this row"),
+    (COL_EVBUF0_AFTER, "host-event block buffer word 0 after this row"),
+    (COL_EVBUF1_AFTER, "host-event block buffer word 1 after this row"),
+    (COL_EVBUF2_AFTER, "host-event block buffer word 2 after this row"),
+    (COL_EVBUF3_AFTER, "host-event block buffer word 3 after this row"),
+    (COL_EVBUF4_AFTER, "host-event block buffer word 4 after this row"),
+    (COL_EVBUF5_AFTER, "host-event block buffer word 5 after this row"),
+    (COL_EVBUF6_AFTER, "host-event block buffer word 6 after this row"),
+    (COL_EVBUF7_AFTER, "host-event block buffer word 7 after this row"),
+    (
+        COL_EVBUF_SLOT0_BEFORE,
+        "one-hot next event-word pair slot 0 before this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_EVBUF_SLOT1_BEFORE,
+        "one-hot next event-word pair slot 1 before this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_EVBUF_SLOT2_BEFORE,
+        "one-hot next event-word pair slot 2 before this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_EVBUF_SLOT3_BEFORE,
+        "one-hot next event-word pair slot 3 before this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_EVBUF_SLOT0_AFTER,
+        "one-hot next event-word pair slot 0 after this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_EVBUF_SLOT1_AFTER,
+        "one-hot next event-word pair slot 1 after this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_EVBUF_SLOT2_AFTER,
+        "one-hot next event-word pair slot 2 after this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_EVBUF_SLOT3_AFTER,
+        "one-hot next event-word pair slot 3 after this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_PERM_PENDING_BEFORE,
+        "a filled host-event block awaits its perm rows before this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_PERM_PENDING_AFTER,
+        "a filled host-event block awaits its perm rows after this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_PERM_ROUND_BEFORE,
+        "perm-group row position before this row (0 when idle; bounded by the position one-hot)"
+    ),
+    (
+        COL_PERM_ROUND_AFTER,
+        "perm-group row position after this row (0 when idle; bounded by the position one-hot)"
+    ),
+    (
+        COL_PERM_ROUND_BEFORE_IS_ZERO,
+        "zero-test flag for the perm-group row position before this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_PERM_ROUND_BEFORE_INV,
+        "inverse witness for the perm-group row position before this row"
+    ),
+    (COL_PERM_STATE0_BEFORE, "chain permutation lane 0 before this row"),
+    (COL_PERM_STATE1_BEFORE, "chain permutation lane 1 before this row"),
+    (COL_PERM_STATE2_BEFORE, "chain permutation lane 2 before this row"),
+    (COL_PERM_STATE3_BEFORE, "chain permutation lane 3 before this row"),
+    (COL_PERM_STATE4_BEFORE, "chain permutation lane 4 before this row"),
+    (COL_PERM_STATE5_BEFORE, "chain permutation lane 5 before this row"),
+    (COL_PERM_STATE6_BEFORE, "chain permutation lane 6 before this row"),
+    (COL_PERM_STATE7_BEFORE, "chain permutation lane 7 before this row"),
+    (COL_PERM_STATE8_BEFORE, "chain permutation lane 8 before this row"),
+    (COL_PERM_STATE9_BEFORE, "chain permutation lane 9 before this row"),
+    (COL_PERM_STATE10_BEFORE, "chain permutation lane 10 before this row"),
+    (COL_PERM_STATE11_BEFORE, "chain permutation lane 11 before this row"),
+    (COL_PERM_STATE0_AFTER, "chain permutation lane 0 after this row"),
+    (COL_PERM_STATE1_AFTER, "chain permutation lane 1 after this row"),
+    (COL_PERM_STATE2_AFTER, "chain permutation lane 2 after this row"),
+    (COL_PERM_STATE3_AFTER, "chain permutation lane 3 after this row"),
+    (COL_PERM_STATE4_AFTER, "chain permutation lane 4 after this row"),
+    (COL_PERM_STATE5_AFTER, "chain permutation lane 5 after this row"),
+    (COL_PERM_STATE6_AFTER, "chain permutation lane 6 after this row"),
+    (COL_PERM_STATE7_AFTER, "chain permutation lane 7 after this row"),
+    (COL_PERM_STATE8_AFTER, "chain permutation lane 8 after this row"),
+    (COL_PERM_STATE9_AFTER, "chain permutation lane 9 after this row"),
+    (COL_PERM_STATE10_AFTER, "chain permutation lane 10 after this row"),
+    (COL_PERM_STATE11_AFTER, "chain permutation lane 11 after this row"),
+    (
+        COL_GRAMMAR_MODE_BEFORE,
+        "per-program constant: chain absorbs embedder grammar events (1) or raw host-call records (0)",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_GRAMMAR_MODE_AFTER,
+        "per-program constant: chain absorbs embedder grammar events (1) or raw host-call records (0)",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_GATHER_ACTIVE,
+        "grammar-mode row staging one expanded event block into the absorb buffer",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_RAW_HOST_CALL,
+        "host-call program row with the raw absorb machinery active: host_call_gate · (1 - grammar_mode)",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_RAW_ARGS_ACTIVE,
+        "host-arg row with the raw absorb machinery active: host_args_active · (1 - grammar_mode)",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_RAW_RESULT_ACTIVE,
+        "host-result row with the raw absorb machinery active: host_result_active · (1 - grammar_mode)",
+        ColumnWidth::Boolean
+    ),
+    // Grammar-mode gather machinery: carried schedule/cursor/oracle state
+    // plus the per-row grammar-ROM interface columns (bound on gather rows
+    // by the `grammar_slot_*` families, on call/result rows by the
+    // `grammar_event_counts_*` families). See `ir::WasmGrammarState` and
+    // `docs/host-event-grammar-tables.md`.
+    (COL_GRAMMAR_EVREM_BEFORE, "grammar events still owed in the current phase, before this row"),
+    (COL_GRAMMAR_EVREM_AFTER, "grammar events still owed in the current phase, after this row"),
+    (
+        COL_GRAMMAR_EVREM_BEFORE_IS_ZERO,
+        "zero-test flag for the owed grammar events before this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_GRAMMAR_EVREM_BEFORE_INV,
+        "inverse witness for the owed grammar events before this row"
+    ),
+    (COL_GRAMMAR_EVIDX_BEFORE, "current grammar event index within the template, before this row"),
+    (COL_GRAMMAR_EVIDX_AFTER, "current grammar event index within the template, after this row"),
+    (COL_GRAMMAR_ARGS_BASE_BEFORE, "stack slot index of the current call's first argument, before this row"),
+    (COL_GRAMMAR_ARGS_BASE_AFTER, "stack slot index of the current call's first argument, after this row"),
+    (COL_GRAMMAR_SLOT_CURSOR_BEFORE, "next block word a gather row stages (0..=7), before this row"),
+    (COL_GRAMMAR_SLOT_CURSOR_AFTER, "next block word a gather row stages (0..=7), after this row"),
+    (COL_GRAMMAR_ORACLE0_BEFORE, "per-call grammar oracle cell 0 before this row"),
+    (COL_GRAMMAR_ORACLE1_BEFORE, "per-call grammar oracle cell 1 before this row"),
+    (COL_GRAMMAR_ORACLE2_BEFORE, "per-call grammar oracle cell 2 before this row"),
+    (COL_GRAMMAR_ORACLE3_BEFORE, "per-call grammar oracle cell 3 before this row"),
+    (COL_GRAMMAR_ORACLE0_AFTER, "per-call grammar oracle cell 0 after this row"),
+    (COL_GRAMMAR_ORACLE1_AFTER, "per-call grammar oracle cell 1 after this row"),
+    (COL_GRAMMAR_ORACLE2_AFTER, "per-call grammar oracle cell 2 after this row"),
+    (COL_GRAMMAR_ORACLE3_AFTER, "per-call grammar oracle cell 3 after this row"),
+    (COL_GRAMMAR_SLOT_KIND, "grammar-ROM slot source kind (0 const, 1 arg, 2 result, 3 oracle)"),
+    (COL_GRAMMAR_SLOT_ARG, "grammar-ROM slot arg/oracle index"),
+    (COL_GRAMMAR_SLOT_LIMB, "grammar-ROM slot limb select (0 lo, 1 hi)"),
+    (COL_GRAMMAR_SLOT_CONST_LO, "grammar-ROM slot constant, low 32 bits"),
+    (COL_GRAMMAR_SLOT_CONST_HI, "grammar-ROM slot constant, high 32 bits"),
+    (COL_GRAMMAR_PRE_COUNT, "grammar-ROM pre-result event count for the called import"),
+    (COL_GRAMMAR_POST_COUNT, "grammar-ROM post-result event count for the called import"),
+    (
+        COL_GRAMMAR_HOST_CALL,
+        "host-call program row in grammar mode: host_call_gate · grammar_mode"
+    ),
+    (
+        COL_GRAMMAR_RESULT_ACTIVE,
+        "host-result row in grammar mode: host_result_active · grammar_mode"
     ),
     (
         COL_HOST_RESULT_ACTIVE,
@@ -1232,252 +1457,19 @@ define_columns!(
     ),
 );
 
-pub const SELECTOR_COLS: [usize; 113] = [
-    COL_SEL_NOP,
-    COL_SEL_I32_CONST,
-    COL_SEL_I64_CONST,
-    COL_SEL_REF_FUNC,
-    COL_SEL_I32_ADD,
-    COL_SEL_I64_ADD,
-    COL_SEL_I32_SUB,
-    COL_SEL_I64_SUB,
-    COL_SEL_I32_LOAD,
-    COL_SEL_I32_LOAD8_S,
-    COL_SEL_I32_LOAD8_U,
-    COL_SEL_I32_LOAD16_S,
-    COL_SEL_I32_LOAD16_U,
-    COL_SEL_I64_LOAD,
-    COL_SEL_I32_STORE,
-    COL_SEL_I32_STORE8,
-    COL_SEL_I32_STORE16,
-    COL_SEL_I64_STORE,
-    COL_SEL_MEMORY_SIZE,
-    COL_SEL_MEMORY_GROW,
-    COL_SEL_TABLE_SIZE,
-    COL_SEL_TABLE_GET,
-    COL_SEL_TABLE_SET,
-    COL_SEL_DROP,
-    COL_SEL_BR,
-    COL_SEL_BLOCK,
-    COL_SEL_LOOP,
-    COL_SEL_IF,
-    COL_SEL_ELSE,
-    COL_SEL_END,
-    COL_SEL_UNREACHABLE,
-    COL_SEL_I32_CLZ,
-    COL_SEL_I32_CTZ,
-    COL_SEL_I32_POPCNT,
-    COL_SEL_I32_EQZ,
-    COL_SEL_I64_EQZ,
-    COL_SEL_I32_EQ,
-    COL_SEL_I32_NE,
-    COL_SEL_I32_LTS,
-    COL_SEL_I32_LTU,
-    COL_SEL_I32_GTS,
-    COL_SEL_I32_GTU,
-    COL_SEL_I32_LES,
-    COL_SEL_I32_LEU,
-    COL_SEL_I32_GES,
-    COL_SEL_I32_GEU,
-    COL_SEL_I32_AND,
-    COL_SEL_I32_OR,
-    COL_SEL_I32_XOR,
-    COL_SEL_I32_MUL,
-    COL_SEL_I64_AND,
-    COL_SEL_I64_OR,
-    COL_SEL_I64_XOR,
-    COL_SEL_I64_MUL,
-    COL_SEL_I32_SHL,
-    COL_SEL_I32_SHR_U,
-    COL_SEL_I32_SHR_S,
-    COL_SEL_I32_ROTL,
-    COL_SEL_I32_ROTR,
-    COL_SEL_I32_DIV_U,
-    COL_SEL_I32_DIV_S,
-    COL_SEL_I32_REM_U,
-    COL_SEL_I32_REM_S,
-    COL_SEL_SELECT,
-    COL_SEL_BR_IF_EQZ,
-    COL_SEL_BR_TABLE,
-    COL_SEL_CALL,
-    COL_SEL_CALL_INDIRECT,
-    COL_SEL_RETURN,
-    COL_SEL_LOCAL_GET,
-    COL_SEL_LOCAL_SET,
-    COL_SEL_LOCAL_TEE,
-    COL_SEL_GLOBAL_GET,
-    COL_SEL_GLOBAL_SET,
-    COL_SEL_I64_EQ,
-    COL_SEL_I64_NE,
-    COL_SEL_I64_STORE8,
-    COL_SEL_I64_STORE16,
-    COL_SEL_I64_STORE32,
-    COL_SEL_I64_LOAD8_U,
-    COL_SEL_I64_LOAD16_U,
-    COL_SEL_I64_LOAD32_U,
-    COL_SEL_I64_LOAD8_S,
-    COL_SEL_I64_LOAD16_S,
-    COL_SEL_I64_LOAD32_S,
-    COL_SEL_I32_WRAP_I64,
-    COL_SEL_I64_EXTEND_I32_U,
-    COL_SEL_I64_EXTEND_I32_S,
-    COL_SEL_I32_EXTEND8_S,
-    COL_SEL_I32_EXTEND16_S,
-    COL_SEL_I64_EXTEND8_S,
-    COL_SEL_I64_EXTEND16_S,
-    COL_SEL_I64_EXTEND32_S,
-    COL_SEL_I64_LTS,
-    COL_SEL_I64_LTU,
-    COL_SEL_I64_GTS,
-    COL_SEL_I64_GTU,
-    COL_SEL_I64_LES,
-    COL_SEL_I64_LEU,
-    COL_SEL_I64_GES,
-    COL_SEL_I64_GEU,
-    COL_SEL_I64_SHL,
-    COL_SEL_I64_SHR_S,
-    COL_SEL_I64_SHR_U,
-    COL_SEL_I64_ROTL,
-    COL_SEL_I64_ROTR,
-    COL_SEL_I64_DIV_S,
-    COL_SEL_I64_DIV_U,
-    COL_SEL_I64_REM_S,
-    COL_SEL_I64_REM_U,
-    COL_SEL_I64_CLZ,
-    COL_SEL_I64_CTZ,
-    COL_SEL_I64_POPCNT,
-];
+mod opcode_selectors;
+pub use opcode_selectors::{selector_col, SELECTOR_COLS};
 
-pub fn selector_col(op: WasmOpcode) -> Option<usize> {
-    match op {
-        WasmOpcode::Nop => Some(COL_SEL_NOP),
-        WasmOpcode::I32Const => Some(COL_SEL_I32_CONST),
-        WasmOpcode::I64Const => Some(COL_SEL_I64_CONST),
-        WasmOpcode::RefFunc => Some(COL_SEL_REF_FUNC),
-        WasmOpcode::I32Add => Some(COL_SEL_I32_ADD),
-        WasmOpcode::I64Add => Some(COL_SEL_I64_ADD),
-        WasmOpcode::I32Sub => Some(COL_SEL_I32_SUB),
-        WasmOpcode::I64Sub => Some(COL_SEL_I64_SUB),
-        WasmOpcode::I32Load => Some(COL_SEL_I32_LOAD),
-        WasmOpcode::I32Load8S => Some(COL_SEL_I32_LOAD8_S),
-        WasmOpcode::I32Load8U => Some(COL_SEL_I32_LOAD8_U),
-        WasmOpcode::I32Load16S => Some(COL_SEL_I32_LOAD16_S),
-        WasmOpcode::I32Load16U => Some(COL_SEL_I32_LOAD16_U),
-        WasmOpcode::I64Load => Some(COL_SEL_I64_LOAD),
-        WasmOpcode::I32Store => Some(COL_SEL_I32_STORE),
-        WasmOpcode::I32Store8 => Some(COL_SEL_I32_STORE8),
-        WasmOpcode::I32Store16 => Some(COL_SEL_I32_STORE16),
-        WasmOpcode::I64Store => Some(COL_SEL_I64_STORE),
-        WasmOpcode::MemorySize => Some(COL_SEL_MEMORY_SIZE),
-        WasmOpcode::MemoryGrow => Some(COL_SEL_MEMORY_GROW),
-        WasmOpcode::TableSize => Some(COL_SEL_TABLE_SIZE),
-        WasmOpcode::TableGet => Some(COL_SEL_TABLE_GET),
-        WasmOpcode::TableSet => Some(COL_SEL_TABLE_SET),
-        WasmOpcode::Drop => Some(COL_SEL_DROP),
-        WasmOpcode::Br => Some(COL_SEL_BR),
-        WasmOpcode::Block => Some(COL_SEL_BLOCK),
-        WasmOpcode::Loop => Some(COL_SEL_LOOP),
-        WasmOpcode::If => Some(COL_SEL_IF),
-        WasmOpcode::Else => Some(COL_SEL_ELSE),
-        WasmOpcode::End => Some(COL_SEL_END),
-        WasmOpcode::Unreachable => Some(COL_SEL_UNREACHABLE),
-        WasmOpcode::I32Clz => Some(COL_SEL_I32_CLZ),
-        WasmOpcode::I32Ctz => Some(COL_SEL_I32_CTZ),
-        WasmOpcode::I32Popcnt => Some(COL_SEL_I32_POPCNT),
-        WasmOpcode::I32Eqz => Some(COL_SEL_I32_EQZ),
-        WasmOpcode::I64Eqz => Some(COL_SEL_I64_EQZ),
-        WasmOpcode::I32Eq => Some(COL_SEL_I32_EQ),
-        WasmOpcode::I32Ne => Some(COL_SEL_I32_NE),
-        WasmOpcode::I64Eq => Some(COL_SEL_I64_EQ),
-        WasmOpcode::I64Ne => Some(COL_SEL_I64_NE),
-        WasmOpcode::I64Store8 => Some(COL_SEL_I64_STORE8),
-        WasmOpcode::I64Store16 => Some(COL_SEL_I64_STORE16),
-        WasmOpcode::I64Store32 => Some(COL_SEL_I64_STORE32),
-        WasmOpcode::I64Load8U => Some(COL_SEL_I64_LOAD8_U),
-        WasmOpcode::I64Load16U => Some(COL_SEL_I64_LOAD16_U),
-        WasmOpcode::I64Load32U => Some(COL_SEL_I64_LOAD32_U),
-        WasmOpcode::I64Load8S => Some(COL_SEL_I64_LOAD8_S),
-        WasmOpcode::I64Load16S => Some(COL_SEL_I64_LOAD16_S),
-        WasmOpcode::I64Load32S => Some(COL_SEL_I64_LOAD32_S),
-        WasmOpcode::I32WrapI64 => Some(COL_SEL_I32_WRAP_I64),
-        WasmOpcode::I64ExtendI32U => Some(COL_SEL_I64_EXTEND_I32_U),
-        WasmOpcode::I64ExtendI32S => Some(COL_SEL_I64_EXTEND_I32_S),
-        WasmOpcode::I32Extend8S => Some(COL_SEL_I32_EXTEND8_S),
-        WasmOpcode::I32Extend16S => Some(COL_SEL_I32_EXTEND16_S),
-        WasmOpcode::I64Extend8S => Some(COL_SEL_I64_EXTEND8_S),
-        WasmOpcode::I64Extend16S => Some(COL_SEL_I64_EXTEND16_S),
-        WasmOpcode::I64Extend32S => Some(COL_SEL_I64_EXTEND32_S),
-        WasmOpcode::I32LtS => Some(COL_SEL_I32_LTS),
-        WasmOpcode::I32LtU => Some(COL_SEL_I32_LTU),
-        WasmOpcode::I32GtS => Some(COL_SEL_I32_GTS),
-        WasmOpcode::I32GtU => Some(COL_SEL_I32_GTU),
-        WasmOpcode::I32LeS => Some(COL_SEL_I32_LES),
-        WasmOpcode::I32LeU => Some(COL_SEL_I32_LEU),
-        WasmOpcode::I32GeS => Some(COL_SEL_I32_GES),
-        WasmOpcode::I32GeU => Some(COL_SEL_I32_GEU),
-        WasmOpcode::I32And => Some(COL_SEL_I32_AND),
-        WasmOpcode::I32Or => Some(COL_SEL_I32_OR),
-        WasmOpcode::I32Xor => Some(COL_SEL_I32_XOR),
-        WasmOpcode::I32Mul => Some(COL_SEL_I32_MUL),
-        WasmOpcode::I64And => Some(COL_SEL_I64_AND),
-        WasmOpcode::I64Or => Some(COL_SEL_I64_OR),
-        WasmOpcode::I64Xor => Some(COL_SEL_I64_XOR),
-        WasmOpcode::I64Mul => Some(COL_SEL_I64_MUL),
-        WasmOpcode::I32Shl => Some(COL_SEL_I32_SHL),
-        WasmOpcode::I32ShrU => Some(COL_SEL_I32_SHR_U),
-        WasmOpcode::I32ShrS => Some(COL_SEL_I32_SHR_S),
-        WasmOpcode::I32Rotl => Some(COL_SEL_I32_ROTL),
-        WasmOpcode::I32Rotr => Some(COL_SEL_I32_ROTR),
-        WasmOpcode::I32DivU => Some(COL_SEL_I32_DIV_U),
-        WasmOpcode::I32DivS => Some(COL_SEL_I32_DIV_S),
-        WasmOpcode::I32RemU => Some(COL_SEL_I32_REM_U),
-        WasmOpcode::I32RemS => Some(COL_SEL_I32_REM_S),
-        WasmOpcode::I64LtS => Some(COL_SEL_I64_LTS),
-        WasmOpcode::I64LtU => Some(COL_SEL_I64_LTU),
-        WasmOpcode::I64GtS => Some(COL_SEL_I64_GTS),
-        WasmOpcode::I64GtU => Some(COL_SEL_I64_GTU),
-        WasmOpcode::I64LeS => Some(COL_SEL_I64_LES),
-        WasmOpcode::I64LeU => Some(COL_SEL_I64_LEU),
-        WasmOpcode::I64GeS => Some(COL_SEL_I64_GES),
-        WasmOpcode::I64GeU => Some(COL_SEL_I64_GEU),
-        WasmOpcode::I64Shl => Some(COL_SEL_I64_SHL),
-        WasmOpcode::I64ShrS => Some(COL_SEL_I64_SHR_S),
-        WasmOpcode::I64ShrU => Some(COL_SEL_I64_SHR_U),
-        WasmOpcode::I64Rotl => Some(COL_SEL_I64_ROTL),
-        WasmOpcode::I64Rotr => Some(COL_SEL_I64_ROTR),
-        WasmOpcode::I64DivS => Some(COL_SEL_I64_DIV_S),
-        WasmOpcode::I64DivU => Some(COL_SEL_I64_DIV_U),
-        WasmOpcode::I64RemS => Some(COL_SEL_I64_REM_S),
-        WasmOpcode::I64RemU => Some(COL_SEL_I64_REM_U),
-        WasmOpcode::I64Clz => Some(COL_SEL_I64_CLZ),
-        WasmOpcode::I64Ctz => Some(COL_SEL_I64_CTZ),
-        WasmOpcode::I64Popcnt => Some(COL_SEL_I64_POPCNT),
-        WasmOpcode::Select => Some(COL_SEL_SELECT),
-        WasmOpcode::BrIf => Some(COL_SEL_BR_IF_EQZ),
-        WasmOpcode::BrTable => Some(COL_SEL_BR_TABLE),
-        WasmOpcode::Call => Some(COL_SEL_CALL),
-        WasmOpcode::CallIndirect => Some(COL_SEL_CALL_INDIRECT),
-        WasmOpcode::Return => Some(COL_SEL_RETURN),
-        WasmOpcode::LocalGet => Some(COL_SEL_LOCAL_GET),
-        WasmOpcode::LocalSet => Some(COL_SEL_LOCAL_SET),
-        WasmOpcode::LocalTee => Some(COL_SEL_LOCAL_TEE),
-        WasmOpcode::GlobalGet => Some(COL_SEL_GLOBAL_GET),
-        WasmOpcode::GlobalSet => Some(COL_SEL_GLOBAL_SET),
-        // Call correctness is enforced by Stage 2 (call stack) and Stage 3 (continuity),
-        // not by a CCS row constraint. No selector column needed.
-        WasmOpcode::Trap | WasmOpcode::Unsupported => None,
-    }
-}
-
-pub fn build_pad_row() -> [F; NAMED_COLUMN_COUNT] {
-    let mut row = [F::ZERO; NAMED_COLUMN_COUNT];
-    row[COL_ONE] = F::ONE;
-    row[COL_OPCODE_CODE] = F::from_u64(u64::from(opcode_code(WasmOpcode::Return)));
-    row[COL_IS_PROGRAM_ROW] = F::ONE;
-    row[COL_PC_EDGE_KIND] = F::ONE;
-    row[COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO] = F::ONE;
-    row[COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO] = F::ONE;
-    row[COL_HALTED] = F::ONE;
-    row[COL_SEL_RETURN] = F::ONE;
-    row
-}
+// The host-event absorb column groups are addressed arithmetically from
+// their first member; pin the declaration order so a layout reshuffle is a
+// compile error instead of silent column aliasing.
+const _: () = {
+    assert!(COL_EVBUF7_BEFORE == COL_EVBUF0_BEFORE + 7);
+    assert!(COL_EVBUF7_AFTER == COL_EVBUF0_AFTER + 7);
+    assert!(COL_EVBUF_SLOT3_BEFORE == COL_EVBUF_SLOT0_BEFORE + 3);
+    assert!(COL_EVBUF_SLOT3_AFTER == COL_EVBUF_SLOT0_AFTER + 3);
+    assert!(COL_PERM_STATE11_BEFORE == COL_PERM_STATE0_BEFORE + 11);
+    assert!(COL_GRAMMAR_ORACLE3_BEFORE == COL_GRAMMAR_ORACLE0_BEFORE + 3);
+    assert!(COL_GRAMMAR_ORACLE3_AFTER == COL_GRAMMAR_ORACLE0_AFTER + 3);
+    assert!(COL_PERM_STATE11_AFTER == COL_PERM_STATE0_AFTER + 11);
+};

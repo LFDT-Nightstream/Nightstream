@@ -18,9 +18,9 @@ use crate::ir::{WasmCountdownState, WasmOutputState, WasmStepState};
 use crate::layout::Column;
 use crate::layout::{
     COL_CALL_STACK_DEPTH_BEFORE, COL_HALTED_BEFORE, COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_ARGS_REMAINING_BEFORE,
-    COL_HOST_RESULT_PENDING_BEFORE, COL_LOCALS_FBP_BEFORE, COL_MAX_MEMORY_PAGES_BEFORE, COL_MEMORY_PAGES_BEFORE,
-    COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_PARAM_INIT_ACTIVE_BEFORE,
-    COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_BEFORE, COL_SP_BEFORE, COL_TRAPPED_BEFORE,
+    COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_RESULT_PENDING_BEFORE, COL_LOCALS_FBP_BEFORE, COL_MAX_MEMORY_PAGES_BEFORE,
+    COL_MEMORY_PAGES_BEFORE, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE,
+    COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_BEFORE, COL_SP_BEFORE, COL_TRAPPED_BEFORE,
 };
 use crate::lookup_circuit::{extend_relation, LookupCircuitError};
 use crate::relation_layout::build_wasm_relation_layout;
@@ -173,6 +173,7 @@ pub fn top_level_initial_state(tables: &WasmProgramTables, entry_pc: u64) -> Was
         param_init: WasmCountdownState::ZERO,
         host_args: WasmCountdownState::ZERO,
         host_result_pending: false,
+        host_callee_fref: 0,
     }
 }
 
@@ -216,6 +217,7 @@ fn carried_state_field(state: WasmStepState, column: Column) -> F {
         COL_HOST_ARGS_ACTIVE_BEFORE => bool_field(state.host_args.active),
         COL_HOST_ARGS_REMAINING_BEFORE => F::from_u64(u64::from(state.host_args.remaining)),
         COL_HOST_RESULT_PENDING_BEFORE => bool_field(state.host_result_pending),
+        COL_HOST_CALLEE_FREF_BEFORE => F::from_u64(u64::from(state.host_callee_fref)),
         COL_TRAPPED_BEFORE => bool_field(state.trapped),
         other => panic!("unsupported initial semantic-state column {other}"),
     }

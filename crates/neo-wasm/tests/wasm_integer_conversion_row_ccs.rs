@@ -48,6 +48,7 @@ fn conversion_row(opcode: WasmOpcode, value: u32, width_bytes: usize, writes_i64
         host_args: WasmCountdownState::ZERO,
         host_result_pending: false,
         host_callee_fref: 0,
+        comm_chain: [0; 4],
     };
     let state_after = WasmStepState {
         pc: 3,
@@ -63,6 +64,7 @@ fn conversion_row(opcode: WasmOpcode, value: u32, width_bytes: usize, writes_i64
         host_args: WasmCountdownState::ZERO,
         host_result_pending: false,
         host_callee_fref: 0,
+        comm_chain: [0; 4],
     };
     WasmVmStep {
         cycle: 0,

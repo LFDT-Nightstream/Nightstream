@@ -230,6 +230,38 @@ define_columns!(
         ColumnWidth::U32
     ),
     (
+        COL_COMM_CHAIN0_BEFORE,
+        "host-event commitment chain limb 0 before this row"
+    ),
+    (
+        COL_COMM_CHAIN1_BEFORE,
+        "host-event commitment chain limb 1 before this row"
+    ),
+    (
+        COL_COMM_CHAIN2_BEFORE,
+        "host-event commitment chain limb 2 before this row"
+    ),
+    (
+        COL_COMM_CHAIN3_BEFORE,
+        "host-event commitment chain limb 3 before this row"
+    ),
+    (
+        COL_COMM_CHAIN0_AFTER,
+        "host-event commitment chain limb 0 after this row"
+    ),
+    (
+        COL_COMM_CHAIN1_AFTER,
+        "host-event commitment chain limb 1 after this row"
+    ),
+    (
+        COL_COMM_CHAIN2_AFTER,
+        "host-event commitment chain limb 2 after this row"
+    ),
+    (
+        COL_COMM_CHAIN3_AFTER,
+        "host-event commitment chain limb 3 after this row"
+    ),
+    (
         COL_HOST_RESULT_ACTIVE,
         "this row pushes the pending host-call result",
         ColumnWidth::Boolean

@@ -4,7 +4,9 @@
 //! columns from row `i` must equal `_before` columns in row `i + 1`.
 
 use super::layout::{
-    Column, COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE, COL_HALTED, COL_HALTED_BEFORE,
+    Column, COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE, COL_COMM_CHAIN0_AFTER, COL_COMM_CHAIN0_BEFORE,
+    COL_COMM_CHAIN1_AFTER, COL_COMM_CHAIN1_BEFORE, COL_COMM_CHAIN2_AFTER, COL_COMM_CHAIN2_BEFORE,
+    COL_COMM_CHAIN3_AFTER, COL_COMM_CHAIN3_BEFORE, COL_HALTED, COL_HALTED_BEFORE,
     COL_HOST_ARGS_ACTIVE_AFTER, COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_ARGS_REMAINING_AFTER,
     COL_HOST_ARGS_REMAINING_BEFORE, COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE,
     COL_HOST_RESULT_PENDING_AFTER, COL_HOST_RESULT_PENDING_BEFORE,
@@ -146,6 +148,28 @@ pub(crate) fn build_ivc_state_continuity_links() -> Vec<WasmCrossStepLinkSpec> {
                 WasmCrossStepColumnPair {
                     prev_after: Column(COL_HOST_CALLEE_FREF_AFTER),
                     next_before: Column(COL_HOST_CALLEE_FREF_BEFORE),
+                },
+            ],
+        },
+        WasmCrossStepLinkSpec {
+            name: "comm_chain_continuity",
+            description: "row[i].host-event commitment chain must match row[i+1].host-event commitment chain",
+            column_pairs: vec![
+                WasmCrossStepColumnPair {
+                    prev_after: Column(COL_COMM_CHAIN0_AFTER),
+                    next_before: Column(COL_COMM_CHAIN0_BEFORE),
+                },
+                WasmCrossStepColumnPair {
+                    prev_after: Column(COL_COMM_CHAIN1_AFTER),
+                    next_before: Column(COL_COMM_CHAIN1_BEFORE),
+                },
+                WasmCrossStepColumnPair {
+                    prev_after: Column(COL_COMM_CHAIN2_AFTER),
+                    next_before: Column(COL_COMM_CHAIN2_BEFORE),
+                },
+                WasmCrossStepColumnPair {
+                    prev_after: Column(COL_COMM_CHAIN3_AFTER),
+                    next_before: Column(COL_COMM_CHAIN3_BEFORE),
                 },
             ],
         },

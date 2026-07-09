@@ -68,8 +68,8 @@ use crate::paper::reductions::pi_dec_circuit::{
 };
 use crate::paper::reductions::pi_rlc_circuit::{
     enforce_rlc_commitment_combination, enforce_rlc_padded_k_vector_combination, enforce_rlc_s_col_consistency,
-    enforce_rlc_x_combination, RlcCommitmentWires, RlcPaddedKVectorPairWires, RlcPaddedKVectorWires, RlcPairWires,
-    RlcXPairWires, RlcXWires,
+    enforce_rlc_x_combination, rlc_projection_quotients, RlcCommitmentWires, RlcPaddedKVectorPairWires,
+    RlcPaddedKVectorWires, RlcPairWires, RlcXPairWires, RlcXWires,
 };
 use crate::paper::reductions::{pi_ccs, pi_ccs_split_nc_circuit, pi_rlc};
 use crate::paper::relations::{superneo_public_x_cols, CcsClaim, CeClaim};
@@ -131,6 +131,13 @@ pub struct NifsVOutputs {
     /// CE-continuity gate pins `prev.children == next.running` element
     /// by element.
     pub children: Vec<pi_dec_circuit::CeClaimWires>,
+    /// Π_RLC projection β (two K limbs), squeezed by the Lemma 5
+    /// schedule replay — the wire the F' image's projection shared
+    /// region must bind.
+    pub projection_beta: [Var; 2],
+    /// Per-κ-lane projection quotient advice absorbed before β — the
+    /// wires the F' image's projection identity regions must bind.
+    pub projection_q_lanes: Vec<Vec<Var>>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -230,6 +237,26 @@ pub fn enforce_nifs_v_circuit_with_transcript(
     enforce_rlc_s_col_consistency(builder, &input_s_cols, &dec_wires.parent.s_col)?;
     enforce_rlc_fold_digest_consistency(builder, &ccs.outputs, &dec_wires)?;
 
+    // ── 4b. Π_RLC β schedule replay (Lemma 5; Road A) ────────────────────
+    // Native `pi_rlc` absorbs the combined commitment and the per-lane
+    // division quotients, then squeezes β — mirror it bit-for-bit so
+    // every later challenge stays in lockstep. q enters as advice
+    // recomputed from the same wires native uses; its algebra is
+    // enforced once the commitment fold above swaps to
+    // `enforce_rlc_commitment_combination_projection`, which consumes
+    // these q wires and β at that same transcript position.
+    transcript.append_fields(
+        builder,
+        pi_rlc::PI_RLC_PROJECTION_COMBINED_C_LABEL,
+        &dec_wires.parent.c_data[..D * kappa],
+    );
+    let projection_q_lanes = alloc_projection_quotient_advice(builder, &rho_wires, &ccs.outputs)?;
+    for q_lane in &projection_q_lanes {
+        transcript.append_fields(builder, pi_rlc::PI_RLC_PROJECTION_QUOTIENTS_LABEL, q_lane);
+    }
+    let beta = transcript.challenge_fields(builder, pi_rlc::PI_RLC_PROJECTION_BETA_LABEL, 2);
+    let projection_beta = [beta[0], beta[1]];
+
     // ── 5. Π_DEC.V strict ────────────────────────────────────────────────
     enforce_dec_v_strict(builder, pp, &dec_wires)?;
 
@@ -249,7 +276,41 @@ pub fn enforce_nifs_v_circuit_with_transcript(
         running_parent_authority,
         parent,
         children,
+        projection_beta,
+        projection_q_lanes,
     })
+}
+
+/// Native recomputation of the Π_RLC projection quotients as advice
+/// wires (Lemma 5 schedule replay). The values mirror what native
+/// `pi_rlc::projection_schedule` absorbs — recomputed from the ρ and
+/// input-commitment wires' values, never read from the proof.
+fn alloc_projection_quotient_advice(
+    builder: &mut R1csBuilder,
+    rho_wires: &[[Var; D]],
+    outputs: &[SplitNcPiCcsOutputWires],
+) -> Result<Vec<Vec<Var>>, Error> {
+    let rho_vals: Vec<[F; D]> = rho_wires
+        .iter()
+        .map(|rho| core::array::from_fn(|i| builder.witness()[rho[i].col()]))
+        .collect();
+    let input_cs: Vec<neo_ajtai::Commitment> = outputs
+        .iter()
+        .map(|o| neo_ajtai::Commitment {
+            d: o.c_d,
+            kappa: o.c_kappa,
+            data: o
+                .c_data
+                .iter()
+                .map(|v| builder.witness()[v.col()])
+                .collect(),
+        })
+        .collect();
+    let lanes = rlc_projection_quotients(&rho_vals, &input_cs)?;
+    Ok(lanes
+        .iter()
+        .map(|lane| builder.alloc_vec(&lane.q))
+        .collect())
 }
 
 // ── Private RLC fold helpers ──────────────────────────────────────────────

@@ -33,19 +33,26 @@
 //! prover-supplied parent against the verifier's recomputation is the safer
 //! contract; the wire cost is one CE claim per IVC step.
 
+use neo_ajtai::Commitment;
 use neo_ccs::Mat;
+use neo_math::field::KExtensions;
 use neo_math::{D, F, K};
 use thiserror::Error;
 
 use crate::engine::optimized as engine;
+use crate::engine::r1cs_circuit::ring_action::PROJECTION_QUOTIENT_LEN;
 use crate::engine::transcript::Transcript;
 use crate::paper::digest;
 use crate::paper::params::Params;
+use crate::paper::reductions::pi_rlc_circuit::rlc_projection_quotients;
 use crate::paper::relations::{superneo_inactive_x_zero, CeClaim, RlcMixer};
 use crate::paper::sampling::check_rlc_bound;
 use p3_field::PrimeField64;
 
 pub(crate) const PI_RLC_INPUT_CLAIMS_DIGEST_LABEL: &[u8] = b"pi_rlc/input_claims_digest";
+pub(crate) const PI_RLC_PROJECTION_COMBINED_C_LABEL: &[u8] = b"pi_rlc/projection_combined_c";
+pub(crate) const PI_RLC_PROJECTION_QUOTIENTS_LABEL: &[u8] = b"pi_rlc/projection_quotients";
+pub(crate) const PI_RLC_PROJECTION_BETA_LABEL: &[u8] = b"pi_rlc/projection_beta";
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -88,6 +95,12 @@ pub enum Error {
         owner: &'static str,
         field: &'static str,
     },
+    #[error(
+        "\u{03A0}_RLC: projection schedule — combined commitment lane {lane} is not the ring-action mix of the inputs"
+    )]
+    ProjectionMixDrift { lane: usize },
+    #[error(transparent)]
+    Projection(#[from] crate::paper::reductions::pi_rlc_circuit::Error),
     #[error(transparent)]
     Sampling(#[from] crate::paper::sampling::SamplingError),
     #[error(transparent)]
@@ -101,6 +114,26 @@ pub enum Error {
 pub struct Output {
     pub claim: CeClaim,
     pub witness: Mat<F>,
+    /// The Lemma 5 β schedule this fold ran (Road A candidate E) —
+    /// prover-side plumbing for the F' image's projection regions.
+    pub projection: ProjectionSchedule,
+}
+
+/// Post-mix β schedule for the projection-checked commitment
+/// combination (encoding.md candidate E; security-note Lemma 5 §4b).
+/// Nothing here rides the wire: the verifier recomputes every field
+/// from ρ and the input commitments, so a carried value can never
+/// out-vote the transcript.
+#[derive(Clone, Debug)]
+pub struct ProjectionSchedule {
+    /// ρ_i ring elements (rotation-matrix first columns), fold order.
+    pub rhos: Vec<[F; D]>,
+    /// Per-κ-lane division quotients `q_lane` with
+    /// `Σ_i ρ_i(X)·c_{i,lane}(X) = q_lane(X)·Φ(X) + combined_lane(X)`.
+    pub q_lanes: Vec<[F; PROJECTION_QUOTIENT_LEN]>,
+    /// The evaluation challenge, squeezed after c* and every `q_lane`
+    /// are on the transcript — the order is the soundness (Lemma 5).
+    pub beta: K,
 }
 
 /// Wire-format proof: the prover's combined CE claim of norm B.
@@ -144,10 +177,12 @@ pub(crate) fn prove_refs(
     let (mut combined, z_mix) = engine::prove_pi_rlc_refs(pp, s, &rhos, claims, witnesses, |zs, cs| mix(zs, cs))?;
     combined.adv = mixed_adv(mix, &rhos, claims)?;
     validate_nc_sidecars(s, mix, &rhos, claims, &combined)?;
+    let projection = projection_schedule(tr, &rhos, claims, &combined)?;
     Ok((
         Output {
             claim: combined.clone(),
             witness: z_mix,
+            projection,
         },
         Proof { combined },
     ))
@@ -179,12 +214,53 @@ pub fn verify(
     if !ok {
         return Err(Error::VerifyRejected);
     }
+    projection_schedule(tr, &rhos, claims, &proof.combined)?;
     Ok(proof.combined.clone())
 }
 
 fn bind_input_claims_for_rho(tr: &mut Transcript, claims: &[CeClaim]) {
     let input_claims_digest = digest::pi_ccs_outputs_digest(claims);
     tr.append_fields(PI_RLC_INPUT_CLAIMS_DIGEST_LABEL, &input_claims_digest);
+}
+
+/// Lemma 5 transcript schedule, shared verbatim by `prove` and
+/// `verify`: with ρ sampled and the mix fixed, recompute the per-lane
+/// quotients from the input commitments, absorb the combined
+/// commitment and every quotient, then squeeze β. Also discharges the
+/// wire-identity obligation (Lemma 5 audit item 1): the mix the
+/// quotients divide against must BE the combined commitment, lane for
+/// lane — so the projection algebra can never drift from the mixer the
+/// fold actually used.
+fn projection_schedule(
+    tr: &mut Transcript,
+    rhos: &[neo_reductions::common::RotRho],
+    inputs: &[CeClaim],
+    combined: &CeClaim,
+) -> Result<ProjectionSchedule, Error> {
+    let rho_coeffs: Vec<[F; D]> = rhos
+        .iter()
+        .map(|rho| {
+            let mat = rho.as_mat();
+            core::array::from_fn(|row| mat[(row, 0)])
+        })
+        .collect();
+    let input_cs: Vec<Commitment> = inputs.iter().map(|claim| claim.c.clone()).collect();
+    let lanes = rlc_projection_quotients(&rho_coeffs, &input_cs)?;
+    for (lane_idx, lane) in lanes.iter().enumerate() {
+        if combined.c.data.get(lane_idx * D..(lane_idx + 1) * D) != Some(&lane.out[..]) {
+            return Err(Error::ProjectionMixDrift { lane: lane_idx });
+        }
+    }
+    tr.append_fields(PI_RLC_PROJECTION_COMBINED_C_LABEL, &combined.c.data);
+    for lane in &lanes {
+        tr.append_fields(PI_RLC_PROJECTION_QUOTIENTS_LABEL, &lane.q);
+    }
+    let beta = tr.challenge_fields(PI_RLC_PROJECTION_BETA_LABEL, 2);
+    Ok(ProjectionSchedule {
+        rhos: rho_coeffs,
+        q_lanes: lanes.into_iter().map(|lane| lane.q).collect(),
+        beta: K::from_coeffs([beta[0], beta[1]]),
+    })
 }
 
 // ──────────────────────────────────────────────────────────────────────────

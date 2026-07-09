@@ -86,14 +86,24 @@ F' becomes a foldable low-norm instance each step, with the ring-action
 obligations discharged by the projection check (candidate E below).
 The terminal-Spartan road (H) remains the compression story for
 proof-size/portability later, but is not the induction mechanism.
-Integration order: (1) β transcript schedule on the F' step transcript
-(native prover computes β and the quotients; the circuit re-derives β
-from the replayed transcript), (2) projection regions replace the D²
-ring-action regions in the F' image/structure (flips the
-`folded_f_prime_shell_must_adopt_projection_budget` gate), (3) Nebula
-lane transition joins the F' state bundle (spec §13 step 9), (4) the
-terminal-only verifier consumes the induction (flips the two
-multi-chunk gates). Lemma 5 carries an author self-review whose one
+Integration order: (1) β transcript schedule — **DONE**: native
+`pi_rlc` owns it on both prove and verify paths (recompute per-lane
+quotients from authoritative inputs → absorb c* and every q_lane →
+squeeze β; wire-identity check fails closed if the mixer is not the
+ring action), the NIFS.V circuit replays it bit-for-bit (q as advice
+recomputed in the builder; β/q wires surfaced via `NifsVOutputs`), and
+`tests/system/rlc_projection.rs` drives a real fold through the
+schedule and the projection-trace encoders with zero residual,
+(2) projection regions replace the D² ring-action regions in the F'
+image/structure (flips the
+`folded_f_prime_shell_must_adopt_projection_budget` gate) — **DONE**,
+semantic rows included (Phase B), (3) encoder fill: the F' image's
+projection regions filled from the fold's recorded
+`pi_rlc::ProjectionSchedule` instead of test vectors, plus the Nebula
+lane transition joining the F' state bundle (spec §13 step 9), (4) the
+in-circuit commitment fold swaps to
+`enforce_rlc_commitment_combination_projection` and the terminal-only
+verifier consumes the induction (flips the two multi-chunk gates). Lemma 5 carries an author self-review whose one
 novel claim (a Φ(β) = 0 completeness caveat) was **refuted by external
 review** and is retained in the note as a correction record — the
 honest identity holds identically at roots of Φ, and Φ_81 has no roots

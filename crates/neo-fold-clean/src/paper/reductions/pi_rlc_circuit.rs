@@ -214,10 +214,18 @@ pub fn enforce_rlc_commitment_combination(builder: &mut R1csBuilder, wires: &Rlc
 
 // ── Projection-checked commitment combination (Road A, candidate E) ──────
 
+/// One κ-lane of the projection-checked mix: the combined lane
+/// `out = Σ_i ρ_i·c_{i,lane} mod Φ` and the division quotient `q` with
+/// `Σ_i ρ_i(X)·c_{i,lane}(X) = q(X)·Φ(X) + out(X)`.
+#[derive(Clone, Debug)]
+pub struct RlcLaneProjection {
+    pub out: [F; D],
+    pub q: [F; PROJECTION_QUOTIENT_LEN],
+}
+
 /// Native prover companion for
-/// [`enforce_rlc_commitment_combination_projection`]: the per-lane
-/// division quotients `q_lane` with
-/// `Σ_i ρ_i(X)·c_{i,lane}(X) = q_lane(X)·Φ(X) + combined_lane(X)`.
+/// [`enforce_rlc_commitment_combination_projection`]: per κ-lane, the
+/// recomputed mix `out` and its division quotient `q`.
 ///
 /// **Lemma 5 schedule**: the caller absorbs `combined` and every
 /// quotient returned here into the transcript **before** squeezing β.
@@ -226,7 +234,7 @@ pub fn enforce_rlc_commitment_combination(builder: &mut R1csBuilder, wires: &Rlc
 pub fn rlc_projection_quotients(
     rhos_first_col: &[[F; D]],
     inputs: &[Commitment],
-) -> Result<Vec<[F; PROJECTION_QUOTIENT_LEN]>, Error> {
+) -> Result<Vec<RlcLaneProjection>, Error> {
     if inputs.is_empty() {
         return Err(Error::Empty);
     }
@@ -257,8 +265,8 @@ pub fn rlc_projection_quotients(
                 (*rho, lane_coeffs)
             })
             .collect();
-        let (_, q) = projection_quotient(&pairs);
-        per_lane.push(q);
+        let (out, q) = projection_quotient(&pairs);
+        per_lane.push(RlcLaneProjection { out, q });
     }
     Ok(per_lane)
 }

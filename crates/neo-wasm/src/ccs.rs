@@ -10,6 +10,7 @@
 mod call;
 mod linear_memory;
 mod memory_pages;
+pub mod poseidon;
 mod stack_io;
 mod trap;
 
@@ -263,6 +264,7 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
             [],
         );
     });
+    poseidon::push_host_event_perm_constraints(&mut b);
 
     b.with_tag(always("opcode selector one hot"), |b| {
         b.push_linear_zero(

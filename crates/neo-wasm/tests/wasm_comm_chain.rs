@@ -6,7 +6,12 @@
 //! permutation instantiation or the compression layout, both tests must be
 //! updated together.
 
+mod common;
+
 use neo_wasm::comm_chain::{self, commit_event, COMM_CHAIN_EVENT_ARGS, COMM_CHAIN_STATE_LEN};
+use neo_wasm::layout::{COL_COMM_CHAIN0_AFTER, COL_EVBUF4_BEFORE, COL_PERM_PENDING_AFTER, COL_PERM_STATE0_AFTER};
+use neo_wasm::witness_builder::build_witness_vector;
+use neo_wasm::WasmVmStep;
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 
@@ -45,10 +50,38 @@ fn comm_chain_fixture_vectors() {
     );
 }
 
-/// Two chained host-call events: the trace's carried chain must equal the
-/// native recompute over the known event data.
+/// The row-level round decomposition (what the in-circuit gadget enforces)
+/// must reproduce the whole-permutation compression exactly.
 #[test]
-fn trace_carries_host_event_chain() {
+fn perm_row_checkpoints_match_commit_event() {
+    let prev = [f(11), f(22), f(33), f(44)];
+    let disc = f(5);
+    let args: [Goldilocks; COMM_CHAIN_EVENT_ARGS] = core::array::from_fn(|i| f(1000 + i as u64));
+
+    let mut words = [Goldilocks::ZERO; comm_chain::COMM_CHAIN_BLOCK_WORDS];
+    words[0] = disc;
+    words[1..].copy_from_slice(&args);
+    let checkpoints = comm_chain::perm_row_checkpoints(prev, words);
+
+    let expected = commit_event(prev, disc, args);
+    let fed_forward: [Goldilocks; COMM_CHAIN_STATE_LEN] =
+        core::array::from_fn(|i| checkpoints[comm_chain::COMM_CHAIN_PERM_ROWS][i] + prev[i]);
+    assert_eq!(fed_forward, expected);
+
+    // Every intermediate checkpoint is reachable from its predecessor via the
+    // row transition the CCS gadget encodes.
+    for pos in 0..comm_chain::COMM_CHAIN_PERM_ROWS {
+        let mut state = checkpoints[pos];
+        comm_chain::perm_row_transition(pos, &mut state);
+        assert_eq!(state, checkpoints[pos + 1], "row {pos} transition mismatch");
+    }
+}
+
+/// Trace with two host-call events: `host-mul(7, 6) -> 42` (two absorbed
+/// blocks: one mid-args, one after the result) and `host-sink(42)` (one
+/// block). Every row is CCS-checked, so the perm-group rows themselves are
+/// exercised against the gadget.
+fn two_event_trace() -> Vec<WasmVmStep> {
     let component_wat = r#"
     (component
       (type $host-mul (func (param "x" s32) (param "y" s32) (result s32)))
@@ -92,8 +125,16 @@ fn trace_carries_host_event_chain() {
     })
     .expect("component trace run");
     let trace = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("trace normalization");
-
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
+    common::ccs_check_trace(&trace);
+    trace
+}
+
+/// Two chained host-call events: the trace's carried chain must equal the
+/// native recompute over the known event data.
+#[test]
+fn trace_carries_host_event_chain() {
+    let trace = two_event_trace();
 
     let call_frefs: Vec<u32> = trace
         .iter()
@@ -110,6 +151,72 @@ fn trace_carries_host_event_chain() {
         comm_chain::commit_host_call_event_u64([0; 4], call_frefs[0], 2, 1, &[(7, 0), (6, 0)], Some((42, 0)));
     let after_sink = comm_chain::commit_host_call_event_u64(after_mul, call_frefs[1], 1, 0, &[(42, 0)], None);
     assert_eq!(trace.last().expect("final row").state_after.comm_chain, after_sink);
+}
+
+fn perm_rows(trace: &[WasmVmStep]) -> Vec<&WasmVmStep> {
+    trace
+        .iter()
+        .filter(|row| row.row_kind.is_host_event_perm())
+        .collect()
+}
+
+/// The chain may only move on a perm group's last row, and there it must be
+/// the feed-forward of the enforced permutation: forging the landed chain
+/// limb is CCS-rejected.
+#[test]
+fn ccs_rejects_forged_chain_update() {
+    let trace = two_event_trace();
+    let last_row = perm_rows(&trace)
+        .into_iter()
+        .find(|row| usize::from(row.state_before.event_absorb.perm_round) == comm_chain::COMM_CHAIN_PERM_ROWS - 1)
+        .expect("perm group last row");
+    let mut witness = build_witness_vector(last_row);
+    common::assert_satisfied(&witness, "untampered chain-update row");
+    witness[COL_COMM_CHAIN0_AFTER] += neo_math::F::ONE;
+    common::assert_rejected(&witness, "chain-update row landing a forged chain limb");
+}
+
+/// Every perm row's output state is pinned to its round function: forging a
+/// lane is CCS-rejected.
+#[test]
+fn ccs_rejects_forged_perm_round_output() {
+    let trace = two_event_trace();
+    for row in perm_rows(&trace).into_iter().take(2) {
+        let mut witness = build_witness_vector(row);
+        common::assert_satisfied(&witness, "untampered perm row");
+        witness[COL_PERM_STATE0_AFTER] += neo_math::F::ONE;
+        common::assert_rejected(&witness, "perm row with a forged round output lane");
+    }
+}
+
+/// The absorb row's entry state is pinned to `[chain | evbuf]`: forging a
+/// buffer word out from under the absorb is CCS-rejected.
+#[test]
+fn ccs_rejects_forged_absorb_buffer() {
+    let trace = two_event_trace();
+    let absorb_row = perm_rows(&trace)
+        .into_iter()
+        .find(|row| row.state_before.event_absorb.perm_pending)
+        .expect("perm group absorb row");
+    let mut witness = build_witness_vector(absorb_row);
+    common::assert_satisfied(&witness, "untampered absorb row");
+    witness[COL_EVBUF4_BEFORE] += neo_math::F::ONE;
+    common::assert_rejected(&witness, "absorb row with a forged buffer word");
+}
+
+/// A row that fills the block buffer (or ends the event) must raise
+/// `perm_pending`; suppressing the flag to skip the absorb is CCS-rejected.
+#[test]
+fn ccs_rejects_suppressed_absorb_schedule() {
+    let trace = two_event_trace();
+    let filling_row = trace
+        .iter()
+        .find(|row| !row.state_before.event_absorb.perm_pending && row.state_after.event_absorb.perm_pending)
+        .expect("buffer-filling row");
+    let mut witness = build_witness_vector(filling_row);
+    common::assert_satisfied(&witness, "untampered buffer-filling row");
+    witness[COL_PERM_PENDING_AFTER] = neo_math::F::ZERO;
+    common::assert_rejected(&witness, "buffer-filling row suppressing the pending absorb");
 }
 
 /// The debug checker must reject a forged carried chain state.

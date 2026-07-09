@@ -35,7 +35,8 @@ pub use adapters::wasmtime::{
 pub use ccs::WasmVmSpec;
 pub use ir::{
     boundary_states, LinearMemoryAccess, LinearMemoryWordLane, StackValueAccess, WasmAuxOpcode, WasmBoundaryState,
-    WasmBuildError, WasmCountdownState, WasmOutputState, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
+    WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmOutputState, WasmPcEdgeKind, WasmRowKind,
+    WasmStepState, WasmVmStep,
 };
 pub use isa::{
     opcode_code, opcode_info_from_code, WasmMemoryAccessInfo, WasmMemoryAccessKind, WasmMemoryExtension, WasmOpTable,

@@ -268,9 +268,14 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
     let host_result_pending = prev.state_after.host_result_pending;
     let host_callee_fref = prev.state_after.host_callee_fref;
     let comm_chain = prev.state_after.comm_chain;
+    let event_absorb = prev.state_after.event_absorb;
     debug_assert!(
         !host_args.active && !host_result_pending,
         "padding inside a host-call aux sequence is unsupported"
+    );
+    debug_assert!(
+        !event_absorb.perm_pending && event_absorb.perm_round == 0,
+        "padding inside a host-event perm group is unsupported"
     );
     WasmVmStep {
         cycle: prev.cycle + 1,
@@ -290,6 +295,7 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
             host_result_pending,
             host_callee_fref,
             comm_chain,
+            event_absorb,
         },
         state_after: WasmStepState {
             pc,
@@ -306,6 +312,7 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
             host_result_pending,
             host_callee_fref,
             comm_chain,
+            event_absorb,
         },
         control_choice: 0,
         pc_edge_kind: WasmPcEdgeKind::Static,
@@ -381,8 +388,11 @@ pub(crate) fn wasm_app_private_var_widths(witness_width: usize) -> Vec<usize> {
         .collect();
 
     debug_assert_eq!(witness_width, range_checked_witness_width());
-    // Columns added for range checks land after the base columns. All of those
-    // are bits, since they are used for the binary recomposition.
+    // The host-event gadget's internal block sits right after the named
+    // columns; its widths are gadget-declared.
+    widths.extend(crate::ccs::poseidon::perm_gadget_col_widths());
+    // Columns added for range checks land after that. All of those are bits,
+    // since they are used for the binary recomposition.
     widths.resize(witness_width, 1);
     widths
 }

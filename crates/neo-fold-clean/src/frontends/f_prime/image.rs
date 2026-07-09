@@ -96,13 +96,13 @@ pub struct FPrimeImageConfig {
     pub kmul_count: usize,
     /// Number of ring-action lane-pairs in one step (κ · k_total).
     pub ring_action_pair_count: usize,
-    /// Projection-checked ring-action pairs (Road A, candidate E) —
-    /// replaces D²-materialized pairs when nonzero. Widths per
-    /// `paper::f_prime::projection_trace`.
-    pub projection_pair_count: usize,
-    /// Projection identities (one per output ring component per
-    /// client; the Lemma 5 J census).
-    pub projection_identity_count: usize,
+    /// Projection-checked ring action (Road A, candidate E): one entry
+    /// per projection identity, giving how many pair terms that
+    /// identity consumes — the batch structure is part of the config,
+    /// so an unpartitioned pair set is unrepresentable. `pair_count =
+    /// Σ entries`, `identity_count = len` (the Lemma 5 J census).
+    /// Widths per `paper::f_prime::projection_trace`.
+    pub projection_batches: Vec<usize>,
     /// Shared per-pair ring-action layout (encoding widths per subregion).
     pub ring_action_pair_layout: RingActionTraceLayout,
     /// Preimage lengths for each one-shot Poseidon hash invoked in this step.
@@ -476,17 +476,23 @@ impl FPrimeImageLayout {
         // identities. Empty (zero bits) when both counts are zero.
         let projection_start = cursor;
         let projection_shared_splice = cursor;
-        if config.projection_pair_count > 0 || config.projection_identity_count > 0 {
+        let projection_pair_count: usize = config.projection_batches.iter().sum();
+        let projection_identity_count = config.projection_batches.len();
+        if projection_identity_count > 0 {
+            assert!(
+                config.projection_batches.iter().all(|&n| n > 0),
+                "every projection identity must consume at least one pair"
+            );
             cursor += crate::paper::f_prime::projection_trace::PROJECTION_SHARED_BITS;
         }
-        let projection_pair_splices: Vec<usize> = (0..config.projection_pair_count)
+        let projection_pair_splices: Vec<usize> = (0..projection_pair_count)
             .map(|i| cursor + i * crate::paper::f_prime::projection_trace::PROJECTION_PAIR_BITS)
             .collect();
-        cursor += config.projection_pair_count * crate::paper::f_prime::projection_trace::PROJECTION_PAIR_BITS;
-        let projection_identity_splices: Vec<usize> = (0..config.projection_identity_count)
+        cursor += projection_pair_count * crate::paper::f_prime::projection_trace::PROJECTION_PAIR_BITS;
+        let projection_identity_splices: Vec<usize> = (0..projection_identity_count)
             .map(|i| cursor + i * crate::paper::f_prime::projection_trace::PROJECTION_IDENTITY_BITS)
             .collect();
-        cursor += config.projection_identity_count * crate::paper::f_prime::projection_trace::PROJECTION_IDENTITY_BITS;
+        cursor += projection_identity_count * crate::paper::f_prime::projection_trace::PROJECTION_IDENTITY_BITS;
         let projection = RegionRange {
             offset: projection_start,
             bits: cursor - projection_start,
@@ -539,7 +545,7 @@ impl FPrimeImageLayout {
     }
 
     /// Top-level region ranges in spec order (boundary..poseidon).
-    pub fn top_level_regions(&self) -> [RegionRange; 10] {
+    pub fn top_level_regions(&self) -> [RegionRange; 11] {
         [
             self.boundary,
             self.state_in,
@@ -550,6 +556,7 @@ impl FPrimeImageLayout {
             self.nifs_payloads,
             self.kmul,
             self.ring_action,
+            self.projection,
             self.poseidon,
         ]
     }

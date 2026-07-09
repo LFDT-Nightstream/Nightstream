@@ -44,8 +44,7 @@ fn small_test_image_config() -> FPrimeImageConfig {
         nifs_payload_shapes: vec![],
         kmul_count: 2,
         ring_action_pair_count: 2,
-        projection_pair_count: 0,
-        projection_identity_count: 0,
+        projection_batches: Vec::new(),
         ring_action_pair_layout: RingActionTraceLayout::new(
             LowNormEncoding::U64,
             LowNormEncoding::U64,
@@ -79,11 +78,12 @@ fn phase_1_4a_production_config_pins_emitter_counts() {
         "production kmul K-mul count must match the Phase 1.3d coverage measurement"
     );
     assert_eq!(
-        config.projection_pair_count, PRODUCTION_RING_ACTION_PAIR_COUNT,
-        "production projection pair count must match the Phase 1.3d coverage census (P_total)"
+        config.projection_batches.iter().sum::<usize>(),
+        PRODUCTION_RING_ACTION_PAIR_COUNT,
+        "production projection pair total must match the Phase 1.3d coverage census (P_total)"
     );
     assert_eq!(
-        config.projection_identity_count,
+        config.projection_batches.len(),
         neo_fold_clean::frontends::f_prime::structure::PRODUCTION_PROJECTION_IDENTITY_COUNT,
         "production projection identity count must match the Lemma 5 known-clients census"
     );

@@ -31,8 +31,7 @@ fn binding_config(bindings: Vec<OneShotDigestToStateOutBinding>) -> FPrimeImageC
         nifs_payload_shapes: vec![],
         kmul_count: 0,
         ring_action_pair_count: 0,
-        projection_pair_count: 0,
-        projection_identity_count: 0,
+        projection_batches: Vec::new(),
         ring_action_pair_layout: RingActionTraceLayout::new(
             LowNormEncoding::U64,
             LowNormEncoding::U64,
@@ -53,8 +52,7 @@ fn binding_config(bindings: Vec<OneShotDigestToStateOutBinding>) -> FPrimeImageC
 fn binding_config_with_ring_action(bindings: Vec<OneShotDigestToStateOutBinding>) -> FPrimeImageConfig {
     FPrimeImageConfig {
         ring_action_pair_count: 1,
-        projection_pair_count: 0,
-        projection_identity_count: 0,
+        projection_batches: Vec::new(),
         ..binding_config(bindings)
     }
 }

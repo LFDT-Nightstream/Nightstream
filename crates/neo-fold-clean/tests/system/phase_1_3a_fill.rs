@@ -33,8 +33,7 @@ fn skeleton_config() -> FPrimeImageConfig {
         nifs_payload_shapes: vec![],
         kmul_count: 8,
         ring_action_pair_count: 4,
-        projection_pair_count: 0,
-        projection_identity_count: 0,
+        projection_batches: Vec::new(),
         ring_action_pair_layout: RingActionTraceLayout::new(
             LowNormEncoding::SignedDigit { bits: 5 },
             LowNormEncoding::SignedDigit { bits: 8 },

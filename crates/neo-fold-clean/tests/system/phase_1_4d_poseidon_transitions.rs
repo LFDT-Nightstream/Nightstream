@@ -47,8 +47,7 @@ fn enforcement_config(enforcements: Vec<PoseidonTransitionEnforcement>) -> FPrim
         nifs_payload_shapes: vec![],
         kmul_count: 0,
         ring_action_pair_count: 0,
-        projection_pair_count: 0,
-        projection_identity_count: 0,
+        projection_batches: Vec::new(),
         ring_action_pair_layout: RingActionTraceLayout::new(
             LowNormEncoding::U64,
             LowNormEncoding::U64,

@@ -109,20 +109,18 @@ finding is itself the argument for keeping that flag.
 | B | SignedDigit as measured | — | invalid: operands are full-range commitments |
 | C | Mixed (ρ = SignedDigit{5}, rest U64) | 90.1M | valid; saves 1.6 % — not a lever |
 | D | Digit-decompose c, act on digits | ~260M | valid; strictly worse (14 SignedDigit pairs vs 1 U64 pair, ×2.8) |
-| E | Projection check — **gadget prototyped; marginal cost measured**: verify `Σ_i ρ_i·c_i = out (mod Φ)` as the polynomial identity `Σ ρ_i(X)c_i(X) = q(X)Φ(X) + out(X)` tested at a post-commitment challenge `β ∈ K` (`engine/r1cs_circuit/ring_action.rs::enforce_ring_action_projection_batch`; SZ error ≤ (2D−2)/\|K\| ≈ 2^−121 per identity) | **measured**: 330 cols/pair marginal vs 3,078 full-field / ~21k vs ~196k bits bit-backed → **9.3× per pair**. **Extrapolated** (measured marginal × production pair counts, NOT yet an integrated `FPrimeStructure` measurement): ring-action surface ≈ 9.8M bits/step | parity + rejection tests in `tests/system/ring_action_projection.rs`; the integrated-budget milestone gate is `ivc_invariants.rs::folded_f_prime_shell_must_adopt_projection_budget` (ignored, fails today). **The soundness case is written**: `specs/nebula-superneo-security-note.md` Lemma 5 (§4b, ledger C18; committed) — exact transcript schedule (`q` and `out` absorbed before β), J·(2d−2)/\|K\| bound with P (product pairs, drives cost) distinguished from J (projection identities, drives error): conservative J ≤ 465 → ≈ 2^−112.4/fold until the adoption census proves smaller (known clients would give J = 4κ = 72 → ≈ 2^−115). Composition with Lemma 1, five adoption audit items incl. the census table. Still owed: Lemma 5's non-author review (attack the J census and wire-identity obligation first), then β's transcript wiring and the F' image integration |
+| E | Projection check — **gadget prototyped; marginal cost measured**: verify `Σ_i ρ_i·c_i = out (mod Φ)` as the polynomial identity `Σ ρ_i(X)c_i(X) = q(X)Φ(X) + out(X)` tested at a post-commitment challenge `β ∈ K` (`engine/r1cs_circuit/ring_action.rs::enforce_ring_action_projection_batch`; SZ error ≤ (2D−2)/\|K\| ≈ 2^−121 per identity) | **measured**: 330 cols/pair marginal vs 3,078 full-field / ~21k vs ~196k bits bit-backed → **9.3× per pair**. **Extrapolated** (measured marginal × production pair counts, NOT yet an integrated `FPrimeStructure` measurement): ring-action surface ≈ 9.8M bits/step | parity + rejection tests in `tests/system/ring_action_projection.rs`; the integrated-budget gate `ivc_invariants.rs::folded_f_prime_shell_must_adopt_projection_budget` is **GREEN un-ignored** — the production shell carries projection regions, integrated layout = **14,040,452 bits/step** (D2 reference: 94,330,948; 6.7x). Remaining red: `projection_shell_semantic_rows_must_be_enforced` (Phase B row emission in `frontends/f_prime/projection_structure.rs`), then beta transcript binding, encoder fill, terminal induction. **The soundness case is written**: `specs/nebula-superneo-security-note.md` Lemma 5 (§4b, ledger C18; committed) — exact transcript schedule (`q` and `out` absorbed before β), J·(2d−2)/\|K\| bound with P (product pairs, drives cost) distinguished from J (projection identities, drives error): conservative J ≤ 465 → ≈ 2^−112.4/fold until the adoption census proves smaller (known clients would give J = 4κ = 72 → ≈ 2^−115). Composition with Lemma 1, five adoption audit items incl. the census table. Still owed: Lemma 5's non-author review (attack the J census and wire-identity obligation first), then β's transcript wiring and the F' image integration |
 | F | Fewer pairs (arity/κ trades) | linear only | doesn't touch the 197k/pair |
 | G | SIS accumulators (C14/L2) | — | helps the absorb (Poseidon) side, already small; not the fold math |
 | H | Terminal-proof regime (PR5): never commit F' | 0 per step | field-native cost once per chain (~1–3M-constraint relation); sidesteps enc(F') entirely |
 
 Bottom line: encodings alone cannot move the wall (best honest bit
-encoding ≈ 90M). The data favors H as plan of record; E is the only
-folded-regime path worth research effort — its measured *marginal*
-gadget cost extrapolates the folded-regime step to ≈ 12.5M committed
-bits (9.8M ring action + 2.7M K-mul), ~220× the S_mem app circuit
-instead of ~1,650×. That step figure is a model until an integrated
-`FPrimeStructure` is measured (the ignored milestone gate pins the
-budget). The K-mul/sumcheck region is a candidate for the same
-treatment.
+encoding ≈ 90M); before candidate E the data favored H, and **Nico
+decided Road A (folded) with E as its mechanism** — see the regime
+decision above. E's integrated shell now measures **14,040,452
+committed bits/step** (~245× the S_mem app circuit instead of
+~1,650×), green under the budget gate. The K-mul/sumcheck region
+(2.7M) is a candidate for the same projection treatment later.
 
 ## Reproduce every number
 

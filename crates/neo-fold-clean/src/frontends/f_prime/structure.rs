@@ -43,8 +43,30 @@ pub const PRODUCTION_KMUL_COUNT: usize = 7100;
 /// Phase 1.3d coverage gate's measurement.
 pub const PRODUCTION_RING_ACTION_PAIR_COUNT: usize = 465;
 
-/// Pinned production kmul/ring-action shell; boundary/poseidon are empty here.
+/// Projection identities for the production shell — the Lemma 5 J
+/// census's known-clients figure (`4κ = 72`; the adoption census, audit
+/// item 4, refines this; the soundness bound conservatively uses
+/// `J ≤ 465` until reviewed).
+pub const PRODUCTION_PROJECTION_IDENTITY_COUNT: usize = 72;
+
+/// The production F' shell (Road A): kmuls unchanged, and the ring
+/// action carried as **projection regions** (candidate E) instead of
+/// D²-materialized pairs — the committed-width flip the
+/// `folded_f_prime_shell_must_adopt_projection_budget` gate pins.
+/// Semantic rows for the projection region are the tracked next phase
+/// (`projection_shell_semantic_rows_must_be_enforced`).
 pub fn production_kmul_ring_action_shell_image_config() -> FPrimeImageConfig {
+    FPrimeImageConfig {
+        projection_pair_count: PRODUCTION_RING_ACTION_PAIR_COUNT,
+        projection_identity_count: PRODUCTION_PROJECTION_IDENTITY_COUNT,
+        ring_action_pair_count: 0,
+        ..production_kmul_d2_ring_action_shell_image_config()
+    }
+}
+
+/// The pre-Road-A D² reference shell (kept for wire-parity tests and
+/// as the measured baseline the projection numbers are compared to).
+pub fn production_kmul_d2_ring_action_shell_image_config() -> FPrimeImageConfig {
     FPrimeImageConfig {
         limbs: 3,
         app_private_var_widths: Vec::new(),
@@ -52,6 +74,8 @@ pub fn production_kmul_ring_action_shell_image_config() -> FPrimeImageConfig {
         nifs_payload_shapes: vec![],
         kmul_count: PRODUCTION_KMUL_COUNT,
         ring_action_pair_count: PRODUCTION_RING_ACTION_PAIR_COUNT,
+        projection_pair_count: 0,
+        projection_identity_count: 0,
         ring_action_pair_layout: RingActionTraceLayout::new(
             LowNormEncoding::U64,
             LowNormEncoding::U64,

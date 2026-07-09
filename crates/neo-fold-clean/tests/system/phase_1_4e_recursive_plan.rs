@@ -48,6 +48,8 @@ fn make_plan() -> RecursiveStepImagePlan {
         boundary_bits: 0,
         kmul_count: 0,
         ring_action_pair_count: 0,
+        projection_pair_count: 0,
+        projection_identity_count: 0,
         ring_action_pair_layout: RingActionTraceLayout::new(
             LowNormEncoding::U64,
             LowNormEncoding::U64,

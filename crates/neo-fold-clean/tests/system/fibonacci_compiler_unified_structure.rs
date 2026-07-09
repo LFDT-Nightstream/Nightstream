@@ -611,6 +611,8 @@ fn tiny_fibonacci_lifecycle_plan() -> RecursiveStepImagePlan {
         boundary_bits: BOUNDARY_BITS,
         kmul_count: 0,
         ring_action_pair_count: 0,
+        projection_pair_count: 0,
+        projection_identity_count: 0,
         ring_action_pair_layout: RingActionTraceLayout::new(
             LowNormEncoding::U64,
             LowNormEncoding::U64,

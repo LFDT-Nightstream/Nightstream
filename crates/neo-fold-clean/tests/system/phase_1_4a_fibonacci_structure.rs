@@ -44,6 +44,8 @@ fn small_test_image_config() -> FPrimeImageConfig {
         nifs_payload_shapes: vec![],
         kmul_count: 2,
         ring_action_pair_count: 2,
+        projection_pair_count: 0,
+        projection_identity_count: 0,
         ring_action_pair_layout: RingActionTraceLayout::new(
             LowNormEncoding::U64,
             LowNormEncoding::U64,
@@ -68,15 +70,29 @@ fn small_test_image_config() -> FPrimeImageConfig {
 /// only encoding choice safe for in-circuit wires.
 #[test]
 fn phase_1_4a_production_config_pins_emitter_counts() {
+    // Road A: the production shell carries the ring action as
+    // projection regions (P_total pairs, J identities); the D²
+    // reference shell keeps the original materialized shape.
     let config = production_kmul_ring_action_shell_image_config();
-
     assert_eq!(
         config.kmul_count, PRODUCTION_KMUL_COUNT,
         "production kmul K-mul count must match the Phase 1.3d coverage measurement"
     );
     assert_eq!(
+        config.projection_pair_count, PRODUCTION_RING_ACTION_PAIR_COUNT,
+        "production projection pair count must match the Phase 1.3d coverage census (P_total)"
+    );
+    assert_eq!(
+        config.projection_identity_count,
+        neo_fold_clean::frontends::f_prime::structure::PRODUCTION_PROJECTION_IDENTITY_COUNT,
+        "production projection identity count must match the Lemma 5 known-clients census"
+    );
+    assert_eq!(config.ring_action_pair_count, 0, "no D² pairs in the Road A shell");
+
+    let config = neo_fold_clean::frontends::f_prime::structure::production_kmul_d2_ring_action_shell_image_config();
+    assert_eq!(
         config.ring_action_pair_count, PRODUCTION_RING_ACTION_PAIR_COUNT,
-        "production ring_action ring-action pair count must match the Phase 1.3d coverage measurement"
+        "D² reference ring-action pair count must match the Phase 1.3d coverage measurement"
     );
 
     // Every ring_action subregion must use the canonical-u64 encoding. SignedDigit{n}
@@ -105,8 +121,16 @@ fn phase_1_4a_production_config_pins_emitter_counts() {
         layout.end,
     );
     eprintln!(
-        "phase_1_4a production: layout.end = {} bits ({} K-muls, {} ring-mul pairs, all U64)",
+        "phase_1_4a D² reference: layout.end = {} bits ({} K-muls, {} ring-mul pairs, all U64)",
         layout.end, PRODUCTION_KMUL_COUNT, PRODUCTION_RING_ACTION_PAIR_COUNT,
+    );
+    let road_a = FPrimeImageLayout::new(production_kmul_ring_action_shell_image_config());
+    eprintln!(
+        "phase_1_4a Road A shell: layout.end = {} bits ({} K-muls, {} projection pairs, {} identities)",
+        road_a.end,
+        PRODUCTION_KMUL_COUNT,
+        PRODUCTION_RING_ACTION_PAIR_COUNT,
+        neo_fold_clean::frontends::f_prime::structure::PRODUCTION_PROJECTION_IDENTITY_COUNT,
     );
 }
 

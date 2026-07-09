@@ -194,6 +194,9 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
     // Callee attribution carry: set on host-call rows, preserved everywhere
     // else (no clearing — see `WasmStepState::host_callee_fref`).
     let mut host_callee_fref: u32 = 0;
+    // Host-event commitment chain (genesis all-zero); updated once per host
+    // call on the event's last row (see `WasmStepState::comm_chain`).
+    let mut comm_chain: [u64; 4] = [0; 4];
     let mut output_enabled = false;
     let mut output_value_lo = 0;
     let mut output_value_hi = 0;
@@ -442,7 +445,9 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
         let mut host_args_after = WasmCountdownState::ZERO;
         let mut host_result_pending_after = false;
         let mut host_call_arity = None;
+        let mut host_event_chain: Option<[u64; 4]> = None;
         let host_callee_fref_before = host_callee_fref;
+        let comm_chain_before_row = comm_chain;
         if is_host_call {
             host_callee_fref = current.function_ref.ok_or_else(|| {
                 WasmBuildError::Trace(format!(
@@ -481,6 +486,54 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
             };
             host_result_pending_after = result_count == 1;
             host_call_arity = Some((param_count, result_count));
+
+            // Canonical raw-event chain update, applied on the event's last
+            // row below (or right here when the event has no aux rows).
+            let index_pops = usize::from(matches!(current.opcode, WasmOpcode::CallIndirect));
+            let args_start = current
+                .operand_stack
+                .len()
+                .checked_sub(index_pops + usize::from(param_count))
+                .ok_or_else(|| {
+                    WasmBuildError::Trace(format!(
+                        "operand stack underflow collecting host call args at cycle {}",
+                        current.cycle
+                    ))
+                })?;
+            let arg_limbs: Vec<(u32, u32)> = (0..usize::from(param_count))
+                .map(|k| {
+                    let pos = args_start + k;
+                    (
+                        current.operand_stack[pos],
+                        current.operand_stack_hi.get(pos).copied().unwrap_or(0),
+                    )
+                })
+                .collect();
+            let result_limbs = if result_count == 1 {
+                let next_row = next.ok_or_else(|| {
+                    WasmBuildError::Trace(format!(
+                        "missing Wasmtime post-call stack result for host call at cycle {}",
+                        current.cycle
+                    ))
+                })?;
+                let lo = next_row.operand_stack.last().copied().ok_or_else(|| {
+                    WasmBuildError::Trace(format!(
+                        "missing Wasmtime post-call stack result for host call at cycle {}",
+                        current.cycle
+                    ))
+                })?;
+                Some((lo, next_row.operand_stack_hi.last().copied().unwrap_or(0)))
+            } else {
+                None
+            };
+            host_event_chain = Some(crate::comm_chain::commit_host_call_event_u64(
+                comm_chain,
+                host_callee_fref,
+                param_count,
+                result_count,
+                &arg_limbs,
+                result_limbs,
+            ));
         }
 
         out.push(WasmVmStep {
@@ -510,6 +563,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                 host_args: WasmCountdownState::ZERO,
                 host_result_pending: false,
                 host_callee_fref: host_callee_fref_before,
+                comm_chain: comm_chain_before_row,
             },
             state_after: WasmStepState {
                 pc: pc_after,
@@ -529,6 +583,12 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                 host_args: host_args_after,
                 host_result_pending: host_result_pending_after,
                 host_callee_fref,
+                // A host call with no aux rows completes its event on the
+                // call row itself; otherwise the last aux row applies it.
+                comm_chain: match (host_call_arity, host_event_chain) {
+                    (Some((0, 0)), Some(chain)) => chain,
+                    _ => comm_chain,
+                },
             },
             control_choice: current.control_choice,
             pc_edge_kind: current.pc_edge_kind,
@@ -674,6 +734,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                         host_args: WasmCountdownState::ZERO,
                         host_result_pending: false,
                         host_callee_fref,
+                        comm_chain,
                     },
                     state_after: WasmStepState {
                         pc: pc_after,
@@ -693,6 +754,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                         host_args: WasmCountdownState::ZERO,
                         host_result_pending: false,
                         host_callee_fref,
+                        comm_chain,
                     },
                     control_choice: 0,
                     pc_edge_kind: WasmPcEdgeKind::Static,
@@ -744,7 +806,10 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
             }
         }
         if let Some((param_count, result_count)) = host_call_arity {
-            let host_aux_state = |sp: u64, host_args: WasmCountdownState, host_result_pending: bool| WasmStepState {
+            let host_aux_state = |sp: u64,
+                                  host_args: WasmCountdownState,
+                                  host_result_pending: bool,
+                                  comm_chain: [u64; 4]| WasmStepState {
                 pc: pc_after,
                 sp,
                 output: WasmOutputState {
@@ -762,6 +827,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                 host_args,
                 host_result_pending,
                 host_callee_fref,
+                comm_chain,
             };
             let host_aux_row = |cycle: u64,
                                 aux_opcode: WasmAuxOpcode,
@@ -847,8 +913,17 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                     ..host_aux_row(
                         out.len() as u64,
                         WasmAuxOpcode::HostCallArg,
-                        host_aux_state(aux_sp_before, host_args_before, owes_result),
-                        host_aux_state(aux_sp_after, host_args_state, owes_result),
+                        host_aux_state(aux_sp_before, host_args_before, owes_result, comm_chain),
+                        host_aux_state(
+                            aux_sp_after,
+                            host_args_state,
+                            owes_result,
+                            if !owes_result && pop_index + 1 == usize::from(param_count) {
+                                host_event_chain.expect("host call event chain")
+                            } else {
+                                comm_chain
+                            },
+                        ),
                     )
                 });
             }
@@ -876,11 +951,17 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                     ..host_aux_row(
                         out.len() as u64,
                         WasmAuxOpcode::HostCallResult,
-                        host_aux_state(aux_sp_before, WasmCountdownState::ZERO, true),
-                        host_aux_state(aux_sp_before + 1, WasmCountdownState::ZERO, false),
+                        host_aux_state(aux_sp_before, WasmCountdownState::ZERO, true, comm_chain),
+                        host_aux_state(
+                            aux_sp_before + 1,
+                            WasmCountdownState::ZERO,
+                            false,
+                            host_event_chain.expect("host call event chain"),
+                        ),
                     )
                 });
             }
+            comm_chain = host_event_chain.expect("host call event chain");
         }
     }
 

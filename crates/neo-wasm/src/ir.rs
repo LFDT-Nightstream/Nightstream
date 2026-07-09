@@ -100,6 +100,7 @@ pub struct WasmBoundaryState {
     pub host_args: WasmCountdownState,
     pub host_result_pending: bool,
     pub host_callee_fref: u32,
+    pub comm_chain: [u64; 4],
 }
 
 /// Carry state for binding the whole execution's claimed output.
@@ -160,6 +161,12 @@ pub struct WasmStepState {
     /// (the event absorb) read it only on rows of the event that set it, so
     /// the stale value between events is inert.
     pub host_callee_fref: u32,
+    /// Host-event commitment chain state (canonical Goldilocks limbs; see
+    /// [`crate::comm_chain`]). Genesis is all-zero; each host-call event
+    /// updates it on the event's last row (result row, last arg row when no
+    /// result is owed, or the call row itself when there are no aux rows);
+    /// every other row carries it unchanged.
+    pub comm_chain: [u64; 4],
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -324,6 +331,7 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     host_args: row.state_before.host_args,
                     host_result_pending: row.state_before.host_result_pending,
                     host_callee_fref: row.state_before.host_callee_fref,
+                    comm_chain: row.state_before.comm_chain,
                 },
                 WasmBoundaryState {
                     pc: row.state_after.pc,
@@ -339,6 +347,7 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     host_args: row.state_after.host_args,
                     host_result_pending: row.state_after.host_result_pending,
                     host_callee_fref: row.state_after.host_callee_fref,
+                    comm_chain: row.state_after.comm_chain,
                 },
             )
         })

@@ -340,10 +340,9 @@ pub struct RecursiveStepImagePlan {
     pub boundary_bits: usize,
     pub kmul_count: usize,
     pub ring_action_pair_count: usize,
-    /// Projection-checked ring-action pairs / identities (Road A);
-    /// forwarded to the image config verbatim.
-    pub projection_pair_count: usize,
-    pub projection_identity_count: usize,
+    /// Projection-checked ring action (Road A): per-identity pair
+    /// consumption; forwarded to the image config verbatim.
+    pub projection_batches: Vec<usize>,
     pub ring_action_pair_layout: RingActionTraceLayout,
     pub sponge_transcript_permutes: usize,
     /// NIFS-payload shapes (in fill order). Legacy non-unified plans
@@ -541,8 +540,7 @@ pub fn build_recursive_step_image_config(plan: &RecursiveStepImagePlan) -> FPrim
         },
         kmul_count: plan.kmul_count,
         ring_action_pair_count: plan.ring_action_pair_count,
-        projection_pair_count: plan.projection_pair_count,
-        projection_identity_count: plan.projection_identity_count,
+        projection_batches: plan.projection_batches.clone(),
         ring_action_pair_layout: plan.ring_action_pair_layout,
         poseidon_one_shot_preimage_lens: preimage_lens,
         sponge_transcript_permutes: plan.sponge_transcript_permutes,

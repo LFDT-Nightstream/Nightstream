@@ -418,8 +418,7 @@ fn projection_shell_semantic_rows_must_be_enforced() {
     };
     let projection_config = {
         let mut c = base_config.clone();
-        c.projection_pair_count = 2;
-        c.projection_identity_count = 1;
+        c.projection_batches = vec![2]; // one identity consuming two pairs
         c
     };
 

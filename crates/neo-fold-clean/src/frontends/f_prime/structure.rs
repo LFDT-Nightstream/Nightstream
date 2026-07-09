@@ -17,7 +17,13 @@ use crate::frontends::f_prime::image::{
     StateInDigestTarget, StateOutDigestTarget,
 };
 use crate::frontends::f_prime::recursive_plan::{STATE_LANE_NEW_ACC_DIGEST_BASE, STATE_LANE_NEW_SEMANTIC_STATE_BASE};
-use crate::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
+use crate::paper::f_prime::ring_action_trace::LowNormEncoding;
+
+pub use crate::frontends::f_prime::projection_structure::{
+    production_kmul_d2_ring_action_shell_image_config, production_kmul_ring_action_shell_image_config,
+    production_projection_batches, PRODUCTION_KMUL_COUNT, PRODUCTION_PROJECTION_IDENTITY_COUNT,
+    PRODUCTION_RING_ACTION_PAIR_COUNT,
+};
 
 const STATE_IN_DIGEST_COUNT: usize = 7;
 const STATE_OUT_COUNTER_COUNT: usize = 2;
@@ -33,65 +39,6 @@ const RING_ACTION_OUTPUT_LANES_PER_PAIR: usize = D;
 /// `(new_chunk_count - 1) · inv = 1 - is_base`. Emitted directly after
 /// the semantic Boolean block.
 const IS_BASE_COUNTER_LINK_ROWS: usize = 2;
-
-/// kmul K-mul invocations per F' recursive step. Pinned by the Phase 1.3d
-/// coverage gate's measurement of the actual `enforce_k_mul_with_intermediates`
-/// call count.
-pub const PRODUCTION_KMUL_COUNT: usize = 7100;
-
-/// ring_action ring-action pair invocations per F' recursive step. Pinned by the
-/// Phase 1.3d coverage gate's measurement.
-pub const PRODUCTION_RING_ACTION_PAIR_COUNT: usize = 465;
-
-/// Projection identities for the production shell — the Lemma 5 J
-/// census's known-clients figure (`4κ = 72`; the adoption census, audit
-/// item 4, refines this; the soundness bound conservatively uses
-/// `J ≤ 465` until reviewed).
-pub const PRODUCTION_PROJECTION_IDENTITY_COUNT: usize = 72;
-
-/// The production F' shell (Road A): kmuls unchanged, and the ring
-/// action carried as **projection regions** (candidate E) instead of
-/// D²-materialized pairs — the committed-width flip the
-/// `folded_f_prime_shell_must_adopt_projection_budget` gate pins.
-/// Semantic rows for the projection region are the tracked next phase
-/// (`projection_shell_semantic_rows_must_be_enforced`).
-pub fn production_kmul_ring_action_shell_image_config() -> FPrimeImageConfig {
-    FPrimeImageConfig {
-        projection_pair_count: PRODUCTION_RING_ACTION_PAIR_COUNT,
-        projection_identity_count: PRODUCTION_PROJECTION_IDENTITY_COUNT,
-        ring_action_pair_count: 0,
-        ..production_kmul_d2_ring_action_shell_image_config()
-    }
-}
-
-/// The pre-Road-A D² reference shell (kept for wire-parity tests and
-/// as the measured baseline the projection numbers are compared to).
-pub fn production_kmul_d2_ring_action_shell_image_config() -> FPrimeImageConfig {
-    FPrimeImageConfig {
-        limbs: 3,
-        app_private_var_widths: Vec::new(),
-        boundary_bits: 0,
-        nifs_payload_shapes: vec![],
-        kmul_count: PRODUCTION_KMUL_COUNT,
-        ring_action_pair_count: PRODUCTION_RING_ACTION_PAIR_COUNT,
-        projection_pair_count: 0,
-        projection_identity_count: 0,
-        ring_action_pair_layout: RingActionTraceLayout::new(
-            LowNormEncoding::U64,
-            LowNormEncoding::U64,
-            LowNormEncoding::U64,
-            LowNormEncoding::U64,
-        ),
-        poseidon_one_shot_preimage_lens: vec![],
-        sponge_transcript_permutes: 0,
-        one_shot_digest_to_state_out_bindings: vec![],
-        one_shot_digest_to_state_in_bindings: vec![],
-        one_shot_digest_to_public_x_out_bindings: vec![],
-        poseidon_transition_enforcements: vec![],
-        unified_accumulator_selector: None,
-        initial_semantic_state_digest_anchor: None,
-    }
-}
 
 /// One canonical-u64 lane: a 64-bit window inside the image's `values`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -64,8 +64,7 @@ fn skeleton_config() -> FPrimeImageConfig {
         nifs_payload_shapes: vec![],        // placeholder size — Phase 1.3 fills nifs_payloads properly
         kmul_count: 8,                      // small handful of K-muls
         ring_action_pair_count: 4,          // far below production's 288; enough to test splicing
-        projection_pair_count: 0,
-        projection_identity_count: 0,
+        projection_batches: Vec::new(),
         ring_action_pair_layout: signed_digit_ring_layout(),
         poseidon_one_shot_preimage_lens: vec![13, 13, 40, 40, 1235, 1300, 977, 977],
         // 8 one-shots covering boundary_update + public_trace_update +

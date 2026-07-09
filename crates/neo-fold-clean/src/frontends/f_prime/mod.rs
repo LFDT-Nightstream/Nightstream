@@ -10,6 +10,7 @@
 pub mod compiler;
 pub mod encoder;
 pub mod image;
+pub mod projection_structure;
 pub mod recursive_plan;
 pub mod structure;
 

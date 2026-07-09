@@ -11,11 +11,14 @@
 use super::super::runtime_read::{read_lane, read_lane_hi};
 use super::super::WasmtimeTraceStep;
 use super::{normalize_step, NormalizedStep};
+use crate::comm_chain::{host_call_event_stream, perm_row_checkpoints, COMM_CHAIN_BLOCK_WORDS, COMM_CHAIN_PERM_ROWS};
 use crate::ir::{
-    StackValueAccess, WasmAuxOpcode, WasmBuildError, WasmCountdownState, WasmOutputState, WasmPcEdgeKind, WasmRowKind,
-    WasmStepState, WasmVmStep,
+    StackValueAccess, WasmAuxOpcode, WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmOutputState,
+    WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
 };
 use crate::isa::{opcode_code, opcode_info_from_code, WasmOpcode};
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use p3_goldilocks::Goldilocks;
 
 /// Extracts initial parameter locals from the callee's first step's locals snapshot,
 /// converting local indices to absolute addresses using the callee's FBP.
@@ -29,6 +32,36 @@ fn collect_callee_initial_params(next: Option<&NormalizedStep>, callee_fbp: u64,
         .enumerate()
         .map(|(i, &v)| (callee_fbp + i as u64, v))
         .collect()
+}
+
+/// The permutation input for one absorbed block premixed with the initial
+/// external linear layer (canonical u64 lanes): what the row raising
+/// `perm_pending` hands the perm group's first row as `perm_state`.
+fn absorb_premix(chain: [u64; 4], evbuf: [u64; 8]) -> [u64; 12] {
+    let mut state = [Goldilocks::ZERO; 12];
+    for (lane, limb) in state.iter_mut().zip(chain.iter().chain(evbuf.iter())) {
+        *lane = Goldilocks::from_u64(*limb);
+    }
+    crate::comm_chain::perm_external_linear(&mut state);
+    state.map(|lane| lane.as_canonical_u64())
+}
+
+/// Row-level plan of one absorbed block's perm group: the perm state entering
+/// each of the [`COMM_CHAIN_PERM_ROWS`] rows (plus the permutation output)
+/// and the fed-forward chain the group's last row lands on.
+fn perm_group_plan(chain: [u64; 4], evbuf: [u64; 8]) -> ([[u64; 12]; COMM_CHAIN_PERM_ROWS + 1], [u64; 4]) {
+    let prev = chain.map(Goldilocks::from_u64);
+    let mut words = [Goldilocks::ZERO; COMM_CHAIN_BLOCK_WORDS];
+    for (word, limb) in words.iter_mut().zip(evbuf) {
+        *word = Goldilocks::from_u64(limb);
+    }
+    let checkpoints = perm_row_checkpoints(prev, words);
+    let updated: [u64; 4] =
+        core::array::from_fn(|i| (checkpoints[COMM_CHAIN_PERM_ROWS][i] + prev[i]).as_canonical_u64());
+    (
+        checkpoints.map(|state| state.map(|lane| lane.as_canonical_u64())),
+        updated,
+    )
 }
 
 /// `call_indirect` traps before calling when the table entry is a null
@@ -194,9 +227,12 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
     // Callee attribution carry: set on host-call rows, preserved everywhere
     // else (no clearing — see `WasmStepState::host_callee_fref`).
     let mut host_callee_fref: u32 = 0;
-    // Host-event commitment chain (genesis all-zero); updated once per host
-    // call on the event's last row (see `WasmStepState::comm_chain`).
+    // Host-event commitment chain (genesis all-zero); each absorbed block's
+    // perm-row group folds it forward (see `WasmStepState::comm_chain`).
     let mut comm_chain: [u64; 4] = [0; 4];
+    // Host-event absorb machinery (block buffer, slot cursor, perm group
+    // state); carried across rows, mutated only by host-call events.
+    let mut event_absorb = WasmEventAbsorbState::ZERO;
     let mut output_enabled = false;
     let mut output_value_lo = 0;
     let mut output_value_hi = 0;
@@ -446,8 +482,10 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
         let mut host_result_pending_after = false;
         let mut host_call_arity = None;
         let mut host_event_chain: Option<[u64; 4]> = None;
+        let mut host_event_words: Vec<u64> = Vec::new();
         let host_callee_fref_before = host_callee_fref;
         let comm_chain_before_row = comm_chain;
+        let event_absorb_before_row = event_absorb;
         if is_host_call {
             host_callee_fref = current.function_ref.ok_or_else(|| {
                 WasmBuildError::Trace(format!(
@@ -534,6 +572,27 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                 &arg_limbs,
                 result_limbs,
             ));
+            host_event_words =
+                host_call_event_stream(host_callee_fref, param_count, result_count, &arg_limbs, result_limbs)
+                    .iter()
+                    .map(|w| w.as_canonical_u64())
+                    .collect();
+        }
+
+        // The word pairs streamed after the call row's 4-word header, in row
+        // order: popped args (last parameter first), then the result.
+        let host_event_row_words = &host_event_words[4.min(host_event_words.len())..];
+        // Absorb bookkeeping for the call row itself: the header lands in
+        // buffer slots 0-3; an event with no further words is complete and
+        // awaits its perm rows immediately.
+        if is_host_call {
+            event_absorb.evbuf = [0; 8];
+            event_absorb.evbuf[..4].copy_from_slice(&host_event_words[..4]);
+            event_absorb.evbuf_slot = 2;
+            event_absorb.perm_pending = host_event_row_words.is_empty();
+            if event_absorb.perm_pending {
+                event_absorb.perm_state = absorb_premix(comm_chain, event_absorb.evbuf);
+            }
         }
 
         out.push(WasmVmStep {
@@ -564,6 +623,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                 host_result_pending: false,
                 host_callee_fref: host_callee_fref_before,
                 comm_chain: comm_chain_before_row,
+                event_absorb: event_absorb_before_row,
             },
             state_after: WasmStepState {
                 pc: pc_after,
@@ -583,12 +643,10 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                 host_args: host_args_after,
                 host_result_pending: host_result_pending_after,
                 host_callee_fref,
-                // A host call with no aux rows completes its event on the
-                // call row itself; otherwise the last aux row applies it.
-                comm_chain: match (host_call_arity, host_event_chain) {
-                    (Some((0, 0)), Some(chain)) => chain,
-                    _ => comm_chain,
-                },
+                // The chain only moves on perm-group rows; the call row just
+                // streams the event header into the absorb buffer.
+                comm_chain,
+                event_absorb,
             },
             control_choice: current.control_choice,
             pc_edge_kind: current.pc_edge_kind,
@@ -735,6 +793,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                         host_result_pending: false,
                         host_callee_fref,
                         comm_chain,
+                        event_absorb,
                     },
                     state_after: WasmStepState {
                         pc: pc_after,
@@ -755,6 +814,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                         host_result_pending: false,
                         host_callee_fref,
                         comm_chain,
+                        event_absorb,
                     },
                     control_choice: 0,
                     pc_edge_kind: WasmPcEdgeKind::Static,
@@ -809,7 +869,8 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
             let host_aux_state = |sp: u64,
                                   host_args: WasmCountdownState,
                                   host_result_pending: bool,
-                                  comm_chain: [u64; 4]| WasmStepState {
+                                  comm_chain: [u64; 4],
+                                  event_absorb: WasmEventAbsorbState| WasmStepState {
                 pc: pc_after,
                 sp,
                 output: WasmOutputState {
@@ -828,6 +889,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                 host_result_pending,
                 host_callee_fref,
                 comm_chain,
+                event_absorb,
             };
             let host_aux_row = |cycle: u64,
                                 aux_opcode: WasmAuxOpcode,
@@ -878,7 +940,87 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                 call_stack_pop: None,
             };
 
-            // Args pop top-down: the first aux row pops the last argument.
+            // Emit the perm-row group absorbing the pending block: one aux
+            // row per permutation round row, folding the chain forward on the
+            // group's last row and clearing the buffer on its first.
+            let push_perm_group = |out: &mut Vec<WasmVmStep>,
+                                   comm_chain: &mut [u64; 4],
+                                   absorb: &mut WasmEventAbsorbState,
+                                   sp: u64,
+                                   host_args: WasmCountdownState,
+                                   host_result_pending: bool| {
+                debug_assert!(absorb.perm_pending);
+                debug_assert!(!host_args.active, "arg mode must suspend across a perm group");
+                let (checkpoints, updated_chain) = perm_group_plan(*comm_chain, absorb.evbuf);
+                debug_assert_eq!(absorb.perm_state, checkpoints[0]);
+                // Arg mode resumes on the group's last row when args remain.
+                let resumed_args = WasmCountdownState {
+                    active: host_args.remaining > 0,
+                    remaining: host_args.remaining,
+                };
+                for pos in 0..COMM_CHAIN_PERM_ROWS {
+                    let chain_before = *comm_chain;
+                    let absorb_before = *absorb;
+                    let last = pos + 1 == COMM_CHAIN_PERM_ROWS;
+                    if pos == 0 {
+                        absorb.evbuf = [0; 8];
+                        absorb.evbuf_slot = 0;
+                        absorb.perm_pending = false;
+                    }
+                    absorb.perm_round = if last { 0 } else { pos as u8 + 1 };
+                    absorb.perm_state = checkpoints[pos + 1];
+                    if last {
+                        *comm_chain = updated_chain;
+                    }
+                    out.push(host_aux_row(
+                        out.len() as u64,
+                        WasmAuxOpcode::HostEventPerm,
+                        host_aux_state(sp, host_args, host_result_pending, chain_before, absorb_before),
+                        host_aux_state(
+                            sp,
+                            if last { resumed_args } else { host_args },
+                            host_result_pending,
+                            *comm_chain,
+                            *absorb,
+                        ),
+                    ));
+                }
+            };
+
+            // A no-args, no-result event completes on the call row itself;
+            // its single block absorbs before anything else runs.
+            if event_absorb.perm_pending {
+                push_perm_group(
+                    &mut out,
+                    &mut comm_chain,
+                    &mut event_absorb,
+                    sp_after,
+                    host_args_after,
+                    host_result_pending_after,
+                );
+            }
+
+            // Stream one event word pair into the absorb buffer; raises
+            // `perm_pending` (premixing the perm input) when the block fills
+            // or the event's stream ends.
+            let stream_word_pair = |absorb: &mut WasmEventAbsorbState,
+                                    comm_chain: &[u64; 4],
+                                    next_word: &mut usize,
+                                    (lo, hi): (u64, u64)| {
+                let slot = usize::from(absorb.evbuf_slot);
+                absorb.evbuf[2 * slot] = lo;
+                absorb.evbuf[2 * slot + 1] = hi;
+                absorb.evbuf_slot = ((slot + 1) % 4) as u8;
+                *next_word += 2;
+                absorb.perm_pending = *next_word % COMM_CHAIN_BLOCK_WORDS == 0 || *next_word == host_event_words.len();
+                if absorb.perm_pending {
+                    absorb.perm_state = absorb_premix(*comm_chain, absorb.evbuf);
+                }
+            };
+            let mut next_word = 4usize;
+
+            // Args pop top-down: the first aux row pops the last argument —
+            // which is also the stream order of the event's arg word pairs.
             // The indirect table index was already popped on the call row.
             let index_pops = usize::from(matches!(current.opcode, WasmOpcode::CallIndirect));
             let owes_result = result_count == 1;
@@ -902,8 +1044,17 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                 let src = StackValueAccess::new((aux_sp_before - 1).saturating_mul(2), src_value)
                     .with_optional_hi(src_value_hi);
                 let host_args_before = host_args_state;
+                let absorb_before = event_absorb;
+                stream_word_pair(
+                    &mut event_absorb,
+                    &comm_chain,
+                    &mut next_word,
+                    (u64::from(src_value), u64::from(src_value_hi.unwrap_or(0))),
+                );
+                // Arg mode suspends while a filled block runs its perm rows;
+                // the group's last row resumes it.
                 host_args_state = WasmCountdownState {
-                    active: host_args_before.remaining > 1,
+                    active: host_args_before.remaining > 1 && !event_absorb.perm_pending,
                     remaining: host_args_before.remaining - 1,
                 };
                 out.push(WasmVmStep {
@@ -913,19 +1064,22 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                     ..host_aux_row(
                         out.len() as u64,
                         WasmAuxOpcode::HostCallArg,
-                        host_aux_state(aux_sp_before, host_args_before, owes_result, comm_chain),
-                        host_aux_state(
-                            aux_sp_after,
-                            host_args_state,
-                            owes_result,
-                            if !owes_result && pop_index + 1 == usize::from(param_count) {
-                                host_event_chain.expect("host call event chain")
-                            } else {
-                                comm_chain
-                            },
-                        ),
+                        host_aux_state(aux_sp_before, host_args_before, owes_result, comm_chain, absorb_before),
+                        host_aux_state(aux_sp_after, host_args_state, owes_result, comm_chain, event_absorb),
                     )
                 });
+                if event_absorb.perm_pending {
+                    push_perm_group(
+                        &mut out,
+                        &mut comm_chain,
+                        &mut event_absorb,
+                        aux_sp_after,
+                        host_args_state,
+                        owes_result,
+                    );
+                    // The group's last row resumed arg mode.
+                    host_args_state.active = host_args_state.remaining > 0;
+                }
             }
             if owes_result {
                 let next_row = next.ok_or_else(|| {
@@ -944,6 +1098,14 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                 let aux_sp_before = sp_after - u64::from(param_count);
                 let write = StackValueAccess::new(aux_sp_before.saturating_mul(2), result_value)
                     .with_optional_hi(result_value_hi);
+                let absorb_before = event_absorb;
+                stream_word_pair(
+                    &mut event_absorb,
+                    &comm_chain,
+                    &mut next_word,
+                    (u64::from(result_value), u64::from(result_value_hi.unwrap_or(0))),
+                );
+                debug_assert!(event_absorb.perm_pending, "result is the event's final word pair");
                 out.push(WasmVmStep {
                     wide_values_enabled: result_value_hi.is_some_and(|hi| hi != 0),
                     stack_writes_override: Some(1),
@@ -951,17 +1113,30 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                     ..host_aux_row(
                         out.len() as u64,
                         WasmAuxOpcode::HostCallResult,
-                        host_aux_state(aux_sp_before, WasmCountdownState::ZERO, true, comm_chain),
+                        host_aux_state(aux_sp_before, WasmCountdownState::ZERO, true, comm_chain, absorb_before),
                         host_aux_state(
                             aux_sp_before + 1,
                             WasmCountdownState::ZERO,
                             false,
-                            host_event_chain.expect("host call event chain"),
+                            comm_chain,
+                            event_absorb,
                         ),
                     )
                 });
+                push_perm_group(
+                    &mut out,
+                    &mut comm_chain,
+                    &mut event_absorb,
+                    aux_sp_before + 1,
+                    WasmCountdownState::ZERO,
+                    false,
+                );
             }
-            comm_chain = host_event_chain.expect("host call event chain");
+            debug_assert_eq!(
+                comm_chain,
+                host_event_chain.expect("host call event chain"),
+                "block-wise absorb must match the whole-event chain update"
+            );
         }
     }
 

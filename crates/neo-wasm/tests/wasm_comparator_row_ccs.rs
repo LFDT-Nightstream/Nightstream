@@ -43,6 +43,7 @@ fn step(
             host_result_pending: false,
             host_callee_fref: 0,
             comm_chain: [0; 4],
+            event_absorb: neo_wasm::WasmEventAbsorbState::ZERO,
         }
     }
 

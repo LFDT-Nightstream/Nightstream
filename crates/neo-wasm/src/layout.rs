@@ -261,6 +261,117 @@ define_columns!(
         COL_COMM_CHAIN3_AFTER,
         "host-event commitment chain limb 3 after this row"
     ),
+    // Host-event absorb machinery: the 8-word block buffer host-call rows
+    // stream event words into, the one-hot pair-slot cursor, the
+    // pending-permutation flag, and the perm-row group state (round cursor +
+    // 12-lane running permutation state). See `ir::WasmEventAbsorbState`.
+    (COL_EVBUF0_BEFORE, "host-event block buffer word 0 before this row"),
+    (COL_EVBUF1_BEFORE, "host-event block buffer word 1 before this row"),
+    (COL_EVBUF2_BEFORE, "host-event block buffer word 2 before this row"),
+    (COL_EVBUF3_BEFORE, "host-event block buffer word 3 before this row"),
+    (COL_EVBUF4_BEFORE, "host-event block buffer word 4 before this row"),
+    (COL_EVBUF5_BEFORE, "host-event block buffer word 5 before this row"),
+    (COL_EVBUF6_BEFORE, "host-event block buffer word 6 before this row"),
+    (COL_EVBUF7_BEFORE, "host-event block buffer word 7 before this row"),
+    (COL_EVBUF0_AFTER, "host-event block buffer word 0 after this row"),
+    (COL_EVBUF1_AFTER, "host-event block buffer word 1 after this row"),
+    (COL_EVBUF2_AFTER, "host-event block buffer word 2 after this row"),
+    (COL_EVBUF3_AFTER, "host-event block buffer word 3 after this row"),
+    (COL_EVBUF4_AFTER, "host-event block buffer word 4 after this row"),
+    (COL_EVBUF5_AFTER, "host-event block buffer word 5 after this row"),
+    (COL_EVBUF6_AFTER, "host-event block buffer word 6 after this row"),
+    (COL_EVBUF7_AFTER, "host-event block buffer word 7 after this row"),
+    (
+        COL_EVBUF_SLOT0_BEFORE,
+        "one-hot next event-word pair slot 0 before this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_EVBUF_SLOT1_BEFORE,
+        "one-hot next event-word pair slot 1 before this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_EVBUF_SLOT2_BEFORE,
+        "one-hot next event-word pair slot 2 before this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_EVBUF_SLOT3_BEFORE,
+        "one-hot next event-word pair slot 3 before this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_EVBUF_SLOT0_AFTER,
+        "one-hot next event-word pair slot 0 after this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_EVBUF_SLOT1_AFTER,
+        "one-hot next event-word pair slot 1 after this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_EVBUF_SLOT2_AFTER,
+        "one-hot next event-word pair slot 2 after this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_EVBUF_SLOT3_AFTER,
+        "one-hot next event-word pair slot 3 after this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_PERM_PENDING_BEFORE,
+        "a filled host-event block awaits its perm rows before this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_PERM_PENDING_AFTER,
+        "a filled host-event block awaits its perm rows after this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_PERM_ROUND_BEFORE,
+        "perm-group row position before this row (0 when idle; bounded by the position one-hot)"
+    ),
+    (
+        COL_PERM_ROUND_AFTER,
+        "perm-group row position after this row (0 when idle; bounded by the position one-hot)"
+    ),
+    (
+        COL_PERM_ROUND_BEFORE_IS_ZERO,
+        "zero-test flag for the perm-group row position before this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_PERM_ROUND_BEFORE_INV,
+        "inverse witness for the perm-group row position before this row"
+    ),
+    (COL_PERM_STATE0_BEFORE, "chain permutation lane 0 before this row"),
+    (COL_PERM_STATE1_BEFORE, "chain permutation lane 1 before this row"),
+    (COL_PERM_STATE2_BEFORE, "chain permutation lane 2 before this row"),
+    (COL_PERM_STATE3_BEFORE, "chain permutation lane 3 before this row"),
+    (COL_PERM_STATE4_BEFORE, "chain permutation lane 4 before this row"),
+    (COL_PERM_STATE5_BEFORE, "chain permutation lane 5 before this row"),
+    (COL_PERM_STATE6_BEFORE, "chain permutation lane 6 before this row"),
+    (COL_PERM_STATE7_BEFORE, "chain permutation lane 7 before this row"),
+    (COL_PERM_STATE8_BEFORE, "chain permutation lane 8 before this row"),
+    (COL_PERM_STATE9_BEFORE, "chain permutation lane 9 before this row"),
+    (COL_PERM_STATE10_BEFORE, "chain permutation lane 10 before this row"),
+    (COL_PERM_STATE11_BEFORE, "chain permutation lane 11 before this row"),
+    (COL_PERM_STATE0_AFTER, "chain permutation lane 0 after this row"),
+    (COL_PERM_STATE1_AFTER, "chain permutation lane 1 after this row"),
+    (COL_PERM_STATE2_AFTER, "chain permutation lane 2 after this row"),
+    (COL_PERM_STATE3_AFTER, "chain permutation lane 3 after this row"),
+    (COL_PERM_STATE4_AFTER, "chain permutation lane 4 after this row"),
+    (COL_PERM_STATE5_AFTER, "chain permutation lane 5 after this row"),
+    (COL_PERM_STATE6_AFTER, "chain permutation lane 6 after this row"),
+    (COL_PERM_STATE7_AFTER, "chain permutation lane 7 after this row"),
+    (COL_PERM_STATE8_AFTER, "chain permutation lane 8 after this row"),
+    (COL_PERM_STATE9_AFTER, "chain permutation lane 9 after this row"),
+    (COL_PERM_STATE10_AFTER, "chain permutation lane 10 after this row"),
+    (COL_PERM_STATE11_AFTER, "chain permutation lane 11 after this row"),
     (
         COL_HOST_RESULT_ACTIVE,
         "this row pushes the pending host-call result",
@@ -1389,6 +1500,18 @@ pub const SELECTOR_COLS: [usize; 113] = [
     COL_SEL_I64_CTZ,
     COL_SEL_I64_POPCNT,
 ];
+
+// The host-event absorb column groups are addressed arithmetically from
+// their first member; pin the declaration order so a layout reshuffle is a
+// compile error instead of silent column aliasing.
+const _: () = {
+    assert!(COL_EVBUF7_BEFORE == COL_EVBUF0_BEFORE + 7);
+    assert!(COL_EVBUF7_AFTER == COL_EVBUF0_AFTER + 7);
+    assert!(COL_EVBUF_SLOT3_BEFORE == COL_EVBUF_SLOT0_BEFORE + 3);
+    assert!(COL_EVBUF_SLOT3_AFTER == COL_EVBUF_SLOT0_AFTER + 3);
+    assert!(COL_PERM_STATE11_BEFORE == COL_PERM_STATE0_BEFORE + 11);
+    assert!(COL_PERM_STATE11_AFTER == COL_PERM_STATE0_AFTER + 11);
+};
 
 pub fn selector_col(op: WasmOpcode) -> Option<usize> {
     match op {

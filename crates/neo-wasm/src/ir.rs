@@ -85,6 +85,48 @@ impl Default for WasmCountdownState {
     }
 }
 
+/// Carried state of the in-circuit host-event absorb machinery.
+///
+/// Host-call rows stream the event's words (header, popped args, result)
+/// into `evbuf`; when the 8-word block fills — or the event's stream ends —
+/// `perm_pending` is raised and a group of `HostEventPerm` aux rows runs the
+/// width-12 permutation one round-row at a time (`perm_round` is the position
+/// inside that group, 0 when idle). The group's last row folds the block into
+/// `WasmStepState::comm_chain`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WasmEventAbsorbState {
+    /// The 8-word block currently being filled (already-absorbed slots are
+    /// zeroed by the group's first perm row).
+    pub evbuf: [u64; 8],
+    /// Next buffer pair slot (0..=3) an event word pair lands in.
+    pub evbuf_slot: u8,
+    /// A filled block (or completed event stream) awaits its perm rows.
+    pub perm_pending: bool,
+    /// Row position inside the current perm group (0 when idle).
+    pub perm_round: u8,
+    /// Running permutation state. Meaningful only from the absorb (the row
+    /// raising `perm_pending` premixes `[chain | evbuf]` with the initial
+    /// external linear layer) through the group's rows; carried junk
+    /// in between and never cleared.
+    pub perm_state: [u64; 12],
+}
+
+impl WasmEventAbsorbState {
+    pub const ZERO: Self = Self {
+        evbuf: [0; 8],
+        evbuf_slot: 0,
+        perm_pending: false,
+        perm_round: 0,
+        perm_state: [0; 12],
+    };
+}
+
+impl Default for WasmEventAbsorbState {
+    fn default() -> Self {
+        Self::ZERO
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WasmBoundaryState {
     pub pc: u64,
@@ -101,6 +143,7 @@ pub struct WasmBoundaryState {
     pub host_result_pending: bool,
     pub host_callee_fref: u32,
     pub comm_chain: [u64; 4],
+    pub event_absorb: WasmEventAbsorbState,
 }
 
 /// Carry state for binding the whole execution's claimed output.
@@ -162,11 +205,12 @@ pub struct WasmStepState {
     /// the stale value between events is inert.
     pub host_callee_fref: u32,
     /// Host-event commitment chain state (canonical Goldilocks limbs; see
-    /// [`crate::comm_chain`]). Genesis is all-zero; each host-call event
-    /// updates it on the event's last row (result row, last arg row when no
-    /// result is owed, or the call row itself when there are no aux rows);
-    /// every other row carries it unchanged.
+    /// [`crate::comm_chain`]). Genesis is all-zero; the last row of each
+    /// absorbed block's `HostEventPerm` group folds the block in
+    /// (feed-forward); every other row carries it unchanged.
     pub comm_chain: [u64; 4],
+    /// In-circuit host-event absorb machinery (block buffer + perm rows).
+    pub event_absorb: WasmEventAbsorbState,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -180,6 +224,11 @@ pub enum WasmAuxOpcode {
     /// Emitted after the `HostCallArg` rows iff `result_count = 1` (the
     /// canonical ABI caps flat results at 1).
     HostCallResult,
+    /// One row of the host-event chain permutation group: a full-round row or
+    /// a partial-pair row of the width-12 Poseidon2 block absorb (see
+    /// [`crate::comm_chain::COMM_CHAIN_PERM_ROWS`]). Scheduled whenever
+    /// `WasmEventAbsorbState::perm_pending` is raised.
+    HostEventPerm,
     /// Synthetic state-preserving row used to pad a trace up to a
     /// multiple of `batch_size`. Not a real wasm opcode — the CCS gates
     /// these rows so that `_after == _before` for every state column.
@@ -207,6 +256,10 @@ impl WasmRowKind {
 
     pub fn is_host_call_result(self) -> bool {
         matches!(self, Self::Aux(WasmAuxOpcode::HostCallResult))
+    }
+
+    pub fn is_host_event_perm(self) -> bool {
+        matches!(self, Self::Aux(WasmAuxOpcode::HostEventPerm))
     }
 
     pub fn is_padding(self) -> bool {
@@ -332,6 +385,7 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     host_result_pending: row.state_before.host_result_pending,
                     host_callee_fref: row.state_before.host_callee_fref,
                     comm_chain: row.state_before.comm_chain,
+                    event_absorb: row.state_before.event_absorb,
                 },
                 WasmBoundaryState {
                     pc: row.state_after.pc,
@@ -348,6 +402,7 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     host_result_pending: row.state_after.host_result_pending,
                     host_callee_fref: row.state_after.host_callee_fref,
                     comm_chain: row.state_after.comm_chain,
+                    event_absorb: row.state_after.event_absorb,
                 },
             )
         })

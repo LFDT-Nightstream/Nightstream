@@ -14,14 +14,21 @@
 
 use crate::adapters::wasmtime::WasmProgramTables;
 use crate::batch::{self, BatchError};
-use crate::ir::{WasmCountdownState, WasmOutputState, WasmStepState};
+use crate::ir::{WasmCountdownState, WasmEventAbsorbState, WasmOutputState, WasmStepState};
 use crate::layout::Column;
 use crate::layout::{
     COL_CALL_STACK_DEPTH_BEFORE, COL_COMM_CHAIN0_BEFORE, COL_COMM_CHAIN1_BEFORE, COL_COMM_CHAIN2_BEFORE,
-    COL_COMM_CHAIN3_BEFORE, COL_HALTED_BEFORE, COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_ARGS_REMAINING_BEFORE,
-    COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_RESULT_PENDING_BEFORE, COL_LOCALS_FBP_BEFORE, COL_MAX_MEMORY_PAGES_BEFORE,
-    COL_MEMORY_PAGES_BEFORE, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE,
-    COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_BEFORE, COL_SP_BEFORE, COL_TRAPPED_BEFORE,
+    COL_COMM_CHAIN3_BEFORE, COL_EVBUF0_BEFORE, COL_EVBUF1_BEFORE, COL_EVBUF2_BEFORE, COL_EVBUF3_BEFORE,
+    COL_EVBUF4_BEFORE, COL_EVBUF5_BEFORE, COL_EVBUF6_BEFORE, COL_EVBUF7_BEFORE, COL_EVBUF_SLOT0_BEFORE,
+    COL_EVBUF_SLOT1_BEFORE, COL_EVBUF_SLOT2_BEFORE, COL_EVBUF_SLOT3_BEFORE, COL_HALTED_BEFORE,
+    COL_HOST_ARGS_ACTIVE_BEFORE,
+    COL_HOST_ARGS_REMAINING_BEFORE, COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_RESULT_PENDING_BEFORE, COL_LOCALS_FBP_BEFORE,
+    COL_MAX_MEMORY_PAGES_BEFORE, COL_MEMORY_PAGES_BEFORE, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE,
+    COL_OUTPUT_VALUE_LO_BEFORE, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_BEFORE,
+    COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_BEFORE, COL_PERM_STATE0_BEFORE, COL_PERM_STATE10_BEFORE,
+    COL_PERM_STATE11_BEFORE, COL_PERM_STATE1_BEFORE, COL_PERM_STATE2_BEFORE, COL_PERM_STATE3_BEFORE,
+    COL_PERM_STATE4_BEFORE, COL_PERM_STATE5_BEFORE, COL_PERM_STATE6_BEFORE, COL_PERM_STATE7_BEFORE,
+    COL_PERM_STATE8_BEFORE, COL_PERM_STATE9_BEFORE, COL_SP_BEFORE, COL_TRAPPED_BEFORE,
 };
 use crate::lookup_circuit::{extend_relation, LookupCircuitError};
 use crate::relation_layout::build_wasm_relation_layout;
@@ -176,6 +183,7 @@ pub fn top_level_initial_state(tables: &WasmProgramTables, entry_pc: u64) -> Was
         host_result_pending: false,
         host_callee_fref: 0,
         comm_chain: [0; 4],
+        event_absorb: WasmEventAbsorbState::ZERO,
     }
 }
 
@@ -224,6 +232,32 @@ fn carried_state_field(state: WasmStepState, column: Column) -> F {
         COL_COMM_CHAIN1_BEFORE => F::from_u64(state.comm_chain[1]),
         COL_COMM_CHAIN2_BEFORE => F::from_u64(state.comm_chain[2]),
         COL_COMM_CHAIN3_BEFORE => F::from_u64(state.comm_chain[3]),
+        COL_EVBUF0_BEFORE => F::from_u64(state.event_absorb.evbuf[0]),
+        COL_EVBUF1_BEFORE => F::from_u64(state.event_absorb.evbuf[1]),
+        COL_EVBUF2_BEFORE => F::from_u64(state.event_absorb.evbuf[2]),
+        COL_EVBUF3_BEFORE => F::from_u64(state.event_absorb.evbuf[3]),
+        COL_EVBUF4_BEFORE => F::from_u64(state.event_absorb.evbuf[4]),
+        COL_EVBUF5_BEFORE => F::from_u64(state.event_absorb.evbuf[5]),
+        COL_EVBUF6_BEFORE => F::from_u64(state.event_absorb.evbuf[6]),
+        COL_EVBUF7_BEFORE => F::from_u64(state.event_absorb.evbuf[7]),
+        COL_EVBUF_SLOT0_BEFORE => bool_field(state.event_absorb.evbuf_slot == 0),
+        COL_EVBUF_SLOT1_BEFORE => bool_field(state.event_absorb.evbuf_slot == 1),
+        COL_EVBUF_SLOT2_BEFORE => bool_field(state.event_absorb.evbuf_slot == 2),
+        COL_EVBUF_SLOT3_BEFORE => bool_field(state.event_absorb.evbuf_slot == 3),
+        COL_PERM_PENDING_BEFORE => bool_field(state.event_absorb.perm_pending),
+        COL_PERM_ROUND_BEFORE => F::from_u64(u64::from(state.event_absorb.perm_round)),
+        COL_PERM_STATE0_BEFORE => F::from_u64(state.event_absorb.perm_state[0]),
+        COL_PERM_STATE1_BEFORE => F::from_u64(state.event_absorb.perm_state[1]),
+        COL_PERM_STATE2_BEFORE => F::from_u64(state.event_absorb.perm_state[2]),
+        COL_PERM_STATE3_BEFORE => F::from_u64(state.event_absorb.perm_state[3]),
+        COL_PERM_STATE4_BEFORE => F::from_u64(state.event_absorb.perm_state[4]),
+        COL_PERM_STATE5_BEFORE => F::from_u64(state.event_absorb.perm_state[5]),
+        COL_PERM_STATE6_BEFORE => F::from_u64(state.event_absorb.perm_state[6]),
+        COL_PERM_STATE7_BEFORE => F::from_u64(state.event_absorb.perm_state[7]),
+        COL_PERM_STATE8_BEFORE => F::from_u64(state.event_absorb.perm_state[8]),
+        COL_PERM_STATE9_BEFORE => F::from_u64(state.event_absorb.perm_state[9]),
+        COL_PERM_STATE10_BEFORE => F::from_u64(state.event_absorb.perm_state[10]),
+        COL_PERM_STATE11_BEFORE => F::from_u64(state.event_absorb.perm_state[11]),
         COL_TRAPPED_BEFORE => bool_field(state.trapped),
         other => panic!("unsupported initial semantic-state column {other}"),
     }

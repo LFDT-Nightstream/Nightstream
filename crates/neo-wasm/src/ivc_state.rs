@@ -6,16 +6,19 @@
 use super::layout::{
     Column, COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE, COL_COMM_CHAIN0_AFTER, COL_COMM_CHAIN0_BEFORE,
     COL_COMM_CHAIN1_AFTER, COL_COMM_CHAIN1_BEFORE, COL_COMM_CHAIN2_AFTER, COL_COMM_CHAIN2_BEFORE,
-    COL_COMM_CHAIN3_AFTER, COL_COMM_CHAIN3_BEFORE, COL_HALTED, COL_HALTED_BEFORE,
+    COL_COMM_CHAIN3_AFTER, COL_COMM_CHAIN3_BEFORE, COL_EVBUF0_AFTER, COL_EVBUF0_BEFORE, COL_EVBUF7_AFTER,
+    COL_EVBUF7_BEFORE, COL_EVBUF_SLOT0_AFTER, COL_EVBUF_SLOT0_BEFORE, COL_EVBUF_SLOT3_AFTER, COL_EVBUF_SLOT3_BEFORE,
+    COL_HALTED, COL_HALTED_BEFORE,
     COL_HOST_ARGS_ACTIVE_AFTER, COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_ARGS_REMAINING_AFTER,
     COL_HOST_ARGS_REMAINING_BEFORE, COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE,
-    COL_HOST_RESULT_PENDING_AFTER, COL_HOST_RESULT_PENDING_BEFORE,
-    COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE, COL_MAX_MEMORY_PAGES_AFTER, COL_MAX_MEMORY_PAGES_BEFORE,
-    COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE,
-    COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE,
-    COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_AFTER,
-    COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_AFTER, COL_PC_BEFORE, COL_SP_AFTER, COL_SP_BEFORE, COL_TRAPPED_AFTER,
-    COL_TRAPPED_BEFORE,
+    COL_HOST_RESULT_PENDING_AFTER, COL_HOST_RESULT_PENDING_BEFORE, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE,
+    COL_MAX_MEMORY_PAGES_AFTER, COL_MAX_MEMORY_PAGES_BEFORE, COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE,
+    COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE,
+    COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE,
+    COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_AFTER, COL_PC_BEFORE,
+    COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE,
+    COL_PERM_STATE0_AFTER, COL_PERM_STATE0_BEFORE, COL_PERM_STATE11_AFTER, COL_PERM_STATE11_BEFORE, COL_SP_AFTER,
+    COL_SP_BEFORE, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -172,6 +175,39 @@ pub(crate) fn build_ivc_state_continuity_links() -> Vec<WasmCrossStepLinkSpec> {
                     next_before: Column(COL_COMM_CHAIN3_BEFORE),
                 },
             ],
+        },
+        WasmCrossStepLinkSpec {
+            name: "event_absorb_continuity",
+            description: "row[i].host-event absorb state (block buffer, slot cursor, perm group) must match row[i+1]",
+            column_pairs: {
+                let mut pairs = vec![
+                    WasmCrossStepColumnPair {
+                        prev_after: Column(COL_PERM_PENDING_AFTER),
+                        next_before: Column(COL_PERM_PENDING_BEFORE),
+                    },
+                    WasmCrossStepColumnPair {
+                        prev_after: Column(COL_PERM_ROUND_AFTER),
+                        next_before: Column(COL_PERM_ROUND_BEFORE),
+                    },
+                ];
+                pairs.extend(
+                    (COL_EVBUF0_AFTER..=COL_EVBUF7_AFTER)
+                        .zip(COL_EVBUF0_BEFORE..=COL_EVBUF7_BEFORE)
+                        .chain(
+                            (COL_EVBUF_SLOT0_AFTER..=COL_EVBUF_SLOT3_AFTER)
+                                .zip(COL_EVBUF_SLOT0_BEFORE..=COL_EVBUF_SLOT3_BEFORE),
+                        )
+                        .chain(
+                            (COL_PERM_STATE0_AFTER..=COL_PERM_STATE11_AFTER)
+                                .zip(COL_PERM_STATE0_BEFORE..=COL_PERM_STATE11_BEFORE),
+                        )
+                        .map(|(after, before)| WasmCrossStepColumnPair {
+                            prev_after: Column(after),
+                            next_before: Column(before),
+                        }),
+                );
+                pairs
+            },
         },
     ]
 }

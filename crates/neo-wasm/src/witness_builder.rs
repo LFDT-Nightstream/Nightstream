@@ -89,7 +89,7 @@ pub fn build_steps(steps: &[WasmVmStep]) -> Vec<WasmStepBuild> {
 }
 
 pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
-    let mut wit = vec![F::ZERO; NAMED_COLUMN_COUNT];
+    let mut wit = vec![F::ZERO; NAMED_COLUMN_COUNT + crate::ccs::poseidon::PERM_GADGET_AUX_WIDTH];
     wit[COL_ONE] = F::ONE;
     // High-limb stack addresses are constrained unconditionally as
     // `addr_hi = addr_lo + 1`. Inactive low addresses default to 0 and
@@ -133,7 +133,13 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     } else {
         F::ZERO
     };
-    wit[COL_HOST_RESULT_ACTIVE] = if trace.state_before.host_result_pending && !trace.state_before.host_args.active {
+    // Result row = owed push, args mode done, and no perm rows running
+    // (mirrors `pending_before · (round_is_zero - args_active - perm_pending)`).
+    wit[COL_HOST_RESULT_ACTIVE] = if trace.state_before.host_result_pending
+        && !trace.state_before.host_args.active
+        && trace.state_before.event_absorb.perm_round == 0
+        && !trace.state_before.event_absorb.perm_pending
+    {
         F::ONE
     } else {
         F::ZERO
@@ -798,6 +804,9 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
         wit[COL_PC_ROM_CALL_RETURN_CHOICE] = F::from_u64(PC_ROM_CALL_RETURN_CHOICE);
     }
 
+    fill_event_absorb(&mut wit, trace);
+    crate::ccs::poseidon::fill_perm_gadget_witness(&mut wit, trace);
+
     match trace.opcode {
         super::isa::WasmOpcode::I32Add => {
             let lhs = u64::from(trace.stack_read0.map(|lane| lane.value_lo).unwrap_or(0));
@@ -924,6 +933,44 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
 
     crate::range_check::write_range_check_bits(&mut wit);
     wit
+}
+
+/// Host-event absorb machinery witness: carried state columns, the perm-row
+/// position one-hot, buffer-write masks, pending-update products, and the
+/// S-box power columns (whose unconditional mult rows are witness-filled
+/// with the powers of their linear input expression on every row).
+/// Fill the named host-event absorb interface columns (carried state); the
+/// gadget-internal block is filled by `ccs::poseidon::fill_perm_gadget_witness`.
+fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
+    use crate::layout::{
+        COL_EVBUF0_AFTER, COL_EVBUF0_BEFORE, COL_EVBUF_SLOT0_AFTER, COL_EVBUF_SLOT0_BEFORE, COL_PERM_PENDING_AFTER,
+        COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE, COL_PERM_ROUND_BEFORE_INV,
+        COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE0_AFTER, COL_PERM_STATE0_BEFORE,
+    };
+
+    let bool_f = |flag: bool| if flag { F::ONE } else { F::ZERO };
+    let before = trace.state_before.event_absorb;
+    let after = trace.state_after.event_absorb;
+
+    for j in 0..8 {
+        wit[COL_EVBUF0_BEFORE + j] = F::from_u64(before.evbuf[j]);
+        wit[COL_EVBUF0_AFTER + j] = F::from_u64(after.evbuf[j]);
+    }
+    for k in 0..4 {
+        wit[COL_EVBUF_SLOT0_BEFORE + k] = bool_f(usize::from(before.evbuf_slot) == k);
+        wit[COL_EVBUF_SLOT0_AFTER + k] = bool_f(usize::from(after.evbuf_slot) == k);
+    }
+    wit[COL_PERM_PENDING_BEFORE] = bool_f(before.perm_pending);
+    wit[COL_PERM_PENDING_AFTER] = bool_f(after.perm_pending);
+    wit[COL_PERM_ROUND_BEFORE] = F::from_u64(u64::from(before.perm_round));
+    wit[COL_PERM_ROUND_AFTER] = F::from_u64(u64::from(after.perm_round));
+    let (round_is_zero, round_inv) = zero_test_witness_u64(u64::from(before.perm_round));
+    wit[COL_PERM_ROUND_BEFORE_IS_ZERO] = round_is_zero;
+    wit[COL_PERM_ROUND_BEFORE_INV] = round_inv;
+    for lane in 0..12 {
+        wit[COL_PERM_STATE0_BEFORE + lane] = F::from_u64(before.perm_state[lane]);
+        wit[COL_PERM_STATE0_AFTER + lane] = F::from_u64(after.perm_state[lane]);
+    }
 }
 
 fn write_param_init_state(wit: &mut [F], before: bool, state: super::ir::WasmCountdownState) {

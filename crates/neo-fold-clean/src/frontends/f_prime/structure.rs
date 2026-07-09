@@ -16,6 +16,9 @@ use crate::frontends::f_prime::image::{
     FPrimeImage, FPrimeImageConfig, FPrimeImageLayout, NifsPayloadShape, PoseidonPreimageLaneSource,
     StateInDigestTarget, StateOutDigestTarget,
 };
+use crate::frontends::f_prime::projection_structure::{
+    collect_projection_slots, emit_projection_semantic_rows, projection_semantic_row_count, ProjectionLaneSlots,
+};
 use crate::frontends::f_prime::recursive_plan::{STATE_LANE_NEW_ACC_DIGEST_BASE, STATE_LANE_NEW_SEMANTIC_STATE_BASE};
 use crate::paper::f_prime::ring_action_trace::LowNormEncoding;
 
@@ -87,35 +90,14 @@ fn scaled_lane_terms(slot: LaneSlot, coeff: F) -> impl Iterator<Item = (usize, F
 #[derive(Clone, Debug)]
 pub struct FPrimeLaneSlots {
     pub state_lanes: Vec<LaneSlot>,
-    /// One inner `Vec<LaneSlot>` per spliced nifs_payloads payload.
     pub nifs_payload_lanes: Vec<Vec<LaneSlot>>,
     pub kmul_lanes: Vec<LaneSlot>,
     pub ring_action_lanes: Vec<LaneSlot>,
-    /// One inner `Vec<LaneSlot>` per spliced one-shot Poseidon trace.
+    pub projection_lanes: ProjectionLaneSlots,
     pub poseidon_trace_lanes: Vec<Vec<LaneSlot>>,
-    /// One canonical-u64 lane per 64-bit word in the poseidon sponge transcript.
     pub sponge_transcript_lanes: Vec<LaneSlot>,
-    /// Boundary digest lanes pulled in by each public-x_out binding.
     pub public_x_out_binding_lanes: Vec<[LaneSlot; 4]>,
-    /// One slot per app-assignment variable when applicable.
     pub app_assignment_lanes: Vec<AppVariableSlot>,
-}
-
-impl FPrimeLaneSlots {
-    pub fn total(&self) -> usize {
-        self.state_lanes.len()
-            + self.nifs_payload_lanes.iter().map(Vec::len).sum::<usize>()
-            + self.kmul_lanes.len()
-            + self.ring_action_lanes.len()
-            + self
-                .poseidon_trace_lanes
-                .iter()
-                .map(Vec::len)
-                .sum::<usize>()
-            + self.sponge_transcript_lanes.len()
-            + self.public_x_out_binding_lanes.len() * 4
-            + self.app_assignment_lanes.len()
-    }
 }
 
 /// Enumerate every canonical-u64 lane the structure references.
@@ -125,6 +107,7 @@ pub fn f_prime_lane_slots(layout: &FPrimeImageLayout) -> FPrimeLaneSlots {
         nifs_payload_lanes: collect_nifs_payload_slots(layout),
         kmul_lanes: collect_kmul_slots(layout),
         ring_action_lanes: collect_ring_action_slots(layout),
+        projection_lanes: collect_projection_slots(layout),
         poseidon_trace_lanes: collect_poseidon_trace_slots(layout),
         sponge_transcript_lanes: collect_sponge_transcript_slots(layout),
         public_x_out_binding_lanes: collect_public_x_out_binding_slots(layout),
@@ -638,6 +621,7 @@ fn estimated_shell_row_capacity(layout: &FPrimeImageLayout) -> usize {
         + IS_BASE_COUNTER_LINK_ROWS
         + layout.config.ring_action_pair_count
             * (RING_ACTION_PRODUCT_LANES_PER_PAIR + RING_ACTION_OUTPUT_LANES_PER_PAIR)
+        + projection_semantic_row_count(&layout.config.projection_batches)
         + (layout.config.one_shot_digest_to_state_in_bindings.len()
             + layout.config.one_shot_digest_to_state_out_bindings.len()
             + layout.config.one_shot_digest_to_public_x_out_bindings.len())
@@ -676,6 +660,7 @@ pub(crate) fn emit_shell_rows(
     let control_count = semantic_boolean_count + IS_BASE_COUNTER_LINK_ROWS;
     let ring_action_product_count = layout.config.ring_action_pair_count * RING_ACTION_PRODUCT_LANES_PER_PAIR;
     let ring_action_output_count = layout.config.ring_action_pair_count * RING_ACTION_OUTPUT_LANES_PER_PAIR;
+    let projection_row_count = projection_semantic_row_count(&layout.config.projection_batches);
     let state_in_binding_count = layout.config.one_shot_digest_to_state_in_bindings.len() * POSEIDON2_DIGEST_LEN;
     let state_out_binding_count = layout.config.one_shot_digest_to_state_out_bindings.len() * POSEIDON2_DIGEST_LEN;
     // Canonical unified F' carries `new_z_i = chunk_digest` directly.
@@ -721,6 +706,7 @@ pub(crate) fn emit_shell_rows(
     let total_shell_rows = control_count
         + ring_action_product_count
         + ring_action_output_count
+        + projection_row_count
         + state_in_binding_count
         + state_out_binding_count
         + chunk_boundary_mirror_count
@@ -797,6 +783,12 @@ pub(crate) fn emit_shell_rows(
         control_count + ring_action_product_count + ring_action_output_count
     );
 
+    emit_projection_semantic_rows(&layout.config.projection_batches, &lane_slots.projection_lanes, builder);
+    debug_assert_eq!(
+        builder.rows() - base_row,
+        control_count + ring_action_product_count + ring_action_output_count + projection_row_count
+    );
+
     // ── Trace digest ↔ state-in digest binding rows.
     for binding in &layout.config.one_shot_digest_to_state_in_bindings {
         let trace_slots = &lane_slots.poseidon_trace_lanes[binding.one_shot_index];
@@ -810,7 +802,11 @@ pub(crate) fn emit_shell_rows(
     }
     debug_assert_eq!(
         builder.rows() - base_row,
-        control_count + ring_action_product_count + ring_action_output_count + state_in_binding_count
+        control_count
+            + ring_action_product_count
+            + ring_action_output_count
+            + projection_row_count
+            + state_in_binding_count
     );
 
     // ── Trace digest ↔ state-out digest binding rows.
@@ -832,6 +828,7 @@ pub(crate) fn emit_shell_rows(
         control_count
             + ring_action_product_count
             + ring_action_output_count
+            + projection_row_count
             + state_in_binding_count
             + state_out_binding_count
     );
@@ -851,6 +848,7 @@ pub(crate) fn emit_shell_rows(
         control_count
             + ring_action_product_count
             + ring_action_output_count
+            + projection_row_count
             + state_in_binding_count
             + state_out_binding_count
             + chunk_boundary_mirror_count
@@ -876,6 +874,7 @@ pub(crate) fn emit_shell_rows(
         control_count
             + ring_action_product_count
             + ring_action_output_count
+            + projection_row_count
             + state_in_binding_count
             + state_out_binding_count
             + chunk_boundary_mirror_count
@@ -910,6 +909,7 @@ pub(crate) fn emit_shell_rows(
         control_count
             + ring_action_product_count
             + ring_action_output_count
+            + projection_row_count
             + state_in_binding_count
             + state_out_binding_count
             + chunk_boundary_mirror_count
@@ -937,6 +937,7 @@ pub(crate) fn emit_shell_rows(
         control_count
             + ring_action_product_count
             + ring_action_output_count
+            + projection_row_count
             + state_in_binding_count
             + state_out_binding_count
             + chunk_boundary_mirror_count
@@ -965,6 +966,7 @@ pub(crate) fn emit_shell_rows(
         control_count
             + ring_action_product_count
             + ring_action_output_count
+            + projection_row_count
             + state_in_binding_count
             + state_out_binding_count
             + chunk_boundary_mirror_count

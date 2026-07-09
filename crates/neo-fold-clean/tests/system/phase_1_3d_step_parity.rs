@@ -334,6 +334,8 @@ fn image_config_for_one_step(poseidon_one_shot_preimage_lens: Vec<usize>) -> FPr
         nifs_payload_shapes: vec![], // not exercised here
         kmul_count: 0,               // not exercised here
         ring_action_pair_count: 0,
+        projection_pair_count: 0,
+        projection_identity_count: 0,
         ring_action_pair_layout: RingActionTraceLayout::new(
             LowNormEncoding::SignedDigit { bits: 5 },
             LowNormEncoding::SignedDigit { bits: 8 },
@@ -637,6 +639,8 @@ fn nifs_only_image_config(shapes: Vec<NifsPayloadShape>) -> FPrimeImageConfig {
         nifs_payload_shapes: shapes,
         kmul_count: 0,
         ring_action_pair_count: 0,
+        projection_pair_count: 0,
+        projection_identity_count: 0,
         ring_action_pair_layout: RingActionTraceLayout::new(
             LowNormEncoding::SignedDigit { bits: 5 },
             LowNormEncoding::SignedDigit { bits: 8 },
@@ -890,6 +894,8 @@ fn phase_1_3d_kmul_ring_action_coverage_full_step_three_way_parity() {
         nifs_payload_shapes: vec![],
         kmul_count: k_muls.len(),
         ring_action_pair_count: ring_muls.len(),
+        projection_pair_count: 0,
+        projection_identity_count: 0,
         ring_action_pair_layout: pair_layout,
         poseidon_one_shot_preimage_lens: vec![],
         sponge_transcript_permutes: 0,

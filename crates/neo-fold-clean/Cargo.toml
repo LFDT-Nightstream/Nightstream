@@ -198,6 +198,10 @@ name = "system_rlc_projection"
 path = "tests/system/rlc_projection.rs"
 
 [[test]]
+name = "system_projection_shell"
+path = "tests/system/projection_shell.rs"
+
+[[test]]
 name = "system_ivc_invariants"
 path = "tests/system/ivc_invariants.rs"
 

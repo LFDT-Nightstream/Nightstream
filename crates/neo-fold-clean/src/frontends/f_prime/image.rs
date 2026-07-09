@@ -96,6 +96,13 @@ pub struct FPrimeImageConfig {
     pub kmul_count: usize,
     /// Number of ring-action lane-pairs in one step (κ · k_total).
     pub ring_action_pair_count: usize,
+    /// Projection-checked ring-action pairs (Road A, candidate E) —
+    /// replaces D²-materialized pairs when nonzero. Widths per
+    /// `paper::f_prime::projection_trace`.
+    pub projection_pair_count: usize,
+    /// Projection identities (one per output ring component per
+    /// client; the Lemma 5 J census).
+    pub projection_identity_count: usize,
     /// Shared per-pair ring-action layout (encoding widths per subregion).
     pub ring_action_pair_layout: RingActionTraceLayout,
     /// Preimage lengths for each one-shot Poseidon hash invoked in this step.
@@ -356,6 +363,15 @@ pub struct FPrimeImageLayout {
     /// Splice offset (in image `values`) for each ring-action pair's
     /// non-constant bits.
     pub ring_action_pair_splices: Vec<usize>,
+    /// Projection region (Road A): shared ladder, then pairs, then
+    /// identities — widths per `paper::f_prime::projection_trace`.
+    pub projection: RegionRange,
+    /// Splice offset of the shared β/ladder sub-region.
+    pub projection_shared_splice: usize,
+    /// Per-pair splice offsets.
+    pub projection_pair_splices: Vec<usize>,
+    /// Per-identity splice offsets.
+    pub projection_identity_splices: Vec<usize>,
     pub poseidon: RegionRange,
     /// Splice offset for each one-shot Poseidon trace.
     pub one_shot_poseidon_splices: Vec<usize>,
@@ -456,6 +472,26 @@ impl FPrimeImageLayout {
             bits: cursor - ring_action_start,
         };
 
+        // projection (Road A): shared β/ladder once, then pairs, then
+        // identities. Empty (zero bits) when both counts are zero.
+        let projection_start = cursor;
+        let projection_shared_splice = cursor;
+        if config.projection_pair_count > 0 || config.projection_identity_count > 0 {
+            cursor += crate::paper::f_prime::projection_trace::PROJECTION_SHARED_BITS;
+        }
+        let projection_pair_splices: Vec<usize> = (0..config.projection_pair_count)
+            .map(|i| cursor + i * crate::paper::f_prime::projection_trace::PROJECTION_PAIR_BITS)
+            .collect();
+        cursor += config.projection_pair_count * crate::paper::f_prime::projection_trace::PROJECTION_PAIR_BITS;
+        let projection_identity_splices: Vec<usize> = (0..config.projection_identity_count)
+            .map(|i| cursor + i * crate::paper::f_prime::projection_trace::PROJECTION_IDENTITY_BITS)
+            .collect();
+        cursor += config.projection_identity_count * crate::paper::f_prime::projection_trace::PROJECTION_IDENTITY_BITS;
+        let projection = RegionRange {
+            offset: projection_start,
+            bits: cursor - projection_start,
+        };
+
         // poseidon: one-shot Poseidon traces, then the sponge-transcript trace.
         let poseidon_start = cursor;
         let mut one_shot_poseidon_splices = Vec::with_capacity(config.poseidon_one_shot_preimage_lens.len());
@@ -489,6 +525,10 @@ impl FPrimeImageLayout {
             kmul,
             ring_action,
             ring_action_pair_splices,
+            projection,
+            projection_shared_splice,
+            projection_pair_splices,
+            projection_identity_splices,
             poseidon,
             one_shot_poseidon_splices,
             one_shot_poseidon_layouts,

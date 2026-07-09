@@ -16,7 +16,8 @@
 //! | `nebula_chain_must_verify_terminal_only_with_memory` | **ignored: fails by design** | Spec §13 step 9's end-state: a multi-segment memory chain accepted terminal-only, lane closed. Fails today for the same induction gap. |
 //! | `nebula_terminal_only_verification_fails_closed_today` | ✓ | Tripwire twin of the Nebula gate. |
 //! | `recursive_link_multi_chunk_fails_closed_today` | ✓ | The stricter guard layer: an `r1cs_f_prime` chain (recursive-link flag SET) must reject multi-chunk terminal-only verification via `FPrimeNonReplayUnsupported`, not just the generic non-empty-running guard. |
-//! | `folded_f_prime_shell_must_adopt_projection_budget` | **ignored: fails by design** | enc(F') candidate-E gate: the production F' shell's committed width must fit the projection-checked budget (16M bits vs today's measured 94,330,948). Turns the candidate-E extrapolation into an integrated measurement when it passes. |
+//! | `folded_f_prime_shell_must_adopt_projection_budget` | ✓ **GREEN (Road A Unit 2)** | The production F' shell carries projection regions: integrated layout = 14,040,452 bits (was 94,330,948 D²-materialized). Now a budget-regression guard. |
+//! | `projection_shell_semantic_rows_must_be_enforced` | **ignored: fails by design** | Road A Phase B: the projection region's semantic CCS rows (evaluation sums, Karatsuba relations, the final identity) are not yet emitted by `build_f_prime_structure` — the region is width-reserved and NC-range-checked only. |
 //!
 //! The implementation that turned each invariant green:
 //!   - Phase 1.5b: encoded F' image / structure / encoder + foldable `CcsInstance`.
@@ -368,17 +369,15 @@ fn recursive_link_multi_chunk_fails_closed_today() {
     );
 }
 
-/// MILESTONE GATE (ignored; fails today): the production folded F' shell
-/// must adopt the projection-checked ring action (encoding.md candidate
-/// E). Today the shell materializes D² partial products per pair —
-/// 94,330,948 committed bits per step, measured. The candidate-E
-/// extrapolation (measured marginal gadget cost × production pair
-/// counts) is ≈ 12.5M; this gate pins a generous 16M ceiling, so it
-/// passes only when the integrated `FPrimeImageLayout` actually carries
-/// projection regions instead of D² regions — turning the extrapolation
-/// into an integrated measurement.
+/// MILESTONE GATE — **GREEN since Road A Unit 2**: the production F'
+/// shell carries the ring action as projection regions (candidate E).
+/// Integrated measurement: 14,040,452 bits/step (was 94,330,948 with
+/// D² materialization; the D² shell survives as
+/// `production_kmul_d2_ring_action_shell_image_config` for reference).
+/// This gate now guards the budget against regression; the projection
+/// region's SEMANTIC rows are the next phase, pinned red by
+/// `projection_shell_semantic_rows_must_be_enforced` below.
 #[test]
-#[ignore = "enc(F') candidate-E milestone gate: fails until the folded F' shell swaps D² ring-action materialization for the projection check"]
 fn folded_f_prime_shell_must_adopt_projection_budget() {
     use neo_fold_clean::frontends::f_prime::image::FPrimeImageLayout;
     use neo_fold_clean::frontends::f_prime::structure::production_kmul_ring_action_shell_image_config;
@@ -391,5 +390,50 @@ fn folded_f_prime_shell_must_adopt_projection_budget() {
          (encoding.md candidate E — integrate `enforce_ring_action_projection_batch`)",
         layout.end,
         PROJECTION_BUDGET_BITS
+    );
+}
+
+/// MILESTONE GATE (ignored; fails today): the projection region's
+/// SEMANTIC rows. Phase A (Road A Unit 2) reserved and measured the
+/// region — committed-bit range enforcement is the protocol's NC
+/// check — but the evaluation sums, Karatsuba relations, and the final
+/// identity are not yet CCS rows in `build_f_prime_structure`: a
+/// structure built with projection regions must emit more rows than
+/// one built without. Fails today (the builder emits none); passes
+/// when Phase B lands the row emission (mirroring how ring_action's
+/// own rows arrived in Phase 1.4 after its 1.2 image).
+#[test]
+#[ignore = "Road A Phase B gate: fails until build_f_prime_structure emits the projection region's semantic rows"]
+fn projection_shell_semantic_rows_must_be_enforced() {
+    use neo_fold_clean::frontends::f_prime::image::FPrimeImageLayout;
+    use neo_fold_clean::frontends::f_prime::structure::{
+        build_f_prime_structure, production_kmul_d2_ring_action_shell_image_config,
+    };
+
+    let base_config = {
+        let mut c = production_kmul_d2_ring_action_shell_image_config();
+        c.kmul_count = 2;
+        c.ring_action_pair_count = 0;
+        c
+    };
+    let projection_config = {
+        let mut c = base_config.clone();
+        c.projection_pair_count = 2;
+        c.projection_identity_count = 1;
+        c
+    };
+
+    let base_rows = build_f_prime_structure(FPrimeImageLayout::new(base_config))
+        .ccs
+        .n;
+    let projection_rows = build_f_prime_structure(FPrimeImageLayout::new(projection_config))
+        .ccs
+        .n;
+
+    // Two pairs + one identity need at least: 2 evaluation-sum row sets,
+    // Karatsuba relations, and the final identity — well over 100 rows.
+    assert!(
+        projection_rows >= base_rows + 100,
+        "projection regions must be semantically constrained: {projection_rows} rows with the region          vs {base_rows} without — the region is currently free advice at the structure level          (NC covers bitness only)"
     );
 }

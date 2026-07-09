@@ -4,9 +4,10 @@
 //! The projection variant must accept exactly the combined commitment
 //! the trusted Toom-3 D²-materialization variant accepts, reject any
 //! tampered output or quotient, and beat it decisively on committed
-//! wires. β is allocated directly here; the integration site owns the
-//! Lemma 5 transcript schedule (absorb inputs → ρ → absorb combined +
-//! quotients → squeeze β).
+//! wires. In the gadget tests β is allocated directly; native `pi_rlc`
+//! owns the Lemma 5 transcript schedule (absorb inputs → ρ → absorb
+//! combined + quotients → squeeze β), driven on a real fold by the
+//! schedule tests at the bottom of this file.
 
 use neo_ajtai::Commitment;
 use neo_fold_clean::engine::r1cs_circuit::field_ext::KVar;
@@ -106,7 +107,11 @@ fn projection_variant_matches_the_toom3_variant() {
     assert!(b.is_satisfied(), "Toom-3 variant accepts the honest mix");
 
     // Projection variant on identical inputs.
-    let quotients = rlc_projection_quotients(&f.rhos, &f.inputs).expect("quotients");
+    let quotients: Vec<_> = rlc_projection_quotients(&f.rhos, &f.inputs)
+        .expect("quotients")
+        .into_iter()
+        .map(|lane| lane.q)
+        .collect();
     let mut b = R1csBuilder::new();
     let wires = alloc_rlc_commitment_inputs(&mut b, &f.rhos, &f.inputs, &f.combined).expect("wires");
     let beta = KVar::alloc(&mut b, F::from_u64(0xBE7A), F::from_u64(0xCAFE));
@@ -121,7 +126,11 @@ fn projection_variant_matches_the_toom3_variant() {
 #[test]
 fn projection_variant_rejects_forged_mix_and_quotient() {
     let f = fixture(23);
-    let quotients = rlc_projection_quotients(&f.rhos, &f.inputs).expect("quotients");
+    let quotients: Vec<_> = rlc_projection_quotients(&f.rhos, &f.inputs)
+        .expect("quotients")
+        .into_iter()
+        .map(|lane| lane.q)
+        .collect();
 
     let mut b = R1csBuilder::new();
     let wires = alloc_rlc_commitment_inputs(&mut b, &f.rhos, &f.inputs, &f.combined).expect("wires");
@@ -196,7 +205,11 @@ fn projection_variant_cost_beats_toom3() {
     enforce_rlc_commitment_combination(&mut b_ref, &wires);
     let (ref_cols, ref_rows) = (b_ref.cols(), b_ref.rows());
 
-    let quotients = rlc_projection_quotients(&f.rhos, &f.inputs).expect("quotients");
+    let quotients: Vec<_> = rlc_projection_quotients(&f.rhos, &f.inputs)
+        .expect("quotients")
+        .into_iter()
+        .map(|lane| lane.q)
+        .collect();
     let mut b = R1csBuilder::new();
     let wires = alloc_rlc_commitment_inputs(&mut b, &f.rhos, &f.inputs, &f.combined).expect("wires");
     let beta = KVar::alloc(&mut b, F::from_u64(3), F::from_u64(5));
@@ -217,4 +230,217 @@ fn projection_variant_cost_beats_toom3() {
         proj_cols * 2 <= ref_cols,
         "projection must stay ≥ 2× cheaper in committed wires ({proj_cols} vs {ref_cols})"
     );
+}
+
+// ── Lemma 5 β schedule on the native fold path (Road A) ──────────────────
+
+use neo_ccs::Mat;
+use neo_fold_clean::engine::transcript::Transcript;
+use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
+use neo_fold_clean::paper::construction2::RunningInstance;
+use neo_fold_clean::paper::f_prime::projection_trace::{
+    encode_projection_identity, encode_projection_pair, encode_projection_shared,
+};
+use neo_fold_clean::paper::relations::ajtai_rlc_mixer;
+use neo_fold_clean::paper::{nifs, pi_rlc};
+use neo_fold_clean::{CeClaim, Preprocessing};
+use neo_math::K;
+
+fn three_term_addition() -> R1cs {
+    let m = D;
+    let mut a = Mat::zero(1, m, F::ZERO);
+    a.set(0, 1, F::ONE);
+    a.set(0, 2, F::ONE);
+    let mut b = Mat::zero(1, m, F::ZERO);
+    b.set(0, 0, F::ONE);
+    let mut c = Mat::zero(1, m, F::ZERO);
+    c.set(0, 3, F::ONE);
+    R1cs { a, b, c, m_in: 3 }
+}
+
+fn assignment(a: u64, b: u64) -> Vec<F> {
+    let mut z = vec![F::ZERO; D];
+    z[0] = F::ONE;
+    z[1] = F::from_u64(a);
+    z[2] = F::from_u64(b);
+    z[3] = F::from_u64(a + b);
+    z
+}
+
+/// Two real folds; returns the second fold's Π_CCS output claims (K+k,
+/// non-zero commitments) and their witnesses, ready for a standalone
+/// Π_RLC run.
+fn real_fold_rlc_fixture() -> (Preprocessing, Vec<CeClaim>, Vec<Mat<F>>) {
+    let r1cs = three_term_addition();
+    let prep = direct_ccs::preprocess_seeded(&r1cs, 61).expect("preprocess");
+
+    let first = direct_ccs::build_instance(&prep, &r1cs, &assignment(1, 0)).expect("first instance");
+    let mut tr = Transcript::session();
+    let (running, _first_proof) = nifs::prove(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &prep.log,
+        None,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
+        vec![first],
+        &RunningInstance::default(),
+    )
+    .expect("first NIFS.P");
+
+    let second = direct_ccs::build_instance(&prep, &r1cs, &assignment(0, 1)).expect("second instance");
+    let second_z = second.witness.Z.clone();
+    let mut tr = Transcript::session();
+    let (_next, proof) = nifs::prove(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &prep.log,
+        None,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
+        vec![second],
+        &running,
+    )
+    .expect("second NIFS.P");
+
+    let mut witnesses = Vec::with_capacity(1 + running.witnesses.len());
+    witnesses.push(second_z);
+    witnesses.extend(running.witnesses.iter().cloned());
+    (prep, proof.pi_ccs.outputs.clone(), witnesses)
+}
+
+/// The β schedule runs identically on the prove and verify paths: after
+/// Π_RLC both transcripts are in lockstep (same downstream challenges),
+/// with one quotient per κ lane behind the squeezed β.
+#[test]
+fn projection_schedule_keeps_prover_and_verifier_in_lockstep() {
+    let (prep, claims, witnesses) = real_fold_rlc_fixture();
+
+    let mut tr_p = Transcript::session();
+    let (out, proof) = pi_rlc::prove(
+        &mut tr_p,
+        &prep.params,
+        prep.structure(),
+        prep.mix_rhos_commits(),
+        &claims,
+        &witnesses,
+    )
+    .expect("Π_RLC.P");
+
+    let mut tr_v = Transcript::session();
+    let combined = pi_rlc::verify(
+        &mut tr_v,
+        &prep.params,
+        prep.structure(),
+        prep.mix_rhos_commits(),
+        &claims,
+        &proof,
+    )
+    .expect("Π_RLC.V");
+
+    assert_eq!(
+        tr_p.challenge_field(b"post_rlc_probe"),
+        tr_v.challenge_field(b"post_rlc_probe"),
+        "prove/verify transcripts must stay in lockstep through the β schedule"
+    );
+    assert_eq!(
+        out.projection.q_lanes.len(),
+        combined.c.kappa,
+        "one division quotient per κ lane"
+    );
+    assert_eq!(out.projection.rhos.len(), claims.len(), "one ρ per folded claim");
+}
+
+fn drifted_mixer(rhos: &[Mat<F>], cs: &[Commitment]) -> Commitment {
+    let mut c = ajtai_rlc_mixer(rhos, cs);
+    c.data[0] += F::ONE;
+    c
+}
+
+/// Wire-identity fail-closed: a mixer whose output is not Σρ_i·c_i —
+/// even off by one coefficient — must be rejected before anything is
+/// absorbed, because the projection identity would then describe a
+/// commitment the fold never produced.
+#[test]
+fn projection_schedule_rejects_mixer_that_is_not_the_ring_action() {
+    let (prep, claims, witnesses) = real_fold_rlc_fixture();
+    let mut tr = Transcript::session();
+    let err = pi_rlc::prove(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        drifted_mixer,
+        &claims,
+        &witnesses,
+    )
+    .expect_err("a non-ring-action mixer must fail the wire-identity check");
+    assert!(
+        matches!(err, pi_rlc::Error::ProjectionMixDrift { lane: 0 }),
+        "expected ProjectionMixDrift at lane 0, got {err:?}"
+    );
+}
+
+/// Wire-identity bridge (Lemma 5 audit item 1): a real fold's recorded
+/// schedule, pushed through the F' projection-region encoders, satisfies
+/// the batched identity with zero residual — per κ lane the pairs are
+/// (ρ_i, c_i lane), the encoder's quotient is exactly the
+/// transcript-absorbed q_lane, and the identity output is exactly the
+/// combined commitment's lane.
+#[test]
+fn projection_schedule_bridges_to_the_f_prime_encoders() {
+    let (prep, claims, witnesses) = real_fold_rlc_fixture();
+    let mut tr = Transcript::session();
+    let (out, _proof) = pi_rlc::prove(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.mix_rhos_commits(),
+        &claims,
+        &witnesses,
+    )
+    .expect("Π_RLC.P");
+
+    let schedule = &out.projection;
+    let kappa = out.claim.c.kappa;
+    let (_shared_lanes, powers) = encode_projection_shared(schedule.beta);
+
+    for lane in 0..kappa {
+        let pairs: Vec<([F; D], [F; D])> = schedule
+            .rhos
+            .iter()
+            .zip(claims.iter())
+            .map(|(rho, claim)| {
+                let mut c_lane = [F::ZERO; D];
+                c_lane.copy_from_slice(&claim.c.data[lane * D..(lane + 1) * D]);
+                (*rho, c_lane)
+            })
+            .collect();
+
+        let mut terms = Vec::new();
+        for (rho, c) in &pairs {
+            let (_lanes, term) = encode_projection_pair(rho, c, &powers);
+            terms.push(term);
+        }
+        let (_identity_lanes, residual) = encode_projection_identity(&pairs, &powers, &terms);
+        assert_eq!(
+            residual,
+            K::ZERO,
+            "lane {lane}: real-fold fill must satisfy the projection identity"
+        );
+
+        let (mix_out, q) = projection_quotient(&pairs);
+        assert_eq!(
+            q, schedule.q_lanes[lane],
+            "lane {lane}: the transcript-absorbed q must be the encoder\'s q"
+        );
+        assert_eq!(
+            &mix_out[..],
+            &out.claim.c.data[lane * D..(lane + 1) * D],
+            "lane {lane}: the identity output must be the combined commitment lane"
+        );
+    }
 }

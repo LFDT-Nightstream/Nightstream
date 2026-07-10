@@ -24,7 +24,7 @@
 
 use neo_math::field::KExtensions;
 use neo_math::{D, F, K};
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use thiserror::Error;
 
 /// Cell value width in bits (one memory cell = one 32-bit word). Spec §2.
@@ -567,6 +567,30 @@ impl StepPublicInput {
             sp_out,
         })
     }
+}
+
+/// Encode the public suffix consumed by the following F' step:
+/// `[step_x_bits || open || bits(D_pre)]`.
+pub fn encode_delayed_f_prime_suffix(
+    step: &StepPublicInput,
+    stacks: StackShape,
+    d_pre: Option<[[F; 4]; 3]>,
+) -> Result<Vec<F>, LayoutError> {
+    let mut out = step.encode(stacks)?;
+    out.push(if d_pre.is_some() { F::ONE } else { F::ZERO });
+    for digest in d_pre.unwrap_or([[F::ZERO; 4]; 3]) {
+        for lane in digest {
+            let value = lane.as_canonical_u64();
+            for bit in 0..K_LIMB_BITS {
+                out.push(F::from_u64((value >> bit) & 1));
+            }
+        }
+    }
+    debug_assert_eq!(
+        out.len(),
+        crate::paper::f_prime::nebula_lane_circuit::delayed_nebula_public_suffix_len(stacks)
+    );
+    Ok(out)
 }
 
 fn check_width(field: &'static str, value: u64, bits: usize) -> Result<(), LayoutError> {

@@ -350,6 +350,7 @@ fn f_prime_state_x_out(prep: &neo_fold_clean::lifecycle::Preprocessing, state: &
     digest32_as_fields(state_x_out_digest_with_mode(
         mode,
         prep.vk.digest(),
+        prep.pi_ccs_header_bundle(),
         &structure_digest(prep.structure()),
         state.chunk_count,
         state.step_count,

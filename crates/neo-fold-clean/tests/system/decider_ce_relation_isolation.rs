@@ -29,6 +29,8 @@ use neo_fold_clean::engine::decider::__test_isolation::{
 };
 use neo_fold_clean::engine::r1cs_circuit::builder::Var;
 use neo_fold_clean::paper::construction2::ProofState;
+use neo_fold_clean::paper::construction2::{NebulaConfig, StackShape};
+use neo_fold_clean::paper::relations::{LaneRanges, LaneScheme};
 use neo_fold_clean::{preprocess, CeClaim, Params, Preprocessing, Structure};
 use neo_math::{KExtensions, D, F, K};
 use neo_reductions::common::{compute_y_from_Z_and_r, project_x_from_witness_mat};
@@ -144,6 +146,29 @@ fn decider_ce_isolation_rejects_commitment_not_opened_by_z() {
         !builder.is_satisfied(),
         "CE-relation gadget accepted a commitment that Z does not open — the Ajtai \
          opening rows must be load-bearing"
+    );
+}
+
+#[test]
+fn decider_ce_isolation_accepts_honest_nebula_lane_openings() {
+    let fixture = non_trivial_nebula_fixture();
+    let builder = enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness).expect("synthesis");
+    assert!(
+        builder.is_satisfied(),
+        "honest Nebula lane commitments must open against their terminal witness slices; first bad row: {:?}",
+        builder.first_unsatisfied_row()
+    );
+}
+
+#[test]
+fn decider_ce_isolation_rejects_nebula_lane_not_opened_by_z() {
+    let mut fixture = non_trivial_nebula_fixture();
+    fixture.claim.adv.as_mut().expect("Nebula adv").ops.data[0] += F::ONE;
+
+    let builder = enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness).expect("synthesis");
+    assert!(
+        !builder.is_satisfied(),
+        "terminal CE relation accepted an adv.ops commitment not opened by the designated witness slice"
     );
 }
 
@@ -972,6 +997,30 @@ struct NonTrivialFixture {
 
 fn non_trivial_fixture() -> NonTrivialFixture {
     non_trivial_fixture_with_m_in(1)
+}
+
+fn non_trivial_nebula_fixture() -> NonTrivialFixture {
+    let mut fixture = non_trivial_fixture_with_shape(3 * D, 1, Some(1));
+    let scheme = LaneScheme::from_seeds(
+        fixture.prep.params.kappa() as usize,
+        LaneRanges {
+            ops: 0..1,
+            is: 1..2,
+            fs: 2..3,
+        },
+        [0xA5; 32],
+        [0x5A; 32],
+    )
+    .expect("test lane scheme");
+    fixture.claim.adv = Some(scheme.commit(&fixture.witness).expect("lane commitments"));
+    fixture.prep = fixture.prep.with_nebula(NebulaConfig {
+        scheme,
+        steps_per_segment: 1,
+        stacks: StackShape::NONE,
+        plan_digest: [F::ZERO; 4],
+        d_init: [F::ZERO; 4],
+    });
+    fixture
 }
 
 fn non_trivial_fixture_with_m_in(m_in: usize) -> NonTrivialFixture {

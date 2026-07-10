@@ -1,11 +1,11 @@
-//! Projection-region shell configs and semantic rows for the Road A
-//! folded F' image — split out of `structure.rs` per the repo's
+//! Projection-region cost-model configs and local semantic rows for Road A
+//! — split out of `structure.rs` per the repo's
 //! 1,500-line file cap; `structure.rs` re-exports this surface.
 //!
-//! Owns: the pinned production shell configs (Road A projection shell +
-//! the D2 reference shell), the production batch partition, and the
-//! projection region's algebraic CCS rows. It does not own beta's
-//! transcript binding; that is the next integration phase.
+//! Owns: the pinned prototype configs (projection model + D2 reference),
+//! the modeled batch partition, and local projection algebraic CCS rows.
+//! It is not the authoritative F' relation and is not filled by shipped
+//! compilers; `paper/f_prime/encoding.md` tracks that boundary.
 
 use crate::engine::r1cs_circuit::ring_action::PROJECTION_QUOTIENT_LEN;
 use crate::frontends::f_prime::image::FPrimeImageConfig;
@@ -22,7 +22,7 @@ use p3_field::PrimeCharacteristicRing;
 
 const K_MUL_ROWS: usize = 5;
 
-/// Production batch partition: `P_total = 465` pairs over `J = 72`
+/// Historical pre-Nebula model: `P_total = 465` pairs over `J = 72`
 /// identities (33 batches of 7 + 39 of 6). **Placeholder partition** —
 /// region widths depend only on the totals; the real per-identity
 /// consumption comes from the Lemma 5 adoption census (audit item 4)
@@ -35,27 +35,23 @@ pub fn production_projection_batches() -> Vec<usize> {
     batches
 }
 
-/// kmul K-mul invocations per F' recursive step. Pinned by the Phase 1.3d
-/// coverage gate's measurement of the actual `enforce_k_mul_with_intermediates`
-/// call count.
+/// Historical pre-projection K-mul count used by this cost model. The
+/// authoritative circuit count is tracked by the Phase 1.3d coverage test.
 pub const PRODUCTION_KMUL_COUNT: usize = 7100;
 
-/// ring_action ring-action pair invocations per F' recursive step. Pinned by the
-/// Phase 1.3d coverage gate's measurement.
+/// Historical pre-projection ring-action count used by this cost model.
 pub const PRODUCTION_RING_ACTION_PAIR_COUNT: usize = 465;
 
-/// Projection identities for the production shell — the Lemma 5 J
-/// census's known-clients figure (`4κ = 72`; the adoption census, audit
-/// item 4, refines this; the soundness bound conservatively uses
-/// `J ≤ 465` until reviewed).
+/// Historical commitment-plus-adv estimate. Lemma 5's corrected complete
+/// production census is `J=85`; this model predates that audit.
 pub const PRODUCTION_PROJECTION_IDENTITY_COUNT: usize = 72;
 
-/// The production F' shell (Road A): kmuls unchanged, and the ring
+/// The Road A cost-model shell: kmuls unchanged, and the ring
 /// action carried as **projection regions** (candidate E) instead of
 /// D²-materialized pairs — the committed-width flip the
 /// `folded_f_prime_shell_must_adopt_projection_budget` gate pins.
-/// Semantic rows for the projection region are the tracked next phase
-/// (`projection_shell_semantic_rows_must_be_enforced`).
+/// The local projection rows are enforced, but the shell does not bind them
+/// to the authoritative NIFS.V wires.
 pub fn production_kmul_ring_action_shell_image_config() -> FPrimeImageConfig {
     FPrimeImageConfig {
         projection_batches: production_projection_batches(),

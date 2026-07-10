@@ -200,7 +200,7 @@ pub const NEBULA_LEAF_MEM_TAG: &[u8] = b"neo.fold.clean/nebula/leaf/mem/v3";
 
 /// Nonzero marker prefixing the `adv` extension of a claim-digest
 /// preimage, so a `Some(adv)` preimage can never alias a `None` one.
-const NEBULA_ADV_PRESENT_MARKER: u64 = 0x4e42_4c41; // "NBLA"
+pub(crate) const NEBULA_ADV_PRESENT_MARKER: u64 = 0x4e42_4c41; // "NBLA"
 
 /// One lane commitment crosses Poseidon2 exactly once, here (spec §6.1):
 /// every chain link and transcript absorb downstream consumes the
@@ -322,10 +322,8 @@ pub fn nebula_lane_chains<'a>(advs: impl IntoIterator<Item = &'a LaneCommitments
 /// present `adv` tuple is bound too, as its three leaves.
 ///
 /// Present-only on purpose: a `None` claim's preimage stays byte-identical
-/// to the pre-Nebula format, so the SplitNcV1 in-circuit digest mirrors
-/// (`pi_ccs_split_nc_circuit/digests.rs`) remain in parity untouched —
-/// Nebula claims do not cross that surface until the F′ R1CS lands (spec
-/// §13 step 9), which is when the mirrors gain the same conditional.
+/// to the pre-Nebula format. The SplitNcV1 in-circuit digest mirrors append
+/// the same conditional extension.
 /// Unambiguous despite the sponge's zero-fill final chunk: the extension
 /// is a nonzero marker plus 12 leaf elements, always > RATE.
 fn append_adv_leaves(preimage: &mut Vec<F>, adv: &Option<LaneCommitments<Commitment>>) {
@@ -474,6 +472,7 @@ pub fn ce_claim_digest(claim: &CeClaim<Commitment, F, K>) -> [F; 4] {
     }
     preimage.push(F::from_u64(claim.m_in as u64));
     preimage.extend(digest32_as_fields(claim.fold_digest));
+    append_adv_leaves(&mut preimage, &claim.adv);
     poseidon_digest_fields(&preimage)
 }
 
@@ -512,16 +511,15 @@ pub fn terminal_children_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] 
     poseidon_digest_fields(&preimage)
 }
 
-/// Digest the full Π_CCS output messages before Π_RLC samples `ρ`.
+/// Digest the new Π_CCS output messages before Π_RLC samples `ρ`.
 ///
 /// SuperNeo's interactive order is "Π_CCS sends output CE claims, then Π_RLC
-/// samples random linear-combination coefficients." In the Fiat-Shamir
-/// transcript, those output claims therefore need an explicit, verifier-
-/// recomputable absorb before `ρ` is derived. This digest binds the whole
-/// clean CE-claim output surface, including the implementation sidecars that
-/// Π_RLC/Π_DEC consume (`s_col`, `ct`, `y_zcol`, and `fold_digest`).
+/// samples random linear-combination coefficients." Only the newly sent
+/// evaluation rows need another Fiat-Shamir absorb: every forwarded field is
+/// already bound by the Π_CCS input transcript or derived by the verifier and
+/// constrained equal to that authority in Π_CCS.V.
 pub fn pi_ccs_outputs_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] {
-    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/pi_ccs_outputs_digest/v1");
+    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/pi_ccs_outputs_digest/v2");
     preimage.push(F::from_u64(claims.len() as u64));
     for claim in claims {
         preimage.extend_from_slice(&pi_ccs_output_claim_digest(claim));
@@ -557,8 +555,9 @@ fn terminal_ce_claim_digest(claim: &CeClaim<Commitment, F, K>) -> [F; 4] {
 }
 
 fn pi_ccs_output_claim_digest(claim: &CeClaim<Commitment, F, K>) -> [F; 4] {
-    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/pi_ccs_output_claim_digest/v1");
-    append_terminal_ce_claim_public_fields(&mut preimage, claim);
+    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/pi_ccs_output_challenge_digest/v2");
+    append_k_rows(&mut preimage, &claim.y_ring);
+    append_k_slice(&mut preimage, &claim.y_zcol);
     poseidon_digest_fields(&preimage)
 }
 
@@ -850,11 +849,13 @@ pub fn public_trace_update_digest(prev: [u8; 32], chunk_digest: [F; 4]) -> [u8; 
 pub fn vk_fs_digest(
     params: &NeoParams,
     structure_digest: &[F; 4],
+    pi_ccs_header_bundle: &[F; 4],
     public_input_len: Option<usize>,
     initial_semantic_state_digest: [u8; 32],
 ) -> [u8; 32] {
     let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/vk_fs/v1");
     preimage.extend(structure_digest.iter().copied());
+    preimage.extend(pi_ccs_header_bundle.iter().copied());
     preimage.extend(u64_halves(params.q));
     preimage.push(F::from_u64(params.eta as u64));
     preimage.push(F::from_u64(params.d as u64));
@@ -898,6 +899,7 @@ pub fn vk_fs_digest(
 #[allow(clippy::too_many_arguments)]
 pub fn state_x_out_digest(
     vk_fs_digest: [u8; 32],
+    pi_ccs_header_bundle: [F; 4],
     _structure_digest: &[F; 4],
     chunk_count: u64,
     step_count: u64,
@@ -911,6 +913,7 @@ pub fn state_x_out_digest(
     state_x_out_digest_with_mode(
         StateXOutDigestMode::Stateful,
         vk_fs_digest,
+        pi_ccs_header_bundle,
         _structure_digest,
         chunk_count,
         step_count,
@@ -942,6 +945,7 @@ pub enum StateXOutDigestMode {
 pub fn state_x_out_digest_with_mode(
     mode: StateXOutDigestMode,
     vk_fs_digest: [u8; 32],
+    pi_ccs_header_bundle: [F; 4],
     _structure_digest: &[F; 4],
     chunk_count: u64,
     step_count: u64,
@@ -955,6 +959,7 @@ pub fn state_x_out_digest_with_mode(
 ) -> [u8; 32] {
     let mut preimage = vec![F::from_u64(F_PRIME_STATE_X_OUT_DOMAIN)];
     preimage.extend(digest32_as_fields(vk_fs_digest));
+    preimage.extend(pi_ccs_header_bundle);
     preimage.extend(u64_halves(chunk_count));
     preimage.extend(u64_halves(step_count));
     preimage.extend(u64_halves(pc));

@@ -7,6 +7,7 @@
 //! circuit semantics and native semantics cannot drift without this failing.
 
 use neo_ccs::relations::check_ccs_rowwise_zero;
+use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
 use neo_fold_clean::frontends::nebula::circuit::{SMemCircuit, StepData};
 use neo_fold_clean::frontends::nebula::fingerprint::Gammas;
 use neo_fold_clean::frontends::nebula::layout::{MemOpRecord, MemSpace, NebulaParams, H_RS};
@@ -204,6 +205,54 @@ fn tampered_assignments_are_rejected_by_rows() {
     assert_eq!(fake_pad[slot0], F::ZERO);
     fake_pad[slot0] = F::ONE;
     assert!(check(&circuit, &fake_pad).is_err());
+}
+
+#[test]
+fn field_native_r1cs_lowering_matches_s_mem_acceptance_and_rejection() {
+    let p = NebulaParams::test_profile();
+    let circuit = SMemCircuit::new(p);
+    let trace = native_segment(&p, 26);
+    let gammas = Rng(6).gammas();
+    let data = step_data(&trace, 0, trace.ts_in, [K::ONE; 4]);
+    let (z, _) = circuit.witness(&gammas, &data).unwrap();
+    check(&circuit, &z).expect("native CCS accepts honest S_mem witness");
+
+    let mut builder = R1csBuilder::new();
+    let wires = circuit
+        .enforce_in_r1cs(&mut builder, &z)
+        .expect("field-native S_mem lowering");
+    assert!(
+        builder.is_satisfied(),
+        "field-native lowering must accept the same honest witness: {:?}",
+        builder.first_unsatisfied_row()
+    );
+    assert_eq!(wires.len(), z.len());
+    assert_eq!(wires[0].col(), 0, "CCS constant column reuses R1CS ONE");
+
+    let tamper_columns = [
+        1 + neo_fold_clean::frontends::nebula::layout::x_offsets::H_OUT,
+        circuit.m_in() + 1,
+        circuit.op_slot_column(0),
+    ];
+    for source_col in tamper_columns {
+        let wire_col = wires[source_col].col();
+        let original = builder.witness()[wire_col];
+        let tampered = if source_col == circuit.m_in() + 1 {
+            F::from_u64(2)
+        } else {
+            F::ONE - original
+        };
+        builder.tamper_witness(wire_col, tampered);
+        assert!(
+            !builder.is_satisfied(),
+            "field-native lowering accepted source-column tamper {source_col}"
+        );
+        builder.tamper_witness(wire_col, original);
+        assert!(
+            builder.is_satisfied(),
+            "restoring source column must restore satisfaction"
+        );
+    }
 }
 
 #[test]

@@ -41,14 +41,16 @@
 
 use std::collections::BTreeSet;
 
-use neo_ccs::Mat;
+use neo_ccs::{CcsMatrix, Mat};
 use neo_fold_clean::engine::r1cs_circuit::{R1csBuilder, TranscriptGadget};
 use neo_fold_clean::engine::transcript::Transcript;
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
+use neo_fold_clean::frontends::r1cs_f_prime::lower_field_r1cs;
 use neo_fold_clean::paper::construction2::RunningInstance;
 use neo_fold_clean::paper::reductions::pi_ccs;
 use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::{
-    enforce_split_nc_pi_ccs_v, Error, SplitNcPiCcsVConfig, SplitNcPiCcsVDerived, SplitNcPiCcsVMessages,
+    enforce_split_nc_pi_ccs_v, enforce_split_nc_pi_ccs_v_with_header_bundle_wires, Error, SplitNcPiCcsVConfig,
+    SplitNcPiCcsVDerived, SplitNcPiCcsVMessages,
 };
 use neo_fold_clean::paper::relations::{superneo_public_x_cols, CcsClaim};
 use neo_math::ring::D;
@@ -425,6 +427,44 @@ fn emit_verifier_with_derived(f: &Fixture) -> Result<(R1csBuilder, SplitNcPiCcsV
     Ok((builder, derived))
 }
 
+fn emit_verifier_with_header_witness(f: &Fixture, header: [F; 4]) -> Result<R1csBuilder, Error> {
+    let mut builder = R1csBuilder::new();
+    let header_wires = header.map(|value| builder.alloc(value));
+    let mut tr = TranscriptGadget::new(&mut builder, SESSION_LABEL);
+    let cfg = split_nc_config(&f.prep);
+
+    enforce_split_nc_pi_ccs_v_with_header_bundle_wires(
+        &mut builder,
+        &mut tr,
+        &cfg,
+        &SplitNcPiCcsVMessages {
+            fresh: &f.fresh_claims,
+            running: &f.running.claims,
+            running_parent_authority: f.running.parent_authority.as_ref(),
+            outputs: &f.proof.outputs,
+            sumcheck_rounds_fe: &f.proof.sumcheck.sumcheck_rounds,
+            sumcheck_rounds_nc: &f.proof.sumcheck.sumcheck_rounds_nc,
+            header_digest: &f.proof.sumcheck.header_digest,
+        },
+        header_wires,
+    )?;
+    Ok(builder)
+}
+
+fn assert_same_matrix(left: &CcsMatrix<F>, right: &CcsMatrix<F>) {
+    match (left, right) {
+        (CcsMatrix::Identity { n: left }, CcsMatrix::Identity { n: right }) => assert_eq!(left, right),
+        (CcsMatrix::Csc(left), CcsMatrix::Csc(right)) => {
+            assert_eq!(left.nrows, right.nrows);
+            assert_eq!(left.ncols, right.ncols);
+            assert_eq!(left.col_ptr, right.col_ptr);
+            assert_eq!(left.row_idx, right.row_idx);
+            assert_eq!(left.vals, right.vals);
+        }
+        _ => panic!("matrix representation changed with the header witness"),
+    }
+}
+
 fn prove_pi_ccs_from_empty_running(
     prep: &neo_fold_clean::Preprocessing,
     r1cs: &R1cs,
@@ -457,6 +497,39 @@ fn split_nc_pi_ccs_v_accepts_native_proof() {
         "native pi_ccs::prove proof must satisfy SplitNc Π_CCS.V circuit; first bad row {:?}",
         builder.first_unsatisfied_row()
     );
+}
+
+#[test]
+fn folded_header_is_bound_as_witness_without_entering_verifier_matrices() {
+    let fixture = build_fixture();
+    let honest_header = split_nc_config(&fixture.prep).header_bundle;
+    let honest =
+        emit_verifier_with_header_witness(&fixture, honest_header).expect("emit honest dynamic-header verifier");
+    assert!(
+        honest.is_satisfied(),
+        "the verifier-derived header must accept the native proof"
+    );
+
+    let mut wrong_header = honest_header;
+    wrong_header[0] += F::ONE;
+    let wrong = emit_verifier_with_header_witness(&fixture, wrong_header).expect("emit wrong dynamic-header verifier");
+    assert!(
+        !wrong.is_satisfied(),
+        "changing the header witness must invalidate the transcript-bound proof"
+    );
+
+    let honest = lower_field_r1cs(honest, &[]).expect("lower honest verifier");
+    let wrong = lower_field_r1cs(wrong, &[]).expect("lower wrong-header verifier");
+    let (honest_shape, _) = honest.into_parts();
+    let (wrong_shape, _) = wrong.into_parts();
+
+    assert_eq!(
+        (honest_shape.n, honest_shape.m, honest_shape.m_in),
+        (wrong_shape.n, wrong_shape.m, wrong_shape.m_in)
+    );
+    assert_same_matrix(&honest_shape.a, &wrong_shape.a);
+    assert_same_matrix(&honest_shape.b, &wrong_shape.b);
+    assert_same_matrix(&honest_shape.c, &wrong_shape.c);
 }
 
 #[test]

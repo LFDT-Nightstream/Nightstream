@@ -74,12 +74,12 @@ pub const F_PRIME_STEP_TRANSCRIPT_LABEL: &[u8] = b"neo.fold.clean/f_prime/step/v
 fn absorb_f_prime_step_context(
     tr: &mut Transcript,
     vk: &VerifierKey,
-    structure_digest: &[F; 4],
+    _structure_digest: &[F; 4],
     state: &State,
     chunk_digest: [F; 4],
 ) {
     tr.append_fields(b"f_prime/vk_fs", &digest32_as_fields(vk.digest()));
-    tr.append_fields(b"f_prime/structure", structure_digest);
+    tr.append_fields(b"f_prime/pi_ccs_header", &vk.pi_ccs_header_bundle());
     tr.append_fields(b"f_prime/chunk_count_in", &[F::from_u64(state.chunk_count)]);
     tr.append_fields(b"f_prime/step_count_in", &[F::from_u64(state.step_count)]);
     tr.append_fields(b"f_prime/z_0", &digest32_as_fields(state.z_0));

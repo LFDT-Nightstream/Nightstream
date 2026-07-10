@@ -37,13 +37,18 @@ use p3_field::PrimeCharacteristicRing;
 
 use neo_ccs::matrix::Mat as NeoMat;
 use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
+use neo_fold_clean::engine::r1cs_circuit::boolean::enforce_bit;
+use neo_fold_clean::engine::r1cs_circuit::u64_arith::decompose_var_to_u64_bits;
+use neo_fold_clean::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
 use neo_fold_clean::frontends::direct_ccs::R1cs;
 use neo_fold_clean::frontends::f_prime::compiler::{verify_prior_fold, FPrimeShellCompilerError};
 use neo_fold_clean::frontends::f_prime::image::FPrimeImageLayout;
 use neo_fold_clean::frontends::f_prime::recursive_plan::build_recursive_step_image_config;
 use neo_fold_clean::frontends::r1cs_f_prime::{
-    self, build_r1cs_f_prime_structure, compile_step, start_chain, R1csChainBuilder, R1csCompilerError,
-    R1csFPrimeStepInput, R1csFoldForStep,
+    self, build_fixed_shape_low_norm_r1cs, build_fixed_shape_low_norm_r1cs_with_shared_private_prefix,
+    build_multi_branch_low_norm_r1cs, build_r1cs_f_prime_structure, compile_step, lower_field_r1cs,
+    lower_sparse_r1cs_to_low_norm, start_chain, FieldR1csLoweringError, FixedR1csBranch, LowNormR1csError,
+    R1csChainBuilder, R1csCompilerError, R1csFPrimeStepInput, R1csFoldForStep,
 };
 use neo_fold_clean::paper::construction2::{FoldProof, ProofState};
 use neo_fold_clean::paper::digest::structure_digest;
@@ -484,7 +489,7 @@ fn r1cs_compiler_satisfies_fibonacci_relation() {
 // one prove + extend takes > 5 min. Under a
 // test-only smaller params profile (kappa = 4, m = 2^16, lambda = 60)
 // the same fixed point structure shrinks to `c_data = 216, child_count
-// = 14, r_len = 13, s_col_len = 19` and the full base → prove → extend →
+// = 14, r_len = 13, s_col_len = 18` and the full base → prove → extend →
 // recursive-compile flow fits in ~55 s.
 //
 // The smaller profile preserves the protocol's algebraic correctness:
@@ -760,4 +765,469 @@ fn r1cs_compiler_tampered_corner_narrowed_slot_fails_structure() {
         !compiled.encoded.structure.is_satisfied(&tampered),
         "a non-bit value in the narrowed slot must break the mux row"
     );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Field-native synthesis -> sparse compiler boundary.
+// ─────────────────────────────────────────────────────────────────────────
+
+fn two_product_synthesis() -> (R1csBuilder, [Var; 2]) {
+    let mut builder = R1csBuilder::new();
+    let a = builder.alloc(F::from_u64(3));
+    let b = builder.alloc(F::from_u64(7));
+    let first = builder.alloc_mul(&Lc::from_var(a), &Lc::from_var(b));
+    let c = builder.alloc(F::from_u64(5));
+    let d = builder.alloc(F::from_u64(9));
+    let second = builder.alloc_mul(&Lc::from_var(c), &Lc::from_var(d));
+    (builder, [second, first])
+}
+
+#[test]
+fn field_r1cs_lowering_preserves_rows_and_public_order() {
+    let (builder, public_outputs) = two_product_synthesis();
+    let lowered = lower_field_r1cs(builder, &public_outputs).expect("lower synthesized relation");
+
+    assert_eq!(lowered.shape().n, 2, "every synthesized row must survive");
+    assert_eq!(lowered.shape().m, 7, "column permutation must not change width");
+    assert_eq!(lowered.shape().m_in, 3, "public prefix is [1, second, first]");
+    assert_eq!(
+        lowered.assignment(),
+        &[
+            F::ONE,
+            F::from_u64(45),
+            F::from_u64(21),
+            F::from_u64(3),
+            F::from_u64(7),
+            F::from_u64(5),
+            F::from_u64(9),
+        ]
+    );
+    lowered
+        .shape()
+        .is_satisfied_by(lowered.assignment())
+        .expect("column-normalized assignment must satisfy the exact sparse relation");
+
+    let mut tampered = lowered.assignment().to_vec();
+    tampered[1] += F::ONE;
+    assert!(
+        lowered.shape().is_satisfied_by(&tampered).is_err(),
+        "second product's public output remains constrained"
+    );
+    let mut tampered = lowered.assignment().to_vec();
+    tampered[2] += F::ONE;
+    assert!(
+        lowered.shape().is_satisfied_by(&tampered).is_err(),
+        "first product's public output remains constrained"
+    );
+}
+
+#[test]
+fn field_r1cs_lowering_preserves_unsatisfaction() {
+    let (mut builder, public_outputs) = two_product_synthesis();
+    let first = public_outputs[1];
+    builder.tamper_witness(first.col(), F::from_u64(22));
+    assert!(!builder.is_satisfied(), "fixture must be unsatisfied before lowering");
+
+    let lowered = lower_field_r1cs(builder, &public_outputs).expect("lower unsatisfied relation");
+    assert!(
+        lowered
+            .shape()
+            .is_satisfied_by(lowered.assignment())
+            .is_err(),
+        "lowering must preserve rejection instead of repairing the witness"
+    );
+}
+
+#[test]
+fn field_r1cs_lowering_rejects_ambiguous_public_columns() {
+    let (builder, public_outputs) = two_product_synthesis();
+    let err = lower_field_r1cs(builder, &[public_outputs[0], public_outputs[0]])
+        .expect_err("duplicate public output must reject");
+    assert!(matches!(
+        err,
+        FieldR1csLoweringError::DuplicatePublicOutput { col } if col == public_outputs[0].col()
+    ));
+
+    let (builder, _) = two_product_synthesis();
+    let err = lower_field_r1cs(builder, &[Var::ONE]).expect_err("implicit constant cannot be repeated");
+    assert!(matches!(err, FieldR1csLoweringError::ConstantOneIsImplicit));
+
+    let (builder, _) = two_product_synthesis();
+    let mut wider_builder = R1csBuilder::new();
+    let mut foreign = Var::ONE;
+    for _ in 0..8 {
+        foreign = wider_builder.alloc(F::ZERO);
+    }
+    let err = lower_field_r1cs(builder, &[foreign]).expect_err("foreign column must reject");
+    assert!(matches!(
+        err,
+        FieldR1csLoweringError::PublicOutputOutOfRange { col, cols: 7 } if col == foreign.col()
+    ));
+}
+
+#[test]
+fn field_r1cs_lowering_has_a_direct_low_norm_path_without_a_second_f_prime_shell() {
+    let (builder, public_outputs) = two_product_synthesis();
+    let lowered = lower_field_r1cs(builder, &public_outputs).expect("lower synthesized relation");
+    let (shape, assignment) = lowered.into_parts();
+    let encoded = lower_sparse_r1cs_to_low_norm(&shape, &assignment).expect("direct low-norm lowering");
+    let encoded_width = 1 + encoded.field_widths()[1..].iter().sum::<usize>();
+    assert!(
+        encoded.is_satisfied(encoded.assignment()),
+        "direct low-norm relation must preserve the exact R1CS rows"
+    );
+    assert_eq!(encoded.structure().m, encoded_width);
+    assert_eq!(
+        encoded.structure().n,
+        encoded_width - 1 + shape.n,
+        "only bitness rows plus the exact R1CS rows may be emitted; no F' shell"
+    );
+    assert_eq!(
+        encoded.public_input_len(),
+        1 + encoded.field_widths()[1..shape.m_in].iter().sum::<usize>()
+    );
+    assert!(
+        encoded
+            .assignment()
+            .iter()
+            .all(|value| *value == F::ZERO || *value == F::ONE),
+        "every directly committed coordinate must be a bit"
+    );
+
+    let mut tampered = encoded.assignment().to_vec();
+    tampered[1] = F::from_u64(2);
+    assert!(
+        !encoded.is_satisfied(&tampered),
+        "direct lowering must constrain every low-norm coordinate to a bit"
+    );
+}
+
+#[test]
+fn direct_low_norm_lowering_keeps_boolean_public_outputs_one_bit_each() {
+    let mut builder = R1csBuilder::new();
+    let first = builder.alloc(F::ONE);
+    let second = builder.alloc(F::ZERO);
+    enforce_bit(&mut builder, first);
+    enforce_bit(&mut builder, second);
+    let lowered = lower_field_r1cs(builder, &[first, second]).expect("field lowering");
+    let (shape, assignment) = lowered.into_parts();
+    let encoded = lower_sparse_r1cs_to_low_norm(&shape, &assignment).expect("low-norm lowering");
+
+    assert_eq!(&encoded.field_widths()[..3], &[1, 1, 1]);
+    assert_eq!(
+        encoded.public_input_len(),
+        3,
+        "public prefix must be [1, first, second]"
+    );
+    assert!(encoded.is_satisfied(encoded.assignment()));
+}
+
+#[test]
+fn direct_low_norm_lowering_rejects_a_missing_public_constant_prefix() {
+    let (builder, public_outputs) = two_product_synthesis();
+    let lowered = lower_field_r1cs(builder, &public_outputs).expect("field lowering");
+    let (mut shape, assignment) = lowered.into_parts();
+    shape.m_in = 0;
+
+    let err = lower_sparse_r1cs_to_low_norm(&shape, &assignment)
+        .expect_err("the low-norm public prefix must include constant one");
+    assert!(matches!(err, LowNormR1csError::MissingPublicConstant));
+}
+
+fn boolean_copy_synthesis(value: F, duplicate_copy_row: bool) -> (R1csBuilder, Var) {
+    let mut builder = R1csBuilder::new();
+    let private = builder.alloc(value);
+    let public = builder.alloc(value);
+    enforce_bit(&mut builder, private);
+    enforce_bit(&mut builder, public);
+    builder.enforce_eq(&Lc::from_var(private), &Lc::from_var(public));
+    if duplicate_copy_row {
+        builder.enforce_eq(&Lc::from_var(private), &Lc::from_var(public));
+    }
+    (builder, public)
+}
+
+fn shared_private_synthesis(value: F, duplicate_copy_row: bool) -> (R1csBuilder, Var) {
+    let mut builder = R1csBuilder::new();
+    let shared = builder.alloc(value);
+    let branch_private = builder.alloc(value);
+    let public = builder.alloc(value);
+    enforce_bit(&mut builder, shared);
+    enforce_bit(&mut builder, branch_private);
+    enforce_bit(&mut builder, public);
+    builder.enforce_eq(&Lc::from_var(public), &Lc::from_var(shared));
+    builder.enforce_eq(&Lc::from_var(public), &Lc::from_var(branch_private));
+    if duplicate_copy_row {
+        builder.enforce_eq(&Lc::from_var(public), &Lc::from_var(branch_private));
+    }
+    (builder, public)
+}
+
+#[test]
+fn fixed_shape_low_norm_relation_selects_base_or_recursive_rows() {
+    let (base_builder, base_public) = boolean_copy_synthesis(F::ONE, false);
+    let base = lower_field_r1cs(base_builder, &[base_public]).expect("base lowering");
+    let (base_shape, base_assignment) = base.into_parts();
+
+    let (recursive_builder, recursive_public) = boolean_copy_synthesis(F::ZERO, true);
+    let recursive = lower_field_r1cs(recursive_builder, &[recursive_public]).expect("recursive lowering");
+    let (recursive_shape, recursive_assignment) = recursive.into_parts();
+
+    let fixed = build_fixed_shape_low_norm_r1cs(&base_shape, &recursive_shape).expect("fixed-shape relation");
+    let base_encoded = fixed
+        .encode(FixedR1csBranch::Base, &base_assignment)
+        .expect("base encoding");
+    let recursive_encoded = fixed
+        .encode(FixedR1csBranch::Recursive, &recursive_assignment)
+        .expect("recursive encoding");
+
+    assert_eq!(base_encoded.len(), recursive_encoded.len());
+    assert_eq!(fixed.public_input_len(), 2, "public prefix is [1, output_bit]");
+    assert_eq!(base_encoded[fixed.selector_col()], F::ONE);
+    assert_eq!(recursive_encoded[fixed.selector_col()], F::ZERO);
+    assert!(fixed.is_satisfied(&base_encoded));
+    assert!(fixed.is_satisfied(&recursive_encoded));
+    assert_eq!(
+        fixed.structure().max_degree(),
+        3,
+        "branch selection is one cubic CCS gate"
+    );
+    assert_eq!(
+        fixed.structure().n,
+        fixed.structure().m - 1 + base_shape.n + recursive_shape.n,
+        "fixed relation contains global bitness plus both selector-gated source relations"
+    );
+
+    let base_private_col = fixed.selector_col() + 1;
+    let recursive_private_col = base_private_col + 1;
+    let mut tampered = base_encoded.clone();
+    tampered[base_private_col] = F::ZERO;
+    assert!(
+        !fixed.is_satisfied(&tampered),
+        "selected base witness must be load-bearing"
+    );
+
+    let mut inactive_tamper = base_encoded.clone();
+    inactive_tamper[recursive_private_col] = F::ONE;
+    assert!(
+        fixed.is_satisfied(&inactive_tamper),
+        "inactive recursive semantics must be selector-gated"
+    );
+    inactive_tamper[recursive_private_col] = F::from_u64(2);
+    assert!(
+        !fixed.is_satisfied(&inactive_tamper),
+        "inactive coordinates remain globally low-norm bits"
+    );
+
+    let mut public_tamper = recursive_encoded;
+    public_tamper[1] = F::ONE;
+    assert!(
+        !fixed.is_satisfied(&public_tamper),
+        "the selected recursive relation must constrain the shared public output"
+    );
+}
+
+#[test]
+fn fixed_shape_relation_shares_the_application_private_prefix() {
+    let (base_builder, base_public) = shared_private_synthesis(F::ONE, false);
+    let base = lower_field_r1cs(base_builder, &[base_public]).expect("base lowering");
+    let (base_shape, base_assignment) = base.into_parts();
+
+    let (recursive_builder, recursive_public) = shared_private_synthesis(F::ZERO, true);
+    let recursive = lower_field_r1cs(recursive_builder, &[recursive_public]).expect("recursive lowering");
+    let (recursive_shape, recursive_assignment) = recursive.into_parts();
+
+    let fixed = build_fixed_shape_low_norm_r1cs_with_shared_private_prefix(&base_shape, &recursive_shape, 1)
+        .expect("shared-prefix fixed relation");
+    let base_shared = fixed
+        .field_slot(FixedR1csBranch::Base, base_shape.m_in)
+        .expect("base shared slot");
+    let recursive_shared = fixed
+        .field_slot(FixedR1csBranch::Recursive, recursive_shape.m_in)
+        .expect("recursive shared slot");
+    assert_eq!(
+        base_shared, recursive_shared,
+        "the application witness has one fixed slot"
+    );
+    assert_ne!(
+        fixed.field_slot(FixedR1csBranch::Base, base_shape.m_in + 1),
+        fixed.field_slot(FixedR1csBranch::Recursive, recursive_shape.m_in + 1),
+        "branch-specific verifier advice must remain disjoint"
+    );
+
+    let base_encoded = fixed
+        .encode(FixedR1csBranch::Base, &base_assignment)
+        .expect("base encoding");
+    let recursive_encoded = fixed
+        .encode(FixedR1csBranch::Recursive, &recursive_assignment)
+        .expect("recursive encoding");
+    assert!(fixed.is_satisfied(&base_encoded));
+    assert!(fixed.is_satisfied(&recursive_encoded));
+
+    let mut tampered = base_encoded;
+    tampered[base_shared.0] = F::ZERO;
+    assert!(
+        !fixed.is_satisfied(&tampered),
+        "the shared application slot must remain load-bearing in the selected branch"
+    );
+}
+
+#[test]
+fn multi_branch_relation_one_hot_selects_base_bootstrap_and_steady_rows() {
+    let mut shapes = Vec::new();
+    let mut assignments = Vec::new();
+    for (value, duplicate) in [(F::ONE, false), (F::ZERO, true), (F::ONE, true)] {
+        let (builder, public) = shared_private_synthesis(value, duplicate);
+        let lowered = lower_field_r1cs(builder, &[public]).expect("arm lowering");
+        let (shape, assignment) = lowered.into_parts();
+        shapes.push(shape);
+        assignments.push(assignment);
+    }
+
+    let fixed = build_multi_branch_low_norm_r1cs(&shapes, 1).expect("three-arm fixed relation");
+    assert_eq!(fixed.selector_cols().len(), 3);
+    assert_eq!(fixed.structure().t(), 6);
+    assert_eq!(fixed.structure().max_degree(), 3);
+    let shared_slots: Vec<_> = shapes
+        .iter()
+        .enumerate()
+        .map(|(arm, shape)| fixed.field_slot(arm, shape.m_in).expect("shared slot"))
+        .collect();
+    assert!(shared_slots.iter().all(|slot| *slot == shared_slots[0]));
+    let branch_slots: Vec<_> = shapes
+        .iter()
+        .enumerate()
+        .map(|(arm, shape)| {
+            fixed
+                .field_slot(arm, shape.m_in + 1)
+                .expect("branch-local slot")
+                .0
+        })
+        .collect();
+    assert!(
+        branch_slots.iter().all(|slot| *slot == branch_slots[0]),
+        "one-hot arms must overlay branch-local advice instead of paying their summed widths"
+    );
+    let last_used_col = shapes
+        .iter()
+        .enumerate()
+        .filter_map(|(arm, shape)| fixed.field_slot(arm, shape.m - 1))
+        .map(|(start, width)| start + width)
+        .chain(fixed.selector_cols().iter().map(|&column| column + 1))
+        .max()
+        .expect("fixed relation has selectors and branch slots");
+    assert_eq!(
+        fixed.structure().m,
+        last_used_col,
+        "overlaid relation must not retain an unused disjoint-arm tail"
+    );
+
+    for arm in 0..3 {
+        let encoded = fixed.encode(arm, &assignments[arm]).expect("arm encoding");
+        assert!(fixed.is_satisfied(&encoded), "arm {arm} must satisfy");
+        assert_eq!(
+            fixed
+                .selector_cols()
+                .iter()
+                .map(|&col| encoded[col])
+                .collect::<Vec<_>>(),
+            (0..3)
+                .map(|selector| if selector == arm { F::ONE } else { F::ZERO })
+                .collect::<Vec<_>>()
+        );
+    }
+
+    let mut two_hot = fixed.encode(0, &assignments[0]).expect("base encoding");
+    two_hot[fixed.selector_cols()[1]] = F::ONE;
+    assert!(
+        !fixed.is_satisfied(&two_hot),
+        "selector sum must enforce exactly one active arm"
+    );
+}
+
+fn canonical_decomposition_synthesis(value: F, duplicate_row: bool) -> (R1csBuilder, Var) {
+    let mut builder = R1csBuilder::new();
+    let source = builder.alloc(value);
+    let _bits = decompose_var_to_u64_bits(&mut builder, source);
+    let public = builder.alloc(F::ONE);
+    enforce_bit(&mut builder, public);
+    if duplicate_row {
+        builder.enforce_eq(&Lc::from_var(source), &Lc::from_var(source));
+    }
+    (builder, public)
+}
+
+#[test]
+fn direct_low_norm_lowering_reuses_canonical_decomposition_bits() {
+    let (builder, public) = canonical_decomposition_synthesis(F::from_u64(7), false);
+    let lowered = lower_field_r1cs(builder, &[public]).expect("field lowering");
+    let (shape, assignment) = lowered.into_parts();
+    let encoded = lower_sparse_r1cs_to_low_norm(&shape, &assignment).expect("low-norm lowering");
+
+    let source_col = shape.m_in;
+    let first_bit_col = source_col + 1;
+    let source_slot = encoded.field_slot(source_col).expect("source field slot");
+    assert_eq!(source_slot.1, 64);
+    for bit in 0..64 {
+        assert_eq!(
+            encoded.field_slot(first_bit_col + bit),
+            Some((source_slot.0 + bit, 1)),
+            "decomposition bit {bit} must reuse the source field slot"
+        );
+    }
+    let unaliased_width = 1 + encoded.field_widths()[1..].iter().sum::<usize>();
+    assert_eq!(
+        encoded.structure().m + 64,
+        unaliased_width,
+        "one canonical decomposition must remove exactly 64 duplicate committed bits"
+    );
+    assert!(encoded.is_satisfied(encoded.assignment()));
+
+    let mut inconsistent = assignment;
+    inconsistent[first_bit_col] = F::ZERO;
+    let error = lower_sparse_r1cs_to_low_norm(&shape, &inconsistent)
+        .expect_err("an aliased child cannot disagree with its source bit");
+    assert!(matches!(
+        error,
+        LowNormR1csError::AliasedBitMismatch {
+            field_col,
+            bit_col,
+            bit: 0,
+        } if field_col == source_col && bit_col == first_bit_col
+    ));
+}
+
+#[test]
+fn multi_branch_lowering_preserves_canonical_bit_aliases() {
+    let mut shapes = Vec::new();
+    let mut assignments = Vec::new();
+    for (value, duplicate) in [
+        (F::from_u64(7), false),
+        (F::from_u64(11), true),
+        (F::from_u64(13), false),
+    ] {
+        let (builder, public) = canonical_decomposition_synthesis(value, duplicate);
+        let lowered = lower_field_r1cs(builder, &[public]).expect("arm lowering");
+        let (shape, assignment) = lowered.into_parts();
+        shapes.push(shape);
+        assignments.push(assignment);
+    }
+
+    let fixed = build_multi_branch_low_norm_r1cs(&shapes, 0).expect("three-arm fixed relation");
+    for arm in 0..3 {
+        let source_col = shapes[arm].m_in;
+        let source_slot = fixed
+            .field_slot(arm, source_col)
+            .expect("source field slot");
+        assert_eq!(source_slot.1, 64);
+        for bit in 0..64 {
+            assert_eq!(
+                fixed.field_slot(arm, source_col + 1 + bit),
+                Some((source_slot.0 + bit, 1)),
+                "arm {arm} decomposition bit {bit} must reuse its source slot"
+            );
+        }
+        let encoded = fixed.encode(arm, &assignments[arm]).expect("arm encoding");
+        assert!(fixed.is_satisfied(&encoded), "arm {arm} must remain satisfiable");
+    }
 }

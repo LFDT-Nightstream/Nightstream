@@ -40,6 +40,9 @@ use crate::engine::r1cs_circuit::boolean;
 use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
 use crate::paper::params::Params;
+use crate::paper::relations::product_commitment_circuit::{
+    alloc_adv, enforce_adv_recomposition, validate_adv_shape, AdvCommitmentWires,
+};
 use crate::paper::relations::CeClaim;
 
 /// Wires for one CE claim inside the Π_DEC.V gadget. Returned by
@@ -66,6 +69,8 @@ pub struct CeClaimWires {
     /// Ajtai dimension `kappa` of the commitment.
     pub c_kappa: usize,
     pub c_kappa_var: Var,
+    /// Nebula coordinates of the same product commitment as `c_data`.
+    pub adv: Option<AdvCommitmentWires>,
     /// `rows * cols` columns, row-major.
     pub x: Vec<Var>,
     pub x_rows: usize,
@@ -168,7 +173,14 @@ pub fn enforce_dec_v(builder: &mut R1csBuilder, pp: &Params, wires: &DecInputWir
         &b_pows,
         ChildField::Commitment,
     );
-    enforce_lane_combination(builder, &wires.parent.x, &wires.children, &b_pows, ChildField::X);
+    let child_adv: Vec<Option<AdvCommitmentWires>> = wires
+        .children
+        .iter()
+        .map(|child| child.adv.clone())
+        .collect();
+    enforce_adv_recomposition(builder, wires.parent.adv.as_ref(), &child_adv, &b_pows)
+        .map_err(Error::ProductCommitment)?;
+    enforce_active_x_combination(builder, &wires.parent, &wires.children, &b_pows);
     for j in 0..wires.parent.y_ring.len() {
         enforce_lane_combination_y(builder, j, &wires.parent.y_ring[j], &wires.children, &b_pows);
     }
@@ -380,11 +392,10 @@ fn enforce_inactive_x_zero_one(builder: &mut R1csBuilder, claim: &CeClaimWires, 
             idx,
         });
     }
-    for r in 0..claim.x_rows {
-        for c in active_cols..claim.x_cols {
-            builder.enforce_eq(&Lc::from_var(claim.x[r * claim.x_cols + c]), &Lc::zero());
-        }
-    }
+    enforce_unique_zero_wires(
+        builder,
+        (0..claim.x_rows).flat_map(|r| (active_cols..claim.x_cols).map(move |c| claim.x[r * claim.x_cols + c])),
+    );
     Ok(())
 }
 
@@ -489,7 +500,6 @@ pub fn enforce_s_col_consistency(builder: &mut R1csBuilder, wires: &DecInputWire
 #[derive(Clone, Copy)]
 enum ChildField {
     Commitment,
-    X,
 }
 
 fn enforce_lane_combination(
@@ -505,11 +515,38 @@ fn enforce_lane_combination(
         for (idx, child) in children.iter().enumerate() {
             let child_var = match field {
                 ChildField::Commitment => child.c_data[lane],
-                ChildField::X => child.x[lane],
             };
             combo.add_term(child_var, b_pows[idx]);
         }
         builder.enforce_eq(&Lc::from_var(parent_lanes[lane]), &combo);
+    }
+}
+
+fn enforce_active_x_combination(
+    builder: &mut R1csBuilder,
+    parent: &CeClaimWires,
+    children: &[CeClaimWires],
+    b_pows: &[F],
+) {
+    let active_cols = crate::paper::relations::superneo_public_x_cols(parent.m_in);
+    for row in 0..parent.x_rows {
+        for col in 0..active_cols {
+            let lane = row * parent.x_cols + col;
+            let mut combo = Lc::zero();
+            for (child, coeff) in children.iter().zip(b_pows.iter().copied()) {
+                combo.add_term(child.x[lane], coeff);
+            }
+            builder.enforce_eq(&Lc::from_var(parent.x[lane]), &combo);
+        }
+    }
+}
+
+fn enforce_unique_zero_wires(builder: &mut R1csBuilder, wires: impl Iterator<Item = Var>) {
+    let mut constrained = std::collections::HashSet::new();
+    for wire in wires {
+        if constrained.insert(wire.col()) {
+            builder.enforce_eq(&Lc::from_var(wire), &Lc::zero());
+        }
     }
 }
 
@@ -531,12 +568,21 @@ fn enforce_lane_combination_y(
 
 pub(crate) fn alloc_ce_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> CeClaimWires {
     let c_data = builder.alloc_vec(&claim.c.data);
+    let adv = alloc_adv(builder, claim.adv.as_ref());
     let x_rows = claim.X.rows();
     let x_cols = claim.X.cols();
     let mut x = Vec::with_capacity(x_rows * x_cols);
+    let active_cols = crate::paper::relations::superneo_public_x_cols(claim.m_in);
+    let inactive_nonzero = (0..x_rows).any(|r| (active_cols..x_cols).any(|c| claim.X[(r, c)] != F::ZERO));
+    let inactive_zero = builder.alloc(if inactive_nonzero { F::ONE } else { F::ZERO });
+    builder.enforce_eq(&Lc::from_var(inactive_zero), &Lc::zero());
     for r in 0..x_rows {
         for c in 0..x_cols {
-            x.push(builder.alloc(claim.X[(r, c)]));
+            x.push(if c < active_cols {
+                builder.alloc(claim.X[(r, c)])
+            } else {
+                inactive_zero
+            });
         }
     }
     let y_ring = claim
@@ -607,6 +653,7 @@ pub(crate) fn alloc_ce_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> CeCl
         c_d_var: alloc_usize(builder, claim.c.d),
         c_kappa: claim.c.kappa,
         c_kappa_var: alloc_usize(builder, claim.c.kappa),
+        adv,
         x,
         x_rows,
         x_rows_var: alloc_usize(builder, x_rows),
@@ -687,6 +734,7 @@ fn enforce_centered_alphabet(builder: &mut R1csBuilder, v: Var, b: u32) {
 
 fn check_shapes(parent: &CeClaimWires, children: &[CeClaimWires]) -> Result<(), Error> {
     reject_unsupported_sidecar_fields(parent, 0)?;
+    validate_adv_shape(parent.adv.as_ref(), parent.c_d, parent.c_kappa, "parent").map_err(Error::ProductCommitment)?;
     if parent.c_d != D {
         return Err(Error::ShapeMismatch {
             what: "parent commitment d",
@@ -722,6 +770,8 @@ fn check_shapes(parent: &CeClaimWires, children: &[CeClaimWires]) -> Result<(), 
     }
     for (idx, child) in children.iter().enumerate() {
         reject_unsupported_sidecar_fields(child, idx)?;
+        validate_adv_shape(child.adv.as_ref(), child.c_d, child.c_kappa, &format!("child[{idx}]"))
+            .map_err(Error::ProductCommitment)?;
         if child.c_d != parent.c_d {
             return Err(Error::ShapeMismatch {
                 what: "child commitment d",
@@ -874,6 +924,8 @@ pub enum Error {
         got: usize,
         idx: usize,
     },
+    #[error("Pi_DEC.V: invalid product commitment: {0}")]
+    ProductCommitment(String),
 }
 
 // `Commitment` import kept for documentation linkage; not referenced directly

@@ -86,19 +86,45 @@ fn honest_fill_has_zero_identity_residual() {
     assert_ne!(bad_residual, K::ZERO, "a forged term must leave a residual");
 }
 
-/// The Road A production shell: projection regions in, D² pairs out,
-/// integrated width measured and under the budget — with the D²
-/// reference shell preserved for comparison.
+/// Historical projection cost model: projection regions in, D² pairs out,
+/// with the D² reference preserved for comparison. This does not claim the
+/// regions are bound to the authoritative F' relation.
 #[test]
-fn road_a_shell_is_measured_and_under_budget() {
+fn projection_cost_model_is_measured_and_under_budget() {
     let road_a = FPrimeImageLayout::new(production_kmul_ring_action_shell_image_config());
     let d2 = FPrimeImageLayout::new(production_kmul_d2_ring_action_shell_image_config());
 
-    println!("Road A shell: {} bits; D² reference: {} bits", road_a.end, d2.end);
-    assert_eq!(road_a.end, 14_040_452, "integrated Road A shell width (pinned)");
+    println!("projection model: {} bits; D² reference: {} bits", road_a.end, d2.end);
+    assert_eq!(road_a.end, 14_040_452, "projection cost-model width (pinned)");
     assert_eq!(d2.end, 94_330_948, "D² reference width (pinned)");
     assert!(road_a.projection.bits > 0, "projection regions present");
     assert_eq!(road_a.ring_action.bits, 0, "no D² pairs in the Road A shell");
+}
+
+/// ROAD A GATE (ignored; fails today): reserved K-mul slots must carry the
+/// Karatsuba equations of the authoritative recursive verifier, not merely
+/// bitness. The current shell allocates these slots for cost accounting but
+/// emits no rows that relate their p/q/r intermediates.
+#[test]
+#[ignore = "Road A relation gate: fails until K-mul slots are constrained or the authoritative F' R1CS replaces the manual shell"]
+fn folded_f_prime_kmul_slots_must_be_semantically_constrained() {
+    let mut config = production_kmul_d2_ring_action_shell_image_config();
+    config.kmul_count = 1;
+    config.ring_action_pair_count = 0;
+    config.projection_batches.clear();
+    let layout = FPrimeImageLayout::new(config);
+    let structure = build_f_prime_structure(layout.clone());
+    let mut image = FPrimeImage::new(layout);
+
+    let honest = structure.extend_witness_from_image(&image);
+    assert!(structure.is_satisfied(&honest), "zero K-mul fixture must satisfy");
+
+    image.values[structure.layout.kmul.offset] = F::ONE;
+    let forged = structure.extend_witness_from_image(&image);
+    assert!(
+        !structure.is_satisfied(&forged),
+        "a bit-valid mutation of a K-mul intermediate must violate its multiplication relation"
+    );
 }
 
 fn small_projection_layout(batch_len: usize) -> FPrimeImageLayout {

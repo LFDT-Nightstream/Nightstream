@@ -16,6 +16,7 @@ pub mod compiler;
 pub mod encoder;
 pub mod instance;
 pub mod lifecycle;
+pub mod lowering;
 pub mod structure;
 
 pub use compiler::{
@@ -25,6 +26,12 @@ pub use compiler::{
 pub use encoder::{assignment_to_bits, encode_r1cs_f_prime_step, R1csEncoderInput};
 pub use instance::build_instance;
 pub use lifecycle::{prove_encoded_steps, R1csChainBuilder};
+pub use lowering::{
+    build_fixed_shape_low_norm_r1cs, build_fixed_shape_low_norm_r1cs_with_shared_private_prefix,
+    build_multi_branch_low_norm_r1cs, build_multi_branch_low_norm_r1cs_with_alignment, lower_field_r1cs,
+    lower_sparse_r1cs_to_low_norm, FieldR1csLoweringError, FixedR1csBranch, FixedShapeLowNormR1cs, LowNormR1cs,
+    LowNormR1csError, LoweredFieldR1cs, MultiBranchLowNormR1cs,
+};
 pub use structure::{build_r1cs_f_prime_structure, R1csRowAnchors, R1csShape, SparseR1cs};
 
 use std::sync::Arc;

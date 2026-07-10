@@ -148,7 +148,7 @@ mod commitment;
 mod evaluation;
 mod witness;
 
-pub(crate) use commitment::{enforce_ajtai_opening, enforce_x_projection};
+pub(crate) use commitment::{enforce_ajtai_opening, enforce_ajtai_slice_opening, enforce_x_projection};
 pub(crate) use evaluation::{enforce_ct_from_y_ring, enforce_y_ring_from_z_at_r, enforce_y_zcol_from_z_at_s_col};
 pub(crate) use witness::alloc_final_witness;
 
@@ -177,6 +177,8 @@ pub(crate) enum CeRelationError {
          rejects b < 2; this only fires from a hand-crafted Preprocessing)"
     )]
     InvalidNormBound { b: u32 },
+    #[error("decider_ce_relation: claim {index} Nebula adv presence does not match preprocessing")]
+    NebulaAdvPresence { index: usize },
 }
 
 /// Emit the terminal CE-relation constraint rows.
@@ -239,6 +241,38 @@ pub(crate) fn enforce_final_ce_relations(
             claim_wires.c_kappa,
         )
         .map_err(|err| ajtai_setup_err(index, err))?;
+
+        match (prep.nebula(), claim_wires.adv.as_ref()) {
+            (None, None) => {}
+            (Some(nebula), Some(adv)) => {
+                let ops_pp = nebula.scheme.ops_module().verification_pp().map_err(|_| {
+                    let (d, cols) = nebula.scheme.ops_module().dims();
+                    CeRelationError::AjtaiSetupMissing { d, cols }
+                })?;
+                let mem_pp = nebula.scheme.mem_module().verification_pp().map_err(|_| {
+                    let (d, cols) = nebula.scheme.mem_module().dims();
+                    CeRelationError::AjtaiSetupMissing { d, cols }
+                })?;
+                let ranges = nebula.scheme.ranges();
+                for (commitment, columns, pp) in [
+                    (&adv.ops, ranges.ops.clone(), ops_pp.as_ref()),
+                    (&adv.is, ranges.is.clone(), mem_pp.as_ref()),
+                    (&adv.fs, ranges.fs.clone(), mem_pp.as_ref()),
+                ] {
+                    enforce_ajtai_slice_opening(
+                        builder,
+                        &witness_wires,
+                        &commitment.data,
+                        commitment.d,
+                        commitment.kappa,
+                        columns,
+                        pp,
+                    )
+                    .map_err(|err| ajtai_setup_err(index, err))?;
+                }
+            }
+            _ => return Err(CeRelationError::NebulaAdvPresence { index }),
+        }
 
         enforce_x_projection(builder, &witness_wires, claim_wires).map_err(|err| projection_err(index, err))?;
 

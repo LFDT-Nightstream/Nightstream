@@ -98,6 +98,18 @@ pub struct RingMulAuditEntry {
     pub products: Vec<Vec<Var>>,
 }
 
+/// One canonical Goldilocks decomposition emitted by the u64 gadget.
+///
+/// The field-native relation still contains every decomposition constraint.
+/// Low-norm lowering may additionally use this trusted synthesis metadata to
+/// place each one-bit child directly in the corresponding bit of `field_col`
+/// instead of committing the same bit twice.
+#[derive(Clone, Debug)]
+pub(crate) struct CanonicalU64Decomposition {
+    pub(crate) field_col: usize,
+    pub(crate) bit_cols: [usize; 64],
+}
+
 /// R1CS builder: appends rows to (A, B, C) triplet form.
 ///
 /// Construct via [`R1csBuilder::new`], allocate variables and emit constraints,
@@ -120,6 +132,21 @@ pub struct R1csBuilder {
     audit_enabled: bool,
     audit_k_muls: Vec<[Var; 3]>,
     audit_ring_muls: Vec<RingMulAuditEntry>,
+    canonical_u64_decompositions: Vec<CanonicalU64Decomposition>,
+}
+
+/// Immutable output of one completed R1CS synthesis.
+///
+/// This stays crate-private: frontends may translate the exact rows and
+/// witness into their committed representation, but protocol callers should
+/// never construct or mutate matrix triplets directly.
+pub(crate) struct R1csSynthesis {
+    pub(crate) a_trips: Vec<(usize, usize, F)>,
+    pub(crate) b_trips: Vec<(usize, usize, F)>,
+    pub(crate) c_trips: Vec<(usize, usize, F)>,
+    pub(crate) witness: Vec<F>,
+    pub(crate) rows: usize,
+    pub(crate) canonical_u64_decompositions: Vec<CanonicalU64Decomposition>,
 }
 
 impl Default for R1csBuilder {
@@ -139,6 +166,7 @@ impl R1csBuilder {
             audit_enabled: false,
             audit_k_muls: Vec::new(),
             audit_ring_muls: Vec::new(),
+            canonical_u64_decompositions: Vec::new(),
         }
     }
 
@@ -183,6 +211,14 @@ impl R1csBuilder {
         if self.audit_enabled {
             self.audit_ring_muls.push(entry);
         }
+    }
+
+    pub(crate) fn record_canonical_u64_decomposition(&mut self, field: Var, bits: [Var; 64]) {
+        self.canonical_u64_decompositions
+            .push(CanonicalU64Decomposition {
+                field_col: field.col(),
+                bit_cols: bits.map(Var::col),
+            });
     }
 
     /// Allocate a private witness variable and bind it to `value`.
@@ -265,8 +301,27 @@ impl R1csBuilder {
         self.witness.len()
     }
 
+    /// Total nonzero coefficients currently stored across A, B, and C.
+    /// Useful for cost audits of dense linear gadgets.
+    pub fn nonzero_entries(&self) -> usize {
+        self.a_trips.len() + self.b_trips.len() + self.c_trips.len()
+    }
+
     pub fn witness(&self) -> &[F] {
         &self.witness
+    }
+
+    /// Finish synthesis and transfer the exact sparse rows plus witness to a
+    /// frontend-owned lowering pass.
+    pub(crate) fn into_synthesis(self) -> R1csSynthesis {
+        R1csSynthesis {
+            a_trips: self.a_trips,
+            b_trips: self.b_trips,
+            c_trips: self.c_trips,
+            witness: self.witness,
+            rows: self.rows,
+            canonical_u64_decompositions: self.canonical_u64_decompositions,
+        }
     }
 
     /// Allocated witness columns that do not appear in any A/B/C row.

@@ -65,19 +65,7 @@ impl LaneScheme {
         ops_seed: [u8; 32],
         mem_seed: [u8; 32],
     ) -> Result<Self, LaneSchemeError> {
-        if ranges.ops.is_empty() || ranges.is.is_empty() || ranges.fs.is_empty() {
-            return Err(LaneSchemeError::Invalid("lane ranges must be non-empty"));
-        }
-        if ranges.is.len() != ranges.fs.len() {
-            return Err(LaneSchemeError::Invalid(
-                "is/fs lanes must have identical width (byte-identical layout, spec §3.3)",
-            ));
-        }
-        if ranges.ops.end > ranges.is.start || ranges.is.end > ranges.fs.start {
-            return Err(LaneSchemeError::Invalid(
-                "lane ranges must be disjoint and ordered ops < is < fs (spec §5.1 layout)",
-            ));
-        }
+        validate_ranges(&ranges)?;
         let setup = |seed: [u8; 32], m: usize| -> Result<Arc<AjtaiSModule>, LaneSchemeError> {
             let mut rng = ChaCha8Rng::from_seed(seed);
             let pp = setup_par(&mut rng, D, kappa, m).map_err(|e| LaneSchemeError::Setup(e.to_string()))?;
@@ -86,6 +74,26 @@ impl LaneScheme {
         Ok(Self {
             a_ops: setup(ops_seed, ranges.ops.len())?,
             a_mem: setup(mem_seed, ranges.is.len())?,
+            ranges,
+        })
+    }
+
+    /// Reuse the same lane commitment matrices at new full-witness column
+    /// offsets. The lane widths are immutable because they are the module
+    /// dimensions; only their placement inside a composed assignment moves.
+    pub(crate) fn remap_ranges(&self, ranges: LaneRanges) -> Result<Self, LaneSchemeError> {
+        validate_ranges(&ranges)?;
+        if ranges.ops.len() != self.ranges.ops.len()
+            || ranges.is.len() != self.ranges.is.len()
+            || ranges.fs.len() != self.ranges.fs.len()
+        {
+            return Err(LaneSchemeError::Invalid(
+                "remapped lane widths must match the existing commitment modules",
+            ));
+        }
+        Ok(Self {
+            a_ops: Arc::clone(&self.a_ops),
+            a_mem: Arc::clone(&self.a_mem),
             ranges,
         })
     }
@@ -137,6 +145,18 @@ impl LaneScheme {
         Ok(self.commit(z)? == *adv)
     }
 
+    pub(crate) fn ops_module(&self) -> &AjtaiSModule {
+        &self.a_ops
+    }
+
+    pub(crate) fn mem_module(&self) -> &AjtaiSModule {
+        &self.a_mem
+    }
+
+    pub(crate) fn ranges(&self) -> &LaneRanges {
+        &self.ranges
+    }
+
     fn check_width(&self, z: &Mat<F>) -> Result<(), LaneSchemeError> {
         let need = self.ranges.fs.end;
         if z.cols() < need {
@@ -144,6 +164,23 @@ impl LaneScheme {
         }
         Ok(())
     }
+}
+
+fn validate_ranges(ranges: &LaneRanges) -> Result<(), LaneSchemeError> {
+    if ranges.ops.is_empty() || ranges.is.is_empty() || ranges.fs.is_empty() {
+        return Err(LaneSchemeError::Invalid("lane ranges must be non-empty"));
+    }
+    if ranges.is.len() != ranges.fs.len() {
+        return Err(LaneSchemeError::Invalid(
+            "is/fs lanes must have identical width (byte-identical layout, spec §3.3)",
+        ));
+    }
+    if ranges.ops.end > ranges.is.start || ranges.is.end > ranges.fs.start {
+        return Err(LaneSchemeError::Invalid(
+            "lane ranges must be disjoint and ordered ops < is < fs (spec §5.1 layout)",
+        ));
+    }
+    Ok(())
 }
 
 impl std::fmt::Debug for LaneScheme {

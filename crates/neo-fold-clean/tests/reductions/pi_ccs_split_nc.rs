@@ -18,15 +18,15 @@ use neo_fold_clean::engine::r1cs_circuit::field_ext::KVar;
 use neo_fold_clean::engine::r1cs_circuit::{Lc, R1csBuilder, TranscriptGadget};
 use neo_fold_clean::paper::digest::{
     accumulator_ce_claim_digest, accumulator_digest_from_running_parts, ccs_claim_digest, ce_claim_digest,
-    digest32_as_fields, pi_ccs_instance_digest, pi_ccs_instance_digest_parent_authority,
+    digest32_as_fields, pi_ccs_instance_digest, pi_ccs_instance_digest_parent_authority, pi_ccs_outputs_digest,
 };
 use neo_fold_clean::paper::reductions::accumulator_digest_circuit::enforce_accumulator_digest_from_running_circuit;
 use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::{
     absorb_engine_header_bundle_and_instance_digest, absorb_engine_me_inputs_accumulator_handle,
     enforce_accumulator_ce_claim_digest, enforce_ccs_claim_digest, enforce_ce_claim_digest, enforce_fe_claimed_initial,
     enforce_header_digest_catch_up, enforce_pi_ccs_instance_digest, enforce_pi_ccs_instance_digest_parent_authority,
-    header_digest_bytes_to_fields, sample_engine_beta_m, sample_engine_challenges, AccumulatorCeClaimDigestInputs,
-    CeClaimDigestInputs, FeClaimedInitialInputs,
+    enforce_pi_ccs_outputs_digest, header_digest_bytes_to_fields, sample_engine_beta_m, sample_engine_challenges,
+    AccumulatorCeClaimDigestInputs, CeClaimDigestInputs, FeClaimedInitialInputs, PiCcsOutputClaimDigestInputs,
 };
 use neo_math::ring::D;
 use neo_math::{from_complex, KExtensions, F, K};
@@ -206,6 +206,7 @@ fn enforce_accumulator_claim_digest_for_test(b: &mut R1csBuilder, claim: &CeClai
             ct: &ct_vars,
             m_in: claim.m_in,
             fold_digest_fields: fold_digest_wires,
+            adv: None,
         },
     )
     .expect("accumulator CE claim digest")
@@ -607,7 +608,7 @@ fn enforce_ccs_claim_digest_matches_native_paper_layer() {
         .map(|&v| alloc_witness_var(&mut b, v))
         .collect();
     let x_vars: Vec<Var> = x.iter().map(|&v| alloc_witness_var(&mut b, v)).collect();
-    let digest_wires = enforce_ccs_claim_digest(&mut b, c_d, c_kappa, &c_data_vars, &x_vars, m_in);
+    let digest_wires = enforce_ccs_claim_digest(&mut b, c_d, c_kappa, &c_data_vars, &x_vars, m_in, None);
 
     for (i, var) in digest_wires.iter().enumerate() {
         assert_eq!(b.witness()[var.col()], native_digest[i], "lane {i}");
@@ -687,6 +688,7 @@ fn enforce_ce_claim_digest_matches_native_paper_layer() {
         y_ring: &y_ring_vars,
         m_in: claim.m_in,
         fold_digest_fields: fold_digest_wires,
+        adv: None,
     };
     let digest = enforce_ce_claim_digest(&mut b, &inputs).expect("CE claim digest");
 
@@ -758,6 +760,7 @@ fn enforce_ce_claim_digest_rejects_nonzero_inactive_x() {
         y_ring: &y_ring_vars,
         m_in: claim.m_in,
         fold_digest_fields: fold_digest_wires,
+        adv: None,
     };
     enforce_ce_claim_digest(&mut b, &inputs).expect("emit");
     assert!(b.is_satisfied(), "baseline (honest, all-zero inactive) must satisfy");
@@ -797,6 +800,51 @@ fn enforce_accumulator_ce_claim_digest_matches_native_authority_fields() {
         b.is_satisfied(),
         "accumulator_ce_claim_digest parity (first bad row: {:?})",
         b.first_unsatisfied_row()
+    );
+}
+
+#[test]
+fn enforce_pi_ccs_outputs_digest_matches_native_new_messages_only() {
+    let claim = build_test_accumulator_ce_claim(0x0A77_005);
+    let native_digest = pi_ccs_outputs_digest(std::slice::from_ref(&claim));
+    let mut builder = R1csBuilder::new();
+    let y_ring: Vec<Vec<KVar>> = claim
+        .y_ring
+        .iter()
+        .map(|row| {
+            row.iter()
+                .copied()
+                .map(|value| alloc_witness_k(&mut builder, value))
+                .collect()
+        })
+        .collect();
+    let y_zcol: Vec<KVar> = claim
+        .y_zcol
+        .iter()
+        .copied()
+        .map(|value| alloc_witness_k(&mut builder, value))
+        .collect();
+    let digest = enforce_pi_ccs_outputs_digest(
+        &mut builder,
+        &[PiCcsOutputClaimDigestInputs {
+            y_ring: &y_ring,
+            y_zcol: &y_zcol,
+        }],
+    )
+    .expect("Pi_CCS output digest");
+
+    for (lane, wire) in digest.into_iter().enumerate() {
+        assert_eq!(builder.witness()[wire.col()], native_digest[lane], "lane {lane}");
+        builder.enforce_eq(&Lc::from_var(wire), &Lc::from_const(native_digest[lane]));
+    }
+    assert!(builder.is_satisfied());
+
+    let mut changed = claim;
+    changed.y_zcol[0] += K::ONE;
+    assert_ne!(
+        pi_ccs_outputs_digest(std::slice::from_ref(&changed)),
+        native_digest,
+        "the pre-rho digest must bind newly sent y_zcol"
     );
 }
 
@@ -928,7 +976,15 @@ fn enforce_pi_ccs_instance_digest_matches_native_for_one_fresh_one_running() {
         .iter()
         .map(|&v| alloc_witness_var(&mut b, v))
         .collect();
-    let fresh_digest = enforce_ccs_claim_digest(&mut b, c_d, c_kappa, &fresh_c_data_vars, &fresh_x_vars, fresh_m_in);
+    let fresh_digest = enforce_ccs_claim_digest(
+        &mut b,
+        c_d,
+        c_kappa,
+        &fresh_c_data_vars,
+        &fresh_x_vars,
+        fresh_m_in,
+        None,
+    );
 
     // Running CE digest.
     let running_c_data_vars: Vec<Var> = running
@@ -974,6 +1030,7 @@ fn enforce_pi_ccs_instance_digest_matches_native_for_one_fresh_one_running() {
             y_ring: &running_y,
             m_in: running.m_in,
             fold_digest_fields: fold_wires,
+            adv: None,
         },
     )
     .expect("running CE digest");
@@ -1031,7 +1088,7 @@ fn enforce_pi_ccs_parent_authority_instance_digest_matches_native_missing_parent
         .iter()
         .map(|&v| alloc_witness_var(&mut b, v))
         .collect::<Vec<_>>();
-    let fresh_digest = enforce_ccs_claim_digest(&mut b, c_d, c_kappa, &c_data_vars, &x_vars, m_in);
+    let fresh_digest = enforce_ccs_claim_digest(&mut b, c_d, c_kappa, &c_data_vars, &x_vars, m_in, None);
     let digest = enforce_pi_ccs_instance_digest_parent_authority(&mut b, &[fresh_digest], running_count, None);
 
     for (i, var) in digest.iter().enumerate() {

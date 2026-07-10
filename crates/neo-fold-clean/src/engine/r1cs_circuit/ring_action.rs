@@ -375,10 +375,9 @@ fn reduce_lcs_mod_phi_81(coeffs: &mut [Lc]) {
 //
 // Committed material per input pair drops from O(D²) products to O(D)
 // evaluation terms; the β power ladder is shared across every pair of a
-// step. Everything here is prototype-stage: the caller owns β's
-// transcript binding, and integration into the folded F' image is the
-// enc(F') milestone's call (soundness lemma flagged for non-author
-// review in encoding.md).
+// step. The caller owns β's transcript binding. The authoritative NIFS.V
+// commitment client supplies transcript-derived β and quotient wires;
+// other clients and the final low-norm lowering remain Road A work.
 
 use crate::engine::r1cs_circuit::field_ext::{alloc_klc, enforce_k_mul, KLc, KVar};
 

@@ -271,6 +271,41 @@ pub fn rlc_projection_quotients(
     Ok(per_lane)
 }
 
+/// Allocate the honest division quotient for one aggregate projection
+/// identity from already-allocated rho and operand wires.
+///
+/// The caller must absorb these exact returned wires before squeezing beta,
+/// then pass them to `enforce_ring_action_projection_batch`. Reading the
+/// witness here only constructs prover advice; the post-challenge identity
+/// is what constrains it.
+pub fn alloc_rlc_projection_quotient_advice(
+    builder: &mut R1csBuilder,
+    rho_wires: &[[Var; D]],
+    input_wires: &[[Var; D]],
+) -> Result<[Var; PROJECTION_QUOTIENT_LEN], Error> {
+    if rho_wires.is_empty() {
+        return Err(Error::Empty);
+    }
+    if rho_wires.len() != input_wires.len() {
+        return Err(Error::PairCountMismatch {
+            rhos: rho_wires.len(),
+            inputs: input_wires.len(),
+        });
+    }
+    let pairs: Vec<([F; D], [F; D])> = rho_wires
+        .iter()
+        .zip(input_wires.iter())
+        .map(|(rho, input)| {
+            (
+                core::array::from_fn(|i| builder.witness()[rho[i].col()]),
+                core::array::from_fn(|i| builder.witness()[input[i].col()]),
+            )
+        })
+        .collect();
+    let (_, quotient) = projection_quotient(&pairs);
+    Ok(quotient.map(|value| builder.alloc(value)))
+}
+
 /// Projection-checked variant of
 /// [`enforce_rlc_commitment_combination`] — Road A of the enc(F')
 /// decision (encoding.md candidate E; soundness case: security-note
@@ -301,6 +336,53 @@ pub fn enforce_rlc_commitment_combination_projection(
     }
     let mut quotient_wires = Vec::with_capacity(kappa);
     for lane in 0..kappa {
+        quotient_wires.push(quotients[lane].map(|value| builder.alloc(value)));
+    }
+    enforce_rlc_commitment_combination_projection_with_quotient_wires(builder, powers, wires, &quotient_wires)?;
+    Ok(quotient_wires)
+}
+
+/// Enforce the projection-checked commitment combination using quotient
+/// wires that the caller already absorbed into the transcript before
+/// squeezing `beta`. This is the authoritative in-circuit NIFS.V entrypoint:
+/// allocating a second copy here would leave the transcript-bound advice
+/// disconnected from the algebra it is meant to authenticate.
+pub fn enforce_rlc_commitment_combination_projection_with_quotient_wires(
+    builder: &mut R1csBuilder,
+    powers: &[KVar],
+    wires: &RlcCommitmentWires,
+    quotient_wires: &[[Var; PROJECTION_QUOTIENT_LEN]],
+) -> Result<(), Error> {
+    let kappa = wires.kappa;
+    if quotient_wires.len() != kappa {
+        return Err(Error::ShapeMismatch {
+            what: "projection quotient wire count",
+            expected: format!("kappa = {kappa}"),
+            got: format!("{}", quotient_wires.len()),
+        });
+    }
+    if wires.inputs.is_empty() {
+        return Err(Error::Empty);
+    }
+    let expected_data_len = kappa * D;
+    if wires.combined_c_data.len() != expected_data_len {
+        return Err(Error::ShapeMismatch {
+            what: "projection combined commitment wires",
+            expected: format!("{expected_data_len} coefficients"),
+            got: format!("{}", wires.combined_c_data.len()),
+        });
+    }
+    for (idx, pair) in wires.inputs.iter().enumerate() {
+        if pair.kappa != kappa || pair.c_data.len() != expected_data_len {
+            return Err(Error::ShapeMismatch {
+                what: "projection input commitment wires",
+                expected: format!("(kappa={kappa}, data={expected_data_len})"),
+                got: format!("(kappa={}, data={}) at idx {idx}", pair.kappa, pair.c_data.len()),
+            });
+        }
+    }
+
+    for lane in 0..kappa {
         // Owned per-pair lane arrays first (the batch API borrows).
         let pair_arrays: Vec<([Var; D], [Var; D])> = wires
             .inputs
@@ -326,11 +408,9 @@ pub fn enforce_rlc_commitment_combination_projection(
             *slot = *src;
         }
 
-        let q_wires: [Var; PROJECTION_QUOTIENT_LEN] = quotients[lane].map(|value| builder.alloc(value));
-        enforce_ring_action_projection_batch(builder, powers, &pair_refs, &out_lane, &q_wires);
-        quotient_wires.push(q_wires);
+        enforce_ring_action_projection_batch(builder, powers, &pair_refs, &out_lane, &quotient_wires[lane]);
     }
-    Ok(quotient_wires)
+    Ok(())
 }
 
 // ── X-combination: `combined.X = Σ ρ_i · X_i` ─────────────────────────────
@@ -508,6 +588,77 @@ pub fn enforce_rlc_x_combination(builder: &mut R1csBuilder, wires: &RlcXWires) {
     for rr in 0..D {
         for col in active_cols..m_in {
             builder.enforce_eq(&Lc::from_var(wires.combined_x_flat[rr * m_in + col]), &Lc::zero());
+        }
+    }
+}
+
+/// Projection-checked `X` combination. One identity is emitted per active
+/// ring column; inactive columns remain pinned to zero exactly as in the
+/// materialized verifier.
+pub fn enforce_rlc_x_combination_projection_with_quotient_wires(
+    builder: &mut R1csBuilder,
+    powers: &[KVar],
+    wires: &RlcXWires,
+    quotient_wires: &[[Var; PROJECTION_QUOTIENT_LEN]],
+) -> Result<(), Error> {
+    if wires.inputs.is_empty() {
+        return Err(Error::Empty);
+    }
+    let active_cols = crate::paper::relations::superneo_public_x_cols(wires.m_in);
+    if quotient_wires.len() != active_cols {
+        return Err(Error::ShapeMismatch {
+            what: "X projection quotient count",
+            expected: format!("{active_cols}"),
+            got: format!("{}", quotient_wires.len()),
+        });
+    }
+    if wires.combined_x_flat.len() != D * wires.m_in {
+        return Err(Error::ShapeMismatch {
+            what: "combined X projection shape",
+            expected: format!("{} coefficients", D * wires.m_in),
+            got: format!("{}", wires.combined_x_flat.len()),
+        });
+    }
+    for (idx, pair) in wires.inputs.iter().enumerate() {
+        if pair.m_in != wires.m_in || pair.x_flat.len() != D * wires.m_in {
+            return Err(Error::ShapeMismatch {
+                what: "input X projection shape",
+                expected: format!("(m_in={}, data={})", wires.m_in, D * wires.m_in),
+                got: format!("(m_in={}, data={}) at idx {idx}", pair.m_in, pair.x_flat.len()),
+            });
+        }
+    }
+
+    for col in 0..active_cols {
+        let inputs: Vec<[Var; D]> = wires
+            .inputs
+            .iter()
+            .map(|pair| core::array::from_fn(|row| pair.x_flat[row * wires.m_in + col]))
+            .collect();
+        let pair_refs: Vec<(&[Var; D], &[Var; D])> = wires
+            .inputs
+            .iter()
+            .zip(inputs.iter())
+            .map(|(pair, input)| (&pair.rho_coeffs, input))
+            .collect();
+        let output = core::array::from_fn(|row| wires.combined_x_flat[row * wires.m_in + col]);
+        enforce_ring_action_projection_batch(builder, powers, &pair_refs, &output, &quotient_wires[col]);
+    }
+
+    let inactive_inputs = wires.inputs.iter().flat_map(|pair| {
+        (0..D).flat_map(move |row| (active_cols..wires.m_in).map(move |col| pair.x_flat[row * wires.m_in + col]))
+    });
+    let inactive_output =
+        (0..D).flat_map(|row| (active_cols..wires.m_in).map(move |col| wires.combined_x_flat[row * wires.m_in + col]));
+    enforce_unique_zero_wires(builder, inactive_inputs.chain(inactive_output));
+    Ok(())
+}
+
+fn enforce_unique_zero_wires(builder: &mut R1csBuilder, wires: impl Iterator<Item = Var>) {
+    let mut constrained = std::collections::HashSet::new();
+    for wire in wires {
+        if constrained.insert(wire.col()) {
+            builder.enforce_eq(&Lc::from_var(wire), &Lc::zero());
         }
     }
 }
@@ -872,6 +1023,81 @@ pub fn enforce_rlc_padded_k_vector_combination(builder: &mut R1csBuilder, wires:
         builder.enforce_eq(&Lc::from_var(wires.combined_c0[rr]), &Lc::zero());
         builder.enforce_eq(&Lc::from_var(wires.combined_c1[rr]), &Lc::zero());
     }
+}
+
+/// Projection-checked padded K-vector combination. The two base-field limbs
+/// are separate aggregate identities; padding lanes remain explicit zero
+/// constraints and are not included in either polynomial.
+pub fn enforce_rlc_padded_k_vector_combination_projection_with_quotient_wires(
+    builder: &mut R1csBuilder,
+    powers: &[KVar],
+    wires: &RlcPaddedKVectorWires,
+    quotient_c0: &[Var; PROJECTION_QUOTIENT_LEN],
+    quotient_c1: &[Var; PROJECTION_QUOTIENT_LEN],
+) -> Result<(), Error> {
+    if wires.inputs.is_empty() {
+        return Err(Error::Empty);
+    }
+    if wires.d_pad < D || wires.combined_c0.len() != wires.d_pad || wires.combined_c1.len() != wires.d_pad {
+        return Err(Error::ShapeMismatch {
+            what: "combined padded projection shape",
+            expected: format!("two limbs of length d_pad >= {D}"),
+            got: format!(
+                "d_pad={}, c0={}, c1={}",
+                wires.d_pad,
+                wires.combined_c0.len(),
+                wires.combined_c1.len()
+            ),
+        });
+    }
+    for (idx, pair) in wires.inputs.iter().enumerate() {
+        if pair.y_c0.len() != wires.d_pad || pair.y_c1.len() != wires.d_pad {
+            return Err(Error::ShapeMismatch {
+                what: "input padded projection shape",
+                expected: format!("two limbs of length {}", wires.d_pad),
+                got: format!("c0={}, c1={} at idx {idx}", pair.y_c0.len(), pair.y_c1.len()),
+            });
+        }
+    }
+
+    let inputs_c0: Vec<[Var; D]> = wires
+        .inputs
+        .iter()
+        .map(|pair| core::array::from_fn(|i| pair.y_c0[i]))
+        .collect();
+    let inputs_c1: Vec<[Var; D]> = wires
+        .inputs
+        .iter()
+        .map(|pair| core::array::from_fn(|i| pair.y_c1[i]))
+        .collect();
+    let pairs_c0: Vec<(&[Var; D], &[Var; D])> = wires
+        .inputs
+        .iter()
+        .zip(inputs_c0.iter())
+        .map(|(pair, input)| (&pair.rho_coeffs, input))
+        .collect();
+    let pairs_c1: Vec<(&[Var; D], &[Var; D])> = wires
+        .inputs
+        .iter()
+        .zip(inputs_c1.iter())
+        .map(|(pair, input)| (&pair.rho_coeffs, input))
+        .collect();
+    let output_c0 = core::array::from_fn(|i| wires.combined_c0[i]);
+    let output_c1 = core::array::from_fn(|i| wires.combined_c1[i]);
+    enforce_ring_action_projection_batch(builder, powers, &pairs_c0, &output_c0, quotient_c0);
+    enforce_ring_action_projection_batch(builder, powers, &pairs_c1, &output_c1, quotient_c1);
+
+    for pair in &wires.inputs {
+        for lane in D..wires.d_pad {
+            builder.enforce_eq(&Lc::from_var(pair.y_c0[lane]), &Lc::zero());
+            builder.enforce_eq(&Lc::from_var(pair.y_c1[lane]), &Lc::zero());
+        }
+    }
+    for lane in D..wires.d_pad {
+        builder.enforce_eq(&Lc::from_var(wires.combined_c0[lane]), &Lc::zero());
+        builder.enforce_eq(&Lc::from_var(wires.combined_c1[lane]), &Lc::zero());
+    }
+    Ok(())
 }
 
 // ── Backward-compatible y_zcol aliases that delegate to the padded helper ──

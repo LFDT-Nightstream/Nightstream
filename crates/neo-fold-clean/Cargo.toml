@@ -110,6 +110,10 @@ name = "reductions_ccs_native_poseidon"
 path = "tests/reductions/ccs_native_poseidon.rs"
 
 [[test]]
+name = "reductions_accumulator_sis"
+path = "tests/reductions/accumulator_sis.rs"
+
+[[test]]
 name = "reductions_pi_rlc"
 path = "tests/reductions/pi_rlc.rs"
 
@@ -376,6 +380,10 @@ path = "tests/nebula/reference.rs"
 [[test]]
 name = "nebula_circuit"
 path = "tests/nebula/circuit.rs"
+
+[[test]]
+name = "nebula_f_prime"
+path = "tests/nebula/f_prime.rs"
 
 [[test]]
 name = "nebula_adv"

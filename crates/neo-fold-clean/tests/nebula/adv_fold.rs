@@ -223,31 +223,34 @@ fn mixed_adv_presence_is_rejected() {
     assert!(result.is_err(), "mixed adv presence must be rejected before mixing");
 }
 
-/// R1 absorb sites bind the tuple pre-challenge: two claim sets differing
-/// only in `adv` must diverge the ρ-authority digests — this is what makes
-/// a post-γ lane swap detectable at all.
+/// The Π_CCS input transcript binds `adv` before the output challenge. The
+/// pre-ρ output absorb then commits only the newly sent evaluation messages;
+/// deterministic forwarded fields must not be hashed a second time.
 #[test]
-fn rho_authority_digests_bind_adv() {
+fn rho_authority_binds_adv_once_at_pi_ccs_input() {
     let prep = wide_preprocessing();
     let scheme = lane_scheme(&prep);
     let with_adv = adv_instance(&prep, &scheme, 3);
     let mut without_adv = with_adv.clone();
     without_adv.claim.adv = None;
 
+    assert_ne!(
+        neo_fold_clean::paper::digest::ccs_claim_digest(&with_adv.claim),
+        neo_fold_clean::paper::digest::ccs_claim_digest(&without_adv.claim),
+        "Π_CCS input authority must bind the tuple before its challenges"
+    );
     let (_, proof_a) = prove_fold(&prep, &scheme, vec![with_adv]).expect("adv fold");
-    // Π_CCS outputs are the pre-ρ binding surface (site ii): same claims
-    // minus the tuple must produce a different outputs digest.
+
+    // Π_CCS.V constrains output adv to the already-bound input adv. Removing
+    // only that deterministic forwarding from a copied output therefore does
+    // not alter the later digest of the new evaluation messages.
     let mut outputs_without = proof_a.pi_ccs.outputs.clone();
     for output in &mut outputs_without {
         output.adv = None;
     }
-    assert_ne!(
+    assert_eq!(
         neo_fold_clean::paper::digest::pi_ccs_outputs_digest(&proof_a.pi_ccs.outputs),
         neo_fold_clean::paper::digest::pi_ccs_outputs_digest(&outputs_without),
-        "pre-ρ binding (R1 site ii) must absorb the tuple"
+        "pre-ρ output digest must not redundantly absorb forwarded adv"
     );
-    // Site i (the Π_CCS instance digest over fresh-claim digests) binds
-    // through `ccs_claim_digest`, whose adv sensitivity is pinned by
-    // `nebula_adv::claim_digest_binds_adv_presence_and_content`.
-    let _ = without_adv;
 }

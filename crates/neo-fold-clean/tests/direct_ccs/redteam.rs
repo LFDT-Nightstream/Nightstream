@@ -355,6 +355,7 @@ fn recompute_terminal_x_out(prep: &Preprocessing, proof: &Uncompressed) -> EncIn
     EncInst::from_digest(digest::state_x_out_digest_with_mode(
         mode,
         prep.vk.digest(),
+        prep.pi_ccs_header_bundle(),
         prep.structure_digest(),
         proof.state.chunk_count,
         proof.state.step_count,

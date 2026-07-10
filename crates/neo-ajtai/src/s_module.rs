@@ -976,6 +976,17 @@ impl AjtaiSModule {
             PpSource::Global { d, m } => (*d, *m),
         }
     }
+
+    /// Materialize the public matrix for verifier-side constraint emission.
+    /// Commitment code should continue to use [`SModuleHomomorphism::commit`];
+    /// this accessor exists for proof systems that must encode the same
+    /// linear map as arithmetic constraints.
+    pub fn verification_pp(&self) -> Result<Arc<PP<RqEl>>, AjtaiError> {
+        match &self.pp {
+            PpSource::Owned(pp) => Ok(pp.clone()),
+            PpSource::Global { d, m } => get_or_load_global_pp_for_dims(*d, *m),
+        }
+    }
 }
 
 impl SModuleHomomorphism<Fq, Commitment> for AjtaiSModule {

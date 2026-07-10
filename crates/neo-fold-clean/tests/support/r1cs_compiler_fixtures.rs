@@ -287,7 +287,7 @@ pub fn make_tiny_lifecycle_plan(m: usize, m_in: usize) -> RecursiveStepImagePlan
     // r_len tracks the row domain, while s_col_len tracks the column
     // domain under the larger (216-entry) NIFS payload region. These
     // are the converged values after one iteration of the probe.
-    const TINY_R_LEN: usize = 12;
+    const TINY_R_LEN: usize = 13;
     const TINY_S_COL_LEN: usize = 18;
 
     let limbs = app_private_bits_for(m) + 1;

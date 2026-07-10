@@ -16,8 +16,8 @@
 //! | `nebula_chain_must_verify_terminal_only_with_memory` | **ignored: fails by design** | Spec §13 step 9's end-state: a multi-segment memory chain accepted terminal-only, lane closed. Fails today for the same induction gap. |
 //! | `nebula_terminal_only_verification_fails_closed_today` | ✓ | Tripwire twin of the Nebula gate. |
 //! | `recursive_link_multi_chunk_fails_closed_today` | ✓ | The stricter guard layer: an `r1cs_f_prime` chain (recursive-link flag SET) must reject multi-chunk terminal-only verification via `FPrimeNonReplayUnsupported`, not just the generic non-empty-running guard. |
-//! | `folded_f_prime_shell_must_adopt_projection_budget` | ✓ **GREEN (Road A Unit 2)** | The production F' shell carries projection regions: integrated layout = 14,040,452 bits (was 94,330,948 D²-materialized). Now a budget-regression guard. |
-//! | `projection_shell_semantic_rows_must_be_enforced` | ✓ **GREEN (Road A Phase B)** | The projection region now emits semantic CCS rows for evaluation sums, Karatsuba relations, and the final identity. |
+//! | `folded_f_prime_shell_must_adopt_projection_budget` | ✓ prototype | The projection cost model is 14,040,452 bits (vs 94,330,948 D²). It is not the complete folded F' relation. |
+//! | `projection_shell_semantic_rows_must_be_enforced` | ✓ local algebra | The modeled projection region enforces its local identities; authoritative wire binding remains a Road A gate. |
 //!
 //! The implementation that turned each invariant green:
 //!   - Phase 1.5b: encoded F' image / structure / encoder + foldable `CcsInstance`.

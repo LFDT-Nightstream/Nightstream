@@ -49,6 +49,7 @@
 //! All wires consumed downstream by F' R1CS (parent commitment, fresh X,
 //! running commitment data) are surfaced via [`NifsVOutputs`].
 
+use neo_ccs::LaneCommitments;
 use neo_math::ring::D;
 use neo_math::{F, K};
 use p3_field::PrimeCharacteristicRing;
@@ -56,22 +57,29 @@ use p3_field::PrimeCharacteristicRing;
 use crate::engine::r1cs_circuit::alphabet_sampling::enforce_pi_rlc_rhos_from_transcript;
 use crate::engine::r1cs_circuit::builder::{Lc, Var};
 use crate::engine::r1cs_circuit::field_ext::KVar;
+use crate::engine::r1cs_circuit::ring_action::{enforce_beta_ladder, PROJECTION_QUOTIENT_LEN};
 use crate::engine::r1cs_circuit::transcript::TranscriptGadget;
 use crate::engine::r1cs_circuit::R1csBuilder;
+use crate::paper::f_prime::nebula_lane_circuit::enforce_nebula_lane_leaf_digests_circuit;
 use crate::paper::params::Params;
 use crate::paper::reductions::pi_ccs_split_nc_circuit::{
-    enforce_pi_ccs_outputs_digest, enforce_split_nc_pi_ccs_v, PiCcsOutputClaimDigestInputs, SplitNcPiCcsOutputWires,
-    SplitNcPiCcsVConfig, SplitNcPiCcsVMessages,
+    enforce_pi_ccs_outputs_digest, enforce_split_nc_pi_ccs_v, enforce_split_nc_pi_ccs_v_with_header_bundle_wires,
+    PiCcsOutputClaimDigestInputs, SplitNcPiCcsOutputWires, SplitNcPiCcsVConfig, SplitNcPiCcsVMessages,
 };
 use crate::paper::reductions::pi_dec_circuit::{
     self, alloc_dec_inputs, enforce_dec_v_strict, enforce_split_nc_d_pad_shape, DecInputWires,
 };
 use crate::paper::reductions::pi_rlc_circuit::{
-    enforce_rlc_commitment_combination, enforce_rlc_padded_k_vector_combination, enforce_rlc_s_col_consistency,
-    enforce_rlc_x_combination, rlc_projection_quotients, RlcCommitmentWires, RlcPaddedKVectorPairWires,
-    RlcPaddedKVectorWires, RlcPairWires, RlcXPairWires, RlcXWires,
+    alloc_rlc_projection_quotient_advice as alloc_vector_projection_quotient_advice,
+    enforce_rlc_commitment_combination_projection_with_quotient_wires,
+    enforce_rlc_padded_k_vector_combination_projection_with_quotient_wires, enforce_rlc_s_col_consistency,
+    enforce_rlc_x_combination_projection_with_quotient_wires, rlc_projection_quotients, RlcCommitmentWires,
+    RlcPaddedKVectorPairWires, RlcPaddedKVectorWires, RlcPairWires, RlcXPairWires, RlcXWires,
 };
 use crate::paper::reductions::{pi_ccs, pi_ccs_split_nc_circuit, pi_rlc};
+use crate::paper::relations::product_commitment_circuit::{
+    enforce_adv_recomposition, validate_adv_shape, AdvCommitmentWires, CommitmentWires,
+};
 use crate::paper::relations::{superneo_public_x_cols, CcsClaim, CeClaim};
 
 /// Configuration for one NIFS.V step.
@@ -103,6 +111,8 @@ pub struct NifsVOutputs {
     /// Fresh CCS instances' public-input wires `[fresh_idx][x_lane]`.
     /// F' R1CS uses these to enforce the HyperNova recursive link.
     pub fresh_x: Vec<Vec<Var>>,
+    /// Product-commitment coordinates paired with [`Self::fresh_x`].
+    pub fresh_adv: Vec<Option<AdvCommitmentWires>>,
     /// Per-running-claim commitment data wires `[running_idx][lane]`.
     /// Kept for callers that need the per-claim view; F' R1CS binds the
     /// running accumulator via the digest below, not via re-hashing
@@ -132,12 +142,21 @@ pub struct NifsVOutputs {
     /// by element.
     pub children: Vec<pi_dec_circuit::CeClaimWires>,
     /// Π_RLC projection β (two K limbs), squeezed by the Lemma 5
-    /// schedule replay — the wire the F' image's projection shared
-    /// region must bind.
+    /// schedule replay. The commitment projection already consumes this
+    /// wire; it remains surfaced for audit and eventual low-norm lowering.
     pub projection_beta: [Var; 2],
-    /// Per-κ-lane projection quotient advice absorbed before β — the
-    /// wires the F' image's projection identity regions must bind.
-    pub projection_q_lanes: Vec<Vec<Var>>,
+    /// Per-κ-lane projection quotient advice absorbed before β and consumed
+    /// by the commitment identities. Surfaced for audit/low-norm lowering.
+    pub projection_q_lanes: Vec<[Var; PROJECTION_QUOTIENT_LEN]>,
+    /// Projection quotient advice for the `(ops, is, fs)` coordinates of
+    /// the product commitment. Present exactly for Nebula folds.
+    pub projection_adv_q_lanes: Option<LaneCommitments<Vec<[Var; PROJECTION_QUOTIENT_LEN]>>>,
+    /// One transcript-bound quotient per active X ring column.
+    pub projection_x_q_lanes: Vec<[Var; PROJECTION_QUOTIENT_LEN]>,
+    /// Two transcript-bound quotients per y_ring row (c0, c1).
+    pub projection_y_ring_q_lanes: Vec<[[Var; PROJECTION_QUOTIENT_LEN]; 2]>,
+    /// Two transcript-bound quotients for y_zcol (c0, c1).
+    pub projection_y_zcol_q_lanes: [[Var; PROJECTION_QUOTIENT_LEN]; 2],
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -161,21 +180,49 @@ pub fn enforce_nifs_v_circuit_with_transcript(
     transcript: &mut TranscriptGadget,
     msg: &NifsVCircuitMessages<'_>,
 ) -> Result<NifsVOutputs, Error> {
+    enforce_nifs_v_circuit_with_transcript_inner(builder, pp, cfg, transcript, msg, None)
+}
+
+/// Folded-F' entrypoint using the verifier header carried by F' state.
+pub fn enforce_nifs_v_circuit_with_transcript_and_header_bundle(
+    builder: &mut R1csBuilder,
+    pp: &Params,
+    cfg: &NifsVCircuitConfig<'_>,
+    transcript: &mut TranscriptGadget,
+    msg: &NifsVCircuitMessages<'_>,
+    header_bundle: [Var; 4],
+) -> Result<NifsVOutputs, Error> {
+    enforce_nifs_v_circuit_with_transcript_inner(builder, pp, cfg, transcript, msg, Some(header_bundle))
+}
+
+fn enforce_nifs_v_circuit_with_transcript_inner(
+    builder: &mut R1csBuilder,
+    pp: &Params,
+    cfg: &NifsVCircuitConfig<'_>,
+    transcript: &mut TranscriptGadget,
+    msg: &NifsVCircuitMessages<'_>,
+    header_bundle: Option<[Var; 4]>,
+) -> Result<NifsVOutputs, Error> {
     // ── 1. Π_CCS.V SplitNc verifier ───────────────────────────────────────
-    let ccs = enforce_split_nc_pi_ccs_v(
-        builder,
-        transcript,
-        &cfg.pi_ccs,
-        &SplitNcPiCcsVMessages {
-            fresh: msg.fresh,
-            running: msg.running,
-            running_parent_authority: msg.running_parent_authority,
-            outputs: &msg.pi_ccs.outputs,
-            sumcheck_rounds_fe: &msg.pi_ccs.sumcheck.sumcheck_rounds,
-            sumcheck_rounds_nc: &msg.pi_ccs.sumcheck.sumcheck_rounds_nc,
-            header_digest: &msg.pi_ccs.sumcheck.header_digest,
-        },
-    )?;
+    let pi_ccs_messages = SplitNcPiCcsVMessages {
+        fresh: msg.fresh,
+        running: msg.running,
+        running_parent_authority: msg.running_parent_authority,
+        outputs: &msg.pi_ccs.outputs,
+        sumcheck_rounds_fe: &msg.pi_ccs.sumcheck.sumcheck_rounds,
+        sumcheck_rounds_nc: &msg.pi_ccs.sumcheck.sumcheck_rounds_nc,
+        header_digest: &msg.pi_ccs.sumcheck.header_digest,
+    };
+    let ccs = match header_bundle {
+        Some(header_bundle) => enforce_split_nc_pi_ccs_v_with_header_bundle_wires(
+            builder,
+            transcript,
+            &cfg.pi_ccs,
+            &pi_ccs_messages,
+            header_bundle,
+        )?,
+        None => enforce_split_nc_pi_ccs_v(builder, transcript, &cfg.pi_ccs, &pi_ccs_messages)?,
+    };
     let d_pad = 1usize << cfg.pi_ccs.ell_d;
     let k_total = ccs.outputs.len();
     if k_total == 0 {
@@ -199,19 +246,8 @@ pub fn enforce_nifs_v_circuit_with_transcript(
         .outputs
         .iter()
         .map(|output| PiCcsOutputClaimDigestInputs {
-            c_d: output.c_d,
-            c_kappa: output.c_kappa,
-            c_data: &output.c_data,
-            x_rows: output.x_rows,
-            x_cols: output.x_cols,
-            x_flat_row_major: &output.x,
-            r: &output.r,
-            s_col: &output.s_col,
             y_ring: &output.y_ring,
-            ct: &output.ct,
             y_zcol: &output.y_zcol,
-            m_in: output.m_in,
-            fold_digest_fields: output.fold_digest_fields,
         })
         .collect();
     let output_claims_digest = enforce_pi_ccs_outputs_digest(builder, &output_digest_inputs)?;
@@ -226,13 +262,21 @@ pub fn enforce_nifs_v_circuit_with_transcript(
     enforce_split_nc_d_pad_shape(&dec_wires, cfg.pi_ccs.structure.t(), d_pad)?;
 
     // ── 4. Π_RLC.V folds: c, X, per-j y_ring, y_zcol, s_col ──────────────
-    enforce_rlc_commitment_fold(builder, &rho_wires, &ccs.outputs, &dec_wires, kappa)?;
-    enforce_rlc_x_fold(builder, &rho_wires, &ccs.outputs, &dec_wires, m_in)?;
+    let commitment_wires = rlc_commitment_fold_wires(&rho_wires, &ccs.outputs, &dec_wires, kappa)?;
+    let adv_commitment_wires = rlc_adv_commitment_fold_wires(&rho_wires, &ccs.outputs, &dec_wires)?;
+    let x_wires = rlc_x_fold_wires(&rho_wires, &ccs.outputs, &dec_wires, m_in)?;
     let t = cfg.pi_ccs.structure.t();
+    let mut y_ring_wires = Vec::with_capacity(t);
     for j in 0..t {
-        enforce_rlc_y_ring_row_fold(builder, &rho_wires, &ccs.outputs, &dec_wires, j, d_pad)?;
+        y_ring_wires.push(rlc_y_ring_row_fold_wires(
+            &rho_wires,
+            &ccs.outputs,
+            &dec_wires,
+            j,
+            d_pad,
+        )?);
     }
-    enforce_rlc_y_zcol_fold(builder, &rho_wires, &ccs.outputs, &dec_wires, d_pad)?;
+    let y_zcol_wires = rlc_y_zcol_fold_wires(&rho_wires, &ccs.outputs, &dec_wires, d_pad)?;
     let input_s_cols: Vec<Vec<KVar>> = ccs.outputs.iter().map(|o| o.s_col.clone()).collect();
     enforce_rlc_s_col_consistency(builder, &input_s_cols, &dec_wires.parent.s_col)?;
     enforce_rlc_fold_digest_consistency(builder, &ccs.outputs, &dec_wires)?;
@@ -241,21 +285,93 @@ pub fn enforce_nifs_v_circuit_with_transcript(
     // Native `pi_rlc` absorbs the combined commitment and the per-lane
     // division quotients, then squeezes β — mirror it bit-for-bit so
     // every later challenge stays in lockstep. q enters as advice
-    // recomputed from the same wires native uses; its algebra is
-    // enforced once the commitment fold above swaps to
-    // `enforce_rlc_commitment_combination_projection`, which consumes
-    // these q wires and β at that same transcript position.
+    // recomputed from the same wires native uses. The exact q wires absorbed
+    // here are consumed by the projection identity below; no duplicate advice
+    // can drift away from the Fiat-Shamir schedule.
     transcript.append_fields(
         builder,
         pi_rlc::PI_RLC_PROJECTION_COMBINED_C_LABEL,
         &dec_wires.parent.c_data[..D * kappa],
     );
-    let projection_q_lanes = alloc_projection_quotient_advice(builder, &rho_wires, &ccs.outputs)?;
+    let projection_q_lanes = alloc_projection_quotient_advice(builder, &commitment_wires)?;
     for q_lane in &projection_q_lanes {
         transcript.append_fields(builder, pi_rlc::PI_RLC_PROJECTION_QUOTIENTS_LABEL, q_lane);
     }
+    let projection_adv_q_lanes = if let Some(adv) = &adv_commitment_wires {
+        let combined = dec_wires
+            .parent
+            .adv
+            .as_ref()
+            .ok_or_else(|| Error::Inner("Pi_RLC adv projection has inputs but no combined coordinate".into()))?;
+        for leaf in enforce_nebula_lane_leaf_digests_circuit(
+            builder,
+            combined.ops.d,
+            combined.ops.kappa,
+            &combined.ops.data,
+            &combined.is.data,
+            &combined.fs.data,
+        ) {
+            transcript.append_fields(builder, pi_rlc::PI_RLC_PROJECTION_COMBINED_ADV_LABEL, &leaf);
+        }
+        let ops = alloc_projection_quotient_advice(builder, &adv.ops)?;
+        let is = alloc_projection_quotient_advice(builder, &adv.is)?;
+        let fs = alloc_projection_quotient_advice(builder, &adv.fs)?;
+        for q_lane in ops.iter().chain(is.iter()).chain(fs.iter()) {
+            transcript.append_fields(builder, pi_rlc::PI_RLC_PROJECTION_ADV_QUOTIENTS_LABEL, q_lane);
+        }
+        Some(LaneCommitments { ops, is, fs })
+    } else {
+        None
+    };
+    let projection_x_q_lanes = alloc_x_projection_advice(builder, transcript, &x_wires)?;
+    let mut projection_y_ring_q_lanes = Vec::with_capacity(y_ring_wires.len());
+    for wires in &y_ring_wires {
+        projection_y_ring_q_lanes.push(alloc_padded_projection_advice(
+            builder,
+            transcript,
+            wires,
+            pi_rlc::PI_RLC_PROJECTION_COMBINED_Y_RING_LABEL,
+            pi_rlc::PI_RLC_PROJECTION_Y_RING_QUOTIENTS_LABEL,
+        )?);
+    }
+    let projection_y_zcol_q_lanes = alloc_padded_projection_advice(
+        builder,
+        transcript,
+        &y_zcol_wires,
+        pi_rlc::PI_RLC_PROJECTION_COMBINED_Y_ZCOL_LABEL,
+        pi_rlc::PI_RLC_PROJECTION_Y_ZCOL_QUOTIENTS_LABEL,
+    )?;
     let beta = transcript.challenge_fields(builder, pi_rlc::PI_RLC_PROJECTION_BETA_LABEL, 2);
     let projection_beta = [beta[0], beta[1]];
+    let powers = enforce_beta_ladder(builder, KVar::new(beta[0], beta[1]), D);
+    enforce_rlc_commitment_combination_projection_with_quotient_wires(
+        builder,
+        &powers,
+        &commitment_wires,
+        &projection_q_lanes,
+    )?;
+    if let (Some(adv), Some(q)) = (&adv_commitment_wires, &projection_adv_q_lanes) {
+        for (coordinate, quotients) in [(&adv.ops, &q.ops), (&adv.is, &q.is), (&adv.fs, &q.fs)] {
+            enforce_rlc_commitment_combination_projection_with_quotient_wires(builder, &powers, coordinate, quotients)?;
+        }
+    }
+    enforce_rlc_x_combination_projection_with_quotient_wires(builder, &powers, &x_wires, &projection_x_q_lanes)?;
+    for (wires, quotients) in y_ring_wires.iter().zip(projection_y_ring_q_lanes.iter()) {
+        enforce_rlc_padded_k_vector_combination_projection_with_quotient_wires(
+            builder,
+            &powers,
+            wires,
+            &quotients[0],
+            &quotients[1],
+        )?;
+    }
+    enforce_rlc_padded_k_vector_combination_projection_with_quotient_wires(
+        builder,
+        &powers,
+        &y_zcol_wires,
+        &projection_y_zcol_q_lanes[0],
+        &projection_y_zcol_q_lanes[1],
+    )?;
 
     // ── 5. Π_DEC.V strict ────────────────────────────────────────────────
     enforce_dec_v_strict(builder, pp, &dec_wires)?;
@@ -270,6 +386,7 @@ pub fn enforce_nifs_v_circuit_with_transcript(
     Ok(NifsVOutputs {
         parent_c_data: dec_wires.parent.c_data.clone(),
         fresh_x: ccs.fresh_x,
+        fresh_adv: ccs.fresh_adv,
         running_c_data: ccs.running_c_data,
         running_acc_digest: ccs.running_acc_digest,
         running,
@@ -278,6 +395,10 @@ pub fn enforce_nifs_v_circuit_with_transcript(
         children,
         projection_beta,
         projection_q_lanes,
+        projection_adv_q_lanes,
+        projection_x_q_lanes,
+        projection_y_ring_q_lanes,
+        projection_y_zcol_q_lanes,
     })
 }
 
@@ -287,19 +408,20 @@ pub fn enforce_nifs_v_circuit_with_transcript(
 /// input-commitment wires' values, never read from the proof.
 fn alloc_projection_quotient_advice(
     builder: &mut R1csBuilder,
-    rho_wires: &[[Var; D]],
-    outputs: &[SplitNcPiCcsOutputWires],
-) -> Result<Vec<Vec<Var>>, Error> {
-    let rho_vals: Vec<[F; D]> = rho_wires
+    wires: &RlcCommitmentWires,
+) -> Result<Vec<[Var; PROJECTION_QUOTIENT_LEN]>, Error> {
+    let rho_vals: Vec<[F; D]> = wires
+        .inputs
         .iter()
-        .map(|rho| core::array::from_fn(|i| builder.witness()[rho[i].col()]))
+        .map(|pair| core::array::from_fn(|i| builder.witness()[pair.rho_coeffs[i].col()]))
         .collect();
-    let input_cs: Vec<neo_ajtai::Commitment> = outputs
+    let input_cs: Vec<neo_ajtai::Commitment> = wires
+        .inputs
         .iter()
-        .map(|o| neo_ajtai::Commitment {
-            d: o.c_d,
-            kappa: o.c_kappa,
-            data: o
+        .map(|pair| neo_ajtai::Commitment {
+            d: D,
+            kappa: pair.kappa,
+            data: pair
                 .c_data
                 .iter()
                 .map(|v| builder.witness()[v.col()])
@@ -309,8 +431,60 @@ fn alloc_projection_quotient_advice(
     let lanes = rlc_projection_quotients(&rho_vals, &input_cs)?;
     Ok(lanes
         .iter()
-        .map(|lane| builder.alloc_vec(&lane.q))
+        .map(|lane| core::array::from_fn(|i| builder.alloc(lane.q[i])))
         .collect())
+}
+
+fn alloc_x_projection_advice(
+    builder: &mut R1csBuilder,
+    transcript: &mut TranscriptGadget,
+    wires: &RlcXWires,
+) -> Result<Vec<[Var; PROJECTION_QUOTIENT_LEN]>, Error> {
+    let active_cols = superneo_public_x_cols(wires.m_in);
+    let rho_wires: Vec<[Var; D]> = wires.inputs.iter().map(|pair| pair.rho_coeffs).collect();
+    let mut quotients = Vec::with_capacity(active_cols);
+    for col in 0..active_cols {
+        let inputs: Vec<[Var; D]> = wires
+            .inputs
+            .iter()
+            .map(|pair| core::array::from_fn(|row| pair.x_flat[row * wires.m_in + col]))
+            .collect();
+        let output: [Var; D] = core::array::from_fn(|row| wires.combined_x_flat[row * wires.m_in + col]);
+        transcript.append_fields(builder, pi_rlc::PI_RLC_PROJECTION_COMBINED_X_LABEL, &output);
+        let quotient = alloc_vector_projection_quotient_advice(builder, &rho_wires, &inputs)?;
+        transcript.append_fields(builder, pi_rlc::PI_RLC_PROJECTION_X_QUOTIENTS_LABEL, &quotient);
+        quotients.push(quotient);
+    }
+    Ok(quotients)
+}
+
+fn alloc_padded_projection_advice(
+    builder: &mut R1csBuilder,
+    transcript: &mut TranscriptGadget,
+    wires: &RlcPaddedKVectorWires,
+    output_label: &'static [u8],
+    quotient_label: &'static [u8],
+) -> Result<[[Var; PROJECTION_QUOTIENT_LEN]; 2], Error> {
+    let rho_wires: Vec<[Var; D]> = wires.inputs.iter().map(|pair| pair.rho_coeffs).collect();
+    let inputs_c0: Vec<[Var; D]> = wires
+        .inputs
+        .iter()
+        .map(|pair| core::array::from_fn(|lane| pair.y_c0[lane]))
+        .collect();
+    let inputs_c1: Vec<[Var; D]> = wires
+        .inputs
+        .iter()
+        .map(|pair| core::array::from_fn(|lane| pair.y_c1[lane]))
+        .collect();
+    let output_c0: [Var; D] = core::array::from_fn(|lane| wires.combined_c0[lane]);
+    let output_c1: [Var; D] = core::array::from_fn(|lane| wires.combined_c1[lane]);
+    transcript.append_fields(builder, output_label, &output_c0);
+    let quotient_c0 = alloc_vector_projection_quotient_advice(builder, &rho_wires, &inputs_c0)?;
+    transcript.append_fields(builder, quotient_label, &quotient_c0);
+    transcript.append_fields(builder, output_label, &output_c1);
+    let quotient_c1 = alloc_vector_projection_quotient_advice(builder, &rho_wires, &inputs_c1)?;
+    transcript.append_fields(builder, quotient_label, &quotient_c1);
+    Ok([quotient_c0, quotient_c1])
 }
 
 // ── Private RLC fold helpers ──────────────────────────────────────────────
@@ -412,7 +586,9 @@ fn enforce_running_parent_authority_consistency(
         &b_pows,
         |c| &c.c_data,
     )?;
-    enforce_var_recomposition(builder, "running parent X", &parent.x, children, &b_pows, |c| &c.x)?;
+    let child_adv: Vec<Option<AdvCommitmentWires>> = children.iter().map(|child| child.adv.clone()).collect();
+    enforce_adv_recomposition(builder, parent.adv.as_ref(), &child_adv, &b_pows).map_err(Error::Inner)?;
+    enforce_active_x_recomposition(builder, parent, children, &b_pows)?;
     for j in 0..parent.y_ring.len() {
         enforce_kvar_recomposition(
             builder,
@@ -548,6 +724,34 @@ where
     Ok(())
 }
 
+fn enforce_active_x_recomposition(
+    builder: &mut R1csBuilder,
+    parent: &SplitNcPiCcsOutputWires,
+    children: &[SplitNcPiCcsOutputWires],
+    b_pows: &[F],
+) -> Result<(), Error> {
+    let active_cols = superneo_public_x_cols(parent.m_in);
+    for (idx, child) in children.iter().enumerate() {
+        if child.x_rows != parent.x_rows || child.x_cols != parent.x_cols {
+            return Err(Error::Inner(format!(
+                "running parent X shape {}x{} != child[{idx}] {}x{}",
+                parent.x_rows, parent.x_cols, child.x_rows, child.x_cols
+            )));
+        }
+    }
+    for row in 0..parent.x_rows {
+        for col in 0..active_cols {
+            let lane = row * parent.x_cols + col;
+            let mut combo = Lc::zero();
+            for (child, coeff) in children.iter().zip(b_pows.iter().copied()) {
+                combo.add_term(child.x[lane], coeff);
+            }
+            builder.enforce_eq(&Lc::from_var(parent.x[lane]), &combo);
+        }
+    }
+    Ok(())
+}
+
 fn enforce_inactive_x_zero_one(builder: &mut R1csBuilder, claim: &SplitNcPiCcsOutputWires) -> Result<(), Error> {
     let active_cols = superneo_public_x_cols(claim.m_in);
     if active_cols > claim.x_cols {
@@ -556,12 +760,20 @@ fn enforce_inactive_x_zero_one(builder: &mut R1csBuilder, claim: &SplitNcPiCcsOu
             claim.x_cols
         )));
     }
-    for r in 0..claim.x_rows {
-        for c in active_cols..claim.x_cols {
-            builder.enforce_eq(&Lc::from_var(claim.x[r * claim.x_cols + c]), &Lc::zero());
+    enforce_unique_zero_wires(
+        builder,
+        (0..claim.x_rows).flat_map(|r| (active_cols..claim.x_cols).map(move |c| claim.x[r * claim.x_cols + c])),
+    );
+    Ok(())
+}
+
+fn enforce_unique_zero_wires(builder: &mut R1csBuilder, wires: impl Iterator<Item = Var>) {
+    let mut constrained = std::collections::HashSet::new();
+    for wire in wires {
+        if constrained.insert(wire.col()) {
+            builder.enforce_eq(&Lc::from_var(wire), &Lc::zero());
         }
     }
-    Ok(())
 }
 
 fn enforce_child_x_balanced_alphabet_one(
@@ -616,13 +828,12 @@ fn enforce_var_eq(builder: &mut R1csBuilder, a: Var, b: Var) {
     builder.enforce_eq(&Lc::from_var(a), &Lc::from_var(b));
 }
 
-fn enforce_rlc_commitment_fold(
-    builder: &mut R1csBuilder,
+fn rlc_commitment_fold_wires(
     rho_wires: &[[Var; D]],
     outputs: &[SplitNcPiCcsOutputWires],
     dec_wires: &DecInputWires,
     kappa: usize,
-) -> Result<(), Error> {
+) -> Result<RlcCommitmentWires, Error> {
     if rho_wires.len() != outputs.len() {
         return Err(Error::Inner(format!(
             "ρ count {} != outputs count {}",
@@ -639,22 +850,83 @@ fn enforce_rlc_commitment_fold(
             kappa: o.c_kappa,
         })
         .collect();
-    let wires = RlcCommitmentWires {
+    Ok(RlcCommitmentWires {
         inputs,
-        combined_c_data: dec_wires.parent.c_data.clone(),
+        // Π_RLC is defined over the κ fixed by the Π_CCS outputs. A
+        // self-consistently wider DEC parent is rejected by the c_kappa
+        // wire equality above; keep only the authoritative prefix here so
+        // the algebra emits and the rejection remains an unsatisfied row.
+        combined_c_data: dec_wires.parent.c_data[..D * kappa].to_vec(),
         kappa,
-    };
-    enforce_rlc_commitment_combination(builder, &wires);
-    Ok(())
+    })
 }
 
-fn enforce_rlc_x_fold(
-    builder: &mut R1csBuilder,
+fn rlc_adv_commitment_fold_wires(
+    rho_wires: &[[Var; D]],
+    outputs: &[SplitNcPiCcsOutputWires],
+    dec_wires: &DecInputWires,
+) -> Result<Option<LaneCommitments<RlcCommitmentWires>>, Error> {
+    let present = outputs.iter().filter(|output| output.adv.is_some()).count();
+    match (dec_wires.parent.adv.as_ref(), present) {
+        (None, 0) => Ok(None),
+        (Some(_), 0) | (None, _) => Err(Error::Inner(
+            "Pi_RLC product-commitment adv presence differs between inputs and parent".into(),
+        )),
+        (Some(parent), count) if count == outputs.len() => {
+            validate_adv_shape(Some(parent), parent.ops.d, parent.ops.kappa, "Pi_RLC parent").map_err(Error::Inner)?;
+            let output_advs: Vec<&AdvCommitmentWires> = outputs
+                .iter()
+                .map(|output| output.adv.as_ref().unwrap())
+                .collect();
+            for (idx, adv) in output_advs.iter().enumerate() {
+                validate_adv_shape(
+                    Some(adv),
+                    parent.ops.d,
+                    parent.ops.kappa,
+                    &format!("Pi_RLC output[{idx}]"),
+                )
+                .map_err(Error::Inner)?;
+            }
+            let coordinate = |select: fn(&AdvCommitmentWires) -> &CommitmentWires,
+                              combined: &CommitmentWires|
+             -> Result<RlcCommitmentWires, Error> {
+                let inputs = rho_wires
+                    .iter()
+                    .zip(output_advs.iter())
+                    .map(|(rho, adv)| {
+                        let commitment = select(adv);
+                        RlcPairWires {
+                            rho_coeffs: *rho,
+                            c_data: commitment.data.clone(),
+                            kappa: commitment.kappa,
+                        }
+                    })
+                    .collect();
+                Ok(RlcCommitmentWires {
+                    inputs,
+                    combined_c_data: combined.data.clone(),
+                    kappa: combined.kappa,
+                })
+            };
+            Ok(Some(LaneCommitments {
+                ops: coordinate(|adv| &adv.ops, &parent.ops)?,
+                is: coordinate(|adv| &adv.is, &parent.is)?,
+                fs: coordinate(|adv| &adv.fs, &parent.fs)?,
+            }))
+        }
+        (Some(_), count) => Err(Error::Inner(format!(
+            "Pi_RLC product-commitment adv presence is mixed ({count}/{})",
+            outputs.len()
+        ))),
+    }
+}
+
+fn rlc_x_fold_wires(
     rho_wires: &[[Var; D]],
     outputs: &[SplitNcPiCcsOutputWires],
     dec_wires: &DecInputWires,
     m_in: usize,
-) -> Result<(), Error> {
+) -> Result<RlcXWires, Error> {
     let inputs: Vec<RlcXPairWires> = rho_wires
         .iter()
         .zip(outputs.iter())
@@ -664,42 +936,38 @@ fn enforce_rlc_x_fold(
             m_in: o.x_cols,
         })
         .collect();
-    let wires = RlcXWires {
+    Ok(RlcXWires {
         inputs,
-        combined_x_flat: dec_wires.parent.x.clone(),
+        // The Pi_CCS outputs fix the authoritative X width. A malformed
+        // wider parent is rejected by the shape-equality rows above; keep
+        // the algebra on the authoritative prefix so synthesis remains a
+        // fail-closed unsatisfied circuit instead of returning early.
+        combined_x_flat: dec_wires.parent.x[..D * m_in].to_vec(),
         m_in,
-    };
-    enforce_rlc_x_combination(builder, &wires);
-    Ok(())
+    })
 }
 
-fn enforce_rlc_y_ring_row_fold(
-    builder: &mut R1csBuilder,
+fn rlc_y_ring_row_fold_wires(
     rho_wires: &[[Var; D]],
     outputs: &[SplitNcPiCcsOutputWires],
     dec_wires: &DecInputWires,
     j: usize,
     d_pad: usize,
-) -> Result<(), Error> {
+) -> Result<RlcPaddedKVectorWires, Error> {
     let inputs: Vec<Vec<KVar>> = outputs.iter().map(|o| o.y_ring[j].clone()).collect();
     let combined = kvars_from_flat_dec(&dec_wires.parent.y_ring[j])?;
-    let wires = padded_k_vector_wires_from_existing(rho_wires, &inputs, &combined, d_pad)?;
-    enforce_rlc_padded_k_vector_combination(builder, &wires);
-    Ok(())
+    padded_k_vector_wires_from_existing(rho_wires, &inputs, &combined, d_pad)
 }
 
-fn enforce_rlc_y_zcol_fold(
-    builder: &mut R1csBuilder,
+fn rlc_y_zcol_fold_wires(
     rho_wires: &[[Var; D]],
     outputs: &[SplitNcPiCcsOutputWires],
     dec_wires: &DecInputWires,
     d_pad: usize,
-) -> Result<(), Error> {
+) -> Result<RlcPaddedKVectorWires, Error> {
     let inputs: Vec<Vec<KVar>> = outputs.iter().map(|o| o.y_zcol.clone()).collect();
     let combined = kvars_from_flat_dec(&dec_wires.parent.y_zcol)?;
-    let wires = padded_k_vector_wires_from_existing(rho_wires, &inputs, &combined, d_pad)?;
-    enforce_rlc_padded_k_vector_combination(builder, &wires);
-    Ok(())
+    padded_k_vector_wires_from_existing(rho_wires, &inputs, &combined, d_pad)
 }
 
 fn enforce_rlc_fold_digest_consistency(

@@ -37,7 +37,7 @@ use crate::paper::relations::{CcsClaim, CeClaim};
 
 /// Per-chain compiler context shared by every F' app frontend.
 ///
-/// The chain header (`vk_fs_digest`, `structure_digest`, `z_0`, `pc`,
+/// The chain header (`vk_fs_digest`, `pi_ccs_header_bundle`, `z_0`, `pc`,
 /// `public_input_len`, commitment / boundary / limb shape) is constant
 /// across steps. `pc` is pinned as the single-`F'_j` state selector and
 /// absorbed into `state_x_out`. [`FPrimeChainState`] is updated each step;
@@ -47,7 +47,7 @@ use crate::paper::relations::{CcsClaim, CeClaim};
 pub struct FPrimeCompilerContext {
     // Chain header — constant across steps.
     pub vk_fs_digest: [F; 4],
-    pub structure_digest: [F; 4],
+    pub pi_ccs_header_bundle: [F; 4],
     pub z_0: [F; 4],
     pub pc: u64,
     pub public_input_len: usize,
@@ -182,7 +182,7 @@ pub enum FPrimeShellCompilerError {
 
 /// Initialise an [`FPrimeCompilerContext`] from `prep`.
 ///
-/// Derives the chain header (vk_fs_digest, structure_digest, z_0,
+/// Derives the chain header (vk_fs_digest, pi_ccs_header_bundle, z_0,
 /// public-trace seed, empty-accumulator digest) and seeds the chain
 /// state to the base case. `pc` is the verifier-pinned program counter
 /// for this chain; `limbs` is the app-private bit width (Fibonacci uses
@@ -213,7 +213,7 @@ pub fn start_f_prime_chain_context(
 
     Ok(FPrimeCompilerContext {
         vk_fs_digest,
-        structure_digest,
+        pi_ccs_header_bundle: prep.pi_ccs_header_bundle(),
         z_0,
         pc,
         public_input_len,
@@ -573,7 +573,7 @@ pub fn assemble_shared_chunk_traces(
 
     let state_in = StateIn {
         vk_fs_digest: ctx.vk_fs_digest,
-        structure_digest: ctx.structure_digest,
+        structure_digest: ctx.pi_ccs_header_bundle,
         z_0: ctx.z_0,
         z_i_in: ctx.chain_state.z_i,
         semantic_state_digest_in: ctx.chain_state.semantic_state_digest,
@@ -632,7 +632,7 @@ pub fn assemble_step_from_shared(
     let state_x_out = encode_poseidon_trace(&build_state_x_out_preimage_fields_with_app_x(
         ctx.state_x_out_digest_mode,
         ctx.vk_fs_digest,
-        ctx.structure_digest,
+        ctx.pi_ccs_header_bundle,
         state_out.new_chunk_count,
         state_out.new_step_count,
         ctx.z_0,

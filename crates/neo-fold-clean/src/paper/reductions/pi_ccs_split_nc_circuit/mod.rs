@@ -79,13 +79,13 @@ pub use nc::{
     NcTerminalInputs,
 };
 pub use transcript::{
-    absorb_engine_header_bundle_and_instance_digest, absorb_engine_me_inputs_accumulator_handle,
-    enforce_header_digest_catch_up, header_digest_bytes_to_fields, sample_engine_beta_m, sample_engine_challenges,
-    EngineChallenges,
+    absorb_engine_header_bundle_and_instance_digest, absorb_engine_header_bundle_wires_and_instance_digest,
+    absorb_engine_me_inputs_accumulator_handle, enforce_header_digest_catch_up, header_digest_bytes_to_fields,
+    sample_engine_beta_m, sample_engine_challenges, EngineChallenges,
 };
 pub use verifier::{
-    enforce_split_nc_pi_ccs_v, SplitNcPiCcsOutputWires, SplitNcPiCcsVConfig, SplitNcPiCcsVDerived,
-    SplitNcPiCcsVMessages,
+    enforce_split_nc_pi_ccs_v, enforce_split_nc_pi_ccs_v_with_header_bundle_wires, SplitNcPiCcsOutputWires,
+    SplitNcPiCcsVConfig, SplitNcPiCcsVDerived, SplitNcPiCcsVMessages,
 };
 
 /// Errors emitted by the SplitNcV1 in-circuit verifier and its building-block

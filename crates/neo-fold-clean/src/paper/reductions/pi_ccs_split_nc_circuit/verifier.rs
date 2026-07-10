@@ -44,12 +44,13 @@ use neo_math::{KExtensions, F, K};
 use p3_field::PrimeCharacteristicRing;
 
 use super::{
-    absorb_engine_header_bundle_and_instance_digest, absorb_engine_me_inputs_accumulator_handle,
-    enforce_accumulator_ce_claim_digest, enforce_ccs_claim_digest, enforce_ce_claim_digest, enforce_fe_claimed_initial,
-    enforce_fe_sumcheck_driver, enforce_fe_terminal_identity, enforce_header_digest_catch_up,
-    enforce_nc_sumcheck_driver, enforce_nc_terminal_identity, enforce_pi_ccs_instance_digest_parent_authority,
-    header_digest_bytes_to_fields, sample_engine_beta_m, sample_engine_challenges, AccumulatorCeClaimDigestInputs,
-    CeClaimDigestInputs, Error, FeClaimedInitialInputs, FeTerminalInputs, NcTerminalInputs,
+    absorb_engine_header_bundle_and_instance_digest, absorb_engine_header_bundle_wires_and_instance_digest,
+    absorb_engine_me_inputs_accumulator_handle, enforce_accumulator_ce_claim_digest, enforce_ccs_claim_digest,
+    enforce_ce_claim_digest, enforce_fe_claimed_initial, enforce_fe_sumcheck_driver, enforce_fe_terminal_identity,
+    enforce_header_digest_catch_up, enforce_nc_sumcheck_driver, enforce_nc_terminal_identity,
+    enforce_pi_ccs_instance_digest_parent_authority, header_digest_bytes_to_fields, sample_engine_beta_m,
+    sample_engine_challenges, AccumulatorCeClaimDigestInputs, CeClaimDigestInputs, Error, FeClaimedInitialInputs,
+    FeTerminalInputs, NcTerminalInputs,
 };
 use crate::engine::r1cs_circuit::builder::{Lc, Var};
 use crate::engine::r1cs_circuit::field_ext::KVar;
@@ -57,7 +58,8 @@ use crate::engine::r1cs_circuit::transcript::TranscriptGadget;
 use crate::engine::r1cs_circuit::R1csBuilder;
 use crate::paper::params::Params;
 use crate::paper::reductions::accumulator_digest_circuit::enforce_accumulator_digest_from_running_circuit;
-use crate::paper::relations::{CcsClaim, CeClaim};
+use crate::paper::relations::product_commitment_circuit::{alloc_adv, enforce_adv_equality, AdvCommitmentWires};
+use crate::paper::relations::{validate_adv_shape, CcsClaim, CeClaim};
 
 /// Static configuration for one SplitNc Π_CCS.V invocation.
 ///
@@ -107,6 +109,7 @@ pub struct SplitNcPiCcsOutputWires {
     pub c_kappa: usize,
     pub c_kappa_var: Var,
     pub c_data: Vec<Var>,
+    pub adv: Option<AdvCommitmentWires>,
     pub x: Vec<Var>,
     pub x_rows: usize,
     pub x_rows_var: Var,
@@ -146,6 +149,9 @@ pub struct SplitNcPiCcsVDerived {
     pub outputs: Vec<SplitNcPiCcsOutputWires>,
     /// `fresh_x[i]` = the `m_in` public-input `F`-wires of `fresh[i]`.
     pub fresh_x: Vec<Vec<Var>>,
+    /// Product-commitment coordinates of those same fresh claims. Each
+    /// entry shares allocation and transcript binding with `fresh_x[i]`.
+    pub fresh_adv: Vec<Option<AdvCommitmentWires>>,
     /// `running_c_data[i]` = the `D * kappa` commitment-data wires of `running[i]`.
     pub running_c_data: Vec<Vec<Var>>,
     /// Full per-running-claim CE-claim wire bundles (c, x, r, y_ring, ct,
@@ -176,6 +182,7 @@ struct CcsClaimWires {
     c_kappa: usize,
     c_kappa_var: Var,
     c_data: Vec<Var>,
+    adv: Option<AdvCommitmentWires>,
     x: Vec<Var>,
     m_in: usize,
     m_in_var: Var,
@@ -192,6 +199,7 @@ struct CeClaimWires {
     c_kappa: usize,
     c_kappa_var: Var,
     c_data: Vec<Var>,
+    adv: Option<AdvCommitmentWires>,
     x: Vec<Var>,
     x_rows: usize,
     x_rows_var: Var,
@@ -232,6 +240,7 @@ fn accumulator_digest_inputs(claim: &CeClaimWires) -> AccumulatorCeClaimDigestIn
         ct: &claim.ct,
         m_in: claim.m_in,
         fold_digest_fields: claim.fold_digest_fields,
+        adv: claim.adv.as_ref(),
     }
 }
 
@@ -243,6 +252,28 @@ pub fn enforce_split_nc_pi_ccs_v(
     transcript: &mut TranscriptGadget,
     cfg: &SplitNcPiCcsVConfig<'_>,
     msg: &SplitNcPiCcsVMessages<'_>,
+) -> Result<SplitNcPiCcsVDerived, Error> {
+    enforce_split_nc_pi_ccs_v_inner(builder, transcript, cfg, msg, None)
+}
+
+/// Folded-F' entrypoint. The header is verifier-key advice, so its values
+/// do not become constants in a relation that ultimately verifies itself.
+pub fn enforce_split_nc_pi_ccs_v_with_header_bundle_wires(
+    builder: &mut R1csBuilder,
+    transcript: &mut TranscriptGadget,
+    cfg: &SplitNcPiCcsVConfig<'_>,
+    msg: &SplitNcPiCcsVMessages<'_>,
+    header_bundle: [Var; 4],
+) -> Result<SplitNcPiCcsVDerived, Error> {
+    enforce_split_nc_pi_ccs_v_inner(builder, transcript, cfg, msg, Some(header_bundle))
+}
+
+fn enforce_split_nc_pi_ccs_v_inner(
+    builder: &mut R1csBuilder,
+    transcript: &mut TranscriptGadget,
+    cfg: &SplitNcPiCcsVConfig<'_>,
+    msg: &SplitNcPiCcsVMessages<'_>,
+    header_bundle: Option<[Var; 4]>,
 ) -> Result<SplitNcPiCcsVDerived, Error> {
     let k_mcs = msg.fresh.len();
     let k_me = msg.running.len();
@@ -354,7 +385,13 @@ pub fn enforce_split_nc_pi_ccs_v(
     let mut fresh_digests: Vec<[Var; 4]> = Vec::with_capacity(k_mcs);
     for fw in &fresh_wires {
         fresh_digests.push(enforce_ccs_claim_digest(
-            builder, fw.c_d, fw.c_kappa, &fw.c_data, &fw.x, fw.m_in,
+            builder,
+            fw.c_d,
+            fw.c_kappa,
+            &fw.c_data,
+            &fw.x,
+            fw.m_in,
+            fw.adv.as_ref(),
         ));
     }
 
@@ -393,6 +430,7 @@ pub fn enforce_split_nc_pi_ccs_v(
                     y_ring: &parent.y_ring,
                     m_in: parent.m_in,
                     fold_digest_fields: parent.fold_digest_fields,
+                    adv: parent.adv.as_ref(),
                 },
             )
         })
@@ -412,7 +450,14 @@ pub fn enforce_split_nc_pi_ccs_v(
     // ── 4-5. Instance digest + header/instance absorbs ───────────────────
     let instance_digest =
         enforce_pi_ccs_instance_digest_parent_authority(builder, &fresh_digests, k_me, running_parent_digest);
-    absorb_engine_header_bundle_and_instance_digest(builder, transcript, cfg.header_bundle, instance_digest);
+    match header_bundle {
+        Some(header_bundle) => {
+            absorb_engine_header_bundle_wires_and_instance_digest(builder, transcript, header_bundle, instance_digest)
+        }
+        None => {
+            absorb_engine_header_bundle_and_instance_digest(builder, transcript, cfg.header_bundle, instance_digest)
+        }
+    }
 
     // ── 6. ME-input absorb (running-accumulator authority handle mode) ───
     //
@@ -531,6 +576,7 @@ pub fn enforce_split_nc_pi_ccs_v(
             c_kappa: ow.c_kappa,
             c_kappa_var: ow.c_kappa_var,
             c_data: ow.c_data,
+            adv: ow.adv,
             x: ow.x,
             x_rows: ow.x_rows,
             x_rows_var: ow.x_rows_var,
@@ -550,6 +596,7 @@ pub fn enforce_split_nc_pi_ccs_v(
     // Snapshot fresh.x and running.c_data wires so F'-side composition can
     // consume them without re-walking the witness layout.
     let fresh_x: Vec<Vec<Var>> = fresh_wires.iter().map(|fw| fw.x.clone()).collect();
+    let fresh_adv = fresh_wires.iter().map(|fw| fw.adv.clone()).collect();
     let running_c_data: Vec<Vec<Var>> = running_wires.iter().map(|rw| rw.c_data.clone()).collect();
     // Surface the full per-running-claim wire bundle so the decider's
     // CE-continuity gate can pin `prev.children == next.running` field
@@ -563,6 +610,7 @@ pub fn enforce_split_nc_pi_ccs_v(
             c_kappa: rw.c_kappa,
             c_kappa_var: rw.c_kappa_var,
             c_data: rw.c_data,
+            adv: rw.adv,
             x: rw.x,
             x_rows: rw.x_rows,
             x_rows_var: rw.x_rows_var,
@@ -584,6 +632,7 @@ pub fn enforce_split_nc_pi_ccs_v(
         c_kappa: rw.c_kappa,
         c_kappa_var: rw.c_kappa_var,
         c_data: rw.c_data,
+        adv: rw.adv,
         x: rw.x,
         x_rows: rw.x_rows,
         x_rows_var: rw.x_rows_var,
@@ -604,6 +653,7 @@ pub fn enforce_split_nc_pi_ccs_v(
         s_col_prime: nc.s_col_prime,
         outputs,
         fresh_x,
+        fresh_adv,
         running_c_data,
         running,
         running_parent_authority,
@@ -647,6 +697,7 @@ fn validate_fresh_shape(cfg: &SplitNcPiCcsVConfig<'_>, idx: usize, f: &CcsClaim)
             D * kappa
         )));
     }
+    validate_adv_shape(f.adv.as_ref(), D, kappa, &format!("fresh[{idx}]")).map_err(Error::Shape)?;
     Ok(())
 }
 
@@ -675,6 +726,7 @@ fn validate_ce_shape(cfg: &SplitNcPiCcsVConfig<'_>, label: &str, ce: &CeClaim) -
             D * kappa
         )));
     }
+    validate_adv_shape(ce.adv.as_ref(), D, kappa, label).map_err(Error::Shape)?;
     if ce.m_in > cfg.structure.m {
         return Err(Error::Shape(format!(
             "{label}.m_in ({}) > structure.m ({})",
@@ -716,6 +768,7 @@ fn validate_output_ce_shape(cfg: &SplitNcPiCcsVConfig<'_>, label: &str, ce: &CeC
             D * kappa
         )));
     }
+    validate_adv_shape(ce.adv.as_ref(), D, kappa, label).map_err(Error::Shape)?;
     if ce.m_in > cfg.structure.m {
         return Err(Error::Shape(format!(
             "{label}.m_in ({}) > structure.m ({})",
@@ -885,6 +938,7 @@ fn alloc_fresh_wires(builder: &mut R1csBuilder, fresh: &CcsClaim) -> CcsClaimWir
         c_kappa: fresh.c.kappa,
         c_kappa_var: alloc_usize(builder, fresh.c.kappa),
         c_data: builder.alloc_vec(&fresh.c.data),
+        adv: alloc_adv(builder, fresh.adv.as_ref()),
         x: builder.alloc_vec(&fresh.x),
         m_in: fresh.m_in,
         m_in_var: alloc_usize(builder, fresh.m_in),
@@ -896,9 +950,17 @@ fn alloc_fresh_wires(builder: &mut R1csBuilder, fresh: &CcsClaim) -> CcsClaimWir
 /// derived on demand via [`CeClaimWires::x_packed`].
 fn alloc_ce_wires(builder: &mut R1csBuilder, ce: &CeClaim) -> Result<CeClaimWires, Error> {
     let mut x: Vec<Var> = Vec::with_capacity(ce.X.rows() * ce.X.cols());
+    let active_cols = crate::paper::relations::superneo_public_x_cols(ce.m_in);
+    let inactive_nonzero = (0..ce.X.rows()).any(|r| (active_cols..ce.X.cols()).any(|c| ce.X[(r, c)] != F::ZERO));
+    let inactive_zero = builder.alloc(if inactive_nonzero { F::ONE } else { F::ZERO });
+    builder.enforce_eq(&Lc::from_var(inactive_zero), &Lc::zero());
     for r in 0..ce.X.rows() {
         for c in 0..ce.X.cols() {
-            x.push(builder.alloc(ce.X[(r, c)]));
+            x.push(if c < active_cols {
+                builder.alloc(ce.X[(r, c)])
+            } else {
+                inactive_zero
+            });
         }
     }
     Ok(CeClaimWires {
@@ -907,6 +969,7 @@ fn alloc_ce_wires(builder: &mut R1csBuilder, ce: &CeClaim) -> Result<CeClaimWire
         c_kappa: ce.c.kappa,
         c_kappa_var: alloc_usize(builder, ce.c.kappa),
         c_data: builder.alloc_vec(&ce.c.data),
+        adv: alloc_adv(builder, ce.adv.as_ref()),
         x,
         x_rows: ce.X.rows(),
         x_rows_var: alloc_usize(builder, ce.X.rows()),
@@ -921,6 +984,15 @@ fn alloc_ce_wires(builder: &mut R1csBuilder, ce: &CeClaim) -> Result<CeClaimWire
         m_in_var: alloc_usize(builder, ce.m_in),
         fold_digest_fields: digest32_witness_fields(builder, &ce.fold_digest)?,
     })
+}
+
+fn enforce_unique_zero_wires(builder: &mut R1csBuilder, wires: impl Iterator<Item = Var>) {
+    let mut constrained = std::collections::HashSet::new();
+    for wire in wires {
+        if constrained.insert(wire.col()) {
+            builder.enforce_eq(&Lc::from_var(wire), &Lc::zero());
+        }
+    }
 }
 
 /// Mirror of native `validate_me_outputs_against_inputs`, but wire-to-wire
@@ -983,11 +1055,10 @@ fn bind_outputs_to_inputs(
                 ow.x_cols
             )));
         }
-        for rr in 0..ow.x_rows {
-            for col in active_x_cols..ow.x_cols {
-                builder.enforce_eq(&Lc::from_var(ow.x[rr * ow.x_cols + col]), &Lc::zero());
-            }
-        }
+        enforce_unique_zero_wires(
+            builder,
+            (0..ow.x_rows).flat_map(|row| (active_x_cols..ow.x_cols).map(move |col| ow.x[row * ow.x_cols + col])),
+        );
 
         if idx < k_mcs {
             let fw = &fresh_wires[idx];
@@ -1018,6 +1089,13 @@ fn bind_outputs_to_inputs(
             for (a, b) in ow.c_data.iter().zip(fw.c_data.iter()) {
                 enforce_var_eq(builder, *a, *b);
             }
+            enforce_adv_equality(
+                builder,
+                ow.adv.as_ref(),
+                fw.adv.as_ref(),
+                &format!("fresh output[{idx}]"),
+            )
+            .map_err(Error::Shape)?;
 
             // X shape: must be D × m_in for SuperNeo packing.
             if ow.x_rows != D || ow.x_cols != fw.m_in {
@@ -1064,6 +1142,13 @@ fn bind_outputs_to_inputs(
             for (a, b) in ow.c_data.iter().zip(rw.c_data.iter()) {
                 enforce_var_eq(builder, *a, *b);
             }
+            enforce_adv_equality(
+                builder,
+                ow.adv.as_ref(),
+                rw.adv.as_ref(),
+                &format!("running output[{idx}]"),
+            )
+            .map_err(Error::Shape)?;
 
             if ow.x_rows != rw.x_rows || ow.x_cols != rw.x_cols {
                 return Err(Error::Shape(format!(

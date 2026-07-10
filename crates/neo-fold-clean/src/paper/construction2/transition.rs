@@ -192,6 +192,7 @@ pub(crate) fn compute_x_out(
     let bytes = digest::state_x_out_digest_with_mode(
         mode,
         vk.digest(),
+        vk.pi_ccs_header_bundle(),
         structure_digest,
         state.chunk_count,
         state.step_count,

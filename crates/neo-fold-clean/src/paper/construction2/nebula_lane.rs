@@ -77,7 +77,7 @@ impl StackShape {
 
     /// Bits of the step public input (spec §4.4): the 1,400 v3 slots
     /// plus `sp_in`/`sp_out` per stack, appended.
-    pub fn x_bits(&self) -> usize {
+    pub const fn x_bits(&self) -> usize {
         X_BASE_BITS + 2 * self.count * self.sigma
     }
 }

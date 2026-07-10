@@ -38,10 +38,12 @@ use crate::paper::digest::{
 };
 use crate::paper::f_prime::digest_circuit::{enforce_state_x_out_digest_circuit, StateXOutDigestInputs};
 use crate::paper::f_prime::native::F_PRIME_STEP_TRANSCRIPT_LABEL;
+use crate::paper::f_prime::nebula_lane_circuit::enforce_nebula_lane_equality_circuit;
 use crate::paper::f_prime::r1cs::{
-    enforce_f_prime_base_step_circuit, enforce_f_prime_recursive_step_circuit, FPrimeBaseInputs, FPrimeRecursiveInputs,
-    FPrimeStateIn, FPrimeStateWires, FPrimeStepConfig, FPrimeStepOutput, F_PRIME_ENC_INST_BITS,
-    F_PRIME_ENC_INST_OFFSET, F_PRIME_PUBLIC_INPUT_LEN, F_PRIME_PUBLIC_ONE_OFFSET,
+    enforce_f_prime_base_step_circuit, enforce_f_prime_recursive_step_circuit, FPrimeBaseInputs,
+    FPrimePublicInputLayout, FPrimeRecursiveInputs, FPrimeStateIn, FPrimeStateWires, FPrimeStepConfig,
+    FPrimeStepOutput, F_PRIME_ENC_INST_BITS, F_PRIME_ENC_INST_OFFSET, F_PRIME_PUBLIC_INPUT_LEN,
+    F_PRIME_PUBLIC_ONE_OFFSET,
 };
 use crate::paper::f_prime::source_image::{BitRange, FPrimeSourceImage};
 use crate::paper::nifs::circuit::{enforce_nifs_v_circuit_with_transcript, NifsVCircuitConfig, NifsVCircuitMessages};
@@ -51,6 +53,7 @@ use crate::paper::reductions::pi_ccs_split_nc_circuit::{
     enforce_accumulator_ce_claim_digest, AccumulatorCeClaimDigestInputs, SplitNcPiCcsOutputWires, SplitNcPiCcsVConfig,
 };
 use crate::paper::reductions::pi_dec_circuit::CeClaimWires;
+use crate::paper::relations::product_commitment_circuit::enforce_adv_equality;
 use crate::paper::relations::CcsClaim;
 
 /// Full-history audit R1CS output plus completeness tracking.
@@ -663,7 +666,7 @@ fn emit_base_step_r1cs(
 
     let f_state = FPrimeStateIn {
         vk_fs_digest: digest32_as_fields(prep.vk.digest()),
-        structure_digest: *prep.structure_digest(),
+        pi_ccs_header_bundle: prep.pi_ccs_header_bundle(),
         chunk_count_in: state_in.chunk_count,
         step_count_in: state_in.step_count,
         z_0: digest32_as_fields(state_in.z_0),
@@ -672,6 +675,7 @@ fn emit_base_step_r1cs(
         semantic_state_digest_in: digest32_as_fields(state_in.semantic_state_digest),
         acc_digest_in: digest32_as_fields(state_in.acc_digest),
         public_trace_in: digest32_as_fields(state_in.public_trace),
+        nebula: None,
     };
 
     let mut image = FPrimeSourceImage::new();
@@ -686,6 +690,8 @@ fn emit_base_step_r1cs(
         },
         b: prep.params.b(),
         transcript_label: F_PRIME_STEP_TRANSCRIPT_LABEL,
+        public_input_layout: FPrimePublicInputLayout::plain(),
+        nebula: None,
         state_x_out_digest_mode: state_x_out_digest_mode(prep),
     };
     let rows_in_chunk = public_batch.len() as u64;
@@ -728,7 +734,7 @@ fn emit_recursive_step_r1cs(
 
     let f_state = FPrimeStateIn {
         vk_fs_digest: digest32_as_fields(prep.vk.digest()),
-        structure_digest: *prep.structure_digest(),
+        pi_ccs_header_bundle: prep.pi_ccs_header_bundle(),
         chunk_count_in: state_in.chunk_count,
         step_count_in: state_in.step_count,
         z_0: digest32_as_fields(state_in.z_0),
@@ -737,6 +743,7 @@ fn emit_recursive_step_r1cs(
         semantic_state_digest_in: digest32_as_fields(state_in.semantic_state_digest),
         acc_digest_in: digest32_as_fields(state_in.acc_digest),
         public_trace_in: digest32_as_fields(state_in.public_trace),
+        nebula: None,
     };
 
     let mut image = FPrimeSourceImage::new();
@@ -753,6 +760,8 @@ fn emit_recursive_step_r1cs(
         },
         b: prep.params.b(),
         transcript_label: F_PRIME_STEP_TRANSCRIPT_LABEL,
+        public_input_layout: FPrimePublicInputLayout::plain(),
+        nebula: None,
         state_x_out_digest_mode: state_x_out_digest_mode(prep),
     };
     let inputs = FPrimeRecursiveInputs {
@@ -787,7 +796,7 @@ fn emit_recursive_step_r1cs(
 }
 
 /// Pin the base step's state-in wires to the canonical preprocessing-derived
-/// seed values: `vk_fs_digest`, `structure_digest`, `z_0`, `z_i = z_0`,
+/// seed values: `vk_fs_digest`, `pi_ccs_header_bundle`, `z_0`, `z_i = z_0`,
 /// `public_trace_seed`, empty `acc_digest`, zero counters, `pc == TRIVIAL_PC`.
 ///
 /// Without this pin, a SNARK verifier would have no way to reject a
@@ -807,7 +816,11 @@ fn enforce_base_state_constants(
     let empty_acc_bytes = AccumulatorHandle::empty().digest();
 
     pin_digest32(builder, &base.state_in.vk_fs_digest, prep.vk.digest());
-    pin_digest_fields(builder, &base.state_in.structure_digest, structure_lanes);
+    pin_digest_fields(
+        builder,
+        &base.state_in.pi_ccs_header_bundle,
+        prep.pi_ccs_header_bundle(),
+    );
     pin_digest32(builder, &base.state_in.z_0, z_0_bytes);
     // Base step also enforces z_i == z_0 in-circuit, but pinning here
     // gives the SNARK verifier a direct constant to compare against.
@@ -834,7 +847,7 @@ fn pin_digest_fields(builder: &mut R1csBuilder, wires: &[Var; 4], expected: [F; 
 /// to chain `prev.state_out` into `next.state_in`.
 fn enforce_state_link(builder: &mut R1csBuilder, a: &FPrimeStateWires, b: &FPrimeStateWires) {
     enforce_digest_eq(builder, &a.vk_fs_digest, &b.vk_fs_digest);
-    enforce_digest_eq(builder, &a.structure_digest, &b.structure_digest);
+    enforce_digest_eq(builder, &a.pi_ccs_header_bundle, &b.pi_ccs_header_bundle);
     builder.enforce_eq(&Lc::from_var(a.chunk_count), &Lc::from_var(b.chunk_count));
     builder.enforce_eq(&Lc::from_var(a.step_count), &Lc::from_var(b.step_count));
     enforce_digest_eq(builder, &a.z_0, &b.z_0);
@@ -843,6 +856,11 @@ fn enforce_state_link(builder: &mut R1csBuilder, a: &FPrimeStateWires, b: &FPrim
     enforce_digest_eq(builder, &a.semantic_state_digest, &b.semantic_state_digest);
     enforce_digest_eq(builder, &a.acc_digest, &b.acc_digest);
     enforce_digest_eq(builder, &a.public_trace, &b.public_trace);
+    match (a.nebula.as_ref(), b.nebula.as_ref()) {
+        (None, None) => {}
+        (Some(a), Some(b)) => enforce_nebula_lane_equality_circuit(builder, a, b),
+        _ => builder.enforce_eq(&Lc::zero(), &Lc::from_const(F::ONE)),
+    }
 }
 
 fn enforce_digest_eq(builder: &mut R1csBuilder, a: &[Var; 4], b: &[Var; 4]) {
@@ -900,6 +918,12 @@ fn enforce_children_equal_running(
         }
         // c_data + x are Vec<Var> in both representations.
         enforce_vec_var_eq(builder, &child.c_data, &run.c_data, "c_data", idx)?;
+        enforce_adv_equality(
+            builder,
+            child.adv.as_ref(),
+            run.adv.as_ref(),
+            &format!("CE continuity[{idx}]"),
+        )?;
         enforce_vec_var_eq(builder, &child.x, &run.x, "x", idx)?;
         // Shape metadata is also represented as scalar wires inside the
         // verifier circuit. Pin it here so CE continuity is genuinely
@@ -1130,6 +1154,7 @@ fn enforce_dec_ce_claim_accumulator_digest(
             ct: &claim.ct,
             m_in: claim.m_in,
             fold_digest_fields: claim.fold_digest_fields,
+            adv: claim.adv.as_ref(),
         },
     )
     .map_err(|e| decider::Error::WalkFailed(format!("terminal accumulator CE digest: {e}")))
@@ -1225,7 +1250,8 @@ fn pin_public_image(
     let terminal_x_out_inputs = StateXOutDigestInputs {
         mode: state_x_out_digest_mode(prep),
         vk_fs_digest: so.vk_fs_digest,
-        structure_digest: so.structure_digest,
+        pi_ccs_header_bundle: so.pi_ccs_header_bundle,
+        structure_digest: so.pi_ccs_header_bundle,
         chunk_count: so.chunk_count,
         step_count: so.step_count,
         initial_boundary: so.z_0,
@@ -1237,13 +1263,12 @@ fn pin_public_image(
     };
     let terminal_x_out = enforce_state_x_out_digest_circuit(builder, &terminal_x_out_inputs);
     pin_digest32(builder, &terminal_x_out, public.x_out.digest_bytes);
-    // Belt-and-braces: pin `structure_digest` to the canonical
-    // verifier-derived value (not a `PublicImage` field).
-    let structure_lanes = *prep.structure_digest();
+    // Belt-and-braces: pin the SplitNc header to preprocessing.
+    let header_bundle = prep.pi_ccs_header_bundle();
     for k in 0..4 {
         builder.enforce_eq(
-            &Lc::from_var(so.structure_digest[k]),
-            &Lc::from_const(structure_lanes[k]),
+            &Lc::from_var(so.pi_ccs_header_bundle[k]),
+            &Lc::from_const(header_bundle[k]),
         );
     }
     REQUIRED_PUBLIC_IMAGE_PINS
@@ -1321,6 +1346,7 @@ fn state_x_out_lanes(prep: &Preprocessing, state: &State) -> [F; 4] {
     digest32_as_fields(state_x_out_digest_with_mode(
         state_x_out_digest_mode(prep),
         prep.vk.digest(),
+        prep.pi_ccs_header_bundle(),
         prep.structure_digest(),
         state.chunk_count,
         state.step_count,

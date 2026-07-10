@@ -22,7 +22,10 @@ const LEGACY_ACCUMULATOR_TAG: &[u8] = b"neo.fold.next/direct_ccs/accumulator_phi
 
 // Includes the 65-bit is_base region: the selector bit plus the 64-bit
 // inverse lane that derives `is_base` from `state_out.new_chunk_count`.
-const CURRENT_IMAGE_WIDTH: usize = 134_852;
+// The pi_ccs_header_bundle absorb (4 lanes) pushed the state_x_out
+// preimage over a rate boundary: one extra permutation = +21,888 bits
+// over the pre-bundle 134,852.
+const CURRENT_IMAGE_WIDTH: usize = 156_740;
 const REMOVED_RECURSIVE_ACCUMULATOR_TRACE_DIGITS: usize = 5_406_336;
 const REMOVED_PUBLIC_TRACE_UPDATE_DIGITS: usize = 109_440;
 const REMOVED_BOUNDARY_UPDATE_TRACE_DIGITS: usize = 87_552;
@@ -58,7 +61,7 @@ fn fibonacci_f_prime_layout_budget_confirms_recursive_accumulator_trace_removed(
 
     let state_x_out = layout.one_shot_poseidon_layouts[0].trace_len;
 
-    assert_eq!(state_x_out, 131_328);
+    assert_eq!(state_x_out, 153_216);
     assert_eq!(
         layout.nifs_payloads.bits, 0,
         "unified delayed-handle mode must not reserve dead source-image NIFS payload columns",
@@ -165,7 +168,7 @@ fn fibonacci_f_prime_layout_budget_breaks_down_remaining_width() {
     );
 
     assert_eq!(layout.end, CURRENT_IMAGE_WIDTH);
-    assert_eq!(layout.poseidon.bits, 131_328);
+    assert_eq!(layout.poseidon.bits, 153_216);
     assert_eq!(layout.ring_action.bits % POSEIDON2_GOLDILOCKS_BITS, 0);
     assert_eq!(
         layout.poseidon.bits,

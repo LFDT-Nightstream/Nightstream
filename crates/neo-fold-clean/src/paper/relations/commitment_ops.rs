@@ -74,6 +74,41 @@ pub struct AdvPresenceError {
     pub total: usize,
 }
 
+/// Validate that every `adv` coordinate has the same Ajtai shape as the
+/// main commitment coordinate of its claim.
+pub fn validate_adv_shape(
+    adv: Option<&LaneCommitments<Commitment>>,
+    expected_d: usize,
+    expected_kappa: usize,
+    label: &str,
+) -> Result<(), String> {
+    let Some(adv) = adv else {
+        return Ok(());
+    };
+    for (lane, commitment) in [("ops", &adv.ops), ("is", &adv.is), ("fs", &adv.fs)] {
+        if commitment.d != expected_d {
+            return Err(format!(
+                "{label}.adv.{lane}.d ({}) != expected d ({expected_d})",
+                commitment.d
+            ));
+        }
+        if commitment.kappa != expected_kappa {
+            return Err(format!(
+                "{label}.adv.{lane}.kappa ({}) != expected kappa ({expected_kappa})",
+                commitment.kappa
+            ));
+        }
+        let expected_len = expected_d * expected_kappa;
+        if commitment.data.len() != expected_len {
+            return Err(format!(
+                "{label}.adv.{lane}.data.len ({}) != d*kappa ({expected_len})",
+                commitment.data.len()
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Π_RLC mirror: `adv*_L = Σ ρ_i · adv_{i,L}` per lane, under the same
 /// mixer that combines `c`. Returns `None` when no input carries a tuple.
 pub fn mix_adv(

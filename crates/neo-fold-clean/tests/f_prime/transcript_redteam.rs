@@ -14,8 +14,8 @@ use neo_fold_clean::paper::digest::{
     digest32_as_fields, digest_fields_as_digest32, state_x_out_digest_with_mode, AccumulatorHandle, StateXOutDigestMode,
 };
 use neo_fold_clean::paper::f_prime::r1cs::{
-    encode_f_prime_public_input, enforce_f_prime_recursive_step_circuit, FPrimeRecursiveInputs, FPrimeStateIn,
-    FPrimeStepConfig, F_PRIME_ENC_INST_BITS, F_PRIME_PUBLIC_INPUT_LEN,
+    encode_f_prime_public_input, enforce_f_prime_recursive_step_circuit, FPrimePublicInputLayout,
+    FPrimeRecursiveInputs, FPrimeStateIn, FPrimeStepConfig, F_PRIME_ENC_INST_BITS, F_PRIME_PUBLIC_INPUT_LEN,
 };
 use neo_fold_clean::paper::f_prime::source_image::{BitRange, FPrimeSourceImage, Word64Image};
 use neo_fold_clean::paper::nifs::circuit::{NifsVCircuitConfig, NifsVCircuitMessages};
@@ -53,7 +53,7 @@ struct SourceFixture {
 enum ProverTranscriptShape {
     Full,
     OmitVkFs,
-    OmitStructure,
+    OmitPiCcsHeader,
     OmitChunkCount,
     OmitStepCount,
     OmitZ0,
@@ -81,7 +81,7 @@ fn rand_digest(seed: u64) -> [F; 4] {
 
 fn append_f_prime_step_context(tr: &mut Transcript, state: &FPrimeStateIn, chunk_digest: [F; 4]) {
     tr.append_fields(b"f_prime/vk_fs", &state.vk_fs_digest);
-    tr.append_fields(b"f_prime/structure", &state.structure_digest);
+    tr.append_fields(b"f_prime/pi_ccs_header", &state.pi_ccs_header_bundle);
     tr.append_fields(b"f_prime/chunk_count_in", &[F::from_u64(state.chunk_count_in)]);
     tr.append_fields(b"f_prime/step_count_in", &[F::from_u64(state.step_count_in)]);
     tr.append_fields(b"f_prime/z_0", &state.z_0);
@@ -99,7 +99,7 @@ fn append_f_prime_step_context_without_semantic_state(
     chunk_digest: [F; 4],
 ) {
     tr.append_fields(b"f_prime/vk_fs", &state.vk_fs_digest);
-    tr.append_fields(b"f_prime/structure", &state.structure_digest);
+    tr.append_fields(b"f_prime/pi_ccs_header", &state.pi_ccs_header_bundle);
     tr.append_fields(b"f_prime/chunk_count_in", &[F::from_u64(state.chunk_count_in)]);
     tr.append_fields(b"f_prime/step_count_in", &[F::from_u64(state.step_count_in)]);
     tr.append_fields(b"f_prime/z_0", &state.z_0);
@@ -112,7 +112,7 @@ fn append_f_prime_step_context_without_semantic_state(
 
 fn append_f_prime_step_context_without_z_0(tr: &mut Transcript, state: &FPrimeStateIn, chunk_digest: [F; 4]) {
     tr.append_fields(b"f_prime/vk_fs", &state.vk_fs_digest);
-    tr.append_fields(b"f_prime/structure", &state.structure_digest);
+    tr.append_fields(b"f_prime/pi_ccs_header", &state.pi_ccs_header_bundle);
     tr.append_fields(b"f_prime/chunk_count_in", &[F::from_u64(state.chunk_count_in)]);
     tr.append_fields(b"f_prime/step_count_in", &[F::from_u64(state.step_count_in)]);
     tr.append_fields(b"f_prime/z_i_in", &state.z_i_in);
@@ -125,7 +125,7 @@ fn append_f_prime_step_context_without_z_0(tr: &mut Transcript, state: &FPrimeSt
 
 fn append_f_prime_step_context_without_acc_digest(tr: &mut Transcript, state: &FPrimeStateIn, chunk_digest: [F; 4]) {
     tr.append_fields(b"f_prime/vk_fs", &state.vk_fs_digest);
-    tr.append_fields(b"f_prime/structure", &state.structure_digest);
+    tr.append_fields(b"f_prime/pi_ccs_header", &state.pi_ccs_header_bundle);
     tr.append_fields(b"f_prime/chunk_count_in", &[F::from_u64(state.chunk_count_in)]);
     tr.append_fields(b"f_prime/step_count_in", &[F::from_u64(state.step_count_in)]);
     tr.append_fields(b"f_prime/z_0", &state.z_0);
@@ -138,7 +138,7 @@ fn append_f_prime_step_context_without_acc_digest(tr: &mut Transcript, state: &F
 
 fn append_f_prime_step_context_without_public_trace(tr: &mut Transcript, state: &FPrimeStateIn, chunk_digest: [F; 4]) {
     tr.append_fields(b"f_prime/vk_fs", &state.vk_fs_digest);
-    tr.append_fields(b"f_prime/structure", &state.structure_digest);
+    tr.append_fields(b"f_prime/pi_ccs_header", &state.pi_ccs_header_bundle);
     tr.append_fields(b"f_prime/chunk_count_in", &[F::from_u64(state.chunk_count_in)]);
     tr.append_fields(b"f_prime/step_count_in", &[F::from_u64(state.step_count_in)]);
     tr.append_fields(b"f_prime/z_0", &state.z_0);
@@ -151,7 +151,7 @@ fn append_f_prime_step_context_without_public_trace(tr: &mut Transcript, state: 
 
 fn append_f_prime_step_context_without_chunk_digest(tr: &mut Transcript, state: &FPrimeStateIn, _chunk_digest: [F; 4]) {
     tr.append_fields(b"f_prime/vk_fs", &state.vk_fs_digest);
-    tr.append_fields(b"f_prime/structure", &state.structure_digest);
+    tr.append_fields(b"f_prime/pi_ccs_header", &state.pi_ccs_header_bundle);
     tr.append_fields(b"f_prime/chunk_count_in", &[F::from_u64(state.chunk_count_in)]);
     tr.append_fields(b"f_prime/step_count_in", &[F::from_u64(state.step_count_in)]);
     tr.append_fields(b"f_prime/z_0", &state.z_0);
@@ -171,8 +171,8 @@ fn append_f_prime_step_context_with_omission(
     if !matches!(omitted, ProverTranscriptShape::OmitVkFs) {
         tr.append_fields(b"f_prime/vk_fs", &state.vk_fs_digest);
     }
-    if !matches!(omitted, ProverTranscriptShape::OmitStructure) {
-        tr.append_fields(b"f_prime/structure", &state.structure_digest);
+    if !matches!(omitted, ProverTranscriptShape::OmitPiCcsHeader) {
+        tr.append_fields(b"f_prime/pi_ccs_header", &state.pi_ccs_header_bundle);
     }
     if !matches!(omitted, ProverTranscriptShape::OmitChunkCount) {
         tr.append_fields(b"f_prime/chunk_count_in", &[F::from_u64(state.chunk_count_in)]);
@@ -211,7 +211,8 @@ fn native_prior_x_out(mode: StateXOutDigestMode, state: &FPrimeStateIn) -> [F; 4
     digest32_as_fields(state_x_out_digest_with_mode(
         mode,
         digest_fields_as_digest32(state.vk_fs_digest),
-        &state.structure_digest,
+        state.pi_ccs_header_bundle,
+        &state.pi_ccs_header_bundle,
         state.chunk_count_in,
         state.step_count_in,
         digest_fields_as_digest32(state.z_0),
@@ -236,7 +237,8 @@ fn recursive_step_x_out(
     digest32_as_fields(state_x_out_digest_with_mode(
         mode,
         digest_fields_as_digest32(state.vk_fs_digest),
-        &state.structure_digest,
+        state.pi_ccs_header_bundle,
+        &state.pi_ccs_header_bundle,
         state.chunk_count_in + 1,
         state.step_count_in + rows_in_chunk,
         digest_fields_as_digest32(state.z_0),
@@ -256,6 +258,8 @@ fn make_step_config<'a>(prep: &'a neo_fold_clean::Preprocessing, mode: StateXOut
         },
         b: prep.params.b(),
         transcript_label: TRANSCRIPT_LABEL,
+        public_input_layout: FPrimePublicInputLayout::plain(),
+        nebula: None,
         state_x_out_digest_mode: mode,
     }
 }
@@ -442,9 +446,9 @@ fn build_vk_fs_replay_fixture() -> RedteamFixture {
     })
 }
 
-fn build_structure_replay_fixture() -> RedteamFixture {
+fn build_pi_ccs_header_replay_fixture() -> RedteamFixture {
     build_transcript_replay_fixture(|state| {
-        state.structure_digest[0] += F::ONE;
+        state.pi_ccs_header_bundle[0] += F::ONE;
     })
 }
 
@@ -529,7 +533,7 @@ fn build_transcript_replay_fixture_with_mode_and_context(
     };
     let honest_state = FPrimeStateIn {
         vk_fs_digest: rand_digest(0x10),
-        structure_digest: rand_digest(0x20),
+        pi_ccs_header_bundle: prep.pi_ccs_header_bundle(),
         chunk_count_in: 1,
         step_count_in: 1,
         z_0: rand_digest(0x100),
@@ -538,6 +542,7 @@ fn build_transcript_replay_fixture_with_mode_and_context(
         semantic_state_digest_in,
         acc_digest_in,
         public_trace_in: rand_digest(0x40),
+        nebula: None,
     };
     let mut forged_state = honest_state.clone();
     forge_state(&mut forged_state);
@@ -552,7 +557,7 @@ fn build_transcript_replay_fixture_with_mode_and_context(
     match prover_transcript_shape {
         ProverTranscriptShape::Full => append_f_prime_step_context(&mut tr, &honest_state, chunk_digest),
         ProverTranscriptShape::OmitVkFs
-        | ProverTranscriptShape::OmitStructure
+        | ProverTranscriptShape::OmitPiCcsHeader
         | ProverTranscriptShape::OmitChunkCount
         | ProverTranscriptShape::OmitStepCount
         | ProverTranscriptShape::OmitZiIn
@@ -662,8 +667,8 @@ fn f_prime_recursive_rejects_nifs_proof_bound_to_different_vk_fs() {
 }
 
 #[test]
-fn f_prime_recursive_rejects_nifs_proof_bound_to_different_structure_digest() {
-    let fixture = build_structure_replay_fixture();
+fn f_prime_recursive_rejects_nifs_proof_bound_to_different_pi_ccs_header() {
+    let fixture = build_pi_ccs_header_replay_fixture();
     let cfg = make_step_config(&fixture.prep, fixture.state_x_out_digest_mode);
     let source = source_image_for(&fixture);
     let new_acc_digest =
@@ -870,7 +875,7 @@ fn f_prime_recursive_stateful_rejects_nifs_proof_that_omits_z_0_from_transcript(
 fn f_prime_recursive_stateful_rejects_nifs_proof_that_omits_remaining_context_fields() {
     for (shape, name, seed) in [
         (ProverTranscriptShape::OmitVkFs, "vk_fs", 0x80),
-        (ProverTranscriptShape::OmitStructure, "structure", 0x82),
+        (ProverTranscriptShape::OmitPiCcsHeader, "pi_ccs_header", 0x82),
         (ProverTranscriptShape::OmitChunkCount, "chunk_count_in", 0x84),
         (ProverTranscriptShape::OmitStepCount, "step_count_in", 0x86),
         (ProverTranscriptShape::OmitZiIn, "z_i_in", 0x88),

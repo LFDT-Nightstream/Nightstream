@@ -41,8 +41,8 @@ use neo_fold_clean::paper::digest::{
 };
 use neo_fold_clean::paper::f_prime::r1cs::{
     encode_f_prime_public_input, enforce_f_prime_base_step_circuit, enforce_f_prime_recursive_step_circuit,
-    FPrimeBaseInputs, FPrimeRecursiveInputs, FPrimeStateIn, FPrimeStepConfig, F_PRIME_ENC_INST_BITS,
-    F_PRIME_PUBLIC_INPUT_LEN,
+    FPrimeBaseInputs, FPrimePublicInputLayout, FPrimeRecursiveInputs, FPrimeStateIn, FPrimeStepConfig,
+    F_PRIME_ENC_INST_BITS, F_PRIME_PUBLIC_INPUT_LEN,
 };
 use neo_fold_clean::paper::f_prime::source_image::{BitRange, FPrimeSourceImage, Word64Image};
 use neo_fold_clean::paper::nifs::circuit::{NifsVCircuitConfig, NifsVCircuitMessages};
@@ -91,7 +91,7 @@ fn rand_digest(seed: u64) -> [F; 4] {
 
 fn append_f_prime_step_context(tr: &mut Transcript, state: &FPrimeStateIn, chunk_digest: [F; 4]) {
     tr.append_fields(b"f_prime/vk_fs", &state.vk_fs_digest);
-    tr.append_fields(b"f_prime/structure", &state.structure_digest);
+    tr.append_fields(b"f_prime/pi_ccs_header", &state.pi_ccs_header_bundle);
     tr.append_fields(b"f_prime/chunk_count_in", &[F::from_u64(state.chunk_count_in)]);
     tr.append_fields(b"f_prime/step_count_in", &[F::from_u64(state.step_count_in)]);
     tr.append_fields(b"f_prime/z_0", &state.z_0);
@@ -110,7 +110,8 @@ fn native_prior_x_out(state: &FPrimeStateIn) -> [F; 4] {
     digest32_as_fields(state_x_out_digest_with_mode(
         StateXOutDigestMode::Stateless,
         digest_fields_as_digest32(state.vk_fs_digest),
-        &state.structure_digest,
+        state.pi_ccs_header_bundle,
+        &state.pi_ccs_header_bundle,
         state.chunk_count_in,
         state.step_count_in,
         digest_fields_as_digest32(state.z_0),
@@ -159,7 +160,7 @@ fn build_fixture_with_divergent_fresh(divergent_index: usize) -> Fixture {
     let acc_digest_in = running_acc_digest(&running);
     let state = FPrimeStateIn {
         vk_fs_digest: rand_digest(0x10),
-        structure_digest: rand_digest(0x20),
+        pi_ccs_header_bundle: prep.pi_ccs_header_bundle(),
         chunk_count_in: 1,
         step_count_in: 1,
         z_0: rand_digest(0x100),
@@ -168,6 +169,7 @@ fn build_fixture_with_divergent_fresh(divergent_index: usize) -> Fixture {
         semantic_state_digest_in: acc_digest_in,
         acc_digest_in,
         public_trace_in: rand_digest(0x40),
+        nebula: None,
     };
 
     let prior_x_out = native_prior_x_out(&state);
@@ -262,7 +264,7 @@ fn build_fixture_with_k_fresh_and_public_one(k_fresh: usize, public_one: F) -> F
     let acc_digest_in = running_acc_digest(&running);
     let state = FPrimeStateIn {
         vk_fs_digest: rand_digest(0x10),
-        structure_digest: rand_digest(0x20),
+        pi_ccs_header_bundle: prep.pi_ccs_header_bundle(),
         chunk_count_in: 1,
         step_count_in: 1,
         z_0: rand_digest(0x100),
@@ -271,6 +273,7 @@ fn build_fixture_with_k_fresh_and_public_one(k_fresh: usize, public_one: F) -> F
         semantic_state_digest_in: acc_digest_in,
         acc_digest_in,
         public_trace_in: rand_digest(0x40),
+        nebula: None,
     };
 
     let prior_x_out = native_prior_x_out(&state);
@@ -395,6 +398,8 @@ fn make_step_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> FPrimeStepCo
         },
         b: prep.params.b(),
         transcript_label: TRANSCRIPT_LABEL,
+        public_input_layout: FPrimePublicInputLayout::plain(),
+        nebula: None,
         state_x_out_digest_mode: match prep.semantic_state_mode() {
             neo_fold_clean::paper::construction2::SemanticStateMode::Stateless => {
                 neo_fold_clean::paper::digest::StateXOutDigestMode::Stateless
@@ -415,7 +420,7 @@ fn base_state(b: u32, z_0: [F; 4]) -> FPrimeStateIn {
     let empty_acc = AccumulatorHandle::empty().digest_fields();
     FPrimeStateIn {
         vk_fs_digest: rand_digest(0x10),
-        structure_digest: rand_digest(0x20),
+        pi_ccs_header_bundle: rand_digest(0x20),
         chunk_count_in: 0,
         step_count_in: 0,
         z_0,
@@ -424,6 +429,7 @@ fn base_state(b: u32, z_0: [F; 4]) -> FPrimeStateIn {
         acc_digest_in: empty_acc,
         semantic_state_digest_in: empty_acc,
         public_trace_in: rand_digest(0x40),
+        nebula: None,
     }
 }
 
@@ -454,7 +460,8 @@ fn native_x_out(
     digest32_as_fields(state_x_out_digest_with_mode(
         StateXOutDigestMode::Stateless,
         digest_fields_as_digest32(state.vk_fs_digest),
-        &state.structure_digest,
+        state.pi_ccs_header_bundle,
+        &state.pi_ccs_header_bundle,
         new_chunk_count,
         new_step_count,
         digest_fields_as_digest32(state.z_0),
@@ -536,7 +543,6 @@ fn f_prime_base_step_emits_and_satisfies() {
     );
     let unconstrained = b.unconstrained_columns();
     let mut allowed = Vec::new();
-    allowed.extend(out.state_in.structure_digest.iter().map(|v| v.col()));
     allowed.extend(out.state_in.semantic_state_digest.iter().map(|v| v.col()));
     allowed.extend(out.state_in.public_trace.iter().map(|v| v.col()));
     allowed.sort_unstable();

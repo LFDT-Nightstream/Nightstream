@@ -15,6 +15,7 @@ use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
+use crate::engine::r1cs_circuit::builder::CanonicalU64Decomposition;
 use crate::frontends::direct_ccs::FrontendError;
 use crate::frontends::direct_ccs::R1cs;
 use crate::frontends::f_prime::image::{FPrimeImageLayout, PoseidonPreimageLaneSource};
@@ -32,6 +33,7 @@ pub struct SparseR1cs {
     pub n: usize,
     pub m: usize,
     pub m_in: usize,
+    canonical_u64_decompositions: Vec<CanonicalU64Decomposition>,
 }
 
 impl SparseR1cs {
@@ -43,9 +45,33 @@ impl SparseR1cs {
         m: usize,
         m_in: usize,
     ) -> Result<Self, FrontendError> {
-        let out = Self { a, b, c, n, m, m_in };
+        Self::new_with_canonical_u64_decompositions(a, b, c, n, m, m_in, Vec::new())
+    }
+
+    pub(crate) fn new_with_canonical_u64_decompositions(
+        a: CcsMatrix<F>,
+        b: CcsMatrix<F>,
+        c: CcsMatrix<F>,
+        n: usize,
+        m: usize,
+        m_in: usize,
+        canonical_u64_decompositions: Vec<CanonicalU64Decomposition>,
+    ) -> Result<Self, FrontendError> {
+        let out = Self {
+            a,
+            b,
+            c,
+            n,
+            m,
+            m_in,
+            canonical_u64_decompositions,
+        };
         out.validate_shape()?;
         Ok(out)
+    }
+
+    pub(crate) fn canonical_u64_decompositions(&self) -> &[CanonicalU64Decomposition] {
+        &self.canonical_u64_decompositions
     }
 
     pub fn validate_shape(&self) -> Result<(), FrontendError> {
@@ -94,6 +120,10 @@ impl SparseR1cs {
 
     pub fn to_structure(&self) -> Structure {
         sparse_r1cs_to_ccs(self.a.clone(), self.b.clone(), self.c.clone()).expect("valid sparse R1CS structure")
+    }
+
+    pub(crate) fn conservative_var_widths(&self) -> Vec<usize> {
+        conservative_var_widths(r1cs_coeff_rows_sparse(self), self.n, self.m)
     }
 }
 
@@ -207,42 +237,45 @@ impl R1csShape {
     /// overflow) the variable keeps the full lane.
     pub fn conservative_app_private_var_widths(&self) -> Vec<usize> {
         let rows = r1cs_coeff_rows(self);
-        let booleans = boolean_constrained_variables_from_rows(&rows, self.n(), self.m());
-        let mut bounds = booleans
-            .iter()
-            .map(|&is_boolean| is_boolean.then_some(1u128))
-            .collect::<Vec<_>>();
-        if !bounds.is_empty() {
-            bounds[0] = Some(1);
-        }
+        conservative_var_widths(rows, self.n(), self.m())
+    }
+}
 
-        let defs = determining_rows(&rows, self.n(), self.m());
-        let mut changed = true;
-        while changed {
-            changed = false;
-            for row in 0..self.n() {
-                if let Some((target, bound)) =
-                    bounded_affine_output_var(&rows.a[row], &rows.b[row], &rows.c[row], &bounds)
-                {
-                    if bounds[target].is_none_or(|old| bound < old) {
-                        bounds[target] = Some(bound);
-                        changed = true;
-                    }
+fn conservative_var_widths(rows: R1csCoeffRows, row_count: usize, var_count: usize) -> Vec<usize> {
+    let booleans = boolean_constrained_variables_from_rows(&rows, row_count, var_count);
+    let mut bounds = booleans
+        .iter()
+        .map(|&is_boolean| is_boolean.then_some(1u128))
+        .collect::<Vec<_>>();
+    if !bounds.is_empty() {
+        bounds[0] = Some(1);
+    }
+
+    let defs = determining_rows(&rows, row_count, var_count);
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for row in 0..row_count {
+            if let Some((target, bound)) = bounded_affine_output_var(&rows.a[row], &rows.b[row], &rows.c[row], &bounds)
+            {
+                if bounds[target].is_none_or(|old| bound < old) {
+                    bounds[target] = Some(bound);
+                    changed = true;
                 }
-                if let Some((target, bound)) = corner_bounded_output_var(&rows, row, &bounds, &defs) {
-                    if bounds[target].is_none_or(|old| bound < old) {
-                        bounds[target] = Some(bound);
-                        changed = true;
-                    }
+            }
+            if let Some((target, bound)) = corner_bounded_output_var(&rows, row, &bounds, &defs) {
+                if bounds[target].is_none_or(|old| bound < old) {
+                    bounds[target] = Some(bound);
+                    changed = true;
                 }
             }
         }
-
-        bounds
-            .into_iter()
-            .map(|bound| bound.map_or(POSEIDON2_GOLDILOCKS_BITS, bit_width_for_max))
-            .collect()
     }
+
+    bounds
+        .into_iter()
+        .map(|bound| bound.map_or(POSEIDON2_GOLDILOCKS_BITS, bit_width_for_max))
+        .collect()
 }
 
 fn boolean_constrained_variables_from_rows(rows: &R1csCoeffRows, row_count: usize, var_count: usize) -> Vec<bool> {
@@ -693,6 +726,14 @@ fn r1cs_coeff_rows(r1cs: &R1csShape) -> R1csCoeffRows {
             b: sparse_coeff_rows(&r1cs.b, r1cs.n),
             c: sparse_coeff_rows(&r1cs.c, r1cs.n),
         },
+    }
+}
+
+fn r1cs_coeff_rows_sparse(r1cs: &SparseR1cs) -> R1csCoeffRows {
+    R1csCoeffRows {
+        a: sparse_coeff_rows(&r1cs.a, r1cs.n),
+        b: sparse_coeff_rows(&r1cs.b, r1cs.n),
+        c: sparse_coeff_rows(&r1cs.c, r1cs.n),
     }
 }
 

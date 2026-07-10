@@ -297,6 +297,10 @@ pub struct Preprocessing {
     /// computed once at preprocess time; protocol code reads this field
     /// instead of recomputing the digest on every step.
     structure_digest: [F; 4],
+    /// SplitNc transcript header derived from `(params, structure, dims,
+    /// matrix_digest)`. It is part of `vk_fs` and enters folded F' as
+    /// witness data, never as a self-referential matrix constant.
+    pi_ccs_header_bundle: [F; 4],
     /// Memoized optimized-engine cache for this structure (sparse + SuperNeo
     /// eval tables + matrix digest). Verifier-derived; built once at
     /// preprocess time so `engine::optimized::{prove_pi_ccs, verify_pi_ccs}`
@@ -366,6 +370,7 @@ impl Preprocessing {
         self.vk = VerifierKey::derive_from_structure_digest(
             &self.params,
             &self.structure_digest,
+            self.pi_ccs_header_bundle,
             self.public_input_len,
             initial,
         );
@@ -397,8 +402,31 @@ impl Preprocessing {
         &self.structure_digest
     }
 
+    pub fn pi_ccs_header_bundle(&self) -> [F; 4] {
+        self.pi_ccs_header_bundle
+    }
+
     pub fn optimized_cache(&self) -> &OptimizedStructureCache {
         &self.optimized_cache
+    }
+
+    /// Verifier-circuit view of this preprocessing context. The dimensions
+    /// and Split-NC header are derived from the same params, structure, and
+    /// matrix cache used by native proving, so recursive frontends do not
+    /// reconstruct protocol metadata through a parallel path.
+    pub fn nifs_v_circuit_config(&self) -> Result<crate::paper::nifs::circuit::NifsVCircuitConfig<'_>, Error> {
+        let dims = neo_reductions::engines::utils::build_dims_and_policy(self.params.inner(), &self.structure)?;
+        Ok(crate::paper::nifs::circuit::NifsVCircuitConfig {
+            pi_ccs: crate::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsVConfig {
+                params: &self.params,
+                structure: &self.structure,
+                header_bundle: self.pi_ccs_header_bundle,
+                ell_d: dims.ell_d,
+                ell_n: dims.ell_n,
+                ell_m: dims.ell_m,
+                d_sc: dims.d_sc,
+            },
+        })
     }
 
     /// Low-level Π_RLC commitment action fixed by preprocessing.
@@ -596,6 +624,13 @@ pub(crate) fn preprocess_with_test_log_and_optimized_cache(
     // same matrix digest instead of walking the matrices twice here.
     let structure_digest =
         crate::paper::digest::structure_digest_from_mat_digest(&structure, optimized_cache.mat_digest());
+    let dims = neo_reductions::engines::utils::build_dims_and_policy(params.inner(), &structure)?;
+    let pi_ccs_header_bundle = neo_reductions::engines::utils::pi_ccs_header_bundle_digest_fields(
+        params.inner(),
+        &structure,
+        dims,
+        optimized_cache.mat_digest(),
+    )?;
     // Default seed: `empty_semantic_state_digest()`. Stateful frontends
     // call [`Preprocessing::with_initial_semantic_state_digest`] after
     // preprocess to install their `H(initial_app_state)`; that setter
@@ -605,6 +640,7 @@ pub(crate) fn preprocess_with_test_log_and_optimized_cache(
     let vk = VerifierKey::derive_from_structure_digest(
         &params,
         &structure_digest,
+        pi_ccs_header_bundle,
         public_input_len,
         initial_semantic_state_digest,
     );
@@ -623,6 +659,7 @@ pub(crate) fn preprocess_with_test_log_and_optimized_cache(
         semantic_state_mode: SemanticStateMode::Stateless,
         f_prime_recursive_link: false,
         structure_digest,
+        pi_ccs_header_bundle,
         optimized_cache,
         nebula: None,
     })

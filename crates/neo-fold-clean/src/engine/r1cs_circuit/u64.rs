@@ -63,6 +63,7 @@ pub fn decompose_var_to_u64_bits(builder: &mut R1csBuilder, var: Var) -> [Var; U
 
     // 2. Allocate 64 bits matching the canonical representation.
     let bits = alloc_u64_bits(builder, canonical_u64);
+    builder.record_canonical_u64_decomposition(var, bits);
 
     // 3. Enforce `var == Σ 2^i · bits[i]`.
     let mut sum_lc = Lc::zero();

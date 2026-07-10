@@ -49,8 +49,8 @@ use neo_fold_clean::paper::digest::{
 use neo_fold_clean::paper::f_prime::native::F_PRIME_STEP_TRANSCRIPT_LABEL;
 use neo_fold_clean::paper::f_prime::r1cs::{
     encode_f_prime_public_input, encode_x_out_public_bits, enforce_f_prime_base_step_circuit,
-    enforce_f_prime_recursive_step_circuit, FPrimeBaseInputs, FPrimeRecursiveInputs, FPrimeStateIn, FPrimeStepConfig,
-    F_PRIME_ENC_INST_BITS, F_PRIME_PUBLIC_INPUT_LEN,
+    enforce_f_prime_recursive_step_circuit, FPrimeBaseInputs, FPrimePublicInputLayout, FPrimeRecursiveInputs,
+    FPrimeStateIn, FPrimeStepConfig, F_PRIME_ENC_INST_BITS, F_PRIME_PUBLIC_INPUT_LEN,
 };
 use neo_fold_clean::paper::f_prime::source_image::{BitRange, FPrimeSourceImage, Word64Image};
 use neo_fold_clean::paper::nifs::circuit::{NifsVCircuitConfig, NifsVCircuitMessages};
@@ -88,6 +88,7 @@ fn compute_x_out_native(prep: &neo_fold_clean::Preprocessing, state: &State) -> 
     digest32_as_fields(state_x_out_digest_with_mode(
         mode,
         prep.vk.digest(),
+        prep.pi_ccs_header_bundle(),
         &structure_digest(prep.structure()),
         state.chunk_count,
         state.step_count,
@@ -136,6 +137,8 @@ fn make_step_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> FPrimeStepCo
         },
         b: prep.params.b(),
         transcript_label: F_PRIME_STEP_TRANSCRIPT_LABEL,
+        public_input_layout: FPrimePublicInputLayout::plain(),
+        nebula: None,
         state_x_out_digest_mode: match prep.semantic_state_mode() {
             neo_fold_clean::paper::construction2::SemanticStateMode::Stateless => {
                 neo_fold_clean::paper::digest::StateXOutDigestMode::Stateless
@@ -150,7 +153,7 @@ fn make_step_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> FPrimeStepCo
 fn f_prime_state_in(state: &State, prep: &neo_fold_clean::Preprocessing) -> FPrimeStateIn {
     FPrimeStateIn {
         vk_fs_digest: digest32_as_fields(prep.vk.digest()),
-        structure_digest: structure_digest(prep.structure()),
+        pi_ccs_header_bundle: prep.pi_ccs_header_bundle(),
         chunk_count_in: state.chunk_count,
         step_count_in: state.step_count,
         z_0: digest32_as_fields(state.z_0),
@@ -159,6 +162,7 @@ fn f_prime_state_in(state: &State, prep: &neo_fold_clean::Preprocessing) -> FPri
         acc_digest_in: digest32_as_fields(state.acc_digest),
         semantic_state_digest_in: digest32_as_fields(state.semantic_state_digest),
         public_trace_in: digest32_as_fields(state.public_trace),
+        nebula: None,
     }
 }
 
@@ -1175,13 +1179,19 @@ fn lifecycle_recursive_step_rejects_transcript_prefix_tamper_after_x_out_repair(
     let chain = build_f_prime_honest_chain(3);
     let view = chain.recursive_step(2);
 
-    for anchor in ["vk_fs_digest", "structure_digest", "z_0", "z_i_in", "public_trace_in"] {
+    for anchor in [
+        "vk_fs_digest",
+        "pi_ccs_header_bundle",
+        "z_0",
+        "z_i_in",
+        "public_trace_in",
+    ] {
         let b = run_recursive_check_with_semantic(
             &view,
             |f_state, _, acc_digest_out, semantic_state_digest_out, source, _| {
                 match anchor {
                     "vk_fs_digest" => f_state.vk_fs_digest[0] += F::ONE,
-                    "structure_digest" => f_state.structure_digest[0] += F::ONE,
+                    "pi_ccs_header_bundle" => f_state.pi_ccs_header_bundle[0] += F::ONE,
                     "z_0" => f_state.z_0[0] += F::ONE,
                     "z_i_in" => f_state.z_i_in[0] += F::ONE,
                     "public_trace_in" => f_state.public_trace_in[0] += F::ONE,
@@ -1189,17 +1199,14 @@ fn lifecycle_recursive_step_rejects_transcript_prefix_tamper_after_x_out_repair(
                 }
 
                 // Repair both visible x_out links using the tampered
-                // anchor fields. For `structure_digest`, this is a no-op
-                // for the optimized state_x_out preimage. The same is true
-                // for `z_0` and `public_trace_in`; `z_i_in` is repaired
-                // through the prior-x_out bits below. Those cases make the
-                // test specifically exercise the NIFS transcript prefix and
-                // local state rows instead of relying on the public x_out
-                // bit links to fail first.
+                // anchor fields. The verifier header is now directly in the
+                // state_x_out preimage; the remaining repairs keep this test
+                // focused on transcript and state binding.
                 let forged_prior_x_out = digest32_as_fields(state_x_out_digest_with_mode(
                     StateXOutDigestMode::Stateless,
                     digest_fields_as_digest32(f_state.vk_fs_digest),
-                    &f_state.structure_digest,
+                    f_state.pi_ccs_header_bundle,
+                    &f_state.pi_ccs_header_bundle,
                     f_state.chunk_count_in,
                     f_state.step_count_in,
                     digest_fields_as_digest32(f_state.z_0),
@@ -1215,7 +1222,8 @@ fn lifecycle_recursive_step_rejects_transcript_prefix_tamper_after_x_out_repair(
                 let forged_public_x_out = digest32_as_fields(state_x_out_digest_with_mode(
                     StateXOutDigestMode::Stateless,
                     digest_fields_as_digest32(f_state.vk_fs_digest),
-                    &f_state.structure_digest,
+                    f_state.pi_ccs_header_bundle,
+                    &f_state.pi_ccs_header_bundle,
                     view.state_out.chunk_count,
                     view.state_out.step_count,
                     view.state_out.z_0,

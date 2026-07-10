@@ -82,6 +82,7 @@ fn compute_x_out_native(prep: &neo_fold_clean::Preprocessing, state: &State) -> 
     digest32_as_fields(state_x_out_digest_with_mode(
         mode,
         prep.vk.digest(),
+        prep.pi_ccs_header_bundle(),
         &structure_digest(prep.structure()),
         state.chunk_count,
         state.step_count,
@@ -124,6 +125,7 @@ fn refresh_public_image_x_out(prep: &neo_fold_clean::Preprocessing, public: &mut
     public.x_out = EncInst::from_digest(state_x_out_digest_with_mode(
         mode,
         public.vk_fs_digest,
+        prep.pi_ccs_header_bundle(),
         prep.structure_digest(),
         public.chunk_count,
         public.step_count,

@@ -38,17 +38,20 @@ use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
 use neo_fold_clean::frontends::f_prime::image::{
     FPrimeImage, FPrimeImageConfig, FPrimeImageLayout, KMulView, StateIn, StateOut,
 };
-use neo_fold_clean::paper::construction2::RunningInstance;
+use neo_fold_clean::frontends::nebula::layout::encode_delayed_f_prime_suffix;
+use neo_fold_clean::frontends::r1cs_f_prime::lower_field_r1cs;
+use neo_fold_clean::paper::construction2::{NebulaConfig, NebulaLane, NebulaStepX, RunningInstance, StackShape};
 use neo_fold_clean::paper::digest::{
-    digest32_as_fields, digest_fields_as_digest32, state_x_out_digest_with_mode, AccumulatorHandle,
+    digest32_as_fields, digest_fields_as_digest32, nebula_lane_chains, state_x_out_digest_with_mode, AccumulatorHandle,
     StateXOutDigestMode, F_PRIME_STATE_X_OUT_DOMAIN,
 };
+use neo_fold_clean::paper::f_prime::nebula_lane_circuit::delayed_nebula_public_suffix_len;
 use neo_fold_clean::paper::f_prime::poseidon_trace::{
     assert_committed_coords_are_bits, decode_digest_lanes, encode_poseidon_trace,
 };
 use neo_fold_clean::paper::f_prime::r1cs::{
-    encode_f_prime_public_input, enforce_f_prime_recursive_step_circuit, FPrimeRecursiveInputs, FPrimeStateIn,
-    FPrimeStepConfig, F_PRIME_ENC_INST_BITS, F_PRIME_PUBLIC_INPUT_LEN,
+    encode_f_prime_public_input, enforce_f_prime_recursive_step_circuit, FPrimePublicInputLayout,
+    FPrimeRecursiveInputs, FPrimeStateIn, FPrimeStepConfig, F_PRIME_ENC_INST_BITS, F_PRIME_PUBLIC_INPUT_LEN,
 };
 use neo_fold_clean::paper::f_prime::ring_action_trace::{
     encode_ring_action_trace, LowNormEncoding, RingActionTraceLayout,
@@ -57,14 +60,16 @@ use neo_fold_clean::paper::f_prime::source_image::{BitRange, FPrimeSourceImage, 
 use neo_fold_clean::paper::nifs::circuit::{NifsVCircuitConfig, NifsVCircuitMessages};
 use neo_fold_clean::paper::nifs::NifsProof;
 use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsVConfig;
-use neo_fold_clean::paper::relations::{CcsClaim, CeClaim};
+use neo_fold_clean::paper::relations::{CcsClaim, CeClaim, LaneRanges, LaneScheme};
 use neo_math::ring::D;
-use neo_math::F;
+use neo_math::{F, K};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 const TRANSCRIPT_LABEL: &[u8] = b"neo.test.f_prime/step/v1";
-const EXPECTED_COVERAGE_K_MULS: usize = 7_100;
-const EXPECTED_COVERAGE_RING_MULS: usize = 465;
+// Every authoritative Pi_RLC ring-action client is projection-checked:
+// one shared D-step beta ladder, then one aggregate identity per output.
+const EXPECTED_COVERAGE_K_MULS: usize = 7_650;
+const EXPECTED_COVERAGE_RING_MULS: usize = 0;
 
 // ── Fixture (mirrors tests/f_prime/r1cs.rs::build_fixture) ──────────────
 
@@ -88,13 +93,13 @@ struct RecursiveSourceFixture {
     public_x_out_bits: BitRange,
 }
 
-fn bit_carrier_r1cs() -> R1cs {
-    let m = F_PRIME_PUBLIC_INPUT_LEN;
+fn bit_carrier_r1cs(public_input_len: usize) -> R1cs {
+    let m = public_input_len;
     R1cs {
         a: Mat::zero(1, m, F::ZERO),
         b: Mat::zero(1, m, F::ZERO),
         c: Mat::zero(1, m, F::ZERO),
-        m_in: F_PRIME_PUBLIC_INPUT_LEN,
+        m_in: public_input_len,
     }
 }
 
@@ -106,7 +111,8 @@ fn native_prior_x_out(state: &FPrimeStateIn) -> [F; 4] {
     digest32_as_fields(state_x_out_digest_with_mode(
         StateXOutDigestMode::Stateless,
         digest_fields_as_digest32(state.vk_fs_digest),
-        &state.structure_digest,
+        state.pi_ccs_header_bundle,
+        &state.pi_ccs_header_bundle,
         state.chunk_count_in,
         state.step_count_in,
         digest_fields_as_digest32(state.z_0),
@@ -120,7 +126,12 @@ fn native_prior_x_out(state: &FPrimeStateIn) -> [F; 4] {
 }
 
 fn build_fixture() -> Fixture {
-    let r1cs = bit_carrier_r1cs();
+    build_fixture_with_public_suffix(&[])
+}
+
+fn build_fixture_with_public_suffix(public_suffix: &[F]) -> Fixture {
+    let public_input_len = F_PRIME_PUBLIC_INPUT_LEN + public_suffix.len();
+    let r1cs = bit_carrier_r1cs(public_input_len);
     let prep = direct_ccs::preprocess_seeded(&r1cs, 42).expect("preprocess");
 
     // First fold: seed the running accumulator.
@@ -145,7 +156,7 @@ fn build_fixture() -> Fixture {
         AccumulatorHandle::from_running_parts(&running.claims, running.parent_authority.as_ref()).digest_fields();
     let state = FPrimeStateIn {
         vk_fs_digest: rand_digest(0x10),
-        structure_digest: rand_digest(0x20),
+        pi_ccs_header_bundle: prep.pi_ccs_header_bundle(),
         chunk_count_in: 1,
         step_count_in: 1,
         z_0: rand_digest(0x100),
@@ -154,12 +165,14 @@ fn build_fixture() -> Fixture {
         semantic_state_digest_in: acc_digest_in,
         acc_digest_in,
         public_trace_in: rand_digest(0x40),
+        nebula: None,
     };
 
     let prior_x_out = native_prior_x_out(&state);
     let mut z = encode_f_prime_public_input(prior_x_out);
-    assert_eq!(z.len(), F_PRIME_PUBLIC_INPUT_LEN);
-    assert_eq!(prep.structure().m, F_PRIME_PUBLIC_INPUT_LEN);
+    z.extend_from_slice(public_suffix);
+    assert_eq!(z.len(), public_input_len);
+    assert_eq!(prep.structure().m, public_input_len);
     z.resize(prep.structure().m, F::ZERO);
 
     let second = direct_ccs::build_instance(&prep, &r1cs, &z).expect("second instance");
@@ -168,7 +181,7 @@ fn build_fixture() -> Fixture {
     let chunk_digest = rand_digest(0x50);
     let mut tr = Transcript::with_label(TRANSCRIPT_LABEL);
     tr.append_fields(b"f_prime/vk_fs", &state.vk_fs_digest);
-    tr.append_fields(b"f_prime/structure", &state.structure_digest);
+    tr.append_fields(b"f_prime/pi_ccs_header", &state.pi_ccs_header_bundle);
     tr.append_fields(b"f_prime/chunk_count_in", &[F::from_u64(state.chunk_count_in)]);
     tr.append_fields(b"f_prime/step_count_in", &[F::from_u64(state.step_count_in)]);
     tr.append_fields(b"f_prime/z_0", &state.z_0);
@@ -236,12 +249,21 @@ fn split_nc_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> SplitNcPiCcsV
 }
 
 fn make_step_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> FPrimeStepConfig<'a> {
+    make_step_config_with_suffix(prep, 0)
+}
+
+fn make_step_config_with_suffix<'a>(
+    prep: &'a neo_fold_clean::Preprocessing,
+    suffix_len: usize,
+) -> FPrimeStepConfig<'a> {
     FPrimeStepConfig {
         nifs: NifsVCircuitConfig {
             pi_ccs: split_nc_config(prep),
         },
         b: prep.params.b(),
         transcript_label: TRANSCRIPT_LABEL,
+        public_input_layout: FPrimePublicInputLayout::with_suffix(suffix_len),
+        nebula: None,
         state_x_out_digest_mode: match prep.semantic_state_mode() {
             neo_fold_clean::paper::construction2::SemanticStateMode::Stateless => {
                 neo_fold_clean::paper::digest::StateXOutDigestMode::Stateless
@@ -277,7 +299,8 @@ fn native_x_out(
     digest32_as_fields(state_x_out_digest_with_mode(
         StateXOutDigestMode::Stateless,
         digest_fields_as_digest32(state.vk_fs_digest),
-        &state.structure_digest,
+        state.pi_ccs_header_bundle,
+        &state.pi_ccs_header_bundle,
         new_chunk_count,
         new_step_count,
         digest_fields_as_digest32(state.z_0),
@@ -430,7 +453,7 @@ fn phase_1_3d_state_out_and_x_out_three_way_parity() {
 
     image.fill_state_in(&StateIn {
         vk_fs_digest: fixture.state.vk_fs_digest,
-        structure_digest: fixture.state.structure_digest,
+        structure_digest: fixture.state.pi_ccs_header_bundle,
         z_0: fixture.state.z_0,
         z_i_in: fixture.state.z_i_in,
         acc_digest_in: fixture.state.acc_digest_in,
@@ -504,6 +527,383 @@ fn phase_1_3d_state_out_and_x_out_three_way_parity() {
     );
 }
 
+#[test]
+fn authoritative_recursive_f_prime_lowers_with_exact_public_prefix() {
+    let fixture = build_fixture();
+    let cfg = make_step_config(&fixture.prep);
+    let source = recursive_source_image(&fixture);
+    let inputs = FPrimeRecursiveInputs {
+        state: fixture.state.clone(),
+        chunk_digest: fixture.chunk_digest,
+        semantic_state_digest_out: recursive_acc_digest(&fixture),
+        acc_digest_out: recursive_acc_digest(&fixture),
+        nifs_msg: msg_from_fixture(&fixture),
+        rows_in_chunk: 1,
+        source_image: &source.image,
+        chunk_count_in_word: source.chunk_count_in_word,
+        step_count_in_word: source.step_count_in_word,
+        pc_word: source.pc_word,
+        prior_x_out_bits: source.prior_x_out_bits,
+        public_x_out_bits: source.public_x_out_bits,
+    };
+    let mut builder = R1csBuilder::new();
+    let out = enforce_f_prime_recursive_step_circuit(&mut builder, &fixture.prep.params, &cfg, &inputs).expect("emit");
+    assert!(builder.is_satisfied(), "authoritative F' fixture must satisfy");
+
+    let rows = builder.rows();
+    let cols = builder.cols();
+    let expected_public: Vec<F> = out
+        .x_out_bits
+        .iter()
+        .map(|wire| builder.witness()[wire.col()])
+        .collect();
+    let lowered = lower_field_r1cs(builder, &out.x_out_bits).expect("lower authoritative recursive F'");
+
+    assert_eq!(lowered.shape().n, rows, "lowering must preserve every F' row");
+    assert_eq!(lowered.shape().m, cols, "lowering must preserve every F' column");
+    assert_eq!(
+        lowered.shape().m_in,
+        F_PRIME_PUBLIC_INPUT_LEN,
+        "authoritative public prefix is [1 || enc_inst(x_out)]"
+    );
+    assert_eq!(lowered.assignment()[0], F::ONE);
+    assert_eq!(&lowered.assignment()[1..F_PRIME_PUBLIC_INPUT_LEN], &expected_public);
+    assert!(
+        expected_public
+            .iter()
+            .all(|value| *value == F::ZERO || *value == F::ONE),
+        "enc_inst(x_out) must remain bit-valued at the lowering boundary"
+    );
+    lowered
+        .shape()
+        .is_satisfied_by(lowered.assignment())
+        .expect("lowered authoritative F' relation must satisfy");
+
+    let mut tampered = lowered.assignment().to_vec();
+    tampered[1] = F::ONE - tampered[1];
+    assert!(
+        lowered.shape().is_satisfied_by(&tampered).is_err(),
+        "a public x_out bit flip must violate the lowered authoritative relation"
+    );
+}
+
+#[test]
+fn recursive_f_prime_surfaces_transcript_bound_fresh_public_suffix() {
+    let suffix = [F::ONE, F::ZERO, F::ONE, F::ONE];
+    let fixture = build_fixture_with_public_suffix(&suffix);
+    let cfg = make_step_config_with_suffix(&fixture.prep, suffix.len());
+    let source = recursive_source_image(&fixture);
+    let inputs = FPrimeRecursiveInputs {
+        state: fixture.state.clone(),
+        chunk_digest: fixture.chunk_digest,
+        semantic_state_digest_out: recursive_acc_digest(&fixture),
+        acc_digest_out: recursive_acc_digest(&fixture),
+        nifs_msg: msg_from_fixture(&fixture),
+        rows_in_chunk: 1,
+        source_image: &source.image,
+        chunk_count_in_word: source.chunk_count_in_word,
+        step_count_in_word: source.step_count_in_word,
+        pc_word: source.pc_word,
+        prior_x_out_bits: source.prior_x_out_bits,
+        public_x_out_bits: source.public_x_out_bits,
+    };
+    let mut builder = R1csBuilder::new();
+    let out = enforce_f_prime_recursive_step_circuit(&mut builder, &fixture.prep.params, &cfg, &inputs).expect("emit");
+    assert!(builder.is_satisfied(), "suffix-bearing F' fixture must satisfy");
+    assert_eq!(out.fresh_public_suffixes.len(), 1);
+    let surfaced: Vec<F> = out.fresh_public_suffixes[0]
+        .iter()
+        .map(|wire| builder.witness()[wire.col()])
+        .collect();
+    assert_eq!(surfaced, suffix, "NIFS.V must expose the exact claim-bound suffix");
+}
+
+#[test]
+fn authoritative_recursive_f_prime_enforces_delayed_nebula_transition() {
+    let stacks = StackShape::NONE;
+    let suffix_len = delayed_nebula_public_suffix_len(stacks);
+    let public_input_len = F_PRIME_PUBLIC_INPUT_LEN + suffix_len;
+    let first_lane_col = public_input_len.div_ceil(D);
+    let m = (first_lane_col + 3) * D;
+    let r1cs = R1cs {
+        a: Mat::zero(1, m, F::ZERO),
+        b: Mat::zero(1, m, F::ZERO),
+        c: Mat::zero(1, m, F::ZERO),
+        m_in: public_input_len,
+    };
+    let prep = direct_ccs::preprocess_seeded(&r1cs, 0xD8).expect("preprocess Nebula carrier");
+    let scheme = LaneScheme::from_seeds(
+        prep.params.kappa() as usize,
+        LaneRanges {
+            ops: first_lane_col..first_lane_col + 1,
+            is: first_lane_col + 1..first_lane_col + 2,
+            fs: first_lane_col + 2..first_lane_col + 3,
+        },
+        [0xA5; 32],
+        [0x5A; 32],
+    )
+    .expect("lane scheme");
+
+    let mut first_assignment = vec![F::ZERO; m];
+    first_assignment[0] = F::ONE;
+    let mut first = direct_ccs::build_instance(&prep, &r1cs, &first_assignment).expect("first instance");
+    first.claim.adv = Some(scheme.commit(&first.witness.Z).expect("first adv"));
+    let mut first_tr = Transcript::session();
+    let (running, _) = neo_fold_clean::paper::nifs::prove(
+        &mut first_tr,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &prep.log,
+        Some(&scheme),
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
+        vec![first],
+        &RunningInstance::default(),
+    )
+    .expect("seed running");
+
+    // Lane commitments cover only the three aligned private columns, so
+    // their values are independent of the public suffix we derive below.
+    let mut provisional = direct_ccs::build_instance(&prep, &r1cs, &first_assignment).expect("provisional fresh");
+    provisional.claim.adv = Some(
+        scheme
+            .commit(&provisional.witness.Z)
+            .expect("provisional adv"),
+    );
+    let fresh_adv = provisional.claim.adv.clone().expect("fresh adv");
+    let d_pre = nebula_lane_chains([&fresh_adv]);
+    let nebula_cfg = NebulaConfig {
+        scheme: scheme.clone(),
+        steps_per_segment: 1,
+        stacks,
+        plan_digest: rand_digest(0xD800),
+        d_init: d_pre[1],
+    };
+
+    let acc_digest_in =
+        AccumulatorHandle::from_running_parts(&running.claims, running.parent_authority.as_ref()).digest_fields();
+    let lane_in = NebulaLane::base(&nebula_cfg);
+    let state = FPrimeStateIn {
+        vk_fs_digest: rand_digest(0xD810),
+        pi_ccs_header_bundle: prep.pi_ccs_header_bundle(),
+        chunk_count_in: 1,
+        step_count_in: 1,
+        z_0: rand_digest(0xD830),
+        z_i_in: rand_digest(0xD840),
+        pc: 1,
+        semantic_state_digest_in: acc_digest_in,
+        acc_digest_in,
+        public_trace_in: rand_digest(0xD850),
+        nebula: Some(lane_in.clone()),
+    };
+    let vk_bytes = digest_fields_as_digest32(state.vk_fs_digest);
+    let z_i_bytes = digest_fields_as_digest32(state.z_i_in);
+    let acc_bytes = digest_fields_as_digest32(state.acc_digest_in);
+    let mut opened = lane_in.clone();
+    opened
+        .open_segment(&nebula_cfg, vk_bytes, z_i_bytes, acc_bytes, d_pre)
+        .expect("open segment");
+    let step = NebulaStepX {
+        seg_idx: 0,
+        idx: 0,
+        ts_in: 0,
+        ts_out: 1,
+        gamma: opened.gamma.expect("open gamma"),
+        h_in: [K::ONE; 4],
+        h_out: [K::ONE; 4],
+        sp_in: [0; 2],
+        sp_out: [0; 2],
+    };
+    let suffix = encode_delayed_f_prime_suffix(&step, stacks, Some(d_pre)).expect("delayed suffix");
+
+    let prior_x_out = digest32_as_fields(state_x_out_digest_with_mode(
+        StateXOutDigestMode::Stateless,
+        vk_bytes,
+        state.pi_ccs_header_bundle,
+        &state.pi_ccs_header_bundle,
+        state.chunk_count_in,
+        state.step_count_in,
+        digest_fields_as_digest32(state.z_0),
+        z_i_bytes,
+        state.pc,
+        acc_bytes,
+        acc_bytes,
+        digest_fields_as_digest32(state.public_trace_in),
+        Some(lane_in.digest()),
+    ));
+    let mut second_assignment = encode_f_prime_public_input(prior_x_out);
+    second_assignment.extend_from_slice(&suffix);
+    second_assignment.resize(m, F::ZERO);
+    let mut second = direct_ccs::build_instance(&prep, &r1cs, &second_assignment).expect("fresh instance");
+    second.claim.adv = Some(scheme.commit(&second.witness.Z).expect("fresh adv"));
+    assert_eq!(second.claim.adv.as_ref(), Some(&fresh_adv));
+    let fresh_claims = vec![second.claim.clone()];
+
+    let chunk_digest = rand_digest(0xD860);
+    let mut tr = Transcript::with_label(TRANSCRIPT_LABEL);
+    tr.append_fields(b"f_prime/vk_fs", &state.vk_fs_digest);
+    tr.append_fields(b"f_prime/pi_ccs_header", &state.pi_ccs_header_bundle);
+    tr.append_fields(b"f_prime/chunk_count_in", &[F::from_u64(state.chunk_count_in)]);
+    tr.append_fields(b"f_prime/step_count_in", &[F::from_u64(state.step_count_in)]);
+    tr.append_fields(b"f_prime/z_0", &state.z_0);
+    tr.append_fields(b"f_prime/z_i_in", &state.z_i_in);
+    tr.append_fields(b"f_prime/pc", &[F::from_u64(state.pc)]);
+    tr.append_fields(b"f_prime/semantic_state_in", &state.semantic_state_digest_in);
+    tr.append_fields(b"f_prime/acc_digest_in", &state.acc_digest_in);
+    tr.append_fields(b"f_prime/public_trace_in", &state.public_trace_in);
+    tr.append_fields(b"f_prime/nebula_lane_in", &lane_in.digest());
+    tr.append_fields(b"f_prime/chunk_digest", &chunk_digest);
+    let (next_running, proof) = neo_fold_clean::paper::nifs::prove(
+        &mut tr,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &prep.log,
+        Some(&scheme),
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
+        vec![second],
+        &running,
+    )
+    .expect("delayed Nebula fold");
+    let combined = proof.pi_rlc.combined.clone();
+    let children = next_running.claims.clone();
+    let new_acc_digest = AccumulatorHandle::from_running_parts(&children, Some(&combined)).digest_fields();
+
+    let mut lane_out = lane_in.clone();
+    lane_out
+        .open_segment(&nebula_cfg, vk_bytes, z_i_bytes, acc_bytes, d_pre)
+        .expect("native open");
+    lane_out
+        .advance(&nebula_cfg, &step, Some(&fresh_adv))
+        .expect("native delayed transition");
+    assert!(lane_out.is_closed(), "single-step segment must close");
+    let expected_x_out = digest32_as_fields(state_x_out_digest_with_mode(
+        StateXOutDigestMode::Stateless,
+        vk_bytes,
+        state.pi_ccs_header_bundle,
+        &state.pi_ccs_header_bundle,
+        state.chunk_count_in + 1,
+        state.step_count_in + 1,
+        digest_fields_as_digest32(state.z_0),
+        digest_fields_as_digest32(chunk_digest),
+        state.pc,
+        digest_fields_as_digest32(new_acc_digest),
+        digest_fields_as_digest32(new_acc_digest),
+        digest_fields_as_digest32(chunk_digest),
+        Some(lane_out.digest()),
+    ));
+
+    let mut image = FPrimeSourceImage::new();
+    let chunk_count_in_word = image.push_u64_le(state.chunk_count_in);
+    let step_count_in_word = image.push_u64_le(state.step_count_in);
+    let pc_word = image.push_u64_le(state.pc);
+    let prior_public = image.push_f_prime_public_input(prior_x_out);
+    let prior_x_out_bits = BitRange::new(prior_public.start() + 1, F_PRIME_ENC_INST_BITS);
+    let public_x_out_bits = image.push_enc_inst(expected_x_out);
+    let cfg = FPrimeStepConfig {
+        nifs: NifsVCircuitConfig {
+            pi_ccs: split_nc_config(&prep),
+        },
+        b: prep.params.b(),
+        transcript_label: TRANSCRIPT_LABEL,
+        public_input_layout: FPrimePublicInputLayout::with_suffix(suffix_len),
+        nebula: Some(&nebula_cfg),
+        state_x_out_digest_mode: StateXOutDigestMode::Stateless,
+    };
+    let doubled_fresh = vec![fresh_claims[0].clone(), fresh_claims[0].clone()];
+    let doubled_messages = NifsVCircuitMessages {
+        fresh: &doubled_fresh,
+        running: &running.claims,
+        running_parent_authority: running.parent_authority.as_ref(),
+        pi_ccs: &proof.pi_ccs,
+        combined: &combined,
+        children: &children,
+    };
+    let doubled_inputs = FPrimeRecursiveInputs {
+        state: state.clone(),
+        chunk_digest,
+        semantic_state_digest_out: new_acc_digest,
+        acc_digest_out: new_acc_digest,
+        nifs_msg: doubled_messages,
+        rows_in_chunk: 1,
+        source_image: &image,
+        chunk_count_in_word,
+        step_count_in_word,
+        pc_word,
+        prior_x_out_bits,
+        public_x_out_bits,
+    };
+    let arity_error =
+        match enforce_f_prime_recursive_step_circuit(&mut R1csBuilder::new(), &prep.params, &cfg, &doubled_inputs) {
+            Ok(_) => panic!("Nebula F' must reject K != 1"),
+            Err(error) => error,
+        };
+    assert!(arity_error
+        .to_string()
+        .contains("exactly one delayed fresh claim"));
+
+    let messages = NifsVCircuitMessages {
+        fresh: &fresh_claims,
+        running: &running.claims,
+        running_parent_authority: running.parent_authority.as_ref(),
+        pi_ccs: &proof.pi_ccs,
+        combined: &combined,
+        children: &children,
+    };
+    let inputs = FPrimeRecursiveInputs {
+        state: state.clone(),
+        chunk_digest,
+        semantic_state_digest_out: new_acc_digest,
+        acc_digest_out: new_acc_digest,
+        nifs_msg: messages,
+        rows_in_chunk: 1,
+        source_image: &image,
+        chunk_count_in_word,
+        step_count_in_word,
+        pc_word,
+        prior_x_out_bits,
+        public_x_out_bits,
+    };
+    let mut builder = R1csBuilder::new();
+    let out =
+        enforce_f_prime_recursive_step_circuit(&mut builder, &prep.params, &cfg, &inputs).expect("emit Nebula F'");
+    assert!(
+        builder.is_satisfied(),
+        "integrated Nebula F' relation must satisfy: {:?}",
+        builder.first_unsatisfied_row()
+    );
+    let witness = builder.witness();
+    assert_eq!(out.x_out.map(|wire| witness[wire.col()]), expected_x_out);
+    let lane_wires = out.state_out.nebula.expect("Nebula state-out wires");
+    assert_eq!(witness[lane_wires.open.col()], F::ZERO);
+    assert_eq!(witness[lane_wires.seg_idx.col()], F::ONE);
+    assert_eq!(witness[lane_wires.idx.col()], F::ZERO);
+    assert_eq!(witness[lane_wires.ts.col()], F::ONE);
+    assert_eq!(lane_wires.d_mem.map(|wire| witness[wire.col()]), lane_out.d_mem);
+
+    let tamper_columns = [
+        out.fresh_public_suffixes[0][0].col(),
+        out.fresh_adv[0].as_ref().expect("adv wires").ops.data[0].col(),
+        out.state_in.nebula.expect("Nebula state-in wires").d_mem[0].col(),
+        lane_wires.d_mem[0].col(),
+    ];
+    for column in tamper_columns {
+        let original = builder.witness()[column];
+        builder.tamper_witness(column, original + F::ONE);
+        assert!(
+            !builder.is_satisfied(),
+            "Nebula relation accepted tampered column {column}"
+        );
+        builder.tamper_witness(column, original);
+        assert!(
+            builder.is_satisfied(),
+            "restoring column {column} must restore satisfaction"
+        );
+    }
+}
+
 // ── Preimage builders (mirror `paper::digest::*`) ────────────────────────
 
 fn u64_halves(value: u64) -> [F; 2] {
@@ -521,6 +921,7 @@ fn build_state_x_out_preimage_from_fixture(
     p.extend(digest32_as_fields(digest_fields_as_digest32(
         fixture.state.vk_fs_digest,
     )));
+    p.extend(fixture.state.pi_ccs_header_bundle);
     p.extend(u64_halves(new_chunk_count));
     p.extend(u64_halves(new_step_count));
     p.extend(u64_halves(fixture.state.pc));
@@ -744,54 +1145,6 @@ fn phase_1_3d_nifs_parent_authority_wire_parity_three_way() {
     );
 }
 
-fn signed_repr(value: F) -> i128 {
-    let p: u128 = (1u128 << 64) - (1u128 << 32) + 1;
-    let v = value.as_canonical_u64() as u128;
-    if v <= p / 2 {
-        v as i128
-    } else {
-        -((p - v) as i128)
-    }
-}
-
-fn fits_signed_digit(value: F, bits: u8) -> bool {
-    let signed = signed_repr(value);
-    let half = 1i128 << (bits - 1);
-    signed >= -half && signed < half
-}
-
-fn first_ring_action_signed_digit_overflow(ring_muls: &[RingMulAuditEntry], witness: &[F]) -> Option<String> {
-    for (i, entry) in ring_muls.iter().enumerate() {
-        for k in 0..D {
-            let value = witness[entry.rho[k].col()];
-            if !fits_signed_digit(value, 5) {
-                return Some(format!("ring_mul[{i}].rho[{k}] = {}", signed_repr(value)));
-            }
-        }
-        for k in 0..D {
-            let value = witness[entry.c[k].col()];
-            if !fits_signed_digit(value, 8) {
-                return Some(format!("ring_mul[{i}].c[{k}] = {}", signed_repr(value)));
-            }
-        }
-        for r in 0..D {
-            for c in 0..D {
-                let value = witness[entry.products[r][c].col()];
-                if !fits_signed_digit(value, 12) {
-                    return Some(format!("ring_mul[{i}].prod[{r}][{c}] = {}", signed_repr(value)));
-                }
-            }
-        }
-        for m in 0..D {
-            let value = witness[entry.output[m].col()];
-            if !fits_signed_digit(value, 20) {
-                return Some(format!("ring_mul[{i}].output[{m}] = {}", signed_repr(value)));
-            }
-        }
-    }
-    None
-}
-
 // ── Phase 1.3d-coverage: full F' step kmul/ring_action accounting + image fill ──────
 //
 // Runs the F' R1CS emitter once with the K-mul / ring-mul audit trail
@@ -852,8 +1205,8 @@ fn phase_1_3d_kmul_ring_action_coverage_full_step_three_way_parity() {
         "F' emitter must invoke at least one K-mul (audit_k_muls empty)"
     );
     assert!(
-        !ring_muls.is_empty(),
-        "F' emitter must invoke at least one ring-mul (audit_ring_muls empty)"
+        ring_muls.is_empty(),
+        "authoritative F' must not materialize D-squared ring products after full projection adoption"
     );
     assert_eq!(
         k_muls.len(),
@@ -867,18 +1220,6 @@ fn phase_1_3d_kmul_ring_action_coverage_full_step_three_way_parity() {
     );
 
     // ── 2. Size the image to match observed counts. ──────────────────────
-    // The old SignedDigit{5/8/12/20} cost model does not fit the actual
-    // full-step F' ring-action witness. Keep this guard so a future protocol
-    // change that restores signed bounds forces us to revisit ring_action sizing.
-    let overflow = first_ring_action_signed_digit_overflow(&ring_muls, &witness);
-    assert!(
-        overflow.is_some(),
-        "full-step ring_action values now fit SignedDigit{{5/8/12/20}}; revisit U64 layout/accounting"
-    );
-    eprintln!(
-        "phase_1_3d coverage: using U64 ring_action layout because SignedDigit{{5/8/12/20}} overflows at {}",
-        overflow.expect("checked above")
-    );
     let pair_layout = RingActionTraceLayout::new(
         LowNormEncoding::U64,
         LowNormEncoding::U64,

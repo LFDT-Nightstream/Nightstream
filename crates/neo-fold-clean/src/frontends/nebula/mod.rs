@@ -27,6 +27,7 @@
 //! (`paper/construction2/nebula_lane.rs`).
 
 pub mod circuit;
+pub mod f_prime;
 pub mod fingerprint;
 pub mod layout;
 pub mod plan;

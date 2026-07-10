@@ -52,7 +52,10 @@ use neo_ccs::{CcsMatrix, CcsStructure, CscMat, SparsePoly, Term};
 use neo_math::field::KExtensions;
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
+use thiserror::Error;
 
+use crate::engine::r1cs_circuit::boolean::enforce_bit;
+use crate::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
 use crate::frontends::nebula::fingerprint::{self, Gammas, MemTuple};
 use crate::frontends::nebula::layout::{
     x_offsets, CellRecord, LayoutError, MemOpRecord, MemSpace, NebulaParams, StepPublicInput, H_FS, H_IS, H_RS, H_WS,
@@ -105,6 +108,14 @@ pub struct StepData<'a> {
     pub ops: &'a [MemOpRecord],
     pub is_cells: &'a [CellRecord],
     pub fs_cells: &'a [CellRecord],
+}
+
+#[derive(Debug, Error)]
+pub enum SMemR1csError {
+    #[error("S_mem R1CS lowering: assignment length {got} != circuit width {expected}")]
+    AssignmentLength { got: usize, expected: usize },
+    #[error("S_mem R1CS lowering: assignment constant column is not one")]
+    ConstantOne,
 }
 
 impl SMemCircuit {
@@ -254,6 +265,108 @@ impl SMemCircuit {
             write_k(&mut z, aux.h_fs, scan.h_fs);
         }
         Ok((z, x))
+    }
+
+    /// Emit the exact `S_mem` relation as field-native R1CS rows.
+    ///
+    /// This is the application-relation arm consumed by authoritative F'.
+    /// It reads the same 15 matrices as the native CCS relation and factors
+    /// only the degree-four K-product family; no second memory semantics
+    /// implementation exists at the call site.
+    pub fn enforce_in_r1cs(&self, builder: &mut R1csBuilder, assignment: &[F]) -> Result<Vec<Var>, SMemR1csError> {
+        if assignment.len() != self.structure.m {
+            return Err(SMemR1csError::AssignmentLength {
+                got: assignment.len(),
+                expected: self.structure.m,
+            });
+        }
+        if assignment.first().copied() != Some(F::ONE) {
+            return Err(SMemR1csError::ConstantOne);
+        }
+
+        let mut vars = Vec::with_capacity(assignment.len());
+        vars.push(Var::ONE);
+        vars.extend(builder.alloc_vec(&assignment[1..]));
+        // `S_mem` is natively a low-norm bit assignment, including layout
+        // fillers. State that boundary once here so the generic F' lowering
+        // keeps every source coordinate one bit wide and preserves the
+        // ring-column alignment used by the lane commitments.
+        for &var in vars.iter().skip(1) {
+            enforce_bit(builder, var);
+        }
+        let matrix_rows: Vec<Vec<Lc>> = self
+            .structure
+            .matrices
+            .iter()
+            .map(|matrix| matrix_row_lcs(matrix, &vars, self.structure.n))
+            .collect();
+
+        for row in 0..self.structure.n {
+            let at = |matrix: usize| &matrix_rows[matrix][row];
+            let bit_active = !lc_is_zero(at(M_BIT));
+            let product_active = (M_PL..=M_LR).any(|matrix| !lc_is_zero(at(matrix)));
+            let k_active = (M_O..=M_V).any(|matrix| !lc_is_zero(at(matrix)));
+            assert!(
+                !(bit_active && (product_active || k_active)) && !(product_active && k_active),
+                "S_mem row families must stay disjoint when lowered to R1CS"
+            );
+
+            if bit_active {
+                // Covered by the one global source-assignment pass above.
+            } else if product_active {
+                let rhs = at(M_LR).clone().add_scaled(at(M_LL), -F::ONE);
+                builder.enforce(at(M_PL), at(M_PR), &rhs);
+            } else if k_active {
+                // -O + A(P + Q(FA - GA*V)) + B*Q(FB - GB*V) = 0.
+                let ga_v = r1cs_mul_lc(builder, at(M_GA), at(M_V));
+                let gb_v = r1cs_mul_lc(builder, at(M_GB), at(M_V));
+                let fa_minus_ga_v = at(M_FA).clone().add_scaled(&ga_v, -F::ONE);
+                let fb_minus_gb_v = at(M_FB).clone().add_scaled(&gb_v, -F::ONE);
+                let q_a = r1cs_mul_lc(builder, at(M_Q), &fa_minus_ga_v);
+                let q_b = r1cs_mul_lc(builder, at(M_Q), &fb_minus_gb_v);
+                let p_plus_q_a = at(M_P).clone().add_scaled(&q_a, F::ONE);
+                let a_term = r1cs_mul_lc(builder, at(M_A), &p_plus_q_a);
+                let b_term = r1cs_mul_lc(builder, at(M_B), &q_b);
+                let sum = a_term.add_scaled(&b_term, F::ONE);
+                builder.enforce_eq(&sum, at(M_O));
+            }
+        }
+        Ok(vars)
+    }
+}
+
+fn matrix_row_lcs(matrix: &CcsMatrix<F>, vars: &[Var], rows: usize) -> Vec<Lc> {
+    let mut out = vec![Lc::zero(); rows];
+    match matrix {
+        CcsMatrix::Identity { n } => {
+            for row in 0..(*n).min(rows).min(vars.len()) {
+                out[row].add_term(vars[row], F::ONE);
+            }
+        }
+        CcsMatrix::Csc(csc) => {
+            assert_eq!(csc.ncols, vars.len(), "S_mem matrix width must match witness width");
+            for col in 0..csc.ncols {
+                for index in csc.col_ptr[col]..csc.col_ptr[col + 1] {
+                    let row = csc.row_idx[index];
+                    if row < rows {
+                        out[row].add_term(vars[col], csc.vals[index]);
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+
+fn lc_is_zero(value: &Lc) -> bool {
+    value.terms.is_empty() && value.constant == F::ZERO
+}
+
+fn r1cs_mul_lc(builder: &mut R1csBuilder, left: &Lc, right: &Lc) -> Lc {
+    if lc_is_zero(left) || lc_is_zero(right) {
+        Lc::zero()
+    } else {
+        Lc::from_var(builder.alloc_mul(left, right))
     }
 }
 

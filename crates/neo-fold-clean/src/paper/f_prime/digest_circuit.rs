@@ -33,7 +33,9 @@ use p3_field::PrimeCharacteristicRing;
 use crate::engine::r1cs_circuit::builder::{Lc, R1csBuilder, Var};
 use crate::engine::r1cs_circuit::poseidon2::{enforce_poseidon2_hash, DIGEST_LEN};
 use crate::engine::r1cs_circuit::u64_arith::decompose_var_to_u64_bits;
-use crate::paper::digest::{StateXOutDigestMode, F_PRIME_BOUNDARY_UPDATE_DOMAIN, F_PRIME_STATE_X_OUT_DOMAIN};
+use crate::paper::digest::{
+    StateXOutDigestMode, F_PRIME_BOUNDARY_UPDATE_DOMAIN, F_PRIME_STATE_X_OUT_DOMAIN, NEBULA_ADV_PRESENT_MARKER,
+};
 
 /// Tag for `public_trace_update_digest`.
 pub const PUBLIC_TRACE_UPDATE_TAG: &[u8] = b"neo.fold.clean/public_trace_update/v1";
@@ -75,6 +77,9 @@ pub struct StateXOutDigestInputs {
     pub mode: StateXOutDigestMode,
     /// `vk_fs_digest` — 4 limbs (from 32 LE bytes natively).
     pub vk_fs_digest: [Var; DIGEST_LEN],
+    /// SplitNc verifier header carried as part of `vk_fs`. These are
+    /// witness wires so folded F' does not embed a hash of its own matrices.
+    pub pi_ccs_header_bundle: [Var; DIGEST_LEN],
     /// CCS structure digest — 4 native F limbs.
     ///
     /// Retained on the input struct because callers already carry it,
@@ -111,8 +116,28 @@ pub fn enforce_state_x_out_digest_circuit(
     builder: &mut R1csBuilder,
     inputs: &StateXOutDigestInputs,
 ) -> [Var; DIGEST_LEN] {
+    enforce_state_x_out_digest_inner(builder, inputs, None)
+}
+
+/// Nebula-chain variant of [`enforce_state_x_out_digest_circuit`]. The
+/// lane digest extension is present at both open and closed segment states;
+/// plain chains continue to use the original entrypoint unchanged.
+pub fn enforce_state_x_out_digest_with_nebula_circuit(
+    builder: &mut R1csBuilder,
+    inputs: &StateXOutDigestInputs,
+    nebula_lane_digest: [Var; DIGEST_LEN],
+) -> [Var; DIGEST_LEN] {
+    enforce_state_x_out_digest_inner(builder, inputs, Some(nebula_lane_digest))
+}
+
+fn enforce_state_x_out_digest_inner(
+    builder: &mut R1csBuilder,
+    inputs: &StateXOutDigestInputs,
+    nebula_lane_digest: Option<[Var; DIGEST_LEN]>,
+) -> [Var; DIGEST_LEN] {
     let mut preimage = vec![alloc_constant(builder, F::from_u64(F_PRIME_STATE_X_OUT_DOMAIN))];
     preimage.extend_from_slice(&inputs.vk_fs_digest);
+    preimage.extend_from_slice(&inputs.pi_ccs_header_bundle);
 
     let [chunk_lo, chunk_hi] = enforce_u64_halves_from_var(builder, inputs.chunk_count);
     preimage.push(chunk_lo);
@@ -132,6 +157,11 @@ pub fn enforce_state_x_out_digest_circuit(
         preimage.extend_from_slice(&inputs.semantic_acc);
     }
     preimage.extend_from_slice(&inputs.construction2_acc);
+
+    if let Some(lane) = nebula_lane_digest {
+        preimage.push(alloc_constant(builder, F::from_u64(NEBULA_ADV_PRESENT_MARKER)));
+        preimage.extend_from_slice(&lane);
+    }
 
     enforce_poseidon2_hash(builder, &preimage)
 }

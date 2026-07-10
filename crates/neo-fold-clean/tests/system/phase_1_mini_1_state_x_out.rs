@@ -44,7 +44,7 @@ fn u64_halves(value: u64) -> [F; 2] {
 #[allow(clippy::too_many_arguments)]
 fn build_state_x_out_preimage(
     vk_fs_digest: [u8; 32],
-    _structure_digest: &[F; 4],
+    pi_ccs_header_bundle: &[F; 4],
     chunk_count: u64,
     step_count: u64,
     _initial_boundary: [u8; 32],
@@ -56,6 +56,7 @@ fn build_state_x_out_preimage(
 ) -> Vec<F> {
     let mut preimage = vec![F::from_u64(F_PRIME_STATE_X_OUT_DOMAIN)];
     preimage.extend(digest32_as_fields(vk_fs_digest));
+    preimage.extend_from_slice(pi_ccs_header_bundle);
     preimage.extend(u64_halves(chunk_count));
     preimage.extend(u64_halves(step_count));
     preimage.extend(u64_halves(pc));
@@ -192,7 +193,7 @@ fn phase_1_mini_1_decoded_state_x_out_matches_native_and_builder() {
 
     // Reference path: production `state_x_out_digest`.
     let reference_bytes = state_x_out_digest(
-        vk_fs, &structure, cc, sc, init_b, curr_b, pc, sem_acc, c2_acc, pub_trace,
+        vk_fs, structure, &structure, cc, sc, init_b, curr_b, pc, sem_acc, c2_acc, pub_trace,
     );
     let reference_fields = digest32_as_fields(reference_bytes);
 

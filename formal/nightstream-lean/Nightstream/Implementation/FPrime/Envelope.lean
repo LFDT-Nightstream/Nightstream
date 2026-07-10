@@ -6,7 +6,10 @@ Contract: F' state-envelope integrity.
 Assumes: decidable equality for the digest representation.
 Guarantees: a successful executable check establishes the exact branch,
 counter, fixed-program-counter, immutable-boundary, and trace-copy equations
-implemented by `state_base_case_check` and `advance_state`.
+implemented by `state_base_case_check` and `advance_state`, that the fresh
+batch is nonempty (`Error::EmptyStep` parity), and that the declared fresh
+count is the actual cardinality of the installed batch (`fresh_count =
+next_latest_claims.len()` parity).
 
 Non-goals: NIFS correctness, application-state authenticity, accumulator
 opening authority, Poseidon2 collision resistance, Nebula transition validity,
@@ -62,7 +65,11 @@ def AdvanceCoherent
   next.publicTrace = next.zi ∧
   match next.proof with
   | .initial => False
-  | .active _ _ => True
+  | .active _ latest =>
+      -- Rust rejects the empty batch (`Error::EmptyStep`) and derives
+      -- `fresh_count` from the batch itself; a declared count that is not
+      -- the installed batch's cardinality is unrepresentable there.
+      freshCount ≠ 0 ∧ latest.length = freshCount
 
 /-- Full scope of the first executable assurance check. -/
 def Holds

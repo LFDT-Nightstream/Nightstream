@@ -11,10 +11,13 @@ namespace Nightstream.HyperNova.Construction2
 
 universe uDigest uRunning uFresh
 
-/-- The fold pair is absent only before the first Construction-2 step. -/
+/-- The fold pair is absent only before the first Construction-2 step.
+`latest` is the fresh batch as an actual list so its cardinality is
+expressible — Rust's `advance_state` derives `fresh_count` from
+`next_latest_claims.len()` and rejects the empty batch (`Error::EmptyStep`). -/
 inductive ProofState (Running : Type uRunning) (Fresh : Type uFresh) where
   | initial
-  | active (running : Running) (latest : Fresh)
+  | active (running : Running) (latest : List Fresh)
 deriving Repr
 
 /-- The current direct-F' state coordinates used by the active Rust path. -/

@@ -269,7 +269,23 @@ pub fn sanity_check_comm_chain(trace: &[WasmVmStep]) -> Result<(), WasmBuildErro
             ));
         }
 
-        let is_host_call = row.row_kind.is_program()
+        // Grammar mode: each gather row stages one expanded event block; the
+        // chain must fold exactly the staged blocks in order. The binding of
+        // block contents to the grammar tables is checked by the expansion
+        // path (trace construction / stage-C gather rows), not here.
+        if row.row_kind.is_host_event_gather() {
+            let words = row.state_after.event_absorb.evbuf;
+            let updated = commit_event(
+                owed_chain.map(Goldilocks::from_u64),
+                Goldilocks::from_u64(words[0]),
+                core::array::from_fn(|i| Goldilocks::from_u64(words[1 + i])),
+            );
+            owed_chain = updated.map(|limb| limb.as_canonical_u64());
+            owed_blocks.push_back((words, owed_chain));
+        }
+
+        let is_host_call = !row.state_before.grammar_mode
+            && row.row_kind.is_program()
             && matches!(row.opcode, WasmOpcode::Call | WasmOpcode::CallIndirect)
             && !row.target_function_is_guest
             && !row.state_after.trapped;

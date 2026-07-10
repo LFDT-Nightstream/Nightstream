@@ -139,6 +139,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
         && !trace.state_before.host_args.active
         && trace.state_before.event_absorb.perm_round == 0
         && !trace.state_before.event_absorb.perm_pending
+        && !trace.row_kind.is_host_event_gather()
     {
         F::ONE
     } else {
@@ -943,9 +944,10 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
 /// gadget-internal block is filled by `ccs::poseidon::fill_perm_gadget_witness`.
 fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     use crate::layout::{
-        COL_EVBUF0_AFTER, COL_EVBUF0_BEFORE, COL_EVBUF_SLOT0_AFTER, COL_EVBUF_SLOT0_BEFORE, COL_PERM_PENDING_AFTER,
-        COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE, COL_PERM_ROUND_BEFORE_INV,
-        COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE0_AFTER, COL_PERM_STATE0_BEFORE,
+        COL_EVBUF0_AFTER, COL_EVBUF0_BEFORE, COL_EVBUF_SLOT0_AFTER, COL_EVBUF_SLOT0_BEFORE, COL_GATHER_ACTIVE,
+        COL_GRAMMAR_MODE_AFTER, COL_GRAMMAR_MODE_BEFORE, COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE,
+        COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE, COL_PERM_ROUND_BEFORE_INV, COL_PERM_ROUND_BEFORE_IS_ZERO,
+        COL_PERM_STATE0_AFTER, COL_PERM_STATE0_BEFORE, COL_RAW_ARGS_ACTIVE, COL_RAW_HOST_CALL, COL_RAW_RESULT_ACTIVE,
     };
 
     let bool_f = |flag: bool| if flag { F::ONE } else { F::ZERO };
@@ -971,6 +973,19 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
         wit[COL_PERM_STATE0_BEFORE + lane] = F::from_u64(before.perm_state[lane]);
         wit[COL_PERM_STATE0_AFTER + lane] = F::from_u64(after.perm_state[lane]);
     }
+
+    // Grammar mode flag, gather row kind, and the raw-machinery masks
+    // (`x · (1 - mode)`), read by the gadget's gates and witness fill.
+    let mode = bool_f(trace.state_before.grammar_mode);
+    wit[COL_GRAMMAR_MODE_BEFORE] = mode;
+    wit[COL_GRAMMAR_MODE_AFTER] = bool_f(trace.state_after.grammar_mode);
+    wit[COL_GATHER_ACTIVE] = bool_f(trace.row_kind.is_host_event_gather());
+    let host_call_gate = wit[selector_col(super::isa::WasmOpcode::Call).expect("call selector")]
+        + wit[COL_CALL_INDIRECT_IS_NOT_TRAP]
+        - wit[COL_GUEST_CALL_ACTIVE];
+    wit[COL_RAW_HOST_CALL] = host_call_gate * (F::ONE - mode);
+    wit[COL_RAW_ARGS_ACTIVE] = wit[COL_HOST_ARGS_ACTIVE_BEFORE] * (F::ONE - mode);
+    wit[COL_RAW_RESULT_ACTIVE] = wit[COL_HOST_RESULT_ACTIVE] * (F::ONE - mode);
 }
 
 fn write_param_init_state(wit: &mut [F], before: bool, state: super::ir::WasmCountdownState) {

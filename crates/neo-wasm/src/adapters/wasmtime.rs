@@ -24,7 +24,7 @@ pub use runtime_read::build_debug_function_id_map;
 use runtime_read::{build_single_trace_store_debug_function_id_map, val_to_string};
 // Public path `adapters::wasmtime::traces_from_wasmtime_steps` is preserved via this re-export
 // (also brings the name into scope for the component wrappers below).
-pub use normalize::traces_from_wasmtime_steps;
+pub use normalize::{traces_from_wasmtime_steps, traces_from_wasmtime_steps_with_grammar};
 pub use parse::{WasmProgramArtifacts, WasmProgramDecodeEntry, WasmProgramTables};
 
 #[derive(Clone, Debug, Eq, PartialEq, Default)]

@@ -1,0 +1,15 @@
+name = "nightstream_lean"
+version = "0.1.0"
+defaultTargets = ["Nightstream", "NightstreamTests", "check"]
+
+[[lean_lib]]
+name = "Nightstream"
+globs = ["Nightstream", "Nightstream.+"]
+
+[[lean_lib]]
+name = "NightstreamTests"
+globs = ["tests.+"]
+
+[[lean_exe]]
+name = "check"
+root = "Main"

@@ -399,6 +399,51 @@ define_columns!(
         "host-result row with the raw absorb machinery active: host_result_active · (1 - grammar_mode)",
         ColumnWidth::Boolean
     ),
+    // Grammar-mode gather machinery: carried schedule/cursor/oracle state
+    // plus the per-row grammar-ROM interface columns (bound on gather rows
+    // by the `grammar_slot_*` families, on call/result rows by the
+    // `grammar_event_counts_*` families). See `ir::WasmGrammarState` and
+    // `docs/host-event-grammar-tables.md`.
+    (COL_GRAMMAR_EVREM_BEFORE, "grammar events still owed in the current phase, before this row"),
+    (COL_GRAMMAR_EVREM_AFTER, "grammar events still owed in the current phase, after this row"),
+    (
+        COL_GRAMMAR_EVREM_BEFORE_IS_ZERO,
+        "zero-test flag for the owed grammar events before this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_GRAMMAR_EVREM_BEFORE_INV,
+        "inverse witness for the owed grammar events before this row"
+    ),
+    (COL_GRAMMAR_EVIDX_BEFORE, "current grammar event index within the template, before this row"),
+    (COL_GRAMMAR_EVIDX_AFTER, "current grammar event index within the template, after this row"),
+    (COL_GRAMMAR_ARGS_BASE_BEFORE, "stack slot index of the current call's first argument, before this row"),
+    (COL_GRAMMAR_ARGS_BASE_AFTER, "stack slot index of the current call's first argument, after this row"),
+    (COL_GRAMMAR_SLOT_CURSOR_BEFORE, "next block word a gather row stages (0..=7), before this row"),
+    (COL_GRAMMAR_SLOT_CURSOR_AFTER, "next block word a gather row stages (0..=7), after this row"),
+    (COL_GRAMMAR_ORACLE0_BEFORE, "per-call grammar oracle cell 0 before this row"),
+    (COL_GRAMMAR_ORACLE1_BEFORE, "per-call grammar oracle cell 1 before this row"),
+    (COL_GRAMMAR_ORACLE2_BEFORE, "per-call grammar oracle cell 2 before this row"),
+    (COL_GRAMMAR_ORACLE3_BEFORE, "per-call grammar oracle cell 3 before this row"),
+    (COL_GRAMMAR_ORACLE0_AFTER, "per-call grammar oracle cell 0 after this row"),
+    (COL_GRAMMAR_ORACLE1_AFTER, "per-call grammar oracle cell 1 after this row"),
+    (COL_GRAMMAR_ORACLE2_AFTER, "per-call grammar oracle cell 2 after this row"),
+    (COL_GRAMMAR_ORACLE3_AFTER, "per-call grammar oracle cell 3 after this row"),
+    (COL_GRAMMAR_SLOT_KIND, "grammar-ROM slot source kind (0 const, 1 arg, 2 result, 3 oracle)"),
+    (COL_GRAMMAR_SLOT_ARG, "grammar-ROM slot arg/oracle index"),
+    (COL_GRAMMAR_SLOT_LIMB, "grammar-ROM slot limb select (0 lo, 1 hi)"),
+    (COL_GRAMMAR_SLOT_CONST_LO, "grammar-ROM slot constant, low 32 bits"),
+    (COL_GRAMMAR_SLOT_CONST_HI, "grammar-ROM slot constant, high 32 bits"),
+    (COL_GRAMMAR_PRE_COUNT, "grammar-ROM pre-result event count for the called import"),
+    (COL_GRAMMAR_POST_COUNT, "grammar-ROM post-result event count for the called import"),
+    (
+        COL_GRAMMAR_HOST_CALL,
+        "host-call program row in grammar mode: host_call_gate · grammar_mode"
+    ),
+    (
+        COL_GRAMMAR_RESULT_ACTIVE,
+        "host-result row in grammar mode: host_result_active · grammar_mode"
+    ),
     (
         COL_HOST_RESULT_ACTIVE,
         "this row pushes the pending host-call result",
@@ -1424,5 +1469,7 @@ const _: () = {
     assert!(COL_EVBUF_SLOT3_BEFORE == COL_EVBUF_SLOT0_BEFORE + 3);
     assert!(COL_EVBUF_SLOT3_AFTER == COL_EVBUF_SLOT0_AFTER + 3);
     assert!(COL_PERM_STATE11_BEFORE == COL_PERM_STATE0_BEFORE + 11);
+    assert!(COL_GRAMMAR_ORACLE3_BEFORE == COL_GRAMMAR_ORACLE0_BEFORE + 3);
+    assert!(COL_GRAMMAR_ORACLE3_AFTER == COL_GRAMMAR_ORACLE0_AFTER + 3);
     assert!(COL_PERM_STATE11_AFTER == COL_PERM_STATE0_AFTER + 11);
 };

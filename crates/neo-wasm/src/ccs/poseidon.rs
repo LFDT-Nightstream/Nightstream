@@ -70,17 +70,31 @@ const WSR0: usize = WSA0 + 4; // 4 result-row write masks
 const STREAM_DONE: usize = WSR0 + 4; // event stream complete after this row
 const EVENT_END: usize = STREAM_DONE + 1; // this row streams the final word pair
 const EVENT_END_OR: usize = EVENT_END + 1; // (block filled)·(event end) product
+const GW0: usize = EVENT_END_OR + 1; // 8 gather block-word one-hot flags
+const GK0: usize = GW0 + 8; // 4 gather slot-kind one-hot flags (const/arg/result/oracle)
+const GOSEL0: usize = GK0 + 4; // 4 gather oracle-cell select flags
+const GARG_VAL: usize = GOSEL0 + 4; // limb-selected stack-read value
+const GSLOT_VALUE: usize = GARG_VAL + 1; // the block word this gather row stages
 
 /// Width of the gadget-internal column block.
-pub const PERM_GADGET_AUX_WIDTH: usize = EVENT_END_OR + 1 - NAMED_COLUMN_COUNT;
+pub const PERM_GADGET_AUX_WIDTH: usize = GSLOT_VALUE + 1 - NAMED_COLUMN_COUNT;
 
 /// Declared bit-widths of the gadget-internal columns, in block order (for
 /// the F' norm decomposition): booleans for the one-hot/masks/products,
-/// full field elements for the S-box powers.
+/// full field elements for the S-box powers and gather values.
 pub(crate) fn perm_gadget_col_widths() -> impl Iterator<Item = usize> {
     core::iter::repeat_n(1, COMM_CHAIN_PERM_ROWS)
         .chain(core::iter::repeat_n(64, 48 + 8))
         .chain(core::iter::repeat_n(1, 4 + 4 + 3))
+        .chain(core::iter::repeat_n(1, 8 + 4 + 4))
+        .chain(core::iter::repeat_n(64, 2))
+}
+
+/// Gather slot-kind one-hot columns whose read pins a stack access: the
+/// `sp' = sp - reads + writes` identity in `ccs.rs` exempts these reads
+/// from popping.
+pub(super) const fn gather_read_kind_cols() -> [usize; 2] {
+    [GK0 + 1, GK0 + 2]
 }
 
 /// The position one-hot flag of the group's last row (position 18), needed
@@ -138,6 +152,7 @@ fn event_write_gate_terms() -> [(usize, F); 3] {
 
 pub(super) fn push_host_event_perm_constraints(b: &mut R1csBuilder) {
     push_grammar_mode_constraints(b);
+    push_grammar_gather_constraints(b);
     push_position_onehot_constraints(b);
     push_pending_update_constraints(b);
     push_buffer_write_constraints(b);
@@ -176,21 +191,251 @@ fn push_grammar_mode_constraints(b: &mut R1csBuilder) {
 
         // Gather rows exist only in grammar mode.
         b.push_row([(COL_GATHER_ACTIVE, F::ONE)], not_mode, []);
-        // Gather rows raise the pending flag for their block's perm group...
+        // Only a block's LAST slot row (word 7) raises the pending flag for
+        // its perm group; earlier slot rows leave it low.
         b.push_row(
-            [(COL_GATHER_ACTIVE, F::ONE)],
+            [(GW0 + 7, F::ONE)],
             [(COL_PERM_PENDING_AFTER, F::ONE), (COL_ONE, -F::ONE)],
             [],
         );
-        // ...touch no stack, and suspend the host-call countdown state like
-        // perm rows do.
-        b.push_row([(COL_GATHER_ACTIVE, F::ONE)], [(COL_STACK_READS, F::ONE)], []);
+        b.push_row(
+            [(COL_GATHER_ACTIVE, F::ONE), (GW0 + 7, -F::ONE)],
+            [(COL_PERM_PENDING_AFTER, F::ONE)],
+            [],
+        );
+        // Gather rows read the stack exactly when their slot kind is an
+        // arg/result element, write nothing, and suspend the host-call
+        // countdown state like perm rows do.
+        b.push_row(
+            [(COL_GATHER_ACTIVE, F::ONE)],
+            [(COL_STACK_READS, F::ONE), (GK0 + 1, -F::ONE), (GK0 + 2, -F::ONE)],
+            [],
+        );
         b.push_row([(COL_GATHER_ACTIVE, F::ONE)], [(COL_STACK_WRITES, F::ONE)], []);
         for (after, before) in [
             (COL_HOST_ARGS_REMAINING_AFTER, COL_HOST_ARGS_REMAINING_BEFORE),
             (COL_HOST_RESULT_PENDING_AFTER, COL_HOST_RESULT_PENDING_BEFORE),
         ] {
             b.push_row([(COL_GATHER_ACTIVE, F::ONE)], [(after, F::ONE), (before, -F::ONE)], []);
+        }
+    });
+}
+
+/// Grammar gather binding: each gather row stages exactly one block word,
+/// whose value is pinned by the grammar ROM entry at
+/// `(fref, event_index, slot_cursor)` — a constant, an addressed stack read
+/// of an arg/result limb, or a per-call oracle cell — and the per-call
+/// event schedule is forced by ROM-loaded countdowns. This closes the
+/// stage-B gap: with these rows, a grammar chain commits exactly the event
+/// sequence obtained by applying the committed tables to the values at the
+/// call site.
+fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
+    use super::super::layout::{
+        COL_CALL_PARAM_COUNT as PARAM_COUNT, COL_GRAMMAR_ARGS_BASE_AFTER as AB_A, COL_GRAMMAR_ARGS_BASE_BEFORE as AB_B,
+        COL_GRAMMAR_EVIDX_AFTER as EVIDX_A, COL_GRAMMAR_EVIDX_BEFORE as EVIDX_B, COL_GRAMMAR_EVREM_AFTER as EVREM_A,
+        COL_GRAMMAR_EVREM_BEFORE as EVREM_B, COL_GRAMMAR_EVREM_BEFORE_INV as EVREM_INV,
+        COL_GRAMMAR_EVREM_BEFORE_IS_ZERO as EVREM_ISZERO, COL_GRAMMAR_HOST_CALL as GHC,
+        COL_GRAMMAR_ORACLE0_AFTER as OR0_A, COL_GRAMMAR_ORACLE0_BEFORE as OR0_B, COL_GRAMMAR_POST_COUNT as POST_COUNT,
+        COL_GRAMMAR_PRE_COUNT as PRE_COUNT, COL_GRAMMAR_RESULT_ACTIVE as GRES, COL_GRAMMAR_SLOT_ARG as SLOT_ARG,
+        COL_GRAMMAR_SLOT_CONST_HI as CONST_HI, COL_GRAMMAR_SLOT_CONST_LO as CONST_LO,
+        COL_GRAMMAR_SLOT_CURSOR_AFTER as S_A, COL_GRAMMAR_SLOT_CURSOR_BEFORE as S_B,
+        COL_GRAMMAR_SLOT_KIND as SLOT_KIND, COL_GRAMMAR_SLOT_LIMB as SLOT_LIMB, COL_IS_PROGRAM_ROW, COL_SP_BEFORE,
+        COL_STACK_READ0_ADDR_LO,
+    };
+    let ci_sel = super::super::layout::selector_col(crate::isa::WasmOpcode::CallIndirect).expect("ci selector");
+
+    b.with_tag(always("grammar gather binding"), |b| {
+        // Grammar-mode row masks: grammar_x = x - raw_x = x · mode.
+        let [call, ci_not_trap, guest] = host_call_gate_terms();
+        b.push_linear_zero([
+            (GHC, F::ONE),
+            (call.0, -call.1),
+            (ci_not_trap.0, -ci_not_trap.1),
+            (guest.0, -guest.1),
+            (COL_RAW_HOST_CALL, F::ONE),
+        ]);
+        b.push_linear_zero([
+            (GRES, F::ONE),
+            (COL_HOST_RESULT_ACTIVE, -F::ONE),
+            (COL_RAW_RESULT_ACTIVE, F::ONE),
+        ]);
+
+        // Event schedule countdown: loaded from the event-count ROMs on the
+        // grammar call/result rows, decremented by each block's last slot
+        // row, preserved elsewhere; program and result rows require it to
+        // be spent, and gather rows require it to be live.
+        push_zero_test_gadget(b, EVREM_B, EVREM_INV, EVREM_ISZERO);
+        b.push_row([(COL_GATHER_ACTIVE, F::ONE)], [(EVREM_ISZERO, F::ONE)], []);
+        b.push_row([(COL_IS_PROGRAM_ROW, F::ONE)], [(EVREM_B, F::ONE)], []);
+        b.push_row([(COL_HOST_RESULT_ACTIVE, F::ONE)], [(EVREM_B, F::ONE)], []);
+        b.push_row([(GHC, F::ONE)], [(EVREM_A, F::ONE), (PRE_COUNT, -F::ONE)], []);
+        b.push_row([(GRES, F::ONE)], [(EVREM_A, F::ONE), (POST_COUNT, -F::ONE)], []);
+        b.push_row(
+            [(GW0 + 7, F::ONE)],
+            [(EVREM_A, F::ONE), (EVREM_B, -F::ONE), (COL_ONE, F::ONE)],
+            [],
+        );
+        b.push_row(
+            [(COL_ONE, F::ONE), (GHC, -F::ONE), (GRES, -F::ONE), (GW0 + 7, -F::ONE)],
+            [(EVREM_A, F::ONE), (EVREM_B, -F::ONE)],
+            [],
+        );
+
+        // Event index: the ROM key component walking the template.
+        b.push_row([(GHC, F::ONE)], [(EVIDX_A, F::ONE)], []);
+        b.push_row(
+            [(GW0 + 7, F::ONE)],
+            [(EVIDX_A, F::ONE), (EVIDX_B, -F::ONE), (COL_ONE, -F::ONE)],
+            [],
+        );
+        b.push_row(
+            [(COL_ONE, F::ONE), (GHC, -F::ONE), (GW0 + 7, -F::ONE)],
+            [(EVIDX_A, F::ONE), (EVIDX_B, -F::ONE)],
+            [],
+        );
+
+        // Argument-region base: latched on the grammar call row from bound
+        // quantities (sp, the indirect-index pop, the ROM-bound arity).
+        b.push_row(
+            [(GHC, F::ONE)],
+            [
+                (AB_A, F::ONE),
+                (COL_SP_BEFORE, -F::ONE),
+                (ci_sel, F::ONE),
+                (PARAM_COUNT, F::ONE),
+            ],
+            [],
+        );
+        b.push_row(
+            [(COL_ONE, F::ONE), (GHC, -F::ONE)],
+            [(AB_A, F::ONE), (AB_B, -F::ONE)],
+            [],
+        );
+
+        // Slot cursor + block-word one-hot lockstep (the same pattern as the
+        // perm position one-hot).
+        for k in 0..8 {
+            b.push_boolean(GW0 + k);
+        }
+        b.push_linear_zero(
+            (0..8)
+                .map(|k| (GW0 + k, F::ONE))
+                .chain([(COL_GATHER_ACTIVE, -F::ONE)]),
+        );
+        b.push_row(
+            [(COL_GATHER_ACTIVE, F::ONE)],
+            (0..8)
+                .map(|k| (GW0 + k, F::from_u64(k as u64)))
+                .chain([(S_B, -F::ONE)]),
+            [],
+        );
+        b.push_linear_zero([
+            (S_A, F::ONE),
+            (S_B, -F::ONE),
+            (COL_GATHER_ACTIVE, -F::ONE),
+            (GW0 + 7, F::from_u64(8)),
+        ]);
+        b.push_row([(COL_IS_PROGRAM_ROW, F::ONE)], [(S_B, F::ONE)], []);
+
+        // Slot-kind one-hot bound to the ROM's kind index.
+        for j in 0..4 {
+            b.push_boolean(GK0 + j);
+        }
+        b.push_linear_zero(
+            (0..4)
+                .map(|j| (GK0 + j, F::ONE))
+                .chain([(COL_GATHER_ACTIVE, -F::ONE)]),
+        );
+        b.push_row(
+            [(COL_GATHER_ACTIVE, F::ONE)],
+            (0..4)
+                .map(|j| (GK0 + j, F::from_u64(j as u64)))
+                .chain([(SLOT_KIND, -F::ONE)]),
+            [],
+        );
+
+        // The staged word lands in the buffer slot the cursor points at.
+        for k in 0..8 {
+            b.push_row(
+                [(GW0 + k, F::ONE)],
+                [(COL_EVBUF0_AFTER + k, F::ONE), (GSLOT_VALUE, -F::ONE)],
+                [],
+            );
+        }
+
+        // Const slots: the word is the ROM constant (u32 limb pair).
+        b.push_row(
+            [(GK0, F::ONE)],
+            [
+                (GSLOT_VALUE, F::ONE),
+                (CONST_LO, -F::ONE),
+                (CONST_HI, -F::from_u64(1 << 32)),
+            ],
+            [],
+        );
+
+        // Arg/result slots: an addressed stack read at the table offset from
+        // the argument base (results sit at offset 0 by table construction),
+        // limb-selected into the word.
+        b.push_row(
+            [(GK0 + 1, F::ONE), (GK0 + 2, F::ONE)],
+            [
+                (COL_STACK_READ0_ADDR_LO, F::ONE),
+                (AB_B, -F::from_u64(2)),
+                (SLOT_ARG, -F::from_u64(2)),
+            ],
+            [],
+        );
+        b.push_row(
+            [(SLOT_LIMB, F::ONE)],
+            [(COL_STACK_READ0_VALUE_HI, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
+            [(GARG_VAL, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
+        );
+        b.push_row(
+            [(GK0 + 1, F::ONE), (GK0 + 2, F::ONE)],
+            [(GSLOT_VALUE, F::ONE), (GARG_VAL, -F::ONE)],
+            [],
+        );
+
+        // Oracle slots: the word equals the selected per-call oracle cell,
+        // with the selector one-hot bound to the ROM's index.
+        for j in 0..4 {
+            b.push_boolean(GOSEL0 + j);
+        }
+        b.push_linear_zero(
+            (0..4)
+                .map(|j| (GOSEL0 + j, F::ONE))
+                .chain([(GK0 + 3, -F::ONE)]),
+        );
+        b.push_row(
+            [(GK0 + 3, F::ONE)],
+            (0..4)
+                .map(|j| (GOSEL0 + j, F::from_u64(j as u64)))
+                .chain([(SLOT_ARG, -F::ONE)]),
+            [],
+        );
+        for j in 0..4 {
+            b.push_row(
+                [(GOSEL0 + j, F::ONE)],
+                [(GSLOT_VALUE, F::ONE), (OR0_B + j, -F::ONE)],
+                [],
+            );
+        }
+
+        // Oracle cells reload (prover-supplied) on host-call rows only;
+        // every other row carries them, so all template slots referencing
+        // the same index provably read one value.
+        for j in 0..4 {
+            b.push_row(
+                [
+                    (COL_ONE, F::ONE),
+                    (call.0, -call.1),
+                    (ci_not_trap.0, -ci_not_trap.1),
+                    (guest.0, -guest.1),
+                ],
+                [(OR0_A + j, F::ONE), (OR0_B + j, -F::ONE)],
+                [],
+            );
         }
     });
 }
@@ -394,7 +639,7 @@ fn push_buffer_write_constraints(b: &mut R1csBuilder) {
                 (WSR0 + pair, -F::ONE),
                 (POS0, -F::ONE),
                 (COL_RAW_HOST_CALL, -F::ONE),
-                (COL_GATHER_ACTIVE, -F::ONE),
+                (GW0 + j, -F::ONE),
             ];
             b.push_row(
                 gate,
@@ -712,4 +957,23 @@ pub(crate) fn fill_perm_gadget_witness(wit: &mut [F], trace: &WasmVmStep) {
     wit[u + 5] = wit[u + 4] * wit[u + 4];
     wit[u + 6] = wit[u + 5] * wit[u + 4];
     wit[u + 7] = wit[u + 6] * x_b;
+
+    // Grammar gather one-hots and staged value.
+    if trace.row_kind.is_host_event_gather() {
+        let cursor = usize::from(trace.state_before.grammar.slot_cursor);
+        wit[GW0 + cursor] = F::ONE;
+        wit[GSLOT_VALUE] = F::from_u64(trace.state_after.event_absorb.evbuf[cursor]);
+        if let Some(rom) = trace.grammar_rom_slot {
+            wit[GK0 + usize::from(rom.kind)] = F::ONE;
+            if rom.kind == 3 {
+                wit[GOSEL0 + usize::from(rom.arg)] = F::ONE;
+            }
+        }
+    }
+    // Limb-selected read value: filled on every row so the unconditional
+    // select row holds (the limb column is zero off gather rows).
+    let read_lo = wit[super::super::layout::COL_STACK_READ0_VALUE_LO];
+    let read_hi = wit[COL_STACK_READ0_VALUE_HI];
+    let limb = wit[super::super::layout::COL_GRAMMAR_SLOT_LIMB];
+    wit[GARG_VAL] = read_lo + limb * (read_hi - read_lo);
 }

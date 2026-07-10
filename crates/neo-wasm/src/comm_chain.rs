@@ -269,11 +269,15 @@ pub fn sanity_check_comm_chain(trace: &[WasmVmStep]) -> Result<(), WasmBuildErro
             ));
         }
 
-        // Grammar mode: each gather row stages one expanded event block; the
-        // chain must fold exactly the staged blocks in order. The binding of
-        // block contents to the grammar tables is checked by the expansion
-        // path (trace construction / stage-C gather rows), not here.
-        if row.row_kind.is_host_event_gather() {
+        // Grammar mode: each event block is staged by 8 gather rows; the one
+        // that completes the block raises `perm_pending`, and the chain must
+        // fold exactly the staged blocks in order. The binding of block
+        // contents to the grammar tables is checked against the grammar ROM
+        // (see `memory_semantics::preload_grammar_tables`), not here.
+        if row.row_kind.is_host_event_gather()
+            && row.state_after.event_absorb.perm_pending
+            && !row.state_before.event_absorb.perm_pending
+        {
             let words = row.state_after.event_absorb.evbuf;
             let updated = commit_event(
                 owed_chain.map(Goldilocks::from_u64),

@@ -36,8 +36,8 @@ pub use adapters::wasmtime::{
 pub use ccs::WasmVmSpec;
 pub use ir::{
     boundary_states, LinearMemoryAccess, LinearMemoryWordLane, StackValueAccess, WasmAuxOpcode, WasmBoundaryState,
-    WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmOutputState, WasmPcEdgeKind, WasmRowKind,
-    WasmStepState, WasmVmStep,
+    WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmGrammarRomEntry, WasmGrammarState, WasmOutputState,
+    WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
 };
 pub use isa::{
     opcode_code, opcode_info_from_code, WasmMemoryAccessInfo, WasmMemoryAccessKind, WasmMemoryExtension, WasmOpTable,
@@ -53,7 +53,10 @@ pub use nebula::{
     preprocess, prove, prove_with_nifs_adapter, verify, WasmNebulaError, WasmNebulaLimits, WasmNebulaPreprocessing,
     WasmNebulaProfile, WasmNebulaProof,
 };
-pub use preprocess::{semantic_state_digest, top_level_initial_state, top_level_initial_state_digest};
+pub use preprocess::{
+    grammar_top_level_initial_state, grammar_top_level_initial_state_digest, preprocess_seeded_batched,
+    semantic_state_digest, top_level_initial_state, top_level_initial_state_digest,
+};
 pub use range_check::{range_checked_witness_width, write_range_check_bits};
 pub use relation_layout::{
     build_wasm_relation_layout, LinearMemoryColumns, SignExtensionColumns, WasmAuxiliaryRelations,

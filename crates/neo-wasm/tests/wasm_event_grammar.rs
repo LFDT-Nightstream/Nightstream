@@ -29,35 +29,32 @@ fn method_template() -> ImportTemplate {
     ImportTemplate {
         pre_result: vec![
             // NewRef(size=1) -> payload ref (oracle 0). Ret=slot2, Size=slot3.
-            GrammarEvent {
-                discriminant: 10,
-                slots: slots(&[(2, oracle(0)), (3, SlotSource::Const(1))]),
-            },
+            GrammarEvent::op(10, slots(&[(2, oracle(0)), (3, SlotSource::Const(1))])),
             // RefPush([a, b.lo, b.hi, 0]). PackedRef0..3 = slots 0..3.
-            GrammarEvent {
-                discriminant: 11,
-                slots: slots(&[(0, arg(1, Limb::Lo)), (1, arg(2, Limb::Lo)), (2, arg(2, Limb::Hi))]),
-            },
+            GrammarEvent::op(
+                11,
+                slots(&[(0, arg(1, Limb::Lo)), (1, arg(2, Limb::Lo)), (2, arg(2, Limb::Hi))]),
+            ),
             // Resume(target, f_id, val_ref) -> (ret_ref, caller).
             // Target=slot0, Val=slot1, Ret=slot2, Caller=slot3, FunctionId1=slot4.
-            GrammarEvent {
-                discriminant: 0,
-                slots: slots(&[
+            GrammarEvent::op(
+                0,
+                slots(&[
                     (0, oracle(3)),
                     (1, oracle(0)),
                     (2, oracle(1)),
                     (3, oracle(2)),
                     (4, SlotSource::Const(77)), // dummy f_id
                 ]),
-            },
+            ),
         ],
         post_result: vec![
             // RefGet(ret_ref, 0) -> [r, 0, 0, 0].
             // Val(=ref)=slot1, Offset=slot3, PackedRef0/2/4/5 = slots 0/2/4/5.
-            GrammarEvent {
-                discriminant: 12,
-                slots: slots(&[(1, oracle(1)), (0, SlotSource::ResultElem { limb: Limb::Lo })]),
-            },
+            GrammarEvent::op(
+                12,
+                slots(&[(1, oracle(1)), (0, SlotSource::ResultElem { limb: Limb::Lo })]),
+            ),
         ],
         oracle_count: 4,
     }
@@ -112,10 +109,7 @@ fn method_template_expands_to_pinned_blocks_and_chain() {
 fn zero_arg_import_expands_to_single_const_event() {
     // `burn()`: one event, all slots constant.
     let template = ImportTemplate {
-        pre_result: vec![GrammarEvent {
-            discriminant: 7,
-            slots: [ZERO; COMM_CHAIN_EVENT_ARGS],
-        }],
+        pre_result: vec![GrammarEvent::op(7, [ZERO; COMM_CHAIN_EVENT_ARGS])],
         post_result: vec![],
         oracle_count: 0,
     };
@@ -127,10 +121,7 @@ fn zero_arg_import_expands_to_single_const_event() {
 
 #[test]
 fn validation_rejects_unresolvable_templates() {
-    let event = |slot: SlotSource| GrammarEvent {
-        discriminant: 0,
-        slots: slots(&[(0, slot)]),
-    };
+    let event = |slot: SlotSource| GrammarEvent::op(0, slots(&[(0, slot)]));
 
     // Arg index beyond the import's arity.
     let template = ImportTemplate {
@@ -167,6 +158,19 @@ fn validation_rejects_unresolvable_templates() {
         ..Default::default()
     };
     assert!(template.validate(0, 0).is_err());
+
+    // Argument 0 after the result push (its stack slot holds the result).
+    let template = ImportTemplate {
+        post_result: vec![event(SlotSource::ArgElem { arg: 0, limb: Limb::Lo })],
+        ..Default::default()
+    };
+    assert!(template.validate(1, 1).is_err());
+    // Later arguments stay addressable post-result.
+    let template = ImportTemplate {
+        post_result: vec![event(SlotSource::ArgElem { arg: 1, limb: Limb::Lo })],
+        ..Default::default()
+    };
+    assert!(template.validate(2, 1).is_ok());
 }
 
 #[test]

@@ -59,6 +59,13 @@ backs:
 
 It does **not** yet encode the full private F' witness.
 
+The production-looking projection image is currently a **cost prototype**,
+not `enc(F')`: shipped compilers do not fill its projection regions, and the
+manual shell reserves K-mul slots without emitting the equations that relate
+them to verifier inputs and outputs. The deliberately red gate
+`folded_f_prime_kmul_slots_must_be_semantically_constrained` pins this gap.
+The complete field-native F' R1CS remains the authoritative relation.
+
 ## Open design questions for `enc(F')` — now answered quantitatively
 
 The 2026-07-06 inventory (every figure reproduces from the tests named
@@ -70,7 +77,10 @@ below and in the "Reproduce" section) answered these:
   465 ring-action pairs × 196,992 bits (97 %, dominated by each pair's
   D² partial-product region), 7,100 K-mul slots × 384 bits (2.7M), and
   ~135k for the state-hash trace + boundary + counters.
-- *Which values are public `x`?* Only the 257-slot `enc_inst` boundary.
+- *Which values are public `x`?* Plain F′ uses the 257-slot `enc_inst`
+  boundary. Nebula F′ appends the current `S_mem.x`, segment-open bit, and
+  `D_pre` bits; the following recursive step consumes that suffix together
+  with the same claim's `adv` (HyperNova/Nebula one-step delay).
 - *Which are derived, never committed?* Canonical-u64 lanes — rows
   substitute `Σ 2^i · z[bit]` directly; already implemented.
 - *Do digit encodings help?* No: the measured SignedDigit ladder
@@ -90,20 +100,31 @@ Integration order: (1) β transcript schedule — **DONE**: native
 `pi_rlc` owns it on both prove and verify paths (recompute per-lane
 quotients from authoritative inputs → absorb c* and every q_lane →
 squeeze β; wire-identity check fails closed if the mixer is not the
-ring action), the NIFS.V circuit replays it bit-for-bit (q as advice
-recomputed in the builder; β/q wires surfaced via `NifsVOutputs`), and
+ring action), the NIFS.V circuit replays it bit-for-bit and now enforces
+the complete product-commitment (`c + adv`) projection identities using
+the exact transcript-bound q and β wires, and
 `tests/system/rlc_projection.rs` drives a real fold through the
 schedule and the projection-trace encoders with zero residual,
-(2) projection regions replace the D² ring-action regions in the F'
-image/structure (flips the
-`folded_f_prime_shell_must_adopt_projection_budget` gate) — **DONE**,
-semantic rows included (Phase B), (3) encoder fill: the F' image's
-projection regions filled from the fold's recorded
-`pi_rlc::ProjectionSchedule` instead of test vectors, plus the Nebula
-lane transition joining the F' state bundle (spec §13 step 9), (4) the
-in-circuit commitment fold swaps to
-`enforce_rlc_commitment_combination_projection` and the terminal-only
-verifier consumes the induction (flips the two multi-chunk gates). Lemma 5 carries an author self-review whose one
+(2) complete the authoritative field-native relation: the `c + adv`
+product commitment folds through PiCCS/PiRLC/PiDEC and is opened by the
+terminal relation; the recursive relation consumes the prior fresh
+claim's suffix/`adv`, enforces the delayed `NebulaLane` transition, composes
+current `S_mem`, and projection-checks the c/adv, X, and y clients. Shape-only
+synthesis covers base, bootstrap-recursive, and steady-recursive execution.
+What remains is to make the accumulator-handle binding affordable, then
+(3) lower that one fixed-shape relation into bit-backed CCS; do not maintain
+the manual shell as a second verifier, (4) make the shipped encoder fill the
+lowered witness, then let the terminal-only verifier consume the induction
+and flip the two multi-chunk gates. The old 14,040,452-bit shell measurement
+is retained only as prototype evidence that projection beats D²; it is not a
+completion claim. The first safe field-shape audit at reduced `κ = 1`
+measures `29,184 × 27,851` (base), `13,343,973 × 13,374,181`
+(bootstrap), and `31,811,965 × 30,083,642` (steady). Overlaying one-hot
+branch-private advice removes summed-width duplication, but the final
+relation still has a hard **30,083,645-bit lower bound** before actual
+field bit widths, already 1.88× the 16M engineering budget. The dominant
+surface is the full running-accumulator Poseidon authority handle, not the
+projection ring action. Lemma 5 carries an author self-review whose one
 novel claim (a Φ(β) = 0 completeness caveat) was **refuted by external
 review** and is retained in the note as a correction record — the
 honest identity holds identically at roots of Φ, and Φ_81 has no roots
@@ -119,31 +140,40 @@ finding is itself the argument for keeping that flag.
 | B | SignedDigit as measured | — | invalid: operands are full-range commitments |
 | C | Mixed (ρ = SignedDigit{5}, rest U64) | 90.1M | valid; saves 1.6 % — not a lever |
 | D | Digit-decompose c, act on digits | ~260M | valid; strictly worse (14 SignedDigit pairs vs 1 U64 pair, ×2.8) |
-| E | Projection check — **integrated through Road A Phase B**: verify `Σ_i ρ_i·c_i = out (mod Φ)` as the polynomial identity `Σ ρ_i(X)c_i(X) = q(X)Φ(X) + out(X)` tested at a post-commitment challenge `β ∈ K` (`engine/r1cs_circuit/ring_action.rs::enforce_ring_action_projection_batch`; SZ error ≤ (2D−2)/\|K\| ≈ 2^−121 per identity) | **integrated shell measurement**: production `FPrimeImageLayout` is **14,040,452 committed bits/step** with projection regions (D2 reference: 94,330,948; 6.7x). The marginal primitive remains 330 cols/pair vs 3,078 full-field / ~21k vs ~196k bits bit-backed → **9.3× per pair**. | parity + rejection tests in `tests/system/ring_action_projection.rs`; budget gate `ivc_invariants.rs::folded_f_prime_shell_must_adopt_projection_budget` is **GREEN un-ignored**; semantic-row gate `ivc_invariants.rs::projection_shell_semantic_rows_must_be_enforced` is **GREEN un-ignored** — `frontends/f_prime/projection_structure.rs` emits the beta ladder, evaluation sums, Karatsuba relations, and final identity rows. Still owed: beta transcript binding, real encoder fill from fold traces, terminal induction. **The soundness case is written**: `specs/nebula-superneo-security-note.md` Lemma 5 (§4b, ledger C18; committed) — exact transcript schedule (`q` and `out` absorbed before β), J·(2d−2)/\|K\| bound with P (product pairs, drives cost) distinguished from J (projection identities, drives error): conservative J ≤ 465 → ≈ 2^−112.4/fold until the adoption census proves smaller (known clients would give J = 4κ = 72 → ≈ 2^−115). Composition with Lemma 1, five adoption audit items incl. the census table. Still owed: Lemma 5's non-author review (attack the J census and wire-identity obligation first), then β's transcript wiring and terminal F' integration |
+| E | Projection check: verify `Σ_i ρ_i·c_i = out (mod Φ)` as `Σ ρ_i(X)c_i(X) = q(X)Φ(X) + out(X)` at a post-commitment `β ∈ K` | The primitive is measured at ~21k vs ~196k bits per pair. The old manual-shell model is 14,040,452 bits, but omits authoritative wiring and the Nebula census and is not a production step measurement. | **Authoritative NIFS.V/F′ integration includes `c + adv`, X/y projection, delayed lane transition, and current `S_mem`**. Remaining: affordable accumulator binding, fixed-shape low-norm compilation, real encoder fill, terminal delayed transition, and terminal induction. Lemma 5's target census is `P=1,275`, batched `J=85`; conservative `J≤1,275`. |
 | F | Fewer pairs (arity/κ trades) | linear only | doesn't touch the 197k/pair |
-| G | SIS accumulators (C14/L2) | — | helps the absorb (Poseidon) side, already small; not the fold math |
+| G | SIS accumulators (C14/L2) | Prototype: 3 fields at κ=1, including one final Poseidon2 digest, measures 10,532 field columns / 10,537 rows / 93,425 nnz before lowering and 661,445 committed bits / 671,981 rows after complete low-norm lowering. The Ajtai core adds only `Dκ` equations but Θ(`Dκ·64N`) coefficients for `N` fields. | Native/circuit parity, tamper rejection, and canonical-bit slot reuse land in `accumulator_sis_circuit` plus the low-norm compiler; not adopted. Full integration still needs a structured seeded-ring matrix representation, otherwise a full accumulator produces multi-billion-entry sparse matrices. Exact seed/transcript domains, production measurement, and the hash-then-FS lemma remain owed. |
 | H | Terminal-proof regime (PR5): never commit F' | 0 per step | field-native cost once per chain (~1–3M-constraint relation); sidesteps enc(F') entirely |
 
-Bottom line: encodings alone cannot move the wall (best honest bit
-encoding ≈ 90M); before candidate E the data favored H, and **Nico
-decided Road A (folded) with E as its mechanism** — see the regime
-decision above. E's integrated shell now measures **14,040,452
-committed bits/step** (~245× the S_mem app circuit instead of
-~1,650×), green under the budget gate. The K-mul/sumcheck region
-(2.7M) is a candidate for the same projection treatment later.
+Bottom line: E removed the original ring-action wall, and one-hot advice
+overlay removes avoidable branch-width duplication. The authoritative
+audit nevertheless proves that the current Poseidon accumulator handle
+cannot meet the 16M Road A budget even under an optimistic one-bit-per-field
+bound at reduced κ. The 14,040,452-bit shell remains prototype evidence,
+not a security or completion gate. Road A therefore needs C14/L2 (or an
+equally reviewed binding compression) before fixed-point lowering and the
+encoder can be completed; simply lifting the budget would hide a much larger
+production-κ cost.
 
 ## Reproduce every number
 
 ```bash
-# 94,330,948-bit production shell (7,100 K-muls, 465 ring pairs):
+# Historical manual-shell cost model (not complete enc(F')):
 cargo test -p neo-fold-clean --release --test system_phase_1_4a_fibonacci_structure \
   phase_1_4a_production_config_pins_emitter_counts -- --nocapture
+
+# Authoritative recursive F' gadget census after commitment projection:
+cargo test -p neo-fold-clean --release --test system_phase_1_3d_step_parity \
+  phase_1_3d_kmul_ring_action_coverage_full_step_three_way_parity -- --nocapture
 
 # Encoding ladder (3,079 full-field / 39,853 SignedDigit / 200,071 U64 cols per pair):
 cargo test -p neo-fold-clean --release --test perf_ring_action_low_norm_prototype -- --nocapture
 
-# 134,852-bit canonical shipped image (state-hash authority only):
+# 156,740-bit canonical shipped image (state-hash authority only):
 cargo test -p neo-fold-clean --release --test system_fibonacci_f_prime_layout_budget -- --nocapture
+
+# Candidate C14 primitive, including one final Poseidon2 digest:
+cargo test -p neo-fold-clean --release --test reductions_accumulator_sis -- --nocapture
 
 # S_mem app-circuit comparison point (55,434 rows / 57,244 cols):
 cargo test -p neo-fold-clean --release --test perf_nebula -- --ignored --nocapture \

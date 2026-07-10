@@ -61,6 +61,7 @@ a positioned SIS/Ajtai sequence accumulator. That construction is retired
 | SIS/cost review (review: Enzo, v4 proposal + evaluation) | **L0a leaf digests** adopted (§6.1/§6.3/§6.5): each lane commitment crosses Poseidon2 exactly once per step; chains and transcript sites absorb 4-element leaves. **L0b** made explicit (§6.2): `D_pre` is prover-claimed at open, authority is the close equality. §6.5 re-priced **dual-regime** (bit-backed folded vs Spartan field-native — gated on `enc(F′)`, `paper/f_prime/encoding.md`); the SIS-accumulator analysis corrected in both directions and re-dispositioned to §14 (sound, but digit bases `w > 1` are unbuildable under the `b = 2` NC range check; only live in the folded regime). §5.2 R1 site list corrected (the F′ chunk digest is shape-only, absorbs no commitments — removed with rationale). §9 aligned to the note's FS-lifted formula. §4.4 limb-canonicality note; §13 step 3 cross-crate scope note. |
 | External review pass (second reviewer) | **Completeness bug fixed:** the IS/FS chains were lane-typed (`"is"`/`"fs"` tags), so honest cross-segment continuity `D_seen[is] == D_mem` could never hold — is/fs now share one mem-domain leaf/link tag pair and header (§6.1/§6.3), `D_init` uses the identical formula (§7), and the §12 swap row's rejection point moved to Lemma 1 slice binding. **Finalization rule added** (§6.3): externally accepted proofs must end at a closed segment. Lifecycle guards (`advance_nebula` requires open segment); `D_pre` thin-air claims named as preimage-resistance (not just CR); plan rule `r ≤ μ` (§2); `n_in`/`m_seg` notation fixes in §9 (fold-arity vs field `K`; the `2n` double-count); prover-vs-verifier resume bundles (§6.4); `adv` shape invariant (§5.1); acceptance tests hardened (§13 steps 3–5). |
 | **v3.1: stacks** (§14 → normative) | Coral §5.2's `check_push`/`check_pop` port: up to `S ≤ 2` **segment-local** stacks as extra memory namespaces. Namespace selection becomes **one-hot selector bits** (`ram`, `stk_0`, `stk_1`; ROM = none set) so the global index `g` stays *linear in lane bits* and v3 is the exact `S = 0` special case (byte-identical lanes and `x`). Pushes emit WS only (no `rt` check), pops emit RS only (with the E4 timestamp check); stacks never enter IS/FS or the scan; the per-segment product equation then forces stack-WS = stack-RS. **Per-segment γ forces segment locality** (§3.1): a push under segment k's γ cannot cancel a pop under segment k+1's γ, so every push is popped in its segment and `sp = 0` at every close (new §6.3 check). Stack bounds are bitness-pure: the running `sp` is a σ-bit word, so pop-at-empty and push-at-full are unrepresentable (capacity `2^σ − 1`). New rows E10–E14, `x` gains per-stack `sp_in`/`sp_out`, `NebulaLane` carries `sp`, plan v3.1 binds `S`/`σ`. Security note gains Lemma 4 (stack discipline, reduction to Blum et al. / Coral App. E). |
+| Road A relation audit (2026-07-09) | The 14M-bit projection shell was reclassified as a cost prototype: shipped encoders do not fill it, and its K-mul slots lack semantic rows. The authoritative NIFS.V circuit now projection-checks the complete `c + adv` product commitment on transcript-bound `q`/`β` wires through PiCCS/PiRLC/PiDEC, with terminal slice openings. Paper re-read fixed the timing: as in HyperNova Construction 2 step 4(d) and Nebula Construction 2 step 4, F′ consumes the **previous** fresh claim's public memory suffix and witness commitment, not the claim it is currently producing. The authoritative recursive relation now enforces that delayed `NebulaLane` transition. Remaining production work is the current `S_mem` application relation, fixed-shape low-norm lowering, and the terminal delayed transition; no second verifier shell. Lemma 5's full production census is `P=1,275`, batched `J=85`. |
 
 ### v1 → v2 (condensed)
 
@@ -445,20 +446,26 @@ same chunk size" (Coral §5.3, persistent memory).
   three extra ring RLCs per fold, and does not touch Π_DEC/`y_zcol`
   semantics — same public arithmetic, three more ring vectors.
 - **Transcript (R1, absorb-site inventory — exhaustive):** the tuple is
-  bound — as its three 4-element leaf digests (§6.1) — at every site that
-  absorbs the claim's commitment `c.data` today: (i) the NIFS fold
-  transcript; (ii) Π_RLC's pre-ρ input binding
-  (`bind_input_claims_for_rho` → `pi_ccs_outputs_digest`); (iii) any
-  terminal/decider transcript that absorbs claims. The F′ chunk-digest
+  bound — as its three 4-element leaf digests (§6.1) — wherever an
+  authority-bearing input claim is first absorbed: (i) Π_CCS's input
+  instance digest inside the NIFS transcript (`ccs_claim_digest` for fresh
+  claims and `ce_claim_digest` for the running parent authority), before
+  Π_CCS challenges; (ii) any terminal/decider transcript that absorbs
+  claims. Π_CCS.V constrains every forwarded output `c`/`adv` coordinate
+  equal to that already-bound input. Consequently the later pre-ρ
+  `pi_ccs_outputs_digest/v2` absorbs only the newly sent `y_ring` and
+  `y_zcol` messages; reabsorbing forwarded `c`/`adv` there would add cost
+  without adding authority. The F′ chunk-digest
   preimage is **deliberately not on this list** (v4-review correction):
   `f_prime_chunk_claim_digest` is a shape-only digest that absorbs neither
   `claim.x` nor `claim.c.data` (fixed-point rationale documented in
   `paper/digest.rs`), and `adv` mirrors `c` there — excluded. Safe because
   the F′-side binding of `adv` is the per-step `D_seen` chain (§6.3),
   which is content-binding, strictly stronger than the chunk digest's
-  domain-separation role. The implementation adds **one negative test per
-  listed site**: omitting that absorb must make a post-challenge lane swap
-  pass, and the test asserts it is caught when the absorb is present.
+  domain-separation role. Tests pin both halves: changing input `adv`
+  changes the Π_CCS authority digest, while changing only an equality-bound
+  forwarded copy leaves the v2 output digest unchanged and still fails the
+  verifier's forwarding equality.
 - **Decider (R3, "put them together", review #2):** the terminal decider,
   which already opens the final folded witness `z_fin`, checks each folded
   component against its slice:
@@ -595,34 +602,54 @@ it — a witness input verified at close.
 Commit-then-challenge is inherited from the transcript discipline: γ is a
 deterministic Poseidon2 function of MSIS-binding commitments to every
 multiset contribution of the segment — the same state-seeded-transcript
-mechanism that makes the fold challenges ρ sound (Π_RLC absorbs the full
-claim digests, including `c.data`, via `pi_ccs_outputs_digest` before
-sampling ρ; `adv` joins that digest per §5.2 R1), at the same trust status,
+mechanism that makes the fold challenges ρ sound (Π_CCS first absorbs
+authority-bearing input claim digests, including `c.data` and `adv`;
+Π_CCS.V equality-forwards those coordinates, then
+`pi_ccs_outputs_digest/v2` absorbs the new evaluation messages before ρ),
+at the same trust status,
 replayed by the same future decider machinery.
 
 ### 6.3 Per-step transition (pseudocode, normative)
 
-Executed by the F′ step function when a chunk with claim `u` (public `x`,
-commitment `c`, lane tuple `adv = (c_ops, c_is, c_fs)`) is deposited.
-**Chunking note (normative for completeness, not a protocol surface):**
-one F′ chunk may deposit up to the fold arity's worth of claims at once
-(SuperNeo multi-folding, Theorem 1's `CCS(b)^K` with `K ≤ 61` at the
-Goldilocks preset), and `advance_nebula` runs once per claim in deposit
-order — the transition is chunk-agnostic, so a segment costs
-`⌈N / K⌉` F′ steps instead of `N`. Chunk sizing is prover scheduling;
-the lane cannot observe it:
+The transition follows HyperNova's one-step-delayed induction. A produced
+claim has public input
+
+```text
+u_i.x = [1 || enc_inst(x_out_{i-1}) || S_mem.x_i || open_i || bits(D_pre_i)]
+```
+
+and product commitment `L+(Z_i) = (c_i, adv_i)`, where
+`adv_i = (c_ops,i, c_is,i, c_fs,i)` commits to the three lane slices of
+the **same** witness. Base F′ produces `u_1` but has no previous claim to
+consume, so its lane remains the canonical base lane. Recursive F′ step
+`i+1` runs `NIFS.V(..., u_i, ...)`, then consumes the verifier-bound pair
+`(u_i.x suffix, u_i.adv)` to advance the lane while the current
+application witness produces `u_{i+1}`. This is Nebula Construction 2's
+`C_i <- H(C_{i-1}, u_i.C_W)` schedule, specialized to the three lane
+commitments.
+
+**Fold arity (normative for this version):** Nebula-enabled F′ uses
+`K = 1`. SuperNeo supports larger fresh batches, but batching makes segment
+open/close timing and the per-claim application transition a second
+compiler obligation. It is outside this version; an implementation must
+reject `K != 1` rather than silently reuse one state seed across a batch.
 
 ```text
 base(plan):                                   // chain start (State::base)
   lane ← { seg_idx: 0, idx: 0, ts: 0, gamma: ⊥,
            h: [1_K; 4], D_*: headers, D_mem: plan.D_init }
+  // no advance: there is no prior fresh claim
 
-open_segment(lane, tuples[0..N]):             // once, before the segment's first fold
+recursive_f_prime(U_i, u_i, lane, current_app_witness):
+  U_{i+1} ← NIFS.V(U_i, u_i)
+  (step_x, open, D_pre) ← decode(u_i.x suffix)
+  lane ← consume_delayed(lane, step_x, open, D_pre, u_i.adv)
+  produce u_{i+1} from this same F′ + S_mem relation
+
+open_segment(lane, D_pre):                    // selected by prior claim's open bit
   require lane.idx == 0  and  lane.gamma == ⊥
-  for lane_id in [ops, is, fs]:               // same chain formula as D_seen
-    lane.D_pre[lane_id] ← fold_i Poseidon2(·, link_tag(lane_id), leaf(tuples[i][lane_id]))
-                                              // tags per §6.1: ops-domain for
-                                              // ops, shared mem-domain for is/fs
+  lane.D_pre ← D_pre                          // claimed at production time;
+                                              // authorized retroactively at close
   lane.gamma  ← γ1, γ2 per §6.2 (fresh transcript seeded from state,
                                  absorbs plan, counters, D_pre digests)
 
@@ -663,23 +690,23 @@ mem-domain header; `ops` has its own. Header symmetry plus the shared
 formula-identical — the §6.4 boundary equality compares
 identically-computed digests.
 
-**Finalization rule (normative, external-review fix).** An externally
-accepted proof must end at a **closed segment**: `lane.idx == 0`,
-`lane.gamma == ⊥`, `D_pre`/`D_seen` at headers. The terminal verifier
-rejects otherwise — a trailing open segment contains folded op rows whose
-product equation and `D_seen == D_pre` binding were never checked.
-Mid-segment `State` is valid *prover* resume material only (§6.4), never
-an externally verifiable memory claim.
+**Finalization rule (normative).** The trailing latest claim `u_T` has not
+been consumed by another F′ step. The terminal relation therefore performs
+both operations in order: `(1)` verify the terminal NIFS fold of `u_T`,
+`(2)` run `consume_delayed` on the exact `fresh_x` and `fresh_adv` wires
+output by that verifier. It installs the resulting lane and post-fold
+accumulator in the final state, recomputes the public `x_out` over both,
+then requires a **closed segment**: `lane.idx == 0`, `lane.gamma == ⊥`, and
+`D_pre`/`D_seen` at their headers. Checking the fold without consuming its
+lane pair is incomplete; checking closure on the pre-terminal lane is the
+same off-by-one error. Mid-segment state remains prover-only resume material.
 
-Enforcement status: `lifecycle::extend` / the F′ native step performs these
-today (exactly where NIFS.P/V and the state hash run); the F′ R1CS /
-compressed decider enforces them as it lands for the rest of F′ — memory
-adds obligations to F′, not a new verifier class. The state hash chain
-binds every intermediate value, so a paused chain resumes from `State`
-alone for verifier purposes (incrementality; see §6.4 for the prover-side
-resume bundle), and the terminal verifier's work is unchanged in shape:
-check the final state digest, the final fold, the finalization rule, and
-§5.2's four openings.
+Implementation status: the authoritative recursive F′ R1CS enforces the
+delayed transition and binds its input/output lane digests. The current
+direct `S_mem` lifecycle still uses the pre-migration deposit-time replay;
+the terminal delayed transition and composed `S_mem + F′` lowering remain
+the fail-closed production gate in §13 step 9. Memory adds obligations to
+F′, not a new verifier class.
 
 ### 6.4 Segment boundary and the initial state
 
@@ -746,8 +773,11 @@ F′ witness encoding `enc(F′)` is an open design decision
 
 The earlier "≈ 122 permutations ≈ 45–60k constraints per commitment"
 figure was the field-native cost quoted for the folded regime — the wrong
-gadget for that regime (v4-review correction). C12 pins the real number
-when the F′-R1CS design lands; off-by-2× reopens this section.
+gadget for that regime (v4-review correction). The authoritative shape audit
+now provides the first whole-relation lower bound at reduced κ = 1: after
+overlapping one-hot branch advice, steady F′ alone forces at least
+30,083,645 committed bits before real bit widths, versus the 16M engineering
+budget. C12 remains the production-κ measurement gate.
 
 **Considered and deferred: SIS/Ajtai accumulators for the `D` chains**
 (review question: Enzo; v4 proposal). Merkle–Damgård chaining over the
@@ -770,12 +800,23 @@ earlier rejection rationale (v4 review):
   scheme's norm enforcement for free. `B = 2^14` is the RLC-transient
   binding headroom, not an enforced bound on fresh witnesses.
 
-Disposition: deferred to the `enc(F′)` milestone (§14). It is only live
-in the folded regime (under Spartan, digits need explicit range rows and
-SIS loses outright), and adopting it there is a bits-vs-nnz measurement
-decision, best taken together with the same treatment of the baseline
-absorb surface (v4 proposal L2). The two mem lanes merging into one
-component (heavier boundary rule) remains the other recorded knob.
+Disposition: **reopened as a Road A blocker** by the authoritative shape
+audit. The present Poseidon construction remains the normative, sound
+fallback, but it cannot meet the committed-width budget. Adopting SIS still
+requires a compiler/engine construction and hash-then-FS lemma. The first
+native/circuit primitive now pins the trade: for three fields at κ=1,
+Ajtai plus one final Poseidon2 digest costs 10,532 field columns, 10,537 rows,
+and 93,425 nonzeros **before** low-norm lowering. The complete toy lowering
+measures 661,445 committed bits and 671,981 CCS rows. The compiler now aliases
+each recorded canonical decomposition child onto its source field's existing
+64-bit slot (with direct, mismatch, and three-arm tests), so this measurement
+does not double-commit those bits. Ajtai itself needs only `Dκ` equations, but
+a naïve matrix still has Θ(`Dκ·64N`) coefficients for `N` canonical fields.
+The remaining production construction must represent the seeded ring map
+structurally; materializing a full accumulator as CSC is not acceptable.
+Until that and the binding lemma land, the fixed-point compiler's budget guard
+stays fail-closed. The two mem lanes merging into one component (heavier
+boundary rule) remains the other recorded knob.
 
 ---
 
@@ -1017,8 +1058,9 @@ only, every invocation under the 5-minute cap (test profile of §2).
    *Accept:* lane-bit flip ⇒ opening rejection; §5.1 `adv` shape
    invariant enforced (partial tuple rejected); existing tests green.
 4. **`paper/construction2/state.rs` + F′ native** — `NebulaLane` (§6.1),
-   absorb into `state_x_out` context, transition of §6.3 in
-   `lifecycle::extend`/F′ prove+verify, transcript events of §6.2.
+   absorb into `state_x_out` context, and mirror §6.3's delayed schedule:
+   base carries the lane unchanged; recursive F′ consumes the previous
+   latest's suffix/`adv`; terminal finalization consumes the trailing latest.
    *Accept:* per-check rejection tests (each assert and `require` in §6.3
    has one, including advance-before-open and open-twice); §6.3
    finalization rule enforced (mid-segment terminal state rejected).
@@ -1032,11 +1074,14 @@ only, every invocation under the 5-minute cap (test profile of §2).
    *Accept:* plan/ROM mutation tests.
 7. **Red-team suite** — §12, `tests/nebula_redteam.rs`.
 8. **Perf snapshot** (`--ignored`) — record §10 actuals at v3 targets.
-9. **F′-R1CS absorption** — when the F′ R1CS lands for the rest of the
-   chain, the `NebulaLane` transition and `D_*` absorbs go with it (they
-   are, deliberately, ordinary F′ state-hash material). The obligations
-   transferring verbatim, enumerated: `seg_idx`/`idx`/`ts`/`γ`/`h`/`sp`
-   continuity against `x`; the three per-lane `D_seen` chain updates; the
+9. **Authoritative folded F′ relation** — compose the current `S_mem`
+   application relation, NIFS.V, and `NebulaLane` transition into one
+   fixed-shape relation, then lower that relation through the low-norm R1CS
+   compiler. The recursive lane rows are implemented and consume the
+   previous fresh claim's verifier wires; the terminal relation must consume
+   the trailing claim before final closure. Obligations: fixed `K = 1`;
+   `seg_idx`/`idx`/`ts`/`γ`/`h`/`sp` continuity against the suffix; exact
+   suffix/`adv` pairing from one NIFS output; three `D_seen` chain updates;
    segment-open `D_pre` binding and γ squeeze; and the close checks —
    `D_seen == D_pre` per lane, the product equation,
    `D_seen[is] == D_mem`, `D_mem ← D_seen[fs]`, and reset **without**
@@ -1074,13 +1119,6 @@ only, every invocation under the 5-minute cap (test profile of §2).
 - **Coral's public-ROM scan elision** (§7 alternative) and **no-ts ROM**
   (Coral App. D) — verifier-work vs. constraint-count trade.
 - **Nebula-Opt** grand products (paper §4.4).
-- **SIS lane accumulators** (v4 proposal L1, at `w = 1`) — gated on
-  `enc(F′)` resolving to the folded regime; adopt only with measured
-  bits-vs-nnz numbers and a hash-then-FS lemma added to the security note
-  (§6.5 disposition; `w > 1` is unbuildable under the `b = 2` NC check).
-- **Unified SIS step root** (v4 proposal L2) — the same mechanism applied
-  to the baseline F′ absorb surface (claim `c`/`X`/running-accumulator
-  digests); belongs to the `enc(F′)` / F′-R1CS milestone, not to Nebula.
 - **Private initial memory / persistent segment export** — Coral §5.3
   persistent memory; export `c_fs` sub-sequences as portable commitments.
 - **Parallel / distributed segment proving** — v3 segments are sequential
@@ -1110,4 +1148,7 @@ set); (7) the lane-residency rule is statically enforced: the `S_mem`
 builder audits, at construction time, that every column read by the
 fingerprint-input matrices lies in the committed lanes, public `x`, or the
 E2-constrained `cnt` aux — a layout change reintroducing a free
-interpretation bit must fail the build, not a review.
+interpretation bit must fail the build, not a review; (8) the terminal-only
+multi-chunk gates pass only after the folded fixed-shape F′ relation enforces
+NIFS.V, `adv` forwarding/RLC/DEC, and the §6.3 `NebulaLane` transition. A
+projection cost shell or native replay is not evidence for this item.

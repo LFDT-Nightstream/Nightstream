@@ -36,11 +36,14 @@ none is silently assumed.
   are budgeted inside the `ε_CR` line. This assumption is already
   load-bearing for the existing chain (`z_i`, `acc_digest`, NIFS
   challenges); nothing here widens its scope.
-- **A4 (F′ enforcement).** The §6.3 `NebulaLane` transition is enforced on
-  the same path as the rest of F′: natively by `lifecycle::extend`/verify
-  today, by the F′ R1CS/decider when it lands (spec §13 step 9, the named
-  production gate). Lemma 2 is stated conditionally on this enforcement;
-  the condition is the same one the whole chain already carries.
+- **A4 (F′ enforcement).** The §6.3 delayed `NebulaLane` transition is part
+  of the same authoritative relation as NIFS.V and `S_mem`: base carries the
+  canonical lane unchanged; recursive step `i+1` consumes the exact
+  `(fresh_x, fresh_adv)` wires for prior claim `u_i`; terminal finalization
+  consumes trailing `u_T` before checking closure and recomputing public
+  `x_out`. The recursive R1CS rows exist; composed `S_mem` lowering and the
+  terminal transition remain spec §13 step 9's production gate. Lemma 2 is
+  conditional on the complete three-case enforcement, not native replay.
 - **A5 (Uniqueness of openings pre-challenge).** Under A2, at the moment
   Π_RLC samples ρ, each absorbed commitment has at most one low-norm
   opening obtainable by any efficient prover across accepting
@@ -50,12 +53,13 @@ none is silently assumed.
 
 Verified code anchors used below (read, not assumed):
 
-- Π_RLC absorbs the full digest of every input claim — including all of
-  `claim.c.data` — before sampling ρ
-  (`bind_input_claims_for_rho` → `pi_ccs_outputs_digest` →
-  `append_*_claim_public_fields`, `paper/reductions/pi_rlc.rs:180`,
-  `paper/digest.rs:414`). Spec rule R1 adds `adv` to this digest, as its
-  per-lane leaf digests (spec §6.1); the leaf hop is inside `ε_CR`.
+- Π_CCS absorbs authority-bearing input claim digests — including
+  `claim.c.data` and the R1 `adv` leaves — before its challenges. Π_CCS.V
+  then equality-forwards `c`/`adv` to every output. Before Π_RLC samples
+  ρ, `pi_ccs_outputs_digest/v2` absorbs only the newly sent `y_ring` and
+  `y_zcol`; forwarded fields are not a second authority source
+  (`paper/reductions/pi_ccs_split_nc_circuit/digests.rs`,
+  `paper/digest.rs`). The leaf hop is inside `ε_CR`.
   Note the F′ chunk digest (`f_prime_chunk_claim_digest`) is **not** an
   absorb site: it is shape-only by documented design (absorbs neither
   `claim.x` nor `claim.c.data`) and `adv` mirrors `c` there — excluded
@@ -183,13 +187,16 @@ contents (those extracted by Lemma 1) such that:
    commitments position-wise (`D_is = D_mem` at close), and segment 0's
    equal the plan's `D_init`.
 
-**Proof sketch.** Induction over chain steps, in the style of Nebula
-Theorem 5. The F′ state hash (`state_x_out`) absorbs the `NebulaLane` every
-step (A4), so an accepting chain fixes the entire sequence of lane values
-up to Poseidon2 collisions (`ε_CR`). Per step, the §6.3 transition
-enforces: `x`-slot continuity against the carried lane (items 3–4), the
-three per-lane `D_seen` chain updates, and at close the three
-equalities. For item 2: `D_seen = D_pre` with equal, plan-fixed counts and
+**Proof sketch.** Induction over HyperNova's delayed claim schedule, in the
+style of Nebula Theorem 5. Base fixes the canonical lane and consumes no
+claim. Recursive F′ step `i+1` first verifies/folds `u_i`; A4 then advances
+the lane from that verifier's exact public suffix and `adv` wires. The
+terminal relation performs the same transition on trailing `u_T`, so the
+induction has no unchecked last claim. `state_x_out` absorbs every resulting
+lane (including the post-terminal lane), fixing the sequence up to Poseidon2
+collisions (`ε_CR`). Each transition enforces `x`-slot continuity (items
+3–4), three `D_seen` updates, and the close equalities. For item 2:
+`D_seen = D_pre` with equal, plan-fixed counts and
 the position-ordered chain construction implies the absorbed and folded
 leaf sequences — hence, by leaf collision resistance, the commitment
 sequences — are equal element-wise, else a Poseidon2 collision at a link
@@ -202,10 +209,10 @@ before γ — the commit-then-challenge premise of Lemma 3. For item 5:
 Corollary 1.1 applied per position; for segment 0, `D_init` is a public
 function of the plan (spec §7). ∎
 
-**Honest condition.** Until spec §13 step 9 lands, A4's enforcement for
-items 1–5 is the native lifecycle path plus audit replay — identical in
-kind to the enforcement status of NIFS transcript checks today. Lemma 2
-does not claim otherwise.
+**Implementation condition.** The recursive delayed-transition rows and
+their native parity/tamper tests discharge the middle induction case only.
+Until composed `S_mem` lowering and the terminal delayed transition land,
+A4 as a whole remains open and terminal-only acceptance stays fail-closed.
 
 ## 4. Lemma 3 — packed fingerprint soundness over K
 
@@ -315,11 +322,13 @@ structural). `R_q = F[X]/Φ`, `Φ = X^54 + X^27 + 1` monic.
 1. absorb all input claims — including every `c_i.data` and, for
    Nebula chains, the `adv` leaf digests (the existing R1 sites);
 2. squeeze `ρ` (existing);
-3. absorb `c*` and every `q_m` (**new absorbs — both are prover
-   claims and both must precede β**; a `q` absorbed after β lets the
-   prover solve `q_m(β)` pointwise and forge any `c*`);
+3. absorb every claimed aggregate output (`c*`, X/y aggregates, and the
+   three `adv*` commitments) and every matching `q_m` (**new absorbs —
+   all are prover claims and all must precede β**; a `q` absorbed after β
+   lets the prover solve `q_m(β)` pointwise and forge its output);
 4. squeeze **one** `β ∈ K` for the step;
-5. enforce, per component `m ∈ [κ]`, the identity at β:
+5. enforce the identity at β for every output ring component of every
+   client; for the commitment client and `m ∈ [κ]` this is
    `Σ_i ρ_i(β)·c_{i,m}(β) = q_m(β)·Φ(β) + c*_m(β)` over `K`.
 
 In-circuit, β's wires are pinned to the transcript squeeze by the same
@@ -328,9 +337,8 @@ Poseidon2-trace replay that pins ρ and the sum-check challenges today
 only the algebra; the schedule is the soundness.
 
 **Two counts, deliberately distinct.** Let `P` be the total number of
-ring-action **product pairs** the F′ shell covers — `P` drives
-committed width (the Phase 1.3d coverage gate reports
-`P_total = 465` per step). Let `J` be the total number of **projection
+ring-action **product pairs** the F′ relation covers — `P` drives
+committed width. Let `J` be the total number of **projection
 identities** emitted after batching — `J` drives the Schwartz–Zippel
 error. The batching rule: a projection identity may batch many product
 pairs **only when the protocol consumer uses the batched aggregate as
@@ -339,8 +347,11 @@ mix — `c* = Σ_i ρ_i·c_i` — contributes one identity per output ring
 component (κ), not one per input pair. A client whose individual
 product outputs are consumed separately contributes one identity per
 consumed output, unless an additional reviewed aggregation argument is
-introduced. **Until the adoption census proves a smaller `J`, this
-lemma uses the conservative bound `J ≤ P_total = 465`.**
+introduced. For fold input count `n`, commitment width `κ`, active X
+columns `a_X`, and `t` y-ring rows, the complete target census is
+`P = n·(4κ + a_X + 2t + 2)` and `J = 4κ + a_X + 2t + 2` after batching
+each aggregate over its `n` inputs. **Until every row is wired and reviewed,
+this lemma uses the conservative bound `J ≤ P`.**
 
 **Statement.** Under the schedule above, with all operand coefficient
 wires bound as in the Integration obligations below, and all `J`
@@ -367,14 +378,13 @@ precede the one squeeze). Completeness: the honest `q_m` is the unique
 quotient from division by the monic polynomial Φ
 (`projection_quotient`), for which each `G_m` is identically zero. ∎
 
-Conservative worked bound:
-`J_max·(2d − 2)/|K| = 465 · 106 / 2^128 ≈ 2^−112.4` per fold — below
-the Lemma-3 term (≈ 2^−110 per segment), so the composition budget's
-shape is unchanged even without any batching credit. If the adoption
-census (audit item 4) proves the only projection clients are the
-pipeline commitment mix and the Nebula `adv` mirror, then `J = 4κ =
-72` and the tighter bound is ≈ `2^−115.1` per fold — **the tighter
-number is not assumed until the census is reviewed.** β **must** live
+Conservative worked bound at production shape (`n=15`, `κ=18`,
+`a_X=5`, `t=3`): `P=1,275`, so
+`P·(2d − 2)/|K| = 1,275 · 106 / 2^128 ≈ 2^−111.0` per fold. The reviewed
+aggregate-batching target is `J=85`, giving ≈ `2^−114.9` per fold. The
+conservative term remains below the Lemma-3 term (≈ 2^−110 per segment),
+but the tighter number is not assumed until the census wiring is reviewed.
+β **must** live
 in `K`: over `F` even the tighter term is ≈ 2^−57 per fold,
 unacceptable across `n_f · q_H`.
 
@@ -403,15 +413,18 @@ same discipline as R1's absorb-site inventory):**
    projection-client row. Each row records the client, its product-pair
    count `P_j`, its projection-identity count `J_j`, the output
    consumer, and why batching is sound for that consumer. The final
-   bound uses `J = Σ_j J_j`; until the census is reviewed, Lemma 5's
-   conservative `J ≤ 465` stands. Known rows:
+   bound uses `J = Σ_j J_j`; until the census wiring is reviewed, Lemma 5's
+   conservative `J ≤ P` stands. Production rows (`n=15`, `κ=18`,
+   `a_X=5`, `t=3`):
 
    | client | pairs `P_j` | identities `J_j` | consumer | batching justification |
    |---|---:|---:|---|---|
-   | Π_RLC commitment mix | `κ·n` | `κ` | folded `c*` | only the aggregate mix is consumed |
-   | Nebula `adv` tuple mirror (spec §5.2 R2) | `3κ·n` | `3κ` | folded `adv*` tuple | only the aggregate lane tuple is consumed |
-   | `y`-side RotRho sites | TBD | TBD | TBD | census required |
-   | **total** | 465 | **≤ 465 until reviewed** | F′ shell | conservative bound |
+   | Π_RLC commitment mix | `κ·n = 270` | `κ = 18` | folded `c*` | only the aggregate mix is consumed |
+   | X active columns | `a_X·n = 75` | `a_X = 5` | folded `X*` | one aggregate per active column |
+   | y_ring rows, two K limbs | `2t·n = 90` | `2t = 6` | folded `y_ring*` | one aggregate per row and K limb |
+   | y_zcol, two K limbs | `2n = 30` | `2` | folded `y_zcol*` | one aggregate per K limb |
+   | Nebula `adv` tuple mirror (spec §5.2 R2) | `3κ·n = 810` | `3κ = 54` | folded `adv*` tuple | one aggregate per tuple component and ring lane |
+   | **total** | **1,275** | **85 after reviewed batching; ≤1,275 before** | authoritative F′ relation | complete client census |
 
    Π_DEC's recomposition is scalar `b`-powers — linear, **not** a
    projection client.
@@ -509,11 +522,11 @@ existing per-fold error.
 | C9 | Lane-residency completeness (no free interpretation bits) | **statically enforced** | `audit_lane_residency` runs at every `S_mem` construction (spec §15 criterion 7): fingerprint-input matrices may only read lanes, public `x`, or E2-constrained `cnt` aux — violations fail the build; reference-model attacks remain as regression (spec §12) |
 | C10 | Engine accepts `S_mem` shape | build-resolved | PR 3 |
 | C11 | Cost model within 2× | **measurement-only** | PR 3 spike; cannot be closed by writing |
-| C12 | F′-R1CS absorb budget | roadmap-dependent | pinned when F′-R1CS design lands (production gate) |
+| C12 | F′-R1CS absorb budget | blocked by measured width | authoritative recursive relation includes current `S_mem`, delayed lane transition, and c/adv/X/y projections. The reduced-κ shape audit still gives a 30,083,645-bit lower bound after branch overlay; C14 or an equivalent reviewed binding compression must land before fixed-point lowering, terminal transition, and integrated production measurement. |
 | C13 | Workload fit of `M`, segment granularity of incrementality | **product decision** | owner: Nico |
-| C14 | SIS/Ajtai accumulation for the carried chains | **dispositioned (v4 review)** | sound (chained, binding-only, hash-then-FS — never a challenge source) but deferred to the `enc(F′)` milestone: only live in the folded regime, and the NC range check (`b = 2`) forbids digit bases `w > 1` — spec §6.5, §14. A hash-then-FS lemma is owed here if ever adopted. |
+| C14 | SIS/Ajtai accumulation for the carried chains and unified F′ accumulator root | **prototype measured, not adopted** | the authoritative Road A shape audit makes the Poseidon handle exceed budget even at reduced κ. `accumulator_sis_circuit` pins native/circuit parity, tamper rejection, and both cost layers at 3 fields, κ=1: field-native 10,532 cols / 10,537 rows / 93,425 nnz; complete low-norm 661,445 committed bits / 671,981 rows. Canonical decomposition children now reuse their source field's bit slots in direct and three-arm lowering. The Ajtai core's Θ(`Dκ·64N`) coefficient count still forbids naïve full-accumulator CSC materialization. Adoption requires a structured seeded-ring matrix, exact transcript/seed domains, production-shape measurement, and a hash-then-FS lemma. Until then Poseidon remains normative and the compiler fails closed on budget. |
 | C15 | IS/FS boundary chains must be formula-identical | **completeness bug, fixed (external review)** | lane-typed `"is"`/`"fs"` tags made honest cross-segment continuity impossible; is/fs now share one mem-domain leaf/link tag pair and header (spec §6.1/§6.3/§7); Cor. 1.1 states the dependency |
-| C16 | Externally accepted proofs end at closed segments | **normative rule added (external review)** | spec §6.3 finalization rule (`idx == 0`, `γ == ⊥`, header chains); mid-segment `State` is prover-only resume material (spec §6.4) |
+| C16 | Externally accepted proofs end at closed segments | **normative rule added (external review)** | terminal first consumes trailing `u_T`, then requires `idx == 0`, `γ == ⊥`, and header chains; checking the pre-terminal lane is insufficient (spec §6.3) |
 | C17 | Stack ops are LIFO-consistent under the v3.1 rows | proven here (v3.1) | Lemma 4 (reduction to Blum et al. / Coral App. E); segment locality forced by per-segment γ (spec §3.1) |
 | C18 | Projection-checked ring action is sound for the folded F′ regime | **proposed here (candidate E)** — gated on non-author review AND the enc(F′) regime decision | Lemma 5; gadget + measured costs exist; adoption audit items enumerated in the lemma (wire identity, transcript schedule, site exhaustiveness) |
 

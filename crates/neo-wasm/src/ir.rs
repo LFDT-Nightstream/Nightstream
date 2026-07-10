@@ -144,6 +144,7 @@ pub struct WasmBoundaryState {
     pub host_callee_fref: u32,
     pub comm_chain: [u64; 4],
     pub event_absorb: WasmEventAbsorbState,
+    pub grammar_mode: bool,
 }
 
 /// Carry state for binding the whole execution's claimed output.
@@ -211,6 +212,13 @@ pub struct WasmStepState {
     pub comm_chain: [u64; 4],
     /// In-circuit host-event absorb machinery (block buffer + perm rows).
     pub event_absorb: WasmEventAbsorbState,
+    /// The chain absorbs embedder grammar events instead of raw host-call
+    /// records (see [`crate::event_grammar`]). A per-program constant
+    /// carried like `max_memory_pages`: verifier-pinned through the initial
+    /// semantic digest, preserved on every row. In grammar mode the raw
+    /// absorb machinery (header/buffer writes, pending formulas) is
+    /// de-gated and `HostEventGather` rows stage each event block instead.
+    pub grammar_mode: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -229,6 +237,11 @@ pub enum WasmAuxOpcode {
     /// [`crate::comm_chain::COMM_CHAIN_PERM_ROWS`]). Scheduled whenever
     /// `WasmEventAbsorbState::perm_pending` is raised.
     HostEventPerm,
+    /// Grammar mode only: stages one expanded event block into the absorb
+    /// buffer and raises `perm_pending` for its perm group. One gather row
+    /// precedes every grammar block; stage C replaces its free buffer with
+    /// ROM-bound slot fills (see `docs/host-event-grammar-tables.md`).
+    HostEventGather,
     /// Synthetic state-preserving row used to pad a trace up to a
     /// multiple of `batch_size`. Not a real wasm opcode — the CCS gates
     /// these rows so that `_after == _before` for every state column.
@@ -260,6 +273,10 @@ impl WasmRowKind {
 
     pub fn is_host_event_perm(self) -> bool {
         matches!(self, Self::Aux(WasmAuxOpcode::HostEventPerm))
+    }
+
+    pub fn is_host_event_gather(self) -> bool {
+        matches!(self, Self::Aux(WasmAuxOpcode::HostEventGather))
     }
 
     pub fn is_padding(self) -> bool {
@@ -386,6 +403,7 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     host_callee_fref: row.state_before.host_callee_fref,
                     comm_chain: row.state_before.comm_chain,
                     event_absorb: row.state_before.event_absorb,
+                    grammar_mode: row.state_before.grammar_mode,
                 },
                 WasmBoundaryState {
                     pc: row.state_after.pc,
@@ -403,6 +421,7 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     host_callee_fref: row.state_after.host_callee_fref,
                     comm_chain: row.state_after.comm_chain,
                     event_absorb: row.state_after.event_absorb,
+                    grammar_mode: row.state_after.grammar_mode,
                 },
             )
         })

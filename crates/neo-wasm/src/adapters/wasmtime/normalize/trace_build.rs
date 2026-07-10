@@ -12,6 +12,7 @@ use super::super::runtime_read::{read_lane, read_lane_hi};
 use super::super::WasmtimeTraceStep;
 use super::{normalize_step, NormalizedStep};
 use crate::comm_chain::{host_call_event_stream, perm_row_checkpoints, COMM_CHAIN_BLOCK_WORDS, COMM_CHAIN_PERM_ROWS};
+use crate::event_grammar::{expand_import_events, HostEventGrammar};
 use crate::ir::{
     StackValueAccess, WasmAuxOpcode, WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmOutputState,
     WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
@@ -204,6 +205,27 @@ fn write_lane_hi(
 }
 
 pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<WasmVmStep>, WasmBuildError> {
+    traces_from_wasmtime_steps_impl(rows, None)
+}
+
+/// Grammar-mode normalization: the chain absorbs embedder grammar events
+/// expanded from `grammar`'s per-import templates instead of raw host-call
+/// records. `oracles` supplies each host call's per-call oracle values in
+/// call order (see `event_grammar::SlotSource::Oracle`); every host import
+/// reached by the trace must have a template.
+pub fn traces_from_wasmtime_steps_with_grammar(
+    rows: &[WasmtimeTraceStep],
+    grammar: &HostEventGrammar,
+    oracles: &[Vec<u64>],
+) -> Result<Vec<WasmVmStep>, WasmBuildError> {
+    traces_from_wasmtime_steps_impl(rows, Some((grammar, oracles)))
+}
+
+fn traces_from_wasmtime_steps_impl(
+    rows: &[WasmtimeTraceStep],
+    grammar: Option<(&HostEventGrammar, &[Vec<u64>])>,
+) -> Result<Vec<WasmVmStep>, WasmBuildError> {
+    let grammar_mode = grammar.is_some();
     let mut supported = Vec::new();
     for row in rows {
         if let Some(normalized) = normalize_step(row)? {
@@ -233,6 +255,9 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
     // Host-event absorb machinery (block buffer, slot cursor, perm group
     // state); carried across rows, mutated only by host-call events.
     let mut event_absorb = WasmEventAbsorbState::ZERO;
+    // Host-call occurrence counter: indexes the per-call oracle sequences in
+    // grammar mode.
+    let mut host_call_index = 0usize;
     let mut output_enabled = false;
     let mut output_value_lo = 0;
     let mut output_value_hi = 0;
@@ -483,6 +508,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
         let mut host_call_arity = None;
         let mut host_event_chain: Option<[u64; 4]> = None;
         let mut host_event_words: Vec<u64> = Vec::new();
+        let mut grammar_events: Option<crate::event_grammar::ExpandedImportEvents> = None;
         let host_callee_fref_before = host_callee_fref;
         let comm_chain_before_row = comm_chain;
         let event_absorb_before_row = event_absorb;
@@ -564,28 +590,46 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
             } else {
                 None
             };
-            host_event_chain = Some(crate::comm_chain::commit_host_call_event_u64(
-                comm_chain,
-                host_callee_fref,
-                param_count,
-                result_count,
-                &arg_limbs,
-                result_limbs,
-            ));
-            host_event_words =
-                host_call_event_stream(host_callee_fref, param_count, result_count, &arg_limbs, result_limbs)
-                    .iter()
-                    .map(|w| w.as_canonical_u64())
-                    .collect();
+            if let Some((grammar, oracles)) = grammar {
+                let template = grammar.imports.get(&host_callee_fref).ok_or_else(|| {
+                    WasmBuildError::Trace(format!(
+                        "no grammar template for host import fref {host_callee_fref} at cycle {}",
+                        current.cycle
+                    ))
+                })?;
+                template.validate(param_count, result_count)?;
+                let call_oracles = oracles
+                    .get(host_call_index)
+                    .map(Vec::as_slice)
+                    .unwrap_or(&[]);
+                grammar_events = Some(expand_import_events(template, &arg_limbs, result_limbs, call_oracles)?);
+                host_call_index += 1;
+            } else {
+                host_event_chain = Some(crate::comm_chain::commit_host_call_event_u64(
+                    comm_chain,
+                    host_callee_fref,
+                    param_count,
+                    result_count,
+                    &arg_limbs,
+                    result_limbs,
+                ));
+                host_event_words =
+                    host_call_event_stream(host_callee_fref, param_count, result_count, &arg_limbs, result_limbs)
+                        .iter()
+                        .map(|w| w.as_canonical_u64())
+                        .collect();
+            }
         }
 
         // The word pairs streamed after the call row's 4-word header, in row
         // order: popped args (last parameter first), then the result.
         let host_event_row_words = &host_event_words[4.min(host_event_words.len())..];
-        // Absorb bookkeeping for the call row itself: the header lands in
-        // buffer slots 0-3; an event with no further words is complete and
-        // awaits its perm rows immediately.
-        if is_host_call {
+        // Raw-mode absorb bookkeeping for the call row itself: the header
+        // lands in buffer slots 0-3; an event with no further words is
+        // complete and awaits its perm rows immediately. In grammar mode the
+        // call row leaves the buffer alone — gather rows stage the expanded
+        // event blocks instead.
+        if is_host_call && !grammar_mode {
             event_absorb.evbuf = [0; 8];
             event_absorb.evbuf[..4].copy_from_slice(&host_event_words[..4]);
             event_absorb.evbuf_slot = 2;
@@ -624,6 +668,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                 host_callee_fref: host_callee_fref_before,
                 comm_chain: comm_chain_before_row,
                 event_absorb: event_absorb_before_row,
+                grammar_mode,
             },
             state_after: WasmStepState {
                 pc: pc_after,
@@ -647,6 +692,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                 // streams the event header into the absorb buffer.
                 comm_chain,
                 event_absorb,
+                grammar_mode,
             },
             control_choice: current.control_choice,
             pc_edge_kind: current.pc_edge_kind,
@@ -794,6 +840,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                         host_callee_fref,
                         comm_chain,
                         event_absorb,
+                        grammar_mode,
                     },
                     state_after: WasmStepState {
                         pc: pc_after,
@@ -815,6 +862,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                         host_callee_fref,
                         comm_chain,
                         event_absorb,
+                        grammar_mode,
                     },
                     control_choice: 0,
                     pc_edge_kind: WasmPcEdgeKind::Static,
@@ -890,6 +938,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                 host_callee_fref,
                 comm_chain,
                 event_absorb,
+                grammar_mode,
             };
             let host_aux_row = |cycle: u64,
                                 aux_opcode: WasmAuxOpcode,
@@ -1000,6 +1049,28 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                 );
             }
 
+            // Grammar mode: stage one expanded event block on a gather row,
+            // then run its perm group.
+            let push_gather_and_group = |out: &mut Vec<WasmVmStep>,
+                                         comm_chain: &mut [u64; 4],
+                                         absorb: &mut WasmEventAbsorbState,
+                                         sp: u64,
+                                         host_args: WasmCountdownState,
+                                         host_result_pending: bool,
+                                         block: [u64; 8]| {
+                let absorb_before = *absorb;
+                absorb.evbuf = block;
+                absorb.perm_pending = true;
+                absorb.perm_state = absorb_premix(*comm_chain, block);
+                out.push(host_aux_row(
+                    out.len() as u64,
+                    WasmAuxOpcode::HostEventGather,
+                    host_aux_state(sp, host_args, host_result_pending, *comm_chain, absorb_before),
+                    host_aux_state(sp, host_args, host_result_pending, *comm_chain, *absorb),
+                ));
+                push_perm_group(out, comm_chain, absorb, sp, host_args, host_result_pending);
+            };
+
             // Stream one event word pair into the absorb buffer; raises
             // `perm_pending` (premixing the perm input) when the block fills
             // or the event's stream ends.
@@ -1045,14 +1116,17 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                     .with_optional_hi(src_value_hi);
                 let host_args_before = host_args_state;
                 let absorb_before = event_absorb;
-                stream_word_pair(
-                    &mut event_absorb,
-                    &comm_chain,
-                    &mut next_word,
-                    (u64::from(src_value), u64::from(src_value_hi.unwrap_or(0))),
-                );
+                if !grammar_mode {
+                    stream_word_pair(
+                        &mut event_absorb,
+                        &comm_chain,
+                        &mut next_word,
+                        (u64::from(src_value), u64::from(src_value_hi.unwrap_or(0))),
+                    );
+                }
                 // Arg mode suspends while a filled block runs its perm rows;
-                // the group's last row resumes it.
+                // the group's last row resumes it. (Grammar mode never fills
+                // mid-args: its blocks absorb after the pops.)
                 host_args_state = WasmCountdownState {
                     active: host_args_before.remaining > 1 && !event_absorb.perm_pending,
                     remaining: host_args_before.remaining - 1,
@@ -1081,6 +1155,22 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                     host_args_state.active = host_args_state.remaining > 0;
                 }
             }
+            // Grammar mode: the event's pre-result blocks absorb after all
+            // arg pops (the pops themselves stage nothing).
+            if let Some(events) = &grammar_events {
+                let post_args_sp = sp_after - u64::from(param_count);
+                for &block in &events.pre_result_blocks {
+                    push_gather_and_group(
+                        &mut out,
+                        &mut comm_chain,
+                        &mut event_absorb,
+                        post_args_sp,
+                        WasmCountdownState::ZERO,
+                        owes_result,
+                        block,
+                    );
+                }
+            }
             if owes_result {
                 let next_row = next.ok_or_else(|| {
                     WasmBuildError::Trace(format!(
@@ -1099,13 +1189,15 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                 let write = StackValueAccess::new(aux_sp_before.saturating_mul(2), result_value)
                     .with_optional_hi(result_value_hi);
                 let absorb_before = event_absorb;
-                stream_word_pair(
-                    &mut event_absorb,
-                    &comm_chain,
-                    &mut next_word,
-                    (u64::from(result_value), u64::from(result_value_hi.unwrap_or(0))),
-                );
-                debug_assert!(event_absorb.perm_pending, "result is the event's final word pair");
+                if !grammar_mode {
+                    stream_word_pair(
+                        &mut event_absorb,
+                        &comm_chain,
+                        &mut next_word,
+                        (u64::from(result_value), u64::from(result_value_hi.unwrap_or(0))),
+                    );
+                    debug_assert!(event_absorb.perm_pending, "result is the event's final word pair");
+                }
                 out.push(WasmVmStep {
                     wide_values_enabled: result_value_hi.is_some_and(|hi| hi != 0),
                     stack_writes_override: Some(1),
@@ -1123,20 +1215,47 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                         ),
                     )
                 });
-                push_perm_group(
-                    &mut out,
-                    &mut comm_chain,
-                    &mut event_absorb,
-                    aux_sp_before + 1,
-                    WasmCountdownState::ZERO,
-                    false,
+                if !grammar_mode {
+                    push_perm_group(
+                        &mut out,
+                        &mut comm_chain,
+                        &mut event_absorb,
+                        aux_sp_before + 1,
+                        WasmCountdownState::ZERO,
+                        false,
+                    );
+                }
+            }
+            if let Some(events) = &grammar_events {
+                let post_result_sp = sp_after - u64::from(param_count) + u64::from(result_count);
+                for &block in &events.post_result_blocks {
+                    push_gather_and_group(
+                        &mut out,
+                        &mut comm_chain,
+                        &mut event_absorb,
+                        post_result_sp,
+                        WasmCountdownState::ZERO,
+                        false,
+                        block,
+                    );
+                }
+                let mut expected = comm_chain_before_row;
+                for block in events
+                    .pre_result_blocks
+                    .iter()
+                    .chain(&events.post_result_blocks)
+                {
+                    let (_, updated) = perm_group_plan(expected, *block);
+                    expected = updated;
+                }
+                debug_assert_eq!(comm_chain, expected, "grammar absorb must fold every expanded block");
+            } else {
+                debug_assert_eq!(
+                    comm_chain,
+                    host_event_chain.expect("host call event chain"),
+                    "block-wise absorb must match the whole-event chain update"
                 );
             }
-            debug_assert_eq!(
-                comm_chain,
-                host_event_chain.expect("host call event chain"),
-                "block-wise absorb must match the whole-event chain update"
-            );
         }
     }
 

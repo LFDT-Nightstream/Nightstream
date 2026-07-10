@@ -11,7 +11,7 @@
 
 mod trace_build;
 
-pub use trace_build::traces_from_wasmtime_steps;
+pub use trace_build::{traces_from_wasmtime_steps, traces_from_wasmtime_steps_with_grammar};
 
 use super::decode::{DecodedControlOpcode, DecodedMemoryAccessKind, DecodedOpcode};
 use super::runtime_read::{

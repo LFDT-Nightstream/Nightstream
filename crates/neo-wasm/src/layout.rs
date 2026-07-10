@@ -370,6 +370,36 @@ define_columns!(
     (COL_PERM_STATE10_AFTER, "chain permutation lane 10 after this row"),
     (COL_PERM_STATE11_AFTER, "chain permutation lane 11 after this row"),
     (
+        COL_GRAMMAR_MODE_BEFORE,
+        "per-program constant: chain absorbs embedder grammar events (1) or raw host-call records (0)",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_GRAMMAR_MODE_AFTER,
+        "per-program constant: chain absorbs embedder grammar events (1) or raw host-call records (0)",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_GATHER_ACTIVE,
+        "grammar-mode row staging one expanded event block into the absorb buffer",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_RAW_HOST_CALL,
+        "host-call program row with the raw absorb machinery active: host_call_gate · (1 - grammar_mode)",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_RAW_ARGS_ACTIVE,
+        "host-arg row with the raw absorb machinery active: host_args_active · (1 - grammar_mode)",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_RAW_RESULT_ACTIVE,
+        "host-result row with the raw absorb machinery active: host_result_active · (1 - grammar_mode)",
+        ColumnWidth::Boolean
+    ),
+    (
         COL_HOST_RESULT_ACTIVE,
         "this row pushes the pending host-call result",
         ColumnWidth::Boolean

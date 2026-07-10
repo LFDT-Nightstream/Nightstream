@@ -37,13 +37,14 @@
 use super::super::gadgets::push_zero_test_gadget;
 use super::super::layout::{
     COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_COMM_CHAIN0_AFTER, COL_COMM_CHAIN0_BEFORE, COL_EVBUF0_AFTER,
-    COL_EVBUF0_BEFORE, COL_EVBUF_SLOT0_AFTER, COL_EVBUF_SLOT0_BEFORE, COL_FUNCTION_REF, COL_HOST_ARGS_ACTIVE_BEFORE,
-    COL_HOST_ARGS_REMAINING_AFTER, COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO, COL_HOST_ARGS_REMAINING_BEFORE,
-    COL_HOST_RESULT_ACTIVE, COL_HOST_RESULT_PENDING_AFTER, COL_HOST_RESULT_PENDING_BEFORE, COL_ONE,
-    COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE,
-    COL_PERM_ROUND_BEFORE_INV, COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE0_AFTER, COL_PERM_STATE0_BEFORE,
-    COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_STACK_READS, COL_STACK_WRITE0_VALUE_HI,
-    COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, NAMED_COLUMN_COUNT,
+    COL_EVBUF0_BEFORE, COL_EVBUF_SLOT0_AFTER, COL_EVBUF_SLOT0_BEFORE, COL_FUNCTION_REF, COL_GATHER_ACTIVE,
+    COL_GRAMMAR_MODE_AFTER, COL_GRAMMAR_MODE_BEFORE, COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_ARGS_REMAINING_AFTER,
+    COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO, COL_HOST_ARGS_REMAINING_BEFORE, COL_HOST_RESULT_ACTIVE,
+    COL_HOST_RESULT_PENDING_AFTER, COL_HOST_RESULT_PENDING_BEFORE, COL_ONE, COL_PERM_PENDING_AFTER,
+    COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE, COL_PERM_ROUND_BEFORE_INV,
+    COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE0_AFTER, COL_PERM_STATE0_BEFORE, COL_RAW_ARGS_ACTIVE,
+    COL_RAW_HOST_CALL, COL_RAW_RESULT_ACTIVE, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_STACK_READS,
+    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, NAMED_COLUMN_COUNT,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::always;
@@ -123,20 +124,20 @@ pub(crate) fn perm_row_gate_terms() -> [(usize, F); 3] {
     ]
 }
 
-/// Gate terms that are 1 exactly on the rows streaming event words into the
-/// absorb buffer: host-call program rows, host-arg rows, host-result rows.
-fn event_write_gate_terms() -> [(usize, F); 5] {
-    let [call, ci_not_trap, guest] = host_call_gate_terms();
+/// Gate terms that are 1 exactly on the rows streaming RAW event words into
+/// the absorb buffer: host-call program rows, host-arg rows, host-result
+/// rows — each masked by `1 - grammar_mode` through its product column, so
+/// the whole raw machinery is inert when the chain absorbs grammar events.
+fn event_write_gate_terms() -> [(usize, F); 3] {
     [
-        call,
-        ci_not_trap,
-        guest,
-        (COL_HOST_ARGS_ACTIVE_BEFORE, F::ONE),
-        (COL_HOST_RESULT_ACTIVE, F::ONE),
+        (COL_RAW_HOST_CALL, F::ONE),
+        (COL_RAW_ARGS_ACTIVE, F::ONE),
+        (COL_RAW_RESULT_ACTIVE, F::ONE),
     ]
 }
 
 pub(super) fn push_host_event_perm_constraints(b: &mut R1csBuilder) {
+    push_grammar_mode_constraints(b);
     push_position_onehot_constraints(b);
     push_pending_update_constraints(b);
     push_buffer_write_constraints(b);
@@ -146,6 +147,52 @@ pub(super) fn push_host_event_perm_constraints(b: &mut R1csBuilder) {
     push_partial_pair_constraints(b);
     push_chain_update_constraints(b);
     push_perm_row_shape_constraints(b);
+}
+
+/// Grammar-mode plumbing: the per-program constant flag, the raw-machinery
+/// mask products, and the `HostEventGather` row rules. Gather rows stage one
+/// expanded event block (their buffer writes are free until the stage-C
+/// slot-fill rows bind them to the grammar ROM) and raise `perm_pending`;
+/// they exist only in grammar mode, so raw-mode enforcement is unaffected.
+fn push_grammar_mode_constraints(b: &mut R1csBuilder) {
+    b.with_tag(always("host event grammar mode"), |b| {
+        // Per-program constant: preserved on every row; the initial value is
+        // verifier-pinned through the semantic-state digest.
+        b.push_linear_zero([(COL_GRAMMAR_MODE_AFTER, F::ONE), (COL_GRAMMAR_MODE_BEFORE, -F::ONE)]);
+
+        // Raw-machinery masks: raw_x = x · (1 - mode).
+        let not_mode = [(COL_ONE, F::ONE), (COL_GRAMMAR_MODE_BEFORE, -F::ONE)];
+        b.push_row(host_call_gate_terms(), not_mode, [(COL_RAW_HOST_CALL, F::ONE)]);
+        b.push_row(
+            [(COL_HOST_ARGS_ACTIVE_BEFORE, F::ONE)],
+            not_mode,
+            [(COL_RAW_ARGS_ACTIVE, F::ONE)],
+        );
+        b.push_row(
+            [(COL_HOST_RESULT_ACTIVE, F::ONE)],
+            not_mode,
+            [(COL_RAW_RESULT_ACTIVE, F::ONE)],
+        );
+
+        // Gather rows exist only in grammar mode.
+        b.push_row([(COL_GATHER_ACTIVE, F::ONE)], not_mode, []);
+        // Gather rows raise the pending flag for their block's perm group...
+        b.push_row(
+            [(COL_GATHER_ACTIVE, F::ONE)],
+            [(COL_PERM_PENDING_AFTER, F::ONE), (COL_ONE, -F::ONE)],
+            [],
+        );
+        // ...touch no stack, and suspend the host-call countdown state like
+        // perm rows do.
+        b.push_row([(COL_GATHER_ACTIVE, F::ONE)], [(COL_STACK_READS, F::ONE)], []);
+        b.push_row([(COL_GATHER_ACTIVE, F::ONE)], [(COL_STACK_WRITES, F::ONE)], []);
+        for (after, before) in [
+            (COL_HOST_ARGS_REMAINING_AFTER, COL_HOST_ARGS_REMAINING_BEFORE),
+            (COL_HOST_RESULT_PENDING_AFTER, COL_HOST_RESULT_PENDING_BEFORE),
+        ] {
+            b.push_row([(COL_GATHER_ACTIVE, F::ONE)], [(after, F::ONE), (before, -F::ONE)], []);
+        }
+    });
 }
 
 /// Position one-hot ↔ round-counter lockstep. The position columns are
@@ -246,8 +293,8 @@ fn push_pending_update_constraints(b: &mut R1csBuilder) {
         );
         // Absorb row consumes the flag.
         b.push_row([(POS0, F::ONE)], [(COL_PERM_PENDING_AFTER, F::ONE)], []);
-        // Everything else preserves it.
-        let mut preserve_gate = vec![(COL_ONE, F::ONE), (POS0, -F::ONE)];
+        // Everything else preserves it (gather rows set it themselves).
+        let mut preserve_gate = vec![(COL_ONE, F::ONE), (POS0, -F::ONE), (COL_GATHER_ACTIVE, -F::ONE)];
         preserve_gate.extend(event_write_gate_terms().map(|(col, coeff)| (col, -coeff)));
         b.push_row(
             preserve_gate,
@@ -269,16 +316,17 @@ fn push_buffer_write_constraints(b: &mut R1csBuilder) {
             b.push_boolean(WSA0 + k);
             b.push_boolean(WSR0 + k);
         }
-        // WSA_k / WSR_k: slot-cursor one-hot masked by the writing row kind.
+        // WSA_k / WSR_k: slot-cursor one-hot masked by the raw writing row
+        // kind (inert in grammar mode).
         for k in 0..4 {
             b.push_row(
                 [(COL_EVBUF_SLOT0_BEFORE + k, F::ONE)],
-                [(COL_HOST_ARGS_ACTIVE_BEFORE, F::ONE)],
+                [(COL_RAW_ARGS_ACTIVE, F::ONE)],
                 [(WSA0 + k, F::ONE)],
             );
             b.push_row(
                 [(COL_EVBUF_SLOT0_BEFORE + k, F::ONE)],
-                [(COL_HOST_RESULT_ACTIVE, F::ONE)],
+                [(COL_RAW_RESULT_ACTIVE, F::ONE)],
                 [(WSR0 + k, F::ONE)],
             );
         }
@@ -295,7 +343,7 @@ fn push_buffer_write_constraints(b: &mut R1csBuilder) {
             vec![(COL_EVBUF0_AFTER + 7, F::ONE)],
         ];
         for terms in header {
-            b.push_row(host_call_gate_terms(), terms, []);
+            b.push_row([(COL_RAW_HOST_CALL, F::ONE)], terms, []);
         }
 
         // Arg/result rows write the popped/pushed value's limbs at the slot
@@ -335,17 +383,19 @@ fn push_buffer_write_constraints(b: &mut R1csBuilder) {
             b.push_row([(POS0, F::ONE)], [(COL_EVBUF0_AFTER + j, F::ONE)], []);
         }
 
-        // Untouched slots carry: gate out the call row (rewrites all 8),
-        // this pair's write flags, and the absorb reset.
+        // Untouched slots carry: gate out the raw call row (rewrites all 8),
+        // this pair's write flags, the absorb reset, and grammar gather rows
+        // (which stage a whole block).
         for j in 0..8 {
             let pair = j / 2;
-            let mut gate = vec![
+            let gate = vec![
                 (COL_ONE, F::ONE),
                 (WSA0 + pair, -F::ONE),
                 (WSR0 + pair, -F::ONE),
                 (POS0, -F::ONE),
+                (COL_RAW_HOST_CALL, -F::ONE),
+                (COL_GATHER_ACTIVE, -F::ONE),
             ];
-            gate.extend(host_call_gate_terms().map(|(col, coeff)| (col, -coeff)));
             b.push_row(
                 gate,
                 [(COL_EVBUF0_AFTER + j, F::ONE), (COL_EVBUF0_BEFORE + j, -F::ONE)],
@@ -366,10 +416,10 @@ fn push_slot_cursor_constraints(b: &mut R1csBuilder) {
             } else {
                 vec![(COL_EVBUF_SLOT0_AFTER + k, F::ONE)]
             };
-            b.push_row(host_call_gate_terms(), call_target, []);
+            b.push_row([(COL_RAW_HOST_CALL, F::ONE)], call_target, []);
 
             b.push_row(
-                [(COL_HOST_ARGS_ACTIVE_BEFORE, F::ONE), (COL_HOST_RESULT_ACTIVE, F::ONE)],
+                [(COL_RAW_ARGS_ACTIVE, F::ONE), (COL_RAW_RESULT_ACTIVE, F::ONE)],
                 [
                     (COL_EVBUF_SLOT0_AFTER + k, F::ONE),
                     (COL_EVBUF_SLOT0_BEFORE + (k + 3) % 4, -F::ONE),
@@ -384,13 +434,13 @@ fn push_slot_cursor_constraints(b: &mut R1csBuilder) {
             };
             b.push_row([(POS0, F::ONE)], absorb_target, []);
 
-            let mut gate = vec![
+            let gate = vec![
                 (COL_ONE, F::ONE),
-                (COL_HOST_ARGS_ACTIVE_BEFORE, -F::ONE),
-                (COL_HOST_RESULT_ACTIVE, -F::ONE),
+                (COL_RAW_ARGS_ACTIVE, -F::ONE),
+                (COL_RAW_RESULT_ACTIVE, -F::ONE),
                 (POS0, -F::ONE),
+                (COL_RAW_HOST_CALL, -F::ONE),
             ];
-            gate.extend(host_call_gate_terms().map(|(col, coeff)| (col, -coeff)));
             b.push_row(
                 gate,
                 [
@@ -600,8 +650,6 @@ fn push_perm_row_shape_constraints(b: &mut R1csBuilder) {
 /// expression — on non-perm rows the round-constant selectors are zero, so
 /// the inputs degenerate to the carried permutation lanes.
 pub(crate) fn fill_perm_gadget_witness(wit: &mut [F], trace: &WasmVmStep) {
-    use super::super::layout::selector_col;
-
     let bool_f = |flag: bool| if flag { F::ONE } else { F::ZERO };
     let before = trace.state_before.event_absorb;
     let sb: [F; 12] = before.perm_state.map(F::from_u64);
@@ -614,22 +662,19 @@ pub(crate) fn fill_perm_gadget_witness(wit: &mut [F], trace: &WasmVmStep) {
         wit[POS0 + pos] = F::ONE;
     }
 
-    // Buffer-write masks and pending-update products, from the named flags.
-    let args_active = wit[COL_HOST_ARGS_ACTIVE_BEFORE];
-    let result_active = wit[COL_HOST_RESULT_ACTIVE];
+    // Buffer-write masks and pending-update products, from the raw-masked
+    // flags (filled by `fill_event_absorb`; inert in grammar mode).
+    let args_active = wit[super::super::layout::COL_RAW_ARGS_ACTIVE];
+    let result_active = wit[super::super::layout::COL_RAW_RESULT_ACTIVE];
     for k in 0..4 {
         wit[WSA0 + k] = wit[COL_EVBUF_SLOT0_BEFORE + k] * args_active;
         wit[WSR0 + k] = wit[COL_EVBUF_SLOT0_BEFORE + k] * result_active;
     }
     let stream_done = bool_f(trace.state_after.host_args.remaining == 0 && !trace.state_after.host_result_pending);
     wit[STREAM_DONE] = stream_done;
-    // write row = host-call program row + arg row + result row (each {0,1},
-    // mutually exclusive), mirroring `event_write_gate_terms`.
-    let write_row = wit[selector_col(crate::isa::WasmOpcode::Call).expect("call selector")]
-        + wit[super::super::layout::COL_CALL_INDIRECT_IS_NOT_TRAP]
-        - wit[super::super::layout::COL_GUEST_CALL_ACTIVE]
-        + args_active
-        + result_active;
+    // write row = raw host-call program row + raw arg row + raw result row
+    // (each {0,1}, mutually exclusive), mirroring `event_write_gate_terms`.
+    let write_row = wit[super::super::layout::COL_RAW_HOST_CALL] + args_active + result_active;
     let end = write_row * stream_done;
     wit[EVENT_END] = end;
     wit[EVENT_END_OR] = (wit[WSA0 + 3] + wit[WSR0 + 3]) * end;

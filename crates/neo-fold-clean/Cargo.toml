@@ -416,3 +416,7 @@ path = "tests/nebula/stack.rs"
 [[test]]
 name = "perf_nebula"
 path = "tests/perf/nebula.rs"
+
+[[test]]
+name = "perf_lowered_nifs_v"
+path = "tests/perf/lowered_nifs_v.rs"

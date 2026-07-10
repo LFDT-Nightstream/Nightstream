@@ -181,14 +181,17 @@ Evidence states are defined in Section 8.
 | `REL-CCS` | Commitment, public projection, norm, and CCS satisfaction define membership | `SuperNeo.CCS.Holds` | SuperNeo Definition 12 | `specified` |
 | `REL-CE` | Commitment, projection, norm, and all matrix evaluations define membership | `SuperNeo.CE.Holds` | SuperNeo Definition 13 | `specified` |
 | `REL-CONCRETE` | Goldilocks, ring, norm, MLE, projection, and Ajtai operations instantiate the relation semantics | concrete semantics instance | Rust relations and paper definitions | `planned` |
+| `PARAM-GLOBAL` | Verifier-owned global parameters own `b`, `k`, `B = b^k`, `K_max`, `T`, the Definition-14 inequality `(K+k)·T·(b−1) < B`, the norm stages (`b` fresh / `B` combined / `q/2` extraction-ambient), and the binding regime (`(2B,C)`-relaxed binding ← `MSIS` at `8TB`, Appendix B) | `SuperNeo.GlobalParams`, `SuperNeo.NormStage` | SuperNeo Definition 14, Theorem 2, Appendix B; Rust `Params::max_fresh_count` | `specified` |
 | `SUM-CLAIM` | SumCheck truth is the actual `T = sum Q`; acceptance contains only verifier checks | `SumCheck.Claim.True`, `Transcript.Accepted` | PiCCS SumCheck | `planned` |
 | `SUM-SOUND` | False SumCheck acceptance reduces to a bounded bad-challenge event | `sumcheck_sound` | Lund/Schwartz-Zippel boundary | `planned` |
-| `FOLD-PICCS` | Valid `CCS^K x CE^k` inputs produce `CE^(K+k)` outputs | `piCCS_complete`, `piCCS_reduce` | SuperNeo PiCCS | `planned` |
-| `FOLD-PIRLC` | Commitment, input, witness, and evaluations are the same random linear combination with the required norm bound | `piRLC_complete`, `piRLC_reduce` | SuperNeo PiRLC | `planned` |
-| `FOLD-PIDEC` | Low-norm children recompose exactly to the parent commitment, input, witness, and evaluations | `piDEC_complete`, `piDEC_reduce` | SuperNeo PiDEC | `planned` |
-| `FOLD-COMPOSE` | PiCCS, PiRLC, and PiDEC implement the concrete multi-fold contract | `superNeoFold_correct` | SuperNeo folding scheme | `planned` |
+| `FOLD-PICCS` | Valid `CCS^K x CE^k` inputs produce `CE(b)^(K+k)` outputs; the reduction is **strong** (Definition 10) | `piCCS_complete`, `piCCS_strong` | SuperNeo PiCCS | `planned` |
+| `FOLD-PIRLC` | Commitment, input, witness, and evaluations are the same random linear combination into `CE(B)`; the reduction is **weak** (Definition 9) with respect to the commitment projection `φ` shared with PiCCS's strength — standalone knowledge soundness is deliberately NOT the target, and extraction lands in the ambient `CE(q/2)` stage (D.5) | `piRLC_complete`, `piRLC_weak` | SuperNeo PiRLC, Lemma 4, Appendix D.5 | `planned` |
+| `FOLD-PIDEC` | Low-norm `CE(b)^k` children recompose exactly to the `CE(B)` parent commitment, input, witness, and evaluations; independently a **reduction of knowledge** (Theorem 7) — the post-decomposition relation returns to the `b` stage, not the ambient bound | `piDEC_complete`, `piDEC_knowledgeSound` | SuperNeo PiDEC, Theorem 7 | `planned` |
+| `FOLD-COMPOSE` | The strong PiCCS composes with the weak PiRLC over the shared `φ` (Theorem 6), then PiDEC, to implement the concrete multi-fold contract | `strongWeakComposition`, `superNeoFold_correct` | SuperNeo Theorem 6, folding scheme | `planned` |
 | `FPR-ENVELOPE` | Base/active tag, counters, `pc`, immutable coordinates, and trace copy are coherent | `FPrime.Envelope.check_sound` | Rust state/transition helpers | `model-proved` |
 | `FPR-BASE` | The base branch uses the default running instance and enforces the true initial state | `fPrimeBase_sound` | HyperNova Construction 2, Rust base branch | `planned` |
+| `FPR-BASE-SPEC` | Rust's empty `RunningInstance` is a valid zero-arity specialization of HyperNova's default instance `u_⊥` — the specialization is a theorem, not an assumption | `emptyRunning_realizes_default` | HyperNova Construction 2 step 3, Rust `RunningInstance::default` | `planned` |
+| `FPR-COUNTER-REFINE` | The paper's single step index `i` refines to Rust's `(chunk_count, step_count)` pair under an explicit refinement relation (`chunk_count` counts F' invocations, `step_count` sums fresh batch cardinalities) | `counter_refinement` | HyperNova Construction 2, Rust `advance_state` | `planned` |
 | `FPR-RECURSIVE` | The recursive branch checks prior `x_out`, runs NIFS.V, advances application state, and installs the next fresh instance | `fPrimeRecursive_sound` | HyperNova Construction 2, Rust recursive branch | `planned` |
 | `FPR-HASH` | `x_out` binds every authority-bearing coordinate with canonical Poseidon2 domain separation | `xOut_binding_or_collision` | Rust `compute_x_out` | `planned` |
 | `TRACE-VALID` | Repeated valid F' steps yield exact-step reachability | `Assurance.Reachable`, trace induction theorems | HyperNova compiler | `specified` |
@@ -316,7 +319,11 @@ rg -n '\b(sorry|admit|axiom|unsafe)\b' Nightstream tests -g '*.lean'
 
 Additionally:
 
-- `tests/Axioms.lean` prints the axioms of every completed theorem;
+- `tests/Axioms.lean` fails closed via `#guard_msgs`: the build breaks if any
+  completed theorem's axiom report differs from the recorded expectation;
+- `lake exe check` computes every printed result (envelope probes including the
+  empty-step regression, Rust symbol anchors) and exits nonzero on failure —
+  no unconditional success strings;
 - active modules are checked for imports from `formal/deprecated`;
 - proof hashes and conformance status are recorded in the evidence ledger;
 - Rust or circuit commands are property-specific and belong in the per-property

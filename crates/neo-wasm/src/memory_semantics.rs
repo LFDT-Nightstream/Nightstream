@@ -219,6 +219,48 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts, initial_
     preload
 }
 
+/// Preload the grammar-mode ROM families from an embedder grammar: the
+/// per-slot source descriptors keyed by `(fref, event_index, slot_cursor)`
+/// (events numbered pre-result then post-result) and the per-import event
+/// counts. Call after [`preload_from_program_artifacts`] when checking a
+/// grammar-mode trace.
+pub fn preload_grammar_tables(preload: &mut WasmMemoryPreload, grammar: &crate::event_grammar::HostEventGrammar) {
+    use crate::event_grammar::{Limb, SlotSource};
+    for (&fref, template) in &grammar.imports {
+        preload.insert("grammar_event_counts_pre", vec![fref], template.pre_result.len() as u32);
+        preload.insert(
+            "grammar_event_counts_post",
+            vec![fref],
+            template.post_result.len() as u32,
+        );
+        for (event_index, event) in template
+            .pre_result
+            .iter()
+            .chain(&template.post_result)
+            .enumerate()
+        {
+            for (slot_index, source) in event.block.iter().enumerate() {
+                let key = vec![fref, event_index as u32, slot_index as u32];
+                let limb_bit = |limb| match limb {
+                    Limb::Lo => 0,
+                    Limb::Hi => 1,
+                };
+                let (kind, arg, limb, const_lo, const_hi) = match *source {
+                    SlotSource::Const(value) => (0, 0, 0, value as u32, (value >> 32) as u32),
+                    SlotSource::ArgElem { arg, limb } => (1, u32::from(arg), limb_bit(limb), 0, 0),
+                    SlotSource::ResultElem { limb } => (2, 0, limb_bit(limb), 0, 0),
+                    SlotSource::Oracle { idx } => (3, u32::from(idx), 0, 0, 0),
+                };
+                preload.insert("grammar_slot_kind", key.clone(), kind);
+                preload.insert("grammar_slot_arg", key.clone(), arg);
+                preload.insert("grammar_slot_limb", key.clone(), limb);
+                preload.insert("grammar_slot_const_lo", key.clone(), const_lo);
+                preload.insert("grammar_slot_const_hi", key, const_hi);
+            }
+        }
+    }
+}
+
 pub fn sanity_check_memory_rows(
     layout: &WasmRelationLayout,
     witness_rows: &[Vec<F>],

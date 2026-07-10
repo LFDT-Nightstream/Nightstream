@@ -127,6 +127,46 @@ impl Default for WasmEventAbsorbState {
     }
 }
 
+/// Carried state of the grammar-mode gather machinery (all zero in raw
+/// mode): the per-call event schedule, the argument-region base for
+/// addressed slot reads, the slot cursor inside the block being staged,
+/// and the per-call oracle cells (see [`crate::event_grammar`]).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WasmGrammarState {
+    /// Events still owed in the current phase; loaded from the event-count
+    /// ROM on the call row (pre) and the result row (post), decremented as
+    /// each block's last slot row stages it. Program rows require zero.
+    pub events_remaining: u32,
+    /// Current event's index within the template (the ROM key component);
+    /// zeroed on the call row, incremented per completed block.
+    pub event_index: u32,
+    /// Stack slot index of the call's first argument:
+    /// `sp_at_call - index_pops - param_count`; latched on the call row.
+    pub args_base: u64,
+    /// Next block word a slot row stages (0..=7).
+    pub slot_cursor: u8,
+    /// Per-call oracle cells; reloaded (prover-supplied) on host-call rows,
+    /// preserved elsewhere so template slots referencing the same oracle
+    /// index provably read the same value.
+    pub oracles: [u64; 4],
+}
+
+impl WasmGrammarState {
+    pub const ZERO: Self = Self {
+        events_remaining: 0,
+        event_index: 0,
+        args_base: 0,
+        slot_cursor: 0,
+        oracles: [0; 4],
+    };
+}
+
+impl Default for WasmGrammarState {
+    fn default() -> Self {
+        Self::ZERO
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WasmBoundaryState {
     pub pc: u64,
@@ -145,6 +185,7 @@ pub struct WasmBoundaryState {
     pub comm_chain: [u64; 4],
     pub event_absorb: WasmEventAbsorbState,
     pub grammar_mode: bool,
+    pub grammar: WasmGrammarState,
 }
 
 /// Carry state for binding the whole execution's claimed output.
@@ -219,6 +260,8 @@ pub struct WasmStepState {
     /// absorb machinery (header/buffer writes, pending formulas) is
     /// de-gated and `HostEventGather` rows stage each event block instead.
     pub grammar_mode: bool,
+    /// Grammar-mode gather machinery state (zero in raw mode).
+    pub grammar: WasmGrammarState,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -282,6 +325,20 @@ impl WasmRowKind {
     pub fn is_padding(self) -> bool {
         matches!(self, Self::Aux(WasmAuxOpcode::Padding))
     }
+}
+
+/// The grammar-ROM entry a gather row claims (bound by the `grammar_slot_*`
+/// families at key `(fref, event_index, slot_cursor)`).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WasmGrammarRomEntry {
+    /// 0 const, 1 arg element, 2 result element, 3 oracle.
+    pub kind: u8,
+    /// Arg index (kind 1), 0 (kind 2), oracle index (kind 3).
+    pub arg: u8,
+    /// Limb select for kinds 1-2: 0 lo, 1 hi.
+    pub limb: u8,
+    pub const_lo: u32,
+    pub const_hi: u32,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -363,6 +420,12 @@ pub struct WasmVmStep {
     /// Popped from the runtime call stack at this step (populated for non-final `return`).
     /// Contains (return_pc, caller_fbp) — restored when returning to the caller.
     pub call_stack_pop: Option<(u64, u64)>,
+    /// Grammar-ROM slot entry for `HostEventGather` rows.
+    pub grammar_rom_slot: Option<WasmGrammarRomEntry>,
+    /// Grammar-ROM pre-result event count, read on grammar host-call rows.
+    pub grammar_pre_count: Option<u32>,
+    /// Grammar-ROM post-result event count, read on grammar result rows.
+    pub grammar_post_count: Option<u32>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -404,6 +467,7 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     comm_chain: row.state_before.comm_chain,
                     event_absorb: row.state_before.event_absorb,
                     grammar_mode: row.state_before.grammar_mode,
+                    grammar: row.state_before.grammar,
                 },
                 WasmBoundaryState {
                     pc: row.state_after.pc,
@@ -422,6 +486,7 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     comm_chain: row.state_after.comm_chain,
                     event_absorb: row.state_after.event_absorb,
                     grammar_mode: row.state_after.grammar_mode,
+                    grammar: row.state_after.grammar,
                 },
             )
         })

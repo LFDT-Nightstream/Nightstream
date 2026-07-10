@@ -14,13 +14,15 @@
 
 use crate::adapters::wasmtime::WasmProgramTables;
 use crate::batch::{self, BatchError};
-use crate::ir::{WasmCountdownState, WasmEventAbsorbState, WasmOutputState, WasmStepState};
+use crate::ir::{WasmCountdownState, WasmEventAbsorbState, WasmGrammarState, WasmOutputState, WasmStepState};
 use crate::layout::Column;
 use crate::layout::{
     COL_CALL_STACK_DEPTH_BEFORE, COL_COMM_CHAIN0_BEFORE, COL_COMM_CHAIN1_BEFORE, COL_COMM_CHAIN2_BEFORE,
     COL_COMM_CHAIN3_BEFORE, COL_EVBUF0_BEFORE, COL_EVBUF1_BEFORE, COL_EVBUF2_BEFORE, COL_EVBUF3_BEFORE,
     COL_EVBUF4_BEFORE, COL_EVBUF5_BEFORE, COL_EVBUF6_BEFORE, COL_EVBUF7_BEFORE, COL_EVBUF_SLOT0_BEFORE,
-    COL_EVBUF_SLOT1_BEFORE, COL_EVBUF_SLOT2_BEFORE, COL_EVBUF_SLOT3_BEFORE, COL_GRAMMAR_MODE_BEFORE,
+    COL_EVBUF_SLOT1_BEFORE, COL_EVBUF_SLOT2_BEFORE, COL_EVBUF_SLOT3_BEFORE, COL_GRAMMAR_ARGS_BASE_BEFORE,
+    COL_GRAMMAR_EVIDX_BEFORE, COL_GRAMMAR_EVREM_BEFORE, COL_GRAMMAR_MODE_BEFORE, COL_GRAMMAR_ORACLE0_BEFORE,
+    COL_GRAMMAR_ORACLE1_BEFORE, COL_GRAMMAR_ORACLE2_BEFORE, COL_GRAMMAR_ORACLE3_BEFORE, COL_GRAMMAR_SLOT_CURSOR_BEFORE,
     COL_HALTED_BEFORE,
     COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_ARGS_REMAINING_BEFORE, COL_HOST_CALLEE_FREF_BEFORE,
     COL_HOST_RESULT_PENDING_BEFORE, COL_LOCALS_FBP_BEFORE, COL_MAX_MEMORY_PAGES_BEFORE, COL_MEMORY_PAGES_BEFORE,
@@ -186,6 +188,7 @@ pub fn top_level_initial_state(tables: &WasmProgramTables, entry_pc: u64) -> Was
         comm_chain: [0; 4],
         event_absorb: WasmEventAbsorbState::ZERO,
         grammar_mode: false,
+        grammar: WasmGrammarState::ZERO,
     }
 }
 
@@ -207,9 +210,24 @@ pub fn semantic_state_digest(state: WasmStepState) -> [u8; 32] {
     digest_fields_as_digest32(encode_poseidon_trace(&build_semantic_state_preimage_fields(&fields)).digest_native)
 }
 
+/// [`top_level_initial_state`] for a grammar-mode program: identical except
+/// the carried `grammar_mode` constant is set, which the verifier pins
+/// through the initial semantic digest (see `ir::WasmStepState::grammar_mode`).
+pub fn grammar_top_level_initial_state(tables: &WasmProgramTables, entry_pc: u64) -> WasmStepState {
+    WasmStepState {
+        grammar_mode: true,
+        ..top_level_initial_state(tables, entry_pc)
+    }
+}
+
 /// Convenience wrapper for the common top-level export-entry boundary.
 pub fn top_level_initial_state_digest(tables: &WasmProgramTables, entry_pc: u64) -> [u8; 32] {
     semantic_state_digest(top_level_initial_state(tables, entry_pc))
+}
+
+/// [`top_level_initial_state_digest`] for a grammar-mode program.
+pub fn grammar_top_level_initial_state_digest(tables: &WasmProgramTables, entry_pc: u64) -> [u8; 32] {
+    semantic_state_digest(grammar_top_level_initial_state(tables, entry_pc))
 }
 
 fn carried_state_field(state: WasmStepState, column: Column) -> F {
@@ -247,6 +265,14 @@ fn carried_state_field(state: WasmStepState, column: Column) -> F {
         COL_EVBUF_SLOT2_BEFORE => bool_field(state.event_absorb.evbuf_slot == 2),
         COL_EVBUF_SLOT3_BEFORE => bool_field(state.event_absorb.evbuf_slot == 3),
         COL_GRAMMAR_MODE_BEFORE => bool_field(state.grammar_mode),
+        COL_GRAMMAR_EVREM_BEFORE => F::from_u64(u64::from(state.grammar.events_remaining)),
+        COL_GRAMMAR_EVIDX_BEFORE => F::from_u64(u64::from(state.grammar.event_index)),
+        COL_GRAMMAR_ARGS_BASE_BEFORE => F::from_u64(state.grammar.args_base),
+        COL_GRAMMAR_SLOT_CURSOR_BEFORE => F::from_u64(u64::from(state.grammar.slot_cursor)),
+        COL_GRAMMAR_ORACLE0_BEFORE => F::from_u64(state.grammar.oracles[0]),
+        COL_GRAMMAR_ORACLE1_BEFORE => F::from_u64(state.grammar.oracles[1]),
+        COL_GRAMMAR_ORACLE2_BEFORE => F::from_u64(state.grammar.oracles[2]),
+        COL_GRAMMAR_ORACLE3_BEFORE => F::from_u64(state.grammar.oracles[3]),
         COL_PERM_PENDING_BEFORE => bool_field(state.event_absorb.perm_pending),
         COL_PERM_ROUND_BEFORE => F::from_u64(u64::from(state.event_absorb.perm_round)),
         COL_PERM_STATE0_BEFORE => F::from_u64(state.event_absorb.perm_state[0]),

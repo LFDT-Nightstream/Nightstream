@@ -945,9 +945,15 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
 fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     use crate::layout::{
         COL_EVBUF0_AFTER, COL_EVBUF0_BEFORE, COL_EVBUF_SLOT0_AFTER, COL_EVBUF_SLOT0_BEFORE, COL_GATHER_ACTIVE,
-        COL_GRAMMAR_MODE_AFTER, COL_GRAMMAR_MODE_BEFORE, COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE,
-        COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE, COL_PERM_ROUND_BEFORE_INV, COL_PERM_ROUND_BEFORE_IS_ZERO,
-        COL_PERM_STATE0_AFTER, COL_PERM_STATE0_BEFORE, COL_RAW_ARGS_ACTIVE, COL_RAW_HOST_CALL, COL_RAW_RESULT_ACTIVE,
+        COL_GRAMMAR_ARGS_BASE_AFTER, COL_GRAMMAR_ARGS_BASE_BEFORE, COL_GRAMMAR_EVIDX_AFTER, COL_GRAMMAR_EVIDX_BEFORE,
+        COL_GRAMMAR_EVREM_AFTER, COL_GRAMMAR_EVREM_BEFORE, COL_GRAMMAR_EVREM_BEFORE_INV,
+        COL_GRAMMAR_EVREM_BEFORE_IS_ZERO, COL_GRAMMAR_HOST_CALL, COL_GRAMMAR_MODE_AFTER, COL_GRAMMAR_MODE_BEFORE,
+        COL_GRAMMAR_ORACLE0_AFTER, COL_GRAMMAR_ORACLE0_BEFORE, COL_GRAMMAR_POST_COUNT, COL_GRAMMAR_PRE_COUNT,
+        COL_GRAMMAR_RESULT_ACTIVE, COL_GRAMMAR_SLOT_ARG, COL_GRAMMAR_SLOT_CONST_HI, COL_GRAMMAR_SLOT_CONST_LO,
+        COL_GRAMMAR_SLOT_CURSOR_AFTER, COL_GRAMMAR_SLOT_CURSOR_BEFORE, COL_GRAMMAR_SLOT_KIND, COL_GRAMMAR_SLOT_LIMB,
+        COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE,
+        COL_PERM_ROUND_BEFORE_INV, COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE0_AFTER, COL_PERM_STATE0_BEFORE,
+        COL_RAW_ARGS_ACTIVE, COL_RAW_HOST_CALL, COL_RAW_RESULT_ACTIVE,
     };
 
     let bool_f = |flag: bool| if flag { F::ONE } else { F::ZERO };
@@ -986,6 +992,41 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     wit[COL_RAW_HOST_CALL] = host_call_gate * (F::ONE - mode);
     wit[COL_RAW_ARGS_ACTIVE] = wit[COL_HOST_ARGS_ACTIVE_BEFORE] * (F::ONE - mode);
     wit[COL_RAW_RESULT_ACTIVE] = wit[COL_HOST_RESULT_ACTIVE] * (F::ONE - mode);
+    wit[COL_GRAMMAR_HOST_CALL] = host_call_gate * mode;
+    wit[COL_GRAMMAR_RESULT_ACTIVE] = wit[COL_HOST_RESULT_ACTIVE] * mode;
+
+    // Grammar gather machinery: carried schedule/cursor/oracle state plus
+    // the per-row grammar-ROM interface columns.
+    let g_before = trace.state_before.grammar;
+    let g_after = trace.state_after.grammar;
+    wit[COL_GRAMMAR_EVREM_BEFORE] = F::from_u64(u64::from(g_before.events_remaining));
+    wit[COL_GRAMMAR_EVREM_AFTER] = F::from_u64(u64::from(g_after.events_remaining));
+    let (evrem_is_zero, evrem_inv) = zero_test_witness_u64(u64::from(g_before.events_remaining));
+    wit[COL_GRAMMAR_EVREM_BEFORE_IS_ZERO] = evrem_is_zero;
+    wit[COL_GRAMMAR_EVREM_BEFORE_INV] = evrem_inv;
+    wit[COL_GRAMMAR_EVIDX_BEFORE] = F::from_u64(u64::from(g_before.event_index));
+    wit[COL_GRAMMAR_EVIDX_AFTER] = F::from_u64(u64::from(g_after.event_index));
+    wit[COL_GRAMMAR_ARGS_BASE_BEFORE] = F::from_u64(g_before.args_base);
+    wit[COL_GRAMMAR_ARGS_BASE_AFTER] = F::from_u64(g_after.args_base);
+    wit[COL_GRAMMAR_SLOT_CURSOR_BEFORE] = F::from_u64(u64::from(g_before.slot_cursor));
+    wit[COL_GRAMMAR_SLOT_CURSOR_AFTER] = F::from_u64(u64::from(g_after.slot_cursor));
+    for j in 0..4 {
+        wit[COL_GRAMMAR_ORACLE0_BEFORE + j] = F::from_u64(g_before.oracles[j]);
+        wit[COL_GRAMMAR_ORACLE0_AFTER + j] = F::from_u64(g_after.oracles[j]);
+    }
+    if let Some(rom) = trace.grammar_rom_slot {
+        wit[COL_GRAMMAR_SLOT_KIND] = F::from_u64(u64::from(rom.kind));
+        wit[COL_GRAMMAR_SLOT_ARG] = F::from_u64(u64::from(rom.arg));
+        wit[COL_GRAMMAR_SLOT_LIMB] = F::from_u64(u64::from(rom.limb));
+        wit[COL_GRAMMAR_SLOT_CONST_LO] = F::from_u64(u64::from(rom.const_lo));
+        wit[COL_GRAMMAR_SLOT_CONST_HI] = F::from_u64(u64::from(rom.const_hi));
+    }
+    if let Some(pre) = trace.grammar_pre_count {
+        wit[COL_GRAMMAR_PRE_COUNT] = F::from_u64(u64::from(pre));
+    }
+    if let Some(post) = trace.grammar_post_count {
+        wit[COL_GRAMMAR_POST_COUNT] = F::from_u64(u64::from(post));
+    }
 }
 
 fn write_param_init_state(wit: &mut [F], before: bool, state: super::ir::WasmCountdownState) {

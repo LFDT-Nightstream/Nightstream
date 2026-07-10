@@ -1,8 +1,8 @@
 //! Grammar-mode traces: the chain absorbs embedder grammar events staged by
-//! `HostEventGather` rows instead of raw host-call records. Every row is
-//! CCS-checked; the gather contents themselves are stage-C territory (their
-//! binding to the grammar ROM), so soundness tests here cover the mode
-//! gating, not gather forgery.
+//! `HostEventGather` slot rows (8 per block, one word each) instead of raw
+//! host-call records. Every row is CCS-checked, the grammar ROM content is
+//! checked by the native memory-rows pass, and the rejection tests cover
+//! mode gating, gather forgery, and the event schedule.
 
 mod common;
 
@@ -32,32 +32,29 @@ fn test_grammar(mul_fref: u32, sink_fref: u32) -> HostEventGrammar {
     grammar.imports.insert(
         mul_fref,
         ImportTemplate {
-            pre_result: vec![GrammarEvent {
-                discriminant: 10,
-                slots: slots(&[
+            pre_result: vec![GrammarEvent::op(
+                10,
+                slots(&[
                     (0, SlotSource::Oracle { idx: 0 }),
                     (1, arg(0, Limb::Lo)),
                     (2, arg(1, Limb::Lo)),
                     (3, SlotSource::Const(5)),
                 ]),
-            }],
-            post_result: vec![GrammarEvent {
-                discriminant: 12,
-                slots: slots(&[
+            )],
+            post_result: vec![GrammarEvent::op(
+                12,
+                slots(&[
                     (0, SlotSource::ResultElem { limb: Limb::Lo }),
                     (1, SlotSource::Oracle { idx: 0 }),
                 ]),
-            }],
+            )],
             oracle_count: 1,
         },
     );
     grammar.imports.insert(
         sink_fref,
         ImportTemplate {
-            pre_result: vec![GrammarEvent {
-                discriminant: 7,
-                slots: slots(&[(0, arg(0, Limb::Lo))]),
-            }],
+            pre_result: vec![GrammarEvent::op(7, slots(&[(0, arg(0, Limb::Lo))]))],
             post_result: vec![],
             oracle_count: 0,
         },
@@ -138,6 +135,16 @@ fn grammar_trace() -> Vec<WasmVmStep> {
         .expect("grammar trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
+
+    // The claimed grammar-ROM entries must match the embedder tables.
+    let component_bytes = wat::parse_str(mul_sink_component_wat()).expect("component wat");
+    let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
+    let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts, &run.initial_locals);
+    neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &grammar);
+    let witness_rows: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
+    let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
+    neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload)
+        .expect("grammar ROM contents match");
     trace
 }
 
@@ -146,10 +153,15 @@ fn grammar_trace_folds_expanded_blocks() {
     let trace = grammar_trace();
     assert!(trace.iter().all(|row| row.state_before.grammar_mode));
 
-    // Three grammar events → three gather rows staging the expected blocks.
+    // Three grammar events → three completed blocks (each staged by 8 slot
+    // rows; the one raising `pending` holds the full block).
     let staged: Vec<[u64; 8]> = trace
         .iter()
-        .filter(|row| row.row_kind.is_host_event_gather())
+        .filter(|row| {
+            row.row_kind.is_host_event_gather()
+                && row.state_after.event_absorb.perm_pending
+                && !row.state_before.event_absorb.perm_pending
+        })
         .map(|row| row.state_after.event_absorb.evbuf)
         .collect();
     assert_eq!(
@@ -179,6 +191,18 @@ fn missing_template_is_rejected() {
     let run = run_component();
     let grammar = HostEventGrammar::default();
     assert!(neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[]).is_err());
+}
+
+/// Surplus oracle batches indicate a misaligned hand-off and are rejected.
+#[test]
+fn surplus_oracle_batches_are_rejected() {
+    let run = run_component();
+    let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("raw trace");
+    let frefs = host_call_frefs(&raw);
+    let grammar = test_grammar(frefs[0], frefs[1]);
+    assert!(
+        neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[vec![100], vec![], vec![7]]).is_err()
+    );
 }
 
 /// The raw absorb machinery must stay de-gated in grammar mode: forging a
@@ -220,4 +244,115 @@ fn ccs_rejects_mode_flip() {
     common::assert_satisfied(&witness, "untampered grammar row");
     witness[COL_GRAMMAR_MODE_AFTER] = neo_math::F::ZERO;
     common::assert_rejected(&witness, "row flipping the per-program mode constant");
+}
+
+/// A gather row staging a word that contradicts its (honest) ROM entry is
+/// CCS-rejected: here the constant discriminant word is forged.
+#[test]
+fn ccs_rejects_forged_gather_word() {
+    let trace = grammar_trace();
+    let disc_row = trace
+        .iter()
+        .find(|row| {
+            row.row_kind.is_host_event_gather()
+                && row.grammar_rom_slot.is_some_and(|rom| rom.kind == 0)
+                && row.state_before.grammar.slot_cursor == 0
+        })
+        .expect("discriminant slot row");
+    let mut witness = build_witness_vector(disc_row);
+    common::assert_satisfied(&witness, "untampered discriminant slot row");
+    witness[neo_wasm::layout::COL_EVBUF0_AFTER] += neo_math::F::ONE;
+    common::assert_rejected(&witness, "gather row staging a forged discriminant");
+}
+
+/// An arg-slot gather row must read the table-pinned stack address.
+#[test]
+fn ccs_rejects_redirected_gather_read() {
+    let trace = grammar_trace();
+    let arg_slot_row = trace
+        .iter()
+        .find(|row| row.row_kind.is_host_event_gather() && row.grammar_rom_slot.is_some_and(|rom| rom.kind == 1))
+        .expect("arg slot row");
+    let mut witness = build_witness_vector(arg_slot_row);
+    common::assert_satisfied(&witness, "untampered arg slot row");
+    witness[neo_wasm::layout::COL_STACK_READ0_ADDR_LO] += neo_math::F::from_u64(2);
+    common::assert_rejected(&witness, "arg slot row reading a different stack slot");
+}
+
+/// Forging the claimed ROM entry itself is caught by the grammar-ROM
+/// content check (the native stand-in for the lookup argument).
+#[test]
+fn memory_rows_reject_forged_rom_claim() {
+    let run = run_component();
+    let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("raw trace");
+    let frefs = host_call_frefs(&raw);
+    let grammar = test_grammar(frefs[0], frefs[1]);
+    let mut trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[vec![100], vec![]])
+        .expect("grammar trace");
+
+    let idx = trace
+        .iter()
+        .position(|row| row.row_kind.is_host_event_gather() && row.grammar_rom_slot.is_some_and(|rom| rom.kind == 0))
+        .expect("const slot row");
+    if let Some(rom) = &mut trace[idx].grammar_rom_slot {
+        rom.const_lo ^= 1;
+    }
+
+    let component_bytes = wat::parse_str(mul_sink_component_wat()).expect("component wat");
+    let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
+    let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts, &run.initial_locals);
+    neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &grammar);
+    let witness_rows: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
+    let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
+    assert!(
+        neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload).is_err(),
+        "a forged grammar-ROM claim must fail the content check"
+    );
+}
+
+/// The event schedule is forced: a program row cannot leave grammar events
+/// unabsorbed, and a gather row cannot run with none owed.
+#[test]
+fn ccs_rejects_broken_event_schedule() {
+    let trace = grammar_trace();
+
+    let program_row = trace
+        .iter()
+        .find(|row| row.row_kind.is_program() && !row.state_before.grammar_mode == false)
+        .expect("program row");
+    let mut witness = build_witness_vector(program_row);
+    common::assert_satisfied(&witness, "untampered program row");
+    witness[neo_wasm::layout::COL_GRAMMAR_EVREM_BEFORE] = neo_math::F::ONE;
+    witness[neo_wasm::layout::COL_GRAMMAR_EVREM_BEFORE_IS_ZERO] = neo_math::F::ZERO;
+    witness[neo_wasm::layout::COL_GRAMMAR_EVREM_BEFORE_INV] = neo_math::F::ONE;
+    common::assert_rejected(&witness, "program row with grammar events still owed");
+
+    let gather_row = trace
+        .iter()
+        .find(|row| row.row_kind.is_host_event_gather())
+        .expect("gather row");
+    let mut witness = build_witness_vector(gather_row);
+    common::assert_satisfied(&witness, "untampered gather row");
+    witness[neo_wasm::layout::COL_GRAMMAR_EVREM_BEFORE] = neo_math::F::ZERO;
+    witness[neo_wasm::layout::COL_GRAMMAR_EVREM_BEFORE_IS_ZERO] = neo_math::F::ONE;
+    witness[neo_wasm::layout::COL_GRAMMAR_EVREM_BEFORE_INV] = neo_math::F::ZERO;
+    common::assert_rejected(&witness, "gather row with no grammar events owed");
+}
+
+/// Oracle cells are template-consistent: an oracle-slot gather row must
+/// stage exactly the carried cell.
+#[test]
+fn ccs_rejects_inconsistent_oracle_use() {
+    let trace = grammar_trace();
+    let oracle_row = trace
+        .iter()
+        .find(|row| row.row_kind.is_host_event_gather() && row.grammar_rom_slot.is_some_and(|rom| rom.kind == 3))
+        .expect("oracle slot row");
+    let mut witness = build_witness_vector(oracle_row);
+    common::assert_satisfied(&witness, "untampered oracle slot row");
+    witness[neo_wasm::layout::COL_GRAMMAR_ORACLE0_BEFORE] += neo_math::F::ONE;
+    common::assert_rejected(
+        &witness,
+        "oracle slot row staging a different value than the carried cell",
+    );
 }

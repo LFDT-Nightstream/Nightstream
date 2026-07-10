@@ -42,11 +42,26 @@ pub enum SlotSource {
     Oracle { idx: u8 },
 }
 
-/// One grammar event: one absorb block `[discriminant | slots]`.
+/// One grammar event: one absorb block of 8 arbitrary slot sources.
+///
+/// neo-wasm attaches no meaning to any slot — in particular, "slot 0 is a
+/// discriminant" is only the embedder's single-block op convention (see
+/// [`GrammarEvent::op`]). Multi-block ops and discriminant-free
+/// continuation blocks (dense payload encodings) are just more events in a
+/// template.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GrammarEvent {
-    pub discriminant: u64,
-    pub slots: [SlotSource; COMM_CHAIN_EVENT_ARGS],
+    pub block: [SlotSource; COMM_CHAIN_BLOCK_WORDS],
+}
+
+impl GrammarEvent {
+    /// The discriminant-led single-block op layout: `[Const(disc) | slots]`.
+    pub fn op(discriminant: u64, slots: [SlotSource; COMM_CHAIN_EVENT_ARGS]) -> Self {
+        let mut block = [SlotSource::Const(0); COMM_CHAIN_BLOCK_WORDS];
+        block[0] = SlotSource::Const(discriminant);
+        block[1..].copy_from_slice(&slots);
+        Self { block }
+    }
 }
 
 /// Static expansion of one imported function into grammar events.
@@ -61,6 +76,10 @@ pub struct ImportTemplate {
     /// Number of per-call oracle values the template draws from.
     pub oracle_count: u8,
 }
+
+/// Per-call oracle cells the circuit carries; templates may not reference
+/// more (see `SlotSource::Oracle`).
+pub const MAX_ORACLE_CELLS: u8 = 4;
 
 /// Per-program grammar: import templates keyed by callee function ref.
 ///
@@ -77,13 +96,19 @@ impl ImportTemplate {
     /// expansion failures are table bugs, not trace bugs.
     pub fn validate(&self, param_count: u8, result_count: u8) -> Result<(), WasmBuildError> {
         let err = |msg: String| Err(WasmBuildError::Trace(msg));
+        if self.oracle_count > MAX_ORACLE_CELLS {
+            return err(format!(
+                "grammar template declares {} oracles; the circuit carries {MAX_ORACLE_CELLS} oracle cells",
+                self.oracle_count
+            ));
+        }
+        if result_count == 0 && !self.post_result.is_empty() {
+            return err("grammar template has post-result events but the import returns nothing".to_string());
+        }
         for (phase, events) in [("pre_result", &self.pre_result), ("post_result", &self.post_result)] {
             for (idx, event) in events.iter().enumerate() {
                 let ctx = |what: &str| format!("grammar template {phase} event {idx}: {what}");
-                if event.discriminant >= Goldilocks::ORDER_U64 {
-                    return err(ctx("discriminant is not a canonical field element"));
-                }
-                for slot in &event.slots {
+                for slot in &event.block {
                     match *slot {
                         SlotSource::Const(value) => {
                             if value >= Goldilocks::ORDER_U64 {
@@ -93,6 +118,12 @@ impl ImportTemplate {
                         SlotSource::ArgElem { arg, .. } => {
                             if arg >= param_count {
                                 return err(ctx(&format!("arg index {arg} out of range for {param_count} params")));
+                            }
+                            // The host result is pushed into argument 0's
+                            // stack slot, so post-result events would read
+                            // the result there, not the argument.
+                            if phase == "post_result" && arg == 0 {
+                                return err(ctx("argument 0 is overwritten by the result push"));
                             }
                         }
                         SlotSource::ResultElem { .. } => {
@@ -156,8 +187,7 @@ pub fn expand_import_events(
             .iter()
             .map(|event| {
                 let mut block = [0u64; COMM_CHAIN_BLOCK_WORDS];
-                block[0] = event.discriminant;
-                for (word, slot) in block[1..].iter_mut().zip(&event.slots) {
+                for (word, slot) in block.iter_mut().zip(&event.block) {
                     *word = resolve_slot(*slot, args, result, oracles)?;
                 }
                 Ok(block)

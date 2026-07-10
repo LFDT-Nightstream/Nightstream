@@ -290,12 +290,17 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         );
     });
 
-    // sp after + stack reads = sp before + stack writes
+    // sp after + stack reads = sp before + stack writes. Grammar gather
+    // rows read arg/result slots without popping, so their read-kind flags
+    // (zero everywhere else) cancel out of the identity.
+    let [gather_arg_kind, gather_result_kind] = poseidon::gather_read_kind_cols();
     b.push_linear_zero([
         (COL_SP_AFTER, F::ONE),
         (COL_SP_BEFORE, -F::ONE),
         (COL_STACK_READS, F::ONE),
         (COL_STACK_WRITES, -F::ONE),
+        (gather_arg_kind, -F::ONE),
+        (gather_result_kind, -F::ONE),
     ]);
     b.with_tag(always("fixed stack arity"), |b| {
         b.push_row(fixed_stack_arity_gate_terms(), fixed_stack_reads_terms(), []);

@@ -4,6 +4,7 @@ pub mod adapters;
 pub mod batch;
 pub mod ccs;
 pub mod comm_chain;
+pub mod event_grammar;
 mod gadgets;
 pub mod witness_builder;
 pub use gadgets::push_zero_test_gadget;

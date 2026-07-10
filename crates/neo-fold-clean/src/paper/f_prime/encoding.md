@@ -155,9 +155,25 @@ equally reviewed binding compression) before fixed-point lowering and the
 encoder can be completed; simply lifting the budget would hide a much larger
 production-κ cost.
 
+The generic-lowering tax is now measured on the real object, not just the
+C14 toy: the complete authoritative NIFS.V circuit over an honest two-fold
+chain at the small direct-CCS app shape is **5,934,125 field cols /
+5,893,265 rows / 45.4M nnz**, and its complete low-norm lowering is
+**371,089,193 committed bits / 376,982,457 rows** — 62.5 bits per field
+col, 64.0 rows per row, satisfiability-checked on both sides
+(`perf_lowered_nifs_v`). Wire-level lowering without selective commitment
+is therefore not a road: it is ~26× the shell cost model and ~4× the D²
+shell it was meant to replace. Any completion must keep the bulk of the
+verifier's wires derived (row-substituted linear forms), committing bits
+only at range-checked and hashed boundaries — which is what the one-bit
+audit above assumes and what the shell did by hand.
+
 ## Reproduce every number
 
 ```bash
+# Complete authoritative NIFS.V circuit, low-norm lowered (371M bits, 62.5 bits/col):
+cargo test -p neo-fold-clean --release --test perf_lowered_nifs_v -- --ignored --nocapture
+
 # Historical manual-shell cost model (not complete enc(F')):
 cargo test -p neo-fold-clean --release --test system_phase_1_4a_fibonacci_structure \
   phase_1_4a_production_config_pins_emitter_counts -- --nocapture

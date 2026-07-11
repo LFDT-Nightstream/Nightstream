@@ -279,6 +279,7 @@ fn wasm_recursive_plan_and_structure(
             boundary_bits: 4 * POSEIDON2_GOLDILOCKS_BITS,
             kmul_count: 0,
             ring_action_pair_count: 0,
+            projection_batches: Vec::new(),
             ring_action_pair_layout: RingActionTraceLayout::new(
                 LowNormEncoding::U64,
                 LowNormEncoding::U64,

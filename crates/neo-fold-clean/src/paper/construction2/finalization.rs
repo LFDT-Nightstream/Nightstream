@@ -56,6 +56,7 @@ pub(crate) fn prove_final_fold(
     combine_b_pows: DecMixer,
     vk: &VerifierKey,
     lanes: Option<&LaneScheme>,
+    delayed_nebula: Option<&crate::paper::construction2::NebulaConfig>,
     state: State,
     semantic_mode: SemanticStateMode,
 ) -> Result<(State, Option<FinalFoldProof>), Error> {
@@ -67,12 +68,14 @@ pub(crate) fn prove_final_fold(
         pc,
         initial_semantic_state_digest,
         semantic_state_digest,
-        acc_digest: _, // recomputed from post-flush running below
+        acc_digest,
         public_trace,
         proof,
         nebula,
     } = state;
 
+    let pre_nebula = nebula.clone();
+    let mut terminal_nebula = nebula;
     let (post_running, nifs_with_inputs) = match proof {
         ProofState::Initial => {
             return Ok((
@@ -87,13 +90,24 @@ pub(crate) fn prove_final_fold(
                     acc_digest: digest::AccumulatorHandle::empty().digest(),
                     public_trace,
                     proof: ProofState::Initial,
-                    nebula,
+                    nebula: terminal_nebula,
                 },
                 None,
             ));
         }
         ProofState::Active { running, latest } if latest.instances.is_empty() => (running, None),
         ProofState::Active { running, latest } => {
+            if let Some(cfg) = delayed_nebula {
+                let lane = terminal_nebula.as_mut().ok_or(Error::BaseCaseMismatch)?;
+                lane.advance_for_delayed_claims(
+                    cfg,
+                    vk.digest(),
+                    z_i,
+                    acc_digest,
+                    crate::paper::f_prime::r1cs::F_PRIME_PUBLIC_INPUT_LEN,
+                    &latest.claims(),
+                )?;
+            }
             // Snapshot the pre-fold (running, latest) **claims** for the
             // non-replay IVC verifier. Witnesses are stripped here so the
             // proof never carries prover-private data across the trust
@@ -101,6 +115,7 @@ pub(crate) fn prove_final_fold(
             let terminal_inputs = TerminalFoldInputs {
                 pre_final_running: strip_running_witnesses(&running),
                 latest: strip_latest_witnesses(&latest),
+                pre_nebula: pre_nebula.clone(),
             };
 
             let mut tr = final_fold_transcript();
@@ -141,7 +156,7 @@ pub(crate) fn prove_final_fold(
         semantic_state_digest,
         acc_digest: post_acc_digest,
         public_trace,
-        nebula: nebula.clone(),
+        nebula: terminal_nebula,
         proof: ProofState::Active {
             running: post_running,
             latest: LatestInstance::from_instances(Vec::new()),
@@ -197,6 +212,7 @@ pub(crate) fn verify_final_fold(
     mix_rhos_commits: RlcMixer,
     combine_b_pows: DecMixer,
     vk: &VerifierKey,
+    delayed_nebula: Option<&crate::paper::construction2::NebulaConfig>,
     state: State,
     proof: Option<&FinalFoldProof>,
     semantic_mode: SemanticStateMode,
@@ -209,12 +225,13 @@ pub(crate) fn verify_final_fold(
         pc,
         initial_semantic_state_digest,
         semantic_state_digest,
-        acc_digest: _,
+        acc_digest,
         public_trace,
         proof: prev_proof,
         nebula,
     } = state;
 
+    let mut terminal_nebula = nebula;
     let post_running = match prev_proof {
         ProofState::Initial => {
             if proof.is_some() {
@@ -230,7 +247,7 @@ pub(crate) fn verify_final_fold(
                 semantic_state_digest,
                 acc_digest: digest::AccumulatorHandle::empty().digest(),
                 public_trace,
-                nebula,
+                nebula: terminal_nebula,
                 proof: ProofState::Initial,
             });
         }
@@ -242,6 +259,17 @@ pub(crate) fn verify_final_fold(
         }
         ProofState::Active { running, latest } => {
             let proof = proof.ok_or(Error::MissingFinalFoldProof)?;
+            if let Some(cfg) = delayed_nebula {
+                let lane = terminal_nebula.as_mut().ok_or(Error::BaseCaseMismatch)?;
+                lane.advance_for_delayed_claims(
+                    cfg,
+                    vk.digest(),
+                    z_i,
+                    acc_digest,
+                    crate::paper::f_prime::r1cs::F_PRIME_PUBLIC_INPUT_LEN,
+                    &latest.claims(),
+                )?;
+            }
             let mut tr = final_fold_transcript();
             nifs::verify(
                 &mut tr,
@@ -276,7 +304,7 @@ pub(crate) fn verify_final_fold(
         semantic_state_digest,
         acc_digest: post_acc_digest,
         public_trace,
-        nebula: nebula.clone(),
+        nebula: terminal_nebula,
         proof: ProofState::Active {
             running: post_running,
             latest: LatestInstance::from_instances(Vec::new()),

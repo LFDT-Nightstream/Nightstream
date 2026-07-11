@@ -464,10 +464,12 @@ pub(crate) struct MixedGateBuilder {
 
 impl MixedGateBuilder {
     pub(crate) fn with_estimated_rows(estimated_rows: usize) -> Self {
-        Self {
-            trips: std::array::from_fn(|_| Vec::with_capacity(estimated_rows)),
-            rows: 0,
-        }
+        // Bitness owns nearly all rows in large low-norm relations. Reserving
+        // `estimated_rows` in every gate matrix multiplies peak memory by the
+        // polynomial arity before a single coefficient is emitted.
+        let mut trips = std::array::from_fn(|_| Vec::new());
+        trips[gate::BITNESS] = Vec::with_capacity(estimated_rows);
+        Self { trips, rows: 0 }
     }
 
     #[allow(dead_code)]

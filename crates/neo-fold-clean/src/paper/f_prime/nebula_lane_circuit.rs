@@ -24,7 +24,7 @@
 
 use neo_math::field::KExtensions;
 use neo_math::{F, K};
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::engine::r1cs_circuit::boolean::enforce_bit;
 use crate::engine::r1cs_circuit::builder::{Lc, R1csBuilder, Var};
@@ -40,6 +40,9 @@ use crate::paper::digest::{
     NEBULA_LEAF_OPS_TAG,
 };
 use crate::paper::f_prime::digest_circuit::{alloc_const_tag, alloc_constant};
+use crate::paper::reductions::accumulator_sis_circuit::{
+    enforce_accumulator_digest as enforce_sis_accumulator_digest, NEBULA_LEAF_SIS_CONFIG,
+};
 use crate::paper::relations::product_commitment_circuit::{validate_adv_shape, AdvCommitmentWires};
 
 /// Mirror of the native lane-digest domain tag (private in
@@ -340,10 +343,9 @@ fn read_k4(builder: &mut R1csBuilder, bits: &[Var], at: &mut usize) -> [KVar; 4]
 
 // ── Poseidon2 mirrors ─────────────────────────────────────────────────────
 
-/// Mirror of the private native `nebula_leaf_digest(tag, c)` — one lane
-/// commitment crosses Poseidon2 exactly once (spec §6.1, L0a). The
-/// commitment's shape (`d`, `kappa`, data length) is structural and
-/// enters as constants; the data enters as wires.
+/// Mirror of the private native `nebula_leaf_digest(tag, c)`: a seeded
+/// Ajtai compression over the exact tagged commitment preimage, followed by
+/// one Poseidon2 digest. SIS output never enters Fiat-Shamir directly.
 pub fn enforce_nebula_leaf_digest_circuit(
     builder: &mut R1csBuilder,
     tag: &'static [u8],
@@ -356,7 +358,9 @@ pub fn enforce_nebula_leaf_digest_circuit(
     preimage.push(alloc_constant(builder, F::from_u64(kappa as u64)));
     preimage.push(alloc_constant(builder, F::from_u64(c_data.len() as u64)));
     preimage.extend_from_slice(c_data);
-    enforce_poseidon2_hash(builder, &preimage)
+    enforce_sis_accumulator_digest(builder, NEBULA_LEAF_SIS_CONFIG, &preimage)
+        .expect("fixed nonempty Nebula-leaf SIS preimage")
+        .digest
 }
 
 /// Mirror of [`crate::paper::digest::nebula_lane_leaf_digests`]: the
@@ -462,7 +466,9 @@ pub fn enforce_nebula_maybe_open_circuit(
     lane: &NebulaLaneWires,
     input: &DelayedNebulaInputWires,
     context: &NebulaOpenContextWires,
+    seg_max: u64,
 ) -> NebulaLaneWires {
+    enforce_segment_index_bound(builder, lane.seg_idx, seg_max);
     enforce_bit(builder, lane.open);
     enforce_bit(builder, input.open);
     let mut open_sum = Lc::from_var(lane.open);
@@ -652,9 +658,10 @@ pub fn enforce_delayed_nebula_claim_circuit(
     adv: &AdvCommitmentWires,
     context: &NebulaOpenContextWires,
     steps_per_segment: u64,
+    seg_max: u64,
 ) -> Result<NebulaMaybeCloseOutput, String> {
     validate_adv_shape(Some(adv), adv.ops.d, adv.ops.kappa, "delayed Nebula fresh claim")?;
-    let opened = enforce_nebula_maybe_open_circuit(builder, lane, input, context);
+    let opened = enforce_nebula_maybe_open_circuit(builder, lane, input, context, seg_max);
     let leaves = enforce_nebula_lane_leaf_digests_circuit(
         builder,
         adv.ops.d,
@@ -669,6 +676,44 @@ pub fn enforce_delayed_nebula_claim_circuit(
         &advanced,
         steps_per_segment,
     ))
+}
+
+fn enforce_segment_index_bound(builder: &mut R1csBuilder, seg_idx: Var, seg_max: u64) {
+    let counter_domain = 1u64 << SEG_IDX_BITS;
+    assert!((1..=counter_domain).contains(&seg_max));
+    if seg_max == counter_domain {
+        return;
+    }
+
+    let raw = builder.witness()[seg_idx.col()].as_canonical_u64();
+    let mut bits = [Var::ONE; SEG_IDX_BITS];
+    let mut recomposed = Lc::zero();
+    for (index, bit) in bits.iter_mut().enumerate() {
+        *bit = builder.alloc(F::from_u64((raw >> index) & 1));
+        enforce_bit(builder, *bit);
+        recomposed.add_term(*bit, F::from_u64(1u64 << index));
+    }
+    builder.enforce_eq(&Lc::from_var(seg_idx), &recomposed);
+
+    // Lexicographic comparison from the most-significant bit. `equal`
+    // remains one only while the witnessed prefix equals the constant prefix.
+    // A one where the constant has zero is forbidden on an equal prefix; the
+    // final equality is forbidden, yielding seg_idx < seg_max.
+    let mut equal = Var::ONE;
+    for index in (0..SEG_IDX_BITS).rev() {
+        let bit = bits[index];
+        let bound_bit = (seg_max >> index) & 1;
+        let factor = if bound_bit == 1 {
+            Lc::from_var(bit)
+        } else {
+            builder.enforce(&Lc::from_var(equal), &Lc::from_var(bit), &Lc::zero());
+            let mut one_minus_bit = Lc::from_const(F::ONE);
+            one_minus_bit.add_term(bit, -F::ONE);
+            one_minus_bit
+        };
+        equal = builder.alloc_mul(&Lc::from_var(equal), &factor);
+    }
+    builder.enforce_eq(&Lc::from_var(equal), &Lc::zero());
 }
 
 /// Enforce and apply segment close exactly when `lane.idx == N`.

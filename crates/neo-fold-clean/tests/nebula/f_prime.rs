@@ -1,5 +1,7 @@
 //! Authoritative `S_mem + F'` composition tests.
 
+use std::sync::OnceLock;
+
 #[path = "../support/mod.rs"]
 mod support;
 
@@ -7,8 +9,8 @@ use neo_fold_clean::config;
 use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
 use neo_fold_clean::frontends::nebula::circuit::StepData;
 use neo_fold_clean::frontends::nebula::f_prime::{
-    enforce_nebula_f_prime_base_step, NebulaFPrimeBranch, NebulaFPrimeRelation, NebulaFPrimeRelationError,
-    ROAD_A_COMMITTED_BIT_BUDGET,
+    enforce_nebula_f_prime_base_step, NebulaFPrimeBranch, NebulaFPrimeChainBuilder, NebulaFPrimePreprocessing,
+    NebulaFPrimeRelation, ROAD_A_COMMITTED_BIT_BUDGET,
 };
 use neo_fold_clean::frontends::nebula::fingerprint::Gammas;
 use neo_fold_clean::frontends::nebula::layout::{encode_delayed_f_prime_suffix, NebulaParams};
@@ -18,16 +20,18 @@ use neo_fold_clean::frontends::r1cs_f_prime::lower_field_r1cs;
 use neo_fold_clean::lifecycle::{preprocess, Preprocessing};
 use neo_fold_clean::paper::construction2::NebulaLane;
 use neo_fold_clean::paper::digest::{
-    digest32_as_fields, digest_fields_as_digest32, state_x_out_digest_with_mode, AccumulatorHandle, StateXOutDigestMode,
+    digest32_as_fields, digest_fields_as_digest32, f_prime_chunk_public_digest_for_uniform_shape,
+    state_x_out_digest_with_mode, AccumulatorHandle, StateXOutDigestMode,
 };
 use neo_fold_clean::paper::f_prime::nebula_lane_circuit::delayed_nebula_public_suffix_len;
 use neo_fold_clean::paper::f_prime::r1cs::{
     encode_x_out_public_bits, FPrimeBaseInputs, FPrimePublicInputLayout, FPrimeStateIn, FPrimeStepConfig,
+    F_PRIME_ENC_INST_OFFSET,
 };
 use neo_fold_clean::paper::f_prime::source_image::FPrimeSourceImage;
 use neo_fold_clean::paper::nifs::circuit::NifsVCircuitConfig;
 use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsVConfig;
-use neo_math::{F, K};
+use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
 
 const TRANSCRIPT_LABEL: &[u8] = b"nebula/f-prime/composed-test";
@@ -151,7 +155,10 @@ fn base_step_composes_current_s_mem_and_exports_one_relation() {
         )
         .expect("S_mem witness");
 
-    let chunk_digest = fields(0x800);
+    let public_input_len =
+        FPrimePublicInputLayout::with_suffix(delayed_nebula_public_suffix_len(params.stack_shape())).total_len();
+    let chunk_digest =
+        f_prime_chunk_public_digest_for_uniform_shape(0, 1, D, prep.params.kappa() as usize, public_input_len);
     let expected_x_out = digest32_as_fields(state_x_out_digest_with_mode(
         StateXOutDigestMode::Stateless,
         digest_fields_as_digest32(state.vk_fs_digest),
@@ -269,39 +276,219 @@ fn base_step_composes_current_s_mem_and_exports_one_relation() {
 }
 
 #[test]
-#[ignore = "milestone: direct Road A arms must fit the low-norm compilation budget"]
 fn road_a_field_arms_must_fit_the_projection_budget() {
     let nebula_params = NebulaParams::new(0, 0, 1, 2, 8).expect("one-step segment params");
     let params = shape_test_params();
     let plan = NebulaPlan::new(nebula_params, vec![7], [0xD8; 32], params.kappa() as usize).expect("tiny Road A plan");
     let audit = NebulaFPrimeRelation::audit_field_shapes(&params, plan.circuit().structure(), &plan)
         .expect("Road A field-shape audit");
-    let shared_private_fields = plan.circuit().cols() - plan.circuit().m_in();
-    let minimum_committed_bits = audit
-        .minimum_low_norm_committed_bits(shared_private_fields)
-        .expect("compatible three-arm public and shared prefixes");
+    let width = NebulaFPrimeRelation::audit_low_norm_width(&params, plan.circuit().structure(), &plan)
+        .expect("Road A selective-width census");
+
+    eprintln!(
+        "Road A field-shape audit: {audit:?}; selective committed width={}",
+        width.total_coordinates
+    );
 
     assert!(
-        minimum_committed_bits <= ROAD_A_COMMITTED_BIT_BUDGET,
-        "after one-hot branch overlay, the field-native relation still requires at least {minimum_committed_bits} committed bits under the optimistic one-bit-per-field bound: {audit:?}"
+        width.total_coordinates <= ROAD_A_COMMITTED_BIT_BUDGET,
+        "the reduced-profile selective lowering requires {} committed coordinates, above the {} Road A budget: {audit:?}",
+        width.total_coordinates,
+        ROAD_A_COMMITTED_BIT_BUDGET,
     );
 }
 
 #[test]
-fn road_a_fixed_point_compile_fails_closed_before_oversized_lowering() {
+fn road_a_reduced_profile_fixed_point_stabilizes_within_budget() {
     let nebula_params = NebulaParams::new(0, 0, 1, 2, 8).expect("one-step segment params");
     let params = shape_test_params();
     let plan = NebulaPlan::new(nebula_params, vec![7], [0xD8; 32], params.kappa() as usize).expect("tiny Road A plan");
 
-    match NebulaFPrimeRelation::compile_fixed_point(&params, &plan) {
-        Err(NebulaFPrimeRelationError::CompileBudgetExceeded {
-            minimum_bits,
-            budget_bits,
-        }) => {
-            assert_eq!(minimum_bits, 30_083_645);
-            assert_eq!(budget_bits, ROAD_A_COMMITTED_BIT_BUDGET);
-        }
-        Err(other) => panic!("expected budget guard, got {other}"),
-        Ok(_) => panic!("oversized relation reached low-norm compilation"),
-    }
+    let relation = NebulaFPrimeRelation::compile_fixed_point(&params, &plan)
+        .expect("R2 requires one stabilized, selectively lowered authoritative relation");
+    eprintln!(
+        "Road A fixed point: {} coordinates, {} rows, {} matrices, degree {}",
+        relation.structure().m,
+        relation.structure().n,
+        relation.structure().t(),
+        relation.structure().max_degree(),
+    );
+    assert_eq!(
+        relation.structure().n,
+        relation.structure().m,
+        "SuperNeo NC requires one square assignment/row domain"
+    );
+    assert!(
+        relation.structure().matrices[0].is_identity(),
+        "SuperNeo NC requires M0 = I"
+    );
+    assert_eq!(
+        relation.structure().m,
+        9_959_328,
+        "reduced-profile verifier fixed point drifted"
+    );
+    assert!(
+        relation.structure().m <= ROAD_A_COMMITTED_BIT_BUDGET,
+        "selectively lowered fixed point is {} bits ({} rows, {} matrices, degree {}), budget is {}",
+        relation.structure().m,
+        relation.structure().n,
+        relation.structure().t(),
+        relation.structure().max_degree(),
+        ROAD_A_COMMITTED_BIT_BUDGET,
+    );
+}
+
+fn r4_encoder_params() -> neo_fold_clean::Params {
+    let inner = neo_params::NeoParams::new(
+        neo_params::goldilocks_paper_b2::Q,
+        neo_params::goldilocks_paper_b2::ETA as u32,
+        neo_params::goldilocks_paper_b2::D as u32,
+        1,
+        1 << 12,
+        2,
+        neo_params::goldilocks_paper_b2::K_RHO,
+        1,
+        2,
+        8,
+    )
+    .expect("small R4 params satisfy the reduction guard");
+    neo_fold_clean::Params::test_only_from_neo_params(inner)
+}
+
+// Fixed-point setup dominates runtime; share it so both milestone gates stay
+// active within the repository's five-minute test-binary cap.
+static R4_R6_ACCEPTANCE: OnceLock<()> = OnceLock::new();
+
+fn run_r4_r6_acceptance_once() {
+    R4_R6_ACCEPTANCE.get_or_init(run_r4_r6_acceptance);
+}
+
+#[test]
+fn r4_shipped_encoder_verifies_multistep_memory_chain() {
+    run_r4_r6_acceptance_once();
+}
+
+#[test]
+fn multi_chunk_f_prime_chain_must_verify_terminal_only() {
+    run_r4_r6_acceptance_once();
+}
+
+#[test]
+fn nebula_chain_must_verify_terminal_only_with_memory() {
+    run_r4_r6_acceptance_once();
+}
+
+fn run_r4_r6_acceptance() {
+    let memory_params = NebulaParams::new(2, 2, 8, 8, 8)
+        .expect("one-step segments")
+        .with_stacks(2, 2)
+        .expect("two segment-local stacks");
+    assert_eq!(memory_params.steps_per_segment(), 1);
+    let params = r4_encoder_params();
+    let rom = [10, 20, 30, 40];
+    let plan = NebulaPlan::new(memory_params, rom.to_vec(), [0xD3; 32], params.kappa() as usize).expect("plan");
+    let prep = NebulaFPrimePreprocessing::new_seeded(params, plan, 0xD3D3_0001).expect("fixed preprocessing");
+    assert!(prep.prep.enforces_terminal_induction());
+
+    let mut memory = Memory::new(memory_params, &rom).expect("memory");
+    let trace0 = {
+        let mut segment = memory.begin_segment().expect("segment 0");
+        segment.push(0, 7).expect("stack 0 push");
+        segment.push(0, 9).expect("stack 0 nested push");
+        assert_eq!(segment.pop(0).expect("stack 0 nested pop"), 9);
+        assert_eq!(segment.pop(0).expect("stack 0 pop"), 7);
+        segment.write(true, 0, 5).expect("RAM write");
+        segment.push(1, 3).expect("stack 1 push");
+        assert_eq!(segment.pop(1).expect("stack 1 pop"), 3);
+        assert_eq!(segment.read(false, 1).expect("public ROM"), 20);
+        segment.finish().expect("trace 0")
+    };
+    let trace1 = {
+        let mut segment = memory.begin_segment().expect("segment 1");
+        assert_eq!(segment.read(true, 0).expect("RAM continuity"), 5);
+        segment.push(0, 11).expect("stack 0 push");
+        assert_eq!(segment.pop(0).expect("stack 0 pop"), 11);
+        assert_eq!(segment.read(false, 0).expect("public ROM"), 10);
+        segment.finish().expect("trace 1")
+    };
+    let trace2 = {
+        let mut segment = memory.begin_segment().expect("segment 2");
+        assert_eq!(segment.read(true, 0).expect("RAM continuity"), 5);
+        assert_eq!(segment.read(false, 2).expect("public ROM"), 30);
+        segment.finish().expect("trace 2")
+    };
+
+    let mut chain = NebulaFPrimeChainBuilder::new(&prep);
+    chain.append_segment(&trace0).expect("base arm");
+    chain
+        .append_segment(&trace1)
+        .expect("bootstrap-recursive arm");
+    chain.append_segment(&trace2).expect("steady-recursive arm");
+    let proof = chain
+        .finish()
+        .expect("terminal fold consumes trailing claim");
+
+    neo_fold_clean::verify_uncompressed(&prep.prep, &proof).expect("terminal-only induction");
+    assert_eq!(proof.state.chunk_count, 3);
+    let lane = proof.state.nebula.as_ref().expect("lane");
+    assert!(lane.is_closed());
+    assert_eq!(lane.seg_idx, 3);
+    assert_eq!(lane.sp, [0, 0]);
+
+    let mut tampered_link = proof.clone();
+    let link_bit = &mut tampered_link
+        .final_fold
+        .as_mut()
+        .expect("terminal fold")
+        .terminal_inputs
+        .latest
+        .instances[0]
+        .claim
+        .x[F_PRIME_ENC_INST_OFFSET];
+    *link_bit = F::ONE - *link_bit;
+    neo_fold_clean::verify_uncompressed(&prep.prep, &tampered_link)
+        .expect_err("terminal verification must reject a changed prior F' link");
+
+    let mut tampered_suffix = proof.clone();
+    let suffix_offset =
+        FPrimePublicInputLayout::with_suffix(delayed_nebula_public_suffix_len(memory_params.stack_shape()))
+            .suffix_offset();
+    let suffix_bit = &mut tampered_suffix
+        .final_fold
+        .as_mut()
+        .expect("terminal fold")
+        .terminal_inputs
+        .latest
+        .instances[0]
+        .claim
+        .x[suffix_offset];
+    *suffix_bit = F::ONE - *suffix_bit;
+    neo_fold_clean::verify_uncompressed(&prep.prep, &tampered_suffix)
+        .expect_err("terminal verification must reject changed delayed memory data");
+
+    let mut tampered_lane = proof.clone();
+    tampered_lane
+        .final_fold
+        .as_mut()
+        .expect("terminal fold")
+        .terminal_inputs
+        .pre_nebula
+        .as_mut()
+        .expect("pre-final Nebula lane")
+        .ts ^= 1;
+    neo_fold_clean::verify_uncompressed(&prep.prep, &tampered_lane)
+        .expect_err("terminal verification must reject a changed pre-final Nebula lane");
+
+    let mut tampered_history = proof;
+    tampered_history
+        .final_fold
+        .as_mut()
+        .expect("terminal fold")
+        .terminal_inputs
+        .pre_final_running
+        .claims[0]
+        .c
+        .data[0] += F::ONE;
+    neo_fold_clean::verify_uncompressed(&prep.prep, &tampered_history)
+        .expect_err("terminal verification must reject a changed earlier-history accumulator");
 }

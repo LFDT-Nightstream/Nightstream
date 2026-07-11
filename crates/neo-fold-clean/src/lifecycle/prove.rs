@@ -123,6 +123,9 @@ fn extend_inner(
     if batch.is_empty() {
         return Err(Error::EmptyBatch);
     }
+    if prep.enforces_terminal_induction() && batch.len() != 1 {
+        return Err(Error::TerminalInductionArity { got: batch.len() });
+    }
     let max_fresh = prep.params.max_fresh_count();
     if batch.len() > max_fresh {
         return Err(Error::BatchTooLarge {
@@ -135,30 +138,34 @@ fn extend_inner(
     // Nebula lane transition (spec §6.3): the prover runs the same shared
     // decode-and-advance the verifiers replay, so a malformed segment
     // fails here — at the named §6.3 check — instead of at verification.
-    let nebula_advance = match (prep.nebula(), &audit.proof.state.nebula) {
-        (Some(cfg), Some(lane)) => {
-            let state = &audit.proof.state;
-            let mut lane_out = lane.clone();
-            lane_out.advance_for_batch(
-                cfg,
-                prep.vk.digest(),
-                state.z_i,
-                state.acc_digest,
-                nebula_open,
-                &public_batch,
-            )?;
-            Some(NebulaAdvance {
-                lane_out,
-                open: nebula_open,
-            })
-        }
-        (None, None) => {
-            if nebula_open.is_some() {
-                return Err(Error::NebulaNotConfigured);
+    let nebula_advance = if prep.enforces_terminal_induction() {
+        delayed_nebula_advance(prep, &audit.proof.state, nebula_open)?
+    } else {
+        match (prep.nebula(), &audit.proof.state.nebula) {
+            (Some(cfg), Some(lane)) => {
+                let state = &audit.proof.state;
+                let mut lane_out = lane.clone();
+                lane_out.advance_for_batch(
+                    cfg,
+                    prep.vk.digest(),
+                    state.z_i,
+                    state.acc_digest,
+                    nebula_open,
+                    &public_batch,
+                )?;
+                Some(NebulaAdvance {
+                    lane_out,
+                    open: nebula_open,
+                })
             }
-            None
+            (None, None) => {
+                if nebula_open.is_some() {
+                    return Err(Error::NebulaNotConfigured);
+                }
+                None
+            }
+            _ => return Err(Error::NebulaLanePresenceMismatch),
         }
-        _ => return Err(Error::NebulaLanePresenceMismatch),
     };
     let (next_state, step_proof) = construction2::step_with_semantic_state(
         &prep.params,
@@ -179,6 +186,37 @@ fn extend_inner(
     audit.steps.push(step_proof);
     audit.public_batches.push(public_batch);
     Ok(audit)
+}
+
+fn delayed_nebula_advance(
+    prep: &Preprocessing,
+    state: &State,
+    external_open: Option<[[F; 4]; 3]>,
+) -> Result<Option<NebulaAdvance>, Error> {
+    if external_open.is_some() {
+        return Err(Error::TerminalInductionExternalNebulaOpen);
+    }
+    match (prep.nebula(), &state.nebula) {
+        (Some(cfg), Some(lane)) => {
+            let mut lane_out = lane.clone();
+            if let crate::paper::construction2::ProofState::Active { latest, .. } = &state.proof {
+                let claims = latest.claims();
+                if !claims.is_empty() {
+                    lane_out.advance_for_delayed_claims(
+                        cfg,
+                        prep.vk.digest(),
+                        state.z_i,
+                        state.acc_digest,
+                        crate::paper::f_prime::r1cs::F_PRIME_PUBLIC_INPUT_LEN,
+                        &claims,
+                    )?;
+                }
+            }
+            Ok(Some(NebulaAdvance { lane_out, open: None }))
+        }
+        (None, None) => Ok(None),
+        _ => Err(Error::NebulaLanePresenceMismatch),
+    }
 }
 
 /// Base-case `UncompressedAudit`: empty steps, empty `public_batches`,

@@ -297,6 +297,7 @@ pub fn enforce_terminal_fold_against_last_acc_digest(
             .iter()
             .map(|&bit| builder.alloc(bit))
             .collect(),
+        prior_link: None,
         state_in: state,
         state_out: state,
         nifs_running: None,
@@ -366,6 +367,7 @@ pub fn enforce_terminal_fold_parent_authority_against_self(
             .iter()
             .map(|&bit| builder.alloc(bit))
             .collect(),
+        prior_link: None,
         state_in: state,
         state_out: state,
         nifs_running: None,
@@ -435,6 +437,7 @@ pub fn enforce_terminal_fold_children_continuity_against_self(
             .iter()
             .map(|&bit| builder.alloc(bit))
             .collect(),
+        prior_link: None,
         state_in: state,
         state_out: state,
         nifs_running: None,
@@ -554,7 +557,13 @@ pub fn enforce_terminal_latest_link_against(
         .iter()
         .map(|x| x.iter().map(|&bit| builder.alloc(bit)).collect())
         .collect();
-    super::enforce_terminal_latest_link(&mut builder, &fresh_x, &last_bits).map_err(|e| e.to_string())?;
+    super::enforce_terminal_latest_link(
+        &mut builder,
+        crate::paper::f_prime::r1cs::FPrimePublicInputLayout::plain(),
+        &fresh_x,
+        &last_bits,
+    )
+    .map_err(|e| e.to_string())?;
     Ok(builder)
 }
 
@@ -597,6 +606,7 @@ pub fn enforce_base_state_constants_against(
     let base = FPrimeStepOutput {
         x_out: alloc_digest_fields(&mut builder, [F::ZERO; 4]),
         x_out_bits: Vec::new(),
+        prior_link: None,
         state_in: state,
         state_out: state,
         nifs_running: None,
@@ -663,6 +673,7 @@ pub fn enforce_public_image_pins_against_chain(
     let last = FPrimeStepOutput {
         x_out: alloc_digest32(&mut builder, chain.x_out.digest_bytes),
         x_out_bits: Vec::new(),
+        prior_link: None,
         state_in: state,
         state_out: state,
         nifs_running: None,

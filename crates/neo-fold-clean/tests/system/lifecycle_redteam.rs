@@ -398,22 +398,25 @@ fn final_witness_authority_rejects_relabel_of_one_claims_s_col() {
         running.claims.len()
     );
     // The tampered claim must NOT be the one the hoist sources χ from
-    // (the first claim with a non-empty s_col): tampering the source
-    // would be rejected even by a guardless hoist. The toy fold's DEC
-    // children put all content in digit 0, so swap claims[0] ↔ [1]
-    // (with their witnesses, preserving claim↔witness pairing); the
-    // hoist then sources the shared point from the zero claim while the
-    // nonzero claim sits at index 1.
-    assert!(
-        running.claims[0]
-            .y_zcol
-            .iter()
-            .any(|&v| v != neo_math::K::ZERO),
-        "test setup requires a nonzero NC channel on the first DEC child"
-    );
-    running.claims.swap(0, 1);
-    running.witnesses.swap(0, 1);
-    let tampered = 1usize;
+    // (the first claim with a non-empty s_col): tampering the source would
+    // be rejected even by a guardless hoist. Transcript changes can move
+    // the nonzero NC payload between DEC children, so select both roles
+    // from their semantics instead of assuming a digit position.
+    let nonzero = running
+        .claims
+        .iter()
+        .position(|claim| !claim.s_col.is_empty() && claim.y_zcol.iter().any(|&value| value != neo_math::K::ZERO))
+        .expect("test setup requires one DEC child with a nonzero NC channel");
+    let source = running
+        .claims
+        .iter()
+        .enumerate()
+        .find_map(|(index, claim)| (index != nonzero && !claim.s_col.is_empty()).then_some(index))
+        .expect("test setup requires a distinct shared-point source child");
+    running.claims.swap(0, source);
+    running.witnesses.swap(0, source);
+    let tampered = if nonzero == 0 { source } else { nonzero };
+    assert_ne!(tampered, 0, "the tampered claim must not be the hoist source");
     assert!(
         !running.claims[tampered].s_col.is_empty(),
         "test setup requires a carried NC channel"

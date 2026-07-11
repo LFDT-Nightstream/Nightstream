@@ -11,13 +11,13 @@
 //! | `per_step_ccs_structure_must_encode_f_prime` | ✓ | Folds one threaded encoded F' step; `prep.structure().m` ≥ 50_000 |
 //! | `running_accumulator_witness_must_carry_f_prime_encoded_size` | ✓ | Folds three threaded encoded F' steps; running.witnesses[0] ≥ 50_000 cells |
 //! | `decider_r1cs_size_must_be_constant_in_chain_length` | ignored | Synthesizes the steady-state last-step terminal R1CS for two threaded chains; asserts ≤ 10% per-step growth. Under the canonical fixed-point plan this exceeds the 5-min default-test budget, so it runs only with `--ignored`. |
-//! | `multi_chunk_f_prime_chain_must_verify_terminal_only` | **ignored: fails by design** | The induction-gap milestone gate (Path 1/2 of the enc(F') decision): a 3-chunk F' chain must be accepted by `verify_uncompressed` in O(1). Fails today — the terminal-only verifier fails closed for multi-chunk chains. Un-ignore when the recursive F'/NIFS.V induction becomes checkable. |
-//! | `multi_chunk_terminal_only_verification_fails_closed_today` | ✓ | The tripwire twin of the gate above: pins today's exact fail-closed rejection. The day the guard lifts, this fails — flip BOTH tests together, deliberately. |
-//! | `nebula_chain_must_verify_terminal_only_with_memory` | **ignored: fails by design** | Spec §13 step 9's end-state: a multi-segment memory chain accepted terminal-only, lane closed. Fails today for the same induction gap. |
-//! | `nebula_terminal_only_verification_fails_closed_today` | ✓ | Tripwire twin of the Nebula gate. |
-//! | `recursive_link_multi_chunk_fails_closed_today` | ✓ | The stricter guard layer: an `r1cs_f_prime` chain (recursive-link flag SET) must reject multi-chunk terminal-only verification via `FPrimeNonReplayUnsupported`, not just the generic non-empty-running guard. |
-//! | `folded_f_prime_shell_must_adopt_projection_budget` | ✓ prototype | The projection cost model is 14,040,452 bits (vs 94,330,948 D²). It is not the complete folded F' relation. |
-//! | `projection_shell_semantic_rows_must_be_enforced` | ✓ local algebra | The modeled projection region enforces its local identities; authoritative wire binding remains a Road A gate. |
+//! | `r4_shipped_encoder_verifies_multistep_memory_chain` | ✓ (in `tests/nebula/f_prime.rs`) | The shipped encoder traverses base, bootstrap-recursive, and steady-recursive arms over three one-step segments; finalization consumes the delayed memory claim and terminal-only verification accepts. The same test rejects link, suffix, lane, and prior-history tampers. |
+//! | `multi_chunk_f_prime_chain_must_verify_terminal_only` | ✓ (in `tests/nebula/f_prime.rs`) | R5's canonical gate verifies from the final accumulator and latest fold without audit history, and rejects a changed pre-final running commitment carrying earlier history. |
+//! | `legacy_multi_chunk_terminal_only_remains_fail_closed` | ✓ | The old image-only F' fixture has no terminal-induction capability and remains rejected. |
+//! | `legacy_nebula_terminal_only_remains_fail_closed` | ✓ | The native/immediate Nebula fixture remains an audit-only path. |
+//! | `generic_recursive_link_multi_chunk_remains_fail_closed` | ✓ | A generic `r1cs_f_prime` relation may constrain the public recursive link but cannot acquire the authoritative terminal-induction capability. |
+//! | `folded_f_prime_shell_must_adopt_projection_budget` | ✓ reference | The retired manual-shell cost model remains 14,040,452 bits (vs 94,330,948 D²). The authoritative relation is gated separately by R2/R3. |
+//! | `projection_shell_semantic_rows_must_be_enforced` | ✓ reference | The manual projection region still enforces its local identities; it is not terminal authority. |
 //!
 //! The implementation that turned each invariant green:
 //!   - Phase 1.5b: encoded F' image / structure / encoder + foldable `CcsInstance`.
@@ -191,10 +191,9 @@ fn decider_r1cs_size_must_be_constant_in_chain_length() {
 /// each running CE claim's `Z` would have dimensions matching F's CCS
 /// structure (≥ tens of thousands of cells).
 ///
-/// **Why this should fail today**: the running accumulator carries the
-/// CCS witnesses of whatever was folded, which is the user's app R1CS
-/// (a few hundred cells). The witness has no recursive-verification
-/// content.
+/// This is green because the fixture deposits the encoded F' relation rather
+/// than the user's small application relation. It remains a regression gate
+/// against accidentally folding the raw app witness again.
 #[test]
 fn running_accumulator_witness_must_carry_f_prime_encoded_size() {
     // Phase 1.5c-b: fold encoded F' steps through the existing
@@ -231,51 +230,29 @@ fn running_accumulator_witness_must_carry_f_prime_encoded_size() {
     );
 }
 
-// ── The induction gap (milestone gates + tripwires) ────────────────────────
+// ── Terminal-induction capability boundary ────────────────────────────────
 //
-// Today, `verify_uncompressed` (the O(1) terminal-only verifier) fails
-// closed for multi-chunk chains: the folded F' images bind the state-hash
-// chain but do not yet constrain the previous fold's NIFS.V, so nothing
-// in the terminal artifact vouches for earlier chunks — multi-chunk
-// soundness authority is the audit-replay path. Closing this is the
-// enc(F') regime milestone (folded in-circuit NIFS.V, or the terminal
-// compressed decider). Each gate below is an `#[ignore]`d acceptance
-// test that FAILS today by design and defines the milestone's done
-// state; its active twin pins today's exact fail-closed rejection so
-// the guard cannot silently lift — the day it does, flip both together.
+// The authoritative Nebula fixed relation closes the recursive NIFS.V
+// induction and is accepted terminal-only by the active R5 test named in
+// the table above. These tests cover the other half of the boundary: older
+// image/native and generic compiler frontends must remain fail-closed because
+// they do not own that fixed relation or its delayed-memory semantics.
 
 #[path = "../nebula/fixture.rs"]
 mod nebula_fixture;
 
-/// MILESTONE GATE (ignored; fails today): a multi-chunk F' chain must be
-/// accepted by the terminal-only verifier — HyperNova's "accumulator +
-/// latest fold" check, with the recursive F'/NIFS.V induction carrying
-/// the earlier chunks.
+/// The old encoded-image fixture constrains public state links but is not the
+/// authoritative fixed relation. It must not gain terminal induction merely
+/// because another frontend implemented it.
 #[test]
-#[ignore = "induction-gap milestone gate: fails until the recursive F'/NIFS.V induction is checkable terminal-only (enc(F') regime milestone)"]
-fn multi_chunk_f_prime_chain_must_verify_terminal_only() {
-    let plan = canonical_threaded_plan();
-    let prep = fibonacci_f_prime::preprocess_seeded(&plan, 0x1F15_C004).expect("preprocess");
-    let steps = honest_state_threaded_encoded_f_prime_steps(3);
-    let audit = fibonacci_f_prime::prove_encoded_steps(&prep, &steps).expect("prove");
-    let proof = neo_fold_clean::lifecycle::finish_uncompressed(&prep.prep, audit).expect("finalize");
-    neo_fold_clean::lifecycle::verify_uncompressed(&prep.prep, &proof)
-        .expect("milestone: an honest 3-chunk F' chain must verify in O(1), terminal-only");
-}
-
-/// TRIPWIRE (active): pins today's fail-closed rejection for the gate
-/// above. If this test ever fails, the non-replay guard has lifted —
-/// either the milestone landed (un-ignore the gate, delete this pin) or
-/// soundness just regressed (investigate immediately).
-#[test]
-fn multi_chunk_terminal_only_verification_fails_closed_today() {
+fn legacy_multi_chunk_terminal_only_remains_fail_closed() {
     let plan = canonical_threaded_plan();
     let prep = fibonacci_f_prime::preprocess_seeded(&plan, 0x1F15_C005).expect("preprocess");
     let steps = honest_state_threaded_encoded_f_prime_steps(3);
     let audit = fibonacci_f_prime::prove_encoded_steps(&prep, &steps).expect("prove");
     let proof = neo_fold_clean::lifecycle::finish_uncompressed(&prep.prep, audit).expect("finalize");
     let err = neo_fold_clean::lifecycle::verify_uncompressed(&prep.prep, &proof)
-        .expect_err("fail-closed today: multi-chunk terminal-only verification");
+        .expect_err("legacy image-only F' must remain fail-closed terminal-only");
     assert!(
         matches!(
             err,
@@ -285,33 +262,13 @@ fn multi_chunk_terminal_only_verification_fails_closed_today() {
     );
 }
 
-/// MILESTONE GATE (ignored; fails today): spec §13 step 9's end state —
-/// a multi-segment Nebula memory chain accepted by the terminal-only
-/// verifier, with the lane's finalization rule checked on the accepted
-/// result. Note the future chain that satisfies this folds S_mem through
-/// an F' shell that carries the §6.3 transition in-circuit; this test
-/// intentionally pins only the OUTCOME (honest chain, terminal-only
-/// accept), not today's chain shape.
+/// The older immediate-transition Nebula fixture is useful as an audit oracle,
+/// but it does not fold the composed fixed relation and remains replay-only.
 #[test]
-#[ignore = "spec §13 step 9 milestone gate: fails until the Nebula lane transition rides a terminal-only-verifiable F' chain"]
-fn nebula_chain_must_verify_terminal_only_with_memory() {
-    let (_, prep, audit) = nebula_fixture::honest_two_segment_chain();
-    neo_fold_clean::lifecycle::verify_uncompressed(&prep, &audit.proof)
-        .expect("milestone: an honest two-segment memory chain must verify in O(1), terminal-only");
-    let lane = audit.proof.state.nebula.as_ref().expect("lane");
-    assert!(
-        lane.is_closed(),
-        "accepted terminal state satisfies the finalization rule"
-    );
-}
-
-/// TRIPWIRE (active): pins today's fail-closed rejection for the Nebula
-/// gate above. Same flip discipline as the F' tripwire.
-#[test]
-fn nebula_terminal_only_verification_fails_closed_today() {
+fn legacy_nebula_terminal_only_remains_fail_closed() {
     let (_, prep, audit) = nebula_fixture::honest_two_segment_chain();
     let err = neo_fold_clean::lifecycle::verify_uncompressed(&prep, &audit.proof)
-        .expect_err("fail-closed today: multi-chunk Nebula terminal-only verification");
+        .expect_err("legacy immediate-transition Nebula must remain fail-closed terminal-only");
     assert!(
         matches!(
             err,
@@ -321,16 +278,11 @@ fn nebula_terminal_only_verification_fails_closed_today() {
     );
 }
 
-/// TRIPWIRE (active): the STRICTER guard path. The Fibonacci fixture
-/// above does not set the F' recursive-link flag, so its rejection
-/// comes from the generic non-empty-running guard
-/// (`TerminalOnlyMultiChunkUnsupported`). The `r1cs_f_prime` frontend
-/// DOES set `with_f_prime_recursive_link`, and its multi-chunk chains
-/// must reject through the dedicated recursive-link guard
-/// (`FPrimeNonReplayUnsupported`) — pinned here so both fail-closed
-/// layers are covered. Same flip discipline as the other tripwires.
+/// The generic R1CS compiler sets the public recursive-link flag, but that is
+/// weaker than owning the fixed Nebula relation. Its dedicated guard stays
+/// active so a public-link-only relation cannot opt itself into terminal trust.
 #[test]
-fn recursive_link_multi_chunk_fails_closed_today() {
+fn generic_recursive_link_multi_chunk_remains_fail_closed() {
     use support::r1cs_compiler_fixtures::{
         assignment_one_product, make_tiny_lifecycle_plan, one_product_r1cs, tiny_params,
     };
@@ -359,7 +311,7 @@ fn recursive_link_multi_chunk_fails_closed_today() {
     let proof = chain.finish().expect("finalize");
 
     let err = neo_fold_clean::lifecycle::verify_uncompressed(&prep.prep, &proof)
-        .expect_err("fail-closed today: recursive-link multi-chunk terminal-only verification");
+        .expect_err("generic recursive-link relation must remain fail-closed terminal-only");
     assert!(
         matches!(
             err,
@@ -369,14 +321,9 @@ fn recursive_link_multi_chunk_fails_closed_today() {
     );
 }
 
-/// MILESTONE GATE — **GREEN since Road A Unit 2**: the production F'
-/// shell carries the ring action as projection regions (candidate E).
-/// Integrated measurement: 14,040,452 bits/step (was 94,330,948 with
-/// D² materialization; the D² shell survives as
-/// `production_kmul_d2_ring_action_shell_image_config` for reference).
-/// This gate now guards the budget against regression; the projection
-/// region's SEMANTIC rows landed in Phase B and are guarded by
-/// `projection_shell_semantic_rows_must_be_enforced` below.
+/// Historical manual-shell cost regression. The projection prototype remains
+/// useful for comparing encodings, but the fixed relation's R2/R3 tests own
+/// production authority.
 #[test]
 fn folded_f_prime_shell_must_adopt_projection_budget() {
     use neo_fold_clean::frontends::f_prime::image::FPrimeImageLayout;
@@ -393,10 +340,9 @@ fn folded_f_prime_shell_must_adopt_projection_budget() {
     );
 }
 
-/// Road A Phase B: the projection region's semantic rows are real CCS
-/// rows. A structure built with projection regions must emit the beta
-/// ladder, evaluation sums, Karatsuba relations, and final identity
-/// rows on top of the committed-width region.
+/// Historical manual-shell algebra regression: a projection region must still
+/// emit the beta ladder, evaluation sums, Karatsuba relations, and final
+/// identity rows. Passing this test does not grant terminal authority.
 #[test]
 fn projection_shell_semantic_rows_must_be_enforced() {
     use neo_fold_clean::frontends::f_prime::image::FPrimeImageLayout;

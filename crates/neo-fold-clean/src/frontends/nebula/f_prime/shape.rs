@@ -21,9 +21,9 @@ use crate::paper::f_prime::native::F_PRIME_STEP_TRANSCRIPT_LABEL;
 use crate::paper::f_prime::nebula_lane_circuit::delayed_nebula_public_suffix_len;
 use crate::paper::f_prime::r1cs::{
     FPrimeBaseInputs, FPrimePublicInputLayout, FPrimeRecursiveInputs, FPrimeStateIn, FPrimeStepConfig,
-    F_PRIME_PUBLIC_INPUT_LEN,
+    F_PRIME_ENC_INST_BITS, F_PRIME_PUBLIC_INPUT_LEN,
 };
-use crate::paper::f_prime::source_image::FPrimeSourceImage;
+use crate::paper::f_prime::source_image::{BitRange, FPrimeSourceImage};
 use crate::paper::nifs::circuit::{NifsVCircuitConfig, NifsVCircuitMessages};
 use crate::paper::params::Params;
 use crate::paper::reductions::pi_ccs;
@@ -113,6 +113,7 @@ fn arm_shape(shape: SparseR1cs) -> NebulaFPrimeFieldArmShape {
         rows: shape.n,
         columns: shape.m,
         public_columns: shape.m_in,
+        poseidon2_permutations: shape.poseidon2_permutations(),
     };
     drop(shape);
     audit
@@ -164,7 +165,21 @@ fn synthesize_recursive(context: &ShapeContext<'_>, steady: bool) -> Result<Spar
         vec![vec![K::ZERO; context.d_sc + 1]; context.ell_n + context.ell_d],
         None,
     );
-    sumcheck.sumcheck_rounds_nc = vec![vec![K::ZERO; context.d_sc + 1]; context.ell_m + context.ell_d];
+    // Split-NC has two canonical polynomial shapes. Under the adopted b=2
+    // profile, column rounds use the optimized degree-4 formula (5
+    // coefficients); the trailing Ajtai rounds use the full FE degree.
+    // Modeling every NC round at d_sc+1 produces a relation that honest
+    // optimized proofs cannot inhabit even when its coarse dimensions look
+    // stable.
+    let nc_column_coefficients = match context.params.b() {
+        2 => 5,
+        3 => 7,
+        _ => context.d_sc + 1,
+    };
+    sumcheck.sumcheck_rounds_nc = (0..context.ell_m)
+        .map(|_| vec![K::ZERO; nc_column_coefficients])
+        .chain((0..context.ell_d).map(|_| vec![K::ZERO; context.d_sc + 1]))
+        .collect();
     sumcheck.header_digest = vec![0u8; 32];
     let proof = pi_ccs::Proof { sumcheck, outputs };
     let combined = ce.clone();
@@ -188,7 +203,8 @@ fn synthesize_recursive(context: &ShapeContext<'_>, steady: bool) -> Result<Spar
     let chunk_count_in_word = source.push_u64_le(1);
     let step_count_in_word = source.push_u64_le(1);
     let pc_word = source.push_u64_le(1);
-    let prior_x_out_bits = source.push_enc_inst([F::ZERO; 4]);
+    let prior_public = source.push_f_prime_public_input([F::ZERO; 4]);
+    let prior_x_out_bits = BitRange::new(prior_public.start() + 1, F_PRIME_ENC_INST_BITS);
     let public_x_out_bits = source.push_enc_inst([F::ZERO; 4]);
     let inputs = FPrimeRecursiveInputs {
         state: shape_state(context, true, running_digest),

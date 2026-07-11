@@ -1016,6 +1016,7 @@ fn non_trivial_nebula_fixture() -> NonTrivialFixture {
     fixture.prep = fixture.prep.with_nebula(NebulaConfig {
         scheme,
         steps_per_segment: 1,
+        seg_max: 1,
         stacks: StackShape::NONE,
         plan_digest: [F::ZERO; 4],
         d_init: [F::ZERO; 4],

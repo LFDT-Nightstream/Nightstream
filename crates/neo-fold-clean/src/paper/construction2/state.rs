@@ -26,9 +26,9 @@ use crate::paper::construction2::TRIVIAL_PC;
 /// - The content-binding public coordinate is `acc_digest` after
 ///   finalization: it equals `digest(final running CE claims)`. The
 ///   **non-replay IVC verifier** (`lifecycle::verify_uncompressed`)
-///   re-runs the terminal NIFS fold against the prover-snapshotted
-///   pre-fold inputs and recomputes `acc_digest` from the derived
-///   final running; the **chain-replay verifier**
+///   checks the running accumulator and latest F' relation (or, for
+///   Nebula, re-runs the terminal NIFS fold) and recomputes
+///   `acc_digest`; the **chain-replay verifier**
 ///   (`lifecycle::verify_uncompressed_audit`) additionally walks the
 ///   per-step NIFS chain, so a tamper to a public batch's `x` or
 ///   `c.data` breaks an algebraic check before `acc_digest` is even
@@ -50,8 +50,7 @@ pub struct State {
     /// z_i — chained F' step/shape digest. Domain-separates F' transcript
     /// prefixes per step; not the authority for chunk *content*. Content
     /// binding lives on the accumulator path (see `acc_digest` and the
-    /// terminal-fold re-run that `verify_uncompressed` performs via
-    /// `final_fold.terminal_inputs`).
+    /// running/latest checks in `verify_uncompressed`).
     pub z_i: [u8; 32],
     /// Initial app / VM semantic state digest, fixed at `State::base` time.
     /// Exposed on the terminal public image so external verifiers can pin
@@ -64,17 +63,16 @@ pub struct State {
     pub semantic_state_digest: [u8; 32],
     /// pc_i — program counter (always `TRIVIAL_PC` in this build).
     pub pc: u64,
-    /// Derived accumulator handle. After finalization, equals the digest
-    /// of the final running CE claims and **is** the content-binding
-    /// public coordinate. The non-replay IVC verifier
-    /// (`lifecycle::verify_uncompressed`) re-derives this value from the
-    /// terminal NIFS.V re-run's output running and rejects on mismatch;
+    /// Derived accumulator handle. For plain HyperNova proofs it identifies
+    /// the running CE claims while `latest` remains separately checked; after
+    /// Nebula finalization it identifies the terminal-fold output. The compact
+    /// verifier re-derives this value from the authenticated running claims;
     /// the chain-replay verifier
     /// (`lifecycle::verify_uncompressed_audit`) additionally walks the
     /// per-step NIFS.V chain, so any tamper to a public batch's `(c, x)`
     /// breaks an algebraic check before `acc_digest` is even compared.
-    /// Pre-finalization (trailing `latest` still un-folded), this is a
-    /// derived handle, not the final authority.
+    /// The digest is compression, not standalone authority: the verifier also
+    /// checks the corresponding opened relation witnesses.
     pub acc_digest: [u8; 32],
     /// Chained F' step/shape digest, same role as `z_i`. In the current
     /// compact F' shape this mirrors `z_i` after a step advances; the

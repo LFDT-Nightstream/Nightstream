@@ -21,6 +21,10 @@
 //!   `D_init` (the verifier's ROM handle), plan digest.
 //! - [`prove`] — the two-pass segment prover (spec §1): one
 //!   [`trace::SegmentTrace`] in, `N` folded `S_mem` steps out.
+//! - [`f_prime`] — the shipped Road A encoder and lifecycle: compiles the
+//!   authoritative fixed relation, fills its selected low-norm arm from live
+//!   fold and memory data, and supports incremental segment appends followed
+//!   by terminal-only verification.
 //!
 //! Does not own: the fold pipeline's `adv` mirroring
 //! (`paper/relations`, `paper/reductions`) or the F′ `NebulaLane` carry

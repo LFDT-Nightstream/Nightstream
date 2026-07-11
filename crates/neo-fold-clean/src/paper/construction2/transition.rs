@@ -120,7 +120,15 @@ pub(crate) fn advance_state(
     chunk_digest: [F; 4],
     semantic_advance: SemanticStateAdvance,
     nebula_next: Option<crate::paper::construction2::NebulaLane>,
-) -> State {
+) -> Result<State, Error> {
+    let chunk_count = prev
+        .chunk_count
+        .checked_add(1)
+        .ok_or(Error::CounterOverflow { counter: "chunk_count" })?;
+    let step_count = prev
+        .step_count
+        .checked_add(fresh_count)
+        .ok_or(Error::CounterOverflow { counter: "step_count" })?;
     let new_z_i = digest::digest_fields_as_digest32(chunk_digest);
     // `public_trace` has the same domain-separation role as `z_i` in
     // this direct-CCS build. Keep the state field for existing public
@@ -141,9 +149,9 @@ pub(crate) fn advance_state(
         SemanticStateAdvance::Stateless => new_acc_digest,
         SemanticStateAdvance::Stateful(digest) => digest,
     };
-    State {
-        chunk_count: prev.chunk_count + 1,
-        step_count: prev.step_count + fresh_count,
+    Ok(State {
+        chunk_count,
+        step_count,
         z_0: prev.z_0,
         z_i: new_z_i,
         pc: prev.pc,
@@ -155,7 +163,7 @@ pub(crate) fn advance_state(
         // A Nebula step installs the advanced lane (spec §6.3); plain
         // steps carry the previous lane coordinate unchanged.
         nebula: nebula_next.or(prev.nebula),
-    }
+    })
 }
 
 /// F'-step chunk digest from `&[CcsInstance]`. Uses

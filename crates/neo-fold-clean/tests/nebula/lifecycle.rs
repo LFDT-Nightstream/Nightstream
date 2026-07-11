@@ -102,6 +102,7 @@ fn nebula_preprocessing() -> (Preprocessing, Vec<LaneCommitments<Commitment>>, [
     let cfg = NebulaConfig {
         scheme,
         steps_per_segment: N,
+        seg_max: 1,
         stacks: StackShape::NONE,
         plan_digest: [F::from_u64(11); 4],
         d_init: d_pre[1],

@@ -40,6 +40,12 @@ pub enum SlotSource {
     /// (ref ids, ret refs, callers, targets). Globally validated by the
     /// consumer of the chain (the interleaving proof), never locally.
     Oracle { idx: u8 },
+    /// Export templates only: a limb of the export's `arg`-th parameter,
+    /// read from the entry frame's locals.
+    ParamElem { arg: u8, limb: Limb },
+    /// Export exit templates only: a limb of the export's captured result
+    /// (the carried simple-output value).
+    OutputElem { limb: Limb },
 }
 
 /// One grammar event: one absorb block of 8 arbitrary slot sources.
@@ -81,13 +87,81 @@ pub struct ImportTemplate {
 /// more (see `SlotSource::Oracle`).
 pub const MAX_ORACLE_CELLS: u8 = 4;
 
-/// Per-program grammar: import templates keyed by callee function ref.
+/// Static expansion of one exported function's boundary into grammar
+/// events: `entry` events absorb before the export's first instruction
+/// (receiver-side `Enter`/`Activation`/payload reads), `exit` events after
+/// the halting row (`Return`/`Yield` and result publication). Single-turn
+/// V1: one export invocation per trace.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct ExportTemplate {
+    pub entry: Vec<GrammarEvent>,
+    pub exit: Vec<GrammarEvent>,
+    /// Per-turn oracle cells: `entry` events read the cells pinned through
+    /// the verifier's initial state; `exit` events read cells reloaded on
+    /// the output-capture row.
+    pub oracle_count: u8,
+}
+
+impl ExportTemplate {
+    /// Check the template against the export's arity. Export events source
+    /// from params/output/consts/oracles; the stack-based import sources
+    /// (`ArgElem`/`ResultElem`) do not apply at the export boundary.
+    pub fn validate(&self, param_count: u8) -> Result<(), WasmBuildError> {
+        let err = |msg: String| Err(WasmBuildError::Trace(msg));
+        if self.oracle_count > MAX_ORACLE_CELLS {
+            return err(format!(
+                "export template declares {} oracles; the circuit carries {MAX_ORACLE_CELLS} oracle cells",
+                self.oracle_count
+            ));
+        }
+        for (phase, events) in [("entry", &self.entry), ("exit", &self.exit)] {
+            for (idx, event) in events.iter().enumerate() {
+                let ctx = |what: &str| format!("export template {phase} event {idx}: {what}");
+                for slot in &event.block {
+                    match *slot {
+                        SlotSource::Const(value) => {
+                            if value >= Goldilocks::ORDER_U64 {
+                                return err(ctx("constant is not a canonical field element"));
+                            }
+                        }
+                        SlotSource::ParamElem { arg, .. } => {
+                            if arg >= param_count {
+                                return err(ctx(&format!("param index {arg} out of range for {param_count} params")));
+                            }
+                        }
+                        SlotSource::OutputElem { .. } => {
+                            if phase == "entry" {
+                                return err(ctx("output reference before the export halts"));
+                            }
+                        }
+                        SlotSource::Oracle { idx } => {
+                            if idx >= self.oracle_count {
+                                return err(ctx(&format!(
+                                    "oracle index {idx} out of range for {} oracles",
+                                    self.oracle_count
+                                )));
+                            }
+                        }
+                        SlotSource::ArgElem { .. } | SlotSource::ResultElem { .. } => {
+                            return err(ctx("stack-based import sources do not apply to export templates"));
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Per-program grammar: import templates keyed by callee function ref, and
+/// export boundary templates keyed by the exported function's ref.
 ///
 /// Absence of a grammar (or of a template for a given fref) means the raw
 /// host-call record format applies — the zkVM stays usable with no embedder.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct HostEventGrammar {
     pub imports: BTreeMap<u32, ImportTemplate>,
+    pub exports: BTreeMap<u32, ExportTemplate>,
 }
 
 impl ImportTemplate {
@@ -141,6 +215,9 @@ impl ImportTemplate {
                                     self.oracle_count
                                 )));
                             }
+                        }
+                        SlotSource::ParamElem { .. } | SlotSource::OutputElem { .. } => {
+                            return err(ctx("export-boundary sources do not apply to import templates"));
                         }
                     }
                 }
@@ -200,16 +277,89 @@ pub fn expand_import_events(
     })
 }
 
+/// One export turn's grammar events resolved into absorb blocks.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ExpandedExportEvents {
+    pub entry_blocks: Vec<[u64; COMM_CHAIN_BLOCK_WORDS]>,
+    pub exit_blocks: Vec<[u64; COMM_CHAIN_BLOCK_WORDS]>,
+}
+
+/// Resolve an export template against one turn's data. `params` are the
+/// export's parameter limb pairs, `output` the captured result.
+pub fn expand_export_events(
+    template: &ExportTemplate,
+    params: &[(u32, u32)],
+    output: Option<(u32, u32)>,
+    oracles: &[u64],
+) -> Result<ExpandedExportEvents, WasmBuildError> {
+    if oracles.len() != usize::from(template.oracle_count) {
+        return Err(WasmBuildError::Trace(format!(
+            "export expansion expected {} oracle values, got {}",
+            template.oracle_count,
+            oracles.len()
+        )));
+    }
+    if let Some(idx) = oracles.iter().position(|&v| v >= Goldilocks::ORDER_U64) {
+        return Err(WasmBuildError::Trace(format!(
+            "export oracle {idx} is not a canonical field element"
+        )));
+    }
+    let resolve_phase = |events: &[GrammarEvent]| -> Result<Vec<[u64; COMM_CHAIN_BLOCK_WORDS]>, WasmBuildError> {
+        events
+            .iter()
+            .map(|event| {
+                let mut block = [0u64; COMM_CHAIN_BLOCK_WORDS];
+                for (word, slot) in block.iter_mut().zip(&event.block) {
+                    *word = resolve_export_slot(*slot, params, output, oracles)?;
+                }
+                Ok(block)
+            })
+            .collect()
+    };
+    Ok(ExpandedExportEvents {
+        entry_blocks: resolve_phase(&template.entry)?,
+        exit_blocks: resolve_phase(&template.exit)?,
+    })
+}
+
+fn limb_of((lo, hi): (u32, u32), limb: Limb) -> u64 {
+    match limb {
+        Limb::Lo => u64::from(lo),
+        Limb::Hi => u64::from(hi),
+    }
+}
+
+fn resolve_export_slot(
+    slot: SlotSource,
+    params: &[(u32, u32)],
+    output: Option<(u32, u32)>,
+    oracles: &[u64],
+) -> Result<u64, WasmBuildError> {
+    match slot {
+        SlotSource::Const(value) => Ok(value),
+        SlotSource::ParamElem { arg, limb } => params
+            .get(usize::from(arg))
+            .map(|&pair| limb_of(pair, limb))
+            .ok_or_else(|| WasmBuildError::Trace(format!("export slot references missing param {arg}"))),
+        SlotSource::OutputElem { limb } => output
+            .map(|pair| limb_of(pair, limb))
+            .ok_or_else(|| WasmBuildError::Trace("export slot references a missing output".to_string())),
+        SlotSource::Oracle { idx } => oracles
+            .get(usize::from(idx))
+            .copied()
+            .ok_or_else(|| WasmBuildError::Trace(format!("export slot references missing oracle {idx}"))),
+        SlotSource::ArgElem { .. } | SlotSource::ResultElem { .. } => Err(WasmBuildError::Trace(
+            "stack-based import sources do not apply to export templates".to_string(),
+        )),
+    }
+}
+
 fn resolve_slot(
     slot: SlotSource,
     args: &[(u32, u32)],
     result: Option<(u32, u32)>,
     oracles: &[u64],
 ) -> Result<u64, WasmBuildError> {
-    let limb_of = |(lo, hi): (u32, u32), limb: Limb| match limb {
-        Limb::Lo => u64::from(lo),
-        Limb::Hi => u64::from(hi),
-    };
     match slot {
         SlotSource::Const(value) => Ok(value),
         SlotSource::ArgElem { arg, limb } => args
@@ -223,5 +373,8 @@ fn resolve_slot(
             .get(usize::from(idx))
             .copied()
             .ok_or_else(|| WasmBuildError::Trace(format!("grammar slot references missing oracle {idx}"))),
+        SlotSource::ParamElem { .. } | SlotSource::OutputElem { .. } => Err(WasmBuildError::Trace(
+            "export-boundary sources do not apply to import templates".to_string(),
+        )),
     }
 }

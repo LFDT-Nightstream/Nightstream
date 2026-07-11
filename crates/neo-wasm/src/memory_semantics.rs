@@ -225,32 +225,26 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts, initial_
 /// counts. Call after [`preload_from_program_artifacts`] when checking a
 /// grammar-mode trace.
 pub fn preload_grammar_tables(preload: &mut WasmMemoryPreload, grammar: &crate::event_grammar::HostEventGrammar) {
-    use crate::event_grammar::{Limb, SlotSource};
-    for (&fref, template) in &grammar.imports {
-        preload.insert("grammar_event_counts_pre", vec![fref], template.pre_result.len() as u32);
-        preload.insert(
-            "grammar_event_counts_post",
-            vec![fref],
-            template.post_result.len() as u32,
-        );
-        for (event_index, event) in template
-            .pre_result
-            .iter()
-            .chain(&template.post_result)
-            .enumerate()
-        {
+    use crate::event_grammar::{GrammarEvent, Limb, SlotSource};
+    let limb_bit = |limb| match limb {
+        Limb::Lo => 0,
+        Limb::Hi => 1,
+    };
+    let encode = |source: &SlotSource| match *source {
+        SlotSource::Const(value) => (0, 0, 0, value as u32, (value >> 32) as u32),
+        SlotSource::ArgElem { arg, limb } => (1, u32::from(arg), limb_bit(limb), 0, 0),
+        SlotSource::ResultElem { limb } => (2, 0, limb_bit(limb), 0, 0),
+        SlotSource::Oracle { idx } => (3, u32::from(idx), 0, 0, 0),
+        SlotSource::ParamElem { arg, limb } => (4, u32::from(arg), limb_bit(limb), 0, 0),
+        SlotSource::OutputElem { limb } => (5, 0, limb_bit(limb), 0, 0),
+    };
+    let mut insert_events = |fref: u32, pre: u32, post: u32, events: Vec<&GrammarEvent>| {
+        preload.insert("grammar_event_counts_pre", vec![fref], pre);
+        preload.insert("grammar_event_counts_post", vec![fref], post);
+        for (event_index, event) in events.into_iter().enumerate() {
             for (slot_index, source) in event.block.iter().enumerate() {
                 let key = vec![fref, event_index as u32, slot_index as u32];
-                let limb_bit = |limb| match limb {
-                    Limb::Lo => 0,
-                    Limb::Hi => 1,
-                };
-                let (kind, arg, limb, const_lo, const_hi) = match *source {
-                    SlotSource::Const(value) => (0, 0, 0, value as u32, (value >> 32) as u32),
-                    SlotSource::ArgElem { arg, limb } => (1, u32::from(arg), limb_bit(limb), 0, 0),
-                    SlotSource::ResultElem { limb } => (2, 0, limb_bit(limb), 0, 0),
-                    SlotSource::Oracle { idx } => (3, u32::from(idx), 0, 0, 0),
-                };
+                let (kind, arg, limb, const_lo, const_hi) = encode(source);
                 preload.insert("grammar_slot_kind", key.clone(), kind);
                 preload.insert("grammar_slot_arg", key.clone(), arg);
                 preload.insert("grammar_slot_limb", key.clone(), limb);
@@ -258,6 +252,30 @@ pub fn preload_grammar_tables(preload: &mut WasmMemoryPreload, grammar: &crate::
                 preload.insert("grammar_slot_const_hi", key, const_hi);
             }
         }
+    };
+    for (&fref, template) in &grammar.imports {
+        insert_events(
+            fref,
+            template.pre_result.len() as u32,
+            template.post_result.len() as u32,
+            template
+                .pre_result
+                .iter()
+                .chain(&template.post_result)
+                .collect(),
+        );
+    }
+    // Export boundary templates share the families: entry events take the
+    // "pre" count slot (consumed via the verifier-pinned initial state and
+    // re-read at the exit latch to continue the event numbering), exit
+    // events the "post" slot.
+    for (&fref, template) in &grammar.exports {
+        insert_events(
+            fref,
+            template.entry.len() as u32,
+            template.exit.len() as u32,
+            template.entry.iter().chain(&template.exit).collect(),
+        );
     }
 }
 

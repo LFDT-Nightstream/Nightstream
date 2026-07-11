@@ -362,6 +362,21 @@ pub fn collect_wasmtime_component_run_with_linker<F>(
 where
     F: FnOnce(&mut WasmtimeComponentLinker<WasmtimeTraceState>) -> Result<(), WasmBuildError>,
 {
+    collect_wasmtime_component_run_with_linker_and_args(component_bytes, export, &[], configure_linker)
+}
+
+/// [`collect_wasmtime_component_run_with_linker`] for exports with
+/// parameters: `args` are passed to the component-level call (canonical ABI
+/// lowering lands them in the export's locals).
+pub fn collect_wasmtime_component_run_with_linker_and_args<F>(
+    component_bytes: &[u8],
+    export: &str,
+    args: &[ComponentVal],
+    configure_linker: F,
+) -> Result<WasmtimeTraceRun, WasmBuildError>
+where
+    F: FnOnce(&mut WasmtimeComponentLinker<WasmtimeTraceState>) -> Result<(), WasmBuildError>,
+{
     let parsed = parse_first_component_core_module_artifacts(component_bytes)?;
 
     let mut config = Config::new();
@@ -400,7 +415,7 @@ where
         .results()
         .map(default_component_result_value)
         .collect::<Result<_, _>>()?;
-    block_on(func.call_async(&mut store, &[], &mut results))
+    block_on(func.call_async(&mut store, args, &mut results))
         .map_err(|err| WasmBuildError::Trace(format!("failed to execute component export '{export}': {err}")))?;
 
     let steps = store.data().steps.clone();

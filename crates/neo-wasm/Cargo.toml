@@ -1,0 +1,41 @@
+[package]
+name = "neo-wasm"
+edition = { workspace = true }
+version = { workspace = true }
+authors = { workspace = true }
+license = "Apache-2.0"
+
+[lints]
+workspace = true
+
+[features]
+default = []
+
+[dependencies]
+neo-ajtai = { path = "../neo-ajtai" }
+neo-ccs = { path = "../neo-ccs" }
+neo-fold-clean = { path = "../neo-fold-clean" }
+neo-math = { path = "../neo-math" }
+neo-params = { path = "../neo-params" }
+neo-reductions = { path = "../neo-reductions" }
+neo-transcript = { path = "../neo-transcript" }
+bincode = { workspace = true }
+ff = { workspace = true, features = ["derive"] }
+futures = "0.3"
+once_cell = { workspace = true }
+p3-field = { workspace = true }
+p3-goldilocks = { workspace = true }
+p3-poseidon2 = { workspace = true }
+rayon = { workspace = true }
+rand_chacha_p3 = { workspace = true }
+serde = { workspace = true }
+sha2 = "0.10"
+spartan2 = { workspace = true }
+thiserror = { workspace = true }
+wasmparser = "0.240"
+wasmtime = { version = "46.0.0", features = ["debug", "cranelift"] }
+
+[dev-dependencies]
+object = "0.37"
+rand_chacha = { workspace = true }
+wat = "1"

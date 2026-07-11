@@ -272,10 +272,15 @@ pub enum PoseidonPreimageLaneSource {
     /// `lane_slots.public_x_out_binding_lanes[binding_index][lane]`,
     /// resolved through `lane_terms(slot)`.
     PublicXOutBindingLane { binding_index: usize, lane: usize },
-    /// Canonical-u64 value of the `j`-th app-assignment variable —
-    /// `lane_slots.app_assignment_lanes[var_index]`. Resolved through
-    /// `lane_terms(slot)` directly from the 64 committed bits at
-    /// `layout.app_private.offset + var_index * 64`.
+    /// Canonical-u64 value of the `var_index`-th app-assignment
+    /// variable — `lane_slots.app_assignment_lanes[var_index]`. Resolved
+    /// through `lane_terms(slot)` from 64 committed bits, so the
+    /// referenced variable MUST be committed at 64 bits even when other
+    /// variables in the same `app_private` region are narrower. The
+    /// slot's `bit_start` is laid by the frontend that built the
+    /// lane-slots: the legacy uniform-64 layout places it at
+    /// `app_private.offset + var_index * 64`; per-variable widths place
+    /// it at `app_private.offset + Σ_{k<var_index} widths[k]`.
     ///
     /// Intended for app frontends (R1CS today) that bind app-level
     /// public-input bits to an algebraically-enforced Poseidon hash so

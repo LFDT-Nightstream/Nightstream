@@ -9,6 +9,7 @@
 //! through `runtime_read` and opcode/control metadata through `decode`; it
 //! does not run the engine or parse binaries.
 
+mod grammar_emit;
 mod trace_build;
 
 pub use trace_build::{traces_from_wasmtime_steps, traces_from_wasmtime_steps_with_grammar};
@@ -77,8 +78,12 @@ struct NormalizedStep {
     /// Parsed local values at this step (before execution). Used to build aux param-init rows at
     /// call boundaries.
     locals_snapshot: Vec<u32>,
+    /// High 32-bit lanes of the locals snapshot (i64 locals).
+    locals_snapshot_hi: Vec<u32>,
     linear_memory: Option<LinearMemoryAccess>,
     linear_memory_offset: u64,
+    /// Oracle words recorded on this (host-call) row at collection time.
+    host_call_oracles: Vec<u64>,
 }
 
 fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, WasmBuildError> {
@@ -245,8 +250,10 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
         pc_after_instruction: row.pc_after_instruction,
         num_locals: row.num_locals,
         locals_snapshot,
+        locals_snapshot_hi: row.locals_words_hi.clone(),
         linear_memory,
         linear_memory_offset: row.memory.as_ref().map(|memory| memory.offset).unwrap_or(0),
+        host_call_oracles: row.host_call_oracles.clone(),
     }))
 }
 
@@ -494,6 +501,7 @@ pub(crate) fn capture_frame<T>(
         num_locals: num_locals as u32,
         call_return_pc: decoded_opcode.as_ref().and_then(|d| d.call_return_pc),
         pc_after_instruction: decoded_opcode.as_ref().map(|d| d.pc_after_instruction),
+        host_call_oracles: Vec::new(),
     })
 }
 

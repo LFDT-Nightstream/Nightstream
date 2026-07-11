@@ -210,14 +210,28 @@ pub fn semantic_state_digest(state: WasmStepState) -> [u8; 32] {
     digest_fields_as_digest32(encode_poseidon_trace(&build_semantic_state_preimage_fields(&fields)).digest_native)
 }
 
-/// [`top_level_initial_state`] for a grammar-mode program: identical except
-/// the carried `grammar_mode` constant is set, which the verifier pins
-/// through the initial semantic digest (see `ir::WasmStepState::grammar_mode`).
-pub fn grammar_top_level_initial_state(tables: &WasmProgramTables, entry_pc: u64) -> WasmStepState {
-    WasmStepState {
-        grammar_mode: true,
-        ..top_level_initial_state(tables, entry_pc)
+/// [`top_level_initial_state`] for a grammar-mode program: sets the carried
+/// `grammar_mode` constant and, when the invoked export has a boundary
+/// template, latches the entry schedule the trace's entry gather rows will
+/// consume — the owed entry-event count and the event attribution pointed
+/// at the export. Per-program only: event VALUES (claim inputs, oracles)
+/// are not anchored here — they are bound by comparing the final carried
+/// `comm_chain` against the natively folded claimed transcript (see
+/// [`crate::comm_chain::fold_event_blocks`]), which is also what makes multi-turn re-entry
+/// possible without re-anchoring.
+pub fn grammar_top_level_initial_state(
+    tables: &WasmProgramTables,
+    entry_pc: u64,
+    grammar: &crate::event_grammar::HostEventGrammar,
+    export_fref: u32,
+) -> WasmStepState {
+    let mut state = top_level_initial_state(tables, entry_pc);
+    state.grammar_mode = true;
+    if let Some(template) = grammar.exports.get(&export_fref) {
+        state.host_callee_fref = export_fref;
+        state.grammar.events_remaining = template.entry.len() as u32;
     }
+    state
 }
 
 /// Convenience wrapper for the common top-level export-entry boundary.
@@ -226,8 +240,13 @@ pub fn top_level_initial_state_digest(tables: &WasmProgramTables, entry_pc: u64)
 }
 
 /// [`top_level_initial_state_digest`] for a grammar-mode program.
-pub fn grammar_top_level_initial_state_digest(tables: &WasmProgramTables, entry_pc: u64) -> [u8; 32] {
-    semantic_state_digest(grammar_top_level_initial_state(tables, entry_pc))
+pub fn grammar_top_level_initial_state_digest(
+    tables: &WasmProgramTables,
+    entry_pc: u64,
+    grammar: &crate::event_grammar::HostEventGrammar,
+    export_fref: u32,
+) -> [u8; 32] {
+    semantic_state_digest(grammar_top_level_initial_state(tables, entry_pc, grammar, export_fref))
 }
 
 fn carried_state_field(state: WasmStepState, column: Column) -> F {

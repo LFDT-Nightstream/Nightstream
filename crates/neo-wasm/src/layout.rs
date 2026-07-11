@@ -429,7 +429,7 @@ define_columns!(
     (COL_GRAMMAR_ORACLE1_AFTER, "per-call grammar oracle cell 1 after this row"),
     (COL_GRAMMAR_ORACLE2_AFTER, "per-call grammar oracle cell 2 after this row"),
     (COL_GRAMMAR_ORACLE3_AFTER, "per-call grammar oracle cell 3 after this row"),
-    (COL_GRAMMAR_SLOT_KIND, "grammar-ROM slot source kind (0 const, 1 arg, 2 result, 3 oracle)"),
+    (COL_GRAMMAR_SLOT_KIND, "grammar-ROM slot source kind (0 const, 1 arg, 2 result, 3 oracle, 4 input-local, 5 output, 6 input)"),
     (COL_GRAMMAR_SLOT_ARG, "grammar-ROM slot arg/oracle index"),
     (COL_GRAMMAR_SLOT_LIMB, "grammar-ROM slot limb select (0 lo, 1 hi)"),
     (COL_GRAMMAR_SLOT_CONST_LO, "grammar-ROM slot constant, low 32 bits"),
@@ -443,6 +443,26 @@ define_columns!(
     (
         COL_GRAMMAR_RESULT_ACTIVE,
         "host-result row in grammar mode: host_result_active · grammar_mode"
+    ),
+    (
+        COL_GATHER_LOCAL_WRITE,
+        "gather row writing a claim-input word into an entry-frame locals lane (slot kind 4); gates the hi-lane write (zero on lo rows)",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_GATHER_LOCAL_WRITE_LO,
+        "input-local gather row targeting the lo lane: gather_local_write · (1 - slot_limb)",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_GRAMMAR_EXIT_LATCH,
+        "output-capture row in grammar mode: loads the export's exit-event schedule",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_PC_FREF_ACTIVE,
+        "pc -> function-ref ROM gate: every row except gather rows (post-halt exit gathers sit past the last pc)",
+        ColumnWidth::Boolean
     ),
     (
         COL_HOST_RESULT_ACTIVE,

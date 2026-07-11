@@ -20,6 +20,7 @@ pub struct AuditProof {
 pub enum AuditProveError {
     Bridge(String),
     FinalStateMismatch,
+    TranscriptMismatch,
 }
 
 impl core::fmt::Display for AuditProveError {
@@ -29,6 +30,10 @@ impl core::fmt::Display for AuditProveError {
             Self::FinalStateMismatch => write!(
                 f,
                 "claimed final VM state does not match the replayed semantic-state digest"
+            ),
+            Self::TranscriptMismatch => write!(
+                f,
+                "the verified final commitment chain does not equal the claimed transcript's fold"
             ),
         }
     }
@@ -73,6 +78,24 @@ pub fn verify(
         .map_err(|err| AuditProveError::Bridge(format!("verify_uncompressed_audit: {err}")))?;
     if proof.run.proof.state.semantic_state_digest != semantic_state_digest(claimed_final_state) {
         return Err(AuditProveError::FinalStateMismatch);
+    }
+    Ok(())
+}
+
+/// [`verify`] plus transcript binding for the standalone (no interleaving
+/// proof) path: after the replayed chain verifies, the claimed final
+/// state's `comm_chain` must equal the native fold of `transcript` — the
+/// claimed event blocks in emission order.
+pub fn verify_with_transcript(
+    prep: &R1csFPrimePreprocessing,
+    proof: &AuditProof,
+    claimed_final_state: WasmStepState,
+    transcript: &[[p3_goldilocks::Goldilocks; neo_wasm::comm_chain::COMM_CHAIN_BLOCK_WORDS]],
+) -> Result<(), AuditProveError> {
+    verify(prep, proof, claimed_final_state)?;
+    let fold = neo_wasm::comm_chain::fold_event_blocks(transcript);
+    if claimed_final_state.comm_chain != fold.map(|limb| p3_field::PrimeField64::as_canonical_u64(&limb)) {
+        return Err(AuditProveError::TranscriptMismatch);
     }
     Ok(())
 }

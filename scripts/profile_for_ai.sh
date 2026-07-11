@@ -122,7 +122,7 @@ TEMP_SAMPLE="/tmp/profile-sample-$$.txt"
 
 # Run the test in background and sample it
 echo "🚀 Starting test and sampling for ${SAMPLE_DURATION}s..."
-"$TEST_BINARY" $TEST_ARGS > "$TEMP_TEST_OUTPUT" 2>&1 &
+perl -e 'alarm shift; exec @ARGV' 300 "$TEST_BINARY" $TEST_ARGS > "$TEMP_TEST_OUTPUT" 2>&1 &
 TEST_PID=$!
 
 # Wait a moment for the test to start

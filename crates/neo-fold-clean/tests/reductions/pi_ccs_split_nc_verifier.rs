@@ -461,6 +461,23 @@ fn assert_same_matrix(left: &CcsMatrix<F>, right: &CcsMatrix<F>) {
             assert_eq!(left.row_idx, right.row_idx);
             assert_eq!(left.vals, right.vals);
         }
+        (
+            CcsMatrix::CscWithSeededPhi81 {
+                csc: left_csc,
+                blocks: left_blocks,
+            },
+            CcsMatrix::CscWithSeededPhi81 {
+                csc: right_csc,
+                blocks: right_blocks,
+            },
+        ) => {
+            assert_eq!(left_csc.nrows, right_csc.nrows);
+            assert_eq!(left_csc.ncols, right_csc.ncols);
+            assert_eq!(left_csc.col_ptr, right_csc.col_ptr);
+            assert_eq!(left_csc.row_idx, right_csc.row_idx);
+            assert_eq!(left_csc.vals, right_csc.vals);
+            assert_eq!(left_blocks, right_blocks);
+        }
         _ => panic!("matrix representation changed with the header witness"),
     }
 }
@@ -961,7 +978,7 @@ fn split_nc_pi_ccs_v_rejects_tampered_parent_authority_ct() {
 #[test]
 fn split_nc_pi_ccs_v_rejects_tampered_parent_authority_s_col() {
     // s_col is not part of the paper CE tuple, but it is carried by the
-    // SplitNc implementation and included in the full accumulator handle.
+    // SplitNc implementation and constrained against the verified parent.
     // It must not be a free metadata field.
     let mut fixture = build_fixture();
     let parent = fixture

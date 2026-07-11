@@ -29,7 +29,7 @@ use neo_math::ring::{D, PHI_MID_DEGREE};
 use neo_math::F;
 use p3_field::{Field, PrimeCharacteristicRing};
 
-use crate::engine::r1cs_circuit::builder::{Lc, R1csBuilder, Var};
+use crate::engine::r1cs_circuit::builder::{Lc, PolynomialEvaluationTrace, R1csBuilder, Var};
 
 const TABLE_LEN: usize = 2 * D - 1;
 const TOOM3_SPLIT: usize = D / 3;
@@ -406,6 +406,8 @@ pub fn enforce_beta_ladder(builder: &mut R1csBuilder, beta: KVar, top: usize) ->
 /// product wires per coefficient (the `j = 0` term is free: `β^0 = 1`).
 pub fn enforce_eval_at_beta(builder: &mut R1csBuilder, coeffs: &[Var], powers: &[KVar]) -> KVar {
     assert!(coeffs.len() <= powers.len(), "ladder too short for this polynomial");
+    let row_start = builder.rows();
+    let column_start = builder.cols();
     let mut sum = KLc::zero();
     for (j, &coeff) in coeffs.iter().enumerate() {
         if j == 0 {
@@ -417,7 +419,44 @@ pub fn enforce_eval_at_beta(builder: &mut R1csBuilder, coeffs: &[Var], powers: &
         sum.c0.add_term(p0, F::ONE);
         sum.c1.add_term(p1, F::ONE);
     }
-    alloc_klc(builder, &sum)
+    let output = alloc_klc(builder, &sum);
+    builder.record_polynomial_evaluation(PolynomialEvaluationTrace {
+        row_start,
+        row_end: builder.rows(),
+        allocated_columns: (column_start..builder.cols()).collect(),
+        coefficient_cols: coeffs.iter().map(|value| value.col()).collect(),
+        power_cols: powers[..coeffs.len()]
+            .iter()
+            .map(|power| [power.c0.col(), power.c1.col()])
+            .collect(),
+        output_cols: [output.c0.col(), output.c1.col()],
+    });
+    output
+}
+
+/// Evaluations tied to an exact ordered list of polynomial wire columns.
+/// Private fields prevent a caller from pairing cached values with different
+/// transcript-derived polynomials.
+pub struct PolynomialEvaluationsAtBeta {
+    source_columns: Vec<[usize; D]>,
+    evaluations: Vec<KVar>,
+}
+
+pub fn enforce_polynomial_evaluations_at_beta(
+    builder: &mut R1csBuilder,
+    polynomials: &[[Var; D]],
+    powers: &[KVar],
+) -> PolynomialEvaluationsAtBeta {
+    PolynomialEvaluationsAtBeta {
+        source_columns: polynomials
+            .iter()
+            .map(|polynomial| polynomial.map(Var::col))
+            .collect(),
+        evaluations: polynomials
+            .iter()
+            .map(|polynomial| enforce_eval_at_beta(builder, polynomial, powers))
+            .collect(),
+    }
 }
 
 /// Enforce `out = Σ_i ρ_i · c_i (mod Φ)` via the projection identity at
@@ -435,11 +474,33 @@ pub fn enforce_ring_action_projection_batch(
     out: &[Var; D],
     quotient: &[Var; PROJECTION_QUOTIENT_LEN],
 ) {
+    let rho_polynomials = pairs.iter().map(|(rho, _)| **rho).collect::<Vec<_>>();
+    let rho_evaluations = enforce_polynomial_evaluations_at_beta(builder, &rho_polynomials, powers);
+    enforce_ring_action_projection_batch_with_rho_evaluations(builder, powers, &rho_evaluations, pairs, out, quotient);
+}
+
+/// Projection identity using rho evaluations constrained once and reused by
+/// every commitment, X, and evaluation-vector client in the same NIFS step.
+pub fn enforce_ring_action_projection_batch_with_rho_evaluations(
+    builder: &mut R1csBuilder,
+    powers: &[KVar],
+    rho_evaluations: &PolynomialEvaluationsAtBeta,
+    pairs: &[(&[Var; D], &[Var; D])],
+    out: &[Var; D],
+    quotient: &[Var; PROJECTION_QUOTIENT_LEN],
+) {
+    let identity_row_start = builder.rows();
     assert!(powers.len() > D, "ladder must reach β^D for Φ(β)");
+    assert_eq!(rho_evaluations.evaluations.len(), pairs.len(), "rho evaluation count");
     // Σ_i ρ_i(β) · c_i(β), one K-mult per pair.
     let mut lhs = KLc::zero();
-    for (rho, c) in pairs {
-        let rho_eval = enforce_eval_at_beta(builder, rho.as_slice(), powers);
+    for (pair_index, (rho, c)) in pairs.iter().enumerate() {
+        assert_eq!(
+            rho_evaluations.source_columns[pair_index],
+            rho.map(Var::col),
+            "cached rho evaluation must match the identity's rho wires"
+        );
+        let rho_eval = rho_evaluations.evaluations[pair_index];
         let c_eval = enforce_eval_at_beta(builder, c.as_slice(), powers);
         let term = enforce_k_mul(builder, &KLc::from_var(rho_eval), &KLc::from_var(c_eval));
         lhs.c0.add_term(term.c0, F::ONE);
@@ -466,6 +527,7 @@ pub fn enforce_ring_action_projection_batch(
 
     builder.enforce_eq(&lhs.c0, &rhs.c0);
     builder.enforce_eq(&lhs.c1, &rhs.c1);
+    builder.record_row_family("nifs.pi_rlc.projection_identity", identity_row_start);
 }
 
 /// Prover-side companion of [`enforce_ring_action_projection_batch`]:

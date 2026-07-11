@@ -173,6 +173,30 @@ impl Params {
         self.inner.lambda
     }
 
+    /// Validate these selected parameters against an actual CCS shape using
+    /// SuperNeo D.4's full matrix-count and degree-aware soundness factor.
+    pub fn validate_ccs_shape(
+        &self,
+        shape_size: usize,
+        matrix_count: usize,
+        poly_degree: u32,
+    ) -> Result<neo_params::ExtensionSummary, neo_params::ParamsError> {
+        self.inner
+            .extension_check_ccs_shape(shape_size, matrix_count, poly_degree)
+    }
+
+    /// Exact SuperNeo D.4 Π_CCS soundness numerator for this shape. The
+    /// corresponding interactive error is `factor / |K|`.
+    pub fn ccs_soundness_factor(
+        &self,
+        shape_size: usize,
+        matrix_count: usize,
+        poly_degree: u32,
+    ) -> Result<u128, neo_params::ParamsError> {
+        self.inner
+            .pi_ccs_soundness_factor_for_shape(shape_size, matrix_count, poly_degree)
+    }
+
     /// True exactly for the SuperNeo Appendix B.2 Goldilocks production preset.
     pub fn is_production(&self) -> bool {
         self.inner.is_goldilocks_paper_b2()

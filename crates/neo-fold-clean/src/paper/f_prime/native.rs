@@ -274,7 +274,7 @@ pub fn prove_with_semantic_state(
         chunk_digest,
         semantic_advance,
         nebula_advance.map(|adv| adv.lane_out),
-    );
+    )?;
     let semantic_mode = match semantic_advance {
         SemanticStateAdvance::Stateless => SemanticStateMode::Stateless,
         SemanticStateAdvance::Stateful(_) => SemanticStateMode::Stateful,
@@ -433,7 +433,7 @@ pub fn verify(
         chunk_digest,
         semantic_advance,
         nebula_advance.map(|adv| adv.lane_out),
-    );
+    )?;
     if matches!(semantic_mode, SemanticStateMode::Stateless)
         && next_state.semantic_state_digest != proof.semantic_state_digest
     {

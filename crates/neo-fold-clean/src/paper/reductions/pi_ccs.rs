@@ -23,7 +23,7 @@ use thiserror::Error;
 
 use neo_ajtai::AjtaiSModule;
 use neo_math::{D, K};
-use neo_reductions::optimized_engine::OptimizedStructureCache;
+use neo_reductions::optimized_engine::{OptimizedStructureCache, PiDecProverPrecompute};
 
 use crate::engine::optimized as engine;
 use crate::engine::transcript::Transcript;
@@ -71,7 +71,7 @@ pub fn prove(
     running: &RunningInstance,
 ) -> Result<Proof, Error> {
     let (fresh_claims, fresh_witnesses) = split_fresh_instances(fresh);
-    prove_from_parts(tr, pp, s, cache, log, &fresh_claims, &fresh_witnesses, running)
+    prove_from_parts(tr, pp, s, cache, log, &fresh_claims, &fresh_witnesses, running).map(|(proof, _)| proof)
 }
 
 pub(crate) fn prove_from_parts(
@@ -83,9 +83,9 @@ pub(crate) fn prove_from_parts(
     fresh_claims: &[CcsClaim],
     fresh_witnesses: &[CcsWitness],
     running: &RunningInstance,
-) -> Result<Proof, Error> {
+) -> Result<(Proof, PiDecProverPrecompute), Error> {
     validate_input_shape(pp, s, fresh_claims, fresh_witnesses, running)?;
-    let (mut outputs, sumcheck) = engine::prove_pi_ccs_parts(
+    let (mut outputs, sumcheck, pi_dec_precompute) = engine::prove_pi_ccs_parts(
         tr.inner_mut(),
         pp,
         s,
@@ -97,7 +97,7 @@ pub(crate) fn prove_from_parts(
     )?;
     forward_adv(fresh_claims, &running.claims, &mut outputs)?;
     validate_clean_split_nc_claims(s, &outputs)?;
-    Ok(Proof { sumcheck, outputs })
+    Ok((Proof { sumcheck, outputs }, pi_dec_precompute))
 }
 
 /// Spec §5.2 R2 (Π_CCS side): the reduction changes evaluation claims, not

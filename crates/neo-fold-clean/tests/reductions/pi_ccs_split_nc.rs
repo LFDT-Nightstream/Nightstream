@@ -20,7 +20,7 @@ use neo_fold_clean::paper::digest::{
     accumulator_ce_claim_digest, accumulator_digest_from_running_parts, ccs_claim_digest, ce_claim_digest,
     digest32_as_fields, pi_ccs_instance_digest, pi_ccs_instance_digest_parent_authority, pi_ccs_outputs_digest,
 };
-use neo_fold_clean::paper::reductions::accumulator_digest_circuit::enforce_accumulator_digest_from_running_circuit;
+use neo_fold_clean::paper::reductions::accumulator_digest_circuit::enforce_accumulator_digest_from_parent_circuit;
 use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::{
     absorb_engine_header_bundle_and_instance_digest, absorb_engine_me_inputs_accumulator_handle,
     enforce_accumulator_ce_claim_digest, enforce_ccs_claim_digest, enforce_ce_claim_digest, enforce_fe_claimed_initial,
@@ -893,12 +893,11 @@ fn accumulator_ce_claim_digest_ignores_y_zcol_non_authority() {
 }
 
 #[test]
-fn enforce_full_running_accumulator_digest_matches_native_with_parent() {
-    // The running-accumulator handle is the in-circuit replacement for
-    // hashing HyperNova's U_i in `state_x_out`: all authority-bearing child
-    // fields plus the Π_RLC parent authority. This test pins the exact
-    // native/circuit Poseidon2 preimage, independently of the larger SplitNc
-    // verifier.
+fn enforce_parent_authority_accumulator_digest_matches_native() {
+    // NIFS.V has already established Pi_DEC(parent, children). The compact
+    // HyperNova handle therefore hashes the same parent CE authority used by
+    // the Pi_CCS transcript, plus the child count. Pin that wrapper's exact
+    // native/circuit Poseidon2 preimage independently of the larger verifier.
     let child_a = build_test_accumulator_ce_claim(0xA11CE);
     let child_b = build_test_accumulator_ce_claim(0xB0B);
     let parent = build_test_accumulator_ce_claim(0xFA12_EA7E_u64);
@@ -908,11 +907,8 @@ fn enforce_full_running_accumulator_digest_matches_native_with_parent() {
     ));
 
     let mut b = R1csBuilder::new();
-    let child_a_digest = enforce_accumulator_claim_digest_for_test(&mut b, &child_a);
-    let child_b_digest = enforce_accumulator_claim_digest_for_test(&mut b, &child_b);
-    let parent_digest = enforce_accumulator_claim_digest_for_test(&mut b, &parent);
-    let digest =
-        enforce_accumulator_digest_from_running_circuit(&mut b, &[child_a_digest, child_b_digest], Some(parent_digest));
+    let parent_digest = ce_claim_digest(&parent).map(|lane| alloc_witness_var(&mut b, lane));
+    let digest = enforce_accumulator_digest_from_parent_circuit(&mut b, 2, Some(parent_digest));
 
     for (i, var) in digest.iter().enumerate() {
         assert_eq!(b.witness()[var.col()], native_digest[i], "lane {i}");
@@ -920,7 +916,7 @@ fn enforce_full_running_accumulator_digest_matches_native_with_parent() {
     }
     assert!(
         b.is_satisfied(),
-        "running-accumulator authority digest parity (first bad row: {:?})",
+        "parent-authority accumulator digest parity (first bad row: {:?})",
         b.first_unsatisfied_row()
     );
 }

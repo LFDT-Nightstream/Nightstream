@@ -32,12 +32,17 @@
 #[path = "../support/mod.rs"]
 mod support;
 
-use neo_math::F;
-use p3_field::PrimeCharacteristicRing;
+use neo_math::{D, F};
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use neo_ccs::matrix::Mat as NeoMat;
 use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
+use neo_fold_clean::engine::r1cs_circuit::alphabet_sampling::enforce_alphabet_sample_5_d;
 use neo_fold_clean::engine::r1cs_circuit::boolean::enforce_bit;
+use neo_fold_clean::engine::r1cs_circuit::field_ext::{enforce_k_dot_product, KVar};
+use neo_fold_clean::engine::r1cs_circuit::poseidon2::enforce_poseidon2_permutation;
+use neo_fold_clean::engine::r1cs_circuit::ring_action::{enforce_beta_ladder, enforce_eval_at_beta};
+use neo_fold_clean::engine::r1cs_circuit::transcript::TranscriptGadget;
 use neo_fold_clean::engine::r1cs_circuit::u64_arith::decompose_var_to_u64_bits;
 use neo_fold_clean::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
 use neo_fold_clean::frontends::direct_ccs::R1cs;
@@ -45,10 +50,11 @@ use neo_fold_clean::frontends::f_prime::compiler::{verify_prior_fold, FPrimeShel
 use neo_fold_clean::frontends::f_prime::image::FPrimeImageLayout;
 use neo_fold_clean::frontends::f_prime::recursive_plan::build_recursive_step_image_config;
 use neo_fold_clean::frontends::r1cs_f_prime::{
-    self, build_fixed_shape_low_norm_r1cs, build_fixed_shape_low_norm_r1cs_with_shared_private_prefix,
-    build_multi_branch_low_norm_r1cs, build_r1cs_f_prime_structure, compile_step, lower_field_r1cs,
-    lower_sparse_r1cs_to_low_norm, start_chain, FieldR1csLoweringError, FixedR1csBranch, LowNormR1csError,
-    R1csChainBuilder, R1csCompilerError, R1csFPrimeStepInput, R1csFoldForStep,
+    self, audit_multi_branch_selective_low_norm_width_with_alignment, build_fixed_shape_low_norm_r1cs,
+    build_fixed_shape_low_norm_r1cs_with_shared_private_prefix, build_multi_branch_low_norm_r1cs,
+    build_multi_branch_selective_low_norm_r1cs_with_alignment, build_r1cs_f_prime_structure, compile_step,
+    lower_field_r1cs, lower_sparse_r1cs_to_low_norm, start_chain, FieldR1csLoweringError, FixedR1csBranch,
+    LowNormR1csError, R1csChainBuilder, R1csCompilerError, R1csFPrimeStepInput, R1csFoldForStep,
 };
 use neo_fold_clean::paper::construction2::{FoldProof, ProofState};
 use neo_fold_clean::paper::digest::structure_digest;
@@ -1229,5 +1235,263 @@ fn multi_branch_lowering_preserves_canonical_bit_aliases() {
         }
         let encoded = fixed.encode(arm, &assignments[arm]).expect("arm encoding");
         assert!(fixed.is_satisfied(&encoded), "arm {arm} must remain satisfiable");
+    }
+}
+
+#[test]
+fn selective_multi_branch_lowering_preserves_poseidon_semantics() {
+    let mut shapes = Vec::new();
+    let mut assignments = Vec::new();
+    for arm in 0..3u64 {
+        let mut builder = R1csBuilder::new();
+        let input = core::array::from_fn(|lane| builder.alloc(F::from_u64(arm * 17 + lane as u64 + 1)));
+        let output = enforce_poseidon2_permutation(&mut builder, &input);
+        let output_bits = decompose_var_to_u64_bits(&mut builder, output[0]);
+        let lowered = lower_field_r1cs(builder, &[output_bits[0]]).expect("field lowering");
+        let (shape, assignment) = lowered.into_parts();
+        shapes.push(shape);
+        assignments.push(assignment);
+    }
+
+    let audit =
+        audit_multi_branch_selective_low_norm_width_with_alignment(&shapes, 0, 54, 0).expect("selective width audit");
+    for arm in &audit.arms {
+        assert_eq!(
+            arm.traces.poseidon2_columns, 87,
+            "one public-output lane plus 86 S-box outputs must remain; seven private final outputs are linear definitions"
+        );
+    }
+
+    let relation =
+        build_multi_branch_selective_low_norm_r1cs_with_alignment(&shapes, 0, 54, 0).expect("selective relation");
+    for arm in 0..3 {
+        let encoded = relation.encode(arm, &assignments[arm]).expect("encode arm");
+        assert!(relation.is_satisfied(&encoded), "arm {arm} selective Poseidon relation");
+
+        let mut tampered = encoded;
+        tampered[1] = if tampered[1] == F::ZERO { F::ONE } else { F::ZERO };
+        assert!(
+            !relation.is_satisfied(&tampered),
+            "arm {arm} public Poseidon output tamper must fail"
+        );
+    }
+}
+
+#[test]
+fn selective_multi_branch_lowering_preserves_rejection_sampling() {
+    let mut shapes = Vec::new();
+    let mut assignments = Vec::new();
+    for arm in 0..3u64 {
+        let mut builder = R1csBuilder::new();
+        let mut transcript = TranscriptGadget::new(&mut builder, b"selective-product-sum-test");
+        let symbols = enforce_alphabet_sample_5_d(&mut builder, &mut transcript, 90 + arm);
+        let symbol_bits = decompose_var_to_u64_bits(&mut builder, symbols[0]);
+        let lowered = lower_field_r1cs(builder, &[symbol_bits[0]]).expect("field lowering");
+        let (shape, assignment) = lowered.into_parts();
+        shapes.push(shape);
+        assignments.push(assignment);
+    }
+
+    let relation =
+        build_multi_branch_selective_low_norm_r1cs_with_alignment(&shapes, 0, 54, 0).expect("selective relation");
+    for arm in 0..3 {
+        let encoded = relation.encode(arm, &assignments[arm]).expect("encode arm");
+        assert!(relation.is_satisfied(&encoded), "arm {arm} product-sum relation");
+    }
+}
+
+#[test]
+fn selective_multi_branch_balanced_ternary_handles_field_edges_and_rejects_non_unit_digits() {
+    let values = [F::ZERO, F::from_u64(F::ORDER_U64 / 2), F::from_u64(F::ORDER_U64 - 1)];
+    let mut shapes = Vec::new();
+    let mut assignments = Vec::new();
+    for value in values {
+        let mut builder = R1csBuilder::new();
+        let private = builder.alloc(value);
+        let square = builder.alloc_mul(&Lc::from_var(private), &Lc::from_var(private));
+        builder.enforce_eq(&Lc::from_var(square), &Lc::from_const(value * value));
+        let public = builder.alloc(F::ONE);
+        enforce_bit(&mut builder, public);
+        let lowered = lower_field_r1cs(builder, &[public]).expect("field lowering");
+        let (shape, assignment) = lowered.into_parts();
+        assert_eq!(assignment[shape.m_in], value, "private edge value moved unexpectedly");
+        shapes.push(shape);
+        assignments.push(assignment);
+    }
+
+    let relation =
+        build_multi_branch_selective_low_norm_r1cs_with_alignment(&shapes, 0, 54, 0).expect("selective relation");
+    for arm in 0..3 {
+        let private_slot = relation
+            .field_slot(arm, shapes[arm].m_in)
+            .expect("retained private field slot");
+        assert_eq!(private_slot.1, 41, "non-canonical full fields use balanced ternary");
+        let encoded = relation
+            .encode(arm, &assignments[arm])
+            .expect("balanced encoding");
+        assert!(
+            encoded
+                .iter()
+                .all(|value| *value == F::ZERO || *value == F::ONE || *value == -F::ONE),
+            "every committed coordinate must satisfy the b=2 norm alphabet"
+        );
+        assert!(relation.is_satisfied(&encoded), "arm {arm} balanced encoding");
+
+        let mut tampered = encoded;
+        tampered[private_slot.0] = F::from_u64(2);
+        assert!(
+            !relation.is_satisfied(&tampered),
+            "a balanced digit outside {{-1,0,1}} must fail"
+        );
+    }
+}
+
+#[test]
+fn selective_multi_branch_equal_field_alias_rejects_inconsistent_source_assignment() {
+    let mut shapes = Vec::new();
+    let mut assignments = Vec::new();
+    for arm in 0..3u64 {
+        let mut builder = R1csBuilder::new();
+        let source = builder.alloc(F::from_u64(arm + 9));
+        let copy = builder.alloc(F::from_u64(arm + 9));
+        builder.enforce_eq(&Lc::from_var(copy), &Lc::from_var(source));
+        decompose_var_to_u64_bits(&mut builder, source);
+        decompose_var_to_u64_bits(&mut builder, copy);
+        let product = builder.alloc_mul(&Lc::from_var(copy), &Lc::from_var(source));
+        builder.enforce_eq(
+            &Lc::from_var(product),
+            &Lc::from_const(F::from_u64(arm + 9) * F::from_u64(arm + 9)),
+        );
+        let public = builder.alloc(F::ONE);
+        enforce_bit(&mut builder, public);
+        let lowered = lower_field_r1cs(builder, &[public]).expect("field lowering");
+        let (shape, assignment) = lowered.into_parts();
+        shapes.push(shape);
+        assignments.push(assignment);
+    }
+
+    let relation =
+        build_multi_branch_selective_low_norm_r1cs_with_alignment(&shapes, 0, 54, 0).expect("selective relation");
+    for arm in 0..3 {
+        let source = shapes[arm].m_in;
+        let copy = source + 1;
+        assert_eq!(relation.field_slot(arm, source), relation.field_slot(arm, copy));
+        let encoded = relation
+            .encode(arm, &assignments[arm])
+            .expect("equal-field encoding");
+        assert!(relation.is_satisfied(&encoded));
+
+        let mut inconsistent = assignments[arm].clone();
+        inconsistent[copy] += F::ONE;
+        assert!(matches!(
+            relation.encode(arm, &inconsistent),
+            Err(LowNormR1csError::AliasedFieldMismatch {
+                field_col,
+                source_col,
+            }) if field_col == copy && source_col == source
+        ));
+    }
+}
+
+#[test]
+fn selective_multi_branch_lowering_preserves_k_dot_product() {
+    let mut shapes = Vec::new();
+    let mut assignments = Vec::new();
+    let mut q_sum_cols = Vec::new();
+    for arm in 0..3u64 {
+        let mut builder = R1csBuilder::new();
+        let left: [KVar; 6] = core::array::from_fn(|i| {
+            KVar::alloc(
+                &mut builder,
+                F::from_u64(arm + i as u64 + 2),
+                F::from_u64(arm + i as u64 + 3),
+            )
+        });
+        let right: [KVar; 6] = core::array::from_fn(|i| {
+            KVar::alloc(
+                &mut builder,
+                F::from_u64(arm + i as u64 + 5),
+                F::from_u64(arm + i as u64 + 7),
+            )
+        });
+        let product_start = builder.cols();
+        let output = enforce_k_dot_product(&mut builder, &left, &right);
+        // The selected output bit moves to column 1 during field lowering.
+        q_sum_cols.push(product_start + 5 * left.len() + 1);
+        let output_bits = decompose_var_to_u64_bits(&mut builder, output.c0);
+        let lowered = lower_field_r1cs(builder, &[output_bits[0]]).expect("field lowering");
+        let (shape, assignment) = lowered.into_parts();
+        shapes.push(shape);
+        assignments.push(assignment);
+    }
+
+    let relation =
+        build_multi_branch_selective_low_norm_r1cs_with_alignment(&shapes, 0, 54, 0).expect("selective relation");
+    for arm in 0..3 {
+        let encoded = relation.encode(arm, &assignments[arm]).expect("encode arm");
+        assert!(relation.is_satisfied(&encoded), "arm {arm} K-multiplication relation");
+        let q_slot = relation
+            .field_slot(arm, q_sum_cols[arm])
+            .expect("Q aggregate slot");
+        let mut tampered = encoded;
+        tampered[q_slot.0] = if tampered[q_slot.0] == F::ZERO { F::ONE } else { F::ZERO };
+        assert!(
+            !relation.is_satisfied(&tampered),
+            "arm {arm} accepted a changed unit Q digit"
+        );
+    }
+}
+
+#[test]
+fn selective_multi_branch_telescoping_evaluation_advice_is_load_bearing() {
+    let mut shapes = Vec::new();
+    let mut assignments = Vec::new();
+    for arm in 0..3u64 {
+        let mut builder = R1csBuilder::new();
+        let coefficients: [Var; D] =
+            core::array::from_fn(|index| builder.alloc(F::from_u64(arm * 101 + index as u64 + 1)));
+        let beta = KVar::alloc(&mut builder, F::from_u64(arm + 3), F::from_u64(arm + 5));
+        let powers = enforce_beta_ladder(&mut builder, beta, D);
+        let output = enforce_eval_at_beta(&mut builder, &coefficients, &powers);
+        let output_bits = decompose_var_to_u64_bits(&mut builder, output.c0);
+        let lowered = lower_field_r1cs(builder, &[output_bits[0]]).expect("field lowering");
+        let (shape, assignment) = lowered.into_parts();
+        shapes.push(shape);
+        assignments.push(assignment);
+    }
+
+    let audit =
+        audit_multi_branch_selective_low_norm_width_with_alignment(&shapes, 0, 54, 0).expect("selective width audit");
+    assert!(
+        audit.arms.iter().all(|arm| arm.derived_product_sums > 0),
+        "a 54-coefficient evaluation must require telescoping advice"
+    );
+
+    let relation =
+        build_multi_branch_selective_low_norm_r1cs_with_alignment(&shapes, 0, 54, 0).expect("selective relation");
+    for arm in 0..3 {
+        let mut encoded = relation.encode(arm, &assignments[arm]).expect("encode arm");
+        assert!(relation.is_satisfied(&encoded), "arm {arm} honest evaluation");
+
+        let mut source_backed = vec![false; relation.structure().m];
+        source_backed[0] = true;
+        for &selector in relation.selector_cols() {
+            source_backed[selector] = true;
+        }
+        for column in 1..shapes[arm].m {
+            if let Some((start, width)) = relation.field_slot(arm, column) {
+                source_backed[start..start + width].fill(true);
+            }
+        }
+        let derived = encoded
+            .iter()
+            .enumerate()
+            .find_map(|(column, value)| (!source_backed[column] && *value != F::ZERO).then_some(column))
+            .expect("honest evaluation has nonzero compiler-added advice");
+        encoded[derived] += F::ONE;
+        assert!(
+            !relation.is_satisfied(&encoded),
+            "arm {arm} accepted a tampered telescoping accumulator"
+        );
     }
 }

@@ -43,7 +43,8 @@ use p3_field::PrimeCharacteristicRing;
 
 use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::ring_action::{
-    enforce_ring_action_projection_batch, enforce_ring_mul_toom3, projection_quotient, PROJECTION_QUOTIENT_LEN,
+    enforce_polynomial_evaluations_at_beta, enforce_ring_action_projection_batch_with_rho_evaluations,
+    enforce_ring_mul_toom3, projection_quotient, PolynomialEvaluationsAtBeta, PROJECTION_QUOTIENT_LEN,
 };
 use crate::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
 
@@ -338,7 +339,19 @@ pub fn enforce_rlc_commitment_combination_projection(
     for lane in 0..kappa {
         quotient_wires.push(quotients[lane].map(|value| builder.alloc(value)));
     }
-    enforce_rlc_commitment_combination_projection_with_quotient_wires(builder, powers, wires, &quotient_wires)?;
+    let rho_polynomials = wires
+        .inputs
+        .iter()
+        .map(|pair| pair.rho_coeffs)
+        .collect::<Vec<_>>();
+    let rho_evaluations = enforce_polynomial_evaluations_at_beta(builder, &rho_polynomials, powers);
+    enforce_rlc_commitment_combination_projection_with_quotient_wires(
+        builder,
+        powers,
+        &rho_evaluations,
+        wires,
+        &quotient_wires,
+    )?;
     Ok(quotient_wires)
 }
 
@@ -350,6 +363,7 @@ pub fn enforce_rlc_commitment_combination_projection(
 pub fn enforce_rlc_commitment_combination_projection_with_quotient_wires(
     builder: &mut R1csBuilder,
     powers: &[KVar],
+    rho_evaluations: &PolynomialEvaluationsAtBeta,
     wires: &RlcCommitmentWires,
     quotient_wires: &[[Var; PROJECTION_QUOTIENT_LEN]],
 ) -> Result<(), Error> {
@@ -408,7 +422,14 @@ pub fn enforce_rlc_commitment_combination_projection_with_quotient_wires(
             *slot = *src;
         }
 
-        enforce_ring_action_projection_batch(builder, powers, &pair_refs, &out_lane, &quotient_wires[lane]);
+        enforce_ring_action_projection_batch_with_rho_evaluations(
+            builder,
+            powers,
+            rho_evaluations,
+            &pair_refs,
+            &out_lane,
+            &quotient_wires[lane],
+        );
     }
     Ok(())
 }
@@ -598,6 +619,7 @@ pub fn enforce_rlc_x_combination(builder: &mut R1csBuilder, wires: &RlcXWires) {
 pub fn enforce_rlc_x_combination_projection_with_quotient_wires(
     builder: &mut R1csBuilder,
     powers: &[KVar],
+    rho_evaluations: &PolynomialEvaluationsAtBeta,
     wires: &RlcXWires,
     quotient_wires: &[[Var; PROJECTION_QUOTIENT_LEN]],
 ) -> Result<(), Error> {
@@ -642,7 +664,14 @@ pub fn enforce_rlc_x_combination_projection_with_quotient_wires(
             .map(|(pair, input)| (&pair.rho_coeffs, input))
             .collect();
         let output = core::array::from_fn(|row| wires.combined_x_flat[row * wires.m_in + col]);
-        enforce_ring_action_projection_batch(builder, powers, &pair_refs, &output, &quotient_wires[col]);
+        enforce_ring_action_projection_batch_with_rho_evaluations(
+            builder,
+            powers,
+            rho_evaluations,
+            &pair_refs,
+            &output,
+            &quotient_wires[col],
+        );
     }
 
     let inactive_inputs = wires.inputs.iter().flat_map(|pair| {
@@ -1031,6 +1060,7 @@ pub fn enforce_rlc_padded_k_vector_combination(builder: &mut R1csBuilder, wires:
 pub fn enforce_rlc_padded_k_vector_combination_projection_with_quotient_wires(
     builder: &mut R1csBuilder,
     powers: &[KVar],
+    rho_evaluations: &PolynomialEvaluationsAtBeta,
     wires: &RlcPaddedKVectorWires,
     quotient_c0: &[Var; PROJECTION_QUOTIENT_LEN],
     quotient_c1: &[Var; PROJECTION_QUOTIENT_LEN],
@@ -1084,8 +1114,22 @@ pub fn enforce_rlc_padded_k_vector_combination_projection_with_quotient_wires(
         .collect();
     let output_c0 = core::array::from_fn(|i| wires.combined_c0[i]);
     let output_c1 = core::array::from_fn(|i| wires.combined_c1[i]);
-    enforce_ring_action_projection_batch(builder, powers, &pairs_c0, &output_c0, quotient_c0);
-    enforce_ring_action_projection_batch(builder, powers, &pairs_c1, &output_c1, quotient_c1);
+    enforce_ring_action_projection_batch_with_rho_evaluations(
+        builder,
+        powers,
+        rho_evaluations,
+        &pairs_c0,
+        &output_c0,
+        quotient_c0,
+    );
+    enforce_ring_action_projection_batch_with_rho_evaluations(
+        builder,
+        powers,
+        rho_evaluations,
+        &pairs_c1,
+        &output_c1,
+        quotient_c1,
+    );
 
     for pair in &wires.inputs {
         for lane in D..wires.d_pad {

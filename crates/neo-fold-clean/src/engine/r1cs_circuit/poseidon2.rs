@@ -22,6 +22,7 @@
 //! Linear layers add no mult constraints — they thread linear combinations
 //! through `Lc` arithmetic until each S-box input is materialized.
 
+use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
 use neo_math::F;
@@ -30,7 +31,10 @@ use p3_goldilocks::Goldilocks;
 use rand_chacha_p3::rand_core::{Rng as RandCoreRng, SeedableRng};
 use rand_chacha_p3::ChaCha8Rng;
 
-use crate::engine::r1cs_circuit::builder::{Lc, R1csBuilder, Var};
+use crate::engine::r1cs_circuit::builder::{
+    Lc, Poseidon2HashRoundKind, Poseidon2HashRoundTrace, Poseidon2HashTrace, Poseidon2PermutationTrace,
+    Poseidon2SboxTrace, R1csBuilder, Var,
+};
 
 const WIDTH: usize = 8;
 const HALF_FULL_ROUNDS: usize = 4;
@@ -123,11 +127,21 @@ fn internal_diag() -> [F; WIDTH] {
 ///
 /// Allocates `x²`, `x⁴`, `x⁶`, `x⁷` as fresh witness vars. Returns the
 /// `x⁷` wire.
-fn enforce_sbox_x7(builder: &mut R1csBuilder, x_lc: &Lc) -> Var {
+fn enforce_sbox_x7(
+    builder: &mut R1csBuilder,
+    x_lc: &Lc,
+    selective_input: &Lc,
+    trace: &mut Vec<Poseidon2SboxTrace>,
+) -> Var {
     let x2 = builder.alloc_mul(x_lc, x_lc);
     let x4 = builder.alloc_mul(&Lc::from_var(x2), &Lc::from_var(x2));
     let x6 = builder.alloc_mul(&Lc::from_var(x2), &Lc::from_var(x4));
-    builder.alloc_mul(x_lc, &Lc::from_var(x6))
+    let output = builder.alloc_mul(x_lc, &Lc::from_var(x6));
+    trace.push(Poseidon2SboxTrace {
+        input: selective_input.clone(),
+        output_col: output.col(),
+    });
+    output
 }
 
 /// Apply the 4×4 MDS matrix `apply_mat4` in-place to a length-4 state of Lcs.
@@ -218,6 +232,19 @@ fn materialize_state(builder: &mut R1csBuilder, state: &mut [Lc; WIDTH]) {
     }
 }
 
+fn normalize_state(state: &mut [Lc; WIDTH]) {
+    for lane in state {
+        let mut terms = BTreeMap::<usize, F>::new();
+        for &(col, coefficient) in &lane.terms {
+            *terms.entry(col).or_insert(F::ZERO) += coefficient;
+        }
+        lane.terms = terms
+            .into_iter()
+            .filter(|(_, coefficient)| *coefficient != F::ZERO)
+            .collect();
+    }
+}
+
 /// Add round constants to the state (linear; no mults).
 fn add_round_constants(state: &mut [Lc; WIDTH], rc: &[F; WIDTH]) {
     for (slot, &c) in state.iter_mut().zip(rc.iter()) {
@@ -226,24 +253,44 @@ fn add_round_constants(state: &mut [Lc; WIDTH], rc: &[F; WIDTH]) {
 }
 
 /// Apply one full external round: add RC, S-box all 8 lanes, external linear layer.
-fn enforce_external_round(builder: &mut R1csBuilder, state: &mut [Lc; WIDTH], rc: &[F; WIDTH]) {
+fn enforce_external_round(
+    builder: &mut R1csBuilder,
+    state: &mut [Lc; WIDTH],
+    selective_state: &mut [Lc; WIDTH],
+    rc: &[F; WIDTH],
+    trace: &mut Vec<Poseidon2SboxTrace>,
+) {
     add_round_constants(state, rc);
+    add_round_constants(selective_state, rc);
     let mut sbox_out: [Lc; WIDTH] = std::array::from_fn(|_| Lc::zero());
-    for (i, slot) in state.iter().enumerate() {
-        let v = enforce_sbox_x7(builder, slot);
+    for (i, (slot, selective_slot)) in state.iter().zip(selective_state.iter()).enumerate() {
+        let v = enforce_sbox_x7(builder, slot, selective_slot, trace);
         sbox_out[i] = Lc::from_var(v);
     }
-    *state = sbox_out;
+    *state = sbox_out.clone();
+    *selective_state = sbox_out;
     external_linear_layer(state);
+    external_linear_layer(selective_state);
+    normalize_state(selective_state);
     materialize_state(builder, state);
 }
 
 /// Apply one partial internal round: add RC to lane 0, S-box lane 0, internal layer.
-fn enforce_internal_round(builder: &mut R1csBuilder, state: &mut [Lc; WIDTH], rc: F) {
+fn enforce_internal_round(
+    builder: &mut R1csBuilder,
+    state: &mut [Lc; WIDTH],
+    selective_state: &mut [Lc; WIDTH],
+    rc: F,
+    trace: &mut Vec<Poseidon2SboxTrace>,
+) {
     state[0].add_constant(rc);
-    let v0 = enforce_sbox_x7(builder, &state[0]);
+    selective_state[0].add_constant(rc);
+    let v0 = enforce_sbox_x7(builder, &state[0], &selective_state[0], trace);
     state[0] = Lc::from_var(v0);
+    selective_state[0] = Lc::from_var(v0);
     internal_linear_layer(state);
+    internal_linear_layer(selective_state);
+    normalize_state(selective_state);
     materialize_state(builder, state);
 }
 
@@ -253,26 +300,50 @@ fn enforce_internal_round(builder: &mut R1csBuilder, state: &mut [Lc; WIDTH], rc
 /// permutations) and returns them. Each output equals the corresponding
 /// native `PERM.permute(input)` lane, byte-for-byte.
 pub fn enforce_poseidon2_permutation(builder: &mut R1csBuilder, state_in: &[Var; WIDTH]) -> [Var; WIDTH] {
+    let row_start = builder.rows();
+    let column_start = builder.cols();
     let c = constants();
     let mut state: [Lc; WIDTH] = std::array::from_fn(|i| Lc::from_var(state_in[i]));
+    let mut selective_state = state.clone();
+    let mut sboxes = Vec::with_capacity(8 * 8 + PARTIAL_ROUNDS);
 
     // Initial mds_light_permutation (the "pre-round" matmul Poseidon2 prescribes).
     external_linear_layer(&mut state);
+    external_linear_layer(&mut selective_state);
+    normalize_state(&mut selective_state);
     materialize_state(builder, &mut state);
 
     // 4 initial external rounds.
     for round in 0..HALF_FULL_ROUNDS {
-        enforce_external_round(builder, &mut state, &c.initial[round]);
+        enforce_external_round(
+            builder,
+            &mut state,
+            &mut selective_state,
+            &c.initial[round],
+            &mut sboxes,
+        );
     }
 
     // 22 internal rounds.
     for round in 0..PARTIAL_ROUNDS {
-        enforce_internal_round(builder, &mut state, c.internal[round]);
+        enforce_internal_round(
+            builder,
+            &mut state,
+            &mut selective_state,
+            c.internal[round],
+            &mut sboxes,
+        );
     }
 
     // 4 terminal external rounds.
     for round in 0..HALF_FULL_ROUNDS {
-        enforce_external_round(builder, &mut state, &c.terminal[round]);
+        enforce_external_round(
+            builder,
+            &mut state,
+            &mut selective_state,
+            &c.terminal[round],
+            &mut sboxes,
+        );
     }
 
     // Materialize the output state as fresh wires.
@@ -282,6 +353,16 @@ pub fn enforce_poseidon2_permutation(builder: &mut R1csBuilder, state_in: &[Var;
         builder.enforce_eq(&Lc::from_var(v), &lc);
         out[i] = v;
     }
+    let output_cols = out.map(Var::col);
+    builder.record_poseidon2_permutation(Poseidon2PermutationTrace {
+        row_start,
+        row_end: builder.rows(),
+        input_cols: state_in.map(Var::col),
+        allocated_columns: (column_start..builder.cols()).collect(),
+        sboxes,
+        output_cols,
+        output_linear_forms: selective_state,
+    });
     out
 }
 
@@ -307,8 +388,12 @@ const RATE: usize = 4;
 /// chunk: a fresh wire per absorbed lane + one full permutation. Final
 /// padding: one wire + one permutation.
 pub fn enforce_poseidon2_hash(builder: &mut R1csBuilder, input: &[Var]) -> [Var; DIGEST_LEN] {
+    let row_start = builder.rows();
+    let input_cols = input.iter().map(|wire| wire.col()).collect::<Vec<_>>();
+    let mut rounds = Vec::with_capacity(input.len().div_ceil(RATE) + 1);
     // Allocate one zero wire and constrain it.
     let zero_var = builder.alloc(F::ZERO);
+    let zero_row = builder.rows();
     builder.enforce_eq(&Lc::from_var(zero_var), &Lc::zero());
 
     // Initial state: 8 zero lanes.
@@ -318,11 +403,14 @@ pub fn enforce_poseidon2_hash(builder: &mut R1csBuilder, input: &[Var]) -> [Var;
     // loop, which iterates zero times — so we skip it). Native code does NOT
     // run a permute on empty input; only the padding-permute.
     for chunk in input.chunks(RATE) {
+        let state_before_cols = state.map(Var::col);
         // For each lane i in the chunk, new state[i] = old state[i] + chunk[i].
         let mut next = [zero_var; WIDTH];
+        let mut defining_rows = Vec::with_capacity(chunk.len());
         for (i, &x) in chunk.iter().enumerate() {
             let lc = Lc::from_var(state[i]).add_scaled(&Lc::from_var(x), F::ONE);
             let v = builder.alloc(builder.eval(&lc));
+            defining_rows.push(builder.rows());
             builder.enforce_eq(&Lc::from_var(v), &lc);
             next[i] = v;
         }
@@ -331,25 +419,54 @@ pub fn enforce_poseidon2_hash(builder: &mut R1csBuilder, input: &[Var]) -> [Var;
             next[i] = state[i];
         }
         // Permute.
+        let permutation_input_cols = next.map(Var::col);
         state = enforce_poseidon2_permutation(builder, &next);
+        rounds.push(Poseidon2HashRoundTrace {
+            kind: Poseidon2HashRoundKind::Absorb {
+                chunk_cols: chunk.iter().map(|wire| wire.col()).collect(),
+            },
+            state_before_cols,
+            permutation_input_cols,
+            defining_rows,
+            permutation_output_cols: state.map(Var::col),
+        });
     }
 
     // Padding: state[0] += 1.
+    let state_before_cols = state.map(Var::col);
     let padded_lc = {
         let mut lc = Lc::from_var(state[0]);
         lc.add_constant(F::ONE);
         lc
     };
     let padded = builder.alloc(builder.eval(&padded_lc));
+    let padding_row = builder.rows();
     builder.enforce_eq(&Lc::from_var(padded), &padded_lc);
     state[0] = padded;
 
     // Final permute.
+    let permutation_input_cols = state.map(Var::col);
     state = enforce_poseidon2_permutation(builder, &state);
+    rounds.push(Poseidon2HashRoundTrace {
+        kind: Poseidon2HashRoundKind::Pad,
+        state_before_cols,
+        permutation_input_cols,
+        defining_rows: vec![padding_row],
+        permutation_output_cols: state.map(Var::col),
+    });
 
     // Output first DIGEST_LEN lanes.
     let mut out = [Var::ONE; DIGEST_LEN];
     out.copy_from_slice(&state[..DIGEST_LEN]);
+    builder.record_poseidon2_hash(Poseidon2HashTrace {
+        row_start,
+        row_end: builder.rows(),
+        input_cols,
+        zero_col: zero_var.col(),
+        zero_row,
+        rounds,
+        output_cols: out.map(Var::col),
+    });
     out
 }
 

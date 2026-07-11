@@ -42,8 +42,8 @@ use neo_fold_clean::frontends::nebula::layout::encode_delayed_f_prime_suffix;
 use neo_fold_clean::frontends::r1cs_f_prime::lower_field_r1cs;
 use neo_fold_clean::paper::construction2::{NebulaConfig, NebulaLane, NebulaStepX, RunningInstance, StackShape};
 use neo_fold_clean::paper::digest::{
-    digest32_as_fields, digest_fields_as_digest32, nebula_lane_chains, state_x_out_digest_with_mode, AccumulatorHandle,
-    StateXOutDigestMode, F_PRIME_STATE_X_OUT_DOMAIN,
+    digest32_as_fields, digest_fields_as_digest32, f_prime_chunk_public_digest, nebula_lane_chains,
+    state_x_out_digest_with_mode, AccumulatorHandle, StateXOutDigestMode, F_PRIME_STATE_X_OUT_DOMAIN,
 };
 use neo_fold_clean::paper::f_prime::nebula_lane_circuit::delayed_nebula_public_suffix_len;
 use neo_fold_clean::paper::f_prime::poseidon_trace::{
@@ -178,7 +178,7 @@ fn build_fixture_with_public_suffix(public_suffix: &[F]) -> Fixture {
     let second = direct_ccs::build_instance(&prep, &r1cs, &z).expect("second instance");
     let fresh_claims = vec![second.claim.clone()];
 
-    let chunk_digest = rand_digest(0x50);
+    let chunk_digest = f_prime_chunk_public_digest(state.step_count_in, &fresh_claims);
     let mut tr = Transcript::with_label(TRANSCRIPT_LABEL);
     tr.append_fields(b"f_prime/vk_fs", &state.vk_fs_digest);
     tr.append_fields(b"f_prime/pi_ccs_header", &state.pi_ccs_header_bundle);
@@ -676,6 +676,7 @@ fn authoritative_recursive_f_prime_enforces_delayed_nebula_transition() {
     let nebula_cfg = NebulaConfig {
         scheme: scheme.clone(),
         steps_per_segment: 1,
+        seg_max: 1,
         stacks,
         plan_digest: rand_digest(0xD800),
         d_init: d_pre[1],
@@ -740,7 +741,7 @@ fn authoritative_recursive_f_prime_enforces_delayed_nebula_transition() {
     assert_eq!(second.claim.adv.as_ref(), Some(&fresh_adv));
     let fresh_claims = vec![second.claim.clone()];
 
-    let chunk_digest = rand_digest(0xD860);
+    let chunk_digest = f_prime_chunk_public_digest(state.step_count_in, &fresh_claims);
     let mut tr = Transcript::with_label(TRANSCRIPT_LABEL);
     tr.append_fields(b"f_prime/vk_fs", &state.vk_fs_digest);
     tr.append_fields(b"f_prime/pi_ccs_header", &state.pi_ccs_header_bundle);

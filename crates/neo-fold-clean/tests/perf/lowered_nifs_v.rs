@@ -5,9 +5,10 @@
 //! shell prices a hand-typed image (14,040,452 bits/step, incomplete
 //! semantics); the alternative Road A completion lowers the field-native
 //! NIFS.V circuit — the relation that already IS the authority — into the
-//! b = 2 bit-backed CCS mechanically. Until now the lowering ratio was only
-//! measured on the 3-field C14 toy (10,532 cols → 661,445 bits, ≈ 62.8
-//! bits/col). This snapshot measures it on the real object: the full
+//! b = 2 bit-backed CCS mechanically. This generic all-binary path is retained
+//! as a reference measurement; R2's production compiler instead shares
+//! balanced SIS digits and selectively eliminates verifier temporaries. This
+//! snapshot measures the generic path on the full
 //! Π_CCS.V → Π_RLC.V (projection census) → Π_DEC.V verifier circuit over an
 //! honest two-fold chain at the small direct-CCS app shape, exact rows,
 //! satisfiability checked on both sides of the lowering.

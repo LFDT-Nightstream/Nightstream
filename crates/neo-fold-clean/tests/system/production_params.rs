@@ -35,6 +35,24 @@ fn production_params_satisfy_superneo_rlc_guard() {
     assert!(lhs < pp.big_b() as u128, "(k_rho + 1) * T * (b - 1) must be < B");
 }
 
+/// Golden vector shared with
+/// `Nightstream.SuperNeo.Concrete.production_parameter_values`.
+#[test]
+fn production_params_match_lean_m1_profile() {
+    let pp = Params::production();
+    assert_eq!(pp.q(), 18_446_744_069_414_584_321);
+    assert_eq!(pp.b(), 2);
+    assert_eq!(pp.k_rho(), 14);
+    assert_eq!(pp.big_b(), 16_384);
+    assert_eq!(pp.T(), 216);
+    assert_eq!(pp.max_fresh_count(), 61);
+    assert_eq!(pp.eta(), 81);
+    assert_eq!(pp.d(), 54);
+    assert_eq!(pp.kappa(), 18);
+    assert_eq!(pp.extension_degree(), 2);
+    assert_eq!(pp.lambda(), 125);
+}
+
 #[test]
 fn r1cs_params_keep_production_core_and_make_effective_lambda_explicit() {
     let pp = config::r1cs_params(60, 54).expect("R1CS params");
@@ -74,6 +92,26 @@ fn ccs_params_charge_matrix_count_and_degree() {
     assert_eq!(r1cs.lambda(), 107);
     assert_eq!(t8.lambda(), 106);
     assert_eq!(degree7.lambda(), 107);
+}
+
+#[test]
+fn actual_ccs_shape_validation_rejects_an_undercharged_matrix_count() {
+    let params = Params::for_ccs_shape_with(
+        1 << 24,
+        1,
+        8,
+        config::MIN_EFFECTIVE_LAMBDA,
+        config::EXTENSION_SAFETY_MARGIN_BITS,
+    )
+    .expect("small-t profile");
+
+    params
+        .validate_ccs_shape(1 << 24, 1, 8)
+        .expect("the selected shape must validate itself");
+    assert!(
+        params.validate_ccs_shape(1 << 24, 1_000, 8).is_err(),
+        "preprocessing must not reuse parameters selected for a much smaller t"
+    );
 }
 
 #[test]

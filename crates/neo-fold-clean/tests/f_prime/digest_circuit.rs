@@ -4,17 +4,20 @@
 //! in-circuit gadgets and the native ones are required to produce
 //! byte-identical outputs for the same inputs.
 
+use neo_ajtai::Commitment;
 use neo_ccs::{CcsMatrix, CcsStructure, SparsePoly, Term};
 use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
 use neo_fold_clean::paper::digest::{
-    boundary_update_digest, digest32_as_fields, public_trace_update_digest, state_x_out_digest,
-    state_x_out_digest_with_mode, structure_digest, vk_fs_digest, StateXOutDigestMode,
+    boundary_update_digest, digest32_as_fields, f_prime_chunk_public_digest, public_trace_update_digest,
+    state_x_out_digest, state_x_out_digest_with_mode, structure_digest, vk_fs_digest, StateXOutDigestMode,
 };
 use neo_fold_clean::paper::f_prime::digest_circuit::{
-    enforce_boundary_update_digest_circuit, enforce_public_trace_update_digest_circuit,
-    enforce_state_x_out_digest_circuit, enforce_state_x_out_digest_with_nebula_circuit, StateXOutDigestInputs,
+    enforce_boundary_update_digest_circuit, enforce_f_prime_chunk_public_digest_circuit,
+    enforce_public_trace_update_digest_circuit, enforce_state_x_out_digest_circuit,
+    enforce_state_x_out_digest_with_nebula_circuit, StateXOutDigestInputs,
 };
-use neo_math::F;
+use neo_fold_clean::paper::relations::CcsClaim;
+use neo_math::{D, F};
 use neo_params::{goldilocks_paper_b2, NeoParams};
 use neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -51,6 +54,35 @@ fn seeded_bytes(seed: u64) -> [u8; 32] {
 
 fn seeded_digest_fields(seed: u64) -> [F; 4] {
     digest32_as_fields(seeded_bytes(seed))
+}
+
+#[test]
+fn f_prime_chunk_shape_digest_circuit_matches_native_and_binds_start_index() {
+    let start_index = 9u64;
+    let fresh_len = 3usize;
+    let kappa = goldilocks_paper_b2::KAPPA as usize;
+    let m_in = 257usize;
+    let template = CcsClaim {
+        c: Commitment::zeros(D, kappa),
+        x: vec![F::ZERO; m_in],
+        m_in,
+        adv: None,
+    };
+    let fresh = vec![template; fresh_len];
+    let expected = f_prime_chunk_public_digest(start_index, &fresh);
+
+    let mut builder = R1csBuilder::new();
+    let start = builder.alloc(F::from_u64(start_index));
+    let output = enforce_f_prime_chunk_public_digest_circuit(&mut builder, start, fresh_len, D, kappa, m_in);
+
+    assert!(builder.is_satisfied(), "honest chunk-shape digest must satisfy");
+    assert_eq!(extract_4(&builder, output), expected);
+
+    builder.tamper_witness(start.col(), F::from_u64(start_index + 1));
+    assert!(
+        !builder.is_satisfied(),
+        "chunk-shape digest must constrain its in-circuit start index"
+    );
 }
 
 #[test]

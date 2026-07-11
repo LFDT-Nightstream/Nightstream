@@ -11,7 +11,8 @@ use neo_fold_clean::engine::transcript::Transcript;
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
 use neo_fold_clean::paper::construction2::RunningInstance;
 use neo_fold_clean::paper::digest::{
-    digest32_as_fields, digest_fields_as_digest32, state_x_out_digest_with_mode, AccumulatorHandle, StateXOutDigestMode,
+    digest32_as_fields, digest_fields_as_digest32, f_prime_chunk_public_digest, state_x_out_digest_with_mode,
+    AccumulatorHandle, StateXOutDigestMode,
 };
 use neo_fold_clean::paper::f_prime::r1cs::{
     encode_f_prime_public_input, enforce_f_prime_recursive_step_circuit, FPrimePublicInputLayout,
@@ -551,7 +552,7 @@ fn build_transcript_replay_fixture_with_mode_and_context(
     forged_z.resize(prep.structure().m, F::ZERO);
     let fresh = direct_ccs::build_instance(&prep, &r1cs, &forged_z).expect("forged fresh instance");
     let fresh_claims = vec![fresh.claim.clone()];
-    let chunk_digest = rand_digest(0x50);
+    let chunk_digest = f_prime_chunk_public_digest(forged_state.step_count_in, &fresh_claims);
 
     let mut tr = Transcript::with_label(TRANSCRIPT_LABEL);
     match prover_transcript_shape {

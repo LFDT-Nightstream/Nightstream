@@ -6,7 +6,7 @@
 //! 1. `bind_header_and_instance_digest_with_digest` (raw absorbs of
 //!    `[11, hb…]` and `[12, id…]`).
 //! 2. `bind_me_inputs_accumulator_handle` (raw absorbs of `[4]`,
-//!    `[5, count]`, and the full-running accumulator handle with leading
+//!    `[5, count]`, and the verified-parent accumulator handle with leading
 //!    tag `[6, …]`).
 //! 3. `sample_challenges` (raw `[2]` then K-batch squeeze for α/β_a/β_r/γ).
 //! 4. `sample_beta_m` (raw `[3]` then K-batch squeeze for β_m).
@@ -256,8 +256,19 @@ pub fn enforce_header_digest_catch_up(
     transcript: &mut TranscriptGadget,
     expected_header_digest: [F; 4],
 ) {
+    let expected = expected_header_digest.map(|value| alloc_constant_var(builder, value));
+    enforce_header_digest_catch_up_wires(builder, transcript, expected);
+}
+
+/// Folded-F' variant: the proof digest is witness advice constrained to the
+/// verifier-replayed transcript, never a coefficient baked into the relation.
+pub fn enforce_header_digest_catch_up_wires(
+    builder: &mut R1csBuilder,
+    transcript: &mut TranscriptGadget,
+    expected_header_digest: [Var; 4],
+) {
     let observed = transcript.digest_fields(builder);
     for (wire, expected) in observed.into_iter().zip(expected_header_digest) {
-        builder.enforce_eq(&Lc::from_var(wire), &Lc::from_const(expected));
+        builder.enforce_eq(&Lc::from_var(wire), &Lc::from_var(expected));
     }
 }

@@ -100,7 +100,7 @@ pub fn build_dims_and_policy(params: &NeoParams, s: &CcsStructure<F>) -> Result<
     let d_sc = core::cmp::max(s.max_degree() as usize + 1, degree_bound_nc(params));
 
     let ext = params
-        .extension_check(ell_max as u32, d_sc as u32)
+        .extension_check_ccs_shape(s.n.max(s.m), s.t(), s.max_degree())
         .map_err(|e| PiCcsError::ExtensionPolicyFailed(e.to_string()))?;
 
     if ext.slack_bits < 0 {
@@ -835,6 +835,43 @@ pub fn digest_ccs_matrices<F: Field + PrimeField64>(s: &CcsStructure<F>) -> Vec<
                     }
                 }
             }
+            CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+                let mut entries = Vec::with_capacity(csc.vals.len());
+                for col in 0..csc.ncols {
+                    for index in csc.col_ptr[col]..csc.col_ptr[col + 1] {
+                        entries.push((csc.row_idx[index], col, csc.vals[index].as_canonical_u64()));
+                    }
+                }
+                entries.sort_unstable_by_key(|&(row, col, _)| (row, col));
+                for (row, col, value) in entries {
+                    emit(row, col, value);
+                }
+
+                // Out-of-range row sentinels domain-separate compact block
+                // descriptors from ordinary matrix entries.
+                for (block_index, block) in blocks.iter().enumerate() {
+                    emit(usize::MAX, block_index, 0x5048_4938_3153_4545);
+                    emit(usize::MAX - 1, block.row_start(), block.kappa() as u64);
+                    emit(usize::MAX - 2, block.message_cols(), block.chunk_size() as u64);
+                    emit(
+                        usize::MAX - 3,
+                        block.word_starts().len(),
+                        u64::from(block.has_superneo_transformed_columns()),
+                    );
+                    emit(usize::MAX - 4, usize::MAX, block.word_width() as u64);
+                    for (word, &start) in block.word_starts().iter().enumerate() {
+                        emit(usize::MAX - 4, word, start as u64);
+                    }
+                    for (seed_row, seeds) in block.chunk_seeds_by_row().iter().enumerate() {
+                        for (chunk, seed) in seeds.iter().enumerate() {
+                            for limb in 0..4 {
+                                let value = u64::from_le_bytes(seed[limb * 8..(limb + 1) * 8].try_into().unwrap());
+                                emit(usize::MAX - 5 - seed_row, chunk * 4 + limb, value);
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         poseidon2.permute_mut(&mut state);
@@ -851,6 +888,7 @@ const CCS_MATRIX_LEAF_IDENTITY: u64 = 2;
 const CCS_MATRIX_LEAF_COL_PTR: u64 = 3;
 const CCS_MATRIX_LEAF_ROW_IDX: u64 = 4;
 const CCS_MATRIX_LEAF_VALS: u64 = 5;
+const CCS_MATRIX_LEAF_SEEDED_PHI81: u64 = 6;
 
 enum CcsDigestLeaf<'a, Ff> {
     Identity {
@@ -877,6 +915,11 @@ enum CcsDigestLeaf<'a, Ff> {
         chunk: usize,
         start: usize,
         values: &'a [Ff],
+    },
+    SeededPhi81 {
+        matrix: usize,
+        block: usize,
+        value: &'a neo_ccs::SeededPhi81LinearBlock,
     },
 }
 
@@ -985,6 +1028,38 @@ fn digest_ccs_matrix_leaf<Ff: PrimeField64>(leaf: &CcsDigestLeaf<'_, Ff>) -> [Go
                 absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, v.as_canonical_u64());
             }
         }
+        CcsDigestLeaf::SeededPhi81 { matrix, block, value } => {
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, *matrix as u64);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, CCS_MATRIX_LEAF_SEEDED_PHI81);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, *block as u64);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, value.row_start() as u64);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, value.kappa() as u64);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, value.message_cols() as u64);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, value.chunk_size() as u64);
+            absorb_digest_u64(
+                &poseidon2,
+                &mut state,
+                &mut absorbed,
+                value.has_superneo_transformed_columns() as u64,
+            );
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, value.word_width() as u64);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, value.word_starts().len() as u64);
+            for &start in value.word_starts() {
+                absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, start as u64);
+            }
+            absorb_digest_u64(
+                &poseidon2,
+                &mut state,
+                &mut absorbed,
+                value.chunk_seeds_by_row().len() as u64,
+            );
+            for seeds in value.chunk_seeds_by_row() {
+                absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, seeds.len() as u64);
+                for seed in seeds {
+                    absorb_digest_bytes(&poseidon2, &mut state, &mut absorbed, seed);
+                }
+            }
+        }
     }
 
     poseidon2.permute_mut(&mut state);
@@ -1081,6 +1156,26 @@ pub fn digest_ccs_matrices_with_sparse_cache<Ff: Field + PrimeField64 + Sync>(
                 push_usize_digest_chunks(&mut leaves, j, CCS_MATRIX_LEAF_COL_PTR, col_ptr);
                 push_usize_digest_chunks(&mut leaves, j, CCS_MATRIX_LEAF_ROW_IDX, row_idx);
                 push_field_digest_chunks(&mut leaves, j, vals);
+            }
+            CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+                leaves.push(CcsDigestLeaf::Metadata {
+                    matrix: j,
+                    nrows: csc.nrows,
+                    ncols: csc.ncols,
+                    col_ptr_len: csc.col_ptr.len(),
+                    row_idx_len: csc.row_idx.len(),
+                    vals_len: csc.vals.len(),
+                });
+                push_usize_digest_chunks(&mut leaves, j, CCS_MATRIX_LEAF_COL_PTR, &csc.col_ptr);
+                push_usize_digest_chunks(&mut leaves, j, CCS_MATRIX_LEAF_ROW_IDX, &csc.row_idx);
+                push_field_digest_chunks(&mut leaves, j, &csc.vals);
+                for (block, value) in blocks.iter().enumerate() {
+                    leaves.push(CcsDigestLeaf::SeededPhi81 {
+                        matrix: j,
+                        block,
+                        value,
+                    });
+                }
             }
         }
     }

@@ -20,6 +20,8 @@ pub mod poly;
 pub mod r1cs;
 /// Core CCS relations and consistency checks.
 pub mod relations;
+/// Compact seeded linear maps over the Phi81 commitment ring.
+pub mod seeded_phi81;
 /// Sparse matrix types (CSC) and caches.
 pub mod sparse;
 /// Traits for commitment scheme integration.
@@ -32,6 +34,7 @@ pub use error::{CcsError, DimMismatch, RelationError};
 pub use matrix::{CsrMatrix, Mat, MatRef};
 pub use poly::{SparsePoly, Term};
 pub use r1cs::{r1cs_to_ccs, sparse_r1cs_to_ccs};
+pub use seeded_phi81::{SeededPhi81Error, SeededPhi81LinearBlock};
 pub use sparse::{CcsMatrix, CscMat, SparseCache};
 
 // Cancellation-resistant direct sum (recommended for production)

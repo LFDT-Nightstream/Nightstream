@@ -1,13 +1,15 @@
 use core::cmp::min;
-use neo_ccs::{CcsMatrix, CcsStructure, Mat};
-use neo_math::{ct, superneo_bar_block, KExtensions, Rq, D, F, K};
+use neo_ccs::{CcsMatrix, Mat, SeededPhi81LinearBlock};
+use neo_math::{ct, KExtensions, Rq, D, F, K};
 use p3_field::{Field, PrimeCharacteristicRing};
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
 mod baseline;
+mod cache;
 mod digit;
 mod parallel;
+mod seeded;
 mod weighted;
 mod weighted_table;
 
@@ -16,6 +18,7 @@ pub use baseline::{
     eval_mle_superneo_from_original, eval_mle_transformed_matrix, is_superneo_compatible_shape,
     should_enable_superneo_cache_default, superneo_row_dot_from_original,
 };
+pub use cache::build_superneo_eval_cache;
 use digit::{accumulate_by_digit_block, accumulate_pair_by_digit_block, mul_by_digit_block};
 use weighted::{weighted_projection_basis_forms_from_k, weighted_projection_form_from_orig};
 
@@ -39,6 +42,18 @@ fn matrix_entry<Ff: Field + PrimeCharacteristicRing + Copy>(mat: &CcsMatrix<Ff>,
                 Ok(idx) => csc.vals[s + idx],
                 Err(_) => Ff::ZERO,
             }
+        }
+        CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+            let s = csc.col_ptr[col];
+            let e = csc.col_ptr[col + 1];
+            let mut value = match csc.row_idx[s..e].binary_search(&row) {
+                Ok(idx) => csc.vals[s + idx],
+                Err(_) => Ff::ZERO,
+            };
+            for block in blocks {
+                value += block.entry::<Ff>(row, col);
+            }
+            value
         }
     }
 }
@@ -100,6 +115,7 @@ pub struct SuperneoMatrixCache {
     row_offsets: Vec<usize>,
     row_blocks: Vec<RowBlock>,
     identity: bool,
+    seeded_phi81_blocks: Vec<SeededPhi81LinearBlock>,
 }
 #[derive(Clone, Copy, Debug)]
 struct WeightedRowBlock {
@@ -663,7 +679,7 @@ impl SuperneoMatrixCache {
             let mut blocks = Vec::new();
             offsets.push(0);
             for row in row_start..row_end {
-                for rb in self.row_blocks_for(row) {
+                for rb in self.row_blocks_including_seeded(row) {
                     let re_form = weighted_projection_form_from_orig(&rb.orig, &basis_re_forms);
                     let im_form = weighted_projection_form_from_orig(&rb.orig, &basis_im_forms);
                     if is_all_zero(&re_form.0) && is_all_zero(&im_form.0) {
@@ -735,7 +751,7 @@ impl SuperneoMatrixCache {
         let mut row_re = [F::ZERO; D];
         let mut row_im = [F::ZERO; D];
 
-        for rb in self.row_blocks_for(row) {
+        for rb in self.row_blocks_including_seeded(row) {
             if !z_blocks.block_nonzero(rb.blk) {
                 continue;
             }
@@ -779,7 +795,7 @@ impl SuperneoMatrixCache {
 
         if z_blocks.imag_all_zero {
             let mut acc = K::ZERO;
-            for rb in self.row_blocks_for(row) {
+            for rb in self.row_blocks_including_seeded(row) {
                 if !z_blocks.re_nonzero[rb.blk] {
                     continue;
                 }
@@ -819,7 +835,7 @@ impl SuperneoMatrixCache {
         let mut acc_re = F::ZERO;
         let mut acc_im = F::ZERO;
 
-        for rb in self.row_blocks_for(row) {
+        for rb in self.row_blocks_including_seeded(row) {
             if !z_blocks.block_nonzero(rb.blk) {
                 continue;
             }
@@ -893,7 +909,7 @@ impl SuperneoMatrixCache {
                     continue;
                 }
                 let [w_re, w_im] = w.as_coeffs();
-                for rb in self.row_blocks_for(row) {
+                for rb in self.row_blocks_including_seeded(row) {
                     if !z_blocks.re_nonzero[rb.blk] {
                         continue;
                     }
@@ -944,25 +960,9 @@ impl SuperneoMatrixCache {
             chi_im.len(),
             "SuperneoMatrixCache::eval_mle_ring_with_blocks_split_chi: chi coeff length mismatch"
         );
-        let row_cap = min(min(self.rows, n_eff), chi_re.len());
         let block_count = z_blocks.re.len();
-        scratch.ensure_block_count(block_count);
-        for row in 0..row_cap {
-            let w_re = chi_re[row];
-            let w_im = chi_im[row];
-            if w_re == F::ZERO && w_im == F::ZERO {
-                continue;
-            }
-            for rb in self.row_blocks_for(row) {
-                let blk = rb.blk;
-                if !scratch.touched[blk] {
-                    scratch.touched[blk] = true;
-                    scratch.active_blocks.push(blk);
-                }
-                add_scaled_rq(&mut scratch.agg_re[blk], &rb.bar, w_re);
-                add_scaled_rq(&mut scratch.agg_im[blk], &rb.bar, w_im);
-            }
-        }
+        debug_assert_eq!(self.cols.div_ceil(D), block_count);
+        self.accumulate_ring_form_split_chi(chi_re, chi_im, n_eff, scratch);
         let mut out_re = [F::ZERO; D];
         let mut out_im = [F::ZERO; D];
         let z_re = &z_blocks.re;
@@ -1023,7 +1023,7 @@ impl SuperneoMatrixCache {
             if w == K::ZERO {
                 continue;
             }
-            for rb in self.row_blocks_for(row) {
+            for rb in self.row_blocks_including_seeded(row) {
                 let base = rb.blk * D;
                 for i in 0..D {
                     let a = rb.orig.0[i];
@@ -1050,26 +1050,9 @@ impl SuperneoMatrixCache {
 
     #[inline]
     fn build_ring_linear_form_split_chi(&self, chi_re: &[F], chi_im: &[F], n_eff: usize) -> SuperneoRingLinearForm {
-        let row_cap = min(min(self.rows, n_eff), chi_re.len());
         let block_count = self.cols.div_ceil(D);
         let mut scratch = RingEvalScratch::new(block_count);
-
-        for row in 0..row_cap {
-            let w_re = chi_re[row];
-            let w_im = chi_im[row];
-            if w_re == F::ZERO && w_im == F::ZERO {
-                continue;
-            }
-            for rb in self.row_blocks_for(row) {
-                let blk = rb.blk;
-                if !scratch.touched[blk] {
-                    scratch.touched[blk] = true;
-                    scratch.active_blocks.push(blk);
-                }
-                add_scaled_rq(&mut scratch.agg_re[blk], &rb.bar, w_re);
-                add_scaled_rq(&mut scratch.agg_im[blk], &rb.bar, w_im);
-            }
-        }
+        self.accumulate_ring_form_split_chi(chi_re, chi_im, n_eff, &mut scratch);
 
         let mut entries = Vec::with_capacity(scratch.active_blocks.len());
         for &blk in &scratch.active_blocks {
@@ -1175,6 +1158,7 @@ impl SuperneoWeightedMatrixCache {
 #[derive(Clone, Debug)]
 pub struct SuperneoEvalCache {
     mats: Vec<SuperneoMatrixCache>,
+    explicit_matrix_masks: Option<Vec<u16>>,
 }
 
 impl SuperneoEvalCache {
@@ -1267,144 +1251,6 @@ pub(super) fn coeff_dot(lhs: &Rq, rhs: &Rq) -> F {
     acc
 }
 
-fn build_matrix_cache<Ff>(mat: &CcsMatrix<Ff>) -> SuperneoMatrixCache
-where
-    Ff: Field + PrimeCharacteristicRing + Copy,
-    K: From<Ff>,
-{
-    let rows = mat.rows();
-    let cols = mat.cols().div_ceil(D) * D;
-    match mat {
-        CcsMatrix::Identity { .. } => {
-            // Transform basis vectors once: bar(e_local).
-            let mut basis_bar = [Rq([F::ZERO; D]); D];
-            let mut basis_orig = [Rq([F::ZERO; D]); D];
-            for (local, out) in basis_bar.iter_mut().enumerate().take(D) {
-                let mut e = [F::ZERO; D];
-                e[local] = F::ONE;
-                basis_orig[local] = Rq(e);
-                *out = Rq(superneo_bar_block(e));
-            }
-            let mut row_offsets = Vec::with_capacity(rows + 1);
-            let mut row_blocks = Vec::with_capacity(rows);
-            row_offsets.push(0);
-            for row in 0..rows {
-                let blk = row / D;
-                let local = row % D;
-                row_blocks.push(RowBlock {
-                    blk,
-                    bar: basis_bar[local],
-                    orig: basis_orig[local],
-                });
-                row_offsets.push(row_blocks.len());
-            }
-            SuperneoMatrixCache {
-                rows,
-                cols,
-                row_offsets,
-                row_blocks,
-                identity: true,
-            }
-        }
-        CcsMatrix::Csc(csc) => {
-            let mut counts = vec![0usize; rows];
-            let mut last_blk_by_row = vec![usize::MAX; rows];
-            for c in 0..csc.ncols {
-                let blk = c / D;
-                let s = csc.col_ptr[c];
-                let e = csc.col_ptr[c + 1];
-                for k in s..e {
-                    let row = csc.row_idx[k];
-                    let v = as_base_field(csc.vals[k]);
-                    if v == F::ZERO {
-                        continue;
-                    }
-                    if last_blk_by_row[row] != blk {
-                        counts[row] += 1;
-                        last_blk_by_row[row] = blk;
-                    }
-                }
-            }
-
-            let total_blocks: usize = counts.iter().sum();
-            let mut row_offsets = Vec::with_capacity(rows + 1);
-            row_offsets.push(0);
-            for count in counts {
-                row_offsets.push(row_offsets.last().copied().unwrap() + count);
-            }
-
-            let empty_block = RowBlock {
-                blk: 0,
-                bar: Rq([F::ZERO; D]),
-                orig: Rq([F::ZERO; D]),
-            };
-            let mut row_blocks = vec![empty_block; total_blocks];
-            let mut cursor = row_offsets[..rows].to_vec();
-            last_blk_by_row.fill(usize::MAX);
-
-            for c in 0..csc.ncols {
-                let blk = c / D;
-                let local = c % D;
-                let s = csc.col_ptr[c];
-                let e = csc.col_ptr[c + 1];
-                for k in s..e {
-                    let row = csc.row_idx[k];
-                    let v = as_base_field(csc.vals[k]);
-                    if v == F::ZERO {
-                        continue;
-                    }
-                    if last_blk_by_row[row] == blk {
-                        row_blocks[cursor[row] - 1].orig.0[local] += v;
-                    } else {
-                        let idx = cursor[row];
-                        cursor[row] += 1;
-                        last_blk_by_row[row] = blk;
-                        let mut block = [F::ZERO; D];
-                        block[local] = v;
-                        row_blocks[idx] = RowBlock {
-                            blk,
-                            bar: Rq([F::ZERO; D]),
-                            orig: Rq(block),
-                        };
-                    }
-                }
-            }
-
-            #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-            row_blocks.par_iter_mut().for_each(|rb| {
-                rb.bar.0 = superneo_bar_block(rb.orig.0);
-            });
-            #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-            for rb in &mut row_blocks {
-                rb.bar.0 = superneo_bar_block(rb.orig.0);
-            }
-
-            SuperneoMatrixCache {
-                rows,
-                cols,
-                row_offsets,
-                row_blocks,
-                identity: false,
-            }
-        }
-    }
-}
-
-pub fn build_superneo_eval_cache<Ff: Field + PrimeCharacteristicRing + Copy>(
-    s: &CcsStructure<Ff>,
-) -> Option<SuperneoEvalCache>
-where
-    K: From<Ff>,
-{
-    if !is_superneo_compatible_shape(s.m) {
-        return None;
-    }
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-    let mats = s.matrices.par_iter().map(build_matrix_cache).collect();
-    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    let mats = s.matrices.iter().map(build_matrix_cache).collect();
-    Some(SuperneoEvalCache { mats })
-}
 pub fn eval_all_mats_cached_with_blocks(
     cache: &SuperneoEvalCache,
     z_blocks: &SuperneoZBlocks,

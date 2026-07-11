@@ -114,6 +114,18 @@ fn get_M<Ff: Field + PrimeCharacteristicRing + Copy>(a: &CcsMatrix<Ff>, row: usi
                 Err(_) => Ff::ZERO,
             }
         }
+        CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+            let s = csc.col_ptr[col];
+            let e = csc.col_ptr[col + 1];
+            let mut value = match csc.row_idx[s..e].binary_search(&row) {
+                Ok(idx) => csc.vals[s + idx],
+                Err(_) => Ff::ZERO,
+            };
+            for block in blocks {
+                value += block.entry::<Ff>(row, col);
+            }
+            value
+        }
     }
 }
 

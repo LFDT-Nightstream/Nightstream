@@ -245,6 +245,46 @@ fn weighted_row_table_matches_direct_weighted_rows_for_complex_witness() {
 }
 
 #[test]
+fn weighted_identity_projection_matches_ring_formula() {
+    let s = CcsStructure::new(vec![Mat::<F>::identity(D)], SparsePoly::new(1, vec![])).expect("identity CCS");
+    let cache = build_superneo_eval_cache(&s).expect("identity cache");
+    let weights = core::array::from_fn(|index| {
+        K::from_coeffs([F::from_u64((3 * index + 5) as u64), F::from_u64((5 * index + 2) as u64)])
+    });
+    let z = core::array::from_fn::<_, D, _>(|index| {
+        K::from_coeffs([
+            F::from_u64((7 * index + 11) as u64),
+            F::from_u64((11 * index + 3) as u64),
+        ])
+    });
+    let z_blocks = SuperneoZBlocks::from_z(&z);
+    let direct: [K; D] = core::array::from_fn(|row| {
+        cache
+            .matrix(0)
+            .expect("identity matrix")
+            .row_dot_ring_weighted_with_blocks(row, &z_blocks, &weights)
+    });
+
+    let weight_re = Rq(weights.map(|value| value.real()));
+    let weight_im = Rq(weights.map(|value| value.imag()));
+    let z_re = Rq(z.map(|value| value.real()));
+    let z_im = Rq(z.map(|value| value.imag()));
+    let rr = Rq(superneo_bar_block(weight_re.0)).mul(&z_re);
+    let ir = Rq(superneo_bar_block(weight_im.0)).mul(&z_re);
+    let ri = Rq(superneo_bar_block(weight_re.0)).mul(&z_im);
+    let ii = Rq(superneo_bar_block(weight_im.0)).mul(&z_im);
+    let extension_generator = K::from_coeffs([F::ZERO, F::ONE]);
+    let expected = core::array::from_fn(|local| {
+        K::from_coeffs([rr.0[local], ir.0[local]]) + extension_generator * K::from_coeffs([ri.0[local], ii.0[local]])
+    });
+    assert_eq!(direct, expected);
+    assert_eq!(
+        cache.eval_weighted_row_table(&z_blocks, &weights, &[K::ONE], D, D),
+        direct
+    );
+}
+
+#[test]
 fn cached_superneo_eval_matches_direct_eval_for_sparse_mats() {
     let n = 32usize;
     let m = 2 * D;

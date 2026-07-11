@@ -745,6 +745,7 @@ where
             child_commitments,
             combine_b_pows,
             superneo_cache,
+            None,
         ),
         #[cfg(feature = "paper-exact")]
         FoldingMode::PaperExact => crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
@@ -768,6 +769,7 @@ where
                 child_commitments,
                 combine_b_pows,
                 superneo_cache,
+                None,
             )
         }
     }
@@ -794,6 +796,7 @@ pub fn dec_children_with_commit_superneo_cached_from_trusted_split_digits<Comb>(
     child_commitments: &[Cmt],
     combine_b_pows: Comb,
     superneo_cache: &crate::superneo_eval::SuperneoEvalCache,
+    ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
 ) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool)
 where
     Comb: Fn(&[Cmt], u32) -> Cmt,
@@ -823,6 +826,7 @@ where
             child_commitments,
             combine_b_pows,
             superneo_cache,
+            ring_linear_forms,
         ),
         #[cfg(feature = "paper-exact")]
         FoldingMode::PaperExact => crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
@@ -846,6 +850,7 @@ where
                 child_commitments,
                 combine_b_pows,
                 superneo_cache,
+                ring_linear_forms,
             )
         }
     }

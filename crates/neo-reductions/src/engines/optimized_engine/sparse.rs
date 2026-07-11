@@ -279,6 +279,13 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> SparseCache<Ff> {
                     row_idx: m.row_idx.clone(),
                     vals: m.vals.clone(),
                 })),
+                CcsMatrix::CscWithSeededPhi81 { csc: m, .. } => csc.push(Some(CscMat {
+                    nrows: m.nrows,
+                    ncols: m.ncols,
+                    col_ptr: m.col_ptr.clone(),
+                    row_idx: m.row_idx.clone(),
+                    vals: m.vals.clone(),
+                })),
             }
         }
 

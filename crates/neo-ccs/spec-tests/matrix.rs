@@ -6,7 +6,8 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use neo_ccs::{CcsMatrix, CscMat, Mat};
+use neo_ccs::{CcsMatrix, CscMat, Mat, SeededPhi81LinearBlock};
+use neo_math::D;
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 
@@ -525,4 +526,69 @@ fn sparse_cache_from_triplets() {
     m2.add_mul_into(&[F::ONE, F::ONE], &mut y2, 2);
     assert_eq!(y2[0], F::from_u64(11));
     assert_eq!(y2[1], F::ZERO);
+}
+
+// ---------------------------------------------------------------------------
+// 15. compact_seeded_phi81_matches_native_and_expanded_csc
+// ---------------------------------------------------------------------------
+#[test]
+fn compact_seeded_phi81_matches_native_and_expanded_csc() {
+    let seed = [0xA5; 32];
+    let kappa = 2;
+    let words = [0x0123_4567_89AB_CDEFu64, 0x0F0F_F0F0_55AA_AA55, 7];
+    let word_starts = vec![1, 65, 129];
+    let message_cols = (words.len() * 64).div_ceil(D);
+    let (chunk_size, chunk_seeds) = neo_ajtai::seeded_pp_chunk_seeds(seed, kappa, message_cols);
+    let row_start = 3;
+    let rows = row_start + D * kappa + 2;
+    let cols = 193;
+    let block = SeededPhi81LinearBlock::new(
+        row_start,
+        word_starts.clone(),
+        kappa,
+        message_cols,
+        chunk_size,
+        chunk_seeds,
+    )
+    .expect("valid compact block");
+
+    let base = CscMat::from_triplets(vec![(0, 0, F::from_u64(9))], rows, cols);
+    let compact = CcsMatrix::csc_with_seeded_phi81(base, vec![block.clone()]).expect("compact matrix");
+    let mut assignment = vec![F::ZERO; cols];
+    assignment[0] = F::ONE;
+    for (&word, &start) in words.iter().zip(&word_starts) {
+        for bit in 0..64 {
+            assignment[start + bit] = F::from_u64((word >> bit) & 1);
+        }
+    }
+
+    let mut column_bits = vec![0u64; message_cols];
+    for bit_index in 0..words.len() * 64 {
+        let bit = (words[bit_index / 64] >> (bit_index % 64)) & 1;
+        if bit == 1 {
+            column_bits[bit_index % message_cols] |= 1u64 << (bit_index / message_cols);
+        }
+    }
+    let native = neo_ajtai::commit_row_major_seeded_binary_cols(seed, D, kappa, message_cols, &column_bits);
+
+    let mut compact_y = vec![F::ZERO; rows];
+    compact.add_mul_into(&assignment, &mut compact_y, rows);
+    assert_eq!(compact_y[0], F::from_u64(9));
+    assert_eq!(&compact_y[row_start..row_start + D * kappa], native.data);
+
+    let mut trips = vec![(0, 0, F::from_u64(9))];
+    block.for_each_term::<F, _>(|row, col, coefficient| trips.push((row, col, coefficient)));
+    let expanded = CcsMatrix::Csc(CscMat::from_triplets(trips, rows, cols));
+    let mut expanded_y = vec![F::ZERO; rows];
+    expanded.add_mul_into(&assignment, &mut expanded_y, rows);
+    assert_eq!(compact_y, expanded_y);
+
+    let row_weights: Vec<F> = (0..rows)
+        .map(|row| F::from_u64((row as u64 * 17 + 3) % 97))
+        .collect();
+    let mut compact_t = vec![F::ZERO; cols];
+    let mut expanded_t = vec![F::ZERO; cols];
+    compact.add_mul_transpose_into(&row_weights, &mut compact_t, rows);
+    expanded.add_mul_transpose_into(&row_weights, &mut expanded_t, rows);
+    assert_eq!(compact_t, expanded_t);
 }

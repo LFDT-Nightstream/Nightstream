@@ -248,6 +248,7 @@ fn transform_ccs_matrix_superneo(
     }
 
     let mut triplets: Vec<(usize, usize, Fq)> = Vec::new();
+    let mut transformed_blocks = Vec::new();
     match src {
         CcsMatrix::Identity { n } => {
             if *n != ncols {
@@ -288,9 +289,40 @@ fn transform_ccs_matrix_superneo(
                 }
             }
         }
+        CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+            triplets.reserve(csc.vals.len() * D);
+            for c in 0..csc.ncols {
+                let block = c / D;
+                let local = c % D;
+                let base = block * D;
+                let s = csc.col_ptr[c];
+                let e = csc.col_ptr[c + 1];
+                for k in s..e {
+                    let r = csc.row_idx[k];
+                    let v = csc.vals[k];
+                    for i in 0..D {
+                        let coeff = v * bar[i][local];
+                        if coeff != Fq::ZERO {
+                            triplets.push((r, base + i, coeff));
+                        }
+                    }
+                }
+            }
+            transformed_blocks.extend(
+                blocks
+                    .iter()
+                    .map(|block| block.with_superneo_transformed_columns()),
+            );
+        }
     }
 
-    Ok(CcsMatrix::Csc(CscMat::from_triplets(triplets, nrows, ncols)))
+    let csc = CscMat::from_triplets(triplets, nrows, ncols);
+    if transformed_blocks.is_empty() {
+        Ok(CcsMatrix::Csc(csc))
+    } else {
+        CcsMatrix::csc_with_seeded_phi81(csc, transformed_blocks)
+            .map_err(|error| RelationError::Message(error.to_string()))
+    }
 }
 
 /// Nebula split-witness lane commitments — the `adv` tuple of
@@ -485,6 +517,20 @@ fn matrix_entry_base_f<F: Field + Copy + Into<GoldiF>>(mat: &CcsMatrix<F>, row: 
                 if csc.row_idx[idx] == row {
                     acc += csc.vals[idx].into();
                 }
+            }
+            acc
+        }
+        CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+            let s = csc.col_ptr[col];
+            let e = csc.col_ptr[col + 1];
+            let mut acc = GoldiF::ZERO;
+            for idx in s..e {
+                if csc.row_idx[idx] == row {
+                    acc += csc.vals[idx].into();
+                }
+            }
+            for block in blocks {
+                acc += block.entry::<GoldiF>(row, col);
             }
             acc
         }

@@ -783,6 +783,7 @@ fn dec_children_trusted_split_digits_matches_checked_path() {
         &child_commitments,
         combine_commitments_b_pows,
         &superneo_cache,
+        None,
     );
 
     assert_eq!(trusted.1, checked.1, "ok_y mismatch");

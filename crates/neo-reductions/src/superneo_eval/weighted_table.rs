@@ -1,6 +1,6 @@
-use super::weighted::weighted_projection_basis_forms_from_k;
-use super::{coeff_dot, is_all_zero, Rq, SuperneoEvalCache, SuperneoMatrixCache, SuperneoZBlocks};
-use neo_math::{KExtensions, D, F, K};
+use super::seeded::{seeded_matrix_column_basis, seeded_work_ranges};
+use super::{Rq, SuperneoEvalCache, SuperneoMatrixCache, SuperneoZBlocks};
+use neo_math::{superneo_bar_block, KExtensions, D, F, K};
 use p3_field::PrimeCharacteristicRing;
 
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
@@ -8,127 +8,90 @@ use rayon::prelude::*;
 
 impl SuperneoMatrixCache {
     #[inline]
-    fn row_dot_ring_weighted_projected_with_blocks(
-        &self,
-        row: usize,
-        z_blocks: &SuperneoZBlocks,
-        basis_re_forms: &[Rq; D],
-        basis_im_forms: &[Rq; D],
-    ) -> K {
-        debug_assert_eq!(
-            self.cols.div_ceil(D),
-            z_blocks.re.len(),
-            "SuperneoMatrixCache::row_dot_ring_weighted_projected_with_blocks: block count mismatch"
-        );
+    fn row_dot_ring_weighted_projected_explicit(&self, row: usize, identity_projection: &[K]) -> K {
         if row >= self.rows {
             return K::ZERO;
         }
 
         let mut acc = K::ZERO;
-        let extension_generator = K::from_coeffs([F::ZERO, F::ONE]);
         for rb in self.row_blocks_for(row) {
-            if !z_blocks.block_nonzero(rb.blk) {
-                continue;
-            }
-
-            let (re_form, im_form) = weighted_projection_pair_from_orig(&rb.orig, basis_re_forms, basis_im_forms);
-            if is_all_zero(&re_form.0) && is_all_zero(&im_form.0) {
-                continue;
-            }
-
-            let (rr, ir) = if z_blocks.re_nonzero[rb.blk] {
-                let z_re = &z_blocks.re[rb.blk];
-                (coeff_dot(&re_form, z_re), coeff_dot(&im_form, z_re))
-            } else {
-                (F::ZERO, F::ZERO)
-            };
-            let (ri, ii) = if z_blocks.im_nonzero[rb.blk] {
-                let z_im = &z_blocks.im[rb.blk];
-                (coeff_dot(&re_form, z_im), coeff_dot(&im_form, z_im))
-            } else {
-                (F::ZERO, F::ZERO)
-            };
-            acc += K::from_coeffs([rr, ir]) + extension_generator * K::from_coeffs([ri, ii]);
+            acc += projected_linear_form(&rb.orig, rb.blk, identity_projection);
         }
         acc
     }
 }
 
 #[inline]
-fn weighted_projection_pair_from_orig(orig: &Rq, basis_re_forms: &[Rq; D], basis_im_forms: &[Rq; D]) -> (Rq, Rq) {
-    let neg_one = F::ZERO - F::ONE;
-    let mut first = None;
-    let mut multiple = false;
-    for (local, &coeff) in orig.0.iter().enumerate() {
-        if coeff == F::ZERO {
+fn single_nonzero(orig: &Rq) -> Option<(usize, F)> {
+    let mut found = None;
+    for (local, &coefficient) in orig.0.iter().enumerate() {
+        if coefficient == F::ZERO {
             continue;
         }
-        if first.is_none() {
-            first = Some((local, coeff));
+        if found.is_some() {
+            return None;
+        }
+        found = Some((local, coefficient));
+    }
+    found
+}
+
+#[inline]
+fn projected_linear_form(orig: &Rq, block: usize, identity_projection: &[K]) -> K {
+    if let Some((local, coefficient)) = single_nonzero(orig) {
+        let projected = identity_projection[block * D + local];
+        return if coefficient == F::ONE {
+            projected
         } else {
-            multiple = true;
-            break;
-        }
+            projected.scale_base(coefficient)
+        };
     }
 
-    match (first, multiple) {
-        (None, _) => return (Rq([F::ZERO; D]), Rq([F::ZERO; D])),
-        (Some((local, coeff)), false) => {
-            return (
-                scale_weighted_projection_form(basis_re_forms[local], coeff, neg_one),
-                scale_weighted_projection_form(basis_im_forms[local], coeff, neg_one),
-            );
-        }
-        _ => {}
-    }
-
-    let mut out_re = [F::ZERO; D];
-    let mut out_im = [F::ZERO; D];
-    for (local, &coeff) in orig.0.iter().enumerate() {
-        if coeff == F::ZERO {
-            continue;
-        }
-        add_scaled_form(&mut out_re, &basis_re_forms[local].0, coeff, neg_one);
-        add_scaled_form(&mut out_im, &basis_im_forms[local].0, coeff, neg_one);
-    }
-    (Rq(out_re), Rq(out_im))
-}
-
-#[inline]
-fn scale_weighted_projection_form(mut form: Rq, coeff: F, neg_one: F) -> Rq {
-    if coeff == F::ONE {
-        return form;
-    }
-    if coeff == neg_one {
-        for slot in &mut form.0 {
-            *slot = F::ZERO - *slot;
-        }
-    } else {
-        for slot in &mut form.0 {
-            *slot *= coeff;
+    let mut out = K::ZERO;
+    let projected = &identity_projection[block * D..(block + 1) * D];
+    for (value, &coefficient) in projected.iter().zip(&orig.0) {
+        if coefficient == F::ONE {
+            out += *value;
+        } else if coefficient != F::ZERO {
+            out += value.scale_base(coefficient);
         }
     }
-    form
-}
-
-#[inline]
-fn add_scaled_form(out: &mut [F; D], form: &[F; D], coeff: F, neg_one: F) {
-    if coeff == F::ONE {
-        for i in 0..D {
-            out[i] += form[i];
-        }
-    } else if coeff == neg_one {
-        for i in 0..D {
-            out[i] -= form[i];
-        }
-    } else {
-        for i in 0..D {
-            out[i] += coeff * form[i];
-        }
-    }
+    out
 }
 
 impl SuperneoEvalCache {
+    #[inline]
+    fn eval_weighted_explicit_row(&self, row: usize, mat_coeffs: &[K], identity_projection: &[K]) -> K {
+        let mut row_acc = K::ZERO;
+        let mut add_matrix = |matrix: usize| {
+            if self.mats[matrix].identity {
+                return;
+            }
+            let coeff = mat_coeffs[matrix];
+            if coeff == K::ZERO {
+                return;
+            }
+            let y_alpha = self.mats[matrix].row_dot_ring_weighted_projected_explicit(row, identity_projection);
+            if y_alpha != K::ZERO {
+                row_acc += coeff * y_alpha;
+            }
+        };
+
+        if let Some(masks) = &self.explicit_matrix_masks {
+            let mut mask = masks[row];
+            while mask != 0 {
+                let matrix = mask.trailing_zeros() as usize;
+                mask &= mask - 1;
+                add_matrix(matrix);
+            }
+        } else {
+            for matrix in 0..self.mats.len() {
+                add_matrix(matrix);
+            }
+        }
+        row_acc
+    }
+
     pub fn eval_weighted_row_table(
         &self,
         z_blocks: &SuperneoZBlocks,
@@ -137,101 +100,204 @@ impl SuperneoEvalCache {
         n_eff: usize,
         n_pad: usize,
     ) -> Vec<K> {
+        #[cfg(feature = "perf-timers")]
+        let total_start = std::time::Instant::now();
         assert_eq!(
             self.mats.len(),
             mat_coeffs.len(),
             "eval_weighted_row_table: matrix coefficient count mismatch"
         );
+        let identity_projection = weighted_identity_projection(z_blocks, weights);
         let mut out = vec![K::ZERO; n_pad];
-        if z_blocks.imag_all_zero {
-            #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-            {
-                out.par_iter_mut()
-                    .take(n_eff)
-                    .enumerate()
-                    .for_each(|(row, out_r)| {
-                        let mut row_acc = K::ZERO;
-                        for (j, mat_cache) in self.mats.iter().enumerate() {
-                            let coeff = mat_coeffs[j];
-                            if coeff == K::ZERO {
-                                continue;
-                            }
-                            let y_alpha = mat_cache.row_dot_ring_weighted_with_blocks(row, z_blocks, weights);
-                            if y_alpha != K::ZERO {
-                                row_acc += coeff * y_alpha;
-                            }
-                        }
-                        *out_r = row_acc;
-                    });
-            }
-            #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-            {
-                for (row, out_r) in out.iter_mut().take(n_eff).enumerate() {
-                    let mut row_acc = K::ZERO;
-                    for j in 0..self.mats.len() {
-                        let coeff = mat_coeffs[j];
-                        if coeff == K::ZERO {
-                            continue;
-                        }
-                        let y_alpha = mat_cache.row_dot_ring_weighted_with_blocks(row, z_blocks, weights);
-                        if y_alpha != K::ZERO {
-                            row_acc += coeff * y_alpha;
-                        }
-                    }
-                    *out_r = row_acc;
-                }
-            }
-            return out;
-        }
-
-        let (basis_re_forms, basis_im_forms) = weighted_projection_basis_forms_from_k(weights);
+        let identity_coeff = self
+            .mats
+            .iter()
+            .zip(mat_coeffs)
+            .filter(|(matrix, _)| matrix.identity)
+            .fold(K::ZERO, |sum, (_, &coefficient)| sum + coefficient);
         #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
         {
             out.par_iter_mut()
                 .take(n_eff)
                 .enumerate()
                 .for_each(|(row, out_r)| {
-                    let mut row_acc = K::ZERO;
-                    for j in 0..self.mats.len() {
-                        let coeff = mat_coeffs[j];
-                        if coeff == K::ZERO {
-                            continue;
-                        }
-                        let y_alpha = self.mats[j].row_dot_ring_weighted_projected_with_blocks(
-                            row,
-                            z_blocks,
-                            &basis_re_forms,
-                            &basis_im_forms,
-                        );
-                        if y_alpha != K::ZERO {
-                            row_acc += coeff * y_alpha;
-                        }
-                    }
-                    *out_r = row_acc;
+                    *out_r = identity_coeff * identity_projection[row]
+                        + self.eval_weighted_explicit_row(row, mat_coeffs, &identity_projection);
                 });
         }
         #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
         {
             for (row, out_r) in out.iter_mut().take(n_eff).enumerate() {
-                let mut row_acc = K::ZERO;
-                for j in 0..self.mats.len() {
-                    let coeff = mat_coeffs[j];
-                    if coeff == K::ZERO {
-                        continue;
-                    }
-                    let y_alpha = self.mats[j].row_dot_ring_weighted_projected_with_blocks(
-                        row,
-                        z_blocks,
-                        &basis_re_forms,
-                        &basis_im_forms,
-                    );
-                    if y_alpha != K::ZERO {
-                        row_acc += coeff * y_alpha;
-                    }
-                }
-                *out_r = row_acc;
+                *out_r = identity_coeff * identity_projection[row]
+                    + self.eval_weighted_explicit_row(row, mat_coeffs, &identity_projection);
             }
         }
+        #[cfg(feature = "perf-timers")]
+        let explicit_elapsed = total_start.elapsed();
+        self.add_seeded_weighted_rows(&mut out[..n_eff], mat_coeffs, &identity_projection);
+        #[cfg(feature = "perf-timers")]
+        eprintln!(
+            "SuperneoEvalCache::eval_weighted_row_table: explicit {:.2?} seeded {:.2?} total {:.2?}",
+            explicit_elapsed,
+            total_start.elapsed() - explicit_elapsed,
+            total_start.elapsed(),
+        );
         out
     }
+
+    fn add_seeded_weighted_rows(&self, out: &mut [K], mat_coeffs: &[K], identity_projection: &[K]) {
+        let plain_basis = seeded_matrix_column_basis(false);
+        let transformed_basis = seeded_matrix_column_basis(true);
+
+        for (matrix, &matrix_coeff) in self.mats.iter().zip(mat_coeffs) {
+            if matrix_coeff == K::ZERO {
+                continue;
+            }
+            for block in &matrix.seeded_phi81_blocks {
+                let column_basis = if block.has_superneo_transformed_columns() {
+                    &transformed_basis
+                } else {
+                    &plain_basis
+                };
+                for output in 0..block.kappa() {
+                    let row_start = block.row_start() + output * D;
+                    if row_start >= out.len() {
+                        break;
+                    }
+                    let work = seeded_work_ranges(block, output);
+                    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+                    let contribution = work
+                        .into_par_iter()
+                        .map(|(chunk, local_start, local_end)| {
+                            seeded_weighted_chunk(
+                                block,
+                                output,
+                                chunk,
+                                local_start,
+                                local_end,
+                                column_basis,
+                                identity_projection,
+                                matrix_coeff,
+                            )
+                        })
+                        .reduce(
+                            || [K::ZERO; D],
+                            |mut left, right| {
+                                for coordinate in 0..D {
+                                    left[coordinate] += right[coordinate];
+                                }
+                                left
+                            },
+                        );
+                    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+                    let contribution = work
+                        .into_iter()
+                        .map(|(chunk, local_start, local_end)| {
+                            seeded_weighted_chunk(
+                                block,
+                                output,
+                                chunk,
+                                local_start,
+                                local_end,
+                                column_basis,
+                                identity_projection,
+                                matrix_coeff,
+                            )
+                        })
+                        .fold([K::ZERO; D], |mut left, right| {
+                            for coordinate in 0..D {
+                                left[coordinate] += right[coordinate];
+                            }
+                            left
+                        });
+                    let coordinate_count = core::cmp::min(D, out.len() - row_start);
+                    for coordinate in 0..coordinate_count {
+                        out[row_start + coordinate] += contribution[coordinate];
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn weighted_identity_projection(z_blocks: &SuperneoZBlocks, weights: &[K; D]) -> Vec<K> {
+    let mut weight_re = [F::ZERO; D];
+    let mut weight_im = [F::ZERO; D];
+    for (index, weight) in weights.iter().enumerate() {
+        [weight_re[index], weight_im[index]] = weight.as_coeffs();
+    }
+    let bar_weight_re = Rq(superneo_bar_block(weight_re));
+    let bar_weight_im = Rq(superneo_bar_block(weight_im));
+    let extension_generator = K::from_coeffs([F::ZERO, F::ONE]);
+
+    let mut out = vec![K::ZERO; z_blocks.re.len() * D];
+    let fill_block = |block: usize, output: &mut [K]| {
+        if !z_blocks.block_nonzero(block) {
+            return;
+        }
+        let (rr, ir) = if z_blocks.re_nonzero[block] {
+            (
+                bar_weight_re.mul(&z_blocks.re[block]),
+                bar_weight_im.mul(&z_blocks.re[block]),
+            )
+        } else {
+            (Rq::zero(), Rq::zero())
+        };
+        let (ri, ii) = if z_blocks.im_nonzero[block] {
+            (
+                bar_weight_re.mul(&z_blocks.im[block]),
+                bar_weight_im.mul(&z_blocks.im[block]),
+            )
+        } else {
+            (Rq::zero(), Rq::zero())
+        };
+        for (local, slot) in output.iter_mut().enumerate() {
+            *slot = K::from_coeffs([rr.0[local], ir.0[local]])
+                + extension_generator * K::from_coeffs([ri.0[local], ii.0[local]]);
+        }
+    };
+
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    out.par_chunks_mut(D)
+        .enumerate()
+        .for_each(|(block, output)| fill_block(block, output));
+    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+    out.chunks_mut(D)
+        .enumerate()
+        .for_each(|(block, output)| fill_block(block, output));
+    out
+}
+
+fn seeded_weighted_chunk(
+    block: &neo_ccs::SeededPhi81LinearBlock,
+    output: usize,
+    chunk: usize,
+    local_start: usize,
+    local_end: usize,
+    column_basis: &[Rq; D],
+    identity_projection: &[K],
+    matrix_coeff: K,
+) -> [K; D] {
+    let mut out = [K::ZERO; D];
+    block.for_each_original_chunk_range_column_rotation::<F, _>(
+        output,
+        chunk,
+        local_start,
+        local_end,
+        |column, rotation| {
+            let blk = column / D;
+            let contribution =
+                matrix_coeff * projected_linear_form(&column_basis[column % D], blk, identity_projection);
+            if contribution == K::ZERO {
+                return;
+            }
+            for coordinate in 0..D {
+                let coefficient = rotation[coordinate];
+                if coefficient != F::ZERO {
+                    out[coordinate] += contribution.scale_base(coefficient);
+                }
+            }
+        },
+    );
+    out
 }

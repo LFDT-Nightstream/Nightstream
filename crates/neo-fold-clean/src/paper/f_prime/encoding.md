@@ -111,20 +111,57 @@ terminal relation; the recursive relation consumes the prior fresh
 claim's suffix/`adv`, enforces the delayed `NebulaLane` transition, composes
 current `S_mem`, and projection-checks the c/adv, X, and y clients. Shape-only
 synthesis covers base, bootstrap-recursive, and steady-recursive execution.
-What remains is to make the accumulator-handle binding affordable, then
-(3) lower that one fixed-shape relation into bit-backed CCS; do not maintain
-the manual shell as a second verifier, (4) make the shipped encoder fill the
-lowered witness, then let the terminal-only verifier consume the induction
-and flip the two multi-chunk gates. The old 14,040,452-bit shell measurement
-is retained only as prototype evidence that projection beats D²; it is not a
-completion claim. The first safe field-shape audit at reduced `κ = 1`
-measures `29,184 × 27,851` (base), `13,343,973 × 13,374,181`
-(bootstrap), and `31,811,965 × 30,083,642` (steady). Overlaying one-hot
-branch-private advice removes summed-width duplication, but the final
-relation still has a hard **30,083,645-bit lower bound** before actual
-field bit widths, already 1.88× the 16M engineering budget. The dominant
-surface is the full running-accumulator Poseidon authority handle, not the
-projection ring action. Lemma 5 carries an author self-review whose one
+The accumulator handle now reuses the already-computed running-parent CE
+digest after native and in-circuit NIFS.V verify strict Pi_DEC consistency
+between that parent and every child. Re-hashing all children was duplicate
+authority; child-tamper tests still fail after rebuilding the compact handle.
+The R2 authoritative-relation and R3 low-norm-compilation milestones are
+**DONE**. Five witness-proportional claim/projection/leaf roles use independent
+rank-2 seeded SIS/Ajtai maps followed by one independent short rank-1 map and
+a domain-separated Poseidon2 digest. Each long map consumes the same 41
+centered unit digits that encode its authoritative source fields, rather than
+a second 64-bit serialization. The v3 digest envelope binds the role, field
+count, and primary rank. `CscWithSeededPhi81` keeps both maps compact through
+CCS and SuperNeo evaluation. The selective compiler lowers Poseidon2 S-boxes,
+projection evaluations, K multiplication, rejection selection, and centered
+PiDEC checks directly instead of committing their R1CS temporaries. Full field
+values without an existing canonical decomposition use 41 balanced-ternary
+digits in `{-1,0,1}`; canonical-u64 fields retain their shared 64-bit slots.
+This is still `w = 1` at the committed-coordinate boundary: radix 3 lives in
+the verifier-owned matrix coefficients, while every witness digit has norm at
+most one. Private final Poseidon outputs are substituted linearly, five product
+pairs share one direct CCS row, and long evaluations use telescoping
+accumulators. K dot products use the exact Karatsuba sums `P`, `Q`, and `R`
+instead of retaining every per-term K output. The reduced compiler profile
+reaches a square three-arm verifier-shape fixed point at **9,959,328 committed coordinates / 9,959,328
+rows / 14 matrices / degree 8**. Matrix 0 is the SuperNeo NC identity matrix.
+The active `road_a_reduced_profile_fixed_point_stabilizes_within_budget` test
+pins that compiler invariant, and `compile_fixed_point` rejects an oversized
+result. R7's Appendix B.2 preflight at `kappa = 18`, `k_rho = 14`, `T = 216`
+and maximum v3.1 memory geometry measures **15,730,104 coordinates** on the
+first selective census. The verifier-shape fixed point stabilizes at
+**15,958,404 coordinates / rows, 14 matrices, degree 8**, 41,596 below the
+unchanged 16M ceiling. The active
+`nebula_v3_targets_folded_f_prime_production_preflight` test pins that result,
+the two-level map dimensions, and the 65.23-bit conservative maximum-chain
+union against the declared 64-bit target (`SEG_MAX=2^16`, `q_H≤2^16`).
+R4's shipped encoder
+and R5's terminal induction are **DONE**: `NebulaFPrimeChainBuilder` deposits
+the fixed relation with serial `K=1`, recursive steps consume the prior claim's
+delayed suffix, finalization consumes the trailing claim, and the terminal-only
+verifier accepts the final accumulator plus terminal fold without the audit
+history. The active
+`r4_shipped_encoder_verifies_multistep_memory_chain` test traverses all three
+arms over three one-step segments and rejects link, suffix, lane, and history
+tampering. Focused delayed-suffix tests cover the absent-`D_pre` interior
+encoding without another production-sized fold. The plain shipped
+encoder is exercised by `r1cs_stateful_linked_fibonacci_chain_verifies_end_to_end`.
+The active R5 gate `multi_chunk_f_prime_chain_must_verify_terminal_only`
+additionally rejects a changed pre-final running commitment, so earlier folded
+history remains load-bearing without audit replay.
+Legacy and generic F' frontends remain terminal-only fail-closed. The old
+14,040,452-bit manual shell remains prototype evidence only.
+Lemma 5 carries an author self-review whose one
 novel claim (a Φ(β) = 0 completeness caveat) was **refuted by external
 review** and is retained in the note as a correction record — the
 honest identity holds identically at roots of Φ, and Φ_81 has no roots
@@ -140,20 +177,17 @@ finding is itself the argument for keeping that flag.
 | B | SignedDigit as measured | — | invalid: operands are full-range commitments |
 | C | Mixed (ρ = SignedDigit{5}, rest U64) | 90.1M | valid; saves 1.6 % — not a lever |
 | D | Digit-decompose c, act on digits | ~260M | valid; strictly worse (14 SignedDigit pairs vs 1 U64 pair, ×2.8) |
-| E | Projection check: verify `Σ_i ρ_i·c_i = out (mod Φ)` as `Σ ρ_i(X)c_i(X) = q(X)Φ(X) + out(X)` at a post-commitment `β ∈ K` | The primitive is measured at ~21k vs ~196k bits per pair. The old manual-shell model is 14,040,452 bits, but omits authoritative wiring and the Nebula census and is not a production step measurement. | **Authoritative NIFS.V/F′ integration includes `c + adv`, X/y projection, delayed lane transition, and current `S_mem`**. Remaining: affordable accumulator binding, fixed-shape low-norm compilation, real encoder fill, terminal delayed transition, and terminal induction. Lemma 5's target census is `P=1,275`, batched `J=85`; conservative `J≤1,275`. |
+| E | Projection check: verify `Σ_i ρ_i·c_i = out (mod Φ)` as `Σ ρ_i(X)c_i(X) = q(X)Φ(X) + out(X)` at a post-commitment `β ∈ K` | The primitive is measured at ~21k vs ~196k bits per pair. The reduced-profile fixed point is 9,959,328 coordinates; the production fixed point is 15,958,404. The old 14,040,452-bit manual shell remains a non-authoritative reference. | **Implemented end to end** in authoritative NIFS.V/F′ for `c + adv`, X/y projection, delayed lane transition, current `S_mem`, and terminal-only lifecycle induction. Exact Karatsuba K-dot tracing keeps production below the unchanged 16M ceiling. Lemma 5's maximum-geometry census is `P=2,250`, batched `J=150`; conservative `J≤2,250`. |
 | F | Fewer pairs (arity/κ trades) | linear only | doesn't touch the 197k/pair |
-| G | SIS accumulators (C14/L2) | Prototype: 3 fields at κ=1, including one final Poseidon2 digest, measures 10,532 field columns / 10,537 rows / 93,425 nnz before lowering and 661,445 committed bits / 671,981 rows after complete low-norm lowering. The Ajtai core adds only `Dκ` equations but Θ(`Dκ·64N`) coefficients for `N` fields. | Native/circuit parity, tamper rejection, and canonical-bit slot reuse land in `accumulator_sis_circuit` plus the low-norm compiler; not adopted. Full integration still needs a structured seeded-ring matrix representation, otherwise a full accumulator produces multi-billion-entry sparse matrices. Exact seed/transcript domains, production measurement, and the hash-then-FS lemma remain owed. |
+| G | SIS accumulators (C14/L2) | A role-specific rank-2 map binds the authoritative 41-trit encoding; an independent short rank-1 map compresses its 108-field output before Poseidon2. | **Adopted for five R2 binding roles**, with compact seeded matrices, native/circuit parity, stage-tamper tests, concrete rank-2/rank-1 estimates, and security-note Lemma 6's hash-then-FS reduction. Replacing the carried `D` chains remains deferred. |
 | H | Terminal-proof regime (PR5): never commit F' | 0 per step | field-native cost once per chain (~1–3M-constraint relation); sidesteps enc(F') entirely |
 
-Bottom line: E removed the original ring-action wall, and one-hot advice
-overlay removes avoidable branch-width duplication. The authoritative
-audit nevertheless proves that the current Poseidon accumulator handle
-cannot meet the 16M Road A budget even under an optimistic one-bit-per-field
-bound at reduced κ. The 14,040,452-bit shell remains prototype evidence,
-not a security or completion gate. Road A therefore needs C14/L2 (or an
-equally reviewed binding compression) before fixed-point lowering and the
-encoder can be completed; simply lifting the budget would hide a much larger
-production-κ cost.
+Bottom line: E removed the ring-action wall, the verified-parent handle removed
+the duplicate child hash chain, and the SIS/selective compiler closes the R2/R3
+mechanics. R4-R6 consume that relation through the shipped encoder and
+terminal-only memory induction. Both reduced and production fixed points fit
+the unchanged 16M ceiling. Generic all-binary lowering and the old manual shell
+remain reference paths, not production encodings.
 
 The generic-lowering tax is now measured on the real object, not just the
 C14 toy: the complete authoritative NIFS.V circuit over an honest two-fold
@@ -171,6 +205,26 @@ audit above assumes and what the shell did by hand.
 ## Reproduce every number
 
 ```bash
+# Reduced R2 verifier-shape fixed point (9,959,328 coordinates):
+cargo test -p neo-fold-clean --release --test nebula_f_prime \
+  road_a_reduced_profile_fixed_point_stabilizes_within_budget -- --exact --nocapture
+
+# R7 production fixed-point gate (15,958,404 coordinates):
+cargo test -p neo-fold-clean --release --test perf_nebula \
+  nebula_v3_targets_folded_f_prime_production_preflight -- --exact --nocapture
+
+# R4 shipped encoder over two multi-step memory segments:
+cargo test -p neo-fold-clean --release --test nebula_f_prime \
+  r4_shipped_encoder_verifies_multistep_memory_chain -- --exact --nocapture
+
+# R4 plain multi-step encoder through the encoded F' audit relation:
+cargo test -p neo-fold-clean --release --test system_r1cs_compiler_stateful \
+  r1cs_stateful_linked_fibonacci_chain_verifies_end_to_end -- --exact
+
+# R5 final accumulator + latest fold, with no audit-history authority:
+cargo test -p neo-fold-clean --release --test nebula_f_prime \
+  multi_chunk_f_prime_chain_must_verify_terminal_only -- --exact --nocapture
+
 # Complete authoritative NIFS.V circuit, low-norm lowered (371M bits, 62.5 bits/col):
 cargo test -p neo-fold-clean --release --test perf_lowered_nifs_v -- --ignored --nocapture
 

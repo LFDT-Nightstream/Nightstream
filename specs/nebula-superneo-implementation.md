@@ -3,13 +3,14 @@
 Status: normative architecture and implementation spec for the
 `neo-fold-clean` Nebula memory-checking integration.
 
-Trust status: **architecture-sound and testable under native F′
-enforcement; production security is gated on the F′ R1CS / compressed
-decider enforcing the §6.3 `NebulaLane` transition** (§13 step 9 — the
-same gate, and the same closure, as F′ itself). Until a VM frontend
-attaches program semantics (§4), external claims must be scoped to "this
-advice stream is a consistent RAM/ROM history under this plan", never
-"this program executed".
+Trust status: **the authoritative Rust R6/R7 path implements folded F′/NIFS.V
+induction, delayed §6.3 `NebulaLane` transition, plan-bounded segment closure,
+and the production-shape budget through terminal-only verification** (§13 step
+9). Production cryptographic sign-off still requires the security note's named
+non-author review, especially C19/A5 and A6's fixed-matrix Module-SIS model;
+implementation tests do not waive that review. Until a VM frontend attaches program semantics
+(§4), external claims must be scoped to "this advice stream is a consistent
+RAM/ROM history under this plan", never "this program executed".
 
 Security companion: [`nebula-superneo-security-note.md`](./nebula-superneo-security-note.md)
 — states and proves the lemmas §5.3 and §9 rely on, and holds the claims
@@ -61,7 +62,12 @@ a positioned SIS/Ajtai sequence accumulator. That construction is retired
 | SIS/cost review (review: Enzo, v4 proposal + evaluation) | **L0a leaf digests** adopted (§6.1/§6.3/§6.5): each lane commitment crosses Poseidon2 exactly once per step; chains and transcript sites absorb 4-element leaves. **L0b** made explicit (§6.2): `D_pre` is prover-claimed at open, authority is the close equality. §6.5 re-priced **dual-regime** (bit-backed folded vs Spartan field-native — gated on `enc(F′)`, `paper/f_prime/encoding.md`); the SIS-accumulator analysis corrected in both directions and re-dispositioned to §14 (sound, but digit bases `w > 1` are unbuildable under the `b = 2` NC range check; only live in the folded regime). §5.2 R1 site list corrected (the F′ chunk digest is shape-only, absorbs no commitments — removed with rationale). §9 aligned to the note's FS-lifted formula. §4.4 limb-canonicality note; §13 step 3 cross-crate scope note. |
 | External review pass (second reviewer) | **Completeness bug fixed:** the IS/FS chains were lane-typed (`"is"`/`"fs"` tags), so honest cross-segment continuity `D_seen[is] == D_mem` could never hold — is/fs now share one mem-domain leaf/link tag pair and header (§6.1/§6.3), `D_init` uses the identical formula (§7), and the §12 swap row's rejection point moved to Lemma 1 slice binding. **Finalization rule added** (§6.3): externally accepted proofs must end at a closed segment. Lifecycle guards (`advance_nebula` requires open segment); `D_pre` thin-air claims named as preimage-resistance (not just CR); plan rule `r ≤ μ` (§2); `n_in`/`m_seg` notation fixes in §9 (fold-arity vs field `K`; the `2n` double-count); prover-vs-verifier resume bundles (§6.4); `adv` shape invariant (§5.1); acceptance tests hardened (§13 steps 3–5). |
 | **v3.1: stacks** (§14 → normative) | Coral §5.2's `check_push`/`check_pop` port: up to `S ≤ 2` **segment-local** stacks as extra memory namespaces. Namespace selection becomes **one-hot selector bits** (`ram`, `stk_0`, `stk_1`; ROM = none set) so the global index `g` stays *linear in lane bits* and v3 is the exact `S = 0` special case (byte-identical lanes and `x`). Pushes emit WS only (no `rt` check), pops emit RS only (with the E4 timestamp check); stacks never enter IS/FS or the scan; the per-segment product equation then forces stack-WS = stack-RS. **Per-segment γ forces segment locality** (§3.1): a push under segment k's γ cannot cancel a pop under segment k+1's γ, so every push is popped in its segment and `sp = 0` at every close (new §6.3 check). Stack bounds are bitness-pure: the running `sp` is a σ-bit word, so pop-at-empty and push-at-full are unrepresentable (capacity `2^σ − 1`). New rows E10–E14, `x` gains per-stack `sp_in`/`sp_out`, `NebulaLane` carries `sp`, plan v3.1 binds `S`/`σ`. Security note gains Lemma 4 (stack discipline, reduction to Blum et al. / Coral App. E). |
-| Road A relation audit (2026-07-09) | The 14M-bit projection shell was reclassified as a cost prototype: shipped encoders do not fill it, and its K-mul slots lack semantic rows. The authoritative NIFS.V circuit now projection-checks the complete `c + adv` product commitment on transcript-bound `q`/`β` wires through PiCCS/PiRLC/PiDEC, with terminal slice openings. Paper re-read fixed the timing: as in HyperNova Construction 2 step 4(d) and Nebula Construction 2 step 4, F′ consumes the **previous** fresh claim's public memory suffix and witness commitment, not the claim it is currently producing. The authoritative recursive relation now enforces that delayed `NebulaLane` transition. Remaining production work is the current `S_mem` application relation, fixed-shape low-norm lowering, and the terminal delayed transition; no second verifier shell. Lemma 5's full production census is `P=1,275`, batched `J=85`. |
+| Road A relation audit (2026-07-09) | The 14M-bit projection shell was reclassified as a cost prototype: shipped encoders do not fill it, and its K-mul slots lack semantic rows. The authoritative NIFS.V circuit now projection-checks the complete `c + adv` product commitment on transcript-bound `q`/`β` wires through PiCCS/PiRLC/PiDEC, with terminal slice openings. Paper re-read fixed the timing: as in HyperNova Construction 2 step 4(d) and Nebula Construction 2 step 4, F′ consumes the **previous** fresh claim's public memory suffix and witness commitment, not the claim it is currently producing. The authoritative recursive relation now enforces that delayed `NebulaLane` transition. Remaining production work is the current `S_mem` application relation, fixed-shape low-norm lowering, and the terminal delayed transition; no second verifier shell. The maximum-geometry Lemma 5 census is `P=2,250`, batched `J=150`. |
+| Parent-authority/R2-R3 pass (2026-07-09–10) | Native and in-circuit NIFS.V verify strict Π_DEC consistency before the compact parent-authority handle is derived. R2 compresses five witness-proportional claim/projection/leaf roles with independent rank-2 seeded SIS maps, then one independent short rank-1 map and a domain-separated Poseidon2 envelope; R3 preserves both levels as compact `CscWithSeededPhi81` blocks and selectively lowers the authoritative three-arm relation. SIS inputs reuse the same 41 balanced-ternary unit digits committed by the folded witness. Canonical-u64 fields elsewhere keep shared 64-bit slots. The selective compiler substitutes private final Poseidon outputs, reuses verifier matrix roles for five product pairs per direct CCS row, telescopes long evaluation sums, and records K dot products as the exact three Karatsuba sums `P`, `Q`, and `R`. The **reduced compiler profile** has a square fixed point at 9,959,328 coordinates / rows, 14 matrices, degree 8, with `M0 = I`; this is not the production-parameter cost claim. `road_a_reduced_profile_fixed_point_stabilizes_within_budget` is active and `compile_fixed_point` enforces the 16M ceiling. Security-note Lemma 6 and A6 state the hash-then-FS reduction, dimensions, estimator commit, and fixed-matrix assumption. |
+| Shipped-encoder/R4 pass (2026-07-10) | The public Nebula chain builder has active evidence for the complete live encoder, not only preprocessing shapes: q/β transcript advice, accumulator state, current memory suffix, `adv`, and every selected low-norm slot are generated from the native fold and checked by the fixed relation before commitment. The shared R4–R6 fixture runs three one-step segments: cross-segment RAM/ROM behavior and both stacks are exercised, while the third claim reaches the steady-recursive arm after base and bootstrap. The focused delayed-suffix tests pin the absent-`D_pre` interior encoding without adding another production-sized fold. The terminal-only verifier accepts, and link/suffix/lane/history mutations reject. `generic_ivc_verifies_running_accumulator_and_latest_f_prime` is the active plain-R1CS counterpart. |
+| Terminal-induction/R5 pass (2026-07-10) | Only preprocessing that compiles the complete fixed relation may set terminal-induction authority. `NebulaFPrimeChainBuilder` folds it serially (`K=1`) through base, bootstrap-recursive, and steady-recursive arms; recursive F′ consumes the prior claim's suffix/`adv`, and finalization consumes the trailing delayed claim before requiring a closed lane. Nebula verification checks the final state and terminal fold without audit replay. Plain `r1cs_f_prime::ivc` follows HyperNova exactly: its compact proof keeps the running CE accumulator and latest fresh F′ instance separate, and `verify_uncompressed` checks both relations. Historical image-only recursive-link frontends remain fail-closed. |
+| Memory-closure/R6 pass (2026-07-10) | `nebula_chain_must_verify_terminal_only_with_memory` is active over a three-segment terminal-only fixture at `k_rho = 14`. It exercises cross-segment RAM continuity, public ROM reads, two segment-local stacks with nested LIFO operations, trailing-claim consumption, closed-lane finalization, and four independent terminal tamper boundaries. Segment opening now enforces `seg_idx < SEG_MAX` in both the native lane and the authoritative F′ relation; plan validation also proves `SEG_MAX` and `N` fit their 16-bit counters. Wrong-value stack pops and absent-`D_pre` interior steps remain pinned by focused relation tests rather than extra production-sized folds, keeping the active R6 gate below the five-minute cap. |
+| Production-budget/R7 pass (2026-07-10) | **Implemented and active.** Appendix B.2 parameters (`kappa = 18`, `k_rho = 14`, `T = 216`) plus maximum v3.1 geometry produce field arms up to 8,848,897 rows / 6,973,413 columns. Exact Karatsuba K-dot traces remove transient per-term K outputs while preserving the ordinary R1CS equations. The first production selective census is **15,730,104 coordinates**; the verifier-shape fixed point stabilizes at **15,958,404 coordinates / rows, 14 matrices, degree 8**, 41,596 below the unchanged 16M ceiling. The active preflight pins both measurements, the projection census (`n=15`, initial folded `t=15`, `a_X=46`, `J=150`, conservative `P=2,250`), the final relation's `t=14`, and 36 rank-2 plus 36 short rank-1 compact blocks. It also evaluates the exact D.4 numerator `1,439,664` and the maximum-chain union bound: with `SEG_MAX=2^16` and global `q_H≤2^16`, the conservative result is 65.23 bits against a declared 64-bit target. No parameter change was used. |
 
 ### v1 → v2 (condensed)
 
@@ -151,10 +157,12 @@ the plan digest.
 | `σ` | target 12 | stack-pointer width; stack capacity is `2^σ − 1` cells (bitness-pure bounds, §4.1 E12). Plan validity: `1 ≤ σ ≤ μ` when `S > 0`. |
 | `VAL_BITS` | 32 | one cell = one 32-bit word (`ℓ = 1` value lane) |
 | `TS_BITS` | 44 | timestamp width; plan enforces `SEG_MAX · N · B_ops < 2^TS_BITS` |
+| `SEG_IDX_BITS` | 16 | public segment-index width; plan enforces `1 ≤ SEG_MAX ≤ 2^16`, and segment open enforces `seg_idx < SEG_MAX` natively and in F′ |
+| `STEP_IDX_BITS` | 16 | public step-index width; plan enforces `1 ≤ N ≤ 2^16` |
 | `B_ops` | 64 | op slots per step |
 | `B_scan` | 64 | scan slots per step |
 | `N` | 1,088 | steps per segment; `N = (R + M) / B_scan` **exactly** (exact cover; divisibility is automatic for powers of two with `B_scan ≤ min(R, M)`). Longer segments are obtained by enlarging `M` with untouched cells — never by padding the scan (§3.3). |
-| `SEG_MAX` | `2^16` | max segments per chain |
+| `SEG_MAX` | `2^16` | maximum closed segments per chain; legal segment indices are `0 .. SEG_MAX−1` |
 | `DEG_MAX` | 4 | max CCS degree of `S_mem` (product-update rows; engine already runs degree-7 structures) |
 
 Packing (§4.3): fingerprints use the global cell index
@@ -701,12 +709,12 @@ then requires a **closed segment**: `lane.idx == 0`, `lane.gamma == ⊥`, and
 lane pair is incomplete; checking closure on the pre-terminal lane is the
 same off-by-one error. Mid-segment state remains prover-only resume material.
 
-Implementation status: the authoritative recursive F′ R1CS enforces the
-delayed transition and binds its input/output lane digests. The current
-direct `S_mem` lifecycle still uses the pre-migration deposit-time replay;
-the terminal delayed transition and composed `S_mem + F′` lowering remain
-the fail-closed production gate in §13 step 9. Memory adds obligations to
-F′, not a new verifier class.
+Implementation status: the authoritative fixed relation composes current
+`S_mem`, recursive delayed transition, and terminal delayed consumption.
+Its lifecycle deposits only that relation, while audit replay remains a test
+oracle. Terminal-only verification accepts the final accumulator and terminal
+fold without reading history; all legacy/native frontends remain fail-closed.
+Memory adds obligations to F′, not a new verifier class.
 
 ### 6.4 Segment boundary and the initial state
 
@@ -773,11 +781,25 @@ F′ witness encoding `enc(F′)` is an open design decision
 
 The earlier "≈ 122 permutations ≈ 45–60k constraints per commitment"
 figure was the field-native cost quoted for the folded regime — the wrong
-gadget for that regime (v4-review correction). The authoritative shape audit
-now provides the first whole-relation lower bound at reduced κ = 1: after
-overlapping one-hot branch advice, steady F′ alone forces at least
-30,083,645 committed bits before real bit widths, versus the 16M engineering
-budget. C12 remains the production-κ measurement gate.
+gadget for that regime (v4-review correction). The authoritative relation now
+uses the running parent CE digest as its compact accumulator handle only after
+native and in-circuit NIFS.V verify strict Π_DEC consistency with every child;
+this removes the duplicate full-child hash without weakening the child rows.
+The initial reduced-κ audit exposed a 301M-bit all-binary Poseidon floor. R2
+removes that floor rather than hiding it: witness-proportional claim/projection
+preimages enter domain-separated rank-2 seeded SIS/Ajtai maps, an independent
+short rank-1 map compresses each 108-field output, one Poseidon2 digest enters
+Fiat–Shamir, and the authoritative relation is selectively lowered.
+Canonical-u64 values reuse their existing 64 bit slots; other full field values
+use 41 balanced-ternary digits in `{−1,0,1}`. SIS maps consume those same
+authoritative trits instead of allocating a second serialization, and their v2
+digest envelope binds the role, field count, and primary rank. At the reduced compiler
+profile this produces a square fixed point of 9,959,328 committed coordinates
+and rows, 14 matrices (`M0 = I`), degree 8. The production R7 preflight is
+larger: its first selective census is 15,730,104 coordinates at Appendix B.2
+`kappa = 18`, `k_rho = 14`, `T = 216` and maximum v3.1 memory geometry, and
+its fixed point stabilizes at 15,958,404. The active gate keeps both below the
+unchanged 16M engineering budget.
 
 **Considered and deferred: SIS/Ajtai accumulators for the `D` chains**
 (review question: Enzo; v4 proposal). Merkle–Damgård chaining over the
@@ -794,29 +816,19 @@ earlier rejection rationale (v4 review):
   ≈ 5.3M bits/rows for bit-backed Poseidon2 — at the price of ≈ 60M nnz
   of dense linear structure constants per absorb (sum-check work, plus
   GB-scale matrices unless the engine exploits the ring structure).
-- (ii) Digit bases `w > 1` are **unbuildable** regardless of parameters:
-  the NC range check forces every committed coordinate of a fresh
-  instance into `{−1, 0, 1}` (`b = 2`), so only `w = 1` digits ride the
-  scheme's norm enforcement for free. `B = 2^14` is the RLC-transient
-  binding headroom, not an enforced bound on fresh witnesses.
+- (ii) Committed digits with magnitude greater than one are unbuildable under
+  `b = 2`. This does **not** forbid radix 3: R2's balanced-ternary encoding
+  keeps every committed digit in `{−1,0,1}` and puts powers of 3 in the public
+  matrix coefficients. `B = 2^14` remains RLC-transient headroom, not a fresh
+  witness bound.
 
-Disposition: **reopened as a Road A blocker** by the authoritative shape
-audit. The present Poseidon construction remains the normative, sound
-fallback, but it cannot meet the committed-width budget. Adopting SIS still
-requires a compiler/engine construction and hash-then-FS lemma. The first
-native/circuit primitive now pins the trade: for three fields at κ=1,
-Ajtai plus one final Poseidon2 digest costs 10,532 field columns, 10,537 rows,
-and 93,425 nonzeros **before** low-norm lowering. The complete toy lowering
-measures 661,445 committed bits and 671,981 CCS rows. The compiler now aliases
-each recorded canonical decomposition child onto its source field's existing
-64-bit slot (with direct, mismatch, and three-arm tests), so this measurement
-does not double-commit those bits. Ajtai itself needs only `Dκ` equations, but
-a naïve matrix still has Θ(`Dκ·64N`) coefficients for `N` canonical fields.
-The remaining production construction must represent the seeded ring map
-structurally; materializing a full accumulator as CSC is not acceptable.
-Until that and the binding lemma land, the fixed-point compiler's budget guard
-stays fail-closed. The two mem lanes merging into one component (heavier
-boundary rule) remains the other recorded knob.
+Disposition: **adopted narrowly for the five R2 binding roles**. The CCS
+matrix keeps both seeded ring maps structural instead of materializing
+Θ(`Dκ·41N`) entries; native/circuit parity, stage-tamper rejection, the R7
+dimension census, security-note A6, and Lemma 6 cover the adopted path.
+Fiat–Shamir still uses Poseidon2 over the recomputed two-level binding. The
+carried `D` chains remain Poseidon2 and the two-mem-lanes merge remains a
+separate deferred knob.
 
 ---
 
@@ -912,29 +924,33 @@ constants compiled into the structure.
    instead of two.
 
 ```text
-ε_total ≤ ε_pipe·n_f + ε_MSIS + q_H · n_f·n_in/|C|                      (Lemma 1, FS-lifted)
-        + ε_CR                                                          (Lemma 2)
-        + q_H · Σ_seg m_seg / |K|                                       (Lemma 3 / Cor. 4.1)
+ε_total ≤ q_H · n_f · ε_pipe                                           (A1, FS-lifted)
+        + ε_MSIS + q_H · n_f·n_in/|C|                                  (Lemma 1)
+        + ε_BIND + ε_CR                                                  (Lemma 6 + A3)
+        + q_H · n_seg · m_seg / |K|                                     (Lemma 3 / Cor. 4.1)
+        + q_H · n_f · J_proj·(2d−2) / |K|                               (Lemma 5)
 
 ε_MSIS := ε_MSIS(A) + ε_MSIS(A_ops) + ε_MSIS(A_mem)
+ε_BIND := five rank-2 binding-map events + one short rank-1 map event
 n_in   := per-fold input-claim count (SuperNeo's fold arity "K + k" —
           instance counts, unrelated to the extension field K in |K|)
 m_seg  := |IS| + |WS| + |RS| + |FS| = 2·(N·B_ops + R + M)
+J_proj := projection identities per fold; production uses conservative P=2,250
 ```
 
 This is, term for term, the composition theorem of the
 [security note](./nebula-superneo-security-note.md) §5 — one canonical
-formula, defined there. (`ε_pipe·n_f` is the host pipeline's own folding
-budget over `n_f` folds; `q_H·n_f·n_in/|C|` is Lemma 1's mixing term,
-FS-lifted with the same `q_H` as every other challenge-dependent event;
-`ε_CR` is Poseidon2 collision/preimage resistance over all leaf, link,
-and state hops.)
+formula, defined there. `q_H` is the global adversarial random-oracle query
+cap and is applied conservatively to every challenge-dependent failure term.
 
-Worked v3 target per segment (`m_seg = 2·(N·B_ops + R+M) ≈ 2^18.1`):
-`m_seg/|K| ≈ 2^-110` per Fiat–Shamir attempt — the same soundness regime
-SuperNeo accepts for its own sum-checks. (The earlier `2n/|K|` phrasing
-double-counted: Lemma 3's `2n` *is* the total multiset size, i.e.
-`m_seg` — external-review fix.)
+The production profile declares a **64-bit maximum-chain target** at
+`SEG_MAX=2^16`, `N=1,088`, and `q_H≤2^16`. R7 uses the final relation's exact
+SuperNeo D.4 numerator `1,439,664`, the conservative projection count
+`P=2,250`, and the pinned Module-SIS floors. The evaluated union is **65.23
+bits**: pipeline 65.46, projection 68.05, fingerprint 77.91, mixing 79.39,
+with the computational assumptions above 100 bits. This is explicitly not a
+100-bit maximum-chain claim. Any change to the chain cap, query cap, relation
+shape, or projection census reopens R7.
 
 ---
 
@@ -973,13 +989,19 @@ NebulaPlan {
   B_ops, B_scan, N, SEG_MAX,
   rom_image_digest,
   D_init,                    // §7: verifier's ROM handle (γ-independent)
-  error_budget,              // §9 evaluated
+  error_budget: {
+    m_seg, log2_fingerprint_per_attempt,
+    end_to_end_target_bits: 64,
+    max_fs_query_bits: 16,
+  },
 }
 ```
 
 `plan_digest = Poseidon2(canonical serialization)`; absorbed at every
-segment open (§6.2). All hashing is Poseidon2; the only algebraic binding
-objects are Ajtai commitments (the scheme's native family).
+segment open (§6.2). The plan exposes the fingerprint geometry and the
+verifier-owned global target/query policy. R7 combines those values with the
+actual final relation's pipeline, projection, binding, and Poseidon2 terms;
+none is hidden inside the fingerprint number.
 
 ---
 
@@ -1074,7 +1096,7 @@ only, every invocation under the 5-minute cap (test profile of §2).
    *Accept:* plan/ROM mutation tests.
 7. **Red-team suite** — §12, `tests/nebula_redteam.rs`.
 8. **Perf snapshot** (`--ignored`) — record §10 actuals at v3 targets.
-9. **Authoritative folded F′ relation** — compose the current `S_mem`
+9. **Authoritative folded F′ relation — implemented (R2–R5).** Compose the current `S_mem`
    application relation, NIFS.V, and `NebulaLane` transition into one
    fixed-shape relation, then lower that relation through the low-norm R1CS
    compiler. The recursive lane rows are implemented and consume the
@@ -1085,14 +1107,17 @@ only, every invocation under the 5-minute cap (test profile of §2).
    segment-open `D_pre` binding and γ squeeze; and the close checks —
    `D_seen == D_pre` per lane, the product equation,
    `D_seen[is] == D_mem`, `D_mem ← D_seen[fs]`, and reset **without**
-   resetting `ts`. Tracked as the single named gap between "testable" and
-   "production-trusted" — the same gap, and the same closure, as F′ itself.
-   **Executable milestone gates** (`tests/system/ivc_invariants.rs`):
-   `multi_chunk_f_prime_chain_must_verify_terminal_only` and
-   `nebula_chain_must_verify_terminal_only_with_memory` are `#[ignore]`d
-   acceptance tests that fail today by design; step 9 is done when they
-   pass un-ignored and their active fail-closed tripwire twins are
-   removed in the same change.
+   resetting `ts`. The implementation is owned by
+   `frontends/nebula/f_prime/{shape,chain}.rs`; only its preprocessing
+   constructor can set the private terminal-induction capability.
+   **Executable acceptance:**
+   `tests/nebula/f_prime.rs::r4_shipped_encoder_verifies_multistep_memory_chain`
+   and `multi_chunk_f_prime_chain_must_verify_terminal_only` are active over
+   one shared production fixture. They traverse all three relation arms and
+   both steps of each segment, verify without audit history, close the lane,
+   and reject link/suffix/lane plus pre-final-running mutations. The active legacy
+   tests in `tests/system/ivc_invariants.rs` prove that image-only, immediate
+   Nebula, and generic recursive-link frontends remain fail-closed.
 10. **v3.1 stacks** — one pass across the existing owners, no new module:
     selector/`sp` layout + `MemSpace` domain type (`layout.rs`), native
     push/pop + segment-locality errors (`trace.rs`), rows E10–E14 and the
@@ -1139,8 +1164,8 @@ v3 is implemented when: (1) §13 steps 1–8 are merged with their acceptance
 tests; (2) every §12 row fails for its stated reason; (3) the plan artifact
 records §2 constants, `D_init`, and the evaluated §9 budget; (4) the F′
 native path enforces every §6.3 assert (no memory proof verifies without
-them); (5) §13 step 9 is tracked as the named production gate riding the
-F′-R1CS milestone; (6) two named items are **independently reviewed by
+them); (5) §13 step 9's fixed relation and terminal-induction lifecycle are
+active and mechanically gated; (6) two named items are **independently reviewed by
 someone other than the author**: security-note Lemma 1 Step 2 (challenge-set
 injectivity and the RotRho/`A_L` commutation, against the engine's actual
 sampling set) and Lemma 2's induction (against `state.rs`'s actual absorb
@@ -1148,7 +1173,16 @@ set); (7) the lane-residency rule is statically enforced: the `S_mem`
 builder audits, at construction time, that every column read by the
 fingerprint-input matrices lies in the committed lanes, public `x`, or the
 E2-constrained `cnt` aux — a layout change reintroducing a free
-interpretation bit must fail the build, not a review; (8) the terminal-only
-multi-chunk gates pass only after the folded fixed-shape F′ relation enforces
-NIFS.V, `adv` forwarding/RLC/DEC, and the §6.3 `NebulaLane` transition. A
-projection cost shell or native replay is not evidence for this item.
+interpretation bit must fail the build, not a review; (8) the active R5
+terminal-only multi-chunk gate passes because the folded fixed-shape F′
+relation enforces NIFS.V, `adv` forwarding/RLC/DEC, and the §6.3 `NebulaLane`
+transition. A projection cost shell or native replay is not evidence for this
+item; (9) plan construction rejects counter geometries that cannot encode
+`SEG_MAX` or `N`, and the native and in-circuit segment-open relations both
+enforce `seg_idx < SEG_MAX`; (10) the active R7 gate pins the production
+selective census and fixed point below 16M and validates SuperNeo's full D.4
+extension condition against the final relation's actual shape, matrix count,
+and degree, then evaluates the conservative maximum-chain union at or above
+the declared 64-bit target for `q_H≤2^16`. Criteria 6 and the security note's
+C19/A5 and A6/Lemma 6 fixed-matrix analysis remain independent-review gates
+even though the Rust implementation criteria are now met.

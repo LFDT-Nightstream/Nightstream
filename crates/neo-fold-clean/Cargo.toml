@@ -362,6 +362,10 @@ name = "system_sha256_bellpepper_batching"
 path = "tests/system/sha256_bellpepper_batching.rs"
 
 [[test]]
+name = "system_r1cs_ivc_terminal"
+path = "tests/system/r1cs_ivc_terminal.rs"
+
+[[test]]
 name = "perf_fibonacci_bits"
 path = "tests/perf/fibonacci_bits.rs"
 

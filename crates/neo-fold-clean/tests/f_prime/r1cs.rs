@@ -37,7 +37,8 @@ use neo_fold_clean::engine::transcript::Transcript;
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
 use neo_fold_clean::paper::construction2::RunningInstance;
 use neo_fold_clean::paper::digest::{
-    digest32_as_fields, digest_fields_as_digest32, state_x_out_digest_with_mode, AccumulatorHandle, StateXOutDigestMode,
+    digest32_as_fields, digest_fields_as_digest32, f_prime_chunk_public_digest, state_x_out_digest_with_mode,
+    AccumulatorHandle, StateXOutDigestMode,
 };
 use neo_fold_clean::paper::f_prime::r1cs::{
     encode_f_prime_public_input, enforce_f_prime_base_step_circuit, enforce_f_prime_recursive_step_circuit,
@@ -193,7 +194,7 @@ fn build_fixture_with_divergent_fresh(divergent_index: usize) -> Fixture {
         .collect();
     let fresh_claims: Vec<_> = fresh_instances.iter().map(|i| i.claim.clone()).collect();
 
-    let chunk_digest = rand_digest(0x50);
+    let chunk_digest = f_prime_chunk_public_digest(state.step_count_in, &fresh_claims);
     let mut tr = Transcript::with_label(TRANSCRIPT_LABEL);
     append_f_prime_step_context(&mut tr, &state, chunk_digest);
     let (next_running, proof) = neo_fold_clean::paper::nifs::prove(
@@ -259,7 +260,7 @@ fn build_fixture_with_k_fresh_and_public_one(k_fresh: usize, public_one: F) -> F
     .expect("first NIFS.P");
 
     // Pin F' state-in so the recursive link is honest:
-    //   acc_digest_in = digest(full running accumulator)
+    //   acc_digest_in = digest(strict Pi_DEC parent authority)
     //   fresh[i].x   = enc_inst(state_x_out(state))   for every i in 0..k_fresh
     let acc_digest_in = running_acc_digest(&running);
     let state = FPrimeStateIn {
@@ -296,7 +297,7 @@ fn build_fixture_with_k_fresh_and_public_one(k_fresh: usize, public_one: F) -> F
     // native challenges diverge and the NIFS.V verifier's algebraic
     // checks (sumcheck challenges, ρ, β_m, …) fail at the satisfaction
     // boundary.
-    let chunk_digest = rand_digest(0x50);
+    let chunk_digest = f_prime_chunk_public_digest(state.step_count_in, &fresh_claims);
     let mut tr = Transcript::with_label(TRANSCRIPT_LABEL);
     append_f_prime_step_context(&mut tr, &state, chunk_digest);
     let (next_running, proof) = neo_fold_clean::paper::nifs::prove(
@@ -497,6 +498,11 @@ fn recursive_step_x_out(state: &FPrimeStateIn, chunk_digest: [F; 4], new_acc: [F
     )
 }
 
+fn repeated_shape_chunk_digest(start_index: u64, fresh_len: u64, template: &CcsClaim) -> [F; 4] {
+    let claims = vec![template.clone(); fresh_len as usize];
+    f_prime_chunk_public_digest(start_index, &claims)
+}
+
 // ── Base-step tests ──────────────────────────────────────────────────────
 
 #[test]
@@ -505,8 +511,8 @@ fn f_prime_base_step_emits_and_satisfies() {
     let cfg = make_step_config(&fixture.prep);
     let z_0 = rand_digest(0x100);
     let state = base_state(cfg.b, z_0);
-    let chunk_digest = rand_digest(0x50);
     let rows_in_chunk = 3;
+    let chunk_digest = repeated_shape_chunk_digest(state.step_count_in, rows_in_chunk, &fixture.fresh_claims[0]);
     let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, rows_in_chunk);
     let source = base_source_image(&state, expected_x_out);
     let inputs = FPrimeBaseInputs {
@@ -525,7 +531,6 @@ fn f_prime_base_step_emits_and_satisfies() {
     let rows_before = b.rows();
     let out = enforce_f_prime_base_step_circuit(&mut b, &cfg, &inputs).expect("emit");
     let rows_added = b.rows() - rows_before;
-
     assert!(
         rows_added < 25_000,
         "F' base step should be lightweight (no NIFS.V); got {rows_added}"
@@ -559,7 +564,7 @@ fn f_prime_base_step_rejects_zero_rows_in_chunk() {
     let cfg = make_step_config(&fixture.prep);
     let z_0 = rand_digest(0x100);
     let state = base_state(cfg.b, z_0);
-    let chunk_digest = rand_digest(0x50);
+    let chunk_digest = repeated_shape_chunk_digest(state.step_count_in, 0, &fixture.fresh_claims[0]);
     let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, 0);
     let source = base_source_image(&state, expected_x_out);
     let inputs = FPrimeBaseInputs {
@@ -590,7 +595,7 @@ fn f_prime_base_step_rejects_nonzero_chunk_count_in() {
     let z_0 = rand_digest(0x100);
     let mut state = base_state(cfg.b, z_0);
     state.chunk_count_in = 1;
-    let chunk_digest = rand_digest(0x50);
+    let chunk_digest = repeated_shape_chunk_digest(state.step_count_in, 3, &fixture.fresh_claims[0]);
     let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, 3);
     let source = base_source_image(&state, expected_x_out);
     let inputs = FPrimeBaseInputs {
@@ -619,7 +624,7 @@ fn f_prime_base_rejects_noncanonical_zero_chunk_count_source_word() {
     let cfg = make_step_config(&fixture.prep);
     let z_0 = rand_digest(0x100);
     let state = base_state(cfg.b, z_0);
-    let chunk_digest = rand_digest(0x50);
+    let chunk_digest = repeated_shape_chunk_digest(state.step_count_in, 3, &fixture.fresh_claims[0]);
     let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, 3);
     let mut source = base_source_image(&state, expected_x_out);
     let start = source.chunk_count_in_word.bits().start();
@@ -659,7 +664,7 @@ fn f_prime_base_step_rejects_source_image_step_count_mismatch() {
     let cfg = make_step_config(&fixture.prep);
     let z_0 = rand_digest(0x100);
     let state = base_state(cfg.b, z_0);
-    let chunk_digest = rand_digest(0x50);
+    let chunk_digest = repeated_shape_chunk_digest(state.step_count_in, 3, &fixture.fresh_claims[0]);
     let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, 3);
     let mut source = base_source_image(&state, expected_x_out);
     let idx = source.step_count_in_word.bits().start();
@@ -696,7 +701,7 @@ fn f_prime_base_step_rejects_tampered_public_x_out_bits() {
     let cfg = make_step_config(&fixture.prep);
     let z_0 = rand_digest(0x100);
     let state = base_state(cfg.b, z_0);
-    let chunk_digest = rand_digest(0x50);
+    let chunk_digest = repeated_shape_chunk_digest(state.step_count_in, 3, &fixture.fresh_claims[0]);
     let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, 3);
     let mut source = base_source_image(&state, expected_x_out);
     let idx = source.public_x_out_bits.start();
@@ -733,7 +738,7 @@ fn f_prime_base_step_rejects_noncanonical_source_image_pc_word() {
     let cfg = make_step_config(&fixture.prep);
     let z_0 = rand_digest(0x100);
     let state = base_state(cfg.b, z_0);
-    let chunk_digest = rand_digest(0x50);
+    let chunk_digest = repeated_shape_chunk_digest(state.step_count_in, 3, &fixture.fresh_claims[0]);
     let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, 3);
     let mut source = base_source_image(&state, expected_x_out);
     let start = source.pc_word.bits().start();
@@ -770,7 +775,7 @@ fn f_prime_base_step_rejects_nonzero_step_count_in() {
     let z_0 = rand_digest(0x100);
     let mut state = base_state(cfg.b, z_0);
     state.step_count_in = 1;
-    let chunk_digest = rand_digest(0x50);
+    let chunk_digest = repeated_shape_chunk_digest(state.step_count_in, 3, &fixture.fresh_claims[0]);
     let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, 3);
     let source = base_source_image(&state, expected_x_out);
     let inputs = FPrimeBaseInputs {
@@ -797,7 +802,7 @@ fn f_prime_base_step_rejects_nonempty_acc_digest_in() {
     let z_0 = rand_digest(0x100);
     let mut state = base_state(cfg.b, z_0);
     state.acc_digest_in[0] += F::ONE;
-    let chunk_digest = rand_digest(0x50);
+    let chunk_digest = repeated_shape_chunk_digest(state.step_count_in, 3, &fixture.fresh_claims[0]);
     let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, 3);
     let source = base_source_image(&state, expected_x_out);
     let inputs = FPrimeBaseInputs {
@@ -827,7 +832,7 @@ fn f_prime_base_step_rejects_z_i_neq_z_0() {
     let z_0 = rand_digest(0x100);
     let mut state = base_state(cfg.b, z_0);
     state.z_i_in = rand_digest(0x101);
-    let chunk_digest = rand_digest(0x50);
+    let chunk_digest = repeated_shape_chunk_digest(state.step_count_in, 3, &fixture.fresh_claims[0]);
     let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, 3);
     let source = base_source_image(&state, expected_x_out);
     let inputs = FPrimeBaseInputs {
@@ -955,7 +960,6 @@ fn f_prime_recursive_step_accepts_real_native_nifs_proof() {
     let rows_before = b.rows();
     let out = enforce_f_prime_recursive_step_circuit(&mut b, &fixture.prep.params, &cfg, &inputs).expect("emit");
     let rows_added = b.rows() - rows_before;
-
     assert!(
         rows_added > 100_000,
         "F' recursive step should emit >100k rows; got {rows_added}"

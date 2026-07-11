@@ -68,6 +68,7 @@ fn config(d_init: [F; 4]) -> NebulaConfig {
     NebulaConfig {
         scheme,
         steps_per_segment: N,
+        seg_max: 1,
         stacks: StackShape::NONE,
         plan_digest: [F::from_u64(7); 4],
         d_init,
@@ -121,6 +122,16 @@ fn honest_segment_closes_and_resets_without_ts() {
     // The boundary handle now carries segment 0's FS chain.
     let advs: Vec<_> = (0..N).map(adv).collect();
     assert_eq!(lane.d_mem, honest_d_pre(&advs)[2]);
+}
+
+#[test]
+fn segment_limit_is_enforced_by_the_lane_relation() {
+    let (cfg, mut lane) = walk_honest_segment();
+    let d_pre = honest_d_pre(&(0..N).map(adv).collect::<Vec<_>>());
+    assert_eq!(
+        lane.open_segment(&cfg, [3; 32], [4; 32], [5; 32], d_pre),
+        Err(NebulaError::SegmentLimit { seg_idx: 1, seg_max: 1 })
+    );
 }
 
 #[test]

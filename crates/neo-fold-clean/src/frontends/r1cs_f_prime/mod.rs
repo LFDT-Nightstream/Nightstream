@@ -15,8 +15,11 @@
 pub mod compiler;
 pub mod encoder;
 pub mod instance;
+pub mod ivc;
 pub mod lifecycle;
 pub mod lowering;
+mod selective;
+mod selective_audit;
 pub mod structure;
 
 pub use compiler::{
@@ -31,6 +34,13 @@ pub use lowering::{
     build_multi_branch_low_norm_r1cs, build_multi_branch_low_norm_r1cs_with_alignment, lower_field_r1cs,
     lower_sparse_r1cs_to_low_norm, FieldR1csLoweringError, FixedR1csBranch, FixedShapeLowNormR1cs, LowNormR1cs,
     LowNormR1csError, LoweredFieldR1cs, MultiBranchLowNormR1cs,
+};
+pub use selective::{
+    audit_multi_branch_selective_low_norm_width_with_alignment,
+    build_multi_branch_selective_low_norm_r1cs_with_alignment,
+};
+pub use selective_audit::{
+    SelectiveArmWidthAudit, SelectiveFamilyWidthAudit, SelectiveLowNormWidthAudit, SelectiveTraceWidthAudit,
 };
 pub use structure::{build_r1cs_f_prime_structure, R1csRowAnchors, R1csShape, SparseR1cs};
 
@@ -607,6 +617,16 @@ fn derive_structure(
     plan: &RecursiveStepImagePlan,
     r1cs: &R1csShape,
 ) -> Result<(Arc<FPrimeStructure>, R1csRowAnchors, usize), Error> {
+    validate_plan(plan, r1cs)?;
+    let layout = FPrimeImageLayout::new(build_recursive_step_image_config(plan));
+    let public_input_len = 1 + layout.boundary.bits;
+    let (structure, anchors) = structure::build_r1cs_f_prime_structure(layout, r1cs);
+    Ok((Arc::new(structure), anchors, public_input_len))
+}
+
+/// Validate the application-state contract shared by both the historical
+/// image compiler and the authoritative recursive R1CS-IVC relation.
+pub(super) fn validate_plan(plan: &RecursiveStepImagePlan, r1cs: &R1csShape) -> Result<(), Error> {
     let boolean_vars = r1cs.boolean_constrained_variables();
     let proven_widths = if plan.app_private_var_widths.is_empty() {
         Vec::new()
@@ -750,8 +770,5 @@ fn derive_structure(
         return Err(Error::PlanSemanticStateAnchorWithoutIndices);
     }
 
-    let layout = FPrimeImageLayout::new(build_recursive_step_image_config(plan));
-    let public_input_len = 1 + layout.boundary.bits;
-    let (structure, anchors) = structure::build_r1cs_f_prime_structure(layout, r1cs);
-    Ok((Arc::new(structure), anchors, public_input_len))
+    Ok(())
 }

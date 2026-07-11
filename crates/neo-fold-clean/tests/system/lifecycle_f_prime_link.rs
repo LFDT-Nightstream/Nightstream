@@ -933,7 +933,7 @@ fn lifecycle_recursive_step_rejects_running_child_field_tamper_even_if_handle_an
     enforce_f_prime_recursive_step_circuit(&mut b, &view.prep.params, &cfg, &inputs).expect("emit F' R1CS");
     assert!(
         !b.is_satisfied(),
-        "F' R1CS accepted a mutated running child CE field after the full-running handle \
+        "F' R1CS accepted a mutated running child CE field after the parent handle \
          and prior_x_out source bits were rebuilt around that mutation"
     );
 }
@@ -984,7 +984,7 @@ fn lifecycle_recursive_step_rejects_running_child_fold_digest_tamper_even_if_han
     enforce_f_prime_recursive_step_circuit(&mut b, &view.prep.params, &cfg, &inputs).expect("emit F' R1CS");
     assert!(
         !b.is_satisfied(),
-        "F' R1CS accepted a running child fold_digest tamper after the full-running handle \
+        "F' R1CS accepted a running child fold_digest tamper after the parent handle \
          and prior_x_out source bits were rebuilt around that mutation"
     );
 }
@@ -1037,7 +1037,7 @@ fn lifecycle_recursive_step_rejects_running_parent_field_tamper_even_if_handle_a
     enforce_f_prime_recursive_step_circuit(&mut b, &view.prep.params, &cfg, &inputs).expect("emit F' R1CS");
     assert!(
         !b.is_satisfied(),
-        "F' R1CS accepted a mutated running parent-authority CE field after the full-running \
+        "F' R1CS accepted a mutated running parent-authority CE field after the parent \
          handle and prior_x_out source bits were rebuilt around that mutation"
     );
 }
@@ -1556,6 +1556,7 @@ fn nifs_transcript_binds_chunk_contents_even_though_f_prime_digest_is_shape_only
         &chain.prep.vk,
         chain.prep.public_input_len,
         chain.prep.enforces_f_prime_recursive_link(),
+        chain.prep.enforces_terminal_induction(),
         chain.prep.semantic_state_mode(),
         chain.prep.initial_semantic_state_digest(),
         None,
@@ -1581,6 +1582,7 @@ fn nifs_transcript_binds_chunk_contents_even_though_f_prime_digest_is_shape_only
             &chain.prep.vk,
             chain.prep.public_input_len,
             chain.prep.enforces_f_prime_recursive_link(),
+            chain.prep.enforces_terminal_induction(),
             chain.prep.semantic_state_mode(),
             chain.prep.initial_semantic_state_digest(),
             None,

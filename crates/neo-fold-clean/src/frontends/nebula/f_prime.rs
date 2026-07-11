@@ -4,7 +4,10 @@
 //! consumes the previous claim's suffix through NIFS.V. Keeping those two
 //! directions in one wrapper makes Nebula's one-step delay explicit.
 
+mod chain;
 mod shape;
+
+pub use chain::{NebulaFPrimeChainBuilder, NebulaFPrimeChainError, NebulaFPrimePreprocessing};
 
 use neo_math::D;
 use neo_math::F;
@@ -16,8 +19,9 @@ use crate::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
 use crate::frontends::nebula::circuit::{SMemCircuit, SMemR1csError};
 use crate::frontends::nebula::plan::NebulaPlan;
 use crate::frontends::r1cs_f_prime::{
-    build_multi_branch_low_norm_r1cs_with_alignment, FieldR1csLoweringError, LowNormR1csError, MultiBranchLowNormR1cs,
-    SparseR1cs,
+    audit_multi_branch_selective_low_norm_width_with_alignment,
+    build_multi_branch_selective_low_norm_r1cs_with_alignment, FieldR1csLoweringError, LowNormR1csError,
+    MultiBranchLowNormR1cs, SelectiveLowNormWidthAudit, SparseR1cs,
 };
 use crate::lifecycle::Preprocessing;
 use crate::paper::construction2::NebulaConfig;
@@ -58,8 +62,8 @@ pub enum NebulaFPrimeRelationError {
     Composition(#[from] NebulaFPrimeError),
     #[error("fixed Nebula F': {0}")]
     Geometry(String),
-    #[error("fixed Nebula F': encoded branch does not satisfy the authoritative relation")]
-    Unsatisfied,
+    #[error("fixed Nebula F': encoded branch does not satisfy the authoritative relation at row {row}")]
+    Unsatisfied { row: usize },
     #[error("fixed Nebula F': preprocessing was built for a different relation")]
     PreprocessingMismatch,
     #[error(
@@ -82,9 +86,8 @@ pub enum NebulaFPrimeRelationError {
     },
 }
 
-/// Existing Road A whole-step budget. A field-native arm column needs at
-/// least one committed bit after lowering, so this is also a safe preflight
-/// ceiling before the compiler allocates width tables or output matrices.
+/// Road A whole-step budget. The selective width census enforces this exact
+/// committed-coordinate ceiling before allocating the square output matrices.
 pub const ROAD_A_COMMITTED_BIT_BUDGET: usize = 16_000_000;
 
 /// Branches of the single folded relation. Bootstrap-recursive is distinct
@@ -104,6 +107,7 @@ pub struct NebulaFPrimeFieldArmShape {
     pub rows: usize,
     pub columns: usize,
     pub public_columns: usize,
+    pub poseidon2_permutations: usize,
 }
 
 /// Shape-only audit of all three Road A arms against one verifier relation.
@@ -116,16 +120,6 @@ pub struct NebulaFPrimeFieldShapeAudit {
     pub base: NebulaFPrimeFieldArmShape,
     pub bootstrap_recursive: NebulaFPrimeFieldArmShape,
     pub recursive: NebulaFPrimeFieldArmShape,
-}
-
-impl NebulaFPrimeFieldShapeAudit {
-    /// Lower bound on the final bit-backed assignment: every nonconstant
-    /// field column needs at least one bit, while public columns and the
-    /// application-private prefix are shared across all three arms.
-    pub fn minimum_low_norm_committed_bits(&self, shared_private_fields: usize) -> Option<usize> {
-        let arms = [self.base, self.bootstrap_recursive, self.recursive];
-        minimum_low_norm_committed_bits(&arms, shared_private_fields)
-    }
 }
 
 impl NebulaFPrimeBranch {
@@ -143,29 +137,23 @@ impl NebulaFPrimeBranch {
 pub struct NebulaFPrimeRelation {
     relation: MultiBranchLowNormR1cs,
     config: NebulaConfig,
+    arm_shapes: [NebulaFPrimeFieldArmShape; 3],
+    preprocessing_digest: Option<[F; 4]>,
 }
 
 impl NebulaFPrimeRelation {
     /// Compile the single three-arm relation to a verifier-shape fixed point.
     ///
     /// Recursive-arm matrices are synthesized from shape-correct placeholder
-    /// messages. Their witness values need not satisfy the rows: R1CS shape is
-    /// a deterministic function of `(params, folded relation shape)`, while a
-    /// separate parity test pins these matrices against an honest NIFS proof.
+    /// messages. Their witness values need not satisfy the rows: R1CS shape and
+    /// coefficients must be deterministic functions of `(params, folded
+    /// relation shape)`. The active R4 encoder test supplies honest assignments
+    /// to all three compiled arms, including an interior segment step, and
+    /// therefore fails if live synthesis drifts from this fixed relation.
     pub fn compile_fixed_point(params: &Params, plan: &NebulaPlan) -> Result<Self, NebulaFPrimeRelationError> {
         const MAX_ROUNDS: usize = 8;
 
         let mut verifier_structure = plan.circuit().structure().clone();
-        let initial_audit = shape::audit_arm_shapes(params, &verifier_structure, plan)?;
-        let shared_private_fields = plan.circuit().cols() - plan.circuit().m_in();
-        if let Some(minimum_bits) = initial_audit.minimum_low_norm_committed_bits(shared_private_fields) {
-            if minimum_bits > ROAD_A_COMMITTED_BIT_BUDGET {
-                return Err(NebulaFPrimeRelationError::CompileBudgetExceeded {
-                    minimum_bits,
-                    budget_bits: ROAD_A_COMMITTED_BIT_BUDGET,
-                });
-            }
-        }
         let mut last_output = (verifier_structure.n, verifier_structure.m);
         for round in 0..MAX_ROUNDS {
             let input_signature = relation_signature(&verifier_structure);
@@ -197,6 +185,24 @@ impl NebulaFPrimeRelation {
         shape::audit_arm_shapes(params, verifier_structure, plan)
     }
 
+    /// Attribute the exact low-norm assignment width without allocating the
+    /// compiled CCS matrices.
+    pub fn audit_low_norm_width(
+        params: &Params,
+        verifier_structure: &Structure,
+        plan: &NebulaPlan,
+    ) -> Result<SelectiveLowNormWidthAudit, NebulaFPrimeRelationError> {
+        let arms = shape::synthesize_arm_shapes(params, verifier_structure, plan)?;
+        let circuit = plan.circuit();
+        let shared_private_fields = circuit.cols() - circuit.m_in();
+        Ok(audit_multi_branch_selective_low_norm_width_with_alignment(
+            &[arms.base, arms.bootstrap_recursive, arms.recursive],
+            shared_private_fields,
+            D,
+            circuit.m_in() % D,
+        )?)
+    }
+
     /// Compile already-synthesized base and recursive arms. All arms must
     /// come from this module's composition functions, which allocate the
     /// same current `S_mem` assignment before branch-specific F' advice.
@@ -217,21 +223,41 @@ impl NebulaFPrimeRelation {
             rows: arms[index].n,
             columns: arms[index].m,
             public_columns: arms[index].m_in,
+            poseidon2_permutations: arms[index].poseidon2_permutations(),
         });
-        if let Some(minimum_bits) = minimum_low_norm_committed_bits(&arm_shapes, shared_private_fields) {
-            if minimum_bits > ROAD_A_COMMITTED_BIT_BUDGET {
-                return Err(NebulaFPrimeRelationError::CompileBudgetExceeded {
-                    minimum_bits,
-                    budget_bits: ROAD_A_COMMITTED_BIT_BUDGET,
-                });
-            }
+        let width_audit = audit_multi_branch_selective_low_norm_width_with_alignment(
+            &arms,
+            shared_private_fields,
+            D,
+            circuit.m_in() % D,
+        )?;
+        if width_audit.total_coordinates > ROAD_A_COMMITTED_BIT_BUDGET {
+            return Err(NebulaFPrimeRelationError::CompileBudgetExceeded {
+                minimum_bits: width_audit.total_coordinates,
+                budget_bits: ROAD_A_COMMITTED_BIT_BUDGET,
+            });
         }
-        let relation =
-            build_multi_branch_low_norm_r1cs_with_alignment(&arms, shared_private_fields, D, circuit.m_in() % D)?;
+        let relation = build_multi_branch_selective_low_norm_r1cs_with_alignment(
+            &arms,
+            shared_private_fields,
+            D,
+            circuit.m_in() % D,
+        )?;
+        if relation.structure().m > ROAD_A_COMMITTED_BIT_BUDGET {
+            return Err(NebulaFPrimeRelationError::CompileBudgetExceeded {
+                minimum_bits: relation.structure().m,
+                budget_bits: ROAD_A_COMMITTED_BIT_BUDGET,
+            });
+        }
         let remapped_ranges = remap_lane_ranges(&relation, &arms, circuit)?;
         let mut config = plan.config();
         config.scheme = config.scheme.remap_ranges(remapped_ranges)?;
-        Ok(Self { relation, config })
+        Ok(Self {
+            relation,
+            config,
+            arm_shapes,
+            preprocessing_digest: None,
+        })
     }
 
     pub fn structure(&self) -> &Structure {
@@ -246,14 +272,36 @@ impl NebulaFPrimeRelation {
         &self.config
     }
 
+    fn arm_shape(&self, branch: NebulaFPrimeBranch) -> NebulaFPrimeFieldArmShape {
+        self.arm_shapes[branch.index()]
+    }
+
+    pub(super) fn bind_preprocessing(&mut self, prep: &Preprocessing) -> Result<(), NebulaFPrimeRelationError> {
+        let structure = self.structure();
+        let prep_structure = prep.structure();
+        if (structure.n, structure.m, structure.t(), structure.max_degree())
+            != (
+                prep_structure.n,
+                prep_structure.m,
+                prep_structure.t(),
+                prep_structure.max_degree(),
+            )
+            || prep.public_input_len != Some(self.public_input_len())
+        {
+            return Err(NebulaFPrimeRelationError::PreprocessingMismatch);
+        }
+        self.preprocessing_digest = Some(*prep.structure_digest());
+        Ok(())
+    }
+
     pub fn encode(
         &self,
         branch: NebulaFPrimeBranch,
         field_assignment: &[F],
     ) -> Result<Vec<F>, NebulaFPrimeRelationError> {
         let assignment = self.relation.encode(branch.index(), field_assignment)?;
-        if !self.relation.is_satisfied(&assignment) {
-            return Err(NebulaFPrimeRelationError::Unsatisfied);
+        if let Some(row) = self.relation.first_unsatisfied_row(&assignment) {
+            return Err(NebulaFPrimeRelationError::Unsatisfied { row });
         }
         Ok(assignment)
     }
@@ -267,9 +315,11 @@ impl NebulaFPrimeRelation {
         branch: NebulaFPrimeBranch,
         field_assignment: &[F],
     ) -> Result<CcsInstance, NebulaFPrimeRelationError> {
-        if digest::structure_digest(self.structure()) != *prep.structure_digest()
-            || prep.public_input_len != Some(self.public_input_len())
-        {
+        let structure_matches = self.preprocessing_digest.map_or_else(
+            || digest::structure_digest(self.structure()) == *prep.structure_digest(),
+            |bound| bound == *prep.structure_digest(),
+        );
+        if !structure_matches || prep.public_input_len != Some(self.public_input_len()) {
             return Err(NebulaFPrimeRelationError::PreprocessingMismatch);
         }
         let assignment = self.encode(branch, field_assignment)?;
@@ -289,26 +339,6 @@ impl NebulaFPrimeRelation {
         instance.claim.adv = Some(adv);
         Ok(instance)
     }
-}
-
-fn minimum_low_norm_committed_bits(arms: &[NebulaFPrimeFieldArmShape], shared_private_fields: usize) -> Option<usize> {
-    let first = *arms.first()?;
-    if arms
-        .iter()
-        .any(|arm| arm.public_columns != first.public_columns || arm.columns < arm.public_columns)
-    {
-        return None;
-    }
-    let mut largest_branch_private = 0usize;
-    for arm in arms {
-        let private = arm.columns.checked_sub(arm.public_columns)?;
-        largest_branch_private = largest_branch_private.max(private.checked_sub(shared_private_fields)?);
-    }
-    first
-        .public_columns
-        .checked_add(arms.len())?
-        .checked_add(shared_private_fields)?
-        .checked_add(largest_branch_private)
 }
 
 fn relation_signature(structure: &Structure) -> (usize, usize, usize, u32) {

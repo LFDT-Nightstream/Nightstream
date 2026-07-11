@@ -126,6 +126,16 @@ pub enum NebulaXError {
     NonBit(usize),
     #[error("nebula x: leading public slot must be the constant 1")]
     MissingConstantOne,
+    #[error("nebula x: delayed suffix with open = 0 must carry an all-zero D_pre encoding")]
+    ClosedDPreNonZero,
+}
+
+/// Previous claim's public Nebula payload in the one-step-delayed F'
+/// relation. `d_pre` is present exactly when this claim opens a segment.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DelayedNebulaStepX {
+    pub step: NebulaStepX,
+    pub d_pre: Option<[[F; 4]; 3]>,
 }
 
 impl NebulaStepX {
@@ -145,7 +155,20 @@ impl NebulaStepX {
         if x[0] != F::ONE {
             return Err(NebulaXError::MissingConstantOne);
         }
-        let mut reader = BitReader { bits: &x[1..], at: 0 };
+        Self::decode_bits(&x[1..], stacks)
+    }
+
+    /// Decode the canonical bit body without the CCS constant-one slot.
+    /// This is the verifier-side mirror used by delayed F' suffixes.
+    pub fn decode_bits(bits: &[F], stacks: StackShape) -> Result<Self, NebulaXError> {
+        if bits.len() != stacks.x_bits() {
+            return Err(NebulaXError::Length {
+                label: "step-x bits",
+                want: stacks.x_bits(),
+                got: bits.len(),
+            });
+        }
+        let mut reader = BitReader { bits, at: 0 };
         let seg_idx = reader.read_u64(SEG_IDX_BITS)?;
         let idx = reader.read_u64(STEP_IDX_BITS)?;
         let ts_in = reader.read_u64(TS_BITS)?;
@@ -173,6 +196,57 @@ impl NebulaStepX {
             sp_in,
             sp_out,
         })
+    }
+}
+
+impl DelayedNebulaStepX {
+    /// Decode `[step_x_bits || open || bits(D_pre)]`. All coordinates are
+    /// canonical bits, and an inactive `D_pre` must be all zero, matching the
+    /// authoritative circuit decoder.
+    pub fn decode_suffix(suffix: &[F], stacks: StackShape) -> Result<Self, NebulaXError> {
+        const D_PRE_BITS: usize = 3 * 4 * K_LIMB_BITS;
+        let expected = stacks.x_bits() + 1 + D_PRE_BITS;
+        if suffix.len() != expected {
+            return Err(NebulaXError::Length {
+                label: "delayed F' suffix",
+                want: expected,
+                got: suffix.len(),
+            });
+        }
+
+        let step_end = stacks.x_bits();
+        let step = NebulaStepX::decode_bits(&suffix[..step_end], stacks)?;
+        let open = suffix[step_end];
+        if open != F::ZERO && open != F::ONE {
+            return Err(NebulaXError::NonBit(step_end));
+        }
+        let d_pre_bits = &suffix[step_end + 1..];
+        if open == F::ZERO && d_pre_bits.iter().any(|bit| *bit != F::ZERO) {
+            return Err(NebulaXError::ClosedDPreNonZero);
+        }
+
+        let d_pre = if open == F::ONE {
+            let mut reader = BitReader {
+                bits: d_pre_bits,
+                at: 0,
+            };
+            let mut digests = [[F::ZERO; 4]; 3];
+            for digest in &mut digests {
+                for lane in digest {
+                    *lane = F::from_u64(reader.read_u64(K_LIMB_BITS)?);
+                }
+            }
+            Some(digests)
+        } else {
+            // Validate bitness even when the canonical value is all zero.
+            for (index, bit) in d_pre_bits.iter().enumerate() {
+                if *bit != F::ZERO && *bit != F::ONE {
+                    return Err(NebulaXError::NonBit(step_end + 1 + index));
+                }
+            }
+            None
+        };
+        Ok(Self { step, d_pre })
     }
 }
 
@@ -227,6 +301,8 @@ pub struct NebulaConfig {
     pub scheme: LaneScheme,
     /// `N` — steps per segment under exact cover (spec §2).
     pub steps_per_segment: u64,
+    /// Maximum number of closed segments accepted under this plan.
+    pub seg_max: u64,
     /// Stack geometry (spec §2, v3.1); fixes the x decode width and the
     /// `sp` carry. [`StackShape::NONE`] for stack-less plans.
     pub stacks: StackShape,
@@ -242,6 +318,8 @@ pub struct NebulaConfig {
 pub enum NebulaError {
     #[error("nebula: open_segment requires idx == 0 and no open γ (segment already open or mid-segment)")]
     SegmentAlreadyOpen,
+    #[error("nebula: segment index {seg_idx} reached plan limit {seg_max}")]
+    SegmentLimit { seg_idx: u64, seg_max: u64 },
     #[error("nebula: advance requires an open segment (γ squeezed, idx < N)")]
     SegmentNotOpen,
     #[error("nebula: claim x counters (seg {x_seg}, idx {x_idx}) do not match lane (seg {lane_seg}, idx {lane_idx})")]
@@ -350,6 +428,12 @@ impl NebulaLane {
     ) -> Result<(), NebulaError> {
         if self.idx != 0 || self.gamma.is_some() {
             return Err(NebulaError::SegmentAlreadyOpen);
+        }
+        if self.seg_idx >= cfg.seg_max {
+            return Err(NebulaError::SegmentLimit {
+                seg_idx: self.seg_idx,
+                seg_max: cfg.seg_max,
+            });
         }
         self.d_pre = d_pre;
         let mut tr = Transcript::with_label(NEBULA_GAMMA_TRANSCRIPT_LABEL);
@@ -492,6 +576,37 @@ impl NebulaLane {
         for claim in claims {
             let x = NebulaStepX::decode_claim_x(&claim.x, cfg.stacks)?;
             self.advance(cfg, &x, claim.adv.as_ref())?;
+        }
+        Ok(())
+    }
+
+    /// Advance over claims of the authoritative folded F' relation. Each
+    /// claim carries `[1 || enc_inst || delayed Nebula suffix]`; the suffix
+    /// belongs to the application execution embedded in that claim and is
+    /// consumed one recursion step later.
+    pub fn advance_for_delayed_claims(
+        &mut self,
+        cfg: &NebulaConfig,
+        vk_digest: [u8; 32],
+        z_i: [u8; 32],
+        acc_digest: [u8; 32],
+        suffix_offset: usize,
+        claims: &[neo_ccs::CcsClaim<Commitment, F>],
+    ) -> Result<(), crate::paper::construction2::Error> {
+        for claim in claims {
+            if claim.x.len() < suffix_offset {
+                return Err(NebulaXError::Length {
+                    label: "folded F' claim public input",
+                    want: suffix_offset,
+                    got: claim.x.len(),
+                }
+                .into());
+            }
+            let delayed = DelayedNebulaStepX::decode_suffix(&claim.x[suffix_offset..], cfg.stacks)?;
+            if let Some(d_pre) = delayed.d_pre {
+                self.open_segment(cfg, vk_digest, z_i, acc_digest, d_pre)?;
+            }
+            self.advance(cfg, &delayed.step, claim.adv.as_ref())?;
         }
         Ok(())
     }

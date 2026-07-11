@@ -135,10 +135,12 @@ impl NebulaParams {
     ///
     /// 1. exact cover: `B_scan` divides `R + M` (steps per segment
     ///    `N = (R + M) / B_scan`);
-    /// 2. packing: `TS_BITS + bits(address space) ≤ 62` so
+    /// 2. counters: `1 ≤ seg_max ≤ 2^SEG_IDX_BITS` and
+    ///    `1 ≤ N ≤ 2^STEP_IDX_BITS`;
+    /// 3. packing: `TS_BITS + bits(address space) ≤ 62` so
     ///    `packed(t, g) = t + 2^TS_BITS · g` cannot overflow Goldilocks;
-    /// 3. timestamps: `seg_max · N · B_ops < 2^TS_BITS`;
-    /// 4. `r ≤ μ`: the ops-lane `addr` is `max(r, μ)` bits and only ROM
+    /// 4. timestamps: `seg_max · N · B_ops < 2^TS_BITS`;
+    /// 5. `r ≤ μ`: the ops-lane `addr` is `max(r, μ)` bits and only ROM
     ///    addresses are range-gated (E6), so RAM bitness bounds
     ///    `addr < M` only when `μ = max(r, μ)`.
     pub fn new(r: u32, mu: u32, b_ops: usize, b_scan: usize, seg_max: u64) -> Result<Self, LayoutError> {
@@ -174,6 +176,9 @@ impl NebulaParams {
         if p.b_ops == 0 || p.b_scan == 0 {
             return Err(LayoutError::Params("b_ops and b_scan must be nonzero"));
         }
+        if p.seg_max == 0 || p.seg_max > (1u64 << SEG_IDX_BITS) {
+            return Err(LayoutError::Params("seg_max must be in 1..=2^SEG_IDX_BITS"));
+        }
         if p.r >= 32 || p.mu >= 32 {
             return Err(LayoutError::Params(
                 "r and mu must be < 32 (u32 cell values, u64 indices)",
@@ -186,6 +191,11 @@ impl NebulaParams {
         }
         if p.scanned_cells() % (p.b_scan as u64) != 0 {
             return Err(LayoutError::Params("exact cover: b_scan must divide R + M"));
+        }
+        if p.steps_per_segment() > (1usize << STEP_IDX_BITS) {
+            return Err(LayoutError::Params(
+                "steps per segment must fit the STEP_IDX_BITS public counter",
+            ));
         }
         if TS_BITS + p.address_space_bits() > 62 {
             return Err(LayoutError::Params(

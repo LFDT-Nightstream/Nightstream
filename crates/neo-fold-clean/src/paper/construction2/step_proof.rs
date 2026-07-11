@@ -67,6 +67,10 @@ pub struct TerminalFoldInputs {
     /// to be folded into the running). Witnesses inside are empty when
     /// read from a proof.
     pub latest: LatestInstance,
+    /// Nebula lane before terminal finalization consumes the trailing
+    /// delayed claim. `None` for plain chains. The verifier advances this
+    /// constant-size public state and binds the result to the terminal lane.
+    pub pre_nebula: Option<crate::paper::construction2::NebulaLane>,
 }
 
 /// Terminal fold proof emitted when finalization folds the last trailing

@@ -76,6 +76,48 @@ fn prove_rejects_empty_batch() {
 }
 
 #[test]
+fn extend_rejects_chunk_counter_overflow() {
+    let prep = support::toy_preprocessing();
+    let mut audit = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 31)]])
+        .expect("one-batch uncompressed proof");
+    audit.proof.state.chunk_count = u64::MAX;
+
+    let err = neo_fold_clean::extend(&prep, audit, vec![support::toy_instance(&prep, 32)])
+        .expect_err("extending a maximal chunk counter must fail instead of wrapping");
+
+    assert!(
+        matches!(
+            err,
+            neo_fold_clean::Error::Construction2(neo_fold_clean::paper::construction2::Error::CounterOverflow {
+                counter: "chunk_count"
+            })
+        ),
+        "expected chunk_count CounterOverflow, got {err:?}"
+    );
+}
+
+#[test]
+fn extend_rejects_step_counter_overflow() {
+    let prep = support::toy_preprocessing();
+    let mut audit = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 33)]])
+        .expect("one-batch uncompressed proof");
+    audit.proof.state.step_count = u64::MAX;
+
+    let err = neo_fold_clean::extend(&prep, audit, vec![support::toy_instance(&prep, 34)])
+        .expect_err("extending a maximal step counter must fail instead of wrapping");
+
+    assert!(
+        matches!(
+            err,
+            neo_fold_clean::Error::Construction2(neo_fold_clean::paper::construction2::Error::CounterOverflow {
+                counter: "step_count"
+            })
+        ),
+        "expected step_count CounterOverflow, got {err:?}"
+    );
+}
+
+#[test]
 fn verify_uncompressed_rejects_forged_active_empty_without_terminal_fold() {
     let prep = support::toy_preprocessing();
     let mut forged = neo_fold_clean::prove(&prep, std::iter::empty::<Vec<CcsInstance>>())
@@ -396,6 +438,7 @@ fn validate(
         &prep.vk,
         prep.public_input_len,
         prep.enforces_f_prime_recursive_link(),
+        prep.enforces_terminal_induction(),
         prep.semantic_state_mode(),
         prep.initial_semantic_state_digest(),
         None,

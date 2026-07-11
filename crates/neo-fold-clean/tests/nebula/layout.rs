@@ -78,6 +78,12 @@ fn params_reject_spec_violations() {
     assert!(NebulaParams::new(4, 18, 8, 8, 1).is_err());
     // Timestamp capacity: seg_max · N · B_ops must stay below 2^TS_BITS.
     assert!(NebulaParams::new(4, 8, 8, 8, 1 << 40).is_err());
+    // The verifier relation treats seg_max as a strict chain bound, so zero
+    // segments and bounds wider than the public segment counter are invalid.
+    assert!(NebulaParams::new(0, 0, 1, 2, 0).is_err());
+    assert!(NebulaParams::new(0, 0, 1, 2, (1 << 16) + 1).is_err());
+    // Every in-segment index is carried in STEP_IDX_BITS public bits.
+    assert!(NebulaParams::new(0, 16, 1, 1, 1).is_err());
     // Zero-sized blocks are meaningless.
     assert!(NebulaParams::new(4, 8, 0, 8, 1).is_err());
     // r > mu: RAM addresses would escape their bitness bound (spec §2,

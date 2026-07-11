@@ -1367,6 +1367,18 @@ fn push_remapped_trips(
                 }
             }
         }
+        CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+            for col in 0..csc.ncols {
+                for idx in csc.col_ptr[col]..csc.col_ptr[col + 1] {
+                    out.push((row_offset + csc.row_idx[idx], map_col(col), csc.vals[idx]));
+                }
+            }
+            for block in blocks {
+                block.for_each_term::<F, _>(|row, col, value| {
+                    out.push((row_offset + row, map_col(col), value));
+                });
+            }
+        }
     }
 }
 

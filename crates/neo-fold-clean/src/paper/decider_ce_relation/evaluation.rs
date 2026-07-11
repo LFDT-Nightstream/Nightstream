@@ -348,6 +348,18 @@ fn matrix_entry_base_f(matrix: &CcsMatrix<F>, row: usize, col: usize) -> F {
             }
             acc
         }
+        CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+            let mut acc = F::ZERO;
+            for index in csc.col_ptr[col]..csc.col_ptr[col + 1] {
+                if csc.row_idx[index] == row {
+                    acc += csc.vals[index];
+                }
+            }
+            for block in blocks {
+                acc += block.entry::<F>(row, col);
+            }
+            acc
+        }
     }
 }
 

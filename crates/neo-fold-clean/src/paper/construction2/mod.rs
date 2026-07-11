@@ -55,6 +55,8 @@ pub enum Error {
     BaseCaseMismatch,
     #[error("Construction 2: F' step must carry at least one fresh/latest instance")]
     EmptyStep,
+    #[error("Construction 2: {counter} counter overflow")]
+    CounterOverflow { counter: &'static str },
     #[error(
         "Construction 2: pc out of range (expected 1 \u{2264} pc \u{2264} \u{2113}; this build hardcodes \u{2113}=1)"
     )]

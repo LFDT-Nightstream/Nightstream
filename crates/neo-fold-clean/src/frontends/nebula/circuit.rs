@@ -354,6 +354,23 @@ fn matrix_row_lcs(matrix: &CcsMatrix<F>, vars: &[Var], rows: usize) -> Vec<Lc> {
                 }
             }
         }
+        CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+            for col in 0..csc.ncols.min(vars.len()) {
+                for index in csc.col_ptr[col]..csc.col_ptr[col + 1] {
+                    let row = csc.row_idx[index];
+                    if row < rows {
+                        out[row].add_term(vars[col], csc.vals[index]);
+                    }
+                }
+            }
+            for block in blocks {
+                block.for_each_term::<F, _>(|row, col, coefficient| {
+                    if row < rows && col < vars.len() {
+                        out[row].add_term(vars[col], coefficient);
+                    }
+                });
+            }
+        }
     }
     out
 }

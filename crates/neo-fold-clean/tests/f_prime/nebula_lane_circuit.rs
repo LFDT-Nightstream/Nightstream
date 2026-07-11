@@ -70,6 +70,7 @@ fn config(d_init: [F; 4]) -> NebulaConfig {
     NebulaConfig {
         scheme,
         steps_per_segment: N,
+        seg_max: 1,
         stacks: StackShape::NONE,
         plan_digest: [F::from_u64(7); 4],
         d_init,
@@ -273,7 +274,7 @@ fn maybe_open_replays_native_gamma_and_carries_open_segments() {
         acc_digest: alloc_digest(&mut builder, digest::digest32_as_fields(acc)),
         plan_digest: alloc_digest(&mut builder, cfg.plan_digest),
     };
-    let opened = enforce_nebula_maybe_open_circuit(&mut builder, &lane, &delayed, &context);
+    let opened = enforce_nebula_maybe_open_circuit(&mut builder, &lane, &delayed, &context, cfg.seg_max);
     native
         .open_segment(&cfg, vk, z_i, acc, d_pre)
         .expect("native open");
@@ -284,12 +285,47 @@ fn maybe_open_replays_native_gamma_and_carries_open_segments() {
     let carry_wires = builder.alloc_vec(&carry_suffix);
     let carry_input = decode_delayed_nebula_public_suffix_circuit(&mut builder, &carry_wires, cfg.stacks)
         .expect("decode carry suffix");
-    let carried = enforce_nebula_maybe_open_circuit(&mut builder, &opened, &carry_input, &context);
+    let carried = enforce_nebula_maybe_open_circuit(&mut builder, &opened, &carry_input, &context, cfg.seg_max);
     assert_lane_parity(&builder, &carried, &native);
     assert!(
         builder.is_satisfied(),
         "already-open branch must carry the lane unchanged"
     );
+}
+
+#[test]
+fn maybe_open_rejects_a_segment_at_the_plan_limit() {
+    let advs: Vec<_> = (0..N).map(adv).collect();
+    let d_pre = honest_d_pre(&advs);
+    let cfg = config(d_pre[1]);
+    let mut exhausted = NebulaLane::base(&cfg);
+    exhausted.seg_idx = cfg.seg_max;
+    let x = NebulaStepX {
+        seg_idx: exhausted.seg_idx,
+        idx: 0,
+        ts_in: 0,
+        ts_out: 1,
+        gamma: [K::ONE; 2],
+        h_in: [K::ONE; 4],
+        h_out: [K::ONE; 4],
+        sp_in: [0; 2],
+        sp_out: [0; 2],
+    };
+    let suffix = encode_delayed_f_prime_suffix(&x, cfg.stacks, Some(d_pre)).expect("encode open suffix");
+
+    let mut builder = R1csBuilder::new();
+    let lane = alloc_lane(&mut builder, &exhausted);
+    let suffix_wires = builder.alloc_vec(&suffix);
+    let delayed = decode_delayed_nebula_public_suffix_circuit(&mut builder, &suffix_wires, cfg.stacks)
+        .expect("decode open suffix");
+    let context = NebulaOpenContextWires {
+        vk_fs: alloc_digest(&mut builder, [F::ZERO; 4]),
+        z_i: alloc_digest(&mut builder, [F::ZERO; 4]),
+        acc_digest: alloc_digest(&mut builder, [F::ZERO; 4]),
+        plan_digest: alloc_digest(&mut builder, cfg.plan_digest),
+    };
+    let _ = enforce_nebula_maybe_open_circuit(&mut builder, &lane, &delayed, &context, cfg.seg_max);
+    assert!(!builder.is_satisfied(), "seg_idx == seg_max must fail in circuit");
 }
 
 // ── Poseidon2 mirror parity ──────────────────────────────────────────────
@@ -533,8 +569,9 @@ fn delayed_claim_transition_matches_native_end_to_end() {
         let input = decode_delayed_nebula_public_suffix_circuit(&mut builder, &suffix_wires, cfg.stacks)
             .expect("decode delayed claim");
         let adv_wires = alloc_adv(&mut builder, Some(tuple)).expect("adv wires");
-        let out = enforce_delayed_nebula_claim_circuit(&mut builder, &wires, &input, &adv_wires, &context, N)
-            .expect("delayed transition");
+        let out =
+            enforce_delayed_nebula_claim_circuit(&mut builder, &wires, &input, &adv_wires, &context, N, cfg.seg_max)
+                .expect("delayed transition");
         native
             .advance(&cfg, &x, Some(tuple))
             .expect("native advance");

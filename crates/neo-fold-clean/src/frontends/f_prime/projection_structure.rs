@@ -43,7 +43,7 @@ pub const PRODUCTION_KMUL_COUNT: usize = 7100;
 pub const PRODUCTION_RING_ACTION_PAIR_COUNT: usize = 465;
 
 /// Historical commitment-plus-adv estimate. Lemma 5's corrected complete
-/// production census is `J=85`; this model predates that audit.
+/// production census is `J=150`; this model predates that audit.
 pub const PRODUCTION_PROJECTION_IDENTITY_COUNT: usize = 72;
 
 /// The Road A cost-model shell: kmuls unchanged, and the ring

@@ -22,15 +22,13 @@
 //!   extend(prep, audit, batch) → UncompressedAudit            (optional)
 //!     └─ one more F' step
 //!   finish_uncompressed(prep, audit) → Uncompressed
-//!     └─ flush trailing latest, DROP audit trail
+//!     └─ DROP audit trail; authoritative plain F' keeps running + latest
 //!   verify_uncompressed(prep, &Uncompressed) → Result<()>
-//!     └─ constant-time IVC verification via terminal-fold re-run
+//!     └─ constant-time IVC verification of running + latest
 //!        (HyperNova §6.3 Construction 2 + SuperNeo §7)
-//!        Accepted only when the terminal fold starts from an empty
-//!        running accumulator (a single chunk). Multi-chunk histories
-//!        need the audit/decider path below because the evidence needed
-//!        to bind earlier chunks' counters and boundary coordinates lives
-//!        in per-step rows that `Uncompressed` intentionally drops.
+//!        Multi-chunk acceptance requires preprocessing compiled from the
+//!        complete authoritative F' relation. Image-only relations remain
+//!        fail-closed and require the audit path below.
 //!
 //! Audit / decider (chain replay, Spartan):
 //!   ... prove + extend as above ...
@@ -87,7 +85,7 @@ pub enum Error {
     NebulaAdvPresenceMismatch,
     #[error(transparent)]
     Decider(#[from] decider::Error),
-    #[error("verify_uncompressed: proof is not finalized (state is Initial, or trailing latest is non-empty)")]
+    #[error("verify_uncompressed: proof has an unsupported terminal shape")]
     NotFinalized,
     #[error("verify_uncompressed: recorded final accumulator witness shape is inconsistent")]
     FinalAccumulatorWitnessShapeMismatch,
@@ -152,6 +150,8 @@ pub enum Error {
         "verify_uncompressed: terminal latest claim {index} public input does not encode the pre-final state x_out"
     )]
     TerminalLatestPublicInputMismatch { index: usize },
+    #[error("verify_uncompressed: terminal latest instance {index} failed authoritative CCS validation: {reason}")]
+    TerminalLatestAuthority { index: usize, reason: String },
     #[error(
         "verify_uncompressed: finalized proofs must carry a terminal-fold proof; \
          `final_fold = None` has no verifier-driven NIFS proof binding the recorded state"
@@ -184,21 +184,24 @@ pub enum Error {
     )]
     SemanticStateDigestCanonicality { owner: &'static str, lane: usize },
     #[error(
-        "verify_uncompressed: terminal-only verification is supported only for a single F' chunk \
-         until the compressed decider proves the recursive F' / NIFS.V induction (got chunk_count={chunk_count}). \
-         Use finish_uncompressed_with_audit + verify_uncompressed_audit / build_decider_statement for multi-chunk F' chains."
+        "verify_uncompressed: this F' preprocessing constrains the public recursive link but does not certify \
+         the authoritative folded NIFS.V induction (got chunk_count={chunk_count}). \
+         Use an authoritative fixed F' frontend or keep the audit trail for replay."
     )]
     FPrimeNonReplayUnsupported { chunk_count: u64 },
     #[error(
-        "verify_uncompressed: terminal-only verification is supported only when the terminal fold starts \
-         from an empty running accumulator (single chunk). This proof carries chunk_count={chunk_count}; \
-         use finish_uncompressed_with_audit + verify_uncompressed_audit / build_decider_statement for multi-chunk chains."
+        "verify_uncompressed: this preprocessing has no terminal-induction capability, but the terminal fold starts \
+         from a non-empty running accumulator (chunk_count={chunk_count}); keep the audit trail for replay."
     )]
     TerminalOnlyMultiChunkUnsupported { chunk_count: u64 },
     #[error("extend: cannot extend an already-finalized uncompressed proof")]
     AlreadyFinalized,
     #[error("extend: cannot fold an empty batch; every extend must contribute at least one CCS instance")]
     EmptyBatch,
+    #[error("folded F' induction currently requires exactly one fresh instance per chunk (got {got})")]
+    TerminalInductionArity { got: usize },
+    #[error("folded F' induction carries Nebula segment-open data inside the claim suffix; a separate nebula_open payload is invalid")]
+    TerminalInductionExternalNebulaOpen,
     #[error("extend: batch has {got} fresh instances, but this SuperNeo profile supports at most {max}")]
     BatchTooLarge { got: usize, max: usize },
     #[error("finish_uncompressed: already-finalized proof is internally inconsistent")]
@@ -292,6 +295,17 @@ pub struct Preprocessing {
     /// The field is verifier-owned and crate-private. R1CS-F' frontends set
     /// it during preprocess; generic CCS frontends leave it false.
     pub(crate) f_prime_recursive_link: bool,
+    /// Whether this verifier context owns the complete folded F' induction
+    /// relation: base branch, recursive NIFS.V, recursive public link, and
+    /// (when configured) the delayed Nebula transition.
+    ///
+    /// This is deliberately stronger than [`Self::f_prime_recursive_link`].
+    /// The older image frontend constrains the public link but is not the
+    /// authoritative fixed-point relation, so it must remain fail-closed for
+    /// terminal-only multi-chunk verification. Only constructors that compile
+    /// the complete fixed relation (generic `r1cs_f_prime::ivc` or Nebula F')
+    /// may set this capability.
+    pub(crate) terminal_induction: bool,
     /// Memoized 4-limb digest of the full CCS structure
     /// (`paper::digest::structure_digest(&structure)`). Verifier-owned,
     /// computed once at preprocess time; protocol code reads this field
@@ -324,6 +338,13 @@ impl Preprocessing {
     /// recursive-link public input (`u_i.x == enc_inst(prior_x_out)`).
     pub fn enforces_f_prime_recursive_link(&self) -> bool {
         self.f_prime_recursive_link
+    }
+
+    /// True only for preprocessing derived from the authoritative folded F'
+    /// fixed point. Terminal-only verification may trust prior chunks through
+    /// that relation's in-circuit NIFS.V induction.
+    pub fn enforces_terminal_induction(&self) -> bool {
+        self.terminal_induction
     }
 
     /// Read-only view of the Nebula plan context; `None` for plain chains.
@@ -395,6 +416,15 @@ impl Preprocessing {
     /// ownership boundary, not a prover/caller choice.
     pub(crate) fn with_f_prime_recursive_link(mut self) -> Self {
         self.f_prime_recursive_link = true;
+        self
+    }
+
+    /// Install the complete folded-induction capability. Kept crate-private:
+    /// this is a statement about verifier-owned relation construction, never
+    /// a caller-selected verification mode.
+    pub(crate) fn with_terminal_induction(mut self) -> Self {
+        self.f_prime_recursive_link = true;
+        self.terminal_induction = true;
         self
     }
 
@@ -481,12 +511,10 @@ pub(crate) fn validate_semantic_state_digest_canonical(owner: &'static str, dige
 /// Terminal-only uncompressed proof — the **non-replay IVC verifier**'s
 /// input.
 ///
-/// Carries exactly the fields `verify_uncompressed` reads: the
-/// post-finalization `State` (chain coordinates + final running
-/// accumulator with witnesses) and the terminal `FinalFoldProof`
-/// (whose `terminal_inputs` snapshot is what authentiticates the chain
-/// through a verifier-driven NIFS.V re-run; see
-/// [`verify::verify_uncompressed`]).
+/// Carries exactly the fields `verify_uncompressed` reads. A plain certified
+/// F' proof keeps HyperNova's `(running accumulator, latest fresh instance)`
+/// in `state` and has no final fold. Nebula uses `final_fold` to consume its
+/// one-step-delayed terminal memory claim before external acceptance.
 ///
 /// The per-step audit trail (`steps`, `public_batches`) is **not** part
 /// of this type — it lives in [`UncompressedAudit`] and is consumed by
@@ -495,18 +523,16 @@ pub(crate) fn validate_semantic_state_digest_canonical(owner: &'static str, dige
 ///
 /// There is no session-wide transcript on the proof. Each F' step owns
 /// its own per-step transcript inside `paper::f_prime::{prove, verify}`,
-/// and the terminal fold owns its own inside
+/// A present terminal fold owns its own transcript inside
 /// `paper::construction2::{prove_final_fold, verify_final_fold}`.
 #[derive(Clone, Debug)]
 pub struct Uncompressed {
     pub state: State,
-    /// Final NIFS proof that flushed the trailing latest into the running
-    /// accumulator at finalization, plus the prover-snapshotted
-    /// `terminal_inputs` (pre-fold running + latest) the verifier
-    /// re-runs NIFS.V against. `None` only when the chain had nothing
-    /// to flush inside the low-level finalization helper; public
-    /// terminal/verifier surfaces reject `None` because it carries no
-    /// verifier-driven terminal fold binding.
+    /// Optional final NIFS proof. Plain authoritative F' follows HyperNova and
+    /// leaves this `None`; the verifier checks `state.running` and
+    /// `state.latest` separately. Nebula sets it while consuming the trailing
+    /// delayed claim. Legacy relations also require it for their one-chunk
+    /// terminal shape.
     pub final_fold: Option<FinalFoldProof>,
 }
 
@@ -658,6 +684,7 @@ pub(crate) fn preprocess_with_test_log_and_optimized_cache(
         // upgrade the mode based on their plan.
         semantic_state_mode: SemanticStateMode::Stateless,
         f_prime_recursive_link: false,
+        terminal_induction: false,
         structure_digest,
         pi_ccs_header_bundle,
         optimized_cache,

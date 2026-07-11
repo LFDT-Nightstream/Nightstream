@@ -1,7 +1,7 @@
 # Nebula on SuperNeo — Security Note
 
 Status: companion to [`nebula-superneo-implementation.md`](./nebula-superneo-implementation.md)
-(v3 + the v3.1 stacks amendment). This note states and proves the four
+(v3 + the v3.1 stacks amendment). This note states and proves the six
 lemmas the spec's §5.3 and §9 defer to, records the claims ledger with
 dispositions, and lists what remains open and why. Authored to be attacked: every proof names the exact
 property it leans on, so a reviewer can go after the leans.
@@ -15,20 +15,26 @@ none is silently assumed.
 - **A1 (Pipeline knowledge soundness).** The composed folding pipeline
   `Π_DEC ∘ Π_RLC ∘ Π_CCS` is a reduction of knowledge from
   `CCS(b)^K × CE(b)^k` to `CE(b)^k` (SuperNeo Theorem 1), with soundness
-  error `ε_pipe` per fold. In particular, from any accepting fold
+  error `ε_pipe` per interactive fold. For the production relation,
+  SuperNeo D.4 gives `ε_pipe ≤ f_D4/|K|`, where the exact executable
+  numerator is `f_D4 = 1,439,664`; Fiat–Shamir contributes the explicit
+  `q_H` lift in §5. In particular, from any accepting fold
   transcript plus valid terminal openings, an extractor produces witnesses
   `z_i` (norm-bounded, satisfying `c_i = A·embed(z_i)`) for every input
   claim.
 - **A2 (MSIS binding).** The Ajtai maps `A`, `A_ops`, `A_mem`
   (Goldilocks preset, κ = 18, d = 54; independent seeded matrices) are
-  binding against openings of ∞-norm < b = 2: producing two distinct
-  low-norm openings of any commitment implies an MSIS solution of norm
-  ≤ 2, probability `ε_MSIS`. The preset's analysis covers width `2^30`
-  ring columns ≫ any lane here.
+  `b`-binding for fresh openings and `(B,C)`-relaxed binding for accumulated
+  claims as required by SuperNeo Theorem 2. The latter is the conservative
+  requirement: hardness of `MSIS_{m,8TB}^{∞,κ,q}` at `n_F=2^30` scalar
+  coefficients. The pinned estimator reproduces 100.7 rough / 129.1 full
+  bits for that Appendix-B.2 instance; §5 uses a rounded 100-bit floor. The
+  same maximum width dominates every lane map here. Let `ε_MSIS` denote the
+  union of failures for these three independently seeded maps.
 - **A3 (Poseidon2 collision resistance).** The Poseidon2 instance behind
   `engine::transcript` and `paper/digest.rs` is collision-resistant
   (`ε_CR`) and its transcript is modeled as a random oracle for
-  Fiat–Shamir (query bound `q_H`). For the prover-claimed `D_pre` path
+  Fiat–Shamir (global adversarial random-oracle query bound `q_H`). For the prover-claimed `D_pre` path
   (spec §6.2 L0b) the leaf/link chain must additionally be
   **preimage/second-preimage resistant**: a `D_pre` claimed without a
   known preimage list obligates the prover to exhibit one at close
@@ -41,15 +47,32 @@ none is silently assumed.
   canonical lane unchanged; recursive step `i+1` consumes the exact
   `(fresh_x, fresh_adv)` wires for prior claim `u_i`; terminal finalization
   consumes trailing `u_T` before checking closure and recomputing public
-  `x_out`. The recursive R1CS rows exist; composed `S_mem` lowering and the
-  terminal transition remain spec §13 step 9's production gate. Lemma 2 is
-  conditional on the complete three-case enforcement, not native replay.
+  `x_out`. All three cases are implemented by the fixed relation and its
+  terminal-induction lifecycle; Lemma 2 relies on those constraints, never on
+  native history replay. The active R5 acceptance/tamper test is implementation
+  evidence for this assumption, not a replacement for reviewing the relation.
 - **A5 (Uniqueness of openings pre-challenge).** Under A2, at the moment
   Π_RLC samples ρ, each absorbed commitment has at most one low-norm
   opening obtainable by any efficient prover across accepting
   continuations (the "unique relaxed opening" property SuperNeo's weak
   interactive reduction argument for Π_RLC already establishes; we reuse
   it, not re-prove it).
+- **A6 (two-level binding compression).** The CCS-claim, CE-claim,
+  Π_CCS-output, Π_RLC-projection, and Nebula-leaf roles use independent
+  seeded rank-2 Ajtai maps over the exact authoritative centered-unit
+  encodings. Their maximum input is 29,168 field words, or 22,147 ring
+  columns. A shared, independently seeded rank-1 map compresses the 108-field
+  rank-2 output before Poseidon2. Two distinct valid openings differ by
+  coefficients of infinity norm at most 2. Let `ε_BIND` be the union of the
+  five long-map MSIS events and the one short-map MSIS event. We assume the
+  ChaCha8-expanded fixed public matrices are hard as random Module-SIS
+  instances of the stated dimensions; this is a concrete-instance
+  assumption, not a reduction from A2. With `malb/lattice-estimator` commit
+  `3e48ef421ec256afddb3e7d2249a77eab6e9ba12`, the conservative rough estimates
+  are 167.0 bits for the maximum rank-2 map and 223.1 bits for the short map;
+  unioning all six leaves more than 164 bits. The rejected rank-1 long map
+  estimates only 59.9 rough bits. §4c proves the two-level hash-then-FS
+  reduction; `scripts/estimate_nebula_sis.sage` reproduces the estimates.
 
 Verified code anchors used below (read, not assumed):
 
@@ -209,10 +232,14 @@ before γ — the commit-then-challenge premise of Lemma 3. For item 5:
 Corollary 1.1 applied per position; for segment 0, `D_init` is a public
 function of the plan (spec §7). ∎
 
-**Implementation condition.** The recursive delayed-transition rows and
-their native parity/tamper tests discharge the middle induction case only.
-Until composed `S_mem` lowering and the terminal delayed transition land,
-A4 as a whole remains open and terminal-only acceptance stays fail-closed.
+**Implementation condition.** A4 is implemented for the authoritative fixed
+relation: base, bootstrap-recursive, steady-recursive, interior segment steps,
+and terminal delayed transition are exercised by the active R4 encoder and R5
+terminal-induction tests, including link/suffix/lane and pre-final-running
+tampering. The terminal-induction capability is
+crate-private and set only by that relation's preprocessing constructor; legacy
+and generic frontends remain fail-closed. This closes the implementation gate,
+not the non-author proof review tracked below.
 
 ## 4. Lemma 3 — packed fingerprint soundness over K
 
@@ -300,15 +327,12 @@ nothing.
 
 ## 4b. Lemma 5 — projection-checked ring action (enc(F′) candidate E)
 
-**Status: PROPOSED, not yet part of the protocol.** This is the
-soundness case for `encoding.md` candidate E — replacing the folded
-F′ regime's `D²`-product materialization of `RotRho(ρ)·c` with a
-polynomial-identity test. The gadget and its measured costs exist
-(`engine/r1cs_circuit/ring_action.rs::enforce_ring_action_projection_batch`,
-`tests/system/ring_action_projection.rs`); adoption is gated on this
-lemma surviving non-author review AND the enc(F′) regime decision
-choosing the folded road. The milestone gate is
-`ivc_invariants.rs::folded_f_prime_shell_must_adopt_projection_budget`.
+**Status: ADOPTED and implemented; non-author review remains open.** The
+authoritative folded F′ relation replaces `D²` product materialization with
+this polynomial-identity check at every c/adv/X/y ring-action site. Native and
+in-circuit schedules live in `paper/reductions/pi_rlc.rs` and
+`paper/reductions/pi_rlc_circuit.rs`; C12 and the active R7 gate measure the
+resulting fixed relation rather than the retired projection shell.
 
 **Setting.** One fold inside the F′ circuit. Input commitments
 `c_1 .. c_n ∈ R_q^κ` (κ = 18 ring components each; `n = K + k` fold
@@ -322,9 +346,11 @@ structural). `R_q = F[X]/Φ`, `Φ = X^54 + X^27 + 1` monic.
 1. absorb all input claims — including every `c_i.data` and, for
    Nebula chains, the `adv` leaf digests (the existing R1 sites);
 2. squeeze `ρ` (existing);
-3. absorb every claimed aggregate output (`c*`, X/y aggregates, and the
-   three `adv*` commitments) and every matching `q_m` (**new absorbs —
-   all are prover claims and all must precede β**; a `q` absorbed after β
+3. canonically encode every claimed aggregate output (`c*`, X/y aggregates,
+   and the three `adv*` commitments) and every matching `q_m`, recompute the
+   domain-separated A6 Π_RLC-projection binding map and its Poseidon2 digest,
+   and absorb that digest (**all prover claims are therefore bound before
+   β**; omitting a `q`, or accepting a digest not recomputed from these wires,
    lets the prover solve `q_m(β)` pointwise and forge its output);
 4. squeeze **one** `β ∈ K` for the step;
 5. enforce the identity at β for every output ring component of every
@@ -350,8 +376,8 @@ consumed output, unless an additional reviewed aggregation argument is
 introduced. For fold input count `n`, commitment width `κ`, active X
 columns `a_X`, and `t` y-ring rows, the complete target census is
 `P = n·(4κ + a_X + 2t + 2)` and `J = 4κ + a_X + 2t + 2` after batching
-each aggregate over its `n` inputs. **Until every row is wired and reviewed,
-this lemma uses the conservative bound `J ≤ P`.**
+each aggregate over its `n` inputs. **The rows are wired; until the census
+receives non-author review, this lemma uses the conservative bound `J ≤ P`.**
 
 **Statement.** Under the schedule above, with all operand coefficient
 wires bound as in the Integration obligations below, and all `J`
@@ -366,8 +392,9 @@ commitment-mix case). Define
 `G_m(X) := Σ_i ρ_i(X)·c_{i,m}(X) − q_m(X)·Φ(X) − c*_m(X) ∈ F[X]`,
 `deg G_m ≤ 2d − 2` (products of degree-≤ d−1 operands; `deg q_m·Φ ≤
 (d−2) + d`). Every coefficient of `G_m` is fixed before β is sampled
-(items 1–3 of the schedule; commitment binding is A2, transcript
-determinism A3). Suppose `c*_m ≠ Σ_i ρ_i·c_{i,m} mod Φ`. Then
+(items 1–3 of the schedule; commitment binding is A2,
+projection-preimage binding is A6, and transcript determinism is A3).
+Suppose `c*_m ≠ Σ_i ρ_i·c_{i,m} mod Φ`. Then
 `G_m ≠ 0` as a polynomial: if `G_m = 0` identically, reducing
 `Σ ρ_i c_{i,m} = q_m·Φ + c*_m` mod Φ gives
 `Σ ρ_i c_{i,m} mod Φ = c*_m` (as `deg c*_m < d`), a contradiction. A
@@ -378,10 +405,10 @@ precede the one squeeze). Completeness: the honest `q_m` is the unique
 quotient from division by the monic polynomial Φ
 (`projection_quotient`), for which each `G_m` is identically zero. ∎
 
-Conservative worked bound at production shape (`n=15`, `κ=18`,
-`a_X=5`, `t=3`): `P=1,275`, so
-`P·(2d − 2)/|K| = 1,275 · 106 / 2^128 ≈ 2^−111.0` per fold. The reviewed
-aggregate-batching target is `J=85`, giving ≈ `2^−114.9` per fold. The
+Conservative worked bound at maximum v3.1 production shape (`n=15`,
+`κ=18`, `a_X=46`, initial folded relation `t=15`): `P=2,250`, so
+`P·(2d − 2)/|K| = 2,250 · 106 / 2^128 ≈ 2^−110.14` per fold. The wired
+aggregate-batching count is `J=150`, giving ≈ `2^−114.04` per fold. The
 conservative term remains below the Lemma-3 term (≈ 2^−110 per segment),
 but the tighter number is not assumed until the census wiring is reviewed.
 β **must** live
@@ -390,8 +417,8 @@ unacceptable across `n_f · q_H`.
 
 **Composition with Lemma 1.** Lemma 1 Step 2 consumes the verifier's
 computation `adv*_L = Σ_i adv_{i,L}·ρ_i` (and the pipeline's
-`c* = mix_commits(ρ, c)`), executed natively today. Under candidate E
-those computations become projection-checked claims: first apply this
+`c* = mix_commits(ρ, c)`). In the adopted relation these are
+projection-checked claims: first apply this
 lemma (the claimed mix equals the true linear mix except with the
 bound above), then Lemma 1's argument proceeds on the true mix
 verbatim. The error adds; no circularity — β is sampled after ρ, and
@@ -414,17 +441,17 @@ same discipline as R1's absorb-site inventory):**
    count `P_j`, its projection-identity count `J_j`, the output
    consumer, and why batching is sound for that consumer. The final
    bound uses `J = Σ_j J_j`; until the census wiring is reviewed, Lemma 5's
-   conservative `J ≤ P` stands. Production rows (`n=15`, `κ=18`,
-   `a_X=5`, `t=3`):
+   conservative `J ≤ P` stands. Maximum v3.1 production rows (`n=15`,
+   `κ=18`, `a_X=46`, initial folded relation `t=15`):
 
    | client | pairs `P_j` | identities `J_j` | consumer | batching justification |
    |---|---:|---:|---|---|
    | Π_RLC commitment mix | `κ·n = 270` | `κ = 18` | folded `c*` | only the aggregate mix is consumed |
-   | X active columns | `a_X·n = 75` | `a_X = 5` | folded `X*` | one aggregate per active column |
-   | y_ring rows, two K limbs | `2t·n = 90` | `2t = 6` | folded `y_ring*` | one aggregate per row and K limb |
+   | X active columns | `a_X·n = 690` | `a_X = 46` | folded `X*` | one aggregate per active column |
+   | y_ring rows, two K limbs | `2t·n = 450` | `2t = 30` | folded `y_ring*` | one aggregate per row and K limb |
    | y_zcol, two K limbs | `2n = 30` | `2` | folded `y_zcol*` | one aggregate per K limb |
    | Nebula `adv` tuple mirror (spec §5.2 R2) | `3κ·n = 810` | `3κ = 54` | folded `adv*` tuple | one aggregate per tuple component and ring lane |
-   | **total** | **1,275** | **85 after reviewed batching; ≤1,275 before** | authoritative F′ relation | complete client census |
+   | **total** | **2,250** | **150 after reviewed batching; ≤2,250 before** | authoritative F′ relation | complete client census |
 
    Π_DEC's recomposition is scalar `b`-powers — linear, **not** a
    projection client.
@@ -476,36 +503,125 @@ RLC-combined under a second challenge τ into one identity
 `(κ − 1)/|K|` error term. v1 of any adoption should keep per-component
 identities — simpler review, negligible row savings.
 
+## 4c. Lemma 6 — two-level SIS binding before Fiat–Shamir
+
+**Status: ADOPTED and implemented.** This lemma is the security contract for
+the five witness-proportional transcript compressions in A6. It does not claim
+that Poseidon2 repairs an SIS collision; both SIS layers are explicit bad
+events.
+
+For role `r`, let `E_r` be the exact centered-unit message encoded by the
+relation, including its enforced reconstruction to the source fields. Define
+
+```text
+C_r = A_r · E_r                         (rank 2, role-specific seed)
+S_r = B · E_short(C_r.data)             (rank 1, independent shared seed)
+h_r = Poseidon2(v3_tag, r, |fields|, 2, S_r.data).
+```
+
+The five `A_r` matrices have independent seeds and domains. `B` is shared
+because its input shape is always one 108-field rank-2 commitment; the role in
+the final Poseidon2 envelope prevents cross-role substitution. All matrix
+outputs and the final digest are recomputed from relation wires before the
+digest is absorbed and before the associated challenge is squeezed.
+
+**Statement.** Under A3 and A6, if two distinct valid authoritative encodings
+for the same role and field count produce the same `h_r`, then one of the
+following occurs: a rank-2 Module-SIS collision for `A_r`, a rank-1
+Module-SIS collision for `B`, or a Poseidon2 collision. Consequently
+
+```text
+Adv_bind(h_r) ≤ ε_MSIS(A_r) + ε_MSIS(B) + ε_CR.
+```
+
+Across all five roles, the SIS contribution is `ε_BIND`; the global
+composition counts `ε_CR` once.
+
+**Proof.** Let `(E,C,S)` and `(E',C',S')` produce equal final digests. If the
+Poseidon2 envelopes differ, equality is a Poseidon2 collision. Otherwise the
+envelopes are equal, hence `S = S'` and the role, field count, and primary rank
+agree. If the short messages differ, `B·(E_short(C)−E_short(C')) = 0` is a
+nonzero Module-SIS solution with infinity norm at most 2. If they do not
+differ, they reconstruct the same `C.data`; if the long messages differ,
+`A_r·(E−E') = 0` is the corresponding rank-2 Module-SIS solution, again with
+infinity norm at most 2. The remaining case has the same authoritative
+encoding and is not a binding violation. This case split is exhaustive. ∎
+
+**Hash-then-Fiat–Shamir corollary.** The relation does not accept a digest as
+authority: it recomputes both linear maps and Poseidon2 from the exact message
+wires, then replays the transcript squeeze. Therefore an adversary that makes
+a challenge depend on a different pre-squeeze message either triggers one of
+the three binding events above or performs another random-oracle attempt. The
+latter is exactly the explicit `q_H` factor on each challenge-dependent term
+in §5. Multiple valid centered-unit encodings of one field value do not evade
+the argument: the encoding wires themselves are committed relation witness;
+choosing another valid encoding is another pre-squeeze message and another
+query, while obtaining the same digest is covered by the case split.
+
+**Concrete estimates.** R7 pins the largest long map at 22,147 ring columns
+(1,195,938 scalar coefficients) and the short map at 82 ring columns (4,428
+coefficients). The estimator uses the conservative Euclidean collision bound
+`2·sqrt(m)` induced by coefficient infinity norm 2. At the pinned estimator
+commit, the rough/full costs are 167.0/190.2 bits for rank 2 and 223.1/242.1
+bits for the short rank-1 map. Five long roles union to about 164.7 rough bits;
+§5 rounds this down to a 160-bit floor. These are heuristic concrete-security
+estimates under A6's random-matrix model, not a proof of hardness for the
+specific fixed seeds.
+
 ## 5. Composition theorem and evaluated budget
 
-**Theorem.** Under A1–A5, an accepted chain of `n_seg` segments with valid
+**Theorem.** Under A1–A6, an accepted chain of `n_seg` segments with valid
 terminal decider checks attests a sequentially consistent memory history
 starting from the plan's initial memory, except with probability
 
 ```text
-ε_total ≤ ε_pipe·n_f + ε_MSIS + q_H · n_f·n_in/|C|     (Lemma 1, FS-lifted)
-        + ε_CR                                          (Lemma 2)
+ε_total ≤ q_H · n_f · ε_pipe                            (A1, FS-lifted)
+        + ε_MSIS + q_H · n_f·n_in/|C|                  (Lemma 1)
+        + ε_BIND + ε_CR                                  (Lemma 6 + A3)
         + q_H · n_seg · m_seg / |K|                     (Lemma 3 / Cor 4.1)
+        + q_H · n_f · J_proj·(2d−2) / |K|               (Lemma 5)
 
 ε_MSIS := ε_MSIS(A) + ε_MSIS(A_ops) + ε_MSIS(A_mem)     (A2's instances,
                                                          union-bounded)
+ε_BIND := Σ ε_MSIS(map) over five rank-2 maps and one short rank-1 map
 n_in   := per-fold input-claim count — SuperNeo's fold arity "K + k";
           instance counts, unrelated to the field K in |K|
 m_seg  := |IS| + |WS| + |RS| + |FS| = 2·(N·B_ops + R + M)   (Cor. 4.1)
+J_proj := projection identities per fold; use conservative J_proj ≤ P
+          until the maximum-geometry census receives non-author review
 ```
 
-FS lift: Lemma 1 is stated interactively; under Fiat–Shamir the mixing
-event is per-transcript-attempt, exactly like Lemma 3's, so it carries the
-same `q_H` factor rather than assuming `ε_pipe`'s accounting subsumes it
-(conservative — `ε_MSIS(A)` may likewise already be counted inside
-`ε_pipe`; it is counted separately here, also conservative).
+The same global `q_H` cap is applied to every public-coin failure term. This
+is conservative: a single adversary has at most `q_H` total random-oracle
+queries, while the displayed union gives every fold and segment the whole
+allowance. `ε_MSIS` may already be represented inside the inherited pipeline
+reduction; it is nevertheless counted separately.
 
-Worked v3 targets (`N·B_ops = R+M ≈ 2^17.1` under exact cover,
-`m_seg ≈ 2^18.1`, `|K| ≈ 2^128`): the Lemma-3 term is ≈ `2^-109.9` per
-attempt — the same
-soundness regime as the host pipeline's own sum-checks. The Lemma-1 mixing
-term is `q_H·n_f·n_in/|C|`, per attempt the same order as Π_RLC's
-existing per-fold error.
+**Declared production target.** The maximum supported geometry is
+`n_seg = SEG_MAX = 2^16`, `N = 1,088`, hence `n_f = 71,303,168`. The profile
+declares a **64-bit end-to-end floor** for adversaries making at most
+`q_H = 2^16` random-oracle queries. R7 evaluates the conservative census
+`J_proj = P = 2,250`, not the reviewed-batching candidate `J=150`, and uses
+SuperNeo D.4's exact maximum-fresh numerator `f_D4 = 1,439,664` for the final
+15,958,404-coordinate, 14-matrix, degree-8 relation:
+
+| term | maximum-chain bits |
+|---|---:|
+| `q_H·n_f·f_D4/|K|` | 65.46 |
+| conservative projection | 68.05 |
+| Nebula fingerprint | 77.91 |
+| strong-set mixing | 79.39 |
+| A2 Module-SIS floor | 100.00 |
+| A6 two-level binding floor | 160.00 |
+| Poseidon2 collision/preimage floor | 128.00 |
+| **union of all displayed terms** | **65.23** |
+
+Thus the profile clears the declared target by about 1.23 bits; it does
+**not** support a 100-bit maximum-chain claim. Because the margin is narrow,
+changing `SEG_MAX`, `N`, `q_H`, the D.4 shape, or the conservative projection
+census reopens this budget. The active R7 test computes and pins the formula;
+the estimator script pins the two Module-SIS floors. Concrete hardness and
+Poseidon2 remain assumptions A2/A3/A6 rather than facts established by tests.
 
 ## 6. Claims ledger (dispositions)
 
@@ -521,28 +637,33 @@ existing per-fold error.
 | C8 | L-ALIGN: lanes must be whole ring columns | **new constraint found by proof** | added to spec §5.1; without it, Step 2's commutation fails |
 | C9 | Lane-residency completeness (no free interpretation bits) | **statically enforced** | `audit_lane_residency` runs at every `S_mem` construction (spec §15 criterion 7): fingerprint-input matrices may only read lanes, public `x`, or E2-constrained `cnt` aux — violations fail the build; reference-model attacks remain as regression (spec §12) |
 | C10 | Engine accepts `S_mem` shape | build-resolved | PR 3 |
-| C11 | Cost model within 2× | **measurement-only** | PR 3 spike; cannot be closed by writing |
-| C12 | F′-R1CS absorb budget | blocked by measured width | authoritative recursive relation includes current `S_mem`, delayed lane transition, and c/adv/X/y projections. The reduced-κ shape audit still gives a 30,083,645-bit lower bound after branch overlay; C14 or an equivalent reviewed binding compression must land before fixed-point lowering, terminal transition, and integrated production measurement. |
+| C11 | Cost model within 2× | **implemented and actively measured** | R7 constructs the authoritative production fixed point and pins both the selective census and final relation; C12 records the exact values. |
+| C12 | F′-R1CS absorb budget | **implemented at production parameters** | The authoritative three-arm relation includes current `S_mem`, delayed lane transition, and c/adv/X/y projection. The two-level SIS bindings reuse the same 41 centered unit digits as the folded witness; compact seeded matrices, private Poseidon-output substitution, five-product direct CCS rows, telescoping evaluation accumulators, exact Karatsuba K-dot traces, and canonical-bit reuse elsewhere produce a reduced-profile square fixed point of 9,959,328 coordinates / rows. At Appendix B.2 parameters and maximum v3.1 geometry, the first selective census is 15,730,104 and the verifier-shape fixed point is **15,958,404 coordinates / rows, 14 matrices, degree 8**, with `M0 = I`. The active R7 gate pins those values below the unchanged 16M ceiling, validates the full D.4 factor against the final relation's actual shape, and evaluates the §5 maximum-chain budget. |
 | C13 | Workload fit of `M`, segment granularity of incrementality | **product decision** | owner: Nico |
-| C14 | SIS/Ajtai accumulation for the carried chains and unified F′ accumulator root | **prototype measured, not adopted** | the authoritative Road A shape audit makes the Poseidon handle exceed budget even at reduced κ. `accumulator_sis_circuit` pins native/circuit parity, tamper rejection, and both cost layers at 3 fields, κ=1: field-native 10,532 cols / 10,537 rows / 93,425 nnz; complete low-norm 661,445 committed bits / 671,981 rows. Canonical decomposition children now reuse their source field's bit slots in direct and three-arm lowering. The Ajtai core's Θ(`Dκ·64N`) coefficient count still forbids naïve full-accumulator CSC materialization. Adoption requires a structured seeded-ring matrix, exact transcript/seed domains, production-shape measurement, and a hash-then-FS lemma. Until then Poseidon remains normative and the compiler fails closed on budget. |
+| C14 | SIS/Ajtai accumulation for carried chains or remaining claim hashes | **implemented and concretely estimated for five R2 binding roles** | Each role first uses an independent rank-2 map over its authoritative balanced-trit encoding; one independent short rank-1 map compresses the 108-field output, and a domain-separated Poseidon2 envelope enters Fiat–Shamir. `CscWithSeededPhi81` preserves both maps structurally through CCS/SuperNeo consumers; native/circuit parity, stage-tamper rejection, and width pins cover the adopted path. R7 pins 36 rank-2 plus 36 short rank-1 blocks, with maxima of 29,168 words / 22,147 ring columns and 108 words / 82 ring columns. A6 records the exact fixed-matrix assumption and estimator commit; Lemma 6 gives the hash-then-FS reduction. Carried `D` chains remain Poseidon2. Independent cryptographic review remains required, but the former unstated κ=1 assumption is gone. |
+| C19 | Parent-authority accumulator handle | implemented; reduction argument needs non-author review | native and in-circuit NIFS.V both verify strict Π_DEC(parent, children) before the compact handle is derived or consumed, and Π_CCS already uses `ce_claim_digest(parent)` as the running Fiat–Shamir authority. The handle is `Poseidon2(tag, child_count, parent_present, ce_claim_digest(parent))`; malformed empty/non-empty shapes remain domain-separated. Red-team tests mutate input/output children, rebuild the handle and visible state, and still fail the Π_DEC rows. The proof obligation is that replacing exact-child hashing by the verified weak-reduction representative composes with A5/SuperNeo Π_DEC knowledge soundness. |
 | C15 | IS/FS boundary chains must be formula-identical | **completeness bug, fixed (external review)** | lane-typed `"is"`/`"fs"` tags made honest cross-segment continuity impossible; is/fs now share one mem-domain leaf/link tag pair and header (spec §6.1/§6.3/§7); Cor. 1.1 states the dependency |
 | C16 | Externally accepted proofs end at closed segments | **normative rule added (external review)** | terminal first consumes trailing `u_T`, then requires `idx == 0`, `γ == ⊥`, and header chains; checking the pre-terminal lane is insufficient (spec §6.3) |
 | C17 | Stack ops are LIFO-consistent under the v3.1 rows | proven here (v3.1) | Lemma 4 (reduction to Blum et al. / Coral App. E); segment locality forced by per-segment γ (spec §3.1) |
-| C18 | Projection-checked ring action is sound for the folded F′ regime | **proposed here (candidate E)** — gated on non-author review AND the enc(F′) regime decision | Lemma 5; gadget + measured costs exist; adoption audit items enumerated in the lemma (wire identity, transcript schedule, site exhaustiveness) |
+| C18 | Projection-checked ring action is sound for the folded F′ regime | **implemented; non-author review remains open** | Lemma 5; authoritative NIFS.V uses the transcript-bound `q`/β wires at every c/adv/X/y site, and C12 measures the resulting fixed point. Adoption audit items remain the review checklist. |
+| C20 | Terminal-only folded induction consumes every memory claim | **implemented; active R5 acceptance and tamper gate** | `NebulaFPrimeChainBuilder` deposits only the fixed relation with `K=1`; recursive steps consume prior `latest`, terminal finalization consumes trailing `latest`, and `verify_uncompressed` accepts the chain without `steps`/`public_batches`. `multi_chunk_f_prime_chain_must_verify_terminal_only` is active and rejects changed prior-link bits, delayed suffix bits, pre-final lane state, and the pre-final running commitment that carries earlier folded history. Capability ownership keeps non-authoritative image frontends fail-closed; the plain authoritative R1CS path separately checks HyperNova's running accumulator and latest F′ relation. |
+| C21 | Shipped encoder fills the live lowered relation | **implemented; active plain and memory gates** | The memory encoder derives live q/β transcript advice, accumulator state, current suffix, and `adv`, normalizes the exact field assignment, then `MultiBranchLowNormR1cs::encode` fills the selected low-norm arm and checks it before commitment. The active memory gate covers three one-step segments and all three relation arms; focused suffix/relation tests cover absent `D_pre` on interior steps. The active stateful Fibonacci gate covers four plain F′ steps. |
 
 ## 7. What this note does not close
 
-Three things, by nature not by effort: **C11** (a number only the engine
-can produce), **C12** (an assumption about an unfinished design — it
-becomes checkable when that design is pinned), and **independent review**
-of Lemmas 1–4 (and now the proposed Lemma 5) — the author checking the
-author is circular, and the leans named in §0 (A1's exact extractor
-shape, A5's uniqueness property) are precisely where a reviewer should
-push. Suggested review order: Lemma 1 Step 2 first (the only place a
+The Rust implementation and measured cost gates do not discharge
+**independent review** of Lemmas 1–6, C19's parent-authority reduction, or
+A6's fixed-matrix Module-SIS assumption and estimator methodology. The author
+checking the author is circular, and the leans named in §0 (A1's exact
+extractor shape, A5's uniqueness property, and A6's map hardness) are
+precisely where a reviewer should push. Suggested review order: Lemma 1 Step 2 first (the only place a
 challenge-set property is invoked), then Lemma 2's induction against
 `state.rs`'s actual absorb set, then Lemma 4 step 3's alternation
 argument against the actual E12/E13 rows. Lemma 5 can be reviewed
-independently of the others (it is candidate material, not yet
-load-bearing): push hardest on the transcript schedule (why `q` must
-precede β) and on integration obligation 1 (wire identity — the classic
-way projection arguments silently break).
+independently of the others; it is now load-bearing at Nico's direction,
+with non-author review still open. Push hardest on the transcript schedule
+(why the recomputed A6 binding of every `q` must precede β) and on integration
+obligation 1 (wire identity — the classic
+way projection arguments silently break). For Lemma 6, reproduce the pinned
+estimator run first, then challenge the random-matrix model for the fixed
+ChaCha8-expanded seeds and the three-event collision case split.

@@ -445,6 +445,21 @@ define_columns!(
         "host-result row in grammar mode: host_result_active · grammar_mode"
     ),
     (
+        COL_GATHER_LOCAL_READ,
+        "gather row reading an export param from the locals family (slot kind 4)",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_GRAMMAR_EXIT_LATCH,
+        "output-capture row in grammar mode: loads the export's exit-event schedule",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_PC_FREF_ACTIVE,
+        "pc -> function-ref ROM gate: every row except gather rows (post-halt exit gathers sit past the last pc)",
+        ColumnWidth::Boolean
+    ),
+    (
         COL_HOST_RESULT_ACTIVE,
         "this row pushes the pending host-call result",
         ColumnWidth::Boolean

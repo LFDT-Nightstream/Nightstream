@@ -84,6 +84,11 @@ pub struct WasmtimeTraceStep {
     /// this is the return PC; for branches it is the linear successor, not
     /// necessarily the runtime next PC.
     pub pc_after_instruction: Option<u64>,
+    /// Grammar oracle words recorded by the embedder's host function while
+    /// servicing this host-call row (see
+    /// [`WasmtimeTraceState::record_call_oracles`]). Consumed by grammar-mode
+    /// normalization; raw-mode normalization ignores it.
+    pub host_call_oracles: Vec<u64>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -239,6 +244,27 @@ impl WasmtimeTraceState {
     pub fn set_func_ref_ids(&mut self, func_ref_ids: BTreeMap<usize, u32>) {
         Arc::make_mut(&mut self.tables).func_ref_ids = func_ref_ids;
     }
+
+    /// Record grammar oracle words for the in-flight host call. Call from
+    /// inside a host-function implementation (`store.data_mut()`): the debug
+    /// hook captures each instruction before it executes, so the latest
+    /// captured step is the host-call row being serviced and the batch
+    /// attaches to it — no call-order bookkeeping. Repeated calls append.
+    pub fn record_call_oracles(&mut self, words: &[u64]) -> Result<(), WasmBuildError> {
+        let row = self.steps.last_mut().ok_or_else(|| {
+            WasmBuildError::Trace("record_call_oracles: no captured step; not inside a traced host call".to_string())
+        })?;
+        let is_host_call = matches!(row.opcode_decoded, Some(WasmOpcode::Call | WasmOpcode::CallIndirect))
+            && !row.target_function_is_guest;
+        if !is_host_call {
+            return Err(WasmBuildError::Trace(format!(
+                "record_call_oracles: latest captured step (cycle {}, opcode {:?}) is not a host-call row",
+                row.step, row.opcode
+            )));
+        }
+        row.host_call_oracles.extend_from_slice(words);
+        Ok(())
+    }
 }
 
 /// Whether a wasmtime trap has a modeled terminal state, so the collected
@@ -362,6 +388,21 @@ pub fn collect_wasmtime_component_run_with_linker<F>(
 where
     F: FnOnce(&mut WasmtimeComponentLinker<WasmtimeTraceState>) -> Result<(), WasmBuildError>,
 {
+    collect_wasmtime_component_run_with_linker_and_args(component_bytes, export, &[], configure_linker)
+}
+
+/// [`collect_wasmtime_component_run_with_linker`] for exports with
+/// parameters: `args` are passed to the component-level call (canonical ABI
+/// lowering lands them in the export's locals).
+pub fn collect_wasmtime_component_run_with_linker_and_args<F>(
+    component_bytes: &[u8],
+    export: &str,
+    args: &[ComponentVal],
+    configure_linker: F,
+) -> Result<WasmtimeTraceRun, WasmBuildError>
+where
+    F: FnOnce(&mut WasmtimeComponentLinker<WasmtimeTraceState>) -> Result<(), WasmBuildError>,
+{
     let parsed = parse_first_component_core_module_artifacts(component_bytes)?;
 
     let mut config = Config::new();
@@ -400,7 +441,7 @@ where
         .results()
         .map(default_component_result_value)
         .collect::<Result<_, _>>()?;
-    block_on(func.call_async(&mut store, &[], &mut results))
+    block_on(func.call_async(&mut store, args, &mut results))
         .map_err(|err| WasmBuildError::Trace(format!("failed to execute component export '{export}': {err}")))?;
 
     let steps = store.data().steps.clone();

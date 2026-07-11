@@ -95,12 +95,17 @@ fn mul_sink_component_wat() -> &'static str {
     "#
 }
 
-fn run_component() -> neo_wasm::WasmtimeTraceRun {
+/// Run the two-call component; the mul host function records `mul_oracles`
+/// for its in-flight call (the grammar hand-off path), sink records nothing.
+fn run_component_with_mul_oracles(mul_oracles: &'static [u64]) -> neo_wasm::WasmtimeTraceRun {
     let component_bytes = wat::parse_str(mul_sink_component_wat()).expect("component wat");
     neo_wasm::collect_wasmtime_component_run_with_linker(&component_bytes, "run", |linker| {
         linker
             .root()
-            .func_wrap("host-mul", |_store, (x, y): (i32, i32)| Ok((x * y,)))
+            .func_wrap("host-mul", move |mut store, (x, y): (i32, i32)| {
+                store.data_mut().record_call_oracles(mul_oracles)?;
+                Ok((x * y,))
+            })
             .map_err(|err| neo_wasm::WasmBuildError::Trace(format!("failed to define host-mul: {err}")))?;
         linker
             .root()
@@ -108,6 +113,10 @@ fn run_component() -> neo_wasm::WasmtimeTraceRun {
             .map_err(|err| neo_wasm::WasmBuildError::Trace(format!("failed to define host-sink: {err}")))
     })
     .expect("component trace run")
+}
+
+fn run_component() -> neo_wasm::WasmtimeTraceRun {
+    run_component_with_mul_oracles(&[100])
 }
 
 fn host_call_frefs(trace: &[WasmVmStep]) -> Vec<u32> {
@@ -123,16 +132,25 @@ fn host_call_frefs(trace: &[WasmVmStep]) -> Vec<u32> {
 }
 
 /// Grammar trace for the two-call component, with oracles `[100]` for mul
-/// and `[]` for sink.
+/// and `[]` for sink. The invoked export gets an empty boundary template
+/// (required in grammar mode; no boundary events for this test).
 fn grammar_trace() -> Vec<WasmVmStep> {
     let run = run_component();
     // Resolve frefs from a raw normalization of the same run.
     let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("raw trace");
     let frefs = host_call_frefs(&raw);
     assert_eq!(frefs.len(), 2);
-    let grammar = test_grammar(frefs[0], frefs[1]);
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[vec![100], vec![]])
-        .expect("grammar trace");
+    let mut grammar = test_grammar(frefs[0], frefs[1]);
+    let export_fref = raw
+        .iter()
+        .find(|row| row.row_kind.is_program())
+        .expect("program row")
+        .current_function_ref;
+    grammar
+        .exports
+        .insert(export_fref, neo_wasm::event_grammar::ExportTemplate::default());
+    let trace =
+        neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[], &[]).expect("grammar trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
 
@@ -190,19 +208,26 @@ fn grammar_trace_folds_expanded_blocks() {
 fn missing_template_is_rejected() {
     let run = run_component();
     let grammar = HostEventGrammar::default();
-    assert!(neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[]).is_err());
+    assert!(neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[], &[]).is_err());
 }
 
-/// Surplus oracle batches indicate a misaligned hand-off and are rejected.
+/// A host call recording more oracle words than its template consumes
+/// indicates a misaligned hand-off and is rejected.
 #[test]
-fn surplus_oracle_batches_are_rejected() {
-    let run = run_component();
+fn surplus_oracle_words_are_rejected() {
+    let run = run_component_with_mul_oracles(&[100, 7]);
     let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("raw trace");
     let frefs = host_call_frefs(&raw);
-    let grammar = test_grammar(frefs[0], frefs[1]);
-    assert!(
-        neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[vec![100], vec![], vec![7]]).is_err()
-    );
+    let mut grammar = test_grammar(frefs[0], frefs[1]);
+    let export_fref = raw
+        .iter()
+        .find(|row| row.row_kind.is_program())
+        .expect("program row")
+        .current_function_ref;
+    grammar
+        .exports
+        .insert(export_fref, neo_wasm::event_grammar::ExportTemplate::default());
+    assert!(neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[], &[]).is_err());
 }
 
 /// The raw absorb machinery must stay de-gated in grammar mode: forging a
@@ -286,9 +311,17 @@ fn memory_rows_reject_forged_rom_claim() {
     let run = run_component();
     let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("raw trace");
     let frefs = host_call_frefs(&raw);
-    let grammar = test_grammar(frefs[0], frefs[1]);
-    let mut trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[vec![100], vec![]])
-        .expect("grammar trace");
+    let mut grammar = test_grammar(frefs[0], frefs[1]);
+    let export_fref = raw
+        .iter()
+        .find(|row| row.row_kind.is_program())
+        .expect("program row")
+        .current_function_ref;
+    grammar
+        .exports
+        .insert(export_fref, neo_wasm::event_grammar::ExportTemplate::default());
+    let mut trace =
+        neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[], &[]).expect("grammar trace");
 
     let idx = trace
         .iter()

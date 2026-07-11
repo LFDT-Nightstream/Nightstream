@@ -40,6 +40,20 @@ pub enum SlotSource {
     /// (ref ids, ret refs, callers, targets). Globally validated by the
     /// consumer of the chain (the interleaving proof), never locally.
     Oracle { idx: u8 },
+    /// Export entry templates only: the next claim-input word (consumed in
+    /// template slot order), absorbed into the chain. Free at the row level;
+    /// bound globally by the verifier's final-chain transcript check.
+    Input,
+    /// Export entry templates only: the next claim-input word, absorbed AND
+    /// written to one 32-bit lane of the entry frame's `locals[local]` (the
+    /// word must fit in 32 bits). This is how export inputs reach the
+    /// guest: locals start all-zero and the bootstrap writes them. A `Lo`
+    /// write zeroes the hi lane (the write is total); an i64 local takes a
+    /// `Lo` slot followed by a `Hi` slot.
+    InputLocal { local: u8, limb: Limb },
+    /// Export exit templates only: a limb of the export's captured result
+    /// (the carried simple-output value).
+    OutputElem { limb: Limb },
 }
 
 /// One grammar event: one absorb block of 8 arbitrary slot sources.
@@ -81,13 +95,111 @@ pub struct ImportTemplate {
 /// more (see `SlotSource::Oracle`).
 pub const MAX_ORACLE_CELLS: u8 = 4;
 
-/// Per-program grammar: import templates keyed by callee function ref.
+/// Static expansion of one exported function's boundary into grammar
+/// events: `entry` events absorb before the export's first instruction
+/// (receiver-side `Enter`/`Activation`/payload reads), `exit` events after
+/// the halting row (`Return`/`Yield` and result publication). Single-turn
+/// V1: one export invocation per trace.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct ExportTemplate {
+    pub entry: Vec<GrammarEvent>,
+    pub exit: Vec<GrammarEvent>,
+    /// Per-turn oracle cells for the EXIT phase, reloaded on the
+    /// output-capture row. Entry events do not read oracle cells: entry
+    /// values are claim inputs bound by the final-chain transcript check.
+    pub oracle_count: u8,
+}
+
+impl ExportTemplate {
+    /// Check the template against the export's locals bound. Entry events
+    /// source from consts and claim inputs (`Input`/`InputLocal`); exit
+    /// events from consts, exit oracles, and the captured output. The
+    /// stack-based import sources (`ArgElem`/`ResultElem`) never apply.
+    pub fn validate(&self, local_bound: u8) -> Result<(), WasmBuildError> {
+        let err = |msg: String| Err(WasmBuildError::Trace(msg));
+        if self.oracle_count > MAX_ORACLE_CELLS {
+            return err(format!(
+                "export template declares {} oracles; the circuit carries {MAX_ORACLE_CELLS} oracle cells",
+                self.oracle_count
+            ));
+        }
+        let mut written = std::collections::BTreeSet::new();
+        for (phase, events) in [("entry", &self.entry), ("exit", &self.exit)] {
+            for (idx, event) in events.iter().enumerate() {
+                let ctx = |what: &str| format!("export template {phase} event {idx}: {what}");
+                for slot in &event.block {
+                    match *slot {
+                        SlotSource::Const(value) => {
+                            if value >= Goldilocks::ORDER_U64 {
+                                return err(ctx("constant is not a canonical field element"));
+                            }
+                        }
+                        SlotSource::Input | SlotSource::InputLocal { .. } if phase == "exit" => {
+                            return err(ctx("claim inputs only apply to the entry phase"));
+                        }
+                        SlotSource::Input => {}
+                        SlotSource::InputLocal { local, limb } => {
+                            if local >= local_bound {
+                                return err(ctx(&format!(
+                                    "local index {local} out of range for {local_bound} locals"
+                                )));
+                            }
+                            if !written.insert((local, matches!(limb, Limb::Hi))) {
+                                return err(ctx(&format!("local {local} lane written more than once")));
+                            }
+                            // A Lo write zeroes the hi lane, so an i64
+                            // local's Hi slot must come after its Lo slot.
+                            if matches!(limb, Limb::Hi) && !written.contains(&(local, false)) {
+                                return err(ctx(&format!(
+                                    "local {local} hi lane written before (or without) its lo lane"
+                                )));
+                            }
+                        }
+                        SlotSource::OutputElem { .. } => {
+                            if phase == "entry" {
+                                return err(ctx("output reference before the export halts"));
+                            }
+                        }
+                        SlotSource::Oracle { idx } => {
+                            if phase == "entry" {
+                                return err(ctx("oracle cells are exit-phase only; entry values are claim inputs"));
+                            }
+                            if idx >= self.oracle_count {
+                                return err(ctx(&format!(
+                                    "oracle index {idx} out of range for {} oracles",
+                                    self.oracle_count
+                                )));
+                            }
+                        }
+                        SlotSource::ArgElem { .. } | SlotSource::ResultElem { .. } => {
+                            return err(ctx("stack-based import sources do not apply to export templates"));
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Number of claim-input words the entry phase consumes.
+    pub fn entry_input_count(&self) -> usize {
+        self.entry
+            .iter()
+            .flat_map(|event| event.block.iter())
+            .filter(|slot| matches!(slot, SlotSource::Input | SlotSource::InputLocal { .. }))
+            .count()
+    }
+}
+
+/// Per-program grammar: import templates keyed by callee function ref, and
+/// export boundary templates keyed by the exported function's ref.
 ///
 /// Absence of a grammar (or of a template for a given fref) means the raw
 /// host-call record format applies — the zkVM stays usable with no embedder.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct HostEventGrammar {
     pub imports: BTreeMap<u32, ImportTemplate>,
+    pub exports: BTreeMap<u32, ExportTemplate>,
 }
 
 impl ImportTemplate {
@@ -141,6 +253,9 @@ impl ImportTemplate {
                                     self.oracle_count
                                 )));
                             }
+                        }
+                        SlotSource::Input | SlotSource::InputLocal { .. } | SlotSource::OutputElem { .. } => {
+                            return err(ctx("export-boundary sources do not apply to import templates"));
                         }
                     }
                 }
@@ -200,16 +315,117 @@ pub fn expand_import_events(
     })
 }
 
+/// Resolve an export template's ENTRY phase against the turn's claim
+/// inputs (consumed in template slot order by `Input`/`InputLocal` slots).
+/// `InputLocal` words must fit the locals lo lane (32 bits).
+pub fn expand_export_entry(
+    template: &ExportTemplate,
+    entry_inputs: &[u64],
+) -> Result<Vec<[u64; COMM_CHAIN_BLOCK_WORDS]>, WasmBuildError> {
+    let expected = template.entry_input_count();
+    if entry_inputs.len() != expected {
+        return Err(WasmBuildError::Trace(format!(
+            "export entry expansion expected {expected} claim-input words, got {}",
+            entry_inputs.len()
+        )));
+    }
+    if let Some(idx) = entry_inputs
+        .iter()
+        .position(|&v| v >= Goldilocks::ORDER_U64)
+    {
+        return Err(WasmBuildError::Trace(format!(
+            "entry input {idx} is not a canonical field element"
+        )));
+    }
+    let mut cursor = entry_inputs.iter();
+    template
+        .entry
+        .iter()
+        .map(|event| {
+            let mut block = [0u64; COMM_CHAIN_BLOCK_WORDS];
+            for (word, slot) in block.iter_mut().zip(&event.block) {
+                *word = match *slot {
+                    SlotSource::Const(value) => value,
+                    SlotSource::Input => *cursor.next().expect("counted above"),
+                    SlotSource::InputLocal { local, .. } => {
+                        let value = *cursor.next().expect("counted above");
+                        if value > u64::from(u32::MAX) {
+                            return Err(WasmBuildError::Trace(format!(
+                                "entry input for local {local} does not fit the 32-bit locals lane"
+                            )));
+                        }
+                        value
+                    }
+                    other => {
+                        return Err(WasmBuildError::Trace(format!(
+                            "slot source {other:?} does not apply to the export entry phase"
+                        )))
+                    }
+                };
+            }
+            Ok(block)
+        })
+        .collect()
+}
+
+/// Resolve an export template's EXIT phase against the captured output and
+/// the exit oracle values.
+pub fn expand_export_exit(
+    template: &ExportTemplate,
+    output: Option<(u32, u32)>,
+    oracles: &[u64],
+) -> Result<Vec<[u64; COMM_CHAIN_BLOCK_WORDS]>, WasmBuildError> {
+    if oracles.len() != usize::from(template.oracle_count) {
+        return Err(WasmBuildError::Trace(format!(
+            "export exit expansion expected {} oracle values, got {}",
+            template.oracle_count,
+            oracles.len()
+        )));
+    }
+    if let Some(idx) = oracles.iter().position(|&v| v >= Goldilocks::ORDER_U64) {
+        return Err(WasmBuildError::Trace(format!(
+            "export oracle {idx} is not a canonical field element"
+        )));
+    }
+    template
+        .exit
+        .iter()
+        .map(|event| {
+            let mut block = [0u64; COMM_CHAIN_BLOCK_WORDS];
+            for (word, slot) in block.iter_mut().zip(&event.block) {
+                *word = match *slot {
+                    SlotSource::Const(value) => value,
+                    SlotSource::OutputElem { limb } => output
+                        .map(|pair| limb_of(pair, limb))
+                        .ok_or_else(|| WasmBuildError::Trace("export slot references a missing output".to_string()))?,
+                    SlotSource::Oracle { idx } => *oracles
+                        .get(usize::from(idx))
+                        .ok_or_else(|| WasmBuildError::Trace(format!("export slot references missing oracle {idx}")))?,
+                    other => {
+                        return Err(WasmBuildError::Trace(format!(
+                            "slot source {other:?} does not apply to the export exit phase"
+                        )))
+                    }
+                };
+            }
+            Ok(block)
+        })
+        .collect()
+}
+
+fn limb_of((lo, hi): (u32, u32), limb: Limb) -> u64 {
+    match limb {
+        Limb::Lo => u64::from(lo),
+        Limb::Hi => u64::from(hi),
+    }
+}
+
 fn resolve_slot(
     slot: SlotSource,
     args: &[(u32, u32)],
     result: Option<(u32, u32)>,
     oracles: &[u64],
 ) -> Result<u64, WasmBuildError> {
-    let limb_of = |(lo, hi): (u32, u32), limb: Limb| match limb {
-        Limb::Lo => u64::from(lo),
-        Limb::Hi => u64::from(hi),
-    };
     match slot {
         SlotSource::Const(value) => Ok(value),
         SlotSource::ArgElem { arg, limb } => args
@@ -223,5 +439,8 @@ fn resolve_slot(
             .get(usize::from(idx))
             .copied()
             .ok_or_else(|| WasmBuildError::Trace(format!("grammar slot references missing oracle {idx}"))),
+        SlotSource::Input | SlotSource::InputLocal { .. } | SlotSource::OutputElem { .. } => Err(
+            WasmBuildError::Trace("export-boundary sources do not apply to import templates".to_string()),
+        ),
     }
 }

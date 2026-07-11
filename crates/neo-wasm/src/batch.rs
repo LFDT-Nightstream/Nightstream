@@ -61,6 +61,8 @@ pub struct BatchedWasmCcs {
 pub enum BatchError {
     #[error("batch_size must be at least 1")]
     BatchSizeZero,
+    #[error("wasm batching requires ordinary R1CS matrices; compact seeded Phi81 blocks are unsupported")]
+    CompactSeededMatrixUnsupported,
     #[error(transparent)]
     Frontend(#[from] FrontendError),
 }
@@ -100,9 +102,9 @@ pub fn build_batched_wasm_ccs(batch_size: usize) -> Result<BatchedWasmCcs, Batch
     let m_batch = batch_size * m_single;
     let n_batch = batch_size * n_single + n_link;
 
-    let single_a = matrix_triplets(&core.structure.matrices[0]);
-    let single_b = matrix_triplets(&core.structure.matrices[1]);
-    let single_c = matrix_triplets(&core.structure.matrices[2]);
+    let single_a = matrix_triplets(&core.structure.matrices[0])?;
+    let single_b = matrix_triplets(&core.structure.matrices[1])?;
+    let single_c = matrix_triplets(&core.structure.matrices[2])?;
 
     let mut a_triplets: Vec<(usize, usize, F)> = Vec::with_capacity(batch_size * single_a.len());
     let mut b_triplets: Vec<(usize, usize, F)> = Vec::with_capacity(batch_size * single_b.len());
@@ -316,8 +318,8 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
     }
 }
 
-fn matrix_triplets(m: &CcsMatrix<F>) -> Vec<(usize, usize, F)> {
-    match m {
+fn matrix_triplets(m: &CcsMatrix<F>) -> Result<Vec<(usize, usize, F)>, BatchError> {
+    let triplets = match m {
         CcsMatrix::Identity { n } => (0..*n).map(|i| (i, i, F::ONE)).collect(),
         CcsMatrix::Csc(csc) => {
             let mut out = Vec::with_capacity(csc.vals.len());
@@ -328,7 +330,9 @@ fn matrix_triplets(m: &CcsMatrix<F>) -> Vec<(usize, usize, F)> {
             }
             out
         }
-    }
+        CcsMatrix::CscWithSeededPhi81 { .. } => return Err(BatchError::CompactSeededMatrixUnsupported),
+    };
+    Ok(triplets)
 }
 
 fn wasm_app_private_var_widths(witness_width: usize) -> Vec<usize> {

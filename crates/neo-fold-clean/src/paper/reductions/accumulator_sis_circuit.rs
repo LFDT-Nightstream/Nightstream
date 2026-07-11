@@ -1,31 +1,74 @@
-//! Candidate C14 binding compression for a fixed field sequence.
+//! Domain-separated SIS/Ajtai binding compression for fixed field sequences.
 //!
-//! Inputs are canonically decomposed into bits, packed row-major into an
-//! Ajtai message matrix, and committed under a domain-specific seeded map.
-//! This module does not replace the running-accumulator handle yet; it owns
-//! only the native/circuit primitive needed to measure that proposal.
+//! Inputs reuse the relation's 41-digit balanced-ternary encoding, pack it
+//! row-major into an Ajtai message matrix, and commit under a domain-specific
+//! rank-2 seeded map. An independent rank-1 map compresses that short
+//! commitment envelope before one Poseidon2 digest enters Fiat–Shamir.
+//! Carried accumulator chains remain outside this module.
 
-use neo_ajtai::{commit_row_major, precompute_rot_columns, setup_par, Commitment, PP};
-use neo_ccs::Mat;
-use neo_math::ring::Rq;
+use neo_ajtai::{commit_row_major_seeded, seeded_pp_chunk_seeds, Commitment};
+use neo_ccs::{Mat, SeededPhi81LinearBlock};
 use neo_math::{D, F};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use rand_chacha::rand_core::SeedableRng;
-use rand_chacha::ChaCha8Rng;
 use thiserror::Error;
 
-use crate::engine::r1cs_circuit::u64_arith::decompose_var_to_u64_bits;
+use crate::engine::r1cs_circuit::builder::{CenteredUnitTrace, BALANCED_TERNARY_DIGITS};
 use crate::engine::r1cs_circuit::{enforce_poseidon2_hash, Lc, R1csBuilder, Var};
 use crate::paper::digest::pack_bytes_as_fields;
 use crate::paper::relations::product_commitment_circuit::{alloc_commitment, CommitmentWires};
 
-const SIS_ACCUMULATOR_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/accumulator/sis/v1";
+const SIS_ACCUMULATOR_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/accumulator/sis/digest/v3";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SisAccumulatorConfig {
     pub seed: [u8; 32],
     pub kappa: usize,
+    pub domain: u64,
 }
+
+/// Minimum rank for protocol-binding compression maps. At the R7 maximum
+/// message width, rank 1 estimates at 59.9 rough bits; rank 2 estimates at
+/// 167.0 bits. See `scripts/estimate_nebula_sis.sage` for the pinned model.
+pub const PROTOCOL_BINDING_KAPPA: usize = 2;
+
+/// Independent short-message map used between the rank-2 binding and
+/// Poseidon2. Its input is at most one rank-2 commitment plus metadata, not
+/// the original witness-proportional sequence.
+pub const SIS_DIGEST_COMPRESSION_CONFIG: SisAccumulatorConfig = SisAccumulatorConfig {
+    seed: [0xC6; 32],
+    kappa: 1,
+    domain: 0x5349_535F_4447_5354,
+};
+
+pub const CCS_CLAIM_SIS_CONFIG: SisAccumulatorConfig = SisAccumulatorConfig {
+    seed: [0xC1; 32],
+    kappa: PROTOCOL_BINDING_KAPPA,
+    domain: 0x4343_535F_434C_4149,
+};
+
+pub const CE_CLAIM_SIS_CONFIG: SisAccumulatorConfig = SisAccumulatorConfig {
+    seed: [0xC2; 32],
+    kappa: PROTOCOL_BINDING_KAPPA,
+    domain: 0x4345_5F43_4C41_494D,
+};
+
+pub const PI_CCS_OUTPUTS_SIS_CONFIG: SisAccumulatorConfig = SisAccumulatorConfig {
+    seed: [0xC3; 32],
+    kappa: PROTOCOL_BINDING_KAPPA,
+    domain: 0x5049_4343_535F_4F55,
+};
+
+pub const PI_RLC_PROJECTION_SIS_CONFIG: SisAccumulatorConfig = SisAccumulatorConfig {
+    seed: [0xC4; 32],
+    kappa: PROTOCOL_BINDING_KAPPA,
+    domain: 0x5049_524C_435F_5052,
+};
+
+pub const NEBULA_LEAF_SIS_CONFIG: SisAccumulatorConfig = SisAccumulatorConfig {
+    seed: [0xC5; 32],
+    kappa: PROTOCOL_BINDING_KAPPA,
+    domain: 0x4E42_4C41_5F4C_4546,
+};
 
 #[derive(Debug, Error)]
 pub enum SisAccumulatorError {
@@ -33,28 +76,35 @@ pub enum SisAccumulatorError {
     EmptyInput,
     #[error("SIS accumulator kappa must be nonzero")]
     ZeroKappa,
-    #[error("SIS accumulator setup failed: {0}")]
-    Setup(String),
 }
 
 pub struct SisAccumulatorWires {
     pub commitment: CommitmentWires,
+    pub digest_compression: CommitmentWires,
     pub digest: [Var; 4],
 }
 
 pub fn accumulator_digest(config: SisAccumulatorConfig, fields: &[F]) -> Result<[F; 4], SisAccumulatorError> {
-    let commitment = commit_fields(config, fields)?;
-    let mut preimage = pack_bytes_as_fields(SIS_ACCUMULATOR_DIGEST_DOMAIN);
-    preimage.push(F::from_u64(commitment.d as u64));
-    preimage.push(F::from_u64(commitment.kappa as u64));
-    preimage.push(F::from_u64(commitment.data.len() as u64));
-    preimage.extend_from_slice(&commitment.data);
-    Ok(neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash(&preimage))
+    let binding = commit_fields(config, fields)?;
+    let digest_compression = commit_fields(SIS_DIGEST_COMPRESSION_CONFIG, &binding.data)?;
+    Ok(neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash(&digest_envelope(
+        config,
+        fields.len(),
+        &binding,
+        &digest_compression,
+    )))
 }
 
 pub fn commit_fields(config: SisAccumulatorConfig, fields: &[F]) -> Result<Commitment, SisAccumulatorError> {
-    let (message, pp) = message_and_pp(config, fields)?;
-    Ok(commit_row_major(&pp, &message))
+    validate(config, fields.len())?;
+    let message = balanced_ternary_message(fields);
+    Ok(commit_row_major_seeded(
+        config.seed,
+        D,
+        config.kappa,
+        message.cols(),
+        &message,
+    ))
 }
 
 pub fn enforce_commit_fields(
@@ -67,36 +117,36 @@ pub fn enforce_commit_fields(
         .iter()
         .map(|field| builder.witness()[field.col()])
         .collect();
-    let (message, pp) = message_and_pp(config, &values)?;
-    let native = commit_row_major(&pp, &message);
+    let native = commit_fields(config, &values)?;
     let commitment = alloc_commitment(builder, &native);
-    let bits: Vec<Var> = fields
+    let digit_words: Vec<[Var; BALANCED_TERNARY_DIGITS]> = fields
         .iter()
-        .flat_map(|&field| decompose_var_to_u64_bits(builder, field))
+        .map(|&field| decompose_var_to_balanced_ternary(builder, field))
         .collect();
-    let message_cols = bits.len().div_ceil(D);
-
-    for (commit_col, pp_row) in pp.m_rows.iter().enumerate() {
-        let mut outputs = vec![Lc::zero(); D];
-        for (message_col, &ring_element) in pp_row.iter().enumerate() {
-            let mut rotations = [[F::ZERO; D]; D];
-            precompute_rot_columns(ring_element, &mut rotations);
-            for message_row in 0..D {
-                let bit_index = message_row * message_cols + message_col;
-                if let Some(&bit) = bits.get(bit_index) {
-                    for coord_row in 0..D {
-                        let coefficient = rotations[message_row][coord_row];
-                        if coefficient != F::ZERO {
-                            outputs[coord_row].add_term(bit, coefficient);
-                        }
-                    }
-                }
-            }
-        }
-        for (coord_row, lhs) in outputs.iter().enumerate() {
-            builder.enforce_eq(&lhs, &Lc::from_var(commitment.data[commit_col * D + coord_row]));
-        }
-    }
+    let word_starts = digit_words
+        .iter()
+        .map(|digits| {
+            let start = digits[0].col();
+            assert!(digits
+                .iter()
+                .enumerate()
+                .all(|(digit, var)| var.col() == start + digit));
+            start
+        })
+        .collect::<Vec<_>>();
+    let message_cols = (fields.len() * BALANCED_TERNARY_DIGITS).div_ceil(D);
+    let (chunk_size, chunk_seeds) = seeded_pp_chunk_seeds(config.seed, config.kappa, message_cols);
+    let block = SeededPhi81LinearBlock::new_with_word_width(
+        builder.rows(),
+        word_starts,
+        BALANCED_TERNARY_DIGITS,
+        config.kappa,
+        message_cols,
+        chunk_size,
+        chunk_seeds,
+    )
+    .expect("fixed seeded SIS geometry");
+    builder.enforce_seeded_phi81_a_block(block, &commitment.data);
     Ok(commitment)
 }
 
@@ -106,37 +156,118 @@ pub fn enforce_accumulator_digest(
     fields: &[Var],
 ) -> Result<SisAccumulatorWires, SisAccumulatorError> {
     let commitment = enforce_commit_fields(builder, config, fields)?;
-    let mut preimage = pack_bytes_as_fields(SIS_ACCUMULATOR_DIGEST_DOMAIN)
+    let digest_compression = enforce_commit_fields(builder, SIS_DIGEST_COMPRESSION_CONFIG, &commitment.data)?;
+    let digest_preimage = digest_envelope_wires(builder, config, fields.len(), &commitment, &digest_compression);
+    let digest = enforce_poseidon2_hash(builder, &digest_preimage);
+    Ok(SisAccumulatorWires {
+        commitment,
+        digest_compression,
+        digest,
+    })
+}
+
+fn digest_envelope(
+    config: SisAccumulatorConfig,
+    field_count: usize,
+    binding: &Commitment,
+    digest_compression: &Commitment,
+) -> Vec<F> {
+    let mut envelope = pack_bytes_as_fields(SIS_ACCUMULATOR_DIGEST_DOMAIN);
+    envelope.push(F::from_u64(config.domain));
+    envelope.push(F::from_u64(field_count as u64));
+    envelope.push(F::from_u64(binding.kappa as u64));
+    envelope.extend_from_slice(&digest_compression.data);
+    envelope
+}
+
+fn digest_envelope_wires(
+    builder: &mut R1csBuilder,
+    config: SisAccumulatorConfig,
+    field_count: usize,
+    binding: &CommitmentWires,
+    digest_compression: &CommitmentWires,
+) -> Vec<Var> {
+    let mut envelope = alloc_constant_fields(builder, SIS_ACCUMULATOR_DIGEST_DOMAIN);
+    envelope.push(alloc_constant(builder, F::from_u64(config.domain)));
+    envelope.push(alloc_constant(builder, F::from_u64(field_count as u64)));
+    envelope.push(alloc_constant(builder, F::from_u64(binding.kappa as u64)));
+    envelope.extend_from_slice(&digest_compression.data);
+    envelope
+}
+
+fn alloc_constant_fields(builder: &mut R1csBuilder, domain: &[u8]) -> Vec<Var> {
+    pack_bytes_as_fields(domain)
         .into_iter()
         .map(|value| alloc_constant(builder, value))
-        .collect::<Vec<_>>();
-    preimage.push(alloc_constant(builder, F::from_u64(commitment.d as u64)));
-    preimage.push(alloc_constant(builder, F::from_u64(commitment.kappa as u64)));
-    preimage.push(alloc_constant(builder, F::from_u64(commitment.data.len() as u64)));
-    preimage.extend_from_slice(&commitment.data);
-    let digest = enforce_poseidon2_hash(builder, &preimage);
-    Ok(SisAccumulatorWires { commitment, digest })
+        .collect()
 }
 
-fn message_and_pp(config: SisAccumulatorConfig, fields: &[F]) -> Result<(Mat<F>, PP<Rq>), SisAccumulatorError> {
-    validate(config, fields.len())?;
-    let bit_count = fields.len() * u64::BITS as usize;
-    let message_cols = bit_count.div_ceil(D);
+fn balanced_ternary_message(fields: &[F]) -> Mat<F> {
+    let message_cols = (fields.len() * BALANCED_TERNARY_DIGITS).div_ceil(D);
     let mut message = Mat::zero(D, message_cols, F::ZERO);
     for (field_index, field) in fields.iter().enumerate() {
-        let value = field.as_canonical_u64();
-        for bit in 0..u64::BITS as usize {
-            let index = field_index * u64::BITS as usize + bit;
-            message[(index / message_cols, index % message_cols)] = F::from_u64((value >> bit) & 1);
+        for (digit, value) in balanced_ternary_digits(*field).into_iter().enumerate() {
+            let index = field_index * BALANCED_TERNARY_DIGITS + digit;
+            message[(index / message_cols, index % message_cols)] = value;
         }
     }
-    let pp = seeded_pp(config, message_cols)?;
-    Ok((message, pp))
+    message
 }
 
-fn seeded_pp(config: SisAccumulatorConfig, message_cols: usize) -> Result<PP<Rq>, SisAccumulatorError> {
-    let mut rng = ChaCha8Rng::from_seed(config.seed);
-    setup_par(&mut rng, D, config.kappa, message_cols).map_err(|error| SisAccumulatorError::Setup(error.to_string()))
+fn decompose_var_to_balanced_ternary(builder: &mut R1csBuilder, field: Var) -> [Var; BALANCED_TERNARY_DIGITS] {
+    if let Some(digits) = builder.balanced_ternary_decomposition(field) {
+        return digits;
+    }
+    let values = balanced_ternary_digits(builder.witness()[field.col()]);
+    let digits = values.map(|value| builder.alloc(value));
+    for digit in digits {
+        let row_start = builder.rows();
+        let column_start = builder.cols();
+        let mut minus_one = Lc::from_var(digit);
+        minus_one.add_constant(-F::ONE);
+        let product = builder.alloc_mul(&Lc::from_var(digit), &minus_one);
+        let mut plus_one = Lc::from_var(digit);
+        plus_one.add_constant(F::ONE);
+        builder.enforce(&Lc::from_var(product), &plus_one, &Lc::zero());
+        builder.record_centered_unit_trace(CenteredUnitTrace {
+            row_start,
+            row_end: builder.rows(),
+            allocated_columns: (column_start..builder.cols()).collect(),
+            value_col: digit.col(),
+        });
+    }
+    let mut reconstruction = Lc::zero();
+    let mut power = F::ONE;
+    for digit in digits {
+        reconstruction.add_term(digit, power);
+        power *= F::from_u64(3);
+    }
+    builder.enforce_eq(&Lc::from_var(field), &reconstruction);
+    builder.record_balanced_ternary_decomposition(field, digits);
+    digits
+}
+
+fn balanced_ternary_digits(value: F) -> [F; BALANCED_TERNARY_DIGITS] {
+    let modulus = F::ORDER_U64 as i128;
+    let canonical = value.as_canonical_u64() as i128;
+    let mut remaining = if canonical <= modulus / 2 {
+        canonical
+    } else {
+        canonical - modulus
+    };
+    let digits = core::array::from_fn(|_| {
+        let residue = remaining.rem_euclid(3);
+        let digit = if residue == 2 { -1i128 } else { residue };
+        remaining = (remaining - digit) / 3;
+        match digit {
+            -1 => -F::ONE,
+            0 => F::ZERO,
+            1 => F::ONE,
+            _ => unreachable!("balanced ternary digit is centered"),
+        }
+    });
+    assert_eq!(remaining, 0, "Goldilocks centered representative fits in 41 trits");
+    digits
 }
 
 fn validate(config: SisAccumulatorConfig, field_count: usize) -> Result<(), SisAccumulatorError> {

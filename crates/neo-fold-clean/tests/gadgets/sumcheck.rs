@@ -3,8 +3,8 @@
 
 use neo_fold_clean::engine::r1cs_circuit::field_ext::{KLc, KVar};
 use neo_fold_clean::engine::r1cs_circuit::{
-    enforce_eq_k, enforce_gamma_indexed_sum, enforce_k_mul, enforce_norm_check_b2, enforce_r1cs_f_term,
-    enforce_sumcheck_round, enforce_sumcheck_walk, gamma_powers, horner_eval_k, R1csBuilder,
+    enforce_eq_k, enforce_gamma_indexed_sum, enforce_k_dot_product, enforce_k_mul, enforce_norm_check_b2,
+    enforce_r1cs_f_term, enforce_sumcheck_round, enforce_sumcheck_walk, gamma_powers, horner_eval_k, R1csBuilder,
 };
 use neo_math::{KExtensions, F, K};
 use p3_field::{Field, PrimeCharacteristicRing};
@@ -22,6 +22,34 @@ fn kvar_value(b: &R1csBuilder, v: KVar) -> K {
     let c0 = b.witness()[v.c0.col()];
     let c1 = b.witness()[v.c1.col()];
     K::from_coeffs([c0, c1])
+}
+
+#[test]
+fn k_dot_product_matches_native_and_rejects_tampering() {
+    let lhs = [k(1, 2), k(3, 5), k(8, 13), k(21, 34), k(55, 89), k(144, 233)];
+    let rhs = [k(2, 3), k(5, 7), k(11, 17), k(23, 31), k(41, 59), k(71, 97)];
+    let expected = lhs
+        .iter()
+        .zip(rhs)
+        .fold(K::ZERO, |sum, (left, right)| sum + *left * right);
+
+    let mut builder = R1csBuilder::new();
+    let lhs_vars = lhs
+        .into_iter()
+        .map(|value| alloc_kvar(&mut builder, value))
+        .collect::<Vec<_>>();
+    let rhs_vars = rhs
+        .into_iter()
+        .map(|value| alloc_kvar(&mut builder, value))
+        .collect::<Vec<_>>();
+    let out = enforce_k_dot_product(&mut builder, &lhs_vars, &rhs_vars);
+
+    assert!(builder.is_satisfied(), "honest K dot product must satisfy");
+    assert_eq!(kvar_value(&builder, out), expected);
+
+    let target = lhs_vars[3].c1.col();
+    builder.tamper_witness(target, builder.witness()[target] + F::ONE);
+    assert!(!builder.is_satisfied(), "tampered K dot-product input must fail");
 }
 
 // ── γ-power table ─────────────────────────────────────────────────────────

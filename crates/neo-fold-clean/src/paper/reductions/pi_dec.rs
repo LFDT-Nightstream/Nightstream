@@ -16,7 +16,7 @@ use neo_ajtai::AjtaiSModule;
 use neo_ccs::Mat;
 use neo_math::balanced::within_nc_bound;
 use neo_math::{D, F, K};
-use neo_reductions::optimized_engine::OptimizedStructureCache;
+use neo_reductions::optimized_engine::{OptimizedStructureCache, PiDecProverPrecompute};
 use p3_field::PrimeField64;
 use thiserror::Error;
 
@@ -101,8 +101,49 @@ pub fn prove(
     parent: &CeClaim,
     parent_witness: &Mat<F>,
 ) -> Result<(Children, Proof), Error> {
+    prove_inner(pp, s, cache, log, lanes, combine, parent, parent_witness, None)
+}
+
+pub(crate) fn prove_with_precompute(
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    log: &AjtaiSModule,
+    lanes: Option<&LaneScheme>,
+    combine: DecMixer,
+    parent: &CeClaim,
+    parent_witness: &Mat<F>,
+    precompute: &PiDecProverPrecompute,
+) -> Result<(Children, Proof), Error> {
+    prove_inner(
+        pp,
+        s,
+        cache,
+        log,
+        lanes,
+        combine,
+        parent,
+        parent_witness,
+        Some(precompute),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn prove_inner(
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    log: &AjtaiSModule,
+    lanes: Option<&LaneScheme>,
+    combine: DecMixer,
+    parent: &CeClaim,
+    parent_witness: &Mat<F>,
+    precompute: Option<&PiDecProverPrecompute>,
+) -> Result<(Children, Proof), Error> {
     let (mut children, witnesses) =
-        engine::prove_pi_dec(pp, s, cache, log, parent, parent_witness, |cs, b| combine(cs, b))?;
+        engine::prove_pi_dec(pp, s, cache, log, parent, parent_witness, precompute, |cs, b| {
+            combine(cs, b)
+        })?;
     attach_child_adv(lanes, parent, &mut children, &witnesses)?;
     validate_child_count(pp, children.len())?;
     validate_inactive_x_zero(parent, &children)?;

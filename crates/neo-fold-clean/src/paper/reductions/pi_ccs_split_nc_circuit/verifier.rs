@@ -10,7 +10,8 @@
 //! ```text
 //! 1. Allocate fresh/running/output wires (once)
 //! 2. Recompute per-fresh CCS claim digests from those wires
-//! 3. Recompute per-running CE claim digests + ME-projection digests
+//! 3. Strictly verify the running children against their Pi_DEC parent,
+//!    then recompute that parent CE digest
 //! 4. Compute pi_ccs_instance_digest from authoritative digests
 //! 5. Absorb header bundle + instance digest (raw [11, …]/[12, …])
 //! 6. Absorb ME inputs (raw [4]/[5,count]/[6, digests])
@@ -45,19 +46,21 @@ use p3_field::PrimeCharacteristicRing;
 
 use super::{
     absorb_engine_header_bundle_and_instance_digest, absorb_engine_header_bundle_wires_and_instance_digest,
-    absorb_engine_me_inputs_accumulator_handle, enforce_accumulator_ce_claim_digest, enforce_ccs_claim_digest,
-    enforce_ce_claim_digest, enforce_fe_claimed_initial, enforce_fe_sumcheck_driver, enforce_fe_terminal_identity,
-    enforce_header_digest_catch_up, enforce_nc_sumcheck_driver, enforce_nc_terminal_identity,
+    absorb_engine_me_inputs_accumulator_handle, enforce_ccs_claim_digest, enforce_ce_claim_digest,
+    enforce_fe_claimed_initial, enforce_fe_sumcheck_driver, enforce_fe_terminal_identity,
+    enforce_header_digest_catch_up_wires, enforce_nc_sumcheck_driver, enforce_nc_terminal_identity,
     enforce_pi_ccs_instance_digest_parent_authority, header_digest_bytes_to_fields, sample_engine_beta_m,
-    sample_engine_challenges, AccumulatorCeClaimDigestInputs, CeClaimDigestInputs, Error, FeClaimedInitialInputs,
-    FeTerminalInputs, NcTerminalInputs,
+    sample_engine_challenges, CeClaimDigestInputs, Error, FeClaimedInitialInputs, FeTerminalInputs, NcTerminalInputs,
 };
 use crate::engine::r1cs_circuit::builder::{Lc, Var};
 use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::transcript::TranscriptGadget;
 use crate::engine::r1cs_circuit::R1csBuilder;
 use crate::paper::params::Params;
-use crate::paper::reductions::accumulator_digest_circuit::enforce_accumulator_digest_from_running_circuit;
+use crate::paper::reductions::accumulator_digest_circuit::enforce_accumulator_digest_from_parent_circuit;
+use crate::paper::reductions::pi_dec_circuit::{
+    enforce_dec_v_strict, enforce_split_nc_d_pad_shape, CeClaimWires as DecCeClaimWires, DecInputWires,
+};
 use crate::paper::relations::product_commitment_circuit::{alloc_adv, enforce_adv_equality, AdvCommitmentWires};
 use crate::paper::relations::{validate_adv_shape, CcsClaim, CeClaim};
 
@@ -163,12 +166,10 @@ pub struct SplitNcPiCcsVDerived {
     /// Π_RLC parent whose Π_DEC children form `running`. This parent is the
     /// running-side Fiat-Shamir authority for this Π_CCS invocation.
     pub running_parent_authority: Option<SplitNcPiCcsOutputWires>,
-    /// Four-lane Poseidon2 digest of the authority-bearing running
-    /// accumulator fields: every running CE claim plus the Π_RLC parent
-    /// authority, excluding non-authority sidecars such as y_zcol. Computed
-    /// once inside the SplitNc verifier as the ME-input accumulator handle.
-    /// Surfaced so F' R1CS can reuse it for the `acc_digest_in` binding
-    /// instead of recomputing the same Poseidon2 chain.
+    /// Four-lane Poseidon2 handle of the strict Π_DEC parent authority.
+    /// This verifier checks every running child against that parent before
+    /// deriving the handle. Surfaced so F' can reuse the same authority
+    /// boundary for `acc_digest_in`.
     pub running_acc_digest: [Var; 4],
 }
 
@@ -223,24 +224,6 @@ impl CeClaimWires {
         (0..self.m_in)
             .map(|c| self.x[(c % D) * self.x_cols + (c / D)])
             .collect()
-    }
-}
-
-fn accumulator_digest_inputs(claim: &CeClaimWires) -> AccumulatorCeClaimDigestInputs<'_> {
-    AccumulatorCeClaimDigestInputs {
-        c_d: claim.c_d,
-        c_kappa: claim.c_kappa,
-        c_data: &claim.c_data,
-        x_rows: claim.x_rows,
-        x_cols: claim.x_cols,
-        x_flat_row_major: &claim.x,
-        r: &claim.r,
-        s_col: &claim.s_col,
-        y_ring: &claim.y_ring,
-        ct: &claim.ct,
-        m_in: claim.m_in,
-        fold_digest_fields: claim.fold_digest_fields,
-        adv: claim.adv.as_ref(),
     }
 }
 
@@ -365,17 +348,19 @@ fn enforce_split_nc_pi_ccs_v_inner(
         .map(|o| alloc_ce_wires(builder, o))
         .collect::<Result<_, _>>()?;
 
-    // `ct` is a denormalized scalar/constant-term view of `y_ring`.
-    // Bind it immediately after allocation so every downstream consumer
-    // can carry it without treating it as independent authority.
-    for (idx, rw) in running_wires.iter().enumerate() {
-        enforce_ct_from_y_ring(builder, &format!("running[{idx}]"), rw)?;
-        enforce_y_ring_padding_zero(builder, rw);
-    }
-    if let Some(parent) = &running_parent_authority_wires {
-        enforce_ct_from_y_ring(builder, "running_parent_authority", parent)?;
-        enforce_y_ring_padding_zero(builder, parent);
-    }
+    // The compact accumulator handle below is valid only after the running
+    // children have been checked as a strict Pi_DEC reduction of their
+    // parent. Keep that precondition in this verifier, beside the handle,
+    // so standalone Pi_CCS composition cannot expose unconstrained children.
+    enforce_running_parent_authority_consistency(
+        builder,
+        cfg,
+        &running_wires,
+        running_parent_authority_wires.as_ref(),
+    )?;
+
+    // Output `ct` is a denormalized scalar/constant-term view of `y_ring`.
+    // Running `ct` and padding are already covered by strict Pi_DEC above.
     for (idx, ow) in output_wires.iter().enumerate() {
         enforce_ct_from_y_ring(builder, &format!("outputs[{idx}]"), ow)?;
         enforce_y_ring_padding_zero(builder, ow);
@@ -435,18 +420,6 @@ fn enforce_split_nc_pi_ccs_v_inner(
             )
         })
         .transpose()?;
-    let mut running_full_digests = Vec::with_capacity(running_wires.len());
-    for running in &running_wires {
-        running_full_digests.push(enforce_accumulator_ce_claim_digest(
-            builder,
-            &accumulator_digest_inputs(running),
-        )?);
-    }
-    let running_parent_full_digest = running_parent_authority_wires
-        .as_ref()
-        .map(|parent| enforce_accumulator_ce_claim_digest(builder, &accumulator_digest_inputs(parent)))
-        .transpose()?;
-
     // ── 4-5. Instance digest + header/instance absorbs ───────────────────
     let instance_digest =
         enforce_pi_ccs_instance_digest_parent_authority(builder, &fresh_digests, k_me, running_parent_digest);
@@ -461,12 +434,15 @@ fn enforce_split_nc_pi_ccs_v_inner(
 
     // ── 6. ME-input absorb (running-accumulator authority handle mode) ───
     //
-    // HyperNova's recursive link hashes `U_i`. The local handle therefore
-    // binds every running child CE claim plus the Π_RLC parent authority.
-    // Hashing only parent.c_data is not enough: it would leave r/y/ct/s_col
-    // outside the state_x_out chain for the non-replay verifier.
+    // Native NIFS.V verifies strict Pi_DEC(parent, running) before Pi_CCS,
+    // and this circuit mirrors that check in
+    // `enforce_running_parent_authority_consistency`. Reuse the same parent
+    // CE digest that already drives the Pi_CCS transcript rather than
+    // re-hashing all children. The CE digest includes c, adv, active X, r,
+    // y_ring, shape, and fold_digest; s_col/ct are derived by the strict
+    // parent-consistency rows and y_zcol is explicitly non-authority.
     let running_acc_digest =
-        enforce_accumulator_digest_from_running_circuit(builder, &running_full_digests, running_parent_full_digest);
+        enforce_accumulator_digest_from_parent_circuit(builder, running_wires.len(), running_parent_digest);
     absorb_engine_me_inputs_accumulator_handle(builder, transcript, k_me, running_acc_digest);
 
     // ── 7. Sample engine challenges + β_m ────────────────────────────────
@@ -562,8 +538,9 @@ fn enforce_split_nc_pi_ccs_v_inner(
 
     // ── 14. Header digest catch-up squeeze ───────────────────────────────
     let header_fields = header_digest_bytes_to_fields(msg.header_digest)?;
-    enforce_header_digest_catch_up(builder, transcript, header_fields);
-    enforce_output_fold_digest_matches_header(builder, &output_wires, header_fields);
+    let header_wires = header_fields.map(|value| builder.alloc(value));
+    enforce_header_digest_catch_up_wires(builder, transcript, header_wires);
+    enforce_output_fold_digest_matches_header(builder, &output_wires, header_wires);
 
     // Surface the full output wire bundle so downstream Π_RLC.V / NIFS.V
     // composition can fold c.data, X, r, s_col, y_ring, ct, y_zcol without
@@ -662,6 +639,75 @@ fn enforce_split_nc_pi_ccs_v_inner(
 }
 
 // ── Private helpers ───────────────────────────────────────────────────────
+
+fn enforce_running_parent_authority_consistency(
+    builder: &mut R1csBuilder,
+    cfg: &SplitNcPiCcsVConfig<'_>,
+    children: &[CeClaimWires],
+    parent: Option<&CeClaimWires>,
+) -> Result<(), Error> {
+    match (children.is_empty(), parent) {
+        (true, None) => return Ok(()),
+        (true, Some(_)) => {
+            return Err(Error::Shape(
+                "empty running accumulator carried a parent authority".into(),
+            ))
+        }
+        (false, None) => {
+            return Err(Error::Shape(
+                "non-empty running accumulator missing parent authority".into(),
+            ))
+        }
+        (false, Some(_)) => {}
+    }
+
+    let wires = DecInputWires {
+        parent: as_dec_claim_wires(parent.expect("non-empty branch checked above")),
+        children: children.iter().map(as_dec_claim_wires).collect(),
+    };
+    enforce_split_nc_d_pad_shape(&wires, cfg.structure.t(), 1usize << cfg.ell_d)
+        .map_err(|error| Error::Shape(format!("running parent Pi_DEC shape: {error}")))?;
+    enforce_dec_v_strict(builder, cfg.params, &wires)
+        .map_err(|error| Error::Shape(format!("running parent Pi_DEC: {error}")))
+}
+
+fn as_dec_claim_wires(claim: &CeClaimWires) -> DecCeClaimWires {
+    DecCeClaimWires {
+        c_data: claim.c_data.clone(),
+        c_d: claim.c_d,
+        c_d_var: claim.c_d_var,
+        c_kappa: claim.c_kappa,
+        c_kappa_var: claim.c_kappa_var,
+        adv: claim.adv.clone(),
+        x: claim.x.clone(),
+        x_rows: claim.x_rows,
+        x_rows_var: claim.x_rows_var,
+        x_cols: claim.x_cols,
+        x_cols_var: claim.x_cols_var,
+        m_in: claim.m_in,
+        m_in_var: claim.m_in_var,
+        aux_openings_len: 0,
+        c_step_coords_len: 0,
+        u_offset: 0,
+        u_len: 0,
+        y_ring: claim
+            .y_ring
+            .iter()
+            .map(|row| row.iter().flat_map(|value| [value.c0, value.c1]).collect())
+            .collect(),
+        y_ring_lanes: claim.y_ring.first().map_or(0, Vec::len),
+        ct: claim.ct.clone(),
+        r: claim.r.clone(),
+        s_col: claim.s_col.clone(),
+        y_zcol: claim
+            .y_zcol
+            .iter()
+            .flat_map(|value| [value.c0, value.c1])
+            .collect(),
+        y_zcol_lanes: claim.y_zcol.len(),
+        fold_digest_fields: claim.fold_digest_fields,
+    }
+}
 
 /// Native-mirror shape check for one fresh CCS claim. Catches kappa /
 /// commitment-data length / m_in / public-input-length mismatches before
@@ -870,14 +916,11 @@ fn alloc_usize(builder: &mut R1csBuilder, value: usize) -> Var {
 fn enforce_output_fold_digest_matches_header(
     builder: &mut R1csBuilder,
     output_wires: &[CeClaimWires],
-    header_fields: [F; 4],
+    header_wires: [Var; 4],
 ) {
     for output in output_wires {
-        for (lane, expected) in header_fields.iter().copied().enumerate() {
-            builder.enforce_eq(
-                &Lc::from_var(output.fold_digest_fields[lane]),
-                &Lc::from_const(expected),
-            );
+        for (output, expected) in output.fold_digest_fields.iter().zip(header_wires) {
+            builder.enforce_eq(&Lc::from_var(*output), &Lc::from_var(expected));
         }
     }
 }
@@ -1155,6 +1198,15 @@ fn bind_outputs_to_inputs(
                     "running output[{idx}].X shape ({}×{}) != running.X shape ({}×{})",
                     ow.x_rows, ow.x_cols, rw.x_rows, rw.x_cols
                 )));
+            }
+            // Strict Pi_DEC above proves every active running-X coordinate is
+            // in {-1, 0, 1}. These output coordinates are constrained equal
+            // to those same wires, so the Road A compiler may keep their
+            // centered representation instead of expanding them to 64 bits.
+            for row in 0..ow.x_rows {
+                for col in 0..active_x_cols {
+                    builder.record_centered_unit(ow.x[row * ow.x_cols + col]);
+                }
             }
             // Full X matrix is inherited from the running input (every lane).
             for (a, b) in ow.x.iter().zip(rw.x.iter()) {

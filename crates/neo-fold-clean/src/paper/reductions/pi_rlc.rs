@@ -44,10 +44,13 @@ use crate::engine::r1cs_circuit::ring_action::{projection_quotient, PROJECTION_Q
 use crate::engine::transcript::Transcript;
 use crate::paper::digest;
 use crate::paper::params::Params;
+use crate::paper::reductions::accumulator_sis_circuit::{
+    accumulator_digest as sis_accumulator_digest, SisAccumulatorError, PI_RLC_PROJECTION_SIS_CONFIG,
+};
 use crate::paper::reductions::pi_rlc_circuit::rlc_projection_quotients;
 use crate::paper::relations::{superneo_inactive_x_zero, validate_adv_shape, CeClaim, RlcMixer};
 use crate::paper::sampling::check_rlc_bound;
-use p3_field::PrimeField64;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 pub(crate) const PI_RLC_INPUT_CLAIMS_DIGEST_LABEL: &[u8] = b"pi_rlc/input_claims_digest";
 pub(crate) const PI_RLC_PROJECTION_COMBINED_C_LABEL: &[u8] = b"pi_rlc/projection_combined_c";
@@ -60,6 +63,8 @@ pub(crate) const PI_RLC_PROJECTION_COMBINED_Y_RING_LABEL: &[u8] = b"pi_rlc/proje
 pub(crate) const PI_RLC_PROJECTION_Y_RING_QUOTIENTS_LABEL: &[u8] = b"pi_rlc/projection_y_ring_quotients";
 pub(crate) const PI_RLC_PROJECTION_COMBINED_Y_ZCOL_LABEL: &[u8] = b"pi_rlc/projection_combined_y_zcol";
 pub(crate) const PI_RLC_PROJECTION_Y_ZCOL_QUOTIENTS_LABEL: &[u8] = b"pi_rlc/projection_y_zcol_quotients";
+pub(crate) const PI_RLC_PROJECTION_BINDING_DOMAIN: &[u8] = b"neo.fold.clean/pi_rlc/projection_binding/v1";
+pub(crate) const PI_RLC_PROJECTION_BINDING_DIGEST_LABEL: &[u8] = b"pi_rlc/projection_binding_digest";
 pub(crate) const PI_RLC_PROJECTION_BETA_LABEL: &[u8] = b"pi_rlc/projection_beta";
 
 #[derive(Debug, Error)]
@@ -121,6 +126,8 @@ pub enum Error {
     },
     #[error(transparent)]
     Projection(#[from] crate::paper::reductions::pi_rlc_circuit::Error),
+    #[error(transparent)]
+    SisAccumulator(#[from] SisAccumulatorError),
     #[error(transparent)]
     Sampling(#[from] crate::paper::sampling::SamplingError),
     #[error(transparent)]
@@ -265,6 +272,7 @@ fn projection_schedule(
     inputs: &[CeClaim],
     combined: &CeClaim,
 ) -> Result<ProjectionSchedule, Error> {
+    let mut binding_preimage = digest::pack_bytes_as_fields(PI_RLC_PROJECTION_BINDING_DOMAIN);
     let rho_coeffs: Vec<[F; D]> = rhos
         .iter()
         .map(|rho| {
@@ -274,9 +282,13 @@ fn projection_schedule(
         .collect();
     let input_cs: Vec<Commitment> = inputs.iter().map(|claim| claim.c.clone()).collect();
     let lanes = checked_projection_lanes(&rho_coeffs, &input_cs, &combined.c, None)?;
-    tr.append_fields(PI_RLC_PROJECTION_COMBINED_C_LABEL, &combined.c.data);
+    append_projection_binding(
+        &mut binding_preimage,
+        PI_RLC_PROJECTION_COMBINED_C_LABEL,
+        &combined.c.data,
+    );
     for lane in &lanes {
-        tr.append_fields(PI_RLC_PROJECTION_QUOTIENTS_LABEL, &lane.q);
+        append_projection_binding(&mut binding_preimage, PI_RLC_PROJECTION_QUOTIENTS_LABEL, &lane.q);
     }
 
     let present = inputs.iter().filter(|claim| claim.adv.is_some()).count();
@@ -301,10 +313,10 @@ fn projection_schedule(
             let fs = coordinate(|adv| &adv.fs, &combined_adv.fs, "fs")?;
 
             for leaf in digest::nebula_lane_leaf_digests(combined_adv) {
-                tr.append_fields(PI_RLC_PROJECTION_COMBINED_ADV_LABEL, &leaf);
+                append_projection_binding(&mut binding_preimage, PI_RLC_PROJECTION_COMBINED_ADV_LABEL, &leaf);
             }
             for lane in ops.iter().chain(is.iter()).chain(fs.iter()) {
-                tr.append_fields(PI_RLC_PROJECTION_ADV_QUOTIENTS_LABEL, &lane.q);
+                append_projection_binding(&mut binding_preimage, PI_RLC_PROJECTION_ADV_QUOTIENTS_LABEL, &lane.q);
             }
             Some(LaneCommitments { ops, is, fs })
         }
@@ -325,8 +337,8 @@ fn projection_schedule(
             .collect();
         let output = core::array::from_fn(|row| combined.X[(row, col)]);
         let lane = checked_auxiliary_projection(&rho_coeffs, &input_coeffs, output, "X", col)?;
-        tr.append_fields(PI_RLC_PROJECTION_COMBINED_X_LABEL, &output);
-        tr.append_fields(PI_RLC_PROJECTION_X_QUOTIENTS_LABEL, &lane.q);
+        append_projection_binding(&mut binding_preimage, PI_RLC_PROJECTION_COMBINED_X_LABEL, &output);
+        append_projection_binding(&mut binding_preimage, PI_RLC_PROJECTION_X_QUOTIENTS_LABEL, &lane.q);
         x_lanes.push(lane);
     }
 
@@ -338,8 +350,12 @@ fn projection_schedule(
             .collect();
         let lanes = checked_k_vector_projection(&rho_coeffs, &input_rows, &combined.y_ring[row], "y_ring", 2 * row)?;
         for lane in &lanes {
-            tr.append_fields(PI_RLC_PROJECTION_COMBINED_Y_RING_LABEL, &lane.out);
-            tr.append_fields(PI_RLC_PROJECTION_Y_RING_QUOTIENTS_LABEL, &lane.q);
+            append_projection_binding(
+                &mut binding_preimage,
+                PI_RLC_PROJECTION_COMBINED_Y_RING_LABEL,
+                &lane.out,
+            );
+            append_projection_binding(&mut binding_preimage, PI_RLC_PROJECTION_Y_RING_QUOTIENTS_LABEL, &lane.q);
         }
         y_ring_lanes.push(lanes);
     }
@@ -347,10 +363,16 @@ fn projection_schedule(
     let input_y_zcols: Vec<&[K]> = inputs.iter().map(|claim| claim.y_zcol.as_slice()).collect();
     let y_zcol_lanes = checked_k_vector_projection(&rho_coeffs, &input_y_zcols, &combined.y_zcol, "y_zcol", 0)?;
     for lane in &y_zcol_lanes {
-        tr.append_fields(PI_RLC_PROJECTION_COMBINED_Y_ZCOL_LABEL, &lane.out);
-        tr.append_fields(PI_RLC_PROJECTION_Y_ZCOL_QUOTIENTS_LABEL, &lane.q);
+        append_projection_binding(
+            &mut binding_preimage,
+            PI_RLC_PROJECTION_COMBINED_Y_ZCOL_LABEL,
+            &lane.out,
+        );
+        append_projection_binding(&mut binding_preimage, PI_RLC_PROJECTION_Y_ZCOL_QUOTIENTS_LABEL, &lane.q);
     }
 
+    let binding_digest = sis_accumulator_digest(PI_RLC_PROJECTION_SIS_CONFIG, &binding_preimage)?;
+    tr.append_fields(PI_RLC_PROJECTION_BINDING_DIGEST_LABEL, &binding_digest);
     let beta = tr.challenge_fields(PI_RLC_PROJECTION_BETA_LABEL, 2);
     Ok(ProjectionSchedule {
         rhos: rho_coeffs,
@@ -368,6 +390,12 @@ fn projection_schedule(
         y_zcol_q_lanes: y_zcol_lanes.map(|lane| lane.q),
         beta: K::from_coeffs([beta[0], beta[1]]),
     })
+}
+
+fn append_projection_binding(preimage: &mut Vec<F>, label: &[u8], fields: &[F]) {
+    preimage.extend(digest::pack_bytes_as_fields(label));
+    preimage.push(F::from_u64(fields.len() as u64));
+    preimage.extend_from_slice(fields);
 }
 
 fn checked_auxiliary_projection(

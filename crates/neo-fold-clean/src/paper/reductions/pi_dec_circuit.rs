@@ -37,6 +37,7 @@ use neo_math::{KExtensions, F, K};
 use p3_field::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
 
 use crate::engine::r1cs_circuit::boolean;
+use crate::engine::r1cs_circuit::builder::CenteredUnitTrace;
 use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
 use crate::paper::params::Params;
@@ -706,6 +707,8 @@ fn enforce_var_eq(builder: &mut R1csBuilder, a: Var, b: Var) {
 
 fn enforce_centered_alphabet(builder: &mut R1csBuilder, v: Var, b: u32) {
     debug_assert!(b >= 2, "caller gates b >= 2");
+    let row_start = builder.rows();
+    let column_start = builder.cols();
     let bound = b as i64 - 1;
     let alphabet: Vec<i64> = (-bound..=bound).collect();
     let mut acc: Option<Lc> = None;
@@ -723,6 +726,14 @@ fn enforce_centered_alphabet(builder: &mut R1csBuilder, v: Var, b: u32) {
             Some(prev) => {
                 if i + 1 == total {
                     builder.enforce(&prev, &factor, &Lc::zero());
+                    if b == 2 {
+                        builder.record_centered_unit_trace(CenteredUnitTrace {
+                            row_start,
+                            row_end: builder.rows(),
+                            allocated_columns: (column_start..builder.cols()).collect(),
+                            value_col: v.col(),
+                        });
+                    }
                     return;
                 }
                 let next = builder.alloc_mul(&prev, &factor);

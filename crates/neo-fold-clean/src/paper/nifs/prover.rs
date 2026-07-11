@@ -42,7 +42,8 @@ pub fn prove(
     // 1. Π_CCS — fold K fresh CCS into K+k CE claims at r'.
     #[cfg(feature = "perf-timers")]
     let t_ccs = std::time::Instant::now();
-    let pi_ccs_proof = pi_ccs::prove_from_parts(tr, pp, s, cache, log, &fresh_claims, &fresh_witnesses, running)?;
+    let (pi_ccs_proof, pi_dec_precompute) =
+        pi_ccs::prove_from_parts(tr, pp, s, cache, log, &fresh_claims, &fresh_witnesses, running)?;
     #[cfg(feature = "perf-timers")]
     eprintln!(
         "[nifs-prove] pi_ccs                         {:>7.2}s",
@@ -72,7 +73,7 @@ pub fn prove(
     // 3. Π_DEC — split_b back to k CE claims of norm b.
     #[cfg(feature = "perf-timers")]
     let t_dec = std::time::Instant::now();
-    let (dec_out, pi_dec_proof) = pi_dec::prove(
+    let (dec_out, pi_dec_proof) = pi_dec::prove_with_precompute(
         pp,
         s,
         cache,
@@ -81,6 +82,7 @@ pub fn prove(
         combine_b_pows,
         &rlc_out.claim,
         &rlc_out.witness,
+        &pi_dec_precompute,
     )?;
     #[cfg(feature = "perf-timers")]
     eprintln!(

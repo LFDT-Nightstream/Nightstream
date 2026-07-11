@@ -34,8 +34,37 @@ use crate::engine::r1cs_circuit::builder::{Lc, R1csBuilder, Var};
 use crate::engine::r1cs_circuit::poseidon2::{enforce_poseidon2_hash, DIGEST_LEN};
 use crate::engine::r1cs_circuit::u64_arith::decompose_var_to_u64_bits;
 use crate::paper::digest::{
-    StateXOutDigestMode, F_PRIME_BOUNDARY_UPDATE_DOMAIN, F_PRIME_STATE_X_OUT_DOMAIN, NEBULA_ADV_PRESENT_MARKER,
+    StateXOutDigestMode, F_PRIME_BOUNDARY_UPDATE_DOMAIN, F_PRIME_CHUNK_CLAIM_DIGEST_TAG,
+    F_PRIME_CHUNK_PUBLIC_DIGEST_TAG, F_PRIME_STATE_X_OUT_DOMAIN, NEBULA_ADV_PRESENT_MARKER,
 };
+
+/// Recompute the F' step/shape digest from verifier-owned claim geometry and
+/// the in-circuit start index. The native digest deliberately excludes claim
+/// contents to avoid the recursive-link fixed point, but its shape preimage
+/// still must be computed in-circuit; a prover-supplied `chunk_digest` is not
+/// authority merely because native witness generation chose it honestly.
+pub fn enforce_f_prime_chunk_public_digest_circuit(
+    builder: &mut R1csBuilder,
+    start_index: Var,
+    fresh_len: usize,
+    c_d: usize,
+    c_kappa: usize,
+    m_in: usize,
+) -> [Var; DIGEST_LEN] {
+    let mut claim_preimage = alloc_const_tag(builder, F_PRIME_CHUNK_CLAIM_DIGEST_TAG);
+    claim_preimage.push(alloc_constant(builder, F::from_u64(c_d as u64)));
+    claim_preimage.push(alloc_constant(builder, F::from_u64(c_kappa as u64)));
+    claim_preimage.push(alloc_constant(builder, F::from_u64(m_in as u64)));
+    let claim_digest = enforce_poseidon2_hash(builder, &claim_preimage);
+
+    let mut chunk_preimage = alloc_const_tag(builder, F_PRIME_CHUNK_PUBLIC_DIGEST_TAG);
+    chunk_preimage.push(start_index);
+    chunk_preimage.push(alloc_constant(builder, F::from_u64(fresh_len as u64)));
+    for _ in 0..fresh_len {
+        chunk_preimage.extend_from_slice(&claim_digest);
+    }
+    enforce_poseidon2_hash(builder, &chunk_preimage)
+}
 
 /// Tag for `public_trace_update_digest`.
 pub const PUBLIC_TRACE_UPDATE_TAG: &[u8] = b"neo.fold.clean/public_trace_update/v1";
@@ -168,7 +197,7 @@ fn enforce_state_x_out_digest_inner(
 
 // Accumulator-digest circuit lives in
 // `crate::paper::reductions::accumulator_digest_circuit` — see that module
-// for the full-running Construction-2 handle that binds HyperNova's `U_i`
+// for the verified-parent Construction-2 handle that binds HyperNova's `U_i`
 // as child CE-claim digests plus the Π_RLC parent-authority digest.
 
 // ── Internal helpers ──────────────────────────────────────────────────────

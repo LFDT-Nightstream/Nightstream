@@ -10,10 +10,11 @@
 //!   (matches the `bind_me_inputs_accumulator_handle` mode in
 //!   `neo_reductions::engines::utils`).
 //!
-//! **Soundness invariant**: Construction-2 state must bind HyperNova's
-//! running instance `U_i`, not only a commitment projection. The
-//! authority-bearing running-accumulator helper below mirrors
-//! `paper::digest::accumulator_digest_from_running_parts`.
+//! **Soundness invariant**: the caller must first verify that the running
+//! children are a strict Pi_DEC reduction of `parent_authority`. Native and
+//! in-circuit NIFS.V both do so before consuming this handle. Under that
+//! precondition the parent CE digest is the authority for the weak-reduction
+//! class; hashing every child again is duplicate transcript work.
 
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
@@ -21,21 +22,21 @@ use p3_field::PrimeCharacteristicRing;
 use crate::engine::r1cs_circuit::builder::{Lc, R1csBuilder, Var};
 use crate::engine::r1cs_circuit::poseidon2::{enforce_poseidon2_hash, DIGEST_LEN};
 
-pub const FULL_RUNNING_ACCUMULATOR_TAG: &[u8] = b"neo.fold.clean/accumulator/full_running/v1";
+pub const PARENT_AUTHORITY_ACCUMULATOR_TAG: &[u8] = b"neo.fold.clean/accumulator/parent_authority/v2";
 
-/// Hash the running accumulator from precomputed authority CE-claim digests.
+/// Hash a strict Pi_DEC running accumulator from its parent CE digest.
 ///
-/// Mirrors native `accumulator_digest_from_running_parts`.
-pub fn enforce_accumulator_digest_from_running_circuit(
+/// Mirrors native `accumulator_digest_from_running_parts`. A non-empty
+/// accumulator is represented by the CE parent that the caller has already
+/// checked against all `k_rho` children. Empty and malformed shapes have
+/// distinct encodings.
+pub fn enforce_accumulator_digest_from_parent_circuit(
     builder: &mut R1csBuilder,
-    child_digests: &[[Var; DIGEST_LEN]],
+    child_count: usize,
     parent_digest: Option<[Var; DIGEST_LEN]>,
 ) -> [Var; DIGEST_LEN] {
-    let mut preimage = alloc_const_tag(builder, FULL_RUNNING_ACCUMULATOR_TAG);
-    preimage.push(alloc_constant(builder, F::from_u64(child_digests.len() as u64)));
-    for digest in child_digests {
-        preimage.extend_from_slice(digest);
-    }
+    let mut preimage = alloc_const_tag(builder, PARENT_AUTHORITY_ACCUMULATOR_TAG);
+    preimage.push(alloc_constant(builder, F::from_u64(child_count as u64)));
     match parent_digest {
         Some(digest) => {
             preimage.push(alloc_constant(builder, F::ONE));
@@ -43,7 +44,7 @@ pub fn enforce_accumulator_digest_from_running_circuit(
         }
         None => preimage.push(alloc_constant(builder, F::ZERO)),
     }
-    let malformed = child_digests.is_empty() != parent_digest.is_none();
+    let malformed = (child_count == 0) != parent_digest.is_none();
     if malformed {
         preimage.push(alloc_constant(builder, F::from_u64(u64::MAX)));
     }

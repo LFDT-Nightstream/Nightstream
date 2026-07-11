@@ -21,7 +21,10 @@ use crate::sumcheck::RoundOracle;
 
 use super::common::Challenges;
 use super::digit_table::{build_nc_digit_table_compact, NcDigitTable};
-use super::row_poly::{accumulate_fast_term, accumulate_fast_term_base, CompiledPolyTerm, CompiledPolyTermKind};
+use super::row_poly::{
+    accumulate_factored_groups_times_affine, accumulate_factored_groups_times_affine_base, accumulate_fast_term,
+    accumulate_fast_term_base, factor_common_linear_terms, CompiledPolyGroup, CompiledPolyTerm, CompiledPolyTermKind,
+};
 pub use super::sparse::SparseCache;
 use crate::superneo_eval::{SuperneoEvalCache, SuperneoZBlocks};
 
@@ -967,6 +970,9 @@ struct RowStreamState {
     f_var_count: usize,
     /// Compiled sparse polynomial terms for `f` using `f_var_tables_by_mcs[i]` indices.
     f_terms: Vec<CompiledPolyTerm>,
+    /// Disjoint common-linear-factor groups used by the base-field row hot path.
+    f_factored_groups: Vec<CompiledPolyGroup>,
+    f_factored_terms: usize,
     /// Exact value of `f(0, ..., 0)` for compact all-zero MCS slots.
     f_at_zero: K,
     /// Maximum univariate degree needed for row-phase sumcheck coefficients.
@@ -1098,6 +1104,7 @@ impl RowStreamState {
             .iter()
             .filter(|term| term.vars.is_empty())
             .fold(K::ZERO, |acc, term| acc + term.coeff);
+        let (f_factored_groups, f_factored_terms) = factor_common_linear_terms(&f_terms);
         let f_max_term_deg = f_terms
             .iter()
             .map(|term| {
@@ -1112,10 +1119,11 @@ impl RowStreamState {
         let row_phase_deg_max = core::cmp::max(2, f_max_term_deg + 1);
         #[cfg(feature = "perf-timers")]
         eprintln!(
-            "RowStreamState::build: 2. f compile / f_var_indices {:.2?} (used_vars={}, terms={})",
+            "RowStreamState::build: 2. f compile / f_var_indices {:.2?} (used_vars={}, terms={}, factored={})",
             t_f_compile.elapsed(),
             f_var_indices.len(),
-            f_terms.len()
+            f_terms.len(),
+            f_factored_terms,
         );
 
         let k_mcs = mcs_witnesses.len();
@@ -1165,12 +1173,7 @@ impl RowStreamState {
                     let mat_cache = superneo_cache
                         .matrix(j)
                         .unwrap_or_else(|| panic!("superneo cache missing matrix j={j}"));
-                    out[..n_eff]
-                        .par_iter_mut()
-                        .enumerate()
-                        .for_each(|(r, out_r)| {
-                            *out_r = mat_cache.row_dot_with_blocks(r, z_blocks);
-                        });
+                    mat_cache.fill_row_dots_real_with_blocks(&mut out[..n_eff], z_blocks);
                     out
                 })
                 .collect();
@@ -1182,9 +1185,7 @@ impl RowStreamState {
                     let mat_cache = superneo_cache
                         .matrix(j)
                         .unwrap_or_else(|| panic!("superneo cache missing matrix j={j}"));
-                    for (r, out_r) in out.iter_mut().take(n_eff).enumerate() {
-                        *out_r = mat_cache.row_dot_with_blocks(r, z_blocks);
-                    }
+                    mat_cache.fill_row_dots_real_with_blocks(&mut out[..n_eff], z_blocks);
                     out
                 })
                 .collect();
@@ -1271,6 +1272,8 @@ impl RowStreamState {
             zero_mcs,
             f_var_count: f_var_indices.len(),
             f_terms,
+            f_factored_groups,
+            f_factored_terms,
             f_at_zero,
             row_phase_deg_max,
             eval_tbl,
@@ -1407,6 +1410,52 @@ impl RowStreamState {
     }
 
     #[inline]
+    fn accumulate_weighted_f_times_affine_base(
+        &self,
+        idx: usize,
+        deg_max: usize,
+        outer_a: Fq,
+        outer_b: Fq,
+        out: &mut [Fq],
+        inner: &mut [Fq],
+        scratch: &mut [Fq],
+    ) {
+        if self.f_factored_terms == self.f_terms.len() && !self.f_factored_groups.is_empty() {
+            for (mcs_idx, per_mcs_tables) in self.f_var_tables_by_mcs.iter().enumerate() {
+                if self.zero_mcs[mcs_idx] {
+                    continue;
+                }
+                let scale = self
+                    .gamma_pow_mcs
+                    .get(mcs_idx)
+                    .copied()
+                    .unwrap_or(K::ONE)
+                    .real();
+                if scale != Fq::ZERO {
+                    accumulate_factored_groups_times_affine_base(
+                        &self.f_factored_groups,
+                        per_mcs_tables,
+                        idx,
+                        deg_max,
+                        outer_a,
+                        outer_b,
+                        scale,
+                        out,
+                        scratch,
+                    );
+                }
+            }
+            return;
+        }
+
+        self.accumulate_weighted_f_poly_base(idx, deg_max, inner, scratch);
+        out[0] += outer_a * inner[0];
+        for degree in 1..=deg_max {
+            out[degree] += outer_a * inner[degree] + outer_b * inner[degree - 1];
+        }
+    }
+
+    #[inline]
     fn accumulate_weighted_f_poly(&self, idx: usize, deg_max: usize, inner: &mut [K], term_poly: &mut [K]) {
         inner.fill(K::ZERO);
 
@@ -1444,6 +1493,47 @@ impl RowStreamState {
         }
     }
 
+    #[inline]
+    fn accumulate_weighted_f_times_affine(
+        &self,
+        idx: usize,
+        deg_max: usize,
+        outer_a: K,
+        outer_b: K,
+        out: &mut [K],
+        inner: &mut [K],
+        scratch: &mut [K],
+    ) {
+        if self.f_factored_terms == self.f_terms.len() && !self.f_factored_groups.is_empty() {
+            for (mcs_idx, per_mcs_tables) in self.f_var_tables_by_mcs.iter().enumerate() {
+                if self.zero_mcs[mcs_idx] {
+                    continue;
+                }
+                let scale = self.gamma_pow_mcs.get(mcs_idx).copied().unwrap_or(K::ONE);
+                if scale != K::ZERO {
+                    accumulate_factored_groups_times_affine(
+                        &self.f_factored_groups,
+                        per_mcs_tables,
+                        idx,
+                        deg_max,
+                        outer_a,
+                        outer_b,
+                        scale,
+                        out,
+                        scratch,
+                    );
+                }
+            }
+            return;
+        }
+
+        self.accumulate_weighted_f_poly(idx, deg_max, inner, scratch);
+        out[0] += outer_a * inner[0];
+        for degree in 1..=deg_max {
+            out[degree] += outer_a * inner[degree] + outer_b * inner[degree - 1];
+        }
+    }
+
     fn evals_row_phase_b2_base(&self, tail_len: usize, xs: &[K]) -> Vec<K> {
         let deg_max = self.row_phase_deg_max;
 
@@ -1458,12 +1548,15 @@ impl RowStreamState {
                 let e0 = self.eq_beta_r_tbl[idx].real();
                 let e1 = self.eq_beta_r_tbl[idx + 1].real() - e0;
 
-                self.accumulate_weighted_f_poly_base(idx, deg_max, &mut inner, &mut term_poly);
-
-                coeffs[0] += e0 * inner[0];
-                for d in 1..=deg_max {
-                    coeffs[d] += (e0 * inner[d]) + (e1 * inner[d - 1]);
-                }
+                self.accumulate_weighted_f_times_affine_base(
+                    idx,
+                    deg_max,
+                    e0,
+                    e1,
+                    &mut coeffs,
+                    &mut inner,
+                    &mut term_poly,
+                );
 
                 if let (Some(eq_tbl), Some(eval_tbl)) = (self.eq_r_inputs_tbl.as_ref(), self.eval_tbl.as_ref()) {
                     let r0 = eq_tbl[idx].real();
@@ -1500,13 +1593,15 @@ impl RowStreamState {
                             let e0 = self.eq_beta_r_tbl[idx].real();
                             let e1 = self.eq_beta_r_tbl[idx + 1].real() - e0;
 
-                            self.accumulate_weighted_f_poly_base(idx, deg_max, &mut inner, &mut term_poly);
-
-                            // coeffs += eq_beta_r(X) * inner(X)
-                            coeffs[0] += e0 * inner[0];
-                            for d in 1..=deg_max {
-                                coeffs[d] += (e0 * inner[d]) + (e1 * inner[d - 1]);
-                            }
+                            self.accumulate_weighted_f_times_affine_base(
+                                idx,
+                                deg_max,
+                                e0,
+                                e1,
+                                &mut coeffs,
+                                &mut inner,
+                                &mut term_poly,
+                            );
 
                             // Eval: eq_r_inputs(X) * gamma_to_k * eval_tbl(X) (quadratic).
                             if let (Some(eq_tbl), Some(eval_tbl)) =
@@ -1564,12 +1659,15 @@ impl RowStreamState {
                 let e0 = self.eq_beta_r_tbl[idx].real();
                 let e1 = self.eq_beta_r_tbl[idx + 1].real() - e0;
 
-                self.accumulate_weighted_f_poly_base(idx, deg_max, &mut inner, &mut term_poly);
-
-                coeffs[0] += e0 * inner[0];
-                for d in 1..=deg_max {
-                    coeffs[d] += (e0 * inner[d]) + (e1 * inner[d - 1]);
-                }
+                self.accumulate_weighted_f_times_affine_base(
+                    idx,
+                    deg_max,
+                    e0,
+                    e1,
+                    &mut coeffs,
+                    &mut inner,
+                    &mut term_poly,
+                );
 
                 if let (Some(eq_tbl), Some(eval_tbl)) = (self.eq_r_inputs_tbl.as_ref(), self.eval_tbl.as_ref()) {
                     let r0 = eq_tbl[idx].real();
@@ -1606,13 +1704,15 @@ impl RowStreamState {
                             let e0 = self.eq_beta_r_tbl[idx].real();
                             let e1 = self.eq_beta_r_tbl[idx + 1].real() - e0;
 
-                            self.accumulate_weighted_f_poly_base(idx, deg_max, &mut inner, &mut term_poly);
-
-                            // coeffs += eq_beta_r(X) * inner(X)
-                            coeffs[0] += e0 * inner[0];
-                            for d in 1..=deg_max {
-                                coeffs[d] += (e0 * inner[d]) + (e1 * inner[d - 1]);
-                            }
+                            self.accumulate_weighted_f_times_affine_base(
+                                idx,
+                                deg_max,
+                                e0,
+                                e1,
+                                &mut coeffs,
+                                &mut inner,
+                                &mut term_poly,
+                            );
 
                             // Eval: eq_r_inputs(X) * gamma_to_k * eval_tbl(X) (quadratic).
                             if let (Some(eq_tbl), Some(eval_tbl)) =
@@ -1694,13 +1794,7 @@ impl RowStreamState {
                 let e0 = self.eq_beta_r_tbl[2 * t];
                 let e1 = self.eq_beta_r_tbl[2 * t + 1] - e0;
 
-                self.accumulate_weighted_f_poly(2 * t, deg_max, inner, term_poly);
-
-                // coeffs += eq_beta_r(X) * inner(X)
-                coeffs[0] += e0 * inner[0];
-                for d in 1..=deg_max {
-                    coeffs[d] += (e0 * inner[d]) + (e1 * inner[d - 1]);
-                }
+                self.accumulate_weighted_f_times_affine(2 * t, deg_max, e0, e1, coeffs, inner, term_poly);
 
                 // Eval: eq_r_inputs(X) * gamma_to_k * eval_tbl(X) (quadratic).
                 if let (Some(eq_tbl), Some(eval_tbl)) = (self.eq_r_inputs_tbl.as_ref(), self.eval_tbl.as_ref()) {
@@ -1809,13 +1903,15 @@ impl RowStreamState {
                                 let e0 = self.eq_beta_r_tbl[2 * t];
                                 let e1 = self.eq_beta_r_tbl[2 * t + 1] - e0;
 
-                                self.accumulate_weighted_f_poly(2 * t, deg_max, &mut inner, &mut term_poly);
-
-                                // coeffs += eq_beta_r(X) * inner(X)
-                                coeffs[0] += e0 * inner[0];
-                                for d in 1..=deg_max {
-                                    coeffs[d] += (e0 * inner[d]) + (e1 * inner[d - 1]);
-                                }
+                                self.accumulate_weighted_f_times_affine(
+                                    2 * t,
+                                    deg_max,
+                                    e0,
+                                    e1,
+                                    &mut coeffs,
+                                    &mut inner,
+                                    &mut term_poly,
+                                );
 
                                 // Eval: eq_r_inputs(X) * gamma_to_k * eval_tbl(X) (quadratic).
                                 if let (Some(eq_tbl), Some(eval_tbl)) =
@@ -1857,13 +1953,15 @@ impl RowStreamState {
                         let e0 = self.eq_beta_r_tbl[2 * t];
                         let e1 = self.eq_beta_r_tbl[2 * t + 1] - e0;
 
-                        self.accumulate_weighted_f_poly(2 * t, deg_max, &mut inner, &mut term_poly);
-
-                        // coeffs += eq_beta_r(X) * inner(X)
-                        coeffs[0] += e0 * inner[0];
-                        for d in 1..=deg_max {
-                            coeffs[d] += (e0 * inner[d]) + (e1 * inner[d - 1]);
-                        }
+                        self.accumulate_weighted_f_times_affine(
+                            2 * t,
+                            deg_max,
+                            e0,
+                            e1,
+                            &mut coeffs,
+                            &mut inner,
+                            &mut term_poly,
+                        );
 
                         // Eval: eq_r_inputs(X) * gamma_to_k * eval_tbl(X) (quadratic).
                         if let (Some(eq_tbl), Some(eval_tbl)) = (self.eq_r_inputs_tbl.as_ref(), self.eval_tbl.as_ref())
@@ -2098,6 +2196,7 @@ struct RPrecomp {
     eq_beta_r: K,
     /// eq(r', r_inputs) if present - independent of α'
     eq_r_inputs: K,
+    ring_linear_forms: Vec<crate::superneo_eval::SuperneoRingLinearForm>,
 }
 
 #[inline]
@@ -2327,109 +2426,49 @@ where
         let superneo_cache = &self.superneo_cache;
         #[cfg(feature = "perf-timers")]
         let t_y_eval = std::time::Instant::now();
-        let y_eval: Vec<Vec<[K; D]>> = if self.witness_z_blocks.len() > 1 {
-            #[cfg(feature = "perf-timers")]
-            let t_ring_forms = std::time::Instant::now();
-            let ring_forms = superneo_cache.build_ring_linear_forms(&chi_r, n_eff);
-            #[cfg(feature = "perf-timers")]
-            eprintln!(
-                "OptimizedOracle::precompute_for_r: ring forms        {:.2?}",
-                t_ring_forms.elapsed()
-            );
-            if ring_forms.len() != t {
-                panic!(
-                    "superneo ring-linear forms count mismatch: got {}, expected {}",
-                    ring_forms.len(),
-                    t
-                );
-            }
-            let k_total = self.witness_z_blocks.len();
-            #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-            {
-                // Flatten (witness, mat) pairs so all k_total * t evaluations run
-                // in parallel — the old per-witness par_iter left t-way work
-                // sequential inside each task and underused cores when
-                // k_total < cores.
-                let flat: Vec<[K; D]> = (0..k_total * t)
-                    .into_par_iter()
-                    .map(|idx| {
-                        let w = idx / t;
-                        let m = idx % t;
-                        if self.witness_z_blocks[w].all_zero() {
-                            return [K::ZERO; D];
-                        }
-                        ring_forms[m].eval_real_z_blocks(&self.witness_z_blocks[w])
-                    })
-                    .collect();
-                (0..k_total)
-                    .map(|w| flat[w * t..(w + 1) * t].to_vec())
-                    .collect()
-            }
-            #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-            {
-                self.witness_z_blocks
-                    .iter()
-                    .map(|z_blocks| {
-                        if z_blocks.all_zero() {
-                            return vec![[K::ZERO; D]; t];
-                        }
-                        ring_forms
-                            .iter()
-                            .map(|form| form.eval_real_z_blocks(&z_blocks))
-                            .collect()
-                    })
-                    .collect()
-            }
-        } else {
-            let row_cap = core::cmp::min(n_eff, chi_r.len());
-            let mut chi_re = Vec::with_capacity(row_cap);
-            let mut chi_im = Vec::with_capacity(row_cap);
-            for &w in chi_r.iter().take(row_cap) {
-                let [re, im] = w.as_coeffs();
-                chi_re.push(re);
-                chi_im.push(im);
-            }
-            #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-            {
-                if self.witness_z_blocks.len() == 1 {
-                    vec![crate::superneo_eval::eval_all_mats_ring_cached_with_split_chi(
-                        superneo_cache,
-                        &self.witness_z_blocks[0],
-                        &chi_re,
-                        &chi_im,
-                        n_eff,
-                    )]
+        #[cfg(feature = "perf-timers")]
+        let t_ring_forms = std::time::Instant::now();
+        let ring_forms = superneo_cache.build_ring_linear_forms(&chi_r, n_eff);
+        #[cfg(feature = "perf-timers")]
+        eprintln!(
+            "OptimizedOracle::precompute_for_r: ring forms        {:.2?}",
+            t_ring_forms.elapsed()
+        );
+        assert_eq!(ring_forms.len(), t, "superneo ring-linear forms count mismatch");
+        let k_total = self.witness_z_blocks.len();
+        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+        let y_eval: Vec<Vec<[K; D]>> = {
+            let flat: Vec<[K; D]> = (0..k_total * t)
+                .into_par_iter()
+                .map(|idx| {
+                    let witness = idx / t;
+                    let matrix = idx % t;
+                    if self.witness_z_blocks[witness].all_zero() {
+                        [K::ZERO; D]
+                    } else {
+                        ring_forms[matrix].eval_real_z_blocks(&self.witness_z_blocks[witness])
+                    }
+                })
+                .collect();
+            (0..k_total)
+                .map(|witness| flat[witness * t..(witness + 1) * t].to_vec())
+                .collect()
+        };
+        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+        let y_eval: Vec<Vec<[K; D]>> = self
+            .witness_z_blocks
+            .iter()
+            .map(|z_blocks| {
+                if z_blocks.all_zero() {
+                    vec![[K::ZERO; D]; t]
                 } else {
-                    self.witness_z_blocks
-                        .par_iter()
-                        .map(|z_blocks| {
-                            crate::superneo_eval::eval_all_mats_ring_cached_with_split_chi(
-                                superneo_cache,
-                                &z_blocks,
-                                &chi_re,
-                                &chi_im,
-                                n_eff,
-                            )
-                        })
+                    ring_forms
+                        .iter()
+                        .map(|form| form.eval_real_z_blocks(z_blocks))
                         .collect()
                 }
-            }
-            #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-            {
-                self.witness_z_blocks
-                    .iter()
-                    .map(|z_blocks| {
-                        crate::superneo_eval::eval_all_mats_ring_cached_with_split_chi(
-                            superneo_cache,
-                            &z_blocks,
-                            &chi_re,
-                            &chi_im,
-                            n_eff,
-                        )
-                    })
-                    .collect()
-            }
-        };
+            })
+            .collect();
         #[cfg(feature = "perf-timers")]
         eprintln!(
             "OptimizedOracle::precompute_for_r: y_eval            {:.2?} (witnesses={}, mats={t})",
@@ -2466,6 +2505,18 @@ where
             f_prime,
             eq_beta_r,
             eq_r_inputs,
+            ring_linear_forms: ring_forms,
+        }
+    }
+
+    pub fn take_pi_dec_precompute(&mut self) -> super::PiDecProverPrecompute {
+        let precompute = self
+            .ajtai_precomp
+            .as_mut()
+            .expect("Π_CCS must finalize its row precomputation before producing outputs");
+        super::PiDecProverPrecompute {
+            row_chals: self.row_chals.clone(),
+            ring_linear_forms: std::sync::Arc::from(core::mem::take(&mut precompute.ring_linear_forms)),
         }
     }
 

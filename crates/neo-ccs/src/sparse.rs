@@ -9,6 +9,7 @@
 #![allow(non_snake_case)]
 
 use crate::matrix::Mat;
+use crate::seeded_phi81::{SeededPhi81Error, SeededPhi81LinearBlock};
 use p3_field::{Field, PrimeCharacteristicRing};
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
@@ -271,14 +272,39 @@ pub enum CcsMatrix<Ff> {
     },
     /// A sparse matrix stored in CSC form.
     Csc(CscMat<Ff>),
+    /// A sparse CSC base plus compact seeded Phi81 linear blocks.
+    ///
+    /// The blocks are part of the matrix, not auxiliary advice. Their public
+    /// chunk seeds deterministically define every omitted coefficient.
+    CscWithSeededPhi81 {
+        /// Ordinary sparse terms not owned by a compact block.
+        csc: CscMat<Ff>,
+        /// Compact seeded blocks, each occupying disjoint constraint rows.
+        blocks: Vec<SeededPhi81LinearBlock>,
+    },
 }
 
 impl<Ff> CcsMatrix<Ff> {
+    /// Build a matrix from an ordinary CSC base and compact seeded blocks.
+    pub fn csc_with_seeded_phi81(
+        csc: CscMat<Ff>,
+        blocks: Vec<SeededPhi81LinearBlock>,
+    ) -> Result<Self, SeededPhi81Error> {
+        if blocks.is_empty() {
+            return Ok(Self::Csc(csc));
+        }
+        for block in &blocks {
+            block.validate_matrix_shape(csc.nrows, csc.ncols)?;
+        }
+        Ok(Self::CscWithSeededPhi81 { csc, blocks })
+    }
+
     /// Number of rows.
     pub fn rows(&self) -> usize {
         match self {
             CcsMatrix::Identity { n } => *n,
             CcsMatrix::Csc(m) => m.nrows,
+            CcsMatrix::CscWithSeededPhi81 { csc, .. } => csc.nrows,
         }
     }
 
@@ -287,6 +313,7 @@ impl<Ff> CcsMatrix<Ff> {
         match self {
             CcsMatrix::Identity { n } => *n,
             CcsMatrix::Csc(m) => m.ncols,
+            CcsMatrix::CscWithSeededPhi81 { csc, .. } => csc.ncols,
         }
     }
 
@@ -295,6 +322,23 @@ impl<Ff> CcsMatrix<Ff> {
         match self {
             CcsMatrix::Identity { .. } => None,
             CcsMatrix::Csc(m) => Some(m),
+            CcsMatrix::CscWithSeededPhi81 { .. } => None,
+        }
+    }
+
+    /// Borrow the ordinary sparse component, excluding compact blocks.
+    pub fn sparse_component(&self) -> Option<&CscMat<Ff>> {
+        match self {
+            CcsMatrix::Identity { .. } => None,
+            CcsMatrix::Csc(csc) | CcsMatrix::CscWithSeededPhi81 { csc, .. } => Some(csc),
+        }
+    }
+
+    /// Borrow the compact seeded blocks in this matrix.
+    pub fn seeded_phi81_blocks(&self) -> &[SeededPhi81LinearBlock] {
+        match self {
+            CcsMatrix::CscWithSeededPhi81 { blocks, .. } => blocks,
+            CcsMatrix::Identity { .. } | CcsMatrix::Csc(_) => &[],
         }
     }
 }
@@ -327,6 +371,7 @@ where
                 }
                 true
             }
+            CcsMatrix::CscWithSeededPhi81 { .. } => false,
         }
     }
 }
@@ -347,6 +392,12 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CcsMatrix<Ff> {
                 }
             }
             CcsMatrix::Csc(m) => m.add_mul_transpose_into(x, y, n_eff),
+            CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+                csc.add_mul_transpose_into(x, y, n_eff);
+                for block in blocks {
+                    block.add_mul_transpose_into::<Ff, Kf>(x, y, n_eff);
+                }
+            }
         }
     }
 
@@ -365,6 +416,12 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CcsMatrix<Ff> {
                 }
             }
             CcsMatrix::Csc(m) => m.add_mul_into(x, y, n_eff),
+            CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+                csc.add_mul_into(x, y, n_eff);
+                for block in blocks {
+                    block.add_mul_into::<Ff, Kf>(x, y, n_eff);
+                }
+            }
         }
     }
 }

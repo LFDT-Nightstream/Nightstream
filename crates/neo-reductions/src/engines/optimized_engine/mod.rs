@@ -61,6 +61,15 @@ pub struct PiCcsReplayTerminalState {
     pub sumcheck_final_nc: K,
     pub fold_digest: [u8; 32],
     pub perf: PiCcsProvePerf,
+    #[doc(hidden)]
+    pub pi_dec_precompute: PiDecProverPrecompute,
+}
+
+/// Prover-only data shared by adjacent Π_CCS and Π_DEC phases.
+#[derive(Debug, Clone)]
+pub struct PiDecProverPrecompute {
+    pub row_chals: Vec<K>,
+    pub ring_linear_forms: Arc<[crate::superneo_eval::SuperneoRingLinearForm]>,
 }
 
 #[derive(Debug, Clone)]

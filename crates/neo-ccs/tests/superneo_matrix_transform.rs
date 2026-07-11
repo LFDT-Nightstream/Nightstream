@@ -41,6 +41,20 @@ fn ring_row_eval(matrix: &CcsMatrix<F>, row: usize, z_ring: &[Rq], ncols: usize)
                 }
             }
         }
+        CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+            for c in 0..csc.ncols {
+                let block = c / D;
+                let local = c % D;
+                for k in csc.col_ptr[c]..csc.col_ptr[c + 1] {
+                    if csc.row_idx[k] == row {
+                        row_blocks[block][local] += csc.vals[k];
+                    }
+                }
+                for seeded in blocks {
+                    row_blocks[block][local] += seeded.entry::<F>(row, c);
+                }
+            }
+        }
     }
 
     let mut acc = Rq::zero();

@@ -14,13 +14,15 @@ universe uStructure uAssignment uPublicInput uPoint uEvaluation uCommitment
 /--
 Verifier-owned global reduction parameters (SuperNeo Definition 14).
 
-The paper fixes `b`, `k`, `B = b^k`, the maximum fold arity, and the
+The verifier fixes `q`, `b`, `k`, `B = b^k`, the maximum fold arity, and the
 challenge-set expansion factor `T` once per deployment; no statement may carry
 its own bound. The Definition 14 inequality is stated at the maximum arity so
 every smaller fold inherits it. Rust owns the same discipline at runtime
-through `Params::max_fresh_count` and the Π_RLC bound check.
+through `Params::q`, `Params::max_fresh_count`, and the Π_RLC bound check.
 -/
 structure GlobalParams where
+  /-- Base-field modulus `q`; the ambient extraction bound is `q / 2`. -/
+  q : Nat
   /-- Fresh-relation witness ∞-norm bound `b`. -/
   b : Nat
   /-- Decomposition arity `k` — the running-accumulator width `CE(b)^k`. -/
@@ -55,7 +57,7 @@ bounds and conflating them mis-states every fold theorem:
 
 - `fresh`     — `CE(b)^(K+k)`: honest Π_CCS outputs and Π_DEC children;
 - `combined`  — `CE(B)`: the Π_RLC output;
-- `ambient q` — `CE(q/2)`: where Π_RLC's rewinding extraction lands (D.5);
+- `ambient`   — `CE(q/2)`: where Π_RLC's rewinding extraction lands (D.5);
   the post-decomposition relation does NOT stay at this weaker bound.
 
 Bounds are derived from verifier-owned `GlobalParams`, never carried as free
@@ -64,14 +66,14 @@ per-statement data.
 inductive NormStage where
   | fresh
   | combined
-  | ambient (q : Nat)
+  | ambient
 deriving Repr, DecidableEq
 
 /-- Resolve a stage to its verifier-owned bound. -/
 def NormStage.bound (p : GlobalParams) : NormStage → Nat
   | .fresh => p.b
   | .combined => p.bigB
-  | .ambient q => q / 2
+  | .ambient => p.q / 2
 
 /-- Operations needed to state CCS and CE membership without hiding obligations. -/
 structure RelationSemantics
@@ -85,6 +87,10 @@ structure RelationSemantics
   projectPublicInput : Assignment → PublicInput
   normBounded : Nat → Assignment → Prop
   ccsSatisfied : Structure → Assignment → Prop
+  /-- Verifier-owned domain/length check for the CE evaluation point. A total
+  evaluator alone is insufficient: otherwise a malformed point could name a
+  different domain while still supplying its matching output array. -/
+  evaluationPointValid : Structure → Point → Prop
   evaluations : Structure → Assignment → Point → Array Evaluation
 
 namespace Opening
@@ -175,6 +181,7 @@ def Holds
     (assignment : Assignment) : Prop :=
   Opening.Holds semantics (statement.stage.bound params) statement.commitment
       statement.publicInput assignment ∧
+    semantics.evaluationPointValid statement.constraintSystem statement.point ∧
     semantics.evaluations statement.constraintSystem assignment statement.point =
       statement.evaluations
 

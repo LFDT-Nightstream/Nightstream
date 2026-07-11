@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "frog_id": "cir.pirlc.projection_exact_or_bad_root",
+  "property_id": "CIR-PIRLC-PROJECTION",
+  "route": "theorem-first",
+  "status": "pass",
+  "overall_m4_status": "open",
+  "statement_parity": "pass: exact 714-row satisfaction implies BatchAccepted; recursive circuit soundness returns native local validity or BadRoot",
+  "state_parity": "pass: fixed-width coefficient vectors, beta, degree bound, and the 31-by-15 production census are pinned",
+  "transition_parity": "pass: exact enforce_ring_action_projection_batch rows exercise honest, bad-root, and row-forgery branches",
+  "concurrency_parity": "not applicable: deterministic synchronous circuit generation",
+  "cancel_drain_parity": "not applicable",
+  "runtime_evidence": "pass: honest and E(X)=X-7 witnesses satisfy identical 714-row programs; a derived-column forgery fails; 31 production identities share one normalized sparse shape",
+  "drift_gate": "pass: exact sparse rows, witnesses, mapped sources, production identity ranges, and normalized shapes are hashed",
+  "artifact": "assurance/pi-rlc-projection-boundary.json",
+  "lean_theorems": [
+    "Nightstream.Implementation.R1CS.PiRLCProjection.exactRows_imply_batchAccepted",
+    "Nightstream.Implementation.R1CS.ProjectionProgram.ProjectionTrace.census_batchAccepted",
+    "Nightstream.SuperNeo.ProjectionCheck.batchAccepted_implies_exact_or_badRoot",
+    "Nightstream.Assurance.FPrimeRecursiveCircuit.projectedChecks_local_sound_or_badRoot"
+  ],
+  "open_obligations": [
+    "extract all ProjectionTrace metadata from the global production PiRLC row range",
+    "BatchExact plus surrounding PiCCS and PiDEC checks imply native nifsVerify success",
+    "BadRoot probability bound under SIS binding and Fiat-Shamir"
+  ]
+}

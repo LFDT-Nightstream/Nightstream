@@ -10,10 +10,12 @@ pub mod ir;
 pub mod isa;
 mod ivc_state;
 pub mod layout;
+mod lookup_circuit;
 pub mod lookup_semantics;
 pub mod memory_semantics;
+pub mod nebula;
+#[doc(hidden)]
 pub mod preprocess;
-pub mod prove;
 mod r1cs_builder;
 pub mod range_check;
 pub mod relation_layout;
@@ -40,12 +42,15 @@ pub use isa::{
 };
 pub use ivc_state::{WasmCrossStepColumnPair, WasmCrossStepLinkSpec};
 pub use layout::{Column, ColumnWidth, WasmColumnSpec, COLUMN_SPECS};
+#[doc(hidden)]
+pub use lookup_circuit::{audit_compact_lookup_auxiliary_load_bearing, audit_compact_lookup_witness};
 pub use lookup_semantics::{sanity_check_lookup_row, LookupBuiltin, LookupExpr, LookupPredicate, LookupSemantics};
 pub use memory_semantics::{preload_from_program_artifacts, sanity_check_memory_rows, WasmMemoryPreload};
-pub use preprocess::{
-    preprocess_seeded_batched, semantic_state_digest, top_level_initial_state, top_level_initial_state_digest,
+pub use nebula::{
+    preprocess, prove, verify, WasmNebulaError, WasmNebulaLimits, WasmNebulaPreprocessing, WasmNebulaProfile,
+    WasmNebulaProof,
 };
-pub use prove::{prove, prove_batched, verify, WasmProof, WasmProveError};
+pub use preprocess::{semantic_state_digest, top_level_initial_state, top_level_initial_state_digest};
 pub use range_check::{range_checked_witness_width, write_range_check_bits};
 pub use relation_layout::{
     build_wasm_relation_layout, LinearMemoryColumns, SignExtensionColumns, WasmAuxiliaryRelations,

@@ -2,7 +2,7 @@
 //!
 //! ```text
 //! cargo test -p neo-wasm --release --test wasm_nebula_pipeline_profile \
-//!   --features neo-fold-clean/perf-timers -- --ignored --nocapture
+//!   --features perf-timers -- --ignored --nocapture
 //! ```
 
 mod common;
@@ -12,6 +12,10 @@ use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
 use neo_ccs::{CcsMatrix, CcsStructure};
+#[cfg(feature = "perf-timers")]
+use neo_fold_clean::config;
+#[cfg(feature = "perf-timers")]
+use neo_fold_clean::frontends::nebula::f_prime::{NebulaFPrimeChainBuilder, ROAD_A_COMMITTED_BIT_BUDGET};
 use neo_fold_clean::frontends::r1cs_f_prime::R1csShape;
 use neo_fold_clean::paper::construction2::ProofState;
 use neo_fold_clean::paper::params::Params;
@@ -437,6 +441,236 @@ fn wasm_nebula_pipeline_profile() {
         ms(preprocess_elapsed),
         ms(prove_elapsed),
         ms(verify_elapsed),
+        ms(wall_started.elapsed()),
+    );
+}
+
+/// Builds the exact production relation and executes the first occurrence of
+/// every F' branch. The prefix is intentionally left open: a complete
+/// production memory segment contains 1,088 folds and is a separate endurance
+/// benchmark, not a prerequisite for measuring one real steady-state fold.
+#[test]
+#[cfg(feature = "perf-timers")]
+#[ignore = "production kappa=18 fixed point plus three real folds; run explicitly"]
+fn wasm_nebula_production_prefix_profile() {
+    const PREFIX_FOLDS: usize = 3;
+
+    let wall_started = Instant::now();
+    let wasm = wat::parse_str(PROFILE_WAT).expect("valid profile WAT");
+    let artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm).expect("program artifacts");
+    let run = neo_wasm::collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
+    assert_eq!(run.results.as_slice(), &["297".to_string()]);
+    let trace = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("normalized trace");
+    let _witnesses = common::sanity_check_trace(&trace, &artifacts, &run.initial_locals);
+    common::ccs_check_trace(&trace);
+
+    let profile = neo_wasm::WasmNebulaProfile::production();
+    let params = Params::for_ccs_shape_with(
+        ROAD_A_COMMITTED_BIT_BUDGET,
+        13,
+        8,
+        config::MIN_EFFECTIVE_LAMBDA,
+        config::EXTENSION_SAFETY_MARGIN_BITS,
+    )
+    .expect("production WASM parameters");
+    assert_eq!(params.kappa(), 18);
+    assert_eq!(params.k_rho(), 14);
+    assert_eq!(params.b(), 2);
+    assert_eq!(params.big_b(), 1 << 14);
+    assert_eq!(params.T(), 216);
+    assert_eq!(profile.batch_size(), 3);
+    assert_eq!(profile.memory().rom_cells(), 4_096);
+    assert_eq!(profile.memory().ram_cells(), 65_536);
+    assert_eq!(profile.memory().steps_per_segment(), 1_088);
+
+    let entry_pc = common::single_function_entry_pc(&artifacts);
+    let started = Instant::now();
+    let prep = neo_wasm::nebula::preprocess_seeded_unbounded_profile(
+        params.clone(),
+        profile,
+        &artifacts,
+        &run.initial_locals,
+        entry_pc,
+        0x57a5_7018,
+    )
+    .expect("unbounded production WASM + Nebula preprocessing");
+    let preprocess_elapsed = started.elapsed();
+
+    let relation = prep.inner().relation();
+    let structure = relation.structure();
+    let width = relation.low_norm_width_audit();
+    let arms = relation.field_arm_shapes();
+    let storage = structure_stats(structure);
+    let dims = prep
+        .inner()
+        .prep
+        .nifs_v_circuit_config()
+        .expect("SplitNc dimensions");
+    assert_ne!(structure.n, structure.m, "production SplitNc must remain rectangular");
+    assert_eq!(structure.t(), 13);
+    assert_eq!(structure.max_degree(), 8);
+    assert_eq!(width.total_coordinates.div_ceil(D) * D, structure.m);
+
+    println!("\n== WASM + Nebula exact production prefix profile ==");
+    println!(
+        "parameters               kappa={} k_rho={} b={} B={} T={} lambda={} s={}",
+        params.kappa(),
+        params.k_rho(),
+        params.b(),
+        params.big_b(),
+        params.T(),
+        params.lambda(),
+        params.extension_degree(),
+    );
+    println!(
+        "memory geometry          R={} M={} B_ops={} B_scan={} N={} batch={}",
+        profile.memory().rom_cells(),
+        profile.memory().ram_cells(),
+        profile.memory().b_ops,
+        profile.memory().b_scan,
+        profile.memory().steps_per_segment(),
+        profile.batch_size(),
+    );
+    println!(
+        "relation                 rows={} columns={} public={} matrices={} degree={} budget={} over_budget={}",
+        structure.n,
+        structure.m,
+        relation.public_input_len(),
+        structure.t(),
+        structure.max_degree(),
+        ROAD_A_COMMITTED_BIT_BUDGET,
+        structure.m.saturating_sub(ROAD_A_COMMITTED_BIT_BUDGET),
+    );
+    println!(
+        "SplitNc                  ell_n={} ell_m={} ell_d={} d_sc={} row_pad={} column_pad={}",
+        dims.pi_ccs.ell_n,
+        dims.pi_ccs.ell_m,
+        dims.pi_ccs.ell_d,
+        dims.pi_ccs.d_sc,
+        (1usize << dims.pi_ccs.ell_n) - structure.n,
+        (1usize << dims.pi_ccs.ell_m) - structure.m,
+    );
+    println!(
+        "matrix storage           explicit_nnz={} seeded_blocks={} virtual_seeded_slots={} geometric_runs={} virtual_run_slots={}",
+        storage.explicit_nnz,
+        storage.seeded_blocks,
+        storage.seeded_slots,
+        storage.geometric_runs,
+        storage.geometric_slots,
+    );
+    println!(
+        "shared width             prefix={} branch_start={} audited={} D_pad={}",
+        width.constant_coordinate
+            + width.public_coordinates
+            + width.selector_coordinates
+            + width.alignment_padding
+            + width.shared_private_coordinates,
+        width.branch_start,
+        width.total_coordinates,
+        structure.m - width.total_coordinates,
+    );
+    for (name, arm) in ["base", "bootstrap", "recursive"]
+        .into_iter()
+        .zip(&width.arms)
+    {
+        println!(
+            "{name:<24} source_fields={} eliminated={} unit={} balanced={} binary={} aliases={} branch_coords={} derived={} total={}",
+            arm.branch_source_columns,
+            arm.eliminated_columns,
+            arm.unit_columns,
+            arm.balanced_columns,
+            arm.binary_columns,
+            arm.decomposition_aliases + arm.equality_aliases,
+            arm.branch_coordinates,
+            arm.derived_coordinates,
+            arm.total_branch_coordinates,
+        );
+    }
+    for (name, arm) in ["base field", "bootstrap field", "recursive field"]
+        .into_iter()
+        .zip(arms)
+    {
+        println!(
+            "{name:<24} rows={} columns={} public={} poseidon2={}",
+            arm.rows, arm.columns, arm.public_columns, arm.poseidon2_permutations,
+        );
+    }
+
+    let mut families = width.arms[2].row_families.iter().collect::<Vec<_>>();
+    families.sort_by_key(|family| Reverse(family.coordinates_before_aliases + family.poseidon2_coordinates));
+    println!("\n-- recursive F' family touches (inclusive; overlaps expected) --");
+    println!(
+        "family                                    rows  source-coords  unit  balanced binary  p2-perms    p2-coords"
+    );
+    for family in families {
+        println!(
+            "{:<39} {:>8} {:>13} {:>6} {:>9} {:>6} {:>9} {:>12}",
+            family.name,
+            family.inclusive_rows,
+            family.coordinates_before_aliases,
+            family.unit_columns,
+            family.balanced_columns,
+            family.binary_columns,
+            family.poseidon2_permutations,
+            family.poseidon2_coordinates,
+        );
+    }
+
+    let started = Instant::now();
+    let segment = neo_wasm::nebula::build_application_segment_for_profile(&prep, &trace)
+        .expect("full production application segment");
+    let segment_build_elapsed = started.elapsed();
+
+    let started = Instant::now();
+    let mut chain = NebulaFPrimeChainBuilder::new(prep.inner());
+    chain
+        .append_application_prefix_for_profile(&segment, PREFIX_FOLDS)
+        .expect("base, bootstrap, and steady production folds");
+    let prefix_elapsed = started.elapsed();
+    let audit = chain.into_audit().expect("nonempty production prefix");
+    assert_eq!(audit.proof.state.step_count as usize, PREFIX_FOLDS);
+    assert_eq!(audit.proof.state.chunk_count as usize, PREFIX_FOLDS);
+    assert_eq!(audit.steps.len(), PREFIX_FOLDS);
+    assert!(audit.proof.final_fold.is_none());
+
+    let segment_steps = profile.memory().steps_per_segment();
+    let naive_segment_projection = prefix_elapsed.mul_f64(segment_steps as f64 / PREFIX_FOLDS as f64);
+    println!("\n-- exact production timing --");
+    println!("fixed-point preprocess     {:>12.2}ms", ms(preprocess_elapsed));
+    println!("segment witness build      {:>12.2}ms", ms(segment_build_elapsed));
+    println!("three-fold prefix          {:>12.2}ms", ms(prefix_elapsed));
+    println!(
+        "mean observed fold        {:>12.2}ms",
+        ms(prefix_elapsed) / PREFIX_FOLDS as f64
+    );
+    println!(
+        "naive 1,088-fold projection {:>10.2}ms ({:.2}h)",
+        ms(naive_segment_projection),
+        naive_segment_projection.as_secs_f64() / 3_600.0,
+    );
+    println!("wall total                 {:>12.2}ms", ms(wall_started.elapsed()));
+    println!(
+        "PROFILE_PRODUCTION_JSON={{\"trace_steps\":{},\"padded_wasm_steps\":{},\"batch_size\":{},\"prefix_folds\":{},\"segment_folds\":{},\"kappa\":{},\"k_rho\":{},\"lambda\":{},\"rows\":{},\"columns\":{},\"matrices\":{},\"ell_n\":{},\"ell_m\":{},\"explicit_nnz\":{},\"seeded_blocks\":{},\"geometric_runs\":{},\"preprocess_ms\":{:.3},\"segment_build_ms\":{:.3},\"prefix_ms\":{:.3},\"naive_segment_ms\":{:.3},\"wall_ms\":{:.3}}}",
+        trace.len(),
+        segment_steps * profile.batch_size(),
+        profile.batch_size(),
+        PREFIX_FOLDS,
+        segment_steps,
+        params.kappa(),
+        params.k_rho(),
+        params.lambda(),
+        structure.n,
+        structure.m,
+        structure.t(),
+        dims.pi_ccs.ell_n,
+        dims.pi_ccs.ell_m,
+        storage.explicit_nnz,
+        storage.seeded_blocks,
+        storage.geometric_runs,
+        ms(preprocess_elapsed),
+        ms(segment_build_elapsed),
+        ms(prefix_elapsed),
+        ms(naive_segment_projection),
         ms(wall_started.elapsed()),
     );
 }

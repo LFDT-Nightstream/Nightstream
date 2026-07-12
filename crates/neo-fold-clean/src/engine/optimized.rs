@@ -99,7 +99,7 @@ where
     // algebraic running inputs, but they do not steer this Fiat-Shamir absorb.
     let me_handle = running_parent_accumulator_handle(running)?;
 
-    let (outputs, proof, _perf, pi_dec_precompute) =
+    let (outputs, proof, perf, pi_dec_precompute) =
         optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf(
             tr,
             pp.inner(),
@@ -113,6 +113,21 @@ where
             log,
             cache,
         )?;
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[pi-ccs/prove] bind={:.2}ms sample={:.2}ms fe={:.2}ms nc={:.2}ms outputs={:.2}ms total={:.2}ms inputs=fresh:{}+running:{} outputs:{}",
+        perf.bind_ms,
+        perf.sample_challenges_ms,
+        perf.fe_sumcheck_ms,
+        perf.nc_sumcheck_ms,
+        perf.output_materialize_ms,
+        perf.total_ms,
+        fresh_claims.len(),
+        running.claims.len(),
+        outputs.len(),
+    );
+    #[cfg(not(feature = "perf-timers"))]
+    let _ = perf;
     Ok((outputs, proof, pi_dec_precompute))
 }
 
@@ -145,7 +160,7 @@ pub fn verify_pi_ccs(
     let instance_digest = pi_ccs_instance_digest_parent_authority(fresh_claims, running.claims.len(), parent_authority);
     // Same parent-authority handle the prover bound.
     let me_handle = running_parent_accumulator_handle(running)?;
-    let (ok, _perf) = optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf(
+    let (ok, perf) = optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf(
         tr,
         pp.inner(),
         s,
@@ -157,6 +172,21 @@ pub fn verify_pi_ccs(
         instance_digest,
         me_handle,
     )?;
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[pi-ccs/verify] bind={:.2}ms header={:.2}ms me={:.2}ms sample={:.2}ms fe={:.2}ms nc={:.2}ms outputs={:.2}ms terminal={:.2}ms total={:.2}ms",
+        perf.bind_ms,
+        perf.bind_header_instances_ms,
+        perf.bind_me_inputs_ms,
+        perf.bind_sample_challenges_ms,
+        perf.fe_sumcheck_ms,
+        perf.nc_sumcheck_ms,
+        perf.output_checks_ms,
+        perf.terminal_ms,
+        perf.total_ms,
+    );
+    #[cfg(not(feature = "perf-timers"))]
+    let _ = perf;
     if !ok {
         return Ok(false);
     }
@@ -300,7 +330,7 @@ pub fn verify_pi_rlc<MR>(
 where
     MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment,
 {
-    let (ok, _perf) = nr::rlc_public_matches_verified_inputs_with_perf(
+    let (ok, perf) = nr::rlc_public_matches_verified_inputs_with_perf(
         s,
         pp.inner(),
         rhos,
@@ -309,6 +339,20 @@ where
         mix_rhos_commits,
         ell_d(),
     )?;
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[pi-rlc/verify] rho={:.2}ms X={:.2}ms y={:.2}ms y_zcol={:.2}ms aux={:.2}ms commit={:.2}ms total={:.2}ms inputs={}",
+        perf.rho_mats_ms + perf.rho_k_lift_ms,
+        perf.x_ms,
+        perf.y_ms,
+        perf.y_zcol_ms,
+        perf.aux_ms,
+        perf.commitment_ms,
+        perf.total_ms,
+        me_inputs.len(),
+    );
+    #[cfg(not(feature = "perf-timers"))]
+    let _ = perf;
     Ok(ok)
 }
 

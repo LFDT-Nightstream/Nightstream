@@ -204,15 +204,46 @@ pub(crate) fn prove_refs(
     claims: &[CeClaim],
     witnesses: &[&Mat<F>],
 ) -> Result<(Output, Proof), Error> {
+    #[cfg(feature = "perf-timers")]
+    let total_started = std::time::Instant::now();
+    #[cfg(feature = "perf-timers")]
+    let prepare_started = std::time::Instant::now();
     validate_input_shape(claims, witnesses)?;
     enforce_rlc_bound(pp, claims.len())?;
     validate_inputs_before_rho(s, claims)?;
     bind_input_claims_for_rho(tr, claims);
     let rhos = engine::sample_rho_n(tr.inner_mut(), pp, claims.len())?;
+    #[cfg(feature = "perf-timers")]
+    let prepare_elapsed = prepare_started.elapsed();
+    #[cfg(feature = "perf-timers")]
+    let mix_started = std::time::Instant::now();
     let (mut combined, z_mix) = engine::prove_pi_rlc_refs(pp, s, &rhos, claims, witnesses, |zs, cs| mix(zs, cs))?;
+    #[cfg(feature = "perf-timers")]
+    let mix_elapsed = mix_started.elapsed();
+    #[cfg(feature = "perf-timers")]
+    let sidecars_started = std::time::Instant::now();
     combined.adv = mixed_adv(mix, &rhos, claims)?;
     validate_nc_sidecars(s, mix, &rhos, claims, &combined)?;
+    #[cfg(feature = "perf-timers")]
+    let sidecars_elapsed = sidecars_started.elapsed();
+    #[cfg(feature = "perf-timers")]
+    let projection_started = std::time::Instant::now();
     let projection = projection_schedule(tr, &rhos, claims, &combined)?;
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[pi-rlc/prove] prepare={:.3}s mix={:.3}s sidecars={:.3}s projection={:.3}s total={:.3}s inputs={} c_lanes={} adv={} X={} y={} yz={}",
+        prepare_elapsed.as_secs_f64(),
+        mix_elapsed.as_secs_f64(),
+        sidecars_elapsed.as_secs_f64(),
+        projection_started.elapsed().as_secs_f64(),
+        total_started.elapsed().as_secs_f64(),
+        claims.len(),
+        combined.c.kappa,
+        combined.adv.is_some(),
+        combined.X.cols(),
+        combined.y_ring.len(),
+        combined.y_zcol.len(),
+    );
     Ok((
         Output {
             claim: combined.clone(),
@@ -272,6 +303,8 @@ fn projection_schedule(
     inputs: &[CeClaim],
     combined: &CeClaim,
 ) -> Result<ProjectionSchedule, Error> {
+    #[cfg(feature = "perf-timers")]
+    let total_started = std::time::Instant::now();
     let mut binding_preimage = digest::pack_bytes_as_fields(PI_RLC_PROJECTION_BINDING_DOMAIN);
     let rho_coeffs: Vec<[F; D]> = rhos
         .iter()
@@ -281,6 +314,8 @@ fn projection_schedule(
         })
         .collect();
     let input_cs: Vec<Commitment> = inputs.iter().map(|claim| claim.c.clone()).collect();
+    #[cfg(feature = "perf-timers")]
+    let commitment_started = std::time::Instant::now();
     let lanes = checked_projection_lanes(&rho_coeffs, &input_cs, &combined.c, None)?;
     append_projection_binding(
         &mut binding_preimage,
@@ -290,7 +325,11 @@ fn projection_schedule(
     for lane in &lanes {
         append_projection_binding(&mut binding_preimage, PI_RLC_PROJECTION_QUOTIENTS_LABEL, &lane.q);
     }
+    #[cfg(feature = "perf-timers")]
+    let commitment_elapsed = commitment_started.elapsed();
 
+    #[cfg(feature = "perf-timers")]
+    let adv_started = std::time::Instant::now();
     let present = inputs.iter().filter(|claim| claim.adv.is_some()).count();
     let adv_lanes = match (&combined.adv, present) {
         (None, 0) => None,
@@ -327,7 +366,11 @@ fn projection_schedule(
             })
         }
     };
+    #[cfg(feature = "perf-timers")]
+    let adv_elapsed = adv_started.elapsed();
 
+    #[cfg(feature = "perf-timers")]
+    let x_started = std::time::Instant::now();
     let active_x_cols = crate::paper::relations::superneo_public_x_cols(combined.m_in);
     let mut x_lanes = Vec::with_capacity(active_x_cols);
     for col in 0..active_x_cols {
@@ -341,7 +384,11 @@ fn projection_schedule(
         append_projection_binding(&mut binding_preimage, PI_RLC_PROJECTION_X_QUOTIENTS_LABEL, &lane.q);
         x_lanes.push(lane);
     }
+    #[cfg(feature = "perf-timers")]
+    let x_elapsed = x_started.elapsed();
 
+    #[cfg(feature = "perf-timers")]
+    let y_ring_started = std::time::Instant::now();
     let mut y_ring_lanes = Vec::with_capacity(combined.y_ring.len());
     for row in 0..combined.y_ring.len() {
         let input_rows: Vec<&[K]> = inputs
@@ -359,7 +406,11 @@ fn projection_schedule(
         }
         y_ring_lanes.push(lanes);
     }
+    #[cfg(feature = "perf-timers")]
+    let y_ring_elapsed = y_ring_started.elapsed();
 
+    #[cfg(feature = "perf-timers")]
+    let y_zcol_started = std::time::Instant::now();
     let input_y_zcols: Vec<&[K]> = inputs.iter().map(|claim| claim.y_zcol.as_slice()).collect();
     let y_zcol_lanes = checked_k_vector_projection(&rho_coeffs, &input_y_zcols, &combined.y_zcol, "y_zcol", 0)?;
     for lane in &y_zcol_lanes {
@@ -370,10 +421,31 @@ fn projection_schedule(
         );
         append_projection_binding(&mut binding_preimage, PI_RLC_PROJECTION_Y_ZCOL_QUOTIENTS_LABEL, &lane.q);
     }
+    #[cfg(feature = "perf-timers")]
+    let y_zcol_elapsed = y_zcol_started.elapsed();
 
+    #[cfg(feature = "perf-timers")]
+    let binding_started = std::time::Instant::now();
     let binding_digest = sis_accumulator_digest(PI_RLC_PROJECTION_SIS_CONFIG, &binding_preimage)?;
     tr.append_fields(PI_RLC_PROJECTION_BINDING_DIGEST_LABEL, &binding_digest);
     let beta = tr.challenge_fields(PI_RLC_PROJECTION_BETA_LABEL, 2);
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[pi-rlc/projection] c={:.3}s adv={:.3}s X={:.3}s y={:.3}s yz={:.3}s sis+beta={:.3}s total={:.3}s identities=c:{} adv:{} X:{} y:{} yz:{} preimage_fields={}",
+        commitment_elapsed.as_secs_f64(),
+        adv_elapsed.as_secs_f64(),
+        x_elapsed.as_secs_f64(),
+        y_ring_elapsed.as_secs_f64(),
+        y_zcol_elapsed.as_secs_f64(),
+        binding_started.elapsed().as_secs_f64(),
+        total_started.elapsed().as_secs_f64(),
+        lanes.len(),
+        adv_lanes.as_ref().map_or(0, |adv| adv.ops.len() + adv.is.len() + adv.fs.len()),
+        x_lanes.len(),
+        y_ring_lanes.len() * 2,
+        y_zcol_lanes.len(),
+        binding_preimage.len(),
+    );
     Ok(ProjectionSchedule {
         rhos: rho_coeffs,
         q_lanes: lanes.into_iter().map(|lane| lane.q).collect(),

@@ -109,6 +109,8 @@ pub enum Error {
         client: &'static str,
         identity: usize,
     },
+    #[error("Pi_RLC: accelerator failed to compute the canonical projection SIS digest")]
+    BackendProjectionDigest,
     #[error(transparent)]
     Projection(#[from] crate::paper::reductions::pi_rlc_circuit::Error),
     #[error(transparent)]
@@ -373,6 +375,18 @@ fn projection_schedule(
     inputs: &[CeClaim],
     combined: &CeClaim,
 ) -> Result<ProjectionSchedule, Error> {
+    projection_schedule_with_digest(tr, rhos, inputs, combined, |preimage| {
+        Ok(sis_accumulator_digest(PI_RLC_PROJECTION_SIS_CONFIG, preimage)?)
+    })
+}
+
+fn projection_schedule_with_digest(
+    tr: &mut Transcript,
+    rhos: &[neo_reductions::common::RotRho],
+    inputs: &[CeClaim],
+    combined: &CeClaim,
+    compute_digest: impl FnOnce(&[F]) -> Result<[F; 4], Error>,
+) -> Result<ProjectionSchedule, Error> {
     #[cfg(feature = "perf-timers")]
     let total_started = std::time::Instant::now();
     let mut binding_preimage = digest::pack_bytes_as_fields(PI_RLC_PROJECTION_BINDING_DOMAIN);
@@ -496,7 +510,7 @@ fn projection_schedule(
 
     #[cfg(feature = "perf-timers")]
     let binding_started = std::time::Instant::now();
-    let binding_digest = sis_accumulator_digest(PI_RLC_PROJECTION_SIS_CONFIG, &binding_preimage)?;
+    let binding_digest = compute_digest(&binding_preimage)?;
     tr.append_fields(PI_RLC_PROJECTION_BINDING_DIGEST_LABEL, &binding_digest);
     let beta = tr.challenge_fields(PI_RLC_PROJECTION_BETA_LABEL, 2);
     #[cfg(feature = "perf-timers")]
@@ -532,6 +546,33 @@ fn projection_schedule(
         y_zcol_q_lanes: y_zcol_lanes.map(|lane| lane.q),
         beta: K::from_coeffs([beta[0], beta[1]]),
     })
+}
+
+/// Replay the post-rho projection binding for a backend-produced combined
+/// claim. The returned schedule is prover metadata; verifiers recompute it
+/// from the public inputs and transcript.
+pub fn bind_backend_projection_schedule(
+    tr: &mut Transcript,
+    rhos: &[neo_reductions::common::RotRho],
+    inputs: &[CeClaim],
+    combined: &CeClaim,
+) -> Result<ProjectionSchedule, Error> {
+    projection_schedule(tr, rhos, inputs, combined)
+}
+
+/// Replay the canonical projection checks while delegating only the final
+/// fixed-seed SIS compression to an accelerator. The callback sees the exact
+/// preimage used by the native prover; the verifier independently rebuilds
+/// and compresses it before accepting the proof.
+#[doc(hidden)]
+pub fn bind_backend_projection_schedule_with_digest(
+    tr: &mut Transcript,
+    rhos: &[neo_reductions::common::RotRho],
+    inputs: &[CeClaim],
+    combined: &CeClaim,
+    compute_digest: impl FnOnce(&[F]) -> Result<[F; 4], Error>,
+) -> Result<ProjectionSchedule, Error> {
+    projection_schedule_with_digest(tr, rhos, inputs, combined, compute_digest)
 }
 
 fn append_projection_binding(preimage: &mut Vec<F>, label: &[u8], fields: &[F]) {

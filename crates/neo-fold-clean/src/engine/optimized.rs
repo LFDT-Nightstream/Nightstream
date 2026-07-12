@@ -230,11 +230,7 @@ where
 {
     // Validate inputs and compute the instance digest BEFORE moving `fresh`
     // into engine arrays — both sides hash the same public claims.
-    let parent_authority = running_parent_authority(running)?;
-    let instance_digest = match running_parent_digest {
-        Some(digest) => pi_ccs_instance_digest_from_parent_digest(fresh_claims, running.claims.len(), Some(digest)),
-        None => pi_ccs_instance_digest_parent_authority(fresh_claims, running.claims.len(), parent_authority),
-    };
+    let instance_digest = prover_instance_digest(fresh_claims, running, running_parent_digest)?;
     // Accumulator-handle ME-input binding: bind the same Π_RLC parent
     // authority as the public-instance digest. The Π_DEC children remain the
     // algebraic running inputs, but they do not steer this Fiat-Shamir absorb.
@@ -286,11 +282,7 @@ pub fn defer_pi_ccs_parts_with_phase_backend_and_transcript_mode<L>(
 where
     L: neo_ccs::traits::SModuleHomomorphism<neo_math::F, neo_ajtai::Commitment> + Sync,
 {
-    let parent_authority = running_parent_authority(running)?;
-    let instance_digest = match running_parent_digest {
-        Some(digest) => pi_ccs_instance_digest_from_parent_digest(fresh_claims, running.claims.len(), Some(digest)),
-        None => pi_ccs_instance_digest_parent_authority(fresh_claims, running.claims.len(), parent_authority),
-    };
+    let instance_digest = prover_instance_digest(fresh_claims, running, running_parent_digest)?;
     let me_handle = match running_accumulator_handle {
         Some(handle) => handle,
         None => running_parent_accumulator_handle(running)?,
@@ -338,11 +330,7 @@ pub fn defer_pi_ccs_parts_with_device_backends_and_transcript_mode<L>(
 where
     L: neo_ccs::traits::SModuleHomomorphism<neo_math::F, neo_ajtai::Commitment> + Sync,
 {
-    let parent_authority = running_parent_authority(running)?;
-    let instance_digest = match running_parent_digest {
-        Some(digest) => pi_ccs_instance_digest_from_parent_digest(fresh_claims, running.claims.len(), Some(digest)),
-        None => pi_ccs_instance_digest_parent_authority(fresh_claims, running.claims.len(), parent_authority),
-    };
+    let instance_digest = prover_instance_digest(fresh_claims, running, running_parent_digest)?;
     let me_handle = match running_accumulator_handle {
         Some(handle) => handle,
         None => running_parent_accumulator_handle(running)?,
@@ -364,6 +352,18 @@ where
         nc_backend,
         transcript_mode,
     )?)
+}
+
+fn prover_instance_digest(
+    fresh_claims: &[CcsClaim],
+    running: &RunningInstance,
+    running_parent_digest: Option<[F; 4]>,
+) -> Result<[F; 4], Error> {
+    let parent_authority = running_parent_authority(running)?;
+    Ok(match running_parent_digest {
+        Some(digest) => pi_ccs_instance_digest_from_parent_digest(fresh_claims, running.claims.len(), Some(digest)),
+        None => pi_ccs_instance_digest_parent_authority(fresh_claims, running.claims.len(), parent_authority),
+    })
 }
 
 /// Π_CCS (§7.3) verify — mirror of [`prove_pi_ccs`] using the optimized

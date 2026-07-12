@@ -595,7 +595,10 @@ pub use crate::paper::decider::PublicImage;
 
 // Terminal-only lifecycle path.
 pub use compress::{finish_uncompressed, finish_uncompressed_with_audit_and_nifs_adapter};
-pub use prove::{extend, extend_nebula_open, extend_with_nifs_adapter, prove, prove_with_nifs_adapter};
+pub use prove::{
+    extend, extend_nebula_open, extend_nebula_open_with_nifs_adapter, extend_with_nifs_adapter, prove,
+    prove_with_nifs_adapter,
+};
 pub use verify::{validate_final_witness_authority, verify_uncompressed};
 
 // Audit / decider path — chain replay, Spartan, diagnostic tests.

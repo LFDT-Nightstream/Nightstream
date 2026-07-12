@@ -410,7 +410,11 @@ fn sparse_matrix_row_lcs(matrix: &CcsMatrix<F>, vars: &[Var], rows: usize) -> Ve
                 }
             }
         }
-        CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+        CcsMatrix::CscWithSeededPhi81 {
+            csc,
+            blocks,
+            geometric_runs,
+        } => {
             for col in 0..csc.ncols.min(vars.len()) {
                 for index in csc.col_ptr[col]..csc.col_ptr[col + 1] {
                     let row = csc.row_idx[index];
@@ -421,6 +425,13 @@ fn sparse_matrix_row_lcs(matrix: &CcsMatrix<F>, vars: &[Var], rows: usize) -> Ve
             }
             for block in blocks {
                 block.for_each_term::<F, _>(|row, col, coefficient| {
+                    if row < rows && col < vars.len() {
+                        out[row].add_term(vars[col], coefficient);
+                    }
+                });
+            }
+            for run in geometric_runs {
+                run.for_each_term(|row, col, coefficient| {
                     if row < rows && col < vars.len() {
                         out[row].add_term(vars[col], coefficient);
                     }
@@ -960,7 +971,11 @@ fn sparse_coeff_rows(m: &CcsMatrix<F>, rows: usize) -> Vec<Vec<(usize, F)>> {
                 }
             }
         }
-        CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+        CcsMatrix::CscWithSeededPhi81 {
+            csc,
+            blocks,
+            geometric_runs,
+        } => {
             for col in 0..csc.ncols {
                 for idx in csc.col_ptr[col]..csc.col_ptr[col + 1] {
                     let row = csc.row_idx[idx];
@@ -971,6 +986,13 @@ fn sparse_coeff_rows(m: &CcsMatrix<F>, rows: usize) -> Vec<Vec<(usize, F)>> {
             }
             for block in blocks {
                 block.for_each_term::<F, _>(|row, col, coefficient| {
+                    if row < rows {
+                        out[row].push((col, coefficient));
+                    }
+                });
+            }
+            for run in geometric_runs {
+                run.for_each_term(|row, col, coefficient| {
                     if row < rows {
                         out[row].push((col, coefficient));
                     }
@@ -1374,7 +1396,11 @@ fn sparse_matrix_row_terms(m: &CcsMatrix<F>, app_var_slots: &[AppVariableSlot], 
                 }
             }
         }
-        CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+        CcsMatrix::CscWithSeededPhi81 {
+            csc,
+            blocks,
+            geometric_runs,
+        } => {
             for (col, slot) in app_var_slots.iter().enumerate().take(csc.ncols) {
                 for idx in csc.col_ptr[col]..csc.col_ptr[col + 1] {
                     let row = csc.row_idx[idx];
@@ -1390,6 +1416,17 @@ fn sparse_matrix_row_terms(m: &CcsMatrix<F>, app_var_slots: &[AppVariableSlot], 
             }
             for block in blocks {
                 block.for_each_term::<F, _>(|row, col, coefficient| {
+                    if row < rows && col < app_var_slots.len() {
+                        out[row].extend(
+                            app_variable_terms(app_var_slots[col])
+                                .into_iter()
+                                .map(|(lane_col, lane_coeff)| (lane_col, lane_coeff * coefficient)),
+                        );
+                    }
+                });
+            }
+            for run in geometric_runs {
+                run.for_each_term(|row, col, coefficient| {
                     if row < rows && col < app_var_slots.len() {
                         out[row].extend(
                             app_variable_terms(app_var_slots[col])

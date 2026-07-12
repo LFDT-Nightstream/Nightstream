@@ -26,8 +26,8 @@ use crate::paper::f_prime::source_image::{BitRange, FPrimeSourceImage};
 use crate::paper::nifs::circuit::{NifsVCircuitConfig, NifsVCircuitMessages};
 use crate::paper::params::Params;
 use crate::paper::reductions::pi_ccs;
-use crate::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsVConfig;
-use crate::paper::relations::{CcsClaim, CeClaim, Structure};
+use crate::paper::reductions::pi_ccs_split_nc_circuit::{SplitNcPiCcsVConfig, SplitNcVerifierRelation};
+use crate::paper::relations::{CcsClaim, CeClaim};
 
 pub(super) struct ArmShapes {
     pub base: SparseR1cs,
@@ -45,7 +45,7 @@ struct ShapeContext<'a> {
     params: &'a Params,
     app: &'a R1csShape,
     plan: &'a RecursiveStepImagePlan,
-    folded: &'a Structure,
+    folded: &'a SplitNcVerifierRelation,
     header_bundle: [F; 4],
     ell_d: usize,
     ell_n: usize,
@@ -55,7 +55,7 @@ struct ShapeContext<'a> {
 
 pub(super) fn synthesize_arm_shapes(
     params: &Params,
-    folded: &Structure,
+    folded: &SplitNcVerifierRelation,
     app: &R1csShape,
     plan: &RecursiveStepImagePlan,
 ) -> Result<[SparseR1cs; 3], R1csIvcError> {
@@ -70,25 +70,20 @@ pub(super) fn synthesize_arm_shapes(
 
 fn shape_context<'a>(
     params: &'a Params,
-    folded: &'a Structure,
+    folded: &'a SplitNcVerifierRelation,
     app: &'a R1csShape,
     plan: &'a RecursiveStepImagePlan,
 ) -> Result<ShapeContext<'a>, R1csIvcError> {
-    let dims = neo_reductions::engines::utils::build_dims_and_policy(params.inner(), folded).map_err(|error| {
-        R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(format!(
-            "verifier dimensions: {error}"
-        )))
-    })?;
-    let matrix_digest = neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache(folded, None);
-    let header_bundle = neo_reductions::engines::utils::pi_ccs_header_bundle_digest_fields(
+    let dims = neo_reductions::engines::utils::build_dims_and_policy_for_shape(
         params.inner(),
-        folded,
-        dims,
-        &matrix_digest,
+        folded.n(),
+        folded.m(),
+        folded.t(),
+        folded.max_degree(),
     )
     .map_err(|error| {
         R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(format!(
-            "verifier header: {error}"
+            "verifier dimensions: {error}"
         )))
     })?;
     Ok(ShapeContext {
@@ -96,7 +91,7 @@ fn shape_context<'a>(
         app,
         plan,
         folded,
-        header_bundle,
+        header_bundle: [F::ZERO; 4],
         ell_d: dims.ell_d,
         ell_n: dims.ell_n,
         ell_m: dims.ell_m,
@@ -218,7 +213,7 @@ fn step_config<'a>(context: &'a ShapeContext<'a>) -> FPrimeStepConfig<'a> {
         nifs: NifsVCircuitConfig {
             pi_ccs: SplitNcPiCcsVConfig {
                 params: context.params,
-                structure: context.folded,
+                structure: context.folded.clone(),
                 header_bundle: context.header_bundle,
                 ell_d: context.ell_d,
                 ell_n: context.ell_n,

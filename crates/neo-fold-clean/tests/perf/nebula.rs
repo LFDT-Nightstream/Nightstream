@@ -185,7 +185,7 @@ fn nebula_v3_targets_folded_f_prime_production_preflight() {
         match matrix {
             CcsMatrix::Identity { n } => stored_sparse_nnz += n,
             CcsMatrix::Csc(csc) => stored_sparse_nnz += csc.vals.len(),
-            CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+            CcsMatrix::CscWithSeededPhi81 { csc, blocks, .. } => {
                 stored_sparse_nnz += csc.vals.len();
                 seeded_blocks += blocks.len();
                 for block in blocks {

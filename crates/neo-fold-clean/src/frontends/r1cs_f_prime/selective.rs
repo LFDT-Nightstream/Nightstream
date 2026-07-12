@@ -6,7 +6,7 @@
 
 use std::collections::HashMap;
 
-use neo_ccs::{CcsMatrix, CcsStructure, CscMat, SeededPhi81LinearBlock, SparsePoly, Term};
+use neo_ccs::{CcsMatrix, CcsStructure, CscMat, GeometricRowRun};
 use neo_math::{D, F};
 use p3_field::{Field, PrimeCharacteristicRing};
 
@@ -21,9 +21,31 @@ use crate::engine::r1cs_circuit::builder::{
 use crate::engine::r1cs_circuit::Lc;
 use crate::paper::relations::Structure;
 
+#[path = "selective_shape.rs"]
+mod shape;
+#[path = "selective_terms.rs"]
+mod terms;
+pub(crate) use shape::{
+    audit_multi_branch_selective_low_norm_shape_with_alignment,
+    audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix, SelectiveLowNormShape,
+};
+use shape::{count_structure_rows, selective_polynomial};
+use terms::MatrixTerms;
+
 const EVAL_GROUP_SIZE: usize = 5;
 const BALANCED_FIELD_WIDTH: usize = 41;
 const BINARY_FIELD_WIDTH: usize = 64;
+const BIT: usize = 0;
+const GENERAL_SELECTOR: usize = 1;
+const A: usize = 2;
+const B: usize = 3;
+const C: usize = 4;
+const SBOX_INPUT: usize = 5;
+const CENTERED_UNIT: usize = 6;
+const EVAL_SELECTOR: usize = 7;
+const EVAL_PAIRS: [(usize, usize); EVAL_GROUP_SIZE] =
+    [(BIT, A), (B, SBOX_INPUT), (CENTERED_UNIT, 8), (9, 10), (11, 12)];
+const SELECTIVE_ARITY: usize = 13;
 
 struct SelectiveLayout {
     plans: Vec<SelectiveArmPlan>,
@@ -918,26 +940,23 @@ fn build_structure(
     zero_padding_cols: &[usize],
     cols: usize,
 ) -> Result<Structure, LowNormR1csError> {
-    const BIT: usize = 0;
-    const GENERAL_SELECTOR: usize = 1;
-    const A: usize = 2;
-    const B: usize = 3;
-    const C: usize = 4;
-    const SBOX_INPUT: usize = 5;
-    const CENTERED_UNIT: usize = 6;
-    const EVAL_SELECTOR: usize = 7;
-    const EVAL_PAIRS: [(usize, usize); EVAL_GROUP_SIZE] =
-        [(BIT, A), (B, SBOX_INPUT), (CENTERED_UNIT, 8), (9, 10), (11, 12)];
-    const ARITY: usize = 13;
-
     let eval_pair = |pair_index: usize| EVAL_PAIRS[pair_index];
 
-    let mut trips = (0..ARITY)
-        .map(|_| Vec::new())
-        .collect::<Vec<Vec<(usize, usize, F)>>>();
-    let mut seeded = (0..ARITY)
-        .map(|_| Vec::new())
-        .collect::<Vec<Vec<SeededPhi81LinearBlock>>>();
+    let expected_rows = count_structure_rows(
+        arms,
+        plans,
+        slots,
+        aliases,
+        equal_aliases,
+        shared_private_fields,
+        derived_product_sums,
+        selectors,
+        zero_padding_cols,
+        cols,
+    )?;
+    let mut matrix_terms = (0..SELECTIVE_ARITY)
+        .map(|index| MatrixTerms::new(index == SBOX_INPUT))
+        .collect::<Vec<_>>();
     let mut row_cursor = 0usize;
     {
         let mut emit_digit = |selector: Option<usize>, column: usize, centered: bool| {
@@ -947,8 +966,8 @@ fn build_structure(
             if centered {
                 return;
             }
-            trips[GENERAL_SELECTOR].push((row_cursor, selector.unwrap_or(0), F::ONE));
-            trips[BIT].push((row_cursor, column, F::ONE));
+            matrix_terms[GENERAL_SELECTOR].push((row_cursor, selector.unwrap_or(0), F::ONE));
+            matrix_terms[BIT].push((row_cursor, column, F::ONE));
             row_cursor += 1;
         };
 
@@ -988,15 +1007,15 @@ fn build_structure(
         }
     }
     let selector_row = row_cursor;
-    trips[GENERAL_SELECTOR].push((selector_row, 0, F::ONE));
-    trips[C].push((selector_row, 0, -F::ONE));
+    matrix_terms[GENERAL_SELECTOR].push((selector_row, 0, F::ONE));
+    matrix_terms[C].push((selector_row, 0, -F::ONE));
     for &selector in selectors {
-        trips[C].push((selector_row, selector, F::ONE));
+        matrix_terms[C].push((selector_row, selector, F::ONE));
     }
     row_cursor += 1;
     for &col in zero_padding_cols {
-        trips[GENERAL_SELECTOR].push((row_cursor, 0, F::ONE));
-        trips[C].push((row_cursor, col, F::ONE));
+        matrix_terms[GENERAL_SELECTOR].push((row_cursor, 0, F::ONE));
+        matrix_terms[C].push((row_cursor, col, F::ONE));
         row_cursor += 1;
     }
 
@@ -1014,46 +1033,25 @@ fn build_structure(
         for (source_row, skip) in skipped.iter().copied().enumerate() {
             if !skip {
                 row_map[source_row] = Some(row_cursor);
-                trips[GENERAL_SELECTOR].push((row_cursor, selectors[arm_index], F::ONE));
+                matrix_terms[GENERAL_SELECTOR].push((row_cursor, selectors[arm_index], F::ONE));
                 row_cursor += 1;
             }
         }
-        append_source_matrix(
-            &mut trips[A],
-            &mut seeded[A],
-            &arm.a,
-            &slots[arm_index],
-            definitions,
-            &row_map,
-        )?;
-        append_source_matrix(
-            &mut trips[B],
-            &mut seeded[B],
-            &arm.b,
-            &slots[arm_index],
-            definitions,
-            &row_map,
-        )?;
-        append_source_matrix(
-            &mut trips[C],
-            &mut seeded[C],
-            &arm.c,
-            &slots[arm_index],
-            definitions,
-            &row_map,
-        )?;
+        append_source_matrix(&mut matrix_terms[A], &arm.a, &slots[arm_index], definitions, &row_map)?;
+        append_source_matrix(&mut matrix_terms[B], &arm.b, &slots[arm_index], definitions, &row_map)?;
+        append_source_matrix(&mut matrix_terms[C], &arm.c, &slots[arm_index], definitions, &row_map)?;
         for trace in arm.poseidon2_traces() {
             for sbox in &trace.sboxes {
-                trips[GENERAL_SELECTOR].push((row_cursor, selectors[arm_index], F::ONE));
+                matrix_terms[GENERAL_SELECTOR].push((row_cursor, selectors[arm_index], F::ONE));
                 append_lc(
-                    &mut trips[SBOX_INPUT],
+                    &mut matrix_terms[SBOX_INPUT],
                     row_cursor,
                     &sbox.input,
                     &slots[arm_index],
                     definitions,
                 )?;
                 append_field(
-                    &mut trips[C],
+                    &mut matrix_terms[C],
                     row_cursor,
                     sbox.output_col,
                     F::ONE,
@@ -1066,9 +1064,9 @@ fn build_structure(
                 if definitions.get(trace.output_cols[lane]).is_some() {
                     continue;
                 }
-                trips[GENERAL_SELECTOR].push((row_cursor, selectors[arm_index], F::ONE));
+                matrix_terms[GENERAL_SELECTOR].push((row_cursor, selectors[arm_index], F::ONE));
                 append_field(
-                    &mut trips[C],
+                    &mut matrix_terms[C],
                     row_cursor,
                     trace.output_cols[lane],
                     F::ONE,
@@ -1076,7 +1074,7 @@ fn build_structure(
                     definitions,
                 )?;
                 append_lc_scaled(
-                    &mut trips[C],
+                    &mut matrix_terms[C],
                     row_cursor,
                     &trace.output_linear_forms[lane],
                     -F::ONE,
@@ -1090,9 +1088,9 @@ fn build_structure(
             if plans[arm_index].widths[trace.value_col] != 0 {
                 continue;
             }
-            trips[GENERAL_SELECTOR].push((row_cursor, selectors[arm_index], F::ONE));
+            matrix_terms[GENERAL_SELECTOR].push((row_cursor, selectors[arm_index], F::ONE));
             append_field(
-                &mut trips[CENTERED_UNIT],
+                &mut matrix_terms[CENTERED_UNIT],
                 row_cursor,
                 trace.value_col,
                 F::ONE,
@@ -1107,9 +1105,9 @@ fn build_structure(
                 let product_indices = (1..trace.coefficient_cols.len()).collect::<Vec<_>>();
                 let groups = product_indices.chunks(EVAL_GROUP_SIZE).collect::<Vec<_>>();
                 if groups.is_empty() {
-                    trips[EVAL_SELECTOR].push((row_cursor, selectors[arm_index], F::ONE));
+                    matrix_terms[EVAL_SELECTOR].push((row_cursor, selectors[arm_index], F::ONE));
                     append_field(
-                        &mut trips[C],
+                        &mut matrix_terms[C],
                         row_cursor,
                         trace.output_cols[limb],
                         F::ONE,
@@ -1118,7 +1116,7 @@ fn build_structure(
                     )?;
                     if limb == 0 {
                         append_field(
-                            &mut trips[C],
+                            &mut matrix_terms[C],
                             row_cursor,
                             trace.coefficient_cols[0],
                             -F::ONE,
@@ -1131,10 +1129,10 @@ fn build_structure(
                 }
                 let mut previous = None;
                 for (group_index, group) in groups.iter().enumerate() {
-                    trips[EVAL_SELECTOR].push((row_cursor, selectors[arm_index], F::ONE));
+                    matrix_terms[EVAL_SELECTOR].push((row_cursor, selectors[arm_index], F::ONE));
                     if group_index + 1 == groups.len() {
                         append_field(
-                            &mut trips[C],
+                            &mut matrix_terms[C],
                             row_cursor,
                             trace.output_cols[limb],
                             F::ONE,
@@ -1143,7 +1141,7 @@ fn build_structure(
                         )?;
                         if limb == 0 {
                             append_field(
-                                &mut trips[C],
+                                &mut matrix_terms[C],
                                 row_cursor,
                                 trace.coefficient_cols[0],
                                 -F::ONE,
@@ -1154,15 +1152,15 @@ fn build_structure(
                     } else {
                         let derived = &derived_product_sums[arm_index][derived_cursor];
                         derived_cursor += 1;
-                        append_slot(&mut trips[C], row_cursor, derived.slot, F::ONE);
+                        append_slot(&mut matrix_terms[C], row_cursor, derived.slot, F::ONE);
                     }
                     if let Some(previous) = previous {
-                        append_slot(&mut trips[C], row_cursor, previous, -F::ONE);
+                        append_slot(&mut matrix_terms[C], row_cursor, previous, -F::ONE);
                     }
                     for (pair_index, &term_index) in group.iter().enumerate() {
                         let (left, right) = eval_pair(pair_index);
                         append_field(
-                            &mut trips[left],
+                            &mut matrix_terms[left],
                             row_cursor,
                             trace.coefficient_cols[term_index],
                             F::ONE,
@@ -1170,7 +1168,7 @@ fn build_structure(
                             definitions,
                         )?;
                         append_field(
-                            &mut trips[right],
+                            &mut matrix_terms[right],
                             row_cursor,
                             trace.power_cols[term_index][limb],
                             F::ONE,
@@ -1188,9 +1186,9 @@ fn build_structure(
         for batch in arm.product_sum_batch_traces() {
             for identity in &batch.identities {
                 if identity.factors.len() <= EVAL_GROUP_SIZE {
-                    trips[EVAL_SELECTOR].push((row_cursor, selectors[arm_index], F::ONE));
+                    matrix_terms[EVAL_SELECTOR].push((row_cursor, selectors[arm_index], F::ONE));
                     append_lc(
-                        &mut trips[C],
+                        &mut matrix_terms[C],
                         row_cursor,
                         &identity.result,
                         &slots[arm_index],
@@ -1199,7 +1197,7 @@ fn build_structure(
                     for (pair_index, factor) in identity.factors.iter().enumerate() {
                         let (left, right) = eval_pair(pair_index);
                         append_lc_scaled(
-                            &mut trips[left],
+                            &mut matrix_terms[left],
                             row_cursor,
                             &factor.left,
                             factor.coefficient,
@@ -1207,7 +1205,7 @@ fn build_structure(
                             definitions,
                         )?;
                         append_lc(
-                            &mut trips[right],
+                            &mut matrix_terms[right],
                             row_cursor,
                             &factor.right,
                             &slots[arm_index],
@@ -1220,10 +1218,10 @@ fn build_structure(
                 let groups = identity.factors.chunks(EVAL_GROUP_SIZE).collect::<Vec<_>>();
                 let mut previous = None;
                 for (group_index, group) in groups.iter().enumerate() {
-                    trips[EVAL_SELECTOR].push((row_cursor, selectors[arm_index], F::ONE));
+                    matrix_terms[EVAL_SELECTOR].push((row_cursor, selectors[arm_index], F::ONE));
                     if group_index + 1 == groups.len() {
                         append_lc(
-                            &mut trips[C],
+                            &mut matrix_terms[C],
                             row_cursor,
                             &identity.result,
                             &slots[arm_index],
@@ -1232,15 +1230,15 @@ fn build_structure(
                     } else {
                         let derived = &derived_product_sums[arm_index][derived_cursor];
                         derived_cursor += 1;
-                        append_slot(&mut trips[C], row_cursor, derived.slot, F::ONE);
+                        append_slot(&mut matrix_terms[C], row_cursor, derived.slot, F::ONE);
                     }
                     if let Some(previous) = previous {
-                        append_slot(&mut trips[C], row_cursor, previous, -F::ONE);
+                        append_slot(&mut matrix_terms[C], row_cursor, previous, -F::ONE);
                     }
                     for (pair_index, factor) in group.iter().enumerate() {
                         let (left, right) = eval_pair(pair_index);
                         append_lc_scaled(
-                            &mut trips[left],
+                            &mut matrix_terms[left],
                             row_cursor,
                             &factor.left,
                             factor.coefficient,
@@ -1248,7 +1246,7 @@ fn build_structure(
                             definitions,
                         )?;
                         append_lc(
-                            &mut trips[right],
+                            &mut matrix_terms[right],
                             row_cursor,
                             &factor.right,
                             &slots[arm_index],
@@ -1273,44 +1271,35 @@ fn build_structure(
     // coordinates, and constrain them to zero rather than witness slack.
     let columns = cols.next_multiple_of(D);
     for column in cols..columns {
-        trips[GENERAL_SELECTOR].push((row_cursor, 0, F::ONE));
-        trips[C].push((row_cursor, column, F::ONE));
+        matrix_terms[GENERAL_SELECTOR].push((row_cursor, 0, F::ONE));
+        matrix_terms[C].push((row_cursor, column, F::ONE));
         row_cursor += 1;
     }
     let rows = row_cursor;
-    let mut matrices = Vec::with_capacity(ARITY);
-    for index in 0..ARITY {
-        let csc = CscMat::from_counted_triplets(core::mem::take(&mut trips[index]), rows, columns);
-        matrices.push(CcsMatrix::csc_with_seeded_phi81(
-            csc,
-            core::mem::take(&mut seeded[index]),
-        )?);
+    if rows != expected_rows {
+        return Err(trace_error("selective row count differs from emitted structure"));
     }
-    let term = |coefficient: F, powers: &[(usize, u32)]| {
-        let mut exps = vec![0u32; ARITY];
-        for &(index, power) in powers {
-            exps[index] = power;
+    let mut matrices = Vec::with_capacity(SELECTIVE_ARITY);
+    for mut terms in matrix_terms {
+        let csc = if terms.retain_geometric {
+            CscMat::from_counted_triplets(core::mem::take(&mut terms.explicit), rows, columns)
+        } else {
+            CscMat::from_triplets_and_geometric_runs(
+                core::mem::take(&mut terms.explicit),
+                &terms.geometric_runs,
+                rows,
+                columns,
+            )
+        };
+        if !terms.retain_geometric {
+            terms.geometric_runs.clear();
         }
-        Term {
-            coeff: coefficient,
-            exps,
-        }
-    };
-    let mut terms = vec![
-        term(F::ONE, &[(GENERAL_SELECTOR, 1), (BIT, 2)]),
-        term(-F::ONE, &[(GENERAL_SELECTOR, 1), (BIT, 1)]),
-        term(F::ONE, &[(GENERAL_SELECTOR, 1), (A, 1), (B, 1)]),
-        term(-F::ONE, &[(GENERAL_SELECTOR, 1), (C, 1)]),
-        term(F::ONE, &[(GENERAL_SELECTOR, 1), (SBOX_INPUT, 7)]),
-        term(F::ONE, &[(GENERAL_SELECTOR, 1), (CENTERED_UNIT, 3)]),
-        term(-F::ONE, &[(GENERAL_SELECTOR, 1), (CENTERED_UNIT, 1)]),
-        term(-F::ONE, &[(EVAL_SELECTOR, 1), (C, 1)]),
-    ];
-    for &(left, right) in &EVAL_PAIRS {
-        terms.push(term(F::ONE, &[(EVAL_SELECTOR, 1), (left, 1), (right, 1)]));
+        matrices.push(
+            CcsMatrix::csc_with_compact_rows(csc, terms.seeded, terms.geometric_runs)
+                .map_err(|error| trace_error(&error))?,
+        );
     }
-    let polynomial = SparsePoly::new(ARITY, terms);
-    CcsStructure::new_sparse(matrices, polynomial).map_err(|error| trace_error(&error.to_string()))
+    CcsStructure::new_sparse(matrices, selective_polynomial()).map_err(|error| trace_error(&error.to_string()))
 }
 
 fn skipped_selective_rows(arm: &SparseR1cs) -> Result<Vec<bool>, LowNormR1csError> {
@@ -1347,8 +1336,7 @@ fn skipped_selective_rows(arm: &SparseR1cs) -> Result<Vec<bool>, LowNormR1csErro
 }
 
 fn append_source_matrix(
-    trips: &mut Vec<(usize, usize, F)>,
-    seeded: &mut Vec<SeededPhi81LinearBlock>,
+    terms: &mut MatrixTerms,
     matrix: &CcsMatrix<F>,
     slots: &[Option<(usize, usize)>],
     definitions: &LinearDefinitions,
@@ -1358,7 +1346,7 @@ fn append_source_matrix(
         for field_col in 0..csc.ncols.min(slots.len()) {
             for index in csc.col_ptr[field_col]..csc.col_ptr[field_col + 1] {
                 if let Some(target_row) = row_map[csc.row_idx[index]] {
-                    append_field(trips, target_row, field_col, csc.vals[index], slots, definitions)?;
+                    append_field(terms, target_row, field_col, csc.vals[index], slots, definitions)?;
                 }
             }
         }
@@ -1368,12 +1356,12 @@ fn append_source_matrix(
         CcsMatrix::Identity { n } => {
             for source_row in 0..(*n).min(row_map.len()).min(slots.len()) {
                 if let Some(target_row) = row_map[source_row] {
-                    append_field(trips, target_row, source_row, F::ONE, slots, definitions)?;
+                    append_field(terms, target_row, source_row, F::ONE, slots, definitions)?;
                 }
             }
         }
         CcsMatrix::Csc(csc) => append_csc(csc)?,
-        CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+        CcsMatrix::CscWithSeededPhi81 { csc, blocks, .. } => {
             append_csc(csc)?;
             for block in blocks {
                 let target_start = row_map[block.row_start()]
@@ -1399,7 +1387,9 @@ fn append_source_matrix(
                     }
                     starts.push(target);
                 }
-                seeded.push(block.with_geometry(target_start, starts)?);
+                terms
+                    .seeded
+                    .push(block.with_geometry(target_start, starts)?);
             }
         }
     }
@@ -1407,17 +1397,17 @@ fn append_source_matrix(
 }
 
 fn append_lc(
-    trips: &mut Vec<(usize, usize, F)>,
+    terms: &mut MatrixTerms,
     row: usize,
     lc: &Lc,
     slots: &[Option<(usize, usize)>],
     definitions: &LinearDefinitions,
 ) -> Result<(), LowNormR1csError> {
-    append_lc_scaled(trips, row, lc, F::ONE, slots, definitions)
+    append_lc_scaled(terms, row, lc, F::ONE, slots, definitions)
 }
 
 fn append_lc_scaled(
-    trips: &mut Vec<(usize, usize, F)>,
+    terms: &mut MatrixTerms,
     row: usize,
     lc: &Lc,
     scale: F,
@@ -1425,16 +1415,16 @@ fn append_lc_scaled(
     definitions: &LinearDefinitions,
 ) -> Result<(), LowNormR1csError> {
     if lc.constant != F::ZERO {
-        trips.push((row, 0, lc.constant * scale));
+        terms.push((row, 0, lc.constant * scale));
     }
     for &(field_col, coefficient) in &lc.terms {
-        append_field(trips, row, field_col, coefficient * scale, slots, definitions)?;
+        append_field(terms, row, field_col, coefficient * scale, slots, definitions)?;
     }
     Ok(())
 }
 
 fn append_field(
-    trips: &mut Vec<(usize, usize, F)>,
+    terms: &mut MatrixTerms,
     row: usize,
     field_col: usize,
     coefficient: F,
@@ -1447,12 +1437,12 @@ fn append_field(
     let mut stack = vec![(field_col, coefficient)];
     while let Some((column, scale)) = stack.pop() {
         if column == 0 {
-            trips.push((row, 0, scale));
+            terms.push((row, 0, scale));
             continue;
         }
         if let Some(rhs) = definitions.get(column) {
             if rhs.constant != F::ZERO {
-                trips.push((row, 0, rhs.constant * scale));
+                terms.push((row, 0, rhs.constant * scale));
             }
             stack.extend(
                 rhs.terms
@@ -1463,30 +1453,27 @@ fn append_field(
         }
         let (start, width) =
             slots[column].ok_or_else(|| trace_error("retained row references an unencoded selective temporary"))?;
-        let radix = if width == BALANCED_FIELD_WIDTH {
-            F::from_u64(3)
-        } else {
-            F::from_u64(2)
-        };
-        let mut power = scale;
-        for bit in 0..width {
-            trips.push((row, start + bit, power));
-            power *= radix;
-        }
+        append_slot(terms, row, (start, width), scale);
     }
     Ok(())
 }
 
-fn append_slot(trips: &mut Vec<(usize, usize, F)>, row: usize, slot: (usize, usize), coefficient: F) {
+fn append_slot(terms: &mut MatrixTerms, row: usize, slot: (usize, usize), coefficient: F) {
     let (start, width) = slot;
     let radix = if width == BALANCED_FIELD_WIDTH {
         F::from_u64(3)
     } else {
         F::from_u64(2)
     };
+    if width > 1 {
+        terms
+            .geometric_runs
+            .push(GeometricRowRun::new(row, start, width, coefficient, radix));
+        return;
+    }
     let mut power = coefficient;
     for bit in 0..width {
-        trips.push((row, start + bit, power));
+        terms.push((row, start + bit, power));
         power *= radix;
     }
 }

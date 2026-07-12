@@ -8,11 +8,12 @@ use super::{shape, R1csIvcError};
 use crate::frontends::f_prime::recursive_plan::RecursiveStepImagePlan;
 use crate::frontends::r1cs_f_prime::lowering::MultiBranchLowNormR1cs;
 use crate::frontends::r1cs_f_prime::{
-    audit_multi_branch_selective_low_norm_width_with_alignment,
-    build_multi_branch_selective_low_norm_r1cs_with_alignment, R1csShape, SparseR1cs,
+    audit_multi_branch_selective_low_norm_shape_with_alignment,
+    build_multi_branch_selective_low_norm_r1cs_with_alignment, R1csShape, SelectiveLowNormShape, SparseR1cs,
 };
 use crate::lifecycle::Preprocessing;
 use crate::paper::params::Params;
+use crate::paper::reductions::pi_ccs_split_nc_circuit::SplitNcVerifierRelation;
 use crate::paper::relations::{CcsInstance, Structure};
 
 /// Hard ceiling shared with the production Road-A relation.
@@ -65,43 +66,48 @@ impl R1csIvcRelation {
         // input even when the user app itself is narrower (a tiny app may
         // have fewer than 257 columns). Every later round uses the compiled
         // relation itself, and acceptance still requires exact stabilization.
-        let mut verifier_structure = fixed_point_seed_structure();
-        let mut last_output = (verifier_structure.n, verifier_structure.m);
+        let seed = fixed_point_seed_structure();
+        let mut verifier_relation = SplitNcVerifierRelation::from_structure(&seed);
+        let mut last_output = (verifier_relation.n(), verifier_relation.m());
         for round in 0..MAX_ROUNDS {
-            let input_signature = relation_signature(&verifier_structure);
-            let arms = shape::synthesize_arm_shapes(params, &verifier_structure, app, plan)?;
-            drop(verifier_structure);
-            let next = Self::compile_arms(arms)?;
-            last_output = (next.structure().n, next.structure().m);
-            if round > 0 && input_signature == relation_signature(next.structure()) {
-                return Ok(next);
+            let input_signature = verifier_relation_signature(&verifier_relation);
+            let arms = shape::synthesize_arm_shapes(params, &verifier_relation, app, plan)?;
+            let next_shape = audit_multi_branch_selective_low_norm_shape_with_alignment(&arms, 0, D, arms[0].m_in % D)?;
+            last_output = (next_shape.rows, next_shape.columns);
+            if round > 0 && input_signature == shape_signature(&next_shape) {
+                return Self::compile_arms_selected(arms, next_shape);
             }
-            verifier_structure = next.relation.into_structure();
+            verifier_relation =
+                SplitNcVerifierRelation::from_parts(next_shape.rows, next_shape.columns, next_shape.polynomial);
         }
         Err(R1csIvcError::NoFixedPoint {
             rounds: MAX_ROUNDS,
-            input_rows: verifier_structure.n,
-            input_columns: verifier_structure.m,
+            input_rows: verifier_relation.n(),
+            input_columns: verifier_relation.m(),
             output_rows: last_output.0,
             output_columns: last_output.1,
         })
     }
 
-    fn compile_arms(arms: [SparseR1cs; 3]) -> Result<Self, R1csIvcError> {
+    fn compile_arms_selected(arms: [SparseR1cs; 3], shape: SelectiveLowNormShape) -> Result<Self, R1csIvcError> {
         let arm_shapes = std::array::from_fn(|index| ArmShape {
             rows: arms[index].n,
             columns: arms[index].m,
             public_columns: arms[index].m_in,
         });
         let public_fields = arms[0].m_in;
-        let width = audit_multi_branch_selective_low_norm_width_with_alignment(&arms, 0, D, public_fields % D)?;
-        if width.total_coordinates > R1CS_IVC_COMMITTED_COORDINATE_BUDGET {
+        if shape.audit.total_coordinates > R1CS_IVC_COMMITTED_COORDINATE_BUDGET {
             return Err(R1csIvcError::BudgetExceeded {
-                required: width.total_coordinates,
+                required: shape.audit.total_coordinates,
                 budget: R1CS_IVC_COMMITTED_COORDINATE_BUDGET,
             });
         }
         let relation = build_multi_branch_selective_low_norm_r1cs_with_alignment(&arms, 0, D, public_fields % D)?;
+        if relation_signature(relation.structure()) != shape_signature(&shape) {
+            return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
+                "shape-only selective audit differs from emitted relation".into(),
+            )));
+        }
         if relation.structure().m > R1CS_IVC_COMMITTED_COORDINATE_BUDGET {
             return Err(R1csIvcError::BudgetExceeded {
                 required: relation.structure().m,
@@ -189,6 +195,19 @@ impl R1csIvcRelation {
 
 fn relation_signature(structure: &Structure) -> (usize, usize, usize, u32) {
     (structure.n, structure.m, structure.t(), structure.max_degree())
+}
+
+fn verifier_relation_signature(relation: &SplitNcVerifierRelation) -> (usize, usize, usize, u32) {
+    (relation.n(), relation.m(), relation.t(), relation.max_degree())
+}
+
+fn shape_signature(shape: &SelectiveLowNormShape) -> (usize, usize, usize, u32) {
+    (
+        shape.rows,
+        shape.columns,
+        shape.polynomial.arity(),
+        shape.polynomial.max_degree(),
+    )
 }
 
 fn fixed_point_seed_structure() -> Structure {

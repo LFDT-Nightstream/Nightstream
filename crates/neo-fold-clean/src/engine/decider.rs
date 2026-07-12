@@ -1526,7 +1526,7 @@ fn split_nc_config(prep: &Preprocessing) -> Result<SplitNcPiCcsVConfig<'_>, Stri
     .map_err(|e| format!("header bundle: {e}"))?;
     Ok(SplitNcPiCcsVConfig {
         params: &prep.params,
-        structure: prep.structure(),
+        structure: prep.structure().into(),
         header_bundle,
         ell_d: dims.ell_d,
         ell_n: dims.ell_n,

@@ -39,7 +39,7 @@
 //!   can be reused inside F' where the inputs are *also* witness wires
 //!   rather than test-time constants.
 
-use neo_ccs::CcsStructure;
+use neo_ccs::{CcsStructure, SparsePoly};
 use neo_math::ring::D;
 use neo_math::{KExtensions, F, K};
 use p3_field::PrimeCharacteristicRing;
@@ -64,6 +64,61 @@ use crate::paper::reductions::pi_dec_circuit::{
 use crate::paper::relations::product_commitment_circuit::{alloc_adv, enforce_adv_equality, AdvCommitmentWires};
 use crate::paper::relations::{validate_adv_shape, CcsClaim, CeClaim};
 
+/// Matrix-independent CCS header consumed by the in-circuit verifier.
+///
+/// The verifier evaluates the relation polynomial over claimed matrix
+/// evaluations; it never reads a matrix coefficient. Owning only this header
+/// makes that boundary explicit and lets preprocessing discover recursive
+/// dimensions without allocating candidate matrices.
+#[derive(Clone)]
+pub struct SplitNcVerifierRelation {
+    n: usize,
+    m: usize,
+    polynomial: SparsePoly<F>,
+}
+
+impl SplitNcVerifierRelation {
+    pub fn from_structure(structure: &CcsStructure<F>) -> Self {
+        Self::from_parts(structure.n, structure.m, structure.f.clone())
+    }
+
+    pub(crate) fn from_parts(n: usize, m: usize, polynomial: SparsePoly<F>) -> Self {
+        assert!(n > 0, "SplitNc verifier relation requires at least one row");
+        assert!(m > 0, "SplitNc verifier relation requires at least one column");
+        assert!(
+            polynomial.arity() > 0,
+            "SplitNc verifier relation requires a nonempty polynomial"
+        );
+        Self { n, m, polynomial }
+    }
+
+    pub fn n(&self) -> usize {
+        self.n
+    }
+
+    pub fn m(&self) -> usize {
+        self.m
+    }
+
+    pub fn t(&self) -> usize {
+        self.polynomial.arity()
+    }
+
+    pub fn max_degree(&self) -> u32 {
+        self.polynomial.max_degree()
+    }
+
+    pub fn polynomial(&self) -> &SparsePoly<F> {
+        &self.polynomial
+    }
+}
+
+impl From<&CcsStructure<F>> for SplitNcVerifierRelation {
+    fn from(structure: &CcsStructure<F>) -> Self {
+        Self::from_structure(structure)
+    }
+}
+
 /// Static configuration for one SplitNc Π_CCS.V invocation.
 ///
 /// Everything here is baked in at gadget-emit time:
@@ -74,7 +129,7 @@ use crate::paper::relations::{validate_adv_shape, CcsClaim, CeClaim};
 ///   `(params, structure)`).
 pub struct SplitNcPiCcsVConfig<'a> {
     pub params: &'a Params,
-    pub structure: &'a CcsStructure<F>,
+    pub structure: SplitNcVerifierRelation,
     pub header_bundle: [F; 4],
     pub ell_d: usize,
     pub ell_n: usize,
@@ -525,7 +580,7 @@ fn enforce_split_nc_pi_ccs_v_inner(
     let rhs_fe = enforce_fe_terminal_identity(
         builder,
         &FeTerminalInputs {
-            poly: &cfg.structure.f,
+            poly: cfg.structure.polynomial(),
             t,
             k_mcs,
             gamma: ch.gamma,
@@ -738,10 +793,11 @@ fn as_dec_claim_wires(claim: &CeClaimWires) -> DecCeClaimWires {
 /// the verifier reaches indexing-heavy gadgets.
 fn validate_fresh_shape(cfg: &SplitNcPiCcsVConfig<'_>, idx: usize, f: &CcsClaim) -> Result<(), Error> {
     let kappa = cfg.params.kappa() as usize;
-    if f.m_in > cfg.structure.m {
+    if f.m_in > cfg.structure.m() {
         return Err(Error::Shape(format!(
             "fresh[{idx}].m_in ({}) > structure.m ({})",
-            f.m_in, cfg.structure.m
+            f.m_in,
+            cfg.structure.m()
         )));
     }
     if f.x.len() != f.m_in {
@@ -797,10 +853,11 @@ fn validate_ce_shape(cfg: &SplitNcPiCcsVConfig<'_>, label: &str, ce: &CeClaim) -
         )));
     }
     validate_adv_shape(ce.adv.as_ref(), D, kappa, label).map_err(Error::Shape)?;
-    if ce.m_in > cfg.structure.m {
+    if ce.m_in > cfg.structure.m() {
         return Err(Error::Shape(format!(
             "{label}.m_in ({}) > structure.m ({})",
-            ce.m_in, cfg.structure.m
+            ce.m_in,
+            cfg.structure.m()
         )));
     }
     if ce.X.rows() != D || ce.X.cols() != ce.m_in {
@@ -839,10 +896,11 @@ fn validate_output_ce_shape(cfg: &SplitNcPiCcsVConfig<'_>, label: &str, ce: &CeC
         )));
     }
     validate_adv_shape(ce.adv.as_ref(), D, kappa, label).map_err(Error::Shape)?;
-    if ce.m_in > cfg.structure.m {
+    if ce.m_in > cfg.structure.m() {
         return Err(Error::Shape(format!(
             "{label}.m_in ({}) > structure.m ({})",
-            ce.m_in, cfg.structure.m
+            ce.m_in,
+            cfg.structure.m()
         )));
     }
     if ce.X.rows() != D {

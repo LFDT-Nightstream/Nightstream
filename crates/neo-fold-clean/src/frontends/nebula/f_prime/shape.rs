@@ -29,7 +29,7 @@ use crate::paper::f_prime::source_image::{BitRange, FPrimeSourceImage};
 use crate::paper::nifs::circuit::{NifsVCircuitConfig, NifsVCircuitMessages};
 use crate::paper::params::Params;
 use crate::paper::reductions::pi_ccs;
-use crate::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsVConfig;
+use crate::paper::reductions::pi_ccs_split_nc_circuit::{SplitNcPiCcsVConfig, SplitNcVerifierRelation};
 use crate::paper::relations::{CcsClaim, CeClaim, Structure};
 
 pub(super) struct ArmShapes {
@@ -55,13 +55,13 @@ struct ShapeContext<'a> {
     ell_n: usize,
     ell_m: usize,
     d_sc: usize,
-    folded: &'a Structure,
+    folded: &'a SplitNcVerifierRelation,
     application: Option<&'a NebulaApplication>,
 }
 
 pub(super) fn synthesize_arm_shapes(
     params: &Params,
-    folded: &Structure,
+    folded: &SplitNcVerifierRelation,
     plan: &NebulaPlan,
     application: Option<&NebulaApplication>,
 ) -> Result<ArmShapes, NebulaFPrimeRelationError> {
@@ -93,7 +93,8 @@ pub(super) fn audit_arm_shapes(
     folded: &Structure,
     plan: &NebulaPlan,
 ) -> Result<NebulaFPrimeFieldShapeAudit, NebulaFPrimeRelationError> {
-    let context = shape_context(params, folded, plan, None)?;
+    let folded_relation = SplitNcVerifierRelation::from_structure(folded);
+    let context = shape_context(params, &folded_relation, plan, None)?;
     let base = arm_shape(synthesize_base(&context)?.shape);
     let bootstrap_recursive = arm_shape(synthesize_recursive(&context, false)?.shape);
     let recursive = arm_shape(synthesize_recursive(&context, true)?.shape);
@@ -108,25 +109,23 @@ pub(super) fn audit_arm_shapes(
 
 fn shape_context<'a>(
     params: &'a Params,
-    folded: &'a Structure,
+    folded: &'a SplitNcVerifierRelation,
     plan: &'a NebulaPlan,
     application: Option<&'a NebulaApplication>,
 ) -> Result<ShapeContext<'a>, NebulaFPrimeRelationError> {
-    let dims = neo_reductions::engines::utils::build_dims_and_policy(params.inner(), folded)
-        .map_err(|error| NebulaFPrimeRelationError::Geometry(format!("verifier dimensions: {error}")))?;
-    let matrix_digest = neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache(folded, None);
-    let header_bundle = neo_reductions::engines::utils::pi_ccs_header_bundle_digest_fields(
+    let dims = neo_reductions::engines::utils::build_dims_and_policy_for_shape(
         params.inner(),
-        folded,
-        dims,
-        &matrix_digest,
+        folded.n(),
+        folded.m(),
+        folded.t(),
+        folded.max_degree(),
     )
-    .map_err(|error| NebulaFPrimeRelationError::Geometry(format!("verifier header: {error}")))?;
+    .map_err(|error| NebulaFPrimeRelationError::Geometry(format!("verifier dimensions: {error}")))?;
     Ok(ShapeContext {
         params,
         plan,
         config: plan.config(),
-        header_bundle,
+        header_bundle: [F::ZERO; 4],
         ell_d: dims.ell_d,
         ell_n: dims.ell_n,
         ell_m: dims.ell_m,
@@ -306,7 +305,7 @@ fn step_config<'a>(context: &'a ShapeContext<'a>) -> FPrimeStepConfig<'a> {
         nifs: NifsVCircuitConfig {
             pi_ccs: SplitNcPiCcsVConfig {
                 params: context.params,
-                structure: context.folded,
+                structure: context.folded.clone(),
                 header_bundle: context.header_bundle,
                 ell_d: context.ell_d,
                 ell_n: context.ell_n,

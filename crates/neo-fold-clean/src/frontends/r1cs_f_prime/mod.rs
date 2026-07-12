@@ -21,6 +21,7 @@ pub mod lowering;
 mod selective;
 mod selective_audit;
 pub mod structure;
+mod ternary_encoding;
 
 pub use compiler::{
     compile_chunk, compile_step, start_chain, R1csChainState, R1csCompiledStep, R1csCompilerContext, R1csCompilerError,
@@ -34,6 +35,10 @@ pub use lowering::{
     build_multi_branch_low_norm_r1cs, build_multi_branch_low_norm_r1cs_with_alignment, lower_field_r1cs,
     lower_sparse_r1cs_to_low_norm, FieldR1csLoweringError, FixedR1csBranch, FixedShapeLowNormR1cs, LowNormR1cs,
     LowNormR1csError, LoweredFieldR1cs, MultiBranchLowNormR1cs,
+};
+pub(crate) use selective::{
+    audit_multi_branch_selective_low_norm_shape_with_alignment,
+    audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix, SelectiveLowNormShape,
 };
 pub use selective::{
     audit_multi_branch_selective_low_norm_width_with_alignment,

@@ -24,7 +24,9 @@ use crate::frontends::nebula::fingerprint::Gammas;
 use crate::frontends::nebula::layout::LayoutError;
 use crate::frontends::nebula::plan::NebulaPlan;
 use crate::frontends::nebula::trace::SegmentTrace;
-use crate::frontends::r1cs_f_prime::lowering::{normalized_field_assignment_with_columns, LowNormR1csError};
+use crate::frontends::r1cs_f_prime::lowering::{
+    normalized_field_assignment, normalized_source_column, LowNormR1csError,
+};
 use crate::lifecycle::{self, Preprocessing, Uncompressed, UncompressedAudit};
 use crate::paper::construction2::{FoldProof, NebulaError, NebulaLane, ProofState, SemanticStateMode, State};
 use crate::paper::digest::{
@@ -112,6 +114,9 @@ pub enum NebulaFPrimeChainError {
     UnexpectedApplicationTrace,
     #[error("folded Nebula F': application semantic input does not match the carried state")]
     SemanticInputMismatch,
+    #[cfg(feature = "perf-timers")]
+    #[error("folded Nebula F' profiler requested {requested} steps from a {available}-step segment")]
+    InvalidProfileStepCount { requested: usize, available: usize },
 }
 
 /// Verifier-owned fixed-point relation, plan, and lifecycle preprocessing.
@@ -160,14 +165,31 @@ impl NebulaFPrimePreprocessing {
         Self::from_relation(params, plan, relation)
     }
 
+    /// Profile an exact production relation even when it exceeds the normal
+    /// committed-coordinate gate. This constructor is absent in normal builds.
+    #[cfg(feature = "perf-timers")]
+    #[doc(hidden)]
+    pub fn new_seeded_with_application_unbounded_for_profile(
+        params: Params,
+        plan: NebulaPlan,
+        application: NebulaApplication,
+        seed: u64,
+    ) -> Result<Self, NebulaFPrimeChainError> {
+        let relation =
+            NebulaFPrimeRelation::compile_application_fixed_point_unbounded_for_profile(&params, &plan, application)?;
+        let _ = ajtai::setup_seeded(&params, relation.structure(), seed);
+        Self::from_relation(params, plan, relation)
+    }
+
     fn from_relation(
         params: Params,
         plan: NebulaPlan,
         mut relation: NebulaFPrimeRelation,
     ) -> Result<Self, NebulaFPrimeChainError> {
-        let mut prep = lifecycle::preprocess(params, relation.structure().clone(), Some(relation.public_input_len()))?
-            .with_nebula(relation.nebula_config().clone())
-            .with_terminal_induction();
+        let mut prep =
+            lifecycle::preprocess_shared(params, relation.structure_arc(), Some(relation.public_input_len()))?
+                .with_nebula(relation.nebula_config().clone())
+                .with_terminal_induction();
         if let Some(application) = relation.application() {
             let mode = crate::frontends::r1cs_f_prime::semantic_state_mode_for_plan(application.recursive_plan());
             let initial =
@@ -283,6 +305,33 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
         &mut self,
         trace: &ApplicationSegmentTrace,
     ) -> Result<(), NebulaFPrimeChainError> {
+        self.append_application_steps(trace, self.prep.plan().params().steps_per_segment())
+    }
+
+    /// Append a nonterminal prefix of a production segment for per-fold
+    /// profiling. The resulting audit is intentionally not terminal-verifiable.
+    #[cfg(feature = "perf-timers")]
+    #[doc(hidden)]
+    pub fn append_application_prefix_for_profile(
+        &mut self,
+        trace: &ApplicationSegmentTrace,
+        step_count: usize,
+    ) -> Result<(), NebulaFPrimeChainError> {
+        let available = self.prep.plan().params().steps_per_segment();
+        if step_count == 0 || step_count > available {
+            return Err(NebulaFPrimeChainError::InvalidProfileStepCount {
+                requested: step_count,
+                available,
+            });
+        }
+        self.append_application_steps(trace, step_count)
+    }
+
+    fn append_application_steps(
+        &mut self,
+        trace: &ApplicationSegmentTrace,
+        step_count: usize,
+    ) -> Result<(), NebulaFPrimeChainError> {
         #[cfg(feature = "perf-timers")]
         let segment_started = std::time::Instant::now();
         let application = self
@@ -304,13 +353,16 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
         let mut ts_in = memory.ts_in;
         let mut h_in = [K::ONE; 4];
         let mut sp_in = [0; 2];
+        let mut assignments = trace.assignment_cursor();
 
-        for step in 0..params.steps_per_segment() {
+        for step in 0..step_count {
             #[cfg(feature = "perf-timers")]
             let step_started = std::time::Instant::now();
             #[cfg(feature = "perf-timers")]
             let application_started = std::time::Instant::now();
-            let assignment = trace.assignment(step);
+            let assignment = assignments
+                .next()
+                .expect("application trace has one assignment per memory step");
             application
                 .shape()
                 .is_satisfied_by(assignment)
@@ -413,7 +465,7 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
         eprintln!(
             "[wasm-nebula-segment] segment={} steps={} precommit={:.3}s total={:.3}s",
             memory.seg_idx,
-            params.steps_per_segment(),
+            step_count,
             precommit_elapsed.as_secs_f64(),
             segment_started.elapsed().as_secs_f64(),
         );
@@ -727,8 +779,12 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
         }
         #[cfg(feature = "perf-timers")]
         let normalize_started = std::time::Instant::now();
-        let (field_assignment, source_columns) = normalized_field_assignment_with_columns(&builder, &public_outputs)
-            .map_err(NebulaFPrimeRelationError::from)?;
+        let field_assignment =
+            normalized_field_assignment(&builder, &public_outputs).map_err(NebulaFPrimeRelationError::from)?;
+        let builder_columns = actual.1;
+        let column_family_ranges = builder.column_family_ranges().to_vec();
+        drop(builder);
+        crate::heap::release_unused_pages();
         #[cfg(feature = "perf-timers")]
         let normalize_elapsed = normalize_started.elapsed();
         #[cfg(feature = "perf-timers")]
@@ -745,16 +801,15 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
             normalize_elapsed.as_secs_f64(),
             instance_started.elapsed().as_secs_f64(),
             total_started.elapsed().as_secs_f64(),
-            builder.rows(),
-            builder.witness().len(),
+            actual.0,
+            actual.1,
             field_assignment.len(),
         );
         match instance {
             Err(NebulaFPrimeRelationError::LowNorm(LowNormR1csError::InferredWidthViolation { col, width, value })) => {
-                let source_col = source_columns.get(col).copied();
+                let source_col = normalized_source_column(builder_columns, &public_outputs, col);
                 let source_range = source_col.and_then(|source_col| {
-                    builder
-                        .column_family_ranges()
+                    column_family_ranges
                         .iter()
                         .filter(|range| range.column_start <= source_col && source_col < range.column_end)
                         .min_by_key(|range| range.column_end - range.column_start)

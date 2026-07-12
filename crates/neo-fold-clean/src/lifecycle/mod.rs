@@ -237,7 +237,7 @@ pub enum Error {
 /// these params/setup. Proofs must never carry or choose params/setup.
 pub struct Preprocessing {
     pub params: Params,
-    structure: Structure,
+    structure: std::sync::Arc<Structure>,
     pub log: AjtaiSModule,
     pub vk: VerifierKey,
     pub(crate) mix_rhos_commits: RlcMixer,
@@ -324,7 +324,7 @@ pub struct Preprocessing {
 
 impl Preprocessing {
     pub fn structure(&self) -> &Structure {
-        &self.structure
+        self.structure.as_ref()
     }
 
     /// Read-only view of the verifier-owned semantic-state mode. See
@@ -449,7 +449,7 @@ impl Preprocessing {
         Ok(crate::paper::nifs::circuit::NifsVCircuitConfig {
             pi_ccs: crate::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsVConfig {
                 params: &self.params,
-                structure: (&self.structure).into(),
+                structure: self.structure.as_ref().into(),
                 header_bundle: self.pi_ccs_header_bundle,
                 ell_d: dims.ell_d,
                 ell_n: dims.ell_n,
@@ -594,9 +594,27 @@ pub fn preprocess(
     structure: Structure,
     public_input_len: Option<usize>,
 ) -> Result<Preprocessing, Error> {
+    preprocess_shared(params, std::sync::Arc::new(structure), public_input_len)
+}
+
+pub(crate) fn preprocess_shared(
+    params: Params,
+    structure: std::sync::Arc<Structure>,
+    public_input_len: Option<usize>,
+) -> Result<Preprocessing, Error> {
     let cols = structure.m.div_ceil(D);
     let log = AjtaiSModule::from_global_for_dims(D, cols)?;
-    preprocess_with_test_log(params, structure, log, public_input_len)
+    let optimized_cache = OptimizedStructureCache::build_shared(std::sync::Arc::clone(&structure))?;
+    crate::heap::release_unused_pages();
+    preprocess_with_test_log_and_optimized_cache(
+        params,
+        structure,
+        log,
+        ajtai_rlc_mixer,
+        ajtai_dec_mixer,
+        public_input_len,
+        optimized_cache,
+    )
 }
 
 /// Build preprocessing with an explicitly supplied Ajtai module.
@@ -611,7 +629,8 @@ pub fn preprocess_with_test_log(
     log: AjtaiSModule,
     public_input_len: Option<usize>,
 ) -> Result<Preprocessing, Error> {
-    let optimized_cache = OptimizedStructureCache::build(&structure)?;
+    let structure = std::sync::Arc::new(structure);
+    let optimized_cache = OptimizedStructureCache::build_shared(std::sync::Arc::clone(&structure))?;
     preprocess_with_test_log_and_optimized_cache(
         params,
         structure,
@@ -631,14 +650,14 @@ pub fn preprocess_with_test_log(
 /// verifier-derived structure artifact.
 pub(crate) fn preprocess_with_test_log_and_optimized_cache(
     params: Params,
-    structure: Structure,
+    structure: std::sync::Arc<Structure>,
     log: AjtaiSModule,
     mix_rhos_commits: RlcMixer,
     combine_b_pows: DecMixer,
     public_input_len: Option<usize>,
     optimized_cache: OptimizedStructureCache,
 ) -> Result<Preprocessing, Error> {
-    validate_ajtai_context(&params, &structure, &log)?;
+    validate_ajtai_context(&params, structure.as_ref(), &log)?;
     let live_shape = (structure.n, structure.m, structure.t());
     if optimized_cache.shape() != live_shape {
         return Err(Error::StructureCacheMismatch);
@@ -649,11 +668,11 @@ pub(crate) fn preprocess_with_test_log_and_optimized_cache(
     // `structure_digest` also binds, so derive the structure digest from that
     // same matrix digest instead of walking the matrices twice here.
     let structure_digest =
-        crate::paper::digest::structure_digest_from_mat_digest(&structure, optimized_cache.mat_digest());
-    let dims = neo_reductions::engines::utils::build_dims_and_policy(params.inner(), &structure)?;
+        crate::paper::digest::structure_digest_from_mat_digest(structure.as_ref(), optimized_cache.mat_digest());
+    let dims = neo_reductions::engines::utils::build_dims_and_policy(params.inner(), structure.as_ref())?;
     let pi_ccs_header_bundle = neo_reductions::engines::utils::pi_ccs_header_bundle_digest_fields(
         params.inner(),
-        &structure,
+        structure.as_ref(),
         dims,
         optimized_cache.mat_digest(),
     )?;

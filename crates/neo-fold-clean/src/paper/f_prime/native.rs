@@ -229,7 +229,7 @@ pub fn prove_with_semantic_state(
                 nebula: nebula.clone(),
             };
             let mut tr = f_prime_step_transcript(vk, structure_digest, &state_in, chunk_digest);
-            let (next_running, nifs_proof) = nifs::prove(
+            let (next_running, nifs_proof) = nifs::prove_owned(
                 &mut tr,
                 pp,
                 s,
@@ -239,7 +239,7 @@ pub fn prove_with_semantic_state(
                 mix_rhos_commits,
                 combine_b_pows,
                 latest.instances,
-                &running,
+                running,
             )?;
             (next_running, FoldProof::Recursive(nifs_proof))
         }
@@ -280,13 +280,14 @@ pub fn prove_with_semantic_state(
         SemanticStateAdvance::Stateful(_) => SemanticStateMode::Stateful,
     };
     let x_out = construction2::compute_x_out(vk, pp, structure_digest, &next_state, semantic_mode);
+    let semantic_state_digest = next_state.semantic_state_digest;
 
     Ok((
-        next_state.clone(),
+        next_state,
         StepProof {
             fold,
             nebula_open,
-            semantic_state_digest: next_state.semantic_state_digest,
+            semantic_state_digest,
             x_out,
         },
     ))

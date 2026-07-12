@@ -30,6 +30,34 @@ pub fn prove(
     fresh: Vec<CcsInstance>,
     running: &RunningInstance,
 ) -> Result<(RunningInstance, NifsProof), Error> {
+    prove_owned(
+        tr,
+        pp,
+        s,
+        cache,
+        log,
+        lanes,
+        mix_rhos_commits,
+        combine_b_pows,
+        fresh,
+        running.clone(),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prove_owned(
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    log: &AjtaiSModule,
+    lanes: Option<&LaneScheme>,
+    mix_rhos_commits: RlcMixer,
+    combine_b_pows: DecMixer,
+    fresh: Vec<CcsInstance>,
+    running: RunningInstance,
+) -> Result<(RunningInstance, NifsProof), Error> {
+    crate::heap::release_unused_pages();
     #[cfg(feature = "perf-timers")]
     let t_witnesses = std::time::Instant::now();
     let (fresh_claims, fresh_witnesses) = split_fresh_instances(fresh);
@@ -43,7 +71,7 @@ pub fn prove(
     #[cfg(feature = "perf-timers")]
     let t_ccs = std::time::Instant::now();
     let (pi_ccs_proof, pi_dec_precompute) =
-        pi_ccs::prove_from_parts(tr, pp, s, cache, log, &fresh_claims, &fresh_witnesses, running)?;
+        pi_ccs::prove_from_parts(tr, pp, s, cache, log, &fresh_claims, &fresh_witnesses, &running)?;
     #[cfg(feature = "perf-timers")]
     eprintln!(
         "[nifs-prove] pi_ccs                         {:>7.2}s",
@@ -69,6 +97,10 @@ pub fn prove(
         "[nifs-prove] pi_rlc                         {:>7.2}s",
         t_rlc.elapsed().as_secs_f64()
     );
+    drop(all_witnesses);
+    drop(fresh_witnesses);
+    drop(running);
+    crate::heap::release_unused_pages();
 
     // 3. Π_DEC — split_b back to k CE claims of norm b.
     #[cfg(feature = "perf-timers")]
@@ -95,12 +127,14 @@ pub fn prove(
         witnesses: dec_out.witnesses,
         parent_authority: Some(rlc_out.claim),
     };
-    Ok((
+    let out = (
         next_running,
         NifsProof {
             pi_ccs: pi_ccs_proof,
             pi_rlc: pi_rlc_proof,
             pi_dec: pi_dec_proof,
         },
-    ))
+    );
+    crate::heap::release_unused_pages();
+    Ok(out)
 }

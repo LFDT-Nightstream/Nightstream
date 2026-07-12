@@ -7,12 +7,34 @@ use neo_ccs::{CcsMatrix, CscMat};
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SelectiveFamilyWidthAudit {
     pub name: &'static str,
+    pub inclusive_rows: usize,
     pub unit_columns: usize,
     pub balanced_columns: usize,
     pub binary_columns: usize,
     pub coordinates_before_aliases: usize,
     pub poseidon2_permutations: usize,
     pub poseidon2_coordinates: usize,
+}
+
+fn covered_rows(ranges: &[(usize, usize)]) -> usize {
+    let mut ranges = ranges.to_vec();
+    ranges.sort_unstable();
+    let mut total = 0usize;
+    let mut current = None::<(usize, usize)>;
+    for (start, end) in ranges {
+        current = match current {
+            None => Some((start, end)),
+            Some((current_start, current_end)) if start <= current_end => Some((current_start, current_end.max(end))),
+            Some((current_start, current_end)) => {
+                total += current_end - current_start;
+                Some((start, end))
+            }
+        };
+    }
+    if let Some((start, end)) = current {
+        total += end - start;
+    }
+    total
 }
 
 /// Retained source values owned by direct selective trace classes.
@@ -139,6 +161,7 @@ pub(super) fn row_family_width_audits(
             }
             SelectiveFamilyWidthAudit {
                 name: *name,
+                inclusive_rows: covered_rows(ranges),
                 unit_columns,
                 balanced_columns,
                 binary_columns,

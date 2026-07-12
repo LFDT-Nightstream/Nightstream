@@ -36,7 +36,7 @@ pub(super) struct ArmShapes {
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct SemanticValues {
+pub(crate) struct SemanticValues {
     pub input: Option<[F; 4]>,
     pub output: Option<[F; 4]>,
 }
@@ -294,7 +294,7 @@ fn shape_app_assignment(app: &R1csShape) -> Vec<F> {
     assignment
 }
 
-pub(super) fn semantic_values(plan: &RecursiveStepImagePlan, assignment: &[F]) -> Result<SemanticValues, R1csIvcError> {
+pub(crate) fn semantic_values(plan: &RecursiveStepImagePlan, assignment: &[F]) -> Result<SemanticValues, R1csIvcError> {
     let Some(state) = plan.state_x_out.as_ref() else {
         return Ok(SemanticValues {
             input: None,
@@ -317,7 +317,7 @@ pub(super) fn semantic_values(plan: &RecursiveStepImagePlan, assignment: &[F]) -
     Ok(SemanticValues { input, output })
 }
 
-pub(super) fn digest_mode(plan: &RecursiveStepImagePlan) -> StateXOutDigestMode {
+pub(crate) fn digest_mode(plan: &RecursiveStepImagePlan) -> StateXOutDigestMode {
     let mode = super::super::semantic_state_mode_for_plan(plan);
     match mode {
         SemanticStateMode::Stateless => StateXOutDigestMode::Stateless,
@@ -356,12 +356,12 @@ pub(super) fn enforce_recursive_application(
     Ok(output)
 }
 
-struct SemanticWires {
+pub(crate) struct SemanticWires {
     input: Option<[Var; 4]>,
     output: Option<[Var; 4]>,
 }
 
-fn enforce_semantic_digests(
+pub(crate) fn enforce_semantic_digests(
     builder: &mut R1csBuilder,
     plan: &RecursiveStepImagePlan,
     assignment: &[F],
@@ -427,7 +427,7 @@ fn semantic_digest_wires(builder: &mut R1csBuilder, values: impl IntoIterator<It
     enforce_poseidon2_hash(builder, &preimage)
 }
 
-fn bind_semantic_state(
+pub(crate) fn bind_semantic_state(
     builder: &mut R1csBuilder,
     plan: &RecursiveStepImagePlan,
     output: &FPrimeStepOutput,
@@ -462,7 +462,7 @@ fn bind_digest(builder: &mut R1csBuilder, left: &[Var; 4], right: &[Var; 4]) {
     }
 }
 
-fn pin_app_constant(plan: &RecursiveStepImagePlan) -> bool {
+pub(crate) fn pin_app_constant(plan: &RecursiveStepImagePlan) -> bool {
     let Some(state) = plan.state_x_out.as_ref() else {
         return plan.app_private_var_widths.iter().any(|&width| width < 64);
     };

@@ -379,31 +379,42 @@ impl NebulaParams {
     /// canonical pads (all-zero fields, `pad = 1`). Output length is
     /// [`Self::ops_lane_bits`], every element a bit.
     pub fn encode_ops_lane(&self, ops: &[MemOpRecord]) -> Result<Vec<F>, LayoutError> {
-        if ops.len() > self.b_ops {
+        let slots = ops.iter().copied().map(Some).collect::<Vec<_>>();
+        self.encode_op_slots(&slots)
+    }
+
+    /// Encode verifier-fixed operation slots. `None` is a canonical pad and
+    /// active slots may appear after it; timestamps use the running active count.
+    pub fn encode_op_slots(&self, slots: &[Option<MemOpRecord>]) -> Result<Vec<F>, LayoutError> {
+        if slots.len() > self.b_ops {
             return Err(LayoutError::TooManyOps {
                 max: self.b_ops,
-                got: ops.len(),
+                got: slots.len(),
             });
         }
         let mut bits = BitSink::with_capacity(self.ops_lane_bits());
-        for op in ops {
-            // Range checks mirror the circuit's bitness exactly.
-            self.global_index(op.space, op.addr)?; // validates addr for its namespace
-            check_width("rt", op.rt, TS_BITS)?;
-            bits.push_bit(false); // pad = 0
-            bits.push_bit(op.is_write);
-            bits.push_bit(op.space == MemSpace::Ram);
-            for s in 0..self.num_stacks {
-                bits.push_bit(op.space == MemSpace::Stack(s as u8));
+        for slot in slots
+            .iter()
+            .chain(std::iter::repeat(&None))
+            .take(self.b_ops)
+        {
+            if let Some(op) = slot {
+                self.global_index(op.space, op.addr)?;
+                check_width("rt", op.rt, TS_BITS)?;
+                bits.push_bit(false);
+                bits.push_bit(op.is_write);
+                bits.push_bit(op.space == MemSpace::Ram);
+                for s in 0..self.num_stacks {
+                    bits.push_bit(op.space == MemSpace::Stack(s as u8));
+                }
+                bits.push_u64(op.addr, self.addr_bits());
+                bits.push_u64(op.v_r as u64, VAL_BITS);
+                bits.push_u64(op.v_w as u64, VAL_BITS);
+                bits.push_u64(op.rt, TS_BITS);
+            } else {
+                bits.push_bit(true);
+                bits.push_zeros(self.op_bits() - 1);
             }
-            bits.push_u64(op.addr, self.addr_bits());
-            bits.push_u64(op.v_r as u64, VAL_BITS);
-            bits.push_u64(op.v_w as u64, VAL_BITS);
-            bits.push_u64(op.rt, TS_BITS);
-        }
-        for _ in ops.len()..self.b_ops {
-            bits.push_bit(true); // pad = 1
-            bits.push_zeros(self.op_bits() - 1);
         }
         Ok(bits.finish_aligned())
     }

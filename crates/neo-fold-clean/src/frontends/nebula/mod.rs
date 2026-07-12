@@ -30,6 +30,7 @@
 //! (`paper/relations`, `paper/reductions`) or the F′ `NebulaLane` carry
 //! (`paper/construction2/nebula_lane.rs`).
 
+pub mod application;
 pub mod circuit;
 pub mod f_prime;
 pub mod fingerprint;

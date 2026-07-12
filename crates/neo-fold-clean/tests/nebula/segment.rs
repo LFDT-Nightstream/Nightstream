@@ -66,6 +66,26 @@ fn plan_binds_rom_image() {
     );
 }
 
+#[test]
+fn plan_binds_and_memory_uses_nonzero_initial_ram() {
+    let params = tiny_params();
+    let mut ram = vec![0; params.ram_cells() as usize];
+    ram[3] = 0xfeed_beef;
+    let with_data = NebulaPlan::new_with_initial_ram(params, ROM.to_vec(), ram.clone(), [0xC3; 32], LANE_KAPPA)
+        .expect("plan with initial RAM");
+    let zeroed = plan();
+    assert_ne!(with_data.d_init(), zeroed.d_init(), "D_init must bind initial RAM");
+    assert_ne!(
+        with_data.plan_digest(),
+        zeroed.plan_digest(),
+        "plan digest must bind initial RAM",
+    );
+
+    let mut memory = Memory::new_with_initial_ram(params, &ROM, &ram).expect("memory with initial RAM");
+    let mut segment = memory.begin_segment().expect("segment");
+    assert_eq!(segment.read(true, 3).expect("read initialized RAM"), 0xfeed_beef);
+}
+
 /// `D_init` is verifier-recomputable and deterministic — the γ-independent
 /// ROM handle (spec §7): same public inputs, same handle.
 #[test]

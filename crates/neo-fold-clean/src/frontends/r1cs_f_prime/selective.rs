@@ -2,8 +2,7 @@
 //!
 //! Ordinary verifier R1CS rows remain authoritative. Recorded Poseidon2,
 //! projection, K-arithmetic, and centered-range traces remove only their
-//! materialized temporaries. Canonical-u64 fields reuse their 64 bit slots;
-//! other full fields use 41 balanced-ternary unit digits.
+//! temporaries; retained fields use canonical bits or balanced unit digits.
 
 use std::collections::HashMap;
 
@@ -63,15 +62,30 @@ impl LinearDefinitions {
     }
 }
 
-/// Compile one-hot field-R1CS arms while lowering Poseidon2 directly to
-/// degree-seven CCS rows.
+/// Compile one-hot field-R1CS arms to selective degree-seven CCS.
 pub fn build_multi_branch_selective_low_norm_r1cs_with_alignment(
     arms: &[SparseR1cs],
     shared_private_fields: usize,
     modulus: usize,
     residue: usize,
 ) -> Result<MultiBranchLowNormR1cs, LowNormR1csError> {
-    let layout = prepare_selective_layout(arms, shared_private_fields, modulus, residue)?;
+    build_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(
+        arms,
+        shared_private_fields,
+        shared_private_fields,
+        modulus,
+        residue,
+    )
+}
+
+pub fn build_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(
+    arms: &[SparseR1cs],
+    shared_private_fields: usize,
+    shared_private_bit_fields: usize,
+    modulus: usize,
+    residue: usize,
+) -> Result<MultiBranchLowNormR1cs, LowNormR1csError> {
+    let layout = prepare_selective_layout(arms, shared_private_fields, shared_private_bit_fields, modulus, residue)?;
     let structure = build_structure(
         arms,
         &layout.plans,
@@ -101,20 +115,36 @@ pub fn build_multi_branch_selective_low_norm_r1cs_with_alignment(
     ))
 }
 
-/// Compute the exact selective-lowering width without constructing the output
-/// matrices. Production budget tests use this to attribute width regressions.
+/// Compute selective-lowering width without constructing output matrices.
 pub fn audit_multi_branch_selective_low_norm_width_with_alignment(
     arms: &[SparseR1cs],
     shared_private_fields: usize,
     modulus: usize,
     residue: usize,
 ) -> Result<SelectiveLowNormWidthAudit, LowNormR1csError> {
-    Ok(prepare_selective_layout(arms, shared_private_fields, modulus, residue)?.audit)
+    audit_multi_branch_selective_low_norm_width_with_shared_bit_prefix(
+        arms,
+        shared_private_fields,
+        shared_private_fields,
+        modulus,
+        residue,
+    )
+}
+
+pub fn audit_multi_branch_selective_low_norm_width_with_shared_bit_prefix(
+    arms: &[SparseR1cs],
+    shared_private_fields: usize,
+    shared_private_bit_fields: usize,
+    modulus: usize,
+    residue: usize,
+) -> Result<SelectiveLowNormWidthAudit, LowNormR1csError> {
+    Ok(prepare_selective_layout(arms, shared_private_fields, shared_private_bit_fields, modulus, residue)?.audit)
 }
 
 fn prepare_selective_layout(
     arms: &[SparseR1cs],
     shared_private_fields: usize,
+    shared_private_bit_fields: usize,
     modulus: usize,
     residue: usize,
 ) -> Result<SelectiveLayout, LowNormR1csError> {
@@ -123,6 +153,9 @@ fn prepare_selective_layout(
     }
     if modulus == 0 {
         return Err(LowNormR1csError::ZeroAlignmentModulus);
+    }
+    if shared_private_bit_fields > shared_private_fields {
+        return Err(trace_error("shared bit prefix exceeds shared private prefix"));
     }
     for arm in arms {
         arm.validate_shape()?;
@@ -134,7 +167,7 @@ fn prepare_selective_layout(
     let public_field_count = arms[0].m_in;
     let plans = arms
         .iter()
-        .map(|arm| selective_arm_plan(arm, shared_private_fields))
+        .map(|arm| selective_arm_plan(arm, shared_private_fields, shared_private_bit_fields))
         .collect::<Result<Vec<_>, _>>()?;
     let widths = plans
         .iter()
@@ -329,7 +362,11 @@ fn prepare_selective_layout(
     })
 }
 
-fn selective_arm_plan(arm: &SparseR1cs, shared_private_fields: usize) -> Result<SelectiveArmPlan, LowNormR1csError> {
+fn selective_arm_plan(
+    arm: &SparseR1cs,
+    shared_private_fields: usize,
+    shared_private_bit_fields: usize,
+) -> Result<SelectiveArmPlan, LowNormR1csError> {
     let shared_end = arm
         .m_in
         .checked_add(shared_private_fields)
@@ -456,13 +493,14 @@ fn selective_arm_plan(arm: &SparseR1cs, shared_private_fields: usize) -> Result<
             centered[column] = false;
         }
     }
-    // This compiler's public prefix is `FPrimeStepOutput::public_outputs`,
-    // and its shared private prefix is the current S_mem bit assignment.
-    // Both are verifier-owned bit surfaces, not arbitrary field advice.
+    // The public prefix and the leading part of the shared private prefix are
+    // verifier-owned bit surfaces. Remaining shared fields retain the widths
+    // inferred from their identical per-arm relations.
+    let shared_bit_end = arm.m_in + shared_private_bit_fields;
     widths[1..arm.m_in].fill(1);
-    widths[arm.m_in..shared_end].fill(1);
-    centered[..shared_end].fill(false);
-    let equality_roots = propagate_low_norm_equalities(arm, &mut widths, &mut centered, shared_end)?;
+    widths[arm.m_in..shared_bit_end].fill(1);
+    centered[..shared_bit_end].fill(false);
+    let equality_roots = propagate_low_norm_equalities(arm, &mut widths, &mut centered, shared_bit_end)?;
     Ok(SelectiveArmPlan {
         widths,
         centered,
@@ -596,12 +634,15 @@ fn find_linear_definitions(
             definition.rhs.terms.push((column, coefficient * scale));
         }
     });
-    if entries.iter().any(|definition| {
-        definition.rhs.terms.iter().any(|&(column, _)| {
-            column >= definition.target || column >= directly_eliminated.len() || directly_eliminated[column]
+    if let Some((target, dependency)) = entries.iter().find_map(|definition| {
+        definition.rhs.terms.iter().find_map(|&(column, _)| {
+            (column >= definition.target || column >= directly_eliminated.len() || directly_eliminated[column])
+                .then_some((definition.target, column))
         })
     }) {
-        return Err(trace_error("linear definition is not acyclic over retained columns"));
+        return Err(trace_error(&format!(
+            "linear definition for column {target} is not acyclic over retained dependency {dependency}"
+        )));
     }
     Ok(LinearDefinitions { by_column, entries })
 }
@@ -900,10 +941,9 @@ fn build_structure(
     let mut row_cursor = 0usize;
     {
         let mut emit_digit = |selector: Option<usize>, column: usize, centered: bool| {
-            // SuperNeo's NC channel proves every committed coordinate lies in
-            // {-1, 0, 1}. Only binary coordinates need an additional CCS row
-            // to exclude -1; duplicating centered-unit checks here makes the
-            // relation wider than its assignment and prevents M0 = I.
+            // SplitNc proves every committed coordinate lies in {-1, 0, 1}.
+            // Only binary coordinates need an additional CCS row to exclude
+            // -1; duplicating centered-unit checks here adds no soundness.
             if centered {
                 return;
             }
@@ -1229,14 +1269,18 @@ fn build_structure(
         }
     }
 
-    // SuperNeo's NC relation is defined over M0 = I. Pad the semantic rows
-    // and private assignment with ignored zero coordinates to one square,
-    // D-aligned domain, then prepend the identity without changing f.
-    let rows = row_cursor.max(cols).next_multiple_of(D);
-    let mut matrices = Vec::with_capacity(ARITY + 1);
-    matrices.push(CcsMatrix::Identity { n: rows });
+    // SplitNc keeps rows and assignment separate. Add only D-alignment
+    // coordinates, and constrain them to zero rather than witness slack.
+    let columns = cols.next_multiple_of(D);
+    for column in cols..columns {
+        trips[GENERAL_SELECTOR].push((row_cursor, 0, F::ONE));
+        trips[C].push((row_cursor, column, F::ONE));
+        row_cursor += 1;
+    }
+    let rows = row_cursor;
+    let mut matrices = Vec::with_capacity(ARITY);
     for index in 0..ARITY {
-        let csc = CscMat::from_triplets(core::mem::take(&mut trips[index]), rows, rows);
+        let csc = CscMat::from_triplets(core::mem::take(&mut trips[index]), rows, columns);
         matrices.push(CcsMatrix::csc_with_seeded_phi81(
             csc,
             core::mem::take(&mut seeded[index]),
@@ -1265,7 +1309,7 @@ fn build_structure(
     for &(left, right) in &EVAL_PAIRS {
         terms.push(term(F::ONE, &[(EVAL_SELECTOR, 1), (left, 1), (right, 1)]));
     }
-    let polynomial = SparsePoly::new(ARITY, terms).insert_var_at_front();
+    let polynomial = SparsePoly::new(ARITY, terms);
     CcsStructure::new_sparse(matrices, polynomial).map_err(|error| trace_error(&error.to_string()))
 }
 

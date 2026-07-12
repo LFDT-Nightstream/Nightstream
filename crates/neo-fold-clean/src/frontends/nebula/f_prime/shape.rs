@@ -9,10 +9,12 @@ use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
 
 use super::{
+    enforce_nebula_application_f_prime_base_step, enforce_nebula_application_f_prime_recursive_step,
     enforce_nebula_f_prime_base_step, enforce_nebula_f_prime_recursive_step, NebulaFPrimeFieldArmShape,
     NebulaFPrimeFieldShapeAudit, NebulaFPrimeRelationError,
 };
 use crate::engine::r1cs_circuit::R1csBuilder;
+use crate::frontends::nebula::application::NebulaApplication;
 use crate::frontends::nebula::plan::NebulaPlan;
 use crate::frontends::r1cs_f_prime::{lower_field_r1cs, SparseR1cs};
 use crate::paper::construction2::{NebulaConfig, NebulaLane};
@@ -34,6 +36,14 @@ pub(super) struct ArmShapes {
     pub base: SparseR1cs,
     pub bootstrap_recursive: SparseR1cs,
     pub recursive: SparseR1cs,
+    pub shared_private_fields: usize,
+    pub shared_private_candidates: Vec<usize>,
+}
+
+struct SynthesizedArm {
+    shape: SparseR1cs,
+    shared_private_fields: usize,
+    shared_private_candidates: Vec<usize>,
 }
 
 struct ShapeContext<'a> {
@@ -46,19 +56,35 @@ struct ShapeContext<'a> {
     ell_m: usize,
     d_sc: usize,
     folded: &'a Structure,
+    application: Option<&'a NebulaApplication>,
 }
 
 pub(super) fn synthesize_arm_shapes(
     params: &Params,
     folded: &Structure,
     plan: &NebulaPlan,
+    application: Option<&NebulaApplication>,
 ) -> Result<ArmShapes, NebulaFPrimeRelationError> {
-    let context = shape_context(params, folded, plan)?;
+    let context = shape_context(params, folded, plan, application)?;
 
+    let base = synthesize_base(&context)?;
+    let bootstrap_recursive = synthesize_recursive(&context, false)?;
+    let recursive = synthesize_recursive(&context, true)?;
+    if base.shared_private_fields != bootstrap_recursive.shared_private_fields
+        || base.shared_private_fields != recursive.shared_private_fields
+        || base.shared_private_candidates != bootstrap_recursive.shared_private_candidates
+        || base.shared_private_candidates != recursive.shared_private_candidates
+    {
+        return Err(NebulaFPrimeRelationError::Geometry(
+            "current-application private prefix differs across F' arms".into(),
+        ));
+    }
     Ok(ArmShapes {
-        base: synthesize_base(&context)?,
-        bootstrap_recursive: synthesize_recursive(&context, false)?,
-        recursive: synthesize_recursive(&context, true)?,
+        base: base.shape,
+        bootstrap_recursive: bootstrap_recursive.shape,
+        recursive: recursive.shape,
+        shared_private_fields: base.shared_private_fields,
+        shared_private_candidates: base.shared_private_candidates,
     })
 }
 
@@ -67,10 +93,10 @@ pub(super) fn audit_arm_shapes(
     folded: &Structure,
     plan: &NebulaPlan,
 ) -> Result<NebulaFPrimeFieldShapeAudit, NebulaFPrimeRelationError> {
-    let context = shape_context(params, folded, plan)?;
-    let base = arm_shape(synthesize_base(&context)?);
-    let bootstrap_recursive = arm_shape(synthesize_recursive(&context, false)?);
-    let recursive = arm_shape(synthesize_recursive(&context, true)?);
+    let context = shape_context(params, folded, plan, None)?;
+    let base = arm_shape(synthesize_base(&context)?.shape);
+    let bootstrap_recursive = arm_shape(synthesize_recursive(&context, false)?.shape);
+    let recursive = arm_shape(synthesize_recursive(&context, true)?.shape);
     Ok(NebulaFPrimeFieldShapeAudit {
         verifier_rows: folded.n,
         verifier_columns: folded.m,
@@ -84,6 +110,7 @@ fn shape_context<'a>(
     params: &'a Params,
     folded: &'a Structure,
     plan: &'a NebulaPlan,
+    application: Option<&'a NebulaApplication>,
 ) -> Result<ShapeContext<'a>, NebulaFPrimeRelationError> {
     let dims = neo_reductions::engines::utils::build_dims_and_policy(params.inner(), folded)
         .map_err(|error| NebulaFPrimeRelationError::Geometry(format!("verifier dimensions: {error}")))?;
@@ -105,6 +132,7 @@ fn shape_context<'a>(
         ell_m: dims.ell_m,
         d_sc: dims.d_sc,
         folded,
+        application,
     })
 }
 
@@ -119,16 +147,19 @@ fn arm_shape(shape: SparseR1cs) -> NebulaFPrimeFieldArmShape {
     audit
 }
 
-fn synthesize_base(context: &ShapeContext<'_>) -> Result<SparseR1cs, NebulaFPrimeRelationError> {
+fn synthesize_base(context: &ShapeContext<'_>) -> Result<SynthesizedArm, NebulaFPrimeRelationError> {
+    let application_assignment = shape_application_assignment(context.application);
+    let semantic = application_semantic_values(context.application, &application_assignment)?;
+    let empty = AccumulatorHandle::empty().digest_fields();
     let mut source = FPrimeSourceImage::new();
     let chunk_count_in_word = source.push_u64_le(0);
     let step_count_in_word = source.push_u64_le(0);
     let pc_word = source.push_u64_le(1);
     let public_x_out_bits = source.push_enc_inst([F::ZERO; 4]);
     let inputs = FPrimeBaseInputs {
-        state: shape_state(context, false, AccumulatorHandle::empty().digest_fields()),
+        state: shape_state(context, false, semantic.input.unwrap_or(empty), empty),
         chunk_digest: [F::ZERO; 4],
-        semantic_state_digest_out: AccumulatorHandle::empty().digest_fields(),
+        semantic_state_digest_out: semantic.output.unwrap_or(empty),
         rows_in_chunk: 1,
         source_image: &source,
         chunk_count_in_word,
@@ -137,20 +168,38 @@ fn synthesize_base(context: &ShapeContext<'_>) -> Result<SparseR1cs, NebulaFPrim
         public_x_out_bits,
     };
     let mut builder = R1csBuilder::new();
-    let output = enforce_nebula_f_prime_base_step(
-        &mut builder,
-        context.plan.circuit(),
-        &shape_s_mem_assignment(context.plan),
-        Some([[F::ZERO; 4]; 3]),
-        &step_config(context),
-        &inputs,
-    )?;
-    Ok(lower_field_r1cs(builder, &output.public_outputs())?
-        .into_parts()
-        .0)
+    let output = match context.application {
+        Some(application) => enforce_nebula_application_f_prime_base_step(
+            &mut builder,
+            context.plan.circuit(),
+            &shape_s_mem_assignment(context.plan),
+            application,
+            &application_assignment,
+            Some([[F::ZERO; 4]; 3]),
+            &step_config(context),
+            &inputs,
+        )?,
+        None => enforce_nebula_f_prime_base_step(
+            &mut builder,
+            context.plan.circuit(),
+            &shape_s_mem_assignment(context.plan),
+            Some([[F::ZERO; 4]; 3]),
+            &step_config(context),
+            &inputs,
+        )?,
+    };
+    Ok(SynthesizedArm {
+        shape: lower_field_r1cs(builder, &output.public_outputs())?
+            .into_parts()
+            .0,
+        shared_private_fields: output.shared_private_fields,
+        shared_private_candidates: output.shared_private_candidates,
+    })
 }
 
-fn synthesize_recursive(context: &ShapeContext<'_>, steady: bool) -> Result<SparseR1cs, NebulaFPrimeRelationError> {
+fn synthesize_recursive(context: &ShapeContext<'_>, steady: bool) -> Result<SynthesizedArm, NebulaFPrimeRelationError> {
+    let application_assignment = shape_application_assignment(context.application);
+    let semantic = application_semantic_values(context.application, &application_assignment)?;
     let public_input_len = F_PRIME_PUBLIC_INPUT_LEN + delayed_nebula_public_suffix_len(context.config.stacks);
     let ce = zero_ce_claim(context, public_input_len);
     let running = if steady {
@@ -207,9 +256,9 @@ fn synthesize_recursive(context: &ShapeContext<'_>, steady: bool) -> Result<Spar
     let prior_x_out_bits = BitRange::new(prior_public.start() + 1, F_PRIME_ENC_INST_BITS);
     let public_x_out_bits = source.push_enc_inst([F::ZERO; 4]);
     let inputs = FPrimeRecursiveInputs {
-        state: shape_state(context, true, running_digest),
+        state: shape_state(context, true, semantic.input.unwrap_or(running_digest), running_digest),
         chunk_digest: [F::ZERO; 4],
-        semantic_state_digest_out: output_digest,
+        semantic_state_digest_out: semantic.output.unwrap_or(output_digest),
         acc_digest_out: output_digest,
         nifs_msg,
         rows_in_chunk: 1,
@@ -221,18 +270,35 @@ fn synthesize_recursive(context: &ShapeContext<'_>, steady: bool) -> Result<Spar
         public_x_out_bits,
     };
     let mut builder = R1csBuilder::new();
-    let output = enforce_nebula_f_prime_recursive_step(
-        &mut builder,
-        context.params,
-        context.plan.circuit(),
-        &shape_s_mem_assignment(context.plan),
-        Some([[F::ZERO; 4]; 3]),
-        &step_config(context),
-        &inputs,
-    )?;
-    Ok(lower_field_r1cs(builder, &output.public_outputs())?
-        .into_parts()
-        .0)
+    let output = match context.application {
+        Some(application) => enforce_nebula_application_f_prime_recursive_step(
+            &mut builder,
+            context.params,
+            context.plan.circuit(),
+            &shape_s_mem_assignment(context.plan),
+            application,
+            &application_assignment,
+            Some([[F::ZERO; 4]; 3]),
+            &step_config(context),
+            &inputs,
+        )?,
+        None => enforce_nebula_f_prime_recursive_step(
+            &mut builder,
+            context.params,
+            context.plan.circuit(),
+            &shape_s_mem_assignment(context.plan),
+            Some([[F::ZERO; 4]; 3]),
+            &step_config(context),
+            &inputs,
+        )?,
+    };
+    Ok(SynthesizedArm {
+        shape: lower_field_r1cs(builder, &output.public_outputs())?
+            .into_parts()
+            .0,
+        shared_private_fields: output.shared_private_fields,
+        shared_private_candidates: output.shared_private_candidates,
+    })
 }
 
 fn step_config<'a>(context: &'a ShapeContext<'a>) -> FPrimeStepConfig<'a> {
@@ -254,11 +320,20 @@ fn step_config<'a>(context: &'a ShapeContext<'a>) -> FPrimeStepConfig<'a> {
             context.config.stacks,
         )),
         nebula: Some(&context.config),
-        state_x_out_digest_mode: StateXOutDigestMode::Stateless,
+        state_x_out_digest_mode: context
+            .application
+            .map_or(StateXOutDigestMode::Stateless, |application| {
+                crate::frontends::r1cs_f_prime::ivc::shape::digest_mode(application.recursive_plan())
+            }),
     }
 }
 
-fn shape_state(context: &ShapeContext<'_>, recursive: bool, acc_digest: [F; 4]) -> FPrimeStateIn {
+fn shape_state(
+    context: &ShapeContext<'_>,
+    recursive: bool,
+    semantic_digest: [F; 4],
+    acc_digest: [F; 4],
+) -> FPrimeStateIn {
     FPrimeStateIn {
         vk_fs_digest: [F::ZERO; 4],
         pi_ccs_header_bundle: context.header_bundle,
@@ -267,7 +342,7 @@ fn shape_state(context: &ShapeContext<'_>, recursive: bool, acc_digest: [F; 4]) 
         z_0: [F::ZERO; 4],
         z_i_in: [F::ZERO; 4],
         pc: 1,
-        semantic_state_digest_in: acc_digest,
+        semantic_state_digest_in: semantic_digest,
         acc_digest_in: acc_digest,
         public_trace_in: [F::ZERO; 4],
         nebula: Some(NebulaLane::base(&context.config)),
@@ -278,6 +353,30 @@ fn shape_s_mem_assignment(plan: &NebulaPlan) -> Vec<F> {
     let mut assignment = vec![F::ZERO; plan.circuit().cols()];
     assignment[0] = F::ONE;
     assignment
+}
+
+fn shape_application_assignment(application: Option<&NebulaApplication>) -> Vec<F> {
+    let mut assignment = vec![F::ZERO; application.map_or(0, |app| app.shape().m())];
+    if let Some(one) = assignment.first_mut() {
+        *one = F::ONE;
+    }
+    assignment
+}
+
+fn application_semantic_values(
+    application: Option<&NebulaApplication>,
+    assignment: &[F],
+) -> Result<crate::frontends::r1cs_f_prime::ivc::shape::SemanticValues, NebulaFPrimeRelationError> {
+    match application {
+        Some(application) => Ok(crate::frontends::r1cs_f_prime::ivc::shape::semantic_values(
+            application.recursive_plan(),
+            assignment,
+        )?),
+        None => Ok(crate::frontends::r1cs_f_prime::ivc::shape::SemanticValues {
+            input: None,
+            output: None,
+        }),
+    }
 }
 
 fn zero_fresh_claim(context: &ShapeContext<'_>, m_in: usize) -> CcsClaim {

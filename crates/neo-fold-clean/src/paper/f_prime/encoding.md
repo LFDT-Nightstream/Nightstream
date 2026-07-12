@@ -133,17 +133,19 @@ most one. Private final Poseidon outputs are substituted linearly, five product
 pairs share one direct CCS row, and long evaluations use telescoping
 accumulators. K dot products use the exact Karatsuba sums `P`, `Q`, and `R`
 instead of retaining every per-term K output. The reduced compiler profile
-reaches a square three-arm verifier-shape fixed point at **9,959,328 committed coordinates / 9,959,328
-rows / 14 matrices / degree 8**. Matrix 0 is the SuperNeo NC identity matrix.
+reaches a rectangular three-arm verifier-shape fixed point at **2,486,540
+semantic rows / 9,613,188 committed coordinates / 13 matrices / degree 8**.
+SplitNc checks FE over the row domain and NC over the assignment domain, so the
+selective relation does not need an identity matrix or square row padding.
 The active `road_a_reduced_profile_fixed_point_stabilizes_within_budget` test
 pins that compiler invariant, and `compile_fixed_point` rejects an oversized
 result. R7's Appendix B.2 preflight at `kappa = 18`, `k_rho = 14`, `T = 216`
 and maximum v3.1 memory geometry measures **15,730,104 coordinates** on the
 first selective census. The verifier-shape fixed point stabilizes at
-**15,958,404 coordinates / rows, 14 matrices, degree 8**, 41,596 below the
-unchanged 16M ceiling. The active
+**2,819,360 semantic rows / 15,612,210 committed coordinates / 13 matrices /
+degree 8**, 387,790 coordinates below the unchanged 16M ceiling. The active
 `nebula_v3_targets_folded_f_prime_production_preflight` test pins that result,
-the two-level map dimensions, and the 65.23-bit conservative maximum-chain
+the two-level map dimensions, and the 65.32-bit conservative maximum-chain
 union against the declared 64-bit target (`SEG_MAX=2^16`, `q_H≤2^16`).
 R4's shipped encoder
 and R5's terminal induction are **DONE**: `NebulaFPrimeChainBuilder` deposits
@@ -177,7 +179,7 @@ finding is itself the argument for keeping that flag.
 | B | SignedDigit as measured | — | invalid: operands are full-range commitments |
 | C | Mixed (ρ = SignedDigit{5}, rest U64) | 90.1M | valid; saves 1.6 % — not a lever |
 | D | Digit-decompose c, act on digits | ~260M | valid; strictly worse (14 SignedDigit pairs vs 1 U64 pair, ×2.8) |
-| E | Projection check: verify `Σ_i ρ_i·c_i = out (mod Φ)` as `Σ ρ_i(X)c_i(X) = q(X)Φ(X) + out(X)` at a post-commitment `β ∈ K` | The primitive is measured at ~21k vs ~196k bits per pair. The reduced-profile fixed point is 9,959,328 coordinates; the production fixed point is 15,958,404. The old 14,040,452-bit manual shell remains a non-authoritative reference. | **Implemented end to end** in authoritative NIFS.V/F′ for `c + adv`, X/y projection, delayed lane transition, current `S_mem`, and terminal-only lifecycle induction. Exact Karatsuba K-dot tracing keeps production below the unchanged 16M ceiling. Lemma 5's maximum-geometry census is `P=2,250`, batched `J=150`; conservative `J≤2,250`. |
+| E | Projection check: verify `Σ_i ρ_i·c_i = out (mod Φ)` as `Σ ρ_i(X)c_i(X) = q(X)Φ(X) + out(X)` at a post-commitment `β ∈ K` | The primitive is measured at ~21k vs ~196k bits per pair. The reduced-profile fixed point is 9,613,188 coordinates over 2,486,540 rows; the production fixed point is 15,612,210 coordinates over 2,819,360 rows. The old 14,040,452-bit manual shell remains a non-authoritative reference. | **Implemented end to end** in authoritative NIFS.V/F′ for `c + adv`, X/y projection, delayed lane transition, current `S_mem`, and terminal-only lifecycle induction. Exact Karatsuba K-dot tracing keeps production below the unchanged 16M ceiling. Lemma 5's maximum-geometry census is `P=2,250`, batched `J=150`; conservative `J≤2,250`. |
 | F | Fewer pairs (arity/κ trades) | linear only | doesn't touch the 197k/pair |
 | G | SIS accumulators (C14/L2) | A role-specific rank-2 map binds the authoritative 41-trit encoding; an independent short rank-1 map compresses its 108-field output before Poseidon2. | **Adopted for five R2 binding roles**, with compact seeded matrices, native/circuit parity, stage-tamper tests, concrete rank-2/rank-1 estimates, and security-note Lemma 6's hash-then-FS reduction. Replacing the carried `D` chains remains deferred. |
 | H | Terminal-proof regime (PR5): never commit F' | 0 per step | field-native cost once per chain (~1–3M-constraint relation); sidesteps enc(F') entirely |
@@ -205,11 +207,11 @@ audit above assumes and what the shell did by hand.
 ## Reproduce every number
 
 ```bash
-# Reduced R2 verifier-shape fixed point (9,959,328 coordinates):
+# Reduced R2 verifier-shape fixed point (2,486,540 rows x 9,613,188 coordinates):
 cargo test -p neo-fold-clean --release --test nebula_f_prime \
   road_a_reduced_profile_fixed_point_stabilizes_within_budget -- --exact --nocapture
 
-# R7 production fixed-point gate (15,958,404 coordinates):
+# R7 production fixed-point gate (2,819,360 rows x 15,612,210 coordinates):
 cargo test -p neo-fold-clean --release --test perf_nebula \
   nebula_v3_targets_folded_f_prime_production_preflight -- --exact --nocapture
 

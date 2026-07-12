@@ -138,6 +138,10 @@ impl SMemCircuit {
         &self.structure
     }
 
+    pub fn params(&self) -> &NebulaParams {
+        &self.params
+    }
+
     /// Public prefix length of `z` (the constant plus the `x` bits).
     pub fn m_in(&self) -> usize {
         1 + self.params.x_bits()
@@ -187,11 +191,32 @@ impl SMemCircuit {
     /// `ts_out`/`h_out` computed from the data, so callers chain steps by
     /// feeding one step's outputs into the next step's inputs.
     pub fn witness(&self, gammas: &Gammas, data: &StepData<'_>) -> Result<(Vec<F>, StepPublicInput), LayoutError> {
+        self.witness_inner(gammas, data, None)
+    }
+
+    /// Build a step whose operation slots have verifier-fixed positions.
+    /// `None` entries are canonical holes; later slots may still be active.
+    pub fn witness_slots(
+        &self,
+        gammas: &Gammas,
+        data: &StepData<'_>,
+        op_slots: &[Option<MemOpRecord>],
+    ) -> Result<(Vec<F>, StepPublicInput), LayoutError> {
+        self.witness_inner(gammas, data, Some(op_slots))
+    }
+
+    fn witness_inner(
+        &self,
+        gammas: &Gammas,
+        data: &StepData<'_>,
+        op_slots: Option<&[Option<MemOpRecord>]>,
+    ) -> Result<(Vec<F>, StepPublicInput), LayoutError> {
         let p = &self.params;
-        if data.ops.len() > p.b_ops {
+        let supplied = op_slots.map_or(data.ops.len(), <[Option<MemOpRecord>]>::len);
+        if supplied > p.b_ops {
             return Err(LayoutError::TooManyOps {
                 max: p.b_ops,
-                got: data.ops.len(),
+                got: supplied,
             });
         }
         if data.is_cells.len() != p.b_scan || data.fs_cells.len() != p.b_scan {
@@ -200,7 +225,7 @@ impl SMemCircuit {
                 got: data.is_cells.len(),
             });
         }
-        let slots = op_slot_values(p, gammas, data);
+        let slots = op_slot_values(p, gammas, data, op_slots);
         let scans = scan_slot_values(p, gammas, data);
         let last = slots.last().expect("b_ops >= 1");
         let x = StepPublicInput {
@@ -274,6 +299,16 @@ impl SMemCircuit {
     /// only the degree-four K-product family; no second memory semantics
     /// implementation exists at the call site.
     pub fn enforce_in_r1cs(&self, builder: &mut R1csBuilder, assignment: &[F]) -> Result<Vec<Var>, SMemR1csError> {
+        let vars = self.allocate_r1cs_assignment(builder, assignment)?;
+        self.enforce_allocated_r1cs(builder, &vars)?;
+        Ok(vars)
+    }
+
+    pub(crate) fn allocate_r1cs_assignment(
+        &self,
+        builder: &mut R1csBuilder,
+        assignment: &[F],
+    ) -> Result<Vec<Var>, SMemR1csError> {
         if assignment.len() != self.structure.m {
             return Err(SMemR1csError::AssignmentLength {
                 got: assignment.len(),
@@ -293,6 +328,16 @@ impl SMemCircuit {
         // ring-column alignment used by the lane commitments.
         for &var in vars.iter().skip(1) {
             enforce_bit(builder, var);
+        }
+        Ok(vars)
+    }
+
+    pub(crate) fn enforce_allocated_r1cs(&self, builder: &mut R1csBuilder, vars: &[Var]) -> Result<(), SMemR1csError> {
+        if vars.len() != self.structure.m {
+            return Err(SMemR1csError::AssignmentLength {
+                got: vars.len(),
+                expected: self.structure.m,
+            });
         }
         let matrix_rows: Vec<Vec<Lc>> = self
             .structure
@@ -331,7 +376,7 @@ impl SMemCircuit {
                 builder.enforce_eq(&sum, at(M_O));
             }
         }
-        Ok(vars)
+        Ok(())
     }
 }
 
@@ -422,7 +467,12 @@ struct ScanSlotValues {
     h_fs: K,
 }
 
-fn op_slot_values(p: &NebulaParams, gammas: &Gammas, data: &StepData<'_>) -> Vec<OpSlotValues> {
+fn op_slot_values(
+    p: &NebulaParams,
+    gammas: &Gammas,
+    data: &StepData<'_>,
+    fixed_slots: Option<&[Option<MemOpRecord>]>,
+) -> Vec<OpSlotValues> {
     let ts_mask = (1u64 << TS_BITS) - 1;
     let addr_mask = (1u64 << p.addr_bits()) - 1;
     let sp_mask = if p.sigma == 0 { 0 } else { (1u64 << p.sigma) - 1 };
@@ -432,7 +482,11 @@ fn op_slot_values(p: &NebulaParams, gammas: &Gammas, data: &StepData<'_>) -> Vec
     let mut h_ws = data.h_in[H_WS];
     let mut out = Vec::with_capacity(p.b_ops);
     for j in 0..p.b_ops {
-        let slot = match data.ops.get(j) {
+        let op = match fixed_slots {
+            Some(slots) => slots.get(j).copied().flatten(),
+            None => data.ops.get(j).copied(),
+        };
+        let slot = match op {
             Some(op) => {
                 cnt += 1;
                 let ram = op.space == MemSpace::Ram;

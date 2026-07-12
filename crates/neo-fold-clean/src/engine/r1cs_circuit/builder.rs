@@ -495,6 +495,23 @@ pub struct ProjectionIdentityAudit {
     pub quotient_phi_product: [usize; 2],
 }
 
+/// Indexed ownership marker for repeated constraint blocks.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct IndexedRowFamilyRange {
+    pub name: &'static str,
+    pub index: usize,
+    pub row_start: usize,
+    pub row_end: usize,
+}
+
+/// Non-authoritative ownership marker for a contiguous allocation range.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ColumnFamilyRange {
+    pub name: &'static str,
+    pub column_start: usize,
+    pub column_end: usize,
+}
+
 /// R1CS builder: appends rows to (A, B, C) triplet form.
 ///
 /// Construct via [`R1csBuilder::new`], allocate variables and emit constraints,
@@ -539,6 +556,8 @@ pub struct R1csBuilder {
     projection_ladder_audits: Vec<ProjectionLadderAudit>,
     projection_identity_audits: Vec<ProjectionIdentityAudit>,
     projection_glue_audits: Vec<ProjectionGlueAudit>,
+    indexed_row_family_ranges: Vec<IndexedRowFamilyRange>,
+    column_family_ranges: Vec<ColumnFamilyRange>,
 }
 
 /// Immutable output of one completed R1CS synthesis.
@@ -613,6 +632,8 @@ impl R1csBuilder {
             projection_ladder_audits: Vec::new(),
             projection_identity_audits: Vec::new(),
             projection_glue_audits: Vec::new(),
+            indexed_row_family_ranges: Vec::new(),
+            column_family_ranges: Vec::new(),
         }
     }
 
@@ -867,6 +888,45 @@ impl R1csBuilder {
                 row_end: self.rows,
             });
         }
+    }
+
+    /// Record one repeated row block, identified by its verifier-fixed index.
+    pub fn record_indexed_row_family(&mut self, name: &'static str, index: usize, row_start: usize) {
+        assert!(
+            row_start <= self.rows,
+            "indexed row-family start exceeds builder cursor"
+        );
+        if self.record_structure {
+            self.indexed_row_family_ranges.push(IndexedRowFamilyRange {
+                name,
+                index,
+                row_start,
+                row_end: self.rows,
+            });
+        }
+    }
+
+    pub fn indexed_row_family_ranges(&self) -> &[IndexedRowFamilyRange] {
+        &self.indexed_row_family_ranges
+    }
+
+    /// Record ownership of columns allocated since `column_start`.
+    pub fn record_column_family(&mut self, name: &'static str, column_start: usize) {
+        assert!(
+            column_start <= self.witness.len(),
+            "column-family start exceeds builder cursor"
+        );
+        if self.record_structure {
+            self.column_family_ranges.push(ColumnFamilyRange {
+                name,
+                column_start,
+                column_end: self.witness.len(),
+            });
+        }
+    }
+
+    pub fn column_family_ranges(&self) -> &[ColumnFamilyRange] {
+        &self.column_family_ranges
     }
 
     /// Exact field/bit column maps for emitted canonical-u64 gadgets.

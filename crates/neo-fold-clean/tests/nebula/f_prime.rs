@@ -313,19 +313,23 @@ fn road_a_reduced_profile_fixed_point_stabilizes_within_budget() {
         relation.structure().t(),
         relation.structure().max_degree(),
     );
+    assert!(
+        relation.structure().n < relation.structure().m,
+        "SplitNc must preserve the smaller semantic-row domain"
+    );
     assert_eq!(
-        relation.structure().n,
-        relation.structure().m,
-        "SuperNeo NC requires one square assignment/row domain"
+        relation.structure().t(),
+        13,
+        "the dummy NC identity matrix must be absent"
     );
     assert!(
-        relation.structure().matrices[0].is_identity(),
-        "SuperNeo NC requires M0 = I"
+        !relation.structure().matrices[0].is_identity(),
+        "SplitNc checks witness norms directly and must not carry a dummy identity matrix"
     );
     assert_eq!(
-        relation.structure().m,
-        9_959_328,
-        "reduced-profile verifier fixed point drifted"
+        (relation.structure().n, relation.structure().m),
+        (2_486_540, 9_613_188),
+        "reduced-profile rectangular verifier fixed point drifted"
     );
     assert!(
         relation.structure().m <= ROAD_A_COMMITTED_BIT_BUDGET,

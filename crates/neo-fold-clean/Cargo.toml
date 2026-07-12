@@ -406,6 +406,10 @@ name = "system_r1cs_compiler"
 path = "tests/system/r1cs_compiler.rs"
 
 [[test]]
+name = "system_selective_rectangular"
+path = "tests/system/selective_rectangular.rs"
+
+[[test]]
 name = "system_r1cs_compiler_stateful"
 path = "tests/system/r1cs_compiler_stateful.rs"
 
@@ -456,6 +460,10 @@ path = "tests/nebula/reference.rs"
 [[test]]
 name = "nebula_circuit"
 path = "tests/nebula/circuit.rs"
+
+[[test]]
+name = "nebula_application"
+path = "tests/nebula/application.rs"
 
 [[test]]
 name = "nebula_f_prime"

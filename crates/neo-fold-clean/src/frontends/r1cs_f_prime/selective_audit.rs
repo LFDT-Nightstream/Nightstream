@@ -259,8 +259,8 @@ fn internal_product_sum_widths(arm: &super::SparseR1cs, widths: &[usize]) -> (us
 fn for_each_explicit_term(matrix: &CcsMatrix<neo_math::F>, mut visit: impl FnMut(usize, usize)) {
     let mut visit_csc = |csc: &CscMat<neo_math::F>| {
         for column in 0..csc.ncols {
-            for index in csc.col_ptr[column]..csc.col_ptr[column + 1] {
-                visit(csc.row_idx[index], column);
+            for index in csc.column_range(column) {
+                visit(csc.row_index(index), column);
             }
         }
     };

@@ -592,7 +592,7 @@ pub fn preprocess_seeded_prepared_with_params(
     let log = ajtai::setup_seeded(&params, &prepared.structure.ccs, seed);
     let prep = preprocess_with_test_log_and_optimized_cache(
         params,
-        prepared.structure.ccs.clone(),
+        std::sync::Arc::new(prepared.structure.ccs.clone()),
         log,
         ajtai_rlc_mixer,
         ajtai_dec_mixer,

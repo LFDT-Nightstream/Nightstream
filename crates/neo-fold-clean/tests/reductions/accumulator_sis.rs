@@ -172,14 +172,12 @@ fn sis_accumulator_matches_native_and_rejects_tampering() {
     assert!(!builder.is_satisfied(), "output mutation must break the Ajtai equation");
 }
 
-#[test]
-fn sis_accumulator_rejects_noncanonical_shifted_base3_opening() {
+fn forge_alternate_shifted_base3_opening(
+    builder: &mut R1csBuilder,
+    field: neo_fold_clean::engine::r1cs_circuit::Var,
+    commitment_data: &[neo_fold_clean::engine::r1cs_circuit::Var],
+) {
     let midpoint = F::ORDER_U64 / 2;
-    let mut builder = R1csBuilder::new();
-    let field = builder.alloc(F::from_u64(midpoint));
-    let commitment = enforce_commit_fields(&mut builder, CONFIG, &[field]).expect("SIS commitment circuit");
-    assert!(builder.is_satisfied(), "canonical shifted-base-3 opening");
-
     // If N is the canonical shifted-base-3 representative, N+p encodes the
     // same field residue and still fits in 41 trits for this fixture. Recompute
     // every auxiliary and the Ajtai output so only the terminal borrow remains
@@ -237,9 +235,19 @@ fn sis_accumulator_rejects_noncanonical_shifted_base3_opening() {
         message[(row, 0)] = digit;
     }
     let forged = commit_row_major_seeded(CONFIG.seed, D, CONFIG.kappa, 1, &message);
-    for (wire, value) in commitment.data.iter().zip(forged.data) {
+    for (wire, value) in commitment_data.iter().zip(forged.data) {
         builder.tamper_witness(wire.col(), value);
     }
+}
+
+#[test]
+fn sis_accumulator_rejects_noncanonical_shifted_base3_opening() {
+    let midpoint = F::ORDER_U64 / 2;
+    let mut builder = R1csBuilder::new();
+    let field = builder.alloc(F::from_u64(midpoint));
+    let commitment = enforce_commit_fields(&mut builder, CONFIG, &[field]).expect("SIS commitment circuit");
+    assert!(builder.is_satisfied(), "canonical shifted-base-3 opening");
+    forge_alternate_shifted_base3_opening(&mut builder, field, &commitment.data);
 
     assert!(
         !builder.is_satisfied(),
@@ -249,6 +257,27 @@ fn sis_accumulator_rejects_noncanonical_shifted_base3_opening() {
         builder.first_unsatisfied_row(),
         Some(125),
         "after recomputing every forged auxiliary, only the terminal borrow row must reject"
+    );
+}
+
+#[test]
+fn selective_sis_lowering_rejects_noncanonical_shifted_base3_opening() {
+    let mut builder = R1csBuilder::new();
+    let field = builder.alloc(F::from_u64(F::ORDER_U64 / 2));
+    let commitment = enforce_commit_fields(&mut builder, CONFIG, &[field]).expect("SIS commitment circuit");
+    forge_alternate_shifted_base3_opening(&mut builder, field, &commitment.data);
+    assert!(!builder.is_satisfied(), "source R1CS must reject the forged opening");
+
+    let lowered = lower_field_r1cs(builder, &[]).expect("field lowering");
+    let (shape, assignment) = lowered.into_parts();
+    let relation = build_multi_branch_selective_low_norm_r1cs_with_alignment(&[shape.clone(), shape], 0, 1, 0)
+        .expect("selective low-norm lowering");
+    let encoded = relation
+        .encode(0, &assignment)
+        .expect("encode forged source assignment");
+    assert!(
+        !relation.is_satisfied(&encoded),
+        "direct shifted-ternary rows must reject x+p after every source auxiliary and Ajtai output is recomputed"
     );
 }
 

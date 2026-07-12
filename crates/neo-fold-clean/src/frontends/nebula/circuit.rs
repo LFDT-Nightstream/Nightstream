@@ -391,8 +391,8 @@ fn matrix_row_lcs(matrix: &CcsMatrix<F>, vars: &[Var], rows: usize) -> Vec<Lc> {
         CcsMatrix::Csc(csc) => {
             assert_eq!(csc.ncols, vars.len(), "S_mem matrix width must match witness width");
             for col in 0..csc.ncols {
-                for index in csc.col_ptr[col]..csc.col_ptr[col + 1] {
-                    let row = csc.row_idx[index];
+                for index in csc.column_range(col) {
+                    let row = csc.row_index(index);
                     if row < rows {
                         out[row].add_term(vars[col], csc.vals[index]);
                     }
@@ -405,8 +405,8 @@ fn matrix_row_lcs(matrix: &CcsMatrix<F>, vars: &[Var], rows: usize) -> Vec<Lc> {
             geometric_runs,
         } => {
             for col in 0..csc.ncols.min(vars.len()) {
-                for index in csc.col_ptr[col]..csc.col_ptr[col + 1] {
-                    let row = csc.row_idx[index];
+                for index in csc.column_range(col) {
+                    let row = csc.row_index(index);
                     if row < rows {
                         out[row].add_term(vars[col], csc.vals[index]);
                     }

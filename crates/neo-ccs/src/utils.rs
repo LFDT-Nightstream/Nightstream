@@ -134,10 +134,8 @@ fn embed_matrix_parts<F: Field>(
         crate::sparse::CcsMatrix::Csc(m) => {
             let mut trips = Vec::with_capacity(m.vals.len());
             for col in 0..m.ncols {
-                let s = m.col_ptr[col];
-                let e = m.col_ptr[col + 1];
-                for k in s..e {
-                    trips.push((row_offset + m.row_idx[k], col_offset + col, m.vals[k]));
+                for k in m.column_range(col) {
+                    trips.push((row_offset + m.row_index(k), col_offset + col, m.vals[k]));
                 }
             }
             (trips, Vec::new(), Vec::new())
@@ -149,8 +147,8 @@ fn embed_matrix_parts<F: Field>(
         } => {
             let mut trips = Vec::with_capacity(csc.vals.len());
             for col in 0..csc.ncols {
-                for k in csc.col_ptr[col]..csc.col_ptr[col + 1] {
-                    trips.push((row_offset + csc.row_idx[k], col_offset + col, csc.vals[k]));
+                for k in csc.column_range(col) {
+                    trips.push((row_offset + csc.row_index(k), col_offset + col, csc.vals[k]));
                 }
             }
             (

@@ -9,7 +9,7 @@ use p3_field::PrimeCharacteristicRing;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
-use super::{add_scaled_rq, coeff_dot, RingEvalScratch, SuperneoMatrixCache, SuperneoZBlocks};
+use super::{add_scaled_rq, RingEvalScratch, SuperneoMatrixCache, SuperneoZBlocks};
 
 const SEEDED_WORK_COLUMNS: usize = 1024;
 
@@ -30,7 +30,7 @@ pub(super) fn seeded_work_ranges(block: &neo_ccs::SeededPhi81LinearBlock, output
 
 impl SuperneoMatrixCache {
     pub(super) fn row_blocks_including_seeded(&self, row: usize) -> Vec<super::RowBlock> {
-        let mut out = self.row_blocks_for(row).to_vec();
+        let mut out = self.expanded_row_blocks(row);
         for block in &self.seeded_phi81_blocks {
             if row < block.row_start() || row >= block.row_end() {
                 continue;
@@ -61,7 +61,7 @@ impl SuperneoMatrixCache {
         debug_assert!(out.len() <= self.rows, "row-dot output exceeds matrix rows");
         debug_assert_eq!(
             self.cols.div_ceil(D),
-            z_blocks.re.len(),
+            z_blocks.block_len(),
             "SuperneoMatrixCache::fill_row_dots_real_with_blocks: block count mismatch"
         );
         debug_assert!(
@@ -69,11 +69,25 @@ impl SuperneoMatrixCache {
             "SuperneoMatrixCache::fill_row_dots_real_with_blocks expects a real witness"
         );
 
+        if self.identity {
+            for (row, out_row) in out.iter_mut().enumerate() {
+                let block = row / D;
+                let local = row % D;
+                *out_row = if z_blocks.real_nonzero(block) {
+                    K::from(z_blocks.real_coefficient(block, local))
+                } else {
+                    K::ZERO
+                };
+            }
+            return;
+        }
+
         for (row, out_row) in out.iter_mut().enumerate() {
             let mut acc = F::ZERO;
-            for rb in self.row_blocks_for(row) {
-                if z_blocks.re_nonzero[rb.blk] {
-                    acc += coeff_dot(&rb.orig, &z_blocks.re[rb.blk]);
+            for block in self.row_blocks_for(row).iter().copied() {
+                let block_index = block.block();
+                if z_blocks.real_nonzero(block_index) {
+                    acc += self.compact_dot_real(block, z_blocks, block_index);
                 }
             }
             *out_row = K::from(acc);
@@ -89,13 +103,13 @@ impl SuperneoMatrixCache {
                     return;
                 }
                 let blk = column / D;
-                if !z_blocks.re_nonzero[blk] {
+                if !z_blocks.real_nonzero(blk) {
                     return;
                 }
                 let local = column % D;
                 let input = match &transformed_basis {
-                    Some(basis) => coeff_dot(&basis[local], &z_blocks.re[blk]),
-                    None => z_blocks.re[blk].0[local],
+                    Some(basis) => z_blocks.real_dot(&basis[local], blk),
+                    None => z_blocks.real_coefficient(blk, local),
                 };
                 if input == F::ZERO {
                     return;
@@ -105,6 +119,77 @@ impl SuperneoMatrixCache {
                     let coefficient = rotation[coordinate];
                     if coefficient != F::ZERO {
                         out[row_start + coordinate] += K::from(coefficient * input);
+                    }
+                }
+            });
+        }
+    }
+
+    /// Base-field form of [`Self::fill_row_dots_real_with_blocks`]. The
+    /// initial row tables contain no extension component, so retaining only
+    /// this limb halves their peak storage before the first sumcheck fold.
+    pub fn fill_row_dots_base_with_blocks(&self, out: &mut [F], z_blocks: &SuperneoZBlocks) {
+        debug_assert!(out.len() <= self.rows, "row-dot output exceeds matrix rows");
+        debug_assert_eq!(
+            self.cols.div_ceil(D),
+            z_blocks.block_len(),
+            "SuperneoMatrixCache::fill_row_dots_base_with_blocks: block count mismatch"
+        );
+        debug_assert!(
+            z_blocks.imag_all_zero,
+            "SuperneoMatrixCache::fill_row_dots_base_with_blocks expects a real witness"
+        );
+
+        if self.identity {
+            for (row, out_row) in out.iter_mut().enumerate() {
+                let block = row / D;
+                let local = row % D;
+                *out_row = if z_blocks.real_nonzero(block) {
+                    z_blocks.real_coefficient(block, local)
+                } else {
+                    F::ZERO
+                };
+            }
+            return;
+        }
+
+        for (row, out_row) in out.iter_mut().enumerate() {
+            let mut acc = F::ZERO;
+            for block in self.row_blocks_for(row).iter().copied() {
+                let block_index = block.block();
+                if z_blocks.real_nonzero(block_index) {
+                    acc += self.compact_dot_real(block, z_blocks, block_index);
+                }
+            }
+            *out_row = acc;
+        }
+
+        for block in &self.seeded_phi81_blocks {
+            let transformed_basis = block
+                .has_superneo_transformed_columns()
+                .then(seeded_transformed_column_basis);
+            block.for_each_original_column_rotation::<F, _>(|output, column, rotation| {
+                let row_start = block.row_start() + output * D;
+                if row_start >= out.len() {
+                    return;
+                }
+                let block_index = column / D;
+                if !z_blocks.real_nonzero(block_index) {
+                    return;
+                }
+                let local = column % D;
+                let input = match &transformed_basis {
+                    Some(basis) => z_blocks.real_dot(&basis[local], block_index),
+                    None => z_blocks.real_coefficient(block_index, local),
+                };
+                if input == F::ZERO {
+                    return;
+                }
+                let coordinate_count = min(D, out.len() - row_start);
+                for coordinate in 0..coordinate_count {
+                    let coefficient = rotation[coordinate];
+                    if coefficient != F::ZERO {
+                        out[row_start + coordinate] += coefficient * input;
                     }
                 }
             });
@@ -129,12 +214,32 @@ impl SuperneoMatrixCache {
             if w_re == F::ZERO && w_im == F::ZERO {
                 continue;
             }
-            for rb in self.row_blocks_for(row) {
-                let blk = rb.blk;
-                touch_ring_block(scratch, blk);
-                add_scaled_rq(&mut scratch.agg_re[blk], &rb.bar, w_re);
-                add_scaled_rq(&mut scratch.agg_im[blk], &rb.bar, w_im);
+            if self.identity {
+                let block = row / D;
+                let local = row % D;
+                touch_ring_block(scratch, block);
+                scratch.agg_re[block].0[local] += w_re;
+                scratch.agg_im[block].0[local] += w_im;
+                continue;
             }
+            for compact in self.row_blocks_for(row).iter().copied() {
+                let block = compact.block();
+                touch_ring_block(scratch, block);
+                if let Some((local, coefficient)) = compact.single_parts() {
+                    scratch.agg_re[block].0[local] += w_re * coefficient;
+                    scratch.agg_im[block].0[local] += w_im * coefficient;
+                } else {
+                    let orig = self.dense_block(compact.dense_index().expect("dense compact block"));
+                    add_scaled_rq(&mut scratch.agg_re[block], &orig, w_re);
+                    add_scaled_rq(&mut scratch.agg_im[block], &orig, w_im);
+                }
+            }
+        }
+
+        for index in 0..scratch.active_blocks.len() {
+            let block = scratch.active_blocks[index];
+            scratch.agg_re[block].0 = superneo_bar_block(scratch.agg_re[block].0);
+            scratch.agg_im[block].0 = superneo_bar_block(scratch.agg_im[block].0);
         }
 
         for block in &self.seeded_phi81_blocks {

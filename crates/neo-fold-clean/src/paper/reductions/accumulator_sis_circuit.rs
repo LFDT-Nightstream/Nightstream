@@ -12,7 +12,7 @@ use neo_math::{D, F};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use thiserror::Error;
 
-use crate::engine::r1cs_circuit::builder::BALANCED_TERNARY_DIGITS;
+use crate::engine::r1cs_circuit::builder::{ShiftedTernaryCanonicalTrace, BALANCED_TERNARY_DIGITS};
 use crate::engine::r1cs_circuit::{enforce_poseidon2_hash, Lc, R1csBuilder, Var};
 use crate::paper::digest::pack_bytes_as_fields;
 use crate::paper::relations::product_commitment_circuit::{alloc_commitment, CommitmentWires};
@@ -220,6 +220,7 @@ fn decompose_var_to_balanced_ternary(builder: &mut R1csBuilder, field: Var) -> [
     }
     let values = balanced_ternary_digits(builder.witness()[field.col()]);
     let digits = values.map(|value| builder.alloc(value));
+    let digit_rows_start = builder.rows();
     let negative_indicators = digits.map(|digit| {
         let value = builder.witness()[digit.col()];
         let is_negative = value == -F::ONE;
@@ -246,7 +247,16 @@ fn decompose_var_to_balanced_ternary(builder: &mut R1csBuilder, field: Var) -> [
         power *= F::from_u64(3);
     }
     builder.enforce_eq(&Lc::from_var(field), &reconstruction);
+    let transition_rows_start = builder.rows();
+    let borrow_columns_start = builder.cols();
     enforce_shifted_base3_canonical(builder, &digits, &negative_indicators);
+    builder.record_shifted_ternary_canonical_trace(ShiftedTernaryCanonicalTrace {
+        digit_columns_start: digits[0].col(),
+        negative_columns_start: negative_indicators[0].col(),
+        borrow_columns_start,
+        digit_rows_start,
+        transition_rows_start,
+    });
     builder.record_balanced_ternary_decomposition(field, digits);
     digits
 }

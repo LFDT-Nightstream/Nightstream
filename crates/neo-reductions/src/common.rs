@@ -85,9 +85,7 @@ pub fn split_b_matrix_k_with_nonzero_flags(
     let Z_rows = Z.rows();
     let Z_cols = Z.cols();
 
-    let mut outs = (0..k)
-        .map(|_| Mat::zero(Z_rows, Z_cols, F::ZERO))
-        .collect::<Vec<_>>();
+    let mut out_data = (0..k).map(|_| None::<Vec<F>>).collect::<Vec<_>>();
     let mut digit_nonzero = vec![false; k];
 
     let b_i = b as i128;
@@ -103,7 +101,6 @@ pub fn split_b_matrix_k_with_nonzero_flags(
 
     let z_data = Z.as_slice();
     {
-        let mut out_slices: Vec<&mut [F]> = outs.iter_mut().map(|m| m.as_mut_slice()).collect();
         let total = z_data.len();
         debug_assert_eq!(total, Z_rows * Z_cols);
 
@@ -165,7 +162,7 @@ pub fn split_b_matrix_k_with_nonzero_flags(
                     if r_i != 0 {
                         debug_assert!(r_i >= -digit_bound && r_i <= digit_bound);
                         let digit_f = digit_lut[(r_i + digit_bound) as usize];
-                        out_slices[i][idx] = digit_f;
+                        out_data[i].get_or_insert_with(|| vec![F::ZERO; total])[idx] = digit_f;
                         digit_nonzero[i] = true;
                     }
                     v = q;
@@ -257,7 +254,7 @@ pub fn split_b_matrix_k_with_nonzero_flags(
                         if r_i != 0 {
                             debug_assert!(r_i >= -digit_bound && r_i <= digit_bound);
                             let digit_f = digit_lut[(r_i + digit_bound) as usize];
-                            out_slices[i][idx] = digit_f;
+                            out_data[i].get_or_insert_with(|| vec![F::ZERO; total])[idx] = digit_f;
                             digit_nonzero[i] = true;
                         }
                         v64 = q;
@@ -301,7 +298,7 @@ pub fn split_b_matrix_k_with_nonzero_flags(
                         let r_i64 = r_i as i64;
                         debug_assert!(r_i64 >= -digit_bound && r_i64 <= digit_bound);
                         let digit_f = digit_lut[(r_i64 + digit_bound) as usize];
-                        out_slices[i][idx] = digit_f;
+                        out_data[i].get_or_insert_with(|| vec![F::ZERO; total])[idx] = digit_f;
                         digit_nonzero[i] = true;
                     }
                     v = q;
@@ -335,6 +332,21 @@ pub fn split_b_matrix_k_with_nonzero_flags(
         }
     }
 
+    let outs = out_data
+        .into_iter()
+        .map(|data| {
+            data.map_or_else(
+                || Mat::virtual_constant(Z_rows, Z_cols, F::ZERO),
+                |data| {
+                    if b == 2 {
+                        Mat::compact_signed_unit(Z_rows, Z_cols, data)
+                    } else {
+                        Mat::from_row_major(Z_rows, Z_cols, data)
+                    }
+                },
+            )
+        })
+        .collect();
     Ok((outs, digit_nonzero))
 }
 
@@ -1098,15 +1110,6 @@ where
     let mut out = vec![[K::ZERO; D]; expected_m];
     let mut masks = vec![0u64; expected_m];
     let active_cols = expected_m.div_ceil(D);
-    // Snapshot all D rows once; `Mat::row` is a cheap slice borrow.
-    let rows: [&[Ff]; D] = {
-        let mut tmp: [&[Ff]; D] = [&[]; D];
-        for (rho, slot) in tmp.iter_mut().enumerate() {
-            *slot = Z.row(rho);
-        }
-        tmp
-    };
-
     // Process column blocks in parallel; each block writes to disjoint
     // slices of `out` and `masks` (D contiguous columns per block).
     let process_block = |blk: usize, out_chunk: &mut [[K; D]], mask_chunk: &mut [u64]| -> Result<(), PiCcsError> {
@@ -1118,7 +1121,7 @@ where
             if col >= expected_m {
                 break;
             }
-            let raw = rows[rho].get(blk).copied().unwrap_or(Ff::ZERO);
+            let raw = Z[(rho, blk)];
             if raw == Ff::ZERO {
                 continue;
             }

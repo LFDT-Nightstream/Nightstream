@@ -1,12 +1,51 @@
 use core::ops::{Index, IndexMut};
 use p3_field::PrimeCharacteristicRing;
 
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+struct PackedSignedUnit<T> {
+    positive: Vec<u64>,
+    negative: Vec<u64>,
+    values: [T; 3],
+}
+
+impl<T> PackedSignedUnit<T> {
+    #[inline]
+    fn value(&self, index: usize) -> &T {
+        let word = index / u64::BITS as usize;
+        let bit = 1u64 << (index % u64::BITS as usize);
+        if self.positive[word] & bit != 0 {
+            &self.values[1]
+        } else if self.negative[word] & bit != 0 {
+            &self.values[2]
+        } else {
+            &self.values[0]
+        }
+    }
+
+    #[inline]
+    fn nonzero_count(&self) -> usize {
+        self.positive
+            .iter()
+            .zip(&self.negative)
+            .map(|(&positive, &negative)| (positive | negative).count_ones() as usize)
+            .sum()
+    }
+}
+
 /// A dense row-major matrix over a field-like type `T`.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Mat<T> {
     rows: usize,
     cols: usize,
     data: Vec<T>,
+    /// Compact representation for a matrix whose entries are all equal.
+    ///
+    /// This is used for structurally zero prover witnesses. Read-by-index is
+    /// supported without materialization; mutable or slice access explicitly
+    /// materializes the dense backing vector first.
+    constant_hint: Option<T>,
+    /// Bit-packed storage for matrices over the exact alphabet `{0, 1, -1}`.
+    packed_signed_unit: Option<PackedSignedUnit<T>>,
     /// Fast-path marker for identity matrices created via `Mat::identity`.
     ///
     /// This is intentionally skipped for serde and ignored for equality: it is an optimization only.
@@ -17,7 +56,24 @@ pub struct Mat<T> {
 
 impl<T: PartialEq> PartialEq for Mat<T> {
     fn eq(&self, other: &Self) -> bool {
-        self.rows == other.rows && self.cols == other.cols && self.data == other.data
+        if self.rows != other.rows || self.cols != other.cols {
+            return false;
+        }
+        if self.constant_hint.is_none()
+            && self.packed_signed_unit.is_none()
+            && other.constant_hint.is_none()
+            && other.packed_signed_unit.is_none()
+        {
+            return self.data == other.data;
+        }
+        for row in 0..self.rows {
+            for column in 0..self.cols {
+                if self[(row, column)] != other[(row, column)] {
+                    return false;
+                }
+            }
+        }
+        true
     }
 }
 
@@ -31,6 +87,8 @@ impl<T: Clone> Mat<T> {
             rows,
             cols,
             data,
+            constant_hint: None,
+            packed_signed_unit: None,
             identity_hint: false,
         }
     }
@@ -41,7 +99,69 @@ impl<T: Clone> Mat<T> {
             rows,
             cols,
             data: vec![zero; rows * cols],
+            constant_hint: None,
+            packed_signed_unit: None,
             identity_hint: false,
+        }
+    }
+
+    /// Constant-valued matrix with no dense allocation.
+    pub fn virtual_constant(rows: usize, cols: usize, value: T) -> Self {
+        Self {
+            rows,
+            cols,
+            data: Vec::new(),
+            constant_hint: Some(value),
+            packed_signed_unit: None,
+            identity_hint: false,
+        }
+    }
+
+    /// Whether this matrix currently uses the compact constant representation.
+    pub fn is_virtual_constant(&self) -> bool {
+        self.constant_hint.is_some()
+    }
+
+    /// Compact constant value, when present.
+    pub fn virtual_constant_value(&self) -> Option<&T> {
+        self.constant_hint.as_ref()
+    }
+
+    /// Whether this matrix uses exact bit-packed `{0, 1, -1}` storage.
+    pub fn is_packed_signed_unit(&self) -> bool {
+        self.packed_signed_unit.is_some()
+    }
+
+    /// Number of nonzero entries when the matrix is bit-packed.
+    pub fn packed_signed_unit_nonzero_count(&self) -> Option<usize> {
+        self.packed_signed_unit
+            .as_ref()
+            .map(PackedSignedUnit::nonzero_count)
+    }
+
+    /// Return the exact row-major values without changing the matrix storage.
+    pub fn to_dense_vec(&self) -> Vec<T> {
+        if let Some(value) = self.constant_hint.as_ref() {
+            return vec![value.clone(); self.rows * self.cols];
+        }
+        if let Some(packed) = self.packed_signed_unit.as_ref() {
+            return (0..self.rows * self.cols)
+                .map(|index| packed.value(index).clone())
+                .collect();
+        }
+        self.data.clone()
+    }
+
+    /// Materialize any compact representation into ordinary row-major data.
+    fn materialize_compact(&mut self) {
+        if let Some(value) = self.constant_hint.take() {
+            self.data = vec![value; self.rows * self.cols];
+            return;
+        }
+        if let Some(packed) = self.packed_signed_unit.take() {
+            self.data = (0..self.rows * self.cols)
+                .map(|index| packed.value(index).clone())
+                .collect();
         }
     }
 
@@ -56,24 +176,35 @@ impl<T: Clone> Mat<T> {
     }
 
     /// Underlying row-major slice.
+    #[track_caller]
     pub fn as_slice(&self) -> &[T] {
+        assert!(
+            self.constant_hint.is_none() && self.packed_signed_unit.is_none(),
+            "Mat::as_slice requires dense storage; handle compact matrices explicitly"
+        );
         &self.data
     }
 
     /// Mutable slice.
     pub fn as_mut_slice(&mut self) -> &mut [T] {
+        self.materialize_compact();
         self.identity_hint = false;
         &mut self.data
     }
 
     /// Row i as a slice.
     pub fn row(&self, i: usize) -> &[T] {
+        assert!(
+            self.constant_hint.is_none() && self.packed_signed_unit.is_none(),
+            "Mat::row requires dense storage; handle compact matrices explicitly"
+        );
         let start = i * self.cols;
         &self.data[start..start + self.cols]
     }
 
     /// Row i as a mutable slice.
     pub fn row_mut(&mut self, i: usize) -> &mut [T] {
+        self.materialize_compact();
         self.identity_hint = false;
         let start = i * self.cols;
         &mut self.data[start..start + self.cols]
@@ -85,6 +216,7 @@ impl<T: Clone> Mat<T> {
         if k == 0 {
             return;
         }
+        self.materialize_compact();
         self.identity_hint = false;
         let extra = k * self.cols;
         self.data.resize(self.data.len() + extra, zero);
@@ -94,6 +226,7 @@ impl<T: Clone> Mat<T> {
     /// Set a single entry at (row, col) to the provided value.
     #[inline]
     pub fn set(&mut self, row: usize, col: usize, val: T) {
+        self.materialize_compact();
         self.identity_hint = false;
         debug_assert!(row < self.rows, "row out of bounds");
         debug_assert!(col < self.cols, "col out of bounds");
@@ -164,6 +297,39 @@ where
     /// This is an optimization hint only; it is not serialized and is cleared on any mutable access.
     pub fn is_identity_hint(&self) -> bool {
         self.identity_hint
+    }
+
+    /// Store an exact signed-unit matrix in two bits per entry. Values
+    /// outside `{0, 1, -1}` keep the ordinary dense representation.
+    pub fn compact_signed_unit(rows: usize, cols: usize, data: Vec<F>) -> Self {
+        assert_eq!(rows * cols, data.len());
+        let neg_one = F::ZERO - F::ONE;
+        let words = data.len().div_ceil(u64::BITS as usize);
+        let mut positive = vec![0u64; words];
+        let mut negative = vec![0u64; words];
+        for (index, &value) in data.iter().enumerate() {
+            let word = index / u64::BITS as usize;
+            let bit = 1u64 << (index % u64::BITS as usize);
+            if value == F::ONE {
+                positive[word] |= bit;
+            } else if value == neg_one {
+                negative[word] |= bit;
+            } else if value != F::ZERO {
+                return Self::from_row_major(rows, cols, data);
+            }
+        }
+        Self {
+            rows,
+            cols,
+            data: Vec::new(),
+            constant_hint: None,
+            packed_signed_unit: Some(PackedSignedUnit {
+                positive,
+                negative,
+                values: [F::ZERO, F::ONE, neg_one],
+            }),
+            identity_hint: false,
+        }
     }
 }
 
@@ -308,6 +474,16 @@ impl Mat<neo_math::F> {
     /// Total non-zeros in the matrix
     #[inline]
     pub fn nnz(&self) -> usize {
+        if let Some(value) = self.constant_hint.as_ref() {
+            return if *value == neo_math::F::ZERO {
+                0
+            } else {
+                self.rows * self.cols
+            };
+        }
+        if let Some(packed) = self.packed_signed_unit.as_ref() {
+            return packed.nonzero_count();
+        }
         let zero = &neo_math::F::ZERO;
         self.data.iter().filter(|val| *val != zero).count()
     }
@@ -317,11 +493,19 @@ impl<T> Index<(usize, usize)> for Mat<T> {
     type Output = T;
     fn index(&self, idx: (usize, usize)) -> &Self::Output {
         let (r, c) = idx;
+        debug_assert!(r < self.rows && c < self.cols, "matrix index out of bounds");
+        if let Some(value) = self.constant_hint.as_ref() {
+            return value;
+        }
+        if let Some(packed) = self.packed_signed_unit.as_ref() {
+            return packed.value(r * self.cols + c);
+        }
         &self.data[r * self.cols + c]
     }
 }
-impl<T> IndexMut<(usize, usize)> for Mat<T> {
+impl<T: Clone> IndexMut<(usize, usize)> for Mat<T> {
     fn index_mut(&mut self, idx: (usize, usize)) -> &mut Self::Output {
+        self.materialize_compact();
         self.identity_hint = false;
         let (r, c) = idx;
         &mut self.data[r * self.cols + c]
@@ -342,6 +526,10 @@ pub struct MatRef<'a, T> {
 impl<'a, T> MatRef<'a, T> {
     /// Make a `MatRef` from a full matrix.
     pub fn from_mat(m: &'a Mat<T>) -> Self {
+        assert!(
+            m.constant_hint.is_none() && m.packed_signed_unit.is_none(),
+            "MatRef::from_mat requires dense storage"
+        );
         Self {
             rows: m.rows,
             cols: m.cols,
@@ -375,6 +563,8 @@ impl<T: Clone + Send + Sync> From<&P3RowMajor<T>> for Mat<T> {
             rows,
             cols,
             data,
+            constant_hint: None,
+            packed_signed_unit: None,
             identity_hint: false,
         }
     }
@@ -383,6 +573,15 @@ impl<T: Clone + Send + Sync> From<&P3RowMajor<T>> for Mat<T> {
 impl<T: Clone + Send + Sync> From<&Mat<T>> for P3RowMajor<T> {
     fn from(m: &Mat<T>) -> Self {
         // p3_matrix wants a Vec<T> in row-major
-        P3RowMajor::new(m.data.clone(), m.cols)
+        let data = if let Some(value) = m.constant_hint.as_ref() {
+            vec![value.clone(); m.rows * m.cols]
+        } else if let Some(packed) = m.packed_signed_unit.as_ref() {
+            (0..m.rows * m.cols)
+                .map(|index| packed.value(index).clone())
+                .collect()
+        } else {
+            m.data.clone()
+        };
+        P3RowMajor::new(data, m.cols)
     }
 }

@@ -17,7 +17,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use crate::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
 use crate::engine::r1cs_circuit::builder::{
     BalancedTernaryDecomposition, CanonicalU64Decomposition, CenteredUnitTrace, Lc, PolynomialEvaluationTrace,
-    Poseidon2PermutationTrace, ProductSumBatchTrace, R1csBuilder, RowFamilyRange, Var,
+    Poseidon2PermutationTrace, ProductSumBatchTrace, R1csBuilder, RowFamilyRange, ShiftedTernaryCanonicalTrace, Var,
 };
 use crate::frontends::direct_ccs::FrontendError;
 use crate::frontends::direct_ccs::R1cs;
@@ -39,8 +39,10 @@ pub struct SparseR1cs {
     canonical_u64_decompositions: Vec<CanonicalU64Decomposition>,
     balanced_ternary_decompositions: Vec<BalancedTernaryDecomposition>,
     boolean_columns: Vec<usize>,
+    boolean_constraint_rows: Vec<(usize, usize)>,
     centered_unit_columns: Vec<usize>,
     centered_unit_traces: Vec<CenteredUnitTrace>,
+    shifted_ternary_canonical_traces: Vec<ShiftedTernaryCanonicalTrace>,
     equality_pairs: Vec<(usize, usize, usize)>,
     poseidon2_traces: Vec<Poseidon2PermutationTrace>,
     polynomial_evaluation_traces: Vec<PolynomialEvaluationTrace>,
@@ -74,6 +76,8 @@ impl SparseR1cs {
             Vec::new(),
             Vec::new(),
             Vec::new(),
+            Vec::new(),
+            Vec::new(),
         )
     }
 
@@ -87,8 +91,10 @@ impl SparseR1cs {
         canonical_u64_decompositions: Vec<CanonicalU64Decomposition>,
         balanced_ternary_decompositions: Vec<BalancedTernaryDecomposition>,
         boolean_columns: Vec<usize>,
+        boolean_constraint_rows: Vec<(usize, usize)>,
         centered_unit_columns: Vec<usize>,
         centered_unit_traces: Vec<CenteredUnitTrace>,
+        shifted_ternary_canonical_traces: Vec<ShiftedTernaryCanonicalTrace>,
         equality_pairs: Vec<(usize, usize, usize)>,
         poseidon2_traces: Vec<Poseidon2PermutationTrace>,
         polynomial_evaluation_traces: Vec<PolynomialEvaluationTrace>,
@@ -105,8 +111,10 @@ impl SparseR1cs {
             canonical_u64_decompositions,
             balanced_ternary_decompositions,
             boolean_columns,
+            boolean_constraint_rows,
             centered_unit_columns,
             centered_unit_traces,
+            shifted_ternary_canonical_traces,
             equality_pairs,
             poseidon2_traces,
             polynomial_evaluation_traces,
@@ -129,12 +137,20 @@ impl SparseR1cs {
         &self.boolean_columns
     }
 
+    pub(crate) fn boolean_constraint_rows(&self) -> &[(usize, usize)] {
+        &self.boolean_constraint_rows
+    }
+
     pub(crate) fn centered_unit_columns(&self) -> &[usize] {
         &self.centered_unit_columns
     }
 
     pub(crate) fn centered_unit_traces(&self) -> &[CenteredUnitTrace] {
         &self.centered_unit_traces
+    }
+
+    pub(crate) fn shifted_ternary_canonical_traces(&self) -> &[ShiftedTernaryCanonicalTrace] {
+        &self.shifted_ternary_canonical_traces
     }
 
     pub(crate) fn equality_pairs(&self) -> &[(usize, usize, usize)] {
@@ -402,8 +418,8 @@ fn sparse_matrix_row_lcs(matrix: &CcsMatrix<F>, vars: &[Var], rows: usize) -> Ve
         }
         CcsMatrix::Csc(csc) => {
             for col in 0..csc.ncols.min(vars.len()) {
-                for index in csc.col_ptr[col]..csc.col_ptr[col + 1] {
-                    let row = csc.row_idx[index];
+                for index in csc.column_range(col) {
+                    let row = csc.row_index(index);
                     if row < rows {
                         out[row].add_term(vars[col], csc.vals[index]);
                     }
@@ -416,8 +432,8 @@ fn sparse_matrix_row_lcs(matrix: &CcsMatrix<F>, vars: &[Var], rows: usize) -> Ve
             geometric_runs,
         } => {
             for col in 0..csc.ncols.min(vars.len()) {
-                for index in csc.col_ptr[col]..csc.col_ptr[col + 1] {
-                    let row = csc.row_idx[index];
+                for index in csc.column_range(col) {
+                    let row = csc.row_index(index);
                     if row < rows {
                         out[row].add_term(vars[col], csc.vals[index]);
                     }
@@ -961,10 +977,8 @@ fn sparse_coeff_rows(m: &CcsMatrix<F>, rows: usize) -> Vec<Vec<(usize, F)>> {
         }
         CcsMatrix::Csc(csc) => {
             for col in 0..csc.ncols {
-                let start = csc.col_ptr[col];
-                let end = csc.col_ptr[col + 1];
-                for idx in start..end {
-                    let row = csc.row_idx[idx];
+                for idx in csc.column_range(col) {
+                    let row = csc.row_index(idx);
                     if row < rows {
                         out[row].push((col, csc.vals[idx]));
                     }
@@ -977,8 +991,8 @@ fn sparse_coeff_rows(m: &CcsMatrix<F>, rows: usize) -> Vec<Vec<(usize, F)>> {
             geometric_runs,
         } => {
             for col in 0..csc.ncols {
-                for idx in csc.col_ptr[col]..csc.col_ptr[col + 1] {
-                    let row = csc.row_idx[idx];
+                for idx in csc.column_range(col) {
+                    let row = csc.row_index(idx);
                     if row < rows {
                         out[row].push((col, csc.vals[idx]));
                     }
@@ -1381,10 +1395,8 @@ fn sparse_matrix_row_terms(m: &CcsMatrix<F>, app_var_slots: &[AppVariableSlot], 
         }
         CcsMatrix::Csc(csc) => {
             for (col, slot) in app_var_slots.iter().enumerate().take(csc.ncols) {
-                let start = csc.col_ptr[col];
-                let end = csc.col_ptr[col + 1];
-                for idx in start..end {
-                    let row = csc.row_idx[idx];
+                for idx in csc.column_range(col) {
+                    let row = csc.row_index(idx);
                     if row < rows {
                         let coeff = csc.vals[idx];
                         out[row].extend(
@@ -1402,8 +1414,8 @@ fn sparse_matrix_row_terms(m: &CcsMatrix<F>, app_var_slots: &[AppVariableSlot], 
             geometric_runs,
         } => {
             for (col, slot) in app_var_slots.iter().enumerate().take(csc.ncols) {
-                for idx in csc.col_ptr[col]..csc.col_ptr[col + 1] {
-                    let row = csc.row_idx[idx];
+                for idx in csc.column_range(col) {
+                    let row = csc.row_index(idx);
                     if row < rows {
                         let coeff = csc.vals[idx];
                         out[row].extend(

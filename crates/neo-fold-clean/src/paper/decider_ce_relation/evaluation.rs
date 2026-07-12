@@ -336,11 +336,9 @@ fn matrix_entry_base_f(matrix: &CcsMatrix<F>, row: usize, col: usize) -> F {
             }
         }
         CcsMatrix::Csc(csc) => {
-            let start = csc.col_ptr[col];
-            let end = csc.col_ptr[col + 1];
             let mut acc = F::ZERO;
-            for idx in start..end {
-                if csc.row_idx[idx] == row {
+            for idx in csc.column_range(col) {
+                if csc.row_index(idx) == row {
                     acc += csc.vals[idx];
                 }
             }
@@ -352,8 +350,8 @@ fn matrix_entry_base_f(matrix: &CcsMatrix<F>, row: usize, col: usize) -> F {
             geometric_runs,
         } => {
             let mut acc = F::ZERO;
-            for index in csc.col_ptr[col]..csc.col_ptr[col + 1] {
-                if csc.row_idx[index] == row {
+            for index in csc.column_range(col) {
+                if csc.row_index(index) == row {
                     acc += csc.vals[index];
                 }
             }

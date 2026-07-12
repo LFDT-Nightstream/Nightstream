@@ -14,8 +14,18 @@ impl SuperneoMatrixCache {
         }
 
         let mut acc = K::ZERO;
-        for rb in self.row_blocks_for(row) {
-            acc += projected_linear_form(&rb.orig, rb.blk, identity_projection);
+        for block in self.row_blocks_for(row).iter().copied() {
+            if let Some((local, coefficient)) = block.single_parts() {
+                let projected = identity_projection[block.block() * D + local];
+                acc += if coefficient == F::ONE {
+                    projected
+                } else {
+                    projected.scale_base(coefficient)
+                };
+            } else {
+                let orig = self.dense_block(block.dense_index().expect("dense compact block"));
+                acc += projected_linear_form(&orig, block.block(), identity_projection);
+            }
         }
         acc
     }
@@ -243,15 +253,15 @@ fn weighted_identity_projection(z_blocks: &SuperneoZBlocks, weights: &[K; D]) ->
     let bar_weight_im = Rq(superneo_bar_block(weight_im));
     let extension_generator = K::from_coeffs([F::ZERO, F::ONE]);
 
-    let mut out = vec![K::ZERO; z_blocks.re.len() * D];
+    let mut out = vec![K::ZERO; z_blocks.block_len() * D];
     let fill_block = |block: usize, output: &mut [K]| {
         if !z_blocks.block_nonzero(block) {
             return;
         }
-        let (rr, ir) = if z_blocks.re_nonzero[block] {
+        let (rr, ir) = if z_blocks.real_nonzero(block) {
             (
-                bar_weight_re.mul(&z_blocks.re[block]),
-                bar_weight_im.mul(&z_blocks.re[block]),
+                z_blocks.real_mul(&bar_weight_re, block),
+                z_blocks.real_mul(&bar_weight_im, block),
             )
         } else {
             (Rq::zero(), Rq::zero())

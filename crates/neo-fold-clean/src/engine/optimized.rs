@@ -440,7 +440,7 @@ where
         &child_commitments,
         combine_b_pows,
         cache.superneo(),
-        precompute.map(|cached| cached.ring_linear_forms.as_ref()),
+        None,
     );
     #[cfg(feature = "perf-timers")]
     eprintln!(

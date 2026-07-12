@@ -1036,10 +1036,8 @@ fn lift_native_poseidon_rows_skipping(
         let mut entries: Vec<Vec<(usize, F)>> = vec![Vec::new(); n];
         if let Some(csc) = matrix.as_csc() {
             for col in 0..csc.ncols {
-                let start = csc.col_ptr[col];
-                let end = csc.col_ptr[col + 1];
-                for k in start..end {
-                    let r = csc.row_idx[k];
+                for k in csc.column_range(col) {
+                    let r = csc.row_index(k);
                     let v = csc.vals[k];
                     entries[r].push((remap(col), v));
                 }

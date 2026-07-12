@@ -352,8 +352,8 @@ fn matrix_triplets(m: &CcsMatrix<F>) -> Result<Vec<(usize, usize, F)>, BatchErro
         CcsMatrix::Csc(csc) => {
             let mut out = Vec::with_capacity(csc.vals.len());
             for c in 0..csc.ncols {
-                for k in csc.col_ptr[c]..csc.col_ptr[c + 1] {
-                    out.push((csc.row_idx[k], c, csc.vals[k]));
+                for k in csc.column_range(c) {
+                    out.push((csc.row_index(k), c, csc.vals[k]));
                 }
             }
             out

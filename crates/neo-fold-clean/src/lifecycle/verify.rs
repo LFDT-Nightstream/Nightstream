@@ -417,10 +417,19 @@ fn check_latest_instances_authority(prep: &Preprocessing, latest: &LatestInstanc
                 "plain F' latest claim carries an unsupported product-commitment sidecar".into(),
             ));
         }
-        if claim.x.len() + witness.w.len() != prep.structure().m {
+        let private = witness
+            .private_values(claim.x.len(), prep.structure().m)
+            .ok_or_else(|| {
+                fail(format!(
+                    "packed/private witness does not complete public length {} to expected width {}",
+                    claim.x.len(),
+                    prep.structure().m
+                ))
+            })?;
+        if claim.x.len() + private.len() != prep.structure().m {
             return Err(fail(format!(
                 "x||w has length {}, expected {}",
-                claim.x.len() + witness.w.len(),
+                claim.x.len() + private.len(),
                 prep.structure().m
             )));
         }
@@ -428,7 +437,7 @@ fn check_latest_instances_authority(prep: &Preprocessing, latest: &LatestInstanc
             .map_err(|error| fail(format!("packed witness shape: {error}")))?;
 
         let mut z = claim.x.clone();
-        z.extend_from_slice(&witness.w);
+        z.extend_from_slice(&private);
         let decoded = decode_superneo_coeffs_from_witness_mat(&witness.Z, prep.structure().m)
             .map_err(|error| fail(format!("packed witness decoding: {error}")))?;
         for (column, value) in z.iter().enumerate() {
@@ -451,7 +460,7 @@ fn check_latest_instances_authority(prep: &Preprocessing, latest: &LatestInstanc
         if prep.log.commit(&witness.Z) != claim.c {
             return Err(fail("Ajtai commitment does not open to the supplied witness".into()));
         }
-        check_ccs_rowwise_zero(prep.structure(), &claim.x, &witness.w)
+        check_ccs_rowwise_zero(prep.structure(), &claim.x, &private)
             .map_err(|error| fail(format!("CCS relation: {error}")))?;
     }
     Ok(())
@@ -807,14 +816,21 @@ fn scan_terminal_witnesses(prep: &Preprocessing, running: &RunningInstance, b: u
         .map(|(index, witness)| {
             validate_superneo_witness_mat(witness, prep.structure().m)
                 .map_err(|_| Error::FinalAccumulatorWitnessShapeMismatch)?;
+            if witness
+                .virtual_constant_value()
+                .is_some_and(|value| *value == F::ZERO)
+            {
+                return Ok(false);
+            }
             let mut nonzero = false;
-            for (offset, &entry) in witness.as_slice().iter().enumerate() {
-                if !within_nc_bound(entry, b) {
-                    let row = offset / witness.cols();
-                    let col = offset % witness.cols();
-                    return Err(Error::FinalAccumulatorLowNormViolation { index, row, col });
+            for row in 0..witness.rows() {
+                for col in 0..witness.cols() {
+                    let entry = witness[(row, col)];
+                    if !within_nc_bound(entry, b) {
+                        return Err(Error::FinalAccumulatorLowNormViolation { index, row, col });
+                    }
+                    nonzero |= entry != F::ZERO;
                 }
-                nonzero |= entry != F::ZERO;
             }
             Ok(nonzero)
         })

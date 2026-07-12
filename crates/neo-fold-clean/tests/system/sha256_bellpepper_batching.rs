@@ -269,8 +269,8 @@ fn sha256_serial_quad_app_var_width_histogram_snapshot() {
         let mut map = std::collections::BTreeMap::<usize, Vec<(usize, u64)>>::new();
         if let CcsMatrix::Csc(csc) = mat {
             for col in 0..csc.ncols {
-                for k in csc.col_ptr[col]..csc.col_ptr[col + 1] {
-                    map.entry(csc.row_idx[k])
+                for k in csc.column_range(col) {
+                    map.entry(csc.row_index(k))
                         .or_default()
                         .push((col, csc.vals[k].as_canonical_u64()));
                 }
@@ -1362,8 +1362,8 @@ fn push_remapped_trips(
         }
         CcsMatrix::Csc(csc) => {
             for col in 0..csc.ncols {
-                for idx in csc.col_ptr[col]..csc.col_ptr[col + 1] {
-                    out.push((row_offset + csc.row_idx[idx], map_col(col), csc.vals[idx]));
+                for idx in csc.column_range(col) {
+                    out.push((row_offset + csc.row_index(idx), map_col(col), csc.vals[idx]));
                 }
             }
         }
@@ -1373,8 +1373,8 @@ fn push_remapped_trips(
             geometric_runs,
         } => {
             for col in 0..csc.ncols {
-                for idx in csc.col_ptr[col]..csc.col_ptr[col + 1] {
-                    out.push((row_offset + csc.row_idx[idx], map_col(col), csc.vals[idx]));
+                for idx in csc.column_range(col) {
+                    out.push((row_offset + csc.row_index(idx), map_col(col), csc.vals[idx]));
                 }
             }
             for block in blocks {

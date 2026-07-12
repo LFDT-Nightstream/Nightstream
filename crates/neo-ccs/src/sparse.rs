@@ -92,6 +92,73 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CscMat<Ff> {
         }
     }
 
+    /// Build canonical CSC by counting entries into columns, then sorting only
+    /// the rows inside each column. This avoids one global `(column, row)` sort
+    /// while producing the same canonical arrays as [`Self::from_triplets`].
+    pub fn from_counted_triplets(triplets: Vec<(usize, usize, Ff)>, nrows: usize, ncols: usize) -> Self {
+        let mut column_counts = vec![0usize; ncols];
+        let mut nonzero_count = 0usize;
+        for &(row, column, value) in &triplets {
+            assert!(row < nrows, "triplet row out of bounds");
+            assert!(column < ncols, "triplet col out of bounds");
+            if value != Ff::ZERO {
+                column_counts[column] += 1;
+                nonzero_count += 1;
+            }
+        }
+
+        let mut col_ptr = Vec::with_capacity(ncols + 1);
+        col_ptr.push(0);
+        for count in column_counts {
+            col_ptr.push(col_ptr.last().copied().expect("CSC pointer") + count);
+        }
+        let mut next = col_ptr[..ncols].to_vec();
+        let mut entries = vec![(0usize, Ff::ZERO); nonzero_count];
+        for (row, column, value) in triplets {
+            if value == Ff::ZERO {
+                continue;
+            }
+            let index = next[column];
+            entries[index] = (row, value);
+            next[column] += 1;
+        }
+        for column in 0..ncols {
+            entries[col_ptr[column]..col_ptr[column + 1]].sort_unstable_by_key(|&(row, _)| row);
+        }
+
+        let mut write = 0usize;
+        for column in 0..ncols {
+            let read_start = col_ptr[column];
+            let read_end = col_ptr[column + 1];
+            col_ptr[column] = write;
+            let mut read = read_start;
+            while read < read_end {
+                let row = entries[read].0;
+                let mut value = entries[read].1;
+                read += 1;
+                while read < read_end && entries[read].0 == row {
+                    value += entries[read].1;
+                    read += 1;
+                }
+                if value != Ff::ZERO {
+                    entries[write] = (row, value);
+                    write += 1;
+                }
+            }
+        }
+        col_ptr[ncols] = write;
+        entries.truncate(write);
+        let (row_idx, vals) = entries.into_iter().unzip();
+
+        Self {
+            nrows,
+            ncols,
+            col_ptr,
+            row_idx,
+            vals,
+        }
+    }
+
     /// Build CSC from a dense row-major matrix, skipping exact zeros.
     ///
     /// This is parallel over rows because scans are memory-bound for large matrices.

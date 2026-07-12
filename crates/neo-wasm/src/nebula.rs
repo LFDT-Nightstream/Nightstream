@@ -2,6 +2,8 @@
 
 use std::collections::BTreeMap;
 
+#[cfg(feature = "perf-timers")]
+use neo_fold_clean::frontends::nebula::application::ApplicationSegmentTrace;
 use neo_fold_clean::frontends::nebula::application::{
     ApplicationError, MemoryPort, MemoryPortActivation, MemoryPortKind, MemoryPortLayout, MemoryRegion,
     MemoryRegionKind, NebulaApplication,
@@ -197,7 +199,15 @@ pub fn preprocess(
     entry_pc: u64,
 ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
     validate_sound_program(artifacts, profile.limits)?;
-    preprocess_inner(params, profile, artifacts, initial_locals, entry_pc, None)
+    preprocess_inner(
+        params,
+        profile,
+        artifacts,
+        initial_locals,
+        entry_pc,
+        None,
+        PreprocessMode::Normal,
+    )
 }
 
 #[doc(hidden)]
@@ -210,7 +220,15 @@ pub fn preprocess_seeded(
     seed: u64,
 ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
     validate_sound_program(artifacts, profile.limits)?;
-    preprocess_inner(params, profile, artifacts, initial_locals, entry_pc, Some(seed))
+    preprocess_inner(
+        params,
+        profile,
+        artifacts,
+        initial_locals,
+        entry_pc,
+        Some(seed),
+        PreprocessMode::Normal,
+    )
 }
 
 /// Builds a structurally faithful tiny fixture without claiming that its
@@ -225,7 +243,44 @@ pub fn preprocess_seeded_reduced_memory_test_only(
     seed: u64,
 ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
     reject_host_imports(artifacts)?;
-    preprocess_inner(params, profile, artifacts, initial_locals, entry_pc, Some(seed))
+    preprocess_inner(
+        params,
+        profile,
+        artifacts,
+        initial_locals,
+        entry_pc,
+        Some(seed),
+        PreprocessMode::Normal,
+    )
+}
+
+#[cfg(feature = "perf-timers")]
+#[doc(hidden)]
+pub fn preprocess_seeded_unbounded_profile(
+    params: Params,
+    profile: WasmNebulaProfile,
+    artifacts: &WasmProgramArtifacts,
+    initial_locals: &[u32],
+    entry_pc: u64,
+    seed: u64,
+) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
+    validate_sound_program(artifacts, profile.limits)?;
+    preprocess_inner(
+        params,
+        profile,
+        artifacts,
+        initial_locals,
+        entry_pc,
+        Some(seed),
+        PreprocessMode::UnboundedProfile,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum PreprocessMode {
+    Normal,
+    #[cfg(feature = "perf-timers")]
+    UnboundedProfile,
 }
 
 fn preprocess_inner(
@@ -235,6 +290,7 @@ fn preprocess_inner(
     initial_locals: &[u32],
     entry_pc: u64,
     seed: Option<u64>,
+    mode: PreprocessMode,
 ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
     let initial_state = top_level_initial_state_digest(&artifacts.tables, entry_pc);
     let canonical = canonical_wasm_nebula_shape_batched_with_initial_state_digest(profile.batch_size, initial_state)?;
@@ -249,9 +305,20 @@ fn preprocess_inner(
     let lookup_auxiliary_columns_per_instruction = canonical.lookup_auxiliary_columns_per_instruction;
     let lookup_auxiliary_columns_total = canonical.lookup_auxiliary_columns_total;
     let application = NebulaApplication::new(canonical.sparse_r1cs, canonical.plan, backend.layout)?;
-    let inner = match seed {
-        Some(seed) => NebulaFPrimePreprocessing::new_seeded_with_application(params, plan, application, seed)?,
-        None => NebulaFPrimePreprocessing::new_with_application(params, plan, application)?,
+    let inner = match mode {
+        PreprocessMode::Normal => match seed {
+            Some(seed) => NebulaFPrimePreprocessing::new_seeded_with_application(params, plan, application, seed)?,
+            None => NebulaFPrimePreprocessing::new_with_application(params, plan, application)?,
+        },
+        #[cfg(feature = "perf-timers")]
+        PreprocessMode::UnboundedProfile => {
+            NebulaFPrimePreprocessing::new_seeded_with_application_unbounded_for_profile(
+                params,
+                plan,
+                application,
+                seed.expect("unbounded profiler requires a deterministic setup seed"),
+            )?
+        }
     };
     Ok(WasmNebulaPreprocessing {
         inner,
@@ -260,6 +327,36 @@ fn preprocess_inner(
         lookup_auxiliary_columns_total,
         has_linear_memory: artifacts.tables.initial_memory_pages.is_some(),
     })
+}
+
+#[cfg(feature = "perf-timers")]
+#[doc(hidden)]
+pub fn build_application_segment_for_profile(
+    prep: &WasmNebulaPreprocessing,
+    trace: &[WasmVmStep],
+) -> Result<ApplicationSegmentTrace, WasmNebulaError> {
+    if trace.is_empty() {
+        return Err(WasmNebulaError::EmptyTrace);
+    }
+    reject_host_trace(trace)?;
+    let plan = prep.inner.plan();
+    let application = prep
+        .inner
+        .relation()
+        .application()
+        .ok_or(WasmNebulaError::MissingApplication)?;
+    let rows_per_segment = plan.params().steps_per_segment() * prep.profile.batch_size;
+    let mut rows = trace[..trace.len().min(rows_per_segment)].to_vec();
+    while rows.len() < rows_per_segment {
+        let previous = rows.last().expect("profile segment starts nonempty");
+        rows.push(padding_step_after(previous));
+    }
+    let assignments = rows
+        .chunks_exact(prep.profile.batch_size)
+        .map(compact_batched_assignment)
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut memory = Memory::new_with_initial_ram(*plan.params(), plan.rom_image(), plan.ram_image())?;
+    Ok(application.trace_segment(&mut memory, assignments)?)
 }
 
 pub fn prove(prep: &WasmNebulaPreprocessing, trace: &[WasmVmStep]) -> Result<WasmNebulaProof, WasmNebulaError> {

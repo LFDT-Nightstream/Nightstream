@@ -10,6 +10,7 @@ workspace = true
 
 [features]
 default = []
+perf-timers = ["neo-fold-clean/perf-timers"]
 
 [dependencies]
 neo-ajtai = { path = "../neo-ajtai" }

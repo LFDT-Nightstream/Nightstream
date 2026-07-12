@@ -39,6 +39,8 @@ use crate::frontends::nebula::layout::{CellRecord, MemOpRecord, MemSpace, Nebula
 pub enum TraceError {
     #[error("ROM image must have exactly {want} cells, got {got}")]
     RomImageLen { want: u64, got: usize },
+    #[error("RAM image must have exactly {want} cells, got {got}")]
+    RamImageLen { want: u64, got: usize },
     #[error("write to public ROM (addr {0})")]
     RomWrite(u64),
     #[error("address {addr} out of range for namespace of {cells} cells")]
@@ -77,18 +79,34 @@ pub struct Memory {
 }
 
 impl Memory {
-    /// Fresh chain-start memory (spec §3.1): ROM cells hold `rom_image`,
-    /// RAM cells hold 0, stacks are empty, every timestamp is 0.
+    /// Fresh chain-start memory with zero-initialized RAM.
     pub fn new(params: NebulaParams, rom_image: &[u32]) -> Result<Self, TraceError> {
+        let ram_image = vec![0; params.ram_cells() as usize];
+        Self::new_with_initial_ram(params, rom_image, &ram_image)
+    }
+
+    /// Fresh chain-start memory (spec §3.1): ROM and RAM cells hold the
+    /// verifier-owned initial images, stacks are empty, and every timestamp is 0.
+    pub fn new_with_initial_ram(
+        params: NebulaParams,
+        rom_image: &[u32],
+        ram_image: &[u32],
+    ) -> Result<Self, TraceError> {
         if rom_image.len() as u64 != params.rom_cells() {
             return Err(TraceError::RomImageLen {
                 want: params.rom_cells(),
                 got: rom_image.len(),
             });
         }
+        if ram_image.len() as u64 != params.ram_cells() {
+            return Err(TraceError::RamImageLen {
+                want: params.ram_cells(),
+                got: ram_image.len(),
+            });
+        }
         let mut cells = Vec::with_capacity(params.scanned_cells() as usize);
         cells.extend(rom_image.iter().map(|&v| CellRecord { v, t: 0 }));
-        cells.resize(params.scanned_cells() as usize, CellRecord { v: 0, t: 0 });
+        cells.extend(ram_image.iter().map(|&v| CellRecord { v, t: 0 }));
         Ok(Self {
             params,
             cells,
@@ -225,19 +243,35 @@ pub struct SegmentRun<'m> {
 }
 
 impl SegmentRun<'_> {
+    /// Apply one explicit ROM/RAM access and return the exact tuple record.
+    /// Application adapters use this to preserve fixed slot positions while
+    /// sharing the same native memory semantics as ordinary segment traces.
+    pub fn access(&mut self, space: MemSpace, addr: u64, write: Option<u32>) -> Result<MemOpRecord, TraceError> {
+        self.check_capacity()?;
+        let seg = match space {
+            MemSpace::Rom => false,
+            MemSpace::Ram => true,
+            MemSpace::Stack(s) => {
+                return Err(TraceError::StackIndex {
+                    got: s,
+                    stacks: self.mem.params.num_stacks,
+                })
+            }
+        };
+        let op = self.mem.apply(seg, addr, write)?;
+        self.ops.push(op);
+        Ok(op)
+    }
+
     /// Read a cell; returns its current value.
     pub fn read(&mut self, seg: bool, addr: u64) -> Result<u32, TraceError> {
-        self.check_capacity()?;
-        let op = self.mem.apply(seg, addr, None)?;
-        self.ops.push(op);
+        let op = self.access(if seg { MemSpace::Ram } else { MemSpace::Rom }, addr, None)?;
         Ok(op.v_r)
     }
 
     /// Write a cell (RAM only).
     pub fn write(&mut self, seg: bool, addr: u64, v: u32) -> Result<(), TraceError> {
-        self.check_capacity()?;
-        let op = self.mem.apply(seg, addr, Some(v))?;
-        self.ops.push(op);
+        self.access(if seg { MemSpace::Ram } else { MemSpace::Rom }, addr, Some(v))?;
         Ok(())
     }
 

@@ -447,8 +447,12 @@ pub enum LowNormR1csError {
     SelectiveTrace(String),
     #[error(transparent)]
     SeededPhi81(#[from] neo_ccs::SeededPhi81Error),
-    #[error("low-norm R1CS lowering: column {col} value does not fit inferred width {width}")]
-    InferredWidthViolation { col: usize, width: usize },
+    #[error("low-norm R1CS lowering: column {col} value {value} does not fit inferred width {width}")]
+    InferredWidthViolation {
+        col: usize,
+        width: usize,
+        value: u64,
+    },
     #[error(
         "low-norm R1CS lowering: canonical bit column {bit_col} disagrees with bit {bit} of source field column {field_col}"
     )]
@@ -472,6 +476,13 @@ pub(crate) fn normalized_field_assignment(
     builder: &R1csBuilder,
     public_outputs: &[Var],
 ) -> Result<Vec<F>, FieldR1csLoweringError> {
+    normalized_field_assignment_with_columns(builder, public_outputs).map(|(assignment, _)| assignment)
+}
+
+pub(crate) fn normalized_field_assignment_with_columns(
+    builder: &R1csBuilder,
+    public_outputs: &[Var],
+) -> Result<(Vec<F>, Vec<usize>), FieldR1csLoweringError> {
     let witness = builder.witness();
     let cols = witness.len();
     let mut selected = vec![false; cols];
@@ -493,7 +504,8 @@ pub(crate) fn normalized_field_assignment(
         old_columns.push(col);
     }
     old_columns.extend((1..cols).filter(|&col| !selected[col]));
-    Ok(old_columns.into_iter().map(|col| witness[col]).collect())
+    let assignment = old_columns.iter().map(|&col| witness[col]).collect();
+    Ok((assignment, old_columns))
 }
 
 /// Preserve one synthesized field-native relation while normalizing its
@@ -1345,7 +1357,11 @@ fn write_encoded_value(
     }
     let value = value.as_canonical_u64();
     if width < 64 && value >= (1u64 << width) {
-        return Err(LowNormR1csError::InferredWidthViolation { col: field_col, width });
+        return Err(LowNormR1csError::InferredWidthViolation {
+            col: field_col,
+            width,
+            value,
+        });
     }
     if let Some((source_col, bit)) = alias {
         let encoded = F::from_u64(value);

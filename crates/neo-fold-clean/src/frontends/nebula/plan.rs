@@ -3,7 +3,7 @@
 //!
 //! Owns: the validated plan constants, the `S_mem` structure built from
 //! them, the lane-commitment scheme (seeded from the plan), the public
-//! ROM image, the γ-independent `D_init` (the verifier's ROM handle,
+//! ROM/RAM image, the γ-independent `D_init` (the verifier's initial-memory handle,
 //! spec §7), and the plan digest that every segment's γ transcript
 //! absorbs (spec §6.2).
 //!
@@ -33,6 +33,8 @@ const A_MEM_LABEL: &[u8] = b"nebula/A_mem/v3";
 pub enum PlanError {
     #[error("plan: ROM image must have exactly R = {want} cells, got {got}")]
     RomImageLength { want: usize, got: usize },
+    #[error("plan: RAM image must have exactly M = {want} cells, got {got}")]
+    RamImageLength { want: usize, got: usize },
     #[error("plan: {0}")]
     Layout(#[from] LayoutError),
     #[error("plan: {0}")]
@@ -49,19 +51,32 @@ pub struct NebulaPlan {
     circuit: SMemCircuit,
     scheme: LaneScheme,
     rom_image: Vec<u32>,
+    ram_image: Vec<u32>,
     plan_digest: [F; 4],
     d_init: [F; 4],
 }
 
 impl NebulaPlan {
-    /// Compile a plan: build the `S_mem` structure, derive the lane
-    /// matrices from the plan seed, lay the initial memory (ROM image +
-    /// zeroed RAM) into per-step scan lanes, and chain their `A_mem`
-    /// commitments into `D_init` — recomputable by anyone from this
-    /// public data, with no γ anywhere (spec §7).
+    /// Compile a plan with zero-initialized RAM.
     pub fn new(
         params: NebulaParams,
         rom_image: Vec<u32>,
+        plan_seed: [u8; 32],
+        kappa: usize,
+    ) -> Result<Self, PlanError> {
+        let ram_image = vec![0; params.ram_cells() as usize];
+        Self::new_with_initial_ram(params, rom_image, ram_image, plan_seed, kappa)
+    }
+
+    /// Compile a plan: build the `S_mem` structure, derive the lane
+    /// matrices from the plan seed, lay the verifier-owned initial ROM and
+    /// RAM images into per-step scan lanes, and chain their `A_mem`
+    /// commitments into `D_init` — recomputable by anyone from this
+    /// public data, with no γ anywhere (spec §7).
+    pub fn new_with_initial_ram(
+        params: NebulaParams,
+        rom_image: Vec<u32>,
+        ram_image: Vec<u32>,
         plan_seed: [u8; 32],
         kappa: usize,
     ) -> Result<Self, PlanError> {
@@ -71,6 +86,12 @@ impl NebulaPlan {
                 got: rom_image.len(),
             });
         }
+        if ram_image.len() != params.ram_cells() as usize {
+            return Err(PlanError::RamImageLength {
+                want: params.ram_cells() as usize,
+                got: ram_image.len(),
+            });
+        }
         let circuit = SMemCircuit::new(params);
         let scheme = LaneScheme::from_seeds(
             kappa,
@@ -78,13 +99,14 @@ impl NebulaPlan {
             derive_seed(plan_seed, A_OPS_LABEL),
             derive_seed(plan_seed, A_MEM_LABEL),
         )?;
-        let d_init = compute_d_init(&params, &scheme, &rom_image)?;
-        let plan_digest = plan_digest(&params, &rom_image, plan_seed, kappa, d_init);
+        let d_init = compute_d_init(&params, &scheme, &rom_image, &ram_image)?;
+        let plan_digest = plan_digest(&params, &rom_image, &ram_image, plan_seed, kappa, d_init);
         Ok(Self {
             params,
             circuit,
             scheme,
             rom_image,
+            ram_image,
             plan_digest,
             d_init,
         })
@@ -118,8 +140,12 @@ impl NebulaPlan {
         &self.rom_image
     }
 
-    /// The verifier's ROM handle (spec §7): γ-independent, recomputable
-    /// from the ROM image and public parameters alone.
+    pub fn ram_image(&self) -> &[u32] {
+        &self.ram_image
+    }
+
+    /// The verifier's initial-memory handle (spec §7): gamma-independent and
+    /// recomputable from the public ROM/RAM images and plan parameters.
     pub fn d_init(&self) -> [F; 4] {
         self.d_init
     }
@@ -162,13 +188,18 @@ pub struct ErrorBudget {
 /// Chain the initial memory's per-step IS-lane commitments with the
 /// identical mem-domain leaf/link formula and header as the live IS/FS
 /// chains (spec §6.1/§7): `D_init = fold_{j ∈ [0,N)} link("mem", leaf_mem(c_j))`.
-fn compute_d_init(params: &NebulaParams, scheme: &LaneScheme, rom_image: &[u32]) -> Result<[F; 4], PlanError> {
-    let cells: Vec<CellRecord> = (0..params.scanned_cells())
-        .map(|g| CellRecord {
-            v: rom_image.get(g as usize).copied().unwrap_or(0),
-            t: 0,
-        })
+fn compute_d_init(
+    params: &NebulaParams,
+    scheme: &LaneScheme,
+    rom_image: &[u32],
+    ram_image: &[u32],
+) -> Result<[F; 4], PlanError> {
+    let cells: Vec<CellRecord> = rom_image
+        .iter()
+        .chain(ram_image)
+        .map(|&v| CellRecord { v, t: 0 })
         .collect();
+    debug_assert_eq!(cells.len(), params.scanned_cells() as usize);
     let mut chain = digest::nebula_chain_mem_header();
     for step in 0..params.steps_per_segment() {
         let chunk = &cells[step * params.b_scan..(step + 1) * params.b_scan];
@@ -192,10 +223,17 @@ fn derive_seed(plan_seed: [u8; 32], label: &[u8]) -> [u8; 32] {
 }
 
 /// `plan_digest = Poseidon2(canonical serialization)` (spec §11): version,
-/// every §2 constant, the ROM image, the scheme seed, and `D_init`.
+/// every §2 constant, the ROM/RAM image, the scheme seed, and `D_init`.
 /// Changing anything changes the digest — and the digest is absorbed at
 /// every segment open (spec §6.2), so it changes every γ.
-fn plan_digest(params: &NebulaParams, rom_image: &[u32], plan_seed: [u8; 32], kappa: usize, d_init: [F; 4]) -> [F; 4] {
+fn plan_digest(
+    params: &NebulaParams,
+    rom_image: &[u32],
+    ram_image: &[u32],
+    plan_seed: [u8; 32],
+    kappa: usize,
+    d_init: [F; 4],
+) -> [F; 4] {
     let mut preimage: Vec<F> = Vec::new();
     preimage.push(F::from_u64(PLAN_VERSION.len() as u64));
     preimage.extend(PLAN_VERSION.iter().map(|&b| F::from_u64(b as u64)));
@@ -211,6 +249,8 @@ fn plan_digest(params: &NebulaParams, rom_image: &[u32], plan_seed: [u8; 32], ka
     preimage.extend(digest::digest32_as_fields(plan_seed));
     preimage.push(F::from_u64(rom_image.len() as u64));
     preimage.extend(rom_image.iter().map(|&v| F::from_u64(v as u64)));
+    preimage.push(F::from_u64(ram_image.len() as u64));
+    preimage.extend(ram_image.iter().map(|&v| F::from_u64(v as u64)));
     preimage.extend_from_slice(&d_init);
     neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash(&preimage)
 }

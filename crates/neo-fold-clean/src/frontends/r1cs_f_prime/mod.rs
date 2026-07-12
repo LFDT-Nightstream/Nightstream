@@ -37,7 +37,9 @@ pub use lowering::{
 };
 pub use selective::{
     audit_multi_branch_selective_low_norm_width_with_alignment,
+    audit_multi_branch_selective_low_norm_width_with_shared_bit_prefix,
     build_multi_branch_selective_low_norm_r1cs_with_alignment,
+    build_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix,
 };
 pub use selective_audit::{
     SelectiveArmWidthAudit, SelectiveFamilyWidthAudit, SelectiveLowNormWidthAudit, SelectiveTraceWidthAudit,
@@ -68,7 +70,7 @@ use crate::paper::params::Params;
 /// output/public-only binding (`app_public_input*_indices`): in either
 /// case `state_x_out` absorbs an independent semantic digest that must
 /// be authenticated by the generated F' structure.
-fn semantic_state_mode_for_plan(plan: &RecursiveStepImagePlan) -> SemanticStateMode {
+pub(crate) fn semantic_state_mode_for_plan(plan: &RecursiveStepImagePlan) -> SemanticStateMode {
     let Some(state_x_out) = plan.state_x_out.as_ref() else {
         return SemanticStateMode::Stateless;
     };
@@ -87,7 +89,7 @@ fn semantic_state_mode_for_plan(plan: &RecursiveStepImagePlan) -> SemanticStateM
 /// `empty_semantic_state_digest()` for stateless plans. This is the
 /// value that gets baked into `vk_fs_digest` AND into the F' image's
 /// CCS structure's base-step constraint.
-fn initial_semantic_state_digest_for_plan(plan: &RecursiveStepImagePlan) -> [u8; 32] {
+pub(crate) fn initial_semantic_state_digest_for_plan(plan: &RecursiveStepImagePlan) -> [u8; 32] {
     plan.state_x_out
         .as_ref()
         .and_then(|sxo| sxo.initial_semantic_state_digest_anchor)
@@ -626,7 +628,7 @@ fn derive_structure(
 
 /// Validate the application-state contract shared by both the historical
 /// image compiler and the authoritative recursive R1CS-IVC relation.
-pub(super) fn validate_plan(plan: &RecursiveStepImagePlan, r1cs: &R1csShape) -> Result<(), Error> {
+pub(crate) fn validate_plan(plan: &RecursiveStepImagePlan, r1cs: &R1csShape) -> Result<(), Error> {
     let boolean_vars = r1cs.boolean_constrained_variables();
     let proven_widths = if plan.app_private_var_widths.is_empty() {
         Vec::new()

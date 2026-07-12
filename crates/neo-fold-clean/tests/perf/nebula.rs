@@ -39,7 +39,7 @@ fn nebula_v3_targets_folded_f_prime_production_preflight() {
         .expect("v3 targets plus maximum stack geometry");
     let params = neo_fold_clean::Params::for_ccs_shape_with(
         ROAD_A_COMMITTED_BIT_BUDGET,
-        14,
+        13,
         8,
         config::MIN_EFFECTIVE_LAMBDA,
         config::EXTENSION_SAFETY_MARGIN_BITS,
@@ -229,21 +229,27 @@ fn nebula_v3_targets_folded_f_prime_production_preflight() {
         max_digest_compression_words,
         max_digest_compression_cols,
     );
-    assert_eq!(structure.n, structure.m, "SuperNeo NC requires a square domain");
-    assert!(structure.matrices[0].is_identity(), "SuperNeo NC requires M0 = I");
-    assert_eq!(structure.t(), 14, "production verifier matrix count drifted");
+    assert!(
+        structure.n < structure.m,
+        "SplitNc must preserve the smaller semantic-row domain"
+    );
+    assert!(
+        !structure.matrices[0].is_identity(),
+        "SplitNc must not carry the obsolete NC identity matrix"
+    );
+    assert_eq!(structure.t(), 13, "production verifier matrix count drifted");
     assert_eq!(seeded_blocks, 72, "production compact-binding block count drifted");
     assert_eq!(
-        seeded_coefficient_slots, 493_591_320,
+        seeded_coefficient_slots, 480_533_472,
         "production compact-binding slot count drifted"
     );
     assert_eq!(long_binding_blocks, 36, "production rank-2 binding block count drifted");
     assert_eq!(
-        max_long_binding_words, 29_168,
+        max_long_binding_words, 27_233,
         "maximum rank-2 binding preimage width drifted"
     );
     assert_eq!(
-        max_long_binding_cols, 22_147,
+        max_long_binding_cols, 20_677,
         "maximum rank-2 binding message dimension drifted"
     );
     assert_eq!(
@@ -274,7 +280,7 @@ fn nebula_v3_targets_folded_f_prime_production_preflight() {
     let d4_factor = params
         .ccs_soundness_factor(structure.n.max(structure.m), structure.t(), structure.max_degree())
         .expect("exact SuperNeo D.4 soundness factor");
-    assert_eq!(d4_factor, 1_439_664, "SuperNeo D.4 production numerator drifted");
+    assert_eq!(d4_factor, 1_336_848, "SuperNeo D.4 production numerator drifted");
     let q_h = 2f64.powi(budget.max_fs_query_bits as i32);
     let n_seg = memory_params.seg_max as f64;
     let n_f = n_seg * memory_params.steps_per_segment() as f64;
@@ -309,10 +315,14 @@ fn nebula_v3_targets_folded_f_prime_production_preflight() {
         budget.end_to_end_target_bits,
     );
     assert!(
-        (65.2..65.3).contains(&end_to_end_bits),
+        (65.3..65.4).contains(&end_to_end_bits),
         "maximum-chain union-bound accounting drifted: {end_to_end_bits:.4} bits"
     );
-    assert_eq!(structure.m, 15_958_404, "production verifier fixed point drifted");
+    assert_eq!(
+        (structure.n, structure.m),
+        (2_819_360, 15_612_210),
+        "production rectangular verifier fixed point drifted"
+    );
     assert!(
         structure.m <= ROAD_A_COMMITTED_BIT_BUDGET,
         "production fixed relation uses {} committed coordinates, above the {}-bit Road A budget",

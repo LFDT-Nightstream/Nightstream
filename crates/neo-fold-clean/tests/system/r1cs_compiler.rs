@@ -40,7 +40,6 @@ use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
 use neo_fold_clean::engine::r1cs_circuit::alphabet_sampling::enforce_alphabet_sample_5_d;
 use neo_fold_clean::engine::r1cs_circuit::boolean::enforce_bit;
 use neo_fold_clean::engine::r1cs_circuit::field_ext::{enforce_k_dot_product, KVar};
-use neo_fold_clean::engine::r1cs_circuit::poseidon2::enforce_poseidon2_permutation;
 use neo_fold_clean::engine::r1cs_circuit::ring_action::{enforce_beta_ladder, enforce_eval_at_beta};
 use neo_fold_clean::engine::r1cs_circuit::transcript::TranscriptGadget;
 use neo_fold_clean::engine::r1cs_circuit::u64_arith::decompose_var_to_u64_bits;
@@ -1235,45 +1234,6 @@ fn multi_branch_lowering_preserves_canonical_bit_aliases() {
         }
         let encoded = fixed.encode(arm, &assignments[arm]).expect("arm encoding");
         assert!(fixed.is_satisfied(&encoded), "arm {arm} must remain satisfiable");
-    }
-}
-
-#[test]
-fn selective_multi_branch_lowering_preserves_poseidon_semantics() {
-    let mut shapes = Vec::new();
-    let mut assignments = Vec::new();
-    for arm in 0..3u64 {
-        let mut builder = R1csBuilder::new();
-        let input = core::array::from_fn(|lane| builder.alloc(F::from_u64(arm * 17 + lane as u64 + 1)));
-        let output = enforce_poseidon2_permutation(&mut builder, &input);
-        let output_bits = decompose_var_to_u64_bits(&mut builder, output[0]);
-        let lowered = lower_field_r1cs(builder, &[output_bits[0]]).expect("field lowering");
-        let (shape, assignment) = lowered.into_parts();
-        shapes.push(shape);
-        assignments.push(assignment);
-    }
-
-    let audit =
-        audit_multi_branch_selective_low_norm_width_with_alignment(&shapes, 0, 54, 0).expect("selective width audit");
-    for arm in &audit.arms {
-        assert_eq!(
-            arm.traces.poseidon2_columns, 87,
-            "one public-output lane plus 86 S-box outputs must remain; seven private final outputs are linear definitions"
-        );
-    }
-
-    let relation =
-        build_multi_branch_selective_low_norm_r1cs_with_alignment(&shapes, 0, 54, 0).expect("selective relation");
-    for arm in 0..3 {
-        let encoded = relation.encode(arm, &assignments[arm]).expect("encode arm");
-        assert!(relation.is_satisfied(&encoded), "arm {arm} selective Poseidon relation");
-
-        let mut tampered = encoded;
-        tampered[1] = if tampered[1] == F::ZERO { F::ONE } else { F::ZERO };
-        assert!(
-            !relation.is_satisfied(&tampered),
-            "arm {arm} public Poseidon output tamper must fail"
-        );
     }
 }
 

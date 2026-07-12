@@ -8,7 +8,7 @@
 
 mod chain;
 mod relation;
-mod shape;
+pub(crate) mod shape;
 
 pub use chain::{R1csIvc, R1csIvcPreprocessing};
 pub use relation::{R1csIvcBranch, R1csIvcRelation};

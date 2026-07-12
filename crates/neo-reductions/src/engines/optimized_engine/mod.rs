@@ -29,7 +29,7 @@ pub mod verify;
 
 // Re-export commonly used items
 pub use common::Challenges;
-pub use digit_table::{build_nc_digit_table_compact, NcDigitTable};
+pub use digit_table::{build_nc_digit_table_compact, NcDigitMasks, NcDigitTable};
 pub use sparse::SparseCache;
 
 /// Proof format variant for Π_CCS.

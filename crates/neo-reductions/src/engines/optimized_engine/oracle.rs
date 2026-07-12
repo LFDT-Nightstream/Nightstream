@@ -20,7 +20,7 @@ use std::sync::Arc;
 use crate::sumcheck::RoundOracle;
 
 use super::common::Challenges;
-use super::digit_table::{build_nc_digit_table_compact, NcDigitTable};
+use super::digit_table::{build_nc_digit_table_compact, NcDigitMasks, NcDigitTable};
 use super::row_poly::{
     accumulate_factored_groups_times_affine, accumulate_factored_groups_times_affine_base, accumulate_fast_term,
     accumulate_fast_term_base, factor_common_linear_terms, CompiledPolyGroup, CompiledPolyTerm, CompiledPolyTermKind,
@@ -61,7 +61,7 @@ where
     // Zero padding to the power-of-two sumcheck domain is implicit.
     digits_tables: Vec<NcDigitTable>,
     // Bitmask of live digit lanes for each row in `digits_tables`; table rows remain authority.
-    digit_lane_masks: Vec<Vec<u64>>,
+    digit_lane_masks: Vec<NcDigitMasks>,
     // weights[i][rho] = γ^{i+1} * χ_{β_a}(rho)
     weights: Vec<[K; D]>,
     // Cached t^2 values for the symmetric range polynomial.
@@ -153,7 +153,7 @@ where
         // Column-domain digit tables.
         #[cfg(feature = "perf-timers")]
         let t_digits = std::time::Instant::now();
-        let built_digit_tables: Vec<(NcDigitTable, Vec<u64>)> = {
+        let built_digit_tables: Vec<(NcDigitTable, NcDigitMasks)> = {
             #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
             {
                 if all_witnesses.len() > 1 {
@@ -284,9 +284,9 @@ where
 
                 for (wit_idx, tbl) in self.digits_tables.iter().enumerate() {
                     let hi_exists = idx + 1 < tbl.len();
-                    let mut lane_mask = self.digit_lane_masks[wit_idx][idx]
+                    let mut lane_mask = self.digit_lane_masks[wit_idx].get(idx)
                         | if hi_exists {
-                            self.digit_lane_masks[wit_idx][idx + 1]
+                            self.digit_lane_masks[wit_idx].get(idx + 1)
                         } else {
                             0
                         };
@@ -334,9 +334,9 @@ where
 
                             for (wit_idx, tbl) in self.digits_tables.iter().enumerate() {
                                 let hi_exists = idx + 1 < tbl.len();
-                                let mut lane_mask = self.digit_lane_masks[wit_idx][idx]
+                                let mut lane_mask = self.digit_lane_masks[wit_idx].get(idx)
                                     | if hi_exists {
-                                        self.digit_lane_masks[wit_idx][idx + 1]
+                                        self.digit_lane_masks[wit_idx].get(idx + 1)
                                     } else {
                                         0
                                     };
@@ -394,9 +394,9 @@ where
             let three_fq = Fq::from_u64(3);
             for (wit_idx, tbl) in self.digits_tables.iter().enumerate() {
                 let hi_exists = idx + 1 < tbl.len();
-                let mut lane_mask = self.digit_lane_masks[wit_idx][idx]
+                let mut lane_mask = self.digit_lane_masks[wit_idx].get(idx)
                     | if hi_exists {
-                        self.digit_lane_masks[wit_idx][idx + 1]
+                        self.digit_lane_masks[wit_idx].get(idx + 1)
                     } else {
                         0
                     };
@@ -438,9 +438,9 @@ where
             let three = K::from(F::from_u64(3));
             for (wit_idx, tbl) in self.digits_tables.iter().enumerate() {
                 let hi_exists = idx + 1 < tbl.len();
-                let mut lane_mask = self.digit_lane_masks[wit_idx][idx]
+                let mut lane_mask = self.digit_lane_masks[wit_idx].get(idx)
                     | if hi_exists {
-                        self.digit_lane_masks[wit_idx][idx + 1]
+                        self.digit_lane_masks[wit_idx].get(idx + 1)
                     } else {
                         0
                     };
@@ -591,9 +591,9 @@ where
                 let mut inner = [K::ZERO; 6];
                 for (wit_idx, tbl) in self.digits_tables.iter().enumerate() {
                     let hi_exists = idx + 1 < tbl.len();
-                    let mut lane_mask = self.digit_lane_masks[wit_idx][idx]
+                    let mut lane_mask = self.digit_lane_masks[wit_idx].get(idx)
                         | if hi_exists {
-                            self.digit_lane_masks[wit_idx][idx + 1]
+                            self.digit_lane_masks[wit_idx].get(idx + 1)
                         } else {
                             0
                         };
@@ -676,9 +676,9 @@ where
                             let mut inner = [K::ZERO; 6];
                             for (wit_idx, tbl) in self.digits_tables.iter().enumerate() {
                                 let hi_exists = idx + 1 < tbl.len();
-                                let mut lane_mask = self.digit_lane_masks[wit_idx][idx]
+                                let mut lane_mask = self.digit_lane_masks[wit_idx].get(idx)
                                     | if hi_exists {
-                                        self.digit_lane_masks[wit_idx][idx + 1]
+                                        self.digit_lane_masks[wit_idx].get(idx + 1)
                                     } else {
                                         0
                                     };

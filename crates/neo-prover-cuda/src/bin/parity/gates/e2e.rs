@@ -93,7 +93,12 @@ fn build_sha256_e2e_fixture() -> Sha256E2eFixture {
             packed_state_derived_structure(&chunks[0].sparse_r1cs, &Params::production(), &states[0]);
         let structure = derived.structure();
         let params = Params::for_ccs_shape(structure.ccs.n, structure.ccs.t(), structure.ccs.max_degree())
-            .expect("e2e production params");
+            .expect("e2e production-core params");
+        assert!(
+            params.has_production_core(),
+            "e2e benchmark must retain the Appendix B.2 production core"
+        );
+        assert!(params.k_rho() >= 14, "e2e benchmark must not reduce k_rho below 14");
         let prepared = r1cs_f_prime::prepare_derived_structure(derived).expect("e2e prepare");
         r1cs_f_prime::preprocess_seeded_prepared_with_params(prepared, params, SHA256_SERIAL_AJTAI_SEED)
             .expect("e2e preprocess")
@@ -207,8 +212,13 @@ fn run_sha256_lifecycle(label: &str, configure_cuda: impl FnOnce(&mut CudaNifsPr
     let (mut cuda, adapter_ms) = timed(|| CudaNifsProver::new().expect("open CUDA NIFS prover"));
     configure_cuda(&mut cuda);
     let (_, cuda_prepare_ms) = timed(|| {
-        cuda.prepare_static(&fixture.prep.prep.log, fixture.prep.prep.optimized_cache())
-            .expect("prepare CUDA static state")
+        cuda.prepare_static(
+            &fixture.prep.prep.params,
+            &fixture.prep.prep.log,
+            fixture.prep.prep.optimized_cache(),
+            1,
+        )
+        .expect("prepare CUDA static state")
     });
     let gpu = run_chain(&fixture.prep, &fixture.chunks, &fixture.states[0], Some(&mut cuda));
 
@@ -258,8 +268,13 @@ fn run_sha256_lifecycle_terminal_claims_only(
     cuda.enable_terminal_claims_only_fast();
     configure_cuda(&mut cuda);
     let (_, cuda_prepare_ms) = timed(|| {
-        cuda.prepare_static(&fixture.prep.prep.log, fixture.prep.prep.optimized_cache())
-            .expect("prepare CUDA static state")
+        cuda.prepare_static(
+            &fixture.prep.prep.params,
+            &fixture.prep.prep.log,
+            fixture.prep.prep.optimized_cache(),
+            1,
+        )
+        .expect("prepare CUDA static state")
     });
     let gpu = run_chain(&fixture.prep, &fixture.chunks, &fixture.states[0], Some(&mut cuda));
 
@@ -311,7 +326,12 @@ fn prepare_cuda_provers_on_context(
     let (_, prepare_ms) = timed(|| {
         for prover in &mut provers {
             prover
-                .prepare_static(&fixture.prep.prep.log, fixture.prep.prep.optimized_cache())
+                .prepare_static(
+                    &fixture.prep.prep.params,
+                    &fixture.prep.prep.log,
+                    fixture.prep.prep.optimized_cache(),
+                    1,
+                )
                 .expect("prepare CUDA static state");
         }
     });
@@ -375,8 +395,13 @@ fn run_cuda_chains_parallel(
                         timed(|| CudaNifsProver::new_on_context(ctx).expect("open CUDA NIFS prover stream"));
                     mode.configure(&mut cuda);
                     let (_, prepare_ms) = timed(|| {
-                        cuda.prepare_static(&fixture.prep.prep.log, fixture.prep.prep.optimized_cache())
-                            .expect("prepare CUDA static state")
+                        cuda.prepare_static(
+                            &fixture.prep.prep.params,
+                            &fixture.prep.prep.log,
+                            fixture.prep.prep.optimized_cache(),
+                            1,
+                        )
+                        .expect("prepare CUDA static state")
                     });
                     barrier.wait();
                     let run = run_chain_inner(

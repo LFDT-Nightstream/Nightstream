@@ -6,7 +6,7 @@
 use cuda_core::{DeviceBuffer, PinnedHostBuffer};
 use neo_ccs::Mat;
 use neo_math::{KExtensions, D, F, K};
-use neo_reductions::optimized_engine::oracle::RowPhaseSnapshot;
+use neo_reductions::optimized_engine::oracle::{RowPhaseSnapshot, RowTableSnapshot};
 use neo_reductions::optimized_engine::{
     Challenges, FeEvalTable, FeMcsRowTables, FePhaseTraceRequest, FeRowRoundSummary, FeRowRoundTrace, FeSumcheckBackend,
 };
@@ -84,8 +84,14 @@ pub(super) struct FePhaseLogShape {
     pub(super) width: usize,
 }
 
+#[derive(Clone, Copy)]
+enum HostTableSource<'a> {
+    Extension(&'a [K]),
+    Split(RowTableSnapshot<'a>),
+}
+
 enum FeTableSource<'a> {
-    Host(&'a [K]),
+    Host(HostTableSource<'a>),
     TensorPoint(&'a [K]),
     Deferred { mcs_idx: usize, var_pos: usize },
     DeferredEval,
@@ -106,15 +112,36 @@ fn tensor_point_words(point: &[K]) -> Vec<u64> {
     words
 }
 
-fn write_table_words(words: &mut [u64], slot: usize, table: &[K], stride: usize) -> Result<(), CcsDeviceError> {
-    if table.len() != stride {
+fn write_table_words(
+    words: &mut [u64],
+    slot: usize,
+    table: HostTableSource<'_>,
+    stride: usize,
+) -> Result<(), CcsDeviceError> {
+    let len = match table {
+        HostTableSource::Extension(values) => values.len(),
+        HostTableSource::Split(table) => table.real.len(),
+    };
+    if len != stride {
         return Err(CcsDeviceError::Shape("row tables must share cur_len"));
     }
     let base = slot * stride * 2;
-    for (i, value) in table.iter().enumerate() {
-        let (c0, c1) = value.to_limbs_u64();
-        words[base + 2 * i] = c0;
-        words[base + 2 * i + 1] = c1;
+    match table {
+        HostTableSource::Extension(values) => {
+            for (i, value) in values.iter().enumerate() {
+                let (c0, c1) = value.to_limbs_u64();
+                words[base + 2 * i] = c0;
+                words[base + 2 * i + 1] = c1;
+            }
+        }
+        HostTableSource::Split(table) => {
+            for (i, &real) in table.real.iter().enumerate() {
+                let imag = table.imag.map_or(F::ZERO, |imag| imag[i]);
+                let (c0, c1) = K::from_coeffs([real, imag]).to_limbs_u64();
+                words[base + 2 * i] = c0;
+                words[base + 2 * i + 1] = c1;
+            }
+        }
     }
     Ok(())
 }
@@ -262,7 +289,7 @@ impl DeviceFeOracle {
             None
         };
         let eval_slot = if let Some(tbl) = snapshot.eval_tbl {
-            table_sources.push(FeTableSource::Host(tbl));
+            table_sources.push(FeTableSource::Host(HostTableSource::Extension(tbl)));
             Some(table_sources.len() as u64 - 1)
         } else if snapshot.deferred_eval_tbl {
             deferred_eval_table(deferred_eval, stride)?;
@@ -285,7 +312,13 @@ impl DeviceFeOracle {
                         table_sources.push(FeTableSource::Deferred { mcs_idx: mcs, var_pos });
                     }
                 } else {
-                    table_sources.extend(tables.iter().copied().map(FeTableSource::Host));
+                    table_sources.extend(
+                        tables
+                            .iter()
+                            .copied()
+                            .map(HostTableSource::Split)
+                            .map(FeTableSource::Host),
+                    );
                 }
                 base
             };
@@ -340,7 +373,7 @@ impl DeviceFeOracle {
                                 let FeTableSource::Host(table) = source else {
                                     unreachable!("host run checked above");
                                 };
-                                write_table_words(&mut words, local_slot, table, stride)?;
+                                write_table_words(&mut words, local_slot, *table, stride)?;
                             }
                             let staging = take_buffer(&mut workspace.upload_staging, stream, words.len())?;
                             copy_host_to_device(stream, &staging, &words)?;
@@ -393,7 +426,7 @@ impl DeviceFeOracle {
                     let FeTableSource::Host(table) = source else {
                         unreachable!("needs_mixed_upload checked above");
                     };
-                    write_table_words(&mut words, slot, table, stride)?;
+                    write_table_words(&mut words, slot, *table, stride)?;
                 }
                 copy_host_to_device(stream, &tables_a, &words)?;
             }

@@ -657,7 +657,7 @@ impl CcsProveCase {
 
     pub(super) fn prove_cpu(&self, fixture: &Fixture) -> CcsProveOutput {
         let mut tr = neo_transcript::Poseidon2Transcript::new_raw_fields(&self.transcript_init);
-        let (outputs, proof, _) =
+        let (outputs, proof, _, _) =
             neo_reductions::optimized_engine::optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf(
                 &mut tr,
                 fixture.prep.params.inner(),

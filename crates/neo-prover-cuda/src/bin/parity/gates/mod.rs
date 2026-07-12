@@ -15,7 +15,7 @@ use neo_fold_clean::paper::nifs::{
     prove as nifs_cpu_prove, NifsFreshInstancesRequest, NifsProof, NifsProverAdapter, NifsProverRequest,
 };
 use neo_fold_clean::paper::pi_rlc;
-use neo_fold_clean::paper::relations::{ajtai_dec_mixer, ajtai_rlc_mixer};
+use neo_fold_clean::paper::relations::{ajtai_dec_mixer, ajtai_rlc_mixer, LaneRanges, LaneScheme};
 use neo_fold_clean::{CcsInstance, RunningInstance};
 use neo_math::{KExtensions, D, F, K};
 use neo_prover_cuda::commit::DeviceAjtai;
@@ -54,6 +54,7 @@ mod ccs;
 mod commit;
 mod dec;
 mod e2e;
+mod nebula;
 mod nifs;
 mod rlc;
 mod transcript;
@@ -69,6 +70,7 @@ pub use e2e::{
     e2e_graph_three_recapture_bench, e2e_graph_two_bench, e2e_multichain16_fast_bench, e2e_multichain8_bench,
     e2e_multichain8_fast_bench, e2e_multichain_bench, e2e_whole_fe_bench, e2e_whole_fe_fast_bench,
 };
-pub use nifs::{nifs, nifs_bench, nifs_whole_phase};
+pub use nebula::nebula_lifecycle;
+pub use nifs::{nifs, nifs_bench, nifs_nebula, nifs_whole_phase};
 pub use rlc::{rlc, rlc_bench};
 pub use transcript::transcript;

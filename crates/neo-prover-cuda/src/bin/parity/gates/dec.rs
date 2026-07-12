@@ -157,6 +157,7 @@ fn cpu_dec_prove(fixture: &Fixture, parent: &neo_fold_clean::CeClaim, witness: &
         fixture.structure(),
         fixture.prep.optimized_cache(),
         &fixture.prep.log,
+        None,
         ajtai_dec_mixer,
         parent,
         witness,
@@ -176,7 +177,7 @@ struct DecGpu {
 impl DecGpu {
     fn open(fixture: &Fixture) -> Self {
         let device = Device::open().expect("open CUDA device");
-        let pp = fixture.prep.log.materialize_pp().expect("materialize PP");
+        let pp = fixture.prep.log.verification_pp().expect("materialize PP");
         let ajtai = DeviceAjtai::upload(&device, &pp).expect("upload PP");
         let kernels = SumcheckKernels::load(&device).expect("load sumcheck kernels");
         let dec = DeviceDec::new(&device).expect("load DEC kernels");

@@ -337,20 +337,8 @@ impl DevicePublicX {
         })
     }
 
-    pub(crate) fn words(&self) -> &DeviceBuffer<u64> {
-        &self.words
-    }
-
     pub(crate) fn claims(&self) -> usize {
         self.claims
-    }
-
-    pub(crate) fn m_in(&self) -> usize {
-        self.m_in
-    }
-
-    pub(crate) fn active_cols(&self) -> usize {
-        self.active_cols
     }
 
     pub(crate) fn words_per_claim(&self) -> usize {

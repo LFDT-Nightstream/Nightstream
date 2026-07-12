@@ -31,7 +31,6 @@ use thiserror::Error;
 use crate::device::Device;
 use crate::kernels::ajtai::{load_ajtai_kernels, AjtaiKernelModule};
 use crate::kernels::csr::{load_csr_kernels, CsrKernelModule};
-use crate::kernels::pi_ccs_digest::{load_ccs_digest_kernels, CcsDigestKernelModule};
 use crate::kernels::pi_ccs_fe::{load_fe_kernels, FeKernelModule};
 use crate::kernels::pi_ccs_nc::{load_nc_kernels, NcKernelModule};
 use crate::kernels::pi_ccs_output::{load_ccs_output_kernels, CcsOutputKernelModule};
@@ -41,7 +40,7 @@ use crate::kernels::poseidon2::{load_poseidon2_kernels, Poseidon2KernelModule};
 use crate::kernels::sumcheck_common::{load_sumcheck_common, SumcheckCommonModule};
 use crate::transcript::upload_round_constants;
 
-pub(crate) use digest::accumulator_digest_from_surfaces;
+pub(crate) use digest::pi_ccs_outputs_digest_field_count;
 pub use digest::{DevicePiCcsOutputsDigest, PiCcsOutputDigestShell};
 pub use fe::{DeviceAjtaiYEval, DeviceFeBackend, DeviceFeOracle, DeviceFeTailRound};
 pub(crate) use fe_oracle_workspace::FeOracleWorkspace;
@@ -94,8 +93,6 @@ pub struct SumcheckKernels {
     pub(crate) rlc: RlcKernelModule,
     /// Pi_CCS-to-Pi_RLC device output-surface packing kernels.
     pub(crate) output: CcsOutputKernelModule,
-    /// Pi_CCS output-digest preimage kernels.
-    pub(crate) digest: CcsDigestKernelModule,
 }
 
 impl SumcheckKernels {
@@ -124,7 +121,6 @@ impl SumcheckKernels {
             poseidon_rc: upload_round_constants(device)?,
             rlc: load_rlc_kernels(ctx).map_err(CcsDeviceError::ModuleLoad)?,
             output: load_ccs_output_kernels(ctx).map_err(CcsDeviceError::ModuleLoad)?,
-            digest: load_ccs_digest_kernels(ctx).map_err(CcsDeviceError::ModuleLoad)?,
         })
     }
 }

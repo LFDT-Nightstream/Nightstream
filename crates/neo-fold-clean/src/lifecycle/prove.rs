@@ -74,13 +74,32 @@ pub fn extend_nebula_open(
     extend_inner(prep, audit, batch, SemanticStateAdvance::Stateless, Some(d_pre))
 }
 
+/// Adapter-backed variant of [`extend_nebula_open`]. The Nebula transition
+/// remains lifecycle-owned; only the NIFS fold is delegated to `adapter`.
+pub fn extend_nebula_open_with_nifs_adapter(
+    prep: &Preprocessing,
+    adapter: &mut dyn NifsProverAdapter,
+    audit: UncompressedAudit,
+    batch: Vec<CcsInstance>,
+    d_pre: [[F; 4]; 3],
+) -> Result<UncompressedAudit, Error> {
+    extend_inner_with_adapter(
+        prep,
+        adapter,
+        audit,
+        batch,
+        SemanticStateAdvance::Stateless,
+        Some(d_pre),
+    )
+}
+
 pub fn extend_with_nifs_adapter(
     prep: &Preprocessing,
     adapter: &mut dyn NifsProverAdapter,
     audit: UncompressedAudit,
     batch: Vec<CcsInstance>,
 ) -> Result<UncompressedAudit, Error> {
-    extend_inner_with_adapter(prep, adapter, audit, batch, SemanticStateAdvance::Stateless)
+    extend_inner_with_adapter(prep, adapter, audit, batch, SemanticStateAdvance::Stateless, None)
 }
 
 /// Begin a stateful proof: seed the base state with
@@ -128,6 +147,7 @@ pub fn prove_one_with_semantic_state_and_nifs_adapter(
         audit,
         batch,
         SemanticStateAdvance::Stateful(semantic_state_digest_next),
+        None,
     )
 }
 
@@ -168,6 +188,7 @@ pub fn extend_with_semantic_state_and_nifs_adapter(
         audit,
         batch,
         SemanticStateAdvance::Stateful(semantic_state_digest_next),
+        None,
     )
 }
 
@@ -214,8 +235,9 @@ fn extend_inner_with_adapter(
     audit: UncompressedAudit,
     batch: Vec<CcsInstance>,
     semantic_advance: SemanticStateAdvance,
+    nebula_open: Option<[[F; 4]; 3]>,
 ) -> Result<UncompressedAudit, Error> {
-    extend_inner_with_nifs_prover(prep, Some(adapter), audit, batch, semantic_advance, None)
+    extend_inner_with_nifs_prover(prep, Some(adapter), audit, batch, semantic_advance, nebula_open)
 }
 
 fn extend_inner_with_nifs_prover(
@@ -256,21 +278,21 @@ fn extend_in_place_inner_with_nifs_prover(
     }
     let public_batch: Vec<CcsClaim> = batch.iter().map(|i| i.claim.clone()).collect();
     super::validate_public_input_len(prep, &public_batch)?;
+    let current_state = audit.proof.state.clone();
     // Nebula lane transition (spec §6.3): the prover runs the same shared
     // decode-and-advance the verifiers replay, so a malformed segment
     // fails here — at the named §6.3 check — instead of at verification.
     let nebula_advance = if prep.enforces_terminal_induction() {
-        delayed_nebula_advance(prep, &audit.proof.state, nebula_open)?
+        delayed_nebula_advance(prep, &current_state, nebula_open)?
     } else {
-        match (prep.nebula(), &audit.proof.state.nebula) {
+        match (prep.nebula(), &current_state.nebula) {
             (Some(cfg), Some(lane)) => {
-                let state = &audit.proof.state;
                 let mut lane_out = lane.clone();
                 lane_out.advance_for_batch(
                     cfg,
                     prep.vk.digest(),
-                    state.z_i,
-                    state.acc_digest,
+                    current_state.z_i,
+                    current_state.acc_digest,
                     nebula_open,
                     &public_batch,
                 )?;
@@ -288,7 +310,6 @@ fn extend_in_place_inner_with_nifs_prover(
             _ => return Err(Error::NebulaLanePresenceMismatch),
         }
     };
-    let current_state = audit.proof.state.clone();
     let (next_state, step_proof, post_summary) = if let Some(adapter) = adapter {
         construction2::step_with_adapter_output_and_semantic_state(
             adapter,

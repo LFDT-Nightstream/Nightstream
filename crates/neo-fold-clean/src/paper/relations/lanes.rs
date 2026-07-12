@@ -18,10 +18,10 @@
 use std::ops::Range;
 use std::sync::Arc;
 
-use neo_ajtai::{setup_par, AjtaiSModule, Commitment};
+use neo_ajtai::{setup_par, AjtaiSModule, Commitment, PP};
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{LaneCommitments, Mat};
-use neo_math::{D, F};
+use neo_math::{Rq, D, F};
 use p3_field::PrimeCharacteristicRing;
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha8Rng;
@@ -154,6 +154,31 @@ impl LaneScheme {
     }
 
     pub(crate) fn ranges(&self) -> &LaneRanges {
+        &self.ranges
+    }
+
+    /// Materialized public parameters for accelerator backends. The returned
+    /// `Arc` is the exact matrix used by [`Self::commit`], so a device upload
+    /// is an execution backend for the same commitment rather than a second
+    /// protocol definition.
+    #[doc(hidden)]
+    pub fn ops_verification_pp(&self) -> Result<Arc<PP<Rq>>, LaneSchemeError> {
+        self.a_ops
+            .verification_pp()
+            .map_err(|error| LaneSchemeError::Setup(error.to_string()))
+    }
+
+    /// The shared IS/FS public parameters for accelerator backends.
+    #[doc(hidden)]
+    pub fn mem_verification_pp(&self) -> Result<Arc<PP<Rq>>, LaneSchemeError> {
+        self.a_mem
+            .verification_pp()
+            .map_err(|error| LaneSchemeError::Setup(error.to_string()))
+    }
+
+    /// Whole-column placement of the three committed lane slices.
+    #[doc(hidden)]
+    pub fn lane_ranges(&self) -> &LaneRanges {
         &self.ranges
     }
 

@@ -2,6 +2,8 @@
 """Phase-attributed GPU profiling for neo-prover-cuda parity gates."""
 
 import argparse
+import bisect
+import heapq
 import json
 import os
 import re
@@ -31,7 +33,6 @@ from taxonomy import NUMERIC_COLS, SOURCE_MAP, STAGE_ORDER
 from trace_export import chrome_trace
 from util import (
     api_bucket,
-    complement_intervals,
     copy_kind_name,
     fmt_count,
     fmt_mb_count,
@@ -41,7 +42,6 @@ from util import (
     overlap,
     short_kernel_name,
     tool_path,
-    union_overlap,
     write_json,
 )
 
@@ -265,6 +265,46 @@ def find_phase_index(phases, order, t):
     return None
 
 
+def build_interval_index(union):
+    starts = [start for start, _ in union]
+    ends = [end for _, end in union]
+    prefix = [0.0]
+    for start, end in union:
+        prefix.append(prefix[-1] + end - start)
+    return starts, ends, prefix
+
+
+def indexed_union_overlap(window_start, window_end, index):
+    starts, ends, prefix = index
+    first = bisect.bisect_right(ends, window_start)
+    stop = bisect.bisect_left(starts, window_end)
+    if first >= stop:
+        return 0.0
+    total = prefix[stop] - prefix[first]
+    total -= max(0.0, window_start - starts[first])
+    total -= max(0.0, ends[stop - 1] - window_end)
+    return max(0.0, total)
+
+
+def indexed_complement_intervals(window_start, window_end, union, index):
+    starts, ends, _ = index
+    cursor = window_start
+    gaps = []
+    first = bisect.bisect_right(ends, window_start)
+    for position in range(first, len(union)):
+        start, end = union[position]
+        if start >= window_end:
+            break
+        if start > cursor:
+            gaps.append((cursor, min(start, window_end)))
+        cursor = max(cursor, end)
+        if cursor >= window_end:
+            break
+    if cursor < window_end:
+        gaps.append((cursor, window_end))
+    return gaps
+
+
 def attribute(phases, kernels, memcpys, memsets, syncs, api_calls):
     """Attribute CUDA activity to phase windows.
 
@@ -275,9 +315,6 @@ def attribute(phases, kernels, memcpys, memsets, syncs, api_calls):
     their own midpoint. Idle is decomposed per phase window on the execution
     timeline into sync-wait / other-API / host-gap components.
     """
-    # Innermost-first: sort candidate windows by duration so the smallest
-    # containing window claims each activity's attribution time.
-    order = sorted(range(len(phases)), key=lambda i: phases[i]["end"] - phases[i]["start"])
     api_by_corr = {a["correlation_id"]: a for a in api_calls if a.get("correlation_id")}
 
     def enqueue_time(activity):
@@ -287,49 +324,50 @@ def attribute(phases, kernels, memcpys, memsets, syncs, api_calls):
         return (activity["start"] + activity["end"]) / 2
 
     stats = defaultdict(lambda: defaultdict(float))
-    kernel_union = sorted((k["start"], k["end"]) for k in kernels)
+    kernel_union = interval_union((k["start"], k["end"]) for k in kernels)
+    kernel_index = build_interval_index(kernel_union)
 
-    for k in kernels:
+    kernel_phases = narrowest_values_for_times(phases, [enqueue_time(k) for k in kernels], lambda _row, index: index)
+    for k, i in zip(kernels, kernel_phases):
         s, e, name = k["start"], k["end"], k["name"]
-        i = find_phase_index(phases, order, enqueue_time(k))
         if i is not None:
             elapsed_ms = (e - s) / 1e6
             st = stats[i]
             st["gpu_ms"] += elapsed_ms
             st["launches"] += 1
             st.setdefault("kernels", defaultdict(float))[name] += elapsed_ms
-    for c in memcpys:
+    memcpy_phases = narrowest_values_for_times(phases, [enqueue_time(c) for c in memcpys], lambda _row, index: index)
+    for c, i in zip(memcpys, memcpy_phases):
         s, e, b, kind = c["start"], c["end"], c["bytes"], c["copy_kind"]
-        i = find_phase_index(phases, order, enqueue_time(c))
         if i is not None:
             st = stats[i]
             key = "h2d" if kind == 1 else "d2h" if kind == 2 else "dtod"
             st[f"{key}_mb"] += b / 1e6
             st[f"{key}_ms"] += (e - s) / 1e6
             st[f"{key}_copies"] += 1
-    for m in memsets:
+    memset_phases = narrowest_values_for_times(phases, [enqueue_time(m) for m in memsets], lambda _row, index: index)
+    for m, i in zip(memsets, memset_phases):
         s, e, b = m["start"], m["end"], m["bytes"]
-        i = find_phase_index(phases, order, enqueue_time(m))
         if i is not None:
             stats[i]["memset_mb"] += b / 1e6
             stats[i]["memset_ms"] += (e - s) / 1e6
             stats[i]["memset_count"] += 1
-    for s0 in syncs:
+    sync_phases = narrowest_values_for_times(
+        phases, [(sync["start"] + sync["end"]) / 2 for sync in syncs], lambda _row, index: index
+    )
+    for s0, i in zip(syncs, sync_phases):
         s, e = s0["start"], s0["end"]
-        i = find_phase_index(phases, order, (s + e) / 2)
         if i is None:
             continue
-        busy = 0.0
-        for ks, ke in kernel_union:
-            if ks > e:
-                break
-            busy += overlap(s, e, ks, ke)
+        busy = indexed_union_overlap(s, e, kernel_index)
         stats[i]["sync_ms"] += (e - s) / 1e6
         stats[i]["sync_idle_ms"] += max(0.0, (e - s) - busy) / 1e6
         stats[i]["syncs"] += 1
-    for api in api_calls:
+    api_phases = narrowest_values_for_times(
+        phases, [(api["start"] + api["end"]) / 2 for api in api_calls], lambda _row, index: index
+    )
+    for api, i in zip(api_calls, api_phases):
         s, e, name = api["start"], api["end"], api["name"]
-        i = find_phase_index(phases, order, (s + e) / 2)
         if i is None:
             continue
         elapsed_ms = (e - s) / 1e6
@@ -356,14 +394,17 @@ def attribute(phases, kernels, memcpys, memsets, syncs, api_calls):
     other_api_union = interval_union(
         [(a["start"], a["end"]) for a in api_calls if api_bucket(a["name"]) != "sync"]
     )
+    device_index = build_interval_index(device_union)
+    sync_index = build_interval_index(sync_union)
+    other_api_index = build_interval_index(other_api_union)
     for i, p in enumerate(phases):
         if p.get("synthetic"):
             continue
         idle = sync_wait = api_time = 0.0
-        for gs, ge in complement_intervals(p["start"], p["end"], device_union):
+        for gs, ge in indexed_complement_intervals(p["start"], p["end"], device_union, device_index):
             idle += ge - gs
-            sync_wait += union_overlap(gs, ge, sync_union)
-            api_time += union_overlap(gs, ge, other_api_union)
+            sync_wait += indexed_union_overlap(gs, ge, sync_index)
+            api_time += indexed_union_overlap(gs, ge, other_api_index)
         st = stats[i]
         st["idle_ms"] += idle / 1e6
         st["idle_sync_ms"] += sync_wait / 1e6
@@ -374,6 +415,10 @@ def attribute(phases, kernels, memcpys, memsets, syncs, api_calls):
 
 ONLINE_RE = re.compile(
     r"online prove cpu=([\d.]+)ms gpu=([\d.]+)ms \(([\d.]+)x\)"
+)
+MULTICHAIN_RE = re.compile(
+    r"cpu aggregate=([\d.]+)ms sequential cuda=([\d.]+)ms \(([\d.]+)x\) "
+    r"parallel cuda=([\d.]+)ms \(([\d.]+)x\) overlap=([\d.]+)x"
 )
 APPEND_RE = re.compile(r"append\s+(\d+): cpu ([\d.]+)ms\s+gpu ([\d.]+)ms")
 FINISH_RE = re.compile(r"finish\s+: cpu ([\d.]+)ms\s+gpu ([\d.]+)ms")
@@ -473,6 +518,22 @@ def parse_run_summary(summary_lines):
                 "cuda_ms": float(m.group(2)),
                 "speedup": float(m.group(3)),
                 "proof": "byte-identical",
+            }
+            continue
+        m = MULTICHAIN_RE.search(line)
+        if m:
+            out["online"] = {
+                "cpu_ms": float(m.group(1)),
+                "cuda_ms": float(m.group(4)),
+                "speedup": float(m.group(5)),
+                "proof": "byte-identical",
+            }
+            out["multichain"] = {
+                "sequential_cuda_ms": float(m.group(2)),
+                "sequential_speedup": float(m.group(3)),
+                "parallel_cuda_ms": float(m.group(4)),
+                "parallel_speedup": float(m.group(5)),
+                "overlap": float(m.group(6)),
             }
             continue
         m = APPEND_RE.search(line)
@@ -650,6 +711,42 @@ def stage_for_time(phases, t):
     return phases[idx]["label"].split(":", 1)[-1]
 
 
+def narrowest_values_for_times(ranges, times, value):
+    """Return a value from the narrowest enclosing range for each timestamp."""
+    starts = sorted(
+        (
+            row["start"],
+            row["end"] - row["start"],
+            row["end"],
+            index,
+            value(row, index),
+        )
+        for index, row in enumerate(ranges)
+    )
+    answers = [None] * len(times)
+    active = []
+    cursor = 0
+    for time, answer_index in sorted((time, index) for index, time in enumerate(times)):
+        while cursor < len(starts) and starts[cursor][0] <= time:
+            start, duration, end, phase_index, label = starts[cursor]
+            heapq.heappush(active, (duration, phase_index, end, label))
+            cursor += 1
+        while active and active[0][2] < time:
+            heapq.heappop(active)
+        if active:
+            answers[answer_index] = active[0][3]
+    return answers
+
+
+def stages_for_times(phases, times):
+    """Return the narrowest phase containing each timestamp in O((P + T) log P)."""
+    return narrowest_values_for_times(phases, times, lambda phase, _index: phase["label"].split(":", 1)[-1])
+
+
+def nvtx_stages_for_times(nvtx, times):
+    return narrowest_values_for_times(nvtx, times, lambda row, _index: row["text"])
+
+
 def nvtx_stage_for_time(nvtx, t):
     matches = [r for r in nvtx if r["start"] <= t <= r["end"]]
     if not matches:
@@ -659,11 +756,12 @@ def nvtx_stage_for_time(nvtx, t):
 
 def kernel_enqueue_attribution(timeline):
     api_by_corr = {a["correlation_id"]: a for a in timeline["api_calls"]}
+    pairs = [(k, api_by_corr.get(k.get("correlation_id"))) for k in timeline["kernels"]]
+    pairs = [(kernel, api) for kernel, api in pairs if api]
+    enqueue_times = [(api["start"] + api["end"]) / 2 for _, api in pairs]
+    nvtx_stages = nvtx_stages_for_times(timeline["nvtx"], enqueue_times)
     out = []
-    for k in timeline["kernels"]:
-        api = api_by_corr.get(k.get("correlation_id"))
-        if not api:
-            continue
+    for (k, api), nvtx_stage in zip(pairs, nvtx_stages):
         out.append({
             "kernel": k["name"],
             "kernel_start_ms": k["start"] / 1e6,
@@ -672,7 +770,7 @@ def kernel_enqueue_attribution(timeline):
             "api_name": api["name"],
             "api_start_ms": api["start"] / 1e6,
             "api_ms": (api["end"] - api["start"]) / 1e6,
-            "nvtx_stage": nvtx_stage_for_time(timeline["nvtx"], (api["start"] + api["end"]) / 2),
+            "nvtx_stage": nvtx_stage,
         })
     return out
 
@@ -757,10 +855,19 @@ def activity_rows(timeline):
 
 def critical_path_inputs(phases, timeline, limit=40):
     activities = activity_rows(timeline)
+    activity_starts = [a["start"] for a in activities]
+    activity_prefix_max_ends = []
+    max_end = 0
+    for activity in activities:
+        max_end = max(max_end, activity["end"])
+        activity_prefix_max_ends.append(max_end)
+
     sync_waits = []
     for s in timeline["syncs"]:
         overlaps = []
-        for a in activities:
+        hi = bisect.bisect_left(activity_starts, s["end"])
+        lo = bisect.bisect_right(activity_prefix_max_ends, s["start"], 0, hi)
+        for a in activities[lo:hi]:
             ov = overlap(s["start"], s["end"], a["start"], a["end"])
             if ov > 0:
                 overlaps.append({
@@ -770,7 +877,6 @@ def critical_path_inputs(phases, timeline, limit=40):
         busy = sum(o["overlap_ms"] for o in overlaps)
         elapsed = (s["end"] - s["start"]) / 1e6
         sync_waits.append({
-            "stage": stage_for_time(phases, (s["start"] + s["end"]) / 2),
             "start_ms": s["start"] / 1e6,
             "end_ms": s["end"] / 1e6,
             "elapsed_ms": elapsed,
@@ -792,7 +898,6 @@ def critical_path_inputs(phases, timeline, limit=40):
                     "start_ms": last["end"] / 1e6,
                     "end_ms": a["start"] / 1e6,
                     "gap_ms": gap_ms,
-                    "stage": stage_for_time(phases, (last["end"] + a["start"]) / 2),
                     "previous": {"kind": last["kind"], "name": last["name"]},
                     "next": {"kind": a["kind"], "name": a["name"]},
                 })
@@ -800,7 +905,6 @@ def critical_path_inputs(phases, timeline, limit=40):
             last = a
 
     api = [{
-        "stage": stage_for_time(phases, (c["start"] + c["end"]) / 2),
         "name": c["name"],
         "bucket": api_bucket(c["name"]),
         "elapsed_ms": (c["end"] - c["start"]) / 1e6,
@@ -809,6 +913,17 @@ def critical_path_inputs(phases, timeline, limit=40):
         "correlation_id": c.get("correlation_id"),
         "return_value": c.get("return_value"),
     } for c in timeline["api_calls"]]
+
+    stage_times = [(s["start"] + s["end"]) / 2 for s in timeline["syncs"]]
+    stage_times.extend((gap["start_ms"] + gap["end_ms"]) * 5e5 for gap in idle_gaps)
+    stage_times.extend((c["start"] + c["end"]) / 2 for c in timeline["api_calls"])
+    stages = iter(stages_for_times(phases, stage_times))
+    for row in sync_waits:
+        row["stage"] = next(stages)
+    for row in idle_gaps:
+        row["stage"] = next(stages)
+    for row in api:
+        row["stage"] = next(stages)
 
     return {
         "sync_waits": sorted(sync_waits, key=lambda x: -x["elapsed_ms"])[:limit],
@@ -989,9 +1104,12 @@ def cmd_run(args):
         "event_type": r.get("event_type"), "thread_id": r.get("thread_id"),
     } for r in timeline["nvtx"]]
     report["kernel_enqueue_attribution"] = kernel_enqueue_attribution(timeline)
+    api_times = [(c["start"] + c["end"]) / 2 for c in api_calls]
+    api_stages = stages_for_times(phases, api_times)
+    api_nvtx_stages = nvtx_stages_for_times(timeline["nvtx"], api_times)
     report["cuda_api_trace"] = [{
-        "stage": stage_for_time(phases, (c["start"] + c["end"]) / 2),
-        "nvtx_stage": nvtx_stage_for_time(timeline["nvtx"], (c["start"] + c["end"]) / 2),
+        "stage": stage,
+        "nvtx_stage": nvtx_stage,
         "name": c["name"],
         "bucket": api_bucket(c["name"]),
         "start_ms": c["start"] / 1e6,
@@ -1000,7 +1118,7 @@ def cmd_run(args):
         "correlation_id": c.get("correlation_id"),
         "thread_id": c.get("thread_id"),
         "return_value": c.get("return_value"),
-    } for c in api_calls]
+    } for c, stage, nvtx_stage in zip(api_calls, api_stages, api_nvtx_stages)]
     report["artifacts"] = {
         "directory": workdir,
         "nsys_report": last["rep"],

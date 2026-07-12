@@ -10,27 +10,38 @@ use crate::error::PiCcsError;
 use crate::superneo_eval::{build_superneo_eval_cache, SuperneoEvalCache};
 use neo_ccs::CcsStructure;
 use neo_math::F;
-use neo_math::K;
+use neo_math::{KExtensions, K};
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 use std::sync::Arc;
 
 // Common types and utility functions shared across engines
+mod backend;
 mod common;
 mod digit_table;
+mod phase_trace;
+mod proof_assembly;
+mod replay_entrypoints;
+mod replay_validation;
 mod rlc;
 mod row_poly;
 mod sparse;
 mod terminal_identities;
+mod terminal_outputs;
+mod transcript_segments;
 
 pub mod oracle;
 pub mod prove;
 pub mod verify;
 
 // Re-export commonly used items
+pub use backend::{
+    NcPhaseRoundTrace, PiCcsPhaseBackend, PiCcsPhaseProofLog, PiCcsPhaseSummary, PiCcsPhaseTrace,
+    PiCcsPhaseTraceRequest, PiCcsTerminalOutputSurfaces,
+};
 pub use common::Challenges;
 pub use digit_table::{build_nc_digit_table_compact, NcDigitMasks, NcDigitTable};
-pub use sparse::SparseCache;
+pub use sparse::{CscMat, SparseCache};
 
 /// Proof format variant for Π_CCS.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -50,8 +61,21 @@ pub struct PiCcsProvePerf {
 }
 
 #[derive(Debug, Clone)]
+pub struct PiCcsTerminalOutputShell {
+    pub count: usize,
+    pub m_in: usize,
+    pub row_chals: Vec<K>,
+    pub s_col: Vec<K>,
+    pub has_y_zcol: bool,
+    pub fold_digest: [u8; 32],
+}
+
+#[derive(Debug, Clone)]
 pub struct PiCcsReplayTerminalState {
     pub me_outputs: Vec<neo_ccs::CeClaim<neo_ajtai::Commitment, neo_math::F, neo_math::K>>,
+    pub output_shell: PiCcsTerminalOutputShell,
+    pub sc_initial_sum: K,
+    pub sc_initial_sum_nc: K,
     pub challenges_public: Challenges,
     pub row_chals: Vec<K>,
     pub alpha_prime: Vec<K>,
@@ -62,7 +86,7 @@ pub struct PiCcsReplayTerminalState {
     pub fold_digest: [u8; 32],
     pub perf: PiCcsProvePerf,
     #[doc(hidden)]
-    pub pi_dec_precompute: PiDecProverPrecompute,
+    pub pi_dec_precompute: Option<PiDecProverPrecompute>,
 }
 
 /// Prover-only data shared by adjacent Π_CCS and Π_DEC phases.
@@ -136,7 +160,9 @@ pub use common::{
     rlc_reduction_paper_exact_with_commit_mix,
     sum_q_over_hypercube_paper_exact,
 };
-pub use rlc::{rlc_reduction_optimized, rlc_reduction_optimized_with_commit_mix};
+pub use rlc::{
+    rlc_combine_claims, rlc_mix_witnesses, rlc_reduction_optimized, rlc_reduction_optimized_with_commit_mix,
+};
 pub use terminal_identities::{
     rhs_terminal_identity_fe, rhs_terminal_identity_fe_with_k_mcs, rhs_terminal_identity_nc,
 };
@@ -205,6 +231,44 @@ impl PiCcsProof {
             _extra: None,
         }
     }
+
+    /// Normalize field elements before proofs cross a serialization boundary.
+    ///
+    /// `p3_goldilocks::Goldilocks` compares by canonical value, but serde
+    /// exposes its raw internal word. Without this pass, equal field elements
+    /// such as `0` and the modulus can serialize to different bytes.
+    pub fn canonicalize(&mut self) {
+        canonicalize_rounds(&mut self.sumcheck_rounds);
+        canonicalize_rounds(&mut self.sumcheck_rounds_nc);
+        canonicalize_vec(&mut self.sumcheck_challenges);
+        canonicalize_vec(&mut self.sumcheck_challenges_nc);
+        canonicalize_vec(&mut self.challenges_public.alpha);
+        canonicalize_vec(&mut self.challenges_public.beta_a);
+        canonicalize_vec(&mut self.challenges_public.beta_r);
+        canonicalize_vec(&mut self.challenges_public.beta_m);
+        self.challenges_public.gamma = canonical_k(self.challenges_public.gamma);
+        self.sc_initial_sum = self.sc_initial_sum.map(canonical_k);
+        self.sc_initial_sum_nc = self.sc_initial_sum_nc.map(canonical_k);
+        self.sumcheck_final = canonical_k(self.sumcheck_final);
+        self.sumcheck_final_nc = canonical_k(self.sumcheck_final_nc);
+    }
+}
+
+fn canonicalize_rounds(rounds: &mut [Vec<K>]) {
+    for round in rounds {
+        canonicalize_vec(round);
+    }
+}
+
+fn canonicalize_vec(values: &mut [K]) {
+    for value in values {
+        *value = canonical_k(*value);
+    }
+}
+
+fn canonical_k(value: K) -> K {
+    let (c0, c1) = value.to_limbs_u64();
+    neo_math::from_complex(F::from_u64(c0), F::from_u64(c1))
 }
 
 impl PiCcsReplayProofWitness {
@@ -236,20 +300,31 @@ impl PiCcsReplayProofWitness {
 }
 
 // Re-export optimized prove/verify entrypoints as the main interface
+pub use backend::{
+    BackendTranscriptMode, FeEvalTable, FeMcsRowTables, FePhaseTraceRequest, FeRowRoundSummary, FeRowRoundTrace,
+    FeSumcheckBackend, NcColRoundTrace, NcColTraceRequest, NcFinalizedColState, NcSumcheckBackend, TranscriptSnapshot,
+};
+pub use proof_assembly::PiCcsDeferredProof;
+pub use prove::optimized_defer_prove_with_device_backends_and_transcript_mode;
+pub use prove::optimized_defer_prove_with_phase_backend_and_transcript_mode;
 pub use prove::optimized_prove as pi_ccs_prove;
 pub use prove::optimized_prove_with_cache;
 pub use prove::optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf;
 pub use prove::optimized_prove_with_cache_and_instance_digest_and_perf;
 pub use prove::optimized_prove_with_cache_and_perf;
-pub use prove::optimized_replay_outputs_with_cache_and_instance_digest_and_perf;
-pub use prove::optimized_replay_outputs_with_cache_and_perf;
-pub use prove::optimized_replay_terminal_state_with_cache_and_instance_digest_and_perf;
-pub use prove::optimized_replay_terminal_state_with_cache_and_perf;
-pub use prove::optimized_replay_terminal_state_with_cache_instance_digest_and_me_input_handle_and_perf;
-pub use prove::optimized_replay_trace_with_cache_and_instance_digest_and_perf;
-pub use prove::optimized_replay_trace_with_cache_instance_digest_and_me_input_handle_and_perf;
-pub use prove::optimized_replay_witness_with_cache_and_instance_digest_and_perf;
-pub use prove::optimized_replay_witness_with_cache_and_perf;
+pub use prove::optimized_prove_with_device_backends;
+pub use prove::optimized_prove_with_device_backends_and_transcript_mode;
+pub use prove::optimized_prove_with_phase_backend_and_transcript_mode;
+pub use replay_entrypoints::optimized_replay_outputs_with_cache_and_instance_digest_and_perf;
+pub use replay_entrypoints::optimized_replay_outputs_with_cache_and_perf;
+pub use replay_entrypoints::optimized_replay_terminal_state_with_cache_and_instance_digest_and_perf;
+pub use replay_entrypoints::optimized_replay_terminal_state_with_cache_and_perf;
+pub use replay_entrypoints::optimized_replay_terminal_state_with_cache_instance_digest_and_me_input_handle_and_perf;
+pub use replay_entrypoints::optimized_replay_terminal_state_with_phase_backend_and_transcript_mode;
+pub use replay_entrypoints::optimized_replay_trace_with_cache_and_instance_digest_and_perf;
+pub use replay_entrypoints::optimized_replay_trace_with_cache_instance_digest_and_me_input_handle_and_perf;
+pub use replay_entrypoints::optimized_replay_witness_with_cache_and_instance_digest_and_perf;
+pub use replay_entrypoints::optimized_replay_witness_with_cache_and_perf;
 pub use verify::optimized_verify as pi_ccs_verify;
 pub use verify::optimized_verify_with_cache;
 pub use verify::optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf;
@@ -277,17 +352,16 @@ pub struct OptimizedStructureCache {
 
 impl OptimizedStructureCache {
     pub fn build(s: &CcsStructure<F>) -> Result<Self, PiCcsError> {
-        Self::build_with_sparse(s, Arc::new(SparseCache::build(s)))
-    }
-
-    pub fn build_shared(structure: Arc<CcsStructure<F>>) -> Result<Self, PiCcsError> {
-        let sparse = Arc::new(SparseCache::from_shared_structure(Arc::clone(&structure)));
-        Self::build_with_sparse(structure.as_ref(), sparse)
-    }
-
-    fn build_with_sparse(s: &CcsStructure<F>, sparse: Arc<SparseCache<F>>) -> Result<Self, PiCcsError> {
         #[cfg(feature = "perf-timers")]
         let t_total = std::time::Instant::now();
+        #[cfg(feature = "perf-timers")]
+        let t_sparse = std::time::Instant::now();
+        let sparse = Arc::new(SparseCache::build(s));
+        #[cfg(feature = "perf-timers")]
+        eprintln!(
+            "OptimizedStructureCache::build: sparse             {:.2?}",
+            t_sparse.elapsed()
+        );
         #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
         let (superneo, mat_digest) = {
             let sparse_for_digest = Arc::clone(&sparse);
@@ -368,6 +442,8 @@ impl OptimizedStructureCache {
             "OptimizedStructureCache::build: TOTAL              {:.2?}",
             t_total.elapsed()
         );
+        let mut superneo = superneo;
+        superneo.set_mat_digest(mat_digest);
         Ok(Self {
             sparse,
             superneo: Arc::new(superneo),
@@ -384,11 +460,13 @@ impl OptimizedStructureCache {
         self.superneo.as_ref()
     }
 
-    pub(crate) fn sparse_arc(&self) -> Arc<SparseCache<F>> {
+    /// Shared handles for constructing oracles outside this crate (e.g.
+    /// accelerator backends building an `OptimizedOracle` for snapshots).
+    pub fn sparse_arc(&self) -> Arc<SparseCache<F>> {
         self.sparse.clone()
     }
 
-    pub(crate) fn superneo_arc(&self) -> Arc<SuperneoEvalCache> {
+    pub fn superneo_arc(&self) -> Arc<SuperneoEvalCache> {
         self.superneo.clone()
     }
 

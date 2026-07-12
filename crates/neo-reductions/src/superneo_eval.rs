@@ -1,7 +1,7 @@
 use core::cmp::min;
 use neo_ccs::{CcsMatrix, Mat, SeededPhi81LinearBlock};
 use neo_math::{ct, KExtensions, Rq, D, F, K};
-use p3_field::{Field, PrimeCharacteristicRing};
+use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
@@ -24,6 +24,13 @@ use digit::{
     accumulate_pair_by_signed_unit_masks, mul_by_digit_block, mul_by_signed_unit_masks,
 };
 use weighted::{weighted_projection_basis_forms_from_k, weighted_projection_form_from_orig};
+
+/// The per-lane weighted projection basis forms `(re, im)` derived from the
+/// chi-alpha weights. Device backends use the same forms to build their row
+/// tables without materializing the CPU table first.
+pub fn weighted_projection_basis_forms(weights: &[K; D]) -> ([Rq; D], [Rq; D]) {
+    weighted_projection_basis_forms_from_k(weights)
+}
 
 #[inline]
 fn matrix_entry<Ff: Field + PrimeCharacteristicRing + Copy>(mat: &CcsMatrix<Ff>, row: usize, col: usize) -> Ff {
@@ -338,6 +345,46 @@ pub struct SuperneoMatrixCache {
     identity: bool,
     seeded_phi81_blocks: Vec<SeededPhi81LinearBlock>,
 }
+
+impl SuperneoMatrixCache {
+    /// CSR shape of the explicit bar-transformed entries. Seeded Phi81 blocks
+    /// remain represented separately and are not included in this entry view.
+    pub fn bar_shape(&self) -> (usize, usize, Vec<usize>, usize) {
+        if self.identity {
+            return (self.rows, self.cols, (0..=self.rows).collect(), self.rows);
+        }
+        (
+            self.rows,
+            self.cols,
+            (0..=self.rows)
+                .map(|row| self.row_offsets.get(row) as usize)
+                .collect(),
+            self.row_blocks.len(),
+        )
+    }
+
+    /// Explicit entry `i` in row order: `(block, bar ring element)`.
+    pub fn bar_entry(&self, i: usize) -> (usize, Rq) {
+        if self.identity {
+            let mut orig = [F::ZERO; D];
+            orig[i % D] = F::ONE;
+            return (i / D, Rq(neo_math::superneo_bar_block(orig)));
+        }
+        let row_block = self.expanded_block(self.row_blocks[i]);
+        (row_block.blk, row_block.bar)
+    }
+
+    /// Explicit entry `i` in row order: `(block, original ring row)`.
+    pub fn orig_entry(&self, i: usize) -> (usize, Rq) {
+        if self.identity {
+            let mut orig = [F::ZERO; D];
+            orig[i % D] = F::ONE;
+            return (i / D, Rq(orig));
+        }
+        let row_block = self.expanded_block(self.row_blocks[i]);
+        (row_block.blk, row_block.orig)
+    }
+}
 #[derive(Clone, Copy, Debug)]
 struct WeightedRowBlock {
     blk: usize,
@@ -489,6 +536,21 @@ struct SuperneoRingLinearBlock {
 }
 
 impl SuperneoRingLinearForm {
+    /// Dense (re, im) coefficient planes over all column blocks, laid out as
+    /// `[block][D]`. CUDA evaluates this form as a flat ring mat-vec rather
+    /// than walking the sparse entry list.
+    pub fn to_dense_block_coeffs(&self) -> (Vec<F>, Vec<F>) {
+        let blocks = self.cols.div_ceil(D);
+        let mut re = vec![F::ZERO; blocks * D];
+        let mut im = vec![F::ZERO; blocks * D];
+        for entry in &self.entries {
+            let base = entry.blk * D;
+            re[base..base + D].copy_from_slice(&entry.re_form.0);
+            im[base..base + D].copy_from_slice(&entry.im_form.0);
+        }
+        (re, im)
+    }
+
     #[inline]
     pub fn eval_real_z_blocks(&self, z_blocks: &SuperneoZBlocks) -> [K; D] {
         debug_assert_eq!(
@@ -887,6 +949,35 @@ impl SuperneoZBlocks {
     #[inline]
     pub fn imag_all_zero(&self) -> bool {
         self.imag_all_zero
+    }
+
+    /// Real coefficient plane as canonical words in `[block][D]` layout.
+    pub fn re_plane_words(&self) -> Vec<u64> {
+        let mut words = vec![0; self.re.len() * D];
+        for block in 0..self.re.len() {
+            for lane in 0..D {
+                words[block * D + lane] = self.real_coefficient(block, lane).as_canonical_u64();
+            }
+        }
+        words
+    }
+
+    /// Imaginary coefficient plane in `[block][D]` layout.
+    pub fn im_plane_words(&self) -> Vec<u64> {
+        if self.imag_all_zero {
+            return vec![0; self.re.len() * D];
+        }
+        Self::plane_words(&self.im)
+    }
+
+    fn plane_words(rings: &[Rq]) -> Vec<u64> {
+        let mut words = vec![0; rings.len() * D];
+        for (block, ring) in rings.iter().enumerate() {
+            for (lane, coefficient) in ring.0.iter().enumerate() {
+                words[block * D + lane] = coefficient.as_canonical_u64();
+            }
+        }
+        words
     }
 
     #[inline]
@@ -1578,12 +1669,26 @@ impl SuperneoWeightedMatrixCache {
 pub struct SuperneoEvalCache {
     mats: Vec<SuperneoMatrixCache>,
     explicit_matrix_masks: Option<Vec<u16>>,
+    mat_digest: [F; 4],
 }
 
 impl SuperneoEvalCache {
     #[inline]
     pub fn matrix(&self, j: usize) -> Option<&SuperneoMatrixCache> {
         self.mats.get(j)
+    }
+
+    pub fn mat_digest(&self) -> [F; 4] {
+        self.mat_digest
+    }
+
+    pub(crate) fn set_mat_digest(&mut self, digest: [F; 4]) {
+        self.mat_digest = digest;
+    }
+
+    /// Per-matrix explicit bar caches, in CCS matrix order.
+    pub fn matrix_caches(&self) -> &[SuperneoMatrixCache] {
+        &self.mats
     }
 
     #[inline]

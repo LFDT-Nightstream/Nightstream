@@ -534,27 +534,18 @@ where
     m.as_slice().iter().all(|&entry| entry == Ff::ZERO)
 }
 
-fn rlc_reduction_optimized_from_refs<Ff>(
-    s: &CcsStructure<Ff>,
-    params: &NeoParams,
-    rhos: &[Mat<Ff>],
-    me_inputs: &[CeClaim<Cmt, Ff, K>],
-    Zs: &[&Mat<Ff>],
-    ell_d: usize,
-) -> (CeClaim<Cmt, Ff, K>, Mat<Ff>)
+/// The witness half of Π_RLC: `Z_mix = Σ ρ_i · Z_i`. Split out so device
+/// backends can own this (the bulk-data cost) while `rlc_combine_claims`
+/// keeps the small claim algebra on the host.
+pub fn rlc_mix_witnesses<Ff>(s_m: usize, rhos: &[Mat<Ff>], Zs: &[&Mat<Ff>]) -> Mat<Ff>
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
-    K: From<Ff>,
 {
-    assert!(!me_inputs.is_empty(), "Π_RLC(optimized): need at least one input");
-    let k1 = me_inputs.len();
-    assert_eq!(rhos.len(), k1, "Π_RLC: |rhos| must equal |inputs|");
-    assert_eq!(Zs.len(), k1, "Π_RLC: |Zs| must equal |inputs|");
-    crate::common::validate_rhos_are_rotation_matrices(params, rhos, "Π_RLC(optimized): rhos")
-        .unwrap_or_else(|e| panic!("Π_RLC(optimized): invalid rho set: {e}"));
+    assert!(!Zs.is_empty(), "Π_RLC(optimized): need at least one witness");
+    assert_eq!(rhos.len(), Zs.len(), "Π_RLC: |rhos| must equal |Zs|");
     let z_cols = Zs[0].cols();
     for (idx, z) in Zs.iter().enumerate() {
-        crate::common::validate_superneo_witness_mat(*z, s.m)
+        crate::common::validate_superneo_witness_mat(*z, s_m)
             .unwrap_or_else(|e| panic!("Π_RLC(optimized): invalid witness shape at input {idx}: {e}"));
         assert_eq!(
             z.cols(),
@@ -562,6 +553,36 @@ where
             "Π_RLC(optimized): all witness mats must share packed width"
         );
     }
+
+    let mut Z = Mat::zero(D, z_cols, Ff::ZERO);
+    for (rho, z_in) in rhos.iter().zip(Zs.iter()) {
+        if mat_is_zero(z_in) {
+            continue;
+        }
+        left_mul_acc_optimized(&mut Z, rho, z_in);
+    }
+    Z
+}
+
+/// The claim half of Π_RLC: every combined-CE field except the witness and
+/// the commitment (`out.c` is a placeholder copy of input 0's commitment;
+/// callers overwrite it via their commitment mixer).
+pub fn rlc_combine_claims<Ff>(
+    s: &CcsStructure<Ff>,
+    params: &NeoParams,
+    rhos: &[Mat<Ff>],
+    me_inputs: &[CeClaim<Cmt, Ff, K>],
+    ell_d: usize,
+) -> CeClaim<Cmt, Ff, K>
+where
+    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
+    K: From<Ff>,
+{
+    assert!(!me_inputs.is_empty(), "Π_RLC(optimized): need at least one input");
+    let k1 = me_inputs.len();
+    assert_eq!(rhos.len(), k1, "Π_RLC: |rhos| must equal |inputs|");
+    crate::common::validate_rhos_are_rotation_matrices(params, rhos, "Π_RLC(optimized): rhos")
+        .unwrap_or_else(|e| panic!("Π_RLC(optimized): invalid rho set: {e}"));
 
     let d_pad = 1usize << ell_d;
     let t_core = s.t();
@@ -634,18 +655,6 @@ where
     let aux_s = t_aux.elapsed().as_secs_f64();
 
     #[cfg(feature = "perf-timers")]
-    let t_z = std::time::Instant::now();
-    let mut Z = Mat::zero(D, z_cols, Ff::ZERO);
-    for (rho, z_in) in rhos.iter().zip(Zs.iter()) {
-        if mat_is_zero(z_in) {
-            continue;
-        }
-        left_mul_acc_optimized(&mut Z, rho, z_in);
-    }
-    #[cfg(feature = "perf-timers")]
-    let z_s = t_z.elapsed().as_secs_f64();
-
-    #[cfg(feature = "perf-timers")]
     let t_x = std::time::Instant::now();
     let mut X = Mat::zero(D, m_in, Ff::ZERO);
     for (rho, inst) in rhos.iter().zip(me_inputs.iter()) {
@@ -676,11 +685,11 @@ where
 
     #[cfg(feature = "perf-timers")]
     eprintln!(
-        "[pi-rlc] y_ring {:>7.2}s ct {:>7.2}s aux {:>7.2}s Z_mix {:>7.2}s X_mix {:>7.2}s y_zcol {:>7.2}s",
-        y_ring_s, ct_s, aux_s, z_s, x_s, y_zcol_s,
+        "[pi-rlc] y_ring {:>7.2}s ct {:>7.2}s aux {:>7.2}s X_mix {:>7.2}s y_zcol {:>7.2}s",
+        y_ring_s, ct_s, aux_s, x_s, y_zcol_s,
     );
 
-    let out = CeClaim::<Cmt, Ff, K> {
+    CeClaim::<Cmt, Ff, K> {
         adv: None,
         c_step_coords: vec![],
         u_offset: 0,
@@ -695,8 +704,24 @@ where
         y_zcol,
         m_in,
         fold_digest: me_inputs[0].fold_digest,
-    };
+    }
+}
 
+fn rlc_reduction_optimized_from_refs<Ff>(
+    s: &CcsStructure<Ff>,
+    params: &NeoParams,
+    rhos: &[Mat<Ff>],
+    me_inputs: &[CeClaim<Cmt, Ff, K>],
+    Zs: &[&Mat<Ff>],
+    ell_d: usize,
+) -> (CeClaim<Cmt, Ff, K>, Mat<Ff>)
+where
+    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
+    K: From<Ff>,
+{
+    assert_eq!(Zs.len(), me_inputs.len(), "Π_RLC: |Zs| must equal |inputs|");
+    let Z = rlc_mix_witnesses(s.m, rhos, Zs);
+    let out = rlc_combine_claims(s, params, rhos, me_inputs, ell_d);
     (out, Z)
 }
 

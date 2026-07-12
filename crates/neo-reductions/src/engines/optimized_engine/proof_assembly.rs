@@ -80,6 +80,10 @@ impl PiCcsDeferredProof {
         &self.terminal_state.me_outputs
     }
 
+    pub fn outputs_mut(&mut self) -> &mut [neo_ccs::CeClaim<neo_ajtai::Commitment, neo_math::F, neo_math::K>] {
+        &mut self.terminal_state.me_outputs
+    }
+
     pub fn output_shell(&self) -> &PiCcsTerminalOutputShell {
         &self.terminal_state.output_shell
     }

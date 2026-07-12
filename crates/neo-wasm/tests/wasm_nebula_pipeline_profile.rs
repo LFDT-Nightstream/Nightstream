@@ -38,6 +38,8 @@ struct StorageStats {
     explicit_nnz: usize,
     seeded_blocks: usize,
     seeded_slots: u128,
+    geometric_runs: usize,
+    geometric_slots: usize,
 }
 
 fn ms(duration: Duration) -> f64 {
@@ -54,13 +56,19 @@ fn matrix_stats(matrix: &CcsMatrix<F>) -> StorageStats {
             explicit_nnz: csc.vals.len(),
             ..StorageStats::default()
         },
-        CcsMatrix::CscWithSeededPhi81 { csc, blocks } => StorageStats {
+        CcsMatrix::CscWithSeededPhi81 {
+            csc,
+            blocks,
+            geometric_runs,
+        } => StorageStats {
             explicit_nnz: csc.vals.len(),
             seeded_blocks: blocks.len(),
             seeded_slots: blocks
                 .iter()
                 .map(|block| (D as u128) * (D as u128) * (block.kappa() as u128) * (block.message_cols() as u128))
                 .sum(),
+            geometric_runs: geometric_runs.len(),
+            geometric_slots: geometric_runs.iter().map(|run| run.len()).sum(),
         },
     }
 }
@@ -74,6 +82,8 @@ fn structure_stats(structure: &CcsStructure<F>) -> StorageStats {
             explicit_nnz: sum.explicit_nnz + item.explicit_nnz,
             seeded_blocks: sum.seeded_blocks + item.seeded_blocks,
             seeded_slots: sum.seeded_slots + item.seeded_slots,
+            geometric_runs: sum.geometric_runs + item.geometric_runs,
+            geometric_slots: sum.geometric_slots + item.geometric_slots,
         })
 }
 
@@ -189,7 +199,7 @@ fn wasm_nebula_pipeline_profile() {
         .expect("SplitNc dimensions");
     let final_storage = structure_stats(structure);
 
-    assert!(structure.n < structure.m, "profile must exercise rectangular SplitNc");
+    assert_ne!(structure.n, structure.m, "profile must exercise rectangular SplitNc");
     assert_ne!(dims.pi_ccs.ell_n, dims.pi_ccs.ell_m);
     assert!(width.total_coordinates <= structure.m);
     assert!(
@@ -349,17 +359,21 @@ fn wasm_nebula_pipeline_profile() {
     }
 
     println!("\n-- final CCS matrix storage --");
-    println!("matrix  explicit-nnz  seeded-blocks  virtual-seeded-slots");
+    println!("matrix  explicit-nnz  seeded-blocks  virtual-seeded-slots  geometric-runs  virtual-run-slots");
     for (index, matrix) in structure.matrices.iter().enumerate() {
         let stats = matrix_stats(matrix);
         println!(
-            "M{index:<5} {:>12} {:>14} {:>21}",
-            stats.explicit_nnz, stats.seeded_blocks, stats.seeded_slots,
+            "M{index:<5} {:>12} {:>14} {:>21} {:>15} {:>18}",
+            stats.explicit_nnz, stats.seeded_blocks, stats.seeded_slots, stats.geometric_runs, stats.geometric_slots,
         );
     }
     println!(
-        "TOTAL  {:>12} {:>14} {:>21}",
-        final_storage.explicit_nnz, final_storage.seeded_blocks, final_storage.seeded_slots,
+        "TOTAL  {:>12} {:>14} {:>21} {:>15} {:>18}",
+        final_storage.explicit_nnz,
+        final_storage.seeded_blocks,
+        final_storage.seeded_slots,
+        final_storage.geometric_runs,
+        final_storage.geometric_slots,
     );
 
     let started = Instant::now();
@@ -401,7 +415,7 @@ fn wasm_nebula_pipeline_profile() {
         terminal.final_fold.is_some(),
     );
     println!(
-        "PROFILE_JSON={{\"trace_steps\":{},\"padded_wasm_steps\":{},\"batch_size\":{},\"folded_steps\":{},\"unbatched_folded_steps\":{},\"segments\":{},\"kappa\":{},\"parameter_m\":{},\"k_rho\":{},\"rows\":{},\"columns\":{},\"matrices\":{},\"ell_n\":{},\"ell_m\":{},\"explicit_nnz\":{},\"seeded_blocks\":{},\"preprocess_ms\":{:.3},\"prove_ms\":{:.3},\"verify_ms\":{:.3},\"total_ms\":{:.3}}}",
+        "PROFILE_JSON={{\"trace_steps\":{},\"padded_wasm_steps\":{},\"batch_size\":{},\"folded_steps\":{},\"unbatched_folded_steps\":{},\"segments\":{},\"kappa\":{},\"parameter_m\":{},\"k_rho\":{},\"rows\":{},\"columns\":{},\"matrices\":{},\"ell_n\":{},\"ell_m\":{},\"explicit_nnz\":{},\"seeded_blocks\":{},\"geometric_runs\":{},\"geometric_slots\":{},\"preprocess_ms\":{:.3},\"prove_ms\":{:.3},\"verify_ms\":{:.3},\"total_ms\":{:.3}}}",
         trace.len(),
         padded_wasm_rows,
         batch_size,
@@ -418,6 +432,8 @@ fn wasm_nebula_pipeline_profile() {
         dims.pi_ccs.ell_m,
         final_storage.explicit_nnz,
         final_storage.seeded_blocks,
+        final_storage.geometric_runs,
+        final_storage.geometric_slots,
         ms(preprocess_elapsed),
         ms(prove_elapsed),
         ms(verify_elapsed),

@@ -12,14 +12,17 @@ use neo_fold_clean::paper::nifs::Error;
 use neo_fold_clean::RunningInstance;
 use neo_math::D;
 use neo_reductions::optimized_engine::OptimizedStructureCache;
+use p3_field::PrimeCharacteristicRing;
 
 use crate::commit::DeviceAjtai;
 use crate::device::Device;
 use crate::fold_output::{DeviceCommitments, DeviceFoldOutput};
 use crate::kernels::ajtai::RingMatVecScratch;
+use crate::lane_commitments::{DeviceLaneAjtai, LaneDeviceMaterial};
 use crate::reduce::ccs::{FeOracleWorkspace, FePhaseWorkspace, NcOracleWorkspace, NcPhaseWorkspace, SumcheckKernels};
 use crate::reduce::dec::DeviceDec;
 use crate::ring_forms::{DeviceBarMatrices, DeviceRowMatrices};
+use crate::sis::DeviceSisCache;
 
 pub(crate) fn backend_unavailable(reason: &'static str) -> Error {
     Error::BackendUnavailable {
@@ -35,6 +38,10 @@ pub struct DeviceSession {
     /// keeps its allocation alive, so pointer identity below cannot alias a
     /// different PP of the same shape.
     pub(crate) ajtai_source: Option<Arc<PP<neo_math::Rq>>>,
+    /// Nebula's independent ops and shared IS/FS matrices. They are uploaded
+    /// only for lane-bearing folds and reused across DEC child fan-out.
+    pub(crate) lane_ajtai: Option<DeviceLaneAjtai>,
+    pub(crate) sis: DeviceSisCache,
     pub(crate) kernels: Option<SumcheckKernels>,
     pub(crate) dec: Option<DeviceDec>,
     /// Π_CCS Ajtai-phase bar matrices, persisted across folds (the upload is
@@ -137,6 +144,8 @@ impl DeviceSession {
             device,
             ajtai: None,
             ajtai_source: None,
+            lane_ajtai: None,
+            sis: DeviceSisCache::default(),
             kernels: None,
             dec: None,
             bar_matrices: None,
@@ -150,6 +159,53 @@ impl DeviceSession {
             cached_fresh_commitments: None,
             cached_running_planes: None,
         }
+    }
+
+    pub(crate) fn commit_nebula_child_lanes(
+        &mut self,
+        scheme: &neo_fold_clean::paper::relations::LaneScheme,
+        planes: &DeviceBuffer<u64>,
+        children: usize,
+        plane_stride: usize,
+    ) -> Result<Vec<neo_ccs::LaneCommitments<Commitment>>, Error> {
+        let material = LaneDeviceMaterial::from_scheme(scheme)?;
+        if self
+            .lane_ajtai
+            .as_ref()
+            .is_none_or(|cached| !cached.matches(&material))
+        {
+            self.lane_ajtai = Some(DeviceLaneAjtai::upload(&self.device, material)?);
+        }
+        self.lane_ajtai
+            .as_mut()
+            .expect("uploaded above")
+            .commit_children(&self.device, planes, children, plane_stride)
+    }
+
+    pub(crate) fn sis_digest_host(
+        &mut self,
+        config: neo_fold_clean::paper::reductions::accumulator_sis_circuit::SisAccumulatorConfig,
+        fields: &[neo_math::F],
+    ) -> Result<[neo_math::F; 4], Error> {
+        let Self {
+            device, kernels, sis, ..
+        } = self;
+        let kernels = kernels
+            .as_ref()
+            .ok_or_else(|| backend_unavailable("SIS digest kernels not loaded"))?;
+        let digest = sis
+            .digest_host(device, kernels, config, fields)
+            .map_err(|_| backend_unavailable("device SIS digest failed"))?;
+        let words = digest
+            .to_host_vec(device.stream())
+            .map_err(|_| backend_unavailable("device SIS digest download failed"))?;
+        device
+            .sync()
+            .map_err(|_| backend_unavailable("device SIS digest synchronization failed"))?;
+        if words.len() != 4 {
+            return Err(backend_unavailable("device SIS digest shape mismatch"));
+        }
+        Ok(std::array::from_fn(|index| neo_math::F::from_u64(words[index])))
     }
 
     pub(crate) fn take_cached_fresh_commitments(
@@ -226,7 +282,7 @@ impl DeviceSession {
     /// load), so two same-shape PPs from different seeds cannot alias.
     pub(crate) fn ensure_pp_uploaded(&mut self, log: &AjtaiSModule) -> Result<&mut DeviceAjtai, Error> {
         let pp = log
-            .materialize_pp()
+            .verification_pp()
             .map_err(|_| backend_unavailable("failed to materialize Ajtai PP for device upload"))?;
         if self
             .ajtai_source

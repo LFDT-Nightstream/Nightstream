@@ -104,6 +104,17 @@ impl RlcCase {
         let y_zcol_dev = device_rlc::combine_y_zcol(device, kernels.rlc(), device_rhos.coeffs(), &self.claims)
             .expect("device y_zcol combine");
         combined.y_zcol = y_zcol_dev;
+        let rhos = device_rhos
+            .mats(device, &fixture.prep.params)
+            .expect("materialize rho matrices for projection schedule");
+        let rhos = neo_reductions::common::rot_rhos_from_mats(
+            fixture.prep.params.inner(),
+            &rhos,
+            "CUDA parity projection schedule",
+        )
+        .expect("validate rho matrices for projection schedule");
+        pi_rlc::bind_backend_projection_schedule(&mut tr, &rhos, &self.claims, &combined)
+            .expect("bind backend projection schedule");
         let z_mix = device_rlc::download_witness(device, &z_dev, cols).expect("download rlc mix");
         (combined, z_mix, tr)
     }

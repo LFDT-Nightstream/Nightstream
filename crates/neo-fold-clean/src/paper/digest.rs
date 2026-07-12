@@ -821,20 +821,14 @@ pub fn accumulator_digest_from_running_parts(
     claims: &[CeClaim<Commitment, F, K>],
     parent_authority: Option<&CeClaim<Commitment, F, K>>,
 ) -> [u8; 32] {
-    accumulator_digest_from_parent_digest(
-        claims.len(),
-        parent_authority.map(accumulator_ce_claim_digest),
-    )
+    accumulator_digest_from_parent_digest(claims.len(), parent_authority.map(accumulator_ce_claim_digest))
 }
 
 /// Canonical accumulator handle from an already-authenticated
 /// [`accumulator_ce_claim_digest`]. This is the scheduling form of
 /// [`accumulator_digest_from_running_parts`] for resident backends.
 #[doc(hidden)]
-pub fn accumulator_digest_from_parent_digest(
-    child_count: usize,
-    parent_digest: Option<[F; 4]>,
-) -> [u8; 32] {
+pub fn accumulator_digest_from_parent_digest(child_count: usize, parent_digest: Option<[F; 4]>) -> [u8; 32] {
     if child_count > 0 {
         if let Some(parent_digest) = parent_digest {
             return digest_fields_as_digest32(parent_digest);

@@ -200,7 +200,7 @@ pub fn fresh_bench() {
 
     let device = Device::open().expect("open CUDA device");
     let (mut dev_ajtai, setup_ms) = timed(|| {
-        let pp = s_module.materialize_pp().expect("materialize seeded PP");
+        let pp = s_module.verification_pp().expect("materialize seeded PP");
         let uploaded = DeviceAjtai::upload(&device, &pp).expect("upload PP");
         device.sync().expect("sync after PP upload");
         uploaded

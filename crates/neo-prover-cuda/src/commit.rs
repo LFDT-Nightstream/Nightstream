@@ -4,20 +4,27 @@
 //! commits) and the assignment → commitment flow. Does not own PP generation
 //! or the commitment semantics (`neo-ajtai` stays canonical).
 
+use std::sync::Arc;
+
 use cuda_core::{DeviceBuffer, DriverError};
 use cuda_host::EmbeddedModuleError;
 use neo_ajtai::{Commitment, PP};
+use neo_fold_clean::paper::nifs::{Error as NifsError, NifsFreshInstancesRequest};
+use neo_fold_clean::paper::relations::CcsClaim;
+use neo_fold_clean::{CcsInstance, CcsWitness};
 use neo_math::{Rq, D, F};
 use p3_field::PrimeField64;
 use thiserror::Error;
 
 use crate::device::{upload_u64_device_buffer, Device};
 use crate::field::f_from_device_word;
+use crate::fold_output::DeviceCommitments;
 use crate::kernels::ajtai::{
     load_ajtai_kernels, ring_mat_vec, ring_mat_vec_active_flags_into, ring_mat_vec_into, AjtaiKernelModule,
     RingMatVecScratch, RING_D,
 };
 use crate::ring_layout;
+use crate::session::{backend_unavailable, CachedDeviceCommitments, CachedDevicePlanes, DeviceSession};
 
 #[derive(Debug, Error)]
 pub enum AjtaiDeviceError {
@@ -112,6 +119,34 @@ impl DeviceAjtai {
         )?)
     }
 
+    /// Commit one resident message whose coefficients are all `-1`, `0`, or
+    /// `1`. The signed-unit mask path avoids general field multiplication;
+    /// fixed-seed SIS messages use exactly this alphabet.
+    pub fn commit_signed_unit_device_columns(
+        &mut self,
+        device: &Device,
+        z_dev: &DeviceBuffer<u64>,
+        active_flag: &DeviceBuffer<u64>,
+    ) -> Result<DeviceBuffer<u64>, AjtaiDeviceError> {
+        let mut out = DeviceBuffer::zeroed(device.stream(), self.kappa * D)?;
+        ring_mat_vec_active_flags_into(
+            &self.module,
+            device.stream(),
+            &mut self.scratch,
+            &self.pp_dev,
+            self.kappa,
+            self.cols,
+            z_dev,
+            0,
+            1,
+            0,
+            active_flag,
+            2,
+            &mut out,
+        )?;
+        Ok(out)
+    }
+
     /// Commit to `planes` consecutive ring-column planes (`plane_stride`
     /// words apart, e.g. the digit planes of a Π_DEC split) in one launch,
     /// returning the downloaded commitments in plane order.
@@ -150,6 +185,20 @@ impl DeviceAjtai {
         planes: usize,
         plane_stride: usize,
     ) -> Result<DeviceBuffer<u64>, AjtaiDeviceError> {
+        self.commit_planes_device_at(device, z_dev, 0, planes, plane_stride)
+    }
+
+    /// Commit the same whole-column slice from every plane. `z_offset` is a
+    /// word offset inside plane zero and `plane_stride` advances to the same
+    /// slice in the next plane. Nebula uses this for its L-ALIGN lane ranges.
+    pub fn commit_planes_device_at(
+        &mut self,
+        device: &Device,
+        z_dev: &DeviceBuffer<u64>,
+        z_offset: usize,
+        planes: usize,
+        plane_stride: usize,
+    ) -> Result<DeviceBuffer<u64>, AjtaiDeviceError> {
         Ok(ring_mat_vec(
             &self.module,
             device.stream(),
@@ -158,7 +207,7 @@ impl DeviceAjtai {
             self.kappa,
             self.cols,
             z_dev,
-            0,
+            z_offset,
             planes,
             plane_stride,
         )?)
@@ -280,4 +329,86 @@ impl DeviceAjtai {
     pub fn cols(&self) -> usize {
         self.cols
     }
+}
+
+/// Build canonical fresh CCS instances while retaining their assignment
+/// planes and commitments for the first fold. Invalid inputs deliberately
+/// return `None` so the canonical CPU constructor remains the authority.
+pub(crate) fn build_fresh_instances(
+    session: &mut DeviceSession,
+    request: NifsFreshInstancesRequest<'_>,
+) -> Result<Option<Vec<CcsInstance>>, NifsError> {
+    let b = request.pp.b();
+    let valid = request.assignments.iter().all(|z| {
+        z.len() == request.s.m
+            && request.m_in <= z.len()
+            && z.iter().all(|v| neo_math::balanced::within_nc_bound(*v, b))
+    });
+    if !valid {
+        session.cached_fresh_commitments = None;
+        return Ok(None);
+    }
+
+    let cols = request.s.m.div_ceil(D);
+    session.ensure_pp_uploaded(request.log)?;
+    let mut instances = Vec::with_capacity(request.assignments.len());
+    let fresh_cache;
+    {
+        let parts = session.ajtai_commit_parts()?;
+        if parts.ajtai.cols() != cols {
+            session.cached_fresh_commitments = None;
+            return Ok(None);
+        }
+
+        let commitments;
+        let commitment_words;
+        let assignments_dev;
+        crate::perf_timed!("fold.commit.fresh", {
+            let mut assignment_words = Vec::with_capacity(request.assignments.len() * cols * D);
+            for z in request.assignments {
+                assignment_words.extend(ring_layout::assignment_to_words(z, cols));
+            }
+            assignments_dev = upload_u64_device_buffer(parts.device.stream(), &assignment_words)
+                .map_err(|_| backend_unavailable("fresh assignment upload failed"))?;
+            (commitments, commitment_words) = parts
+                .ajtai
+                .commit_planes_with_device_output(parts.device, &assignments_dev, request.assignments.len(), cols * D)
+                .map_err(|_| backend_unavailable("device batched Ajtai commit failed"))?;
+        });
+        for (z, c) in request.assignments.iter().zip(commitments) {
+            instances.push(CcsInstance {
+                claim: CcsClaim {
+                    adv: None,
+                    c,
+                    x: z[..request.m_in].to_vec(),
+                    m_in: request.m_in,
+                },
+                witness: CcsWitness {
+                    w: z[request.m_in..].to_vec(),
+                    Z: ring_layout::assignment_to_mat(z, cols),
+                },
+            });
+        }
+        let device_commitments = Arc::new(DeviceCommitments::new(
+            Arc::clone(parts.device.stream()),
+            commitment_words,
+            request.assignments.len(),
+            D,
+            parts.ajtai.kappa(),
+        )?);
+        fresh_cache = CachedDeviceCommitments {
+            host: instances
+                .iter()
+                .map(|instance| instance.claim.c.clone())
+                .collect(),
+            device: device_commitments,
+            planes: Some(CachedDevicePlanes {
+                words: assignments_dev,
+                plane_len: cols * D,
+                count: request.assignments.len(),
+            }),
+        };
+    }
+    session.cached_fresh_commitments = Some(fresh_cache);
+    Ok(Some(instances))
 }

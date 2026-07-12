@@ -185,6 +185,7 @@ fn lifecycle_plan_with_ce_shape(
         ),
         sponge_transcript_permutes: 0,
         nifs_payload_shapes: vec![NifsPayloadShape::CeClaim(ce_shape)],
+        projection_batches: Vec::new(),
         accumulator: Some(AccumulatorPlanOptions {
             ce_claim_payload_index: 0,
             c_data_entries,

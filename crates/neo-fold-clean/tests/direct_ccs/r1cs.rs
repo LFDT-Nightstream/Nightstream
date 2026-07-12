@@ -235,6 +235,9 @@ fn finish_uncompressed_rejects_manual_oversized_latest() {
     audit.proof.state.public_trace = repaired_boundary;
     match &mut audit.proof.state.proof {
         ProofState::Active { running, latest } => {
+            let running = running
+                .as_materialized()
+                .expect("one-step fixture running must be materialized");
             assert!(running.is_empty(), "one-step fixture must have empty running");
             *latest = LatestInstance::from_instances(oversized);
         }

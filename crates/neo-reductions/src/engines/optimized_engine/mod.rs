@@ -352,16 +352,17 @@ pub struct OptimizedStructureCache {
 
 impl OptimizedStructureCache {
     pub fn build(s: &CcsStructure<F>) -> Result<Self, PiCcsError> {
+        Self::build_with_sparse(s, Arc::new(SparseCache::build(s)))
+    }
+
+    pub fn build_shared(structure: Arc<CcsStructure<F>>) -> Result<Self, PiCcsError> {
+        let sparse = Arc::new(SparseCache::from_shared_structure(Arc::clone(&structure)));
+        Self::build_with_sparse(structure.as_ref(), sparse)
+    }
+
+    fn build_with_sparse(s: &CcsStructure<F>, sparse: Arc<SparseCache<F>>) -> Result<Self, PiCcsError> {
         #[cfg(feature = "perf-timers")]
         let t_total = std::time::Instant::now();
-        #[cfg(feature = "perf-timers")]
-        let t_sparse = std::time::Instant::now();
-        let sparse = Arc::new(SparseCache::build(s));
-        #[cfg(feature = "perf-timers")]
-        eprintln!(
-            "OptimizedStructureCache::build: sparse             {:.2?}",
-            t_sparse.elapsed()
-        );
         #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
         let (superneo, mat_digest) = {
             let sparse_for_digest = Arc::clone(&sparse);

@@ -12,6 +12,7 @@ use crate::lifecycle::{Compressed, Error, Preprocessing, PublicImage, Uncompress
 use crate::paper::construction2::{self, EncInst, ProofState};
 use crate::paper::decider;
 use crate::paper::digest;
+use crate::paper::nifs::NifsProverAdapter;
 
 /// Compress the uncompressed proof to a Spartan SNARK.
 ///
@@ -87,6 +88,22 @@ pub fn finish_uncompressed_with_audit(
     prep: &Preprocessing,
     audit: UncompressedAudit,
 ) -> Result<UncompressedAudit, Error> {
+    finish_uncompressed_with_audit_inner(prep, None, audit)
+}
+
+pub fn finish_uncompressed_with_audit_and_nifs_adapter(
+    prep: &Preprocessing,
+    adapter: &mut dyn NifsProverAdapter,
+    audit: UncompressedAudit,
+) -> Result<UncompressedAudit, Error> {
+    finish_uncompressed_with_audit_inner(prep, Some(adapter), audit)
+}
+
+fn finish_uncompressed_with_audit_inner(
+    prep: &Preprocessing,
+    adapter: Option<&mut dyn NifsProverAdapter>,
+    audit: UncompressedAudit,
+) -> Result<UncompressedAudit, Error> {
     let UncompressedAudit {
         proof: Uncompressed { state, final_fold },
         steps,
@@ -104,22 +121,43 @@ pub fn finish_uncompressed_with_audit(
     }
     check_trailing_latest_batch_size(prep, &state)?;
 
-    let (post_state, final_fold) = construction2::prove_final_fold(
-        &prep.params,
-        prep.structure(),
-        prep.optimized_cache(),
-        prep.structure_digest(),
-        &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
-        &prep.vk,
-        prep.nebula().map(|cfg| &cfg.scheme),
-        prep.enforces_terminal_induction()
-            .then(|| prep.nebula())
-            .flatten(),
-        state,
-        prep.semantic_state_mode,
-    )?;
+    let (post_state, final_fold) = if let Some(adapter) = adapter {
+        construction2::prove_final_fold_with_adapter(
+            adapter,
+            &prep.params,
+            prep.structure(),
+            prep.optimized_cache(),
+            prep.structure_digest(),
+            &prep.log,
+            prep.mix_rhos_commits,
+            prep.combine_b_pows,
+            &prep.vk,
+            prep.nebula().map(|cfg| &cfg.scheme),
+            prep.enforces_terminal_induction()
+                .then(|| prep.nebula())
+                .flatten(),
+            state,
+            prep.semantic_state_mode,
+        )?
+    } else {
+        construction2::prove_final_fold_with_backend(
+            prep.nifs_prover_backend(),
+            &prep.params,
+            prep.structure(),
+            prep.optimized_cache(),
+            prep.structure_digest(),
+            &prep.log,
+            prep.mix_rhos_commits,
+            prep.combine_b_pows,
+            &prep.vk,
+            prep.nebula().map(|cfg| &cfg.scheme),
+            prep.enforces_terminal_induction()
+                .then(|| prep.nebula())
+                .flatten(),
+            state,
+            prep.semantic_state_mode,
+        )?
+    };
     Ok(UncompressedAudit {
         proof: Uncompressed {
             state: post_state,
@@ -158,6 +196,7 @@ fn check_already_finalized_consistency(prep: &Preprocessing, proof: &Uncompresse
     if !latest.instances.is_empty() {
         return Err(Error::FinalizedProofInconsistent);
     }
+    let running = running.materialize().map_err(construction2::Error::from)?;
 
     let expected_acc_digest = if running.claims.is_empty() {
         digest::AccumulatorHandle::empty().digest()

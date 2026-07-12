@@ -15,14 +15,20 @@ use neo_reductions::api as nr;
 use neo_reductions::api::FoldingMode;
 use neo_reductions::common::{sample_rot_rhos_n_typed, split_b_matrix_k_with_nonzero_flags, RotRho};
 use neo_reductions::optimized_engine::{
+    optimized_defer_prove_with_device_backends_and_transcript_mode,
+    optimized_defer_prove_with_phase_backend_and_transcript_mode,
     optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf,
-    optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf, OptimizedStructureCache,
+    optimized_prove_with_phase_backend_and_transcript_mode,
+    optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf, BackendTranscriptMode,
+    FeSumcheckBackend, NcSumcheckBackend, OptimizedStructureCache, PiCcsDeferredProof, PiCcsPhaseBackend,
     PiDecProverPrecompute,
 };
 use thiserror::Error;
 
 use crate::paper::construction2::RunningInstance;
-use crate::paper::digest::{pi_ccs_instance_digest_parent_authority, AccumulatorHandle};
+use crate::paper::digest::{
+    pi_ccs_instance_digest_from_parent_digest, pi_ccs_instance_digest_parent_authority, AccumulatorHandle,
+};
 use crate::paper::params::Params;
 use crate::paper::relations::{CcsClaim, CcsInstance, CcsWitness, CeClaim, Structure};
 
@@ -90,15 +96,9 @@ pub fn prove_pi_ccs_parts<L>(
 where
     L: neo_ccs::traits::SModuleHomomorphism<neo_math::F, neo_ajtai::Commitment> + Sync,
 {
-    // Validate inputs and compute the instance digest BEFORE moving `fresh`
-    // into engine arrays — both sides hash the same public claims.
     let parent_authority = running_parent_authority(running)?;
     let instance_digest = pi_ccs_instance_digest_parent_authority(fresh_claims, running.claims.len(), parent_authority);
-    // Accumulator-handle ME-input binding: bind the same Π_RLC parent
-    // authority as the public-instance digest. The Π_DEC children remain the
-    // algebraic running inputs, but they do not steer this Fiat-Shamir absorb.
     let me_handle = running_parent_accumulator_handle(running)?;
-
     let (outputs, proof, perf, pi_dec_precompute) =
         optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf(
             tr,
@@ -129,6 +129,241 @@ where
     #[cfg(not(feature = "perf-timers"))]
     let _ = perf;
     Ok((outputs, proof, pi_dec_precompute))
+}
+
+/// [`prove_pi_ccs_parts`] with optional device sumcheck backends threaded
+/// through to the engine. `(None, None)` is exactly the CPU path.
+#[allow(clippy::too_many_arguments)]
+pub fn prove_pi_ccs_parts_with_backends<L>(
+    tr: &mut neo_transcript::Poseidon2Transcript,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    fresh_claims: &[CcsClaim],
+    fresh_witnesses: &[CcsWitness],
+    running: &RunningInstance,
+    log: &L,
+    fe_backend: Option<&mut dyn FeSumcheckBackend>,
+    nc_backend: Option<&mut dyn NcSumcheckBackend>,
+) -> Result<(Vec<CeClaim>, nr::PiCcsProof), Error>
+where
+    L: neo_ccs::traits::SModuleHomomorphism<neo_math::F, neo_ajtai::Commitment> + Sync,
+{
+    prove_pi_ccs_parts_with_backends_and_transcript_mode(
+        tr,
+        pp,
+        s,
+        cache,
+        fresh_claims,
+        fresh_witnesses,
+        running,
+        log,
+        fe_backend,
+        nc_backend,
+        BackendTranscriptMode::Replay,
+        None,
+        None,
+    )
+}
+
+/// [`prove_pi_ccs_parts_with_backends`] with explicit control over whether
+/// device transcript segments are replayed into the host transcript online.
+#[allow(clippy::too_many_arguments)]
+pub fn prove_pi_ccs_parts_with_backends_and_transcript_mode<L>(
+    tr: &mut neo_transcript::Poseidon2Transcript,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    fresh_claims: &[CcsClaim],
+    fresh_witnesses: &[CcsWitness],
+    running: &RunningInstance,
+    log: &L,
+    fe_backend: Option<&mut dyn FeSumcheckBackend>,
+    nc_backend: Option<&mut dyn NcSumcheckBackend>,
+    transcript_mode: BackendTranscriptMode,
+    running_parent_digest: Option<[F; 4]>,
+    running_accumulator_handle: Option<[F; 4]>,
+) -> Result<(Vec<CeClaim>, nr::PiCcsProof), Error>
+where
+    L: neo_ccs::traits::SModuleHomomorphism<neo_math::F, neo_ajtai::Commitment> + Sync,
+{
+    prove_pi_ccs_parts_with_phase_backend_and_transcript_mode(
+        tr,
+        pp,
+        s,
+        cache,
+        fresh_claims,
+        fresh_witnesses,
+        running,
+        log,
+        None,
+        fe_backend,
+        nc_backend,
+        transcript_mode,
+        running_parent_digest,
+        running_accumulator_handle,
+    )
+}
+
+/// Whole-phase-capable Π_CCS wrapper. The paper layer still owns shape and
+/// digest binding; `phase_backend`, when provided, owns only device scheduling
+/// for the FE+NC transcript chain.
+#[allow(clippy::too_many_arguments)]
+pub fn prove_pi_ccs_parts_with_phase_backend_and_transcript_mode<L>(
+    tr: &mut neo_transcript::Poseidon2Transcript,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    fresh_claims: &[CcsClaim],
+    fresh_witnesses: &[CcsWitness],
+    running: &RunningInstance,
+    log: &L,
+    phase_backend: Option<&mut dyn PiCcsPhaseBackend>,
+    fe_backend: Option<&mut dyn FeSumcheckBackend>,
+    nc_backend: Option<&mut dyn NcSumcheckBackend>,
+    transcript_mode: BackendTranscriptMode,
+    running_parent_digest: Option<[F; 4]>,
+    running_accumulator_handle: Option<[F; 4]>,
+) -> Result<(Vec<CeClaim>, nr::PiCcsProof), Error>
+where
+    L: neo_ccs::traits::SModuleHomomorphism<neo_math::F, neo_ajtai::Commitment> + Sync,
+{
+    // Validate inputs and compute the instance digest BEFORE moving `fresh`
+    // into engine arrays — both sides hash the same public claims.
+    let instance_digest = prover_instance_digest(fresh_claims, running, running_parent_digest)?;
+    // Accumulator-handle ME-input binding: bind the same Π_RLC parent
+    // authority as the public-instance digest. The Π_DEC children remain the
+    // algebraic running inputs, but they do not steer this Fiat-Shamir absorb.
+    let me_handle = match running_accumulator_handle {
+        Some(handle) => handle,
+        None => running_parent_accumulator_handle(running)?,
+    };
+
+    let (outputs, proof, _perf) = optimized_prove_with_phase_backend_and_transcript_mode(
+        tr,
+        pp.inner(),
+        s,
+        fresh_claims,
+        fresh_witnesses,
+        &running.claims,
+        &running.witnesses,
+        instance_digest,
+        me_handle,
+        log,
+        cache,
+        phase_backend,
+        fe_backend,
+        nc_backend,
+        transcript_mode,
+    )?;
+    Ok((outputs, proof))
+}
+
+/// Pi_CCS terminal-state first path.
+///
+/// This keeps `neo-reductions` as the protocol owner while allowing a CUDA
+/// phase backend to hold proof-round logs until the caller actually exports
+/// proof bytes.
+#[allow(clippy::too_many_arguments)]
+pub fn defer_pi_ccs_parts_with_phase_backend_and_transcript_mode<L>(
+    tr: &mut neo_transcript::Poseidon2Transcript,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    fresh_claims: &[CcsClaim],
+    fresh_witnesses: &[CcsWitness],
+    running: &RunningInstance,
+    log: &L,
+    phase_backend: &mut dyn PiCcsPhaseBackend,
+    transcript_mode: BackendTranscriptMode,
+    running_parent_digest: Option<[F; 4]>,
+    running_accumulator_handle: Option<[F; 4]>,
+) -> Result<PiCcsDeferredProof, Error>
+where
+    L: neo_ccs::traits::SModuleHomomorphism<neo_math::F, neo_ajtai::Commitment> + Sync,
+{
+    let instance_digest = prover_instance_digest(fresh_claims, running, running_parent_digest)?;
+    let me_handle = match running_accumulator_handle {
+        Some(handle) => handle,
+        None => running_parent_accumulator_handle(running)?,
+    };
+
+    Ok(optimized_defer_prove_with_phase_backend_and_transcript_mode(
+        tr,
+        pp.inner(),
+        s,
+        fresh_claims,
+        fresh_witnesses,
+        &running.claims,
+        &running.witnesses,
+        instance_digest,
+        me_handle,
+        log,
+        cache,
+        phase_backend,
+        transcript_mode,
+    )?)
+}
+
+/// Pi_CCS terminal-state first path for the default device row/NC backends.
+///
+/// This is the row-trace execution-grain companion to
+/// [`defer_pi_ccs_parts_with_phase_backend_and_transcript_mode`]: FE row
+/// proof logs remain backend-owned, while the protocol terminal state is
+/// available for Π_RLC immediately.
+#[allow(clippy::too_many_arguments)]
+pub fn defer_pi_ccs_parts_with_device_backends_and_transcript_mode<L>(
+    tr: &mut neo_transcript::Poseidon2Transcript,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    fresh_claims: &[CcsClaim],
+    fresh_witnesses: &[CcsWitness],
+    running: &RunningInstance,
+    log: &L,
+    fe_backend: &mut dyn FeSumcheckBackend,
+    nc_backend: Option<&mut dyn NcSumcheckBackend>,
+    transcript_mode: BackendTranscriptMode,
+    running_parent_digest: Option<[F; 4]>,
+    running_accumulator_handle: Option<[F; 4]>,
+) -> Result<PiCcsDeferredProof, Error>
+where
+    L: neo_ccs::traits::SModuleHomomorphism<neo_math::F, neo_ajtai::Commitment> + Sync,
+{
+    let instance_digest = prover_instance_digest(fresh_claims, running, running_parent_digest)?;
+    let me_handle = match running_accumulator_handle {
+        Some(handle) => handle,
+        None => running_parent_accumulator_handle(running)?,
+    };
+
+    Ok(optimized_defer_prove_with_device_backends_and_transcript_mode(
+        tr,
+        pp.inner(),
+        s,
+        fresh_claims,
+        fresh_witnesses,
+        &running.claims,
+        &running.witnesses,
+        instance_digest,
+        me_handle,
+        log,
+        cache,
+        fe_backend,
+        nc_backend,
+        transcript_mode,
+    )?)
+}
+
+fn prover_instance_digest(
+    fresh_claims: &[CcsClaim],
+    running: &RunningInstance,
+    running_parent_digest: Option<[F; 4]>,
+) -> Result<[F; 4], Error> {
+    let parent_authority = running_parent_authority(running)?;
+    Ok(match running_parent_digest {
+        Some(digest) => pi_ccs_instance_digest_from_parent_digest(fresh_claims, running.claims.len(), Some(digest)),
+        None => pi_ccs_instance_digest_parent_authority(fresh_claims, running.claims.len(), parent_authority),
+    })
 }
 
 /// Π_CCS (§7.3) verify — mirror of [`prove_pi_ccs`] using the optimized

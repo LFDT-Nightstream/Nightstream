@@ -18,7 +18,8 @@ use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
 use crate::engine::ccs_native::poseidon2::{
-    build_bit_backed_poseidon2_hash, POSEIDON2_DIGEST_LEN, POSEIDON2_GOLDILOCKS_BITS, POSEIDON2_RATE, POSEIDON2_WIDTH,
+    build_bit_backed_poseidon2_hash_values, POSEIDON2_DIGEST_LEN, POSEIDON2_GOLDILOCKS_BITS, POSEIDON2_RATE,
+    POSEIDON2_WIDTH,
 };
 
 pub use crate::engine::ccs_native::poseidon2::{BITS_PER_PERMUTATION, BIT_BACKED_PERMUTATION_WORDS};
@@ -98,24 +99,26 @@ pub struct PoseidonTraceImage {
 }
 
 /// Encode a single Poseidon2 hash invocation as a bit-backed trace.
-/// Wraps [`build_bit_backed_poseidon2_hash`] and pins the trace into a
+/// Uses the witness-only value walk (bit-identical to
+/// `build_bit_backed_poseidon2_hash` without assembling its discarded
+/// constraint structure) and pins the trace into a
 /// [`PoseidonTraceLayout`]. Panics if the builder and layout disagree
 /// on length (regression guard against a private-API drift in
 /// `ccs_native::poseidon2`).
 pub fn encode_poseidon_trace(preimage: &[F]) -> PoseidonTraceImage {
-    let bundle = build_bit_backed_poseidon2_hash(preimage);
+    let (values, digest_native) = build_bit_backed_poseidon2_hash_values(preimage);
     let layout = PoseidonTraceLayout::from_preimage_len(preimage.len());
     assert_eq!(
-        bundle.z.len(),
+        values.len(),
         layout.end(),
         "bit-backed z length {} must match layout end {}",
-        bundle.z.len(),
+        values.len(),
         layout.end(),
     );
     PoseidonTraceImage {
         layout,
-        values: bundle.z,
-        digest_native: bundle.digest,
+        values,
+        digest_native,
     }
 }
 

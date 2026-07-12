@@ -44,4 +44,8 @@ pub mod source_image_circuit;
 // Public surface — paper-named entry points kept stable so call sites
 // (mostly `paper::construction2`) don't churn when PR5 adds the R1CS
 // siblings.
-pub use native::{prove, prove_with_semantic_state, verify, Error};
+pub(crate) use native::prove_with_adapter_output_and_semantic_state;
+pub use native::{
+    prove, prove_with_adapter_and_semantic_state, prove_with_backend, prove_with_backend_and_semantic_state,
+    prove_with_semantic_state, verify, Error,
+};

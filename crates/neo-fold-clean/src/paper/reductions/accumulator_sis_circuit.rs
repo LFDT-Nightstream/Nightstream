@@ -169,14 +169,23 @@ pub fn enforce_accumulator_digest(
 fn digest_envelope(
     config: SisAccumulatorConfig,
     field_count: usize,
-    binding: &Commitment,
+    _binding: &Commitment,
     digest_compression: &Commitment,
 ) -> Vec<F> {
+    let mut envelope = accumulator_digest_envelope_prefix(config, field_count);
+    envelope.extend_from_slice(&digest_compression.data);
+    envelope
+}
+
+/// Canonical constant prefix placed before the short rank-1 commitment in
+/// an accumulator digest. Accelerator backends use this instead of copying
+/// protocol-domain constants into their own implementation.
+#[doc(hidden)]
+pub fn accumulator_digest_envelope_prefix(config: SisAccumulatorConfig, field_count: usize) -> Vec<F> {
     let mut envelope = pack_bytes_as_fields(SIS_ACCUMULATOR_DIGEST_DOMAIN);
     envelope.push(F::from_u64(config.domain));
     envelope.push(F::from_u64(field_count as u64));
-    envelope.push(F::from_u64(binding.kappa as u64));
-    envelope.extend_from_slice(&digest_compression.data);
+    envelope.push(F::from_u64(config.kappa as u64));
     envelope
 }
 

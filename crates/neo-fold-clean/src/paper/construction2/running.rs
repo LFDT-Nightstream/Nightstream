@@ -26,6 +26,17 @@ impl RunningInstance {
         self.claims.is_empty() && self.witnesses.is_empty() && self.parent_authority.is_none()
     }
 
+    /// Clone the verifier-visible part only — claims and parent authority,
+    /// no witnesses. For verifier-side consumers (NIFS.V replays, image
+    /// digests) where cloning the witness `Mat`s would be pure waste.
+    pub fn claims_only(&self) -> Self {
+        Self {
+            claims: self.claims.clone(),
+            witnesses: Vec::new(),
+            parent_authority: self.parent_authority.clone(),
+        }
+    }
+
     /// Sanity: each claim has a witness on the prover side; both empty on the verifier side.
     pub fn shape_ok(&self) -> bool {
         self.claims.len() == self.witnesses.len()

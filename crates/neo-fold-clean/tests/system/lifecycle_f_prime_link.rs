@@ -1,40 +1,3 @@
-//! Lifecycle ↔ F' R1CS contract.
-//!
-//! Drives a real `construction2::step` chain (the same path
-//! `lifecycle::extend` calls internally), with each fresh batch's public
-//! `x` set to `enc_inst(prior_x_out)` for the *next* step. Snapshots every
-//! step's `(state_in, public_batch, state_out, step_proof)` and feeds each
-//! recursive step into `enforce_f_prime_recursive_step_circuit`.
-//!
-//! Two layers of coverage:
-//!
-//! 1. **Single-step hard gate + tamper**: a 3-step chain, verify the
-//!    `running.claims`-non-empty step (index 2) under several tampers.
-//! 2. **Full-chain replay gate**: a 6-step chain, verify *every* recursive
-//!    step. This is the pre-decider invariant: if every native lifecycle
-//!    step can be replayed by F' R1CS, the remaining decider work is just
-//!    packaging the same relation.
-//!
-//! ## Why this can be a real chain, not a hand-crafted state
-//!
-//! F' state advance uses `f_prime_chunk_public_digest`, which absorbs only
-//! `(commitment shape: d, kappa)` and `m_in` from each fresh claim —
-//! **neither `claim.x` nor `claim.c.data`**, both of which depend on the
-//! recursive-link `x` in direct-CCS (where the Ajtai commitment covers
-//! the full assignment `z = [x | w]`). That breaks the recursive-link
-//! fixed point
-//!
-//!   `x_i = enc_inst(state_x_out(state_{i+1}(chunk_digest(x_i))))`,
-//!
-//! so the chain advances deterministically from the protocol shape and
-//! the caller is free to set `x_i = enc_inst(prior_x_out_{i+1})` after
-//! observing `state_{i+1}`. Commitments are still bound to the chain via
-//! the running-accumulator digest and re-checked inside NIFS.V.
-//!
-//! The ordinary `chunk_public_digest` (which still binds `claim.x` and
-//! `claim.c.data`) is unchanged and continues to be used for non-F'
-//! CCS-identity purposes.
-
 #![allow(non_snake_case)]
 
 use neo_ccs::Mat;
@@ -60,11 +23,6 @@ use neo_fold_clean::paper::relations::{CcsClaim, CcsInstance, CeClaim};
 use neo_fold_clean::{Uncompressed, UncompressedAudit};
 use neo_math::{KExtensions, F, K};
 use p3_field::PrimeCharacteristicRing;
-
-// ── Fixture helpers ─────────────────────────────────────────────────────────
-
-/// All-zero R1CS with `m_in = F_PRIME_PUBLIC_INPUT_LEN`. Any low-norm
-/// assignment satisfies it.
 fn bit_carrier_r1cs() -> R1cs {
     R1cs {
         a: Mat::zero(1, F_PRIME_PUBLIC_INPUT_LEN, F::ZERO),
@@ -77,9 +35,6 @@ fn bit_carrier_r1cs() -> R1cs {
 fn k_c1_one() -> K {
     K::from_coeffs([F::ZERO, F::ONE])
 }
-
-/// Native mirror of `paper::construction2::compute_x_out` (which is
-/// `pub(crate)`). Same absorb sequence as `state_x_out_digest`.
 fn compute_x_out_native(prep: &neo_fold_clean::Preprocessing, state: &State) -> [F; 4] {
     let mode = match prep.semantic_state_mode() {
         neo_fold_clean::paper::construction2::SemanticStateMode::Stateless => StateXOutDigestMode::Stateless,
@@ -173,20 +128,11 @@ fn base_state(prep: &neo_fold_clean::Preprocessing) -> State {
     let acc_digest = AccumulatorHandle::empty().digest();
     State::base(z_0, public_trace, acc_digest, acc_digest)
 }
-
-/// CCS instance whose public-input bits encode `enc_inst(x_out_target)`.
-/// The Ajtai commitment over the resulting `z` depends on `x_out_target`,
-/// but `f_prime_chunk_public_digest` absorbs only the commitment shape and
-/// `m_in`, so the chain advance is unaffected.
 fn build_link_instance(prep: &neo_fold_clean::Preprocessing, r1cs: &R1cs, x_out_target: [F; 4]) -> CcsInstance {
     let mut z = encode_f_prime_public_input(x_out_target);
     z.resize(prep.structure().m, F::ZERO);
     direct_ccs::build_instance(prep, r1cs, &z).expect("recursive-link instance")
 }
-
-/// Run one F'-step on a cloned state, returning the would-be post-step
-/// state. Used to peek at `state_{i+1}` so we can pick the next batch's
-/// `x` before committing to it.
 fn peek_next_state(prep: &neo_fold_clean::Preprocessing, state: &State, batch: &[CcsInstance]) -> State {
     let (next, _) = construction2::step(
         &prep.params,
@@ -203,18 +149,10 @@ fn peek_next_state(prep: &neo_fold_clean::Preprocessing, state: &State, batch: &
     .expect("peek step");
     next
 }
-
-// ── Chain fixture ───────────────────────────────────────────────────────────
-
-/// One step's full record from a real `construction2::step` chain.
 struct StepSnapshot {
-    /// State going into this step (before its NIFS runs).
     state_in: State,
-    /// State coming out of this step (after `advance_state`).
     state_out: State,
-    /// Claims of the batch deposited as `latest` at this step.
     public_batch: Vec<CcsClaim>,
-    /// The `StepProof` this step produced.
     step_proof: StepProof,
 }
 
@@ -222,10 +160,6 @@ struct ChainFixture {
     prep: neo_fold_clean::Preprocessing,
     snapshots: Vec<StepSnapshot>,
 }
-
-/// Build an F'-honest chain of `len` steps. Each batch's `x` is
-/// `enc_inst(prior_x_out)` for that step's recursive-link verifier check,
-/// so every `FoldProof::Recursive` snapshot is independently F'-replayable.
 fn build_f_prime_honest_chain(len: usize) -> ChainFixture {
     let r1cs = bit_carrier_r1cs();
     let prep = direct_ccs::preprocess_seeded(&r1cs, 42).expect("preprocess");
@@ -236,8 +170,6 @@ fn build_f_prime_honest_chain(len: usize) -> ChainFixture {
     let mut snapshots = Vec::with_capacity(len);
 
     for _ in 0..len {
-        // Peek at the post-step state to recover the prior_x_out the F'
-        // R1CS will recompute, then set this batch's `x` accordingly.
         let predicted = peek_next_state(&prep, &state, &[dummy_inst()]);
         let target_x_out = compute_x_out_native(&prep, &predicted);
         let batch = build_link_instance(&prep, &r1cs, target_x_out);
@@ -258,9 +190,6 @@ fn build_f_prime_honest_chain(len: usize) -> ChainFixture {
             vec![batch],
         )
         .expect("step");
-
-        // Sanity: real step matches the peek (since the chunk digest is
-        // shape-only, batch.x doesn't change state advance).
         debug_assert_eq!(next_state.z_i, predicted.z_i);
         debug_assert_eq!(next_state.public_trace, predicted.public_trace);
         debug_assert_eq!(next_state.semantic_state_digest, predicted.semantic_state_digest);
@@ -278,35 +207,35 @@ fn build_f_prime_honest_chain(len: usize) -> ChainFixture {
 
     ChainFixture { prep, snapshots }
 }
-
-/// Borrowed view of one recursive step's F' R1CS inputs.
 struct RecursiveStepView<'a> {
     prep: &'a neo_fold_clean::Preprocessing,
     state_in: &'a State,
     state_out: &'a State,
     fresh: Vec<CcsClaim>,
-    running_claims: &'a [CeClaim],
-    running_parent_authority: Option<&'a CeClaim>,
-    nifs: &'a NifsProof,
+    running_claims: Vec<CeClaim>,
+    running_parent_authority: Option<CeClaim>,
+    nifs: NifsProof,
     chunk_digest: [F; 4],
     prior_x_out: [F; 4],
     post_step_x_out: [F; 4],
 }
 
 impl ChainFixture {
-    /// View of the recursive step at `idx`. Panics if the step is not
-    /// `FoldProof::Recursive` (use `is_recursive(idx)` first if unsure).
     fn recursive_step(&self, idx: usize) -> RecursiveStepView<'_> {
         let snapshot = &self.snapshots[idx];
         let FoldProof::Recursive(nifs) = &snapshot.step_proof.fold else {
             panic!("step {idx} is not FoldProof::Recursive");
         };
+        let nifs = nifs
+            .materialize()
+            .expect("recursive NIFS proof materialization");
         let (running_claims, running_parent_authority, fresh) = match &snapshot.state_in.proof {
-            ProofState::Active { running, latest } => (
-                running.claims.as_slice(),
-                running.parent_authority.as_ref(),
-                latest.claims(),
-            ),
+            ProofState::Active { running, latest } => {
+                let running = running
+                    .materialize()
+                    .expect("recursive step running materialization");
+                (running.claims, running.parent_authority, latest.claims())
+            }
             ProofState::Initial => panic!("step {idx} state-in is Initial; can't be recursive"),
         };
         let chunk_digest = f_prime_chunk_public_digest(snapshot.state_in.step_count, &snapshot.public_batch);
@@ -330,8 +259,6 @@ impl ChainFixture {
         matches!(self.snapshots[idx].step_proof.fold, FoldProof::Recursive(_))
     }
 }
-
-// ── F' R1CS checks, parameterized by real lifecycle snapshots ───────────────
 
 struct BaseSourceImage {
     image: FPrimeSourceImage,
@@ -466,8 +393,8 @@ fn run_recursive_check_with_semantic(
         chunk_digest,
         nifs_msg: NifsVCircuitMessages {
             fresh: &fresh,
-            running: view.running_claims,
-            running_parent_authority: view.running_parent_authority,
+            running: view.running_claims.as_slice(),
+            running_parent_authority: view.running_parent_authority.as_ref(),
             pi_ccs: &view.nifs.pi_ccs,
             combined: &view.nifs.pi_rlc.combined,
             children: &view.nifs.pi_dec.children,
@@ -502,8 +429,8 @@ fn run_recursive_check_with_output_authority(
         chunk_digest: view.chunk_digest,
         nifs_msg: NifsVCircuitMessages {
             fresh: &view.fresh,
-            running: view.running_claims,
-            running_parent_authority: view.running_parent_authority,
+            running: view.running_claims.as_slice(),
+            running_parent_authority: view.running_parent_authority.as_ref(),
             pi_ccs: &view.nifs.pi_ccs,
             combined,
             children,
@@ -528,11 +455,6 @@ fn overwrite_enc_inst_bits(source: &mut FPrimeSourceImage, range: BitRange, dige
     }
 }
 
-// ── Single-step hard gate + tampers (uses chain of 3, step index 2) ─────────
-//
-// Step 2 is the first recursive step with a non-empty running accumulator,
-// the most interesting case for tampering.
-
 #[test]
 fn lifecycle_base_step_rejects_semantic_digest_out_not_equal_empty_acc() {
     let chain = build_f_prime_honest_chain(1);
@@ -542,12 +464,6 @@ fn lifecycle_base_step_rejects_semantic_digest_out_not_equal_empty_acc() {
         "first lifecycle step must be the F' base case"
     );
     let b = run_base_check_with_semantic(&chain.prep, snapshot, |_, _, semantic_state_digest_out, _| {
-        // Base F' sets U_1 to the default empty accumulator. In
-        // stateless mode, semantic state is the accumulator digest, while
-        // state_x_out omits the duplicate semantic lane. Mutating only
-        // this side field should be rejected by the same
-        // `semantic_state_digest_out == acc_digest_out` row used by the
-        // recursive path.
         semantic_state_digest_out[0] += F::ONE;
     });
     assert!(
@@ -565,9 +481,6 @@ fn lifecycle_base_step_rejects_pc_not_trivial_even_if_source_word_matches() {
         "first lifecycle step must be the F' base case"
     );
     let b = run_base_check_with_semantic(&chain.prep, snapshot, |f_state, _, _, source| {
-        // Make the state wire, source-image word, and visible x_out bits
-        // agree on the same wrong pc. The explicit `pc == TRIVIAL_PC` row
-        // must still reject this coherent relabel.
         let bad_pc = neo_fold_clean::paper::construction2::TRIVIAL_PC + 1;
         f_state.pc = bad_pc;
         let start = source.pc_word.bits().start();
@@ -593,11 +506,6 @@ fn native_f_prime_verify_rejects_nofold_when_chunk_count_nonzero() {
         matches!(snapshot.step_proof.fold, FoldProof::NoFold),
         "fixture's first lifecycle step must be the F' NoFold branch"
     );
-
-    // HyperNova's NoFold/base branch is only valid at i=0. This forges a
-    // same-shape public step with the Initial proof tag retained but the
-    // chunk counter advanced, then recomputes the outward hash fields so
-    // a self-consistent digest chain alone cannot catch the branch skip.
     let mut forged_state_in = snapshot.state_in.clone();
     forged_state_in.chunk_count = 1;
     forged_state_in.step_count = 1;
@@ -692,17 +600,13 @@ fn lifecycle_recursive_step_rejects_zero_step_count_even_with_matching_fresh_and
     let ProofState::Active { running, .. } = &snapshot.state_in.proof else {
         panic!("step 2 must enter the recursive branch");
     };
+    let running = running
+        .materialize()
+        .expect("recursive step running materialization");
     assert!(
         !running.claims.is_empty(),
         "fixture must carry a non-empty running accumulator"
     );
-
-    // Forge an impossible Construction-2 coordinate: Active recursive
-    // state, nonzero chunk counter, but zero total folded-row counter.
-    // Then rebuild the folded fresh CCS instance, NIFS proof, and both
-    // x_out links around that forged state. A rejection now has to come
-    // from the recursive-branch counter rows, not from ordinary transcript
-    // or public-input mismatch.
     let mut forged_state_in = snapshot.state_in.clone();
     forged_state_in.step_count = 0;
     let forged_prior_x_out = compute_x_out_native(&chain.prep, &forged_state_in);
@@ -726,7 +630,7 @@ fn lifecycle_recursive_step_rejects_zero_step_count_even_with_matching_fresh_and
         chain.prep.mix_rhos_commits(),
         chain.prep.combine_b_pows(),
         vec![forged_fresh],
-        running,
+        &running,
     )
     .expect("forge internally consistent NIFS proof under zero step_count");
     let forged_parent = forged_running_out
@@ -836,9 +740,6 @@ fn lifecycle_recursive_step_rejects_tampered_pc_source_word_bit() {
     let chain = build_f_prime_honest_chain(3);
     let view = chain.recursive_step(2);
     let b = run_recursive_check(&view, |_, _, _, source, _| {
-        // Flip only the low source bit; the state wire still carries
-        // TRIVIAL_PC. The source-image word must be bound directly to the
-        // in-circuit state var before that var is absorbed into x_out.
         let idx = source.pc_word.bits().start();
         let original = source.image.values()[idx];
         source.image.set_bit(idx, original == F::ZERO);
@@ -865,12 +766,6 @@ fn lifecycle_recursive_step_rejects_tampered_acc_digest_in_even_if_prior_x_out_r
     let view = chain.recursive_step(2);
     let b = run_recursive_check(&view, |f_state, _, _, source, _| {
         f_state.acc_digest_in[0] += F::ONE;
-
-        // Rebuild the prior-x_out source bits from the tampered
-        // accumulator handle so this is not merely the public-link bit
-        // check failing. The recursive step must still reject because
-        // the consumed running accumulator recomputes to the honest
-        // handle, not this tampered one.
         let mut tampered_state = view.state_in.clone();
         tampered_state.acc_digest = digest_fields_as_digest32(f_state.acc_digest_in);
         let tampered_prior_x_out = compute_x_out_native(view.prep, &tampered_state);
@@ -892,7 +787,7 @@ fn lifecycle_recursive_step_rejects_running_child_field_tamper_even_if_handle_an
     );
 
     let mut running_claims = view.running_claims.to_vec();
-    let parent_authority = view.running_parent_authority.cloned();
+    let parent_authority = view.running_parent_authority.clone();
     running_claims[0].y_ring[0][0] += k_c1_one();
     let forged_acc_digest =
         AccumulatorHandle::from_running_parts(&running_claims, parent_authority.as_ref()).digest_fields();
@@ -944,7 +839,7 @@ fn lifecycle_recursive_step_rejects_running_child_fold_digest_tamper_even_if_han
     let view = chain.recursive_step(2);
     let mut running_claims = view.running_claims.to_vec();
     running_claims[0].fold_digest[0] ^= 0x80;
-    let parent_authority = view.running_parent_authority.cloned();
+    let parent_authority = view.running_parent_authority.clone();
     let forged_acc_digest =
         AccumulatorHandle::from_running_parts(&running_claims, parent_authority.as_ref()).digest_fields();
     let mut f_state = f_prime_state_in(view.state_in, view.prep);
@@ -995,11 +890,11 @@ fn lifecycle_recursive_step_rejects_running_parent_field_tamper_even_if_handle_a
     let view = chain.recursive_step(2);
     let mut parent_authority = view
         .running_parent_authority
-        .cloned()
+        .clone()
         .expect("test setup needs running parent authority");
     parent_authority.y_ring[0][0] += k_c1_one();
     let forged_acc_digest =
-        AccumulatorHandle::from_running_parts(view.running_claims, Some(&parent_authority)).digest_fields();
+        AccumulatorHandle::from_running_parts(view.running_claims.as_slice(), Some(&parent_authority)).digest_fields();
     let mut f_state = f_prime_state_in(view.state_in, view.prep);
     f_state.acc_digest_in = forged_acc_digest;
     f_state.semantic_state_digest_in = forged_acc_digest;
@@ -1018,7 +913,7 @@ fn lifecycle_recursive_step_rejects_running_parent_field_tamper_even_if_handle_a
         chunk_digest: view.chunk_digest,
         nifs_msg: NifsVCircuitMessages {
             fresh: &view.fresh,
-            running: view.running_claims,
+            running: view.running_claims.as_slice(),
             running_parent_authority: Some(&parent_authority),
             pi_ccs: &view.nifs.pi_ccs,
             combined: &view.nifs.pi_rlc.combined,
@@ -1062,12 +957,6 @@ fn lifecycle_recursive_step_rejects_coherent_wrong_acc_digest_out() {
     let b = run_recursive_check_with_semantic(&view, |_, _, acc_digest_out, semantic_state_digest_out, source, _| {
         acc_digest_out[0] += F::ONE;
         *semantic_state_digest_out = *acc_digest_out;
-
-        // Rebuild the public output bits from the forged post-state.
-        // This bypasses the ordinary "x_out bits don't match the
-        // supplied digest" failure mode and isolates the producer-side
-        // equation that must bind acc_digest_out to this step's NIFS.V
-        // output accumulator.
         let mut forged_state_out = view.state_out.clone();
         forged_state_out.acc_digest = digest_fields_as_digest32(*acc_digest_out);
         forged_state_out.semantic_state_digest = digest_fields_as_digest32(*semantic_state_digest_out);
@@ -1197,7 +1086,6 @@ fn lifecycle_recursive_step_rejects_transcript_prefix_tamper_after_x_out_repair(
                     "public_trace_in" => f_state.public_trace_in[0] += F::ONE,
                     _ => unreachable!(),
                 }
-
                 // Repair both visible x_out links using the tampered
                 // anchor fields. The verifier header is now directly in the
                 // state_x_out preimage; the remaining repairs keep this test
@@ -1249,12 +1137,6 @@ fn lifecycle_recursive_step_rejects_semantic_digest_out_not_equal_acc_digest_out
     let chain = build_f_prime_honest_chain(3);
     let view = chain.recursive_step(2);
     let b = run_recursive_check_with_semantic(&view, |_, _, _, semantic_state_digest_out, _, _| {
-        // In stateless mode, `state_x_out` intentionally omits the
-        // semantic-state lane and Construction 2 carries the accumulator
-        // digest as the semantic state. Mutate only this side field while
-        // leaving the NIFS output accumulator and public x_out bits honest.
-        // The dedicated `semantic_state_digest_out == acc_digest_out` row
-        // is the load-bearing rejection here.
         semantic_state_digest_out[0] += F::ONE;
     });
     assert!(
@@ -1262,13 +1144,6 @@ fn lifecycle_recursive_step_rejects_semantic_digest_out_not_equal_acc_digest_out
         "F' R1CS accepted semantic_state_digest_out != acc_digest_out in stateless mode"
     );
 }
-
-// ── Full-chain replay hard gate ─────────────────────────────────────────────
-//
-// Pre-decider invariant: every recursive step in a real lifecycle chain
-// must be independently replayable by `enforce_f_prime_recursive_step_circuit`.
-// If this passes for chain length 6, the remaining decider work is
-// packaging the same relation, not discovering another lifecycle/F' mismatch.
 
 #[test]
 fn lifecycle_all_recursive_steps_satisfy_f_prime_r1cs() {
@@ -1297,18 +1172,14 @@ fn lifecycle_all_recursive_steps_satisfy_f_prime_r1cs() {
             b.first_unsatisfied_row()
         );
     }
-
-    // chain[0] is base (NoFold); all later snapshots are Recursive in this build.
     assert_eq!(
         recursive_count, 5,
         "chain(6) should contain 5 FoldProof::Recursive steps (indices 1..5)"
     );
-    // The base-to-recursive transition: step 1 still has empty running.
     assert!(
         saw_empty_running,
         "full-chain replay should cover the first recursive step with empty running"
     );
-    // Steady-state recursive: step 2+ has non-empty running.
     assert!(
         saw_nonempty_running,
         "full-chain replay should cover recursive steps with non-empty running"
@@ -1392,16 +1263,8 @@ fn lifecycle_compress_uses_audit_path_for_multi_chunk_f_prime_until_decider_land
     );
 }
 
-// ── Fixed-point-gone regression ─────────────────────────────────────────────
-
 #[test]
 fn f_prime_chunk_public_digest_is_independent_of_recursive_link_x() {
-    // Build two real CCS instances with distinct low-norm assignments.
-    // In direct-CCS the Ajtai commitment covers the full z, so both
-    // `claim.x` and `claim.c.data` differ between the two — yet
-    // `f_prime_chunk_public_digest` must yield the same value, because
-    // it absorbs only the commitment **shape** (`d`, `kappa`) and `m_in`.
-    // That insensitivity is what breaks the recursive-link fixed point.
     let r1cs = bit_carrier_r1cs();
     let prep = direct_ccs::preprocess_seeded(&r1cs, 42).expect("preprocess");
 
@@ -1421,8 +1284,6 @@ fn f_prime_chunk_public_digest_is_independent_of_recursive_link_x() {
     assert_eq!(inst_a.claim.m_in, inst_b.claim.m_in);
     assert_eq!(inst_a.claim.c.d, inst_b.claim.c.d);
     assert_eq!(inst_a.claim.c.kappa, inst_b.claim.c.kappa);
-
-    // F' chunk digest must collapse the two claims to the same value...
     let f_prime_a = f_prime_chunk_public_digest(0, &[inst_a.claim.clone()]);
     let f_prime_b = f_prime_chunk_public_digest(0, &[inst_b.claim.clone()]);
     assert_eq!(
@@ -1430,8 +1291,6 @@ fn f_prime_chunk_public_digest_is_independent_of_recursive_link_x() {
         "f_prime_chunk_public_digest must ignore both claim.x and claim.c.data — \
          otherwise the recursive-link fixed point reappears"
     );
-
-    // ...while ordinary CCS-identity digests still distinguish them.
     let ord_a = chunk_public_digest(0, &[inst_a.claim.clone()]);
     let ord_b = chunk_public_digest(0, &[inst_b.claim.clone()]);
     assert_ne!(
@@ -1443,29 +1302,10 @@ fn f_prime_chunk_public_digest_is_independent_of_recursive_link_x() {
     assert_ne!(claim_a, claim_b, "ordinary ccs_claim_digest must remain x-sensitive");
 }
 
-// ── Layered Fiat–Shamir invariant ───────────────────────────────────────────
-//
-// Security claim: F'-chunk-digest is shape-only and Π_CCS / NIFS is
-// content-bound. The two together are sound iff no challenge that checks
-// chunk *content* is sampled before NIFS / Π_CCS has absorbed the full
-// claim. This test pins the separation:
-//
-//   1. `f_prime_chunk_public_digest` collapses two same-shape distinct-
-//       content batches (F' transcript prefix is intentionally shape-only).
-//   2. `pi_ccs_instance_digest` distinguishes them (NIFS transcript
-//       absorbs full `ccs_claim_digest`, which binds `claim.x` and
-//       `claim.c.data`).
-//   3. A real lifecycle proof generated for batch A, then verified with
-//       A's deposited claim replaced wholesale by B's (same shape,
-//       different content), rejects at the next step's NIFS.V — exactly
-//       because that step's transcript absorbs the actual folded claim.
-
 #[test]
 fn nifs_transcript_binds_chunk_contents_even_though_f_prime_digest_is_shape_only() {
     let r1cs = bit_carrier_r1cs();
     let prep = direct_ccs::preprocess_seeded(&r1cs, 42).expect("preprocess");
-
-    // Two same-shape distinct-content low-norm instances.
     let z_a: Vec<F> = (0..prep.structure().m)
         .map(|i| F::from_u64((i as u64) & 1))
         .collect();
@@ -1480,34 +1320,17 @@ fn nifs_transcript_binds_chunk_contents_even_though_f_prime_digest_is_shape_only
         "Ajtai commitment over full z makes c.data differ too"
     );
     assert_eq!(inst_a.claim.m_in, inst_b.claim.m_in);
-
-    // (1) F' chunk digest is intentionally shape-only.
     assert_eq!(
         f_prime_chunk_public_digest(0, &[inst_a.claim.clone()]),
         f_prime_chunk_public_digest(0, &[inst_b.claim.clone()]),
         "F' chunk digest must collapse same-shape claims (regression for the recursive-link fixed point)"
     );
-
-    // (2) Π_CCS instance digest binds full claim contents — the NIFS
-    //     transcript absorbs this before any content-checking Fiat-Shamir
-    //     challenge, so A vs B yield different challenges in the fold.
     let empty_running: Vec<CeClaim> = Vec::new();
     assert_ne!(
         pi_ccs_instance_digest(&[inst_a.claim.clone()], &empty_running),
         pi_ccs_instance_digest(&[inst_b.claim.clone()], &empty_running),
         "Π_CCS instance digest must distinguish A vs B; otherwise NIFS FS challenges would not depend on the folded claim's contents"
     );
-
-    // (3) End-to-end: build a real proof folding A at step 1, then swap
-    //     A's claim in the audit trail (`statement.witness.public_batches[0]`)
-    //     for B's claim. At step 1, the **chain-replay verifier**
-    //     (`paper::decider::validate_witness`) absorbs B's claim into Π_CCS
-    //     before sampling NIFS challenges; the proof was generated for A, so
-    //     the algebraic checks fail. (After Phase 1.7 `verify_uncompressed`
-    //     is non-replay — it authenticates only the final running
-    //     accumulator — so audit-trail tampers like this one are caught by
-    //     `validate_witness`, the gatekeeper for the Spartan SNARK
-    //     statement.)
     let chain = build_f_prime_honest_chain(2);
     let audit = UncompressedAudit {
         proof: Uncompressed {
@@ -1531,11 +1354,6 @@ fn nifs_transcript_binds_chunk_contents_even_though_f_prime_digest_is_shape_only
             .collect(),
     };
     let finished = neo_fold_clean::finish_uncompressed_with_audit(&chain.prep, audit).expect("finish linked chain");
-
-    // Sanity: the original proof verifies under audit replay. The
-    // terminal-only projection must fail closed for multi-chunk direct-CCS
-    // histories because the terminal fold starts from a non-empty running
-    // accumulator.
     assert!(
         matches!(
             neo_fold_clean::verify_uncompressed(&chain.prep, &finished.proof),
@@ -1563,9 +1381,6 @@ fn nifs_transcript_binds_chunk_contents_even_though_f_prime_digest_is_shape_only
         &untampered_statement,
     )
     .expect("untampered statement passes validate_witness");
-
-    // Whole-claim swap (same shape, different content) on the decider
-    // statement's witness side. The chain replay catches it.
     let mut tampered_statement = neo_fold_clean::build_decider_statement(&prep, &finished);
     assert_eq!(tampered_statement.witness.public_batches[0].len(), 1);
     tampered_statement.witness.public_batches[0][0] = inst_b.claim.clone();

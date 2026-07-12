@@ -121,6 +121,47 @@ pub(crate) fn advance_state(
     semantic_advance: SemanticStateAdvance,
     nebula_next: Option<crate::paper::construction2::NebulaLane>,
 ) -> Result<State, Error> {
+    advance_state_inner(
+        prev,
+        new_proof,
+        fresh_count,
+        chunk_digest,
+        semantic_advance,
+        None,
+        nebula_next,
+    )
+}
+
+pub(crate) fn advance_state_with_acc_digest(
+    _pp: &Params,
+    prev: State,
+    new_proof: ProofState,
+    fresh_count: u64,
+    chunk_digest: [F; 4],
+    semantic_advance: SemanticStateAdvance,
+    acc_digest_override: Option<[u8; 32]>,
+    nebula_next: Option<crate::paper::construction2::NebulaLane>,
+) -> Result<State, Error> {
+    advance_state_inner(
+        prev,
+        new_proof,
+        fresh_count,
+        chunk_digest,
+        semantic_advance,
+        acc_digest_override,
+        nebula_next,
+    )
+}
+
+fn advance_state_inner(
+    prev: State,
+    new_proof: ProofState,
+    fresh_count: u64,
+    chunk_digest: [F; 4],
+    semantic_advance: SemanticStateAdvance,
+    acc_digest_override: Option<[u8; 32]>,
+    nebula_next: Option<crate::paper::construction2::NebulaLane>,
+) -> Result<State, Error> {
     let chunk_count = prev
         .chunk_count
         .checked_add(1)
@@ -134,17 +175,26 @@ pub(crate) fn advance_state(
     // this direct-CCS build. Keep the state field for existing public
     // image shape, but do not spend a second Poseidon2 chain on it.
     let new_public_trace = new_z_i;
-    let new_acc_digest = match &new_proof {
+    let new_acc_digest = acc_digest_override.unwrap_or_else(|| match &new_proof {
         ProofState::Initial => digest::AccumulatorHandle::empty().digest(),
-        ProofState::Active { running, .. } if running.claims.is_empty() => digest::AccumulatorHandle::empty().digest(),
+        ProofState::Active { running, .. }
+            if running
+                .as_materialized()
+                .is_some_and(|r| r.claims.is_empty()) =>
+        {
+            digest::AccumulatorHandle::empty().digest()
+        }
         ProofState::Active { running, .. } => {
+            let running = running
+                .as_materialized()
+                .expect("deferred running accumulator requires an acc_digest_override");
             let parent = running
                 .parent_authority
                 .as_ref()
                 .expect("non-empty running accumulator must carry its Pi_RLC parent authority");
             digest::AccumulatorHandle::from_running_parts(&running.claims, Some(parent)).digest()
         }
-    };
+    });
     let new_semantic_state_digest = match semantic_advance {
         SemanticStateAdvance::Stateless => new_acc_digest,
         SemanticStateAdvance::Stateful(digest) => digest,

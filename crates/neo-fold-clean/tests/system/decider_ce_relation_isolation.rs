@@ -1023,6 +1023,9 @@ fn honest_terminal_pair() -> (
         ProofState::Active { running, .. } => running,
         ProofState::Initial => panic!("finished proof must be Active"),
     };
+    let running = running
+        .into_materialized()
+        .expect("terminal pair running materialization");
     let claim = running
         .claims
         .first()

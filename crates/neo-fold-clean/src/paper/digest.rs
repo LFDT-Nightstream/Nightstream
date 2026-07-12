@@ -704,17 +704,29 @@ pub fn pi_ccs_instance_digest_parent_authority(
     running_count: usize,
     running_parent_authority: Option<&CeClaim<Commitment, F, K>>,
 ) -> [F; 4] {
+    let parent_digest = running_parent_authority.map(ce_claim_digest);
+    pi_ccs_instance_digest_from_parent_digest(fresh_claims, running_count, parent_digest)
+}
+
+/// Prover-side scheduling form of [`pi_ccs_instance_digest_parent_authority`].
+/// The verifier never accepts this digest as authority; deferred backends must
+/// reconstruct the parent claim and check its digest before proof egress.
+pub(crate) fn pi_ccs_instance_digest_from_parent_digest(
+    fresh_claims: &[CcsClaim<Commitment, F>],
+    running_count: usize,
+    running_parent_digest: Option<[F; 4]>,
+) -> [F; 4] {
     let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/pi_ccs_instance_digest/parent_authority/v1");
     preimage.push(F::from_u64(fresh_claims.len() as u64));
     for claim in fresh_claims {
         preimage.extend_from_slice(&ccs_claim_digest(claim));
     }
     preimage.push(F::from_u64(running_count as u64));
-    match (running_count, running_parent_authority) {
+    match (running_count, running_parent_digest) {
         (0, None) => preimage.push(F::ZERO),
-        (_, Some(parent)) => {
+        (_, Some(parent_digest)) => {
             preimage.push(F::ONE);
-            preimage.extend_from_slice(&ce_claim_digest(parent));
+            preimage.extend_from_slice(&parent_digest);
         }
         (_, None) => preimage.push(F::from_u64(u64::MAX)),
     }
@@ -755,6 +767,17 @@ impl AccumulatorHandle {
         }
     }
 
+    /// Build the same handle when a resident backend has already computed
+    /// the canonical parent CE digest. The digest remains non-authoritative;
+    /// callers must still verify the parent/children relation before using it.
+    #[doc(hidden)]
+    pub fn from_parent_digest(child_count: usize, parent_digest: Option<[F; 4]>) -> Self {
+        Self {
+            child_count,
+            digest: accumulator_digest_from_parent_digest(child_count, parent_digest),
+        }
+    }
+
     pub fn child_count(&self) -> usize {
         self.child_count
     }
@@ -792,16 +815,24 @@ pub fn accumulator_digest_from_running_parts(
     claims: &[CeClaim<Commitment, F, K>],
     parent_authority: Option<&CeClaim<Commitment, F, K>>,
 ) -> [u8; 32] {
+    accumulator_digest_from_parent_digest(claims.len(), parent_authority.map(ce_claim_digest))
+}
+
+/// Canonical accumulator handle from an already-authenticated parent CE
+/// digest. This is the exact tail of [`accumulator_digest_from_running_parts`]
+/// and lets resident backends avoid recomputing an expensive SIS digest.
+#[doc(hidden)]
+pub fn accumulator_digest_from_parent_digest(child_count: usize, parent_digest: Option<[F; 4]>) -> [u8; 32] {
     let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/accumulator/parent_authority/v2");
-    preimage.push(F::from_u64(claims.len() as u64));
-    match parent_authority {
-        Some(parent) => {
+    preimage.push(F::from_u64(child_count as u64));
+    match parent_digest {
+        Some(digest) => {
             preimage.push(F::ONE);
-            preimage.extend_from_slice(&ce_claim_digest(parent));
+            preimage.extend_from_slice(&digest);
         }
         None => preimage.push(F::ZERO),
     }
-    if claims.is_empty() != parent_authority.is_none() {
+    if (child_count == 0) != parent_digest.is_none() {
         preimage.push(F::from_u64(u64::MAX));
     }
     digest_fields_as_digest32(poseidon_digest_fields(&preimage))

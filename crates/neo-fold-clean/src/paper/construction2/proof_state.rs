@@ -13,6 +13,7 @@
 
 use crate::paper::construction2::latest::LatestInstance;
 use crate::paper::construction2::running::RunningInstance;
+use crate::paper::nifs::{Error as NifsError, NifsRunningCarrier};
 
 /// The fold-relevant pair `(U_i, u_i)`.
 #[derive(Clone, Debug)]
@@ -21,7 +22,7 @@ pub enum ProofState {
     Initial,
     /// i ≥ 1: a previous `extend` populated `latest` for this step's fold.
     Active {
-        running: RunningInstance,
+        running: NifsRunningCarrier,
         latest: LatestInstance,
     },
 }
@@ -31,12 +32,37 @@ impl ProofState {
         Self::Initial
     }
 
+    pub fn active(running: RunningInstance, latest: LatestInstance) -> Self {
+        Self::active_carrier(NifsRunningCarrier::materialized(running), latest)
+    }
+
+    pub fn active_carrier(running: NifsRunningCarrier, latest: LatestInstance) -> Self {
+        Self::Active { running, latest }
+    }
+
     pub fn is_initial(&self) -> bool {
         matches!(self, Self::Initial)
     }
 
-    /// Borrow the running accumulator if the state is active.
+    /// Borrow the materialized running accumulator if the state is active and
+    /// already materialized.
     pub fn running(&self) -> Option<&RunningInstance> {
+        match self {
+            Self::Initial => None,
+            Self::Active { running, .. } => running.as_materialized(),
+        }
+    }
+
+    /// Materialize the running accumulator if the state is active.
+    pub fn materialized_running(&self) -> Result<Option<RunningInstance>, NifsError> {
+        match self {
+            Self::Initial => Ok(None),
+            Self::Active { running, .. } => running.materialize().map(Some),
+        }
+    }
+
+    /// Borrow the running carrier if the state is active.
+    pub fn running_carrier(&self) -> Option<&NifsRunningCarrier> {
         match self {
             Self::Initial => None,
             Self::Active { running, .. } => Some(running),

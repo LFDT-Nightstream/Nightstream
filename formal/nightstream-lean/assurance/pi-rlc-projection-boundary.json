@@ -40,27 +40,27 @@
     },
     {
       "path": "crates/neo-fold-clean/tests/gadgets/pi_rlc_projection_boundary.rs",
-      "sha256": "7ae9e2336e0b78505207f9cec552c290ffb72b1fe8c30a2e4074ad94cc502d9e"
+      "sha256": "02d8b8104f638aaeb48426a2734f1e0a5666a9d1128e04ce9844524177b6caaa"
     },
     {
-      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/ProjectionProgram.lean",
-      "sha256": "c32f5596def2fd1e658b22536b86404a54aa95dc0dbbb702d86025ef5d767f0b"
+      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Core/ProjectionProgram.lean",
+      "sha256": "1168fb6ac2cbfc35dbcff4175d5c9ab88787ec188c6c567a58ae91d2ab336822"
     },
     {
-      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/ProjectionLengths.lean",
-      "sha256": "994b0d5c3a068bfb2b69a4e4892e5a0ef8d1b31d30da2a8e0468615f64df3a35"
+      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Core/ProjectionLengths.lean",
+      "sha256": "c45692d7c70812a0faebddc6465d5fcc6b4e101088afe9bfb18f0e0b67253628"
     },
     {
-      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/ProjectionSound.lean",
-      "sha256": "044a1419eb19426c8738b38bcd463a8480b3e476ce458fa550a00aa3a956f22b"
+      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/Projection/ProjectionSound.lean",
+      "sha256": "71fd819621b28f94a38aac1d167ffa86eefbf536c917e597894411673b337bdd"
     },
     {
-      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/ProjectionBatchSound.lean",
-      "sha256": "182e506575f0f4898295ec11fd40eb1a7f91eba8893b8625813ffc9e1389ea3a"
+      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/Projection/ProjectionBatchSound.lean",
+      "sha256": "0863da414958becec11fd43300df0c5ae5c94526f29095788ae5cd32a865cc2e"
     },
     {
-      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/PiRLCProjectionSound.lean",
-      "sha256": "148c9b2c969156eaeca8da9f7c126cab128062d57b05e4ecf3c62507ae0341e8"
+      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/Projection/PiRLCProjectionSound.lean",
+      "sha256": "f3a98f11d2e95e65589f39605cbbbfa99a5243ffa4969e83ad4ad18f40f1450f"
     },
     {
       "path": "formal/nightstream-lean/Nightstream/SuperNeo/ProjectionCheck.lean",
@@ -68,7 +68,7 @@
     },
     {
       "path": "formal/nightstream-lean/Nightstream/Assurance/FPrimeRecursiveCircuit.lean",
-      "sha256": "cca262fdae292d6ed56e3a30bc2afc2c2366461e75a6506342f5d078eab0caee"
+      "sha256": "a60792b5896bf115396e698cb5d8773c02456671ba41ec0ba91626743bd6be9c"
     }
   ]
 }

@@ -1,5 +1,5 @@
 import Nightstream.Assurance.FPrimeConcreteNifs
-import Nightstream.Implementation.R1CS.FPrimeFullHistoryRows
+import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryRows
 
 /-!
 Contract: reassemble the exact generated recursive and terminal NIFS parent

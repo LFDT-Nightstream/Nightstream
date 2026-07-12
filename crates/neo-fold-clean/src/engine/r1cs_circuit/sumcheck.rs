@@ -17,7 +17,7 @@
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-use crate::engine::r1cs_circuit::builder::{Lc, R1csBuilder, Var};
+use crate::engine::r1cs_circuit::builder::{Lc, R1csBuilder, SumcheckRoundAudit, Var};
 use crate::engine::r1cs_circuit::field_ext::{alloc_klc, enforce_k_mul, KLc, KVar};
 use crate::engine::r1cs_circuit::transcript::TranscriptGadget;
 
@@ -66,6 +66,8 @@ pub fn horner_eval_k(builder: &mut R1csBuilder, coeffs: &[KVar], r: KVar) -> KVa
 /// linear constraint `2·coeffs[0] + Σ_{i≥1} coeffs[i] == claim_q`.
 pub fn enforce_sumcheck_round(builder: &mut R1csBuilder, coeffs: &[KVar], r_q: KVar, claim_in: KVar) -> KVar {
     assert!(!coeffs.is_empty(), "enforce_sumcheck_round: empty coefficient list");
+    let row_start = builder.rows();
+    let first_allocated_column = builder.cols();
     let two = F::from_u64(2);
 
     let mut sum_c0 = Lc::zero();
@@ -79,7 +81,20 @@ pub fn enforce_sumcheck_round(builder: &mut R1csBuilder, coeffs: &[KVar], r_q: K
     builder.enforce_eq(&Lc::from_var(claim_in.c0), &sum_c0);
     builder.enforce_eq(&Lc::from_var(claim_in.c1), &sum_c1);
 
-    horner_eval_k(builder, coeffs, r_q)
+    let claim_out = horner_eval_k(builder, coeffs, r_q);
+    builder.record_sumcheck_round(SumcheckRoundAudit {
+        row_start,
+        row_end: builder.rows(),
+        first_allocated_column,
+        coefficient_cols: coeffs
+            .iter()
+            .map(|coefficient| [coefficient.c0.col(), coefficient.c1.col()])
+            .collect(),
+        challenge_cols: [r_q.c0.col(), r_q.c1.col()],
+        claim_in_cols: [claim_in.c0.col(), claim_in.c1.col()],
+        claim_out_cols: [claim_out.c0.col(), claim_out.c1.col()],
+    });
+    claim_out
 }
 
 /// Walk a complete sumcheck verifier, threading the running claim through

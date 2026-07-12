@@ -11,15 +11,15 @@
     },
     {
       "path": "crates/neo-fold-clean/src/lifecycle/verify.rs",
-      "sha256": "48130746cf5946b1a2bab790a7631e102a839fe9f08091ed7d2e231d54645d4b"
+      "sha256": "ee20983c20a16f359717f382a74d896462b2961d63f5a1db96ca8260c5dd4bb7"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/decider.rs",
-      "sha256": "7704747350d9fecce9d7700202e94d7181429e8eae9a36bf70b0166188fc5788"
+      "sha256": "204000f870e126b39b8d4bdc0f1ec4d65fbfda2c50bd022ff03d80248a6450d0"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/decider_ce_relation/mod.rs",
-      "sha256": "5d0511cfbabb1e8ffbf2fb754bc763e4420c5c8618760d03c52438dd28ded9d6"
+      "sha256": "bdb8d7e3df49d3d3d15662df1393325c66dd0dfac14298f12f224efdc85d46df"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/terminal_ce/public.rs",

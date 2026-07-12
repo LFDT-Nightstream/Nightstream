@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.CanonicalU64Sound
+import Nightstream.Implementation.R1CS.Correspondence.CanonicalU64.CanonicalU64Sound
 
 /-!
 Rust/Lean conformance for the canonical-u64 artifact: the exact witness

@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.FPrimeFullHistoryCounterSound
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.FPrimeFullHistoryCounterSound
 
 namespace NightstreamTests.FPrimeFullHistoryCounterComplete
 

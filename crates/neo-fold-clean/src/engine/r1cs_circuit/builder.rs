@@ -121,6 +121,18 @@ pub(crate) struct BalancedTernaryDecomposition {
     pub(crate) digit_cols: [usize; BALANCED_TERNARY_DIGITS],
 }
 
+/// Read-only assurance view of one balanced-ternary decomposition.
+///
+/// The emitted rows remain authoritative. Artifact exporters use this map to
+/// recover the source field for an exact SeededPhi81 word without relying on
+/// witness-allocation offsets.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BalancedTernaryAudit {
+    pub field_col: usize,
+    pub digit_cols: [usize; BALANCED_TERNARY_DIGITS],
+}
+
 /// One Poseidon2 S-box in a selectively lowerable permutation trace.
 #[derive(Clone, Debug)]
 pub(crate) struct Poseidon2SboxTrace {
@@ -280,6 +292,209 @@ pub struct RowFamilyRange {
     pub row_end: usize,
 }
 
+/// SSA-normalization boundary for one generated row family.
+///
+/// Columns below `first_allocated_column` predate the family. Assurance
+/// exporters use this to distinguish verifier inputs from deterministic
+/// columns allocated by the family; it never affects emitted constraints.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ProgramRangeAudit {
+    pub name: &'static str,
+    pub row_start: usize,
+    pub row_end: usize,
+    pub first_allocated_column: usize,
+}
+
+/// Exact wire schedule for one claimed-chain SumCheck round.
+///
+/// This is read-only assurance metadata.  The emitted R1CS rows remain the
+/// authority; conformance exporters reconstruct the round program from these
+/// columns and compare it to the exact sparse row interval before using the
+/// corresponding Lean compiler theorem.
+#[doc(hidden)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SumcheckRoundAudit {
+    pub row_start: usize,
+    pub row_end: usize,
+    pub first_allocated_column: usize,
+    pub coefficient_cols: Vec<[usize; 2]>,
+    pub challenge_cols: [usize; 2],
+    pub claim_in_cols: [usize; 2],
+    pub claim_out_cols: [usize; 2],
+}
+
+/// Exact wire schedule for one commitment coordinate consumed by strict
+/// PiDEC. This is assurance metadata only: exporters must reconstruct the
+/// expected rows from the schedule and compare them with the emitted matrix.
+#[doc(hidden)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PiDecCommitmentAudit {
+    pub d_col: usize,
+    pub kappa_col: usize,
+    pub data_cols: Vec<usize>,
+}
+
+/// The optional three-coordinate Nebula commitment carried by a CE claim.
+#[doc(hidden)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PiDecAdvAudit {
+    pub ops: PiDecCommitmentAudit,
+    pub is: PiDecCommitmentAudit,
+    pub fs: PiDecCommitmentAudit,
+}
+
+/// Exact input-wire layout for one CE claim consumed by strict PiDEC.
+#[doc(hidden)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PiDecClaimAudit {
+    pub commitment: PiDecCommitmentAudit,
+    pub adv: Option<PiDecAdvAudit>,
+    pub x_cols: Vec<usize>,
+    pub x_rows: usize,
+    pub x_width: usize,
+    pub x_rows_col: usize,
+    pub x_width_col: usize,
+    pub m_in: usize,
+    pub m_in_col: usize,
+    pub y_ring_cols: Vec<Vec<usize>>,
+    pub ct_cols: Vec<[usize; 2]>,
+    pub r_cols: Vec<[usize; 2]>,
+    pub s_col_cols: Vec<[usize; 2]>,
+    pub fold_digest_cols: [usize; 4],
+}
+
+/// Complete strict-PiDEC input schedule for one emitted verifier invocation.
+#[doc(hidden)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PiDecStrictAudit {
+    pub row_start: usize,
+    pub row_end: usize,
+    pub first_allocated_column: usize,
+    pub radix: u32,
+    pub parent: PiDecClaimAudit,
+    pub children: Vec<PiDecClaimAudit>,
+}
+
+/// Exact input-wire ownership for one direct terminal-CE claim program.
+///
+/// This is read-only assurance metadata. It carries no validity bit and does
+/// not replace any row: artifact exporters use it only to decode the witness,
+/// claim, evaluation point, and sidecar columns consumed by the six exact
+/// terminal-CE row phases.
+#[doc(hidden)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TerminalCeClaimAudit {
+    pub row_start: usize,
+    pub row_end: usize,
+    pub first_allocated_column: usize,
+    pub norm_bound: u32,
+    pub expected_public_width: Option<usize>,
+    pub structure_rows: usize,
+    pub structure_columns: usize,
+    pub witness_rows: usize,
+    pub witness_columns: usize,
+    pub witness_cols: Vec<usize>,
+    pub norm_first_allocated_column: usize,
+    pub commitment_cols: Vec<usize>,
+    pub commitment_d: usize,
+    pub commitment_kappa: usize,
+    pub public_cols: Vec<usize>,
+    pub public_rows: usize,
+    pub public_width: usize,
+    pub public_input_len: usize,
+    pub point_cols: Vec<[usize; 2]>,
+    pub evaluation_cols: Vec<Vec<usize>>,
+    pub constant_term_cols: Vec<[usize; 2]>,
+    pub nc_point_cols: Vec<[usize; 2]>,
+    pub nc_evaluation_cols: Vec<usize>,
+    pub nc_evaluation_lanes: usize,
+}
+
+/// Compact wire schedule for one generated beta-power ladder.
+///
+/// This is read-only assurance metadata. The exact emitted rows remain the
+/// authority and artifact exporters must re-derive and compare every row
+/// represented by this schedule.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProjectionLadderAudit {
+    pub row_start: usize,
+    pub row_end: usize,
+    pub beta_columns: [usize; 2],
+    pub power_columns: Vec<[usize; 2]>,
+}
+
+/// Semantic owner of one production PiRLC projection identity.
+///
+/// The variants follow the native verifier's projection schedule. `Standalone`
+/// is reserved for isolated gadget calls; the NIFS compiler replaces it with
+/// one of the protocol roles before exposing its audit trail.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProjectionIdentityRole {
+    Standalone,
+    CommitmentLane {
+        lane: usize,
+    },
+    NebulaCommitmentLane {
+        coordinate: ProjectionNebulaCoordinate,
+        lane: usize,
+    },
+    ActiveXColumn {
+        column: usize,
+    },
+    YRingLimb {
+        row: usize,
+        limb: usize,
+    },
+    YZColLimb {
+        limb: usize,
+    },
+}
+
+/// Native order of the three optional Nebula commitment coordinates.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProjectionNebulaCoordinate {
+    Ops,
+    Is,
+    Fs,
+}
+
+/// Semantic owner of affine rows emitted between projection identities.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProjectionGlueRole {
+    InactiveXZero,
+    YRingPaddingZero { row: usize },
+    YZColPaddingZero,
+}
+
+/// Exact contiguous range of affine projection glue rows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ProjectionGlueAudit {
+    pub role: ProjectionGlueRole,
+    pub row_start: usize,
+    pub row_end: usize,
+}
+
+/// Compact wire schedule for one complete projected ring-action identity.
+/// Shared beta-ladder and rho-evaluation rows are referenced by columns; the
+/// identity's own contiguous row range is recorded separately.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProjectionIdentityAudit {
+    pub role: ProjectionIdentityRole,
+    pub row_start: usize,
+    pub row_end: usize,
+    pub power_columns: Vec<[usize; 2]>,
+    pub rho_columns: Vec<Vec<usize>>,
+    pub rho_evaluation_outputs: Vec<[usize; 2]>,
+    pub input_columns: Vec<Vec<usize>>,
+    pub input_evaluation_outputs: Vec<[usize; 2]>,
+    pub pair_product_outputs: Vec<[usize; 2]>,
+    pub output_columns: Vec<usize>,
+    pub quotient_columns: Vec<usize>,
+    pub output_evaluation: [usize; 2],
+    pub quotient_evaluation: [usize; 2],
+    pub quotient_phi_product: [usize; 2],
+}
+
 /// R1CS builder: appends rows to (A, B, C) triplet form.
 ///
 /// Construct via [`R1csBuilder::new`], allocate variables and emit constraints,
@@ -317,6 +532,13 @@ pub struct R1csBuilder {
     centered_unit_traces: Vec<CenteredUnitTrace>,
     equality_pairs: Vec<(usize, usize, usize)>,
     row_family_ranges: Vec<RowFamilyRange>,
+    program_range_audits: Vec<ProgramRangeAudit>,
+    sumcheck_round_audits: Vec<SumcheckRoundAudit>,
+    pi_dec_strict_audits: Vec<PiDecStrictAudit>,
+    terminal_ce_claim_audits: Vec<TerminalCeClaimAudit>,
+    projection_ladder_audits: Vec<ProjectionLadderAudit>,
+    projection_identity_audits: Vec<ProjectionIdentityAudit>,
+    projection_glue_audits: Vec<ProjectionGlueAudit>,
 }
 
 /// Immutable output of one completed R1CS synthesis.
@@ -384,6 +606,13 @@ impl R1csBuilder {
             centered_unit_traces: Vec::new(),
             equality_pairs: Vec::new(),
             row_family_ranges: Vec::new(),
+            program_range_audits: Vec::new(),
+            sumcheck_round_audits: Vec::new(),
+            pi_dec_strict_audits: Vec::new(),
+            terminal_ce_claim_audits: Vec::new(),
+            projection_ladder_audits: Vec::new(),
+            projection_identity_audits: Vec::new(),
+            projection_glue_audits: Vec::new(),
         }
     }
 
@@ -466,6 +695,27 @@ impl R1csBuilder {
             .copied()
     }
 
+    /// Assurance view of the exact balanced-ternary witness columns reused
+    /// by SIS/Ajtai bindings. The field rows remain authoritative; this
+    /// accessor exists so adversarial tests and artifact exporters can mutate
+    /// or audit the same columns without depending on allocation offsets.
+    pub fn balanced_ternary_digit_columns(&self, field: Var) -> Option<Vec<usize>> {
+        self.balanced_ternary_decomposition(field)
+            .map(|digits| digits.into_iter().map(Var::col).collect())
+    }
+
+    /// Exact source-field to digit-word maps recorded by production synthesis.
+    #[doc(hidden)]
+    pub fn balanced_ternary_audits(&self) -> Vec<BalancedTernaryAudit> {
+        self.balanced_ternary_decompositions
+            .iter()
+            .map(|decomposition| BalancedTernaryAudit {
+                field_col: decomposition.field_col,
+                digit_cols: decomposition.digit_cols,
+            })
+            .collect()
+    }
+
     pub(crate) fn record_boolean(&mut self, value: Var) {
         if self.record_structure {
             self.boolean_columns.push(value.col());
@@ -504,6 +754,119 @@ impl R1csBuilder {
     /// Read-only assurance view of recorded row ownership.
     pub fn row_family_ranges(&self) -> &[RowFamilyRange] {
         &self.row_family_ranges
+    }
+
+    /// Read-only SSA boundaries for exact generated owner programs.
+    #[doc(hidden)]
+    pub fn program_range_audits(&self) -> &[ProgramRangeAudit] {
+        &self.program_range_audits
+    }
+
+    /// Exact wire schedules for generated claimed-chain SumCheck rounds.
+    #[doc(hidden)]
+    pub fn sumcheck_round_audits(&self) -> &[SumcheckRoundAudit] {
+        &self.sumcheck_round_audits
+    }
+
+    /// Exact input schedules for strict PiDEC compiler invocations.
+    #[doc(hidden)]
+    pub fn pi_dec_strict_audits(&self) -> &[PiDecStrictAudit] {
+        &self.pi_dec_strict_audits
+    }
+
+    /// Exact wire ownership for direct terminal-CE claim compilers.
+    #[doc(hidden)]
+    pub fn terminal_ce_claim_audits(&self) -> &[TerminalCeClaimAudit] {
+        &self.terminal_ce_claim_audits
+    }
+
+    pub(crate) fn record_program_range(&mut self, name: &'static str, row_start: usize, first_allocated_column: usize) {
+        if self.record_structure {
+            self.program_range_audits.push(ProgramRangeAudit {
+                name,
+                row_start,
+                row_end: self.rows,
+                first_allocated_column,
+            });
+        }
+    }
+
+    pub(crate) fn record_sumcheck_round(&mut self, audit: SumcheckRoundAudit) {
+        if self.record_structure {
+            debug_assert_eq!(audit.row_end, self.rows);
+            self.sumcheck_round_audits.push(audit);
+        }
+    }
+
+    pub(crate) fn record_pi_dec_strict(&mut self, audit: PiDecStrictAudit) {
+        if self.record_structure {
+            debug_assert_eq!(audit.row_end, self.rows);
+            self.pi_dec_strict_audits.push(audit);
+        }
+    }
+
+    pub(crate) fn record_terminal_ce_claim(&mut self, audit: TerminalCeClaimAudit) {
+        if self.record_structure {
+            debug_assert_eq!(audit.row_end, self.rows);
+            self.terminal_ce_claim_audits.push(audit);
+        }
+    }
+
+    /// Exact wire schedules for generated beta-power ladders.
+    #[doc(hidden)]
+    pub fn projection_ladder_audits(&self) -> &[ProjectionLadderAudit] {
+        &self.projection_ladder_audits
+    }
+
+    /// Exact wire schedules for generated projected ring-action identities.
+    #[doc(hidden)]
+    pub fn projection_identity_audits(&self) -> &[ProjectionIdentityAudit] {
+        &self.projection_identity_audits
+    }
+
+    /// Exact affine row ranges between production projection identities.
+    #[doc(hidden)]
+    pub fn projection_glue_audits(&self) -> &[ProjectionGlueAudit] {
+        &self.projection_glue_audits
+    }
+
+    pub(crate) fn record_projection_ladder(&mut self, audit: ProjectionLadderAudit) {
+        if self.record_structure {
+            debug_assert_eq!(audit.row_end, self.rows);
+            self.projection_ladder_audits.push(audit);
+        }
+    }
+
+    pub(crate) fn record_projection_identity(&mut self, audit: ProjectionIdentityAudit) {
+        if self.record_structure {
+            debug_assert_eq!(audit.row_end, self.rows);
+            self.projection_identity_audits.push(audit);
+        }
+    }
+
+    pub(crate) fn assign_projection_identity_roles(&mut self, first: usize, roles: &[ProjectionIdentityRole]) {
+        if !self.record_structure {
+            return;
+        }
+        let identities = self
+            .projection_identity_audits
+            .get_mut(first..)
+            .expect("projection identity role start exceeds audit count");
+        assert_eq!(identities.len(), roles.len(), "projection identity role census");
+        for (identity, role) in identities.iter_mut().zip(roles) {
+            identity.role = *role;
+        }
+    }
+
+    pub(crate) fn record_projection_glue(&mut self, role: ProjectionGlueRole, row_start: usize) {
+        assert!(row_start <= self.rows, "projection glue start exceeds builder cursor");
+        if self.record_structure && row_start != self.rows {
+            self.projection_glue_audits.push(ProjectionGlueAudit {
+                role,
+                row_start,
+                row_end: self.rows,
+            });
+        }
     }
 
     /// Exact field/bit column maps for emitted canonical-u64 gadgets.
@@ -742,11 +1105,24 @@ impl R1csBuilder {
         &self.witness
     }
 
-    /// Read-only view of the exact `(A, B, C)` sparse triplets, in emission
-    /// order. Audit/export surface (e.g. the Lean artifact exporter); not
-    /// used by prove/verify paths.
+    /// Read-only view of the explicitly stored `(A, B, C)` sparse triplets,
+    /// in emission order.
+    ///
+    /// Compact seeded Phi81 contributions to `A` are intentionally absent
+    /// from the first slice. Audit/export consumers that need the complete
+    /// matrix must also consume [`Self::seeded_phi81_a_blocks`].
     pub fn sparse_triplets(&self) -> (&[(usize, usize, F)], &[(usize, usize, F)], &[(usize, usize, F)]) {
         (&self.a_trips, &self.b_trips, &self.c_trips)
+    }
+
+    /// Compact seeded Phi81 blocks contributing to the `A` matrix.
+    ///
+    /// This is a read-only assurance surface. Each block is part of the exact
+    /// generated relation even though its coefficients are not materialized
+    /// in [`Self::sparse_triplets`].
+    #[doc(hidden)]
+    pub fn seeded_phi81_a_blocks(&self) -> &[SeededPhi81LinearBlock] {
+        &self.seeded_phi81_a_blocks
     }
 
     /// Finish synthesis and transfer the exact sparse rows plus witness to a

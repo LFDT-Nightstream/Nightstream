@@ -1,7 +1,7 @@
 import Nightstream.Assurance.FPrimeFullHistoryCircuit
 import Nightstream.Assurance.FPrimeFullHistoryNifsReassembly
-import Nightstream.Implementation.R1CS.FPrimeFullHistoryCounterSound
-import Nightstream.Implementation.R1CS.FPrimeFullHistoryTerminalShellSound
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.FPrimeFullHistoryCounterSound
+import Nightstream.Assurance.FPrimeFullHistory.TerminalShell
 
 /-!
 Contract: honest compiler completeness for the exact supported full-history

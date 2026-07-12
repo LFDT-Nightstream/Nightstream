@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.FPrimeChunkDigestSound
+import Nightstream.Implementation.R1CS.Correspondence.FPrime.FPrimeChunkDigestSound
 
 namespace NightstreamTests.FPrimeChunkDigest
 

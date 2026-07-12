@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.FPrimeStateLinkSound
+import Nightstream.Implementation.R1CS.Correspondence.FPrime.FPrimeStateLinkSound
 
 /-!
 Exact state-link witnesses: the all-zero plain states satisfy every direct

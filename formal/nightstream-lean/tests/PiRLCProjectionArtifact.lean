@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.PiRLCProjectionSound
+import Nightstream.Implementation.R1CS.Correspondence.Projection.PiRLCProjectionSound
 
 namespace NightstreamTests.PiRLCProjectionArtifact
 

@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.CheckedProgram
+import Nightstream.Implementation.R1CS.Core.CheckedProgram
 
 namespace NightstreamTests.R1csCheckedProgram
 

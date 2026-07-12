@@ -1,9 +1,9 @@
 import Nightstream.Assurance.FPrimeFullHistorySemantics
 import Nightstream.Assurance.FPrimeTrace
 import Nightstream.Assurance.ValidExecution
-import Nightstream.Implementation.R1CS.FPrimeFullHistoryRows
-import Nightstream.Implementation.R1CS.FPrimeFullHistoryRecursiveShellSound
-import Nightstream.Implementation.R1CS.FPrimeFullHistoryTerminalShellSound
+import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryRows
+import Nightstream.Assurance.FPrimeFullHistory.RecursiveShell
+import Nightstream.Assurance.FPrimeFullHistory.TerminalShell
 
 /-!
 Contract: end-to-end circuit correspondence for the exact supported

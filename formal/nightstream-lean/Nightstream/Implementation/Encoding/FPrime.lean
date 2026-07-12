@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.Semantics
+import Nightstream.Implementation.R1CS.Core.Semantics
 
 /-!
 Contract: canonical byte/field and `enc_inst` encodings at the F' boundary.

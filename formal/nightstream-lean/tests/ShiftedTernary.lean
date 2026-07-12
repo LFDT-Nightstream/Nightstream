@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.ShiftedTernaryComplete
+import Nightstream.Implementation.R1CS.Correspondence.ShiftedTernary.ShiftedTernaryComplete
 
 namespace NightstreamTests.ShiftedTernary
 

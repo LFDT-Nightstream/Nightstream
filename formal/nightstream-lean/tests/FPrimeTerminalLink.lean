@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.FPrimeTerminalLinkSound
+import Nightstream.Implementation.R1CS.Correspondence.FPrime.FPrimeTerminalLinkSound
 
 /-!
 Lean twins of the Rust terminal delayed-link vectors. The honest assignment

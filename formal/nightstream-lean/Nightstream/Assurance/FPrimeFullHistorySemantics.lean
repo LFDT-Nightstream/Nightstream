@@ -1,7 +1,7 @@
 import Nightstream.Assurance.FPrimeConcreteNifs
-import Nightstream.Implementation.R1CS.FPrimeFullHistoryBaseGenericSound
-import Nightstream.Implementation.R1CS.FPrimeFullHistoryRecursivePreludeHashes
-import Nightstream.Implementation.R1CS.FPrimeFullHistoryRecursiveShellSound
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.FPrimeFullHistoryBaseGenericSound
+import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryRecursivePreludeHashes
+import Nightstream.Assurance.FPrimeFullHistory.RecursiveShell
 
 /-!
 Contract: fixed executable services for the exact plain/stateless `[1,1]`

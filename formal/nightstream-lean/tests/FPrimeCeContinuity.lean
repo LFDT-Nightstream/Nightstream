@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.FPrimeCeContinuitySound
+import Nightstream.Implementation.R1CS.Correspondence.FPrime.FPrimeCeContinuitySound
 
 namespace NightstreamTests.FPrimeCeContinuity
 

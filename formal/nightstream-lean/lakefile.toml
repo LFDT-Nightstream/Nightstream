@@ -5,11 +5,14 @@ defaultTargets = ["Nightstream", "NightstreamTests", "check"]
 [[lean_lib]]
 name = "Nightstream"
 globs = ["Nightstream", "Nightstream.+"]
+moreLeanArgs = ["-DautoImplicit=false"]
 
 [[lean_lib]]
 name = "NightstreamTests"
 globs = ["tests.+"]
+moreLeanArgs = ["-DautoImplicit=false"]
 
 [[lean_exe]]
 name = "check"
 root = "Main"
+moreLeanArgs = ["-DautoImplicit=false"]

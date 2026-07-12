@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.CanonicalU64Complete
+import Nightstream.Implementation.R1CS.Correspondence.CanonicalU64.CanonicalU64Complete
 
 /-!
 Focused regression for source/interpreter completeness of the generated

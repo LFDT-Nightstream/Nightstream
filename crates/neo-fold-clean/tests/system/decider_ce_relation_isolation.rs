@@ -255,6 +255,68 @@ fn decider_ce_isolation_rejects_active_x_tail_not_projected_from_z() {
     );
 }
 
+/// **Packed witness tail isolation.** Production F' uses logical CCS width
+/// `m = 257`, represented by five complete `D = 54` witness blocks. The final
+/// thirteen packed lanes are not logical CCS variables, but they remain part
+/// of the ring element consumed by `compute_y_from_Z_and_r`. Mutating one of
+/// those lanes and recomputing the Ajtai commitment must therefore invalidate
+/// a stale `y_ring/ct` pair even though `X` and every logical witness entry are
+/// unchanged.
+#[test]
+fn decider_ce_isolation_rejects_stale_y_after_packed_witness_tail_mutation() {
+    let mut fixture = non_trivial_fixture_with_load_bearing_final_block(257, 1, Some(1));
+    let packed_width = fixture.witness.cols() * D;
+    assert_eq!(
+        packed_width, 270,
+        "production-width fixture must have five packed blocks"
+    );
+    assert_eq!(
+        packed_width - fixture.prep.structure().m,
+        13,
+        "production-width fixture must expose the real thirteen-lane packed tail"
+    );
+
+    let tail_col = packed_width - 1;
+    let tail_off = tail_col % D;
+    let tail_block = tail_col / D;
+    assert_eq!(fixture.witness[(tail_off, tail_block)], F::ZERO);
+    fixture.witness[(tail_off, tail_block)] = F::ONE;
+
+    // Keep every non-evaluation obligation honest for the mutated witness.
+    fixture.claim.c = fixture.prep.log.commit(&fixture.witness);
+    fixture.claim.X = project_x_from_witness_mat(&fixture.witness, fixture.prep.structure().m, fixture.claim.m_in)
+        .expect("X projection after packed-tail mutation");
+
+    let ell_d = D.next_power_of_two().trailing_zeros() as usize;
+    let (updated_y_ring, updated_ct) = compute_y_from_Z_and_r(
+        fixture.prep.structure(),
+        &fixture.witness,
+        &fixture.claim.r,
+        ell_d,
+        fixture.prep.params.b(),
+    );
+    assert_ne!(
+        updated_y_ring, fixture.claim.y_ring,
+        "the final packed lane must be load-bearing in the native ring evaluation"
+    );
+
+    let stale = enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness).expect("synthesis");
+    assert!(
+        !stale.is_satisfied(),
+        "CE-relation gadget accepted stale y_ring/ct after a load-bearing packed-tail mutation"
+    );
+
+    fixture.claim.y_ring = updated_y_ring;
+    fixture.claim.ct = updated_ct;
+    let repaired = enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness).expect("synthesis");
+    assert!(
+        repaired.is_satisfied(),
+        "CE-relation gadget must accept the same packed-tail witness once y_ring/ct are recomputed; \
+         first unsatisfied row: {:?}",
+        repaired.first_unsatisfied_row()
+    );
+}
+
 /// **m_in relabel isolation.** Keep the terminal witness and every CE
 /// value locally self-consistent, but relabel the claim as having no
 /// public input. For a zero witness this makes `X = L_in(Z)` vacuously
@@ -1029,6 +1091,23 @@ fn non_trivial_fixture_with_m_in(m_in: usize) -> NonTrivialFixture {
 }
 
 fn non_trivial_fixture_with_shape(m: usize, m_in: usize, public_input_len: Option<usize>) -> NonTrivialFixture {
+    non_trivial_fixture_with_shape_and_last_row_base(m, m_in, public_input_len, None)
+}
+
+fn non_trivial_fixture_with_load_bearing_final_block(
+    m: usize,
+    m_in: usize,
+    public_input_len: Option<usize>,
+) -> NonTrivialFixture {
+    non_trivial_fixture_with_shape_and_last_row_base(m, m_in, public_input_len, Some(m - 3))
+}
+
+fn non_trivial_fixture_with_shape_and_last_row_base(
+    m: usize,
+    m_in: usize,
+    public_input_len: Option<usize>,
+    last_row_base: Option<usize>,
+) -> NonTrivialFixture {
     let n = 4;
     assert!(m >= n * 3, "non-trivial fixture needs three witness slots per row");
 
@@ -1037,7 +1116,11 @@ fn non_trivial_fixture_with_shape(m: usize, m_in: usize, public_input_len: Optio
     let mut b = Mat::zero(n, m, F::ZERO);
     let mut c = Mat::zero(n, m, F::ZERO);
     for row in 0..n {
-        let base = row * 3;
+        let base = if row == n - 1 {
+            last_row_base.unwrap_or(row * 3)
+        } else {
+            row * 3
+        };
         a[(row, base)] = F::ONE;
         b[(row, base + 1)] = F::ONE;
         c[(row, base + 2)] = F::ONE;
@@ -1051,29 +1134,28 @@ fn non_trivial_fixture_with_shape(m: usize, m_in: usize, public_input_len: Optio
     // `z[3k+2] = z[3k] * z[3k+1]` for `k = 0..4`. Index 12..16 stay
     // zero (padding to a multiple of D).
     let neg_one = F::ZERO - F::ONE;
-    let z_pattern: [F; 16] = [
-        F::ONE,
-        F::ONE,
-        F::ONE, // 1 * 1 = 1
-        F::ONE,
-        neg_one,
-        neg_one, // 1 * -1 = -1
-        neg_one,
-        F::ONE,
-        neg_one, // -1 * 1 = -1
-        neg_one,
-        neg_one,
-        F::ONE, // -1 * -1 = 1
-        F::ZERO,
-        F::ZERO,
-        F::ZERO,
-        F::ZERO,
+    let row_values = [
+        (F::ONE, F::ONE, F::ONE),
+        (F::ONE, neg_one, neg_one),
+        (neg_one, F::ONE, neg_one),
+        (neg_one, neg_one, F::ONE),
     ];
+    let mut z_pattern = vec![F::ZERO; m];
+    for (row, (z_a, z_b, z_c)) in row_values.into_iter().enumerate() {
+        let base = if row == n - 1 {
+            last_row_base.unwrap_or(row * 3)
+        } else {
+            row * 3
+        };
+        z_pattern[base] = z_a;
+        z_pattern[base + 1] = z_b;
+        z_pattern[base + 2] = z_c;
+    }
 
     // Pack into the SuperNeo D × ceil(m/D) layout: Z[c % D, c / D] = z[c].
     let cols = m.div_ceil(D);
     let mut witness = Mat::zero(D, cols, F::ZERO);
-    for (col, value) in z_pattern.iter().enumerate().take(m) {
+    for (col, value) in z_pattern.iter().enumerate() {
         witness[(col % D, col / D)] = *value;
     }
 

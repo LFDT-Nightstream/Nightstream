@@ -17,7 +17,7 @@ inductive Reachable
     (Step : State → State → Prop)
     (initial : State) : Nat → State → Prop where
   | zero : Reachable Step initial 0 initial
-  | succ :
+  | succ {steps : Nat} {prior next : State} :
       Reachable Step initial steps prior →
       Step prior next →
       Reachable Step initial (steps + 1) next

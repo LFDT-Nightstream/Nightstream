@@ -462,15 +462,15 @@
     },
     {
       "path": "crates/neo-fold-clean/tests/gadgets/f_prime_recursive_manifest.rs",
-      "sha256": "754faa3a2bb42dc6f4129ad2b06d04d14a08ac2da41aced1b0dda55308a09f47"
+      "sha256": "49d9c776f40eb8a2546f7dd86390d76602bcbb97b34d59714499d798ff861a2e"
     },
     {
-      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/FPrimeRecursiveManifestSchema.lean",
+      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Ownership/FPrimeRecursive/FPrimeRecursiveManifestSchema.lean",
       "sha256": "614a89343b34588847bc63840357e824abc1b3b9bfddf17d1108e7fd45e13880"
     },
     {
-      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/FPrimeRecursiveManifest.lean",
-      "sha256": "082678273b3d6f6f9e401739c2d232503e5b86f90150478e47445dd7a76713e8"
+      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Ownership/FPrimeRecursive/FPrimeRecursiveManifest.lean",
+      "sha256": "74d981388205e1ad3ac705bccc1e46e9dbb1ddbfeab7ea8eeb8f3cb914ac4ba3"
     },
     {
       "path": "formal/nightstream-lean/Nightstream/SuperNeo/ProjectionCheck.lean",
@@ -478,7 +478,7 @@
     },
     {
       "path": "formal/nightstream-lean/Nightstream/Assurance/FPrimeRecursiveCircuit.lean",
-      "sha256": "cca262fdae292d6ed56e3a30bc2afc2c2366461e75a6506342f5d078eab0caee"
+      "sha256": "a60792b5896bf115396e698cb5d8773c02456671ba41ec0ba91626743bd6be9c"
     }
   ],
   "top_level_families": [

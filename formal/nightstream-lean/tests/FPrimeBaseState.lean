@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.FPrimeBaseStateSound
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeBase.FPrimeBaseStateSound
 
 namespace NightstreamTests.FPrimeBaseState
 

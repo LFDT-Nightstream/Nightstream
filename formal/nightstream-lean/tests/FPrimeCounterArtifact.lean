@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.FPrimeCounterSound
+import Nightstream.Implementation.R1CS.Correspondence.FPrime.FPrimeCounterSound
 
 /-!
 Rust/Lean conformance for the exact production-used recursive F' counter

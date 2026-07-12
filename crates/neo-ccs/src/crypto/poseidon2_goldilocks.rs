@@ -58,6 +58,51 @@ pub fn permute_state(state: [Goldilocks; WIDTH]) -> [Goldilocks; WIDTH] {
     permutation().permute(state)
 }
 
+/// Round constants and internal diagonal of [`PERM`], as canonical limbs.
+/// Device backends use this to reproduce the permutation bit-for-bit.
+pub struct Poseidon2RoundConstants {
+    /// Constants for the initial external rounds.
+    pub initial: Vec<[u64; WIDTH]>,
+    /// Lane-zero constants for the internal rounds.
+    pub internal: Vec<u64>,
+    /// Constants for the terminal external rounds.
+    pub terminal: Vec<[u64; WIDTH]>,
+    /// Diagonal of the internal linear layer `1 + diag(v)`.
+    pub diag: [u64; WIDTH],
+}
+
+/// Regenerate the constants of [`PERM`] from the canonical seed and draw
+/// order used by `Poseidon2Goldilocks::new_from_rng_128`.
+pub fn round_constants() -> Poseidon2RoundConstants {
+    use p3_field::PrimeField64;
+    use p3_poseidon2::ExternalLayerConstants;
+    use rand_p3::distr::StandardUniform;
+    use rand_p3::RngExt as _;
+
+    let mut rng = ChaCha8Rng::from_seed(SEED);
+    let (rounds_f, rounds_p) = p3_poseidon2::poseidon2_round_numbers_128::<Goldilocks>(
+        WIDTH,
+        p3_goldilocks::poseidon1::GOLDILOCKS_S_BOX_DEGREE,
+    )
+    .expect("round numbers for Goldilocks width 8");
+    let external = ExternalLayerConstants::<Goldilocks, WIDTH>::new_from_rng(rounds_f, &mut rng);
+    let internal: Vec<Goldilocks> = (&mut rng)
+        .sample_iter(StandardUniform)
+        .take(rounds_p)
+        .collect();
+
+    let row = |values: &[Goldilocks; WIDTH]| core::array::from_fn(|i| values[i].as_canonical_u64());
+    Poseidon2RoundConstants {
+        initial: external.get_initial_constants().iter().map(row).collect(),
+        internal: internal
+            .iter()
+            .map(|constant| constant.as_canonical_u64())
+            .collect(),
+        terminal: external.get_terminal_constants().iter().map(row).collect(),
+        diag: core::array::from_fn(|i| p3_goldilocks::MATRIX_DIAG_8_GOLDILOCKS[i].as_canonical_u64()),
+    }
+}
+
 /// Standard sponge construction with proper padding.
 ///
 /// Implements the Poseidon2 sponge: absorb input → pad → squeeze output.

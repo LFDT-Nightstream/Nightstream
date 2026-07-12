@@ -1,11 +1,8 @@
-//! R1CS-F' frontend integration tests — stateful semantic-digest path.
+//! Stateful semantic-digest integration tests for R1CS-F'.
 //!
-//! Covers the app-state lane that links serial R1CS steps via Poseidon
-//! binding rows: `state_in.semantic_state_digest_in_lane`,
-//! `state_out.semantic_state_digest_out_lane`, the base-step anchor
-//! constraint, and the lifecycle's end-to-end Fibonacci-transition
-//! chain. Stateless tests live in the sibling `r1cs_compiler.rs`;
-//! preprocess-time plan validation lives in `r1cs_preprocess.rs`.
+//! Covers the serial app-state lane, base anchor, and end-to-end transition
+//! chain. Stateless tests live in `r1cs_compiler.rs`; preprocessing checks
+//! live in `r1cs_preprocess.rs`.
 
 #![allow(non_snake_case)]
 

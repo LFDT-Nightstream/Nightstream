@@ -1,5 +1,5 @@
 import Nightstream.Assurance.FPrimeConcreteNifs
-import Nightstream.Implementation.R1CS.FPrimeFullHistoryTerminalShellSound
+import Nightstream.Assurance.FPrimeFullHistory.TerminalShell
 
 /-! Executable shape checks for the production concrete NIFS assurance boundary. -/
 

@@ -52,7 +52,9 @@ inductive AllPairs
     {Witness : Type uWitness}
     (relation : Claim → Witness → Prop) : List Claim → List Witness → Prop where
   | nil : AllPairs relation [] []
-  | cons : relation claim witness → AllPairs relation claims witnesses →
+  | cons {claim : Claim} {witness : Witness}
+      {claims : List Claim} {witnesses : List Witness} :
+      relation claim witness → AllPairs relation claims witnesses →
       AllPairs relation (claim :: claims) (witness :: witnesses)
 
 /-- Every paired entry belongs to the running relation. -/

@@ -328,6 +328,7 @@ fn enforce_split_nc_pi_ccs_v_inner(
     }
 
     // ── 1. Allocate fresh / running / output wires once ──────────────────
+    let allocation_start = builder.rows();
     let fresh_wires: Vec<CcsClaimWires> = msg
         .fresh
         .iter()
@@ -347,7 +348,9 @@ fn enforce_split_nc_pi_ccs_v_inner(
         .iter()
         .map(|o| alloc_ce_wires(builder, o))
         .collect::<Result<_, _>>()?;
+    builder.record_row_family("nifs.pi_ccs.allocation", allocation_start);
 
+    let authority_start = builder.rows();
     // The compact accumulator handle below is valid only after the running
     // children have been checked as a strict Pi_DEC reduction of their
     // parent. Keep that precondition in this verifier, beside the handle,
@@ -365,8 +368,10 @@ fn enforce_split_nc_pi_ccs_v_inner(
         enforce_ct_from_y_ring(builder, &format!("outputs[{idx}]"), ow)?;
         enforce_y_ring_padding_zero(builder, ow);
     }
+    builder.record_row_family("nifs.pi_ccs.authority", authority_start);
 
     // ── 2. Fresh CCS digests (from allocated wires) ──────────────────────
+    let fresh_digests_start = builder.rows();
     let mut fresh_digests: Vec<[Var; 4]> = Vec::with_capacity(k_mcs);
     for fw in &fresh_wires {
         fresh_digests.push(enforce_ccs_claim_digest(
@@ -379,8 +384,10 @@ fn enforce_split_nc_pi_ccs_v_inner(
             fw.adv.as_ref(),
         ));
     }
+    builder.record_row_family("nifs.pi_ccs.fresh_digests", fresh_digests_start);
 
     // ── 3. Running parent digest + shared-r check ────────────────────────
+    let running_authority_start = builder.rows();
     //
     // The running-side Fiat-Shamir authority is the Π_RLC parent whose Π_DEC
     // children form `running`, not the child claims themselves. The children
@@ -420,7 +427,9 @@ fn enforce_split_nc_pi_ccs_v_inner(
             )
         })
         .transpose()?;
+    builder.record_row_family("nifs.pi_ccs.running_authority", running_authority_start);
     // ── 4-5. Instance digest + header/instance absorbs ───────────────────
+    let transcript_start = builder.rows();
     let instance_digest =
         enforce_pi_ccs_instance_digest_parent_authority(builder, &fresh_digests, k_me, running_parent_digest);
     match header_bundle {
@@ -448,8 +457,10 @@ fn enforce_split_nc_pi_ccs_v_inner(
     // ── 7. Sample engine challenges + β_m ────────────────────────────────
     let ch = sample_engine_challenges(builder, transcript, cfg.ell_d, cfg.ell_n);
     let beta_m = sample_engine_beta_m(builder, transcript, cfg.ell_m);
+    builder.record_row_family("nifs.pi_ccs.transcript", transcript_start);
 
     // ── 8. FE claimed_initial ────────────────────────────────────────────
+    let fe_initial_start = builder.rows();
     let running_y_ring_view: Vec<Vec<Vec<KVar>>> = running_wires.iter().map(|rw| rw.y_ring.clone()).collect();
     let claimed_initial = enforce_fe_claimed_initial(
         builder,
@@ -462,8 +473,10 @@ fn enforce_split_nc_pi_ccs_v_inner(
             running_y_ring: &running_y_ring_view,
         },
     )?;
+    builder.record_row_family("nifs.pi_ccs.fe_initial", fe_initial_start);
 
     // ── 9. FE sumcheck driver ────────────────────────────────────────────
+    let fe_sumcheck_start = builder.rows();
     let fe_rounds: Vec<Vec<KVar>> = msg
         .sumcheck_rounds_fe
         .iter()
@@ -478,16 +491,20 @@ fn enforce_split_nc_pi_ccs_v_inner(
         claimed_initial,
         &fe_rounds,
     )?;
+    builder.record_row_family("nifs.pi_ccs.fe_sumcheck", fe_sumcheck_start);
 
     // ── 10. NC sumcheck driver ───────────────────────────────────────────
+    let nc_sumcheck_start = builder.rows();
     let nc_rounds: Vec<Vec<KVar>> = msg
         .sumcheck_rounds_nc
         .iter()
         .map(|r| alloc_k_vec(builder, r))
         .collect();
     let nc = enforce_nc_sumcheck_driver(builder, transcript, cfg.ell_m, cfg.ell_d, cfg.d_sc, &nc_rounds)?;
+    builder.record_row_family("nifs.pi_ccs.nc_sumcheck", nc_sumcheck_start);
 
     // ── 11. Bind outputs to inputs (wire-to-wire) ────────────────────────
+    let output_binding_start = builder.rows();
     bind_outputs_to_inputs(
         builder,
         &fresh_wires,
@@ -497,11 +514,13 @@ fn enforce_split_nc_pi_ccs_v_inner(
         &nc.s_col_prime,
         d_pad,
     )?;
+    builder.record_row_family("nifs.pi_ccs.output_binding", output_binding_start);
 
     let output_y_ring_view: Vec<Vec<Vec<KVar>>> = output_wires.iter().map(|ow| ow.y_ring.clone()).collect();
     let output_y_zcol_view: Vec<Vec<KVar>> = output_wires.iter().map(|ow| ow.y_zcol.clone()).collect();
 
     // ── 12. FE terminal identity ─────────────────────────────────────────
+    let fe_terminal_start = builder.rows();
     let me_input_r: Option<&[KVar]> = running_wires.first().map(|w| w.r.as_slice());
     let rhs_fe = enforce_fe_terminal_identity(
         builder,
@@ -520,8 +539,10 @@ fn enforce_split_nc_pi_ccs_v_inner(
         },
     )?;
     enforce_kvar_eq(builder, fe.final_sum, rhs_fe);
+    builder.record_row_family("nifs.pi_ccs.fe_terminal", fe_terminal_start);
 
     // ── 13. NC terminal identity ─────────────────────────────────────────
+    let nc_terminal_start = builder.rows();
     let rhs_nc = enforce_nc_terminal_identity(
         builder,
         &NcTerminalInputs {
@@ -535,12 +556,15 @@ fn enforce_split_nc_pi_ccs_v_inner(
         },
     )?;
     enforce_kvar_eq(builder, nc.final_sum, rhs_nc);
+    builder.record_row_family("nifs.pi_ccs.nc_terminal", nc_terminal_start);
 
     // ── 14. Header digest catch-up squeeze ───────────────────────────────
+    let catchup_start = builder.rows();
     let header_fields = header_digest_bytes_to_fields(msg.header_digest)?;
     let header_wires = header_fields.map(|value| builder.alloc(value));
     enforce_header_digest_catch_up_wires(builder, transcript, header_wires);
     enforce_output_fold_digest_matches_header(builder, &output_wires, header_wires);
+    builder.record_row_family("nifs.pi_ccs.catchup", catchup_start);
 
     // Surface the full output wire bundle so downstream Π_RLC.V / NIFS.V
     // composition can fold c.data, X, r, s_col, y_ring, ct, y_zcol without

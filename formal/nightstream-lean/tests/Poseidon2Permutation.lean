@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.Poseidon2PermutationSound
+import Nightstream.Implementation.R1CS.Correspondence.Poseidon2.Poseidon2PermutationSound
 
 namespace NightstreamTests.Poseidon2Permutation
 

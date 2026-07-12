@@ -1199,6 +1199,7 @@ fn emit_terminal_fold(
     };
 
     let mut transcript = TranscriptGadget::new(builder, FINAL_FOLD_TRANSCRIPT_LABEL);
+    builder.record_row_family("terminal.transcript", terminal_start);
     let nifs_msg = NifsVCircuitMessages {
         fresh: trailing_latest,
         running: &running_pre_final_fold.claims,

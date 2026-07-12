@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.U64AddSound
+import Nightstream.Implementation.R1CS.Correspondence.U64.U64AddSound
 
 /-!
 Rust/Lean conformance for the exact no-wrap u64-add artifact used by the F'

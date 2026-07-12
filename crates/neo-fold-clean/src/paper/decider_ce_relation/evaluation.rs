@@ -174,14 +174,12 @@ pub(crate) fn enforce_y_ring_from_z_at_r(
                     continue;
                 }
                 let mut row_component = Lc::zero();
-                for (logical_col, coeff) in row_terms {
-                    let z_var = witness
-                        .logical_entry(expected_m, logical_col)
-                        .ok_or(YRingError {
-                            what: "witness logical entry",
-                            expected: expected_m,
-                            got: logical_col,
-                        })?;
+                for (packed_col, coeff) in row_terms {
+                    let z_var = witness.packed_entry(packed_col).ok_or(YRingError {
+                        what: "witness packed entry",
+                        expected: expected_m.div_ceil(D) * D,
+                        got: packed_col,
+                    })?;
                     row_component.add_term(z_var, coeff);
                 }
                 let chi_row = &chi_r_wires[row];
@@ -279,8 +277,11 @@ pub(crate) fn enforce_y_zcol_from_z_at_s_col(
     Ok(())
 }
 
-/// Sparse `(logical_col, coeff)` pairs realising `(M_j · Z)[row, rho]`
-/// under SuperNeo's ring-bar projection on each `D`-coefficient block.
+/// Sparse `(packed_col, coeff)` pairs realising `(M_j · Z)[row, rho]`
+/// under SuperNeo's ring-bar projection on each complete `D`-coefficient
+/// block. `packed_col` ranges over `ceil(effective_m / D) * D`: the matrix is
+/// zero-extended past `effective_m`, but the final witness ring element is
+/// not truncated, matching native `compute_y_from_Z_and_r`.
 ///
 /// Mirrors the prototype's private `row_ring_projection_terms` so the
 /// in-circuit eval matches the native `compute_y_from_Z_and_r`.
@@ -310,15 +311,12 @@ fn row_ring_projection_terms(
         }
         let a_bar = Rq(superneo_bar_block(a));
         for off in 0..D {
-            let logical_col = base + off;
-            if logical_col >= effective_m {
-                break;
-            }
+            let packed_col = base + off;
             let mut basis = [F::ZERO; D];
             basis[off] = F::ONE;
             let coeff = a_bar.mul(&Rq(basis)).0[rho];
             if coeff != F::ZERO {
-                terms.push((logical_col, coeff));
+                terms.push((packed_col, coeff));
             }
         }
     }

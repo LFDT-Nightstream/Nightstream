@@ -69,11 +69,10 @@ use neo_fold_clean::CcsInstance;
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde_json::{json, Value};
-use sha2::{Digest, Sha256};
 
 const FULL_HISTORY_MANIFEST_PATH: &str = "formal/nightstream-lean/assurance/fprime-full-history-program-manifest.json";
 const FULL_HISTORY_LEAN_PATH: &str =
-    "formal/nightstream-lean/Nightstream/Implementation/R1CS/FPrimeFullHistoryManifestData.lean";
+    "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeFullHistory/Generated/FPrimeFullHistoryManifestData.lean";
 const FULL_HISTORY_TOP_LEVEL: &[&str] = &[
     "decider.step.base",
     "decider.step.recursive",

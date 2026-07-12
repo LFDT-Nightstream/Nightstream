@@ -74,6 +74,74 @@ name = "gadgets_u64_and_mux"
 path = "tests/gadgets/u64_and_mux.rs"
 
 [[test]]
+name = "gadgets_lean_artifact"
+path = "tests/gadgets/lean_artifact_export.rs"
+
+[[test]]
+name = "gadgets_seeded_phi81_lean_artifact"
+path = "tests/gadgets/seeded_phi81_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_shifted_ternary_lean_artifact"
+path = "tests/gadgets/shifted_ternary_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_u64_increment_lean_artifact"
+path = "tests/gadgets/u64_increment_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_u64_add_lean_artifact"
+path = "tests/gadgets/u64_add_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_f_prime_counter_lean_artifact"
+path = "tests/gadgets/f_prime_counter_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_f_prime_encoding_lean_artifact"
+path = "tests/gadgets/f_prime_encoding_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_f_prime_terminal_link_lean_artifact"
+path = "tests/gadgets/f_prime_terminal_link_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_f_prime_state_link_lean_artifact"
+path = "tests/gadgets/f_prime_state_link_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_f_prime_base_state_lean_artifact"
+path = "tests/gadgets/f_prime_base_state_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_f_prime_chunk_digest_lean_artifact"
+path = "tests/gadgets/f_prime_chunk_digest_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_f_prime_ce_continuity_lean_artifact"
+path = "tests/gadgets/f_prime_ce_continuity_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_poseidon2_lean_artifact"
+path = "tests/gadgets/poseidon2_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_f_prime_base_program_lean_artifact"
+path = "tests/gadgets/f_prime_base_program_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_f_prime_recursive_manifest"
+path = "tests/gadgets/f_prime_recursive_manifest.rs"
+
+[[test]]
+name = "gadgets_nifs_compiler_conformance"
+path = "tests/gadgets/nifs_compiler_conformance.rs"
+
+[[test]]
+name = "gadgets_pi_rlc_projection_boundary"
+path = "tests/gadgets/pi_rlc_projection_boundary.rs"
+
+[[test]]
 name = "gadgets_poseidon2"
 path = "tests/gadgets/poseidon2.rs"
 
@@ -188,6 +256,10 @@ path = "tests/system/lifecycle_redteam.rs"
 [[test]]
 name = "system_lifecycle_f_prime_link"
 path = "tests/system/lifecycle_f_prime_link.rs"
+
+[[test]]
+name = "system_formal_conformance"
+path = "tests/system/formal_conformance.rs"
 
 [[test]]
 name = "system_decider_r1cs"

@@ -266,7 +266,7 @@
   "source_hashes": [
     {
       "path": "Cargo.lock",
-      "sha256": "0ea7c153dcf1337ef1ed53cf8b536e3baf72e4cea39ae34e207a4c9e75231f3b"
+      "sha256": "b46f34888f97ba56b33f04df204bd70bbdfd20e1f2dbd3a57805cfddb7e3bad0"
     },
     {
       "path": "crates/neo-fold-clean/src/engine/r1cs_circuit/builder.rs",
@@ -334,23 +334,23 @@
     },
     {
       "path": "crates/neo-fold-clean/tests/gadgets/seeded_phi81_lean_artifact.rs",
-      "sha256": "8d6651c3520d5310de536ad2c7d1b86721074694dad3e18d160accd37493345f"
+      "sha256": "531c3a9bd602bb75da5372451d6e28b512698a1e45d42056b8ae242b391a8536"
     },
     {
       "path": "crates/neo-fold-clean/tests/system/full_history_equality_artifact_support.rs",
-      "sha256": "f37e038628e06d6f95b1346db581e2d1d94fe7cfba4ae4f1921a64e8712c0976"
+      "sha256": "e3970a19bce2d3266802c6c8ccaf73e6fbfb8c55b707367e7073a0b68b7bd82e"
     },
     {
       "path": "crates/neo-fold-clean/tests/system/full_history_encoding_artifact_support.rs",
-      "sha256": "a6233689d3db88f641b6c6ae4d2727c57e1aba3cbd996d5b1926f0f8e427e932"
+      "sha256": "3894db0b45fa305f975377ad06fc3c27440438eb7ffb0096e5e6d4270f25c0ed"
     },
     {
       "path": "crates/neo-fold-clean/tests/system/full_history_counter_artifact_support.rs",
-      "sha256": "d7ac5b1f337ff8ce0f62cea1d0995ac54b15708ec3a2d9cc24698273d28655ec"
+      "sha256": "232cd186b2f766afb84e614e6333fd4ba097bc110cdd7a31e3f3db51f0c5e31f"
     },
     {
       "path": "crates/neo-fold-clean/tests/system/full_history_affine_artifact_support.rs",
-      "sha256": "339d46c952693542b148f7c92506501ecb8e07c37a2cf9acf5c4f03f1dec5a0f"
+      "sha256": "16a152a56c94110f1a6c6cc74ed03df70001000a8878f58dd31671103720d813"
     },
     {
       "path": "crates/neo-fold-clean/tests/system/full_history_manifest_identity_support.rs",
@@ -362,91 +362,91 @@
     },
     {
       "path": "crates/neo-fold-clean/tests/system/full_history_pi_dec_artifact_support.rs",
-      "sha256": "d8554213268f3fd63e5718eca55e2df79e34ba5f3f398f5398b8e61ce826fc18"
+      "sha256": "32231fb5932f8c32f740eb9f858eebe641eb82e11de7ea4bd6d0fdc3883a2cb4"
     },
     {
       "path": "crates/neo-fold-clean/tests/system/full_history_projection_role_support.rs",
-      "sha256": "6e4f59dc5869933663153d9f9ea463713c06d5036277c983947151bb65ffeecc"
+      "sha256": "58c020b1f8a4518ce66eebd56ea364353d6ec16f3f4c4e5ffc80a27ed92ab2ec"
     },
     {
       "path": "crates/neo-fold-clean/tests/system/full_history_public_pins_artifact_support.rs",
-      "sha256": "5a60e47b9cff3d09ae3a31fe78e58393c4506b4847c1627e7c8d0287c742c2e5"
+      "sha256": "97d0a1866355e965dd1f31c9584f34d5be5d826f79809a5dd7979bb786886a5f"
     },
     {
       "path": "crates/neo-fold-clean/tests/system/full_history_recursive_output_artifact_support.rs",
-      "sha256": "7a16ef5a7ecfd83a2b681d9bc923030a3bcc2068cf531a0ed286284471b6078d"
+      "sha256": "4d12a5b17484195c855cf063dfbc06d88aa6b7cce44ed1adf810c3e2203fc70b"
     },
     {
       "path": "crates/neo-fold-clean/tests/system/full_history_seeded_phi81_artifact_support.rs",
-      "sha256": "2d00a74a88bdd16d09fad04e05c4754ba6beac6ffe29936344295b860d1e2416"
+      "sha256": "ee1d8ceb85a005deafd2a6b189930afce0b79168659582644efccc0b8bb07c23"
     },
     {
       "path": "crates/neo-fold-clean/tests/system/full_history_source_hash_support.rs",
-      "sha256": "767e188f2883416bf3fa8be7bac8e751e5f4ff285e457aec3dd6d00d080bcb9d"
+      "sha256": "7fe66f49552552ec618cfc4f72d7b659218260e1dd481af362973c0be18d22bc"
     },
     {
       "path": "crates/neo-fold-clean/tests/system/full_history_terminal_ce_artifact_support.rs",
-      "sha256": "1e1ed29e48f46475228ba135e3c3246a329f5e99fcabb307195d3ebaeaaf341c"
+      "sha256": "86dd641910504929cd9fc118b87577a5ef077035787795510bb60b5b59186c86"
     },
     {
       "path": "crates/neo-fold-clean/tests/system/full_history_terminal_accumulator_artifact_support.rs",
-      "sha256": "e02da25da695224f1c5a9734063f4002080a8054d1c86d9b3f12ecdd7f51b81d"
+      "sha256": "f9a6c804aa6bac5a7b8e992fd601f2c247b4c1aca768163ed7aee712b57c862b"
     },
     {
       "path": "crates/neo-fold-clean/tests/system/decider_r1cs_manifest.rs",
-      "sha256": "f19df305af64206a6acdd1adab1bcd9357ba4c79a06072842181718a043ff71c"
+      "sha256": "e95680f058201868d29e69a49346fffed1afd2b8687f7f24385ef330d400c1bb"
     },
     {
-      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/ChaCha8.lean",
+      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Core/ChaCha8.lean",
       "sha256": "4a8c96e08b5ca002dfcdf41e2245196454b3cc426b82fd0fbffa201500c4adf4"
     },
     {
-      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/SeededPhi81.lean",
-      "sha256": "0c648f4e8b32d7c59c9f712586347e9c3c67a2b55c7b5708f479704de99fc315"
+      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Core/SeededPhi81.lean",
+      "sha256": "5d100528c1ddf3efa490520bf3e4fd085995b3404435f115998fd68b601073cd"
     },
     {
-      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/EqualityPins.lean",
-      "sha256": "29c70ba7930e26dfd36c514a889bb191d5f916f045817c8ff45b60996c428edb"
+      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Core/EqualityPins.lean",
+      "sha256": "bd6d5110d66ff026bbdf10f8b8a33116304daa7cd0c4935f6ede6f7af9e72943"
     },
     {
-      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/FPrimeEncodingArtifact.lean",
-      "sha256": "92d21242dc577a855898a60934abfe959040f41bd8d6c623b468e46497ab05cb"
+      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Ownership/FPrime/FPrimeEncodingArtifact.lean",
+      "sha256": "2eb85fbff832df9d79718ac0f99eae0f32ab8938e8ea0a292db64170dff70d5b"
     },
     {
-      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Relabel.lean",
-      "sha256": "84ca33e28122272c0f2759f7f071c8be5afeda8cfed63315e45576e21efb7cfe"
+      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Core/Relabel.lean",
+      "sha256": "9397bb8330a2baeb99c15b94c5b396fee026feb205915ae4d6ab34696f9d1e62"
     },
     {
-      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/ProjectionProgram.lean",
-      "sha256": "c32f5596def2fd1e658b22536b86404a54aa95dc0dbbb702d86025ef5d767f0b"
+      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Core/ProjectionProgram.lean",
+      "sha256": "1168fb6ac2cbfc35dbcff4175d5c9ab88787ec188c6c567a58ae91d2ab336822"
     },
     {
-      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/PackedProgram.lean",
-      "sha256": "fc89d67be35bcf36d77795caf790ac0c07892a3ac6acbb8ac6502a075c492610"
+      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Core/PackedProgram.lean",
+      "sha256": "6c7001b47cc8325bcea5bb3530804ca791ddecb840a142b12c4e2d1e8548717c"
     },
     {
-      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/LinearOutputs.lean",
-      "sha256": "aea47baabea7ebf701f8cdfe6bd6396f314cef80d770e2dd9e78a9486defb545"
+      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Core/LinearOutputs.lean",
+      "sha256": "538dd95e62ec634d365c3dfa470e1bafba8da92b71adb4a975c64beaff1517b8"
     },
     {
-      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/AffinePins.lean",
-      "sha256": "edf7b2561483f0bf4154ff77468f142522378850304b50221f20a2576c94cdd2"
+      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Core/AffinePins.lean",
+      "sha256": "1b5eae3effefe35a25eb4c9c70a5754b38b54fb4372e2f6fb5cff47b4e4417a1"
     },
     {
-      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/FPrimeFullHistoryAffineSound.lean",
-      "sha256": "e17449be97a1674f333b3f1dab50dc594d3b13270d92195fc73ffe3384505451"
+      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/FPrimeFullHistory/FPrimeFullHistoryAffineSound.lean",
+      "sha256": "0d50e7724f96ad5aa241dfeb855a62f572260bc0c6897b1e7bfa96ad2cd451cc"
     },
     {
-      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/TerminalCeCompiler.lean",
-      "sha256": "66cc15293e7147ef94c1727ba91122f4fff0219ce4bca6ffd9ff67810ad4df56"
+      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/Gadgets/TerminalCeCompiler.lean",
+      "sha256": "22f16425f50ccabd6ddb08b2658967eb42c83c4be78d5f8f70d770082a7175df"
     },
     {
-      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/TerminalCeSound.lean",
-      "sha256": "97f9ef0623172a4b123a6d4f0f98fc6dd2fdb1c65d5f6d78fd25c50dfb45298d"
+      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/Gadgets/TerminalCeSound.lean",
+      "sha256": "2b04596f42471c8228cf4eb1cf0c628530b20777d57297b5f96f7f4fd6cddf6c"
     },
     {
-      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/FPrimeFullHistoryTerminalCeSound.lean",
-      "sha256": "e1af876ed68301f7494f352697e89c00b9ed76dc8d959d60142718b2aef46e91"
+      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/FPrimeFullHistory/FPrimeFullHistoryTerminalCeSound.lean",
+      "sha256": "58f4918ec16a84636ed8c5e360d98cbb31983376014713ecd06ea33359656f4b"
     }
   ],
   "terminal_families": [

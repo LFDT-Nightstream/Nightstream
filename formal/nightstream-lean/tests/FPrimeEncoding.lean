@@ -1,5 +1,5 @@
 import Nightstream.Implementation.Encoding.FPrime
-import Nightstream.Implementation.R1CS.FPrimeEncodingSound
+import Nightstream.Implementation.R1CS.Correspondence.FPrime.FPrimeEncodingSound
 
 /-!
 Executable `ENC-CANON` regressions: raw-length rejection, canonical lane

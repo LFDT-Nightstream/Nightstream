@@ -50,7 +50,9 @@ use neo_math::{F, K};
 use p3_field::PrimeCharacteristicRing;
 
 use crate::engine::r1cs_circuit::alphabet_sampling::enforce_pi_rlc_rhos_from_transcript;
-use crate::engine::r1cs_circuit::builder::{Lc, Var};
+use crate::engine::r1cs_circuit::builder::{
+    Lc, ProjectionGlueRole, ProjectionIdentityRole, ProjectionNebulaCoordinate, Var,
+};
 use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::ring_action::{
     enforce_beta_ladder, enforce_polynomial_evaluations_at_beta, PROJECTION_QUOTIENT_LEN,
@@ -201,6 +203,7 @@ fn enforce_nifs_v_circuit_with_transcript_inner(
 ) -> Result<NifsVOutputs, Error> {
     let nifs_start = builder.rows();
     let pi_ccs_start = builder.rows();
+    let pi_ccs_first_column = builder.cols();
     // ── 1. Π_CCS.V SplitNc verifier ───────────────────────────────────────
     let pi_ccs_messages = SplitNcPiCcsVMessages {
         fresh: msg.fresh,
@@ -222,8 +225,10 @@ fn enforce_nifs_v_circuit_with_transcript_inner(
         None => enforce_split_nc_pi_ccs_v(builder, transcript, &cfg.pi_ccs, &pi_ccs_messages)?,
     };
     builder.record_row_family("nifs.pi_ccs", pi_ccs_start);
+    builder.record_program_range("nifs.pi_ccs", pi_ccs_start, pi_ccs_first_column);
 
     let pi_rlc_start = builder.rows();
+    let pi_rlc_first_column = builder.cols();
     let d_pad = 1usize << cfg.pi_ccs.ell_d;
     let k_total = ccs.outputs.len();
     if k_total == 0 {
@@ -241,6 +246,7 @@ fn enforce_nifs_v_circuit_with_transcript_inner(
         .map_err(|e| Error::Inner(format!("Π_RLC bound: {e}")))?;
 
     // ── 2. Bind Π_CCS output messages, then sample Π_RLC ρ ────────────────
+    let pi_rlc_transcript_start = builder.rows();
     let output_digest_inputs: Vec<_> = ccs
         .outputs
         .iter()
@@ -253,14 +259,18 @@ fn enforce_nifs_v_circuit_with_transcript_inner(
     transcript.append_fields(builder, pi_rlc::PI_RLC_INPUT_CLAIMS_DIGEST_LABEL, &output_claims_digest);
 
     let rho_wires = enforce_pi_rlc_rhos_from_transcript(builder, transcript, k_total);
+    builder.record_row_family("nifs.pi_rlc.transcript_rhos", pi_rlc_transcript_start);
 
     // ── 3. Parent + children DEC wires + SplitNc shape check ──────────────
+    let pi_rlc_shape_start = builder.rows();
     let dec_wires = alloc_dec_inputs(builder, msg.combined, msg.children);
     enforce_rlc_output_shape_parity(builder, &ccs.outputs)?;
     enforce_rlc_parent_shape(builder, &dec_wires, &ccs.outputs, kappa, m_in)?;
     enforce_split_nc_d_pad_shape(&dec_wires, cfg.pi_ccs.structure.t(), d_pad)?;
+    builder.record_row_family("nifs.pi_rlc.shape", pi_rlc_shape_start);
 
     // ── 4. Π_RLC.V folds: c, X, per-j y_ring, y_zcol, s_col ──────────────
+    let pi_rlc_folds_start = builder.rows();
     let commitment_wires = rlc_commitment_fold_wires(&rho_wires, &ccs.outputs, &dec_wires, kappa)?;
     let adv_commitment_wires = rlc_adv_commitment_fold_wires(&rho_wires, &ccs.outputs, &dec_wires)?;
     let x_wires = rlc_x_fold_wires(&rho_wires, &ccs.outputs, &dec_wires, m_in)?;
@@ -279,6 +289,7 @@ fn enforce_nifs_v_circuit_with_transcript_inner(
     let input_s_cols: Vec<Vec<KVar>> = ccs.outputs.iter().map(|o| o.s_col.clone()).collect();
     enforce_rlc_s_col_consistency(builder, &input_s_cols, &dec_wires.parent.s_col)?;
     enforce_rlc_fold_digest_consistency(builder, &ccs.outputs, &dec_wires)?;
+    builder.record_row_family("nifs.pi_rlc.linear_folds", pi_rlc_folds_start);
 
     // ── 4b. Π_RLC β schedule replay (Lemma 5; Road A) ────────────────────
     // Native `pi_rlc` absorbs the combined commitment and the per-lane
@@ -287,6 +298,7 @@ fn enforce_nifs_v_circuit_with_transcript_inner(
     // recomputed from the same wires native uses. The exact q wires absorbed
     // here are consumed by the projection identity below; no duplicate advice
     // can drift away from the Fiat-Shamir schedule.
+    let projection_binding_start = builder.rows();
     let mut projection_binding = alloc_projection_binding_preimage(builder);
     append_projection_binding_wires(
         builder,
@@ -368,10 +380,13 @@ fn enforce_nifs_v_circuit_with_transcript_inner(
     );
     let beta = transcript.challenge_fields(builder, pi_rlc::PI_RLC_PROJECTION_BETA_LABEL, 2);
     let projection_beta = [beta[0], beta[1]];
+    builder.record_row_family("nifs.pi_rlc.projection_binding", projection_binding_start);
     let projection_shared_start = builder.rows();
     let powers = enforce_beta_ladder(builder, KVar::new(beta[0], beta[1]), D);
     let rho_evaluations = enforce_polynomial_evaluations_at_beta(builder, &rho_wires, &powers);
     builder.record_row_family("nifs.pi_rlc.projection_shared", projection_shared_start);
+    let projection_identities_start = builder.rows();
+    let projection_identity_audit_start = builder.projection_identity_audits().len();
     enforce_rlc_commitment_combination_projection_with_quotient_wires(
         builder,
         &powers,
@@ -390,6 +405,7 @@ fn enforce_nifs_v_circuit_with_transcript_inner(
             )?;
         }
     }
+    let x_projection_start = builder.rows();
     enforce_rlc_x_combination_projection_with_quotient_wires(
         builder,
         &powers,
@@ -397,7 +413,14 @@ fn enforce_nifs_v_circuit_with_transcript_inner(
         &x_wires,
         &projection_x_q_lanes,
     )?;
-    for (wires, quotients) in y_ring_wires.iter().zip(projection_y_ring_q_lanes.iter()) {
+    let x_glue_start = projection_glue_start(builder, x_projection_start);
+    builder.record_projection_glue(ProjectionGlueRole::InactiveXZero, x_glue_start);
+    for (row, (wires, quotients)) in y_ring_wires
+        .iter()
+        .zip(projection_y_ring_q_lanes.iter())
+        .enumerate()
+    {
+        let row_projection_start = builder.rows();
         enforce_rlc_padded_k_vector_combination_projection_with_quotient_wires(
             builder,
             &powers,
@@ -406,7 +429,10 @@ fn enforce_nifs_v_circuit_with_transcript_inner(
             &quotients[0],
             &quotients[1],
         )?;
+        let row_glue_start = projection_glue_start(builder, row_projection_start);
+        builder.record_projection_glue(ProjectionGlueRole::YRingPaddingZero { row }, row_glue_start);
     }
+    let y_zcol_projection_start = builder.rows();
     enforce_rlc_padded_k_vector_combination_projection_with_quotient_wires(
         builder,
         &powers,
@@ -415,18 +441,45 @@ fn enforce_nifs_v_circuit_with_transcript_inner(
         &projection_y_zcol_q_lanes[0],
         &projection_y_zcol_q_lanes[1],
     )?;
+    let y_zcol_glue_start = projection_glue_start(builder, y_zcol_projection_start);
+    builder.record_projection_glue(ProjectionGlueRole::YZColPaddingZero, y_zcol_glue_start);
+    let mut projection_roles = Vec::with_capacity(builder.projection_identity_audits().len());
+    projection_roles.extend((0..kappa).map(|lane| ProjectionIdentityRole::CommitmentLane { lane }));
+    if projection_adv_q_lanes.is_some() {
+        for coordinate in [
+            ProjectionNebulaCoordinate::Ops,
+            ProjectionNebulaCoordinate::Is,
+            ProjectionNebulaCoordinate::Fs,
+        ] {
+            projection_roles
+                .extend((0..kappa).map(|lane| ProjectionIdentityRole::NebulaCommitmentLane { coordinate, lane }));
+        }
+    }
+    projection_roles
+        .extend((0..superneo_public_x_cols(m_in)).map(|column| ProjectionIdentityRole::ActiveXColumn { column }));
+    for row in 0..t {
+        projection_roles.extend((0..2).map(|limb| ProjectionIdentityRole::YRingLimb { row, limb }));
+    }
+    projection_roles.extend((0..2).map(|limb| ProjectionIdentityRole::YZColLimb { limb }));
+    builder.assign_projection_identity_roles(projection_identity_audit_start, &projection_roles);
+    builder.record_row_family("nifs.pi_rlc.projection_identities", projection_identities_start);
 
     // ── 5. Π_DEC.V strict ────────────────────────────────────────────────
     builder.record_row_family("nifs.pi_rlc", pi_rlc_start);
+    builder.record_program_range("nifs.pi_rlc", pi_rlc_start, pi_rlc_first_column);
 
     let pi_dec_start = builder.rows();
+    let pi_dec_first_column = builder.cols();
     enforce_dec_v_strict(builder, pp, &dec_wires)?;
     builder.record_row_family("nifs.pi_dec", pi_dec_start);
+    builder.record_program_range("nifs.pi_dec", pi_dec_start, pi_dec_first_column);
 
     // ── 6. Point binding: dec parent.r == ccs r_prime ────────────────────
     let point_binding_start = builder.rows();
+    let point_binding_first_column = builder.cols();
     enforce_kvar_vec_eq(builder, &dec_wires.parent.r, &ccs.r_prime)?;
     builder.record_row_family("nifs.point_binding", point_binding_start);
+    builder.record_program_range("nifs.point_binding", point_binding_start, point_binding_first_column);
     builder.record_row_family("nifs.total", nifs_start);
 
     let running = ccs.running.clone();
@@ -450,6 +503,14 @@ fn enforce_nifs_v_circuit_with_transcript_inner(
         projection_y_ring_q_lanes,
         projection_y_zcol_q_lanes,
     })
+}
+
+fn projection_glue_start(builder: &R1csBuilder, projection_start: usize) -> usize {
+    builder
+        .projection_identity_audits()
+        .last()
+        .filter(|identity| identity.row_start >= projection_start)
+        .map_or(builder.rows(), |identity| identity.row_end)
 }
 
 /// Native recomputation of the Π_RLC projection quotients as advice

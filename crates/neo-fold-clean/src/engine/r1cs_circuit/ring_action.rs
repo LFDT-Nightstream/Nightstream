@@ -29,7 +29,10 @@ use neo_math::ring::{D, PHI_MID_DEGREE};
 use neo_math::F;
 use p3_field::{Field, PrimeCharacteristicRing};
 
-use crate::engine::r1cs_circuit::builder::{Lc, PolynomialEvaluationTrace, R1csBuilder, Var};
+use crate::engine::r1cs_circuit::builder::{
+    Lc, PolynomialEvaluationTrace, ProjectionIdentityAudit, ProjectionIdentityRole, ProjectionLadderAudit, R1csBuilder,
+    Var,
+};
 
 const TABLE_LEN: usize = 2 * D - 1;
 const TOOM3_SPLIT: usize = D / 3;
@@ -389,6 +392,7 @@ pub const PROJECTION_QUOTIENT_LEN: usize = D - 1;
 /// `top = D` covers everything the batched check needs: evaluations use
 /// `β^0..β^{D−1}`, and `Φ(β)` reads `β^{27}` and `β^{54}`.
 pub fn enforce_beta_ladder(builder: &mut R1csBuilder, beta: KVar, top: usize) -> Vec<KVar> {
+    let row_start = builder.rows();
     let one_c0 = builder.alloc(F::ONE);
     builder.enforce_eq(&Lc::from_var(one_c0), &Lc::from_const(F::ONE));
     let zero_c1 = builder.alloc(F::ZERO);
@@ -399,6 +403,15 @@ pub fn enforce_beta_ladder(builder: &mut R1csBuilder, beta: KVar, top: usize) ->
         let prev = powers[k - 1];
         powers.push(enforce_k_mul(builder, &KLc::from_var(prev), &KLc::from_var(beta)));
     }
+    builder.record_projection_ladder(ProjectionLadderAudit {
+        row_start,
+        row_end: builder.rows(),
+        beta_columns: [beta.c0.col(), beta.c1.col()],
+        power_columns: powers
+            .iter()
+            .map(|power| [power.c0.col(), power.c1.col()])
+            .collect(),
+    });
     powers
 }
 
@@ -494,6 +507,9 @@ pub fn enforce_ring_action_projection_batch_with_rho_evaluations(
     assert_eq!(rho_evaluations.evaluations.len(), pairs.len(), "rho evaluation count");
     // Σ_i ρ_i(β) · c_i(β), one K-mult per pair.
     let mut lhs = KLc::zero();
+    let mut input_columns = Vec::with_capacity(pairs.len());
+    let mut input_evaluation_outputs = Vec::with_capacity(pairs.len());
+    let mut pair_product_outputs = Vec::with_capacity(pairs.len());
     for (pair_index, (rho, c)) in pairs.iter().enumerate() {
         assert_eq!(
             rho_evaluations.source_columns[pair_index],
@@ -503,6 +519,9 @@ pub fn enforce_ring_action_projection_batch_with_rho_evaluations(
         let rho_eval = rho_evaluations.evaluations[pair_index];
         let c_eval = enforce_eval_at_beta(builder, c.as_slice(), powers);
         let term = enforce_k_mul(builder, &KLc::from_var(rho_eval), &KLc::from_var(c_eval));
+        input_columns.push(c.iter().map(|value| value.col()).collect());
+        input_evaluation_outputs.push([c_eval.c0.col(), c_eval.c1.col()]);
+        pair_product_outputs.push([term.c0.col(), term.c1.col()]);
         lhs.c0.add_term(term.c0, F::ONE);
         lhs.c1.add_term(term.c1, F::ONE);
     }
@@ -527,6 +546,33 @@ pub fn enforce_ring_action_projection_batch_with_rho_evaluations(
 
     builder.enforce_eq(&lhs.c0, &rhs.c0);
     builder.enforce_eq(&lhs.c1, &rhs.c1);
+    builder.record_projection_identity(ProjectionIdentityAudit {
+        role: ProjectionIdentityRole::Standalone,
+        row_start: identity_row_start,
+        row_end: builder.rows(),
+        power_columns: powers
+            .iter()
+            .map(|power| [power.c0.col(), power.c1.col()])
+            .collect(),
+        rho_columns: rho_evaluations
+            .source_columns
+            .iter()
+            .map(|columns| columns.to_vec())
+            .collect(),
+        rho_evaluation_outputs: rho_evaluations
+            .evaluations
+            .iter()
+            .map(|evaluation| [evaluation.c0.col(), evaluation.c1.col()])
+            .collect(),
+        input_columns,
+        input_evaluation_outputs,
+        pair_product_outputs,
+        output_columns: out.iter().map(|value| value.col()).collect(),
+        quotient_columns: quotient.iter().map(|value| value.col()).collect(),
+        output_evaluation: [out_eval.c0.col(), out_eval.c1.col()],
+        quotient_evaluation: [q_eval.c0.col(), q_eval.c1.col()],
+        quotient_phi_product: [q_phi.c0.col(), q_phi.c1.col()],
+    });
     builder.record_row_family("nifs.pi_rlc.projection_identity", identity_row_start);
 }
 

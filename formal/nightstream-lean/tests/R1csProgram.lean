@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.Program
+import Nightstream.Implementation.R1CS.Core.Program
 
 namespace NightstreamTests.R1csProgram
 

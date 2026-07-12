@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.FPrimeRecursiveManifest
+import Nightstream.Implementation.R1CS.Ownership.FPrimeRecursive.FPrimeRecursiveManifest
 import Nightstream.Assurance.FPrimeConcreteNifs
 
 /-!

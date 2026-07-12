@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.U64IncrementSound
+import Nightstream.Implementation.R1CS.Correspondence.U64.U64IncrementSound
 
 /-!
 Rust/Lean conformance for the exact no-wrap u64 increment artifact. Both

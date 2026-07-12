@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.SeededPhi81Artifact
+import Nightstream.Implementation.R1CS.Artifacts.SeededPhi81.Generated.SeededPhi81Artifact
 
 namespace NightstreamTests.SeededPhi81
 

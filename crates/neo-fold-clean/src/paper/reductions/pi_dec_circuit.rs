@@ -37,7 +37,9 @@ use neo_math::{KExtensions, F, K};
 use p3_field::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
 
 use crate::engine::r1cs_circuit::boolean;
-use crate::engine::r1cs_circuit::builder::CenteredUnitTrace;
+use crate::engine::r1cs_circuit::builder::{
+    CenteredUnitTrace, PiDecAdvAudit, PiDecClaimAudit, PiDecCommitmentAudit, PiDecStrictAudit,
+};
 use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
 use crate::paper::params::Params;
@@ -287,16 +289,107 @@ pub fn enforce_r_consistency(builder: &mut R1csBuilder, wires: &DecInputWires) -
 ///     centered CE(b) alphabet instead. [`enforce_x_bitness`] remains
 ///     available for callers that have an unsigned range invariant to enforce.
 pub fn enforce_dec_v_strict(builder: &mut R1csBuilder, pp: &Params, wires: &DecInputWires) -> Result<(), Error> {
+    let row_start = builder.rows();
+    let first_allocated_column = builder.cols();
+
+    let phase_start = builder.rows();
     enforce_dec_v(builder, pp, wires)?;
+    builder.record_row_family("pi_dec.recompose", phase_start);
+
+    let phase_start = builder.rows();
     enforce_shape_metadata_consistency(builder, wires);
+    builder.record_row_family("pi_dec.shape", phase_start);
+
+    let phase_start = builder.rows();
     enforce_r_consistency(builder, wires)?;
+    builder.record_row_family("pi_dec.r", phase_start);
+
+    let phase_start = builder.rows();
     enforce_s_col_consistency(builder, wires)?;
+    builder.record_row_family("pi_dec.s_col", phase_start);
+
+    let phase_start = builder.rows();
     enforce_inactive_x_zero(builder, wires)?;
+    builder.record_row_family("pi_dec.inactive_x", phase_start);
+
+    let phase_start = builder.rows();
     enforce_child_x_balanced_alphabet(builder, pp, wires)?;
+    builder.record_row_family("pi_dec.alphabet", phase_start);
+
+    let phase_start = builder.rows();
     enforce_ct_consistency(builder, wires)?;
+    builder.record_row_family("pi_dec.ct", phase_start);
+
+    let phase_start = builder.rows();
     enforce_y_ring_padding_zero(builder, wires);
+    builder.record_row_family("pi_dec.y_padding", phase_start);
+
+    let phase_start = builder.rows();
     enforce_fold_digest_consistency(builder, wires)?;
+    builder.record_row_family("pi_dec.fold_digest", phase_start);
+
+    builder.record_pi_dec_strict(PiDecStrictAudit {
+        row_start,
+        row_end: builder.rows(),
+        first_allocated_column,
+        radix: pp.b(),
+        parent: pi_dec_claim_audit(&wires.parent),
+        children: wires.children.iter().map(pi_dec_claim_audit).collect(),
+    });
     Ok(())
+}
+
+fn commitment_audit(wires: &AdvCommitmentWires) -> PiDecAdvAudit {
+    let coordinate =
+        |commitment: &crate::paper::relations::product_commitment_circuit::CommitmentWires| PiDecCommitmentAudit {
+            d_col: commitment.d_var.col(),
+            kappa_col: commitment.kappa_var.col(),
+            data_cols: commitment.data.iter().map(|wire| wire.col()).collect(),
+        };
+    PiDecAdvAudit {
+        ops: coordinate(&wires.ops),
+        is: coordinate(&wires.is),
+        fs: coordinate(&wires.fs),
+    }
+}
+
+fn pi_dec_claim_audit(wires: &CeClaimWires) -> PiDecClaimAudit {
+    PiDecClaimAudit {
+        commitment: PiDecCommitmentAudit {
+            d_col: wires.c_d_var.col(),
+            kappa_col: wires.c_kappa_var.col(),
+            data_cols: wires.c_data.iter().map(|wire| wire.col()).collect(),
+        },
+        adv: wires.adv.as_ref().map(commitment_audit),
+        x_cols: wires.x.iter().map(|wire| wire.col()).collect(),
+        x_rows: wires.x_rows,
+        x_width: wires.x_cols,
+        x_rows_col: wires.x_rows_var.col(),
+        x_width_col: wires.x_cols_var.col(),
+        m_in: wires.m_in,
+        m_in_col: wires.m_in_var.col(),
+        y_ring_cols: wires
+            .y_ring
+            .iter()
+            .map(|row| row.iter().map(|wire| wire.col()).collect())
+            .collect(),
+        ct_cols: wires
+            .ct
+            .iter()
+            .map(|wire| [wire.c0.col(), wire.c1.col()])
+            .collect(),
+        r_cols: wires
+            .r
+            .iter()
+            .map(|wire| [wire.c0.col(), wire.c1.col()])
+            .collect(),
+        s_col_cols: wires
+            .s_col
+            .iter()
+            .map(|wire| [wire.c0.col(), wire.c1.col()])
+            .collect(),
+        fold_digest_cols: wires.fold_digest_fields.map(Var::col),
+    }
 }
 
 /// Enforce parent/child equality for non-wire CE shape metadata as rows.

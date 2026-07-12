@@ -6,11 +6,14 @@ Status: normative architecture and implementation spec for the
 Trust status: **the authoritative Rust R6/R7 path implements folded F′/NIFS.V
 induction, delayed §6.3 `NebulaLane` transition, plan-bounded segment closure,
 and the production-shape budget through terminal-only verification** (§13 step
-9). Production cryptographic sign-off still requires the security note's named
-non-author review, especially C19/A5 and A6's fixed-matrix Module-SIS model;
-implementation tests do not waive that review. Until a VM frontend attaches program semantics
-(§4), external claims must be scoped to "this advice stream is a consistent
-RAM/ROM history under this plan", never "this program executed".
+9). The `neo-wasm` profile additionally composes the existing WASM relation,
+all declared memory ports, and the compact opcode relation into that same F′
+relation (§4.5). Production cryptographic sign-off still requires the security
+note's named non-author review, especially C19/A5 and A6's fixed-matrix
+Module-SIS model; implementation tests do not waive that review. A generic
+portless Nebula relation attests only a consistent memory history. The WASM
+profile may attest program execution because its program tables, VM state,
+opcode semantics, memory ports, and terminal state are all relation-bound.
 
 Security companion: [`nebula-superneo-security-note.md`](./nebula-superneo-security-note.md)
 — states and proves the lemmas §5.3 and §9 rely on, and holds the claims
@@ -63,11 +66,12 @@ a positioned SIS/Ajtai sequence accumulator. That construction is retired
 | External review pass (second reviewer) | **Completeness bug fixed:** the IS/FS chains were lane-typed (`"is"`/`"fs"` tags), so honest cross-segment continuity `D_seen[is] == D_mem` could never hold — is/fs now share one mem-domain leaf/link tag pair and header (§6.1/§6.3), `D_init` uses the identical formula (§7), and the §12 swap row's rejection point moved to Lemma 1 slice binding. **Finalization rule added** (§6.3): externally accepted proofs must end at a closed segment. Lifecycle guards (`advance_nebula` requires open segment); `D_pre` thin-air claims named as preimage-resistance (not just CR); plan rule `r ≤ μ` (§2); `n_in`/`m_seg` notation fixes in §9 (fold-arity vs field `K`; the `2n` double-count); prover-vs-verifier resume bundles (§6.4); `adv` shape invariant (§5.1); acceptance tests hardened (§13 steps 3–5). |
 | **v3.1: stacks** (§14 → normative) | Coral §5.2's `check_push`/`check_pop` port: up to `S ≤ 2` **segment-local** stacks as extra memory namespaces. Namespace selection becomes **one-hot selector bits** (`ram`, `stk_0`, `stk_1`; ROM = none set) so the global index `g` stays *linear in lane bits* and v3 is the exact `S = 0` special case (byte-identical lanes and `x`). Pushes emit WS only (no `rt` check), pops emit RS only (with the E4 timestamp check); stacks never enter IS/FS or the scan; the per-segment product equation then forces stack-WS = stack-RS. **Per-segment γ forces segment locality** (§3.1): a push under segment k's γ cannot cancel a pop under segment k+1's γ, so every push is popped in its segment and `sp = 0` at every close (new §6.3 check). Stack bounds are bitness-pure: the running `sp` is a σ-bit word, so pop-at-empty and push-at-full are unrepresentable (capacity `2^σ − 1`). New rows E10–E14, `x` gains per-stack `sp_in`/`sp_out`, `NebulaLane` carries `sp`, plan v3.1 binds `S`/`σ`. Security note gains Lemma 4 (stack discipline, reduction to Blum et al. / Coral App. E). |
 | Road A relation audit (2026-07-09) | The 14M-bit projection shell was reclassified as a cost prototype: shipped encoders do not fill it, and its K-mul slots lack semantic rows. The authoritative NIFS.V circuit now projection-checks the complete `c + adv` product commitment on transcript-bound `q`/`β` wires through PiCCS/PiRLC/PiDEC, with terminal slice openings. Paper re-read fixed the timing: as in HyperNova Construction 2 step 4(d) and Nebula Construction 2 step 4, F′ consumes the **previous** fresh claim's public memory suffix and witness commitment, not the claim it is currently producing. The authoritative recursive relation now enforces that delayed `NebulaLane` transition. Remaining production work is the current `S_mem` application relation, fixed-shape low-norm lowering, and the terminal delayed transition; no second verifier shell. The maximum-geometry Lemma 5 census is `P=2,250`, batched `J=150`. |
-| Parent-authority/R2-R3 pass (2026-07-09–10) | Native and in-circuit NIFS.V verify strict Π_DEC consistency before the compact parent-authority handle is derived. R2 compresses five witness-proportional claim/projection/leaf roles with independent rank-2 seeded SIS maps, then one independent short rank-1 map and a domain-separated Poseidon2 envelope; R3 preserves both levels as compact `CscWithSeededPhi81` blocks and selectively lowers the authoritative three-arm relation. SIS inputs reuse the same 41 balanced-ternary unit digits committed by the folded witness. Canonical-u64 fields elsewhere keep shared 64-bit slots. The selective compiler substitutes private final Poseidon outputs, reuses verifier matrix roles for five product pairs per direct CCS row, telescopes long evaluation sums, and records K dot products as the exact three Karatsuba sums `P`, `Q`, and `R`. The **reduced compiler profile** has a square fixed point at 9,959,328 coordinates / rows, 14 matrices, degree 8, with `M0 = I`; this is not the production-parameter cost claim. `road_a_reduced_profile_fixed_point_stabilizes_within_budget` is active and `compile_fixed_point` enforces the 16M ceiling. Security-note Lemma 6 and A6 state the hash-then-FS reduction, dimensions, estimator commit, and fixed-matrix assumption. |
+| Parent-authority/R2-R3 pass (2026-07-09–11) | Native and in-circuit NIFS.V verify strict Π_DEC consistency before the compact parent-authority handle is derived. R2 compresses five witness-proportional claim/projection/leaf roles with independent rank-2 seeded SIS maps, then one independent short rank-1 map and a domain-separated Poseidon2 envelope; R3 preserves both levels as compact `CscWithSeededPhi81` blocks and selectively lowers the authoritative three-arm relation. SIS inputs reuse the same 41 balanced-ternary unit digits committed by the folded witness. Canonical-u64 fields elsewhere keep shared 64-bit slots. The selective compiler substitutes private final Poseidon outputs, reuses verifier matrix roles for five product pairs per direct CCS row, telescopes long evaluation sums, and records K dot products as the exact three Karatsuba sums `P`, `Q`, and `R`. The **reduced compiler profile** has a rectangular fixed point at 2,486,540 semantic rows / 9,613,188 committed coordinates, 13 matrices, degree 8. SplitNc checks FE and NC over separate row and assignment domains, so no `M0 = I` or square padding is present; this is not the production-parameter cost claim. `road_a_reduced_profile_fixed_point_stabilizes_within_budget` is active and `compile_fixed_point` enforces the 16M ceiling. Security-note Lemma 6 and A6 state the hash-then-FS reduction, dimensions, estimator commit, and fixed-matrix assumption. |
 | Shipped-encoder/R4 pass (2026-07-10) | The public Nebula chain builder has active evidence for the complete live encoder, not only preprocessing shapes: q/β transcript advice, accumulator state, current memory suffix, `adv`, and every selected low-norm slot are generated from the native fold and checked by the fixed relation before commitment. The shared R4–R6 fixture runs three one-step segments: cross-segment RAM/ROM behavior and both stacks are exercised, while the third claim reaches the steady-recursive arm after base and bootstrap. The focused delayed-suffix tests pin the absent-`D_pre` interior encoding without adding another production-sized fold. The terminal-only verifier accepts, and link/suffix/lane/history mutations reject. `generic_ivc_verifies_running_accumulator_and_latest_f_prime` is the active plain-R1CS counterpart. |
 | Terminal-induction/R5 pass (2026-07-10) | Only preprocessing that compiles the complete fixed relation may set terminal-induction authority. `NebulaFPrimeChainBuilder` folds it serially (`K=1`) through base, bootstrap-recursive, and steady-recursive arms; recursive F′ consumes the prior claim's suffix/`adv`, and finalization consumes the trailing delayed claim before requiring a closed lane. Nebula verification checks the final state and terminal fold without audit replay. Plain `r1cs_f_prime::ivc` follows HyperNova exactly: its compact proof keeps the running CE accumulator and latest fresh F′ instance separate, and `verify_uncompressed` checks both relations. Historical image-only recursive-link frontends remain fail-closed. |
 | Memory-closure/R6 pass (2026-07-10) | `nebula_chain_must_verify_terminal_only_with_memory` is active over a three-segment terminal-only fixture at `k_rho = 14`. It exercises cross-segment RAM continuity, public ROM reads, two segment-local stacks with nested LIFO operations, trailing-claim consumption, closed-lane finalization, and four independent terminal tamper boundaries. Segment opening now enforces `seg_idx < SEG_MAX` in both the native lane and the authoritative F′ relation; plan validation also proves `SEG_MAX` and `N` fit their 16-bit counters. Wrong-value stack pops and absent-`D_pre` interior steps remain pinned by focused relation tests rather than extra production-sized folds, keeping the active R6 gate below the five-minute cap. |
-| Production-budget/R7 pass (2026-07-10) | **Implemented and active.** Appendix B.2 parameters (`kappa = 18`, `k_rho = 14`, `T = 216`) plus maximum v3.1 geometry produce field arms up to 8,848,897 rows / 6,973,413 columns. Exact Karatsuba K-dot traces remove transient per-term K outputs while preserving the ordinary R1CS equations. The first production selective census is **15,730,104 coordinates**; the verifier-shape fixed point stabilizes at **15,958,404 coordinates / rows, 14 matrices, degree 8**, 41,596 below the unchanged 16M ceiling. The active preflight pins both measurements, the projection census (`n=15`, initial folded `t=15`, `a_X=46`, `J=150`, conservative `P=2,250`), the final relation's `t=14`, and 36 rank-2 plus 36 short rank-1 compact blocks. It also evaluates the exact D.4 numerator `1,439,664` and the maximum-chain union bound: with `SEG_MAX=2^16` and global `q_H≤2^16`, the conservative result is 65.23 bits against a declared 64-bit target. No parameter change was used. |
+| Production-budget/R7 pass (2026-07-10–11) | **Implemented and active.** Appendix B.2 parameters (`kappa = 18`, `k_rho = 14`, `T = 216`) plus maximum v3.1 geometry produce field arms up to 8,848,897 rows / 6,973,413 columns. Exact Karatsuba K-dot traces remove transient per-term K outputs while preserving the ordinary R1CS equations. The first production selective census is **15,730,104 coordinates**; the rectangular verifier-shape fixed point stabilizes at **2,819,360 semantic rows / 15,612,210 committed coordinates, 13 matrices, degree 8**, 387,790 coordinates below the unchanged 16M ceiling. The active preflight pins both measurements, the projection census (`n=15`, initial folded `t=15`, `a_X=46`, `J=150`, conservative `P=2,250`), the final relation's `t=13`, and 36 rank-2 plus 36 short rank-1 compact blocks. It also evaluates the exact D.4 numerator `1,336,848` and the maximum-chain union bound: with `SEG_MAX=2^16` and global `q_H≤2^16`, the conservative result is 65.32 bits against a declared 64-bit target. No SuperNeo core parameter change was used. |
+| WASM application pass (2026-07-11) | `NebulaApplication` composes one fixed app R1CS, declarative memory-port layout, `S_mem`, and the previous-fold verifier into the authoritative relation. `neo-wasm` maps Enzo's 33 logical memories and 60 ports per instruction into disjoint verifier-owned ROM/RAM ranges, supports public nonzero RAM initialization, treats operand/call stacks as persistent RAM, and appends one compact R1CS relation covering all 48 opcode families. Three ordered instruction relations are block-diagonalized into each application step, with explicit VM-state links and 180 offset memory ports; this amortizes one unchanged SuperNeo fold over three instructions. Root `preprocess/prove/verify` uses terminal induction only. The active WASM gate pins **3,260,306 semantic rows / 15,839,550 committed coordinates, 13 matrices, degree 8**, 4,694 lookup auxiliary columns per instruction, unchanged `k_rho=14`, and the 65.32-bit maximum-chain union. Fifteen adversarial integration tests cover memory, ROM, arithmetic, traps, terminality, host imports, resource bounds, and earlier-fold tampering. |
 
 ### v1 → v2 (condensed)
 
@@ -159,7 +163,7 @@ the plan digest.
 | `TS_BITS` | 44 | timestamp width; plan enforces `SEG_MAX · N · B_ops < 2^TS_BITS` |
 | `SEG_IDX_BITS` | 16 | public segment-index width; plan enforces `1 ≤ SEG_MAX ≤ 2^16`, and segment open enforces `seg_idx < SEG_MAX` natively and in F′ |
 | `STEP_IDX_BITS` | 16 | public step-index width; plan enforces `1 ≤ N ≤ 2^16` |
-| `B_ops` | 64 | op slots per step |
+| `B_ops` | 64 | generic op slots per step; the three-instruction WASM profile in §4.5 uses 192 |
 | `B_scan` | 64 | scan slots per step |
 | `N` | 1,088 | steps per segment; `N = (R + M) / B_scan` **exactly** (exact cover; divisibility is automatic for powers of two with `B_scan ≤ min(R, M)`). Longer segments are obtained by enlarging `M` with untouched cells — never by padding the scan (§3.3). |
 | `SEG_MAX` | `2^16` | maximum closed segments per chain; legal segment indices are `0 .. SEG_MAX−1` |
@@ -216,8 +220,9 @@ streaming with bounded prover memory.) A VM frontend wanting a stack that
 survives a segment boundary spills it to RAM at the boundary, or places
 segment boundaries at stack-empty points.
 
-Initial state (chain start): every cell has `t = 0`; ROM cells hold the
-plan's ROM image; RAM cells hold 0; stacks are empty (`sp = 0`,
+Initial state (chain start): every cell has `t = 0`; ROM and RAM cells hold
+the verifier-owned public images recorded by the plan; the default RAM image
+is zero. Segment-local stacks are empty (`sp = 0`,
 represented by *no* tuples anywhere — not by zero-valued cells). The
 initial state is fully public (private preloads: deferred, §14).
 
@@ -383,6 +388,86 @@ emit canonical limbs.
 Circuit totals at v3 targets: op block `64 × ≈455 ≈ 29k` rows, scan block
 `64 × ≈420 ≈ 27k` rows, `x` region ≈ 1.3k → **`S_mem` ≈ 58k rows** before
 any VM frontend.
+
+### 4.5 Application composition and the WASM profile
+
+`NebulaApplication` is a validated data object, not a callback interface. It
+owns one application R1CS, its recursive image plan, and a
+`MemoryPortLayout`. The authoritative F′ relation is the conjunction of:
+
+```text
+application R1CS
++ exact application-port ↔ S_mem-slot bindings
++ S_mem
++ previous-fold NIFS.V
++ application-state and NebulaLane continuity
+```
+
+Each logical memory is assigned a verifier-fixed, power-of-two-aligned range
+inside the single ROM or RAM namespace. Multi-column addresses use
+mixed-radix packing; every component is range-constrained before adding the
+region base, so a witness cannot spill into a neighboring range. A port has a
+fixed slot, activation expression, address columns, value column, and kind:
+
+```text
+inactive: slot is the canonical pad tuple
+read:     slot.addr = base + pack(app.addr)
+          slot.v_r = slot.v_w = app.value
+write:    slot.addr = base + pack(app.addr)
+          slot.v_w = app.value
+          slot.v_r = app.value_before       when that column is declared
+```
+
+A write remains one Nebula op: its old-value RS tuple and new-value WS tuple
+already come from the same slot. The layout constructor rejects overlapping
+regions, duplicate names, invalid columns, and ports that exceed `B_ops`.
+The encoder counts only active slots and preserves holes canonically.
+
+The WASM adapter is generated directly from `WasmMemorySpec` and program
+artifacts. All program tables are public ROM; linear memory data, globals,
+tables, locals, operand stack, and call stack occupy persistent public-initial
+RAM ranges. The generic Nebula stack count is therefore `S=0` for this
+profile: WASM stacks may cross segment boundaries and are checked as ordinary
+RAM. The dense production plan supports 4,096 ROM cells and 65,536 RAM cells;
+its 32,768-word linear-memory range supports at most two WASM32 pages. Sound
+preprocessing rejects an initial or declared maximum page count above that
+bound. The reduced-memory seeded constructor exists only for structural test
+fixtures and is not a sound WASM page-capacity profile. Imported functions,
+memory, globals, and tables are rejected until their state or results are
+verifier-bound.
+
+The authoritative WASM application step contains three consecutive VM
+transitions. Each transition has its own copy of the base and compact opcode
+relations; explicit equality rows link every declared `state_after` field to
+the next block's `state_before` field. The first block supplies the carried
+semantic input and the third supplies the carried output. Its 60 declarative
+ports are offset per block and emitted in execution order into 180 distinct
+`S_mem` slots. The WASM production profile therefore uses `B_ops = 192`; the
+remaining 12 slots are canonical pads. A partial final block and a partial
+segment are filled only with the existing constrained state-preserving WASM
+padding row. This changes application granularity, not SuperNeo fold arity:
+the lifecycle still deposits exactly one fresh F′ claim (`K = 1`) per step.
+
+The base WASM relation is extended with a compact R1CS opcode relation over
+Enzo's existing selector, operand, result, and range-bit columns. Its 4,694
+Boolean advice columns per instruction (14,082 per three-instruction batch)
+cover all 48 lookup families: bitwise operations,
+comparisons, shifts/rotates, multiplication, count operations, and signed and
+unsigned division/remainder. Multiplication and division use exact 16-bit
+limb equations with bounded carries; §4d of the security note records why no
+Goldilocks wrap can satisfy a false integer equation. Trap rows disable the
+arithmetic relation through the existing operation-table enable bit. The
+nontrapping WASM special case `rem_s(MIN, -1) = 0` has a separately gated zero
+result; only its unrepresentable quotient identity is disabled. Terminal
+verification also checks the program-bound presence of the `memory_pages` and
+`max_memory_pages` options before comparing their field encoding, so absent
+memory cannot alias an explicit zero-page claim.
+
+The only public proof lifecycle is `neo_wasm::{preprocess, prove, verify}`.
+It requires a terminal trace, folds fixed-size batched segments through
+`NebulaFPrimeChainBuilder`, consumes the trailing delayed claim, and verifies
+the accumulated proof plus latest fold. Full-history replay remains a
+test-local oracle, never a production verifier.
 
 ---
 
@@ -794,12 +879,15 @@ Canonical-u64 values reuse their existing 64 bit slots; other full field values
 use 41 balanced-ternary digits in `{−1,0,1}`. SIS maps consume those same
 authoritative trits instead of allocating a second serialization, and their v2
 digest envelope binds the role, field count, and primary rank. At the reduced compiler
-profile this produces a square fixed point of 9,959,328 committed coordinates
-and rows, 14 matrices (`M0 = I`), degree 8. The production R7 preflight is
+profile this produces a rectangular fixed point of 2,486,540 semantic rows and
+9,613,188 committed coordinates, 13 matrices, degree 8. SplitNc checks FE over
+the semantic rows and NC over the committed assignment, so neither square row
+padding nor a dummy identity matrix is required. The production R7 preflight is
 larger: its first selective census is 15,730,104 coordinates at Appendix B.2
 `kappa = 18`, `k_rho = 14`, `T = 216` and maximum v3.1 memory geometry, and
-its fixed point stabilizes at 15,958,404. The active gate keeps both below the
-unchanged 16M engineering budget.
+its fixed point stabilizes at 2,819,360 rows by 15,612,210 coordinates. The
+active gate keeps the committed width below the unchanged 16M engineering
+budget.
 
 **Considered and deferred: SIS/Ajtai accumulators for the `D` chains**
 (review question: Enzo; v4 proposal). Merkle–Damgård chaining over the
@@ -832,11 +920,11 @@ separate deferred knob.
 
 ---
 
-## 7. Public ROM (verifier's handle to the program)
+## 7. Public initial memory (verifier's handle to the program)
 
-Requirement (review #4): the verifier must be able to state "this trace
-ran against *this* table" without recomputing challenge-dependent
-fingerprints and without learning private RAM.
+Requirement (review #4): the verifier must be able to state "this trace ran
+against *this* table and public initial image" without recomputing
+challenge-dependent fingerprints. Private initial memory remains deferred.
 
 Mechanism:
 
@@ -844,15 +932,15 @@ Mechanism:
    swept by the same scan as RAM (§3).
    Writes to it are banned in-circuit (E5). Reads are ordinary timestamped
    reads (sequential consistency includes ROM).
-2. The plan generator lays the public ROM image (and zero RAM) into the
+2. The plan generator lays the public ROM and RAM images into the
    initial scan lanes, computes their `A_mem` commitments and the digest
    chain `D_init = fold_{j ∈ [0,N)} Poseidon2(·, "mem", Poseidon2("nebula/leaf/mem", c_init_j))`
    — one link per step over the N per-step initial-scan-lane commitments,
    starting from the shared mem-domain header: the identical formula as
    the IS/FS chains (§6.1; external-review fix) — and records
-   `rom_image_digest` and `D_init` in the plan (§11). **Anyone can
-   recompute `D_init` from the ROM image and public parameters** — that is
-   the verifier's handle, and it is γ-independent (Nebula's observation
+   both images and `D_init` in the plan (§11). **Anyone can
+   recompute `D_init` from both public images and public parameters** — that
+   is the verifier's handle, and it is γ-independent (Nebula's observation
    that `C_FS`/`C_IS` depend only on state, not challenges), so it works
    unchanged across any number of segments, each with its own γ.
 3. Chain start binds `D_mem ← D_init` (§6.4); every later segment chains
@@ -945,9 +1033,10 @@ cap and is applied conservatively to every challenge-dependent failure term.
 
 The production profile declares a **64-bit maximum-chain target** at
 `SEG_MAX=2^16`, `N=1,088`, and `q_H≤2^16`. R7 uses the final relation's exact
-SuperNeo D.4 numerator `1,439,664`, the conservative projection count
-`P=2,250`, and the pinned Module-SIS floors. The evaluated union is **65.23
-bits**: pipeline 65.46, projection 68.05, fingerprint 77.91, mixing 79.39,
+SuperNeo D.4 numerator `1,336,848`, the conservative projection count
+`P=2,250`, and the pinned Module-SIS floors. The evaluated union is **65.32
+bits**: pipeline 65.56, projection 68.05, fingerprint 77.91 for the generic
+profile (76.91 for the 192-slot WASM profile), mixing 79.39,
 with the computational assumptions above 100 bits. This is explicitly not a
 100-bit maximum-chain claim. Any change to the chain cap, query cap, relation
 shape, or projection census reopens R7.
@@ -1041,6 +1130,17 @@ never a host replay comparison.
 | `sw` aux bit lies about push-ness | E11 |
 | Nonzero `rt`/`v_r` smuggled on a push | E14 |
 | Tamper `x.sp_*` between steps | F′ `sp` equality (§6.3) |
+| Omit, duplicate, or remap an active WASM memory port | application-port binding rows or fixed layout validation (§4.5) |
+| Supply a false prior value to a WASM write | the port fixes RS to `value_before`; otherwise the segment product equation fails |
+| Prove the same trace against another WASM binary | public program-ROM range changes `D_init`, and ROM port rows no longer open |
+| Forge an arithmetic result while recomputing all range bits and compact advice | compact opcode equations reject (§4.5; security-note §4d) |
+| Mutate any compact lookup advice bit | its bitness or semantic row rejects; every one of the 4,694 columns is swept by test |
+| Claim a nonterminal prefix as halted | authenticated semantic-state digest and terminal precondition reject |
+| Use imported host functions, memory, or globals | sound profile rejects the artifact/trace before relation construction |
+| Declare more linear memory than the dense plan can represent | preprocessing rejects the initial/maximum page count |
+| Replace absent memory with `Some(0)` in the terminal claim | verifier-owned program metadata rejects the option-shape mismatch |
+| Forge `rem_s(MIN, -1)` as nonzero | its dedicated compact-relation zero-result rows reject |
+| Tamper the accumulator that carries an earlier WASM fold | terminal NIFS/decider commitment check fails |
 
 Where each row lands (implemented; all under `crates/neo-fold-clean/tests/`):
 
@@ -1054,6 +1154,9 @@ Where each row lands (implemented; all under `crates/neo-fold-clean/tests/`):
 | All v3.1 stack rows + honest e2e + the documented non-rejection (a value lie passes every row, dies at the product equation — Lemma 4 layering) | `nebula/stack.rs` |
 | §6.4 prover resume (honest + fail-closed) | `nebula/segment.rs` resume tests |
 | Step 9 gadgets ≡ native transition + tamper sweep | `f_prime/nebula_lane_circuit.rs` |
+| Region/port constructor invariants and native read/RMW mismatches | `nebula/application.rs` |
+| WASM program/memory/lookup/terminal integration and adversarial cases | `neo-wasm/tests/wasm_nebula_redteam.rs` |
+| Exact WASM production shape and maximum-chain budget | `neo-wasm/tests/wasm_nebula_production_budget.rs` |
 
 ---
 
@@ -1129,6 +1232,18 @@ only, every invocation under the 5-minute cap (test profile of §2).
     (pinned by test). *Accept:* honest push/pop segment verifies
     end-to-end; every §12 stack row fails at its named check; the §10
     stacks-delta line is measured within 2×.
+11. **WASM application composition — implemented.** `frontends/nebula/application.rs`
+    owns segmented regions, declarative ports, native trace extraction, and
+    port rows. `neo-wasm/src/nebula.rs` converts `WasmMemorySpec` plus program
+    artifacts into that data, and `lookup_circuit/` extends the existing VM
+    relation before fixed-point compilation. The root proof lifecycle is
+    terminal-induction-only. *Accept:* all 33 memories and 60 ports per
+    instruction (180 offset slots per application step) have exact
+    coverage; the §12 WASM attacks reject; an honest program and an honest
+    division trap and the nontrapping signed-remainder overflow case verify;
+    all 48 lookup families and every compact auxiliary
+    column are load-bearing; the active production gate remains below 16M and
+    above the declared security target.
 
 ## 14. Deferred (explicitly out of scope for v3)
 
@@ -1140,12 +1255,15 @@ only, every invocation under the 5-minute cap (test profile of §2).
   **persistent stacks** — a stack surviving a segment boundary needs
   either RAM spill (frontend concern) or stack participation in FS/IS
   snapshots, which negates the Blum-optimization and re-opens the
-  per-segment-γ analysis (§3.1).
+  per-segment-γ analysis (§3.1). The WASM profile chooses the first option:
+  its operand and call stacks are ordinary RAM regions (§4.5).
 - **Coral's public-ROM scan elision** (§7 alternative) and **no-ts ROM**
   (Coral App. D) — verifier-work vs. constraint-count trade.
 - **Nebula-Opt** grand products (paper §4.4).
-- **Private initial memory / persistent segment export** — Coral §5.3
-  persistent memory; export `c_fs` sub-sequences as portable commitments.
+- **Private initial memory / persistent segment export** — public nonzero RAM
+  initialization is implemented; private initialization still needs Coral
+  §5.3 persistent memory. Exporting `c_fs` sub-sequences as portable
+  commitments also remains deferred.
 - **Parallel / distributed segment proving** — v3 segments are sequential
   by design (`D_mem` hands FS lanes to the next segment). Proving
   segments out of order requires each worker to derive its opening
@@ -1183,6 +1301,11 @@ enforce `seg_idx < SEG_MAX`; (10) the active R7 gate pins the production
 selective census and fixed point below 16M and validates SuperNeo's full D.4
 extension condition against the final relation's actual shape, matrix count,
 and degree, then evaluates the conservative maximum-chain union at or above
-the declared 64-bit target for `q_H≤2^16`. Criteria 6 and the security note's
-C19/A5 and A6/Lemma 6 fixed-matrix analysis remain independent-review gates
-even though the Rust implementation criteria are now met.
+the declared 64-bit target for `q_H≤2^16`; (11) the WASM profile covers every
+declared `WasmMemorySpec` port exactly once, relation-binds all opcode
+families, rejects imported host state/results and over-capacity memory,
+authenticates terminal memory presence, exposes only the terminal-induction
+proof API, and actively pins its combined shape and security union. Criteria
+6 and the security note's C19/A5 and A6/Lemma 6 fixed-matrix analysis remain
+independent-review gates even though the Rust implementation criteria are now
+met.

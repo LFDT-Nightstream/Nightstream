@@ -1,7 +1,7 @@
 # Nebula on SuperNeo — Security Note
 
 Status: companion to [`nebula-superneo-implementation.md`](./nebula-superneo-implementation.md)
-(v3 + the v3.1 stacks amendment). This note states and proves the six
+(v3 + the v3.1 stacks and WASM application amendments). This note states and proves the seven
 lemmas the spec's §5.3 and §9 defer to, records the claims ledger with
 dispositions, and lists what remains open and why. Authored to be attacked: every proof names the exact
 property it leans on, so a reviewer can go after the leans.
@@ -17,7 +17,7 @@ none is silently assumed.
   `CCS(b)^K × CE(b)^k` to `CE(b)^k` (SuperNeo Theorem 1), with soundness
   error `ε_pipe` per interactive fold. For the production relation,
   SuperNeo D.4 gives `ε_pipe ≤ f_D4/|K|`, where the exact executable
-  numerator is `f_D4 = 1,439,664`; Fiat–Shamir contributes the explicit
+  numerator is `f_D4 = 1,336,848`; Fiat–Shamir contributes the explicit
   `q_H` lift in §5. In particular, from any accepting fold
   transcript plus valid terminal openings, an extractor produces witnesses
   `z_i` (norm-bounded, satisfying `c_i = A·embed(z_i)`) for every input
@@ -60,7 +60,7 @@ none is silently assumed.
 - **A6 (two-level binding compression).** The CCS-claim, CE-claim,
   Π_CCS-output, Π_RLC-projection, and Nebula-leaf roles use independent
   seeded rank-2 Ajtai maps over the exact authoritative centered-unit
-  encodings. Their maximum input is 29,168 field words, or 22,147 ring
+  encodings. Their maximum input is 27,233 field words, or 20,677 ring
   columns. A shared, independently seeded rank-1 map compresses the 108-field
   rank-2 output before Poseidon2. Two distinct valid openings differ by
   coefficients of infinity norm at most 2. Let `ε_BIND` be the union of the
@@ -558,9 +558,11 @@ the argument: the encoding wires themselves are committed relation witness;
 choosing another valid encoding is another pre-squeeze message and another
 query, while obtaining the same digest is covered by the case split.
 
-**Concrete estimates.** R7 pins the largest long map at 22,147 ring columns
-(1,195,938 scalar coefficients) and the short map at 82 ring columns (4,428
-coefficients). The estimator uses the conservative Euclidean collision bound
+**Concrete estimates.** R7 pins the largest long map at 20,677 ring columns
+(1,116,558 scalar coefficients) and the short map at 82 ring columns (4,428
+coefficients). The reproducibility script retains the previous 22,147-column
+ceiling (1,195,938 coefficients), which is conservative for the smaller live
+map. The estimator uses the conservative Euclidean collision bound
 `2·sqrt(m)` induced by coefficient infinity norm 2. At the pinned estimator
 commit, the rough/full costs are 167.0/190.2 bits for rank 2 and 223.1/242.1
 bits for the short rank-1 map. Five long roles union to about 164.7 rough bits;
@@ -568,11 +570,85 @@ bits for the short rank-1 map. Five long roles union to about 164.7 rough bits;
 estimates under A6's random-matrix model, not a proof of hardness for the
 specific fixed seeds.
 
+## 4d. Lemma 7 — WASM relation and memory-port composition
+
+**Status: ADOPTED and implemented.** This lemma applies only to the
+`neo-wasm` profile. Generic portless Nebula still proves only memory-history
+consistency.
+
+**Statement.** Assume an extracted batched-step assignment satisfies the
+combined relation of spec §4.5, and the chain satisfies Lemmas 1–3. Then every
+active WASM memory port is an operation in the sequentially consistent Nebula
+history at the verifier-fixed logical-memory address and value. If each of its
+three ordered blocks satisfies the base WASM relation and compact opcode
+extension, the extracted three-transition sequence satisfies the supported
+WASM semantics against the program artifacts committed by the plan. This adds
+no probabilistic error to §5 beyond the existing memory-fingerprint and
+folding terms.
+
+**Proof.** The compact single-instruction relation is replicated block
+diagonally three times. Explicit equality rows link every declared VM
+`state_after` field in one block to the following block's `state_before`
+field; the carried semantic input is taken from block zero and the carried
+output from block two. Hence satisfaction extracts three sequential base-WASM
+transitions rather than three unrelated rows. The `MemoryPortLayout` is fixed during preprocessing. Its validated
+regions are disjoint, and component bounds make mixed-radix packing injective
+within each region. The 60 ports of each block are shifted by that block's
+fixed column offset and occupy 180 distinct S_mem slots in block order. For
+every active port, relation rows equate the S_mem
+slot's physical address and value to the designated application columns. A
+read equates both slot values to the application value. A write equates the
+new value and, when declared, the old value; S_mem emits the corresponding RS
+and WS tuples. Inactive ports are canonical pads. Therefore an accepted
+assignment cannot omit, duplicate, relocate, or change a declared access
+without violating a deterministic row or, for a false old value not directly
+declared, Lemma 3's product equality. Program tables occupy public ROM ranges
+and the public ROM/RAM images determine `D_init`, so substituting another
+program or initial image changes the verifier-owned plan. Sound preprocessing
+rejects host-owned functions, memory, globals, and tables before relation
+construction, and requires both the initial and maximum linear-memory page
+counts to fit the verifier-owned dense range. Terminal verification separately
+checks the program-bound presence of the page-count options, preventing the
+field encoding of absent memory from aliasing an explicit zero-page claim.
+
+The compact opcode extension introduces 4,694 Boolean advice columns per
+block, or 14,082 in the three-block relation. Every
+advice column has a bitness row and participates in a semantic row. Bitwise,
+comparison, shift/rotate, and count relations are Boolean identities.
+Multiplication and division/remainder use 16-bit limbs. Each limb product is
+below `2^32`; even four products plus a bounded carry are below `2^35`, far
+below the Goldilocks modulus. Thus equality in F for these rows is equality
+over the intended integers, not merely modulo q. Division additionally
+enforces `dividend = divisor·quotient + remainder`, `|remainder| < |divisor|`,
+and the signed quotient/remainder rules; the only alternate sign encoding is
+for zero, where it denotes the same integer. For the nontrapping WASM case
+`rem_s(MIN, -1)`, a selector and the constrained MIN/-1 predicate force
+quotient advice, remainder advice, and output to zero while disabling only the
+ordinary quotient identity, whose mathematical quotient is not representable
+at that width. The existing operation-table enable bit disables arithmetic
+rows exactly on a proved trap, including `div_s(MIN, -1)`. Hence a
+false result with recomputed range bits or advice still violates the compact
+relation. The base relation supplies the remaining state, control-flow,
+stack-placement, and selector constraints, so their conjunction is the
+supported WASM transition relation. ∎
+
+**Executable evidence.** `wasm_nebula_redteam` covers all 48 opcode families,
+recomputes advice after forged results, flips every compact auxiliary bit,
+tests signed-division edge cases and nontrapping signed remainder overflow,
+proves a division trap, and attacks program ROM, initial memory, terminal
+memory presence, host imports, resource bounds, and prior folded history.
+The exact-coverage test derives 33 logical memories and 60 ports per block
+from `WasmMemorySpec`, then checks all 180 offset slots; those counts are
+assertions, not manually maintained lists. The end-to-end fixture crosses a
+Nebula segment boundary after batching.
+
 ## 5. Composition theorem and evaluated budget
 
 **Theorem.** Under A1–A6, an accepted chain of `n_seg` segments with valid
 terminal decider checks attests a sequentially consistent memory history
-starting from the plan's initial memory, except with probability
+starting from the plan's initial memory. Under the WASM profile it also
+attests the supported program transition relation by Lemma 7. Failure
+probability is at most
 
 ```text
 ε_total ≤ q_H · n_f · ε_pipe                            (A1, FS-lifted)
@@ -602,26 +678,32 @@ reduction; it is nevertheless counted separately.
 declares a **64-bit end-to-end floor** for adversaries making at most
 `q_H = 2^16` random-oracle queries. R7 evaluates the conservative census
 `J_proj = P = 2,250`, not the reviewed-batching candidate `J=150`, and uses
-SuperNeo D.4's exact maximum-fresh numerator `f_D4 = 1,439,664` for the final
-15,958,404-coordinate, 14-matrix, degree-8 relation:
+SuperNeo D.4's exact maximum-fresh numerator `f_D4 = 1,336,848` for the final
+2,819,360-row by 15,612,210-coordinate, 13-matrix, degree-8 relation:
 
 | term | maximum-chain bits |
 |---|---:|
-| `q_H·n_f·f_D4/|K|` | 65.46 |
+| `q_H·n_f·f_D4/|K|` | 65.56 |
 | conservative projection | 68.05 |
-| Nebula fingerprint | 77.91 |
+| Nebula fingerprint | 76.91 |
 | strong-set mixing | 79.39 |
 | A2 Module-SIS floor | 100.00 |
 | A6 two-level binding floor | 160.00 |
 | Poseidon2 collision/preimage floor | 128.00 |
-| **union of all displayed terms** | **65.23** |
+| **union of all displayed terms** | **65.32** |
 
-Thus the profile clears the declared target by about 1.23 bits; it does
+Thus the profile clears the declared target by about 1.32 bits; it does
 **not** support a 100-bit maximum-chain claim. Because the margin is narrow,
 changing `SEG_MAX`, `N`, `q_H`, the D.4 shape, or the conservative projection
 census reopens this budget. The active R7 test computes and pins the formula;
 the estimator script pins the two Module-SIS floors. Concrete hardness and
 Poseidon2 remain assumptions A2/A3/A6 rather than facts established by tests.
+
+The combined three-instruction WASM relation has 3,260,306 semantic rows, 15,839,550 committed
+coordinates, 13 matrices, and degree 8. Its active production gate recomputes
+the shape-aware D.4 factor, which remains `1,336,848`, and independently
+reproduces the same 65.32-bit union. This is measured evidence for the combined
+relation, not an inference from the smaller generic Nebula fixed point.
 
 ## 6. Claims ledger (dispositions)
 
@@ -638,9 +720,9 @@ Poseidon2 remain assumptions A2/A3/A6 rather than facts established by tests.
 | C9 | Lane-residency completeness (no free interpretation bits) | **statically enforced** | `audit_lane_residency` runs at every `S_mem` construction (spec §15 criterion 7): fingerprint-input matrices may only read lanes, public `x`, or E2-constrained `cnt` aux — violations fail the build; reference-model attacks remain as regression (spec §12) |
 | C10 | Engine accepts `S_mem` shape | build-resolved | PR 3 |
 | C11 | Cost model within 2× | **implemented and actively measured** | R7 constructs the authoritative production fixed point and pins both the selective census and final relation; C12 records the exact values. |
-| C12 | F′-R1CS absorb budget | **implemented at production parameters** | The authoritative three-arm relation includes current `S_mem`, delayed lane transition, and c/adv/X/y projection. The two-level SIS bindings reuse the same 41 centered unit digits as the folded witness; compact seeded matrices, private Poseidon-output substitution, five-product direct CCS rows, telescoping evaluation accumulators, exact Karatsuba K-dot traces, and canonical-bit reuse elsewhere produce a reduced-profile square fixed point of 9,959,328 coordinates / rows. At Appendix B.2 parameters and maximum v3.1 geometry, the first selective census is 15,730,104 and the verifier-shape fixed point is **15,958,404 coordinates / rows, 14 matrices, degree 8**, with `M0 = I`. The active R7 gate pins those values below the unchanged 16M ceiling, validates the full D.4 factor against the final relation's actual shape, and evaluates the §5 maximum-chain budget. |
+| C12 | F′-R1CS absorb budget | **implemented at production parameters** | The authoritative three-arm relation includes current `S_mem`, delayed lane transition, and c/adv/X/y projection. The two-level SIS bindings reuse the same 41 centered unit digits as the folded witness; compact seeded matrices, private Poseidon-output substitution, five-product direct CCS rows, telescoping evaluation accumulators, exact Karatsuba K-dot traces, and canonical-bit reuse elsewhere produce a reduced-profile rectangular fixed point of 2,486,540 semantic rows / 9,613,188 committed coordinates. At Appendix B.2 parameters and maximum v3.1 geometry, the first selective census is 15,730,104 and the verifier-shape fixed point is **2,819,360 semantic rows / 15,612,210 committed coordinates, 13 matrices, degree 8**. SplitNc checks FE and NC over separate row and assignment domains, so no `M0 = I` or square padding is present. The active R7 gate pins committed width below the unchanged 16M ceiling, validates the full D.4 factor against the final relation's actual shape, and evaluates the §5 maximum-chain budget. |
 | C13 | Workload fit of `M`, segment granularity of incrementality | **product decision** | owner: Nico |
-| C14 | SIS/Ajtai accumulation for carried chains or remaining claim hashes | **implemented and concretely estimated for five R2 binding roles** | Each role first uses an independent rank-2 map over its authoritative balanced-trit encoding; one independent short rank-1 map compresses the 108-field output, and a domain-separated Poseidon2 envelope enters Fiat–Shamir. `CscWithSeededPhi81` preserves both maps structurally through CCS/SuperNeo consumers; native/circuit parity, stage-tamper rejection, and width pins cover the adopted path. R7 pins 36 rank-2 plus 36 short rank-1 blocks, with maxima of 29,168 words / 22,147 ring columns and 108 words / 82 ring columns. A6 records the exact fixed-matrix assumption and estimator commit; Lemma 6 gives the hash-then-FS reduction. Carried `D` chains remain Poseidon2. Independent cryptographic review remains required, but the former unstated κ=1 assumption is gone. |
+| C14 | SIS/Ajtai accumulation for carried chains or remaining claim hashes | **implemented and concretely estimated for five R2 binding roles** | Each role first uses an independent rank-2 map over its authoritative balanced-trit encoding; one independent short rank-1 map compresses the 108-field output, and a domain-separated Poseidon2 envelope enters Fiat–Shamir. `CscWithSeededPhi81` preserves both maps structurally through CCS/SuperNeo consumers; native/circuit parity, stage-tamper rejection, and width pins cover the adopted path. R7 pins 36 rank-2 plus 36 short rank-1 blocks, with maxima of 27,233 words / 20,677 ring columns and 108 words / 82 ring columns. A6 records the exact fixed-matrix assumption and estimator commit; Lemma 6 gives the hash-then-FS reduction. Carried `D` chains remain Poseidon2. Independent cryptographic review remains required, but the former unstated κ=1 assumption is gone. |
 | C19 | Parent-authority accumulator handle | implemented; reduction argument needs non-author review | native and in-circuit NIFS.V both verify strict Π_DEC(parent, children) before the compact handle is derived or consumed, and Π_CCS already uses `ce_claim_digest(parent)` as the running Fiat–Shamir authority. The handle is `Poseidon2(tag, child_count, parent_present, ce_claim_digest(parent))`; malformed empty/non-empty shapes remain domain-separated. Red-team tests mutate input/output children, rebuild the handle and visible state, and still fail the Π_DEC rows. The proof obligation is that replacing exact-child hashing by the verified weak-reduction representative composes with A5/SuperNeo Π_DEC knowledge soundness. |
 | C15 | IS/FS boundary chains must be formula-identical | **completeness bug, fixed (external review)** | lane-typed `"is"`/`"fs"` tags made honest cross-segment continuity impossible; is/fs now share one mem-domain leaf/link tag pair and header (spec §6.1/§6.3/§7); Cor. 1.1 states the dependency |
 | C16 | Externally accepted proofs end at closed segments | **normative rule added (external review)** | terminal first consumes trailing `u_T`, then requires `idx == 0`, `γ == ⊥`, and header chains; checking the pre-terminal lane is insufficient (spec §6.3) |
@@ -648,11 +730,12 @@ Poseidon2 remain assumptions A2/A3/A6 rather than facts established by tests.
 | C18 | Projection-checked ring action is sound for the folded F′ regime | **implemented; non-author review remains open** | Lemma 5; authoritative NIFS.V uses the transcript-bound `q`/β wires at every c/adv/X/y site, and C12 measures the resulting fixed point. Adoption audit items remain the review checklist. |
 | C20 | Terminal-only folded induction consumes every memory claim | **implemented; active R5 acceptance and tamper gate** | `NebulaFPrimeChainBuilder` deposits only the fixed relation with `K=1`; recursive steps consume prior `latest`, terminal finalization consumes trailing `latest`, and `verify_uncompressed` accepts the chain without `steps`/`public_batches`. `multi_chunk_f_prime_chain_must_verify_terminal_only` is active and rejects changed prior-link bits, delayed suffix bits, pre-final lane state, and the pre-final running commitment that carries earlier folded history. Capability ownership keeps non-authoritative image frontends fail-closed; the plain authoritative R1CS path separately checks HyperNova's running accumulator and latest F′ relation. |
 | C21 | Shipped encoder fills the live lowered relation | **implemented; active plain and memory gates** | The memory encoder derives live q/β transcript advice, accumulator state, current suffix, and `adv`, normalizes the exact field assignment, then `MultiBranchLowNormR1cs::encode` fills the selected low-norm arm and checks it before commitment. The active memory gate covers three one-step segments and all three relation arms; focused suffix/relation tests cover absent `D_pre` on interior steps. The active stateful Fibonacci gate covers four plain F′ steps. |
+| C22 | WASM program, opcode, and memory-port composition | **implemented and proved here** | Lemma 7; `NebulaApplication` binds three state-linked WASM transitions and all 180 offset ports to one S_mem step, public ROM/RAM determine `D_init`, and each compact block covers all 48 opcode families with bounded integer equations. Fifteen active red-team tests attack program substitution, false initial memory, forged arithmetic with recomputed advice, every auxiliary bit, traps, signed-remainder overflow, terminal state and memory presence, host imports, resource bounds, and earlier folded history. The active production gate pins 3,260,306 semantic rows / 15,839,550 committed coordinates and the 65.32-bit union. |
 
 ## 7. What this note does not close
 
 The Rust implementation and measured cost gates do not discharge
-**independent review** of Lemmas 1–6, C19's parent-authority reduction, or
+**independent review** of Lemmas 1–7, C19's parent-authority reduction, or
 A6's fixed-matrix Module-SIS assumption and estimator methodology. The author
 checking the author is circular, and the leans named in §0 (A1's exact
 extractor shape, A5's uniqueness property, and A6's map hardness) are
@@ -666,4 +749,7 @@ with non-author review still open. Push hardest on the transcript schedule
 obligation 1 (wire identity — the classic
 way projection arguments silently break). For Lemma 6, reproduce the pinned
 estimator run first, then challenge the random-matrix model for the fixed
-ChaCha8-expanded seeds and the three-event collision case split.
+ChaCha8-expanded seeds and the three-event collision case split. For Lemma 7,
+audit the exact 16-bit-limb bounds and mechanically compare
+`WasmMemorySpec` coverage with the port rows; its red-team tests are strong
+implementation evidence but do not replace that line-by-line check.

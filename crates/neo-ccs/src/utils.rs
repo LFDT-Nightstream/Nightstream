@@ -118,12 +118,17 @@ fn embed_matrix_parts<F: Field>(
     src: &crate::sparse::CcsMatrix<F>,
     row_offset: usize,
     col_offset: usize,
-) -> (Vec<(usize, usize, F)>, Vec<crate::SeededPhi81LinearBlock>) {
+) -> (
+    Vec<(usize, usize, F)>,
+    Vec<crate::SeededPhi81LinearBlock>,
+    Vec<crate::GeometricRowRun<F>>,
+) {
     match src {
         crate::sparse::CcsMatrix::Identity { n } => (
             (0..*n)
                 .map(|i| (row_offset + i, col_offset + i, F::ONE))
                 .collect(),
+            Vec::new(),
             Vec::new(),
         ),
         crate::sparse::CcsMatrix::Csc(m) => {
@@ -135,9 +140,13 @@ fn embed_matrix_parts<F: Field>(
                     trips.push((row_offset + m.row_idx[k], col_offset + col, m.vals[k]));
                 }
             }
-            (trips, Vec::new())
+            (trips, Vec::new(), Vec::new())
         }
-        crate::sparse::CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+        crate::sparse::CcsMatrix::CscWithSeededPhi81 {
+            csc,
+            blocks,
+            geometric_runs,
+        } => {
             let mut trips = Vec::with_capacity(csc.vals.len());
             for col in 0..csc.ncols {
                 for k in csc.col_ptr[col]..csc.col_ptr[col + 1] {
@@ -149,6 +158,10 @@ fn embed_matrix_parts<F: Field>(
                 blocks
                     .iter()
                     .map(|block| block.shifted(row_offset, col_offset))
+                    .collect(),
+                geometric_runs
+                    .iter()
+                    .map(|run| run.shifted(row_offset, col_offset))
                     .collect(),
             )
         }
@@ -172,21 +185,21 @@ fn build_stacked_matrices<F: Field>(
 
     // Top-left block (ccs1): no offset
     for j in 0..ccs1.t() {
-        let (trips, blocks) = embed_matrix_parts(&ccs1.matrices[j], 0, 0);
+        let (trips, blocks, geometric_runs) = embed_matrix_parts(&ccs1.matrices[j], 0, 0);
         let csc = CscMat::from_triplets(trips, n_total, m_total);
         stacked.push(
-            CcsMatrix::csc_with_seeded_phi81(csc, blocks)
-                .expect("embedded seeded blocks must remain inside the direct-sum matrix"),
+            CcsMatrix::csc_with_compact_rows(csc, blocks, geometric_runs)
+                .expect("embedded compact terms must remain inside the direct-sum matrix"),
         );
     }
 
     // Bottom-right block (ccs2): offset by (n1, m1)
     for j in 0..ccs2.t() {
-        let (trips, blocks) = embed_matrix_parts(&ccs2.matrices[j], ccs1.n, ccs1.m);
+        let (trips, blocks, geometric_runs) = embed_matrix_parts(&ccs2.matrices[j], ccs1.n, ccs1.m);
         let csc = CscMat::from_triplets(trips, n_total, m_total);
         stacked.push(
-            CcsMatrix::csc_with_seeded_phi81(csc, blocks)
-                .expect("embedded seeded blocks must remain inside the direct-sum matrix"),
+            CcsMatrix::csc_with_compact_rows(csc, blocks, geometric_runs)
+                .expect("embedded compact terms must remain inside the direct-sum matrix"),
         );
     }
 

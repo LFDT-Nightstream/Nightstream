@@ -389,7 +389,7 @@ fn split_nc_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> SplitNcPiCcsV
 
     SplitNcPiCcsVConfig {
         params: &prep.params,
-        structure: prep.structure(),
+        structure: prep.structure().into(),
         header_bundle,
         ell_d: dims.ell_d,
         ell_n: dims.ell_n,
@@ -465,10 +465,12 @@ fn assert_same_matrix(left: &CcsMatrix<F>, right: &CcsMatrix<F>) {
             CcsMatrix::CscWithSeededPhi81 {
                 csc: left_csc,
                 blocks: left_blocks,
+                geometric_runs: left_runs,
             },
             CcsMatrix::CscWithSeededPhi81 {
                 csc: right_csc,
                 blocks: right_blocks,
+                geometric_runs: right_runs,
             },
         ) => {
             assert_eq!(left_csc.nrows, right_csc.nrows);
@@ -477,6 +479,7 @@ fn assert_same_matrix(left: &CcsMatrix<F>, right: &CcsMatrix<F>) {
             assert_eq!(left_csc.row_idx, right_csc.row_idx);
             assert_eq!(left_csc.vals, right_csc.vals);
             assert_eq!(left_blocks, right_blocks);
+            assert_eq!(left_runs, right_runs);
         }
         _ => panic!("matrix representation changed with the header witness"),
     }

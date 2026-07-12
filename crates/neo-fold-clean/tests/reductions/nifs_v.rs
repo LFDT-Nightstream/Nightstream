@@ -243,7 +243,7 @@ fn pi_ccs_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> SplitNcPiCcsVCo
 
     SplitNcPiCcsVConfig {
         params: &prep.params,
-        structure: prep.structure(),
+        structure: prep.structure().into(),
         header_bundle,
         ell_d: dims.ell_d,
         ell_n: dims.ell_n,

@@ -22,7 +22,7 @@ use crate::frontends::f_prime::structure::MixedGateBuilder;
 use crate::frontends::r1cs_f_prime::SparseR1cs;
 use crate::paper::relations::Structure;
 
-const BALANCED_TERNARY_FIELD_WIDTH: usize = 41;
+use super::ternary_encoding::{write_balanced_ternary, BALANCED_TERNARY_FIELD_WIDTH};
 
 /// Sparse relation and matching assignment produced from one synthesis.
 #[derive(Debug)]
@@ -256,10 +256,6 @@ impl MultiBranchLowNormR1cs {
 
     pub(crate) fn first_unsatisfied_row(&self, assignment: &[F]) -> Option<usize> {
         first_unsatisfied_structure_row(&self.structure, assignment)
-    }
-
-    pub(crate) fn into_structure(self) -> Structure {
-        self.structure
     }
 }
 
@@ -1271,7 +1267,11 @@ fn append_encoded_matrix_triplets(
                 }
             }
         }
-        CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+        CcsMatrix::CscWithSeededPhi81 {
+            csc,
+            blocks,
+            geometric_runs,
+        } => {
             for col in 0..csc.ncols.min(slots.len()) {
                 for index in csc.col_ptr[col]..csc.col_ptr[col + 1] {
                     append(csc.row_idx[index], col, csc.vals[index]);
@@ -1279,6 +1279,9 @@ fn append_encoded_matrix_triplets(
             }
             for block in blocks {
                 block.for_each_term::<F, _>(|row, col, coefficient| append(row, col, coefficient));
+            }
+            for run in geometric_runs {
+                run.for_each_term(|row, col, coefficient| append(row, col, coefficient));
             }
         }
     }
@@ -1380,33 +1383,6 @@ fn write_encoded_value(
     Ok(())
 }
 
-fn write_balanced_ternary(
-    assignment: &mut [F],
-    start: usize,
-    value: F,
-    field_col: usize,
-) -> Result<(), LowNormR1csError> {
-    let modulus = F::ORDER_U64;
-    let canonical = value.as_canonical_u64();
-    let negative = canonical > modulus / 2;
-    let mut remaining = if negative { modulus - canonical } else { canonical };
-    for digit_index in 0..BALANCED_TERNARY_FIELD_WIDTH {
-        let residue = remaining % 3;
-        let positive_digit = match residue {
-            0 => F::ZERO,
-            1 => F::ONE,
-            2 => -F::ONE,
-            _ => unreachable!("remainder modulo three"),
-        };
-        assignment[start + digit_index] = if negative { -positive_digit } else { positive_digit };
-        remaining = remaining / 3 + u64::from(residue == 2);
-    }
-    if remaining != 0 {
-        return Err(LowNormR1csError::BalancedTernaryOverflow { col: field_col });
-    }
-    Ok(())
-}
-
 fn eval_source_lc(lc: &Lc, assignment: &[F]) -> F {
     lc.terms
         .iter()
@@ -1433,7 +1409,11 @@ fn encoded_matrix_rows(matrix: &CcsMatrix<F>, slots: &[Option<(usize, usize)>], 
                 }
             }
         }
-        CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+        CcsMatrix::CscWithSeededPhi81 {
+            csc,
+            blocks,
+            geometric_runs,
+        } => {
             for col in 0..csc.ncols.min(slots.len()) {
                 for idx in csc.col_ptr[col]..csc.col_ptr[col + 1] {
                     let row = csc.row_idx[idx];
@@ -1444,6 +1424,13 @@ fn encoded_matrix_rows(matrix: &CcsMatrix<F>, slots: &[Option<(usize, usize)>], 
             }
             for block in blocks {
                 block.for_each_term::<F, _>(|row, col, coefficient| {
+                    if row < rows {
+                        extend_encoded_terms(&mut out[row], col, coefficient, slots);
+                    }
+                });
+            }
+            for run in geometric_runs {
+                run.for_each_term(|row, col, coefficient| {
                     if row < rows {
                         extend_encoded_terms(&mut out[row], col, coefficient, slots);
                     }

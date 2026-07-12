@@ -80,27 +80,43 @@ fn degree_bound_nc(params: &NeoParams) -> usize {
 
 /// Build dimensions and validate extension field security policy
 pub fn build_dims_and_policy(params: &NeoParams, s: &CcsStructure<F>) -> Result<Dims, PiCcsError> {
-    if s.n == 0 {
+    build_dims_and_policy_for_shape(params, s.n, s.m, s.t(), s.max_degree())
+}
+
+/// Build verifier dimensions from the CCS header alone.
+///
+/// In-circuit verifier synthesis depends on matrix geometry and the relation
+/// polynomial, but never on the matrix entries. Keeping this entry point
+/// separate lets fixed-point discovery avoid constructing matrices that will
+/// immediately be discarded.
+pub fn build_dims_and_policy_for_shape(
+    params: &NeoParams,
+    n: usize,
+    m: usize,
+    t: usize,
+    max_degree: u32,
+) -> Result<Dims, PiCcsError> {
+    if n == 0 {
         return Err(PiCcsError::InvalidInput("n=0 not allowed".into()));
     }
 
     let d_pad = D.next_power_of_two();
     let ell_d = d_pad.trailing_zeros() as usize;
 
-    let n_pad = s.n.next_power_of_two().max(2);
+    let n_pad = n.next_power_of_two().max(2);
     let ell_n = n_pad.trailing_zeros() as usize;
 
-    let m_pad = s.m.next_power_of_two().max(2);
+    let m_pad = m.next_power_of_two().max(2);
     let ell_m = m_pad.trailing_zeros() as usize;
 
     let ell = ell_d + ell_n;
     let ell_nc = ell_d + ell_m;
     let ell_max = core::cmp::max(ell, ell_nc);
 
-    let d_sc = core::cmp::max(s.max_degree() as usize + 1, degree_bound_nc(params));
+    let d_sc = core::cmp::max(max_degree as usize + 1, degree_bound_nc(params));
 
     let ext = params
-        .extension_check_ccs_shape(s.n.max(s.m), s.t(), s.max_degree())
+        .extension_check_ccs_shape(n.max(m), t, max_degree)
         .map_err(|e| PiCcsError::ExtensionPolicyFailed(e.to_string()))?;
 
     if ext.slack_bits < 0 {
@@ -835,7 +851,11 @@ pub fn digest_ccs_matrices<F: Field + PrimeField64>(s: &CcsStructure<F>) -> Vec<
                     }
                 }
             }
-            CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+            CcsMatrix::CscWithSeededPhi81 {
+                csc,
+                blocks,
+                geometric_runs,
+            } => {
                 let mut entries = Vec::with_capacity(csc.vals.len());
                 for col in 0..csc.ncols {
                     for index in csc.col_ptr[col]..csc.col_ptr[col + 1] {
@@ -871,6 +891,13 @@ pub fn digest_ccs_matrices<F: Field + PrimeField64>(s: &CcsStructure<F>) -> Vec<
                         }
                     }
                 }
+                for (run_index, run) in geometric_runs.iter().enumerate() {
+                    let sentinel = usize::MAX / 2;
+                    emit(sentinel, run_index, 0x4745_4f4d_5255_4e31);
+                    emit(sentinel - 1, run.row(), run.column_start() as u64);
+                    emit(sentinel - 2, run.len(), run.initial().as_canonical_u64());
+                    emit(sentinel - 3, run_index, run.ratio().as_canonical_u64());
+                }
             }
         }
 
@@ -882,6 +909,7 @@ pub fn digest_ccs_matrices<F: Field + PrimeField64>(s: &CcsStructure<F>) -> Vec<
 
 const CCS_DIGEST_SEED: u64 = 0x434353445F4D4154;
 const CCS_DIGEST_CHUNK_WORDS: usize = 65_536;
+const CCS_DIGEST_GEOMETRIC_RUNS_PER_CHUNK: usize = 8_192;
 
 const CCS_MATRIX_LEAF_METADATA: u64 = 1;
 const CCS_MATRIX_LEAF_IDENTITY: u64 = 2;
@@ -889,6 +917,7 @@ const CCS_MATRIX_LEAF_COL_PTR: u64 = 3;
 const CCS_MATRIX_LEAF_ROW_IDX: u64 = 4;
 const CCS_MATRIX_LEAF_VALS: u64 = 5;
 const CCS_MATRIX_LEAF_SEEDED_PHI81: u64 = 6;
+const CCS_MATRIX_LEAF_GEOMETRIC_RUN: u64 = 7;
 
 enum CcsDigestLeaf<'a, Ff> {
     Identity {
@@ -920,6 +949,12 @@ enum CcsDigestLeaf<'a, Ff> {
         matrix: usize,
         block: usize,
         value: &'a neo_ccs::SeededPhi81LinearBlock,
+    },
+    GeometricRunChunk {
+        matrix: usize,
+        chunk: usize,
+        start: usize,
+        values: &'a [neo_ccs::GeometricRowRun<Ff>],
     },
 }
 
@@ -1060,6 +1095,30 @@ fn digest_ccs_matrix_leaf<Ff: PrimeField64>(leaf: &CcsDigestLeaf<'_, Ff>) -> [Go
                 }
             }
         }
+        CcsDigestLeaf::GeometricRunChunk {
+            matrix,
+            chunk,
+            start,
+            values,
+        } => {
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, *matrix as u64);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, CCS_MATRIX_LEAF_GEOMETRIC_RUN);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, *chunk as u64);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, *start as u64);
+            absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, values.len() as u64);
+            for value in *values {
+                absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, value.row() as u64);
+                absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, value.column_start() as u64);
+                absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, value.len() as u64);
+                absorb_digest_u64(
+                    &poseidon2,
+                    &mut state,
+                    &mut absorbed,
+                    value.initial().as_canonical_u64(),
+                );
+                absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, value.ratio().as_canonical_u64());
+            }
+        }
     }
 
     poseidon2.permute_mut(&mut state);
@@ -1157,7 +1216,11 @@ pub fn digest_ccs_matrices_with_sparse_cache<Ff: Field + PrimeField64 + Sync>(
                 push_usize_digest_chunks(&mut leaves, j, CCS_MATRIX_LEAF_ROW_IDX, row_idx);
                 push_field_digest_chunks(&mut leaves, j, vals);
             }
-            CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+            CcsMatrix::CscWithSeededPhi81 {
+                csc,
+                blocks,
+                geometric_runs,
+            } => {
                 leaves.push(CcsDigestLeaf::Metadata {
                     matrix: j,
                     nrows: csc.nrows,
@@ -1174,6 +1237,17 @@ pub fn digest_ccs_matrices_with_sparse_cache<Ff: Field + PrimeField64 + Sync>(
                         matrix: j,
                         block,
                         value,
+                    });
+                }
+                for (chunk, values) in geometric_runs
+                    .chunks(CCS_DIGEST_GEOMETRIC_RUNS_PER_CHUNK)
+                    .enumerate()
+                {
+                    leaves.push(CcsDigestLeaf::GeometricRunChunk {
+                        matrix: j,
+                        chunk,
+                        start: chunk * CCS_DIGEST_GEOMETRIC_RUNS_PER_CHUNK,
+                        values,
                     });
                 }
             }

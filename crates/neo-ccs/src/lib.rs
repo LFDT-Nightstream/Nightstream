@@ -12,6 +12,8 @@ pub mod crypto;
 pub mod error;
 /// Cryptographic gadgets for CCS circuits.
 pub mod gadgets;
+/// Compact geometric matrix-row runs.
+pub mod geometric;
 /// Matrix types and operations.
 pub mod matrix;
 /// Polynomial types and evaluation.
@@ -31,6 +33,7 @@ pub mod utils;
 
 // Re-export core types
 pub use error::{CcsError, DimMismatch, RelationError};
+pub use geometric::GeometricRowRun;
 pub use matrix::{CsrMatrix, Mat, MatRef};
 pub use poly::{SparsePoly, Term};
 pub use r1cs::{r1cs_to_ccs, sparse_r1cs_to_ccs};

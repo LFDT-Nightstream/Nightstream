@@ -85,7 +85,7 @@ pub use transcript::{
 };
 pub use verifier::{
     enforce_split_nc_pi_ccs_v, enforce_split_nc_pi_ccs_v_with_header_bundle_wires, SplitNcPiCcsOutputWires,
-    SplitNcPiCcsVConfig, SplitNcPiCcsVDerived, SplitNcPiCcsVMessages,
+    SplitNcPiCcsVConfig, SplitNcPiCcsVDerived, SplitNcPiCcsVMessages, SplitNcVerifierRelation,
 };
 
 /// Errors emitted by the SplitNcV1 in-circuit verifier and its building-block

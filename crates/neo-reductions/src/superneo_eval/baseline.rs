@@ -25,7 +25,11 @@ fn matrix_entry<Ff: Field + PrimeCharacteristicRing + Copy>(mat: &CcsMatrix<Ff>,
                 Err(_) => Ff::ZERO,
             }
         }
-        CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+        CcsMatrix::CscWithSeededPhi81 {
+            csc,
+            blocks,
+            geometric_runs,
+        } => {
             let s = csc.col_ptr[col];
             let e = csc.col_ptr[col + 1];
             let mut value = match csc.row_idx[s..e].binary_search(&row) {
@@ -34,6 +38,9 @@ fn matrix_entry<Ff: Field + PrimeCharacteristicRing + Copy>(mat: &CcsMatrix<Ff>,
             };
             for block in blocks {
                 value += block.entry::<Ff>(row, col);
+            }
+            for run in geometric_runs {
+                value += run.entry(row, col);
             }
             value
         }

@@ -449,7 +449,7 @@ impl Preprocessing {
         Ok(crate::paper::nifs::circuit::NifsVCircuitConfig {
             pi_ccs: crate::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsVConfig {
                 params: &self.params,
-                structure: &self.structure,
+                structure: (&self.structure).into(),
                 header_bundle: self.pi_ccs_header_bundle,
                 ell_d: dims.ell_d,
                 ell_n: dims.ell_n,

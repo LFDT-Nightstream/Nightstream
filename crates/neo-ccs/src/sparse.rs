@@ -8,6 +8,7 @@
 //! operations without scanning dense zeros.
 #![allow(non_snake_case)]
 
+use crate::geometric::GeometricRowRun;
 use crate::matrix::Mat;
 use crate::seeded_phi81::{SeededPhi81Error, SeededPhi81LinearBlock};
 use p3_field::{Field, PrimeCharacteristicRing};
@@ -150,6 +151,93 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CscMat<Ff> {
         entries.truncate(write);
         let (row_idx, vals) = entries.into_iter().unzip();
 
+        Self {
+            nrows,
+            ncols,
+            col_ptr,
+            row_idx,
+            vals,
+        }
+    }
+
+    /// Build canonical CSC directly from explicit terms plus compact
+    /// geometric row runs.
+    ///
+    /// The final arrays are identical to expanding every run and calling
+    /// [`Self::from_triplets`], but no expanded triplet vector is allocated.
+    pub fn from_triplets_and_geometric_runs(
+        triplets: Vec<(usize, usize, Ff)>,
+        runs: &[GeometricRowRun<Ff>],
+        nrows: usize,
+        ncols: usize,
+    ) -> Self {
+        let mut column_counts = vec![0usize; ncols];
+        let mut nonzero_count = 0usize;
+        for &(row, column, value) in &triplets {
+            assert!(row < nrows, "triplet row out of bounds");
+            assert!(column < ncols, "triplet col out of bounds");
+            if value != Ff::ZERO {
+                column_counts[column] += 1;
+                nonzero_count += 1;
+            }
+        }
+        for run in runs {
+            assert!(run.validate_shape(nrows, ncols), "geometric run out of bounds");
+            run.for_each_term(|_, column, _| {
+                column_counts[column] += 1;
+                nonzero_count += 1;
+            });
+        }
+
+        let mut col_ptr = Vec::with_capacity(ncols + 1);
+        col_ptr.push(0);
+        for count in column_counts {
+            col_ptr.push(col_ptr.last().copied().expect("CSC pointer") + count);
+        }
+        let mut next = col_ptr[..ncols].to_vec();
+        let mut entries = vec![(0usize, Ff::ZERO); nonzero_count];
+        for (row, column, value) in triplets {
+            if value == Ff::ZERO {
+                continue;
+            }
+            let index = next[column];
+            entries[index] = (row, value);
+            next[column] += 1;
+        }
+        for run in runs {
+            run.for_each_term(|row, column, value| {
+                let index = next[column];
+                entries[index] = (row, value);
+                next[column] += 1;
+            });
+        }
+        for column in 0..ncols {
+            entries[col_ptr[column]..col_ptr[column + 1]].sort_unstable_by_key(|&(row, _)| row);
+        }
+
+        let mut write = 0usize;
+        for column in 0..ncols {
+            let read_start = col_ptr[column];
+            let read_end = col_ptr[column + 1];
+            col_ptr[column] = write;
+            let mut read = read_start;
+            while read < read_end {
+                let row = entries[read].0;
+                let mut value = entries[read].1;
+                read += 1;
+                while read < read_end && entries[read].0 == row {
+                    value += entries[read].1;
+                    read += 1;
+                }
+                if value != Ff::ZERO {
+                    entries[write] = (row, value);
+                    write += 1;
+                }
+            }
+        }
+        col_ptr[ncols] = write;
+        entries.truncate(write);
+        let (row_idx, vals) = entries.into_iter().unzip();
         Self {
             nrows,
             ncols,
@@ -348,6 +436,8 @@ pub enum CcsMatrix<Ff> {
         csc: CscMat<Ff>,
         /// Compact seeded blocks, each occupying disjoint constraint rows.
         blocks: Vec<SeededPhi81LinearBlock>,
+        /// Compact contiguous radix expansions in individual rows.
+        geometric_runs: Vec<GeometricRowRun<Ff>>,
     },
 }
 
@@ -363,7 +453,41 @@ impl<Ff> CcsMatrix<Ff> {
         for block in &blocks {
             block.validate_matrix_shape(csc.nrows, csc.ncols)?;
         }
-        Ok(Self::CscWithSeededPhi81 { csc, blocks })
+        Ok(Self::CscWithSeededPhi81 {
+            csc,
+            blocks,
+            geometric_runs: Vec::new(),
+        })
+    }
+
+    /// Build a matrix from ordinary CSC terms and compact structured terms.
+    pub fn csc_with_compact_rows(
+        csc: CscMat<Ff>,
+        blocks: Vec<SeededPhi81LinearBlock>,
+        mut geometric_runs: Vec<GeometricRowRun<Ff>>,
+    ) -> Result<Self, String> {
+        if blocks.is_empty() && geometric_runs.is_empty() {
+            return Ok(Self::Csc(csc));
+        }
+        for block in &blocks {
+            block
+                .validate_matrix_shape(csc.nrows, csc.ncols)
+                .map_err(|error| error.to_string())?;
+        }
+        for (index, run) in geometric_runs.iter().enumerate() {
+            if !run.validate_shape(csc.nrows, csc.ncols) {
+                return Err(format!(
+                    "geometric row run {index} lies outside {}x{} matrix",
+                    csc.nrows, csc.ncols
+                ));
+            }
+        }
+        geometric_runs.sort_unstable_by_key(|run| (run.row(), run.column_start(), run.len()));
+        Ok(Self::CscWithSeededPhi81 {
+            csc,
+            blocks,
+            geometric_runs,
+        })
     }
 
     /// Number of rows.
@@ -405,6 +529,14 @@ impl<Ff> CcsMatrix<Ff> {
     pub fn seeded_phi81_blocks(&self) -> &[SeededPhi81LinearBlock] {
         match self {
             CcsMatrix::CscWithSeededPhi81 { blocks, .. } => blocks,
+            CcsMatrix::Identity { .. } | CcsMatrix::Csc(_) => &[],
+        }
+    }
+
+    /// Borrow compact geometric row runs in this matrix.
+    pub fn geometric_runs(&self) -> &[GeometricRowRun<Ff>] {
+        match self {
+            CcsMatrix::CscWithSeededPhi81 { geometric_runs, .. } => geometric_runs,
             CcsMatrix::Identity { .. } | CcsMatrix::Csc(_) => &[],
         }
     }
@@ -459,10 +591,17 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CcsMatrix<Ff> {
                 }
             }
             CcsMatrix::Csc(m) => m.add_mul_transpose_into(x, y, n_eff),
-            CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+            CcsMatrix::CscWithSeededPhi81 {
+                csc,
+                blocks,
+                geometric_runs,
+            } => {
                 csc.add_mul_transpose_into(x, y, n_eff);
                 for block in blocks {
                     block.add_mul_transpose_into::<Ff, Kf>(x, y, n_eff);
+                }
+                for run in geometric_runs {
+                    run.add_mul_transpose_into(x, y, n_eff);
                 }
             }
         }
@@ -483,10 +622,17 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CcsMatrix<Ff> {
                 }
             }
             CcsMatrix::Csc(m) => m.add_mul_into(x, y, n_eff),
-            CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+            CcsMatrix::CscWithSeededPhi81 {
+                csc,
+                blocks,
+                geometric_runs,
+            } => {
                 csc.add_mul_into(x, y, n_eff);
                 for block in blocks {
                     block.add_mul_into::<Ff, Kf>(x, y, n_eff);
+                }
+                for run in geometric_runs {
+                    run.add_mul_into(x, y, n_eff);
                 }
             }
         }

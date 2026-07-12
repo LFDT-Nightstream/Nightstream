@@ -41,7 +41,7 @@ fn ring_row_eval(matrix: &CcsMatrix<F>, row: usize, z_ring: &[Rq], ncols: usize)
                 }
             }
         }
-        CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+        CcsMatrix::CscWithSeededPhi81 { csc, blocks, .. } => {
             for c in 0..csc.ncols {
                 let block = c / D;
                 let local = c % D;

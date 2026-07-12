@@ -1,5 +1,5 @@
 use super::{as_base_field, is_superneo_compatible_shape, RowBlock, Rq, SuperneoEvalCache, SuperneoMatrixCache};
-use neo_ccs::{CcsMatrix, CcsStructure};
+use neo_ccs::{CcsMatrix, CcsStructure, GeometricRowRun};
 use neo_math::{superneo_bar_block, D, F, K};
 use p3_field::{Field, PrimeCharacteristicRing};
 
@@ -118,12 +118,76 @@ where
                 seeded_phi81_blocks: Vec::new(),
             }
         }
-        CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+        CcsMatrix::CscWithSeededPhi81 {
+            csc,
+            blocks,
+            geometric_runs,
+        } => {
             let mut cache = build_matrix_cache(&CcsMatrix::Csc(csc.clone()));
+            merge_geometric_runs(&mut cache, geometric_runs);
             cache.seeded_phi81_blocks = blocks.clone();
             cache
         }
     }
+}
+
+fn merge_geometric_runs<Ff>(cache: &mut SuperneoMatrixCache, runs: &[GeometricRowRun<Ff>])
+where
+    Ff: Field + PrimeCharacteristicRing + Copy,
+    K: From<Ff>,
+{
+    if runs.is_empty() {
+        return;
+    }
+
+    let mut row_offsets = Vec::with_capacity(cache.rows + 1);
+    let mut row_blocks = Vec::with_capacity(cache.row_blocks.len() + 2 * runs.len());
+    let mut run_cursor = 0usize;
+    row_offsets.push(0);
+    for row in 0..cache.rows {
+        let existing = &cache.row_blocks[cache.row_offsets[row]..cache.row_offsets[row + 1]];
+        let run_start = run_cursor;
+        while run_cursor < runs.len() && runs[run_cursor].row() == row {
+            run_cursor += 1;
+        }
+        if run_start == run_cursor {
+            row_blocks.extend_from_slice(existing);
+            row_offsets.push(row_blocks.len());
+            continue;
+        }
+
+        let mut merged = existing.to_vec();
+        for run in &runs[run_start..run_cursor] {
+            run.for_each_term(|_, column, value| {
+                let block_index = column / D;
+                let local = column % D;
+                let position = match merged.binary_search_by_key(&block_index, |block| block.blk) {
+                    Ok(position) => position,
+                    Err(position) => {
+                        merged.insert(
+                            position,
+                            RowBlock {
+                                blk: block_index,
+                                bar: Rq([F::ZERO; D]),
+                                orig: Rq([F::ZERO; D]),
+                            },
+                        );
+                        position
+                    }
+                };
+                merged[position].orig.0[local] += as_base_field(value);
+            });
+        }
+        merged.retain(|block| block.orig.0.iter().any(|&value| value != F::ZERO));
+        for block in &mut merged {
+            block.bar.0 = superneo_bar_block(block.orig.0);
+        }
+        row_blocks.extend(merged);
+        row_offsets.push(row_blocks.len());
+    }
+    debug_assert_eq!(run_cursor, runs.len(), "geometric runs must be row-sorted and in range");
+    cache.row_offsets = row_offsets;
+    cache.row_blocks = row_blocks;
 }
 
 pub fn build_superneo_eval_cache<Ff>(structure: &CcsStructure<Ff>) -> Option<SuperneoEvalCache>

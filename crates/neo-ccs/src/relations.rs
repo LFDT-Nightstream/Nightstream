@@ -289,7 +289,11 @@ fn transform_ccs_matrix_superneo(
                 }
             }
         }
-        CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+        CcsMatrix::CscWithSeededPhi81 {
+            csc,
+            blocks,
+            geometric_runs,
+        } => {
             triplets.reserve(csc.vals.len() * D);
             for c in 0..csc.ncols {
                 let block = c / D;
@@ -307,6 +311,19 @@ fn transform_ccs_matrix_superneo(
                         }
                     }
                 }
+            }
+            for run in geometric_runs {
+                run.for_each_term(|r, c, v| {
+                    let block = c / D;
+                    let local = c % D;
+                    let base = block * D;
+                    for (i, bar_row) in bar.iter().enumerate() {
+                        let coeff = v * bar_row[local];
+                        if coeff != Fq::ZERO {
+                            triplets.push((r, base + i, coeff));
+                        }
+                    }
+                });
             }
             transformed_blocks.extend(
                 blocks
@@ -520,7 +537,11 @@ fn matrix_entry_base_f<F: Field + Copy + Into<GoldiF>>(mat: &CcsMatrix<F>, row: 
             }
             acc
         }
-        CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+        CcsMatrix::CscWithSeededPhi81 {
+            csc,
+            blocks,
+            geometric_runs,
+        } => {
             let s = csc.col_ptr[col];
             let e = csc.col_ptr[col + 1];
             let mut acc = GoldiF::ZERO;
@@ -531,6 +552,9 @@ fn matrix_entry_base_f<F: Field + Copy + Into<GoldiF>>(mat: &CcsMatrix<F>, row: 
             }
             for block in blocks {
                 acc += block.entry::<GoldiF>(row, col);
+            }
+            for run in geometric_runs {
+                acc += run.entry(row, col).into();
             }
             acc
         }

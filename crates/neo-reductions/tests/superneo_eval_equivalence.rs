@@ -1,4 +1,4 @@
-use neo_ccs::{matrix::Mat, poly::SparsePoly, CcsStructure};
+use neo_ccs::{matrix::Mat, poly::SparsePoly, CcsMatrix, CcsStructure, CscMat, GeometricRowRun};
 use neo_math::{superneo_bar_block, KExtensions, Rq};
 use neo_math::{D, F, K};
 use neo_reductions::superneo_eval::{
@@ -63,6 +63,43 @@ fn transformed_eval_matches_direct_eval_for_sparse_mats() {
     let direct = eval_all_mats_direct(&s, &z, &chi_r, n);
     let via_bar = eval_all_mats_transformed(&s_bar, &z, &chi_r, n);
     assert_eq!(direct, via_bar);
+}
+
+#[test]
+fn geometric_rows_match_expanded_csc_in_direct_cached_and_transformed_evaluation() {
+    let n = 4usize;
+    let m = 2 * D;
+    let run = GeometricRowRun::new(2, D - 9, 41, F::from_u64(7), F::from_u64(3));
+    let mut expanded = Vec::new();
+    run.for_each_term(|row, column, value| expanded.push((row, column, value)));
+    expanded.push((0, 0, F::from_u64(11)));
+
+    let expanded_matrix = CcsMatrix::Csc(CscMat::from_triplets(expanded, n, m));
+    let structured_matrix = CcsMatrix::csc_with_compact_rows(
+        CscMat::from_triplets(vec![(0, 0, F::from_u64(11))], n, m),
+        Vec::new(),
+        vec![run],
+    )
+    .expect("valid compact matrix");
+    let polynomial = SparsePoly::new(1, vec![]);
+    let expanded = CcsStructure::new_sparse(vec![expanded_matrix], polynomial.clone()).expect("expanded structure");
+    let structured = CcsStructure::new_sparse(vec![structured_matrix], polynomial).expect("structured relation");
+
+    let z = (0..m)
+        .map(|index| K::from_coeffs([F::from_u64((index + 1) as u64), F::from_u64((index % 5) as u64)]))
+        .collect::<Vec<_>>();
+    let point = [K::from_coeffs([F::from_u64(3), F::from_u64(1)]); 2];
+    let chi_r = chi_table(&point);
+    let expected = eval_all_mats_direct(&expanded, &z, &chi_r, n);
+    assert_eq!(eval_all_mats_direct(&structured, &z, &chi_r, n), expected);
+
+    let cache = build_superneo_eval_cache(&structured).expect("structured SuperNeo cache");
+    assert_eq!(eval_all_mats_cached(&cache, &z, &chi_r, n), expected);
+
+    let transformed = structured
+        .transform_matrices_superneo()
+        .expect("transform structured matrix");
+    assert_eq!(eval_all_mats_transformed(&transformed, &z, &chi_r, n), expected);
 }
 
 #[test]

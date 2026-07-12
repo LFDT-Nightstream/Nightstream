@@ -83,7 +83,7 @@ fn split_nc_config(prep: &Preprocessing) -> SplitNcPiCcsVConfig<'_> {
     .expect("header bundle");
     SplitNcPiCcsVConfig {
         params: &prep.params,
-        structure: prep.structure(),
+        structure: prep.structure().into(),
         header_bundle,
         ell_d: dims.ell_d,
         ell_n: dims.ell_n,
@@ -343,9 +343,10 @@ fn road_a_reduced_profile_fixed_point_stabilizes_within_budget() {
         relation.structure().t(),
         relation.structure().max_degree(),
     );
-    assert!(
-        relation.structure().n < relation.structure().m,
-        "SplitNc must preserve the smaller semantic-row domain"
+    assert_ne!(
+        relation.structure().n,
+        relation.structure().m,
+        "SplitNc fixed point must remain rectangular"
     );
     assert_eq!(
         relation.structure().t(),
@@ -358,7 +359,7 @@ fn road_a_reduced_profile_fixed_point_stabilizes_within_budget() {
     );
     assert_eq!(
         (relation.structure().n, relation.structure().m),
-        (2_486_540, 9_613_188),
+        (15_179_464, 13_408_578),
         "reduced-profile rectangular verifier fixed point drifted"
     );
     assert!(

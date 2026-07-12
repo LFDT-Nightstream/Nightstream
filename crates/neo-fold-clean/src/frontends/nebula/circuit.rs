@@ -399,7 +399,11 @@ fn matrix_row_lcs(matrix: &CcsMatrix<F>, vars: &[Var], rows: usize) -> Vec<Lc> {
                 }
             }
         }
-        CcsMatrix::CscWithSeededPhi81 { csc, blocks } => {
+        CcsMatrix::CscWithSeededPhi81 {
+            csc,
+            blocks,
+            geometric_runs,
+        } => {
             for col in 0..csc.ncols.min(vars.len()) {
                 for index in csc.col_ptr[col]..csc.col_ptr[col + 1] {
                     let row = csc.row_idx[index];
@@ -410,6 +414,13 @@ fn matrix_row_lcs(matrix: &CcsMatrix<F>, vars: &[Var], rows: usize) -> Vec<Lc> {
             }
             for block in blocks {
                 block.for_each_term::<F, _>(|row, col, coefficient| {
+                    if row < rows && col < vars.len() {
+                        out[row].add_term(vars[col], coefficient);
+                    }
+                });
+            }
+            for run in geometric_runs {
+                run.for_each_term(|row, col, coefficient| {
                     if row < rows && col < vars.len() {
                         out[row].add_term(vars[col], coefficient);
                     }

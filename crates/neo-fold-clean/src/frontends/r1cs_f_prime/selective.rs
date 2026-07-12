@@ -1280,7 +1280,7 @@ fn build_structure(
     let rows = row_cursor;
     let mut matrices = Vec::with_capacity(ARITY);
     for index in 0..ARITY {
-        let csc = CscMat::from_triplets(core::mem::take(&mut trips[index]), rows, columns);
+        let csc = CscMat::from_counted_triplets(core::mem::take(&mut trips[index]), rows, columns);
         matrices.push(CcsMatrix::csc_with_seeded_phi81(
             csc,
             core::mem::take(&mut seeded[index]),

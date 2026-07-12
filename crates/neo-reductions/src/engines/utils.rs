@@ -817,7 +817,7 @@ pub fn digest_ccs_matrices<F: Field + PrimeField64>(s: &CcsStructure<F>) -> Vec<
                 // 1) Count entries per row.
                 let mut row_counts = vec![0u32; nrows];
                 for &r in csc.row_idx.iter() {
-                    row_counts[r] += 1;
+                    row_counts[r as usize] += 1;
                 }
 
                 // 2) Prefix sums to get row offsets.
@@ -832,10 +832,8 @@ pub fn digest_ccs_matrices<F: Field + PrimeField64>(s: &CcsStructure<F>) -> Vec<
                 let mut entries = vec![(0usize, 0u64); nnz];
 
                 for col in 0..csc.ncols {
-                    let s0 = csc.col_ptr[col];
-                    let e0 = csc.col_ptr[col + 1];
-                    for k in s0..e0 {
-                        let row = csc.row_idx[k];
+                    for k in csc.column_range(col) {
+                        let row = csc.row_index(k);
                         let idx = write_pos[row];
                         write_pos[row] = idx + 1;
                         entries[idx] = (col, csc.vals[k].as_canonical_u64());
@@ -858,8 +856,8 @@ pub fn digest_ccs_matrices<F: Field + PrimeField64>(s: &CcsStructure<F>) -> Vec<
             } => {
                 let mut entries = Vec::with_capacity(csc.vals.len());
                 for col in 0..csc.ncols {
-                    for index in csc.col_ptr[col]..csc.col_ptr[col + 1] {
-                        entries.push((csc.row_idx[index], col, csc.vals[index].as_canonical_u64()));
+                    for index in csc.column_range(col) {
+                        entries.push((csc.row_index(index), col, csc.vals[index].as_canonical_u64()));
                     }
                 }
                 entries.sort_unstable_by_key(|&(row, col, _)| (row, col));
@@ -932,12 +930,12 @@ enum CcsDigestLeaf<'a, Ff> {
         row_idx_len: usize,
         vals_len: usize,
     },
-    UsizeChunk {
+    IndexChunk {
         matrix: usize,
         segment: u64,
         chunk: usize,
         start: usize,
-        values: &'a [usize],
+        values: &'a [u32],
     },
     FieldChunk {
         matrix: usize,
@@ -1032,7 +1030,7 @@ fn digest_ccs_matrix_leaf<Ff: PrimeField64>(leaf: &CcsDigestLeaf<'_, Ff>) -> [Go
             absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, *row_idx_len as u64);
             absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, *vals_len as u64);
         }
-        CcsDigestLeaf::UsizeChunk {
+        CcsDigestLeaf::IndexChunk {
             matrix,
             segment,
             chunk,
@@ -1125,14 +1123,14 @@ fn digest_ccs_matrix_leaf<Ff: PrimeField64>(leaf: &CcsDigestLeaf<'_, Ff>) -> [Go
     [state[0], state[1], state[2], state[3]]
 }
 
-fn push_usize_digest_chunks<'a, Ff>(
+fn push_index_digest_chunks<'a, Ff>(
     leaves: &mut Vec<CcsDigestLeaf<'a, Ff>>,
     matrix: usize,
     segment: u64,
-    values: &'a [usize],
+    values: &'a [u32],
 ) {
     for (chunk, slice) in values.chunks(CCS_DIGEST_CHUNK_WORDS).enumerate() {
-        leaves.push(CcsDigestLeaf::UsizeChunk {
+        leaves.push(CcsDigestLeaf::IndexChunk {
             matrix,
             segment,
             chunk,
@@ -1212,8 +1210,8 @@ pub fn digest_ccs_matrices_with_sparse_cache<Ff: Field + PrimeField64 + Sync>(
                     row_idx_len: row_idx.len(),
                     vals_len: vals.len(),
                 });
-                push_usize_digest_chunks(&mut leaves, j, CCS_MATRIX_LEAF_COL_PTR, col_ptr);
-                push_usize_digest_chunks(&mut leaves, j, CCS_MATRIX_LEAF_ROW_IDX, row_idx);
+                push_index_digest_chunks(&mut leaves, j, CCS_MATRIX_LEAF_COL_PTR, col_ptr);
+                push_index_digest_chunks(&mut leaves, j, CCS_MATRIX_LEAF_ROW_IDX, row_idx);
                 push_field_digest_chunks(&mut leaves, j, vals);
             }
             CcsMatrix::CscWithSeededPhi81 {
@@ -1229,8 +1227,8 @@ pub fn digest_ccs_matrices_with_sparse_cache<Ff: Field + PrimeField64 + Sync>(
                     row_idx_len: csc.row_idx.len(),
                     vals_len: csc.vals.len(),
                 });
-                push_usize_digest_chunks(&mut leaves, j, CCS_MATRIX_LEAF_COL_PTR, &csc.col_ptr);
-                push_usize_digest_chunks(&mut leaves, j, CCS_MATRIX_LEAF_ROW_IDX, &csc.row_idx);
+                push_index_digest_chunks(&mut leaves, j, CCS_MATRIX_LEAF_COL_PTR, &csc.col_ptr);
+                push_index_digest_chunks(&mut leaves, j, CCS_MATRIX_LEAF_ROW_IDX, &csc.row_idx);
                 push_field_digest_chunks(&mut leaves, j, &csc.vals);
                 for (block, value) in blocks.iter().enumerate() {
                     leaves.push(CcsDigestLeaf::SeededPhi81 {

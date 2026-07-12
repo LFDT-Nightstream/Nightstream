@@ -152,8 +152,8 @@ fn matrix_triplets(matrix: &CcsMatrix<F>) -> Result<Vec<(usize, usize, F)>, Look
         CcsMatrix::Csc(csc) => {
             let mut out = Vec::with_capacity(csc.vals.len());
             for column in 0..csc.ncols {
-                for index in csc.col_ptr[column]..csc.col_ptr[column + 1] {
-                    out.push((csc.row_idx[index], column, csc.vals[index]));
+                for index in csc.column_range(column) {
+                    out.push((csc.row_index(index), column, csc.vals[index]));
                 }
             }
             Ok(out)

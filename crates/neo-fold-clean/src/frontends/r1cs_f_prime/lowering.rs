@@ -7,6 +7,10 @@
 //! relation: base rows are selected by `is_base`, recursive rows by its
 //! complement, and both branches share one public output prefix.
 
+mod support;
+
+use std::sync::Arc;
+
 use neo_ccs::{CcsMatrix, CcsStructure, CscMat, SparsePoly, Term};
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -23,6 +27,8 @@ use crate::frontends::r1cs_f_prime::SparseR1cs;
 use crate::paper::relations::Structure;
 
 use super::ternary_encoding::{write_balanced_ternary, BALANCED_TERNARY_FIELD_WIDTH};
+use support::{encoded_matrix_rows, eval_source_lc, first_unsatisfied_structure_row, is_structure_satisfied};
+pub(crate) use support::{normalized_field_assignment, normalized_source_column};
 
 /// Sparse relation and matching assignment produced from one synthesis.
 #[derive(Debug)]
@@ -110,15 +116,64 @@ pub struct FixedShapeLowNormR1cs {
 /// active, so bitness and centered-digit rows are gated to that arm.
 #[derive(Debug)]
 pub struct MultiBranchLowNormR1cs {
-    structure: Structure,
+    structure: Arc<Structure>,
     public_input_len: usize,
     selector_cols: Vec<usize>,
     public_field_count: usize,
-    arm_slots: Vec<Vec<Option<(usize, usize)>>>,
-    arm_aliases: Vec<Vec<Option<(usize, usize)>>>,
-    arm_equal_aliases: Vec<Vec<Option<usize>>>,
+    arm_slots: Vec<Vec<CompactSlot>>,
+    arm_aliases: Vec<Vec<CompactSlot>>,
+    arm_equal_aliases: Vec<Vec<CompactIndex>>,
     arm_centered_columns: Vec<Vec<bool>>,
     arm_derived_product_sums: Vec<Vec<DerivedProductSumEncoding>>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct CompactSlot {
+    start: u32,
+    len: u16,
+    _padding: u16,
+}
+
+impl CompactSlot {
+    const NONE: Self = Self {
+        start: u32::MAX,
+        len: 0,
+        _padding: 0,
+    };
+
+    fn from_option(slot: Option<(usize, usize)>) -> Self {
+        slot.map_or(Self::NONE, |(start, len)| Self {
+            start: u32::try_from(start).expect("low-norm slot start exceeds u32"),
+            len: u16::try_from(len).expect("low-norm slot length exceeds u16"),
+            _padding: 0,
+        })
+    }
+
+    #[inline]
+    fn get(self) -> Option<(usize, usize)> {
+        (self.start != u32::MAX).then_some((self.start as usize, self.len as usize))
+    }
+
+    #[inline]
+    fn is_none(self) -> bool {
+        self.start == u32::MAX
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct CompactIndex(u32);
+
+impl CompactIndex {
+    fn from_option(index: Option<usize>) -> Self {
+        Self(index.map_or(u32::MAX, |index| {
+            u32::try_from(index).expect("low-norm alias index exceeds u32")
+        }))
+    }
+
+    #[inline]
+    fn get(self) -> Option<usize> {
+        (self.0 != u32::MAX).then_some(self.0 as usize)
+    }
 }
 
 #[derive(Debug)]
@@ -140,8 +195,20 @@ impl MultiBranchLowNormR1cs {
         arm_centered_columns: Vec<Vec<bool>>,
         arm_derived_product_sums: Vec<Vec<DerivedProductSumEncoding>>,
     ) -> Self {
+        let arm_slots = arm_slots
+            .into_iter()
+            .map(|slots| slots.into_iter().map(CompactSlot::from_option).collect())
+            .collect();
+        let arm_aliases = arm_aliases
+            .into_iter()
+            .map(|slots| slots.into_iter().map(CompactSlot::from_option).collect())
+            .collect();
+        let arm_equal_aliases = arm_equal_aliases
+            .into_iter()
+            .map(|indices| indices.into_iter().map(CompactIndex::from_option).collect())
+            .collect();
         Self {
-            structure,
+            structure: Arc::new(structure),
             public_input_len,
             selector_cols,
             public_field_count,
@@ -154,7 +221,11 @@ impl MultiBranchLowNormR1cs {
     }
 
     pub fn structure(&self) -> &Structure {
-        &self.structure
+        self.structure.as_ref()
+    }
+
+    pub(crate) fn structure_arc(&self) -> Arc<Structure> {
+        Arc::clone(&self.structure)
     }
 
     pub fn public_input_len(&self) -> usize {
@@ -166,7 +237,7 @@ impl MultiBranchLowNormR1cs {
     }
 
     pub fn field_slot(&self, arm: usize, field_col: usize) -> Option<(usize, usize)> {
-        self.arm_slots.get(arm)?.get(field_col).copied().flatten()
+        self.arm_slots.get(arm)?.get(field_col).copied()?.get()
     }
 
     pub fn encode(&self, arm: usize, field_assignment: &[F]) -> Result<Vec<F>, LowNormR1csError> {
@@ -194,7 +265,7 @@ impl MultiBranchLowNormR1cs {
             if slots[col].is_none() {
                 continue;
             }
-            if let Some(source) = self.arm_equal_aliases[arm][col] {
+            if let Some(source) = self.arm_equal_aliases[arm][col].get() {
                 if field_assignment[col] != field_assignment[source] {
                     return Err(LowNormR1csError::AliasedFieldMismatch {
                         field_col: col,
@@ -205,8 +276,8 @@ impl MultiBranchLowNormR1cs {
             }
             write_encoded_value(
                 &mut assignment,
-                slots[col],
-                self.arm_aliases[arm][col],
+                slots[col].get(),
+                self.arm_aliases[arm][col].get(),
                 self.arm_centered_columns[arm][col],
                 field_assignment[col],
                 col,
@@ -216,7 +287,7 @@ impl MultiBranchLowNormR1cs {
             if slots[col].is_none() {
                 continue;
             }
-            if let Some(source) = self.arm_equal_aliases[arm][col] {
+            if let Some(source) = self.arm_equal_aliases[arm][col].get() {
                 if field_assignment[col] != field_assignment[source] {
                     return Err(LowNormR1csError::AliasedFieldMismatch {
                         field_col: col,
@@ -227,8 +298,8 @@ impl MultiBranchLowNormR1cs {
             }
             write_encoded_value(
                 &mut assignment,
-                slots[col],
-                self.arm_aliases[arm][col],
+                slots[col].get(),
+                self.arm_aliases[arm][col].get(),
                 self.arm_centered_columns[arm][col],
                 field_assignment[col],
                 col,
@@ -463,47 +534,6 @@ pub enum LowNormR1csError {
     BalancedTernaryOverflow { col: usize },
 }
 
-/// Normalize one live field-native synthesis to the same
-/// `[1 || public_outputs || private allocation order]` assignment used by
-/// [`lower_field_r1cs`], without rebuilding its sparse matrices. The
-/// authoritative F' relation was compiled from those deterministic matrices;
-/// per-step proving only needs the matching witness column order.
-pub(crate) fn normalized_field_assignment(
-    builder: &R1csBuilder,
-    public_outputs: &[Var],
-) -> Result<Vec<F>, FieldR1csLoweringError> {
-    normalized_field_assignment_with_columns(builder, public_outputs).map(|(assignment, _)| assignment)
-}
-
-pub(crate) fn normalized_field_assignment_with_columns(
-    builder: &R1csBuilder,
-    public_outputs: &[Var],
-) -> Result<(Vec<F>, Vec<usize>), FieldR1csLoweringError> {
-    let witness = builder.witness();
-    let cols = witness.len();
-    let mut selected = vec![false; cols];
-    selected[Var::ONE.col()] = true;
-    let mut old_columns = Vec::with_capacity(cols);
-    old_columns.push(Var::ONE.col());
-    for output in public_outputs {
-        let col = output.col();
-        if col == Var::ONE.col() {
-            return Err(FieldR1csLoweringError::ConstantOneIsImplicit);
-        }
-        if col >= cols {
-            return Err(FieldR1csLoweringError::PublicOutputOutOfRange { col, cols });
-        }
-        if selected[col] {
-            return Err(FieldR1csLoweringError::DuplicatePublicOutput { col });
-        }
-        selected[col] = true;
-        old_columns.push(col);
-    }
-    old_columns.extend((1..cols).filter(|&col| !selected[col]));
-    let assignment = old_columns.iter().map(|&col| witness[col]).collect();
-    Ok((assignment, old_columns))
-}
-
 /// Preserve one synthesized field-native relation while normalizing its
 /// public prefix to `[1 || public_outputs]`.
 ///
@@ -573,6 +603,11 @@ pub fn lower_field_r1cs(
         .iter()
         .map(|&old_col| old_to_new[old_col])
         .collect();
+    let boolean_constraint_rows = synthesis
+        .boolean_constraint_rows
+        .iter()
+        .map(|&(old_col, row)| (old_to_new[old_col], row))
+        .collect();
     let centered_unit_columns = synthesis
         .centered_unit_columns
         .iter()
@@ -590,6 +625,24 @@ pub fn lower_field_r1cs(
                 .map(|&old_col| old_to_new[old_col])
                 .collect(),
             value_col: old_to_new[trace.value_col],
+        })
+        .collect();
+    let shifted_ternary_canonical_traces = synthesis
+        .shifted_ternary_canonical_traces
+        .iter()
+        .map(|trace| {
+            let remap_contiguous = |old_start: usize, len: usize| {
+                let new_start = old_to_new[old_start];
+                assert!((0..len).all(|offset| old_to_new[old_start + offset] == new_start + offset));
+                new_start
+            };
+            crate::engine::r1cs_circuit::builder::ShiftedTernaryCanonicalTrace {
+                digit_columns_start: remap_contiguous(trace.digit_columns_start, BALANCED_TERNARY_FIELD_WIDTH),
+                negative_columns_start: remap_contiguous(trace.negative_columns_start, BALANCED_TERNARY_FIELD_WIDTH),
+                borrow_columns_start: remap_contiguous(trace.borrow_columns_start, BALANCED_TERNARY_FIELD_WIDTH - 1),
+                digit_rows_start: trace.digit_rows_start,
+                transition_rows_start: trace.transition_rows_start,
+            }
         })
         .collect();
     let equality_pairs = synthesis
@@ -717,8 +770,10 @@ pub fn lower_field_r1cs(
         canonical_u64_decompositions,
         balanced_ternary_decompositions,
         boolean_columns,
+        boolean_constraint_rows,
         centered_unit_columns,
         centered_unit_traces,
+        shifted_ternary_canonical_traces,
         equality_pairs,
         poseidon2_traces,
         polynomial_evaluation_traces,
@@ -1056,17 +1111,17 @@ fn build_multi_branch_low_norm_r1cs_aligned(
     cursor = branch_private_end;
 
     let structure = build_multi_branch_structure(arms, &arm_slots, &selector_cols, &zero_padding_cols, cursor);
-    Ok(MultiBranchLowNormR1cs {
+    Ok(MultiBranchLowNormR1cs::from_compiler_parts(
         structure,
         public_input_len,
         selector_cols,
         public_field_count,
         arm_slots,
         arm_aliases,
-        arm_equal_aliases: arms.iter().map(|arm| vec![None; arm.m]).collect(),
-        arm_centered_columns: arms.iter().map(|arm| vec![false; arm.m]).collect(),
-        arm_derived_product_sums: (0..arms.len()).map(|_| Vec::new()).collect(),
-    })
+        arms.iter().map(|arm| vec![None; arm.m]).collect(),
+        arms.iter().map(|arm| vec![false; arm.m]).collect(),
+        (0..arms.len()).map(|_| Vec::new()).collect(),
+    ))
 }
 
 fn build_multi_branch_structure(
@@ -1262,8 +1317,8 @@ fn append_encoded_matrix_triplets(
         }
         CcsMatrix::Csc(csc) => {
             for col in 0..csc.ncols.min(slots.len()) {
-                for index in csc.col_ptr[col]..csc.col_ptr[col + 1] {
-                    append(csc.row_idx[index], col, csc.vals[index]);
+                for index in csc.column_range(col) {
+                    append(csc.row_index(index), col, csc.vals[index]);
                 }
             }
         }
@@ -1273,8 +1328,8 @@ fn append_encoded_matrix_triplets(
             geometric_runs,
         } => {
             for col in 0..csc.ncols.min(slots.len()) {
-                for index in csc.col_ptr[col]..csc.col_ptr[col + 1] {
-                    append(csc.row_idx[index], col, csc.vals[index]);
+                for index in csc.column_range(col) {
+                    append(csc.row_index(index), col, csc.vals[index]);
                 }
             }
             for block in blocks {
@@ -1381,96 +1436,4 @@ fn write_encoded_value(
         assignment[start + bit] = F::from_u64((value >> bit) & 1);
     }
     Ok(())
-}
-
-fn eval_source_lc(lc: &Lc, assignment: &[F]) -> F {
-    lc.terms
-        .iter()
-        .fold(lc.constant, |sum, &(column, coefficient)| {
-            sum + coefficient * assignment[column]
-        })
-}
-
-fn encoded_matrix_rows(matrix: &CcsMatrix<F>, slots: &[Option<(usize, usize)>], rows: usize) -> Vec<Vec<(usize, F)>> {
-    let mut out = vec![Vec::new(); rows];
-    match matrix {
-        CcsMatrix::Identity { n } => {
-            for row in 0..(*n).min(rows).min(slots.len()) {
-                extend_encoded_terms(&mut out[row], row, F::ONE, slots);
-            }
-        }
-        CcsMatrix::Csc(csc) => {
-            for col in 0..csc.ncols.min(slots.len()) {
-                for idx in csc.col_ptr[col]..csc.col_ptr[col + 1] {
-                    let row = csc.row_idx[idx];
-                    if row < rows {
-                        extend_encoded_terms(&mut out[row], col, csc.vals[idx], slots);
-                    }
-                }
-            }
-        }
-        CcsMatrix::CscWithSeededPhi81 {
-            csc,
-            blocks,
-            geometric_runs,
-        } => {
-            for col in 0..csc.ncols.min(slots.len()) {
-                for idx in csc.col_ptr[col]..csc.col_ptr[col + 1] {
-                    let row = csc.row_idx[idx];
-                    if row < rows {
-                        extend_encoded_terms(&mut out[row], col, csc.vals[idx], slots);
-                    }
-                }
-            }
-            for block in blocks {
-                block.for_each_term::<F, _>(|row, col, coefficient| {
-                    if row < rows {
-                        extend_encoded_terms(&mut out[row], col, coefficient, slots);
-                    }
-                });
-            }
-            for run in geometric_runs {
-                run.for_each_term(|row, col, coefficient| {
-                    if row < rows {
-                        extend_encoded_terms(&mut out[row], col, coefficient, slots);
-                    }
-                });
-            }
-        }
-    }
-    out
-}
-
-fn extend_encoded_terms(out: &mut Vec<(usize, F)>, field_col: usize, coefficient: F, slots: &[Option<(usize, usize)>]) {
-    if coefficient == F::ZERO {
-        return;
-    }
-    if field_col == 0 {
-        out.push((0, coefficient));
-        return;
-    }
-    let (start, width) = slots[field_col].expect("every non-constant R1CS column has a bit slot");
-    let mut power = coefficient;
-    for bit in 0..width {
-        out.push((start + bit, power));
-        power += power;
-    }
-}
-
-fn is_structure_satisfied(structure: &Structure, assignment: &[F]) -> bool {
-    first_unsatisfied_structure_row(structure, assignment).is_none()
-}
-
-fn first_unsatisfied_structure_row(structure: &Structure, assignment: &[F]) -> Option<usize> {
-    if assignment.len() != structure.m {
-        return Some(structure.n);
-    }
-    let mut matrix_z = vec![vec![F::ZERO; structure.n]; structure.matrices.len()];
-    for (matrix, values) in structure.matrices.iter().zip(matrix_z.iter_mut()) {
-        matrix.add_mul_into(assignment, values, structure.n);
-    }
-    (0..structure.n).find(|&row| {
-        let point: Vec<F> = matrix_z.iter().map(|values| values[row]).collect();
-        structure.f.eval(&point) != F::ZERO
-    })
 }

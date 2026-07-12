@@ -2,13 +2,13 @@
 
 use neo_ccs::{SparsePoly, Term};
 use neo_math::{D, F};
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{Field, PrimeCharacteristicRing};
 
 use super::super::lowering::{DerivedProductSumEncoding, LowNormR1csError};
 use super::{
     prepare_selective_layout, skipped_selective_rows, trace_error, SelectiveArmPlan, SelectiveLowNormWidthAudit,
-    SparseR1cs, A, B, BALANCED_FIELD_WIDTH, BIT, C, CENTERED_UNIT, EVAL_GROUP_SIZE, EVAL_PAIRS, EVAL_SELECTOR,
-    GENERAL_SELECTOR, SBOX_INPUT, SELECTIVE_ARITY,
+    SparseR1cs, A, B, BALANCED_FIELD_WIDTH, BIT, C, CANON_BORROW, CANON_BOUND_DIGIT, CANON_DIGIT, CANON_NEXT_BORROW,
+    CENTERED_UNIT, EVAL_GROUP_SIZE, EVAL_PAIRS, EVAL_SELECTOR, GENERAL_SELECTOR, SBOX_INPUT, SELECTIVE_ARITY,
 };
 
 pub(crate) struct SelectiveLowNormShape {
@@ -81,7 +81,8 @@ pub(super) fn count_structure_rows(
             continue;
         }
         if let Some((_, width)) = slots[0][source] {
-            if !plans[0].centered[source] && width != BALANCED_FIELD_WIDTH {
+            let source_proves_boolean = plans.iter().all(|plan| plan.source_boolean_rows[source]);
+            if !source_proves_boolean && !plans[0].centered[source] && width != BALANCED_FIELD_WIDTH {
                 rows += width;
             }
         }
@@ -92,7 +93,10 @@ pub(super) fn count_structure_rows(
                 continue;
             }
             if let Some((_, width)) = slots[arm_index][source] {
-                if !plans[arm_index].centered[source] && width != BALANCED_FIELD_WIDTH {
+                if !plans[arm_index].source_boolean_rows[source]
+                    && !plans[arm_index].centered[source]
+                    && width != BALANCED_FIELD_WIDTH
+                {
                     rows += width;
                 }
             }
@@ -128,6 +132,7 @@ pub(super) fn count_structure_rows(
             .iter()
             .filter(|trace| plans[arm_index].widths[trace.value_col] == 0)
             .count();
+        rows += 2 * BALANCED_FIELD_WIDTH * arm.shifted_ternary_canonical_traces().len();
 
         let mut derived_count = 0usize;
         for trace in arm.polynomial_evaluation_traces() {
@@ -179,6 +184,40 @@ pub(super) fn selective_polynomial() -> SparsePoly<F> {
     ];
     for &(left, right) in &EVAL_PAIRS {
         terms.push(term(F::ONE, &[(EVAL_SELECTOR, 1), (left, 1), (right, 1)]));
+    }
+
+    // Exact shifted-base-3 transition over
+    // d,h in {-1,0,1}, b in {0,1}:
+    //
+    //   b' = [d + 1 + b > h + 1].
+    //
+    // This is the Lagrange interpolation of the 18-point transition table.
+    // GENERAL_SELECTOR isolates these rows from the evaluation ports reused
+    // below. Its degree is six, within the existing degree-eight relation.
+    let half = F::from_u64(2).inverse();
+    let quarter = half * half;
+    let transition = [
+        (half, vec![(CANON_BOUND_DIGIT, 1)]),
+        (F::ONE, vec![(CANON_NEXT_BORROW, 1)]),
+        (-F::ONE, vec![(CANON_BORROW, 1)]),
+        (-half, vec![(CANON_DIGIT, 1)]),
+        (-half, vec![(CANON_BOUND_DIGIT, 2)]),
+        (quarter, vec![(CANON_DIGIT, 1), (CANON_BOUND_DIGIT, 1)]),
+        (-half, vec![(CANON_DIGIT, 2)]),
+        (F::ONE, vec![(CANON_BORROW, 1), (CANON_BOUND_DIGIT, 2)]),
+        (quarter, vec![(CANON_DIGIT, 1), (CANON_BOUND_DIGIT, 2)]),
+        (-half, vec![(CANON_DIGIT, 1), (CANON_BORROW, 1), (CANON_BOUND_DIGIT, 1)]),
+        (-quarter, vec![(CANON_DIGIT, 2), (CANON_BOUND_DIGIT, 1)]),
+        (F::ONE, vec![(CANON_DIGIT, 2), (CANON_BORROW, 1)]),
+        (F::from_u64(3) * quarter, vec![(CANON_DIGIT, 2), (CANON_BOUND_DIGIT, 2)]),
+        (
+            -F::from_u64(3) * half,
+            vec![(CANON_DIGIT, 2), (CANON_BORROW, 1), (CANON_BOUND_DIGIT, 2)],
+        ),
+    ];
+    for (coefficient, mut powers) in transition {
+        powers.push((GENERAL_SELECTOR, 1));
+        terms.push(term(coefficient, &powers));
     }
     SparsePoly::new(SELECTIVE_ARITY, terms)
 }

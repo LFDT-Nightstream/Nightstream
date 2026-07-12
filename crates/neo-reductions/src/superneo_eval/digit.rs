@@ -9,6 +9,13 @@ pub(super) fn mul_by_digit_block(form: &Rq, digits: &Rq) -> Rq {
 }
 
 #[inline]
+pub(super) fn mul_by_signed_unit_masks(form: &Rq, positive: u64, negative: u64) -> Rq {
+    let mut out = Rq::zero();
+    accumulate_by_signed_unit_masks(&mut out.0, form, positive, negative);
+    out
+}
+
+#[inline]
 pub(super) fn accumulate_by_digit_block(out: &mut [F; D], form: &Rq, digits: &Rq) {
     let neg_one = F::ZERO - F::ONE;
     for (idx, &digit) in digits.0.iter().enumerate() {
@@ -24,6 +31,22 @@ pub(super) fn accumulate_by_digit_block(out: &mut [F; D], form: &Rq, digits: &Rq
             accumulate_product(out, &form.mul(digits));
             return;
         }
+    }
+}
+
+#[inline]
+pub(super) fn accumulate_by_signed_unit_masks(out: &mut [F; D], form: &Rq, mut positive: u64, mut negative: u64) {
+    debug_assert_eq!((positive | negative) >> D, 0, "signed-unit mask exceeds ring dimension");
+    debug_assert_eq!(positive & negative, 0, "signed-unit masks overlap");
+    while positive != 0 {
+        let index = positive.trailing_zeros() as usize;
+        add_monomial_in_place(out, form, index);
+        positive &= positive - 1;
+    }
+    while negative != 0 {
+        let index = negative.trailing_zeros() as usize;
+        sub_monomial_in_place(out, form, index);
+        negative &= negative - 1;
     }
 }
 
@@ -50,6 +73,29 @@ pub(super) fn accumulate_pair_by_digit_block(
             accumulate_product(out_b, &form_b.mul(digits));
             return;
         }
+    }
+}
+
+#[inline]
+pub(super) fn accumulate_pair_by_signed_unit_masks(
+    out_a: &mut [F; D],
+    out_b: &mut [F; D],
+    form_a: &Rq,
+    form_b: &Rq,
+    mut positive: u64,
+    mut negative: u64,
+) {
+    debug_assert_eq!((positive | negative) >> D, 0, "signed-unit mask exceeds ring dimension");
+    debug_assert_eq!(positive & negative, 0, "signed-unit masks overlap");
+    while positive != 0 {
+        let index = positive.trailing_zeros() as usize;
+        apply_monomial_pair_in_place::<false>(out_a, out_b, form_a, form_b, index);
+        positive &= positive - 1;
+    }
+    while negative != 0 {
+        let index = negative.trailing_zeros() as usize;
+        apply_monomial_pair_in_place::<true>(out_a, out_b, form_a, form_b, index);
+        negative &= negative - 1;
     }
 }
 

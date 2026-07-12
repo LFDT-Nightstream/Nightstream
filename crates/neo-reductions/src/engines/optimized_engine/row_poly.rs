@@ -1,11 +1,72 @@
-use neo_math::{Fq, K};
+use neo_math::{Fq, KExtensions, K};
 use p3_field::PrimeCharacteristicRing;
+
+pub(super) struct RowTable {
+    real: Vec<Fq>,
+    imag: Option<Vec<Fq>>,
+}
+
+impl RowTable {
+    pub(super) fn from_base(real: Vec<Fq>) -> Self {
+        Self { real, imag: None }
+    }
+
+    #[inline]
+    pub(super) fn get(&self, index: usize) -> K {
+        K::from_coeffs([
+            self.real[index],
+            self.imag.as_ref().map_or(Fq::ZERO, |imag| imag[index]),
+        ])
+    }
+
+    #[inline]
+    pub(super) fn real(&self, index: usize) -> Fq {
+        self.real[index]
+    }
+
+    pub(super) fn fold_inplace(&mut self, challenge: K) {
+        debug_assert!(self.real.len() >= 2 && self.real.len().is_multiple_of(2));
+        let half = self.real.len() / 2;
+        if let Some(imag) = self.imag.as_mut() {
+            for index in 0..half {
+                let low = K::from_coeffs([self.real[2 * index], imag[2 * index]]);
+                let high = K::from_coeffs([self.real[2 * index + 1], imag[2 * index + 1]]);
+                let folded = low + (high - low) * challenge;
+                [self.real[index], imag[index]] = folded.as_coeffs();
+            }
+            self.real.truncate(half);
+            imag.truncate(half);
+            return;
+        }
+
+        let [challenge_real, challenge_imag] = challenge.as_coeffs();
+        if challenge_imag == Fq::ZERO {
+            for index in 0..half {
+                let low = self.real[2 * index];
+                let high = self.real[2 * index + 1];
+                self.real[index] = low + (high - low) * challenge_real;
+            }
+            self.real.truncate(half);
+            return;
+        }
+
+        let mut folded_imag = vec![Fq::ZERO; half];
+        for index in 0..half {
+            let low = self.real[2 * index];
+            let delta = self.real[2 * index + 1] - low;
+            self.real[index] = low + delta * challenge_real;
+            folded_imag[index] = delta * challenge_imag;
+        }
+        self.real.truncate(half);
+        self.imag = Some(folded_imag);
+    }
+}
 
 #[derive(Clone, Debug)]
 pub(super) struct CompiledPolyTerm {
     pub coeff: K,
     /// (var_pos, exponent), where `var_pos` indexes the inner
-    /// `Vec<Vec<K>>` of each row-stream MCS entry.
+    /// `RowTable` list of each row-stream MCS entry.
     pub vars: Vec<(usize, u32)>,
     pub kind: CompiledPolyTermKind,
 }
@@ -145,7 +206,7 @@ pub(super) fn factor_common_linear_terms(terms: &[CompiledPolyTerm]) -> (Vec<Com
 
 pub(super) fn accumulate_factored_groups_times_affine_base(
     groups: &[CompiledPolyGroup],
-    per_mcs_tables: &[Vec<K>],
+    per_mcs_tables: &[RowTable],
     idx: usize,
     deg_max: usize,
     outer_a: Fq,
@@ -156,8 +217,8 @@ pub(super) fn accumulate_factored_groups_times_affine_base(
 ) {
     for group in groups {
         let selector = &per_mcs_tables[group.selector];
-        let selector_a = selector[idx].real();
-        let selector_b = selector[idx + 1].real() - selector_a;
+        let selector_a = selector.real(idx);
+        let selector_b = selector.real(idx + 1) - selector_a;
         if selector_a == Fq::ZERO && selector_b == Fq::ZERO {
             continue;
         }
@@ -192,7 +253,7 @@ pub(super) fn accumulate_factored_groups_times_affine_base(
 
 pub(super) fn accumulate_factored_groups_times_affine(
     groups: &[CompiledPolyGroup],
-    per_mcs_tables: &[Vec<K>],
+    per_mcs_tables: &[RowTable],
     idx: usize,
     deg_max: usize,
     outer_a: K,
@@ -203,8 +264,8 @@ pub(super) fn accumulate_factored_groups_times_affine(
 ) {
     for group in groups {
         let selector = &per_mcs_tables[group.selector];
-        let selector_a = selector[idx];
-        let selector_b = selector[idx + 1] - selector_a;
+        let selector_a = selector.get(idx);
+        let selector_b = selector.get(idx + 1) - selector_a;
         if selector_a == K::ZERO && selector_b == K::ZERO {
             continue;
         }
@@ -232,7 +293,7 @@ pub(super) fn accumulate_factored_groups_times_affine(
 
 pub(super) fn accumulate_fast_term_base(
     kind: &CompiledPolyTermKind,
-    per_mcs_tables: &[Vec<K>],
+    per_mcs_tables: &[RowTable],
     idx: usize,
     deg_max: usize,
     inner: &mut [Fq],
@@ -245,8 +306,8 @@ pub(super) fn accumulate_fast_term_base(
         }
         CompiledPolyTermKind::Linear { var } => {
             let tbl = &per_mcs_tables[var];
-            let a = tbl[idx].real();
-            let b = tbl[idx + 1].real() - a;
+            let a = tbl.real(idx);
+            let b = tbl.real(idx + 1) - a;
             if a == Fq::ZERO && b == Fq::ZERO {
                 return true;
             }
@@ -258,8 +319,8 @@ pub(super) fn accumulate_fast_term_base(
         }
         CompiledPolyTermKind::Power { var, exp } => {
             let tbl = &per_mcs_tables[var];
-            let a = tbl[idx].real();
-            let b = tbl[idx + 1].real() - a;
+            let a = tbl.real(idx);
+            let b = tbl.real(idx + 1) - a;
             if a == Fq::ZERO && b == Fq::ZERO {
                 return true;
             }
@@ -269,10 +330,10 @@ pub(super) fn accumulate_fast_term_base(
         CompiledPolyTermKind::Product2 { left, right } => {
             let left_tbl = &per_mcs_tables[left];
             let right_tbl = &per_mcs_tables[right];
-            let a0 = left_tbl[idx].real();
-            let b0 = left_tbl[idx + 1].real() - a0;
-            let a1 = right_tbl[idx].real();
-            let b1 = right_tbl[idx + 1].real() - a1;
+            let a0 = left_tbl.real(idx);
+            let b0 = left_tbl.real(idx + 1) - a0;
+            let a1 = right_tbl.real(idx);
+            let b1 = right_tbl.real(idx + 1) - a1;
             if (a0 == Fq::ZERO && b0 == Fq::ZERO) || (a1 == Fq::ZERO && b1 == Fq::ZERO) {
                 return true;
             }
@@ -288,10 +349,10 @@ pub(super) fn accumulate_fast_term_base(
         CompiledPolyTermKind::ScaledPower { linear, powered, exp } => {
             let linear_tbl = &per_mcs_tables[linear];
             let powered_tbl = &per_mcs_tables[powered];
-            let linear_a = linear_tbl[idx].real();
-            let linear_b = linear_tbl[idx + 1].real() - linear_a;
-            let powered_a = powered_tbl[idx].real();
-            let powered_b = powered_tbl[idx + 1].real() - powered_a;
+            let linear_a = linear_tbl.real(idx);
+            let linear_b = linear_tbl.real(idx + 1) - linear_a;
+            let powered_a = powered_tbl.real(idx);
+            let powered_b = powered_tbl.real(idx + 1) - powered_a;
             if (linear_a == Fq::ZERO && linear_b == Fq::ZERO) || (powered_a == Fq::ZERO && powered_b == Fq::ZERO) {
                 return true;
             }
@@ -311,12 +372,12 @@ pub(super) fn accumulate_fast_term_base(
             let first_tbl = &per_mcs_tables[first];
             let second_tbl = &per_mcs_tables[second];
             let third_tbl = &per_mcs_tables[third];
-            let a0 = first_tbl[idx].real();
-            let b0 = first_tbl[idx + 1].real() - a0;
-            let a1 = second_tbl[idx].real();
-            let b1 = second_tbl[idx + 1].real() - a1;
-            let a2 = third_tbl[idx].real();
-            let b2 = third_tbl[idx + 1].real() - a2;
+            let a0 = first_tbl.real(idx);
+            let b0 = first_tbl.real(idx + 1) - a0;
+            let a1 = second_tbl.real(idx);
+            let b1 = second_tbl.real(idx + 1) - a1;
+            let a2 = third_tbl.real(idx);
+            let b2 = third_tbl.real(idx + 1) - a2;
             accumulate_affine_product3_base(inner, coeff, [a0, a1, a2], [b0, b1, b2], deg_max);
             true
         }
@@ -326,7 +387,7 @@ pub(super) fn accumulate_fast_term_base(
 
 pub(super) fn accumulate_fast_term(
     kind: &CompiledPolyTermKind,
-    per_mcs_tables: &[Vec<K>],
+    per_mcs_tables: &[RowTable],
     idx: usize,
     deg_max: usize,
     inner: &mut [K],
@@ -339,8 +400,8 @@ pub(super) fn accumulate_fast_term(
         }
         CompiledPolyTermKind::Linear { var } => {
             let tbl = &per_mcs_tables[var];
-            let a = tbl[idx];
-            let b = tbl[idx + 1] - a;
+            let a = tbl.get(idx);
+            let b = tbl.get(idx + 1) - a;
             if a == K::ZERO && b == K::ZERO {
                 return true;
             }
@@ -352,8 +413,8 @@ pub(super) fn accumulate_fast_term(
         }
         CompiledPolyTermKind::Power { var, exp } => {
             let tbl = &per_mcs_tables[var];
-            let a = tbl[idx];
-            let b = tbl[idx + 1] - a;
+            let a = tbl.get(idx);
+            let b = tbl.get(idx + 1) - a;
             if a == K::ZERO && b == K::ZERO {
                 return true;
             }
@@ -363,10 +424,10 @@ pub(super) fn accumulate_fast_term(
         CompiledPolyTermKind::Product2 { left, right } => {
             let left_tbl = &per_mcs_tables[left];
             let right_tbl = &per_mcs_tables[right];
-            let a0 = left_tbl[idx];
-            let b0 = left_tbl[idx + 1] - a0;
-            let a1 = right_tbl[idx];
-            let b1 = right_tbl[idx + 1] - a1;
+            let a0 = left_tbl.get(idx);
+            let b0 = left_tbl.get(idx + 1) - a0;
+            let a1 = right_tbl.get(idx);
+            let b1 = right_tbl.get(idx + 1) - a1;
             if (a0 == K::ZERO && b0 == K::ZERO) || (a1 == K::ZERO && b1 == K::ZERO) {
                 return true;
             }
@@ -382,10 +443,10 @@ pub(super) fn accumulate_fast_term(
         CompiledPolyTermKind::ScaledPower { linear, powered, exp } => {
             let linear_tbl = &per_mcs_tables[linear];
             let powered_tbl = &per_mcs_tables[powered];
-            let linear_a = linear_tbl[idx];
-            let linear_b = linear_tbl[idx + 1] - linear_a;
-            let powered_a = powered_tbl[idx];
-            let powered_b = powered_tbl[idx + 1] - powered_a;
+            let linear_a = linear_tbl.get(idx);
+            let linear_b = linear_tbl.get(idx + 1) - linear_a;
+            let powered_a = powered_tbl.get(idx);
+            let powered_b = powered_tbl.get(idx + 1) - powered_a;
             if (linear_a == K::ZERO && linear_b == K::ZERO) || (powered_a == K::ZERO && powered_b == K::ZERO) {
                 return true;
             }
@@ -405,12 +466,12 @@ pub(super) fn accumulate_fast_term(
             let first_tbl = &per_mcs_tables[first];
             let second_tbl = &per_mcs_tables[second];
             let third_tbl = &per_mcs_tables[third];
-            let a0 = first_tbl[idx];
-            let b0 = first_tbl[idx + 1] - a0;
-            let a1 = second_tbl[idx];
-            let b1 = second_tbl[idx + 1] - a1;
-            let a2 = third_tbl[idx];
-            let b2 = third_tbl[idx + 1] - a2;
+            let a0 = first_tbl.get(idx);
+            let b0 = first_tbl.get(idx + 1) - a0;
+            let a1 = second_tbl.get(idx);
+            let b1 = second_tbl.get(idx + 1) - a1;
+            let a2 = third_tbl.get(idx);
+            let b2 = third_tbl.get(idx + 1) - a2;
             accumulate_affine_product3(inner, coeff, [a0, a1, a2], [b0, b1, b2], deg_max);
             true
         }

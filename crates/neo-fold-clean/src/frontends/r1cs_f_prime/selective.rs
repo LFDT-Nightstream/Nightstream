@@ -6,7 +6,7 @@
 
 use std::collections::HashMap;
 
-use neo_ccs::{CcsMatrix, CcsStructure, CscMat, GeometricRowRun};
+use neo_ccs::{CcsMatrix, CcsStructure, CscMat};
 use neo_math::{D, F};
 use p3_field::{Field, PrimeCharacteristicRing};
 
@@ -21,10 +21,18 @@ use crate::engine::r1cs_circuit::builder::{
 use crate::engine::r1cs_circuit::Lc;
 use crate::paper::relations::Structure;
 
+#[path = "selective_canonical.rs"]
+mod canonical;
+#[path = "selective_emit.rs"]
+mod emit;
+#[path = "selective_rows.rs"]
+mod rows;
 #[path = "selective_shape.rs"]
 mod shape;
 #[path = "selective_terms.rs"]
 mod terms;
+use emit::{append_field, append_lc, append_lc_scaled, append_slot, lc_from_column, trace_error};
+use rows::skipped_selective_rows;
 pub(crate) use shape::{
     audit_multi_branch_selective_low_norm_shape_with_alignment,
     audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix, SelectiveLowNormShape,
@@ -43,6 +51,13 @@ const C: usize = 4;
 const SBOX_INPUT: usize = 5;
 const CENTERED_UNIT: usize = 6;
 const EVAL_SELECTOR: usize = 7;
+// These ports are shared with the last three evaluation pairs. Canonical
+// rows set GENERAL_SELECTOR and leave EVAL_SELECTOR zero; evaluation rows do
+// the converse, so the two direct row families remain disjoint.
+const CANON_DIGIT: usize = 8;
+const CANON_BORROW: usize = 9;
+const CANON_NEXT_BORROW: usize = 10;
+const CANON_BOUND_DIGIT: usize = 11;
 const EVAL_PAIRS: [(usize, usize); EVAL_GROUP_SIZE] =
     [(BIT, A), (B, SBOX_INPUT), (CENTERED_UNIT, 8), (9, 10), (11, 12)];
 const SELECTIVE_ARITY: usize = 13;
@@ -63,6 +78,7 @@ struct SelectiveLayout {
 struct SelectiveArmPlan {
     widths: Vec<usize>,
     centered: Vec<bool>,
+    source_boolean_rows: Vec<bool>,
     equality_roots: Vec<usize>,
     definitions: LinearDefinitions,
 }
@@ -463,6 +479,23 @@ fn selective_arm_plan(
         }
         eliminated[trace.value_col] = false;
     }
+    for trace in arm.shifted_ternary_canonical_traces() {
+        let digit_end = trace.digit_columns_start + BALANCED_FIELD_WIDTH;
+        let negative_end = trace.negative_columns_start + BALANCED_FIELD_WIDTH;
+        let borrow_end = trace.borrow_columns_start + BALANCED_FIELD_WIDTH - 1;
+        if digit_end > arm.m || negative_end > arm.m || borrow_end > arm.m {
+            return Err(trace_error("shifted-ternary trace columns exceed the source arm"));
+        }
+        for column in trace.negative_columns_start..negative_end {
+            eliminated[column] = true;
+        }
+        for column in trace.digit_columns_start..digit_end {
+            eliminated[column] = false;
+        }
+        for column in trace.borrow_columns_start..borrow_end {
+            eliminated[column] = false;
+        }
+    }
     for col in 1..arm.m {
         if eliminated[col] {
             widths[col] = 0;
@@ -523,9 +556,22 @@ fn selective_arm_plan(
     widths[arm.m_in..shared_bit_end].fill(1);
     centered[..shared_bit_end].fill(false);
     let equality_roots = propagate_low_norm_equalities(arm, &mut widths, &mut centered, shared_bit_end)?;
+    let mut removed_rows = skipped_selective_rows(arm)?;
+    for definition in &definitions.entries {
+        if let Some(row) = definition.row {
+            removed_rows[row] = true;
+        }
+    }
+    let mut source_boolean_rows = vec![false; arm.m];
+    for &(column, row) in arm.boolean_constraint_rows() {
+        if column < arm.m && row < arm.n && !removed_rows[row] {
+            source_boolean_rows[column] = true;
+        }
+    }
     Ok(SelectiveArmPlan {
         widths,
         centered,
+        source_boolean_rows,
         equality_roots,
         definitions,
     })
@@ -672,8 +718,8 @@ fn find_linear_definitions(
 fn for_each_explicit_term(matrix: &CcsMatrix<F>, mut visit: impl FnMut(usize, usize, F)) {
     let mut visit_csc = |csc: &CscMat<F>| {
         for column in 0..csc.ncols {
-            for index in csc.col_ptr[column]..csc.col_ptr[column + 1] {
-                visit(csc.row_idx[index], column, csc.vals[index]);
+            for index in csc.column_range(column) {
+                visit(csc.row_index(index), column, csc.vals[index]);
             }
         }
     };
@@ -979,6 +1025,10 @@ fn build_structure(
                 continue;
             }
             if let Some((start, width)) = slots[0][source] {
+                let source_proves_boolean = plans.iter().all(|plan| plan.source_boolean_rows[source]);
+                if source_proves_boolean {
+                    continue;
+                }
                 for column in start..start + width {
                     emit_digit(None, column, plans[0].centered[source] || width == BALANCED_FIELD_WIDTH);
                 }
@@ -990,6 +1040,9 @@ fn build_structure(
                     continue;
                 }
                 if let Some((start, width)) = slots[arm_index][source] {
+                    if plans[arm_index].source_boolean_rows[source] {
+                        continue;
+                    }
                     for column in start..start + width {
                         emit_digit(
                             Some(selectors[arm_index]),
@@ -1099,6 +1152,14 @@ fn build_structure(
             )?;
             row_cursor += 1;
         }
+        canonical::emit_shifted_ternary_rows(
+            arm,
+            &slots[arm_index],
+            definitions,
+            selectors[arm_index],
+            &mut matrix_terms,
+            &mut row_cursor,
+        )?;
         let mut derived_cursor = 0usize;
         for trace in arm.polynomial_evaluation_traces() {
             for limb in 0..2 {
@@ -1302,39 +1363,6 @@ fn build_structure(
     CcsStructure::new_sparse(matrices, selective_polynomial()).map_err(|error| trace_error(&error.to_string()))
 }
 
-fn skipped_selective_rows(arm: &SparseR1cs) -> Result<Vec<bool>, LowNormR1csError> {
-    let mut skipped = vec![false; arm.n];
-    for trace in arm.poseidon2_traces() {
-        for row in trace.row_start..trace.row_end {
-            if core::mem::replace(&mut skipped[row], true) {
-                return Err(trace_error("Poseidon2 traces overlap"));
-            }
-        }
-    }
-    for trace in arm.polynomial_evaluation_traces() {
-        for row in trace.row_start..trace.row_end {
-            if core::mem::replace(&mut skipped[row], true) {
-                return Err(trace_error("selective trace row ranges overlap"));
-            }
-        }
-    }
-    for trace in arm.product_sum_batch_traces() {
-        for row in trace.row_start..trace.row_end {
-            if core::mem::replace(&mut skipped[row], true) {
-                return Err(trace_error("product-sum trace overlaps another selective trace"));
-            }
-        }
-    }
-    for trace in arm.centered_unit_traces() {
-        for row in trace.row_start..trace.row_end {
-            if core::mem::replace(&mut skipped[row], true) {
-                return Err(trace_error("centered-unit trace overlaps another selective trace"));
-            }
-        }
-    }
-    Ok(skipped)
-}
-
 fn append_source_matrix(
     terms: &mut MatrixTerms,
     matrix: &CcsMatrix<F>,
@@ -1344,8 +1372,8 @@ fn append_source_matrix(
 ) -> Result<(), LowNormR1csError> {
     let mut append_csc = |csc: &CscMat<F>| -> Result<(), LowNormR1csError> {
         for field_col in 0..csc.ncols.min(slots.len()) {
-            for index in csc.col_ptr[field_col]..csc.col_ptr[field_col + 1] {
-                if let Some(target_row) = row_map[csc.row_idx[index]] {
+            for index in csc.column_range(field_col) {
+                if let Some(target_row) = row_map[csc.row_index(index)] {
                     append_field(terms, target_row, field_col, csc.vals[index], slots, definitions)?;
                 }
             }
@@ -1394,97 +1422,4 @@ fn append_source_matrix(
         }
     }
     Ok(())
-}
-
-fn append_lc(
-    terms: &mut MatrixTerms,
-    row: usize,
-    lc: &Lc,
-    slots: &[Option<(usize, usize)>],
-    definitions: &LinearDefinitions,
-) -> Result<(), LowNormR1csError> {
-    append_lc_scaled(terms, row, lc, F::ONE, slots, definitions)
-}
-
-fn append_lc_scaled(
-    terms: &mut MatrixTerms,
-    row: usize,
-    lc: &Lc,
-    scale: F,
-    slots: &[Option<(usize, usize)>],
-    definitions: &LinearDefinitions,
-) -> Result<(), LowNormR1csError> {
-    if lc.constant != F::ZERO {
-        terms.push((row, 0, lc.constant * scale));
-    }
-    for &(field_col, coefficient) in &lc.terms {
-        append_field(terms, row, field_col, coefficient * scale, slots, definitions)?;
-    }
-    Ok(())
-}
-
-fn append_field(
-    terms: &mut MatrixTerms,
-    row: usize,
-    field_col: usize,
-    coefficient: F,
-    slots: &[Option<(usize, usize)>],
-    definitions: &LinearDefinitions,
-) -> Result<(), LowNormR1csError> {
-    if coefficient == F::ZERO {
-        return Ok(());
-    }
-    let mut stack = vec![(field_col, coefficient)];
-    while let Some((column, scale)) = stack.pop() {
-        if column == 0 {
-            terms.push((row, 0, scale));
-            continue;
-        }
-        if let Some(rhs) = definitions.get(column) {
-            if rhs.constant != F::ZERO {
-                terms.push((row, 0, rhs.constant * scale));
-            }
-            stack.extend(
-                rhs.terms
-                    .iter()
-                    .map(|&(rhs_column, rhs_coefficient)| (rhs_column, rhs_coefficient * scale)),
-            );
-            continue;
-        }
-        let (start, width) =
-            slots[column].ok_or_else(|| trace_error("retained row references an unencoded selective temporary"))?;
-        append_slot(terms, row, (start, width), scale);
-    }
-    Ok(())
-}
-
-fn append_slot(terms: &mut MatrixTerms, row: usize, slot: (usize, usize), coefficient: F) {
-    let (start, width) = slot;
-    let radix = if width == BALANCED_FIELD_WIDTH {
-        F::from_u64(3)
-    } else {
-        F::from_u64(2)
-    };
-    if width > 1 {
-        terms
-            .geometric_runs
-            .push(GeometricRowRun::new(row, start, width, coefficient, radix));
-        return;
-    }
-    let mut power = coefficient;
-    for bit in 0..width {
-        terms.push((row, start + bit, power));
-        power *= radix;
-    }
-}
-
-fn lc_from_column(column: usize) -> Lc {
-    Lc {
-        terms: vec![(column, F::ONE)],
-        constant: F::ZERO,
-    }
-}
-
-fn trace_error(message: &str) -> LowNormR1csError {
-    LowNormR1csError::SelectiveTrace(message.to_owned())
 }

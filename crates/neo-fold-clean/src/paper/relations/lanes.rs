@@ -213,9 +213,16 @@ fn pack_lane_bits(bits: &[F], cols: usize) -> Result<Mat<F>, LaneSchemeError> {
 /// slice is exactly the sub-message the lane matrix commits.
 fn column_slice(z: &Mat<F>, cols: &Range<usize>) -> Mat<F> {
     let width = cols.len();
+    if z.virtual_constant_value()
+        .is_some_and(|value| *value == F::ZERO)
+    {
+        return Mat::zero(z.rows(), width, F::ZERO);
+    }
     let mut data = Vec::with_capacity(z.rows() * width);
     for r in 0..z.rows() {
-        data.extend_from_slice(&z.row(r)[cols.clone()]);
+        for c in cols.clone() {
+            data.push(z[(r, c)]);
+        }
     }
     Mat::from_row_major(z.rows(), width, data)
 }

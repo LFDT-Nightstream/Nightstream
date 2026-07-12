@@ -10,6 +10,7 @@ use crate::engine::r1cs_circuit::builder::{Lc, R1csBuilder, Var};
 /// Enforce that `v ∈ {0, 1}` via `v · (v - 1) = 0`.
 pub fn enforce_bit(builder: &mut R1csBuilder, v: Var) {
     builder.record_boolean(v);
+    builder.record_boolean_constraint(v, builder.rows());
     let v_lc = Lc::from_var(v);
     let mut v_minus_one = Lc::from_var(v);
     v_minus_one.add_constant(-F::ONE);

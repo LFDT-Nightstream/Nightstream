@@ -124,10 +124,9 @@ fn get_M<Ff: Field + PrimeCharacteristicRing + Copy>(a: &CcsMatrix<Ff>, row: usi
             }
         }
         CcsMatrix::Csc(m) => {
-            let s = m.col_ptr[col];
-            let e = m.col_ptr[col + 1];
-            match m.row_idx[s..e].binary_search(&row) {
-                Ok(idx) => m.vals[s + idx],
+            let range = m.column_range(col);
+            match m.row_idx[range.clone()].binary_search(&(row as u32)) {
+                Ok(idx) => m.vals[range.start + idx],
                 Err(_) => Ff::ZERO,
             }
         }
@@ -136,10 +135,9 @@ fn get_M<Ff: Field + PrimeCharacteristicRing + Copy>(a: &CcsMatrix<Ff>, row: usi
             blocks,
             geometric_runs,
         } => {
-            let s = csc.col_ptr[col];
-            let e = csc.col_ptr[col + 1];
-            let mut value = match csc.row_idx[s..e].binary_search(&row) {
-                Ok(idx) => csc.vals[s + idx],
+            let range = csc.column_range(col);
+            let mut value = match csc.row_idx[range.clone()].binary_search(&(row as u32)) {
+                Ok(idx) => csc.vals[range.start + idx],
                 Err(_) => Ff::ZERO,
             };
             for block in blocks {
@@ -1122,13 +1120,11 @@ where
 
     #[cfg(feature = "perf-timers")]
     let t_ring_forms = std::time::Instant::now();
-    let owned_ring_linear_forms;
     let ring_linear_forms = if let Some(forms) = precomputed_ring_linear_forms {
         assert_eq!(forms.len(), t_mats, "Π_DEC precomputed ring-form count mismatch");
-        forms
+        Some(forms)
     } else {
-        owned_ring_linear_forms = superneo_cache.build_ring_linear_forms(&chi_r, n_eff);
-        &owned_ring_linear_forms
+        None
     };
     #[cfg(feature = "perf-timers")]
     eprintln!(
@@ -1151,6 +1147,43 @@ where
     let fold_digest = parent.fold_digest;
     let parent_aux = parent.aux_openings.clone();
     let aux_len = parent_aux.len();
+
+    #[cfg(feature = "perf-timers")]
+    let t_streamed_y = std::time::Instant::now();
+    let streamed_y_by_child = if ring_linear_forms.is_none() {
+        let active_indices: Vec<usize> = (0..k)
+            .filter(|&index| digit_nonzero.is_none_or(|flags| flags[index]))
+            .collect();
+        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+        let packed_witnesses: Vec<crate::superneo_eval::SuperneoZBlocks> = active_indices
+            .par_iter()
+            .map(|&index| {
+                crate::superneo_eval::SuperneoZBlocks::from_witness_mat(&Z_split[index], s.m)
+                    .unwrap_or_else(|e| panic!("Π_DEC: failed to build packed child witness block view: {e}"))
+            })
+            .collect();
+        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+        let packed_witnesses: Vec<crate::superneo_eval::SuperneoZBlocks> = active_indices
+            .iter()
+            .map(|&index| {
+                crate::superneo_eval::SuperneoZBlocks::from_witness_mat(&Z_split[index], s.m)
+                    .unwrap_or_else(|e| panic!("Π_DEC: failed to build packed child witness block view: {e}"))
+            })
+            .collect();
+        let streamed = superneo_cache.eval_ring_linear_forms_for_real_z_blocks(&chi_r, n_eff, &packed_witnesses);
+        let mut by_child = vec![None; k];
+        for (index, values) in active_indices.into_iter().zip(streamed) {
+            by_child[index] = Some(values);
+        }
+        Some(by_child)
+    } else {
+        None
+    };
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[pi-dec-inner] streamed child y               {:>7.2}s",
+        t_streamed_y.elapsed().as_secs_f64()
+    );
 
     // Optional NC channel: build χ_{s_col} once for all children.
     #[cfg(feature = "perf-timers")]
@@ -1221,30 +1254,40 @@ where
         let t_project_decode = std::time::Instant::now();
         let Zi = &Z_split[i];
         let Xi = project_x(Zi);
-        let z_blocks = crate::superneo_eval::SuperneoZBlocks::from_witness_mat(Zi, s.m)
-            .unwrap_or_else(|e| panic!("Π_DEC: failed to build packed child witness block view: {e}"));
         #[cfg(feature = "perf-timers")]
         let project_decode_s = t_project_decode.elapsed().as_secs_f64();
 
         #[cfg(feature = "perf-timers")]
         let t_y_ring = std::time::Instant::now();
-        let y_i: Vec<Vec<K>> =
-            crate::superneo_eval::eval_ring_linear_forms_real_z_blocks(&ring_linear_forms, &z_blocks)
-                .into_iter()
-                .map(|coeffs| {
-                    let mut row = coeffs.to_vec();
-                    assert!(
-                        row.len() <= d_pad,
-                        "Π_DEC: refusing to truncate y row (len {} > d_pad {})",
-                        row.len(),
-                        d_pad
-                    );
-                    if row.len() < d_pad {
-                        row.resize(d_pad, K::ZERO);
-                    }
-                    row
-                })
-                .collect();
+        let y_coefficients = if let Some(streamed) = streamed_y_by_child.as_ref() {
+            streamed[i]
+                .as_ref()
+                .expect("nonzero DEC child must have streamed matrix evaluations")
+                .clone()
+        } else {
+            let z_blocks = crate::superneo_eval::SuperneoZBlocks::from_witness_mat(Zi, s.m)
+                .unwrap_or_else(|e| panic!("Π_DEC: failed to build packed child witness block view: {e}"));
+            crate::superneo_eval::eval_ring_linear_forms_real_z_blocks(
+                ring_linear_forms.expect("precomputed ring forms"),
+                &z_blocks,
+            )
+        };
+        let y_i: Vec<Vec<K>> = y_coefficients
+            .into_iter()
+            .map(|coeffs| {
+                let mut row = coeffs.to_vec();
+                assert!(
+                    row.len() <= d_pad,
+                    "Π_DEC: refusing to truncate y row (len {} > d_pad {})",
+                    row.len(),
+                    d_pad
+                );
+                if row.len() < d_pad {
+                    row.resize(d_pad, K::ZERO);
+                }
+                row
+            })
+            .collect();
         let y_scalars_i = crate::common::ct_from_y_ring_for_ccs_m(&y_i, params, s.m);
         #[cfg(feature = "perf-timers")]
         let y_ring_s = t_y_ring.elapsed().as_secs_f64();

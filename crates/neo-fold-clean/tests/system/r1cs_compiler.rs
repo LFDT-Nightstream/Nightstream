@@ -1261,6 +1261,69 @@ fn selective_multi_branch_lowering_preserves_rejection_sampling() {
 }
 
 #[test]
+fn selective_lowering_reuses_surviving_source_bitness_rows_only() {
+    fn boolean_arm(record_source_row: bool) -> (r1cs_f_prime::SparseR1cs, Vec<F>) {
+        let mut builder = R1csBuilder::new();
+        let bit = builder.alloc(F::ONE);
+        if record_source_row {
+            enforce_bit(&mut builder, bit);
+        }
+        lower_field_r1cs(builder, &[bit])
+            .expect("Boolean arm lowering")
+            .into_parts()
+    }
+
+    let recorded: [(r1cs_f_prime::SparseR1cs, Vec<F>); 3] = std::array::from_fn(|_| boolean_arm(true));
+    let unproved: [(r1cs_f_prime::SparseR1cs, Vec<F>); 3] = std::array::from_fn(|_| boolean_arm(false));
+    let recorded_shapes = recorded
+        .iter()
+        .map(|(shape, _)| shape.clone())
+        .collect::<Vec<_>>();
+    let unproved_shapes = unproved
+        .iter()
+        .map(|(shape, _)| shape.clone())
+        .collect::<Vec<_>>();
+    let recorded_relation = build_multi_branch_selective_low_norm_r1cs_with_alignment(&recorded_shapes, 0, D, 0)
+        .expect("recorded Boolean relation");
+    let unproved_relation = build_multi_branch_selective_low_norm_r1cs_with_alignment(&unproved_shapes, 0, D, 0)
+        .expect("unproved Boolean relation");
+
+    assert_eq!(
+        recorded_relation.structure().n,
+        unproved_relation.structure().n + 2,
+        "three selected source rows replace one generated shared-Boolean row without adding a duplicate"
+    );
+
+    for arm in 0..3 {
+        let slot = recorded_relation
+            .field_slot(arm, 1)
+            .expect("public Boolean slot");
+        let mut encoded = recorded_relation
+            .encode(arm, &recorded[arm].1)
+            .expect("recorded Boolean encoding");
+        assert!(recorded_relation.is_satisfied(&encoded));
+        encoded[slot.0] = -F::ONE;
+        assert!(
+            !recorded_relation.is_satisfied(&encoded),
+            "the retained source row must reject -1 after the duplicate row is removed"
+        );
+
+        let slot = unproved_relation
+            .field_slot(arm, 1)
+            .expect("unproved Boolean slot");
+        let mut encoded = unproved_relation
+            .encode(arm, &unproved[arm].1)
+            .expect("unproved Boolean encoding");
+        assert!(unproved_relation.is_satisfied(&encoded));
+        encoded[slot.0] = -F::ONE;
+        assert!(
+            !unproved_relation.is_satisfied(&encoded),
+            "the generated row must remain when the source relation does not prove bitness"
+        );
+    }
+}
+
+#[test]
 fn selective_multi_branch_balanced_ternary_handles_field_edges_and_rejects_non_unit_digits() {
     fn reference_digits(value: F) -> [F; 41] {
         let modulus = F::ORDER_U64 as i128;

@@ -193,21 +193,18 @@ where
         )));
     }
 
-    let active_cols = expected_m.div_ceil(D);
-    let rows: [&[Ff]; D] = {
-        let mut tmp: [&[Ff]; D] = [&[]; D];
-        for (rho, slot) in tmp.iter_mut().enumerate() {
-            *slot = Z.row(rho);
-        }
-        tmp
-    };
+    if Z.virtual_constant_value()
+        .is_some_and(|value| *value == Ff::ZERO)
+    {
+        return Ok((
+            NcDigitTable::Zero { len: expected_m },
+            NcDigitMasks::Zero { len: expected_m },
+        ));
+    }
 
-    let all_zero = rows.iter().enumerate().all(|(rho, row)| {
-        row.iter()
-            .take(active_cols)
-            .enumerate()
-            .all(|(block, &value)| block * D + rho >= expected_m || value == Ff::ZERO)
-    });
+    let active_cols = expected_m.div_ceil(D);
+    let all_zero =
+        (0..D).all(|rho| (0..active_cols).all(|block| block * D + rho >= expected_m || Z[(rho, block)] == Ff::ZERO));
     if all_zero {
         return Ok((
             NcDigitTable::Zero { len: expected_m },
@@ -236,7 +233,7 @@ where
             if col >= expected_m {
                 break;
             }
-            let raw = rows[rho].get(blk).copied().unwrap_or(Ff::ZERO);
+            let raw = Z[(rho, blk)];
             if raw == Ff::ZERO {
                 continue;
             }

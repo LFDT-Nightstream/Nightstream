@@ -24,6 +24,7 @@ use super::digit_table::{build_nc_digit_table_compact, NcDigitMasks, NcDigitTabl
 use super::row_poly::{
     accumulate_factored_groups_times_affine, accumulate_factored_groups_times_affine_base, accumulate_fast_term,
     accumulate_fast_term_base, factor_common_linear_terms, CompiledPolyGroup, CompiledPolyTerm, CompiledPolyTermKind,
+    RowTable,
 };
 pub use super::sparse::SparseCache;
 use crate::superneo_eval::{SuperneoEvalCache, SuperneoZBlocks};
@@ -963,7 +964,7 @@ struct RowStreamState {
 
     /// Per-MCS tables for the variables used by the CCS polynomial `f`.
     /// Each entry is a row-domain table of `m_j(row) = (M_j · z_i)[row]` at boolean row points.
-    f_var_tables_by_mcs: Vec<Vec<Vec<K>>>,
+    f_var_tables_by_mcs: Vec<Vec<RowTable>>,
     /// True when the corresponding MCS witness is all zero and its row tables are omitted.
     zero_mcs: Vec<bool>,
     /// Number of row-table variables used by `f`.
@@ -1155,7 +1156,7 @@ impl RowStreamState {
         #[cfg(feature = "perf-timers")]
         let t_f_var_tables = std::time::Instant::now();
         // f-var tables: m_j(row) = (M_j * z_i)[row] for each used variable and each MCS slot.
-        let mut f_var_tables_by_mcs: Vec<Vec<Vec<K>>> = Vec::with_capacity(k_mcs);
+        let mut f_var_tables_by_mcs: Vec<Vec<RowTable>> = Vec::with_capacity(k_mcs);
         let mut zero_mcs = Vec::with_capacity(k_mcs);
         for mcs_idx in 0..k_mcs {
             let z_blocks = &witness_z_blocks[mcs_idx];
@@ -1166,27 +1167,27 @@ impl RowStreamState {
             }
             zero_mcs.push(false);
             #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-            let f_tables_i: Vec<Vec<K>> = f_var_indices
+            let f_tables_i: Vec<RowTable> = f_var_indices
                 .par_iter()
                 .map(|&j| {
-                    let mut out = vec![K::ZERO; n_pad];
+                    let mut out = vec![Fq::ZERO; n_pad];
                     let mat_cache = superneo_cache
                         .matrix(j)
                         .unwrap_or_else(|| panic!("superneo cache missing matrix j={j}"));
-                    mat_cache.fill_row_dots_real_with_blocks(&mut out[..n_eff], z_blocks);
-                    out
+                    mat_cache.fill_row_dots_base_with_blocks(&mut out[..n_eff], z_blocks);
+                    RowTable::from_base(out)
                 })
                 .collect();
             #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-            let f_tables_i: Vec<Vec<K>> = f_var_indices
+            let f_tables_i: Vec<RowTable> = f_var_indices
                 .iter()
                 .map(|&j| {
-                    let mut out = vec![K::ZERO; n_pad];
+                    let mut out = vec![Fq::ZERO; n_pad];
                     let mat_cache = superneo_cache
                         .matrix(j)
                         .unwrap_or_else(|| panic!("superneo cache missing matrix j={j}"));
-                    mat_cache.fill_row_dots_real_with_blocks(&mut out[..n_eff], z_blocks);
-                    out
+                    mat_cache.fill_row_dots_base_with_blocks(&mut out[..n_eff], z_blocks);
+                    RowTable::from_base(out)
                 })
                 .collect();
             f_var_tables_by_mcs.push(f_tables_i);
@@ -1317,7 +1318,7 @@ impl RowStreamState {
             }
             for per_mcs in self.f_var_tables_by_mcs.iter_mut() {
                 for tbl in per_mcs.iter_mut() {
-                    Self::fold_table_inplace_base(tbl, r0);
+                    tbl.fold_inplace(K::from(r0));
                 }
             }
             if let Some(tbl) = self.eval_tbl.as_mut() {
@@ -1331,7 +1332,7 @@ impl RowStreamState {
             }
             for per_mcs in self.f_var_tables_by_mcs.iter_mut() {
                 for tbl in per_mcs.iter_mut() {
-                    Self::fold_table_inplace(tbl, r);
+                    tbl.fold_inplace(r);
                 }
             }
             if let Some(tbl) = self.eval_tbl.as_mut() {
@@ -1340,6 +1341,15 @@ impl RowStreamState {
         }
         self.active_len = self.active_len.div_ceil(2).max(1);
         self.cur_len /= 2;
+    }
+
+    fn release_finalized_tables(&mut self) {
+        debug_assert_eq!(self.cur_len, 1, "row tables may be released only after row folding");
+        self.eq_beta_r_tbl = Vec::new();
+        self.eq_r_inputs_tbl = None;
+        self.f_var_tables_by_mcs.clear();
+        self.f_var_tables_by_mcs.shrink_to_fit();
+        self.eval_tbl = None;
     }
 
     #[inline]
@@ -1395,8 +1405,8 @@ impl RowStreamState {
                 let mut current_deg = 0usize;
                 for &(var_pos, exp) in &term.vars {
                     let tbl = &per_mcs_tables[var_pos];
-                    let a = tbl[idx].real();
-                    let b = tbl[idx + 1].real() - a;
+                    let a = tbl.real(idx);
+                    let b = tbl.real(idx + 1) - a;
                     for _ in 0..exp {
                         Self::poly_mul_affine_inplace_base(term_poly, a, b, current_deg);
                         current_deg += 1;
@@ -1479,8 +1489,8 @@ impl RowStreamState {
                 let mut current_deg = 0usize;
                 for &(var_pos, exp) in &term.vars {
                     let tbl = &per_mcs_tables[var_pos];
-                    let a = tbl[idx];
-                    let b = tbl[idx + 1] - a;
+                    let a = tbl.get(idx);
+                    let b = tbl.get(idx + 1) - a;
                     for _ in 0..exp {
                         Self::poly_mul_affine_inplace(term_poly, a, b, current_deg);
                         current_deg += 1;
@@ -2018,7 +2028,7 @@ impl RowStreamState {
 
                         // f variables at (prefix, x, tail) for this MCS slot
                         for (pos, tbl) in per_mcs_tables.iter().enumerate() {
-                            var_vals[pos] = one_minus * tbl[2 * t] + x * tbl[2 * t + 1];
+                            var_vals[pos] = one_minus * tbl.get(2 * t) + x * tbl.get(2 * t + 1);
                         }
 
                         let mut f_i = K::ZERO;
@@ -2196,7 +2206,6 @@ struct RPrecomp {
     eq_beta_r: K,
     /// eq(r', r_inputs) if present - independent of α'
     eq_r_inputs: K,
-    ring_linear_forms: Vec<crate::superneo_eval::SuperneoRingLinearForm>,
 }
 
 #[inline]
@@ -2426,49 +2435,10 @@ where
         let superneo_cache = &self.superneo_cache;
         #[cfg(feature = "perf-timers")]
         let t_y_eval = std::time::Instant::now();
-        #[cfg(feature = "perf-timers")]
-        let t_ring_forms = std::time::Instant::now();
-        let ring_forms = superneo_cache.build_ring_linear_forms(&chi_r, n_eff);
-        #[cfg(feature = "perf-timers")]
-        eprintln!(
-            "OptimizedOracle::precompute_for_r: ring forms        {:.2?}",
-            t_ring_forms.elapsed()
-        );
-        assert_eq!(ring_forms.len(), t, "superneo ring-linear forms count mismatch");
         let k_total = self.witness_z_blocks.len();
-        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-        let y_eval: Vec<Vec<[K; D]>> = {
-            let flat: Vec<[K; D]> = (0..k_total * t)
-                .into_par_iter()
-                .map(|idx| {
-                    let witness = idx / t;
-                    let matrix = idx % t;
-                    if self.witness_z_blocks[witness].all_zero() {
-                        [K::ZERO; D]
-                    } else {
-                        ring_forms[matrix].eval_real_z_blocks(&self.witness_z_blocks[witness])
-                    }
-                })
-                .collect();
-            (0..k_total)
-                .map(|witness| flat[witness * t..(witness + 1) * t].to_vec())
-                .collect()
-        };
-        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-        let y_eval: Vec<Vec<[K; D]>> = self
-            .witness_z_blocks
-            .iter()
-            .map(|z_blocks| {
-                if z_blocks.all_zero() {
-                    vec![[K::ZERO; D]; t]
-                } else {
-                    ring_forms
-                        .iter()
-                        .map(|form| form.eval_real_z_blocks(z_blocks))
-                        .collect()
-                }
-            })
-            .collect();
+        let y_eval = superneo_cache.eval_ring_linear_forms_for_real_z_blocks(&chi_r, n_eff, &self.witness_z_blocks);
+        assert_eq!(y_eval.len(), k_total, "superneo witness evaluation count mismatch");
+        debug_assert!(y_eval.iter().all(|by_matrix| by_matrix.len() == t));
         #[cfg(feature = "perf-timers")]
         eprintln!(
             "OptimizedOracle::precompute_for_r: y_eval            {:.2?} (witnesses={}, mats={t})",
@@ -2505,18 +2475,15 @@ where
             f_prime,
             eq_beta_r,
             eq_r_inputs,
-            ring_linear_forms: ring_forms,
         }
     }
 
     pub fn take_pi_dec_precompute(&mut self) -> super::PiDecProverPrecompute {
-        let precompute = self
-            .ajtai_precomp
-            .as_mut()
+        self.ajtai_precomp
+            .as_ref()
             .expect("Π_CCS must finalize its row precomputation before producing outputs");
         super::PiDecProverPrecompute {
             row_chals: self.row_chals.clone(),
-            ring_linear_forms: std::sync::Arc::from(core::mem::take(&mut precompute.ring_linear_forms)),
         }
     }
 
@@ -2822,6 +2789,13 @@ where
         if self.round_idx < self.ell_n {
             self.row_chals.push(r_i);
             self.row_stream.fold_inplace(r_i);
+            if self.round_idx + 1 == self.ell_n {
+                self.row_stream.release_finalized_tables();
+                let row_point = self.row_chals.clone();
+                self.ajtai_precomp = Some(self.precompute_for_r(&row_point));
+                self.witness_z_blocks.clear();
+                self.witness_z_blocks.shrink_to_fit();
+            }
         } else {
             self.ajtai_chals.push(r_i);
         }

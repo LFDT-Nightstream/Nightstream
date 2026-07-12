@@ -227,11 +227,7 @@ fn validate_input_shape(
         if claim.x.len() != claim.m_in {
             return Err(Error::Shape("fresh x length does not match m_in"));
         }
-        let z_len = claim
-            .m_in
-            .checked_add(fresh_witnesses[idx].w.len())
-            .ok_or(Error::Shape("fresh m_in + witness length overflow"))?;
-        if z_len != s.m {
+        if fresh_witnesses[idx].private_len(claim.m_in, s.m).is_none() {
             return Err(Error::Shape("fresh m_in + witness length must equal structure.m"));
         }
     }

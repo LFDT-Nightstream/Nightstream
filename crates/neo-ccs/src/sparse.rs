@@ -25,11 +25,25 @@ pub struct CscMat<Ff> {
     /// Number of columns.
     pub ncols: usize,
     /// Column pointers (length `ncols + 1`).
-    pub col_ptr: Vec<usize>,
+    pub col_ptr: Vec<u32>,
     /// Row indices for non-zero entries (length = nnz).
-    pub row_idx: Vec<usize>,
+    pub row_idx: Vec<u32>,
     /// Non-zero values (length = nnz).
     pub vals: Vec<Ff>,
+}
+
+impl<Ff> CscMat<Ff> {
+    /// Return the compact-entry range for one column.
+    #[inline]
+    pub fn column_range(&self, column: usize) -> core::ops::Range<usize> {
+        self.col_ptr[column] as usize..self.col_ptr[column + 1] as usize
+    }
+
+    /// Return one compact row index as a native slice index.
+    #[inline]
+    pub fn row_index(&self, entry: usize) -> usize {
+        self.row_idx[entry] as usize
+    }
 }
 
 impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CscMat<Ff> {
@@ -87,8 +101,8 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CscMat<Ff> {
         Self {
             nrows,
             ncols,
-            col_ptr,
-            row_idx,
+            col_ptr: compact_csc_indices(col_ptr, "column pointer"),
+            row_idx: compact_csc_indices(row_idx, "row index"),
             vals,
         }
     }
@@ -154,8 +168,8 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CscMat<Ff> {
         Self {
             nrows,
             ncols,
-            col_ptr,
-            row_idx,
+            col_ptr: compact_csc_indices(col_ptr, "column pointer"),
+            row_idx: compact_csc_indices(row_idx, "row index"),
             vals,
         }
     }
@@ -241,8 +255,8 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CscMat<Ff> {
         Self {
             nrows,
             ncols,
-            col_ptr,
-            row_idx,
+            col_ptr: compact_csc_indices(col_ptr, "column pointer"),
+            row_idx: compact_csc_indices(row_idx, "row index"),
             vals,
         }
     }
@@ -321,8 +335,8 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CscMat<Ff> {
         Self {
             nrows,
             ncols,
-            col_ptr,
-            row_idx,
+            col_ptr: compact_csc_indices(col_ptr, "column pointer"),
+            row_idx: compact_csc_indices(row_idx, "row index"),
             vals,
         }
     }
@@ -337,10 +351,8 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CscMat<Ff> {
         debug_assert_eq!(y.len(), self.ncols);
 
         for c in 0..self.ncols {
-            let s = self.col_ptr[c];
-            let e = self.col_ptr[c + 1];
-            for k in s..e {
-                let r = self.row_idx[k];
+            for k in self.column_range(c) {
+                let r = self.row_index(k);
                 if r < n_eff {
                     y[c] += Kf::from(self.vals[k]) * x[r];
                 }
@@ -359,16 +371,21 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CscMat<Ff> {
 
         for c in 0..self.ncols {
             let xc = x[c];
-            let s = self.col_ptr[c];
-            let e = self.col_ptr[c + 1];
-            for k in s..e {
-                let r = self.row_idx[k];
+            for k in self.column_range(c) {
+                let r = self.row_index(k);
                 if r < n_eff {
                     y[r] += Kf::from(self.vals[k]) * xc;
                 }
             }
         }
     }
+}
+
+fn compact_csc_indices(indices: Vec<usize>, kind: &str) -> Vec<u32> {
+    indices
+        .into_iter()
+        .map(|index| u32::try_from(index).unwrap_or_else(|_| panic!("CSC {kind} exceeds u32: {index}")))
+        .collect()
 }
 
 /// A simple per-matrix CSC cache.
@@ -555,13 +572,12 @@ where
                     return false;
                 }
                 for col in 0..m.ncols {
-                    let s = m.col_ptr[col];
-                    let e = m.col_ptr[col + 1];
-                    if e != s + 1 {
+                    let range = m.column_range(col);
+                    if range.end != range.start + 1 {
                         return false;
                     }
-                    let k = s;
-                    if m.row_idx[k] != col {
+                    let k = range.start;
+                    if m.row_index(k) != col {
                         return false;
                     }
                     if m.vals[k] != Ff::ONE {

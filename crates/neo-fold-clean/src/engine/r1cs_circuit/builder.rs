@@ -270,6 +270,20 @@ pub(crate) struct CenteredUnitTrace {
     pub(crate) value_col: usize,
 }
 
+/// Compact schedule for one shifted-base-3 canonical field opening.
+///
+/// The source R1CS remains authoritative. The selective compiler uses this
+/// schedule to replace the indicator-heavy alphabet and borrow rows with
+/// equivalent degree-eight CCS rows while retaining every borrow state.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ShiftedTernaryCanonicalTrace {
+    pub(crate) digit_columns_start: usize,
+    pub(crate) negative_columns_start: usize,
+    pub(crate) borrow_columns_start: usize,
+    pub(crate) digit_rows_start: usize,
+    pub(crate) transition_rows_start: usize,
+}
+
 /// A group of product-sum identities whose ordinary R1CS rows are contiguous.
 #[derive(Clone, Debug)]
 pub(crate) struct ProductSumBatchTrace {
@@ -540,6 +554,7 @@ pub struct R1csBuilder {
     balanced_ternary_decompositions: Vec<BalancedTernaryDecomposition>,
     balanced_ternary_decomposition_by_field: HashMap<usize, [Var; BALANCED_TERNARY_DIGITS]>,
     boolean_columns: Vec<usize>,
+    boolean_constraint_rows: Vec<(usize, usize)>,
     centered_unit_columns: Vec<usize>,
     seeded_phi81_a_blocks: Vec<SeededPhi81LinearBlock>,
     poseidon2_traces: Vec<Poseidon2PermutationTrace>,
@@ -547,6 +562,7 @@ pub struct R1csBuilder {
     polynomial_evaluation_traces: Vec<PolynomialEvaluationTrace>,
     product_sum_batch_traces: Vec<ProductSumBatchTrace>,
     centered_unit_traces: Vec<CenteredUnitTrace>,
+    shifted_ternary_canonical_traces: Vec<ShiftedTernaryCanonicalTrace>,
     equality_pairs: Vec<(usize, usize, usize)>,
     row_family_ranges: Vec<RowFamilyRange>,
     program_range_audits: Vec<ProgramRangeAudit>,
@@ -574,12 +590,14 @@ pub(crate) struct R1csSynthesis {
     pub(crate) canonical_u64_decompositions: Vec<CanonicalU64Decomposition>,
     pub(crate) balanced_ternary_decompositions: Vec<BalancedTernaryDecomposition>,
     pub(crate) boolean_columns: Vec<usize>,
+    pub(crate) boolean_constraint_rows: Vec<(usize, usize)>,
     pub(crate) centered_unit_columns: Vec<usize>,
     pub(crate) seeded_phi81_a_blocks: Vec<SeededPhi81LinearBlock>,
     pub(crate) poseidon2_traces: Vec<Poseidon2PermutationTrace>,
     pub(crate) polynomial_evaluation_traces: Vec<PolynomialEvaluationTrace>,
     pub(crate) product_sum_batch_traces: Vec<ProductSumBatchTrace>,
     pub(crate) centered_unit_traces: Vec<CenteredUnitTrace>,
+    pub(crate) shifted_ternary_canonical_traces: Vec<ShiftedTernaryCanonicalTrace>,
     pub(crate) equality_pairs: Vec<(usize, usize, usize)>,
     pub(crate) row_family_ranges: Vec<RowFamilyRange>,
 }
@@ -617,6 +635,7 @@ impl R1csBuilder {
             balanced_ternary_decompositions: Vec::new(),
             balanced_ternary_decomposition_by_field: HashMap::new(),
             boolean_columns: Vec::new(),
+            boolean_constraint_rows: Vec::new(),
             centered_unit_columns: Vec::new(),
             seeded_phi81_a_blocks: Vec::new(),
             poseidon2_traces: Vec::new(),
@@ -624,6 +643,7 @@ impl R1csBuilder {
             polynomial_evaluation_traces: Vec::new(),
             product_sum_batch_traces: Vec::new(),
             centered_unit_traces: Vec::new(),
+            shifted_ternary_canonical_traces: Vec::new(),
             equality_pairs: Vec::new(),
             row_family_ranges: Vec::new(),
             program_range_audits: Vec::new(),
@@ -744,6 +764,12 @@ impl R1csBuilder {
         }
     }
 
+    pub(crate) fn record_boolean_constraint(&mut self, value: Var, row: usize) {
+        if self.record_structure {
+            self.boolean_constraint_rows.push((value.col(), row));
+        }
+    }
+
     pub(crate) fn record_centered_unit(&mut self, value: Var) {
         if self.record_structure {
             self.centered_unit_columns.push(value.col());
@@ -754,6 +780,12 @@ impl R1csBuilder {
         if self.record_structure {
             self.centered_unit_columns.push(trace.value_col);
             self.centered_unit_traces.push(trace);
+        }
+    }
+
+    pub(crate) fn record_shifted_ternary_canonical_trace(&mut self, trace: ShiftedTernaryCanonicalTrace) {
+        if self.record_structure {
+            self.shifted_ternary_canonical_traces.push(trace);
         }
     }
 
@@ -1202,12 +1234,14 @@ impl R1csBuilder {
             canonical_u64_decompositions: self.canonical_u64_decompositions,
             balanced_ternary_decompositions: self.balanced_ternary_decompositions,
             boolean_columns: self.boolean_columns,
+            boolean_constraint_rows: self.boolean_constraint_rows,
             centered_unit_columns: self.centered_unit_columns,
             seeded_phi81_a_blocks: self.seeded_phi81_a_blocks,
             poseidon2_traces: self.poseidon2_traces,
             polynomial_evaluation_traces: self.polynomial_evaluation_traces,
             product_sum_batch_traces: self.product_sum_batch_traces,
             centered_unit_traces: self.centered_unit_traces,
+            shifted_ternary_canonical_traces: self.shifted_ternary_canonical_traces,
             equality_pairs: self.equality_pairs,
             row_family_ranges: self.row_family_ranges,
         }

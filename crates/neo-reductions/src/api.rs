@@ -88,14 +88,10 @@ fn validate_mcs_witnesses(
     mcs_witnesses: &[CcsWitness<F>],
 ) -> Result<(), PiCcsError> {
     for (idx, (inst, wit)) in mcs_list.iter().zip(mcs_witnesses.iter()).enumerate() {
-        let z_len = inst
-            .m_in
-            .checked_add(wit.w.len())
-            .ok_or_else(|| PiCcsError::InvalidInput(format!("{label}: mcs_list[{idx}] witness length overflow")))?;
-        if z_len != s.m {
+        if wit.private_len(inst.m_in, s.m).is_none() {
             return Err(PiCcsError::InvalidInput(format!(
-                "{label}: mcs_list[{idx}] has m_in + |w| = {} but CCS width is m={}",
-                z_len, s.m
+                "{label}: mcs_list[{idx}] private witness does not complete m_in={} to CCS width m={}",
+                inst.m_in, s.m
             )));
         }
     }

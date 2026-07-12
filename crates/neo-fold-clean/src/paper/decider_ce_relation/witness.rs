@@ -60,7 +60,7 @@ pub(crate) fn alloc_final_witness(
             got: witness.cols(),
         });
     }
-    let native: Vec<F> = witness.as_slice().to_vec();
+    let native = witness.to_dense_vec();
     let values = builder.alloc_vec(&native);
     Ok(FinalWitnessWires {
         rows: witness.rows(),

@@ -26,7 +26,7 @@ rust_surfaces:
   - crates/neo-fold-clean/src/paper/f_prime/source_image_circuit.rs
   - crates/neo-fold-clean/src/engine/r1cs_circuit/u64.rs
 circuit_or_encoding_artifacts:
-  - Nightstream/Implementation/R1CS/FPrimeCounterArtifact.lean
+  - Nightstream/Implementation/R1CS/Artifacts/FPrime/Generated/FPrimeCounterArtifact.lean
     (schema 1, payload sha256:e49966c230a36a76ff2f98ca4b4d52de7ccdb97d947aa6b32797176dab4e1ad7)
 failure_class:
   A source-image disconnect, forged claimed counter, forged batch cardinality,

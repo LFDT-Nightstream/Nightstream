@@ -27,7 +27,7 @@ rust_surfaces:
   - crates/neo-fold-clean/src/engine/r1cs_circuit/boolean.rs (`enforce_bit`)
   - crates/neo-fold-clean/src/engine/r1cs_circuit/builder.rs (row emission)
 circuit_or_encoding_artifacts:
-  - Nightstream/Implementation/R1CS/U64AddArtifact.lean
+  - Nightstream/Implementation/R1CS/Artifacts/U64/Generated/U64AddArtifact.lean
     (sha256:65c37fec97e5ea8b0da4f4b4e9c522f70705bc3aa28ef2741361d2da69395a4d)
 failure_class:
   An under-constrained carry chain or accepted wraparound lets a prover lower

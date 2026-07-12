@@ -30,7 +30,7 @@ rust_surfaces:
   - crates/neo-fold-clean/src/engine/r1cs_circuit/boolean.rs (`enforce_bit`)
   - crates/neo-fold-clean/src/engine/r1cs_circuit/builder.rs (row emission)
 circuit_or_encoding_artifacts:
-  - Nightstream/Implementation/R1CS/CanonicalU64Artifact.lean (generated;
+  - Nightstream/Implementation/R1CS/Artifacts/CanonicalU64/Generated/CanonicalU64Artifact.lean (generated;
     sha256:ede705cfce2629faa01db47136ca76277920debd9597b25dfe206294f9149497)
 failure_class:
   A witness re-encoding a small field value x through the bits of x + p,

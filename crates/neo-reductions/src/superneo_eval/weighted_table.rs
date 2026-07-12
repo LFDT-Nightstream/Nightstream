@@ -115,21 +115,34 @@ impl SuperneoEvalCache {
             .zip(mat_coeffs)
             .filter(|(matrix, _)| matrix.identity)
             .fold(K::ZERO, |sum, (_, &coefficient)| sum + coefficient);
+        let has_identity_contribution = identity_coeff != K::ZERO;
+        assert!(
+            !has_identity_contribution || n_eff <= identity_projection.len(),
+            "eval_weighted_row_table: identity rows exceed witness projection"
+        );
         #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
         {
             out.par_iter_mut()
                 .take(n_eff)
                 .enumerate()
                 .for_each(|(row, out_r)| {
-                    *out_r = identity_coeff * identity_projection[row]
-                        + self.eval_weighted_explicit_row(row, mat_coeffs, &identity_projection);
+                    let identity = if has_identity_contribution {
+                        identity_coeff * identity_projection[row]
+                    } else {
+                        K::ZERO
+                    };
+                    *out_r = identity + self.eval_weighted_explicit_row(row, mat_coeffs, &identity_projection);
                 });
         }
         #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
         {
             for (row, out_r) in out.iter_mut().take(n_eff).enumerate() {
-                *out_r = identity_coeff * identity_projection[row]
-                    + self.eval_weighted_explicit_row(row, mat_coeffs, &identity_projection);
+                let identity = if has_identity_contribution {
+                    identity_coeff * identity_projection[row]
+                } else {
+                    K::ZERO
+                };
+                *out_r = identity + self.eval_weighted_explicit_row(row, mat_coeffs, &identity_projection);
             }
         }
         #[cfg(feature = "perf-timers")]

@@ -245,6 +245,43 @@ fn weighted_row_table_matches_direct_weighted_rows_for_complex_witness() {
 }
 
 #[test]
+fn weighted_row_table_supports_more_rows_than_columns_without_identity() {
+    let rows = 2 * D;
+    let columns = D;
+    let mut matrix = Mat::zero(rows, columns, F::ZERO);
+    for row in 0..rows {
+        matrix[(row, row % columns)] = F::from_u64((row + 1) as u64);
+    }
+    let structure = CcsStructure::new(vec![matrix], SparsePoly::new(1, vec![])).expect("valid rectangular CCS");
+    let cache = build_superneo_eval_cache(&structure).expect("rectangular cache");
+    let weights = core::array::from_fn(|index| {
+        K::from_coeffs([F::from_u64((index + 2) as u64), F::from_u64((2 * index + 1) as u64)])
+    });
+    let z = (0..columns)
+        .map(|column| {
+            K::from_coeffs([
+                F::from_u64((3 * column + 1) as u64),
+                F::from_u64((5 * column + 2) as u64),
+            ])
+        })
+        .collect::<Vec<_>>();
+    let z_blocks = SuperneoZBlocks::from_z(&z);
+    let expected = (0..rows)
+        .map(|row| {
+            cache
+                .matrix(0)
+                .expect("matrix cache")
+                .row_dot_ring_weighted_with_blocks(row, &z_blocks, &weights)
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        cache.eval_weighted_row_table(&z_blocks, &weights, &[K::ONE], rows, rows),
+        expected
+    );
+}
+
+#[test]
 fn weighted_identity_projection_matches_ring_formula() {
     let s = CcsStructure::new(vec![Mat::<F>::identity(D)], SparsePoly::new(1, vec![])).expect("identity CCS");
     let cache = build_superneo_eval_cache(&s).expect("identity cache");

@@ -61,6 +61,8 @@ pub struct BatchedWasmCcs {
 pub enum BatchError {
     #[error("batch_size must be at least 1")]
     BatchSizeZero,
+    #[error("wasm batch relation has {actual} width declarations for {expected} columns")]
+    WidthCount { actual: usize, expected: usize },
     #[error("wasm batching requires ordinary R1CS matrices; compact seeded Phi81 blocks are unsupported")]
     CompactSeededMatrixUnsupported,
     #[error(transparent)]
@@ -76,15 +78,42 @@ pub enum BatchError {
 /// be a no-op for any future link whose invariant can't be expressed as
 /// column equalities (none today).
 pub fn build_batched_wasm_ccs(batch_size: usize) -> Result<BatchedWasmCcs, BatchError> {
-    if batch_size == 0 {
-        return Err(BatchError::BatchSizeZero);
-    }
-
     let vm = WasmVmSpec::default();
     let core = vm.core_ccs_spec();
     let m_single = core.structure.m;
-    let n_single = core.structure.n;
     assert_eq!(m_single, core.witness_width);
+    let single = SparseR1cs::new(
+        core.structure.matrices[0].clone(),
+        core.structure.matrices[1].clone(),
+        core.structure.matrices[2].clone(),
+        core.structure.n,
+        core.structure.m,
+        core.m_in,
+    )?;
+    let widths = wasm_app_private_var_widths(m_single);
+    batch_wasm_relation(&single, &widths, batch_size)
+}
+
+/// Replicate one authoritative single-step WASM relation into an ordered
+/// batch. This is also used after compact lookup closure, so every block owns
+/// the same arithmetic, lookup, and range-check rows as the single-step path.
+pub(crate) fn batch_wasm_relation(
+    single: &SparseR1cs,
+    single_widths: &[usize],
+    batch_size: usize,
+) -> Result<BatchedWasmCcs, BatchError> {
+    if batch_size == 0 {
+        return Err(BatchError::BatchSizeZero);
+    }
+    if single_widths.len() != single.m {
+        return Err(BatchError::WidthCount {
+            actual: single_widths.len(),
+            expected: single.m,
+        });
+    }
+
+    let m_single = single.m;
+    let n_single = single.n;
 
     let layout = build_wasm_relation_layout();
     let link_pairs: Vec<(usize, usize)> = layout
@@ -102,9 +131,9 @@ pub fn build_batched_wasm_ccs(batch_size: usize) -> Result<BatchedWasmCcs, Batch
     let m_batch = batch_size * m_single;
     let n_batch = batch_size * n_single + n_link;
 
-    let single_a = matrix_triplets(&core.structure.matrices[0])?;
-    let single_b = matrix_triplets(&core.structure.matrices[1])?;
-    let single_c = matrix_triplets(&core.structure.matrices[2])?;
+    let single_a = matrix_triplets(&single.a)?;
+    let single_b = matrix_triplets(&single.b)?;
+    let single_c = matrix_triplets(&single.c)?;
 
     let mut a_triplets: Vec<(usize, usize, F)> = Vec::with_capacity(batch_size * single_a.len());
     let mut b_triplets: Vec<(usize, usize, F)> = Vec::with_capacity(batch_size * single_b.len());
@@ -150,12 +179,11 @@ pub fn build_batched_wasm_ccs(batch_size: usize) -> Result<BatchedWasmCcs, Batch
     let b = CcsMatrix::Csc(CscMat::from_triplets(b_triplets, n_batch, m_batch));
     let c = CcsMatrix::Csc(CscMat::from_triplets(c_triplets, n_batch, m_batch));
 
-    let sparse_r1cs = SparseR1cs::new(a, b, c, n_batch, m_batch, core.m_in)?;
+    let sparse_r1cs = SparseR1cs::new(a, b, c, n_batch, m_batch, single.m_in)?;
 
-    let widths_single = wasm_app_private_var_widths(m_single);
     let mut all_widths = Vec::with_capacity(m_batch);
     for _ in 0..batch_size {
-        all_widths.extend(widths_single.iter().copied());
+        all_widths.extend(single_widths.iter().copied());
     }
 
     Ok(BatchedWasmCcs {
@@ -253,7 +281,7 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
             memory_pages: pages,
             max_memory_pages: max_pages,
             locals_fbp: fbp,
-            halted: false,
+            halted: prev.state_after.halted,
             trapped: prev.state_after.trapped,
             param_init,
             host_args,
@@ -267,7 +295,7 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
             memory_pages: pages,
             max_memory_pages: max_pages,
             locals_fbp: fbp,
-            halted: false,
+            halted: prev.state_after.halted,
             trapped: prev.state_after.trapped,
             param_init,
             host_args,
@@ -335,7 +363,7 @@ fn matrix_triplets(m: &CcsMatrix<F>) -> Result<Vec<(usize, usize, F)>, BatchErro
     Ok(triplets)
 }
 
-fn wasm_app_private_var_widths(witness_width: usize) -> Vec<usize> {
+pub(crate) fn wasm_app_private_var_widths(witness_width: usize) -> Vec<usize> {
     let mut widths: Vec<usize> = COLUMN_SPECS
         .iter()
         .map(|spec| match spec.width {

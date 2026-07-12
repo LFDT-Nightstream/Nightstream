@@ -1,6 +1,7 @@
 mod common;
 
-use neo_wasm::{preprocess_seeded_batched, prove_batched, verify};
+use common::audit::{prove_batched, verify};
+use neo_wasm::preprocess::preprocess_seeded_batched;
 use std::time::Instant;
 
 // Iterative fibonacci (do-while loop, valid for n >= 1).

@@ -10,6 +10,7 @@ use crate::layout::{ColumnWidth, COLUMN_SPECS, COL_ONE, NAMED_COLUMN_COUNT};
 use crate::tagged_r1cs_builder::{WasmConstraintScope, WasmConstraintTag, WasmTaggedR1csBuilder};
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use std::ops::Range;
 
 fn decomposed_bits(width: ColumnWidth) -> usize {
     match width {
@@ -27,6 +28,20 @@ pub fn range_checked_witness_width() -> usize {
             .iter()
             .map(|spec| decomposed_bits(spec.width))
             .sum::<usize>()
+}
+
+/// Aux bit columns backing one declared byte/u32 column in the extended
+/// witness. Boolean and field columns have no separate decomposition.
+pub fn range_checked_bit_columns(column: usize) -> Option<Range<usize>> {
+    let mut start = NAMED_COLUMN_COUNT;
+    for spec in COLUMN_SPECS {
+        let bits = decomposed_bits(spec.width);
+        if spec.index == column {
+            return (bits != 0).then_some(start..start + bits);
+        }
+        start += bits;
+    }
+    None
 }
 
 /// Emit the range-check rows. Each row is tagged with the column's

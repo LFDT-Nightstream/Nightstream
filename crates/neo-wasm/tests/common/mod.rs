@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+pub mod audit;
+
 use neo_ccs::check_ccs_rowwise_zero;
 use neo_math::F;
 use neo_wasm::layout::COLUMN_SPECS;

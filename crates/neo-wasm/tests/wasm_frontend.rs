@@ -1,8 +1,9 @@
 use neo_fold_clean::frontends::r1cs_f_prime::R1csChainBuilder;
 use neo_fold_clean::lifecycle::verify_uncompressed_audit;
+use neo_wasm::preprocess::preprocess_seeded_batched;
 use neo_wasm::{
-    build_steps, opcode_code, preprocess_seeded_batched, semantic_state_digest, StackValueAccess, WasmCountdownState,
-    WasmOpcode, WasmOutputState, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
+    build_steps, opcode_code, semantic_state_digest, StackValueAccess, WasmCountdownState, WasmOpcode, WasmOutputState,
+    WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
 };
 
 fn state(pc: u64, sp: u64, halted: bool) -> WasmStepState {

@@ -26,10 +26,10 @@ use super::tagged_r1cs_builder::{
 use crate::layout::{
     COL_CALL_INDIRECT_IS_TRAP, COL_CALL_STACK_POP_PRESENT, COL_CMP_AND, COL_CMP_HI_DIFF, COL_CMP_HI_INV,
     COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF, COL_CMP_LO_INV, COL_CMP_LO_IS_ZERO, COL_DIV_TRAP, COL_GLOBAL_VALUE_HI,
-    COL_HALTED, COL_IS_PROGRAM_ROW, COL_LOCAL_VALUE_HI, COL_MEM_OOB, COL_OPCODE_CODE, COL_OP_TABLE_ENABLED,
-    COL_OP_TABLE_ID, COL_OP_TABLE_VALUE, COL_OUTPUT_CAPTURED, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC,
-    COL_PC_ROM_ACTIVE, COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV, COL_SP_AFTER, COL_SP_BEFORE,
-    COL_STACK_READ0_ACTIVE, COL_STACK_READ0_ADDR_HI, COL_STACK_READ0_ADDR_LO, COL_STACK_READ0_VALUE_HI,
+    COL_HALTED, COL_HALTED_BEFORE, COL_IS_PROGRAM_ROW, COL_LOCAL_VALUE_HI, COL_MEM_OOB, COL_OPCODE_CODE,
+    COL_OP_TABLE_ENABLED, COL_OP_TABLE_ID, COL_OP_TABLE_VALUE, COL_OUTPUT_CAPTURED, COL_PC_EDGE_KIND_INV,
+    COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE, COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV, COL_SP_AFTER,
+    COL_SP_BEFORE, COL_STACK_READ0_ACTIVE, COL_STACK_READ0_ADDR_HI, COL_STACK_READ0_ADDR_LO, COL_STACK_READ0_VALUE_HI,
     COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_ACTIVE, COL_STACK_READ1_ADDR_HI, COL_STACK_READ1_ADDR_LO,
     COL_STACK_READ1_VALUE_HI, COL_STACK_READ1_VALUE_LO, COL_STACK_READ2_ACTIVE, COL_STACK_READ2_ADDR_HI,
     COL_STACK_READ2_ADDR_LO, COL_STACK_READ2_VALUE_HI, COL_STACK_READ2_VALUE_LO, COL_STACK_READS,
@@ -253,6 +253,17 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
 
     call::push_call_constraints(&mut b);
 
+    b.with_tag(always("halted state transition"), |b| {
+        // No decoded instruction may execute after the carried state halted.
+        b.push_row([(COL_IS_PROGRAM_ROW, F::ONE)], [(COL_HALTED_BEFORE, F::ONE)], []);
+        // Auxiliary rows, including fixed-shape padding, preserve terminality.
+        b.push_row(
+            [(COL_ONE, F::ONE), (COL_IS_PROGRAM_ROW, -F::ONE)],
+            [(COL_HALTED, F::ONE), (COL_HALTED_BEFORE, -F::ONE)],
+            [],
+        );
+    });
+
     b.with_tag(always("opcode selector one hot"), |b| {
         b.push_linear_zero(
             SELECTOR_COLS
@@ -310,7 +321,8 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         // Edge kind encodes the next-PC source:
         // 0 = static pc ROM, 1 = return-like, 2 = call_indirect target,
         // 3 = terminal unreachable. Return-like rows are identified by
-        // `halted` for the final frame and by `call_stack_pop_present` for
+        // the transition into `halted` for the final frame and by
+        // `call_stack_pop_present` for
         // non-final returns; the latter intentionally covers both explicit
         // `return` and a callee's function-ending `end`. A div trap row
         // halts but keeps its Static edge kind, and a call_indirect trap
@@ -320,6 +332,7 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         b.push_linear_zero(
             [
                 (COL_HALTED, F::ONE),
+                (COL_HALTED_BEFORE, -F::ONE),
                 (COL_CALL_STACK_POP_PRESENT, F::ONE),
                 (COL_PC_EDGE_KIND, -F::ONE),
                 (selector_col(WasmOpcode::CallIndirect).unwrap(), F::from_u64(2)),
@@ -1000,54 +1013,5 @@ pub(super) fn idx(column: Column) -> usize {
 }
 
 fn selector_for_op_table(op: WasmOpTable) -> usize {
-    selector_for_lookup(match op {
-        WasmOpTable::I32Clz => WasmOpcode::I32Clz,
-        WasmOpTable::I32Ctz => WasmOpcode::I32Ctz,
-        WasmOpTable::I32LtS => WasmOpcode::I32LtS,
-        WasmOpTable::I32LtU => WasmOpcode::I32LtU,
-        WasmOpTable::I32GtS => WasmOpcode::I32GtS,
-        WasmOpTable::I32GtU => WasmOpcode::I32GtU,
-        WasmOpTable::I32LeS => WasmOpcode::I32LeS,
-        WasmOpTable::I32LeU => WasmOpcode::I32LeU,
-        WasmOpTable::I32GeS => WasmOpcode::I32GeS,
-        WasmOpTable::I32GeU => WasmOpcode::I32GeU,
-        WasmOpTable::I32And => WasmOpcode::I32And,
-        WasmOpTable::I32Or => WasmOpcode::I32Or,
-        WasmOpTable::I32Xor => WasmOpcode::I32Xor,
-        WasmOpTable::I32Mul => WasmOpcode::I32Mul,
-        WasmOpTable::I64And => WasmOpcode::I64And,
-        WasmOpTable::I64Or => WasmOpcode::I64Or,
-        WasmOpTable::I64Xor => WasmOpcode::I64Xor,
-        WasmOpTable::I64Mul => WasmOpcode::I64Mul,
-        WasmOpTable::I32Shl => WasmOpcode::I32Shl,
-        WasmOpTable::I32ShrU => WasmOpcode::I32ShrU,
-        WasmOpTable::I32ShrS => WasmOpcode::I32ShrS,
-        WasmOpTable::I32Rotl => WasmOpcode::I32Rotl,
-        WasmOpTable::I32Rotr => WasmOpcode::I32Rotr,
-        WasmOpTable::I32DivU => WasmOpcode::I32DivU,
-        WasmOpTable::I32DivS => WasmOpcode::I32DivS,
-        WasmOpTable::I32RemU => WasmOpcode::I32RemU,
-        WasmOpTable::I32RemS => WasmOpcode::I32RemS,
-        WasmOpTable::I32Popcnt => WasmOpcode::I32Popcnt,
-        WasmOpTable::I64LtS => WasmOpcode::I64LtS,
-        WasmOpTable::I64LtU => WasmOpcode::I64LtU,
-        WasmOpTable::I64GtS => WasmOpcode::I64GtS,
-        WasmOpTable::I64GtU => WasmOpcode::I64GtU,
-        WasmOpTable::I64LeS => WasmOpcode::I64LeS,
-        WasmOpTable::I64LeU => WasmOpcode::I64LeU,
-        WasmOpTable::I64GeS => WasmOpcode::I64GeS,
-        WasmOpTable::I64GeU => WasmOpcode::I64GeU,
-        WasmOpTable::I64Shl => WasmOpcode::I64Shl,
-        WasmOpTable::I64ShrS => WasmOpcode::I64ShrS,
-        WasmOpTable::I64ShrU => WasmOpcode::I64ShrU,
-        WasmOpTable::I64Rotl => WasmOpcode::I64Rotl,
-        WasmOpTable::I64Rotr => WasmOpcode::I64Rotr,
-        WasmOpTable::I64DivS => WasmOpcode::I64DivS,
-        WasmOpTable::I64DivU => WasmOpcode::I64DivU,
-        WasmOpTable::I64RemS => WasmOpcode::I64RemS,
-        WasmOpTable::I64RemU => WasmOpcode::I64RemU,
-        WasmOpTable::I64Clz => WasmOpcode::I64Clz,
-        WasmOpTable::I64Ctz => WasmOpcode::I64Ctz,
-        WasmOpTable::I64Popcnt => WasmOpcode::I64Popcnt,
-    })
+    selector_for_lookup(op.opcode())
 }

@@ -148,14 +148,18 @@ fn push_div_trap_constraints(b: &mut R1csBuilder) {
     // For i32 the combination is just straight-forwardly injective in the
     // whole range. And the high limb is pinned to zero in that case by the
     // `narrow high limbs zero` constraint (wide_values_enabled = 0 on
-    // i32.div_s rows).
+    // signed i32 div/rem rows).
     let i32_div_s = selector_col(WasmOpcode::I32DivS).expect("i32.div_s selector");
+    let i32_rem_s = selector_col(WasmOpcode::I32RemS).expect("i32.rem_s selector");
     let i64_div_s = selector_col(WasmOpcode::I64DivS).expect("i64.div_s selector");
+    let i64_rem_s = selector_col(WasmOpcode::I64RemS).expect("i64.rem_s selector");
     let dividend_min = [
         (COL_STACK_READ0_VALUE_LO, F::ONE),
         (COL_STACK_READ0_VALUE_HI, F::from_u64(1 << 32)),
         (i32_div_s, -F::from_u64(1 << 31)),
+        (i32_rem_s, -F::from_u64(1 << 31)),
         (i64_div_s, -F::from_u64(1 << 63)),
+        (i64_rem_s, -F::from_u64(1 << 63)),
     ];
     push_zero_test_expr_gadget(b, dividend_min, COL_DIV_DIVIDEND_MIN_INV, COL_DIV_DIVIDEND_IS_MIN);
 
@@ -173,8 +177,10 @@ fn push_div_trap_constraints(b: &mut R1csBuilder) {
         (COL_STACK_READ1_VALUE_HI, F::ONE),
         // limb sum of -1i32: u32::MAX (the high limb is 0)
         (i32_div_s, -F::from_u64(u32::MAX as u64)),
+        (i32_rem_s, -F::from_u64(u32::MAX as u64)),
         // limb sum of -1i64: both limbs are u32::MAX
         (i64_div_s, -F::from_u64(u32::MAX as u64 + u32::MAX as u64)),
+        (i64_rem_s, -F::from_u64(u32::MAX as u64 + u32::MAX as u64)),
     ];
     push_zero_test_expr_gadget(b, divisor_neg1, COL_DIV_DIVISOR_NEG1_INV, COL_DIV_DIVISOR_IS_NEG1);
     b.push_row(
@@ -182,8 +188,9 @@ fn push_div_trap_constraints(b: &mut R1csBuilder) {
         [(COL_DIV_DIVISOR_IS_NEG1, F::ONE)],
         [(COL_DIV_OVERFLOW_COND, F::ONE)],
     );
-    // The scratch flags above are only meaningful on div_s rows; this
-    // selector-gated product makes them harmless everywhere else.
+    // The scratch predicate is meaningful on signed div/rem rows, while only
+    // div_s turns it into a trap. rem_s(MIN, -1) is the valid zero-remainder
+    // special case consumed by the compact lookup relation.
     b.push_row(
         signed_div_ops()
             .into_iter()

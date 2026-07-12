@@ -14,7 +14,7 @@ use neo_ccs::Mat;
 use neo_math::{KExtensions, D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::common::build_witness_nc_digit_table_with_masks;
-use neo_reductions::engines::optimized_engine::{build_nc_digit_table_compact, NcDigitTable};
+use neo_reductions::engines::optimized_engine::{build_nc_digit_table_compact, NcDigitMasks, NcDigitTable};
 use p3_field::PrimeCharacteristicRing;
 
 const COLS: usize = 7;
@@ -59,9 +59,15 @@ fn lane0_witness() -> Mat<F> {
     z
 }
 
-fn assert_table_parity(compact: &NcDigitTable, compact_masks: &[u64], dense: &[[K; D]], dense_masks: &[u64]) {
+fn assert_table_parity(
+    compact: &NcDigitTable,
+    compact_masks: &NcDigitMasks,
+    dense: &[[K; D]],
+    dense_masks: &NcDigitMasks,
+) {
     assert_eq!(compact.len(), dense.len(), "table length mismatch");
-    assert_eq!(compact_masks, dense_masks, "mask mismatch");
+    assert_eq!(compact_masks.len(), dense_masks.len(), "mask length mismatch");
+    assert_eq!(compact_masks.to_dense(), dense_masks.to_dense(), "mask mismatch");
     for idx in 0..dense.len() {
         assert_eq!(compact.row(idx), dense[idx], "row {idx} mismatch");
         for rho in 0..D {
@@ -80,8 +86,9 @@ fn run_parity(z: &Mat<F>) {
 fn run_parity_at(z: &Mat<F>, m: usize, challenges: &[K]) {
     let params = params();
     let (mut compact, mut compact_masks) = build_nc_digit_table_compact(&params, z, m).expect("compact table");
-    let (dense_rows, mut dense_masks) = build_witness_nc_digit_table_with_masks(&params, z, m).expect("dense table");
+    let (dense_rows, dense_masks) = build_witness_nc_digit_table_with_masks(&params, z, m).expect("dense table");
     let mut dense = NcDigitTable::Dense(dense_rows.clone());
+    let mut dense_masks = NcDigitMasks::Dense(dense_masks);
     {
         let NcDigitTable::Dense(rows) = &dense else {
             unreachable!()

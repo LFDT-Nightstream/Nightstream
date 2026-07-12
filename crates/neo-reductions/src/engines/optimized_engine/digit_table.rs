@@ -32,15 +32,58 @@ use crate::error::PiCcsError;
 ///   original row count.
 #[derive(Debug)]
 pub enum NcDigitTable {
+    Zero { len: usize },
     Lane0(Vec<K>),
     Strided { width: usize, values: Vec<K> },
     Dense(Vec<[K; D]>),
+}
+
+#[derive(Debug)]
+pub enum NcDigitMasks {
+    Zero { len: usize },
+    Dense(Vec<u64>),
+}
+
+impl NcDigitMasks {
+    #[inline]
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Zero { len } => *len,
+            Self::Dense(values) => values.len(),
+        }
+    }
+
+    #[inline]
+    pub fn get(&self, index: usize) -> u64 {
+        match self {
+            Self::Zero { len } => {
+                debug_assert!(index < *len);
+                0
+            }
+            Self::Dense(values) => values[index],
+        }
+    }
+
+    pub fn to_dense(&self) -> Vec<u64> {
+        match self {
+            Self::Zero { len } => vec![0; *len],
+            Self::Dense(values) => values.clone(),
+        }
+    }
+
+    fn dense_mut(&mut self) -> &mut Vec<u64> {
+        match self {
+            Self::Dense(values) => values,
+            Self::Zero { .. } => panic!("nonzero NC table has zero masks"),
+        }
+    }
 }
 
 impl NcDigitTable {
     #[inline]
     pub fn len(&self) -> usize {
         match self {
+            Self::Zero { len } => *len,
             Self::Lane0(values) => values.len(),
             Self::Strided { width, values } => values.len() / width,
             Self::Dense(rows) => rows.len(),
@@ -50,6 +93,11 @@ impl NcDigitTable {
     #[inline]
     pub fn lane(&self, idx: usize, rho: usize) -> K {
         match self {
+            Self::Zero { len } => {
+                debug_assert!(idx < *len);
+                let _ = rho;
+                K::ZERO
+            }
             Self::Lane0(values) => {
                 if rho == 0 {
                     values[idx]
@@ -78,6 +126,10 @@ impl NcDigitTable {
     #[inline]
     pub fn row(&self, idx: usize) -> [K; D] {
         match self {
+            Self::Zero { len } => {
+                debug_assert!(idx < *len);
+                [K::ZERO; D]
+            }
             Self::Lane0(values) => {
                 let mut out = [K::ZERO; D];
                 out[0] = values[idx];
@@ -96,8 +148,19 @@ impl NcDigitTable {
     }
 
     #[inline]
-    pub fn fold_inplace(&mut self, masks: &mut Vec<u64>, r: K) {
+    pub fn fold_inplace(&mut self, masks: &mut NcDigitMasks, r: K) {
+        if let Self::Zero { len } = self {
+            let NcDigitMasks::Zero { len: mask_len } = masks else {
+                panic!("zero NC table has dense masks");
+            };
+            debug_assert_eq!(*len, *mask_len);
+            *len = len.div_ceil(2);
+            *mask_len = *len;
+            return;
+        }
+        let masks = masks.dense_mut();
         match self {
+            Self::Zero { .. } => unreachable!(),
             Self::Lane0(values) => fold_lane0_table_inplace(values, masks, r),
             Self::Strided { width, values } => {
                 if 2 * *width <= D {
@@ -117,7 +180,7 @@ pub fn build_nc_digit_table_compact<Ff>(
     params: &NeoParams,
     Z: &Mat<Ff>,
     expected_m: usize,
-) -> Result<(NcDigitTable, Vec<u64>), PiCcsError>
+) -> Result<(NcDigitTable, NcDigitMasks), PiCcsError>
 where
     Ff: PrimeField64 + PrimeCharacteristicRing + Copy + Send + Sync,
     K: From<Ff>,
@@ -130,8 +193,6 @@ where
         )));
     }
 
-    let mut values = vec![K::ZERO; expected_m];
-    let mut masks = vec![0u64; expected_m];
     let active_cols = expected_m.div_ceil(D);
     let rows: [&[Ff]; D] = {
         let mut tmp: [&[Ff]; D] = [&[]; D];
@@ -140,6 +201,22 @@ where
         }
         tmp
     };
+
+    let all_zero = rows.iter().enumerate().all(|(rho, row)| {
+        row.iter()
+            .take(active_cols)
+            .enumerate()
+            .all(|(block, &value)| block * D + rho >= expected_m || value == Ff::ZERO)
+    });
+    if all_zero {
+        return Ok((
+            NcDigitTable::Zero { len: expected_m },
+            NcDigitMasks::Zero { len: expected_m },
+        ));
+    }
+
+    let mut values = vec![K::ZERO; expected_m];
+    let mut masks = vec![0u64; expected_m];
 
     // The unfolded table is diagonal by construction: column `col`'s digit
     // lives in lane `col % D`, so one pass fills the compact value/mask
@@ -193,9 +270,9 @@ where
     }
 
     if saw_nonzero_lane.load(Ordering::Relaxed) {
-        Ok((NcDigitTable::Strided { width: 1, values }, masks))
+        Ok((NcDigitTable::Strided { width: 1, values }, NcDigitMasks::Dense(masks)))
     } else {
-        Ok((NcDigitTable::Lane0(values), masks))
+        Ok((NcDigitTable::Lane0(values), NcDigitMasks::Dense(masks)))
     }
 }
 

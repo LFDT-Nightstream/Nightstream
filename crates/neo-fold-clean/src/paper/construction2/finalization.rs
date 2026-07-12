@@ -119,7 +119,7 @@ pub(crate) fn prove_final_fold(
             };
 
             let mut tr = final_fold_transcript();
-            let (post_running, nifs_proof) = nifs::prove(
+            let (post_running, nifs_proof) = nifs::prove_owned(
                 &mut tr,
                 pp,
                 s,
@@ -129,7 +129,7 @@ pub(crate) fn prove_final_fold(
                 mix_rhos_commits,
                 combine_b_pows,
                 latest.instances,
-                &running,
+                running,
             )?;
             (post_running, Some((nifs_proof, terminal_inputs)))
         }

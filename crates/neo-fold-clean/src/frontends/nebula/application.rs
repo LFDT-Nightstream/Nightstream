@@ -422,16 +422,86 @@ impl NebulaApplication {
         let memory = segment.finish()?;
         Ok(ApplicationSegmentTrace {
             memory,
-            assignments,
+            assignments: ApplicationAssignments::from_dense(assignments),
             slots,
         })
     }
 }
 
 #[derive(Clone, Debug)]
+struct AssignmentDelta {
+    columns: Vec<u32>,
+    values: Vec<F>,
+}
+
+#[derive(Clone, Debug)]
+struct ApplicationAssignments {
+    initial: Vec<F>,
+    deltas: Vec<AssignmentDelta>,
+}
+
+impl ApplicationAssignments {
+    fn from_dense(assignments: Vec<Vec<F>>) -> Self {
+        let mut assignments = assignments.into_iter();
+        let initial = assignments.next().expect("application segment is nonempty");
+        let mut previous = initial.clone();
+        let mut deltas = Vec::with_capacity(assignments.len());
+        for assignment in assignments {
+            assert_eq!(
+                assignment.len(),
+                previous.len(),
+                "application assignment width changed inside segment"
+            );
+            let mut columns = Vec::new();
+            let mut values = Vec::new();
+            for (column, (&before, &after)) in previous.iter().zip(&assignment).enumerate() {
+                if before != after {
+                    columns.push(u32::try_from(column).expect("application assignment width exceeds u32"));
+                    values.push(after);
+                }
+            }
+            deltas.push(AssignmentDelta { columns, values });
+            previous = assignment;
+        }
+        Self { initial, deltas }
+    }
+
+    fn cursor(&self) -> ApplicationAssignmentCursor<'_> {
+        ApplicationAssignmentCursor {
+            assignments: self,
+            current: self.initial.clone(),
+            next_step: 0,
+        }
+    }
+}
+
+pub(crate) struct ApplicationAssignmentCursor<'a> {
+    assignments: &'a ApplicationAssignments,
+    current: Vec<F>,
+    next_step: usize,
+}
+
+impl ApplicationAssignmentCursor<'_> {
+    pub(crate) fn next(&mut self) -> Option<&[F]> {
+        if self.next_step > self.assignments.deltas.len() {
+            return None;
+        }
+        if self.next_step != 0 {
+            let delta = &self.assignments.deltas[self.next_step - 1];
+            debug_assert_eq!(delta.columns.len(), delta.values.len());
+            for (&column, &value) in delta.columns.iter().zip(&delta.values) {
+                self.current[column as usize] = value;
+            }
+        }
+        self.next_step += 1;
+        Some(&self.current)
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct ApplicationSegmentTrace {
     memory: SegmentTrace,
-    assignments: Vec<Vec<F>>,
+    assignments: ApplicationAssignments,
     slots: Vec<Vec<Option<MemOpRecord>>>,
 }
 
@@ -440,8 +510,8 @@ impl ApplicationSegmentTrace {
         &self.memory
     }
 
-    pub fn assignment(&self, step: usize) -> &[F] {
-        &self.assignments[step]
+    pub(crate) fn assignment_cursor(&self) -> ApplicationAssignmentCursor<'_> {
+        self.assignments.cursor()
     }
 
     pub fn slots(&self, step: usize) -> &[Option<MemOpRecord>] {

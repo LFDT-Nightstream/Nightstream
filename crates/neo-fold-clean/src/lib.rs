@@ -88,6 +88,7 @@
 pub mod config;
 pub mod engine;
 pub mod frontends;
+mod heap;
 pub mod lifecycle;
 pub mod paper;
 

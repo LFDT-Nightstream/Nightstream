@@ -167,7 +167,7 @@ impl NebulaFPrimeRelation {
     /// to all three compiled arms, including an interior segment step, and
     /// therefore fails if live synthesis drifts from this fixed relation.
     pub fn compile_fixed_point(params: &Params, plan: &NebulaPlan) -> Result<Self, NebulaFPrimeRelationError> {
-        Self::compile_fixed_point_inner(params, plan, None)
+        Self::compile_fixed_point_inner(params, plan, None, Some(ROAD_A_COMMITTED_BIT_BUDGET))
     }
 
     pub fn compile_application_fixed_point(
@@ -176,13 +176,27 @@ impl NebulaFPrimeRelation {
         application: NebulaApplication,
     ) -> Result<Self, NebulaFPrimeRelationError> {
         application.validate_for(plan)?;
-        Self::compile_fixed_point_inner(params, plan, Some(application))
+        Self::compile_fixed_point_inner(params, plan, Some(application), Some(ROAD_A_COMMITTED_BIT_BUDGET))
+    }
+
+    /// Compile an over-budget application relation solely for explicit
+    /// production profiling. Normal constructors retain the 16M gate.
+    #[cfg(feature = "perf-timers")]
+    #[doc(hidden)]
+    pub fn compile_application_fixed_point_unbounded_for_profile(
+        params: &Params,
+        plan: &NebulaPlan,
+        application: NebulaApplication,
+    ) -> Result<Self, NebulaFPrimeRelationError> {
+        application.validate_for(plan)?;
+        Self::compile_fixed_point_inner(params, plan, Some(application), None)
     }
 
     fn compile_fixed_point_inner(
         params: &Params,
         plan: &NebulaPlan,
         application: Option<NebulaApplication>,
+        committed_bit_budget: Option<usize>,
     ) -> Result<Self, NebulaFPrimeRelationError> {
         const MAX_ROUNDS: usize = 8;
 
@@ -215,7 +229,7 @@ impl NebulaFPrimeRelation {
             let lowering_started = std::time::Instant::now();
             let arm_relations = [arms.base, arms.bootstrap_recursive, arms.recursive];
             let (shared_private_fields, next_shape, candidate_widths) =
-                select_low_norm_shape(&arm_relations, plan, shared_private_candidates)?;
+                select_low_norm_shape(&arm_relations, plan, shared_private_candidates, committed_bit_budget)?;
             let output_signature = shape_signature(&next_shape);
             #[cfg(feature = "perf-timers")]
             eprintln!(
@@ -247,6 +261,7 @@ impl NebulaFPrimeRelation {
                     shared_private_fields,
                     next_shape,
                     candidate_widths,
+                    committed_bit_budget,
                 );
             }
             verifier_relation =
@@ -310,9 +325,21 @@ impl NebulaFPrimeRelation {
         application: Option<NebulaApplication>,
         shared_private_candidates: Vec<usize>,
     ) -> Result<Self, NebulaFPrimeRelationError> {
-        let (shared_private_fields, shape, candidate_widths) =
-            select_low_norm_shape(&arms, plan, shared_private_candidates)?;
-        Self::compile_owned_selected(arms, plan, application, shared_private_fields, shape, candidate_widths)
+        let (shared_private_fields, shape, candidate_widths) = select_low_norm_shape(
+            &arms,
+            plan,
+            shared_private_candidates,
+            Some(ROAD_A_COMMITTED_BIT_BUDGET),
+        )?;
+        Self::compile_owned_selected(
+            arms,
+            plan,
+            application,
+            shared_private_fields,
+            shape,
+            candidate_widths,
+            Some(ROAD_A_COMMITTED_BIT_BUDGET),
+        )
     }
 
     fn compile_owned_selected(
@@ -322,6 +349,7 @@ impl NebulaFPrimeRelation {
         shared_private_fields: usize,
         shape: SelectiveLowNormShape,
         candidate_widths: Vec<(usize, usize)>,
+        committed_bit_budget: Option<usize>,
     ) -> Result<Self, NebulaFPrimeRelationError> {
         let circuit = plan.circuit();
         let shared_private_bit_fields = circuit.cols() - circuit.m_in();
@@ -344,12 +372,14 @@ impl NebulaFPrimeRelation {
                 "shape-only selective audit differs from emitted relation".into(),
             ));
         }
-        if relation.structure().m > ROAD_A_COMMITTED_BIT_BUDGET {
-            return Err(NebulaFPrimeRelationError::CompileBudgetExceeded {
-                minimum_bits: relation.structure().m,
-                budget_bits: ROAD_A_COMMITTED_BIT_BUDGET,
-                candidate_widths,
-            });
+        if let Some(budget_bits) = committed_bit_budget {
+            if relation.structure().m > budget_bits {
+                return Err(NebulaFPrimeRelationError::CompileBudgetExceeded {
+                    minimum_bits: relation.structure().m,
+                    budget_bits,
+                    candidate_widths,
+                });
+            }
         }
         let remapped_ranges = remap_lane_ranges(&relation, &arms, circuit)?;
         let mut config = plan.config();
@@ -366,6 +396,10 @@ impl NebulaFPrimeRelation {
 
     pub fn structure(&self) -> &Structure {
         self.relation.structure()
+    }
+
+    pub(crate) fn structure_arc(&self) -> std::sync::Arc<Structure> {
+        self.relation.structure_arc()
     }
 
     pub fn public_input_len(&self) -> usize {
@@ -506,6 +540,7 @@ fn select_low_norm_shape(
     arms: &[SparseR1cs; 3],
     plan: &NebulaPlan,
     mut shared_private_candidates: Vec<usize>,
+    committed_bit_budget: Option<usize>,
 ) -> Result<(usize, SelectiveLowNormShape, Vec<(usize, usize)>), NebulaFPrimeRelationError> {
     let circuit = plan.circuit();
     let shared_private_bit_fields = circuit.cols() - circuit.m_in();
@@ -538,12 +573,14 @@ fn select_low_norm_shape(
     }
     let (shared_private_fields, shape) =
         best.ok_or_else(|| NebulaFPrimeRelationError::Geometry("no valid shared-private prefix candidate".into()))?;
-    if shape.audit.total_coordinates > ROAD_A_COMMITTED_BIT_BUDGET || shape.columns > ROAD_A_COMMITTED_BIT_BUDGET {
-        return Err(NebulaFPrimeRelationError::CompileBudgetExceeded {
-            minimum_bits: shape.audit.total_coordinates.max(shape.columns),
-            budget_bits: ROAD_A_COMMITTED_BIT_BUDGET,
-            candidate_widths,
-        });
+    if let Some(budget_bits) = committed_bit_budget {
+        if shape.audit.total_coordinates > budget_bits || shape.columns > budget_bits {
+            return Err(NebulaFPrimeRelationError::CompileBudgetExceeded {
+                minimum_bits: shape.audit.total_coordinates.max(shape.columns),
+                budget_bits,
+                candidate_widths,
+            });
+        }
     }
     Ok((shared_private_fields, shape, candidate_widths))
 }

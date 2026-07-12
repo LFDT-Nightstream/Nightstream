@@ -1,34 +1,14 @@
-//! R1CS-F' frontend integration tests — basic compile/satisfaction +
-//! structure shape coverage.
+//! R1CS-F' compiler integration and structure checks.
 //!
-//! Every test is designed to fail under a plausible bad encoder /
-//! structure builder / compiler:
-//!
-//! - `r1cs_compiler_accepts_satisfying_witness` — happy path.
-//! - `r1cs_compiler_rejects_unsatisfying_witness` — early R1CS check
-//!   in `compile_step` catches the bug.
-//! - `r1cs_compiler_bit_flip_in_app_assignment_fails_structure` —
-//!   confirms the in-circuit R1CS rows depend on the committed bits.
-//! - `r1cs_compiler_row_count_matches_r1cs_n` — confirms the structure
-//!   appends exactly `r1cs.n()` R1CS rows (every constraint is in).
-//! - `r1cs_compiler_two_different_shapes_have_different_structure_digests`
-//!   — sanity test on the verifier-owned structure digest.
-//! - `r1cs_compiler_satisfies_fibonacci_relation` — Fibonacci-as-R1CS
-//!   round-trip; the R1CS encoder accepts a Fibonacci-shaped circuit.
-//! - `r1cs_compiler_base_and_recursive_share_structure` — load-bearing
-//!   chain-replay test; runs the lifecycle under a smaller test-only
-//!   params profile (kappa = 4, m = 2^16, lambda = 60) so the full
-//!   prove + extend + recursive-compile flow fits under the 5-min cap.
-//!   The algebra is unchanged (Goldilocks ring, k_rho, T, B all match
-//!   production); only the Ajtai-SIS security parameter is reduced.
-//!
-//! Stateful semantic-digest tests live in the sibling
-//! `r1cs_compiler_stateful.rs`. Preprocess-time plan validation lives
-//! in `r1cs_preprocess.rs`. Shared fixtures live in
-//! `tests/support/r1cs_compiler_fixtures.rs`.
+//! Covers witness acceptance, row/shape binding, fixed recursive structure,
+//! Fibonacci encoding, and backend-carrier handoff. Stateful tests live in
+//! `r1cs_compiler_stateful.rs`; preprocessing checks and shared fixtures live
+//! in the neighboring system/support modules.
 
 #![allow(non_snake_case)]
 
+#[path = "r1cs_compiler/backend_carrier.rs"]
+mod backend_carrier;
 #[path = "../support/mod.rs"]
 mod support;
 
@@ -45,7 +25,9 @@ use neo_fold_clean::engine::r1cs_circuit::transcript::TranscriptGadget;
 use neo_fold_clean::engine::r1cs_circuit::u64_arith::decompose_var_to_u64_bits;
 use neo_fold_clean::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
 use neo_fold_clean::frontends::direct_ccs::R1cs;
-use neo_fold_clean::frontends::f_prime::compiler::{verify_prior_fold, FPrimeShellCompilerError};
+use neo_fold_clean::frontends::f_prime::compiler::{
+    verify_prior_fold, FPrimeFoldPostSummary, FPrimeShellCompilerError,
+};
 use neo_fold_clean::frontends::f_prime::image::FPrimeImageLayout;
 use neo_fold_clean::frontends::f_prime::recursive_plan::build_recursive_step_image_config;
 use neo_fold_clean::frontends::r1cs_f_prime::{
@@ -636,21 +618,27 @@ fn r1cs_verify_prior_fold_rejects_wrong_k_transcript() {
         .expect("K=1 prepared fold");
 
     let (pre_running, latest) = match &prev_audit.proof.state.proof {
-        ProofState::Active { running, latest } => (running.clone(), latest.clone()),
+        ProofState::Active { running, latest } => (
+            running.materialize().expect("pre-running materialization"),
+            latest.clone(),
+        ),
         other => panic!("expected active pre-state, got {other:?}"),
     };
     let proof = match &derived.steps.last().expect("derived step").fold {
-        FoldProof::Recursive(proof) => proof.clone(),
+        FoldProof::Recursive(proof) => proof
+            .materialize()
+            .expect("recursive NIFS proof materialization"),
         FoldProof::NoFold => panic!("recursive extend must emit a fold proof"),
     };
     let post_running = match &derived.proof.state.proof {
-        ProofState::Active { running, .. } => running.clone(),
+        ProofState::Active { running, .. } => running.materialize().expect("post-running materialization"),
         other => panic!("expected active post-state, got {other:?}"),
     };
     let fold = R1csFoldForStep {
         pre_running,
         latest,
         proof,
+        post_summary: None,
         post_running,
     };
 

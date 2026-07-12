@@ -758,6 +758,9 @@ fn build_terminal_replay_fixture() -> TerminalOptimizedProveFixture {
     let ProofState::Active { running, latest } = &audit.proof.state.proof else {
         panic!("two-step SHA chain must be active before finalization");
     };
+    let running = running
+        .materialize()
+        .expect("SHA terminal fixture running materialization");
     let parent = running
         .parent_authority
         .as_ref()

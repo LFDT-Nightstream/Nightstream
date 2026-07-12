@@ -326,6 +326,8 @@ pub enum Error {
     #[error(transparent)]
     Lifecycle(#[from] crate::lifecycle::Error),
     #[error(transparent)]
+    Nifs(#[from] crate::paper::nifs::Error),
+    #[error(transparent)]
     OptimizedCacheBuild(#[from] neo_reductions::error::PiCcsError),
 }
 

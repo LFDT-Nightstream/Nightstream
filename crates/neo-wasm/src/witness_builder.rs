@@ -10,7 +10,7 @@ use super::layout::{
     COL_DIV_DIVISOR_IS_NEG1, COL_DIV_DIVISOR_IS_ZERO, COL_DIV_DIVISOR_NEG1_INV, COL_DIV_OVERFLOW,
     COL_DIV_OVERFLOW_COND, COL_DIV_TRAP, COL_EXPECTED_TYPE_ID, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF,
     COL_FUNCTION_TYPE_ID, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI, COL_GROW_SUCCESS,
-    COL_GUEST_CALL_ACTIVE, COL_HALTED, COL_HOST_ARGS_ACTIVE_AFTER, COL_HOST_ARGS_ACTIVE_BEFORE,
+    COL_GUEST_CALL_ACTIVE, COL_HALTED, COL_HALTED_BEFORE, COL_HOST_ARGS_ACTIVE_AFTER, COL_HOST_ARGS_ACTIVE_BEFORE,
     COL_HOST_ARGS_REMAINING_AFTER, COL_HOST_ARGS_REMAINING_AFTER_INV, COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO,
     COL_HOST_ARGS_REMAINING_BEFORE, COL_HOST_RESULT_ACTIVE, COL_HOST_RESULT_PENDING_AFTER,
     COL_HOST_RESULT_PENDING_BEFORE, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1,
@@ -161,6 +161,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     wit[COL_LOCALS_FBP_BEFORE] = F::from_u64(trace.state_before.locals_fbp);
     wit[COL_LOCALS_FBP_AFTER] = F::from_u64(trace.state_after.locals_fbp);
     wit[COL_HALTED] = if trace.state_after.halted { F::ONE } else { F::ZERO };
+    wit[COL_HALTED_BEFORE] = if trace.state_before.halted { F::ONE } else { F::ZERO };
     wit[COL_TRAPPED_BEFORE] = if trace.state_before.trapped { F::ONE } else { F::ZERO };
     wit[COL_TRAPPED_AFTER] = if trace.state_after.trapped { F::ONE } else { F::ZERO };
     wit[COL_IS_PROGRAM_ROW] = if trace.row_kind.is_program() { F::ONE } else { F::ZERO };
@@ -324,16 +325,20 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     wit[COL_DIV_DIVISOR_IS_ZERO] = divisor_is_zero;
     wit[COL_DIV_DIVISOR_INV] = divisor_inv;
     let sel_i32_div_s = wit[selector_col(super::isa::WasmOpcode::I32DivS).expect("i32.div_s selector")];
+    let sel_i32_rem_s = wit[selector_col(super::isa::WasmOpcode::I32RemS).expect("i32.rem_s selector")];
     let sel_i64_div_s = wit[selector_col(super::isa::WasmOpcode::I64DivS).expect("i64.div_s selector")];
+    let sel_i64_rem_s = wit[selector_col(super::isa::WasmOpcode::I64RemS).expect("i64.rem_s selector")];
+    let sel_i32_signed = sel_i32_div_s + sel_i32_rem_s;
+    let sel_i64_signed = sel_i64_div_s + sel_i64_rem_s;
     let dividend_min = wit[COL_STACK_READ0_VALUE_LO] + wit[COL_STACK_READ0_VALUE_HI] * F::from_u64(1 << 32)
-        - sel_i32_div_s * F::from_u64(1 << 31)
-        - sel_i64_div_s * F::from_u64(1 << 63);
+        - sel_i32_signed * F::from_u64(1 << 31)
+        - sel_i64_signed * F::from_u64(1 << 63);
     let (dividend_is_min, dividend_min_inv) = zero_test_witness_field(dividend_min);
     wit[COL_DIV_DIVIDEND_IS_MIN] = dividend_is_min;
     wit[COL_DIV_DIVIDEND_MIN_INV] = dividend_min_inv;
     let divisor_neg1 = wit[COL_STACK_READ1_VALUE_LO] + wit[COL_STACK_READ1_VALUE_HI]
-        - sel_i32_div_s * F::from_u64(0xFFFF_FFFF)
-        - sel_i64_div_s * F::from_u64(0x1_FFFF_FFFE);
+        - sel_i32_signed * F::from_u64(0xFFFF_FFFF)
+        - sel_i64_signed * F::from_u64(0x1_FFFF_FFFE);
     let (divisor_is_neg1, divisor_neg1_inv) = zero_test_witness_field(divisor_neg1);
     wit[COL_DIV_DIVISOR_IS_NEG1] = divisor_is_neg1;
     wit[COL_DIV_DIVISOR_NEG1_INV] = divisor_neg1_inv;

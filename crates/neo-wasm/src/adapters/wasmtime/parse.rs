@@ -29,6 +29,13 @@ pub struct WasmProgramArtifacts {
 
 #[derive(Clone, Debug)]
 pub struct WasmProgramTables {
+    /// Whether default linear memory 0 is supplied by the host. Its initial
+    /// contents are not derivable from the module and therefore cannot seed a
+    /// sound proof without an additional verifier-bound host-state input.
+    pub has_imported_memory: bool,
+    /// Number of leading globals supplied by the host. Their initial values are
+    /// deliberately absent from `globals_init`.
+    pub imported_global_count: u32,
     /// Initial page count for default linear memory 0, or `None` when the
     /// module has no default memory. This seeds the VM boundary state; data
     /// segment contents are tracked separately in `linear_memory_init`.
@@ -194,6 +201,8 @@ struct ParsedWasmArtifactsBuilder {
     signature_ids: BTreeMap<String, u32>,
     next_type_id: u32,
     defined_function_type_indices: Vec<u32>,
+    has_imported_memory: bool,
+    imported_global_count: u32,
     initial_memory_pages: Option<u32>,
     max_memory_pages: Option<u32>,
     linear_memory_init: Vec<(u64, u8)>,
@@ -222,6 +231,8 @@ impl Default for ParsedWasmArtifactsBuilder {
             signature_ids: BTreeMap::new(),
             next_type_id: 1,
             defined_function_type_indices: Vec::new(),
+            has_imported_memory: false,
+            imported_global_count: 0,
             initial_memory_pages: None,
             max_memory_pages: None,
             linear_memory_init: Vec::new(),
@@ -317,6 +328,8 @@ impl ParsedWasmArtifactsBuilder {
         module_types.dedup();
         Ok(WasmProgramArtifacts {
             tables: WasmProgramTables {
+                has_imported_memory: self.has_imported_memory,
+                imported_global_count: self.imported_global_count,
                 initial_memory_pages: self.initial_memory_pages,
                 max_memory_pages: self.max_memory_pages,
                 program_decode: self.program_decode,
@@ -370,6 +383,7 @@ impl ParsedWasmArtifactsBuilder {
                         .map_err(|err| WasmBuildError::Trace(format!("failed to decode wasm import: {err}")))?;
                     if matches!(import.ty, wasmparser::TypeRef::Global(_)) {
                         // Imported globals occupy the leading global indexes.
+                        self.imported_global_count = self.imported_global_count.saturating_add(1);
                         self.next_declared_global_index = self.next_declared_global_index.saturating_add(1);
                     }
                     if matches!(import.ty, wasmparser::TypeRef::Table(_)) {
@@ -380,6 +394,7 @@ impl ParsedWasmArtifactsBuilder {
                         ));
                     }
                     if let wasmparser::TypeRef::Memory(memory) = import.ty {
+                        self.has_imported_memory = true;
                         self.set_initial_memory_pages(memory)?;
                     }
                     if let wasmparser::TypeRef::Func(raw_type_index) = import.ty {

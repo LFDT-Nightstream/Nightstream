@@ -30,6 +30,17 @@ impl WasmMemoryPreload {
     fn clone_cells(&self) -> BTreeMap<&'static str, BTreeMap<Vec<u32>, u32>> {
         self.cells.clone()
     }
+
+    pub fn entries(&self) -> Vec<(&'static str, Vec<u32>, u32)> {
+        self.cells
+            .iter()
+            .flat_map(|(&memory, cells)| {
+                cells
+                    .iter()
+                    .map(move |(address, &value)| (memory, address.clone(), value))
+            })
+            .collect()
+    }
 }
 
 /// Read a witness column and narrow to u32, returning a descriptive

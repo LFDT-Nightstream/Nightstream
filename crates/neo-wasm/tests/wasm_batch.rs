@@ -4,11 +4,13 @@
 
 mod common;
 
+use common::audit::{prove_batched, verify};
 use neo_fold_clean::frontends::r1cs_f_prime::{R1csChainBuilder, R1csCompilerError};
 use neo_math::F;
 use neo_wasm::batch::{batch_count, build_batched_wasm_ccs, build_batched_witness};
 use neo_wasm::layout::{COL_LOCALS_FBP_AFTER, COL_PC_BEFORE, COL_SP_BEFORE};
-use neo_wasm::{prove_batched, verify, WasmVmSpec, WasmVmStep};
+use neo_wasm::preprocess::preprocess_seeded_batched;
+use neo_wasm::{WasmVmSpec, WasmVmStep};
 use p3_field::PrimeCharacteristicRing;
 
 const SIMPLE_ADD_WAT: &str = r#"
@@ -183,7 +185,7 @@ fn semantic_state_rejects_rewound_cross_batch_boundary() {
         "test needs at least two batches"
     );
     let digest = common::verifier_initial_state_digest(&checked.artifacts);
-    let prep = neo_wasm::preprocess_seeded_batched(batch_size, digest).expect("prep");
+    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
     let mut chain = R1csChainBuilder::new(&prep).expect("chain");
 
     chain
@@ -207,7 +209,7 @@ fn semantic_state_rejects_wrong_initial_state_digest() {
     let batch_size = 2;
     let mut digest = common::verifier_initial_state_digest(&checked.artifacts);
     digest[0] ^= 0xA5;
-    let prep = neo_wasm::preprocess_seeded_batched(batch_size, digest).expect("prep");
+    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
     let mut chain = R1csChainBuilder::new(&prep).expect("chain");
     let witness = build_batched_witness(&checked.trace, batch_size, 0);
 
@@ -236,7 +238,7 @@ fn batched_prove_verify_simple_add() {
     // Cover both dividing (2, 4) and padding-required (3) sizes.
     for batch_size in [2usize, 3, 4] {
         let digest = common::verifier_initial_state_digest(&checked.artifacts);
-        let prep = neo_wasm::preprocess_seeded_batched(batch_size, digest).expect("prep");
+        let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
         let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
         verify(&prep, &proof, common::final_state(&checked.trace)).expect("verify");
     }

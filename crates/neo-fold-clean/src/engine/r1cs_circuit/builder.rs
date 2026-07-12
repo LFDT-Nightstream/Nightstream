@@ -596,7 +596,8 @@ impl R1csBuilder {
     }
 
     /// Evaluate a preprocessed fixed-shape circuit and retain only its witness.
-    pub(crate) fn new_witness_only() -> Self {
+    #[doc(hidden)]
+    pub fn new_witness_only() -> Self {
         Self::with_structure_recording(false)
     }
 

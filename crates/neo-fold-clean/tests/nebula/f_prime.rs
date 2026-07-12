@@ -218,6 +218,36 @@ fn base_step_composes_current_s_mem_and_exports_one_relation() {
         "composed field relation must satisfy: {:?}",
         builder.first_unsatisfied_row()
     );
+
+    let mut witness_only = R1csBuilder::new_witness_only();
+    let witness_only_output = enforce_nebula_f_prime_base_step(
+        &mut witness_only,
+        &circuit,
+        &s_mem_assignment,
+        Some(current_d_pre),
+        &cfg,
+        &inputs,
+    )
+    .expect("witness-only composed base F'");
+    assert_eq!(witness_only.rows(), builder.rows(), "witness-only row schedule drifted");
+    assert_eq!(
+        witness_only.witness(),
+        builder.witness(),
+        "witness-only assignment drifted"
+    );
+    assert_eq!(
+        witness_only_output
+            .public_outputs()
+            .iter()
+            .map(|wire| wire.col())
+            .collect::<Vec<_>>(),
+        output
+            .public_outputs()
+            .iter()
+            .map(|wire| wire.col())
+            .collect::<Vec<_>>(),
+        "witness-only public wire schedule drifted"
+    );
     let witness = builder.witness();
     let public_outputs = output.public_outputs();
     let public_values: Vec<F> = public_outputs

@@ -1386,23 +1386,20 @@ fn write_balanced_ternary(
     value: F,
     field_col: usize,
 ) -> Result<(), LowNormR1csError> {
-    let modulus = F::ORDER_U64 as i128;
-    let canonical = value.as_canonical_u64() as i128;
-    let mut remaining = if canonical <= modulus / 2 {
-        canonical
-    } else {
-        canonical - modulus
-    };
+    let modulus = F::ORDER_U64;
+    let canonical = value.as_canonical_u64();
+    let negative = canonical > modulus / 2;
+    let mut remaining = if negative { modulus - canonical } else { canonical };
     for digit_index in 0..BALANCED_TERNARY_FIELD_WIDTH {
-        let residue = remaining.rem_euclid(3);
-        let digit = if residue == 2 { -1i128 } else { residue };
-        assignment[start + digit_index] = match digit {
-            -1 => -F::ONE,
+        let residue = remaining % 3;
+        let positive_digit = match residue {
             0 => F::ZERO,
             1 => F::ONE,
-            _ => unreachable!("balanced ternary digit is centered"),
+            2 => -F::ONE,
+            _ => unreachable!("remainder modulo three"),
         };
-        remaining = (remaining - digit) / 3;
+        assignment[start + digit_index] = if negative { -positive_digit } else { positive_digit };
+        remaining = remaining / 3 + u64::from(residue == 2);
     }
     if remaining != 0 {
         return Err(LowNormR1csError::BalancedTernaryOverflow { col: field_col });

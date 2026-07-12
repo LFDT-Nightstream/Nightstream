@@ -17,11 +17,12 @@ use crate::batch::{self, BatchError};
 use crate::ir::{WasmCountdownState, WasmOutputState, WasmStepState};
 use crate::layout::Column;
 use crate::layout::{
-    COL_CALL_STACK_DEPTH_BEFORE, COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_ARGS_REMAINING_BEFORE,
+    COL_CALL_STACK_DEPTH_BEFORE, COL_HALTED_BEFORE, COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_ARGS_REMAINING_BEFORE,
     COL_HOST_RESULT_PENDING_BEFORE, COL_LOCALS_FBP_BEFORE, COL_MAX_MEMORY_PAGES_BEFORE, COL_MEMORY_PAGES_BEFORE,
     COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_PARAM_INIT_ACTIVE_BEFORE,
     COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_BEFORE, COL_SP_BEFORE, COL_TRAPPED_BEFORE,
 };
+use crate::lookup_circuit::{extend_relation, LookupCircuitError};
 use crate::relation_layout::build_wasm_relation_layout;
 use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
 use neo_fold_clean::frontends::f_prime::image::{FPrimeImageLayout, NifsPayloadShape};
@@ -57,6 +58,8 @@ pub enum WasmPreprocessError {
     R1csFPrime(#[from] neo_fold_clean::frontends::r1cs_f_prime::Error),
     #[error(transparent)]
     Batch(#[from] BatchError),
+    #[error(transparent)]
+    Lookup(#[from] LookupCircuitError),
 }
 
 /// Canonical structural inputs for the wasm R1CS-F' frontend.
@@ -68,6 +71,14 @@ pub struct WasmCanonicalFPrimeShape {
     pub sparse_r1cs: SparseR1cs,
     pub plan: RecursiveStepImagePlan,
     pub structure: FPrimeStructure,
+}
+
+pub(crate) struct WasmNebulaCanonicalShape {
+    pub(crate) sparse_r1cs: SparseR1cs,
+    pub(crate) plan: RecursiveStepImagePlan,
+    pub(crate) lookup_auxiliary_columns_per_instruction: usize,
+    pub(crate) lookup_auxiliary_columns_total: usize,
+    pub(crate) single_step_columns: usize,
 }
 
 pub fn canonical_wasm_f_prime_shape_batched_with_initial_state_digest(
@@ -88,6 +99,32 @@ pub fn canonical_wasm_f_prime_shape_batched_with_initial_state_digest(
         sparse_r1cs,
         plan,
         structure,
+    })
+}
+
+pub(crate) fn canonical_wasm_nebula_shape_batched_with_initial_state_digest(
+    batch_size: usize,
+    initial_semantic_state_digest: [u8; 32],
+) -> Result<WasmNebulaCanonicalShape, WasmPreprocessError> {
+    let mut single = batch::build_batched_wasm_ccs(1)?;
+    single.sparse_r1cs.m_in = 1;
+    let compact = extend_relation(&single.sparse_r1cs, single.widths)?;
+    let single_step_columns = compact.relation.m;
+    let lookup_auxiliary_columns_per_instruction = compact.auxiliary_columns;
+    let batched = batch::batch_wasm_relation(&compact.relation, &compact.widths, batch_size)?;
+    let (plan, _) = wasm_recursive_plan_and_structure(
+        &batched.sparse_r1cs,
+        &batched.widths,
+        batch_size,
+        batched.sparse_r1cs.m_in,
+        initial_semantic_state_digest,
+    );
+    Ok(WasmNebulaCanonicalShape {
+        sparse_r1cs: batched.sparse_r1cs,
+        plan,
+        lookup_auxiliary_columns_per_instruction,
+        lookup_auxiliary_columns_total: lookup_auxiliary_columns_per_instruction * batch_size,
+        single_step_columns,
     })
 }
 
@@ -143,9 +180,8 @@ pub fn top_level_initial_state(tables: &WasmProgramTables, entry_pc: u64) -> Was
 /// verifier-owned initial anchor expected by [`preprocess_seeded_batched`],
 /// and the final-state claim checked by [`crate::verify`].
 ///
-/// Note `halted` is not a carried field — it is not part of the digest. A
-/// final state with `output.enabled = true` provably halted (output capture
-/// is CCS-gated on the halting row).
+/// `halted` is carried explicitly, so the terminal claim cannot be changed
+/// independently of the folded semantic-state digest.
 pub fn semantic_state_digest(state: WasmStepState) -> [u8; 32] {
     let layout = build_wasm_relation_layout();
     let fields = layout
@@ -167,6 +203,7 @@ fn carried_state_field(state: WasmStepState, column: Column) -> F {
     match column.0 {
         COL_PC_BEFORE => F::from_u64(state.pc),
         COL_SP_BEFORE => F::from_u64(state.sp),
+        COL_HALTED_BEFORE => bool_field(state.halted),
         COL_OUTPUT_ENABLED_BEFORE => bool_field(state.output.enabled),
         COL_OUTPUT_VALUE_LO_BEFORE => F::from_u64(u64::from(state.output.value_lo)),
         COL_OUTPUT_VALUE_HI_BEFORE => F::from_u64(u64::from(state.output.value_hi)),
@@ -197,7 +234,7 @@ fn bool_field(value: bool) -> F {
 /// only `kappa`, `m`, `lambda` are shrunk so the lifecycle fits under the
 /// 5-minute test cap. Π_RLC / Π_DEC algebraic identities hold bit-for-bit;
 /// only the Ajtai-SIS security parameter is reduced.
-fn wasm_tiny_params() -> NeoParams {
+pub(crate) fn wasm_tiny_params() -> NeoParams {
     NeoParams::new(
         goldilocks_paper_b2::Q,
         goldilocks_paper_b2::ETA as u32,
@@ -235,7 +272,7 @@ fn wasm_tiny_params() -> NeoParams {
 /// fixed point: seed both, build the structure, recompute the required
 /// lengths, repeat until stable. The dependency is logarithmic in both
 /// directions, so convergence is 1-2 iterations.
-fn wasm_recursive_plan_and_structure(
+pub(crate) fn wasm_recursive_plan_and_structure(
     sparse_r1cs: &SparseR1cs,
     app_private_var_widths: &[usize],
     batch_size: usize,

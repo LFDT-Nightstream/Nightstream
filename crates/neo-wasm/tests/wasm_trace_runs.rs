@@ -1,12 +1,11 @@
 mod common;
 
+use common::audit::{prove, verify, AuditProveError};
 use neo_fold_clean::frontends::r1cs_f_prime;
 use neo_fold_clean::paper::params::Params;
 use neo_params::{goldilocks_paper_b2, NeoParams};
-use neo_wasm::{
-    preprocess::canonical_wasm_f_prime_shape_batched_with_initial_state_digest, preprocess_seeded_batched, prove,
-    verify, WasmVmSpec, WasmVmStep,
-};
+use neo_wasm::preprocess::{canonical_wasm_f_prime_shape_batched_with_initial_state_digest, preprocess_seeded_batched};
+use neo_wasm::{WasmVmSpec, WasmVmStep};
 
 /// Compile a WAT module, run it through the wasmtime adapter, exercise the
 /// witness-derived sanity checks, and return the trace + ROMs.
@@ -1043,7 +1042,7 @@ fn wasm_trace_run_folding_proof() {
     assert!(
         matches!(
             verify(&prep, &proof, wrong_output),
-            Err(neo_wasm::WasmProveError::FinalStateMismatch)
+            Err(AuditProveError::FinalStateMismatch)
         ),
         "verify must reject a tampered claimed output value"
     );
@@ -1052,7 +1051,7 @@ fn wasm_trace_run_folding_proof() {
     assert!(
         matches!(
             verify(&prep, &proof, disabled_output),
-            Err(neo_wasm::WasmProveError::FinalStateMismatch)
+            Err(AuditProveError::FinalStateMismatch)
         ),
         "verify must reject a claimed final state without the captured output"
     );

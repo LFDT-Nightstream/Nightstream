@@ -86,7 +86,7 @@ pub struct PiCcsReplayTerminalState {
     pub fold_digest: [u8; 32],
     pub perf: PiCcsProvePerf,
     #[doc(hidden)]
-    pub pi_dec_precompute: PiDecProverPrecompute,
+    pub pi_dec_precompute: Option<PiDecProverPrecompute>,
 }
 
 /// Prover-only data shared by adjacent Π_CCS and Π_DEC phases.

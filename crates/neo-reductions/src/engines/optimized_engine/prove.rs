@@ -139,6 +139,7 @@ pub fn optimized_prove_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorphi
         None,
         None,
         ReplayTraceMode::Prove,
+        false,
         None,
         None,
         None,
@@ -175,6 +176,7 @@ pub fn optimized_prove_with_cache_and_instance_digest_and_perf<L: neo_ccs::trait
         Some(public_instance_digest),
         None,
         ReplayTraceMode::Prove,
+        false,
         None,
         None,
         None,
@@ -229,6 +231,7 @@ pub fn optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_pe
         Some(public_instance_digest),
         Some(me_input_accumulator_handle),
         ReplayTraceMode::Prove,
+        true,
         None,
         None,
         None,
@@ -236,13 +239,12 @@ pub fn optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_pe
     )?;
     let rounds = owned_rounds(rounds.expect("optimized prove trace must capture proof rounds"))?;
     let proof = proof_from_terminal_state(&terminal_state, rounds);
+    let pi_dec_precompute = terminal_state
+        .pi_dec_precompute
+        .clone()
+        .ok_or_else(|| PiCcsError::InvalidInput("CPU Pi_CCS prove did not produce Pi_DEC precomputation".into()))?;
 
-    Ok((
-        terminal_state.me_outputs,
-        proof,
-        terminal_state.perf,
-        terminal_state.pi_dec_precompute,
-    ))
+    Ok((terminal_state.me_outputs, proof, terminal_state.perf, pi_dec_precompute))
 }
 
 /// `optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf`
@@ -277,6 +279,7 @@ pub fn optimized_prove_with_device_backends<L: neo_ccs::traits::SModuleHomomorph
         Some(public_instance_digest),
         Some(me_input_accumulator_handle),
         ReplayTraceMode::Prove,
+        false,
         None,
         fe_backend,
         nc_backend,
@@ -365,6 +368,7 @@ pub fn optimized_prove_with_phase_backend_and_transcript_mode<L: neo_ccs::traits
         Some(public_instance_digest),
         Some(me_input_accumulator_handle),
         ReplayTraceMode::Prove,
+        false,
         phase_backend,
         fe_backend,
         nc_backend,
@@ -410,6 +414,7 @@ pub fn optimized_defer_prove_with_phase_backend_and_transcript_mode<L: neo_ccs::
         Some(public_instance_digest),
         Some(me_input_accumulator_handle),
         ReplayTraceMode::DeferredProof,
+        false,
         Some(phase_backend),
         None,
         None,
@@ -456,6 +461,7 @@ pub fn optimized_defer_prove_with_device_backends_and_transcript_mode<
         Some(public_instance_digest),
         Some(me_input_accumulator_handle),
         ReplayTraceMode::DeferredProof,
+        false,
         None,
         Some(fe_backend),
         nc_backend,
@@ -480,6 +486,7 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
     public_instance_digest: Option<[F; 4]>,
     me_input_accumulator_handle: Option<[F; 4]>,
     mode: ReplayTraceMode,
+    capture_pi_dec_precompute: bool,
     mut phase_backend: Option<&mut dyn PiCcsPhaseBackend>,
     mut fe_backend: Option<&mut dyn FeSumcheckBackend>,
     mut nc_backend: Option<&mut dyn NcSumcheckBackend>,
@@ -1302,7 +1309,6 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
     let output_started = std::time::Instant::now();
     let fold_digest = tr.digest32();
     let (s_col, _alpha_nc) = sumcheck_chals_nc.split_at(dims.ell_m);
-    let terminal_surfaces_supplied = phase_terminal_surfaces.is_some();
     let out_me = if let Some(surfaces) = phase_terminal_surfaces.take() {
         build_me_outputs_from_terminal_surfaces(
             params,
@@ -1326,13 +1332,9 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
             log,
         )
     };
-    let pi_dec_precompute = if terminal_surfaces_supplied {
-        super::PiDecProverPrecompute {
-            row_chals: sumcheck_chals[..dims.ell_n].to_vec(),
-        }
-    } else {
-        oracle.take_pi_dec_precompute()
-    };
+    let pi_dec_precompute = capture_pi_dec_precompute
+        .then(|| oracle.take_pi_dec_precompute())
+        .flatten();
     let output_materialize_ms = output_started.elapsed().as_secs_f64() * 1_000.0;
     #[cfg(feature = "perf-timers")]
     eprintln!(

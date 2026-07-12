@@ -1262,6 +1262,27 @@ fn selective_multi_branch_lowering_preserves_rejection_sampling() {
 
 #[test]
 fn selective_multi_branch_balanced_ternary_handles_field_edges_and_rejects_non_unit_digits() {
+    fn reference_digits(value: F) -> [F; 41] {
+        let modulus = F::ORDER_U64 as i128;
+        let canonical = value.as_canonical_u64() as i128;
+        let mut remaining = if canonical <= modulus / 2 {
+            canonical
+        } else {
+            canonical - modulus
+        };
+        std::array::from_fn(|_| {
+            let residue = remaining.rem_euclid(3);
+            let digit = if residue == 2 { -1i128 } else { residue };
+            remaining = (remaining - digit) / 3;
+            match digit {
+                -1 => -F::ONE,
+                0 => F::ZERO,
+                1 => F::ONE,
+                _ => unreachable!("balanced ternary reference digit"),
+            }
+        })
+    }
+
     let values = [F::ZERO, F::from_u64(F::ORDER_U64 / 2), F::from_u64(F::ORDER_U64 - 1)];
     let mut shapes = Vec::new();
     let mut assignments = Vec::new();
@@ -1289,6 +1310,11 @@ fn selective_multi_branch_balanced_ternary_handles_field_edges_and_rejects_non_u
         let encoded = relation
             .encode(arm, &assignments[arm])
             .expect("balanced encoding");
+        assert_eq!(
+            &encoded[private_slot.0..private_slot.0 + private_slot.1],
+            &reference_digits(values[arm]),
+            "optimized balanced ternary changed encoded bytes"
+        );
         assert!(
             encoded
                 .iter()

@@ -10,8 +10,8 @@
 - Proofs must remain compatible with on-chain verification targets. In proof/transcript/public-digest paths, use Poseidon2-only hashing unless explicitly approved otherwise.
 - Do not introduce mixed hash families (e.g., Blake3/SHA prehashes) in protocol-binding paths without explicit user approval.
 - You can find the SuperNeo paper which is what the main protocol is based upon in ./docs/superneo-paper
-- **5-minute test cap (hard).** Every `cargo test` (and any other test-binary invocation) MUST be launched with a timeout of **at most 300 000 ms (5 minutes)**. Pass `timeout: 300000` to the Bash tool — do not omit it, do not raise it. If a test is still running at the cap, kill it and treat the test as failing this slice; either reduce its work (smaller `n`, shared cache) or mark it `#[ignore]` with a clear comment. The 5-minute cap is unconditional; the only way to exceed it is the user explicitly approving a longer run for a specific invocation in the same turn — there is no standing exception.
-- **No subagents (hard).** Never invoke the Agent / Task tool, never spawn a subagent of any type (`general-purpose`, `Explore`, `Plan`, `claude`, etc.), and never call `mcp__ccd_session__spawn_task`. Do all work inline in the current session. This is unconditional — the only way to dispatch a subagent is the user explicitly approving a specific dispatch in the same turn, naming the subagent_type and the task; there is no standing exception.
+- **5-minute non-Lean test cap (hard).** Every `cargo test` and every other non-Lean test-binary invocation MUST be launched with a timeout of **at most 300 000 ms (5 minutes)**. Pass `timeout: 300000` to the Bash tool — do not omit it, do not raise it. If a test is still running at the cap, kill it and treat the test as failing this slice; either reduce its work (smaller `n`, shared cache) or mark it `#[ignore]` with a clear comment. The 5-minute cap is unconditional; the only way to exceed it is the user explicitly approving a longer run for a specific invocation in the same turn — there is no standing exception.
+- **15-minute Lean cap (hard).** Every Lean-related command, including `lake build`, `lake test`, `lake exe`, `lake env lean`, and direct Lean test or executable invocations, MUST be launched with a timeout of **at most 900 000 ms (15 minutes)**. Pass `timeout: 900000` to the Bash tool — do not omit it, do not raise it. If a Lean command is still running at the cap, kill it and treat it as failing this slice. The only way to exceed the cap is the user explicitly approving a longer run for a specific invocation in the same turn — there is no standing exception.
 
 ## Operating Discipline
 - Before implementing, state the assumptions that matter for the task. If multiple interpretations are plausible and the wrong one would be costly, ask instead of guessing.
@@ -69,6 +69,7 @@
 
 ## Formal Lean Subprojects
 - Lean-specific instructions live in subdirectory `AGENTS.md` files so they apply only to the matching formal project.
+- For the active Nightstream Lean project, read `formal/nightstream-lean/AGENTS.md`.
 - For the SuperNeo Lean project, read `formal/superneo-lean/AGENTS.md`.
 
 

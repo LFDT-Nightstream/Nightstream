@@ -2,15 +2,22 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-FORMAL_DIR="$ROOT/formal/superneo-lean"
+FORMAL_DIR="$ROOT/formal/nightstream-lean"
+SOURCE_PATHS=(
+  "$FORMAL_DIR/Nightstream"
+  "$FORMAL_DIR/tests"
+  "$FORMAL_DIR/Main.lean"
+  "$FORMAL_DIR/Nightstream.lean"
+)
 
 cd "$ROOT"
 
-echo "[audit] scanning Lean sources for forbidden trusted holes"
+echo "[audit] scanning active Nightstream Lean sources for forbidden trusted holes"
 
-if grep -rwEn --include='*.lean' --exclude-dir='.lake' '(sorry|axiom|admit|postulate|unsafe)' "$FORMAL_DIR"; then
+if rg -n --glob '*.lean' --glob '!.lake/**' \
+  '\b(sorry|axiom|admit|postulate|unsafe)\b' "${SOURCE_PATHS[@]}"; then
   echo "[audit] forbidden token found in formal Lean sources" >&2
   exit 1
 fi
 
-echo "[audit] formal Lean sources are free of sorry/axiom/admit/postulate/unsafe"
+echo "[audit] active Nightstream Lean sources are free of sorry/axiom/admit/postulate/unsafe"

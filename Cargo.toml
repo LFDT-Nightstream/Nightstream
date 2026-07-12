@@ -8,6 +8,7 @@ members = [
   "crates/neo-ajtai",
   "crates/neo-ccs",
   "crates/neo-reductions",
+  "crates/neo-prover-cuda",
   "crates/neo-fold-clean",
   "crates/neo-wasm",
 ]

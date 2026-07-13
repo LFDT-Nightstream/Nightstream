@@ -1,0 +1,4 @@
+module NeoMetalBench {
+    header "neo_metal_bench.h"
+    export *
+}

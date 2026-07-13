@@ -9,6 +9,8 @@ members = [
   "crates/neo-ccs",
   "crates/neo-reductions",
   "crates/neo-prover-cuda",
+  "crates/neo-prover-metal",
+  "crates/neo-prover-metal-bench",
   "crates/neo-fold-clean",
   "crates/neo-wasm",
 ]

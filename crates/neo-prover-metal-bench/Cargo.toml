@@ -1,0 +1,28 @@
+[package]
+name = "neo-prover-metal-bench"
+edition = { workspace = true }
+version = { workspace = true }
+authors = { workspace = true }
+license = { workspace = true }
+
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+[lints]
+workspace = true
+
+[dependencies]
+bellpepper = { workspace = true }
+bellpepper-core = { workspace = true }
+ff = { workspace = true }
+neo-fold-clean = { path = "../neo-fold-clean" }
+neo-ccs = { path = "../neo-ccs" }
+neo-ajtai = { path = "../neo-ajtai" }
+neo-math = { path = "../neo-math" }
+neo-prover-metal = { path = "../neo-prover-metal" }
+p3-field = { workspace = true }
+rayon = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = "0.10"
+thiserror = { workspace = true }

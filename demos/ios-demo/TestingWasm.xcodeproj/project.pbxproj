@@ -8,13 +8,13 @@
 
 /* Begin PBXBuildFile section */
 		FFB0C0DE2F1A000000000002 /* web in Resources */ = {isa = PBXBuildFile; fileRef = FFB0C0DE2F1A000000000001 /* web */; };
-		FFB0C0E02F1A000000000004 /* TestingWasm/Frameworks/NeoFoldFFI.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = FFB0C0E02F1A000000000003 /* TestingWasm/Frameworks/NeoFoldFFI.xcframework */; };
+		FFB0C0E02F1A000000000004 /* Frameworks/NeoMetalBench.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = FFB0C0E02F1A000000000003 /* Frameworks/NeoMetalBench.xcframework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		FF2071F52F18B40D0040CA7E /* TestingWasm.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TestingWasm.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FFB0C0DE2F1A000000000001 /* web */ = {isa = PBXFileReference; lastKnownFileType = folder; path = web; sourceTree = "<group>"; };
-		FFB0C0E02F1A000000000003 /* TestingWasm/Frameworks/NeoFoldFFI.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = TestingWasm/Frameworks/NeoFoldFFI.xcframework; sourceTree = "<group>"; };
+		FFB0C0E02F1A000000000003 /* Frameworks/NeoMetalBench.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Frameworks/NeoMetalBench.xcframework; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -30,7 +30,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				FFB0C0E02F1A000000000004 /* TestingWasm/Frameworks/NeoFoldFFI.xcframework in Frameworks */,
+				FFB0C0E02F1A000000000004 /* Frameworks/NeoMetalBench.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -41,7 +41,7 @@
 			isa = PBXGroup;
 			children = (
 				FF2071F72F18B40D0040CA7E /* TestingWasm */,
-				FFB0C0E02F1A000000000003 /* TestingWasm/Frameworks/NeoFoldFFI.xcframework */,
+				FFB0C0E02F1A000000000003 /* Frameworks/NeoMetalBench.xcframework */,
 				FFB0C0DE2F1A000000000001 /* web */,
 				FF2071F62F18B40D0040CA7E /* Products */,
 			);

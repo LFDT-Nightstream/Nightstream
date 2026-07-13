@@ -162,6 +162,7 @@ pub use common::{
 };
 pub use rlc::{
     rlc_combine_claims, rlc_mix_witnesses, rlc_reduction_optimized, rlc_reduction_optimized_with_commit_mix,
+    rlc_reduction_optimized_with_mixers,
 };
 pub use terminal_identities::{
     rhs_terminal_identity_fe, rhs_terminal_identity_fe_with_k_mcs, rhs_terminal_identity_nc,

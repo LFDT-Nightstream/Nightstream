@@ -17,7 +17,7 @@ use neo_ccs::Mat;
 use neo_math::balanced::within_nc_bound;
 use neo_math::{D, F, K};
 use neo_reductions::optimized_engine::{OptimizedStructureCache, PiDecProverPrecompute};
-use p3_field::PrimeField64;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use thiserror::Error;
 
 use crate::engine::optimized as engine;
@@ -126,6 +126,61 @@ pub(crate) fn prove_with_precompute(
         parent_witness,
         Some(precompute),
     )
+}
+
+/// Π_DEC prover from accelerator-produced split witnesses and commitments.
+///
+/// The caller must validate that the digit planes are low norm and recompose
+/// to `parent_witness`. This function retains canonical child construction,
+/// lane attachment, and every public consistency check.
+#[allow(clippy::too_many_arguments)]
+pub fn prove_from_split_material(
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    lanes: Option<&LaneScheme>,
+    combine: DecMixer,
+    parent: &CeClaim,
+    z_split: Vec<Mat<F>>,
+    digit_nonzero: Vec<bool>,
+    child_commitments: Vec<neo_ajtai::Commitment>,
+    precomputed_y_ring: Vec<Vec<[K; D]>>,
+) -> Result<(Children, Proof), Error> {
+    if precomputed_y_ring.len() != z_split.len() || precomputed_y_ring.iter().any(|rows| rows.len() != s.t()) {
+        return Err(Error::YRingShape("accelerator output"));
+    }
+    if digit_nonzero.len() != z_split.len()
+        || digit_nonzero
+            .iter()
+            .zip(&precomputed_y_ring)
+            .any(|(&nonzero, rows)| !nonzero && rows.iter().flatten().any(|&value| value != K::ZERO))
+    {
+        return Err(Error::YRingPadding("accelerator output"));
+    }
+    let (mut children, witnesses) = engine::prove_pi_dec_from_split(
+        pp,
+        s,
+        cache,
+        parent,
+        z_split,
+        digit_nonzero,
+        child_commitments,
+        &precomputed_y_ring,
+        None,
+        |commitments, b| combine(commitments, b),
+    )?;
+    attach_child_adv(lanes, parent, &mut children, &witnesses)?;
+    validate_child_count(pp, children.len())?;
+    validate_inactive_x_zero(parent, &children)?;
+    validate_child_x_low_norm(pp, &children)?;
+    validate_adv_recomposition(pp, combine, parent, &children)?;
+    Ok((
+        Children {
+            claims: children.clone(),
+            witnesses,
+        },
+        Proof { children },
+    ))
 }
 
 #[allow(clippy::too_many_arguments)]

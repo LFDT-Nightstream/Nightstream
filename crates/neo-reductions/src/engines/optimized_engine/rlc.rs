@@ -755,9 +755,39 @@ where
     K: From<Ff>,
     Comb: Fn(&[Mat<Ff>], &[Cmt]) -> Cmt,
 {
+    rlc_reduction_optimized_with_mixers(
+        s,
+        params,
+        rhos,
+        me_inputs,
+        Zs,
+        ell_d,
+        combine_commit,
+        |rhos, witnesses| rlc_mix_witnesses(s.m, rhos, witnesses),
+    )
+}
+
+pub fn rlc_reduction_optimized_with_mixers<Ff, Comb, MixWitness>(
+    s: &CcsStructure<Ff>,
+    params: &NeoParams,
+    rhos: &[Mat<Ff>],
+    me_inputs: &[CeClaim<Cmt, Ff, K>],
+    Zs: &[&Mat<Ff>],
+    ell_d: usize,
+    combine_commit: Comb,
+    mix_witnesses: MixWitness,
+) -> (CeClaim<Cmt, Ff, K>, Mat<Ff>)
+where
+    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
+    K: From<Ff>,
+    Comb: Fn(&[Mat<Ff>], &[Cmt]) -> Cmt,
+    MixWitness: Fn(&[Mat<Ff>], &[&Mat<Ff>]) -> Mat<Ff>,
+{
     #[cfg(feature = "perf-timers")]
     let t_core = std::time::Instant::now();
-    let (mut out, Z) = rlc_reduction_optimized_from_refs::<Ff>(s, params, rhos, me_inputs, Zs, ell_d);
+    assert_eq!(Zs.len(), me_inputs.len(), "Pi_RLC: |Zs| must equal |inputs|");
+    let Z = mix_witnesses(rhos, Zs);
+    let mut out = rlc_combine_claims(s, params, rhos, me_inputs, ell_d);
     #[cfg(feature = "perf-timers")]
     let core_s = t_core.elapsed().as_secs_f64();
     #[cfg(feature = "perf-timers")]

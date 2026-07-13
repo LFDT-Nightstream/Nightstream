@@ -171,8 +171,11 @@ fn prove_final_fold_with_nifs_prover(
         ProofState::Active { running, latest } if latest.instances.is_empty() => {
             (running.into_materialized()?, None, None)
         }
-        ProofState::Active { running, latest } => {
-            let running = running.into_materialized()?;
+        ProofState::Active {
+            running: running_carrier,
+            latest,
+        } => {
+            let running = running_carrier.materialize()?;
             if let Some(cfg) = delayed_nebula {
                 let lane = terminal_nebula.as_mut().ok_or(Error::BaseCaseMismatch)?;
                 lane.advance_for_delayed_claims(
@@ -213,7 +216,7 @@ fn prove_final_fold_with_nifs_prover(
                     (running, proof, None)
                 }
                 FinalFoldNifsProver::Adapter(adapter) => {
-                    let output = nifs::prove_terminal_with_adapter_output(
+                    let output = nifs::prove_terminal_with_adapter_output_from_carrier(
                         *adapter,
                         &mut tr,
                         pp,
@@ -224,6 +227,7 @@ fn prove_final_fold_with_nifs_prover(
                         mix_rhos_commits,
                         combine_b_pows,
                         latest.instances,
+                        &running_carrier,
                         &running,
                     )?;
                     let (running, proof, post_summary) = output.into_materialized_parts_with_summary()?;

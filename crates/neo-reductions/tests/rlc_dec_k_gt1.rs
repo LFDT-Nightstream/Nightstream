@@ -7,12 +7,12 @@ use neo_params::NeoParams;
 use neo_reductions::api::{
     dec_children_with_commit, dec_children_with_commit_superneo_cached_from_trusted_split_digits,
     dec_children_with_commit_superneo_cached_with_digit_flags, rlc_public,
-    rlc_public_matches_verified_inputs_with_perf, rlc_public_matches_with_perf, rlc_with_commit, verify_dec_public,
-    FoldingMode,
+    rlc_public_matches_verified_inputs_with_perf, rlc_public_matches_with_perf, rlc_with_commit,
+    rlc_with_commit_refs_and_resident_witness, verify_dec_public, FoldingMode,
 };
 use neo_reductions::common::{
     compute_y_from_Z_and_r, left_mul_acc, project_x_from_witness_mat, rot_rhos_to_mats, sample_rot_rhos_n,
-    sample_rot_rhos_n_typed, split_b_matrix_k_with_nonzero_flags, RotRing,
+    sample_rot_rhos_n_typed, split_b_matrix_k_with_nonzero_flags, validate_packed_witness_nc_range, RotRing,
 };
 use neo_reductions::superneo_eval::build_superneo_eval_cache;
 use neo_transcript::{Poseidon2Transcript, Transcript};
@@ -20,6 +20,30 @@ use p3_field::PrimeCharacteristicRing;
 
 fn k(v: u64) -> K {
     K::from(F::from_u64(v))
+}
+
+#[test]
+fn packed_signed_unit_range_validation_matches_dense_semantics() {
+    let params = NeoParams::goldilocks_paper_b2();
+    let neg_one = F::ZERO - F::ONE;
+    let values = (0..D)
+        .map(|index| match index % 3 {
+            0 => F::ZERO,
+            1 => F::ONE,
+            _ => neg_one,
+        })
+        .collect::<Vec<_>>();
+    let dense = Mat::from_row_major(D, 1, values.clone());
+    let compact = Mat::compact_signed_unit(D, 1, values);
+    let zero = Mat::virtual_constant(D, 1, F::ZERO);
+
+    validate_packed_witness_nc_range(&params, &dense, D, "dense").expect("dense signed units");
+    validate_packed_witness_nc_range(&params, &compact, D, "compact").expect("compact signed units");
+    validate_packed_witness_nc_range(&params, &zero, D, "constant").expect("constant zero");
+
+    let mut invalid = Mat::zero(D, 1, F::ZERO);
+    invalid[(0, 0)] = F::from_u64(1u64 << 60);
+    assert!(validate_packed_witness_nc_range(&params, &invalid, D, "invalid").is_err());
 }
 
 fn build_structure(n: usize, m: usize) -> CcsStructure<F> {
@@ -236,6 +260,22 @@ fn rlc_with_commit_k4_matches_public_recompute_and_detects_rho_tamper() {
     let parent_public = rlc_public(&s, &params, &rhos_typed, &me_inputs, mix_commitments_from_rhos, ell_d)
         .expect("rlc_public recompute");
     assert_eq!(parent, parent_public, "public RLC recompute must match engine output");
+
+    let witness_refs = Zs.iter().collect::<Vec<_>>();
+    let (resident_parent, resident_shape) = rlc_with_commit_refs_and_resident_witness(
+        FoldingMode::Optimized,
+        &s,
+        &params,
+        &rhos_typed,
+        &me_inputs,
+        &witness_refs,
+        ell_d,
+        mix_commitments_from_rhos,
+        |rho_mats, witnesses| (rho_mats.len(), witnesses.len(), witnesses[0].cols()),
+    )
+    .expect("resident-witness RLC");
+    assert_eq!(resident_parent, parent);
+    assert_eq!(resident_shape, (rhos.len(), Zs.len(), Zs[0].cols()));
 
     let mut me_inputs_stale = me_inputs.clone();
     me_inputs_stale[1].ct[0] += K::ONE;
@@ -783,6 +823,7 @@ fn dec_children_trusted_split_digits_matches_checked_path() {
         &child_commitments,
         combine_commitments_b_pows,
         &superneo_cache,
+        None,
         None,
     );
 

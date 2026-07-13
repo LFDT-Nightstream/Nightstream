@@ -989,7 +989,7 @@ where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
 {
-    dec_reduction_paper_exact_inner(s, params, parent, Z_split, ell_d, None, None, None)
+    dec_reduction_paper_exact_inner(s, params, parent, Z_split, ell_d, None, None, None, None)
 }
 
 /// Same as `dec_reduction_paper_exact`, but uses a prebuilt CSC cache to avoid dense n×m scans.
@@ -1006,7 +1006,7 @@ where
     K: From<Ff>,
 {
     let _ = sparse;
-    dec_reduction_paper_exact_inner(s, params, parent, Z_split, ell_d, None, None, None)
+    dec_reduction_paper_exact_inner(s, params, parent, Z_split, ell_d, None, None, None, None)
 }
 
 /// Same as `dec_reduction_paper_exact`, but reuses a prebuilt SuperNeo eval cache.
@@ -1022,7 +1022,17 @@ where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
 {
-    dec_reduction_paper_exact_inner(s, params, parent, Z_split, ell_d, Some(superneo_cache), None, None)
+    dec_reduction_paper_exact_inner(
+        s,
+        params,
+        parent,
+        Z_split,
+        ell_d,
+        Some(superneo_cache),
+        None,
+        None,
+        None,
+    )
 }
 
 pub fn dec_reduction_paper_exact_with_superneo_cache_and_digit_flags<Ff>(
@@ -1034,6 +1044,7 @@ pub fn dec_reduction_paper_exact_with_superneo_cache_and_digit_flags<Ff>(
     ell_d: usize,
     superneo_cache: &crate::superneo_eval::SuperneoEvalCache,
     ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
+    precomputed_y_ring: Option<&[Vec<[K; D]>]>,
 ) -> (Vec<CeClaim<Cmt, Ff, K>>, bool, bool)
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
@@ -1053,6 +1064,7 @@ where
         Some(superneo_cache),
         Some(digit_nonzero),
         ring_linear_forms,
+        precomputed_y_ring,
     )
 }
 
@@ -1065,6 +1077,7 @@ fn dec_reduction_paper_exact_inner<Ff>(
     superneo_cache: Option<&crate::superneo_eval::SuperneoEvalCache>,
     digit_nonzero: Option<&[bool]>,
     precomputed_ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
+    precomputed_y_ring: Option<&[Vec<[K; D]>]>,
 ) -> (Vec<CeClaim<Cmt, Ff, K>>, bool, bool)
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
@@ -1126,6 +1139,17 @@ where
     } else {
         None
     };
+    if let Some(y_ring) = precomputed_y_ring {
+        assert_eq!(y_ring.len(), k, "Π_DEC precomputed y_ring child count mismatch");
+        assert!(
+            y_ring.iter().all(|rows| rows.len() == t_mats),
+            "Π_DEC precomputed y_ring matrix count mismatch"
+        );
+    }
+    assert!(
+        precomputed_y_ring.is_none() || ring_linear_forms.is_none(),
+        "Π_DEC accepts either precomputed y_ring or ring forms, not both"
+    );
     #[cfg(feature = "perf-timers")]
     eprintln!(
         "[pi-dec-inner] ring linear forms              {:>7.2}s",
@@ -1150,7 +1174,7 @@ where
 
     #[cfg(feature = "perf-timers")]
     let t_streamed_y = std::time::Instant::now();
-    let streamed_y_by_child = if ring_linear_forms.is_none() {
+    let streamed_y_by_child = if precomputed_y_ring.is_none() && ring_linear_forms.is_none() {
         let active_indices: Vec<usize> = (0..k)
             .filter(|&index| digit_nonzero.is_none_or(|flags| flags[index]))
             .collect();
@@ -1259,7 +1283,9 @@ where
 
         #[cfg(feature = "perf-timers")]
         let t_y_ring = std::time::Instant::now();
-        let y_coefficients = if let Some(streamed) = streamed_y_by_child.as_ref() {
+        let y_coefficients = if let Some(precomputed) = precomputed_y_ring {
+            precomputed[i].clone()
+        } else if let Some(streamed) = streamed_y_by_child.as_ref() {
             streamed[i]
                 .as_ref()
                 .expect("nonzero DEC child must have streamed matrix evaluations")

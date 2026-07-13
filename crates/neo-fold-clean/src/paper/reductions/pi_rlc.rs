@@ -133,6 +133,14 @@ pub struct Output {
     pub projection: ProjectionSchedule,
 }
 
+/// Π_RLC output whose prover witness remains owned by an accelerator.
+#[derive(Clone, Debug)]
+pub struct ResidentOutput<Resident> {
+    pub claim: CeClaim,
+    pub witness: Resident,
+    pub projection: ProjectionSchedule,
+}
+
 /// Post-mix β schedule for the projection-checked commitment
 /// combination (encoding.md candidate E; security-note Lemma 5 §4b).
 /// Nothing here rides the wire: the verifier recomputes every field
@@ -233,6 +241,90 @@ pub(crate) fn prove_refs(
         Output {
             claim: combined.clone(),
             witness: z_mix,
+            projection,
+        },
+        Proof { combined },
+    ))
+}
+
+/// Π_RLC prover with an accelerator-owned witness random-linear-combination.
+///
+/// The canonical paper layer still validates inputs, samples rho, builds and
+/// validates the public parent, and executes the projection transcript. The
+/// callback owns only `Z_mix = sum_i rho_i * Z_i`.
+pub fn prove_refs_with_witness_mixer<MW>(
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &crate::paper::relations::Structure,
+    mix: RlcMixer,
+    claims: &[CeClaim],
+    witnesses: &[&Mat<F>],
+    mix_witnesses: MW,
+) -> Result<(Output, Proof), Error>
+where
+    MW: Fn(&[Mat<F>], &[&Mat<F>]) -> Mat<F>,
+{
+    validate_input_shape(claims, witnesses)?;
+    validate_inputs_before_rho(s, claims)?;
+    let rhos = derive_rhos_for_inputs(tr, pp, claims)?;
+    let (mut combined, z_mix) = engine::prove_pi_rlc_refs_with_witness_mixer(
+        pp,
+        s,
+        &rhos,
+        claims,
+        witnesses,
+        |zs, cs| mix(zs, cs),
+        mix_witnesses,
+    )?;
+    combined.adv = mixed_adv(mix, &rhos, claims)?;
+    validate_nc_sidecars(s, mix, &rhos, claims, &combined)?;
+    let projection = projection_schedule(tr, &rhos, claims, &combined)?;
+    Ok((
+        Output {
+            claim: combined.clone(),
+            witness: z_mix,
+            projection,
+        },
+        Proof { combined },
+    ))
+}
+
+/// Π_RLC prover with a backend-owned resident witness.
+///
+/// The canonical layer validates all inputs, samples ρ, constructs the public
+/// parent, and runs the projection transcript. Only `Z_mix` storage and
+/// computation cross into the callback.
+pub fn prove_refs_with_resident_witness<MW, Resident>(
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &crate::paper::relations::Structure,
+    mix: RlcMixer,
+    claims: &[CeClaim],
+    witnesses: &[&Mat<F>],
+    mix_witnesses: MW,
+) -> Result<(ResidentOutput<Resident>, Proof), Error>
+where
+    MW: Fn(&[Mat<F>], &[&Mat<F>]) -> Resident,
+{
+    validate_input_shape(claims, witnesses)?;
+    validate_inputs_before_rho(s, claims)?;
+    let rhos = derive_rhos_for_inputs(tr, pp, claims)?;
+    let (mut combined, resident) = engine::prove_pi_rlc_refs_with_resident_witness(
+        pp,
+        s,
+        &rhos,
+        claims,
+        witnesses,
+        |zs, cs| mix(zs, cs),
+        mix_witnesses,
+    )?;
+    combined.adv = mixed_adv(mix, &rhos, claims)?;
+    validate_nc_sidecars(s, mix, &rhos, claims, &combined)?;
+    let projection = projection_schedule(tr, &rhos, claims, &combined)?;
+    Ok((
+        ResidentOutput {
+            claim: combined.clone(),
+            witness: resident,
             projection,
         },
         Proof { combined },

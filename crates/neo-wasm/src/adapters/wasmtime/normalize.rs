@@ -79,6 +79,8 @@ struct NormalizedStep {
     locals_snapshot: Vec<u32>,
     linear_memory: Option<LinearMemoryAccess>,
     linear_memory_offset: u64,
+    /// Oracle words recorded on this (host-call) row at collection time.
+    host_call_oracles: Vec<u64>,
 }
 
 fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, WasmBuildError> {
@@ -247,6 +249,7 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
         locals_snapshot,
         linear_memory,
         linear_memory_offset: row.memory.as_ref().map(|memory| memory.offset).unwrap_or(0),
+        host_call_oracles: row.host_call_oracles.clone(),
     }))
 }
 
@@ -494,6 +497,7 @@ pub(crate) fn capture_frame<T>(
         num_locals: num_locals as u32,
         call_return_pc: decoded_opcode.as_ref().and_then(|d| d.call_return_pc),
         pc_after_instruction: decoded_opcode.as_ref().map(|d| d.pc_after_instruction),
+        host_call_oracles: Vec::new(),
     })
 }
 

@@ -384,7 +384,10 @@ pub(crate) fn build_fresh_instances(
                     m_in: request.m_in,
                 },
                 witness: CcsWitness {
-                    w: z[request.m_in..].to_vec(),
+                    // `Z` is the authoritative packed assignment and already
+                    // contains the private suffix. Match the canonical CPU
+                    // constructor without retaining that suffix twice.
+                    w: Vec::new(),
                     Z: ring_layout::assignment_to_mat(z, cols),
                 },
             });

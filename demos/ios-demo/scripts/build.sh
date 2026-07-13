@@ -8,12 +8,16 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
+if [[ -z "${DEVELOPER_DIR:-}" && -d /Applications/Xcode.app/Contents/Developer/Platforms ]]; then
+    export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+fi
+
 # Default values
 SCHEME="TestingWasm"
 CONFIGURATION="Debug"
 DESTINATION=""
 BUILD_WASM=0
-BUILD_NATIVE=0
+BUILD_METAL=0
 WASM_THREADS=0
 
 pick_default_destination() {
@@ -53,13 +57,13 @@ while [[ $# -gt 0 ]]; do
             WASM_THREADS=1
             shift
             ;;
-        --native)
-            BUILD_NATIVE=1
+        --metal)
+            BUILD_METAL=1
             shift
             ;;
         --all)
             BUILD_WASM=1
-            BUILD_NATIVE=1
+            BUILD_METAL=1
             shift
             ;;
         --destination)
@@ -73,8 +77,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --release      Build with Release configuration (default: Debug)"
             echo "  --wasm         Rebuild wasm bundle before Xcode build"
             echo "  --wasm-threads Rebuild wasm + wasm-threads bundles (WKWebView) before Xcode build"
-            echo "  --native       Rebuild NeoFoldFFI.xcframework before Xcode build"
-            echo "  --all          Rebuild wasm + native before Xcode build"
+            echo "  --metal        Rebuild NeoMetalBench.xcframework before Xcode build"
+            echo "  --all          Rebuild wasm + Metal benchmark before Xcode build"
             echo "  --destination  Set build destination (default: first available iPhone simulator)"
             echo "  --help         Show this help message"
             exit 0
@@ -95,7 +99,7 @@ echo "  Configuration: $CONFIGURATION"
 echo "  Destination: $DESTINATION"
 echo "  Rebuild WASM:  $([[ $BUILD_WASM -eq 1 ]] && echo yes || echo no)"
 echo "  WASM Threads:  $([[ $WASM_THREADS -eq 1 ]] && echo yes || echo no)"
-echo "  Rebuild Native:$([[ $BUILD_NATIVE -eq 1 ]] && echo yes || echo no)"
+echo "  Rebuild Metal: $([[ $BUILD_METAL -eq 1 ]] && echo yes || echo no)"
 echo ""
 
 cd "$PROJECT_DIR"
@@ -117,11 +121,11 @@ if [[ $BUILD_WASM -eq 1 ]]; then
     echo ""
 fi
 
-if [[ $BUILD_NATIVE -eq 1 ]]; then
+if [[ $BUILD_METAL -eq 1 || ! -d "$PROJECT_DIR/Frameworks/NeoMetalBench.xcframework" ]]; then
     if [[ "$CONFIGURATION" == "Release" ]]; then
-        ./scripts/build_native.sh --release
+        ./scripts/build_metal_bench.sh --release
     else
-        ./scripts/build_native.sh --profiling
+        ./scripts/build_metal_bench.sh --profiling
     fi
     echo ""
 fi

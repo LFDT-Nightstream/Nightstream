@@ -1534,13 +1534,18 @@ name = "neo-prover-metal"
 version = "0.1.0"
 dependencies = [
  "dispatch2",
+ "neo-ajtai",
  "neo-ccs",
+ "neo-fold-clean",
  "neo-math",
+ "neo-reductions",
  "neo-transcript",
  "objc2",
  "objc2-foundation",
  "objc2-metal",
  "p3-field 0.5.3",
+ "rand 0.9.5",
+ "serde_json",
  "thiserror 2.0.18",
 ]
 

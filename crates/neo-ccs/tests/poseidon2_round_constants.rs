@@ -26,7 +26,7 @@ fn exported_round_constants_rebuild_the_canonical_permutation() {
         .iter()
         .map(|&c| Goldilocks::from_u64(c))
         .collect();
-    let rebuilt = Poseidon2Goldilocks::<{ p2::WIDTH }>::new(external, internal);
+    let rebuilt = Poseidon2Goldilocks::<{ p2::WIDTH }>::new(&external, &internal);
 
     let mut rng = StdRng::seed_from_u64(0x7032_5f72_635f_7631);
     for _ in 0..64 {

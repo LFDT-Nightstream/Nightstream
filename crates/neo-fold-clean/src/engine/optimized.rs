@@ -10,7 +10,7 @@
 
 use neo_ajtai::Commitment;
 use neo_ccs::Mat;
-use neo_math::F;
+use neo_math::{F, K};
 use neo_reductions::api as nr;
 use neo_reductions::api::FoldingMode;
 use neo_reductions::common::{sample_rot_rhos_n_typed, split_b_matrix_k_with_nonzero_flags, RotRho};
@@ -549,6 +549,60 @@ where
     .map_err(Into::into)
 }
 
+pub fn prove_pi_rlc_refs_with_witness_mixer<MR, MW>(
+    pp: &Params,
+    s: &Structure,
+    rhos: &[RotRho],
+    me_inputs: &[CeClaim],
+    witnesses: &[&Mat<F>],
+    mix_rhos_commits: MR,
+    mix_witnesses: MW,
+) -> Result<(CeClaim, Mat<F>), Error>
+where
+    MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment,
+    MW: Fn(&[Mat<F>], &[&Mat<F>]) -> Mat<F>,
+{
+    nr::rlc_with_commit_refs_and_witness_mix(
+        FoldingMode::Optimized,
+        s,
+        pp.inner(),
+        rhos,
+        me_inputs,
+        witnesses,
+        ell_d(),
+        mix_rhos_commits,
+        mix_witnesses,
+    )
+    .map_err(Into::into)
+}
+
+pub fn prove_pi_rlc_refs_with_resident_witness<MR, MW, Resident>(
+    pp: &Params,
+    s: &Structure,
+    rhos: &[RotRho],
+    me_inputs: &[CeClaim],
+    witnesses: &[&Mat<F>],
+    mix_rhos_commits: MR,
+    mix_witnesses: MW,
+) -> Result<(CeClaim, Resident), Error>
+where
+    MR: Fn(&[Mat<F>], &[Commitment]) -> Commitment,
+    MW: Fn(&[Mat<F>], &[&Mat<F>]) -> Resident,
+{
+    nr::rlc_with_commit_refs_and_resident_witness(
+        FoldingMode::Optimized,
+        s,
+        pp.inner(),
+        rhos,
+        me_inputs,
+        witnesses,
+        ell_d(),
+        mix_rhos_commits,
+        mix_witnesses,
+    )
+    .map_err(Into::into)
+}
+
 /// Π_RLC verify. Re-derives `expected = Σρ_i · me_inputs[i]` and checks
 /// against the prover's claimed combined CE claim. The prover's parent is on
 /// the wire and the verifier asserts
@@ -676,6 +730,7 @@ where
         combine_b_pows,
         cache.superneo(),
         None,
+        None,
     );
     #[cfg(feature = "perf-timers")]
     eprintln!(
@@ -687,6 +742,53 @@ where
     }
     // The engine returns these flags so the prover can fail fast instead of
     // emitting unverifiable children.
+    if !(ok_y && ok_x && ok_c) {
+        return Err(Error::PiDecPublicCheckFailed { ok_y, ok_x, ok_c });
+    }
+    Ok((children, z_split))
+}
+
+/// Π_DEC claim construction from accelerator-produced, host-validated digit
+/// planes and their canonical Ajtai commitments.
+#[allow(clippy::too_many_arguments)]
+pub fn prove_pi_dec_from_split<MB>(
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    parent: &CeClaim,
+    z_split: Vec<Mat<F>>,
+    digit_nonzero: Vec<bool>,
+    child_commitments: Vec<Commitment>,
+    precomputed_y_ring: &[Vec<[K; neo_math::D]>],
+    precompute: Option<&PiDecProverPrecompute>,
+    combine_b_pows: MB,
+) -> Result<(Vec<CeClaim>, Vec<Mat<F>>), Error>
+where
+    MB: Fn(&[Commitment], u32) -> Commitment,
+{
+    if let Some(precompute) = precompute {
+        assert_eq!(
+            precompute.row_chals, parent.r,
+            "Pi_DEC prover precompute must belong to the parent claim's row point"
+        );
+    }
+    let (children, ok_y, ok_x, ok_c) = nr::dec_children_with_commit_superneo_cached_from_trusted_split_digits(
+        FoldingMode::Optimized,
+        s,
+        pp.inner(),
+        parent,
+        &z_split,
+        &digit_nonzero,
+        ell_d(),
+        &child_commitments,
+        combine_b_pows,
+        cache.superneo(),
+        None,
+        Some(precomputed_y_ring),
+    );
+    if children.is_empty() {
+        return Err(Error::PiDecFailed);
+    }
     if !(ok_y && ok_x && ok_c) {
         return Err(Error::PiDecPublicCheckFailed { ok_y, ok_x, ok_c });
     }

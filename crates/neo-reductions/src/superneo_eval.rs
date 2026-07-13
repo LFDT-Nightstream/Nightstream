@@ -830,6 +830,19 @@ impl SuperneoZBlocks {
         {
             return Ok(Self::with_block_len(blocks));
         }
+        if let Some((positive, negative)) = z.packed_signed_unit_column_masks() {
+            debug_assert_eq!(positive.len(), blocks);
+            debug_assert_eq!(negative.len(), blocks);
+            return Ok(Self {
+                re: RealBlockStorage::SignedUnit {
+                    positive: positive.to_vec(),
+                    negative: negative.to_vec(),
+                },
+                im: Vec::new(),
+                im_nonzero: vec![false; blocks],
+                imag_all_zero: true,
+            });
+        }
         let mut positive = Vec::with_capacity(blocks);
         let mut negative = Vec::with_capacity(blocks);
         let neg_one = F::ZERO - F::ONE;

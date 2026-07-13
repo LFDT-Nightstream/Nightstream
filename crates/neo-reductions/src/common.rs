@@ -1238,6 +1238,19 @@ where
             params.b
         )));
     }
+    if Z.is_packed_signed_unit() {
+        return Ok(());
+    }
+    if let Some(&value) = Z.virtual_constant_value() {
+        if is_representable_balanced_fixed_d_digits(value, params.b)? {
+            return Ok(());
+        }
+        let x = to_balanced_i128(value);
+        return Err(PiCcsError::InvalidInput(format!(
+            "{label}: constant witness is not representable in D={} balanced base-{} digits (centered value {})",
+            D, params.b, x,
+        )));
+    }
     for col in 0..expected_m {
         let off = col % D;
         let v = witness_mat_get_f(Z, expected_m, off, col);

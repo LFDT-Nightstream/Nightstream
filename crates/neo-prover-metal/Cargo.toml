@@ -1,0 +1,49 @@
+[package]
+name = "neo-prover-metal"
+edition = { workspace = true }
+version = { workspace = true }
+authors = { workspace = true }
+license = { workspace = true }
+build = "build.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+neo-ajtai = { path = "../neo-ajtai" }
+neo-ccs = { path = "../neo-ccs" }
+neo-fold-clean = { path = "../neo-fold-clean" }
+neo-math = { path = "../neo-math" }
+neo-reductions = { path = "../neo-reductions" }
+p3-field = { workspace = true }
+thiserror = { workspace = true }
+
+[build-dependencies]
+neo-ccs = { path = "../neo-ccs" }
+
+[target.'cfg(target_vendor = "apple")'.dependencies]
+dispatch2 = { version = "0.3.1", default-features = false, features = ["block2", "std"] }
+objc2 = "0.6.4"
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSError", "NSString"] }
+objc2-metal = { version = "0.3.2", default-features = false, features = [
+  "std",
+  "MTLAllocation",
+  "MTLBuffer",
+  "MTLCommandBuffer",
+  "MTLCommandEncoder",
+  "MTLCommandQueue",
+  "MTLComputeCommandEncoder",
+  "MTLComputePipeline",
+  "MTLDevice",
+  "MTLLibrary",
+  "MTLResource",
+  "MTLTypes",
+  "dispatch2",
+] }
+
+[dev-dependencies]
+neo-ccs = { path = "../neo-ccs" }
+neo-math = { path = "../neo-math" }
+p3-field = { workspace = true }
+rand = { workspace = true }
+serde_json = { workspace = true }

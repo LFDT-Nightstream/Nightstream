@@ -80,9 +80,8 @@ fn boundary_trace() -> (Vec<WasmVmStep>, HostEventGrammar) {
 
     let entry_oracles = [500u64, 501];
     let exit_oracles = [600u64, 601];
-    let trace =
-        neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[], &entry_oracles, &exit_oracles)
-            .expect("grammar trace");
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &entry_oracles, &exit_oracles)
+        .expect("grammar trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
 

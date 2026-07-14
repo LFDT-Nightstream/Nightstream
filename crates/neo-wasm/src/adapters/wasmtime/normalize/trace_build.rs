@@ -219,8 +219,12 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
         // from this row's own arity instead of the next Wasmtime frame.
         let is_call_row = matches!(current.opcode, WasmOpcode::Call | WasmOpcode::CallIndirect);
         // A non-final return continues in the caller frame, whose base is on
-        // the call stack (popped in the opcode match below).
-        let is_return_row = matches!(current.opcode, WasmOpcode::Return | WasmOpcode::End) && !call_stack.is_empty();
+        // the call stack (popped in the opcode match below). Only a function-
+        // ending `end` is return-like; structured block/loop `end` rows stay
+        // in the current frame.
+        let is_return_row = matches!(current.opcode, WasmOpcode::Return | WasmOpcode::End)
+            && current.pc_edge_kind == WasmPcEdgeKind::ReturnLike
+            && !call_stack.is_empty();
         let next_row_base = if is_return_row {
             call_stack.last().map(|&(_, _, base)| base).unwrap_or(0)
         } else {
@@ -392,7 +396,7 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
                         })?;
                 }
             }
-            WasmOpcode::Return | WasmOpcode::End if !call_stack.is_empty() => {
+            WasmOpcode::Return | WasmOpcode::End if is_return_row => {
                 // Non-final return: restore the caller's FBP and operand-stack
                 // base from the call stack.
                 let (ret_pc, caller_fbp, caller_base) = call_stack.pop().unwrap();

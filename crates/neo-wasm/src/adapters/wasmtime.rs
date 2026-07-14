@@ -84,11 +84,11 @@ pub struct WasmtimeTraceStep {
     /// this is the return PC; for branches it is the linear successor, not
     /// necessarily the runtime next PC.
     pub pc_after_instruction: Option<u64>,
-    /// Grammar oracle words recorded by the embedder's host function while
-    /// servicing this host-call row (see
-    /// [`WasmtimeTraceState::record_call_oracles`]). Consumed by grammar-mode
+    /// Per-call grammar claim words recorded by the embedder's host
+    /// function while servicing this host-call row (see
+    /// [`WasmtimeTraceState::record_call_claims`]). Consumed by grammar-mode
     /// normalization; raw-mode normalization ignores it.
-    pub host_call_oracles: Vec<u64>,
+    pub host_call_claims: Vec<u64>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -245,24 +245,25 @@ impl WasmtimeTraceState {
         Arc::make_mut(&mut self.tables).func_ref_ids = func_ref_ids;
     }
 
-    /// Record grammar oracle words for the in-flight host call. Call from
+    /// Record per-call grammar claim words for the in-flight host call
+    /// (oracle values in Starstream terms: ref ids, callers). Call from
     /// inside a host-function implementation (`store.data_mut()`): the debug
     /// hook captures each instruction before it executes, so the latest
     /// captured step is the host-call row being serviced and the batch
     /// attaches to it — no call-order bookkeeping. Repeated calls append.
-    pub fn record_call_oracles(&mut self, words: &[u64]) -> Result<(), WasmBuildError> {
+    pub fn record_call_claims(&mut self, words: &[u64]) -> Result<(), WasmBuildError> {
         let row = self.steps.last_mut().ok_or_else(|| {
-            WasmBuildError::Trace("record_call_oracles: no captured step; not inside a traced host call".to_string())
+            WasmBuildError::Trace("record_call_claims: no captured step; not inside a traced host call".to_string())
         })?;
         let is_host_call = matches!(row.opcode_decoded, Some(WasmOpcode::Call | WasmOpcode::CallIndirect))
             && !row.target_function_is_guest;
         if !is_host_call {
             return Err(WasmBuildError::Trace(format!(
-                "record_call_oracles: latest captured step (cycle {}, opcode {:?}) is not a host-call row",
+                "record_call_claims: latest captured step (cycle {}, opcode {:?}) is not a host-call row",
                 row.step, row.opcode
             )));
         }
-        row.host_call_oracles.extend_from_slice(words);
+        row.host_call_claims.extend_from_slice(words);
         Ok(())
     }
 }

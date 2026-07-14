@@ -25,7 +25,7 @@ fn slots(entries: &[(usize, SlotSource)]) -> [SlotSource; COMM_CHAIN_EVENT_ARGS]
 
 /// Example embedder grammar for the mul/sink component: `mul(x, y) -> r`
 /// expands to a two-event template (args event + result event referencing a
-/// shared oracle), `sink(x)` to a single event.
+/// shared claim word), `sink(x)` to a single event.
 fn test_grammar(mul_fref: u32, sink_fref: u32) -> HostEventGrammar {
     let arg = |arg, limb| SlotSource::ArgElem { arg, limb };
     let mut grammar = HostEventGrammar::default();
@@ -35,7 +35,7 @@ fn test_grammar(mul_fref: u32, sink_fref: u32) -> HostEventGrammar {
             pre_result: vec![GrammarEvent::op(
                 10,
                 slots(&[
-                    (0, SlotSource::Oracle { idx: 0 }),
+                    (0, SlotSource::Claim { idx: 0 }),
                     (1, arg(0, Limb::Lo)),
                     (2, arg(1, Limb::Lo)),
                     (3, SlotSource::Const(5)),
@@ -45,10 +45,10 @@ fn test_grammar(mul_fref: u32, sink_fref: u32) -> HostEventGrammar {
                 12,
                 slots(&[
                     (0, SlotSource::ResultElem { limb: Limb::Lo }),
-                    (1, SlotSource::Oracle { idx: 0 }),
+                    (1, SlotSource::Claim { idx: 0 }),
                 ]),
             )],
-            oracle_count: 1,
+            claim_count: 1,
         },
     );
     grammar.imports.insert(
@@ -56,7 +56,7 @@ fn test_grammar(mul_fref: u32, sink_fref: u32) -> HostEventGrammar {
         ImportTemplate {
             pre_result: vec![GrammarEvent::op(7, slots(&[(0, arg(0, Limb::Lo))]))],
             post_result: vec![],
-            oracle_count: 0,
+            claim_count: 0,
         },
     );
     grammar
@@ -95,15 +95,15 @@ fn mul_sink_component_wat() -> &'static str {
     "#
 }
 
-/// Run the two-call component; the mul host function records `mul_oracles`
+/// Run the two-call component; the mul host function records `mul_claims`
 /// for its in-flight call (the grammar hand-off path), sink records nothing.
-fn run_component_with_mul_oracles(mul_oracles: &'static [u64]) -> neo_wasm::WasmtimeTraceRun {
+fn run_component_with_mul_claims(mul_claims: &'static [u64]) -> neo_wasm::WasmtimeTraceRun {
     let component_bytes = wat::parse_str(mul_sink_component_wat()).expect("component wat");
     neo_wasm::collect_wasmtime_component_run_with_linker(&component_bytes, "run", |linker| {
         linker
             .root()
             .func_wrap("host-mul", move |mut store, (x, y): (i32, i32)| {
-                store.data_mut().record_call_oracles(mul_oracles)?;
+                store.data_mut().record_call_claims(mul_claims)?;
                 Ok((x * y,))
             })
             .map_err(|err| neo_wasm::WasmBuildError::Trace(format!("failed to define host-mul: {err}")))?;
@@ -116,7 +116,7 @@ fn run_component_with_mul_oracles(mul_oracles: &'static [u64]) -> neo_wasm::Wasm
 }
 
 fn run_component() -> neo_wasm::WasmtimeTraceRun {
-    run_component_with_mul_oracles(&[100])
+    run_component_with_mul_claims(&[100])
 }
 
 fn host_call_frefs(trace: &[WasmVmStep]) -> Vec<u32> {
@@ -131,7 +131,7 @@ fn host_call_frefs(trace: &[WasmVmStep]) -> Vec<u32> {
         .collect()
 }
 
-/// Grammar trace for the two-call component, with oracles `[100]` for mul
+/// Grammar trace for the two-call component, with claim words `[100]` for mul
 /// and `[]` for sink. The invoked export gets an empty boundary template
 /// (required in grammar mode; no boundary events for this test).
 fn grammar_trace() -> Vec<WasmVmStep> {
@@ -211,11 +211,11 @@ fn missing_template_is_rejected() {
     assert!(neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[], &[]).is_err());
 }
 
-/// A host call recording more oracle words than its template consumes
+/// A host call recording more claim words than its template consumes
 /// indicates a misaligned hand-off and is rejected.
 #[test]
-fn surplus_oracle_words_are_rejected() {
-    let run = run_component_with_mul_oracles(&[100, 7]);
+fn surplus_claim_words_are_rejected() {
+    let run = run_component_with_mul_claims(&[100, 7]);
     let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("raw trace");
     let frefs = host_call_frefs(&raw);
     let mut grammar = test_grammar(frefs[0], frefs[1]);
@@ -372,20 +372,26 @@ fn ccs_rejects_broken_event_schedule() {
     common::assert_rejected(&witness, "gather row with no grammar events owed");
 }
 
-/// Oracle cells are template-consistent: an oracle-slot gather row must
-/// stage exactly the carried cell.
+/// Claim slots are free absorbed words: staging a different value
+/// satisfies the per-row CCS (there is deliberately no local binding) but
+/// diverges the chain, so the transcript check rejects the claim. The
+/// same-index identity lives in claim construction: expansion resolves
+/// every `Claim{idx}` from one claim entry.
 #[test]
-fn ccs_rejects_inconsistent_oracle_use() {
+fn claim_words_are_row_free_and_transcript_bound() {
     let trace = grammar_trace();
-    let oracle_row = trace
+    let claim_row = trace
         .iter()
         .find(|row| row.row_kind.is_host_event_gather() && row.grammar_rom_slot.is_some_and(|rom| rom.kind == 3))
-        .expect("oracle slot row");
-    let mut witness = build_witness_vector(oracle_row);
-    common::assert_satisfied(&witness, "untampered oracle slot row");
-    witness[neo_wasm::layout::COL_GRAMMAR_ORACLE0_BEFORE] += neo_math::F::ONE;
-    common::assert_rejected(
-        &witness,
-        "oracle slot row staging a different value than the carried cell",
-    );
+        .expect("claim slot row");
+    let mut witness = build_witness_vector(claim_row);
+    common::assert_satisfied(&witness, "untampered claim slot row");
+    // Forge the claim word consistently in the staged buffer and the
+    // gadget's slot value: the row still satisfies (free word) ...
+    let cursor = usize::from(claim_row.state_before.grammar.slot_cursor);
+    witness[neo_wasm::layout::COL_EVBUF0_AFTER + cursor] += neo_math::F::ONE;
+    common::assert_rejected(&witness, "buffer word diverging from the staged slot value");
+    // ... but any divergence between the absorbed words and the claimed
+    // transcript is caught by the final-chain fold (see
+    // wasm_grammar_lifecycle's verify_with_transcript rejection).
 }

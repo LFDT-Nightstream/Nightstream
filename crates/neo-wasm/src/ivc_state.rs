@@ -10,7 +10,6 @@ use super::layout::{
     COL_EVBUF7_BEFORE, COL_EVBUF_SLOT0_AFTER, COL_EVBUF_SLOT0_BEFORE, COL_EVBUF_SLOT3_AFTER, COL_EVBUF_SLOT3_BEFORE,
     COL_GRAMMAR_ARGS_BASE_AFTER, COL_GRAMMAR_ARGS_BASE_BEFORE, COL_GRAMMAR_EVIDX_AFTER, COL_GRAMMAR_EVIDX_BEFORE,
     COL_GRAMMAR_EVREM_AFTER, COL_GRAMMAR_EVREM_BEFORE, COL_GRAMMAR_MODE_AFTER, COL_GRAMMAR_MODE_BEFORE,
-    COL_GRAMMAR_ORACLE0_AFTER, COL_GRAMMAR_ORACLE0_BEFORE, COL_GRAMMAR_ORACLE3_AFTER, COL_GRAMMAR_ORACLE3_BEFORE,
     COL_GRAMMAR_SLOT_CURSOR_AFTER, COL_GRAMMAR_SLOT_CURSOR_BEFORE, COL_HALTED, COL_HALTED_BEFORE,
     COL_HOST_ARGS_ACTIVE_AFTER,
     COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_ARGS_REMAINING_AFTER, COL_HOST_ARGS_REMAINING_BEFORE,
@@ -190,36 +189,25 @@ pub(crate) fn build_ivc_state_continuity_links() -> Vec<WasmCrossStepLinkSpec> {
         },
         WasmCrossStepLinkSpec {
             name: "grammar_gather_continuity",
-            description: "row[i].grammar gather machinery (schedule, args base, cursor, oracles) must match row[i+1]",
-            column_pairs: {
-                let mut pairs = vec![
-                    WasmCrossStepColumnPair {
-                        prev_after: Column(COL_GRAMMAR_EVREM_AFTER),
-                        next_before: Column(COL_GRAMMAR_EVREM_BEFORE),
-                    },
-                    WasmCrossStepColumnPair {
-                        prev_after: Column(COL_GRAMMAR_EVIDX_AFTER),
-                        next_before: Column(COL_GRAMMAR_EVIDX_BEFORE),
-                    },
-                    WasmCrossStepColumnPair {
-                        prev_after: Column(COL_GRAMMAR_ARGS_BASE_AFTER),
-                        next_before: Column(COL_GRAMMAR_ARGS_BASE_BEFORE),
-                    },
-                    WasmCrossStepColumnPair {
-                        prev_after: Column(COL_GRAMMAR_SLOT_CURSOR_AFTER),
-                        next_before: Column(COL_GRAMMAR_SLOT_CURSOR_BEFORE),
-                    },
-                ];
-                pairs.extend(
-                    (COL_GRAMMAR_ORACLE0_AFTER..=COL_GRAMMAR_ORACLE3_AFTER)
-                        .zip(COL_GRAMMAR_ORACLE0_BEFORE..=COL_GRAMMAR_ORACLE3_BEFORE)
-                        .map(|(after, before)| WasmCrossStepColumnPair {
-                            prev_after: Column(after),
-                            next_before: Column(before),
-                        }),
-                );
-                pairs
-            },
+            description: "row[i].grammar gather machinery (schedule, args base, cursor) must match row[i+1]",
+            column_pairs: vec![
+                WasmCrossStepColumnPair {
+                    prev_after: Column(COL_GRAMMAR_EVREM_AFTER),
+                    next_before: Column(COL_GRAMMAR_EVREM_BEFORE),
+                },
+                WasmCrossStepColumnPair {
+                    prev_after: Column(COL_GRAMMAR_EVIDX_AFTER),
+                    next_before: Column(COL_GRAMMAR_EVIDX_BEFORE),
+                },
+                WasmCrossStepColumnPair {
+                    prev_after: Column(COL_GRAMMAR_ARGS_BASE_AFTER),
+                    next_before: Column(COL_GRAMMAR_ARGS_BASE_BEFORE),
+                },
+                WasmCrossStepColumnPair {
+                    prev_after: Column(COL_GRAMMAR_SLOT_CURSOR_AFTER),
+                    next_before: Column(COL_GRAMMAR_SLOT_CURSOR_BEFORE),
+                },
+            ],
         },
         WasmCrossStepLinkSpec {
             name: "event_absorb_continuity",

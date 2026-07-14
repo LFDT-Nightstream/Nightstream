@@ -131,6 +131,38 @@ theorem postRlcCheckedMinimal_iff_target
   FPrimeRecursiveVerifier.postRlcCheckedMinimal_iff_target
     childrenValidate step
 
+/-! ## Pi_CCS Output Projection Surface -/
+
+abbrev PiCcsOutputContext :=
+  FPrimeRecursiveVerifier.PiCcsOutputContext
+abbrev PiCcsOutputMessage :=
+  FPrimeRecursiveVerifier.PiCcsOutputMessage
+abbrev PiCcsOutputClaim :=
+  FPrimeRecursiveVerifier.PiCcsOutputClaim
+
+/-- [Role: Theorem-Target] The active output message determines every reconstructed output field. -/
+theorem piCcsOutputMessage_injective_on_reconstructed
+    {Shape Commitment PublicX RowPoint ColumnPoint FoldDigest Sidecars
+      YRing ConstantTerms YZcol : Type u}
+    {constantTerms : YRing → ConstantTerms}
+    {context : PiCcsOutputContext
+      Shape Commitment PublicX RowPoint ColumnPoint FoldDigest Sidecars}
+    {left right : PiCcsOutputClaim
+      Shape Commitment PublicX RowPoint ColumnPoint FoldDigest Sidecars
+      YRing ConstantTerms YZcol}
+    (hLeft :
+      FPrimeRecursiveVerifier.PiCcsOutputReconstructed
+        constantTerms context left)
+    (hRight :
+      FPrimeRecursiveVerifier.PiCcsOutputReconstructed
+        constantTerms context right)
+    (hMessage :
+      FPrimeRecursiveVerifier.piCcsOutputMessage left =
+        FPrimeRecursiveVerifier.piCcsOutputMessage right) :
+    left = right :=
+  FPrimeRecursiveVerifier.piCcsOutputMessage_injective_on_reconstructed
+    hLeft hRight hMessage
+
 /-! ## R1CS Refinement Surface -/
 
 abbrev LinearCombination (R : Type u) :=

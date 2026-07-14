@@ -71,10 +71,9 @@ const STREAM_DONE: usize = WSR0 + 4; // event stream complete after this row
 const EVENT_END: usize = STREAM_DONE + 1; // this row streams the final word pair
 const EVENT_END_OR: usize = EVENT_END + 1; // (block filled)·(event end) product
 const GW0: usize = EVENT_END_OR + 1; // 8 gather block-word one-hot flags
-const GK0: usize = GW0 + 8; // 7 gather slot-kind one-hot flags (const/arg/result/oracle/input-local/output/input)
-const GKINDS: usize = 7;
-const GOSEL0: usize = GK0 + GKINDS; // 4 gather oracle-cell select flags
-const GARG_VAL: usize = GOSEL0 + 4; // limb-selected stack-read value
+const GK0: usize = GW0 + 8; // 6 gather slot-kind one-hot flags (const/arg/result/claim/claim-local/output)
+const GKINDS: usize = 6;
+const GARG_VAL: usize = GK0 + GKINDS; // limb-selected stack-read value
 const GOUT_VAL: usize = GARG_VAL + 1; // limb-selected output-carry value (export result)
 const GSLOT_VALUE: usize = GOUT_VAL + 1; // the block word this gather row stages
 
@@ -88,7 +87,7 @@ pub(crate) fn perm_gadget_col_widths() -> impl Iterator<Item = usize> {
     core::iter::repeat_n(1, COMM_CHAIN_PERM_ROWS)
         .chain(core::iter::repeat_n(64, 48 + 8))
         .chain(core::iter::repeat_n(1, 4 + 4 + 3))
-        .chain(core::iter::repeat_n(1, 8 + GKINDS + 4))
+        .chain(core::iter::repeat_n(1, 8 + GKINDS))
         .chain(core::iter::repeat_n(64, 3))
 }
 
@@ -236,7 +235,7 @@ fn push_grammar_mode_constraints(b: &mut R1csBuilder) {
 /// Grammar gather binding: each gather row stages exactly one block word,
 /// whose value is pinned by the grammar ROM entry at
 /// `(fref, event_index, slot_cursor)` — a constant, an addressed stack read
-/// of an arg/result limb, or a per-call oracle cell — and the per-call
+/// of an arg/result limb, or a free claim word — and the per-call
 /// event schedule is forced by ROM-loaded countdowns. This closes the
 /// stage-B gap: with these rows, a grammar chain commits exactly the event
 /// sequence obtained by applying the committed tables to the values at the
@@ -247,13 +246,13 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
         COL_GRAMMAR_ARGS_BASE_AFTER as AB_A, COL_GRAMMAR_ARGS_BASE_BEFORE as AB_B, COL_GRAMMAR_EVIDX_AFTER as EVIDX_A,
         COL_GRAMMAR_EVIDX_BEFORE as EVIDX_B, COL_GRAMMAR_EVREM_AFTER as EVREM_A, COL_GRAMMAR_EVREM_BEFORE as EVREM_B,
         COL_GRAMMAR_EVREM_BEFORE_INV as EVREM_INV, COL_GRAMMAR_EVREM_BEFORE_IS_ZERO as EVREM_ISZERO,
-        COL_GRAMMAR_EXIT_LATCH, COL_GRAMMAR_HOST_CALL as GHC, COL_GRAMMAR_ORACLE0_AFTER as OR0_A,
-        COL_GRAMMAR_ORACLE0_BEFORE as OR0_B, COL_GRAMMAR_POST_COUNT as POST_COUNT, COL_GRAMMAR_PRE_COUNT as PRE_COUNT,
-        COL_GRAMMAR_RESULT_ACTIVE as GRES, COL_GRAMMAR_SLOT_ARG as SLOT_ARG, COL_GRAMMAR_SLOT_CONST_HI as CONST_HI,
-        COL_GRAMMAR_SLOT_CONST_LO as CONST_LO, COL_GRAMMAR_SLOT_CURSOR_AFTER as S_A,
-        COL_GRAMMAR_SLOT_CURSOR_BEFORE as S_B, COL_GRAMMAR_SLOT_KIND as SLOT_KIND, COL_GRAMMAR_SLOT_LIMB as SLOT_LIMB,
-        COL_IS_PROGRAM_ROW, COL_LOCAL_INDEX, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_OUTPUT_CAPTURED,
-        COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_SP_BEFORE, COL_STACK_READ0_ADDR_LO,
+        COL_GRAMMAR_EXIT_LATCH, COL_GRAMMAR_HOST_CALL as GHC, COL_GRAMMAR_POST_COUNT as POST_COUNT,
+        COL_GRAMMAR_PRE_COUNT as PRE_COUNT, COL_GRAMMAR_RESULT_ACTIVE as GRES, COL_GRAMMAR_SLOT_ARG as SLOT_ARG,
+        COL_GRAMMAR_SLOT_CONST_HI as CONST_HI, COL_GRAMMAR_SLOT_CONST_LO as CONST_LO,
+        COL_GRAMMAR_SLOT_CURSOR_AFTER as S_A, COL_GRAMMAR_SLOT_CURSOR_BEFORE as S_B,
+        COL_GRAMMAR_SLOT_KIND as SLOT_KIND, COL_GRAMMAR_SLOT_LIMB as SLOT_LIMB, COL_IS_PROGRAM_ROW, COL_LOCAL_INDEX,
+        COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_OUTPUT_CAPTURED, COL_OUTPUT_VALUE_HI_BEFORE,
+        COL_OUTPUT_VALUE_LO_BEFORE, COL_SP_BEFORE, COL_STACK_READ0_ADDR_LO,
     };
     let ci_sel = super::super::layout::selector_col(crate::isa::WasmOpcode::CallIndirect).expect("ci selector");
 
@@ -421,47 +420,11 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
             [],
         );
 
-        // Oracle slots: the word equals the selected per-call oracle cell,
-        // with the selector one-hot bound to the ROM's index.
-        for j in 0..4 {
-            b.push_boolean(GOSEL0 + j);
-        }
-        b.push_linear_zero(
-            (0..4)
-                .map(|j| (GOSEL0 + j, F::ONE))
-                .chain([(GK0 + 3, -F::ONE)]),
-        );
-        b.push_row(
-            [(GK0 + 3, F::ONE)],
-            (0..4)
-                .map(|j| (GOSEL0 + j, F::from_u64(j as u64)))
-                .chain([(SLOT_ARG, -F::ONE)]),
-            [],
-        );
-        for j in 0..4 {
-            b.push_row(
-                [(GOSEL0 + j, F::ONE)],
-                [(GSLOT_VALUE, F::ONE), (OR0_B + j, -F::ONE)],
-                [],
-            );
-        }
-
-        // Oracle cells reload (prover-supplied) on host-call rows and on
-        // the export exit latch; every other row carries them, so all
-        // template slots referencing the same index provably read one value.
-        for j in 0..4 {
-            b.push_row(
-                [
-                    (COL_ONE, F::ONE),
-                    (call.0, -call.1),
-                    (ci_not_trap.0, -ci_not_trap.1),
-                    (guest.0, -guest.1),
-                    (COL_GRAMMAR_EXIT_LATCH, -F::ONE),
-                ],
-                [(OR0_A + j, F::ONE), (OR0_B + j, -F::ONE)],
-                [],
-            );
-        }
+        // Claim slots (kind 3): free absorbed claim words. Their values —
+        // and the identity of slots sharing a claim index — are claim-side
+        // structure: expansion resolves every `Claim{idx}` from one claim
+        // entry, and the transcript check (native fold or the interleaving
+        // proof) binds the absorbed words to that claim.
 
         // Input-local slots (kind 4): the staged claim-input word is written
         // into one 32-bit lane of the entry frame's locals at the
@@ -1070,9 +1033,6 @@ pub(crate) fn fill_perm_gadget_witness(wit: &mut [F], trace: &WasmVmStep) {
         wit[GSLOT_VALUE] = F::from_u64(trace.state_after.event_absorb.evbuf[cursor]);
         if let Some(rom) = trace.grammar_rom_slot {
             wit[GK0 + usize::from(rom.kind)] = F::ONE;
-            if rom.kind == 3 {
-                wit[GOSEL0 + usize::from(rom.arg)] = F::ONE;
-            }
         }
     }
     // Limb-selected values: filled on every row so the unconditional select

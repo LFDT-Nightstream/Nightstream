@@ -27,7 +27,7 @@ fn slots(entries: &[(usize, SlotSource)]) -> [SlotSource; COMM_CHAIN_EVENT_ARGS]
 /// `(a, b)` encodes to one ref word `[a, b.lo, b.hi, 0]`.
 fn method_template() -> ImportTemplate {
     let arg = |arg, limb| SlotSource::ArgElem { arg, limb };
-    let oracle = |idx| SlotSource::Oracle { idx };
+    let oracle = |idx| SlotSource::Claim { idx };
     ImportTemplate {
         pre_result: vec![
             // NewRef(size=1) -> payload ref (oracle 0). Ret=slot2, Size=slot3.
@@ -58,7 +58,7 @@ fn method_template() -> ImportTemplate {
                 slots(&[(1, oracle(1)), (0, SlotSource::ResultElem { limb: Limb::Lo })]),
             ),
         ],
-        oracle_count: 4,
+        claim_count: 4,
     }
 }
 
@@ -113,7 +113,7 @@ fn zero_arg_import_expands_to_single_const_event() {
     let template = ImportTemplate {
         pre_result: vec![GrammarEvent::op(7, [ZERO; COMM_CHAIN_EVENT_ARGS])],
         post_result: vec![],
-        oracle_count: 0,
+        claim_count: 0,
     };
     template.validate(0, 0).expect("burn validates");
     let expanded = expand_import_events(&template, &[], None, &[]).expect("expansion");
@@ -146,10 +146,10 @@ fn validation_rejects_unresolvable_templates() {
     };
     assert!(template.validate(0, 1).is_err());
 
-    // Oracle index beyond the declared count.
+    // Claim index beyond the declared count.
     let template = ImportTemplate {
-        pre_result: vec![event(SlotSource::Oracle { idx: 1 })],
-        oracle_count: 1,
+        pre_result: vec![event(SlotSource::Claim { idx: 1 })],
+        claim_count: 1,
         ..Default::default()
     };
     assert!(template.validate(0, 0).is_err());
@@ -175,33 +175,47 @@ fn validation_rejects_unresolvable_templates() {
     assert!(template.validate(2, 1).is_ok());
 }
 
-/// Export entry-phase rules: claim inputs only (no oracle cells, no output),
-/// each param local written at most once, and every `InputLocal` word must
-/// fit the 32-bit locals lane.
+/// Export entry-phase rules: each local lane written at most once, lo
+/// before hi, indices inside the declared claim counts, and every
+/// `ClaimLocal` word must fit the 32-bit locals lane.
 #[test]
 fn export_entry_validation_and_expansion_rules() {
     let event = |slot: SlotSource| GrammarEvent::op(0, slots(&[(0, slot)]));
 
-    // Oracle cells are exit-phase only.
+    // Claim index beyond the phase's declared count.
     let template = ExportTemplate {
-        entry: vec![event(SlotSource::Oracle { idx: 0 })],
-        oracle_count: 1,
+        entry: vec![event(SlotSource::Claim { idx: 1 })],
+        entry_claim_count: 1,
         ..Default::default()
     };
     assert!(template.validate(1).is_err());
 
-    // Claim inputs are entry-phase only.
+    // Locals bootstrap is entry-phase only.
     let template = ExportTemplate {
-        exit: vec![event(SlotSource::Input)],
+        exit: vec![event(SlotSource::ClaimLocal {
+            idx: 0,
+            local: 0,
+            limb: Limb::Lo,
+        })],
+        exit_claim_count: 1,
         ..Default::default()
     };
     assert!(template.validate(1).is_err());
 
     // A local lane written twice is rejected.
-    let lo = |local| SlotSource::InputLocal { local, limb: Limb::Lo };
-    let hi = |local| SlotSource::InputLocal { local, limb: Limb::Hi };
+    let lo = |local| SlotSource::ClaimLocal {
+        idx: 0,
+        local,
+        limb: Limb::Lo,
+    };
+    let hi = |local| SlotSource::ClaimLocal {
+        idx: 1,
+        local,
+        limb: Limb::Hi,
+    };
     let template = ExportTemplate {
         entry: vec![event(lo(0)), event(lo(0))],
+        entry_claim_count: 2,
         ..Default::default()
     };
     assert!(template.validate(1).is_err());
@@ -209,6 +223,7 @@ fn export_entry_validation_and_expansion_rules() {
     // Local index out of range.
     let template = ExportTemplate {
         entry: vec![event(lo(1))],
+        entry_claim_count: 2,
         ..Default::default()
     };
     assert!(template.validate(1).is_err());
@@ -217,42 +232,54 @@ fn export_entry_validation_and_expansion_rules() {
     // because the lo write zeroes the hi lane.
     let template = ExportTemplate {
         entry: vec![event(hi(0))],
+        entry_claim_count: 2,
         ..Default::default()
     };
     assert!(template.validate(1).is_err());
     let template = ExportTemplate {
         entry: vec![event(hi(0)), event(lo(0))],
+        entry_claim_count: 2,
         ..Default::default()
     };
     assert!(template.validate(1).is_err());
     let template = ExportTemplate {
         entry: vec![event(lo(0)), event(hi(0))],
+        entry_claim_count: 2,
         ..Default::default()
     };
     template.validate(1).expect("lo-then-hi validates");
 
-    // Entry expansion consumes claim words in slot order and rejects a
-    // wrong count or a word that does not fit the locals lane.
+    // Entry expansion resolves indexed claim words — the same index may
+    // feed several slots — and rejects a wrong array length or a
+    // locals-bound word that does not fit the lane.
     let template = ExportTemplate {
-        entry: vec![GrammarEvent::op(9, slots(&[(0, SlotSource::Input), (1, lo(0))]))],
+        entry: vec![GrammarEvent::op(
+            9,
+            slots(&[
+                (0, SlotSource::Claim { idx: 1 }),
+                (1, lo(0)),
+                (2, SlotSource::Claim { idx: 0 }),
+            ]),
+        )],
+        entry_claim_count: 2,
         ..Default::default()
     };
     template.validate(1).expect("entry template validates");
-    let blocks = expand_export_entry(&template, &[500, 7]).expect("entry expansion");
-    assert_eq!(blocks, vec![[9, 500, 7, 0, 0, 0, 0, 0]]);
-    assert!(expand_export_entry(&template, &[500]).is_err());
-    assert!(expand_export_entry(&template, &[500, 1 << 32]).is_err());
+    let blocks = expand_export_entry(&template, &[7, 500]).expect("entry expansion");
+    assert_eq!(blocks, vec![[9, 500, 7, 7, 0, 0, 0, 0]]);
+    assert!(expand_export_entry(&template, &[7]).is_err());
+    assert!(expand_export_entry(&template, &[1 << 32, 500]).is_err());
 }
 
 #[test]
-fn expansion_rejects_wrong_oracle_count() {
+fn expansion_rejects_wrong_claim_count() {
     let template = method_template();
     let args = [(0, 0), (0, 0), (0, 0)];
     assert!(expand_import_events(&template, &args, Some((0, 0)), &[1, 2, 3]).is_err());
 }
 
 #[test]
-fn expansion_rejects_non_canonical_oracle() {
+fn expansion_rejects_non_canonical_claim() {
     let template = method_template();
     let args = [(0, 0), (0, 0), (0, 0)];
     assert!(expand_import_events(&template, &args, Some((0, 0)), &[1, 2, 3, u64::MAX]).is_err());

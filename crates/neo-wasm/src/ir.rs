@@ -129,8 +129,8 @@ impl Default for WasmEventAbsorbState {
 
 /// Carried state of the grammar-mode gather machinery (all zero in raw
 /// mode): the per-call event schedule, the argument-region base for
-/// addressed slot reads, the slot cursor inside the block being staged,
-/// and the per-call oracle cells (see [`crate::event_grammar`]).
+/// addressed slot reads, and the slot cursor inside the block being
+/// staged (see [`crate::event_grammar`]).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WasmGrammarState {
     /// Events still owed in the current phase; loaded from the event-count
@@ -145,10 +145,6 @@ pub struct WasmGrammarState {
     pub args_base: u64,
     /// Next block word a slot row stages (0..=7).
     pub slot_cursor: u8,
-    /// Per-call oracle cells; reloaded (prover-supplied) on host-call rows,
-    /// preserved elsewhere so template slots referencing the same oracle
-    /// index provably read the same value.
-    pub oracles: [u64; 4],
 }
 
 impl WasmGrammarState {
@@ -157,7 +153,6 @@ impl WasmGrammarState {
         event_index: 0,
         args_base: 0,
         slot_cursor: 0,
-        oracles: [0; 4],
     };
 }
 

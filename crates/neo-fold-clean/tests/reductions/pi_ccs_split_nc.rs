@@ -1436,7 +1436,8 @@ fn header_digest_catch_up_matches_native_digest32() {
             F::from_u64(8),
         ],
     );
-    enforce_header_digest_catch_up(&mut b, &mut tr, header_fields);
+    let header_wires = std::array::from_fn(|lane| b.alloc(header_fields[lane]));
+    enforce_header_digest_catch_up(&mut b, &mut tr, header_wires);
 
     assert!(
         b.is_satisfied(),
@@ -1459,7 +1460,8 @@ fn header_digest_catch_up_rejects_tampered_digest() {
     let mut b = R1csBuilder::new();
     let mut tr = TranscriptGadget::new(&mut b, APP);
     tr.append_fields_raw_const(&mut b, &[F::from_u64(PI_CCS_HEADER_BUNDLE_RAW_TAG), F::from_u64(42)]);
-    enforce_header_digest_catch_up(&mut b, &mut tr, bad_fields);
+    let bad_wires = std::array::from_fn(|lane| b.alloc(bad_fields[lane]));
+    enforce_header_digest_catch_up(&mut b, &mut tr, bad_wires);
 
     assert!(
         !b.is_satisfied(),

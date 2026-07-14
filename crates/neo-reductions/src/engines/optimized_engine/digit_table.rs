@@ -32,7 +32,9 @@ use crate::error::PiCcsError;
 ///   original row count.
 #[derive(Debug)]
 pub enum NcDigitTable {
-    Zero { len: usize },
+    Zero {
+        len: usize,
+    },
     Lane0(Vec<K>),
     Strided {
         width: usize,

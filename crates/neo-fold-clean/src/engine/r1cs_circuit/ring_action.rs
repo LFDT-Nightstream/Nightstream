@@ -33,6 +33,7 @@ use crate::engine::r1cs_circuit::builder::{
     Lc, PolynomialEvaluationTrace, ProjectionIdentityAudit, ProjectionIdentityRole, ProjectionLadderAudit, R1csBuilder,
     Var,
 };
+use crate::engine::r1cs_circuit::encoding_trace::{RingMulToom3TraceEntry, Toom3ConvolutionTrace};
 
 const TABLE_LEN: usize = 2 * D - 1;
 const TOOM3_SPLIT: usize = D / 3;
@@ -217,6 +218,7 @@ fn collect_vars(builder: &mut R1csBuilder, vals: &[F; D]) -> [Var; D] {
 }
 
 fn enforce_ring_mul_toom3_inner(builder: &mut R1csBuilder, rho: &[Var; D], c: &[Var; D]) -> [Var; D] {
+    let first_row = builder.rows();
     let a0 = chunk_at(rho, 0);
     let a1 = chunk_at(rho, TOOM3_SPLIT);
     let a2 = chunk_at(rho, 2 * TOOM3_SPLIT);
@@ -227,23 +229,18 @@ fn enforce_ring_mul_toom3_inner(builder: &mut R1csBuilder, rho: &[Var; D], c: &[
     let two = F::from_u64(2);
     let four = F::from_u64(4);
 
-    let p0 = schoolbook_product_lcs(builder, &a0, &b0);
-    let p1 = schoolbook_product_lcs(
-        builder,
-        &eval_chunk_lcs(&a0, &a1, &a2, F::ONE, F::ONE, F::ONE),
-        &eval_chunk_lcs(&b0, &b1, &b2, F::ONE, F::ONE, F::ONE),
-    );
-    let pm1 = schoolbook_product_lcs(
-        builder,
-        &eval_chunk_lcs(&a0, &a1, &a2, F::ONE, -F::ONE, F::ONE),
-        &eval_chunk_lcs(&b0, &b1, &b2, F::ONE, -F::ONE, F::ONE),
-    );
-    let p2 = schoolbook_product_lcs(
-        builder,
-        &eval_chunk_lcs(&a0, &a1, &a2, F::ONE, two, four),
-        &eval_chunk_lcs(&b0, &b1, &b2, F::ONE, two, four),
-    );
-    let p4 = schoolbook_product_lcs(builder, &a2, &b2);
+    let p1_lhs = eval_chunk_lcs(&a0, &a1, &a2, F::ONE, F::ONE, F::ONE);
+    let p1_rhs = eval_chunk_lcs(&b0, &b1, &b2, F::ONE, F::ONE, F::ONE);
+    let pm1_lhs = eval_chunk_lcs(&a0, &a1, &a2, F::ONE, -F::ONE, F::ONE);
+    let pm1_rhs = eval_chunk_lcs(&b0, &b1, &b2, F::ONE, -F::ONE, F::ONE);
+    let p2_lhs = eval_chunk_lcs(&a0, &a1, &a2, F::ONE, two, four);
+    let p2_rhs = eval_chunk_lcs(&b0, &b1, &b2, F::ONE, two, four);
+
+    let (p0, p0_trace) = schoolbook_product_lcs(builder, &a0, &b0);
+    let (p1, p1_trace) = schoolbook_product_lcs(builder, &p1_lhs, &p1_rhs);
+    let (pm1, pm1_trace) = schoolbook_product_lcs(builder, &pm1_lhs, &pm1_rhs);
+    let (p2, p2_trace) = schoolbook_product_lcs(builder, &p2_lhs, &p2_rhs);
+    let (p4, p4_trace) = schoolbook_product_lcs(builder, &a2, &b2);
 
     let half = two.inverse();
     let sixth = F::from_u64(6).inverse();
@@ -302,7 +299,18 @@ fn enforce_ring_mul_toom3_inner(builder: &mut R1csBuilder, rho: &[Var; D], c: &[
         builder.enforce_eq(&Lc::from_var(v), &raw[idx]);
         *out_slot = Some(v);
     }
-    out.map(|slot| slot.expect("toom3 ring_mul out slot must be populated"))
+    let output = out.map(|slot| slot.expect("toom3 ring_mul out slot must be populated"));
+    if builder.encoding_trace_enabled() {
+        builder.record_ring_mul_toom3_encoding(RingMulToom3TraceEntry {
+            rho: rho.to_vec(),
+            c: c.to_vec(),
+            convolutions: vec![p0_trace, p1_trace, pm1_trace, p2_trace, p4_trace],
+            reduced_output_lcs: raw[..D].to_vec(),
+            output: output.to_vec(),
+            source_rows: first_row..builder.rows(),
+        });
+    }
+    output
 }
 
 fn chunk_at(vars: &[Var; D], offset: usize) -> Vec<Lc> {
@@ -323,17 +331,26 @@ fn eval_chunk_lcs(a0: &[Lc], a1: &[Lc], a2: &[Lc], c0: F, c1: F, c2: F) -> Vec<L
         .collect()
 }
 
-fn schoolbook_product_lcs(builder: &mut R1csBuilder, lhs: &[Lc], rhs: &[Lc]) -> Vec<Lc> {
+fn schoolbook_product_lcs(builder: &mut R1csBuilder, lhs: &[Lc], rhs: &[Lc]) -> (Vec<Lc>, Toom3ConvolutionTrace) {
     debug_assert_eq!(lhs.len(), TOOM3_SPLIT);
     debug_assert_eq!(rhs.len(), TOOM3_SPLIT);
     let mut out = vec![Lc::zero(); TOOM3_CHUNK_OUT];
+    let mut products = Vec::with_capacity(TOOM3_SPLIT * TOOM3_SPLIT);
     for i in 0..TOOM3_SPLIT {
         for j in 0..TOOM3_SPLIT {
             let product = builder.alloc_mul(&lhs[i], &rhs[j]);
             out[i + j].add_term(product, F::ONE);
+            products.push(product);
         }
     }
-    out
+    (
+        out,
+        Toom3ConvolutionTrace {
+            lhs: lhs.to_vec(),
+            rhs: rhs.to_vec(),
+            products,
+        },
+    )
 }
 
 fn add_chunk_lcs_at(dst: &mut [Lc], offset: usize, src: &[Lc]) {

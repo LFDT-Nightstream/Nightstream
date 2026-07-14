@@ -23,6 +23,12 @@ use neo_ccs::SeededPhi81LinearBlock;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
+use super::encoding_trace::{
+    KMulTraceEntry, PoseidonHashTraceEntry, PoseidonPermutationTraceEntry, R1csEncodingTrace, R1csStageCheckpoint,
+    RingMulToom3TraceEntry, Sbox7TraceEntry,
+};
+pub use super::relation::{R1csRelation, R1csSnapshot};
+
 /// A witness column index. Allocated by [`R1csBuilder::alloc`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Var(usize);
@@ -574,6 +580,8 @@ pub struct R1csBuilder {
     projection_glue_audits: Vec<ProjectionGlueAudit>,
     indexed_row_family_ranges: Vec<IndexedRowFamilyRange>,
     column_family_ranges: Vec<ColumnFamilyRange>,
+    encoding_trace_enabled: bool,
+    encoding_trace: R1csEncodingTrace,
 }
 
 /// Immutable output of one completed R1CS synthesis.
@@ -655,6 +663,67 @@ impl R1csBuilder {
             projection_glue_audits: Vec::new(),
             indexed_row_family_ranges: Vec::new(),
             column_family_ranges: Vec::new(),
+            encoding_trace_enabled: false,
+            encoding_trace: R1csEncodingTrace::default(),
+        }
+    }
+
+    /// Record high-level gadget provenance for low-norm compilation.
+    ///
+    /// This does not alter the emitted R1CS. It must be enabled before the
+    /// relevant gadgets run; an encoder rejects incomplete provenance when a
+    /// traced temporary escapes its recorded row range.
+    pub fn enable_encoding_trace(&mut self) {
+        self.encoding_trace_enabled = true;
+    }
+
+    pub fn encoding_trace(&self) -> &R1csEncodingTrace {
+        &self.encoding_trace
+    }
+
+    /// Begin a named diagnostic stage at the current row/column frontier.
+    /// No-op unless encoding provenance is enabled.
+    pub fn begin_encoding_stage(&mut self, label: &'static str) {
+        if self.encoding_trace_enabled {
+            self.encoding_trace.push_stage(R1csStageCheckpoint {
+                label,
+                row: self.rows(),
+                col: self.cols(),
+            });
+        }
+    }
+
+    pub(crate) fn encoding_trace_enabled(&self) -> bool {
+        self.encoding_trace_enabled
+    }
+
+    pub(crate) fn record_sbox7_encoding(&mut self, entry: Sbox7TraceEntry) {
+        if self.encoding_trace_enabled {
+            self.encoding_trace.push_sbox7(entry);
+        }
+    }
+
+    pub(crate) fn record_k_mul_encoding(&mut self, entry: KMulTraceEntry) {
+        if self.encoding_trace_enabled {
+            self.encoding_trace.push_k_mul(entry);
+        }
+    }
+
+    pub(crate) fn record_poseidon_permutation_encoding(&mut self, entry: PoseidonPermutationTraceEntry) {
+        if self.encoding_trace_enabled {
+            self.encoding_trace.push_poseidon_permutation(entry);
+        }
+    }
+
+    pub(crate) fn record_poseidon_hash_encoding(&mut self, entry: PoseidonHashTraceEntry) {
+        if self.encoding_trace_enabled {
+            self.encoding_trace.push_poseidon_hash(entry);
+        }
+    }
+
+    pub(crate) fn record_ring_mul_toom3_encoding(&mut self, entry: RingMulToom3TraceEntry) {
+        if self.encoding_trace_enabled {
+            self.encoding_trace.push_ring_mul_toom3(entry);
         }
     }
 
@@ -1245,6 +1314,24 @@ impl R1csBuilder {
             equality_pairs: self.equality_pairs,
             row_family_ranges: self.row_family_ranges,
         }
+    }
+
+    /// Freeze the current relation and witness for deterministic encoding.
+    /// Duplicate terms in a linear combination are coalesced, so equivalent
+    /// builder call patterns yield the same row representation.
+    pub fn snapshot(&self) -> R1csSnapshot {
+        assert!(
+            self.record_structure,
+            "witness-only builder cannot snapshot R1CS structure"
+        );
+        R1csSnapshot::from_builder_parts(
+            &self.a_trips,
+            &self.b_trips,
+            &self.c_trips,
+            &self.seeded_phi81_a_blocks,
+            self.rows,
+            self.witness.clone(),
+        )
     }
 
     /// Allocated witness columns that do not appear in any A/B/C row.

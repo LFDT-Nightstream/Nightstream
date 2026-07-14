@@ -19,8 +19,9 @@ use crate::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
 use crate::frontends::direct_ccs::FrontendError;
 use crate::frontends::f_prime::compiler::{
     assemble_shared_chunk_traces, assemble_step_from_shared, canonical_ce_shape_and_child_count,
-    nifs_ce_view_from_claim, nifs_payload_inputs_for_source_image, perp_nifs_ce_view, start_f_prime_chain_context,
-    verify_prior_fold, FPrimeChainState, FPrimeCompilerContext, FPrimeFoldForStep, FPrimeShellCompilerError,
+    nifs_ce_shape_from_claim, nifs_ce_view_from_claim, nifs_payload_inputs_for_source_image, perp_nifs_ce_view,
+    start_f_prime_chain_context, verify_prior_fold, FPrimeChainState, FPrimeCompilerContext, FPrimeFoldForStep,
+    FPrimeFoldPostSummary, FPrimeShellCompilerError,
 };
 use crate::frontends::f_prime::encoder::EncodedFPrimeStep;
 use crate::frontends::f_prime::image::{NifsCeClaimShape, NifsCeClaimView};
@@ -182,30 +183,43 @@ pub fn compile_chunk(
     let is_base = ctx.chain_state.chunk_count == 0;
 
     if is_base {
-        if ctx.fold_for_step.is_some() {
+        if ctx.fold_for_step.is_some() || ctx.fold_summary_for_step.is_some() {
             return Err(FPrimeShellCompilerError::BaseStepUnexpectedPriorFold.into());
         }
         compile_base_chunk(prep, ctx, inputs, rows_in_chunk, semantic)
     } else {
-        let fold =
-            ctx.fold_for_step
-                .as_ref()
-                .cloned()
-                .ok_or(FPrimeShellCompilerError::PriorFoldMissingForRecursiveStep {
-                    chunk_count: ctx.chain_state.chunk_count,
-                })?;
-        // The prior-fold transcript reconstruction needs the K of the
-        // current step (the NIFS proof's transcript absorbed
-        // chunk_digest with K from native).
-        #[cfg(feature = "perf-timers")]
-        let t_verify = std::time::Instant::now();
-        verify_prior_fold(&prep.prep, ctx, &fold, rows_in_chunk)?;
-        #[cfg(feature = "perf-timers")]
-        eprintln!(
-            "[r1cs-compile] verify_prior_fold          {:>7.2}s",
-            t_verify.elapsed().as_secs_f64()
-        );
-        compile_recursive_chunk(prep, ctx, inputs, fold, rows_in_chunk, semantic)
+        match (
+            ctx.fold_for_step.as_ref().cloned(),
+            ctx.fold_summary_for_step.as_ref().cloned(),
+        ) {
+            (Some(_), Some(_)) => Err(FPrimeShellCompilerError::ConflictingPriorFoldInputs.into()),
+            (Some(fold), None) => {
+                if ctx.fold_for_step_needs_native_verify {
+                    // The prior-fold transcript reconstruction needs the K of the
+                    // current step (the NIFS proof's transcript absorbed
+                    // chunk_digest with K from native).
+                    #[cfg(feature = "perf-timers")]
+                    let t_verify = std::time::Instant::now();
+                    verify_prior_fold(&prep.prep, ctx, &fold, rows_in_chunk)?;
+                    #[cfg(feature = "perf-timers")]
+                    eprintln!(
+                        "[r1cs-compile] verify_prior_fold          {:>7.2}s",
+                        t_verify.elapsed().as_secs_f64()
+                    );
+                }
+                compile_recursive_chunk(prep, ctx, inputs, fold, rows_in_chunk, semantic)
+            }
+            (None, Some(summary)) => {
+                if ctx.fold_for_step_needs_native_verify {
+                    return Err(FPrimeShellCompilerError::UnverifiedPriorFoldSummary.into());
+                }
+                compile_recursive_chunk_from_summary(prep, ctx, inputs, summary, rows_in_chunk, semantic)
+            }
+            (None, None) => Err(FPrimeShellCompilerError::PriorFoldMissingForRecursiveStep {
+                chunk_count: ctx.chain_state.chunk_count,
+            }
+            .into()),
+        }
     }
 }
 
@@ -243,41 +257,36 @@ fn compile_recursive_chunk(
     rows_in_chunk: usize,
     semantic: Option<SemanticStateDigests>,
 ) -> Result<Vec<R1csCompiledStep>, R1csCompilerError> {
-    let post_running = &fold.post_running;
-    let post_parent = post_running
-        .parent_authority
-        .as_ref()
-        .ok_or(FPrimeShellCompilerError::PostRunningMissingParentAuthority)?;
-
     let plan = prep.plan.clone();
     let (canonical_ce_shape, child_count) = canonical_ce_shape_and_child_count(&plan)?;
-
-    let actual_shape = NifsCeClaimShape {
-        c_data_entries: post_parent.c.data.len(),
-        x_rows: post_parent.X.rows(),
-        x_active_cols: crate::paper::relations::superneo_public_x_cols(post_parent.m_in),
-        r_len: post_parent.r.len(),
-        y_ring_inner_lens: post_parent.y_ring.iter().map(|row| row.len()).collect(),
-        y_zcol_len: post_parent.y_zcol.len(),
-        s_col_len: post_parent.s_col.len(),
+    let (ce_view, new_acc_digest) = if let Some(summary) = fold.post_summary {
+        compile_surface_from_summary(summary, canonical_ce_shape, child_count)?
+    } else {
+        let post_running = &fold.post_running;
+        let post_parent = post_running
+            .parent_authority
+            .as_ref()
+            .ok_or(FPrimeShellCompilerError::PostRunningMissingParentAuthority)?;
+        let actual_shape = nifs_ce_shape_from_claim(post_parent, ctx.public_input_len);
+        if actual_shape != canonical_ce_shape {
+            return Err(FPrimeShellCompilerError::PostParentShapeMismatch {
+                canonical: canonical_ce_shape,
+                actual: actual_shape,
+            }
+            .into());
+        }
+        if post_running.claims.len() as u64 != child_count {
+            return Err(FPrimeShellCompilerError::PostRunningClaimsCountMismatch {
+                canonical: child_count,
+                actual: post_running.claims.len() as u64,
+            }
+            .into());
+        }
+        (
+            nifs_ce_view_from_claim(post_parent, ctx.public_input_len),
+            AccumulatorHandle::from_running_parts(&post_running.claims, Some(post_parent)).digest_fields(),
+        )
     };
-    if actual_shape != canonical_ce_shape {
-        return Err(FPrimeShellCompilerError::PostParentShapeMismatch {
-            canonical: canonical_ce_shape,
-            actual: actual_shape,
-        }
-        .into());
-    }
-    if post_running.claims.len() as u64 != child_count {
-        return Err(FPrimeShellCompilerError::PostRunningClaimsCountMismatch {
-            canonical: child_count,
-            actual: post_running.claims.len() as u64,
-        }
-        .into());
-    }
-
-    let ce_view = nifs_ce_view_from_claim(post_parent, ctx.public_input_len);
-    let new_acc_digest = AccumulatorHandle::from_running_parts(&post_running.claims, Some(post_parent)).digest_fields();
     finalize_compile_chunk(
         prep,
         ctx,
@@ -290,6 +299,53 @@ fn compile_recursive_chunk(
         rows_in_chunk,
         semantic,
     )
+}
+
+fn compile_recursive_chunk_from_summary(
+    prep: &R1csFPrimePreprocessing,
+    ctx: &mut R1csCompilerContext,
+    inputs: Vec<R1csFPrimeStepInput>,
+    summary: FPrimeFoldPostSummary,
+    rows_in_chunk: usize,
+    semantic: Option<SemanticStateDigests>,
+) -> Result<Vec<R1csCompiledStep>, R1csCompilerError> {
+    let plan = prep.plan.clone();
+    let (canonical_ce_shape, child_count) = canonical_ce_shape_and_child_count(&plan)?;
+    let (ce_view, new_acc_digest) = compile_surface_from_summary(summary, canonical_ce_shape, child_count)?;
+    finalize_compile_chunk(
+        prep,
+        ctx,
+        inputs,
+        plan,
+        /* is_base = */ false,
+        ce_view,
+        new_acc_digest,
+        child_count,
+        rows_in_chunk,
+        semantic,
+    )
+}
+
+fn compile_surface_from_summary(
+    summary: FPrimeFoldPostSummary,
+    canonical_ce_shape: NifsCeClaimShape,
+    child_count: u64,
+) -> Result<(NifsCeClaimView, [F; 4]), R1csCompilerError> {
+    if summary.parent_shape != canonical_ce_shape {
+        return Err(FPrimeShellCompilerError::PostParentShapeMismatch {
+            canonical: canonical_ce_shape,
+            actual: summary.parent_shape,
+        }
+        .into());
+    }
+    if summary.child_count != child_count {
+        return Err(FPrimeShellCompilerError::PostRunningClaimsCountMismatch {
+            canonical: child_count,
+            actual: summary.child_count,
+        }
+        .into());
+    }
+    Ok((perp_nifs_ce_view(&canonical_ce_shape), summary.acc_digest))
 }
 
 /// Compose one encoded R1CS-F' step around the shared shell assembly.
@@ -344,7 +400,14 @@ fn finalize_compile_chunk(
         // That digest is then absorbed by `state_x_out`, so the native
         // verifier and the F' CCS agree on the recursive-link hash while
         // still learning this specific `x` was proven.
+        #[cfg(feature = "perf-timers")]
+        let t_lanes = std::time::Instant::now();
         let app_public_input = state_x_out_app_preimage_lanes_for_assignment(prep.plan(), &input.assignment)?;
+        #[cfg(feature = "perf-timers")]
+        eprintln!(
+            "[r1cs-compile] app preimage lanes           {:>7.2}s",
+            t_lanes.elapsed().as_secs_f64()
+        );
         #[cfg(feature = "perf-timers")]
         let t_assembly = std::time::Instant::now();
         let semantic_out = semantic.map(|s| s.output);
@@ -363,6 +426,8 @@ fn finalize_compile_chunk(
             "[r1cs-compile] assignment_to_bits           {:>7.2}s",
             t_bits.elapsed().as_secs_f64()
         );
+        #[cfg(feature = "perf-timers")]
+        let t_one_shot = std::time::Instant::now();
         let mut one_shot_traces = Vec::new();
         if let Some(state_x_out) = prep.plan.state_x_out.as_ref() {
             if !state_x_out.semantic_state_in_var_indices.is_empty() {
@@ -385,6 +450,11 @@ fn finalize_compile_chunk(
             }
         }
         one_shot_traces.push(assembly.traces.state_x_out);
+        #[cfg(feature = "perf-timers")]
+        eprintln!(
+            "[r1cs-compile] one-shot traces              {:>7.2}s",
+            t_one_shot.elapsed().as_secs_f64()
+        );
         let encoder_input = R1csEncoderInput {
             plan: plan.clone(),
             boundary_bits: assembly.boundary_bits,
@@ -429,6 +499,8 @@ fn finalize_compile_chunk(
         shared.next_chain_state
     };
     ctx.fold_for_step = None;
+    ctx.fold_summary_for_step = None;
+    ctx.fold_for_step_needs_native_verify = true;
 
     Ok(compiled)
 }
@@ -476,6 +548,45 @@ pub(crate) fn semantic_state_digests_for_inputs(
 
 pub(crate) fn semantic_state_digest_for_assignment(assignment: &[F], indices: &[usize]) -> [F; 4] {
     semantic_state_trace_for_assignment(assignment, indices).digest_native
+}
+
+pub(crate) fn semantic_state_out_preimage_for_assignment(
+    prep: &R1csFPrimePreprocessing,
+    assignment: &[F],
+) -> Result<Option<Vec<F>>, R1csCompilerError> {
+    let Some(state_x_out) = prep.plan.state_x_out.as_ref() else {
+        return Ok(None);
+    };
+    if !state_x_out.semantic_state_out_var_indices.is_empty() {
+        let values = state_x_out
+            .semantic_state_out_var_indices
+            .iter()
+            .map(|&idx| assignment[idx])
+            .collect::<Vec<_>>();
+        return Ok(Some(build_semantic_state_preimage_fields(&values)));
+    }
+    if !state_x_out.app_public_input_var_indices.is_empty() || !state_x_out.app_public_input_bit_var_indices.is_empty()
+    {
+        let app_public_lanes = state_x_out_app_preimage_lanes_for_assignment(prep.plan(), assignment)?;
+        return Ok(Some(build_semantic_state_preimage_fields(&app_public_lanes)));
+    }
+    Ok(None)
+}
+
+pub(crate) fn semantic_state_in_preimage_for_assignment(
+    prep: &R1csFPrimePreprocessing,
+    assignment: &[F],
+) -> Option<Vec<F>> {
+    let state_x_out = prep.plan.state_x_out.as_ref()?;
+    if state_x_out.semantic_state_in_var_indices.is_empty() {
+        return None;
+    }
+    let values = state_x_out
+        .semantic_state_in_var_indices
+        .iter()
+        .map(|&idx| assignment[idx])
+        .collect::<Vec<_>>();
+    Some(build_semantic_state_preimage_fields(&values))
 }
 
 pub(super) fn semantic_state_digest_for_fields(fields: &[F]) -> [F; 4] {

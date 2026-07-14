@@ -9,9 +9,11 @@
 pub mod alphabet_sampling;
 pub mod boolean;
 pub mod builder;
+pub mod encoding_trace;
 pub mod field_ext;
 pub mod mux;
 pub mod poseidon2;
+mod relation;
 pub mod ring_action;
 pub mod sumcheck;
 pub mod transcript;
@@ -19,9 +21,14 @@ pub mod transcript;
 pub mod u64_arith;
 
 pub use builder::{Lc, R1csBuilder, Var};
+pub use encoding_trace::{
+    KMulTraceEntry, PoseidonHashTraceEntry, PoseidonPermutationTraceEntry, R1csEncodingTrace, R1csStageCheckpoint,
+    RingMulToom3TraceEntry, Sbox7TraceEntry, Toom3ConvolutionTrace,
+};
 pub use field_ext::{alloc_klc, enforce_k_dot_product, enforce_k_mul, KLc, KVar};
 pub use mux::{enforce_mux_var, enforce_mux_vec};
 pub use poseidon2::{enforce_poseidon2_hash, enforce_poseidon2_permutation, DIGEST_LEN};
+pub use relation::{R1csRelation, R1csSnapshot};
 pub use ring_action::{alloc_and_enforce_ring_mul, enforce_ring_mul};
 pub use sumcheck::{
     enforce_chi_alpha, enforce_eq_k, enforce_gamma_indexed_sum, enforce_norm_check_b2, enforce_r1cs_f_term,

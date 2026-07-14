@@ -6,7 +6,7 @@
 
 use crate::paper::construction2::enc_inst::EncInst;
 use crate::paper::construction2::{LatestInstance, RunningInstance};
-use crate::paper::nifs::NifsProof;
+use crate::paper::nifs::{NifsProof, NifsProofCarrier};
 
 /// What kind of fold this step produced.
 ///
@@ -18,7 +18,24 @@ pub enum FoldProof {
     /// i = 0 initialization step: no NIFS.P ran, so there's nothing to replay.
     NoFold,
     /// i ≥ 1: NIFS.P folded the previous latest into running.
-    Recursive(NifsProof),
+    Recursive(NifsProofCarrier),
+}
+
+impl FoldProof {
+    pub fn recursive_materialized(proof: NifsProof) -> Self {
+        Self::Recursive(NifsProofCarrier::materialized(proof))
+    }
+
+    pub fn recursive_carrier(proof: NifsProofCarrier) -> Self {
+        Self::Recursive(proof)
+    }
+
+    pub fn materialized_recursive(&self) -> Result<Option<NifsProof>, crate::paper::nifs::Error> {
+        match self {
+            Self::NoFold => Ok(None),
+            Self::Recursive(proof) => Ok(Some(proof.materialize()?)),
+        }
+    }
 }
 
 /// One IVC step's output: the fold proof + the F' hash-chain output.

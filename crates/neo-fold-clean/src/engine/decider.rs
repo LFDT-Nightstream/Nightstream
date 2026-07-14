@@ -263,7 +263,10 @@ fn synthesize_statement_r1cs_inner(
             }
             FoldProof::Recursive(nifs) => {
                 recursive_step_count += 1;
-                let out = emit_recursive_step_r1cs(&mut builder, prep, &state_in, &state, public_batch, nifs)
+                let nifs = nifs
+                    .materialize()
+                    .map_err(|e| decider::Error::WalkFailed(format!("materialize F' recursive step {idx}: {e}")))?;
+                let out = emit_recursive_step_r1cs(&mut builder, prep, &state_in, &state, public_batch, &nifs)
                     .map_err(|e| decider::Error::WalkFailed(format!("emit F' recursive step {idx}: {e}")))?;
                 (out, "decider.step.recursive", false)
             }
@@ -313,9 +316,11 @@ fn synthesize_statement_r1cs_inner(
             cross_step_links += 1;
         }
 
-        // CE-claim continuity: previous step's NIFS children must equal
-        // this step's NIFS running, wire-for-wire (not just by digest).
-        // Skipped if either side has no NIFS.V (base step).
+        // CE-claim continuity: previous step's NIFS children must equal this
+        // step's NIFS running wire-for-wire (not just by digest). Π_DEC's
+        // non-authority y_zcol sidecar is first canonicalized to the fixed
+        // SplitNc width by the NIFS circuit. Skipped if either side has no
+        // NIFS.V (base step).
         if let (Some(prev_children), Some(curr_running)) = (previous_children.as_ref(), output.nifs_running.as_ref()) {
             let continuity_start = builder.rows();
             enforce_children_equal_running(&mut builder, prev_children, curr_running)
@@ -342,7 +347,9 @@ fn synthesize_statement_r1cs_inner(
         // Snapshot the post-step running so the terminal fold can use it.
         // (Empty after a NoFold step, K-claim vector after Recursive.)
         if let ProofState::Active { running, .. } = &state.proof {
-            running_pre_final_fold = running.clone();
+            running_pre_final_fold = running
+                .materialize()
+                .map_err(|e| decider::Error::WalkFailed(format!("materialize running before final fold: {e}")))?;
         }
         last_output = Some(output);
     }
@@ -423,6 +430,9 @@ fn synthesize_statement_r1cs_inner(
         ));
     };
     let terminal_ce_start = builder.rows();
+    let final_running = final_running
+        .materialize()
+        .map_err(|e| decider::Error::WalkFailed(format!("materialize final running: {e}")))?;
     crate::paper::decider_ce_relation::enforce_final_ce_relations(
         &mut builder,
         prep,
@@ -613,7 +623,9 @@ pub fn synthesize_last_step_terminal_r1cs(
         .map_err(|e| decider::Error::WalkFailed(format!("native walk step {idx}: {e}")))?;
         if idx == last_idx {
             if let ProofState::Active { running, .. } = &state.proof {
-                running_pre_final_fold = running.clone();
+                running_pre_final_fold = running.materialize().map_err(|e| {
+                    decider::Error::WalkFailed(format!("materialize last running before final fold: {e}"))
+                })?;
             }
         }
     }
@@ -631,15 +643,20 @@ pub fn synthesize_last_step_terminal_r1cs(
             enforce_base_state_constants(&mut builder, prep, &statement.public, &out);
             out
         }
-        FoldProof::Recursive(nifs) => emit_recursive_step_r1cs(
-            &mut builder,
-            prep,
-            &last_state_in,
-            &last_state_out,
-            last_public_batch,
-            nifs,
-        )
-        .map_err(|e| decider::Error::WalkFailed(format!("emit last (recursive) step: {e}")))?,
+        FoldProof::Recursive(nifs) => {
+            let nifs = nifs
+                .materialize()
+                .map_err(|e| decider::Error::WalkFailed(format!("materialize last recursive step: {e}")))?;
+            emit_recursive_step_r1cs(
+                &mut builder,
+                prep,
+                &last_state_in,
+                &last_state_out,
+                last_public_batch,
+                &nifs,
+            )
+            .map_err(|e| decider::Error::WalkFailed(format!("emit last (recursive) step: {e}")))?
+        }
     };
 
     // 4. Emit terminal fold NIFS.V + terminal latest link.
@@ -666,10 +683,8 @@ pub fn synthesize_last_step_terminal_r1cs(
 
     // 4b. CE-claim continuity: the last recursive F' step's Π_DEC
     //     children must equal the terminal fold's Π_CCS running input
-    //     wire-for-wire, across every carried CE field (c_data, X, r,
-    //     s_col, y_ring, ct, y_zcol, fold_digest_fields). The accumulator
-    //     digest omits non-authority sidecars such as y_zcol, so this
-    //     direct equality is the terminal-boundary continuity gate. Mirrors
+    //     wire-for-wire across every carried CE field (c_data, X, r, s_col,
+    //     y_ring, ct, canonicalized y_zcol, fold_digest_fields). Mirrors
     //     the analogous check in
     //     `synthesize_statement_r1cs_inner` (full-history audit). Base
     //     last-step has no nifs_children, so this is guarded by `if let Some`.
@@ -697,6 +712,9 @@ pub fn synthesize_last_step_terminal_r1cs(
             "statement.witness.final_state must be Active after finalization".into(),
         ));
     };
+    let final_running = final_running
+        .materialize()
+        .map_err(|e| decider::Error::WalkFailed(format!("materialize final running: {e}")))?;
     crate::paper::decider_ce_relation::enforce_final_ce_relations(
         &mut builder,
         prep,
@@ -836,14 +854,18 @@ fn emit_recursive_step_r1cs(
     public_batch: &[CcsClaim],
     nifs: &NifsProof,
 ) -> Result<FPrimeStepOutput, String> {
-    let (running_claims, running_parent_authority, fresh) = match &state_in.proof {
+    let (running, latest) = match &state_in.proof {
         ProofState::Active { running, latest } => (
-            running.claims.as_slice(),
-            running.parent_authority.as_ref(),
-            latest.claims(),
+            running
+                .materialize()
+                .map_err(|e| format!("materialize recursive step running: {e}"))?,
+            latest,
         ),
         ProofState::Initial => return Err("recursive step requires Active state-in".into()),
     };
+    let running_claims = running.claims.as_slice();
+    let running_parent_authority = running.parent_authority.as_ref();
+    let fresh = latest.claims();
 
     let chunk_digest = f_prime_chunk_public_digest(state_in.step_count, public_batch);
     let prior_x_out = state_x_out_lanes(prep, state_in);
@@ -987,18 +1009,17 @@ fn enforce_digest_eq(builder: &mut R1csBuilder, a: &[Var; 4], b: &[Var; 4]) {
 }
 
 /// Full CE-claim continuity: pin every wire of `children[i]` equal to the
-/// corresponding wire of `running[i]`, for all `i`. Returns an error if
-/// the shapes don't line up (length mismatch, or per-claim shape constants
-/// disagree).
+/// corresponding wire of `running[i]`, for all `i`. Returns an error if the
+/// shapes don't line up.
 ///
 /// `children` is the Π_DEC output (next-running) view; `running` is the
 /// Π_CCS verifier's input-running view. They carry the same data in two
 /// representations:
 ///   - both share Vec<Var> for c_data / x.
 ///   - both share Vec<KVar> for r / s_col / ct.
-///   - children's y_ring / y_zcol are flattened K_LIMBS=2 base-field
-///     limbs (Vec<Var>); running's are Vec<KVar>. The helper expands
-///     each KVar back into (c0, c1) and pins limb-by-limb.
+///   - children's y_ring / canonicalized y_zcol are flattened K_LIMBS=2
+///     base-field limbs (`Vec<Var>`); running's are `Vec<KVar>`. The helper
+///     expands each KVar back into `(c0, c1)` and pins limb-by-limb.
 fn enforce_children_equal_running(
     builder: &mut R1csBuilder,
     children: &[CeClaimWires],
@@ -1066,7 +1087,9 @@ fn enforce_children_equal_running(
         for (j, (child_row, run_row)) in child.y_ring.iter().zip(run.y_ring.iter()).enumerate() {
             enforce_flat_limbs_vs_kvar_row(builder, child_row, run_row, "y_ring", idx, Some(j))?;
         }
-        // y_zcol similar but single-row.
+        // Child y_zcol is a non-authority Π_DEC sidecar, but its wire bundle is
+        // canonicalized to the fixed SplitNc width before reaching this audit
+        // continuity gate.
         enforce_flat_limbs_vs_kvar_row(builder, &child.y_zcol, &run.y_zcol, "y_zcol", idx, None)?;
         // fold_digest_fields: [Var; 4] in both.
         for k in 0..4 {

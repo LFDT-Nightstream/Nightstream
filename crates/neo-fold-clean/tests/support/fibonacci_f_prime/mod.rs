@@ -118,6 +118,8 @@ pub enum Error {
     #[error(transparent)]
     Relations(#[from] neo_fold_clean::paper::relations::RelationError),
     #[error(transparent)]
+    Nifs(#[from] neo_fold_clean::paper::nifs::Error),
+    #[error(transparent)]
     Lifecycle(#[from] neo_fold_clean::lifecycle::Error),
 }
 

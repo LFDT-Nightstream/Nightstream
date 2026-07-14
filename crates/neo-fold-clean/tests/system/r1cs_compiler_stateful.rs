@@ -1403,23 +1403,6 @@ fn r1cs_stateful_attack_low_level_base_is_base_zero_forge_rejected_by_verifier()
     );
 }
 
-/// Red-team test for the production folded F' image's recursive state binding.
-///
-/// This bypasses the friendly [`R1csChainBuilder`] state-threading guard
-/// and constructs two individually satisfying stateful F' images whose
-/// app states do not connect:
-///
-/// ```text
-/// step 0: (1, 1)   -> (1, 2)
-/// step 1: (10, 10) -> (10, 20)   // disconnected from step 0
-/// ```
-///
-/// The hostile path generates a recursive NIFS proof under the honest
-/// post-step semantic state, then tries to replay it while compiling a
-/// disconnected second step whose private `state_in.semantic_state_digest`
-/// is self-consistent with `(10, 10)`. F' must reject because the per-step
-/// transcript is bound to the state-in semantic lane; otherwise the proof
-/// can be replayed under a forged app-state input.
 #[test]
 fn r1cs_stateful_redteam_folded_f_prime_rejects_disconnected_semantic_input() {
     let r1cs = fibonacci_transition_stateful_r1cs();
@@ -1453,11 +1436,6 @@ fn r1cs_stateful_redteam_folded_f_prime_rejects_disconnected_semantic_input() {
     )
     .expect("prove first step");
 
-    // Derive the recursive fold authority for the next chunk, but ask
-    // the lifecycle state to advance to the attacker's disconnected
-    // semantic output H(10,20). Replaying this proof under H(10,10) as
-    // the next step's private state-in must fail because F' binds the
-    // NIFS transcript to the state-in semantic lane.
     let disconnected_output = semantic_digest_for_pair(10, 20);
     let pending = neo_fold_clean::lifecycle::prove::extend_with_semantic_state(
         &prep.prep,
@@ -1469,27 +1447,27 @@ fn r1cs_stateful_redteam_folded_f_prime_rejects_disconnected_semantic_input() {
 
     let pre_state = audit_after_first.proof.state.clone();
     let (pre_running, latest) = match &pre_state.proof {
-        neo_fold_clean::paper::construction2::ProofState::Active { running, latest } => {
-            (running.clone(), latest.clone())
-        }
+        neo_fold_clean::paper::construction2::ProofState::Active { running, latest } => (
+            running.materialize().expect("pre-running materialization"),
+            latest.clone(),
+        ),
         _ => panic!("after first step the chain must be Active"),
     };
     let proof = match &pending.steps.last().expect("recursive step appended").fold {
-        neo_fold_clean::paper::construction2::FoldProof::Recursive(nifs) => nifs.clone(),
+        neo_fold_clean::paper::construction2::FoldProof::Recursive(nifs) => nifs
+            .materialize()
+            .expect("recursive NIFS proof materialization"),
         neo_fold_clean::paper::construction2::FoldProof::NoFold => {
             panic!("second lifecycle step must be recursive")
         }
     };
     let post_running = match &pending.proof.state.proof {
-        neo_fold_clean::paper::construction2::ProofState::Active { running, .. } => running.clone(),
+        neo_fold_clean::paper::construction2::ProofState::Active { running, .. } => {
+            running.materialize().expect("post-running materialization")
+        }
         _ => panic!("pending recursive state must be Active"),
     };
 
-    // Forge the compiler context for step 1. All Construction-2 fold
-    // coordinates are copied from the honest chain, but the private
-    // semantic input lane is rewound to H(10,10), allowing the F' image
-    // for the disconnected app assignment to satisfy its local semantic
-    // Poseidon rows.
     let mut forged_ctx = start_chain(&prep).expect("start forged context");
     forged_ctx.chain_state = r1cs_f_prime::R1csChainState {
         chunk_count: pre_state.chunk_count,
@@ -1503,6 +1481,7 @@ fn r1cs_stateful_redteam_folded_f_prime_rejects_disconnected_semantic_input() {
         pre_running,
         latest,
         proof,
+        post_summary: None,
         post_running,
     });
 

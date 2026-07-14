@@ -247,7 +247,7 @@ pub fn header_digest_bytes_to_fields(bytes: &[u8]) -> Result<[F; 4], Error> {
 ///    `absorb_const_elem(F::ONE) → permute → take first 4 lanes` squeeze the
 ///    native sponge applies.
 /// 2. Each observed digest lane is constrained equal to the proof's recorded
-///    header-digest lane.
+///    header-digest witness wire.
 ///
 /// After this call, downstream Π_RLC.V ρ-sampling sees the same transcript
 /// state as the native verifier does, so the two-side challenges agree.

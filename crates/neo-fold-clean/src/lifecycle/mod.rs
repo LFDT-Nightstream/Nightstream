@@ -66,6 +66,7 @@ use thiserror::Error;
 
 use crate::paper::construction2::{FinalFoldProof, SemanticStateMode, State, StepProof, VerifierKey};
 use crate::paper::decider;
+use crate::paper::nifs::NifsProverBackend;
 use crate::paper::params::Params;
 use crate::paper::relations::{ajtai_dec_mixer, ajtai_rlc_mixer, CcsClaim, DecMixer, RlcMixer, Structure};
 
@@ -248,6 +249,12 @@ pub struct Preprocessing {
     /// [`Preprocessing::with_nebula`]; every extend on a Nebula
     /// preprocessing runs the §6.3 lane transition.
     pub(crate) nebula: Option<std::sync::Arc<crate::paper::construction2::NebulaConfig>>,
+    /// Selected prover backend for NIFS.P.
+    ///
+    /// Defaults to [`NifsProverBackend::Cpu`]. This is a prover-side
+    /// selection only; verifiers always replay NIFS.V from proof material and
+    /// do not trust the chosen backend.
+    pub(crate) nifs_prover_backend: NifsProverBackend,
     /// Program-fixed public-input length; absorbed into `vk_fs_digest` so
     /// the chain binds to a specific m_in. `None` means "unfixed at the
     /// program level" — encoded as `u64::MAX` in the absorb.
@@ -311,9 +318,11 @@ pub struct Preprocessing {
     /// computed once at preprocess time; protocol code reads this field
     /// instead of recomputing the digest on every step.
     structure_digest: [F; 4],
-    /// SplitNc transcript header derived from `(params, structure, dims,
-    /// matrix_digest)`. It is part of `vk_fs` and enters folded F' as
-    /// witness data, never as a self-referential matrix constant.
+    /// Canonical SplitNc Π_CCS transcript header for this exact
+    /// `(params, structure)`. It is part of `vk_fs` and enters folded F' as
+    /// verifier-key data, never as a self-referential matrix constant.
+    /// It is part of `vk_fs` because the in-circuit NIFS verifier consumes it
+    /// rather than baking its matrix-dependent value into the relation.
     pi_ccs_header_bundle: [F; 4],
     /// Memoized optimized-engine cache for this structure (sparse + SuperNeo
     /// eval tables + matrix digest). Verifier-derived; built once at
@@ -426,6 +435,15 @@ impl Preprocessing {
         self.f_prime_recursive_link = true;
         self.terminal_induction = true;
         self
+    }
+
+    pub fn with_nifs_prover_backend(mut self, backend: NifsProverBackend) -> Self {
+        self.nifs_prover_backend = backend;
+        self
+    }
+
+    pub fn nifs_prover_backend(&self) -> NifsProverBackend {
+        self.nifs_prover_backend
     }
 
     pub fn structure_digest(&self) -> &[F; 4] {
@@ -575,8 +593,8 @@ pub use crate::paper::decider::PublicImage;
 // ──────────────────────────────────────────────────────────────────────────
 
 // Terminal-only lifecycle path.
-pub use compress::finish_uncompressed;
-pub use prove::{extend, extend_nebula_open, prove};
+pub use compress::{finish_uncompressed, finish_uncompressed_with_audit_and_nifs_adapter};
+pub use prove::{extend, extend_nebula_open, extend_with_nifs_adapter, prove, prove_with_nifs_adapter};
 pub use verify::{validate_final_witness_authority, verify_uncompressed};
 
 // Audit / decider path — chain replay, Spartan, diagnostic tests.
@@ -696,6 +714,7 @@ pub(crate) fn preprocess_with_test_log_and_optimized_cache(
         vk,
         mix_rhos_commits,
         combine_b_pows,
+        nifs_prover_backend: NifsProverBackend::Cpu,
         public_input_len,
         initial_semantic_state_digest,
         // Default to Stateless. Stateful frontends call

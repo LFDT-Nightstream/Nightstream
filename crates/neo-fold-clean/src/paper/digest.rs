@@ -359,10 +359,9 @@ fn append_adv_leaves(preimage: &mut Vec<F>, adv: &Option<LaneCommitments<Commitm
 /// x-independent.
 ///
 /// Soundness rationale for dropping `c.data` here: commitments are still
-/// bound to the chain through the **running accumulator digest** path
-/// (`AccumulatorHandle::from_running_parts`, which absorbs each
-/// authority-bearing CE claim field plus the parent-authority claim). Each
-/// fresh claim's commitment
+/// bound to the chain through the **running accumulator authority** path
+/// (`AccumulatorHandle::from_running_parts`, which binds the validated
+/// Π_RLC parent authority). Each fresh claim's commitment
 /// also re-enters the F'-step transcript through NIFS.V's
 /// algebraic checks (sumcheck on y_ring evaluations, ρ, β_m, …), which
 /// reject any inconsistent `(c, x, witness)` triple. The chunk digest's
@@ -697,12 +696,27 @@ pub fn pi_ccs_instance_digest(
 /// Fresh CCS claims are still hashed individually because they are the new
 /// public instances being folded in this step. The running side is bound by the
 /// single Π_RLC parent whose Π_DEC children are the running CE claims. The
-/// children remain the algebraic inputs to Π_CCS; they are not used as the
-/// Fiat-Shamir authority for this digest.
+/// children remain the algebraic inputs to Π_CCS and are checked against the
+/// parent by Π_DEC; they are not independent Fiat-Shamir authority. The full
+/// accumulator CE digest is used here so every parent field that can affect a
+/// later step is bound once and the same wires can serve as the Construction-2
+/// accumulator handle.
 pub fn pi_ccs_instance_digest_parent_authority(
     fresh_claims: &[CcsClaim<Commitment, F>],
     running_count: usize,
     running_parent_authority: Option<&CeClaim<Commitment, F, K>>,
+) -> [F; 4] {
+    let parent_digest = running_parent_authority.map(accumulator_ce_claim_digest);
+    pi_ccs_instance_digest_from_parent_digest(fresh_claims, running_count, parent_digest)
+}
+
+/// Prover-side scheduling form of [`pi_ccs_instance_digest_parent_authority`].
+/// The verifier never accepts this digest as authority; deferred backends must
+/// reconstruct the parent claim and check its digest before proof egress.
+pub(crate) fn pi_ccs_instance_digest_from_parent_digest(
+    fresh_claims: &[CcsClaim<Commitment, F>],
+    running_count: usize,
+    running_parent_digest: Option<[F; 4]>,
 ) -> [F; 4] {
     let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/pi_ccs_instance_digest/parent_authority/v1");
     preimage.push(F::from_u64(fresh_claims.len() as u64));
@@ -710,11 +724,11 @@ pub fn pi_ccs_instance_digest_parent_authority(
         preimage.extend_from_slice(&ccs_claim_digest(claim));
     }
     preimage.push(F::from_u64(running_count as u64));
-    match (running_count, running_parent_authority) {
+    match (running_count, running_parent_digest) {
         (0, None) => preimage.push(F::ZERO),
-        (_, Some(parent)) => {
+        (_, Some(parent_digest)) => {
             preimage.push(F::ONE);
-            preimage.extend_from_slice(&ce_claim_digest(parent));
+            preimage.extend_from_slice(&parent_digest);
         }
         (_, None) => preimage.push(F::from_u64(u64::MAX)),
     }
@@ -732,7 +746,6 @@ pub fn pi_ccs_instance_digest_parent_authority(
 /// hashing every child a second time.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct AccumulatorHandle {
-    child_count: usize,
     digest: [u8; 32],
 }
 
@@ -750,13 +763,8 @@ impl AccumulatorHandle {
         parent_authority: Option<&CeClaim<Commitment, F, K>>,
     ) -> Self {
         Self {
-            child_count: claims.len(),
             digest: accumulator_digest_from_running_parts(claims, parent_authority),
         }
-    }
-
-    pub fn child_count(&self) -> usize {
-        self.child_count
     }
 
     pub fn digest(&self) -> [u8; 32] {
@@ -859,13 +867,16 @@ pub fn public_trace_update_digest(prev: [u8; 32], chunk_digest: [F; 4]) -> [u8; 
 
 // ── vk_fs and x_out ────────────────────────────────────────────────────────
 
-/// `vk_fs_digest` — Definition 14 + full CCS structure + program-fixed
-/// `public_input_len` + **chain initial semantic-state digest**.
+/// `vk_fs_digest` — Definition 14 + full CCS structure + canonical Pi_CCS
+/// header bundle + program-fixed `public_input_len` + **chain initial
+/// semantic-state digest**.
 ///
-/// Absorbs the full 11-field `NeoParams` view plus the optional
-/// `public_input_len` (encoded as `u64::MAX` when absent) plus the
-/// `initial_semantic_state_digest` — the chain's claimed starting
-/// application state.
+/// The header bundle binds the matrix-dependent SplitNc transcript identity;
+/// the circuit recomputes this same digest from witness key fields and feeds
+/// the same header wires to Pi_CCS.V. The remaining preimage absorbs the full
+/// 11-field `NeoParams` view, the optional `public_input_len` (encoded as
+/// `u64::MAX` when absent), and `initial_semantic_state_digest` — the chain's
+/// claimed starting application state.
 ///
 /// Absorbing the initial app-state digest into `vk_fs` (rather than
 /// adding a separate `state_x_out` slot) gives every step's chain
@@ -883,7 +894,7 @@ pub fn vk_fs_digest(
     public_input_len: Option<usize>,
     initial_semantic_state_digest: [u8; 32],
 ) -> [u8; 32] {
-    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/vk_fs/v1");
+    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/vk_fs/v2");
     preimage.extend(structure_digest.iter().copied());
     preimage.extend(pi_ccs_header_bundle.iter().copied());
     preimage.extend(u64_halves(params.q));

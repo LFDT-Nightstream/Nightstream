@@ -46,7 +46,9 @@
 //! and ultimately in `engine::optimized` (which wraps `neo-reductions`).
 //! This module is only the composition layer.
 
+mod backend;
 pub mod circuit;
+mod fixed;
 mod proof;
 mod prover;
 mod verifier;
@@ -62,9 +64,30 @@ pub enum Error {
     PiRlc(#[from] crate::paper::pi_rlc::Error),
     #[error(transparent)]
     PiDec(#[from] crate::paper::pi_dec::Error),
+    #[error(transparent)]
+    Running(#[from] crate::paper::construction2::running::RunningInstanceError),
+    #[error("fixed Construction-2 NIFS {what}: expected {expected}, got {got}")]
+    FixedShape {
+        what: &'static str,
+        expected: usize,
+        got: usize,
+    },
+    #[error("NIFS.P backend `{backend}` is not available in this build: {reason}")]
+    BackendUnavailable {
+        backend: &'static str,
+        reason: &'static str,
+    },
 }
 
+pub use backend::{
+    CpuNifsProver, DeferredNifsProofMaterializer, DeferredNifsRunningMaterializer, NifsFPrimeStepContext,
+    NifsFreshImageOverlayRequest, NifsFreshImageRegion, NifsFreshImageRegionKind, NifsFreshInstancesRequest,
+    NifsFreshPrefixRequest, NifsFreshSemanticStateInOverlay, NifsFreshSemanticStateOutOverlay,
+    NifsFreshStateXOutOverlay, NifsPostFoldSummary, NifsProofCarrier, NifsProverAdapter, NifsProverBackend,
+    NifsProverOutput, NifsProverRequest, NifsRunningCarrier,
+};
+pub use fixed::{prove_fixed, verify_fixed, FixedNifsAccumulator};
 pub use proof::NifsProof;
-pub use prover::prove;
-pub(crate) use prover::prove_owned;
+pub use prover::{prove, prove_with_adapter, prove_with_backend};
+pub(crate) use prover::{prove_owned, prove_terminal_with_adapter_output, prove_with_adapter_output_from_carrier};
 pub use verifier::verify;

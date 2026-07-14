@@ -1304,7 +1304,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "spartan2",
  "thiserror 2.0.18",
 ]
 

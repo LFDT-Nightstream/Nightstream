@@ -37,6 +37,9 @@ use crate::paper::digest::{
     StateXOutDigestMode, F_PRIME_BOUNDARY_UPDATE_DOMAIN, F_PRIME_CHUNK_CLAIM_DIGEST_TAG,
     F_PRIME_CHUNK_PUBLIC_DIGEST_TAG, F_PRIME_STATE_X_OUT_DOMAIN, NEBULA_ADV_PRESENT_MARKER,
 };
+use crate::paper::params::Params;
+
+const VK_FS_TAG: &[u8] = b"neo.fold.clean/vk_fs/v2";
 
 /// Recompute the F' step/shape digest from verifier-owned claim geometry and
 /// the in-circuit start index. The native digest deliberately excludes claim
@@ -98,6 +101,42 @@ pub fn enforce_public_trace_update_digest_circuit(
     input.extend_from_slice(&prev);
     input.extend_from_slice(&chunk_digest);
     enforce_poseidon2_hash(builder, &input)
+}
+
+/// Recompute the Construction-2 verifier-key digest from fixed-shape key
+/// wires. The matrix-dependent structure/header values and the initial state
+/// are witness data that this relation consumes and binds; none is embedded
+/// as an R1CS coefficient. Parameters and public-input width remain static
+/// capacity choices.
+pub fn enforce_vk_fs_digest_circuit(
+    builder: &mut R1csBuilder,
+    params: &Params,
+    structure_digest: [Var; DIGEST_LEN],
+    pi_ccs_header_bundle: [Var; DIGEST_LEN],
+    public_input_len: Option<usize>,
+    initial_semantic_state_digest: [Var; DIGEST_LEN],
+) -> [Var; DIGEST_LEN] {
+    let mut preimage = alloc_const_tag(builder, VK_FS_TAG);
+    preimage.extend_from_slice(&structure_digest);
+    preimage.extend_from_slice(&pi_ccs_header_bundle);
+    push_u64_halves_const(builder, &mut preimage, params.q());
+    preimage.push(alloc_constant(builder, F::from_u64(params.eta() as u64)));
+    preimage.push(alloc_constant(builder, F::from_u64(params.d() as u64)));
+    preimage.push(alloc_constant(builder, F::from_u64(params.kappa() as u64)));
+    push_u64_halves_const(builder, &mut preimage, params.m());
+    preimage.push(alloc_constant(builder, F::from_u64(params.b() as u64)));
+    preimage.push(alloc_constant(builder, F::from_u64(params.k_rho() as u64)));
+    push_u64_halves_const(builder, &mut preimage, params.big_b());
+    preimage.push(alloc_constant(builder, F::from_u64(params.T() as u64)));
+    preimage.push(alloc_constant(builder, F::from_u64(params.extension_degree() as u64)));
+    preimage.push(alloc_constant(builder, F::from_u64(params.lambda() as u64)));
+    push_u64_halves_const(
+        builder,
+        &mut preimage,
+        public_input_len.map_or(u64::MAX, |value| value as u64),
+    );
+    preimage.extend_from_slice(&initial_semantic_state_digest);
+    enforce_poseidon2_hash(builder, &preimage)
 }
 
 /// Inputs to [`enforce_state_x_out_digest_circuit`]. Mirrors the argument
@@ -221,6 +260,11 @@ pub(crate) fn alloc_constant(builder: &mut R1csBuilder, c: F) -> Var {
     let v = builder.alloc(c);
     builder.enforce_eq(&Lc::from_var(v), &Lc::from_const(c));
     v
+}
+
+fn push_u64_halves_const(builder: &mut R1csBuilder, out: &mut Vec<Var>, value: u64) {
+    out.push(alloc_constant(builder, F::from_u64(value & 0xffff_ffff)));
+    out.push(alloc_constant(builder, F::from_u64(value >> 32)));
 }
 
 /// Split an F-valued Var (canonical u64 < p) into `(lo, hi)` 32-bit halves

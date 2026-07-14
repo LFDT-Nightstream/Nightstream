@@ -925,13 +925,13 @@ fn bit_width_for_max(max: u128) -> usize {
     width.clamp(1, POSEIDON2_GOLDILOCKS_BITS)
 }
 
-struct R1csCoeffRows {
-    a: Vec<Vec<(usize, F)>>,
-    b: Vec<Vec<(usize, F)>>,
-    c: Vec<Vec<(usize, F)>>,
+pub(crate) struct R1csCoeffRows {
+    pub(crate) a: Vec<Vec<(usize, F)>>,
+    pub(crate) b: Vec<Vec<(usize, F)>>,
+    pub(crate) c: Vec<Vec<(usize, F)>>,
 }
 
-fn r1cs_coeff_rows(r1cs: &R1csShape) -> R1csCoeffRows {
+pub(crate) fn r1cs_coeff_rows(r1cs: &R1csShape) -> R1csCoeffRows {
     match r1cs {
         R1csShape::Dense(r1cs) => R1csCoeffRows {
             a: dense_coeff_rows(&r1cs.a),

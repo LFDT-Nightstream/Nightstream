@@ -7,6 +7,7 @@
 
 use crate::lifecycle::{Error, Preprocessing, Uncompressed, UncompressedAudit};
 use crate::paper::construction2::{self, NebulaAdvance, NebulaLane, SemanticStateAdvance, State};
+use crate::paper::nifs::{NifsPostFoldSummary, NifsProverAdapter};
 use crate::paper::relations::{CcsClaim, CcsInstance};
 use neo_math::F;
 
@@ -24,6 +25,21 @@ where
     let mut in_flight = start_proof(prep);
     for batch in batches {
         in_flight = extend(prep, in_flight, batch)?;
+    }
+    Ok(in_flight)
+}
+
+pub fn prove_with_nifs_adapter<I>(
+    prep: &Preprocessing,
+    adapter: &mut dyn NifsProverAdapter,
+    batches: I,
+) -> Result<UncompressedAudit, Error>
+where
+    I: IntoIterator<Item = Vec<CcsInstance>>,
+{
+    let mut in_flight = start_proof(prep);
+    for batch in batches {
+        in_flight = extend_with_nifs_adapter(prep, adapter, in_flight, batch)?;
     }
     Ok(in_flight)
 }
@@ -58,6 +74,15 @@ pub fn extend_nebula_open(
     extend_inner(prep, audit, batch, SemanticStateAdvance::Stateless, Some(d_pre))
 }
 
+pub fn extend_with_nifs_adapter(
+    prep: &Preprocessing,
+    adapter: &mut dyn NifsProverAdapter,
+    audit: UncompressedAudit,
+    batch: Vec<CcsInstance>,
+) -> Result<UncompressedAudit, Error> {
+    extend_inner_with_adapter(prep, adapter, audit, batch, SemanticStateAdvance::Stateless)
+}
+
 /// Begin a stateful proof: seed the base state with
 /// `semantic_state_digest_initial` (typically `H(initial_app_state)`) and
 /// fold one batch.
@@ -87,6 +112,25 @@ pub fn prove_one_with_semantic_state(
     )
 }
 
+pub fn prove_one_with_semantic_state_and_nifs_adapter(
+    prep: &Preprocessing,
+    adapter: &mut dyn NifsProverAdapter,
+    batch: Vec<CcsInstance>,
+    semantic_state_digest_initial: [u8; 32],
+    semantic_state_digest_next: [u8; 32],
+) -> Result<UncompressedAudit, Error> {
+    super::validate_semantic_state_digest_canonical("initial_semantic_state_digest", semantic_state_digest_initial)?;
+    super::validate_semantic_state_digest_canonical("semantic_state_digest_next", semantic_state_digest_next)?;
+    let audit = start_proof_with_semantic_state(prep, semantic_state_digest_initial);
+    extend_inner_with_adapter(
+        prep,
+        adapter,
+        audit,
+        batch,
+        SemanticStateAdvance::Stateful(semantic_state_digest_next),
+    )
+}
+
 /// Extend an in-flight proof with an app-supplied
 /// `semantic_state_digest_next`. The digest MUST equal
 /// `H(state_out_vars)` under the same Poseidon2 binding rows that the
@@ -110,13 +154,90 @@ pub fn extend_with_semantic_state(
     )
 }
 
+pub fn extend_with_semantic_state_and_nifs_adapter(
+    prep: &Preprocessing,
+    adapter: &mut dyn NifsProverAdapter,
+    audit: UncompressedAudit,
+    batch: Vec<CcsInstance>,
+    semantic_state_digest_next: [u8; 32],
+) -> Result<UncompressedAudit, Error> {
+    super::validate_semantic_state_digest_canonical("semantic_state_digest_next", semantic_state_digest_next)?;
+    extend_inner_with_adapter(
+        prep,
+        adapter,
+        audit,
+        batch,
+        SemanticStateAdvance::Stateful(semantic_state_digest_next),
+    )
+}
+
+pub(crate) fn extend_in_place_with_nifs_adapter_output(
+    prep: &Preprocessing,
+    adapter: &mut dyn NifsProverAdapter,
+    audit: &mut UncompressedAudit,
+    batch: Vec<CcsInstance>,
+) -> Result<Option<NifsPostFoldSummary>, Error> {
+    extend_in_place_inner_with_nifs_prover(prep, Some(adapter), audit, batch, SemanticStateAdvance::Stateless, None)
+}
+
+pub(crate) fn extend_in_place_with_semantic_state_and_nifs_adapter_output(
+    prep: &Preprocessing,
+    adapter: &mut dyn NifsProverAdapter,
+    audit: &mut UncompressedAudit,
+    batch: Vec<CcsInstance>,
+    semantic_state_digest_next: [u8; 32],
+) -> Result<Option<NifsPostFoldSummary>, Error> {
+    super::validate_semantic_state_digest_canonical("semantic_state_digest_next", semantic_state_digest_next)?;
+    extend_in_place_inner_with_nifs_prover(
+        prep,
+        Some(adapter),
+        audit,
+        batch,
+        SemanticStateAdvance::Stateful(semantic_state_digest_next),
+        None,
+    )
+}
+
 fn extend_inner(
     prep: &Preprocessing,
+    audit: UncompressedAudit,
+    batch: Vec<CcsInstance>,
+    semantic_advance: SemanticStateAdvance,
+    nebula_open: Option<[[F; 4]; 3]>,
+) -> Result<UncompressedAudit, Error> {
+    extend_inner_with_nifs_prover(prep, None, audit, batch, semantic_advance, nebula_open)
+}
+
+fn extend_inner_with_adapter(
+    prep: &Preprocessing,
+    adapter: &mut dyn NifsProverAdapter,
+    audit: UncompressedAudit,
+    batch: Vec<CcsInstance>,
+    semantic_advance: SemanticStateAdvance,
+) -> Result<UncompressedAudit, Error> {
+    extend_inner_with_nifs_prover(prep, Some(adapter), audit, batch, semantic_advance, None)
+}
+
+fn extend_inner_with_nifs_prover(
+    prep: &Preprocessing,
+    adapter: Option<&mut dyn NifsProverAdapter>,
     mut audit: UncompressedAudit,
     batch: Vec<CcsInstance>,
     semantic_advance: SemanticStateAdvance,
     nebula_open: Option<[[F; 4]; 3]>,
 ) -> Result<UncompressedAudit, Error> {
+    let _ = extend_in_place_inner_with_nifs_prover(prep, adapter, &mut audit, batch, semantic_advance, nebula_open)?;
+    Ok(audit)
+}
+
+fn extend_in_place_inner_with_nifs_prover(
+    prep: &Preprocessing,
+    adapter: Option<&mut dyn NifsProverAdapter>,
+    audit: &mut UncompressedAudit,
+    batch: Vec<CcsInstance>,
+    semantic_advance: SemanticStateAdvance,
+    nebula_open: Option<[[F; 4]; 3]>,
+) -> Result<Option<NifsPostFoldSummary>, Error> {
     if audit.proof.final_fold.is_some() {
         return Err(Error::AlreadyFinalized);
     }
@@ -167,25 +288,47 @@ fn extend_inner(
             _ => return Err(Error::NebulaLanePresenceMismatch),
         }
     };
-    let (next_state, step_proof) = construction2::step_with_semantic_state(
-        &prep.params,
-        prep.structure(),
-        prep.optimized_cache(),
-        prep.structure_digest(),
-        &prep.log,
-        prep.mix_rhos_commits,
-        prep.combine_b_pows,
-        &prep.vk,
-        audit.proof.state,
-        batch,
-        semantic_advance,
-        prep.nebula().map(|cfg| &cfg.scheme),
-        nebula_advance,
-    )?;
+    let current_state = audit.proof.state.clone();
+    let (next_state, step_proof, post_summary) = if let Some(adapter) = adapter {
+        construction2::step_with_adapter_output_and_semantic_state(
+            adapter,
+            &prep.params,
+            prep.structure(),
+            prep.optimized_cache(),
+            prep.structure_digest(),
+            &prep.log,
+            prep.mix_rhos_commits,
+            prep.combine_b_pows,
+            &prep.vk,
+            current_state,
+            batch,
+            semantic_advance,
+            prep.nebula().map(|cfg| &cfg.scheme),
+            nebula_advance,
+        )?
+    } else {
+        let (next_state, step_proof) = construction2::step_with_backend_and_semantic_state(
+            prep.nifs_prover_backend(),
+            &prep.params,
+            prep.structure(),
+            prep.optimized_cache(),
+            prep.structure_digest(),
+            &prep.log,
+            prep.mix_rhos_commits,
+            prep.combine_b_pows,
+            &prep.vk,
+            current_state,
+            batch,
+            semantic_advance,
+            prep.nebula().map(|cfg| &cfg.scheme),
+            nebula_advance,
+        )?;
+        (next_state, step_proof, None)
+    };
     audit.proof.state = next_state;
     audit.steps.push(step_proof);
     audit.public_batches.push(public_batch);
-    Ok(audit)
+    Ok(post_summary)
 }
 
 fn delayed_nebula_advance(

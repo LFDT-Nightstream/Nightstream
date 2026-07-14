@@ -42,8 +42,10 @@
 use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
-use neo_ccs::Mat;
+use neo_ajtai::{setup as setup_ajtai, AjtaiSModule};
+use neo_ccs::{traits::SModuleHomomorphism, Mat};
 use neo_fold_clean::engine::decider::{
     __test_isolation::{
         enforce_base_state_constants_against, enforce_ce_continuity_against_self, enforce_public_image_pins_against,
@@ -57,7 +59,7 @@ use neo_fold_clean::engine::decider::{
 use neo_fold_clean::engine::r1cs_circuit::builder::RowFamilyRange;
 use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
-use neo_fold_clean::paper::construction2::{self, EncInst, State, TRIVIAL_PC};
+use neo_fold_clean::paper::construction2::{self, EncInst, ProofState, State, TRIVIAL_PC};
 use neo_fold_clean::paper::decider::{self, PublicImage};
 use neo_fold_clean::paper::digest::{
     digest32_as_fields, digest_fields_as_digest32, initial_boundary_digest, public_trace_seed_digest,
@@ -66,8 +68,9 @@ use neo_fold_clean::paper::digest::{
 use neo_fold_clean::paper::f_prime::r1cs::{encode_f_prime_public_input, F_PRIME_PUBLIC_INPUT_LEN};
 use neo_fold_clean::paper::terminal_ce::{TerminalCeProof, TerminalCePublic};
 use neo_fold_clean::CcsInstance;
-use neo_math::F;
+use neo_math::{D, F};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
 use serde_json::{json, Value};
 
 const FULL_HISTORY_MANIFEST_PATH: &str = "formal/nightstream-lean/assurance/fprime-full-history-program-manifest.json";
@@ -208,8 +211,17 @@ fn build_honest_finished_proof(len: usize) -> (neo_fold_clean::Preprocessing, ne
     assert!(len >= 1);
     let r1cs = bit_carrier_r1cs();
     let prep = direct_ccs::preprocess_seeded(&r1cs, 42).expect("preprocess");
+    build_honest_finished_proof_with_prep(prep, &r1cs, len)
+}
+
+fn build_honest_finished_proof_with_prep(
+    prep: neo_fold_clean::Preprocessing,
+    r1cs: &R1cs,
+    len: usize,
+) -> (neo_fold_clean::Preprocessing, neo_fold_clean::UncompressedAudit) {
+    assert!(len >= 1);
     let placeholder_z = vec![F::ZERO; prep.structure().m];
-    let dummy_inst = || direct_ccs::build_instance(&prep, &r1cs, &placeholder_z).expect("dummy");
+    let dummy_inst = || direct_ccs::build_instance(&prep, r1cs, &placeholder_z).expect("dummy");
 
     let mut state = base_state(&prep);
     let mut steps = Vec::with_capacity(len);
@@ -218,7 +230,7 @@ fn build_honest_finished_proof(len: usize) -> (neo_fold_clean::Preprocessing, ne
     for _ in 0..len {
         let predicted = peek_next_state(&prep, &state, &[dummy_inst()]);
         let target_x_out = compute_x_out_native(&prep, &predicted);
-        let batch = build_link_instance(&prep, &r1cs, target_x_out);
+        let batch = build_link_instance(&prep, r1cs, target_x_out);
         let public_batch = vec![batch.claim.clone()];
 
         let (next_state, step_proof) = construction2::step(
@@ -341,6 +353,87 @@ fn decider_r1cs_synthesis_accepts_finished_statement() {
 }
 
 #[test]
+fn decider_r1cs_honors_explicit_verifier_owned_ajtai_setup() {
+    let r1cs = bit_carrier_r1cs();
+
+    // Install the process-global setup that the ordinary direct-CCS helper
+    // uses, then deliberately build this verifier context around a distinct,
+    // dimension-compatible owned setup. `preprocess_with_test_log` explicitly
+    // supports this adversarial-fixture context.
+    let canonical = direct_ccs::preprocess_seeded(&r1cs, 42).expect("canonical preprocess");
+    let params = canonical.params.clone();
+    let structure = canonical.structure().clone();
+    let public_input_len = canonical.public_input_len;
+    let cols = structure.m.div_ceil(D);
+    let mut rng = ChaCha20Rng::from_seed([0x93; 32]);
+    let owned_pp = setup_ajtai(&mut rng, D, params.kappa() as usize, cols).expect("owned Ajtai setup");
+    let owned_log = AjtaiSModule::new(Arc::new(owned_pp));
+    let prep = neo_fold_clean::lifecycle::preprocess_with_test_log(params, structure, owned_log, public_input_len)
+        .expect("preprocess with verifier-owned log");
+
+    let (prep, finished) = build_honest_finished_proof_with_prep(prep, &r1cs, 1);
+
+    // The audit verifier and the decider's native preflight both accept the
+    // honestly generated proof under the setup owned by `prep`.
+    neo_fold_clean::verify_uncompressed_audit(&prep, &finished).expect("owned-log audit must pass native verification");
+    let statement = neo_fold_clean::build_decider_statement(&prep, &finished);
+    decider::validate_witness(
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        prep.structure_digest(),
+        &prep.log,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
+        &prep.vk,
+        prep.public_input_len,
+        prep.enforces_f_prime_recursive_link(),
+        prep.semantic_state_mode(),
+        prep.initial_semantic_state_digest(),
+        &statement,
+    )
+    .expect("owned-log decider preflight must pass");
+
+    let ProofState::Active { running, latest } = &statement.witness.final_state.proof else {
+        panic!("finished audit must have an active running accumulator");
+    };
+    assert!(
+        latest.instances.is_empty(),
+        "finished audit must have no pending latest"
+    );
+    let running = running.materialize().expect("materialized final running");
+    assert!(
+        running
+            .claims
+            .iter()
+            .zip(&running.witnesses)
+            .all(|(claim, witness)| prep.log.commit(witness) == claim.c),
+        "fixture must open every final claim under prep.log"
+    );
+    let global_log = AjtaiSModule::from_global_for_dims(D, cols).expect("process-global Ajtai setup");
+    assert!(
+        running
+            .claims
+            .iter()
+            .zip(&running.witnesses)
+            .any(|(claim, witness)| global_log.commit(witness) != claim.c),
+        "fixture must distinguish the verifier-owned and process-global setups"
+    );
+
+    // Regression contract: synthesis must encode the same verifier-owned
+    // commitment map that native preflight just accepted. Today the terminal
+    // CE gadget silently reloads the process-global PP, making these honest
+    // rows unsatisfied.
+    let synth = synthesize_statement_r1cs(&prep, &statement).expect("synthesize after successful preflight");
+    assert!(
+        synth.builder.is_satisfied(),
+        "NF-RT-093: decider R1CS substituted the process-global Ajtai PP for prep.log \
+         (first bad row: {:?})",
+        synth.builder.first_unsatisfied_row()
+    );
+}
+
+#[test]
 fn decider_r1cs_synthesis_rejects_tampered_public_image() {
     let (prep, finished) = build_honest_finished_proof(2);
     let mut statement = neo_fold_clean::build_decider_statement(&prep, &finished);
@@ -376,7 +469,11 @@ fn decider_r1cs_synthesis_rejects_tampered_step_proof() {
     if let neo_fold_clean::paper::construction2::FoldProof::Recursive(ref mut nifs) =
         statement.witness.steps[recursive_idx].fold
     {
-        nifs.pi_dec.children[0].c.data[0] += F::ONE;
+        let mut proof = nifs
+            .materialize()
+            .expect("recursive NIFS proof materialization");
+        proof.pi_dec.children[0].c.data[0] += F::ONE;
+        *nifs = neo_fold_clean::paper::nifs::NifsProofCarrier::materialized(proof);
     }
 
     let result = synthesize_statement_r1cs(&prep, &statement);

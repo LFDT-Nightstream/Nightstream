@@ -108,11 +108,13 @@ pub struct CeClaimWires {
     /// and all children (NC channel doesn't decompose `s_col`); enforced
     /// via [`enforce_s_col_consistency`].
     pub s_col: Vec<KVar>,
-    /// `d` lanes × `s` base-field columns of `y_zcol` (the NC output
-    /// column). Index as `y_zcol[lane * s + limb]`. **Not** subject to
+    /// Fixed-width canonical projection of the `y_zcol` sidecar. Index as
+    /// `y_zcol[lane * s + limb]`. **Not** subject to
     /// b-ary recomposition: Π_CCS outputs mix MCS digit-decomposed and ME
     /// linear y_zcols, so `Σ b^{i-1} · child.y_zcol ≠ parent.y_zcol` in
-    /// general. Children's y_zcol values are not DEC authority.
+    /// general. Children's y_zcol values are not DEC authority; allocation
+    /// zero-pads or truncates them to the parent width so their native sidecar
+    /// shape cannot alter the R1CS relation.
     pub y_zcol: Vec<Var>,
     pub y_zcol_lanes: usize,
     /// `fold_digest` field of the CE claim, projected to four base-field
@@ -136,9 +138,10 @@ pub struct DecInputWires {
 /// to actually constrain the relationship.
 pub fn alloc_dec_inputs(builder: &mut R1csBuilder, parent: &CeClaim, children: &[CeClaim]) -> DecInputWires {
     let parent_wires = alloc_ce_claim(builder, parent);
+    let y_zcol_lanes = parent.y_zcol.len();
     let child_wires = children
         .iter()
-        .map(|c| alloc_ce_claim(builder, c))
+        .map(|c| alloc_ce_claim_with_canonical_y_zcol(builder, c, y_zcol_lanes))
         .collect();
     DecInputWires {
         parent: parent_wires,
@@ -494,7 +497,8 @@ fn enforce_inactive_x_zero_one(builder: &mut R1csBuilder, claim: &CeClaimWires, 
 }
 
 /// Validate that parent + every child have exactly `t` SplitNc-shaped
-/// `y_ring` rows and `y_zcol` of exactly `d_pad = 2^ell_d` K-element lanes.
+/// `y_ring` rows and that the Π_RLC parent has `y_zcol` of exactly
+/// `d_pad = 2^ell_d` K-element lanes.
 ///
 /// `enforce_dec_v`'s generic [`check_shapes`] only enforces parent ↔ child
 /// length parity — that's enough for the b-ary recomposition algebra but
@@ -538,9 +542,6 @@ pub fn enforce_split_nc_d_pad_shape(wires: &DecInputWires, t: usize, d_pad: usiz
             if child.y_ring_lanes != d_pad || row.len() != d_pad * K_LIMBS {
                 return Err(label("child.y_ring[j] lane count", child.y_ring_lanes, idx));
             }
-        }
-        if child.y_zcol_lanes != d_pad || child.y_zcol.len() != d_pad * K_LIMBS {
-            return Err(label("child.y_zcol lane count", child.y_zcol_lanes, idx));
         }
     }
     Ok(())
@@ -661,6 +662,17 @@ fn enforce_lane_combination_y(
 }
 
 pub(crate) fn alloc_ce_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> CeClaimWires {
+    alloc_ce_claim_from_y_zcol(builder, claim, &claim.y_zcol)
+}
+
+fn alloc_ce_claim_with_canonical_y_zcol(builder: &mut R1csBuilder, claim: &CeClaim, lanes: usize) -> CeClaimWires {
+    let canonical: Vec<K> = (0..lanes)
+        .map(|lane| claim.y_zcol.get(lane).copied().unwrap_or(K::ZERO))
+        .collect();
+    alloc_ce_claim_from_y_zcol(builder, claim, &canonical)
+}
+
+fn alloc_ce_claim_from_y_zcol(builder: &mut R1csBuilder, claim: &CeClaim, y_zcol_values: &[K]) -> CeClaimWires {
     let c_data = builder.alloc_vec(&claim.c.data);
     let adv = alloc_adv(builder, claim.adv.as_ref());
     let x_rows = claim.X.rows();
@@ -722,9 +734,9 @@ pub(crate) fn alloc_ce_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> CeCl
             KVar::alloc(builder, c0, c1)
         })
         .collect();
-    let y_zcol_lanes = claim.y_zcol.len();
+    let y_zcol_lanes = y_zcol_values.len();
     let mut y_zcol = Vec::with_capacity(y_zcol_lanes * K_LIMBS);
-    for elem in &claim.y_zcol {
+    for elem in y_zcol_values {
         for limb in elem.as_basis_coefficients_slice() {
             y_zcol.push(builder.alloc(*limb));
         }
@@ -964,14 +976,6 @@ fn check_shapes(parent: &CeClaimWires, children: &[CeClaimWires]) -> Result<(), 
                 what: "s_col length",
                 expected: parent.s_col.len(),
                 got: child.s_col.len(),
-                idx,
-            });
-        }
-        if child.y_zcol.len() != parent.y_zcol.len() || child.y_zcol_lanes != parent.y_zcol_lanes {
-            return Err(Error::ShapeMismatch {
-                what: "y_zcol lane length",
-                expected: parent.y_zcol.len(),
-                got: child.y_zcol.len(),
                 idx,
             });
         }

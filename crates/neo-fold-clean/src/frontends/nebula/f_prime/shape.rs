@@ -229,7 +229,12 @@ fn synthesize_recursive(context: &ShapeContext<'_>, steady: bool) -> Result<Synt
         .chain((0..context.ell_d).map(|_| vec![K::ZERO; context.d_sc + 1]))
         .collect();
     sumcheck.header_digest = vec![0u8; 32];
-    let proof = pi_ccs::Proof { sumcheck, outputs };
+    let outputs_digest = crate::paper::digest::pi_ccs_outputs_digest(&outputs);
+    let proof = pi_ccs::Proof {
+        sumcheck,
+        outputs,
+        outputs_digest,
+    };
     let combined = ce.clone();
     let children = vec![ce; context.params.k_rho() as usize];
     let nifs_msg = NifsVCircuitMessages {

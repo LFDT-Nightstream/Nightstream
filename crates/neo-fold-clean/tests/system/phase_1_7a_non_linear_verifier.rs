@@ -426,7 +426,9 @@ fn running_mut(
     finished: &mut neo_fold_clean::Uncompressed,
 ) -> &mut neo_fold_clean::paper::construction2::RunningInstance {
     match &mut finished.state.proof {
-        ProofState::Active { running, .. } => running,
+        ProofState::Active { running, .. } => running
+            .as_materialized_mut()
+            .expect("test fixture expects materialized running"),
         ProofState::Initial => panic!("test setup: encoded-F' proof must be Active after finalization"),
     }
 }

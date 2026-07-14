@@ -1,63 +1,113 @@
 # F' Encoding Boundary
 
-This note distinguishes two different encodings.
+There are two different encodings in Construction 2. Keeping them separate is
+load-bearing.
 
 ## `enc_inst(h)`
 
-`enc_inst` maps the raw F' output hash `h = state_x_out_digest(...)` into
-the public input of the *next* fresh CCS instance.
-
-The raw hash lanes are ordinary Goldilocks field values. They are fine as
-computed values. They are not fine as the fresh CCS public input under
-SuperNeo `b = 2`, because the public input `x` is part of the committed
-assignment `z = [x, w]` and `CcsInstance::from_low_norm_assignment`
-requires `‖z‖_∞ < b`.
-
-Therefore `enc_inst(h)` is implemented as canonical 64-bit decomposition
-of the four Goldilocks lanes:
+`enc_inst` maps the raw F' output hash into the public input of the next fresh
+CCS instance. The four Poseidon2 lanes are ordinary Goldilocks values while
+they are computed, but SuperNeo with `b = 2` cannot commit those values
+directly. The canonical public representation is therefore
 
 ```text
 h            = [h0, h1, h2, h3]
-enc_inst(h)  = bits(h0) || bits(h1) || bits(h2) || bits(h3)     // 256 bits
+enc_inst(h)  = bits64(h0) || bits64(h1) || bits64(h2) || bits64(h3)
+public x     = [1 || enc_inst(h)]
 ```
 
-The full CCS public input is `[1 || enc_inst(h)]` (257 entries, all
-`{0, 1}`).
+This is 257 low-norm coordinates. Canonical Goldilocks decomposition is
+enforced, so the bit string for the modulus cannot alias zero.
 
-`enc_inst(h)` solves only the public-instance boundary.
+## `enc_str(F')` and `enc(F', witness)`
 
-## `enc(F')`
+The larger encoding turns the complete augmented relation and one execution
+into a SuperNeo CCS structure and low-norm assignment. It must cover, in one
+fixed language:
 
-`enc(F')` is the larger unresolved problem: encode the *private* F'
-execution witness `w` so the full assignment
+- the base/recursive selector;
+- the application transition and semantic-state links;
+- the prior public recursive link;
+- complete fixed-shape `NIFS.V` (`Pi_CCS -> Pi_RLC -> Pi_DEC`);
+- running-accumulator continuity and its derived parent authority;
+- counters, program counter, and exact next `x_out`.
+
+The authoritative field-valued reference is
+`frontends/r1cs_f_prime/full_relation.rs`. Its verifier-owned
+`FullFPrimeRelation` freezes the NIFS configuration, application R1CS, state
+column schema, and context anchors. Native compiler checks are not part of its
+acceptance condition.
+
+The generic oracle in `frontends/f_prime/low_norm_r1cs.rs` is deterministic and
+invertible:
+
+1. Public `enc_inst` bits are placed immediately after the constant-one lane.
+2. Each remaining field wire is represented by its canonical 64-bit value.
+3. Explicitly proved Boolean wires may use one bit in the derived mode.
+4. Canonicality auxiliaries are deterministic prefix products.
+5. Every source R1CS row is replayed over the decoded linear combinations.
+
+The decoder reconstructs the exact source witness and rejects inconsistent
+auxiliaries. Small tests also cross the real
+`CcsInstance::from_low_norm_assignment` boundary.
+
+## Implemented encoding study
+
+The generic encoding remains the correctness oracle. The optimized study in
+`frontends/f_prime/gadget_native.rs` is derived from the same R1CS emission; it
+does not use `RecursiveStepImagePlan` or caller-supplied trace counts.
+
+The R1CS builder records exact row provenance for Poseidon2 S-boxes,
+quadratic-extension multiplication, and production Toom-3 ring multiplication.
+The optimized compiler then:
+
+1. validates every recorded row against the frozen source R1CS;
+2. rejects overlapping trace ranges and any projected temporary used outside
+   its recorded gadget;
+3. projects the three `x^2/x^4/x^6` Poseidon temporaries;
+4. replaces three Karatsuba products with two exact extension-field equations;
+5. replaces each 1,620-product Toom trace with 175 exact convolution
+   coefficients and 54 linear output equations;
+6. lowers every unclassified source row generically; and
+7. reconstructs the complete source witness, including projected products, for
+   differential comparison with the oracle.
+
+The CCS gate polynomial has at most 18 product terms plus `x^7` and uses degree
+8 when an internal base/recursive selector is applied. Small materialized tests
+prove
 
 ```text
-z = [x, w]
+source R1CS witness == decoded gadget-native assignment
 ```
 
-is low-norm and can be passed to `CcsInstance::from_low_norm_assignment`.
+and reject retained-output, synthetic-convolution, and escaped-temporary
+tampering.
 
-Do not confuse `enc_inst(h)` with `enc(F')`.
+## Measured production result
 
-- `enc_inst(h)` handles the public input.
-- `enc(F')` must eventually handle the private witness.
+For the current production-profile fixture:
 
-Poseidon2 itself does not need low norm. Sumcheck round values,
-transcript challenges, K-extension lanes, ring-mul intermediates — all
-are ordinary field values during F' execution. They become
-low-norm-relevant only at the boundary where F' is committed as a
-foldable `u_i = CCS(b, L)` instance.
+```text
+base branch R1CS          16,909 rows x     16,432 columns
+recursive branch R1CS 15,159,850 rows x 14,136,406 columns
+selector-composed R1CS 44,470,318 rows x 29,309,735 columns
 
-## Current implementation status
+generic direct CCS    1,039,894,473 rows x   764,961,009 columns
+generic derived CCS   2,859,834,250 rows x 2,111,281,113 columns
 
-The current source-image code (`source_image.rs` + `source_image_circuit.rs`)
-backs:
+gadget-native base          282,598 rows x       209,013 columns
+gadget-native recursive 270,340,591 rows x   199,844,537 columns
+gadget-native fixed     272,809,260 rows x   200,053,294 columns
+```
 
-- `enc_inst(prior_x_out)` — input recursive link body
-- `enc_inst(current_x_out)` — output recursive link body
-- selected u64 boundary counters (`chunk_count_in`, `step_count_in`, `pc`)
+### One recursive instruction by stage
 
-It does **not** yet encode the full private F' witness.
+The production fixture is one application instruction, one fresh CCS claim,
+the fixed `k_rho = 14` running accumulator, and one complete recursive
+`NIFS.V` under the Goldilocks Appendix B.2 profile (`b = 2`, `D = 54`,
+`kappa = 18`). Diagnostic checkpoints in the authoritative R1CS emission are
+reconciled against the exact gadget-native estimator. Each stage's encoded
+column count excludes only the single global constant-one column.
 
 The production-looking projection image is currently a **cost prototype**,
 not `enc(F')`: shipped compilers do not fill its projection regions, and the

@@ -9,9 +9,9 @@
 //! fresh CCS instance's public input, or the u64 counters that flow into
 //! the same instance. Do **not** treat this module as permission to
 //! bit-route every internal F' field value. Internal field values may
-//! remain ordinary computed values until the separate `enc(F')` design
-//! (see `encoding.md`) says how the private F' witness is represented as
-//! a low-norm CCS assignment.
+//! remain ordinary computed values. The generic `enc(F')` oracle bit-encodes
+//! them after the fact, while the production lowering must explicitly select
+//! the smaller nonlinear trace it commits (see `encoding.md`).
 //!
 //! Goldilocks canonicality (`v < p = 2^64 - 2^32 + 1`) is enforced
 //! separately via [`enforce_goldilocks_word_canonical`].

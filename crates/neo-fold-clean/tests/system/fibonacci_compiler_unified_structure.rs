@@ -350,7 +350,10 @@ fn bootstrap_real_intermediate_fold_uncached() -> BootstrapShared {
 
     let pre_state = audit_after_base.proof.state.clone();
     let (pre_running, latest) = match &pre_state.proof {
-        ProofState::Active { running, latest } => (running.clone(), latest.clone()),
+        ProofState::Active { running, latest } => (
+            running.materialize().expect("pre-running materialization"),
+            latest.clone(),
+        ),
         _ => panic!("expected Active state at the start of step 1"),
     };
     let chain_state = FibonacciChainState {
@@ -365,11 +368,13 @@ fn bootstrap_real_intermediate_fold_uncached() -> BootstrapShared {
     let audit_after_recursive =
         lifecycle::extend(&prep.prep, audit_after_base, vec![base_instance]).expect("derive recursive fold proof");
     let proof = match &audit_after_recursive.steps[1].fold {
-        FoldProof::Recursive(p) => p.clone(),
+        FoldProof::Recursive(p) => p
+            .materialize()
+            .expect("recursive NIFS proof materialization"),
         _ => panic!("expected Recursive at audit.steps[1]"),
     };
     let post_running = match &audit_after_recursive.proof.state.proof {
-        ProofState::Active { running, .. } => running.clone(),
+        ProofState::Active { running, .. } => running.materialize().expect("post-running materialization"),
         _ => panic!("expected Active state after final extend"),
     };
 
@@ -378,6 +383,7 @@ fn bootstrap_real_intermediate_fold_uncached() -> BootstrapShared {
         latest,
         proof,
         post_running,
+        post_summary: None,
     };
 
     let mut recursive_ctx = start_fibonacci_chain(prep).expect("start chain for recursive compile");

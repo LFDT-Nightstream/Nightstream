@@ -121,19 +121,46 @@ fn one_batch_proof(prep: &neo_fold_clean::Preprocessing, value: neo_math::F) -> 
     neo_fold_clean::finish_uncompressed(prep, proof).expect("finish one-batch proof")
 }
 
-fn recompute_active_running_acc_digest(proof: &neo_fold_clean::Uncompressed) -> [u8; 32] {
+fn final_running(proof: &neo_fold_clean::Uncompressed) -> neo_fold_clean::RunningInstance {
     match &proof.state.proof {
-        ProofState::Active { running, .. } if running.claims.is_empty() => {
-            neo_fold_clean::paper::digest::AccumulatorHandle::empty().digest()
-        }
-        ProofState::Active { running, .. } => {
-            let parent = running
-                .parent_authority
-                .as_ref()
-                .expect("non-empty running must carry parent authority");
-            neo_fold_clean::paper::digest::AccumulatorHandle::from_running_parts(&running.claims, Some(parent)).digest()
+        ProofState::Active { running, latest } => {
+            assert!(
+                latest.instances.is_empty(),
+                "red-team helper expects a finalized proof with empty latest"
+            );
+            running
+                .materialize()
+                .expect("test fixture expects materialized final running")
         }
         ProofState::Initial => panic!("test helper requires a finalized Active proof"),
+    }
+}
+
+fn final_running_mut(proof: &mut neo_fold_clean::Uncompressed) -> &mut neo_fold_clean::RunningInstance {
+    match &mut proof.state.proof {
+        ProofState::Active { running, latest } => {
+            assert!(
+                latest.instances.is_empty(),
+                "red-team helper expects a finalized proof with empty latest"
+            );
+            running
+                .as_materialized_mut()
+                .expect("test fixture expects materialized final running")
+        }
+        ProofState::Initial => panic!("test helper requires a finalized Active proof"),
+    }
+}
+
+fn recompute_active_running_acc_digest(proof: &neo_fold_clean::Uncompressed) -> [u8; 32] {
+    let running = final_running(proof);
+    if running.claims.is_empty() {
+        neo_fold_clean::paper::digest::AccumulatorHandle::empty().digest()
+    } else {
+        let parent = running
+            .parent_authority
+            .as_ref()
+            .expect("non-empty running must carry parent authority");
+        neo_fold_clean::paper::digest::AccumulatorHandle::from_running_parts(&running.claims, Some(parent)).digest()
     }
 }
 
@@ -150,17 +177,9 @@ fn running_acc_digest(running: &neo_fold_clean::RunningInstance) -> [u8; 32] {
 }
 
 fn final_running_passes_witness_authority(prep: &neo_fold_clean::Preprocessing, proof: &neo_fold_clean::Uncompressed) {
-    match &proof.state.proof {
-        ProofState::Active { running, latest } => {
-            assert!(
-                latest.instances.is_empty(),
-                "red-team helper expects a finalized proof with empty latest"
-            );
-            neo_fold_clean::lifecycle::validate_final_witness_authority(prep, running)
-                .expect("final running accumulator must remain locally valid under terminal CE authority");
-        }
-        ProofState::Initial => panic!("red-team helper requires a finalized Active proof"),
-    }
+    let running = final_running(proof);
+    neo_fold_clean::lifecycle::validate_final_witness_authority(prep, &running)
+        .expect("final running accumulator must remain locally valid under terminal CE authority");
 }
 
 fn expect_unsupported_terminal_sidecar<F>(
@@ -241,29 +260,26 @@ fn verify_uncompressed_audit_rejects_commitment_kernel_terminal_witness_forge() 
     neo_fold_clean::verify_uncompressed_audit(&prep, &finished).expect("honest audit verifies");
 
     let delta = commitment_kernel_vector(&prep);
-    match &mut finished.proof.state.proof {
-        ProofState::Active { running, latest } => {
-            assert!(latest.instances.is_empty(), "finished audit must have empty latest");
-            let witness = running
-                .witnesses
-                .get_mut(0)
-                .expect("test fixture must carry a terminal witness");
-            assert_eq!(
-                witness.as_slice().len(),
-                delta.len(),
-                "kernel vector must match packed witness length"
-            );
-            let before = prep.log.commit(witness);
-            for (entry, delta) in witness.as_mut_slice().iter_mut().zip(delta) {
-                *entry += delta;
-            }
-            assert_eq!(
-                prep.log.commit(witness),
-                before,
-                "test setup must mutate inside the verifier-owned Ajtai commitment kernel"
-            );
+    {
+        let running = final_running_mut(&mut finished.proof);
+        let witness = running
+            .witnesses
+            .get_mut(0)
+            .expect("test fixture must carry a terminal witness");
+        assert_eq!(
+            witness.as_slice().len(),
+            delta.len(),
+            "kernel vector must match packed witness length"
+        );
+        let before = prep.log.commit(witness);
+        for (entry, delta) in witness.as_mut_slice().iter_mut().zip(delta) {
+            *entry += delta;
         }
-        ProofState::Initial => panic!("finished audit must be Active"),
+        assert_eq!(
+            prep.log.commit(witness),
+            before,
+            "test setup must mutate inside the verifier-owned Ajtai commitment kernel"
+        );
     }
 
     let err = neo_fold_clean::verify_uncompressed_audit(&prep, &finished)
@@ -312,13 +328,9 @@ fn verify_uncompressed_rejects_recorded_ct_tamper_even_after_redigest() {
     let mut finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
     neo_fold_clean::verify_uncompressed(&prep, &finished).expect("honest proof verifies");
 
-    match &mut finished.state.proof {
-        ProofState::Active { running, .. } => {
-            assert!(!running.claims[0].ct.is_empty(), "test setup requires ct");
-            running.claims[0].ct[0] += neo_math::K::ONE;
-        }
-        ProofState::Initial => panic!("finished proof must be Active"),
-    }
+    let running = final_running_mut(&mut finished);
+    assert!(!running.claims[0].ct.is_empty(), "test setup requires ct");
+    running.claims[0].ct[0] += neo_math::K::ONE;
     finished.state.acc_digest = recompute_active_running_acc_digest(&finished);
 
     let err = neo_fold_clean::verify_uncompressed(&prep, &finished)
@@ -345,10 +357,7 @@ fn final_witness_authority_rejects_y_zcol_inconsistent_with_z_at_s_col() {
     let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 76)]])
         .expect("one-batch uncompressed proof");
     let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
-    let mut running = match &finished.state.proof {
-        ProofState::Active { running, .. } => running.clone(),
-        ProofState::Initial => panic!("finalized must be Active"),
-    };
+    let mut running = final_running(&finished);
 
     assert!(
         !running.claims[0].s_col.is_empty() && !running.claims[0].y_zcol.is_empty(),
@@ -387,10 +396,7 @@ fn final_witness_authority_rejects_relabel_of_one_claims_s_col() {
             .expect("nonzero low-norm toy instance");
     let proof = neo_fold_clean::prove(&prep, vec![vec![instance]]).expect("one-batch uncompressed proof");
     let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
-    let mut running = match &finished.state.proof {
-        ProofState::Active { running, .. } => running.clone(),
-        ProofState::Initial => panic!("finalized must be Active"),
-    };
+    let mut running = final_running(&finished);
 
     assert!(
         running.claims.len() > 1,
@@ -446,16 +452,7 @@ fn final_witness_authority_rejects_unsupported_accumulator_sidecars() {
     let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 79)]])
         .expect("one-batch uncompressed proof");
     let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
-    let running = match &finished.state.proof {
-        ProofState::Active { running, latest } => {
-            assert!(
-                latest.instances.is_empty(),
-                "red-team fixture expects a finalized proof with empty latest"
-            );
-            running.clone()
-        }
-        ProofState::Initial => panic!("finalized must be Active"),
-    };
+    let running = final_running(&finished);
 
     expect_unsupported_terminal_sidecar(&prep, &running, "aux_openings", |claim| {
         claim.aux_openings.push(neo_math::K::ONE);
@@ -487,18 +484,14 @@ fn verify_uncompressed_rejects_recorded_nc_channel_deletion_even_after_redigest(
     let mut finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
     neo_fold_clean::verify_uncompressed(&prep, &finished).expect("honest proof verifies");
 
-    match &mut finished.state.proof {
-        ProofState::Active { running, .. } => {
-            let claim = running.claims.get_mut(0).expect("test setup: final claim");
-            assert!(
-                !claim.s_col.is_empty() && !claim.y_zcol.is_empty(),
-                "test setup requires a carried NC channel"
-            );
-            claim.s_col.clear();
-            claim.y_zcol.clear();
-        }
-        ProofState::Initial => panic!("finished proof must be Active"),
-    }
+    let running = final_running_mut(&mut finished);
+    let claim = running.claims.get_mut(0).expect("test setup: final claim");
+    assert!(
+        !claim.s_col.is_empty() && !claim.y_zcol.is_empty(),
+        "test setup requires a carried NC channel"
+    );
+    claim.s_col.clear();
+    claim.y_zcol.clear();
     finished.state.acc_digest = recompute_active_running_acc_digest(&finished);
 
     final_running_passes_witness_authority(&prep, &finished);
@@ -525,13 +518,9 @@ fn verify_uncompressed_rejects_recorded_r_value_tamper_even_after_redigest() {
     let mut finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
     neo_fold_clean::verify_uncompressed(&prep, &finished).expect("honest proof verifies");
 
-    match &mut finished.state.proof {
-        ProofState::Active { running, .. } => {
-            assert!(!running.claims[0].r.is_empty(), "test setup requires non-empty r");
-            running.claims[0].r[0] += neo_math::K::ONE;
-        }
-        ProofState::Initial => panic!("finished proof must be Active"),
-    }
+    let running = final_running_mut(&mut finished);
+    assert!(!running.claims[0].r.is_empty(), "test setup requires non-empty r");
+    running.claims[0].r[0] += neo_math::K::ONE;
     finished.state.acc_digest = recompute_active_running_acc_digest(&finished);
 
     let err = neo_fold_clean::verify_uncompressed(&prep, &finished)
@@ -560,13 +549,7 @@ fn final_witness_authority_rejects_same_shape_r_c1_limb_relabel() {
     let proof = neo_fold_clean::prove(&prep, vec![vec![toy_instance_with_x_value(&prep, neo_math::F::ONE)]])
         .expect("one-batch proof with non-zero terminal witness");
     let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
-    let mut running = match &finished.state.proof {
-        ProofState::Active { running, latest } => {
-            assert!(latest.instances.is_empty(), "finished proof must have empty latest");
-            running.clone()
-        }
-        ProofState::Initial => panic!("finished proof must be Active"),
-    };
+    let mut running = final_running(&finished);
 
     assert!(
         running.witnesses[0]
@@ -617,25 +600,21 @@ fn verify_uncompressed_rejects_locally_valid_final_accumulator_substitution() {
     let mut finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
     neo_fold_clean::verify_uncompressed(&prep, &finished).expect("honest proof verifies");
 
-    match &mut finished.state.proof {
-        ProofState::Active { running, .. } => {
-            let claim = running.claims.get_mut(0).expect("test setup: final claim");
-            let witness = running
-                .witnesses
-                .get_mut(0)
-                .expect("test setup: final witness");
-            witness[(0, 0)] += neo_math::F::ONE;
+    let running = final_running_mut(&mut finished);
+    let claim = running.claims.get_mut(0).expect("test setup: final claim");
+    let witness = running
+        .witnesses
+        .get_mut(0)
+        .expect("test setup: final witness");
+    witness[(0, 0)] += neo_math::F::ONE;
 
-            claim.c = prep.log.commit(witness);
-            claim.X = project_x_from_witness_mat(witness, prep.structure().m, claim.m_in)
-                .expect("mutated witness still has valid public projection shape");
-            let ell_d = neo_math::D.next_power_of_two().trailing_zeros() as usize;
-            let (y_ring, ct) = compute_y_from_Z_and_r(prep.structure(), witness, &claim.r, ell_d, prep.params.b());
-            claim.y_ring = y_ring;
-            claim.ct = ct;
-        }
-        ProofState::Initial => panic!("finished proof must be Active"),
-    }
+    claim.c = prep.log.commit(witness);
+    claim.X = project_x_from_witness_mat(witness, prep.structure().m, claim.m_in)
+        .expect("mutated witness still has valid public projection shape");
+    let ell_d = neo_math::D.next_power_of_two().trailing_zeros() as usize;
+    let (y_ring, ct) = compute_y_from_Z_and_r(prep.structure(), witness, &claim.r, ell_d, prep.params.b());
+    claim.y_ring = y_ring;
+    claim.ct = ct;
     finished.state.acc_digest = recompute_active_running_acc_digest(&finished);
 
     let err = neo_fold_clean::verify_uncompressed(&prep, &finished)

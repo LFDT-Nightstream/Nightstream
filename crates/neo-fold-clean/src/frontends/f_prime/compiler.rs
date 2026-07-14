@@ -41,8 +41,10 @@ use crate::paper::relations::{CcsClaim, CeClaim};
 /// `public_input_len`, commitment / boundary / limb shape) is constant
 /// across steps. `pc` is pinned as the single-`F'_j` state selector and
 /// absorbed into `state_x_out`. [`FPrimeChainState`] is updated each step;
-/// [`FPrimeFoldForStep`] is the optional per-step fold authority the
-/// caller writes between successive recursive compiles.
+/// [`FPrimeFoldForStep`] is the optional full per-step fold authority the
+/// caller writes between successive recursive compiles. Accelerated provers
+/// that just produced and validated the fold may instead provide only
+/// [`FPrimeFoldPostSummary`] through `fold_summary_for_step`.
 #[derive(Clone, Debug)]
 pub struct FPrimeCompilerContext {
     // Chain header — constant across steps.
@@ -60,6 +62,17 @@ pub struct FPrimeCompilerContext {
     pub chain_state: FPrimeChainState,
     // Prior fold authority boundary — caller writes between steps.
     pub fold_for_step: Option<FPrimeFoldForStep>,
+    /// Compile-facing surface for a backend-validated prior fold.
+    ///
+    /// This is mutually exclusive with `fold_for_step`. It deliberately does
+    /// not carry verifier authority: final proof/audit verification still
+    /// materializes and checks the ordinary NIFS proof.
+    pub fold_summary_for_step: Option<FPrimeFoldPostSummary>,
+    /// If true, recursive compile replays `NIFS.V` before consuming
+    /// `fold_for_step`. CUDA-backed sessions can set this false for the
+    /// next step after the backend has just produced the fold; final
+    /// proof/audit verification still checks the emitted NIFS proof.
+    pub fold_for_step_needs_native_verify: bool,
 }
 
 /// F'-level chain state threaded between successive compile calls.
@@ -93,6 +106,28 @@ pub struct FPrimeFoldForStep {
     pub latest: LatestInstance,
     pub proof: NifsProof,
     pub post_running: RunningInstance,
+    pub post_summary: Option<FPrimeFoldPostSummary>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FPrimeFoldPostSummary {
+    pub parent_shape: NifsCeClaimShape,
+    pub child_count: u64,
+    pub acc_digest: [F; 4],
+}
+
+impl FPrimeFoldPostSummary {
+    pub fn from_running(running: &RunningInstance, public_input_len: usize) -> Result<Self, FPrimeShellCompilerError> {
+        let parent = running
+            .parent_authority
+            .as_ref()
+            .ok_or(FPrimeShellCompilerError::PostRunningMissingParentAuthority)?;
+        Ok(Self {
+            parent_shape: nifs_ce_shape_from_claim(parent, public_input_len),
+            child_count: running.claims.len() as u64,
+            acc_digest: AccumulatorHandle::from_running_parts(&running.claims, Some(parent)).digest_fields(),
+        })
+    }
 }
 
 /// The Poseidon trace every canonical unified F' step emits.
@@ -139,6 +174,14 @@ pub enum FPrimeShellCompilerError {
 
     #[error("F' shell compiler: base step (chunk_count == 0) must not carry a prior fold")]
     BaseStepUnexpectedPriorFold,
+
+    #[error("F' shell compiler: recursive step supplied both a full prior fold and a backend post-fold summary")]
+    ConflictingPriorFoldInputs,
+
+    #[error(
+        "F' shell compiler: backend post-fold summary requires the prior fold to have been validated by the backend"
+    )]
+    UnverifiedPriorFoldSummary,
 
     #[error("F' shell compiler: chunk must contain at least one assignment (got empty)")]
     EmptyChunk,
@@ -234,6 +277,8 @@ pub fn start_f_prime_chain_context(
             public_trace,
         },
         fold_for_step: None,
+        fold_summary_for_step: None,
+        fold_for_step_needs_native_verify: true,
     })
 }
 
@@ -381,6 +426,18 @@ pub fn nifs_ce_view_from_claim(post_parent: &CeClaim, _public_input_len: usize) 
         s_col: s_col_pairs,
         m_in: post_parent.m_in as u64,
         fold_digest_fields: digest32_as_fields(post_parent.fold_digest),
+    }
+}
+
+pub fn nifs_ce_shape_from_claim(post_parent: &CeClaim, _public_input_len: usize) -> NifsCeClaimShape {
+    NifsCeClaimShape {
+        c_data_entries: post_parent.c.data.len(),
+        x_rows: post_parent.X.rows(),
+        x_active_cols: crate::paper::relations::superneo_public_x_cols(post_parent.m_in),
+        r_len: post_parent.r.len(),
+        y_ring_inner_lens: post_parent.y_ring.iter().map(|row| row.len()).collect(),
+        y_zcol_len: post_parent.y_zcol.len(),
+        s_col_len: post_parent.s_col.len(),
     }
 }
 
@@ -629,7 +686,9 @@ pub fn assemble_step_from_shared(
     if let Some(semantic_state_digest) = semantic_state_digest_out {
         state_out.new_semantic_state_digest = semantic_state_digest;
     }
-    let state_x_out = encode_poseidon_trace(&build_state_x_out_preimage_fields_with_app_x(
+    #[cfg(feature = "perf-timers")]
+    let t_preimage = std::time::Instant::now();
+    let preimage = build_state_x_out_preimage_fields_with_app_x(
         ctx.state_x_out_digest_mode,
         ctx.vk_fs_digest,
         ctx.pi_ccs_header_bundle,
@@ -642,7 +701,21 @@ pub fn assemble_step_from_shared(
         state_out.new_acc_digest,
         state_out.new_public_trace,
         app_public_input,
-    ));
+    );
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[f-prime] state_x_out preimage ({} fields)   {:>7.2}s",
+        preimage.len(),
+        t_preimage.elapsed().as_secs_f64()
+    );
+    #[cfg(feature = "perf-timers")]
+    let t_trace = std::time::Instant::now();
+    let state_x_out = encode_poseidon_trace(&preimage);
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[f-prime] state_x_out poseidon trace         {:>7.2}s",
+        t_trace.elapsed().as_secs_f64()
+    );
 
     let public_output_digest = state_x_out.digest_native;
     let boundary_bits = boundary_bits_from_digest(public_output_digest, ctx.boundary_bits);

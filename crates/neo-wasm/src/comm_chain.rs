@@ -32,6 +32,20 @@ pub const COMM_CHAIN_EVENT_ARGS: usize = 7;
 
 static PERM12: Lazy<Poseidon2Goldilocks<12>> = Lazy::new(default_goldilocks_poseidon2_12);
 
+/// Fold a claimed event transcript (absorb blocks in emission order) from a
+/// zero chain. The verifier-side half of transcript binding: a proof's
+/// final carried `comm_chain` (authenticated by [`crate::verify`] through
+/// the final semantic digest) equals this fold iff the execution absorbed
+/// exactly these blocks — entry inputs, import events, and exit events
+/// alike, at any arity.
+pub fn fold_event_blocks(blocks: &[[Goldilocks; COMM_CHAIN_BLOCK_WORDS]]) -> [Goldilocks; 4] {
+    let mut chain = [Goldilocks::ZERO; 4];
+    for block in blocks {
+        chain = commit_event(chain, block[0], core::array::from_fn(|i| block[1 + i]));
+    }
+    chain
+}
+
 /// Absorb one host event into the chain: `H([prev | discriminant | args])`.
 pub fn commit_event(
     prev: [Goldilocks; COMM_CHAIN_STATE_LEN],

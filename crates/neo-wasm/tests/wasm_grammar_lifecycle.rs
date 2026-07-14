@@ -9,7 +9,9 @@ mod common;
 
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
 use neo_wasm::event_grammar::{ExportTemplate, GrammarEvent, HostEventGrammar, ImportTemplate, Limb, SlotSource};
-use neo_wasm::{grammar_top_level_initial_state_digest, preprocess_seeded_batched, prove_batched, verify, WasmVmStep};
+use common::audit::{prove_batched, verify, verify_with_transcript, AuditProveError};
+use neo_wasm::{grammar_top_level_initial_state_digest, preprocess_seeded_batched, WasmVmStep};
+use p3_field::PrimeCharacteristicRing;
 
 const ZERO: SlotSource = SlotSource::Const(0);
 
@@ -87,16 +89,35 @@ fn test_grammar(mul_fref: u32, sink_fref: u32, run_fref: u32) -> HostEventGramma
         ExportTemplate {
             entry: vec![
                 GrammarEvent::op(20, slots(&[(0, SlotSource::Const(55))])),
-                GrammarEvent::op(8, slots(&[(1, oracle(0)), (3, oracle(1))])),
+                GrammarEvent::op(8, slots(&[(1, SlotSource::Input), (3, SlotSource::Input)])),
             ],
             exit: vec![GrammarEvent::op(
                 17,
                 slots(&[(1, SlotSource::OutputElem { limb: Limb::Lo })]),
             )],
-            oracle_count: 2,
+            oracle_count: 0,
         },
     );
     grammar
+}
+
+/// The mul import is the one with a post-result event; sink has none.
+fn mul_fref(grammar: &HostEventGrammar) -> u32 {
+    *grammar
+        .imports
+        .iter()
+        .find(|(_, t)| !t.post_result.is_empty())
+        .expect("mul template")
+        .0
+}
+
+fn sink_fref(grammar: &HostEventGrammar) -> u32 {
+    *grammar
+        .imports
+        .iter()
+        .find(|(_, t)| t.post_result.is_empty())
+        .expect("sink template")
+        .0
 }
 
 fn host_call_frefs(trace: &[WasmVmStep]) -> Vec<u32> {
@@ -146,9 +167,8 @@ fn grammar_lifecycle_setup() -> GrammarLifecycleSetup {
         .current_function_ref;
     let grammar = test_grammar(frefs[0], frefs[1], run_fref);
 
-    let entry_oracles = [500u64, 501];
-    let exit_oracles = [600u64, 601];
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &entry_oracles, &exit_oracles)
+    let entry_inputs = [500u64, 501];
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &entry_inputs, &[])
         .expect("grammar trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     GrammarLifecycleSetup {
@@ -206,12 +226,14 @@ fn grammar_folding_proof_covers_import_and_export_events() {
         run_fref,
         component_bytes,
     } = setup;
-    let entry_oracles = [500u64, 501];
+    let entry_inputs = [500u64, 501];
 
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
     let entry_pc = common::entry_pc_for_function_ref(&artifacts, u64::from(run_fref));
-    let digest =
-        grammar_top_level_initial_state_digest(&artifacts.tables, entry_pc, &grammar, run_fref, &entry_oracles);
+    // The anchor is per-program (mode, entry pc, entry schedule) — claim
+    // inputs are NOT anchored; they are bound by the final-chain transcript
+    // check below.
+    let digest = grammar_top_level_initial_state_digest(&artifacts.tables, entry_pc, &grammar, run_fref);
     // The verifier's constructed initial state must be exactly the trace's
     // opening boundary.
     assert_eq!(
@@ -246,7 +268,48 @@ fn grammar_folding_proof_covers_import_and_export_events() {
 
     let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
     let proof = prove_batched(&prep, &trace, batch_size).expect("prove");
-    verify(&prep, &proof, common::final_state(&trace)).expect("verify");
+    let final_state = common::final_state(&trace);
+
+    // Transcript binding: verification succeeds only with the claimed
+    // transcript — export entry (with the claim inputs), the two import
+    // calls, and the export exit — and rejects a transcript claiming
+    // different inputs. This is the verifier's input check: per-invocation
+    // data never touches preprocessing.
+    let template = grammar.exports.get(&run_fref).expect("export template");
+    let expected_transcript = |inputs: &[u64]| -> Vec<[p3_goldilocks::Goldilocks; 8]> {
+        let mut blocks = neo_wasm::event_grammar::expand_export_entry(template, inputs).expect("entry");
+        let mul = neo_wasm::event_grammar::expand_import_events(
+            &grammar.imports[&mul_fref(&grammar)],
+            &[(7, 0), (6, 0)],
+            Some((42, 0)),
+            &[100],
+        )
+        .expect("mul events");
+        blocks.extend(mul.pre_result_blocks);
+        blocks.extend(mul.post_result_blocks);
+        let sink = neo_wasm::event_grammar::expand_import_events(
+            &grammar.imports[&sink_fref(&grammar)],
+            &[(42, 0)],
+            None,
+            &[],
+        )
+        .expect("sink events");
+        blocks.extend(sink.pre_result_blocks);
+        blocks.extend(neo_wasm::event_grammar::expand_export_exit(template, Some((42, 0)), &[]).expect("exit"));
+        blocks
+            .into_iter()
+            .map(|block| block.map(p3_goldilocks::Goldilocks::from_u64))
+            .collect()
+    };
+    verify_with_transcript(&prep, &proof, final_state, &expected_transcript(&entry_inputs))
+        .expect("verify with the claimed transcript");
+    assert!(
+        matches!(
+            verify_with_transcript(&prep, &proof, final_state, &expected_transcript(&[500, 999])),
+            Err(AuditProveError::TranscriptMismatch)
+        ),
+        "a transcript claiming different inputs must be rejected"
+    );
 
     // The verifier's mode pinning is real: an anchor that differs from the
     // grammar initial state in *only* the grammar_mode bit must not accept
@@ -256,8 +319,7 @@ fn grammar_folding_proof_covers_import_and_export_events() {
     // wasm_batch.rs semantic_state_rejects_wrong_initial_state_digest);
     // match on its message so an unrelated panic can't masquerade as a
     // successful rejection.
-    let mut mode_flipped =
-        neo_wasm::grammar_top_level_initial_state(&artifacts.tables, entry_pc, &grammar, run_fref, &entry_oracles);
+    let mut mode_flipped = neo_wasm::grammar_top_level_initial_state(&artifacts.tables, entry_pc, &grammar, run_fref);
     mode_flipped.grammar_mode = false;
     let flipped_digest = neo_wasm::semantic_state_digest(mode_flipped);
     assert_ne!(flipped_digest, digest, "grammar_mode must contribute to the digest");

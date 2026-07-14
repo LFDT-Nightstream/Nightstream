@@ -7,7 +7,9 @@
 //! `ArgName::idx`); neo-wasm itself never interprets them.
 
 use neo_wasm::comm_chain::{commit_event, COMM_CHAIN_EVENT_ARGS};
-use neo_wasm::event_grammar::{expand_import_events, GrammarEvent, ImportTemplate, Limb, SlotSource};
+use neo_wasm::event_grammar::{
+    expand_export_entry, expand_import_events, ExportTemplate, GrammarEvent, ImportTemplate, Limb, SlotSource,
+};
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 
@@ -171,6 +173,75 @@ fn validation_rejects_unresolvable_templates() {
         ..Default::default()
     };
     assert!(template.validate(2, 1).is_ok());
+}
+
+/// Export entry-phase rules: claim inputs only (no oracle cells, no output),
+/// each param local written at most once, and every `InputLocal` word must
+/// fit the 32-bit locals lane.
+#[test]
+fn export_entry_validation_and_expansion_rules() {
+    let event = |slot: SlotSource| GrammarEvent::op(0, slots(&[(0, slot)]));
+
+    // Oracle cells are exit-phase only.
+    let template = ExportTemplate {
+        entry: vec![event(SlotSource::Oracle { idx: 0 })],
+        oracle_count: 1,
+        ..Default::default()
+    };
+    assert!(template.validate(1).is_err());
+
+    // Claim inputs are entry-phase only.
+    let template = ExportTemplate {
+        exit: vec![event(SlotSource::Input)],
+        ..Default::default()
+    };
+    assert!(template.validate(1).is_err());
+
+    // A local lane written twice is rejected.
+    let lo = |local| SlotSource::InputLocal { local, limb: Limb::Lo };
+    let hi = |local| SlotSource::InputLocal { local, limb: Limb::Hi };
+    let template = ExportTemplate {
+        entry: vec![event(lo(0)), event(lo(0))],
+        ..Default::default()
+    };
+    assert!(template.validate(1).is_err());
+
+    // Local index out of range.
+    let template = ExportTemplate {
+        entry: vec![event(lo(1))],
+        ..Default::default()
+    };
+    assert!(template.validate(1).is_err());
+
+    // A hi-lane write requires (and must follow) its local's lo-lane write,
+    // because the lo write zeroes the hi lane.
+    let template = ExportTemplate {
+        entry: vec![event(hi(0))],
+        ..Default::default()
+    };
+    assert!(template.validate(1).is_err());
+    let template = ExportTemplate {
+        entry: vec![event(hi(0)), event(lo(0))],
+        ..Default::default()
+    };
+    assert!(template.validate(1).is_err());
+    let template = ExportTemplate {
+        entry: vec![event(lo(0)), event(hi(0))],
+        ..Default::default()
+    };
+    template.validate(1).expect("lo-then-hi validates");
+
+    // Entry expansion consumes claim words in slot order and rejects a
+    // wrong count or a word that does not fit the locals lane.
+    let template = ExportTemplate {
+        entry: vec![GrammarEvent::op(9, slots(&[(0, SlotSource::Input), (1, lo(0))]))],
+        ..Default::default()
+    };
+    template.validate(1).expect("entry template validates");
+    let blocks = expand_export_entry(&template, &[500, 7]).expect("entry expansion");
+    assert_eq!(blocks, vec![[9, 500, 7, 0, 0, 0, 0, 0]]);
+    assert!(expand_export_entry(&template, &[500]).is_err());
+    assert!(expand_export_entry(&template, &[500, 1 << 32]).is_err());
 }
 
 #[test]

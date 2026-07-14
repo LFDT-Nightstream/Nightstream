@@ -10,16 +10,19 @@
 
 use super::super::runtime_read::{read_lane, read_lane_hi};
 use super::super::WasmtimeTraceStep;
+use super::grammar_emit::{
+    absorb_premix, emit_block_plan, emit_perm_group, perm_group_plan, plan_export_blocks, plan_grammar_blocks,
+    GrammarAuxCtx, GrammarBlockPlan, GrammarCallPlan,
+};
 use super::{normalize_step, NormalizedStep};
-use crate::comm_chain::{host_call_event_stream, perm_row_checkpoints, COMM_CHAIN_BLOCK_WORDS, COMM_CHAIN_PERM_ROWS};
-use crate::event_grammar::{expand_import_events, GrammarEvent, HostEventGrammar, SlotSource};
+use crate::comm_chain::{host_call_event_stream, COMM_CHAIN_BLOCK_WORDS};
+use crate::event_grammar::{expand_import_events, HostEventGrammar};
 use crate::ir::{
     StackValueAccess, WasmAuxOpcode, WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmOutputState,
     WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
 };
 use crate::isa::{opcode_code, opcode_info_from_code, WasmOpcode};
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks;
+use p3_field::PrimeField64;
 
 /// Extracts initial parameter locals from the callee's first step's locals snapshot,
 /// converting local indices to absolute addresses using the callee's FBP.
@@ -33,369 +36,6 @@ fn collect_callee_initial_params(next: Option<&NormalizedStep>, callee_fbp: u64,
         .enumerate()
         .map(|(i, &v)| (callee_fbp + i as u64, v))
         .collect()
-}
-
-/// One gather row's plan: the staged word, its claimed grammar-ROM entry,
-/// and, for arg/result slots, the stack slot it must read — or, for export
-/// param slots, the local it must read (with the limb pair the RAM holds
-/// there).
-struct GrammarSlotRow {
-    value: u64,
-    rom: crate::ir::WasmGrammarRomEntry,
-    read: Option<(u64, (u32, u32))>,
-    local_read: Option<(u32, (u32, u32))>,
-}
-
-/// One grammar event's gather plan: the absorb block plus its 8 slot rows.
-struct GrammarBlockPlan {
-    block: [u64; 8],
-    rows: Vec<GrammarSlotRow>,
-}
-
-/// One grammar host call's full emission plan.
-struct GrammarCallPlan {
-    pre: Vec<GrammarBlockPlan>,
-    post: Vec<GrammarBlockPlan>,
-    args_base: u64,
-    oracles: [u64; 4],
-}
-
-fn plan_grammar_blocks(
-    events: &[GrammarEvent],
-    blocks: &[[u64; 8]],
-    args_base: u64,
-    args: &[(u32, u32)],
-    result: Option<(u32, u32)>,
-) -> Vec<GrammarBlockPlan> {
-    events
-        .iter()
-        .zip(blocks)
-        .map(|(event, &block)| {
-            let rows = event
-                .block
-                .iter()
-                .zip(block)
-                .map(|(source, value)| {
-                    let limb_bit = |limb| match limb {
-                        crate::event_grammar::Limb::Lo => 0,
-                        crate::event_grammar::Limb::Hi => 1,
-                    };
-                    let entry = |kind, arg, limb, const_lo, const_hi| crate::ir::WasmGrammarRomEntry {
-                        kind,
-                        arg,
-                        limb,
-                        const_lo,
-                        const_hi,
-                    };
-                    let (rom, read) = match *source {
-                        SlotSource::Const(value) => (entry(0, 0, 0, value as u32, (value >> 32) as u32), None),
-                        SlotSource::ArgElem { arg, limb } => (
-                            entry(1, arg, limb_bit(limb), 0, 0),
-                            Some((args_base + u64::from(arg), args[usize::from(arg)])),
-                        ),
-                        SlotSource::ResultElem { limb } => (
-                            entry(2, 0, limb_bit(limb), 0, 0),
-                            Some((args_base, result.expect("validated result"))),
-                        ),
-                        SlotSource::Oracle { idx } => (entry(3, idx, 0, 0, 0), None),
-                        SlotSource::ParamElem { .. } | SlotSource::OutputElem { .. } => {
-                            unreachable!("validated: export sources never appear in import templates")
-                        }
-                    };
-                    GrammarSlotRow {
-                        value,
-                        rom,
-                        read,
-                        local_read: None,
-                    }
-                })
-                .collect();
-            GrammarBlockPlan { block, rows }
-        })
-        .collect()
-}
-
-/// The permutation input for one absorbed block premixed with the initial
-/// external linear layer (canonical u64 lanes): what the row raising
-/// `perm_pending` hands the perm group's first row as `perm_state`.
-fn absorb_premix(chain: [u64; 4], evbuf: [u64; 8]) -> [u64; 12] {
-    let mut state = [Goldilocks::ZERO; 12];
-    for (lane, limb) in state.iter_mut().zip(chain.iter().chain(evbuf.iter())) {
-        *lane = Goldilocks::from_u64(*limb);
-    }
-    crate::comm_chain::perm_external_linear(&mut state);
-    state.map(|lane| lane.as_canonical_u64())
-}
-
-/// Row-level plan of one absorbed block's perm group: the perm state entering
-/// each of the [`COMM_CHAIN_PERM_ROWS`] rows (plus the permutation output)
-/// and the fed-forward chain the group's last row lands on.
-fn perm_group_plan(chain: [u64; 4], evbuf: [u64; 8]) -> ([[u64; 12]; COMM_CHAIN_PERM_ROWS + 1], [u64; 4]) {
-    let prev = chain.map(Goldilocks::from_u64);
-    let mut words = [Goldilocks::ZERO; COMM_CHAIN_BLOCK_WORDS];
-    for (word, limb) in words.iter_mut().zip(evbuf) {
-        *word = Goldilocks::from_u64(limb);
-    }
-    let checkpoints = perm_row_checkpoints(prev, words);
-    let updated: [u64; 4] =
-        core::array::from_fn(|i| (checkpoints[COMM_CHAIN_PERM_ROWS][i] + prev[i]).as_canonical_u64());
-    (
-        checkpoints.map(|state| state.map(|lane| lane.as_canonical_u64())),
-        updated,
-    )
-}
-
-fn plan_export_blocks(events: &[GrammarEvent], blocks: &[[u64; 8]], params: &[(u32, u32)]) -> Vec<GrammarBlockPlan> {
-    events
-        .iter()
-        .zip(blocks)
-        .map(|(event, &block)| {
-            let rows = event
-                .block
-                .iter()
-                .zip(block)
-                .map(|(source, value)| {
-                    let limb_bit = |limb| match limb {
-                        crate::event_grammar::Limb::Lo => 0,
-                        crate::event_grammar::Limb::Hi => 1,
-                    };
-                    let entry = |kind, arg, limb| crate::ir::WasmGrammarRomEntry {
-                        kind,
-                        arg,
-                        limb,
-                        const_lo: 0,
-                        const_hi: 0,
-                    };
-                    let (rom, local_read) = match *source {
-                        SlotSource::Const(value) => (
-                            crate::ir::WasmGrammarRomEntry {
-                                kind: 0,
-                                arg: 0,
-                                limb: 0,
-                                const_lo: value as u32,
-                                const_hi: (value >> 32) as u32,
-                            },
-                            None,
-                        ),
-                        SlotSource::Oracle { idx } => (entry(3, idx, 0), None),
-                        SlotSource::ParamElem { arg, limb } => (
-                            entry(4, arg, limb_bit(limb)),
-                            Some((u32::from(arg), params[usize::from(arg)])),
-                        ),
-                        SlotSource::OutputElem { limb } => (entry(5, 0, limb_bit(limb)), None),
-                        SlotSource::ArgElem { .. } | SlotSource::ResultElem { .. } => {
-                            unreachable!("validated: stack sources never appear in export templates")
-                        }
-                    };
-                    GrammarSlotRow {
-                        value,
-                        rom,
-                        read: None,
-                        local_read,
-                    }
-                })
-                .collect();
-            GrammarBlockPlan { block, rows }
-        })
-        .collect()
-}
-
-/// Shared shape of the grammar/perm aux rows emitted outside the per-opcode
-/// flow: the carried context every such row repeats.
-struct GrammarAuxCtx {
-    pc: u64,
-    sp: u64,
-    output: WasmOutputState,
-    call_stack_depth: u64,
-    memory_pages: Option<u32>,
-    max_memory_pages: Option<u32>,
-    locals_fbp: u64,
-    host_callee_fref: u32,
-    grammar_mode: bool,
-    current_function_ref: u32,
-    current_function_num_locals: u32,
-    host_args: WasmCountdownState,
-    host_result_pending: bool,
-}
-
-impl GrammarAuxCtx {
-    fn state(
-        &self,
-        host_args: WasmCountdownState,
-        comm_chain: [u64; 4],
-        event_absorb: WasmEventAbsorbState,
-        grammar: crate::ir::WasmGrammarState,
-    ) -> WasmStepState {
-        WasmStepState {
-            pc: self.pc,
-            sp: self.sp,
-            output: self.output,
-            call_stack_depth: self.call_stack_depth,
-            memory_pages: self.memory_pages,
-            max_memory_pages: self.max_memory_pages,
-            locals_fbp: self.locals_fbp,
-            halted: false,
-            trapped: false,
-            param_init: WasmCountdownState::ZERO,
-            host_args,
-            host_result_pending: self.host_result_pending,
-            host_callee_fref: self.host_callee_fref,
-            comm_chain,
-            event_absorb,
-            grammar_mode: self.grammar_mode,
-            grammar,
-        }
-    }
-
-    fn row(
-        &self,
-        cycle: u64,
-        aux_opcode: WasmAuxOpcode,
-        state_before: WasmStepState,
-        state_after: WasmStepState,
-    ) -> WasmVmStep {
-        WasmVmStep {
-            cycle,
-            row_kind: WasmRowKind::Aux(aux_opcode),
-            state_before,
-            state_after,
-            control_choice: 0,
-            pc_edge_kind: WasmPcEdgeKind::Static,
-            wide_values_enabled: false,
-            opcode: WasmOpcode::Nop,
-            info: opcode_info_from_code(opcode_code(WasmOpcode::Nop)),
-            stack_reads_override: Some(0),
-            stack_writes_override: Some(0),
-            output_captured: false,
-            current_function_ref: self.current_function_ref,
-            current_function_num_locals: self.current_function_num_locals,
-            stack_read0: None,
-            stack_read1: None,
-            stack_read2: None,
-            stack_write0: None,
-            linear_memory: None,
-            linear_memory_offset: 0,
-            local_index: None,
-            local_read_value: None,
-            local_read_value_hi: None,
-            local_write_value: None,
-            local_write_value_hi: None,
-            global_index: None,
-            global_read_value: None,
-            global_read_value_hi: None,
-            global_write_value: None,
-            global_write_value_hi: None,
-            table_id: None,
-            table_index: None,
-            table_value: None,
-            function_ref: None,
-            target_function_is_guest: false,
-            function_type_id: None,
-            call_indirect_type_index: None,
-            expected_type_id: None,
-            table_size: None,
-            call_param_count: None,
-            call_result_count: None,
-            call_stack_push: None,
-            call_stack_pop: None,
-            grammar_rom_slot: None,
-            grammar_pre_count: None,
-            grammar_post_count: None,
-        }
-    }
-}
-
-/// Emit the perm-row group absorbing the pending block (see
-/// `WasmAuxOpcode::HostEventPerm`): folds the chain forward on the group's
-/// last row, clears the buffer on its first, and hands arg mode back when
-/// arguments remain.
-fn emit_perm_group(
-    out: &mut Vec<WasmVmStep>,
-    ctx: &GrammarAuxCtx,
-    comm_chain: &mut [u64; 4],
-    absorb: &mut WasmEventAbsorbState,
-    grammar: crate::ir::WasmGrammarState,
-) {
-    debug_assert!(absorb.perm_pending);
-    debug_assert!(!ctx.host_args.active, "arg mode must suspend across a perm group");
-    let (checkpoints, updated_chain) = perm_group_plan(*comm_chain, absorb.evbuf);
-    debug_assert_eq!(absorb.perm_state, checkpoints[0]);
-    let resumed_args = WasmCountdownState {
-        active: ctx.host_args.remaining > 0,
-        remaining: ctx.host_args.remaining,
-    };
-    for pos in 0..COMM_CHAIN_PERM_ROWS {
-        let chain_before = *comm_chain;
-        let absorb_before = *absorb;
-        let last = pos + 1 == COMM_CHAIN_PERM_ROWS;
-        if pos == 0 {
-            absorb.evbuf = [0; 8];
-            absorb.evbuf_slot = 0;
-            absorb.perm_pending = false;
-        }
-        absorb.perm_round = if last { 0 } else { pos as u8 + 1 };
-        absorb.perm_state = checkpoints[pos + 1];
-        if last {
-            *comm_chain = updated_chain;
-        }
-        out.push(ctx.row(
-            out.len() as u64,
-            WasmAuxOpcode::HostEventPerm,
-            ctx.state(ctx.host_args, chain_before, absorb_before, grammar),
-            ctx.state(
-                if last { resumed_args } else { ctx.host_args },
-                *comm_chain,
-                *absorb,
-                grammar,
-            ),
-        ));
-    }
-}
-
-/// Emit one grammar event block: 8 gather rows (one word each, with the
-/// arg/result stack read or export-param locals read the slot claims),
-/// then its perm group. The last slot row premixes the block, raises
-/// `pending`, and advances the event schedule.
-fn emit_block_plan(
-    out: &mut Vec<WasmVmStep>,
-    ctx: &GrammarAuxCtx,
-    comm_chain: &mut [u64; 4],
-    absorb: &mut WasmEventAbsorbState,
-    gstate: &mut crate::ir::WasmGrammarState,
-    plan: &GrammarBlockPlan,
-) {
-    for (word, slot) in plan.rows.iter().enumerate() {
-        let absorb_before = *absorb;
-        let gstate_before = *gstate;
-        absorb.evbuf[word] = slot.value;
-        gstate.slot_cursor = ((word + 1) % 8) as u8;
-        if word == 7 {
-            absorb.perm_pending = true;
-            absorb.perm_state = absorb_premix(*comm_chain, absorb.evbuf);
-            gstate.events_remaining -= 1;
-            gstate.event_index += 1;
-        }
-        let read0 = slot.read.map(|(stack_slot, (lo, hi))| {
-            StackValueAccess::new(stack_slot.saturating_mul(2), lo).with_optional_hi(Some(hi))
-        });
-        let wide = slot.read.is_some_and(|(_, (_, hi))| hi != 0) || slot.local_read.is_some_and(|(_, (_, hi))| hi != 0);
-        out.push(WasmVmStep {
-            wide_values_enabled: wide,
-            stack_reads_override: Some(u8::from(read0.is_some())),
-            stack_read0: read0,
-            local_index: slot.local_read.map(|(index, _)| index),
-            local_read_value: slot.local_read.map(|(_, (lo, _))| lo),
-            local_read_value_hi: slot.local_read.map(|(_, (_, hi))| hi),
-            grammar_rom_slot: Some(slot.rom),
-            ..ctx.row(
-                out.len() as u64,
-                WasmAuxOpcode::HostEventGather,
-                ctx.state(ctx.host_args, *comm_chain, absorb_before, gstate_before),
-                ctx.state(ctx.host_args, *comm_chain, *absorb, *gstate),
-            )
-        });
-    }
-    emit_perm_group(out, ctx, comm_chain, absorb, *gstate);
 }
 
 /// `call_indirect` traps before calling when the table entry is a null
@@ -546,14 +186,17 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
 /// records. Per-call oracle values ride the rows themselves — host functions
 /// record them at call time via `WasmtimeTraceState::record_call_oracles`
 /// (see `event_grammar::SlotSource::Oracle`); every host import reached by
-/// the trace must have a template.
+/// the trace must have a template. `entry_inputs` are the claim-input words
+/// the export template's `Input`/`InputLocal` slots consume (bound by the
+/// final-chain transcript check; the `InputLocal` words bootstrap the entry
+/// frame's zero-initialized locals).
 pub fn traces_from_wasmtime_steps_with_grammar(
     rows: &[WasmtimeTraceStep],
     grammar: &HostEventGrammar,
-    entry_oracles: &[u64],
+    entry_inputs: &[u64],
     exit_oracles: &[u64],
 ) -> Result<Vec<WasmVmStep>, WasmBuildError> {
-    traces_from_wasmtime_steps_impl(rows, Some((grammar, entry_oracles, exit_oracles)))
+    traces_from_wasmtime_steps_impl(rows, Some((grammar, entry_inputs, exit_oracles)))
 }
 
 fn traces_from_wasmtime_steps_impl(
@@ -594,33 +237,60 @@ fn traces_from_wasmtime_steps_impl(
     // all zero in raw mode.
     let mut grammar_state = crate::ir::WasmGrammarState::ZERO;
     // Export boundary (single-turn V1): the export's template, its entry
-    // plans (params come from the entry frame's locals; hi limbs are not
-    // observable in the debug snapshot, so i64 export params carry lo only
-    // for now), and the initial-state latch mirrored by the verifier's
+    // plans (claim inputs bootstrap both lanes of the entry-frame locals),
+    // and the initial-state latch mirrored by the verifier's
     // `grammar_top_level_initial_state`.
-    let export_boundary = if let (Some((grammar_tables, entry_oracles, _)), Some(first)) = (grammar, supported.first())
-    {
+    // Input bootstrap: the entry frame's locals start all-zero in the RAM
+    // model; the entry gather rows write the claim-input words into them.
+    // The absorbed words are bound by the final-chain transcript check
+    // (the verifier folds the claimed transcript natively and compares it
+    // with the proof's final carried comm_chain), so nothing per-invocation
+    // is anchored in the initial state.
+    let export_boundary = if let (Some((grammar_tables, entry_inputs, _)), Some(first)) = (grammar, supported.first()) {
         let export_fref = first.current_function_ref.unwrap_or(0);
         match grammar_tables.exports.get(&export_fref) {
             Some(template) => {
-                let param_bound = u8::try_from(first.num_locals.min(255)).expect("bounded");
-                template.validate(param_bound)?;
-                let params: Vec<(u32, u32)> = first.locals_snapshot.iter().map(|&lo| (lo, 0)).collect();
-                let expanded =
-                    crate::event_grammar::expand_export_events(template, &params, Some((0, 0)), entry_oracles)
-                        .map_err(|err| WasmBuildError::Trace(format!("export entry expansion: {err}")))?;
-                let entry_plans = plan_export_blocks(&template.entry, &expanded.entry_blocks, &params);
-                let mut oracle_cells = [0u64; 4];
-                oracle_cells[..entry_oracles.len()].copy_from_slice(entry_oracles);
+                let local_bound = u8::try_from(first.num_locals.min(255)).expect("bounded");
+                template.validate(local_bound)?;
+                let entry_blocks = crate::event_grammar::expand_export_entry(template, entry_inputs)
+                    .map_err(|err| WasmBuildError::Trace(format!("export entry expansion: {err}")))?;
+                let entry_plans = plan_export_blocks(&template.entry, &entry_blocks);
+                // The bootstrap writes must reproduce exactly the locals
+                // wasmtime ran with: written lanes get their claim word (a
+                // lo write zeroes the hi lane), everything else stays
+                // zero-initialized.
+                let mut expected_locals = vec![(0u32, 0u32); first.locals_snapshot.len()];
+                for plan in &entry_plans {
+                    for row in &plan.rows {
+                        if let Some((local, limb, value)) = row.local_write {
+                            let lanes = &mut expected_locals[local as usize];
+                            if limb == 0 {
+                                *lanes = (value, 0);
+                            } else {
+                                lanes.1 = value;
+                            }
+                        }
+                    }
+                }
+                for (local, &(lo, hi)) in expected_locals.iter().enumerate() {
+                    let ran_lo = first.locals_snapshot[local];
+                    let ran_hi = first.locals_snapshot_hi.get(local).copied().unwrap_or(0);
+                    if (lo, hi) != (ran_lo, ran_hi) {
+                        return Err(WasmBuildError::Trace(format!(
+                            "entry bootstrap does not reproduce the entry frame's locals: local {local} \
+                             is ({lo}, {hi}) after the bootstrap writes but wasmtime ran with ({ran_lo}, {ran_hi})"
+                        )));
+                    }
+                }
                 grammar_state = crate::ir::WasmGrammarState {
                     events_remaining: entry_plans.len() as u32,
                     event_index: 0,
                     args_base: 0,
                     slot_cursor: 0,
-                    oracles: oracle_cells,
+                    oracles: [0; 4],
                 };
                 host_callee_fref = export_fref;
-                Some((export_fref, template, params, entry_plans))
+                Some((export_fref, template, entry_plans))
             }
             // The exit latch fires on every grammar capture row, so
             // the invoked export must have a boundary template — use an
@@ -883,7 +553,7 @@ fn traces_from_wasmtime_steps_impl(
         // row; the initial-state latch was mirrored pre-loop).
         if !entry_emitted {
             entry_emitted = true;
-            if let Some((_, _, _, entry_plans)) = &export_boundary {
+            if let Some((_, _, entry_plans)) = &export_boundary {
                 let ctx = GrammarAuxCtx {
                     pc: pc_before,
                     sp: sp_before,
@@ -1097,16 +767,14 @@ fn traces_from_wasmtime_steps_impl(
         let mut exit_plans: Option<Vec<GrammarBlockPlan>> = None;
         let mut exit_counts: Option<(u32, u32)> = None;
         if output_captured {
-            if let (Some((export_fref, template, params, _)), Some((_, _, exit_oracles))) = (&export_boundary, grammar)
-            {
-                let expanded = crate::event_grammar::expand_export_events(
+            if let (Some((export_fref, template, _)), Some((_, _, exit_oracles))) = (&export_boundary, grammar) {
+                let exit_blocks = crate::event_grammar::expand_export_exit(
                     template,
-                    params,
                     Some((output_value_lo_after, output_value_hi_after)),
                     exit_oracles,
                 )
                 .map_err(|err| WasmBuildError::Trace(format!("export exit expansion: {err}")))?;
-                let plans = plan_export_blocks(&template.exit, &expanded.exit_blocks, params);
+                let plans = plan_export_blocks(&template.exit, &exit_blocks);
                 let mut oracle_cells = [0u64; 4];
                 oracle_cells[..exit_oracles.len()].copy_from_slice(exit_oracles);
                 host_callee_fref = *export_fref;

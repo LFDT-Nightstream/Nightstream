@@ -71,12 +71,11 @@ const STREAM_DONE: usize = WSR0 + 4; // event stream complete after this row
 const EVENT_END: usize = STREAM_DONE + 1; // this row streams the final word pair
 const EVENT_END_OR: usize = EVENT_END + 1; // (block filled)·(event end) product
 const GW0: usize = EVENT_END_OR + 1; // 8 gather block-word one-hot flags
-const GK0: usize = GW0 + 8; // 6 gather slot-kind one-hot flags (const/arg/result/oracle/param/output)
-const GKINDS: usize = 6;
+const GK0: usize = GW0 + 8; // 7 gather slot-kind one-hot flags (const/arg/result/oracle/input-local/output/input)
+const GKINDS: usize = 7;
 const GOSEL0: usize = GK0 + GKINDS; // 4 gather oracle-cell select flags
 const GARG_VAL: usize = GOSEL0 + 4; // limb-selected stack-read value
-const GLOC_VAL: usize = GARG_VAL + 1; // limb-selected locals-read value (export params)
-const GOUT_VAL: usize = GLOC_VAL + 1; // limb-selected output-carry value (export result)
+const GOUT_VAL: usize = GARG_VAL + 1; // limb-selected output-carry value (export result)
 const GSLOT_VALUE: usize = GOUT_VAL + 1; // the block word this gather row stages
 
 /// Width of the gadget-internal column block.
@@ -90,7 +89,7 @@ pub(crate) fn perm_gadget_col_widths() -> impl Iterator<Item = usize> {
         .chain(core::iter::repeat_n(64, 48 + 8))
         .chain(core::iter::repeat_n(1, 4 + 4 + 3))
         .chain(core::iter::repeat_n(1, 8 + GKINDS + 4))
-        .chain(core::iter::repeat_n(64, 4))
+        .chain(core::iter::repeat_n(64, 3))
 }
 
 /// Gather slot-kind one-hot columns whose read pins a stack access: the
@@ -244,9 +243,9 @@ fn push_grammar_mode_constraints(b: &mut R1csBuilder) {
 /// call site.
 fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
     use super::super::layout::{
-        COL_CALL_PARAM_COUNT as PARAM_COUNT, COL_GATHER_LOCAL_READ, COL_GRAMMAR_ARGS_BASE_AFTER as AB_A,
-        COL_GRAMMAR_ARGS_BASE_BEFORE as AB_B, COL_GRAMMAR_EVIDX_AFTER as EVIDX_A, COL_GRAMMAR_EVIDX_BEFORE as EVIDX_B,
-        COL_GRAMMAR_EVREM_AFTER as EVREM_A, COL_GRAMMAR_EVREM_BEFORE as EVREM_B,
+        COL_CALL_PARAM_COUNT as PARAM_COUNT, COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO,
+        COL_GRAMMAR_ARGS_BASE_AFTER as AB_A, COL_GRAMMAR_ARGS_BASE_BEFORE as AB_B, COL_GRAMMAR_EVIDX_AFTER as EVIDX_A,
+        COL_GRAMMAR_EVIDX_BEFORE as EVIDX_B, COL_GRAMMAR_EVREM_AFTER as EVREM_A, COL_GRAMMAR_EVREM_BEFORE as EVREM_B,
         COL_GRAMMAR_EVREM_BEFORE_INV as EVREM_INV, COL_GRAMMAR_EVREM_BEFORE_IS_ZERO as EVREM_ISZERO,
         COL_GRAMMAR_EXIT_LATCH, COL_GRAMMAR_HOST_CALL as GHC, COL_GRAMMAR_ORACLE0_AFTER as OR0_A,
         COL_GRAMMAR_ORACLE0_BEFORE as OR0_B, COL_GRAMMAR_POST_COUNT as POST_COUNT, COL_GRAMMAR_PRE_COUNT as PRE_COUNT,
@@ -464,21 +463,45 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
             );
         }
 
-        // Export param slots (kind 4): a locals read at the entry frame's
-        // table-pinned index, limb-selected into the word. The named gate
-        // column activates the locals-family read binding.
-        b.push_linear_zero([(COL_GATHER_LOCAL_READ, F::ONE), (GK0 + 4, -F::ONE)]);
+        // Input-local slots (kind 4): the staged claim-input word is written
+        // into one 32-bit lane of the entry frame's locals at the
+        // table-pinned index (ROM limb select: 0 lo, 1 hi). Routing the word
+        // through the U32-checked locals value columns range-proves it. Lo
+        // rows also write the hi lane to zero, so a lone Lo write is total;
+        // a Hi row (validated to follow its local's Lo row) overwrites the
+        // hi lane with the claim word. The word itself is free at the row
+        // level — the final-chain transcript check binds it globally.
+        b.push_linear_zero([(COL_GATHER_LOCAL_WRITE, F::ONE), (GK0 + 4, -F::ONE)]);
+        b.push_row(
+            [(GK0 + 4, F::ONE)],
+            [(COL_ONE, F::ONE), (SLOT_LIMB, -F::ONE)],
+            [(COL_GATHER_LOCAL_WRITE_LO, F::ONE)],
+        );
         b.push_row(
             [(GK0 + 4, F::ONE)],
             [(COL_LOCAL_INDEX, F::ONE), (SLOT_ARG, -F::ONE)],
             [],
         );
+        // Lo rows: locals lane = word, hi lane = 0.
         b.push_row(
-            [(SLOT_LIMB, F::ONE)],
-            [(COL_LOCAL_VALUE_HI, F::ONE), (COL_LOCAL_VALUE, -F::ONE)],
-            [(GLOC_VAL, F::ONE), (COL_LOCAL_VALUE, -F::ONE)],
+            [(COL_GATHER_LOCAL_WRITE_LO, F::ONE)],
+            [(GSLOT_VALUE, F::ONE), (COL_LOCAL_VALUE, -F::ONE)],
+            [],
         );
-        b.push_row([(GK0 + 4, F::ONE)], [(GSLOT_VALUE, F::ONE), (GLOC_VAL, -F::ONE)], []);
+        b.push_row(
+            [(COL_GATHER_LOCAL_WRITE_LO, F::ONE)],
+            [(COL_LOCAL_VALUE_HI, F::ONE)],
+            [],
+        );
+        // Hi rows (gather_local_write - gather_local_write_lo): hi lane = word.
+        b.push_row(
+            [(COL_GATHER_LOCAL_WRITE, F::ONE), (COL_GATHER_LOCAL_WRITE_LO, -F::ONE)],
+            [(COL_LOCAL_VALUE_HI, F::ONE), (GSLOT_VALUE, -F::ONE)],
+            [],
+        );
+
+        // Input slots (kind 6): absorb-only claim-input words; free at the
+        // row level, bound globally by the final-chain transcript check.
 
         // Export output slots (kind 5): the carried simple-output value,
         // limb-selected (bound by the output-capture machinery).
@@ -1058,9 +1081,6 @@ pub(crate) fn fill_perm_gadget_witness(wit: &mut [F], trace: &WasmVmStep) {
     let read_hi = wit[COL_STACK_READ0_VALUE_HI];
     let limb = wit[super::super::layout::COL_GRAMMAR_SLOT_LIMB];
     wit[GARG_VAL] = read_lo + limb * (read_hi - read_lo);
-    let local_lo = wit[super::super::layout::COL_LOCAL_VALUE];
-    let local_hi = wit[super::super::layout::COL_LOCAL_VALUE_HI];
-    wit[GLOC_VAL] = local_lo + limb * (local_hi - local_lo);
     let out_lo = wit[super::super::layout::COL_OUTPUT_VALUE_LO_BEFORE];
     let out_hi = wit[super::super::layout::COL_OUTPUT_VALUE_HI_BEFORE];
     wit[GOUT_VAL] = out_lo + limb * (out_hi - out_lo);

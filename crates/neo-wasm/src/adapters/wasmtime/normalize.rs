@@ -9,6 +9,7 @@
 //! through `runtime_read` and opcode/control metadata through `decode`; it
 //! does not run the engine or parse binaries.
 
+mod grammar_emit;
 mod trace_build;
 
 pub use trace_build::{traces_from_wasmtime_steps, traces_from_wasmtime_steps_with_grammar};
@@ -77,6 +78,8 @@ struct NormalizedStep {
     /// Parsed local values at this step (before execution). Used to build aux param-init rows at
     /// call boundaries.
     locals_snapshot: Vec<u32>,
+    /// High 32-bit lanes of the locals snapshot (i64 locals).
+    locals_snapshot_hi: Vec<u32>,
     linear_memory: Option<LinearMemoryAccess>,
     linear_memory_offset: u64,
     /// Oracle words recorded on this (host-call) row at collection time.
@@ -247,6 +250,7 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
         pc_after_instruction: row.pc_after_instruction,
         num_locals: row.num_locals,
         locals_snapshot,
+        locals_snapshot_hi: row.locals_words_hi.clone(),
         linear_memory,
         linear_memory_offset: row.memory.as_ref().map(|memory| memory.offset).unwrap_or(0),
         host_call_oracles: row.host_call_oracles.clone(),

@@ -5,8 +5,8 @@ use super::layout::{
     COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR, COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_POP_PRESENT,
     COL_CALL_STACK_RETURN_PC_VALUE, COL_CI_HOST_CALL, COL_CONTROL_CHOICE, COL_CURRENT_FUNCTION_NUM_LOCALS,
     COL_CURRENT_FUNCTION_REF, COL_EXPECTED_TYPE_ID, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF,
-    COL_FUNCTION_TYPE_ID, COL_GATHER_ACTIVE, COL_GATHER_LOCAL_READ, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE,
-    COL_GLOBAL_VALUE_HI, COL_GRAMMAR_EVIDX_BEFORE, COL_GRAMMAR_EXIT_LATCH, COL_GRAMMAR_HOST_CALL,
+    COL_FUNCTION_TYPE_ID, COL_GATHER_ACTIVE, COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO, COL_GLOBAL_INDEX,
+    COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI, COL_GRAMMAR_EVIDX_BEFORE, COL_GRAMMAR_EXIT_LATCH, COL_GRAMMAR_HOST_CALL,
     COL_GRAMMAR_POST_COUNT, COL_GRAMMAR_PRE_COUNT, COL_GRAMMAR_RESULT_ACTIVE, COL_GRAMMAR_SLOT_ARG,
     COL_GRAMMAR_SLOT_CONST_HI, COL_GRAMMAR_SLOT_CONST_LO, COL_GRAMMAR_SLOT_CURSOR_BEFORE, COL_GRAMMAR_SLOT_KIND,
     COL_GRAMMAR_SLOT_LIMB, COL_GUEST_CALL_ACTIVE, COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE,
@@ -593,13 +593,15 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     },
                     activation: WasmMemoryActivation::BooleanGate(Column(COL_PARAM_INIT_ACTIVE_BEFORE)),
                 },
-                // Grammar export-boundary gather rows read params from the
-                // entry frame's locals (slot kind 4).
+                // Input bootstrap: lo-lane entry gather rows write the
+                // claim-input word into the entry frame's locals (kind 4).
                 WasmMemoryColumnSpec {
                     address_columns: vec![Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)],
                     value_column: Column(COL_LOCAL_VALUE),
-                    kind: WasmMemoryColumnKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_GATHER_LOCAL_READ)),
+                    kind: WasmMemoryColumnKind::Write {
+                        value_before_column: None,
+                    },
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_GATHER_LOCAL_WRITE_LO)),
                 },
             ],
             is_rom: false,
@@ -632,13 +634,16 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     },
                     activation: WasmMemoryActivation::BooleanGate(Column(COL_PARAM_INIT_ACTIVE_BEFORE)),
                 },
-                // Grammar export-boundary gather rows read params from the
-                // entry frame's locals (slot kind 4).
+                // Input bootstrap: every input-local row writes the hi
+                // lane — zero on lo rows (total write), the claim word on
+                // hi rows (the CCS pins the value column either way).
                 WasmMemoryColumnSpec {
                     address_columns: vec![Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)],
                     value_column: Column(COL_LOCAL_VALUE_HI),
-                    kind: WasmMemoryColumnKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_GATHER_LOCAL_READ)),
+                    kind: WasmMemoryColumnKind::Write {
+                        value_before_column: None,
+                    },
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_GATHER_LOCAL_WRITE)),
                 },
             ],
             is_rom: false,

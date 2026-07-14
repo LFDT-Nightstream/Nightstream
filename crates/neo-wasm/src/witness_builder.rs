@@ -687,7 +687,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
         trace.opcode,
         super::isa::WasmOpcode::LocalGet | super::isa::WasmOpcode::LocalSet | super::isa::WasmOpcode::LocalTee
     ) || trace.row_kind.is_call_param_init()
-        // Export-boundary gather rows read params from the locals family.
+        // Bootstrap gather rows write claim inputs into the locals family.
         || trace.row_kind.is_host_event_gather()
     {
         if let Some(idx) = trace.local_index {
@@ -947,15 +947,16 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
 fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     use crate::layout::{
         COL_EVBUF0_AFTER, COL_EVBUF0_BEFORE, COL_EVBUF_SLOT0_AFTER, COL_EVBUF_SLOT0_BEFORE, COL_GATHER_ACTIVE,
-        COL_GATHER_LOCAL_READ, COL_GRAMMAR_ARGS_BASE_AFTER, COL_GRAMMAR_ARGS_BASE_BEFORE, COL_GRAMMAR_EVIDX_AFTER,
-        COL_GRAMMAR_EVIDX_BEFORE, COL_GRAMMAR_EVREM_AFTER, COL_GRAMMAR_EVREM_BEFORE, COL_GRAMMAR_EVREM_BEFORE_INV,
-        COL_GRAMMAR_EVREM_BEFORE_IS_ZERO, COL_GRAMMAR_EXIT_LATCH, COL_GRAMMAR_HOST_CALL, COL_GRAMMAR_MODE_AFTER,
-        COL_GRAMMAR_MODE_BEFORE, COL_GRAMMAR_ORACLE0_AFTER, COL_GRAMMAR_ORACLE0_BEFORE, COL_GRAMMAR_POST_COUNT,
-        COL_GRAMMAR_PRE_COUNT, COL_GRAMMAR_RESULT_ACTIVE, COL_GRAMMAR_SLOT_ARG, COL_GRAMMAR_SLOT_CONST_HI,
-        COL_GRAMMAR_SLOT_CONST_LO, COL_GRAMMAR_SLOT_CURSOR_AFTER, COL_GRAMMAR_SLOT_CURSOR_BEFORE,
-        COL_GRAMMAR_SLOT_KIND, COL_GRAMMAR_SLOT_LIMB, COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE,
-        COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE, COL_PERM_ROUND_BEFORE_INV, COL_PERM_ROUND_BEFORE_IS_ZERO,
-        COL_PERM_STATE0_AFTER, COL_PERM_STATE0_BEFORE, COL_RAW_ARGS_ACTIVE, COL_RAW_HOST_CALL, COL_RAW_RESULT_ACTIVE,
+        COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO, COL_GRAMMAR_ARGS_BASE_AFTER, COL_GRAMMAR_ARGS_BASE_BEFORE,
+        COL_GRAMMAR_EVIDX_AFTER, COL_GRAMMAR_EVIDX_BEFORE, COL_GRAMMAR_EVREM_AFTER, COL_GRAMMAR_EVREM_BEFORE,
+        COL_GRAMMAR_EVREM_BEFORE_INV, COL_GRAMMAR_EVREM_BEFORE_IS_ZERO, COL_GRAMMAR_EXIT_LATCH, COL_GRAMMAR_HOST_CALL,
+        COL_GRAMMAR_MODE_AFTER, COL_GRAMMAR_MODE_BEFORE, COL_GRAMMAR_ORACLE0_AFTER, COL_GRAMMAR_ORACLE0_BEFORE,
+        COL_GRAMMAR_POST_COUNT, COL_GRAMMAR_PRE_COUNT, COL_GRAMMAR_RESULT_ACTIVE, COL_GRAMMAR_SLOT_ARG,
+        COL_GRAMMAR_SLOT_CONST_HI, COL_GRAMMAR_SLOT_CONST_LO, COL_GRAMMAR_SLOT_CURSOR_AFTER,
+        COL_GRAMMAR_SLOT_CURSOR_BEFORE, COL_GRAMMAR_SLOT_KIND, COL_GRAMMAR_SLOT_LIMB, COL_PERM_PENDING_AFTER,
+        COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE, COL_PERM_ROUND_BEFORE_INV,
+        COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE0_AFTER, COL_PERM_STATE0_BEFORE, COL_RAW_ARGS_ACTIVE,
+        COL_RAW_HOST_CALL, COL_RAW_RESULT_ACTIVE,
     };
 
     let bool_f = |flag: bool| if flag { F::ONE } else { F::ZERO };
@@ -1001,12 +1002,21 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     wit[COL_RAW_RESULT_ACTIVE] = wit[COL_HOST_RESULT_ACTIVE] * (F::ONE - mode);
     wit[COL_GRAMMAR_HOST_CALL] = host_call_gate * mode;
     wit[COL_GRAMMAR_RESULT_ACTIVE] = wit[COL_HOST_RESULT_ACTIVE] * mode;
-    wit[COL_GATHER_LOCAL_READ] =
+    wit[COL_GATHER_LOCAL_WRITE] =
         if trace.row_kind.is_host_event_gather() && trace.grammar_rom_slot.is_some_and(|rom| rom.kind == 4) {
             F::ONE
         } else {
             F::ZERO
         };
+    wit[COL_GATHER_LOCAL_WRITE_LO] = if trace.row_kind.is_host_event_gather()
+        && trace
+            .grammar_rom_slot
+            .is_some_and(|rom| rom.kind == 4 && rom.limb == 0)
+    {
+        F::ONE
+    } else {
+        F::ZERO
+    };
     wit[COL_GRAMMAR_EXIT_LATCH] = wit[COL_OUTPUT_CAPTURED] * mode;
 
     // Grammar gather machinery: carried schedule/cursor/oracle state plus

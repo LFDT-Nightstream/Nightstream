@@ -39,7 +39,6 @@ pub(super) struct GrammarCallPlan {
     pub(super) pre: Vec<GrammarBlockPlan>,
     pub(super) post: Vec<GrammarBlockPlan>,
     pub(super) args_base: u64,
-    pub(super) oracles: [u64; 4],
 }
 
 pub(super) fn plan_grammar_blocks(
@@ -79,8 +78,8 @@ pub(super) fn plan_grammar_blocks(
                             entry(2, 0, limb_bit(limb), 0, 0),
                             Some((args_base, result.expect("validated result"))),
                         ),
-                        SlotSource::Oracle { idx } => (entry(3, idx, 0, 0, 0), None),
-                        SlotSource::Input | SlotSource::InputLocal { .. } | SlotSource::OutputElem { .. } => {
+                        SlotSource::Claim { idx } => (entry(3, idx, 0, 0, 0), None),
+                        SlotSource::ClaimLocal { .. } | SlotSource::OutputElem { .. } => {
                             unreachable!("validated: export sources never appear in import templates")
                         }
                     };
@@ -159,14 +158,13 @@ pub(super) fn plan_export_blocks(events: &[GrammarEvent], blocks: &[[u64; 8]]) -
                             },
                             None,
                         ),
-                        SlotSource::Oracle { idx } => (entry(3, idx, 0), None),
-                        SlotSource::InputLocal { local, limb } => {
+                        SlotSource::Claim { idx } => (entry(3, idx, 0), None),
+                        SlotSource::ClaimLocal { local, limb, .. } => {
                             // expand_export_entry rejects words over 32 bits.
                             let bit = limb_bit(limb);
                             (entry(4, local, bit), Some((u32::from(local), bit, value as u32)))
                         }
                         SlotSource::OutputElem { limb } => (entry(5, 0, limb_bit(limb)), None),
-                        SlotSource::Input => (entry(6, 0, 0), None),
                         SlotSource::ArgElem { .. } | SlotSource::ResultElem { .. } => {
                             unreachable!("validated: stack sources never appear in export templates")
                         }

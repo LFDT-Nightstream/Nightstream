@@ -421,14 +421,6 @@ define_columns!(
     (COL_GRAMMAR_ARGS_BASE_AFTER, "stack slot index of the current call's first argument, after this row"),
     (COL_GRAMMAR_SLOT_CURSOR_BEFORE, "next block word a gather row stages (0..=7), before this row"),
     (COL_GRAMMAR_SLOT_CURSOR_AFTER, "next block word a gather row stages (0..=7), after this row"),
-    (COL_GRAMMAR_ORACLE0_BEFORE, "per-call grammar oracle cell 0 before this row"),
-    (COL_GRAMMAR_ORACLE1_BEFORE, "per-call grammar oracle cell 1 before this row"),
-    (COL_GRAMMAR_ORACLE2_BEFORE, "per-call grammar oracle cell 2 before this row"),
-    (COL_GRAMMAR_ORACLE3_BEFORE, "per-call grammar oracle cell 3 before this row"),
-    (COL_GRAMMAR_ORACLE0_AFTER, "per-call grammar oracle cell 0 after this row"),
-    (COL_GRAMMAR_ORACLE1_AFTER, "per-call grammar oracle cell 1 after this row"),
-    (COL_GRAMMAR_ORACLE2_AFTER, "per-call grammar oracle cell 2 after this row"),
-    (COL_GRAMMAR_ORACLE3_AFTER, "per-call grammar oracle cell 3 after this row"),
     (COL_GRAMMAR_SLOT_KIND, "grammar-ROM slot source kind (0 const, 1 arg, 2 result, 3 oracle, 4 input-local, 5 output, 6 input)"),
     (COL_GRAMMAR_SLOT_ARG, "grammar-ROM slot arg/oracle index"),
     (COL_GRAMMAR_SLOT_LIMB, "grammar-ROM slot limb select (0 lo, 1 hi)"),
@@ -1489,7 +1481,5 @@ const _: () = {
     assert!(COL_EVBUF_SLOT3_BEFORE == COL_EVBUF_SLOT0_BEFORE + 3);
     assert!(COL_EVBUF_SLOT3_AFTER == COL_EVBUF_SLOT0_AFTER + 3);
     assert!(COL_PERM_STATE11_BEFORE == COL_PERM_STATE0_BEFORE + 11);
-    assert!(COL_GRAMMAR_ORACLE3_BEFORE == COL_GRAMMAR_ORACLE0_BEFORE + 3);
-    assert!(COL_GRAMMAR_ORACLE3_AFTER == COL_GRAMMAR_ORACLE0_AFTER + 3);
     assert!(COL_PERM_STATE11_AFTER == COL_PERM_STATE0_AFTER + 11);
 };

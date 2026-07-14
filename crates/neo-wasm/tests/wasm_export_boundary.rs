@@ -1,6 +1,6 @@
 //! Export-boundary grammar templates: entry events (receiver-side
 //! `Enter`/`Activation`/payload publication) absorb before the export's
-//! first instruction — with `InputLocal` slots bootstrapping the
+//! first instruction — with `ClaimLocal` slots bootstrapping the
 //! zero-initialized entry frame's locals from the claim inputs — and exit
 //! events (`Return` with the captured result) absorb after the halting
 //! row. Event values are bound by the final-chain transcript check: the
@@ -46,24 +46,28 @@ fn add_component_wat() -> &'static str {
 
 /// Entry: Enter(f_id) + one spec-shaped Activation whose payload slots
 /// carry the claim inputs — two absorb-only words and the two param words,
-/// the latter annotated `InputLocal` so they also bootstrap the param
+/// the latter annotated `ClaimLocal` so they also bootstrap the param
 /// locals. The absorbed Activation block is bit-identical to one with
-/// plain `Input` slots: the write behavior is table data, never
+/// plain `Claim` slots: the write behavior is table data, never
 /// transcript. Exit: Return-ish event carrying the output. Claim-input
 /// words are consumed in slot order:
 /// [activation val, activation caller, param 0, param 1].
 fn export_template() -> ExportTemplate {
-    let write = |local| SlotSource::InputLocal { local, limb: Limb::Lo };
+    let write = |idx, local| SlotSource::ClaimLocal {
+        idx,
+        local,
+        limb: Limb::Lo,
+    };
     ExportTemplate {
         entry: vec![
             GrammarEvent::op(20, slots(&[(0, SlotSource::Const(55))])), // Enter(f_id)
             GrammarEvent::op(
                 8,
                 slots(&[
-                    (1, SlotSource::Input),
-                    (3, SlotSource::Input),
-                    (4, write(0)),
-                    (5, write(1)),
+                    (1, SlotSource::Claim { idx: 0 }),
+                    (3, SlotSource::Claim { idx: 1 }),
+                    (4, write(2, 0)),
+                    (5, write(3, 1)),
                 ]),
             ), // Activation(val, caller, payload = params)
         ],
@@ -71,7 +75,8 @@ fn export_template() -> ExportTemplate {
             17,
             slots(&[(1, SlotSource::OutputElem { limb: Limb::Lo })]),
         )],
-        oracle_count: 0,
+        entry_claim_count: 4,
+        exit_claim_count: 0,
     }
 }
 
@@ -94,14 +99,14 @@ fn boundary_trace() -> (Vec<WasmVmStep>, HostEventGrammar) {
     let mut grammar = HostEventGrammar::default();
     grammar.exports.insert(fref, export_template());
 
-    let entry_inputs = [500u64, 501, 7, 35];
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &entry_inputs, &[])
+    let entry_claims = [500u64, 501, 7, 35];
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &entry_claims, &[])
         .expect("grammar trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
 
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
-    // Input bootstrap: the RAM model's entry locals start all-zero; the
+    // Claim bootstrap: the RAM model's entry locals start all-zero; the
     // entry gather rows write the claim inputs into them.
     let mut preload =
         neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts, &vec![0; run.initial_locals.len()]);
@@ -254,14 +259,16 @@ fn i64_param_bootstraps_both_lanes() {
                 slots(&[
                     (
                         0,
-                        SlotSource::InputLocal {
+                        SlotSource::ClaimLocal {
+                            idx: 0,
                             local: 0,
                             limb: Limb::Lo,
                         },
                     ),
                     (
                         1,
-                        SlotSource::InputLocal {
+                        SlotSource::ClaimLocal {
+                            idx: 1,
                             local: 0,
                             limb: Limb::Hi,
                         },
@@ -275,12 +282,13 @@ fn i64_param_bootstraps_both_lanes() {
                     (1, SlotSource::OutputElem { limb: Limb::Hi }),
                 ]),
             )],
-            oracle_count: 0,
+            entry_claim_count: 2,
+            exit_claim_count: 0,
         },
     );
 
-    let entry_inputs = [7u64, 3];
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &entry_inputs, &[])
+    let entry_claims = [7u64, 3];
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &entry_claims, &[])
         .expect("grammar trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);

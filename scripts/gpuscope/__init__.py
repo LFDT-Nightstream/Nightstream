@@ -1,0 +1,2 @@
+"""Offline GPU diagnostics harness."""
+

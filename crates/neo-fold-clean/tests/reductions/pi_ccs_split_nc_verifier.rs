@@ -47,6 +47,7 @@ use neo_fold_clean::engine::transcript::Transcript;
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
 use neo_fold_clean::frontends::r1cs_f_prime::lower_field_r1cs;
 use neo_fold_clean::paper::construction2::RunningInstance;
+use neo_fold_clean::paper::digest::pi_ccs_outputs_digest;
 use neo_fold_clean::paper::reductions::pi_ccs;
 use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::{
     enforce_split_nc_pi_ccs_v, enforce_split_nc_pi_ccs_v_with_header_bundle_wires, Error, SplitNcPiCcsVConfig,
@@ -411,6 +412,8 @@ fn emit_verifier_with_header_witness(f: &Fixture, header: [F; 4]) -> Result<R1cs
             running: &f.running.claims,
             running_parent_authority: f.running.parent_authority.as_ref(),
             outputs: &f.proof.outputs,
+            outputs_digest: f.proof.outputs_digest,
+            sc_initial_sum: f.proof.sumcheck.sc_initial_sum,
             sumcheck_rounds_fe: &f.proof.sumcheck.sumcheck_rounds,
             sumcheck_rounds_nc: &f.proof.sumcheck.sumcheck_rounds_nc,
             header_digest: &f.proof.sumcheck.header_digest,
@@ -519,6 +522,45 @@ fn folded_header_is_bound_as_witness_without_entering_verifier_matrices() {
     assert_same_matrix(&honest_shape.a, &wrong_shape.a);
     assert_same_matrix(&honest_shape.b, &wrong_shape.b);
     assert_same_matrix(&honest_shape.c, &wrong_shape.c);
+}
+
+#[test]
+fn pi_ccs_output_digest_is_exactly_the_prover_chosen_active_message() {
+    let fixture = build_fixture();
+    let outputs = &fixture.proof.outputs;
+    let expected = pi_ccs_outputs_digest(outputs);
+
+    let mut active_y_ring = outputs.clone();
+    active_y_ring[0].y_ring[0][1] += K::ONE;
+    assert_ne!(
+        pi_ccs_outputs_digest(&active_y_ring),
+        expected,
+        "an active y_ring lane is part of the prover message"
+    );
+
+    let mut active_y_zcol = outputs.clone();
+    active_y_zcol[0].y_zcol[1] += K::ONE;
+    assert_ne!(
+        pi_ccs_outputs_digest(&active_y_zcol),
+        expected,
+        "an active y_zcol lane is part of the prover message"
+    );
+
+    let mut reconstructed = outputs.clone();
+    reconstructed[0].c.data[0] += F::ONE;
+    let old_x = reconstructed[0].X[(0, 0)];
+    reconstructed[0].X.set(0, 0, old_x + F::ONE);
+    reconstructed[0].r[0] += K::ONE;
+    reconstructed[0].s_col[0] += K::ONE;
+    reconstructed[0].ct[0] += K::ONE;
+    reconstructed[0].fold_digest[0] ^= 1;
+    reconstructed[0].y_ring[0][D] += K::ONE;
+    reconstructed[0].y_zcol[D] += K::ONE;
+    assert_eq!(
+        pi_ccs_outputs_digest(&reconstructed),
+        expected,
+        "reconstructed fields and canonical padding are not a second message"
+    );
 }
 
 #[test]

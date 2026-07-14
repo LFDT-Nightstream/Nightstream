@@ -661,7 +661,7 @@ fn enforce_split_nc_pi_ccs_v_inner(
     // handing the outputs to Π_RLC. Keep the digest computation inside the
     // Π_CCS verifier and surface the resulting wires so NIFS.V can append the
     // exact same value without hashing the output surface a second time.
-    builder.begin_encoding_stage("nifs.pi_ccs.output_claim_hashes");
+    builder.begin_encoding_stage("nifs.pi_ccs.output_message_hashes");
     let output_digest_inputs: Vec<_> = output_wires
         .iter()
         .map(|output| PiCcsOutputMessageDigestInputs {

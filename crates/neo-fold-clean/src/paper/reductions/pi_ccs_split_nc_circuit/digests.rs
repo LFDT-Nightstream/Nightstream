@@ -360,13 +360,12 @@ fn extend_pi_ccs_output_message(
     Ok(())
 }
 
-/*
-The fields deliberately absent above are all pinned before this digest is used:
-commitment/X by `bind_outputs_to_inputs`, r/s_col by verifier challenges, ct by
-`enforce_ct_from_y_ring`, fold_digest by the header catch-up, and structural or
-padding fields by shape/canonicality checks. Keeping that reconstruction at the
-call site is the soundness condition for this projection.
-*/
+// The fields deliberately absent above are all pinned before this digest is
+// used: commitment/X by `bind_outputs_to_inputs`, r/s_col by verifier
+// challenges, ct by `enforce_ct_from_y_ring`, fold_digest by the header
+// catch-up, and structural or padding fields by shape/canonicality checks.
+// Keeping that reconstruction at the call site is the soundness condition for
+// this projection.
 
 fn extend_kvar_slice(builder: &mut R1csBuilder, preimage: &mut Vec<Var>, values: &[KVar]) {
     preimage.push(alloc_constant_var(builder, F::from_u64(values.len() as u64)));

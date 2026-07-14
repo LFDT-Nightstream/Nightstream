@@ -60,7 +60,7 @@ fn mul_sink_component_wat() -> &'static str {
 /// Enter + Activation at entry, Return-with-output at exit.
 fn test_grammar(mul_fref: u32, sink_fref: u32, run_fref: u32) -> HostEventGrammar {
     let arg = |arg, limb| SlotSource::ArgElem { arg, limb };
-    let oracle = |idx| SlotSource::Oracle { idx };
+    let oracle = |idx| SlotSource::Claim { idx };
     let mut grammar = HostEventGrammar::default();
     grammar.imports.insert(
         mul_fref,
@@ -73,7 +73,7 @@ fn test_grammar(mul_fref: u32, sink_fref: u32, run_fref: u32) -> HostEventGramma
                 12,
                 slots(&[(0, SlotSource::ResultElem { limb: Limb::Lo }), (1, oracle(0))]),
             )],
-            oracle_count: 1,
+            claim_count: 1,
         },
     );
     grammar.imports.insert(
@@ -81,7 +81,7 @@ fn test_grammar(mul_fref: u32, sink_fref: u32, run_fref: u32) -> HostEventGramma
         ImportTemplate {
             pre_result: vec![GrammarEvent::op(7, slots(&[(0, arg(0, Limb::Lo))]))],
             post_result: vec![],
-            oracle_count: 0,
+            claim_count: 0,
         },
     );
     grammar.exports.insert(
@@ -89,13 +89,17 @@ fn test_grammar(mul_fref: u32, sink_fref: u32, run_fref: u32) -> HostEventGramma
         ExportTemplate {
             entry: vec![
                 GrammarEvent::op(20, slots(&[(0, SlotSource::Const(55))])),
-                GrammarEvent::op(8, slots(&[(1, SlotSource::Input), (3, SlotSource::Input)])),
+                GrammarEvent::op(
+                    8,
+                    slots(&[(1, SlotSource::Claim { idx: 0 }), (3, SlotSource::Claim { idx: 1 })]),
+                ),
             ],
             exit: vec![GrammarEvent::op(
                 17,
                 slots(&[(1, SlotSource::OutputElem { limb: Limb::Lo })]),
             )],
-            oracle_count: 0,
+            entry_claim_count: 2,
+            exit_claim_count: 0,
         },
     );
     grammar
@@ -147,7 +151,7 @@ fn grammar_lifecycle_setup() -> GrammarLifecycleSetup {
             .func_wrap("host-mul", |mut store, (x, y): (i32, i32)| {
                 // The mul template consumes one oracle word; record it at
                 // call time (the grammar hand-off path).
-                store.data_mut().record_call_oracles(&[100])?;
+                store.data_mut().record_call_claims(&[100])?;
                 Ok((x * y,))
             })
             .map_err(|err| neo_wasm::WasmBuildError::Trace(format!("failed to define host-mul: {err}")))?;
@@ -167,8 +171,8 @@ fn grammar_lifecycle_setup() -> GrammarLifecycleSetup {
         .current_function_ref;
     let grammar = test_grammar(frefs[0], frefs[1], run_fref);
 
-    let entry_inputs = [500u64, 501];
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &entry_inputs, &[])
+    let entry_claims = [500u64, 501];
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &entry_claims, &[])
         .expect("grammar trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     GrammarLifecycleSetup {
@@ -226,7 +230,7 @@ fn grammar_folding_proof_covers_import_and_export_events() {
         run_fref,
         component_bytes,
     } = setup;
-    let entry_inputs = [500u64, 501];
+    let entry_claims = [500u64, 501];
 
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
     let entry_pc = common::entry_pc_for_function_ref(&artifacts, u64::from(run_fref));
@@ -301,7 +305,7 @@ fn grammar_folding_proof_covers_import_and_export_events() {
             .map(|block| block.map(p3_goldilocks::Goldilocks::from_u64))
             .collect()
     };
-    verify_with_transcript(&prep, &proof, final_state, &expected_transcript(&entry_inputs))
+    verify_with_transcript(&prep, &proof, final_state, &expected_transcript(&entry_claims))
         .expect("verify with the claimed transcript");
     assert!(
         matches!(

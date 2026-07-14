@@ -11,6 +11,30 @@ impl RowTable {
         Self { real, imag: None }
     }
 
+    pub(super) fn from_extension(values: Vec<K>) -> Self {
+        let mut real = Vec::with_capacity(values.len());
+        let mut imag = Vec::with_capacity(values.len());
+        let mut has_imag = false;
+        for value in values {
+            let [r, i] = value.as_coeffs();
+            real.push(r);
+            imag.push(i);
+            has_imag |= i != Fq::ZERO;
+        }
+        Self {
+            real,
+            imag: has_imag.then_some(imag),
+        }
+    }
+
+    pub(super) fn real_slice(&self) -> &[Fq] {
+        &self.real
+    }
+
+    pub(super) fn imag_slice(&self) -> Option<&[Fq]> {
+        self.imag.as_deref()
+    }
+
     #[inline]
     pub(super) fn get(&self, index: usize) -> K {
         K::from_coeffs([

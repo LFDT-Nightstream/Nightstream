@@ -541,22 +541,24 @@ pub fn terminal_children_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] 
     poseidon_digest_fields(&preimage)
 }
 
-/// Digest the new Π_CCS output messages before Π_RLC samples `ρ`.
+/// Digest the prover-chosen Π_CCS output message before Π_RLC samples `ρ`.
 ///
 /// SuperNeo's interactive order is "Π_CCS sends output CE claims, then Π_RLC
-/// samples random linear-combination coefficients." Only the newly sent
-/// evaluation rows need another Fiat-Shamir absorb: every forwarded field is
-/// already bound by the Π_CCS input transcript or derived by the verifier and
-/// constrained equal to that authority in Π_CCS.V.
+/// samples random linear-combination coefficients." In the Fiat-Shamir
+/// transcript, the output message therefore needs an explicit, verifier-
+/// recomputable absorb before `ρ` is derived. Only active `y_ring` and
+/// `y_zcol` lanes are committed here: commitment/X are inherited from the
+/// inputs, `r`/`s_col` are verifier challenges, `ct` is the `y_ring` constant
+/// term, `fold_digest` is the checked header, and padded lanes/unsupported
+/// sidecars are canonical. Native and recursive verifiers enforce those
+/// reconstruction equations before relying on this projection.
 pub fn pi_ccs_outputs_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] {
     let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/pi_ccs_outputs_digest/v2");
     preimage.push(F::from_u64(claims.len() as u64));
     for claim in claims {
-        preimage.extend(pack_bytes_as_fields(
-            b"neo.fold.clean/pi_ccs_output_challenge_digest/v2",
-        ));
-        append_k_rows(&mut preimage, &claim.y_ring);
-        append_k_slice(&mut preimage, &claim.y_zcol);
+        preimage.extend(pack_bytes_as_fields(b"neo.fold.clean/pi_ccs_output_message_digest/v2"));
+        append_active_k_rows(&mut preimage, &claim.y_ring);
+        append_active_k_slice(&mut preimage, &claim.y_zcol);
     }
     sis_accumulator_digest(PI_CCS_OUTPUTS_SIS_CONFIG, &preimage).expect("nonempty PiCCS-output SIS preimage")
 }
@@ -586,6 +588,17 @@ fn terminal_ce_claim_digest(claim: &CeClaim<Commitment, F, K>) -> [F; 4] {
     let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/terminal_ce_claim_digest/v1");
     append_terminal_ce_claim_public_fields(&mut preimage, claim);
     poseidon_digest_fields(&preimage)
+}
+
+fn append_active_k_rows(preimage: &mut Vec<F>, rows: &[Vec<K>]) {
+    preimage.push(F::from_u64(rows.len() as u64));
+    for row in rows {
+        append_active_k_slice(preimage, row);
+    }
+}
+
+fn append_active_k_slice(preimage: &mut Vec<F>, values: &[K]) {
+    append_k_slice(preimage, &values[..values.len().min(neo_math::ring::D)]);
 }
 
 fn append_ce_claim_public_fields(preimage: &mut Vec<F>, claim: &CeClaim<Commitment, F, K>) {

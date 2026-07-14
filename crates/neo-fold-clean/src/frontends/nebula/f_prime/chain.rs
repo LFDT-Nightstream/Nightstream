@@ -529,6 +529,10 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
         }
         let (running, running_parent_authority, fresh, placeholder) = match &audit.proof.state.proof {
             ProofState::Active { running, latest } => {
+                let running = running
+                    .materialize()
+                    .map_err(crate::paper::construction2::Error::from)
+                    .map_err(lifecycle::Error::from)?;
                 let prior = latest
                     .instances
                     .first()
@@ -570,7 +574,10 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
             .ok_or(NebulaFPrimeChainError::ExpectedRecursiveFold)?
             .fold
         {
-            FoldProof::Recursive(proof) => proof.clone(),
+            FoldProof::Recursive(proof) => proof
+                .materialize()
+                .map_err(crate::paper::construction2::Error::from)
+                .map_err(lifecycle::Error::from)?,
             FoldProof::NoFold => return Err(NebulaFPrimeChainError::ExpectedRecursiveFold),
         };
         #[cfg(feature = "perf-timers")]

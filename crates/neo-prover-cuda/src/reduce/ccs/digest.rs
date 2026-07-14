@@ -14,27 +14,21 @@ use neo_fold_clean::paper::digest::digest_fields_as_digest32;
 
 use crate::device::{copy_host_to_device, uninit_u64_device_buffer, Device};
 use crate::kernels::ajtai::launch_plane_copy_slice;
-use crate::kernels::pi_ccs_digest::{
-    launch_ccs_build_accumulator_claim_digest_preimages, launch_ccs_build_output_claim_digest_preimages,
-    launch_ccs_build_outputs_digest_preimage,
-};
-use crate::kernels::poseidon2::{launch_hash_contiguous_cooperative, launch_hash_fields_cooperative_plan, DIGEST_LEN};
+use crate::kernels::pi_ccs_digest::launch_ccs_build_accumulator_claim_digest_preimages;
+use crate::kernels::poseidon2::{launch_hash_fields_cooperative_plan, DIGEST_LEN};
 use crate::reduce::ccs::{CcsDeviceError, DevicePiCcsKSurfaces, DevicePublicX, SumcheckKernels};
 
-const OUTPUTS_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/pi_ccs_outputs_digest/v1";
-const OUTPUT_CLAIM_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/pi_ccs_output_claim_digest/v1";
+const OUTPUT_CLAIM_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/pi_ccs_output_message_digest/v2";
 const ACCUMULATOR_CLAIM_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/accumulator_ce_claim_digest/v1";
 const CE_CLAIM_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/ce_claim_digest/v2";
 const BYTES_PER_PACKED_LIMB: usize = 7;
 
-/// Four-field Poseidon2 digest produced entirely from device-resident output
-/// surfaces plus the public CE claim shell.
+/// Device-resident Pi_CCS output digest handle.
+///
+/// Construction fails closed until the CUDA backend implements the canonical
+/// SIS compression used by the CPU and circuit output-message digest paths.
 pub struct DevicePiCcsOutputsDigest {
     words: DeviceBuffer<u64>,
-    _claim_digests: PendingClaimDigests,
-    _header_host: Vec<u64>,
-    _header_fields: DeviceBuffer<u64>,
-    _preimage: DeviceBuffer<u64>,
 }
 
 /// Host-visible non-surface fields of one Pi_CCS output claim.
@@ -75,104 +69,54 @@ impl<'a> PiCcsOutputDigestShell<'a> {
 
 impl DevicePiCcsOutputsDigest {
     pub fn compute(
-        device: &Device,
-        kernels: &SumcheckKernels,
+        _device: &Device,
+        _kernels: &SumcheckKernels,
         claims: &[CeClaim<Commitment, F, K>],
         surfaces: &DevicePiCcsKSurfaces,
     ) -> Result<Self, CcsDeviceError> {
         let plan = OutputDigestPlan::from_claims(claims, surfaces)?;
-        Self::compute_from_plan(device, kernels, surfaces, plan, None, None)
+        Self::compute_from_plan(plan)
     }
 
     pub fn compute_from_shells(
-        device: &Device,
-        kernels: &SumcheckKernels,
+        _device: &Device,
+        _kernels: &SumcheckKernels,
         shells: &[PiCcsOutputDigestShell<'_>],
         surfaces: &DevicePiCcsKSurfaces,
     ) -> Result<Self, CcsDeviceError> {
         let plan = OutputDigestPlan::from_shells(shells, surfaces)?;
-        Self::compute_from_plan(device, kernels, surfaces, plan, None, None)
+        Self::compute_from_plan(plan)
     }
 
     pub fn compute_from_shells_with_commitments(
-        device: &Device,
-        kernels: &SumcheckKernels,
+        _device: &Device,
+        _kernels: &SumcheckKernels,
         shells: &[PiCcsOutputDigestShell<'_>],
         surfaces: &DevicePiCcsKSurfaces,
-        commitment_words: &DeviceBuffer<u64>,
-        words_per_commitment: usize,
+        _commitment_words: &DeviceBuffer<u64>,
+        _words_per_commitment: usize,
     ) -> Result<Self, CcsDeviceError> {
         let plan = OutputDigestPlan::from_shells(shells, surfaces)?;
-        Self::compute_from_plan(
-            device,
-            kernels,
-            surfaces,
-            plan,
-            Some((commitment_words, words_per_commitment)),
-            None,
-        )
+        Self::compute_from_plan(plan)
     }
 
     pub(crate) fn compute_from_shells_with_authority(
-        device: &Device,
-        kernels: &SumcheckKernels,
+        _device: &Device,
+        _kernels: &SumcheckKernels,
         shells: &[PiCcsOutputDigestShell<'_>],
         surfaces: &DevicePiCcsKSurfaces,
-        commitment_words: &DeviceBuffer<u64>,
-        words_per_commitment: usize,
-        public_x: &DevicePublicX,
+        _commitment_words: &DeviceBuffer<u64>,
+        _words_per_commitment: usize,
+        _public_x: &DevicePublicX,
     ) -> Result<Self, CcsDeviceError> {
         let plan = OutputDigestPlan::from_shells(shells, surfaces)?;
-        Self::compute_from_plan(
-            device,
-            kernels,
-            surfaces,
-            plan,
-            Some((commitment_words, words_per_commitment)),
-            Some(public_x),
-        )
+        Self::compute_from_plan(plan)
     }
 
-    fn compute_from_plan(
-        device: &Device,
-        kernels: &SumcheckKernels,
-        surfaces: &DevicePiCcsKSurfaces,
-        plan: OutputDigestPlan,
-        commitments: Option<(&DeviceBuffer<u64>, usize)>,
-        public_x: Option<&DevicePublicX>,
-    ) -> Result<Self, CcsDeviceError> {
-        let stream = device.stream();
-        let claim_digests = compute_claim_digests(device, kernels, surfaces, &plan, commitments, public_x)?;
-
-        let header_host = plan.outputs_header.clone();
-        let header_fields = uninit_u64_device_buffer(stream, plan.outputs_header.len())?;
-        copy_host_to_device(stream, &header_fields, &header_host)?;
-        let mut outputs_preimage = uninit_u64_device_buffer(stream, plan.outputs_preimage_words.max(1))?;
-        launch_ccs_build_outputs_digest_preimage(
-            &kernels.digest,
-            stream,
-            &header_fields,
-            claim_digests.words(),
-            plan.claims,
-            &mut outputs_preimage,
-        )?;
-
-        let mut words = uninit_u64_device_buffer(stream, DIGEST_LEN)?;
-        launch_hash_contiguous_cooperative(
-            &kernels.poseidon,
-            stream,
-            &outputs_preimage,
-            plan.outputs_preimage_words,
-            &mut words,
-            &kernels.poseidon_rc,
-        )?;
-        Ok(Self {
-            words,
-            _claim_digests: claim_digests,
-            _header_host: header_host,
-            _header_fields: header_fields,
-            _preimage: outputs_preimage,
-        })
+    fn compute_from_plan(_plan: OutputDigestPlan) -> Result<Self, CcsDeviceError> {
+        Err(CcsDeviceError::Shape(
+            "CUDA Pi_CCS output digest SIS compression is unavailable",
+        ))
     }
 
     pub fn words(&self) -> &DeviceBuffer<u64> {
@@ -202,140 +146,6 @@ impl DevicePiCcsOutputsDigest {
         }
         Ok(std::array::from_fn(|i| F::from_u64(words[i])))
     }
-}
-
-struct PendingClaimDigests {
-    words: DeviceBuffer<u64>,
-    _preimages: PendingClaimPreimages,
-}
-
-struct PendingClaimPreimages {
-    words: DeviceBuffer<u64>,
-    _plan_host: Vec<u64>,
-    _plan_device: DeviceBuffer<u64>,
-    offsets_start: usize,
-    lengths_start: usize,
-}
-
-impl PendingClaimDigests {
-    fn words(&self) -> &DeviceBuffer<u64> {
-        &self.words
-    }
-}
-
-fn compute_claim_digests(
-    device: &Device,
-    kernels: &SumcheckKernels,
-    surfaces: &DevicePiCcsKSurfaces,
-    plan: &OutputDigestPlan,
-    commitments: Option<(&DeviceBuffer<u64>, usize)>,
-    public_x: Option<&DevicePublicX>,
-) -> Result<PendingClaimDigests, CcsDeviceError> {
-    let preimages = prepare_claim_preimages(device, kernels, surfaces, plan, commitments, public_x)?;
-    let stream = device.stream();
-    let mut claim_digests = uninit_u64_device_buffer(stream, plan.claims.max(1) * DIGEST_LEN)?;
-    launch_hash_fields_cooperative_plan(
-        &kernels.poseidon,
-        stream,
-        plan.claims,
-        &preimages.words,
-        &preimages._plan_device,
-        preimages.offsets_start,
-        preimages.lengths_start,
-        &mut claim_digests,
-        &kernels.poseidon_rc,
-    )?;
-    Ok(PendingClaimDigests {
-        words: claim_digests,
-        _preimages: preimages,
-    })
-}
-
-fn prepare_claim_preimages(
-    device: &Device,
-    kernels: &SumcheckKernels,
-    surfaces: &DevicePiCcsKSurfaces,
-    plan: &OutputDigestPlan,
-    commitments: Option<(&DeviceBuffer<u64>, usize)>,
-    public_x: Option<&DevicePublicX>,
-) -> Result<PendingClaimPreimages, CcsDeviceError> {
-    let stream = device.stream();
-    let packed = PackedClaimDigestPlan::from_plan(plan);
-    let plan_host = packed.words;
-    let packed_dev = uninit_u64_device_buffer(stream, plan_host.len())?;
-    copy_host_to_device(stream, &packed_dev, &plan_host)?;
-    let (commitment_words, use_device_commitments, commitment_stride) = match commitments {
-        Some((words, stride)) => {
-            if stride == 0
-                || words.len() != plan.claims * stride
-                || plan
-                    .commitment_lengths
-                    .iter()
-                    .any(|&len| len as usize != stride)
-            {
-                return Err(CcsDeviceError::Shape(
-                    "Pi_CCS output digest device commitment shape mismatch",
-                ));
-            }
-            (words, true, stride)
-        }
-        None => (surfaces.words(), false, 0),
-    };
-    let (public_x_words, use_device_x, public_x_stride) = match public_x {
-        Some(x)
-            if x.claims() == plan.claims
-                && plan
-                    .x_lengths
-                    .iter()
-                    .all(|&len| len as usize == x.words_per_claim()) =>
-        {
-            (x.words(), x.active_cols() != 0, x.words_per_claim())
-        }
-        Some(_) => return Err(CcsDeviceError::Shape("claim digest device X shape mismatch")),
-        None => (surfaces.words(), false, 0),
-    };
-    let mut claim_preimages = uninit_u64_device_buffer(stream, plan.claim_preimage_words.max(1))?;
-    launch_ccs_build_output_claim_digest_preimages(
-        &kernels.digest,
-        stream,
-        surfaces.words(),
-        commitment_words,
-        use_device_commitments,
-        commitment_stride,
-        public_x_words,
-        use_device_x,
-        public_x_stride,
-        plan.claims,
-        surfaces.surface_count(),
-        surfaces.t_core(),
-        surfaces.d_pad(),
-        plan.include_y_zcol,
-        plan.write_ct_field,
-        plan.write_y_zcol_field,
-        &packed_dev,
-        packed.prefix_fields_start,
-        plan.prefix_fields.len(),
-        packed.prefix_offsets_start,
-        packed.prefix_lengths_start,
-        packed.commitment_offsets_start,
-        packed.commitment_lengths_start,
-        packed.x_offsets_start,
-        packed.x_lengths_start,
-        packed.suffix_fields_start,
-        plan.suffix_fields.len(),
-        packed.suffix_offsets_start,
-        packed.suffix_lengths_start,
-        packed.preimage_offsets_start,
-        packed.preimage_lengths_start,
-        &mut claim_preimages,
-    )?;
-    Ok(PendingClaimPreimages {
-        words: claim_preimages,
-        _plan_host: plan_host,
-        _plan_device: packed_dev,
-        offsets_start: packed.preimage_offsets_start,
-        lengths_start: packed.preimage_lengths_start,
-    })
 }
 
 struct PackedClaimDigestPlan {
@@ -421,8 +231,7 @@ struct OutputDigestPlan {
     preimage_offsets: Vec<u64>,
     preimage_lengths: Vec<u64>,
     claim_preimage_words: usize,
-    outputs_header: Vec<u64>,
-    outputs_preimage_words: usize,
+    surface_lanes: usize,
     include_y_zcol: bool,
     write_ct_field: bool,
     write_y_zcol_field: bool,
@@ -431,6 +240,8 @@ struct OutputDigestPlan {
 #[derive(Clone, Copy)]
 struct ClaimDigestEncoding {
     domain: &'static [u8],
+    include_derived_fields: bool,
+    active_surface_lanes_only: bool,
     include_s_col: bool,
     write_ct_field: bool,
     include_y_zcol: bool,
@@ -442,17 +253,21 @@ impl ClaimDigestEncoding {
     fn output(include_y_zcol: bool) -> Self {
         Self {
             domain: OUTPUT_CLAIM_DIGEST_DOMAIN,
-            include_s_col: true,
-            write_ct_field: true,
+            include_derived_fields: false,
+            active_surface_lanes_only: true,
+            include_s_col: false,
+            write_ct_field: false,
             include_y_zcol,
             write_y_zcol_field: true,
-            include_aux_sidecars: true,
+            include_aux_sidecars: false,
         }
     }
 
     fn accumulator() -> Self {
         Self {
             domain: ACCUMULATOR_CLAIM_DIGEST_DOMAIN,
+            include_derived_fields: true,
+            active_surface_lanes_only: false,
             include_s_col: true,
             write_ct_field: true,
             include_y_zcol: false,
@@ -464,6 +279,8 @@ impl ClaimDigestEncoding {
     fn ce_claim() -> Self {
         Self {
             domain: CE_CLAIM_DIGEST_DOMAIN,
+            include_derived_fields: true,
+            active_surface_lanes_only: false,
             include_s_col: false,
             write_ct_field: false,
             include_y_zcol: false,
@@ -488,6 +305,8 @@ impl OutputDigestPlan {
             || !children.write_ct_field
             || !parent_accumulator.write_ct_field
             || parent_ce.write_ct_field
+            || children.surface_lanes != parent_accumulator.surface_lanes
+            || children.surface_lanes != parent_ce.surface_lanes
             || parent_accumulator.claims != 1
             || parent_ce.claims != 1
         {
@@ -509,8 +328,7 @@ impl OutputDigestPlan {
             preimage_offsets: Vec::with_capacity(claims),
             preimage_lengths: Vec::with_capacity(claims),
             claim_preimage_words: 0,
-            outputs_header: Vec::new(),
-            outputs_preimage_words: 0,
+            surface_lanes: children.surface_lanes,
             include_y_zcol: false,
             write_ct_field: true,
             write_y_zcol_field: false,
@@ -586,6 +404,16 @@ impl OutputDigestPlan {
         if encoding.include_y_zcol && !surfaces.include_y_zcol() {
             return Err(CcsDeviceError::Shape("claim digest requested missing y_zcol surface"));
         }
+        let surface_lanes = if encoding.active_surface_lanes_only {
+            neo_math::D
+        } else {
+            surfaces.d_pad()
+        };
+        if surface_lanes > surfaces.d_pad() {
+            return Err(CcsDeviceError::Shape(
+                "claim digest active ring degree exceeds resident padded width",
+            ));
+        }
         let mut prefix_fields = Vec::new();
         let mut prefix_offsets = Vec::with_capacity(shells.len());
         let mut prefix_lengths = Vec::with_capacity(shells.len());
@@ -615,13 +443,13 @@ impl OutputDigestPlan {
 
             suffix_offsets.push(suffix_fields.len() as u64);
             let before = suffix_fields.len();
-            append_claim_suffix(&mut suffix_fields, shell, encoding.include_aux_sidecars);
+            append_claim_suffix(&mut suffix_fields, shell, encoding);
             suffix_lengths.push((suffix_fields.len() - before) as u64);
 
             preimage_offsets.push(claim_preimage_words as u64);
             let surface_words = surface_preimage_words(
                 surfaces.t_core(),
-                surfaces.d_pad(),
+                surface_lanes,
                 encoding.write_ct_field,
                 encoding.include_y_zcol,
                 encoding.write_y_zcol_field,
@@ -632,10 +460,6 @@ impl OutputDigestPlan {
             preimage_lengths.push(len as u64);
             claim_preimage_words += len;
         }
-
-        let mut outputs_header = pack_bytes_as_words(OUTPUTS_DIGEST_DOMAIN);
-        outputs_header.push(shells.len() as u64);
-        let outputs_preimage_words = outputs_header.len() + shells.len() * DIGEST_LEN;
 
         Ok(Self {
             claims: shells.len(),
@@ -652,8 +476,7 @@ impl OutputDigestPlan {
             preimage_offsets,
             preimage_lengths,
             claim_preimage_words,
-            outputs_header,
-            outputs_preimage_words,
+            surface_lanes,
             include_y_zcol: encoding.include_y_zcol,
             write_ct_field: encoding.write_ct_field,
             write_y_zcol_field: encoding.write_y_zcol_field,
@@ -710,6 +533,10 @@ fn append_claim_prefix(
 ) -> (usize, usize, usize, usize) {
     let claim_start = out.len();
     out.extend(pack_bytes_as_words(encoding.domain));
+    if !encoding.include_derived_fields {
+        let end = out.len() - claim_start;
+        return (end, 0, end, 0);
+    }
     out.push(shell.c.d as u64);
     out.push(shell.c.kappa as u64);
     out.push(shell.c.data.len() as u64);
@@ -739,13 +566,16 @@ fn append_claim_prefix(
     )
 }
 
-fn append_claim_suffix(out: &mut Vec<u64>, shell: &PiCcsOutputDigestShell<'_>, include_aux_sidecars: bool) {
-    if include_aux_sidecars {
+fn append_claim_suffix(out: &mut Vec<u64>, shell: &PiCcsOutputDigestShell<'_>, encoding: ClaimDigestEncoding) {
+    if !encoding.include_derived_fields {
+        return;
+    }
+    if encoding.include_aux_sidecars {
         append_k_slice(out, shell.aux_openings);
     }
     out.push(shell.m_in as u64);
     append_digest32(out, shell.fold_digest);
-    if include_aux_sidecars {
+    if encoding.include_aux_sidecars {
         out.push(shell.c_step_coords.len() as u64);
         out.extend(shell.c_step_coords.iter().map(field_word));
         out.push(shell.u_offset as u64);

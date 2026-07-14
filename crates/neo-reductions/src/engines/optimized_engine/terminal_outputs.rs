@@ -49,6 +49,7 @@ pub(super) fn build_me_outputs_from_terminal_surfaces(
         let ct = crate::common::ct_from_y_ring_for_ccs_m(&y_ring, params, s.m);
         let x = crate::common::project_x_from_witness_mat(&witness.Z, s.m, claim.m_in)?;
         out.push(CeClaim {
+            adv: None,
             c_step_coords: vec![],
             u_offset: 0,
             u_len: 0,
@@ -74,6 +75,7 @@ pub(super) fn build_me_outputs_from_terminal_surfaces(
         let y_ring = surfaces.y_ring[surface_idx].clone();
         let ct = crate::common::ct_from_y_ring_for_ccs_m(&y_ring, params, s.m);
         out.push(CeClaim {
+            adv: None,
             c_step_coords: vec![],
             u_offset: 0,
             u_len: 0,

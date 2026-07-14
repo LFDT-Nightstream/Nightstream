@@ -264,11 +264,12 @@ pub fn validate_inputs(s: &crate::paper::relations::Structure, claims: &[CeClaim
 /// Transcript-neutral; touches only claims, never witnesses.
 pub fn validate_combined(
     s: &crate::paper::relations::Structure,
+    mix: RlcMixer,
     rhos: &[neo_reductions::common::RotRho],
     claims: &[CeClaim],
     combined: &CeClaim,
 ) -> Result<(), Error> {
-    validate_nc_sidecars(s, rhos, claims, combined)
+    validate_nc_sidecars(s, mix, rhos, claims, combined)
 }
 
 // ──────────────────────────────────────────────────────────────────────────

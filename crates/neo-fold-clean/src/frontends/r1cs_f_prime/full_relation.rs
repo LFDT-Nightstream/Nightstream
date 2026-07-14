@@ -130,19 +130,14 @@ impl<'a> FullFPrimeRelation<'a> {
                 params: cfg.nifs.pi_ccs.params.b(),
             });
         }
-        let configured_structure_digest = crate::paper::digest::structure_digest(cfg.nifs.pi_ccs.structure);
-        if context.structure_digest != configured_structure_digest {
-            return Err(FullFPrimeError::ContextMismatch {
-                field: "NIFS structure_digest",
-            });
-        }
-        validate_nifs_config(&cfg.nifs.pi_ccs)?;
-        let configured_vk = VerifierKey::derive(
+        validate_nifs_config(&cfg.nifs.pi_ccs, context.pi_ccs_header_bundle)?;
+        let configured_vk = VerifierKey::derive_from_structure_digest(
             cfg.nifs.pi_ccs.params,
-            cfg.nifs.pi_ccs.structure,
+            &context.structure_digest,
+            cfg.nifs.pi_ccs.header_bundle,
             Some(crate::paper::f_prime::r1cs::F_PRIME_PUBLIC_INPUT_LEN),
             digest_fields_as_digest32(context.initial_semantic_state_digest),
-        )?;
+        );
         if context.vk_fs_digest != digest32_as_fields(configured_vk.digest()) {
             return Err(FullFPrimeError::ContextMismatch { field: "vk_fs" });
         }
@@ -865,23 +860,25 @@ fn validate_fixed_nifs_shape(pp: &Params, inputs: &FPrimeRecursiveInputs<'_>) ->
 
 fn validate_nifs_config(
     cfg: &crate::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsVConfig<'_>,
+    expected_header_bundle: [F; DIGEST_LEN],
 ) -> Result<(), FullFPrimeError> {
-    let dims = neo_reductions::engines::utils::build_dims_and_policy(cfg.params.inner(), cfg.structure)
-        .map_err(|_| FullFPrimeError::NifsConfigMismatch { field: "dimensions" })?;
+    let relation = &cfg.structure;
+    let dims = neo_reductions::engines::utils::build_dims_and_policy_for_shape(
+        cfg.params.inner(),
+        relation.n(),
+        relation.m(),
+        relation.t(),
+        relation.max_degree(),
+    )
+    .map_err(|_| FullFPrimeError::NifsConfigMismatch { field: "dimensions" })?;
     let expected_dimensions = (dims.ell_d, dims.ell_n, dims.ell_m, dims.d_sc);
     let configured_dimensions = (cfg.ell_d, cfg.ell_n, cfg.ell_m, cfg.d_sc);
     if configured_dimensions != expected_dimensions {
         return Err(FullFPrimeError::NifsConfigMismatch { field: "dimensions" });
     }
-    let matrix_digest = neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache(cfg.structure, None);
-    let header_bundle = neo_reductions::engines::utils::pi_ccs_header_bundle_digest_fields(
-        cfg.params.inner(),
-        cfg.structure,
-        dims,
-        &matrix_digest,
-    )
-    .map_err(|_| FullFPrimeError::NifsConfigMismatch { field: "header bundle" })?;
-    if cfg.header_bundle != header_bundle {
+    // The SplitNc verifier relation intentionally owns no matrices. Its
+    // header must therefore match the full-relation header pinned by context.
+    if cfg.header_bundle != expected_header_bundle {
         return Err(FullFPrimeError::NifsConfigMismatch { field: "header bundle" });
     }
     Ok(())
@@ -962,8 +959,8 @@ fn bind_verifier_key(builder: &mut R1csBuilder, output: &FPrimeStepOutput, verif
             &Lc::from_var(verifier_key.vk_fs_digest[lane]),
         );
         builder.enforce_eq(
-            &Lc::from_var(output.state_in.structure_digest[lane]),
-            &Lc::from_var(verifier_key.structure_digest[lane]),
+            &Lc::from_var(output.state_in.pi_ccs_header_bundle[lane]),
+            &Lc::from_var(verifier_key.pi_ccs_header_bundle[lane]),
         );
     }
 }

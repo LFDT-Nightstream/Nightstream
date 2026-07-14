@@ -349,22 +349,25 @@ impl SuperneoMatrixCache {
     /// CSR shape of the bar-transformed entries, for accelerator backends
     /// that rebuild the ring linear forms off-CPU: `(rows, cols,
     /// row_offsets, entry_count)`. Entries are read via [`Self::bar_entry`].
-    pub fn bar_shape(&self) -> (usize, usize, &[usize], usize) {
-        (self.rows, self.cols, &self.row_offsets, self.row_blocks.len())
+    pub fn bar_shape(&self) -> (usize, usize, Vec<usize>, usize) {
+        let row_offsets = (0..=self.rows)
+            .map(|row| self.row_offsets.get(row) as usize)
+            .collect();
+        (self.rows, self.cols, row_offsets, self.row_blocks.len())
     }
 
     /// Entry `i` in row order: `(block, bar ring element)` — the exact
     /// values `build_ring_linear_form_split_chi` aggregates.
-    pub fn bar_entry(&self, i: usize) -> (usize, &Rq) {
-        let rb = &self.row_blocks[i];
-        (rb.blk, &rb.bar)
+    pub fn bar_entry(&self, i: usize) -> (usize, Rq) {
+        let rb = self.expanded_block(self.row_blocks[i]);
+        (rb.blk, rb.bar)
     }
 
     /// Entry `i` in row order: `(block, original ring row)` — the exact
     /// values `row_dot_with_blocks` dots against the witness blocks.
-    pub fn orig_entry(&self, i: usize) -> (usize, &Rq) {
-        let rb = &self.row_blocks[i];
-        (rb.blk, &rb.orig)
+    pub fn orig_entry(&self, i: usize) -> (usize, Rq) {
+        let rb = self.expanded_block(self.row_blocks[i]);
+        (rb.blk, rb.orig)
     }
 }
 
@@ -938,7 +941,13 @@ impl SuperneoZBlocks {
     /// The real coefficient plane as flat canonical words
     /// (`words[blk * D + lane]`) — the layout device kernels consume.
     pub fn re_plane_words(&self) -> Vec<u64> {
-        Self::plane_words(&self.re)
+        let mut words = vec![0u64; self.re.len() * D];
+        for block in 0..self.re.len() {
+            for lane in 0..D {
+                words[block * D + lane] = self.real_coefficient(block, lane).as_canonical_u64();
+            }
+        }
+        words
     }
 
     /// The imaginary coefficient plane, same layout. All zeros when the

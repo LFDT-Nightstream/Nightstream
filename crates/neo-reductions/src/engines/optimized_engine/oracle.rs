@@ -34,6 +34,12 @@ use crate::superneo_eval::{SuperneoEvalCache, SuperneoZBlocks};
 /// Read-only view of `OptimizedOracle`'s row-phase state for accelerator
 /// backends. Field meanings match the private `RowStreamState`; see
 /// `OptimizedOracle::row_phase_snapshot`.
+#[derive(Clone, Copy)]
+pub struct RowTableSnapshot<'a> {
+    pub real: &'a [Fq],
+    pub imag: Option<&'a [Fq]>,
+}
+
 pub struct RowPhaseSnapshot<'a> {
     pub cur_len: usize,
     pub active_len: usize,
@@ -62,7 +68,7 @@ pub struct RowPhaseSnapshot<'a> {
     pub row_phase_deg_max: usize,
     pub f_var_count: usize,
     /// Per MCS slot, per f-variable: the row-domain table (empty for zero MCS).
-    pub f_var_tables_by_mcs: Vec<Vec<&'a [K]>>,
+    pub f_var_tables_by_mcs: Vec<Vec<RowTableSnapshot<'a>>>,
     /// Compiled f terms as `(coeff, [(var_pos, exponent)])`.
     pub f_terms: Vec<(K, Vec<(usize, u32)>)>,
 }
@@ -81,6 +87,9 @@ pub struct NcColSnapshot<'a> {
 
 /// Borrowed view of one `NcDigitTable` representation.
 pub enum NcDigitTableView<'a> {
+    Zero {
+        len: usize,
+    },
     Lane0(&'a [K]),
     Strided {
         width: usize,
@@ -915,6 +924,7 @@ where
                 .digits_tables
                 .iter()
                 .map(|tbl| match tbl {
+                    NcDigitTable::Zero { len } => NcDigitTableView::Zero { len: *len },
                     NcDigitTable::Lane0(values) => NcDigitTableView::Lane0(values),
                     NcDigitTable::Strided { width, values } => NcDigitTableView::Strided { width: *width, values },
                     NcDigitTable::Dense(rows) => NcDigitTableView::Dense(rows),
@@ -948,7 +958,7 @@ where
         let mut all_witnesses: Vec<&Mat<F>> = Vec::with_capacity(self.mcs_witnesses.len() + self.me_witnesses.len());
         all_witnesses.extend(self.mcs_witnesses.iter().map(|w| &w.Z));
         all_witnesses.extend(self.me_witnesses.iter());
-        let built: Vec<(NcDigitTable, Vec<u64>)> = all_witnesses
+        let built: Vec<(NcDigitTable, NcDigitMasks)> = all_witnesses
             .iter()
             .map(|Zi| {
                 build_nc_digit_table_compact(self.params, Zi, self.s.m)
@@ -981,7 +991,7 @@ where
                         mask |= 1u64 << rho;
                     }
                 }
-                vec![mask]
+                NcDigitMasks::Dense(vec![mask])
             })
             .collect();
         self.digits_tables = digit_rows
@@ -1376,7 +1386,7 @@ impl RowStreamState {
                 match tables {
                     FeMcsRowTables::Host(tables) => {
                         deferred_mcs.push(false);
-                        f_var_tables_by_mcs.push(tables);
+                        f_var_tables_by_mcs.push(tables.into_iter().map(RowTable::from_extension).collect());
                     }
                     FeMcsRowTables::Deferred => {
                         deferred_mcs.push(true);
@@ -2906,7 +2916,15 @@ where
             f_var_tables_by_mcs: rs
                 .f_var_tables_by_mcs
                 .iter()
-                .map(|tables| tables.iter().map(Vec::as_slice).collect())
+                .map(|tables| {
+                    tables
+                        .iter()
+                        .map(|table| RowTableSnapshot {
+                            real: table.real_slice(),
+                            imag: table.imag_slice(),
+                        })
+                        .collect()
+                })
                 .collect(),
             f_terms: rs
                 .f_terms

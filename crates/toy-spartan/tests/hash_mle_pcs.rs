@@ -1,10 +1,8 @@
 use proptest::prelude::*;
-use rand::rngs::StdRng;
-use rand::{Rng, SeedableRng};
-use spartan2::{
+use rand::{Rng, SeedableRng, rngs::StdRng};
+use toy_spartan::{
   polys::multilinear::MultilinearPolynomial,
-  provider::PallasMerkleMleEngine as E,
-  provider::pcs::merkle_mle_pc::HashMlePCS,
+  provider::{PallasMerkleMleEngine as E, pcs::merkle_mle_pc::HashMlePCS},
   traits::{Engine, pcs::PCSEngineTrait, transcript::TranscriptEngineTrait},
 };
 

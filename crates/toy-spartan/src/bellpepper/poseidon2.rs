@@ -1,4 +1,4 @@
-//! Owns a minimal bellpepper Poseidon2 gadget over Spartan2's Goldilocks field.
+//! Owns a minimal bellpepper Poseidon2 gadget over Toy Spartan's Goldilocks field.
 
 use bellpepper_core::{ConstraintSystem, SynthesisError, num::AllocatedNum};
 use ff::Field;
@@ -6,8 +6,10 @@ use once_cell::sync::Lazy;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::{Goldilocks, MATRIX_DIAG_8_GOLDILOCKS};
 use p3_poseidon2::{ExternalLayerConstants, poseidon2_round_numbers_128};
-use rand_chacha_p3::ChaCha8Rng;
-use rand_chacha_p3::rand_core::{Rng, SeedableRng};
+use rand_chacha_p3::{
+  ChaCha8Rng,
+  rand_core::{Rng, SeedableRng},
+};
 
 use crate::provider::goldi::F;
 

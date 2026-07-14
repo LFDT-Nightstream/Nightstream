@@ -30,6 +30,8 @@ use crate::provider::{
 #[cfg(feature = "p3_backend")]
 use crate::provider::pcs::merkle_mle_pc_p3::HashMlePcsP3;
 #[cfg(feature = "p3_backend")]
+use crate::provider::pcs::whir_pc::WhirPcsP3;
+#[cfg(feature = "p3_backend")]
 use crate::provider::poseidon2::Poseidon2Transcript;
 use core::fmt::Debug;
 use serde::{Deserialize, Serialize};
@@ -170,6 +172,23 @@ impl Engine for GoldilocksP3MerkleMleEngine {
   type GE = crate::provider::goldi::UnitPoint;
   type TE = Poseidon2Transcript<Self>;
   type PCS = HashMlePcsP3<Self>;
+}
+
+/// Toy Spartan over Goldilocks with a Poseidon2-backed WHIR polynomial commitment.
+///
+/// This engine is standalone: selecting it does not connect Toy Spartan to the
+/// SuperNeo folding lifecycle.
+#[cfg(feature = "p3_backend")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct GoldilocksWhirEngine;
+
+#[cfg(feature = "p3_backend")]
+impl Engine for GoldilocksWhirEngine {
+  type Base = crate::provider::goldi::F;
+  type Scalar = crate::provider::goldi::F;
+  type GE = crate::provider::goldi::UnitPoint;
+  type TE = Poseidon2Transcript<Self>;
+  type PCS = WhirPcsP3<Self>;
 }
 
 /*

@@ -1,4 +1,4 @@
-//! This library implements Spartan, a high-speed SNARK.
+//! Toy Spartan is an in-tree Spartan fork for standalone backend experiments.
 //! We currently implement a non-preprocessing version of Spartan
 //! that is generic over the polynomial commitment and evaluation argument (i.e., a PCS).
 #![deny(

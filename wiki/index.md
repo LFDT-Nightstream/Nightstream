@@ -5,7 +5,8 @@ Nightstream is a **post-quantum proving system**: a lattice-based folding scheme
 **HyperNova-style recursive IVC layer** (Construction 2). The active path proves CCS
 over the **Goldilocks** field with a degree-2 extension for sum-check soundness,
 **Ajtai (module-SIS) commitments**, and a **Poseidon2-only** Fiat-Shamir transcript.
-Terminal compression targets a vendored **Spartan2** SNARK.
+The in-tree **Toy Spartan** + WHIR backend is standalone and is not connected to
+terminal compression.
 
 > **Status**: research software under active development. `neo-fold-clean` is the main
 > proving crate. The earlier `neo-fold-prototype` sandbox (RV32IM/CHIP-8 pipelines) has
@@ -21,7 +22,7 @@ low-norm CE (committed-evaluation) claims using SuperNeo's three-reduction chain
 turns that folding scheme into IVC: an augmented function `F′` re-runs `NIFS.V`
 in-circuit and hash-chains the public state (`x_out`). At the end, a decider checks the
 final accumulator — today via direct relation checks and chain replay, eventually via a
-compact Spartan2 SNARK.
+compact backend that has not yet been selected or connected.
 
 ## Sections
 

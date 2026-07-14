@@ -21,11 +21,11 @@ serde = { workspace = true, features = ["derive"] }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
 rand_chacha_p3 = { workspace = true }
+rand_p3 = { workspace = true }
 once_cell = { workspace = true }
 
 # For structured logging (gated behind neo-logs feature)  
 tracing = { version = "0.1", default-features = false, features = ["std"] }
-spartan2 = { workspace = true, optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 rayon = { workspace = true }
@@ -34,7 +34,6 @@ rayon = { workspace = true }
 default = []
 # Enable verbose logging for debugging (OFF by default for security - CWE-532) 
 neo-logs = []
-spartan2-compat = ["spartan2", "neo-math/spartan2-compat"]
 wasm-threads = []
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

@@ -15,3 +15,7 @@ mod hash_mle_backend;
 // p3 poseidon2 implementation
 #[cfg(feature = "p3_backend")]
 pub mod merkle_mle_pc_p3;
+
+// production-security WHIR implementation over SuperNeo's Goldilocks profile
+#[cfg(feature = "p3_backend")]
+pub mod whir_pc;

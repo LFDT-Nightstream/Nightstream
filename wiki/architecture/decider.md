@@ -2,8 +2,8 @@
 
 The decider is the terminal check of the folded accumulator — the thing that makes the
 whole chain's validity a single verifiable statement. It is split across four modules
-with distinct authority, plus a Spartan2 backend. The compact proof itself ("PR5") is
-the main open work item.
+with distinct authority. The compact proof itself ("PR5") and its backend connection
+are the main open work items.
 
 ## paper/decider.rs — the contract
 
@@ -69,8 +69,8 @@ field-evaluation and norm-check parts), `pi_rlc_circuit.rs`, `pi_dec_circuit.rs`
 Each gadget family has a dedicated test target (`gadgets_*`, `reductions_*` — see
 [Testing](../development/testing.md)).
 
-## spartan2 — the backend
+## Toy Spartan — standalone candidate backend
 
-The vendored Spartan2 (`crates/spartan2`, `p3_backend` feature) proves the final R1CS.
-See [crates/spartan2](../crates/spartan2.md) for what the vendored copy does and does
-not provide.
+`crates/toy-spartan` contains a standalone WHIR-backed Spartan engine, but it is not
+connected to this decider or the lifecycle compression path. See
+[Toy Spartan](../crates/toy-spartan.md) for the implemented boundary and limitations.

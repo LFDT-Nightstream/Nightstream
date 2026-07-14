@@ -1,4 +1,4 @@
-//! This module provides the trait definitions for transcript functionality in the Spartan2 library.
+//! Transcript contracts used by Toy Spartan.
 //! Transcripts are used for Fiat-Shamir transformations to make interactive proof systems non-interactive.
 use crate::{
   errors::SpartanError,

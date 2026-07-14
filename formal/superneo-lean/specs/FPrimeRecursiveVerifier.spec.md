@@ -70,6 +70,21 @@ show that the theorem-level DEC statement is derived from the valid RLC parent.
 `postRlcCheckedMinimal_iff_target` keeps concrete child recomposition as a
 separate mandatory predicate.
 
+## Pi_CCS Output Message Projection
+
+`PiCcsOutputReconstructed` models the equations enforced before `Pi_RLC`
+samples `rho`: commitment and public X come from the inputs, row and column
+points come from verifier challenges, constant terms come from `y_ring`, the
+fold digest comes from the checked header, and shape, padding, and sidecars are
+canonical. The transcript therefore commits only the active `y_ring` and
+`y_zcol` message.
+
+`piCcsOutputMessage_injective_on_reconstructed` proves that two outputs under
+the same reconstructed context with the same projected message are the same
+full output. Its batch form proves the fixed-size vector statement. The theorem
+does not remove the pre-`rho` commitment; it proves which fields that commitment
+must cover.
+
 ## Modular Check Plans
 
 - `Accepts semantics checks input`: every selected check holds.
@@ -122,6 +137,7 @@ participates in a soundness proof.
 | `SuperNeo/FPrimeRecursiveVerifier/Cost.lean` | per-block and selected-plan costs |
 | `SuperNeo/FPrimeRecursiveVerifier/Semantics.lean` | complete `F'` obligation vocabulary and legacy pruning |
 | `SuperNeo/FPrimeRecursiveVerifier/Authority.lean` | parent authority and child-sidecar erasure |
+| `SuperNeo/FPrimeRecursiveVerifier/OutputMessageProjection.lean` | exact pre-`rho` output-message projection |
 | `SuperNeo/FPrimeRecursiveVerifier/SuperNeoBridge.lean` | concrete post-`Pi_RLC`/`Pi_DEC` theorem bridge |
 | `SuperNeo/FPrimeRecursiveVerifier/R1csRefinement.lean` | sparse R1CS semantics and lowering certificates |
 | `SuperNeo/FPrimeRecursiveVerifier/NecessityModel.lean` | executable independence witnesses |

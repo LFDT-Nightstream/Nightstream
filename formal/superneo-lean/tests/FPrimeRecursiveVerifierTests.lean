@@ -151,4 +151,23 @@ example :
     fullPostRlcPlanWithoutDec.checks = minimalPostRlcChecks :=
   fullPostRlcPlanWithoutDec_checks
 
+def projectionContext :
+    PiCcsOutputContext Nat Nat Nat Nat Nat Nat Nat :=
+  { shape := 1
+    commitment := 2
+    publicX := 3
+    rowPoint := 4
+    columnPoint := 5
+    foldDigest := 6
+    sidecars := 7 }
+
+def projectionMessage : PiCcsOutputMessage Nat Nat :=
+  { yRing := 11, yZcol := 13 }
+
+example :
+    piCcsOutputMessage
+      (reconstructPiCcsOutput (fun y => y + 1)
+        projectionContext projectionMessage) = projectionMessage := by
+  rfl
+
 end tests.FPrimeRecursiveVerifier

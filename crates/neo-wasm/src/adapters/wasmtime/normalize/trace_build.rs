@@ -183,20 +183,20 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<Wasm
 
 /// Grammar-mode normalization: the chain absorbs embedder grammar events
 /// expanded from `grammar`'s per-import templates instead of raw host-call
-/// records. Per-call oracle values ride the rows themselves — host functions
-/// record them at call time via `WasmtimeTraceState::record_call_oracles`
+/// records. Per-call claim words ride the rows themselves — host functions
+/// record them at call time via `WasmtimeTraceState::record_call_claims`
 /// (see `event_grammar::SlotSource::Oracle`); every host import reached by
-/// the trace must have a template. `entry_inputs` are the claim-input words
+/// the trace must have a template. `entry_claims` are the claim-input words
 /// the export template's `Input`/`InputLocal` slots consume (bound by the
 /// final-chain transcript check; the `InputLocal` words bootstrap the entry
 /// frame's zero-initialized locals).
 pub fn traces_from_wasmtime_steps_with_grammar(
     rows: &[WasmtimeTraceStep],
     grammar: &HostEventGrammar,
-    entry_inputs: &[u64],
-    exit_oracles: &[u64],
+    entry_claims: &[u64],
+    exit_claims: &[u64],
 ) -> Result<Vec<WasmVmStep>, WasmBuildError> {
-    traces_from_wasmtime_steps_impl(rows, Some((grammar, entry_inputs, exit_oracles)))
+    traces_from_wasmtime_steps_impl(rows, Some((grammar, entry_claims, exit_claims)))
 }
 
 fn traces_from_wasmtime_steps_impl(
@@ -233,7 +233,7 @@ fn traces_from_wasmtime_steps_impl(
     // Host-event absorb machinery (block buffer, slot cursor, perm group
     // state); carried across rows, mutated only by host-call events.
     let mut event_absorb = WasmEventAbsorbState::ZERO;
-    // Grammar gather machinery state (schedule, args base, cursor, oracles);
+    // Grammar gather machinery state (schedule, args base, cursor);
     // all zero in raw mode.
     let mut grammar_state = crate::ir::WasmGrammarState::ZERO;
     // Export boundary (single-turn V1): the export's template, its entry
@@ -246,13 +246,13 @@ fn traces_from_wasmtime_steps_impl(
     // (the verifier folds the claimed transcript natively and compares it
     // with the proof's final carried comm_chain), so nothing per-invocation
     // is anchored in the initial state.
-    let export_boundary = if let (Some((grammar_tables, entry_inputs, _)), Some(first)) = (grammar, supported.first()) {
+    let export_boundary = if let (Some((grammar_tables, entry_claims, _)), Some(first)) = (grammar, supported.first()) {
         let export_fref = first.current_function_ref.unwrap_or(0);
         match grammar_tables.exports.get(&export_fref) {
             Some(template) => {
                 let local_bound = u8::try_from(first.num_locals.min(255)).expect("bounded");
                 template.validate(local_bound)?;
-                let entry_blocks = crate::event_grammar::expand_export_entry(template, entry_inputs)
+                let entry_blocks = crate::event_grammar::expand_export_entry(template, entry_claims)
                     .map_err(|err| WasmBuildError::Trace(format!("export entry expansion: {err}")))?;
                 let entry_plans = plan_export_blocks(&template.entry, &entry_blocks);
                 // The bootstrap writes must reproduce exactly the locals
@@ -287,7 +287,6 @@ fn traces_from_wasmtime_steps_impl(
                     event_index: 0,
                     args_base: 0,
                     slot_cursor: 0,
-                    oracles: [0; 4],
                 };
                 host_callee_fref = export_fref;
                 Some((export_fref, template, entry_plans))
@@ -685,9 +684,9 @@ fn traces_from_wasmtime_steps_impl(
                     ))
                 })?;
                 template.validate(param_count, result_count)?;
-                let call_oracles = current.host_call_oracles.as_slice();
+                let call_claims = current.host_call_claims.as_slice();
                 let expanded =
-                    expand_import_events(template, &arg_limbs, result_limbs, call_oracles).map_err(|err| {
+                    expand_import_events(template, &arg_limbs, result_limbs, call_claims).map_err(|err| {
                         WasmBuildError::Trace(format!(
                             "host call to fref {host_callee_fref} at cycle {}: {err}",
                             current.cycle
@@ -695,8 +694,6 @@ fn traces_from_wasmtime_steps_impl(
                     })?;
 
                 let args_base = sp_before - index_pops as u64 - u64::from(param_count);
-                let mut oracle_cells = [0u64; 4];
-                oracle_cells[..call_oracles.len()].copy_from_slice(call_oracles);
                 grammar_plan = Some(GrammarCallPlan {
                     pre: plan_grammar_blocks(
                         &template.pre_result,
@@ -713,7 +710,6 @@ fn traces_from_wasmtime_steps_impl(
                         result_limbs,
                     ),
                     args_base,
-                    oracles: oracle_cells,
                 });
             } else {
                 host_event_chain = Some(crate::comm_chain::commit_host_call_event_u64(
@@ -750,40 +746,36 @@ fn traces_from_wasmtime_steps_impl(
             }
         }
         // Grammar mode: the call row latches the event schedule, the
-        // argument-region base, and the per-call oracle cells.
+        // argument-region base.
         if let Some(plan) = &grammar_plan {
             grammar_state = crate::ir::WasmGrammarState {
                 events_remaining: plan.pre.len() as u32,
                 event_index: 0,
                 args_base: plan.args_base,
                 slot_cursor: 0,
-                oracles: plan.oracles,
             };
         }
         // Grammar export exit latch: the output-capture row loads the exit
         // schedule (event numbering continues after the entry events),
         // repoints the event attribution at the halting export, and reloads
-        // the oracle cells for the exit phase.
+        // the event attribution for the exit phase.
         let mut exit_plans: Option<Vec<GrammarBlockPlan>> = None;
         let mut exit_counts: Option<(u32, u32)> = None;
         if output_captured {
-            if let (Some((export_fref, template, _)), Some((_, _, exit_oracles))) = (&export_boundary, grammar) {
+            if let (Some((export_fref, template, _)), Some((_, _, exit_claims))) = (&export_boundary, grammar) {
                 let exit_blocks = crate::event_grammar::expand_export_exit(
                     template,
                     Some((output_value_lo_after, output_value_hi_after)),
-                    exit_oracles,
+                    exit_claims,
                 )
                 .map_err(|err| WasmBuildError::Trace(format!("export exit expansion: {err}")))?;
                 let plans = plan_export_blocks(&template.exit, &exit_blocks);
-                let mut oracle_cells = [0u64; 4];
-                oracle_cells[..exit_oracles.len()].copy_from_slice(exit_oracles);
                 host_callee_fref = *export_fref;
                 grammar_state = crate::ir::WasmGrammarState {
                     events_remaining: plans.len() as u32,
                     event_index: template.entry.len() as u32,
                     args_base: grammar_state.args_base,
                     slot_cursor: 0,
-                    oracles: oracle_cells,
                 };
                 exit_counts = Some((template.entry.len() as u32, template.exit.len() as u32));
                 exit_plans = Some(plans);

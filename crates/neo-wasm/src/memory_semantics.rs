@@ -234,10 +234,9 @@ pub fn preload_grammar_tables(preload: &mut WasmMemoryPreload, grammar: &crate::
         SlotSource::Const(value) => (0, 0, 0, value as u32, (value >> 32) as u32),
         SlotSource::ArgElem { arg, limb } => (1, u32::from(arg), limb_bit(limb), 0, 0),
         SlotSource::ResultElem { limb } => (2, 0, limb_bit(limb), 0, 0),
-        SlotSource::Oracle { idx } => (3, u32::from(idx), 0, 0, 0),
-        SlotSource::InputLocal { local, limb } => (4, u32::from(local), limb_bit(limb), 0, 0),
+        SlotSource::Claim { idx } => (3, u32::from(idx), 0, 0, 0),
+        SlotSource::ClaimLocal { local, limb, .. } => (4, u32::from(local), limb_bit(limb), 0, 0),
         SlotSource::OutputElem { limb } => (5, 0, limb_bit(limb), 0, 0),
-        SlotSource::Input => (6, 0, 0, 0, 0),
     };
     let mut insert_events = |fref: u32, pre: u32, post: u32, events: Vec<&GrammarEvent>| {
         preload.insert("grammar_event_counts_pre", vec![fref], pre);

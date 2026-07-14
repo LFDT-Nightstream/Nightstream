@@ -41,7 +41,7 @@ use thiserror::Error;
 
 use crate::engine::optimized as engine;
 use crate::engine::r1cs_circuit::ring_action::{projection_quotient, PROJECTION_QUOTIENT_LEN};
-use crate::engine::transcript::Transcript;
+use crate::engine::transcript::{Poseidon2TranscriptSnapshot, Transcript};
 use crate::paper::digest;
 use crate::paper::params::Params;
 use crate::paper::reductions::accumulator_sis_circuit::{
@@ -52,7 +52,7 @@ use crate::paper::relations::{superneo_inactive_x_zero, validate_adv_shape, CeCl
 use crate::paper::sampling::check_rlc_bound;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-pub(crate) const PI_RLC_INPUT_CLAIMS_DIGEST_LABEL: &[u8] = b"pi_rlc/input_claims_digest";
+pub const PI_RLC_INPUT_CLAIMS_DIGEST_LABEL: &[u8] = b"pi_rlc/input_claims_digest";
 pub(crate) const PI_RLC_PROJECTION_COMBINED_C_LABEL: &[u8] = b"pi_rlc/projection_combined_c";
 pub(crate) const PI_RLC_PROJECTION_QUOTIENTS_LABEL: &[u8] = b"pi_rlc/projection_quotients";
 pub(crate) const PI_RLC_PROJECTION_COMBINED_ADV_LABEL: &[u8] = b"pi_rlc/projection_combined_adv";
@@ -209,10 +209,8 @@ pub(crate) fn prove_refs(
     #[cfg(feature = "perf-timers")]
     let prepare_started = std::time::Instant::now();
     validate_input_shape(claims, witnesses)?;
-    enforce_rlc_bound(pp, claims.len())?;
     validate_inputs_before_rho(s, claims)?;
-    bind_input_claims_for_rho(tr, claims);
-    let rhos = engine::sample_rho_n(tr.inner_mut(), pp, claims.len())?;
+    let rhos = derive_rhos_for_inputs(tr, pp, claims)?;
     #[cfg(feature = "perf-timers")]
     let prepare_elapsed = prepare_started.elapsed();
     #[cfg(feature = "perf-timers")]
@@ -254,6 +252,25 @@ pub(crate) fn prove_refs(
     ))
 }
 
+/// The prover's pre-ρ input validations (`prove_refs` line one), exposed for
+/// NIFS backends that run Π_RLC's claim algebra outside `prove`. Call before
+/// deriving ρ so a malformed input fails with the CPU error surface and an
+/// untouched transcript.
+pub fn validate_inputs(s: &crate::paper::relations::Structure, claims: &[CeClaim]) -> Result<(), Error> {
+    validate_inputs_before_rho(s, claims)
+}
+
+/// The prover's post-combine claim validations, for the same backends.
+/// Transcript-neutral; touches only claims, never witnesses.
+pub fn validate_combined(
+    s: &crate::paper::relations::Structure,
+    rhos: &[neo_reductions::common::RotRho],
+    claims: &[CeClaim],
+    combined: &CeClaim,
+) -> Result<(), Error> {
+    validate_nc_sidecars(s, rhos, claims, combined)
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 // Verifier (§7.4)
 // ──────────────────────────────────────────────────────────────────────────
@@ -268,13 +285,8 @@ pub fn verify(
     claims: &[CeClaim],
     proof: &Proof,
 ) -> Result<CeClaim, Error> {
-    if claims.is_empty() {
-        return Err(Error::Shape);
-    }
-    enforce_rlc_bound(pp, claims.len())?;
     validate_inputs_before_rho(s, claims)?;
-    bind_input_claims_for_rho(tr, claims);
-    let rhos = engine::sample_rho_n(tr.inner_mut(), pp, claims.len())?;
+    let rhos = derive_rhos_for_inputs(tr, pp, claims)?;
     validate_nc_sidecars(s, mix, &rhos, claims, &proof.combined)?;
     let ok = engine::verify_pi_rlc(pp, s, &rhos, claims, &proof.combined, |zs, cs| mix(zs, cs))?;
     if !ok {
@@ -284,9 +296,81 @@ pub fn verify(
     Ok(proof.combined.clone())
 }
 
-fn bind_input_claims_for_rho(tr: &mut Transcript, claims: &[CeClaim]) {
-    let input_claims_digest = digest::pi_ccs_outputs_digest(claims);
-    tr.append_fields(PI_RLC_INPUT_CLAIMS_DIGEST_LABEL, &input_claims_digest);
+/// Bind the Π_CCS output claims and derive Π_RLC rotation challenges.
+///
+/// The caller must pass a transcript that is already at the Π_RLC phase, i.e.
+/// after Π_CCS has produced and bound its output claims.
+pub fn derive_rhos_for_inputs(
+    tr: &mut Transcript,
+    pp: &Params,
+    claims: &[CeClaim],
+) -> Result<Vec<neo_reductions::common::RotRho>, Error> {
+    let (rhos, _) = derive_rhos_for_inputs_with_sampling_start(tr, pp, claims)?;
+    Ok(rhos)
+}
+
+/// Bind Π_CCS output claims, capture the exact rho-sampling transcript start,
+/// then derive Π_RLC rotation challenges.
+///
+/// CUDA backends use the returned snapshot to reproduce the same rho matrices
+/// on device without treating copied rho buffers as protocol authority.
+pub fn derive_rhos_for_inputs_with_sampling_start(
+    tr: &mut Transcript,
+    pp: &Params,
+    claims: &[CeClaim],
+) -> Result<(Vec<neo_reductions::common::RotRho>, Poseidon2TranscriptSnapshot), Error> {
+    let sampling_start = begin_rho_sampling(tr, pp, claims)?;
+    let rhos = engine::sample_rho_n(tr.inner_mut(), pp, claims.len())?;
+    Ok((rhos, sampling_start))
+}
+
+/// Bind the Π_CCS output claims and return the transcript snapshot from
+/// which Π_RLC rho sampling starts.
+///
+/// CUDA backends use this to let the device transcript own the rho sampling
+/// loop while the host transcript remains authoritative for the public claim
+/// digest bind.
+pub fn begin_rho_sampling(
+    tr: &mut Transcript,
+    pp: &Params,
+    claims: &[CeClaim],
+) -> Result<Poseidon2TranscriptSnapshot, Error> {
+    if claims.is_empty() {
+        return Err(Error::Shape);
+    }
+    begin_rho_sampling_from_outputs_digest(tr, pp, claims.len(), digest::pi_ccs_outputs_digest(claims))
+}
+
+/// Bind an already-computed Π_CCS output digest and return the transcript
+/// snapshot from which Π_RLC rho sampling starts.
+///
+/// This is the compact handoff used by GPU-oriented provers: Π_CCS owns
+/// producing the output surface and its digest; Π_RLC owns sampling `ρ` from
+/// that canonical digest. The digest is never verifier authority — it is
+/// recomputed from `pi_ccs::Proof::outputs` before verification accepts.
+pub fn begin_rho_sampling_from_outputs_digest(
+    tr: &mut Transcript,
+    pp: &Params,
+    claim_count: usize,
+    outputs_digest: [F; 4],
+) -> Result<Poseidon2TranscriptSnapshot, Error> {
+    validate_rho_sampling_count(pp, claim_count)?;
+    bind_outputs_digest_for_rho(tr, outputs_digest);
+    Ok(tr.snapshot())
+}
+
+/// Validate the public Π_RLC sampling shape without mutating a transcript.
+/// Device-owned fold transcripts call this before binding a resident Π_CCS
+/// output digest with the same canonical label and field count.
+pub fn validate_rho_sampling_count(pp: &Params, claim_count: usize) -> Result<(), Error> {
+    if claim_count == 0 {
+        return Err(Error::Shape);
+    }
+    enforce_rlc_bound(pp, claim_count)
+}
+
+fn bind_outputs_digest_for_rho(tr: &mut Transcript, outputs_digest: [F; 4]) {
+    tr.append_fields(PI_RLC_INPUT_CLAIMS_DIGEST_LABEL, &outputs_digest);
 }
 
 /// Lemma 5 transcript schedule, shared verbatim by `prove` and

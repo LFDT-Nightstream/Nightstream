@@ -7,6 +7,7 @@ use p3_field::PrimeCharacteristicRing;
 
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
 use neo_fold_clean::paper::construction2::ProofState;
+use neo_fold_clean::paper::nifs::{self, NifsProverAdapter, NifsProverBackend, NifsProverOutput, NifsProverRequest};
 use neo_fold_clean::CcsInstance;
 
 /// Toy instance whose public input is a specified low-norm `F` value, so
@@ -38,6 +39,145 @@ fn invalid_bitness_instance_with_valid_shape(prep: &neo_fold_clean::Preprocessin
     let invalid_low_norm = F::ZERO - F::ONE;
     CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &[invalid_low_norm], 1)
         .expect("shape-valid low-norm instance that intentionally violates z*z=z")
+}
+
+fn assert_cuda_backend_unavailable(err: neo_fold_clean::Error) {
+    assert!(matches!(
+        err,
+        neo_fold_clean::Error::Construction2(neo_fold_clean::paper::construction2::Error::Nifs(
+            neo_fold_clean::paper::nifs::Error::BackendUnavailable {
+                backend: "cuda",
+                reason: "cuda-oxide backend adapter is not linked",
+            },
+        ))
+    ));
+}
+
+fn final_running(proof: &neo_fold_clean::Uncompressed) -> neo_fold_clean::RunningInstance {
+    match &proof.state.proof {
+        ProofState::Active { running, .. } => running
+            .materialize()
+            .expect("test fixture expects materialized final running"),
+        ProofState::Initial => panic!("finalized proof must be Active"),
+    }
+}
+
+fn final_running_mut(proof: &mut neo_fold_clean::Uncompressed) -> &mut neo_fold_clean::RunningInstance {
+    match &mut proof.state.proof {
+        ProofState::Active { running, .. } => running
+            .as_materialized_mut()
+            .expect("test fixture expects materialized final running"),
+        ProofState::Initial => panic!("finalized proof must be Active"),
+    }
+}
+
+fn carrier_running_mut(
+    running: &mut neo_fold_clean::paper::nifs::NifsRunningCarrier,
+) -> &mut neo_fold_clean::RunningInstance {
+    running
+        .as_materialized_mut()
+        .expect("test fixture expects materialized running carrier")
+}
+
+#[derive(Default)]
+struct CountingCpuNifsAdapter {
+    calls: usize,
+}
+
+impl NifsProverAdapter for CountingCpuNifsAdapter {
+    fn prove(&mut self, request: NifsProverRequest<'_>) -> Result<NifsProverOutput, nifs::Error> {
+        self.calls += 1;
+        let NifsProverRequest {
+            tr,
+            pp,
+            s,
+            cache,
+            log,
+            lanes,
+            mix_rhos_commits,
+            combine_b_pows,
+            fresh,
+            running,
+            ..
+        } = request;
+        let (running, proof) = nifs::prove_with_backend(
+            NifsProverBackend::Cpu,
+            tr,
+            pp,
+            s,
+            cache,
+            log,
+            lanes,
+            mix_rhos_commits,
+            combine_b_pows,
+            fresh,
+            running,
+        )?;
+        Ok(NifsProverOutput::materialized(running, proof))
+    }
+}
+
+#[test]
+fn lifecycle_nifs_backend_defaults_to_cpu_and_can_be_selected() {
+    let prep = support::toy_preprocessing();
+    assert_eq!(prep.nifs_prover_backend(), NifsProverBackend::Cpu);
+
+    let prep = prep.with_nifs_prover_backend(NifsProverBackend::Cpu);
+    let audit = neo_fold_clean::prove(
+        &prep,
+        [
+            vec![support::toy_instance(&prep, 1)],
+            vec![support::toy_instance(&prep, 2)],
+        ],
+    )
+    .expect("explicit CPU backend lifecycle prove");
+    neo_fold_clean::finish_uncompressed_with_audit(&prep, audit).expect("explicit CPU backend finalize");
+}
+
+#[test]
+fn lifecycle_nifs_adapter_covers_recursive_and_terminal_folds() {
+    let prep = support::toy_preprocessing();
+    let mut adapter = CountingCpuNifsAdapter::default();
+
+    let audit = neo_fold_clean::lifecycle::prove_with_nifs_adapter(
+        &prep,
+        &mut adapter,
+        [
+            vec![support::toy_instance(&prep, 5)],
+            vec![support::toy_instance(&prep, 6)],
+        ],
+    )
+    .expect("adapter-backed lifecycle prove");
+    assert_eq!(adapter.calls, 1, "two lifecycle steps should run one recursive NIFS.P");
+
+    let finalized =
+        neo_fold_clean::lifecycle::finish_uncompressed_with_audit_and_nifs_adapter(&prep, &mut adapter, audit)
+            .expect("adapter-backed lifecycle finalization");
+    assert_eq!(adapter.calls, 2, "finalization should run the terminal NIFS.P");
+
+    neo_fold_clean::verify_uncompressed_audit(&prep, &finalized).expect("adapter-backed lifecycle proof verifies");
+}
+
+#[test]
+fn lifecycle_cuda_backend_is_explicit_until_adapter_is_linked() {
+    let prep = support::toy_preprocessing().with_nifs_prover_backend(NifsProverBackend::Cuda);
+    assert_eq!(prep.nifs_prover_backend(), NifsProverBackend::Cuda);
+
+    let err = neo_fold_clean::prove(
+        &prep,
+        [
+            vec![support::toy_instance(&prep, 1)],
+            vec![support::toy_instance(&prep, 2)],
+        ],
+    )
+    .expect_err("recursive F' step must reach unavailable CUDA backend");
+    assert_cuda_backend_unavailable(err);
+
+    let audit = neo_fold_clean::prove(&prep, [vec![support::toy_instance(&prep, 3)]])
+        .expect("first lifecycle step does not run NIFS.P yet");
+    let err = neo_fold_clean::finish_uncompressed_with_audit(&prep, audit)
+        .expect_err("terminal fold must reach unavailable CUDA backend");
+    assert_cuda_backend_unavailable(err);
 }
 
 #[test]
@@ -127,10 +267,10 @@ fn verify_uncompressed_rejects_forged_active_empty_without_terminal_fold() {
     // Bypass the prover entrypoint and forge the exact shape that used to be
     // accepted: finalized-looking Active state, empty running, empty latest,
     // and no terminal fold. The verifier must reject this artifact itself.
-    forged.state.proof = ProofState::Active {
-        running: neo_fold_clean::RunningInstance::default(),
-        latest: neo_fold_clean::LatestInstance::from_instances(Vec::new()),
-    };
+    forged.state.proof = ProofState::active(
+        neo_fold_clean::RunningInstance::default(),
+        neo_fold_clean::LatestInstance::from_instances(Vec::new()),
+    );
 
     let err = neo_fold_clean::verify_uncompressed(&prep, &forged)
         .expect_err("verify_uncompressed must reject Active+empty+final_fold=None");
@@ -607,7 +747,7 @@ fn decider_validate_witness_rejects_final_state_claims_not_matching_walk() {
     // final_fold) still holds the original commitment, so the binding
     // check must reject.
     let final_running = match &mut statement.witness.final_state.proof {
-        neo_fold_clean::ProofState::Active { running, .. } => running,
+        neo_fold_clean::ProofState::Active { running, .. } => carrier_running_mut(running),
         neo_fold_clean::ProofState::Initial => panic!("test setup: state must be Active"),
     };
     support::mutate_ce_claim(&mut final_running.claims[0]);
@@ -849,17 +989,12 @@ fn verify_uncompressed_audit_rejects_tampered_stateless_step_proof_semantic_stat
 
 #[test]
 fn final_witness_authority_rejects_y_ring_inconsistent_with_m_z_at_r() {
-    use neo_fold_clean::ProofState;
-
     let prep = support::toy_preprocessing();
     let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 71)]])
         .expect("one-batch uncompressed proof");
     let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish uncompressed proof");
 
-    let honest_running = match &finished.state.proof {
-        ProofState::Active { running, .. } => running.clone(),
-        ProofState::Initial => panic!("finalized proof must be Active"),
-    };
+    let honest_running = final_running(&finished);
     // Sanity: honest running passes the full witness-authority block,
     // including the new CE-relation check.
     neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &honest_running)
@@ -892,16 +1027,11 @@ fn final_witness_authority_rejects_y_ring_inconsistent_with_m_z_at_r() {
 
 #[test]
 fn final_witness_authority_rejects_extra_claim_without_witness() {
-    use neo_fold_clean::ProofState;
-
     let prep = support::toy_preprocessing();
     let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 76)]])
         .expect("one-batch uncompressed proof");
     let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
-    let mut running = match &finished.state.proof {
-        ProofState::Active { running, .. } => running.clone(),
-        ProofState::Initial => panic!("finalized must be Active"),
-    };
+    let mut running = final_running(&finished);
 
     running.claims.push(running.claims[0].clone());
 
@@ -915,16 +1045,11 @@ fn final_witness_authority_rejects_extra_claim_without_witness() {
 
 #[test]
 fn final_witness_authority_rejects_extra_witness_without_claim() {
-    use neo_fold_clean::ProofState;
-
     let prep = support::toy_preprocessing();
     let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 77)]])
         .expect("one-batch uncompressed proof");
     let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
-    let mut running = match &finished.state.proof {
-        ProofState::Active { running, .. } => running.clone(),
-        ProofState::Initial => panic!("finalized must be Active"),
-    };
+    let mut running = final_running(&finished);
 
     running.witnesses.push(running.witnesses[0].clone());
 
@@ -938,16 +1063,11 @@ fn final_witness_authority_rejects_extra_witness_without_claim() {
 
 #[test]
 fn final_witness_authority_rejects_zero_commitment_with_wrong_ajtai_shape() {
-    use neo_fold_clean::ProofState;
-
     let prep = support::toy_preprocessing();
     let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 78)]])
         .expect("one-batch uncompressed proof");
     let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
-    let mut running = match &finished.state.proof {
-        ProofState::Active { running, .. } => running.clone(),
-        ProofState::Initial => panic!("finalized must be Active"),
-    };
+    let mut running = final_running(&finished);
 
     assert!(
         running.witnesses[0]
@@ -986,16 +1106,11 @@ fn final_witness_authority_rejects_zero_commitment_with_wrong_ajtai_shape() {
 
 #[test]
 fn final_witness_authority_rejects_zero_witness_with_wrong_packed_shape() {
-    use neo_fold_clean::ProofState;
-
     let prep = support::toy_preprocessing();
     let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 79)]])
         .expect("one-batch uncompressed proof");
     let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
-    let mut running = match &finished.state.proof {
-        ProofState::Active { running, .. } => running.clone(),
-        ProofState::Initial => panic!("finalized must be Active"),
-    };
+    let mut running = final_running(&finished);
 
     assert!(
         running.witnesses[0]
@@ -1017,8 +1132,6 @@ fn final_witness_authority_rejects_zero_witness_with_wrong_packed_shape() {
 
 #[test]
 fn final_witness_authority_rejects_zero_witness_m_in_exceeds_structure_m() {
-    use neo_fold_clean::ProofState;
-
     let prep = support::toy_preprocessing_unfixed_public_input_len();
     assert!(
         prep.public_input_len.is_none(),
@@ -1027,10 +1140,7 @@ fn final_witness_authority_rejects_zero_witness_m_in_exceeds_structure_m() {
     let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 80)]])
         .expect("one-batch uncompressed proof");
     let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
-    let mut running = match &finished.state.proof {
-        ProofState::Active { running, .. } => running.clone(),
-        ProofState::Initial => panic!("finalized must be Active"),
-    };
+    let mut running = final_running(&finished);
 
     assert!(
         running.witnesses[0]
@@ -1058,8 +1168,6 @@ fn final_witness_authority_rejects_zero_witness_m_in_exceeds_structure_m() {
 
 #[test]
 fn final_witness_authority_rejects_m_in_relabel_below_program_public_input_len() {
-    use neo_fold_clean::ProofState;
-
     let prep = support::toy_preprocessing();
     assert_eq!(
         prep.public_input_len,
@@ -1069,10 +1177,7 @@ fn final_witness_authority_rejects_m_in_relabel_below_program_public_input_len()
     let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 81)]])
         .expect("one-batch uncompressed proof");
     let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
-    let mut running = match &finished.state.proof {
-        ProofState::Active { running, .. } => running.clone(),
-        ProofState::Initial => panic!("finalized must be Active"),
-    };
+    let mut running = final_running(&finished);
 
     assert!(
         running.witnesses[0]
@@ -1103,8 +1208,6 @@ fn final_witness_authority_rejects_m_in_relabel_below_program_public_input_len()
 
 #[test]
 fn final_witness_authority_rejects_nonzero_witness_m_in_relabel_below_program_public_input_len() {
-    use neo_fold_clean::ProofState;
-
     let prep = support::toy_preprocessing();
     assert_eq!(
         prep.public_input_len,
@@ -1114,10 +1217,7 @@ fn final_witness_authority_rejects_nonzero_witness_m_in_relabel_below_program_pu
     let proof = neo_fold_clean::prove(&prep, vec![vec![toy_instance_with_x_value(&prep, F::ONE)]])
         .expect("one-batch uncompressed proof");
     let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
-    let mut running = match &finished.state.proof {
-        ProofState::Active { running, .. } => running.clone(),
-        ProofState::Initial => panic!("finalized must be Active"),
-    };
+    let mut running = final_running(&finished);
 
     assert!(
         running.witnesses[0]
@@ -1171,8 +1271,6 @@ fn final_witness_authority_rejects_nonzero_witness_m_in_relabel_below_program_pu
 ///     is rejected by *some* gate in the verifier pipeline.
 #[test]
 fn verify_uncompressed_rejects_recorded_y_ring_tamper_via_binding_step() {
-    use neo_fold_clean::ProofState;
-
     let prep = support::toy_preprocessing();
     let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 72)]])
         .expect("one-batch uncompressed proof");
@@ -1180,18 +1278,12 @@ fn verify_uncompressed_rejects_recorded_y_ring_tamper_via_binding_step() {
 
     neo_fold_clean::verify_uncompressed(&prep, &finished).expect("honest finished proof verifies");
 
-    match &mut finished.state.proof {
-        ProofState::Active { running, .. } => {
-            assert!(
-                !running.claims.is_empty()
-                    && !running.claims[0].y_ring.is_empty()
-                    && !running.claims[0].y_ring[0].is_empty(),
-                "test setup requires non-empty y_ring on the recorded running"
-            );
-            running.claims[0].y_ring[0][0] = running.claims[0].y_ring[0][0] + neo_math::K::ONE;
-        }
-        ProofState::Initial => panic!("finished proof must be Active"),
-    }
+    let running = final_running_mut(&mut finished);
+    assert!(
+        !running.claims.is_empty() && !running.claims[0].y_ring.is_empty() && !running.claims[0].y_ring[0].is_empty(),
+        "test setup requires non-empty y_ring on the recorded running"
+    );
+    running.claims[0].y_ring[0][0] = running.claims[0].y_ring[0][0] + neo_math::K::ONE;
 
     let err = neo_fold_clean::verify_uncompressed(&prep, &finished)
         .expect_err("verify_uncompressed must reject a recorded-y_ring tamper");
@@ -1207,16 +1299,11 @@ fn verify_uncompressed_rejects_recorded_y_ring_tamper_via_binding_step() {
 /// the missing matrix and rejects up-front.
 #[test]
 fn final_witness_authority_rejects_y_ring_outer_length_mismatch() {
-    use neo_fold_clean::ProofState;
-
     let prep = support::toy_preprocessing();
     let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 73)]])
         .expect("one-batch uncompressed proof");
     let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
-    let mut running = match &finished.state.proof {
-        ProofState::Active { running, .. } => running.clone(),
-        ProofState::Initial => panic!("finalized must be Active"),
-    };
+    let mut running = final_running(&finished);
 
     running.claims[0].y_ring.pop();
 
@@ -1234,16 +1321,11 @@ fn final_witness_authority_rejects_y_ring_outer_length_mismatch() {
 /// about it independently of `y_ring`.
 #[test]
 fn final_witness_authority_rejects_ct_inconsistent_with_y_ring() {
-    use neo_fold_clean::ProofState;
-
     let prep = support::toy_preprocessing();
     let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 74)]])
         .expect("one-batch uncompressed proof");
     let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
-    let mut running = match &finished.state.proof {
-        ProofState::Active { running, .. } => running.clone(),
-        ProofState::Initial => panic!("finalized must be Active"),
-    };
+    let mut running = final_running(&finished);
 
     assert!(
         !running.claims[0].ct.is_empty(),
@@ -1270,16 +1352,11 @@ fn final_witness_authority_rejects_ct_inconsistent_with_y_ring() {
 /// off-shape mutation that holds for any `structure.n`.
 #[test]
 fn final_witness_authority_rejects_r_length_mismatch() {
-    use neo_fold_clean::ProofState;
-
     let prep = support::toy_preprocessing();
     let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 75)]])
         .expect("one-batch uncompressed proof");
     let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
-    let mut running = match &finished.state.proof {
-        ProofState::Active { running, .. } => running.clone(),
-        ProofState::Initial => panic!("finalized must be Active"),
-    };
+    let mut running = final_running(&finished);
 
     // Honest `r` is correctly shaped; pushing one extra element makes it
     // disagree with `log2(next_pow2(structure.n).max(2))` for any `n`.

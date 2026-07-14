@@ -208,11 +208,13 @@ impl Params {
         self.inner.has_goldilocks_paper_b2_core()
     }
 
-    /// Borrow the underlying `NeoParams` for `engine::*` calls.
+    /// Borrow the underlying `NeoParams` for `engine::*` calls and external
+    /// prover backends that drive `neo_reductions` helpers directly.
     ///
-    /// **Auditor**: the only legitimate use of this is wiring the engine
-    /// implementation. Paper-layer logic must use the named accessors above.
-    pub(crate) fn inner(&self) -> &NeoParams {
+    /// **Auditor**: the only legitimate uses are wiring the engine
+    /// implementation and accelerator backends replicating it. Paper-layer
+    /// logic must use the named accessors above.
+    pub fn inner(&self) -> &NeoParams {
         &self.inner
     }
 

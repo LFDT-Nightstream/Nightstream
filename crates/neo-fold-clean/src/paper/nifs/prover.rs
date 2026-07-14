@@ -6,7 +6,9 @@ use neo_reductions::optimized_engine::OptimizedStructureCache;
 use crate::engine::transcript::Transcript;
 use crate::paper::construction2::RunningInstance;
 use crate::paper::nifs::work::{chain_witness_refs, split_fresh_instances};
-use crate::paper::nifs::{Error, NifsProof};
+use crate::paper::nifs::{
+    CpuNifsProver, Error, NifsProof, NifsProverAdapter, NifsProverBackend, NifsProverOutput, NifsProverRequest,
+};
 use crate::paper::params::Params;
 use crate::paper::relations::{CcsInstance, DecMixer, LaneScheme, RlcMixer, Structure};
 use crate::paper::{pi_ccs, pi_dec, pi_rlc};
@@ -137,4 +139,216 @@ pub(crate) fn prove_owned(
     );
     crate::heap::release_unused_pages();
     Ok(out)
+}
+
+/// Backend-selected NIFS.P entrypoint.
+///
+/// `Cpu` is the canonical in-crate implementation. `Cuda` is intentionally
+/// explicit and unavailable until an external cuda-oxide adapter can supply
+/// the same proof/public material without adding CUDA dependencies to this
+/// crate's default build.
+pub fn prove_with_backend(
+    backend: NifsProverBackend,
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    log: &AjtaiSModule,
+    lanes: Option<&LaneScheme>,
+    mix_rhos_commits: RlcMixer,
+    combine_b_pows: DecMixer,
+    fresh: Vec<CcsInstance>,
+    running: &RunningInstance,
+) -> Result<(RunningInstance, NifsProof), Error> {
+    match backend {
+        NifsProverBackend::Cpu => {
+            let mut cpu = CpuNifsProver;
+            prove_with_adapter(
+                &mut cpu,
+                tr,
+                pp,
+                s,
+                cache,
+                log,
+                lanes,
+                mix_rhos_commits,
+                combine_b_pows,
+                fresh,
+                running,
+            )
+        }
+        NifsProverBackend::Cuda => Err(Error::BackendUnavailable {
+            backend: backend.as_str(),
+            reason: "cuda-oxide backend adapter is not linked",
+        }),
+    }
+}
+
+pub fn prove_with_adapter(
+    adapter: &mut dyn NifsProverAdapter,
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    log: &AjtaiSModule,
+    lanes: Option<&LaneScheme>,
+    mix_rhos_commits: RlcMixer,
+    combine_b_pows: DecMixer,
+    fresh: Vec<CcsInstance>,
+    running: &RunningInstance,
+) -> Result<(RunningInstance, NifsProof), Error> {
+    let output = prove_with_adapter_output(
+        adapter,
+        tr,
+        pp,
+        s,
+        cache,
+        log,
+        lanes,
+        mix_rhos_commits,
+        combine_b_pows,
+        fresh,
+        running,
+    )?;
+    output.into_materialized_parts()
+}
+
+pub(crate) fn prove_with_adapter_output(
+    adapter: &mut dyn NifsProverAdapter,
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    log: &AjtaiSModule,
+    lanes: Option<&LaneScheme>,
+    mix_rhos_commits: RlcMixer,
+    combine_b_pows: DecMixer,
+    fresh: Vec<CcsInstance>,
+    running: &RunningInstance,
+) -> Result<NifsProverOutput, Error> {
+    prove_with_adapter_output_inner(
+        adapter,
+        tr,
+        pp,
+        s,
+        cache,
+        log,
+        lanes,
+        mix_rhos_commits,
+        combine_b_pows,
+        fresh,
+        None,
+        running,
+        true,
+    )
+}
+
+pub(crate) fn prove_terminal_with_adapter_output(
+    adapter: &mut dyn NifsProverAdapter,
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    log: &AjtaiSModule,
+    lanes: Option<&LaneScheme>,
+    mix_rhos_commits: RlcMixer,
+    combine_b_pows: DecMixer,
+    fresh: Vec<CcsInstance>,
+    running: &RunningInstance,
+) -> Result<NifsProverOutput, Error> {
+    prove_with_adapter_output_inner(
+        adapter,
+        tr,
+        pp,
+        s,
+        cache,
+        log,
+        lanes,
+        mix_rhos_commits,
+        combine_b_pows,
+        fresh,
+        None,
+        running,
+        false,
+    )
+}
+
+pub(crate) fn prove_with_adapter_output_from_carrier(
+    adapter: &mut dyn NifsProverAdapter,
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    log: &AjtaiSModule,
+    lanes: Option<&LaneScheme>,
+    mix_rhos_commits: RlcMixer,
+    combine_b_pows: DecMixer,
+    fresh: Vec<CcsInstance>,
+    running_carrier: &crate::paper::nifs::NifsRunningCarrier,
+    running: &RunningInstance,
+) -> Result<NifsProverOutput, Error> {
+    prove_with_adapter_output_inner(
+        adapter,
+        tr,
+        pp,
+        s,
+        cache,
+        log,
+        lanes,
+        mix_rhos_commits,
+        combine_b_pows,
+        fresh,
+        Some(running_carrier),
+        running,
+        true,
+    )
+}
+
+fn prove_with_adapter_output_inner(
+    adapter: &mut dyn NifsProverAdapter,
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    log: &AjtaiSModule,
+    lanes: Option<&LaneScheme>,
+    mix_rhos_commits: RlcMixer,
+    combine_b_pows: DecMixer,
+    fresh: Vec<CcsInstance>,
+    running_carrier: Option<&crate::paper::nifs::NifsRunningCarrier>,
+    running: &RunningInstance,
+    cache_output_for_next_step: bool,
+) -> Result<NifsProverOutput, Error> {
+    adapter.prove(NifsProverRequest {
+        tr,
+        pp,
+        s,
+        cache,
+        log,
+        lanes,
+        mix_rhos_commits,
+        combine_b_pows,
+        fresh,
+        running_carrier,
+        running,
+        cache_output_for_next_step,
+    })
+}
+
+impl NifsProverAdapter for CpuNifsProver {
+    fn prove(&mut self, request: NifsProverRequest<'_>) -> Result<NifsProverOutput, Error> {
+        let (running, proof) = prove(
+            request.tr,
+            request.pp,
+            request.s,
+            request.cache,
+            request.log,
+            request.lanes,
+            request.mix_rhos_commits,
+            request.combine_b_pows,
+            request.fresh,
+            request.running,
+        )?;
+        Ok(NifsProverOutput::materialized(running, proof))
+    }
 }

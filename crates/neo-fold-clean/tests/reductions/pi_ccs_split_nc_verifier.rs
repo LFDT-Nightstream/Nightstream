@@ -70,45 +70,12 @@ fn running_y_zcol_sidecar_columns(derived: &SplitNcPiCcsVDerived) -> BTreeSet<us
     let mut allowed: BTreeSet<usize> = derived
         .running
         .iter()
-        .flat_map(|running| running.y_zcol.iter())
+        .flat_map(|running| running.y_zcol.iter().take(D))
         .flat_map(|k| [k.c0.col(), k.c1.col()])
         .collect();
     if let Some(parent) = &derived.running_parent_authority {
         allowed.extend(parent.y_zcol.iter().flat_map(|k| [k.c0.col(), k.c1.col()]));
     }
-    allowed
-}
-
-fn fresh_output_deferred_ce_columns(derived: &SplitNcPiCcsVDerived) -> BTreeSet<usize> {
-    let mut allowed = BTreeSet::new();
-    let k_mcs = derived.fresh_x.len();
-
-    for output in derived.outputs.iter().take(k_mcs) {
-        // Native `validate_mcs_output_x_recomposition` pins only scalar
-        // public lanes `x[c]` at `(row=c%D, col=c/D)`. The remaining lanes
-        // in the active packed ring columns are L_in sidecars carried to the
-        // terminal CE relation, where X is bound to the opened Z.
-        let active_x_cols = superneo_public_x_cols(output.m_in);
-        for col in 0..active_x_cols.min(output.x_cols) {
-            for row in 0..output.x_rows {
-                if col * D + row >= output.m_in {
-                    allowed.insert(output.x[row * output.x_cols + col].col());
-                }
-            }
-        }
-
-        // For fresh CCS outputs, Π_CCS.V's FE terminal identity consumes
-        // only `ct(y_j) = y_ring[j][0]` through the CCS polynomial
-        // `f(ct(y_0), ..., ct(y_{t-1}))`. Non-ct ring coefficients are not
-        // immediate Π_CCS verifier authority; they are carried forward and
-        // bound by the terminal CE relation's `y_ring = M·Z(r)` check.
-        for row in &output.y_ring {
-            for lane in row.iter().take(D).skip(1) {
-                insert_kvar_columns(&mut allowed, *lane);
-            }
-        }
-    }
-
     allowed
 }
 
@@ -419,6 +386,8 @@ fn emit_verifier_with_derived(f: &Fixture) -> Result<(R1csBuilder, SplitNcPiCcsV
             running: &f.running.claims,
             running_parent_authority: f.running.parent_authority.as_ref(),
             outputs: &f.proof.outputs,
+            outputs_digest: f.proof.outputs_digest,
+            sc_initial_sum: f.proof.sumcheck.sc_initial_sum,
             sumcheck_rounds_fe: &f.proof.sumcheck.sumcheck_rounds,
             sumcheck_rounds_nc: &f.proof.sumcheck.sumcheck_rounds_nc,
             header_digest: &f.proof.sumcheck.header_digest,
@@ -554,14 +523,10 @@ fn folded_header_is_bound_as_witness_without_entering_verifier_matrices() {
 
 #[test]
 fn split_nc_pi_ccs_v_leaves_only_documented_deferred_ce_sidecars_unconstrained() {
-    // SplitNc owns the full Π_CCS verifier for fresh/output authority and
-    // the running accumulator handle used by HyperNova's recursive link.
-    // The intentionally floating columns are narrow and paper-grounded:
-    // running-side y_zcol is a Π_DEC sidecar, and fresh-output CE lanes that
-    // Π_CCS.V only carries to the terminal CE relation (packed X sidecars and
-    // non-ct y_ring coefficients) are not consumed by this standalone
-    // verifier. Output y_zcol is not exempt; it is consumed by the NC
-    // terminal identity.
+    // SplitNc owns the full Π_CCS verifier and recomputes the output digest
+    // consumed by Π_RLC. The only intentionally floating columns are the
+    // active lanes of running-side y_zcol and the running parent authority's
+    // full y_zcol: native Π_DEC treats those as non-authority sidecars.
     let fixture = build_fixture();
     let (builder, derived) = emit_verifier_with_derived(&fixture).expect("emit verifier");
 
@@ -571,8 +536,7 @@ fn split_nc_pi_ccs_v_leaves_only_documented_deferred_ce_sidecars_unconstrained()
     );
 
     let unconstrained: BTreeSet<_> = builder.unconstrained_columns().into_iter().collect();
-    let mut allowed = running_y_zcol_sidecar_columns(&derived);
-    allowed.extend(fresh_output_deferred_ce_columns(&derived));
+    let allowed = running_y_zcol_sidecar_columns(&derived);
     let unexpected: BTreeSet<_> = unconstrained.difference(&allowed).copied().collect();
     let summary = split_nc_unconstrained_column_summary(&derived, &unexpected);
     assert!(
@@ -598,6 +562,8 @@ fn split_nc_pi_ccs_v_rejects_nonempty_running_without_parent_authority() {
             running: &fixture.running.claims,
             running_parent_authority: None,
             outputs: &fixture.proof.outputs,
+            outputs_digest: fixture.proof.outputs_digest,
+            sc_initial_sum: fixture.proof.sumcheck.sc_initial_sum,
             sumcheck_rounds_fe: &fixture.proof.sumcheck.sumcheck_rounds,
             sumcheck_rounds_nc: &fixture.proof.sumcheck.sumcheck_rounds_nc,
             header_digest: &fixture.proof.sumcheck.header_digest,
@@ -637,6 +603,8 @@ fn split_nc_pi_ccs_v_rejects_empty_running_with_parent_authority() {
             running: &[],
             running_parent_authority: Some(parent),
             outputs: &proof.outputs,
+            outputs_digest: proof.outputs_digest,
+            sc_initial_sum: proof.sumcheck.sc_initial_sum,
             sumcheck_rounds_fe: &proof.sumcheck.sumcheck_rounds,
             sumcheck_rounds_nc: &proof.sumcheck.sumcheck_rounds_nc,
             header_digest: &proof.sumcheck.header_digest,

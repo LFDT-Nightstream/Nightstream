@@ -12,10 +12,11 @@
 
 use super::compiler::{
     compile_fibonacci_step, start_fibonacci_chain, FibonacciAppStepInput, FibonacciChainState, FibonacciCompiledStep,
-    FibonacciCompilerContext, FibonacciFoldForStep,
+    FibonacciCompilerContext, FibonacciCompilerError, FibonacciFoldForStep,
 };
 use super::instance::build_instance;
 use super::{Error, FibonacciFPrimePreprocessing};
+use neo_fold_clean::frontends::f_prime::compiler::FPrimeFoldPostSummary;
 use neo_fold_clean::frontends::f_prime::encoder::EncodedFPrimeStep;
 use neo_fold_clean::lifecycle::{Uncompressed, UncompressedAudit};
 use neo_fold_clean::paper::construction2::{FoldProof, ProofState};
@@ -135,7 +136,7 @@ impl<'a> FibonacciChainBuilder<'a> {
         let pre_state = audit.proof.state.clone();
 
         let (pre_running, latest) = match &pre_state.proof {
-            ProofState::Active { running, latest } => (running.clone(), latest.clone()),
+            ProofState::Active { running, latest } => (running.materialize()?, latest.clone()),
             _ => return Err(Error::ChainExpectedActiveState),
         };
 
@@ -147,11 +148,11 @@ impl<'a> FibonacciChainBuilder<'a> {
         // after the recursive step has been compiled below.
         let derived = neo_fold_clean::lifecycle::extend(&self.prep.prep, audit.clone(), vec![latest_instance.clone()])?;
         let fold = match &derived.steps.last().expect("extend appended one step").fold {
-            FoldProof::Recursive(p) => p.clone(),
+            FoldProof::Recursive(p) => p.materialize()?,
             FoldProof::NoFold => return Err(Error::ChainExpectedActiveState),
         };
         let post_running = match &derived.proof.state.proof {
-            ProofState::Active { running, .. } => running.clone(),
+            ProofState::Active { running, .. } => running.materialize()?,
             _ => return Err(Error::ChainExpectedActiveState),
         };
 
@@ -163,11 +164,14 @@ impl<'a> FibonacciChainBuilder<'a> {
             acc_digest: digest32_as_fields(pre_state.acc_digest),
             public_trace: digest32_as_fields(pre_state.public_trace),
         };
+        let post_summary = FPrimeFoldPostSummary::from_running(&post_running, self.ctx.public_input_len)
+            .map_err(FibonacciCompilerError::from)?;
         self.ctx.fold_for_step = Some(FibonacciFoldForStep {
             pre_running,
             latest,
             proof: fold,
             post_running,
+            post_summary: Some(post_summary),
         });
 
         Ok(())

@@ -235,7 +235,7 @@ pub fn verify_uncompressed(prep: &Preprocessing, proof: &Uncompressed) -> Result
     if hypernova_terminal && recorded_latest.instances.is_empty() {
         return Err(Error::NotFinalized);
     }
-    check_running_shape(recorded_running)?;
+    check_running_shape(&recorded_running)?;
 
     // (0a) Initial-semantic-state anchor. The decider preflight catches
     // a tampered `statement.public.initial_semantic_state_digest` via the
@@ -283,8 +283,8 @@ pub fn verify_uncompressed(prep: &Preprocessing, proof: &Uncompressed) -> Result
         verify_hypernova_terminal_case(prep, proof, recorded_latest)?;
     } else {
         match &proof.final_fold {
-            None => verify_no_terminal_fold_case(prep, proof, recorded_running)?,
-            Some(final_fold) => verify_terminal_fold_case(prep, proof, recorded_running, final_fold)?,
+            None => verify_no_terminal_fold_case(prep, proof, &recorded_running)?,
+            Some(final_fold) => verify_terminal_fold_case(prep, proof, &recorded_running, final_fold)?,
         }
     }
 
@@ -295,10 +295,10 @@ pub fn verify_uncompressed(prep: &Preprocessing, proof: &Uncompressed) -> Result
     // equations on the folded CE relation; this Rust function
     // executes them directly. See module docs for the layering
     // boundary with the decider R1CS path.
-    check_running_witnesses_authority(prep, recorded_running)?;
+    check_running_witnesses_authority(prep, &recorded_running)?;
 
     // (4) acc_digest is recomputed from the just-authenticated claims.
-    check_recorded_acc_digest(prep, recorded_running, &proof.state.acc_digest)?;
+    check_recorded_acc_digest(prep, &recorded_running, &proof.state.acc_digest)?;
     Ok(())
 }
 
@@ -355,10 +355,12 @@ fn check_f_prime_non_replay_scope(prep: &Preprocessing, proof: &Uncompressed) ->
 
 // ── State-shape gates ─────────────────────────────────────────────────────
 
-fn require_active_state(state: &ProofState) -> Result<(&RunningInstance, &LatestInstance), Error> {
+fn require_active_state(state: &ProofState) -> Result<(RunningInstance, &LatestInstance), Error> {
     match state {
         ProofState::Initial => Err(Error::NotFinalized),
-        ProofState::Active { running, latest } => Ok((running, latest)),
+        ProofState::Active { running, latest } => {
+            Ok((running.materialize().map_err(construction2::Error::from)?, latest))
+        }
     }
 }
 
@@ -617,10 +619,7 @@ fn build_pre_final_state(post: &State, terminal: &TerminalFoldInputs) -> Result<
         semantic_state_digest: post.semantic_state_digest,
         acc_digest: pre_acc_digest,
         public_trace: post.public_trace,
-        proof: ProofState::Active {
-            running: terminal.pre_final_running.clone(),
-            latest: terminal.latest.clone(),
-        },
+        proof: ProofState::active(terminal.pre_final_running.clone(), terminal.latest.clone()),
         nebula: terminal.pre_nebula.clone(),
     })
 }
@@ -1264,7 +1263,8 @@ impl ProofStateBinding for ProofState {
                 if !latest.instances.is_empty() {
                     return Err(());
                 }
-                Ok(running.claims.clone())
+                let running = running.materialize().map_err(|_| ())?;
+                Ok(running.claims)
             }
         }
     }
@@ -1317,7 +1317,8 @@ pub fn verify_uncompressed_audit(prep: &Preprocessing, audit: &UncompressedAudit
         return Err(Error::PostStateMismatch);
     }
     check_nebula_terminal_state(prep, &audit.proof.state)?;
-    check_running_witnesses_authority(prep, running)
+    let running = running.materialize().map_err(construction2::Error::from)?;
+    check_running_witnesses_authority(prep, &running)
 }
 
 /// Spec §6.3 finalization rule + lane/config presence coherence.

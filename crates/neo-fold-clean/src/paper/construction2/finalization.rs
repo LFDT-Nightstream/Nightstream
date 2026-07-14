@@ -46,7 +46,80 @@ fn final_fold_transcript() -> Transcript {
 /// flush proof. `Ok((state, None))` means there was nothing to flush —
 /// either the state was `Initial` (no extends ever ran) or the trailing
 /// latest was already empty.
-pub(crate) fn prove_final_fold(
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prove_final_fold_with_backend(
+    nifs_backend: nifs::NifsProverBackend,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    structure_digest: &[neo_math::F; 4],
+    log: &AjtaiSModule,
+    mix_rhos_commits: RlcMixer,
+    combine_b_pows: DecMixer,
+    vk: &VerifierKey,
+    lanes: Option<&LaneScheme>,
+    delayed_nebula: Option<&crate::paper::construction2::NebulaConfig>,
+    state: State,
+    semantic_mode: SemanticStateMode,
+) -> Result<(State, Option<FinalFoldProof>), Error> {
+    prove_final_fold_with_nifs_prover(
+        FinalFoldNifsProver::Backend(nifs_backend),
+        pp,
+        s,
+        cache,
+        structure_digest,
+        log,
+        mix_rhos_commits,
+        combine_b_pows,
+        vk,
+        lanes,
+        delayed_nebula,
+        state,
+        semantic_mode,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prove_final_fold_with_adapter(
+    adapter: &mut dyn nifs::NifsProverAdapter,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    structure_digest: &[neo_math::F; 4],
+    log: &AjtaiSModule,
+    mix_rhos_commits: RlcMixer,
+    combine_b_pows: DecMixer,
+    vk: &VerifierKey,
+    lanes: Option<&LaneScheme>,
+    delayed_nebula: Option<&crate::paper::construction2::NebulaConfig>,
+    state: State,
+    semantic_mode: SemanticStateMode,
+) -> Result<(State, Option<FinalFoldProof>), Error> {
+    prove_final_fold_with_nifs_prover(
+        FinalFoldNifsProver::Adapter(adapter),
+        pp,
+        s,
+        cache,
+        structure_digest,
+        log,
+        mix_rhos_commits,
+        combine_b_pows,
+        vk,
+        lanes,
+        delayed_nebula,
+        state,
+        semantic_mode,
+    )
+}
+
+enum FinalFoldNifsProver<'a> {
+    Backend(nifs::NifsProverBackend),
+    Adapter(&'a mut dyn nifs::NifsProverAdapter),
+}
+
+#[allow(clippy::too_many_arguments)]
+fn prove_final_fold_with_nifs_prover(
+    mut nifs_prover: FinalFoldNifsProver<'_>,
     pp: &Params,
     s: &Structure,
     cache: &OptimizedStructureCache,
@@ -76,7 +149,7 @@ pub(crate) fn prove_final_fold(
 
     let pre_nebula = nebula.clone();
     let mut terminal_nebula = nebula;
-    let (post_running, nifs_with_inputs) = match proof {
+    let (post_running, nifs_with_inputs, post_acc_digest_override) = match proof {
         ProofState::Initial => {
             return Ok((
                 State {
@@ -95,8 +168,11 @@ pub(crate) fn prove_final_fold(
                 None,
             ));
         }
-        ProofState::Active { running, latest } if latest.instances.is_empty() => (running, None),
+        ProofState::Active { running, latest } if latest.instances.is_empty() => {
+            (running.into_materialized()?, None, None)
+        }
         ProofState::Active { running, latest } => {
+            let running = running.into_materialized()?;
             if let Some(cfg) = delayed_nebula {
                 let lane = terminal_nebula.as_mut().ok_or(Error::BaseCaseMismatch)?;
                 lane.advance_for_delayed_claims(
@@ -119,32 +195,62 @@ pub(crate) fn prove_final_fold(
             };
 
             let mut tr = final_fold_transcript();
-            let (post_running, nifs_proof) = nifs::prove_owned(
-                &mut tr,
-                pp,
-                s,
-                cache,
-                log,
-                lanes,
-                mix_rhos_commits,
-                combine_b_pows,
-                latest.instances,
-                running,
-            )?;
-            (post_running, Some((nifs_proof, terminal_inputs)))
+            let (post_running, nifs_proof, post_acc_digest_override) = match &mut nifs_prover {
+                FinalFoldNifsProver::Backend(backend) => {
+                    let (running, proof) = nifs::prove_with_backend(
+                        *backend,
+                        &mut tr,
+                        pp,
+                        s,
+                        cache,
+                        log,
+                        lanes,
+                        mix_rhos_commits,
+                        combine_b_pows,
+                        latest.instances,
+                        &running,
+                    )?;
+                    (running, proof, None)
+                }
+                FinalFoldNifsProver::Adapter(adapter) => {
+                    let output = nifs::prove_terminal_with_adapter_output(
+                        *adapter,
+                        &mut tr,
+                        pp,
+                        s,
+                        cache,
+                        log,
+                        lanes,
+                        mix_rhos_commits,
+                        combine_b_pows,
+                        latest.instances,
+                        &running,
+                    )?;
+                    let (running, proof, post_summary) = output.into_materialized_parts_with_summary()?;
+                    let acc_digest = post_summary.and_then(|summary| summary.acc_digest_override());
+                    (running, proof, acc_digest)
+                }
+            };
+            (
+                post_running,
+                Some((nifs_proof, terminal_inputs)),
+                post_acc_digest_override,
+            )
         }
     };
 
     // Re-derive acc_digest from the post-flush running's Π_RLC parent.
-    let post_acc_digest = if post_running.claims.is_empty() {
-        digest::AccumulatorHandle::empty().digest()
-    } else {
-        let parent = post_running
-            .parent_authority
-            .as_ref()
-            .expect("post-flush running must carry its Pi_RLC parent authority");
-        digest::AccumulatorHandle::from_running_parts(&post_running.claims, Some(parent)).digest()
-    };
+    let post_acc_digest = post_acc_digest_override.unwrap_or_else(|| {
+        if post_running.claims.is_empty() {
+            digest::AccumulatorHandle::empty().digest()
+        } else {
+            let parent = post_running
+                .parent_authority
+                .as_ref()
+                .expect("post-flush running must carry its Pi_RLC parent authority");
+            digest::AccumulatorHandle::from_running_parts(&post_running.claims, Some(parent)).digest()
+        }
+    });
 
     let state_after = State {
         chunk_count,
@@ -157,10 +263,7 @@ pub(crate) fn prove_final_fold(
         acc_digest: post_acc_digest,
         public_trace,
         nebula: terminal_nebula,
-        proof: ProofState::Active {
-            running: post_running,
-            latest: LatestInstance::from_instances(Vec::new()),
-        },
+        proof: ProofState::active(post_running, LatestInstance::from_instances(Vec::new())),
     };
     let final_proof = nifs_with_inputs.map(|(nifs, terminal_inputs)| FinalFoldProof {
         x_out: transition::compute_x_out(vk, pp, structure_digest, &state_after, semantic_mode),
@@ -255,9 +358,10 @@ pub(crate) fn verify_final_fold(
             if proof.is_some() {
                 return Err(Error::UnexpectedFinalFoldProof);
             }
-            running
+            running.into_materialized()?
         }
         ProofState::Active { running, latest } => {
+            let running = running.into_materialized()?;
             let proof = proof.ok_or(Error::MissingFinalFoldProof)?;
             if let Some(cfg) = delayed_nebula {
                 let lane = terminal_nebula.as_mut().ok_or(Error::BaseCaseMismatch)?;
@@ -305,10 +409,7 @@ pub(crate) fn verify_final_fold(
         acc_digest: post_acc_digest,
         public_trace,
         nebula: terminal_nebula,
-        proof: ProofState::Active {
-            running: post_running,
-            latest: LatestInstance::from_instances(Vec::new()),
-        },
+        proof: ProofState::active(post_running, LatestInstance::from_instances(Vec::new())),
     };
 
     if let Some(proof) = proof {

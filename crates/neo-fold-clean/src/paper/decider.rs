@@ -224,7 +224,7 @@ pub fn validate_witness(
     // (`StepProof.semantic_state_digest == new accumulator digest`) is
     // enforced — for stateful chains the F' image's binding rows
     // authenticate the digest instead.
-    for (public_batch, step_proof) in public_batches.iter().zip(steps) {
+    for (step_index, (public_batch, step_proof)) in public_batches.iter().zip(steps).enumerate() {
         let max_fresh = params.max_fresh_count();
         if public_batch.len() > max_fresh {
             return Err(Error::BatchTooLarge {
@@ -308,7 +308,7 @@ pub fn validate_witness(
             semantic_mode,
             nebula_advance,
         )
-        .map_err(|e| Error::WalkFailed(format!("step: {e}")))?;
+        .map_err(|e| Error::WalkFailed(format!("step {step_index}: {e}")))?;
     }
 
     check_terminal_latest_link(
@@ -415,9 +415,11 @@ pub fn validate_witness(
 /// Extract the running accumulator from a post-finalization state: must be
 /// `Active { running, latest: empty }`, anything else is a witness-shape
 /// error.
-fn final_running(state: &State) -> Result<&RunningInstance, Error> {
+fn final_running(state: &State) -> Result<RunningInstance, Error> {
     match &state.proof {
-        ProofState::Active { running, latest } if latest.instances.is_empty() => Ok(running),
+        ProofState::Active { running, latest } if latest.instances.is_empty() => {
+            running.materialize().map_err(|_| Error::WitnessShape)
+        }
         _ => Err(Error::WitnessShape),
     }
 }

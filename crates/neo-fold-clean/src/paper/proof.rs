@@ -8,7 +8,7 @@
 //!
 //! ```text
 //! lifecycle::Compressed
-//!   ├─ proof:        decider::Proof              (Spartan2 SNARK; PR4 wires the bytes)
+//!   ├─ proof:        decider::Proof              (compact backend bytes; currently pending)
 //!   ├─ vk:           decider::VerifierKeyDigest  (32-byte vk digest)
 //!   └─ public_image: lifecycle::PublicImage      (i, z_0, z_i, pc, x_out, vk_fs)
 //!

@@ -255,12 +255,7 @@ where
         let built_digit_tables: Vec<(NcDigitTable, NcDigitMasks)> = if defer_digit_tables {
             all_witnesses
                 .iter()
-                .map(|_| {
-                    (
-                        NcDigitTable::Deferred { len: s.m },
-                        NcDigitMasks::Dense(Vec::new()),
-                    )
-                })
+                .map(|_| (NcDigitTable::Deferred { len: s.m }, NcDigitMasks::Dense(Vec::new())))
                 .collect()
         } else {
             #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]

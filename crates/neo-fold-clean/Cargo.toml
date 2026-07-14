@@ -24,7 +24,7 @@ neo-ajtai      = { path = "../neo-ajtai" }
 neo-transcript = { path = "../neo-transcript" }
 neo-reductions = { path = "../neo-reductions" }
 bellpepper-core = { workspace = true }
-ff              = { workspace = true }
+ff              = { workspace = true, features = ["derive"] }
 p3-field       = { workspace = true }
 # Poseidon2-in-circuit gadget: derives the same round constants `neo-ccs::PERM`
 # uses by replicating its `ChaCha8Rng::from_seed(SEED)` + `next_u64()` +
@@ -38,7 +38,6 @@ p3-goldilocks  = { workspace = true }
 rand_chacha    = { workspace = true }
 rand_chacha_p3 = { workspace = true }
 rayon          = { workspace = true }
-spartan2       = { workspace = true }
 serde          = { workspace = true }
 thiserror      = { workspace = true }
 
@@ -150,6 +149,18 @@ name = "gadgets_sumcheck"
 path = "tests/gadgets/sumcheck.rs"
 
 [[test]]
+name = "gadgets_redteam_sumcheck_encoding"
+path = "tests/gadgets/redteam_sumcheck_encoding.rs"
+
+[[test]]
+name = "gadgets_redteam_sparse_poly_encoding"
+path = "tests/gadgets/redteam_sparse_poly_encoding.rs"
+
+[[test]]
+name = "gadgets_redteam_ce_consistency"
+path = "tests/gadgets/redteam_ce_consistency.rs"
+
+[[test]]
 name = "gadgets_transcript"
 path = "tests/gadgets/transcript.rs"
 
@@ -198,12 +209,28 @@ name = "reductions_nifs_v_transcript"
 path = "tests/reductions/nifs_v_transcript.rs"
 
 [[test]]
+name = "reductions_redteam_commitment_encoding"
+path = "tests/reductions/redteam_commitment_encoding.rs"
+
+[[test]]
+name = "reductions_redteam_matrix_encoding"
+path = "tests/reductions/redteam_matrix_encoding.rs"
+
+[[test]]
+name = "reductions_redteam_cache_substitution"
+path = "tests/reductions/redteam_cache_substitution.rs"
+
+[[test]]
 name = "reductions_degree7_pi_ccs"
 path = "tests/reductions/degree7_pi_ccs.rs"
 
 [[test]]
 name = "nifs_round_trip"
 path = "tests/nifs/round_trip.rs"
+
+[[test]]
+name = "nifs_fixed"
+path = "tests/nifs/fixed.rs"
 
 [[test]]
 name = "nifs_r1cs_isolated"
@@ -238,8 +265,32 @@ name = "f_prime_source_image"
 path = "tests/f_prime/source_image.rs"
 
 [[test]]
+name = "f_prime_low_norm_r1cs"
+path = "tests/f_prime/low_norm_r1cs.rs"
+
+[[test]]
+name = "f_prime_full_relation"
+path = "tests/f_prime/full_relation.rs"
+
+[[test]]
 name = "system_audit_anchor"
 path = "tests/system/audit_anchor.rs"
+
+[[test]]
+name = "system_redteam_bellpepper_constant"
+path = "tests/system/redteam_bellpepper_constant.rs"
+
+[[test]]
+name = "system_redteam_verifier_panic"
+path = "tests/system/redteam_verifier_panic.rs"
+
+[[test]]
+name = "system_redteam_resource_exhaustion"
+path = "tests/system/redteam_resource_exhaustion.rs"
+
+[[test]]
+name = "system_redteam_lifecycle_fsm"
+path = "tests/system/redteam_lifecycle_fsm.rs"
 
 [[test]]
 name = "system_fibonacci_bits_e2e"
@@ -412,6 +463,18 @@ path = "tests/system/selective_rectangular.rs"
 [[test]]
 name = "system_r1cs_compiler_stateful"
 path = "tests/system/r1cs_compiler_stateful.rs"
+
+[[test]]
+name = "system_redteam_statement_binding"
+path = "tests/system/redteam_statement_binding.rs"
+
+[[test]]
+name = "system_redteam_parameter_binding"
+path = "tests/system/redteam_parameter_binding.rs"
+
+[[test]]
+name = "system_redteam_f_prime_encoding_gap"
+path = "tests/system/redteam_f_prime_encoding_gap.rs"
 
 [[test]]
 name = "system_r1cs_preprocess"

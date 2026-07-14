@@ -65,8 +65,8 @@ use crate::paper::reductions::accumulator_sis_circuit::{
     enforce_accumulator_digest as enforce_sis_accumulator_digest, PI_RLC_PROJECTION_SIS_CONFIG,
 };
 use crate::paper::reductions::pi_ccs_split_nc_circuit::{
-    enforce_pi_ccs_outputs_digest, enforce_split_nc_pi_ccs_v, enforce_split_nc_pi_ccs_v_with_header_bundle_wires,
-    PiCcsOutputClaimDigestInputs, SplitNcPiCcsOutputWires, SplitNcPiCcsVConfig, SplitNcPiCcsVMessages,
+    enforce_split_nc_pi_ccs_v, enforce_split_nc_pi_ccs_v_with_header_bundle_wires, SplitNcPiCcsOutputWires,
+    SplitNcPiCcsVConfig, SplitNcPiCcsVMessages,
 };
 use crate::paper::reductions::pi_dec_circuit::{
     self, alloc_dec_inputs, enforce_dec_v_strict, enforce_split_nc_d_pad_shape, DecInputWires,
@@ -193,6 +193,19 @@ pub fn enforce_nifs_v_circuit_with_transcript_and_header_bundle(
     enforce_nifs_v_circuit_with_transcript_inner(builder, pp, cfg, transcript, msg, Some(header_bundle))
 }
 
+/// Fixed-relation alias with the header-first argument order used by the
+/// backend-oriented F' builder.
+pub fn enforce_nifs_v_circuit_with_transcript_and_header_bundle_wires(
+    builder: &mut R1csBuilder,
+    pp: &Params,
+    cfg: &NifsVCircuitConfig<'_>,
+    transcript: &mut TranscriptGadget,
+    header_bundle: [Var; 4],
+    msg: &NifsVCircuitMessages<'_>,
+) -> Result<NifsVOutputs, Error> {
+    enforce_nifs_v_circuit_with_transcript_inner(builder, pp, cfg, transcript, msg, Some(header_bundle))
+}
+
 fn enforce_nifs_v_circuit_with_transcript_inner(
     builder: &mut R1csBuilder,
     pp: &Params,
@@ -210,6 +223,8 @@ fn enforce_nifs_v_circuit_with_transcript_inner(
         running: msg.running,
         running_parent_authority: msg.running_parent_authority,
         outputs: &msg.pi_ccs.outputs,
+        outputs_digest: msg.pi_ccs.outputs_digest,
+        sc_initial_sum: msg.pi_ccs.sumcheck.sc_initial_sum,
         sumcheck_rounds_fe: &msg.pi_ccs.sumcheck.sumcheck_rounds,
         sumcheck_rounds_nc: &msg.pi_ccs.sumcheck.sumcheck_rounds_nc,
         header_digest: &msg.pi_ccs.sumcheck.header_digest,
@@ -247,22 +262,19 @@ fn enforce_nifs_v_circuit_with_transcript_inner(
 
     // ── 2. Bind Π_CCS output messages, then sample Π_RLC ρ ────────────────
     let pi_rlc_transcript_start = builder.rows();
-    let output_digest_inputs: Vec<_> = ccs
-        .outputs
-        .iter()
-        .map(|output| PiCcsOutputClaimDigestInputs {
-            y_ring: &output.y_ring,
-            y_zcol: &output.y_zcol,
-        })
-        .collect();
-    let output_claims_digest = enforce_pi_ccs_outputs_digest(builder, &output_digest_inputs)?;
-    transcript.append_fields(builder, pi_rlc::PI_RLC_INPUT_CLAIMS_DIGEST_LABEL, &output_claims_digest);
+    builder.begin_encoding_stage("nifs.pi_rlc.challenge");
+    transcript.append_fields(
+        builder,
+        pi_rlc::PI_RLC_INPUT_CLAIMS_DIGEST_LABEL,
+        &ccs.output_claims_digest,
+    );
 
     let rho_wires = enforce_pi_rlc_rhos_from_transcript(builder, transcript, k_total);
     builder.record_row_family("nifs.pi_rlc.transcript_rhos", pi_rlc_transcript_start);
 
     // ── 3. Parent + children DEC wires + SplitNc shape check ──────────────
     let pi_rlc_shape_start = builder.rows();
+    builder.begin_encoding_stage("nifs.pi_dec.allocate");
     let dec_wires = alloc_dec_inputs(builder, msg.combined, msg.children);
     enforce_rlc_output_shape_parity(builder, &ccs.outputs)?;
     enforce_rlc_parent_shape(builder, &dec_wires, &ccs.outputs, kappa, m_in)?;
@@ -271,6 +283,7 @@ fn enforce_nifs_v_circuit_with_transcript_inner(
 
     // ── 4. Π_RLC.V folds: c, X, per-j y_ring, y_zcol, s_col ──────────────
     let pi_rlc_folds_start = builder.rows();
+    builder.begin_encoding_stage("nifs.pi_rlc.verify");
     let commitment_wires = rlc_commitment_fold_wires(&rho_wires, &ccs.outputs, &dec_wires, kappa)?;
     let adv_commitment_wires = rlc_adv_commitment_fold_wires(&rho_wires, &ccs.outputs, &dec_wires)?;
     let x_wires = rlc_x_fold_wires(&rho_wires, &ccs.outputs, &dec_wires, m_in)?;
@@ -470,6 +483,7 @@ fn enforce_nifs_v_circuit_with_transcript_inner(
 
     let pi_dec_start = builder.rows();
     let pi_dec_first_column = builder.cols();
+    builder.begin_encoding_stage("nifs.pi_dec.verify");
     enforce_dec_v_strict(builder, pp, &dec_wires)?;
     builder.record_row_family("nifs.pi_dec", pi_dec_start);
     builder.record_program_range("nifs.pi_dec", pi_dec_start, pi_dec_first_column);

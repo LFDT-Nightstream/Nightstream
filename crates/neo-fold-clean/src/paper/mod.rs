@@ -55,7 +55,8 @@
 //! (α, γ, r', y'_{i,j}) computations all live in
 //! `engine::optimized` (which wraps `neo-reductions`). The paper layer
 //! exposes only the *seam*: shape-checked `prove` / `verify` over a
-//! `Proof { sumcheck, outputs }` bundle. See `paper/pi_ccs.rs`.
+//! `Proof { sumcheck, outputs, outputs_digest }` bundle. See
+//! `paper/pi_ccs.rs`.
 //!
 //! | Paper | Code | Source |
 //! |-------|------|--------|

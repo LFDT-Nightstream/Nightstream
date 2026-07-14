@@ -14,8 +14,9 @@ use neo_fold_clean::paper::digest::{
 use neo_fold_clean::paper::f_prime::digest_circuit::{
     enforce_boundary_update_digest_circuit, enforce_f_prime_chunk_public_digest_circuit,
     enforce_public_trace_update_digest_circuit, enforce_state_x_out_digest_circuit,
-    enforce_state_x_out_digest_with_nebula_circuit, StateXOutDigestInputs,
+    enforce_state_x_out_digest_with_nebula_circuit, enforce_vk_fs_digest_circuit, StateXOutDigestInputs,
 };
+use neo_fold_clean::paper::params::Params;
 use neo_fold_clean::paper::relations::CcsClaim;
 use neo_math::{D, F};
 use neo_params::{goldilocks_paper_b2, NeoParams};
@@ -88,6 +89,7 @@ fn f_prime_chunk_shape_digest_circuit_matches_native_and_binds_start_index() {
 #[test]
 fn vk_fs_digest_binds_large_u64_params_without_field_aliasing() {
     let structure = seeded_digest_fields(0xFA11);
+    let header = seeded_digest_fields(0xC0DE);
     let initial_semantic = seeded_bytes(0x51A7E);
     let base = NeoParams::new(
         goldilocks_paper_b2::Q,
@@ -125,6 +127,37 @@ fn vk_fs_digest_binds_large_u64_params_without_field_aliasing() {
         "vk_fs_digest must encode u64 params injectively; m=1 and m=p+1 \
          are distinct verifier contexts even though F::from_u64 aliases them"
     );
+}
+
+#[test]
+fn vk_fs_digest_circuit_matches_native_and_binds_header_wires() {
+    let structure = seeded_digest_fields(0xABCD);
+    let header = seeded_digest_fields(0xC0DE);
+    let initial_semantic = seeded_bytes(0x51A7E);
+    let params = Params::production();
+    let expected = vk_fs_digest(params.inner(), &structure, &header, Some(257), initial_semantic);
+
+    let mut builder = R1csBuilder::new();
+    let structure_wires = alloc_4(&mut builder, structure);
+    let header_wires = alloc_4(&mut builder, header);
+    let initial_wires = alloc_4(&mut builder, digest32_as_fields(initial_semantic));
+    let actual = enforce_vk_fs_digest_circuit(
+        &mut builder,
+        &params,
+        structure_wires,
+        header_wires,
+        Some(257),
+        initial_wires,
+    );
+    assert!(builder.is_satisfied());
+    assert_eq!(extract_4(&builder, actual), digest32_as_fields(expected));
+
+    let mut tampered = builder.witness().to_vec();
+    tampered[header_wires[0].col()] += F::ONE;
+    assert!(builder
+        .snapshot()
+        .first_unsatisfied_row(&tampered)
+        .is_some());
 }
 
 #[test]

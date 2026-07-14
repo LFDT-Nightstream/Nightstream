@@ -9,9 +9,10 @@
 //!
 //! - The `prove` and `verify` step-down flows in paper-step order.
 //! - The shape contract: K fresh CCS instances, k carried CE claims.
-//! - The wire-format `Proof` bundle: `(sumcheck, outputs)`. The K+k output
-//!   claims **must** be in the wire format because the verifier needs them
-//!   both to feed `engine::verify_pi_ccs` and to feed the next reduction
+//! - The wire-format `Proof` bundle: `(sumcheck, outputs)`, plus the
+//!   recomputable output digest consumed before Π_RLC samples `ρ`. The K+k
+//!   output claims **must** be in the wire format because the verifier needs
+//!   them both to feed `engine::verify_pi_ccs` and to feed the next reduction
 //!   (Π_RLC) downstream.
 //!
 //! ## What this file does *not* own
@@ -22,12 +23,16 @@
 use thiserror::Error;
 
 use neo_ajtai::AjtaiSModule;
-use neo_math::{D, K};
-use neo_reductions::optimized_engine::{OptimizedStructureCache, PiDecProverPrecompute};
+use neo_math::{D, F, K};
+use neo_reductions::optimized_engine::{
+    BackendTranscriptMode, FeSumcheckBackend, NcSumcheckBackend, OptimizedStructureCache, PiCcsPhaseBackend,
+    PiCcsTerminalOutputShell, PiDecProverPrecompute,
+};
 
 use crate::engine::optimized as engine;
 use crate::engine::transcript::Transcript;
 use crate::paper::construction2::RunningInstance;
+use crate::paper::digest;
 use crate::paper::params::Params;
 use crate::paper::relations::{superneo_inactive_x_zero, CcsClaim, CcsInstance, CcsWitness, CeClaim, Structure};
 
@@ -50,6 +55,123 @@ pub enum Error {
 pub struct Proof {
     pub sumcheck: SumcheckProof,
     pub outputs: Vec<CeClaim>,
+    /// Canonical digest of `outputs`, recomputed by the verifier.
+    ///
+    /// This is a compact handoff to Π_RLC, not authority. Verifiers still
+    /// authenticate the claims themselves and reject if the digest is stale.
+    pub outputs_digest: [F; 4],
+}
+
+/// Pi_CCS proof whose terminal outputs are available before proof logs are
+/// exported from the phase backend.
+pub struct DeferredProof {
+    inner: neo_reductions::optimized_engine::PiCcsDeferredProof,
+    outputs: Vec<CeClaim>,
+    outputs_digest: [F; 4],
+}
+
+impl DeferredProof {
+    pub fn outputs(&self) -> &[CeClaim] {
+        &self.outputs
+    }
+
+    pub fn outputs_digest(&self) -> [F; 4] {
+        self.outputs_digest
+    }
+
+    pub fn output_count(&self) -> usize {
+        self.outputs.len()
+    }
+
+    pub fn output_shell(&self) -> &PiCcsTerminalOutputShell {
+        self.inner.output_shell()
+    }
+
+    pub fn row_challenges(&self) -> &[K] {
+        self.inner.row_challenges()
+    }
+
+    pub fn column_challenges(&self) -> &[K] {
+        self.inner.column_challenges()
+    }
+
+    pub fn fold_digest(&self) -> [u8; 32] {
+        self.inner.fold_digest()
+    }
+
+    pub fn finish_with_phase_backend(self, phase_backend: &mut dyn PiCcsPhaseBackend) -> Result<Proof, Error> {
+        let DeferredProof {
+            inner,
+            outputs: expected_outputs,
+            outputs_digest: expected_digest,
+        } = self;
+        let (mut outputs, sumcheck, _perf) = inner
+            .finish_with_phase_backend(phase_backend)
+            .map_err(engine::Error::from)?;
+        restore_deferred_adv(&expected_outputs, &mut outputs)?;
+        let outputs_digest = digest::pi_ccs_outputs_digest(&outputs);
+        if outputs_digest != expected_digest {
+            return Err(Error::Shape("Pi_CCS deferred output digest mismatch"));
+        }
+        Ok(Proof {
+            sumcheck,
+            outputs,
+            outputs_digest,
+        })
+    }
+
+    pub fn finish_with_fe_backend(self, fe_backend: &mut dyn FeSumcheckBackend) -> Result<Proof, Error> {
+        let DeferredProof {
+            inner,
+            outputs: expected_outputs,
+            outputs_digest: expected_digest,
+        } = self;
+        let (mut outputs, sumcheck, _perf) = inner
+            .finish_with_fe_backend(fe_backend)
+            .map_err(engine::Error::from)?;
+        restore_deferred_adv(&expected_outputs, &mut outputs)?;
+        let outputs_digest = digest::pi_ccs_outputs_digest(&outputs);
+        if outputs_digest != expected_digest {
+            return Err(Error::Shape("Pi_CCS deferred output digest mismatch"));
+        }
+        Ok(Proof {
+            sumcheck,
+            outputs,
+            outputs_digest,
+        })
+    }
+
+    /// Finish a row-trace proof from backend-archived FE coefficient rounds.
+    pub fn finish_with_fe_rounds(self, row_rounds: Vec<Vec<K>>) -> Result<Proof, Error> {
+        let DeferredProof {
+            inner,
+            outputs: expected_outputs,
+            outputs_digest: expected_digest,
+        } = self;
+        let (mut outputs, sumcheck, _perf) = inner
+            .finish_with_fe_rounds(row_rounds)
+            .map_err(engine::Error::from)?;
+        restore_deferred_adv(&expected_outputs, &mut outputs)?;
+        let outputs_digest = digest::pi_ccs_outputs_digest(&outputs);
+        if outputs_digest != expected_digest {
+            return Err(Error::Shape("Pi_CCS deferred output digest mismatch"));
+        }
+        Ok(Proof {
+            sumcheck,
+            outputs,
+            outputs_digest,
+        })
+    }
+}
+
+fn restore_deferred_adv(expected: &[CeClaim], outputs: &mut [CeClaim]) -> Result<(), Error> {
+    if outputs.len() != expected.len() {
+        return Err(Error::Shape("Pi_CCS deferred output count mismatch"));
+    }
+    for (output, expected_output) in outputs.iter_mut().zip(expected) {
+        output.adv = expected_output.adv.clone();
+    }
+    Ok(())
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -97,7 +219,134 @@ pub(crate) fn prove_from_parts(
     )?;
     forward_adv(fresh_claims, &running.claims, &mut outputs)?;
     validate_clean_split_nc_claims(s, &outputs)?;
-    Ok((Proof { sumcheck, outputs }, pi_dec_precompute))
+    let outputs_digest = digest::pi_ccs_outputs_digest(&outputs);
+    Ok((
+        Proof {
+            sumcheck,
+            outputs,
+            outputs_digest,
+        },
+        pi_dec_precompute,
+    ))
+}
+
+/// [`prove`] with optional device sumcheck backends. `(None, None)` is the
+/// canonical CPU path; backends must keep the proof bit-identical (the
+/// engine enforces every transcript absorb either way).
+#[allow(clippy::too_many_arguments)]
+pub fn prove_from_parts_with_backends(
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    log: &AjtaiSModule,
+    fresh_claims: &[CcsClaim],
+    fresh_witnesses: &[CcsWitness],
+    running: &RunningInstance,
+    fe_backend: Option<&mut dyn FeSumcheckBackend>,
+    nc_backend: Option<&mut dyn NcSumcheckBackend>,
+) -> Result<Proof, Error> {
+    prove_from_parts_with_backends_and_transcript_mode(
+        tr,
+        pp,
+        s,
+        cache,
+        log,
+        fresh_claims,
+        fresh_witnesses,
+        running,
+        fe_backend,
+        nc_backend,
+        BackendTranscriptMode::Replay,
+        None,
+        None,
+    )
+}
+
+/// [`prove_from_parts_with_backends`] with explicit backend transcript mode.
+/// Replay mode is the default parity/debug path; the CUDA production path may
+/// adopt device snapshots while verifier semantics stay unchanged.
+#[allow(clippy::too_many_arguments)]
+pub fn prove_from_parts_with_backends_and_transcript_mode(
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    log: &AjtaiSModule,
+    fresh_claims: &[CcsClaim],
+    fresh_witnesses: &[CcsWitness],
+    running: &RunningInstance,
+    fe_backend: Option<&mut dyn neo_reductions::optimized_engine::FeSumcheckBackend>,
+    nc_backend: Option<&mut dyn neo_reductions::optimized_engine::NcSumcheckBackend>,
+    transcript_mode: BackendTranscriptMode,
+    running_parent_digest: Option<[F; 4]>,
+    running_accumulator_handle: Option<[F; 4]>,
+) -> Result<Proof, Error> {
+    prove_from_parts_with_phase_backend_and_transcript_mode(
+        tr,
+        pp,
+        s,
+        cache,
+        log,
+        fresh_claims,
+        fresh_witnesses,
+        running,
+        None,
+        fe_backend,
+        nc_backend,
+        transcript_mode,
+        running_parent_digest,
+        running_accumulator_handle,
+    )
+}
+
+/// Whole-phase-capable Π_CCS prover wrapper.
+///
+/// `phase_backend` is the CUDA migration seam for FE rows + Ajtai tail + NC
+/// prolog/columns as one device-owned transcript segment. The paper wrapper
+/// still owns shape checks and proof bundling.
+#[allow(clippy::too_many_arguments)]
+pub fn prove_from_parts_with_phase_backend_and_transcript_mode(
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    log: &AjtaiSModule,
+    fresh_claims: &[CcsClaim],
+    fresh_witnesses: &[CcsWitness],
+    running: &RunningInstance,
+    phase_backend: Option<&mut dyn PiCcsPhaseBackend>,
+    fe_backend: Option<&mut dyn FeSumcheckBackend>,
+    nc_backend: Option<&mut dyn NcSumcheckBackend>,
+    transcript_mode: BackendTranscriptMode,
+    running_parent_digest: Option<[F; 4]>,
+    running_accumulator_handle: Option<[F; 4]>,
+) -> Result<Proof, Error> {
+    validate_input_shape(pp, s, fresh_claims, fresh_witnesses, running)?;
+    let (mut outputs, sumcheck) = engine::prove_pi_ccs_parts_with_phase_backend_and_transcript_mode(
+        tr.inner_mut(),
+        pp,
+        s,
+        cache,
+        fresh_claims,
+        fresh_witnesses,
+        running,
+        log,
+        phase_backend,
+        fe_backend,
+        nc_backend,
+        transcript_mode,
+        running_parent_digest,
+        running_accumulator_handle,
+    )?;
+    forward_adv(fresh_claims, &running.claims, &mut outputs)?;
+    validate_clean_split_nc_claims(s, &outputs)?;
+    let outputs_digest = digest::pi_ccs_outputs_digest(&outputs);
+    Ok(Proof {
+        sumcheck,
+        outputs,
+        outputs_digest,
+    })
 }
 
 /// Spec §5.2 R2 (Π_CCS side): the reduction changes evaluation claims, not
@@ -139,6 +388,96 @@ fn validate_adv_forwarding(fresh: &[CcsClaim], running: &[CeClaim], outputs: &[C
     Ok(())
 }
 
+/// Run Pi_CCS to terminal outputs while deferring proof-log export.
+///
+/// The returned handle is only for CUDA scheduling: it exposes the CE outputs
+/// needed by Pi_RLC, then later finishes the same wire-format [`Proof`] by
+/// exporting FE/NC coefficient logs from the phase backend.
+#[allow(clippy::too_many_arguments)]
+pub fn defer_from_parts_with_phase_backend_and_transcript_mode(
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    log: &AjtaiSModule,
+    fresh_claims: &[CcsClaim],
+    fresh_witnesses: &[CcsWitness],
+    running: &RunningInstance,
+    phase_backend: &mut dyn PiCcsPhaseBackend,
+    transcript_mode: BackendTranscriptMode,
+    running_parent_digest: Option<[F; 4]>,
+    running_accumulator_handle: Option<[F; 4]>,
+) -> Result<DeferredProof, Error> {
+    validate_input_shape(pp, s, fresh_claims, fresh_witnesses, running)?;
+    let inner = engine::defer_pi_ccs_parts_with_phase_backend_and_transcript_mode(
+        tr.inner_mut(),
+        pp,
+        s,
+        cache,
+        fresh_claims,
+        fresh_witnesses,
+        running,
+        log,
+        phase_backend,
+        transcript_mode,
+        running_parent_digest,
+        running_accumulator_handle,
+    )?;
+    let mut outputs = inner.outputs().to_vec();
+    forward_adv(fresh_claims, &running.claims, &mut outputs)?;
+    validate_clean_split_nc_claims(s, &outputs)?;
+    let outputs_digest = digest::pi_ccs_outputs_digest(&outputs);
+    Ok(DeferredProof {
+        inner,
+        outputs,
+        outputs_digest,
+    })
+}
+
+/// Row-trace device path with deferred FE row proof-log export.
+#[allow(clippy::too_many_arguments)]
+pub fn defer_from_parts_with_device_backends_and_transcript_mode(
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    log: &AjtaiSModule,
+    fresh_claims: &[CcsClaim],
+    fresh_witnesses: &[CcsWitness],
+    running: &RunningInstance,
+    fe_backend: &mut dyn FeSumcheckBackend,
+    nc_backend: Option<&mut dyn NcSumcheckBackend>,
+    transcript_mode: BackendTranscriptMode,
+    running_parent_digest: Option<[F; 4]>,
+    running_accumulator_handle: Option<[F; 4]>,
+) -> Result<DeferredProof, Error> {
+    validate_input_shape(pp, s, fresh_claims, fresh_witnesses, running)?;
+    let inner = engine::defer_pi_ccs_parts_with_device_backends_and_transcript_mode(
+        tr.inner_mut(),
+        pp,
+        s,
+        cache,
+        fresh_claims,
+        fresh_witnesses,
+        running,
+        log,
+        fe_backend,
+        nc_backend,
+        transcript_mode,
+        running_parent_digest,
+        running_accumulator_handle,
+    )?;
+    let mut outputs = inner.outputs().to_vec();
+    forward_adv(fresh_claims, &running.claims, &mut outputs)?;
+    validate_clean_split_nc_claims(s, &outputs)?;
+    let outputs_digest = digest::pi_ccs_outputs_digest(&outputs);
+    Ok(DeferredProof {
+        inner,
+        outputs,
+        outputs_digest,
+    })
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 // Verifier  (§7.3 step 4; mirrors `prove`)
 // ──────────────────────────────────────────────────────────────────────────
@@ -165,6 +504,9 @@ pub fn verify(
 ) -> Result<Vec<CeClaim>, Error> {
     validate_verifier_shape(pp, s, fresh_claims, &running.claims, &proof.outputs)?;
     validate_adv_forwarding(fresh_claims, &running.claims, &proof.outputs)?;
+    if proof.outputs_digest != digest::pi_ccs_outputs_digest(&proof.outputs) {
+        return Err(Error::Shape("Pi_CCS output digest mismatch"));
+    }
     let ok = engine::verify_pi_ccs(
         tr.inner_mut(),
         pp,

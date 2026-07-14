@@ -28,6 +28,7 @@ use p3_field::PrimeCharacteristicRing;
 use crate::engine::r1cs_circuit::builder::{
     Lc, ProductFactorTrace, ProductSumBatchTrace, ProductSumIdentityTrace, R1csBuilder, Var,
 };
+use crate::engine::r1cs_circuit::encoding_trace::KMulTraceEntry;
 
 /// `K = F[X]/(X² − W)`. For Goldilocks-quadratic, `W = 7`.
 fn w_constant() -> F {
@@ -121,6 +122,7 @@ pub struct KMulIntermediates {
 }
 
 fn alloc_k_mul(builder: &mut R1csBuilder, a: &KLc, b: &KLc) -> (KVar, KMulIntermediates) {
+    let first_row = builder.rows();
     let p_var = builder.alloc_mul(&a.c0, &b.c0);
     let q_var = builder.alloc_mul(&a.c1, &b.c1);
     let sum_a = a.c0.clone().add_scaled(&a.c1, F::ONE);
@@ -145,6 +147,13 @@ fn alloc_k_mul(builder: &mut R1csBuilder, a: &KLc, b: &KLc) -> (KVar, KMulInterm
             .add_scaled(&Lc::from_var(q_var), -F::ONE),
     );
     builder.record_k_mul(p_var, q_var, r_var);
+    builder.record_k_mul_encoding(KMulTraceEntry {
+        a: [a.c0.clone(), a.c1.clone()],
+        b: [b.c0.clone(), b.c1.clone()],
+        intermediates: [p_var, q_var, r_var],
+        output: [out_c0, out_c1],
+        source_rows: first_row..builder.rows(),
+    });
     (
         KVar::new(out_c0, out_c1),
         KMulIntermediates {

@@ -8,7 +8,35 @@
 //!
 //! Hash discipline: Poseidon2 only on protocol-binding paths.
 
+use neo_math::F;
 use neo_transcript::{Poseidon2Transcript, Transcript as NeoTranscript};
+
+pub const POSEIDON2_TRANSCRIPT_WIDTH: usize = 8;
+
+/// Serializable Poseidon2 sponge position for backend handoff.
+///
+/// This is not a new transcript authority. It is a snapshot of the canonical
+/// paper-layer transcript at a named backend boundary, such as the Π_RLC
+/// rho-sampling point after Π_CCS outputs have been bound.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Poseidon2TranscriptSnapshot {
+    state: [F; POSEIDON2_TRANSCRIPT_WIDTH],
+    absorbed: usize,
+}
+
+impl Poseidon2TranscriptSnapshot {
+    pub fn from_state_and_absorbed(state: [F; POSEIDON2_TRANSCRIPT_WIDTH], absorbed: usize) -> Self {
+        Self { state, absorbed }
+    }
+
+    pub fn state(&self) -> [F; POSEIDON2_TRANSCRIPT_WIDTH] {
+        self.state
+    }
+
+    pub fn absorbed(&self) -> usize {
+        self.absorbed
+    }
+}
 
 /// The single transcript type used by the paper layer.
 ///
@@ -64,6 +92,17 @@ impl Transcript {
 
     pub fn digest32(&mut self) -> [u8; 32] {
         self.inner.digest32()
+    }
+
+    pub fn snapshot(&self) -> Poseidon2TranscriptSnapshot {
+        Poseidon2TranscriptSnapshot {
+            state: self.inner.state(),
+            absorbed: self.inner.absorbed(),
+        }
+    }
+
+    pub fn restore_snapshot(&mut self, snapshot: Poseidon2TranscriptSnapshot) {
+        self.inner = Poseidon2Transcript::from_state_and_absorbed(snapshot.state(), snapshot.absorbed());
     }
 
     /// Borrow the underlying Poseidon2 transcript.

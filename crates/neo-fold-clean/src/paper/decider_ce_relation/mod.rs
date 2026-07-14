@@ -18,7 +18,8 @@
 //!    cannot relabel the CE claim under a smaller projection or into
 //!    packed padding beyond the structure.
 //! 1. **Commitment opening**: `commit_Ajtai(Z) == claim.c.data`
-//!    (linear in `Z`, coefficients from the Ajtai global setup).
+//!    (linear in `Z`, coefficients from preprocessing's verifier-owned
+//!    Ajtai setup).
 //! 2. **Public-input projection**: `L_in(Z) == claim.X` for the
 //!    active `m_in` columns; inactive columns are zero (already pinned
 //!    by `pi_ccs_split_nc_circuit::validate_inactive_x_zero`).
@@ -239,6 +240,7 @@ pub(crate) fn enforce_final_ce_relations(
         let phase_start = builder.rows();
         enforce_ajtai_opening(
             builder,
+            &prep.log,
             &witness_wires,
             &claim_wires.c_data,
             claim_wires.c_d,

@@ -581,3 +581,21 @@ fn ccs_native_poseidon2_hash_shape_snapshot_for_ce_digest_preimage_length() {
         "CCS-native bit-backed cost must beat R1CS-lowered-to-bits on this preimage length; got ratio {ratio:.2}×"
     );
 }
+
+/// The witness-only value walk must reproduce the full builder's
+/// `z = [1 || trace bits]` and digest exactly, for every sponge shape
+/// (sub-rate, exact-rate, multi-chunk, and the F' state_x_out length).
+#[test]
+fn bit_backed_hash_values_walk_matches_builder() {
+    use neo_fold_clean::engine::ccs_native::poseidon2::build_bit_backed_poseidon2_hash_values;
+
+    for len in [1usize, 3, 4, 5, 8, 9, 23, 40] {
+        let preimage: Vec<F> = (0..len)
+            .map(|i| F::from_u64(0x9e37_79b9 + i as u64 * 0x85eb_ca6b))
+            .collect();
+        let bundle = build_bit_backed_poseidon2_hash(&preimage);
+        let (values, digest) = build_bit_backed_poseidon2_hash_values(&preimage);
+        assert_eq!(values, bundle.z, "z mismatch at preimage len {len}");
+        assert_eq!(digest, bundle.digest, "digest mismatch at preimage len {len}");
+    }
+}

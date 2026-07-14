@@ -1,16 +1,28 @@
 //! Lifecycle helpers for R1CS-encoded-F' chains.
 
+use crate::frontends::f_prime::compiler::FPrimeFoldPostSummary;
 use crate::frontends::f_prime::encoder::EncodedFPrimeStep;
+use crate::frontends::f_prime::image::{FPrimeImageLayout, StateInDigestTarget, StateOutDigestTarget};
+use crate::frontends::f_prime::recursive_plan::{
+    build_recursive_step_image_config, state_x_out_digest_mode_for_options,
+};
 use crate::frontends::r1cs_f_prime::compiler::{
-    compile_chunk, compile_step, semantic_state_digests_for_inputs, start_chain, R1csCompiledStep, R1csCompilerContext,
-    R1csCompilerError, R1csFPrimeStepInput, R1csFoldForStep,
+    compile_chunk, compile_step, semantic_state_digests_for_inputs, semantic_state_in_preimage_for_assignment,
+    semantic_state_out_preimage_for_assignment, start_chain, R1csCompiledStep, R1csCompilerContext, R1csCompilerError,
+    R1csFPrimeStepInput, R1csFoldForStep,
 };
 use crate::frontends::r1cs_f_prime::instance::build_instance;
 use crate::frontends::r1cs_f_prime::{Error, R1csFPrimePreprocessing};
 use crate::lifecycle::{Uncompressed, UncompressedAudit};
 use crate::paper::construction2::{LatestInstance, ProofState};
-use crate::paper::digest::{digest32_as_fields, digest_fields_as_digest32};
+use crate::paper::digest::{digest32_as_fields, digest_fields_as_digest32, StateXOutDigestMode};
+use crate::paper::nifs::{
+    NifsFreshImageOverlayRequest, NifsFreshImageRegion, NifsFreshImageRegionKind, NifsFreshInstancesRequest,
+    NifsFreshPrefixRequest, NifsFreshSemanticStateInOverlay, NifsFreshSemanticStateOutOverlay,
+    NifsFreshStateXOutOverlay, NifsProverAdapter,
+};
 use crate::paper::relations::{CcsClaim, CcsInstance};
+use neo_math::F;
 
 /// Fold a sequence of encoded R1CS-F' steps through `lifecycle::prove`,
 /// one step per batch.
@@ -97,10 +109,35 @@ impl<'a> R1csChainBuilder<'a> {
         Ok(chunk.pop().expect("K=1 append returns 1 step"))
     }
 
+    /// Append one assignment while routing recursive NIFS proving through
+    /// `adapter`. The base append remains the same F' initialization path;
+    /// recursive appends and finalization are where NIFS.P runs.
+    pub fn append_assignment_with_nifs_adapter(
+        &mut self,
+        assignment: Vec<neo_math::F>,
+        adapter: &mut dyn NifsProverAdapter,
+    ) -> Result<R1csCompiledStep, Error> {
+        let mut chunk = self.append_assignments_with_nifs_adapter(vec![assignment], adapter)?;
+        debug_assert_eq!(chunk.len(), 1);
+        Ok(chunk.pop().expect("K=1 append returns 1 step"))
+    }
+
     /// Append one explicit R1CS-F' compiler input to the chain as a K=1
     /// chunk. Convenience wrapper around [`Self::append_chunk`].
     pub fn append_step(&mut self, input: R1csFPrimeStepInput) -> Result<R1csCompiledStep, Error> {
         let mut chunk = self.append_chunk(vec![input])?;
+        debug_assert_eq!(chunk.len(), 1);
+        Ok(chunk.pop().expect("K=1 append returns 1 step"))
+    }
+
+    /// Append one explicit compiler input while routing recursive NIFS
+    /// proving through `adapter`.
+    pub fn append_step_with_nifs_adapter(
+        &mut self,
+        input: R1csFPrimeStepInput,
+        adapter: &mut dyn NifsProverAdapter,
+    ) -> Result<R1csCompiledStep, Error> {
+        let mut chunk = self.append_chunk_with_nifs_adapter(vec![input], adapter)?;
         debug_assert_eq!(chunk.len(), 1);
         Ok(chunk.pop().expect("K=1 append returns 1 step"))
     }
@@ -123,9 +160,41 @@ impl<'a> R1csChainBuilder<'a> {
         self.append_chunk(inputs)
     }
 
+    /// Append K assignments while routing recursive NIFS proving through
+    /// `adapter`.
+    pub fn append_assignments_with_nifs_adapter(
+        &mut self,
+        assignments: Vec<Vec<neo_math::F>>,
+        adapter: &mut dyn NifsProverAdapter,
+    ) -> Result<Vec<R1csCompiledStep>, Error> {
+        let inputs = assignments
+            .into_iter()
+            .map(|assignment| R1csFPrimeStepInput { assignment })
+            .collect();
+        self.append_chunk_with_nifs_adapter(inputs, adapter)
+    }
+
     /// Append K explicit compiler inputs as one SuperNeo chunk. See
     /// [`Self::append_assignments`] for the semantics.
     pub fn append_chunk(&mut self, inputs: Vec<R1csFPrimeStepInput>) -> Result<Vec<R1csCompiledStep>, Error> {
+        self.append_chunk_inner(inputs, None)
+    }
+
+    /// Append K explicit compiler inputs while routing recursive NIFS
+    /// proving through `adapter`.
+    pub fn append_chunk_with_nifs_adapter(
+        &mut self,
+        inputs: Vec<R1csFPrimeStepInput>,
+        adapter: &mut dyn NifsProverAdapter,
+    ) -> Result<Vec<R1csCompiledStep>, Error> {
+        self.append_chunk_inner(inputs, Some(adapter))
+    }
+
+    fn append_chunk_inner(
+        &mut self,
+        inputs: Vec<R1csFPrimeStepInput>,
+        mut adapter: Option<&mut dyn NifsProverAdapter>,
+    ) -> Result<Vec<R1csCompiledStep>, Error> {
         if inputs.is_empty() {
             return Err(Error::EmptyChunk);
         }
@@ -153,13 +222,44 @@ impl<'a> R1csChainBuilder<'a> {
             // Computes the fold proof for the upcoming step AND stashes
             // the post-fold audit in `self.pending_audit` (so the deposit
             // below need not re-run the fold).
-            self.prepare_next_fold(k, semantic.map(|s| digest_fields_as_digest32(s.output)))?;
+            let semantic_state_digest_next = semantic.map(|s| digest_fields_as_digest32(s.output));
+            if let Some(adapter) = adapter.as_mut() {
+                self.prepare_next_fold(k, semantic_state_digest_next, Some(&mut **adapter))?;
+            } else {
+                self.prepare_next_fold(k, semantic_state_digest_next, None)?;
+            }
             #[cfg(feature = "perf-timers")]
             eprintln!(
                 "[r1cs-chain] prepare_next_fold             {:>7.2}s",
                 t_prepare.elapsed().as_secs_f64()
             );
         }
+
+        let source_assignments_for_adapter = adapter.is_some().then(|| {
+            inputs
+                .iter()
+                .map(|input| input.assignment.clone())
+                .collect::<Vec<_>>()
+        });
+        let semantic_state_out_preimages_for_adapter = source_assignments_for_adapter
+            .as_ref()
+            .map(|assignments| {
+                assignments
+                    .iter()
+                    .map(|assignment| semantic_state_out_preimage_for_assignment(self.prep, assignment))
+                    .collect::<Result<Vec<_>, _>>()
+            })
+            .transpose()?
+            .and_then(|preimages| preimages.into_iter().collect::<Option<Vec<_>>>());
+        let semantic_state_in_preimages_for_adapter = source_assignments_for_adapter
+            .as_ref()
+            .and_then(|assignments| {
+                let preimages = assignments
+                    .iter()
+                    .map(|assignment| semantic_state_in_preimage_for_assignment(self.prep, assignment))
+                    .collect::<Option<Vec<_>>>()?;
+                Some(preimages)
+            });
 
         #[cfg(feature = "perf-timers")]
         let t_compile = std::time::Instant::now();
@@ -184,10 +284,74 @@ impl<'a> R1csChainBuilder<'a> {
 
         #[cfg(feature = "perf-timers")]
         let t_instance = std::time::Instant::now();
-        let instances: Vec<CcsInstance> = compiled
-            .iter()
-            .map(|step| build_instance(self.prep, &step.encoded))
-            .collect::<Result<Vec<_>, _>>()?;
+        let instances: Vec<CcsInstance> = if let Some(adapter) = adapter.as_deref_mut() {
+            let assignments = compiled
+                .iter()
+                .map(|step| step.encoded.image.values.as_slice())
+                .collect::<Vec<_>>();
+            let source_assignment_refs = source_assignments_for_adapter
+                .as_ref()
+                .map(|assignments| assignments.iter().map(Vec::as_slice).collect::<Vec<_>>());
+            let semantic_state_out_preimage_refs = semantic_state_out_preimages_for_adapter
+                .as_ref()
+                .map(|preimages| preimages.iter().map(Vec::as_slice).collect::<Vec<_>>());
+            let semantic_state_in_preimage_refs = semantic_state_in_preimages_for_adapter
+                .as_ref()
+                .map(|preimages| preimages.iter().map(Vec::as_slice).collect::<Vec<_>>());
+            let semantic_state_out_digest = semantic.map(|s| s.output);
+            let layout = FPrimeImageLayout::new(build_recursive_step_image_config(&self.prep.plan));
+            let compact_lane_offsets = compact_u64_lane_offsets(&layout);
+            let regions = f_prime_image_regions(&layout);
+            let image_overlay =
+                source_assignment_refs
+                    .as_ref()
+                    .map(|source_assignments| NifsFreshImageOverlayRequest {
+                        app_private_offset: layout.app_private.offset,
+                        app_private_var_widths: &self.prep.plan.app_private_var_widths,
+                        source_assignments,
+                        compact_lane_offsets: &compact_lane_offsets,
+                        regions: &regions,
+                        semantic_state_in: semantic_state_in_preimage_refs
+                            .as_ref()
+                            .and_then(|preimages| semantic_state_in_overlay(&layout, self.prep, preimages)),
+                        semantic_state_out: semantic_state_out_preimage_refs
+                            .as_ref()
+                            .and_then(|preimages| {
+                                semantic_state_out_digest.and_then(|digest| {
+                                    semantic_state_out_overlay(&layout, self.prep, preimages, digest)
+                                })
+                            }),
+                        state_x_out: state_x_out_overlay(&layout, self.prep),
+                    });
+            match adapter.build_fresh_instances(NifsFreshInstancesRequest {
+                pp: &self.prep.prep.params,
+                s: self.prep.prep.structure(),
+                cache: self.prep.prep.optimized_cache(),
+                log: &self.prep.prep.log,
+                m_in: compiled[0].encoded.public_input_len(),
+                assignments: &assignments,
+                image_overlay,
+            })? {
+                Some(instances) => {
+                    if instances.len() != compiled.len() {
+                        return Err(Error::Nifs(crate::paper::nifs::Error::BackendUnavailable {
+                            backend: "cuda",
+                            reason: "adapter returned the wrong number of fresh instances",
+                        }));
+                    }
+                    instances
+                }
+                None => compiled
+                    .iter()
+                    .map(|step| build_instance(self.prep, &step.encoded))
+                    .collect::<Result<Vec<_>, _>>()?,
+            }
+        } else {
+            compiled
+                .iter()
+                .map(|step| build_instance(self.prep, &step.encoded))
+                .collect::<Result<Vec<_>, _>>()?
+        };
         #[cfg(feature = "perf-timers")]
         eprintln!(
             "[r1cs-chain] build_instance (K={k})           {:>7.2}s",
@@ -248,6 +412,21 @@ impl<'a> R1csChainBuilder<'a> {
             t_fold.elapsed().as_secs_f64()
         );
         self.latest_batch = instances;
+        if let Some(adapter) = adapter.as_deref_mut() {
+            let audit = self.audit.as_ref().ok_or(Error::ChainExpectedActiveState)?;
+            let ProofState::Active { running, .. } = &audit.proof.state.proof else {
+                return Err(Error::ChainExpectedActiveState);
+            };
+            let running = running.materialize()?;
+            adapter.stage_next_fresh_prefix(NifsFreshPrefixRequest {
+                pp: &self.prep.prep.params,
+                s: self.prep.prep.structure(),
+                cache: self.prep.prep.optimized_cache(),
+                log: &self.prep.prep.log,
+                fresh: &self.latest_batch,
+                running: &running,
+            })?;
+        }
         Ok(compiled)
     }
 
@@ -286,6 +465,19 @@ impl<'a> R1csChainBuilder<'a> {
         Ok(crate::lifecycle::finish_uncompressed_with_audit(&prep.prep, audit)?)
     }
 
+    /// Finalize with an explicit NIFS prover adapter for the terminal
+    /// latest-to-running fold.
+    pub fn finish_with_audit_and_nifs_adapter(
+        self,
+        adapter: &mut dyn NifsProverAdapter,
+    ) -> Result<UncompressedAudit, Error> {
+        let prep = self.prep;
+        let audit = self.into_audit()?;
+        Ok(crate::lifecycle::finish_uncompressed_with_audit_and_nifs_adapter(
+            &prep.prep, adapter, audit,
+        )?)
+    }
+
     /// Derive the next-step fold authority by simulating a K-sized
     /// extend. `next_rows_in_chunk` is the size of the *upcoming*
     /// chunk's batch — it controls the chunk_digest the simulated
@@ -295,16 +487,31 @@ impl<'a> R1csChainBuilder<'a> {
         &mut self,
         next_rows_in_chunk: usize,
         semantic_state_digest_next: Option<[u8; 32]>,
+        adapter: Option<&mut dyn NifsProverAdapter>,
     ) -> Result<(), Error> {
-        let audit = self.audit.as_ref().ok_or(Error::ChainEmpty)?;
         if self.latest_batch.is_empty() {
             return Err(Error::ChainEmpty);
         }
-        let pre_state = audit.proof.state.clone();
-
-        let (pre_running, latest) = match &pre_state.proof {
-            ProofState::Active { running, latest } => (running.clone(), latest.clone()),
-            _ => return Err(Error::ChainExpectedActiveState),
+        let (pre_chain_state, pre_running_carrier, latest) = {
+            let audit = self.audit.as_ref().ok_or(Error::ChainEmpty)?;
+            let pre_state = &audit.proof.state;
+            let pre_chain_state = crate::frontends::r1cs_f_prime::R1csChainState {
+                chunk_count: pre_state.chunk_count,
+                step_count: pre_state.step_count,
+                z_i: digest32_as_fields(pre_state.z_i),
+                semantic_state_digest: digest32_as_fields(pre_state.semantic_state_digest),
+                acc_digest: digest32_as_fields(pre_state.acc_digest),
+                public_trace: digest32_as_fields(pre_state.public_trace),
+            };
+            // Keep the carrier intact until we know whether the backend's
+            // compile-facing summary is sufficient. Materializing here would
+            // force a device-backed running/proof result back through the old
+            // host object boundary before the fold even runs.
+            let (pre_running_carrier, latest) = match &pre_state.proof {
+                ProofState::Active { running, latest } => (running.clone(), latest.clone()),
+                _ => return Err(Error::ChainExpectedActiveState),
+            };
+            (pre_chain_state, pre_running_carrier, latest)
         };
 
         // Derive the fold proof the upcoming F' step will replay. The
@@ -315,45 +522,233 @@ impl<'a> R1csChainBuilder<'a> {
         // reads only the per-claim shape `(d, kappa, m_in)` and the
         // batch length.
         let placeholder = vec![self.latest_batch[0].clone(); next_rows_in_chunk];
-        let derived = if let Some(semantic_state_digest_next) = semantic_state_digest_next {
-            crate::lifecycle::prove::extend_with_semantic_state(
-                &self.prep.prep,
-                audit.clone(),
-                placeholder,
-                semantic_state_digest_next,
-            )?
+        let fold_needs_native_verify = adapter
+            .as_ref()
+            .map(|adapter| adapter.requires_recursive_compile_reverify())
+            .unwrap_or(true);
+        let used_in_place_adapter = adapter.is_some();
+        let mut post_summary_override = None;
+        match (adapter, semantic_state_digest_next) {
+            (Some(adapter), Some(semantic_state_digest_next)) => {
+                let audit = self.audit.as_mut().ok_or(Error::ChainEmpty)?;
+                let post_summary =
+                    crate::lifecycle::prove::extend_in_place_with_semantic_state_and_nifs_adapter_output(
+                        &self.prep.prep,
+                        adapter,
+                        audit,
+                        placeholder,
+                        semantic_state_digest_next,
+                    )?;
+                post_summary_override = post_summary.and_then(|summary| summary.f_prime().cloned());
+            }
+            (Some(adapter), None) => {
+                let audit = self.audit.as_mut().ok_or(Error::ChainEmpty)?;
+                let post_summary = crate::lifecycle::prove::extend_in_place_with_nifs_adapter_output(
+                    &self.prep.prep,
+                    adapter,
+                    audit,
+                    placeholder,
+                )?;
+                post_summary_override = post_summary.and_then(|summary| summary.f_prime().cloned());
+            }
+            (None, Some(semantic_state_digest_next)) => {
+                let audit = self.audit.as_ref().ok_or(Error::ChainEmpty)?;
+                self.pending_audit = Some(crate::lifecycle::prove::extend_with_semantic_state(
+                    &self.prep.prep,
+                    audit.clone(),
+                    placeholder,
+                    semantic_state_digest_next,
+                )?);
+            }
+            (None, None) => {
+                let audit = self.audit.as_ref().ok_or(Error::ChainEmpty)?;
+                self.pending_audit = Some(crate::lifecycle::extend(&self.prep.prep, audit.clone(), placeholder)?);
+            }
+        }
+        self.ctx.chain_state = pre_chain_state;
+        if !fold_needs_native_verify {
+            if let Some(summary) = post_summary_override {
+                self.ctx.fold_for_step = None;
+                self.ctx.fold_summary_for_step = Some(summary);
+            } else {
+                return Err(Error::ChainExpectedActiveState);
+            }
         } else {
-            crate::lifecycle::extend(&self.prep.prep, audit.clone(), placeholder)?
-        };
-        let fold = match &derived.steps.last().expect("extend appended one step").fold {
-            crate::paper::construction2::FoldProof::Recursive(p) => p.clone(),
-            crate::paper::construction2::FoldProof::NoFold => return Err(Error::ChainExpectedActiveState),
-        };
-        let post_running = match &derived.proof.state.proof {
-            ProofState::Active { running, .. } => running.clone(),
-            _ => return Err(Error::ChainExpectedActiveState),
-        };
-
-        self.ctx.chain_state = crate::frontends::r1cs_f_prime::R1csChainState {
-            chunk_count: pre_state.chunk_count,
-            step_count: pre_state.step_count,
-            z_i: digest32_as_fields(pre_state.z_i),
-            semantic_state_digest: digest32_as_fields(pre_state.semantic_state_digest),
-            acc_digest: digest32_as_fields(pre_state.acc_digest),
-            public_trace: digest32_as_fields(pre_state.public_trace),
-        };
-        self.ctx.fold_for_step = Some(R1csFoldForStep {
-            pre_running,
-            latest,
-            proof: fold,
-            post_running,
-        });
+            let derived = if used_in_place_adapter {
+                self.audit.as_ref().ok_or(Error::ChainEmpty)?
+            } else {
+                self.pending_audit
+                    .as_ref()
+                    .ok_or(Error::ChainExpectedActiveState)?
+            };
+            let fold = match &derived.steps.last().expect("extend appended one step").fold {
+                crate::paper::construction2::FoldProof::Recursive(p) => p.materialize()?,
+                crate::paper::construction2::FoldProof::NoFold => return Err(Error::ChainExpectedActiveState),
+            };
+            let post_running = match &derived.proof.state.proof {
+                ProofState::Active { running, .. } => running.materialize()?.claims_only(),
+                _ => return Err(Error::ChainExpectedActiveState),
+            };
+            let pre_running = pre_running_carrier.materialize()?.claims_only();
+            let post_summary = Some(
+                FPrimeFoldPostSummary::from_running(&post_running, self.ctx.public_input_len)
+                    .map_err(R1csCompilerError::from)?,
+            );
+            self.ctx.fold_for_step = Some(R1csFoldForStep {
+                pre_running,
+                latest,
+                proof: fold,
+                post_summary,
+                post_running,
+            });
+            self.ctx.fold_summary_for_step = None;
+        }
+        self.ctx.fold_for_step_needs_native_verify = fold_needs_native_verify;
 
         // Keep the post-fold audit so `append_chunk` can deposit the real
         // compiled instances by swapping its placeholder `latest` —
         // avoiding a second, identical NIFS prove inside `extend`.
-        self.pending_audit = Some(derived);
+        if used_in_place_adapter {
+            self.pending_audit = self.audit.take();
+        }
 
         Ok(())
+    }
+}
+
+fn compact_u64_lane_offsets(layout: &FPrimeImageLayout) -> Vec<usize> {
+    let mut out = Vec::new();
+    push_region_lanes(&mut out, layout.boundary.offset, layout.boundary.bits);
+    push_region_lanes(&mut out, layout.state_in.offset, layout.state_in.bits);
+    push_region_lanes(&mut out, layout.state_out.offset, layout.state_out.bits);
+    push_region_lanes(&mut out, layout.chunk_digest.offset, layout.chunk_digest.bits);
+    if layout.is_base.bits > 1 {
+        push_region_lanes(&mut out, layout.is_base.offset + 1, layout.is_base.bits - 1);
+    }
+    push_region_lanes(&mut out, layout.nifs_payloads.offset, layout.nifs_payloads.bits);
+    push_region_lanes(&mut out, layout.kmul.offset, layout.kmul.bits);
+    push_region_lanes(&mut out, layout.ring_action.offset, layout.ring_action.bits);
+    push_region_lanes(&mut out, layout.poseidon.offset, layout.poseidon.bits);
+    out.sort_unstable();
+    out.dedup();
+    out
+}
+
+fn f_prime_image_regions(layout: &FPrimeImageLayout) -> Vec<NifsFreshImageRegion> {
+    [
+        (NifsFreshImageRegionKind::Boundary, layout.boundary),
+        (NifsFreshImageRegionKind::StateIn, layout.state_in),
+        (NifsFreshImageRegionKind::StateOut, layout.state_out),
+        (NifsFreshImageRegionKind::ChunkDigest, layout.chunk_digest),
+        (NifsFreshImageRegionKind::AppPrivate, layout.app_private),
+        (NifsFreshImageRegionKind::IsBase, layout.is_base),
+        (NifsFreshImageRegionKind::NifsPayloads, layout.nifs_payloads),
+        (NifsFreshImageRegionKind::Kmul, layout.kmul),
+        (NifsFreshImageRegionKind::RingAction, layout.ring_action),
+        (NifsFreshImageRegionKind::Poseidon, layout.poseidon),
+    ]
+    .into_iter()
+    .filter_map(|(kind, range)| {
+        (range.bits != 0).then_some(NifsFreshImageRegion {
+            kind,
+            offset: range.offset,
+            bits: range.bits,
+        })
+    })
+    .collect()
+}
+
+fn semantic_state_out_overlay<'a>(
+    layout: &FPrimeImageLayout,
+    prep: &'a R1csFPrimePreprocessing,
+    preimages: &'a [&'a [F]],
+    digest: [F; 4],
+) -> Option<NifsFreshSemanticStateOutOverlay<'a>> {
+    let state_x_out = prep.plan.state_x_out.as_ref()?;
+    let binding = layout
+        .config
+        .one_shot_digest_to_state_out_bindings
+        .iter()
+        .find(|binding| binding.state_out_target == StateOutDigestTarget::NewSemanticStateDigest)?;
+    let trace_layout = layout.one_shot_poseidon_layouts[binding.one_shot_index];
+    if trace_layout.trace_len % 64 != 0 {
+        return None;
+    }
+    Some(NifsFreshSemanticStateOutOverlay {
+        trace_splice: layout.one_shot_poseidon_splices[binding.one_shot_index],
+        trace_words_per_assignment: trace_layout.trace_len / 64,
+        preimages,
+        assignment_var_indices: semantic_state_out_assignment_indices(state_x_out),
+        digest,
+    })
+}
+
+fn semantic_state_in_overlay<'a>(
+    layout: &FPrimeImageLayout,
+    prep: &'a R1csFPrimePreprocessing,
+    preimages: &'a [&'a [F]],
+) -> Option<NifsFreshSemanticStateInOverlay<'a>> {
+    let state_x_out = prep.plan.state_x_out.as_ref()?;
+    let binding = layout
+        .config
+        .one_shot_digest_to_state_in_bindings
+        .iter()
+        .find(|binding| binding.state_in_target == StateInDigestTarget::SemanticStateDigestIn)?;
+    let trace_layout = layout.one_shot_poseidon_layouts[binding.one_shot_index];
+    if trace_layout.trace_len % 64 != 0 {
+        return None;
+    }
+    Some(NifsFreshSemanticStateInOverlay {
+        trace_splice: layout.one_shot_poseidon_splices[binding.one_shot_index],
+        trace_words_per_assignment: trace_layout.trace_len / 64,
+        preimages,
+        assignment_var_indices: (!state_x_out.semantic_state_in_var_indices.is_empty())
+            .then_some(state_x_out.semantic_state_in_var_indices.as_slice()),
+    })
+}
+
+fn semantic_state_out_assignment_indices(
+    state_x_out: &crate::frontends::f_prime::recursive_plan::StateXOutPlanOptions,
+) -> Option<&[usize]> {
+    if !state_x_out.semantic_state_out_var_indices.is_empty() {
+        return Some(state_x_out.semantic_state_out_var_indices.as_slice());
+    }
+    if !state_x_out.app_public_input_var_indices.is_empty() && state_x_out.app_public_input_bit_var_indices.is_empty() {
+        return Some(state_x_out.app_public_input_var_indices.as_slice());
+    }
+    None
+}
+
+fn state_x_out_overlay(
+    layout: &FPrimeImageLayout,
+    prep: &R1csFPrimePreprocessing,
+) -> Option<NifsFreshStateXOutOverlay> {
+    let state_x_out = prep.plan.state_x_out.as_ref()?;
+    let one_shot_index = layout.one_shot_poseidon_splices.len().checked_sub(1)?;
+    let trace_layout = layout.one_shot_poseidon_layouts[one_shot_index];
+    if trace_layout.trace_len % 64 != 0 {
+        return None;
+    }
+    Some(NifsFreshStateXOutOverlay {
+        image_values_per_assignment: layout.end,
+        state_lane_base: layout.state_in.offset,
+        trace_splice: layout.one_shot_poseidon_splices[one_shot_index],
+        trace_words_per_assignment: trace_layout.trace_len / 64,
+        public_x_out_lane_offsets: state_x_out.public_x_out_lane_bit_starts,
+        include_semantic_state: matches!(
+            state_x_out_digest_mode_for_options(state_x_out),
+            StateXOutDigestMode::Stateful
+        ),
+        pc: state_x_out.pc,
+    })
+}
+
+fn push_region_lanes(out: &mut Vec<usize>, offset: usize, bits: usize) {
+    if bits == 0 {
+        return;
+    }
+    debug_assert_eq!(bits % 64, 0, "compact F' region must be lane-aligned");
+    for lane in 0..bits / 64 {
+        out.push(offset + lane * 64);
     }
 }

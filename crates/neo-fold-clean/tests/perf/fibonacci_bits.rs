@@ -443,7 +443,10 @@ fn proof_shape(
             FoldProof::Recursive(nifs) => {
                 shape.recursive_steps += 1;
                 let pms = step_prove_ms.get(idx).copied().unwrap_or(0.0);
-                record_nifs(&mut shape, &mut rows, format!("step[{idx}]"), nifs, pms);
+                let nifs = nifs
+                    .materialize()
+                    .expect("recursive NIFS proof materialization");
+                record_nifs(&mut shape, &mut rows, format!("step[{idx}]"), &nifs, pms);
             }
         }
     }

@@ -14,6 +14,7 @@
 
 pub mod compiler;
 pub mod encoder;
+pub mod full_relation;
 pub mod instance;
 pub mod ivc;
 pub mod lifecycle;
@@ -28,6 +29,10 @@ pub use compiler::{
     R1csFPrimeStepInput, R1csFoldForStep,
 };
 pub use encoder::{assignment_to_bits, encode_r1cs_f_prime_step, R1csEncoderInput};
+pub use full_relation::{
+    semantic_state_digest_fields, FullFPrimeBranchExecution, FullFPrimeContext, FullFPrimeError, FullFPrimeExecution,
+    FullFPrimeRelation, FullFPrimeShape,
+};
 pub use instance::build_instance;
 pub use lifecycle::{prove_encoded_steps, R1csChainBuilder};
 pub use lowering::{
@@ -325,6 +330,8 @@ pub enum Error {
     Relations(#[from] crate::paper::relations::RelationError),
     #[error(transparent)]
     Lifecycle(#[from] crate::lifecycle::Error),
+    #[error(transparent)]
+    Nifs(#[from] crate::paper::nifs::Error),
     #[error(transparent)]
     OptimizedCacheBuild(#[from] neo_reductions::error::PiCcsError),
 }

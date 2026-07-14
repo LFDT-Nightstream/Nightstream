@@ -603,6 +603,7 @@ impl NifsProverAdapter for CudaNifsProver {
             s,
             cache,
             log,
+            lanes,
             mix_rhos_commits,
             combine_b_pows,
             fresh,
@@ -611,6 +612,11 @@ impl NifsProverAdapter for CudaNifsProver {
             cache_output_for_next_step,
             ..
         } = request;
+        if lanes.is_some() {
+            return Err(backend_unavailable(
+                "CUDA NIFS prover does not support Nebula lane commitments",
+            ));
+        }
         let running_device_output = device_output_from_carrier(running_carrier);
         let running_accumulator_handle = running_device_output
             .as_ref()

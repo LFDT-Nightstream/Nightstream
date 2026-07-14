@@ -98,13 +98,16 @@ pub use verifier_key::VerifierKey;
 // Step entry points live in `paper::f_prime`; re-exported here under the
 // canonical Construction-2 names so call sites use one path.
 pub use crate::paper::f_prime::prove as step;
+pub use crate::paper::f_prime::prove_with_adapter_and_semantic_state as step_with_adapter_and_semantic_state;
+pub(crate) use crate::paper::f_prime::prove_with_adapter_output_and_semantic_state as step_with_adapter_output_and_semantic_state;
+pub use crate::paper::f_prime::prove_with_backend_and_semantic_state as step_with_backend_and_semantic_state;
 pub use crate::paper::f_prime::prove_with_semantic_state as step_with_semantic_state;
 pub use crate::paper::f_prime::verify as verify_step;
 
 // Transition + finalization helpers exposed `pub(crate)` for f_prime and lifecycle.
-pub(crate) use finalization::{prove_final_fold, verify_final_fold};
+pub(crate) use finalization::{prove_final_fold_with_adapter, prove_final_fold_with_backend, verify_final_fold};
 pub(crate) use transition::{
-    advance_state, compute_x_out, enforce_pc_in_range, f_prime_chunk_public_digest_for_step,
-    f_prime_chunk_public_digest_from_claims, state_base_case_check,
+    advance_state, advance_state_with_acc_digest, compute_x_out, enforce_pc_in_range,
+    f_prime_chunk_public_digest_for_step, f_prime_chunk_public_digest_from_claims, state_base_case_check,
 };
 pub use transition::{SemanticStateAdvance, SemanticStateMode};

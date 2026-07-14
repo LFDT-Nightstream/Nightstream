@@ -182,6 +182,76 @@ pub fn build_bit_backed_poseidon2_hash(input: &[F]) -> CcsNativePoseidon2Hash {
     }
 }
 
+/// The witness side of [`build_bit_backed_poseidon2_hash`] alone: the
+/// identical `z = [1 || trace bits]` vector and digest, computed by a pure
+/// value walk that mirrors the builder's `push_constrained_word` sequence
+/// exactly — no constraint matrices are assembled. For callers (trace
+/// encoders) that discard the structure, this is orders of magnitude
+/// cheaper; `ccs_native_poseidon` tests pin the byte equality.
+pub fn build_bit_backed_poseidon2_hash_values(input: &[F]) -> (Vec<F>, [F; POSEIDON2_DIGEST_LEN]) {
+    let constants = poseidon2_constants();
+    let mut z = vec![F::ONE];
+    let mut state = [F::ZERO; POSEIDON2_WIDTH];
+    for chunk in input.chunks(POSEIDON2_RATE) {
+        for (lane, &v) in chunk.iter().enumerate() {
+            state[lane] += v;
+        }
+        state = absorb_words_then_permute_values(&mut z, &constants, state);
+    }
+    state[0] += F::ONE;
+    state = absorb_words_then_permute_values(&mut z, &constants, state);
+    let digest = std::array::from_fn(|i| state[i]);
+    (z, digest)
+}
+
+/// Push the post-absorb state words, then walk one permutation pushing
+/// every committed word's bits in [`append_one_permutation`]'s order.
+fn absorb_words_then_permute_values(
+    z: &mut Vec<F>,
+    constants: &Poseidon2Constants,
+    state_in: [F; POSEIDON2_WIDTH],
+) -> [F; POSEIDON2_WIDTH] {
+    for v in state_in {
+        push_goldilocks_bits(z, v);
+    }
+    let mut state = value_external_linear(state_in);
+    for v in state {
+        push_goldilocks_bits(z, v);
+    }
+    for round in 0..POSEIDON2_HALF_FULL_ROUNDS {
+        let mut sbox = [F::ZERO; POSEIDON2_WIDTH];
+        for lane in 0..POSEIDON2_WIDTH {
+            sbox[lane] = poseidon2_sbox7(state[lane] + constants.initial[round][lane]);
+            push_goldilocks_bits(z, sbox[lane]);
+        }
+        state = value_external_linear(sbox);
+        for v in state {
+            push_goldilocks_bits(z, v);
+        }
+    }
+    for round in 0..POSEIDON2_PARTIAL_ROUNDS {
+        let mut sbox_in = state;
+        sbox_in[0] = poseidon2_sbox7(sbox_in[0] + constants.internal[round]);
+        push_goldilocks_bits(z, sbox_in[0]);
+        state = value_internal_linear(sbox_in);
+        for v in state {
+            push_goldilocks_bits(z, v);
+        }
+    }
+    for round in 0..POSEIDON2_HALF_FULL_ROUNDS {
+        let mut sbox = [F::ZERO; POSEIDON2_WIDTH];
+        for lane in 0..POSEIDON2_WIDTH {
+            sbox[lane] = poseidon2_sbox7(state[lane] + constants.terminal[round][lane]);
+            push_goldilocks_bits(z, sbox[lane]);
+        }
+        state = value_external_linear(sbox);
+        for v in state {
+            push_goldilocks_bits(z, v);
+        }
+    }
+    state
+}
+
 /// Build a bit-backed CCS-native Poseidon2 permutation trace for one
 /// full-width input. Same gate-mix encoding as
 /// [`build_bit_backed_poseidon2_hash`] but without sponge absorb /

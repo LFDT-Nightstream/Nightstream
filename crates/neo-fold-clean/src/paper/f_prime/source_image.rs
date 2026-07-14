@@ -17,11 +17,10 @@
 //! used to route every internal digest or transcript lane through a bit
 //! image by default.
 //!
-//! The unresolved larger design is `enc(F')`: how to encode the private
-//! F' execution witness `w` as a low-norm assignment suitable for
-//! `CcsInstance::from_low_norm_assignment`. That is separate from
-//! `enc_inst(h)`, which handles only the public-instance boundary. See
-//! `encoding.md` for the distinction.
+//! The generic `enc(F')` correctness oracle now lives in
+//! `frontends/f_prime/low_norm_r1cs.rs`. A practical production lowering is
+//! still unresolved. This boundary-only image is separate from both:
+//! `enc_inst(h)` handles only the public-instance link. See `encoding.md`.
 //!
 //! ## Current scope
 //!

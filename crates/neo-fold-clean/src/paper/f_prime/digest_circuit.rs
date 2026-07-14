@@ -234,11 +234,6 @@ fn enforce_state_x_out_digest_inner(
     enforce_poseidon2_hash(builder, &preimage)
 }
 
-// Accumulator-digest circuit lives in
-// `crate::paper::reductions::accumulator_digest_circuit` — see that module
-// for the verified-parent Construction-2 handle that binds HyperNova's `U_i`
-// as child CE-claim digests plus the Π_RLC parent-authority digest.
-
 // ── Internal helpers ──────────────────────────────────────────────────────
 
 /// Allocate constant wires for a packed domain tag — `pack_bytes_as_fields`

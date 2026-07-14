@@ -15,15 +15,14 @@ use neo_fold_clean::paper::digest::digest_fields_as_digest32;
 use crate::device::{copy_host_to_device, uninit_u64_device_buffer, Device};
 use crate::kernels::ajtai::launch_plane_copy_slice;
 use crate::kernels::pi_ccs_digest::{
-    launch_ccs_build_accumulator_claim_digest_preimages, launch_ccs_build_accumulator_digest_preimage,
-    launch_ccs_build_output_claim_digest_preimages, launch_ccs_build_outputs_digest_preimage,
+    launch_ccs_build_accumulator_claim_digest_preimages, launch_ccs_build_output_claim_digest_preimages,
+    launch_ccs_build_outputs_digest_preimage,
 };
 use crate::kernels::poseidon2::{launch_hash_contiguous_cooperative, launch_hash_fields_cooperative_plan, DIGEST_LEN};
 use crate::reduce::ccs::{CcsDeviceError, DevicePiCcsKSurfaces, DevicePublicX, SumcheckKernels};
 
 const OUTPUTS_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/pi_ccs_outputs_digest/v1";
 const OUTPUT_CLAIM_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/pi_ccs_output_claim_digest/v1";
-const ACCUMULATOR_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/accumulator/full_running/v1";
 const ACCUMULATOR_CLAIM_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/accumulator_ce_claim_digest/v1";
 const CE_CLAIM_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/ce_claim_digest/v2";
 const BYTES_PER_PACKED_LIMB: usize = 7;
@@ -912,32 +911,19 @@ pub(crate) fn accumulator_digest_from_surfaces(
         DIGEST_LEN,
         &mut parent_ce_digest,
     )?;
-    let mut header_fields = pack_bytes_as_words(ACCUMULATOR_DIGEST_DOMAIN);
-    header_fields.push(claims.len() as u64);
-    let header_dev = uninit_u64_device_buffer(stream, header_fields.len())?;
-    copy_host_to_device(stream, &header_dev, &header_fields)?;
-    let outer_preimage_words = header_fields.len() + claims.len() * DIGEST_LEN + 1 + DIGEST_LEN;
-    let mut outer_preimage = uninit_u64_device_buffer(stream, outer_preimage_words)?;
-    launch_ccs_build_accumulator_digest_preimage(
-        &kernels.digest,
-        stream,
-        &header_dev,
-        &combined_digests,
-        claims.len(),
-        &parent_acc_digest,
-        &mut outer_preimage,
-    )?;
-    let mut digest = uninit_u64_device_buffer(stream, DIGEST_LEN)?;
-    launch_hash_contiguous_cooperative(
-        &kernels.poseidon,
-        stream,
-        &outer_preimage,
-        outer_preimage_words,
-        &mut digest,
-        &kernels.poseidon_rc,
-    )?;
     let mut summary = uninit_u64_device_buffer(stream, 2 * DIGEST_LEN)?;
-    launch_plane_copy_slice(kernels.ring(), stream, &digest, 0, 0, DIGEST_LEN, &mut summary)?;
+    // Π_DEC validates the resident children against this parent. Recursive
+    // state therefore carries the full parent authority digest directly;
+    // constructing an outer hash over every child would duplicate that check.
+    launch_plane_copy_slice(
+        kernels.ring(),
+        stream,
+        &parent_acc_digest,
+        0,
+        0,
+        DIGEST_LEN,
+        &mut summary,
+    )?;
     launch_plane_copy_slice(
         kernels.ring(),
         stream,

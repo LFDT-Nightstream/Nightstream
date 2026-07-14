@@ -20,7 +20,6 @@ use neo_fold_clean::paper::digest::{
     accumulator_ce_claim_digest, accumulator_digest_from_running_parts, ccs_claim_digest, ce_claim_digest,
     digest32_as_fields, pi_ccs_instance_digest, pi_ccs_instance_digest_parent_authority, pi_ccs_outputs_digest,
 };
-use neo_fold_clean::paper::reductions::accumulator_digest_circuit::enforce_accumulator_digest_from_parent_circuit;
 use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::{
     absorb_engine_header_bundle_and_instance_digest, absorb_engine_me_inputs_accumulator_handle,
     enforce_accumulator_ce_claim_digest, enforce_ccs_claim_digest, enforce_ce_claim_digest, enforce_fe_claimed_initial,
@@ -893,11 +892,9 @@ fn accumulator_ce_claim_digest_ignores_y_zcol_non_authority() {
 }
 
 #[test]
-fn enforce_parent_authority_accumulator_digest_matches_native() {
-    // NIFS.V has already established Pi_DEC(parent, children). The compact
-    // HyperNova handle therefore hashes the same parent CE authority used by
-    // the Pi_CCS transcript, plus the child count. Pin that wrapper's exact
-    // native/circuit Poseidon2 preimage independently of the larger verifier.
+fn running_accumulator_handle_is_the_validated_parent_authority() {
+    // Π_DEC validates children against the parent. Recursive state therefore
+    // carries the full parent digest, not a second digest of child bytes.
     let child_a = build_test_accumulator_ce_claim(0xA11CE);
     let child_b = build_test_accumulator_ce_claim(0xB0B);
     let parent = build_test_accumulator_ce_claim(0xFA12_EA7E_u64);
@@ -905,19 +902,14 @@ fn enforce_parent_authority_accumulator_digest_matches_native() {
         &[child_a.clone(), child_b.clone()],
         Some(&parent),
     ));
+    assert_eq!(native_digest, accumulator_ce_claim_digest(&parent));
 
-    let mut b = R1csBuilder::new();
-    let parent_digest = ce_claim_digest(&parent).map(|lane| alloc_witness_var(&mut b, lane));
-    let digest = enforce_accumulator_digest_from_parent_circuit(&mut b, 2, Some(parent_digest));
-
-    for (i, var) in digest.iter().enumerate() {
-        assert_eq!(b.witness()[var.col()], native_digest[i], "lane {i}");
-        b.enforce_eq(&Lc::from_var(*var), &Lc::from_const(native_digest[i]));
-    }
-    assert!(
-        b.is_satisfied(),
-        "parent-authority accumulator digest parity (first bad row: {:?})",
-        b.first_unsatisfied_row()
+    let mut changed_children = [child_a, child_b];
+    changed_children[0].c.data[0] += F::ONE;
+    assert_eq!(
+        digest32_as_fields(accumulator_digest_from_running_parts(&changed_children, Some(&parent))),
+        native_digest,
+        "child serialization is a checked witness, not transcript authority"
     );
 }
 

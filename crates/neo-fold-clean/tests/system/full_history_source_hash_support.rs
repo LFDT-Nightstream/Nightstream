@@ -17,7 +17,6 @@ pub fn full_history_source_hashes() -> Vec<Value> {
         "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/verifier.rs",
         "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/digests.rs",
         "crates/neo-fold-clean/src/paper/reductions/accumulator_sis_circuit.rs",
-        "crates/neo-fold-clean/src/paper/reductions/accumulator_digest_circuit.rs",
         "crates/neo-fold-clean/src/paper/decider_ce_relation/mod.rs",
         "crates/neo-fold-clean/src/paper/decider_ce_relation/commitment.rs",
         "crates/neo-fold-clean/src/paper/decider_ce_relation/evaluation.rs",

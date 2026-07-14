@@ -48,11 +48,11 @@ use p3_field::PrimeCharacteristicRing;
 
 use super::{
     absorb_engine_header_bundle_and_instance_digest, absorb_engine_header_bundle_wires_and_instance_digest,
-    absorb_engine_me_inputs_accumulator_handle, enforce_ccs_claim_digest, enforce_ce_claim_digest,
-    enforce_fe_claimed_initial, enforce_fe_sumcheck_driver, enforce_fe_terminal_identity,
+    absorb_engine_me_inputs_accumulator_handle, alloc_constant_var, enforce_accumulator_ce_claim_digest,
+    enforce_ccs_claim_digest, enforce_fe_claimed_initial, enforce_fe_sumcheck_driver, enforce_fe_terminal_identity,
     enforce_header_digest_catch_up_wires, enforce_nc_sumcheck_driver, enforce_nc_terminal_identity,
     enforce_pi_ccs_instance_digest_parent_authority, enforce_pi_ccs_outputs_digest, header_digest_bytes_to_fields,
-    sample_engine_beta_m, sample_engine_challenges, CeClaimDigestInputs, Error, FeClaimedInitialInputs,
+    sample_engine_beta_m, sample_engine_challenges, AccumulatorCeClaimDigestInputs, Error, FeClaimedInitialInputs,
     FeTerminalInputs, NcTerminalInputs, PiCcsOutputClaimDigestInputs,
 };
 use crate::engine::r1cs_circuit::boolean;
@@ -60,8 +60,8 @@ use crate::engine::r1cs_circuit::builder::{Lc, Var};
 use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::transcript::TranscriptGadget;
 use crate::engine::r1cs_circuit::R1csBuilder;
+use crate::paper::digest::AccumulatorHandle;
 use crate::paper::params::Params;
-use crate::paper::reductions::accumulator_digest_circuit::enforce_accumulator_digest_from_parent_circuit;
 use crate::paper::reductions::pi_dec_circuit::{
     enforce_dec_v_strict, enforce_split_nc_d_pad_shape, CeClaimWires as DecCeClaimWires, DecInputWires,
 };
@@ -298,6 +298,24 @@ impl CeClaimWires {
     }
 }
 
+fn accumulator_digest_inputs(claim: &CeClaimWires) -> AccumulatorCeClaimDigestInputs<'_> {
+    AccumulatorCeClaimDigestInputs {
+        c_d: claim.c_d,
+        c_kappa: claim.c_kappa,
+        c_data: &claim.c_data,
+        x_rows: claim.x_rows,
+        x_cols: claim.x_cols,
+        x_flat_row_major: &claim.x,
+        r: &claim.r,
+        s_col: &claim.s_col,
+        y_ring: &claim.y_ring,
+        ct: &claim.ct,
+        m_in: claim.m_in,
+        fold_digest_fields: claim.fold_digest_fields,
+        adv: claim.adv.as_ref(),
+    }
+}
+
 // ── Public entry ──────────────────────────────────────────────────────────
 
 /// Compose the full SplitNcV1 Π_CCS.V verifier on top of `transcript`.
@@ -484,26 +502,10 @@ fn enforce_split_nc_pi_ccs_v_inner(
     }
     let running_parent_digest = running_parent_authority_wires
         .as_ref()
-        .map(|parent| {
-            enforce_ce_claim_digest(
-                builder,
-                &CeClaimDigestInputs {
-                    c_d: parent.c_d,
-                    c_kappa: parent.c_kappa,
-                    c_data: &parent.c_data,
-                    x_rows: parent.x_rows,
-                    x_cols: parent.x_cols,
-                    x_flat_row_major: &parent.x,
-                    r: &parent.r,
-                    y_ring: &parent.y_ring,
-                    m_in: parent.m_in,
-                    fold_digest_fields: parent.fold_digest_fields,
-                    adv: parent.adv.as_ref(),
-                },
-            )
-        })
+        .map(|parent| enforce_accumulator_ce_claim_digest(builder, &accumulator_digest_inputs(parent)))
         .transpose()?;
     builder.record_row_family("nifs.pi_ccs.running_authority", running_authority_start);
+
     // ── 4-5. Instance digest + header/instance absorbs ───────────────────
     let transcript_start = builder.rows();
     builder.begin_encoding_stage("nifs.pi_ccs.instance_hash_and_absorb");
@@ -520,16 +522,19 @@ fn enforce_split_nc_pi_ccs_v_inner(
 
     // ── 6. ME-input absorb (running-accumulator authority handle mode) ───
     //
-    // Native NIFS.V verifies strict Pi_DEC(parent, running) before Pi_CCS,
-    // and this circuit mirrors that check in
-    // `enforce_running_parent_authority_consistency`. Reuse the same parent
-    // CE digest that already drives the Pi_CCS transcript rather than
-    // re-hashing all children. The CE digest includes c, adv, active X, r,
-    // y_ring, shape, and fold_digest; s_col/ct are derived by the strict
-    // parent-consistency rows and y_zcol is explicitly non-authority.
+    // Π_DEC already checked every running child against the Π_RLC parent
+    // above. That checked parent is therefore the recursive authority;
+    // hashing the serialized children again would add no statement. Reuse the
+    // same full parent digest for the Π_CCS instance, ME-input transcript, and
+    // F' state.
     builder.begin_encoding_stage("nifs.pi_ccs.running_handle_hash_and_absorb");
-    let running_acc_digest =
-        enforce_accumulator_digest_from_parent_circuit(builder, running_wires.len(), running_parent_digest);
+    let running_acc_digest = match running_parent_digest {
+        Some(digest) => digest,
+        None => {
+            let empty = AccumulatorHandle::empty().digest_fields();
+            std::array::from_fn(|lane| alloc_constant_var(builder, empty[lane]))
+        }
+    };
     absorb_engine_me_inputs_accumulator_handle(builder, transcript, k_me, running_acc_digest);
 
     // ── 7. Sample engine challenges + β_m ────────────────────────────────

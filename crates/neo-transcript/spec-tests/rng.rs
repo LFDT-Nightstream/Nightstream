@@ -146,3 +146,32 @@ fn rng_transcript_binding() {
         "different transcript states must produce different RNG output"
     );
 }
+
+/// Red-team regression: witness-rekey labels and vectors must be framed as
+/// separate inputs. These two different `(label, witness)` pairs currently
+/// absorb the same field-element sequence: `[b'L', 2, 1, x]`.
+#[test]
+fn rng_rekey_frames_label_separately_from_witness_fields() {
+    let tr = Poseidon2Transcript::new(b"rng/rekey-framing");
+    let base = TranscriptRngBuilder::from_transcript(&tr);
+    let x = F::from_u64(0x1234_5678);
+    let mut entropy_a = ChaCha8Rng::seed_from_u64(404);
+    let mut entropy_b = ChaCha8Rng::seed_from_u64(404);
+
+    let mut rng_a = base
+        .clone()
+        .rekey_with_witness_fields(b"L", &[F::ONE, x])
+        .finalize(&mut entropy_a);
+    let mut rng_b = base
+        .rekey_with_witness_fields(b"L\x02", &[x])
+        .finalize(&mut entropy_b);
+    let mut out_a = [0u8; 32];
+    let mut out_b = [0u8; 32];
+    rng_a.fill_bytes(&mut out_a);
+    rng_b.fill_bytes(&mut out_b);
+
+    assert_ne!(
+        out_a, out_b,
+        "different witness-rekey labels and vectors must not share an RNG stream"
+    );
+}

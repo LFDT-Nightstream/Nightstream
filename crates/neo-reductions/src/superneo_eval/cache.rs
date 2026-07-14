@@ -338,5 +338,6 @@ where
     Some(SuperneoEvalCache {
         mats,
         explicit_matrix_masks,
+        mat_digest: [F::ZERO; 4],
     })
 }

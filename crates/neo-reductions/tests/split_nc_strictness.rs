@@ -243,6 +243,47 @@ fn split_nc_verify_ignores_stale_ct_shell() {
 }
 
 #[test]
+fn split_nc_raw_verify_rejects_unbound_output_ct() {
+    let label = b"test/split_nc/redteam/unbound_output_ct";
+    let (params, s, l, mcs_inst, mcs_wit, mut tr_p) = build_fixture(label, 4, D);
+
+    let (mut outputs, proof) = neo_reductions::api::prove(
+        FoldingMode::Optimized,
+        &mut tr_p,
+        &params,
+        &s,
+        core::slice::from_ref(&mcs_inst),
+        core::slice::from_ref(&mcs_wit),
+        &[],
+        &[],
+        &l,
+    )
+    .expect("prove");
+
+    assert_eq!(outputs[0].ct[0], outputs[0].y_ring[0][0]);
+    outputs[0].ct[0] += K::ONE;
+    assert_ne!(outputs[0].ct[0], outputs[0].y_ring[0][0]);
+
+    let mut tr_v = Poseidon2Transcript::new(label);
+    let accepted = neo_reductions::api::verify(
+        FoldingMode::Optimized,
+        &mut tr_v,
+        &params,
+        &s,
+        core::slice::from_ref(&mcs_inst),
+        &[],
+        &outputs,
+        &proof,
+    )
+    .expect("malformed output must receive a verdict");
+
+    assert!(
+        !accepted,
+        "raw Pi_CCS accepted an output CE claim whose ct disagrees with y_ring"
+    );
+}
+
+#[test]
 fn split_nc_tampered_y_zcol_is_rejected() {
     // If `eq((α',s'),β)` happens to be zero, a single attempt may not detect tampering.
     // Try a few transcript labels and require that at least one detects it.
@@ -319,4 +360,146 @@ fn split_nc_tampered_y_zcol_is_rejected() {
     }
 
     panic!("tampered y_zcol was accepted in all attempts");
+}
+
+#[test]
+fn split_nc_raw_verify_rejects_unbound_inactive_output_x() {
+    let label = b"test/split_nc/redteam/inactive_output_x";
+    let (params, s, l, mut mcs, mut wit, mut tr_p) = build_fixture(label, 4, D);
+    mcs.m_in = 2;
+    mcs.x = vec![F::ZERO; 2];
+    wit.w = vec![F::ZERO; D - 2];
+
+    let (mut outputs, proof) = neo_reductions::api::prove(
+        FoldingMode::Optimized,
+        &mut tr_p,
+        &params,
+        &s,
+        core::slice::from_ref(&mcs),
+        core::slice::from_ref(&wit),
+        &[],
+        &[],
+        &l,
+    )
+    .expect("prove");
+
+    assert_eq!(outputs[0].X.rows(), D);
+    assert_eq!(outputs[0].X.cols(), 2);
+    outputs[0].X[(0, 1)] = F::ONE;
+
+    let mut tr_v = Poseidon2Transcript::new(label);
+    let accepted = neo_reductions::api::verify(
+        FoldingMode::Optimized,
+        &mut tr_v,
+        &params,
+        &s,
+        core::slice::from_ref(&mcs),
+        &[],
+        &outputs,
+        &proof,
+    )
+    .expect("malformed output must receive a verdict");
+
+    assert!(
+        !accepted,
+        "raw Pi_CCS accepted an output CE claim with unbound inactive X data"
+    );
+}
+
+#[test]
+fn raw_pi_ccs_rejects_fresh_count_above_parameter_profile() {
+    let label = b"test/split_nc/redteam/fresh_count_policy";
+    let (params, s, l, claim, witness, mut tr_p) = build_fixture(label, 4, D);
+    let count = neo_params::goldilocks_paper_b2::MAX_FRESH_K as usize + 1;
+    let claims = vec![claim; count];
+    let witnesses = vec![witness; count];
+
+    let (outputs, proof) = neo_reductions::api::prove(
+        FoldingMode::Optimized,
+        &mut tr_p,
+        &params,
+        &s,
+        &claims,
+        &witnesses,
+        &[],
+        &[],
+        &l,
+    )
+    .expect("raw Pi_CCS currently accepts a fresh count above its installed profile");
+
+    let mut tr_v = Poseidon2Transcript::new(label);
+    let accepted = neo_reductions::api::verify(
+        FoldingMode::Optimized,
+        &mut tr_v,
+        &params,
+        &s,
+        &claims,
+        &[],
+        &outputs,
+        &proof,
+    )
+    .expect("raw verifier must return a verdict");
+
+    assert!(
+        !accepted,
+        "raw Pi_CCS accepted {} fresh claims under a profile capped at {}",
+        count,
+        neo_params::goldilocks_paper_b2::MAX_FRESH_K
+    );
+}
+
+#[test]
+fn raw_pi_ccs_rejects_running_count_above_parameter_profile() {
+    let seed_label = b"test/split_nc/redteam/running_count_seed";
+    let (params, s, l, claim, witness, mut seed_tr) = build_fixture(seed_label, 4, D);
+    let running_witness = witness.Z.clone();
+    let (seed_outputs, _) = neo_reductions::api::prove(
+        FoldingMode::Optimized,
+        &mut seed_tr,
+        &params,
+        &s,
+        core::slice::from_ref(&claim),
+        core::slice::from_ref(&witness),
+        &[],
+        &[],
+        &l,
+    )
+    .expect("seed one valid running claim");
+
+    let count = params.k_rho as usize + 1;
+    let running = vec![seed_outputs[0].clone(); count];
+    let running_witnesses = vec![running_witness; count];
+    let label = b"test/split_nc/redteam/running_count_policy";
+    let mut tr_p = Poseidon2Transcript::new(label);
+    let (outputs, proof) = neo_reductions::api::prove(
+        FoldingMode::Optimized,
+        &mut tr_p,
+        &params,
+        &s,
+        core::slice::from_ref(&claim),
+        core::slice::from_ref(&witness),
+        &running,
+        &running_witnesses,
+        &l,
+    )
+    .expect("raw Pi_CCS currently accepts a running count above its installed profile");
+
+    let mut tr_v = Poseidon2Transcript::new(label);
+    let accepted = neo_reductions::api::verify(
+        FoldingMode::Optimized,
+        &mut tr_v,
+        &params,
+        &s,
+        core::slice::from_ref(&claim),
+        &running,
+        &outputs,
+        &proof,
+    )
+    .expect("raw verifier must return a verdict");
+
+    assert!(
+        !accepted,
+        "raw Pi_CCS accepted {count} running claims under a profile fixed to k_rho={}",
+        params.k_rho
+    );
 }

@@ -268,6 +268,7 @@ pub fn paper_exact_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     proof.sumcheck_final = running_sum;
     proof.sumcheck_final_nc = running_sum_nc;
     proof.header_digest = fold_digest.to_vec();
+    proof.canonicalize();
 
     Ok((out_me, proof))
 }

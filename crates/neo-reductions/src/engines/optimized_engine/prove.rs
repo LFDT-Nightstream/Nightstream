@@ -1,45 +1,68 @@
 //! Optimized prove implementation for PiCcsEngine.
-//!
-//! This module contains the prove logic for the optimized engine, using
-//! sparse/oracle optimizations while preserving paper-equivalent semantics.
 
 #![allow(non_snake_case)]
 
 use crate::error::PiCcsError;
 use crate::optimized_engine::{
-    PiCcsProof, PiCcsProofVariant, PiCcsProvePerf, PiCcsReplayOutputs, PiCcsReplayProofWitness,
-    PiCcsReplayTerminalState, PiCcsReplayWitnessOutputs,
+    PiCcsDeferredProof, PiCcsProof, PiCcsProvePerf, PiCcsReplayTerminalState, PiCcsTerminalOutputShell,
 };
 use crate::sumcheck::RoundOracle;
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat};
-use neo_math::KExtensions;
-use neo_math::{F, K};
+use neo_math::{KExtensions, F, K};
 use neo_params::NeoParams;
-use neo_transcript::Poseidon2Transcript;
-use neo_transcript::Transcript;
+use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 
+use super::backend::{
+    BackendTranscriptMode, FePhaseTraceRequest, FeSumcheckBackend, NcColTraceRequest, NcSumcheckBackend,
+    PiCcsPhaseBackend, PiCcsPhaseTraceRequest,
+};
+use super::phase_trace::{
+    apply_fe_backend_summary, apply_fe_backend_trace, apply_nc_backend_trace, apply_pi_ccs_phase_summary,
+    apply_pi_ccs_phase_trace, AppliedPiCcsPhase, FeBackendSummaryApply, FeBackendTraceApply, NcBackendTraceApply,
+    PiCcsPhaseApply, PiCcsPhaseSummaryApply,
+};
+use super::proof_assembly::{
+    proof_from_terminal_state, DeferredFeRowRounds, DeferredProofRounds, OptimizedProofRounds,
+};
+use super::terminal_outputs::build_me_outputs_from_terminal_surfaces;
+use super::transcript_segments::{append_nc_sumcheck_prolog, sample_public_challenges_with_backend};
 use super::OptimizedStructureCache;
 use crate::engines::utils;
 
 #[derive(Clone, Copy, Eq, PartialEq)]
-enum ReplayTraceMode {
+pub(super) enum ReplayTraceMode {
     Prove,
+    DeferredProof,
     TerminalState,
 }
 
 impl ReplayTraceMode {
-    fn captures_rounds(self) -> bool {
+    fn captures_host_rounds(self) -> bool {
+        matches!(self, Self::Prove | Self::DeferredProof)
+    }
+
+    fn exports_summary_rounds_immediately(self) -> bool {
         matches!(self, Self::Prove)
     }
 }
 
-struct OptimizedProofRounds {
-    sumcheck_rounds: Vec<Vec<K>>,
-    initial_sum: K,
-    sumcheck_rounds_nc: Vec<Vec<K>>,
-    initial_sum_nc: K,
+fn owned_rounds(rounds: DeferredProofRounds) -> Result<OptimizedProofRounds, PiCcsError> {
+    match rounds {
+        DeferredProofRounds::Owned(rounds) => Ok(rounds),
+        DeferredProofRounds::PhaseBackend | DeferredProofRounds::FeRows(_) => Err(PiCcsError::InvalidInput(
+            "optimized prove expected immediately owned proof rounds".into(),
+        )),
+    }
+}
+
+#[cfg(feature = "perf-timers")]
+fn perf_epoch_nanos() -> u128 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0)
 }
 
 /// Optimized prove implementation.
@@ -116,19 +139,13 @@ pub fn optimized_prove_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorphi
         None,
         None,
         ReplayTraceMode::Prove,
+        None,
+        None,
+        None,
+        BackendTranscriptMode::Replay,
     )?;
-    let rounds = rounds.expect("optimized prove trace must capture proof rounds");
-
-    let mut proof = PiCcsProof::new(rounds.sumcheck_rounds, Some(rounds.initial_sum));
-    proof.variant = PiCcsProofVariant::SplitNcV1;
-    proof.sumcheck_challenges = [terminal_state.row_chals.clone(), terminal_state.alpha_prime.clone()].concat();
-    proof.sumcheck_rounds_nc = rounds.sumcheck_rounds_nc;
-    proof.sc_initial_sum_nc = Some(rounds.initial_sum_nc);
-    proof.sumcheck_challenges_nc = [terminal_state.s_col.clone(), terminal_state.alpha_prime_nc.clone()].concat();
-    proof.challenges_public = terminal_state.challenges_public.clone();
-    proof.sumcheck_final = terminal_state.sumcheck_final;
-    proof.sumcheck_final_nc = terminal_state.sumcheck_final_nc;
-    proof.header_digest = terminal_state.fold_digest.to_vec();
+    let rounds = owned_rounds(rounds.expect("optimized prove trace must capture proof rounds"))?;
+    let proof = proof_from_terminal_state(&terminal_state, rounds);
 
     Ok((terminal_state.me_outputs, proof, terminal_state.perf))
 }
@@ -158,19 +175,13 @@ pub fn optimized_prove_with_cache_and_instance_digest_and_perf<L: neo_ccs::trait
         Some(public_instance_digest),
         None,
         ReplayTraceMode::Prove,
+        None,
+        None,
+        None,
+        BackendTranscriptMode::Replay,
     )?;
-    let rounds = rounds.expect("optimized prove trace must capture proof rounds");
-
-    let mut proof = PiCcsProof::new(rounds.sumcheck_rounds, Some(rounds.initial_sum));
-    proof.variant = PiCcsProofVariant::SplitNcV1;
-    proof.sumcheck_challenges = [terminal_state.row_chals.clone(), terminal_state.alpha_prime.clone()].concat();
-    proof.sumcheck_rounds_nc = rounds.sumcheck_rounds_nc;
-    proof.sc_initial_sum_nc = Some(rounds.initial_sum_nc);
-    proof.sumcheck_challenges_nc = [terminal_state.s_col.clone(), terminal_state.alpha_prime_nc.clone()].concat();
-    proof.challenges_public = terminal_state.challenges_public.clone();
-    proof.sumcheck_final = terminal_state.sumcheck_final;
-    proof.sumcheck_final_nc = terminal_state.sumcheck_final_nc;
-    proof.header_digest = terminal_state.fold_digest.to_vec();
+    let rounds = owned_rounds(rounds.expect("optimized prove trace must capture proof rounds"))?;
+    let proof = proof_from_terminal_state(&terminal_state, rounds);
 
     Ok((terminal_state.me_outputs, proof, terminal_state.perf))
 }
@@ -218,19 +229,13 @@ pub fn optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_pe
         Some(public_instance_digest),
         Some(me_input_accumulator_handle),
         ReplayTraceMode::Prove,
+        None,
+        None,
+        None,
+        BackendTranscriptMode::Replay,
     )?;
-    let rounds = rounds.expect("optimized prove trace must capture proof rounds");
-
-    let mut proof = PiCcsProof::new(rounds.sumcheck_rounds, Some(rounds.initial_sum));
-    proof.variant = PiCcsProofVariant::SplitNcV1;
-    proof.sumcheck_challenges = [terminal_state.row_chals.clone(), terminal_state.alpha_prime.clone()].concat();
-    proof.sumcheck_rounds_nc = rounds.sumcheck_rounds_nc;
-    proof.sc_initial_sum_nc = Some(rounds.initial_sum_nc);
-    proof.sumcheck_challenges_nc = [terminal_state.s_col.clone(), terminal_state.alpha_prime_nc.clone()].concat();
-    proof.challenges_public = terminal_state.challenges_public.clone();
-    proof.sumcheck_final = terminal_state.sumcheck_final;
-    proof.sumcheck_final_nc = terminal_state.sumcheck_final_nc;
-    proof.header_digest = terminal_state.fold_digest.to_vec();
+    let rounds = owned_rounds(rounds.expect("optimized prove trace must capture proof rounds"))?;
+    let proof = proof_from_terminal_state(&terminal_state, rounds);
 
     Ok((
         terminal_state.me_outputs,
@@ -240,70 +245,11 @@ pub fn optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_pe
     ))
 }
 
-pub fn optimized_replay_terminal_state_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
-    tr: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    s: &CcsStructure<F>,
-    mcs_list: &[CcsClaim<Cmt, F>],
-    mcs_witnesses: &[CcsWitness<F>],
-    me_inputs: &[CeClaim<Cmt, F, K>],
-    me_witnesses: &[Mat<F>],
-    log: &L,
-    cache: &OptimizedStructureCache,
-) -> Result<PiCcsReplayTerminalState, PiCcsError> {
-    let (terminal_state, _rounds) = run_optimized_replay_with_cache_and_perf(
-        tr,
-        params,
-        s,
-        mcs_list,
-        mcs_witnesses,
-        me_inputs,
-        me_witnesses,
-        log,
-        cache,
-        None,
-        None,
-        ReplayTraceMode::TerminalState,
-    )?;
-    validate_replay_terminal_state(params, s, mcs_list, me_inputs, &terminal_state)?;
-    Ok(terminal_state)
-}
-
-pub fn optimized_replay_terminal_state_with_cache_and_instance_digest_and_perf<
-    L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>,
->(
-    tr: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    s: &CcsStructure<F>,
-    mcs_list: &[CcsClaim<Cmt, F>],
-    mcs_witnesses: &[CcsWitness<F>],
-    me_inputs: &[CeClaim<Cmt, F, K>],
-    me_witnesses: &[Mat<F>],
-    public_instance_digest: [F; 4],
-    log: &L,
-    cache: &OptimizedStructureCache,
-) -> Result<PiCcsReplayTerminalState, PiCcsError> {
-    let (terminal_state, _rounds) = run_optimized_replay_with_cache_and_perf(
-        tr,
-        params,
-        s,
-        mcs_list,
-        mcs_witnesses,
-        me_inputs,
-        me_witnesses,
-        log,
-        cache,
-        Some(public_instance_digest),
-        None,
-        ReplayTraceMode::TerminalState,
-    )?;
-    validate_replay_terminal_state(params, s, mcs_list, me_inputs, &terminal_state)?;
-    Ok(terminal_state)
-}
-
-pub fn optimized_replay_terminal_state_with_cache_instance_digest_and_me_input_handle_and_perf<
-    L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>,
->(
+/// `optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf`
+/// with an active [`FeSumcheckBackend`] driving the FE row rounds. Output is
+/// field-identical to the CPU path by the backend contract.
+#[allow(clippy::too_many_arguments)]
+pub fn optimized_prove_with_device_backends<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,
     s: &CcsStructure<F>,
@@ -315,221 +261,9 @@ pub fn optimized_replay_terminal_state_with_cache_instance_digest_and_me_input_h
     me_input_accumulator_handle: [F; 4],
     log: &L,
     cache: &OptimizedStructureCache,
-) -> Result<PiCcsReplayTerminalState, PiCcsError> {
-    let (terminal_state, _rounds) = run_optimized_replay_with_cache_and_perf(
-        tr,
-        params,
-        s,
-        mcs_list,
-        mcs_witnesses,
-        me_inputs,
-        me_witnesses,
-        log,
-        cache,
-        Some(public_instance_digest),
-        Some(me_input_accumulator_handle),
-        ReplayTraceMode::TerminalState,
-    )?;
-    validate_replay_terminal_state(params, s, mcs_list, me_inputs, &terminal_state)?;
-    Ok(terminal_state)
-}
-
-pub fn optimized_replay_outputs_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
-    tr: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    s: &CcsStructure<F>,
-    mcs_list: &[CcsClaim<Cmt, F>],
-    mcs_witnesses: &[CcsWitness<F>],
-    me_inputs: &[CeClaim<Cmt, F, K>],
-    me_witnesses: &[Mat<F>],
-    log: &L,
-    cache: &OptimizedStructureCache,
-) -> Result<PiCcsReplayOutputs, PiCcsError> {
-    let terminal_state = optimized_replay_terminal_state_with_cache_and_perf(
-        tr,
-        params,
-        s,
-        mcs_list,
-        mcs_witnesses,
-        me_inputs,
-        me_witnesses,
-        log,
-        cache,
-    )?;
-    Ok(PiCcsReplayOutputs {
-        me_outputs: terminal_state.me_outputs,
-        fold_digest: terminal_state.fold_digest,
-        perf: terminal_state.perf,
-    })
-}
-
-pub fn optimized_replay_outputs_with_cache_and_instance_digest_and_perf<
-    L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>,
->(
-    tr: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    s: &CcsStructure<F>,
-    mcs_list: &[CcsClaim<Cmt, F>],
-    mcs_witnesses: &[CcsWitness<F>],
-    me_inputs: &[CeClaim<Cmt, F, K>],
-    me_witnesses: &[Mat<F>],
-    public_instance_digest: [F; 4],
-    log: &L,
-    cache: &OptimizedStructureCache,
-) -> Result<PiCcsReplayOutputs, PiCcsError> {
-    let (terminal_state, _rounds) = run_optimized_replay_with_cache_and_perf(
-        tr,
-        params,
-        s,
-        mcs_list,
-        mcs_witnesses,
-        me_inputs,
-        me_witnesses,
-        log,
-        cache,
-        Some(public_instance_digest),
-        None,
-        ReplayTraceMode::TerminalState,
-    )?;
-    Ok(PiCcsReplayOutputs {
-        me_outputs: terminal_state.me_outputs,
-        fold_digest: terminal_state.fold_digest,
-        perf: terminal_state.perf,
-    })
-}
-
-pub fn optimized_replay_witness_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
-    tr: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    s: &CcsStructure<F>,
-    mcs_list: &[CcsClaim<Cmt, F>],
-    mcs_witnesses: &[CcsWitness<F>],
-    me_inputs: &[CeClaim<Cmt, F, K>],
-    me_witnesses: &[Mat<F>],
-    log: &L,
-    cache: &OptimizedStructureCache,
-) -> Result<PiCcsReplayWitnessOutputs, PiCcsError> {
-    let (terminal_state, rounds) = run_optimized_replay_with_cache_and_perf(
-        tr,
-        params,
-        s,
-        mcs_list,
-        mcs_witnesses,
-        me_inputs,
-        me_witnesses,
-        log,
-        cache,
-        None,
-        None,
-        ReplayTraceMode::Prove,
-    )?;
-    let rounds = rounds.expect("optimized replay-witness trace must capture proof rounds");
-    Ok(PiCcsReplayWitnessOutputs {
-        me_outputs: terminal_state.me_outputs,
-        replay_proof: PiCcsReplayProofWitness {
-            sumcheck_rounds: rounds.sumcheck_rounds,
-            sumcheck_rounds_nc: rounds.sumcheck_rounds_nc,
-            header_digest: terminal_state.fold_digest,
-        },
-        perf: terminal_state.perf,
-    })
-}
-
-pub fn optimized_replay_witness_with_cache_and_instance_digest_and_perf<
-    L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>,
->(
-    tr: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    s: &CcsStructure<F>,
-    mcs_list: &[CcsClaim<Cmt, F>],
-    mcs_witnesses: &[CcsWitness<F>],
-    me_inputs: &[CeClaim<Cmt, F, K>],
-    me_witnesses: &[Mat<F>],
-    public_instance_digest: [F; 4],
-    log: &L,
-    cache: &OptimizedStructureCache,
-) -> Result<PiCcsReplayWitnessOutputs, PiCcsError> {
-    let (terminal_state, rounds) = run_optimized_replay_with_cache_and_perf(
-        tr,
-        params,
-        s,
-        mcs_list,
-        mcs_witnesses,
-        me_inputs,
-        me_witnesses,
-        log,
-        cache,
-        Some(public_instance_digest),
-        None,
-        ReplayTraceMode::Prove,
-    )?;
-    let rounds = rounds.expect("optimized replay-witness trace must capture proof rounds");
-    Ok(PiCcsReplayWitnessOutputs {
-        me_outputs: terminal_state.me_outputs,
-        replay_proof: PiCcsReplayProofWitness {
-            sumcheck_rounds: rounds.sumcheck_rounds,
-            sumcheck_rounds_nc: rounds.sumcheck_rounds_nc,
-            header_digest: terminal_state.fold_digest,
-        },
-        perf: terminal_state.perf,
-    })
-}
-
-pub fn optimized_replay_trace_with_cache_and_instance_digest_and_perf<
-    L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>,
->(
-    tr: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    s: &CcsStructure<F>,
-    mcs_list: &[CcsClaim<Cmt, F>],
-    mcs_witnesses: &[CcsWitness<F>],
-    me_inputs: &[CeClaim<Cmt, F, K>],
-    me_witnesses: &[Mat<F>],
-    public_instance_digest: [F; 4],
-    log: &L,
-    cache: &OptimizedStructureCache,
-) -> Result<(PiCcsReplayTerminalState, PiCcsReplayProofWitness), PiCcsError> {
-    let (terminal_state, rounds) = run_optimized_replay_with_cache_and_perf(
-        tr,
-        params,
-        s,
-        mcs_list,
-        mcs_witnesses,
-        me_inputs,
-        me_witnesses,
-        log,
-        cache,
-        Some(public_instance_digest),
-        None,
-        ReplayTraceMode::Prove,
-    )?;
-    validate_replay_terminal_state(params, s, mcs_list, me_inputs, &terminal_state)?;
-    let rounds = rounds.expect("optimized replay trace must capture proof rounds");
-    Ok((
-        terminal_state.clone(),
-        PiCcsReplayProofWitness {
-            sumcheck_rounds: rounds.sumcheck_rounds,
-            sumcheck_rounds_nc: rounds.sumcheck_rounds_nc,
-            header_digest: terminal_state.fold_digest,
-        },
-    ))
-}
-
-pub fn optimized_replay_trace_with_cache_instance_digest_and_me_input_handle_and_perf<
-    L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>,
->(
-    tr: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    s: &CcsStructure<F>,
-    mcs_list: &[CcsClaim<Cmt, F>],
-    mcs_witnesses: &[CcsWitness<F>],
-    me_inputs: &[CeClaim<Cmt, F, K>],
-    me_witnesses: &[Mat<F>],
-    public_instance_digest: [F; 4],
-    me_input_accumulator_handle: [F; 4],
-    log: &L,
-    cache: &OptimizedStructureCache,
-) -> Result<(PiCcsReplayTerminalState, PiCcsReplayProofWitness), PiCcsError> {
+    fe_backend: Option<&mut dyn FeSumcheckBackend>,
+    nc_backend: Option<&mut dyn NcSumcheckBackend>,
+) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, PiCcsProvePerf), PiCcsError> {
     let (terminal_state, rounds) = run_optimized_replay_with_cache_and_perf(
         tr,
         params,
@@ -543,20 +277,197 @@ pub fn optimized_replay_trace_with_cache_instance_digest_and_me_input_handle_and
         Some(public_instance_digest),
         Some(me_input_accumulator_handle),
         ReplayTraceMode::Prove,
+        None,
+        fe_backend,
+        nc_backend,
+        BackendTranscriptMode::Replay,
     )?;
-    validate_replay_terminal_state(params, s, mcs_list, me_inputs, &terminal_state)?;
-    let rounds = rounds.expect("optimized replay trace must capture proof rounds");
-    Ok((
-        terminal_state.clone(),
-        PiCcsReplayProofWitness {
-            sumcheck_rounds: rounds.sumcheck_rounds,
-            sumcheck_rounds_nc: rounds.sumcheck_rounds_nc,
-            header_digest: terminal_state.fold_digest,
-        },
+    let rounds = owned_rounds(rounds.expect("optimized prove trace must capture proof rounds"))?;
+    let proof = proof_from_terminal_state(&terminal_state, rounds);
+
+    Ok((terminal_state.me_outputs, proof, terminal_state.perf))
+}
+
+/// [`optimized_prove_with_device_backends`] with explicit control over
+/// whether device transcript segments are replayed online or adopted from
+/// device snapshots. `Replay` is for parity/debug gates; `DeviceSnapshot`
+/// is for the timed prover path.
+#[allow(clippy::too_many_arguments)]
+pub fn optimized_prove_with_device_backends_and_transcript_mode<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[CcsClaim<Cmt, F>],
+    mcs_witnesses: &[CcsWitness<F>],
+    me_inputs: &[CeClaim<Cmt, F, K>],
+    me_witnesses: &[Mat<F>],
+    public_instance_digest: [F; 4],
+    me_input_accumulator_handle: [F; 4],
+    log: &L,
+    cache: &OptimizedStructureCache,
+    fe_backend: Option<&mut dyn FeSumcheckBackend>,
+    nc_backend: Option<&mut dyn NcSumcheckBackend>,
+    transcript_mode: BackendTranscriptMode,
+) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, PiCcsProvePerf), PiCcsError> {
+    optimized_prove_with_phase_backend_and_transcript_mode(
+        tr,
+        params,
+        s,
+        mcs_list,
+        mcs_witnesses,
+        me_inputs,
+        me_witnesses,
+        public_instance_digest,
+        me_input_accumulator_handle,
+        log,
+        cache,
+        None,
+        fe_backend,
+        nc_backend,
+        transcript_mode,
+    )
+}
+
+/// Whole-phase-capable Π_CCS prove entrypoint.
+///
+/// `phase_backend` is the intended CUDA migration seam: it can eventually own
+/// FE rows + Ajtai tail + NC prolog/columns as one device transcript segment.
+/// When absent, or when it declines a shape, the existing FE/NC hooks remain
+/// the canonical path.
+#[allow(clippy::too_many_arguments)]
+pub fn optimized_prove_with_phase_backend_and_transcript_mode<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[CcsClaim<Cmt, F>],
+    mcs_witnesses: &[CcsWitness<F>],
+    me_inputs: &[CeClaim<Cmt, F, K>],
+    me_witnesses: &[Mat<F>],
+    public_instance_digest: [F; 4],
+    me_input_accumulator_handle: [F; 4],
+    log: &L,
+    cache: &OptimizedStructureCache,
+    phase_backend: Option<&mut dyn PiCcsPhaseBackend>,
+    fe_backend: Option<&mut dyn FeSumcheckBackend>,
+    nc_backend: Option<&mut dyn NcSumcheckBackend>,
+    transcript_mode: BackendTranscriptMode,
+) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, PiCcsProvePerf), PiCcsError> {
+    let (terminal_state, rounds) = run_optimized_replay_with_cache_and_perf(
+        tr,
+        params,
+        s,
+        mcs_list,
+        mcs_witnesses,
+        me_inputs,
+        me_witnesses,
+        log,
+        cache,
+        Some(public_instance_digest),
+        Some(me_input_accumulator_handle),
+        ReplayTraceMode::Prove,
+        phase_backend,
+        fe_backend,
+        nc_backend,
+        transcript_mode,
+    )?;
+    let rounds = owned_rounds(rounds.expect("optimized prove trace must capture proof rounds"))?;
+    let proof = proof_from_terminal_state(&terminal_state, rounds);
+
+    Ok((terminal_state.me_outputs, proof, terminal_state.perf))
+}
+
+/// Run Pi_CCS to terminal state while leaving proof-round logs backend-owned.
+///
+/// The returned object exposes the terminal CE claims immediately and can
+/// later assemble the public proof by asking the same phase backend to export
+/// resident FE/NC coefficient logs.
+#[allow(clippy::too_many_arguments)]
+pub fn optimized_defer_prove_with_phase_backend_and_transcript_mode<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[CcsClaim<Cmt, F>],
+    mcs_witnesses: &[CcsWitness<F>],
+    me_inputs: &[CeClaim<Cmt, F, K>],
+    me_witnesses: &[Mat<F>],
+    public_instance_digest: [F; 4],
+    me_input_accumulator_handle: [F; 4],
+    log: &L,
+    cache: &OptimizedStructureCache,
+    phase_backend: &mut dyn PiCcsPhaseBackend,
+    transcript_mode: BackendTranscriptMode,
+) -> Result<PiCcsDeferredProof, PiCcsError> {
+    let (terminal_state, _rounds) = run_optimized_replay_with_cache_and_perf(
+        tr,
+        params,
+        s,
+        mcs_list,
+        mcs_witnesses,
+        me_inputs,
+        me_witnesses,
+        log,
+        cache,
+        Some(public_instance_digest),
+        Some(me_input_accumulator_handle),
+        ReplayTraceMode::DeferredProof,
+        Some(phase_backend),
+        None,
+        None,
+        transcript_mode,
+    )?;
+    Ok(PiCcsDeferredProof::new(
+        terminal_state,
+        _rounds.unwrap_or(DeferredProofRounds::PhaseBackend),
     ))
 }
 
-fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+/// Run Pi_CCS to terminal state while leaving FE row proof coefficients
+/// backend-owned. This preserves the fast row-trace execution grain while
+/// deferring proof-log materialization to proof assembly.
+#[allow(clippy::too_many_arguments)]
+pub fn optimized_defer_prove_with_device_backends_and_transcript_mode<
+    L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>,
+>(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[CcsClaim<Cmt, F>],
+    mcs_witnesses: &[CcsWitness<F>],
+    me_inputs: &[CeClaim<Cmt, F, K>],
+    me_witnesses: &[Mat<F>],
+    public_instance_digest: [F; 4],
+    me_input_accumulator_handle: [F; 4],
+    log: &L,
+    cache: &OptimizedStructureCache,
+    fe_backend: &mut dyn FeSumcheckBackend,
+    nc_backend: Option<&mut dyn NcSumcheckBackend>,
+    transcript_mode: BackendTranscriptMode,
+) -> Result<PiCcsDeferredProof, PiCcsError> {
+    let (terminal_state, rounds) = run_optimized_replay_with_cache_and_perf(
+        tr,
+        params,
+        s,
+        mcs_list,
+        mcs_witnesses,
+        me_inputs,
+        me_witnesses,
+        log,
+        cache,
+        Some(public_instance_digest),
+        Some(me_input_accumulator_handle),
+        ReplayTraceMode::DeferredProof,
+        None,
+        Some(fe_backend),
+        nc_backend,
+        transcript_mode,
+    )?;
+    let rounds = rounds.ok_or_else(|| {
+        PiCcsError::InvalidInput("deferred device-backend Pi_CCS proof did not return proof source".into())
+    })?;
+    Ok(PiCcsDeferredProof::new(terminal_state, rounds))
+}
+
+pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,
     s: &CcsStructure<F>,
@@ -569,7 +480,11 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
     public_instance_digest: Option<[F; 4]>,
     me_input_accumulator_handle: Option<[F; 4]>,
     mode: ReplayTraceMode,
-) -> Result<(PiCcsReplayTerminalState, Option<OptimizedProofRounds>), PiCcsError> {
+    mut phase_backend: Option<&mut dyn PiCcsPhaseBackend>,
+    mut fe_backend: Option<&mut dyn FeSumcheckBackend>,
+    mut nc_backend: Option<&mut dyn NcSumcheckBackend>,
+    backend_transcript_mode: BackendTranscriptMode,
+) -> Result<(PiCcsReplayTerminalState, Option<DeferredProofRounds>), PiCcsError> {
     let total_started = std::time::Instant::now();
     if mcs_list.is_empty() {
         return Err(PiCcsError::InvalidInput("optimized_prove: empty mcs_list".into()));
@@ -611,22 +526,41 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
     }
     let bind_ms = bind_started.elapsed().as_secs_f64() * 1_000.0;
     #[cfg(feature = "perf-timers")]
-    eprintln!("optimized_prove: 1. bind/header        {bind_ms:>9.2}ms");
+    eprintln!(
+        "optimized_prove: 1. bind/header        {bind_ms:>9.2}ms @{}",
+        perf_epoch_nanos()
+    );
 
     // Sample challenges
     let sample_started = std::time::Instant::now();
-    let mut ch = utils::sample_challenges(tr, dims.ell_d, dims.ell)?;
-    ch.beta_m = utils::sample_beta_m(tr, dims.ell_m)?;
+    let ch = sample_public_challenges_with_backend(
+        tr,
+        &mut phase_backend,
+        backend_transcript_mode,
+        dims.ell_d,
+        dims.ell,
+        dims.ell_m,
+    )?;
     let sample_challenges_ms = sample_started.elapsed().as_secs_f64() * 1_000.0;
     #[cfg(feature = "perf-timers")]
-    eprintln!("optimized_prove: 2. sample challenges  {sample_challenges_ms:>9.2}ms");
-
-    let r_inputs = utils::shared_me_input_r(me_inputs, dims.ell_n)?;
+    eprintln!(
+        "optimized_prove: 2. sample challenges  {sample_challenges_ms:>9.2}ms @{}",
+        perf_epoch_nanos()
+    );
 
     // Initial sum: use the public T computed from ME inputs and α
     // (not the full hypercube sum Q, which includes MCS/NC terms).
     // This ensures invalid witnesses fail the first sumcheck invariant.
-    let initial_sum = super::claimed_initial_sum_from_inputs_with_k_mcs(s, &ch, mcs_witnesses.len(), me_inputs);
+    let r_inputs = utils::shared_me_input_r(me_inputs, dims.ell_n)?;
+    let initial_sum = phase_backend
+        .as_deref_mut()
+        .and_then(|backend| backend.claimed_initial_sum(&ch, mcs_witnesses.len(), me_inputs.len(), s.t()))
+        .or_else(|| {
+            fe_backend
+                .as_deref_mut()
+                .and_then(|backend| backend.claimed_initial_sum(&ch, mcs_witnesses.len(), me_inputs.len(), s.t()))
+        })
+        .unwrap_or_else(|| super::claimed_initial_sum_from_inputs_with_k_mcs(s, &ch, mcs_witnesses.len(), me_inputs));
 
     #[cfg(feature = "debug-logs")]
     {
@@ -674,23 +608,48 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
     // Optimized oracles with cached sparse formats and factored algebra
     #[cfg(feature = "perf-timers")]
     let oracle_started = std::time::Instant::now();
-    let mut oracle = super::oracle::OptimizedOracle::new_with_sparse_and_superneo_cache(
-        s,
-        params,
-        mcs_witnesses,
-        me_witnesses,
-        ch.clone(),
-        dims.ell_d,
-        dims.ell_n,
-        dims.d_sc,
-        r_inputs,
-        cache.sparse_arc(),
-        cache.superneo_arc(),
-    );
+    let phase_shape_candidate = phase_backend.is_some() && mcs_witnesses.len() + me_witnesses.len() > 1;
+    let mut oracle = if phase_shape_candidate {
+        let backend = phase_backend
+            .as_deref_mut()
+            .expect("phase candidate requires a phase backend");
+        super::oracle::OptimizedOracle::new_with_sparse_and_superneo_cache_and_backend(
+            s,
+            params,
+            mcs_witnesses,
+            me_witnesses,
+            ch.clone(),
+            dims.ell_d,
+            dims.ell_n,
+            dims.d_sc,
+            r_inputs,
+            cache.sparse_arc(),
+            cache.superneo_arc(),
+            backend.fe_backend_for_oracle(),
+        )
+    } else {
+        super::oracle::OptimizedOracle::new_with_sparse_and_superneo_cache_and_backend(
+            s,
+            params,
+            mcs_witnesses,
+            me_witnesses,
+            ch.clone(),
+            dims.ell_d,
+            dims.ell_n,
+            dims.d_sc,
+            r_inputs,
+            cache.sparse_arc(),
+            cache.superneo_arc(),
+            fe_backend.as_deref_mut(),
+        )
+    };
     #[cfg(feature = "perf-timers")]
     {
         let oracle_build_ms = oracle_started.elapsed().as_secs_f64() * 1_000.0;
-        eprintln!("optimized_prove: 3. oracle build       {oracle_build_ms:>9.2}ms");
+        eprintln!(
+            "optimized_prove: 3. oracle build       {oracle_build_ms:>9.2}ms @{}",
+            perf_epoch_nanos()
+        );
     }
 
     // ---------------------------------------------------------------------
@@ -703,9 +662,43 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
 
     let mut running_sum = initial_sum;
     let mut sumcheck_rounds = mode
-        .captures_rounds()
+        .captures_host_rounds()
         .then(|| Vec::with_capacity(oracle.num_rounds()));
     let mut sumcheck_chals: Vec<K> = Vec::with_capacity(oracle.num_rounds());
+    let mut oracle_nc_from_phase = phase_shape_candidate.then(|| {
+        let backend = phase_backend
+            .as_ref()
+            .expect("phase candidate requires a phase backend");
+        if backend.defers_nc_digit_tables() {
+            super::oracle::NcOracle::new_with_deferred_digit_tables(
+                s,
+                params,
+                mcs_witnesses,
+                me_witnesses,
+                ch.clone(),
+                dims.ell_d,
+                dims.ell_m,
+                dims.d_sc,
+            )
+        } else {
+            super::oracle::NcOracle::new(
+                s,
+                params,
+                mcs_witnesses,
+                me_witnesses,
+                ch.clone(),
+                dims.ell_d,
+                dims.ell_m,
+                dims.d_sc,
+            )
+        }
+    });
+    let initial_sum_nc = K::ZERO;
+    let mut running_sum_nc = initial_sum_nc;
+    let mut sumcheck_rounds_nc = mode
+        .captures_host_rounds()
+        .then(|| Vec::with_capacity(dims.ell_m + dims.ell_d));
+    let mut sumcheck_chals_nc: Vec<K> = Vec::with_capacity(dims.ell_m + dims.ell_d);
 
     let fe_sumcheck_started = std::time::Instant::now();
     #[cfg(feature = "perf-timers")]
@@ -722,12 +715,257 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
     let mut fe_largest_fold_ms = 0.0f64;
     #[cfg(feature = "perf-timers")]
     let mut fe_largest_fold_round = 0usize;
-    for round_idx in 0..oracle.num_rounds() {
+    let mut first_host_round = 0usize;
+    let mut first_nc_host_round_from_phase = None;
+    let mut phase_terminal_surfaces = None;
+    let mut phase_summary_export_pending = false;
+    let mut fe_row_summary_export_pending = None;
+    if let (Some(backend), Some(oracle_nc)) = (phase_backend.as_deref_mut(), oracle_nc_from_phase.as_mut()) {
+        if backend.start(&oracle.row_phase_snapshot(), &oracle_nc.col_phase_snapshot()) {
+            if let Some((cache, n_eff, witnesses)) = oracle.ajtai_backend_trace_context() {
+                let transcript_state = tr.state();
+                let transcript_absorbed = tr.absorbed();
+                let fe_row_rounds = dims.ell_n.min(oracle.num_rounds());
+                let nc_rounds = dims.ell_m.min(oracle_nc.num_rounds());
+                let summary_allowed = mode == ReplayTraceMode::TerminalState
+                    || (mode.captures_host_rounds() && !backend_transcript_mode.replays());
+                let summary = if summary_allowed {
+                    backend.summarize_pi_ccs_phase(PiCcsPhaseTraceRequest {
+                        fe: FePhaseTraceRequest {
+                            transcript_state,
+                            transcript_absorbed,
+                            row_rounds: fe_row_rounds,
+                            tail_rounds: dims.ell_d,
+                            cache,
+                            n_eff,
+                            witnesses: witnesses.clone(),
+                            alpha: &ch.alpha,
+                            beta_a: &ch.beta_a,
+                            beta_r: &ch.beta_r,
+                            r_inputs,
+                            gamma: ch.gamma,
+                            k_mcs: mcs_witnesses.len(),
+                        },
+                        fe_initial_sum: initial_sum,
+                        nc_col_rounds: nc_rounds,
+                        nc_tail_rounds: dims.ell_d,
+                        nc_tail_coeff_count: dims.d_sc + 1,
+                        nc_initial_sum: initial_sum_nc,
+                    })
+                } else {
+                    None
+                };
+                match summary {
+                    Some(summary) => {
+                        let applied = apply_pi_ccs_phase_summary(PiCcsPhaseSummaryApply {
+                            tr,
+                            oracle: &mut oracle,
+                            oracle_nc,
+                            summary,
+                            fe_row_rounds,
+                            nc_col_rounds: nc_rounds,
+                            nc_tail_rounds: dims.ell_d,
+                            transcript_mode: backend_transcript_mode,
+                            sumcheck_chals: &mut sumcheck_chals,
+                            running_sum: &mut running_sum,
+                            sumcheck_chals_nc: &mut sumcheck_chals_nc,
+                            running_sum_nc: &mut running_sum_nc,
+                        })?;
+                        let AppliedPiCcsPhase {
+                            first_host_round: next_fe_round,
+                            first_nc_host_round,
+                            terminal_surfaces,
+                        } = applied;
+                        first_host_round = next_fe_round;
+                        first_nc_host_round_from_phase = Some(first_nc_host_round);
+                        phase_terminal_surfaces = terminal_surfaces;
+                        phase_summary_export_pending = mode.captures_host_rounds();
+                    }
+                    None if mode != ReplayTraceMode::TerminalState => {
+                        let trace = backend.prove_pi_ccs_phase(PiCcsPhaseTraceRequest {
+                            fe: FePhaseTraceRequest {
+                                transcript_state,
+                                transcript_absorbed,
+                                row_rounds: fe_row_rounds,
+                                tail_rounds: dims.ell_d,
+                                cache,
+                                n_eff,
+                                witnesses,
+                                alpha: &ch.alpha,
+                                beta_a: &ch.beta_a,
+                                beta_r: &ch.beta_r,
+                                r_inputs,
+                                gamma: ch.gamma,
+                                k_mcs: mcs_witnesses.len(),
+                            },
+                            fe_initial_sum: initial_sum,
+                            nc_col_rounds: nc_rounds,
+                            nc_tail_rounds: dims.ell_d,
+                            nc_tail_coeff_count: dims.d_sc + 1,
+                            nc_initial_sum: initial_sum_nc,
+                        });
+                        if let Some(trace) = trace {
+                            let applied = apply_pi_ccs_phase_trace(PiCcsPhaseApply {
+                                tr,
+                                oracle: &mut oracle,
+                                oracle_nc,
+                                trace,
+                                fe_row_rounds,
+                                nc_col_rounds: nc_rounds,
+                                nc_tail_rounds: dims.ell_d,
+                                transcript_mode: backend_transcript_mode,
+                                sumcheck_rounds: &mut sumcheck_rounds,
+                                sumcheck_chals: &mut sumcheck_chals,
+                                running_sum: &mut running_sum,
+                                sumcheck_rounds_nc: &mut sumcheck_rounds_nc,
+                                sumcheck_chals_nc: &mut sumcheck_chals_nc,
+                                running_sum_nc: &mut running_sum_nc,
+                            })?;
+                            let AppliedPiCcsPhase {
+                                first_host_round: next_fe_round,
+                                first_nc_host_round,
+                                terminal_surfaces,
+                            } = applied;
+                            first_host_round = next_fe_round;
+                            first_nc_host_round_from_phase = Some(first_nc_host_round);
+                            phase_terminal_surfaces = terminal_surfaces;
+                        }
+                    }
+                    None => {}
+                }
+            }
+        }
+    }
+
+    let backend_active = if first_host_round == oracle.num_rounds() {
+        false
+    } else {
+        match fe_backend.as_deref_mut() {
+            Some(backend) => backend.start(&oracle.row_phase_snapshot()),
+            None => false,
+        }
+    };
+    if oracle.row_phase_requires_backend() && first_host_round != oracle.num_rounds() && !backend_active {
+        return Err(PiCcsError::InvalidInput(
+            "FE backend deferred row data but did not accept the row-phase snapshot".into(),
+        ));
+    }
+
+    if backend_active && dims.ell_n > 0 {
+        let row_rounds = dims.ell_n.min(oracle.num_rounds());
+        let transcript_state = tr.state();
+        let transcript_absorbed = tr.absorbed();
+        let full_trace = if row_rounds == dims.ell_n {
+            oracle
+                .ajtai_backend_trace_context()
+                .and_then(|(cache, n_eff, witnesses)| {
+                    fe_backend
+                        .as_deref_mut()
+                        .expect("fe backend is active")
+                        .fe_phase_trace_from_transcript(FePhaseTraceRequest {
+                            transcript_state,
+                            transcript_absorbed,
+                            row_rounds,
+                            tail_rounds: dims.ell_d,
+                            cache,
+                            n_eff,
+                            witnesses,
+                            alpha: &ch.alpha,
+                            beta_a: &ch.beta_a,
+                            beta_r: &ch.beta_r,
+                            r_inputs,
+                            gamma: ch.gamma,
+                            k_mcs: mcs_witnesses.len(),
+                        })
+                })
+        } else {
+            None
+        };
+        if let Some(mut trace) = full_trace {
+            if trace.ajtai_y_eval.is_none() {
+                if let Some((cache, chi_r, n_eff, witnesses)) = oracle.ajtai_backend_context() {
+                    let backend = fe_backend.as_deref_mut().expect("fe backend is active");
+                    trace.ajtai_y_eval = backend.ajtai_y_eval(cache, &chi_r, n_eff, &witnesses);
+                }
+            }
+            let expected_rounds = oracle.num_rounds();
+            first_host_round = apply_fe_backend_trace(FeBackendTraceApply {
+                tr,
+                oracle: &mut oracle,
+                trace,
+                expected_rounds,
+                row_rounds: dims.ell_n,
+                transcript_mode: backend_transcript_mode,
+                sumcheck_rounds: &mut sumcheck_rounds,
+                sumcheck_chals: &mut sumcheck_chals,
+                running_sum: &mut running_sum,
+                trace_name: "FE backend phase trace",
+            })?;
+        } else if mode == ReplayTraceMode::DeferredProof
+            && !backend_transcript_mode.replays()
+            && row_rounds == dims.ell_n
+        {
+            if let Some(summary) = fe_backend
+                .as_deref_mut()
+                .expect("fe backend is active")
+                .row_round_summary_from_transcript(transcript_state, transcript_absorbed, row_rounds, running_sum)
+            {
+                first_host_round = apply_fe_backend_summary(FeBackendSummaryApply {
+                    tr,
+                    oracle: &mut oracle,
+                    summary,
+                    expected_rounds: row_rounds,
+                    transcript_mode: backend_transcript_mode,
+                    sumcheck_chals: &mut sumcheck_chals,
+                    running_sum: &mut running_sum,
+                    trace_name: "FE backend row summary",
+                })?;
+                fe_row_summary_export_pending = Some(row_rounds);
+            }
+        } else if let Some(trace) = fe_backend
+            .as_deref_mut()
+            .expect("fe backend is active")
+            .row_round_trace_from_transcript(transcript_state, transcript_absorbed, row_rounds)
+        {
+            first_host_round = apply_fe_backend_trace(FeBackendTraceApply {
+                tr,
+                oracle: &mut oracle,
+                trace,
+                expected_rounds: row_rounds,
+                row_rounds,
+                transcript_mode: backend_transcript_mode,
+                sumcheck_rounds: &mut sumcheck_rounds,
+                sumcheck_chals: &mut sumcheck_chals,
+                running_sum: &mut running_sum,
+                trace_name: "FE backend row trace",
+            })?;
+        }
+    }
+
+    for round_idx in first_host_round..oracle.num_rounds() {
+        let backend_row_round = backend_active && round_idx < dims.ell_n;
+        if round_idx == dims.ell_n {
+            if let Some((cache, chi_r, n_eff, witnesses)) = oracle.ajtai_backend_context() {
+                if let Some(backend) = fe_backend.as_deref_mut() {
+                    if let Some(y_eval) = backend.ajtai_y_eval(cache, &chi_r, n_eff, &witnesses) {
+                        oracle.inject_ajtai_y_eval(y_eval);
+                    }
+                }
+            }
+        }
         #[cfg(feature = "perf-timers")]
         let eval_started = std::time::Instant::now();
         let deg = oracle.degree_bound();
         let xs: Vec<K> = (0..=deg).map(|t| K::from(F::from_u64(t as u64))).collect();
-        let ys = oracle.evals_at(&xs);
+        let ys = if backend_row_round {
+            let backend = fe_backend.as_deref_mut().expect("fe backend is active");
+            let coeffs = backend.round_coeffs();
+            xs.iter()
+                .map(|&x| crate::sumcheck::poly_eval_k(&coeffs, x))
+                .collect()
+        } else {
+            oracle.evals_at(&xs)
+        };
         #[cfg(feature = "perf-timers")]
         {
             let eval_ms = eval_started.elapsed().as_secs_f64() * 1_000.0;
@@ -791,7 +1029,15 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
 
         #[cfg(feature = "perf-timers")]
         let fold_started = std::time::Instant::now();
-        oracle.fold(r_i);
+        if backend_row_round {
+            fe_backend
+                .as_deref_mut()
+                .expect("fe backend is active")
+                .fold(r_i);
+            oracle.advance_row_round_without_fold(r_i);
+        } else {
+            oracle.fold(r_i);
+        }
         #[cfg(feature = "perf-timers")]
         {
             let fold_ms = fold_started.elapsed().as_secs_f64() * 1_000.0;
@@ -808,8 +1054,9 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
     let fe_sumcheck_ms = fe_sumcheck_started.elapsed().as_secs_f64() * 1_000.0;
     #[cfg(feature = "perf-timers")]
     eprintln!(
-        "optimized_prove: 4. FE sumcheck        {fe_sumcheck_ms:>9.2}ms ({} rounds)",
-        sumcheck_chals.len()
+        "optimized_prove: 4. FE sumcheck        {fe_sumcheck_ms:>9.2}ms ({} rounds) @{}",
+        sumcheck_chals.len(),
+        perf_epoch_nanos()
     );
     #[cfg(feature = "perf-timers")]
     eprintln!("optimized_prove: 4b. FE eval          {fe_eval_ms:>9.2}ms");
@@ -827,32 +1074,37 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
     // ---------------------------------------------------------------------
     #[cfg(feature = "perf-timers")]
     let nc_oracle_new_started = std::time::Instant::now();
-    let mut oracle_nc = super::oracle::NcOracle::new(
-        s,
-        params,
-        mcs_witnesses,
-        me_witnesses,
-        ch.clone(),
-        dims.ell_d,
-        dims.ell_m,
-        dims.d_sc,
-    );
+    // With a device backend, skip the digit-table build — the backend
+    // sources them from resident planes (materialized below if it declines).
+    let mut oracle_nc = oracle_nc_from_phase.take().unwrap_or_else(|| {
+        if nc_backend.is_some() {
+            super::oracle::NcOracle::new_with_deferred_digit_tables(
+                s,
+                params,
+                mcs_witnesses,
+                me_witnesses,
+                ch.clone(),
+                dims.ell_d,
+                dims.ell_m,
+                dims.d_sc,
+            )
+        } else {
+            super::oracle::NcOracle::new(
+                s,
+                params,
+                mcs_witnesses,
+                me_witnesses,
+                ch.clone(),
+                dims.ell_d,
+                dims.ell_m,
+                dims.d_sc,
+            )
+        }
+    });
     #[cfg(feature = "perf-timers")]
     let nc_oracle_new_ms = nc_oracle_new_started.elapsed().as_secs_f64() * 1_000.0;
     #[cfg(feature = "perf-timers")]
     eprintln!("optimized_prove: 5a. NC oracle new     {nc_oracle_new_ms:>9.2}ms");
-
-    tr.append_fields_raw(&[F::from_u64(crate::engines::utils::PI_CCS_SUMCHECK_NC_RAW_DOMAIN_TAG)]);
-    let initial_sum_nc = K::ZERO;
-    tr.append_fields_raw(&[F::from_u64(crate::engines::utils::PI_CCS_SUMCHECK_INITIAL_RAW_TAG)]);
-    tr.append_fields_raw(&initial_sum_nc.as_coeffs());
-    tr.append_fields_raw(&[F::from_u64(crate::sumcheck::SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG)]);
-
-    let mut running_sum_nc = initial_sum_nc;
-    let mut sumcheck_rounds_nc = mode
-        .captures_rounds()
-        .then(|| Vec::with_capacity(oracle_nc.num_rounds()));
-    let mut sumcheck_chals_nc: Vec<K> = Vec::with_capacity(oracle_nc.num_rounds());
 
     let nc_sumcheck_started = std::time::Instant::now();
     #[cfg(feature = "perf-timers")]
@@ -871,12 +1123,89 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
     let mut nc_largest_fold_ms = 0.0f64;
     #[cfg(feature = "perf-timers")]
     let mut nc_largest_fold_round = 0usize;
-    for _round_idx in 0..oracle_nc.num_rounds() {
+    let phase_nc_trace_applied = first_nc_host_round_from_phase.is_some();
+    let nc_backend_active = if phase_nc_trace_applied {
+        false
+    } else {
+        match nc_backend.as_deref_mut() {
+            Some(backend) => backend.start(&oracle_nc.col_phase_snapshot()),
+            None => false,
+        }
+    };
+    if !nc_backend_active && !phase_nc_trace_applied {
+        oracle_nc.materialize_digit_tables();
+    }
+
+    let mut first_nc_host_round = first_nc_host_round_from_phase.unwrap_or(0);
+    let mut nc_prolog_on_host = false;
+    if nc_backend_active && dims.ell_m > 0 {
+        let col_rounds = dims.ell_m.min(oracle_nc.num_rounds());
+        let request = NcColTraceRequest {
+            transcript_state: tr.state(),
+            transcript_absorbed: tr.absorbed(),
+            rounds: col_rounds,
+            initial_sum: initial_sum_nc,
+        };
+        if let Some(trace) = nc_backend
+            .as_deref_mut()
+            .expect("nc backend is active")
+            .col_round_trace_with_prolog(request)
+        {
+            first_nc_host_round = apply_nc_backend_trace(NcBackendTraceApply {
+                tr,
+                oracle_nc: &mut oracle_nc,
+                trace,
+                expected_rounds: col_rounds,
+                transcript_mode: backend_transcript_mode,
+                append_prolog: true,
+                initial_sum: initial_sum_nc,
+                sumcheck_rounds_nc: &mut sumcheck_rounds_nc,
+                sumcheck_chals_nc: &mut sumcheck_chals_nc,
+                running_sum_nc: &mut running_sum_nc,
+            })?;
+        }
+    }
+    if first_nc_host_round == 0 && !phase_nc_trace_applied {
+        append_nc_sumcheck_prolog(tr, initial_sum_nc);
+        nc_prolog_on_host = true;
+    }
+
+    if nc_prolog_on_host && nc_backend_active && dims.ell_m > 0 {
+        let col_rounds = dims.ell_m.min(oracle_nc.num_rounds());
+        let transcript_state = tr.state();
+        let transcript_absorbed = tr.absorbed();
+        if let Some(trace) = nc_backend
+            .as_deref_mut()
+            .expect("nc backend is active")
+            .col_round_trace_from_transcript(transcript_state, transcript_absorbed, col_rounds)
+        {
+            first_nc_host_round = apply_nc_backend_trace(NcBackendTraceApply {
+                tr,
+                oracle_nc: &mut oracle_nc,
+                trace,
+                expected_rounds: col_rounds,
+                transcript_mode: backend_transcript_mode,
+                append_prolog: false,
+                initial_sum: initial_sum_nc,
+                sumcheck_rounds_nc: &mut sumcheck_rounds_nc,
+                sumcheck_chals_nc: &mut sumcheck_chals_nc,
+                running_sum_nc: &mut running_sum_nc,
+            })?;
+        }
+    }
+
+    for _round_idx in first_nc_host_round..oracle_nc.num_rounds() {
+        let backend_col_round = nc_backend_active && oracle_nc.round_idx < dims.ell_m;
         #[cfg(feature = "perf-timers")]
         let is_col_round = oracle_nc.round_idx < dims.ell_m;
         #[cfg(feature = "perf-timers")]
         let coeff_started = std::time::Instant::now();
-        let coeffs = if let Some(coeffs) = oracle_nc.optimized_col_phase_round_coeffs() {
+        let coeffs = if backend_col_round {
+            nc_backend
+                .as_deref_mut()
+                .expect("nc backend is active")
+                .round_coeffs()
+        } else if let Some(coeffs) = oracle_nc.optimized_col_phase_round_coeffs() {
             coeffs
         } else {
             let deg = oracle_nc.degree_bound();
@@ -915,7 +1244,17 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
         running_sum_nc = crate::sumcheck::poly_eval_k(&coeffs, r_i);
         #[cfg(feature = "perf-timers")]
         let fold_started = std::time::Instant::now();
-        oracle_nc.fold(r_i);
+        if backend_col_round {
+            let backend = nc_backend.as_deref_mut().expect("nc backend is active");
+            backend.fold(r_i);
+            oracle_nc.advance_col_round_without_fold(r_i);
+            if oracle_nc.round_idx == dims.ell_m {
+                let state = backend.finalized_col_state();
+                oracle_nc.inject_finalized_col_state(state.digit_rows, state.eq_beta_m0);
+            }
+        } else {
+            oracle_nc.fold(r_i);
+        }
         #[cfg(feature = "perf-timers")]
         {
             let fold_ms = fold_started.elapsed().as_secs_f64() * 1_000.0;
@@ -936,8 +1275,9 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
     let nc_sumcheck_ms = nc_sumcheck_started.elapsed().as_secs_f64() * 1_000.0;
     #[cfg(feature = "perf-timers")]
     eprintln!(
-        "optimized_prove: 5. NC sumcheck        {nc_sumcheck_ms:>9.2}ms ({} rounds)",
-        sumcheck_chals_nc.len()
+        "optimized_prove: 5. NC sumcheck        {nc_sumcheck_ms:>9.2}ms ({} rounds) @{}",
+        sumcheck_chals_nc.len(),
+        perf_epoch_nanos()
     );
     #[cfg(feature = "perf-timers")]
     eprintln!(
@@ -962,19 +1302,43 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
     let output_started = std::time::Instant::now();
     let fold_digest = tr.digest32();
     let (s_col, _alpha_nc) = sumcheck_chals_nc.split_at(dims.ell_m);
-    let y_zcol_digits = (!s_col.is_empty()).then(|| oracle_nc.finalized_y_zcol_digits());
-    let out_me = oracle.build_me_outputs_from_ajtai_precomp(
-        mcs_list,
-        me_inputs,
-        s_col,
-        y_zcol_digits.as_deref(),
-        fold_digest,
-        log,
-    );
-    let pi_dec_precompute = oracle.take_pi_dec_precompute();
+    let terminal_surfaces_supplied = phase_terminal_surfaces.is_some();
+    let out_me = if let Some(surfaces) = phase_terminal_surfaces.take() {
+        build_me_outputs_from_terminal_surfaces(
+            params,
+            s,
+            mcs_list,
+            mcs_witnesses,
+            me_inputs,
+            &sumcheck_chals[..dims.ell_n],
+            s_col,
+            surfaces,
+            fold_digest,
+        )?
+    } else {
+        let y_zcol_digits = (!s_col.is_empty()).then(|| oracle_nc.finalized_y_zcol_digits());
+        oracle.build_me_outputs_from_ajtai_precomp(
+            mcs_list,
+            me_inputs,
+            s_col,
+            y_zcol_digits.as_deref(),
+            fold_digest,
+            log,
+        )
+    };
+    let pi_dec_precompute = if terminal_surfaces_supplied {
+        super::PiDecProverPrecompute {
+            row_chals: sumcheck_chals[..dims.ell_n].to_vec(),
+        }
+    } else {
+        oracle.take_pi_dec_precompute()
+    };
     let output_materialize_ms = output_started.elapsed().as_secs_f64() * 1_000.0;
     #[cfg(feature = "perf-timers")]
-    eprintln!("optimized_prove: 6. output             {output_materialize_ms:>9.2}ms");
+    eprintln!(
+        "optimized_prove: 6. output             {output_materialize_ms:>9.2}ms @{}",
+        perf_epoch_nanos()
+    );
 
     let perf = PiCcsProvePerf {
         bind_ms,
@@ -987,78 +1351,82 @@ fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorph
     #[cfg(feature = "perf-timers")]
     eprintln!("optimized_prove: TOTAL                {:>9.2}ms", perf.total_ms);
 
+    let row_chals = sumcheck_chals[..dims.ell_n].to_vec();
+    let alpha_prime = sumcheck_chals[dims.ell_n..].to_vec();
+    let s_col_chals = sumcheck_chals_nc[..dims.ell_m].to_vec();
+    let alpha_prime_nc = sumcheck_chals_nc[dims.ell_m..].to_vec();
+    let output_shell = PiCcsTerminalOutputShell {
+        count: out_me.len(),
+        m_in: out_me
+            .first()
+            .map(|claim| claim.m_in)
+            .ok_or_else(|| PiCcsError::InvalidInput("Pi_CCS terminal output shell is empty".into()))?,
+        row_chals: row_chals.clone(),
+        s_col: s_col_chals.clone(),
+        has_y_zcol: !s_col_chals.is_empty(),
+        fold_digest,
+    };
+
     let terminal_state = PiCcsReplayTerminalState {
         me_outputs: out_me,
+        output_shell,
+        sc_initial_sum: initial_sum,
+        sc_initial_sum_nc: initial_sum_nc,
         challenges_public: ch,
-        row_chals: sumcheck_chals[..dims.ell_n].to_vec(),
-        alpha_prime: sumcheck_chals[dims.ell_n..].to_vec(),
-        s_col: sumcheck_chals_nc[..dims.ell_m].to_vec(),
-        alpha_prime_nc: sumcheck_chals_nc[dims.ell_m..].to_vec(),
+        row_chals,
+        alpha_prime,
+        s_col: s_col_chals,
+        alpha_prime_nc,
         sumcheck_final: running_sum,
         sumcheck_final_nc: running_sum_nc,
         fold_digest,
         perf,
         pi_dec_precompute,
     };
-    let rounds = mode.captures_rounds().then(|| OptimizedProofRounds {
-        sumcheck_rounds: sumcheck_rounds.expect("prove mode must capture FE rounds"),
-        initial_sum,
-        sumcheck_rounds_nc: sumcheck_rounds_nc.expect("prove mode must capture NC rounds"),
-        initial_sum_nc,
-    });
+    let rounds = if mode.captures_host_rounds() {
+        let rounds = if phase_summary_export_pending && mode.exports_summary_rounds_immediately() {
+            let log = phase_backend
+                .as_deref_mut()
+                .and_then(PiCcsPhaseBackend::export_pi_ccs_phase_rounds)
+                .ok_or_else(|| {
+                    PiCcsError::InvalidInput(
+                        "Pi_CCS phase backend summarized proof state but did not export proof rounds".into(),
+                    )
+                })?;
+            OptimizedProofRounds {
+                sumcheck_rounds: log.fe_coeffs,
+                initial_sum,
+                sumcheck_rounds_nc: log.nc_coeffs,
+                initial_sum_nc,
+            }
+        } else if phase_summary_export_pending {
+            return Ok((terminal_state, None));
+        } else if let Some(row_rounds) = fe_row_summary_export_pending {
+            return Ok((
+                terminal_state,
+                Some(DeferredProofRounds::FeRows(DeferredFeRowRounds {
+                    row_rounds,
+                    sumcheck_tail_rounds: sumcheck_rounds.expect("prove mode must capture FE tail rounds"),
+                    initial_sum,
+                    sumcheck_rounds_nc: sumcheck_rounds_nc.expect("prove mode must capture NC rounds"),
+                    initial_sum_nc,
+                })),
+            ));
+        } else {
+            OptimizedProofRounds {
+                sumcheck_rounds: sumcheck_rounds.expect("prove mode must capture FE rounds"),
+                initial_sum,
+                sumcheck_rounds_nc: sumcheck_rounds_nc.expect("prove mode must capture NC rounds"),
+                initial_sum_nc,
+            }
+        };
+        Some(DeferredProofRounds::Owned(rounds))
+    } else {
+        None
+    };
     Ok((terminal_state, rounds))
 }
 
-fn validate_replay_terminal_state(
-    params: &NeoParams,
-    s: &CcsStructure<F>,
-    fresh_claims: &[CcsClaim<Cmt, F>],
-    me_inputs: &[CeClaim<Cmt, F, K>],
-    replay: &PiCcsReplayTerminalState,
-) -> Result<(), PiCcsError> {
-    utils::validate_me_outputs_against_inputs(
-        s,
-        params,
-        fresh_claims,
-        me_inputs,
-        &replay.me_outputs,
-        &replay.row_chals,
-        &replay.s_col,
-    )?;
-    let r_inputs = utils::shared_me_input_r(me_inputs, replay.row_chals.len())?;
-    let rhs_fe = super::rhs_terminal_identity_fe_with_k_mcs(
-        s,
-        params,
-        &replay.challenges_public,
-        &replay.row_chals,
-        &replay.alpha_prime,
-        &replay.me_outputs,
-        fresh_claims.len(),
-        r_inputs,
-    );
-    if replay.sumcheck_final != rhs_fe {
-        return Err(PiCcsError::ProtocolError(
-            "optimized replay FE terminal state does not match relation identity".into(),
-        ));
-    }
-
-    let rhs_nc = super::rhs_terminal_identity_nc(
-        params,
-        &replay.challenges_public,
-        &replay.s_col,
-        &replay.alpha_prime_nc,
-        &replay.me_outputs,
-    );
-    if replay.sumcheck_final_nc != rhs_nc {
-        return Err(PiCcsError::ProtocolError(
-            "optimized replay NC terminal state does not match relation identity".into(),
-        ));
-    }
-
-    Ok(())
-}
-
-/// Simple wrapper for k=1 case (no ME inputs)
 pub fn optimized_prove_simple<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,

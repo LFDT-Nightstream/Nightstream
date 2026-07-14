@@ -1,0 +1,50 @@
+[package]
+name = "neo-prover-metal"
+edition = { workspace = true }
+version = { workspace = true }
+authors = { workspace = true }
+license = "Apache-2.0"
+
+[lib]
+name = "neo_prover_metal"
+
+[lints]
+workspace = true
+
+[features]
+default = []
+metal = [
+    "dep:dispatch2",
+    "dep:objc2",
+    "dep:objc2-foundation",
+    "dep:objc2-metal",
+]
+
+[dependencies]
+neo-ccs = { path = "../neo-ccs" }
+thiserror = { workspace = true }
+
+[target.'cfg(target_vendor = "apple")'.dependencies]
+dispatch2 = { version = "0.3", default-features = false, features = ["std", "block2", "objc2"], optional = true }
+objc2 = { version = "0.6.4", default-features = false, features = ["std"], optional = true }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSError", "NSString"], optional = true }
+objc2-metal = { version = "0.3.2", default-features = false, features = [
+    "std",
+    "dispatch2",
+    "MTLAllocation",
+    "MTLBuffer",
+    "MTLCommandBuffer",
+    "MTLCommandEncoder",
+    "MTLCommandQueue",
+    "MTLComputeCommandEncoder",
+    "MTLComputePipeline",
+    "MTLDevice",
+    "MTLLibrary",
+    "MTLResource",
+    "MTLTypes",
+], optional = true }
+
+[dev-dependencies]
+neo-math = { path = "../neo-math" }
+neo-transcript = { path = "../neo-transcript" }
+p3-field = { workspace = true }

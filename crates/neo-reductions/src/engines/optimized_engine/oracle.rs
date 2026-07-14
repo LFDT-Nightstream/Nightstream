@@ -19,6 +19,7 @@ use std::sync::Arc;
 
 use crate::sumcheck::RoundOracle;
 
+use super::backend::{FeEvalTable, FeMcsRowTables, FeSumcheckBackend};
 use super::common::Challenges;
 use super::digit_table::{build_nc_digit_table_compact, NcDigitMasks, NcDigitTable};
 use super::row_poly::{
@@ -27,7 +28,71 @@ use super::row_poly::{
     RowTable,
 };
 pub use super::sparse::SparseCache;
+pub use crate::superneo_eval::SuperneoRingLinearForm;
 use crate::superneo_eval::{SuperneoEvalCache, SuperneoZBlocks};
+
+/// Read-only view of `OptimizedOracle`'s row-phase state for accelerator
+/// backends. Field meanings match the private `RowStreamState`; see
+/// `OptimizedOracle::row_phase_snapshot`.
+pub struct RowPhaseSnapshot<'a> {
+    pub cur_len: usize,
+    pub active_len: usize,
+    /// Row-domain equality point whose χ table is `eq_beta_r_tbl`.
+    pub beta_r: &'a [K],
+    /// Optional carried-input row point whose χ table is `eq_r_inputs_tbl`.
+    pub r_inputs: Option<&'a [K]>,
+    pub eq_beta_r_tbl: &'a [K],
+    pub eq_r_inputs_tbl: Option<&'a [K]>,
+    pub eval_tbl: Option<&'a [K]>,
+    /// True when the carried eval table is owned by the accelerator backend
+    /// and intentionally absent from the CPU oracle.
+    pub deferred_eval_tbl: bool,
+    pub gamma_to_k: K,
+    pub gamma_pow_mcs: &'a [K],
+    pub zero_mcs: &'a [bool],
+    /// True for non-zero MCS slots whose row tables are owned by the
+    /// accelerator backend and intentionally absent from the CPU oracle.
+    pub deferred_mcs: &'a [bool],
+    pub f_at_zero: K,
+    /// Canonical sumcheck degree bound used for transcript/proof encoding.
+    /// The row-phase polynomial may have a smaller active degree; proofs
+    /// still serialize coefficients at this width so transcripts remain
+    /// byte-identical.
+    pub sumcheck_degree_bound: usize,
+    pub row_phase_deg_max: usize,
+    pub f_var_count: usize,
+    /// Per MCS slot, per f-variable: the row-domain table (empty for zero MCS).
+    pub f_var_tables_by_mcs: Vec<Vec<&'a [K]>>,
+    /// Compiled f terms as `(coeff, [(var_pos, exponent)])`.
+    pub f_terms: Vec<(K, Vec<(usize, u32)>)>,
+}
+
+/// Read-only view of `NcOracle`'s column-phase state for accelerator
+/// backends; see `NcOracle::col_phase_snapshot`.
+pub struct NcColSnapshot<'a> {
+    pub cur_len: usize,
+    /// Column-domain equality point whose χ table is `eq_beta_m_tbl`.
+    pub beta_m: &'a [K],
+    pub eq_beta_m_tbl: &'a [K],
+    /// Per witness: `weights[rho] = γ^{i+1} · χ_{β_a}(rho)`.
+    pub weights: &'a [[K; D]],
+    pub digit_tables: Vec<NcDigitTableView<'a>>,
+}
+
+/// Borrowed view of one `NcDigitTable` representation.
+pub enum NcDigitTableView<'a> {
+    Lane0(&'a [K]),
+    Strided {
+        width: usize,
+        values: &'a [K],
+    },
+    Dense(&'a [[K; D]]),
+    /// The host deferred the build; only the length is known. A backend
+    /// must source the values itself (resident planes) or decline.
+    Deferred {
+        len: usize,
+    },
+}
 
 /// NC-only oracle for the split-NC Π_CCS variant.
 ///
@@ -87,6 +152,39 @@ where
         ell_d: usize,
         ell_m: usize,
         d_sc: usize,
+    ) -> Self {
+        Self::new_inner(s, params, mcs_witnesses, me_witnesses, ch, ell_d, ell_m, d_sc, false)
+    }
+
+    /// [`Self::new`] without building the column-phase digit tables — for
+    /// callers whose device backend sources them from resident planes. Any
+    /// host read of the deferred tables panics; call
+    /// [`Self::materialize_digit_tables`] if the backend declines.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_deferred_digit_tables(
+        s: &'a CcsStructure<F>,
+        params: &'a neo_params::NeoParams,
+        mcs_witnesses: &'a [CcsWitness<F>],
+        me_witnesses: &'a [Mat<F>],
+        ch: Challenges,
+        ell_d: usize,
+        ell_m: usize,
+        d_sc: usize,
+    ) -> Self {
+        Self::new_inner(s, params, mcs_witnesses, me_witnesses, ch, ell_d, ell_m, d_sc, true)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn new_inner(
+        s: &'a CcsStructure<F>,
+        params: &'a neo_params::NeoParams,
+        mcs_witnesses: &'a [CcsWitness<F>],
+        me_witnesses: &'a [Mat<F>],
+        ch: Challenges,
+        ell_d: usize,
+        ell_m: usize,
+        d_sc: usize,
+        defer_digit_tables: bool,
     ) -> Self {
         assert!(!mcs_witnesses.is_empty(), "need at least one witness for NC");
         assert!(
@@ -154,7 +252,17 @@ where
         // Column-domain digit tables.
         #[cfg(feature = "perf-timers")]
         let t_digits = std::time::Instant::now();
-        let built_digit_tables: Vec<(NcDigitTable, NcDigitMasks)> = {
+        let built_digit_tables: Vec<(NcDigitTable, NcDigitMasks)> = if defer_digit_tables {
+            all_witnesses
+                .iter()
+                .map(|_| {
+                    (
+                        NcDigitTable::Deferred { len: s.m },
+                        NcDigitMasks::Dense(Vec::new()),
+                    )
+                })
+                .collect()
+        } else {
             #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
             {
                 if all_witnesses.len() > 1 {
@@ -799,6 +907,94 @@ where
         }
     }
 
+    /// Read-only view of the column-phase tables, for accelerator backends
+    /// that replicate the NC column rounds off-CPU. The backend must stay
+    /// field-identical to `col_phase_coeffs_b2` + the column `fold`.
+    pub fn col_phase_snapshot(&self) -> NcColSnapshot<'_> {
+        NcColSnapshot {
+            cur_len: self.cur_len,
+            beta_m: &self.ch.beta_m,
+            eq_beta_m_tbl: &self.eq_beta_m_tbl,
+            weights: &self.weights,
+            digit_tables: self
+                .digits_tables
+                .iter()
+                .map(|tbl| match tbl {
+                    NcDigitTable::Lane0(values) => NcDigitTableView::Lane0(values),
+                    NcDigitTable::Strided { width, values } => NcDigitTableView::Strided { width: *width, values },
+                    NcDigitTable::Dense(rows) => NcDigitTableView::Dense(rows),
+                    NcDigitTable::Deferred { len } => NcDigitTableView::Deferred { len: *len },
+                })
+                .collect(),
+        }
+    }
+
+    /// Record a column-round challenge without folding the tables — used
+    /// when a device backend owns the column folds. Pair with
+    /// `inject_finalized_col_state` after the last column round.
+    pub fn advance_col_round_without_fold(&mut self, r_i: K) {
+        debug_assert!(self.round_idx < self.ell_m, "column-phase rounds only");
+        self.col_chals.push(r_i);
+        if r_i.imag() != Fq::ZERO {
+            self.digit_tables_all_real = false;
+        }
+        self.cur_len /= 2;
+        self.round_idx += 1;
+    }
+
+    /// Build the digit tables that `new_with_deferred_digit_tables` skipped
+    /// — for the CPU fallback when a device backend declines the snapshot.
+    /// No-op when the tables are already built.
+    pub fn materialize_digit_tables(&mut self) {
+        if !matches!(self.digits_tables.first(), Some(NcDigitTable::Deferred { .. })) {
+            return;
+        }
+        debug_assert_eq!(self.round_idx, 0, "materialize only before the first column round");
+        let mut all_witnesses: Vec<&Mat<F>> = Vec::with_capacity(self.mcs_witnesses.len() + self.me_witnesses.len());
+        all_witnesses.extend(self.mcs_witnesses.iter().map(|w| &w.Z));
+        all_witnesses.extend(self.me_witnesses.iter());
+        let built: Vec<(NcDigitTable, Vec<u64>)> = all_witnesses
+            .iter()
+            .map(|Zi| {
+                build_nc_digit_table_compact(self.params, Zi, self.s.m)
+                    .unwrap_or_else(|e| panic!("NcOracle::materialize_digit_tables: {e}"))
+            })
+            .collect();
+        let (tables, masks): (Vec<_>, Vec<_>) = built.into_iter().unzip();
+        self.digits_tables = tables;
+        self.digit_lane_masks = masks;
+    }
+
+    /// Install the fully folded column state a device backend measured, so
+    /// the Ajtai tail rounds (which read the folded digit rows) and
+    /// `finalized_y_zcol_digits` run unchanged on the CPU.
+    pub fn inject_finalized_col_state(&mut self, digit_rows: Vec<[K; D]>, eq_beta_m0: K) {
+        debug_assert_eq!(self.round_idx, self.ell_m, "inject only after the last column round");
+        debug_assert_eq!(
+            digit_rows.len(),
+            self.digits_tables.len(),
+            "one folded digit row per witness"
+        );
+        self.cur_len = 1;
+        self.eq_beta_m_tbl = vec![eq_beta_m0];
+        self.digit_lane_masks = digit_rows
+            .iter()
+            .map(|row| {
+                let mut mask = 0u64;
+                for (rho, value) in row.iter().enumerate() {
+                    if *value != K::ZERO {
+                        mask |= 1u64 << rho;
+                    }
+                }
+                vec![mask]
+            })
+            .collect();
+        self.digits_tables = digit_rows
+            .into_iter()
+            .map(|row| NcDigitTable::Dense(vec![row]))
+            .collect();
+    }
+
     pub fn finalized_y_zcol_digits(&self) -> Vec<[K; D]> {
         debug_assert!(
             self.round_idx >= self.ell_m,
@@ -967,6 +1163,9 @@ struct RowStreamState {
     f_var_tables_by_mcs: Vec<Vec<RowTable>>,
     /// True when the corresponding MCS witness is all zero and its row tables are omitted.
     zero_mcs: Vec<bool>,
+    /// True when the corresponding MCS row tables are intentionally held by
+    /// the FE backend instead of this CPU oracle.
+    deferred_mcs: Vec<bool>,
     /// Number of row-table variables used by `f`.
     f_var_count: usize,
     /// Compiled sparse polynomial terms for `f` using `f_var_tables_by_mcs[i]` indices.
@@ -982,6 +1181,8 @@ struct RowStreamState {
     /// Combined Eval block table over rows (already summed over α' and (i,j) coefficients).
     /// When present, Eval contribution is: `eq_r_inputs(r') * gamma_to_k * eval_tbl(r')`.
     eval_tbl: Option<Vec<K>>,
+    /// The carried eval table is backend-owned and intentionally absent.
+    deferred_eval_tbl: bool,
     gamma_to_k: K,
 
     b: u32,
@@ -1007,6 +1208,7 @@ impl RowStreamState {
         _sparse: &SparseCache<Ff>,
         superneo_cache: &SuperneoEvalCache,
         witness_z_blocks: &[SuperneoZBlocks],
+        mut fe_backend: Option<&mut (dyn FeSumcheckBackend + '_)>,
     ) -> Self
     where
         Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
@@ -1033,8 +1235,12 @@ impl RowStreamState {
         let mut eq_r_inputs_tbl = None;
         #[cfg(feature = "perf-timers")]
         eprintln!(
-            "RowStreamState::build: 1. chi tables                {:.2?}",
-            t_chi.elapsed()
+            "RowStreamState::build: 1. chi tables                {:.2?} @{}",
+            t_chi.elapsed(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
         );
 
         let all_base = ch.gamma.imag() == Fq::ZERO
@@ -1158,14 +1364,33 @@ impl RowStreamState {
         // f-var tables: m_j(row) = (M_j * z_i)[row] for each used variable and each MCS slot.
         let mut f_var_tables_by_mcs: Vec<Vec<RowTable>> = Vec::with_capacity(k_mcs);
         let mut zero_mcs = Vec::with_capacity(k_mcs);
+        let mut deferred_mcs = Vec::with_capacity(k_mcs);
         for mcs_idx in 0..k_mcs {
             let z_blocks = &witness_z_blocks[mcs_idx];
             if z_blocks.all_zero() {
                 zero_mcs.push(true);
+                deferred_mcs.push(false);
                 f_var_tables_by_mcs.push(Vec::new());
                 continue;
             }
             zero_mcs.push(false);
+            if let Some(tables) = fe_backend
+                .as_mut()
+                .and_then(|b| b.mcs_row_tables(superneo_cache, mcs_idx, &f_var_indices, z_blocks, n_eff, n_pad))
+            {
+                match tables {
+                    FeMcsRowTables::Host(tables) => {
+                        deferred_mcs.push(false);
+                        f_var_tables_by_mcs.push(tables);
+                    }
+                    FeMcsRowTables::Deferred => {
+                        deferred_mcs.push(true);
+                        f_var_tables_by_mcs.push(Vec::new());
+                    }
+                }
+                continue;
+            }
+            deferred_mcs.push(false);
             #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
             let f_tables_i: Vec<RowTable> = f_var_indices
                 .par_iter()
@@ -1205,46 +1430,100 @@ impl RowStreamState {
             gamma_to_k *= ch.gamma;
         }
 
+        let mut deferred_eval_tbl = false;
         let eval_tbl = if k_total > k_mcs && eval_inputs_present {
             let mut gamma_pow_i = vec![K::ONE; k_total];
             for i in 1..k_total {
                 gamma_pow_i[i] = gamma_pow_i[i - 1] * ch.gamma;
             }
             let carried_coeffs: Vec<K> = gamma_pow_i[k_mcs..k_total].to_vec();
-            let carried_z_blocks =
-                SuperneoZBlocks::linear_combination_real(&witness_z_blocks[k_mcs..k_total], &carried_coeffs);
 
-            if carried_z_blocks.all_zero() {
-                #[cfg(feature = "perf-timers")]
-                eprintln!("RowStreamState::build: 6. eval_tbl skipped       (carried linear combination is zero)");
-                None
-            } else {
-                let r_inputs = r_inputs.expect("r_inputs checked above");
+            let r_inputs = r_inputs.expect("r_inputs checked above");
+            let mut w_alpha = [K::ZERO; D];
+            for (rho, slot) in w_alpha.iter_mut().enumerate() {
+                *slot = eq_points_bool_mask(rho, &ch.alpha);
+            }
+            let mut gamma_k_pow_j = vec![K::ONE; t_mats];
+            for j in 1..t_mats {
+                gamma_k_pow_j[j] = gamma_k_pow_j[j - 1] * gamma_to_k;
+            }
+
+            // Backend-resident path first: the backend owns the carried
+            // combination (the running witnesses' host z blocks were never
+            // built when it serves this). Field sums are exact, so values
+            // are identical to the host combination in any order.
+            #[cfg(feature = "perf-timers")]
+            let t_eval = std::time::Instant::now();
+            let backend_tbl = fe_backend.as_mut().and_then(|b| {
+                b.carried_eval_table(
+                    superneo_cache,
+                    &carried_coeffs,
+                    k_mcs,
+                    &w_alpha,
+                    &gamma_k_pow_j,
+                    n_eff,
+                    n_pad,
+                )
+            });
+            if let Some(eval_tbl) = backend_tbl {
                 let tbl = chi_tail_weights(r_inputs);
                 debug_assert_eq!(tbl.len(), n_pad, "chi(r_inputs) length mismatch");
                 eq_r_inputs_tbl = Some(tbl);
-
-                let mut w_alpha = [K::ZERO; D];
-                for (rho, slot) in w_alpha.iter_mut().enumerate() {
-                    *slot = eq_points_bool_mask(rho, &ch.alpha);
-                }
-                let mut gamma_k_pow_j = vec![K::ONE; t_mats];
-                for j in 1..t_mats {
-                    gamma_k_pow_j[j] = gamma_k_pow_j[j - 1] * gamma_to_k;
-                }
-
-                #[cfg(feature = "perf-timers")]
-                let t_eval = std::time::Instant::now();
-                let eval_tbl =
-                    superneo_cache.eval_weighted_row_table(&carried_z_blocks, &w_alpha, &gamma_k_pow_j, n_eff, n_pad);
                 #[cfg(feature = "perf-timers")]
                 eprintln!(
+                    "RowStreamState::build: 6. eval_tbl (backend carried) {:.2?} (carried={}, t_mats={t_mats}, n_eff={n_eff})",
+                    t_eval.elapsed(),
+                    k_total - k_mcs
+                );
+                match eval_tbl {
+                    FeEvalTable::Host(eval_tbl) => Some(eval_tbl),
+                    FeEvalTable::Deferred => {
+                        deferred_eval_tbl = true;
+                        None
+                    }
+                }
+            } else {
+                let carried_z_blocks =
+                    SuperneoZBlocks::linear_combination_real(&witness_z_blocks[k_mcs..k_total], &carried_coeffs);
+
+                if carried_z_blocks.all_zero() {
+                    #[cfg(feature = "perf-timers")]
+                    eprintln!("RowStreamState::build: 6. eval_tbl skipped       (carried linear combination is zero)");
+                    None
+                } else {
+                    let tbl = chi_tail_weights(r_inputs);
+                    debug_assert_eq!(tbl.len(), n_pad, "chi(r_inputs) length mismatch");
+                    eq_r_inputs_tbl = Some(tbl);
+                    let eval_tbl = fe_backend
+                        .as_mut()
+                        .and_then(|b| {
+                            b.eval_weighted_row_table(
+                                superneo_cache,
+                                &carried_z_blocks,
+                                &w_alpha,
+                                &gamma_k_pow_j,
+                                n_eff,
+                                n_pad,
+                            )
+                        })
+                        .unwrap_or_else(|| {
+                            superneo_cache.eval_weighted_row_table(
+                                &carried_z_blocks,
+                                &w_alpha,
+                                &gamma_k_pow_j,
+                                n_eff,
+                                n_pad,
+                            )
+                        });
+                    #[cfg(feature = "perf-timers")]
+                    eprintln!(
                     "RowStreamState::build: 6. eval_tbl loop             {:.2?} (carried={}, t_mats={t_mats}, n_eff={n_eff})",
                     t_eval.elapsed(),
                     k_total - k_mcs
                 );
 
-                Some(eval_tbl)
+                    Some(eval_tbl)
+                }
             }
         } else {
             #[cfg(feature = "perf-timers")]
@@ -1271,6 +1550,7 @@ impl RowStreamState {
             gamma_pow_mcs,
             f_var_tables_by_mcs,
             zero_mcs,
+            deferred_mcs,
             f_var_count: f_var_indices.len(),
             f_terms,
             f_factored_groups,
@@ -1278,6 +1558,7 @@ impl RowStreamState {
             f_at_zero,
             row_phase_deg_max,
             eval_tbl,
+            deferred_eval_tbl,
             gamma_to_k,
             b,
             all_base,
@@ -2292,6 +2573,39 @@ where
         sparse: Arc<SparseCache<F>>,
         superneo_cache: Arc<SuperneoEvalCache>,
     ) -> Self {
+        Self::new_with_sparse_and_superneo_cache_and_backend(
+            s,
+            params,
+            mcs_witnesses,
+            me_witnesses,
+            ch,
+            ell_d,
+            ell_n,
+            d_sc,
+            r_inputs,
+            sparse,
+            superneo_cache,
+            None,
+        )
+    }
+
+    /// [`Self::new_with_sparse_and_superneo_cache`] with an optional device
+    /// backend that may build the f-var row tables (bit-identical contract).
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_sparse_and_superneo_cache_and_backend(
+        s: &'a CcsStructure<F>,
+        params: &'a neo_params::NeoParams,
+        mcs_witnesses: &'a [CcsWitness<F>],
+        me_witnesses: &'a [Mat<F>],
+        ch: Challenges,
+        ell_d: usize,
+        ell_n: usize,
+        d_sc: usize,
+        r_inputs: Option<&[K]>,
+        sparse: Arc<SparseCache<F>>,
+        superneo_cache: Arc<SuperneoEvalCache>,
+        fe_backend: Option<&mut (dyn FeSumcheckBackend + '_)>,
+    ) -> Self {
         assert!(!mcs_witnesses.is_empty(), "need at least one MCS instance for F-term");
         #[cfg(feature = "perf-timers")]
         let t_z_blocks = std::time::Instant::now();
@@ -2300,25 +2614,34 @@ where
             .map(|w| &w.Z)
             .chain(me_witnesses.iter())
             .collect();
+        // When the backend serves the carried eval table from its own
+        // resident planes, the running (carried) witnesses' host z blocks
+        // are never read — placeholder empties keep the vec length (and the
+        // length-based branches elsewhere) intact without the build cost.
+        let k_mcs_count = mcs_witnesses.len();
+        let defer_running = fe_backend
+            .as_ref()
+            .is_some_and(|b| b.serves_carried_eval_table());
+        let z_block_at = |idx: usize, Zi: &Mat<F>| -> SuperneoZBlocks {
+            if defer_running && idx >= k_mcs_count {
+                SuperneoZBlocks::with_block_len(s.m.div_ceil(D))
+            } else {
+                SuperneoZBlocks::from_witness_mat(Zi, s.m).unwrap_or_else(|e| {
+                    panic!("OptimizedOracle::new: invalid packed witness block view at slot {idx}: {e}")
+                })
+            }
+        };
         #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
         let witness_z_blocks: Vec<SuperneoZBlocks> = all_witnesses
             .par_iter()
             .enumerate()
-            .map(|(idx, Zi)| {
-                SuperneoZBlocks::from_witness_mat(Zi, s.m).unwrap_or_else(|e| {
-                    panic!("OptimizedOracle::new: invalid packed witness block view at slot {idx}: {e}")
-                })
-            })
+            .map(|(idx, Zi)| z_block_at(idx, Zi))
             .collect();
         #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
         let witness_z_blocks: Vec<SuperneoZBlocks> = all_witnesses
             .iter()
             .enumerate()
-            .map(|(idx, Zi)| {
-                SuperneoZBlocks::from_witness_mat(Zi, s.m).unwrap_or_else(|e| {
-                    panic!("OptimizedOracle::new: invalid packed witness block view at slot {idx}: {e}")
-                })
-            })
+            .map(|(idx, Zi)| z_block_at(idx, Zi))
             .collect();
         #[cfg(feature = "perf-timers")]
         eprintln!(
@@ -2339,6 +2662,7 @@ where
             sparse.as_ref(),
             superneo_cache.as_ref(),
             &witness_z_blocks,
+            fe_backend,
         );
 
         Self {
@@ -2422,14 +2746,6 @@ where
         // Build χ_r table over the Boolean row domain.
         let chi_r = chi_tail_weights(r_prime);
         let n_sz = chi_r.len();
-
-        // Compute eq(r', β_r) and eq(r', r_inputs)
-        let eq_beta_r = Self::eq_points(r_prime, &self.ch.beta_r);
-        let eq_r_inputs = match self.r_inputs {
-            Some(ref r_in) => Self::eq_points(r_prime, r_in),
-            None => K::ZERO,
-        };
-
         let n_eff = core::cmp::min(self.s.n, n_sz);
         // Compute Y_eval using the canonical SuperNeo row-lifted path.
         let superneo_cache = &self.superneo_cache;
@@ -2446,6 +2762,17 @@ where
             self.witness_z_blocks.len()
         );
 
+        self.finish_r_precomp(r_prime, y_eval)
+    }
+
+    /// Assemble `RPrecomp` from a computed `y_eval` (CPU or device):
+    /// the eq scalars and `F'` derive from it on the host.
+    fn finish_r_precomp(&self, r_prime: &[K], y_eval: Vec<Vec<[K; D]>>) -> RPrecomp {
+        let eq_beta_r = Self::eq_points(r_prime, &self.ch.beta_r);
+        let eq_r_inputs = match self.r_inputs {
+            Some(ref r_in) => Self::eq_points(r_prime, r_in),
+            None => K::ZERO,
+        };
         // Compute F' = Σ_{i=1..k_mcs} γ^{i-1} · f(Ẽ(M_j z_i)(r')).
         //
         // The constant lane of the ring-coefficient evaluation is the scalar
@@ -2497,6 +2824,101 @@ where
             "row_stream out of sync with round_idx"
         );
         self.row_stream.evals_row_phase::<F>(xs)
+    }
+
+    /// Everything a device backend needs to compute the Ajtai-phase
+    /// `Y_eval` off-CPU: the eval cache (static bar matrices), the χ table
+    /// at the folded row point, and every witness matrix.
+    #[allow(clippy::type_complexity)]
+    pub fn ajtai_backend_context(&self) -> Option<(&SuperneoEvalCache, Vec<K>, usize, Vec<&Mat<F>>)> {
+        debug_assert_eq!(self.round_idx, self.ell_n, "Ajtai context exists after the row phase");
+        let chi_r = chi_tail_weights(&self.row_chals);
+        let n_eff = core::cmp::min(self.s.n, chi_r.len());
+        let witnesses = self
+            .mcs_witnesses
+            .iter()
+            .map(|w| &w.Z)
+            .chain(self.me_witnesses.iter())
+            .collect();
+        Some((self.superneo_cache.as_ref(), chi_r, n_eff, witnesses))
+    }
+
+    /// Device backends that own the row challenges do not have a host χ table
+    /// yet. This returns the static/input pieces needed to build that table
+    /// from the device challenge buffer instead.
+    pub fn ajtai_backend_trace_context(&self) -> Option<(&SuperneoEvalCache, usize, Vec<&Mat<F>>)> {
+        let chi_len = 1usize.checked_shl(self.ell_n as u32)?;
+        let n_eff = core::cmp::min(self.s.n, chi_len);
+        let witnesses = self
+            .mcs_witnesses
+            .iter()
+            .map(|w| &w.Z)
+            .chain(self.me_witnesses.iter())
+            .collect();
+        Some((self.superneo_cache.as_ref(), n_eff, witnesses))
+    }
+
+    /// Install a device-computed Ajtai-phase `Y_eval` (indexed
+    /// `[witness][matrix][lane]`, matching `ajtai_backend_inputs` order);
+    /// the eq scalars and `F'` are derived on the host.
+    pub fn inject_ajtai_y_eval(&mut self, y_eval: Vec<Vec<[K; D]>>) {
+        debug_assert_eq!(self.round_idx, self.ell_n, "inject after the row phase");
+        let r_prime = self.row_chals.clone();
+        self.ajtai_precomp = Some(self.finish_r_precomp(&r_prime, y_eval));
+    }
+
+    /// Record a row-round challenge without folding the row tables — used
+    /// when an `FeSumcheckBackend` owns the table folds. Everything after
+    /// the row phase (Ajtai precompute, tail rounds, outputs) reads only
+    /// witnesses and challenges, so the unfolded tables are never touched.
+    pub fn advance_row_round_without_fold(&mut self, r_i: K) {
+        debug_assert!(self.round_idx < self.ell_n, "row-phase rounds only");
+        self.row_chals.push(r_i);
+        self.round_idx += 1;
+    }
+
+    pub fn row_phase_requires_backend(&self) -> bool {
+        self.row_stream.deferred_eval_tbl
+            || self
+                .row_stream
+                .deferred_mcs
+                .iter()
+                .any(|&deferred| deferred)
+    }
+
+    /// Read-only view of the row-phase sumcheck tables, for accelerator
+    /// backends (e.g. CUDA) that replicate the FE round evaluation off-CPU.
+    /// The backend must stay field-identical to `evals_row_phase` + `fold`.
+    pub fn row_phase_snapshot(&self) -> RowPhaseSnapshot<'_> {
+        let rs = &self.row_stream;
+        RowPhaseSnapshot {
+            cur_len: rs.cur_len,
+            active_len: rs.active_len,
+            beta_r: &self.ch.beta_r,
+            r_inputs: self.r_inputs.as_deref(),
+            eq_beta_r_tbl: &rs.eq_beta_r_tbl,
+            eq_r_inputs_tbl: rs.eq_r_inputs_tbl.as_deref(),
+            eval_tbl: rs.eval_tbl.as_deref(),
+            deferred_eval_tbl: rs.deferred_eval_tbl,
+            gamma_to_k: rs.gamma_to_k,
+            gamma_pow_mcs: &rs.gamma_pow_mcs,
+            zero_mcs: &rs.zero_mcs,
+            deferred_mcs: &rs.deferred_mcs,
+            f_at_zero: rs.f_at_zero,
+            sumcheck_degree_bound: self.d_sc,
+            row_phase_deg_max: rs.row_phase_deg_max,
+            f_var_count: rs.f_var_count,
+            f_var_tables_by_mcs: rs
+                .f_var_tables_by_mcs
+                .iter()
+                .map(|tables| tables.iter().map(Vec::as_slice).collect())
+                .collect(),
+            f_terms: rs
+                .f_terms
+                .iter()
+                .map(|term| (term.coeff, term.vars.clone()))
+                .collect(),
+        }
     }
 
     #[doc(hidden)]

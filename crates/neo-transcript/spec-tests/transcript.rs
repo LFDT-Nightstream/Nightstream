@@ -27,6 +27,25 @@ fn framing_distinguishes_splits() {
     assert_ne!(d1, d2, "framing must distinguish different label/byte splits");
 }
 
+/// Red-team regression: byte messages and field vectors are different typed
+/// transcript operations and must not share an encoding, even when a byte is
+/// numerically equal to a field element.
+#[test]
+fn framing_distinguishes_message_bytes_from_field_elements() {
+    let mut bytes = Poseidon2Transcript::new(b"test/typed-framing");
+    bytes.append_message(b"value", &[42]);
+    let bytes_digest = bytes.digest32();
+
+    let mut fields = Poseidon2Transcript::new(b"test/typed-framing");
+    fields.append_fields(b"value", &[F::from_u64(42)]);
+    let fields_digest = fields.digest32();
+
+    assert_ne!(
+        bytes_digest, fields_digest,
+        "append_message and append_fields must have distinct operation tags"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Obligation 2: Label sensitivity — different challenge labels -> different challenges
 // ---------------------------------------------------------------------------
@@ -237,4 +256,60 @@ fn challenge_bytes_exact_length() {
         // Verify not all zeros (extremely unlikely for a proper hash)
         assert!(out.iter().any(|&b| b != 0), "challenge_bytes({len}) produced all zeros");
     }
+}
+
+/// Red-team regression: the requested challenge arity is part of the
+/// Fiat-Shamir query and must affect the transcript state. Otherwise distinct
+/// oracle-query transcripts that fit in one squeeze block alias each other.
+#[test]
+fn challenge_output_arity_is_bound_into_transcript_state() {
+    let mut one = Poseidon2Transcript::new(b"neo/arity");
+    let mut four = one.clone();
+    let c1 = one.challenge_fields(b"alpha", 1);
+    let c4 = four.challenge_fields(b"alpha", 4);
+
+    assert_eq!(c1[0], c4[0], "XOF prefix precondition");
+    assert_ne!(
+        one.challenge_field(b"next"),
+        four.challenge_field(b"next"),
+        "challenge-field arity must be transcript metadata"
+    );
+
+    let mut byte_one = Poseidon2Transcript::new(b"neo/byte-arity");
+    let mut byte_32 = byte_one.clone();
+    let mut out1 = [0u8; 1];
+    let mut out32 = [0u8; 32];
+    byte_one.challenge_bytes(b"alpha", &mut out1);
+    byte_32.challenge_bytes(b"alpha", &mut out32);
+
+    assert_eq!(out1[0], out32[0], "XOF prefix precondition");
+    assert_ne!(
+        byte_one.challenge_field(b"next"),
+        byte_32.challenge_field(b"next"),
+        "byte-challenge length must be transcript metadata"
+    );
+}
+
+/// Red-team regression: byte and field challenges are different typed oracle
+/// queries. Their encodings must remain distinct even when the requested byte
+/// string is exactly the canonical encoding of the requested field vector.
+#[test]
+fn challenge_output_type_is_bound_into_transcript_state() {
+    let mut bytes = Poseidon2Transcript::new(b"neo/challenge-type");
+    let mut fields = bytes.clone();
+
+    let mut byte_output = [0u8; 32];
+    bytes.challenge_bytes(b"alpha", &mut byte_output);
+    let field_output = fields.challenge_fields(b"alpha", 4);
+
+    let mut encoded_fields = [0u8; 32];
+    for (chunk, field) in encoded_fields.chunks_exact_mut(8).zip(&field_output) {
+        chunk.copy_from_slice(&field.as_canonical_u64().to_le_bytes());
+    }
+    assert_eq!(byte_output, encoded_fields, "typed-query collision precondition");
+    assert_ne!(
+        bytes.challenge_field(b"next"),
+        fields.challenge_field(b"next"),
+        "byte and field challenge operations must have distinct query tags"
+    );
 }

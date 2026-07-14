@@ -34,8 +34,18 @@ use crate::error::PiCcsError;
 pub enum NcDigitTable {
     Zero { len: usize },
     Lane0(Vec<K>),
-    Strided { width: usize, values: Vec<K> },
+    Strided {
+        width: usize,
+        values: Vec<K>,
+    },
     Dense(Vec<[K; D]>),
+    /// Placeholder when a device backend owns the column phase: the host
+    /// never built (and must never read) the values. Any host access
+    /// panics; `NcOracle::materialize_digit_tables` converts back to a
+    /// built table if the backend declines.
+    Deferred {
+        len: usize,
+    },
 }
 
 #[derive(Debug)]
@@ -87,6 +97,7 @@ impl NcDigitTable {
             Self::Lane0(values) => values.len(),
             Self::Strided { width, values } => values.len() / width,
             Self::Dense(rows) => rows.len(),
+            Self::Deferred { len } => *len,
         }
     }
 
@@ -115,6 +126,7 @@ impl NcDigitTable {
                 }
             }
             Self::Dense(rows) => rows[idx][rho],
+            Self::Deferred { .. } => panic!("deferred NC digit table read on host"),
         }
     }
 
@@ -144,6 +156,7 @@ impl NcDigitTable {
                 out
             }
             Self::Dense(rows) => rows[idx],
+            Self::Deferred { .. } => panic!("deferred NC digit table read on host"),
         }
     }
 
@@ -172,6 +185,7 @@ impl NcDigitTable {
                 }
             }
             Self::Dense(rows) => fold_dense_table_inplace(rows, masks, r),
+            Self::Deferred { .. } => panic!("deferred NC digit table folded on host"),
         }
     }
 }

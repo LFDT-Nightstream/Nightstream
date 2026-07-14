@@ -1,6 +1,35 @@
 #![allow(clippy::uninlined_format_args)]
 use neo_params::{goldilocks_paper_b2, NeoParams, ParamsError};
 
+/// Definition 14 requires the configured strong challenge set to carry the
+/// advertised security parameter. Appendix B.2's five-symbol, 54-coordinate
+/// set has only `5^54` elements, so it cannot support more than 125 whole bits.
+#[test]
+fn params_reject_lambda_above_strong_set_entropy() {
+    let challenge_set_size = 5u128.pow(goldilocks_paper_b2::D as u32);
+    let max_whole_bits = challenge_set_size.ilog2();
+    let claimed_lambda = max_whole_bits + 1;
+
+    let params = NeoParams::new(
+        goldilocks_paper_b2::Q,
+        goldilocks_paper_b2::ETA as u32,
+        goldilocks_paper_b2::D as u32,
+        goldilocks_paper_b2::KAPPA,
+        goldilocks_paper_b2::M,
+        goldilocks_paper_b2::B_BASE,
+        goldilocks_paper_b2::K_RHO,
+        goldilocks_paper_b2::T,
+        goldilocks_paper_b2::EXTENSION_DEGREE,
+        claimed_lambda,
+    );
+    let extension_policy = params.as_ref().ok().map(|p| p.extension_check(1, 1));
+
+    assert!(
+        params.is_err(),
+        "soundness-policy failure: accepted lambda={claimed_lambda} above floor(log2(5^54))={max_whole_bits}; the accepted profile also reaches the public extension policy as {extension_policy:?}"
+    );
+}
+
 #[test]
 fn guard_rejects_tight_or_overflowing_profiles() {
     // Tight inequality: lhs == B should be rejected.

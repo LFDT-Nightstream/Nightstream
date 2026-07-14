@@ -69,22 +69,32 @@ impl RunningInstance {
     /// only because the optimized Π_CCS transcript consumes that derived
     /// cache. The formal accumulator instance is `claims` alone.
     pub fn canonical_zero(pp: &Params, structure: &Structure, m_in: usize) -> Result<Self, RunningInstanceError> {
-        if m_in > structure.m {
+        Self::canonical_zero_for_shape(pp, structure.n, structure.m, structure.t(), m_in)
+    }
+
+    pub(crate) fn canonical_zero_for_shape(
+        pp: &Params,
+        relation_n: usize,
+        relation_m: usize,
+        relation_t: usize,
+        m_in: usize,
+    ) -> Result<Self, RunningInstanceError> {
+        if m_in > relation_m {
             return Err(RunningInstanceError::PublicInputTooLarge {
                 m_in,
-                structure_m: structure.m,
+                structure_m: relation_m,
             });
         }
-        let ell_n = structure.n.next_power_of_two().max(2).trailing_zeros() as usize;
-        let ell_m = structure.m.next_power_of_two().max(2).trailing_zeros() as usize;
+        let ell_n = relation_n.next_power_of_two().max(2).trailing_zeros() as usize;
+        let ell_m = relation_m.next_power_of_two().max(2).trailing_zeros() as usize;
         let d_pad = D.next_power_of_two();
         let zero_claim = CeClaim {
             c: Commitment::zeros(D, pp.kappa() as usize),
             X: Mat::zero(D, m_in, F::ZERO),
             r: vec![K::ZERO; ell_n],
             s_col: vec![K::ZERO; ell_m],
-            y_ring: vec![vec![K::ZERO; d_pad]; structure.t()],
-            ct: vec![K::ZERO; structure.t()],
+            y_ring: vec![vec![K::ZERO; d_pad]; relation_t],
+            ct: vec![K::ZERO; relation_t],
             aux_openings: Vec::new(),
             y_zcol: vec![K::ZERO; d_pad],
             m_in,
@@ -92,8 +102,9 @@ impl RunningInstance {
             c_step_coords: Vec::new(),
             u_offset: 0,
             u_len: 0,
+            adv: None,
         };
-        let zero_witness = Mat::zero(D, structure.m.div_ceil(D), F::ZERO);
+        let zero_witness = Mat::zero(D, relation_m.div_ceil(D), F::ZERO);
         Ok(Self {
             claims: vec![zero_claim.clone(); pp.k_rho() as usize],
             witnesses: vec![zero_witness; pp.k_rho() as usize],

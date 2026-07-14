@@ -89,5 +89,5 @@ pub use backend::{
 pub use fixed::{prove_fixed, verify_fixed, FixedNifsAccumulator};
 pub use proof::NifsProof;
 pub use prover::{prove, prove_with_adapter, prove_with_backend};
-pub(crate) use prover::{prove_owned, prove_terminal_with_adapter_output, prove_with_adapter_output_from_carrier};
+pub(crate) use prover::{prove_terminal_with_adapter_output, prove_with_adapter_output_from_carrier};
 pub use verifier::verify;

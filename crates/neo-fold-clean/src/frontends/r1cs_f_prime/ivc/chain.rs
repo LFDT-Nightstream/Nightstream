@@ -146,6 +146,10 @@ impl<'a> R1csIvc<'a> {
         }
         let (running, running_parent_authority, fresh, placeholder) = match &audit.proof.state.proof {
             ProofState::Active { running, latest } => {
+                let running = running
+                    .materialize()
+                    .map_err(crate::paper::construction2::Error::from)
+                    .map_err(lifecycle::Error::from)?;
                 let prior = latest
                     .instances
                     .first()
@@ -187,7 +191,10 @@ impl<'a> R1csIvc<'a> {
             .ok_or(R1csIvcError::ExpectedRecursiveFold)?
             .fold
         {
-            FoldProof::Recursive(proof) => proof.clone(),
+            FoldProof::Recursive(proof) => proof
+                .materialize()
+                .map_err(crate::paper::construction2::Error::from)
+                .map_err(lifecycle::Error::from)?,
             FoldProof::NoFold => return Err(R1csIvcError::ExpectedRecursiveFold),
         };
         let post = StateCoordinates::from_state(&pending.proof.state);

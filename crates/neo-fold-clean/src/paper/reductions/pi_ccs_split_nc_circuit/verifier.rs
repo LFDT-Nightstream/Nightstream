@@ -53,7 +53,7 @@ use super::{
     enforce_header_digest_catch_up_wires, enforce_nc_sumcheck_driver, enforce_nc_terminal_identity,
     enforce_pi_ccs_instance_digest_parent_authority, enforce_pi_ccs_outputs_digest, header_digest_bytes_to_fields,
     sample_engine_beta_m, sample_engine_challenges, AccumulatorCeClaimDigestInputs, Error, FeClaimedInitialInputs,
-    FeTerminalInputs, NcTerminalInputs, PiCcsOutputClaimDigestInputs,
+    FeTerminalInputs, NcTerminalInputs, PiCcsOutputMessageDigestInputs,
 };
 use crate::engine::r1cs_circuit::boolean;
 use crate::engine::r1cs_circuit::builder::{Lc, Var};
@@ -664,7 +664,7 @@ fn enforce_split_nc_pi_ccs_v_inner(
     builder.begin_encoding_stage("nifs.pi_ccs.output_claim_hashes");
     let output_digest_inputs: Vec<_> = output_wires
         .iter()
-        .map(|output| PiCcsOutputClaimDigestInputs {
+        .map(|output| PiCcsOutputMessageDigestInputs {
             y_ring: &output.y_ring,
             y_zcol: &output.y_zcol,
         })

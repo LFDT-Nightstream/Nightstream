@@ -841,9 +841,12 @@ pub fn enforce_construction2_f_prime_base_step_circuit(
     cfg: &FPrimeStepConfig<'_>,
     inputs: &FPrimeBaseInputs<'_>,
 ) -> Result<FPrimeStepOutput, Error> {
-    let zero = crate::paper::construction2::RunningInstance::canonical_zero(
+    let relation = &cfg.nifs.pi_ccs.structure;
+    let zero = crate::paper::construction2::RunningInstance::canonical_zero_for_shape(
         cfg.nifs.pi_ccs.params,
-        cfg.nifs.pi_ccs.structure,
+        relation.n(),
+        relation.m(),
+        relation.t(),
         F_PRIME_PUBLIC_INPUT_LEN,
     )
     .map_err(|error| Error::Inner(format!("canonical Construction-2 accumulator: {error}")))?;

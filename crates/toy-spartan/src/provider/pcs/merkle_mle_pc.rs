@@ -1,4 +1,4 @@
-//! Hash-based multilinear PCS for Spartan2 (Track A)
+//! Hash-based multilinear PCS retained as a Toy Spartan comparison backend.
 //!
 //! This implementation provides a Merkle tree-based polynomial commitment scheme
 //! for multilinear polynomials using configurable hashing backends. It supports LeakReduced mode
@@ -808,8 +808,7 @@ mod tests {
     traits::{Engine, pcs::PCSEngineTrait},
   };
   use ff::Field;
-  use rand::rngs::StdRng;
-  use rand::{Rng, SeedableRng};
+  use rand::{Rng, SeedableRng, rngs::StdRng};
 
   type E = PallasMerkleMleEngine;
 

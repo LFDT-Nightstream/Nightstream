@@ -278,10 +278,8 @@ impl<E: Engine> R1CSSNARK<E> {
       (usize::try_from(num_vars.ilog2()).unwrap() + 1),
     );
 
-    // Check if this is a Hash-MLE engine (needed for both setup check and Z polynomial construction)
-    let engine_name = std::any::type_name::<E>();
-    let is_hash_mle_engine =
-      engine_name.contains("MerkleMle") || engine_name.contains("P3MerkleMle");
+    // Binary PCS engines commit directly to multilinear evaluation tables.
+    let is_binary_mle_engine = E::PCS::width() == 2;
 
     debug_assert_eq!(W.W.len(), num_vars);
     debug_assert!(
@@ -390,7 +388,7 @@ impl<E: Engine> R1CSSNARK<E> {
     info!(elapsed_ms = %abc_t.elapsed().as_millis(), "prepare_poly_ABC");
 
     let (_z_span, z_t) = start_span!("prepare_poly_z");
-    let poly_z = if is_hash_mle_engine {
+    let poly_z = if is_binary_mle_engine {
       let mut z = Vec::with_capacity(2 * num_vars);
 
       let w_len = core::cmp::min(W.W.len(), num_vars);
@@ -496,7 +494,7 @@ impl<E: Engine> R1CSSNARK<E> {
     info!(elapsed_ms = %pcs_t.elapsed().as_millis(), "pcs_prove");
 
     #[cfg(debug_assertions)]
-    if is_hash_mle_engine && num_vars > 0 {
+    if is_binary_mle_engine && num_vars > 0 {
       let eval_X_check = {
         let mut X_full = vec![E::Scalar::ZERO; num_vars];
         match U_regular.X.len() {
@@ -549,15 +547,11 @@ impl<E: Engine> R1CSSNARKTrait<E> for R1CSSNARK<E> {
   fn setup<C: SpartanCircuit<E>>(
     circuit: C,
   ) -> Result<(Self::ProverKey, Self::VerifierKey), SpartanError> {
-    // Sanity: Hash-MLE PCS must be binary (only check for Hash-MLE engines)
+    // Binary PCS engines use the direct multilinear-evaluation-table layout.
     let pcs_w = <E as Engine>::PCS::width();
-    let engine_name = std::any::type_name::<E>();
-    let is_hash_mle_engine =
-      engine_name.contains("MerkleMle") || engine_name.contains("P3MerkleMle");
-
-    if is_hash_mle_engine && pcs_w != 2 {
+    if pcs_w == 0 || !pcs_w.is_power_of_two() {
       return Err(SpartanError::InternalError {
-        reason: format!("Hash-MLE PCS misconfigured: width()={} (expected 2)", pcs_w),
+        reason: format!("PCS width must be a non-zero power of two, got {pcs_w}"),
       });
     }
 
@@ -686,10 +680,7 @@ impl<E: Engine> R1CSSNARKTrait<E> for R1CSSNARK<E> {
       r_y.len()
     );
 
-    // Always print for Hash-MLE engines to debug transcript issues
-    let engine_name = std::any::type_name::<E>();
-    let is_hash_mle_engine =
-      engine_name.contains("MerkleMle") || engine_name.contains("P3MerkleMle");
+    let is_binary_mle_engine = E::PCS::width() == 2;
 
     // Gate is y0. Non-gate coordinates are y1..
     let (gate, ry_no_gate): (E::Scalar, &[E::Scalar]) = if r_y.is_empty() {
@@ -706,7 +697,7 @@ impl<E: Engine> R1CSSNARKTrait<E> for R1CSSNARK<E> {
 
     // Compute eval_Z with gate=y0 and evaluate X on y1..
     let eval_Z = {
-      let eval_X = if is_hash_mle_engine {
+      let eval_X = if is_binary_mle_engine {
         if U_regular.X.is_empty() {
           E::Scalar::ONE
         } else {

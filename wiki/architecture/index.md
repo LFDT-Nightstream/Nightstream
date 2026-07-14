@@ -8,7 +8,7 @@ Eight crates, strict dependency direction, `neo-fold-clean` on top:
 graph BT
     params["neo-params&nbsp;&nbsp;parameter bundles + Poseidon2 config"]
     math["neo-math&nbsp;&nbsp;F, K, R_q, bar, norms, S-action"]
-    s2["spartan2&nbsp;&nbsp;vendored SNARK backend"]
+    s2["toy-spartan&nbsp;&nbsp;standalone SNARK/WHIR backend"]
     ccs["neo-ccs&nbsp;&nbsp;CCS/CE relations, matrices"]
     tr["neo-transcript&nbsp;&nbsp;Poseidon2 Fiat-Shamir"]
     ajtai["neo-ajtai&nbsp;&nbsp;lattice commitments"]
@@ -18,7 +18,6 @@ graph BT
     math --> params
     s2 --> params
     ccs --> math
-    ccs --> s2
     tr --> ccs
     ajtai --> ccs
     red --> ajtai
@@ -47,7 +46,7 @@ crates/neo-fold-clean/src/
                r1cs_f_prime (production F′ frontend), bellpepper (adapter).
   engine/      Implementation backing the paper layer: optimized-engine seam
                to neo-reductions, R1CS-builder gadget primitives, CCS-native
-               Poseidon2, Spartan2 decider synthesis. No paper claims here.
+               Poseidon2, terminal decider synthesis. No paper claims here.
 ```
 
 Rules of the layout (from the module docs, enforced in review):
@@ -59,7 +58,7 @@ Rules of the layout (from the module docs, enforced in review):
   glossary entry in `paper/mod.rs` mapping it to one. No perf counters, no
   frontend-specific types, no closure plumbing.
 - **`engine` carries no protocol authority.** If you trust `neo-reductions`,
-  `neo-ccs`, `neo-ajtai`, and `spartan2`, the engine layer's job is only transcript
+  `neo-ccs`, `neo-ajtai`, and `toy-spartan`, the engine layer's job is only transcript
   discipline and wire-format conversion. Wrappers that do more than split arrays and
   forward arguments are misplaced.
 - **Frontends depend on `paper`, never the reverse.** `paper::f_prime` knows no app;

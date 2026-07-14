@@ -233,8 +233,7 @@ mod tests {
     type Strategy = BoxedStrategy<Self>;
 
     fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-      use rand::SeedableRng;
-      use rand::rngs::StdRng;
+      use rand::{SeedableRng, rngs::StdRng};
 
       let strategy = any::<[u8; 32]>()
         .prop_map(|seed| FWrap(F::random(StdRng::from_seed(seed))))

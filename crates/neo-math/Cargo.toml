@@ -35,7 +35,6 @@ serde_json = { workspace = true }
 [features]
 default = []
 serde = ["dep:serde"]
-spartan2-compat = []
 
 # Spec-derived tests (lean oracles + invariant obligations)
 [[test]]

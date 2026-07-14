@@ -3,8 +3,7 @@
 use neo_params::poseidon2_goldilocks::{SEED, WIDTH};
 use once_cell::sync::Lazy;
 use p3_goldilocks::Poseidon2Goldilocks;
-use rand_chacha_p3::ChaCha8Rng;
-use rand_chacha_p3::rand_core::SeedableRng;
+use rand_chacha_p3::{ChaCha8Rng, rand_core::SeedableRng};
 
 static POSEIDON2_PERM: Lazy<Poseidon2Goldilocks<{ WIDTH }>> = Lazy::new(|| {
   let mut rng = ChaCha8Rng::from_seed(SEED);

@@ -1,4 +1,4 @@
-# Spartan: High-speed zero-knowledge SNARKs without trusted setup
+# Toy Spartan: standalone Spartan experiments
 Spartan is a sum-check-based zkSNARK with an extremely efficient prover (a zkSNARK is type cryptographic proof system that enables a prover to prove a mathematical statement to a verifier with a short proof and succinct verification, and without revealing anything beyond the validity of the statement). Spartan also features several unique properties that are particularly relevant for applications where zero-knowledge is essential. Here are some highlights:
 
 * Spartan provides a linear-time polynomial IOP that when combined with a polynomial commitment scheme provides a succinct interactive argument. It is made non-interactive using the Fiat-Shamir transform.
@@ -18,6 +18,17 @@ Compared to an earlier implementation of [Spartan](https://github.com/Microsoft/
 
 The proofs are *not* zero-knowledge (we plan to add it in the near future). Also, the current implementation does not implement the Spark protocol, so the verifier's work is proportional to the number of non-zero entries in the R1CS matrices.
 
+This in-tree fork is intentionally not connected to Nightstream's SuperNeo lifecycle.
+Its `GoldilocksWhirEngine` provides prescribed-point WHIR commitments using the
+SuperNeo Goldilocks degree-2 extension, 125-bit target, 18-bit grinding budget,
+and canonical width-8 Poseidon2 permutation. The surrounding Spartan protocol
+remains non-zero-knowledge and does not implement Spark.
+
+The WHIR PCS targets 125-bit soundness, but Toy Spartan's outer sum-check still
+samples challenges in the base Goldilocks field; this adapter does not raise the
+soundness of the entire Spartan protocol to 125 bits. The prescribed-point API is
+pinned to an exact Plonky3 revision until that API is included in a release.
+
 ### Supported polynomial commitment schemes
 - [ ] Elliptic-curve based schemes
   - [x] Bulletproofs-based PCS
@@ -26,9 +37,9 @@ The proofs are *not* zero-knowledge (we plan to add it in the near future). Also
   - [ ] Sona
   - [ ] HyperKZG (requires a universal trusted setup)
   - [ ] Mercury / Samaritan (require a universal trusted setup)
-- [ ] Hash-based schemes
+- [x] Hash-based schemes
   - [ ] Basefold
-  - [ ] WHIR
+  - [x] WHIR (Goldilocks/Poseidon2, non-hiding)
   - [ ] Brakedown
   - [ ] Binius
   - [ ] Ligero

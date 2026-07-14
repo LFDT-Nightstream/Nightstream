@@ -103,7 +103,7 @@ fn test_tensor_point_parallel_matches_serial() {
 }
 
 /// Test 4: CCS→R1CS rejection of mixed terms
-/// Build f(y0,y1)=y0*y1 (via the closure), ensure convert_ccs_for_spartan2 errors.
+/// Build f(y0,y1)=y0*y1 (via the closure), ensuring unsupported conversion errors.
 #[test]
 fn test_ccs_r1cs_rejects_mixed_terms() {
     // For this test, we need to use the legacy CCS API to create a non-affine polynomial

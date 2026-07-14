@@ -61,4 +61,4 @@ is the prose companion: what each term *means* and where it lives.
 | Decider | The terminal check of the folded accumulator. Statement contract in `paper/decider.rs`; full-history audit R1CS in `engine/decider.rs`; compact Spartan proof pending (PR5). | see [Decider](architecture/decider.md) |
 | Terminal CE | The relation the decider must establish on the final accumulator claims: commitment opening, public-input projection, low norm, `y_ring = (M·z)(r)`, `ct = lane0(y_ring)`. | `paper/decider_ce_relation/`, `paper/terminal_ce/` |
 | PublicImage | The chain-binding public coordinates a verifier recomputes (vk_fs digest, counters, z_0, z_i, pc, acc_digest, public trace, x_out). | `paper/decider.rs` |
-| Spartan2 | Vendored sum-check-based SNARK used as the terminal compression backend. | `crates/spartan2` |
+| Toy Spartan | Standalone sum-check SNARK with a WHIR PCS; not connected to lifecycle compression. | `crates/toy-spartan` |

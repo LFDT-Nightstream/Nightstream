@@ -1,5 +1,5 @@
 //! examples/sha256.rs
-//! Measure Spartan-2 {setup, prove, verify} times for a SHA-256
+//! Measure Toy Spartan {setup, prove, verify} times for a SHA-256
 //! circuit with varying message lengths
 //!
 //! Run with: `RUST_LOG=info cargo run --release --example sha256`
@@ -12,12 +12,12 @@ use bellpepper_core::{
 };
 use ff::{Field, PrimeField, PrimeFieldBits};
 use sha2::{Digest, Sha256};
-use spartan2::{
+use std::{marker::PhantomData, time::Instant};
+use toy_spartan::{
   provider::T256HyraxEngine,
   spartan::R1CSSNARK,
   traits::{Engine, circuit::SpartanCircuit, snark::R1CSSNARKTrait},
 };
-use std::{marker::PhantomData, time::Instant};
 use tracing::{info, info_span};
 use tracing_subscriber::EnvFilter;
 

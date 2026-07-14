@@ -13,7 +13,7 @@ Nightstream is a **post-quantum** proving system built around a lattice-based fo
 - SuperNeo folding pipeline Π_CCS → Π_RLC → Π_DEC (`neo-reductions`, optimized + paper-exact engines)
 - IVC lifecycle in `neo-fold-clean`: `prove` / `extend` a chain of CCS step instances, `finish_uncompressed` or `compress`, then `verify`
 - F′ recursive-step shell: a low-norm bit-image layout, mixed-gate CCS structure, encoder, and R1CS compiler for stateful step functions
-- Spartan2-backed decider and terminal-CE relation checks
+- Decider statement synthesis and terminal-CE relation checks; compact backend wiring is pending
 - Red-team suites (`crates/neo-fold-clean/tests/system/lifecycle_redteam.rs` and friends) for tamper resistance on the lifecycle path
 
 ---
@@ -82,7 +82,7 @@ crates/neo-fold-clean/src/
                     stateful R1CS step compiler, recursive plan
     r1cs_f_prime/   Bellpepper-style R1CS → F′ instance builder
   engine/           Optimized execution: Π wrappers, CCS-native Poseidon2
-                    gadgets, R1CS circuit builder, Spartan2 decider
+                    gadgets, R1CS circuit builder, decider synthesis
 ```
 
 ### Per-chunk Folding Flow
@@ -128,7 +128,9 @@ let proof = lifecycle::finish_uncompressed(&prep, audit)?;  // close the chain
 lifecycle::verify_uncompressed(&prep, &proof)?;
 ```
 
-`lifecycle::compress` produces the Spartan2-compressed form checked by `lifecycle::verify`.
+`lifecycle::compress` currently builds and validates the terminal statement, then
+fails closed because no compact backend is connected. `toy-spartan` and its WHIR PCS
+remain standalone by design.
 
 ---
 
@@ -180,7 +182,7 @@ cargo test -p neo-reductions --release
 | **F′**             | Augmented recursive-step relation (HyperNova §6)            | `neo-fold-clean/src/frontends/f_prime/`                        |
 | **Construction 2** | IVC chain state + per-step fold proof                       | `neo-fold-clean/src/paper/construction2/`                      |
 | **Decider**        | Terminal check of the folded accumulator                    | `neo-fold-clean/src/engine/decider.rs`, `paper/terminal_ce/`   |
-| **Spartan2**       | Backend for compressed final proofs                         | `crates/spartan2`                                              |
+| **Toy Spartan**    | Standalone Spartan/WHIR backend; not lifecycle-connected    | `crates/toy-spartan`                                           |
 
 ---
 
@@ -250,7 +252,7 @@ Specific caveats:
 crates/
   neo-params/      Parameter bundles + Poseidon2 config
   neo-math/        Field/ring utilities, extension field, norms
-  spartan2/        Vendored Spartan2 backend
+  toy-spartan/     Standalone Spartan backend with WHIR PCS
   neo-transcript/  Poseidon2 transcript (Fiat-Shamir)
   neo-ajtai/       Ajtai (lattice) commitments; module-SIS binding
   neo-ccs/         CCS/MCS/ME relations, matrices, arithmetization
@@ -295,7 +297,7 @@ See [`TODO.md`](TODO.md) for in-flight work.
 
 - **Neo**: Wilson Nguyen & Srinath Setty, "[Neo: Lattice-based folding scheme for CCS over small fields](https://eprint.iacr.org/2025/294)" (ePrint 2025/294).
 - **HyperNova**: Abhiram Kothapalli & Srinath Setty, "HyperNova: Recursive arguments for customizable constraint systems". Local text: [`docs/hypernova-paper/`](docs/hypernova-paper/).
-- **Spartan2**: Srinath Setty, "Spartan: Efficient and general-purpose zkSNARKs without trusted setup" (CRYPTO 2020). Vendored in [`crates/spartan2`](crates/spartan2).
+- **Toy Spartan**: fork of Srinath Setty's "Spartan: Efficient and general-purpose zkSNARKs without trusted setup" (CRYPTO 2020), with a standalone WHIR PCS. See [`crates/toy-spartan`](crates/toy-spartan).
 - **Plonky3**: Goldilocks field and Poseidon2 primitives used by Nightstream.
 
 ---

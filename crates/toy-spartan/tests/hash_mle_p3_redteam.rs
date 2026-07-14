@@ -7,13 +7,13 @@ use ff::Field;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 
-use spartan2::{
+use toy_spartan::{
   errors::SpartanError,
   polys::multilinear::MultilinearPolynomial,
   provider::{
     GoldilocksMerkleMleEngine as KeccakEngine, GoldilocksP3MerkleMleEngine as E,
-    keccak::Keccak256Transcript, pcs::merkle_mle_pc::HashMlePCS as KeccakPCS,
-    pcs::merkle_mle_pc_p3::HashMlePcsP3,
+    keccak::Keccak256Transcript,
+    pcs::{merkle_mle_pc::HashMlePCS as KeccakPCS, merkle_mle_pc_p3::HashMlePcsP3},
   },
   traits::{Engine, pcs::PCSEngineTrait, transcript::TranscriptEngineTrait},
 };
@@ -37,8 +37,8 @@ fn prove_once(
   m: usize,
   seed: u64,
 ) -> (
-  spartan2::provider::pcs::merkle_mle_pc::HashMleCommitment<E>,
-  spartan2::provider::pcs::merkle_mle_pc::HashMleEvaluationArgument<E>,
+  toy_spartan::provider::pcs::merkle_mle_pc::HashMleCommitment<E>,
+  toy_spartan::provider::pcs::merkle_mle_pc::HashMleEvaluationArgument<E>,
   F,
   Vec<F>,
 ) {
@@ -242,7 +242,7 @@ proptest! {
 #[test]
 #[cfg(feature = "p3_backend")]
 fn p3_tamper_samples_fail() {
-  use spartan2::{
+  use toy_spartan::{
     provider::{GoldilocksP3MerkleMleEngine as E, pcs::merkle_mle_pc_p3::HashMlePcsP3},
     traits::{Engine, pcs::PCSEngineTrait, transcript::TranscriptEngineTrait},
   };

@@ -14,7 +14,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use p3_symmetric::Permutation;
 
-const APP_DOMAIN: &[u8] = b"spartan2/transcript/v1|poseidon2-goldilocks";
+const APP_DOMAIN: &[u8] = b"toy-spartan/transcript/v1|poseidon2-goldilocks";
 
 #[derive(Debug, Clone)]
 /// Poseidon2-based transcript engine for Goldilocks-backed Spartan proofs.
@@ -145,6 +145,6 @@ impl<E: Engine> TranscriptEngineTrait<E> for Poseidon2Transcript<E> {
   }
 
   fn dom_sep(&mut self, bytes: &'static [u8]) {
-    self.append_message(b"spartan2/dom-sep", bytes);
+    self.append_message(b"toy-spartan/dom-sep", bytes);
   }
 }

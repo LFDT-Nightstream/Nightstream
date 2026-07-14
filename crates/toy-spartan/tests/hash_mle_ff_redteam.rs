@@ -5,7 +5,7 @@ use ff::Field;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 
-use spartan2::{
+use toy_spartan::{
   errors::SpartanError,
   polys::multilinear::MultilinearPolynomial,
   provider::{
@@ -33,8 +33,8 @@ fn prove_once(
   m: usize,
   seed: u64,
 ) -> (
-  spartan2::provider::pcs::merkle_mle_pc::HashMleCommitment<E>,
-  spartan2::provider::pcs::merkle_mle_pc::HashMleEvaluationArgument<E>,
+  toy_spartan::provider::pcs::merkle_mle_pc::HashMleCommitment<E>,
+  toy_spartan::provider::pcs::merkle_mle_pc::HashMleEvaluationArgument<E>,
   F,
   Vec<F>,
 ) {

@@ -143,10 +143,6 @@ impl DeviceFoldOutput {
         self.parent_authority.shell()
     }
 
-    pub(crate) fn parent_ce_digest_fields(&self) -> [F; 4] {
-        self.parent_authority.ce_digest()
-    }
-
     pub(crate) fn child_count(&self) -> usize {
         self.claim_shells.len()
     }
@@ -238,10 +234,6 @@ impl DeviceClaimAuthority {
 
     fn shell(&self) -> &CeClaim {
         &self.shell
-    }
-
-    fn ce_digest(&self) -> [F; 4] {
-        self.ce_digest
     }
 
     fn materialize(&self) -> Result<CeClaim, Error> {

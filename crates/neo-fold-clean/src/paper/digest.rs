@@ -742,8 +742,9 @@ pub(crate) fn pi_ccs_instance_digest_from_parent_digest(
 /// HyperNova's recursive link hashes the running instance `U_i`. In this
 /// SuperNeo instantiation, native and in-circuit NIFS.V first verify that all
 /// running children are a strict Pi_DEC reduction of the Pi_RLC parent. The
-/// parent CE digest therefore names the verified weak-reduction class without
-/// hashing every child a second time.
+/// full parent CE digest therefore names the verified weak-reduction class
+/// directly, without hashing every child or wrapping the parent digest in a
+/// second Poseidon2 call.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct AccumulatorHandle {
     digest: [u8; 32],
@@ -778,34 +779,34 @@ impl AccumulatorHandle {
 
 /// Poseidon2 handle for a strict Pi_DEC running accumulator `U_i`.
 ///
-/// Preimage:
+/// A valid non-empty running instance returns
+/// [`accumulator_ce_claim_digest`] of its checked parent directly. The child
+/// claims are deliberately absent: NIFS.V verifies their full strict Pi_DEC
+/// relation to `parent` before this value is used. The same parent digest is
+/// the running-side Fiat-Shamir authority in Pi_CCS, so the recursive state
+/// link and native verifier use one authority boundary and one hash.
 ///
-/// ```text
-/// pack(tag)
-/// ‖ child_count
-/// ‖ parent_present
-/// ‖ if parent_present: ce_claim_digest(parent)
-/// ```
-///
-/// The child claims are deliberately absent: NIFS.V verifies their full
-/// strict Pi_DEC relation to `parent` before this value is used. The parent CE
-/// digest is also the running-side Fiat-Shamir authority in Pi_CCS, so the
-/// recursive state link and native verifier use the same authority boundary.
-///
-/// For malformed states (`children.is_empty() != parent.is_none()`), the
-/// preimage deliberately records the mismatch instead of silently projecting to
-/// a valid empty/non-empty handle. Honest call sites reject that shape before
-/// relying on the digest.
+/// The empty accumulator retains its existing domain-separated constant. For
+/// malformed states (`children.is_empty() != parent.is_none()`), a fallback
+/// preimage records the mismatch instead of silently projecting to a valid
+/// empty/non-empty handle. Honest call sites reject that shape before relying
+/// on the digest.
 pub fn accumulator_digest_from_running_parts(
     claims: &[CeClaim<Commitment, F, K>],
     parent_authority: Option<&CeClaim<Commitment, F, K>>,
 ) -> [u8; 32] {
+    if !claims.is_empty() {
+        if let Some(parent) = parent_authority {
+            return digest_fields_as_digest32(accumulator_ce_claim_digest(parent));
+        }
+    }
+
     let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/accumulator/parent_authority/v2");
     preimage.push(F::from_u64(claims.len() as u64));
     match parent_authority {
         Some(parent) => {
             preimage.push(F::ONE);
-            preimage.extend_from_slice(&ce_claim_digest(parent));
+            preimage.extend_from_slice(&accumulator_ce_claim_digest(parent));
         }
         None => preimage.push(F::ZERO),
     }

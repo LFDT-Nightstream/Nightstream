@@ -12,10 +12,11 @@
 //! accept a prover-supplied digest as authority.
 //!
 //! The per-running-claim ME-input *projection* digest has been retired.
-//! The Π_CCS verifier now absorbs a single ME-input accumulator handle.
+//! The Π_CCS verifier now absorbs the full digest of the validated Π_RLC
+//! parent authority via [`super::absorb_engine_me_inputs_accumulator_handle`].
 //! NIFS.V first checks strict Π_DEC consistency between the running children
-//! and their Π_RLC parent; the handle then reuses that parent's CE digest via
-//! [`super::absorb_engine_me_inputs_accumulator_handle`].
+//! and that parent, so child serialization is not an independent transcript
+//! authority.
 
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;

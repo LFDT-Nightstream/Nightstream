@@ -50,16 +50,17 @@
 //!    *fresh SuperNeo CCS instance*, and that public input is part of
 //!    the low-norm assignment `z = [x, w]` (`‖z‖_∞ < b = 2`). Poseidon2
 //!    itself does not need low norm. See `encoding.md` for the
-//!    distinction between this public-instance encoding `enc_inst(h)`
-//!    and the unresolved private-witness encoding `enc(F')`.
-//! 2. **Running accumulator binding**: after NIFS.V checks
-//!    `Pi_DEC(parent, running)`, `acc_digest_in` equals the compact digest of
-//!    that parent CE authority. Without this, `u_i.public` could bind to one
-//!    weak-reduction class while NIFS.V folds a different one.
+//!    distinction between this public-instance encoding `enc_inst(h)`, the
+//!    generic private-witness oracle, and the still-unresolved practical
+//!    production lowering for `enc(F')`.
+//! 2. **Running accumulator binding**: `acc_digest_in` equals the full
+//!    authority digest of the checked Π_RLC parent. Π_DEC still validates all
+//!    running children against that parent, so `u_i.public` cannot bind to one
+//!    accumulator while NIFS.V folds a different one.
 //! 3. **Output accumulator binding**:
-//!    after strict Pi_DEC verification, `acc_digest_out` equals the digest of
-//!    `NIFS.V.parent`. Without this, the step could output a self-consistent
-//!    handle unrelated to the `U_{i+1}` it just computed.
+//!    `acc_digest_out == digest(NIFS.V.parent)`. NIFS.V checks the emitted
+//!    children by Π_DEC recomposition; hashing those checked witnesses again
+//!    is not a separate authority condition.
 //! 4. **`pc == TRIVIAL_PC`** (ℓ = 1 in this build). `pc` is pinned,
 //!    linked as state, and absorbed into `state_x_out` so the local
 //!    recursive link retains HyperNova's `pc_i` binding even before
@@ -103,8 +104,9 @@ use crate::paper::nifs::circuit::{
     enforce_nifs_v_circuit_with_transcript_and_header_bundle_wires, NifsVCircuitConfig, NifsVCircuitMessages,
 };
 use crate::paper::params::Params;
-use crate::paper::reductions::accumulator_digest_circuit::enforce_accumulator_digest_from_parent_circuit;
-use crate::paper::reductions::pi_ccs_split_nc_circuit::{enforce_ce_claim_digest, CeClaimDigestInputs};
+use crate::paper::reductions::pi_ccs_split_nc_circuit::{
+    enforce_accumulator_ce_claim_digest, AccumulatorCeClaimDigestInputs,
+};
 use crate::paper::reductions::pi_dec_circuit::CeClaimWires;
 
 /// Canonical bits per `x_out` digest lane. Goldilocks canonical form fits
@@ -761,21 +763,18 @@ fn enforce_digest_eq(builder: &mut R1csBuilder, a: &[Var; DIGEST_LEN], b: &[Var;
 fn enforce_nifs_output_acc_digest(
     builder: &mut R1csBuilder,
     parent: &CeClaimWires,
-    children: &[CeClaimWires],
 ) -> Result<[Var; DIGEST_LEN], Error> {
-    let parent_digest = enforce_dec_ce_claim_digest(builder, parent)?;
-    Ok(enforce_accumulator_digest_from_parent_circuit(
-        builder,
-        children.len(),
-        Some(parent_digest),
-    ))
+    enforce_dec_ce_claim_accumulator_digest(builder, parent)
 }
 
-fn enforce_dec_ce_claim_digest(builder: &mut R1csBuilder, claim: &CeClaimWires) -> Result<[Var; DIGEST_LEN], Error> {
+fn enforce_dec_ce_claim_accumulator_digest(
+    builder: &mut R1csBuilder,
+    claim: &CeClaimWires,
+) -> Result<[Var; DIGEST_LEN], Error> {
     let y_ring = dec_y_ring_kvars(claim)?;
-    enforce_ce_claim_digest(
+    enforce_accumulator_ce_claim_digest(
         builder,
-        &CeClaimDigestInputs {
+        &AccumulatorCeClaimDigestInputs {
             c_d: claim.c_d,
             c_kappa: claim.c_kappa,
             c_data: &claim.c_data,
@@ -783,13 +782,15 @@ fn enforce_dec_ce_claim_digest(builder: &mut R1csBuilder, claim: &CeClaimWires) 
             x_cols: claim.x_cols,
             x_flat_row_major: &claim.x,
             r: &claim.r,
+            s_col: &claim.s_col,
             y_ring: &y_ring,
+            ct: &claim.ct,
             m_in: claim.m_in,
             fold_digest_fields: claim.fold_digest_fields,
             adv: claim.adv.as_ref(),
         },
     )
-    .map_err(|e| Error::Inner(format!("output accumulator parent CE digest: {e}")))
+    .map_err(|e| Error::Inner(format!("output accumulator CE digest: {e}")))
 }
 
 fn dec_y_ring_kvars(claim: &CeClaimWires) -> Result<Vec<Vec<KVar>>, Error> {
@@ -1326,9 +1327,9 @@ fn enforce_f_prime_recursive_step_circuit_impl(
     // producer step must compute that handle here before absorbing it into
     // `state_x_out`. A later consumer equality is useful continuity, but
     // not a substitute for this producer-side equation.
-    builder.begin_encoding_stage("f_prime.output_accumulator_hash");
+    builder.begin_encoding_stage("f_prime.output_parent_authority_hash");
     let claimed_acc_digest = alloc_4(builder, inputs.acc_digest_out);
-    let new_acc_digest = enforce_nifs_output_acc_digest(builder, &nifs_outputs.parent, &nifs_outputs.children)?;
+    let new_acc_digest = enforce_nifs_output_acc_digest(builder, &nifs_outputs.parent)?;
     enforce_digest_eq(builder, &claimed_acc_digest, &new_acc_digest);
     let new_semantic_state_digest = alloc_4(builder, inputs.semantic_state_digest_out);
     builder.record_row_family("fprime.recursive.accumulator", accumulator_start);

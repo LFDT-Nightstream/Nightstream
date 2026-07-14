@@ -50,9 +50,8 @@ use crate::paper::f_prime::r1cs::{
 use crate::paper::f_prime::source_image::{BitRange, FPrimeSourceImage};
 use crate::paper::nifs::circuit::{enforce_nifs_v_circuit_with_transcript, NifsVCircuitConfig, NifsVCircuitMessages};
 use crate::paper::nifs::NifsProof;
-use crate::paper::reductions::accumulator_digest_circuit::enforce_accumulator_digest_from_parent_circuit;
 use crate::paper::reductions::pi_ccs_split_nc_circuit::{
-    enforce_ce_claim_digest, CeClaimDigestInputs, SplitNcPiCcsOutputWires, SplitNcPiCcsVConfig,
+    enforce_accumulator_ce_claim_digest, AccumulatorCeClaimDigestInputs, SplitNcPiCcsOutputWires, SplitNcPiCcsVConfig,
 };
 use crate::paper::reductions::pi_dec_circuit::CeClaimWires;
 use crate::paper::relations::product_commitment_circuit::enforce_adv_equality;
@@ -1267,12 +1266,11 @@ fn emit_terminal_fold(
     )?;
     builder.record_row_family("terminal.latest_link", latest_link_start);
 
-    // NIFS.V has just enforced strict Pi_DEC(parent, children), so the
-    // parent CE digest is the post-fold accumulator authority.
+    // Pi_DEC has already checked every output child against this parent. The
+    // parent is the compact recursive authority, so no second child hash is
+    // part of the terminal state handle.
     let accumulator_start = builder.rows();
-    let parent_digest = enforce_dec_ce_claim_digest(builder, &nifs_outputs.parent)?;
-    let post_fold_acc_digest =
-        enforce_accumulator_digest_from_parent_circuit(builder, nifs_outputs.children.len(), Some(parent_digest));
+    let post_fold_acc_digest = enforce_dec_ce_claim_accumulator_digest(builder, &nifs_outputs.parent)?;
     builder.record_row_family("terminal.accumulator", accumulator_start);
     builder.record_row_family("terminal.total", terminal_start);
 
@@ -1286,12 +1284,15 @@ fn emit_terminal_fold(
     ))
 }
 
-fn enforce_dec_ce_claim_digest(builder: &mut R1csBuilder, claim: &CeClaimWires) -> Result<[Var; 4], decider::Error> {
+fn enforce_dec_ce_claim_accumulator_digest(
+    builder: &mut R1csBuilder,
+    claim: &CeClaimWires,
+) -> Result<[Var; 4], decider::Error> {
     let y_ring = dec_y_ring_kvars(claim)
-        .map_err(|e| decider::Error::WalkFailed(format!("terminal accumulator parent CE digest y_ring: {e}")))?;
-    enforce_ce_claim_digest(
+        .map_err(|e| decider::Error::WalkFailed(format!("terminal accumulator CE digest y_ring: {e}")))?;
+    enforce_accumulator_ce_claim_digest(
         builder,
-        &CeClaimDigestInputs {
+        &AccumulatorCeClaimDigestInputs {
             c_d: claim.c_d,
             c_kappa: claim.c_kappa,
             c_data: &claim.c_data,
@@ -1299,13 +1300,15 @@ fn enforce_dec_ce_claim_digest(builder: &mut R1csBuilder, claim: &CeClaimWires) 
             x_cols: claim.x_cols,
             x_flat_row_major: &claim.x,
             r: &claim.r,
+            s_col: &claim.s_col,
             y_ring: &y_ring,
+            ct: &claim.ct,
             m_in: claim.m_in,
             fold_digest_fields: claim.fold_digest_fields,
             adv: claim.adv.as_ref(),
         },
     )
-    .map_err(|e| decider::Error::WalkFailed(format!("terminal accumulator parent CE digest: {e}")))
+    .map_err(|e| decider::Error::WalkFailed(format!("terminal accumulator CE digest: {e}")))
 }
 
 fn dec_y_ring_kvars(claim: &CeClaimWires) -> Result<Vec<Vec<KVar>>, String> {

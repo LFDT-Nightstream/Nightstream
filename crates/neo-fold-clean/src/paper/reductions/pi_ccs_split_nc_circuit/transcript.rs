@@ -178,11 +178,8 @@ pub fn absorb_engine_header_bundle_wires_and_instance_digest(
 ///    the single 4-lane handle replaces the per-claim ME-input
 ///    projection digest stream the retired bind variant used.
 ///
-/// The handle wires must already be bound by the caller to a digest
-/// recomputed from authoritative running-CE-claim data (e.g. the
-/// accumulator-digest gadget in
-/// [`crate::paper::reductions::accumulator_digest_circuit`]). It is not
-/// a prover-supplied value.
+/// The handle wires must already be bound by the caller to the full digest of
+/// the validated Π_RLC parent authority. It is not a prover-supplied value.
 pub fn absorb_engine_me_inputs_accumulator_handle(
     builder: &mut R1csBuilder,
     transcript: &mut TranscriptGadget,

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nightstream · WASM Folding Demo</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header>
+      <div>
+        <p class="eyebrow">Nightstream</p>
+        <h1>WASM Folding Demo</h1>
+      </div>
+    </header>
+
+    <main>
+      <section class="editor panel">
+        <div class="panel-title">
+          <p class="eyebrow">Editable WAT</p>
+          <select id="example" class="example-select" aria-label="Example program"></select>
+        </div>
+        <textarea id="source" spellcheck="false" aria-label="WebAssembly text program"></textarea>
+        <div class="actions">
+          <button id="run">Trace <span>⌘ ↵</span></button>
+          <p id="status">Loading program…</p>
+        </div>
+      </section>
+
+      <aside class="panel summary">
+        <p class="eyebrow">Execution</p>
+        <div class="result"><span>result</span><strong id="result">—</strong></div>
+        <dl>
+          <div><dt>normalized rows</dt><dd id="row-count">—</dd></div>
+          <div><dt>WASM bytes</dt><dd id="wasm-bytes">—</dd></div>
+          <div><dt>instructions</dt><dd id="instructions">—</dd></div>
+          <div><dt>control edges</dt><dd id="edges">—</dd></div>
+        </dl>
+        <div class="proof-boundary">
+          <p class="eyebrow">Proof mode</p>
+          <select id="proof-mode" aria-label="Proof mode">
+            <option value="ivc_no_memory">Recursive IVC · no memory consistency</option>
+            <option value="folding_audit">Folding audit · no NIFS.V (fastest)</option>
+            <option value="nebula_memory">Recursive IVC · Nebula memory consistency</option>
+          </select>
+          <strong id="proof-title">Ready to preprocess</strong>
+          <p id="proof-copy">Proves the normalized WASM transition relation with constrained NIFS.V. ROM and RAM consistency are not included.</p>
+          <div class="proof-actions">
+            <button id="prepare" disabled>Preprocess</button>
+            <button id="prove" disabled>Fold &amp; verify</button>
+          </div>
+          <p id="proof-details" class="proof-details"></p>
+          <dl class="phase-timings">
+            <div><dt>preprocess</dt><dd id="preprocess-time">—</dd></div>
+            <div><dt>fold proof</dt><dd id="prove-time">—</dd></div>
+            <div><dt>verify</dt><dd id="verify-time">—</dd></div>
+          </dl>
+          <div class="verifier-material">
+            <p class="eyebrow">Verifier material</p>
+            <p class="material-intro">These fingerprints identify what preprocessing produced; proof verification remains authoritative.</p>
+            <div class="material-item">
+              <strong>Verifier key digest</strong>
+              <p>Fingerprint of the fixed verifier material created during preprocessing.</p>
+              <code id="verifier-key-digest" class="digest">—</code>
+            </div>
+            <div id="memory-plan-material" class="material-item" hidden>
+              <strong>Memory plan digest</strong>
+              <p>Binds the Nebula geometry, program ROM, and initial RAM plan.</p>
+              <code id="memory-plan-digest" class="digest">—</code>
+            </div>
+            <div id="initial-ram-material" class="material-item" hidden>
+              <strong>Initial RAM digest</strong>
+              <p>Commitment carried as the starting RAM handle for memory consistency.</p>
+              <code id="initial-ram-digest" class="digest">—</code>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <section class="trace panel">
+        <div class="panel-title"><div><p class="eyebrow">Normalized execution</p><h2>Trace rows</h2></div></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>opcode</th><th>pc</th><th>sp</th><th>stack reads</th><th>stack write</th><th>local / global</th></tr></thead>
+            <tbody id="trace-body"><tr><td colspan="7" class="empty">Trace the program to inspect the normalized VM rows.</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+    <dialog id="row-dialog" class="row-dialog" aria-labelledby="row-dialog-title">
+      <div class="row-dialog-header">
+        <div>
+          <p class="eyebrow">Normalized row · JSON</p>
+          <h2 id="row-dialog-title">Trace row</h2>
+        </div>
+        <button id="row-dialog-close" type="button">Close</button>
+      </div>
+      <p class="row-dialog-copy">Exact row object returned by the native tracer API.</p>
+      <pre id="row-json"></pre>
+    </dialog>
+    <script src="/app.js"></script>
+  </body>
+</html>

@@ -10,6 +10,7 @@ members = [
   "crates/neo-reductions",
   "crates/neo-fold-clean",
   "crates/neo-wasm",
+  "demos/nightstream-wasm-folding-demo",
 ]
 exclude = [
   "external/Spartan2",

@@ -1,0 +1,20 @@
+[package]
+name = "nightstream-wasm-folding-demo"
+edition = { workspace = true }
+version = { workspace = true }
+authors = { workspace = true }
+license = { workspace = true }
+publish = false
+
+[dependencies]
+neo-fold-clean = { path = "../../crates/neo-fold-clean" }
+neo-math = { path = "../../crates/neo-math" }
+neo-params = { path = "../../crates/neo-params" }
+neo-wasm = { path = "../../crates/neo-wasm" }
+p3-field = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+wat = "1"
+
+[lints]
+workspace = true

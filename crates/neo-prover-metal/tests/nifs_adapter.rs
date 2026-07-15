@@ -101,27 +101,27 @@ fn metal_nifs_matches_cpu_and_verifies() {
     );
 
     let profile = metal.last_profile().expect("Metal profile");
-    assert!(profile.fe_rounds > 0);
-    assert!(profile.fe_mcs_tables > 0);
-    assert!(profile.fe_on_metal);
-    assert!(profile.ajtai_y_eval_on_metal);
-    assert!(!profile.ajtai_y_eval.is_zero());
-    assert!(profile.nc_rounds > 0);
-    assert!(profile.nc_on_metal);
-    assert!(profile.nc_mask_native_on_metal);
-    assert!(profile.witness_masks_shared);
-    assert!(profile.rlc_witness_on_metal);
-    assert!(profile.rlc_witness_resident_only);
-    assert!(profile.rlc_witness_masks_reused);
-    assert!(profile.rlc_rho_small_coefficients);
-    assert!(profile.dec_split_on_metal);
-    assert!(profile.dec_recomposition_on_metal);
-    assert!(profile.dec_forms_on_metal);
-    assert!(profile.dec_y_on_metal);
-    assert!(profile.dec_commit_on_metal);
-    assert!(profile.proof_deferred);
-    assert!(profile.running_deferred);
-    assert!(!profile.recursive_compile_reverify_required);
+    assert!(profile.pi_ccs.fe.rounds > 0);
+    assert!(profile.pi_ccs.fe.mcs_tables > 0);
+    assert!(profile.pi_ccs.fe.on_metal);
+    assert!(profile.pi_ccs.ajtai.y_eval_on_metal);
+    assert!(!profile.pi_ccs.ajtai.y_eval.is_zero());
+    assert!(profile.pi_ccs.nc.rounds > 0);
+    assert!(profile.pi_ccs.nc.on_metal);
+    assert!(profile.pi_ccs.nc.mask_native_on_metal);
+    assert!(profile.pi_ccs.witness_masks_shared);
+    assert!(profile.pi_rlc.witness_on_metal);
+    assert!(profile.pi_rlc.witness_resident_only);
+    assert!(profile.pi_rlc.witness_masks_reused);
+    assert!(profile.pi_rlc.rho_small_coefficients);
+    assert!(profile.pi_dec.split_on_metal);
+    assert!(profile.pi_dec.recomposition_on_metal);
+    assert!(profile.pi_dec.forms_on_metal);
+    assert!(profile.pi_dec.y_on_metal);
+    assert!(profile.pi_dec.commit_on_metal);
+    assert!(profile.residency.proof_deferred);
+    assert!(profile.residency.running_deferred);
+    assert!(!profile.residency.recursive_compile_reverify_required);
     assert!(!metal.requires_recursive_compile_reverify());
     assert!(profile.activity.dispatches > 0);
     assert!(profile.activity.host_waits + 2 <= profile.activity.command_buffers);
@@ -327,13 +327,13 @@ fn metal_nifs_matches_cpu_across_bootstrap_and_steady_folds() {
         assert!(
             metal
                 .last_profile()
-                .is_some_and(|profile| profile.ajtai_y_eval_on_metal),
+                .is_some_and(|profile| profile.pi_ccs.ajtai.y_eval_on_metal),
             "Ajtai Y_eval was not selected at fold {fold}"
         );
         assert!(
             metal
                 .last_profile()
-                .is_some_and(|profile| profile.nc_on_metal && profile.nc_mask_native_on_metal),
+                .is_some_and(|profile| profile.pi_ccs.nc.on_metal && profile.pi_ccs.nc.mask_native_on_metal),
             "mask-native NC was not selected at fold {fold}"
         );
         cpu_running = cpu.0;

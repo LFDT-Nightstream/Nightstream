@@ -2,6 +2,7 @@
 
 use std::mem::size_of;
 
+use neo_math::D;
 use objc2::runtime::ProtocolObject;
 use objc2_foundation::NSString;
 use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder, MTLComputeCommandEncoder};
@@ -175,7 +176,7 @@ impl MetalSession {
                 self.dispatch(
                     &encoder,
                     &self.nc_materialize_mask_dense,
-                    plan.active_witness_count * next_rows * 54,
+                    plan.active_witness_count * next_rows * D,
                 );
                 encoder.endEncoding();
             }
@@ -191,7 +192,7 @@ impl MetalSession {
         plan.current_slot = next_slot;
         plan.rows = next_rows;
         if source.folded {
-            plan.width = if direct_compact { 54 } else { 2 };
+            plan.width = if direct_compact { D } else { 2 };
             plan.dense = direct_compact;
         } else {
             plan.width *= 2;

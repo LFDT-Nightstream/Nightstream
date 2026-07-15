@@ -185,17 +185,17 @@ fn wasm_nebula_metal_startup_diagnostic() {
         eprintln!("WASM_NEBULA_DIAGNOSTIC_PROFILE fold={fold} {profile:#?}");
     }
     let profile = profiles.last().expect("last Metal fold profile");
-    assert!(profile.fe_carried_eval_on_metal);
-    assert!(profile.fe_seeded_patch_bytes < 1024 * 1024);
-    assert_eq!(profile.ajtai_seeded_patch_bytes, 0);
-    assert!(profile.fresh_masks_reused);
-    assert_eq!(profile.fresh_commit_count, 1);
-    assert_eq!(profile.fresh_lane_commit_count, 1);
-    assert!(profile.fresh_lanes_from_resident_masks);
-    assert!(profile.witness_masks_shared);
-    assert!(profile.rlc_witness_masks_reused);
-    assert_eq!(profile.nc_input_witnesses, 15);
-    assert!(profile.nc_active_witnesses < profile.nc_input_witnesses);
+    assert!(profile.pi_ccs.fe.carried_eval_on_metal);
+    assert!(profile.pi_ccs.fe.seeded_patch_bytes < 1024 * 1024);
+    assert_eq!(profile.pi_ccs.ajtai.seeded_patch_bytes, 0);
+    assert!(profile.fresh.masks_reused);
+    assert_eq!(profile.fresh.commit_count, 1);
+    assert_eq!(profile.fresh.lane_commit_count, 1);
+    assert!(profile.fresh.lanes_from_resident_masks);
+    assert!(profile.pi_ccs.witness_masks_shared);
+    assert!(profile.pi_rlc.witness_masks_reused);
+    assert_eq!(profile.pi_ccs.nc.input_witnesses, 15);
+    assert!(profile.pi_ccs.nc.active_witnesses < profile.pi_ccs.nc.input_witnesses);
     assert!(
         profiles
             .iter()

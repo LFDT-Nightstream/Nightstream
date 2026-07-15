@@ -24,7 +24,7 @@ main { display: grid; grid-template-columns: minmax(540px, 2fr) minmax(380px, 1f
 .panel-title .eyebrow { margin-bottom: 0; }
 select { width: 100%; margin-bottom: 17px; padding: 10px; border: 1px solid var(--line); border-radius: 5px; background: #090c0f; color: #d7ded9; font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
 .example-select { width: 230px; margin: 0; padding: 8px 10px; }
-textarea { display: block; width: calc(100% - 28px); height: 410px; resize: vertical; margin: 0 14px; padding: 17px; border: 1px solid #20262c; border-radius: 6px; outline: none; background: #0a0d10; color: #cbd5cf; font: 14px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; tab-size: 2; }
+textarea { display: block; width: calc(100% - 28px); height: 600px; resize: vertical; margin: 0 14px; padding: 17px; border: 1px solid #20262c; border-radius: 6px; outline: none; background: #0a0d10; color: #cbd5cf; font: 14px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; tab-size: 2; }
 textarea:focus { border-color: #46564c; }
 .actions { min-height: 88px; display: grid; gap: 10px; padding: 14px; }
 button { border: 0; border-radius: 5px; padding: 11px 15px; background: var(--lime); color: #111608; font-size: 14px; font-weight: 700; cursor: pointer; }

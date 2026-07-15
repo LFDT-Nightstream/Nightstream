@@ -26,3 +26,8 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = "0.10"
 thiserror = { workspace = true }
+
+[dev-dependencies]
+neo-params = { path = "../neo-params" }
+neo-wasm = { path = "../neo-wasm" }
+wat = "1"

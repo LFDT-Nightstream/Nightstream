@@ -1555,13 +1555,16 @@ dependencies = [
  "neo-ccs",
  "neo-fold-clean",
  "neo-math",
+ "neo-params",
  "neo-prover-metal",
+ "neo-wasm",
  "p3-field",
  "rayon",
  "serde",
  "serde_json",
  "sha2",
  "thiserror 2.0.18",
+ "wat",
 ]
 
 [[package]]

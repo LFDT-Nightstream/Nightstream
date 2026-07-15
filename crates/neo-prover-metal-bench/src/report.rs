@@ -6,7 +6,7 @@ use neo_prover_metal::{MetalActivity, MetalDeviceInfo, MetalNifsProfile};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub const REPORT_SCHEMA_VERSION: u32 = 6;
+pub const REPORT_SCHEMA_VERSION: u32 = 10;
 
 const MAX_FIELD_ELEMENTS: usize = 1 << 22;
 const MAX_POSEIDON_HASHES: usize = 1 << 20;
@@ -152,6 +152,8 @@ impl Default for BenchmarkConfig {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TimingSummary {
     pub samples: usize,
+    /// Ordered measurements before percentile sorting.
+    pub raw_ms: Vec<f64>,
     pub median_ms: f64,
     pub min_ms: f64,
     pub max_ms: f64,
@@ -162,6 +164,10 @@ pub struct TimingSummary {
 impl TimingSummary {
     pub fn from_durations(mut values: Vec<Duration>) -> Self {
         assert!(!values.is_empty(), "timing summary needs samples");
+        let raw_ms = values
+            .iter()
+            .map(|duration| duration.as_secs_f64() * 1e3)
+            .collect::<Vec<_>>();
         values.sort_unstable();
         let milliseconds = values
             .iter()
@@ -181,6 +187,7 @@ impl TimingSummary {
             .min(milliseconds.len() - 1);
         Self {
             samples: milliseconds.len(),
+            raw_ms,
             median_ms: milliseconds[milliseconds.len() / 2],
             min_ms: milliseconds[0],
             max_ms: milliseconds[milliseconds.len() - 1],
@@ -342,13 +349,16 @@ pub struct NifsStageReport {
     pub folds_per_sample: usize,
     pub total: TimingSummary,
     pub pi_ccs: TimingSummary,
+    pub ajtai_y_eval: TimingSummary,
     pub pi_rlc: TimingSummary,
     pub pi_dec: TimingSummary,
     pub dec_form_build: TimingSummary,
     pub dec_projection: TimingSummary,
     pub dec_host_materialization: TimingSummary,
     pub fe_on_metal: bool,
+    pub ajtai_y_eval_on_metal: bool,
     pub nc_on_metal: bool,
+    pub nc_mask_native_on_metal: bool,
     pub rlc_witness_on_metal: bool,
     pub rlc_witness_resident_only: bool,
     pub rlc_rho_small_coefficients: bool,
@@ -369,6 +379,7 @@ pub struct NifsStageReport {
 pub(crate) struct NifsProfileSample {
     total: Duration,
     pi_ccs: Duration,
+    ajtai_y_eval: Duration,
     pi_rlc: Duration,
     pi_dec: Duration,
     dec_form_build: Duration,
@@ -376,7 +387,9 @@ pub(crate) struct NifsProfileSample {
     dec_host_materialization: Duration,
     folds: usize,
     fe_on_metal: bool,
+    ajtai_y_eval_on_metal: bool,
     nc_on_metal: bool,
+    nc_mask_native_on_metal: bool,
     rlc_witness_on_metal: bool,
     rlc_witness_resident_only: bool,
     rlc_rho_small_coefficients: bool,
@@ -397,7 +410,9 @@ impl NifsProfileSample {
     pub(crate) fn from_profiles(profiles: Vec<MetalNifsProfile>) -> Self {
         let mut sample = Self {
             fe_on_metal: true,
+            ajtai_y_eval_on_metal: true,
             nc_on_metal: true,
+            nc_mask_native_on_metal: true,
             rlc_witness_on_metal: true,
             rlc_witness_resident_only: true,
             rlc_rho_small_coefficients: true,
@@ -411,6 +426,7 @@ impl NifsProfileSample {
         for profile in profiles {
             sample.total += profile.total;
             sample.pi_ccs += profile.pi_ccs;
+            sample.ajtai_y_eval += profile.ajtai_y_eval;
             sample.pi_rlc += profile.pi_rlc;
             sample.pi_dec += profile.pi_dec;
             sample.dec_form_build += profile.dec_form_build;
@@ -418,7 +434,9 @@ impl NifsProfileSample {
             sample.dec_host_materialization += profile.dec_host_materialization;
             sample.folds += 1;
             sample.fe_on_metal &= profile.fe_on_metal;
+            sample.ajtai_y_eval_on_metal &= profile.ajtai_y_eval_on_metal;
             sample.nc_on_metal &= profile.nc_on_metal;
+            sample.nc_mask_native_on_metal &= profile.nc_mask_native_on_metal;
             sample.rlc_witness_on_metal &= profile.rlc_witness_on_metal;
             sample.rlc_witness_resident_only &= profile.rlc_witness_resident_only;
             sample.rlc_rho_small_coefficients &= profile.rlc_rho_small_coefficients;
@@ -445,7 +463,9 @@ pub(crate) fn summarize_nifs_profiles(samples: Vec<NifsProfileSample>) -> NifsSt
     assert!(samples.iter().all(|sample| {
         sample.folds == shape.folds
             && sample.fe_on_metal == shape.fe_on_metal
+            && sample.ajtai_y_eval_on_metal == shape.ajtai_y_eval_on_metal
             && sample.nc_on_metal == shape.nc_on_metal
+            && sample.nc_mask_native_on_metal == shape.nc_mask_native_on_metal
             && sample.rlc_witness_on_metal == shape.rlc_witness_on_metal
             && sample.rlc_witness_resident_only == shape.rlc_witness_resident_only
             && sample.rlc_rho_small_coefficients == shape.rlc_rho_small_coefficients
@@ -464,6 +484,7 @@ pub(crate) fn summarize_nifs_profiles(samples: Vec<NifsProfileSample>) -> NifsSt
         folds_per_sample: shape.folds,
         total: TimingSummary::from_durations(samples.iter().map(|sample| sample.total).collect()),
         pi_ccs: TimingSummary::from_durations(samples.iter().map(|sample| sample.pi_ccs).collect()),
+        ajtai_y_eval: TimingSummary::from_durations(samples.iter().map(|sample| sample.ajtai_y_eval).collect()),
         pi_rlc: TimingSummary::from_durations(samples.iter().map(|sample| sample.pi_rlc).collect()),
         pi_dec: TimingSummary::from_durations(samples.iter().map(|sample| sample.pi_dec).collect()),
         dec_form_build: TimingSummary::from_durations(samples.iter().map(|sample| sample.dec_form_build).collect()),
@@ -475,7 +496,9 @@ pub(crate) fn summarize_nifs_profiles(samples: Vec<NifsProfileSample>) -> NifsSt
                 .collect(),
         ),
         fe_on_metal: shape.fe_on_metal,
+        ajtai_y_eval_on_metal: shape.ajtai_y_eval_on_metal,
         nc_on_metal: shape.nc_on_metal,
+        nc_mask_native_on_metal: shape.nc_mask_native_on_metal,
         rlc_witness_on_metal: shape.rlc_witness_on_metal,
         rlc_witness_resident_only: shape.rlc_witness_resident_only,
         rlc_rho_small_coefficients: shape.rlc_rho_small_coefficients,

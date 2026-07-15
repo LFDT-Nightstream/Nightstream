@@ -391,7 +391,14 @@ fn wasm_nebula_pipeline_profile() {
     let terminal = proof.inner();
     let (running_claims, latest_instances) = match &terminal.state.proof {
         ProofState::Initial => (0, 0),
-        ProofState::Active { running, latest } => (running.claims.len(), latest.instances.len()),
+        ProofState::Active { running, latest } => (
+            running
+                .materialize()
+                .expect("materialized running carrier")
+                .claims
+                .len(),
+            latest.instances.len(),
+        ),
     };
     assert!(
         terminal.final_fold.is_some(),

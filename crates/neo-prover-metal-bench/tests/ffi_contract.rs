@@ -73,7 +73,7 @@ fn ffi_returns_a_parity_checked_smoke_report() {
     assert!(!output.is_null());
     let report = unsafe { std::slice::from_raw_parts(output, output_len) };
     let value: serde_json::Value = serde_json::from_slice(report).expect("benchmark JSON");
-    assert_eq!(value["schema_version"], 6);
+    assert_eq!(value["schema_version"], 10);
     assert_eq!(value["m1_parity_passed"], true);
     assert_eq!(value["m2_lifecycle_passed"], false);
     assert_eq!(value["m3_residency_passed"], false);

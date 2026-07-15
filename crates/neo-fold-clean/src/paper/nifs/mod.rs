@@ -68,6 +68,12 @@ pub enum Error {
         backend: &'static str,
         reason: &'static str,
     },
+    #[error("NIFS.P backend `{backend}` failed during {phase}: {reason}")]
+    BackendFailure {
+        backend: &'static str,
+        phase: &'static str,
+        reason: String,
+    },
 }
 
 pub use backend::{

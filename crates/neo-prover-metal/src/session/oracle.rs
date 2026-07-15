@@ -415,18 +415,26 @@ impl MetalSession {
         n_eff: usize,
         n_pad: usize,
     ) -> Result<MetalDeferredMcsRowTables, MetalError> {
-        if !plan.matches(cache)
-            || !z_blocks.imag_all_zero()
-            || matrix_indices.is_empty()
-            || matrix_indices
-                .iter()
-                .any(|&index| index >= plan.matrix_count)
-            || n_eff == 0
-            || n_eff > plan.rows
-            || n_pad < n_eff
-            || !n_pad.is_power_of_two()
+        if !plan.matches(cache) {
+            return Err(MetalError::Shape("Pi_CCS MCS row-table plan is stale"));
+        }
+        if !z_blocks.imag_all_zero() {
+            return Err(MetalError::Shape("Pi_CCS MCS row-table witness is not base-field"));
+        }
+        if matrix_indices.is_empty() {
+            return Err(MetalError::Shape("Pi_CCS MCS row-table matrix set is empty"));
+        }
+        if matrix_indices
+            .iter()
+            .any(|&index| index >= plan.matrix_count)
         {
-            return Err(MetalError::Shape("Pi_CCS MCS row table dimensions are invalid"));
+            return Err(MetalError::Shape("Pi_CCS MCS row-table matrix index is out of range"));
+        }
+        if n_eff == 0 || n_eff > plan.rows {
+            return Err(MetalError::Shape("Pi_CCS MCS row-table active row count is invalid"));
+        }
+        if n_pad < n_eff || !n_pad.is_power_of_two() {
+            return Err(MetalError::Shape("Pi_CCS MCS row-table padded row count is invalid"));
         }
         let resident_masks = witness_masks.filter(|masks| masks.contains(mcs_idx, plan.blocks));
         let (z, z_kind, z_index) = if let Some((positive, negative)) = z_blocks.signed_unit_masks() {

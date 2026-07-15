@@ -5,7 +5,7 @@ use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
 
 use super::encoding::signed_unit_mask_words;
-use super::{NcSignedMasks, NcSource};
+use super::nc::{NcSignedMasks, NcSource};
 use crate::{MetalError, MetalSession, MetalWitnessMasks};
 
 pub(super) fn select_source(

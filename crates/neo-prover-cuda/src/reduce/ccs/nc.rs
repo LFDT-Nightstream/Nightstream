@@ -232,7 +232,10 @@ impl DeviceNcOracle {
             }
         }
 
-        if tensor_point_len(snapshot.beta_m)? != snapshot.cur_len || snapshot.eq_beta_m_tbl.len() != snapshot.cur_len {
+        if tensor_point_len(snapshot.beta_m)? != snapshot.cur_len
+            || (snapshot.eq_beta_m_tbl.len() != snapshot.cur_len
+                && !(any_deferred && snapshot.eq_beta_m_tbl.is_empty()))
+        {
             return Err(CcsDeviceError::Shape("NC beta point/table length mismatch"));
         }
 

@@ -46,6 +46,17 @@ pub enum Error {
     AdvForwarding,
     #[error(transparent)]
     Engine(#[from] engine::Error),
+    #[error("Π_CCS: accelerator failed to compute the canonical output digest")]
+    OutputDigestBackend,
+}
+
+/// Accelerator for the verifier-recomputable Π_CCS output digest.
+///
+/// Implementations receive the complete authoritative output claims. They
+/// must evaluate the exact digest defined by [`digest::pi_ccs_outputs_digest`];
+/// this result is never trusted by the verifier.
+pub trait PiCcsOutputsDigestBackend {
+    fn digest_outputs(&mut self, outputs: &[CeClaim]) -> Result<[F; 4], Error>;
 }
 
 /// Wire-format Π_CCS proof: the sumcheck transcript plus the K+k output CE
@@ -219,6 +230,7 @@ pub fn prove_from_parts_with_backends(
         BackendTranscriptMode::Replay,
         None,
         None,
+        None,
     )
 }
 
@@ -240,6 +252,7 @@ pub fn prove_from_parts_with_backends_and_transcript_mode(
     transcript_mode: BackendTranscriptMode,
     running_parent_digest: Option<[F; 4]>,
     running_accumulator_handle: Option<[F; 4]>,
+    outputs_digest_backend: Option<&mut dyn PiCcsOutputsDigestBackend>,
 ) -> Result<Proof, Error> {
     prove_from_parts_with_phase_backend_and_transcript_mode(
         tr,
@@ -256,6 +269,7 @@ pub fn prove_from_parts_with_backends_and_transcript_mode(
         transcript_mode,
         running_parent_digest,
         running_accumulator_handle,
+        outputs_digest_backend,
     )
 }
 
@@ -280,6 +294,7 @@ pub fn prove_from_parts_with_phase_backend_and_transcript_mode(
     transcript_mode: BackendTranscriptMode,
     running_parent_digest: Option<[F; 4]>,
     running_accumulator_handle: Option<[F; 4]>,
+    outputs_digest_backend: Option<&mut dyn PiCcsOutputsDigestBackend>,
 ) -> Result<Proof, Error> {
     validate_input_shape(pp, s, fresh_claims, fresh_witnesses, running)?;
     let (mut outputs, sumcheck) = engine::prove_pi_ccs_parts_with_phase_backend_and_transcript_mode(
@@ -300,7 +315,10 @@ pub fn prove_from_parts_with_phase_backend_and_transcript_mode(
     )?;
     forward_adv(fresh_claims, &running.claims, &mut outputs)?;
     validate_clean_split_nc_claims(s, &outputs)?;
-    let outputs_digest = digest::pi_ccs_outputs_digest(&outputs);
+    let outputs_digest = match outputs_digest_backend {
+        Some(backend) => backend.digest_outputs(&outputs)?,
+        None => digest::pi_ccs_outputs_digest(&outputs),
+    };
     Ok(Proof {
         sumcheck,
         outputs,

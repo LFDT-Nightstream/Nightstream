@@ -592,3 +592,60 @@ fn compact_seeded_phi81_matches_native_and_expanded_csc() {
     expanded.add_mul_transpose_into(&row_weights, &mut expanded_t, rows);
     assert_eq!(compact_t, expanded_t);
 }
+
+#[test]
+fn compact_seeded_initial_rotations_reconstruct_forward_product() {
+    let word_starts = vec![2, 45, 88];
+    let word_width = 41;
+    let message_cols = (word_starts.len() * word_width).div_ceil(D);
+    let (chunk_size, chunk_seeds) = neo_ajtai::seeded_pp_chunk_seeds([0x5c; 32], 2, message_cols);
+    let block = SeededPhi81LinearBlock::new_with_word_width(
+        3,
+        word_starts.clone(),
+        word_width,
+        2,
+        message_cols,
+        chunk_size,
+        chunk_seeds,
+    )
+    .expect("valid compact block");
+    let mut assignment = vec![F::ZERO; 140];
+    for (word, &start) in word_starts.iter().enumerate() {
+        for offset in 0..word_width {
+            assignment[start + offset] = F::from_u64(((word * 17 + offset * 7 + 3) % 19) as u64);
+        }
+    }
+    let mut expected = vec![F::ZERO; block.row_end()];
+    let row_count = expected.len();
+    block.add_mul_into::<F, F>(&assignment, &mut expected, row_count);
+
+    let mut reconstructed = vec![F::ZERO; expected.len()];
+    for output in 0..block.kappa() {
+        block.for_each_original_output_rotation::<F, _>(output, |message_col, rotation| {
+            let mut product = [F::ZERO; 2 * D - 1];
+            for message_row in 0..D {
+                let bit_index = message_row * message_cols + message_col;
+                if bit_index >= word_starts.len() * word_width {
+                    continue;
+                }
+                let column = word_starts[bit_index / word_width] + bit_index % word_width;
+                for rotation_coefficient in 0..D {
+                    product[message_row + rotation_coefficient] += assignment[column] * rotation[rotation_coefficient];
+                }
+            }
+            for coordinate in 0..D {
+                let mut value = product[coordinate];
+                if coordinate <= 26 {
+                    value -= product[coordinate + 54];
+                    if coordinate <= 25 {
+                        value += product[coordinate + 81];
+                    }
+                } else {
+                    value -= product[coordinate + 27];
+                }
+                reconstructed[block.row_start() + output * D + coordinate] += value;
+            }
+        });
+    }
+    assert_eq!(reconstructed, expected);
+}

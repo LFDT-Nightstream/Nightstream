@@ -19,6 +19,7 @@ metal = [
     "dep:objc2",
     "dep:objc2-foundation",
     "dep:objc2-metal",
+    "dep:rayon",
 ]
 
 [dependencies]
@@ -52,6 +53,7 @@ objc2-metal = { version = "0.3.2", default-features = false, features = [
     "MTLResource",
     "MTLTypes",
 ], optional = true }
+rayon = { workspace = true, optional = true }
 
 [dev-dependencies]
 neo-math = { path = "../neo-math" }

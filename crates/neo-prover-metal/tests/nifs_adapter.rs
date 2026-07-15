@@ -4,6 +4,7 @@ use neo_ccs::Mat;
 use neo_fold_clean::engine::transcript::Transcript;
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
 use neo_fold_clean::paper::nifs::{self, NifsFreshInstancesRequest, NifsProverAdapter};
+use neo_fold_clean::paper::relations::{LaneRanges, LaneScheme};
 use neo_fold_clean::RunningInstance;
 use neo_math::{D, F, K};
 use neo_prover_metal::MetalNifsProver;
@@ -26,6 +27,24 @@ fn assignment(lhs: u64, rhs: u64) -> Vec<F> {
     values[1] = F::from_u64(lhs);
     values[2] = F::from_u64(rhs);
     values[3] = F::from_u64(lhs + rhs);
+    values
+}
+
+fn lane_relation() -> R1cs {
+    let mut relation = relation();
+    relation.a = Mat::zero(1, 3 * D, F::ZERO);
+    relation.a.set(0, 1, F::ONE);
+    relation.a.set(0, 2, F::ONE);
+    relation.b = Mat::zero(1, 3 * D, F::ZERO);
+    relation.b.set(0, 0, F::ONE);
+    relation.c = Mat::zero(1, 3 * D, F::ZERO);
+    relation.c.set(0, 3, F::ONE);
+    relation
+}
+
+fn lane_assignment(lhs: u64, rhs: u64) -> Vec<F> {
+    let mut values = assignment(lhs, rhs);
+    values.resize(3 * D, F::ZERO);
     values
 }
 
@@ -82,12 +101,18 @@ fn metal_nifs_matches_cpu_and_verifies() {
     );
 
     let profile = metal.last_profile().expect("Metal profile");
-    assert_eq!(profile.fe_rounds, 0);
-    assert!(!profile.fe_on_metal);
-    assert_eq!(profile.nc_rounds, 0);
-    assert!(!profile.nc_on_metal);
+    assert!(profile.fe_rounds > 0);
+    assert!(profile.fe_mcs_tables > 0);
+    assert!(profile.fe_on_metal);
+    assert!(profile.ajtai_y_eval_on_metal);
+    assert!(!profile.ajtai_y_eval.is_zero());
+    assert!(profile.nc_rounds > 0);
+    assert!(profile.nc_on_metal);
+    assert!(profile.nc_mask_native_on_metal);
+    assert!(profile.witness_masks_shared);
     assert!(profile.rlc_witness_on_metal);
     assert!(profile.rlc_witness_resident_only);
+    assert!(profile.rlc_witness_masks_reused);
     assert!(profile.rlc_rho_small_coefficients);
     assert!(profile.dec_split_on_metal);
     assert!(profile.dec_recomposition_on_metal);
@@ -99,7 +124,7 @@ fn metal_nifs_matches_cpu_and_verifies() {
     assert!(!profile.recursive_compile_reverify_required);
     assert!(!metal.requires_recursive_compile_reverify());
     assert!(profile.activity.dispatches > 0);
-    assert_eq!(profile.activity.host_waits, profile.activity.command_buffers);
+    assert!(profile.activity.host_waits + 2 <= profile.activity.command_buffers);
 
     let mut verifier_transcript = Transcript::session();
     let verified = nifs::verify(
@@ -191,6 +216,7 @@ fn metal_fresh_commitment_matches_canonical_constructor() {
             m_in: r1cs.m_in,
             assignments: &assignments,
             image_overlay: None,
+            lane_scheme: None,
         })
         .expect("Metal fresh-instance build")
         .expect("Metal accepted low-norm assignment");
@@ -200,6 +226,48 @@ fn metal_fresh_commitment_matches_canonical_constructor() {
     assert_eq!(built[0].claim.m_in, canonical.claim.m_in);
     assert_eq!(built[0].claim.adv, canonical.claim.adv);
     assert_eq!(built[0].witness.w, canonical.witness.w);
+    assert_eq!(built[0].witness.Z, canonical.witness.Z);
+    assert!(built[0].witness.Z.is_packed_signed_unit());
+}
+
+#[test]
+fn metal_fresh_nebula_lanes_match_canonical_commitments() {
+    let r1cs = lane_relation();
+    let prep = direct_ccs::preprocess_seeded(&r1cs, 0x4d45_5441_4c37).expect("preprocess");
+    let values = lane_assignment(1, 0);
+    let canonical = direct_ccs::build_instance(&prep, &r1cs, &values).expect("canonical instance");
+    let lanes = LaneScheme::from_seeds(
+        prep.params.kappa() as usize,
+        LaneRanges {
+            ops: 0..1,
+            is: 1..2,
+            fs: 2..3,
+        },
+        [0xA7; 32],
+        [0x7A; 32],
+    )
+    .expect("lane scheme");
+    let expected = lanes
+        .commit(&canonical.witness.Z)
+        .expect("canonical lane commitments");
+    let assignments = [values.as_slice()];
+    let mut metal = MetalNifsProver::new().expect("Metal prover");
+    let built = metal
+        .build_fresh_instances(NifsFreshInstancesRequest {
+            pp: &prep.params,
+            s: prep.structure(),
+            cache: prep.optimized_cache(),
+            log: &prep.log,
+            m_in: r1cs.m_in,
+            assignments: &assignments,
+            image_overlay: None,
+            lane_scheme: Some(&lanes),
+        })
+        .expect("Metal fresh-instance build")
+        .expect("Metal accepted low-norm assignment");
+    assert_eq!(built.len(), 1);
+    assert_eq!(built[0].claim.c, canonical.claim.c);
+    assert_eq!(built[0].claim.adv.as_ref(), Some(&expected));
     assert_eq!(built[0].witness.Z, canonical.witness.Z);
 }
 
@@ -255,6 +323,18 @@ fn metal_nifs_matches_cpu_across_bootstrap_and_steady_folds() {
         assert_eq!(
             serde_json::to_vec(&metal_output.1.pi_ccs.sumcheck).expect("Metal sumcheck JSON"),
             serde_json::to_vec(&cpu.1.pi_ccs.sumcheck).expect("CPU sumcheck JSON"),
+        );
+        assert!(
+            metal
+                .last_profile()
+                .is_some_and(|profile| profile.ajtai_y_eval_on_metal),
+            "Ajtai Y_eval was not selected at fold {fold}"
+        );
+        assert!(
+            metal
+                .last_profile()
+                .is_some_and(|profile| profile.nc_on_metal && profile.nc_mask_native_on_metal),
+            "mask-native NC was not selected at fold {fold}"
         );
         cpu_running = cpu.0;
         metal_running = metal_output.0;

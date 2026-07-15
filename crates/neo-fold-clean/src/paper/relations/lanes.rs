@@ -51,6 +51,8 @@ pub struct LaneScheme {
     a_ops: Arc<AjtaiSModule>,
     a_mem: Arc<AjtaiSModule>,
     ranges: LaneRanges,
+    ops_seed: [u8; 32],
+    mem_seed: [u8; 32],
 }
 
 impl LaneScheme {
@@ -75,6 +77,8 @@ impl LaneScheme {
             a_ops: setup(ops_seed, ranges.ops.len())?,
             a_mem: setup(mem_seed, ranges.is.len())?,
             ranges,
+            ops_seed,
+            mem_seed,
         })
     }
 
@@ -95,6 +99,8 @@ impl LaneScheme {
             a_ops: Arc::clone(&self.a_ops),
             a_mem: Arc::clone(&self.a_mem),
             ranges,
+            ops_seed: self.ops_seed,
+            mem_seed: self.mem_seed,
         })
     }
 
@@ -180,6 +186,14 @@ impl LaneScheme {
     #[doc(hidden)]
     pub fn lane_ranges(&self) -> &LaneRanges {
         &self.ranges
+    }
+
+    /// Canonical setup inputs for accelerator-side matrix expansion.
+    /// Public setup seeds are sufficient to regenerate the exact matrices;
+    /// passing them avoids copying the materialized parameters to a device.
+    #[doc(hidden)]
+    pub fn seeded_setup(&self) -> (usize, [u8; 32], [u8; 32]) {
+        (self.a_ops.kappa(), self.ops_seed, self.mem_seed)
     }
 
     fn check_width(&self, z: &Mat<F>) -> Result<(), LaneSchemeError> {

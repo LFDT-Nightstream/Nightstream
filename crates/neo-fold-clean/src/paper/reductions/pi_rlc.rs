@@ -306,9 +306,46 @@ pub fn prove_refs_with_resident_witness<MW, Resident>(
 where
     MW: Fn(&[Mat<F>], &[&Mat<F>]) -> Resident,
 {
+    prove_refs_with_resident_witness_and_projection_digest(
+        tr,
+        pp,
+        s,
+        mix,
+        claims,
+        witnesses,
+        digest::pi_ccs_outputs_digest(claims),
+        mix_witnesses,
+        |preimage| Ok(sis_accumulator_digest(PI_RLC_PROJECTION_SIS_CONFIG, preimage)?),
+    )
+}
+
+/// Resident-witness prover path with accelerator-owned canonical digests.
+///
+/// `outputs_digest` must be computed from `claims`; a bad value only produces
+/// a proof the canonical verifier rejects because verification recomputes the
+/// digest from the authoritative claims. The protocol layer still constructs
+/// and validates the projection preimage, whose digest the verifier also
+/// recomputes independently.
+#[doc(hidden)]
+pub fn prove_refs_with_resident_witness_and_projection_digest<MW, PD, Resident>(
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &crate::paper::relations::Structure,
+    mix: RlcMixer,
+    claims: &[CeClaim],
+    witnesses: &[&Mat<F>],
+    outputs_digest: [F; 4],
+    mix_witnesses: MW,
+    compute_projection_digest: PD,
+) -> Result<(ResidentOutput<Resident>, Proof), Error>
+where
+    MW: Fn(&[Mat<F>], &[&Mat<F>]) -> Resident,
+    PD: FnOnce(&[F]) -> Result<[F; 4], Error>,
+{
     validate_input_shape(claims, witnesses)?;
     validate_inputs_before_rho(s, claims)?;
-    let rhos = derive_rhos_for_inputs(tr, pp, claims)?;
+    begin_rho_sampling_from_outputs_digest(tr, pp, claims.len(), outputs_digest)?;
+    let rhos = engine::sample_rho_n(tr.inner_mut(), pp, claims.len())?;
     let (mut combined, resident) = engine::prove_pi_rlc_refs_with_resident_witness(
         pp,
         s,
@@ -320,7 +357,7 @@ where
     )?;
     combined.adv = mixed_adv(mix, &rhos, claims)?;
     validate_nc_sidecars(s, mix, &rhos, claims, &combined)?;
-    let projection = projection_schedule(tr, &rhos, claims, &combined)?;
+    let projection = projection_schedule_with_digest(tr, &rhos, claims, &combined, compute_projection_digest)?;
     Ok((
         ResidentOutput {
             claim: combined.clone(),

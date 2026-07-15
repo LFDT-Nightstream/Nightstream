@@ -852,6 +852,9 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
             None => false,
         }
     };
+    if !backend_active && first_host_round != oracle.num_rounds() {
+        oracle.materialize_deferred_row_equality_tables();
+    }
     if oracle.row_phase_requires_backend() && first_host_round != oracle.num_rounds() && !backend_active {
         return Err(PiCcsError::InvalidInput(
             "FE backend deferred row data but did not accept the row-phase snapshot".into(),
@@ -890,9 +893,14 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
         };
         if let Some(mut trace) = full_trace {
             if trace.ajtai_y_eval.is_none() {
-                if let Some((cache, chi_r, n_eff, witnesses)) = oracle.ajtai_backend_context() {
+                if let Some((cache, row_challenges, n_eff, witnesses)) = oracle.ajtai_backend_challenge_context() {
                     let backend = fe_backend.as_deref_mut().expect("fe backend is active");
-                    trace.ajtai_y_eval = backend.ajtai_y_eval(cache, &chi_r, n_eff, &witnesses);
+                    trace.ajtai_y_eval =
+                        backend.ajtai_y_eval_from_row_challenges(cache, row_challenges, n_eff, &witnesses);
+                    if trace.ajtai_y_eval.is_none() {
+                        let chi_r = neo_ccs::utils::tensor_point_parallel::<K>(row_challenges);
+                        trace.ajtai_y_eval = backend.ajtai_y_eval(cache, &chi_r, n_eff, &witnesses);
+                    }
                 }
             }
             let expected_rounds = oracle.num_rounds();
@@ -952,9 +960,15 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
     for round_idx in first_host_round..oracle.num_rounds() {
         let backend_row_round = backend_active && round_idx < dims.ell_n;
         if round_idx == dims.ell_n {
-            if let Some((cache, chi_r, n_eff, witnesses)) = oracle.ajtai_backend_context() {
+            if let Some((cache, row_challenges, n_eff, witnesses)) = oracle.ajtai_backend_challenge_context() {
                 if let Some(backend) = fe_backend.as_deref_mut() {
-                    if let Some(y_eval) = backend.ajtai_y_eval(cache, &chi_r, n_eff, &witnesses) {
+                    let y_eval = backend
+                        .ajtai_y_eval_from_row_challenges(cache, row_challenges, n_eff, &witnesses)
+                        .or_else(|| {
+                            let chi_r = neo_ccs::utils::tensor_point_parallel::<K>(row_challenges);
+                            backend.ajtai_y_eval(cache, &chi_r, n_eff, &witnesses)
+                        });
+                    if let Some(y_eval) = y_eval {
                         oracle.inject_ajtai_y_eval(y_eval);
                     }
                 }
@@ -1140,7 +1154,7 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
         }
     };
     if !nc_backend_active && !phase_nc_trace_applied {
-        oracle_nc.materialize_digit_tables();
+        oracle_nc.materialize_deferred_col_tables();
     }
 
     let mut first_nc_host_round = first_nc_host_round_from_phase.unwrap_or(0);
@@ -1237,9 +1251,9 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
         let p0 = coeffs[0];
         let p1 = crate::sumcheck::poly_eval_k_base(&coeffs, F::ONE);
         if p0 + p1 != running_sum_nc {
-            return Err(PiCcsError::SumcheckError(
-                "NC sumcheck invariant failed: p(0)+p(1) ≠ running_sum".into(),
-            ));
+            return Err(PiCcsError::SumcheckError(format!(
+                "NC sumcheck invariant failed at round {_round_idx}: p(0)+p(1) ≠ running_sum"
+            )));
         }
 
         let coeff_fields = crate::sumcheck::round_coeff_fields(&coeffs);

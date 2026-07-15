@@ -9,6 +9,9 @@ use neo_fold_clean::paper::nifs::{
 };
 use neo_fold_clean::paper::{pi_ccs, pi_dec, pi_rlc};
 use neo_fold_clean::RunningInstance;
+use neo_math::F;
+
+use crate::MetalResidentWitnessSnapshot;
 
 pub(crate) struct MetalDeferredNifsProof {
     state: Mutex<MetalDeferredNifsProofState>,
@@ -78,16 +81,27 @@ pub(crate) fn metal_proof_carrier(
 
 pub(crate) struct MetalFoldOutput {
     running: RunningInstance,
+    session_ownership_id: u64,
     resident_id: Option<u64>,
+    witness_snapshot: Option<MetalResidentWitnessSnapshot>,
+    parent_accumulator_digest: [F; 4],
 }
 
 impl MetalFoldOutput {
-    pub(crate) fn new(running: RunningInstance, resident_id: Option<u64>) -> Self {
-        Self { running, resident_id }
-    }
-
-    pub(crate) fn running(&self) -> &RunningInstance {
-        &self.running
+    pub(crate) fn new(
+        running: RunningInstance,
+        session_ownership_id: u64,
+        resident_id: Option<u64>,
+        witness_snapshot: Option<MetalResidentWitnessSnapshot>,
+        parent_accumulator_digest: [F; 4],
+    ) -> Self {
+        Self {
+            running,
+            session_ownership_id,
+            resident_id,
+            witness_snapshot,
+            parent_accumulator_digest,
+        }
     }
 
     fn parent_authority(&self) -> Result<&neo_fold_clean::CeClaim, Error> {
@@ -95,6 +109,16 @@ impl MetalFoldOutput {
             .parent_authority
             .as_ref()
             .ok_or_else(|| backend_unavailable("Metal fold output is missing its Pi_RLC parent"))
+    }
+
+    fn materialize(&self) -> Result<RunningInstance, Error> {
+        let mut running = self.running.clone();
+        if let Some(snapshot) = self.witness_snapshot.as_ref() {
+            running.witnesses = snapshot
+                .materialize()
+                .map_err(|_| backend_unavailable("materialize resident Metal witnesses"))?;
+        }
+        Ok(running)
     }
 }
 
@@ -110,6 +134,14 @@ impl MetalRunningCarrier {
     pub(crate) fn resident_id(&self) -> Option<u64> {
         self.output.resident_id
     }
+
+    pub(crate) fn session_ownership_id(&self) -> u64 {
+        self.output.session_ownership_id
+    }
+
+    pub(crate) fn parent_accumulator_digest(&self) -> [F; 4] {
+        self.output.parent_accumulator_digest
+    }
 }
 
 impl DeferredNifsRunningMaterializer for MetalRunningCarrier {
@@ -118,7 +150,7 @@ impl DeferredNifsRunningMaterializer for MetalRunningCarrier {
     }
 
     fn materialize(&self) -> Result<RunningInstance, Error> {
-        Ok(self.output.running.clone())
+        self.output.materialize()
     }
 
     fn materialize_prover_input(&self) -> Result<RunningInstance, Error> {

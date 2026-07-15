@@ -78,6 +78,14 @@ pub(crate) fn extend_witness(mut base_assignment: Vec<F>) -> Result<Vec<F>, Look
     Ok(base_assignment)
 }
 
+/// Deterministically append the compact lookup advice to one base WASM row.
+/// Exposed for structural/IVC profiling; production callers normally reach
+/// this through the Nebula witness builder.
+#[doc(hidden)]
+pub fn extend_witness_for_profile(base_assignment: Vec<F>) -> Result<Vec<F>, LookupCircuitError> {
+    extend_witness(base_assignment)
+}
+
 #[doc(hidden)]
 pub fn audit_compact_lookup_witness(base_assignment: &[F]) -> Result<usize, LookupCircuitError> {
     let (rows, fixed_auxiliary) = fixed_rows(base_assignment.len())?;

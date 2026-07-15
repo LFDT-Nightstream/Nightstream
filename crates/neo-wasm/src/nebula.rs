@@ -36,6 +36,7 @@ const WASM32_PAGE_WORDS: u64 = 65_536 / 4;
 // Largest fixed instruction batch that keeps the production relation below
 // the 16M committed-coordinate gate.
 const WASM_NEBULA_BATCH_SIZE: usize = 3;
+const WASM_NEBULA_DEMO_BATCH_SIZE: usize = 16;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WasmNebulaLimits {
@@ -116,6 +117,33 @@ impl WasmNebulaProfile {
             memory,
             limits: WasmNebulaLimits::production(),
             batch_size: WASM_NEBULA_BATCH_SIZE,
+        }
+    }
+
+    /// Small fixed geometry for local demonstrations using modules with no
+    /// declared linear memory. Cryptographic security is selected separately
+    /// through [`Params`]; reduced test-only parameters must remain clearly
+    /// labeled as a demo.
+    pub fn demo_no_linear_memory() -> Self {
+        // Sixty static ports cover one normalized WASM row. Scanning 2K of
+        // the 8K ROM+RAM cells per fold gives the default 63-row Fibonacci
+        // trace four folds without crossing the 2^24 recursive domains.
+        Self::demo_no_linear_memory_with_geometry(WASM_NEBULA_DEMO_BATCH_SIZE, 60, 2048)
+    }
+
+    /// Structural profiler for no-linear-memory demos. `b_ops_per_instruction`
+    /// must cover every statically declared WASM memory port (currently 60).
+    /// Keeping `(R + M) / b_scan * batch_size` constant preserves the WASM-row
+    /// capacity of a segment while trading relation size against fold count.
+    #[doc(hidden)]
+    pub fn demo_no_linear_memory_with_geometry(batch_size: usize, b_ops_per_instruction: usize, b_scan: usize) -> Self {
+        assert!(batch_size > 0, "demo batch size must be nonzero");
+        let memory =
+            NebulaParams::new(12, 12, b_ops_per_instruction, b_scan, 16).expect("custom demo WASM Nebula geometry");
+        Self {
+            memory: batched_memory_geometry(memory, batch_size),
+            limits: WasmNebulaLimits::test_profile(),
+            batch_size,
         }
     }
 

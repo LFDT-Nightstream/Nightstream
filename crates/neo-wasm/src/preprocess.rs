@@ -102,6 +102,34 @@ pub fn canonical_wasm_f_prime_shape_batched_with_initial_state_digest(
     })
 }
 
+/// Derive the bare WASM F' shape after closing the compact lookup
+/// relations, but before composing the Nebula memory circuit.
+///
+/// This is a structural profiling surface; authoritative proving uses the
+/// combined Nebula preprocessing entrypoint.
+#[doc(hidden)]
+pub fn canonical_wasm_lookup_f_prime_shape_batched_with_initial_state_digest(
+    batch_size: usize,
+    initial_semantic_state_digest: [u8; 32],
+) -> Result<WasmCanonicalFPrimeShape, WasmPreprocessError> {
+    let mut single = batch::build_batched_wasm_ccs(1)?;
+    single.sparse_r1cs.m_in = 1;
+    let compact = extend_relation(&single.sparse_r1cs, single.widths)?;
+    let batched = batch::batch_wasm_relation(&compact.relation, &compact.widths, batch_size)?;
+    let (plan, structure) = wasm_recursive_plan_and_structure(
+        &batched.sparse_r1cs,
+        &batched.widths,
+        batch_size,
+        batched.sparse_r1cs.m_in,
+        initial_semantic_state_digest,
+    );
+    Ok(WasmCanonicalFPrimeShape {
+        sparse_r1cs: batched.sparse_r1cs,
+        plan,
+        structure,
+    })
+}
+
 pub(crate) fn canonical_wasm_nebula_shape_batched_with_initial_state_digest(
     batch_size: usize,
     initial_semantic_state_digest: [u8; 32],

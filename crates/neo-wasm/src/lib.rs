@@ -43,12 +43,14 @@ pub use isa::{
 pub use ivc_state::{WasmCrossStepColumnPair, WasmCrossStepLinkSpec};
 pub use layout::{Column, ColumnWidth, WasmColumnSpec, COLUMN_SPECS};
 #[doc(hidden)]
-pub use lookup_circuit::{audit_compact_lookup_auxiliary_load_bearing, audit_compact_lookup_witness};
+pub use lookup_circuit::{
+    audit_compact_lookup_auxiliary_load_bearing, audit_compact_lookup_witness, extend_witness_for_profile,
+};
 pub use lookup_semantics::{sanity_check_lookup_row, LookupBuiltin, LookupExpr, LookupPredicate, LookupSemantics};
 pub use memory_semantics::{preload_from_program_artifacts, sanity_check_memory_rows, WasmMemoryPreload};
 pub use nebula::{
-    preprocess, prove, verify, WasmNebulaError, WasmNebulaLimits, WasmNebulaPreprocessing, WasmNebulaProfile,
-    WasmNebulaProof,
+    preprocess, preprocess_seeded, prove, verify, WasmNebulaError, WasmNebulaLimits, WasmNebulaPreprocessing,
+    WasmNebulaProfile, WasmNebulaProof,
 };
 pub use preprocess::{semantic_state_digest, top_level_initial_state, top_level_initial_state_digest};
 pub use range_check::{range_checked_witness_width, write_range_check_bits};

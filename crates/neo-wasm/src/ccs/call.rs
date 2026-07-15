@@ -43,7 +43,7 @@ use super::super::layout::{
     COL_PC_ROM_CALL_RETURN_CHOICE, COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_BEFORE_IS_ZERO,
     COL_SP_BEFORE, COL_STACK_READ0_ADDR_LO, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_STACK_READS,
     COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITES, COL_TABLE_INDEX, COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST,
-    COL_TURN_BOUNDARY, COL_TURN_DONE_AFTER, COL_TURN_DONE_BEFORE, PC_ROM_CALL_RETURN_CHOICE,
+    COL_TRAPPED_AFTER, COL_TURN_BOUNDARY, COL_TURN_DONE_AFTER, COL_TURN_DONE_BEFORE, PC_ROM_CALL_RETURN_CHOICE,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::always;
@@ -795,7 +795,13 @@ fn push_call_stack_transition_constraints(b: &mut R1csBuilder) {
             (COL_LOCALS_FBP_BEFORE, -F::ONE),
         ],
     );
-    push_gated_linear_zero(b, COL_HALTED, [(COL_CALL_STACK_DEPTH_BEFORE, F::ONE)]);
+    // A clean halt returns from the top-level frame, but a trap terminates
+    // immediately and may leave abandoned caller frames on the call stack.
+    b.push_row(
+        [(COL_HALTED, F::ONE), (COL_TRAPPED_AFTER, -F::ONE)],
+        [(COL_CALL_STACK_DEPTH_BEFORE, F::ONE)],
+        [],
+    );
 }
 
 fn push_locals_fbp_transition_constraints(b: &mut R1csBuilder) {

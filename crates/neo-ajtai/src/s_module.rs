@@ -40,6 +40,16 @@ fn registry() -> &'static RwLock<HashMap<Key, RegistryEntry>> {
     AJTAI_PP_REGISTRY.get_or_init(|| RwLock::new(HashMap::new()))
 }
 
+/// Materialize the exact public matrix used by the seeded commitment path.
+///
+/// Accelerator backends use this to upload the canonical map once instead
+/// of duplicating the seeded-parameter derivation outside `neo-ajtai`.
+#[doc(hidden)]
+pub fn materialize_seeded_pp(seed: [u8; 32], d: usize, kappa: usize, m: usize) -> Result<PP<RqEl>, AjtaiError> {
+    let mut rng = ChaCha8Rng::from_seed(seed);
+    setup_par(&mut rng, d, kappa, m)
+}
+
 /// Initialize the global Ajtai PP once (call this right after setup()).
 pub fn set_global_pp(pp: PP<RqEl>) -> Result<(), AjtaiError> {
     let key = (pp.d, pp.m);
@@ -977,6 +987,20 @@ impl AjtaiSModule {
             PpSource::Owned(pp) => (pp.d, pp.m),
             PpSource::Global { d, m } => (*d, *m),
         }
+    }
+
+    /// Return the registered deterministic setup parameters without
+    /// materializing the public matrix.
+    #[doc(hidden)]
+    pub fn seeded_params(&self) -> Option<(usize, [u8; 32])> {
+        let PpSource::Global { d, m } = &self.pp else {
+            return None;
+        };
+        registry().read().ok().and_then(|entries| {
+            entries
+                .get(&(*d, *m))
+                .and_then(|entry| entry.seed.map(|seed| (entry.kappa, seed)))
+        })
     }
 
     /// Materialize the public matrix for verifier-side constraint emission.

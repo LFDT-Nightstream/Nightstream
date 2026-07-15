@@ -53,7 +53,9 @@ pub struct RowPhaseSnapshot<'a> {
     pub beta_r: &'a [K],
     /// Optional carried-input row point whose χ table is `eq_r_inputs_tbl`.
     pub r_inputs: Option<&'a [K]>,
+    /// Empty when the backend advertises challenge-native equality expansion.
     pub eq_beta_r_tbl: &'a [K],
+    /// Present but empty when the optional equality table is backend-owned.
     pub eq_r_inputs_tbl: Option<&'a [K]>,
     pub eval_tbl: Option<&'a [K]>,
     /// True when the carried eval table is owned by the accelerator backend
@@ -199,13 +201,10 @@ impl RowStreamState {
 
         #[cfg(feature = "perf-timers")]
         let t_chi = std::time::Instant::now();
-        // Row-domain χ tables.
-        let eq_beta_r_tbl = chi_tail_weights(&ch.beta_r);
-        debug_assert_eq!(
-            eq_beta_r_tbl.len(),
-            n_pad,
-            "chi(beta_r) length mismatch (ell_n={ell_n})"
-        );
+        let defer_row_equality_tables = fe_backend
+            .as_ref()
+            .is_some_and(|backend| backend.defers_row_equality_tables());
+        let eq_beta_r_tbl = maybe_chi_tail_weights(&ch.beta_r, defer_row_equality_tables);
 
         let eval_inputs_present = r_inputs.is_some();
         let mut eq_r_inputs_tbl = None;
@@ -442,9 +441,7 @@ impl RowStreamState {
                 )
             });
             if let Some(eval_tbl) = backend_tbl {
-                let tbl = chi_tail_weights(r_inputs);
-                debug_assert_eq!(tbl.len(), n_pad, "chi(r_inputs) length mismatch");
-                eq_r_inputs_tbl = Some(tbl);
+                eq_r_inputs_tbl = Some(maybe_chi_tail_weights(r_inputs, defer_row_equality_tables));
                 #[cfg(feature = "perf-timers")]
                 eprintln!(
                     "RowStreamState::build: 6. eval_tbl (backend carried) {:.2?} (carried={}, t_mats={t_mats}, n_eff={n_eff})",
@@ -467,9 +464,7 @@ impl RowStreamState {
                     eprintln!("RowStreamState::build: 6. eval_tbl skipped       (carried linear combination is zero)");
                     None
                 } else {
-                    let tbl = chi_tail_weights(r_inputs);
-                    debug_assert_eq!(tbl.len(), n_pad, "chi(r_inputs) length mismatch");
-                    eq_r_inputs_tbl = Some(tbl);
+                    eq_r_inputs_tbl = Some(maybe_chi_tail_weights(r_inputs, defer_row_equality_tables));
                     let eval_tbl = fe_backend
                         .as_mut()
                         .and_then(|b| {
@@ -607,6 +602,15 @@ impl RowStreamState {
         self.f_var_tables_by_mcs.clear();
         self.f_var_tables_by_mcs.shrink_to_fit();
         self.eval_tbl = None;
+    }
+
+    fn materialize_deferred_equality_tables(&mut self, beta_r: &[K], r_inputs: Option<&[K]>) {
+        if self.eq_beta_r_tbl.is_empty() {
+            self.eq_beta_r_tbl = chi_tail_weights(beta_r);
+        }
+        if self.eq_r_inputs_tbl.as_ref().is_some_and(Vec::is_empty) {
+            self.eq_r_inputs_tbl = r_inputs.map(chi_tail_weights);
+        }
     }
 
     #[inline]
@@ -1451,6 +1455,12 @@ fn chi_tail_weights(bits: &[K]) -> Vec<K> {
         }
     }
     w
+}
+
+fn maybe_chi_tail_weights(bits: &[K], deferred: bool) -> Vec<K> {
+    (!deferred)
+        .then(|| chi_tail_weights(bits))
+        .unwrap_or_default()
 }
 
 /// Precomputation for a fixed r' (row assignment) - eliminates redundant v_j recomputation

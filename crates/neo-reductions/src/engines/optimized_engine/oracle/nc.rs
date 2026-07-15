@@ -64,10 +64,11 @@ where
         Self::new_inner(s, params, mcs_witnesses, me_witnesses, ch, ell_d, ell_m, d_sc, false)
     }
 
-    /// [`Self::new`] without building the column-phase digit tables — for
-    /// callers whose device backend sources them from resident planes. Any
-    /// host read of the deferred tables panics; call
-    /// [`Self::materialize_digit_tables`] if the backend declines.
+    /// [`Self::new`] without building the column-phase equality or digit
+    /// tables — for callers whose device backend builds them from the challenge
+    /// point and resident witness planes. Any host read of the deferred tables
+    /// panics; call [`Self::materialize_deferred_col_tables`] if the backend
+    /// declines.
     #[allow(clippy::too_many_arguments)]
     pub fn new_with_deferred_digit_tables(
         s: &'a CcsStructure<F>,
@@ -116,8 +117,15 @@ where
         // Column-domain χ_{β_m} table.
         #[cfg(feature = "perf-timers")]
         let t_eq_beta_m = std::time::Instant::now();
-        let eq_beta_m_tbl = chi_tail_weights(&ch.beta_m);
-        debug_assert_eq!(eq_beta_m_tbl.len(), m_pad, "chi(beta_m) length mismatch");
+        let eq_beta_m_tbl = if defer_digit_tables {
+            Vec::new()
+        } else {
+            chi_tail_weights(&ch.beta_m)
+        };
+        debug_assert!(
+            defer_digit_tables || eq_beta_m_tbl.len() == m_pad,
+            "chi(beta_m) length mismatch"
+        );
         #[cfg(feature = "perf-timers")]
         eprintln!(
             "NcOracle::new: eq_beta_m table             {:.2?}",
@@ -846,10 +854,13 @@ where
         self.round_idx += 1;
     }
 
-    /// Build the digit tables that `new_with_deferred_digit_tables` skipped
-    /// — for the CPU fallback when a device backend declines the snapshot.
-    /// No-op when the tables are already built.
-    pub fn materialize_digit_tables(&mut self) {
+    /// Build the equality and digit tables that
+    /// `new_with_deferred_digit_tables` skipped — for the CPU fallback when a
+    /// device backend declines the snapshot. No-op when they are already built.
+    pub fn materialize_deferred_col_tables(&mut self) {
+        if self.eq_beta_m_tbl.is_empty() {
+            self.eq_beta_m_tbl = chi_tail_weights(&self.ch.beta_m);
+        }
         if !matches!(self.digits_tables.first(), Some(NcDigitTable::Deferred { .. })) {
             return;
         }
@@ -861,7 +872,7 @@ where
             .iter()
             .map(|Zi| {
                 build_nc_digit_table_compact(self.params, Zi, self.s.m)
-                    .unwrap_or_else(|e| panic!("NcOracle::materialize_digit_tables: {e}"))
+                    .unwrap_or_else(|e| panic!("NcOracle::materialize_deferred_col_tables: {e}"))
             })
             .collect();
         let (tables, masks): (Vec<_>, Vec<_>) = built.into_iter().unzip();

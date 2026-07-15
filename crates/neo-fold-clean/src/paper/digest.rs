@@ -553,6 +553,16 @@ pub fn terminal_children_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] 
 /// sidecars are canonical. Native and recursive verifiers enforce those
 /// reconstruction equations before relying on this projection.
 pub fn pi_ccs_outputs_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] {
+    let preimage = pi_ccs_outputs_digest_preimage(claims);
+    sis_accumulator_digest(PI_CCS_OUTPUTS_SIS_CONFIG, &preimage).expect("nonempty PiCCS-output SIS preimage")
+}
+
+/// Canonical Π_CCS output-digest preimage for accelerator backends.
+///
+/// This is the exact input to `PI_CCS_OUTPUTS_SIS_CONFIG`; the verifier still
+/// recomputes [`pi_ccs_outputs_digest`] from the proof's output claims.
+#[doc(hidden)]
+pub fn pi_ccs_outputs_digest_preimage(claims: &[CeClaim<Commitment, F, K>]) -> Vec<F> {
     let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/pi_ccs_outputs_digest/v2");
     preimage.push(F::from_u64(claims.len() as u64));
     for claim in claims {
@@ -560,7 +570,7 @@ pub fn pi_ccs_outputs_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] {
         append_active_k_rows(&mut preimage, &claim.y_ring);
         append_active_k_slice(&mut preimage, &claim.y_zcol);
     }
-    sis_accumulator_digest(PI_CCS_OUTPUTS_SIS_CONFIG, &preimage).expect("nonempty PiCCS-output SIS preimage")
+    preimage
 }
 
 /// Digest of the compact terminal-CE proof's public statement.

@@ -43,7 +43,7 @@ pub enum NcDigitTable {
     Dense(Vec<[K; D]>),
     /// Placeholder when a device backend owns the column phase: the host
     /// never built (and must never read) the values. Any host access
-    /// panics; `NcOracle::materialize_digit_tables` converts back to a
+    /// panics; `NcOracle::materialize_deferred_col_tables` converts back to a
     /// built table if the backend declines.
     Deferred {
         len: usize,

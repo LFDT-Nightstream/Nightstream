@@ -1093,44 +1093,7 @@ where
     let k = Z_split.len();
     let m_in = parent.m_in;
 
-    // Build χ_r and v_j = M_j^T · χ_r.
-    #[cfg(feature = "perf-timers")]
-    let t_chi_r = std::time::Instant::now();
-    let ell_n = parent.r.len();
-    let n_sz = 1usize << ell_n; // 2^{ℓ_n}
-    let n_eff = core::cmp::min(s.n, n_sz);
-
-    let chi_r = neo_ccs::utils::tensor_point_parallel::<K>(&parent.r);
-    debug_assert_eq!(chi_r.len(), n_sz);
-    #[cfg(feature = "perf-timers")]
-    eprintln!(
-        "[pi-dec-inner] chi_r                         {:>7.2}s",
-        t_chi_r.elapsed().as_secs_f64()
-    );
-
     let t_mats = s.t();
-    #[cfg(feature = "perf-timers")]
-    let t_superneo_cache = std::time::Instant::now();
-    let local_superneo_cache;
-    let superneo_cache = match superneo_cache {
-        Some(cache) => cache,
-        None => {
-            local_superneo_cache = crate::superneo_eval::build_superneo_eval_cache(s).unwrap_or_else(|| {
-                panic!(
-                    "Π_DEC optimized common requires SuperNeo-compatible CCS shape (m={}, matrices={})",
-                    s.m,
-                    s.matrices.len()
-                )
-            });
-            &local_superneo_cache
-        }
-    };
-    #[cfg(feature = "perf-timers")]
-    eprintln!(
-        "[pi-dec-inner] superneo cache                 {:>7.2}s",
-        t_superneo_cache.elapsed().as_secs_f64()
-    );
-
     #[cfg(feature = "perf-timers")]
     let t_ring_forms = std::time::Instant::now();
     let ring_linear_forms = if let Some(forms) = precomputed_ring_linear_forms {
@@ -1175,6 +1138,41 @@ where
     #[cfg(feature = "perf-timers")]
     let t_streamed_y = std::time::Instant::now();
     let streamed_y_by_child = if precomputed_y_ring.is_none() && ring_linear_forms.is_none() {
+        #[cfg(feature = "perf-timers")]
+        let t_chi_r = std::time::Instant::now();
+        let ell_n = parent.r.len();
+        let n_sz = 1usize << ell_n;
+        let n_eff = core::cmp::min(s.n, n_sz);
+        let chi_r = neo_ccs::utils::tensor_point_parallel::<K>(&parent.r);
+        debug_assert_eq!(chi_r.len(), n_sz);
+        #[cfg(feature = "perf-timers")]
+        eprintln!(
+            "[pi-dec-inner] chi_r                         {:>7.2}s",
+            t_chi_r.elapsed().as_secs_f64()
+        );
+
+        #[cfg(feature = "perf-timers")]
+        let t_superneo_cache = std::time::Instant::now();
+        let local_superneo_cache;
+        let superneo_cache = match superneo_cache {
+            Some(cache) => cache,
+            None => {
+                local_superneo_cache = crate::superneo_eval::build_superneo_eval_cache(s).unwrap_or_else(|| {
+                    panic!(
+                        "Π_DEC optimized common requires SuperNeo-compatible CCS shape (m={}, matrices={})",
+                        s.m,
+                        s.matrices.len()
+                    )
+                });
+                &local_superneo_cache
+            }
+        };
+        #[cfg(feature = "perf-timers")]
+        eprintln!(
+            "[pi-dec-inner] superneo cache                 {:>7.2}s",
+            t_superneo_cache.elapsed().as_secs_f64()
+        );
+
         let active_indices: Vec<usize> = (0..k)
             .filter(|&index| digit_nonzero.is_none_or(|flags| flags[index]))
             .collect();

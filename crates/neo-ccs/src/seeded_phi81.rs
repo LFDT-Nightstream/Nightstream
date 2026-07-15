@@ -379,6 +379,26 @@ impl SeededPhi81LinearBlock {
         });
     }
 
+    /// Visit the initial Phi81 rotation for every message column of one
+    /// output. This exposes the structure-static coefficient stream without
+    /// expanding its `D` rotated input rows.
+    #[doc(hidden)]
+    pub fn for_each_original_output_rotation<Ff, Visit>(&self, output: usize, mut visit: Visit)
+    where
+        Ff: Field + PrimeCharacteristicRing + Copy,
+        Visit: FnMut(usize, [Ff; D]),
+    {
+        assert!(output < self.kappa, "seeded Phi81 output index");
+        for (chunk, &seed) in self.chunk_seeds_by_row[output].iter().enumerate() {
+            let start = chunk * self.chunk_size;
+            let end = core::cmp::min(self.message_cols, start + self.chunk_size);
+            let mut rng = ChaCha8Rng::from_seed(seed);
+            for message_col in start..end {
+                visit(message_col, sample_uniform_coefficients(&mut rng));
+            }
+        }
+    }
+
     /// Visit one independently seeded coefficient chunk for one output.
     ///
     /// Chunk seeds are independent public parameters, so callers may evaluate

@@ -291,6 +291,13 @@ pub trait PiCcsPhaseBackend {
 /// and `fold` must mirror `RowStreamState::fold_inplace`. The CPU oracle
 /// still owns challenge bookkeeping and every later phase.
 pub trait FeSumcheckBackend {
+    /// Whether the backend builds row-domain equality tables from their small
+    /// challenge points. When true the host oracle leaves those tables
+    /// unmaterialized unless the backend declines the row phase.
+    fn defers_row_equality_tables(&self) -> bool {
+        false
+    }
+
     /// Compute the public FE claimed sum from backend-owned running-claim
     /// surfaces. Returning `None` keeps the canonical host calculation.
     fn claimed_initial_sum(
@@ -362,6 +369,20 @@ pub trait FeSumcheckBackend {
         witnesses: &[&Mat<F>],
     ) -> Option<Vec<Vec<[K; neo_math::D]>>> {
         let _ = (cache, chi_r, n_eff, witnesses);
+        None
+    }
+
+    /// Like [`Self::ajtai_y_eval`], but lets the backend build the row-point
+    /// tensor from its small challenge vector instead of receiving a host
+    /// materialization. `None` falls back to the canonical host table path.
+    fn ajtai_y_eval_from_row_challenges(
+        &mut self,
+        cache: &crate::superneo_eval::SuperneoEvalCache,
+        row_challenges: &[K],
+        n_eff: usize,
+        witnesses: &[&Mat<F>],
+    ) -> Option<Vec<Vec<[K; neo_math::D]>>> {
+        let _ = (cache, row_challenges, n_eff, witnesses);
         None
     }
 

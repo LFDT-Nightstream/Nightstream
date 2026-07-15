@@ -42,7 +42,7 @@ use crate::paper::f_prime::r1cs::{
 };
 use crate::paper::f_prime::source_image::{BitRange, FPrimeSourceImage};
 use crate::paper::nifs::circuit::NifsVCircuitMessages;
-use crate::paper::nifs::NifsProof;
+use crate::paper::nifs::{NifsFreshInstancesRequest, NifsProof, NifsProverAdapter};
 use crate::paper::params::Params;
 use crate::paper::relations::{CcsClaim, CcsInstance, CcsWitness, CeClaim, LaneSchemeError, RelationError};
 
@@ -225,6 +225,24 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
     /// Append one complete memory segment. Its last claim remains delayed
     /// until the next append or terminal finalization.
     pub fn append_segment(&mut self, trace: &SegmentTrace) -> Result<(), NebulaFPrimeChainError> {
+        self.append_segment_inner(trace, None)
+    }
+
+    /// Append one complete memory segment while routing recursive NIFS
+    /// proving through `adapter`.
+    pub fn append_segment_with_nifs_adapter(
+        &mut self,
+        trace: &SegmentTrace,
+        adapter: &mut dyn NifsProverAdapter,
+    ) -> Result<(), NebulaFPrimeChainError> {
+        self.append_segment_inner(trace, Some(adapter))
+    }
+
+    fn append_segment_inner(
+        &mut self,
+        trace: &SegmentTrace,
+        mut adapter: Option<&mut dyn NifsProverAdapter>,
+    ) -> Result<(), NebulaFPrimeChainError> {
         if self.prep.relation.application().is_some() {
             return Err(NebulaFPrimeChainError::ApplicationTraceRequired);
         }
@@ -239,7 +257,11 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
         let mut sp_in = [0; 2];
 
         for step in 0..params.steps_per_segment() {
-            let prepared = self.prepare_step(None)?;
+            let prepared = if let Some(adapter) = adapter.as_mut() {
+                self.prepare_step(None, Some(&mut **adapter))?
+            } else {
+                self.prepare_step(None, None)?
+            };
             let post = prepared.post();
             let lane = post
                 .nebula
@@ -289,11 +311,19 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
             h_in = step_x.h_out;
             sp_in = step_x.sp_out;
 
-            let instance = self.synthesize_instance(&prepared, &s_mem_assignment, None, current_d_pre)?;
+            let instance = if let Some(adapter) = adapter.as_mut() {
+                self.synthesize_instance(&prepared, &s_mem_assignment, None, current_d_pre, Some(&mut **adapter))?
+            } else {
+                self.synthesize_instance(&prepared, &s_mem_assignment, None, current_d_pre, None)?
+            };
             if instance.claim.adv.as_ref() != Some(&expected_advs[step]) {
                 return Err(NebulaFPrimeChainError::LaneCommitmentMismatch);
             }
-            self.deposit(prepared, instance)?;
+            if let Some(adapter) = adapter.as_mut() {
+                self.deposit(prepared, instance, Some(&mut **adapter))?;
+            } else {
+                self.deposit(prepared, instance, None)?;
+            }
         }
         Ok(())
     }
@@ -305,7 +335,17 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
         &mut self,
         trace: &ApplicationSegmentTrace,
     ) -> Result<(), NebulaFPrimeChainError> {
-        self.append_application_steps(trace, self.prep.plan().params().steps_per_segment())
+        self.append_application_steps(trace, self.prep.plan().params().steps_per_segment(), None)
+    }
+
+    /// Append one complete application segment while routing recursive NIFS
+    /// proving through `adapter`.
+    pub fn append_application_segment_with_nifs_adapter(
+        &mut self,
+        trace: &ApplicationSegmentTrace,
+        adapter: &mut dyn NifsProverAdapter,
+    ) -> Result<(), NebulaFPrimeChainError> {
+        self.append_application_steps(trace, self.prep.plan().params().steps_per_segment(), Some(adapter))
     }
 
     /// Append a nonterminal prefix of a production segment for per-fold
@@ -324,13 +364,14 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
                 available,
             });
         }
-        self.append_application_steps(trace, step_count)
+        self.append_application_steps(trace, step_count, None)
     }
 
     fn append_application_steps(
         &mut self,
         trace: &ApplicationSegmentTrace,
         step_count: usize,
+        mut adapter: Option<&mut dyn NifsProverAdapter>,
     ) -> Result<(), NebulaFPrimeChainError> {
         #[cfg(feature = "perf-timers")]
         let segment_started = std::time::Instant::now();
@@ -378,7 +419,11 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
             let application_elapsed = application_started.elapsed();
             #[cfg(feature = "perf-timers")]
             let prepare_started = std::time::Instant::now();
-            let prepared = self.prepare_step(Some(semantic))?;
+            let prepared = if let Some(adapter) = adapter.as_mut() {
+                self.prepare_step(Some(semantic), Some(&mut **adapter))?
+            } else {
+                self.prepare_step(Some(semantic), None)?
+            };
             #[cfg(feature = "perf-timers")]
             let prepare_elapsed = prepare_started.elapsed();
             #[cfg(feature = "perf-timers")]
@@ -439,7 +484,17 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
 
             #[cfg(feature = "perf-timers")]
             let synthesis_started = std::time::Instant::now();
-            let instance = self.synthesize_instance(&prepared, &s_mem_assignment, Some(assignment), current_d_pre)?;
+            let instance = if let Some(adapter) = adapter.as_mut() {
+                self.synthesize_instance(
+                    &prepared,
+                    &s_mem_assignment,
+                    Some(assignment),
+                    current_d_pre,
+                    Some(&mut **adapter),
+                )?
+            } else {
+                self.synthesize_instance(&prepared, &s_mem_assignment, Some(assignment), current_d_pre, None)?
+            };
             #[cfg(feature = "perf-timers")]
             let synthesis_elapsed = synthesis_started.elapsed();
             if instance.claim.adv.as_ref() != Some(&expected_advs[step]) {
@@ -447,7 +502,11 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
             }
             #[cfg(feature = "perf-timers")]
             let deposit_started = std::time::Instant::now();
-            self.deposit(prepared, instance)?;
+            if let Some(adapter) = adapter.as_mut() {
+                self.deposit(prepared, instance, Some(&mut **adapter))?;
+            } else {
+                self.deposit(prepared, instance, None)?;
+            }
             #[cfg(feature = "perf-timers")]
             eprintln!(
                 "[wasm-nebula-step] segment={} step={} branch={branch:?} app={:.3}s prior-fold={:.3}s memory={:.3}s fprime={:.3}s deposit={:.3}s total={:.3}s",
@@ -501,9 +560,34 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
         Ok(lifecycle::finish_uncompressed_with_audit(prep, self.into_audit()?)?)
     }
 
+    /// Finalize while routing the terminal latest-to-running fold through
+    /// `adapter` and dropping the audit trail.
+    pub fn finish_with_nifs_adapter(
+        self,
+        adapter: &mut dyn NifsProverAdapter,
+    ) -> Result<Uncompressed, NebulaFPrimeChainError> {
+        let prep = &self.prep.prep;
+        Ok(lifecycle::finish_uncompressed_with_audit_and_nifs_adapter(prep, adapter, self.into_audit()?)?.proof)
+    }
+
+    /// Finalize while routing the terminal latest-to-running fold through
+    /// `adapter` and retaining the audit trail.
+    pub fn finish_with_audit_and_nifs_adapter(
+        self,
+        adapter: &mut dyn NifsProverAdapter,
+    ) -> Result<UncompressedAudit, NebulaFPrimeChainError> {
+        let prep = &self.prep.prep;
+        Ok(lifecycle::finish_uncompressed_with_audit_and_nifs_adapter(
+            prep,
+            adapter,
+            self.into_audit()?,
+        )?)
+    }
+
     fn prepare_step(
         &mut self,
         semantic: Option<crate::frontends::r1cs_f_prime::ivc::shape::SemanticValues>,
+        adapter: Option<&mut dyn NifsProverAdapter>,
     ) -> Result<PreparedStep, NebulaFPrimeChainError> {
         let Some(audit) = self.audit.take() else {
             let pre = StateCoordinates::base(&self.prep.prep);
@@ -530,7 +614,7 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
         let (running, running_parent_authority, fresh, placeholder) = match &audit.proof.state.proof {
             ProofState::Active { running, latest } => {
                 let running = running
-                    .materialize()
+                    .materialize_prover_input()
                     .map_err(crate::paper::construction2::Error::from)
                     .map_err(lifecycle::Error::from)?;
                 let prior = latest
@@ -558,15 +642,25 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
         } else {
             NebulaFPrimeBranch::Recursive
         };
-        let pending = if let Some(output) = semantic.and_then(|values| values.output) {
-            crate::lifecycle::prove::extend_with_semantic_state(
+        let semantic_output = semantic.and_then(|values| values.output);
+        let pending = match (semantic_output, adapter) {
+            (Some(output), Some(adapter)) => crate::lifecycle::prove::extend_with_semantic_state_and_nifs_adapter(
+                &self.prep.prep,
+                adapter,
+                audit,
+                vec![placeholder],
+                digest_fields_as_digest32(output),
+            )?,
+            (Some(output), None) => crate::lifecycle::prove::extend_with_semantic_state(
                 &self.prep.prep,
                 audit,
                 vec![placeholder],
                 digest_fields_as_digest32(output),
-            )?
-        } else {
-            lifecycle::extend(&self.prep.prep, audit, vec![placeholder])?
+            )?,
+            (None, Some(adapter)) => {
+                lifecycle::extend_with_nifs_adapter(&self.prep.prep, adapter, audit, vec![placeholder])?
+            }
+            (None, None) => lifecycle::extend(&self.prep.prep, audit, vec![placeholder])?,
         };
         let nifs = match &pending
             .steps
@@ -633,6 +727,7 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
         s_mem_assignment: &[F],
         application_assignment: Option<&[F]>,
         current_d_pre: Option<[[F; 4]; 3]>,
+        adapter: Option<&mut dyn NifsProverAdapter>,
     ) -> Result<CcsInstance, NebulaFPrimeChainError> {
         #[cfg(feature = "perf-timers")]
         let total_started = std::time::Instant::now();
@@ -796,10 +891,66 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
         let normalize_elapsed = normalize_started.elapsed();
         #[cfg(feature = "perf-timers")]
         let instance_started = std::time::Instant::now();
-        let instance = self
-            .prep
-            .relation
-            .build_instance(&self.prep.prep, branch, &field_assignment);
+        let instance: Result<CcsInstance, NebulaFPrimeChainError> = if let Some(adapter) = adapter {
+            #[cfg(feature = "perf-timers")]
+            let encode_started = std::time::Instant::now();
+            let assignment = self
+                .prep
+                .relation
+                .encode_for_deferred_nifs(branch, &field_assignment)?;
+            #[cfg(feature = "perf-timers")]
+            let encode_elapsed = encode_started.elapsed();
+            let assignments = [assignment.as_slice()];
+            #[cfg(feature = "perf-timers")]
+            let adapter_started = std::time::Instant::now();
+            let accelerated = adapter
+                .build_fresh_instances(NifsFreshInstancesRequest {
+                    pp: &self.prep.prep.params,
+                    s: self.prep.prep.structure(),
+                    cache: self.prep.prep.optimized_cache(),
+                    log: &self.prep.prep.log,
+                    m_in: self.prep.relation.public_input_len(),
+                    assignments: &assignments,
+                    image_overlay: None,
+                    lane_scheme: Some(&self.prep.relation.nebula_config().scheme),
+                })
+                .map_err(crate::paper::construction2::Error::from)
+                .map_err(lifecycle::Error::from)?;
+            #[cfg(feature = "perf-timers")]
+            eprintln!(
+                "[fprime-metal-instance] branch={branch:?} encode={:.3}s adapter={:.3}s",
+                encode_elapsed.as_secs_f64(),
+                adapter_started.elapsed().as_secs_f64(),
+            );
+            match accelerated {
+                Some(mut instances) if instances.len() == 1 => {
+                    let mut instance = instances.pop().expect("one accelerated fresh instance");
+                    if instance.claim.adv.is_none() {
+                        self.prep.relation.attach_lane_commitment(&mut instance)?;
+                    }
+                    Ok(instance)
+                }
+                Some(_) => Err(
+                    lifecycle::Error::Construction2(crate::paper::construction2::Error::Nifs(
+                        crate::paper::nifs::Error::BackendUnavailable {
+                            backend: "adapter",
+                            reason: "adapter returned the wrong number of Nebula fresh instances",
+                        },
+                    ))
+                    .into(),
+                ),
+                None => self
+                    .prep
+                    .relation
+                    .build_instance(&self.prep.prep, branch, &field_assignment)
+                    .map_err(NebulaFPrimeChainError::from),
+            }
+        } else {
+            self.prep
+                .relation
+                .build_instance(&self.prep.prep, branch, &field_assignment)
+                .map_err(NebulaFPrimeChainError::from)
+        };
         #[cfg(feature = "perf-timers")]
         eprintln!(
             "[fprime-synthesize] branch={branch:?} setup={:.3}s witness={:.3}s normalize={:.3}s instance={:.3}s total={:.3}s rows={} field_cols={} normalized_cols={}",
@@ -813,7 +964,9 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
             field_assignment.len(),
         );
         match instance {
-            Err(NebulaFPrimeRelationError::LowNorm(LowNormR1csError::InferredWidthViolation { col, width, value })) => {
+            Err(NebulaFPrimeChainError::Relation(NebulaFPrimeRelationError::LowNorm(
+                LowNormR1csError::InferredWidthViolation { col, width, value },
+            ))) => {
                 let source_col = normalized_source_column(builder_columns, &public_outputs, col);
                 let source_range = source_col.and_then(|source_col| {
                     column_family_ranges
@@ -833,25 +986,37 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
                     value,
                 })
             }
-            Err(error) => Err(error.into()),
+            Err(error) => Err(error),
             Ok(instance) => Ok(instance),
         }
     }
 
-    fn deposit(&mut self, prepared: PreparedStep, instance: CcsInstance) -> Result<(), NebulaFPrimeChainError> {
+    fn deposit(
+        &mut self,
+        prepared: PreparedStep,
+        instance: CcsInstance,
+        adapter: Option<&mut dyn NifsProverAdapter>,
+    ) -> Result<(), NebulaFPrimeChainError> {
         self.audit = Some(match prepared {
-            PreparedStep::Base { post, .. } => {
-                if matches!(self.prep.prep.semantic_state_mode(), SemanticStateMode::Stateful) {
-                    crate::lifecycle::prove::prove_one_with_semantic_state(
+            PreparedStep::Base { post, .. } => match (self.prep.prep.semantic_state_mode(), adapter) {
+                (SemanticStateMode::Stateful, Some(adapter)) => {
+                    crate::lifecycle::prove::prove_one_with_semantic_state_and_nifs_adapter(
                         &self.prep.prep,
+                        adapter,
                         vec![instance],
                         self.prep.prep.initial_semantic_state_digest(),
                         digest_fields_as_digest32(post.semantic_state_digest),
                     )?
-                } else {
-                    lifecycle::prove(&self.prep.prep, [vec![instance]])?
                 }
-            }
+                (SemanticStateMode::Stateful, None) => crate::lifecycle::prove::prove_one_with_semantic_state(
+                    &self.prep.prep,
+                    vec![instance],
+                    self.prep.prep.initial_semantic_state_digest(),
+                    digest_fields_as_digest32(post.semantic_state_digest),
+                )?,
+                (_, Some(adapter)) => lifecycle::prove_with_nifs_adapter(&self.prep.prep, adapter, [vec![instance]])?,
+                (_, None) => lifecycle::prove(&self.prep.prep, [vec![instance]])?,
+            },
             PreparedStep::Recursive { mut pending, .. } => {
                 let claim = instance.claim.clone();
                 match &mut pending.proof.state.proof {

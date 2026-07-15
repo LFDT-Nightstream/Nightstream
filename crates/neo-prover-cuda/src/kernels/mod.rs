@@ -10,6 +10,7 @@ pub mod goldilocks;
 pub mod ajtai;
 #[cfg(feature = "cuda")]
 pub mod csr;
+#[cfg(feature = "cuda")]
 pub mod pi_ccs_fe;
 #[cfg(feature = "cuda")]
 pub mod pi_ccs_nc;

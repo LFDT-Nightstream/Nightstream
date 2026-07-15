@@ -7,6 +7,7 @@ use rayon::prelude::*;
 
 mod baseline;
 mod cache;
+mod compact;
 mod digit;
 mod parallel;
 mod seeded;

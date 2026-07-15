@@ -268,7 +268,9 @@ impl DeviceFeOracle {
         }
 
         let stride = snapshot.cur_len;
-        if tensor_point_len(snapshot.beta_r)? != stride || snapshot.eq_beta_r_tbl.len() != stride {
+        if tensor_point_len(snapshot.beta_r)? != stride
+            || (snapshot.eq_beta_r_tbl.len() != stride && !snapshot.eq_beta_r_tbl.is_empty())
+        {
             return Err(CcsDeviceError::Shape("row beta point/table length mismatch"));
         }
 
@@ -1044,6 +1046,10 @@ impl DeviceFeBackend<'_> {
 }
 
 impl FeSumcheckBackend for DeviceFeBackend<'_> {
+    fn defers_row_equality_tables(&self) -> bool {
+        true
+    }
+
     fn claimed_initial_sum(
         &mut self,
         challenges: &Challenges,

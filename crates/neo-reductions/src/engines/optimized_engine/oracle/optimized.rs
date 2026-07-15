@@ -254,6 +254,19 @@ where
         self.finish_r_precomp(r_prime, y_eval)
     }
 
+    fn ensure_ajtai_precomp(&mut self) {
+        if self.ajtai_precomp.is_none() {
+            let row_point = self.row_chals.clone();
+            self.ajtai_precomp = Some(self.precompute_for_r(&row_point));
+        }
+        self.release_witness_z_blocks();
+    }
+
+    fn release_witness_z_blocks(&mut self) {
+        self.witness_z_blocks.clear();
+        self.witness_z_blocks.shrink_to_fit();
+    }
+
     /// Assemble `RPrecomp` from a computed `y_eval` (CPU or device):
     /// the eq scalars and `F'` derive from it on the host.
     fn finish_r_precomp(&self, r_prime: &[K], y_eval: Vec<Vec<[K; D]>>) -> RPrecomp {
@@ -345,6 +358,22 @@ where
         Some((self.superneo_cache.as_ref(), n_eff, witnesses))
     }
 
+    /// Static inputs plus canonical host row challenges for backends that can
+    /// construct the row-point tensor without a full host table upload.
+    #[allow(clippy::type_complexity)]
+    pub fn ajtai_backend_challenge_context(&self) -> Option<(&SuperneoEvalCache, &[K], usize, Vec<&Mat<F>>)> {
+        debug_assert_eq!(self.round_idx, self.ell_n, "Ajtai context exists after the row phase");
+        let chi_len = 1usize.checked_shl(self.row_chals.len() as u32)?;
+        let n_eff = core::cmp::min(self.s.n, chi_len);
+        let witnesses = self
+            .mcs_witnesses
+            .iter()
+            .map(|w| &w.Z)
+            .chain(self.me_witnesses.iter())
+            .collect();
+        Some((self.superneo_cache.as_ref(), &self.row_chals, n_eff, witnesses))
+    }
+
     /// Install a device-computed Ajtai-phase `Y_eval` (indexed
     /// `[witness][matrix][lane]`, matching `ajtai_backend_inputs` order);
     /// the eq scalars and `F'` are derived on the host.
@@ -352,6 +381,7 @@ where
         debug_assert_eq!(self.round_idx, self.ell_n, "inject after the row phase");
         let r_prime = self.row_chals.clone();
         self.ajtai_precomp = Some(self.finish_r_precomp(&r_prime, y_eval));
+        self.release_witness_z_blocks();
     }
 
     /// Record a row-round challenge without folding the row tables — used
@@ -371,6 +401,11 @@ where
                 .deferred_mcs
                 .iter()
                 .any(|&deferred| deferred)
+    }
+
+    pub(crate) fn materialize_deferred_row_equality_tables(&mut self) {
+        self.row_stream
+            .materialize_deferred_equality_tables(&self.ch.beta_r, self.r_inputs.as_deref());
     }
 
     /// Read-only view of the row-phase sumcheck tables, for accelerator
@@ -434,6 +469,11 @@ where
         self.row_stream.use_superneo_rows
     }
 
+    #[doc(hidden)]
+    pub fn __test_ajtai_precomp_ready(&self) -> bool {
+        self.ajtai_precomp.is_some()
+    }
+
     /// Compute the univariate round polynomial for an Ajtai-bit round.
     /// DP version: removes the 2^{free_a}·D work per x and keeps outputs bit-identical.
     fn evals_ajtai_phase(&mut self, xs: &[K]) -> Vec<K> {
@@ -441,12 +481,8 @@ where
         debug_assert!(j < self.ell_d, "ajtai phase after all Ajtai bits");
 
         let free_a = self.ell_d - j - 1;
-        let r_vec = &self.row_chals;
-
         // r'-only precomp reused across all Ajtai rounds (r' is fixed after row phase).
-        if self.ajtai_precomp.is_none() {
-            self.ajtai_precomp = Some(self.precompute_for_r(r_vec));
-        }
+        self.ensure_ajtai_precomp();
         let pre = self
             .ajtai_precomp
             .as_ref()
@@ -591,9 +627,7 @@ where
         let s_col_vec = s_col.to_vec();
         let k_mcs = self.mcs_witnesses.len();
 
-        if self.ajtai_precomp.is_none() {
-            self.ajtai_precomp = Some(self.precompute_for_r(&row_chals));
-        }
+        self.ensure_ajtai_precomp();
         let pre = self
             .ajtai_precomp
             .as_ref()
@@ -708,10 +742,6 @@ where
             self.row_stream.fold_inplace(r_i);
             if self.round_idx + 1 == self.ell_n {
                 self.row_stream.release_finalized_tables();
-                let row_point = self.row_chals.clone();
-                self.ajtai_precomp = Some(self.precompute_for_r(&row_point));
-                self.witness_z_blocks.clear();
-                self.witness_z_blocks.shrink_to_fit();
             }
         } else {
             self.ajtai_chals.push(r_i);

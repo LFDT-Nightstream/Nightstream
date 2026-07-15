@@ -39,12 +39,12 @@
         <div class="proof-boundary">
           <p class="eyebrow">Proof mode</p>
           <select id="proof-mode" aria-label="Proof mode">
-            <option value="ivc_no_memory">Recursive IVC · no memory consistency</option>
             <option value="folding_audit">Folding audit · no NIFS.V (fastest)</option>
+            <option value="ivc_no_memory">Recursive IVC · no memory consistency</option>
             <option value="nebula_memory">Recursive IVC · Nebula memory consistency</option>
           </select>
           <strong id="proof-title">Ready to preprocess</strong>
-          <p id="proof-copy">Proves the normalized WASM transition relation with constrained NIFS.V. ROM and RAM consistency are not included.</p>
+          <p id="proof-copy">Fast folding sanity check over the normalized WASM relation. NIFS.V is not constrained inside F′; verification replays the full audit history and is not succinct.</p>
           <div class="proof-actions">
             <button id="prepare" disabled>Preprocess</button>
             <button id="prove" disabled>Fold &amp; verify</button>

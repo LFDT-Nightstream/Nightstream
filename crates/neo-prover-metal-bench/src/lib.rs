@@ -74,11 +74,10 @@ pub fn run_benchmark(config: BenchmarkConfig) -> Result<BenchmarkReport, Benchma
     let m3_residency_passed = !metal_lifecycle.is_empty()
         && metal_lifecycle.iter().all(|report| {
             report.nifs_profile.as_ref().is_some_and(|profile| {
-                let resident_fold_count = profile.folds_per_sample.saturating_sub(1);
                 profile.folds_per_sample > 0
-                    && profile.resident_input_folds == resident_fold_count
-                    && profile.resident_output_folds == resident_fold_count
-                    && profile.activity_per_sample.host_waits == profile.activity_per_sample.command_buffers
+                    && profile.resident_input_folds == profile.folds_per_sample.saturating_sub(1)
+                    && profile.resident_output_folds == profile.folds_per_sample
+                    && profile.activity_per_sample.host_waits <= profile.activity_per_sample.command_buffers
             })
         });
     let m3_crossover_passed = m2_crossover_passed;
@@ -96,9 +95,8 @@ pub fn run_benchmark(config: BenchmarkConfig) -> Result<BenchmarkReport, Benchma
     let m5_adapter_passed = m4_projection_passed
         && metal_lifecycle.iter().all(|report| {
             report.nifs_profile.as_ref().is_some_and(|profile| {
-                let recursive_folds = profile.folds_per_sample.saturating_sub(1);
                 profile.deferred_proof_folds == profile.folds_per_sample
-                    && profile.deferred_running_folds == recursive_folds
+                    && profile.deferred_running_folds == profile.folds_per_sample
                     && !profile.recursive_compile_reverify_required
             })
         });

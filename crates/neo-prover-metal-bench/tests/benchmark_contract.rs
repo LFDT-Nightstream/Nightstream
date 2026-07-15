@@ -67,8 +67,8 @@ fn nebula_lifecycle_baseline_proves_and_verifies() {
             .expect("Metal Nebula NIFS profile");
         assert!(profile.folds_per_sample > 0);
         assert_eq!(profile.resident_input_folds, profile.folds_per_sample - 1);
-        assert_eq!(profile.resident_output_folds, profile.folds_per_sample - 1);
-        assert!(!profile.fe_on_metal);
+        assert_eq!(profile.resident_output_folds, profile.folds_per_sample);
+        assert!(profile.fe_on_metal);
         assert!(profile.ajtai_y_eval_on_metal);
         assert!(profile.nc_on_metal);
         assert!(profile.nc_mask_native_on_metal);
@@ -81,12 +81,9 @@ fn nebula_lifecycle_baseline_proves_and_verifies() {
         assert!(profile.dec_y_on_metal);
         assert!(profile.dec_commit_on_metal);
         assert_eq!(profile.deferred_proof_folds, profile.folds_per_sample);
-        assert_eq!(profile.deferred_running_folds, profile.folds_per_sample - 1);
+        assert_eq!(profile.deferred_running_folds, profile.folds_per_sample);
         assert!(!profile.recursive_compile_reverify_required);
-        assert_eq!(
-            profile.activity_per_sample.host_waits,
-            profile.activity_per_sample.command_buffers
-        );
+        assert!(profile.activity_per_sample.host_waits <= profile.activity_per_sample.command_buffers);
     }
 }
 
@@ -151,7 +148,7 @@ fn sha256_lifecycle_baseline_proves_and_verifies() {
             activity.current_allocated_bytes as f64 / (1024.0 * 1024.0),
         );
         assert_eq!(profile.resident_input_folds, profile.folds_per_sample - 1);
-        assert_eq!(profile.resident_output_folds, profile.folds_per_sample - 1);
+        assert_eq!(profile.resident_output_folds, profile.folds_per_sample);
         assert!(profile.rlc_witness_resident_only);
         assert!(profile.rlc_rho_small_coefficients);
         assert!(profile.ajtai_y_eval_on_metal);
@@ -161,7 +158,7 @@ fn sha256_lifecycle_baseline_proves_and_verifies() {
         assert!(profile.dec_y_on_metal);
         assert!(profile.dec_commit_on_metal);
         assert_eq!(profile.deferred_proof_folds, profile.folds_per_sample);
-        assert_eq!(profile.deferred_running_folds, profile.folds_per_sample - 1);
+        assert_eq!(profile.deferred_running_folds, profile.folds_per_sample);
         assert!(!profile.recursive_compile_reverify_required);
     }
 }

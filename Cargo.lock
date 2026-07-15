@@ -1411,6 +1411,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "nightstream-wasm-folding-demo"
+version = "0.1.0"
+dependencies = [
+ "neo-fold-clean",
+ "neo-math",
+ "neo-params",
+ "neo-wasm",
+ "p3-field",
+ "serde",
+ "serde_json",
+ "wat",
+]
+
+[[package]]
 name = "nu-ansi-term"
 version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

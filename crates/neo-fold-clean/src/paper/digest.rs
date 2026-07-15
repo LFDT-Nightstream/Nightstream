@@ -458,6 +458,17 @@ pub fn chunk_public_digest(start_index: u64, fresh: &[CcsClaim<Commitment, F>]) 
 /// `pub` (not `pub(crate)`) so the SplitNcV1 in-circuit verifier and its
 /// parity tests can recompute this from authoritative inputs.
 pub fn ce_claim_digest(claim: &CeClaim<Commitment, F, K>) -> [F; 4] {
+    let preimage = ce_claim_digest_preimage(claim);
+    sis_accumulator_digest(CE_CLAIM_SIS_CONFIG, &preimage).expect("nonempty CE-claim SIS preimage")
+}
+
+/// Canonical CE-claim digest preimage for accelerator backends.
+///
+/// The returned fields are still authority-bearing inputs. Callers may only
+/// use an accelerated digest that exactly implements `CE_CLAIM_SIS_CONFIG`;
+/// verifiers continue to recompute [`ce_claim_digest`] independently.
+#[doc(hidden)]
+pub fn ce_claim_digest_preimage(claim: &CeClaim<Commitment, F, K>) -> Vec<F> {
     let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/ce_claim_digest/v2");
     // Commitment
     preimage.push(F::from_u64(claim.c.d as u64));
@@ -504,7 +515,7 @@ pub fn ce_claim_digest(claim: &CeClaim<Commitment, F, K>) -> [F; 4] {
     preimage.push(F::from_u64(claim.m_in as u64));
     preimage.extend(digest32_as_fields(claim.fold_digest));
     append_adv_leaves(&mut preimage, &claim.adv);
-    sis_accumulator_digest(CE_CLAIM_SIS_CONFIG, &preimage).expect("nonempty CE-claim SIS preimage")
+    preimage
 }
 
 /// Digest of every authority-bearing CE-claim field that is part of the
@@ -550,6 +561,16 @@ pub fn terminal_children_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] 
 /// already bound by the Π_CCS input transcript or derived by the verifier and
 /// constrained equal to that authority in Π_CCS.V.
 pub fn pi_ccs_outputs_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] {
+    let preimage = pi_ccs_outputs_digest_preimage(claims);
+    sis_accumulator_digest(PI_CCS_OUTPUTS_SIS_CONFIG, &preimage).expect("nonempty PiCCS-output SIS preimage")
+}
+
+/// Canonical Π_CCS output-digest preimage for accelerator backends.
+///
+/// This is the exact input to `PI_CCS_OUTPUTS_SIS_CONFIG`; the verifier still
+/// recomputes [`pi_ccs_outputs_digest`] from the proof's output claims.
+#[doc(hidden)]
+pub fn pi_ccs_outputs_digest_preimage(claims: &[CeClaim<Commitment, F, K>]) -> Vec<F> {
     let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/pi_ccs_outputs_digest/v2");
     preimage.push(F::from_u64(claims.len() as u64));
     for claim in claims {
@@ -559,7 +580,7 @@ pub fn pi_ccs_outputs_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] {
         append_k_rows(&mut preimage, &claim.y_ring);
         append_k_slice(&mut preimage, &claim.y_zcol);
     }
-    sis_accumulator_digest(PI_CCS_OUTPUTS_SIS_CONFIG, &preimage).expect("nonempty PiCCS-output SIS preimage")
+    preimage
 }
 
 /// Digest of the compact terminal-CE proof's public statement.

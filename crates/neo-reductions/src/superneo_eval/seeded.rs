@@ -3,7 +3,7 @@
 use core::cmp::min;
 use std::collections::HashMap;
 
-use neo_math::{superneo_bar_block, Rq, D, F, K};
+use neo_math::{superneo_bar_block, KExtensions, Rq, D, F, K};
 use p3_field::PrimeCharacteristicRing;
 
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
@@ -196,6 +196,103 @@ impl SuperneoMatrixCache {
         }
     }
 
+    /// Sparse seeded-only contribution to a base-field row table.
+    ///
+    /// Rows not touched by a compact seeded block are omitted. Duplicate row
+    /// ranges are combined before returning so accelerator patch writes never
+    /// race with each other.
+    pub fn seeded_row_dot_patches_base_with_blocks(&self, z_blocks: &SuperneoZBlocks, n_eff: usize) -> Vec<(usize, F)> {
+        debug_assert_eq!(
+            self.cols.div_ceil(D),
+            z_blocks.block_len(),
+            "SuperneoMatrixCache::seeded_row_dot_patches_base_with_blocks: block count mismatch"
+        );
+        debug_assert!(
+            z_blocks.imag_all_zero,
+            "SuperneoMatrixCache::seeded_row_dot_patches_base_with_blocks expects a real witness"
+        );
+        let row_cap = min(self.rows, n_eff);
+        let mut patches = Vec::new();
+        for block in &self.seeded_phi81_blocks {
+            let transformed_basis = block
+                .has_superneo_transformed_columns()
+                .then(seeded_transformed_column_basis);
+            for output in 0..block.kappa() {
+                let row_start = block.row_start() + output * D;
+                if row_start >= row_cap {
+                    break;
+                }
+                let work = seeded_work_ranges(block, output);
+                #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+                let contribution = work
+                    .into_par_iter()
+                    .map(|(chunk, local_start, local_end)| {
+                        seeded_row_dot_work(
+                            block,
+                            output,
+                            chunk,
+                            local_start,
+                            local_end,
+                            transformed_basis.as_ref(),
+                            z_blocks,
+                        )
+                    })
+                    .reduce(
+                        || [F::ZERO; D],
+                        |mut left, right| {
+                            for coordinate in 0..D {
+                                left[coordinate] += right[coordinate];
+                            }
+                            left
+                        },
+                    );
+                #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+                let contribution = work
+                    .into_iter()
+                    .map(|(chunk, local_start, local_end)| {
+                        seeded_row_dot_work(
+                            block,
+                            output,
+                            chunk,
+                            local_start,
+                            local_end,
+                            transformed_basis.as_ref(),
+                            z_blocks,
+                        )
+                    })
+                    .fold([F::ZERO; D], |mut left, right| {
+                        for coordinate in 0..D {
+                            left[coordinate] += right[coordinate];
+                        }
+                        left
+                    });
+                let coordinate_count = min(D, row_cap - row_start);
+                patches.extend(
+                    contribution[..coordinate_count]
+                        .iter()
+                        .copied()
+                        .enumerate()
+                        .filter_map(|(coordinate, value)| {
+                            (value != F::ZERO).then_some((row_start + coordinate, value))
+                        }),
+                );
+            }
+        }
+        patches.sort_unstable_by_key(|&(row, _)| row);
+        let mut combined = Vec::<(usize, F)>::with_capacity(patches.len());
+        for (row, value) in patches {
+            if let Some((last_row, last_value)) = combined.last_mut() {
+                if *last_row == row {
+                    *last_value += value;
+                    continue;
+                }
+            }
+            combined.push((row, value));
+        }
+        combined.retain(|&(_, value)| value != F::ZERO);
+        combined
+    }
+
     pub(super) fn accumulate_ring_form_split_chi(
         &self,
         chi_re: &[F],
@@ -242,6 +339,54 @@ impl SuperneoMatrixCache {
             scratch.agg_im[block].0 = superneo_bar_block(scratch.agg_im[block].0);
         }
 
+        self.accumulate_seeded_ring_form_split_chi(chi_re, chi_im, n_eff, scratch);
+    }
+
+    pub(super) fn accumulate_seeded_ring_form_split_chi(
+        &self,
+        chi_re: &[F],
+        chi_im: &[F],
+        n_eff: usize,
+        scratch: &mut RingEvalScratch,
+    ) {
+        debug_assert_eq!(chi_re.len(), chi_im.len(), "chi coefficient length mismatch");
+        let row_cap = min(min(self.rows, n_eff), chi_re.len());
+        self.accumulate_seeded_ring_form_with(row_cap, scratch, |row_start, coordinate_count| {
+            let mut row_re = [F::ZERO; D];
+            let mut row_im = [F::ZERO; D];
+            row_re[..coordinate_count].copy_from_slice(&chi_re[row_start..row_start + coordinate_count]);
+            row_im[..coordinate_count].copy_from_slice(&chi_im[row_start..row_start + coordinate_count]);
+            (row_re, row_im)
+        });
+    }
+
+    pub(super) fn accumulate_seeded_ring_form_row_challenges(
+        &self,
+        row_challenges: &[K],
+        n_eff: usize,
+        scratch: &mut RingEvalScratch,
+    ) {
+        let row_cap = min(self.rows, n_eff);
+        self.accumulate_seeded_ring_form_with(row_cap, scratch, |row_start, coordinate_count| {
+            let mut row_re = [F::ZERO; D];
+            let mut row_im = [F::ZERO; D];
+            for coordinate in 0..coordinate_count {
+                let [real, imaginary] = tensor_point_at(row_challenges, row_start + coordinate).as_coeffs();
+                row_re[coordinate] = real;
+                row_im[coordinate] = imaginary;
+            }
+            (row_re, row_im)
+        });
+    }
+
+    fn accumulate_seeded_ring_form_with(
+        &self,
+        row_cap: usize,
+        scratch: &mut RingEvalScratch,
+        mut row_weights: impl FnMut(usize, usize) -> ([F; D], [F; D]),
+    ) {
+        scratch.ensure_block_count(self.cols.div_ceil(D));
+
         for block in &self.seeded_phi81_blocks {
             let already_transformed = block.has_superneo_transformed_columns();
             for output in 0..block.kappa() {
@@ -250,6 +395,7 @@ impl SuperneoMatrixCache {
                     break;
                 }
                 let coordinate_count = min(D, row_cap - row_start);
+                let (row_re, row_im) = row_weights(row_start, coordinate_count);
                 let work = seeded_work_ranges(block, output);
                 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
                 let partials: Vec<Vec<(usize, Rq, Rq)>> = work
@@ -261,10 +407,9 @@ impl SuperneoMatrixCache {
                             chunk,
                             local_start,
                             local_end,
-                            row_start,
                             coordinate_count,
-                            chi_re,
-                            chi_im,
+                            &row_re,
+                            &row_im,
                             already_transformed,
                         )
                     })
@@ -279,10 +424,9 @@ impl SuperneoMatrixCache {
                             chunk,
                             local_start,
                             local_end,
-                            row_start,
                             coordinate_count,
-                            chi_re,
-                            chi_im,
+                            &row_re,
+                            &row_im,
                             already_transformed,
                         )
                     })
@@ -299,6 +443,45 @@ impl SuperneoMatrixCache {
     }
 }
 
+fn seeded_row_dot_work(
+    block: &neo_ccs::SeededPhi81LinearBlock,
+    output: usize,
+    chunk: usize,
+    local_start: usize,
+    local_end: usize,
+    transformed_basis: Option<&[Rq; D]>,
+    z_blocks: &SuperneoZBlocks,
+) -> [F; D] {
+    let mut out = [F::ZERO; D];
+    block.for_each_original_chunk_range_column_rotation::<F, _>(
+        output,
+        chunk,
+        local_start,
+        local_end,
+        |column, rotation| {
+            let block_index = column / D;
+            if !z_blocks.real_nonzero(block_index) {
+                return;
+            }
+            let local = column % D;
+            let input = transformed_basis.map_or_else(
+                || z_blocks.real_coefficient(block_index, local),
+                |basis| z_blocks.real_dot(&basis[local], block_index),
+            );
+            if input == F::ZERO {
+                return;
+            }
+            for coordinate in 0..D {
+                let coefficient = rotation[coordinate];
+                if coefficient != F::ZERO {
+                    out[coordinate] += coefficient * input;
+                }
+            }
+        },
+    );
+    out
+}
+
 #[allow(clippy::too_many_arguments)]
 fn seeded_ring_form_work(
     block: &neo_ccs::SeededPhi81LinearBlock,
@@ -306,10 +489,9 @@ fn seeded_ring_form_work(
     chunk: usize,
     local_start: usize,
     local_end: usize,
-    row_start: usize,
     coordinate_count: usize,
-    chi_re: &[F],
-    chi_im: &[F],
+    chi_re: &[F; D],
+    chi_im: &[F; D],
     already_transformed: bool,
 ) -> Vec<(usize, Rq, Rq)> {
     let mut aggregates = HashMap::<usize, ([F; D], [F; D])>::new();
@@ -324,8 +506,8 @@ fn seeded_ring_form_work(
             for coordinate in 0..coordinate_count {
                 let coefficient = rotation[coordinate];
                 if coefficient != F::ZERO {
-                    weight_re += chi_re[row_start + coordinate] * coefficient;
-                    weight_im += chi_im[row_start + coordinate] * coefficient;
+                    weight_re += chi_re[coordinate] * coefficient;
+                    weight_im += chi_im[coordinate] * coefficient;
                 }
             }
             if weight_re == F::ZERO && weight_im == F::ZERO {
@@ -351,6 +533,20 @@ fn seeded_ring_form_work(
             (blk, Rq(re), Rq(im))
         })
         .collect()
+}
+
+fn tensor_point_at(row_challenges: &[K], index: usize) -> K {
+    row_challenges
+        .iter()
+        .enumerate()
+        .fold(K::ONE, |value, (bit, &challenge)| {
+            value
+                * if ((index >> bit) & 1) == 0 {
+                    K::ONE - challenge
+                } else {
+                    challenge
+                }
+        })
 }
 
 #[inline]

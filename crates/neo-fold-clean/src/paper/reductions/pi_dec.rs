@@ -30,6 +30,8 @@ use crate::paper::relations::{
 pub enum Error {
     #[error("\u{03A0}_DEC: child count {got} does not match params.k_rho() {expected}")]
     ChildCount { expected: usize, got: usize },
+    #[error("\u{03A0}_DEC: accelerator witness count {got} does not match child count {expected}")]
+    AcceleratorWitnessCount { expected: usize, got: usize },
     #[error("\u{03A0}_DEC: verifier rejected the children reconstruction")]
     VerifyRejected,
     #[error("\u{03A0}_DEC: inactive X columns must be zero in {0}")]
@@ -139,6 +141,7 @@ pub fn prove_from_split_material(
     s: &Structure,
     cache: &OptimizedStructureCache,
     lanes: Option<&LaneScheme>,
+    child_adv: Option<Vec<neo_ccs::LaneCommitments<neo_ajtai::Commitment>>>,
     combine: DecMixer,
     parent: &CeClaim,
     z_split: Vec<Mat<F>>,
@@ -169,7 +172,19 @@ pub fn prove_from_split_material(
         None,
         |commitments, b| combine(commitments, b),
     )?;
-    attach_child_adv(lanes, parent, &mut children, &witnesses)?;
+    if let Some(child_adv) = child_adv {
+        if child_adv.len() != children.len() {
+            return Err(Error::AdvPresence {
+                present: child_adv.len(),
+                total: children.len(),
+            });
+        }
+        for (child, adv) in children.iter_mut().zip(child_adv) {
+            child.adv = Some(adv);
+        }
+    } else {
+        attach_child_adv(lanes, parent, &mut children, &witnesses)?;
+    }
     validate_child_count(pp, children.len())?;
     validate_inactive_x_zero(parent, &children)?;
     validate_child_x_low_norm(pp, &children)?;
@@ -181,6 +196,30 @@ pub fn prove_from_split_material(
         },
         Proof { children },
     ))
+}
+
+/// Π_DEC boundary for accelerator-owned child witnesses.
+///
+/// Complete public claims are verified canonically here while the backend
+/// retains authority over the private witness contents.
+#[doc(hidden)]
+pub fn prove_from_accelerator_claims(
+    pp: &Params,
+    s: &Structure,
+    combine: DecMixer,
+    parent: &CeClaim,
+    claims: Vec<CeClaim>,
+    witnesses: Vec<Mat<F>>,
+) -> Result<(Children, Proof), Error> {
+    if witnesses.len() != claims.len() {
+        return Err(Error::AcceleratorWitnessCount {
+            expected: claims.len(),
+            got: witnesses.len(),
+        });
+    }
+    let proof = Proof { children: claims };
+    let claims = verify(pp, s, combine, parent, &proof)?;
+    Ok((Children { claims, witnesses }, proof))
 }
 
 #[allow(clippy::too_many_arguments)]

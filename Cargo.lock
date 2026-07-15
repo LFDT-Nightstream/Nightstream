@@ -1539,6 +1539,7 @@ dependencies = [
  "objc2-metal",
  "p3-field",
  "rand 0.9.3",
+ "rayon",
  "serde_json",
  "thiserror 2.0.18",
 ]

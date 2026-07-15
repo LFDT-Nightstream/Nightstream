@@ -19,8 +19,10 @@ mod session;
 pub use session::{MetalAjtaiLowNormPlan, MetalKxChainPlan, MetalPoseidonUniformPlan, MetalSession};
 #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
 pub(crate) use session::{
-    MetalDecFormPlan, MetalFeSumcheckInputs, MetalFeSumcheckPlan, MetalNcFinalState, MetalNcSumcheckInputs,
-    MetalNcSumcheckPlan, MetalNcSumcheckTrace, MetalResidentWitness, MetalSumcheckTrace,
+    MetalAjtaiRingForms, MetalDecFormPlan, MetalDecPublicProjection, MetalDeferredEvalTable, MetalDeferredMcsRowTables,
+    MetalFeOraclePlan, MetalFeSumcheckInputs, MetalFeSumcheckPlan, MetalFeTableInput, MetalNcDigitInput,
+    MetalNcFinalState, MetalNcSumcheckInputs, MetalNcSumcheckPlan, MetalNcSumcheckTrace, MetalResidentWitness,
+    MetalResidentWitnessSnapshot, MetalSumcheckTrace, MetalWitnessMasks,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -82,6 +84,25 @@ pub struct MetalActivity {
     pub current_allocated_bytes: u64,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) struct MetalAjtaiYProfile {
+    pub seeded_build: Duration,
+    pub device_eval: Duration,
+    pub tensor_gpu: Duration,
+    pub form_gpu: Duration,
+    pub tail_gpu: Duration,
+    pub seeded_patch_entries: usize,
+    pub seeded_patch_bytes: usize,
+    pub form_blocks: usize,
+    pub form_bytes: usize,
+    pub explicit_coefficients: usize,
+    pub signed_unit_coefficients: usize,
+    pub explicit_form_list_histogram: [usize; 8],
+    pub max_explicit_form_list_entries: usize,
+    pub parallel_form_lists: usize,
+    pub parallel_form_entries: usize,
+}
+
 #[derive(Debug, Error)]
 pub enum MetalError {
     #[error("Metal is unavailable on this target or its precompiled shader library was not built")]
@@ -124,10 +145,53 @@ pub struct MetalPoseidonUniformPlan;
 pub(crate) struct MetalResidentWitness;
 
 #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
+pub(crate) struct MetalResidentWitnessSnapshot;
+
+#[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
+impl MetalResidentWitnessSnapshot {
+    pub(crate) fn materialize(&self) -> Result<Vec<neo_ccs::Mat<neo_math::F>>, &'static str> {
+        Err("Metal resident witnesses are unavailable")
+    }
+}
+
+#[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
+#[derive(Clone)]
+pub(crate) struct MetalWitnessMasks;
+
+#[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
+impl MetalWitnessMasks {
+    pub(crate) fn matches(&self, _witness_count: usize, _blocks: usize) -> bool {
+        false
+    }
+
+    pub(crate) fn matches_nc(&self, _witness_count: usize, _blocks: usize, _active_rows: usize) -> bool {
+        false
+    }
+}
+
+#[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
 pub(crate) struct MetalResidentChildren;
 
 #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
 pub(crate) struct MetalDecFormPlan;
+
+#[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
+pub(crate) struct MetalDecPublicProjection<'a> {
+    pub active_rows: usize,
+    pub s_col: &'a [neo_math::K],
+}
+
+#[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
+pub(crate) struct MetalAjtaiRingForms;
+
+#[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
+pub(crate) struct MetalFeOraclePlan;
+
+#[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
+pub(crate) struct MetalDeferredEvalTable;
+
+#[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
+pub(crate) struct MetalDeferredMcsRowTables;
 
 #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
 impl MetalDecFormPlan {
@@ -137,10 +201,54 @@ impl MetalDecFormPlan {
 }
 
 #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
+impl MetalFeOraclePlan {
+    pub(crate) fn matches(&self, _cache: &neo_reductions::superneo_eval::SuperneoEvalCache) -> bool {
+        false
+    }
+
+    pub(crate) fn supports_resident_eval(&self) -> bool {
+        false
+    }
+
+    pub(crate) fn explicit_coefficients(&self) -> usize {
+        0
+    }
+
+    pub(crate) fn explicit_row_list_histogram(&self) -> [usize; 8] {
+        [0; 8]
+    }
+
+    pub(crate) fn max_explicit_row_entries(&self) -> usize {
+        0
+    }
+}
+
+#[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
+impl MetalDeferredMcsRowTables {
+    pub(crate) fn matches(&self, _mcs_idx: usize, _n_pad: usize, _table_count: usize) -> bool {
+        false
+    }
+
+    pub(crate) fn seeded_build(&self) -> Duration {
+        Duration::ZERO
+    }
+
+    pub(crate) fn seeded_patch_entries(&self) -> usize {
+        0
+    }
+
+    pub(crate) fn seeded_patch_bytes(&self) -> usize {
+        0
+    }
+}
+
+#[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
 pub(crate) struct MetalDecMaterial {
     pub child_mask_words: Vec<u64>,
     pub child_nonzero: Vec<bool>,
     pub y_words: Vec<u64>,
+    pub y_zcol_words: Vec<u64>,
+    pub y_zcol_gpu: Duration,
     pub commitment_words: Vec<u64>,
     pub resident_children: MetalResidentChildren,
 }
@@ -152,8 +260,15 @@ pub(crate) struct MetalFeSumcheckPlan;
 pub(crate) struct MetalNcSumcheckPlan;
 
 #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
+impl MetalNcSumcheckPlan {
+    pub(crate) fn active_witness_count(&self) -> usize {
+        0
+    }
+}
+
+#[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
 pub(crate) struct MetalFeSumcheckInputs<'a> {
-    pub tables: &'a [u64],
+    pub tables: &'a [MetalFeTableInput<'a>],
     pub shape: &'a [u64],
     pub mcs_headers: &'a [u64],
     pub mcs_table_indices: &'a [u64],
@@ -165,14 +280,36 @@ pub(crate) struct MetalFeSumcheckInputs<'a> {
 }
 
 #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
+pub(crate) enum MetalFeTableInput<'a> {
+    Host(&'a [neo_math::K]),
+    TensorPoint(&'a [neo_math::K]),
+    DeferredMcs {
+        tables: &'a MetalDeferredMcsRowTables,
+        table: usize,
+    },
+    DeferredEval(&'a MetalDeferredEvalTable),
+}
+
+#[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
 pub(crate) struct MetalNcSumcheckInputs<'a> {
-    pub eq_table: &'a [u64],
-    pub digit_values: &'a [u64],
+    pub eq_point: &'a [u64],
+    pub digits: MetalNcDigitInput<'a>,
+    pub resident_masks: Option<&'a MetalWitnessMasks>,
     pub weights: &'a [u64],
     pub witness_count: usize,
     pub rows: usize,
     pub width: usize,
     pub dense: bool,
+}
+
+#[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
+pub(crate) enum MetalNcDigitInput<'a> {
+    Table(&'a [u64]),
+    SignedMasks {
+        words: &'a [u64],
+        blocks: usize,
+        active_rows: usize,
+    },
 }
 
 #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
@@ -311,11 +448,49 @@ impl MetalSession {
         Err(MetalError::Unavailable)
     }
 
+    pub(crate) fn prepare_ajtai_low_norm_seeded(
+        &self,
+        _seed: [u8; 32],
+        _rows: usize,
+        _cols: usize,
+    ) -> Result<MetalAjtaiLowNormPlan, MetalError> {
+        Err(MetalError::Unavailable)
+    }
+
     pub fn ajtai_low_norm_with_plan(
         &self,
         _plan: &MetalAjtaiLowNormPlan,
         _message: &[i8],
     ) -> Result<Vec<u64>, MetalError> {
+        Err(MetalError::Unavailable)
+    }
+
+    pub(crate) fn ajtai_low_norm_many_from_masks(
+        &self,
+        _plan: &MetalAjtaiLowNormPlan,
+        _masks: &MetalWitnessMasks,
+        _count: usize,
+    ) -> Result<(Vec<u64>, Duration), MetalError> {
+        Err(MetalError::Unavailable)
+    }
+
+    pub(crate) fn ajtai_lane_commitments_from_masks(
+        &self,
+        _ops_plan: &MetalAjtaiLowNormPlan,
+        _mem_plan: &MetalAjtaiLowNormPlan,
+        _masks: &MetalWitnessMasks,
+        _count: usize,
+        _full_cols: usize,
+        _ranges: &neo_fold_clean::paper::relations::LaneRanges,
+    ) -> Result<(Vec<u64>, Duration), MetalError> {
+        Err(MetalError::Unavailable)
+    }
+
+    pub fn sis_accumulator_digest(
+        &self,
+        _config: neo_fold_clean::paper::reductions::accumulator_sis_circuit::SisAccumulatorConfig,
+        _fields: &[neo_math::F],
+    ) -> Result<[neo_math::F; 4], MetalError> {
         Err(MetalError::Unavailable)
     }
 
@@ -352,6 +527,42 @@ impl MetalSession {
         Err(MetalError::Unavailable)
     }
 
+    pub(crate) fn prepare_fe_oracle(
+        &self,
+        _cache: &neo_reductions::superneo_eval::SuperneoEvalCache,
+    ) -> Result<MetalFeOraclePlan, MetalError> {
+        Err(MetalError::Unavailable)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn build_mcs_row_tables(
+        &self,
+        _plan: &MetalFeOraclePlan,
+        _cache: &neo_reductions::superneo_eval::SuperneoEvalCache,
+        _mcs_idx: usize,
+        _matrix_indices: &[usize],
+        _z_blocks: &neo_reductions::superneo_eval::SuperneoZBlocks,
+        _witness_masks: Option<&MetalWitnessMasks>,
+        _n_eff: usize,
+        _n_pad: usize,
+    ) -> Result<MetalDeferredMcsRowTables, MetalError> {
+        Err(MetalError::Unavailable)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn build_carried_eval_table(
+        &self,
+        _plan: &MetalFeOraclePlan,
+        _resident_id: u64,
+        _carried_coeffs: &[neo_math::K],
+        _weights: &[neo_math::K; neo_math::D],
+        _mat_coeffs: &[neo_math::K],
+        _n_eff: usize,
+        _n_pad: usize,
+    ) -> Result<MetalDeferredEvalTable, MetalError> {
+        Err(MetalError::Unavailable)
+    }
+
     pub(crate) fn fe_sumcheck_round(
         &self,
         _plan: &mut MetalFeSumcheckPlan,
@@ -376,6 +587,65 @@ impl MetalSession {
         &self,
         _inputs: MetalNcSumcheckInputs<'_>,
     ) -> Result<MetalNcSumcheckPlan, MetalError> {
+        Err(MetalError::Unavailable)
+    }
+
+    pub(crate) fn prepare_witness_masks(
+        &self,
+        _words: &[u64],
+        _witness_count: usize,
+        _blocks: usize,
+        _active_rows: usize,
+    ) -> Result<MetalWitnessMasks, MetalError> {
+        Err(MetalError::Unavailable)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn prepare_witness_masks_with_resident_id(
+        &self,
+        _fresh_words: &[u64],
+        _fresh_count: usize,
+        _input_count: usize,
+        _blocks: usize,
+        _active_rows: usize,
+        _resident_id: u64,
+    ) -> Result<MetalWitnessMasks, MetalError> {
+        Err(MetalError::Unavailable)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn compose_witness_masks_from_device(
+        &self,
+        _fresh: &MetalWitnessMasks,
+        _fresh_count: usize,
+        _input_count: usize,
+        _blocks: usize,
+        _active_rows: usize,
+        _resident_id: Option<u64>,
+    ) -> Result<MetalWitnessMasks, MetalError> {
+        Err(MetalError::Unavailable)
+    }
+
+    pub(crate) fn enqueue_rlc_witness_mix_from_signed_masks(
+        &self,
+        _rhos: &[i8],
+        _plan: &MetalNcSumcheckPlan,
+        _input_count: usize,
+        _cols: usize,
+    ) -> Result<Option<MetalResidentWitness>, MetalError> {
+        Err(MetalError::Unavailable)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn enqueue_rlc_witness_mix_from_signed_masks_with_resident_id(
+        &self,
+        _rhos: &[i8],
+        _plan: &MetalNcSumcheckPlan,
+        _fresh_count: usize,
+        _input_count: usize,
+        _cols: usize,
+        _resident_id: u64,
+    ) -> Result<Option<MetalResidentWitness>, MetalError> {
         Err(MetalError::Unavailable)
     }
 
@@ -442,6 +712,47 @@ impl MetalSession {
         _child_count: usize,
         _form_rows: usize,
         _form_words: &[u64],
+        _public_projection: Option<MetalDecPublicProjection<'_>>,
+        _commitment_plan: &MetalAjtaiLowNormPlan,
+    ) -> Result<MetalDecMaterial, MetalError> {
+        Err(MetalError::Unavailable)
+    }
+
+    pub(crate) fn eval_ajtai_y_from_signed_masks(
+        &self,
+        _plan: &MetalDecFormPlan,
+        _cache: &neo_reductions::superneo_eval::SuperneoEvalCache,
+        _chi_r: &[neo_math::K],
+        _n_eff: usize,
+        _mask_words: &[u64],
+        _resident_masks: Option<&MetalWitnessMasks>,
+        _witness_count: usize,
+    ) -> Result<(Vec<u64>, MetalAjtaiRingForms, MetalAjtaiYProfile), MetalError> {
+        Err(MetalError::Unavailable)
+    }
+
+    pub(crate) fn eval_ajtai_y_from_signed_masks_and_row_challenges(
+        &self,
+        _plan: &MetalDecFormPlan,
+        _cache: &neo_reductions::superneo_eval::SuperneoEvalCache,
+        _row_challenges: &[neo_math::K],
+        _n_eff: usize,
+        _mask_words: &[u64],
+        _resident_masks: Option<&MetalWitnessMasks>,
+        _witness_count: usize,
+    ) -> Result<(Vec<u64>, MetalAjtaiRingForms, MetalAjtaiYProfile), MetalError> {
+        Err(MetalError::Unavailable)
+    }
+
+    pub(crate) fn split_dec_base2_with_prebuilt_ring_forms(
+        &self,
+        _parent: &MetalResidentWitness,
+        _child_count: usize,
+        _plan: &MetalDecFormPlan,
+        _forms: &MetalAjtaiRingForms,
+        _row_challenges: &[neo_math::K],
+        _n_eff: usize,
+        _public_projection: Option<MetalDecPublicProjection<'_>>,
         _commitment_plan: &MetalAjtaiLowNormPlan,
     ) -> Result<MetalDecMaterial, MetalError> {
         Err(MetalError::Unavailable)
@@ -450,17 +761,20 @@ impl MetalSession {
     pub(crate) fn prepare_dec_ring_forms(
         &self,
         _cache: &neo_reductions::superneo_eval::SuperneoEvalCache,
+        _oracle: &MetalFeOraclePlan,
     ) -> Result<MetalDecFormPlan, MetalError> {
         Err(MetalError::Unavailable)
     }
 
     pub(crate) fn split_dec_base2_with_ring_form_plan(
         &self,
-        _parent: &MetalResidentWitness,
+        _parent: &mut MetalResidentWitness,
         _child_count: usize,
         _plan: &MetalDecFormPlan,
-        _chi_words: &[u64],
+        _cache: &neo_reductions::superneo_eval::SuperneoEvalCache,
+        _chi_r: &[neo_math::K],
         _n_eff: usize,
+        _public_projection: Option<MetalDecPublicProjection<'_>>,
         _commitment_plan: &MetalAjtaiLowNormPlan,
     ) -> Result<MetalDecMaterial, MetalError> {
         Err(MetalError::Unavailable)

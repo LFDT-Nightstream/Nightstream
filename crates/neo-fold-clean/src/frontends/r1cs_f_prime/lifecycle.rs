@@ -18,8 +18,7 @@ use crate::paper::construction2::{LatestInstance, ProofState};
 use crate::paper::digest::{digest32_as_fields, digest_fields_as_digest32, StateXOutDigestMode};
 use crate::paper::nifs::{
     NifsFreshImageOverlayRequest, NifsFreshImageRegion, NifsFreshImageRegionKind, NifsFreshInstancesRequest,
-    NifsFreshPrefixRequest, NifsFreshSemanticStateInOverlay, NifsFreshSemanticStateOutOverlay,
-    NifsFreshStateXOutOverlay, NifsProverAdapter,
+    NifsFreshSemanticStateInOverlay, NifsFreshSemanticStateOutOverlay, NifsFreshStateXOutOverlay, NifsProverAdapter,
 };
 use crate::paper::relations::{CcsClaim, CcsInstance};
 use neo_math::F;
@@ -331,6 +330,7 @@ impl<'a> R1csChainBuilder<'a> {
                 m_in: compiled[0].encoded.public_input_len(),
                 assignments: &assignments,
                 image_overlay,
+                lane_scheme: None,
             })? {
                 Some(instances) => {
                     if instances.len() != compiled.len() {
@@ -412,21 +412,6 @@ impl<'a> R1csChainBuilder<'a> {
             t_fold.elapsed().as_secs_f64()
         );
         self.latest_batch = instances;
-        if let Some(adapter) = adapter.as_deref_mut() {
-            let audit = self.audit.as_ref().ok_or(Error::ChainExpectedActiveState)?;
-            let ProofState::Active { running, .. } = &audit.proof.state.proof else {
-                return Err(Error::ChainExpectedActiveState);
-            };
-            let running = running.materialize()?;
-            adapter.stage_next_fresh_prefix(NifsFreshPrefixRequest {
-                pp: &self.prep.prep.params,
-                s: self.prep.prep.structure(),
-                cache: self.prep.prep.optimized_cache(),
-                log: &self.prep.prep.log,
-                fresh: &self.latest_batch,
-                running: &running,
-            })?;
-        }
         Ok(compiled)
     }
 

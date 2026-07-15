@@ -302,15 +302,6 @@ pub struct NifsFPrimeStepContext {
     pub chunk_digest: [F; 4],
 }
 
-pub struct NifsFreshPrefixRequest<'a> {
-    pub pp: &'a Params,
-    pub s: &'a Structure,
-    pub cache: &'a OptimizedStructureCache,
-    pub log: &'a AjtaiSModule,
-    pub fresh: &'a [CcsInstance],
-    pub running: &'a RunningInstance,
-}
-
 pub struct NifsFreshInstancesRequest<'a> {
     pub pp: &'a Params,
     pub s: &'a Structure,
@@ -319,6 +310,9 @@ pub struct NifsFreshInstancesRequest<'a> {
     pub m_in: usize,
     pub assignments: &'a [&'a [F]],
     pub image_overlay: Option<NifsFreshImageOverlayRequest<'a>>,
+    /// Optional Nebula lane map over the same assignments. Accelerators can
+    /// derive its sidecars from their already-resident witness representation.
+    pub lane_scheme: Option<&'a LaneScheme>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -400,13 +394,6 @@ pub trait NifsProverAdapter {
     ) -> Result<Option<Vec<CcsInstance>>, Error> {
         let _ = request;
         Ok(None)
-    }
-
-    /// Give a backend the just-deposited latest fresh batch so it can prepare
-    /// device-resident input for the next fold without rebuilding the batch.
-    fn stage_next_fresh_prefix(&mut self, request: NifsFreshPrefixRequest<'_>) -> Result<(), Error> {
-        let _ = request;
-        Ok(())
     }
 
     /// Whether a caller should immediately replay `NIFS.V` on the CPU

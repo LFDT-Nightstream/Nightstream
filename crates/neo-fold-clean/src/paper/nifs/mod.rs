@@ -73,9 +73,8 @@ pub enum Error {
 pub use backend::{
     CpuNifsProver, DeferredNifsProofMaterializer, DeferredNifsRunningMaterializer, NifsFPrimeStepContext,
     NifsFreshImageOverlayRequest, NifsFreshImageRegion, NifsFreshImageRegionKind, NifsFreshInstancesRequest,
-    NifsFreshPrefixRequest, NifsFreshSemanticStateInOverlay, NifsFreshSemanticStateOutOverlay,
-    NifsFreshStateXOutOverlay, NifsPostFoldSummary, NifsProofCarrier, NifsProverAdapter, NifsProverBackend,
-    NifsProverOutput, NifsProverRequest, NifsRunningCarrier,
+    NifsFreshSemanticStateInOverlay, NifsFreshSemanticStateOutOverlay, NifsFreshStateXOutOverlay, NifsPostFoldSummary,
+    NifsProofCarrier, NifsProverAdapter, NifsProverBackend, NifsProverOutput, NifsProverRequest, NifsRunningCarrier,
 };
 pub use proof::NifsProof;
 pub use prover::{prove, prove_with_adapter, prove_with_backend};

@@ -150,6 +150,7 @@ pub fn fresh() {
                 m_in: fixture.m_in,
                 assignments: &assignment_refs,
                 image_overlay: None,
+                lane_scheme: None,
             })
             .expect("adapter build_fresh_instances")
             .expect("adapter must take the GPU path for valid low-norm inputs")

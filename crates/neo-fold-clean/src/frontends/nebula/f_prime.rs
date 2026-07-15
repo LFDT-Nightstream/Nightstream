@@ -451,11 +451,38 @@ impl NebulaFPrimeRelation {
         branch: NebulaFPrimeBranch,
         field_assignment: &[F],
     ) -> Result<Vec<F>, NebulaFPrimeRelationError> {
-        let assignment = self.relation.encode(branch.index(), field_assignment)?;
+        #[cfg(feature = "perf-timers")]
+        let encode_started = std::time::Instant::now();
+        let assignment = self.encode_for_deferred_nifs(branch, field_assignment)?;
+        #[cfg(feature = "perf-timers")]
+        let encode_elapsed = encode_started.elapsed();
+        #[cfg(feature = "perf-timers")]
+        let validate_started = std::time::Instant::now();
         if let Some(row) = self.relation.first_unsatisfied_row(&assignment) {
             return Err(NebulaFPrimeRelationError::Unsatisfied { row });
         }
+        #[cfg(feature = "perf-timers")]
+        eprintln!(
+            "[fprime-encode] branch={branch:?} lower={:.3}s validate={:.3}s committed={}",
+            encode_elapsed.as_secs_f64(),
+            validate_started.elapsed().as_secs_f64(),
+            assignment.len(),
+        );
         Ok(assignment)
+    }
+
+    /// Encode a synthesized arm while deferring the full relation scan to
+    /// the NIFS proof that immediately consumes this instance. Encoding still
+    /// enforces field width, aliases, selectors, and derived-value geometry;
+    /// only the redundant prover-side sparse matrix evaluation is omitted.
+    pub(super) fn encode_for_deferred_nifs(
+        &self,
+        branch: NebulaFPrimeBranch,
+        field_assignment: &[F],
+    ) -> Result<Vec<F>, NebulaFPrimeRelationError> {
+        self.relation
+            .encode(branch.index(), field_assignment)
+            .map_err(Into::into)
     }
 
     /// Encode, commit, and attach the product-commitment sidecar used by the
@@ -494,15 +521,9 @@ impl NebulaFPrimeRelation {
         let instance_elapsed = instance_started.elapsed();
         #[cfg(feature = "perf-timers")]
         let adv_started = std::time::Instant::now();
-        let adv = self.config.scheme.commit(&instance.witness.Z)?;
+        self.attach_lane_commitment(&mut instance)?;
         #[cfg(feature = "perf-timers")]
         let adv_elapsed = adv_started.elapsed();
-        if adv.ops.kappa != instance.claim.c.kappa {
-            return Err(NebulaFPrimeRelationError::Geometry(
-                "lane and full-witness commitments use different kappa".into(),
-            ));
-        }
-        instance.claim.adv = Some(adv);
         #[cfg(feature = "perf-timers")]
         eprintln!(
             "[fprime-instance] branch={branch:?} encode={:.3}s ccs+commit={:.3}s adv={:.3}s total={:.3}s field_cols={} committed={} packed={}x{}",
@@ -516,6 +537,17 @@ impl NebulaFPrimeRelation {
             instance.witness.Z.cols(),
         );
         Ok(instance)
+    }
+
+    pub(super) fn attach_lane_commitment(&self, instance: &mut CcsInstance) -> Result<(), NebulaFPrimeRelationError> {
+        let adv = self.config.scheme.commit(&instance.witness.Z)?;
+        if adv.ops.kappa != instance.claim.c.kappa {
+            return Err(NebulaFPrimeRelationError::Geometry(
+                "lane and full-witness commitments use different kappa".into(),
+            ));
+        }
+        instance.claim.adv = Some(adv);
+        Ok(())
     }
 }
 

@@ -744,6 +744,7 @@ impl NifsProverAdapter for CudaNifsProver {
                             fe_phase.transcript_mode,
                             running_parent_digest,
                             running_accumulator_handle,
+                            None,
                         )?);
                     pi_ccs_y_eval_surface = phase_backend.take_last_y_eval_surface();
                     pi_ccs_nc_final_state = phase_backend.take_last_nc_final_state();
@@ -830,6 +831,7 @@ impl NifsProverAdapter for CudaNifsProver {
                         BackendTranscriptMode::DeviceSnapshot,
                         running_parent_digest,
                         running_accumulator_handle,
+                        None,
                     )?)
                 };
                 pi_ccs_y_eval_surface = fe_backend.take_last_y_eval_surface();

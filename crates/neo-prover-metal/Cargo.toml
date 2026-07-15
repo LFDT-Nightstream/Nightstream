@@ -40,6 +40,7 @@ objc2-metal = { version = "0.3.2", default-features = false, features = [
   "MTLTypes",
   "dispatch2",
 ] }
+rayon = { workspace = true }
 
 [dev-dependencies]
 neo-ccs = { path = "../neo-ccs" }

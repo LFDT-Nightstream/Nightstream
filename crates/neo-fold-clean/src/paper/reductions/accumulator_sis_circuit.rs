@@ -95,6 +95,32 @@ pub fn accumulator_digest(config: SisAccumulatorConfig, fields: &[F]) -> Result<
     )))
 }
 
+/// Column-contiguous encoding of the canonical SIS signed-unit message.
+///
+/// [`commit_fields`] fills the logical matrix row-major. Accelerator Ajtai
+/// kernels consume one ring column at a time, so this helper performs that
+/// exact layout transpose and pads the last column with zeroes.
+#[doc(hidden)]
+pub fn accelerator_balanced_ternary_message(fields: &[F]) -> Vec<i8> {
+    let message_cols = (fields.len() * BALANCED_TERNARY_DIGITS).div_ceil(D);
+    let mut message = vec![0i8; D * message_cols];
+    for (field_index, &field) in fields.iter().enumerate() {
+        for (digit_index, digit) in balanced_ternary_digits(field).into_iter().enumerate() {
+            let index = field_index * BALANCED_TERNARY_DIGITS + digit_index;
+            let row = index / message_cols;
+            let column = index % message_cols;
+            message[column * D + row] = if digit == F::ONE {
+                1
+            } else if digit == -F::ONE {
+                -1
+            } else {
+                0
+            };
+        }
+    }
+    message
+}
+
 pub fn commit_fields(config: SisAccumulatorConfig, fields: &[F]) -> Result<Commitment, SisAccumulatorError> {
     validate(config, fields.len())?;
     let message = balanced_ternary_message(fields);

@@ -1,6 +1,21 @@
 #[cfg(target_vendor = "apple")]
 use neo_prover_metal_bench::run_benchmark;
-use neo_prover_metal_bench::{run_lifecycle_benchmarks, BenchmarkConfig};
+use neo_prover_metal_bench::{run_lifecycle_benchmarks, BenchmarkConfig, TimingSummary};
+
+use std::time::Duration;
+
+#[test]
+fn timing_summary_retains_measurement_order() {
+    let summary = TimingSummary::from_durations(vec![
+        Duration::from_millis(3),
+        Duration::from_millis(1),
+        Duration::from_millis(2),
+    ]);
+    assert_eq!(summary.raw_ms, vec![3.0, 1.0, 2.0]);
+    assert_eq!(summary.median_ms, 2.0);
+    assert_eq!(summary.min_ms, 1.0);
+    assert_eq!(summary.max_ms, 3.0);
+}
 
 #[test]
 fn benchmark_config_rejects_unsafe_dimensions() {
@@ -54,7 +69,9 @@ fn nebula_lifecycle_baseline_proves_and_verifies() {
         assert_eq!(profile.resident_input_folds, profile.folds_per_sample - 1);
         assert_eq!(profile.resident_output_folds, profile.folds_per_sample - 1);
         assert!(!profile.fe_on_metal);
-        assert!(!profile.nc_on_metal);
+        assert!(profile.ajtai_y_eval_on_metal);
+        assert!(profile.nc_on_metal);
+        assert!(profile.nc_mask_native_on_metal);
         assert!(profile.rlc_witness_on_metal);
         assert!(profile.rlc_witness_resident_only);
         assert!(profile.rlc_rho_small_coefficients);
@@ -111,10 +128,35 @@ fn sha256_lifecycle_baseline_proves_and_verifies() {
             .find(|report| report.backend == "MetalNifsProver")
             .and_then(|report| report.nifs_profile.as_ref())
             .expect("Metal SHA NIFS profile");
+        eprintln!(
+            "Metal NIFS medians: total={:.3}ms Pi_CCS={:.3}ms Y_eval={:.3}ms Pi_RLC={:.3}ms Pi_DEC={:.3}ms DEC forms={:.3}ms projection={:.3}ms host={:.3}ms",
+            profile.total.median_ms,
+            profile.pi_ccs.median_ms,
+            profile.ajtai_y_eval.median_ms,
+            profile.pi_rlc.median_ms,
+            profile.pi_dec.median_ms,
+            profile.dec_form_build.median_ms,
+            profile.dec_projection.median_ms,
+            profile.dec_host_materialization.median_ms,
+        );
+        let activity = &profile.activity_per_sample;
+        eprintln!(
+            "Metal activity/sample: command_buffers={} dispatches={} host_waits={} allocated={:.2}MiB uploaded={:.2}MiB downloaded={:.2}MiB current={:.2}MiB",
+            activity.command_buffers,
+            activity.dispatches,
+            activity.host_waits,
+            activity.allocated_bytes as f64 / (1024.0 * 1024.0),
+            activity.uploaded_bytes as f64 / (1024.0 * 1024.0),
+            activity.downloaded_bytes as f64 / (1024.0 * 1024.0),
+            activity.current_allocated_bytes as f64 / (1024.0 * 1024.0),
+        );
         assert_eq!(profile.resident_input_folds, profile.folds_per_sample - 1);
         assert_eq!(profile.resident_output_folds, profile.folds_per_sample - 1);
         assert!(profile.rlc_witness_resident_only);
         assert!(profile.rlc_rho_small_coefficients);
+        assert!(profile.ajtai_y_eval_on_metal);
+        assert!(profile.nc_on_metal);
+        assert!(profile.nc_mask_native_on_metal);
         assert!(profile.dec_forms_on_metal);
         assert!(profile.dec_y_on_metal);
         assert!(profile.dec_commit_on_metal);

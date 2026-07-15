@@ -47,7 +47,9 @@ fn proof() -> &'static neo_wasm::nebula::WasmNebulaProof {
     static PROOF: OnceLock<neo_wasm::nebula::WasmNebulaProof> = OnceLock::new();
     PROOF.get_or_init(|| {
         let fixture = fixture();
-        neo_wasm::prove(&fixture.prep, &fixture.checked.trace).expect("WASM Nebula proof")
+        let mut adapter = neo_fold_clean::paper::nifs::CpuNifsProver;
+        neo_wasm::prove_with_nifs_adapter(&fixture.prep, &mut adapter, &fixture.checked.trace)
+            .expect("adapter-backed WASM Nebula proof")
     })
 }
 

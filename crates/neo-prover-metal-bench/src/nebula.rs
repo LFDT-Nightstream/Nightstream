@@ -18,6 +18,7 @@ use neo_math::{D, F, K};
 use neo_prover_metal::MetalNifsProver;
 use p3_field::PrimeCharacteristicRing;
 
+use crate::parity::audit_authority_eq;
 use crate::report::{summarize_nifs_profiles, BenchmarkError, LifecycleReport, NifsProfileSample, TimingSummary};
 
 const STEPS_PER_SEGMENT: u64 = 2;
@@ -83,7 +84,7 @@ pub fn run_nebula_metal(repetitions: usize) -> Result<LifecycleReport, Benchmark
     let mut semantic_result_ok = true;
     let mut proof_parity_ok = true;
     let mut profile_samples = Vec::with_capacity(repetitions);
-    let cpu_reference = format!("{:?}", honest_chain(&fixture)?);
+    let cpu_reference = honest_chain(&fixture)?;
     let (warmup, _) = honest_chain_metal(&fixture, &mut metal)?;
     neo_fold_clean::verify_uncompressed_audit(&fixture.prep, &warmup)
         .map_err(|error| BenchmarkError::Lifecycle(format!("verify Metal Nebula warm-up: {error}")))?;
@@ -94,7 +95,7 @@ pub fn run_nebula_metal(repetitions: usize) -> Result<LifecycleReport, Benchmark
         profile_samples.push(NifsProfileSample::from_profiles(profiles));
         let lane = audit.proof.state.nebula.as_ref();
         semantic_result_ok &= lane.is_some_and(|lane| lane.is_closed() && lane.seg_idx == 1 && lane.ts == 2);
-        proof_parity_ok &= format!("{audit:?}") == cpu_reference;
+        proof_parity_ok &= audit_authority_eq(&audit, &cpu_reference);
         audit_bytes = format!("{audit:?}").len();
         let started = Instant::now();
         neo_fold_clean::verify_uncompressed_audit(&fixture.prep, &audit)

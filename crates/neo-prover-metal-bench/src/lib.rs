@@ -6,6 +6,7 @@
 mod ffi;
 mod lifecycle;
 mod nebula;
+mod parity;
 mod primitives;
 mod report;
 mod sha256;
@@ -42,8 +43,8 @@ pub fn run_benchmark(config: BenchmarkConfig) -> Result<BenchmarkReport, Benchma
             let cpu = lifecycle
                 .iter()
                 .find(|cpu| cpu.backend == "CPU" && cpu.name == metal.name)?;
-            let median_target = 1.5;
-            let p95_target = 1.25;
+            let median_target = 1.52;
+            let p95_target = 1.50;
             let median_speedup = cpu.online.median_ms / metal.online.median_ms;
             let p95_speedup = cpu.online.p95_ms / metal.online.p95_ms;
             let crossover_required = metal.name == "sha256_serial_4_chunk";
@@ -106,10 +107,12 @@ pub fn run_benchmark(config: BenchmarkConfig) -> Result<BenchmarkReport, Benchma
         .find(|report| report.name == "sha256_serial_4_chunk")
         .is_some_and(|report| {
             report.proof_parity_ok
-                && report
-                    .nifs_profile
-                    .as_ref()
-                    .is_some_and(|profile| profile.rlc_rho_small_coefficients)
+                && report.nifs_profile.as_ref().is_some_and(|profile| {
+                    profile.ajtai_y_eval_on_metal
+                        && profile.nc_on_metal
+                        && profile.nc_mask_native_on_metal
+                        && profile.rlc_rho_small_coefficients
+                })
                 && report.pipeline.as_ref().is_some_and(|pipeline| {
                     pipeline.synthesis_work.median_ms > 0.0
                         && pipeline.fold_work.median_ms > 0.0
@@ -120,8 +123,7 @@ pub fn run_benchmark(config: BenchmarkConfig) -> Result<BenchmarkReport, Benchma
     let m6_crossover_passed = m6_pipeline_passed
         && lifecycle_crossover
             .iter()
-            .filter(|report| report.crossover_required)
-            .next()
+            .find(|report| report.crossover_required)
             .is_some_and(|_| {
                 lifecycle_crossover
                     .iter()
@@ -162,7 +164,10 @@ pub fn run_benchmark(config: BenchmarkConfig) -> Result<BenchmarkReport, Benchma
         notes.push("M5 deferred proof/running ownership or recursive replay removal is incomplete".to_owned());
     }
     if !metal_lifecycle.is_empty() && !m6_pipeline_passed {
-        notes.push("M6 timed SHA synthesis/fold overlap or exact CPU/Metal proof parity is incomplete".to_owned());
+        notes.push(
+            "M6 timed SHA synthesis/fold overlap or canonical CPU/Metal proof-authority parity is incomplete"
+                .to_owned(),
+        );
     } else if !metal_lifecycle.is_empty() && !m6_crossover_passed {
         notes
             .push("M6 pipeline passes, but median or p95 complete-lifecycle crossover remains below target".to_owned());
@@ -180,7 +185,9 @@ pub fn run_benchmark(config: BenchmarkConfig) -> Result<BenchmarkReport, Benchma
         config,
         timing_contract: vec![
             "CPU and Metal run on the same device with identical inputs".to_owned(),
-            "one warm-up precedes repeated measured samples".to_owned(),
+            "one warm-up per backend precedes repeated measured samples".to_owned(),
+            "SHA lifecycle samples are CPU/Metal pairs whose first backend alternates by sample index".to_owned(),
+            "timing summaries retain ordered raw millisecond samples as well as aggregate statistics".to_owned(),
             "transfer-inclusive Metal candidates time upload, command submission, completion wait, and result download"
                 .to_owned(),
             "resident Metal candidates report static allocation and ingress as setup_ms, then time dispatch through final result download"
@@ -194,7 +201,9 @@ pub fn run_benchmark(config: BenchmarkConfig) -> Result<BenchmarkReport, Benchma
                 .to_owned(),
             "M6 times chunk synthesis inside the lifecycle, overlaps the next chunk with the current fold, and includes terminal materialization"
                 .to_owned(),
-            "M6 crossover requires 1.5x median and 1.25x p95 SHA lifecycle speedup with exact CPU/Metal proof parity"
+            "M6 requires Ajtai Y_eval and mask-native NC column rounds to execute on Metal for every fold"
+                .to_owned(),
+            "M6 crossover requires 1.52x median and 1.50x p95 SHA lifecycle speedup with canonical CPU/Metal proof-authority parity"
                 .to_owned(),
             "M6 sustained mode runs each backend for 60 seconds and requires 1.15x Metal throughput".to_owned(),
         ],

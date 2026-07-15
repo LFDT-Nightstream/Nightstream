@@ -160,13 +160,16 @@ struct MetalBenchmarkReport: Decodable {
         let foldsPerSample: Int
         let total: Timing
         let piCcs: Timing
+        let ajtaiYEval: Timing
         let piRlc: Timing
         let piDec: Timing
         let decFormBuild: Timing
         let decProjection: Timing
         let decHostMaterialization: Timing
         let feOnMetal: Bool
+        let ajtaiYEvalOnMetal: Bool
         let ncOnMetal: Bool
+        let ncMaskNativeOnMetal: Bool
         let rlcWitnessOnMetal: Bool
         let rlcWitnessResidentOnly: Bool
         let rlcRhoSmallCoefficients: Bool
@@ -186,13 +189,16 @@ struct MetalBenchmarkReport: Decodable {
             case total
             case foldsPerSample = "folds_per_sample"
             case piCcs = "pi_ccs"
+            case ajtaiYEval = "ajtai_y_eval"
             case piRlc = "pi_rlc"
             case piDec = "pi_dec"
             case decFormBuild = "dec_form_build"
             case decProjection = "dec_projection"
             case decHostMaterialization = "dec_host_materialization"
             case feOnMetal = "fe_on_metal"
+            case ajtaiYEvalOnMetal = "ajtai_y_eval_on_metal"
             case ncOnMetal = "nc_on_metal"
+            case ncMaskNativeOnMetal = "nc_mask_native_on_metal"
             case rlcWitnessOnMetal = "rlc_witness_on_metal"
             case rlcWitnessResidentOnly = "rlc_witness_resident_only"
             case rlcRhoSmallCoefficients = "rlc_rho_small_coefficients"

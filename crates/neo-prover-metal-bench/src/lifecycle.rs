@@ -10,6 +10,7 @@ use neo_fold_clean::paper::digest::digest_fields_as_digest32;
 use neo_fold_clean::paper::params::Params;
 use neo_prover_metal::MetalNifsProver;
 
+use crate::parity::audit_authority_eq;
 use crate::report::{
     summarize_nifs_profiles, BenchmarkConfig, BenchmarkError, LifecyclePipelineReport, LifecycleReport,
     NifsProfileSample, SustainedLifecycleReport, TimingSummary,
@@ -56,9 +57,10 @@ impl PipelineSample {
 pub fn run_lifecycle_benchmarks(config: &BenchmarkConfig) -> Result<Vec<LifecycleReport>, BenchmarkError> {
     let mut reports = Vec::new();
     if config.run_sha256_lifecycle {
-        reports.push(run_sha256_cpu(config.lifecycle_repetitions)?);
         #[cfg(target_vendor = "apple")]
-        reports.push(run_sha256_metal(config.lifecycle_repetitions)?);
+        reports.extend(run_sha256_paired(config.lifecycle_repetitions)?);
+        #[cfg(not(target_vendor = "apple"))]
+        reports.push(run_sha256_cpu(config.lifecycle_repetitions)?);
     }
     if config.run_nebula_lifecycle {
         reports.push(super::nebula::run_nebula_cpu(config.lifecycle_repetitions)?);
@@ -79,8 +81,6 @@ pub(crate) fn run_sha256_sustained(seconds: usize) -> Result<SustainedLifecycleR
     let (reference, _, _) = prove_sha(&fixture)?;
     neo_fold_clean::verify_uncompressed_audit(&fixture.prep.prep, &reference)
         .map_err(|error| BenchmarkError::Lifecycle(format!("verify sustained CPU reference: {error}")))?;
-    let reference_debug = format!("{reference:?}");
-
     let cpu_started = Instant::now();
     let mut cpu_proofs = 0usize;
     let mut last_cpu = None;
@@ -113,7 +113,7 @@ pub(crate) fn run_sha256_sustained(seconds: usize) -> Result<SustainedLifecycleR
     neo_fold_clean::verify_uncompressed_audit(&fixture.prep.prep, &last_metal)
         .map_err(|error| BenchmarkError::Lifecycle(format!("verify sustained Metal proof: {error}")))?;
 
-    let proof_parity_ok = format!("{last_cpu:?}") == reference_debug && format!("{last_metal:?}") == reference_debug;
+    let proof_parity_ok = audit_authority_eq(&last_cpu, &reference) && audit_authority_eq(&last_metal, &reference);
     let cpu_rate = cpu_proofs as f64 / cpu_elapsed.as_secs_f64();
     let metal_rate = metal_proofs as f64 / metal_elapsed.as_secs_f64();
     let speedup = metal_rate / cpu_rate;
@@ -134,7 +134,8 @@ pub(crate) fn run_sha256_sustained(seconds: usize) -> Result<SustainedLifecycleR
     })
 }
 
-fn run_sha256_metal(repetitions: usize) -> Result<LifecycleReport, BenchmarkError> {
+#[cfg(target_vendor = "apple")]
+fn run_sha256_paired(repetitions: usize) -> Result<Vec<LifecycleReport>, BenchmarkError> {
     let fixture = build_sha256_fixture()?;
     let expected_digest = serial_state_lanes56_semantic_digest(
         fixture
@@ -143,48 +144,97 @@ fn run_sha256_metal(repetitions: usize) -> Result<LifecycleReport, BenchmarkErro
             .ok_or_else(|| BenchmarkError::Lifecycle("SHA state trace is empty".to_owned()))?,
     );
     let mut metal = MetalNifsProver::new()?;
-    let mut online = Vec::with_capacity(repetitions);
-    let mut verify = Vec::with_capacity(repetitions);
-    let mut audit_bytes = 0;
-    let mut semantic_result_ok = true;
+    let mut cpu_online = Vec::with_capacity(repetitions);
+    let mut metal_online = Vec::with_capacity(repetitions);
+    let mut cpu_verify = Vec::with_capacity(repetitions);
+    let mut metal_verify = Vec::with_capacity(repetitions);
+    let mut cpu_audit_bytes = 0;
+    let mut metal_audit_bytes = 0;
+    let mut cpu_semantic_result_ok = true;
+    let mut metal_semantic_result_ok = true;
     let mut proof_parity_ok = true;
     let mut profile_samples = Vec::with_capacity(repetitions);
-    let mut pipeline_samples = Vec::with_capacity(repetitions);
+    let mut cpu_pipeline_samples = Vec::with_capacity(repetitions);
+    let mut metal_pipeline_samples = Vec::with_capacity(repetitions);
     let (cpu_reference, _, _) = prove_sha(&fixture)?;
-    let cpu_reference = format!("{cpu_reference:?}");
+    neo_fold_clean::verify_uncompressed_audit(&fixture.prep.prep, &cpu_reference)
+        .map_err(|error| BenchmarkError::Lifecycle(format!("verify CPU SHA warm-up: {error}")))?;
     let (warmup, _, _, _) = prove_sha_metal(&fixture, &mut metal)?;
     neo_fold_clean::verify_uncompressed_audit(&fixture.prep.prep, &warmup)
         .map_err(|error| BenchmarkError::Lifecycle(format!("verify Metal SHA warm-up: {error}")))?;
-    for _ in 0..repetitions {
-        let started = Instant::now();
-        let (audit, final_digest, profiles, pipeline) = prove_sha_metal(&fixture, &mut metal)?;
-        online.push(started.elapsed());
-        profile_samples.push(NifsProfileSample::from_profiles(profiles));
-        pipeline_samples.push(pipeline);
-        semantic_result_ok &= final_digest == expected_digest;
-        proof_parity_ok &= format!("{audit:?}") == cpu_reference;
-        audit_bytes = format!("{audit:?}").len();
-        let started = Instant::now();
-        neo_fold_clean::verify_uncompressed_audit(&fixture.prep.prep, black_box(&audit))
-            .map_err(|error| BenchmarkError::Lifecycle(format!("verify Metal SHA audit: {error}")))?;
-        verify.push(started.elapsed());
+    if !audit_authority_eq(&warmup, &cpu_reference) {
+        return Err(BenchmarkError::Lifecycle(
+            "CPU and Metal SHA warm-up authority differ".to_owned(),
+        ));
     }
-    Ok(LifecycleReport {
-        name: "sha256_serial_4_chunk".to_owned(),
-        backend: "MetalNifsProver".to_owned(),
-        verification_mode: "full_history_audit_replay".to_owned(),
-        synthesis_ms: fixture.setup_synthesis.as_secs_f64() * 1e3,
-        preprocessing_ms: fixture.preprocessing.as_secs_f64() * 1e3,
-        online: TimingSummary::from_durations(online),
-        pipeline: Some(PipelineSample::summarize(&pipeline_samples)),
-        verify_ms: TimingSummary::from_durations(verify),
-        nifs_profile: Some(summarize_nifs_profiles(profile_samples)),
-        audit_debug_chars: audit_bytes,
-        semantic_result_ok,
-        proof_parity_ok,
-    })
+
+    for sample in 0..repetitions {
+        let cpu_sample;
+        let metal_sample;
+        if sample.is_multiple_of(2) {
+            cpu_sample = timed_sha_cpu(&fixture)?;
+            metal_sample = timed_sha_metal(&fixture, &mut metal)?;
+        } else {
+            metal_sample = timed_sha_metal(&fixture, &mut metal)?;
+            cpu_sample = timed_sha_cpu(&fixture)?;
+        }
+        let (cpu_audit, cpu_digest, cpu_pipeline, cpu_elapsed) = cpu_sample;
+        let (metal_audit, metal_digest, profiles, metal_pipeline, metal_elapsed) = metal_sample;
+
+        cpu_online.push(cpu_elapsed);
+        metal_online.push(metal_elapsed);
+        cpu_pipeline_samples.push(cpu_pipeline);
+        metal_pipeline_samples.push(metal_pipeline);
+        profile_samples.push(NifsProfileSample::from_profiles(profiles));
+        cpu_semantic_result_ok &= cpu_digest == expected_digest;
+        metal_semantic_result_ok &= metal_digest == expected_digest;
+        proof_parity_ok &= audit_authority_eq(&metal_audit, &cpu_audit);
+        cpu_audit_bytes = format!("{cpu_audit:?}").len();
+        metal_audit_bytes = format!("{metal_audit:?}").len();
+
+        let started = Instant::now();
+        neo_fold_clean::verify_uncompressed_audit(&fixture.prep.prep, black_box(&cpu_audit))
+            .map_err(|error| BenchmarkError::Lifecycle(format!("verify CPU SHA audit: {error}")))?;
+        cpu_verify.push(started.elapsed());
+        let started = Instant::now();
+        neo_fold_clean::verify_uncompressed_audit(&fixture.prep.prep, black_box(&metal_audit))
+            .map_err(|error| BenchmarkError::Lifecycle(format!("verify Metal SHA audit: {error}")))?;
+        metal_verify.push(started.elapsed());
+    }
+
+    Ok(vec![
+        LifecycleReport {
+            name: "sha256_serial_4_chunk".to_owned(),
+            backend: "CPU".to_owned(),
+            verification_mode: "full_history_audit_replay".to_owned(),
+            synthesis_ms: fixture.setup_synthesis.as_secs_f64() * 1e3,
+            preprocessing_ms: fixture.preprocessing.as_secs_f64() * 1e3,
+            online: TimingSummary::from_durations(cpu_online),
+            pipeline: Some(PipelineSample::summarize(&cpu_pipeline_samples)),
+            verify_ms: TimingSummary::from_durations(cpu_verify),
+            nifs_profile: None,
+            audit_debug_chars: cpu_audit_bytes,
+            semantic_result_ok: cpu_semantic_result_ok,
+            proof_parity_ok: true,
+        },
+        LifecycleReport {
+            name: "sha256_serial_4_chunk".to_owned(),
+            backend: "MetalNifsProver".to_owned(),
+            verification_mode: "full_history_audit_replay".to_owned(),
+            synthesis_ms: fixture.setup_synthesis.as_secs_f64() * 1e3,
+            preprocessing_ms: fixture.preprocessing.as_secs_f64() * 1e3,
+            online: TimingSummary::from_durations(metal_online),
+            pipeline: Some(PipelineSample::summarize(&metal_pipeline_samples)),
+            verify_ms: TimingSummary::from_durations(metal_verify),
+            nifs_profile: Some(summarize_nifs_profiles(profile_samples)),
+            audit_debug_chars: metal_audit_bytes,
+            semantic_result_ok: metal_semantic_result_ok,
+            proof_parity_ok,
+        },
+    ])
 }
 
+#[cfg(not(target_vendor = "apple"))]
 fn run_sha256_cpu(repetitions: usize) -> Result<LifecycleReport, BenchmarkError> {
     let fixture = build_sha256_fixture()?;
     let expected_digest = serial_state_lanes56_semantic_digest(
@@ -228,6 +278,34 @@ fn run_sha256_cpu(repetitions: usize) -> Result<LifecycleReport, BenchmarkError>
         semantic_result_ok,
         proof_parity_ok: true,
     })
+}
+
+#[cfg(target_vendor = "apple")]
+fn timed_sha_cpu(
+    fixture: &Sha256Fixture,
+) -> Result<(neo_fold_clean::UncompressedAudit, [u8; 32], PipelineSample, Duration), BenchmarkError> {
+    let started = Instant::now();
+    let (audit, digest, pipeline) = prove_sha(fixture)?;
+    Ok((audit, digest, pipeline, started.elapsed()))
+}
+
+#[cfg(target_vendor = "apple")]
+fn timed_sha_metal(
+    fixture: &Sha256Fixture,
+    metal: &mut MetalNifsProver,
+) -> Result<
+    (
+        neo_fold_clean::UncompressedAudit,
+        [u8; 32],
+        Vec<neo_prover_metal::MetalNifsProfile>,
+        PipelineSample,
+        Duration,
+    ),
+    BenchmarkError,
+> {
+    let started = Instant::now();
+    let (audit, digest, profiles, pipeline) = prove_sha_metal(fixture, metal)?;
+    Ok((audit, digest, profiles, pipeline, started.elapsed()))
 }
 
 fn build_sha256_fixture() -> Result<Sha256Fixture, BenchmarkError> {

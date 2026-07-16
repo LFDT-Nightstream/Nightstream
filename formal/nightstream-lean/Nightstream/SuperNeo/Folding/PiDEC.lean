@@ -1,13 +1,26 @@
 import Nightstream.SuperNeo.Relations
 
 /-!
-Model-level Π_DEC reduction (SuperNeo Theorem 7).
+Model-level Π_DEC reduction and standard parent-opening binding boundary.
 
-The verifier checks exact base-`b` recomposition of commitments, public inputs,
-and evaluation claims. Completeness splits one `CE(B)` witness into exactly `k`
-fresh `CE(b)` witnesses. Knowledge reduction runs in the reverse direction:
-valid child openings and the public recomposition equations construct an actual
-opening of the parent statement.
+Owns: exact base-`b` recomposition semantics, completeness, knowledge reduction,
+and the model-level collision exposed when a separately valid parent opening
+differs from the opening reconstructed from valid children.
+
+Does not own: computational binding security, concrete Ajtai/MSIS instantiation,
+matrix packing, transcript timing, Rust/R1CS refinement, or row removal.
+
+Emits constraints: no.
+
+Authority boundary: accepted public recomposition plus valid child openings
+constructs a parent opening. Equality with an independently supplied valid
+parent opening holds only outside the explicit standard binding collision.
+
+| Surface | Guarantee | Assumptions | Permits row removal? |
+|---|---|---|---|
+| `complete`, `reduce_knowledge` | Honest split and reverse knowledge reduction | `Algebra` laws and valid CE openings | No |
+| `ParentOpeningBindingCollision` | Two distinct `B`-bounded openings of one parent commitment | Model-level commitment semantics | No |
+| `accepted_parent_eq_recompose_or_bindingCollision` | Parent opening equals child recomposition or exposes that collision | Accepted Π_DEC and valid parent/child CE openings | No — concrete security/refinement open |
 -/
 
 namespace Nightstream.SuperNeo.Folding.PiDEC
@@ -297,5 +310,103 @@ theorem reduce_knowledge
       attempt.parent.point childAssignments).trans
       ((congrArg algebra.recomposeEvaluations evaluationsAgree).trans
         accepted.evaluationEquation.symm)
+
+/--
+A standard `B`-binding collision at the Π_DEC parent commitment.
+
+Both openings and both `B = b^k` norm obligations are retained explicitly so a
+concrete commitment layer can refine this event to its Ajtai/MSIS binding game.
+This model-level event does not itself assert that such collisions are
+computationally hard.
+-/
+structure ParentOpeningBindingCollision
+    {Structure : Type uStructure}
+    {Assignment : Type uAssignment}
+    {PublicInput : Type uPublicInput}
+    {Point : Type uPoint}
+    {Evaluation : Type uEvaluation}
+    {Commitment : Type uCommitment}
+    (semantics : RelationSemantics
+      Structure Assignment PublicInput Point Evaluation Commitment)
+    (params : GlobalParams)
+    (commitment : Commitment) where
+  parentOpening : Assignment
+  recomposedOpening : Assignment
+  parentCommits : semantics.commit parentOpening = commitment
+  recomposedCommits : semantics.commit recomposedOpening = commitment
+  parentNorm : semantics.normBounded params.bigB parentOpening
+  recomposedNorm : semantics.normBounded params.bigB recomposedOpening
+  different : parentOpening ≠ recomposedOpening
+
+/--
+The hard binding gate for treating a checked Π_DEC parent as the exact
+pointwise radix recomposition of its children.
+
+Accepted Π_DEC equations and valid fresh child openings derive both the
+commitment equation and the `B` norm of the recomposed opening. A separately
+valid combined parent derives the other commitment equation and `B` norm. Thus
+the assignments are equal, or those derived facts form a standard parent
+opening collision.
+
+This is deliberately only a model-level dichotomy. A later concrete theorem
+must map the collision to the canonical Ajtai opening shape and MSIS event
+before any production constraint may be removed.
+-/
+theorem accepted_parent_eq_recompose_or_bindingCollision
+    {Structure : Type uStructure}
+    {Assignment : Type uAssignment}
+    {PublicInput : Type uPublicInput}
+    {Point : Type uPoint}
+    {Evaluation : Type uEvaluation}
+    {Commitment : Type uCommitment}
+    (semantics : RelationSemantics
+      Structure Assignment PublicInput Point Evaluation Commitment)
+    (params : GlobalParams)
+    (algebra : Algebra
+      Structure Assignment PublicInput Point Evaluation Commitment semantics params)
+    (attempt : Attempt Structure PublicInput Point Evaluation Commitment params)
+    (parentAssignment : Assignment)
+    (childAssignments : Fin params.k → Assignment)
+    (accepted : Accepted algebra attempt)
+    (parentValid : CE.Holds semantics params attempt.parent parentAssignment)
+    (childrenValid : ∀ i,
+      CE.Holds semantics params (attempt.children i) (childAssignments i)) :
+    parentAssignment = algebra.recomposeAssignment childAssignments ∨
+      Nonempty (ParentOpeningBindingCollision semantics params
+        attempt.parent.commitment) := by
+  have commitmentsAgree :
+      (fun i => semantics.commit (childAssignments i)) =
+        (fun i => (attempt.children i).commitment) := by
+    funext i
+    exact (childrenValid i).1.1
+  have recomposedCommits :
+      semantics.commit (algebra.recomposeAssignment childAssignments) =
+        attempt.parent.commitment := by
+    exact (algebra.commit_hom childAssignments).trans
+      ((congrArg algebra.recomposeCommitment commitmentsAgree).trans
+        accepted.commitmentEquation.symm)
+  have freshNorms : ∀ i,
+      semantics.normBounded params.b (childAssignments i) := by
+    intro i
+    have childNorm := (childrenValid i).1.2.2
+    simpa [accepted.childFresh i] using childNorm
+  have recomposedNorm :
+      semantics.normBounded params.bigB
+        (algebra.recomposeAssignment childAssignments) :=
+    algebra.recompose_norm childAssignments freshNorms
+  have parentNorm : semantics.normBounded params.bigB parentAssignment := by
+    have validNorm := parentValid.1.2.2
+    simpa [accepted.parentCombined] using validNorm
+  by_cases same : parentAssignment = algebra.recomposeAssignment childAssignments
+  · exact Or.inl same
+  · exact Or.inr ⟨{
+      parentOpening := parentAssignment
+      recomposedOpening := algebra.recomposeAssignment childAssignments
+      parentCommits := parentValid.1.1
+      recomposedCommits := recomposedCommits
+      parentNorm := parentNorm
+      recomposedNorm := recomposedNorm
+      different := same
+    }⟩
 
 end Nightstream.SuperNeo.Folding.PiDEC

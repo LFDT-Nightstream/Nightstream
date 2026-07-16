@@ -66,7 +66,7 @@ counterexample_or_witness:
   bad event is proved false and the knowledge branch is therefore mandatory.
 lean_theorems:
   - Nightstream.SuperNeo.Folding.PiCCS.product_complete
-  - Nightstream.SuperNeo.Folding.PiCCS.strong_extract_or_bad_challenge
+  - Nightstream.SuperNeo.Folding.PiCCS.strong_extract_or_bad_event
   - Nightstream.SuperNeo.Folding.PiCCS.repeated_outputs_same_phi
   - Nightstream.SuperNeo.Folding.PiRLC.complete
   - Nightstream.SuperNeo.Folding.PiRLC.same_phi_extractions_unique_or_collision

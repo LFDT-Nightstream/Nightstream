@@ -452,6 +452,21 @@ define_columns!(
         ColumnWidth::Boolean
     ),
     (
+        COL_TURN_DONE_BEFORE,
+        "current turn already halted, before this row (program rows illegal while set)",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_TURN_DONE_AFTER,
+        "current turn already halted, after this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_TURN_BOUNDARY,
+        "multi-turn re-entry row: re-arms the output, loads the next export's entry schedule, jumps to its entry pc",
+        ColumnWidth::Boolean
+    ),
+    (
         COL_PC_FREF_ACTIVE,
         "pc -> function-ref ROM gate: every row except gather rows (post-halt exit gathers sit past the last pc)",
         ColumnWidth::Boolean

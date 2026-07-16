@@ -49,6 +49,7 @@ use super::layout::{
     COL_STACK_READ2_VALUE_HI, COL_STACK_READ2_VALUE_LO, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI,
     COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_TABLE_ID, COL_TABLE_INDEX,
     COL_TABLE_READ_ENABLED, COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST,
+    COL_TURN_BOUNDARY,
 };
 use super::lookup_semantics::{semantics_for_lookup_family, LookupSemantics};
 use super::tables::WasmLookupArity;
@@ -895,16 +896,31 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             Column(COL_FUNCTION_REF),
             WasmMemoryActivation::BooleanGate(Column(selector_col(super::isa::WasmOpcode::Call).unwrap())),
         ),
-        rom_read_spec(
-            "function_entries",
-            vec![Column(COL_FUNCTION_REF)],
-            Column(COL_PC_AFTER),
-            // Gated on guest-call rows only: host imports have no entry pc
-            // (host calls fall through to pc+1, pinned by a CCS row), and a
-            // trapping call_indirect row is terminal and never binds a
-            // callee entry pc.
-            WasmMemoryActivation::BooleanGate(Column(COL_GUEST_CALL_ACTIVE)),
-        ),
+        WasmMemorySpec {
+            name: "function_entries",
+            columns: vec![
+                // Gated on guest-call rows only: host imports have no entry
+                // pc (host calls fall through to pc+1, pinned by a CCS row),
+                // and a trapping call_indirect row is terminal and never
+                // binds a callee entry pc.
+                WasmMemoryColumnSpec {
+                    address_columns: vec![Column(COL_FUNCTION_REF)],
+                    value_column: Column(COL_PC_AFTER),
+                    kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_GUEST_CALL_ACTIVE)),
+                },
+                // Turn boundary: the next turn's pc jump is bound to the
+                // entered export's entry pc, keyed by the repointed
+                // attribution.
+                WasmMemoryColumnSpec {
+                    address_columns: vec![Column(COL_HOST_CALLEE_FREF_AFTER)],
+                    value_column: Column(COL_PC_AFTER),
+                    kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_TURN_BOUNDARY)),
+                },
+            ],
+            is_rom: true,
+        },
         rom_read_spec(
             "pc_edge_kinds",
             vec![Column(COL_PC_BEFORE)],
@@ -982,6 +998,14 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     value_column: Column(COL_GRAMMAR_PRE_COUNT),
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(Column(COL_GRAMMAR_EXIT_LATCH)),
+                },
+                // Turn boundary: loads the entered export's entry-event
+                // count as the next turn's owed schedule.
+                WasmMemoryColumnSpec {
+                    address_columns: vec![Column(COL_HOST_CALLEE_FREF_AFTER)],
+                    value_column: Column(COL_GRAMMAR_PRE_COUNT),
+                    kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_TURN_BOUNDARY)),
                 },
             ],
             is_rom: true,

@@ -1,0 +1,11 @@
+import Nightstream.SuperNeo.Concrete.Necessity.Phi81OutputMismatch
+
+namespace Nightstream.SuperNeo.Concrete.Necessity.Phi81OutputMismatch
+
+#check concreteAssignment_eq_orderedSource
+#check concreteMatrixRow_eq_completedSource
+#check concrete_laneOne_eq_zero
+#check canonicalYRing_laneOne_eq_one
+#check currentConcrete_ne_canonicalPhi81
+
+end Nightstream.SuperNeo.Concrete.Necessity.Phi81OutputMismatch

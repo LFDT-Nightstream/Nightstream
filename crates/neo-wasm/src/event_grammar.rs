@@ -174,6 +174,14 @@ impl ExportTemplate {
     }
 }
 
+/// Entry and exit claim words for one export invocation. Multi-turn traces
+/// supply these in invocation order.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct TurnClaims {
+    pub entry: Vec<u64>,
+    pub exit: Vec<u64>,
+}
+
 /// Per-program grammar: import templates keyed by callee function ref, and
 /// export boundary templates keyed by the exported function's ref.
 ///

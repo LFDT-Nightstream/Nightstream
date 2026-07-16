@@ -250,6 +250,48 @@ fn call_trace_passes_witness_checks() {
 }
 
 #[test]
+fn guest_call_with_loop_only_pops_frame_at_function_end() {
+    let checked = common::checked_wasm_run(
+        r#"(module
+            (func $count_to (param $limit i32) (result i32)
+                (local $counter i32)
+                (loop $again
+                    local.get $counter
+                    i32.const 1
+                    i32.add
+                    local.tee $counter
+                    local.get $limit
+                    i32.lt_u
+                    br_if $again)
+                local.get $counter)
+            (func (export "main") (result i32)
+                i32.const 5
+                call $count_to))"#,
+        "main",
+        &[],
+    );
+
+    assert_eq!(checked.run.results, ["5"]);
+    let nested_ends: Vec<_> = checked
+        .trace
+        .iter()
+        .filter(|row| row.opcode == WasmOpcode::End && row.state_before.call_stack_depth == 1)
+        .collect();
+    assert!(nested_ends.len() >= 2, "expected loop and function end rows");
+    assert!(nested_ends
+        .iter()
+        .any(|row| row.pc_edge_kind == neo_wasm::WasmPcEdgeKind::Static && row.call_stack_pop.is_none()));
+    assert_eq!(
+        nested_ends
+            .iter()
+            .filter(|row| row.pc_edge_kind == neo_wasm::WasmPcEdgeKind::ReturnLike && row.call_stack_pop.is_some())
+            .count(),
+        1,
+        "only the function-ending End may pop the caller frame"
+    );
+}
+
+#[test]
 fn halted_row_requires_empty_call_stack_depth() {
     let wasm = add_one_wasm();
     let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");

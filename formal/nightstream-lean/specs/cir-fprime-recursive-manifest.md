@@ -26,7 +26,8 @@ non_goals:
 rust_surfaces:
   - engine/r1cs_circuit/builder.rs::{record_row_family,row_family_ranges}
   - paper/f_prime/r1cs.rs::enforce_f_prime_recursive_step_circuit
-  - paper/nifs/circuit.rs::enforce_nifs_v_circuit_with_transcript_inner
+  - paper/nifs/circuit/mod.rs::enforce_nifs_v_circuit_with_transcript_inner
+  - paper/nifs/circuit/pi_rlc/** for the complete PiRLC lifecycle
   - tests/gadgets/f_prime_recursive_manifest.rs
 lean_theorems:
   - Nightstream.Implementation.R1CS.FPrimeRecursiveManifest.topLevel_covers_program

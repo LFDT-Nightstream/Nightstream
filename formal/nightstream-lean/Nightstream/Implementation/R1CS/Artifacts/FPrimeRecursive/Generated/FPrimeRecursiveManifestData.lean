@@ -7,65 +7,68 @@ namespace Nightstream.Implementation.R1CS.FPrimeRecursiveManifest
 def schemaVersion : Nat := 2
 def artifactKind : String := "r1cs/f-prime-recursive-program-manifest"
 def profile : String := "plain/stateless/minimal-supported-bit-carrier/steady-recursive"
-def totalRows : Nat := 2640071
-def totalColumns : Nat := 2308212
-def totalNonzeroEntries : Nat := 11918689
-def totalSha256 : String := "ec57b48b6842d0a5553df597cd9d19ba479be1798103da83c75ef815a36d9a4c"
+def totalRows : Nat := 2564298
+def totalColumns : Nat := 2386983
+def nifsRowStart : Nat := 20038
+def nifsRowEnd : Nat := 2298857
+def nifsRowCount : Nat := 2278819
+def totalNonzeroEntries : Nat := 13505159
+def totalSha256 : String := "bfc7ed037002fe51d9f3dada1a5168aa4dbdc083e38d09d704902b4d295608c9"
 
 def topLevelFamilies : List RowRange :=
   [ { name := "fprime.recursive.prelude", rowStart := 0, rowEnd := 6176, nonzeroEntries := 46006, sha256 := "7bf6161b30ec309b7f92bdbc35218917dfe0a3a4bd8f5462835f0b0b6672a4bc" }
   , { name := "fprime.recursive.transcript", rowStart := 6176, rowEnd := 20038, nonzeroEntries := 110540, sha256 := "abc1fd3a86a978c6226ba6e2116560b5f67dd1ecbea7f10c2bbdcc184dbacea5" }
-  , { name := "fprime.recursive.nifs", rowStart := 20038, rowEnd := 2592246, nonzeroEntries := 11473358, sha256 := "da9e5bc4c225d1c5f1698902a1d9684f7d72af461f5c00e63a72bb48d253a6f9" }
-  , { name := "fprime.recursive.prior_link", rowStart := 2592246, rowEnd := 2597478, nonzeroEntries := 37990, sha256 := "365c20e3d08171be75d4998888f0947b6f5a6e60e86c60441e40f6123b5f179c" }
-  , { name := "fprime.recursive.nebula", rowStart := 2597478, rowEnd := 2597478, nonzeroEntries := 0, sha256 := "84a39c68a24131c8c8d551f5b97e172f633bf78f3e4d0d703615fc7032b314c0" }
-  , { name := "fprime.recursive.accumulator", rowStart := 2597478, rowEnd := 2634781, nonzeroEntries := 212532, sha256 := "a03e580c056d5d9ec94cbb40699e4f0723b1129013874917267f480b66d3b785" }
-  , { name := "fprime.recursive.counter", rowStart := 2634781, rowEnd := 2635303, nonzeroEntries := 2136, sha256 := "3c3c4064ad856891723592e6f218585a9a1b7fec4c6b121c93ec49969773b85e" }
-  , { name := "fprime.recursive.output", rowStart := 2635303, rowEnd := 2640071, nonzeroEntries := 36127, sha256 := "f60089a232efdd462814f1147f11f0a21bbc82e2eab287889c2d954bb55ccd7b" }
+  , { name := "fprime.recursive.nifs", rowStart := 20038, rowEnd := 2298857, nonzeroEntries := 11240770, sha256 := "10b5dd1fdfad68d1659f6168068e20ee77b923f33fa2861e39a05ddac9b44cdc" }
+  , { name := "fprime.recursive.prior_link", rowStart := 2298857, rowEnd := 2304089, nonzeroEntries := 37990, sha256 := "3aeb04f2c4af842bca7fe49a741e245cb80bd931763c35011ddde4212c414a4a" }
+  , { name := "fprime.recursive.nebula", rowStart := 2304089, rowEnd := 2304089, nonzeroEntries := 0, sha256 := "84a39c68a24131c8c8d551f5b97e172f633bf78f3e4d0d703615fc7032b314c0" }
+  , { name := "fprime.recursive.accumulator", rowStart := 2304089, rowEnd := 2559008, nonzeroEntries := 2031590, sha256 := "7e42e49cc8729c331f36c9e32340534d182ab12b90c2c37f98fb19cf49ea3868" }
+  , { name := "fprime.recursive.counter", rowStart := 2559008, rowEnd := 2559530, nonzeroEntries := 2136, sha256 := "c44ae58b588c771713bc8fbb0b34bcfb1e95e3c106cd3683968c05b2ade254ca" }
+  , { name := "fprime.recursive.output", rowStart := 2559530, rowEnd := 2564298, nonzeroEntries := 36127, sha256 := "43cb3d739279e306b9b06a76d4161b75a512a38fe14439b049e3e74b97610be4" }
   ]
 
 def nifsFamilies : List RowRange :=
-  [ { name := "nifs.pi_ccs", rowStart := 20038, rowEnd := 745565, nonzeroEntries := 3227802, sha256 := "947d729be0b4dce915ca6e1581cb902219359b36ccaa63b683f75db175120cf8" }
-  , { name := "nifs.pi_rlc", rowStart := 745565, rowEnd := 2581647, nonzeroEntries := 8189756, sha256 := "ac735435770ccbfb376ea78cee686377667148dece4dcd98c103cb69535f4629" }
-  , { name := "nifs.pi_dec", rowStart := 2581647, rowEnd := 2592244, nonzeroEntries := 55794, sha256 := "bdbd233282fa905f90cfac09a3de91ba4346fd6b2a1fd66dff6a5f713aba0b68" }
-  , { name := "nifs.point_binding", rowStart := 2592244, rowEnd := 2592246, nonzeroEntries := 6, sha256 := "17150e4c63a64ecdbd7dee0b5216b79e77b87b8a8c0e4de767e34c841c2ce9ad" }
+  [ { name := "nifs.pi_ccs", rowStart := 20038, rowEnd := 1622035, nonzeroEntries := 8019715, sha256 := "383290d9c11cb94bf936e38648b82b391af736e2040f47923375d2097f7bbfe6" }
+  , { name := "nifs.pi_rlc", rowStart := 1622035, rowEnd := 2288258, nonzeroEntries := 3165255, sha256 := "6bade91554fbde03e8dcfcf095b19476df280e0554073d76be178136aac93b8f" }
+  , { name := "nifs.pi_dec", rowStart := 2288258, rowEnd := 2298855, nonzeroEntries := 55794, sha256 := "5ff1bf5cecb9263f2aeb94f05025d600ab121ec224efd37e7449a0888b112072" }
+  , { name := "nifs.point_binding", rowStart := 2298855, rowEnd := 2298857, nonzeroEntries := 6, sha256 := "0273962be34fee61cd810bdf025da030bd7ea3c11046a47ca3ca52a2c9545f7e" }
   ]
 
-def projectionShared : RowRange := { name := "nifs.pi_rlc.projection_shared", rowStart := 2519063, rowEnd := 2520955, nonzeroEntries := 7520, sha256 := "ede55cf7cb154e026691d56c809fea0d8317cbe10aea3e4a8aabea3d526247fd" }
+def projectionShared : RowRange := { name := "nifs.pi_rlc.projection_shared", rowStart := 2225674, rowEnd := 2227566, nonzeroEntries := 7520, sha256 := "a096377cecafdb3f6b2bbc6cb625b33e9b8a634aea8aea675fee24ab2d210050" }
 def projectionIdentityCount : Nat := 31
 def projectionIdentityRows : Nat := 59396
 def projectionPairCounts : List Nat := [15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15]
 def projectionIdentityRanges : List RowRange :=
-  [ { name := "nifs.pi_rlc.projection_identity", rowStart := 2520955, rowEnd := 2522871, nonzeroEntries := 7647, sha256 := "405c90fba7e36fa1968150812cbcfcea41758faa9e8bb902a58ccabe4c1a4227" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2522871, rowEnd := 2524787, nonzeroEntries := 7647, sha256 := "de3e9194e4bd702775c8a2652a7c8d9c182f3f32a6f391630c68d65f2bb1a447" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2524787, rowEnd := 2526703, nonzeroEntries := 7647, sha256 := "7e60fc789164b78d4b869dbf79e85b01cef0cabe13ed90758d9b74ee574d85ae" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2526703, rowEnd := 2528619, nonzeroEntries := 7647, sha256 := "f773dc532afec0c8dcef8ea5e8c8f2757ae59bf419885f3fe613c780d6c80f02" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2528619, rowEnd := 2530535, nonzeroEntries := 7647, sha256 := "46fc4de6e9eff0cd708916d4c1bf0479115bf451797ab36ccfc660bb97b150c9" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2530535, rowEnd := 2532451, nonzeroEntries := 7647, sha256 := "89fa427b3c888efc9cd054466e4b17bc835d698f4c1c8aea674424f07c7292ac" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2532451, rowEnd := 2534367, nonzeroEntries := 7647, sha256 := "208027b0edc122400a635dd7ffebfd7f6101d7708f01eaa65d714d1e1b4945db" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2534367, rowEnd := 2536283, nonzeroEntries := 7647, sha256 := "9e8846c6eece8f6733133cbb8fce524a885accaf07da86dbe5c1141e4ac47ef1" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2536283, rowEnd := 2538199, nonzeroEntries := 7647, sha256 := "8dae711b6242c4d4f1af02c016e9ba62304ebd1e20acc4c74f4675fa075bb080" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2538199, rowEnd := 2540115, nonzeroEntries := 7647, sha256 := "002527b1818d5bb50e4e1c6bb663c232bc2fa1ab47f9cb851045deb18fc6d60d" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2540115, rowEnd := 2542031, nonzeroEntries := 7647, sha256 := "2103cd675f174b5021cf401d8e5fe8cf00041585c05092d120b89527bc9158e3" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2542031, rowEnd := 2543947, nonzeroEntries := 7647, sha256 := "194690e307f4cf81f28a3a4635102c36cacb35ec596ed7d439adcef296ab34c5" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2543947, rowEnd := 2545863, nonzeroEntries := 7647, sha256 := "f9e24d9e42895bdf5fb1f9a1f1c1877c3f0c292773052182bc0e8cbd7ddfed33" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2545863, rowEnd := 2547779, nonzeroEntries := 7647, sha256 := "4d3a460a2c7c7973e8baa65fabdff3b1e469b4775432f9c66fff4794577f752e" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2547779, rowEnd := 2549695, nonzeroEntries := 7647, sha256 := "e0789e1350675ecffcb7cde59c1b2c896b16d2199c86ed00b355475f1f07fa87" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2549695, rowEnd := 2551611, nonzeroEntries := 7647, sha256 := "7aa1d35598884bb9b6e302a499f8f1c15d2a9d3ff1efe62c9e898e53ec841f29" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2551611, rowEnd := 2553527, nonzeroEntries := 7647, sha256 := "64844c91c27601eff5ef0745dfe1f395af0ee02debe73b5651f0ebf0eafd3772" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2553527, rowEnd := 2555443, nonzeroEntries := 7647, sha256 := "6c30c714525e6e8961267b55775f2b634646e731d62caccb882f23c941b17260" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2555443, rowEnd := 2557359, nonzeroEntries := 7647, sha256 := "152e834e6094377e16209ddb3d8e800a47dc438c0b297613033b3ae2b2ff5fd0" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2557359, rowEnd := 2559275, nonzeroEntries := 7647, sha256 := "dd88292cd4c2f5da9524f6d28d5ae6d69ff8dcc0b837b095a920dceb2d3c18f9" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2559275, rowEnd := 2561191, nonzeroEntries := 7647, sha256 := "01acfb2e19f3d7137be7bdaeba9ddb6e1ecf4886d711cc032a28573905775421" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2561191, rowEnd := 2563107, nonzeroEntries := 7647, sha256 := "96f820e97289ef80a909f3804602a02ea3eb2bc761e572d1993ba91ba748b34a" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2563107, rowEnd := 2565023, nonzeroEntries := 7647, sha256 := "0c893800e04baf568bcfb049420ef95c9db861dd41e4b522f553a7995dcdf748" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2565039, rowEnd := 2566955, nonzeroEntries := 7647, sha256 := "7839d48c1bf9a84c1e7b52fc48aaddd4cc7fcfcc023933da32dda149fef045e8" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2566955, rowEnd := 2568871, nonzeroEntries := 7647, sha256 := "6c0ef10e3e888cfbc71b37017f1cae5eaa03416b396348404864c2e8a620fc4a" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2569191, rowEnd := 2571107, nonzeroEntries := 7647, sha256 := "8dacae55263b96d4c26e0bd3553fb1f84f02f58d0f31930251d2638c565d803a" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2571107, rowEnd := 2573023, nonzeroEntries := 7647, sha256 := "d4e40d482dcf3b033e17a093f22af3ea7063d4e14a1cbb88fb6233b18d724451" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2573343, rowEnd := 2575259, nonzeroEntries := 7647, sha256 := "bab4fbac604f6fb1eae09623ca54e0b11e791a14b9144fa7c42edb2e68c96be6" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2575259, rowEnd := 2577175, nonzeroEntries := 7647, sha256 := "c02e93f49511ec5758b196a6f6af5c06395e3b01b36c35e1c38306e0c9a6f1fb" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2577495, rowEnd := 2579411, nonzeroEntries := 7647, sha256 := "d589562bb1352e9b3c47718315186ac9724ecd4a7ff7916feb0cee9fc0001f65" }
-  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2579411, rowEnd := 2581327, nonzeroEntries := 7647, sha256 := "a0a444fc1d2143b2af264dd12734d4ea7ad7724adc5a1d8fb8697a4f05054d80" }
+  [ { name := "nifs.pi_rlc.projection_identity", rowStart := 2227566, rowEnd := 2229482, nonzeroEntries := 7647, sha256 := "9cfbd23d03e6d1a4a86ecb21ed4fc52ef386867be83bb2ce0708c57848c072b2" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2229482, rowEnd := 2231398, nonzeroEntries := 7647, sha256 := "480c4187cf58ed5bd6fe66502237f3948b0e8b8ec6757c0742582b51bb971a46" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2231398, rowEnd := 2233314, nonzeroEntries := 7647, sha256 := "bfef881060883d29ec79b1b8ff45ab50b8088f99bc02476b8897c0b15a78cfba" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2233314, rowEnd := 2235230, nonzeroEntries := 7647, sha256 := "119b0b2459f814d7537673e41dd074e06b5e91fc7e81f763af753194f4e2eaef" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2235230, rowEnd := 2237146, nonzeroEntries := 7647, sha256 := "0774fa89e39f3dbdb8e3b881489fbcfc572a4c88f5446d9aa7d027c718e8d5c7" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2237146, rowEnd := 2239062, nonzeroEntries := 7647, sha256 := "4981b628cac6c662afde28716862d0f32b815f178c71481c298d97e3e014ceb7" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2239062, rowEnd := 2240978, nonzeroEntries := 7647, sha256 := "888a6ae8fd0186bfcac816711c368f244950f92967104c067688e50f357a1df5" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2240978, rowEnd := 2242894, nonzeroEntries := 7647, sha256 := "c60bbca71b75904c5a085d274681517c551343ae4e6ea464f25fef0788daee35" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2242894, rowEnd := 2244810, nonzeroEntries := 7647, sha256 := "15e2f43b25acccc595157030811095ba50388afedb5d1b509b9b4f4e91266b25" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2244810, rowEnd := 2246726, nonzeroEntries := 7647, sha256 := "02a7030673060b2056432912209bb31c5d1dc96c5c9cfa62a8c5819d5618b067" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2246726, rowEnd := 2248642, nonzeroEntries := 7647, sha256 := "a27d2e721345285ab500eb5f0969d3d01d8043ddc19f6cc85dde9f2c57a17f92" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2248642, rowEnd := 2250558, nonzeroEntries := 7647, sha256 := "30631233a4f71d7c43495b4993028bf4bc93d9872fdc247d44c8bb3a9d395e05" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2250558, rowEnd := 2252474, nonzeroEntries := 7647, sha256 := "5b0445a90aa9a17f169222fb58c6a6335ae1e6977df695be4435bea167cd0ec6" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2252474, rowEnd := 2254390, nonzeroEntries := 7647, sha256 := "02d95714fd226c20877e424cdb38217fe31614364432ec2e5845c23c06d9ff57" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2254390, rowEnd := 2256306, nonzeroEntries := 7647, sha256 := "c045cd1377fbb7e5e8e78016e7662bc6e5e5e2aaf459ebf12d81fd685f472c46" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2256306, rowEnd := 2258222, nonzeroEntries := 7647, sha256 := "a84b37dfc422a948906206f351abd9fdb71dd76860d4113f9235452a7d1f3879" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2258222, rowEnd := 2260138, nonzeroEntries := 7647, sha256 := "ceeddbc4f0b20d7a8bb011f4a187c10c3bb7210331cb029c069270bf91d7c0ab" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2260138, rowEnd := 2262054, nonzeroEntries := 7647, sha256 := "4d5a1a821b81982cdd1b011266d4ab7e9358b5eccac9e55648fcd51a624828d4" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2262054, rowEnd := 2263970, nonzeroEntries := 7647, sha256 := "861bca0f7d5a05fa87b7e31bfd2c839ee945cadd34ff5a7d7c8c199ac1df3a77" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2263970, rowEnd := 2265886, nonzeroEntries := 7647, sha256 := "5e261c3ecbd5d7f86f0ffca1bc905d321cfc01bdb4a1e81d14f50f2d35cfc862" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2265886, rowEnd := 2267802, nonzeroEntries := 7647, sha256 := "cac768b0796218fba1b2af288f5ee57812f35114b385c23b2308bc063282a9c0" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2267802, rowEnd := 2269718, nonzeroEntries := 7647, sha256 := "498926344dda9bfdbd1b25daf97378a7d7b068062c99775c4795fdd902d45dc2" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2269718, rowEnd := 2271634, nonzeroEntries := 7647, sha256 := "cfd6c1a19a5ce5e7fe259453e3c3fd14a6319fad81b029da61379f4079ed2357" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2271650, rowEnd := 2273566, nonzeroEntries := 7647, sha256 := "a425bd6af8babbf43bbbe44df4794ae801bccff08d36c35fd32bd311adc43761" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2273566, rowEnd := 2275482, nonzeroEntries := 7647, sha256 := "430403e964fe12807f8cd0337aebdf5e2c8c6eef1f07c3b86229147eed6c911f" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2275802, rowEnd := 2277718, nonzeroEntries := 7647, sha256 := "884b801e0422790de5ad3382c33fbad7951a68b91839750cf253110cd7579a28" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2277718, rowEnd := 2279634, nonzeroEntries := 7647, sha256 := "797f0f770b40a1b166c8a1a1713e58a685d91ba202d7cd26cea17edda53c129a" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2279954, rowEnd := 2281870, nonzeroEntries := 7647, sha256 := "f9a732aa5a41a9a25bf74786a6d03a2a24123ac00e5b454aaf4b672a86c8712e" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2281870, rowEnd := 2283786, nonzeroEntries := 7647, sha256 := "fc506aeac4f6b9507fcadc0eea8f79e387d309d6db68c85593f1ea3965f12ac7" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2284106, rowEnd := 2286022, nonzeroEntries := 7647, sha256 := "12144df8545bec92e3bfa49238ee78a205f7cfe831aaa38184cf0c24f2de541a" }
+  , { name := "nifs.pi_rlc.projection_identity", rowStart := 2286022, rowEnd := 2287938, nonzeroEntries := 7647, sha256 := "0ff9aedb81d2930bee5da7f02b0b12081c40be3f064b673a9d3e6ce831c10ec3" }
   ]
 
 end Nightstream.Implementation.R1CS.FPrimeRecursiveManifest

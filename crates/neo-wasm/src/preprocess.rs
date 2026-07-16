@@ -30,7 +30,7 @@ use crate::layout::{
     COL_PERM_STATE0_BEFORE, COL_PERM_STATE10_BEFORE, COL_PERM_STATE11_BEFORE, COL_PERM_STATE1_BEFORE,
     COL_PERM_STATE2_BEFORE, COL_PERM_STATE3_BEFORE, COL_PERM_STATE4_BEFORE, COL_PERM_STATE5_BEFORE,
     COL_PERM_STATE6_BEFORE, COL_PERM_STATE7_BEFORE, COL_PERM_STATE8_BEFORE, COL_PERM_STATE9_BEFORE, COL_SP_BEFORE,
-    COL_TRAPPED_BEFORE,
+    COL_TRAPPED_BEFORE, COL_TURN_DONE_BEFORE,
 };
 use crate::lookup_circuit::{extend_relation, LookupCircuitError};
 use crate::relation_layout::build_wasm_relation_layout;
@@ -188,6 +188,7 @@ pub fn top_level_initial_state(tables: &WasmProgramTables, entry_pc: u64) -> Was
         event_absorb: WasmEventAbsorbState::ZERO,
         grammar_mode: false,
         grammar: WasmGrammarState::ZERO,
+        turn_done: false,
     }
 }
 
@@ -302,6 +303,7 @@ fn carried_state_field(state: WasmStepState, column: Column) -> F {
         COL_PERM_STATE10_BEFORE => F::from_u64(state.event_absorb.perm_state[10]),
         COL_PERM_STATE11_BEFORE => F::from_u64(state.event_absorb.perm_state[11]),
         COL_TRAPPED_BEFORE => bool_field(state.trapped),
+        COL_TURN_DONE_BEFORE => bool_field(state.turn_done),
         other => panic!("unsupported initial semantic-state column {other}"),
     }
 }

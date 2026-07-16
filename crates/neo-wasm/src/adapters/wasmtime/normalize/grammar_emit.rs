@@ -198,6 +198,7 @@ pub(super) struct GrammarAuxCtx {
     pub(super) current_function_num_locals: u32,
     pub(super) host_args: WasmCountdownState,
     pub(super) host_result_pending: bool,
+    pub(super) turn_done: bool,
 }
 
 impl GrammarAuxCtx {
@@ -226,6 +227,7 @@ impl GrammarAuxCtx {
             event_absorb,
             grammar_mode: self.grammar_mode,
             grammar,
+            turn_done: self.turn_done,
         }
     }
 

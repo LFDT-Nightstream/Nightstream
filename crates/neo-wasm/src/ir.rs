@@ -181,6 +181,7 @@ pub struct WasmBoundaryState {
     pub event_absorb: WasmEventAbsorbState,
     pub grammar_mode: bool,
     pub grammar: WasmGrammarState,
+    pub turn_done: bool,
 }
 
 /// Carry state for binding the whole execution's claimed output.
@@ -257,6 +258,9 @@ pub struct WasmStepState {
     pub grammar_mode: bool,
     /// Grammar-mode gather machinery state (zero in raw mode).
     pub grammar: WasmGrammarState,
+    /// Whether the current turn has halted. Program rows require `false`; only
+    /// a turn boundary clears it.
+    pub turn_done: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -275,11 +279,12 @@ pub enum WasmAuxOpcode {
     /// [`crate::comm_chain::COMM_CHAIN_PERM_ROWS`]). Scheduled whenever
     /// `WasmEventAbsorbState::perm_pending` is raised.
     HostEventPerm,
-    /// Grammar mode only: stages one expanded event block into the absorb
-    /// buffer and raises `perm_pending` for its perm group. One gather row
-    /// precedes every grammar block; stage C replaces its free buffer with
-    /// ROM-bound slot fills (see `docs/host-event-grammar-tables.md`).
+    /// Grammar mode only: eight rows stage an expanded event block into the
+    /// absorb buffer, then raise `perm_pending` for its permutation group.
     HostEventGather,
+    /// Re-entry between export invocations. Requires the previous turn to be
+    /// halted and drained, then loads the next export's entry PC and schedule.
+    TurnBoundary,
     /// Synthetic state-preserving row used to pad a trace up to a
     /// multiple of `batch_size`. Not a real wasm opcode — the CCS gates
     /// these rows so that `_after == _before` for every state column.
@@ -315,6 +320,10 @@ impl WasmRowKind {
 
     pub fn is_host_event_gather(self) -> bool {
         matches!(self, Self::Aux(WasmAuxOpcode::HostEventGather))
+    }
+
+    pub fn is_turn_boundary(self) -> bool {
+        matches!(self, Self::Aux(WasmAuxOpcode::TurnBoundary))
     }
 
     pub fn is_padding(self) -> bool {
@@ -463,6 +472,7 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     event_absorb: row.state_before.event_absorb,
                     grammar_mode: row.state_before.grammar_mode,
                     grammar: row.state_before.grammar,
+                    turn_done: row.state_before.turn_done,
                 },
                 WasmBoundaryState {
                     pc: row.state_after.pc,
@@ -482,6 +492,7 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     event_absorb: row.state_after.event_absorb,
                     grammar_mode: row.state_after.grammar_mode,
                     grammar: row.state_after.grammar,
+                    turn_done: row.state_after.turn_done,
                 },
             )
         })

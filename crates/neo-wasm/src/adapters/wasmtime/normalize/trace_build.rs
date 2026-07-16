@@ -177,31 +177,90 @@ fn write_lane_hi(
     Ok(Some(write_value_hi))
 }
 
+struct TurnSetup<'g> {
+    fref: u32,
+    template: &'g crate::event_grammar::ExportTemplate,
+    entry_plans: Vec<GrammarBlockPlan>,
+}
+
+/// Resolve a turn's export template and entry rows, checking that bootstrap
+/// writes reproduce Wasmtime's entry-frame locals. Re-entry must write every
+/// local's low lane because locals memory persists across turns.
+fn setup_turn<'g>(
+    grammar_tables: &'g HostEventGrammar,
+    first: &NormalizedStep,
+    claims: &crate::event_grammar::TurnClaims,
+    re_entered: bool,
+) -> Result<TurnSetup<'g>, WasmBuildError> {
+    let fref = first.current_function_ref.unwrap_or(0);
+    // Every invoked export needs a template; an empty one opts out of
+    // boundary events.
+    let template = grammar_tables.exports.get(&fref).ok_or_else(|| {
+        WasmBuildError::Trace(format!(
+            "grammar mode requires an export template for the invoked export (fref {fref})"
+        ))
+    })?;
+    let local_bound = u8::try_from(first.num_locals.min(255)).expect("bounded");
+    template.validate(local_bound)?;
+    let entry_blocks = crate::event_grammar::expand_export_entry(template, &claims.entry)
+        .map_err(|err| WasmBuildError::Trace(format!("export entry expansion: {err}")))?;
+    let entry_plans = plan_export_blocks(&template.entry, &entry_blocks);
+
+    let mut expected_locals = vec![(false, 0u32, 0u32); first.locals_snapshot.len()];
+    for plan in &entry_plans {
+        for row in &plan.rows {
+            if let Some((local, limb, value)) = row.local_write {
+                let lanes = &mut expected_locals[local as usize];
+                if limb == 0 {
+                    *lanes = (true, value, 0);
+                } else {
+                    lanes.2 = value;
+                }
+            }
+        }
+    }
+    for (local, &(lo_written, lo, hi)) in expected_locals.iter().enumerate() {
+        if re_entered && !lo_written {
+            return Err(WasmBuildError::Trace(format!(
+                "re-entered turn must bootstrap-write every local: local {local} has no lo-lane write \
+                 (the locals RAM still holds the previous turn's values)"
+            )));
+        }
+        let ran_lo = first.locals_snapshot[local];
+        let ran_hi = first.locals_snapshot_hi.get(local).copied().unwrap_or(0);
+        if (lo, hi) != (ran_lo, ran_hi) {
+            return Err(WasmBuildError::Trace(format!(
+                "entry bootstrap does not reproduce the entry frame's locals: local {local} \
+                 is ({lo}, {hi}) after the bootstrap writes but wasmtime ran with ({ran_lo}, {ran_hi})"
+            )));
+        }
+    }
+    Ok(TurnSetup {
+        fref,
+        template,
+        entry_plans,
+    })
+}
+
 pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<WasmVmStep>, WasmBuildError> {
     traces_from_wasmtime_steps_impl(rows, None)
 }
 
-/// Grammar-mode normalization: the chain absorbs embedder grammar events
-/// expanded from `grammar`'s per-import templates instead of raw host-call
-/// records. Per-call claim words ride the rows themselves — host functions
-/// record them at call time via `WasmtimeTraceState::record_call_claims`
-/// (see `event_grammar::SlotSource::Oracle`); every host import reached by
-/// the trace must have a template. `entry_claims` are the claim-input words
-/// the export template's `Input`/`InputLocal` slots consume (bound by the
-/// final-chain transcript check; the `InputLocal` words bootstrap the entry
-/// frame's zero-initialized locals).
+/// Normalize a trace using the configured event grammar. Every reached host
+/// import and invoked export needs a template. `turns` supplies export claim
+/// words in invocation order; `ClaimLocal` words also initialize entry-frame
+/// locals. The final-chain transcript binds all claim words.
 pub fn traces_from_wasmtime_steps_with_grammar(
     rows: &[WasmtimeTraceStep],
     grammar: &HostEventGrammar,
-    entry_claims: &[u64],
-    exit_claims: &[u64],
+    turns: &[crate::event_grammar::TurnClaims],
 ) -> Result<Vec<WasmVmStep>, WasmBuildError> {
-    traces_from_wasmtime_steps_impl(rows, Some((grammar, entry_claims, exit_claims)))
+    traces_from_wasmtime_steps_impl(rows, Some((grammar, turns)))
 }
 
 fn traces_from_wasmtime_steps_impl(
     rows: &[WasmtimeTraceStep],
-    grammar: Option<(&HostEventGrammar, &[u64], &[u64])>,
+    grammar: Option<(&HostEventGrammar, &[crate::event_grammar::TurnClaims])>,
 ) -> Result<Vec<WasmVmStep>, WasmBuildError> {
     let grammar_mode = grammar.is_some();
     let mut supported = Vec::new();
@@ -236,75 +295,28 @@ fn traces_from_wasmtime_steps_impl(
     // Grammar gather machinery state (schedule, args base, cursor);
     // all zero in raw mode.
     let mut grammar_state = crate::ir::WasmGrammarState::ZERO;
-    // Export boundary (single-turn V1): the export's template, its entry
-    // plans (claim inputs bootstrap both lanes of the entry-frame locals),
-    // and the initial-state latch mirrored by the verifier's
+    // The verifier mirrors the first turn's entry schedule in
     // `grammar_top_level_initial_state`.
-    // Input bootstrap: the entry frame's locals start all-zero in the RAM
-    // model; the entry gather rows write the claim-input words into them.
-    // The absorbed words are bound by the final-chain transcript check
-    // (the verifier folds the claimed transcript natively and compares it
-    // with the proof's final carried comm_chain), so nothing per-invocation
-    // is anchored in the initial state.
-    let export_boundary = if let (Some((grammar_tables, entry_claims, _)), Some(first)) = (grammar, supported.first()) {
-        let export_fref = first.current_function_ref.unwrap_or(0);
-        match grammar_tables.exports.get(&export_fref) {
-            Some(template) => {
-                let local_bound = u8::try_from(first.num_locals.min(255)).expect("bounded");
-                template.validate(local_bound)?;
-                let entry_blocks = crate::event_grammar::expand_export_entry(template, entry_claims)
-                    .map_err(|err| WasmBuildError::Trace(format!("export entry expansion: {err}")))?;
-                let entry_plans = plan_export_blocks(&template.entry, &entry_blocks);
-                // The bootstrap writes must reproduce exactly the locals
-                // wasmtime ran with: written lanes get their claim word (a
-                // lo write zeroes the hi lane), everything else stays
-                // zero-initialized.
-                let mut expected_locals = vec![(0u32, 0u32); first.locals_snapshot.len()];
-                for plan in &entry_plans {
-                    for row in &plan.rows {
-                        if let Some((local, limb, value)) = row.local_write {
-                            let lanes = &mut expected_locals[local as usize];
-                            if limb == 0 {
-                                *lanes = (value, 0);
-                            } else {
-                                lanes.1 = value;
-                            }
-                        }
-                    }
-                }
-                for (local, &(lo, hi)) in expected_locals.iter().enumerate() {
-                    let ran_lo = first.locals_snapshot[local];
-                    let ran_hi = first.locals_snapshot_hi.get(local).copied().unwrap_or(0);
-                    if (lo, hi) != (ran_lo, ran_hi) {
-                        return Err(WasmBuildError::Trace(format!(
-                            "entry bootstrap does not reproduce the entry frame's locals: local {local} \
-                             is ({lo}, {hi}) after the bootstrap writes but wasmtime ran with ({ran_lo}, {ran_hi})"
-                        )));
-                    }
-                }
-                grammar_state = crate::ir::WasmGrammarState {
-                    events_remaining: entry_plans.len() as u32,
-                    event_index: 0,
-                    args_base: 0,
-                    slot_cursor: 0,
-                };
-                host_callee_fref = export_fref;
-                Some((export_fref, template, entry_plans))
-            }
-            // The exit latch fires on every grammar capture row, so
-            // the invoked export must have a boundary template — use an
-            // empty `ExportTemplate::default()` for exports with no
-            // boundary events.
-            None => {
-                return Err(WasmBuildError::Trace(format!(
-                    "grammar mode requires an export template for the invoked export (fref {export_fref})"
-                )))
-            }
-        }
+    let mut turn_index = 0usize;
+    let mut export_boundary = if let (Some((grammar_tables, turns)), Some(first)) = (grammar, supported.first()) {
+        let claims = turns.first().ok_or_else(|| {
+            WasmBuildError::Trace("grammar mode requires claim words for at least the first turn".to_string())
+        })?;
+        let setup = setup_turn(grammar_tables, first, claims, false)?;
+        grammar_state = crate::ir::WasmGrammarState {
+            events_remaining: setup.entry_plans.len() as u32,
+            event_index: 0,
+            args_base: 0,
+            slot_cursor: 0,
+        };
+        host_callee_fref = setup.fref;
+        Some(setup)
     } else {
         None
     };
     let mut entry_emitted = false;
+    // Carried halt latch; a turn boundary clears it for re-entry.
+    let mut turn_done = false;
     let mut output_enabled = false;
     let mut output_value_lo = 0;
     let mut output_value_hi = 0;
@@ -312,13 +324,22 @@ fn traces_from_wasmtime_steps_impl(
     for (idx, current) in supported.iter().enumerate() {
         let next = supported.get(idx + 1);
         let pc_before = u64::from(current.pc);
-        // Terminal traps have no next row; static-edge traps still bind the PC
-        // ROM to the PC after the faulting instruction.
-        let pc_after = next.map(|row| u64::from(row.pc)).unwrap_or_else(|| {
+        // A return-like edge with no caller ends the current export invocation.
+        let turn_terminal = current.pc_edge_kind == WasmPcEdgeKind::ReturnLike && call_stack.is_empty();
+        let halted = next.is_none() || turn_terminal;
+        // Halting rows keep their one-past pc (terminal traps have no next
+        // row; a turn boundary bridges to the next turn's entry pc).
+        let pc_after = if halted {
             current
                 .pc_after_instruction
                 .unwrap_or_else(|| pc_before.saturating_add(1))
-        });
+        } else {
+            next.map(|row| u64::from(row.pc)).unwrap_or_else(|| {
+                current
+                    .pc_after_instruction
+                    .unwrap_or_else(|| pc_before.saturating_add(1))
+            })
+        };
         let stack_reads = current
             .stack_reads_override
             .unwrap_or(current.info.stack_reads);
@@ -333,14 +354,19 @@ fn traces_from_wasmtime_steps_impl(
         // from this row's own arity instead of the next Wasmtime frame.
         let is_call_row = matches!(current.opcode, WasmOpcode::Call | WasmOpcode::CallIndirect);
         // A non-final return continues in the caller frame, whose base is on
-        // the call stack (popped in the opcode match below).
-        let is_return_row = matches!(current.opcode, WasmOpcode::Return | WasmOpcode::End) && !call_stack.is_empty();
+        // the call stack (popped in the opcode match below). Only a function-
+        // ending `end` is return-like; structured block/loop `end` rows stay
+        // in the current frame.
+        let is_return_row = matches!(current.opcode, WasmOpcode::Return | WasmOpcode::End)
+            && current.pc_edge_kind == WasmPcEdgeKind::ReturnLike
+            && !call_stack.is_empty();
         let next_row_base = if is_return_row {
             call_stack.last().map(|&(_, _, base)| base).unwrap_or(0)
         } else {
             stack_base
         };
-        let sp_after = if is_call_row {
+        let sp_after = if is_call_row || halted {
+            // A later turn has a fresh stack, so terminal rows use their own arity.
             expected_sp_after
         } else {
             next.map(|row| next_row_base + row.operand_stack.len() as u64)
@@ -386,8 +412,6 @@ fn traces_from_wasmtime_steps_impl(
             let write_value_hi = write_lane_hi(current, next, stack_writes)?;
             write_lane(current, next, sp_after, stack_writes)?.map(|write| write.with_optional_hi(write_value_hi))
         };
-        // Only the very last step of the whole trace is halted.
-        let halted = next.is_none();
         let ci_trap = matches!(current.opcode, WasmOpcode::CallIndirect)
             && (call_indirect_oob(current.table_index, current.table_size)
                 || call_indirect_traps(current.table_value, current.expected_type_id, current.function_type_id));
@@ -418,6 +442,8 @@ fn traces_from_wasmtime_steps_impl(
         let output_enabled_after = output_enabled;
         let output_value_lo_after = output_value_lo;
         let output_value_hi_after = output_value_hi;
+        // Model the host consuming a captured result.
+        let sp_after = sp_after - u64::from(output_captured);
 
         // local_read_value: the local's value before this step (local.get: pushed onto stack).
         // local_write_value: the value being stored into the local (local.set / local.tee:
@@ -506,7 +532,7 @@ fn traces_from_wasmtime_steps_impl(
                         })?;
                 }
             }
-            WasmOpcode::Return | WasmOpcode::End if !call_stack.is_empty() => {
+            WasmOpcode::Return | WasmOpcode::End if is_return_row => {
                 // Non-final return: restore the caller's FBP and operand-stack
                 // base from the call stack.
                 let (ret_pc, caller_fbp, caller_base) = call_stack.pop().unwrap();
@@ -547,12 +573,10 @@ fn traces_from_wasmtime_steps_impl(
         // Host calls enter host-arg mode and may owe a result push; the aux
         // rows emitted below walk both back to zero before the next program
         // row.
-        // Export boundary: the entry template's blocks absorb before the
-        // export's first instruction (their rows precede the first program
-        // row; the initial-state latch was mirrored pre-loop).
+        // Emit entry events before the turn's first program row.
         if !entry_emitted {
             entry_emitted = true;
-            if let Some((_, _, entry_plans)) = &export_boundary {
+            if let Some(setup) = &export_boundary {
                 let ctx = GrammarAuxCtx {
                     pc: pc_before,
                     sp: sp_before,
@@ -571,8 +595,9 @@ fn traces_from_wasmtime_steps_impl(
                     current_function_num_locals: current.num_locals,
                     host_args: WasmCountdownState::ZERO,
                     host_result_pending: false,
+                    turn_done,
                 };
-                for plan in entry_plans {
+                for plan in &setup.entry_plans {
                     emit_block_plan(
                         &mut out,
                         &ctx,
@@ -676,7 +701,7 @@ fn traces_from_wasmtime_steps_impl(
             } else {
                 None
             };
-            if let Some((grammar, _, _)) = grammar {
+            if let Some((grammar, _)) = grammar {
                 let template = grammar.imports.get(&host_callee_fref).ok_or_else(|| {
                     WasmBuildError::Trace(format!(
                         "no grammar template for host import fref {host_callee_fref} at cycle {}",
@@ -755,29 +780,27 @@ fn traces_from_wasmtime_steps_impl(
                 slot_cursor: 0,
             };
         }
-        // Grammar export exit latch: the output-capture row loads the exit
-        // schedule (event numbering continues after the entry events),
-        // repoints the event attribution at the halting export, and reloads
-        // the event attribution for the exit phase.
+        // Capturing output loads the export's exit schedule and attribution.
         let mut exit_plans: Option<Vec<GrammarBlockPlan>> = None;
         let mut exit_counts: Option<(u32, u32)> = None;
         if output_captured {
-            if let (Some((export_fref, template, _)), Some((_, _, exit_claims))) = (&export_boundary, grammar) {
+            if let (Some(setup), Some((_, turns))) = (&export_boundary, grammar) {
+                let exit_claims = turns[turn_index].exit.as_slice();
                 let exit_blocks = crate::event_grammar::expand_export_exit(
-                    template,
+                    setup.template,
                     Some((output_value_lo_after, output_value_hi_after)),
                     exit_claims,
                 )
                 .map_err(|err| WasmBuildError::Trace(format!("export exit expansion: {err}")))?;
-                let plans = plan_export_blocks(&template.exit, &exit_blocks);
-                host_callee_fref = *export_fref;
+                let plans = plan_export_blocks(&setup.template.exit, &exit_blocks);
+                host_callee_fref = setup.fref;
                 grammar_state = crate::ir::WasmGrammarState {
                     events_remaining: plans.len() as u32,
-                    event_index: template.entry.len() as u32,
+                    event_index: setup.template.entry.len() as u32,
                     args_base: grammar_state.args_base,
                     slot_cursor: 0,
                 };
-                exit_counts = Some((template.entry.len() as u32, template.exit.len() as u32));
+                exit_counts = Some((setup.template.entry.len() as u32, setup.template.exit.len() as u32));
                 exit_plans = Some(plans);
             }
         }
@@ -813,6 +836,7 @@ fn traces_from_wasmtime_steps_impl(
                 event_absorb: event_absorb_before_row,
                 grammar_mode,
                 grammar: grammar_state_before_row,
+                turn_done,
             },
             state_after: WasmStepState {
                 pc: pc_after,
@@ -838,6 +862,7 @@ fn traces_from_wasmtime_steps_impl(
                 event_absorb,
                 grammar_mode,
                 grammar: grammar_state,
+                turn_done: turn_done || halted,
             },
             control_choice: current.control_choice,
             pc_edge_kind: current.pc_edge_kind,
@@ -904,6 +929,7 @@ fn traces_from_wasmtime_steps_impl(
                 .or(exit_counts.map(|(pre, _)| pre)),
             grammar_post_count: exit_counts.map(|(_, post)| post),
         });
+        turn_done = turn_done || halted;
         param_init_state = param_init_after;
         if matches!(current.opcode, WasmOpcode::Call | WasmOpcode::CallIndirect) && !callee_initial_params.is_empty() {
             let param_count = callee_initial_params.len();
@@ -993,6 +1019,7 @@ fn traces_from_wasmtime_steps_impl(
                         event_absorb,
                         grammar_mode,
                         grammar: grammar_state,
+                        turn_done,
                     },
                     state_after: WasmStepState {
                         pc: pc_after,
@@ -1016,6 +1043,7 @@ fn traces_from_wasmtime_steps_impl(
                         event_absorb,
                         grammar_mode,
                         grammar: grammar_state,
+                        turn_done,
                     },
                     control_choice: 0,
                     pc_edge_kind: WasmPcEdgeKind::Static,
@@ -1098,6 +1126,7 @@ fn traces_from_wasmtime_steps_impl(
                     event_absorb,
                     grammar_mode,
                     grammar,
+                    turn_done,
                 };
             let host_aux_row = |cycle: u64,
                                 aux_opcode: WasmAuxOpcode,
@@ -1171,6 +1200,7 @@ fn traces_from_wasmtime_steps_impl(
                 current_function_num_locals: current.num_locals,
                 host_args,
                 host_result_pending,
+                turn_done,
             };
             let push_perm_group = |out: &mut Vec<WasmVmStep>,
                                    comm_chain: &mut [u64; 4],
@@ -1457,6 +1487,7 @@ fn traces_from_wasmtime_steps_impl(
                 current_function_num_locals: current.num_locals,
                 host_args: WasmCountdownState::ZERO,
                 host_result_pending: false,
+                turn_done,
             };
             for plan in &plans {
                 emit_block_plan(
@@ -1469,6 +1500,122 @@ fn traces_from_wasmtime_steps_impl(
                 );
             }
         }
+
+        // Without captured output, the exit latch cannot schedule exit events.
+        if halted && !trapped && !output_captured {
+            if let Some(setup) = &export_boundary {
+                if !setup.template.exit.is_empty() {
+                    return Err(WasmBuildError::Trace(format!(
+                        "resultless turn (fref {}) declares {} exit event(s) but nothing was captured to \
+                         fire the exit latch; resultless exports need an empty exit template",
+                        setup.fref,
+                        setup.template.exit.len()
+                    )));
+                }
+            }
+        }
+
+        // Bridge to the next export and load its entry attribution and schedule.
+        if halted && next.is_some() {
+            let next_row = next.expect("checked");
+            let Some((grammar_tables, turns)) = grammar else {
+                return Err(WasmBuildError::Trace(format!(
+                    "trace re-enters an export at cycle {} but multi-turn requires grammar mode",
+                    next_row.cycle
+                )));
+            };
+            turn_index += 1;
+            let claims = turns.get(turn_index).ok_or_else(|| {
+                WasmBuildError::Trace(format!(
+                    "trace re-enters turn {} but only {} turn claim sets were supplied",
+                    turn_index + 1,
+                    turns.len()
+                ))
+            })?;
+            let setup = setup_turn(grammar_tables, next_row, claims, true)?;
+            let entry_count = setup.entry_plans.len() as u32;
+            let boundary_state = |pc: u64,
+                                  sp: u64,
+                                  output: WasmOutputState,
+                                  fref: u32,
+                                  gstate: crate::ir::WasmGrammarState,
+                                  done: bool| {
+                WasmStepState {
+                    pc,
+                    sp,
+                    output,
+                    call_stack_depth: 0,
+                    memory_pages: current.memory_pages_after,
+                    max_memory_pages: current.max_memory_pages,
+                    locals_fbp: fbp,
+                    halted: false,
+                    trapped: false,
+                    param_init: WasmCountdownState::ZERO,
+                    host_args: WasmCountdownState::ZERO,
+                    host_result_pending: false,
+                    host_callee_fref: fref,
+                    comm_chain,
+                    event_absorb,
+                    grammar_mode,
+                    grammar: gstate,
+                    turn_done: done,
+                }
+            };
+            let state_before = boundary_state(
+                pc_after,
+                sp_after,
+                WasmOutputState {
+                    enabled: output_enabled_after,
+                    value_lo: output_value_lo_after,
+                    value_hi: output_value_hi_after,
+                },
+                host_callee_fref,
+                grammar_state,
+                true,
+            );
+            host_callee_fref = setup.fref;
+            grammar_state = crate::ir::WasmGrammarState {
+                events_remaining: entry_count,
+                event_index: 0,
+                args_base: grammar_state.args_base,
+                slot_cursor: 0,
+            };
+            let state_after = boundary_state(
+                u64::from(next_row.pc),
+                0,
+                WasmOutputState::ZERO,
+                host_callee_fref,
+                grammar_state,
+                false,
+            );
+            let helper_ctx = GrammarAuxCtx {
+                pc: pc_after,
+                sp: sp_after,
+                output: WasmOutputState::ZERO,
+                call_stack_depth: 0,
+                memory_pages: current.memory_pages_after,
+                max_memory_pages: current.max_memory_pages,
+                locals_fbp: fbp,
+                host_callee_fref,
+                grammar_mode,
+                current_function_ref: current.current_function_ref.unwrap_or(0),
+                current_function_num_locals: current.num_locals,
+                host_args: WasmCountdownState::ZERO,
+                host_result_pending: false,
+                turn_done: true,
+            };
+            out.push(WasmVmStep {
+                grammar_pre_count: Some(entry_count),
+                ..helper_ctx.row(out.len() as u64, WasmAuxOpcode::TurnBoundary, state_before, state_after)
+            });
+            turn_done = false;
+            output_enabled = false;
+            output_value_lo = 0;
+            output_value_hi = 0;
+            stack_base = 0;
+            export_boundary = Some(setup);
+            entry_emitted = false;
+        }
     }
 
     if out.is_empty() {
@@ -1476,5 +1623,15 @@ fn traces_from_wasmtime_steps_impl(
             "wasmtime trace did not contain any currently supported wasm rows".to_string(),
         ));
     }
+    if let Some((_, turns)) = grammar {
+        if turn_index + 1 != turns.len() {
+            return Err(WasmBuildError::Trace(format!(
+                "trace ran {} turn(s) but {} turn claim sets were supplied",
+                turn_index + 1,
+                turns.len()
+            )));
+        }
+    }
+
     Ok(out)
 }

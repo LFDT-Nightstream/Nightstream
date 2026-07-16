@@ -44,7 +44,7 @@ use super::super::layout::{
     COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE, COL_PERM_ROUND_BEFORE_INV,
     COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE0_AFTER, COL_PERM_STATE0_BEFORE, COL_RAW_ARGS_ACTIVE,
     COL_RAW_HOST_CALL, COL_RAW_RESULT_ACTIVE, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_STACK_READS,
-    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, NAMED_COLUMN_COUNT,
+    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TURN_BOUNDARY, NAMED_COLUMN_COUNT,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::always;
@@ -192,16 +192,21 @@ fn push_grammar_mode_constraints(b: &mut R1csBuilder) {
 
         // Gather rows exist only in grammar mode.
         b.push_row([(COL_GATHER_ACTIVE, F::ONE)], not_mode, []);
-        // pc -> function-ref ROM gate: active everywhere except gather and
-        // perm rows (post-halt exit groups sit past the last pc, and no
-        // constraint consumes the frame identity on either kind):
-        // pc_fref_active = round_is_zero - gather - pending.
+        // Disable the pc-to-function lookup on gather, permutation, and turn
+        // boundary rows, which do not execute a program instruction.
         b.push_linear_zero([
             (super::super::layout::COL_PC_FREF_ACTIVE, F::ONE),
             (COL_PERM_ROUND_BEFORE_IS_ZERO, -F::ONE),
             (COL_GATHER_ACTIVE, F::ONE),
             (COL_PERM_PENDING_BEFORE, F::ONE),
+            (COL_TURN_BOUNDARY, F::ONE),
         ]);
+        // Turn boundaries only exist in grammar mode.
+        b.push_row(
+            [(COL_TURN_BOUNDARY, F::ONE)],
+            [(COL_ONE, F::ONE), (COL_GRAMMAR_MODE_BEFORE, -F::ONE)],
+            [],
+        );
         // Only a block's LAST slot row (word 7) raises the pending flag for
         // its perm group; earlier slot rows leave it low.
         b.push_row(
@@ -252,7 +257,7 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
         COL_GRAMMAR_SLOT_CURSOR_AFTER as S_A, COL_GRAMMAR_SLOT_CURSOR_BEFORE as S_B,
         COL_GRAMMAR_SLOT_KIND as SLOT_KIND, COL_GRAMMAR_SLOT_LIMB as SLOT_LIMB, COL_IS_PROGRAM_ROW, COL_LOCAL_INDEX,
         COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_OUTPUT_CAPTURED, COL_OUTPUT_VALUE_HI_BEFORE,
-        COL_OUTPUT_VALUE_LO_BEFORE, COL_SP_BEFORE, COL_STACK_READ0_ADDR_LO,
+        COL_OUTPUT_VALUE_LO_BEFORE, COL_SP_BEFORE, COL_STACK_READ0_ADDR_LO, COL_TURN_BOUNDARY,
     };
     let ci_sel = super::super::layout::selector_col(crate::isa::WasmOpcode::CallIndirect).expect("ci selector");
 
@@ -294,8 +299,18 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
                 (GRES, -F::ONE),
                 (GW0 + 7, -F::ONE),
                 (COL_GRAMMAR_EXIT_LATCH, -F::ONE),
+                (COL_TURN_BOUNDARY, -F::ONE),
             ],
             [(EVREM_A, F::ONE), (EVREM_B, -F::ONE)],
+            [],
+        );
+        // Turn boundary: the previous turn's schedules must be spent, and
+        // the next export's entry schedule loads from the count ROM (keyed
+        // by the repointed attribution, like the exit latch).
+        b.push_row([(COL_TURN_BOUNDARY, F::ONE)], [(EVREM_B, F::ONE)], []);
+        b.push_row(
+            [(COL_TURN_BOUNDARY, F::ONE)],
+            [(EVREM_A, F::ONE), (PRE_COUNT, -F::ONE)],
             [],
         );
 
@@ -312,10 +327,13 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
                 (GHC, -F::ONE),
                 (GW0 + 7, -F::ONE),
                 (COL_GRAMMAR_EXIT_LATCH, -F::ONE),
+                (COL_TURN_BOUNDARY, -F::ONE),
             ],
             [(EVIDX_A, F::ONE), (EVIDX_B, -F::ONE)],
             [],
         );
+        // Turn boundary: entry events of the next turn are numbered from 0.
+        b.push_row([(COL_TURN_BOUNDARY, F::ONE)], [(EVIDX_A, F::ONE)], []);
 
         // Argument-region base: latched on the grammar call row from bound
         // quantities (sp, the indirect-index pop, the ROM-bound arity).

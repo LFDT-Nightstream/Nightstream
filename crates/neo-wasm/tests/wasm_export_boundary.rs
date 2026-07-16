@@ -99,9 +99,11 @@ fn boundary_trace() -> (Vec<WasmVmStep>, HostEventGrammar) {
     let mut grammar = HostEventGrammar::default();
     grammar.exports.insert(fref, export_template());
 
-    let entry_claims = [500u64, 501, 7, 35];
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &entry_claims, &[])
-        .expect("grammar trace");
+    let turns = [neo_wasm::event_grammar::TurnClaims {
+        entry: vec![500, 501, 7, 35],
+        exit: vec![],
+    }];
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &turns).expect("grammar trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
 
@@ -287,9 +289,11 @@ fn i64_param_bootstraps_both_lanes() {
         },
     );
 
-    let entry_claims = [7u64, 3];
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &entry_claims, &[])
-        .expect("grammar trace");
+    let turns = [neo_wasm::event_grammar::TurnClaims {
+        entry: vec![7, 3],
+        exit: vec![],
+    }];
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &turns).expect("grammar trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
 

@@ -990,6 +990,7 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     wit[COL_GATHER_ACTIVE] = bool_f(trace.row_kind.is_host_event_gather());
     wit[crate::layout::COL_PC_FREF_ACTIVE] = bool_f(
         !trace.row_kind.is_host_event_gather()
+            && !trace.row_kind.is_turn_boundary()
             && trace.state_before.event_absorb.perm_round == 0
             && !trace.state_before.event_absorb.perm_pending,
     );
@@ -1017,6 +1018,9 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
         F::ZERO
     };
     wit[COL_GRAMMAR_EXIT_LATCH] = wit[COL_OUTPUT_CAPTURED] * mode;
+    wit[crate::layout::COL_TURN_BOUNDARY] = bool_f(trace.row_kind.is_turn_boundary());
+    wit[crate::layout::COL_TURN_DONE_BEFORE] = bool_f(trace.state_before.turn_done);
+    wit[crate::layout::COL_TURN_DONE_AFTER] = bool_f(trace.state_after.turn_done);
 
     // Grammar gather machinery: carried schedule/cursor/oracle state plus
     // the per-row grammar-ROM interface columns.

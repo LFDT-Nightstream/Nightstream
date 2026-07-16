@@ -271,6 +271,7 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
     let event_absorb = prev.state_after.event_absorb;
     let grammar_mode = prev.state_after.grammar_mode;
     let grammar = prev.state_after.grammar;
+    let turn_done = prev.state_after.turn_done;
     debug_assert!(
         !host_args.active && !host_result_pending,
         "padding inside a host-call aux sequence is unsupported"
@@ -300,6 +301,7 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
             event_absorb,
             grammar_mode,
             grammar,
+            turn_done,
         },
         state_after: WasmStepState {
             pc,
@@ -319,6 +321,7 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
             event_absorb,
             grammar_mode,
             grammar,
+            turn_done,
         },
         control_choice: 0,
         pc_edge_kind: WasmPcEdgeKind::Static,

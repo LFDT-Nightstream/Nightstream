@@ -64,7 +64,7 @@ theorem permute_congr {left right : Nat → Nat}
 
 theorem outputs_known :
     ∀ column ∈ outputColumns, column ∈ knownAfter inputColumns definitions := by
-  native_decide
+  decide
 
 theorem interpret_output_eq_permuteState (state : Nat → Nat) :
     ∀ column ∈ outputColumns,

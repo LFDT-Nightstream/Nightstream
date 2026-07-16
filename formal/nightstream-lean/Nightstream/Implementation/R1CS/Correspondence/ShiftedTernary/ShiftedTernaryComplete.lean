@@ -64,13 +64,13 @@ theorem lowValue_nativeTrit (assignment : Nat → Nat) : ∀ count,
 
 private theorem target_lt_radix :
     goldilocksP < 3 ^ digitCount := by
-  native_decide
+  decide
 
 theorem lowValue_nativeTrit_full (assignment : Nat → Nat) :
     lowValue (nativeTrit assignment) digitCount = targetValue assignment := by
   rw [lowValue_nativeTrit]
   apply Nat.mod_eq_of_lt
-  exact Nat.lt_trans (Nat.mod_lt _ (by native_decide)) target_lt_radix
+  exact Nat.lt_trans (Nat.mod_lt _ (by decide)) target_lt_radix
 
 theorem nativeDigit_semantic (assignment : Nat → Nat)
     {index : Nat} (_indexLt : index < digitCount) :

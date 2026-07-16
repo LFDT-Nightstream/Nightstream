@@ -43,7 +43,7 @@ use super::super::layout::{
     COL_PC_ROM_CALL_RETURN_CHOICE, COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_BEFORE_IS_ZERO,
     COL_SP_BEFORE, COL_STACK_READ0_ADDR_LO, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_STACK_READS,
     COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITES, COL_TABLE_INDEX, COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST,
-    PC_ROM_CALL_RETURN_CHOICE,
+    COL_TURN_BOUNDARY, COL_TURN_DONE_AFTER, COL_TURN_DONE_BEFORE, PC_ROM_CALL_RETURN_CHOICE,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::always;
@@ -72,6 +72,7 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder) {
             (COL_HOST_RESULT_ACTIVE, F::ONE),
             (COL_PADDING_ACTIVE, F::ONE),
             (COL_GATHER_ACTIVE, F::ONE),
+            (COL_TURN_BOUNDARY, F::ONE),
             (COL_PERM_PENDING_BEFORE, F::ONE),
             (COL_PERM_ROUND_BEFORE_IS_ZERO, -F::ONE),
         ]);
@@ -188,7 +189,11 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder) {
             [],
         );
         b.push_row(
-            [(COL_PADDING_ACTIVE, F::ONE), (COL_HOST_RESULT_ACTIVE, F::ONE)],
+            [
+                (COL_PADDING_ACTIVE, F::ONE),
+                (COL_HOST_RESULT_ACTIVE, F::ONE),
+                (COL_TURN_BOUNDARY, F::ONE),
+            ],
             [(COL_STACK_READS, F::ONE)],
             [],
         );
@@ -205,6 +210,7 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder) {
                 (COL_PARAM_INIT_ACTIVE_BEFORE, F::ONE),
                 (COL_HOST_ARGS_ACTIVE_BEFORE, F::ONE),
                 (COL_PADDING_ACTIVE, F::ONE),
+                (COL_TURN_BOUNDARY, F::ONE),
             ],
             [(COL_STACK_WRITES, F::ONE)],
             [],
@@ -266,6 +272,39 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder) {
         push_host_call_state_preservation_constraints(b);
     });
 
+    b.with_tag(always("halt terminality"), |b| {
+        // Latch a halt until the next turn boundary.
+        b.push_linear_zero([
+            (COL_TURN_DONE_AFTER, F::ONE),
+            (COL_TURN_DONE_BEFORE, -F::ONE),
+            (COL_HALTED, -F::ONE),
+            (COL_TURN_BOUNDARY, F::ONE),
+        ]);
+        // A turn may halt only once.
+        push_gated_linear_zero(b, COL_HALTED, [(COL_TURN_DONE_BEFORE, F::ONE)]);
+        // Program execution cannot resume before a turn boundary.
+        b.push_row([(COL_IS_PROGRAM_ROW, F::ONE)], [(COL_TURN_DONE_BEFORE, F::ONE)], []);
+        // Re-entry requires a finished turn.
+        push_gated_linear_zero(
+            b,
+            COL_TURN_BOUNDARY,
+            [(COL_ONE, F::ONE), (COL_TURN_DONE_BEFORE, -F::ONE)],
+        );
+    });
+
+    b.with_tag(always("turn boundary row"), |b| {
+        // Re-entry requires empty operand and call stacks. Other state-machine
+        // constraints require spent event schedules and an idle permutation.
+        push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_SP_BEFORE, F::ONE)]);
+        push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_CALL_STACK_DEPTH_BEFORE, F::ONE)]);
+        // The next turn starts a fresh entry frame at the same base.
+        push_gated_linear_zero(
+            b,
+            COL_TURN_BOUNDARY,
+            [(COL_LOCALS_FBP_AFTER, F::ONE), (COL_LOCALS_FBP_BEFORE, -F::ONE)],
+        );
+    });
+
     b.with_tag(always("return pc restoration"), |b| {
         b.push_row(
             [(COL_CALL_STACK_POP_PRESENT, F::ONE)],
@@ -297,26 +336,40 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder) {
 }
 
 fn push_simple_output_constraints(b: &mut R1csBuilder) {
-    let enabled_delta = [(COL_OUTPUT_ENABLED_AFTER, F::ONE), (COL_OUTPUT_ENABLED_BEFORE, -F::ONE)];
     b.with_tag(always("simple output carry"), |b| {
         for (after, before) in [
             (COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE),
             (COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE),
             (COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE),
         ] {
+            // Halt and boundary rows own output transitions.
             b.push_row(
-                [(COL_ONE, F::ONE), (COL_HALTED, -F::ONE)],
+                [(COL_ONE, F::ONE), (COL_HALTED, -F::ONE), (COL_TURN_BOUNDARY, -F::ONE)],
                 [(after, F::ONE), (before, -F::ONE)],
                 [],
             );
-            push_gated_linear_zero(b, COL_OUTPUT_ENABLED_BEFORE, [(after, F::ONE), (before, -F::ONE)]);
+            // Carry captured output until a boundary. A resultless boundary
+            // preserves the already-zero state.
+            b.push_row(
+                [(COL_OUTPUT_ENABLED_BEFORE, F::ONE), (COL_TURN_BOUNDARY, -F::ONE)],
+                [(after, F::ONE), (before, -F::ONE)],
+                [],
+            );
         }
 
-        b.push_linear_zero(
-            enabled_delta
-                .into_iter()
-                .chain([(COL_OUTPUT_CAPTURED, -F::ONE)]),
+        // Capture raises the flag; a boundary clears it only when set.
+        b.push_row(
+            [(COL_TURN_BOUNDARY, F::ONE)],
+            [(COL_OUTPUT_ENABLED_BEFORE, F::ONE)],
+            [
+                (COL_OUTPUT_ENABLED_BEFORE, F::ONE),
+                (COL_OUTPUT_CAPTURED, F::ONE),
+                (COL_OUTPUT_ENABLED_AFTER, -F::ONE),
+            ],
         );
+        // The re-armed output is zeroed.
+        push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_OUTPUT_VALUE_LO_AFTER, F::ONE)]);
+        push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_OUTPUT_VALUE_HI_AFTER, F::ONE)]);
         b.push_row(
             [(COL_OUTPUT_CAPTURED, F::ONE)],
             [(COL_ONE, F::ONE), (COL_HALTED, -F::ONE)],
@@ -463,8 +516,9 @@ fn push_host_call_enter_mode_constraints(b: &mut R1csBuilder) {
             (COL_CALL_INDIRECT_IS_NOT_TRAP, -F::ONE),
             (COL_GUEST_CALL_ACTIVE, F::ONE),
             // ...and the grammar exit latch repoints the attribution at the
-            // halting export.
+            // halting export; a turn boundary repoints it at the next one.
             (COL_GRAMMAR_EXIT_LATCH, -F::ONE),
+            (COL_TURN_BOUNDARY, -F::ONE),
         ],
         [
             (COL_HOST_CALLEE_FREF_AFTER, F::ONE),

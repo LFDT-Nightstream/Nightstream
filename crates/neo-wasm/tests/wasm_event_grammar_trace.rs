@@ -149,8 +149,8 @@ fn grammar_trace() -> Vec<WasmVmStep> {
     grammar
         .exports
         .insert(export_fref, neo_wasm::event_grammar::ExportTemplate::default());
-    let trace =
-        neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[], &[]).expect("grammar trace");
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[Default::default()])
+        .expect("grammar trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
 
@@ -208,7 +208,7 @@ fn grammar_trace_folds_expanded_blocks() {
 fn missing_template_is_rejected() {
     let run = run_component();
     let grammar = HostEventGrammar::default();
-    assert!(neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[], &[]).is_err());
+    assert!(neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[Default::default()]).is_err());
 }
 
 /// A host call recording more claim words than its template consumes
@@ -227,7 +227,7 @@ fn surplus_claim_words_are_rejected() {
     grammar
         .exports
         .insert(export_fref, neo_wasm::event_grammar::ExportTemplate::default());
-    assert!(neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[], &[]).is_err());
+    assert!(neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[Default::default()]).is_err());
 }
 
 /// The raw absorb machinery must stay de-gated in grammar mode: forging a
@@ -320,8 +320,8 @@ fn memory_rows_reject_forged_rom_claim() {
     grammar
         .exports
         .insert(export_fref, neo_wasm::event_grammar::ExportTemplate::default());
-    let mut trace =
-        neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[], &[]).expect("grammar trace");
+    let mut trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[Default::default()])
+        .expect("grammar trace");
 
     let idx = trace
         .iter()

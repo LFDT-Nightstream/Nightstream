@@ -171,9 +171,11 @@ fn grammar_lifecycle_setup() -> GrammarLifecycleSetup {
         .current_function_ref;
     let grammar = test_grammar(frefs[0], frefs[1], run_fref);
 
-    let entry_claims = [500u64, 501];
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &entry_claims, &[])
-        .expect("grammar trace");
+    let turns = [neo_wasm::event_grammar::TurnClaims {
+        entry: vec![500, 501],
+        exit: vec![],
+    }];
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &turns).expect("grammar trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     GrammarLifecycleSetup {
         trace,

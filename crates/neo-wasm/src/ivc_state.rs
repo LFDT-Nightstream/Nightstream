@@ -21,7 +21,7 @@ use super::layout::{
     COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_AFTER, COL_PC_BEFORE,
     COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE,
     COL_PERM_STATE0_AFTER, COL_PERM_STATE0_BEFORE, COL_PERM_STATE11_AFTER, COL_PERM_STATE11_BEFORE, COL_SP_AFTER,
-    COL_SP_BEFORE, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
+    COL_SP_BEFORE, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_TURN_DONE_AFTER, COL_TURN_DONE_BEFORE,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -178,6 +178,14 @@ pub(crate) fn build_ivc_state_continuity_links() -> Vec<WasmCrossStepLinkSpec> {
                     next_before: Column(COL_COMM_CHAIN3_BEFORE),
                 },
             ],
+        },
+        WasmCrossStepLinkSpec {
+            name: "turn_done_continuity",
+            description: "row[i].turn_done (halt terminality latch) must match row[i+1]",
+            column_pairs: vec![WasmCrossStepColumnPair {
+                prev_after: Column(COL_TURN_DONE_AFTER),
+                next_before: Column(COL_TURN_DONE_BEFORE),
+            }],
         },
         WasmCrossStepLinkSpec {
             name: "grammar_mode_continuity",

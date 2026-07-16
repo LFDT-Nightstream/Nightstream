@@ -67,6 +67,28 @@ theorem lcEval_eq_raw_mod (z : Nat → Nat) (terms : List (Nat × Nat)) :
   rw [foldl_lc_eq_add_raw]
   simp
 
+/-- Sparse LC evaluation is insensitive to term order. This is the semantic
+bridge between builder emission order and CSC's canonical sparse order. -/
+theorem rawLcEval_eq_of_perm (z : Nat → Nat) {left right : List (Nat × Nat)}
+    (permutation : left.Perm right) :
+    rawLcEval z left = rawLcEval z right := by
+  induction permutation with
+  | nil => rfl
+  | cons _ _ inductionHypothesis =>
+      simp [rawLcEval, inductionHypothesis]
+  | swap _ _ _ =>
+      simp [rawLcEval]
+      omega
+  | trans _ _ first second =>
+      omega
+
+/-- Canonical LC evaluation is insensitive to term order. -/
+theorem lcEval_eq_of_perm (z : Nat → Nat) {left right : List (Nat × Nat)}
+    (permutation : left.Perm right) :
+    lcEval z left = lcEval z right := by
+  rw [lcEval_eq_raw_mod, lcEval_eq_raw_mod,
+    rawLcEval_eq_of_perm z permutation]
+
 def negCoeff (coefficient : Nat) : Nat :=
   if coefficient = 0 then 0 else goldilocksP - coefficient
 
@@ -114,6 +136,25 @@ private theorem rawLc_cancel_mod (z : Nat → Nat) (terms : List (Nat × Nat))
         omega
       rw [reorder, Nat.add_mod, headCancel, tailCancel]
       decide
+
+/-- Appending the canonical coefficient-wise negation of an LC yields zero
+under every assignment. This is the semantic counterpart of CSC duplicate
+coalescing when a source column and its decoded alias cancel. -/
+theorem lcEval_append_negateTerms_eq_zero
+    (z : Nat → Nat) (terms : List (Nat × Nat))
+    (canonical : CanonicalTerms terms) :
+    lcEval z (terms ++ negateTerms terms) = 0 := by
+  have rawAppend (left right : List (Nat × Nat)) :
+      rawLcEval z (left ++ right) =
+        rawLcEval z left + rawLcEval z right := by
+    induction left with
+    | nil => simp [rawLcEval]
+    | cons head tail inductionHypothesis =>
+        simp only [List.cons_append, rawLcEval]
+        rw [inductionHypothesis]
+        omega
+  rw [lcEval_eq_raw_mod, rawAppend]
+  exact rawLc_cancel_mod z terms canonical
 
 /-- Rust `enforce_eq(output, rhs)` row: `(output - rhs) * 1 = 0`.
 `CanonicalTerms` ensures coefficient negation exactly matches the sparse

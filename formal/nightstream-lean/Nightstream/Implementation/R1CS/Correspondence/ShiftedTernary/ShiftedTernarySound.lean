@@ -452,15 +452,15 @@ private theorem goldilocks_add_pred_mod_zero {value : Nat}
 
 private theorem fieldZeroIndicator_neg :
     fieldZeroIndicator (goldilocksP - 1) 1 = 0 := by
-  native_decide
+  decide
 
 private theorem fieldZeroIndicator_zero :
     fieldZeroIndicator 0 0 = 1 := by
-  native_decide
+  decide
 
 private theorem fieldZeroIndicator_pos :
     fieldZeroIndicator 1 0 = 0 := by
-  native_decide
+  decide
 
 private theorem fieldNextMinusPositive_neg {next : Nat}
     (nextLt : next < goldilocksP) :
@@ -468,7 +468,7 @@ private theorem fieldNextMinusPositive_neg {next : Nat}
   have constant :
       ((18446744069414584321 - 1) * (18446744069414584321 - 1) +
         (18446744069414584321 - 1) * 1) % 18446744069414584321 = 0 := by
-    native_decide
+    decide
   simp only [goldilocksP] at nextLt ⊢
   unfold fieldNextMinusPositive
   simp only [goldilocksP]
@@ -715,7 +715,7 @@ theorem borrowTrace_sound
 
 theorem boundLowValue :
     lowValue boundDigit digitCount = goldilocksP - 1 := by
-  native_decide
+  decide
 
 theorem foldl_range_eq_lowValue
     (digits : Nat → Nat) (start count : Nat) :
@@ -779,7 +779,7 @@ theorem encodedLowValue_le_bound
       prime canonical one satisfies)
 
 private theorem goldilocks_pred_lt : goldilocksP - 1 < goldilocksP := by
-  native_decide
+  decide
 
 theorem encodedValue_lt_modulus
     (prime : EuclidPrime goldilocksP)
@@ -809,7 +809,7 @@ theorem power_lt_modulus {index : Nat} (indexLt : index < digitCount) :
     omega
   have powerLe : 3 ^ index ≤ 3 ^ 40 :=
     Nat.pow_le_pow_right (by decide) indexLe
-  exact Nat.lt_of_le_of_lt powerLe (by native_decide)
+  exact Nat.lt_of_le_of_lt powerLe (by decide)
 
 private theorem negative_term_add_centered
     {power value : Nat} (powerLe : power ≤ goldilocksP) :
@@ -966,7 +966,7 @@ theorem lowValue_pointwise_add (left right : Nat → Nat) :
 
 theorem shift_eq_ones_lowValue :
     shift = lowValue (fun _ => 1) digitCount := by
-  native_decide
+  decide
 
 theorem encodedValue_centered_shift_mod_of_digits
     {assignment : Nat → Nat}
@@ -985,7 +985,7 @@ theorem encodedValue_centered_shift_mod_of_digits
             have tritLt : tritValue
                 (assignment (ShiftedTernary.digitCols.getD index 0)) <
                 goldilocksP := Nat.lt_trans
-                  (Digit.tritValue_lt_three digit) (by native_decide)
+                  (Digit.tritValue_lt_three digit) (by decide)
             unfold centeredDigit assignmentTrit
             rw [Nat.mod_eq_of_lt tritLt]
             exact Digit.add_one_mod_eq_tritValue digit

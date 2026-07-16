@@ -1,11 +1,12 @@
 /-!
-Contract: executable ChaCha8 word stream used by compact seeded Phi81 rows.
+Contract: pure executable ChaCha8 word stream used by compact seeded Phi81 rows.
 
 Owns the 32-bit ARX permutation and the 64-bit-counter, zero-stream layout of
 `rand_chacha::ChaCha8Rng::from_seed`.  The definition is deliberately small
 and pure: callers request a finite slice of the logical `u32` stream, so the
 four-block buffering strategy used by the Rust crate is not part of the
-semantics.
+semantics. Internal ARX definitions remain visible so the optimized machine
+implementation can be refined to this model without trusting fixtures.
 
 This is not a cryptographic security proof for ChaCha8.  Its assurance role is
 exact coefficient reproduction.  Rust-generated conformance vectors pin the
@@ -27,10 +28,10 @@ def rotateLeft32 (value amount : Nat) : Nat :=
     ((Nat.shiftLeft value amount) % wordModulus +
       Nat.shiftRight value (32 - amount)) % wordModulus
 
-private def getWord (state : Array Nat) (index : Nat) : Nat :=
+def getWord (state : Array Nat) (index : Nat) : Nat :=
   state.getD index 0
 
-private def quarterRound (state : Array Nat)
+def quarterRound (state : Array Nat)
     (ai bi ci di : Nat) : Array Nat :=
   let a1 := add32 (getWord state ai) (getWord state bi)
   let d1 := rotateLeft32 (xor32 (getWord state di) a1) 16
@@ -42,7 +43,7 @@ private def quarterRound (state : Array Nat)
   let b2 := rotateLeft32 (xor32 b1 c2) 7
   (((state.set! ai a2).set! bi b2).set! ci c2).set! di d2
 
-private def doubleRound (state : Array Nat) : Array Nat :=
+def doubleRound (state : Array Nat) : Array Nat :=
   let state := quarterRound state 0 4 8 12
   let state := quarterRound state 1 5 9 13
   let state := quarterRound state 2 6 10 14
@@ -52,15 +53,15 @@ private def doubleRound (state : Array Nat) : Array Nat :=
   let state := quarterRound state 2 7 8 13
   quarterRound state 3 4 9 14
 
-private def runDoubleRounds : Nat → Array Nat → Array Nat
+def runDoubleRounds : Nat → Array Nat → Array Nat
   | 0, state => state
   | rounds + 1, state => runDoubleRounds rounds (doubleRound state)
 
-private def littleEndian32 (bytes : List Nat) (offset : Nat) : Nat :=
-  bytes.getD offset 0 +
+def littleEndian32 (bytes : List Nat) (offset : Nat) : Nat :=
+  (bytes.getD offset 0 +
     256 * bytes.getD (offset + 1) 0 +
     65536 * bytes.getD (offset + 2) 0 +
-    16777216 * bytes.getD (offset + 3) 0
+    16777216 * bytes.getD (offset + 3) 0) % wordModulus
 
 def initialState (seed : List Nat) (block : Nat) : Array Nat :=
   #[0x61707865, 0x3320646e, 0x79622d32, 0x6b206574,

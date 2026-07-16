@@ -1,6 +1,7 @@
 import Nightstream.Implementation.R1CS.Core.ChaCha8
 import Nightstream.Implementation.R1CS.Core.ChaCha8Fast
 import Nightstream.Implementation.R1CS.Core.Program
+import Nightstream.Implementation.R1CS.Core.SeededPhi81Sampler
 
 /-!
 Contract: compact exact semantics for seeded Phi81 `A` blocks.
@@ -12,10 +13,10 @@ message bit rotates one coefficient vector in `F[X] / (Phi_81)`, and the
 result is compiled to the exact linear equations `A_row * 1 = output`.
 
 The quantified soundness and completeness theorems operate on this compact
-compiler; no expanded production matrix or row digest is a premise.  The
-remaining cross-language boundary is the source translation itself.  It is
-explicitly isolated in `ChaCha8.lean` and must be pinned to Rust with
-generated stream/coefficient vectors.
+compiler; no expanded production matrix or row digest is a premise. Sampling
+is owned by `SeededPhi81Sampler` and instantiated here with the optimized
+stream. `ChaCha8Refinement` proves that stream equal to the pure model; Rust
+`rand_chacha` conformance remains a separate boundary.
 -/
 
 namespace Nightstream.Implementation.R1CS.SeededPhi81
@@ -23,90 +24,16 @@ namespace Nightstream.Implementation.R1CS.SeededPhi81
 open Nightstream.Implementation.R1CS
 open Nightstream.Implementation.R1CS.Program
 
-def dimension : Nat := 54
+def dimension : Nat := SeededPhi81Sampler.dimension
 
-structure SeedSchedule where
-  chunkSize : Nat
-  seedsByOutput : List (List (List Nat))
-  rejectionFuel : Nat
-deriving DecidableEq, Repr
-
-private def nextAccepted (seed : List Nat) : Nat → Nat → Option (Nat × Nat)
-  | _, 0 => none
-  | wordPosition, fuel + 1 =>
-      let candidate := (ChaCha8Fast.u64s seed wordPosition 1).getD 0 0
-      if candidate < goldilocksP then some (candidate, wordPosition + 2)
-      else nextAccepted seed (wordPosition + 2) fuel
-
-private def repairRejected (seed : List Nat) (fuel : Nat) :
-    List Nat → Nat → Option (List Nat × Nat)
-  | [], wordPosition => some ([], wordPosition)
-  | candidate :: tail, wordPosition =>
-      let accepted :=
-        if candidate < goldilocksP then some (candidate, wordPosition)
-        else nextAccepted seed wordPosition fuel
-      match accepted with
-      | none => none
-      | some (value, nextPosition) =>
-          match repairRejected seed fuel tail nextPosition with
-          | none => none
-          | some (values, finalPosition) =>
-              some (value :: values, finalPosition)
-
-private def sampleVector (seed : List Nat) (fuel wordPosition : Nat) :
-    Option (List Nat × Nat) :=
-  let raw := ChaCha8Fast.u64s seed wordPosition dimension
-  repairRejected seed fuel raw (wordPosition + 2 * dimension)
-
-private def sampleVectors.go (seed : List Nat) (fuel : Nat) :
-    Nat → Nat → List (List Nat) → Option (List (List Nat))
-  | 0, _, reversed => some reversed.reverse
-  | count + 1, wordPosition, reversed =>
-      match sampleVector seed fuel wordPosition with
-      | none => none
-      | some (vector, nextPosition) =>
-          sampleVectors.go seed fuel count nextPosition (vector :: reversed)
-
-/-- Tail-recursive stream walk. Production commitment blocks contain several
-thousand message columns, so the structurally equivalent cons-after-recursion
-definition exhausts the native evaluator stack even though ChaCha itself is
-fast. -/
-private def sampleVectors (seed : List Nat) (fuel : Nat)
-    (count wordPosition : Nat) : Option (List (List Nat)) :=
-  sampleVectors.go seed fuel count wordPosition []
-
-private def chunkMessageCount
-    (messageCols chunkSize chunkIndex : Nat) : Nat :=
-  let start := chunkIndex * chunkSize
-  if start < messageCols then Nat.min chunkSize (messageCols - start) else 0
-
-private def sampleOutput (messageCols chunkSize fuel : Nat) :
-    Nat → List (List Nat) → Option (List (List Nat))
-  | _, [] => some []
-  | chunkIndex, seed :: tail =>
-      match sampleVectors seed fuel
-          (chunkMessageCount messageCols chunkSize chunkIndex) 0 with
-      | none => none
-      | some vectors =>
-          match sampleOutput messageCols chunkSize fuel (chunkIndex + 1) tail with
-          | none => none
-          | some rest => some (vectors ++ rest)
+abbrev SeedSchedule := SeededPhi81Sampler.Schedule
 
 /-- Expand only the `kappa * messageCols` base rotations.  The full dense
 matrix is another factor of `dimension` larger and is never stored. -/
 def SeedSchedule.baseRotations (schedule : SeedSchedule)
     (messageCols : Nat) : Option (List (List (List Nat))) :=
-  let rec outputs : List (List (List Nat)) → Option (List (List (List Nat)))
-    | [] => some []
-    | seeds :: tail =>
-        match sampleOutput messageCols schedule.chunkSize
-            schedule.rejectionFuel 0 seeds with
-        | none => none
-        | some rotations =>
-            match outputs tail with
-            | none => none
-            | some rest => some (rotations :: rest)
-  outputs schedule.seedsByOutput
+  SeededPhi81Sampler.Schedule.baseRotations schedule
+    ChaCha8Fast.u64s messageCols
 
 structure Block where
   rowStart : Nat
@@ -164,6 +91,18 @@ instance (block : Block) : Decidable block.Valid := by
   unfold Block.Valid seedChunkCountsValid allSeedsValid samplerValid
     allRotationsCanonical
   infer_instance
+
+/-- A valid compact block contains an actual successful sampler execution;
+the fallback value of `Block.baseRotations` is therefore unreachable. -/
+theorem Block.Valid.baseRotations_success {block : Block}
+    (valid : block.Valid) :
+    exists rotations,
+      block.schedule.baseRotations block.messageCols = some rotations := by
+  rcases valid with ⟨_, _, _, _, _, _, _, _, _, sampler⟩
+  unfold samplerValid at sampler
+  cases execution : block.schedule.baseRotations block.messageCols with
+  | none => simp [execution] at sampler
+  | some rotations => exact ⟨rotations, rfl⟩
 
 private def fieldNeg (value : Nat) : Nat :=
   let value := value % goldilocksP

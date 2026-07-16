@@ -1,0 +1,16 @@
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.UnifiedSources
+
+open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.UnifiedSources
+
+#check freshSourceIndex_ne_runningSourceIndex
+#check source_eq_fresh_or_running
+#check UnifiedInputs.freshBatch_assignment_eq
+#check UnifiedInputs.normBatch_assignment_eq
+#check UnifiedInputs.carriedData_assignment_eq
+#check UnifiedInputs.normBatch_at_toVertex_eq_assignment
+#check UnifiedInputs.normBatch_allStrictNormBounded_iff_allAssignmentsStrictNormBounded
+#check UnifiedInputs.toIndependentInputs_semanticTruth_iff
+#check ColumnLayout.enumeratedColumns
+#check ColumnLayout.enumeratedColumns_nodup
+#check ColumnLayout.mem_enumeratedColumns
+#check ColumnLayout.columns_eq_twoPow

@@ -102,7 +102,7 @@ private theorem terminal_piRlc_residual
       List.mem_append_right
         FPrimeFullHistoryNestedOwners.terminalPiCcsResidualOwners member)
 
-/-- Reassemble the exact recursive PiCCS parent owner, including all nine
+/-- Reassemble the exact recursive PiCCS parent owner, including all eleven
 compact residual owners in their production emission order. -/
 theorem recursivePiCcs_satisfies
     {assignment : Nat → Nat}
@@ -114,7 +114,7 @@ theorem recursivePiCcs_satisfies
   simp only [FPrimeFullHistoryNestedOwners.recursivePiCcsPieces,
     List.mem_cons, List.not_mem_nil, or_false] at member
   rcases member with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl |
-    rfl | rfl | rfl | rfl
+    rfl | rfl | rfl | rfl | rfl | rfl
   · exact rows.affine.piCcsAllocation
   · exact rows.affine.piCcsAuthority
   · simpa [FPrimeFullHistoryRecursivePiCcsFreshDigests.rows] using
@@ -132,6 +132,10 @@ theorem recursivePiCcs_satisfies
   · simpa [FPrimeFullHistoryRecursivePiCcsFeInitial.rows] using
       recursive_piCcs_residual rows
         FPrimeFullHistoryRecursivePiCcsFeInitial.owner (by
+          simp [FPrimeFullHistoryNestedOwners.recursivePiCcsResidualOwners])
+  · simpa [FPrimeFullHistoryRecursivePiCcsFeOptionalClaim.rows] using
+      recursive_piCcs_residual rows
+        FPrimeFullHistoryRecursivePiCcsFeOptionalClaim.owner (by
           simp [FPrimeFullHistoryNestedOwners.recursivePiCcsResidualOwners])
   · simpa [FPrimeFullHistoryRecursivePiCcsFeSumcheck.rows] using
       recursive_piCcs_residual rows
@@ -154,6 +158,10 @@ theorem recursivePiCcs_satisfies
       recursive_piCcs_residual rows
         FPrimeFullHistoryRecursivePiCcsCatchup.owner (by
           simp [FPrimeFullHistoryNestedOwners.recursivePiCcsResidualOwners])
+  · simpa [FPrimeFullHistoryRecursivePiCcsOutputMessageHashes.rows] using
+      recursive_piCcs_residual rows
+        FPrimeFullHistoryRecursivePiCcsOutputMessageHashes.owner (by
+          simp [FPrimeFullHistoryNestedOwners.recursivePiCcsResidualOwners])
 
 /-- Reassemble the exact terminal PiCCS parent owner.  Its authority block is
 the strict terminal-CE parent followed by the generated affine authority
@@ -168,7 +176,7 @@ theorem terminalPiCcs_satisfies
   simp only [FPrimeFullHistoryNestedOwners.terminalPiCcsPieces,
     List.mem_cons, List.not_mem_nil, or_false] at member
   rcases member with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl |
-    rfl | rfl | rfl | rfl
+    rfl | rfl | rfl | rfl | rfl | rfl
   · exact rows.affine.piCcsAllocation
   · apply (satisfies_flatten_iff
       [FPrimeFullHistoryPiDec.terminalCeRows,
@@ -194,6 +202,10 @@ theorem terminalPiCcs_satisfies
       terminal_piCcs_residual rows
         FPrimeFullHistoryTerminalPiCcsFeInitial.owner (by
           simp [FPrimeFullHistoryNestedOwners.terminalPiCcsResidualOwners])
+  · simpa [FPrimeFullHistoryTerminalPiCcsFeOptionalClaim.rows] using
+      terminal_piCcs_residual rows
+        FPrimeFullHistoryTerminalPiCcsFeOptionalClaim.owner (by
+          simp [FPrimeFullHistoryNestedOwners.terminalPiCcsResidualOwners])
   · simpa [FPrimeFullHistoryTerminalPiCcsFeSumcheck.rows] using
       terminal_piCcs_residual rows
         FPrimeFullHistoryTerminalPiCcsFeSumcheck.owner (by
@@ -214,6 +226,10 @@ theorem terminalPiCcs_satisfies
   · simpa [FPrimeFullHistoryTerminalPiCcsCatchup.rows] using
       terminal_piCcs_residual rows
         FPrimeFullHistoryTerminalPiCcsCatchup.owner (by
+          simp [FPrimeFullHistoryNestedOwners.terminalPiCcsResidualOwners])
+  · simpa [FPrimeFullHistoryTerminalPiCcsOutputMessageHashes.rows] using
+      terminal_piCcs_residual rows
+        FPrimeFullHistoryTerminalPiCcsOutputMessageHashes.owner (by
           simp [FPrimeFullHistoryNestedOwners.terminalPiCcsResidualOwners])
 
 private theorem recursive_projection_shared

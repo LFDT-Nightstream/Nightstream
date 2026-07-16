@@ -23,7 +23,7 @@ claim:
   All 31 identity ranges have the same sparse program shape up to wire renaming.
 surface:
   - engine/r1cs_circuit/ring_action.rs::enforce_ring_action_projection_batch
-  - paper/nifs/circuit.rs PiRLC projection schedule
+  - paper/nifs/circuit/pi_rlc/projection/** PiRLC projection schedule
 failure_class:
   A one-point identity is treated as deterministic coefficient equality,
   omitting the Schwartz-Zippel/Fiat-Shamir bad-event branch.

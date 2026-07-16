@@ -1,7 +1,12 @@
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.ConcreteNifs
 import Nightstream.Protocol.FPrime.Step
 
-/-! High-level F-prime `Step.Semantics` bridge for the exact local NIFS verifier. -/
+/-!
+High-level F-prime `Step.Semantics` bridge for the exact local row-decoded NIFS
+checker. This module proves which callback result follows from accepted rows;
+it does not by itself identify that result with the independent paper-level
+SuperNeo fold relation.
+-/
 namespace Nightstream.Assurance.FPrimeConcreteNifs
 
 open Nightstream.SuperNeo.ProjectionCheck
@@ -10,14 +15,14 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistoryProjection
 
 /-! ## F' specialization
 
-Only non-NIFS services remain parameters below.  In particular, callers cannot
-replace NIFS verification: the callback is definitionally
+Only non-NIFS services remain parameters below. In particular, callers cannot
+replace the row-decoded NIFS checker: the callback is definitionally
 `recursiveNativeVerify`, which adds coefficient exactness to the sampled
 semantic checks. Generated rows reach that callback or the explicit
 projection `BadRoot` branch.
 -/
 
-/-- Plain/stateless F' semantics with the production recursive NIFS verifier. -/
+/-- Plain/stateless F' semantics with the production row-decoded NIFS checker. -/
 def stepSemantics
     (chunkDigest : Nat → List Fresh → Digest)
     (freshLink : Digest → Fresh → Bool)
@@ -40,7 +45,7 @@ def stepSemantics
   nebulaVerify := fun prior opening next =>
     decide (prior = none ∧ opening = none ∧ next = none)
 
-/-- Exact recursive NIFS rows force the concrete F' callback to return the
+/-- Exact recursive row families force the concrete F' callback to return the
 decoded next accumulator.  No refinement premise is accepted. -/
 theorem stepSemantics_nifsVerify
     (chunkDigest : Nat → List Fresh → Digest)

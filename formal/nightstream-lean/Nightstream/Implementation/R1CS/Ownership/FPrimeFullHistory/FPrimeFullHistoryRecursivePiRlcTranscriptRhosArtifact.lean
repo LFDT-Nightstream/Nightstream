@@ -1,5 +1,4 @@
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryRecursivePiRlcTranscriptRhosPieces0
-import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryRecursivePiRlcTranscriptRhosPieces1
 
 /-! Exact ordered row certificate for the recursive Pi_RLC transcript and rho owner. Hash is drift metadata only. -/
 
@@ -9,14 +8,13 @@ open Nightstream.Implementation.R1CS.OwnerCertificate
 
 set_option maxRecDepth 1048576
 
-def rangeSha256 : String := "21ecfd4d671aad3c1b3832f0b930a65b7631ac45a841dd297047093ea226285c"
-def rowStart : Nat := 273649
-def rowEnd : Nat := 385011
-def rowCount : Nat := 111362
+def rangeSha256 : String := "61277668dbe099dcb28cad5e0686efb6ace4ddca4001585bf933b0cce114c2e9"
+def rowStart : Nat := 351287
+def rowEnd : Nat := 361480
+def rowCount : Nat := 10193
 
 def pieces : List Piece :=
-  Generated.pieces0 ++
-    Generated.pieces1
+  Generated.pieces0
 
 def owner : Owner := ⟨rowStart, rowEnd, pieces⟩
 

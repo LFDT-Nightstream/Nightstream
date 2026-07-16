@@ -6,42 +6,42 @@ namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryPiRlcTerminalLinearFo
 
 open Nightstream.Implementation.R1CS
 
-def rangeSha256 : String := "352d7836d9f04674295b3df4b3333eaed09921802809bf589af829be3f0bf0e7"
-def rowStart : Nat := 2953186
-def rowEnd : Nat := 2953516
+def rangeSha256 : String := "c3eeaa987a199e94e0a5a0749b700ad6c9aaae48b2ee3acf09500538e61878c0"
+def rowStart : Nat := 2853882
+def rowEnd : Nat := 2854212
 def rowCount : Nat := 330
 
 def pinRuns : List AffinePins.Run :=
-  [ .equal 958682 2611126 1 1 18
-  , .equal 960472 2611126 1 1 18
-  , .equal 962262 2611126 1 1 18
-  , .equal 964052 2611126 1 1 18
-  , .equal 965842 2611126 1 1 18
-  , .equal 967632 2611126 1 1 18
-  , .equal 969422 2611126 1 1 18
-  , .equal 971212 2611126 1 1 18
-  , .equal 973002 2611126 1 1 18
-  , .equal 974792 2611126 1 1 18
-  , .equal 976582 2611126 1 1 18
-  , .equal 978372 2611126 1 1 18
-  , .equal 980162 2611126 1 1 18
-  , .equal 981952 2611126 1 1 18
-  , .equal 983742 2611126 1 1 18
-  , .equal 2611272 959219 1 1 4
-  , .equal 2611272 961009 1 1 4
-  , .equal 2611272 962799 1 1 4
-  , .equal 2611272 964589 1 1 4
-  , .equal 2611272 966379 1 1 4
-  , .equal 2611272 968169 1 1 4
-  , .equal 2611272 969959 1 1 4
-  , .equal 2611272 971749 1 1 4
-  , .equal 2611272 973539 1 1 4
-  , .equal 2611272 975329 1 1 4
-  , .equal 2611272 977119 1 1 4
-  , .equal 2611272 978909 1 1 4
-  , .equal 2611272 980699 1 1 4
-  , .equal 2611272 982489 1 1 4
-  , .equal 2611272 984279 1 1 4
+  [ .equal 1159847 2676646 1 1 18
+  , .equal 1161637 2676646 1 1 18
+  , .equal 1163427 2676646 1 1 18
+  , .equal 1165217 2676646 1 1 18
+  , .equal 1167007 2676646 1 1 18
+  , .equal 1168797 2676646 1 1 18
+  , .equal 1170587 2676646 1 1 18
+  , .equal 1172377 2676646 1 1 18
+  , .equal 1174167 2676646 1 1 18
+  , .equal 1175957 2676646 1 1 18
+  , .equal 1177747 2676646 1 1 18
+  , .equal 1179537 2676646 1 1 18
+  , .equal 1181327 2676646 1 1 18
+  , .equal 1183117 2676646 1 1 18
+  , .equal 1184907 2676646 1 1 18
+  , .equal 1160384 2676792 1 1 4
+  , .equal 1162174 2676792 1 1 4
+  , .equal 1163964 2676792 1 1 4
+  , .equal 1165754 2676792 1 1 4
+  , .equal 1167544 2676792 1 1 4
+  , .equal 1169334 2676792 1 1 4
+  , .equal 1171124 2676792 1 1 4
+  , .equal 1172914 2676792 1 1 4
+  , .equal 1174704 2676792 1 1 4
+  , .equal 1176494 2676792 1 1 4
+  , .equal 1178284 2676792 1 1 4
+  , .equal 1180074 2676792 1 1 4
+  , .equal 1181864 2676792 1 1 4
+  , .equal 1183654 2676792 1 1 4
+  , .equal 1185444 2676792 1 1 4
   ]
 
 def pins : List AffinePins.Pin := AffinePins.expandRuns pinRuns

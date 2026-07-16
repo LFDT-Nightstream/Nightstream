@@ -6,14 +6,14 @@ namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryTerminalLink
 
 open Nightstream.Implementation.R1CS
 
-def rangeSha256 : String := "04ffa425a0e31c1fbf9fd722a82712b7e836f62397ea98b11cd5dfc63793ab5e"
-def rowStart : Nat := 3517633
-def rowEnd : Nat := 3517890
+def rangeSha256 : String := "7f2b66ba038e073025694908b8c8172401eddc38f080df4863d38e61da1ad81b"
+def rowStart : Nat := 3418329
+def rowEnd : Nat := 3418586
 def rowCount : Nat := 257
 
 def pairRuns : List EqualityPins.PairRun :=
-  [ ⟨930325, 0, 0, 0, 1⟩
-  , ⟨930326, 16766, 1, 1, 256⟩
+  [ ⟨1133282, 0, 0, 0, 1⟩
+  , ⟨1133283, 16766, 1, 1, 256⟩
   ]
 
 def pairs : List (Nat × Nat) := EqualityPins.expandRuns pairRuns

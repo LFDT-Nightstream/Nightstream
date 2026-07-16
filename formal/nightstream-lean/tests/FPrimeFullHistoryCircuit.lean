@@ -5,12 +5,12 @@ namespace Nightstream.Tests.FPrimeFullHistoryCircuit
 open Nightstream.Implementation.R1CS
 open Nightstream.Assurance.FPrimeFullHistoryCircuit
 
-example : FPrimeFullHistoryRows.fullRows.length = 4076614 := by
+example : FPrimeFullHistoryRows.fullRows.length = 4193134 := by
   calc
     FPrimeFullHistoryRows.fullRows.length =
         FPrimeFullHistoryManifest.totalRows :=
       FPrimeFullHistoryRows.fullRows_length
-    _ = 4076614 := rfl
+    _ = 4193134 := rfl
 
 example
     (prime : EuclidPrime goldilocksP)

@@ -10,7 +10,7 @@ set_option maxRecDepth 1048576
 set_option maxHeartbeats 0
 
 def block1 : SeededPhi81.Block :=
-  { rowStart := 198109
+  { rowStart := 198129
     wordStarts := (List.range 108).map fun index => 184771 + index * 122
     wordWidth := 41
     kappa := 1

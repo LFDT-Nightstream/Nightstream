@@ -22,13 +22,18 @@ The generator families are:
 
 | Generated owner | Rust drift/regeneration target |
 |---|---|
+| Phi81 runtime bar matrix | `cargo test -p neo-math --release --test phi81_bar_lean_artifact` |
+| SplitNc packed-carrier counterexample | `cargo test -p neo-reductions --release --test pi_ccs_nc_carrier_lean_artifact` |
+| Fixed F' carrier-fixture NIFS/F' counterexample | `cargo test -p neo-fold-clean --release --test f_prime_fixed_carrier_nifs_lean_artifact` |
 | Canonical-u64 | `gadgets_lean_artifact` |
 | Seeded Phi81 | `gadgets_seeded_phi81_lean_artifact` |
-| Shifted ternary | `gadgets_shifted_ternary_lean_artifact` |
+| Shifted ternary source and schema-3 isolated shared-slot lowering (20 residual pairs, one tail, 82 products) | `gadgets_shifted_ternary_lean_artifact` |
 | U64 increment/addition | `gadgets_u64_increment_lean_artifact`, `gadgets_u64_add_lean_artifact` |
 | F' counter, encoding, links, base pins | `gadgets_f_prime_counter_lean_artifact`, `gadgets_f_prime_encoding_lean_artifact`, `gadgets_f_prime_terminal_link_lean_artifact`, `gadgets_f_prime_state_link_lean_artifact`, `gadgets_f_prime_base_state_lean_artifact` |
 | Poseidon2, F' digest, base program, CE continuity | `gadgets_poseidon2_lean_artifact`, `gadgets_f_prime_chunk_digest_lean_artifact`, `gadgets_f_prime_base_program_lean_artifact`, `gadgets_f_prime_ce_continuity_lean_artifact` |
 | Steady-recursive manifest | `gadgets_f_prime_recursive_manifest` |
+| Fixed F' base/recursive source-role census and compact ordinary source-loop placement metadata | `cargo test -p neo-fold-clean --release --test f_prime_full_relation -- --nocapture` |
+| Output-authority Poseidon2 S-box call manifest | `gadgets_f_prime_recursive_manifest output_authority_sbox_lean::output_authority_sbox_lean_manifest_matches_audited_production -- --exact` |
 | NIFS/SumCheck compiler artifact | `gadgets_nifs_compiler_conformance` |
 | PiRLC projection boundary | `gadgets_pi_rlc_projection_boundary` |
 | Full-history M4 manifest and owner shards | `system_decider_r1cs` targeted tests listed below |

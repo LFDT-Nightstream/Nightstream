@@ -1,11 +1,21 @@
 /-!
-Exact projection of the prover-chosen `Pi_CCS` output message.
+Owns: the active `Pi_CCS` output projection, reconstruction predicate, and
+injectivity proofs used before `Pi_RLC` challenge derivation.
 
-Before `Pi_RLC` samples its combination challenge, the verifier must bind every
-output degree of freedom that the prover can still choose. It need not hash
-fields that it reconstructs from earlier authority. This module proves that the
-active `y_ring` and `y_zcol` message is injective on outputs satisfying those
-reconstruction equations.
+Does not own: context reconstruction, Poseidon2 hashing, concrete output
+serialization, or Rust row refinement.
+
+Emits constraints: no.
+
+Authority boundary: the context and constant-term reconstruction are upstream
+authority; the projected `y_ring` and `y_zcol` fields bind the remaining
+prover-chosen output.
+
+| Obligation | Lean owner | Guarantee |
+|---|---|---|
+| Message projection | `piCcsOutputMessage` | Retains active `y_ring` and `y_zcol` |
+| Full reconstruction | `reconstructPiCcsOutput` | Rebuilds the claim from fixed context and message |
+| Injectivity | `piCcsOutputMessage_injective_on_reconstructed` | Equal messages imply equal reconstructed claims |
 -/
 
 namespace SuperNeo.FPrimeRecursiveVerifier

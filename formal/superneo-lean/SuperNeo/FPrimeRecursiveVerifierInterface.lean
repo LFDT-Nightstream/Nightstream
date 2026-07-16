@@ -1,9 +1,24 @@
 import SuperNeo.FPrimeRecursiveVerifier
 
 /-!
-Contract interface for `SuperNeo.FPrimeRecursiveVerifier`.
+Owns: the consumed public aliases and theorem exports of
+`SuperNeo.FPrimeRecursiveVerifier`.
 
-Spec: `specs/FPrimeRecursiveVerifier.spec.md`
+Does not own: proof implementations, concrete Rust refinement, or additional
+assumptions beyond the imported construction.
+
+Emits constraints: no.
+
+Authority boundary: an exported alias or theorem has exactly the authority of
+its implementation theorem; this interface adds no trusted bridge.
+
+| Obligation | Lean owner | Guarantee |
+|---|---|---|
+| Candidate plan | `essential_accepts_iff_paper` | Exposes definitional exactness against the supplied checklist, not paper semantics |
+| Parent authority | `minimalPostRlc_accepts_iff_target` | Exposes the post-RLC authority reduction |
+| R1CS certification | `certifyEssentialR1cs` | Exposes the modular lowering certificate |
+
+Spec: `specs/FPrimeRecursiveVerifier.spec.md`.
 -/
 
 namespace SuperNeo.FPrimeRecursiveVerifierInterface
@@ -39,7 +54,11 @@ abbrev DerivedCheckLaws
     (predicates : FPrimePredicates Step) :=
   FPrimeRecursiveVerifier.DerivedCheckLaws predicates
 
-/-- [Role: Theorem-Target] Essential checks accept exactly the fixed target. -/
+/--
+[Role: Planning] Essential checks accept exactly the supplied conjunction. A
+separate concrete theorem must connect that conjunction to independent paper
+semantics before it can authorize a verifier or row removal.
+-/
 theorem essential_accepts_iff_paper
     {Step : Type u}
     (predicates : FPrimePredicates Step)

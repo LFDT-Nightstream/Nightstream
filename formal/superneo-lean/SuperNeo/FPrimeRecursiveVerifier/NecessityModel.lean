@@ -1,12 +1,22 @@
 import SuperNeo.FPrimeRecursiveVerifier.Semantics
 
 /-!
-Executable independence model for the essential-check vocabulary.
+Owns: a Boolean independence model and inclusion-minimality witness for the
+essential-check vocabulary.
 
-The model gives every check its own Boolean coordinate. It does not claim that
-an implementation bug for every coordinate is equally likely; it proves that
-the generic minimality machinery cannot silently erase an obligation merely
-because the obligation has a convenient name.
+Does not own: concrete protocol attacks, Rust counterexamples, or independence
+of checks in a production implementation.
+
+Emits constraints: no.
+
+Authority boundary: each Boolean coordinate is a model witness only; production
+row removal still requires concrete refinement and protocol-specific necessity.
+
+| Obligation | Lean owner | Guarantee |
+|---|---|---|
+| Independent checks | `booleanPredicates` | Gives each check a separate Boolean coordinate |
+| Removal witness | `allBut` | Falsifies exactly one selected coordinate |
+| Inclusion minimality | `booleanEssentialPlan_inclusionMinimalSound` | Proves the generic essential plan is model-minimal |
 -/
 
 namespace SuperNeo.FPrimeRecursiveVerifier

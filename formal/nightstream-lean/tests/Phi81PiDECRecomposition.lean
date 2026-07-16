@@ -11,6 +11,7 @@ Focused theorem-surface checks for typed Phi81 Π_DEC public recomposition.
 | `nifs.pi_dec.verify.public_input_hom.scale` | base scaling commutes with the authoritative public projection |
 | `nifs.pi_dec.verify.public_input_hom.radix` | fourteen public inputs use the exact production radix weights |
 | `nifs.pi_dec.verify.public_input_hom.algebra` | theorem matches the `PiDEC.Algebra.publicInput_hom` field shape |
+| `nifs.pi_dec.verify.algebra` | all independently proved operations and laws assemble into the exact concrete algebra |
 -/
 
 namespace tests.Phi81PiDECRecomposition
@@ -33,6 +34,9 @@ open Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra
 #check PublicInput.projectPublicInput_combine
 #check PublicInput.projectPublicInput_recompose
 #check PublicInput.relation_publicInput_hom
+#check Algebra.concrete
+#check Algebra.concrete_splitAssignment
+#check Algebra.concrete_recomposeAssignment
 
 /-! These applications fail to elaborate if either exported theorem drifts
 from the exact algebra-field quantifier and relation-semantics boundary. -/
@@ -56,5 +60,17 @@ example {shape : Shape} {CommitmentType : Type}
       PublicInput.recomposePublicInput fun index =>
         (relationSemantics commit).projectPublicInput (assignments index) :=
   PublicInput.relation_publicInput_hom commit assignments
+
+example {shape : Shape} {verifierRows : Nat}
+    (key : PiRLCAlgebra.Commitment.Key shape verifierRows) :
+    (Algebra.concrete key).recomposeCommitment =
+      Commitment.recomposeCommitment := by
+  rfl
+
+example {shape : Shape} {verifierRows : Nat}
+    (key : PiRLCAlgebra.Commitment.Key shape verifierRows) :
+    (Algebra.concrete key).recomposePublicInput =
+      PublicInput.recomposePublicInput := by
+  rfl
 
 end tests.Phi81PiDECRecomposition

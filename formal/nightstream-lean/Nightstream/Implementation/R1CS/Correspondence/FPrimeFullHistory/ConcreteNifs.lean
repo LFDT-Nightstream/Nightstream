@@ -16,7 +16,7 @@ import Nightstream.Implementation.R1CS.Correspondence.Sumcheck.SumcheckRoundComp
 import Nightstream.Protocol.FPrime.Step
 
 /-!
-Concrete assurance boundary for the production F' NIFS verifier.
+Concrete row-decoding boundary for the production F' NIFS verifier.
 
 This module deliberately does not mention the configurable `Step.Semantics.nifsVerify`
 callback.  Instead it records the exact verifier facts proved by the generated
@@ -29,12 +29,13 @@ native PiRLC output component.  Exact coefficient equality is then obtained, or
 the result names the precise nonzero-polynomial root event.  Affine shape/glue,
 strict PiDEC, and point binding are carried in the accepted certificate.
 
-The verifier at the end of this module is executable.  Its proof object is only
-a field-valued wire assignment; it carries no acceptance bit or theorem.  On
+The verifier at the end of this module is executable. Its proof object is only
+a field-valued wire assignment; it carries no acceptance bit or theorem. On
 success the verifier decodes the strict-PiDEC parent and child claims into the
-next running accumulator.  Thus generated-row satisfaction, rather than a
-configurable callback or caller-provided compiler proposition, is the authority
-for acceptance.
+next running accumulator. Generated-row satisfaction is therefore the
+authority for this row-decoded checklist. It is not yet authority for the
+paper-level NIFS transition: a separate bridge must construct and discharge the
+independent PiCCS/PiRLC/PiDEC semantics and their composition theorem.
 -/
 
 namespace Nightstream.Assurance.FPrimeConcreteNifs
@@ -298,7 +299,7 @@ structure TerminalRows (assignment : Nat → Nat) : Prop where
   authority : TerminalAuthorityRows assignment
   residual : OwnersRows terminalResidualOwners assignment
 
-/-- Independent recursive verifier semantics decoded from circuit wires. -/
+/-- Recursive verifier checklist decoded from circuit wires. -/
 structure RecursiveSemanticAccepted (assignment : Nat → Nat) : Prop where
   constantOne : assignment 0 = 1
   transcript :
@@ -321,7 +322,7 @@ structure RecursiveSemanticAccepted (assignment : Nat → Nat) : Prop where
     FPrimeFullHistoryRecursiveAccumulatorSound.Facts assignment
   residual : OwnersAccepted recursiveResidualOwners assignment
 
-/-- Independent terminal-fold verifier semantics decoded from circuit wires. -/
+/-- Terminal-fold verifier checklist decoded from circuit wires. -/
 structure TerminalSemanticAccepted (assignment : Nat → Nat) : Prop where
   constantOne : assignment 0 = 1
   transcript : FPrimeFullHistoryTranscriptSound.TerminalTranscriptAccepted
@@ -578,8 +579,8 @@ structure TerminalArtifactAccepted (assignment : Nat → Nat) : Prop where
   authority : TerminalAuthorityAccepted assignment
   residual : OwnersAccepted terminalResidualOwners assignment
 
-/-- Independent sampled-point verification yields coefficient-exact native
-PiRLC semantics, or the precise bad-root event. -/
+/-- Row-decoded sampled-point verification yields coefficient-exact projection
+equations, or the precise bad-root event. -/
 theorem recursive_semantic_sound_or_badRoot
     {assignment : Nat → Nat}
     (accepted : RecursiveSemanticAccepted assignment) :
@@ -646,7 +647,7 @@ theorem terminal_semantic_sound_or_badRoot
     }
   · exact Or.inr bad
 
-/-- Exact recursive rows compile to the independent semantic verifier. -/
+/-- Exact recursive rows imply the row-decoded verifier checklist. -/
 theorem recursive_rows_sound
     (prime : EuclidPrime goldilocksP)
     {assignment : Nat → Nat}
@@ -673,12 +674,12 @@ theorem recursive_rows_sound
   piDec := PiDecStrictSound.Exact.recursive_sound prime canonical one rows.piDec
   pointBinding := FPrimeFullHistoryPointBindingSound.recursive_sound canonical one
     rows.pointBinding
-  accumulator := FPrimeFullHistoryRecursiveAccumulatorSound.sound prime
+  accumulator := FPrimeFullHistoryRecursiveAccumulatorSound.sound
     canonical one rows.accumulator
   residual := owners_sound canonical one rows.residual
 }
 
-/-- Exact terminal rows compile to the independent semantic verifier. -/
+/-- Exact terminal rows imply the row-decoded verifier checklist. -/
 theorem terminal_rows_sound
     (prime : EuclidPrime goldilocksP)
     {assignment : Nat → Nat}
@@ -1136,8 +1137,9 @@ private theorem exactProjectionCheck_eq_true_iff
       BatchExact (ProjectionProgram.BatchIdentity traces assignment) := by
   simp [exactProjectionCheck, BatchExact, List.all_eq_true, decide_eq_true_eq]
 
-/-- Independent coefficient-exact verifier used by the M3 native NIFS
-semantics.  The generated circuit only guarantees this check or `BadRoot`. -/
+/-- Coefficient-exact row-decoded checker used by the M3 NIFS callback. The
+generated circuit only guarantees this check or `BadRoot`; paper-level NIFS
+soundness additionally requires `FPR-NIFS-BRIDGE`. -/
 def recursiveNativeCheck (proof : Proof) : Bool :=
   recursiveCheck proof && exactProjectionCheck recursiveTraces proof.assignment
 

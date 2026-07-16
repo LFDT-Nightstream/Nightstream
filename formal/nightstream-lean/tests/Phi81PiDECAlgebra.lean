@@ -39,7 +39,25 @@ example : Radix.splitScalar positiveThirteen ⟨1, by decide⟩ = 0 := by
 example : Radix.splitScalar positiveThirteen ⟨2, by decide⟩ = 1 := by
   decide
 
+example : Radix.splitScalar positiveThirteen ⟨3, by decide⟩ = 1 := by
+  decide
+
+example : Radix.splitScalar positiveThirteen ⟨4, by decide⟩ = 0 := by
+  decide
+
+example : Radix.splitScalar negativeThirteen ⟨0, by decide⟩ = -(1 : F) := by
+  decide
+
+example : Radix.splitScalar negativeThirteen ⟨1, by decide⟩ = 0 := by
+  decide
+
 example : Radix.splitScalar negativeThirteen ⟨2, by decide⟩ = -(1 : F) := by
+  decide
+
+example : Radix.splitScalar negativeThirteen ⟨3, by decide⟩ = -(1 : F) := by
+  decide
+
+example : Radix.splitScalar negativeThirteen ⟨4, by decide⟩ = 0 := by
   decide
 
 /- At the strict boundary, the total fallback retains the value in child zero

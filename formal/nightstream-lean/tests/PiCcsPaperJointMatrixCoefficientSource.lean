@@ -1,0 +1,14 @@
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.MatrixCoefficientSource
+
+open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.MatrixCoefficientSource
+open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
+
+#check oneHotAssignment
+#check matrixVectorAt_oneHot
+#check sumRange_select
+#check MatrixSource.paddedMatrixEntry
+#check MatrixSource.coefficientMatrix_constant_apply
+#check MatrixSource.coefficientMatrix_constant_eq
+#check ConnectedInputs.toUnifiedInputs_system_eq
+#check ConnectedInputs.toUnifiedInputs_coefficientMatrices_eq
+#check ConnectedInputs.carriedImageConstantAt_eq_ccsImageAt

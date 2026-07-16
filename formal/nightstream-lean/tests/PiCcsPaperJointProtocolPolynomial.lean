@@ -1,0 +1,16 @@
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ProtocolPolynomial
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.NonlinearTerminal
+
+open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
+
+#check ProtocolPolynomial.Data.toJointData
+#check ProtocolPolynomial.messageAt
+#check ProtocolPolynomial.terminalFromMessage
+#check ProtocolPolynomial.qAtPoint_toCubePoint_eq_tableQ
+#check ProtocolPolynomial.sumCompletions_polynomial_eq_summedQ
+#check ProtocolPolynomial.canonicalGhosts_honest
+#check ProtocolPolynomial.check_eq_true_iff_accepted
+#check ProtocolPolynomial.check_implies_tableTruth_or_badEvent
+#check ProtocolPolynomial.Necessity.NonlinearTerminal.residualTableTerminal_eq_two
+#check ProtocolPolynomial.Necessity.NonlinearTerminal.protocolTerminal_eq_four
+#check ProtocolPolynomial.Necessity.NonlinearTerminal.residualTableTerminal_ne_protocolTerminal

@@ -1,0 +1,10 @@
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ProtocolVerifier
+
+open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ProtocolVerifier
+
+#check Certificate.toFinite_rounds_length
+#check derive_coins_eq_transcript
+#check derive_outgoingState_eq_absorbOutput
+#check check_eq_true_iff_accepted
+#check check_complete_of_accepted
+#check check_implies_tableTruth_or_badEvent

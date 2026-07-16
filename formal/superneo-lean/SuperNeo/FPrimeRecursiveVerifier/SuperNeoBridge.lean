@@ -1,13 +1,24 @@
-import SuperNeo.FiatShamirReroute
+import SuperNeo.FoldingProtocol.FiatShamirReroute
 import SuperNeo.FPrimeRecursiveVerifier.Authority
 
 /-!
-Concrete SuperNeo post-`Π_RLC` authority boundary.
+Owns: the post-`Pi_RLC` authority reduction from the checked RLC parent to the
+derived `Pi_DEC` statement, while retaining child validation.
 
-The existing paper theorem derives the `Π_DEC` knowledge statement from the
-`Π_RLC` weak statement. This module turns that theorem into a removable-check
-certificate while keeping concrete child-payload validation as an independent
-operational obligation.
+Does not own: concrete child payload validation, Poseidon2 transcript replay,
+or Rust/R1CS refinement.
+
+Emits constraints: no.
+
+Authority boundary: the validated RLC parent is transcript authority; DEC
+children remain validation inputs but their statement is not an independent
+authority check.
+
+| Obligation | Lean owner | Guarantee |
+|---|---|---|
+| Parent plan | `minimalPostRlc_accepts_iff_target` | RLC parent acceptance implies the post-RLC target |
+| DEC erasure | `decStatement_redundant` | Proves the separate DEC statement redundant |
+| Child validation | `PostRlcCheckedMinimal` | Keeps concrete validation as an independent premise |
 -/
 
 namespace SuperNeo.FPrimeRecursiveVerifier

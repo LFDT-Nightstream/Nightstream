@@ -2,14 +2,15 @@
 
 ## Purpose
 
-`FPrimeRecursiveVerifier` is the theorem-facing boundary for minimizing the
-R1CS that verifies one recursive augmented-function step. It keeps the target
-relation fixed while allowing independently compiled check blocks to be added
-or removed.
+`FPrimeRecursiveVerifier` is planning infrastructure for minimizing the R1CS
+that verifies one recursive augmented-function step. It keeps a declared check
+vocabulary fixed while allowing independently compiled blocks to be added or
+removed. The declared vocabulary is not itself the independent paper relation.
 
 The module answers two different questions with different certificates:
 
-1. Does the selected set of checks accept exactly the intended `F'` relation?
+1. Does the selected set of checks accept exactly the declared predicate
+   checklist?
 2. Does each emitted R1CS block implement its named check exactly enough for
    circuit soundness, and can the honest compiler produce a satisfying witness?
 
@@ -22,10 +23,10 @@ A row count is never accepted as evidence for either property.
 - `SuperNeo/FiatShamirReroute.lean`: the proved parent-authority reroute used at
   the post-`Pi_RLC` boundary.
 
-## Fixed Semantic Target
+## Generic Check Vocabulary (Not Semantic Authority)
 
-`PaperRecursiveStep predicates step` is the conjunction of these independent
-obligations:
+`PaperRecursiveStep predicates step` is the conjunction of these
+caller-supplied obligations:
 
 1. verifier context validity;
 2. canonical encoding;
@@ -40,7 +41,7 @@ obligations:
 11. recursive state transition;
 12. public output binding.
 
-The following implementation sidecars are not part of the target relation:
+The following implementation sidecars are not part of the declared checklist:
 
 - DEC-children transcript hash;
 - duplicate accumulator hash;
@@ -48,6 +49,13 @@ The following implementation sidecars are not part of the target relation:
 
 They may appear in a legacy candidate only when `DerivedCheckLaws` proves each
 sidecar follows from a valid target step.
+
+`essential_accepts_iff_paper` is definitional: both sides contain the same
+supplied predicates. It does not prove that any field implements the SuperNeo
+PiCCS/PiRLC/PiDEC composition or HyperNova Construction 2. That authority must
+come from a separate concrete theorem against the independent paper-level
+relations before this checklist can justify production constraints or their
+removal.
 
 ## Authority Boundary
 
@@ -88,7 +96,8 @@ must cover.
 ## Modular Check Plans
 
 - `Accepts semantics checks input`: every selected check holds.
-- `Sound`: selected-check acceptance implies the fixed target.
+- `Sound`: selected-check acceptance implies the declared target supplied to
+  the generic planning framework.
 - `Complete`: every target input passes every selected check.
 - `Exact`: selected-check acceptance is equivalent to the target.
 - `Redundant`: the other selected checks imply the candidate check.
@@ -113,17 +122,20 @@ The R1CS layer defines sparse linear combinations and standard rows
 `A(z) * B(z) = C(z)`. A modular encoding supplies one local block and one local
 assignment projection per semantic check.
 
-A trusted candidate requires all three certificates:
+A protocol-authoritative candidate requires four certificates:
 
 | Certificate | Guarantee |
 |---|---|
-| `CertifiedPlan` | selected semantic checks equal the fixed target language |
+| `CertifiedPlan` | selected checks equal the declared checklist language |
 | `BlockRefinement` | every block is well formed and any satisfying assignment implies its named semantic check |
 | `PlanWitnessComplete` | every semantically accepted input has one compiler witness satisfying all selected blocks |
+| Paper-semantics refinement | the concrete checklist is sound and complete for the independent PiCCS/PiRLC/PiDEC plus F' transition semantics |
 
 `CertifiedR1csPlan.exact` proves equality of the existential R1CS language and
-the target. `CertifiedR1csPlan.eraseRedundant` removes a proved-redundant block,
-restricts the existing witness compiler, and preserves exactness.
+the supplied checklist. Only composition with the separate paper-semantics
+refinement promotes that equality to protocol assurance.
+`CertifiedR1csPlan.eraseRedundant` removes a proved-redundant block, restricts
+the existing witness compiler, and preserves checklist-relative exactness.
 
 `R1csBlock.cost` computes rows and sparse nonzeros structurally. `compiledCost`
 sums independently concatenated block costs. Cost is reporting data and never

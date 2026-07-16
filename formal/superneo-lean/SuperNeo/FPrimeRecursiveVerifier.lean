@@ -2,21 +2,38 @@ import SuperNeo.FPrimeRecursiveVerifier.NecessityModel
 import SuperNeo.FPrimeRecursiveVerifier.OutputMessageProjection
 import SuperNeo.FPrimeRecursiveVerifier.R1csRefinement
 import SuperNeo.FPrimeRecursiveVerifier.SuperNeoBridge
+import SuperNeo.FPrimeRecursiveVerifier.ConstraintEncoding
 
 /-!
-Certified modular verifier construction for one recursive `F'` step.
+Owns: certification and pruning of modular R1CS plans for one recursive `F'`
+step.
 
-The public construction keeps four boundaries explicit: the target relation,
-the selected semantic checks, each check's R1CS refinement theorem, and the
-honest witness compiler. Candidate circuits may change their block selection
-and cost without weakening the target relation.
+Does not own: semantic predicates, concrete constraint blocks, or witness
+compiler implementations.
+
+Emits constraints: no. It packages semantic and R1CS proof obligations.
+
+Authority boundary: the packaged exactness is relative to the caller-supplied
+`FPrimePredicates`. Block refinement and honest-witness completeness connect an
+R1CS to that checklist, but do not establish that the checklist is the
+independent paper relation. A concrete paper-semantics equivalence theorem is
+an additional required gate; block cost never supplies authority.
+
+| Obligation | Lean owner | Guarantee |
+|---|---|---|
+| Essential plan | `certifyEssentialR1cs` | Packages the exact essential-check lowering |
+| Legacy pruning | `pruneLegacyR1cs` | Erases only checks covered by derived-check laws |
+| Post-RLC plan | `certifyMinimalPostRlcR1cs` | Packages the parent-authority lowering |
 -/
 
 namespace SuperNeo.FPrimeRecursiveVerifier
 
 universe u v
 
-/-- Package an essential-check lowering after all three proof obligations exist. -/
+/--
+Package an essential-check lowering relative to a supplied predicate checklist.
+This does not certify the checklist against independent paper semantics.
+-/
 def certifyEssentialR1cs
     {R : Type u} [Semiring R]
     {Step : Type v} {Witness : Type v}
@@ -36,7 +53,7 @@ def certifyEssentialR1cs
   refinement := refinement
   compilerComplete := compilerComplete
 
-/-- The packaged essential R1CS accepts exactly the recursive-step target. -/
+/-- The packaged R1CS accepts exactly the supplied recursive-step checklist. -/
 theorem certifiedEssentialR1cs_exact
     {R : Type u} [Semiring R]
     {Step : Type v} {Witness : Type v}

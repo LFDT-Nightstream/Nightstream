@@ -1,13 +1,27 @@
 import SuperNeo.FPrimeRecursiveVerifier.Cost
 
 /-!
-Semantic obligations for one recursive `F'` step.
+Owns: a generic recursive `F'` check vocabulary, candidate essential and
+legacy plans, and pruning obligations relative to caller-supplied predicates.
 
-The target follows HyperNova Construction 2 at the verifier boundary: the
-application transition, recursive public link, complete SuperNeo reduction,
-accumulator continuity, state advance, and public output must all hold. Legacy
-hashes and serialization sidecars are modeled separately so they can be added
-or removed without silently changing the target relation.
+Does not own: the independent SuperNeo/HyperNova transition semantics, concrete
+SuperNeo predicates, Poseidon2 schedules, R1CS rows, or Rust conformance.
+
+Emits constraints: no.
+
+Authority boundary: this file supplies no protocol authority. `PaperRecursiveStep`
+is a named conjunction over predicates supplied by a later instantiation. A
+separate theorem must prove those predicates equivalent to the independent
+paper-level transition before any plan or row removal is protocol-authoritative.
+Legacy digests and sidecars are removable only through explicit derived-check
+laws at that concrete instantiation.
+
+| Obligation | Lean owner | Guarantee |
+|---|---|---|
+| Candidate checklist | `PaperRecursiveStep` | Conjoins caller-supplied recursive-step predicates |
+| Definitional plan exactness | `essential_accepts_iff_paper` | Selected checks equal that same conjunction; does not prove paper semantics |
+| Derived checks | `DerivedCheckLaws`, `prunedLegacyPlan` | Removes only proved redundant legacy checks |
+| Minimality hook | `EssentialNecessityWitnesses` | Requires one counterexample per essential check removal |
 -/
 
 namespace SuperNeo.FPrimeRecursiveVerifier
@@ -34,10 +48,11 @@ inductive FPrimeCheck where
 deriving Repr, DecidableEq
 
 /--
-Concrete predicates supplied by an implementation model for one recursive
-step. The first twelve fields are the paper/Construction-2 obligations. The
-last three are implementation checks whose redundancy must be proved before
-they are removed from a complete legacy plan.
+Predicates supplied by an implementation model for one recursive step. The
+first twelve fields are candidate categories intended to refine the paper and
+Construction-2 obligations; this structure does not prove that refinement.
+The last three are implementation checks whose redundancy must be proved
+before they are removed from a complete legacy plan.
 -/
 structure FPrimePredicates (Step : Type u) where
   verifierContext : Step → Prop
@@ -77,7 +92,14 @@ def checkSemantics
   | .duplicateAccumulatorHash => predicates.duplicateAccumulatorHash
   | .sidecarConsistency => predicates.sidecarConsistency
 
-/-- The exact semantic target for one recursive augmented-function step. -/
+/--
+Candidate obligation checklist for one recursive augmented-function step.
+
+This definition is not an independent paper semantics: every proposition is
+supplied through `FPrimePredicates`. Protocol authority therefore requires a
+separate instantiation theorem relating these fields to the paper-level
+PiCCS/PiRLC/PiDEC composition and HyperNova F' transition.
+-/
 def PaperRecursiveStep
     {Step : Type u}
     (predicates : FPrimePredicates Step)
@@ -124,7 +146,11 @@ theorem essential_accepts_iff_paper
       PaperRecursiveStep predicates step := by
   simp [Accepts, essentialChecks, checkSemantics, PaperRecursiveStep]
 
-/-- The canonical semantic plan is sound and complete by construction. -/
+/--
+The candidate plan is definitionally exact for its supplied checklist. This is
+planning infrastructure, not a proof that the checklist is a sound SuperNeo
+or HyperNova recursive verifier.
+-/
 def essentialPlan
     {Step : Type u}
     (predicates : FPrimePredicates Step) :
@@ -138,9 +164,10 @@ def essentialPlan
     exact (essential_accepts_iff_paper predicates step).mpr hPaper
 
 /--
-Proofs that legacy checks are derived on every valid paper transition. This is
-the only authority that permits those checks to be erased while preserving
-completeness as well as soundness.
+Proofs that legacy checks are derived from every accepted concrete checklist
+instantiation. This permits checklist-relative pruning; protocol-authoritative
+pruning additionally requires the independent paper-semantics refinement
+described above.
 -/
 structure DerivedCheckLaws
     {Step : Type u}

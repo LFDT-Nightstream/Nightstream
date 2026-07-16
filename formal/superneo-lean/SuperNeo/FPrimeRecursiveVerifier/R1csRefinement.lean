@@ -2,12 +2,22 @@ import SuperNeo.FPrimeRecursiveVerifier.Cost
 import Mathlib.Algebra.Ring.Defs
 
 /-!
-R1CS semantics and the refinement contract for modular verifier blocks.
+Owns: abstract sparse R1CS semantics and the refinement contract for modular
+verifier blocks.
 
-This module owns the trusted bridge between a selected semantic check and its
-constraint block. A row count never establishes correctness: soundness comes
-from `BlockRefinement.sound`, and completeness comes from a witness compiler
-that satisfies every selected block for every valid semantic input.
+Does not own: concrete Rust rows, trace extraction, retained-column decoding,
+or production witness compilation.
+
+Emits constraints: no. It models and certifies supplied blocks.
+
+Authority boundary: semantic authority comes from `BlockRefinement.sound` and
+honest completeness from `PlanWitnessComplete`; dimensions alone prove neither.
+
+| Obligation | Lean owner | Guarantee |
+|---|---|---|
+| Row semantics | `R1csConstraint.Holds`, `R1csBlock.Satisfied` | Defines sparse R1CS acceptance |
+| Block bridge | `BlockRefinement` | Relates each block to one semantic check |
+| Certified lowering | `CertifiedR1csPlan` | Combines exact plan, refinement, and witness completeness |
 -/
 
 namespace SuperNeo.FPrimeRecursiveVerifier

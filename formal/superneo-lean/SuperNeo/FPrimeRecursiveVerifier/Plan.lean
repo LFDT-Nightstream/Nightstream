@@ -1,11 +1,23 @@
 import Mathlib.Data.Finset.Basic
 
 /-!
-Composable verifier-check plans.
+Owns: generic selection, exactness, redundancy, and necessity calculus for
+finite verifier-check plans.
 
-This module owns the logic for selecting verifier obligations. It deliberately
-knows nothing about SuperNeo, Fiat-Shamir, or R1CS: those layers provide check
-semantics and use these definitions to certify a candidate plan.
+Does not own: SuperNeo predicates, Fiat-Shamir semantics, R1CS blocks, or
+concrete counterexamples.
+
+Emits constraints: no.
+
+Authority boundary: callers supply both check semantics and the target
+relation; a selected check set is authoritative only through proved soundness
+and completeness.
+
+| Obligation | Lean owner | Guarantee |
+|---|---|---|
+| Plan language | `Accepts`, `Sound`, `Complete`, `Exact` | Defines semantic plan correctness |
+| Safe pruning | `exact_erase_of_redundant` | Preserves exactness for a proved redundant check |
+| Necessity | `not_sound_erase_of_necessary` | Rejects removal when a counterexample exists |
 -/
 
 namespace SuperNeo.FPrimeRecursiveVerifier

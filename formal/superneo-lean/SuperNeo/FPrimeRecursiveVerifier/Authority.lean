@@ -1,12 +1,23 @@
 import SuperNeo.FPrimeRecursiveVerifier.Semantics
 
 /-!
-Parent-authority transcript and legacy-child-digest erasure.
+Owns: parent-authority acceptance and erasure of the legacy child-digest
+sidecar.
 
-The parent object remains the authority and must be validated. Its digest is
-only a deterministic compression of that checked object. Children remain
-witnesses that must validate against the parent, but their serialized digest is
-not an independent Fiat-Shamir authority input.
+Does not own: the concrete parent validator, digest function, transcript, or
+Rust serialization.
+
+Emits constraints: no.
+
+Authority boundary: the validated parent remains authoritative; its digest is
+compression, while children must validate against the parent without becoming
+independent transcript authority.
+
+| Obligation | Lean owner | Guarantee |
+|---|---|---|
+| Core acceptance | `AuthorityCoreAccepts` | Validates parent, children, parent digest, and challenge schedule |
+| Legacy sidecar | `AuthorityLegacyAccepts` | Adds only deterministic child-digest consistency |
+| Sidecar erasure | `canonical_legacy_accepts_iff_core` | Canonical legacy encoding preserves core acceptance |
 -/
 
 namespace SuperNeo.FPrimeRecursiveVerifier

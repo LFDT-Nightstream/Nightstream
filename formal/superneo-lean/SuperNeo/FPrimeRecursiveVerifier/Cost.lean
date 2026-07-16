@@ -2,11 +2,22 @@ import SuperNeo.FPrimeRecursiveVerifier.Plan
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 
 /-!
-Cost semantics for modular verifier plans.
+Owns: compositional row, column, and nonzero accounting for modular verifier
+plans.
 
-Costs are certificates supplied by a concrete lowering. They never participate
-in soundness: a cheaper plan is acceptable only when its check plan is also
-certified exact.
+Does not own: measured production counts, semantic soundness, or constraint
+refinement.
+
+Emits constraints: no.
+
+Authority boundary: costs are lowering-supplied metadata and never establish
+acceptance or justify removing a check.
+
+| Obligation | Lean owner | Guarantee |
+|---|---|---|
+| Block cost | `R1csCost` | Records rows, columns, and nonzeros |
+| Plan aggregation | `planCost` | Sums selected block costs componentwise |
+| Candidate budget | `CostedCandidate` | Couples a certified plan with declared costs |
 -/
 
 namespace SuperNeo.FPrimeRecursiveVerifier

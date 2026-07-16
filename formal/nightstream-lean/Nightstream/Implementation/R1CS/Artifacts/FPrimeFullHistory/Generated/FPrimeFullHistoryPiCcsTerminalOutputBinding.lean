@@ -8,9 +8,9 @@ namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryPiCcsTerminalOutputBi
 
 open Nightstream.Implementation.R1CS
 
-def rangeSha256 : String := "2d62a36a1ee0d1d78173bcd43045e4acc1df4c6f27748f8bd9a95bd9ba5e8aa9"
-def rowStart : Nat := 1424530
-def rowEnd : Nat := 1634049
+def rangeSha256 : String := "58c8dfc0a4b0ca75e54eaa3c01d605455c4fdece73f1aaf55be4f5b99f4a29ad"
+def rowStart : Nat := 1642352
+def rowEnd : Nat := 1851871
 def rowCount : Nat := 209519
 
 def pinRuns : List AffinePins.Run :=

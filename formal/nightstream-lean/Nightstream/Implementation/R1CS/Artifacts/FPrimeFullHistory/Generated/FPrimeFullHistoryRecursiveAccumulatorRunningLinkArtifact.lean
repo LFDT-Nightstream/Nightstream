@@ -6,13 +6,13 @@ namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryRecursiveAccumulatorR
 
 open Nightstream.Implementation.R1CS
 
-def rangeSha256 : String := "c96b1cd632f868b145f7674271366be660f05b7f814186739433af8c18c2fcd2"
-def rowStart : Nat := 887388
-def rowEnd : Nat := 887392
+def rangeSha256 : String := "764e43cc93af3fdf6e8682cb66d6e18daf927b7559a9049aab98e6a2075b7501"
+def rowStart : Nat := 863857
+def rowEnd : Nat := 863861
 def rowCount : Nat := 4
 
 def pairRuns : List EqualityPins.PairRun :=
-  [ ⟨216073, 10856, 1, 1, 4⟩
+  [ ⟨213659, 10856, 1, 1, 4⟩
   ]
 
 def pairs : List (Nat × Nat) := EqualityPins.expandRuns pairRuns

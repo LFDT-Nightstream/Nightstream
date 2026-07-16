@@ -3,7 +3,7 @@
 ```text
 property_ids: CIR-SOUND, CIR-COMPLETE
 claim:
-  The exact supported artifact is the 4,076,614-row plain/stateless [1,1]
+  The exact supported artifact is the 4,193,134-row plain/stateless [1,1]
   full-history profile with one recursive invocation, a terminal fold, direct
   terminal CE, and the minimal-supported-bit-carrier relation. Standalone base
   and recursive owners do not, by themselves, implement the closed Step.Holds
@@ -56,7 +56,7 @@ rust_surfaces:
     enforce_terminal_latest_link}
   - paper/f_prime/native.rs::{prove_with_semantic_state,verify}
 circuit_or_encoding_artifacts:
-  - Exact 4,076,614-row composed full-history artifact for the fixed
+  - Exact 4,193,134-row composed full-history artifact for the fixed
     plain/stateless [1,1] profile, including one recursive invocation, terminal
     fold, direct terminal CE, and minimal-supported-bit-carrier relation.
   - Exact compact ownership manifests for every top-level, recursive, terminal,
@@ -112,7 +112,7 @@ conformance_status:
   FPrimeFullHistoryRows.fullRows assignment`, reconstructs every semantic row
   owner, and returns a two-edge `ValidExecution` with the direct terminal
   predicate or `BadEvent.recursiveRoot` / `BadEvent.terminalRoot`. The generated
-  artifact has 4,076,614 rows, 3,298,653 columns, and 125,877,402 nonzero sparse
+  artifact has 4,193,134 rows, 3,582,173 columns, and 100,875,506 nonzero sparse
   entries. The two root-event probability bounds remain M6 obligations.
   CIR-COMPLETE is artifact-checked for the same profile:
   `fPrimeCircuit_complete` reassembles an independent `CompilerWitness` into

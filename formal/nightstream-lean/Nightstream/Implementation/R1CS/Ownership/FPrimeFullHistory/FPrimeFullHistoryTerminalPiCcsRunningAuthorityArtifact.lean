@@ -2,6 +2,8 @@ import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPr
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryTerminalPiCcsRunningAuthorityPieces1
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryTerminalPiCcsRunningAuthorityPieces2
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryTerminalPiCcsRunningAuthorityPieces3
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryTerminalPiCcsRunningAuthorityPieces4
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryTerminalPiCcsRunningAuthorityPieces5
 
 /-! Exact ordered row certificate for the terminal Pi_CCS running-parent authority owner. Hash is drift metadata only. -/
 
@@ -11,16 +13,18 @@ open Nightstream.Implementation.R1CS.OwnerCertificate
 
 set_option maxRecDepth 1048576
 
-def rangeSha256 : String := "9af2aa74ee11aa9943d3730efb51908682aad44d65f51e3544a26c78470faeda"
-def rowStart : Nat := 1119395
-def rowEnd : Nat := 1347874
-def rowCount : Nat := 228479
+def rangeSha256 : String := "c5a15c8c6ca0d219d79293550927baa41ecc6bcaa4ca9f96d4acf82e61285086"
+def rowStart : Nat := 1313780
+def rowEnd : Nat := 1568717
+def rowCount : Nat := 254937
 
 def pieces : List Piece :=
   Generated.pieces0 ++
     Generated.pieces1 ++
     Generated.pieces2 ++
-    Generated.pieces3
+    Generated.pieces3 ++
+    Generated.pieces4 ++
+    Generated.pieces5
 
 def owner : Owner := ⟨rowStart, rowEnd, pieces⟩
 

@@ -11,7 +11,7 @@ The public witness contains successful source/interpreter executions for row
 families with intermediate columns and direct semantic inputs for row families
 without auxiliaries.  It deliberately contains no `Satisfies`, aggregate
 accepted-conclusion, or prover-supplied verifier-result field.  The theorem
-reassembles those independent executions into the exact 4,076,614 sparse rows
+reassembles those independent executions into the exact 4,193,134 sparse rows
 in production manifest order.
 -/
 

@@ -6,134 +6,134 @@ namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryPiCcsTerminalAllocati
 
 open Nightstream.Implementation.R1CS
 
-def rangeSha256 : String := "97d070b9e2c3ba7b4b9c1b4adc696a7c8d1229085378ae0ff236b6ba75b53beb"
-def rowStart : Nat := 930020
-def rowEnd : Nat := 930203
+def rangeSha256 : String := "cdb38d8213375501b9320b1bd1af6bdfc80f6bd907ddd058010262bfeb464770"
+def rowStart : Nat := 1124105
+def rowEnd : Nat := 1124288
 def rowCount : Nat := 183
 
 def pinRuns : List AffinePins.Run :=
-  [ .constant 929351 1 54 0 1
-  , .constant 929352 1230 18 239 2
-  , .zero 930583 0 1
-  , .constant 930854 1 54 0 1
-  , .constant 930855 973 18 36 2
-  , .constant 931829 539 257 0 2
-  , .zero 932373 0 1
-  , .constant 932644 1 54 0 1
-  , .constant 932645 973 18 36 2
-  , .constant 933619 539 257 0 2
-  , .zero 934163 0 1
-  , .constant 934434 1 54 0 1
-  , .constant 934435 973 18 36 2
-  , .constant 935409 539 257 0 2
-  , .zero 935953 0 1
-  , .constant 936224 1 54 0 1
-  , .constant 936225 973 18 36 2
-  , .constant 937199 539 257 0 2
-  , .zero 937743 0 1
-  , .constant 938014 1 54 0 1
-  , .constant 938015 973 18 36 2
-  , .constant 938989 539 257 0 2
-  , .zero 939533 0 1
-  , .constant 939804 1 54 0 1
-  , .constant 939805 973 18 36 2
-  , .constant 940779 539 257 0 2
-  , .zero 941323 0 1
-  , .constant 941594 1 54 0 1
-  , .constant 941595 973 18 36 2
-  , .constant 942569 539 257 0 2
-  , .zero 943113 0 1
-  , .constant 943384 1 54 0 1
-  , .constant 943385 973 18 36 2
-  , .constant 944359 539 257 0 2
-  , .zero 944903 0 1
-  , .constant 945174 1 54 0 1
-  , .constant 945175 973 18 36 2
-  , .constant 946149 539 257 0 2
-  , .zero 946693 0 1
-  , .constant 946964 1 54 0 1
-  , .constant 946965 973 18 36 2
-  , .constant 947939 539 257 0 2
-  , .zero 948483 0 1
-  , .constant 948754 1 54 0 1
-  , .constant 948755 973 18 36 2
-  , .constant 949729 539 257 0 2
-  , .zero 950273 0 1
-  , .constant 950544 1 54 0 1
-  , .constant 950545 973 18 36 2
-  , .constant 951519 539 257 0 2
-  , .zero 952063 0 1
-  , .constant 952334 1 54 0 1
-  , .constant 952335 973 18 36 2
-  , .constant 953309 539 257 0 2
-  , .zero 953853 0 1
-  , .constant 954124 1 54 0 1
-  , .constant 954125 973 18 36 2
-  , .constant 955099 539 257 0 2
-  , .zero 955643 0 1
-  , .constant 955914 1 54 0 1
-  , .constant 955915 973 18 36 2
-  , .constant 956889 539 257 0 2
-  , .zero 957433 0 1
-  , .constant 957704 1 54 0 1
-  , .constant 957705 973 18 36 2
-  , .constant 958679 539 257 0 2
-  , .zero 959223 0 1
-  , .constant 959494 1 54 0 1
-  , .constant 959495 973 18 36 2
-  , .constant 960469 539 257 0 2
-  , .zero 961013 0 1
-  , .constant 961284 1 54 0 1
-  , .constant 961285 973 18 36 2
-  , .constant 962259 539 257 0 2
-  , .zero 962803 0 1
-  , .constant 963074 1 54 0 1
-  , .constant 963075 973 18 36 2
-  , .constant 964049 539 257 0 2
-  , .zero 964593 0 1
-  , .constant 964864 1 54 0 1
-  , .constant 964865 973 18 36 2
-  , .constant 965839 539 257 0 2
-  , .zero 966383 0 1
-  , .constant 966654 1 54 0 1
-  , .constant 966655 973 18 36 2
-  , .constant 967629 539 257 0 2
-  , .zero 968173 0 1
-  , .constant 968444 1 54 0 1
-  , .constant 968445 973 18 36 2
-  , .constant 969419 539 257 0 2
-  , .zero 969963 0 1
-  , .constant 970234 1 54 0 1
-  , .constant 970235 973 18 36 2
-  , .constant 971209 539 257 0 2
-  , .zero 971753 0 1
-  , .constant 972024 1 54 0 1
-  , .constant 972025 973 18 36 2
-  , .constant 972999 539 257 0 2
-  , .zero 973543 0 1
-  , .constant 973814 1 54 0 1
-  , .constant 973815 973 18 36 2
-  , .constant 974789 539 257 0 2
-  , .zero 975333 0 1
-  , .constant 975604 1 54 0 1
-  , .constant 975605 973 18 36 2
-  , .constant 976579 539 257 0 2
-  , .zero 977123 0 1
-  , .constant 977394 1 54 0 1
-  , .constant 977395 973 18 36 2
-  , .constant 978369 539 257 0 2
-  , .zero 978913 0 1
-  , .constant 979184 1 54 0 1
-  , .constant 979185 973 18 36 2
-  , .constant 980159 539 257 0 2
-  , .zero 980703 0 1
-  , .constant 980974 1 54 0 1
-  , .constant 980975 973 18 36 2
-  , .constant 981949 539 257 0 2
-  , .zero 982493 0 1
-  , .constant 982764 1 54 0 1
-  , .constant 982765 973 18 36 2
-  , .constant 983739 539 257 0 2
+  [ .constant 1132308 1 54 0 1
+  , .constant 1132309 1230 18 239 2
+  , .zero 1133540 0 1
+  , .constant 1133811 1 54 0 1
+  , .constant 1133812 973 18 36 2
+  , .constant 1134786 411 257 0 2
+  , .zero 1135202 0 1
+  , .constant 1135473 1 54 0 1
+  , .constant 1135474 973 18 36 2
+  , .constant 1136448 411 257 0 2
+  , .zero 1136864 0 1
+  , .constant 1137135 1 54 0 1
+  , .constant 1137136 973 18 36 2
+  , .constant 1138110 411 257 0 2
+  , .zero 1138526 0 1
+  , .constant 1138797 1 54 0 1
+  , .constant 1138798 973 18 36 2
+  , .constant 1139772 411 257 0 2
+  , .zero 1140188 0 1
+  , .constant 1140459 1 54 0 1
+  , .constant 1140460 973 18 36 2
+  , .constant 1141434 411 257 0 2
+  , .zero 1141850 0 1
+  , .constant 1142121 1 54 0 1
+  , .constant 1142122 973 18 36 2
+  , .constant 1143096 411 257 0 2
+  , .zero 1143512 0 1
+  , .constant 1143783 1 54 0 1
+  , .constant 1143784 973 18 36 2
+  , .constant 1144758 411 257 0 2
+  , .zero 1145174 0 1
+  , .constant 1145445 1 54 0 1
+  , .constant 1145446 973 18 36 2
+  , .constant 1146420 411 257 0 2
+  , .zero 1146836 0 1
+  , .constant 1147107 1 54 0 1
+  , .constant 1147108 973 18 36 2
+  , .constant 1148082 411 257 0 2
+  , .zero 1148498 0 1
+  , .constant 1148769 1 54 0 1
+  , .constant 1148770 973 18 36 2
+  , .constant 1149744 411 257 0 2
+  , .zero 1150160 0 1
+  , .constant 1150431 1 54 0 1
+  , .constant 1150432 973 18 36 2
+  , .constant 1151406 411 257 0 2
+  , .zero 1151822 0 1
+  , .constant 1152093 1 54 0 1
+  , .constant 1152094 973 18 36 2
+  , .constant 1153068 411 257 0 2
+  , .zero 1153484 0 1
+  , .constant 1153755 1 54 0 1
+  , .constant 1153756 973 18 36 2
+  , .constant 1154730 411 257 0 2
+  , .zero 1155146 0 1
+  , .constant 1155417 1 54 0 1
+  , .constant 1155418 973 18 36 2
+  , .constant 1156392 411 257 0 2
+  , .zero 1156808 0 1
+  , .constant 1157079 1 54 0 1
+  , .constant 1157080 973 18 36 2
+  , .constant 1158054 539 257 0 2
+  , .zero 1158598 0 1
+  , .constant 1158869 1 54 0 1
+  , .constant 1158870 973 18 36 2
+  , .constant 1159844 539 257 0 2
+  , .zero 1160388 0 1
+  , .constant 1160659 1 54 0 1
+  , .constant 1160660 973 18 36 2
+  , .constant 1161634 539 257 0 2
+  , .zero 1162178 0 1
+  , .constant 1162449 1 54 0 1
+  , .constant 1162450 973 18 36 2
+  , .constant 1163424 539 257 0 2
+  , .zero 1163968 0 1
+  , .constant 1164239 1 54 0 1
+  , .constant 1164240 973 18 36 2
+  , .constant 1165214 539 257 0 2
+  , .zero 1165758 0 1
+  , .constant 1166029 1 54 0 1
+  , .constant 1166030 973 18 36 2
+  , .constant 1167004 539 257 0 2
+  , .zero 1167548 0 1
+  , .constant 1167819 1 54 0 1
+  , .constant 1167820 973 18 36 2
+  , .constant 1168794 539 257 0 2
+  , .zero 1169338 0 1
+  , .constant 1169609 1 54 0 1
+  , .constant 1169610 973 18 36 2
+  , .constant 1170584 539 257 0 2
+  , .zero 1171128 0 1
+  , .constant 1171399 1 54 0 1
+  , .constant 1171400 973 18 36 2
+  , .constant 1172374 539 257 0 2
+  , .zero 1172918 0 1
+  , .constant 1173189 1 54 0 1
+  , .constant 1173190 973 18 36 2
+  , .constant 1174164 539 257 0 2
+  , .zero 1174708 0 1
+  , .constant 1174979 1 54 0 1
+  , .constant 1174980 973 18 36 2
+  , .constant 1175954 539 257 0 2
+  , .zero 1176498 0 1
+  , .constant 1176769 1 54 0 1
+  , .constant 1176770 973 18 36 2
+  , .constant 1177744 539 257 0 2
+  , .zero 1178288 0 1
+  , .constant 1178559 1 54 0 1
+  , .constant 1178560 973 18 36 2
+  , .constant 1179534 539 257 0 2
+  , .zero 1180078 0 1
+  , .constant 1180349 1 54 0 1
+  , .constant 1180350 973 18 36 2
+  , .constant 1181324 539 257 0 2
+  , .zero 1181868 0 1
+  , .constant 1182139 1 54 0 1
+  , .constant 1182140 973 18 36 2
+  , .constant 1183114 539 257 0 2
+  , .zero 1183658 0 1
+  , .constant 1183929 1 54 0 1
+  , .constant 1183930 973 18 36 2
+  , .constant 1184904 539 257 0 2
   ]
 
 def pins : List AffinePins.Pin := AffinePins.expandRuns pinRuns

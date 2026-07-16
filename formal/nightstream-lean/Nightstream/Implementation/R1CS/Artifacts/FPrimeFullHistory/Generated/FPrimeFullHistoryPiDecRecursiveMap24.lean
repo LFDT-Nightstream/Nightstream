@@ -7,62 +7,88 @@ namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryPiDec.GeneratedMaps
 set_option maxRecDepth 262144
 set_option maxHeartbeats 2000000
 
-def recursiveMap24 : List Nat := [398541] ++
-    ((List.range 15).map (fun index => 373482 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 373483 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 373484 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 373485 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 373486 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 373487 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 373488 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 373489 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 373490 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 373491 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 373492 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 373493 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 373494 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 373495 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 373496 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 373497 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 373498 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 373499 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 373500 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 373501 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 373502 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 373503 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 373504 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 373505 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 373506 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 373507 + 1790 * index)) ++
-    [373666, 375456, 373667, 375457, 373668, 375458, 373669, 375459, 373670, 375460] ++
-    ((List.range 5).map (fun index => 377246 + 1 * index)) ++
-    ((List.range 5).map (fun index => 379036 + 1 * index)) ++
-    ((List.range 5).map (fun index => 380826 + 1 * index)) ++
-    ((List.range 5).map (fun index => 382616 + 1 * index)) ++
-    ((List.range 5).map (fun index => 384406 + 1 * index)) ++
-    ((List.range 5).map (fun index => 386196 + 1 * index)) ++
-    ((List.range 5).map (fun index => 387986 + 1 * index)) ++
-    ((List.range 5).map (fun index => 389776 + 1 * index)) ++
-    ((List.range 5).map (fun index => 391566 + 1 * index)) ++
-    ((List.range 5).map (fun index => 393356 + 1 * index)) ++
-    ((List.range 5).map (fun index => 395146 + 1 * index)) ++
-    ((List.range 5).map (fun index => 396936 + 1 * index)) ++
-    ((List.range 5).map (fun index => 398726 + 1 * index)) ++
-    [373514, 375304, 373515, 375305, 377094, 377095, 378884, 378885, 380674, 380675, 382464, 382465, 384254, 384255, 386044, 386045, 387834, 387835, 389624, 389625, 391414, 391415, 393204, 393205, 394994, 394995, 396784, 396785, 398574, 398575, 373516, 375306, 373517, 375307, 373518, 375308, 373519, 375309, 373520, 375310, 373521, 375311, 373522, 375312, 373523, 375313, 373524, 375314, 373525, 375315, 373526, 375316, 373527, 375317, 373528, 375318, 373529, 375319, 373530, 375320, 373531, 375321, 373532, 375322, 373533, 375323] ++
-    ((List.range 18).map (fun index => 377096 + 1 * index)) ++
-    ((List.range 18).map (fun index => 378886 + 1 * index)) ++
-    ((List.range 18).map (fun index => 380676 + 1 * index)) ++
-    ((List.range 18).map (fun index => 382466 + 1 * index)) ++
-    ((List.range 18).map (fun index => 384256 + 1 * index)) ++
-    ((List.range 18).map (fun index => 386046 + 1 * index)) ++
-    ((List.range 18).map (fun index => 387836 + 1 * index)) ++
-    ((List.range 18).map (fun index => 389626 + 1 * index)) ++
-    ((List.range 18).map (fun index => 391416 + 1 * index)) ++
-    ((List.range 18).map (fun index => 393206 + 1 * index)) ++
-    ((List.range 18).map (fun index => 394996 + 1 * index)) ++
-    ((List.range 18).map (fun index => 396786 + 1 * index)) ++
-    ((List.range 18).map (fun index => 398576 + 1 * index)) ++
-    ((List.range 15).map (fun index => 372853 + 1790 * index)) ++
-    ((List.range 219).map (fun index => 879131 + 1 * index))
+def recursiveMap24 : List Nat := [383626, 360231] ++
+    ((List.range 14).map (fun index => 362021 + 1662 * index)) ++
+    [360232] ++
+    ((List.range 14).map (fun index => 362022 + 1662 * index)) ++
+    [360233] ++
+    ((List.range 14).map (fun index => 362023 + 1662 * index)) ++
+    [360234] ++
+    ((List.range 14).map (fun index => 362024 + 1662 * index)) ++
+    [360235] ++
+    ((List.range 14).map (fun index => 362025 + 1662 * index)) ++
+    [360236] ++
+    ((List.range 14).map (fun index => 362026 + 1662 * index)) ++
+    [360237] ++
+    ((List.range 14).map (fun index => 362027 + 1662 * index)) ++
+    [360238] ++
+    ((List.range 14).map (fun index => 362028 + 1662 * index)) ++
+    [360239] ++
+    ((List.range 14).map (fun index => 362029 + 1662 * index)) ++
+    [360240] ++
+    ((List.range 14).map (fun index => 362030 + 1662 * index)) ++
+    [360241] ++
+    ((List.range 14).map (fun index => 362031 + 1662 * index)) ++
+    [360242] ++
+    ((List.range 14).map (fun index => 362032 + 1662 * index)) ++
+    [360243] ++
+    ((List.range 14).map (fun index => 362033 + 1662 * index)) ++
+    [360244] ++
+    ((List.range 14).map (fun index => 362034 + 1662 * index)) ++
+    [360245] ++
+    ((List.range 14).map (fun index => 362035 + 1662 * index)) ++
+    [360246] ++
+    ((List.range 14).map (fun index => 362036 + 1662 * index)) ++
+    [360247] ++
+    ((List.range 14).map (fun index => 362037 + 1662 * index)) ++
+    [360248] ++
+    ((List.range 14).map (fun index => 362038 + 1662 * index)) ++
+    [360249] ++
+    ((List.range 14).map (fun index => 362039 + 1662 * index)) ++
+    [360250] ++
+    ((List.range 14).map (fun index => 362040 + 1662 * index)) ++
+    [360251] ++
+    ((List.range 14).map (fun index => 362041 + 1662 * index)) ++
+    [360252] ++
+    ((List.range 14).map (fun index => 362042 + 1662 * index)) ++
+    [360253] ++
+    ((List.range 14).map (fun index => 362043 + 1662 * index)) ++
+    [360254] ++
+    ((List.range 14).map (fun index => 362044 + 1662 * index)) ++
+    [360255] ++
+    ((List.range 14).map (fun index => 362045 + 1662 * index)) ++
+    [360256] ++
+    ((List.range 14).map (fun index => 362046 + 1662 * index)) ++
+    [360415, 362077, 360416, 362078, 360417, 362079, 360418, 362080, 360419, 362081] ++
+    ((List.range 5).map (fun index => 363739 + 1 * index)) ++
+    ((List.range 5).map (fun index => 365401 + 1 * index)) ++
+    ((List.range 5).map (fun index => 367063 + 1 * index)) ++
+    ((List.range 5).map (fun index => 368725 + 1 * index)) ++
+    ((List.range 5).map (fun index => 370387 + 1 * index)) ++
+    ((List.range 5).map (fun index => 372049 + 1 * index)) ++
+    ((List.range 5).map (fun index => 373711 + 1 * index)) ++
+    ((List.range 5).map (fun index => 375373 + 1 * index)) ++
+    ((List.range 5).map (fun index => 377035 + 1 * index)) ++
+    ((List.range 5).map (fun index => 378697 + 1 * index)) ++
+    ((List.range 5).map (fun index => 380359 + 1 * index)) ++
+    ((List.range 5).map (fun index => 382021 + 1 * index)) ++
+    ((List.range 5).map (fun index => 383683 + 1 * index)) ++
+    [360263, 362053, 360264, 362054, 363715, 363716, 365377, 365378, 367039, 367040, 368701, 368702, 370363, 370364, 372025, 372026, 373687, 373688, 375349, 375350, 377011, 377012, 378673, 378674, 380335, 380336, 381997, 381998, 383659, 383660, 360265, 362055, 360266, 362056, 360267, 362057, 360268, 362058, 360269, 362059, 360270, 362060, 360271, 362061, 360272, 362062, 360273, 362063, 360274, 362064, 360275, 362065, 360276, 362066, 360277, 362067, 360278, 362068, 360279, 362069, 360280, 362070, 360281, 362071, 360282, 362072] ++
+    ((List.range 18).map (fun index => 363717 + 1 * index)) ++
+    ((List.range 18).map (fun index => 365379 + 1 * index)) ++
+    ((List.range 18).map (fun index => 367041 + 1 * index)) ++
+    ((List.range 18).map (fun index => 368703 + 1 * index)) ++
+    ((List.range 18).map (fun index => 370365 + 1 * index)) ++
+    ((List.range 18).map (fun index => 372027 + 1 * index)) ++
+    ((List.range 18).map (fun index => 373689 + 1 * index)) ++
+    ((List.range 18).map (fun index => 375351 + 1 * index)) ++
+    ((List.range 18).map (fun index => 377013 + 1 * index)) ++
+    ((List.range 18).map (fun index => 378675 + 1 * index)) ++
+    ((List.range 18).map (fun index => 380337 + 1 * index)) ++
+    ((List.range 18).map (fun index => 381999 + 1 * index)) ++
+    ((List.range 18).map (fun index => 383661 + 1 * index)) ++
+    [359602] ++
+    ((List.range 14).map (fun index => 361392 + 1662 * index)) ++
+    ((List.range 219).map (fun index => 864088 + 1 * index))
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistoryPiDec.GeneratedMaps

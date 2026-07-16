@@ -8,10 +8,10 @@ namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryRecursiveAccumulator
 
 open Nightstream.Implementation.R1CS
 
-def rangeSha256 : String := "465a73e16e64461e346c2a3370368ba5eec506d419775634bbda397c400dac11"
-def rowStart : Nat := 887388
-def rowEnd : Nat := 924691
-def rowCount : Nat := 37303
+def rangeSha256 : String := "1590f426113c2902f21e2e96d664b1b5bb67962401f27b4b9cd54a5925198500"
+def rowStart : Nat := 863857
+def rowEnd : Nat := 1118776
+def rowCount : Nat := 254919
 
 def runningDigestRows : List Row :=
   FPrimeFullHistoryRecursiveAccumulatorRunningLink.rows
@@ -46,21 +46,21 @@ def claimedAccumulatorDigestColumns : List Nat :=
 def recomputedAccumulatorDigestColumns : List Nat :=
   FPrimeFullHistoryRecursiveAccumulatorOutputLink.pairs.map Prod.snd
 
-def parentCeDigestColumns : List Nat :=
-  FPrimeFullHistoryRecursiveAccumulatorCore.parentCeDigestColumns
+def accumulatorClaimSourceColumns : List Nat :=
+  FPrimeFullHistoryRecursiveAccumulatorCore.accumulatorClaimSourceColumns
 
 def accumulatorDigestColumns : List Nat :=
   recomputedAccumulatorDigestColumns
 
 def stateOutputAccumulatorDigestColumns : List Nat :=
-  [924511, 924512, 924513, 924514]
+  [1127468, 1127469, 1127470, 1127471]
 
 theorem exact_owner_partition :
     FPrimeFullHistoryRecursiveAccumulatorRunningLink.rowStart = rowStart ∧
-    FPrimeFullHistoryRecursiveAccumulatorRunningLink.rowEnd = 887392 ∧
-    FPrimeFullHistoryRecursiveAccumulatorCore.rowStart = 887392 ∧
-    FPrimeFullHistoryRecursiveAccumulatorCore.rowEnd = 924687 ∧
-    FPrimeFullHistoryRecursiveAccumulatorOutputLink.rowStart = 924687 ∧
+    FPrimeFullHistoryRecursiveAccumulatorRunningLink.rowEnd = 863861 ∧
+    FPrimeFullHistoryRecursiveAccumulatorCore.rowStart = 863861 ∧
+    FPrimeFullHistoryRecursiveAccumulatorCore.rowEnd = 1118772 ∧
+    FPrimeFullHistoryRecursiveAccumulatorOutputLink.rowStart = 1118772 ∧
     FPrimeFullHistoryRecursiveAccumulatorOutputLink.rowEnd = rowEnd := by native_decide
 
 theorem recomputed_is_core_output :

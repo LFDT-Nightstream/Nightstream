@@ -19,10 +19,10 @@ namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryTerminalContinuity
 
 open Nightstream.Implementation.R1CS
 
-def rangeSha256 : String := "23ad85155805605ba4030816d0e0d80566c47e8eb547f77ce02a5d480d0b4948"
-def rowStart : Nat := 3555185
-def rowEnd : Nat := 3770743
-def rowCount : Nat := 215558
+def rangeSha256 : String := "0b4d10fbf1323ab44f604d3236cbdd717c3e230c903d5fc9648ebc86c65ddd3a"
+def rowStart : Nat := 3673497
+def rowEnd : Nat := 3887263
+def rowCount : Nat := 213766
 
 def pairs : List (Nat × Nat) :=
   Generated0.pairs ++

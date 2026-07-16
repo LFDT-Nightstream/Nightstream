@@ -10,12 +10,12 @@ set_option maxRecDepth 1048576
 set_option maxHeartbeats 0
 
 def block4 : SeededPhi81.Block :=
-  { rowStart := 833813
-    wordStarts := (List.range 3616).map fun index => 400783 + index * 122
+  { rowStart := 810282
+    wordStarts := (List.range 3616).map fun index => 385740 + index * 122
     wordWidth := 41
     kappa := 2
     messageCols := 2746
-    outputColumns := (List.range 108).map fun index => 400675 + index * 1
+    outputColumns := (List.range 108).map fun index => 385632 + index * 1
     superneoTransformedColumns := false
     schedule :=
       { chunkSize := 2746

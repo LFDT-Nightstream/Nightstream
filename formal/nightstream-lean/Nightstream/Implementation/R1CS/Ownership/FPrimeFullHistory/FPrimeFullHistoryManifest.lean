@@ -119,12 +119,14 @@ theorem exact_piCcs_schedule :
         , "nifs.pi_ccs.running_authority"
         , "nifs.pi_ccs.transcript"
         , "nifs.pi_ccs.fe_initial"
+        , "nifs.pi_ccs.fe_claim_and_sumcheck.optional_claim"
         , "nifs.pi_ccs.fe_sumcheck"
         , "nifs.pi_ccs.nc_sumcheck"
         , "nifs.pi_ccs.output_binding"
         , "nifs.pi_ccs.fe_terminal"
         , "nifs.pi_ccs.nc_terminal"
-        , "nifs.pi_ccs.catchup" ] := by
+        , "nifs.pi_ccs.catchup"
+        , "nifs.pi_ccs.output_message_hashes" ] := by
   decide
 
 theorem exact_piRlc_schedule :
@@ -168,7 +170,7 @@ theorem every_owner_nonempty :
   decide
 
 theorem profile_shape :
-    schemaVersion = 2 ∧ totalRows = 4076614 ∧ totalColumns = 3298653 := by
+    schemaVersion = 2 ∧ totalRows = 4193134 ∧ totalColumns = 3582173 := by
   decide
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistoryManifest

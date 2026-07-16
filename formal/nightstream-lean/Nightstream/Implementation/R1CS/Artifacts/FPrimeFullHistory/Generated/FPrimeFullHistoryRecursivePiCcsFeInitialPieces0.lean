@@ -9,8 +9,10 @@ namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryRecursivePiCcsFeIniti
 open Nightstream.Implementation.R1CS
 open Nightstream.Implementation.R1CS.OwnerCertificate
 
+set_option maxRecDepth 1048576
+
 def pieces0 : List Piece :=
-  [{ rowStart := 225920, rowEnd := 225922, payload := .ordinary [⟨[(225704, 1)], [(0, 1)], []⟩,
-      ⟨[(225705, 1)], [(0, 1)], []⟩] }]
+  [{ rowStart := 223522, rowEnd := 223524, payload := .ordinary [⟨[(223286, 1)], [(0, 1)], []⟩,
+      ⟨[(223287, 1)], [(0, 1)], []⟩] }]
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistoryRecursivePiCcsFeInitial.Generated

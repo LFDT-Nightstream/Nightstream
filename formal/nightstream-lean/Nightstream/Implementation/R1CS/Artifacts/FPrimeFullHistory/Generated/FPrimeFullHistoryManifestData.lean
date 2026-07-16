@@ -5,92 +5,96 @@ import Nightstream.Implementation.R1CS.Ownership.FPrimeRecursive.FPrimeRecursive
 namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryManifest
 
 def schemaVersion : Nat := 2
-def totalRows : Nat := 4076614
-def totalColumns : Nat := 3298653
-def totalSha256 : String := "ef9b5184d38e966d95d265afe8836c28a946b3df7fb1d5b38aa132a2881a3a7b"
+def totalRows : Nat := 4193134
+def totalColumns : Nat := 3582173
+def totalSha256 : String := "cccfb8ab2eff0583b8e8469ebd85047ff0b53ecdb22c577296e7ce2964a481ca"
 def topLevelFamilies : List FPrimeRecursiveManifest.RowRange :=
-  [ { name := "decider.step.base", rowStart := 0, rowEnd := 11321, nonzeroEntries := 83985, sha256 := "16da2a121325b7d84f21a4968b29a14fc09fac3175b76f7940550c0956ef597e" }
-  , { name := "decider.step.recursive", rowStart := 11321, rowEnd := 929981, nonzeroEntries := 36698986, sha256 := "5c70b446cae52ec727ae548db417752f0183233f276c8ceaa8de1f5956efba69" }
-  , { name := "decider.state_link", rowStart := 929981, rowEnd := 930012, nonzeroEntries := 93, sha256 := "863d77c82dbf4ed31f0faef39973a48923917649e2dff414ce8b6f542221c2f1" }
-  , { name := "decider.terminal_fold", rowStart := 930012, rowEnd := 3555185, nonzeroEntries := 83949128, sha256 := "160e93702968256b04db400ebea56e08fb2622e336562001425390880f883350" }
-  , { name := "decider.terminal_continuity", rowStart := 3555185, rowEnd := 3770743, nonzeroEntries := 646674, sha256 := "23ad85155805605ba4030816d0e0d80566c47e8eb547f77ce02a5d480d0b4948" }
-  , { name := "decider.public_pins", rowStart := 3770743, rowEnd := 3775026, nonzeroEntries := 34020, sha256 := "cf2278d6c8e0d836394c7f17645234dad409be15a83e127772c508062bb7b232" }
-  , { name := "decider.terminal_ce", rowStart := 3775026, rowEnd := 4076614, nonzeroEntries := 4464516, sha256 := "a99e6de6b631390cf92b7145387638f7b394a2d5eb02c494003e8a4d934c8ac1" }
+  [ { name := "decider.step.base", rowStart := 0, rowEnd := 11321, nonzeroEntries := 83985, sha256 := "835578fae41b29a1f957751804acb70087193659adc094569bcde839fe473ee5" }
+  , { name := "decider.step.recursive", rowStart := 11321, rowEnd := 1124066, nonzeroEntries := 30520220, sha256 := "9d417fcef5fa36a2f4fc4e4fe60c1843f3e65116f1f1a39f5e879d742a7a90ad" }
+  , { name := "decider.state_link", rowStart := 1124066, rowEnd := 1124097, nonzeroEntries := 93, sha256 := "863d77c82dbf4ed31f0faef39973a48923917649e2dff414ce8b6f542221c2f1" }
+  , { name := "decider.terminal_fold", rowStart := 1124097, rowEnd := 3673497, nonzeroEntries := 65131374, sha256 := "85993a91dcad5690fcc941a1821614561d01d481d602cb932e451980baca9419" }
+  , { name := "decider.terminal_continuity", rowStart := 3673497, rowEnd := 3887263, nonzeroEntries := 641298, sha256 := "0b4d10fbf1323ab44f604d3236cbdd717c3e230c903d5fc9648ebc86c65ddd3a" }
+  , { name := "decider.public_pins", rowStart := 3887263, rowEnd := 3891546, nonzeroEntries := 34020, sha256 := "5650d6618a4b9fe0eb0accad522408bcac56ab4493b369e6fc61788257de07aa" }
+  , { name := "decider.terminal_ce", rowStart := 3891546, rowEnd := 4193134, nonzeroEntries := 4464516, sha256 := "9366336b97b71e0a94d7e8f4a8027b875d29659fba3fd9cea8341f5a499213d7" }
   ]
 
 def recursiveFamilies : List FPrimeRecursiveManifest.RowRange :=
   [ { name := "fprime.recursive.prelude", rowStart := 11321, rowEnd := 17497, nonzeroEntries := 46006, sha256 := "82c31403937261e630e2f8fb2988f7c0e297c1ea6d7efd9d0aa6372cde7708e1" }
   , { name := "fprime.recursive.transcript", rowStart := 17497, rowEnd := 30759, nonzeroEntries := 105742, sha256 := "fc3f12b219bc321190c5111dae423624d5afe1d725eafb53b61ef3c3c89a792c" }
-  , { name := "fprime.recursive.nifs", rowStart := 30759, rowEnd := 882156, nonzeroEntries := 28713141, sha256 := "4805ae69abc6bb88078e5c79ff87c412ec8ce82b8b101a847535ea160bb5a23c" }
-  , { name := "fprime.recursive.prior_link", rowStart := 882156, rowEnd := 887388, nonzeroEntries := 37990, sha256 := "4fc1229348c2925650349f8dd74c1023607328a4c2da48456e8e6dbbe081cc0d" }
-  , { name := "fprime.recursive.nebula", rowStart := 887388, rowEnd := 887388, nonzeroEntries := 0, sha256 := "4346f57b3b38c31a807f1b1dfb68757cfc41f6a35ba6be12e4b0728bd0e58eab" }
-  , { name := "fprime.recursive.accumulator", rowStart := 887388, rowEnd := 924691, nonzeroEntries := 7757844, sha256 := "465a73e16e64461e346c2a3370368ba5eec506d419775634bbda397c400dac11" }
-  , { name := "fprime.recursive.counter", rowStart := 924691, rowEnd := 925213, nonzeroEntries := 2136, sha256 := "cb89b750dd7d8618f0c450c34164a3daf4a7f9b17676822033a80e9315eeaa10" }
-  , { name := "fprime.recursive.output", rowStart := 925213, rowEnd := 929981, nonzeroEntries := 36127, sha256 := "8f7d36b9573bdc2153acda7fd666979ea1f50231d77a8e27b25b408f73cde285" }
+  , { name := "fprime.recursive.nifs", rowStart := 30759, rowEnd := 858625, nonzeroEntries := 28260629, sha256 := "60450cbb3956cb6cbcc83d17975a146962008a59d1b95b0c08a20e62e323f61a" }
+  , { name := "fprime.recursive.prior_link", rowStart := 858625, rowEnd := 863857, nonzeroEntries := 37990, sha256 := "ee0afafd6e45daeffaad4cc07625d8c31e4c27d80b2a471a96dc7747487e58c6" }
+  , { name := "fprime.recursive.nebula", rowStart := 863857, rowEnd := 863857, nonzeroEntries := 0, sha256 := "4346f57b3b38c31a807f1b1dfb68757cfc41f6a35ba6be12e4b0728bd0e58eab" }
+  , { name := "fprime.recursive.accumulator", rowStart := 863857, rowEnd := 1118776, nonzeroEntries := 2031590, sha256 := "1590f426113c2902f21e2e96d664b1b5bb67962401f27b4b9cd54a5925198500" }
+  , { name := "fprime.recursive.counter", rowStart := 1118776, rowEnd := 1119298, nonzeroEntries := 2136, sha256 := "cfa5f5180a0444278396bc3ca7bcfd32834e8d9fb7fa7e0932fd6c29afd4884d" }
+  , { name := "fprime.recursive.output", rowStart := 1119298, rowEnd := 1124066, nonzeroEntries := 36127, sha256 := "c913ff1de649ad2ce88e8011c73696f825dce4f04a568662c12ef13b5ba8c1b2" }
   ]
 def recursiveNifsFamilies : List FPrimeRecursiveManifest.RowRange :=
-  [ { name := "nifs.pi_ccs", rowStart := 30759, rowEnd := 273649, nonzeroEntries := 7062315, sha256 := "5ec66497ae858747f57b114cbfcdedafb2a8346067ad48326e235ea7ab24490c" }
-  , { name := "nifs.pi_rlc", rowStart := 273649, rowEnd := 871557, nonzeroEntries := 21595026, sha256 := "064f0dd9de8b1fbf214573302488b1e02aa2a15fcf037e3758a25cdbff782834" }
-  , { name := "nifs.pi_dec", rowStart := 871557, rowEnd := 882154, nonzeroEntries := 55794, sha256 := "eac4da8cb47d73718083e8021e49a82d1d21f63a9f54dabcc3d66e0c16499a1e" }
-  , { name := "nifs.point_binding", rowStart := 882154, rowEnd := 882156, nonzeroEntries := 6, sha256 := "5ca9aa691a070d733dd7393b4fd344400631ed8cfeaf4e600041a686f790c1a2" }
+  [ { name := "nifs.pi_ccs", rowStart := 30759, rowEnd := 351287, nonzeroEntries := 9680614, sha256 := "2ab11d7b71f74881dc5dce742e1e5610505cfd8cff882deeb31aaf0ee7bd0e13" }
+  , { name := "nifs.pi_rlc", rowStart := 351287, rowEnd := 848026, nonzeroEntries := 18524215, sha256 := "cb65ba0630849c52ea151e05abee0dcd7b4f72540b798c0ba7897d4d06483ba6" }
+  , { name := "nifs.pi_dec", rowStart := 848026, rowEnd := 858623, nonzeroEntries := 55794, sha256 := "e1ce7c302e18d49922054fc75d4841a1da7cd8e4423c1fb111b343b58dd3074c" }
+  , { name := "nifs.point_binding", rowStart := 858623, rowEnd := 858625, nonzeroEntries := 6, sha256 := "8ab83fb7ebcf3e552f9bde0a8f8c6ec44b29b8c15b6893c5107269b3fb487274" }
   ]
 def recursivePiCcsFamilies : List FPrimeRecursiveManifest.RowRange :=
   [ { name := "nifs.pi_ccs.allocation", rowStart := 30759, rowEnd := 30768, nonzeroEntries := 26, sha256 := "31d0a148cb926037e412347bec06b6053142e68849a178d513b1425d1287036d" }
-  , { name := "nifs.pi_ccs.authority", rowStart := 30768, rowEnd := 30834, nonzeroEntries := 138, sha256 := "ff7a9f47535cb5de6f6af5ffb383f27bc67ad0e281a769887a975ac5c7306a8f" }
-  , { name := "nifs.pi_ccs.fresh_digests", rowStart := 30834, rowEnd := 208439, nonzeroEntries := 6557503, sha256 := "709ac3ad2094a698c657cf2baae24bd5958f750e1dc3ae91aad5dfe45362acb1" }
-  , { name := "nifs.pi_ccs.running_authority", rowStart := 208439, rowEnd := 208439, nonzeroEntries := 0, sha256 := "4346f57b3b38c31a807f1b1dfb68757cfc41f6a35ba6be12e4b0728bd0e58eab" }
-  , { name := "nifs.pi_ccs.transcript", rowStart := 208439, rowEnd := 225920, nonzeroEntries := 139407, sha256 := "d9191da170e6ff5c32b16eefcfca3189282d6b5522c034e5b5d0df1bffc632ab" }
-  , { name := "nifs.pi_ccs.fe_initial", rowStart := 225920, rowEnd := 225922, nonzeroEntries := 4, sha256 := "ab5aa030a3474a7e842504edb2b063f06ce42923d55eab8ba8f97b089e43ab04" }
-  , { name := "nifs.pi_ccs.fe_sumcheck", rowStart := 225922, rowEnd := 240553, nonzeroEntries := 116097, sha256 := "5e58c0596f4c8f7b71aa577d5bb218f598f44fc4b70193a6a278d18ab48e23b0" }
-  , { name := "nifs.pi_ccs.nc_sumcheck", rowStart := 240553, rowEnd := 269842, nonzeroEntries := 232309, sha256 := "454c888a1f58226e828ff2f92139ce73cab3e9f5b291c8c01ed8bf2a057cc6c8" }
-  , { name := "nifs.pi_ccs.output_binding", rowStart := 269842, rowEnd := 271097, nonzeroEntries := 3764, sha256 := "8663f6162a11e16c3f961c8d0c72d5fb958f5da36b5db74c6def977950e0a100" }
-  , { name := "nifs.pi_ccs.fe_terminal", rowStart := 271097, rowEnd := 271876, nonzeroEntries := 3239, sha256 := "620cbaa04f300c632f550be5930bff7a210a0baf400ba9c9361f6f34a0d6681a" }
-  , { name := "nifs.pi_ccs.nc_terminal", rowStart := 271876, rowEnd := 273040, nonzeroEntries := 5003, sha256 := "ee106d52c3314240568a9c40f47fe874dbbb3f7a4135d3f162f8a75742085293" }
-  , { name := "nifs.pi_ccs.catchup", rowStart := 273040, rowEnd := 273649, nonzeroEntries := 4825, sha256 := "33248567f476d6bffda65396cdca981c067388f42c079b0a401fdf223c07b500" }
+  , { name := "nifs.pi_ccs.authority", rowStart := 30768, rowEnd := 30854, nonzeroEntries := 178, sha256 := "97c2033c600b913ebd9129be4808d86541cdb10782e48037ddc22e51c05205cc" }
+  , { name := "nifs.pi_ccs.fresh_digests", rowStart := 30854, rowEnd := 208459, nonzeroEntries := 6557503, sha256 := "709ac3ad2094a698c657cf2baae24bd5958f750e1dc3ae91aad5dfe45362acb1" }
+  , { name := "nifs.pi_ccs.running_authority", rowStart := 208459, rowEnd := 208459, nonzeroEntries := 0, sha256 := "4346f57b3b38c31a807f1b1dfb68757cfc41f6a35ba6be12e4b0728bd0e58eab" }
+  , { name := "nifs.pi_ccs.transcript", rowStart := 208459, rowEnd := 223522, nonzeroEntries := 120153, sha256 := "6fa308b7ce24bcc6014ff7621abc366dd27a7e61f723f7ae9cae043e286e7000" }
+  , { name := "nifs.pi_ccs.fe_initial", rowStart := 223522, rowEnd := 223524, nonzeroEntries := 4, sha256 := "924c4972357f862acccc61dfdb80ab900a626030c43dcd95903d56251481d4c8" }
+  , { name := "nifs.pi_ccs.fe_claim_and_sumcheck.optional_claim", rowStart := 223524, rowEnd := 223529, nonzeroEntries := 15, sha256 := "0dca15c3973068438ca876a4ec444423128b708273ae11f673c1d12a68fa930e" }
+  , { name := "nifs.pi_ccs.fe_sumcheck", rowStart := 223529, rowEnd := 238160, nonzeroEntries := 116097, sha256 := "bc49db5cacb2061f6af1556f7faef251d277dfd2f23c1e4cce3d69261626220b" }
+  , { name := "nifs.pi_ccs.nc_sumcheck", rowStart := 238160, rowEnd := 267449, nonzeroEntries := 232309, sha256 := "9fc21168d6c0a6e6a1ecae19d8e8d15f5b3c9639140dfb0c0733c4fad07cc288" }
+  , { name := "nifs.pi_ccs.output_binding", rowStart := 267449, rowEnd := 268704, nonzeroEntries := 3764, sha256 := "9378696a0ee32f8655d29535c12ec498dc97de00cdf2dc5b385a35d385be1590" }
+  , { name := "nifs.pi_ccs.fe_terminal", rowStart := 268704, rowEnd := 269483, nonzeroEntries := 3239, sha256 := "a877e2c6599c0bd4b9e04f1218e9f55aa071a7461a08b9c3c75d8ca47beb73b6" }
+  , { name := "nifs.pi_ccs.nc_terminal", rowStart := 269483, rowEnd := 270647, nonzeroEntries := 5003, sha256 := "a5a78af21cfac02db08bca035f73bb19429d7e2dfcf0e1bfe66e3ae9aaf26f08" }
+  , { name := "nifs.pi_ccs.catchup", rowStart := 270647, rowEnd := 271256, nonzeroEntries := 4825, sha256 := "538f70ef821f930dcd16cdf8217bac6fa8bf8af1b4cbecdb7ff44d060082ea2b" }
+  , { name := "nifs.pi_ccs.output_message_hashes", rowStart := 271256, rowEnd := 351287, nonzeroEntries := 2637498, sha256 := "d1f350d3d37c7f744ecd713764516e58696b8e601653ca815a94d9ba33af12c5" }
   ]
 def recursivePiRlcFamilies : List FPrimeRecursiveManifest.RowRange :=
-  [ { name := "nifs.pi_rlc.transcript_rhos", rowStart := 273649, rowEnd := 385011, nonzeroEntries := 3134268, sha256 := "21ecfd4d671aad3c1b3832f0b930a65b7631ac45a841dd297047093ea226285c" }
-  , { name := "nifs.pi_rlc.shape", rowStart := 385011, rowEnd := 385106, nonzeroEntries := 270, sha256 := "12ff4726ff7de817942ba5e9332cca9909c48e3c8f3a1d8c02b67cd0dcfa48ae" }
-  , { name := "nifs.pi_rlc.linear_folds", rowStart := 385106, rowEnd := 385128, nonzeroEntries := 66, sha256 := "d724de012fe58e8ddedcd2df33fbf1bd7e9441db1e243f064abb64d512548a2b" }
-  , { name := "nifs.pi_rlc.projection_binding", rowStart := 385128, rowEnd := 860661, nonzeroEntries := 18417261, sha256 := "82d8f07cc4fc13ce4bb014bef8d526db9d915075bb384034a60588b4b6f5b32c" }
-  , { name := "nifs.pi_rlc.projection_shared", rowStart := 860661, rowEnd := 861041, nonzeroEntries := 1514, sha256 := "9e3f21cb420b3d617d7d31c428c54415e415e789efb14cf864ab09668058c4bf" }
-  , { name := "nifs.pi_rlc.projection_identities", rowStart := 861041, rowEnd := 871557, nonzeroEntries := 41647, sha256 := "87fe58612a7a691acc21f530b61b8296dc22e65cf57318f3f47d3f6b2b92214e" }
+  [ { name := "nifs.pi_rlc.transcript_rhos", rowStart := 351287, rowEnd := 361480, nonzeroEntries := 63457, sha256 := "61277668dbe099dcb28cad5e0686efb6ace4ddca4001585bf933b0cce114c2e9" }
+  , { name := "nifs.pi_rlc.shape", rowStart := 361480, rowEnd := 361575, nonzeroEntries := 270, sha256 := "dcc076dc32d592c9bdcbcbb2c9b0ba4a62dbb2992d3684d877b97ffe84bf779d" }
+  , { name := "nifs.pi_rlc.linear_folds", rowStart := 361575, rowEnd := 361597, nonzeroEntries := 66, sha256 := "bc4baa99637163b4a8af9040b205bd2f1e4de847ffb58593fb2263b55f37f32d" }
+  , { name := "nifs.pi_rlc.projection_binding", rowStart := 361597, rowEnd := 837130, nonzeroEntries := 18417261, sha256 := "dc8f9f885dae5f6a520db585e152586d5f4326eb73d21b83753e101d66a660c8" }
+  , { name := "nifs.pi_rlc.projection_shared", rowStart := 837130, rowEnd := 837510, nonzeroEntries := 1514, sha256 := "6c38f67f1090c14ca3ea43e0c7827d68042a16f9e9cdec28a36fa30ab86fe5fa" }
+  , { name := "nifs.pi_rlc.projection_identities", rowStart := 837510, rowEnd := 848026, nonzeroEntries := 41647, sha256 := "ac73f52914cce1d38ae6a52dc690aee584946a80ea31808f229936ab0f7fbe81" }
   ]
 def terminalFamilies : List FPrimeRecursiveManifest.RowRange :=
-  [ { name := "terminal.nifs", rowStart := 930012, rowEnd := 3502232, nonzeroEntries := 76144334, sha256 := "823eb492535fd7f785ff432cb01382476c34eaf37c22f7c1c87cedaa6f0319b6" }
-  , { name := "terminal.running_link", rowStart := 3502232, rowEnd := 3502236, nonzeroEntries := 12, sha256 := "5a9524a717542f8528db0a4e4caa8e04e4da897b92cc113dd190b4c98f30d25a" }
-  , { name := "terminal.parent_link", rowStart := 3502236, rowEnd := 3517633, nonzeroEntries := 46191, sha256 := "626bc8a80492c06cbac6c24b9066f09ce706c58a81014327c309e2365e3c1e14" }
-  , { name := "terminal.latest_link", rowStart := 3517633, rowEnd := 3517890, nonzeroEntries := 771, sha256 := "04ffa425a0e31c1fbf9fd722a82712b7e836f62397ea98b11cd5dfc63793ab5e" }
-  , { name := "terminal.accumulator", rowStart := 3517890, rowEnd := 3555185, nonzeroEntries := 7757820, sha256 := "3d429bdae4d08d60357ab79e9b29743634ed27540ae2c9ca52cdf683fff442da" }
+  [ { name := "terminal.nifs", rowStart := 1124097, rowEnd := 3402928, nonzeroEntries := 63052834, sha256 := "b074a02ccdded263c260c8eb76d3385b9228c3756a393f36a0ea283f592fea70" }
+  , { name := "terminal.running_link", rowStart := 3402928, rowEnd := 3402932, nonzeroEntries := 12, sha256 := "a50885af569aae2a7f63a10533acccbe00b94b1f10bd523249ced1ae615046eb" }
+  , { name := "terminal.parent_link", rowStart := 3402932, rowEnd := 3418329, nonzeroEntries := 46191, sha256 := "6a07eec27213f2b79bdbb3b659ae77cf347705508910a391f83b2a358dd4156d" }
+  , { name := "terminal.latest_link", rowStart := 3418329, rowEnd := 3418586, nonzeroEntries := 771, sha256 := "7f2b66ba038e073025694908b8c8172401eddc38f080df4863d38e61da1ad81b" }
+  , { name := "terminal.accumulator", rowStart := 3418586, rowEnd := 3673497, nonzeroEntries := 2031566, sha256 := "78942e60f73f91115da2a482f2671f5cbf68354c24d07d04a18524469d693040" }
   ]
 def terminalNifsFamilies : List FPrimeRecursiveManifest.RowRange :=
-  [ { name := "terminal.transcript", rowStart := 930012, rowEnd := 930020, nonzeroEntries := 24, sha256 := "cc89d7613e68f3f8994a87208cef8397b22710c12c0db05aacd8d0151e89c5d8" }
-  , { name := "nifs.pi_ccs", rowStart := 930020, rowEnd := 1655551, nonzeroEntries := 16502958, sha256 := "f47ed2a7e210e494da94bd5fe7fa07aa3a68e45f727a0e2b459d63b999b854e3" }
-  , { name := "nifs.pi_rlc", rowStart := 1655551, rowEnd := 3491633, nonzeroEntries := 59585552, sha256 := "621daa2532cce0bd60ce59259bdf1d5a52147b5027fadd410b452a79568c16e6" }
-  , { name := "nifs.pi_dec", rowStart := 3491633, rowEnd := 3502230, nonzeroEntries := 55794, sha256 := "fe7f9bce7f536990f3a9d60553bd2c6085c3dd7d2a95880595c05e6f5dd0c4c1" }
-  , { name := "nifs.point_binding", rowStart := 3502230, rowEnd := 3502232, nonzeroEntries := 6, sha256 := "3895dd2602d9c6a836baa4667c07a884434bcda659348029431bd4f4dbe0ff28" }
+  [ { name := "terminal.transcript", rowStart := 1124097, rowEnd := 1124105, nonzeroEntries := 24, sha256 := "a2bf4d06bf0a94252cd9e679b4d8be05931d6856eed7db62c0f64c9201bc1bcb" }
+  , { name := "nifs.pi_ccs", rowStart := 1124105, rowEnd := 2726106, nonzeroEntries := 43580995, sha256 := "d0b381ee9afdee991be1eb1703bc76535a9021d4468a598d928531033c394154" }
+  , { name := "nifs.pi_rlc", rowStart := 2726106, rowEnd := 3392329, nonzeroEntries := 19416015, sha256 := "521347110fef254bb9515a46ac38d57b9f553d317e6de01df099f5ffd11e0abc" }
+  , { name := "nifs.pi_dec", rowStart := 3392329, rowEnd := 3402926, nonzeroEntries := 55794, sha256 := "9dc183752d331127042a64cfadff64193bc8fbbbc7dbd6395f86a4f3e1306f2e" }
+  , { name := "nifs.point_binding", rowStart := 3402926, rowEnd := 3402928, nonzeroEntries := 6, sha256 := "fae4150101fde4ef8e5d31299148eaf3910fa7b831ca466c702c77a19da5ba50" }
   ]
 def terminalPiCcsFamilies : List FPrimeRecursiveManifest.RowRange :=
-  [ { name := "nifs.pi_ccs.allocation", rowStart := 930020, rowEnd := 930203, nonzeroEntries := 519, sha256 := "97d070b9e2c3ba7b4b9c1b4adc696a7c8d1229085378ae0ff236b6ba75b53beb" }
-  , { name := "nifs.pi_ccs.authority", rowStart := 930203, rowEnd := 941790, nonzeroEntries := 57864, sha256 := "afd21ee8d0574880525e0b473aa55918404ba745d59475454c20319da6821cb0" }
-  , { name := "nifs.pi_ccs.fresh_digests", rowStart := 941790, rowEnd := 1119395, nonzeroEntries := 6557503, sha256 := "d4c3a124518ef86978bd658aebef064f08d9bdc23f3ebf701af8bfcdf02e0df7" }
-  , { name := "nifs.pi_ccs.running_authority", rowStart := 1119395, rowEnd := 1347874, nonzeroEntries := 8599814, sha256 := "9af2aa74ee11aa9943d3730efb51908682aad44d65f51e3544a26c78470faeda" }
-  , { name := "nifs.pi_ccs.transcript", rowStart := 1347874, rowEnd := 1365967, nonzeroEntries := 144254, sha256 := "71fa6a5472e909ebc55db807c00fc710c92ae6de1c4daafed7cf0db21d0db1db" }
-  , { name := "nifs.pi_ccs.fe_initial", rowStart := 1365967, rowEnd := 1380610, nonzeroEntries := 66624, sha256 := "a607a000d6e3e9b73deb7e51ee78d772c2a9d31d459f88db262fe0a68d8337e4" }
-  , { name := "nifs.pi_ccs.fe_sumcheck", rowStart := 1380610, rowEnd := 1395241, nonzeroEntries := 116097, sha256 := "9ec3c2a972c1b87be4844fa973e4968e186754521473d99a6ae11a8653032274" }
-  , { name := "nifs.pi_ccs.nc_sumcheck", rowStart := 1395241, rowEnd := 1424530, nonzeroEntries := 232309, sha256 := "9c59a2e71ca4a144bcdd3ba8838f5dde83ab440a8b96f3c568367a28510f2fd3" }
-  , { name := "nifs.pi_ccs.output_binding", rowStart := 1424530, rowEnd := 1634049, nonzeroEntries := 628542, sha256 := "2d62a36a1ee0d1d78173bcd43045e4acc1df4c6f27748f8bd9a95bd9ba5e8aa9" }
-  , { name := "nifs.pi_ccs.fe_terminal", rowStart := 1634049, rowEnd := 1648892, nonzeroEntries := 67456, sha256 := "618fbb9c0635d0dcbf1d737c1ce5aed293cf29655d37851cc89dd27f9ed9de14" }
-  , { name := "nifs.pi_ccs.nc_terminal", rowStart := 1648892, rowEnd := 1654886, nonzeroEntries := 26983, sha256 := "fe648b03001b72428f6bce1785812c7f52d5af650a4d39486f9fa894dfc3bcba" }
-  , { name := "nifs.pi_ccs.catchup", rowStart := 1654886, rowEnd := 1655551, nonzeroEntries := 4993, sha256 := "7a937d21f3d9e25acd65f6185a0f38b911b251ed5b25dcde19ebf9da2e5b40bc" }
+  [ { name := "nifs.pi_ccs.allocation", rowStart := 1124105, rowEnd := 1124288, nonzeroEntries := 519, sha256 := "cdb38d8213375501b9320b1bd1af6bdfc80f6bd907ddd058010262bfeb464770" }
+  , { name := "nifs.pi_ccs.authority", rowStart := 1124288, rowEnd := 1136175, nonzeroEntries := 58464, sha256 := "7f7bbc586a301f3d8e5934334738b3342f181364ee92750e18072443c3992385" }
+  , { name := "nifs.pi_ccs.fresh_digests", rowStart := 1136175, rowEnd := 1313780, nonzeroEntries := 6557503, sha256 := "56bfda02e85bf05c873220e0f4ee86ead24c1bf9ecb23437c42d5789f4eb1fb9" }
+  , { name := "nifs.pi_ccs.running_authority", rowStart := 1313780, rowEnd := 1568717, nonzeroEntries := 2031644, sha256 := "c5a15c8c6ca0d219d79293550927baa41ecc6bcaa4ca9f96d4acf82e61285086" }
+  , { name := "nifs.pi_ccs.transcript", rowStart := 1568717, rowEnd := 1583784, nonzeroEntries := 120172, sha256 := "f1973cabeb13e421a14824ae95bd3f0d0c4ef64d0be6dfc716fd926ec8cef07e" }
+  , { name := "nifs.pi_ccs.fe_initial", rowStart := 1583784, rowEnd := 1598427, nonzeroEntries := 66624, sha256 := "b15c4a78ae4f86421209107a5b169b1067405b959ec071814e9058c0c63f04c2" }
+  , { name := "nifs.pi_ccs.fe_claim_and_sumcheck.optional_claim", rowStart := 1598427, rowEnd := 1598432, nonzeroEntries := 15, sha256 := "d889badf67849781a86b071270527b5492c02de179f75230e957e60a39418bce" }
+  , { name := "nifs.pi_ccs.fe_sumcheck", rowStart := 1598432, rowEnd := 1613063, nonzeroEntries := 116097, sha256 := "003986d0bf81fbadff13812822bdbd38629a93088e08a8614471a467be9bba07" }
+  , { name := "nifs.pi_ccs.nc_sumcheck", rowStart := 1613063, rowEnd := 1642352, nonzeroEntries := 232309, sha256 := "e94589b4cdbb1f5118e09882651ee8eac49aeb2fdbc7751c024be4c94f5bf67a" }
+  , { name := "nifs.pi_ccs.output_binding", rowStart := 1642352, rowEnd := 1851871, nonzeroEntries := 628542, sha256 := "58c8dfc0a4b0ca75e54eaa3c01d605455c4fdece73f1aaf55be4f5b99f4a29ad" }
+  , { name := "nifs.pi_ccs.fe_terminal", rowStart := 1851871, rowEnd := 1866714, nonzeroEntries := 67456, sha256 := "e9d4a96ce0533ccfc0e46af102d09cc7048dc52e3d6c97ea1149d6c3e5ae7225" }
+  , { name := "nifs.pi_ccs.nc_terminal", rowStart := 1866714, rowEnd := 1872708, nonzeroEntries := 26983, sha256 := "ff3c6e88b835a28bd99d811d45f97993975d1366612ea06361a947768c63c9ce" }
+  , { name := "nifs.pi_ccs.catchup", rowStart := 1872708, rowEnd := 1873373, nonzeroEntries := 4993, sha256 := "a987a90a4444384790e85a9c4d44ed01c4047e36d18dabb4021a2ea60b175eda" }
+  , { name := "nifs.pi_ccs.output_message_hashes", rowStart := 1873373, rowEnd := 2726106, nonzeroEntries := 33669674, sha256 := "173b5edbb594101a5ce105fb32b34ab5ab97f738cc4323c268d7413c080551c2" }
   ]
 def terminalPiRlcFamilies : List FPrimeRecursiveManifest.RowRange :=
-  [ { name := "nifs.pi_rlc.transcript_rhos", rowStart := 1655551, rowEnd := 2953021, nonzeroEntries := 40919652, sha256 := "0fab994f9c95a9c9623621449bc9d3314394fab1469f0b1726a107b7f8916bc8" }
-  , { name := "nifs.pi_rlc.shape", rowStart := 2953021, rowEnd := 2953186, nonzeroEntries := 480, sha256 := "c1941de032a45ad4e483400af8ee2c0101d677941ef1facbbd5ea40bcdea8ef3" }
-  , { name := "nifs.pi_rlc.linear_folds", rowStart := 2953186, rowEnd := 2953516, nonzeroEntries := 990, sha256 := "352d7836d9f04674295b3df4b3333eaed09921802809bf589af829be3f0bf0e7" }
-  , { name := "nifs.pi_rlc.projection_binding", rowStart := 2953516, rowEnd := 3429049, nonzeroEntries := 18417261, sha256 := "7d0fb6bc4a682d3ff13f1ee7a9833085fd0549c031dcf02c435224d4bfd3de68" }
-  , { name := "nifs.pi_rlc.projection_shared", rowStart := 3429049, rowEnd := 3430941, nonzeroEntries := 7520, sha256 := "f81a49be72752ddd0d2027d98657196d5c8a5ba5621c8d69f0153361babd5124" }
-  , { name := "nifs.pi_rlc.projection_identities", rowStart := 3430941, rowEnd := 3491633, nonzeroEntries := 239649, sha256 := "15a4d53ecd899f7b6d905cac11ae52396b6732b01d1bf039403a6f47430cc17f" }
+  [ { name := "nifs.pi_rlc.transcript_rhos", rowStart := 2726106, rowEnd := 2853717, nonzeroEntries := 750115, sha256 := "73b0210723d18b99684fceb550510d4987e83a2db3e9e1beee59ee53620e8610" }
+  , { name := "nifs.pi_rlc.shape", rowStart := 2853717, rowEnd := 2853882, nonzeroEntries := 480, sha256 := "fa0681a152b2404443fc3b2f5bb56eec7d480622aab988de5918db1365905f99" }
+  , { name := "nifs.pi_rlc.linear_folds", rowStart := 2853882, rowEnd := 2854212, nonzeroEntries := 990, sha256 := "c3eeaa987a199e94e0a5a0749b700ad6c9aaae48b2ee3acf09500538e61878c0" }
+  , { name := "nifs.pi_rlc.projection_binding", rowStart := 2854212, rowEnd := 3329745, nonzeroEntries := 18417261, sha256 := "9b2c25f1d0eb11799f4f548e89b35e1ab90d8661714da12e98e2118712920e62" }
+  , { name := "nifs.pi_rlc.projection_shared", rowStart := 3329745, rowEnd := 3331637, nonzeroEntries := 7520, sha256 := "6c099da1e032961b750fe7528560840d2654efd1c17e5bb296ce53a75d22b9c2" }
+  , { name := "nifs.pi_rlc.projection_identities", rowStart := 3331637, rowEnd := 3392329, nonzeroEntries := 239649, sha256 := "4e6ab556228bbb55d8056d70cbd9224b3625f7e03cf5af78557ff4c691b116c4" }
   ]
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistoryManifest

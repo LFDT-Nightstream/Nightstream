@@ -504,12 +504,12 @@ def terminalCeColumnMap : List Nat :=
     GeneratedMaps.terminalceMap26 ++
     GeneratedMaps.terminalceMap27 ++
     GeneratedMaps.terminalceMap28
-def recursiveRowStart : Nat := 871557
-def recursiveRowEnd : Nat := 882154
-def terminalRowStart : Nat := 3491633
-def terminalRowEnd : Nat := 3502230
-def terminalCeRowStart : Nat := 930203
-def terminalCeRowEnd : Nat := 940800
+def recursiveRowStart : Nat := 848026
+def recursiveRowEnd : Nat := 858623
+def terminalRowStart : Nat := 3392329
+def terminalRowEnd : Nat := 3402926
+def terminalCeRowStart : Nat := 1124288
+def terminalCeRowEnd : Nat := 1134885
 def rowCount : Nat := 10597
 def definitionCount : Nat := 3780
 def checkCount : Nat := 6817

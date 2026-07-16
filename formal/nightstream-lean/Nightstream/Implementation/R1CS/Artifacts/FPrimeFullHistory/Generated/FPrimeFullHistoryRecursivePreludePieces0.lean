@@ -9,6 +9,8 @@ namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryRecursivePrelude.Gene
 open Nightstream.Implementation.R1CS
 open Nightstream.Implementation.R1CS.OwnerCertificate
 
+set_option maxRecDepth 1048576
+
 def pieces0 : List Piece :=
   [{ rowStart := 11321, rowEnd := 11338, payload := .ordinary [⟨[(10833, 1), (0, 18446744069414584320)], [(0, 1)], []⟩,
       ⟨[(10868, 1), (0, 18446744069414584277)], [(0, 1)], []⟩,

@@ -7,139 +7,139 @@ namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryPiDec.GeneratedMaps
 set_option maxRecDepth 262144
 set_option maxHeartbeats 2000000
 
-def terminalceMap3 : List Nat := [954325, 956116] ++
-    ((List.range 14).map (fun index => 931056 + 1790 * index)) ++
-    [956117] ++
-    ((List.range 14).map (fun index => 931057 + 1790 * index)) ++
-    [956118] ++
-    ((List.range 14).map (fun index => 931058 + 1790 * index)) ++
-    [956119] ++
-    ((List.range 14).map (fun index => 931059 + 1790 * index)) ++
-    [956120] ++
-    ((List.range 14).map (fun index => 931060 + 1790 * index)) ++
-    [956121] ++
-    ((List.range 14).map (fun index => 931061 + 1790 * index)) ++
-    [956122] ++
-    ((List.range 14).map (fun index => 931062 + 1790 * index)) ++
-    [956123] ++
-    ((List.range 14).map (fun index => 931063 + 1790 * index)) ++
-    [956124] ++
-    ((List.range 14).map (fun index => 931064 + 1790 * index)) ++
-    [956125] ++
-    ((List.range 14).map (fun index => 931065 + 1790 * index)) ++
-    [956126] ++
-    ((List.range 14).map (fun index => 931066 + 1790 * index)) ++
-    [956127] ++
-    ((List.range 14).map (fun index => 931067 + 1790 * index)) ++
-    [956128] ++
-    ((List.range 14).map (fun index => 931068 + 1790 * index)) ++
-    [956129] ++
-    ((List.range 14).map (fun index => 931069 + 1790 * index)) ++
-    [956130] ++
-    ((List.range 14).map (fun index => 931070 + 1790 * index)) ++
-    [956131] ++
-    ((List.range 14).map (fun index => 931071 + 1790 * index)) ++
-    [956132] ++
-    ((List.range 14).map (fun index => 931072 + 1790 * index)) ++
-    [956133] ++
-    ((List.range 14).map (fun index => 931073 + 1790 * index)) ++
-    [956134] ++
-    ((List.range 14).map (fun index => 931074 + 1790 * index)) ++
-    [956135] ++
-    ((List.range 14).map (fun index => 931075 + 1790 * index)) ++
-    [956136] ++
-    ((List.range 14).map (fun index => 931076 + 1790 * index)) ++
-    [956137] ++
-    ((List.range 14).map (fun index => 931077 + 1790 * index)) ++
-    [956138] ++
-    ((List.range 14).map (fun index => 931078 + 1790 * index)) ++
-    [956139] ++
-    ((List.range 14).map (fun index => 931079 + 1790 * index)) ++
-    [956140] ++
-    ((List.range 14).map (fun index => 931080 + 1790 * index)) ++
-    [956141] ++
-    ((List.range 14).map (fun index => 931081 + 1790 * index)) ++
-    [956142] ++
-    ((List.range 14).map (fun index => 931082 + 1790 * index)) ++
-    [956143] ++
-    ((List.range 14).map (fun index => 931083 + 1790 * index)) ++
-    [956144] ++
-    ((List.range 14).map (fun index => 931084 + 1790 * index)) ++
-    [956145] ++
-    ((List.range 14).map (fun index => 931085 + 1790 * index)) ++
-    [956146] ++
-    ((List.range 14).map (fun index => 931086 + 1790 * index)) ++
-    [956147] ++
-    ((List.range 14).map (fun index => 931087 + 1790 * index)) ++
-    [956148] ++
-    ((List.range 14).map (fun index => 931088 + 1790 * index)) ++
-    [956149] ++
-    ((List.range 14).map (fun index => 931089 + 1790 * index)) ++
-    [956150] ++
-    ((List.range 14).map (fun index => 931090 + 1790 * index)) ++
-    [956151] ++
-    ((List.range 14).map (fun index => 931091 + 1790 * index)) ++
-    [956152] ++
-    ((List.range 14).map (fun index => 931092 + 1790 * index)) ++
-    [956153] ++
-    ((List.range 14).map (fun index => 931093 + 1790 * index)) ++
-    [956154] ++
-    ((List.range 14).map (fun index => 931094 + 1790 * index)) ++
-    [956155] ++
-    ((List.range 14).map (fun index => 931095 + 1790 * index)) ++
-    [956156] ++
-    ((List.range 14).map (fun index => 931096 + 1790 * index)) ++
-    [956157] ++
-    ((List.range 14).map (fun index => 931097 + 1790 * index)) ++
-    [956158] ++
-    ((List.range 14).map (fun index => 931098 + 1790 * index)) ++
-    [956159] ++
-    ((List.range 14).map (fun index => 931099 + 1790 * index)) ++
-    [956160] ++
-    ((List.range 14).map (fun index => 931100 + 1790 * index)) ++
-    [956161] ++
-    ((List.range 14).map (fun index => 931101 + 1790 * index)) ++
-    [956162] ++
-    ((List.range 14).map (fun index => 931102 + 1790 * index)) ++
-    [956163] ++
-    ((List.range 14).map (fun index => 931103 + 1790 * index)) ++
-    [956164] ++
-    ((List.range 14).map (fun index => 931104 + 1790 * index)) ++
-    [956165] ++
-    ((List.range 14).map (fun index => 931105 + 1790 * index)) ++
-    [956166] ++
-    ((List.range 14).map (fun index => 931106 + 1790 * index)) ++
-    [956167] ++
-    ((List.range 14).map (fun index => 931107 + 1790 * index)) ++
-    [956168] ++
-    ((List.range 14).map (fun index => 931108 + 1790 * index)) ++
-    [956169] ++
-    ((List.range 14).map (fun index => 931109 + 1790 * index)) ++
-    [956170] ++
-    ((List.range 14).map (fun index => 931110 + 1790 * index)) ++
-    [956171] ++
-    ((List.range 14).map (fun index => 931111 + 1790 * index)) ++
-    [956172] ++
-    ((List.range 14).map (fun index => 931112 + 1790 * index)) ++
-    [956173] ++
-    ((List.range 14).map (fun index => 931113 + 1790 * index)) ++
-    [956174] ++
-    ((List.range 14).map (fun index => 931114 + 1790 * index)) ++
-    [956175] ++
-    ((List.range 14).map (fun index => 931115 + 1790 * index)) ++
-    [956176] ++
-    ((List.range 14).map (fun index => 931116 + 1790 * index)) ++
-    [956177] ++
-    ((List.range 14).map (fun index => 931117 + 1790 * index)) ++
-    [956178] ++
-    ((List.range 14).map (fun index => 931118 + 1790 * index)) ++
-    [956179] ++
-    ((List.range 14).map (fun index => 931119 + 1790 * index)) ++
-    [956180] ++
-    ((List.range 14).map (fun index => 931120 + 1790 * index)) ++
-    [956181] ++
-    ((List.range 14).map (fun index => 931121 + 1790 * index)) ++
-    [956182] ++
-    ((List.range 8).map (fun index => 931122 + 1790 * index))
+def terminalceMap3 : List Nat := [1155618, 1157281] ++
+    ((List.range 14).map (fun index => 1134013 + 1662 * index)) ++
+    [1157282] ++
+    ((List.range 14).map (fun index => 1134014 + 1662 * index)) ++
+    [1157283] ++
+    ((List.range 14).map (fun index => 1134015 + 1662 * index)) ++
+    [1157284] ++
+    ((List.range 14).map (fun index => 1134016 + 1662 * index)) ++
+    [1157285] ++
+    ((List.range 14).map (fun index => 1134017 + 1662 * index)) ++
+    [1157286] ++
+    ((List.range 14).map (fun index => 1134018 + 1662 * index)) ++
+    [1157287] ++
+    ((List.range 14).map (fun index => 1134019 + 1662 * index)) ++
+    [1157288] ++
+    ((List.range 14).map (fun index => 1134020 + 1662 * index)) ++
+    [1157289] ++
+    ((List.range 14).map (fun index => 1134021 + 1662 * index)) ++
+    [1157290] ++
+    ((List.range 14).map (fun index => 1134022 + 1662 * index)) ++
+    [1157291] ++
+    ((List.range 14).map (fun index => 1134023 + 1662 * index)) ++
+    [1157292] ++
+    ((List.range 14).map (fun index => 1134024 + 1662 * index)) ++
+    [1157293] ++
+    ((List.range 14).map (fun index => 1134025 + 1662 * index)) ++
+    [1157294] ++
+    ((List.range 14).map (fun index => 1134026 + 1662 * index)) ++
+    [1157295] ++
+    ((List.range 14).map (fun index => 1134027 + 1662 * index)) ++
+    [1157296] ++
+    ((List.range 14).map (fun index => 1134028 + 1662 * index)) ++
+    [1157297] ++
+    ((List.range 14).map (fun index => 1134029 + 1662 * index)) ++
+    [1157298] ++
+    ((List.range 14).map (fun index => 1134030 + 1662 * index)) ++
+    [1157299] ++
+    ((List.range 14).map (fun index => 1134031 + 1662 * index)) ++
+    [1157300] ++
+    ((List.range 14).map (fun index => 1134032 + 1662 * index)) ++
+    [1157301] ++
+    ((List.range 14).map (fun index => 1134033 + 1662 * index)) ++
+    [1157302] ++
+    ((List.range 14).map (fun index => 1134034 + 1662 * index)) ++
+    [1157303] ++
+    ((List.range 14).map (fun index => 1134035 + 1662 * index)) ++
+    [1157304] ++
+    ((List.range 14).map (fun index => 1134036 + 1662 * index)) ++
+    [1157305] ++
+    ((List.range 14).map (fun index => 1134037 + 1662 * index)) ++
+    [1157306] ++
+    ((List.range 14).map (fun index => 1134038 + 1662 * index)) ++
+    [1157307] ++
+    ((List.range 14).map (fun index => 1134039 + 1662 * index)) ++
+    [1157308] ++
+    ((List.range 14).map (fun index => 1134040 + 1662 * index)) ++
+    [1157309] ++
+    ((List.range 14).map (fun index => 1134041 + 1662 * index)) ++
+    [1157310] ++
+    ((List.range 14).map (fun index => 1134042 + 1662 * index)) ++
+    [1157311] ++
+    ((List.range 14).map (fun index => 1134043 + 1662 * index)) ++
+    [1157312] ++
+    ((List.range 14).map (fun index => 1134044 + 1662 * index)) ++
+    [1157313] ++
+    ((List.range 14).map (fun index => 1134045 + 1662 * index)) ++
+    [1157314] ++
+    ((List.range 14).map (fun index => 1134046 + 1662 * index)) ++
+    [1157315] ++
+    ((List.range 14).map (fun index => 1134047 + 1662 * index)) ++
+    [1157316] ++
+    ((List.range 14).map (fun index => 1134048 + 1662 * index)) ++
+    [1157317] ++
+    ((List.range 14).map (fun index => 1134049 + 1662 * index)) ++
+    [1157318] ++
+    ((List.range 14).map (fun index => 1134050 + 1662 * index)) ++
+    [1157319] ++
+    ((List.range 14).map (fun index => 1134051 + 1662 * index)) ++
+    [1157320] ++
+    ((List.range 14).map (fun index => 1134052 + 1662 * index)) ++
+    [1157321] ++
+    ((List.range 14).map (fun index => 1134053 + 1662 * index)) ++
+    [1157322] ++
+    ((List.range 14).map (fun index => 1134054 + 1662 * index)) ++
+    [1157323] ++
+    ((List.range 14).map (fun index => 1134055 + 1662 * index)) ++
+    [1157324] ++
+    ((List.range 14).map (fun index => 1134056 + 1662 * index)) ++
+    [1157325] ++
+    ((List.range 14).map (fun index => 1134057 + 1662 * index)) ++
+    [1157326] ++
+    ((List.range 14).map (fun index => 1134058 + 1662 * index)) ++
+    [1157327] ++
+    ((List.range 14).map (fun index => 1134059 + 1662 * index)) ++
+    [1157328] ++
+    ((List.range 14).map (fun index => 1134060 + 1662 * index)) ++
+    [1157329] ++
+    ((List.range 14).map (fun index => 1134061 + 1662 * index)) ++
+    [1157330] ++
+    ((List.range 14).map (fun index => 1134062 + 1662 * index)) ++
+    [1157331] ++
+    ((List.range 14).map (fun index => 1134063 + 1662 * index)) ++
+    [1157332] ++
+    ((List.range 14).map (fun index => 1134064 + 1662 * index)) ++
+    [1157333] ++
+    ((List.range 14).map (fun index => 1134065 + 1662 * index)) ++
+    [1157334] ++
+    ((List.range 14).map (fun index => 1134066 + 1662 * index)) ++
+    [1157335] ++
+    ((List.range 14).map (fun index => 1134067 + 1662 * index)) ++
+    [1157336] ++
+    ((List.range 14).map (fun index => 1134068 + 1662 * index)) ++
+    [1157337] ++
+    ((List.range 14).map (fun index => 1134069 + 1662 * index)) ++
+    [1157338] ++
+    ((List.range 14).map (fun index => 1134070 + 1662 * index)) ++
+    [1157339] ++
+    ((List.range 14).map (fun index => 1134071 + 1662 * index)) ++
+    [1157340] ++
+    ((List.range 14).map (fun index => 1134072 + 1662 * index)) ++
+    [1157341] ++
+    ((List.range 14).map (fun index => 1134073 + 1662 * index)) ++
+    [1157342] ++
+    ((List.range 14).map (fun index => 1134074 + 1662 * index)) ++
+    [1157343] ++
+    ((List.range 14).map (fun index => 1134075 + 1662 * index)) ++
+    [1157344] ++
+    ((List.range 14).map (fun index => 1134076 + 1662 * index)) ++
+    [1157345] ++
+    ((List.range 14).map (fun index => 1134077 + 1662 * index)) ++
+    [1157346] ++
+    ((List.range 14).map (fun index => 1134078 + 1662 * index)) ++
+    [1157347] ++
+    ((List.range 8).map (fun index => 1134079 + 1662 * index))
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistoryPiDec.GeneratedMaps

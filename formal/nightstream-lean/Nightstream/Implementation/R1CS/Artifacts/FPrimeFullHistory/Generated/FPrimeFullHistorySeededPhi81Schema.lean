@@ -7,8 +7,8 @@ namespace Nightstream.Implementation.R1CS.FPrimeFullHistorySeededPhi81
 open Nightstream.Implementation.R1CS
 open Nightstream.Implementation.R1CS.SeededPhi81
 
-def totalRows : Nat := 4076614
-def totalColumns : Nat := 3298653
+def totalRows : Nat := 4193134
+def totalColumns : Nat := 3582173
 def rejectionFuel : Nat := 16
 
 def rowEnd (block : SeededPhi81.Block) : Nat :=

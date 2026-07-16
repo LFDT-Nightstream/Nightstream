@@ -17,7 +17,8 @@ theorem rather than an `accepted_implies_valid` assumption.
 Maps to:
 - `lifecycle::verify::check_running_witnesses_authority`;
 - `paper::decider_ce_relation::enforce_final_ce_relations`;
-- `engine::decider::enforce_children_equal_running`.
+- `engine::decider::enforce_child_core_equal_running` for non-terminal core
+  continuity, followed by terminal sidecar attachment and direct validation.
 -/
 
 namespace Nightstream.Protocol.TerminalCE

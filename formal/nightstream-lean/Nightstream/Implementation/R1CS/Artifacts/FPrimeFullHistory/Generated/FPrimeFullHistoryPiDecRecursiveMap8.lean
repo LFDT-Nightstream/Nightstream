@@ -7,72 +7,138 @@ namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryPiDec.GeneratedMaps
 set_option maxRecDepth 262144
 set_option maxHeartbeats 2000000
 
-def recursiveMap8 : List Nat := ((List.range 11).map (fun index => 379574 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372415 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372416 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372417 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372418 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372419 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372420 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372421 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372422 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372423 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372424 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372425 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372426 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372427 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372428 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372429 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372430 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372431 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372432 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372433 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372434 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372435 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372436 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372437 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372438 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372439 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372440 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372441 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372442 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372443 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372444 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372445 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372446 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372447 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372448 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372449 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372450 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372451 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372452 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372453 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372454 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372455 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372456 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372457 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372458 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372459 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372460 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372461 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372462 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372463 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372464 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372465 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372466 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372467 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372468 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372469 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372470 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372471 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372472 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372473 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372474 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372475 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372476 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372477 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372478 + 1790 * index)) ++
-    ((List.range 15).map (fun index => 372479 + 1790 * index)) ++
-    ((List.range 14).map (fun index => 372480 + 1790 * index))
+def recursiveMap8 : List Nat := ((List.range 11).map (fun index => 365939 + 1662 * index)) ++
+    [359164] ++
+    ((List.range 14).map (fun index => 360954 + 1662 * index)) ++
+    [359165] ++
+    ((List.range 14).map (fun index => 360955 + 1662 * index)) ++
+    [359166] ++
+    ((List.range 14).map (fun index => 360956 + 1662 * index)) ++
+    [359167] ++
+    ((List.range 14).map (fun index => 360957 + 1662 * index)) ++
+    [359168] ++
+    ((List.range 14).map (fun index => 360958 + 1662 * index)) ++
+    [359169] ++
+    ((List.range 14).map (fun index => 360959 + 1662 * index)) ++
+    [359170] ++
+    ((List.range 14).map (fun index => 360960 + 1662 * index)) ++
+    [359171] ++
+    ((List.range 14).map (fun index => 360961 + 1662 * index)) ++
+    [359172] ++
+    ((List.range 14).map (fun index => 360962 + 1662 * index)) ++
+    [359173] ++
+    ((List.range 14).map (fun index => 360963 + 1662 * index)) ++
+    [359174] ++
+    ((List.range 14).map (fun index => 360964 + 1662 * index)) ++
+    [359175] ++
+    ((List.range 14).map (fun index => 360965 + 1662 * index)) ++
+    [359176] ++
+    ((List.range 14).map (fun index => 360966 + 1662 * index)) ++
+    [359177] ++
+    ((List.range 14).map (fun index => 360967 + 1662 * index)) ++
+    [359178] ++
+    ((List.range 14).map (fun index => 360968 + 1662 * index)) ++
+    [359179] ++
+    ((List.range 14).map (fun index => 360969 + 1662 * index)) ++
+    [359180] ++
+    ((List.range 14).map (fun index => 360970 + 1662 * index)) ++
+    [359181] ++
+    ((List.range 14).map (fun index => 360971 + 1662 * index)) ++
+    [359182] ++
+    ((List.range 14).map (fun index => 360972 + 1662 * index)) ++
+    [359183] ++
+    ((List.range 14).map (fun index => 360973 + 1662 * index)) ++
+    [359184] ++
+    ((List.range 14).map (fun index => 360974 + 1662 * index)) ++
+    [359185] ++
+    ((List.range 14).map (fun index => 360975 + 1662 * index)) ++
+    [359186] ++
+    ((List.range 14).map (fun index => 360976 + 1662 * index)) ++
+    [359187] ++
+    ((List.range 14).map (fun index => 360977 + 1662 * index)) ++
+    [359188] ++
+    ((List.range 14).map (fun index => 360978 + 1662 * index)) ++
+    [359189] ++
+    ((List.range 14).map (fun index => 360979 + 1662 * index)) ++
+    [359190] ++
+    ((List.range 14).map (fun index => 360980 + 1662 * index)) ++
+    [359191] ++
+    ((List.range 14).map (fun index => 360981 + 1662 * index)) ++
+    [359192] ++
+    ((List.range 14).map (fun index => 360982 + 1662 * index)) ++
+    [359193] ++
+    ((List.range 14).map (fun index => 360983 + 1662 * index)) ++
+    [359194] ++
+    ((List.range 14).map (fun index => 360984 + 1662 * index)) ++
+    [359195] ++
+    ((List.range 14).map (fun index => 360985 + 1662 * index)) ++
+    [359196] ++
+    ((List.range 14).map (fun index => 360986 + 1662 * index)) ++
+    [359197] ++
+    ((List.range 14).map (fun index => 360987 + 1662 * index)) ++
+    [359198] ++
+    ((List.range 14).map (fun index => 360988 + 1662 * index)) ++
+    [359199] ++
+    ((List.range 14).map (fun index => 360989 + 1662 * index)) ++
+    [359200] ++
+    ((List.range 14).map (fun index => 360990 + 1662 * index)) ++
+    [359201] ++
+    ((List.range 14).map (fun index => 360991 + 1662 * index)) ++
+    [359202] ++
+    ((List.range 14).map (fun index => 360992 + 1662 * index)) ++
+    [359203] ++
+    ((List.range 14).map (fun index => 360993 + 1662 * index)) ++
+    [359204] ++
+    ((List.range 14).map (fun index => 360994 + 1662 * index)) ++
+    [359205] ++
+    ((List.range 14).map (fun index => 360995 + 1662 * index)) ++
+    [359206] ++
+    ((List.range 14).map (fun index => 360996 + 1662 * index)) ++
+    [359207] ++
+    ((List.range 14).map (fun index => 360997 + 1662 * index)) ++
+    [359208] ++
+    ((List.range 14).map (fun index => 360998 + 1662 * index)) ++
+    [359209] ++
+    ((List.range 14).map (fun index => 360999 + 1662 * index)) ++
+    [359210] ++
+    ((List.range 14).map (fun index => 361000 + 1662 * index)) ++
+    [359211] ++
+    ((List.range 14).map (fun index => 361001 + 1662 * index)) ++
+    [359212] ++
+    ((List.range 14).map (fun index => 361002 + 1662 * index)) ++
+    [359213] ++
+    ((List.range 14).map (fun index => 361003 + 1662 * index)) ++
+    [359214] ++
+    ((List.range 14).map (fun index => 361004 + 1662 * index)) ++
+    [359215] ++
+    ((List.range 14).map (fun index => 361005 + 1662 * index)) ++
+    [359216] ++
+    ((List.range 14).map (fun index => 361006 + 1662 * index)) ++
+    [359217] ++
+    ((List.range 14).map (fun index => 361007 + 1662 * index)) ++
+    [359218] ++
+    ((List.range 14).map (fun index => 361008 + 1662 * index)) ++
+    [359219] ++
+    ((List.range 14).map (fun index => 361009 + 1662 * index)) ++
+    [359220] ++
+    ((List.range 14).map (fun index => 361010 + 1662 * index)) ++
+    [359221] ++
+    ((List.range 14).map (fun index => 361011 + 1662 * index)) ++
+    [359222] ++
+    ((List.range 14).map (fun index => 361012 + 1662 * index)) ++
+    [359223] ++
+    ((List.range 14).map (fun index => 361013 + 1662 * index)) ++
+    [359224] ++
+    ((List.range 14).map (fun index => 361014 + 1662 * index)) ++
+    [359225] ++
+    ((List.range 14).map (fun index => 361015 + 1662 * index)) ++
+    [359226] ++
+    ((List.range 14).map (fun index => 361016 + 1662 * index)) ++
+    [359227] ++
+    ((List.range 14).map (fun index => 361017 + 1662 * index)) ++
+    [359228] ++
+    ((List.range 14).map (fun index => 361018 + 1662 * index)) ++
+    [359229] ++
+    ((List.range 13).map (fun index => 361019 + 1662 * index))
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistoryPiDec.GeneratedMaps

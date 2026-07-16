@@ -3,22 +3,26 @@ import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHis
 import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryRecursivePiCcsRunningAuthorityArtifact
 import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryRecursivePiCcsTranscriptArtifact
 import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryRecursivePiCcsFeInitialArtifact
+import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryRecursivePiCcsFeOptionalClaimArtifact
 import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryRecursivePiCcsFeSumcheckArtifact
 import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryRecursivePiCcsNcSumcheckArtifact
 import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryRecursivePiCcsFeTerminalArtifact
 import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryRecursivePiCcsNcTerminalArtifact
 import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryRecursivePiCcsCatchupArtifact
+import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryRecursivePiCcsOutputMessageHashesArtifact
 import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryRecursivePiRlcTranscriptRhosArtifact
 import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryRecursivePiRlcProjectionBindingArtifact
 import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryTerminalPiCcsFreshDigestsArtifact
 import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryTerminalPiCcsRunningAuthorityArtifact
 import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryTerminalPiCcsTranscriptArtifact
 import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryTerminalPiCcsFeInitialArtifact
+import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryTerminalPiCcsFeOptionalClaimArtifact
 import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryTerminalPiCcsFeSumcheckArtifact
 import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryTerminalPiCcsNcSumcheckArtifact
 import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryTerminalPiCcsFeTerminalArtifact
 import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryTerminalPiCcsNcTerminalArtifact
 import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryTerminalPiCcsCatchupArtifact
+import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryTerminalPiCcsOutputMessageHashesArtifact
 import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryTerminalPiRlcTranscriptRhosArtifact
 import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryTerminalPiRlcProjectionBindingArtifact
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryManifestData
@@ -57,22 +61,26 @@ def recursivePiCcsResidualOwners : List Owner :=
   , FPrimeFullHistoryRecursivePiCcsRunningAuthority.owner
   , FPrimeFullHistoryRecursivePiCcsTranscript.owner
   , FPrimeFullHistoryRecursivePiCcsFeInitial.owner
+  , FPrimeFullHistoryRecursivePiCcsFeOptionalClaim.owner
   , FPrimeFullHistoryRecursivePiCcsFeSumcheck.owner
   , FPrimeFullHistoryRecursivePiCcsNcSumcheck.owner
   , FPrimeFullHistoryRecursivePiCcsFeTerminal.owner
   , FPrimeFullHistoryRecursivePiCcsNcTerminal.owner
-  , FPrimeFullHistoryRecursivePiCcsCatchup.owner ]
+  , FPrimeFullHistoryRecursivePiCcsCatchup.owner
+  , FPrimeFullHistoryRecursivePiCcsOutputMessageHashes.owner ]
 
 def terminalPiCcsResidualOwners : List Owner :=
   [ FPrimeFullHistoryTerminalPiCcsFreshDigests.owner
   , FPrimeFullHistoryTerminalPiCcsRunningAuthority.owner
   , FPrimeFullHistoryTerminalPiCcsTranscript.owner
   , FPrimeFullHistoryTerminalPiCcsFeInitial.owner
+  , FPrimeFullHistoryTerminalPiCcsFeOptionalClaim.owner
   , FPrimeFullHistoryTerminalPiCcsFeSumcheck.owner
   , FPrimeFullHistoryTerminalPiCcsNcSumcheck.owner
   , FPrimeFullHistoryTerminalPiCcsFeTerminal.owner
   , FPrimeFullHistoryTerminalPiCcsNcTerminal.owner
-  , FPrimeFullHistoryTerminalPiCcsCatchup.owner ]
+  , FPrimeFullHistoryTerminalPiCcsCatchup.owner
+  , FPrimeFullHistoryTerminalPiCcsOutputMessageHashes.owner ]
 
 def recursivePiRlcResidualOwners : List Owner :=
   [ FPrimeFullHistoryRecursivePiRlcTranscriptRhos.owner
@@ -87,7 +95,7 @@ def terminalPiCcsAuthorityRows : List Row :=
     FPrimeFullHistoryPiCcsTerminalAuthorityTail.rows
 
 theorem terminalPiCcsAuthorityRows_length :
-    terminalPiCcsAuthorityRows.length = 11587 := by
+    terminalPiCcsAuthorityRows.length = 11887 := by
   simp [terminalPiCcsAuthorityRows, FPrimeFullHistoryPiDec.terminalCeRows_length,
     FPrimeFullHistoryPiCcsTerminalAuthorityTail.rows_length,
     FPrimeFullHistoryPiDec.rowCount,
@@ -138,12 +146,14 @@ def recursivePiCcsPieces : List (List Row) :=
   , FPrimeFullHistoryRecursivePiCcsRunningAuthority.rows
   , FPrimeFullHistoryRecursivePiCcsTranscript.rows
   , FPrimeFullHistoryRecursivePiCcsFeInitial.rows
+  , FPrimeFullHistoryRecursivePiCcsFeOptionalClaim.rows
   , FPrimeFullHistoryRecursivePiCcsFeSumcheck.rows
   , FPrimeFullHistoryRecursivePiCcsNcSumcheck.rows
   , FPrimeFullHistoryPiCcsRecursiveOutputBinding.rows
   , FPrimeFullHistoryRecursivePiCcsFeTerminal.rows
   , FPrimeFullHistoryRecursivePiCcsNcTerminal.rows
-  , FPrimeFullHistoryRecursivePiCcsCatchup.rows ]
+  , FPrimeFullHistoryRecursivePiCcsCatchup.rows
+  , FPrimeFullHistoryRecursivePiCcsOutputMessageHashes.rows ]
 
 def terminalPiCcsPieces : List (List Row) :=
   [ FPrimeFullHistoryPiCcsTerminalAllocation.rows
@@ -152,12 +162,14 @@ def terminalPiCcsPieces : List (List Row) :=
   , FPrimeFullHistoryTerminalPiCcsRunningAuthority.rows
   , FPrimeFullHistoryTerminalPiCcsTranscript.rows
   , FPrimeFullHistoryTerminalPiCcsFeInitial.rows
+  , FPrimeFullHistoryTerminalPiCcsFeOptionalClaim.rows
   , FPrimeFullHistoryTerminalPiCcsFeSumcheck.rows
   , FPrimeFullHistoryTerminalPiCcsNcSumcheck.rows
   , FPrimeFullHistoryPiCcsTerminalOutputBinding.rows
   , FPrimeFullHistoryTerminalPiCcsFeTerminal.rows
   , FPrimeFullHistoryTerminalPiCcsNcTerminal.rows
-  , FPrimeFullHistoryTerminalPiCcsCatchup.rows ]
+  , FPrimeFullHistoryTerminalPiCcsCatchup.rows
+  , FPrimeFullHistoryTerminalPiCcsOutputMessageHashes.rows ]
 
 def recursivePiRlcPieces : List (List Row) :=
   [ FPrimeFullHistoryRecursivePiRlcTranscriptRhos.rows
@@ -180,7 +192,7 @@ def terminalPiCcsRows : List Row := terminalPiCcsPieces.flatten
 def recursivePiRlcRows : List Row := recursivePiRlcPieces.flatten
 def terminalPiRlcRows : List Row := terminalPiRlcPieces.flatten
 
-theorem recursivePiCcsRows_length : recursivePiCcsRows.length = 242890 := by
+theorem recursivePiCcsRows_length : recursivePiCcsRows.length = 320528 := by
   simp [recursivePiCcsRows, recursivePiCcsPieces,
     FPrimeFullHistoryPiCcsRecursiveAllocation.rows_length,
     FPrimeFullHistoryPiCcsRecursiveAuthority.rows_length,
@@ -189,14 +201,16 @@ theorem recursivePiCcsRows_length : recursivePiCcsRows.length = 242890 := by
     FPrimeFullHistoryRecursivePiCcsRunningAuthority.rows_length,
     FPrimeFullHistoryRecursivePiCcsTranscript.rows_length,
     FPrimeFullHistoryRecursivePiCcsFeInitial.rows_length,
+    FPrimeFullHistoryRecursivePiCcsFeOptionalClaim.rows_length,
     FPrimeFullHistoryRecursivePiCcsFeSumcheck.rows_length,
     FPrimeFullHistoryRecursivePiCcsNcSumcheck.rows_length,
     FPrimeFullHistoryRecursivePiCcsFeTerminal.rows_length,
     FPrimeFullHistoryRecursivePiCcsNcTerminal.rows_length,
-    FPrimeFullHistoryRecursivePiCcsCatchup.rows_length]
+    FPrimeFullHistoryRecursivePiCcsCatchup.rows_length,
+    FPrimeFullHistoryRecursivePiCcsOutputMessageHashes.rows_length]
   native_decide
 
-theorem terminalPiCcsRows_length : terminalPiCcsRows.length = 725531 := by
+theorem terminalPiCcsRows_length : terminalPiCcsRows.length = 1602001 := by
   simp [terminalPiCcsRows, terminalPiCcsPieces, terminalPiCcsAuthorityRows_length,
     FPrimeFullHistoryPiCcsTerminalAllocation.rows_length,
     FPrimeFullHistoryPiCcsTerminalOutputBinding.rows_length,
@@ -204,14 +218,16 @@ theorem terminalPiCcsRows_length : terminalPiCcsRows.length = 725531 := by
     FPrimeFullHistoryTerminalPiCcsRunningAuthority.rows_length,
     FPrimeFullHistoryTerminalPiCcsTranscript.rows_length,
     FPrimeFullHistoryTerminalPiCcsFeInitial.rows_length,
+    FPrimeFullHistoryTerminalPiCcsFeOptionalClaim.rows_length,
     FPrimeFullHistoryTerminalPiCcsFeSumcheck.rows_length,
     FPrimeFullHistoryTerminalPiCcsNcSumcheck.rows_length,
     FPrimeFullHistoryTerminalPiCcsFeTerminal.rows_length,
     FPrimeFullHistoryTerminalPiCcsNcTerminal.rows_length,
-    FPrimeFullHistoryTerminalPiCcsCatchup.rows_length]
+    FPrimeFullHistoryTerminalPiCcsCatchup.rows_length,
+    FPrimeFullHistoryTerminalPiCcsOutputMessageHashes.rows_length]
   native_decide
 
-theorem recursivePiRlcRows_length : recursivePiRlcRows.length = 597908 := by
+theorem recursivePiRlcRows_length : recursivePiRlcRows.length = 496739 := by
   rw [recursivePiRlcRows, List.length_flatten]
   simp only [recursivePiRlcPieces, List.map_cons, List.map_nil, List.sum_cons, List.sum_nil,
     recursiveProjectionSharedRows_length, recursiveProjectionIdentityRows_length,
@@ -221,7 +237,7 @@ theorem recursivePiRlcRows_length : recursivePiRlcRows.length = 597908 := by
     FPrimeFullHistoryRecursivePiRlcProjectionBinding.rows_length]
   native_decide
 
-theorem terminalPiRlcRows_length : terminalPiRlcRows.length = 1836082 := by
+theorem terminalPiRlcRows_length : terminalPiRlcRows.length = 666223 := by
   rw [terminalPiRlcRows, List.length_flatten]
   simp only [terminalPiRlcPieces, List.map_cons, List.map_nil, List.sum_cons, List.sum_nil,
     terminalProjectionSharedRows_length, terminalProjectionIdentityRows_length,

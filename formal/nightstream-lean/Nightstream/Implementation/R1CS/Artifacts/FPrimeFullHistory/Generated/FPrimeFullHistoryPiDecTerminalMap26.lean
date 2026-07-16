@@ -7,6 +7,6 @@ namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryPiDec.GeneratedMaps
 set_option maxRecDepth 262144
 set_option maxHeartbeats 2000000
 
-def terminalMap26 : List Nat := ((List.range 1000).map (fun index => 3168514 + 1 * index))
+def terminalMap26 : List Nat := ((List.range 1000).map (fun index => 3232242 + 1 * index))
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistoryPiDec.GeneratedMaps

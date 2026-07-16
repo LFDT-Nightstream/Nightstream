@@ -77,12 +77,13 @@ def probes : List Nightstream.Checks.Probe :=
       fun _ => FPrimeRecursiveManifest.covers 0 FPrimeRecursiveManifest.totalRows
         FPrimeRecursiveManifest.topLevelFamilies, true⟩
   , ⟨"r1cs_fprime_recursive_manifest_nifs_coverage",
-      fun _ => FPrimeRecursiveManifest.covers 20038 2592246
+      fun _ => FPrimeRecursiveManifest.covers FPrimeRecursiveManifest.nifsRowStart
+        FPrimeRecursiveManifest.nifsRowEnd
         FPrimeRecursiveManifest.nifsFamilies, true⟩
   , ⟨"r1cs_fprime_full_history_manifest_rows",
-      fun _ => FPrimeFullHistoryManifest.totalRows == 4076614, true⟩
+      fun _ => FPrimeFullHistoryManifest.totalRows == 4193134, true⟩
   , ⟨"r1cs_fprime_full_history_manifest_columns",
-      fun _ => FPrimeFullHistoryManifest.totalColumns == 3298653, true⟩
+      fun _ => FPrimeFullHistoryManifest.totalColumns == 3582173, true⟩
   , ⟨"r1cs_fprime_full_history_top_level_coverage",
       fun _ => FPrimeRecursiveManifest.covers 0 FPrimeFullHistoryManifest.totalRows
         FPrimeFullHistoryManifest.topLevelFamilies, true⟩

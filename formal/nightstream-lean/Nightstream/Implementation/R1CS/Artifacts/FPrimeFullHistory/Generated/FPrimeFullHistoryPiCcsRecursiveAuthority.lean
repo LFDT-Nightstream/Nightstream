@@ -6,10 +6,10 @@ namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryPiCcsRecursiveAuthori
 
 open Nightstream.Implementation.R1CS
 
-def rangeSha256 : String := "ff7a9f47535cb5de6f6af5ffb383f27bc67ad0e281a769887a975ac5c7306a8f"
+def rangeSha256 : String := "97c2033c600b913ebd9129be4808d86541cdb10782e48037ddc22e51c05205cc"
 def rowStart : Nat := 30768
-def rowEnd : Nat := 30834
-def rowCount : Nat := 66
+def rowEnd : Nat := 30854
+def rowCount : Nat := 86
 
 def pinRuns : List AffinePins.Run :=
   [ .equal 33175 32791 1 1 2
@@ -18,6 +18,7 @@ def pinRuns : List AffinePins.Run :=
   , .zero 32899 1 20
   , .zero 33027 1 20
   , .zero 33155 1 20
+  , .zero 33289 1 20
   ]
 
 def pins : List AffinePins.Pin := AffinePins.expandRuns pinRuns

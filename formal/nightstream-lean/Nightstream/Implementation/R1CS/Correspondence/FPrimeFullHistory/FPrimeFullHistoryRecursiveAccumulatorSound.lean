@@ -3,14 +3,20 @@ import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.FPrimeFu
 import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryRecursiveAccumulatorCoreNative
 
 /-!
-Soundness, independent acceptance, and compiler completeness for the complete
-recursive accumulator owner.
+Contract: compose the recursive accumulator input link, direct accumulator-v1
+digest core, and output link.
 
-Four leading rows bind the prior carried handle to the accumulator folded by
-PiCCS.  The 37,295-row core recomputes the next handle from the decoded PiDEC
-parent authority.  Four trailing rows bind that result to the claimed and
-outgoing F' state digest.  A digest is therefore compression only; no carried
-digest is accepted without its recomputation owner.
+| Branch | Exact rows | Mathematical obligation | Emits constraints? |
+|---|---:|---|---|
+| `running_link` | 4 | Bind the carried input handle to the PiCCS accumulator | yes |
+| `digest_core` | 254,911 | Serialize the checked PiDEC parent and evaluate Poseidon2 | yes |
+| `output_link` | 4 | Bind the recomputed handle to claimed and outgoing state | yes |
+
+Owns: exact composition of all 254,919 recursive accumulator rows.
+Does not own: PiCCS/PiDEC acceptance, PiRLC parent authority, or `y_zcol`
+validation.
+Authority boundary: the four-lane digest is compression only.  Its preimage
+is the exact accumulator-v1 projection exposed by the checked core.
 -/
 
 namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryRecursiveAccumulatorSound
@@ -44,7 +50,7 @@ private theorem linked_values
         exact links pair (by simp [member])
       simp [headLink, inductionHypothesis tailLinks]
 
-/-- Independent conclusions of all 37,303 exact rows. -/
+/-- Independent conclusions of all 254,919 exact rows. -/
 structure Facts (assignment : Nat → Nat) : Prop where
   runningDigest : LinksHold
     FPrimeFullHistoryRecursiveAccumulatorRunningLink.pairs assignment
@@ -78,29 +84,28 @@ theorem Facts.handle_eq_stateOutput
   simp [handle, stateOutputHandle, accumulatorDigestColumns,
     FPrimeFullHistoryRecursiveAccumulator.recomputed_is_state_output]
 
-/-- The installed handle is the pure Poseidon2 evaluation whose preimage is
-the decoded PiDEC child count and parent CE digest. -/
+/-- The installed handle is the pure Poseidon2 evaluation of the complete
+accumulator-v1 projection of the checked recursive PiDEC parent. -/
 theorem Facts.handle_recomputed
     {assignment : Nat → Nat} (facts : Facts assignment) :
     ∀ lane, lane < 4 →
       assignment (accumulatorDigestColumns.getD lane 0) =
         Poseidon2Sponge.runValueRounds
-          (FPrimeFullHistoryRecursiveAccumulatorCorePoseidonHashes.accumulatorDigestTrace
-            ).rounds
-          (FPrimeFullHistoryRecursiveAccumulatorCoreSound.decodedPiDecAuthority
-            assignment).preimage
+          FPrimeFullHistoryRecursiveAccumulatorCoreSound.digestTrace.rounds
+          (FPrimeFullHistoryAccumulatorClaimSerialization.recursiveParentPreimage
+            assignment)
           (fun _ => 0) lane := by
   intro lane laneLt
   have recomputed := facts.core.accumulatorDigest lane laneLt
-  rw [facts.core.parentAuthorityPreimage] at recomputed
+  rw [FPrimeFullHistoryRecursiveAccumulatorCoreSound.digestTrace_outputColumns,
+    FPrimeFullHistoryRecursiveAccumulatorCoreSound.digestTrace_inputColumns,
+    facts.core.parentClaimSource] at recomputed
   simpa [accumulatorDigestColumns,
-    FPrimeFullHistoryRecursiveAccumulator.recomputed_is_core_output,
-    FPrimeFullHistoryRecursiveAccumulatorCorePoseidonHashes.accumulatorDigestTrace_output]
+    FPrimeFullHistoryRecursiveAccumulator.recomputed_is_core_output]
     using recomputed
 
 /-- Exact-row CIR-SOUND for the complete recursive accumulator owner. -/
 theorem sound
-    (goldilocksPrime : EuclidPrime goldilocksP)
     {assignment : Nat → Nat}
     (canonical : ∀ column, assignment column < goldilocksP)
     (one : assignment 0 = 1)
@@ -113,7 +118,7 @@ theorem sound
   exact {
     runningDigest := EqualityPins.rows_sound canonical one runningRows
     core := FPrimeFullHistoryRecursiveAccumulatorCoreSound.sound
-      goldilocksPrime canonical one coreRowsSatisfy
+      canonical one coreRowsSatisfy
     outputDigest := EqualityPins.rows_sound canonical one outputRows
   }
 
@@ -136,14 +141,13 @@ theorem nativeCheck_eq_true_iff (assignment : Nat → Nat) :
     exact ⟨facts.runningDigest, facts.core, facts.outputDigest⟩
 
 theorem nativeCheck_of_satisfies
-    (goldilocksPrime : EuclidPrime goldilocksP)
     {assignment : Nat → Nat}
     (canonical : ∀ column, assignment column < goldilocksP)
     (one : assignment 0 = 1)
     (satisfies : Satisfies rows assignment) :
     nativeCheck assignment = true :=
   (nativeCheck_eq_true_iff assignment).2
-    (sound goldilocksPrime canonical one satisfies)
+    (sound canonical one satisfies)
 
 /-- Native/compiler data sufficient to build every owner row.  No R1CS
 satisfaction proposition or acceptance bit is supplied by the caller. -/

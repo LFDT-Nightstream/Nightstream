@@ -32,15 +32,47 @@
   "source_hashes": [
     {
       "path": "crates/neo-fold-clean/src/engine/r1cs_circuit/ring_action.rs",
-      "sha256": "2fb3919da975b8a239a1dbe0164a143fc05ea05ae522f157ac08bc4108ae3823"
+      "sha256": "f20aa32aa19ed545ff7f3b22a2a400283ea12da952b1a23ec7b3f200afc12f75"
     },
     {
-      "path": "crates/neo-fold-clean/src/paper/nifs/circuit.rs",
-      "sha256": "fc09a564b36531e436d1fa610de8364c06376f49c630977a383bf82d18bb6ae7"
+      "path": "crates/neo-fold-clean/src/paper/nifs/circuit/mod.rs",
+      "sha256": "a0e29265cce279463a7bdbccd072602f5ee3ac83370125cb1d76f604b4602196"
+    },
+    {
+      "path": "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/consistency.rs",
+      "sha256": "4758ab0243170fde7aa08c8c6167795bfdb2077f93c7d4f2703aa76c48dc82bc"
+    },
+    {
+      "path": "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/fold_wires.rs",
+      "sha256": "b4896fa2e13cc4b45bad329846a063e2cee418c1db0e3929df043306bc940ecf"
+    },
+    {
+      "path": "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/mod.rs",
+      "sha256": "99513e6786dcc4922f006425dbbd414623a958a98763bfcb4e3e88b1b31171f9"
+    },
+    {
+      "path": "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/padding.rs",
+      "sha256": "8c6466441c912b4633f3a36f3a84784eb0707632bd05e8a3414fe10352a4c9a9"
+    },
+    {
+      "path": "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/projection/binding.rs",
+      "sha256": "7c6c9e5d41d03048f85eb94e8482ee17f2ca4f38b3c3c1387cd64399f5bac001"
+    },
+    {
+      "path": "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/projection/identities.rs",
+      "sha256": "042e5af294d83e38d73e36e51cc276c97d6e034b6e7e22427a2f91923a06e738"
+    },
+    {
+      "path": "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/projection/mod.rs",
+      "sha256": "28f3d3b1a0784e5b289bbfb5e85ca2c311c9cd786b57f937f29fdc9ae569b943"
+    },
+    {
+      "path": "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/projection/shared.rs",
+      "sha256": "a1da53eba851b3523c2b95a79a0c43f0b669bc225cecec38e65bb516ec370d42"
     },
     {
       "path": "crates/neo-fold-clean/tests/gadgets/pi_rlc_projection_boundary.rs",
-      "sha256": "02d8b8104f638aaeb48426a2734f1e0a5666a9d1128e04ce9844524177b6caaa"
+      "sha256": "003491d6c03d62a2cd658f20c3d5aab52eb7177c9b6e630f5a46568fd0d0822a"
     },
     {
       "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Core/ProjectionProgram.lean",

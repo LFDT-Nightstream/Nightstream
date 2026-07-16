@@ -10,19 +10,13 @@ import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPr
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistorySeededPhi81Block9
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistorySeededPhi81Block10
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistorySeededPhi81Block11
-import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistorySeededPhi81Block12
-import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistorySeededPhi81Block13
-import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistorySeededPhi81Block14
-import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistorySeededPhi81Block15
-import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistorySeededPhi81Block16
-import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistorySeededPhi81Block17
 
 /-! Generated certified index of every production full-history SeededPhi81 block. -/
 
 namespace Nightstream.Implementation.R1CS.FPrimeFullHistorySeededPhi81
 
 def certifiedBlocks : List CertifiedBlock :=
-  [certifiedBlock0, certifiedBlock1, certifiedBlock2, certifiedBlock3, certifiedBlock4, certifiedBlock5, certifiedBlock6, certifiedBlock7, certifiedBlock8, certifiedBlock9, certifiedBlock10, certifiedBlock11, certifiedBlock12, certifiedBlock13, certifiedBlock14, certifiedBlock15, certifiedBlock16, certifiedBlock17]
+  [certifiedBlock0, certifiedBlock1, certifiedBlock2, certifiedBlock3, certifiedBlock4, certifiedBlock5, certifiedBlock6, certifiedBlock7, certifiedBlock8, certifiedBlock9, certifiedBlock10, certifiedBlock11]
 
 def blocks : List SeededPhi81.Block := certifiedBlocks.map Subtype.val
 

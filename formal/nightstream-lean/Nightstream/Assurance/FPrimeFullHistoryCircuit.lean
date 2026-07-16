@@ -137,7 +137,7 @@ private theorem terminalNcRows_in_owner :
       FPrimeFullHistoryTerminalPiCcsNcSumcheck.rows = true := by
   native_decide
 
-/-- Satisfaction of the exact manifest-ordered 4,076,614-row artifact
+/-- Satisfaction of the exact manifest-ordered 4,193,134-row artifact
 reconstructs every semantic row owner.  This theorem is deliberately explicit:
 no range label, count, or digest is allowed to stand in for sparse-row
 satisfaction. -/
@@ -223,7 +223,7 @@ theorem ownerRows_of_satisfies
       FPrimeFullHistoryNestedOwners.recursivePiCcsResidualOwners,
       FPrimeFullHistoryNestedOwners.recursivePiRlcResidualOwners] at ownerMember
     rcases ownerMember with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl |
-      rfl | rfl | rfl
+      rfl | rfl | rfl | rfl | rfl
     · simpa [FPrimeFullHistoryRecursivePiCcsFreshDigests.rows] using
         recursivePiCcsPieces FPrimeFullHistoryRecursivePiCcsFreshDigests.rows
           (by simp [FPrimeFullHistoryNestedOwners.recursivePiCcsPieces])
@@ -236,6 +236,10 @@ theorem ownerRows_of_satisfies
           (by simp [FPrimeFullHistoryNestedOwners.recursivePiCcsPieces])
     · simpa [FPrimeFullHistoryRecursivePiCcsFeInitial.rows] using
         recursivePiCcsPieces FPrimeFullHistoryRecursivePiCcsFeInitial.rows
+          (by simp [FPrimeFullHistoryNestedOwners.recursivePiCcsPieces])
+    · simpa [FPrimeFullHistoryRecursivePiCcsFeOptionalClaim.rows] using
+        recursivePiCcsPieces
+          FPrimeFullHistoryRecursivePiCcsFeOptionalClaim.rows
           (by simp [FPrimeFullHistoryNestedOwners.recursivePiCcsPieces])
     · simpa [FPrimeFullHistoryRecursivePiCcsFeSumcheck.rows] using
         recursivePiCcsPieces FPrimeFullHistoryRecursivePiCcsFeSumcheck.rows
@@ -251,6 +255,10 @@ theorem ownerRows_of_satisfies
           (by simp [FPrimeFullHistoryNestedOwners.recursivePiCcsPieces])
     · simpa [FPrimeFullHistoryRecursivePiCcsCatchup.rows] using
         recursivePiCcsPieces FPrimeFullHistoryRecursivePiCcsCatchup.rows
+          (by simp [FPrimeFullHistoryNestedOwners.recursivePiCcsPieces])
+    · simpa [FPrimeFullHistoryRecursivePiCcsOutputMessageHashes.rows] using
+        recursivePiCcsPieces
+          FPrimeFullHistoryRecursivePiCcsOutputMessageHashes.rows
           (by simp [FPrimeFullHistoryNestedOwners.recursivePiCcsPieces])
     · simpa [FPrimeFullHistoryRecursivePiRlcTranscriptRhos.rows] using
         recursivePiRlcPieces FPrimeFullHistoryRecursivePiRlcTranscriptRhos.rows
@@ -332,7 +340,7 @@ theorem ownerRows_of_satisfies
       FPrimeFullHistoryNestedOwners.terminalPiCcsResidualOwners,
       FPrimeFullHistoryNestedOwners.terminalPiRlcResidualOwners] at ownerMember
     rcases ownerMember with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl |
-      rfl | rfl | rfl
+      rfl | rfl | rfl | rfl | rfl
     · simpa [FPrimeFullHistoryTerminalPiCcsFreshDigests.rows] using
         terminalPiCcsPieces FPrimeFullHistoryTerminalPiCcsFreshDigests.rows
           (by simp [FPrimeFullHistoryNestedOwners.terminalPiCcsPieces])
@@ -345,6 +353,10 @@ theorem ownerRows_of_satisfies
           (by simp [FPrimeFullHistoryNestedOwners.terminalPiCcsPieces])
     · simpa [FPrimeFullHistoryTerminalPiCcsFeInitial.rows] using
         terminalPiCcsPieces FPrimeFullHistoryTerminalPiCcsFeInitial.rows
+          (by simp [FPrimeFullHistoryNestedOwners.terminalPiCcsPieces])
+    · simpa [FPrimeFullHistoryTerminalPiCcsFeOptionalClaim.rows] using
+        terminalPiCcsPieces
+          FPrimeFullHistoryTerminalPiCcsFeOptionalClaim.rows
           (by simp [FPrimeFullHistoryNestedOwners.terminalPiCcsPieces])
     · simpa [FPrimeFullHistoryTerminalPiCcsFeSumcheck.rows] using
         terminalPiCcsPieces FPrimeFullHistoryTerminalPiCcsFeSumcheck.rows
@@ -360,6 +372,10 @@ theorem ownerRows_of_satisfies
           (by simp [FPrimeFullHistoryNestedOwners.terminalPiCcsPieces])
     · simpa [FPrimeFullHistoryTerminalPiCcsCatchup.rows] using
         terminalPiCcsPieces FPrimeFullHistoryTerminalPiCcsCatchup.rows
+          (by simp [FPrimeFullHistoryNestedOwners.terminalPiCcsPieces])
+    · simpa [FPrimeFullHistoryTerminalPiCcsOutputMessageHashes.rows] using
+        terminalPiCcsPieces
+          FPrimeFullHistoryTerminalPiCcsOutputMessageHashes.rows
           (by simp [FPrimeFullHistoryNestedOwners.terminalPiCcsPieces])
     · simpa [FPrimeFullHistoryTerminalPiRlcTranscriptRhos.rows] using
         terminalPiRlcPieces FPrimeFullHistoryTerminalPiRlcTranscriptRhos.rows
@@ -577,7 +593,7 @@ private theorem ownerRows_sound_or_bad
   · exact Or.inr bad
 
 /-- Artifact-checked CIR-SOUND for the exact generated full-history row list.
-The premise is satisfaction of all 4,076,614 sparse rows in manifest order;
+The premise is satisfaction of all 4,193,134 sparse rows in manifest order;
 semantic owner predicates are reconstructed by `ownerRows_of_satisfies`. -/
 theorem fPrimeCircuit_sound_or_bad
     (prime : EuclidPrime goldilocksP)

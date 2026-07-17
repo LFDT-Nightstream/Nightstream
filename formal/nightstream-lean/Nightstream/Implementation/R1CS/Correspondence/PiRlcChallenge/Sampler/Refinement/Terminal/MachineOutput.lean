@@ -29,6 +29,7 @@ digest is never accepted as authority.
 |---|---|---|---|---|
 | `Pi_RLC` | bounded sampler | candidate prefix | 64 machine chunks per scalar | field candidate list equals the connected machine stream prefix |
 | `Pi_RLC` | rejection | acceptance decision | each machine chunk | independent verifier decides acceptance and symbol |
+| `Pi_RLC` | bounded sampler | success premise | one 64-candidate machine prefix | accepted rows prove at least 54 accepted chunks |
 | `Pi_RLC` | first accepted | 54-of-64 selection | 54 coefficient positions | semantic output is exactly the first 54 accepted machine symbols |
 | `Pi_RLC` | output encoding | centered field wire | 54 production outputs | each wire encodes the corresponding machine-derived coefficient |
 -/
@@ -94,6 +95,23 @@ theorem fieldSemanticOutput_eq_machineSemanticOutput
     semanticOutput
   rw [fieldCandidates_eq_machineCandidates canonical one accepted rho]
 
+/-- Accepted terminal rows prove bounded-sampler success for the exact
+machine-derived candidate prefix. This is the machine-facing transport of the
+row-owned success theorem; it introduces no new acceptance condition. -/
+theorem enoughAccepted
+    (prime : EuclidPrime goldilocksP)
+    {assignment : Nat -> Nat}
+    (canonical : ChunkOrder.CanonicalAssignment assignment)
+    (one : assignment 0 = 1)
+    (accepted :
+      FPrimeFullHistoryTerminalPiRlcTranscriptRhos.Accepted assignment)
+    (rho : Fin ScalarRows.scalarCount) :
+    Nightstream.SuperNeo.Sampling.FirstAccepted.Enough
+      ProductionAlphabet.verifier ProductionAlphabet.coefficientCount
+      (machineCandidates assignment canonical rho) := by
+  rw [← fieldCandidates_eq_machineCandidates canonical one accepted rho]
+  exact FirstAccepted.enoughAccepted prime canonical one accepted rho
+
 /-- Accepted selection rows guarantee that the machine-derived output has the
 full production coefficient count. This is the explicit bounded-sampler
 success condition; no claim is made for a prefix with fewer accepted chunks. -/
@@ -107,9 +125,10 @@ theorem semanticOutput_length
     (rho : Fin ScalarRows.scalarCount) :
     (semanticOutput assignment canonical rho).length =
       ProductionAlphabet.coefficientCount := by
-  rw [← fieldSemanticOutput_eq_machineSemanticOutput
-    canonical one accepted rho]
-  exact FirstAccepted.semanticOutput_length prime canonical one accepted rho
+  unfold semanticOutput
+  exact
+    Nightstream.SuperNeo.Sampling.FirstAccepted.firstAccepted_length_of_enough
+      (enoughAccepted prime canonical one accepted rho)
 
 /-- Total 54-coordinate scalar view. Its default coefficient is unreachable
 under `semanticOutput_length`, but keeps the definition total independently of

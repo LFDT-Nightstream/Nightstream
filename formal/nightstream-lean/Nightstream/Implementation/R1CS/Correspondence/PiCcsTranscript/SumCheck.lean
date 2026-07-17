@@ -28,6 +28,10 @@ cardinality and degree metadata but is not a SumCheck soundness theorem.
 | `Pi_CCS` | NC prologue | `ncPrologue` | raw `[8]`, raw `[9]`, raw zero pair, raw `[10]` |
 | `Pi_CCS` | round message | `roundFields` | flatten every coefficient in `(c0,c1)` order |
 | `Pi_CCS` | round challenge | `runRound` | append one raw message and squeeze exactly two fields |
+| `Pi_CCS` | round successor | `runRound_absorbed_zero` | every challenge permutation returns cursor zero |
+| `Pi_CCS` | round sequence | `runRounds_cons_state` | replaying a nonempty list starts its tail at the exact head successor |
+| `Pi_CCS` | round sequence | `runRounds_append` | a suffix begins at the exact state returned by its prefix |
+| `Pi_CCS` | nonempty sequence | `runRounds_cons_absorbed_zero` | the final cursor of any nonempty round sequence is computed zero |
 | `Pi_CCS` | shape | `WellShaped` | exact FE/NC round counts and at most `degreeBound+1` coefficients |
 -/
 
@@ -90,6 +94,14 @@ def runRound (initial : State) (round : RoundMessage) : State × Extension :=
   let response := squeezeN afterMessage 2
   (response.1, firstExtension response.2)
 
+/-- Every round ends after the complete two-field challenge permutation.
+The successor cursor is computed by the transcript machine. -/
+@[simp] theorem runRound_absorbed_zero
+    (initial : State)
+    (round : RoundMessage) :
+    (runRound initial round).1.absorbed.val = 0 := by
+  exact squeezeN_two_absorbed_zero _
+
 /-- Replay a complete ordered round list. -/
 def runRounds : State -> List RoundMessage -> State × List Extension
   | initial, [] => (initial, [])
@@ -97,6 +109,46 @@ def runRounds : State -> List RoundMessage -> State × List Extension
       let current := runRound initial round
       let suffix := runRounds current.1 rest
       (suffix.1, current.2 :: suffix.2)
+
+/-- Replaying a nonempty sequence starts the tail at the exact semantic
+successor computed for its head message. -/
+theorem runRounds_cons_state
+    (initial : State)
+    (round : RoundMessage)
+    (rest : List RoundMessage) :
+    (runRounds initial (round :: rest)).1 =
+      (runRounds (runRound initial round).1 rest).1 := by
+  rfl
+
+/-- Any nonempty round sequence ends at the cursor-zero successor of its final
+challenge permutation. The empty sequence deliberately preserves its incoming
+cursor and is therefore outside this theorem. -/
+theorem runRounds_cons_absorbed_zero
+    (initial : State)
+    (round : RoundMessage)
+    (rest : List RoundMessage) :
+    (runRounds initial (round :: rest)).1.absorbed.val = 0 := by
+  induction rest generalizing initial round with
+  | nil =>
+      rw [runRounds]
+      exact runRound_absorbed_zero initial round
+  | cons next rest inductionHypothesis =>
+      rw [runRounds]
+      exact inductionHypothesis (runRound initial round).1 next
+
+/-- Replaying a concatenation starts its suffix at the exact state returned by
+its prefix and concatenates challenges in the same physical order. -/
+theorem runRounds_append
+    (initial : State)
+    (first rest : List RoundMessage) :
+    runRounds initial (first ++ rest) =
+      let firstResult := runRounds initial first
+      let restResult := runRounds firstResult.1 rest
+      (restResult.1, firstResult.2 ++ restResult.2) := by
+  induction first generalizing initial with
+  | nil => simp [runRounds]
+  | cons round first inductionHypothesis =>
+      simp [runRounds, inductionHypothesis]
 
 /-- Complete FE transcript phase. -/
 def runFe (initial : State) (messages : Messages) :

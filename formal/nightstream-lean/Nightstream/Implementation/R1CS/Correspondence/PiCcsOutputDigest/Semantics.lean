@@ -1,13 +1,14 @@
 import Nightstream.SuperNeo.Concrete.Algebra
 
 /-!
-Independent message semantics for the `Pi_CCS` output digest consumed before
-`Pi_RLC` challenge derivation.
+Diagnostic fixed-three-row message semantics for the `Pi_CCS` output digest
+consumed before `Pi_RLC` challenge derivation.
 
-Assurance tier: executable protocol semantics. This module fixes the typed
-output surface and its field serialization without importing generated R1CS
-rows, Rust emitters, profiler totals, seeded-matrix artifacts, or carried
-digest columns.
+Assurance tier: model-level (diagnostic profile); not the active 13-matrix
+relation, not Rust-conformant, and not security-reduced. This module fixes the
+legacy typed output surface and its field serialization without importing
+generated R1CS rows, Rust emitters, profiler totals, seeded-matrix artifacts,
+or carried digest columns.
 
 Owns: both ASCII domain tags; seven-byte little-endian packing; the exact
 15-output terminal shape; the three active `y_ring` rows; the active
@@ -15,18 +16,20 @@ Owns: both ASCII domain tags; seven-byte little-endian packing; the exact
 
 Does not own: whether production columns instantiate these messages; the SIS
 map, its seed expansion, the final Poseidon2 envelope, transcript placement,
-cryptographic binding, row necessity, row removal, or cost totals.
+cryptographic binding, the active matrix-indexed output serialization, row
+necessity, row removal, or cost totals.
 
 Emits constraints: no.
 
 Authority boundary: an `OutputMessage` contains verifier-constrained
 evaluation values. A digest becomes authoritative only after later theorems
 prove both that accepted `Pi_CCS` rows determine these values and that the
-complete SIS/Poseidon pipeline recomputes its four output fields.
+complete SIS/Poseidon pipeline recomputes its four output fields. No active
+module may infer a 13-row serialization from this three-row fixture.
 
 | Protocol | Phase | Mathematical object | Exact obligation |
 |---|---|---|---|
-| `Pi_CCS` | output projection | `OutputMessage` | three by 54 `K` evaluations plus one 54-element `K` sidecar |
+| `Pi_CCS` | output projection | `OutputMessage` | legacy three by 54 `K` evaluations plus one 54-element `K` sidecar |
 | `Pi_CCS` | output serialization | outer tag/count | exact `pi_ccs_outputs_digest/v2` packing and output count |
 | `Pi_CCS` | per-output serialization | inner tag/shapes | exact `pi_ccs_output_message_digest/v2`, row counts, and active widths |
 | `Pi_CCS` | limb serialization | `K = F[u]/(u^2-7)` | `c0` then `c1`, with no hidden or padded lanes |

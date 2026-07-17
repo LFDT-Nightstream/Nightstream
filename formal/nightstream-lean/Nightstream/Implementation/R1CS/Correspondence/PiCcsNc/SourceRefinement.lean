@@ -1,4 +1,6 @@
-import Nightstream.SuperNeo.Folding.PiCCS.SplitNc
+import Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Parameters
+import Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Sources
+import Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Semantics.Nc
 import Nightstream.Implementation.R1CS.Correspondence.PiCcsNc.Semantics.MixedPolynomial
 
 /-!
@@ -15,17 +17,19 @@ of full-carrier semantic norms with the executable input-list predicate, the
 coverage premise required by the executable flat column domain, and the
 honest-input implication to a zero NC initial claim.
 
-Does not own: production Rust witness decoding, fixed-profile dimensions,
-gamma-mixing soundness, SumCheck replay, transcript challenges, terminal
-authority, R1CS rows, row removal, or constraint counts.
+Does not own: FE semantics, the SplitNc verifier/polynomial stack, production
+Rust witness decoding, fixed-profile dimensions, gamma-mixing soundness,
+SumCheck replay, transcript challenges, terminal authority, R1CS rows, row
+removal, or constraint counts.
 
 Emits constraints: no.
 
-Authority boundary: `SourceRefinement` points from the independent semantic
-carrier into the executable model. The zero-initial-claim theorem is only a
-completeness direction. No theorem here says a zero mixed claim implies all
-norms, and no flat-domain theorem is usable without explicit full-carrier
-coverage.
+Authority boundary: `SourceRefinement` imports only SplitNc parameters,
+authoritative sources, and NC semantics, then points that narrow semantic
+surface into the executable model. It does not depend on the SplitNc barrel or
+FE/verifier modules. The zero-initial-claim theorem is only a completeness
+direction. No theorem here says a zero mixed claim implies all norms, and no
+flat-domain theorem is usable without explicit full-carrier coverage.
 
 | Protocol | Phase | Family | Mathematical guarantee | Permits row removal? |
 |---|---|---|---|---|

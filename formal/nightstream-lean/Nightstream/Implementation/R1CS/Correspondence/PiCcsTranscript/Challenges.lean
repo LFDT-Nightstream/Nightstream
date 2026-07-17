@@ -27,8 +27,10 @@ also returns the only successor state accepted by later phases.
 | `Pi_CCS` | engine domain | `engineDomain` | raw append `[2]` |
 | `Pi_CCS` | engine response | `engineScalarCount` | squeeze `2 * (2*ellD + ellN + 1)` base fields |
 | `Pi_CCS` | engine partition | `Output` | split K values as `alpha`, `beta_a`, `beta_r`, `gamma` |
+| `Pi_CCS` | engine shape | `run_alpha_length`, `run_betaA_length`, `run_betaR_length` | every semantic point receives its exact verifier-owned dimension |
 | `Pi_CCS` | NC domain | `betaMDomain` | raw append `[3]` |
 | `Pi_CCS` | NC response | `betaM` | squeeze `2 * ellM` base fields and pair them |
+| `Pi_CCS` | NC shape | `run_betaM_length` | the NC column point receives exactly `ellM` coordinates |
 -/
 
 namespace Nightstream.Implementation.R1CS.PiCcsTranscript.Challenges
@@ -109,5 +111,57 @@ theorem run_gamma (initial : State) (shape : Shape) :
         (2 * engineScalarCount shape)).2).getD
           (2 * shape.ellD + shape.ellN) Extension.zero := by
   rfl
+
+/-- The first engine slice has exactly the lane/Ajtai dimension. -/
+@[simp] theorem run_alpha_length (initial : State) (shape : Shape) :
+    (run initial shape).alpha.length = shape.ellD := by
+  have engineLength :
+      (pairFields
+        (squeezeN (appendRaw initial engineDomain)
+          (2 * engineScalarCount shape)).2).length =
+        engineScalarCount shape :=
+    pairFields_squeezeN_even_length _ _
+  simp only [run, List.length_take]
+  rw [engineLength]
+  apply Nat.min_eq_left
+  unfold engineScalarCount
+  omega
+
+/-- The second engine slice has exactly the lane/Ajtai dimension. -/
+@[simp] theorem run_betaA_length (initial : State) (shape : Shape) :
+    (run initial shape).betaA.length = shape.ellD := by
+  have engineLength :
+      (pairFields
+        (squeezeN (appendRaw initial engineDomain)
+          (2 * engineScalarCount shape)).2).length =
+        engineScalarCount shape :=
+    pairFields_squeezeN_even_length _ _
+  simp only [run, List.length_take, List.length_drop]
+  rw [engineLength]
+  apply Nat.min_eq_left
+  unfold engineScalarCount
+  omega
+
+/-- The third engine slice has exactly the FE row dimension. -/
+@[simp] theorem run_betaR_length (initial : State) (shape : Shape) :
+    (run initial shape).betaR.length = shape.ellN := by
+  have engineLength :
+      (pairFields
+        (squeezeN (appendRaw initial engineDomain)
+          (2 * engineScalarCount shape)).2).length =
+        engineScalarCount shape :=
+    pairFields_squeezeN_even_length _ _
+  simp only [run, List.length_take, List.length_drop]
+  rw [engineLength]
+  apply Nat.min_eq_left
+  unfold engineScalarCount
+  omega
+
+/-- The independently domain-separated NC response has exactly the flat
+column dimension. -/
+@[simp] theorem run_betaM_length (initial : State) (shape : Shape) :
+    (run initial shape).betaM.length = shape.ellM := by
+  simp only [run]
+  exact pairFields_squeezeN_even_length _ _
 
 end Nightstream.Implementation.R1CS.PiCcsTranscript.Challenges

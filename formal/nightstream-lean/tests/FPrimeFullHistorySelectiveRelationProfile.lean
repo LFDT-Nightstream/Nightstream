@@ -1,0 +1,17 @@
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.RelationProfile
+
+/-! Focused surface checks for the active selective relation profile. -/
+
+namespace tests.FPrimeFullHistorySelectiveRelationProfile
+
+#check Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.RelationProfile.ExactRowDomain
+#check Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.RelationProfile.FiniteRelation
+#check Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.RelationProfile.Profile
+#check Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.RelationProfile.Profile.rows_covered
+#check Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.RelationProfile.Profile.shape_matrixCount_eq_13
+#check Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.RelationProfile.Profile.shape_matrixCount_ne_three
+#check Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.RelationProfile.FiniteRelation.toStructure
+#check Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.RelationProfile.FiniteRelation.matrixAt_role
+#check Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.RelationProfile.FiniteRelation.toStructure_roleMatrix
+
+end tests.FPrimeFullHistorySelectiveRelationProfile

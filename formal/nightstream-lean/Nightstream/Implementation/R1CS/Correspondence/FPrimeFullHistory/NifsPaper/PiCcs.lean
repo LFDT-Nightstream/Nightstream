@@ -4,34 +4,41 @@ import Nightstream.Implementation.R1CS.Correspondence.PiCcsNc.CarrierCoverageRef
 import Nightstream.SuperNeo.Folding.PiCCS
 
 /-!
-Production Π_CCS public-carrier boundary for the fixed F' NIFS profiles.
+Artifact-checked diagnostic Π_CCS carrier for the legacy fixed-three-row F'
+NIFS fixtures.
+
+Assurance tier: artifact-checked (diagnostic fixture); not the active 13-matrix
+relation, not Rust-conformant, and not security-reduced.
 
 Owns: a typed, order-sensitive schema for fresh CCS columns, running/output CE
 columns, and non-CE transcript/NC sidecars; decoding those columns without
 conflating the 257-field CCS input with the 270-coefficient packed CE carrier;
 the exact value equations still required from generated binding rows; the
 width-only bridge to a generic optimized Π_CCS carrier counterexample; and the
-exact bridge to the current fixed-carrier Π_CCS, NIFS, and recursive F' fixture.
+exact bridge to the legacy fixed-carrier Π_CCS, NIFS, and recursive F' fixture.
 
 Does not own: a `PiCCS.Attempt`, `PiCCS.Shape`, `PiCCS.Accepted`, private
-CCS/CE openings, SumCheck truth, extraction, general NIFS refinement, or row removal.
+CCS/CE openings, SumCheck truth, extraction, the active 13-matrix carrier,
+general NIFS refinement, or row removal.
 The first counterexample uses a minimal zero-relation CCS structure. The second
-executes the exact `1 x 257` all-zero carrier fixture used by the current full
-F' tests with a canonical fixed-k zero accumulator through the complete native
-NIFS stack. A third, honestly linked public input with the same hidden tail is
-also replayed by the recursive F' circuit.
+executes the exact `1 x 257` all-zero diagnostic fixture with a canonical
+fixed-k zero accumulator through the native NIFS stack. A third, honestly
+linked public input with the same hidden tail is also replayed by the recursive
+F' circuit.
 
-| Component | Production representation | Mathematical role | Status |
+Emits constraints: no.
+
+| Component | Fixed diagnostic representation | Mathematical role | Formal owner or excluded boundary |
 |---|---|---|---|
-| fresh public input | 257 scalar columns | Definition-12 CCS input | decoded only |
-| running/output public input | 270 active `X` columns | five complete ring columns used by Π_RLC/Π_DEC | decoded only |
-| output point | `r` pairs | paper CE evaluation point | decoded only |
-| output evaluations | 3 rows × first 108 limbs | three `RingK` evaluations | decoded only |
+| fresh public input | 257 scalar columns | Definition-12 CCS input | `decodeFresh`; no CE-carrier claim |
+| running/output public input | 270 active `X` columns | five complete ring columns used by Π_RLC/Π_DEC | `decodeCe`; no fresh-input recovery claim |
+| output point | `r` pairs | paper CE evaluation point | `decodeCe` |
+| output evaluations | 3 rows × first 108 limbs | legacy three-row `RingK` fixture | `decodeCe`; incompatible with the active 13-matrix relation |
 | `s_col`, `fold_digest` | separate columns | transcript/NC context, not paper `Point` | explicit sidecar |
-| `BatchColumnShape` | fixed generated layout | exact 257/270/3×128 carrier cardinalities | open artifact boundary |
-| `BatchWiring` | missing generated facade and row theorem | fresh projection binding, full running binding, shared `r` | open artifact boundary |
-| NC carrier coverage | generic optimized Π_CCS execution at widths 257/270 | accepted tail violates independently specified full-carrier NC truth | artifact-checked width match |
-| fixed carrier fixture | exact 1×257 R1CS-to-CCS structure, seed 41, canonical running zero | a hidden tail value 2 survives Π_CCS, complete fixed NIFS, and the linked recursive F' circuit | artifact-checked end-to-end execution; general refinement open |
+| `BatchColumnShape` | fixed generated layout | exact 257/270/3×128 carrier cardinalities | typed premise; generated layout refinement is excluded |
+| `BatchWiring` | physical binding rows | fresh projection binding, full running binding, shared `r` | typed premise; generated row theorem is excluded |
+| NC carrier coverage | generic optimized Π_CCS execution at widths 257/270 | accepted tail violates independently specified full-carrier NC truth | artifact-checked counterexample at the exact widths |
+| fixed carrier fixture | exact 1×257 R1CS-to-CCS structure, seed 41, canonical running zero | a hidden tail value 2 survives Π_CCS, complete fixed NIFS, and the linked recursive F' circuit | artifact-checked fixture only; general refinement is excluded |
 
 The generic paper `PiCCS.InputProduct` uses one `PublicInput` type for both CCS
 and CE and `PiCCS.Shape.samePublicInput` requires literal equality. Production
@@ -57,7 +64,7 @@ open Nightstream.SuperNeo.Folding
 open Nightstream.SuperNeo.Concrete
 open Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper
 
-/-! ## Typed production column schema -/
+/-! ## Typed fixed-diagnostic column schema -/
 
 /-- Verifier-visible columns of one fresh Definition-12 CCS statement. -/
 structure FreshColumns where

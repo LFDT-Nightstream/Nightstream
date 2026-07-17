@@ -4,16 +4,21 @@ import Nightstream.SuperNeo.Folding.PiDEC
 import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryPiDecArtifact
 
 /-!
-Canonical public carrier for refining the fixed F' NIFS implementation into
-the independent SuperNeo reduction model.
+Artifact-checked public carrier for the legacy fixed-three-row F' NIFS
+fixtures.
 
-Owns: fixed-profile decoding of the verifier-visible commitment, packed public
-`X`, paper CE point `r`, and the three active ring evaluations; mathematical
-radix recomposition on those carriers; and kernel-checked shape facts.
+Assurance tier: artifact-checked (diagnostic fixture); not the active 13-matrix
+relation, not Rust-conformant, and not security-reduced.
+
+Owns: diagnostic fixed-profile decoding of the verifier-visible commitment,
+packed public `X`, paper CE point `r`, and the three active ring evaluations;
+mathematical radix recomposition on those carriers; and kernel-checked shape
+facts.
 
 Does not own: a private CE witness, `Concrete.relationSemantics`, `CE.Holds`,
-knowledge extraction, Ajtai/MSIS binding, transcript/NC sidecars, or row
-removal. In particular, no fake private `RelationSemantics` is defined here.
+knowledge extraction, Ajtai/MSIS binding, transcript/NC sidecars, the active
+13-matrix carrier, or row removal. In particular, no fake private
+`RelationSemantics` is defined here.
 
 Emits constraints: no.
 
@@ -21,19 +26,20 @@ Authority boundary: every decoded value comes from an explicit assignment;
 the module neither validates that assignment nor promotes a digest to
 authority.
 
-| Carrier | Production columns | Mathematical content | Excluded sidecars/padding |
+| Carrier | Fixed diagnostic columns | Mathematical content | Excluded sidecars/padding |
 |---|---|---|---|
 | `PackedCommitment` | `commitment.dataCols` | verifier-visible Ajtai payload, flat production order | `d`, `kappa` shape headers |
 | `PackedPublicInput` | all 270 `xActiveCols` | 54×5 ring-packed public carrier used by Π_RLC/Π_DEC | inactive `X` columns |
 | `Point` | `rCols` | paper CE evaluation point in `K` | `sColCols`, `foldDigestCols` |
 | `Evaluation` | first 108 limbs of each `yRingCols` row | one active `RingK = Fin 54 → K` | 20 zero-padding limbs per row |
-| `Array Evaluation` | three `yRingCols` rows | the three paper CE evaluations | none |
+| `Array Evaluation` | three `yRingCols` rows | legacy three-row CE fixture | active 13-matrix relation |
 
 `PackedPublicInput` is intentionally not called `Concrete.PublicInput`.
-Production folds all 270 coefficients, while the current Concrete model uses
-`List F`/`take 257`. `PublicInputBoundary.lean` records the resulting failed
-paper dimension precondition and non-injective projection; this module does
-not silently truncate the 13 non-image packed coefficients.
+Production folds all 270 coefficients in lane-major order, while the legacy
+`Concrete` model uses `List F`/`take 257`. `PublicInputBoundary.lean` records
+that old mismatch. `PiDec/PublicInputBridge.lean` separately proves the exact
+transpose into the newer typed 270-coordinate Phi81 carrier; this module does
+not silently truncate or reorder the thirteen non-legacy coefficients.
 -/
 
 namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper

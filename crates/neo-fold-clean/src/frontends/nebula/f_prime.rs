@@ -359,7 +359,7 @@ impl NebulaFPrimeRelation {
             public_columns: arms[index].m_in,
             poseidon2_permutations: arms[index].poseidon2_permutations(),
         });
-        let width_audit = shape.audit.clone();
+        let width_audit = shape.compiler_audit.width().clone();
         let relation = build_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(
             &arms,
             shared_private_fields,
@@ -367,9 +367,11 @@ impl NebulaFPrimeRelation {
             D,
             circuit.m_in() % D,
         )?;
-        if relation_signature(relation.structure()) != shape_signature(&shape) {
+        if relation_signature(relation.structure()) != shape_signature(&shape)
+            || relation.selective_compiler_audit() != Some(&shape.compiler_audit)
+        {
             return Err(NebulaFPrimeRelationError::Geometry(
-                "shape-only selective audit differs from emitted relation".into(),
+                "shape-only or exact selective audit differs from emitted relation".into(),
             ));
         }
         if let Some(budget_bits) = committed_bit_budget {
@@ -561,11 +563,11 @@ fn select_low_norm_shape(
             D,
             circuit.m_in() % D,
         )?;
-        candidate_widths.push((shared_private_fields, shape.audit.total_coordinates));
+        candidate_widths.push((shared_private_fields, shape.compiler_audit.width().total_coordinates));
         if best
             .as_ref()
             .is_none_or(|(_, best_shape): &(usize, SelectiveLowNormShape)| {
-                shape.audit.total_coordinates < best_shape.audit.total_coordinates
+                shape.compiler_audit.width().total_coordinates < best_shape.compiler_audit.width().total_coordinates
             })
         {
             best = Some((shared_private_fields, shape));
@@ -574,9 +576,13 @@ fn select_low_norm_shape(
     let (shared_private_fields, shape) =
         best.ok_or_else(|| NebulaFPrimeRelationError::Geometry("no valid shared-private prefix candidate".into()))?;
     if let Some(budget_bits) = committed_bit_budget {
-        if shape.audit.total_coordinates > budget_bits || shape.columns > budget_bits {
+        if shape.compiler_audit.width().total_coordinates > budget_bits || shape.columns > budget_bits {
             return Err(NebulaFPrimeRelationError::CompileBudgetExceeded {
-                minimum_bits: shape.audit.total_coordinates.max(shape.columns),
+                minimum_bits: shape
+                    .compiler_audit
+                    .width()
+                    .total_coordinates
+                    .max(shape.columns),
                 budget_bits,
                 candidate_widths,
             });

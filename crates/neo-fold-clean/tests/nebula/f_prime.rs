@@ -306,6 +306,19 @@ fn base_step_composes_current_s_mem_and_exports_one_relation() {
 }
 
 #[test]
+fn road_a_field_shape_accepts_the_ring_padded_fresh_carrier() {
+    let nebula_params = NebulaParams::new(0, 0, 1, 2, 8).expect("one-step segment params");
+    let params = shape_test_params();
+    let plan = NebulaPlan::new(nebula_params, vec![7], [0xD8; 32], params.kappa() as usize).expect("tiny Road A plan");
+    let layout = FPrimePublicInputLayout::with_suffix(delayed_nebula_public_suffix_len(plan.config().stacks));
+
+    assert_ne!(layout.logical_len() % D, 0, "fixture must exercise carrier padding");
+    assert_eq!(layout.total_len() % D, 0, "SuperNeo carrier must be ring-aligned");
+    NebulaFPrimeRelation::audit_field_shapes(&params, plan.circuit().structure(), &plan)
+        .expect("shape synthesis must use the complete ring-padded fresh carrier");
+}
+
+#[test]
 fn road_a_field_arms_must_fit_the_projection_budget() {
     let nebula_params = NebulaParams::new(0, 0, 1, 2, 8).expect("one-step segment params");
     let params = shape_test_params();

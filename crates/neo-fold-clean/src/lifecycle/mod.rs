@@ -118,8 +118,9 @@ pub enum Error {
     #[error(
         "verify_uncompressed: recorded final accumulator claim {index} optional NC channel \
          `y_zcol` does not equal the projection `Z · chi(s_col)` from the opened witness. \
-         `y_zcol` is not recursive accumulator-handle authority, but when present in the \
-         terminal claim it must be recomputed from terminal witness authority rather than trusted."
+         the current recursive accumulator handle does not bind `y_zcol`; this is a known \
+         old-point authority gap. At the terminal claim it must be recomputed from witness \
+         authority rather than trusted."
     )]
     FinalAccumulatorNcChannelMismatch { index: usize },
     #[error(

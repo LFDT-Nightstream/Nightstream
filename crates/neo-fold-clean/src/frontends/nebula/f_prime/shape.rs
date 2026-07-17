@@ -199,7 +199,8 @@ fn synthesize_base(context: &ShapeContext<'_>) -> Result<SynthesizedArm, NebulaF
 fn synthesize_recursive(context: &ShapeContext<'_>, steady: bool) -> Result<SynthesizedArm, NebulaFPrimeRelationError> {
     let application_assignment = shape_application_assignment(context.application);
     let semantic = application_semantic_values(context.application, &application_assignment)?;
-    let public_input_len = F_PRIME_PUBLIC_INPUT_LEN + delayed_nebula_public_suffix_len(context.config.stacks);
+    let public_input_len =
+        FPrimePublicInputLayout::with_suffix(delayed_nebula_public_suffix_len(context.config.stacks)).total_len();
     let ce = zero_ce_claim(context, public_input_len);
     let running = if steady {
         vec![ce.clone(); context.params.k_rho() as usize]

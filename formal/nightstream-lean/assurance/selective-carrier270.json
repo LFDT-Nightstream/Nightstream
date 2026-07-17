@@ -1,0 +1,61 @@
+{
+  "artifact_kind": "r1cs/f-prime-selective-carrier270-padding",
+  "artifact_schema": 1,
+  "property_id": "CIR-FPR-CARRIER270-PADDING",
+  "profile": "three-arm-f-prime-width-selective-compiler-public-prefix",
+  "shape": {
+    "logical_public_input_len": 257,
+    "public_input_len": 270,
+    "public_padding_columns": [257, 270],
+    "selector_columns": [270, 273],
+    "private_alignment_columns": [273, 311],
+    "branch_start": 311,
+    "fixture_rows": 836,
+    "fixture_columns": 324,
+    "public_padding_rows": [4, 17]
+  },
+  "invariant": "the exact compiler layout refines the independent 270-carrier formulas and each of the thirteen final sparse rows is sound and complete for its typed zero pin under explicit public-prefix connectivity",
+  "evidence_state": "artifact-checked-public-carrier-slice",
+  "hashes": {
+    "carrier_model": "04afc9536a432b8f1db88292a5c7c26d162585b1076aacb69ccfe3f3c453fca5",
+    "layout_model": "60ac01de31433d73eeef33329dc8e435eb619ed3f58a825739236a010622f208",
+    "padding_semantics": "d86ced6e3e8b75e919e148f8f045f05c5b0058ff04a5735c2e9f8e17eb050c01",
+    "padding_polynomial_refinement": "bdd2779c8a62906f52b4311964facbd4925ce72f38cba68fa7c4d6ab5d319450",
+    "padding_artifact_classifier": "d8f7b1d5203884c7e7614f794b06ec309637415fd8edba8afc532befeb6e86fa",
+    "production_carrier_refinement": "ceef6d148e42db492200fc6f69b8351ec8bd0315cd67cbcec2ea5a0ab057e6ec",
+    "generated_artifact": "00f0188306e16763337d01b3a6cce12173090c4c92bc5150417706a83a38a31e",
+    "rust_drift_test": "185eef80548598e14dab2ff675ebf04ca53d8f2e78396f9c13dcecee90486276",
+    "rust_layout": "2f27cf4155f3e0440f7b5eb908626732accdea2a05354309591c8095cd6a993e",
+    "rust_row_emitter": "6aa6877bfc298088604ad38fda8f823719d3fb3c7e07189e7593dd2f390f5308",
+    "rust_row_materializer": "88cec5a3908f4a468b7f6573840d2e53063eb86ac7044aa058ae73fd1d0b9a5d"
+  },
+  "theorems": [
+    "Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper.AlignedCompiler.ProductionCarrier.generated_layout_refines_model",
+    "Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper.AlignedCompiler.ProductionCarrier.generated_padding_rows_shape",
+    "Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper.AlignedCompiler.ProductionCarrier.generated_padding_row_iff_zeroPin",
+    "Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper.AlignedCompiler.ProductionCarrier.generated_padding_row_canonical_complete"
+  ],
+  "runtime_regressions": [
+    "selective_carrier_270_lean_artifact_matches_compiler",
+    "selective_f_prime_public_carrier_precedes_selectors",
+    "tiny_fixed_point_tracks_the_aligned_public_carrier"
+  ],
+  "assumptions": [
+    "the explicit PublicPrefixAgrees premise connects the encoded selective prefix to the independent typed carrier"
+  ],
+  "related_properties": [
+    "CIR-FPR-SELECTOR-COMPOSITION-SLICE owns the selector-domain, selector-total, and representative arm-gate rows exported by the same compiler fixture"
+  ],
+  "open_bridges": [
+    "exact full fixed-point artifact rather than the bounded F-prime-width compiler fixture",
+    "complete private-column assignment and matrix decoding",
+    "Ajtai commitment-key alignment",
+    "production CCS/CE membership and PiCCS/PiRLC/PiDEC composition over the aligned carrier"
+  ],
+  "non_goals": [
+    "constraint deletion",
+    "complete F-prime R1CS satisfaction",
+    "full NIFS soundness",
+    "cryptographic security reduction"
+  ]
+}

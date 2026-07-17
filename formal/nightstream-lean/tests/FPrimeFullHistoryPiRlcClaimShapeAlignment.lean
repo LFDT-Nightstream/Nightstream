@@ -1,0 +1,12 @@
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.NifsPaper.PiRlc.ClaimShapeAlignment
+
+/-! Focused surface checks for physical CE-claim shape alignment. -/
+
+namespace tests.FPrimeFullHistoryPiRlcClaimShapeAlignment
+
+#check Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper.PiRlc.ClaimShape.Holds
+#check Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper.PiRlc.ClaimShape.not_aligned_of_threeRows
+#check Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper.PiRlc.ClaimShapeAlignment.recursiveArtifact_not_selectiveAligned
+#check Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper.PiRlc.ClaimShapeAlignment.terminalArtifact_not_selectiveAligned
+
+end tests.FPrimeFullHistoryPiRlcClaimShapeAlignment

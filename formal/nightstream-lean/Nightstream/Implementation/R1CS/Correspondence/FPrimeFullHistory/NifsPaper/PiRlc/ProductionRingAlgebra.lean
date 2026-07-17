@@ -4,7 +4,7 @@ import Nightstream.SuperNeo.Concrete.Phi81StrongSet
 /-!
 Production Phi81 challenge algebra for the paper-facing `Pi_RLC` verifier.
 
-Assurance tier: executable mathematical semantics. This module instantiates
+Assurance tier: model-level. This module instantiates
 the abstract paper-facing `RingAlgebra` from independent Phi81 semantics. It
 keeps unary challenge membership and the pairwise strong-set security law as
 different propositions, so a range check cannot masquerade as invertibility.
@@ -26,13 +26,13 @@ the same ring element are not members. The global strong-set theorem cannot
 be constructed from unary membership alone; it additionally consumes the
 explicit `LowNormInvertibility` mathematical boundary.
 
-| Protocol | Phase | Mathematical object | Exact obligation | Status |
-|---|---|---|---|---|
-| `Pi_RLC` | carrier | `canonicalRing` | serialize exactly 54 Phi81 coefficients | proved |
-| `Pi_RLC` | decoding | `ringOfList_canonicalRing` | serialization round-trips to the same `RingF` | proved |
-| `Pi_RLC` | membership | `ChallengeMember` | list is the image of one typed five-symbol scalar | definition |
-| `Pi_RLC` | algebra | `productionRingAlgebra` | public combination is exactly `phi81Combine` | proved by construction |
-| Definition 17 | pairwise security | `StrongChallengeSet` | distinct valid lists have invertible ring difference | conditional only on `LowNormInvertibility` |
+| Stage path | Mathematical obligation | Authority class | Lean owner |
+|---|---|---|---|
+| `nifs.pi_rlc.challenge.sampler.selection.bind.symbol` | serialize exactly 54 Phi81 coefficients | computed | `canonicalRing` |
+| `nifs.pi_rlc.challenge.sampler.selection.bind.symbol` | canonical serialization decodes to the same `RingF` | derived | `ringOfList_canonicalRing` |
+| `nifs.pi_rlc.challenge.sampler.selection` | a challenge list is the image of one typed five-symbol scalar | checked | `ChallengeMember` |
+| `nifs.pi_rlc.verify.identities.public` | public combination is exactly `phi81Combine` | computed | `productionRingAlgebra` |
+| `nifs.pi_rlc.challenge.sampler` | pairwise strong-set security follows only from `LowNormInvertibility` | security boundary | `productionRingAlgebra_strong` |
 -/
 
 namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper.PiRlc.ProductionRingAlgebra
@@ -61,10 +61,6 @@ theorem ringOfList_canonicalRing (value : RingF) :
 def ChallengeMember (value : Ring) : Prop :=
   exists scalar : ProductionStrongSet.Scalar,
     value = canonicalRing (embedScalar scalar)
-
-theorem embeddedScalar_member (scalar : ProductionStrongSet.Scalar) :
-    ChallengeMember (canonicalRing (embedScalar scalar)) :=
-  ⟨scalar, rfl⟩
 
 theorem challengeMember_length {value : Ring}
     (member : ChallengeMember value) : value.length = ringDegree := by

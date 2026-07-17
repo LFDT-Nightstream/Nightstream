@@ -1,12 +1,13 @@
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.NifsPaper.PiRlc.ProductionRingAlgebra
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.NifsPaper.PiRlc.DiagnosticProfile
 import Nightstream.Implementation.R1CS.Correspondence.PiRlcChallenge.Sampler.Refinement.Recursive.RingAssembly
 
 /-!
 Recursive-bootstrap `Pi_RLC` sampler wiring into the independent paper-facing
 artifact.
 
-Assurance tier: implementation/R1CS correspondence. This module constructs the
-exact 29-leaf recursive public projection tree, proves the one-input bootstrap
+Assurance tier: artifact-checked. This module inspects the fixed-carrier
+29-leaf recursive projection fixture, proves the one-input bootstrap
 arity, binds every public projection pair to the same verifier-derived
 54-column challenge, and transports those columns to the connected Poseidon2
 sampler machine.
@@ -14,7 +15,7 @@ sampler machine.
 Owns: the recursive public-role-to-trace map; exclusion of the two delayed
 `y_zcol` traces; exact one-input arity; challenge-column sharing for all 29
 roles; coefficient decoding; unary production membership; and the concrete
-recursive `SamplerArtifact` constructor.
+recursive `ChallengeWiringArtifact` constructor.
 
 Does not own: the external low-norm invertibility theorem, the post-`Pi_CCS`
 initial transcript-state binding, public input/output carrier columns,
@@ -23,18 +24,19 @@ projection identities, Rust conformance, row removal, or cost totals.
 Emits constraints: no.
 
 Authority boundary: recursive bootstrap has one fresh `Pi_RLC` input and no
-synthetic running inputs. Its challenge columns are accepted only through the
-connected Poseidon2 sampler machine. Unary membership does not imply the
-separate pairwise strong-set theorem.
+synthetic running inputs. Challenge-column values equal the Poseidon2 machine
+output only under canonical-assignment, constant-one, and accepted-row
+premises; the post-`Pi_CCS` initial-state binding remains open. Unary machine
+membership does not bind those columns or imply the pairwise strong-set law.
 
-| Protocol | Phase | Constraint family | Indexed leaf | Exact obligation |
-|---|---|---|---|---|
-| `Pi_RLC` | projection | public trace census | 29 public roles | first 29 recursive traces; two `y_zcol` traces excluded |
-| `Pi_RLC` | arity | bootstrap input | one fresh, zero running | `recursiveArity.total = 1` |
-| `Pi_RLC` | challenge binding | shared rho columns | role x sole input | all public pairs use the canonical 54 columns |
-| `Pi_RLC` | ring assembly | decoded field vector | 54 coefficients | production columns equal machine output |
-| `Pi_RLC` | membership | canonical challenge | sole ring challenge | derived from typed five-symbol output |
-| Definition 17 | pairwise security | invertible challenge difference | distinct challenges | separate `productionRingAlgebra_strong` theorem |
+| Stage path | Mathematical obligation | Authority class | Lean owner |
+|---|---|---|---|
+| `nifs.pi_rlc.verify.identities.public` | first 29 recursive traces are public and two `y_zcol` traces are excluded | checked | `publicRoleIndex_census` |
+| `nifs.pi_rlc.shape` | bootstrap has one fresh and zero running inputs | checked | `recursiveTotal_eq_one` |
+| `nifs.pi_rlc.challenge` | all public pairs use the same 54 challenge columns | direct dataflow | `publicShared`, `challengeWiringArtifact` |
+| `nifs.pi_rlc.challenge.sampler.selection.bind.symbol` | columns equal machine output conditional on canonical/one/accepted rows | checked | `decodedRing_eq_machineRing` |
+| `nifs.pi_rlc.challenge.sampler.selection` | machine output is a typed canonical challenge; column authority remains separate | derived | `machineRing_member` |
+| `nifs.pi_rlc.challenge.sampler` | pairwise strong-set security is a separate low-norm boundary | security boundary | `ProductionRingAlgebra.productionRingAlgebra_strong` |
 -/
 
 namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper.PiRlc.RecursiveSamplerArtifact
@@ -54,19 +56,20 @@ set_option maxHeartbeats 8000000
 
 /-- Exact zero-based position of a paper-public role in recursive projection
 order. -/
-def publicRoleIndex : PublicRole -> Nat
+def publicRoleIndex : PublicRole DiagnosticProfile.matrixCount -> Nat
   | .commitment lane => lane.val
   | .x column => 18 + column.val
   | .yRing row limb => 23 + 2 * row.val + limb.val
 
-/-- The recursive census contains 29 paper-public traces followed by the two
-delayed-NC `y_zcol` traces. -/
-theorem recursiveTrace_count : recursiveTraces.length = 31 := by
+/-- The recursive census contains the diagnostic public leaves followed by
+the two delayed-NC `y_zcol` traces. -/
+theorem recursiveTrace_count :
+    recursiveTraces.length = DiagnosticProfile.traceCount := by
   decide
 
-theorem publicRoleIndex_lt (role : PublicRole) :
+theorem publicRoleIndex_lt (role : PublicRole DiagnosticProfile.matrixCount) :
     publicRoleIndex role < recursiveTraces.length := by
-  rw [recursiveTrace_count]
+  rw [recursiveTrace_count, DiagnosticProfile.traceCount_eq_31]
   cases role with
   | commitment lane =>
       exact Nat.lt_trans lane.isLt (by decide)
@@ -74,11 +77,13 @@ theorem publicRoleIndex_lt (role : PublicRole) :
       simp only [publicRoleIndex]
       omega
   | yRing row limb =>
-      simp only [publicRoleIndex]
+      simp only [publicRoleIndex, DiagnosticProfile.matrixCount] at row ⊢
       omega
 
 /-- Generated trace selected by one typed paper-public role. -/
-def recursivePublicTrace (role : PublicRole) : ProjectionProgram.ProjectionTrace :=
+def recursivePublicTrace
+    (role : PublicRole DiagnosticProfile.matrixCount) :
+    ProjectionProgram.ProjectionTrace :=
   recursiveTraces.get ⟨publicRoleIndex role, publicRoleIndex_lt role⟩
 
 /-- Every recursive public trace contains the sole bootstrap input pair. -/
@@ -97,12 +102,13 @@ theorem recursivePublicTrace_pairArity :
       decide
 
 /-- Typed public subtree; its index cannot express delayed `y_zcol`. -/
-def tree : TraceTree recursiveArity where
+def tree : TraceTree recursiveArity DiagnosticProfile.matrixCount where
   publicTrace := recursivePublicTrace
   publicPairArity := recursivePublicTrace_pairArity
 
 theorem publicRoleIndex_census :
-    publicOrder.map publicRoleIndex = List.range 29 := by
+    (publicOrder DiagnosticProfile.matrixCount).map publicRoleIndex =
+      List.range DiagnosticProfile.publicLeafCount := by
   decide
 
 /-! ## Phase -> verifier-owned challenge columns -/
@@ -173,13 +179,7 @@ theorem decodedRing_eq_machineRing
     (RingAssembly.decodedChallenge_eq_machineChallenge
       prime canonical one accepted)
 
-/-! ## Paper sampler artifact -/
-
-def ChallengeMembershipPremise
-    (ring : RingAlgebra)
-    (assignment : Nat -> Nat)
-    (canonical : ChunkOrder.CanonicalAssignment assignment) : Prop :=
-  forall index, ring.challengeValid (machineRing assignment canonical index)
+/-! ## Machine membership and equation wiring -/
 
 theorem machineRing_member
     (assignment : Nat -> Nat)
@@ -192,52 +192,19 @@ theorem machineRing_member
   exact congrArg List.ofFn
     (RingAssembly.machineChallenge_eq_embedScalar assignment canonical)
 
-theorem productionChallengeMembership
-    (assignment : Nat -> Nat)
-    (canonical : ChunkOrder.CanonicalAssignment assignment) :
-    ChallengeMembershipPremise ProductionRingAlgebra.productionRingAlgebra
-      assignment canonical := by
-  intro index
-  exact machineRing_member assignment canonical index
-
 /-- Bind only the challenge columns of a broader recursive batch facade. -/
 def bindChallenges
-    (columns : BatchColumns Concrete.productionGlobalParams recursiveArity) :
-    BatchColumns Concrete.productionGlobalParams recursiveArity :=
+    (columns : BatchColumns Concrete.productionGlobalParams recursiveArity
+      DiagnosticProfile.matrixCount) :
+    BatchColumns Concrete.productionGlobalParams recursiveArity
+      DiagnosticProfile.matrixCount :=
   { columns with challenges := challengeColumns }
 
-theorem samplerArtifact_of_membership
-    (prime : EuclidPrime goldilocksP)
-    {assignment : Nat -> Nat}
-    (canonical : ChunkOrder.CanonicalAssignment assignment)
-    (one : assignment 0 = 1)
-    (accepted :
-      FPrimeFullHistoryRecursivePiRlcTranscriptRhos.Accepted assignment)
-    (ring : RingAlgebra)
-    (membership : ChallengeMembershipPremise ring assignment canonical)
-    (columns : BatchColumns Concrete.productionGlobalParams recursiveArity) :
-    SamplerArtifact ring assignment (bindChallenges columns) tree where
-  width := challengeColumns_length
+/-- Static rho-column sharing used by the public PiRLC equations. -/
+def challengeWiringArtifact
+    (columns : BatchColumns Concrete.productionGlobalParams recursiveArity
+      DiagnosticProfile.matrixCount) :
+    ChallengeWiringArtifact (bindChallenges columns) tree where
   publicShared := publicShared
-  challengeMembership index := by
-    change ring.challengeValid (values assignment (challengeColumns index))
-    rw [decodedRing_eq_machineRing prime canonical one accepted index]
-    exact membership index
-
-/-- Concrete recursive-bootstrap sampler artifact. Pairwise strong-set
-security remains a separate mathematical theorem. -/
-theorem productionSamplerArtifact
-    (prime : EuclidPrime goldilocksP)
-    {assignment : Nat -> Nat}
-    (canonical : ChunkOrder.CanonicalAssignment assignment)
-    (one : assignment 0 = 1)
-    (accepted :
-      FPrimeFullHistoryRecursivePiRlcTranscriptRhos.Accepted assignment)
-    (columns : BatchColumns Concrete.productionGlobalParams recursiveArity) :
-    SamplerArtifact ProductionRingAlgebra.productionRingAlgebra assignment
-      (bindChallenges columns) tree :=
-  samplerArtifact_of_membership prime canonical one accepted
-    ProductionRingAlgebra.productionRingAlgebra
-    (productionChallengeMembership assignment canonical) columns
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper.PiRlc.RecursiveSamplerArtifact

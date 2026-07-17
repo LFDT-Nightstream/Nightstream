@@ -8,12 +8,14 @@ carrier, and the conditional implication from strict decoded acceptance to
 `PiDEC.Accepted` for an independently supplied algebra.
 
 Does not own: private CE openings, knowledge reduction, Π_CCS/Π_RLC linkage,
-the packed-to-Concrete carrier refinement, Ajtai/MSIS security, `y_zcol`
-delayed authority, or row removal.
+the packed-to-typed carrier permutation, Ajtai/MSIS security, `y_zcol`
+delayed authority, or row removal. `PiDec/PublicInputBridge.lean` owns the
+public-input permutation and semantic recomposition refinement.
 
 Because its `PublicInput` is the 270-coefficient packed carrier, this theorem
-does not close `REL-CONCRETE-PRODUCTION` or identify that carrier with the
-paper's aligned `L_in`. `PublicInputBoundary.lean` keeps that gap explicit.
+alone does not close `REL-CONCRETE-PRODUCTION`. The typed public-input bridge
+now identifies the complete public equation, while zero-tail authority,
+private relation membership, commitments, and row soundness remain open.
 
 Emits constraints: no.
 
@@ -238,6 +240,17 @@ private theorem publicInputEquation
           rw [childXLength index]
           exact laneLt
         simp [decodedPackedInput, values, List.getD, childLt]
+
+/-- Exact packed public-input equation exposed for typed-carrier refinement.
+This is still only a consequence of strict semantic acceptance; it does not
+infer that acceptance from R1CS rows. -/
+theorem strictAccepted_packedPublicInputEquation
+    (assignment : Nat → Nat)
+    (accepted : PiDecStrictCompiler.Accepted layout assignment) :
+    decodedPackedInput assignment layout.parent =
+      combinePackedPublicInput fun index =>
+        decodedPackedInput assignment (childLayout index) :=
+  publicInputEquation assignment accepted
 
 private theorem yLane
     (assignment : Nat → Nat) (row lane : Nat)

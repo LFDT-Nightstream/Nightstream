@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.NifsPaper.PublicCarrier
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.NifsPaper.PiDec.Weights
 import Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.PiDEC
 
 /-!
@@ -29,30 +29,7 @@ namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper.PiDecEvalua
 open Nightstream.SuperNeo.Concrete
 open Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism
 open Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper
-
-/-- Fixed-profile weight lists agree entry-for-entry. -/
-theorem radixWeights_eq :
-    radixWeights = List.ofFn PiDEC.radixWeight := by
-  decide
-
-private def combineScalars : {count : Nat} ->
-    (Fin count -> F) -> (Fin count -> F) -> F
-  | 0, _, _ => 0
-  | _ + 1, weights, items =>
-      weights 0 * items 0 +
-        combineScalars
-          (fun index => weights index.succ)
-          (fun index => items index.succ)
-
-private theorem foldr_zip_ofFn_eq_combineScalars
-    {count : Nat} (weights items : Fin count -> F) :
-    ((List.ofFn items).zip (List.ofFn weights)).foldr
-        (fun pair suffix => pair.2 * pair.1 + suffix) 0 =
-      combineScalars weights items := by
-  induction count with
-  | zero => rfl
-  | succ count inductionHypothesis =>
-      simp [List.ofFn_succ, combineScalars, inductionHypothesis]
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper.PiDec.Weights
 
 private theorem combineEvaluations_c0
     {count : Nat} (weights : Fin count -> F)
@@ -93,13 +70,11 @@ theorem combineEvaluation_eq
   apply k_eq_of_coeffs
   · change combineScalar (fun index => (items index coefficient).c0) =
         (BaseLinear.combineEvaluations PiDEC.radixWeight items coefficient).c0
-    rw [combineScalar, radixWeights_eq,
-      foldr_zip_ofFn_eq_combineScalars]
+    rw [combineScalar_eq]
     exact (combineEvaluations_c0 PiDEC.radixWeight items coefficient).symm
   · change combineScalar (fun index => (items index coefficient).c1) =
         (BaseLinear.combineEvaluations PiDEC.radixWeight items coefficient).c1
-    rw [combineScalar, radixWeights_eq,
-      foldr_zip_ofFn_eq_combineScalars]
+    rw [combineScalar_eq]
     exact (combineEvaluations_c1 PiDEC.radixWeight items coefficient).symm
 
 /-- Fixed-size array form of `combineEvaluation_eq`. -/

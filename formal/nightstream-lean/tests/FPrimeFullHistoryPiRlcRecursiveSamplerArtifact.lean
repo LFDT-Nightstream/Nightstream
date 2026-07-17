@@ -1,6 +1,10 @@
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.NifsPaper.PiRlc.RecursiveSamplerArtifact
 
-/-! Kernel theorem and dependency checks for the recursive paper sampler facade. -/
+/-!
+Kernel theorem and dependency checks for the recursive paper sampler facade.
+
+Assurance tier: artifact-checked theorem surface with fail-closed guards.
+-/
 
 namespace tests.FPrimeFullHistoryPiRlcRecursiveSamplerArtifact
 
@@ -11,11 +15,8 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper.PiRlc.RecursiveS
 #check publicRoleIndex_census
 #check publicShared
 #check decodedRing_eq_machineRing
-#check ChallengeMembershipPremise
 #check machineRing_member
-#check productionChallengeMembership
-#check samplerArtifact_of_membership
-#check productionSamplerArtifact
+#check challengeWiringArtifact
 
 /-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper.PiRlc.RecursiveSamplerArtifact.publicRoleIndex_census' does not depend on any axioms -/
 #guard_msgs in
@@ -32,10 +33,9 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper.PiRlc.RecursiveS
 #guard_msgs in
 #print axioms decodedRing_eq_machineRing
 
-/-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper.PiRlc.RecursiveSamplerArtifact.samplerArtifact_of_membership' depends on axioms: [propext,
- Classical.choice,
+/-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper.PiRlc.RecursiveSamplerArtifact.challengeWiringArtifact' depends on axioms: [propext,
  Quot.sound] -/
 #guard_msgs in
-#print axioms samplerArtifact_of_membership
+#print axioms challengeWiringArtifact
 
 end tests.FPrimeFullHistoryPiRlcRecursiveSamplerArtifact

@@ -4,7 +4,7 @@ import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.NifsPape
 evaluation recomposition bridge. -/
 
 #check Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.PiDEC.relation_evaluations_hom
-#check Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper.PiDecEvaluationBridge.radixWeights_eq
+#check Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper.PiDec.Weights.radixWeights_eq
 #check Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper.PiDecEvaluationBridge.combineEvaluation_eq
 #check Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper.PiDecEvaluationBridge.combineEvaluations_eq_of_size
 #check Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper.PiDecEvaluationBridge.semantic_evaluations_hom

@@ -122,7 +122,7 @@ def assignments
 
 /-- The sole relation structure derived from the independent source data. -/
 def systemOf
-    (context :
+    (_context :
       Context shape State publicRingColumns publicFits verifierRows arity)
     (data : Data shape) :
     Phi81Relation.Structure
@@ -201,10 +201,10 @@ def piDecAttempt
   children := children
 }
 
-/-- Certificate-independent mathematical fold relation. The parent and child
-family are public; the rich source data and the two irreducible fold choices
-remain semantic witnesses. -/
-structure Holds
+/-- One certificate-independent mathematical fold realization at an exact raw
+row point and challenge vector. The witness is an index rather than a field so
+this proposition never exposes proof-carried computational data. -/
+structure Realization
     (context :
       Context shape State publicRingColumns publicFits verifierRows arity)
     (data : Data shape)
@@ -215,15 +215,33 @@ structure Holds
     (children : Fin productionGlobalParams.k ->
       Phi81Relation.CEStatement
         (RelationShape shape publicRingColumns publicFits)
-        (CommitmentValue verifierRows)) : Prop where
+        (CommitmentValue verifierRows))
+    (witness : Witness context) : Prop where
   paper :
     Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Semantics.Paper.Holds data
   input : Input context data
   running : RunningAuthority.Accepted context
-  witness : Witness context
   challengesValid : ChallengesValid context witness
   parent_eq : parent = parentOf context data witness
   children_eq : children = childrenOf context data witness
+
+/-- Certificate-independent mathematical fold relation. The parent and child
+family are public; source data, row point, and challenges remain existential
+semantic witnesses. -/
+def Holds
+    (context :
+      Context shape State publicRingColumns publicFits verifierRows arity)
+    (data : Data shape)
+    (parent :
+      Phi81Relation.CEStatement
+        (RelationShape shape publicRingColumns publicFits)
+        (CommitmentValue verifierRows))
+    (children : Fin productionGlobalParams.k ->
+      Phi81Relation.CEStatement
+        (RelationShape shape publicRingColumns publicFits)
+        (CommitmentValue verifierRows)) : Prop :=
+  ∃ witness : Witness context,
+    Realization context data parent children witness
 
 /-- Perfect completeness of the certificate-independent relation: once the
 paper statement, both public bindings, incoming authority, and one valid
@@ -240,15 +258,15 @@ theorem complete
     (witness : Witness context)
     (challengesValid : ChallengesValid context witness) :
     Holds context data (parentOf context data witness)
-      (childrenOf context data witness) := {
-  paper := paper
-  input := input
-  running := running
-  witness := witness
-  challengesValid := challengesValid
-  parent_eq := rfl
-  children_eq := rfl
-}
+      (childrenOf context data witness) :=
+  ⟨witness, {
+    paper := paper
+    input := input
+    running := running
+    challengesValid := challengesValid
+    parent_eq := rfl
+    children_eq := rfl
+  }⟩
 
 /-- A CE statement with the canonical child structure, point, stage, and
 opening is definitionally the corresponding `Pi_DEC.childrenOf` statement.
@@ -304,32 +322,17 @@ theorem child_eq_childrenOf_of_holds
       semantics context.key =
         Phi81Relation.relationSemantics
           (PiRLCAlgebra.Commitment.commit context.key) := rfl
-  apply CE.Instance.ext
-  · exact sameStructure
-  · change candidate.commitment =
-      (Phi81Relation.relationSemantics
-        (PiRLCAlgebra.Commitment.commit context.key)).commit
-          ((decAlgebra context.key).splitAssignment assignment child)
-    rw [← semanticsEq]
-    exact commitmentEq
-  · change candidate.publicInput =
-      (Phi81Relation.relationSemantics
-        (PiRLCAlgebra.Commitment.commit context.key)).projectPublicInput
-          ((decAlgebra context.key).splitAssignment assignment child)
-    rw [← semanticsEq]
-    exact publicInputEq
-  · exact samePoint
-  · change candidate.evaluations =
-      (Phi81Relation.relationSemantics
-        (PiRLCAlgebra.Commitment.commit context.key)).evaluations
-          parent.constraintSystem
-          ((decAlgebra context.key).splitAssignment assignment child)
-          parent.point
-    rw [← semanticsEq]
-    exact evaluationsEq
-  · exact fresh
+  rw [semanticsEq] at commitmentEq publicInputEq evaluationsEq
+  rcases candidate with
+    ⟨candidateSystem, candidateCommitment, candidatePublicInput,
+      candidatePoint, candidateEvaluations, candidateStage⟩
+  rcases parent with
+    ⟨parentSystem, parentCommitment, parentPublicInput, parentPoint,
+      parentEvaluations, parentStage⟩
+  simp only [PiDEC.childrenOf]
+  simp_all [decAlgebra, PiDECAlgebra.Algebra.concrete]
 
-namespace Holds
+namespace Realization
 
 /-- Every canonical `Pi_CCS` output is a genuine fresh CE opening of the
 corresponding authoritative assignment. -/
@@ -345,13 +348,14 @@ theorem outputsHold
       Phi81Relation.CEStatement
         (RelationShape shape publicRingColumns publicFits)
         (CommitmentValue verifierRows)}
-    (holds : Holds context data parent children) :
+    {witness : Witness context}
+    (holds : Realization context data parent children witness) :
     forall source,
       CE.Holds (semantics context.key) productionGlobalParams
-        (outputs context data holds.witness source)
+        (outputs context data witness source)
         (assignments context data source) := by
   apply PiCCS.product_complete (semantics context.key) productionGlobalParams
-    arity context.input (assignments context data) holds.witness.point
+    arity context.input (assignments context data) witness.point
   · exact InputAuthority.BoundToSources.sourceFresh publicRingColumns
       publicFits (commit context.key) data context.alignment context.input
       holds.input.sources
@@ -360,7 +364,7 @@ theorem outputsHold
       production_norm_stages.1 holds.paper holds.input.sources
   · intro source
     exact Phi81Relation.evaluationPointValid_holds
-      (context.input.source source).constraintSystem holds.witness.point
+      (context.input.source source).constraintSystem witness.point
 
 /-- The public parent has exactly the combined private opening. -/
 theorem parentOpening
@@ -375,14 +379,15 @@ theorem parentOpening
       Phi81Relation.CEStatement
         (RelationShape shape publicRingColumns publicFits)
         (CommitmentValue verifierRows)}
-    (holds : Holds context data parent children) :
+    {witness : Witness context}
+    (holds : Realization context data parent children witness) :
     CE.Holds (semantics context.key) productionGlobalParams parent
-      (combinedAssignment context data holds.witness) := by
+      (combinedAssignment context data witness) := by
   rw [holds.parent_eq]
   apply PiRLC.combinedOutput_holds (semantics context.key)
     productionGlobalParams (rlcAlgebra context.key) arity
-    (systemOf context data) holds.witness.point
-    (outputs context data holds.witness) holds.witness.challenges
+    (systemOf context data) witness.point
+    (outputs context data witness) witness.challenges
     (assignments context data)
   · intro source
     rfl
@@ -396,7 +401,7 @@ theorem parentOpening
   · exact holds.challengesValid
   · exact holds.outputsHold
   · exact Phi81Relation.evaluationPointValid_holds
-      (systemOf context data) holds.witness.point
+      (systemOf context data) witness.point
 
 /-- Every public child has exactly its canonical radix-split opening. -/
 theorem childOpening
@@ -411,17 +416,18 @@ theorem childOpening
       Phi81Relation.CEStatement
         (RelationShape shape publicRingColumns publicFits)
         (CommitmentValue verifierRows)}
-    (holds : Holds context data parent children)
+    {witness : Witness context}
+    (holds : Realization context data parent children witness)
     (child : Fin productionGlobalParams.k) :
     CE.Holds (semantics context.key) productionGlobalParams (children child)
       ((decAlgebra context.key).splitAssignment
-        (combinedAssignment context data holds.witness) child) := by
+        (combinedAssignment context data witness) child) := by
   have parentHolds := holds.parentOpening
   rw [holds.parent_eq] at parentHolds
   rw [holds.children_eq]
   exact PiDEC.childrenOf_holds (semantics context.key) productionGlobalParams
-    (decAlgebra context.key) (parentOf context data holds.witness)
-    (combinedAssignment context data holds.witness) rfl parentHolds child
+    (decAlgebra context.key) (parentOf context data witness)
+    (combinedAssignment context data witness) rfl parentHolds child
 
 /-- The semantic result satisfies the strict public `Pi_DEC` equations. -/
 theorem piDecAccepted
@@ -436,15 +442,108 @@ theorem piDecAccepted
       Phi81Relation.CEStatement
         (RelationShape shape publicRingColumns publicFits)
         (CommitmentValue verifierRows)}
-    (holds : Holds context data parent children) :
+    {witness : Witness context}
+    (holds : Realization context data parent children witness) :
     PiDEC.Accepted (decAlgebra context.key) (piDecAttempt parent children) := by
   have parentHolds := holds.parentOpening
   rw [holds.parent_eq] at parentHolds
   rw [holds.parent_eq, holds.children_eq]
   simpa [piDecAttempt] using
     (PiDEC.complete (semantics context.key) productionGlobalParams
-      (decAlgebra context.key) (parentOf context data holds.witness)
-      (combinedAssignment context data holds.witness) rfl parentHolds).1
+      (decAlgebra context.key) (parentOf context data witness)
+      (combinedAssignment context data witness) rfl parentHolds).1
+
+end Realization
+
+namespace Holds
+
+/-- Every semantic fold has some exact honest `Pi_CCS` output realization. -/
+theorem outputsHold
+    {context :
+      Context shape State publicRingColumns publicFits verifierRows arity}
+    {data : Data shape}
+    {parent :
+      Phi81Relation.CEStatement
+        (RelationShape shape publicRingColumns publicFits)
+        (CommitmentValue verifierRows)}
+    {children : Fin productionGlobalParams.k ->
+      Phi81Relation.CEStatement
+        (RelationShape shape publicRingColumns publicFits)
+        (CommitmentValue verifierRows)}
+    (holds : Holds context data parent children) :
+    ∃ witness : Witness context,
+      ∀ source,
+        CE.Holds (semantics context.key) productionGlobalParams
+          (outputs context data witness source)
+          (assignments context data source) := by
+  rcases holds with ⟨witness, realized⟩
+  exact ⟨witness, realized.outputsHold⟩
+
+/-- The public parent of every semantic fold has an authoritative opening. -/
+theorem parentOpening
+    {context :
+      Context shape State publicRingColumns publicFits verifierRows arity}
+    {data : Data shape}
+    {parent :
+      Phi81Relation.CEStatement
+        (RelationShape shape publicRingColumns publicFits)
+        (CommitmentValue verifierRows)}
+    {children : Fin productionGlobalParams.k ->
+      Phi81Relation.CEStatement
+        (RelationShape shape publicRingColumns publicFits)
+        (CommitmentValue verifierRows)}
+    (holds : Holds context data parent children) :
+    ∃ assignment :
+        Phi81Relation.Assignment
+          (RelationShape shape publicRingColumns publicFits),
+      CE.Holds (semantics context.key) productionGlobalParams parent
+        assignment := by
+  rcases holds with ⟨witness, realized⟩
+  exact ⟨combinedAssignment context data witness, realized.parentOpening⟩
+
+/-- Every public child of a semantic fold has an authoritative opening. -/
+theorem childOpening
+    {context :
+      Context shape State publicRingColumns publicFits verifierRows arity}
+    {data : Data shape}
+    {parent :
+      Phi81Relation.CEStatement
+        (RelationShape shape publicRingColumns publicFits)
+        (CommitmentValue verifierRows)}
+    {children : Fin productionGlobalParams.k ->
+      Phi81Relation.CEStatement
+        (RelationShape shape publicRingColumns publicFits)
+        (CommitmentValue verifierRows)}
+    (holds : Holds context data parent children)
+    (child : Fin productionGlobalParams.k) :
+    ∃ assignment :
+        Phi81Relation.Assignment
+          (RelationShape shape publicRingColumns publicFits),
+      CE.Holds (semantics context.key) productionGlobalParams
+        (children child) assignment := by
+  rcases holds with ⟨witness, realized⟩
+  exact ⟨
+    (decAlgebra context.key).splitAssignment
+      (combinedAssignment context data witness) child,
+    realized.childOpening child⟩
+
+/-- Every semantic fold satisfies the strict public `Pi_DEC` equations. -/
+theorem piDecAccepted
+    {context :
+      Context shape State publicRingColumns publicFits verifierRows arity}
+    {data : Data shape}
+    {parent :
+      Phi81Relation.CEStatement
+        (RelationShape shape publicRingColumns publicFits)
+        (CommitmentValue verifierRows)}
+    {children : Fin productionGlobalParams.k ->
+      Phi81Relation.CEStatement
+        (RelationShape shape publicRingColumns publicFits)
+        (CommitmentValue verifierRows)}
+    (holds : Holds context data parent children) :
+    PiDEC.Accepted (decAlgebra context.key) (piDecAttempt parent children) := by
+  rcases holds with ⟨_witness, realized⟩
+  exact realized.piDecAccepted
 
 end Holds
 

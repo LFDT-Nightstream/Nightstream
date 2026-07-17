@@ -90,14 +90,26 @@ variable
 
 /-- Public-input projection bridge, owned by the certificate-independent
 semantic module and re-exported here for physical refinement signatures. -/
-abbrev PublicInputBound := SemanticFold.PublicInputBound
+abbrev PublicInputBound
+    (context :
+      Context shape State publicRingColumns publicFits verifierRows arity)
+    (data : Data shape) :=
+  SemanticFold.PublicInputBound context data
 
 /-- Public source-product bridge, owned by the certificate-independent
 semantic module and re-exported here for physical refinement signatures. -/
-abbrev InputBound := SemanticFold.InputBound
+abbrev InputBound
+    (context :
+      Context shape State publicRingColumns publicFits verifierRows arity)
+    (data : Data shape) :=
+  SemanticFold.InputBound context data
 
 /-- Complete two-surface semantic input binding. -/
-abbrev SemanticInput := SemanticFold.Input
+abbrev SemanticInput
+    (context :
+      Context shape State publicRingColumns publicFits verifierRows arity)
+    (data : Data shape) :=
+  SemanticFold.Input context data
 
 /-- Exact physical Split-NC phase acceptance over the public polynomial input.
 No source witness or semantic output binding is read here. -/
@@ -243,6 +255,18 @@ structure CertificateRefinement
 
 namespace CertificateRefinement
 
+/-- Exact raw semantic witness decoded from one physical execution. Validity
+is proved separately by sampler refinement. -/
+def semanticWitness
+    {context :
+      Context shape State publicRingColumns publicFits verifierRows arity}
+    (certificate :
+      Certificate (arity := arity)
+        publicRingColumns publicFits verifierRows context.piCcsInput) :
+    SemanticFold.Witness context where
+  point := (derive context certificate).piCcs.fePoint.row
+  challenges := certificate.piRlcChallenges
+
 /-- Packed `yZcol` remains bound to the independent sources at the derived
 BlockLane point, but is deliberately absent from the CE parent and children. -/
 theorem packedYZcolBound
@@ -263,7 +287,7 @@ theorem packedYZcolBound
 relation. The proof first replaces the message-shaped `Pi_CCS` product by
 `PiCCS.honestOutputs`, then proves every extracted child is the corresponding
 `PiDEC.childrenOf` value. No certificate field appears in the conclusion. -/
-theorem toSemanticFold
+theorem toSemanticRealization
     {context :
       Context shape State publicRingColumns publicFits verifierRows arity}
     {data : Data shape}
@@ -271,13 +295,11 @@ theorem toSemanticFold
       Certificate (arity := arity)
         publicRingColumns publicFits verifierRows context.piCcsInput}
     (holds : CertificateRefinement context data certificate) :
-    SemanticFold.Holds context data
+    SemanticFold.Realization context data
       (derive context certificate).piRlcOutput
-      (outputChildren context certificate) := by
-  let witness : SemanticFold.Witness context := {
-    point := (derive context certificate).piCcs.fePoint.row
-    challenges := certificate.piRlcChallenges
-  }
+      (outputChildren context certificate)
+      (semanticWitness certificate) := by
+  let witness := semanticWitness certificate
   have systemEq :
       context.system = SemanticFold.systemOf context data := by
     simpa [Context.system, SemanticFold.systemOf] using
@@ -344,12 +366,26 @@ theorem toSemanticFold
     paper := holds.paper
     input := holds.input
     running := holds.running
-    witness := witness
     challengesValid :=
       Sampler.certificateAccepted_challengesValid holds.sampler
     parent_eq := parentEq
     children_eq := childrenEq
   }
+
+/-- The exact physical realization instantiates the existential independent
+fold relation. -/
+theorem toSemanticFold
+    {context :
+      Context shape State publicRingColumns publicFits verifierRows arity}
+    {data : Data shape}
+    {certificate :
+      Certificate (arity := arity)
+        publicRingColumns publicFits verifierRows context.piCcsInput}
+    (holds : CertificateRefinement context data certificate) :
+    SemanticFold.Holds context data
+      (derive context certificate).piRlcOutput
+      (outputChildren context certificate) :=
+  ⟨semanticWitness certificate, holds.toSemanticRealization⟩
 
 /-- The computed `Pi_RLC` parent has the canonical combined opening. This is
 now a corollary of the certificate-independent fold refinement; it does not
@@ -367,8 +403,8 @@ theorem piRlcParentOpening
       (PiRLC.combinedWitness (rlcAlgebra context.key)
         certificate.piRlcChallenges
         (InputAuthority.productAssignments data context.alignment)) := by
-  simpa [SemanticFold.combinedAssignment, SemanticFold.assignments] using
-    holds.toSemanticFold.parentOpening
+  simpa [SemanticFold.combinedAssignment, SemanticFold.assignments,
+    semanticWitness] using holds.toSemanticRealization.parentOpening
 
 end CertificateRefinement
 

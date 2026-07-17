@@ -12,6 +12,7 @@ Fail-closed dependency gate for typed Phi81 evaluation homomorphism results.
 | `Pi_RLC` | extension evaluation | `RingKAction` | fixed-ring row action commutes with Boolean MLE |
 | `Pi_RLC` | coefficient embedding | `Embedding` | exact executable quotient multiplication is preserved |
 | `Pi_RLC` | quotient-ring normal form | `RingFLaws` | basis products reduce symbolically modulo Phi81 |
+| `Pi_CCS` | identity coefficient row | `RingFLaws` | constant bar basis and kernel image are exact left units |
 | `Pi_RLC` | finite challenge combination | `PiRLCFinite` | the complete assignment and fixed evaluation arrays use one canonical fold |
 | `Pi_RLC` | product order | `RingFLaws` | bar and challenge left actions commute on every block |
 -/
@@ -41,6 +42,21 @@ Fail-closed dependency gate for typed Phi81 evaluation homomorphism results.
 
 /-! Extension-evaluation action. -/
 
+/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.RingKAction.evaluateRows_zero' depends on axioms: [propext,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.RingKAction.evaluateRows_zero
+
+/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.RingKAction.evaluateRows_add' depends on axioms: [propext,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.RingKAction.evaluateRows_add
+
+/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.RingKAction.evaluateRows_scale' depends on axioms: [propext,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.RingKAction.evaluateRows_scale
+
 /-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.RingKAction.evaluateRows_action' depends on axioms: [propext,
  Quot.sound] -/
 #guard_msgs in
@@ -59,6 +75,17 @@ Fail-closed dependency gate for typed Phi81 evaluation homomorphism results.
 #audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.Embedding.embedChallenge_ringFMul
 
 /-! Complete conditional `Pi_RLC` evaluation orchestration. -/
+
+/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.PiRLC.rowRing_eq_zero_of_padded_row_zero' depends on axioms: [propext,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.PiRLC.rowRing_eq_zero_of_padded_row_zero
+
+/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.PiRLC.rowRing_eq_kernelImage_of_unit_padded_row' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.PiRLC.rowRing_eq_kernelImage_of_unit_padded_row
 
 /-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.PiRLC.rowRing_eq_blockSum' depends on axioms: [propext,
  Quot.sound] -/
@@ -85,6 +112,19 @@ Fail-closed dependency gate for typed Phi81 evaluation homomorphism results.
 
 /-! Exact finite-batch evaluation homomorphism. -/
 
+/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.BaseLinear.raw_combineAssignments_eq' depends on axioms: [propext] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.BaseLinear.raw_combineAssignments_eq
+
+/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.PiRLCFinite.raw_combineAssignments_eq' depends on axioms: [propext,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.PiRLCFinite.raw_combineAssignments_eq
+
+/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.PiDEC.raw_recomposeAssignment_eq' depends on axioms: [propext] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.PiDEC.raw_recomposeAssignment_eq
+
 /-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.PiRLCFinite.matrixEvaluation_combine' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/
@@ -110,6 +150,18 @@ Fail-closed dependency gate for typed Phi81 evaluation homomorphism results.
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.RingFLaws.ringFMul_basis_basis
+
+/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.RingFLaws.ringFMul_one_left' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.RingFLaws.ringFMul_one_left
+
+/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.RingFLaws.kernelImage_constant' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.RingFLaws.kernelImage_constant
 
 /-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.RingFLaws.ringFMul_barBasis_productOrder' depends on axioms: [propext,
  Classical.choice,

@@ -19,6 +19,7 @@ parent opening holds only outside the explicit standard binding collision.
 | Surface | Guarantee | Assumptions | Permits row removal? |
 |---|---|---|---|
 | `complete`, `reduce_knowledge` | Honest split and reverse knowledge reduction | `Algebra` laws and valid CE openings | No |
+| `Accepted.parent_eq_of_children_eq` | Strictly accepted parents over the same nonempty child family are identical as public statements | `k > 0` and both public Π_DEC acceptances | Yes, for duplicate parent authority checks once child binding is retained |
 | `ParentOpeningBindingCollision` | Two distinct `B`-bounded openings of one parent commitment | Model-level commitment semantics | No |
 | `accepted_parent_eq_recompose_or_bindingCollision` | Parent opening equals child recomposition or exposes that collision | Accepted Π_DEC and valid parent/child CE openings | No — concrete security/refinement open |
 -/
@@ -103,6 +104,94 @@ structure Accepted
   evaluationEquation :
     attempt.parent.evaluations =
       algebra.recomposeEvaluations (fun i => (attempt.children i).evaluations)
+
+/-- Strict public Π_DEC acceptance makes the parent statement a deterministic
+function of one nonempty child family.
+
+This is statement-level uniqueness, not commitment-opening uniqueness: every
+parent public field is either fixed by the recomposition equations or copied
+from the first child. -/
+theorem Accepted.parent_eq_of_children_eq
+    {Structure : Type uStructure}
+    {Assignment : Type uAssignment}
+    {PublicInput : Type uPublicInput}
+    {Point : Type uPoint}
+    {Evaluation : Type uEvaluation}
+    {Commitment : Type uCommitment}
+    {semantics : RelationSemantics
+      Structure Assignment PublicInput Point Evaluation Commitment}
+    {params : GlobalParams}
+    {algebra : Algebra
+      Structure Assignment PublicInput Point Evaluation Commitment semantics params}
+    {left right :
+      Attempt Structure PublicInput Point Evaluation Commitment params}
+    (kPositive : 0 < params.k)
+    (leftAccepted : Accepted algebra left)
+    (rightAccepted : Accepted algebra right)
+    (childrenEq : left.children = right.children) :
+    left.parent = right.parent := by
+  rcases left with ⟨leftParent, leftChildren⟩
+  rcases right with ⟨rightParent, rightChildren⟩
+  change leftChildren = rightChildren at childrenEq
+  let first : Fin params.k := ⟨0, kPositive⟩
+  have structureEq :
+      leftParent.constraintSystem = rightParent.constraintSystem := by
+    calc
+      leftParent.constraintSystem =
+          (leftChildren first).constraintSystem :=
+        (leftAccepted.sameStructure first).symm
+      _ = (rightChildren first).constraintSystem := by
+        rw [childrenEq]
+      _ = rightParent.constraintSystem :=
+        rightAccepted.sameStructure first
+  have commitmentEq :
+      leftParent.commitment = rightParent.commitment := by
+    calc
+      leftParent.commitment =
+          algebra.recomposeCommitment
+            (fun i => (leftChildren i).commitment) :=
+        leftAccepted.commitmentEquation
+      _ = algebra.recomposeCommitment
+            (fun i => (rightChildren i).commitment) := by
+        rw [childrenEq]
+      _ = rightParent.commitment :=
+        rightAccepted.commitmentEquation.symm
+  have publicInputEq :
+      leftParent.publicInput = rightParent.publicInput := by
+    calc
+      leftParent.publicInput =
+          algebra.recomposePublicInput
+            (fun i => (leftChildren i).publicInput) :=
+        leftAccepted.publicInputEquation
+      _ = algebra.recomposePublicInput
+            (fun i => (rightChildren i).publicInput) := by
+        rw [childrenEq]
+      _ = rightParent.publicInput :=
+        rightAccepted.publicInputEquation.symm
+  have pointEq : leftParent.point = rightParent.point := by
+    calc
+      leftParent.point = (leftChildren first).point :=
+        (leftAccepted.samePoint first).symm
+      _ = (rightChildren first).point := by
+        rw [childrenEq]
+      _ = rightParent.point := rightAccepted.samePoint first
+  have evaluationsEq :
+      leftParent.evaluations = rightParent.evaluations := by
+    calc
+      leftParent.evaluations =
+          algebra.recomposeEvaluations
+            (fun i => (leftChildren i).evaluations) :=
+        leftAccepted.evaluationEquation
+      _ = algebra.recomposeEvaluations
+            (fun i => (rightChildren i).evaluations) := by
+        rw [childrenEq]
+      _ = rightParent.evaluations :=
+        rightAccepted.evaluationEquation.symm
+  have stageEq : leftParent.stage = rightParent.stage :=
+    leftAccepted.parentCombined.trans rightAccepted.parentCombined.symm
+  rcases leftParent with ⟨_, _, _, _, _, _⟩
+  rcases rightParent with ⟨_, _, _, _, _, _⟩
+  simp_all
 
 /-- Canonical fresh child statements produced from the parent's digit witnesses. -/
 def childrenOf

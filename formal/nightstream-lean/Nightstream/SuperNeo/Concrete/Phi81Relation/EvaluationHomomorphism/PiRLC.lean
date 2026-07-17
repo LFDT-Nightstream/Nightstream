@@ -30,6 +30,7 @@ for every challenge by the symbolic executable-ring proof in `RingFLaws`.
 |---|---|---|---|
 | `nifs.pi_rlc.verify.evaluation_hom.product_order` | `bar * (rho * z) = rho * (bar * z)` for one row basis and block | derived | `productOrderLaw` |
 | `nifs.pi_rlc.verify.evaluation_hom.row.blocks` | complete flat carrier equals the block/lane contraction of the canonical basis-defined kernel | derived | `rowRing_eq_blockSum` |
+| `nifs.pi_rlc.verify.evaluation_hom.row.selector` | a zero or one-hot original matrix row selects exactly zero or one basis-kernel image | derived | `rowRing_eq_zero_of_padded_row_zero`, `rowRing_eq_kernelImage_of_unit_padded_row` |
 | `nifs.pi_rlc.verify.evaluation_hom.row.action` | the local law distributes through matrix-row coefficients and blocks | derived | `rowRing_act` with `productOrderLaw` |
 | `nifs.pi_rlc.verify.evaluation_hom.mle` | coefficientwise embedding and Boolean MLE preserve the action | derived | `matrixEvaluation_act` with `productOrderLaw` |
 | `nifs.pi_rlc.verify.evaluation_hom.matrices` | every canonical matrix evaluation preserves the action | derived | `evaluations_act` with `productOrderLaw` |
@@ -250,6 +251,46 @@ private theorem sumFinF_congr
   intro index indexLt
   rw [dif_pos indexLt, dif_pos indexLt]
   exact equal ⟨index, indexLt⟩
+
+private theorem sumFinF_zero {count : Nat} :
+    sumFinF (fun _ : Fin count => (0 : F)) = 0 := by
+  unfold sumFinF
+  apply sumRange_eq_zero ConcreteCarrier.baseOps ConcreteCarrier.baseLaws
+  intro index indexLt
+  rw [dif_pos indexLt]
+  rfl
+
+private theorem sumFinF_select
+    {count : Nat} (selected : Fin count) (term : Fin count -> F) :
+    sumFinF (fun index => if index = selected then term index else 0) =
+      term selected := by
+  unfold sumFinF
+  calc
+    sumRange ConcreteCarrier.baseOps count (fun index =>
+        if indexLt : index < count then
+          if (⟨index, indexLt⟩ : Fin count) = selected then
+            term ⟨index, indexLt⟩
+          else
+            0
+        else
+          0) =
+      sumRange ConcreteCarrier.baseOps count (fun index =>
+        if index = selected.val then term selected else 0) := by
+      apply sumRange_congr
+      intro index indexLt
+      rw [dif_pos indexLt]
+      by_cases equal : index = selected.val
+      · have finEqual : (⟨index, indexLt⟩ : Fin count) = selected :=
+          Fin.ext equal
+        rw [if_pos equal, if_pos finEqual, finEqual]
+      · have finDifferent : (⟨index, indexLt⟩ : Fin count) ≠ selected := by
+          intro finEqual
+          exact equal (congrArg Fin.val finEqual)
+        rw [if_neg equal, if_neg finDifferent]
+    _ = term selected := by
+      exact MatrixCoefficientSource.sumRange_select ConcreteCarrier.baseOps
+        ConcreteCarrier.baseLaws count selected.val (fun _ => term selected)
+        selected.isLt
 
 private theorem sumFinF_mul_left
     {count : Nat} (factor : F) (term : Fin count -> F) :
@@ -635,6 +676,91 @@ theorem rowRing_eq_blockSum
       intro row
       rw [kernelImage_eq_sumFinF]
     _ = _ := rfl
+
+/-- A verifier-owned all-zero original matrix row produces the zero derived
+Phi81 row. This is a local selector fact, not an authority claim. -/
+theorem rowRing_eq_zero_of_padded_row_zero
+    {shape : Shape}
+    (system : Structure shape) (assignment : Assignment shape)
+    (matrix : Fin shape.matrixCount)
+    (vertex : BooleanVertex shape.rowVariables)
+    (rowZero : forall
+      (block : Fin (Phi81ColumnLayout.blockCount shape.carrierWidth))
+      (lane : Fin ringDegree),
+      system.matrixSource.paddedMatrixEntry ConcreteCarrier.baseOps
+        matrix vertex block lane = 0) :
+    rowRing system assignment matrix vertex = ringFZero := by
+  rw [rowRing_eq_blockSum]
+  funext output
+  unfold blockRowSum blockRowRing ringFZero
+  simp only [rowZero, Fin.zero_mul, sumFinF_zero]
+
+/-- A verifier-owned one-hot original matrix row selects exactly the named
+basis-kernel image of the named supplied complete-assignment block. This is a
+local algebraic fact and does not establish opening authority. -/
+theorem rowRing_eq_kernelImage_of_unit_padded_row
+    {shape : Shape}
+    (system : Structure shape) (assignment : Assignment shape)
+    (matrix : Fin shape.matrixCount)
+    (vertex : BooleanVertex shape.rowVariables)
+    (selectedBlock : Fin
+      (Phi81ColumnLayout.blockCount shape.carrierWidth))
+    (selectedLane : Fin ringDegree)
+    (unitRow : forall
+      (block : Fin (Phi81ColumnLayout.blockCount shape.carrierWidth))
+      (lane : Fin ringDegree),
+      system.matrixSource.paddedMatrixEntry ConcreteCarrier.baseOps
+          matrix vertex block lane =
+        if block = selectedBlock then
+          if lane = selectedLane then 1 else 0
+        else
+          0) :
+    rowRing system assignment matrix vertex =
+      CarrierAction.kernelImage selectedLane
+        (CarrierAction.assignmentBlock assignment selectedBlock) := by
+  rw [rowRing_eq_blockSum]
+  funext output
+  unfold blockRowSum blockRowRing
+  calc
+    sumFinF (fun block =>
+        sumFinF fun row =>
+          system.matrixSource.paddedMatrixEntry ConcreteCarrier.baseOps
+              matrix vertex block row *
+            CarrierAction.kernelImage row
+              (CarrierAction.assignmentBlock assignment block) output) =
+      sumFinF (fun block =>
+        if block = selectedBlock then
+          sumFinF fun row =>
+            if row = selectedLane then
+              CarrierAction.kernelImage row
+                (CarrierAction.assignmentBlock assignment block) output
+            else
+              0
+        else
+          0) := by
+      apply sumFinF_congr
+      intro block
+      by_cases blockEqual : block = selectedBlock
+      · rw [if_pos blockEqual]
+        apply sumFinF_congr
+        intro row
+        rw [unitRow block row, if_pos blockEqual]
+        split <;> simp only [Fin.one_mul, Fin.zero_mul]
+      · rw [if_neg blockEqual]
+        calc
+          sumFinF (fun row =>
+              system.matrixSource.paddedMatrixEntry ConcreteCarrier.baseOps
+                  matrix vertex block row *
+                CarrierAction.kernelImage row
+                  (CarrierAction.assignmentBlock assignment block) output) =
+            sumFinF (fun _ : Fin ringDegree => (0 : F)) := by
+              apply sumFinF_congr
+              intro row
+              rw [unitRow block row, if_neg blockEqual, Fin.zero_mul]
+          _ = 0 := sumFinF_zero
+    _ = CarrierAction.kernelImage selectedLane
+          (CarrierAction.assignmentBlock assignment selectedBlock) output := by
+      rw [sumFinF_select selectedBlock, sumFinF_select selectedLane]
 
 /-! ## Conditional assignment action -/
 

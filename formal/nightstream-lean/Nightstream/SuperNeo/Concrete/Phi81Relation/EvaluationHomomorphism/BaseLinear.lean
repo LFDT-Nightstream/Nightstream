@@ -10,9 +10,11 @@ Phase: complete-carrier assignment combination followed by one matrix/Phi81
 evaluation.
 Constraint family: semantic evaluation only; this file emits no rows.
 
-Owns: pointwise addition and base-field scaling on the exact typed assignment;
-the corresponding operations on all 54 `RingK` lanes; canonical finite
-base-field combinations; and proofs that `matrixEvaluation` preserves them.
+Owns: raw width-only and typed relation assignment operations; their exact
+refinement equality; the corresponding operations on all 54 `RingK` lanes;
+canonical finite base-field combinations; generic zero/add/scale laws for
+`K`-valued Boolean table evaluation; and proofs that `matrixEvaluation`
+preserves them.
 
 Does not own: arbitrary `RingF` challenge action, complete-carrier block
 packing, Phi81 multiplication associativity, commitments, public-input
@@ -29,6 +31,7 @@ weights `b^(i-1)` in `Pi_DEC`; it is deliberately not advertised as the
 | Stage path | Mathematical obligation | Authority class | Lean owner |
 |---|---|---|---|
 | `nifs.pi_dec.verify.recomposition.assignment` | add, scale, and finite-combine every coordinate of the complete assignment | computed | `assignmentAdd`, `assignmentScale`, `combineAssignments` |
+| `nifs.shared.assignment.raw_refinement` | width-only and relation-typed finite folds are exactly equal | derived | `raw_combineAssignments_eq` |
 | `nifs.pi_dec.verify.recomposition.matrix_row` | each finite matrix image is base-`F` linear in that assignment | derived | `matrixEvaluation_zero`, `matrixEvaluation_add`, `matrixEvaluation_scale` |
 | `nifs.pi_dec.verify.recomposition.mle` | the independently defined Boolean MLE preserves the same embedded-`F` operations in all 54 lanes | derived | `matrixEvaluation_combine` |
 | `nifs.pi_dec.verify.recomposition.evaluations` | every matrix in canonical order preserves the same finite combination | derived | `evaluations_combine` |
@@ -42,19 +45,54 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
 /-! ## Exact base-linear carriers -/
 
-/-- Add two complete-carrier assignments coordinatewise. -/
-def assignmentAdd {shape : Shape}
-    (left right : Assignment shape) : Assignment shape :=
+namespace Raw
+
+/-- Add two raw finite assignments coordinatewise. -/
+def assignmentAdd {columns : Nat}
+    (left right : PaperLinearAlgebra.Assignment F columns) :
+    PaperLinearAlgebra.Assignment F columns :=
   fun column => left column + right column
 
-/-- Scale one complete-carrier assignment by a base-field element. -/
-def assignmentScale {shape : Shape}
-    (scalar : F) (assignment : Assignment shape) : Assignment shape :=
+/-- Scale one raw finite assignment by a base-field element. -/
+def assignmentScale {columns : Nat}
+    (scalar : F) (assignment : PaperLinearAlgebra.Assignment F columns) :
+    PaperLinearAlgebra.Assignment F columns :=
   fun column => scalar * assignment column
 
-/-- The canonical zero complete-carrier assignment. -/
-def assignmentZero {shape : Shape} : Assignment shape :=
+/-- The canonical zero raw finite assignment. -/
+def assignmentZero {columns : Nat} :
+    PaperLinearAlgebra.Assignment F columns :=
   fun _ => 0
+
+/-- Canonical head-first finite base-field combination at an arbitrary width. -/
+def combineAssignments {columns : Nat} :
+    {count : Nat} ->
+      (Fin count -> F) ->
+      (Fin count -> PaperLinearAlgebra.Assignment F columns) ->
+      PaperLinearAlgebra.Assignment F columns
+  | 0, _, _ => assignmentZero
+  | _ + 1, weights, assignments =>
+      assignmentAdd
+        (assignmentScale (weights 0) (assignments 0))
+        (combineAssignments
+          (fun index => weights index.succ)
+          (fun index => assignments index.succ))
+
+end Raw
+
+/-- Add two typed complete-carrier relation assignments coordinatewise. -/
+def assignmentAdd {shape : Shape}
+    (left right : Assignment shape) : Assignment shape :=
+  Raw.assignmentAdd left right
+
+/-- Scale one typed complete-carrier relation assignment. -/
+def assignmentScale {shape : Shape}
+    (scalar : F) (assignment : Assignment shape) : Assignment shape :=
+  Raw.assignmentScale scalar assignment
+
+/-- The canonical zero typed complete-carrier relation assignment. -/
+def assignmentZero {shape : Shape} : Assignment shape :=
+  Raw.assignmentZero
 
 /-- Add two Phi81 evaluation rings coefficientwise. -/
 def evaluationAdd (left right : Evaluation) : Evaluation :=
@@ -67,7 +105,7 @@ def evaluationScale (scalar : F) (evaluation : Evaluation) : Evaluation :=
 /-- The canonical zero Phi81 evaluation. -/
 def evaluationZero : Evaluation := ringKZero
 
-/-- Canonical head-first finite base-field combination of assignments. -/
+/-- Canonical head-first finite base-field combination of typed assignments. -/
 def combineAssignments {shape : Shape} :
     {count : Nat} ->
       (Fin count -> F) -> (Fin count -> Assignment shape) -> Assignment shape
@@ -78,6 +116,24 @@ def combineAssignments {shape : Shape} :
         (combineAssignments
           (fun index => weights index.succ)
           (fun index => assignments index.succ))
+
+/-- The raw width-only fold and the typed relation fold are extensionally
+identical. This is the refinement seam used by independent packed semantics;
+it prevents the two recursive definitions from drifting silently. -/
+theorem raw_combineAssignments_eq
+    {shape : Shape} {count : Nat}
+    (weights : Fin count -> F)
+    (assignments : Fin count -> Assignment shape) :
+    Raw.combineAssignments weights assignments =
+      combineAssignments weights assignments := by
+  induction count with
+  | zero => rfl
+  | succ count inductionHypothesis =>
+      simp only [Raw.combineAssignments, combineAssignments]
+      rw [inductionHypothesis
+        (fun index => weights index.succ)
+        (fun index => assignments index.succ)]
+      rfl
 
 /-- The identical finite combination on one `RingK` evaluation. -/
 def combineEvaluations :
@@ -499,6 +555,49 @@ private theorem evaluateCoordinates_tabulate_scale
           exact interpolate_scale_identity ConcreteCarrier.extensionOps
             ConcreteCarrier.extensionLaws _ _ _ _
 
+/-- A canonically tabulated zero `K` table evaluates to zero at every typed
+point. -/
+theorem evaluateTabulated_zero
+    {variables : Nat}
+    (point : CubePoint K variables) :
+    (BooleanTable.tabulate
+      (fun _ : BooleanVertex variables => K.zero)).evaluate
+        ConcreteCarrier.extensionOps point = K.zero := by
+  unfold BooleanTable.evaluate
+  exact evaluateCoordinates_tabulate_zero point.coordinates
+
+/-- Canonical `K`-valued Boolean-table evaluation is additive. -/
+theorem evaluateTabulated_add
+    {variables : Nat}
+    (left right : BooleanVertex variables -> K)
+    (point : CubePoint K variables) :
+    (BooleanTable.tabulate
+      (fun vertex => K.add (left vertex) (right vertex))).evaluate
+        ConcreteCarrier.extensionOps point =
+      K.add
+        ((BooleanTable.tabulate left).evaluate
+          ConcreteCarrier.extensionOps point)
+        ((BooleanTable.tabulate right).evaluate
+          ConcreteCarrier.extensionOps point) := by
+  unfold BooleanTable.evaluate
+  exact evaluateCoordinates_tabulate_add left right point.coordinates
+
+/-- Canonical `K`-valued Boolean-table evaluation commutes with a fixed
+extension-field scalar. -/
+theorem evaluateTabulated_scale
+    {variables : Nat}
+    (scalar : K)
+    (values : BooleanVertex variables -> K)
+    (point : CubePoint K variables) :
+    (BooleanTable.tabulate
+      (fun vertex => K.mul scalar (values vertex))).evaluate
+        ConcreteCarrier.extensionOps point =
+      K.mul scalar
+        ((BooleanTable.tabulate values).evaluate
+          ConcreteCarrier.extensionOps point) := by
+  unfold BooleanTable.evaluate
+  exact evaluateCoordinates_tabulate_scale scalar values point.coordinates
+
 /-! ## Typed Phi81 evaluator theorems -/
 
 /-- The typed Phi81 evaluation of the zero complete assignment is zero in all
@@ -510,7 +609,7 @@ theorem matrixEvaluation_zero
     matrixEvaluation system assignmentZero point matrix = evaluationZero := by
   funext lane
   unfold matrixEvaluation Phi81Evaluation.evaluate Phi81Evaluation.table
-    assignmentZero evaluationZero ringKZero
+    assignmentZero Raw.assignmentZero evaluationZero ringKZero
   unfold BooleanTable.evaluate
   simpa only [matrixVectorAt_zero] using
     (evaluateCoordinates_tabulate_zero
@@ -529,7 +628,7 @@ theorem matrixEvaluation_add
         (matrixEvaluation system right point matrix) := by
   funext lane
   unfold matrixEvaluation Phi81Evaluation.evaluate Phi81Evaluation.table
-    assignmentAdd evaluationAdd
+    assignmentAdd Raw.assignmentAdd evaluationAdd
   unfold BooleanTable.evaluate
   simpa only [matrixVectorAt_add, ConcreteCarrier.embed_add] using
     (evaluateCoordinates_tabulate_add
@@ -552,7 +651,7 @@ theorem matrixEvaluation_scale
       evaluationScale scalar (matrixEvaluation system assignment point matrix) := by
   funext lane
   unfold matrixEvaluation Phi81Evaluation.evaluate Phi81Evaluation.table
-    assignmentScale evaluationScale
+    assignmentScale Raw.assignmentScale evaluationScale
   unfold BooleanTable.evaluate
   have embedScale (value : F) :
       K.embed (scalar * value) = K.mul (K.embed scalar) (K.embed value) := by

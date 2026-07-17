@@ -15,6 +15,7 @@ Fail-closed dependency gate for the model-level five-ring F' carrier.
 | F' / CCS | matrix source | completed carrier ownership | `carrierMatrix_at_alignedCarrierIndex`, `carrierMatrix_completion_zero` |
 | F' / CCS | matrix source | numeric / Boolean row bijection | `rowIndex_rowVertex`, `rowVertex_rowIndex` |
 | F' / CCS | matrix evaluation | tensor-weight refinement | `productionTensorWeight_eq_equalityWeight` |
+| F' / CCS | matrix source | finite-row preservation / zero padding | `padRows_at_numericRow`, `padRows_atPadding` |
 | assurance | necessity | norm-valid tail value one | `tailOne_normBounded`, `omittingFixedPadding_enlargesFreshBoundary` |
 -/
 
@@ -74,6 +75,28 @@ Fail-closed dependency gate for the model-level five-ring F' carrier.
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.productionTensorWeight_eq_equalityWeight
+
+/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.RowPadding.padRows_at_numericRow' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.RowPadding.padRows_at_numericRow
+
+/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.RowPadding.padRows_atPadding' depends on axioms: [propext] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.RowPadding.padRows_atPadding
+
+/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.RowPadding.padRows_oneRow_actual' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.RowPadding.padRows_oneRow_actual
+
+/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.RowPadding.padRows_oneRow_padding' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.RowPadding.padRows_oneRow_padding
 
 /-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.ColumnMap.legacyIndex?_alignedIndex' depends on axioms: [propext,
  Quot.sound] -/

@@ -77,7 +77,7 @@ theorem combineAssignments_le
   induction count with
   | zero =>
       simp [PiRLCFinite.combineAssignments, BaseLinear.assignmentZero,
-        Centered.centeredMagnitude_zero]
+        BaseLinear.Raw.assignmentZero, Centered.centeredMagnitude_zero]
   | succ count inductionHypothesis =>
       have headBound := act_coordinate_le_expansion
         (challenges 0) (assignments 0) (challengesValid 0)

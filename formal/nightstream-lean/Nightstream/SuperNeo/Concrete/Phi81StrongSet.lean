@@ -28,15 +28,15 @@ boundary is `LowNormInvertibility`, which states the concrete `z = 3`,
 `phi(z) = 2` corollary of SuperNeo Theorem 8. All hypotheses needed to apply
 that boundary are proved here.
 
-| Protocol | Phase | Mathematical object | Exact obligation | Status |
-|---|---|---|---|---|
-| `Pi_RLC` | coefficient embedding | `embedCoefficient` | `{-2,-1,0,1,2}` maps to canonical Goldilocks residues | proved |
-| `Pi_RLC` | ring assembly | `embedScalar` | exactly 54 coefficients in Phi81 order | proved |
-| `Pi_RLC` | separation | `embeddedDifference_nonzero` | distinct embedded challenges have nonzero difference | proved |
-| `Pi_RLC` | norm | `embeddedDifference_normAtMostFour` | every difference coefficient has centered magnitude at most 4 | proved |
-| Theorem 8 | parameters | `theorem8Conditions_exact` | `3 divides 81`, `q = 1 mod 3`, and `ord_81(q) = 27` | proved |
-| Theorem 8 | numeric bound | `differenceBound_below_goldilocks` | `3 * 4^2 < q` | proved |
-| Definition 17 | strong set | `productionSet_strong` | every distinct pair has invertible difference | conditional only on `LowNormInvertibility` |
+| Protocol | Phase | Mathematical object | Exact guarantee or premise |
+|---|---|---|---|
+| `Pi_RLC` | coefficient embedding | `embedCoefficient` | proves `{-2,-1,0,1,2}` maps to canonical Goldilocks residues |
+| `Pi_RLC` | ring assembly | `embedScalar` | constructs exactly 54 coefficients in Phi81 order |
+| `Pi_RLC` | separation | `embeddedDifference_nonzero` | proves distinct embedded challenges have nonzero difference |
+| `Pi_RLC` | norm | `embeddedDifference_normAtMostFour` | proves every difference coefficient has centered magnitude at most 4 |
+| Theorem 8 | parameters | `theorem8Conditions_exact` | proves `3 divides 81`, `q = 1 mod 3`, and `ord_81(q) = 27` |
+| Theorem 8 | numeric bound | `differenceBound_below_goldilocks` | proves `3 * 4^2 < q` |
+| Definition 17 | strong set | `productionSet_strong` | derives pairwise invertibility from the explicit `LowNormInvertibility` premise |
 -/
 
 namespace Nightstream.SuperNeo.Concrete.Phi81StrongSet

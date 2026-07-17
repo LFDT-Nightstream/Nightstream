@@ -7,10 +7,10 @@ import Nightstream.SuperNeo.Folding.PiDEC
 Production-parameter evaluation recomposition for the typed Phi81 `PiDEC`
 algebra.
 
-Owns: the verifier-fixed `b = 2`, `k = 14` base-field weights; exact
-recomposition of a complete typed assignment; fixed-shape recomposition of
-all matrix-evaluation arrays; and the concrete theorem with the exact type of
-`PiDEC.Algebra.evaluations_hom`.
+Owns: the verifier-fixed `b = 2`, `k = 14` base-field weights; raw width-only
+and typed recomposition of complete assignments; their exact equality;
+fixed-shape recomposition of all matrix-evaluation arrays; and the concrete
+theorem with the exact type of `PiDEC.Algebra.evaluations_hom`.
 
 Does not own: digit splitting, digit norm bounds, commitment or public-input
 homomorphisms, construction of a complete `PiDEC.Algebra`, Rust/R1CS
@@ -27,6 +27,7 @@ semantic evaluation arrays have the exact typed size.
 |---|---|---|---|
 | `nifs.pi_dec.verify.recomposition.weights` | child `i` has verifier-fixed weight `2^i` in `F` | computed | `radixWeight` |
 | `nifs.pi_dec.verify.recomposition.assignment` | recomposition covers every coordinate of the complete Phi81 assignment | computed | `recomposeAssignment` |
+| `nifs.pi_dec.verify.recomposition.assignment.raw_refinement` | width-only recomposition is exactly the typed relation recomposition | derived | `raw_recomposeAssignment_eq` |
 | `nifs.pi_dec.verify.recomposition.evaluations` | every matrix and all 54 lanes use the same `2^i` weights | computed | `evaluations_hom` |
 | `nifs.pi_dec.verify.algebra.evaluations_hom` | the concrete theorem has the exact `PiDEC.Algebra` field signature | derived | `relation_evaluations_hom` |
 -/
@@ -37,6 +38,7 @@ open Nightstream.SuperNeo
 open Nightstream.SuperNeo.Concrete
 open Nightstream.SuperNeo.Concrete.Phi81Relation
 open Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism
+open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
 
 /-- Production `PiDEC` radix weight in canonical Goldilocks representation. -/
 def radixWeight
@@ -44,12 +46,34 @@ def radixWeight
   ⟨productionGlobalParams.b ^ index.val % goldilocksModulus,
     Nat.mod_lt _ (by decide)⟩
 
-/-- Recompose all complete-carrier assignment coordinates with the production
+namespace Raw
+
+/-- Recompose every raw assignment coordinate with the production `PiDEC`
+radix weights. -/
+def recomposeAssignment {columns : Nat}
+    (assignments : Fin productionGlobalParams.k ->
+      PaperLinearAlgebra.Assignment F columns) :
+    PaperLinearAlgebra.Assignment F columns :=
+  BaseLinear.Raw.combineAssignments radixWeight assignments
+
+end Raw
+
+/-- Recompose every typed relation-assignment coordinate with the production
 `PiDEC` radix weights. -/
 def recomposeAssignment {shape : Shape}
     (assignments : Fin productionGlobalParams.k -> Assignment shape) :
     Assignment shape :=
   BaseLinear.combineAssignments radixWeight assignments
+
+/-- The width-only recomposition used by independent packed semantics is
+exactly the typed relation recomposition. -/
+theorem raw_recomposeAssignment_eq
+    {shape : Shape}
+    (assignments : Fin productionGlobalParams.k -> Assignment shape) :
+    Raw.recomposeAssignment assignments =
+      recomposeAssignment assignments := by
+  unfold Raw.recomposeAssignment recomposeAssignment
+  exact BaseLinear.raw_combineAssignments_eq radixWeight assignments
 
 /-- Recompose arbitrary public evaluation arrays into the verifier-owned
 matrix shape. Semantic arrays never exercise the default branch. -/

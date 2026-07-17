@@ -9,10 +9,10 @@ Protocol: SuperNeo Theorem 5, evaluation-homomorphism branch of `Pi_RLC`.
 Phase: canonical finite challenge combination after the one-source action law.
 Constraint family: semantic evaluation only; this file emits no rows.
 
-Owns: the head-first finite `RingF` combination of complete assignments; the
-matching head-first finite combination of one `RingK` evaluation; the
-verifier-owned fixed-matrix array operation; and the theorem with exactly the
-same system/point/challenge/assignment shape as
+Owns: raw width-only and typed head-first finite `RingF` combinations of
+complete assignments; their exact equality; the matching head-first finite
+combination of one `RingK` evaluation; the verifier-owned fixed-matrix array
+operation; and the theorem with exactly the same system/point/challenge shape as
 `Folding.PiRLC.Algebra.evaluations_hom`.
 
 Does not own: the quotient-ring proof behind the per-challenge product-order
@@ -32,6 +32,7 @@ Every challenge's product-order law is derived internally by
 | Stage path | Mathematical obligation | Authority class | Lean owner |
 |---|---|---|---|
 | `nifs.pi_rlc.verify.evaluation_hom.finite.assignment` | every complete-carrier coordinate uses the same canonical challenge fold | computed | `combineAssignments` |
+| `nifs.pi_rlc.verify.evaluation_hom.finite.assignment.raw_refinement` | the independent width-only fold is exactly the typed relation fold | derived | `raw_combineAssignments_eq` |
 | `nifs.pi_rlc.verify.evaluation_hom.finite.evaluation` | one 54-lane evaluation uses the identical challenge fold | computed | `combineEvaluation` |
 | `nifs.pi_rlc.verify.evaluation_hom.finite.arrays` | output has exactly one combined evaluation per canonical matrix | computed | `combineEvaluations` |
 | `nifs.pi_rlc.verify.evaluation_hom.finite.matrix` | one matrix evaluation commutes with the finite challenge fold | derived | `matrixEvaluation_combine` |
@@ -44,7 +45,28 @@ open Nightstream.SuperNeo.Concrete
 open Nightstream.SuperNeo.Concrete.Phi81Relation
 open Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism
 
-/-- Canonical head-first finite `RingF` combination of complete assignments. -/
+namespace Raw
+
+/-- Canonical head-first finite `RingF` combination of raw completed
+assignments. Only logical width participates. -/
+def combineAssignments {logicalWidth : Nat} :
+    {count : Nat} ->
+      (Fin count -> RingF) ->
+      (Fin count -> CarrierAction.CompleteAssignment logicalWidth) ->
+      CarrierAction.CompleteAssignment logicalWidth
+  | 0, _, _ => BaseLinear.Raw.assignmentZero
+  | _ + 1, challenges, assignments =>
+      BaseLinear.Raw.assignmentAdd
+        (CarrierAction.act (challenges 0) (assignments 0))
+        (combineAssignments
+          (fun index => challenges index.succ)
+          (fun index => assignments index.succ))
+
+end Raw
+
+/-- Canonical head-first finite `RingF` combination at the typed relation
+boundary. Keeping this owner typed prevents unrelated relation dimensions from
+being inferred by downstream protocol proofs. -/
 def combineAssignments {shape : Shape} :
     {count : Nat} ->
       (Fin count -> RingF) ->
@@ -56,6 +78,24 @@ def combineAssignments {shape : Shape} :
         (combineAssignments
           (fun index => challenges index.succ)
           (fun index => assignments index.succ))
+
+/-- The width-only assignment fold is exactly the typed relation fold. The
+packed-output candidate may therefore reason independently over the raw
+carrier without introducing a second ΠRLC transition. -/
+theorem raw_combineAssignments_eq
+    {shape : Shape} {count : Nat}
+    (challenges : Fin count -> RingF)
+    (assignments : Fin count -> Assignment shape) :
+    Raw.combineAssignments challenges assignments =
+      combineAssignments challenges assignments := by
+  induction count with
+  | zero => rfl
+  | succ count inductionHypothesis =>
+      simp only [Raw.combineAssignments, combineAssignments]
+      rw [inductionHypothesis
+        (fun index => challenges index.succ)
+        (fun index => assignments index.succ)]
+      rfl
 
 /-- The identical head-first finite challenge combination on one `RingK`
 evaluation. -/
@@ -109,14 +149,30 @@ theorem matrixEvaluation_combine
   | zero =>
       exact BaseLinear.matrixEvaluation_zero system point matrix
   | succ count inductionHypothesis =>
-      rw [combineAssignments, combineEvaluation,
-        BaseLinear.matrixEvaluation_add,
-        PiRLC.matrixEvaluation_act system (challenges 0)
-          (PiRLC.productOrderLaw (challenges 0))]
-      rw [inductionHypothesis
-          (fun index => challenges index.succ)
-          (fun index => assignments index.succ)]
-      rfl
+      rw [combineAssignments, combineEvaluation]
+      calc
+        matrixEvaluation system
+            (BaseLinear.assignmentAdd
+              (CarrierAction.act (challenges 0) (assignments 0))
+              (combineAssignments
+                (fun index => challenges index.succ)
+                (fun index => assignments index.succ)))
+            point matrix =
+          BaseLinear.evaluationAdd
+            (matrixEvaluation system
+              (CarrierAction.act (challenges 0) (assignments 0)) point matrix)
+            (matrixEvaluation system
+              (combineAssignments
+                (fun index => challenges index.succ)
+                (fun index => assignments index.succ)) point matrix) :=
+          BaseLinear.matrixEvaluation_add system _ _ point matrix
+        _ = _ := by
+          rw [PiRLC.matrixEvaluation_act system (challenges 0)
+            (PiRLC.productOrderLaw (challenges 0))]
+          rw [inductionHypothesis
+              (fun index => challenges index.succ)
+              (fun index => assignments index.succ)]
+          rfl
 
 /-- Array-level finite evaluation law: every canonical matrix and all 54
 lanes use the same challenge sequence as the complete assignment. -/

@@ -29,6 +29,8 @@ open Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism
 #check PiRLC.matrixEvaluation_act
 #check PiRLC.evaluations_act
 #check PiRLCFinite.combineAssignments
+#check PiRLCFinite.Raw.combineAssignments
+#check PiRLCFinite.raw_combineAssignments_eq
 #check PiRLCFinite.combineEvaluation
 #check PiRLCFinite.combineEvaluations
 #check PiRLCFinite.matrixEvaluation_combine

@@ -50,6 +50,92 @@ generated shards directly. Correspondence modules may consume an exact
 single-file generated artifact or an `Ownership` assembly. A generated module
 contains data, never the semantic conclusion that data is intended to support.
 
+## Proof ownership trees
+
+Protocol-critical components mirror the review path in their module tree:
+
+```text
+protocol
+└── phase
+    └── constraint or theorem family
+        └── equation/proof leaf
+```
+
+This is an ownership tree, not a requirement for one file per equation.
+A leaf should contain the smallest coherent family whose equations share the
+same mathematical owner and implementation emitter. Parent modules import
+their immediate children and document the boundary they compose; they should
+not become editable status ledgers or alternate acceptance predicates.
+
+Some constraints have two legitimate ownership axes. For example,
+`paper/nifs/circuit/pi_rlc` owns protocol execution and cost phases, while
+`paper/reductions/pi_rlc_circuit` owns the reusable arithmetic emitters by
+claim type. Keep those trees separate. Their parent tables must map every cost
+leaf to exactly one arithmetic owner and Lean theorem; neither tree may copy
+the other's equations merely to make the directories look identical.
+
+Every protocol-critical parent states:
+
+| Field | Meaning |
+|---|---|
+| child path | stable protocol or implementation stage |
+| mathematical obligation | property owned by that child |
+| excluded boundary | property deliberately owned elsewhere |
+
+Every constraint-emitting or artifact-refining leaf states:
+
+| Field | Meaning |
+|---|---|
+| stage path | stable protocol → phase → family address |
+| equation or obligation | exact mathematical fact represented |
+| authority class | checked, computed, direct dataflow, derived, or security boundary |
+| physical owner | Rust emitter, generated piece, or row family |
+| Lean owner | soundness, completeness, or necessity theorem |
+| multiplicity | symbolic formula; fixed-profile counts remain generated or mechanically checked |
+
+Headers also state `Owns`, `Does not own`, and `Emits constraints`. Exact
+measured totals stay in generated manifests and reconciliation tests rather
+than duplicated handwritten comments.
+
+`scripts/check-proof-ownership-contracts.sh` enforces this header/table
+contract for the independent paper-joint and Split-NC models, the active
+ConcretePhi81 F-prime/NIFS spine, Phi81 evaluation homomorphisms, delayed NC
+authority, Pi_RLC correspondence and sampler, gadget-native lowering, and
+arithmetic-owner trees. It also rejects
+editable `Status` columns in Lean source headers: completion evidence belongs
+in property specifications and assurance records. The scope is intentional:
+trivial modules elsewhere do not gain ceremonial headers merely to satisfy a
+repository-wide text rule.
+
+### Structural closure gate
+
+An active protocol-critical slice is structurally closed only when:
+
+- one parent module imports its immediate semantic, artifact-schema, and
+  refinement children;
+- the project-level barrel imports that parent rather than enumerating its
+  leaves;
+- generated data depends only on artifact-owned types, never on handwritten
+  correspondence modules;
+- a focused test checks the exported results and a fail-closed axiom test owns
+  their allowed assumptions; and
+- claimed degree, multiplicity, and row counts are derived from generated data
+  or reconciled traces, not restated as handwritten constants.
+
+This gate applies one review path at a time. File-count reduction is not by
+itself a goal: merge modules only after a closed bridge shows that they no
+longer own distinct definitions or theorems. Conversely, do not keep
+tautological mutation tests, editable status inventories, or proof wrappers
+that merely rename an unchecked predicate.
+
+For inclusion-minimality, the counterexample carrier must contain every input
+field that a removed family may change. A pointwise plan may fix an outer input
+while ranging only over a proposed output; that is sufficient for exactness,
+but it cannot honestly prove independent necessity of two checks whose truth
+is already fixed by that input. Global minimality modules therefore range over
+the complete typed input plus the proposed result, while local modules remain
+the smaller proof owners for one fixed input.
+
 ## Evidence boundaries
 
 The project distinguishes four increasingly strong claims:

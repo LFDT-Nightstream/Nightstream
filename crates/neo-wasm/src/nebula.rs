@@ -111,11 +111,25 @@ pub struct WasmNebulaProfile {
 
 impl WasmNebulaProfile {
     pub fn production() -> Self {
-        let memory = batched_memory_geometry(NebulaParams::v3_targets(), WASM_NEBULA_BATCH_SIZE);
+        Self::production_with_batch_size(WASM_NEBULA_BATCH_SIZE)
+    }
+
+    #[cfg(feature = "perf-timers")]
+    #[doc(hidden)]
+    /// Build an unbounded production-parameter timing profile with an explicit
+    /// instruction batch. This does not change the production default or imply
+    /// Road A width-budget compatibility.
+    pub fn production_with_profile_batch_size(batch_size: usize) -> Self {
+        assert!(batch_size > 0, "WASM Nebula profile batch size must be nonzero");
+        Self::production_with_batch_size(batch_size)
+    }
+
+    fn production_with_batch_size(batch_size: usize) -> Self {
+        let memory = batched_memory_geometry(NebulaParams::v3_targets(), batch_size);
         Self {
             memory,
             limits: WasmNebulaLimits::production(),
-            batch_size: WASM_NEBULA_BATCH_SIZE,
+            batch_size,
         }
     }
 

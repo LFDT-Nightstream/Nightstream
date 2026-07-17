@@ -391,7 +391,17 @@ fn wasm_nebula_pipeline_profile() {
     let terminal = proof.inner();
     let (running_claims, latest_instances) = match &terminal.state.proof {
         ProofState::Initial => (0, 0),
-        ProofState::Active { running, latest } => (running.claims.len(), latest.instances.len()),
+        ProofState::Active { running, latest } => {
+            let running_claims = match running.as_materialized() {
+                Some(running) => running.claims.len(),
+                None => running
+                    .materialize()
+                    .expect("materialize final running accumulator")
+                    .claims
+                    .len(),
+            };
+            (running_claims, latest.instances.len())
+        }
     };
     assert!(
         terminal.final_fold.is_some(),
@@ -445,14 +455,33 @@ fn wasm_nebula_pipeline_profile() {
     );
 }
 
-/// Builds the exact production relation and executes the first occurrence of
-/// every F' branch. The prefix is intentionally left open: a complete
-/// production memory segment contains 1,088 folds and is a separate endurance
-/// benchmark, not a prerequisite for measuring one real steady-state fold.
+/// Builds the production-parameter relation without enforcing the Road A width
+/// budget and executes the first occurrence of every F' branch. The prefix is
+/// intentionally left open: a complete production memory segment contains
+/// 1,088 folds and is a separate endurance benchmark.
 #[test]
 #[cfg(feature = "perf-timers")]
 #[ignore = "production kappa=18 fixed point plus three real folds; run explicitly"]
 fn wasm_nebula_production_prefix_profile() {
+    production_prefix_profile(neo_wasm::WasmNebulaProfile::production());
+}
+
+#[test]
+#[cfg(feature = "perf-timers")]
+#[ignore = "production kappa=18 batch-4 fixed point plus three real folds; run explicitly"]
+fn wasm_nebula_production_batch_4_prefix_profile() {
+    production_prefix_profile(neo_wasm::WasmNebulaProfile::production_with_profile_batch_size(4));
+}
+
+#[test]
+#[cfg(feature = "perf-timers")]
+#[ignore = "production kappa=18 batch-5 fixed point plus three real folds; run explicitly"]
+fn wasm_nebula_production_batch_5_prefix_profile() {
+    production_prefix_profile(neo_wasm::WasmNebulaProfile::production_with_profile_batch_size(5));
+}
+
+#[cfg(feature = "perf-timers")]
+fn production_prefix_profile(profile: neo_wasm::WasmNebulaProfile) {
     const PREFIX_FOLDS: usize = 3;
 
     let wall_started = Instant::now();
@@ -464,7 +493,6 @@ fn wasm_nebula_production_prefix_profile() {
     let _witnesses = common::sanity_check_trace(&trace, &artifacts, &run.initial_locals);
     common::ccs_check_trace(&trace);
 
-    let profile = neo_wasm::WasmNebulaProfile::production();
     let params = Params::for_ccs_shape_with(
         ROAD_A_COMMITTED_BIT_BUDGET,
         13,
@@ -478,7 +506,6 @@ fn wasm_nebula_production_prefix_profile() {
     assert_eq!(params.b(), 2);
     assert_eq!(params.big_b(), 1 << 14);
     assert_eq!(params.T(), 216);
-    assert_eq!(profile.batch_size(), 3);
     assert_eq!(profile.memory().rom_cells(), 4_096);
     assert_eq!(profile.memory().ram_cells(), 65_536);
     assert_eq!(profile.memory().steps_per_segment(), 1_088);
@@ -511,7 +538,7 @@ fn wasm_nebula_production_prefix_profile() {
     assert_eq!(structure.max_degree(), 8);
     assert_eq!(width.total_coordinates.div_ceil(D) * D, structure.m);
 
-    println!("\n== WASM + Nebula exact production prefix profile ==");
+    println!("\n== WASM + Nebula unbounded production-parameter prefix profile ==");
     println!(
         "parameters               kappa={} k_rho={} b={} B={} T={} lambda={} s={}",
         params.kappa(),
@@ -635,16 +662,19 @@ fn wasm_nebula_production_prefix_profile() {
 
     let segment_steps = profile.memory().steps_per_segment();
     let naive_segment_projection = prefix_elapsed.mul_f64(segment_steps as f64 / PREFIX_FOLDS as f64);
-    println!("\n-- exact production timing --");
+    println!("\n-- unbounded production-parameter timing --");
     println!("fixed-point preprocess     {:>12.2}ms", ms(preprocess_elapsed));
     println!("segment witness build      {:>12.2}ms", ms(segment_build_elapsed));
-    println!("three-fold prefix          {:>12.2}ms", ms(prefix_elapsed));
+    println!("three-fold prefix*         {:>12.2}ms", ms(prefix_elapsed));
     println!(
-        "mean observed fold        {:>12.2}ms",
+        "mean prefix wall / fold*  {:>12.2}ms",
         ms(prefix_elapsed) / PREFIX_FOLDS as f64
     );
     println!(
-        "naive 1,088-fold projection {:>10.2}ms ({:.2}h)",
+        "* includes one full {segment_steps}-step lane precommit; per-step timers are the branch-latency measurements"
+    );
+    println!(
+        "naive projection (overcounts precommit) {:>10.2}ms ({:.2}h)",
         ms(naive_segment_projection),
         naive_segment_projection.as_secs_f64() / 3_600.0,
     );

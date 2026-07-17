@@ -106,6 +106,13 @@ module is built; the aggregate entrypoint imports all ownership groups.
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Folding.PiCCS.OutputClaims.EvaluationHomomorphism.BaseLinear.canonicalYZcol_product_piDec_transport
 
+/-! Necessity of an expanded-witness `Pi_RLC` sidecar model. -/
+
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.OutputClaims.EvaluationHomomorphism.Necessity.FlatColumnAction.flatColumnProjection_not_actionHom' depends on axioms: [propext,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Folding.PiCCS.OutputClaims.EvaluationHomomorphism.Necessity.FlatColumnAction.flatColumnProjection_not_actionHom
+
 /-! Combined-parent `PiDEC` opening authority for `yZcol`. -/
 
 /-- info: 'Nightstream.SuperNeo.Folding.PiCCS.OutputClaims.EvaluationHomomorphism.Authority.PiDECParentOpening.parentAssignment_eq_recompose_or_bindingCollision' depends on axioms: [propext,
@@ -367,30 +374,6 @@ module is built; the aggregate entrypoint imports all ownership groups.
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Folding.Nifs.sharedPaperNifsTransition_iff_paperNifsTransition
 
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.piCcsAlpha_is_coverageGap' depends on axioms: [propext] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.piCcsAlpha_is_coverageGap
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.piCcsGamma_is_coverageGap' depends on axioms: [propext] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.piCcsGamma_is_coverageGap
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.sumCheckPolynomialEncoding_is_coverageGap' depends on axioms: [propext] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.sumCheckPolynomialEncoding_is_coverageGap
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.sumCheckChallengePointLink_is_coverageGap' depends on axioms: [propext] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.sumCheckChallengePointLink_is_coverageGap
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.piRlcBoundedSampler_is_coverageGap' depends on axioms: [propext] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.piRlcBoundedSampler_is_coverageGap
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.coverageStatus_eq_incomplete' does not depend on any axioms -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.coverageStatus_eq_incomplete
-
 /-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.Replay.accepts_materializeFrom' does not depend on any axioms -/
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.Replay.accepts_materializeFrom
@@ -433,6 +416,12 @@ module is built; the aggregate entrypoint imports all ownership groups.
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.available_excludes_shortfall
+
+/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.available_or_exists_shortfall' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.available_or_exists_shortfall
 
 /-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.responseRefinesAt_implies_reference_within' depends on axioms: [propext] -/
 #guard_msgs in
@@ -529,14 +518,6 @@ module is built; the aggregate entrypoint imports all ownership groups.
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.replayBoundExecution_of_core_and_carrierAgreement
 
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.piCcsNcTerminalSidecar_is_coverageGap' depends on axioms: [propext] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.piCcsNcTerminalSidecar_is_coverageGap
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.piCcsSplitCoins_is_coverageGap' depends on axioms: [propext] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.piCcsSplitCoins_is_coverageGap
-
 /-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.eraseResponses_canonicalEvents' depends on axioms: [propext] -/
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.eraseResponses_canonicalEvents
@@ -559,18 +540,6 @@ module is built; the aggregate entrypoint imports all ownership groups.
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.replayBoundAttempt_of_core_and_carrierAgreement
 
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.piCcsJointQSplitRefinement_is_coverageGap' depends on axioms: [propext] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.piCcsJointQSplitRefinement_is_coverageGap
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.piCcsOutputProjectionSufficiency_is_coverageGap' depends on axioms: [propext] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.piCcsOutputProjectionSufficiency_is_coverageGap
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.concreteTranscriptEncoding_is_coverageGap' depends on axioms: [propext] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.concreteTranscriptEncoding_is_coverageGap
-
 /-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.canonicalEvents_replaceFeEnvelope' does not depend on any axioms -/
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.canonicalEvents_replaceFeEnvelope
@@ -586,3 +555,7 @@ module is built; the aggregate entrypoint imports all ownership groups.
 /-- info: 'Nightstream.SuperNeo.ProjectionCheck.batchAccepted_implies_exact_or_badRoot' depends on axioms: [propext] -/
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.ProjectionCheck.batchAccepted_implies_exact_or_badRoot
+
+/-- info: 'Nightstream.SuperNeo.Folding.PiDEC.Accepted.parent_eq_of_children_eq' depends on axioms: [propext] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Folding.PiDEC.Accepted.parent_eq_of_children_eq

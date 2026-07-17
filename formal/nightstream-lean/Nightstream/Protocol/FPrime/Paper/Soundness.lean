@@ -1,4 +1,4 @@
-import Nightstream.Protocol.FPrime.Paper.MinimalVerifier
+import Nightstream.Protocol.FPrime.Paper.CertificateVerifier
 
 /-!
 Knowledge-soundness boundary for the certificate-oriented recursive verifier.

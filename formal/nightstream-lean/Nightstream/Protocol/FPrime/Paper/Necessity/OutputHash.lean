@@ -1,4 +1,4 @@
-import Nightstream.Protocol.FPrime.Paper.MinimalVerifier
+import Nightstream.Protocol.FPrime.Paper.CertificateVerifier
 
 /-!
 Protocol-level necessity of the `F'_j` output-hash obligation.
@@ -177,7 +177,7 @@ theorem forged_rejected_by_fullVerifier
       family machine functionIndex input output certificate)
     {forged : Digest}
     (different : forged ≠ output.x) :
-    Not (MinimalRecursiveVerifierAccepts family machine functionIndex input
+    Not (CertificateRecursiveVerifierAccepts family machine functionIndex input
       (replaceDigest output forged)) := by
   intro forgedAccepted
   rcases forgedAccepted with ⟨_, forgedOuter⟩
@@ -203,7 +203,7 @@ theorem outputHash_is_necessary
     AcceptsWithoutOutputHash family machine functionIndex input
         (replaceDigest output forged)
         (replaceDigestCertificate certificate forged) /\
-      Not (MinimalRecursiveVerifierAccepts family machine functionIndex input
+      Not (CertificateRecursiveVerifierAccepts family machine functionIndex input
         (replaceDigest output forged)) := by
   exact ⟨forged_accepts_withoutOutputHash accepted forged,
     forged_rejected_by_fullVerifier accepted different⟩

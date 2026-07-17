@@ -25,6 +25,7 @@ function or terminal identity enters the construction.
 | SumCheck phase | Derived object | Exact mathematical meaning |
 |---|---|---|
 | initial | `sumCompletions q [] n` | sum of `q` over all `n` Boolean coordinates |
+| product split | `sumCompletions_add` | split one cube into an explicit prefix cube followed by a suffix cube |
 | round | `expectedPolynomialsFrom` | fix prior challenges, expose one variable, sum remaining Boolean suffixes |
 | terminal | `q challenges` | evaluate the same explicit polynomial at the full challenge vector |
 | truth path | `semanticGhosts_honest` | every expected sum/forwarding/terminal equation holds |
@@ -45,6 +46,27 @@ def sumCompletions
       ops.add
         (sumCompletions ops polynomial (fixed ++ [ops.zero]) remaining)
         (sumCompletions ops polynomial (fixed ++ [ops.one]) remaining)
+
+/-- Split a Boolean-completion cube into an outer prefix domain followed by an
+inner suffix domain. This is structural: both sides enumerate the same branch
+tree in the same order, so no field or commutativity laws are required. -/
+theorem sumCompletions_add
+    {Field : Type uField}
+    (ops : Ops Field)
+    (polynomial : List Field -> Field)
+    (fixed : List Field)
+    (prefixVariables suffixVariables : Nat) :
+    sumCompletions ops polynomial fixed
+        (prefixVariables + suffixVariables) =
+      sumCompletions ops
+        (fun extended =>
+          sumCompletions ops polynomial extended suffixVariables)
+        fixed prefixVariables := by
+  induction prefixVariables generalizing fixed with
+  | zero => simp [sumCompletions]
+  | succ prefixVariables inductionHypothesis =>
+      simp only [Nat.succ_add, sumCompletions]
+      rw [inductionHypothesis, inductionHypothesis]
 
 /-- Exact expected round polynomials after fixing the preceding verifier
 challenges. The list has one semantic polynomial per challenge. -/

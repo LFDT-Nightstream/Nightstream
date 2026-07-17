@@ -47,9 +47,11 @@ def legacyAssignment : LegacyAssignment dimensions :=
 
 def legacyMatrices : Fin dimensions.matrixCount ->
     BooleanMatrix F dimensions.rowVariables dimensions.legacyLogicalWidth :=
-  fun _ _ column =>
-    if column.val = 0 then 4
-    else if column.val = 257 then 9
+  fun _ vertex column =>
+    if rowIndex vertex = 2 then
+      if column.val = 0 then 4
+      else if column.val = 257 then 9
+      else 0
     else 0
 
 /-- Identity in the sole matrix-image variable, so the residual depends on
@@ -72,7 +74,21 @@ def legacyStructure : LegacyStructure dimensions where
   constraintPolynomial := identityPolynomial
 
 def numericRowTwo : Fin (2 ^ dimensions.rowVariables) := ⟨2, by decide⟩
+def numericRowZero : Fin (2 ^ dimensions.rowVariables) := ⟨0, by decide⟩
 def matrixZero : Fin dimensions.matrixCount := ⟨0, by decide⟩
+def columnZero : Fin dimensions.legacyLogicalWidth := ⟨0, by decide⟩
+
+/-- The fixture is genuinely row-sensitive: it exercises little-endian row
+decoding instead of making the numeric-row regression true for every row. -/
+example :
+    legacyMatrices matrixZero
+        (rowVertex dimensions.rowVariables numericRowTwo) columnZero = 4 := by
+  decide
+
+example :
+    legacyMatrices matrixZero
+        (rowVertex dimensions.rowVariables numericRowZero) columnZero = 0 := by
+  decide
 
 example :
     matrixVectorAt ConcreteCarrier.baseOps

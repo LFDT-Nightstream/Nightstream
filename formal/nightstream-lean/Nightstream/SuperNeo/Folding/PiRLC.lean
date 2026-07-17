@@ -78,8 +78,12 @@ structure Attempt
   challenges : Fin arity.total → Scalar
   output : CE.Instance Structure PublicInput Point Evaluation Commitment
 
-/-- Exact verifier equations for Π_RLC. Every public component uses the same challenges. -/
-structure Accepted
+/-- Exact public Π_RLC equations, excluding challenge-set membership.
+
+This separation matters for noninteractive verification: a transcript sampler
+may derive membership from replay, so membership must not be duplicated as an
+independent checked obligation. -/
+structure Equations
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
     {PublicInput : Type uPublicInput}
@@ -99,7 +103,6 @@ structure Accepted
   sameStructure : ∀ i,
     (attempt.inputs i).constraintSystem = attempt.output.constraintSystem
   samePoint : ∀ i, (attempt.inputs i).point = attempt.output.point
-  challengesValid : ∀ i, algebra.challengeValid (attempt.challenges i)
   outputCombined : attempt.output.stage = .combined
   commitmentEquation :
     attempt.output.commitment =
@@ -113,6 +116,55 @@ structure Accepted
     attempt.output.evaluations =
       algebra.combineEvaluations attempt.challenges
         (fun i => (attempt.inputs i).evaluations)
+
+/-- Complete Π_RLC verifier acceptance. Challenge membership is semantically
+required, but a concrete noninteractive verifier should derive it from its
+sampler replay rather than check a second prover-controlled assertion. -/
+structure Accepted
+    {Structure : Type uStructure}
+    {Assignment : Type uAssignment}
+    {PublicInput : Type uPublicInput}
+    {Point : Type uPoint}
+    {Evaluation : Type uEvaluation}
+    {Commitment : Type uCommitment}
+    {Scalar : Type uScalar}
+    {semantics : RelationSemantics
+      Structure Assignment PublicInput Point Evaluation Commitment}
+    {params : GlobalParams}
+    {arity : BatchArity params}
+    (algebra : Algebra
+      Structure Assignment PublicInput Point Evaluation Commitment Scalar semantics params)
+    (attempt : Attempt
+      Structure PublicInput Point Evaluation Commitment Scalar params arity)
+    : Prop extends Equations algebra attempt where
+  challengesValid : ∀ i, algebra.challengeValid (attempt.challenges i)
+
+namespace Equations
+
+/-- Assemble complete Π_RLC acceptance once challenge membership has been
+derived by the owning authority boundary. -/
+def withChallengesValid
+    {Structure : Type uStructure}
+    {Assignment : Type uAssignment}
+    {PublicInput : Type uPublicInput}
+    {Point : Type uPoint}
+    {Evaluation : Type uEvaluation}
+    {Commitment : Type uCommitment}
+    {Scalar : Type uScalar}
+    {semantics : RelationSemantics
+      Structure Assignment PublicInput Point Evaluation Commitment}
+    {params : GlobalParams}
+    {arity : BatchArity params}
+    {algebra : Algebra
+      Structure Assignment PublicInput Point Evaluation Commitment Scalar semantics params}
+    {attempt : Attempt
+      Structure PublicInput Point Evaluation Commitment Scalar params arity}
+    (equations : Equations algebra attempt)
+    (challengesValid : ∀ i, algebra.challengeValid (attempt.challenges i)) :
+    Accepted algebra attempt :=
+  { equations with challengesValid := challengesValid }
+
+end Equations
 
 /-- The verifier-computed combined CE statement. -/
 def combinedOutput

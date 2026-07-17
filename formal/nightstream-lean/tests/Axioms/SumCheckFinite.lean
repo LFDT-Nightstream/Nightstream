@@ -19,6 +19,7 @@ root counting, or any implementation/R1CS theorem.
 | `check_eq_true_iff_accepted` | executable replay exactly matches the finite relation |
 | `complete_of_canonical_chain` | every accepted finite chain executes successfully |
 | `Chain.messages_length_eq_challenges_length` | accepted finite chains consume messages and challenges in lockstep |
+| `HypercubeTruth.sumCompletions_add` | a Boolean cube splits structurally into explicit prefix and suffix cubes |
 | `HypercubeTruth.semanticGhosts_honest` | expected rounds and terminal are derived from one explicit polynomial |
 | `accepted_implies_symbolicAccepted_and_truthPath` | finite replay projects into the symbolic model with honest ghosts |
 -/
@@ -40,6 +41,10 @@ open Nightstream.SuperNeo.SumCheck.Finite
 /-- info: 'Nightstream.SuperNeo.SumCheck.Finite.Chain.messages_length_eq_challenges_length' depends on axioms: [propext] -/
 #guard_msgs in
 #audit_axioms Chain.messages_length_eq_challenges_length
+
+/-- info: 'Nightstream.SuperNeo.SumCheck.Finite.HypercubeTruth.sumCompletions_add' depends on axioms: [propext] -/
+#guard_msgs in
+#audit_axioms HypercubeTruth.sumCompletions_add
 
 /-- info: 'Nightstream.SuperNeo.SumCheck.Finite.HypercubeTruth.semanticGhosts_honest' depends on axioms: [propext,
  Classical.choice,

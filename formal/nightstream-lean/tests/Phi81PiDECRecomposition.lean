@@ -34,6 +34,8 @@ open Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra
 #check PublicInput.projectPublicInput_combine
 #check PublicInput.projectPublicInput_recompose
 #check PublicInput.relation_publicInput_hom
+#check EvaluationHomomorphism.PiDEC.Raw.recomposeAssignment
+#check EvaluationHomomorphism.PiDEC.raw_recomposeAssignment_eq
 #check Algebra.concrete
 #check Algebra.concrete_splitAssignment
 #check Algebra.concrete_recomposeAssignment

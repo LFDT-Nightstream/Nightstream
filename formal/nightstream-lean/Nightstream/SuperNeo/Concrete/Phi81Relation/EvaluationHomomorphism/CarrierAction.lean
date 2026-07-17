@@ -7,8 +7,8 @@ Protocol: SuperNeo Theorem 5, assignment-side `RingF` action.
 Phase: complete 54-lane carrier block to derived Phi81 coefficient image.
 Constraint family: semantic coefficient algebra only; this file emits no rows.
 
-Owns: the exact complete-carrier block/lane inverse; the fixed blockwise
-`Concrete.ringFMul` action; base-field bilinearity of that multiplication;
+Owns: reuse of the canonical complete-carrier block/lane inverse; the fixed
+blockwise `Concrete.ringFMul` action; base-field bilinearity of that multiplication;
 finite monomial reconstruction of every `RingF` value; and extension of the
 canonical basis-defined `phi81Kernel` image to multiplication by `barBasis`.
 
@@ -28,7 +28,7 @@ conformance or the quotient-ring law later proved in `RingFLaws`.
 
 | Stage path | Mathematical obligation | Authority class | Lean owner |
 |---|---|---|---|
-| `nifs.pi_rlc.verify.assignment_action.carrier.decode` | flattening and decoding are exact inverses | computed | `decode_carrierColumn` |
+| `nifs.pi_rlc.verify.assignment_action.carrier.decode` | reuse `Phi81CarrierLayout.carrierColumn`; flattening and decoding are exact inverses | computed | `carrierColumn`, `decode_carrierColumn` |
 | `nifs.pi_rlc.verify.assignment_action.block` | one 54-lane block uses the fixed `Concrete.ringFMul` action | computed | `assignmentBlock_act` |
 | `nifs.pi_rlc.verify.assignment_action.ringf.linearity` | executable multiplication is additive and base-`F` scalable in both inputs | derived | `ringFMul_add_left`, `ringFMul_add_right`, `ringFMul_scale_left`, `ringFMul_scale_right` |
 | `nifs.pi_rlc.verify.assignment_action.kernel_image` | the canonical basis-defined coefficient image extends exactly to `barBasis * block` | derived | `kernelImage_eq_ringFMul` |
@@ -50,44 +50,48 @@ set_option maxHeartbeats 2000000
 def ringFScale (scalar : F) (value : RingF) : RingF :=
   fun lane => scalar * value lane
 
-/-- The complete carrier column owned by one block/lane pair. -/
-def carrierColumn {shape : Shape}
-    (block : Fin (Phi81ColumnLayout.blockCount shape.carrierWidth))
-    (lane : Fin ringDegree) : Fin shape.carrierWidth :=
-  ⟨Phi81ColumnLayout.flatIndex block lane,
-    Phi81CarrierLayout.flatIndex_lt_carrierWidth block lane⟩
+/-- A complete assignment depends only on the logical width and its canonical
+Phi81 completion, not on public-input or matrix dimensions. -/
+abbrev CompleteAssignment (logicalWidth : Nat) :=
+  PaperLinearAlgebra.Assignment F
+    (Phi81CarrierLayout.carrierWidth logicalWidth)
+
+/-- The complete carrier column owned by one block/lane pair. This is the
+canonical layout owner shared with the independent Split-NC semantics. -/
+abbrev carrierColumn {logicalWidth : Nat} :=
+  @Phi81CarrierLayout.carrierColumn logicalWidth
 
 /-- Read one complete 54-lane assignment block. -/
-def assignmentBlock {shape : Shape}
-    (assignment : Assignment shape)
-    (block : Fin (Phi81ColumnLayout.blockCount shape.carrierWidth)) : RingF :=
+def assignmentBlock {logicalWidth : Nat}
+    (assignment : CompleteAssignment logicalWidth)
+    (block : Fin (Phi81ColumnLayout.blockCount
+      (Phi81CarrierLayout.carrierWidth logicalWidth))) : RingF :=
   fun lane => assignment (carrierColumn block lane)
 
 /-- Fixed blockwise `RingF` action on the complete assignment carrier. -/
-def act {shape : Shape}
-    (challenge : RingF) (assignment : Assignment shape) : Assignment shape :=
+def act {logicalWidth : Nat}
+    (challenge : RingF) (assignment : CompleteAssignment logicalWidth) :
+    CompleteAssignment logicalWidth :=
   fun column =>
     let packed := Phi81ColumnLayout.decode column
     ringFMul challenge (assignmentBlock assignment packed.1) packed.2
 
 /-- Complete-carrier flattening followed by decoding recovers the exact
 block/lane pair. -/
-theorem decode_carrierColumn {shape : Shape}
-    (block : Fin (Phi81ColumnLayout.blockCount shape.carrierWidth))
+theorem decode_carrierColumn {logicalWidth : Nat}
+    (block : Fin (Phi81ColumnLayout.blockCount
+      (Phi81CarrierLayout.carrierWidth logicalWidth)))
     (lane : Fin ringDegree) :
     Phi81ColumnLayout.decode (carrierColumn block lane) = (block, lane) := by
-  apply Phi81ColumnLayout.decode_encode
-  simpa [carrierColumn, Phi81CarrierLayout.layout,
-    MatrixCoefficientSource.RingColumnLayout.encode?] using
-    (Phi81CarrierLayout.layout_encode?_isSome
-      (logicalWidth := shape.logicalWidth) block lane)
+  exact Phi81CarrierLayout.decode_carrierColumn block lane
 
 /-- Acting on a complete assignment and reading one block is exactly one
 application of the fixed Phi81 multiplication. No padding/default case is
 possible. -/
-theorem assignmentBlock_act {shape : Shape}
-    (challenge : RingF) (assignment : Assignment shape)
-    (block : Fin (Phi81ColumnLayout.blockCount shape.carrierWidth)) :
+theorem assignmentBlock_act {logicalWidth : Nat}
+    (challenge : RingF) (assignment : CompleteAssignment logicalWidth)
+    (block : Fin (Phi81ColumnLayout.blockCount
+      (Phi81CarrierLayout.carrierWidth logicalWidth))) :
     assignmentBlock (act challenge assignment) block =
       ringFMul challenge (assignmentBlock assignment block) := by
   funext lane

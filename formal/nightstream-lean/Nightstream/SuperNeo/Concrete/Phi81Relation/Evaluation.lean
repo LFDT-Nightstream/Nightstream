@@ -29,6 +29,7 @@ Neither array packing nor the adapter introduces another evaluation formula.
 | carried CE | one matrix | 54 coefficient lanes | `matrixEvaluation` is the sole Phi81 leaf at every lane |
 | carried CE | output product | matrix order | `evaluations` uses canonical `Fin matrixCount` order |
 | assurance | array shape | size / indexed read | every declared matrix occurs exactly once |
+| `Pi_CCS` input handoff | prior source adapter | public prior point / running assignment | relation evaluation equals the same source-derived `yRing` leaf |
 | `Pi_CCS` handoff | source adapter | fresh and running counts | `canonicalYRing` equals the same relation leaf independently of batch arity |
 -/
 
@@ -105,6 +106,49 @@ def Structure.ofSourceData
   matrices := data.matrices
   constraintPolynomial := data.constraintPolynomial
 
+/-- Batch-free relation evaluation and the Split-NC source evaluator are the
+same leaf at an arbitrary row point. This is the input-side adapter used for
+running CE statements before any new output point exists. -/
+theorem matrixEvaluation_apply_ofSourceData_atRow
+    {batchShape : SemanticShape}
+    (publicRingColumns : Nat)
+    (publicFits :
+      ringDegree * publicRingColumns <= batchShape.carrierWidth)
+    (data : SplitNc.Sources.Data batchShape)
+    (row : CubePoint K batchShape.rowVariables)
+    (source : Fin batchShape.sourceCount)
+    (matrix : Fin batchShape.matrixCount)
+    (lane : Fin ringDegree) :
+    matrixEvaluation
+        (Structure.ofSourceData publicRingColumns publicFits data)
+        (data.assignment source) row matrix lane =
+      OutputClaims.yRingForAssignment data (data.assignment source) row
+        matrix lane := by
+  rfl
+
+/-- Array-indexed input-side form of
+`matrixEvaluation_apply_ofSourceData_atRow`. -/
+theorem evaluations_get_ofSourceData_atRow
+    {batchShape : SemanticShape}
+    (publicRingColumns : Nat)
+    (publicFits :
+      ringDegree * publicRingColumns <= batchShape.carrierWidth)
+    (data : SplitNc.Sources.Data batchShape)
+    (row : CubePoint K batchShape.rowVariables)
+    (source : Fin batchShape.sourceCount)
+    (matrix : Fin batchShape.matrixCount) :
+    (evaluations
+      (Structure.ofSourceData publicRingColumns publicFits data)
+      (data.assignment source) row)[matrix.val]'(by
+        simpa only [evaluations, Array.size_ofFn] using matrix.isLt) =
+      fun lane =>
+        OutputClaims.yRingForAssignment data (data.assignment source) row
+          matrix lane := by
+  rw [evaluations_get]
+  funext lane
+  exact matrixEvaluation_apply_ofSourceData_atRow
+    publicRingColumns publicFits data row source matrix lane
+
 /-- Lane-level adapter: fresh/running source counts do not change the derived
 Phi81 coefficient image. -/
 theorem matrixEvaluation_apply_ofSourceData
@@ -122,7 +166,8 @@ theorem matrixEvaluation_apply_ofSourceData
         (Structure.ofSourceData publicRingColumns publicFits data)
         (data.assignment source) points.rPrime matrix lane =
       canonicalYRing data points source matrix lane := by
-  rfl
+  exact matrixEvaluation_apply_ofSourceData_atRow
+    publicRingColumns publicFits data points.rPrime source matrix lane
 
 /-- Ring-level form of the same adapter. -/
 theorem matrixEvaluation_ofSourceData

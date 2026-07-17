@@ -208,7 +208,8 @@ private theorem combineAssignments_apply {shape : Shape} {count : Nat}
   | zero => rfl
   | succ count inductionHypothesis =>
       simp only [BaseLinear.combineAssignments, BaseLinear.assignmentAdd,
-        BaseLinear.assignmentScale, combineScalars]
+        BaseLinear.assignmentScale, BaseLinear.Raw.assignmentAdd,
+        BaseLinear.Raw.assignmentScale, combineScalars]
       rw [inductionHypothesis]
 
 private theorem combineScalars_fieldOfNat {count : Nat}

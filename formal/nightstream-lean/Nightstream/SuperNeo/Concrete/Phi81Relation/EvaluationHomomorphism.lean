@@ -45,17 +45,17 @@ one-source matrix action is composed. `PiRLCFinite` then folds all sources in
 one head-first challenge order and proves the exact evaluation field. No caller
 supplies an algebra law or alternate evaluator.
 
-| Stage path | Child owner | Mathematical obligation | Status |
+| Stage path | Child owner | Mathematical guarantee | Excluded boundary |
 |---|---|---|---|
-| `nifs.pi_dec.verify.recomposition.evaluations` | `BaseLinear`, `PiDEC` | exact finite `F` combinations commute with every matrix and lane | proved |
-| `nifs.pi_dec.verify.algebra.evaluations_hom` | `PiDEC` | production `b = 2`, `k = 14` discharges the exact algebra field | proved |
-| `nifs.pi_rlc.verify.assignment_action` | `CarrierAction` | block action is fixed `ringFMul`; the basis-defined kernel extends to `barBasis * block` | proved |
-| `nifs.pi_rlc.verify.evaluation_action` | `RingKAction` | fixed-ring row action commutes with Boolean MLE | proved |
-| `nifs.pi_rlc.verify.evaluation_action.embedding` | `Embedding` | coefficientwise `RingF -> RingK` preserves executable multiplication | proved |
-| `nifs.pi_rlc.verify.evaluation_hom.ring_f.normal_form` | `RingFLaws` | executable multiplication of coefficient bases has the canonical Phi81 normal form | proved |
-| `nifs.pi_rlc.verify.evaluation_hom.product_order` | `RingFLaws` | reconcile `bar * (rho * z)` with `rho * (bar * z)` | proved |
-| `nifs.pi_rlc.verify.evaluation_hom.matrices` | `PiRLC` | one canonical source action commutes through every matrix evaluation | proved with `productOrderLaw` discharged |
-| `nifs.pi_rlc.verify.evaluation_hom.finite` | `PiRLCFinite` | combine every complete assignment and evaluation under the same head-first challenges | proved |
-| `nifs.pi_rlc.verify.evaluation_hom.algebra` | `PiRLCFinite` | exact evaluation-homomorphism field signature | proved |
-| `nifs.pi_rlc.verify.algebra.remaining` | `PiRLCAlgebra` | public input, commitment, strong challenges, and norm growth needed for a full algebra | owned by sibling construction tree |
+| `nifs.pi_dec.verify.recomposition.evaluations` | `BaseLinear`, `PiDEC` | exact finite `F` combinations commute with every matrix and lane | Rust/R1CS refinement |
+| `nifs.pi_dec.verify.algebra.evaluations_hom` | `PiDEC` | production `b = 2`, `k = 14` discharges the exact algebra field | Rust/R1CS refinement |
+| `nifs.pi_rlc.verify.assignment_action` | `CarrierAction` | block action is fixed `ringFMul`; the basis-defined kernel extends to `barBasis * block` | Rust/R1CS refinement |
+| `nifs.pi_rlc.verify.evaluation_action` | `RingKAction` | fixed-ring row action commutes with Boolean MLE | Rust/R1CS refinement |
+| `nifs.pi_rlc.verify.evaluation_action.embedding` | `Embedding` | coefficientwise `RingF -> RingK` preserves executable multiplication | Rust/R1CS refinement |
+| `nifs.pi_rlc.verify.evaluation_hom.ring_f.normal_form` | `RingFLaws` | executable multiplication of coefficient bases has the canonical Phi81 normal form | Rust/R1CS refinement |
+| `nifs.pi_rlc.verify.evaluation_hom.product_order` | `RingFLaws` | reconciles `bar * (rho * z)` with `rho * (bar * z)` | Rust/R1CS refinement |
+| `nifs.pi_rlc.verify.evaluation_hom.matrices` | `PiRLC` | one canonical source action commutes through every matrix evaluation | full algebra assembly and Rust/R1CS refinement |
+| `nifs.pi_rlc.verify.evaluation_hom.finite` | `PiRLCFinite` | combines every complete assignment and evaluation under the same head-first challenges | full algebra assembly and Rust/R1CS refinement |
+| `nifs.pi_rlc.verify.evaluation_hom.algebra` | `PiRLCFinite` | exact evaluation-homomorphism field signature | full algebra assembly and Rust/R1CS refinement |
+| `nifs.pi_rlc.verify.algebra.remaining` | `PiRLCAlgebra` | public input, commitment, strong challenges, and norm growth belong to the complete algebra | owned by the sibling construction tree |
 -/

@@ -25,6 +25,7 @@ check unfolds the full 54-lane schoolbook multiplier.
 |---|---|---|---|
 | `nifs.pi_rlc.verify.evaluation_hom.ring_f.raw_monomial` | raw convolution has exactly one live coefficient | symbolic fold / one-hot selection | no |
 | `nifs.pi_rlc.verify.evaluation_hom.ring_f.normal_form` | executable Phi81 reduction agrees with the canonical monomial image | symbolic coefficient reduction | no |
+| `nifs.pi_ccs.output.identity.constant_row` | the constant bar basis acts as the exact quotient-ring unit | finite-basis linear lift | no |
 | `nifs.pi_rlc.verify.evaluation_hom.ring_f.bar_commutation` | `bar * (rho * z) = rho * (bar * z)` | finite-basis lift from normal forms | no |
 -/
 
@@ -823,6 +824,44 @@ private theorem ringF_bilinear_eq_of_basis
     (fun scalar value => leftScaleLeft scalar value right)
     (fun scalar value => rightScaleLeft scalar value right)
     leftBasis left
+
+/-- The executable quotient multiplication has the expected left unit. The
+proof is a symbolic finite-basis lift from `ringFMul_basis_basis`; it does not
+unfold the multiplier for an arbitrary 54-lane value. -/
+theorem ringFMul_one_left (value : RingF) :
+    ringFMul ringFOne value = value := by
+  apply ringF_linear_eq_of_basis
+      (fun right => ringFMul ringFOne right) (fun right => right)
+  · exact CarrierAction.ringFMul_zero_right ringFOne
+  · rfl
+  · intro left right
+    exact CarrierAction.ringFMul_add_right ringFOne left right
+  · intro _ _
+    rfl
+  · intro scalar right
+    exact CarrierAction.ringFMul_scale_right ringFOne scalar right
+  · intro _ _
+    rfl
+  · intro index
+    let zero : Fin ringDegree := ⟨0, by decide⟩
+    have indexLt81 : index.val < 81 := by
+      have := index.isLt
+      simp only [ringDegree] at this
+      omega
+    have residue : index.val % 81 = index.val :=
+      Nat.mod_eq_of_lt indexLt81
+    change ringFMul (basis zero.val) (basis index.val) = basis index.val
+    rw [ringFMul_basis_basis zero index]
+    simp only [zero, Nat.zero_add]
+    simp [monomialReduce, residue, index.isLt]
+
+/-- The constant coefficient row of the canonical Phi81 kernel returns the
+authoritative assignment block unchanged. This is an algebraic identity only;
+an identity-matrix opening must still prove that it selects this row. -/
+theorem kernelImage_constant (block : RingF) :
+    CarrierAction.kernelImage Phi81CoefficientKernel.constant block = block := by
+  rw [CarrierAction.kernelImage_eq_ringFMul,
+    Phi81CoefficientKernel.barBasis_constant_eq_one, ringFMul_one_left]
 
 /-- Exact left-action commutation for the executable Phi81 quotient-ring
 multiplication. This is the strongest algebraic statement needed to reconcile

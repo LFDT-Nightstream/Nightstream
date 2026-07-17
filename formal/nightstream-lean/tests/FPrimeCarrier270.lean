@@ -11,6 +11,7 @@ Focused model-level regressions for the typed five-ring F' carrier.
 | F' / CCS | public projection | exact boundary | projection is the legacy prefix followed by fixed zeros |
 | F' / CCS | matrix source | aligned column ownership | old coefficients relocate injectively and padding is zero |
 | F' / CCS | matrix source | little-endian row order | numeric rows `0..3` decode as `00,10,01,11` |
+| F' / CCS | matrix source | finite-row padding | one actual row is preserved and the second Boolean row is zero |
 | F' / CCS | matrix evaluation | tensor weight | numeric formula equals the independent Boolean equality weight |
 | assurance | necessity | tail value one | relaxed boundary accepts it while fixed padding rejects it |
 -/
@@ -21,6 +22,7 @@ open Nightstream.SuperNeo.Concrete
 open Nightstream.SuperNeo.Concrete.Phi81Relation
 open Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270
 open Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.ColumnMap
+open Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.RowPadding
 
 #check dimensions_exact
 #check Dimensions.shape_publicRingColumns
@@ -39,6 +41,10 @@ open Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.ColumnMap
 #check rowIndex_rowVertex
 #check rowVertex_rowIndex
 #check productionTensorWeight_eq_equalityWeight
+#check padRows_at_numericRow
+#check padRows_atPadding
+#check padRows_oneRow_actual
+#check padRows_oneRow_padding
 #check tailOne_normBounded
 #check omittingFixedPadding_enlargesFreshBoundary
 
@@ -64,6 +70,23 @@ example :
       rowIndex (.cons false (.cons true .nil)),
       rowIndex (.cons true (.cons true .nil))] = [0, 1, 2, 3] := by
   decide
+
+/-! The model-level one-row specialization is exact: numeric row zero is
+preserved, while the remaining row in the one-variable Boolean cube is zero. -/
+
+def oneRowMatrix : NumericMatrix Nat 1 2 :=
+  fun _ column => column.val + 7
+
+example (column : Fin 2) :
+    padRows (rowVariables := 1) oneRowMatrix (rowVertex 1 ⟨0, by decide⟩)
+        column =
+      oneRowMatrix ⟨0, by decide⟩ column := by
+  exact padRows_oneRow_actual oneRowMatrix column
+
+example (column : Fin 2) :
+    padRows (rowVariables := 1) oneRowMatrix (rowVertex 1 ⟨1, by decide⟩)
+        column = 0 := by
+  exact padRows_oneRow_padding oneRowMatrix column
 
 /-- One private coordinate makes the fixture distinguish insertion from simple
 end padding. -/

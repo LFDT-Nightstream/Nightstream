@@ -9,9 +9,10 @@ verifier-owned extension-field point.
 Constraint family: semantic evaluation only; this file emits no rows.
 
 Owns: coefficientwise placement of a `RingF` challenge in `RingK`; exact
-right-linearity of the concrete `ringKMul`; lane-wise evaluation of a table of
-Phi81 ring rows; and the theorem that Boolean MLE commutes with multiplication
-by any fixed `RingK` element.
+right-linearity of the concrete `ringKMul`; zero/add/scale operations and
+lane-wise evaluation for Phi81 ring rows; and the theorem that Boolean MLE
+commutes with those linear operations and multiplication by any fixed
+`RingK` element.
 
 Does not own: the action of a `RingF` challenge on the complete assignment,
 the Phi81 coefficient-kernel action law, proof that coefficientwise embedding
@@ -30,6 +31,7 @@ linearity oracle. The challenge specialization uses only coefficientwise
 |---|---|---|---|
 | `nifs.pi_rlc.verify.evaluation_action.ringk.raw` | every raw-convolution coefficient is right-linear | derived | `rawMulCoeffK_zero`, `rawMulCoeffK_add`, `rawMulCoeffK_scale` |
 | `nifs.pi_rlc.verify.evaluation_action.ringk.reduction` | Phi81 reduction preserves right-linearity | derived | `ringKMul_right_zero`, `ringKMul_right_add`, `ringKMul_right_scale` |
+| `nifs.pi_rlc.verify.evaluation_action.mle.linear` | Boolean MLE preserves row-wise zero, addition, and extension scaling | derived | `evaluateRows_zero`, `evaluateRows_add`, `evaluateRows_scale` |
 | `nifs.pi_rlc.verify.evaluation_action.mle` | row-wise fixed `RingK` action commutes with all 54 evaluated lanes | derived | `evaluateRows_action` |
 | `nifs.pi_rlc.verify.evaluation_action.challenge_embed` | the MLE bridge accepts coefficientwise embedded `RingF` challenges | computed | `evaluateRows_embeddedChallenge_action` |
 -/
@@ -75,6 +77,55 @@ def evaluateRows {variables : Nat}
 def actRows {variables : Nat}
     (scalar : RingK) (rows : Rows variables) : Rows variables :=
   fun vertex => ringKMul scalar (rows vertex)
+
+/-- Canonical zero at every Boolean row. -/
+def zeroRows {variables : Nat} : Rows variables :=
+  fun _ => ringKZero
+
+/-- Add two ring-valued Boolean row tables coefficientwise. -/
+def addRows {variables : Nat}
+    (left right : Rows variables) : Rows variables :=
+  fun vertex => ringKAdd (left vertex) (right vertex)
+
+/-- Scale every ring-valued Boolean row by one extension-field scalar. -/
+def scaleRows {variables : Nat}
+    (scalar : K) (rows : Rows variables) : Rows variables :=
+  fun vertex => scale scalar (rows vertex)
+
+/-- Evaluation of the canonical zero row table is the zero `RingK` value. -/
+theorem evaluateRows_zero
+    {variables : Nat}
+    (point : CubePoint K variables) :
+    evaluateRows zeroRows point = ringKZero := by
+  funext lane
+  unfold evaluateRows zeroRows ringKZero
+  exact BaseLinear.evaluateTabulated_zero point
+
+/-- Ring-valued Boolean-row evaluation is additive. -/
+theorem evaluateRows_add
+    {variables : Nat}
+    (left right : Rows variables)
+    (point : CubePoint K variables) :
+    evaluateRows (addRows left right) point =
+      ringKAdd (evaluateRows left point) (evaluateRows right point) := by
+  funext lane
+  unfold evaluateRows addRows ringKAdd
+  exact BaseLinear.evaluateTabulated_add
+    (fun vertex => left vertex lane)
+    (fun vertex => right vertex lane) point
+
+/-- Ring-valued Boolean-row evaluation commutes with one fixed extension
+scalar. -/
+theorem evaluateRows_scale
+    {variables : Nat}
+    (scalar : K) (rows : Rows variables)
+    (point : CubePoint K variables) :
+    evaluateRows (scaleRows scalar rows) point =
+      scale scalar (evaluateRows rows point) := by
+  funext lane
+  unfold evaluateRows scaleRows scale
+  exact BaseLinear.evaluateTabulated_scale scalar
+    (fun vertex => rows vertex lane) point
 
 local instance : Std.Associative K.add :=
   ⟨ConcreteCarrier.extensionLaws.add_assoc⟩

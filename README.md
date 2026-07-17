@@ -144,7 +144,7 @@ remain standalone by design.
 | [`docs/architecture/`](docs/architecture/)                    | Design notes: terminal-CE proof, accumulator openings, perf   |
 | [`docs/audits/`](docs/audits/)                                | Internal soundness-audit reports                              |
 | [`docs/plans/`](docs/plans/)                                  | Design and implementation plans                               |
-| [`formal/superneo-lean/README.md`](formal/superneo-lean/README.md) | Lean theorem-facing model (mathematical source of truth) |
+| [`formal/nightstream-lean/README.md`](formal/nightstream-lean/README.md) | Active assurance-first Lean model and evidence boundaries |
 
 ### 2. Run Tests
 
@@ -214,13 +214,17 @@ For CPU/memory profiling see [`scripts/profile_for_ai.sh`](scripts/profile_for_a
 
 ### Formal (Lean)
 
-| Subproject                                                                 | Purpose                                                  |
-|-----------------------------------------------------------------------------|----------------------------------------------------------|
-| [`formal/superneo-lean/`](formal/superneo-lean/)                            | Main SuperNeo theorem-facing model (source of truth)     |
-| [`formal/direct-ccs-fprime-lean/`](formal/direct-ccs-fprime-lean/)          | Direct-CCS F′ model                                      |
-| [`formal/twist-shout-lean/`](formal/twist-shout-lean/)                      | Twist/Shout memory-argument model                        |
+[`formal/nightstream-lean/`](formal/nightstream-lean/) is the active formal
+project. Its specification, assurance tiers, generated-artifact policy, and
+validation commands are documented in that project's
+[`README.md`](formal/nightstream-lean/README.md) and
+[`AGENTS.md`](formal/nightstream-lean/AGENTS.md).
 
-See [`CLAUDE.md`](CLAUDE.md) for the spec/interface/implementation layout and closure standard.
+The sibling Lean packages under `formal/` are legacy reference material. The
+active project imports no theorem from them; any useful lemma or
+counterexample must be reviewed and re-established inside
+`formal/nightstream-lean` before it contributes assurance. Those directories
+are therefore not semantic authorities for Rust or R1CS changes.
 
 ---
 

@@ -65,8 +65,9 @@ CCS arithmetic happens over `F_q`, but commitments live over the ring
 the `bar(·)` lift satisfies `Mz = ct(bar(M)·z)` (Thm. 4), so field-level matrix-vector
 products are recoverable from ring-level products, and linear combinations of
 evaluations commute with the commitment's S-action (Thm. 5). In code:
-`neo_math::superneo_bar_*`, enforced at the seam by `paper/reductions/pi_rlc.rs`;
-formally cross-checked in `formal/superneo-lean`.
+`neo_math::superneo_bar_*`, enforced at the seam by `paper/reductions/pi_rlc.rs`.
+The maintained proof and Rust/R1CS refinement work lives in
+`formal/nightstream-lean`; sibling Lean projects are legacy references only.
 
 ## Engines
 

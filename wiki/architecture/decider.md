@@ -64,8 +64,9 @@ The R1CS gadget layer the decider composes lives in `engine/r1cs_circuit/` (buil
 booleans, u64s, mux, extension-field ops, Poseidon2, transcript, sum-check,
 ring-action, alphabet sampling) and the per-reduction verifier circuits in
 `paper/reductions/`: `pi_ccs_split_nc_circuit/` (Π_CCS verify split into
-field-evaluation and norm-check parts), `pi_rlc_circuit.rs`, `pi_dec_circuit.rs`, plus
-`paper/nifs/circuit.rs` composing them and `paper/f_prime/r1cs.rs` for the F′ step.
+field-evaluation and norm-check parts), `pi_rlc_circuit/`, `pi_dec_circuit.rs`, plus
+`paper/nifs/circuit/mod.rs` composing them, its `pi_rlc/` subtree owning the
+PiRLC phases, and `paper/f_prime/r1cs.rs` owning the F′ step.
 Each gadget family has a dedicated test target (`gadgets_*`, `reductions_*` — see
 [Testing](../development/testing.md)).
 

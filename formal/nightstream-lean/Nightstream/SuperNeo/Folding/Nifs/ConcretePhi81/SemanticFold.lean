@@ -216,7 +216,8 @@ structure Holds
       Phi81Relation.CEStatement
         (RelationShape shape publicRingColumns publicFits)
         (CommitmentValue verifierRows)) : Prop where
-  paper : SplitNc.Semantics.Paper.Holds data
+  paper :
+    Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Semantics.Paper.Holds data
   input : Input context data
   running : RunningAuthority.Accepted context
   witness : Witness context
@@ -232,7 +233,8 @@ theorem complete
     (context :
       Context shape State publicRingColumns publicFits verifierRows arity)
     (data : Data shape)
-    (paper : SplitNc.Semantics.Paper.Holds data)
+    (paper :
+      Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Semantics.Paper.Holds data)
     (input : Input context data)
     (running : RunningAuthority.Accepted context)
     (witness : Witness context)
@@ -298,15 +300,34 @@ theorem child_eq_childrenOf_of_holds
       _ = (semantics context.key).evaluations parent.constraintSystem
             ((decAlgebra context.key).splitAssignment assignment child)
             parent.point := by rw [sameStructure, samePoint]
-  rcases candidate with
-    ⟨candidateSystem, candidateCommitment, candidatePublicInput,
-      candidatePoint, candidateEvaluations, candidateStage⟩
-  rcases parent with
-    ⟨parentSystem, parentCommitment, parentPublicInput, parentPoint,
-      parentEvaluations, parentStage⟩
-  simp only [PiDEC.childrenOf]
-  simp_all [semantics, productSemantics, commit, decAlgebra,
-    PiDECAlgebra.Algebra.concrete]
+  have semanticsEq :
+      semantics context.key =
+        Phi81Relation.relationSemantics
+          (PiRLCAlgebra.Commitment.commit context.key) := rfl
+  apply CE.Instance.ext
+  · exact sameStructure
+  · change candidate.commitment =
+      (Phi81Relation.relationSemantics
+        (PiRLCAlgebra.Commitment.commit context.key)).commit
+          ((decAlgebra context.key).splitAssignment assignment child)
+    rw [← semanticsEq]
+    exact commitmentEq
+  · change candidate.publicInput =
+      (Phi81Relation.relationSemantics
+        (PiRLCAlgebra.Commitment.commit context.key)).projectPublicInput
+          ((decAlgebra context.key).splitAssignment assignment child)
+    rw [← semanticsEq]
+    exact publicInputEq
+  · exact samePoint
+  · change candidate.evaluations =
+      (Phi81Relation.relationSemantics
+        (PiRLCAlgebra.Commitment.commit context.key)).evaluations
+          parent.constraintSystem
+          ((decAlgebra context.key).splitAssignment assignment child)
+          parent.point
+    rw [← semanticsEq]
+    exact evaluationsEq
+  · exact fresh
 
 namespace Holds
 

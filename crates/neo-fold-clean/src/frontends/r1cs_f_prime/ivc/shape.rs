@@ -1,4 +1,16 @@
-//! Deterministic field-R1CS synthesis for the generic authoritative IVC arms.
+//! Deterministic field-R1CS synthesis for the generic implementation IVC arms.
+//!
+//! Owns: fixed-point shape witnesses and the physical ordering of application,
+//! F-prime step, and semantic-link rows used by the IVC frontend.
+//!
+//! Does not own: paper semantics, selective low-norm lowering, or permission to
+//! remove any emitted row.
+//!
+//! | Stage path | Mathematical obligation | Rust owner |
+//! |---|---|---|
+//! | `fprime.{base,recursive}.finalize.application` | Enforce the application R1CS and derived semantic digests | `enforce_*_application` |
+//! | `fprime.{base,recursive}.step.*` | Enforce the selected F-prime transition | `paper::f_prime::r1cs` |
+//! | `fprime.{base,recursive}.finalize.semantic_links` | Bind application semantics to the transition output | `bind_semantic_state` |
 
 use neo_ajtai::Commitment;
 use neo_ccs::Mat;
@@ -20,9 +32,10 @@ use crate::paper::f_prime::native::F_PRIME_STEP_TRANSCRIPT_LABEL;
 use crate::paper::f_prime::r1cs::{
     enforce_f_prime_base_step_circuit, enforce_f_prime_recursive_step_circuit, FPrimeBaseInputs,
     FPrimePublicInputLayout, FPrimeRecursiveInputs, FPrimeStateIn, FPrimeStepConfig, FPrimeStepOutput,
-    F_PRIME_ENC_INST_BITS, F_PRIME_PUBLIC_INPUT_LEN,
+    F_PRIME_ENC_INST_BITS,
 };
 use crate::paper::f_prime::source_image::{BitRange, FPrimeSourceImage};
+use crate::paper::f_prime::stage as fprime_stage;
 use crate::paper::nifs::circuit::{NifsVCircuitConfig, NifsVCircuitMessages};
 use crate::paper::params::Params;
 use crate::paper::reductions::pi_ccs;
@@ -46,6 +59,7 @@ struct ShapeContext<'a> {
     app: &'a R1csShape,
     plan: &'a RecursiveStepImagePlan,
     folded: &'a SplitNcVerifierRelation,
+    folded_public_input_len: usize,
     header_bundle: [F; 4],
     ell_d: usize,
     ell_n: usize,
@@ -56,10 +70,11 @@ struct ShapeContext<'a> {
 pub(super) fn synthesize_arm_shapes(
     params: &Params,
     folded: &SplitNcVerifierRelation,
+    folded_public_input_len: usize,
     app: &R1csShape,
     plan: &RecursiveStepImagePlan,
 ) -> Result<[SparseR1cs; 3], R1csIvcError> {
-    let context = shape_context(params, folded, app, plan)?;
+    let context = shape_context(params, folded, folded_public_input_len, app, plan)?;
     let arms = ArmShapes {
         base: synthesize_base(&context)?,
         bootstrap_recursive: synthesize_recursive(&context, false)?,
@@ -71,9 +86,18 @@ pub(super) fn synthesize_arm_shapes(
 fn shape_context<'a>(
     params: &'a Params,
     folded: &'a SplitNcVerifierRelation,
+    folded_public_input_len: usize,
     app: &'a R1csShape,
     plan: &'a RecursiveStepImagePlan,
 ) -> Result<ShapeContext<'a>, R1csIvcError> {
+    if folded_public_input_len > folded.m() {
+        return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
+            format!(
+                "folded public carrier width {folded_public_input_len} exceeds relation width {}",
+                folded.m()
+            ),
+        )));
+    }
     let dims = neo_reductions::engines::utils::build_dims_and_policy_for_shape(
         params.inner(),
         folded.n(),
@@ -91,6 +115,7 @@ fn shape_context<'a>(
         app,
         plan,
         folded,
+        folded_public_input_len,
         header_bundle: [F::ZERO; 4],
         ell_d: dims.ell_d,
         ell_n: dims.ell_n,
@@ -137,7 +162,7 @@ fn synthesize_recursive(context: &ShapeContext<'_>, steady: bool) -> Result<Spar
         Vec::new()
     };
     let running_parent = steady.then(|| ce.clone());
-    let fresh = [zero_fresh_claim(context.params)];
+    let fresh = [zero_fresh_claim(context.params, context.folded_public_input_len)];
     let outputs = vec![ce.clone(); fresh.len() + running.len()];
     let mut sumcheck = pi_ccs::SumcheckProof::new(
         vec![vec![K::ZERO; context.d_sc + 1]; context.ell_n + context.ell_d],
@@ -255,13 +280,13 @@ fn shape_state(
     }
 }
 
-fn zero_fresh_claim(params: &Params) -> CcsClaim {
-    let mut x = vec![F::ZERO; F_PRIME_PUBLIC_INPUT_LEN];
+fn zero_fresh_claim(params: &Params, public_input_len: usize) -> CcsClaim {
+    let mut x = vec![F::ZERO; public_input_len];
     x[0] = F::ONE;
     CcsClaim {
         c: Commitment::zeros(D, params.kappa() as usize),
         x,
-        m_in: F_PRIME_PUBLIC_INPUT_LEN,
+        m_in: public_input_len,
         adv: None,
     }
 }
@@ -270,14 +295,14 @@ fn zero_ce_claim(context: &ShapeContext<'_>) -> CeClaim {
     let d_pad = 1usize << context.ell_d;
     CeClaim {
         c: Commitment::zeros(D, context.params.kappa() as usize),
-        X: Mat::zero(D, F_PRIME_PUBLIC_INPUT_LEN, F::ZERO),
+        X: Mat::zero(D, context.folded_public_input_len, F::ZERO),
         r: vec![K::ZERO; context.ell_n],
         s_col: vec![K::ZERO; context.ell_m],
         y_ring: vec![vec![K::ZERO; d_pad]; context.folded.t()],
         ct: vec![K::ZERO; context.folded.t()],
         aux_openings: Vec::new(),
         y_zcol: vec![K::ZERO; d_pad],
-        m_in: F_PRIME_PUBLIC_INPUT_LEN,
+        m_in: context.folded_public_input_len,
         fold_digest: [0u8; 32],
         c_step_coords: Vec::new(),
         u_offset: 0,
@@ -333,9 +358,12 @@ pub(super) fn enforce_base_application(
     cfg: &FPrimeStepConfig<'_>,
     inputs: &FPrimeBaseInputs<'_>,
 ) -> Result<FPrimeStepOutput, R1csIvcError> {
+    builder.begin_encoding_stage(fprime_stage::BASE_ROOT);
+    builder.begin_encoding_stage(fprime_stage::BASE_APPLICATION);
     let app_vars = app.enforce_in_f_prime(builder, assignment, pin_app_constant(plan))?;
     let semantic = enforce_semantic_digests(builder, plan, assignment, &app_vars)?;
     let output = enforce_f_prime_base_step_circuit(builder, cfg, inputs)?;
+    builder.begin_encoding_stage(fprime_stage::BASE_SEMANTIC_LINKS);
     bind_semantic_state(builder, plan, &output, semantic, true);
     Ok(output)
 }
@@ -349,9 +377,12 @@ pub(super) fn enforce_recursive_application(
     cfg: &FPrimeStepConfig<'_>,
     inputs: &FPrimeRecursiveInputs<'_>,
 ) -> Result<FPrimeStepOutput, R1csIvcError> {
+    builder.begin_encoding_stage(fprime_stage::RECURSIVE_ROOT);
+    builder.begin_encoding_stage(fprime_stage::RECURSIVE_APPLICATION);
     let app_vars = app.enforce_in_f_prime(builder, assignment, pin_app_constant(plan))?;
     let semantic = enforce_semantic_digests(builder, plan, assignment, &app_vars)?;
     let output = enforce_f_prime_recursive_step_circuit(builder, params, cfg, inputs)?;
+    builder.begin_encoding_stage(fprime_stage::RECURSIVE_SEMANTIC_LINKS);
     bind_semantic_state(builder, plan, &output, semantic, false);
     Ok(output)
 }

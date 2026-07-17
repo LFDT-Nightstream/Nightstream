@@ -1,4 +1,22 @@
-//! Assignment normalization and relation-evaluation helpers for low-norm lowering.
+//! Data transforms and diagnostics used by low-norm R1CS lowering.
+//!
+//! Owns: assignment/column normalization, encoded matrix-term expansion, and
+//! relation-satisfaction diagnostics.
+//!
+//! Does not own: encoding policy, CCS polynomial construction, source semantics,
+//! or proof authority.
+//!
+//! Emits constraints: no. It returns normalized values and row terms to the
+//! parent lowering.
+//!
+//! Authority boundary: public-column order and slot maps are supplied by the
+//! parent; diagnostics and transformed terms are not independent authority.
+//!
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | Assignment order | [`normalized_field_assignment`] | no | Verifier-selected public outputs |
+//! | Matrix expansion | `encoded_matrix_rows` | no | Source matrix and constrained slot map |
+//! | Satisfaction diagnostics | `first_unsatisfied_structure_row` | no | Completed structure and assignment |
 
 use neo_ccs::CcsMatrix;
 use neo_math::F;

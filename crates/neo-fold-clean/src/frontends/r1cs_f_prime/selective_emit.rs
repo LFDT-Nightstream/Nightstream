@@ -1,10 +1,29 @@
 //! Linear-form emission for selective low-norm slots.
+//!
+//! Owns: recursive substitution of validated linear definitions and expansion of
+//! retained low-norm slots into CCS matrix terms.
+//!
+//! Does not own: slot allocation, definition discovery, row-family semantics, or
+//! witness encoding.
+//!
+//! Emits constraints: yes, by appending coefficients to caller-owned matrix
+//! terms.
+//!
+//! Authority boundary: slot maps and definitions are parent-validated inputs;
+//! references to an unencoded temporary are rejected rather than trusted.
+//!
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | Linear combination | [`append_lc`] | yes | Source LC and validated definitions |
+//! | Field substitution | [`append_field`] | yes | Retained slot map |
+//! | Slot expansion | [`append_slot`] | yes | Fixed binary or balanced radix |
 
 use neo_ccs::GeometricRowRun;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-use super::{Lc, LinearDefinitions, LowNormR1csError, MatrixTerms, BALANCED_FIELD_WIDTH};
+use super::terms::MatrixTerms;
+use super::{Lc, LinearDefinitions, LowNormR1csError, BALANCED_FIELD_WIDTH};
 
 pub(super) fn append_lc(
     terms: &mut MatrixTerms,

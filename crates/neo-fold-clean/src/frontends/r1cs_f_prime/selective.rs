@@ -1,25 +1,41 @@
-//! Selective low-norm compiler for the authoritative Road A relation.
+//! Selective low-norm CCS compiler for recorded verifier traces.
 //!
-//! Ordinary verifier R1CS rows remain authoritative. Recorded Poseidon2,
-//! projection, K-arithmetic, and centered-range traces remove only their
-//! temporaries; retained fields use canonical bits or balanced unit digits.
+//! Owns: selective slot planning, exact temporary substitution, retained-value
+//! encodings, direct trace rows, and width-audit composition.
+//!
+//! Does not own: source trace recording, semantic proof of each trace family,
+//! outer `F'` orchestration, or folding verification.
+//!
+//! Emits constraints: yes. It builds the selective CCS matrices and polynomial.
+//!
+//! Authority boundary: ordinary source rows remain the local implementation
+//! arithmetic reference; a temporary is removed only when reconstructed from
+//! retained constrained operands under the recorded trace contract. Protocol
+//! sufficiency and necessity remain separate Lean obligations.
+//!
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | Selective layout | `prepare_selective_layout` | no | Recorded source traces |
+//! | Compiler composition | [`build_multi_branch_selective_low_norm_r1cs_with_alignment`] | no | Prepared layout and exact emitter result |
+//! | CCS matrix emission | `structure::build_structure` | yes | Retained source rows and selectors |
+//! | Width audit | selective audit entrypoints | no | Exact prepared layout |
 
 use std::collections::HashMap;
 
-use neo_ccs::{CcsMatrix, CcsStructure, CscMat};
+use neo_ccs::{CcsMatrix, CscMat};
 use neo_math::{D, F};
 use p3_field::{Field, PrimeCharacteristicRing};
 
 use super::lowering::{DerivedProductSumEncoding, LowNormR1csError, MultiBranchLowNormR1cs};
 use super::selective_audit::{
-    retained_trace_widths, row_family_width_audits, SelectiveArmWidthAudit, SelectiveLowNormWidthAudit,
+    retained_trace_widths, row_family_width_audits, SelectiveArmWidthAudit, SelectiveCompilerAudit,
+    SelectiveLayoutAudit, SelectiveLowNormWidthAudit,
 };
 use super::SparseR1cs;
 use crate::engine::r1cs_circuit::builder::{
     BalancedTernaryDecomposition, CanonicalU64Decomposition, ProductFactorTrace,
 };
 use crate::engine::r1cs_circuit::Lc;
-use crate::paper::relations::Structure;
 
 #[path = "selective_canonical.rs"]
 mod canonical;
@@ -29,18 +45,18 @@ mod emit;
 mod rows;
 #[path = "selective_shape.rs"]
 mod shape;
+#[path = "selective_structure.rs"]
+mod structure;
 #[path = "selective_terms.rs"]
 mod terms;
-use emit::{append_field, append_lc, append_lc_scaled, append_slot, lc_from_column, trace_error};
-use rows::skipped_selective_rows;
+use emit::{lc_from_column, trace_error};
+use rows::{skipped_selective_rows, PreparedSelectiveRows};
 pub(crate) use shape::{
     audit_multi_branch_selective_low_norm_shape_with_alignment,
     audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix, SelectiveLowNormShape,
 };
-use shape::{count_structure_rows, selective_polynomial};
-use terms::MatrixTerms;
 
-const EVAL_GROUP_SIZE: usize = 5;
+pub(super) const EVAL_GROUP_SIZE: usize = 5;
 const BALANCED_FIELD_WIDTH: usize = 41;
 const BINARY_FIELD_WIDTH: usize = 64;
 const BIT: usize = 0;
@@ -69,12 +85,13 @@ struct SelectiveLayout {
     equal_aliases: Vec<Vec<Option<usize>>>,
     derived_product_sums: Vec<Vec<DerivedProductSumEncoding>>,
     selector_cols: Vec<usize>,
-    zero_padding_cols: Vec<usize>,
+    public_padding_cols: Vec<usize>,
+    private_padding_cols: Vec<usize>,
     public_input_len: usize,
     columns: usize,
-    audit: SelectiveLowNormWidthAudit,
+    prepared_rows: PreparedSelectiveRows,
+    compiler_audit: SelectiveCompilerAudit,
 }
-
 struct SelectiveArmPlan {
     widths: Vec<usize>,
     centered: Vec<bool>,
@@ -100,7 +117,13 @@ impl LinearDefinitions {
     }
 }
 
-/// Compile one-hot field-R1CS arms to selective degree-seven CCS.
+/// Compile one-hot field-R1CS arms to selective degree-eight CCS.
+///
+/// Two distinct zero regions are inserted and accounted independently:
+/// the logical public prefix is first completed to `modulus`, then selectors
+/// are allocated, and a second region places shared private advice at
+/// `residue (mod modulus)`. This ordering keeps branch selectors out of the
+/// active SuperNeo public ring carrier.
 pub fn build_multi_branch_selective_low_norm_r1cs_with_alignment(
     arms: &[SparseR1cs],
     shared_private_fields: usize,
@@ -124,7 +147,7 @@ pub fn build_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(
     residue: usize,
 ) -> Result<MultiBranchLowNormR1cs, LowNormR1csError> {
     let layout = prepare_selective_layout(arms, shared_private_fields, shared_private_bit_fields, modulus, residue)?;
-    let structure = build_structure(
+    let structure = structure::build_structure(
         arms,
         &layout.plans,
         &layout.slots,
@@ -133,8 +156,10 @@ pub fn build_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(
         shared_private_fields,
         &layout.derived_product_sums,
         &layout.selector_cols,
-        &layout.zero_padding_cols,
+        &layout.public_padding_cols,
+        &layout.private_padding_cols,
         layout.columns,
+        &layout.prepared_rows,
     )?;
     Ok(MultiBranchLowNormR1cs::from_compiler_parts(
         structure,
@@ -150,10 +175,12 @@ pub fn build_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(
             .map(|plan| plan.centered.clone())
             .collect(),
         layout.derived_product_sums,
+        Some(layout.compiler_audit),
     ))
 }
 
 /// Compute selective-lowering width without constructing output matrices.
+/// Public-carrier and private-alignment padding remain separate audit fields.
 pub fn audit_multi_branch_selective_low_norm_width_with_alignment(
     arms: &[SparseR1cs],
     shared_private_fields: usize,
@@ -176,7 +203,11 @@ pub fn audit_multi_branch_selective_low_norm_width_with_shared_bit_prefix(
     modulus: usize,
     residue: usize,
 ) -> Result<SelectiveLowNormWidthAudit, LowNormR1csError> {
-    Ok(prepare_selective_layout(arms, shared_private_fields, shared_private_bit_fields, modulus, residue)?.audit)
+    Ok(
+        prepare_selective_layout(arms, shared_private_fields, shared_private_bit_fields, modulus, residue)?
+            .compiler_audit
+            .into_width(),
+    )
 }
 
 fn prepare_selective_layout(
@@ -233,6 +264,10 @@ fn prepare_selective_layout(
         }
         cursor += width;
     }
+    let logical_public_input_len = cursor;
+    let public_padding_len = (modulus - cursor % modulus) % modulus;
+    let public_padding_cols = (cursor..cursor + public_padding_len).collect::<Vec<_>>();
+    cursor += public_padding_len;
     let public_input_len = cursor;
     let selector_cols = (0..arms.len())
         .map(|_| {
@@ -243,8 +278,9 @@ fn prepare_selective_layout(
         .collect::<Vec<_>>();
     let residue = residue % modulus;
     let padding_len = (residue + modulus - cursor % modulus) % modulus;
-    let zero_padding_cols = (cursor..cursor + padding_len).collect::<Vec<_>>();
+    let private_padding_cols = (cursor..cursor + padding_len).collect::<Vec<_>>();
     cursor += padding_len;
+    let shared_private_start = cursor;
 
     for offset in 0..shared_private_fields {
         let source = arms[0].m_in + offset;
@@ -376,16 +412,42 @@ fn prepare_selective_layout(
             }
         })
         .collect();
-    let audit = SelectiveLowNormWidthAudit {
+    let width_audit = SelectiveLowNormWidthAudit {
         constant_coordinate: 1,
+        logical_public_coordinates: logical_public_input_len - 1,
+        public_carrier_padding: public_padding_cols.len(),
         public_coordinates: public_input_len - 1,
         selector_coordinates: selector_cols.len(),
-        alignment_padding: zero_padding_cols.len(),
-        shared_private_coordinates: branch_start - public_input_len - selector_cols.len() - zero_padding_cols.len(),
+        alignment_padding: private_padding_cols.len(),
+        shared_private_coordinates: branch_start - public_input_len - selector_cols.len() - private_padding_cols.len(),
         branch_start,
         arms: arms_audit,
         total_coordinates: cursor,
     };
+    let layout_audit = SelectiveLayoutAudit::from_prepared_layout(
+        logical_public_input_len,
+        public_input_len,
+        public_padding_cols.clone(),
+        selector_cols.clone(),
+        private_padding_cols.clone(),
+        shared_private_start..branch_start,
+        branch_start..cursor,
+        cursor..cursor.next_multiple_of(D),
+    );
+    let prepared_rows = PreparedSelectiveRows::prepare(
+        arms,
+        &plans,
+        &slots,
+        &aliases,
+        &equal_aliases,
+        shared_private_fields,
+        &derived_product_sums,
+        selector_cols.len(),
+        public_padding_cols.len(),
+        private_padding_cols.len(),
+        cursor,
+    )?;
+    let row_audit = prepared_rows.audit();
     Ok(SelectiveLayout {
         plans,
         slots,
@@ -393,10 +455,19 @@ fn prepare_selective_layout(
         equal_aliases,
         derived_product_sums,
         selector_cols,
-        zero_padding_cols,
+        public_padding_cols,
+        private_padding_cols,
         public_input_len,
         columns: cursor,
-        audit,
+        prepared_rows,
+        compiler_audit: SelectiveCompilerAudit::new(
+            layout_audit,
+            width_audit,
+            row_audit,
+            arms.iter()
+                .map(|arm| arm.physical_stage_ranges().to_vec())
+                .collect(),
+        ),
     })
 }
 
@@ -970,456 +1041,6 @@ fn assign_slot(
     } else {
         slots[field_col] = Some((*cursor, widths[field_col]));
         *cursor += widths[field_col];
-    }
-    Ok(())
-}
-
-fn build_structure(
-    arms: &[SparseR1cs],
-    plans: &[SelectiveArmPlan],
-    slots: &[Vec<Option<(usize, usize)>>],
-    aliases: &[Vec<Option<(usize, usize)>>],
-    equal_aliases: &[Vec<Option<usize>>],
-    shared_private_fields: usize,
-    derived_product_sums: &[Vec<DerivedProductSumEncoding>],
-    selectors: &[usize],
-    zero_padding_cols: &[usize],
-    cols: usize,
-) -> Result<Structure, LowNormR1csError> {
-    let eval_pair = |pair_index: usize| EVAL_PAIRS[pair_index];
-
-    let expected_rows = count_structure_rows(
-        arms,
-        plans,
-        slots,
-        aliases,
-        equal_aliases,
-        shared_private_fields,
-        derived_product_sums,
-        selectors,
-        zero_padding_cols,
-        cols,
-    )?;
-    let mut matrix_terms = (0..SELECTIVE_ARITY)
-        .map(|index| MatrixTerms::new(index == SBOX_INPUT))
-        .collect::<Vec<_>>();
-    let mut row_cursor = 0usize;
-    {
-        let mut emit_digit = |selector: Option<usize>, column: usize, centered: bool| {
-            // SplitNc proves every committed coordinate lies in {-1, 0, 1}.
-            // Only binary coordinates need an additional CCS row to exclude
-            // -1; duplicating centered-unit checks here adds no soundness.
-            if centered {
-                return;
-            }
-            matrix_terms[GENERAL_SELECTOR].push((row_cursor, selector.unwrap_or(0), F::ONE));
-            matrix_terms[BIT].push((row_cursor, column, F::ONE));
-            row_cursor += 1;
-        };
-
-        for &selector in selectors {
-            emit_digit(None, selector, false);
-        }
-        for source in 1..arms[0].m_in + shared_private_fields {
-            if aliases[0][source].is_some() {
-                continue;
-            }
-            if let Some((start, width)) = slots[0][source] {
-                let source_proves_boolean = plans.iter().all(|plan| plan.source_boolean_rows[source]);
-                if source_proves_boolean {
-                    continue;
-                }
-                for column in start..start + width {
-                    emit_digit(None, column, plans[0].centered[source] || width == BALANCED_FIELD_WIDTH);
-                }
-            }
-        }
-        for (arm_index, arm) in arms.iter().enumerate() {
-            for source in arm.m_in + shared_private_fields..arm.m {
-                if aliases[arm_index][source].is_some() || equal_aliases[arm_index][source].is_some() {
-                    continue;
-                }
-                if let Some((start, width)) = slots[arm_index][source] {
-                    if plans[arm_index].source_boolean_rows[source] {
-                        continue;
-                    }
-                    for column in start..start + width {
-                        emit_digit(
-                            Some(selectors[arm_index]),
-                            column,
-                            plans[arm_index].centered[source] || width == BALANCED_FIELD_WIDTH,
-                        );
-                    }
-                }
-            }
-            for derived in &derived_product_sums[arm_index] {
-                for column in derived.slot.0..derived.slot.0 + derived.slot.1 {
-                    emit_digit(Some(selectors[arm_index]), column, true);
-                }
-            }
-        }
-    }
-    let selector_row = row_cursor;
-    matrix_terms[GENERAL_SELECTOR].push((selector_row, 0, F::ONE));
-    matrix_terms[C].push((selector_row, 0, -F::ONE));
-    for &selector in selectors {
-        matrix_terms[C].push((selector_row, selector, F::ONE));
-    }
-    row_cursor += 1;
-    for &col in zero_padding_cols {
-        matrix_terms[GENERAL_SELECTOR].push((row_cursor, 0, F::ONE));
-        matrix_terms[C].push((row_cursor, col, F::ONE));
-        row_cursor += 1;
-    }
-
-    for (arm_index, arm) in arms.iter().enumerate() {
-        let definitions = &plans[arm_index].definitions;
-        let mut skipped = skipped_selective_rows(arm)?;
-        for definition in &definitions.entries {
-            if let Some(row) = definition.row {
-                if core::mem::replace(&mut skipped[row], true) {
-                    return Err(trace_error("linear definition overlaps a direct selective trace"));
-                }
-            }
-        }
-        let mut row_map = vec![None; arm.n];
-        for (source_row, skip) in skipped.iter().copied().enumerate() {
-            if !skip {
-                row_map[source_row] = Some(row_cursor);
-                matrix_terms[GENERAL_SELECTOR].push((row_cursor, selectors[arm_index], F::ONE));
-                row_cursor += 1;
-            }
-        }
-        append_source_matrix(&mut matrix_terms[A], &arm.a, &slots[arm_index], definitions, &row_map)?;
-        append_source_matrix(&mut matrix_terms[B], &arm.b, &slots[arm_index], definitions, &row_map)?;
-        append_source_matrix(&mut matrix_terms[C], &arm.c, &slots[arm_index], definitions, &row_map)?;
-        for trace in arm.poseidon2_traces() {
-            for sbox in &trace.sboxes {
-                matrix_terms[GENERAL_SELECTOR].push((row_cursor, selectors[arm_index], F::ONE));
-                append_lc(
-                    &mut matrix_terms[SBOX_INPUT],
-                    row_cursor,
-                    &sbox.input,
-                    &slots[arm_index],
-                    definitions,
-                )?;
-                append_field(
-                    &mut matrix_terms[C],
-                    row_cursor,
-                    sbox.output_col,
-                    F::ONE,
-                    &slots[arm_index],
-                    definitions,
-                )?;
-                row_cursor += 1;
-            }
-            for lane in 0..trace.output_cols.len() {
-                if definitions.get(trace.output_cols[lane]).is_some() {
-                    continue;
-                }
-                matrix_terms[GENERAL_SELECTOR].push((row_cursor, selectors[arm_index], F::ONE));
-                append_field(
-                    &mut matrix_terms[C],
-                    row_cursor,
-                    trace.output_cols[lane],
-                    F::ONE,
-                    &slots[arm_index],
-                    definitions,
-                )?;
-                append_lc_scaled(
-                    &mut matrix_terms[C],
-                    row_cursor,
-                    &trace.output_linear_forms[lane],
-                    -F::ONE,
-                    &slots[arm_index],
-                    definitions,
-                )?;
-                row_cursor += 1;
-            }
-        }
-        for trace in arm.centered_unit_traces() {
-            if plans[arm_index].widths[trace.value_col] != 0 {
-                continue;
-            }
-            matrix_terms[GENERAL_SELECTOR].push((row_cursor, selectors[arm_index], F::ONE));
-            append_field(
-                &mut matrix_terms[CENTERED_UNIT],
-                row_cursor,
-                trace.value_col,
-                F::ONE,
-                &slots[arm_index],
-                definitions,
-            )?;
-            row_cursor += 1;
-        }
-        canonical::emit_shifted_ternary_rows(
-            arm,
-            &slots[arm_index],
-            definitions,
-            selectors[arm_index],
-            &mut matrix_terms,
-            &mut row_cursor,
-        )?;
-        let mut derived_cursor = 0usize;
-        for trace in arm.polynomial_evaluation_traces() {
-            for limb in 0..2 {
-                let product_indices = (1..trace.coefficient_cols.len()).collect::<Vec<_>>();
-                let groups = product_indices.chunks(EVAL_GROUP_SIZE).collect::<Vec<_>>();
-                if groups.is_empty() {
-                    matrix_terms[EVAL_SELECTOR].push((row_cursor, selectors[arm_index], F::ONE));
-                    append_field(
-                        &mut matrix_terms[C],
-                        row_cursor,
-                        trace.output_cols[limb],
-                        F::ONE,
-                        &slots[arm_index],
-                        definitions,
-                    )?;
-                    if limb == 0 {
-                        append_field(
-                            &mut matrix_terms[C],
-                            row_cursor,
-                            trace.coefficient_cols[0],
-                            -F::ONE,
-                            &slots[arm_index],
-                            definitions,
-                        )?;
-                    }
-                    row_cursor += 1;
-                    continue;
-                }
-                let mut previous = None;
-                for (group_index, group) in groups.iter().enumerate() {
-                    matrix_terms[EVAL_SELECTOR].push((row_cursor, selectors[arm_index], F::ONE));
-                    if group_index + 1 == groups.len() {
-                        append_field(
-                            &mut matrix_terms[C],
-                            row_cursor,
-                            trace.output_cols[limb],
-                            F::ONE,
-                            &slots[arm_index],
-                            definitions,
-                        )?;
-                        if limb == 0 {
-                            append_field(
-                                &mut matrix_terms[C],
-                                row_cursor,
-                                trace.coefficient_cols[0],
-                                -F::ONE,
-                                &slots[arm_index],
-                                definitions,
-                            )?;
-                        }
-                    } else {
-                        let derived = &derived_product_sums[arm_index][derived_cursor];
-                        derived_cursor += 1;
-                        append_slot(&mut matrix_terms[C], row_cursor, derived.slot, F::ONE);
-                    }
-                    if let Some(previous) = previous {
-                        append_slot(&mut matrix_terms[C], row_cursor, previous, -F::ONE);
-                    }
-                    for (pair_index, &term_index) in group.iter().enumerate() {
-                        let (left, right) = eval_pair(pair_index);
-                        append_field(
-                            &mut matrix_terms[left],
-                            row_cursor,
-                            trace.coefficient_cols[term_index],
-                            F::ONE,
-                            &slots[arm_index],
-                            definitions,
-                        )?;
-                        append_field(
-                            &mut matrix_terms[right],
-                            row_cursor,
-                            trace.power_cols[term_index][limb],
-                            F::ONE,
-                            &slots[arm_index],
-                            definitions,
-                        )?;
-                    }
-                    if group_index + 1 != groups.len() {
-                        previous = Some(derived_product_sums[arm_index][derived_cursor - 1].slot);
-                    }
-                    row_cursor += 1;
-                }
-            }
-        }
-        for batch in arm.product_sum_batch_traces() {
-            for identity in &batch.identities {
-                if identity.factors.len() <= EVAL_GROUP_SIZE {
-                    matrix_terms[EVAL_SELECTOR].push((row_cursor, selectors[arm_index], F::ONE));
-                    append_lc(
-                        &mut matrix_terms[C],
-                        row_cursor,
-                        &identity.result,
-                        &slots[arm_index],
-                        definitions,
-                    )?;
-                    for (pair_index, factor) in identity.factors.iter().enumerate() {
-                        let (left, right) = eval_pair(pair_index);
-                        append_lc_scaled(
-                            &mut matrix_terms[left],
-                            row_cursor,
-                            &factor.left,
-                            factor.coefficient,
-                            &slots[arm_index],
-                            definitions,
-                        )?;
-                        append_lc(
-                            &mut matrix_terms[right],
-                            row_cursor,
-                            &factor.right,
-                            &slots[arm_index],
-                            definitions,
-                        )?;
-                    }
-                    row_cursor += 1;
-                    continue;
-                }
-                let groups = identity.factors.chunks(EVAL_GROUP_SIZE).collect::<Vec<_>>();
-                let mut previous = None;
-                for (group_index, group) in groups.iter().enumerate() {
-                    matrix_terms[EVAL_SELECTOR].push((row_cursor, selectors[arm_index], F::ONE));
-                    if group_index + 1 == groups.len() {
-                        append_lc(
-                            &mut matrix_terms[C],
-                            row_cursor,
-                            &identity.result,
-                            &slots[arm_index],
-                            definitions,
-                        )?;
-                    } else {
-                        let derived = &derived_product_sums[arm_index][derived_cursor];
-                        derived_cursor += 1;
-                        append_slot(&mut matrix_terms[C], row_cursor, derived.slot, F::ONE);
-                    }
-                    if let Some(previous) = previous {
-                        append_slot(&mut matrix_terms[C], row_cursor, previous, -F::ONE);
-                    }
-                    for (pair_index, factor) in group.iter().enumerate() {
-                        let (left, right) = eval_pair(pair_index);
-                        append_lc_scaled(
-                            &mut matrix_terms[left],
-                            row_cursor,
-                            &factor.left,
-                            factor.coefficient,
-                            &slots[arm_index],
-                            definitions,
-                        )?;
-                        append_lc(
-                            &mut matrix_terms[right],
-                            row_cursor,
-                            &factor.right,
-                            &slots[arm_index],
-                            definitions,
-                        )?;
-                    }
-                    if group_index + 1 != groups.len() {
-                        previous = Some(derived_product_sums[arm_index][derived_cursor - 1].slot);
-                    }
-                    row_cursor += 1;
-                }
-            }
-        }
-        if derived_cursor != derived_product_sums[arm_index].len() {
-            return Err(trace_error(
-                "derived evaluation-product census drifted during row emission",
-            ));
-        }
-    }
-
-    // SplitNc keeps rows and assignment separate. Add only D-alignment
-    // coordinates, and constrain them to zero rather than witness slack.
-    let columns = cols.next_multiple_of(D);
-    for column in cols..columns {
-        matrix_terms[GENERAL_SELECTOR].push((row_cursor, 0, F::ONE));
-        matrix_terms[C].push((row_cursor, column, F::ONE));
-        row_cursor += 1;
-    }
-    let rows = row_cursor;
-    if rows != expected_rows {
-        return Err(trace_error("selective row count differs from emitted structure"));
-    }
-    let mut matrices = Vec::with_capacity(SELECTIVE_ARITY);
-    for mut terms in matrix_terms {
-        let csc = if terms.retain_geometric {
-            CscMat::from_counted_triplets(core::mem::take(&mut terms.explicit), rows, columns)
-        } else {
-            CscMat::from_triplets_and_geometric_runs(
-                core::mem::take(&mut terms.explicit),
-                &terms.geometric_runs,
-                rows,
-                columns,
-            )
-        };
-        if !terms.retain_geometric {
-            terms.geometric_runs.clear();
-        }
-        matrices.push(
-            CcsMatrix::csc_with_compact_rows(csc, terms.seeded, terms.geometric_runs)
-                .map_err(|error| trace_error(&error))?,
-        );
-    }
-    CcsStructure::new_sparse(matrices, selective_polynomial()).map_err(|error| trace_error(&error.to_string()))
-}
-
-fn append_source_matrix(
-    terms: &mut MatrixTerms,
-    matrix: &CcsMatrix<F>,
-    slots: &[Option<(usize, usize)>],
-    definitions: &LinearDefinitions,
-    row_map: &[Option<usize>],
-) -> Result<(), LowNormR1csError> {
-    let mut append_csc = |csc: &CscMat<F>| -> Result<(), LowNormR1csError> {
-        for field_col in 0..csc.ncols.min(slots.len()) {
-            for index in csc.column_range(field_col) {
-                if let Some(target_row) = row_map[csc.row_index(index)] {
-                    append_field(terms, target_row, field_col, csc.vals[index], slots, definitions)?;
-                }
-            }
-        }
-        Ok(())
-    };
-    match matrix {
-        CcsMatrix::Identity { n } => {
-            for source_row in 0..(*n).min(row_map.len()).min(slots.len()) {
-                if let Some(target_row) = row_map[source_row] {
-                    append_field(terms, target_row, source_row, F::ONE, slots, definitions)?;
-                }
-            }
-        }
-        CcsMatrix::Csc(csc) => append_csc(csc)?,
-        CcsMatrix::CscWithSeededPhi81 { csc, blocks, .. } => {
-            append_csc(csc)?;
-            for block in blocks {
-                let target_start = row_map[block.row_start()]
-                    .ok_or_else(|| trace_error("seeded Phi81 block overlaps a removed Poseidon2 row"))?;
-                for offset in 0..neo_math::D * block.kappa() {
-                    if row_map[block.row_start() + offset] != Some(target_start + offset) {
-                        return Err(trace_error(
-                            "seeded Phi81 rows are not contiguous after selective lowering",
-                        ));
-                    }
-                }
-                let mut starts = Vec::with_capacity(block.word_starts().len());
-                for &source_start in block.word_starts() {
-                    let (target, width) =
-                        slots[source_start].ok_or_else(|| trace_error("seeded Phi81 input bit was eliminated"))?;
-                    if width != 1 {
-                        return Err(trace_error("seeded Phi81 input is not a one-bit slot"));
-                    }
-                    for offset in 0..block.word_width() {
-                        if slots[source_start + offset] != Some((target + offset, 1)) {
-                            return Err(trace_error("seeded Phi81 input word is not contiguous"));
-                        }
-                    }
-                    starts.push(target);
-                }
-                terms
-                    .seeded
-                    .push(block.with_geometry(target_start, starts)?);
-            }
-        }
     }
     Ok(())
 }

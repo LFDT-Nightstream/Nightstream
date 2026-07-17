@@ -4,6 +4,7 @@ use neo_ccs::Mat;
 use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
 
+use super::compilation_audit::{ArmShapeAudit, FixedPointRoundAudit, R1csIvcCompilationAudit, RelationHeaderAudit};
 use super::{shape, R1csIvcError};
 use crate::frontends::f_prime::recursive_plan::RecursiveStepImagePlan;
 use crate::frontends::r1cs_f_prime::lowering::MultiBranchLowNormR1cs;
@@ -12,6 +13,7 @@ use crate::frontends::r1cs_f_prime::{
     build_multi_branch_selective_low_norm_r1cs_with_alignment, R1csShape, SelectiveLowNormShape, SparseR1cs,
 };
 use crate::lifecycle::Preprocessing;
+use crate::paper::f_prime::r1cs::F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN;
 use crate::paper::params::Params;
 use crate::paper::reductions::pi_ccs_split_nc_circuit::SplitNcVerifierRelation;
 use crate::paper::relations::{CcsInstance, Structure};
@@ -48,6 +50,7 @@ pub(super) struct ArmShape {
 pub struct R1csIvcRelation {
     relation: MultiBranchLowNormR1cs,
     arm_shapes: [ArmShape; 3],
+    compilation_audit: R1csIvcCompilationAudit,
     preprocessing_digest: Option<[F; 4]>,
 }
 
@@ -68,15 +71,41 @@ impl R1csIvcRelation {
         // relation itself, and acceptance still requires exact stabilization.
         let seed = fixed_point_seed_structure();
         let mut verifier_relation = SplitNcVerifierRelation::from_structure(&seed);
+        let mut folded_public_input_len = F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN;
         let mut last_output = (verifier_relation.n(), verifier_relation.m());
+        let mut rounds = Vec::new();
         for round in 0..MAX_ROUNDS {
-            let input_signature = verifier_relation_signature(&verifier_relation);
-            let arms = shape::synthesize_arm_shapes(params, &verifier_relation, app, plan)?;
+            let input_signature = verifier_relation_signature(&verifier_relation, folded_public_input_len);
+            let arms = shape::synthesize_arm_shapes(params, &verifier_relation, folded_public_input_len, app, plan)?;
             let next_shape = audit_multi_branch_selective_low_norm_shape_with_alignment(&arms, 0, D, arms[0].m_in % D)?;
             last_output = (next_shape.rows, next_shape.columns);
-            if round > 0 && input_signature == shape_signature(&next_shape) {
-                return Self::compile_arms_selected(arms, next_shape);
+            rounds.push(FixedPointRoundAudit {
+                round,
+                input: RelationHeaderAudit {
+                    rows: verifier_relation.n(),
+                    columns: verifier_relation.m(),
+                    public_input_len: folded_public_input_len,
+                    polynomial: verifier_relation.polynomial().clone(),
+                },
+                arms: std::array::from_fn(|index| ArmShapeAudit {
+                    rows: arms[index].n,
+                    columns: arms[index].m,
+                    public_columns: arms[index].m_in,
+                }),
+                output: RelationHeaderAudit {
+                    rows: next_shape.rows,
+                    columns: next_shape.columns,
+                    public_input_len: next_shape.public_input_len,
+                    polynomial: next_shape.polynomial.clone(),
+                },
+            });
+            if round > 0
+                && input_signature == shape_signature(&next_shape)
+                && same_polynomial(verifier_relation.polynomial(), &next_shape.polynomial)
+            {
+                return Self::compile_arms_selected(arms, next_shape, rounds);
             }
+            folded_public_input_len = next_shape.public_input_len;
             verifier_relation =
                 SplitNcVerifierRelation::from_parts(next_shape.rows, next_shape.columns, next_shape.polynomial);
         }
@@ -89,23 +118,43 @@ impl R1csIvcRelation {
         })
     }
 
-    fn compile_arms_selected(arms: [SparseR1cs; 3], shape: SelectiveLowNormShape) -> Result<Self, R1csIvcError> {
+    fn compile_arms_selected(
+        arms: [SparseR1cs; 3],
+        shape: SelectiveLowNormShape,
+        rounds: Vec<FixedPointRoundAudit>,
+    ) -> Result<Self, R1csIvcError> {
         let arm_shapes = std::array::from_fn(|index| ArmShape {
             rows: arms[index].n,
             columns: arms[index].m,
             public_columns: arms[index].m_in,
         });
         let public_fields = arms[0].m_in;
-        if shape.audit.total_coordinates > R1CS_IVC_COMMITTED_COORDINATE_BUDGET {
+        if shape.compiler_audit.width().total_coordinates > R1CS_IVC_COMMITTED_COORDINATE_BUDGET {
             return Err(R1csIvcError::BudgetExceeded {
-                required: shape.audit.total_coordinates,
+                required: shape.compiler_audit.width().total_coordinates,
                 budget: R1CS_IVC_COMMITTED_COORDINATE_BUDGET,
             });
         }
         let relation = build_multi_branch_selective_low_norm_r1cs_with_alignment(&arms, 0, D, public_fields % D)?;
-        if relation_signature(relation.structure()) != shape_signature(&shape) {
+        let emitted_audit = relation
+            .selective_compiler_audit()
+            .cloned()
+            .ok_or_else(|| {
+                R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
+                    "selective relation omitted its exact compiler audit".into(),
+                ))
+            })?;
+        let emitted_layout = emitted_audit.layout();
+        if relation_signature(relation.structure(), relation.public_input_len()) != shape_signature(&shape)
+            || !same_polynomial(&relation.structure().f, &shape.polynomial)
+            || emitted_audit != shape.compiler_audit
+            || emitted_layout.total_columns() != relation.structure().m
+            || emitted_layout.public_input_len() != relation.public_input_len()
+            || emitted_layout.selector_columns() != relation.selector_cols()
+            || emitted_audit.width().total_coordinates != emitted_layout.ring_alignment_padding_columns().start
+        {
             return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
-                "shape-only selective audit differs from emitted relation".into(),
+                "shape-only or exact selective audit differs from emitted relation".into(),
             )));
         }
         if relation.structure().m > R1CS_IVC_COMMITTED_COORDINATE_BUDGET {
@@ -114,9 +163,11 @@ impl R1csIvcRelation {
                 budget: R1CS_IVC_COMMITTED_COORDINATE_BUDGET,
             });
         }
+        let compilation_audit = R1csIvcCompilationAudit::new(rounds, emitted_audit);
         Ok(Self {
             relation,
             arm_shapes,
+            compilation_audit,
             preprocessing_digest: None,
         })
     }
@@ -127,6 +178,10 @@ impl R1csIvcRelation {
 
     pub fn public_input_len(&self) -> usize {
         self.relation.public_input_len()
+    }
+
+    pub fn compilation_audit(&self) -> &R1csIvcCompilationAudit {
+        &self.compilation_audit
     }
 
     pub(super) fn arm_shape(&self, branch: R1csIvcBranch) -> ArmShape {
@@ -193,25 +248,51 @@ impl R1csIvcRelation {
     }
 }
 
-fn relation_signature(structure: &Structure) -> (usize, usize, usize, u32) {
-    (structure.n, structure.m, structure.t(), structure.max_degree())
+fn relation_signature(structure: &Structure, public_input_len: usize) -> (usize, usize, usize, u32, usize) {
+    (
+        structure.n,
+        structure.m,
+        structure.t(),
+        structure.max_degree(),
+        public_input_len,
+    )
 }
 
-fn verifier_relation_signature(relation: &SplitNcVerifierRelation) -> (usize, usize, usize, u32) {
-    (relation.n(), relation.m(), relation.t(), relation.max_degree())
+fn verifier_relation_signature(
+    relation: &SplitNcVerifierRelation,
+    public_input_len: usize,
+) -> (usize, usize, usize, u32, usize) {
+    (
+        relation.n(),
+        relation.m(),
+        relation.t(),
+        relation.max_degree(),
+        public_input_len,
+    )
 }
 
-fn shape_signature(shape: &SelectiveLowNormShape) -> (usize, usize, usize, u32) {
+fn shape_signature(shape: &SelectiveLowNormShape) -> (usize, usize, usize, u32, usize) {
     (
         shape.rows,
         shape.columns,
         shape.polynomial.arity(),
         shape.polynomial.max_degree(),
+        shape.public_input_len,
     )
 }
 
+fn same_polynomial(left: &neo_ccs::SparsePoly<F>, right: &neo_ccs::SparsePoly<F>) -> bool {
+    left.arity() == right.arity()
+        && left.terms().len() == right.terms().len()
+        && left
+            .terms()
+            .iter()
+            .zip(right.terms())
+            .all(|(left, right)| left.coeff == right.coeff && left.exps == right.exps)
+}
+
 fn fixed_point_seed_structure() -> Structure {
-    let columns = crate::paper::f_prime::r1cs::F_PRIME_PUBLIC_INPUT_LEN;
+    let columns = F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN;
     let a = Mat::zero(1, columns, F::ZERO);
     let b = Mat::zero(1, columns, F::ZERO);
     let c = Mat::zero(1, columns, F::ZERO);

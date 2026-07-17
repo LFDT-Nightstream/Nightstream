@@ -1,11 +1,25 @@
 //! Authoritative complete augmented `F'` relation for one uniform IVC step.
 //!
-//! This module composes, in one R1CS:
-//! application constraints, semantic state input/output hashes, the fixed
-//! Construction-2 branch, the recursive public link, NIFS.V, accumulator
-//! transition, counters, and the exact public `x_out`. The resulting field
-//! R1CS is then handed to the generic low-norm encoder; no native compiler
-//! assertion participates in acceptance.
+//! Owns: verifier-owned context validation, base/recursive branch construction,
+//! application composition, public-output binding, and fixed-language encoding.
+//!
+//! Does not own: Construction-2 branch algebra, NIFS internals, application
+//! semantics, or low-level slot equations.
+//!
+//! Emits constraints: yes; it composes the complete authoritative field R1CS
+//! and hands that relation to the selected exact low-norm lowering.
+//!
+//! Authority boundary: native checks and profiler metadata never participate
+//! in acceptance. Public context, branch selector, application relation, and
+//! all carried outputs are constrained inside the composed relation.
+//!
+//! | Child phase | Mathematical obligation | Emits constraints? | Rust owner | Lean owner |
+//! |---|---|---|---|---|
+//! | Verifier key/context | Fix one relation language and transcript header | yes | this file | full-relation refinement open |
+//! | Base/recursive branch | Enforce exactly one Construction-2 transition | yes | `paper/f_prime/r1cs.rs` | FPrime semantics |
+//! | Application | Enforce the configured state transition | yes | configured `R1csRelation` | application-specific |
+//! | Public links | Bind semantic hashes, state, and exact `x_out` | yes | this file | full-relation refinement open |
+//! | Gadget-native lowering | Preserve and encode every source row | yes | `frontends/f_prime/gadget_native/` | per-family model/refinement files |
 
 use std::sync::Arc;
 
@@ -14,6 +28,7 @@ use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
 
 use crate::engine::r1cs_circuit::boolean::enforce_bit;
+use crate::engine::r1cs_circuit::builder::RowFamilyRange;
 use crate::engine::r1cs_circuit::poseidon2::{enforce_poseidon2_hash, DIGEST_LEN};
 use crate::engine::r1cs_circuit::{Lc, R1csBuilder, R1csEncodingTrace, R1csRelation, R1csSnapshot, Var};
 use crate::frontends::direct_ccs::FrontendError;
@@ -33,6 +48,7 @@ use crate::paper::f_prime::r1cs::{
     enforce_construction2_f_prime_base_step_circuit, enforce_f_prime_recursive_step_circuit_with_header_bundle_wires,
     Error as FPrimeError, FPrimeBaseInputs, FPrimeRecursiveInputs, FPrimeStepConfig, FPrimeStepOutput,
 };
+use crate::paper::f_prime::stage as fprime_stage;
 use crate::paper::params::Params;
 
 const SEMANTIC_STATE_FIELDS_TAG: &[u8] = b"neo.fold.clean/semantic_state/fields/v2";
@@ -58,7 +74,7 @@ impl FullFPrimeContext {
         let vk = VerifierKey::derive(
             pp,
             structure,
-            Some(crate::paper::f_prime::r1cs::F_PRIME_PUBLIC_INPUT_LEN),
+            Some(crate::paper::f_prime::r1cs::F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN),
             digest_fields_as_digest32(initial_semantic_state_digest),
         )?;
         Ok(Self {
@@ -135,7 +151,7 @@ impl<'a> FullFPrimeRelation<'a> {
             cfg.nifs.pi_ccs.params,
             &context.structure_digest,
             cfg.nifs.pi_ccs.header_bundle,
-            Some(crate::paper::f_prime::r1cs::F_PRIME_PUBLIC_INPUT_LEN),
+            Some(crate::paper::f_prime::r1cs::F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN),
             digest_fields_as_digest32(context.initial_semantic_state_digest),
         );
         if context.vk_fs_digest != digest32_as_fields(configured_vk.digest()) {
@@ -169,9 +185,9 @@ impl<'a> FullFPrimeRelation<'a> {
         validate_fresh_arity(inputs.rows_in_chunk)?;
         let mut builder = R1csBuilder::new();
         builder.enable_encoding_trace();
-        builder.begin_encoding_stage("verifier_key");
+        builder.begin_encoding_stage(fprime_stage::BASE_ROOT);
+        builder.begin_encoding_stage(fprime_stage::BASE_VERIFIER_KEY);
         let verifier_key = alloc_verifier_key_wires(&mut builder, &self.context, self.cfg.nifs.pi_ccs.params);
-        builder.begin_encoding_stage("f_prime.base_state_and_source");
         let output = enforce_construction2_f_prime_base_step_circuit(&mut builder, &self.cfg, inputs)?;
         finish_full_relation(&mut builder, BranchKind::Base, &verifier_key, output, &application)
     }
@@ -187,9 +203,9 @@ impl<'a> FullFPrimeRelation<'a> {
         validate_fixed_nifs_shape(pp, inputs)?;
         let mut builder = R1csBuilder::new();
         builder.enable_encoding_trace();
-        builder.begin_encoding_stage("verifier_key");
+        builder.begin_encoding_stage(fprime_stage::RECURSIVE_ROOT);
+        builder.begin_encoding_stage(fprime_stage::RECURSIVE_VERIFIER_KEY);
         let verifier_key = alloc_verifier_key_wires(&mut builder, &self.context, pp);
-        builder.begin_encoding_stage("f_prime.state_and_source");
         let output = enforce_f_prime_recursive_step_circuit_with_header_bundle_wires(
             &mut builder,
             pp,
@@ -224,6 +240,7 @@ pub struct FullFPrimeBranchExecution {
     kind: BranchKind,
     snapshot: Arc<R1csSnapshot>,
     encoding_trace: Arc<R1csEncodingTrace>,
+    row_family_ranges: Arc<Vec<RowFamilyRange>>,
     public_bit_columns: Vec<usize>,
     application_columns: Vec<usize>,
     verifier_key_columns: Vec<usize>,
@@ -240,6 +257,13 @@ impl FullFPrimeBranchExecution {
 
     pub fn encoding_trace(&self) -> &R1csEncodingTrace {
         self.encoding_trace.as_ref()
+    }
+
+    /// Assurance-only source-row ownership captured before the builder is
+    /// frozen into an R1CS snapshot. These ranges never affect acceptance.
+    #[doc(hidden)]
+    pub fn row_family_ranges(&self) -> &[RowFamilyRange] {
+        self.row_family_ranges.as_ref()
     }
 
     pub fn estimate_gadget_native_encoding(&self) -> Result<GadgetNativeEstimate, GadgetNativeError> {
@@ -901,7 +925,7 @@ fn alloc_verifier_key_wires(
         params,
         structure_digest,
         pi_ccs_header_bundle,
-        Some(crate::paper::f_prime::r1cs::F_PRIME_PUBLIC_INPUT_LEN),
+        Some(crate::paper::f_prime::r1cs::F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN),
         initial_semantic_state_digest,
     );
     FullFPrimeVerifierKeyWires {
@@ -919,7 +943,22 @@ fn finish_full_relation(
     output: FPrimeStepOutput,
     application: &ApplicationStep<'_>,
 ) -> Result<FullFPrimeBranchExecution, FullFPrimeError> {
-    builder.begin_encoding_stage("full.verifier_key_and_base_links");
+    let (finalize, context_link, application_stage, semantic_links) = match kind {
+        BranchKind::Base => (
+            fprime_stage::BASE_FINALIZE,
+            fprime_stage::BASE_CONTEXT_LINK,
+            fprime_stage::BASE_APPLICATION,
+            fprime_stage::BASE_SEMANTIC_LINKS,
+        ),
+        BranchKind::Recursive => (
+            fprime_stage::RECURSIVE_FINALIZE,
+            fprime_stage::RECURSIVE_CONTEXT_LINK,
+            fprime_stage::RECURSIVE_APPLICATION,
+            fprime_stage::RECURSIVE_SEMANTIC_LINKS,
+        ),
+    };
+    builder.begin_encoding_stage(finalize);
+    builder.begin_encoding_stage(context_link);
     bind_verifier_key(builder, &output, verifier_key);
     if kind == BranchKind::Base {
         enforce_digest_eq(
@@ -928,9 +967,9 @@ fn finish_full_relation(
             &verifier_key.initial_semantic_state_digest,
         );
     }
-    builder.begin_encoding_stage("full.application_relation");
+    builder.begin_encoding_stage(application_stage);
     let application_vars = enforce_application(builder, application);
-    builder.begin_encoding_stage("full.semantic_state_hashes_and_links");
+    builder.begin_encoding_stage(semantic_links);
     bind_application_state(builder, &output, application, &application_vars);
     let public_bit_columns = output.x_out_bits.iter().map(|wire| wire.col()).collect();
     let application_columns = application_vars.iter().map(|wire| wire.col()).collect();
@@ -946,6 +985,7 @@ fn finish_full_relation(
         kind,
         snapshot: Arc::new(builder.snapshot()),
         encoding_trace: Arc::new(builder.encoding_trace().clone()),
+        row_family_ranges: Arc::new(builder.row_family_ranges().to_vec()),
         public_bit_columns,
         application_columns,
         verifier_key_columns,
@@ -1018,12 +1058,8 @@ fn bind_application_state(
     enforce_digest_eq(builder, &output.state_in.semantic_state_digest, &semantic_in);
     enforce_digest_eq(builder, &output.state_out.semantic_state_digest, &semantic_out);
 
-    // `z_i` is the actual application-state digest in the canonical relation;
-    // `public_trace` is its constrained mirror, not an independent history.
-    enforce_digest_eq(builder, &output.state_in.z_i, &semantic_in);
-    enforce_digest_eq(builder, &output.state_in.public_trace, &semantic_in);
-    enforce_digest_eq(builder, &output.state_out.z_i, &semantic_out);
-    enforce_digest_eq(builder, &output.state_out.public_trace, &semantic_out);
+    // Application state owns only `semantic_state_digest`. The F' step owns
+    // `z_i` and `public_trace` as its chunk-shape trace; never alias the two.
 }
 
 fn enforce_semantic_state_digest(builder: &mut R1csBuilder, values: &[Var]) -> [Var; DIGEST_LEN] {

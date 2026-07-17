@@ -7,10 +7,12 @@
 //! instance, exactly as HyperNova Construction 2 requires.
 
 mod chain;
+mod compilation_audit;
 mod relation;
 pub(crate) mod shape;
 
 pub use chain::{R1csIvc, R1csIvcPreprocessing};
+pub use compilation_audit::{ArmShapeAudit, FixedPointRoundAudit, R1csIvcCompilationAudit, RelationHeaderAudit};
 pub use relation::{R1csIvcBranch, R1csIvcRelation};
 
 use thiserror::Error;

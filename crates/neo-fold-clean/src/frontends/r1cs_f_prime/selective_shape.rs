@@ -1,21 +1,39 @@
 //! Exact shape discovery for selective low-norm lowering.
+//!
+//! Owns: selective row/column totals, column alignment, sparse-polynomial shape,
+//! and width-audit return data.
+//!
+//! Does not own: matrix coefficients, witness encoding, trace validity, or
+//! relation acceptance.
+//!
+//! Emits constraints: no. It computes the shape consumed by the row emitter.
+//!
+//! Authority boundary: shape counts are derived metadata; only the emitted
+//! matrices and verified assignment establish the relation.
+//!
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | Layout preparation | shape-audit entrypoints | no | Prepared selective arm plans |
+//! | Exact rows | `PreparedSelectiveRows::total_rows` | no | Prepared source-row plan |
+//! | CCS polynomial | `selective_polynomial` | no | Fixed selective gate vocabulary |
 
 use neo_ccs::{SparsePoly, Term};
 use neo_math::{D, F};
 use p3_field::{Field, PrimeCharacteristicRing};
 
-use super::super::lowering::{DerivedProductSumEncoding, LowNormR1csError};
+use super::super::lowering::LowNormR1csError;
 use super::{
-    prepare_selective_layout, skipped_selective_rows, trace_error, SelectiveArmPlan, SelectiveLowNormWidthAudit,
-    SparseR1cs, A, B, BALANCED_FIELD_WIDTH, BIT, C, CANON_BORROW, CANON_BOUND_DIGIT, CANON_DIGIT, CANON_NEXT_BORROW,
-    CENTERED_UNIT, EVAL_GROUP_SIZE, EVAL_PAIRS, EVAL_SELECTOR, GENERAL_SELECTOR, SBOX_INPUT, SELECTIVE_ARITY,
+    prepare_selective_layout, SelectiveCompilerAudit, SparseR1cs, A, B, BIT, C, CANON_BORROW, CANON_BOUND_DIGIT,
+    CANON_DIGIT, CANON_NEXT_BORROW, CENTERED_UNIT, EVAL_PAIRS, EVAL_SELECTOR, GENERAL_SELECTOR, SBOX_INPUT,
+    SELECTIVE_ARITY,
 };
 
 pub(crate) struct SelectiveLowNormShape {
     pub rows: usize,
     pub columns: usize,
+    pub public_input_len: usize,
     pub polynomial: SparsePoly<F>,
-    pub audit: SelectiveLowNormWidthAudit,
+    pub compiler_audit: SelectiveCompilerAudit,
 }
 
 pub(crate) fn audit_multi_branch_selective_low_norm_shape_with_alignment(
@@ -42,123 +60,14 @@ pub(crate) fn audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix
 ) -> Result<SelectiveLowNormShape, LowNormR1csError> {
     let layout = prepare_selective_layout(arms, shared_private_fields, shared_private_bit_fields, modulus, residue)?;
     let columns = layout.columns.next_multiple_of(D);
-    let rows = count_structure_rows(
-        arms,
-        &layout.plans,
-        &layout.slots,
-        &layout.aliases,
-        &layout.equal_aliases,
-        shared_private_fields,
-        &layout.derived_product_sums,
-        &layout.selector_cols,
-        &layout.zero_padding_cols,
-        layout.columns,
-    )?;
+    let rows = layout.prepared_rows.total_rows();
     Ok(SelectiveLowNormShape {
         rows,
         columns,
+        public_input_len: layout.public_input_len,
         polynomial: selective_polynomial(),
-        audit: layout.audit,
+        compiler_audit: layout.compiler_audit,
     })
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(super) fn count_structure_rows(
-    arms: &[SparseR1cs],
-    plans: &[SelectiveArmPlan],
-    slots: &[Vec<Option<(usize, usize)>>],
-    aliases: &[Vec<Option<(usize, usize)>>],
-    equal_aliases: &[Vec<Option<usize>>],
-    shared_private_fields: usize,
-    derived_product_sums: &[Vec<DerivedProductSumEncoding>],
-    selectors: &[usize],
-    zero_padding_cols: &[usize],
-    cols: usize,
-) -> Result<usize, LowNormR1csError> {
-    let mut rows = selectors.len();
-    for source in 1..arms[0].m_in + shared_private_fields {
-        if aliases[0][source].is_some() {
-            continue;
-        }
-        if let Some((_, width)) = slots[0][source] {
-            let source_proves_boolean = plans.iter().all(|plan| plan.source_boolean_rows[source]);
-            if !source_proves_boolean && !plans[0].centered[source] && width != BALANCED_FIELD_WIDTH {
-                rows += width;
-            }
-        }
-    }
-    for (arm_index, arm) in arms.iter().enumerate() {
-        for source in arm.m_in + shared_private_fields..arm.m {
-            if aliases[arm_index][source].is_some() || equal_aliases[arm_index][source].is_some() {
-                continue;
-            }
-            if let Some((_, width)) = slots[arm_index][source] {
-                if !plans[arm_index].source_boolean_rows[source]
-                    && !plans[arm_index].centered[source]
-                    && width != BALANCED_FIELD_WIDTH
-                {
-                    rows += width;
-                }
-            }
-        }
-    }
-
-    rows += 1 + zero_padding_cols.len();
-    for (arm_index, arm) in arms.iter().enumerate() {
-        let definitions = &plans[arm_index].definitions;
-        let mut skipped = skipped_selective_rows(arm)?;
-        for definition in &definitions.entries {
-            if let Some(row) = definition.row {
-                if core::mem::replace(&mut skipped[row], true) {
-                    return Err(trace_error("linear definition overlaps a direct selective trace"));
-                }
-            }
-        }
-        rows += skipped.into_iter().filter(|skip| !skip).count();
-        rows += arm
-            .poseidon2_traces()
-            .iter()
-            .map(|trace| {
-                trace.sboxes.len()
-                    + trace
-                        .output_cols
-                        .iter()
-                        .filter(|&&column| definitions.get(column).is_none())
-                        .count()
-            })
-            .sum::<usize>();
-        rows += arm
-            .centered_unit_traces()
-            .iter()
-            .filter(|trace| plans[arm_index].widths[trace.value_col] == 0)
-            .count();
-        rows += 2 * BALANCED_FIELD_WIDTH * arm.shifted_ternary_canonical_traces().len();
-
-        let mut derived_count = 0usize;
-        for trace in arm.polynomial_evaluation_traces() {
-            let groups = trace
-                .coefficient_cols
-                .len()
-                .saturating_sub(1)
-                .div_ceil(EVAL_GROUP_SIZE)
-                .max(1);
-            rows += 2 * groups;
-            derived_count += 2 * groups.saturating_sub(1);
-        }
-        for batch in arm.product_sum_batch_traces() {
-            for identity in &batch.identities {
-                let groups = identity.factors.len().div_ceil(EVAL_GROUP_SIZE).max(1);
-                rows += groups;
-                derived_count += groups.saturating_sub(1);
-            }
-        }
-        if derived_count != derived_product_sums[arm_index].len() {
-            return Err(trace_error(
-                "derived evaluation-product census drifted during row counting",
-            ));
-        }
-    }
-    Ok(rows + cols.next_multiple_of(D) - cols)
 }
 
 pub(super) fn selective_polynomial() -> SparsePoly<F> {

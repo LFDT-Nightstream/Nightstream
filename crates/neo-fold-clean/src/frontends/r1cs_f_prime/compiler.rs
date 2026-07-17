@@ -1,13 +1,23 @@
-//! R1CS app-step compiler — fixed-shape R1CS assignments into encoded F'.
+//! R1CS-specific compilation of fixed-shape assignments into encoded `F'` steps.
 //!
-//! This frontend owns only the R1CS-specific layer: assignment length
-//! checks, R1CS satisfiability, assignment-bit encoding, and binding
-//! public input `x = z[..m_in]` into `state_x_out`.
+//! Owns: assignment shape/satisfaction checks, semantic-state digests, public
+//! input binding, and step/chunk compiler entrypoints.
 //!
-//! Shared F' mechanics live in
-//! [`crate::frontends::f_prime::compiler`]: chain state,
-//! prior-fold verification, NIFS CE views, canonical plan validation,
-//! and unified Poseidon trace assembly.
+//! Does not own: shared `F'` chain mechanics, image row formulas, lifecycle
+//! folding, or NIFS verification.
+//!
+//! Emits constraints: no. It validates native assignments and fills a cached
+//! encoded relation.
+//!
+//! Authority boundary: the verifier-owned R1CS shape determines valid
+//! assignments; shared prior-fold verification remains authoritative for the
+//! recursive link.
+//!
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | Chain initialization | [`start_chain`] | no | Preprocessed verifier shape |
+//! | Step/chunk compilation | [`compile_step`], [`compile_chunk`] | no | Satisfying fixed-shape assignments |
+//! | Semantic state | semantic-state digest helpers | no | Verifier-selected state columns |
 
 use std::sync::Arc;
 

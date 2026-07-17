@@ -1,4 +1,20 @@
-//! Exact balanced-ternary witness encoding for full field values.
+//! Exact balanced-ternary witness encoding for retained field values.
+//!
+//! Owns: the fixed 41-digit representation, chunk lookup table, sign selection,
+//! and witness digit materialization.
+//!
+//! Does not own: canonicality constraints, slot allocation, source-field
+//! binding, or selective CCS construction.
+//!
+//! Emits constraints: no.
+//!
+//! Authority boundary: generated digits are witness data until the selective
+//! canonicality rows bind them to the retained source value.
+//!
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | Chunk decomposition | `balanced_ternary_chunks` | no | Fixed radix-three arithmetic |
+//! | Field encoding | [`write_balanced_ternary`] | no | Canonical field representative |
 
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};

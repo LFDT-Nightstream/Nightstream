@@ -49,3 +49,4 @@ profile-output.txt
 crates/neo-prover-cuda/*.ll
 crates/neo-prover-cuda/*.ptx
 crates/neo-prover-cuda/.oxide-artifacts/
+/specs

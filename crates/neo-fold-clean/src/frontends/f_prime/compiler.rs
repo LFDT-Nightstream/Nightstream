@@ -1,12 +1,22 @@
-//! Shared F' compiler state and helpers.
+//! App-independent compiler state and trace assembly for one encoded `F'` step.
 //!
-//! This module owns app-agnostic compiler state and the protocol-generic
-//! checks every concrete frontend (Fibonacci, R1CS, …) repeats: chain
-//! coordinates, prior-fold authority, optional source-image NIFS payload
-//! views, and
-//! transcript-bound prior-fold verification. App frontends keep only
-//! their app-specific witness checks, encoder dispatch, and output
-//! shape.
+//! Owns: chain coordinates, prior-fold verification inputs, NIFS payload views,
+//! and deterministic shared trace assembly.
+//!
+//! Does not own: application witness semantics, source-image row formulas, or
+//! final proof verification.
+//!
+//! Emits constraints: no. It prepares validated values and trace images for the
+//! encoder.
+//!
+//! Authority boundary: a full prior fold is checked through NIFS verification;
+//! backend summaries are compile-time data and never replace final verification.
+//!
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | Chain state | [`FPrimeCompilerContext`] | no | Verifier-owned chain header |
+//! | Prior fold | [`verify_prior_fold`] | no | Native NIFS verification |
+//! | Trace assembly | [`assemble_shared_chunk_traces`], [`assemble_step_from_shared`] | no | Deterministic validated inputs |
 
 use neo_ajtai::Commitment;
 use neo_ccs::matrix::Mat;

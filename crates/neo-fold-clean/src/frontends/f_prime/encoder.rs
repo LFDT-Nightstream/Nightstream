@@ -1,14 +1,23 @@
-//! App-agnostic encoded-F' recursive-step encoder.
+//! Materialization of one encoded `F'` step from a fixed image plan.
 //!
-//! Consumes a real recursive-step's data and produces an `enc(F'_i)`
-//! instance: an [`FPrimeImage`] with every region filled, the
-//! matching [`FPrimeStructure`], and the extended witness `z` that
-//! satisfies it.
+//! Owns: filling the source image, constructing the matching CCS structure, and
+//! returning the instance plus satisfying assignment.
 //!
-//! This is the single chokepoint that takes "step witness + prover
-//! artifacts" and returns "low-norm CCS-shaped F' state ready to be
-//! folded." App frontends (`fibonacci_f_prime`, `r1cs_f_prime`)
-//! configure a plan, hand it to the encoder, and check the result.
+//! Does not own: plan semantics, application-specific witness validation, or
+//! NIFS proof authority.
+//!
+//! Emits constraints: yes, indirectly through [`build_f_prime_structure`]; this
+//! file owns orchestration rather than row formulas.
+//!
+//! Authority boundary: encoder output is prover data until the returned
+//! structure and instance are verified; successful local assembly is not proof
+//! authority.
+//!
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | Image fill | [`encode_f_prime_step`] | no | Caller-supplied typed inputs |
+//! | CCS structure | [`build_f_prime_structure`] | yes | Fixed image plan |
+//! | Instance and witness | [`EncodedFPrimeStep`] | no | Verified CCS relation |
 
 use std::sync::Arc;
 

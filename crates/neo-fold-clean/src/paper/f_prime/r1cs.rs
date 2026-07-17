@@ -2,9 +2,32 @@
 //! Hypernova §6.3 / SuperNeo Construction 2.
 //!
 //! Two internal branch emitters mirror the paper's case split. They are not
-//! independently foldable public relations; the authoritative caller combines
-//! them into one selector-controlled language in
+//! independently foldable public relations; the production caller combines
+//! them into one selector-controlled implementation language in
 //! `frontends::r1cs_f_prime::full_relation`.
+//!
+//! Owns: the base and recursive Construction-2 branch emitters and their
+//! state/accumulator/public-link outputs.
+//!
+//! Does not own: fixed branch selection, application constraints, final public
+//! pinning, or low-norm lowering.
+//!
+//! Emits constraints: yes; callers must compose these internal branches into
+//! one fixed selector-controlled relation. That relation is an implementation
+//! artifact, not the independent semantic authority for F'/NIFS.
+//!
+//! Authority boundary: recursive state is accepted only through the public
+//! prior-state link and checked NIFS parent; digests compress but never replace
+//! those constrained inputs.
+//!
+//! | Branch/phase | Mathematical obligation | Emits constraints? | Rust owner | Lean owner |
+//! |---|---|---|---|---|
+//! | Base | Initialize state and the canonical empty accumulator | yes | this file | FPrime base semantics |
+//! | Recursive transcript | Bind the prior public state before NIFS | yes | this file | transcript refinement open |
+//! | NIFS transition | Fold fresh/running claims into one checked parent | yes | `paper/nifs/circuit/` | NIFS/FPrime bridge |
+//! | Accumulator continuity | Link incoming authority and recompute outgoing authority | yes | this file | authority refinement open |
+//! | Counters and `x_out` | Advance counters and derive the public next-state digest | yes | this file | FPrime step semantics |
+//!
 //!   - [`enforce_f_prime_base_step_circuit`] (i = 0). No NIFS.V; enforces
 //!     `z_i = z_0`, `chunk_count_in = 0`, and `acc_digest_in = empty_acc`.
 //!     `acc_digest_out` is the same empty-acc constant. Strict mode also
@@ -99,6 +122,7 @@ use crate::paper::f_prime::nebula_lane_circuit::{
 };
 use crate::paper::f_prime::source_image::{BitRange, FPrimeSourceImage, Word64Image};
 use crate::paper::f_prime::source_image_circuit::{enforce_goldilocks_word_canonical, SourceImageWires};
+use crate::paper::f_prime::stage;
 use crate::paper::nifs::circuit::{
     enforce_nifs_v_circuit_with_transcript_and_header_bundle,
     enforce_nifs_v_circuit_with_transcript_and_header_bundle_wires, NifsVCircuitConfig, NifsVCircuitMessages,
@@ -122,7 +146,7 @@ pub const F_PRIME_PUBLIC_ONE_OFFSET: usize = 0;
 /// First index of the `enc_inst(x_out)` body inside the F' public input.
 pub const F_PRIME_ENC_INST_OFFSET: usize = 1;
 
-/// Full F' CCS public-input length: `[1, enc_inst(x_out)…]`.
+/// Logical F' public-input length: `[1, enc_inst(x_out)…]`.
 ///
 /// `enc_inst` is the **public-instance encoding boundary**. It does *not*
 /// mean every internal F' field value is bit-backed — Poseidon2 outputs,
@@ -142,6 +166,16 @@ pub const F_PRIME_ENC_INST_OFFSET: usize = 1;
 /// `b = 2`, the body is "canonical 64-bit decomposition of each of the
 /// four Goldilocks digest lanes". See `encoding.md`.
 pub const F_PRIME_PUBLIC_INPUT_LEN: usize = 1 + F_PRIME_ENC_INST_BITS;
+
+/// Authoritative SuperNeo carrier width for plain F'.
+///
+/// SuperNeo acts on complete `D`-coefficient ring columns. The logical
+/// 257-field F' link therefore occupies a 270-coordinate public carrier:
+/// columns `0..257` hold `[1, enc_inst(x_out)]`, while columns `257..270`
+/// are verifier-fixed zero padding in every fresh claim. Running CE claims
+/// retain all 270 coordinates because ring-linear folding may populate the
+/// final thirteen lanes.
+pub const F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN: usize = (F_PRIME_PUBLIC_INPUT_LEN + D - 1) / D * D;
 
 /// Verifier-owned public-input shape for one F' relation.
 ///
@@ -163,8 +197,19 @@ impl FPrimePublicInputLayout {
         Self { suffix_len }
     }
 
-    pub const fn total_len(self) -> usize {
+    /// Logical fields carried before the verifier-fixed ring padding.
+    pub const fn logical_len(self) -> usize {
         F_PRIME_PUBLIC_INPUT_LEN + self.suffix_len
+    }
+
+    /// Complete public carrier consumed by SuperNeo.
+    pub const fn total_len(self) -> usize {
+        let logical = self.logical_len();
+        (logical + D - 1) / D * D
+    }
+
+    pub const fn carrier_padding_len(self) -> usize {
+        self.total_len() - self.logical_len()
     }
 
     pub const fn suffix_len(self) -> usize {
@@ -173,6 +218,14 @@ impl FPrimePublicInputLayout {
 
     pub const fn suffix_offset(self) -> usize {
         F_PRIME_PUBLIC_INPUT_LEN
+    }
+
+    pub const fn suffix_end(self) -> usize {
+        self.suffix_offset() + self.suffix_len
+    }
+
+    pub const fn carrier_padding_offset(self) -> usize {
+        self.logical_len()
     }
 }
 
@@ -193,10 +246,22 @@ pub fn encode_x_out_public_bits(x_out: [F; DIGEST_LEN]) -> Vec<F> {
 }
 
 /// Build the full F' CCS instance public input: `[1, enc_inst(x_out)…]`.
+///
+/// This is the logical HyperNova link. SuperNeo fresh claims must use
+/// [`encode_f_prime_superneo_public_input`] so the active ring carrier is
+/// completed by verifier-fixed zeros.
 pub fn encode_f_prime_public_input(x_out: [F; DIGEST_LEN]) -> Vec<F> {
     let mut out = Vec::with_capacity(F_PRIME_PUBLIC_INPUT_LEN);
     out.push(F::ONE);
     out.extend(encode_x_out_public_bits(x_out));
+    out
+}
+
+/// Build the plain F' public carrier consumed by SuperNeo:
+/// `[1, enc_inst(x_out), 0^13]`.
+pub fn encode_f_prime_superneo_public_input(x_out: [F; DIGEST_LEN]) -> Vec<F> {
+    let mut out = encode_f_prime_public_input(x_out);
+    out.resize(F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN, F::ZERO);
     out
 }
 
@@ -527,8 +592,9 @@ pub struct FPrimeRecursiveInputs<'a> {
 ///   embedded NIFS.V (recursive step only; both `None` for base). The
 ///   decider uses these to enforce CE-claim continuity: every recursive
 ///   step k+1's `nifs_running` must equal step k's `nifs_children`
-///   across all authority-bearing fields (not just by accumulator-digest
-///   equality; Π_DEC's non-authority child y_zcol sidecar is excluded).
+///   across all currently bound fields (not just by accumulator-digest
+///   equality). Π_DEC's child y_zcol sidecar is excluded by the current
+///   encoding; the delayed-projection authority bridge must close that gap.
 pub struct FPrimeStepOutput {
     pub x_out: [Var; DIGEST_LEN],
     pub x_out_bits: Vec<Var>,
@@ -847,7 +913,7 @@ pub fn enforce_construction2_f_prime_base_step_circuit(
         relation.n(),
         relation.m(),
         relation.t(),
-        F_PRIME_PUBLIC_INPUT_LEN,
+        cfg.public_input_layout.total_len(),
     )
     .map_err(|error| Error::Inner(format!("canonical Construction-2 accumulator: {error}")))?;
     let zero_digest =
@@ -878,6 +944,8 @@ fn enforce_f_prime_base_step_with_output_acc(
         )));
     }
 
+    builder.begin_encoding_stage(stage::BASE_STEP);
+    builder.begin_encoding_stage(stage::BASE_PRELUDE);
     let sw = alloc_state_in(builder, &inputs.state);
     let chunk_digest = alloc_4(builder, inputs.chunk_digest);
     let expected_chunk_digest = enforce_f_prime_chunk_public_digest_circuit(
@@ -898,6 +966,7 @@ fn enforce_f_prime_base_step_with_output_acc(
     // coordinate becomes a bit-constrained witness wire; the public
     // x_out bits are sliced from this image below.
     let source_start = builder.rows();
+    builder.begin_encoding_stage(stage::BASE_SOURCE);
     let source_wires = SourceImageWires::alloc(builder, inputs.source_image);
 
     // Bind u64 counters to source-image words (Step 4). The `Var`s
@@ -916,6 +985,7 @@ fn enforce_f_prime_base_step_with_output_acc(
 
     // Base pre-state: chunk_count_in == 0, step_count_in == 0, z_i_in == z_0.
     let initial_start = builder.rows();
+    builder.begin_encoding_stage(stage::BASE_INITIAL);
     builder.enforce_eq(&Lc::from_var(sw.chunk_count_in), &Lc::zero());
     builder.enforce_eq(&Lc::from_var(sw.step_count_in), &Lc::zero());
     for k in 0..DIGEST_LEN {
@@ -930,10 +1000,10 @@ fn enforce_f_prime_base_step_with_output_acc(
     builder.record_row_family("fprime.base.initial", initial_start);
 
     let advance_start = builder.rows();
+    builder.begin_encoding_stage(stage::BASE_ADVANCE);
     let new_acc_digest = alloc_4_const(builder, output_acc_digest);
     let new_semantic_state_digest = alloc_4(builder, inputs.semantic_state_digest_out);
 
-    builder.begin_encoding_stage("f_prime.counters_and_x_out");
     // Counter advance: chunk_count' = 1, step_count' = rows_in_chunk.
     // Base IS a real F' step (consumes a chunk_digest, updates z_i and
     // public_trace), so it must also advance step_count consistently with
@@ -955,6 +1025,7 @@ fn enforce_f_prime_base_step_with_output_acc(
     builder.record_row_family("fprime.base.advance", advance_start);
 
     let output_start = builder.rows();
+    builder.begin_encoding_stage(stage::BASE_OUTPUT);
     let (x_out, new_z_i, new_public_trace) = build_x_out(
         builder,
         cfg.state_x_out_digest_mode,
@@ -1085,6 +1156,8 @@ fn enforce_f_prime_recursive_step_circuit_impl(
         ));
     }
 
+    builder.begin_encoding_stage(stage::RECURSIVE_STEP);
+    builder.begin_encoding_stage(stage::RECURSIVE_PRELUDE);
     let sw = alloc_state_in(builder, &inputs.state);
     let chunk_digest = alloc_4(builder, inputs.chunk_digest);
     let expected_chunk_digest = enforce_f_prime_chunk_public_digest_circuit(
@@ -1146,7 +1219,7 @@ fn enforce_f_prime_recursive_step_circuit_impl(
     // ── NIFS.V composition ──────────────────────────────────────────────
     builder.record_row_family("fprime.recursive.prelude", recursive_start);
     let transcript_start = builder.rows();
-    builder.begin_encoding_stage("nifs.transcript_prefix");
+    builder.begin_encoding_stage(stage::RECURSIVE_TRANSCRIPT);
     let mut transcript = TranscriptGadget::new(builder, cfg.transcript_label);
     transcript.append_fields(builder, b"f_prime/vk_fs", &sw.vk_fs);
     transcript.append_fields(builder, b"f_prime/pi_ccs_header", &sw.pi_ccs_header_bundle);
@@ -1165,6 +1238,7 @@ fn enforce_f_prime_recursive_step_circuit_impl(
 
     builder.record_row_family("fprime.recursive.transcript", transcript_start);
     let nifs_start = builder.rows();
+    builder.begin_encoding_stage(stage::RECURSIVE_NIFS);
     let nifs_outputs = if let Some(header_bundle_wires) = header_bundle_wires {
         enforce_nifs_v_circuit_with_transcript_and_header_bundle_wires(
             builder,
@@ -1188,7 +1262,7 @@ fn enforce_f_prime_recursive_step_circuit_impl(
     let prior_link_start = builder.rows();
     let prior_link_first_column = builder.cols();
 
-    builder.begin_encoding_stage("f_prime.prior_public_link");
+    builder.begin_encoding_stage(stage::RECURSIVE_PRIOR_LINK);
     // ── HyperNova recursive link: u_i.public == bits(prior_x_out) ───────
     //
     // The fresh CCS instance's public input MUST encode the previous F'
@@ -1254,7 +1328,8 @@ fn enforce_f_prime_recursive_step_circuit_impl(
         {
             builder.enforce_eq(&Lc::from_var(*fresh_bit), &Lc::from_var(*source_bit));
         }
-        fresh_public_suffixes.push(fresh_x[cfg.public_input_layout.suffix_offset()..].to_vec());
+        fresh_public_suffixes
+            .push(fresh_x[cfg.public_input_layout.suffix_offset()..cfg.public_input_layout.suffix_end()].to_vec());
     }
     builder.record_row_family("fprime.recursive.prior_link", prior_link_start);
     let prior_link = FPrimePriorLinkWires {
@@ -1270,6 +1345,7 @@ fn enforce_f_prime_recursive_step_circuit_impl(
     // this F' invocation consumes the previous fresh claim's public memory
     // data and split witness commitment while producing the next claim.
     let nebula_start = builder.rows();
+    builder.begin_encoding_stage(stage::RECURSIVE_NEBULA);
     let new_nebula_lane = match (cfg.nebula, sw.nebula.as_ref()) {
         (None, None) => None,
         (Some(nebula_cfg), Some(lane)) => {
@@ -1316,7 +1392,8 @@ fn enforce_f_prime_recursive_step_circuit_impl(
     // caught either via the absorbed handle (Fiat-Shamir) or via this
     // wire-level equality.
     let accumulator_start = builder.rows();
-    builder.begin_encoding_stage("f_prime.accumulator_input_link");
+    builder.begin_encoding_stage(stage::RECURSIVE_ACCUMULATOR);
+    builder.begin_encoding_stage(stage::RECURSIVE_ACCUMULATOR_INPUT);
     let running_acc_digest = nifs_outputs.running_acc_digest;
     for k in 0..DIGEST_LEN {
         builder.enforce_eq(&Lc::from_var(running_acc_digest[k]), &Lc::from_var(sw.acc_digest_in[k]));
@@ -1330,14 +1407,14 @@ fn enforce_f_prime_recursive_step_circuit_impl(
     // producer step must compute that handle here before absorbing it into
     // `state_x_out`. A later consumer equality is useful continuity, but
     // not a substitute for this producer-side equation.
-    builder.begin_encoding_stage("f_prime.output_parent_authority_hash");
+    builder.begin_encoding_stage(stage::RECURSIVE_ACCUMULATOR_OUTPUT);
     let claimed_acc_digest = alloc_4(builder, inputs.acc_digest_out);
     let new_acc_digest = enforce_nifs_output_acc_digest(builder, &nifs_outputs.parent)?;
     enforce_digest_eq(builder, &claimed_acc_digest, &new_acc_digest);
     let new_semantic_state_digest = alloc_4(builder, inputs.semantic_state_digest_out);
     builder.record_row_family("fprime.recursive.accumulator", accumulator_start);
 
-    builder.begin_encoding_stage("f_prime.counters_and_x_out");
+    builder.begin_encoding_stage(stage::RECURSIVE_COUNTERS);
     // Counter advance.
     //
     // `rows_in_chunk` is the size of the *current* chunk being deposited
@@ -1372,6 +1449,7 @@ fn enforce_f_prime_recursive_step_circuit_impl(
     builder.record_row_family("fprime.recursive.counter", counter_start);
 
     let output_start = builder.rows();
+    builder.begin_encoding_stage(stage::RECURSIVE_OUTPUT);
     let (x_out, new_z_i, new_public_trace) = build_x_out(
         builder,
         cfg.state_x_out_digest_mode,

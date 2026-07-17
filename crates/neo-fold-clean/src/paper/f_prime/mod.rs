@@ -40,6 +40,7 @@ pub mod r1cs;
 pub mod ring_action_trace;
 pub mod source_image;
 pub mod source_image_circuit;
+pub mod stage;
 
 // Public surface — paper-named entry points kept stable so call sites
 // (mostly `paper::construction2`) don't churn when PR5 adds the R1CS

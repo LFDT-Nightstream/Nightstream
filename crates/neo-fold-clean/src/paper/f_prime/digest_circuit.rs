@@ -1,31 +1,22 @@
-//! In-circuit mirrors of the Construction-2 hash-chain digests.
+//! Poseidon2 R1CS mirrors of the native `F'` digest functions.
 //!
-//! Each gadget here is the R1CS twin of a function in
-//! [`crate::paper::digest`]. The native side hashes a specific preimage
-//! layout via Poseidon2; the in-circuit side builds the same layout from
-//! wire-allocated inputs and constants and invokes
-//! [`enforce_poseidon2_hash`] to produce a `[Var; 4]` digest.
+//! Owns: exact in-circuit preimage construction, domain constants, and digest
+//! rows for the `F'` public and state links.
 //!
-//! **Soundness Invariant I-5**: any change here must move in lockstep with
-//! the native `digest::*` it mirrors. Parity is enforced by the tests in
-//! `tests/f_prime/digest_circuit.rs`.
+//! Does not own: caller input authority, native digest semantics, or outer
+//! recursive-step orchestration.
 //!
-//! ## Domain constants
+//! Emits constraints: yes, through the Poseidon2 and canonical-u64 gadgets.
 //!
-//! The hot canonical `state_x_out` hash uses a compact single-field
-//! domain ID instead of a byte-packed ASCII tag. The legacy
-//! `boundary_update` helper uses the same compact-domain convention, even
-//! though the canonical F' image no longer emits that trace.
+//! Authority boundary: every digest is recomputed from supplied wires and is
+//! authoritative only when those inputs are verifier-bound; a carried digest is
+//! never accepted by itself.
 //!
-//! Legacy helpers that are no longer emitted in the canonical F' image
-//! still mirror native `pack_bytes_as_fields(bytes)`, where the static tag
-//! is laid out as:
-//!
-//!   - `F[0] = bytes.len() as u64`
-//!   - `F[i+1] = u64::from_le_bytes([bytes[7i..7i+7], 0])` for i = 0..ceil(len/7)
-//!
-//! Since those tags are `&'static [u8]`, we precompute this F-sequence at
-//! gadget-emit time and bind each entry to a constant wire.
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | Chunk public digest | [`enforce_f_prime_chunk_public_digest_circuit`] | yes | Verifier-owned shape and start index |
+//! | State/public links | update-digest gadgets | yes | Bound prior state and chunk wires |
+//! | Public `x_out` | [`enforce_state_x_out_digest_circuit`] | yes | Bound state and accumulator inputs |
 
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;

@@ -1,25 +1,21 @@
-//! App-agnostic encoded-F' source-image skeleton.
+//! Typed layout and data image for one encoded `F'` step.
 //!
-//! Composes the four Phase 1.1 primitives (`poseidon_trace`,
-//! `poseidon2_transcript`, `ring_action_trace`, plus the existing
-//! `source_image` boundary layer) into a single layout + image for one
-//! recursive F' step. Concrete app frontends
-//! (`fibonacci_f_prime`,
-//! `crate::frontends::r1cs_f_prime`) build on this shell.
+//! Owns: non-overlapping region offsets, typed state and claim views, and
+//! splice/decode operations for the committed image.
 //!
-//! This is a skeleton: the layout describes every region (boundary–poseidon from
-//! the Phase 1.1 spec §2) with non-overlapping offsets, and the image
-//! starts zero-filled (only `z[0] = F::ONE`, the CCS constant slot).
-//! Callers splice primitive sub-traces into the right offsets via the
-//! `splice_*` methods, then decode back via the `decode_*` helpers to
-//! verify composition parity.
+//! Does not own: witness validation, CCS row emission, transcript authority, or
+//! proof verification.
 //!
-//! Out of scope for Phase 1.2:
-//! - Per-region encoder logic (Phase 1.3).
-//! - CCS structure for `enc(F')` (Phase 1.4).
-//! - Lifecycle migration (Phase 1.5).
-//! - Generic `AppStep` trait, Spartan, anything that turns an
-//!   `ivc_invariants` test green.
+//! Emits constraints: no. This module is a data-layout boundary.
+//!
+//! Authority boundary: image contents remain prover data until a relation binds
+//! every consumed region; typed offsets prevent overlap but do not prove values.
+//!
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | Region layout | [`FPrimeImageLayout`] | no | [`FPrimeImageConfig`] |
+//! | Typed image | [`FPrimeImage`] | no | Caller-supplied trace values |
+//! | State and claim views | [`StateIn`], [`StateOut`], NIFS view types | no | Consuming relation |
 
 use neo_math::ring::D;
 use neo_math::F;
@@ -1140,8 +1136,9 @@ impl FPrimeImage {
         cursor += NIFS_LEN_HEADER_BITS;
         write_digest_bits(&mut self.values, cursor, view.fold_digest_fields);
         cursor += NIFS_FOLD_DIGEST_BITS;
-        // y_zcol and s_col are NOT in the FS-bound digest; appended as
-        // the non-FS-bound tail.
+        // Current v1 does not include y_zcol and s_col in this FS-bound
+        // digest. Append them as the unbound tail; the delayed-projection
+        // authority work must close the y_zcol part of this known gap.
         write_u64_bits(&mut self.values, cursor, view.y_zcol.len() as u64);
         cursor += NIFS_LEN_HEADER_BITS;
         for k in &view.y_zcol {
@@ -1236,7 +1233,8 @@ impl FPrimeImage {
         cursor += NIFS_LEN_HEADER_BITS;
         let fold_digest_fields = read_digest_bits(&self.values, cursor);
         cursor += NIFS_FOLD_DIGEST_BITS;
-        // y_zcol and s_col are the non-FS-bound tail.
+        // y_zcol and s_col are the current-v1 unbound tail; see the matching
+        // encoder comment for the open delayed-projection authority gap.
         let y_zcol_len = decode_u64_lane(&self.values, cursor).as_canonical_u64() as usize;
         cursor += NIFS_LEN_HEADER_BITS;
         assert_eq!(y_zcol_len, shape.y_zcol_len, "nifs_payloads CeClaim y_zcol_len");

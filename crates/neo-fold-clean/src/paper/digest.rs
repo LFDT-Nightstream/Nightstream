@@ -514,11 +514,11 @@ pub fn ce_claim_digest(claim: &CeClaim<Commitment, F, K>) -> [F; 4] {
 /// consistency is enforced elsewhere. The accumulator handle is different: it
 /// stands in for HyperNova's `U_i` in `state_x_out`, so it must bind the CE
 /// relation fields plus constrained implementation sidecars, not just
-/// commitment coordinates. It deliberately omits `y_zcol`: Π_DEC children do
-/// not satisfy a verifier-checkable radix-b `y_zcol` recomposition equation,
-/// so treating child `y_zcol` as transcript authority would give the prover a
-/// free Fiat-Shamir salt. Terminal verification binds final `y_zcol` directly
-/// against the opened witness instead.
+/// commitment coordinates. The current v1 encoding omits `y_zcol`. The NC
+/// authority audit proves that terminal child checks do not make that omission
+/// safe: a parent `(s_col, y_zcol)` must be state-bound and checked against the
+/// old-point running witnesses before `s_col` is replaced. A prover-carried
+/// child digest remains insufficient authority.
 pub fn accumulator_ce_claim_digest(claim: &CeClaim<Commitment, F, K>) -> [F; 4] {
     let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/accumulator_ce_claim_digest/v1");
     append_ce_claim_public_fields(&mut preimage, claim);

@@ -1,11 +1,22 @@
-//! Projection-region cost-model configs and local semantic rows for Road A
-//! — split out of `structure.rs` per the repo's
-//! 1,500-line file cap; `structure.rs` re-exports this surface.
+//! Projection-region layouts and local CCS semantics for the encoded `F'` cost model.
 //!
-//! Owns: the pinned prototype configs (projection model + D2 reference),
-//! the modeled batch partition, and local projection algebraic CCS rows.
-//! It is not the authoritative F' relation and is not filled by shipped
-//! compilers; `paper/f_prime/encoding.md` tracks that boundary.
+//! Owns: projection batch configuration, typed projection lane slots, and local
+//! evaluation, quotient, and product rows.
+//!
+//! Does not own: production NIFS wire binding, native trace filling, or the
+//! complete `F'` relation.
+//!
+//! Emits constraints: yes, through [`emit_projection_semantic_rows`].
+//!
+//! Authority boundary: these rows constrain only their local projection image;
+//! without binding that image to checked NIFS values they carry no protocol
+//! authority.
+//!
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | Cost-model shape | [`production_projection_batches`] and config builders | no | Pinned model constants |
+//! | Lane ownership | [`ProjectionLaneSlots`] | no | [`FPrimeImageLayout`] |
+//! | Projection equations | [`emit_projection_semantic_rows`] | yes | Local committed lanes only |
 
 use crate::engine::r1cs_circuit::ring_action::PROJECTION_QUOTIENT_LEN;
 use crate::frontends::f_prime::image::FPrimeImageConfig;
@@ -36,7 +47,7 @@ pub fn production_projection_batches() -> Vec<usize> {
 }
 
 /// Historical pre-projection K-mul count used by this cost model. The
-/// authoritative circuit count is tracked by the Phase 1.3d coverage test.
+/// production circuit count is tracked by the Phase 1.3d coverage test.
 pub const PRODUCTION_KMUL_COUNT: usize = 7100;
 
 /// Historical pre-projection ring-action count used by this cost model.
@@ -51,7 +62,7 @@ pub const PRODUCTION_PROJECTION_IDENTITY_COUNT: usize = 72;
 /// D²-materialized pairs — the committed-width flip the
 /// `folded_f_prime_shell_must_adopt_projection_budget` gate pins.
 /// The local projection rows are enforced, but the shell does not bind them
-/// to the authoritative NIFS.V wires.
+/// to the production NIFS.V wires.
 pub fn production_kmul_ring_action_shell_image_config() -> FPrimeImageConfig {
     FPrimeImageConfig {
         projection_batches: production_projection_batches(),

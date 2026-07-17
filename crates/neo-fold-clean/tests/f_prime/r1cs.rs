@@ -996,7 +996,7 @@ fn f_prime_recursive_step_accepts_real_native_nifs_proof() {
     assert!(
         unconstrained == allowed,
         "recursive F' step left unexpected unconstrained columns: got {unconstrained:?}, \
-         expected only non-authority y_zcol sidecar limbs {allowed:?}"
+         expected only currently unbound y_zcol sidecar limbs {allowed:?}"
     );
 }
 

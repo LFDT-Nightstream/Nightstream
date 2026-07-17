@@ -1,33 +1,21 @@
-//! Bit-backed layout + encoder + decoder for the projection-checked
-//! ring action (Road A / encoding.md candidate E; security-note
-//! Lemma 5) inside the `enc(F')` image.
+//! Native bit-backed traces for projection-checked ring identities.
 //!
-//! Owns: the committed-width contract of the three projection region
-//! kinds and their native fill —
+//! Owns: exact lane widths and native encoders for shared beta powers,
+//! input-pair evaluations, output/quotient evaluations, and K products.
 //!
-//! - one **pair** `(ρ_i, c_i-component)`: operand lanes plus the two
-//!   β-evaluation partial-product runs and the `ρ_i(β)·c_i(β)`
-//!   Karatsuba slot;
-//! - one **identity** (per output ring component, per client): the
-//!   claimed output lanes, the division quotient `q`, both their
-//!   β-evaluations, and the `q(β)·Φ(β)` Karatsuba slot;
-//! - the per-step **shared** region: β and its power ladder through
-//!   `β^D` (one Karatsuba slot per rung).
+//! Does not own: constraint emission, transcript derivation of beta, or binding
+//! trace lanes to NIFS claim wires.
 //!
-//! Does not own: constraint emission. Phase A ships the layout, the
-//! native fill, and round-trip parity (the same discipline
-//! `ring_action_trace` used in Phase 1.2/1.3); the semantic CCS rows —
-//! evaluation sums, the Karatsuba relations, the final identity — are
-//! the tracked next phase (`ivc_invariants.rs::
-//! projection_shell_semantic_rows_must_be_enforced`). Committed-bit
-//! range enforcement is the protocol's NC check, as everywhere in the
-//! image.
+//! Emits constraints: no.
 //!
-//! Every committed value here is one canonical-u64 lane (64 bits); K
-//! values are two lanes `(c0, c1)`. Karatsuba slots follow
-//! `engine::r1cs_circuit::field_ext::KMulIntermediates`:
-//! `p = a0·b0`, `q = a1·b1`, `r = (a0+a1)·(b0+b1)`, and the output is
-//! `(p + W·q, r − p − q)` with `W` the extension's binomial constant.
+//! Authority boundary: encoded lanes are witness data until projection rows
+//! verify them and an outer relation binds their operands and outputs.
+//!
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | Shared powers | [`encode_projection_shared`] | no | Supplied beta |
+//! | Input pair | [`encode_projection_pair`] | no | Supplied rho and claim coefficients |
+//! | Output identity | [`encode_projection_identity`] | no | Supplied pairs and claimed output |
 
 use neo_math::field::KExtensions;
 use neo_math::ring::D;

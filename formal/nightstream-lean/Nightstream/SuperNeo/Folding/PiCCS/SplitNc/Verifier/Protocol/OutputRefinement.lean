@@ -12,6 +12,8 @@ Phase: exact FE/NC acceptance and public output handoff.
 Constraint family: transcript acceptance, `yRing`/`yZcol` output authority,
 and CE opening membership; this file emits no rows.
 
+Assurance tier: model-level.
+
 Owns: proof that a paper-valid, input-bound execution with source-bound
 `yRing` materializes genuine CE statements; and deterministic composition of
 separate transcript acceptance and full output authority into either that
@@ -37,6 +39,7 @@ wrapper that could be mistaken for executable verifier acceptance.
 | `nifs.pi_ccs.handoff.output_authority.y_zcol` | delayed-NC sidecar authority is excluded from CE materialization | separate security boundary | not consumed by `materializedOutputsHold_of_yRingEq` |
 | `nifs.pi_ccs.handoff.opening` | output commitment/public input/norm come from the input-bound assignment | derived | `materializedOutputsHold_of_yRingEq` |
 | `nifs.pi_ccs.handoff.evaluations` | every matrix and every Phi81 lane equals the source-derived evaluation | derived | `materializedOutputsHold_of_yRingEq` |
+| `nifs.pi_ccs.handoff.canonical` | the message-shaped materialization equals the certificate-independent honest product | derived | `materializedOutputs_eq_honestOutputs_of_yRingEq` |
 | `nifs.pi_ccs.handoff.soundness` | separate physical acceptance and semantic authority yield the complete CE product or a named bad event | derived | `accepted_and_outputBound_implies_outputsHold_or_badEvent` |
 | `nifs.pi_ccs.handoff.completeness` | every paper-valid authorized input has an accepted certificate and complete CE product | derived | `complete_of_paperObligations` |
 -/
@@ -136,6 +139,69 @@ theorem materializedOutputsHold_of_yRingEq
         rPrime output.evaluations).mp evaluationsBound
     rw [outputStructure, outputPoint]
     exact evaluationsEq.symm
+
+/-- Once `yRing` is source-bound, the message-shaped materialization is
+exactly the certificate-independent honest `Pi_CCS` product. This is stronger
+than per-output membership: it proves that no accepted message field survives
+as semantic output authority. -/
+theorem materializedOutputs_eq_honestOutputs_of_yRingEq
+    {shape : SemanticShape}
+    {params : GlobalParams}
+    {arity : BatchArity params}
+    {Commitment : Type uCommitment}
+    (publicRingColumns : Nat)
+    (publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth)
+    (commit : SourceAssignment shape -> Commitment)
+    (data : Data shape)
+    (alignment : SourceAlignment shape params arity)
+    (input :
+      SourceProduct shape publicRingColumns publicFits Commitment params arity)
+    (rPrime : CubePoint K shape.rowVariables)
+    (message : OutputMessage shape)
+    (freshBound_eq_two : NormStage.bound params .fresh = 2)
+    (paper : SplitNc.Semantics.Paper.Holds data)
+    (inputBound :
+      InputAuthority.BoundToSources publicRingColumns publicFits commit data
+        alignment input)
+    (yRingEq : message.yRing = Polynomial.Fe.sourceYRingAt data rPrime) :
+    OutputProduct.materialize publicRingColumns publicFits alignment input
+        rPrime message =
+      PiCCS.honestOutputs
+        (productSemantics publicRingColumns publicFits commit) input
+        (InputAuthority.productAssignments data alignment) rPrime := by
+  have materializedHolds :=
+    materializedOutputsHold_of_yRingEq publicRingColumns publicFits commit data
+      alignment input rPrime message freshBound_eq_two paper inputBound yRingEq
+  funext source
+  let actual :=
+    OutputProduct.materialize publicRingColumns publicFits alignment input
+      rPrime message source
+  let expected :=
+    PiCCS.honestOutputs
+      (productSemantics publicRingColumns publicFits commit) input
+      (InputAuthority.productAssignments data alignment) rPrime source
+  have systemEq : actual.constraintSystem = expected.constraintSystem := by
+    rfl
+  have commitmentEq : actual.commitment = expected.commitment := by
+    rfl
+  have publicInputEq : actual.publicInput = expected.publicInput := by
+    rfl
+  have pointEq : actual.point = expected.point := by
+    rfl
+  have evaluationsEq : actual.evaluations = expected.evaluations := by
+    simpa [actual, expected, OutputProduct.materialize, PiCCS.honestOutputs,
+      PiCCS.honestOutput] using (materializedHolds source).2.2.symm
+  have stageEq : actual.stage = expected.stage := by
+    rfl
+  change actual = expected
+  rcases actual with
+    ⟨actualSystem, actualCommitment, actualPublicInput, actualPoint,
+      actualEvaluations, actualStage⟩
+  rcases expected with
+    ⟨expectedSystem, expectedCommitment, expectedPublicInput, expectedPoint,
+      expectedEvaluations, expectedStage⟩
+  simp_all
 
 /-- Flat-point adapter retained until the active concrete NIFS transition is
 cut over to canonical block×lane NC. It adds no column-point premise to the

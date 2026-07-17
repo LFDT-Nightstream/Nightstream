@@ -21,8 +21,9 @@ Authority boundary: acceptance alone authorizes neither the source projection
 nor the raw output. `inputBound` ties the enriched statement to independent
 sources; `OutputBound` ties `yRing` and packed `yZcol` to those sources at the
 two verifier-derived points. CE materialization consumes only the proved
-`yRing` child. Packed `yZcol` remains available for the later Π_RLC authority
-boundary and is never promoted through a digest.
+`yRing` child. Packed `yZcol` closes the Split-NC terminal only: it is not a
+paper CE field, is not carried into Π_RLC/Π_DEC, and is never promoted through
+a digest.
 
 | Stage path | Mathematical obligation | Authority class | Lean owner |
 |---|---|---|---|

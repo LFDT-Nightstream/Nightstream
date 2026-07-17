@@ -5,6 +5,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="$(cd "$ROOT/../.." && pwd)"
 LEAN_TIMEOUT_SECONDS="${LEAN_TIMEOUT_SECONDS:-900}"
 NON_LEAN_TIMEOUT_SECONDS=300
+LEAN_MEMORY_CAP_KB=33554432
+LEAN_BUILD_TARGET="${LEAN_BUILD_TARGET:-}"
 
 if [[ ! "$LEAN_TIMEOUT_SECONDS" =~ ^[0-9]+$ ]] ||
    (( LEAN_TIMEOUT_SECONDS < 1 || LEAN_TIMEOUT_SECONDS > 900 )); then
@@ -20,7 +22,9 @@ run_capped() {
   perl -e '
     use strict;
     use warnings;
+    use POSIX qw(WNOHANG);
     my $seconds = shift @ARGV;
+    my $memory_cap_kb = 0 + ($ENV{"NIGHTSTREAM_MEMORY_CAP_KB"} // 0);
     my $pid = fork();
     die "fork failed: $!\n" unless defined $pid;
     if ($pid == 0) {
@@ -35,7 +39,40 @@ run_capped() {
       exit 124;
     };
     alarm $seconds;
-    waitpid $pid, 0;
+    if ($memory_cap_kb > 0) {
+      while (1) {
+        my $done = waitpid($pid, WNOHANG);
+        last if $done == $pid;
+
+        open my $ps, "-|", "ps", "-axo", "pgid=,rss=" or do {
+          kill "TERM", -$pid;
+          waitpid $pid, 0;
+          die "cannot start RSS monitor: $!\n";
+        };
+        my $rss_kb = 0;
+        while (my $line = <$ps>) {
+          if ($line =~ /^\s*(\d+)\s+(\d+)\s*$/ && $1 == $pid) {
+            $rss_kb += $2;
+          }
+        }
+        unless (close $ps) {
+          kill "TERM", -$pid;
+          waitpid $pid, 0;
+          die "RSS monitor failed; command terminated fail-closed\n";
+        }
+        if ($rss_kb > $memory_cap_kb) {
+          kill "TERM", -$pid;
+          select undef, undef, undef, 2;
+          kill "KILL", -$pid;
+          waitpid $pid, 0;
+          print STDERR "[bounded] command exceeded ${memory_cap_kb} KiB RSS\n";
+          exit 125;
+        }
+        select undef, undef, undef, 0.25;
+      }
+    } else {
+      waitpid $pid, 0;
+    }
     alarm 0;
     my $status = $?;
     exit(($status & 127) ? 128 + ($status & 127) : $status >> 8);
@@ -48,9 +85,16 @@ run_capped() {
   }
 }
 
+run_lean_capped() (
+  export LEAN_NUM_THREADS=1
+  export NIGHTSTREAM_MEMORY_CAP_KB="$LEAN_MEMORY_CAP_KB"
+  run_capped "$@"
+)
+
 static_checks() {
   "$ROOT/scripts/check-layer-imports.sh"
   "$ROOT/scripts/check-generated-layout.sh"
+  bash "$ROOT/scripts/check-proof-ownership-contracts.sh"
   bash "$REPO_ROOT/scripts/audit_formal_lean.sh"
   run_capped "$NON_LEAN_TIMEOUT_SECONDS" python3 "$ROOT/scripts/check-assurance-data.py"
 
@@ -76,15 +120,20 @@ static_checks() {
 }
 
 lean_build() {
-  (cd "$ROOT" && run_capped "$LEAN_TIMEOUT_SECONDS" lake build)
+  if [[ -n "$LEAN_BUILD_TARGET" ]]; then
+    (cd "$ROOT" && run_lean_capped "$LEAN_TIMEOUT_SECONDS" lake build \
+      "$LEAN_BUILD_TARGET")
+  else
+    (cd "$ROOT" && run_lean_capped "$LEAN_TIMEOUT_SECONDS" lake build)
+  fi
 }
 
 axiom_report() {
-  (cd "$ROOT" && run_capped "$LEAN_TIMEOUT_SECONDS" lake build tests.Axioms)
+  (cd "$ROOT" && run_lean_capped "$LEAN_TIMEOUT_SECONDS" lake build tests.Axioms)
 }
 
 executable_check() {
-  (cd "$ROOT" && run_capped "$LEAN_TIMEOUT_SECONDS" lake exe check)
+  (cd "$ROOT" && run_lean_capped "$LEAN_TIMEOUT_SECONDS" lake exe check)
 }
 
 usage() {

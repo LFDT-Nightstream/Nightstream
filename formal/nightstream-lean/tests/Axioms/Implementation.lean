@@ -1,10 +1,25 @@
 import Nightstream.Implementation
 import tests.Axioms.Implementation.PiCcsTranscript
+import tests.Axioms.Implementation.PiRlcPackedMod5
+import tests.Axioms.Implementation.PiRlcChunkAggregateAcceptance
+import tests.Axioms.Implementation.PiRlcChunkAggregateArtifact
+import tests.Axioms.Implementation.PiRlcAggregateAcceptanceOuterImage
 import tests.Axioms.Implementation.SeededPhi81Sampler
 import tests.Axioms.Implementation.PiCcsMatrix
 import tests.Axioms.Implementation.PiCcsNc
 import tests.Axioms.Implementation.FPrimeFullHistoryNifsPaper
+import tests.Axioms.Implementation.FPrimeFullHistorySelectiveCarrier270
+import tests.Axioms.Implementation.FPrimeFullHistorySelectiveCcsPolynomial
+import tests.Axioms.Implementation.FPrimeFullHistorySelectiveCcsSelectorComposition
+import tests.Axioms.Implementation.FPrimeFullHistorySelectiveCcsRowAction
+import tests.Axioms.Implementation.FPrimeFullHistorySelectiveCcsRowArtifact
+import tests.Axioms.Implementation.FPrimeFullHistorySelectiveCcsPayloadRefinement
+import tests.Axioms.Implementation.FPrimeFullHistorySelectiveRelationProfile
+import tests.Axioms.Implementation.FPrimeFullHistorySelectiveFixedPointShape
+import tests.Axioms.Implementation.FPrimeFullHistoryPiRlcClaimEvaluationCarrier
+import tests.Axioms.Implementation.FPrimeFullHistoryPiRlcClaimShapeAlignment
 import tests.Axioms.Implementation.PiCcsOutputDigestPoseidon
+import tests.Axioms.Implementation.PiCcsOutputSemanticHandoff
 import tests.Axioms.Implementation.PiCcsOutputProjection
 import tests.Axioms.Implementation.PiDecStrict
 import tests.Axioms.Support
@@ -1362,124 +1377,3 @@ module is built; the aggregate entrypoint imports all ownership groups.
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.Implementation.R1CS.FPrimeRecursiveSourceRoleCensus.recursive_one_million_perField41_budget_is_no_go
-
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.RangePolynomial.rangeProductB2_embed' depends on axioms: [propext] -/
-#guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.RangePolynomial.rangeProductB2_embed
-
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.RangePolynomial.rangeProductB2_embed_eq_zero_iff_centered' depends on axioms: [propext,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.RangePolynomial.rangeProductB2_embed_eq_zero_iff_centered
-
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.RangePolynomial.rangeProductB2_embed_eq_zero_iff_normTwo' depends on axioms: [propext,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.RangePolynomial.rangeProductB2_embed_eq_zero_iff_normTwo
-
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.RangePolynomial.assignment_rangeProductB2_zero_iff_normBoundedTwo' depends on axioms: [propext,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.RangePolynomial.assignment_rangeProductB2_zero_iff_normBoundedTwo
-
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.MixedPolynomial.directDiagonal_rangeProduct_eq_zero' depends on axioms: [propext,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.MixedPolynomial.directDiagonal_rangeProduct_eq_zero
-
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.MixedPolynomial.trueInitial_eq_zero_of_normBounded' depends on axioms: [propext,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.MixedPolynomial.trueInitial_eq_zero_of_normBounded
-
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Terminal.dotChi_eq_zTilde_of_yZcolBound' depends on axioms: [propext] -/
-#guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Terminal.dotChi_eq_zTilde_of_yZcolBound
-
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Terminal.terminalRhs_eq_qNc_of_yZcolBound' depends on axioms: [propext] -/
-#guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Terminal.terminalRhs_eq_qNc_of_yZcolBound
-
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Terminal.not_terminalMismatch_of_yZcolBound' depends on axioms: [propext] -/
-#guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Terminal.not_terminalMismatch_of_yZcolBound
-
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.MixedPolynomial.qNc_cubePoint_eq_qNcOnCube' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.MixedPolynomial.qNc_cubePoint_eq_qNcOnCube
-
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.MixedPolynomial.trueInitial_eq_sum_qNc' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.MixedPolynomial.trueInitial_eq_sum_qNc
-
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.ProjectionNecessity.authoritativeLane_nonzero' depends on axioms: [propext] -/
-#guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.ProjectionNecessity.authoritativeLane_nonzero
-
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.ProjectionNecessity.erasedOutputs_not_yZcolBound' depends on axioms: [propext] -/
-#guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.ProjectionNecessity.erasedOutputs_not_yZcolBound
-
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.ProjectionNecessity.erasedOutputs_terminalMismatch' depends on axioms: [propext] -/
-#guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.ProjectionNecessity.erasedOutputs_terminalMismatch
-
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedParentProjection.authoritativeYZcol_eq_radixWeightedChildProjection' depends on axioms: [propext] -/
-#guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedParentProjection.authoritativeYZcol_eq_radixWeightedChildProjection
-
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedParentProjection.radixWeightedChildProjection_cubePoint' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedParentProjection.radixWeightedChildProjection_cubePoint
-
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedParentProjection.radixWeightedChildProjection_eq_weightedAuthoritativeYZcol' depends on axioms: [propext,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedParentProjection.radixWeightedChildProjection_eq_weightedAuthoritativeYZcol
-
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedParentProjection.delayedProjectionStep_transfer' depends on axioms: [propext] -/
-#guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedParentProjection.delayedProjectionStep_transfer
-
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedParentProjection.exactLane_of_delayedParentProjectionBound' depends on axioms: [propext] -/
-#guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedParentProjection.exactLane_of_delayedParentProjectionBound
-
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedParentProjection.exactWeightedAuthoritativeYZcolLane_of_bound' depends on axioms: [propext,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedParentProjection.exactWeightedAuthoritativeYZcolLane_of_bound
-
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedParentProjection.not_delayedParentProjectionMismatch_of_step' depends on axioms: [propext] -/
-#guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedParentProjection.not_delayedParentProjectionMismatch_of_step
-
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.betaPowerSelector_cubePoint' depends on axioms: [propext,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.betaPowerSelector_cubePoint
-
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.delayedResidualCubeSum_eq_weightedCompactOldProjection' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.delayedResidualCubeSum_eq_weightedCompactOldProjection
-
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.acceptedProjectionIdentity_implies_exact_or_badRoot' depends on axioms: [propext] -/
-#guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.acceptedProjectionIdentity_implies_exact_or_badRoot
-
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.compactOldPointEvaluation_eq_childLimbEvaluations' depends on axioms: [propext,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.compactOldPointEvaluation_eq_childLimbEvaluations
-
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.paddedRawChildProjectionCoefficients_drop_active' depends on axioms: [propext] -/
-#guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.paddedRawChildProjectionCoefficients_drop_active

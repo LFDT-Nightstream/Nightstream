@@ -1,11 +1,22 @@
 //! Complete Construction-2 `F'` relation and connectivity tests.
+//!
+//! | Audit branch | Evidence |
+//! |---|---|
+//! | Semantic relation | Native/circuit acceptance and mutation rejection |
+//! | Encoding | Oracle, derived, and gadget-native reconciliation |
+//! | Cost tree | Exact parent/leaf rows, columns, and gate-family ownership |
+//! | Source selector relation | Materialized base/recursive selector behavior and dimensions |
+//! | Low-norm selector formulas | Explicit component arithmetic; no materializer or soundness claim |
 
 use std::collections::BTreeMap;
 
 use neo_ccs::Mat;
+use neo_fold_clean::engine::r1cs_circuit::alphabet_sampling::pi_rlc_challenge_stage;
 use neo_fold_clean::engine::transcript::Transcript;
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
-use neo_fold_clean::frontends::f_prime::gadget_native::profile_r1cs_gadget_native_stages;
+use neo_fold_clean::frontends::f_prime::gadget_native::{
+    audit_r1cs_gadget_native_canonical_u64, profile_r1cs_gadget_native_stages,
+};
 use neo_fold_clean::frontends::f_prime::low_norm_r1cs::{
     encode_r1cs_derived, encode_r1cs_oracle, estimate_r1cs_encoding, estimate_selector_gated_r1cs_encoding,
     LowNormR1csEncodingKind,
@@ -16,18 +27,32 @@ use neo_fold_clean::frontends::r1cs_f_prime::{
 };
 use neo_fold_clean::paper::construction2::RunningInstance;
 use neo_fold_clean::paper::digest::{
-    digest32_as_fields, digest_fields_as_digest32, state_x_out_digest_with_mode, AccumulatorHandle, StateXOutDigestMode,
+    digest32_as_fields, digest_fields_as_digest32, f_prime_chunk_public_digest,
+    f_prime_chunk_public_digest_for_uniform_shape, state_x_out_digest_with_mode, AccumulatorHandle,
+    StateXOutDigestMode,
 };
 use neo_fold_clean::paper::f_prime::r1cs::{
-    encode_f_prime_public_input, FPrimeBaseInputs, FPrimeRecursiveInputs, FPrimeStateIn, FPrimeStepConfig,
-    F_PRIME_ENC_INST_BITS, F_PRIME_PUBLIC_INPUT_LEN,
+    encode_f_prime_superneo_public_input, FPrimeBaseInputs, FPrimePublicInputLayout, FPrimeRecursiveInputs,
+    FPrimeStateIn, FPrimeStepConfig, F_PRIME_ENC_INST_BITS, F_PRIME_PUBLIC_INPUT_LEN,
+    F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
 };
 use neo_fold_clean::paper::f_prime::source_image::{BitRange, FPrimeSourceImage, Word64Image};
 use neo_fold_clean::paper::nifs::circuit::{NifsVCircuitConfig, NifsVCircuitMessages};
 use neo_fold_clean::paper::nifs::{prove_fixed, FixedNifsAccumulator};
 use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsVConfig;
-use neo_math::{F, K};
+use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
+
+#[path = "full_relation/cost_tree.rs"]
+mod cost_tree;
+#[path = "full_relation/source_role_manifest.rs"]
+mod source_role_manifest;
+use cost_tree::{
+    assert_direct_selector_cost_formula, assert_dominant_sis_snapshots, assert_f_prime_base_stage_hierarchy,
+    assert_f_prime_recursive_stage_hierarchy, assert_fixed_selector_cost_formula,
+    assert_pi_ccs_nc_terminal_row_families, assert_pi_ccs_stage_hierarchy, assert_pi_rlc_stage_hierarchy,
+    assert_protocol_row_family_snapshots, print_stage_cost_families,
+};
 
 const TRANSCRIPT_LABEL: &[u8] = b"neo.test.full_f_prime/step/v1";
 
@@ -53,23 +78,25 @@ fn rand_digest(seed: u64) -> [F; 4] {
 }
 
 fn bit_carrier_r1cs() -> R1cs {
+    let padding = F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN - F_PRIME_PUBLIC_INPUT_LEN;
+    let mut a = Mat::zero(padding, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN, F::ZERO);
+    let mut b = Mat::zero(padding, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN, F::ZERO);
+    for row in 0..padding {
+        a[(row, F_PRIME_PUBLIC_INPUT_LEN + row)] = F::ONE;
+        b[(row, 0)] = F::ONE;
+    }
     R1cs {
-        a: Mat::zero(1, F_PRIME_PUBLIC_INPUT_LEN, F::ZERO),
-        b: Mat::zero(1, F_PRIME_PUBLIC_INPUT_LEN, F::ZERO),
-        c: Mat::zero(1, F_PRIME_PUBLIC_INPUT_LEN, F::ZERO),
-        m_in: F_PRIME_PUBLIC_INPUT_LEN,
+        a,
+        b,
+        c: Mat::zero(padding, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN, F::ZERO),
+        m_in: F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
     }
 }
 
 fn distinct_bit_carrier_r1cs() -> R1cs {
-    let mut a = Mat::zero(1, F_PRIME_PUBLIC_INPUT_LEN, F::ZERO);
-    a[(0, 0)] = F::ONE;
-    R1cs {
-        a,
-        b: Mat::zero(1, F_PRIME_PUBLIC_INPUT_LEN, F::ZERO),
-        c: Mat::zero(1, F_PRIME_PUBLIC_INPUT_LEN, F::ZERO),
-        m_in: F_PRIME_PUBLIC_INPUT_LEN,
-    }
+    let mut carrier = bit_carrier_r1cs();
+    carrier.a[(0, 0)] = F::ONE;
+    carrier
 }
 
 fn fibonacci_step_r1cs() -> R1csShape {
@@ -108,7 +135,7 @@ fn split_nc_config(prep: &neo_fold_clean::Preprocessing) -> SplitNcPiCcsVConfig<
     .expect("header bundle digest");
     SplitNcPiCcsVConfig {
         params: &prep.params,
-        structure: prep.structure(),
+        structure: prep.structure().into(),
         header_bundle,
         ell_d: dims.ell_d,
         ell_n: dims.ell_n,
@@ -124,18 +151,31 @@ fn step_config(prep: &neo_fold_clean::Preprocessing) -> FPrimeStepConfig<'_> {
         },
         b: prep.params.b(),
         transcript_label: TRANSCRIPT_LABEL,
+        public_input_layout: FPrimePublicInputLayout::plain(),
+        nebula: None,
         state_x_out_digest_mode: StateXOutDigestMode::Stateful,
     }
 }
 
 fn construction2_zero_digest(prep: &neo_fold_clean::Preprocessing) -> [F; 4] {
-    let zero = RunningInstance::canonical_zero(&prep.params, prep.structure(), F_PRIME_PUBLIC_INPUT_LEN)
+    let zero = RunningInstance::canonical_zero(&prep.params, prep.structure(), F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN)
         .expect("canonical fixed-k accumulator");
     AccumulatorHandle::from_running_parts(&zero.claims, zero.parent_authority.as_ref()).digest_fields()
 }
 
+fn uniform_chunk_digest(prep: &neo_fold_clean::Preprocessing, start_index: u64) -> [F; 4] {
+    f_prime_chunk_public_digest_for_uniform_shape(
+        start_index,
+        1,
+        D,
+        prep.params.kappa() as usize,
+        F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
+    )
+}
+
 fn native_x_out(
     state: &FPrimeStateIn,
+    chunk_digest: [F; 4],
     semantic_state: [F; 4],
     construction2_acc: [F; 4],
     chunk_count: u64,
@@ -144,21 +184,23 @@ fn native_x_out(
     digest32_as_fields(state_x_out_digest_with_mode(
         StateXOutDigestMode::Stateful,
         digest_fields_as_digest32(state.vk_fs_digest),
-        &state.structure_digest,
+        state.pi_ccs_header_bundle,
+        &state.pi_ccs_header_bundle,
         chunk_count,
         step_count,
         digest_fields_as_digest32(state.z_0),
-        digest_fields_as_digest32(semantic_state),
+        digest_fields_as_digest32(chunk_digest),
         state.pc,
         digest_fields_as_digest32(semantic_state),
         digest_fields_as_digest32(construction2_acc),
-        digest_fields_as_digest32(semantic_state),
+        digest_fields_as_digest32(chunk_digest),
+        None,
     ))
 }
 
 fn append_f_prime_step_context(tr: &mut Transcript, state: &FPrimeStateIn, chunk_digest: [F; 4]) {
     tr.append_fields(b"f_prime/vk_fs", &state.vk_fs_digest);
-    tr.append_fields(b"f_prime/structure", &state.structure_digest);
+    tr.append_fields(b"f_prime/pi_ccs_header", &state.pi_ccs_header_bundle);
     tr.append_fields(b"f_prime/chunk_count_in", &[F::from_u64(state.chunk_count_in)]);
     tr.append_fields(b"f_prime/step_count_in", &[F::from_u64(state.step_count_in)]);
     tr.append_fields(b"f_prime/z_0", &state.z_0);
@@ -215,7 +257,7 @@ fn build_base_branch(
         .expect("fixed full F' relation");
     let state = FPrimeStateIn {
         vk_fs_digest: context.vk_fs_digest(),
-        structure_digest: context.structure_digest(),
+        pi_ccs_header_bundle: context.pi_ccs_header_bundle(),
         chunk_count_in: 0,
         step_count_in: 0,
         z_0: semantic_in,
@@ -224,14 +266,23 @@ fn build_base_branch(
         semantic_state_digest_in: semantic_in,
         acc_digest_in: AccumulatorHandle::empty().digest_fields(),
         public_trace_in: semantic_in,
+        nebula: None,
     };
-    let expected_x_out = native_x_out(&state, semantic_out, construction2_zero_digest(prep), 1, 1);
+    let chunk_digest = uniform_chunk_digest(prep, 0);
+    let expected_x_out = native_x_out(
+        &state,
+        chunk_digest,
+        semantic_out,
+        construction2_zero_digest(prep),
+        1,
+        1,
+    );
     let source = base_source(&state, expected_x_out);
     relation
         .build_base(
             &FPrimeBaseInputs {
                 state,
-                chunk_digest: semantic_out,
+                chunk_digest,
                 semantic_state_digest_out: semantic_out,
                 rows_in_chunk: 1,
                 source_image: &source.image,
@@ -310,7 +361,7 @@ fn complete_base_relation_executes_then_encodes_and_rejects_disconnected_state()
         .expect("fixed full F' relation");
     let state = FPrimeStateIn {
         vk_fs_digest: context.vk_fs_digest(),
-        structure_digest: context.structure_digest(),
+        pi_ccs_header_bundle: context.pi_ccs_header_bundle(),
         chunk_count_in: 0,
         step_count_in: 0,
         z_0: semantic_in,
@@ -319,13 +370,15 @@ fn complete_base_relation_executes_then_encodes_and_rejects_disconnected_state()
         semantic_state_digest_in: semantic_in,
         acc_digest_in: AccumulatorHandle::empty().digest_fields(),
         public_trace_in: semantic_in,
+        nebula: None,
     };
     let zero_acc = construction2_zero_digest(&prep);
-    let expected_x_out = native_x_out(&state, semantic_out, zero_acc, 1, 1);
+    let chunk_digest = uniform_chunk_digest(&prep, 0);
+    let expected_x_out = native_x_out(&state, chunk_digest, semantic_out, zero_acc, 1, 1);
     let source = base_source(&state, expected_x_out);
     let inputs = FPrimeBaseInputs {
         state,
-        chunk_digest: semantic_out,
+        chunk_digest,
         semantic_state_digest_out: semantic_out,
         rows_in_chunk: 1,
         source_image: &source.image,
@@ -399,7 +452,7 @@ fn complete_base_relation_executes_then_encodes_and_rejects_disconnected_state()
     let alternate_out = semantic_state_digest_fields(&alternate_assignment[3..5]);
     let alternate_state = FPrimeStateIn {
         vk_fs_digest: context.vk_fs_digest(),
-        structure_digest: context.structure_digest(),
+        pi_ccs_header_bundle: context.pi_ccs_header_bundle(),
         chunk_count_in: 0,
         step_count_in: 0,
         z_0: alternate_in,
@@ -408,12 +461,13 @@ fn complete_base_relation_executes_then_encodes_and_rejects_disconnected_state()
         semantic_state_digest_in: alternate_in,
         acc_digest_in: AccumulatorHandle::empty().digest_fields(),
         public_trace_in: alternate_in,
+        nebula: None,
     };
-    let alternate_x_out = native_x_out(&alternate_state, alternate_out, zero_acc, 1, 1);
+    let alternate_x_out = native_x_out(&alternate_state, chunk_digest, alternate_out, zero_acc, 1, 1);
     let alternate_source = base_source(&alternate_state, alternate_x_out);
     let alternate_inputs = FPrimeBaseInputs {
         state: alternate_state,
-        chunk_digest: alternate_out,
+        chunk_digest,
         semantic_state_digest_out: alternate_out,
         rows_in_chunk: 1,
         source_image: &alternate_source.image,
@@ -451,7 +505,7 @@ fn complete_base_relation_rejects_caller_chosen_chunk_digest() {
         .expect("fixed full F' relation");
     let state = FPrimeStateIn {
         vk_fs_digest: context.vk_fs_digest(),
-        structure_digest: context.structure_digest(),
+        pi_ccs_header_bundle: context.pi_ccs_header_bundle(),
         chunk_count_in: 0,
         step_count_in: 0,
         z_0: semantic_in,
@@ -460,10 +514,11 @@ fn complete_base_relation_rejects_caller_chosen_chunk_digest() {
         semantic_state_digest_in: semantic_in,
         acc_digest_in: AccumulatorHandle::empty().digest_fields(),
         public_trace_in: semantic_in,
+        nebula: None,
     };
     let false_chunk = rand_digest(0xdead);
     let zero_acc = construction2_zero_digest(&prep);
-    let false_x_out = native_x_out(&state, false_chunk, zero_acc, 1, 1);
+    let false_x_out = native_x_out(&state, false_chunk, semantic_out, zero_acc, 1, 1);
     let source = base_source(&state, false_x_out);
     let inputs = FPrimeBaseInputs {
         state,
@@ -481,7 +536,7 @@ fn complete_base_relation_rejects_caller_chosen_chunk_digest() {
         .expect("emit complete F'");
     assert!(
         !execution.is_satisfied(),
-        "the caller cannot choose a chunk digest unrelated to the application output"
+        "the caller cannot choose a chunk digest unrelated to the verifier-owned step shape"
     );
 }
 
@@ -502,31 +557,35 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
         &prep.params,
         prep.structure(),
         prep.combine_b_pows(),
-        F_PRIME_PUBLIC_INPUT_LEN,
+        F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
     )
     .expect("fixed-k zero accumulator");
     let zero_digest =
         AccumulatorHandle::from_running_parts(zero.claims(), zero.running().parent_authority.as_ref()).digest_fields();
+    let prior_chunk_digest = uniform_chunk_digest(&prep, 0);
     let state = FPrimeStateIn {
         vk_fs_digest: context.vk_fs_digest(),
-        structure_digest: context.structure_digest(),
+        pi_ccs_header_bundle: context.pi_ccs_header_bundle(),
         chunk_count_in: 1,
         step_count_in: 1,
         z_0: rand_digest(0x70),
-        z_i_in: semantic_in,
+        z_i_in: prior_chunk_digest,
         pc: 1,
         semantic_state_digest_in: semantic_in,
         acc_digest_in: zero_digest,
-        public_trace_in: semantic_in,
+        public_trace_in: prior_chunk_digest,
+        nebula: None,
     };
-    let prior_x_out = native_x_out(&state, semantic_in, zero_digest, 1, 1);
-    let fresh_assignment = encode_f_prime_public_input(prior_x_out);
+    let prior_x_out = native_x_out(&state, prior_chunk_digest, semantic_in, zero_digest, 1, 1);
+    let fresh_assignment = encode_f_prime_superneo_public_input(prior_x_out);
     assert_eq!(fresh_assignment.len(), prep.structure().m);
     let fresh = direct_ccs::build_instance(&prep, &carrier, &fresh_assignment).expect("fresh CCS instance");
     let fresh_claim = fresh.claim.clone();
+    let fresh_claims = [fresh_claim];
+    let chunk_digest = f_prime_chunk_public_digest(state.step_count_in, &fresh_claims);
 
     let mut prover_transcript = Transcript::with_label(TRANSCRIPT_LABEL);
-    append_f_prime_step_context(&mut prover_transcript, &state, semantic_out);
+    append_f_prime_step_context(&mut prover_transcript, &state, chunk_digest);
     let (next, proof) = prove_fixed(
         &mut prover_transcript,
         &prep.params,
@@ -541,9 +600,8 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
     .expect("fixed NIFS prover");
     let next_digest =
         AccumulatorHandle::from_running_parts(next.claims(), next.running().parent_authority.as_ref()).digest_fields();
-    let expected_x_out = native_x_out(&state, semantic_out, next_digest, 2, 2);
+    let expected_x_out = native_x_out(&state, chunk_digest, semantic_out, next_digest, 2, 2);
     let source = recursive_source(&state, prior_x_out, expected_x_out);
-    let fresh_claims = [fresh_claim];
     let messages = NifsVCircuitMessages {
         fresh: &fresh_claims,
         running: zero.claims(),
@@ -554,7 +612,7 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
     };
     let inputs = FPrimeRecursiveInputs {
         state: state.clone(),
-        chunk_digest: semantic_out,
+        chunk_digest,
         semantic_state_digest_out: semantic_out,
         acc_digest_out: next_digest,
         nifs_msg: messages,
@@ -590,7 +648,7 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
         };
         let tampered_inputs = FPrimeRecursiveInputs {
             state: state.clone(),
-            chunk_digest: semantic_out,
+            chunk_digest,
             semantic_state_digest_out: semantic_out,
             acc_digest_out: next_digest,
             nifs_msg: tampered_messages,
@@ -628,7 +686,7 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
         };
         let tampered_inputs = FPrimeRecursiveInputs {
             state: state.clone(),
-            chunk_digest: semantic_out,
+            chunk_digest,
             semantic_state_digest_out: semantic_out,
             acc_digest_out: next_digest,
             nifs_msg: tampered_messages,
@@ -659,7 +717,7 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
         };
         let tampered_inputs = FPrimeRecursiveInputs {
             state: state.clone(),
-            chunk_digest: semantic_out,
+            chunk_digest,
             semantic_state_digest_out: semantic_out,
             acc_digest_out: next_digest,
             nifs_msg: tampered_messages,
@@ -682,7 +740,7 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
         tampered_state.chunk_count_in += 1;
         let tampered_inputs = FPrimeRecursiveInputs {
             state: tampered_state,
-            chunk_digest: semantic_out,
+            chunk_digest,
             semantic_state_digest_out: semantic_out,
             acc_digest_out: next_digest,
             nifs_msg: NifsVCircuitMessages {
@@ -712,7 +770,7 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
         tampered_state.z_i_in[0] += F::ONE;
         let tampered_inputs = FPrimeRecursiveInputs {
             state: tampered_state,
-            chunk_digest: semantic_out,
+            chunk_digest,
             semantic_state_digest_out: semantic_out,
             acc_digest_out: next_digest,
             nifs_msg: NifsVCircuitMessages {
@@ -747,7 +805,7 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
         tampered_image.set_bit(public_bit, flipped);
         let tampered_inputs = FPrimeRecursiveInputs {
             state: state.clone(),
-            chunk_digest: semantic_out,
+            chunk_digest,
             semantic_state_digest_out: semantic_out,
             acc_digest_out: next_digest,
             nifs_msg: NifsVCircuitMessages {
@@ -780,7 +838,7 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
     let base_semantic_out = semantic_state_digest_fields(&base_assignment[3..5]);
     let base_state = FPrimeStateIn {
         vk_fs_digest: context.vk_fs_digest(),
-        structure_digest: context.structure_digest(),
+        pi_ccs_header_bundle: context.pi_ccs_header_bundle(),
         chunk_count_in: 0,
         step_count_in: 0,
         z_0: base_semantic_in,
@@ -789,12 +847,14 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
         semantic_state_digest_in: base_semantic_in,
         acc_digest_in: AccumulatorHandle::empty().digest_fields(),
         public_trace_in: base_semantic_in,
+        nebula: None,
     };
-    let base_x_out = native_x_out(&base_state, base_semantic_out, zero_digest, 1, 1);
+    let base_chunk_digest = uniform_chunk_digest(&prep, 0);
+    let base_x_out = native_x_out(&base_state, base_chunk_digest, base_semantic_out, zero_digest, 1, 1);
     let base_source = base_source(&base_state, base_x_out);
     let base_inputs = FPrimeBaseInputs {
         state: base_state,
-        chunk_digest: base_semantic_out,
+        chunk_digest: base_chunk_digest,
         semantic_state_digest_out: base_semantic_out,
         rows_in_chunk: 1,
         source_image: &base_source.image,
@@ -806,6 +866,7 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
     let base_branch = relation
         .build_base(&base_inputs, &base_assignment)
         .expect("complete base branch");
+    source_role_manifest::check_source_role_manifest(&base_branch, &execution);
 
     // This is another valid Fibonacci transition, but it is unrelated to
     // the state absorbed by the already-valid NIFS proof. Its values must not
@@ -852,8 +913,21 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
         LowNormR1csEncodingKind::Derived,
     )
     .expect("direct selector-gated estimate");
+    assert_direct_selector_cost_formula(&base_estimate, &recursive_estimate, &direct_estimate);
+    // Branch source dimensions are materialized above. The direct selector
+    // number is only a regression snapshot of an un-audited cost formula: no
+    // selector-gated relation is materialized or proved sound by this test.
+    assert_eq!((base_estimate.source_rows, base_estimate.source_cols), (22_812, 22_353));
+    assert_eq!(
+        (recursive_estimate.source_rows, recursive_estimate.source_cols),
+        (2_576_416, 2_399_107)
+    );
+    assert_eq!(
+        (direct_estimate.encoded_rows, direct_estimate.encoded_cols),
+        (258_444_060, 190_149_709)
+    );
     eprintln!(
-        "full F' branches: base={}x{} ({} field), recursive={}x{} ({} field, {} linear definitions), direct CCS={}x{}",
+        "full F' branches: base={}x{} ({} field), recursive={}x{} ({} field, {} linear definitions), un-audited direct CCS estimate={}x{}",
         base_estimate.source_rows,
         base_estimate.source_cols,
         base_estimate.canonical_field_source_cols,
@@ -871,6 +945,55 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
     let fixed_gadget = shape
         .gadget_native_fixed_estimate()
         .expect("fixed gadget-native estimate");
+    let base_u64 = audit_r1cs_gadget_native_canonical_u64(
+        base_branch.snapshot(),
+        base_branch.encoding_trace(),
+        base_branch.public_bit_columns(),
+    )
+    .expect("base canonical-u64 census");
+    let recursive_u64 = audit_r1cs_gadget_native_canonical_u64(
+        execution.snapshot(),
+        execution.encoding_trace(),
+        execution.public_bit_columns(),
+    )
+    .expect("recursive canonical-u64 census");
+    assert_eq!(
+        (
+            base_u64.census.total,
+            base_u64.census.direct,
+            base_u64.census.equality_linked,
+            base_u64.census.linear,
+            base_u64.census.field_linearly_derived,
+        ),
+        (7, 0, 4, 3, 7)
+    );
+    assert_eq!(
+        (
+            recursive_u64.census.total,
+            recursive_u64.census.direct,
+            recursive_u64.census.equality_linked,
+            recursive_u64.census.linear,
+            recursive_u64.census.field_linearly_derived,
+        ),
+        (253, 2, 8, 243, 251)
+    );
+    eprintln!("CANONICAL_U64|base|{:?}", base_u64.census);
+    eprintln!("CANONICAL_U64|recursive|{:?}", recursive_u64.census);
+    for stage in &base_u64.stages {
+        eprintln!("CANONICAL_U64_STAGE|{}|{:?}", stage.stage, stage.census);
+    }
+    for stage in &recursive_u64.stages {
+        eprintln!("CANONICAL_U64_STAGE|{}|{:?}", stage.stage, stage.census);
+    }
+    assert_eq!((base_gadget.encoded_rows, base_gadget.encoded_cols), (66_358, 125_695));
+    assert_eq!(
+        (recursive_gadget.encoded_rows, recursive_gadget.encoded_cols),
+        (4_933_049, 8_137_378)
+    );
+    assert_eq!(
+        (fixed_gadget.encoded_rows, fixed_gadget.encoded_cols),
+        (6_184_892, 8_262_817)
+    );
     assert_eq!(base_gadget.public_input_len, F_PRIME_PUBLIC_INPUT_LEN);
     assert_eq!(recursive_gadget.public_input_len, F_PRIME_PUBLIC_INPUT_LEN);
     assert!(base_gadget.encoded_cols < base_estimate.encoded_cols);
@@ -878,8 +1001,9 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
     assert!(recursive_gadget.gadget_derived_source_cols > 0);
     assert_eq!(fixed_gadget.public_input_len, F_PRIME_PUBLIC_INPUT_LEN);
     assert!(fixed_gadget.encoded_cols > recursive_gadget.encoded_cols);
+    assert_fixed_selector_cost_formula(&fixed_gadget);
     eprintln!(
-        "full F' gadget-native: base={}x{}, recursive={}x{}, fixed={}x{} ({} projected gadget fields, {} ring coefficient fields)",
+        "full F' gadget-native: base={}x{}, recursive={}x{}, fixed={}x{} ({} projected gadget fields, {} synthetic ring fields, {} synthetic product-sum fields)",
         base_gadget.encoded_rows,
         base_gadget.encoded_cols,
         recursive_gadget.encoded_rows,
@@ -888,7 +1012,16 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
         fixed_gadget.encoded_cols,
         recursive_gadget.gadget_derived_source_cols,
         recursive_gadget.synthetic_ring_fields,
+        recursive_gadget.synthetic_product_sum_fields,
     );
+    let base_stage_profile = profile_r1cs_gadget_native_stages(
+        base_branch.snapshot(),
+        base_branch.encoding_trace(),
+        base_branch.public_bit_columns(),
+    )
+    .expect("base F' stage profile");
+    assert_eq!(base_stage_profile.total, base_gadget);
+    assert_f_prime_base_stage_hierarchy(&base_stage_profile);
     let stage_profile = profile_r1cs_gadget_native_stages(
         execution.snapshot(),
         execution.encoding_trace(),
@@ -896,29 +1029,405 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
     )
     .expect("recursive F' stage profile");
     assert_eq!(stage_profile.total, recursive_gadget);
-    eprintln!(
-        "FPRIME_STAGE|stage|source_rows|source_cols|encoded_rows|encoded_cols|canonical_fields|bits|fallback|poseidon_perms|hash_perms|hashes|sboxes|k_muls|ring_muls|hash_histogram"
-    );
-    for stage in &stage_profile.stages {
-        eprintln!(
-            "FPRIME_STAGE|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{:?}",
-            stage.label,
-            stage.source_rows,
-            stage.source_cols,
-            stage.encoded_rows,
-            stage.encoded_cols,
-            stage.canonical_field_source_cols + stage.synthetic_ring_fields,
-            stage.one_bit_source_cols,
-            stage.fallback_source_rows,
-            stage.poseidon_permutations,
-            stage.poseidon_hash_permutations,
-            stage.poseidon_hashes,
-            stage.sboxes,
-            stage.k_muls,
-            stage.ring_muls,
-            stage.hash_histogram,
-        );
+    assert_f_prime_recursive_stage_hierarchy(&stage_profile);
+    assert_pi_ccs_stage_hierarchy(&stage_profile);
+    assert_pi_rlc_stage_hierarchy(&stage_profile);
+    assert_dominant_sis_snapshots(&stage_profile);
+    assert_protocol_row_family_snapshots(&stage_profile);
+    assert_pi_ccs_nc_terminal_row_families(&stage_profile, execution.row_family_ranges());
+    print_stage_cost_families(&stage_profile);
+    let challenge = stage_profile
+        .aggregate_prefix("nifs.pi_rlc.challenge")
+        .expect("Pi_RLC challenge cost center");
+    assert_eq!(challenge.source_rows, 127_611);
+    assert_eq!(challenge.source_cols, 121_566);
+    assert_eq!(challenge.one_bit_source_cols, 36_945);
+    assert_eq!(challenge.canonical_binary_field_source_cols, 0);
+    assert_eq!(challenge.ordinary_private_field_source_cols, 7_758);
+    assert_eq!(challenge.linearly_derived_source_cols, 26_169);
+    assert_eq!(challenge.gadget_derived_source_cols, 50_694);
+    assert_eq!(challenge.encoded_cols, 370_383);
+    assert_eq!(challenge.encoded_rows, 198_567);
+    assert_eq!(challenge.redundant_boolean_source_rows, 23_505);
+    #[derive(Debug)]
+    struct ChallengeLeaf {
+        path: &'static str,
+        occurrences: usize,
+        source_rows: usize,
+        source_cols: usize,
+        encoded_rows: usize,
+        encoded_cols: usize,
+        ordinary_fields: usize,
+        bits: usize,
+        linear: usize,
+        gadget: usize,
+        fallback: usize,
+        redundant_boolean_rows: usize,
+        selection_aggregate_rows: usize,
+        poseidon_permutations: usize,
+        sboxes: usize,
     }
+    let expected_challenge_leaves = [
+        ChallengeLeaf {
+            path: pi_rlc_challenge_stage::BIND_OUTPUTS_DIGEST,
+            occurrences: 1,
+            source_rows: 1_206,
+            source_cols: 1_206,
+            encoded_rows: 3_698,
+            encoded_cols: 7_052,
+            ordinary_fields: 172,
+            bits: 0,
+            linear: 518,
+            gadget: 516,
+            fallback: 0,
+            redundant_boolean_rows: 0,
+            selection_aggregate_rows: 0,
+            poseidon_permutations: 2,
+            sboxes: 172,
+        },
+        ChallengeLeaf {
+            path: pi_rlc_challenge_stage::RHO_DOMAIN_SEPARATOR,
+            occurrences: 15,
+            source_rows: 645,
+            source_cols: 645,
+            encoded_rows: 1_849,
+            encoded_cols: 3_526,
+            ordinary_fields: 86,
+            bits: 0,
+            linear: 301,
+            gadget: 258,
+            fallback: 0,
+            redundant_boolean_rows: 0,
+            selection_aggregate_rows: 0,
+            poseidon_permutations: 1,
+            sboxes: 86,
+        },
+        ChallengeLeaf {
+            path: pi_rlc_challenge_stage::SAMPLE_INITIALIZE,
+            occurrences: 15,
+            source_rows: 15,
+            source_cols: 15,
+            encoded_rows: 0,
+            encoded_cols: 0,
+            ordinary_fields: 0,
+            bits: 0,
+            linear: 15,
+            gadget: 0,
+            fallback: 0,
+            redundant_boolean_rows: 0,
+            selection_aggregate_rows: 0,
+            poseidon_permutations: 0,
+            sboxes: 0,
+        },
+        ChallengeLeaf {
+            path: pi_rlc_challenge_stage::TRANSCRIPT_DIGEST,
+            occurrences: 60,
+            source_rows: 45_240,
+            source_cols: 45_240,
+            encoded_rows: 138_675,
+            encoded_cols: 264_450,
+            ordinary_fields: 6_450,
+            bits: 0,
+            linear: 19_440,
+            gadget: 19_350,
+            fallback: 0,
+            redundant_boolean_rows: 0,
+            selection_aggregate_rows: 0,
+            poseidon_permutations: 75,
+            sboxes: 6_450,
+        },
+        ChallengeLeaf {
+            path: pi_rlc_challenge_stage::LANE_BIT_DECOMPOSITION,
+            occurrences: 240,
+            source_rows: 16_560,
+            source_cols: 15_840,
+            encoded_rows: 13_680,
+            encoded_cols: 25_200,
+            ordinary_fields: 240,
+            bits: 15_360,
+            linear: 240,
+            gadget: 0,
+            fallback: 960,
+            redundant_boolean_rows: 15_360,
+            selection_aggregate_rows: 0,
+            poseidon_permutations: 0,
+            sboxes: 0,
+        },
+        ChallengeLeaf {
+            path: pi_rlc_challenge_stage::ACCEPT_TREE_BIT_PAIRS,
+            occurrences: 960,
+            source_rows: 0,
+            source_cols: 0,
+            encoded_rows: 6_720,
+            encoded_cols: 13_440,
+            ordinary_fields: 0,
+            bits: 0,
+            linear: 0,
+            gadget: 0,
+            fallback: 0,
+            redundant_boolean_rows: 0,
+            selection_aggregate_rows: 0,
+            poseidon_permutations: 0,
+            sboxes: 0,
+        },
+        ChallengeLeaf {
+            path: pi_rlc_challenge_stage::ACCEPT_PRODUCT_AGGREGATE,
+            occurrences: 960,
+            source_rows: 0,
+            source_cols: 0,
+            encoded_rows: 960,
+            encoded_cols: 0,
+            ordinary_fields: 0,
+            bits: 0,
+            linear: 0,
+            gadget: 0,
+            fallback: 0,
+            redundant_boolean_rows: 0,
+            selection_aggregate_rows: 0,
+            poseidon_permutations: 0,
+            sboxes: 0,
+        },
+        ChallengeLeaf {
+            path: pi_rlc_challenge_stage::ACCEPT_ROOT_BINDING,
+            occurrences: 960,
+            source_rows: 3_840,
+            source_cols: 1_920,
+            encoded_rows: 960,
+            encoded_cols: 960,
+            ordinary_fields: 0,
+            bits: 960,
+            linear: 0,
+            gadget: 960,
+            fallback: 0,
+            redundant_boolean_rows: 0,
+            selection_aggregate_rows: 0,
+            poseidon_permutations: 0,
+            sboxes: 0,
+        },
+        ChallengeLeaf {
+            path: pi_rlc_challenge_stage::CHUNK_SYMBOL_AND_PREFIX,
+            occurrences: 960,
+            source_rows: 1_920,
+            source_cols: 1_920,
+            encoded_rows: 0,
+            encoded_cols: 0,
+            ordinary_fields: 0,
+            bits: 0,
+            linear: 1_920,
+            gadget: 0,
+            fallback: 0,
+            redundant_boolean_rows: 0,
+            selection_aggregate_rows: 0,
+            poseidon_permutations: 0,
+            sboxes: 0,
+        },
+        ChallengeLeaf {
+            path: pi_rlc_challenge_stage::ACCEPTANCE_BOUND,
+            occurrences: 15,
+            source_rows: 90,
+            source_cols: 75,
+            encoded_rows: 45,
+            encoded_cols: 45,
+            ordinary_fields: 0,
+            bits: 45,
+            linear: 30,
+            gadget: 0,
+            fallback: 15,
+            redundant_boolean_rows: 45,
+            selection_aggregate_rows: 0,
+            poseidon_permutations: 0,
+            sboxes: 0,
+        },
+        ChallengeLeaf {
+            path: pi_rlc_challenge_stage::SELECT_INITIALIZE,
+            occurrences: 15,
+            source_rows: 15,
+            source_cols: 15,
+            encoded_rows: 0,
+            encoded_cols: 0,
+            ordinary_fields: 0,
+            bits: 0,
+            linear: 15,
+            gadget: 0,
+            fallback: 0,
+            redundant_boolean_rows: 0,
+            selection_aggregate_rows: 0,
+            poseidon_permutations: 0,
+            sboxes: 0,
+        },
+        ChallengeLeaf {
+            path: pi_rlc_challenge_stage::SELECT_ONE_HOT,
+            occurrences: 810,
+            source_rows: 9_720,
+            source_cols: 8_910,
+            encoded_rows: 4_860,
+            encoded_cols: 8_100,
+            ordinary_fields: 0,
+            bits: 8_100,
+            linear: 810,
+            gadget: 0,
+            fallback: 810,
+            redundant_boolean_rows: 8_100,
+            selection_aggregate_rows: 0,
+            poseidon_permutations: 0,
+            sboxes: 0,
+        },
+        ChallengeLeaf {
+            path: pi_rlc_challenge_stage::SELECT_PRODUCTS,
+            occurrences: 810,
+            source_rows: 26_730,
+            source_cols: 26_730,
+            encoded_rows: 0,
+            encoded_cols: 0,
+            ordinary_fields: 0,
+            bits: 0,
+            linear: 0,
+            gadget: 26_730,
+            fallback: 0,
+            redundant_boolean_rows: 0,
+            selection_aggregate_rows: 0,
+            poseidon_permutations: 0,
+            sboxes: 0,
+        },
+        ChallengeLeaf {
+            path: pi_rlc_challenge_stage::SELECT_BIND_ACCEPT,
+            occurrences: 810,
+            source_rows: 810,
+            source_cols: 0,
+            encoded_rows: 810,
+            encoded_cols: 0,
+            ordinary_fields: 0,
+            bits: 0,
+            linear: 0,
+            gadget: 0,
+            fallback: 0,
+            redundant_boolean_rows: 0,
+            selection_aggregate_rows: 810,
+            poseidon_permutations: 0,
+            sboxes: 0,
+        },
+        ChallengeLeaf {
+            path: pi_rlc_challenge_stage::SELECT_BIND_PREFIX,
+            occurrences: 810,
+            source_rows: 810,
+            source_cols: 0,
+            encoded_rows: 810,
+            encoded_cols: 0,
+            ordinary_fields: 0,
+            bits: 0,
+            linear: 0,
+            gadget: 0,
+            fallback: 0,
+            redundant_boolean_rows: 0,
+            selection_aggregate_rows: 810,
+            poseidon_permutations: 0,
+            sboxes: 0,
+        },
+        ChallengeLeaf {
+            path: pi_rlc_challenge_stage::SELECT_BIND_SYMBOL,
+            occurrences: 810,
+            source_rows: 810,
+            source_cols: 810,
+            encoded_rows: 17_820,
+            encoded_cols: 33_210,
+            ordinary_fields: 810,
+            bits: 0,
+            linear: 0,
+            gadget: 0,
+            fallback: 0,
+            redundant_boolean_rows: 0,
+            selection_aggregate_rows: 810,
+            poseidon_permutations: 0,
+            sboxes: 0,
+        },
+    ];
+    let actual_challenge_nodes = stage_profile.aggregate_by_label();
+    for expected in &expected_challenge_leaves {
+        let actual = actual_challenge_nodes
+            .iter()
+            .find(|stage| stage.label == expected.path)
+            .unwrap_or_else(|| panic!("missing challenge leaf {}", expected.path));
+        assert_eq!(actual.label, expected.path);
+        assert_eq!(
+            actual.occurrences, expected.occurrences,
+            "{} occurrences",
+            expected.path
+        );
+        assert_eq!(
+            actual.source_rows, expected.source_rows,
+            "{} source rows",
+            expected.path
+        );
+        assert_eq!(
+            actual.source_cols, expected.source_cols,
+            "{} source columns",
+            expected.path
+        );
+        assert_eq!(
+            actual.encoded_rows, expected.encoded_rows,
+            "{} encoded rows",
+            expected.path
+        );
+        assert_eq!(
+            actual.encoded_cols, expected.encoded_cols,
+            "{} encoded columns",
+            expected.path
+        );
+        assert_eq!(
+            actual.canonical_binary_field_source_cols, 0,
+            "{} canonical fields",
+            expected.path
+        );
+        assert_eq!(
+            actual.ordinary_private_field_source_cols, expected.ordinary_fields,
+            "{} ordinary-private fields",
+            expected.path
+        );
+        assert_eq!(actual.one_bit_source_cols, expected.bits, "{} bits", expected.path);
+        assert_eq!(
+            actual.linearly_derived_source_cols, expected.linear,
+            "{} linear columns",
+            expected.path
+        );
+        assert_eq!(
+            actual.gadget_derived_source_cols, expected.gadget,
+            "{} gadget columns",
+            expected.path
+        );
+        assert_eq!(
+            actual.fallback_source_rows, expected.fallback,
+            "{} fallback rows",
+            expected.path
+        );
+        assert_eq!(
+            actual.redundant_boolean_source_rows, expected.redundant_boolean_rows,
+            "{} exact duplicate Boolean rows",
+            expected.path
+        );
+        assert_eq!(
+            actual.selection_accept_aggregate_rows
+                + actual.selection_prefix_aggregate_rows
+                + actual.selection_symbol_aggregate_rows,
+            expected.selection_aggregate_rows,
+            "{} selection aggregate rows",
+            expected.path
+        );
+        assert_eq!(
+            actual.poseidon_permutations, expected.poseidon_permutations,
+            "{} Poseidon permutations",
+            expected.path
+        );
+        assert_eq!(actual.sboxes, expected.sboxes, "{} S-boxes", expected.path);
+    }
+    let selection_bind = stage_profile
+        .aggregate_prefix(pi_rlc_challenge_stage::SELECT_BIND)
+        .expect("selection-bind aggregate");
+    assert_eq!(selection_bind.source_rows, 2_430);
+    assert_eq!(selection_bind.source_cols, 810);
+    assert_eq!(selection_bind.encoded_rows, 19_440);
+    assert_eq!(selection_bind.encoded_cols, 33_210);
+    assert_eq!(selection_bind.canonical_binary_field_source_cols, 0);
+    assert_eq!(selection_bind.ordinary_private_field_source_cols, 810);
     let trace = execution.encoding_trace();
     let hash_permutations = trace
         .poseidon_hashes()
@@ -953,6 +1462,11 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
         .expect("recursive witness in unified F'");
     assert!(full_recursive.is_satisfied());
     assert!(full_recursive.snapshot().unconstrained_columns().is_empty());
+    assert_eq!(
+        (full_recursive.snapshot().rows(), full_recursive.snapshot().cols()),
+        (7_575_344, 4_998_209),
+        "materialized selector-composed source-R1CS dimensions"
+    );
     let estimate = estimate_r1cs_encoding(
         full_recursive.snapshot(),
         full_recursive.public_bit_columns(),
@@ -960,6 +1474,11 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
     )
     .expect("full F' derived-encoding estimate");
     assert_eq!(estimate.public_input_len, F_PRIME_PUBLIC_INPUT_LEN);
+    assert_eq!(
+        (estimate.encoded_rows, estimate.encoded_cols),
+        (568_647_410, 420_130_158),
+        "generic low-norm estimate of the materialized source selector relation"
+    );
     assert_eq!(direct_estimate.public_input_len, F_PRIME_PUBLIC_INPUT_LEN);
     assert!(direct_estimate.encoded_cols < estimate.encoded_cols);
     assert!(direct_estimate.encoded_rows < estimate.encoded_rows);

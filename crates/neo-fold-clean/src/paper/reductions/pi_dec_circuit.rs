@@ -6,6 +6,26 @@
 //! parent from the children via the b-ary homomorphism and rejecting on
 //! mismatch.
 //!
+//! Owns: parent/child allocation, strict shape validation, b-ary
+//! recomposition, and equality of fields shared by definition.
+//!
+//! Does not own: transcript challenges, Π_RLC parent construction, or the
+//! surrounding accumulator-authority link.
+//!
+//! Emits constraints: yes, direct recomposition/equality rows.
+//!
+//! Authority boundary: the parent is accepted only when every authoritative
+//! coordinate is reconstructed from the supplied children; no child digest is
+//! used as a substitute.
+//!
+//! | Constraint family | Mathematical obligation | Emits constraints? | Rust owner | Lean owner |
+//! |---|---|---|---|---|
+//! | Allocation/shape | Parent and children have the fixed CE carrier shape | yes | this file | concrete refinement open |
+//! | Commitment/X/y recomposition | `parent = sum_i b^i child_i` lane-wise | yes | this file | PiDEC semantics |
+//! | Shared fields | Parent/children agree on non-decomposed fields | yes | this file | PiDEC semantics |
+//! | `y_zcol` recomposition | `parent = sum_i b^i child_i` for the raw optimized projection | **not currently emitted** | allocation omits child sidecars | delayed parent-projection refinement open |
+//! | Advice recomposition | Product-commitment advice follows the same radix map | yes | `product_commitment_circuit` | concrete refinement open |
+//!
 //! ## What this gadget owns
 //!
 //! - Allocation of parent and children CE-claim wires inside an
@@ -31,6 +51,8 @@
 //!   `verify_dec_public`: it checks public b-ary recomposition of `X`, but
 //!   does not range-check the child `X` digits.
 
+pub mod stage;
+
 use neo_ajtai::Commitment;
 use neo_math::ring::D;
 use neo_math::{KExtensions, F, K};
@@ -43,6 +65,7 @@ use crate::engine::r1cs_circuit::builder::{
 use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
 use crate::paper::params::Params;
+use crate::paper::reductions::pi_rlc_circuit::stage as pi_rlc_stage;
 use crate::paper::relations::product_commitment_circuit::{
     alloc_adv, enforce_adv_recomposition, validate_adv_shape, AdvCommitmentWires,
 };
@@ -108,13 +131,12 @@ pub struct CeClaimWires {
     /// and all children (NC channel doesn't decompose `s_col`); enforced
     /// via [`enforce_s_col_consistency`].
     pub s_col: Vec<KVar>,
-    /// Fixed-width canonical projection of the `y_zcol` sidecar. Index as
-    /// `y_zcol[lane * s + limb]`. **Not** subject to
-    /// b-ary recomposition: Π_CCS outputs mix MCS digit-decomposed and ME
-    /// linear y_zcols, so `Σ b^{i-1} · child.y_zcol ≠ parent.y_zcol` in
-    /// general. Children's y_zcol values are not DEC authority; allocation
-    /// zero-pads or truncates them to the parent width so their native sidecar
-    /// shape cannot alter the R1CS relation.
+    /// Flattened `y_zcol` sidecar, indexed as
+    /// `y_zcol[lane * s + limb]`. The authoritative Π_RLC parent retains its
+    /// full fixed-width sidecar. Ordinary Π_DEC children leave this vector
+    /// empty because strict Π_DEC neither reads nor validates child `y_zcol`.
+    /// Terminal-decider children reattach the sidecar at the terminal CE
+    /// relation, where it is checked directly against the opened witness.
     pub y_zcol: Vec<Var>,
     pub y_zcol_lanes: usize,
     /// `fold_digest` field of the CE claim, projected to four base-field
@@ -132,16 +154,17 @@ pub struct DecInputWires {
 }
 
 /// Allocate witness variables for parent + k children CE claims and return
-/// their wire handles. No constraints are emitted by this function.
+/// their wire handles. Allocation also emits fail-closed carrier rows: one
+/// inactive-X zero sentinel and five fixed metadata pins per claim, plus a
+/// rejection row when a fold-digest limb is noncanonical.
 ///
 /// Callers must call [`enforce_dec_v`] (and optionally [`enforce_x_bitness`])
 /// to actually constrain the relationship.
 pub fn alloc_dec_inputs(builder: &mut R1csBuilder, parent: &CeClaim, children: &[CeClaim]) -> DecInputWires {
     let parent_wires = alloc_ce_claim(builder, parent);
-    let y_zcol_lanes = parent.y_zcol.len();
     let child_wires = children
         .iter()
-        .map(|c| alloc_ce_claim_with_canonical_y_zcol(builder, c, y_zcol_lanes))
+        .map(|c| alloc_dec_child_claim(builder, c))
         .collect();
     DecInputWires {
         parent: parent_wires,
@@ -154,6 +177,13 @@ pub fn alloc_dec_inputs(builder: &mut R1csBuilder, parent: &CeClaim, children: &
 /// Returns `Err` if shapes drift (children disagree with parent, or there
 /// are not exactly `pp.k_rho()` of them).
 pub fn enforce_dec_v(builder: &mut R1csBuilder, pp: &Params, wires: &DecInputWires) -> Result<(), Error> {
+    let row_start = builder.rows();
+    enforce_dec_v_inner(builder, pp, wires)?;
+    builder.record_row_family(stage::RECOMPOSITION, row_start);
+    Ok(())
+}
+
+fn enforce_dec_v_inner(builder: &mut R1csBuilder, pp: &Params, wires: &DecInputWires) -> Result<(), Error> {
     let k = pp.k_rho() as usize;
     if wires.children.len() != k {
         return Err(Error::ChildCount {
@@ -172,6 +202,7 @@ pub fn enforce_dec_v(builder: &mut R1csBuilder, pp: &Params, wires: &DecInputWir
         p *= b;
     }
 
+    let family_start = builder.rows();
     enforce_lane_combination(
         builder,
         &wires.parent.c_data,
@@ -179,6 +210,9 @@ pub fn enforce_dec_v(builder: &mut R1csBuilder, pp: &Params, wires: &DecInputWir
         &b_pows,
         ChildField::Commitment,
     );
+    builder.record_row_family(stage::RECOMPOSITION_COMMITMENT, family_start);
+
+    let family_start = builder.rows();
     let child_adv: Vec<Option<AdvCommitmentWires>> = wires
         .children
         .iter()
@@ -186,10 +220,17 @@ pub fn enforce_dec_v(builder: &mut R1csBuilder, pp: &Params, wires: &DecInputWir
         .collect();
     enforce_adv_recomposition(builder, wires.parent.adv.as_ref(), &child_adv, &b_pows)
         .map_err(Error::ProductCommitment)?;
+    builder.record_row_family(stage::RECOMPOSITION_ADVICE, family_start);
+
+    let family_start = builder.rows();
     enforce_active_x_combination(builder, &wires.parent, &wires.children, &b_pows);
+    builder.record_row_family(stage::RECOMPOSITION_X, family_start);
+
+    let family_start = builder.rows();
     for j in 0..wires.parent.y_ring.len() {
         enforce_lane_combination_y(builder, j, &wires.parent.y_ring[j], &wires.children, &b_pows);
     }
+    builder.record_row_family(stage::RECOMPOSITION_Y_RING, family_start);
     Ok(())
 }
 
@@ -282,10 +323,11 @@ pub fn enforce_r_consistency(builder: &mut R1csBuilder, wires: &DecInputWires) -
 ///      transcript digest as their Π_DEC parent.
 ///
 /// Notably absent (and absent on the native side):
-///   - **No `y_zcol` b-ary check.** Π_CCS outputs mix MCS digit-decomposed
-///     and ME linear y_zcols; after Π_RLC the parent's y_zcol doesn't
-///     telescope under Π_DEC's b-ary split. Children's y_zcols are not
-///     DEC authority.
+///   - **No `y_zcol` b-ary check.** The optimized NC table stores raw packed
+///     witness coordinates, so its projection is linear and does telescope
+///     through Π_RLC and Π_DEC. Omitting the check is a known authority gap,
+///     not a semantic impossibility. The planned delayed-parent refinement
+///     must bind this projection before the old point is discarded.
 ///   - **No unsigned x bitness check.** `decompose_balanced_fixed_d_digits_k`
 ///     produces signed digits (e.g. -1 ↦ p-1 in F), so an unsigned
 ///     `{0..b-1}` check would reject honest provers. Strict mode enforces the
@@ -296,40 +338,41 @@ pub fn enforce_dec_v_strict(builder: &mut R1csBuilder, pp: &Params, wires: &DecI
     let first_allocated_column = builder.cols();
 
     let phase_start = builder.rows();
-    enforce_dec_v(builder, pp, wires)?;
-    builder.record_row_family("pi_dec.recompose", phase_start);
+    enforce_dec_v_inner(builder, pp, wires)?;
+    builder.record_row_family(stage::RECOMPOSITION, phase_start);
 
     let phase_start = builder.rows();
     enforce_shape_metadata_consistency(builder, wires);
-    builder.record_row_family("pi_dec.shape", phase_start);
+    builder.record_row_family(stage::SHAPE, phase_start);
 
     let phase_start = builder.rows();
     enforce_r_consistency(builder, wires)?;
-    builder.record_row_family("pi_dec.r", phase_start);
+    builder.record_row_family(stage::R, phase_start);
 
     let phase_start = builder.rows();
     enforce_s_col_consistency(builder, wires)?;
-    builder.record_row_family("pi_dec.s_col", phase_start);
+    builder.record_row_family(stage::S_COL, phase_start);
 
     let phase_start = builder.rows();
     enforce_inactive_x_zero(builder, wires)?;
-    builder.record_row_family("pi_dec.inactive_x", phase_start);
+    builder.record_row_family(stage::INACTIVE_X, phase_start);
 
     let phase_start = builder.rows();
     enforce_child_x_balanced_alphabet(builder, pp, wires)?;
-    builder.record_row_family("pi_dec.alphabet", phase_start);
+    builder.record_row_family(stage::ALPHABET, phase_start);
 
     let phase_start = builder.rows();
     enforce_ct_consistency(builder, wires)?;
-    builder.record_row_family("pi_dec.ct", phase_start);
+    builder.record_row_family(stage::CT, phase_start);
 
     let phase_start = builder.rows();
     enforce_y_ring_padding_zero(builder, wires);
-    builder.record_row_family("pi_dec.y_padding", phase_start);
+    builder.record_row_family(stage::Y_RING_PADDING, phase_start);
 
     let phase_start = builder.rows();
     enforce_fold_digest_consistency(builder, wires)?;
-    builder.record_row_family("pi_dec.fold_digest", phase_start);
+    builder.record_row_family(stage::FOLD_DIGEST, phase_start);
+    builder.record_row_family(stage::VERIFY, row_start);
 
     builder.record_pi_dec_strict(PiDecStrictAudit {
         row_start,
@@ -665,11 +708,10 @@ pub(crate) fn alloc_ce_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> CeCl
     alloc_ce_claim_from_y_zcol(builder, claim, &claim.y_zcol)
 }
 
-fn alloc_ce_claim_with_canonical_y_zcol(builder: &mut R1csBuilder, claim: &CeClaim, lanes: usize) -> CeClaimWires {
-    let canonical: Vec<K> = (0..lanes)
-        .map(|lane| claim.y_zcol.get(lane).copied().unwrap_or(K::ZERO))
-        .collect();
-    alloc_ce_claim_from_y_zcol(builder, claim, &canonical)
+/// Allocate the strict-Π_DEC child core. Child `y_zcol` is deliberately not
+/// materialized because it is outside the Π_DEC acceptance predicate.
+pub(crate) fn alloc_dec_child_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> CeClaimWires {
+    alloc_ce_claim_from_y_zcol(builder, claim, &[])
 }
 
 fn alloc_ce_claim_from_y_zcol(builder: &mut R1csBuilder, claim: &CeClaim, y_zcol_values: &[K]) -> CeClaimWires {
@@ -680,8 +722,10 @@ fn alloc_ce_claim_from_y_zcol(builder: &mut R1csBuilder, claim: &CeClaim, y_zcol
     let mut x = Vec::with_capacity(x_rows * x_cols);
     let active_cols = crate::paper::relations::superneo_public_x_cols(claim.m_in);
     let inactive_nonzero = (0..x_rows).any(|r| (active_cols..x_cols).any(|c| claim.X[(r, c)] != F::ZERO));
+    let allocation_start = builder.rows();
     let inactive_zero = builder.alloc(if inactive_nonzero { F::ONE } else { F::ZERO });
     builder.enforce_eq(&Lc::from_var(inactive_zero), &Lc::zero());
+    builder.record_row_family(pi_rlc_stage::ROW_SHAPE_ALLOCATE_INACTIVE_X_SENTINEL, allocation_start);
     for r in 0..x_rows {
         for c in 0..x_cols {
             x.push(if c < active_cols {
@@ -746,27 +790,40 @@ fn alloc_ce_claim_from_y_zcol(builder: &mut R1csBuilder, claim: &CeClaim, y_zcol
     // the next step's running's `fold_digest_fields`. Reject noncanonical
     // byte limbs instead of reducing them modulo F; proof bytes should not be
     // able to alias a different transcript digest in-circuit.
+    let allocation_start = builder.rows();
     let fold_digest_lanes = canonical_digest32_fields_or_unsat(builder, claim.fold_digest);
+    builder.record_row_family(
+        pi_rlc_stage::ROW_SHAPE_ALLOCATE_FOLD_DIGEST_CANONICALITY,
+        allocation_start,
+    );
     let fold_digest_fields: [Var; 4] = [
         builder.alloc(fold_digest_lanes[0]),
         builder.alloc(fold_digest_lanes[1]),
         builder.alloc(fold_digest_lanes[2]),
         builder.alloc(fold_digest_lanes[3]),
     ];
+    let allocation_start = builder.rows();
+    let c_d_var = alloc_usize(builder, claim.c.d);
+    let c_kappa_var = alloc_usize(builder, claim.c.kappa);
+    let x_rows_var = alloc_usize(builder, x_rows);
+    let x_cols_var = alloc_usize(builder, x_cols);
+    let m_in_var = alloc_usize(builder, claim.m_in);
+    builder.record_row_family(pi_rlc_stage::ROW_SHAPE_ALLOCATE_METADATA, allocation_start);
+
     CeClaimWires {
         c_data,
         c_d: claim.c.d,
-        c_d_var: alloc_usize(builder, claim.c.d),
+        c_d_var,
         c_kappa: claim.c.kappa,
-        c_kappa_var: alloc_usize(builder, claim.c.kappa),
+        c_kappa_var,
         adv,
         x,
         x_rows,
-        x_rows_var: alloc_usize(builder, x_rows),
+        x_rows_var,
         x_cols,
-        x_cols_var: alloc_usize(builder, x_cols),
+        x_cols_var,
         m_in: claim.m_in,
-        m_in_var: alloc_usize(builder, claim.m_in),
+        m_in_var,
         aux_openings_len: claim.aux_openings.len(),
         c_step_coords_len: claim.c_step_coords.len(),
         u_offset: claim.u_offset,

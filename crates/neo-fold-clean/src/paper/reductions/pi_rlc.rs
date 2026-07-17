@@ -1,37 +1,22 @@
-//! Π_RLC — SuperNeo §7.4. Random Linear Combination.
+//! Native Pi_RLC reduction from CE inputs to one combined CE parent.
 //!
-//! Reduction:  CE(b, ℒ)^{K+k}   →   CE(B, ℒ)   where B = b^k
+//! Owns: input/combined validation, rho transcript scheduling, projection
+//! binding data, and prover/verifier orchestration.
 //!
-//! Soundness: **weak** wrt φ projecting commitments (Lemma 4, proof in §D.5).
-//! Composes with Π_CCS (strong wrt the same φ) via Theorem 6.
+//! Does not own: the RLC norm-bound theorem, engine ring mixing, Pi_DEC, or
+//! in-circuit verification.
 //!
-//! ## What this file owns
+//! Emits constraints: no.
 //!
-//! - The `prove` and `verify` step-down flows in paper-step order.
-//! - The shape contract: K+k input CE claims, K+k witnesses (prover-only).
+//! Authority boundary: the prover-supplied combined claim is checked against
+//! verifier-derived rho values and the authenticated inputs before Pi_DEC uses
+//! it; projection digests are compression, not authority.
 //!
-//! ## What this file does *not* own
-//!
-//! - The bound check `(K+k)·T·(b−1) < B` — that's in `paper/sampling.rs`.
-//! - The actual Σρ_i mix — that's `engine::optimized::prove_pi_rlc`
-//!   (prover) and `engine::optimized::verify_pi_rlc` (verifier).
-//!
-//! ## Why `combined` is on the wire
-//!
-//! In principle the verifier can recompute `combined = Σ ρ_i · u_i` from
-//! public-coin ρ and the K+k Π_CCS outputs. Instead the prover sends its
-//! parent: the verifier *checks* the
-//! recomputation matches before feeding Π_DEC. Why not just recompute and
-//! drop the field?
-//!
-//! Π_DEC's children are committed against the prover's exact `parent`. The
-//! parent's CE claim is built by the engine and then patched with
-//! `out.c = mix_commits(rhos, &inputs_c)`. Recomputing on the verifier
-//! side could produce an equivalent CE claim but not necessarily a
-//! bit-identical one (e.g., on the `c` field if the mix closure on the
-//! verifier side has a subtle implementation drift). Comparing the
-//! prover-supplied parent against the verifier's recomputation is the safer
-//! contract; the wire cost is one CE claim per IVC step.
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | Rho schedule | [`begin_rho_sampling`], [`derive_rhos_for_inputs`] | no | Transcript-bound Pi_CCS outputs |
+//! | Combined claim | [`validate_combined`] | no | Verifier recomputation from authenticated inputs |
+//! | Prove/verify | [`prove`], [`verify`] | no | Engine Pi_RLC relation and checked transcript |
 
 use neo_ajtai::Commitment;
 use neo_ccs::{LaneCommitments, Mat};

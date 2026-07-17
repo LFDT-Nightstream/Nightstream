@@ -445,10 +445,10 @@ fn phase_1_3b_nifs_ce_claim_fs_bound_prefix_matches_ce_claim_digest() {
     }
 
     // Sanity: the prefix occupies the FIRST prefix_bits of nifs_payloads, and the
-    // remaining bits hold y_zcol/s_col (the non-FS-bound tail).
+    // remaining bits hold y_zcol/s_col (the current-v1 unbound tail).
     let remaining_bits = image.layout.nifs_payloads.bits - prefix_bits;
     eprintln!(
-        "phase_1_3b prefix-vs-ce_claim_digest: {} F → {} prefix bits, {} non-FS-bound tail bits",
+        "phase_1_3b prefix-vs-ce_claim_digest: {} F → {} prefix bits, {} current-v1 unbound tail bits",
         prefix_fields.len(),
         prefix_bits,
         remaining_bits,

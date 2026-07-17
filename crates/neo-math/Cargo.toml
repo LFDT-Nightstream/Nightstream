@@ -54,6 +54,10 @@ name = "spec_bar_transform"
 path = "spec-tests/bar_transform.rs"
 
 [[test]]
+name = "phi81_bar_lean_artifact"
+path = "tests/phi81_bar_lean_artifact.rs"
+
+[[test]]
 name = "spec_s_action"
 path = "spec-tests/s_action.rs"
 

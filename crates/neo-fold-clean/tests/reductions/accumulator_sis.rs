@@ -1,4 +1,12 @@
-//! Native/circuit parity and selective-lowering pins for SIS bulk bindings.
+//! Native/circuit parity and low-norm-lowering pins for SIS bulk bindings.
+//!
+//! | Boundary | Evidence |
+//! |---|---|
+//! | Native ↔ R1CS | Commitment and digest outputs agree |
+//! | Canonical opening | Boundary values accept; `x+p` and auxiliary mutations reject |
+//! | Selective lowering | One 41-coordinate word is reused |
+//! | Gadget-native lowering | Candidate-preserving decode and retained-row rejection |
+//! | Seeded matrix | Seed changes alter authoritative row identity |
 
 #[path = "../gadgets/checked_program_artifact_support.rs"]
 #[allow(dead_code)]
@@ -11,6 +19,7 @@ use neo_ajtai::commit_row_major_seeded;
 use neo_ccs::Mat;
 use neo_fold_clean::engine::r1cs_circuit::builder::RowFamilyRange;
 use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
+use neo_fold_clean::frontends::f_prime::gadget_native::encode_r1cs_gadget_native;
 use neo_fold_clean::frontends::r1cs_f_prime::{
     build_multi_branch_selective_low_norm_r1cs_with_alignment, lower_field_r1cs,
 };
@@ -278,6 +287,32 @@ fn selective_sis_lowering_rejects_noncanonical_shifted_base3_opening() {
     assert!(
         !relation.is_satisfied(&encoded),
         "direct shifted-ternary rows must reject x+p after every source auxiliary and Ajtai output is recomputed"
+    );
+}
+
+#[test]
+fn gadget_native_sis_lowering_preserves_and_rejects_the_noncanonical_opening() {
+    let mut builder = R1csBuilder::new();
+    builder.enable_encoding_trace();
+    let field = builder.alloc(F::from_u64(F::ORDER_U64 / 2));
+    let commitment = enforce_commit_fields(&mut builder, CONFIG, &[field]).expect("SIS commitment circuit");
+    forge_alternate_shifted_base3_opening(&mut builder, field, &commitment.data);
+    assert!(!builder.is_satisfied(), "source R1CS must reject the forged opening");
+
+    let source = builder.snapshot();
+    let encoded = encode_r1cs_gadget_native(&source, builder.encoding_trace(), &[])
+        .expect("gadget-native balanced-ternary lowering");
+    assert_eq!(
+        encoded
+            .plan
+            .decode_source(&encoded.assignment)
+            .expect("decode forged candidate"),
+        source.witness(),
+        "materialization must preserve the forged digits instead of normalizing from the field residue"
+    );
+    assert!(
+        !encoded.is_satisfied(),
+        "the retained terminal-borrow row must reject the x+p opening"
     );
 }
 

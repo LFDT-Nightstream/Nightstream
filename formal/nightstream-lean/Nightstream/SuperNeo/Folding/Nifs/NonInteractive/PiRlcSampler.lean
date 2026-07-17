@@ -39,6 +39,7 @@ valid `Pi_RLC` scalar.
 | `Pi_RLC` | batch | `BatchExecution` | retain one bounded coefficient execution for every carried scalar |
 | `Pi_RLC` | strong set | `StrongSetLaw` | accepted coefficients are valid and their assembly is a valid scalar |
 | `Pi_RLC` | fixed bound | `ShortfallAt` | any coordinate shortfall rules out batch refinement |
+| `Pi_RLC` | completeness split | `available_or_exists_shortfall` | a finite batch either exists or one exact coordinate shortfalls |
 | `Pi_RLC` | replay bridge | `ResponseRefinesAt` | every replay scalar equals its transcript-chained sampled scalar |
 -/
 
@@ -291,6 +292,55 @@ def Available
     (initial : Digest) : Prop :=
   exists _batch : BatchExecution specification challengeCount bound initial,
     True
+
+/-- Finite bounded sampling is total as an outcome: either every challenge
+coordinate has its canonical bounded execution, or one exact coordinate has
+too few accepted candidates. This is a logical completeness split, not a
+claim that a hash-derived stream always succeeds. -/
+theorem available_or_exists_shortfall
+    {Digest : Type uDigest}
+    {Candidate : Type uCandidate}
+    {Coefficient : Type uCoefficient}
+    {Scalar : Type uScalar}
+    (specification : Specification Digest Candidate Coefficient Scalar)
+    (challengeCount bound : Nat)
+    (initial : Digest) :
+    Available specification challengeCount bound initial \/
+      Exists fun coordinate : Fin challengeCount =>
+        ShortfallAt specification bound initial coordinate.val := by
+  classical
+  by_cases shortfall :
+      Exists fun coordinate : Fin challengeCount =>
+        ShortfallAt specification bound initial coordinate.val
+  · exact Or.inr shortfall
+  · apply Or.inl
+    refine ⟨{ execution := fun coordinate => ?_ }, trivial⟩
+    have noShortfall :
+        ¬ ShortfallAt specification bound initial coordinate.val := by
+      intro coordinateShortfall
+      exact shortfall ⟨coordinate, coordinateShortfall⟩
+    have enough :
+        FirstAccepted.Enough specification.verifier
+          specification.coefficientCount
+          (FirstAccepted.streamPrefix
+            (sourceAt specification initial coordinate.val).stream bound) := by
+      unfold ShortfallAt FirstAccepted.Shortfall at noShortfall
+      unfold FirstAccepted.Enough
+      omega
+    let output :=
+      FirstAccepted.firstAccepted specification.verifier
+        specification.coefficientCount
+        (FirstAccepted.streamPrefix
+          (sourceAt specification initial coordinate.val).stream bound)
+    have success :
+        FirstAccepted.boundedSample specification.verifier
+            specification.coefficientCount
+            (FirstAccepted.streamPrefix
+              (sourceAt specification initial coordinate.val).stream bound) =
+          some output := by
+      exact FirstAccepted.boundedSample_eq_some_iff.mpr ⟨enough, rfl⟩
+    exact Classical.choose
+      (FirstAccepted.BoundedExecution.exists_of_bounded_success success)
 
 /-- Availability excludes shortfall at each coordinate independently. -/
 theorem available_excludes_shortfall

@@ -21,6 +21,7 @@ import Nightstream.SuperNeo.Folding.Nifs.SharedCarrier
 import Nightstream.SuperNeo.Folding.Nifs.NonInteractive
 import Nightstream.SuperNeo.Concrete.Relation
 import Nightstream.SuperNeo.Concrete.Phi81Relation
+import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81
 import Nightstream.SuperNeo.Concrete.Necessity.Phi81OutputMismatch
 import Nightstream.SuperNeo.Concrete.Parameters
 import Nightstream.SuperNeo.Concrete.Phi81StrongSet

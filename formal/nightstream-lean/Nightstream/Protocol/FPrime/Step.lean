@@ -25,6 +25,20 @@ NIFS, application, fresh-link, and Nebula checkers are executable parameters.
 Their Boolean success is an explicit premise of the resulting semantic step;
 none is replaced by an `accepted_implies_valid` field.
 
+| Stage path | Mathematical obligation | Authority class | Local owner |
+|---|---|---|---|
+| `fprime.step.input` | carry the fold proof, fresh batch, and optional Nebula transition data | checked payload | `Proof`, `Input` |
+| `fprime.step.nifs.context` | derive the exact NIFS transcript prefix from the prior state and verifier input | computed | `NifsContext`, `nifsContext` |
+| `fprime.step.state.advance` | compute the candidate next Construction-2 state | computed | `installedNebula`, `advancedState` |
+| `fprime.step.application` | bind fresh links, application semantics, and optional Nebula advancement | checked | `FreshLinked`, `SemanticAdvance`, `NebulaAdvance` |
+| `fprime.step.base` | enforce the true initial-state, no-fold specialization | checked | `InitialState`, `BaseHolds`, `BaseLocalHolds` |
+| `fprime.step.recursive` | verify the selected fold and the active-state transition | checked | `ActiveState`, `RecursiveHolds`, `RecursiveLocalHolds` |
+| `fprime.step.local` | expose exactly the constraints owned by one producer invocation | checked | `LocalHolds` |
+| `fprime.step.outgoing` | bind the newly installed batch at the next edge or terminal fold | checked | `OutgoingLinked`, `Holds`, `closeLocal` |
+| `fprime.step.check` | execute the base/recursive and local/closed predicates without hidden acceptance premises | computed checker | `check`, `checkLocal` |
+| `fprime.step.check.exact` | equate Boolean acceptance with the corresponding logical relation | derived | `checkLocal_eq_true_iff_localHolds`, `check_eq_true_iff_holds` |
+| `fprime.step.soundness` | derive branch-specific semantic and state-pinning facts | derived | `fPrimeBase_sound`, `fPrimeRecursive_sound`, `next_state_pinned`, `holds_advance_facts` |
+
 Maps to:
 - HyperNova Construction 2 steps 1-5.
 - `paper::f_prime::native::{prove_with_semantic_state,verify}`.

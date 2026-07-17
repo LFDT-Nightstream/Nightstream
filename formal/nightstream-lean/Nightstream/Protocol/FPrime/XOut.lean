@@ -16,6 +16,19 @@ make verifier-key, initial-boundary, and state-output domains disjoint without
 introducing a second hash family. A same-output disagreement reduces to an
 explicit collision; no collision-resistance conclusion is assumed locally.
 
+| Stage path | Mathematical obligation | Authority class | Local owner |
+|---|---|---|---|
+| `fprime.x_out.mode` | distinguish stateless and stateful semantic-state layouts | verifier-owned configuration | `Mode` |
+| `fprime.x_out.verifier` | name the exact verifier material absorbed into the verifier digest | direct dataflow | `VerifierPreimage`, `verifierDigest` |
+| `fprime.x_out.initial` | derive the initial boundary and public-trace seed from verifier-owned structure | computed | `InitialBoundaryPreimage`, `PublicTraceSeedPreimage`, `initialBoundary`, `publicTraceSeed` |
+| `fprime.x_out.preimage` | assemble the exact compact state-output absorb sequence | computed | `XOutPreimage`, `preimage` |
+| `fprime.x_out.domain` | separate verifier, initial-boundary, trace-seed, and state-output messages | checked by construction | `Message` |
+| `fprime.x_out.hash` | compute the public output through the sole abstract hash interface | computed | `Semantics`, `compute` |
+| `fprime.x_out.pinning` | retain omitted state coordinates through explicit verifier-derived equalities | checked | `StatePinned` |
+| `fprime.x_out.authority` | project exactly the state fields whose equality is required | computed | `AuthorityView`, `authorityView` |
+| `fprime.x_out.collision` | name hash or Nebula-digest disagreement instead of assuming injectivity | security boundary | `HashCollision`, `NebulaDigestCollision`, `BindingFailure` |
+| `fprime.x_out.reduction` | reduce equal outputs to equal authority views or an explicit binding failure | derived | `xOut_binding_or_collision` |
+
 Maps to:
 - `paper::digest::{vk_fs_digest, initial_boundary_digest,
   state_x_out_digest_with_mode}`

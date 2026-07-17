@@ -1,12 +1,11 @@
-import Nightstream.Protocol.FPrime.Paper
+import Nightstream.Protocol.FPrime.Paper.Output
 
 /-!
 Constructive model-level completeness for the Construction-2 `F'_j` relation.
 
-Owns: the canonical output determined by an input and a chosen next running
-product, exact selected-slot update/copy, construction of accepted base and
-recursive executions, and projection of those executions to the public paper
-relation.
+Owns: exact selected-slot update/copy, construction of accepted base and
+recursive executions from the canonical output function, and projection of
+those executions to the public paper relation.
 
 Does not own: construction of an honest SuperNeo NIFS edge, validity of the
 configured default vector, hash injectivity, Fiat-Shamir, Poseidon2, Rust or
@@ -14,19 +13,18 @@ R1CS refinement, cryptographic soundness, or any row-removal conclusion.
 
 Emits constraints: no.
 
-Authority boundary: recursive completeness takes a concrete accepted
-`NifsVerifier.EdgeWitness`; it does not manufacture acceptance from a digest or
-from output self-consistency. `SetupValid` transfer is only for the machine's
-fixed per-slot setup and is not a universal `u_perp` theorem. It also does not
-establish the still-open `enc_str(F'_j) = expectedStructure` refinement.
+Authority boundary: recursive completeness takes the independent public NIFS
+transition and the selected-input structure binding as separate premises; it
+does not manufacture either from a digest or output self-consistency.
+`SetupValid` transfer is only for the machine's fixed per-slot setup and is not
+a universal `u_perp` theorem. It also does not establish the still-open
+`enc_str(F'_j) = expectedStructure` refinement.
 
 | Protocol | Phase | Obligation | Construction/theorem |
 |---|---|---|---|
-| `F'_j` | output | derive `pcNext`, `zNext`, and `x` from verifier functions | `derivedOutput` |
-| `F'_j` | dispatch | identify fixed `j` with `phi(z_i, omega_i)` | `derivedOutput_application` |
 | `F'_j` | base | retain the configured default vector | `derivedOutput_base_holds`, `base_exists_holds` |
 | `F'_j` | recursive | replace only the prior-counter slot | `updatedRunning`, `updatedRunning_selected`, `updatedRunning_other` |
-| `F'_j` | recursive | use a concrete accepted NIFS edge for the selected replacement | `derivedOutput_recursive_holds`, `recursive_exists_holds` |
+| `F'_j` | recursive | use a public NIFS transition plus explicit selected structure binding for the replacement | `derivedOutput_recursive_holds`, `recursive_exists_holds` |
 | `F'_j` | public | expose the constructed digest through the paper relation | `base_paperFPrimeStep`, `recursive_paperFPrimeStep` |
 | setup | base validity | transfer fixed-slot default semantic validity to the base output | `defaultValid_transfers_to_base` |
 | setup | base validity and structure | transfer the combined setup predicate to the accepted base output | `setupValid_transfers_to_base` |
@@ -94,61 +92,6 @@ theorem updatedRunning_other
     updatedRunning input priorPcValid selectedNext slot = input.running slot := by
   simp [updatedRunning, notSelected]
 
-/-- Canonical output for a chosen next running product. -/
-def derivedOutput
-    (machine : Machine VerifierKey Digest State Witness Structure PublicInput
-      Point Evaluation Commitment params slotCount)
-    (input : Input VerifierKey State Witness Structure PublicInput Point
-      Evaluation Commitment params slotCount)
-    (runningNext : RunningProduct Structure PublicInput Point Evaluation
-      Commitment params slotCount) :
-    Output Digest State Structure PublicInput Point Evaluation Commitment params
-      slotCount :=
-  let pcNext := machine.control input.zi input.witness
-  let zNext := machine.step pcNext.index input.zi input.witness
-  let preimage : HashPreimage VerifierKey State Structure PublicInput Point
-      Evaluation Commitment params slotCount := {
-    verifierKey := input.verifierKey
-    iteration := input.iteration + 1
-    z0 := input.z0
-    current := zNext
-    running := runningNext
-    pc := pcNext.raw
-  }
-  {
-    zNext := zNext
-    runningNext := runningNext
-    pcNext := pcNext
-    x := machine.hash preimage
-  }
-
-/-- The canonical output satisfies deterministic control, dispatch, and `F_j`. -/
-theorem derivedOutput_application
-    (machine : Machine VerifierKey Digest State Witness Structure PublicInput
-      Point Evaluation Commitment params slotCount)
-    (input : Input VerifierKey State Witness Structure PublicInput Point
-      Evaluation Commitment params slotCount)
-    (runningNext : RunningProduct Structure PublicInput Point Evaluation
-      Commitment params slotCount) :
-    ApplicationHolds machine (machine.control input.zi input.witness).index input
-      (derivedOutput machine input runningNext) := by
-  constructor
-  · rfl
-  · exact (ProgramCounter.ofIndex_index
-      (machine.control input.zi input.witness)).symm
-  · rfl
-
-/-- The canonical output hashes exactly its typed next-step preimage. -/
-theorem derivedOutput_outputHolds
-    (machine : Machine VerifierKey Digest State Witness Structure PublicInput
-      Point Evaluation Commitment params slotCount)
-    (input : Input VerifierKey State Witness Structure PublicInput Point
-      Evaluation Commitment params slotCount)
-    (runningNext : RunningProduct Structure PublicInput Point Evaluation
-      Commitment params slotCount) :
-    OutputHolds machine input (derivedOutput machine input runningNext) := by
-  rfl
-
 /-- The canonical default-vector output realizes the base branch. -/
 theorem derivedOutput_base_holds
     {family : NifsFamily VerifierKey Structure Assignment PublicInput Point
@@ -215,8 +158,11 @@ theorem derivedOutput_recursive_holds
       machine.encodeInstance (machine.hash (priorHashPreimage input)))
     (selectedNext : RunningSlot Structure PublicInput Point Evaluation
       Commitment params)
-    (edge : (selectedVerifier family input priorPcValid).EdgeWitness
-      (selectedNifsInput family input priorPcValid) selectedNext) :
+    (selectedStructures :
+      SelectedInputStructuresBound family input priorPcValid)
+    (selectedNifs :
+      (selectedVerifier family input priorPcValid).Transition
+        (selectedNifsInput family input priorPcValid) selectedNext) :
     Holds family machine (machine.control input.zi input.witness).index input
       (derivedOutput machine input
         (updatedRunning input priorPcValid selectedNext)) := by
@@ -227,13 +173,13 @@ theorem derivedOutput_recursive_holds
     priorPublicInput := priorPublicInput
     application := derivedOutput_application machine input
       (updatedRunning input priorPcValid selectedNext)
+    selectedStructures := selectedStructures
     selectedNifs := ?_
     unchanged := ?_
     outputHash := derivedOutput_outputHolds machine input
       (updatedRunning input priorPcValid selectedNext)
   }
-  · exact ⟨by
-      simpa [derivedOutput] using edge⟩
+  · simpa [derivedOutput] using selectedNifs
   · intro slot notSelected
     exact updatedRunning_other input priorPcValid selectedNext slot notSelected
 
@@ -251,15 +197,18 @@ theorem recursive_exists_holds
       machine.encodeInstance (machine.hash (priorHashPreimage input)))
     (selectedNext : RunningSlot Structure PublicInput Point Evaluation
       Commitment params)
-    (edge : (selectedVerifier family input priorPcValid).EdgeWitness
-      (selectedNifsInput family input priorPcValid) selectedNext) :
+    (selectedStructures :
+      SelectedInputStructuresBound family input priorPcValid)
+    (selectedNifs :
+      (selectedVerifier family input priorPcValid).Transition
+        (selectedNifsInput family input priorPcValid) selectedNext) :
     exists output,
       Holds family machine (machine.control input.zi input.witness).index input
         output := by
   exact ⟨derivedOutput machine input
       (updatedRunning input priorPcValid selectedNext),
     derivedOutput_recursive_holds machine input iterationPositive priorPcValid
-      priorPublicInput selectedNext edge⟩
+      priorPublicInput selectedNext selectedStructures selectedNifs⟩
 
 /-- The canonical recursive digest belongs to the public paper relation. -/
 theorem recursive_paperFPrimeStep
@@ -275,14 +224,17 @@ theorem recursive_paperFPrimeStep
       machine.encodeInstance (machine.hash (priorHashPreimage input)))
     (selectedNext : RunningSlot Structure PublicInput Point Evaluation
       Commitment params)
-    (edge : (selectedVerifier family input priorPcValid).EdgeWitness
-      (selectedNifsInput family input priorPcValid) selectedNext) :
+    (selectedStructures :
+      SelectedInputStructuresBound family input priorPcValid)
+    (selectedNifs :
+      (selectedVerifier family input priorPcValid).Transition
+        (selectedNifsInput family input priorPcValid) selectedNext) :
     PaperFPrimeStep family machine (machine.control input.zi input.witness).index
       (derivedOutput machine input
         (updatedRunning input priorPcValid selectedNext)).x := by
   exact paperFPrimeStep_of_holds
     (derivedOutput_recursive_holds machine input iterationPositive priorPcValid
-      priorPublicInput selectedNext edge)
+      priorPublicInput selectedNext selectedStructures selectedNifs)
 
 /-- Base acceptance transfers default semantic validity to its exact output. -/
 theorem defaultValid_transfers_to_base

@@ -1,37 +1,45 @@
 import Nightstream.Protocol.FPrime.Paper
 
 /-!
-Certificate-oriented verifier semantics for the paper `F'_j` relation.
+Legacy certificate-oriented packaging for the abstract paper `F'_j`
+relation.
 
 Owns: the typed recursive certificate retained by an executable verifier, the
 base/recursive semantic acceptance predicates, and exact soundness and
 completeness equivalences with the independently stated Construction-2
 relation.
 
-Does not own: Rust control flow, R1CS rows, Fiat--Shamir, Poseidon2, concrete
-encodings, cryptographic assumptions, constraint counts, or permission to
-remove a check.
+Does not own: a canonical active verifier, a minimality proof, concrete Phi81
+NIFS semantics, Rust control flow, R1CS rows, Fiat--Shamir, Poseidon2,
+concrete encodings, cryptographic assumptions, constraint counts, or
+permission to remove a check.
 
 Emits constraints: no.
 
 Authority boundary: `RecursiveCertificate` carries the full accepted
 SuperNeo edge. `RecursiveAccepts` checks the outer Construction-2 obligations
 against that edge. Neither definition is generated from, indexed by, or
-parameterized by a production circuit. The equivalence theorems therefore
-establish a semantic verifier target; they are not implementation refinement.
+parameterized by a production circuit. The equivalence theorems establish
+only abstract paper-level bookkeeping. The independent `RecursiveHolds`
+predicate carries the public NIFS transition and selected structure binding,
+not this certificate. Even so, these theorems are neither implementation
+refinement nor evidence of minimality.
 
 | Protocol | Phase | Constraint family | Mathematical obligation | Lean owner |
 |---|---|---|---|---|
+| NIFS | retained edge | exact three-phase attempt | preserve the accepted attempt and exact input/output equations for extraction | `NifsVerifier.EdgeWitness` |
+| NIFS | retained edge | public transition | project the retained attempt to the independent transition | `NifsVerifier.EdgeWitness.transition` |
+| NIFS | retained edge | output structure | derive child structure from the retained edge and explicit source bindings | `NifsVerifier.EdgeWitness.outputStructure` |
 | `F'_j` | recursive certificate | selected NIFS edge | retain the exact accepted `Pi_CCS -> Pi_RLC -> Pi_DEC` attempt for the checked prior slot | `RecursiveCertificate.edge` |
 | `F'_j` | recursive control | iteration | recursive execution requires `i > 0` | `RecursiveAccepts.iterationPositive` |
 | `F'_j` | recursive authority | prior public link | fresh public input equals the encoded hash of the exact prior preimage | `RecursiveAccepts.priorPublicInput` |
 | `F'_j` | application | control / dispatch / step | evaluate exactly the fixed `F_j` selected by `phi` | `RecursiveAccepts.application` |
 | `F'_j` | running product | inactive slots | every non-selected accumulator is copied unchanged | `RecursiveAccepts.unchanged` |
 | `F'_j` | output authority | next public hash | output digest hashes the exact next preimage | `RecursiveAccepts.outputHash` |
-| `F'_j` | branch | base / recursive | accept exactly the paper base predicate or one certificate-backed recursive predicate | `MinimalFPrimeVerifierAccepts` |
-| assurance | soundness | semantic refinement | minimal verifier acceptance implies `Paper.Holds` | `minimalFPrimeVerifier_sound` |
-| assurance | completeness | semantic refinement | every `Paper.Holds` execution has a retained verifier certificate | `minimalFPrimeVerifier_complete` |
-| assurance | public relation | existential projection | minimal verifier and paper `F'_j` expose exactly the same public digests | `minimalPaperFPrimeStep_iff_paperFPrimeStep` |
+| `F'_j` | branch | base / recursive | accept exactly the paper base predicate or one certificate-backed recursive predicate | `CertificateFPrimeVerifierAccepts` |
+| assurance | soundness | semantic refinement | certificate-verifier acceptance implies `Paper.Holds` | `certificateFPrimeVerifier_sound` |
+| assurance | completeness | semantic refinement | every `Paper.Holds` execution has a retained verifier certificate | `certificateFPrimeVerifier_complete` |
+| assurance | public relation | existential projection | certificate verifier and paper `F'_j` expose exactly the same public digests | `certificatePaperFPrimeStep_iff_paperFPrimeStep` |
 -/
 
 namespace Nightstream.Protocol.FPrime.Paper
@@ -61,6 +69,63 @@ variable {relation : RelationSemantics
   Structure Assignment PublicInput Point Evaluation Commitment}
 variable {params : GlobalParams}
 variable {slotCount : Nat}
+
+namespace NifsVerifier
+
+/-- Concrete recursive-edge witness retained for later knowledge soundness.
+Unlike an opaque verifier callback, this preserves the exact three-phase
+attempt on which extraction, uniqueness, and rewind premises must eventually
+be instantiated. -/
+structure EdgeWitness
+    (verifier : NifsVerifier
+      Structure Assignment PublicInput Point Evaluation Commitment
+        Scalar Challenge Value relation params)
+    (input : PiCCS.InputProduct
+      Structure PublicInput Point Evaluation Commitment params verifier.arity)
+    (output : Fin params.k ->
+      CE.Instance Structure PublicInput Point Evaluation Commitment) where
+  attempt : Nifs.Attempt Structure PublicInput Point Evaluation Commitment
+    Scalar Challenge Value params verifier.arity
+  inputExact : attempt.piCcs.inputs = input
+  outputExact : attempt.piDec.children = output
+  accepted : Nifs.Accepted verifier.sumcheckOps verifier.rlcAlgebra
+    verifier.decAlgebra attempt
+  freshStructure : forall fresh,
+    (input.fresh fresh).constraintSystem = verifier.expectedStructure
+  runningStructure : forall child,
+    (input.running child).constraintSystem = verifier.expectedStructure
+
+/-- The retained exact edge implies the public paper NIFS transition. -/
+theorem EdgeWitness.transition
+    {verifier : NifsVerifier
+      Structure Assignment PublicInput Point Evaluation Commitment
+        Scalar Challenge Value relation params}
+    {input : PiCCS.InputProduct
+      Structure PublicInput Point Evaluation Commitment params verifier.arity}
+    {output : Fin params.k ->
+      CE.Instance Structure PublicInput Point Evaluation Commitment}
+    (edge : EdgeWitness verifier input output) :
+    verifier.Transition input output := by
+  exact ⟨edge.attempt, edge.inputExact, edge.outputExact, edge.accepted⟩
+
+/-- Every retained output child has the verifier-owned relation structure. -/
+theorem EdgeWitness.outputStructure
+    {verifier : NifsVerifier
+      Structure Assignment PublicInput Point Evaluation Commitment
+        Scalar Challenge Value relation params}
+    {input : PiCCS.InputProduct
+      Structure PublicInput Point Evaluation Commitment params verifier.arity}
+    {output : Fin params.k ->
+      CE.Instance Structure PublicInput Point Evaluation Commitment}
+    (edge : EdgeWitness verifier input output)
+    (child : Fin params.k) :
+    (output child).constraintSystem = verifier.expectedStructure :=
+  edge.transition.outputStructure {
+    fresh := edge.freshStructure
+    running := edge.runningStructure
+  } child
+
+end NifsVerifier
 
 /--
 Verifier-retained recursive proof data.
@@ -109,7 +174,7 @@ structure RecursiveAccepts
 
 /-- One recursive verifier execution, existentially hiding only its typed
 certificate. -/
-def MinimalRecursiveVerifierAccepts
+def CertificateRecursiveVerifierAccepts
     (family : NifsFamily VerifierKey Structure Assignment PublicInput Point
       Evaluation Commitment Scalar Challenge Value relation params slotCount)
     (machine : Machine VerifierKey Digest State Witness Structure PublicInput
@@ -124,7 +189,7 @@ def MinimalRecursiveVerifierAccepts
 
 /-- The semantic verifier accepts either the exact paper base branch or one
 certificate-backed recursive branch. -/
-def MinimalFPrimeVerifierAccepts
+def CertificateFPrimeVerifierAccepts
     (family : NifsFamily VerifierKey Structure Assignment PublicInput Point
       Evaluation Commitment Scalar Challenge Value relation params slotCount)
     (machine : Machine VerifierKey Digest State Witness Structure PublicInput
@@ -135,11 +200,11 @@ def MinimalFPrimeVerifierAccepts
     (output : Output Digest State Structure PublicInput Point Evaluation
       Commitment params slotCount) : Prop :=
   BaseHolds machine functionIndex input output \/
-    MinimalRecursiveVerifierAccepts family machine functionIndex input output
+    CertificateRecursiveVerifierAccepts family machine functionIndex input output
 
 /-- A certificate-backed recursive verifier execution implies the independent
 paper recursive predicate. -/
-theorem minimalRecursiveVerifier_sound
+theorem certificateRecursiveVerifier_sound
     {family : NifsFamily VerifierKey Structure Assignment PublicInput Point
       Evaluation Commitment Scalar Challenge Value relation params slotCount}
     {machine : Machine VerifierKey Digest State Witness Structure PublicInput
@@ -149,7 +214,7 @@ theorem minimalRecursiveVerifier_sound
       Evaluation Commitment params slotCount}
     {output : Output Digest State Structure PublicInput Point Evaluation
       Commitment params slotCount}
-    (accepted : MinimalRecursiveVerifierAccepts
+    (accepted : CertificateRecursiveVerifierAccepts
       family machine functionIndex input output) :
     RecursiveHolds family machine functionIndex input output := by
   rcases accepted with ⟨certificate, outer⟩
@@ -158,14 +223,18 @@ theorem minimalRecursiveVerifier_sound
     priorPcValid := certificate.priorPcValid
     priorPublicInput := outer.priorPublicInput
     application := outer.application
-    selectedNifs := ⟨certificate.edge⟩
+    selectedStructures := {
+      fresh := certificate.edge.freshStructure
+      running := certificate.edge.runningStructure
+    }
+    selectedNifs := certificate.edge.transition
     unchanged := outer.unchanged
     outputHash := outer.outputHash
   }
 
 /-- Every independent paper recursive execution contains enough information
 to construct the typed verifier certificate. -/
-theorem minimalRecursiveVerifier_complete
+theorem certificateRecursiveVerifier_complete
     {family : NifsFamily VerifierKey Structure Assignment PublicInput Point
       Evaluation Commitment Scalar Challenge Value relation params slotCount}
     {machine : Machine VerifierKey Digest State Witness Structure PublicInput
@@ -176,9 +245,21 @@ theorem minimalRecursiveVerifier_complete
     {output : Output Digest State Structure PublicInput Point Evaluation
       Commitment params slotCount}
     (accepted : RecursiveHolds family machine functionIndex input output) :
-    MinimalRecursiveVerifierAccepts
+    CertificateRecursiveVerifierAccepts
       family machine functionIndex input output := by
-  rcases accepted.selectedNifs with ⟨edge⟩
+  rcases accepted.selectedNifs with
+    ⟨attempt, inputExact, outputExact, phaseAccepted⟩
+  let edge :
+      (selectedVerifier family input accepted.priorPcValid).EdgeWitness
+        (selectedNifsInput family input accepted.priorPcValid)
+        (output.runningNext (selectedIndex accepted.priorPcValid)) := {
+    attempt := attempt
+    inputExact := inputExact
+    outputExact := outputExact
+    accepted := phaseAccepted
+    freshStructure := accepted.selectedStructures.fresh
+    runningStructure := accepted.selectedStructures.running
+  }
   let certificate : RecursiveCertificate family input output := {
     priorPcValid := accepted.priorPcValid
     edge := edge
@@ -192,7 +273,7 @@ theorem minimalRecursiveVerifier_complete
   }⟩
 
 /-- Exact semantic equivalence for the recursive branch. -/
-theorem minimalRecursiveVerifier_iff_recursiveHolds
+theorem certificateRecursiveVerifier_iff_recursiveHolds
     {family : NifsFamily VerifierKey Structure Assignment PublicInput Point
       Evaluation Commitment Scalar Challenge Value relation params slotCount}
     {machine : Machine VerifierKey Digest State Witness Structure PublicInput
@@ -202,14 +283,14 @@ theorem minimalRecursiveVerifier_iff_recursiveHolds
       Evaluation Commitment params slotCount}
     {output : Output Digest State Structure PublicInput Point Evaluation
       Commitment params slotCount} :
-    MinimalRecursiveVerifierAccepts family machine functionIndex input output ↔
+    CertificateRecursiveVerifierAccepts family machine functionIndex input output ↔
       RecursiveHolds family machine functionIndex input output := by
   constructor
-  · exact minimalRecursiveVerifier_sound
-  · exact minimalRecursiveVerifier_complete
+  · exact certificateRecursiveVerifier_sound
+  · exact certificateRecursiveVerifier_complete
 
 /-- Semantic verifier soundness for the full base/recursive branch split. -/
-theorem minimalFPrimeVerifier_sound
+theorem certificateFPrimeVerifier_sound
     {family : NifsFamily VerifierKey Structure Assignment PublicInput Point
       Evaluation Commitment Scalar Challenge Value relation params slotCount}
     {machine : Machine VerifierKey Digest State Witness Structure PublicInput
@@ -219,15 +300,15 @@ theorem minimalFPrimeVerifier_sound
       Evaluation Commitment params slotCount}
     {output : Output Digest State Structure PublicInput Point Evaluation
       Commitment params slotCount}
-    (accepted : MinimalFPrimeVerifierAccepts
+    (accepted : CertificateFPrimeVerifierAccepts
       family machine functionIndex input output) :
     Holds family machine functionIndex input output := by
   rcases accepted with base | recursive
   · exact .base base
-  · exact .recursive (minimalRecursiveVerifier_sound recursive)
+  · exact .recursive (certificateRecursiveVerifier_sound recursive)
 
 /-- Semantic verifier completeness for the full paper branch split. -/
-theorem minimalFPrimeVerifier_complete
+theorem certificateFPrimeVerifier_complete
     {family : NifsFamily VerifierKey Structure Assignment PublicInput Point
       Evaluation Commitment Scalar Challenge Value relation params slotCount}
     {machine : Machine VerifierKey Digest State Witness Structure PublicInput
@@ -238,16 +319,16 @@ theorem minimalFPrimeVerifier_complete
     {output : Output Digest State Structure PublicInput Point Evaluation
       Commitment params slotCount}
     (accepted : Holds family machine functionIndex input output) :
-    MinimalFPrimeVerifierAccepts
+    CertificateFPrimeVerifierAccepts
       family machine functionIndex input output := by
   cases accepted with
   | base base => exact Or.inl base
   | recursive recursive =>
-      exact Or.inr (minimalRecursiveVerifier_complete recursive)
+      exact Or.inr (certificateRecursiveVerifier_complete recursive)
 
-/-- The minimal semantic verifier accepts exactly the independent paper
-relation on fixed input/output values. -/
-theorem minimalFPrimeVerifier_iff_holds
+/-- The certificate-oriented semantic verifier accepts exactly the
+independent paper relation on fixed input/output values. -/
+theorem certificateFPrimeVerifier_iff_holds
     {family : NifsFamily VerifierKey Structure Assignment PublicInput Point
       Evaluation Commitment Scalar Challenge Value relation params slotCount}
     {machine : Machine VerifierKey Digest State Witness Structure PublicInput
@@ -257,14 +338,14 @@ theorem minimalFPrimeVerifier_iff_holds
       Evaluation Commitment params slotCount}
     {output : Output Digest State Structure PublicInput Point Evaluation
       Commitment params slotCount} :
-    MinimalFPrimeVerifierAccepts family machine functionIndex input output ↔
+    CertificateFPrimeVerifierAccepts family machine functionIndex input output ↔
       Holds family machine functionIndex input output := by
   constructor
-  · exact minimalFPrimeVerifier_sound
-  · exact minimalFPrimeVerifier_complete
+  · exact certificateFPrimeVerifier_sound
+  · exact certificateFPrimeVerifier_complete
 
 /-- Public-output projection of the semantic verifier. -/
-def MinimalPaperFPrimeStep
+def CertificatePaperFPrimeStep
     (family : NifsFamily VerifierKey Structure Assignment PublicInput Point
       Evaluation Commitment Scalar Challenge Value relation params slotCount)
     (machine : Machine VerifierKey Digest State Witness Structure PublicInput
@@ -276,27 +357,27 @@ def MinimalPaperFPrimeStep
     exists output : Output Digest State Structure PublicInput Point Evaluation
       Commitment params slotCount,
       output.x = x /\
-        MinimalFPrimeVerifierAccepts
+        CertificateFPrimeVerifierAccepts
           family machine functionIndex input output
 
 /-- The certificate-oriented verifier and independent paper relation expose
 exactly the same public digest language. -/
-theorem minimalPaperFPrimeStep_iff_paperFPrimeStep
+theorem certificatePaperFPrimeStep_iff_paperFPrimeStep
     {family : NifsFamily VerifierKey Structure Assignment PublicInput Point
       Evaluation Commitment Scalar Challenge Value relation params slotCount}
     {machine : Machine VerifierKey Digest State Witness Structure PublicInput
       Point Evaluation Commitment params slotCount}
     {functionIndex : Fin slotCount}
     {x : Digest} :
-    MinimalPaperFPrimeStep family machine functionIndex x ↔
+    CertificatePaperFPrimeStep family machine functionIndex x ↔
       PaperFPrimeStep family machine functionIndex x := by
   constructor
   · rintro ⟨input, output, outputDigest, accepted⟩
     exact ⟨input, output, outputDigest,
-      minimalFPrimeVerifier_sound accepted⟩
+      certificateFPrimeVerifier_sound accepted⟩
   · rintro ⟨input, output, outputDigest, accepted⟩
     exact ⟨input, output, outputDigest,
-      minimalFPrimeVerifier_complete accepted⟩
+      certificateFPrimeVerifier_complete accepted⟩
 
 end
 

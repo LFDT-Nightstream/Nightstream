@@ -39,13 +39,13 @@ equality of preimages.
 | `F'_j` | application | `F_j` | evaluate exactly the fixed function selected by that dispatch equation | `Machine.step`, `ApplicationHolds.application` |
 | `F'` | base | initial boundary | require `i = 0`, `z_0 = z_i`, the default running vector, and no fold | `BaseHolds` |
 | `F'` | recursive | prior public input | bind fresh `u_i.x` to the exact prior typed hash preimage | `RecursiveHolds.priorPublicInput` |
-| `F'` | recursive | selected fold | fold `(U_i[pc_i], u_i)` through the independent SuperNeo relation | `RecursiveHolds.selectedNifs` |
+| `F'` | recursive | selected structure | bind the selected fresh/running source structures to the verifier selected by `(vk_fs, pc_i)` | `SelectedInputStructuresBound` |
+| `F'` | recursive | selected fold | fold `(U_i[pc_i], u_i)` through only the public independent SuperNeo transition | `RecursiveHolds.selectedNifs` |
 | `F'` | recursive | inactive slots | copy every slot other than `pc_i` unchanged | `RecursiveHolds.unchanged` |
 | `F'` | output | public hash | hash exactly `(vk, i+1, z_0, z_{i+1}, U_{i+1}, pc_{i+1})` | `nextHashPreimage`, `OutputHolds` |
 | `F'` | branch | composition | accept exactly one base or recursive branch | `Holds` |
 | `F'` | external relation | public output | hide every nondeterministic input and internal output except digest `x` | `PaperFPrimeStep` |
-| assurance | extraction | selected attempt | retain the exact accepted phase attempt needed by extraction and rewind | `NifsVerifier.EdgeWitness`, `selected_nifs_edge` |
-| assurance | structure | selected output | derive every selected output child's verifier-owned structure from the accepted three-phase equations | `NifsVerifier.EdgeWitness.outputStructure` |
+| assurance | structure | selected output | derive every selected output child's verifier-owned structure from the public transition and explicit input-structure binding | `NifsVerifier.Transition.outputStructure` |
 | assurance | structure | running product | bind every slot to the structure selected by `(vk_fs, slot)` and preserve that binding across a recursive step | `RunningStructuresBound`, `RecursiveHolds.runningStructuresBound` |
 | assurance | extraction | selected transition | expose the public NIFS transition from every non-base accepted step | `selected_nifs_transition` |
 -/
@@ -258,14 +258,11 @@ def Transition
   Nifs.PaperNifsTransition verifier.sumcheckOps verifier.rlcAlgebra
     verifier.decAlgebra input output
 
-/--
-Concrete recursive-edge witness retained for later knowledge soundness.
-
-Unlike an opaque verifier callback, this predicate preserves the exact
-three-phase attempt on which extraction, uniqueness, and rewind premises must
-eventually be instantiated.
--/
-structure EdgeWitness
+/-- Exact binding of every selected NIFS source to the relation structure
+owned by its verifier. This is deliberately separate from transition
+acceptance so structure authority cannot be inferred from self-consistent
+phase messages. -/
+structure InputStructuresBound
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
     {PublicInput : Type uPublicInput}
@@ -282,22 +279,18 @@ structure EdgeWitness
       Structure Assignment PublicInput Point Evaluation Commitment
         Scalar Challenge Value relation params)
     (input : PiCCS.InputProduct
-      Structure PublicInput Point Evaluation Commitment params verifier.arity)
-    (output : Fin params.k ->
-      CE.Instance Structure PublicInput Point Evaluation Commitment) where
-  attempt : Nifs.Attempt Structure PublicInput Point Evaluation Commitment
-    Scalar Challenge Value params verifier.arity
-  inputExact : attempt.piCcs.inputs = input
-  outputExact : attempt.piDec.children = output
-  accepted : Nifs.Accepted verifier.sumcheckOps verifier.rlcAlgebra
-    verifier.decAlgebra attempt
-  freshStructure : forall fresh,
-    (input.fresh fresh).constraintSystem = verifier.expectedStructure
-  runningStructure : forall child,
+      Structure PublicInput Point Evaluation Commitment params verifier.arity) :
+    Prop where
+  fresh : forall source,
+    (input.fresh source).constraintSystem = verifier.expectedStructure
+  running : forall child,
     (input.running child).constraintSystem = verifier.expectedStructure
 
-/-- The retained exact edge implies the public paper NIFS transition. -/
-theorem EdgeWitness.transition
+/-- Every public NIFS transition preserves the verifier-owned relation
+structure when its selected fresh and running inputs are explicitly bound to
+that structure. The paper relation needs no retained verifier certificate for
+this fact. -/
+theorem Transition.outputStructure
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
     {PublicInput : Type uPublicInput}
@@ -317,34 +310,11 @@ theorem EdgeWitness.transition
       Structure PublicInput Point Evaluation Commitment params verifier.arity}
     {output : Fin params.k ->
       CE.Instance Structure PublicInput Point Evaluation Commitment}
-    (edge : EdgeWitness verifier input output) :
-    verifier.Transition input output := by
-  exact ⟨edge.attempt, edge.inputExact, edge.outputExact, edge.accepted⟩
-
-/-- Every retained output child has the verifier-owned relation structure. -/
-theorem EdgeWitness.outputStructure
-    {Structure : Type uStructure}
-    {Assignment : Type uAssignment}
-    {PublicInput : Type uPublicInput}
-    {Point : Type uPoint}
-    {Evaluation : Type uEvaluation}
-    {Commitment : Type uCommitment}
-    {Scalar : Type uScalar}
-    {Challenge : Type uChallenge}
-    {Value : Type uValue}
-    {relation : RelationSemantics
-      Structure Assignment PublicInput Point Evaluation Commitment}
-    {params : GlobalParams}
-    {verifier : NifsVerifier
-      Structure Assignment PublicInput Point Evaluation Commitment
-        Scalar Challenge Value relation params}
-    {input : PiCCS.InputProduct
-      Structure PublicInput Point Evaluation Commitment params verifier.arity}
-    {output : Fin params.k ->
-      CE.Instance Structure PublicInput Point Evaluation Commitment}
-    (edge : EdgeWitness verifier input output)
+    (transition : verifier.Transition input output)
+    (structures : verifier.InputStructuresBound input)
     (child : Fin params.k) :
     (output child).constraintSystem = verifier.expectedStructure := by
+  rcases transition with ⟨attempt, inputExact, outputExact, accepted⟩
   let first : Fin verifier.arity.total :=
     ⟨0, verifier.arity.totalPositive⟩
   have inputSourceStructure : forall index,
@@ -352,24 +322,23 @@ theorem EdgeWitness.outputStructure
     exact input.sourceCases
       (motive := fun source =>
         source.constraintSystem = verifier.expectedStructure)
-      (fun fresh => edge.freshStructure fresh)
-      (fun running => edge.runningStructure running)
+      structures.fresh structures.running
   calc
     (output child).constraintSystem =
-        (edge.attempt.piDec.children child).constraintSystem := by
-      rw [edge.outputExact]
-    _ = edge.attempt.piDec.parent.constraintSystem :=
-      edge.accepted.piDec.sameStructure child
-    _ = edge.attempt.piRlc.output.constraintSystem := by
-      rw [edge.accepted.wiring.rlcToDec]
-    _ = (edge.attempt.piRlc.inputs first).constraintSystem :=
-      (edge.accepted.piRlc.sameStructure first).symm
-    _ = (edge.attempt.piCcs.outputs first).constraintSystem := by
-      rw [edge.accepted.wiring.ccsToRlc]
-    _ = (edge.attempt.piCcs.inputs.source first).constraintSystem :=
-      edge.accepted.piCcs.1.sameStructure first
+        (attempt.piDec.children child).constraintSystem := by
+      rw [outputExact]
+    _ = attempt.piDec.parent.constraintSystem :=
+      accepted.piDec.sameStructure child
+    _ = attempt.piRlc.output.constraintSystem := by
+      rw [accepted.wiring.rlcToDec]
+    _ = (attempt.piRlc.inputs first).constraintSystem :=
+      (accepted.piRlc.sameStructure first).symm
+    _ = (attempt.piCcs.outputs first).constraintSystem := by
+      rw [accepted.wiring.ccsToRlc]
+    _ = (attempt.piCcs.inputs.source first).constraintSystem :=
+      accepted.piCcs.1.sameStructure first
     _ = (input.source first).constraintSystem := by
-      rw [edge.inputExact]
+      rw [inputExact]
     _ = verifier.expectedStructure := inputSourceStructure first
 
 end NifsVerifier
@@ -636,6 +605,35 @@ def selectedNifsInput
   fresh := fun _ => input.fresh
   running := fun child => input.running (selectedIndex priorPcValid) child
 
+/-- The selected public NIFS input is bound to the relation structure chosen
+by the exact verifier key and checked prior program counter. This obligation
+is separate from the NIFS transition itself and therefore independently
+available to necessity analysis. -/
+abbrev SelectedInputStructuresBound
+    {VerifierKey : Type uVerifierKey}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Structure : Type uStructure}
+    {Assignment : Type uAssignment}
+    {PublicInput : Type uPublicInput}
+    {Point : Type uPoint}
+    {Evaluation : Type uEvaluation}
+    {Commitment : Type uCommitment}
+    {Scalar : Type uScalar}
+    {Challenge : Type uChallenge}
+    {Value : Type uValue}
+    {relation : RelationSemantics
+      Structure Assignment PublicInput Point Evaluation Commitment}
+    {params : GlobalParams}
+    {slotCount : Nat}
+    (family : NifsFamily VerifierKey Structure Assignment PublicInput Point
+      Evaluation Commitment Scalar Challenge Value relation params slotCount)
+    (input : Input VerifierKey State Witness Structure PublicInput Point
+      Evaluation Commitment params slotCount)
+    (priorPcValid : InRange slotCount input.priorPc) :=
+  (selectedVerifier family input priorPcValid).InputStructuresBound
+    (selectedNifsInput family input priorPcValid)
+
 /-- Deterministic `phi` and selected `F_j` evaluation shared by both branches. -/
 structure ApplicationHolds
     {VerifierKey : Type uVerifierKey}
@@ -741,10 +739,12 @@ structure RecursiveHolds
   priorPublicInput : input.fresh.publicInput =
     machine.encodeInstance (machine.hash (priorHashPreimage input))
   application : ApplicationHolds machine functionIndex input output
-  selectedNifs : Nonempty
-    ((selectedVerifier family input priorPcValid).EdgeWitness
+  selectedStructures :
+    SelectedInputStructuresBound family input priorPcValid
+  selectedNifs :
+    (selectedVerifier family input priorPcValid).Transition
       (selectedNifsInput family input priorPcValid)
-      (output.runningNext (selectedIndex priorPcValid)))
+      (output.runningNext (selectedIndex priorPcValid))
   unchanged : forall slot, slot ≠ selectedIndex priorPcValid ->
     output.runningNext slot = input.running slot
   outputHash : OutputHolds machine input output
@@ -973,49 +973,6 @@ theorem holds_of_recursive
     Holds family machine functionIndex input output :=
   .recursive accepted
 
-/-- Every accepted non-base `F'` step exposes its exact selected NIFS transition. -/
-theorem selected_nifs_edge
-    {VerifierKey : Type uVerifierKey}
-    {Digest : Type uDigest}
-    {State : Type uState}
-    {Witness : Type uWitness}
-    {Structure : Type uStructure}
-    {Assignment : Type uAssignment}
-    {PublicInput : Type uPublicInput}
-    {Point : Type uPoint}
-    {Evaluation : Type uEvaluation}
-    {Commitment : Type uCommitment}
-    {Scalar : Type uScalar}
-    {Challenge : Type uChallenge}
-    {Value : Type uValue}
-    {relation : RelationSemantics
-      Structure Assignment PublicInput Point Evaluation Commitment}
-    {params : GlobalParams}
-    {slotCount : Nat}
-    {family : NifsFamily VerifierKey Structure Assignment PublicInput Point
-      Evaluation Commitment Scalar Challenge Value relation params slotCount}
-    {machine : Machine VerifierKey Digest State Witness Structure PublicInput
-      Point Evaluation Commitment params slotCount}
-    {functionIndex : Fin slotCount}
-    {input : Input VerifierKey State Witness Structure PublicInput Point
-      Evaluation Commitment params slotCount}
-    {output : Output Digest State Structure PublicInput Point Evaluation
-      Commitment params slotCount}
-    (accepted : Holds family machine functionIndex input output)
-    (iterationPositive : 0 < input.iteration) :
-    exists priorPcValid : InRange slotCount input.priorPc,
-      Nonempty ((selectedVerifier family input priorPcValid).EdgeWitness
-        (selectedNifsInput family input priorPcValid)
-        (output.runningNext (selectedIndex priorPcValid))) := by
-  cases accepted with
-  | base baseAccepted =>
-      have : False := by
-        have iterationZero := baseAccepted.iterationZero
-        omega
-      exact this.elim
-  | recursive recursiveAccepted =>
-      exact ⟨recursiveAccepted.priorPcValid, recursiveAccepted.selectedNifs⟩
-
 /-- Every accepted non-base `F'` step exposes its public paper NIFS transition. -/
 theorem selected_nifs_transition
     {VerifierKey : Type uVerifierKey}
@@ -1050,9 +1007,14 @@ theorem selected_nifs_transition
       (selectedVerifier family input priorPcValid).Transition
         (selectedNifsInput family input priorPcValid)
         (output.runningNext (selectedIndex priorPcValid)) := by
-  rcases selected_nifs_edge accepted iterationPositive with ⟨valid, edge⟩
-  rcases edge with ⟨edge⟩
-  exact ⟨valid, edge.transition⟩
+  cases accepted with
+  | base baseAccepted =>
+      have : False := by
+        have iterationZero := baseAccepted.iterationZero
+        omega
+      exact this.elim
+  | recursive recursiveAccepted =>
+      exact ⟨recursiveAccepted.priorPcValid, recursiveAccepted.selectedNifs⟩
 
 /-- A recursive step preserves verifier-owned structures in every running slot. -/
 theorem RecursiveHolds.runningStructuresBound
@@ -1088,8 +1050,7 @@ theorem RecursiveHolds.runningStructuresBound
   intro slot child
   by_cases selected : slot = selectedIndex accepted.priorPcValid
   · subst slot
-    rcases accepted.selectedNifs with ⟨edge⟩
-    exact edge.outputStructure child
+    exact accepted.selectedNifs.outputStructure accepted.selectedStructures child
   · rw [accepted.unchanged slot selected]
     exact inputBound slot child
 

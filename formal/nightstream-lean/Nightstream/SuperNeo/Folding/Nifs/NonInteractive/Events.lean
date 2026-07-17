@@ -6,7 +6,7 @@ candidate SuperNeo NIFS model.
 
 Owns: the verifier-visible prover messages currently represented by
 `Nifs.Attempt`, their challenge carriers, a canonical partial phase order, and
-diagnostic metadata naming known omissions.
+the typed distinction between prover messages and verifier-derived responses.
 
 Does not own: semantic `expected` SumCheck polynomials, truth-path witnesses,
 concrete encodings, a random-oracle implementation, the concrete `Pi_RLC`
@@ -194,121 +194,6 @@ def eraseResponses
       Structure PublicInput Point Evaluation Commitment Challenge Value
         params arity) :=
   events.map eraseResponse
-
-/-- Known boundaries absent from the current partial transcript carrier.
-
-This is diagnostic metadata only. Membership in or deletion from this enum is
-not a proof that transcript coverage is complete. -/
-inductive CoverageGap where
-  | sumCheckInitialBinding
-  | sumCheckTerminalBinding
-  | sumCheckVerifierParameters
-  | sumCheckRoundShape
-  | piCcsAlpha
-  | piCcsGamma
-  | sumCheckPolynomialEncoding
-  | sumCheckChallengePointLink
-  | piCcsNcTerminalSidecar
-  | piCcsJointQSplitRefinement
-  | piCcsOutputProjectionSufficiency
-  | piCcsSplitCoins
-  /-- A pure production-shaped Poseidon2 machine now instantiates the jointly
-  owned block schedule, fixes overwrite absorption and lane-major little-endian
-  chunk order, and proves successful executions reach the same four-block
-  successor state. It has not yet been proved equal to the native transcript,
-  transcript gadget, generated R1CS trace, or the machine started at the exact
-  post-PiCCS replay state. Those bridges are required before it can establish
-  `PiRlcSampler.ResponseRefinesAt` for production acceptance. -/
-  | piRlcBoundedSampler
-  /-- The sampled 54-coordinate coefficient vector is proved pointwise in
-  `[-2,2]`; distinct vectors are separated by a nonzero coordinate; every
-  difference coordinate lies strictly inside the minimal threshold `5`; and
-  the expansion arithmetic is `216`. Concrete centered embedding into
-  Goldilocks, preservation under quotient-ring subtraction, and the Theorem-8
-  low-norm invertibility lift remain open. -/
-  | piRlcStrongSet
-  | piRlcSamplingDistribution
-  | concreteTranscriptEncoding
-deriving DecidableEq, Repr
-
-/-- Diagnostic list of known open boundaries. It is not a formal coverage
-criterion and must never authorize a constraint removal. -/
-def coverageGaps : List CoverageGap :=
-  [.sumCheckInitialBinding, .sumCheckTerminalBinding,
-    .sumCheckVerifierParameters, .sumCheckRoundShape,
-    .piCcsAlpha, .piCcsGamma, .sumCheckPolynomialEncoding,
-    .sumCheckChallengePointLink, .piCcsNcTerminalSidecar,
-    .piCcsJointQSplitRefinement, .piCcsOutputProjectionSufficiency,
-    .piCcsSplitCoins, .piRlcBoundedSampler, .piRlcStrongSet,
-    .piRlcSamplingDistribution, .concreteTranscriptEncoding]
-
-/-- Fail-closed status for this slice. There is intentionally no `complete`
-constructor: a future complete surface must be a record of actual refinement
-theorems, not an empty diagnostic list. -/
-inductive CoverageStatus where
-  | incomplete (gaps : List CoverageGap)
-deriving Repr
-
-/-- Current diagnostic status. -/
-def coverageStatus : CoverageStatus := .incomplete coverageGaps
-
-/-- The partial carrier is explicitly marked incomplete. -/
-theorem coverageStatus_eq_incomplete :
-    coverageStatus = .incomplete coverageGaps := by
-  rfl
-
-/-- The paper's pre-SumCheck point challenge remains explicitly open. -/
-theorem piCcsAlpha_is_coverageGap :
-    CoverageGap.piCcsAlpha ∈ coverageGaps := by
-  simp [coverageGaps]
-
-/-- The paper's pre-SumCheck mixing challenge remains explicitly open. -/
-theorem piCcsGamma_is_coverageGap :
-    CoverageGap.piCcsGamma ∈ coverageGaps := by
-  simp [coverageGaps]
-
-/-- Function-valued claimed polynomials still need a concrete encoding proof. -/
-theorem sumCheckPolynomialEncoding_is_coverageGap :
-    CoverageGap.sumCheckPolynomialEncoding ∈ coverageGaps := by
-  simp [coverageGaps]
-
-/-- SumCheck-derived coordinates are not yet identified with PiCCS points. -/
-theorem sumCheckChallengePointLink_is_coverageGap :
-    CoverageGap.sumCheckChallengePointLink ∈ coverageGaps := by
-  simp [coverageGaps]
-
-/-- Split NC still lacks a typed terminal challenge/output sidecar. -/
-theorem piCcsNcTerminalSidecar_is_coverageGap :
-    CoverageGap.piCcsNcTerminalSidecar ∈ coverageGaps := by
-  simp [coverageGaps]
-
-/-- The paper's one joint polynomial is not yet related to production SplitNc. -/
-theorem piCcsJointQSplitRefinement_is_coverageGap :
-    CoverageGap.piCcsJointQSplitRefinement ∈ coverageGaps := by
-  simp [coverageGaps]
-
-/-- Reduced output absorption has no uniqueness/sufficiency theorem yet. -/
-theorem piCcsOutputProjectionSufficiency_is_coverageGap :
-    CoverageGap.piCcsOutputProjectionSufficiency ∈ coverageGaps := by
-  simp [coverageGaps]
-
-/--
-Production SplitNc's beta_a, beta_r, and beta_m coins remain a concrete
-refinement gap. They are not asserted to be obligations of the paper model.
--/
-theorem piCcsSplitCoins_is_coverageGap :
-    CoverageGap.piCcsSplitCoins ∈ coverageGaps := by
-  simp [coverageGaps]
-
-/-- The bounded strong-set sampler remains a separate refinement obligation. -/
-theorem piRlcBoundedSampler_is_coverageGap :
-    CoverageGap.piRlcBoundedSampler ∈ coverageGaps := by
-  simp [coverageGaps]
-
-/-- Typed replay is not yet a concrete encoding/Poseidon2 refinement. -/
-theorem concreteTranscriptEncoding_is_coverageGap :
-    CoverageGap.concreteTranscriptEncoding ∈ coverageGaps := by
-  simp [coverageGaps]
 
 private def sumCheckDirectives
     {Structure : Type uStructure}

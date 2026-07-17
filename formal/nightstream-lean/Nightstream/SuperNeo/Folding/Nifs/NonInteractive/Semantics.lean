@@ -215,8 +215,8 @@ Constructor for one fixed replay-bound attempt in this partial slice.
 Core acceptance and setup binding remain independent semantic obligations. The
 only transcript premise is exact equality between carried events and the
 oracle's deterministic materialization; replay itself is then constructed.
-This is not completeness or soundness and does not discharge any diagnostic
-`coverageGaps`.
+This is not completeness or soundness and does not discharge the open
+refinement boundaries listed in the event-carrier contract or bridge spec.
 -/
 theorem replayBoundAttempt_of_core_and_carrierAgreement
     {PublicParameters : Type uPublicParameters}

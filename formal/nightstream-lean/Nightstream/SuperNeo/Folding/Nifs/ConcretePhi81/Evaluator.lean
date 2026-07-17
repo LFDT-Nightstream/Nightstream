@@ -11,7 +11,8 @@ rows.
 Owns: the small exactness contract that a concrete Boolean checker must
 discharge; fail-closed `Option` execution; exact acceptance/result
 characterization; semantic soundness with explicit output-unbound and
-Split-NC bad-event outcomes; and honest completeness.
+Split-NC bad-event outcomes and explicit child-opening authority; and honest
+completeness.
 
 Does not own: the implementation of the Boolean checker, Poseidon2, Rust,
 R1CS, rows, costs, necessity, or row removal.
@@ -30,7 +31,7 @@ interface from raw messages and proves `exact`.
 | `nifs.fixed_active.checker` | Boolean acceptance equals physical ConcretePhi81 acceptance | refinement contract | `Checker.exact` |
 | `nifs.fixed_active.run` | reject on failed checking; otherwise compute one shared result | executable/computed | `run` |
 | `nifs.fixed_active.run.exact` | successful execution iff physical acceptance and exact result equality | theorem | `run_eq_some_iff_accepted` |
-| `nifs.fixed_active.run.sound` | semantic transition or explicit output/FE/NC failure | theorem | `run_sound` |
+| `nifs.fixed_active.run.sound` | given extracted child openings, semantic transition or explicit output/FE/NC failure | theorem conditional on binding/extraction | `run_sound` |
 | `nifs.fixed_active.run.complete` | honest paper obligations plus bounded sampler success construct an accepted computed result | compatibility theorem | `run_complete` |
 | `nifs.fixed_active.run.complete.outcome` | honest paper obligations construct a result or expose one exact sampler shortfall | exhaustive model theorem | `run_complete_or_samplerShortfall` |
 -/
@@ -55,13 +56,12 @@ decision procedure and proves that it is exactly the physical verifier
 predicate already defined below the F-prime layer. -/
 structure Checker
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (context :
-      FixedActive.Context shape domain State publicRingColumns publicFits
+      FixedActive.Context shape State publicRingColumns publicFits
         verifierRows) where
   check : FixedActive.Certificate context -> Bool
   exact : ∀ certificate,
@@ -71,13 +71,12 @@ structure Checker
 result computed from the checked raw certificate. -/
 def run
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {context :
-      FixedActive.Context shape domain State publicRingColumns publicFits
+      FixedActive.Context shape State publicRingColumns publicFits
         verifierRows}
     (checker : Checker context)
     (certificate : FixedActive.Certificate context) :
@@ -92,13 +91,12 @@ def run
 from the value computed by the accepted certificate. -/
 theorem run_eq_some_iff_accepted
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {context :
-      FixedActive.Context shape domain State publicRingColumns publicFits
+      FixedActive.Context shape State publicRingColumns publicFits
         verifierRows}
     (checker : Checker context)
     (certificate : FixedActive.Certificate context)
@@ -124,14 +122,13 @@ independent result transition, or exposes exactly the existing semantic
 failure outcomes. -/
 theorem run_sound
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (noZeroDivisors : NormRange.BaseFieldNoZeroDivisors)
     {context :
-      FixedActive.Context shape domain State publicRingColumns publicFits
+      FixedActive.Context shape State publicRingColumns publicFits
         verifierRows}
     {data : Data shape}
     {checker : Checker context}
@@ -139,36 +136,39 @@ theorem run_sound
     {result :
       FixedActive.FoldResult shape publicRingColumns publicFits verifierRows}
     (input : ConcretePhi81.SemanticInput context data)
+    (children : ConcretePhi81.ChildOpenings context data certificate)
     (executed : run checker certificate = some result) :
     FixedActive.ResultTransition context result ∨
       ¬ ConcretePhi81.OutputBound context data certificate ∨
       ConcretePhi81.PiCcsBadEvent context data certificate := by
   rcases (run_eq_some_iff_accepted checker certificate result).1 executed with
     ⟨accepted, resultEq⟩
-  rcases ConcretePhi81.accepted_implies_holds_or_outputUnbound_or_badEvent
-      noZeroDivisors input accepted with
+  rcases ConcretePhi81.accepted_implies_refinement_or_outputUnbound_or_badEvent
+      noZeroDivisors input children accepted with
     holds | outputUnbound | bad
-  · exact Or.inl ⟨data, certificate, resultEq.symm, holds⟩
+  · have semantic := Result.resultOf_refines holds
+    rw [resultEq] at semantic
+    exact Or.inl semantic
   · exact Or.inr (Or.inl outputUnbound)
   · exact Or.inr (Or.inr bad)
 
 /-- Package already established physical and semantic acceptance as one
 successful canonical evaluation. -/
-theorem run_of_accepted_holds
+theorem run_of_accepted_refinement
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {context :
-      FixedActive.Context shape domain State publicRingColumns publicFits
+      FixedActive.Context shape State publicRingColumns publicFits
         verifierRows}
     {data : Data shape}
     (checker : Checker context)
     (certificate : FixedActive.Certificate context)
     (accepted : ConcretePhi81.Accepted context certificate)
-    (holds : ConcretePhi81.Holds context data certificate) :
+    (holds :
+      ConcretePhi81.CertificateRefinement context data certificate) :
     run checker certificate =
         some (FixedActive.resultOf context certificate) ∧
       FixedActive.ResultTransition context
@@ -177,20 +177,19 @@ theorem run_of_accepted_holds
   · have checked : checker.check certificate = true :=
       (checker.exact certificate).2 accepted
     simp [run, checked]
-  · exact ⟨data, certificate, rfl, holds⟩
+  · exact Result.resultOf_refines holds
 
 /-- Honest completeness for the fixed active evaluator. This is the existing
 ConcretePhi81 honest construction specialized to exactly fifteen sources and
 then passed through a checker whose exactness has been proved. -/
 theorem run_complete
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (context :
-      FixedActive.Context shape domain State publicRingColumns publicFits
+      FixedActive.Context shape State publicRingColumns publicFits
         verifierRows)
     (checker : Checker context)
     (data : Data shape)
@@ -200,16 +199,16 @@ theorem run_complete
     (challenges : Fin FixedActive.arity.total -> RingF)
     (samplerAvailable :
       ∀ piCcsCertificate :
-          Protocol.Certificate context.piCcsInput domain,
-        Protocol.Accepted context.feMachine context.ncMachine
-            context.initialState context.profile
-            context.piCcsInput context.feCoins context.ncCoins
+          Protocol.BlockLane.Certificate context.piCcsInput
+            PiCcsDomains.production,
+        Protocol.BlockLane.Accepted StatementInput.polynomial
+            context.piCcsSchedule context.priorState context.profile
+            context.piCcsStatement
             piCcsCertificate →
           ConcretePhi81.Sampler.Bound context.piRlcMachine
-            (context.piCcsOutputHandoff
-              (Protocol.derive context.feMachine context.ncMachine
-                context.initialState piCcsCertificate).finalState
-              piCcsCertificate.output)
+            (Protocol.BlockLane.derive StatementInput.polynomial
+              context.piCcsSchedule context.priorState context.profile
+              context.piCcsStatement piCcsCertificate).finalState
             challenges) :
     ∃ certificate : FixedActive.Certificate context,
       ∃ result :
@@ -221,7 +220,7 @@ theorem run_complete
       context data paper input running challenges samplerAvailable with
     ⟨certificate, accepted, holds, _childrenValid⟩
   have evaluated :=
-    run_of_accepted_holds checker certificate accepted holds
+    run_of_accepted_refinement checker certificate accepted holds
   exact ⟨certificate, FixedActive.resultOf context certificate,
     evaluated.1, evaluated.2⟩
 
@@ -230,13 +229,12 @@ checker either executes the canonical certificate and result, or the theorem
 returns one coordinate whose fixed rejection-sampling prefix shortfalls. -/
 theorem run_complete_or_samplerShortfall
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (context :
-      FixedActive.Context shape domain State publicRingColumns publicFits
+      FixedActive.Context shape State publicRingColumns publicFits
         verifierRows)
     (checker : Checker context)
     (data : Data shape)
@@ -255,7 +253,7 @@ theorem run_complete_or_samplerShortfall
   · rcases completed with
       ⟨_challenges, certificate, accepted, holds, _childrenValid⟩
     have evaluated :=
-      run_of_accepted_holds checker certificate accepted holds
+      run_of_accepted_refinement checker certificate accepted holds
     exact Or.inl ⟨certificate, FixedActive.resultOf context certificate,
       evaluated.1, evaluated.2⟩
   · exact Or.inr shortfall

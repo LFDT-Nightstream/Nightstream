@@ -66,7 +66,6 @@ variable {AppState : Type uAppState}
 variable {Witness : Type uWitness}
 variable {TranscriptState : Type uTranscriptState}
 variable {shape : SemanticShape}
-variable {domain : FlatNcDomain}
 variable {publicRingColumns verifierRows slotCount : Nat}
 variable {publicFits :
   ringDegree * publicRingColumns <= shape.carrierWidth}
@@ -75,7 +74,7 @@ variable {publicFits :
 mutation is constructed. -/
 structure Realization
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -93,7 +92,7 @@ structure Realization
 namespace Realization
 
 variable {setup :
-  Setup OuterKey AppState Witness TranscriptState shape domain
+  Setup OuterKey AppState Witness TranscriptState shape
     publicRingColumns publicFits verifierRows slotCount}
 variable {machine :
   Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -198,7 +197,7 @@ either supply the valid actual-type baseline required by `Realization`, or
 name one exact bounded-sampler shortfall coordinate. -/
 theorem exists_or_samplerShortfall_of_semanticPremises
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -250,7 +249,7 @@ semantic premises, with bounded-sampler shortfall retained as the only other
 model-level outcome. -/
 theorem necessary_or_samplerShortfall_of_semanticPremises
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -292,7 +291,7 @@ theorem necessary_or_samplerShortfall_of_semanticPremises
 supply the valid baseline required by `Realization`. -/
 theorem exists_of_honestNifs
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -338,7 +337,7 @@ successful-sampler premises and the other five active equations, removing
 `selectedNifs` is unsound over the actual typed candidate carrier. -/
 theorem necessary_of_honestNifs
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns

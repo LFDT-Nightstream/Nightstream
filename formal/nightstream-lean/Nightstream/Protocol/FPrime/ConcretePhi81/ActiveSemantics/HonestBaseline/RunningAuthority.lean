@@ -48,7 +48,6 @@ universe uState
 section
 
 variable {shape : SemanticShape}
-variable {domain : FlatNcDomain}
 variable {State : Type uState}
 variable {publicRingColumns verifierRows : Nat}
 variable {publicFits :
@@ -62,7 +61,7 @@ The opening is used only to invoke PiDEC perfect completeness. It is not added
 to the public context or exposed as verifier authority. -/
 theorem accepted_of_combinedOpening
     (context :
-      FixedActive.Context shape domain State publicRingColumns publicFits
+      FixedActive.Context shape State publicRingColumns publicFits
         verifierRows)
     (assignment : SourceAssignment shape)
     (parent :

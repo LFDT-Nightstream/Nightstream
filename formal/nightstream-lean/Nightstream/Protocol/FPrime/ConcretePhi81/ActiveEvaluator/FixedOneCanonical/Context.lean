@@ -84,12 +84,11 @@ def system
     {Witness : Type uWitness}
     {TranscriptState : Type uTranscriptState}
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -104,12 +103,11 @@ def slot
     {Witness : Type uWitness}
     {TranscriptState : Type uTranscriptState}
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -127,12 +125,11 @@ def toSemantic
     {Witness : Type uWitness}
     {TranscriptState : Type uTranscriptState}
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -159,12 +156,11 @@ def toActive
     {Witness : Type uWitness}
     {TranscriptState : Type uTranscriptState}
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -179,12 +175,11 @@ def toActive
     {Witness : Type uWitness}
     {TranscriptState : Type uTranscriptState}
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -198,12 +193,11 @@ def toActive
     {Witness : Type uWitness}
     {TranscriptState : Type uTranscriptState}
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -221,17 +215,16 @@ def nifsContext
     {Witness : Type uWitness}
     {TranscriptState : Type uTranscriptState}
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
         verifierRows) :
-    FixedActive.Canonical.Context shape domain TranscriptState
+    FixedActive.Canonical.Context shape TranscriptState
       publicRingColumns publicFits verifierRows :=
   let template :=
     setup.template input.verifierKey ActiveSemantics.FixedOneCanonical.selected
@@ -265,12 +258,11 @@ theorem nifsContext_materialize
     {Witness : Type uWitness}
     {TranscriptState : Type uTranscriptState}
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits

@@ -40,7 +40,6 @@ variable {Witness : Type uWitness}
 variable {Digest : Type uDigest}
 variable {TranscriptState : Type uTranscriptState}
 variable {shape : SemanticShape}
-variable {domain : FlatNcDomain}
 variable {publicRingColumns verifierRows : Nat}
 variable {publicFits :
   ringDegree * publicRingColumns <= shape.carrierWidth}
@@ -51,7 +50,7 @@ structure PhysicalChecks
       Machine OuterKey Digest AppState Witness shape publicRingColumns
         publicFits verifierRows 1)
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -78,7 +77,7 @@ def run
       Machine OuterKey Digest AppState Witness shape publicRingColumns
         publicFits verifierRows 1)
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -103,7 +102,7 @@ theorem run_eq_some_iff_physicalChecks
       Machine OuterKey Digest AppState Witness shape publicRingColumns
         publicFits verifierRows 1)
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits

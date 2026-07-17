@@ -24,7 +24,9 @@ the complete output through `ActiveSemantics.outputOf`. Any verifier-derived
 cache still present inside the inherited NIFS certificate, including its
 challenge vector, gains no authority here: `Checkers.nifs` must replay and
 prove exact physical acceptance. Removing those cached fields is a later NIFS
-message-minimization step.
+message-minimization step. Semantic soundness additionally keeps every
+private PiDEC child opening as an explicit extraction/binding premise; public
+child recomposition alone is not treated as knowledge authority.
 
 | Stage path | Executable owner | Meaning |
 |---|---|---|
@@ -34,6 +36,7 @@ message-minimization step.
 | `fprime.active.structure` | `Checkers.freshStructureCheck` | exact fresh-to-expected structure equality |
 | `fprime.active.dispatch` | `Checkers.dispatchCheck` | exact fixed-function dispatch equality |
 | `fprime.active.nifs` | `Checkers.nifs` | physical fixed-active NIFS acceptance |
+| `fprime.active.nifs.children` | `run_sound_or_outputUnbound_or_piCcsBadEvent` | explicit private child-opening authority |
 | `fprime.active.output` | `run` | canonical output computation |
 -/
 
@@ -61,7 +64,6 @@ variable {Witness : Type uWitness}
 variable {Digest : Type uDigest}
 variable {TranscriptState : Type uTranscriptState}
 variable {shape : SemanticShape}
-variable {domain : FlatNcDomain}
 variable {publicRingColumns verifierRows slotCount : Nat}
 variable {publicFits :
   ringDegree * publicRingColumns <= shape.carrierWidth}
@@ -70,7 +72,7 @@ variable {publicFits :
 range proof is prover-supplied. -/
 structure Certificate
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -84,7 +86,7 @@ structure Certificate
 not required to have global `DecidableEq` instances. -/
 structure Checkers
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -127,7 +129,7 @@ namespace Checkers
 
 @[simp] theorem priorLinkCheck_eq_true_iff
     {setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount}
     {machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -145,7 +147,7 @@ namespace Checkers
 
 @[simp] theorem freshStructureCheck_eq_true_iff
     {setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount}
     {machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -163,7 +165,7 @@ namespace Checkers
 
 @[simp] theorem dispatchCheck_eq_true_iff
     {setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount}
     {machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -183,7 +185,7 @@ end Checkers
 /-- Exact meaning of the five outer checks before NIFS execution. -/
 structure OuterChecks
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -210,7 +212,7 @@ structure OuterChecks
 use `decide`; the remaining decisions are owned by `Checkers`. -/
 def outerCheck
     {setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount}
     {machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -229,7 +231,7 @@ def outerCheck
 
 theorem outerCheck_eq_true_iff
     {setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount}
     {machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -276,7 +278,7 @@ theorem outerCheck_eq_true_iff
 /-- Complete physical meaning of one successful evaluator result. -/
 structure PhysicalChecks
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -307,7 +309,7 @@ structure PhysicalChecks
 /-- Fail-closed active evaluator. The only returned value is canonical. -/
 def run
     {setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount}
     {machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -331,7 +333,7 @@ def run
 /-- Exact characterization of executable success by named physical checks. -/
 theorem run_eq_some_iff_physicalChecks
     {setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount}
     {machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -414,7 +416,7 @@ existing output-binding or Split-NC failure. No bad-event exclusion is hidden
 in this theorem. -/
 theorem run_sound_or_outputUnbound_or_piCcsBadEvent
     {setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount}
     {machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -433,6 +435,9 @@ theorem run_sound_or_outputUnbound_or_piCcsBadEvent
     (semanticInput :
       Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.SemanticInput
         (contextAt setup input certificate.selected) data)
+    (childOpenings :
+      Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.ChildOpenings
+        (contextAt setup input certificate.selected) data certificate.nifs)
     (executed : run checkers input certificate = some output) :
     ActiveSemantics.Holds setup machine functionIndex input output \/
       ¬
@@ -451,7 +456,7 @@ theorem run_sound_or_outputUnbound_or_piCcsBadEvent
       selectedNext).2
       ⟨physical.nifsAccepted, physical.resultExact⟩
   rcases FixedActive.Evaluator.run_sound noZeroDivisors semanticInput
-      nifsExecuted with
+      childOpenings nifsExecuted with
     transition | outputUnbound | bad
   · exact Or.inl ⟨certificate.selected, selectedNext, {
       iterationPositive := physical.outer.iterationPositive

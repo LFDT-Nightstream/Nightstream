@@ -156,12 +156,11 @@ def toActive
     {Witness : Type uWitness}
     {TranscriptState : Type uTranscriptState}
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -206,12 +205,11 @@ def erase
     {Witness : Type uWitness}
     {TranscriptState : Type uTranscriptState}
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -227,12 +225,11 @@ theorem priorSlot_derived
     {Witness : Type uWitness}
     {TranscriptState : Type uTranscriptState}
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -251,12 +248,11 @@ theorem expectedStructure_derived
     {Witness : Type uWitness}
     {TranscriptState : Type uTranscriptState}
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -276,12 +272,11 @@ theorem toActive_erase_of_authority
     {Witness : Type uWitness}
     {TranscriptState : Type uTranscriptState}
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (input :
       ActiveSemantics.Input OuterKey AppState Witness shape publicRingColumns
@@ -314,7 +309,6 @@ variable {AppState : Type uAppState}
 variable {Witness : Type uWitness}
 variable {TranscriptState : Type uTranscriptState}
 variable {shape : SemanticShape}
-variable {domain : FlatNcDomain}
 variable {publicRingColumns verifierRows : Nat}
 variable {publicFits :
   ringDegree * publicRingColumns <= shape.carrierWidth}
@@ -345,7 +339,7 @@ theorem dispatch_derived
 is an exact reduction, not yet an inclusion-minimality claim. -/
 structure Obligations
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -369,7 +363,7 @@ namespace Obligations
 /-- Expand the three canonical obligations into the full active target. -/
 def toActive
     {setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1}
     {machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -393,7 +387,7 @@ def toActive
 /-- Project the full active target back to the three canonical obligations. -/
 def ofActive
     {setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1}
     {machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -418,7 +412,7 @@ end Obligations
 active target at the sole selected slot. -/
 theorem obligations_iff_active
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -439,7 +433,7 @@ theorem obligations_iff_active
 /-- Independent canonical relation over the smaller fixed-one carrier. -/
 def Holds
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -459,7 +453,7 @@ def Holds
 relation after reconstructing the two verifier-owned fields. -/
 theorem holds_iff_active
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -493,7 +487,7 @@ canonical relation is exactly the existing independent active relation. This
 theorem does not establish that any production decoder meets those premises. -/
 theorem holds_projection_iff
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns

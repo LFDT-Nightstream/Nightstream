@@ -48,7 +48,6 @@ universe uState
 
 variable
   {shape : SemanticShape}
-  {domain : FlatNcDomain}
   {State : Type uState}
   {publicRingColumns verifierRows : Nat}
   {publicFits :
@@ -59,7 +58,7 @@ variable
 attempt. All sources must use the verifier-selected relation structure. -/
 def SourceStructuresBound
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity) : Prop :=
   forall source,
     (context.input.source source).constraintSystem = context.system
@@ -69,10 +68,10 @@ follows from source-structure consistency. The expensive parent fields are
 computed once; no second authoritative copy is checked. -/
 theorem equations_of_sourceStructures
     {context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity}
     {certificate :
-      Certificate (domain := domain) (arity := arity)
+      Certificate (arity := arity)
         publicRingColumns publicFits verifierRows context.piCcsInput}
     (structures : SourceStructuresBound context) :
     PiRLC.Equations (rlcAlgebra context.key)
@@ -101,10 +100,10 @@ theorem equations_of_sourceStructures
 the sole retained source-structure family. -/
 theorem sourceStructures_of_equations
     {context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity}
     {certificate :
-      Certificate (domain := domain) (arity := arity)
+      Certificate (arity := arity)
         publicRingColumns publicFits verifierRows context.piCcsInput}
     (equations :
       PiRLC.Equations (rlcAlgebra context.key)
@@ -118,10 +117,10 @@ attempt. This is an equivalence to independently defined generic phase
 equations, not a restatement of a caller-supplied verifier predicate. -/
 theorem equations_iff_sourceStructures
     {context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity}
     {certificate :
-      Certificate (domain := domain) (arity := arity)
+      Certificate (arity := arity)
         publicRingColumns publicFits verifierRows context.piCcsInput} :
     PiRLC.Equations (rlcAlgebra context.key)
         ((derive context certificate).piRlcAttempt certificate) <->

@@ -253,7 +253,6 @@ variable {AppState : Type uAppState}
 variable {Witness : Type uWitness}
 variable {TranscriptState : Type uTranscriptState}
 variable {shape : SemanticShape}
-variable {domain : FlatNcDomain}
 variable {publicRingColumns verifierRows slotCount : Nat}
 variable {publicFits :
   ringDegree * publicRingColumns <= shape.carrierWidth}
@@ -262,7 +261,7 @@ variable {publicFits :
 outer countermodels. -/
 structure SideConditions
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -301,7 +300,7 @@ def viewOf
 /-- Exact factorization of the independent six-field active obligations. -/
 theorem obligations_iff_side_and_outer
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -341,7 +340,7 @@ theorem obligations_iff_side_and_outer
 relation and its canonical output equation. -/
 theorem holds_iff_exists_side_and_outer
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -380,7 +379,7 @@ while retaining all ConcretePhi81 side conditions. -/
 def WeakAccepts
     (removed : OuterPlan.Family)
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -401,7 +400,7 @@ def WeakAccepts
 may say anything about ConcretePhi81 semantics. -/
 structure SideAnchor
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -420,7 +419,7 @@ actual witness-level obligations and the independent `Holds` relation.
 This theorem does not construct an anchor or a production countermodel. -/
 theorem liftCountermodel
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns

@@ -49,7 +49,6 @@ universe uState
 
 variable
   {shape : SemanticShape}
-  {domain : FlatNcDomain}
   {State : Type uState}
   {publicRingColumns verifierRows : Nat}
   {publicFits :
@@ -60,10 +59,10 @@ variable
 `Pi_DEC` attempt. -/
 structure RecompositionEquations
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity)
     (certificate :
-      Certificate (domain := domain) (arity := arity)
+      Certificate (arity := arity)
         publicRingColumns publicFits verifierRows context.piCcsInput) : Prop where
   commitment :
     (derive context certificate).piRlcOutput.commitment =
@@ -82,10 +81,10 @@ structure RecompositionEquations
 `PiDEC.Accepted` for the canonical attempt. -/
 theorem accepted_of_recomposition
     {context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity}
     {certificate :
-      Certificate (domain := domain) (arity := arity)
+      Certificate (arity := arity)
         publicRingColumns publicFits verifierRows context.piCcsInput}
     (equations : RecompositionEquations context certificate) :
     PiDEC.Accepted (decAlgebra context.key)
@@ -117,10 +116,10 @@ theorem accepted_of_recomposition
 three retained recomposition equations. -/
 theorem recomposition_of_accepted
     {context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity}
     {certificate :
-      Certificate (domain := domain) (arity := arity)
+      Certificate (arity := arity)
         publicRingColumns publicFits verifierRows context.piCcsInput}
     (accepted :
       PiDEC.Accepted (decAlgebra context.key)
@@ -143,10 +142,10 @@ Inherited child fields and the parent stage are construction facts; generic
 acceptance is equivalent to only the three recomposition equations. -/
 theorem accepted_iff_recomposition
     {context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity}
     {certificate :
-      Certificate (domain := domain) (arity := arity)
+      Certificate (arity := arity)
         publicRingColumns publicFits verifierRows context.piCcsInput} :
     PiDEC.Accepted (decAlgebra context.key)
         ((derive context certificate).piDecAttempt certificate) ↔

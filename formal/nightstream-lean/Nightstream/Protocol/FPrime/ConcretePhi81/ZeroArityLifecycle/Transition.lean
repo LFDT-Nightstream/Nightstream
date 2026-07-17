@@ -62,13 +62,12 @@ abbrev NextClaimObligation
 input state. The values may be equal; no inequality is claimed. -/
 inductive Transition
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {TranscriptState : Type uTranscriptState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (setup :
-      Setup shape domain TranscriptState publicRingColumns publicFits
+      Setup shape TranscriptState publicRingColumns publicFits
         verifierRows)
     (nextClaimObligation :
       NextClaimObligation shape publicRingColumns publicFits verifierRows) :
@@ -107,13 +106,12 @@ inductive Transition
 /-- Model-level NIFS provenance for a produced result payload. -/
 def NifsOutputRealized
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {TranscriptState : Type uTranscriptState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (setup :
-      Setup shape domain TranscriptState publicRingColumns publicFits
+      Setup shape TranscriptState publicRingColumns publicFits
         verifierRows)
     (result : Accumulator shape publicRingColumns publicFits verifierRows) :
     Prop :=
@@ -128,13 +126,12 @@ def NifsOutputRealized
 output of this model-level transition system. -/
 def StateValid
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {TranscriptState : Type uTranscriptState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (setup :
-      Setup shape domain TranscriptState publicRingColumns publicFits
+      Setup shape TranscriptState publicRingColumns publicFits
         verifierRows)
     (nextClaimObligation :
       NextClaimObligation shape publicRingColumns publicFits verifierRows) :
@@ -150,13 +147,12 @@ namespace Transition
 model-level NIFS transition that produced its result payload. -/
 theorem output_realized
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {TranscriptState : Type uTranscriptState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {setup :
-      Setup shape domain TranscriptState publicRingColumns publicFits
+      Setup shape TranscriptState publicRingColumns publicFits
         verifierRows}
     {nextClaimObligation :
       NextClaimObligation shape publicRingColumns publicFits verifierRows}
@@ -175,13 +171,12 @@ theorem output_realized
 by `StateValid`. -/
 theorem produces_valid
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {TranscriptState : Type uTranscriptState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {setup :
-      Setup shape domain TranscriptState publicRingColumns publicFits
+      Setup shape TranscriptState publicRingColumns publicFits
         verifierRows}
     {nextClaimObligation :
       NextClaimObligation shape publicRingColumns publicFits verifierRows}
@@ -202,13 +197,12 @@ end Transition
 /-- Reflexive-transitive closure of the exact lifecycle transition. -/
 inductive Reachable
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {TranscriptState : Type uTranscriptState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (setup :
-      Setup shape domain TranscriptState publicRingColumns publicFits
+      Setup shape TranscriptState publicRingColumns publicFits
         verifierRows)
     (nextClaimObligation :
       NextClaimObligation shape publicRingColumns publicFits verifierRows) :
@@ -230,13 +224,12 @@ namespace Reachable
 provenance for its current result payload. -/
 theorem running_realized
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {TranscriptState : Type uTranscriptState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {setup :
-      Setup shape domain TranscriptState publicRingColumns publicFits
+      Setup shape TranscriptState publicRingColumns publicFits
         verifierRows}
     {nextClaimObligation :
       NextClaimObligation shape publicRingColumns publicFits verifierRows}
@@ -256,13 +249,12 @@ theorem running_realized
 `StateValid`. -/
 theorem valid_from_initial
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {TranscriptState : Type uTranscriptState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {setup :
-      Setup shape domain TranscriptState publicRingColumns publicFits
+      Setup shape TranscriptState publicRingColumns publicFits
         verifierRows}
     {nextClaimObligation :
       NextClaimObligation shape publicRingColumns publicFits verifierRows}
@@ -279,13 +271,12 @@ structural fact prevents a later transition from selecting bootstrap again;
 it does not assert provenance for the starting payload. -/
 theorem from_running_is_running
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {TranscriptState : Type uTranscriptState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {setup :
-      Setup shape domain TranscriptState publicRingColumns publicFits
+      Setup shape TranscriptState publicRingColumns publicFits
         verifierRows}
     {nextClaimObligation :
       NextClaimObligation shape publicRingColumns publicFits verifierRows}

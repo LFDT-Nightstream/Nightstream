@@ -37,7 +37,7 @@ folding HyperNova's `k` default instances.
 | `fprime.zero_arity.branch.bootstrap.nifs.running_parent` | the complete incoming-parent carrier is exactly absent | computed | `Template.build`, `Template.build_runningAuthority` |
 | `fprime.zero_arity.branch.bootstrap.nifs.pi_ccs.public` | retain the exact verifier-owned Split-NC public input | direct dataflow | `Template.build` |
 | `fprime.zero_arity.branch.bootstrap.nifs.transcript.prefix` | retain the exact outer-derived prior transcript state | direct dataflow | `Template.build` |
-| `fprime.zero_arity.branch.bootstrap.nifs.setup` | key, alignment, domain, schedule, sampler, and profile are template-owned | verifier setup | `Template` |
+| `fprime.zero_arity.branch.bootstrap.nifs.setup` | key, alignment, canonical production dimensions, BlockLane schedule, sampler, and profile are template-owned | verifier setup | `Template` |
 -/
 
 namespace Nightstream.Protocol.FPrime.ConcretePhi81.BootstrapContext
@@ -117,27 +117,27 @@ concrete relation shape. Dynamic claim and transcript-prefix values are
 intentionally absent. -/
 structure Template
     (shape : SemanticShape)
-    (domain : FlatNcDomain)
     (State : Type uState)
     (publicRingColumns : Nat)
     (publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth)
     (verifierRows : Nat) where
-  covers : domain.Covers shape
+  covers : PiCcsDomains.production.nc.Covers shape
   key : ConcretePhi81.VerifierKey
     shape publicRingColumns publicFits verifierRows
   alignment :
     SourceAlignment shape productionGlobalParams FixedBootstrap.arity
   piCcsSchedule :
-    PiCCS.SplitNc.Verifier.Protocol.TranscriptAuthority.Schedule
+    PiCCS.SplitNc.Verifier.Protocol.TranscriptAuthority.BlockLane.Schedule
       (ConcretePhi81.VerifierKey
         shape publicRingColumns publicFits verifierRows)
       (ConcretePhi81.StatementInput
         shape publicRingColumns publicFits verifierRows FixedBootstrap.arity)
-      shape domain State
+      shape PiCcsDomains.production State
   piRlcMachine :
     Nifs.NonInteractive.PiRlcSampler.ProductionSchedule.Machine State
-  profile : PiCCS.SplitNc.Verifier.Polynomial.Fe.SupportedProfile shape domain
+  profile : PiCCS.SplitNc.Verifier.Polynomial.Fe.SupportedProfile shape
+    PiCcsDomains.production.fe
   challengeSetSize : Nat
 
 namespace Template
@@ -146,17 +146,16 @@ namespace Template
 The empty running product and absent parent are construction facts. -/
 def build
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (template :
-      Template shape domain State publicRingColumns publicFits verifierRows)
+      Template shape State publicRingColumns publicFits verifierRows)
     (invocation :
       Invocation shape State publicRingColumns publicFits verifierRows) :
     FixedBootstrap.Context
-      shape domain State publicRingColumns publicFits verifierRows where
+      shape State publicRingColumns publicFits verifierRows where
   covers := template.covers
   key := template.key
   alignment := template.alignment
@@ -171,26 +170,24 @@ def build
 
 @[simp] theorem build_input
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (template :
-      Template shape domain State publicRingColumns publicFits verifierRows)
+      Template shape State publicRingColumns publicFits verifierRows)
     (invocation :
       Invocation shape State publicRingColumns publicFits verifierRows) :
     (template.build invocation).input = invocation.sourceProduct := rfl
 
 @[simp] theorem build_runningParent
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (template :
-      Template shape domain State publicRingColumns publicFits verifierRows)
+      Template shape State publicRingColumns publicFits verifierRows)
     (invocation :
       Invocation shape State publicRingColumns publicFits verifierRows) :
     (template.build invocation).runningParent = none := rfl
@@ -199,13 +196,12 @@ def build
 contract without a caller-supplied proof or digest convention. -/
 theorem build_runningAuthority
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (template :
-      Template shape domain State publicRingColumns publicFits verifierRows)
+      Template shape State publicRingColumns publicFits verifierRows)
     (invocation :
       Invocation shape State publicRingColumns publicFits verifierRows) :
     RunningAuthority.Accepted (template.build invocation) :=
@@ -214,26 +210,24 @@ theorem build_runningAuthority
 
 @[simp] theorem build_piCcsInput
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (template :
-      Template shape domain State publicRingColumns publicFits verifierRows)
+      Template shape State publicRingColumns publicFits verifierRows)
     (invocation :
       Invocation shape State publicRingColumns publicFits verifierRows) :
     (template.build invocation).piCcsInput = invocation.piCcsInput := rfl
 
 @[simp] theorem build_priorState
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (template :
-      Template shape domain State publicRingColumns publicFits verifierRows)
+      Template shape State publicRingColumns publicFits verifierRows)
     (invocation :
       Invocation shape State publicRingColumns publicFits verifierRows) :
     (template.build invocation).priorState = invocation.priorState := rfl

@@ -9,7 +9,8 @@ composition.
 | `nifs.concrete.derive` | `Pi_CCS` outputs and the `Pi_RLC` parent are absent from the raw certificate | duplicate or prover-authoritative phase boundary |
 | `nifs.concrete.pi_ccs.coins` | one statement-bound schedule derives shared FE/NC coin authority | duplicated or caller-supplied coin records |
 | `nifs.concrete.input` | semantic source authority is separate from physical acceptance | hidden private-witness premise in the verifier |
-| `nifs.concrete.semantic` | physical and independent semantic acceptance are distinct predicates | restating the same certificate as its own specification |
+| `nifs.semantic.fold` | parent and children are computed from paper sources, one row point, and valid challenges without a certificate | restating implementation acceptance as semantics |
+| `nifs.concrete.refinement` | certificate-indexed evidence refines the independent fold | leaving physical/semantic equivalence implicit |
 | `nifs.concrete.pi_rlc` | sampler replay plus the sole retained structure family derives complete Π_RLC acceptance | duplicated challenge-membership or computed-parent check |
 | `nifs.concrete.pi_dec` | canonical children reduce generic Π_DEC acceptance to three recomposition equations | duplicated inherited child fields or checks |
 | `nifs.concrete.soundness` | physical acceptance yields semantic truth or a named FE/NC bad event | unconditional transcript soundness |
@@ -29,6 +30,8 @@ namespace Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive
 #check resultOf
 #check ResultTransition
 #check ResultTransition.children_transition
+#check ResultTransition.parentOpening
+#check ResultTransition.childOpening
 #check ResultTransition.runningStructure_eq_fresh
 #check ResultTransition.childStructure_eq_fresh
 #check ResultTransition.parent_eq_of_children_eq
@@ -62,7 +65,34 @@ end Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive
 #check PublicInputBound
 #check InputBound
 #check SemanticInput
+#check SemanticFold.Witness
+#check SemanticFold.ChallengesValid
+#check SemanticFold.outputs
+#check SemanticFold.parentOf
+#check SemanticFold.childrenOf
+#check SemanticFold.Holds
+#check SemanticFold.complete
+#check SemanticFold.Holds.outputsHold
+#check SemanticFold.Holds.parentOpening
+#check SemanticFold.Holds.childOpening
+#check SemanticFold.Holds.piDecAccepted
+#check SemanticFold.ObligationPlan.Phase
+#check SemanticFold.ObligationPlan.Family
+#check SemanticFold.ObligationPlan.Leaf
+#check SemanticFold.ObligationPlan.phase
+#check SemanticFold.ObligationPlan.family
+#check SemanticFold.ObligationPlan.authority
+#check SemanticFold.ObligationPlan.path
+#check SemanticFold.ObligationPlan.Candidate
+#check SemanticFold.ObligationPlan.accepts_iff_target
+#check SemanticFold.ObligationPlan.exact
+#check SemanticFold.ObligationPlan.Necessity.Realization
+#check SemanticFold.ObligationPlan.Necessity.Realization.parentNecessary
+#check SemanticFold.ObligationPlan.Necessity.Realization.childrenNecessary
+#check
+  Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier.Protocol.OutputRefinement.materializedOutputs_eq_honestOutputs_of_yRingEq
 #check OutputBound
+#check ChildOpenings
 #check RunningAuthority.children
 #check RunningAuthority.attempt
 #check RunningAuthority.Bound
@@ -79,7 +109,7 @@ end Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive
 #check RunningAuthority.Accepted.rejects_parent_in_bootstrap
 #check RunningAuthority.Accepted.children_sharePoint
 #check Accepted
-#check Holds
+#check CertificateRefinement
 #check Transition
 #check TailAccepted.piRlcAccepted
 #check DerivedPiRlc.SourceStructuresBound
@@ -126,8 +156,13 @@ end Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive
 #check FixedActive.Canonical.Checker.check_eq_true_iff_accepted
 #check FixedActive.Canonical.Checker.evaluatorChecker
 #check accepted_implies_paper_or_outputUnbound_or_badEvent
-#check accepted_implies_holds_or_outputUnbound_or_badEvent
+#check accepted_implies_refinement_or_outputUnbound_or_badEvent
 #check accepted_implies_transition_or_outputUnbound_or_badEvent
+#check CertificateRefinement.piRlcParentOpening
+#check CertificateRefinement.packedYZcolBound
+#check CertificateRefinement.toSemanticFold
+#check Result.resultOf_refines
+#check Result.resultTransition_iff_exists_obligationPlan
 #check HonestSamplerShortfall
 #check complete_of_paperObligations
 #check complete_or_samplerShortfall

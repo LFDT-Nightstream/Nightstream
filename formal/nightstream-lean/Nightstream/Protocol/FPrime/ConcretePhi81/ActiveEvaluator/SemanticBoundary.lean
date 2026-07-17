@@ -58,7 +58,6 @@ variable {AppState : Type uAppState}
 variable {Witness : Type uWitness}
 variable {TranscriptState : Type uTranscriptState}
 variable {shape : SemanticShape}
-variable {domain : FlatNcDomain}
 variable {publicRingColumns verifierRows slotCount : Nat}
 variable {publicFits :
   ringDegree * publicRingColumns <= shape.carrierWidth}
@@ -67,7 +66,7 @@ variable {publicFits :
 invocation. The five outer equations remain physically checked by `run`. -/
 structure SoundnessClosure
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -83,7 +82,7 @@ closure, successful physical outer execution implies the independent active
 F-prime relation. -/
 theorem run_sound_of_closure
     {setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount}
     {machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -132,7 +131,7 @@ equations and semantic NIFS premises produce one executable canonical output,
 unless the fixed bounded sampler names a concrete shortfall coordinate. -/
 theorem exists_run_and_holds_or_samplerShortfall
     {setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount}
     {machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -189,7 +188,7 @@ theorem exists_run_and_holds_or_samplerShortfall
 certificate and its canonical semantic result. -/
 theorem run_complete_of_outer_and_honestNifs
     {setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount}
     {machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -233,7 +232,7 @@ premises and the exact outer equations yield an executable output satisfying
 the independent active relation. -/
 theorem exists_run_and_holds_of_outer_and_honestNifs
     {setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount}
     {machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns

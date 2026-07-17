@@ -57,7 +57,6 @@ variable {AppState : Type uAppState}
 variable {Witness : Type uWitness}
 variable {TranscriptState : Type uTranscriptState}
 variable {shape : SemanticShape}
-variable {domain : FlatNcDomain}
 variable {publicRingColumns verifierRows slotCount : Nat}
 variable {publicFits :
   ringDegree * publicRingColumns <= shape.carrierWidth}
@@ -68,7 +67,7 @@ The theorem consumes a real complete NIFS result and states every retained
 family directly. It does not construct an input with the requested mismatch. -/
 theorem priorSlot_necessary_of_transition
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -127,7 +126,7 @@ needed by the prior-slot removal witness, or name one exact bounded-sampler
 shortfall coordinate. -/
 theorem priorSlot_necessary_or_samplerShortfall_of_semanticPremises
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -176,7 +175,7 @@ The wrong prior slot and all retained outer obligations remain caller
 premises; therefore this is not a closed production counterexample. -/
 theorem priorSlot_necessary_of_honestNifs
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -219,7 +218,7 @@ The theorem consumes a real complete NIFS result and states every retained
 family directly. It does not construct an input with the requested mismatch. -/
 theorem expectedStructure_necessary_of_transition
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -278,7 +277,7 @@ needed by the selected-structure removal witness, or name one exact bounded-
 sampler shortfall coordinate. -/
 theorem expectedStructure_necessary_or_samplerShortfall_of_semanticPremises
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -327,7 +326,7 @@ The wrong structure and all retained outer obligations remain caller premises;
 therefore this is not a closed production counterexample. -/
 theorem expectedStructure_necessary_of_honestNifs
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns

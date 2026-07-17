@@ -273,7 +273,6 @@ structure Setup
     (Witness : Type uWitness)
     (TranscriptState : Type uTranscriptState)
     (shape : SemanticShape)
-    (domain : FlatNcDomain)
     (publicRingColumns : Nat)
     (publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth)
@@ -281,7 +280,7 @@ structure Setup
   template :
     OuterKey -> Fin slotCount ->
       Nightstream.Protocol.FPrime.ConcretePhi81.Context.Template
-        shape domain TranscriptState publicRingColumns publicFits verifierRows
+        shape TranscriptState publicRingColumns publicFits verifierRows
   expectedStructure :
     OuterKey -> Fin slotCount ->
       RelationStructure shape publicRingColumns publicFits
@@ -302,12 +301,11 @@ def invocationAt
     {Witness : Type uWitness}
     {TranscriptState : Type uTranscriptState}
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {publicRingColumns verifierRows slotCount : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -327,19 +325,18 @@ def contextAt
     {Witness : Type uWitness}
     {TranscriptState : Type uTranscriptState}
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {publicRingColumns verifierRows slotCount : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
         verifierRows slotCount)
     (slot : Fin slotCount) :
     FixedActive.Context
-      shape domain TranscriptState publicRingColumns publicFits verifierRows :=
+      shape TranscriptState publicRingColumns publicFits verifierRows :=
   (setup.template input.verifierKey slot).build
     (invocationAt setup input slot)
 
@@ -349,12 +346,11 @@ def contextAt
     {Witness : Type uWitness}
     {TranscriptState : Type uTranscriptState}
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {publicRingColumns verifierRows slotCount : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -529,12 +525,11 @@ structure Obligations
     {Witness : Type uWitness}
     {TranscriptState : Type uTranscriptState}
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {publicRingColumns verifierRows slotCount : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -572,12 +567,11 @@ theorem priorPcValid
     {Witness : Type uWitness}
     {TranscriptState : Type uTranscriptState}
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {publicRingColumns verifierRows slotCount : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount}
     {machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -603,12 +597,11 @@ theorem selectedIndex_eq
     {Witness : Type uWitness}
     {TranscriptState : Type uTranscriptState}
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {publicRingColumns verifierRows slotCount : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount}
     {machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -637,12 +630,11 @@ theorem selectedStructures_eq_expected
     {Witness : Type uWitness}
     {TranscriptState : Type uTranscriptState}
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {publicRingColumns verifierRows slotCount : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount}
     {machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -698,12 +690,11 @@ def Holds
     {Witness : Type uWitness}
     {TranscriptState : Type uTranscriptState}
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {publicRingColumns verifierRows slotCount : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns

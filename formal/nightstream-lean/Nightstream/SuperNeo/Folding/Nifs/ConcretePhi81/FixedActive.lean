@@ -56,26 +56,24 @@ def arity : BatchArity productionGlobalParams :=
 /-- Concrete verifier context specialized to the fixed active arity. -/
 abbrev Context
     (shape : SemanticShape)
-    (domain : FlatNcDomain)
     (State : Type uState)
     (publicRingColumns : Nat)
     (publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth)
     (verifierRows : Nat) :=
-  ConcretePhi81.Context shape domain State publicRingColumns publicFits
+  ConcretePhi81.Context shape State publicRingColumns publicFits
     verifierRows arity
 
 /-- Raw verifier-visible certificate specialized to the fixed active arity. -/
 abbrev Certificate
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows) :=
-  ConcretePhi81.Certificate (domain := domain) (arity := arity)
+      Context shape State publicRingColumns publicFits verifierRows) :=
+  ConcretePhi81.Certificate (arity := arity)
     publicRingColumns publicFits verifierRows context.piCcsInput
 
 /-- Complete recursive fold result.
@@ -94,39 +92,36 @@ abbrev FoldResult
 /-- Compute both public result surfaces from one shared phase execution. -/
 abbrev resultOf
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows)
+      Context shape State publicRingColumns publicFits verifierRows)
     (certificate : Certificate context) :
     FoldResult shape publicRingColumns publicFits verifierRows :=
   Result.resultOf context certificate
 
 @[simp] theorem resultOf_parent
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows)
+      Context shape State publicRingColumns publicFits verifierRows)
     (certificate : Certificate context) :
     (resultOf context certificate).parent =
       (ConcretePhi81.derive context certificate).piRlcOutput := rfl
 
 @[simp] theorem resultOf_children
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows)
+      Context shape State publicRingColumns publicFits verifierRows)
     (certificate : Certificate context) :
     (resultOf context certificate).children =
       ConcretePhi81.outputChildren context certificate := rfl
@@ -135,13 +130,12 @@ abbrev resultOf
 result. Physical acceptance is intentionally absent from this definition. -/
 abbrev ResultTransition
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows)
+      Context shape State publicRingColumns publicFits verifierRows)
     (result : FoldResult shape publicRingColumns publicFits verifierRows) :
     Prop :=
   Result.ResultTransition context result
@@ -150,13 +144,12 @@ abbrev ResultTransition
 transition without assigning independent authority to the cached parent. -/
 theorem ResultTransition.children_transition
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {context :
-      Context shape domain State publicRingColumns publicFits verifierRows}
+      Context shape State publicRingColumns publicFits verifierRows}
     {result : FoldResult shape publicRingColumns publicFits verifierRows}
     (accepted : ResultTransition context result) :
     ConcretePhi81.Transition context result.children := by
@@ -167,13 +160,12 @@ theorem ResultTransition.children_transition
 result transition. -/
 theorem transition_iff_exists_resultTransition
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {context :
-      Context shape domain State publicRingColumns publicFits verifierRows}
+      Context shape State publicRingColumns publicFits verifierRows}
     {children : Fin productionGlobalParams.k ->
       Phi81Relation.CEStatement
         (RelationShape shape publicRingColumns publicFits)
@@ -189,13 +181,12 @@ to use the same relation structure as the sole fresh source. This is derived
 from the semantic NIFS transition and is not a separate outer `F'` check. -/
 theorem ResultTransition.runningStructure_eq_fresh
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {context :
-      Context shape domain State publicRingColumns publicFits verifierRows}
+      Context shape State publicRingColumns publicFits verifierRows}
     {result : FoldResult shape publicRingColumns publicFits verifierRows}
     (accepted : ResultTransition context result)
     (running : Fin productionGlobalParams.k) :
@@ -209,13 +200,12 @@ structure in every returned accumulator child. No caller-supplied output
 structure needs an additional outer check. -/
 theorem ResultTransition.childStructure_eq_fresh
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {context :
-      Context shape domain State publicRingColumns publicFits verifierRows}
+      Context shape State publicRingColumns publicFits verifierRows}
     {result : FoldResult shape publicRingColumns publicFits verifierRows}
     (accepted : ResultTransition context result)
     (child : Fin productionGlobalParams.k) :
@@ -228,13 +218,12 @@ theorem ResultTransition.childStructure_eq_fresh
 accumulator necessarily carry the same derived parent cache. -/
 theorem ResultTransition.parent_eq_of_children_eq
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {context :
-      Context shape domain State publicRingColumns publicFits verifierRows}
+      Context shape State publicRingColumns publicFits verifierRows}
     {left right : FoldResult shape publicRingColumns publicFits verifierRows}
     (leftAccepted : ResultTransition context left)
     (rightAccepted : ResultTransition context right)

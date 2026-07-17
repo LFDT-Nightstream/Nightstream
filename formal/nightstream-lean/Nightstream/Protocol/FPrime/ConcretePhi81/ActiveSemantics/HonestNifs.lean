@@ -53,7 +53,6 @@ variable {AppState : Type uAppState}
 variable {Witness : Type uWitness}
 variable {TranscriptState : Type uTranscriptState}
 variable {shape : SemanticShape}
-variable {domain : FlatNcDomain}
 variable {publicRingColumns verifierRows slotCount : Nat}
 variable {publicFits :
   ringDegree * publicRingColumns <= shape.carrierWidth}
@@ -62,7 +61,7 @@ variable {publicFits :
 no sampler-success assumption and no outer F-prime equation. -/
 structure SemanticPremises
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -82,7 +81,7 @@ prefix. New semantic completeness arguments should prefer `SemanticPremises`
 and handle the explicit shortfall branch. -/
 structure Premises
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -98,26 +97,23 @@ structure Premises
   challenges : Fin FixedActive.arity.total -> RingF
   samplerAvailable :
     forall piCcsCertificate :
-        Protocol.Certificate
-          (contextAt setup input selected).piCcsInput domain,
-      Protocol.Accepted
-          (contextAt setup input selected).feMachine
-          (contextAt setup input selected).ncMachine
-          (contextAt setup input selected).initialState
-          (contextAt setup input selected).profile
+        Protocol.BlockLane.Certificate
           (contextAt setup input selected).piCcsInput
-          (contextAt setup input selected).feCoins
-          (contextAt setup input selected).ncCoins
+          PiCcsDomains.production,
+      Protocol.BlockLane.Accepted StatementInput.polynomial
+          (contextAt setup input selected).piCcsSchedule
+          (contextAt setup input selected).priorState
+          (contextAt setup input selected).profile
+          (contextAt setup input selected).piCcsStatement
           piCcsCertificate ->
         ConcretePhi81.Sampler.Bound
           (contextAt setup input selected).piRlcMachine
-          ((contextAt setup input selected).piCcsOutputHandoff
-            (Protocol.derive
-              (contextAt setup input selected).feMachine
-              (contextAt setup input selected).ncMachine
-              (contextAt setup input selected).initialState
-              piCcsCertificate).finalState
-            piCcsCertificate.output)
+          (Protocol.BlockLane.derive StatementInput.polynomial
+            (contextAt setup input selected).piCcsSchedule
+            (contextAt setup input selected).priorState
+            (contextAt setup input selected).profile
+            (contextAt setup input selected).piCcsStatement
+            piCcsCertificate).finalState
           challenges
 
 namespace SemanticPremises
@@ -128,7 +124,7 @@ finite coordinate at which the production-sized rejection sampler shortfalls.
 No fixed challenge vector is assumed across unrelated PiCCS certificates. -/
 theorem exists_resultTransition_or_samplerShortfall
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -150,7 +146,7 @@ theorem exists_resultTransition_or_samplerShortfall
   · rcases completed with
       ⟨_challenges, certificate, accepted, holds, _childrenValid⟩
     exact Or.inl ⟨certificate, accepted,
-      ⟨premises.data, certificate, rfl, holds⟩⟩
+      ConcretePhi81.Result.resultOf_refines holds⟩
   · exact Or.inr shortfall
 
 end SemanticPremises
@@ -161,7 +157,7 @@ namespace Premises
 semantic authority. -/
 def toSemanticPremises
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -178,7 +174,7 @@ def toSemanticPremises
 result satisfies the independent fixed-active semantic transition. -/
 theorem exists_resultTransition
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -197,7 +193,7 @@ theorem exists_resultTransition
         premises.challenges premises.samplerAvailable with
     ⟨certificate, accepted, holds, _childrenValid⟩
   exact ⟨certificate, accepted,
-    ⟨premises.data, certificate, rfl, holds⟩⟩
+    ConcretePhi81.Result.resultOf_refines holds⟩
 
 end Premises
 

@@ -142,17 +142,16 @@ theorem exists_bound_or_exists_shortfall
 starting from the actual derived `Pi_CCS` outgoing state. -/
 abbrev CertificateBound
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {arity : BatchArity productionGlobalParams}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity)
     (certificate :
-      Certificate (domain := domain) (arity := arity)
+      Certificate (arity := arity)
         publicRingColumns publicFits verifierRows context.piCcsInput) :=
   Bound context.piRlcMachine (derive context certificate).piRlcInitialState
     certificate.piRlcChallenges
@@ -162,17 +161,16 @@ batch remains typed data, while the verifier only asserts that such a batch
 exists. -/
 def CertificateAccepted
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {arity : BatchArity productionGlobalParams}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity)
     (certificate :
-      Certificate (domain := domain) (arity := arity)
+      Certificate (arity := arity)
         publicRingColumns publicFits verifierRows context.piCcsInput) : Prop :=
   Nonempty (CertificateBound context certificate)
 
@@ -180,17 +178,16 @@ def CertificateAccepted
 by the concrete `Pi_RLC` algebra. -/
 theorem certificateBound_challengesValid
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {arity : BatchArity productionGlobalParams}
     {context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity}
     {certificate :
-      Certificate (domain := domain) (arity := arity)
+      Certificate (arity := arity)
         publicRingColumns publicFits verifierRows context.piCcsInput}
     (bound : CertificateBound context certificate) :
     ∀ coordinate,
@@ -203,17 +200,16 @@ theorem certificateBound_challengesValid
 family without a second verifier check. -/
 theorem certificateAccepted_challengesValid
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {arity : BatchArity productionGlobalParams}
     {context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity}
     {certificate :
-      Certificate (domain := domain) (arity := arity)
+      Certificate (arity := arity)
         publicRingColumns publicFits verifierRows context.piCcsInput}
     (accepted : CertificateAccepted context certificate) :
     ∀ coordinate,

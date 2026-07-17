@@ -124,17 +124,55 @@ import tests.Axioms.Support
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.TailAccepted.piRlcAccepted
 
+/-! Certificate-independent fold refinement. -/
+
+/-- info: 'Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.SemanticFold.ObligationPlan.exact' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.SemanticFold.ObligationPlan.exact
+
+/-- info: 'Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.SemanticFold.ObligationPlan.Necessity.Realization.parentNecessary' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.SemanticFold.ObligationPlan.Necessity.Realization.parentNecessary
+
+/-- info: 'Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.SemanticFold.ObligationPlan.Necessity.Realization.childrenNecessary' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.SemanticFold.ObligationPlan.Necessity.Realization.childrenNecessary
+
+/-- info: 'Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.Result.resultTransition_iff_exists_obligationPlan' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.Result.resultTransition_iff_exists_obligationPlan
+
+/-- info: 'Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.CertificateRefinement.toSemanticFold' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.CertificateRefinement.toSemanticFold
+
+/-- info: 'Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.Result.resultOf_refines' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.Result.resultOf_refines
+
 /-- info: 'Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.accepted_implies_paper_or_outputUnbound_or_badEvent' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.accepted_implies_paper_or_outputUnbound_or_badEvent
 
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.accepted_implies_holds_or_outputUnbound_or_badEvent' depends on axioms: [propext,
+/-- info: 'Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.accepted_implies_refinement_or_outputUnbound_or_badEvent' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/
 #guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.accepted_implies_holds_or_outputUnbound_or_badEvent
+#audit_axioms Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.accepted_implies_refinement_or_outputUnbound_or_badEvent
 
 /-- info: 'Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.accepted_implies_transition_or_outputUnbound_or_badEvent' depends on axioms: [propext,
  Classical.choice,

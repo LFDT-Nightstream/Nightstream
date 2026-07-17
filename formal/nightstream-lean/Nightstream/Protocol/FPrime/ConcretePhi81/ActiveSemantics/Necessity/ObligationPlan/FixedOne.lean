@@ -53,7 +53,6 @@ variable {AppState : Type uAppState}
 variable {Witness : Type uWitness}
 variable {TranscriptState : Type uTranscriptState}
 variable {shape : SemanticShape}
-variable {domain : FlatNcDomain}
 variable {publicRingColumns verifierRows : Nat}
 variable {publicFits :
   ringDegree * publicRingColumns <= shape.carrierWidth}
@@ -88,7 +87,7 @@ theorem classification_disjoint (family : Family) :
 the checked counter codomain has only one value. -/
 theorem accepts_iff_obligations
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -141,7 +140,7 @@ theorem accepts_iff_obligations
 obligations in the fixed-one profile. -/
 theorem exact
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -196,7 +195,7 @@ using only the canonical semantic input and the selected next slot. This is
 an adapter, not a second carrier or a second semantic target. -/
 def semantics
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -218,7 +217,7 @@ def semantics
 semantic carrier or fixed-one program-counter codomain. -/
 theorem eliminated_hold
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -253,7 +252,7 @@ theorem eliminated_hold
 owned by `ActiveSemantics.FixedOneCanonical`. -/
 theorem accepts_iff_obligations
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -296,7 +295,7 @@ theorem accepts_iff_obligations
 model-level theorem; it does not establish production decoding refinement. -/
 theorem exact
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns

@@ -64,7 +64,6 @@ variable {AppState : Type uAppState}
 variable {Witness : Type uWitness}
 variable {TranscriptState : Type uTranscriptState}
 variable {shape : SemanticShape}
-variable {domain : FlatNcDomain}
 variable {publicRingColumns verifierRows : Nat}
 variable {publicFits :
   ringDegree * publicRingColumns <= shape.carrierWidth}
@@ -72,7 +71,7 @@ variable {publicFits :
 /-- Interpret a retained family over the complete canonical case. -/
 def semantics
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -88,7 +87,7 @@ def semantics
 /-- Independent canonical obligations over the complete case. -/
 def target
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -102,7 +101,7 @@ def target
 obligations for every canonical outer input and selected result. -/
 theorem accepts_iff_obligations
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -121,7 +120,7 @@ theorem accepts_iff_obligations
 language. -/
 theorem exact
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -137,7 +136,7 @@ theorem exact
 verifier language. -/
 theorem lift_local_necessary
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns

@@ -236,17 +236,16 @@ theorem check_eq_true_iff_bound
 challenge vector in one NIFS certificate. -/
 def certificateCheck
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {arity : BatchArity productionGlobalParams}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity)
     (certificate :
-      Certificate (domain := domain) (arity := arity)
+      Certificate (arity := arity)
         publicRingColumns publicFits verifierRows context.piCcsInput) : Bool :=
   check context.piRlcMachine
     (derive context certificate).piRlcInitialState
@@ -256,17 +255,16 @@ def certificateCheck
 acceptance predicate. -/
 theorem certificateCheck_eq_true_iff_accepted
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {arity : BatchArity productionGlobalParams}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity)
     (certificate :
-      Certificate (domain := domain) (arity := arity)
+      Certificate (arity := arity)
         publicRingColumns publicFits verifierRows context.piCcsInput) :
     certificateCheck context certificate = true ↔
       CertificateAccepted context certificate := by

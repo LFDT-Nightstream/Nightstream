@@ -2,8 +2,8 @@ import Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics.HonestBaseline.
 import Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics.HonestBaseline.Sources
 import Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics.HonestNifs
 import Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.BaseLinear
-import Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.PiCcsDomain
 import Nightstream.SuperNeo.Concrete.Phi81Relation.PiRLCAlgebra.Norm.Centered
+import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.PiCcsDomains
 
 /-!
 Degenerate model-level fixed-active context for the independent
@@ -28,7 +28,7 @@ never from a digest or copied acceptance bit.
 
 | Stage path | Mathematical obligation | Authority class | Lean owner |
 |---|---|---|---|
-| `fprime.active.honest_baseline.context.profile` | exact 270-coordinate shape, five public rings, minimal NC domain, and supported FE profile | model setup | `covers`, `profile` |
+| `fprime.active.honest_baseline.context.profile` | exact 270-coordinate shape, five public rings, canonical production dimensions, and supported FE profile | model setup | `covers`, `profile` |
 | `fprime.active.honest_baseline.context.alignment` | one fresh and fourteen running sources preserve their partition | computed | `alignment` |
 | `fprime.active.honest_baseline.context.key` | canonical empty verifier-row Ajtai key | model setup | `key` |
 | `fprime.active.honest_baseline.context.transcript` | deterministic typed `Unit` schedule | model setup, not Poseidon2 refinement | `piCcsSchedule` |
@@ -60,8 +60,6 @@ open Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier
 
 /-! ## Exact model setup -/
 
-def domain : FlatNcDomain := PiCcsDomain.domain
-
 def publicRingColumns : Nat := 5
 
 def verifierRows : Nat := 0
@@ -72,12 +70,13 @@ theorem publicFits :
     ringDegree * publicRingColumns <= Sources.shape.carrierWidth := by
   decide
 
-theorem covers : domain.Covers Sources.shape := by
-  simpa [domain, Sources.shape, Sources.dimensions,
+theorem covers : PiCcsDomains.production.nc.Covers Sources.shape := by
+  simpa [PiCcsDomains.production_nc, Sources.shape, Sources.dimensions,
     PiCcsSources.semanticShape, PiCcsDomain.plainShape] using
-      (PiCcsDomain.domain_covers 1 1 14 3)
+      (PiCcsDomain.blockDomain_covers 1 1 14 3)
 
-theorem profile : Polynomial.Fe.SupportedProfile Sources.shape domain where
+theorem profile :
+    Polynomial.Fe.SupportedProfile Sources.shape PiCcsDomains.production.fe where
   row_nonempty := by decide
   fresh_nonempty := by decide
   lane_variables := rfl
@@ -144,21 +143,21 @@ def zeroPoint (dimension : Nat) : CubePoint K dimension where
 /-- Typed deterministic schedule used only to inhabit the independent model
 context. It makes no cryptographic transcript claim. -/
 def piCcsSchedule :
-    Protocol.TranscriptAuthority.Schedule
+    Protocol.TranscriptAuthority.BlockLane.Schedule
       (ConcretePhi81.VerifierKey
         Sources.shape publicRingColumns publicFits verifierRows)
       (ConcretePhi81.StatementInput
         Sources.shape publicRingColumns publicFits verifierRows
         FixedActive.arity)
-      Sources.shape domain Unit where
+      Sources.shape PiCcsDomains.production Unit where
   bindStatement := fun _ _ => ()
   derivePreSumcheck := fun _ => {
     challenges := {
-      alpha := zeroPoint domain.laneVariables
-      betaA := zeroPoint domain.laneVariables
+      alpha := zeroPoint PiCcsDomains.production.laneVariables
+      betaA := zeroPoint PiCcsDomains.production.laneVariables
       betaR := zeroPoint Sources.shape.rowVariables
       gamma := K.zero
-      betaM := zeroPoint domain.columnVariables
+      betaBlock := zeroPoint PiCcsDomains.production.blockVariables
     }
     state := ()
   }
@@ -343,7 +342,7 @@ noncomputable def samplerBound (initial : Unit) :
 
 def template :
     Nightstream.Protocol.FPrime.ConcretePhi81.Context.Template
-      Sources.shape domain Unit publicRingColumns publicFits verifierRows where
+      Sources.shape Unit publicRingColumns publicFits verifierRows where
   covers := covers
   key := key
   alignment := alignment
@@ -353,7 +352,7 @@ def template :
   challengeSetSize := 1
 
 def setup :
-    Setup Unit Unit Unit Unit Sources.shape domain publicRingColumns publicFits
+    Setup Unit Unit Unit Unit Sources.shape publicRingColumns publicFits
       verifierRows slotCount where
   template := fun _ _ => template
   expectedStructure := fun _ _ => system
@@ -521,10 +520,9 @@ noncomputable def honestPremises :
   samplerAvailable := by
     intro piCcsCertificate piCcsAccepted
     exact samplerBound
-      (context.piCcsOutputHandoff
-        (Protocol.derive context.feMachine context.ncMachine
-          context.initialState piCcsCertificate).finalState
-        piCcsCertificate.output)
+      (Protocol.BlockLane.derive StatementInput.polynomial
+        context.piCcsSchedule context.priorState context.profile
+        context.piCcsStatement piCcsCertificate).finalState
 
 /-- The degenerate model fixture has an actual accepted fixed-active NIFS
 certificate whose canonical result satisfies the independent semantic

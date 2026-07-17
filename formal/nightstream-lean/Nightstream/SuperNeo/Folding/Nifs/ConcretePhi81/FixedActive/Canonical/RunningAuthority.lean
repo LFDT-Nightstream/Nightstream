@@ -54,13 +54,12 @@ universe uState
 authority. Function equality names the complete fixed child family. -/
 structure Equations
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (context :
-      Canonical.Context shape domain State publicRingColumns publicFits
+      Canonical.Context shape State publicRingColumns publicFits
         verifierRows) : Prop where
   points :
     (fun child => (context.input.running child).point) =
@@ -82,13 +81,12 @@ structure Equations
 acceptance because all omitted fields are canonical carrier data. -/
 theorem accepted_of_equations
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {context :
-      Canonical.Context shape domain State publicRingColumns publicFits
+      Canonical.Context shape State publicRingColumns publicFits
         verifierRows}
     (equations : Equations context) :
     ConcretePhi81.RunningAuthority.Accepted context.materialize := by
@@ -137,13 +135,12 @@ theorem accepted_of_equations
 the four retained equations. -/
 theorem equations_of_accepted
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {context :
-      Canonical.Context shape domain State publicRingColumns publicFits
+      Canonical.Context shape State publicRingColumns publicFits
         verifierRows}
     (accepted :
       ConcretePhi81.RunningAuthority.Accepted context.materialize) :
@@ -192,13 +189,12 @@ theorem equations_of_accepted
 /-- Exact retained/eliminated ledger for incoming checked-parent authority. -/
 theorem accepted_iff_equations
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {context :
-      Canonical.Context shape domain State publicRingColumns publicFits
+      Canonical.Context shape State publicRingColumns publicFits
         verifierRows} :
     ConcretePhi81.RunningAuthority.Accepted context.materialize <->
       Equations context := by
@@ -207,13 +203,12 @@ theorem accepted_iff_equations
 /-- Execute one complete finite comparison for each retained equation family. -/
 def check
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (context :
-      Canonical.Context shape domain State publicRingColumns publicFits
+      Canonical.Context shape State publicRingColumns publicFits
         verifierRows) : Bool :=
   functionEqual pointEqual
       (fun child => (context.input.running child).point)
@@ -231,13 +226,12 @@ def check
 /-- The executable checker accepts exactly the four retained equations. -/
 theorem check_eq_true_iff_equations
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (context :
-      Canonical.Context shape domain State publicRingColumns publicFits
+      Canonical.Context shape State publicRingColumns publicFits
         verifierRows) :
     check context = true <-> Equations context := by
   simp only [check, Bool.and_eq_true,
@@ -255,13 +249,12 @@ theorem check_eq_true_iff_equations
 acceptance predicate on the canonical carrier. -/
 theorem check_eq_true_iff_accepted
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (context :
-      Canonical.Context shape domain State publicRingColumns publicFits
+      Canonical.Context shape State publicRingColumns publicFits
         verifierRows) :
     check context = true <->
       ConcretePhi81.RunningAuthority.Accepted context.materialize := by

@@ -1,4 +1,5 @@
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.SignedCoefficientObject
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.SumCheckTruthPath
 import Nightstream.SuperNeo.SumCheck.VerifierCertificate
 
@@ -136,31 +137,6 @@ def symbolicInstance
     (verifierInitial ops data gamma) challenges terminal certificate
     (semanticGhosts ops data alpha gamma expected)
 
-private theorem sub_eq_zero_iff_eq
-    {Field : Type uField}
-    (ops : InterpolationOps Field)
-    (laws : InterpolationEvaluationLaws ops)
-    (left right : Field) :
-    ops.sub left right = ops.zero ↔ left = right := by
-  constructor
-  · intro differenceZero
-    have negAdd : ops.add (ops.neg right) right = ops.zero := by
-      rw [laws.add_comm]
-      exact laws.add_neg right
-    calc
-      left = ops.add left ops.zero := (laws.add_zero left).symm
-      _ = ops.add left (ops.add (ops.neg right) right) := by
-        rw [negAdd]
-      _ = ops.add (ops.add left (ops.neg right)) right :=
-        (laws.add_assoc _ _ _).symm
-      _ = ops.add ops.zero right := by
-        rw [← differenceZero]
-        rfl
-      _ = right := laws.zero_add right
-  · intro equal
-    subst left
-    exact laws.add_neg right
-
 /-- Exact initial-claim semantics: the finite/symbolic SumCheck claim is true
 if and only if the independently serialized signed gamma polynomial vanishes.
 -/
@@ -184,7 +160,7 @@ theorem claimTrue_iff_polynomial_evaluate_eq_zero
         ops.toOps gamma = ops.zero := by
   change verifierInitial ops data gamma =
       semanticInitial ops data alpha gamma ↔ _
-  rw [← sub_eq_zero_iff_eq ops laws]
+  rw [← FiniteSumAlgebra.sub_eq_zero_iff ops laws]
   change SignedJointIdentity.paperDifference ops data alpha gamma =
       ops.zero ↔ _
   rw [SignedCoefficientPolynomial.paperDifference_eq_evaluate

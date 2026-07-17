@@ -20,13 +20,13 @@ property of the Goldilocks modulus is stated separately as a sufficient
 primality boundary; this file does not assert or prove that number-theoretic
 fact for the production modulus.
 
-| Object / theorem | Mathematical obligation | Model-level assumptions | Implementation status |
+| Object / theorem | Mathematical obligation | Model-level assumptions | Excluded boundary |
 |---|---|---|---|
-| `cubicResidual` | `(z + 1)z(z - 1)` in the base field | none | no Rust/R1CS claim |
-| `cubicResidual_eq_zero_iff_strictNormTwo` | cubic roots equal `centeredMagnitude z < 2` | `BaseFieldNoZeroDivisors` | no row-removal permission |
-| `allCubicResidualsZero_iff_normBoundedTwo` | pointwise cubics equal `normBounded 2` | `BaseFieldNoZeroDivisors` | assignment/Q bridge open |
-| `representedRoots_values` / `representedRoots_nodup` | exact canonical roots are `q-1, 0, 1`, without wrap aliasing | closed Goldilocks numerals | no encoding claim |
-| `embed_cubicResidual` | base residual embeds into concrete `K` arithmetic | concrete algebra definitions | Q placement remains open |
+| `cubicResidual` | `(z + 1)z(z - 1)` in the base field | none | Rust/R1CS realization |
+| `cubicResidual_eq_zero_iff_strictNormTwo` | cubic roots equal `centeredMagnitude z < 2` | `BaseFieldNoZeroDivisors` | constraint removal |
+| `allCubicResidualsZero_iff_normBoundedTwo` | pointwise cubics equal `normBounded 2` | `BaseFieldNoZeroDivisors` | placement in a joint polynomial |
+| `representedRoots_values` / `representedRoots_nodup` | exact canonical roots are `q-1, 0, 1`, without wrap aliasing | closed Goldilocks numerals | field encoding refinement |
+| `embed_cubicResidual` | base residual embeds into concrete `K` arithmetic | concrete algebra definitions | implementation refinement |
 -/
 
 namespace Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.NormRange

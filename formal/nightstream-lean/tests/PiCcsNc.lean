@@ -209,3 +209,33 @@ example
           claimedParentCoefficients producerBeta) :=
   acceptedProjectionIdentity_implies_exact_or_badRoot
     shape radix rawChildren s claimedParentCoefficients producerBeta accepted
+
+example
+    (shape : Shape) (radix : F) (rawChildren : List (List F))
+    (s : List K) (producerBeta : K) :
+    Nightstream.SuperNeo.ProjectionCheck.Accepted projectionOps
+      (projectionIdentity shape radix rawChildren s
+        (rawChildProjectionCoefficients shape radix rawChildren s)
+        producerBeta) :=
+  projectionIdentity_accepted_of_exact shape radix rawChildren s
+    (rawChildProjectionCoefficients shape radix rawChildren s) producerBeta rfl
+
+example
+    (shape : Shape) (radix : F) (rawChildren : List (List F))
+    (producerBeta batchWeight : K) (oldS : List K)
+    (claimedParentCoefficients : List K)
+    (wellShaped : DelayedResidualShape shape oldS rawChildren)
+    (accepted : Nightstream.SuperNeo.ProjectionCheck.Accepted projectionOps
+      (projectionIdentity shape radix rawChildren oldS
+        claimedParentCoefficients producerBeta)) :
+    delayedResidualCubeSum shape radix rawChildren
+        producerBeta batchWeight oldS =
+      K.mul batchWeight
+        (Nightstream.SuperNeo.ProjectionCheck.eval projectionOps
+          claimedParentCoefficients producerBeta) ∨
+      Nightstream.SuperNeo.ProjectionCheck.BadRoot projectionOps
+        (projectionIdentity shape radix rawChildren oldS
+          claimedParentCoefficients producerBeta) :=
+  acceptedProjectionIdentity_implies_cubeSum_eq_claimed_or_badRoot
+    shape radix rawChildren producerBeta batchWeight oldS
+      claimedParentCoefficients wellShaped accepted

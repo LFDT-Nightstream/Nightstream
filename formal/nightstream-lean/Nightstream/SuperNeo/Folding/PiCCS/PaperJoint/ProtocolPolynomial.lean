@@ -1,4 +1,4 @@
-import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.CCSResidualTable
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ProtocolVerifier.Types
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.SumCheckInitial
 
 /-!
@@ -10,10 +10,11 @@ Constraint family: semantic polynomial ownership only; this file emits no rows.
 
 Owns: explicit matrix-image, assignment, and carried-image multilinear tables;
 the nonlinear paper expressions `F`, `NC`, `Eval`, and `Q` evaluated after
-those multilinear images; the prover's typed output-evaluation message; the
-verifier terminal derived from that message; Boolean-cube agreement with the
-independent signed residual object; and a deterministic checker theorem that
-exposes output-message mismatch instead of assuming it away.
+those multilinear images; projection to the minimal verifier-visible input;
+the verifier terminal derived from that input and the typed output message;
+Boolean-cube agreement with the independent signed residual object; and a
+deterministic checker theorem that exposes output-message mismatch instead of
+assuming it away.
 
 Does not own: construction of these image tables from concrete CCS matrices
 and witnesses, ring coefficient recomposition, output CE serialization,
@@ -24,14 +25,15 @@ Emits constraints: no.
 
 Authority boundary: residual-table interpolation is not used as the off-cube
 paper polynomial. `qAtPoint` first evaluates each underlying multilinear image
-and then applies the nonlinear CCS/norm formulas, exactly in paper order. The
-verifier terminal is computed from `OutputMessage`; if that message does not
-match the semantic polynomial at the derived point, the main theorem returns
-`OutputMismatch` as a named unresolved event.
+and then applies the nonlinear CCS/norm formulas, exactly in paper order.
+Executable `check` receives only `VerifierInput`, never the hidden tables in
+`Data`. If the raw output message does not match the semantic polynomial at the
+derived point, the main theorem returns `OutputMismatch` as a named event.
 
 | Protocol | Phase | Family | Mathematical owner |
 |---|---|---|---|
 | `Pi_CCS` | source images | matrix / assignment / carried tables | `Data` |
+| `Pi_CCS` | verifier input | polynomial / prior point / public claims | `Data.toVerifierInput` |
 | `Pi_CCS` | nonlinear point evaluation | `F`, `NC`, `Eval`, `Q` | `ccsAtMessage`, `normAtMessage`, `carriedAtMessage`, `terminalFromMessage` |
 | `Pi_CCS` | prover output | values at `r'` only | `OutputMessage` |
 | `Pi_CCS` | honest output | evaluate every source table at `r'` | `messageAt` |
@@ -94,32 +96,34 @@ def toJointData
   carriedImage := data.carriedImages
   claimedCoefficient := data.claimedCoefficient
 
-end Data
-
-/-- The post-SumCheck values sent by the prover at the verifier-derived point.
-There is no point, terminal, alpha, gamma, or challenge field in this message. -/
-structure OutputMessage (Field : Type uField) (shape : Shape) where
-  freshMatrixImage : Fin shape.freshCount -> Fin shape.matrixCount -> Field
-  sourceAssignment : Fin shape.sourceCount -> Field
-  carriedImage : CarriedCoordinate shape -> Field
-
-namespace OutputMessage
-
-/-- Pointwise equality of all three typed value families is equality of the
-complete output message. -/
-@[ext] theorem ext
+/-- Erase every hidden semantic table from the executable verifier surface.
+All retained fields are verifier-owned structure or public claim data. -/
+def toVerifierInput
     {Field : Type uField}
     {shape : Shape}
-    (left right : OutputMessage Field shape)
-    (freshMatrixImage : left.freshMatrixImage = right.freshMatrixImage)
-    (sourceAssignment : left.sourceAssignment = right.sourceAssignment)
-    (carriedImage : left.carriedImage = right.carriedImage) :
-    left = right := by
-  cases left
-  cases right
-  simp_all
+    (data : Data Field shape) : VerifierInput Field shape where
+  constraintPolynomial := data.constraintPolynomial
+  priorPoint := data.priorPoint
+  claimedCoefficient := data.claimedCoefficient
 
-end OutputMessage
+/-- Rich semantic sources with the same three authoritative fields project to
+the same executable input, regardless of every hidden assignment/image table. -/
+theorem toVerifierInput_eq
+    {Field : Type uField}
+    {shape : Shape}
+    (left right : Data Field shape)
+    (constraintPolynomial :
+      left.constraintPolynomial = right.constraintPolynomial)
+    (priorPoint : left.priorPoint = right.priorPoint)
+    (claimedCoefficient :
+      left.claimedCoefficient = right.claimedCoefficient) :
+    left.toVerifierInput = right.toVerifierInput := by
+  apply VerifierInput.ext
+  · exact constraintPolynomial
+  · exact priorPoint
+  · exact claimedCoefficient
+
+end Data
 
 /-- Canonical output values at one typed point, derived from the polynomial
 source tables rather than supplied by a semantic callback. -/
@@ -151,18 +155,53 @@ def vertexMessage
   carriedImage := fun coordinate =>
     (data.carriedImages coordinate).valueAt vertex
 
+namespace VerifierInput
+
+/-- The carried target polynomial is constructed solely from public claimed
+coefficients. -/
+def targetCoefficients
+    {Field : Type uField}
+    {shape : Shape}
+    (input : VerifierInput Field shape) :
+    TargetPolynomial.CarriedTargetCoefficients Field shape where
+  coefficient := input.claimedCoefficient
+
+/-- Verifier-owned initial claim under the corrected absolute exponent
+convention. Hidden semantic tables cannot affect this value. -/
+def initial
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (input : VerifierInput Field shape)
+    (gamma : Field) : Field :=
+  TargetPolynomial.evaluateShifted ops.toOps input.targetCoefficients gamma
+
+end VerifierInput
+
+/-- Projecting rich semantic data does not change the paper-joint initial
+claim used by the existing truth-path theorem. -/
+theorem verifierInput_initial_eq_joint_initial
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (data : Data Field shape)
+    (gamma : Field) :
+    data.toVerifierInput.initial ops gamma =
+      SumCheckInitial.verifierInitial ops (data.toJointData ops) gamma := by
+  rfl
+
 /-- Paper `F(r', gamma)` derived from the fresh output evaluations. -/
 def ccsAtMessage
     {Field : Type uField}
     {shape : Shape}
     (ops : InterpolationOps Field)
-    (data : Data Field shape)
+    (input : VerifierInput Field shape)
     (gamma : Field)
     (message : OutputMessage Field shape) : Field :=
   SignedJointIdentity.sumMap ops
     (canonicalFinIndices shape.freshCount) fun source =>
       SignedJointIdentity.gammaTerm ops gamma source.val <|
-        CCSResidualTable.evaluatePolynomial ops data.constraintPolynomial
+        CCSResidualTable.evaluatePolynomial ops input.constraintPolynomial
           (message.freshMatrixImage source)
 
 /-- Paper `NC(r', gamma)` derived from all output assignment evaluations. -/
@@ -182,11 +221,11 @@ def carriedAtMessage
     {Field : Type uField}
     {shape : Shape}
     (ops : InterpolationOps Field)
-    (data : Data Field shape)
+    (input : VerifierInput Field shape)
     (gamma : Field)
     (point : CubePoint Field shape.cubeVariables)
     (message : OutputMessage Field shape) : Field :=
-  ops.mul (SumCheckTruthPath.pointEquality ops point data.priorPoint) <|
+  ops.mul (SumCheckTruthPath.pointEquality ops point input.priorPoint) <|
     SignedJointIdentity.sumMap ops
       (canonicalCarriedCoordinates shape) fun coordinate =>
         SignedJointIdentity.gammaTerm ops gamma
@@ -198,7 +237,7 @@ def terminalFromMessage
     {Field : Type uField}
     {shape : Shape}
     (ops : InterpolationOps Field)
-    (data : Data Field shape)
+    (input : VerifierInput Field shape)
     (alpha : CubePoint Field shape.cubeVariables)
     (gamma : Field)
     (point : CubePoint Field shape.cubeVariables)
@@ -206,11 +245,11 @@ def terminalFromMessage
   ops.add
     (ops.mul (SumCheckTruthPath.pointEquality ops point alpha)
       (ops.add
-        (ccsAtMessage ops data gamma message)
+        (ccsAtMessage ops input gamma message)
         (SignedJointIdentity.gammaTerm ops gamma shape.freshCount
           (normAtMessage ops gamma message))))
     (SignedJointIdentity.gammaTerm ops gamma shape.carriedEvaluationOffset
-      (carriedAtMessage ops data gamma point message))
+      (carriedAtMessage ops input gamma point message))
 
 /-- The actual paper polynomial at an arbitrary field point. Underlying image
 tables are evaluated first and nonlinear formulas are applied second. -/
@@ -222,7 +261,8 @@ def qAtPoint
     (alpha : CubePoint Field shape.cubeVariables)
     (gamma : Field)
     (point : CubePoint Field shape.cubeVariables) : Field :=
-  terminalFromMessage ops data alpha gamma point (messageAt ops data point)
+  terminalFromMessage ops data.toVerifierInput alpha gamma point
+    (messageAt ops data point)
 
 /-- Total coordinate-list form of the actual paper polynomial. Wrong arity
 fails closed rather than selecting an arbitrary point representation. -/
@@ -272,12 +312,12 @@ theorem terminalFromVertexMessage_eq_tableQ
     (alpha : CubePoint Field shape.cubeVariables)
     (gamma : Field)
     (vertex : BooleanVertex shape.cubeVariables) :
-    terminalFromMessage ops data alpha gamma
+    terminalFromMessage ops data.toVerifierInput alpha gamma
         (SumCheckTruthPath.VertexEncoding.toCubePoint ops vertex)
         (vertexMessage data vertex) =
       SignedJointIdentity.qAt ops (data.toJointData ops) alpha gamma vertex := by
   simp only [terminalFromMessage, ccsAtMessage, normAtMessage,
-    carriedAtMessage, vertexMessage, Data.toJointData,
+    carriedAtMessage, vertexMessage, Data.toVerifierInput, Data.toJointData,
     SignedJointIdentity.qAt, SignedJointIdentity.ccsAt,
     SignedJointIdentity.normAt, SignedJointIdentity.carriedAt,
     BooleanTable.valueAt_tabulate,
@@ -405,7 +445,7 @@ def OutputMismatch
     (gamma : Field)
     (point : CubePoint Field shape.cubeVariables)
     (message : OutputMessage Field shape) : Prop :=
-  terminalFromMessage ops data alpha gamma point message ≠
+  terminalFromMessage ops data.toVerifierInput alpha gamma point message ≠
     qAtPoint ops data alpha gamma point
 
 /-- Executable finite verifier with the initial target derived from public
@@ -415,17 +455,16 @@ def check
     [DecidableEq Field]
     {shape : Shape}
     (ops : InterpolationOps Field)
-    (data : Data Field shape)
+    (input : VerifierInput Field shape)
     (alpha : CubePoint Field shape.cubeVariables)
     (gamma : Field)
-    (maxDegree : Nat)
     (roundPoint : CubePoint Field shape.cubeVariables)
     (message : OutputMessage Field shape)
     (certificate : SumCheck.Finite.Certificate Field) : Bool :=
-  SumCheck.Finite.check ops.toOps maxDegree
-    (SumCheckInitial.verifierInitial ops (data.toJointData ops) gamma)
+  SumCheck.Finite.check ops.toOps input.sumcheckDegreeBound
+    (input.initial ops gamma)
     roundPoint.coordinates
-    (terminalFromMessage ops data alpha gamma roundPoint message)
+    (terminalFromMessage ops input alpha gamma roundPoint message)
     certificate
 
 /-- Exact executable/logical correspondence for the message-terminal checker. -/
@@ -434,23 +473,23 @@ theorem check_eq_true_iff_accepted
     [DecidableEq Field]
     {shape : Shape}
     (ops : InterpolationOps Field)
-    (data : Data Field shape)
+    (input : VerifierInput Field shape)
     (alpha : CubePoint Field shape.cubeVariables)
     (gamma : Field)
-    (maxDegree : Nat)
     (roundPoint : CubePoint Field shape.cubeVariables)
     (message : OutputMessage Field shape)
     (certificate : SumCheck.Finite.Certificate Field) :
-    check ops data alpha gamma maxDegree roundPoint message certificate = true <->
-      SumCheck.Finite.Accepted ops.toOps maxDegree
-        (SumCheckInitial.verifierInitial ops (data.toJointData ops) gamma)
+    check ops input alpha gamma roundPoint message certificate = true <->
+      SumCheck.Finite.Accepted ops.toOps input.sumcheckDegreeBound
+        (input.initial ops gamma)
         roundPoint.coordinates
-        (terminalFromMessage ops data alpha gamma roundPoint message)
+        (terminalFromMessage ops input alpha gamma roundPoint message)
         certificate := by
-  exact SumCheck.Finite.check_eq_true_iff_accepted ops.toOps maxDegree
-    (SumCheckInitial.verifierInitial ops (data.toJointData ops) gamma)
+  exact SumCheck.Finite.check_eq_true_iff_accepted ops.toOps
+    input.sumcheckDegreeBound
+    (input.initial ops gamma)
     roundPoint.coordinates
-    (terminalFromMessage ops data alpha gamma roundPoint message)
+    (terminalFromMessage ops input alpha gamma roundPoint message)
     certificate
 
 /-- Deterministic soundness boundary for the actual protocol polynomial.
@@ -469,11 +508,11 @@ theorem check_implies_tableTruth_or_badEvent
     (data : Data Field shape)
     (alpha : CubePoint Field shape.cubeVariables)
     (gamma : Field)
-    (maxDegree challengeSetSize : Nat)
+    (challengeSetSize : Nat)
     (roundPoint : CubePoint Field shape.cubeVariables)
     (message : OutputMessage Field shape)
     (certificate : SumCheck.Finite.Certificate Field)
-    (checked : check ops data alpha gamma maxDegree roundPoint message
+    (checked : check ops data.toVerifierInput alpha gamma roundPoint message
       certificate = true) :
     (TableResidualData.toTableObligations ops
         (SignedCoefficientObject.toTableResidualData ops
@@ -483,45 +522,47 @@ theorem check_implies_tableTruth_or_badEvent
       (exists round,
         SumCheck.BadChallenge
           (SumCheckInitial.symbolicInstance ops (data.toJointData ops)
-            alpha gamma maxDegree challengeSetSize roundPoint.coordinates
-            (terminalFromMessage ops data alpha gamma roundPoint message)
+            alpha gamma data.toVerifierInput.sumcheckDegreeBound
+            challengeSetSize roundPoint.coordinates
+            (terminalFromMessage ops data.toVerifierInput alpha gamma roundPoint message)
             certificate
             (canonicalExpected ops data alpha gamma roundPoint.coordinates))
           round) \/
       OutputMismatch ops data alpha gamma roundPoint message := by
   by_cases outputMatches :
-      terminalFromMessage ops data alpha gamma roundPoint message =
+      terminalFromMessage ops data.toVerifierInput alpha gamma roundPoint message =
         qAtPoint ops data alpha gamma roundPoint
   · have accepted :=
-      (check_eq_true_iff_accepted ops data alpha gamma maxDegree roundPoint
+      (check_eq_true_iff_accepted ops data.toVerifierInput alpha gamma roundPoint
         message certificate).1 checked
     have sameLength :
         certificate.rounds.length = roundPoint.coordinates.length :=
       SumCheck.Finite.Chain.messages_length_eq_challenges_length ops.toOps
-        maxDegree
-        (SumCheckInitial.verifierInitial ops (data.toJointData ops) gamma)
-        (terminalFromMessage ops data alpha gamma roundPoint message)
+        data.toVerifierInput.sumcheckDegreeBound
+        (data.toVerifierInput.initial ops gamma)
+        (terminalFromMessage ops data.toVerifierInput alpha gamma roundPoint message)
         certificate.rounds roundPoint.coordinates accepted
     have honestAtPolynomial := canonicalGhosts_honest ops laws data alpha gamma
-      maxDegree challengeSetSize
+      data.toVerifierInput.sumcheckDegreeBound challengeSetSize
       (SumCheckInitial.verifierInitial ops (data.toJointData ops) gamma)
       roundPoint certificate sameLength
     have honestAtMessage :
         (SumCheckInitial.semanticGhosts ops (data.toJointData ops) alpha gamma
           (canonicalExpected ops data alpha gamma
             roundPoint.coordinates)).Honest
-          ops.toOps maxDegree challengeSetSize
+          ops.toOps data.toVerifierInput.sumcheckDegreeBound challengeSetSize
           (SumCheckInitial.verifierInitial ops (data.toJointData ops) gamma)
           roundPoint.coordinates
-          (terminalFromMessage ops data alpha gamma roundPoint message)
+          (terminalFromMessage ops data.toVerifierInput alpha gamma roundPoint message)
           certificate := by
       simpa only [SumCheckInitial.semanticGhosts, canonicalGhosts,
         outputMatches] using honestAtPolynomial
     have reduced :=
       SumCheckInitial.checked_implies_tableObligations_or_mixingRoot_or_badChallenge
-        ops laws zeroLaws (data.toJointData ops) alpha gamma maxDegree
+        ops laws zeroLaws (data.toJointData ops) alpha gamma
+        data.toVerifierInput.sumcheckDegreeBound
         challengeSetSize roundPoint.coordinates
-        (terminalFromMessage ops data alpha gamma roundPoint message)
+        (terminalFromMessage ops data.toVerifierInput alpha gamma roundPoint message)
         certificate
         (canonicalExpected ops data alpha gamma roundPoint.coordinates)
         checked honestAtMessage

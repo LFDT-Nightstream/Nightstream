@@ -28,6 +28,7 @@ on column order or dot-product arithmetic.
 | `Assignment` | one finite `z` | `Fin columns -> Field` |
 | `BooleanMatrix` | one `M_j` over the Boolean row domain | `BooleanVertex -> Fin columns -> Field` |
 | `matrixVectorAt` | `(M_j z)(x)` | canonical-column fold of `M[x,c] * z[c]` |
+| `matrixVectorAt_zero` | canonical zero assignment | every finite matrix-vector row is zero |
 | `matrixVectorAt_oneHot` | one selected assignment coordinate | exact selected matrix entry times its value |
 -/
 
@@ -60,6 +61,25 @@ def matrixVectorAt
       ops.add accumulated
         (ops.mul (matrix vertex column) (assignment column)))
     ops.zero
+
+/-- Every matrix sends the canonical zero assignment to zero. This theorem
+owns the finite-column fold once, so source-semantics proofs do not need to
+unfold a profile-specific carrier width. -/
+theorem matrixVectorAt_zero
+    {Field : Type uField}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    {variables columns : Nat}
+    (matrix : BooleanMatrix Field variables columns)
+    (vertex : BooleanVertex variables) :
+    matrixVectorAt ops matrix (fun _ => ops.zero) vertex = ops.zero := by
+  unfold matrixVectorAt
+  generalize canonicalFinIndices columns = indices
+  induction indices with
+  | nil => rfl
+  | cons _ indices inductionHypothesis =>
+      rw [List.foldl_cons, laws.mul_zero, laws.add_zero]
+      exact inductionHypothesis
 
 /-- Assignment supported at exactly one selected coordinate. -/
 def oneHotAssignment

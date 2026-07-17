@@ -1,0 +1,113 @@
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.CCSResidualTable
+
+/-!
+Verifier-visible carriers for the paper-joint `Pi_CCS` checker.
+
+Protocol: SuperNeo `Pi_CCS` (Section 7.3 / Appendix D.4).
+Phase: public verifier input and raw post-SumCheck output message.
+Constraint family: typed authority boundaries only; this file emits no rows.
+
+Owns: the minimal data available to executable acceptance and the complete
+typed output-evaluation payload supplied by the prover.
+
+Does not own: hidden assignments, matrix-image tables, carried-image tables,
+semantic truth, transcript derivation, degree bounds, Split-NC refinement,
+Poseidon2, Rust/R1CS, row removal, or constraint counts.
+
+Emits constraints: no.
+
+Authority boundary: `VerifierInput` contains only the verifier-owned sparse
+constraint polynomial, the public prior point, and the public carried
+coefficients. `OutputMessage` contains values but no point, challenge,
+terminal, degree, or transcript state.
+
+| Stage path | Carrier | Authority class | Excluded semantic data |
+|---|---|---|---|
+| `nifs.pi_ccs.verify.input` | `VerifierInput` | verifier-owned / public | assignments and image tables |
+| `nifs.pi_ccs.verify.degree` | `VerifierInput.sumcheckDegreeBound` | computed from explicit monomial syntax | declared degree metadata |
+| `nifs.pi_ccs.verify.output` | `OutputMessage` | checked prover payload | point, challenges, terminal, state |
+-/
+
+namespace Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ProtocolPolynomial
+
+universe uField
+
+/-- Exact input surface read by executable paper-joint acceptance. -/
+structure VerifierInput (Field : Type uField) (shape : Shape) where
+  constraintPolynomial :
+    CCSResidualTable.ConstraintPolynomial Field shape.matrixCount
+  priorPoint : CubePoint Field shape.cubeVariables
+  claimedCoefficient : CarriedCoordinate shape -> Field
+
+namespace VerifierInput
+
+/-- Protocol-selected per-round degree ceiling for strict-`b = 2` paper
+`Pi_CCS`. The CCS branch is computed from the explicit monomial list; the
+equality-gated cubic norm branch contributes four. Declared degree metadata
+cannot inflate verifier acceptance. A later theorem must still prove that the
+actual nonlinear polynomial has this bound. -/
+def sumcheckDegreeBound
+    {Field : Type uField}
+    {shape : Shape}
+    (input : VerifierInput Field shape) : Nat :=
+  Nat.max
+    input.constraintPolynomial.canonicalEqualityGatedDegreeBound 4
+
+/-- Two verifier inputs whose sparse monomial syntax agrees have the same
+degree ceiling even when their declared polynomial metadata differs. -/
+theorem sumcheckDegreeBound_eq_of_terms_eq
+    {Field : Type uField}
+    {shape : Shape}
+    (left right : VerifierInput Field shape)
+    (terms : left.constraintPolynomial.terms =
+      right.constraintPolynomial.terms) :
+    left.sumcheckDegreeBound = right.sumcheckDegreeBound := by
+  unfold sumcheckDegreeBound
+  exact congrArg (fun degree => Nat.max degree 4)
+    (CCSResidualTable.ConstraintPolynomial.canonicalEqualityGatedDegreeBound_eq_of_terms_eq
+        left.constraintPolynomial right.constraintPolynomial terms)
+
+/-- Equality of the three authoritative fields is equality of the complete
+executable verifier input. -/
+@[ext] theorem ext
+    {Field : Type uField}
+    {shape : Shape}
+    (left right : VerifierInput Field shape)
+    (constraintPolynomial :
+      left.constraintPolynomial = right.constraintPolynomial)
+    (priorPoint : left.priorPoint = right.priorPoint)
+    (claimedCoefficient :
+      left.claimedCoefficient = right.claimedCoefficient) :
+    left = right := by
+  cases left
+  cases right
+  simp_all
+
+end VerifierInput
+
+/-- The post-SumCheck values sent by the prover at the verifier-derived point.
+There is no point, terminal, alpha, gamma, challenge, or state field. -/
+structure OutputMessage (Field : Type uField) (shape : Shape) where
+  freshMatrixImage : Fin shape.freshCount -> Fin shape.matrixCount -> Field
+  sourceAssignment : Fin shape.sourceCount -> Field
+  carriedImage : CarriedCoordinate shape -> Field
+
+namespace OutputMessage
+
+/-- Pointwise equality of all three typed value families is equality of the
+complete output message. -/
+@[ext] theorem ext
+    {Field : Type uField}
+    {shape : Shape}
+    (left right : OutputMessage Field shape)
+    (freshMatrixImage : left.freshMatrixImage = right.freshMatrixImage)
+    (sourceAssignment : left.sourceAssignment = right.sourceAssignment)
+    (carriedImage : left.carriedImage = right.carriedImage) :
+    left = right := by
+  cases left
+  cases right
+  simp_all
+
+end OutputMessage
+
+end Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ProtocolPolynomial

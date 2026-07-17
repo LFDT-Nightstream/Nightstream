@@ -2,6 +2,7 @@ import Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Parameters
 import Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Sources
 import Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Semantics
 import Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Necessity
+import Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier
 
 /-!
 Independent Phi81 SplitNc semantics for SuperNeo `Pi_CCS`.
@@ -12,41 +13,23 @@ fresh completion, carried assignment authority, coefficient matrices, FE
 truth, and NC truth from explicit mathematical sources. It does not accept an
 existing verifier or circuit as the definition of correctness.
 
+Open obligations are recorded in child contract headers and
+`specs/fpr-nifs-bridge.md`; this facade exports no editable diagnostic status
+list because changing such a list cannot discharge an obligation.
+
+Owns: the curated imports and ownership map for independent Phi81 Split-NC
+semantics.
+
+Does not own: Fiat--Shamir execution, Rust/R1CS refinement, cost accounting,
+or row-removal authority.
+
 Emits constraints: no.
 
-| Protocol | Phase | Constraint family | Current result |
-|---|---|---|---|
-| `Pi_CCS` | parameters | row / carrier / candidate NC domains | semantic and arithmetization shapes are separated |
-| `Pi_CCS` | source ownership | matrices / fresh / running | one connected source family; derived completion and coefficient images |
-| `Pi_CCS` | FE semantics | CCS / carried evaluation | exact uncompressed residual equivalence |
-| `Pi_CCS` | NC semantics | full-carrier strict norm | exact uncompressed diagonal-cubic equivalence |
-| `Pi_CCS` | domain necessity | completed-carrier coverage | logical-width cube formally shown insufficient |
-| production refinement | transcript / SumCheck / Rust / R1CS | open | no constraint-removal permission |
+| Child | Stable ownership | Excluded boundary |
+|---|---|---|
+| `Parameters` | semantic shape and row/carrier product domains | protocol acceptance |
+| `Sources` | independent matrices, assignments, and derived coefficient images | verifier messages |
+| `Semantics` | uncompressed FE and full-carrier NC truth | Fiat--Shamir and implementation |
+| `Necessity` | countermodels for obligations that cannot be weakened | production bug claims |
+| `Verifier` | typed public carrier and semantic verifier phases | Rust/R1CS refinement and row removal |
 -/
-
-namespace Nightstream.SuperNeo.Folding.PiCCS.SplitNc
-
-/-- Boundaries that remain open after the independent semantic layer. -/
-inductive OpenBoundary where
-  | productionRowDomain
-  | productionCarrierDecoding
-  | flatNcDomainCoverage
-  | fePolynomialRefinement
-  | feSumCheckSoundness
-  | ncPolynomialRefinement
-  | ncMixingSoundness
-  | ncSumCheckSoundness
-  | transcriptRefinement
-  | outputAuthority
-  | rustRefinement
-  | r1csRefinement
-deriving Repr, DecidableEq
-
-/-- Diagnostic census only. Editing this list cannot discharge a boundary. -/
-def openBoundaries : List OpenBoundary :=
-  [.productionRowDomain, .productionCarrierDecoding, .flatNcDomainCoverage,
-    .fePolynomialRefinement, .feSumCheckSoundness, .ncPolynomialRefinement,
-    .ncMixingSoundness, .ncSumCheckSoundness, .transcriptRefinement,
-    .outputAuthority, .rustRefinement, .r1csRefinement]
-
-end Nightstream.SuperNeo.Folding.PiCCS.SplitNc

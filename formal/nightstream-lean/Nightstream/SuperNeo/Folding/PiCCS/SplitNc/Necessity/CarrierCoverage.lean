@@ -27,6 +27,7 @@ the original logical width is insufficient.
 | Protocol | Phase | Family | Mathematical obligation | Permits row removal? |
 |---|---|---|---|---|
 | coefficient embedding | carrier completion | 54-lane blocks | complete carrier width is not a Boolean-cube cardinality | no |
+| paper `Pi_CCS` | square row/column domain | `ColumnLayout` | the paper's direct square carrier cannot instantiate the production shape | no |
 | SplitNc | candidate domain | logical-width column cube | column count equals only the original power-of-two width | no |
 | SplitNc | candidate domain | six-bit lane cube | all 54 real lanes are covered | no |
 | SplitNc | necessity | first completed tail coordinate | one authoritative coordinate lies outside the column cube | no |
@@ -57,6 +58,20 @@ def logicalWidthCube (variables : Nat) : FlatNcDomain where
 theorem logicalWidthCube_covers_lanes (variables : Nat) :
     ringDegree <= (logicalWidthCube variables).laneCount := by
   simp [ringDegree, logicalWidthCube, FlatNcDomain.laneCount]
+
+/-- The paper's direct square row/column carrier cannot instantiate any
+production `SemanticShape`: a complete Phi81 carrier is never a Boolean-cube
+cardinality. A production proof must therefore refine the independent Section
+7.3 relation through a rectangular arithmetization such as Split-NC, rather
+than pretending the old `ColumnLayout` applies. -/
+theorem no_paperColumnLayout_for_carrier
+    (shape : SemanticShape) :
+    ¬ Nonempty
+      (PaperJoint.UnifiedSources.ColumnLayout
+        shape.rowVariables shape.carrierWidth) := by
+  simpa [SemanticShape.carrierWidth] using
+    PaperJoint.Necessity.DomainSeparation.no_columnLayout_for_completeCarrier
+      shape.logicalWidth shape.rowVariables
 
 /-- When the original logical width is a Boolean-cube cardinality, carrier
 completion strictly adds coordinates. Equality is impossible because every

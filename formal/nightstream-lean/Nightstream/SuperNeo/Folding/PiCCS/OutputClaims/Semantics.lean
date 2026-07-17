@@ -1,5 +1,7 @@
+import Nightstream.SuperNeo.Folding.PiCCS.OutputClaims.Types
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.OutputPoint
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Phi81Evaluation
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.NumericBooleanDomain
 import Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Semantics.Nc
 
 /-!
@@ -9,10 +11,10 @@ Protocol: SuperNeo `Pi_CCS`.
 Phase: source-derived output claims at the verifier-owned row and column points.
 Constraint family: semantic authority only; this file emits no constraints.
 
-Owns: one typed claimed `yRing`/`yZcol` product; the canonical product derived
-from `SplitNc.Sources.Data`; separate fresh and running constructions; fresh
-logical-width zero completion; and model-level canonical completeness and
-uniqueness.
+Owns: the canonical claim product derived from `SplitNc.Sources.Data`;
+separate fresh and running constructions; fresh logical-width zero
+completion; source-binding predicates; and model-level canonical completeness
+and uniqueness.
 
 Does not own: `PiCCS.Accepted`, either SumCheck verifier, proof that `rPrime` or
 `sPrime` came from a transcript, `ProtocolPolynomial.OutputMessage`, production
@@ -42,6 +44,7 @@ active output coefficient and an independent SplitNC column projection.
 | running source | carrier | complete assignment | preserve every carrier coordinate verbatim |
 | assurance | `yRing` branch | source binding | `YRingBoundToSources` names the CE/extraction-owned obligation independently |
 | assurance | `yZcol` branch | source binding | `YZcolBoundToSources` names the SplitNC-sidecar obligation independently |
+| assurance | point separation | `yRing` / `yZcol` transport | `yRing` ignores `sPrime`; `yZcol` ignores `rPrime` |
 | assurance | canonical construction | completeness | `canonicalClaims` satisfies every source-bound output equation |
 | assurance | canonical construction | uniqueness | any source-bound claims equal `canonicalClaims` extensionally |
 -/
@@ -52,40 +55,6 @@ open Nightstream.SuperNeo.Concrete
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open Nightstream.SuperNeo.Folding.PiCCS.SplitNc
-
-/-- The two output points supplied by verifier conclusions. They remain
-explicit inputs to canonical construction and are never accepted from a claim. -/
-structure VerifierPoints
-    (shape : SemanticShape) (domain : FlatNcDomain) where
-  rPrime : CubePoint K shape.rowVariables
-  sPrime : CubePoint K domain.columnVariables
-
-/-- Complete active output-claim product in canonical source order: fresh
-sources first, then running sources. `Claims` itself asserts no correctness. -/
-structure Claims (shape : SemanticShape) where
-  yRing : Fin shape.sourceCount -> Fin shape.matrixCount ->
-    Fin ringDegree -> K
-  yZcol : Fin shape.sourceCount -> Fin ringDegree -> K
-
-/-- Two claim products are equal when every active output coordinate is equal. -/
-@[ext] theorem Claims.ext
-    {shape : SemanticShape}
-    (left right : Claims shape)
-    (yRing : forall source matrix lane,
-      left.yRing source matrix lane = right.yRing source matrix lane)
-    (yZcol : forall source lane,
-      left.yZcol source lane = right.yZcol source lane) :
-    left = right := by
-  cases left with
-  | mk leftYRing leftYZcol =>
-      cases right with
-      | mk rightYRing rightYZcol =>
-          simp only [Claims.mk.injEq]
-          constructor
-          · funext source matrix lane
-            exact yRing source matrix lane
-          · funext source lane
-            exact yZcol source lane
 
 /-! ## Row-point `yRing` semantics -/
 
@@ -205,15 +174,8 @@ def columnWeight
     {domain : FlatNcDomain}
     (sPrime : CubePoint K domain.columnVariables)
     (column : Fin domain.columnCount) : K :=
-  (canonicalFinIndices domain.columnVariables).foldl
-    (fun accumulated bit =>
-      let coordinate := sPrime.coordinates.getD bit.val K.zero
-      let factor := if Nat.testBit column.val bit.val then
-        coordinate
-      else
-        K.sub K.one coordinate
-      K.mul accumulated factor)
-    K.one
+  PaperJoint.NumericBooleanDomain.testBitWeight
+    ConcreteCarrier.extensionOps sPrime column
 
 /-- One full-carrier contribution to an active `yZcol` lane. The diagonal is
 the independently defined SplitNC table, not a prover-carried sidecar. -/
@@ -374,6 +336,57 @@ def YZcolBoundToSources
   forall source lane,
     claims.yZcol source lane =
       canonicalYZcol covers data points source lane
+
+/-- The CE-owned `yRing` authority predicate depends only on the row point.
+Changing the independently derived NC column point cannot change it. -/
+theorem yRingBoundToSources_iff_of_rPrime_eq
+    {shape : SemanticShape}
+    {domain : FlatNcDomain}
+    (data : SplitNc.Sources.Data shape)
+    (left right : VerifierPoints shape domain)
+    (claims : Claims shape)
+    (rPrime_eq : left.rPrime = right.rPrime) :
+    YRingBoundToSources data left claims <->
+      YRingBoundToSources data right claims := by
+  have canonical_eq : forall source matrix lane,
+      canonicalYRing data left source matrix lane =
+        canonicalYRing data right source matrix lane := by
+    intro source matrix lane
+    change
+      yRingForAssignment data (data.assignment source) left.rPrime matrix lane =
+        yRingForAssignment data (data.assignment source) right.rPrime matrix lane
+    rw [rPrime_eq]
+  constructor
+  · intro bound source matrix lane
+    exact (bound source matrix lane).trans (canonical_eq source matrix lane)
+  · intro bound source matrix lane
+    exact (bound source matrix lane).trans (canonical_eq source matrix lane).symm
+
+/-- The delayed-NC `yZcol` authority predicate depends only on the column
+point. Changing the independently derived FE row point cannot change it. -/
+theorem yZcolBoundToSources_iff_of_sPrime_eq
+    {shape : SemanticShape}
+    {domain : FlatNcDomain}
+    (covers : domain.Covers shape)
+    (data : SplitNc.Sources.Data shape)
+    (left right : VerifierPoints shape domain)
+    (claims : Claims shape)
+    (sPrime_eq : left.sPrime = right.sPrime) :
+    YZcolBoundToSources covers data left claims <->
+      YZcolBoundToSources covers data right claims := by
+  have canonical_eq : forall source lane,
+      canonicalYZcol covers data left source lane =
+        canonicalYZcol covers data right source lane := by
+    intro source lane
+    change
+      yZcolForAssignment covers (data.assignment source) left.sPrime lane =
+        yZcolForAssignment covers (data.assignment source) right.sPrime lane
+    rw [sPrime_eq]
+  constructor
+  · intro bound source lane
+    exact (bound source lane).trans (canonical_eq source lane)
+  · intro bound source lane
+    exact (bound source lane).trans (canonical_eq source lane).symm
 
 /-- Independent semantic authority contract for a claimed product. This is a
 predicate to be established by a future verifier refinement, not acceptance. -/

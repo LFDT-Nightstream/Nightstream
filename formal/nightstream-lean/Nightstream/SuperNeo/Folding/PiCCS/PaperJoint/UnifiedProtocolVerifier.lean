@@ -28,6 +28,8 @@ Authority boundary: the theorem accepts one `UnifiedInputs`, verifier context,
 round/output certificate, and explicit algebraic laws. It does not accept a
 semantic-truth premise, protocol image tables, residual tables, `JointData`,
 challenge vector, terminal, outgoing transcript state, or refinement equality.
+Executable acceptance sees only the derived `VerifierInput`; the richer
+protocol data remains confined to this semantic reduction theorem.
 
 | Protocol | Phase | Family | Result |
 |---|---|---|---|
@@ -44,7 +46,7 @@ open Nightstream.SuperNeo.Concrete
 open Nightstream.SuperNeo.SumCheck
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
 
-universe uContext uExtension uState
+universe uExtension uState
 
 /-- Deterministic semantic soundness for the actual transcript-bound
 paper-polynomial verifier over the one authoritative `K+k` source family.
@@ -53,14 +55,13 @@ This is a model-level theorem. The three bad-event branches remain explicit;
 turning them into a cryptographic soundness probability requires separate
 degree/cardinality and concrete-transcript theorems. -/
 theorem check_implies_semanticTruth_or_badEvent
-    {Context : Type uContext}
     {Extension : Type uExtension}
     {State : Type uState}
     [DecidableEq Extension]
     {shape : Shape}
     {columns : Nat}
-    (oracle : ProtocolVerifier.Oracle Context Extension State shape)
-    (context : Context)
+    (oracle : ProtocolVerifier.Oracle Extension State shape)
+    (priorState : State)
     (baseOps : InterpolationOps F)
     (baseZero : NormResidualTable.BaseZeroAgreement baseOps)
     (noZeroDivisors : NormRange.BaseFieldNoZeroDivisors)
@@ -71,14 +72,15 @@ theorem check_implies_semanticTruth_or_badEvent
     (liftLaws : ProtocolDataRefinement.ProtocolLift
       baseOps extensionOps lift)
     (data : UnifiedSources.UnifiedInputs Extension shape columns)
-    (maxDegree challengeSetSize : Nat)
+    (challengeSetSize : Nat)
     (certificate : ProtocolVerifier.Certificate Extension shape)
-    (checked : ProtocolVerifier.check oracle context extensionOps
-      (ProtocolDataRefinement.toProtocolData baseOps lift data)
-      maxDegree certificate = true) :
+    (checked : ProtocolVerifier.check oracle priorState extensionOps
+      (ProtocolDataRefinement.toProtocolData baseOps lift data).toVerifierInput
+      certificate = true) :
     let protocolData :=
       ProtocolDataRefinement.toProtocolData baseOps lift data
-    let execution := ProtocolVerifier.derive oracle context certificate
+    let execution := ProtocolVerifier.derive oracle priorState
+      protocolData.toVerifierInput certificate
     data.SemanticTruth baseOps extensionOps lift \/
       SignedCoefficientObject.MixingRoot extensionOps
         (protocolData.toJointData extensionOps)
@@ -87,9 +89,11 @@ theorem check_implies_semanticTruth_or_badEvent
         SumCheck.BadChallenge
           (SumCheckInitial.symbolicInstance extensionOps
             (protocolData.toJointData extensionOps)
-            execution.coins.alpha execution.coins.gamma maxDegree
+            execution.coins.alpha execution.coins.gamma
+            protocolData.toVerifierInput.sumcheckDegreeBound
             challengeSetSize execution.coins.roundPoint.coordinates
-            (ProtocolPolynomial.terminalFromMessage extensionOps protocolData
+            (ProtocolPolynomial.terminalFromMessage extensionOps
+              protocolData.toVerifierInput
               execution.coins.alpha execution.coins.gamma
               execution.coins.roundPoint certificate.output)
             certificate.toFinite
@@ -103,8 +107,8 @@ theorem check_implies_semanticTruth_or_badEvent
   let protocolData :=
     ProtocolDataRefinement.toProtocolData baseOps lift data
   rcases ProtocolVerifier.check_implies_tableTruth_or_badEvent
-      oracle context extensionOps extensionLaws extensionZeroLaws
-      protocolData maxDegree challengeSetSize certificate checked with
+      oracle priorState extensionOps extensionLaws extensionZeroLaws
+      protocolData challengeSetSize certificate checked with
     tableTruth | badEvent
   · apply Or.inl
     have independentTableTruth :

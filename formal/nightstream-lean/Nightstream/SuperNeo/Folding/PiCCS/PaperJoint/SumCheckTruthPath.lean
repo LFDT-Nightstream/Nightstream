@@ -1,4 +1,5 @@
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.SignedJointIdentity
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.BooleanReproduction
 import Nightstream.SuperNeo.SumCheck.HypercubeTruth
 
 /-!
@@ -44,34 +45,28 @@ open Nightstream.SuperNeo.SumCheck
 
 namespace VertexEncoding
 
-/-- Canonical field-coordinate serialization of a typed Boolean vertex. -/
-def fieldCoordinates
+/-- Compatibility name for the neutral canonical Boolean point encoding. -/
+abbrev fieldCoordinates
     {Field : Type uField}
     (ops : InterpolationOps Field) :
     {variables : Nat} -> BooleanVertex variables -> List Field
-  | 0, .nil => []
-  | _ + 1, .cons false tail => ops.zero :: fieldCoordinates ops tail
-  | _ + 1, .cons true tail => ops.one :: fieldCoordinates ops tail
+  := BooleanVertex.fieldCoordinates ops
 
 theorem fieldCoordinates_length
     {Field : Type uField}
     (ops : InterpolationOps Field)
     {variables : Nat}
     (vertex : BooleanVertex variables) :
-    (fieldCoordinates ops vertex).length = variables := by
-  induction vertex with
-  | nil => rfl
-  | cons coordinate tail inductionHypothesis =>
-      cases coordinate <;> simp [fieldCoordinates, inductionHypothesis]
+    (fieldCoordinates ops vertex).length = variables :=
+  BooleanVertex.fieldCoordinates_length ops vertex
 
-/-- The same serialization as a dimension-checked field point. -/
-def toCubePoint
+/-- Compatibility name for the neutral dimension-checked field point. -/
+abbrev toCubePoint
     {Field : Type uField}
     (ops : InterpolationOps Field)
     {variables : Nat}
-    (vertex : BooleanVertex variables) : CubePoint Field variables where
-  coordinates := fieldCoordinates ops vertex
-  dimension := fieldCoordinates_length ops vertex
+    (vertex : BooleanVertex variables) : CubePoint Field variables :=
+  BooleanVertex.toCubePoint ops vertex
 
 end VertexEncoding
 
@@ -186,10 +181,12 @@ theorem evaluateCoordinates_fieldCoordinates_eq_valueAt
       | cons coordinate tail =>
           cases coordinate
           · simp only [VertexEncoding.fieldCoordinates,
+              BooleanVertex.fieldCoordinates,
               BooleanTable.evaluateCoordinates, BooleanTable.valueAt]
             rw [zero_mul ops laws, laws.add_zero,
               lowInduction tail]
           · simp only [VertexEncoding.fieldCoordinates,
+              BooleanVertex.fieldCoordinates,
               BooleanTable.evaluateCoordinates, BooleanTable.valueAt]
             rw [laws.one_mul, add_sub_self_right ops laws,
               highInduction tail]
@@ -239,13 +236,17 @@ theorem pointEquality_toCubePoint_eq_equalityWeight
               inductionHypothesis rights tailDimension
           cases coordinate
           · simp only [pointEquality, VertexEncoding.toCubePoint,
-              VertexEncoding.fieldCoordinates, pointEqualityCoordinates,
+              BooleanVertex.toCubePoint_coordinates,
+              BooleanVertex.fieldCoordinates,
+              pointEqualityCoordinates,
               BooleanVertex.equalityWeight,
               BooleanVertex.equalityWeightCoordinates,
               equalityFactor_zero ops laws]
             rw [tailEquality]
           · simp only [pointEquality, VertexEncoding.toCubePoint,
-              VertexEncoding.fieldCoordinates, pointEqualityCoordinates,
+              BooleanVertex.toCubePoint_coordinates,
+              BooleanVertex.fieldCoordinates,
+              pointEqualityCoordinates,
               BooleanVertex.equalityWeight,
               BooleanVertex.equalityWeightCoordinates,
               equalityFactor_one ops laws]

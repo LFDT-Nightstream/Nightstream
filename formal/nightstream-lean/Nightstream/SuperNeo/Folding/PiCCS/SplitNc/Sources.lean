@@ -1,5 +1,5 @@
 import Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Parameters
-import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ConcreteCarrier
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ConcreteCarrier.Algebra
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Phi81MatrixSource
 
 /-!
@@ -15,16 +15,19 @@ assignments, canonical fresh zero extension, the sole derived Phi81 matrix
 source, canonical source injections, and exact finite list materializations
 used only by later implementation refinement.
 
-Does not own: commitments, public-input projection, FE/NC polynomial mixing,
+Does not own: protocol-level carrier/norm refinement, unified verifier
+composition, commitments, public-input projection, FE/NC polynomial mixing,
 SumCheck, transcript challenges, Rust witness decoding, R1CS, or constraint
 counts.
 
 Emits constraints: no.
 
-Authority boundary: callers provide each mathematical source once. Fresh
-carrier suffixes and all coefficient-expanded matrices are definitions.
-Running assignments retain every complete-carrier coordinate; no projection
-to the original CCS width is treated as authority.
+Authority boundary: callers provide each mathematical source once. This
+module imports only the concrete carrier algebra required to derive matrix
+coefficients; it does not depend on the protocol verifier. Fresh carrier
+suffixes and all coefficient-expanded matrices are definitions. Running
+assignments retain every complete-carrier coordinate; no projection to the
+original CCS width is treated as authority.
 
 | Protocol | Phase | Family | Mathematical obligation |
 |---|---|---|---|
@@ -33,6 +36,7 @@ to the original CCS width is treated as authority.
 | `Pi_CCS` | running sources | complete assignment | every carrier coordinate remains authoritative |
 | FE | source views | CCS / carried evaluation | both views derive from this one `Data` value |
 | NC refinement | serialization | typed assignments / lists | canonical `Fin` order is exact and proved |
+| imported algebra | matrix derivation | concrete base operations | `ConcreteCarrier.Algebra`, no verifier dependency |
 -/
 
 namespace Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Sources

@@ -8,10 +8,10 @@ Phase: original CCS width to exact `n_F = 54 * n_R` carrier completion.
 Constraint family: logical column / complete ring block / carried tail lane.
 
 Owns: the distinction between the original CCS column width and the complete
-Phi81 coefficient-carrier width; zero extension of fresh assignments and
-matrices; exact preservation of every original column; and recognition that
-all completed carrier columns are real coordinates, even when they began as a
-fresh zero-extension suffix.
+Phi81 coefficient-carrier width; the sole typed block/lane-to-carrier map;
+zero extension of fresh assignments and matrices; exact preservation of every
+original column; and recognition that all completed carrier columns are real
+coordinates, even when they began as a fresh zero-extension suffix.
 
 Does not own: the bar transform, matrix-vector multiplication, proof that Rust
 uses this completion, mixed-accumulator construction, R1CS lowering, row
@@ -33,6 +33,7 @@ it back to `logicalWidth`.
 | fresh CCS | assignment completion | suffix | fresh tail entries are canonical zero |
 | CCS structure | matrix completion | logical prefix / suffix | matrix is preserved then zero-extended |
 | carried CE | carrier domain | all completed coordinates | the 54-lane layout has no absent coordinate |
+| carried CE | carrier indexing | block / lane | `carrierColumn` is total and decodes to the exact source pair |
 -/
 
 namespace Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Phi81CarrierLayout
@@ -187,6 +188,16 @@ theorem flatIndex_lt_carrierWidth
   change block.val * 54 + coefficient.val < blockCount logicalWidth * 54
   omega
 
+/-- The sole typed block/lane-to-carrier map for a completed Phi81
+assignment. Protocol layers should reuse this owner instead of rebuilding the
+same bound from a relation-specific shape. -/
+def carrierColumn
+    {logicalWidth : Nat}
+    (block : Fin (blockCount (carrierWidth logicalWidth)))
+    (coefficient : Fin ringDegree) : Fin (carrierWidth logicalWidth) :=
+  ⟨Phi81ColumnLayout.flatIndex block coefficient,
+    flatIndex_lt_carrierWidth block coefficient⟩
+
 /-- No block/lane coordinate is absent at the completed carrier width. -/
 theorem layout_encode?_isSome
     {logicalWidth : Nat}
@@ -198,5 +209,18 @@ theorem layout_encode?_isSome
   change Phi81ColumnLayout.encode? block coefficient = _
   unfold Phi81ColumnLayout.encode?
   rw [dif_pos (flatIndex_lt_carrierWidth block coefficient)]
+
+/-- Decoding the canonical completed-carrier coordinate recovers its exact
+block/lane pair. -/
+theorem decode_carrierColumn
+    {logicalWidth : Nat}
+    (block : Fin (blockCount (carrierWidth logicalWidth)))
+    (coefficient : Fin ringDegree) :
+    Phi81ColumnLayout.decode (carrierColumn block coefficient) =
+      (block, coefficient) := by
+  apply Phi81ColumnLayout.decode_encode
+  simpa [carrierColumn, layout,
+    MatrixCoefficientSource.RingColumnLayout.encode?] using
+    (layout_encode?_isSome block coefficient)
 
 end Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Phi81CarrierLayout

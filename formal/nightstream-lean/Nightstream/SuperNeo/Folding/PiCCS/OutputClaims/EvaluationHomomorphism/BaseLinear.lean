@@ -69,7 +69,9 @@ theorem diagonal_zero
     SplitNc.Semantics.Nc.diagonal
         (assignmentZero (shape := relationShape shape)) column lane = 0 := by
   by_cases selected : lane.val = column.val % ringDegree
-  · simp [SplitNc.Semantics.Nc.diagonal, assignmentZero, selected]
+  · simp [SplitNc.Semantics.Nc.diagonal, assignmentZero,
+      Phi81Relation.EvaluationHomomorphism.BaseLinear.Raw.assignmentZero,
+      selected]
   · simp [SplitNc.Semantics.Nc.diagonal, selected]
 
 /-- The one-live-lane diagonal is additive in the complete assignment. -/
@@ -82,7 +84,9 @@ theorem diagonal_add
       SplitNc.Semantics.Nc.diagonal left column lane +
         SplitNc.Semantics.Nc.diagonal right column lane := by
   by_cases selected : lane.val = column.val % ringDegree
-  · simp [SplitNc.Semantics.Nc.diagonal, assignmentAdd, selected]
+  · simp [SplitNc.Semantics.Nc.diagonal, assignmentAdd,
+      Phi81Relation.EvaluationHomomorphism.BaseLinear.Raw.assignmentAdd,
+      selected]
   · simp [SplitNc.Semantics.Nc.diagonal, selected]
 
 /-- The one-live-lane diagonal commutes with a base-field scalar. -/
@@ -96,7 +100,9 @@ theorem diagonal_scale
         column lane =
       scalar * SplitNc.Semantics.Nc.diagonal assignment column lane := by
   by_cases selected : lane.val = column.val % ringDegree
-  · simp [SplitNc.Semantics.Nc.diagonal, assignmentScale, selected]
+  · simp [SplitNc.Semantics.Nc.diagonal, assignmentScale,
+      Phi81Relation.EvaluationHomomorphism.BaseLinear.Raw.assignmentScale,
+      selected]
   · simp only [SplitNc.Semantics.Nc.diagonal, selected, ↓reduceIte]
     exact (Fin.mul_zero scalar).symm
 

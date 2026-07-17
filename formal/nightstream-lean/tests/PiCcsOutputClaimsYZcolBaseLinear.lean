@@ -4,7 +4,8 @@ import Nightstream.SuperNeo.Folding.PiCCS.OutputClaims.EvaluationHomomorphism
 Focused kernel regressions for source-derived `yZcol` base-field transport.
 
 Owns: public-surface checks for the projection leaves, the finite-combination
-theorem, and the product-wide production `PiDEC` transport theorem.
+theorem, the product-wide production `PiDEC` transport theorem, and the
+flat-column action counterexample that blocks a false `PiRLC` bridge.
 
 Does not own: a witness for the required source/recomposition equalities,
 acceptance-to-authority refinement, Rust/R1CS conformance, or row removal.
@@ -16,6 +17,7 @@ Emits constraints: no.
 | SplitNC | column projection | zero / add / scale | the independently recomputed leaf theorems remain exported |
 | `Pi_DEC` | base-field combination | every 54-lane sidecar | finite combination is available at arbitrary source shape |
 | `Pi_CCS` product | canonical source transport | every source / lane | transport requires the explicit per-source recomposition premise |
+| `Pi_RLC` handoff | representation necessity | flat assignment versus ring action | the current flat-column projection is not an action homomorphism |
 -/
 
 namespace tests.PiCcsOutputClaimsYZcolBaseLinear
@@ -39,6 +41,7 @@ open Nightstream.SuperNeo.Folding.PiCCS.SplitNc
 #check yZcolEvaluation_piDecRecompose
 #check canonicalYZcol_piDec_transport
 #check canonicalYZcol_product_piDec_transport
+#check EvaluationHomomorphism.Necessity.FlatColumnAction.flatColumnProjection_not_actionHom
 
 /-- The finite-combination theorem is independent of any verifier acceptance
 predicate and covers all 54 lanes extensionally. -/

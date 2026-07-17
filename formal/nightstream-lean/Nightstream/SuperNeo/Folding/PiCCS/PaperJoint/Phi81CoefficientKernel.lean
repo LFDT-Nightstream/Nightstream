@@ -1,5 +1,5 @@
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.MatrixCoefficientSource
-import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ConcreteCarrier
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ConcreteCarrier.Algebra
 
 /-!
 Concrete Phi81 coefficient kernel for the paper matrix embedding.
@@ -14,19 +14,22 @@ assignment basis with the independently defined Phi81 ring multiplication;
 and the constant-term Kronecker law required by Theorem 3.
 
 Does not own: proof that Rust's runtime Gram-matrix inversion returns this
-closed form, production matrix construction or padding, R1CS lowering, row
+closed form, protocol-level `ConcreteCarrier` refinement or verifier
+composition, production matrix construction or padding, R1CS lowering, row
 removal, or constraint counts.
 
 Emits constraints: no.
 
 Authority boundary: the theorem is a finite, kernel-checked algebraic fact
 about `Concrete.ringFMul`; it is not imported from a Rust trace or the old
-circuit. Production assurance still requires a separate refinement from the
-Rust bar matrix and transformed matrix cache to these definitions.
+circuit. It depends only on the low-level concrete carrier algebra. Production
+assurance still requires a separate refinement from the Rust bar matrix and
+transformed matrix cache to these definitions.
 
 | Protocol | Phase | Family | Mathematical obligation |
 |---|---|---|---|
 | coefficient embedding | bar transform | Phi81 basis map | `nativeBarEntry` is the closed-form linear transform |
+| coefficient embedding | bar identity | constant basis | `barBasis constant` is exactly the quotient-ring unit |
 | coefficient embedding | ring action | transformed basis / assignment basis | `phi81Kernel.weight` is an actual `ringFMul` coefficient |
 | coefficient embedding | constant term | basis kernel | `phi81ConstantTermLaw` is the Kronecker identity |
 | `Pi_CCS` | matrix source | all coefficient lanes | `phi81Kernel` instantiates the derived single-`M` model |
@@ -63,6 +66,26 @@ def barBasis (input : Fin ringDegree) : RingF :=
 /-- Canonical constant coefficient of Phi81. -/
 def constant : Fin ringDegree :=
   ⟨0, by decide⟩
+
+/-- The bar transform fixes the constant coefficient basis, which is exactly
+the concrete quotient-ring multiplicative unit. This is the algebraic leaf
+needed by the padded-identity opening; it does not assert that any production
+matrix has the identity role. -/
+theorem barBasis_constant_eq_one :
+    barBasis constant = ringFOne := by
+  funext output
+  by_cases outputZero : output.val = 0
+  · simp [barBasis, nativeBarEntry, constant, ringFOne, ringFMonomial,
+      outputZero]
+  · have outputPositive : 0 < output.val := Nat.pos_of_ne_zero outputZero
+    have outputLt : output.val < ringDegree := output.isLt
+    by_cases outputLow : output.val < ringMiddleDegree
+    · simp only [barBasis, nativeBarEntry, constant, outputZero, if_false,
+        outputLow, if_true, ringFOne, ringFMonomial]
+      rw [if_neg (by omega)]
+    · simp only [barBasis, nativeBarEntry, constant, outputZero, if_false,
+        outputLow, ringFOne, ringFMonomial]
+      rw [if_neg (by omega)]
 
 /-- Exact coefficient kernel of `bar(e_row) * e_assignment` modulo Phi81. -/
 def phi81Kernel : CoefficientKernel F ringDegree where

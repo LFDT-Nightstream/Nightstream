@@ -1,4 +1,5 @@
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 
 /-!
 Concrete CCS residual tables for the paper-level joint `Pi_CCS` model.
@@ -32,7 +33,10 @@ joint polynomial without changing zero is a separate, still-open refinement.
 |---|---|---|---|
 | imported `BooleanVertex` / `BooleanTable.tabulate` | `x in {0,1}^log(m)` | shared recursive low/high order | no CCS-local permutation |
 | imported `PaperLinearAlgebra.matrixVectorAt` | `M_j`, `(M_j z)(x)` | shared finite dot product over assignment columns | no evaluator supplied |
-| `ConstraintPolynomial` / `evaluatePolynomial` | sparse `f` in Definition 11 | finite sum of explicit monomials | arity is typed; degree bound is carried with terms |
+| `ConstraintPolynomial` / `evaluatePolynomial` | sparse `f` in Definition 11 | finite sum of explicit monomials | arity is typed; declared degree metadata is proved sound |
+| `evaluatePolynomial_eq_sumMap` | sparse term traversal | left fold equals the shared finite sum | exact under explicit addition laws |
+| `ConstraintPolynomial.canonicalEqualityGatedDegreeBound` | verifier SumCheck ceiling for `eq * f` | maximum `totalDegree + 1` derived from explicit terms | independent of declared degree metadata |
+| `ConstraintPolynomial.term_totalDegree_succ_le_canonicalEqualityGatedDegreeBound` | one explicit term | its equality-gated degree fits the syntax-derived ceiling | no metadata authority |
 | `residualAt` | `f((M_1z)(x), ..., (M_tz)(x))` | one CCS zero-set residual | exact table leaf |
 | `residualTable` | one CCS alpha table | low branch then high branch | leaves equal canonical residual enumeration |
 | `residualTable_allEntriesZero_iff_constraintSatisfied` | Item 1 of Lemma 7 for one fresh source | all Boolean residuals vanish | unconditional model-level equivalence |
@@ -73,6 +77,83 @@ structure ConstraintPolynomial (Field : Type uField) (matrixCount : Nat) where
   terms : List (Monomial Field matrixCount)
   termsBelowDegree :
     ∀ term, term ∈ terms -> term.totalDegree < degreeBound
+
+namespace ConstraintPolynomial
+
+universe uItem
+
+private theorem initial_le_foldl_max
+    {Item : Type uItem}
+    (value : Item -> Nat)
+    (items : List Item)
+    (initial : Nat) :
+    initial <= items.foldl (fun current item => Nat.max current (value item)) initial := by
+  induction items generalizing initial with
+  | nil => exact Nat.le_refl initial
+  | cons item items inductionHypothesis =>
+      exact Nat.le_trans (Nat.le_max_left initial (value item))
+        (inductionHypothesis (Nat.max initial (value item)))
+
+private theorem value_le_foldl_max_of_mem
+    {Item : Type uItem}
+    (value : Item -> Nat)
+    (items : List Item)
+    (initial : Nat)
+    (item : Item)
+    (member : item ∈ items) :
+    value item <=
+      items.foldl (fun current next => Nat.max current (value next)) initial := by
+  induction items generalizing initial with
+  | nil => simp at member
+  | cons head tail inductionHypothesis =>
+      simp only [List.mem_cons] at member
+      rcases member with rfl | member
+      · exact Nat.le_trans (Nat.le_max_right initial (value item))
+          (initial_le_foldl_max value tail
+            (Nat.max initial (value item)))
+      · exact inductionHypothesis (Nat.max initial (value head)) member
+
+/-- Canonical per-variable SumCheck ceiling for the equality-gated CCS
+branch. A monomial of total degree `d` contributes at most degree `d` in any
+row variable after multilinear matrix images are substituted, and the
+equality selector contributes one more. Empty syntax has degree zero.
+
+This definition deliberately ignores `degreeBound`: that field records the
+paper structure's declared upper bound, but it is not verifier authority. -/
+def canonicalEqualityGatedDegreeBound
+    {Field : Type uField}
+    {matrixCount : Nat}
+    (polynomial : ConstraintPolynomial Field matrixCount) : Nat :=
+  polynomial.terms.foldl
+    (fun current term => Nat.max current (term.totalDegree + 1)) 0
+
+/-- Canonical verifier degree depends only on explicit monomial syntax, not
+on a caller's choice of a larger valid metadata bound. -/
+theorem canonicalEqualityGatedDegreeBound_eq_of_terms_eq
+    {Field : Type uField}
+    {matrixCount : Nat}
+    (left right : ConstraintPolynomial Field matrixCount)
+    (terms : left.terms = right.terms) :
+    left.canonicalEqualityGatedDegreeBound =
+      right.canonicalEqualityGatedDegreeBound := by
+  simp [canonicalEqualityGatedDegreeBound, terms]
+
+/-- Every explicit sparse term fits the canonical equality-gated degree
+ceiling. This theorem depends only on list membership and the term's exponent
+vector; declared degree metadata is not consulted. -/
+theorem term_totalDegree_succ_le_canonicalEqualityGatedDegreeBound
+    {Field : Type uField}
+    {matrixCount : Nat}
+    (polynomial : ConstraintPolynomial Field matrixCount)
+    (term : Monomial Field matrixCount)
+    (member : term ∈ polynomial.terms) :
+    term.totalDegree + 1 <=
+      polynomial.canonicalEqualityGatedDegreeBound := by
+  exact value_le_foldl_max_of_mem
+    (fun current : Monomial Field matrixCount => current.totalDegree + 1)
+    polynomial.terms 0 term member
+
+end ConstraintPolynomial
 
 /-- Paper-level Definition 11 data at the dimensions owned by `Shape`.
 The common structure is shared by every fresh source in one batch. -/
@@ -117,6 +198,38 @@ def evaluatePolynomial
     (fun accumulated monomial =>
       ops.add accumulated (evaluateMonomial ops monomial point))
     ops.zero
+
+private theorem foldl_add_eq_add_finiteSum
+    {Field : Type uField}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    (values : List Field)
+    (initial : Field) :
+    values.foldl ops.add initial =
+      ops.add initial (BooleanTable.finiteSum ops values) := by
+  induction values generalizing initial with
+  | nil => exact (laws.add_zero initial).symm
+  | cons value values inductionHypothesis =>
+      rw [List.foldl_cons, inductionHypothesis]
+      exact laws.add_assoc initial value _
+
+/-- The sparse evaluator's left fold is exactly the shared explicit finite
+sum. This bridge permits degree proofs to construct each term independently
+without changing term order or algebraic meaning. -/
+theorem evaluatePolynomial_eq_sumMap
+    {Field : Type uField}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    {matrixCount : Nat}
+    (polynomial : ConstraintPolynomial Field matrixCount)
+    (point : Fin matrixCount -> Field) :
+    evaluatePolynomial ops polynomial point =
+      FiniteSumAlgebra.sumMap ops polynomial.terms fun monomial =>
+        evaluateMonomial ops monomial point := by
+  unfold evaluatePolynomial FiniteSumAlgebra.sumMap
+  rw [← List.foldl_map]
+  rw [foldl_add_eq_add_finiteSum ops laws]
+  rw [laws.zero_add]
 
 /-- The matrix-image vector `((M_1 z)(x), ..., (M_t z)(x))` at one Boolean
 row. All arithmetic is derived from explicit structure and assignment data. -/

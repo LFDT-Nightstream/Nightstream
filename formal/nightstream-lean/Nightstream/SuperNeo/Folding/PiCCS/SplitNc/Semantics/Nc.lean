@@ -10,8 +10,9 @@ Constraint family: one strict `b = 2` norm obligation per source and complete
 carrier coordinate.
 
 Owns: full-carrier norm truth, canonical materialization equivalence, the
-uncompressed flat-column/lane diagonal table, and exact soundness/completeness
-of its cubic residual family under the minimal no-zero-divisors assumption.
+uncompressed flat-column/lane diagonal table, unconditional completeness of
+its cubic residual family, and soundness under the minimal no-zero-divisors
+assumption.
 
 Does not own: Boolean padding widths, gamma mixing, equality weights, the NC
 SumCheck, transcript challenges, production packed-witness decoding, Rust,
@@ -28,7 +29,8 @@ zero mixed claim is not a replacement for this pointwise obligation.
 |---|---|---|---|
 | `Pi_CCS` | NC semantics | complete carrier | every authoritative coefficient has centered magnitude `< 2` |
 | NC source table | flat column / Phi81 lane | one live lane `column mod 54` | table is derived from the authoritative assignment |
-| NC residualization | cubic roots | `(z+1)z(z-1)=0` | iff full-carrier norm truth, conditional only on no zero divisors |
+| NC residualization | honest completeness | strict norm implies `(z+1)z(z-1)=0` | unconditional |
+| NC residualization | soundness | `(z+1)z(z-1)=0` implies strict norm | no zero divisors |
 | implementation boundary | typed / list serialization | canonical increasing order | exact equivalence, no production decoder claim |
 -/
 
@@ -127,25 +129,52 @@ def ResidualsZero
     NormRange.cubicResidual
       (diagonal (data.assignment source) column lane) = 0
 
+/-- Full-carrier strict norm truth makes every uncompressed diagonal cubic
+vanish. This honest-completeness direction needs no no-zero-divisor premise:
+the three allowed representatives are direct roots of the cubic. -/
+theorem residualsZero_of_truth
+    {shape : SemanticShape}
+    (data : Data shape) :
+    Truth data → ResidualsZero data := by
+  intro truth source column lane
+  by_cases selected : lane.val = column.val % ringDegree
+  · have bounded : centeredMagnitude (data.assignment source column) < 2 :=
+      truth source column
+    rw [diagonal, if_pos selected]
+    rcases (NormRange.strictNormTwo_iff_representedRoot
+      (data.assignment source column)).mp bounded with negative | zero | one
+    · rw [negative]
+      decide
+    · rw [zero]
+      rfl
+    · rw [one]
+      rfl
+  · rw [diagonal, if_neg selected]
+    rfl
+
+/-- If every uncompressed diagonal cubic vanishes, then every authoritative
+carrier coordinate satisfies the strict norm. Only this soundness direction
+uses the no-zero-divisors premise. -/
+theorem truth_of_residualsZero
+    (noZeroDivisors : NormRange.BaseFieldNoZeroDivisors)
+    {shape : SemanticShape}
+    (data : Data shape) :
+    ResidualsZero data → Truth data := by
+  intro residuals source column
+  apply (NormRange.cubicResidual_eq_zero_iff_strictNormTwo
+    noZeroDivisors (data.assignment source column)).mp
+  simpa [diagonal_selectedLane] using
+    residuals source column (selectedLane column)
+
 /-- The uncompressed diagonal cubic family is sound and complete for the
-full-carrier strict norm. -/
+full-carrier strict norm. The premise is required only by the forward
+soundness implication and is not consumed by honest completeness. -/
 theorem residualsZero_iff_truth
     (noZeroDivisors : NormRange.BaseFieldNoZeroDivisors)
     {shape : SemanticShape}
     (data : Data shape) :
     ResidualsZero data <-> Truth data := by
-  constructor
-  · intro residuals source column
-    apply (NormRange.cubicResidual_eq_zero_iff_strictNormTwo
-      noZeroDivisors (data.assignment source column)).mp
-    simpa [diagonal_selectedLane] using
-      residuals source column (selectedLane column)
-  · intro truth source column lane
-    apply (NormRange.cubicResidual_eq_zero_iff_strictNormTwo
-      noZeroDivisors
-      (diagonal (data.assignment source) column lane)).mpr
-    by_cases selected : lane.val = column.val % ringDegree
-    · simpa [diagonal, selected] using truth source column
-    · simp [diagonal, selected, centeredMagnitude, goldilocksModulus]
+  exact ⟨truth_of_residualsZero noZeroDivisors data,
+    residualsZero_of_truth data⟩
 
 end Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Semantics.Nc

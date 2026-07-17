@@ -12,29 +12,31 @@ polynomial messages, deterministic derivation of alpha, gamma, and every
 SumCheck round challenge from public context plus those messages, and an
 explicit residual-table audit checker retained for differential reasoning.
 
-Does not own: the nonlinear off-cube paper polynomial, the prover's output
-evaluation message, absorption of that message into the outgoing transcript,
-a concrete transcript encoding, Poseidon2, domain-tag field values,
-random-oracle or collision security, challenge-distribution bounds,
-root-counting probability, the exact semantic degree theorem, SplitNc, Rust,
-R1CS, or constraint counts.
+Does not own: construction of a complete public statement from `Context`, the
+nonlinear off-cube paper polynomial, the prover's output evaluation message,
+absorption of that message into the outgoing transcript, a concrete transcript
+encoding, Poseidon2, domain-tag field values, random-oracle or collision
+security, challenge-distribution bounds, root-counting probability, the exact
+semantic degree theorem, SplitNc, Rust, R1CS, or constraint counts.
 
 Emits constraints: no.
 
 Authority boundary: `Certificate` has no alpha, gamma, round-challenge,
-terminal, degree, or verifier-parameter field. The verifier initializes from
-`Context`, squeezes alpha and gamma before any prover message, then absorbs
-each finite round message before squeezing that round's challenge. `Oracle`
-is an abstract deterministic interface; a constant or colliding oracle is
-still possible until a concrete Poseidon2 refinement and security assumption
-are supplied. The checker at the bottom of this file deliberately evaluates
-the residual-table MLE and is therefore named `checkResidualTableAudit`; it is
-not the protocol verifier. `ProtocolVerifier` owns the actual nonlinear
-terminal and output-message binding.
+terminal, degree, or verifier-parameter field. This generic machine initializes
+from an abstract `Context`; it does not prove that the context contains the
+statement. `ProtocolVerifier.Statement` is the narrower protocol surface that
+passes the prior state and complete public polynomial input together. The
+machine squeezes alpha and gamma before any prover message, then absorbs each
+finite round message before squeezing that round's challenge. `Oracle` may
+still ignore or collide on any transition. The protocol wrapper names
+whole-replay challenge and final-state collisions; concrete Poseidon2
+refinement and security are still required. The checker at the bottom deliberately evaluates the
+residual-table MLE and is named `checkResidualTableAudit`; it is not the
+protocol verifier.
 
 | Protocol | Phase | Transcript action | Mathematical owner | Lean owner |
 |---|---|---|---|---|
-| `Pi_CCS` | statement | initialize from complete public context | verifier | `Oracle.initialState` |
+| generic transcript | initialization | caller-supplied abstract context | verifier configuration | `Oracle.initialState`; completeness not asserted here |
 | `Pi_CCS` | pre-SumCheck | squeeze one alpha coordinate per cube variable | verifier | `ChallengeLabel.alpha` |
 | `Pi_CCS` | pre-SumCheck | squeeze gamma after all alpha coordinates | verifier | `ChallengeLabel.gamma` |
 | `Pi_CCS` | round message | absorb canonical coefficient message | prover message, verifier transcript | `Oracle.absorbRound` |

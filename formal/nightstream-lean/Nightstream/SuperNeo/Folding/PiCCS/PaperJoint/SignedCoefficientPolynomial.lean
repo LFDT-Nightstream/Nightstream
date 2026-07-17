@@ -1,4 +1,5 @@
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.SignedJointIdentity
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 
 /-!
 Finite signed gamma-coefficient polynomial for paper-level joint `Pi_CCS`.
@@ -29,6 +30,7 @@ Rust trace, or existing circuit enters the theorem.
 | `Pi_CCS` | gamma serialization | norm | `K .. 2K+k-1`, negative alpha-specialized norm residuals |
 | `Pi_CCS` | gamma serialization | carried | `2K+k .. 2K+k+ktd-1`, claimed minus derived evaluations |
 | `Pi_CCS` | executable evaluation | all blocks | Horner evaluation equals `T_abs - sum_x Q` for every `alpha,gamma` |
+| shared | canonical indexed evaluation | canonical `Fin n` coefficients evaluate as `sum_i gamma^i c_i` | `evaluate_canonicalFinMap_eq_gammaSum` |
 -/
 
 namespace Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.SignedCoefficientPolynomial
@@ -344,6 +346,26 @@ private theorem canonicalFinPositions (count : Nat) :
       List.range' 0 (canonicalFinIndices count).length := by
   simpa [List.range_eq_range', canonicalFinIndices_length] using
     canonicalFinIndices_values count
+
+/-- A constant-first coefficient list in canonical `Fin count` order is
+exactly the explicit paper-relative gamma sum. This shared theorem makes the
+coefficient polynomial visible to split-protocol soundness proofs. -/
+theorem evaluate_canonicalFinMap_eq_gammaSum
+    {Field : Type uField}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    (gamma : Field)
+    (count : Nat)
+    (value : Fin count → Field) :
+    SumCheck.Finite.Message.evaluateCoefficients ops.toOps gamma
+        ((canonicalFinIndices count).map value) =
+      FiniteSumAlgebra.sumMap ops
+        (canonicalFinIndices count) fun index =>
+          SignedJointIdentity.gammaTerm ops gamma index.val (value index) := by
+  unfold FiniteSumAlgebra.sumMap
+  exact evaluate_map_eq_indexed ops laws gamma
+    (canonicalFinIndices count) (fun index => index.val) value
+    (canonicalFinPositions count)
 
 private theorem canonicalCarriedPositions (shape : Shape) :
     (canonicalCarriedCoordinates shape).map

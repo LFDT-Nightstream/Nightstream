@@ -9,6 +9,19 @@ product, and the two joint FE/NC SumCheck transcripts used by the implementation
 The independent truth paths establish the two mixed-polynomial SumCheck
 claims.  Recovering every unmixed payload and fresh-norm obligation additionally
 excludes a compression root at the verifier's FE/NC mixing challenges.
+
+| Stage path | Mathematical obligation | Authority class | Local owner |
+|---|---|---|---|
+| `nifs.pi_ccs.input` | preserve the exact fresh/running product and its canonical source order | direct dataflow | `InputProduct`, `InputProduct.source` |
+| `nifs.pi_ccs.attempt` | carry one FE chain, one NC chain, and the complete CE output product | checked payload | `Attempt` |
+| `nifs.pi_ccs.shape` | preserve public source fields and one shared output point | checked | `Shape` |
+| `nifs.pi_ccs.verify` | accept exactly the shape and both abstract SumCheck chains | checked | `Accepted` |
+| `nifs.pi_ccs.semantic` | state independent payload, norm, and ambient-output truth | independent specification | `PayloadsHold`, `NormsHold`, `AmbientOutputsHold` |
+| `nifs.pi_ccs.arithmetization` | connect unmixed semantic truth to the two mixed claims | semantic bridge | `Arithmetization` |
+| `nifs.pi_ccs.bad_event` | expose round collisions and FE/NC compression roots explicitly | security boundary | `BadChallenge`, `FeMixingBad`, `NcMixingBad`, `BadEvent` |
+| `nifs.pi_ccs.completeness` | construct accepted output claims from honest source openings | derived | `honestOutput`, `complete` |
+| `nifs.pi_ccs.extraction` | reduce accepted outputs to valid inputs or one named bad event | derived | `strong_extract_or_bad_event` |
+| `nifs.pi_ccs.commitment` | aggregate the output commitments in canonical product order | computed | `phi`, `repeated_outputs_same_phi` |
 -/
 
 namespace Nightstream.SuperNeo.Folding.PiCCS

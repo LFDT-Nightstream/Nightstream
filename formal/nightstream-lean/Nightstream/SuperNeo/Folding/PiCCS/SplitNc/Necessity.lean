@@ -1,4 +1,5 @@
 import Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Necessity.CarrierCoverage
+import Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Necessity.YZcolTerminal
 
 /-!
 Necessity results for the independent Phi81 SplitNc semantic model.
@@ -15,13 +16,5 @@ Emits constraints: no.
 | Child | Mathematical obligation | Emits constraints? | Lean owner |
 |---|---|---|---|
 | `CarrierCoverage` | a logical-width cube omits completed-carrier coordinates | no | `Necessity.CarrierCoverage` |
+| `YZcolTerminal` | scalar terminal equality is necessary but cannot replace source binding | no | `Necessity.YZcolTerminal` |
 -/
-
-namespace Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Necessity
-
-/-- Necessity families currently closed at the independent semantic layer. -/
-inductive ClosedFamily where
-  | carrierCoverage
-deriving Repr, DecidableEq
-
-end Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Necessity

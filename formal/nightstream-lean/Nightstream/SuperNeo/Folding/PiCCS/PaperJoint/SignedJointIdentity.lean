@@ -1,4 +1,6 @@
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.BooleanHypercubeSum
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.BooleanReproduction
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.TargetPolynomial
 
 /-!
@@ -42,6 +44,7 @@ namespace Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.SignedJointIdentity
 universe uField uIndex uLeft uRight
 
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
+open FiniteSumAlgebra
 
 /-- Explicit extension-carrier tables entering the paper's one-joint
 polynomial. Family cardinalities are intrinsic to `Shape`. -/
@@ -83,7 +86,10 @@ def JointData.targetCoefficients
     TargetPolynomial.CarriedTargetCoefficients Field shape where
   coefficient := data.claimedCoefficient
 
-/-- Right-associated finite sum over a caller-independent index list. -/
+/-- Compatibility name retained at the signed-identity boundary. The shared
+finite-sum owner proves every rearrangement law used below. Keeping this
+definition local preserves the original reduction behavior of audit lemmas
+which unfold `SignedJointIdentity.sumMap` explicitly. -/
 def sumMap
     {Field : Type uField}
     {Index : Type uIndex}
@@ -99,27 +105,8 @@ private theorem sumMap_congr
     (indices : List Index)
     (left right : Index -> Field)
     (equal : forall index, index ∈ indices -> left index = right index) :
-    sumMap ops indices left = sumMap ops indices right := by
-  unfold sumMap
-  congr 1
-  exact List.map_congr_left equal
-
-private theorem neg_zero
-    {Field : Type uField}
-    (ops : InterpolationOps Field)
-    (laws : InterpolationEvaluationLaws ops) :
-    ops.neg ops.zero = ops.zero := by
-  have inverse := laws.add_neg ops.zero
-  simpa only [laws.zero_add] using inverse
-
-private theorem mul_neg
-    {Field : Type uField}
-    (ops : InterpolationOps Field)
-    (laws : InterpolationEvaluationLaws ops)
-    (left right : Field) :
-    ops.mul left (ops.neg right) = ops.neg (ops.mul left right) := by
-  rw [laws.mul_comm left (ops.neg right), laws.neg_mul,
-    laws.mul_comm right left]
+    sumMap ops indices left = sumMap ops indices right :=
+  FiniteSumAlgebra.sumMap_congr ops indices left right equal
 
 private theorem mul_sub
     {Field : Type uField}
@@ -127,22 +114,8 @@ private theorem mul_sub
     (laws : InterpolationEvaluationLaws ops)
     (left middle right : Field) :
     ops.mul left (ops.sub middle right) =
-      ops.sub (ops.mul left middle) (ops.mul left right) := by
-  unfold InterpolationOps.sub
-  rw [laws.left_distrib, mul_neg ops laws]
-
-private theorem sumMap_zero
-    {Field : Type uField}
-    {Index : Type uIndex}
-    (ops : InterpolationOps Field)
-    (laws : InterpolationEvaluationLaws ops) :
-    forall indices : List Index,
-      sumMap ops indices (fun _ => ops.zero) = ops.zero
-  | [] => rfl
-  | _ :: indices => by
-      change ops.add ops.zero
-        (sumMap ops indices (fun _ => ops.zero)) = ops.zero
-      rw [sumMap_zero ops laws indices, laws.zero_add]
+      ops.sub (ops.mul left middle) (ops.mul left right) :=
+  FiniteSumAlgebra.mul_sub ops laws left middle right
 
 private theorem sumMap_add
     {Field : Type uField}
@@ -152,61 +125,8 @@ private theorem sumMap_add
     (indices : List Index)
     (left right : Index -> Field) :
     sumMap ops indices (fun index => ops.add (left index) (right index)) =
-      ops.add (sumMap ops indices left) (sumMap ops indices right) := by
-  induction indices with
-  | nil => simp [sumMap, BooleanTable.finiteSum, laws.zero_add]
-  | cons index indices inductionHypothesis =>
-      change ops.add (ops.add (left index) (right index))
-          (sumMap ops indices fun prior =>
-            ops.add (left prior) (right prior)) =
-        ops.add
-          (ops.add (left index) (sumMap ops indices left))
-          (ops.add (right index) (sumMap ops indices right))
-      rw [inductionHypothesis]
-      calc
-        ops.add (ops.add (left index) (right index))
-            (ops.add
-              (sumMap ops indices left)
-              (sumMap ops indices right)) =
-          ops.add (left index)
-            (ops.add (right index)
-              (ops.add
-                (sumMap ops indices left)
-                (sumMap ops indices right))) :=
-            laws.add_assoc _ _ _
-        _ = ops.add (left index)
-            (ops.add
-              (sumMap ops indices left)
-              (ops.add (right index)
-                (sumMap ops indices right))) := by
-          congr 1
-          calc
-            ops.add (right index)
-                (ops.add
-                  (sumMap ops indices left)
-                  (sumMap ops indices right)) =
-              ops.add
-                (ops.add (right index)
-                  (sumMap ops indices left))
-                (sumMap ops indices right) :=
-                  (laws.add_assoc _ _ _).symm
-            _ = ops.add
-                (ops.add
-                  (sumMap ops indices left)
-                  (right index))
-                (sumMap ops indices right) := by
-                  rw [laws.add_comm (right index)]
-            _ = ops.add
-                (sumMap ops indices left)
-                (ops.add (right index)
-                  (sumMap ops indices right)) :=
-                    laws.add_assoc _ _ _
-        _ = ops.add
-            (ops.add (left index)
-              (sumMap ops indices left))
-            (ops.add (right index)
-              (sumMap ops indices right)) :=
-                (laws.add_assoc _ _ _).symm
+      ops.add (sumMap ops indices left) (sumMap ops indices right) :=
+  FiniteSumAlgebra.sumMap_add ops laws indices left right
 
 private theorem sumMap_mul_left
     {Field : Type uField}
@@ -217,34 +137,8 @@ private theorem sumMap_mul_left
     (indices : List Index)
     (value : Index -> Field) :
     sumMap ops indices (fun index => ops.mul factor (value index)) =
-      ops.mul factor (sumMap ops indices value) := by
-  induction indices with
-  | nil =>
-      simp [sumMap, BooleanTable.finiteSum, laws.mul_zero]
-  | cons index indices inductionHypothesis =>
-      change ops.add (ops.mul factor (value index))
-          (sumMap ops indices fun prior => ops.mul factor (value prior)) =
-        ops.mul factor (ops.add (value index) (sumMap ops indices value))
-      rw [inductionHypothesis]
-      exact (laws.left_distrib factor _ _).symm
-
-private theorem sumMap_neg
-    {Field : Type uField}
-    {Index : Type uIndex}
-    (ops : InterpolationOps Field)
-    (laws : InterpolationEvaluationLaws ops)
-    (indices : List Index)
-    (value : Index -> Field) :
-    sumMap ops indices (fun index => ops.neg (value index)) =
-      ops.neg (sumMap ops indices value) := by
-  induction indices with
-  | nil =>
-      simp [sumMap, BooleanTable.finiteSum, neg_zero ops laws]
-  | cons index indices inductionHypothesis =>
-      change ops.add (ops.neg (value index))
-          (sumMap ops indices fun prior => ops.neg (value prior)) =
-        ops.neg (ops.add (value index) (sumMap ops indices value))
-      rw [inductionHypothesis, laws.neg_add]
+      ops.mul factor (sumMap ops indices value) :=
+  FiniteSumAlgebra.sumMap_mul_left ops laws factor indices value
 
 private theorem sumMap_sub
     {Field : Type uField}
@@ -254,9 +148,8 @@ private theorem sumMap_sub
     (indices : List Index)
     (left right : Index -> Field) :
     sumMap ops indices (fun index => ops.sub (left index) (right index)) =
-      ops.sub (sumMap ops indices left) (sumMap ops indices right) := by
-  unfold InterpolationOps.sub
-  rw [sumMap_add ops laws, sumMap_neg ops laws]
+      ops.sub (sumMap ops indices left) (sumMap ops indices right) :=
+  FiniteSumAlgebra.sumMap_sub ops laws indices left right
 
 private theorem sumMap_swap
     {Field : Type uField}
@@ -267,26 +160,10 @@ private theorem sumMap_swap
     (leftIndices : List Left)
     (rightIndices : List Right)
     (value : Left -> Right -> Field) :
-    sumMap ops leftIndices (fun left =>
-        sumMap ops rightIndices (value left)) =
+    sumMap ops leftIndices (fun left => sumMap ops rightIndices (value left)) =
       sumMap ops rightIndices (fun right =>
-        sumMap ops leftIndices (fun left => value left right)) := by
-  induction leftIndices with
-  | nil =>
-      change ops.zero = sumMap ops rightIndices (fun _ => ops.zero)
-      exact (sumMap_zero ops laws rightIndices).symm
-  | cons left leftIndices inductionHypothesis =>
-      change ops.add
-          (sumMap ops rightIndices (value left))
-          (sumMap ops leftIndices fun prior =>
-            sumMap ops rightIndices (value prior)) = _
-      rw [inductionHypothesis]
-      rw [← sumMap_add ops laws rightIndices
-        (value left)
-        (fun right => sumMap ops leftIndices fun prior => value prior right)]
-      apply sumMap_congr
-      intro right _
-      rfl
+        sumMap ops leftIndices (fun left => value left right)) :=
+  FiniteSumAlgebra.sumMap_swap ops laws leftIndices rightIndices value
 
 /-- Gamma monomial multiplied by one finite value. -/
 def gammaTerm
@@ -400,59 +277,8 @@ private theorem weightedSum_indexedTables
       sumMap ops indices fun index =>
         ops.mul (weights index)
           ((tables index).equalityWeightedSum ops point) := by
-  calc
-    sumMap ops (BooleanVertex.all variables) (fun vertex =>
-        ops.mul (vertex.equalityWeight ops point)
-          (sumMap ops indices fun index =>
-            ops.mul (weights index) ((tables index).valueAt vertex))) =
-      sumMap ops (BooleanVertex.all variables) (fun vertex =>
-        sumMap ops indices fun index =>
-          ops.mul (weights index)
-            (ops.mul (vertex.equalityWeight ops point)
-              ((tables index).valueAt vertex))) := by
-        apply sumMap_congr
-        intro vertex _
-        rw [← sumMap_mul_left ops laws
-          (vertex.equalityWeight ops point) indices]
-        apply sumMap_congr
-        intro index _
-        calc
-          ops.mul (vertex.equalityWeight ops point)
-              (ops.mul (weights index) ((tables index).valueAt vertex)) =
-            ops.mul
-              (ops.mul (vertex.equalityWeight ops point) (weights index))
-              ((tables index).valueAt vertex) :=
-                (laws.mul_assoc _ _ _).symm
-          _ = ops.mul
-              (ops.mul (weights index) (vertex.equalityWeight ops point))
-              ((tables index).valueAt vertex) := by
-                rw [laws.mul_comm
-                  (vertex.equalityWeight ops point) (weights index)]
-          _ = ops.mul (weights index)
-              (ops.mul (vertex.equalityWeight ops point)
-                ((tables index).valueAt vertex)) :=
-                  laws.mul_assoc _ _ _
-    _ = sumMap ops indices (fun index =>
-        sumMap ops (BooleanVertex.all variables) fun vertex =>
-          ops.mul (weights index)
-            (ops.mul (vertex.equalityWeight ops point)
-              ((tables index).valueAt vertex))) :=
-      sumMap_swap ops laws (BooleanVertex.all variables) indices _
-    _ = sumMap ops indices (fun index =>
-        ops.mul (weights index)
-          (sumMap ops (BooleanVertex.all variables) fun vertex =>
-            ops.mul (vertex.equalityWeight ops point)
-              ((tables index).valueAt vertex))) := by
-        apply sumMap_congr
-        intro index _
-        exact sumMap_mul_left ops laws (weights index)
-          (BooleanVertex.all variables) _
-    _ = sumMap ops indices (fun index =>
-        ops.mul (weights index)
-          ((tables index).equalityWeightedSum ops point)) := by
-        apply sumMap_congr
-        intro index _
-        rfl
+  exact BooleanReproduction.equalityWeighted_sumMap ops laws indices weights
+    (fun index vertex => (tables index).valueAt vertex) point
 
 /-- Alpha-specialized CCS residual block. -/
 def ccsResidualBlock

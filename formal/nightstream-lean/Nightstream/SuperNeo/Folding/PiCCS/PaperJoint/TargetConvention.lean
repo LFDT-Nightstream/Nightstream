@@ -16,10 +16,10 @@ Authority boundary: the model records the coherent absolute convention
 an explicit modeling convention, not a claim that the literal displayed
 equations already agree or that the candidate is production-approved.
 
-| Candidate choice | Mathematical meaning | Model status |
+| Candidate choice | Mathematical meaning | Proof owner / policy boundary |
 |---|---|---|
-| target exponent | `2K+k+I(i,j,l)` | agrees with the declared shifted carried layout; exact `Q` identity open |
-| residual orientation | `T_local - sum Eval_local` | intended sign; exact signed identity open |
+| target exponent | `2K+k+I(i,j,l)` | equality with the declared shifted layout is proved here; protocol approval is separate |
+| residual orientation | `T_local - sum Eval_local` | the coherent-absolute signed identity is proved in `SignedJointIdentity`; protocol approval is separate |
 -/
 
 namespace Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
@@ -54,12 +54,14 @@ does not select or approve it for a production verifier. -/
 def candidateCarriedTargetConvention : CarriedTargetConvention :=
   .coherentAbsolute
 
-/-- Candidate sign convention pending the concrete joint-identity proof. -/
+/-- Candidate sign convention pending protocol review. The coherent-absolute
+signed identity itself is owned by `SignedJointIdentity`. -/
 def candidateCarriedResidualOrientation : CarriedResidualOrientation :=
   .targetMinusEvaluation
 
 /-- The candidate target exponent is definitionally the absolute exponent in
-this model's declared carried layout. This does not formalize `Q`. -/
+this model's declared carried layout. The corresponding `Q` identity is owned
+by `SignedJointIdentity`, not duplicated in this convention leaf. -/
 theorem candidateTargetExponent_eq_declaredCarriedExponent
     {shape : Shape}
     (coordinate : CarriedCoordinate shape) :

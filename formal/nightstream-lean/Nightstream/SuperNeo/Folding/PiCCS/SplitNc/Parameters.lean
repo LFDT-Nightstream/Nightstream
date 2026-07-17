@@ -1,4 +1,5 @@
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Phi81CarrierLayout
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.NumericBooleanDomain
 
 /-!
 Semantic and arithmetization dimensions for the two-domain `Pi_CCS` model.
@@ -8,8 +9,8 @@ Phase: domain ownership before FE or NC polynomial construction.
 Constraint family: none; this file emits no rows.
 
 Owns: the semantic row cube, original CCS width, complete Phi81 carrier
-width, source arities, and a separately stated flat-column/lane coverage
-predicate for one possible NC arithmetization.
+width, source arities, and separately stated coverage predicates for the
+existing flat-column/lane and canonical block/lane NC arithmetizations.
 
 Does not own: matrices, assignments, SumCheck polynomials, transcript
 challenges, production dimension derivation, Rust, R1CS, or constraint counts.
@@ -26,7 +27,9 @@ The row, flat-column, and lane domains are intentionally different types.
 | `Pi_CCS` | semantic shape | row cube | FE rows use `rowVariables` |
 | coefficient embedding | carrier shape | original / complete width | `carrierWidth = ceil(logicalWidth / 54) * 54` |
 | `Pi_CCS` | source shape | fresh / running | exactly `freshCount + runningCount` sources |
-| split NC | candidate arithmetization | flat column / lane cubes | coverage is an explicit proposition, not a trusted equality |
+| split NC | existing arithmetization | flat column / lane cubes | coverage is an explicit proposition, not a trusted equality |
+| split NC | packed arithmetization | Phi81 block / lane cubes | block coverage and lane coverage are explicit propositions |
+| split NC | packed indexing | Boolean block / lane vertices | one canonical little-endian numeric codec |
 -/
 
 namespace Nightstream.SuperNeo.Folding.PiCCS.SplitNc
@@ -146,5 +149,129 @@ def phi81Lane
   rfl
 
 end FlatNcDomain
+
+/-- Boolean widths for the canonical Phi81 block×lane NC decomposition.
+
+Unlike `FlatNcDomain`, the first axis indexes complete 54-coefficient blocks
+rather than duplicating each flat carrier coordinate across a second lane
+axis. -/
+structure BlockNcDomain where
+  blockVariables : Nat
+  laneVariables : Nat
+deriving Repr, DecidableEq
+
+namespace BlockNcDomain
+
+/-- Cardinality of the padded Phi81-block cube. -/
+def blockCount (domain : BlockNcDomain) : Nat :=
+  2 ^ domain.blockVariables
+
+/-- Cardinality of the padded Phi81-lane cube. -/
+def laneCount (domain : BlockNcDomain) : Nat :=
+  2 ^ domain.laneVariables
+
+/-- Coverage obligation for a block/lane NC table.
+
+The live table has exactly one cell for every complete-carrier coefficient.
+Both Boolean suffixes are arithmetization padding and must be computed as
+zero, never supplied by a prover. -/
+def Covers (domain : BlockNcDomain) (shape : SemanticShape) : Prop :=
+  Phi81ColumnLayout.blockCount shape.carrierWidth <= domain.blockCount /\
+    ringDegree <= domain.laneCount
+
+/-- Embed a live Phi81 block into the padded Boolean block cube. -/
+def carrierBlock
+    {domain : BlockNcDomain}
+    {shape : SemanticShape}
+    (covers : domain.Covers shape)
+    (block : Fin (Phi81ColumnLayout.blockCount shape.carrierWidth)) :
+    Fin domain.blockCount :=
+  ⟨block.val, Nat.lt_of_lt_of_le block.isLt covers.1⟩
+
+/-- Embed a live Phi81 lane into the padded Boolean lane cube. -/
+def phi81Lane
+    {domain : BlockNcDomain}
+    {shape : SemanticShape}
+    (covers : domain.Covers shape)
+    (lane : Fin ringDegree) : Fin domain.laneCount :=
+  ⟨lane.val, Nat.lt_of_lt_of_le lane.isLt covers.2⟩
+
+@[simp] theorem carrierBlock_val
+    {domain : BlockNcDomain}
+    {shape : SemanticShape}
+    (covers : domain.Covers shape)
+    (block : Fin (Phi81ColumnLayout.blockCount shape.carrierWidth)) :
+    (carrierBlock covers block).val = block.val := by
+  rfl
+
+@[simp] theorem phi81Lane_val
+    {domain : BlockNcDomain}
+    {shape : SemanticShape}
+    (covers : domain.Covers shape)
+    (lane : Fin ringDegree) :
+    (phi81Lane covers lane).val = lane.val := by
+  rfl
+
+/-- Canonical padded-block index of a Boolean vertex. This is shared by the
+NC source polynomial and packed-output projection so their bit order cannot
+drift. -/
+def blockIndex
+    {domain : BlockNcDomain}
+    (vertex : BooleanVertex domain.blockVariables) :
+    Fin domain.blockCount :=
+  ⟨NumericBooleanDomain.index vertex, by
+    simpa [blockCount] using
+      NumericBooleanDomain.index_lt_twoPow vertex⟩
+
+/-- Canonical padded-lane index of a Boolean vertex. -/
+def laneIndex
+    {domain : BlockNcDomain}
+    (vertex : BooleanVertex domain.laneVariables) :
+    Fin domain.laneCount :=
+  ⟨NumericBooleanDomain.index vertex, by
+    simpa [laneCount] using
+      NumericBooleanDomain.index_lt_twoPow vertex⟩
+
+/-- Canonical little-endian Boolean vertex of a padded-block index. -/
+def blockVertex
+    {domain : BlockNcDomain}
+    (block : Fin domain.blockCount) :
+    BooleanVertex domain.blockVariables :=
+  NumericBooleanDomain.vertex domain.blockVariables block
+
+/-- Canonical little-endian Boolean vertex of a padded-lane index. -/
+def laneVertex
+    {domain : BlockNcDomain}
+    (lane : Fin domain.laneCount) :
+    BooleanVertex domain.laneVariables :=
+  NumericBooleanDomain.vertex domain.laneVariables lane
+
+@[simp] theorem blockIndex_blockVertex
+    {domain : BlockNcDomain}
+    (block : Fin domain.blockCount) :
+    blockIndex (blockVertex block) = block := by
+  apply Fin.ext
+  exact NumericBooleanDomain.index_vertex domain.blockVariables block
+
+@[simp] theorem laneIndex_laneVertex
+    {domain : BlockNcDomain}
+    (lane : Fin domain.laneCount) :
+    laneIndex (laneVertex lane) = lane := by
+  apply Fin.ext
+  exact NumericBooleanDomain.index_vertex domain.laneVariables lane
+
+@[simp] theorem blockVertex_blockIndex
+    {domain : BlockNcDomain}
+    (vertex : BooleanVertex domain.blockVariables) :
+    blockVertex (blockIndex vertex) = vertex := by
+  exact NumericBooleanDomain.vertex_index vertex
+
+@[simp] theorem laneVertex_laneIndex
+    {domain : BlockNcDomain}
+    (vertex : BooleanVertex domain.laneVariables) :
+    laneVertex (laneIndex vertex) = vertex := by
+  exact NumericBooleanDomain.vertex_index vertex
+
+end BlockNcDomain
 
 end Nightstream.SuperNeo.Folding.PiCCS.SplitNc

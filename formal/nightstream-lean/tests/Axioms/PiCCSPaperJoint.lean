@@ -32,6 +32,8 @@ transcript, SplitNc, implementation, or security-reduction boundaries.
 | `residualTable_allEntriesZero_iff_normBounded` | each typed norm table is zero iff its canonical semantic assignment satisfies `normBounded 2` |
 | `allResidualTablesZero_iff_allStrictNormBounded` | the complete `K+k` typed norm-table family is exact |
 | `imageTable_evaluate_eq_computedCoefficient` | a carried matrix-image table MLE equals its explicit equality-weighted sum |
+| `imageCoefficientAt_eq_zero_of_assignment_zero` | a zero running assignment makes every coefficient-expanded image leaf zero |
+| `computedCoefficient_eq_zero_of_assignment_zero` | the explicit prior evaluation of a zero running assignment is zero |
 | `allResidualsZero_iff_allClaimsHold` | all claimed-minus-derived carried residuals vanish iff every evaluation equation holds |
 | `canonicalCarriedCoordinates_localGammaExponents` | typed carried traversal is exactly the consecutive local gamma support `0..ktd-1` |
 | `paperDifference_eq_signedResidualBlocks` | the corrected target minus explicit hypercube sum of pointwise `Q` equals the exact signed CCS/norm/carried residual blocks |
@@ -53,11 +55,13 @@ transcript, SplitNc, implementation, or security-reduction boundaries.
 | `MatrixSource.coefficientMatrix_constant_eq` | every constant carried coefficient matrix is the sole CCS matrix under the explicit kernel law |
 | `ConnectedInputs.carriedImageConstantAt_eq_ccsImageAt` | the constant carried image equals the CCS image for the same authoritative assignment |
 | `Phi81CoefficientKernel.basisConstantTerm` | actual Phi81 multiplication and the closed-form bar basis satisfy the 54-by-54 Kronecker law |
+| `Phi81CoefficientKernel.barBasis_constant_eq_one` | the constant bar basis is the executable Phi81 quotient-ring unit |
 | `Phi81CarrierLayout.extendAssignment_tail_zero` | fresh assignment completion owns a canonical-zero suffix |
 | `Phi81CarrierLayout.extendMatrix_tail_zero` | the sole CCS matrix is zero-extended to a complete 54-lane carrier |
 | `Phi81CarrierLayout.layout_encode?_isSome` | every completed block/lane pair is a real carried CE coordinate |
 | `Phi81MatrixSource.source_matrix_tail_zero` | the specialized sole matrix has no caller-controlled completed suffix |
 | `Phi81MatrixSource.coefficientMatrix_constant_apply` | the derived constant coefficient equals that completed sole matrix everywhere |
+| `PaperLinearAlgebra.matrixVectorAt_zero` | every matrix sends the canonical zero assignment to zero |
 | `PaperLinearAlgebra.matrixVectorAt_oneHot` | one selected carrier coordinate reduces to its exact matrix contribution |
 | `omitting_completed_carrier_changes_coefficient_image` | original-width projection cannot determine a folded CE coefficient image |
 | `ColumnLayout.columns_eq_twoPow` | the paper's square row/column bijection forces a power-of-two assignment width |
@@ -158,6 +162,10 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms PaperLinearAlgebra.matrixVectorAt_oneHot
+
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.PaperLinearAlgebra.matrixVectorAt_zero' does not depend on any axioms -/
+#guard_msgs in
+#audit_axioms PaperLinearAlgebra.matrixVectorAt_zero
 
 /-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.PaddedCarrier.completed_matrix_tail_zero' depends on axioms: [propext,
  Quot.sound] -/
@@ -312,6 +320,15 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms CarriedEvaluationResidual.imageTable_evaluate_eq_computedCoefficient
+
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.CarriedEvaluationResidual.imageCoefficientAt_eq_zero_of_assignment_zero' does not depend on any axioms -/
+#guard_msgs in
+#audit_axioms CarriedEvaluationResidual.imageCoefficientAt_eq_zero_of_assignment_zero
+
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.CarriedEvaluationResidual.computedCoefficient_eq_zero_of_assignment_zero' depends on axioms: [propext,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms CarriedEvaluationResidual.computedCoefficient_eq_zero_of_assignment_zero
 
 /-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.CarriedEvaluationResidual.residual_eq_zero_iff_evaluationClaimHolds' depends on axioms: [propext] -/
 #guard_msgs in
@@ -486,6 +503,18 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
 
 /-! Actual off-cube paper polynomial and output-message terminal. -/
 
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ProtocolPolynomial.VerifierInput.ext' depends on axioms: [propext] -/
+#guard_msgs in
+#audit_axioms ProtocolPolynomial.VerifierInput.ext
+
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ProtocolPolynomial.Data.toVerifierInput_eq' depends on axioms: [propext] -/
+#guard_msgs in
+#audit_axioms ProtocolPolynomial.Data.toVerifierInput_eq
+
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ProtocolPolynomial.verifierInput_initial_eq_joint_initial' depends on axioms: [propext] -/
+#guard_msgs in
+#audit_axioms ProtocolPolynomial.verifierInput_initial_eq_joint_initial
+
 /-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.BooleanTable.valueAt_tabulate' depends on axioms: [propext] -/
 #guard_msgs in
 #audit_axioms BooleanTable.valueAt_tabulate
@@ -607,9 +636,9 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
 #guard_msgs in
 #audit_axioms ProtocolDataRefinement.ProtocolLift.map_zero
 
-/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ProtocolDataRefinement.liftMonomial_totalDegree' does not depend on any axioms -/
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ConstraintPolynomialLift.liftMonomial_totalDegree' does not depend on any axioms -/
 #guard_msgs in
-#audit_axioms ProtocolDataRefinement.liftMonomial_totalDegree
+#audit_axioms ConstraintPolynomialLift.liftMonomial_totalDegree
 
 /-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ProtocolDataRefinement.evaluatePolynomial_lift' depends on axioms: [propext,
  Quot.sound] -/
@@ -642,6 +671,10 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
 #audit_axioms UnifiedProtocolVerifier.check_implies_semanticTruth_or_badEvent
 
 /-! Concrete carrier and its semantic leaf refinements. -/
+
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ConcreteCarrier.baseZeroAgreement' does not depend on any axioms -/
+#guard_msgs in
+#audit_axioms ConcreteCarrier.baseZeroAgreement
 
 /-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.SignedJointIdentity.JointData.ext' depends on axioms: [propext] -/
 #guard_msgs in
@@ -677,6 +710,10 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
 #guard_msgs in
 #audit_axioms ConcreteCarrier.embed_one
 
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ConcreteCarrier.embed_zero' does not depend on any axioms -/
+#guard_msgs in
+#audit_axioms ConcreteCarrier.embed_zero
+
 /-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ConcreteCarrier.embed_add' depends on axioms: [propext] -/
 #guard_msgs in
 #audit_axioms ConcreteCarrier.embed_add
@@ -684,6 +721,10 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
 /-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ConcreteCarrier.embed_mul' depends on axioms: [propext] -/
 #guard_msgs in
 #audit_axioms ConcreteCarrier.embed_mul
+
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ConcreteCarrier.constraintEvaluationLaws' depends on axioms: [propext] -/
+#guard_msgs in
+#audit_axioms ConcreteCarrier.constraintEvaluationLaws
 
 /-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ConcreteCarrier.embed_strictNorm' depends on axioms: [propext,
  Quot.sound] -/
@@ -764,6 +805,11 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
 /-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel.basisConstantTerm' does not depend on any axioms -/
 #guard_msgs in
 #audit_axioms Phi81CoefficientKernel.basisConstantTerm
+
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel.barBasis_constant_eq_one' depends on axioms: [propext,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Phi81CoefficientKernel.barBasis_constant_eq_one
 
 /-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel.phi81ConstantTermLaw' does not depend on any axioms -/
 #guard_msgs in

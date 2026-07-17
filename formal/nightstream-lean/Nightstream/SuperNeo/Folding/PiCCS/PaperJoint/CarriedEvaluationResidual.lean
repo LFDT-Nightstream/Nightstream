@@ -1,4 +1,5 @@
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.BooleanHypercubeSum
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.TargetPolynomial
 
@@ -33,6 +34,7 @@ unproved homomorphism claim here.
 | `EvaluationData` | running `z_i`, prior `r`, claimed `cf(y_i,j)_l` | typed public/secret data | exact `k*t*d` coordinate family |
 | `imageCoefficientAt` | `cf((M_j z_i)(x))_l` | shared finite matrix-vector row, then explicit lift | no evaluator supplied |
 | `computedCoefficient` | `sum_x eq(x,r) * cf((M_j z_i)(x))_l` | explicit canonical hypercube sum | equals recursive table MLE |
+| zero assignment | `z_i = 0` | every image-table leaf and its explicit hypercube sum are zero | `imageCoefficientAt_eq_zero_of_assignment_zero`, `computedCoefficient_eq_zero_of_assignment_zero` |
 | `residual` | Equation (9) orientation | claimed minus computed | zero iff the evaluation equation holds |
 | `allResidualsZero_iff_allClaimsHold` | Lemma 7 Item 3 | every carried coordinate | unconditional relative to explicit algebra/lift data |
 -/
@@ -117,6 +119,76 @@ def computedCoefficient
   (imageTable baseOps liftCoefficient data coordinate).equalityWeightedSum
     extensionOps data.priorPoint
 
+/-- A canonical zero running assignment makes every coefficient-expanded
+matrix-image leaf zero. No verifier polynomial or implementation evaluator is
+involved: this is the shared finite matrix-vector definition itself. -/
+theorem imageCoefficientAt_eq_zero_of_assignment_zero
+    {Base : Type uBase}
+    {Extension : Type uExtension}
+    (baseOps : InterpolationOps Base)
+    (baseLaws : InterpolationEvaluationLaws baseOps)
+    (extensionOps : InterpolationOps Extension)
+    (liftCoefficient : Base -> Extension)
+    (liftZero : liftCoefficient baseOps.zero = extensionOps.zero)
+    {shape : Shape}
+    {columns : Nat}
+    (data : EvaluationData Base Extension shape columns)
+    (coordinate : CarriedCoordinate shape)
+    (assignmentZero :
+      data.assignments coordinate.running = fun _ => baseOps.zero)
+    (vertex : BooleanVertex shape.cubeVariables) :
+    imageCoefficientAt baseOps liftCoefficient data coordinate vertex =
+      extensionOps.zero := by
+  unfold imageCoefficientAt
+  rw [assignmentZero,
+    PaperLinearAlgebra.matrixVectorAt_zero baseOps baseLaws]
+  exact liftZero
+
+/-- The explicit equality-weighted prior evaluation of a zero running
+assignment is zero. This closes the paper/source semantic fact directly,
+without routing through a verifier-owned `yRing` evaluator. -/
+theorem computedCoefficient_eq_zero_of_assignment_zero
+    {Base : Type uBase}
+    {Extension : Type uExtension}
+    (baseOps : InterpolationOps Base)
+    (baseLaws : InterpolationEvaluationLaws baseOps)
+    (extensionOps : InterpolationOps Extension)
+    (extensionLaws : InterpolationEvaluationLaws extensionOps)
+    (liftCoefficient : Base -> Extension)
+    (liftZero : liftCoefficient baseOps.zero = extensionOps.zero)
+    {shape : Shape}
+    {columns : Nat}
+    (data : EvaluationData Base Extension shape columns)
+    (coordinate : CarriedCoordinate shape)
+    (assignmentZero :
+      data.assignments coordinate.running = fun _ => baseOps.zero) :
+    computedCoefficient baseOps extensionOps liftCoefficient data coordinate =
+      extensionOps.zero := by
+  unfold computedCoefficient BooleanTable.equalityWeightedSum
+  change FiniteSumAlgebra.sumMap extensionOps
+      (BooleanVertex.all shape.cubeVariables)
+      (fun vertex =>
+        extensionOps.mul
+          (vertex.equalityWeight extensionOps data.priorPoint)
+          ((imageTable baseOps liftCoefficient data coordinate).valueAt vertex)) =
+    extensionOps.zero
+  calc
+    _ = FiniteSumAlgebra.sumMap extensionOps
+        (BooleanVertex.all shape.cubeVariables)
+        (fun _ => extensionOps.zero) := by
+      apply FiniteSumAlgebra.sumMap_congr
+      intro vertex _
+      rw [show
+        (imageTable baseOps liftCoefficient data coordinate).valueAt vertex =
+            imageCoefficientAt baseOps liftCoefficient data coordinate vertex by
+          exact BooleanTable.valueAt_tabulate _ _]
+      rw [imageCoefficientAt_eq_zero_of_assignment_zero
+        baseOps baseLaws extensionOps liftCoefficient liftZero data coordinate
+        assignmentZero vertex]
+      exact extensionLaws.mul_zero _
+    _ = extensionOps.zero :=
+      FiniteSumAlgebra.sumMap_zero extensionOps extensionLaws _
+
 /-- The recursive table MLE computes exactly the explicit paper hypercube sum
 used above. -/
 theorem imageTable_evaluate_eq_computedCoefficient
@@ -166,31 +238,6 @@ def residual
     (data.claimedCoefficient coordinate)
     (computedCoefficient baseOps extensionOps liftCoefficient data coordinate)
 
-private theorem sub_eq_zero_iff
-    {Extension : Type uExtension}
-    (ops : InterpolationOps Extension)
-    (laws : InterpolationEvaluationLaws ops)
-    (left right : Extension) :
-    ops.sub left right = ops.zero ↔ left = right := by
-  constructor
-  · intro zero
-    change ops.add left (ops.neg right) = ops.zero at zero
-    have negAdd : ops.add (ops.neg right) right = ops.zero := by
-      rw [laws.add_comm]
-      exact laws.add_neg right
-    calc
-      left = ops.add left ops.zero := (laws.add_zero left).symm
-      _ = ops.add left (ops.add (ops.neg right) right) := by
-        rw [negAdd]
-      _ = ops.add (ops.add left (ops.neg right)) right :=
-        (laws.add_assoc left (ops.neg right) right).symm
-      _ = ops.add ops.zero right := by
-        rw [zero]
-      _ = right := laws.zero_add right
-  · intro equal
-    subst right
-    exact laws.add_neg left
-
 /-- One carried residual is zero exactly when its independently stated
 evaluation equation holds. -/
 theorem residual_eq_zero_iff_evaluationClaimHolds
@@ -207,7 +254,7 @@ theorem residual_eq_zero_iff_evaluationClaimHolds
     residual baseOps extensionOps liftCoefficient data coordinate =
         extensionOps.zero ↔
       EvaluationClaimHolds baseOps extensionOps liftCoefficient data coordinate := by
-  exact sub_eq_zero_iff extensionOps extensionLaws _ _
+  exact FiniteSumAlgebra.sub_eq_zero_iff extensionOps extensionLaws _ _
 
 /-- Every carried prior-evaluation equation is true. -/
 def AllClaimsHold

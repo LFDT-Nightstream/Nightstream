@@ -1,4 +1,4 @@
-//! Measurement snapshot: the complete authoritative NIFS.V circuit,
+//! Measurement snapshot: the complete currently emitted NIFS.V source relation,
 //! low-norm lowered.
 //!
 //! This is the shell-vs-lowering decision datapoint. The manual projection
@@ -190,7 +190,7 @@ fn lowered_authoritative_nifs_v_measurement() {
 
     let low_rows = encoded.structure().n;
     let low_bits = encoded.structure().m;
-    eprintln!("== authoritative NIFS.V circuit, low-norm lowered (two-fold direct-CCS fixture) ==");
+    eprintln!("== current NIFS.V source relation, low-norm lowered (two-fold direct-CCS fixture) ==");
     eprintln!("field-native   rows {field_rows:>12}  cols {field_cols:>12}  nnz {field_nnz:>12}");
     eprintln!("low-norm       rows {low_rows:>12}  committed_bits {low_bits:>12}");
     eprintln!(

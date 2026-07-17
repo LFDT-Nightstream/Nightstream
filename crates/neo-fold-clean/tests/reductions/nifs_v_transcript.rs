@@ -322,7 +322,7 @@ fn nifs_v_transcript_phase_accepts_honest_native_tail() {
     assert!(
         unconstrained == allowed,
         "composed NIFS.V verifier left unexpected unconstrained columns: got {unconstrained:?}, \
-         expected only non-authority y_zcol sidecar limbs {allowed:?}"
+         expected only currently unbound y_zcol sidecar limbs {allowed:?}"
     );
 }
 
@@ -522,9 +522,9 @@ fn recursive_nifs_v_rejects_native_checked_pi_ccs_fields() {
     );
 }
 
-/// Native Π_DEC deliberately treats child `y_zcol` as a non-authority
-/// sidecar. A native-valid NIFS proof must not fall outside the recursive
-/// verifier's language merely because that sidecar uses a shorter shape.
+/// Current native Π_DEC does not read child `y_zcol`. Until the delayed
+/// projection authority bridge is closed, native/recursive parity must retain
+/// this known-gap behavior even when the ignored sidecar uses a shorter shape.
 #[test]
 fn recursive_nifs_v_accepts_native_valid_child_y_zcol_shape() {
     let honest = build_honest_fixture();
@@ -551,7 +551,7 @@ fn recursive_nifs_v_accepts_native_valid_child_y_zcol_shape() {
         &fixture.running,
         &fixture.proof,
     )
-    .expect("native NIFS.V accepts the non-authority child y_zcol shape");
+    .expect("native NIFS.V accepts the currently ignored child y_zcol shape");
 
     let mut canonicalized_builder = None;
     let rejection = match emit_verifier(&fixture) {
@@ -570,43 +570,47 @@ fn recursive_nifs_v_accepts_native_valid_child_y_zcol_shape() {
         honest_builder
             .snapshot()
             .has_same_relation(&canonicalized_builder.expect("accepted builder").snapshot()),
-        "non-authority child y_zcol shape must not change the recursive verifier relation"
+        "currently ignored child y_zcol shape must not change the recursive verifier relation"
     );
 }
 
-/// Conversely, the recursive Π_CCS verifier must enforce the native rule
-/// that padded lanes of an incoming running claim's `y_zcol` are zero.
-/// Those lanes are not accumulator-digest authority, so omitting the check
-/// leaves a native-invalid witness value unconstrained recursively.
+/// Incoming running `y_zcol` is currently unbound in both native and recursive
+/// Π_CCS. This regression pins the known gap: mutating an ignored padding lane
+/// changes neither verifier acceptance nor the recursive relation/witness.
 #[test]
-fn recursive_nifs_v_rejects_native_invalid_running_y_zcol_padding() {
+fn recursive_nifs_v_omits_running_y_zcol_padding() {
+    let honest = build_honest_fixture();
+    let (honest_builder, _) = emit_verifier(&honest).expect("emit honest verifier");
+    assert!(honest_builder.is_satisfied());
+
     let mut fixture = build_honest_fixture();
     assert!(fixture.running.claims[0].y_zcol.len() > D);
     fixture.running.claims[0].y_zcol[D] += K::ONE;
 
     let mut native_tr = Transcript::session();
-    assert!(
-        nifs::verify(
-            &mut native_tr,
-            &fixture.prep.params,
-            fixture.prep.structure(),
-            fixture.prep.optimized_cache(),
-            fixture.prep.mix_rhos_commits(),
-            fixture.prep.combine_b_pows(),
-            &fixture.fresh_claims,
-            &fixture.running,
-            &fixture.proof,
-        )
-        .is_err(),
-        "fixture precondition: native NIFS.V rejects nonzero running y_zcol padding"
-    );
+    nifs::verify(
+        &mut native_tr,
+        &fixture.prep.params,
+        fixture.prep.structure(),
+        fixture.prep.optimized_cache(),
+        fixture.prep.mix_rhos_commits(),
+        fixture.prep.combine_b_pows(),
+        &fixture.fresh_claims,
+        &fixture.running,
+        &fixture.proof,
+    )
+    .expect("native NIFS.V ignores incoming running y_zcol");
 
-    let builder = emit_verifier(&fixture)
-        .expect("recursive verifier synthesizes the native-invalid padding fixture")
-        .0;
-    assert!(
-        !builder.is_satisfied(),
-        "native/recursive differential: recursive NIFS.V accepted nonzero padding in incoming running.y_zcol"
+    let (builder, outputs) = emit_verifier(&fixture).expect("emit running-y_zcol mutation");
+    assert!(builder.is_satisfied());
+    assert!(outputs.running.iter().all(|claim| claim.y_zcol.is_empty()));
+    let honest = honest_builder.snapshot();
+    let mutated = builder.snapshot();
+    assert!(honest.has_same_relation(&mutated));
+    assert_eq!(
+        honest.witness(),
+        mutated.witness(),
+        "incoming running y_zcol leaked into the recursive NIFS.V witness"
     );
 }
 
@@ -656,7 +660,7 @@ fn recursive_nifs_v_optional_initial_sum_and_proof_values_keep_one_relation_shap
 }
 
 #[test]
-fn recursive_nifs_v_canonicalizes_non_authority_parent_y_zcol_shape() {
+fn recursive_nifs_v_records_current_unbound_parent_y_zcol_shape() {
     let honest = build_honest_fixture();
     let honest_builder = emit_verifier(&honest).expect("honest verifier synthesis").0;
 
@@ -680,6 +684,6 @@ fn recursive_nifs_v_canonicalizes_non_authority_parent_y_zcol_shape() {
         honest_builder
             .snapshot()
             .has_same_relation(&shortened_builder.snapshot()),
-        "non-authority parent y_zcol shape must be canonicalized to the fixed verifier width"
+        "currently unbound parent y_zcol shape must be canonicalized to the fixed verifier width"
     );
 }

@@ -1,19 +1,27 @@
-//! Retained red-team regression for native/recursive sumcheck parity.
+//! Retained red-team regressions for native/recursive sumcheck parity.
+//!
+//! | Regression | Mathematical obligation | Current gap |
+//! |---|---|---|
+//! | zero NC projection | An NC proof accepted for a fresh claim must certify the committed witness's centered norm bound | output `y_zcol` is not yet bound back to the committed witness |
 
 #[path = "../support/mod.rs"]
 mod support;
 
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
+use neo_ccs::traits::SModuleHomomorphism;
+use neo_ccs::{CcsStructure, Mat, SparsePoly};
 use neo_fold_clean::engine::r1cs_circuit::{KVar, R1csBuilder, TranscriptGadget};
 use neo_fold_clean::engine::transcript::Transcript;
 use neo_fold_clean::paper::construction2::RunningInstance;
-use neo_fold_clean::paper::reductions::pi_ccs;
+use neo_fold_clean::paper::nifs::{self, NifsProof};
 use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::{
     enforce_fe_claimed_initial, enforce_split_nc_pi_ccs_v, sample_engine_challenges, FeClaimedInitialInputs,
     SplitNcPiCcsVConfig, SplitNcPiCcsVMessages,
 };
-use neo_fold_clean::paper::relations::CcsClaim;
+use neo_fold_clean::paper::reductions::{pi_ccs, pi_dec, pi_rlc};
+use neo_fold_clean::paper::relations::{CcsClaim, CcsInstance, CcsWitness};
+use neo_fold_clean::{config, preprocess};
 use neo_math::{from_complex, KExtensions, D, F, K};
 use neo_reductions::optimized_engine::oracle::{NcColSnapshot, RowPhaseSnapshot};
 use neo_reductions::optimized_engine::{
@@ -134,6 +142,14 @@ struct OverlongZeroSuffixNcBackend {
     witness_count: usize,
 }
 
+/// Adversarial prover backend that replaces the NC column projection with
+/// zero while preserving the exact accepted round shape and transcript flow.
+struct ZeroNcProjectionBackend {
+    d_sc: usize,
+    eq_beta_m: Vec<K>,
+    witness_count: usize,
+}
+
 struct InconsistentDeferredRowLogBackend {
     summary_coeffs: Vec<K>,
     exported_coeffs: Vec<K>,
@@ -224,6 +240,44 @@ impl NcSumcheckBackend for OverlongZeroSuffixNcBackend {
     }
 }
 
+impl NcSumcheckBackend for ZeroNcProjectionBackend {
+    fn start(&mut self, snapshot: &NcColSnapshot<'_>) -> bool {
+        self.eq_beta_m = snapshot.eq_beta_m_tbl.to_vec();
+        self.witness_count = snapshot.weights.len();
+        true
+    }
+
+    fn round_coeffs(&mut self) -> Vec<K> {
+        vec![K::ZERO; self.d_sc + 1]
+    }
+
+    fn fold(&mut self, challenge: K) {
+        assert!(
+            self.eq_beta_m.len() >= 2 && self.eq_beta_m.len() % 2 == 0,
+            "NC equality table must have an even active length"
+        );
+        let half = self.eq_beta_m.len() / 2;
+        for index in 0..half {
+            let lo = self.eq_beta_m[2 * index];
+            let hi = self.eq_beta_m[2 * index + 1];
+            self.eq_beta_m[index] = lo + (hi - lo) * challenge;
+        }
+        self.eq_beta_m.truncate(half);
+    }
+
+    fn finalized_col_state(&mut self) -> NcFinalizedColState {
+        assert_eq!(
+            self.eq_beta_m.len(),
+            1,
+            "all NC column rounds must fold eq(beta_m) to one value"
+        );
+        NcFinalizedColState {
+            digit_rows: vec![[K::ZERO; D]; self.witness_count],
+            eq_beta_m0: self.eq_beta_m[0],
+        }
+    }
+}
+
 fn split_nc_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> SplitNcPiCcsVConfig<'a> {
     let raw_params = neo_params::NeoParams::goldilocks_auto_r1cs_ccs_with(
         prep.structure().n.max(prep.structure().m),
@@ -243,7 +297,7 @@ fn split_nc_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> SplitNcPiCcsV
     .expect("header bundle");
     SplitNcPiCcsVConfig {
         params: &prep.params,
-        structure: prep.structure(),
+        structure: prep.structure().into(),
         header_bundle,
         ell_d: dims.ell_d,
         ell_n: dims.ell_n,
@@ -309,6 +363,171 @@ fn pi_ccs_verifier_acceptance(
     .unwrap_or(false);
 
     (raw_optimized, clean_native, recursive)
+}
+
+fn high_norm_fresh_instance() -> (neo_fold_clean::Preprocessing, CcsInstance) {
+    let structure =
+        CcsStructure::new(vec![Mat::identity(2)], SparsePoly::new(1, vec![])).expect("high-norm regression structure");
+    let params = config::r1cs_params(structure.n, structure.m).expect("high-norm regression params");
+    support::install_ajtai_module(&params, &structure);
+    let prep = preprocess(params, structure, Some(1)).expect("high-norm regression preprocessing");
+
+    let mut z = Mat::zero(D, prep.structure().m.div_ceil(D), F::ZERO);
+    z[(1, 0)] = F::from_u64(prep.params.b() as u64);
+    let instance = CcsInstance {
+        claim: CcsClaim {
+            adv: None,
+            c: prep.log.commit(&z),
+            x: vec![z[(0, 0)]],
+            m_in: 1,
+        },
+        witness: CcsWitness {
+            w: vec![z[(1, 0)]],
+            Z: z,
+        },
+    };
+    (prep, instance)
+}
+
+/// Fail-closed regression for NC projection laundering across a complete NIFS
+/// fold.
+///
+/// The witness is honestly committed and satisfies the fixture's vacuous CCS
+/// polynomial, but one private coordinate equals `b` and is therefore outside
+/// the centered CE(b) alphabet. A prover-controlled backend replaces the
+/// Pi_CCS NC projection and every NC round with zero. The public Pi_RLC and
+/// Pi_DEC provers can then turn the same committed witness into honest
+/// low-norm digit children whose terminal CE relations, including `y_zcol`,
+/// are individually satisfied. The NIFS boundary must not both preserve those
+/// child claims and accept their terminal witness authority: that would erase
+/// the failed fresh-witness relation instead of folding it.
+#[test]
+#[ignore = "known NC y_zcol projection-authority gap"]
+fn nifs_rejects_zero_nc_projection_laundered_into_valid_terminal_children() {
+    let (prep, fresh) = high_norm_fresh_instance();
+    assert_eq!(
+        fresh.witness.Z[(1, 0)],
+        F::from_u64(prep.params.b() as u64),
+        "fixture coordinate must sit exactly outside the centered CE(b) alphabet"
+    );
+
+    let fresh_claims = vec![fresh.claim];
+    let rlc_witnesses = vec![fresh.witness.Z.clone()];
+    let fresh_witnesses = vec![fresh.witness];
+    let running = RunningInstance::default();
+    let mut backend = ZeroNcProjectionBackend {
+        d_sc: split_nc_config(&prep).d_sc,
+        eq_beta_m: Vec::new(),
+        witness_count: 0,
+    };
+    let mut prover_transcript = Transcript::session();
+    let Ok(pi_ccs_proof) = pi_ccs::prove_from_parts_with_backends(
+        &mut prover_transcript,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &prep.log,
+        &fresh_claims,
+        &fresh_witnesses,
+        &running,
+        None,
+        Some(&mut backend),
+    ) else {
+        return;
+    };
+
+    assert!(
+        pi_ccs_proof
+            .sumcheck
+            .sumcheck_rounds_nc
+            .iter()
+            .flatten()
+            .all(|&coefficient| coefficient == K::ZERO),
+        "malicious fixture must emit the all-zero NC proof"
+    );
+    assert!(
+        pi_ccs_proof
+            .outputs
+            .iter()
+            .flat_map(|output| &output.y_zcol)
+            .all(|&value| value == K::ZERO),
+        "malicious fixture must replace every output NC projection with zero"
+    );
+
+    let Ok((rlc_out, pi_rlc_proof)) = pi_rlc::prove(
+        &mut prover_transcript,
+        &prep.params,
+        prep.structure(),
+        prep.mix_rhos_commits(),
+        &pi_ccs_proof.outputs,
+        &rlc_witnesses,
+    ) else {
+        return;
+    };
+    let Ok((dec_out, pi_dec_proof)) = pi_dec::prove(
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &prep.log,
+        None,
+        prep.combine_b_pows(),
+        &rlc_out.claim,
+        &rlc_out.witness,
+    ) else {
+        return;
+    };
+
+    assert!(
+        dec_out
+            .witnesses
+            .iter()
+            .flat_map(Mat::to_dense_vec)
+            .all(|value| neo_math::balanced::within_nc_bound(value, prep.params.b())),
+        "Pi_DEC must produce honest low-norm digit witnesses"
+    );
+    assert!(
+        dec_out.claims.iter().all(|claim| !claim.y_zcol.is_empty())
+            && dec_out
+                .claims
+                .iter()
+                .flat_map(|claim| &claim.y_zcol)
+                .any(|&value| value != K::ZERO),
+        "terminal child y_zcol checks must be present and non-vacuous"
+    );
+
+    let next_running = RunningInstance {
+        claims: dec_out.claims,
+        witnesses: dec_out.witnesses,
+        parent_authority: Some(rlc_out.claim),
+    };
+    let proof = NifsProof {
+        pi_ccs: pi_ccs_proof,
+        pi_rlc: pi_rlc_proof,
+        pi_dec: pi_dec_proof,
+    };
+
+    let mut verifier_transcript = Transcript::session();
+    let verified = nifs::verify(
+        &mut verifier_transcript,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
+        &fresh_claims,
+        &running,
+        &proof,
+    );
+    let nifs_relation_preserved = verified.as_ref().is_ok_and(|verifier_next| {
+        verifier_next.claims == next_running.claims && verifier_next.parent_authority == next_running.parent_authority
+    });
+    let terminal_authority_accepted =
+        neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &next_running).is_ok();
+
+    assert!(
+        !(nifs_relation_preserved && terminal_authority_accepted),
+        "known NC projection-authority gap: native NIFS preserved children laundered from an invalid fresh witness, and every honest low-norm child passed terminal CE authority including y_zcol"
+    );
 }
 
 /// The native verifier defines an empty coefficient vector as the zero

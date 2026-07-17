@@ -23,9 +23,10 @@ use neo_fold_clean::paper::digest::{
 use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::{
     absorb_engine_header_bundle_and_instance_digest, absorb_engine_me_inputs_accumulator_handle,
     enforce_accumulator_ce_claim_digest, enforce_ccs_claim_digest, enforce_ce_claim_digest, enforce_fe_claimed_initial,
-    enforce_header_digest_catch_up, enforce_pi_ccs_instance_digest, enforce_pi_ccs_instance_digest_parent_authority,
-    enforce_pi_ccs_outputs_digest, header_digest_bytes_to_fields, sample_engine_beta_m, sample_engine_challenges,
-    AccumulatorCeClaimDigestInputs, CeClaimDigestInputs, FeClaimedInitialInputs, PiCcsOutputClaimDigestInputs,
+    enforce_header_digest_catch_up_wires, enforce_pi_ccs_instance_digest,
+    enforce_pi_ccs_instance_digest_parent_authority, enforce_pi_ccs_outputs_digest, header_digest_bytes_to_fields,
+    sample_engine_beta_m, sample_engine_challenges, AccumulatorCeClaimDigestInputs, CeClaimDigestInputs,
+    FeClaimedInitialInputs, PiCcsOutputMessageDigestInputs,
 };
 use neo_math::ring::D;
 use neo_math::{from_complex, KExtensions, F, K};
@@ -782,9 +783,9 @@ fn enforce_ce_claim_digest_rejects_nonzero_inactive_x() {
 fn enforce_accumulator_ce_claim_digest_matches_native_authority_fields() {
     // This is the HyperNova U_i handle's per-claim building block. Unlike
     // the paper-layer `ce_claim_digest`, it must bind implementation-carried
-    // authority fields too: s_col, ct, and fold_digest. It deliberately
-    // omits y_zcol because Π_DEC children do not prove a verifier-checkable
-    // radix-b y_zcol recomposition equation.
+    // authority fields too: s_col, ct, and fold_digest. The current encoding
+    // omits y_zcol because Π_DEC children do not yet prove a verifier-checkable
+    // radix-b y_zcol recomposition equation; this test pins that known gap.
     let claim = build_test_accumulator_ce_claim(0xACCE_551);
     let native_digest = accumulator_ce_claim_digest(&claim);
 
@@ -825,7 +826,7 @@ fn enforce_pi_ccs_outputs_digest_matches_native_new_messages_only() {
         .collect();
     let digest = enforce_pi_ccs_outputs_digest(
         &mut builder,
-        &[PiCcsOutputClaimDigestInputs {
+        &[PiCcsOutputMessageDigestInputs {
             y_ring: &y_ring,
             y_zcol: &y_zcol,
         }],
@@ -848,7 +849,7 @@ fn enforce_pi_ccs_outputs_digest_matches_native_new_messages_only() {
 }
 
 #[test]
-fn accumulator_ce_claim_digest_ignores_y_zcol_non_authority() {
+fn accumulator_ce_claim_digest_records_current_unbound_y_zcol_gap() {
     // y_zcol is consumed by the same-step NC/RLC equations, but child
     // y_zcol is not verifier-checkably recomposed by Π_DEC. If this digest
     // absorbed it, the prover would get an unconstrained Fiat-Shamir salt in
@@ -863,7 +864,7 @@ fn accumulator_ce_claim_digest_ignores_y_zcol_non_authority() {
     assert_eq!(
         accumulator_ce_claim_digest(&c0_tampered),
         digest,
-        "accumulator digest must not absorb c0 of non-authority y_zcol"
+        "current accumulator digest omits c0 of the unbound y_zcol gap"
     );
 
     let mut c1_tampered = claim.clone();
@@ -871,7 +872,7 @@ fn accumulator_ce_claim_digest_ignores_y_zcol_non_authority() {
     assert_eq!(
         accumulator_ce_claim_digest(&c1_tampered),
         digest,
-        "accumulator digest must not absorb c1 of non-authority y_zcol"
+        "current accumulator digest omits c1 of the unbound y_zcol gap"
     );
 
     let mut y_ring_tampered = claim.clone();
@@ -1429,7 +1430,7 @@ fn header_digest_catch_up_matches_native_digest32() {
         ],
     );
     let header_wires = std::array::from_fn(|lane| b.alloc(header_fields[lane]));
-    enforce_header_digest_catch_up(&mut b, &mut tr, header_wires);
+    enforce_header_digest_catch_up_wires(&mut b, &mut tr, header_wires);
 
     assert!(
         b.is_satisfied(),
@@ -1453,7 +1454,7 @@ fn header_digest_catch_up_rejects_tampered_digest() {
     let mut tr = TranscriptGadget::new(&mut b, APP);
     tr.append_fields_raw_const(&mut b, &[F::from_u64(PI_CCS_HEADER_BUNDLE_RAW_TAG), F::from_u64(42)]);
     let bad_wires = std::array::from_fn(|lane| b.alloc(bad_fields[lane]));
-    enforce_header_digest_catch_up(&mut b, &mut tr, bad_wires);
+    enforce_header_digest_catch_up_wires(&mut b, &mut tr, bad_wires);
 
     assert!(
         !b.is_satisfied(),

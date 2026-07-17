@@ -16,8 +16,10 @@ use neo_fold_clean::paper::construction2::RunningInstance;
 use neo_fold_clean::paper::nifs;
 use neo_fold_clean::paper::pi_dec;
 use neo_fold_clean::paper::reductions::pi_dec_circuit::{
-    alloc_dec_inputs, enforce_dec_v, enforce_dec_v_strict, enforce_r_consistency, enforce_x_bitness, DecInputWires,
+    alloc_dec_inputs, enforce_dec_v, enforce_dec_v_strict, enforce_r_consistency, enforce_x_bitness,
+    stage as pi_dec_stage, DecInputWires,
 };
+use neo_fold_clean::paper::reductions::pi_rlc_circuit::stage as pi_rlc_stage;
 use neo_math::ring::D;
 use neo_math::{F, K};
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
@@ -148,6 +150,122 @@ fn pi_dec_circuit_strict_accepts_honest_decomposition() {
 }
 
 #[test]
+fn pi_dec_strict_leaf_ranges_partition_every_emitted_row() {
+    let (proof, _claims) = drive_nifs(25);
+    let prep = support::toy_preprocessing();
+    let mut builder = R1csBuilder::new();
+    let wires = alloc_dec_inputs(&mut builder, &proof.pi_rlc.combined, &proof.pi_dec.children);
+    let verifier_start = builder.rows();
+    let claim_count = 1 + wires.children.len();
+    let allocation_stats = |path| {
+        builder
+            .row_family_ranges()
+            .iter()
+            .filter(|range| range.name == path)
+            .fold((0usize, 0usize), |(count, rows), range| {
+                (count + 1, rows + range.row_end - range.row_start)
+            })
+    };
+    assert_eq!(
+        allocation_stats(pi_rlc_stage::ROW_SHAPE_ALLOCATE_INACTIVE_X_SENTINEL),
+        (claim_count, claim_count),
+        "one inactive-X sentinel row per allocated claim"
+    );
+    assert_eq!(
+        allocation_stats(pi_rlc_stage::ROW_SHAPE_ALLOCATE_FOLD_DIGEST_CANONICALITY),
+        (claim_count, 0),
+        "canonical honest digests emit no rejection rows"
+    );
+    assert_eq!(
+        allocation_stats(pi_rlc_stage::ROW_SHAPE_ALLOCATE_METADATA),
+        (claim_count, 5 * claim_count),
+        "five fixed shape-metadata rows per allocated claim"
+    );
+    assert_eq!(
+        verifier_start,
+        6 * claim_count,
+        "allocation row children must own the entire pre-verifier prefix"
+    );
+    enforce_dec_v_strict(&mut builder, &prep.params, &wires).expect("strict dec_v emit");
+
+    let mut leaves = pi_dec_stage::LEAVES
+        .iter()
+        .map(|&path| {
+            let matches = builder
+                .row_family_ranges()
+                .iter()
+                .filter(|range| range.name == path)
+                .collect::<Vec<_>>();
+            assert_eq!(matches.len(), 1, "{path} must have exactly one row owner");
+            *matches[0]
+        })
+        .collect::<Vec<_>>();
+    leaves.sort_by_key(|range| (range.row_start, range.row_end));
+
+    let mut cursor = verifier_start;
+    for range in leaves {
+        assert_eq!(range.row_start, cursor, "{} leaves a row-ownership gap", range.name);
+        assert!(range.row_end >= range.row_start, "{} has a reversed range", range.name);
+        cursor = range.row_end;
+    }
+    assert_eq!(
+        cursor,
+        builder.rows(),
+        "Pi_DEC leaves must own every strict-verifier row"
+    );
+
+    let verify = builder
+        .row_family_ranges()
+        .iter()
+        .find(|range| range.name == pi_dec_stage::VERIFY)
+        .expect("verify parent range");
+    assert_eq!((verify.row_start, verify.row_end), (verifier_start, builder.rows()));
+    assert_eq!(
+        pi_dec_stage::ROW_ALL
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>()
+            .len(),
+        pi_dec_stage::ROW_ALL.len(),
+        "Pi_DEC row-overlay paths must be unique"
+    );
+    for &(parent, children) in pi_dec_stage::ROW_HIERARCHY {
+        assert!(pi_dec_stage::ROW_ALL.contains(&parent), "missing row parent {parent}");
+        assert!(!children.is_empty(), "row parent {parent} must own children");
+        for child in children {
+            assert!(pi_dec_stage::ROW_ALL.contains(child), "missing row child {child}");
+        }
+    }
+
+    let recomposition = builder
+        .row_family_ranges()
+        .iter()
+        .find(|range| range.name == pi_dec_stage::RECOMPOSITION)
+        .expect("recomposition parent range");
+    let recomposition_rows = [
+        pi_dec_stage::RECOMPOSITION_COMMITMENT,
+        pi_dec_stage::RECOMPOSITION_ADVICE,
+        pi_dec_stage::RECOMPOSITION_X,
+        pi_dec_stage::RECOMPOSITION_Y_RING,
+    ]
+    .iter()
+    .map(|path| {
+        let range = builder
+            .row_family_ranges()
+            .iter()
+            .find(|range| range.name == *path)
+            .expect("recomposition child range");
+        range.row_end - range.row_start
+    })
+    .sum::<usize>();
+    assert_eq!(
+        recomposition.row_end - recomposition.row_start,
+        recomposition_rows,
+        "recomposition parent must equal its immediate-child sum"
+    );
+}
+
+#[test]
 fn pi_dec_circuit_strict_rejects_noncanonical_fold_digest_limb_alias() {
     let (proof, _claims) = drive_nifs(31);
 
@@ -170,13 +288,14 @@ fn pi_dec_circuit_strict_rejects_noncanonical_fold_digest_limb_alias() {
 }
 
 #[test]
-fn pi_dec_circuit_strict_leaves_only_y_zcol_sidecars_unconstrained() {
+fn pi_dec_circuit_strict_leaves_only_parent_y_zcol_unconstrained() {
     // Π_DEC owns the b-ary parent→children recomposition for commitment, X,
-    // r, y_ring, ct, s_col, and fold_digest. It intentionally does not own
-    // y_zcol recomposition: SplitNc's NC channel mixes digit-decomposed and
-    // linear y_zcols, so child y_zcol is not recursive accumulator authority.
-    // This test pins that boundary exactly. If any other allocated wire floats,
-    // the strict DEC gadget is missing a row.
+    // r, y_ring, ct, s_col, and fold_digest. It currently omits y_zcol even
+    // though the optimized raw projection is linear and admits the same
+    // radix-b recomposition. This test records that known gap: child sidecars
+    // are not allocated, while the parent sidecar floats. If any other
+    // allocated wire floats, the strict DEC gadget is missing an additional
+    // row family.
     let (proof, _claims) = drive_nifs(24);
 
     let parent = &proof.pi_rlc.combined;
@@ -193,7 +312,11 @@ fn pi_dec_circuit_strict_leaves_only_y_zcol_sidecars_unconstrained() {
     );
 
     let unconstrained: BTreeSet<_> = builder.unconstrained_columns().into_iter().collect();
-    let allowed = y_zcol_sidecar_columns(&wires);
+    assert!(
+        wires.children.iter().all(|child| child.y_zcol.is_empty()),
+        "strict Π_DEC children must not allocate y_zcol"
+    );
+    let allowed = parent_y_zcol_columns(&wires);
     assert!(
         unconstrained == allowed,
         "strict Π_DEC.V left unexpected unconstrained columns: got {unconstrained:?}, \
@@ -851,39 +974,48 @@ fn pi_dec_circuit_rejects_nonzero_inactive_child_x() {
 
 #[test]
 fn pi_dec_circuit_does_not_constrain_child_y_zcol() {
-    // Native `verify_dec_public` does NOT enforce `parent.y_zcol = Σ b^{i-1}
-    // · child_i.y_zcol`. Π_CCS outputs mix MCS digit-decomposed and ME
-    // linear y_zcols, and after Π_RLC the parent y_zcol doesn't telescope
-    // under b-ary split. Children's y_zcol values are free relative to
-    // Π_DEC and only re-bound by the terminal CE relation.
-    // This test pins that contract: tampering a child's y_zcol must NOT
-    // break Π_DEC.V on its own.
+    // Native `verify_dec_public` does NOT enforce a parent/child `y_zcol`
+    // relation. This test records the current emitted shape; it is not a
+    // soundness claim. The NC authority audit demonstrates that terminal child
+    // checks do not by themselves justify erasing the state-bound parent
+    // old-point projection.
     let (proof, _claims) = drive_nifs(53);
 
     let parent = &proof.pi_rlc.combined;
     let children = &proof.pi_dec.children;
+    let mut mutated_children = children.clone();
+    mutated_children[0].y_zcol[0] += K::ONE;
 
     let prep = support::toy_preprocessing();
-    let mut builder = R1csBuilder::new();
-    let wires = alloc_dec_inputs(&mut builder, parent, children);
-    enforce_dec_v(&mut builder, &prep.params, &wires).expect("dec_v emit");
+    let mut baseline_builder = R1csBuilder::new();
+    let baseline_wires = alloc_dec_inputs(&mut baseline_builder, parent, children);
+    enforce_dec_v_strict(&mut baseline_builder, &prep.params, &baseline_wires).expect("baseline strict dec_v emit");
     assert!(
-        builder.is_satisfied(),
+        baseline_builder.is_satisfied(),
         "baseline (first bad row: {:?})",
-        builder.first_unsatisfied_row()
+        baseline_builder.first_unsatisfied_row()
+    );
+    assert!(
+        baseline_wires
+            .children
+            .iter()
+            .all(|child| child.y_zcol.is_empty()),
+        "strict Π_DEC must not allocate child y_zcol"
     );
 
+    let mut mutated_builder = R1csBuilder::new();
+    let mutated_wires = alloc_dec_inputs(&mut mutated_builder, parent, &mutated_children);
+    enforce_dec_v_strict(&mut mutated_builder, &prep.params, &mutated_wires).expect("mutated strict dec_v emit");
+    let baseline = baseline_builder.snapshot();
+    let mutated = mutated_builder.snapshot();
     assert!(
-        !wires.children[0].y_zcol.is_empty(),
-        "test fixture must expose child y_zcol lanes"
+        baseline.has_same_relation(&mutated),
+        "native child y_zcol mutation changed the Π_DEC relation"
     );
-    let target_col = wires.children[0].y_zcol[0].col();
-    let tampered = builder.witness()[target_col] + neo_math::F::ONE;
-    builder.tamper_witness(target_col, tampered);
-
-    assert!(
-        builder.is_satisfied(),
-        "Π_DEC.V must not constrain child y_zcol (mirrors native `verify_dec_public`)"
+    assert_eq!(
+        baseline.witness(),
+        mutated.witness(),
+        "native child y_zcol mutation leaked into the Π_DEC witness"
     );
 }
 
@@ -912,12 +1044,6 @@ fn drive_nifs(seed: u64) -> (nifs::NifsProof, Vec<neo_fold_clean::CcsInstance>) 
     (proof, claims)
 }
 
-fn y_zcol_sidecar_columns(wires: &DecInputWires) -> BTreeSet<usize> {
-    wires
-        .parent
-        .y_zcol
-        .iter()
-        .chain(wires.children.iter().flat_map(|child| child.y_zcol.iter()))
-        .map(|var| var.col())
-        .collect()
+fn parent_y_zcol_columns(wires: &DecInputWires) -> BTreeSet<usize> {
+    wires.parent.y_zcol.iter().map(|var| var.col()).collect()
 }

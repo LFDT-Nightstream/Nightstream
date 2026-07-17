@@ -1,5 +1,22 @@
 //! SplitNcV1 — per-claim digest gadgets.
 //!
+//! Owns: exact Poseidon2/SIS preimages for Pi_CCS claim and message bindings.
+//!
+//! Does not own: claim validation, transcript placement, or digest authority.
+//!
+//! Emits constraints: yes.
+//!
+//! Authority boundary: callers must supply already-constrained claim wires;
+//! carried prover digests are comparison values, never authority.
+//!
+//! | Constraint family | Mathematical obligation | Emits constraints? | Rust owner | Lean owner |
+//! |---|---|---|---|---|
+//! | fresh CCS digest | Bind commitment, advice, public input, and shape | yes | `enforce_ccs_claim_digest` | concrete bridge open |
+//! | CE digest | Bind the complete CE message | yes | `enforce_ce_claim_digest` | concrete bridge open |
+//! | checked-parent digest | Bind authoritative accumulator fields | yes | `enforce_accumulator_ce_claim_digest` | authority bridge open |
+//! | instance digest | Bind fresh claims and checked running parent | yes | `enforce_pi_ccs_instance_digest_parent_authority` | authority bridge open |
+//! | output digest | Bind the Pi_CCS message consumed by Pi_RLC | yes | `enforce_pi_ccs_outputs_digest` | projection bridge open |
+//!
 //! Mirrors:
 //! - `crate::paper::digest::ccs_claim_digest` (per-fresh CCS claim).
 //! - `crate::paper::digest::ce_claim_digest` (per-running CE claim).

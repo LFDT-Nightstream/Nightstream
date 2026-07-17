@@ -345,7 +345,8 @@ pub fn compare_affine_artifacts(builder: &R1csBuilder) {
 
     // The terminal Pi_CCS authority phase starts with one exact strict-Pi_DEC
     // replay (exported separately as `terminalCeRows`) and ends with the
-    // affine output-ct/padding checks.  Export that suffix independently so
+    // affine output-ct, y_ring-padding, and authoritative y_zcol-padding
+    // checks. Export that suffix independently so
     // the full parent schedule can reuse the checked Pi_DEC compiler without
     // duplicating its 10,597 rows as literals.
     let authority = nth_range(builder, "nifs.pi_ccs.authority", 1);
@@ -354,7 +355,7 @@ pub fn compare_affine_artifacts(builder: &R1csBuilder) {
         row_start: authority.row_start + 10_597,
         row_end: authority.row_end,
     };
-    assert_eq!(tail.row_end - tail.row_start, 990, "terminal authority affine tail");
+    assert_eq!(tail.row_end - tail.row_start, 1_290, "terminal authority affine tail");
     let namespace = "FPrimeFullHistoryPiCcsTerminalAuthorityTail";
     let path = formal_repo_root().join(format!(
         "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeFullHistory/Generated/{namespace}.lean"

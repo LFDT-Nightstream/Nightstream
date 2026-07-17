@@ -66,7 +66,7 @@ use neo_fold_clean::engine::transcript::Transcript;
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
 use neo_fold_clean::paper::construction2::RunningInstance;
 use neo_fold_clean::paper::nifs::circuit::{
-    enforce_nifs_v_circuit_with_transcript, NifsVCircuitConfig, NifsVCircuitMessages,
+    enforce_nifs_v_circuit_with_transcript, NifsVCircuitConfig, NifsVCircuitMessages, NifsVOutputs,
 };
 use neo_fold_clean::paper::nifs::NifsProof;
 use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsVConfig;
@@ -253,7 +253,13 @@ fn pi_ccs_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> SplitNcPiCcsVCo
 }
 
 fn emit_verifier(f: &Fixture) -> Result<R1csBuilder, neo_fold_clean::paper::nifs::circuit::Error> {
-    emit_verifier_with_running(f, &f.running.claims, f.running.parent_authority.as_ref(), &f.children)
+    Ok(emit_verifier_outputs(f)?.0)
+}
+
+fn emit_verifier_outputs(
+    f: &Fixture,
+) -> Result<(R1csBuilder, NifsVOutputs), neo_fold_clean::paper::nifs::circuit::Error> {
+    emit_verifier_with_running_outputs(f, &f.running.claims, f.running.parent_authority.as_ref(), &f.children)
 }
 
 fn emit_verifier_with_running(
@@ -262,12 +268,21 @@ fn emit_verifier_with_running(
     running_parent_authority: Option<&CeClaim>,
     children: &[CeClaim],
 ) -> Result<R1csBuilder, neo_fold_clean::paper::nifs::circuit::Error> {
+    Ok(emit_verifier_with_running_outputs(f, running, running_parent_authority, children)?.0)
+}
+
+fn emit_verifier_with_running_outputs(
+    f: &Fixture,
+    running: &[CeClaim],
+    running_parent_authority: Option<&CeClaim>,
+    children: &[CeClaim],
+) -> Result<(R1csBuilder, NifsVOutputs), neo_fold_clean::paper::nifs::circuit::Error> {
     let mut builder = R1csBuilder::new();
     let mut tr = TranscriptGadget::new(&mut builder, SESSION_LABEL);
     let cfg = NifsVCircuitConfig {
         pi_ccs: pi_ccs_config(&f.prep),
     };
-    enforce_nifs_v_circuit_with_transcript(
+    let outputs = enforce_nifs_v_circuit_with_transcript(
         &mut builder,
         &f.prep.params,
         &cfg,
@@ -281,7 +296,7 @@ fn emit_verifier_with_running(
             children,
         },
     )?;
-    Ok(builder)
+    Ok((builder, outputs))
 }
 
 fn expect_incoming_sidecar_rejected(name: &'static str, mutate: fn(&mut Fixture), needle: &str) {
@@ -321,6 +336,63 @@ fn nifs_v_accepts_native_proof() {
         builder.is_satisfied(),
         "native nifs::prove proof must satisfy NIFS.V circuit; first bad row {:?}",
         builder.first_unsatisfied_row()
+    );
+}
+
+#[test]
+fn nifs_v_omits_child_and_running_y_zcol_without_changing_the_relation() {
+    let baseline_fixture = build_fixture();
+    let (baseline_builder, baseline_outputs) =
+        emit_verifier_outputs(&baseline_fixture).expect("emit baseline verifier");
+    assert!(baseline_builder.is_satisfied(), "baseline NIFS.V must satisfy");
+    assert!(
+        baseline_outputs
+            .running
+            .iter()
+            .all(|claim| claim.y_zcol.is_empty()),
+        "Π_CCS running claims must not allocate y_zcol"
+    );
+    assert!(
+        baseline_outputs
+            .children
+            .iter()
+            .all(|claim| claim.y_zcol.is_empty()),
+        "Π_DEC children must not allocate y_zcol"
+    );
+    assert!(
+        !baseline_outputs.parent.y_zcol.is_empty(),
+        "authoritative Π_RLC parent must retain y_zcol"
+    );
+    assert!(
+        baseline_outputs
+            .running_parent_authority
+            .as_ref()
+            .is_some_and(|parent| !parent.y_zcol.is_empty()),
+        "incoming Π_RLC parent authority must retain y_zcol"
+    );
+
+    let baseline = baseline_builder.snapshot();
+
+    let mut running_mutation = build_fixture();
+    running_mutation.running.claims[0].y_zcol[0] += K::ONE;
+    let (running_builder, _) = emit_verifier_outputs(&running_mutation).expect("emit running-y_zcol mutation");
+    let running = running_builder.snapshot();
+    assert!(baseline.has_same_relation(&running));
+    assert_eq!(
+        baseline.witness(),
+        running.witness(),
+        "native running y_zcol leaked into the NIFS.V witness"
+    );
+
+    let mut child_mutation = build_fixture();
+    child_mutation.children[0].y_zcol[0] += K::ONE;
+    let (child_builder, _) = emit_verifier_outputs(&child_mutation).expect("emit child-y_zcol mutation");
+    let child = child_builder.snapshot();
+    assert!(baseline.has_same_relation(&child));
+    assert_eq!(
+        baseline.witness(),
+        child.witness(),
+        "native Π_DEC child y_zcol leaked into the NIFS.V witness"
     );
 }
 
@@ -535,12 +607,12 @@ fn nifs_v_rejects_tampered_running_parent_authority_s_col() {
 }
 
 #[test]
-fn nifs_v_accepts_tampered_running_parent_authority_y_zcol_non_authority() {
-    // `y_zcol` is an NC sidecar, not part of SuperNeo's paper CE tuple, and
-    // Π_DEC children cannot prove a verifier-checkable radix-b y_zcol
-    // recomposition. The recursive accumulator handle therefore deliberately
-    // omits y_zcol so it cannot become a free Fiat-Shamir salt. Terminal CE
-    // verification binds final y_zcol against the opened witness.
+fn nifs_v_records_current_unbound_running_parent_y_zcol() {
+    // This acceptance is a regression pin for the known authority gap, not a
+    // desired semantic boundary. The optimized raw projection is linear and
+    // can be recomposed through Π_DEC, but the recursive accumulator handle
+    // currently omits it. A delayed-parent check must make this mutation fail
+    // before row removal is authorized.
     let mut fixture = build_fixture();
     let parent = fixture
         .running
@@ -553,7 +625,7 @@ fn nifs_v_accepts_tampered_running_parent_authority_y_zcol_non_authority() {
     let builder = emit_verifier(&fixture).expect("emit verifier");
     assert!(
         builder.is_satisfied(),
-        "NIFS.V should not treat running parent authority y_zcol as recursive accumulator authority"
+        "current-gap regression: NIFS.V unexpectedly started binding parent y_zcol; update the delayed-authority audit"
     );
 }
 

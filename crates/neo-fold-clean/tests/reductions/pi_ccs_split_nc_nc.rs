@@ -136,6 +136,24 @@ fn nc_range_product_b2_vanishes_at_minus_one_zero_one() {
 }
 
 #[test]
+fn nc_range_product_b2_rejects_coordinate_two() {
+    // Regression for the first coordinate outside the production b=2
+    // alphabet: 2 is a valid Goldilocks field element, but it is not a valid
+    // centered low-norm assignment coordinate.
+    let mut bd = R1csBuilder::new();
+    let coordinate = alloc_witness_k(&mut bd, K::from(F::from_u64(2)));
+    let residual = enforce_nc_range_product(&mut bd, coordinate, 2).expect("range_product");
+
+    assert_eq!(k_value(&bd, residual), K::from(F::from_u64(6)));
+    assert!(
+        bd.is_satisfied(),
+        "the exact nonzero residual must satisfy its defining rows"
+    );
+    pin_k(&mut bd, residual, K::ZERO);
+    assert!(!bd.is_satisfied(), "the NC zero claim must reject encoded coordinate 2");
+}
+
+#[test]
 fn nc_range_product_b3_vanishes_at_centered_integers() {
     // For b=3, range_product vanishes at z ∈ {-2, -1, 0, 1, 2}.
     let zeros: Vec<K> = (-2i64..=2).map(|t| K::from(F::from_i64(t))).collect();

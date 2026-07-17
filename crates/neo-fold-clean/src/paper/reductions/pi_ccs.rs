@@ -1,24 +1,23 @@
-//! Π_CCS — SuperNeo §7.3.
+//! Native Pi_CCS reduction from fresh CCS and carried CE claims to CE outputs.
 //!
-//! Reduction:  CCS(b, ℒ)^K  ×  CE(b, ℒ)^k   →   CE(b, ℒ)^{K+k}
+//! Owns: paper-level shape checks, prover/verifier orchestration, wire-format
+//! outputs, and the recomputable output-message digest.
 //!
-//! Soundness: **strong** wrt φ projecting commitments (Lemma 3, proof in §D.4).
-//! Composes with Π_RLC (weak wrt the same φ) via Theorem 6.
+//! Does not own: Q-polynomial construction, SumCheck arithmetic, terminal
+//! identities, or in-circuit verification.
 //!
-//! ## What this file owns
+//! Emits constraints: no.
 //!
-//! - The `prove` and `verify` step-down flows in paper-step order.
-//! - The shape contract: K fresh CCS instances, k carried CE claims.
-//! - The wire-format `Proof` bundle: `(sumcheck, outputs)`, plus the
-//!   recomputable output digest consumed before Π_RLC samples `ρ`. The K+k
-//!   output claims **must** be in the wire format because the verifier needs
-//!   them both to feed `engine::verify_pi_ccs` and to feed the next reduction
-//!   (Π_RLC) downstream.
+//! Authority boundary: output claims are authenticated by the engine verifier;
+//! `outputs_digest` is recomputed compression for the Pi_RLC handoff and is never
+//! authority by itself.
 //!
-//! ## What this file does *not* own
-//!
-//! - The Q polynomial, the sumcheck, the terminal identity check. All of
-//!   that math lives in `engine::optimized`, which wraps `neo-reductions`.
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | Proof/output shape | [`Proof`] | no | Fixed fresh and running claim counts |
+//! | Incoming running `y_zcol` omission | Current verifier validates only the CE core | no | open authority gap; delayed parent-projection refinement required |
+//! | Prover reduction | [`prove`] and backend variants | no | Engine Pi_CCS prover |
+//! | Verifier reduction | [`verify`] | no | Engine SumCheck and terminal checks |
 
 use thiserror::Error;
 
@@ -608,7 +607,7 @@ fn validate_verifier_shape(
     }
     validate_inactive_x_zero(running_claims, "running inactive X columns must be zero")?;
     validate_inactive_x_zero(fold_outputs, "fold output inactive X columns must be zero")?;
-    validate_clean_split_nc_claims(s, running_claims)?;
+    validate_clean_split_nc_claims_without_y_zcol(s, running_claims)?;
     validate_clean_split_nc_claims(s, fold_outputs)?;
     Ok(())
 }
@@ -627,7 +626,33 @@ fn validate_clean_split_nc_claims(s: &Structure, claims: &[CeClaim]) -> Result<(
     Ok(())
 }
 
+fn validate_clean_split_nc_claims_without_y_zcol(s: &Structure, claims: &[CeClaim]) -> Result<(), Error> {
+    for claim in claims {
+        validate_clean_split_nc_claim_core(s, claim)?;
+    }
+    Ok(())
+}
+
 fn validate_clean_split_nc_claim(s: &Structure, claim: &CeClaim) -> Result<(), Error> {
+    validate_clean_split_nc_claim_core(s, claim)?;
+    let d_pad = D.next_power_of_two();
+    if claim.y_zcol.len() != d_pad {
+        return Err(Error::Shape("CE y_zcol length must match padded ring degree"));
+    }
+    if claim
+        .y_zcol
+        .iter()
+        .skip(D)
+        .any(|&lane| lane != K::default())
+    {
+        return Err(Error::Shape("CE y_zcol padding lanes must be zero"));
+    }
+    Ok(())
+}
+
+/// Validate the CE core consumed by Π_CCS and strict Π_DEC. Incoming
+/// running `y_zcol` is excluded because it is not read by either verifier.
+fn validate_clean_split_nc_claim_core(s: &Structure, claim: &CeClaim) -> Result<(), Error> {
     let d_pad = D.next_power_of_two();
     let ell_n = s.n.next_power_of_two().max(2).trailing_zeros() as usize;
     let ell_m = s.m.next_power_of_two().max(2).trailing_zeros() as usize;
@@ -643,9 +668,6 @@ fn validate_clean_split_nc_claim(s: &Structure, claim: &CeClaim) -> Result<(), E
     }
     if claim.ct.len() != s.t() {
         return Err(Error::Shape("CE ct length must match structure.t"));
-    }
-    if claim.y_zcol.len() != d_pad {
-        return Err(Error::Shape("CE y_zcol length must match padded ring degree"));
     }
     if !claim.aux_openings.is_empty() || !claim.c_step_coords.is_empty() || claim.u_offset != 0 || claim.u_len != 0 {
         return Err(Error::Shape("CE claim carries unsupported SplitNc sidecars"));
@@ -665,14 +687,5 @@ fn validate_clean_split_nc_claim(s: &Structure, claim: &CeClaim) -> Result<(), E
             return Err(Error::Shape("CE y_ring padding lanes must be zero"));
         }
     }
-    if claim
-        .y_zcol
-        .iter()
-        .skip(D)
-        .any(|&lane| lane != K::default())
-    {
-        return Err(Error::Shape("CE y_zcol padding lanes must be zero"));
-    }
-
     Ok(())
 }

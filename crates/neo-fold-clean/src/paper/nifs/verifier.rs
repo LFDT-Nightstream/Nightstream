@@ -1,4 +1,21 @@
-//! NIFS.V — verifier-side composition. What F' re-runs in-circuit.
+//! Verifier-side NIFS composition `Pi_CCS -> Pi_RLC -> Pi_DEC`.
+//!
+//! Owns: checked-parent validation, ordered verifier replay, and construction of
+//! the claims-only output accumulator.
+//!
+//! Does not own: reduction arithmetic, transcript implementation, or in-circuit
+//! lowering.
+//!
+//! Emits constraints: no.
+//!
+//! Authority boundary: the running parent is first revalidated through Pi_DEC;
+//! each supplied proof is then checked before its output feeds the next phase.
+//!
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | Running parent | `validate_running_parent_authority` | no | Pi_DEC recomposition |
+//! | Reduction replay | [`verify`] | no | Pi_CCS, Pi_RLC, and Pi_DEC verifiers |
+//! | Output accumulator | [`verify`] | no | Checked child claims and parent authority |
 
 use neo_reductions::optimized_engine::OptimizedStructureCache;
 

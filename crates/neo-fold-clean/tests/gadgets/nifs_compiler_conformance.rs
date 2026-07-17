@@ -414,9 +414,24 @@ fn full_history_call_artifact(anchor: &Artifact) -> String {
 
     format!(
         "import Nightstream.Implementation.R1CS.Correspondence.Sumcheck.SumcheckChainSound\n\n\
-         /-! Exact affine maps for every full-history Π_CCS FE/NC round. -/\n\n\
+         /-!\n\
+         Generated exact affine maps for every full-history Π_CCS FE/NC round.\n\n\
+         Owns: call-site relabeling of the isolated SumCheck-round compiler.\n\
+         Does not own: transcript challenges, initial claims, terminal identities,\n\
+         or soundness of Π_CCS outside the isolated round equations.\n\
+         Emits constraints: no; the four row lists reconstruct already emitted rows.\n\
+         Authority boundary: every map is extracted from one exact production row\n\
+         range and checked against the isolated canonical compiler artifact.\n\n\
+         | Branch | Mathematical obligation | Emitted by |\n\
+         |---|---|---|\n\
+         | recursive FE | Seven linked degree-four SumCheck rounds | nifs.pi_ccs.fe_sumcheck |\n\
+         | recursive NC | Fifteen linked degree-four SumCheck rounds | nifs.pi_ccs.nc_sumcheck |\n\
+         | terminal FE | Seven linked degree-four SumCheck rounds | nifs.pi_ccs.fe_sumcheck |\n\
+         | terminal NC | Fifteen linked degree-four SumCheck rounds | nifs.pi_ccs.nc_sumcheck |\n\
+         -/\n\n\
          namespace Nightstream.Implementation.R1CS.FPrimeFullHistorySumcheckArtifact\n\n\
          open Nightstream.Implementation.R1CS.SumcheckChainSound\n\n\
+         set_option maxRecDepth 1048576\n\n\
          def recursiveFeMaps : List ColumnMap :=\n[{}]\n\
          def recursiveNcMaps : List ColumnMap :=\n[{}]\n\
          def terminalFeMaps : List ColumnMap :=\n[{}]\n\
@@ -429,7 +444,7 @@ fn full_history_call_artifact(anchor: &Artifact) -> String {
          theorem recursive_nc_shape : recursiveNcMaps.length = {} ∧\n    MapsOne recursiveNcMaps ∧ Linked recursiveNcMaps := by native_decide\n\
          theorem terminal_fe_shape : terminalFeMaps.length = {} ∧\n    MapsOne terminalFeMaps ∧ Linked terminalFeMaps := by native_decide\n\
          theorem terminal_nc_shape : terminalNcMaps.length = {} ∧\n    MapsOne terminalNcMaps ∧ Linked terminalNcMaps := by native_decide\n\n\
-         end Nightstream.Implementation.R1CS.FPrimeFullHistorySumcheckArtifact",
+         end Nightstream.Implementation.R1CS.FPrimeFullHistorySumcheckArtifact\n",
         lean_maps(&recursive_fe),
         lean_maps(&recursive_nc),
         lean_maps(&terminal_fe),
@@ -446,12 +461,10 @@ fn full_history_sumcheck_call_sites_match_isolated_compiler() {
     let anchor = build_artifact();
     let source = full_history_call_artifact(&anchor);
     let path = repo_root().join(CALLS_PATH);
-    if std::env::var_os("UPDATE_NIFS_COMPILER_ARTIFACT").is_some() {
-        fs::write(&path, &source).expect("write full-history SumCheck artifact");
-    }
     let existing = fs::read_to_string(&path).unwrap_or_default();
-    assert_eq!(
-        existing, source,
-        "{CALLS_PATH} drift; regenerate with UPDATE_NIFS_COMPILER_ARTIFACT=1"
-    );
+    if existing != source {
+        let expected = path.with_extension("lean.expected");
+        fs::write(&expected, source).expect("write full-history SumCheck expected artifact");
+        panic!("{CALLS_PATH} drifted: {}", expected.display());
+    }
 }

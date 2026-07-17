@@ -29,8 +29,14 @@ const ALPHABET_LANE_TEMPLATE_PATH: &str =
 const ALPHABET_TEMPLATE_PATH: &str =
     "formal/nightstream-lean/Nightstream/Implementation/R1CS/Ownership/AlphabetSampling/AlphabetSamplingResidualTemplate.lean";
 const OWNER_SHARD_ROW_LIMIT: usize = 450;
-const ALPHABET_LANE_ROWS: usize = 100;
-const ALPHABET_TAIL_ROWS: usize = 13_885;
+const ALPHABET_LANE_ROWS: usize = 104;
+const ALPHABET_ACCEPTANCE_BOUND_ROWS: usize = 6;
+const ALPHABET_SELECTION_INITIALIZE_ROWS: usize = 1;
+const ALPHABET_SELECTION_OUTPUTS: usize = 54;
+const ALPHABET_SELECTION_ROWS_PER_OUTPUT: usize = 12 + 33 + 3;
+const ALPHABET_TAIL_ROWS: usize = ALPHABET_ACCEPTANCE_BOUND_ROWS
+    + ALPHABET_SELECTION_INITIALIZE_ROWS
+    + ALPHABET_SELECTION_OUTPUTS * ALPHABET_SELECTION_ROWS_PER_OUTPUT;
 const ALPHABET_TEMPLATE_SHARD_SIZE: usize = 450;
 
 struct NestedOwnerSpec {
@@ -72,6 +78,12 @@ const NESTED_OWNER_SPECS: &[NestedOwnerSpec] = &[
         description: "recursive Pi_CCS FE-initial owner",
     },
     NestedOwnerSpec {
+        range_name: "nifs.pi_ccs.fe_claim_and_sumcheck.optional_claim",
+        occurrence: 0,
+        module_suffix: "RecursivePiCcsFeOptionalClaim",
+        description: "recursive Pi_CCS FE optional-claim owner",
+    },
+    NestedOwnerSpec {
         range_name: "nifs.pi_ccs.fe_sumcheck",
         occurrence: 0,
         module_suffix: "RecursivePiCcsFeSumcheck",
@@ -100,6 +112,12 @@ const NESTED_OWNER_SPECS: &[NestedOwnerSpec] = &[
         occurrence: 0,
         module_suffix: "RecursivePiCcsCatchup",
         description: "recursive Pi_CCS header catch-up owner",
+    },
+    NestedOwnerSpec {
+        range_name: "nifs.pi_ccs.output_message_hashes",
+        occurrence: 0,
+        module_suffix: "RecursivePiCcsOutputMessageHashes",
+        description: "recursive Pi_CCS output-message hash owner",
     },
     NestedOwnerSpec {
         range_name: "nifs.pi_rlc.transcript_rhos",
@@ -138,6 +156,12 @@ const NESTED_OWNER_SPECS: &[NestedOwnerSpec] = &[
         description: "terminal Pi_CCS FE-initial owner",
     },
     NestedOwnerSpec {
+        range_name: "nifs.pi_ccs.fe_claim_and_sumcheck.optional_claim",
+        occurrence: 1,
+        module_suffix: "TerminalPiCcsFeOptionalClaim",
+        description: "terminal Pi_CCS FE optional-claim owner",
+    },
+    NestedOwnerSpec {
         range_name: "nifs.pi_ccs.fe_sumcheck",
         occurrence: 1,
         module_suffix: "TerminalPiCcsFeSumcheck",
@@ -166,6 +190,12 @@ const NESTED_OWNER_SPECS: &[NestedOwnerSpec] = &[
         occurrence: 1,
         module_suffix: "TerminalPiCcsCatchup",
         description: "terminal Pi_CCS header catch-up owner",
+    },
+    NestedOwnerSpec {
+        range_name: "nifs.pi_ccs.output_message_hashes",
+        occurrence: 1,
+        module_suffix: "TerminalPiCcsOutputMessageHashes",
+        description: "terminal Pi_CCS output-message hash owner",
     },
     NestedOwnerSpec {
         range_name: "nifs.pi_rlc.transcript_rhos",
@@ -778,18 +808,51 @@ fn inverse_column_map(column_map: &[usize]) -> std::collections::HashMap<usize, 
 }
 
 fn alphabet_cum_prev(builder: &R1csBuilder, lane_row_start: usize, bit_start: usize) -> usize {
-    let (a, _, _) = builder.sparse_triplets();
-    let terms = triplet_row_slice(a, lane_row_start + 24, lane_row_start + 25);
+    let (a, b, c) = builder.sparse_triplets();
     let accept = bit_start + 66;
     let cum_after = bit_start + 88;
-    let candidates = terms
-        .iter()
-        .filter(|(_, column, _)| *column != accept && *column != cum_after && *column != 0)
-        .map(|(_, column, _)| *column)
+    let matches = (lane_row_start..lane_row_start + 26)
+        .filter_map(|row| {
+            let terms = triplet_row_slice(a, row, row + 1);
+            let has_cum_after = terms
+                .iter()
+                .any(|(_, column, coefficient)| *column == cum_after && *coefficient == F::ONE);
+            let has_accept = terms
+                .iter()
+                .any(|(_, column, coefficient)| *column == accept && *coefficient == -F::ONE);
+            if !has_cum_after || !has_accept {
+                return None;
+            }
+            let remaining = terms
+                .iter()
+                .filter(|(_, column, _)| *column != accept && *column != cum_after && *column != 0)
+                .collect::<Vec<_>>();
+            let [(_, cum_prev, coefficient)] = remaining.as_slice() else {
+                return None;
+            };
+            (*coefficient == -F::ONE).then_some((row, *cum_prev, terms))
+        })
         .collect::<Vec<_>>();
-    let [cum_prev] = candidates.as_slice() else {
-        panic!("one previous cumulative-count wire at alphabet lane row {lane_row_start}: {terms:?}");
+    let [(row, cum_prev, terms)] = matches.as_slice() else {
+        panic!(
+            "one exact cumulative recurrence in alphabet lane {lane_row_start}; \
+             bit_start={bit_start}, accept={accept}, cum_after={cum_after}, matches={matches:?}"
+        );
     };
+    assert_eq!(
+        triplet_row_slice(b, *row, *row + 1),
+        [(*row, 0, F::ONE)],
+        "alphabet cumulative recurrence multiplies by one"
+    );
+    assert!(
+        triplet_row_slice(c, *row, *row + 1).is_empty(),
+        "alphabet cumulative recurrence has zero C"
+    );
+    assert_eq!(
+        terms.len(),
+        3,
+        "alphabet cumulative recurrence has exactly three A terms"
+    );
     *cum_prev
 }
 
@@ -860,7 +923,12 @@ fn alphabet_residual_pieces(
 
         let tail_start = sample.last().expect("sample lanes").1 + ALPHABET_LANE_ROWS;
         let tail_end = tail_start + ALPHABET_TAIL_ROWS;
-        assert!(tail_end <= range.row_end, "alphabet tail stays in owner");
+        assert!(
+            tail_end <= range.row_end,
+            "alphabet tail {tail_start}..{tail_end} stays in owner {}..{}",
+            range.row_start,
+            range.row_end
+        );
         let first_allocated = bit_starts.last().copied().expect("sample bit starts") + 158;
         let column_map = alphabet_tail_column_map(&bit_starts, first_allocated);
         let inverse = inverse_column_map(&column_map);
@@ -1105,6 +1173,7 @@ fn render_owner_shard(module_suffix: &str, shard: usize, pieces: &[RenderedOwner
          namespace Nightstream.Implementation.R1CS.FPrimeFullHistory{module_suffix}.Generated\n\n\
          open Nightstream.Implementation.R1CS\n\
          open Nightstream.Implementation.R1CS.OwnerCertificate\n\n\
+         set_option maxRecDepth 1048576\n\n\
          def pieces{shard} : List Piece :=\n  [{}]\n\n\
          end Nightstream.Implementation.R1CS.FPrimeFullHistory{module_suffix}.Generated\n",
         pieces

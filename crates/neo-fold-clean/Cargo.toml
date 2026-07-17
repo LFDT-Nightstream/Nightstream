@@ -141,6 +141,18 @@ name = "gadgets_pi_rlc_projection_boundary"
 path = "tests/gadgets/pi_rlc_projection_boundary.rs"
 
 [[test]]
+name = "gadgets_pi_rlc_projection_compaction"
+path = "tests/gadgets/pi_rlc_projection_compaction.rs"
+
+[[test]]
+name = "gadgets_packed_mod5_lean_artifact"
+path = "tests/gadgets/packed_mod5_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_aggregate_acceptance_lean_artifact"
+path = "tests/gadgets/aggregate_acceptance_lean_artifact.rs"
+
+[[test]]
 name = "gadgets_poseidon2"
 path = "tests/gadgets/poseidon2.rs"
 
@@ -167,6 +179,10 @@ path = "tests/gadgets/transcript.rs"
 [[test]]
 name = "gadgets_alphabet_sampling"
 path = "tests/gadgets/alphabet_sampling.rs"
+
+[[test]]
+name = "gadgets_canonical_u64_trace"
+path = "tests/gadgets/canonical_u64_trace.rs"
 
 [[test]]
 name = "reductions_pi_ccs_split_nc"
@@ -271,6 +287,18 @@ path = "tests/f_prime/low_norm_r1cs.rs"
 [[test]]
 name = "f_prime_full_relation"
 path = "tests/f_prime/full_relation.rs"
+
+[[test]]
+name = "f_prime_fixed_carrier_nifs_lean_artifact"
+path = "tests/f_prime/fixed_carrier_nifs_lean_artifact.rs"
+
+[[test]]
+name = "f_prime_selective_snapshot"
+path = "tests/f_prime/selective_snapshot.rs"
+
+[[test]]
+name = "f_prime_selective_structure_census"
+path = "tests/f_prime/selective_structure_census.rs"
 
 [[test]]
 name = "system_audit_anchor"
@@ -455,6 +483,10 @@ path = "tests/system/terminal_ce_merkle.rs"
 [[test]]
 name = "system_r1cs_compiler"
 path = "tests/system/r1cs_compiler.rs"
+
+[[test]]
+name = "system_r1cs_stage_provenance"
+path = "tests/system/r1cs_stage_provenance.rs"
 
 [[test]]
 name = "system_selective_rectangular"

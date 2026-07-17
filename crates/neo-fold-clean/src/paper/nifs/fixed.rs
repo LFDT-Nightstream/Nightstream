@@ -1,9 +1,21 @@
-//! Fixed Construction-2 NIFS interface.
+//! Fixed Construction-2 interface `CE^k x CCS -> CE^k`.
 //!
-//! SuperNeo's reduction accepts batches internally, but HyperNova
-//! Construction 2 needs a fixed folding scheme
-//! `CE(b,L)^k x CCS(b,L) -> CE(b,L)^k`. This module is that interface:
-//! exactly one fresh CCS instance and exactly `k` carried/output CE claims.
+//! Owns: the validated fixed-size accumulator wrapper and one-fresh-instance
+//! prove/verify entrypoints.
+//!
+//! Does not own: Pi_CCS, Pi_RLC, or Pi_DEC internals, transcript primitives, or
+//! backend execution.
+//!
+//! Emits constraints: no.
+//!
+//! Authority boundary: constructors validate accumulator shape and checked
+//! parent recomposition; only [`verify_fixed`] authorizes a verifier-side output.
+//!
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | Fixed accumulator | [`FixedNifsAccumulator`] | no | Shape and parent validation |
+//! | Prover fold | [`prove_fixed`] | no | Validated input accumulator and fresh instance |
+//! | Verifier fold | [`verify_fixed`] | no | Checked NIFS proof |
 
 use neo_ajtai::AjtaiSModule;
 use neo_reductions::optimized_engine::OptimizedStructureCache;

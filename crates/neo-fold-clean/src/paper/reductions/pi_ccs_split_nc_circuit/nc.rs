@@ -1,5 +1,26 @@
 //! SplitNcV1 — NC channel (range_product, sumcheck driver, terminal identity).
 //!
+//! Owns: centered-range, NC SumCheck, and NC terminal-identity arithmetic.
+//!
+//! Does not own: transcript prefix authority or output/input continuity.
+//!
+//! Emits constraints: yes.
+//!
+//! Authority boundary: challenges and output wires are caller-constrained;
+//! this leaf proves only the NC equations they parameterize.
+//!
+//! | Constraint family | Mathematical obligation | Emits constraints? | Rust owner | Lean owner |
+//! |---|---|---|---|---|
+//! | equality factors | Evaluate `eq(alpha', beta_a) * eq(s', beta_m)` | yes | `enforce_nc_terminal_identity` | terminal bridge open |
+//! | Ajtai basis | Materialize `chi_{alpha'}` | yes | `enforce_nc_terminal_identity` | terminal bridge open |
+//! | gamma powers | Materialize the ordered batch weights | yes | `enforce_nc_terminal_identity` | mixing bridge open |
+//! | output evaluations | Evaluate each `y_zcol` at `alpha'` | yes | `enforce_nc_terminal_identity` | terminal bridge open |
+//! | range products | Vanish exactly on the configured centered range | yes | `enforce_nc_range_product` | `PiCcsNc.RangePolynomial` proves embedded-`F` semantics; row refinement open |
+//! | weighted sum | Combine per-output range values with `gamma^(i+1)` | yes | `enforce_nc_terminal_identity` | mixing bridge open |
+//! | final product | Multiply equality gating by the weighted sum | yes | `enforce_nc_terminal_identity` | terminal bridge open |
+//! | SumCheck | Replay NC rounds and derive `s_col_prime`, `alpha_prime` | yes | `enforce_nc_sumcheck_driver` | SumCheck bridge open |
+//! | terminal identity | Match range checks and output `y_zcol` | yes | `enforce_nc_terminal_identity` | terminal bridge open |
+//!
 //! Mirrors:
 //! - The `range_product` factor (centered low-norm polynomial) baked into
 //!   `rhs_terminal_identity_nc` in
@@ -10,15 +31,12 @@
 //!   `verify_sumcheck_rounds_poseidon_v3`).
 //! - `rhs_terminal_identity_nc` itself.
 //!
-//! Sub-step status: G (range_product) landed; H (sumcheck driver + terminal
-//! identity) pending.
-
 use neo_math::F;
 use neo_reductions::engines::utils::{PI_CCS_SUMCHECK_INITIAL_RAW_TAG, PI_CCS_SUMCHECK_NC_RAW_DOMAIN_TAG};
 use neo_reductions::sumcheck::SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG;
 use p3_field::PrimeCharacteristicRing;
 
-use super::Error;
+use super::{stage, Error};
 use crate::engine::r1cs_circuit::builder::Lc;
 use crate::engine::r1cs_circuit::field_ext::{alloc_klc, enforce_k_dot_product, enforce_k_mul, KLc, KVar};
 use crate::engine::r1cs_circuit::sumcheck::{
@@ -217,17 +235,23 @@ pub fn enforce_nc_terminal_identity(builder: &mut R1csBuilder, inputs: &NcTermin
     }
 
     // eq(α', β_a) · eq(s'_col, β_m).
+    let row_start = builder.rows();
     let eq_alpha_beta = enforce_eq_k(builder, inputs.alpha_prime, inputs.beta_a);
     let eq_s_beta = enforce_eq_k(builder, inputs.s_col_prime, inputs.beta_m);
     let eq_apsp_beta = enforce_k_mul(builder, &KLc::from_var(eq_alpha_beta), &KLc::from_var(eq_s_beta));
+    builder.record_row_family(stage::ROW_NC_TERMINAL_EQUALITY_FACTORS, row_start);
 
     // χ_{α'} over the Ajtai-padded ring dimension.
+    let row_start = builder.rows();
     let chi_alpha_prime = enforce_chi_alpha(builder, inputs.alpha_prime);
+    builder.record_row_family(stage::ROW_NC_TERMINAL_CHI_ALPHA, row_start);
     let d_sz = chi_alpha_prime.len();
 
     // γ-powers up to γ^{k_total}. Native uses `g = γ; g *= γ` per iteration,
     // so output i is weighted by γ^{i+1}.
+    let row_start = builder.rows();
     let powers = gamma_powers(builder, inputs.gamma, k_total + 1);
+    builder.record_row_family(stage::ROW_NC_TERMINAL_GAMMA_POWERS, row_start);
 
     // Σ_i γ^{i+1} · range_product(⟨y_zcol_i, χ_{α'}⟩, b).
     let mut nc_weights = Vec::with_capacity(k_total);
@@ -243,20 +267,25 @@ pub fn enforce_nc_terminal_identity(builder: &mut R1csBuilder, inputs: &NcTermin
         }
 
         // y_eval = ⟨y_zcol_i, χ_{α'}⟩.
+        let row_start = builder.rows();
         let y_eval = enforce_k_dot_product(builder, &y_zcol[..d_sz], &chi_alpha_prime);
+        builder.record_row_family(stage::ROW_NC_TERMINAL_OUTPUT_EVALUATIONS, row_start);
 
         // N_i = range_product(y_eval, b).
+        let row_start = builder.rows();
         let n_i = enforce_nc_range_product(builder, y_eval, inputs.b)?;
+        builder.record_row_family(stage::ROW_NC_TERMINAL_RANGE_PRODUCTS, row_start);
 
         nc_weights.push(powers[i + 1]);
         nc_values.push(n_i);
     }
+    let row_start = builder.rows();
     let nc_prime_sum = enforce_k_dot_product(builder, &nc_weights, &nc_values);
+    builder.record_row_family(stage::ROW_NC_TERMINAL_WEIGHTED_SUM, row_start);
 
     // rhs_nc = eq_apsp_beta · nc_prime_sum.
-    Ok(enforce_k_mul(
-        builder,
-        &KLc::from_var(eq_apsp_beta),
-        &KLc::from_var(nc_prime_sum),
-    ))
+    let row_start = builder.rows();
+    let result = enforce_k_mul(builder, &KLc::from_var(eq_apsp_beta), &KLc::from_var(nc_prime_sum));
+    builder.record_row_family(stage::ROW_NC_TERMINAL_FINAL_PRODUCT, row_start);
+    Ok(result)
 }

@@ -1,4 +1,23 @@
 //! Compact drift manifest for the exact steady-state plain F' recursive step.
+//!
+//! Owns: production-row regeneration, top-level/NIFS partition checks,
+//! projection census, source provenance, and Lean-data drift output.
+//!
+//! Does not own: semantic soundness, cryptographic reductions, or permission
+//! to trust a manifest instead of the production relation.
+//!
+//! Emits constraints: no; it executes the production builder and audits its
+//! emitted rows.
+//!
+//! Authority boundary: generated JSON and Lean data are review artifacts only;
+//! every run recomputes rows and hashes from the current source.
+//!
+//! | Artifact branch | Guarantee | Evidence tier | Permits row removal? |
+//! |---|---|---|---|
+//! | Top-level families | Recursive rows form one gap-free partition | artifact-checked | no |
+//! | NIFS families | PiCCS, PiRLC, PiDEC, and point binding partition NIFS | artifact-checked | no |
+//! | Projection census | Every identity shares one rho-evaluation phase | artifact-checked | no |
+//! | Source hashes | Reviewed implementation surface is explicit | drift sentinel | no |
 
 use std::collections::HashMap;
 use std::fmt::Write as _;
@@ -7,8 +26,11 @@ use std::path::{Path, PathBuf};
 
 use neo_ccs::Mat;
 use neo_fold_clean::engine::r1cs_circuit::builder::RowFamilyRange;
+use neo_fold_clean::engine::r1cs_circuit::projection_identity_trace::validate_projection_identity_traces;
 use neo_fold_clean::engine::r1cs_circuit::ring_action::PROJECTION_QUOTIENT_LEN;
-use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
+use neo_fold_clean::engine::r1cs_circuit::{
+    PolynomialEvaluationTraceTestMutation, ProjectionIdentityRole, ProjectionIdentityTraceTestMutation, R1csBuilder,
+};
 use neo_fold_clean::engine::transcript::Transcript;
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
 use neo_fold_clean::paper::construction2::RunningInstance;
@@ -17,8 +39,9 @@ use neo_fold_clean::paper::digest::{
     AccumulatorHandle, StateXOutDigestMode,
 };
 use neo_fold_clean::paper::f_prime::r1cs::{
-    encode_f_prime_public_input, enforce_f_prime_recursive_step_circuit, FPrimePublicInputLayout,
+    encode_f_prime_superneo_public_input, enforce_f_prime_recursive_step_circuit, FPrimePublicInputLayout,
     FPrimeRecursiveInputs, FPrimeStateIn, FPrimeStepConfig, F_PRIME_ENC_INST_BITS, F_PRIME_PUBLIC_INPUT_LEN,
+    F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
 };
 use neo_fold_clean::paper::f_prime::source_image::{BitRange, FPrimeSourceImage, Word64Image};
 use neo_fold_clean::paper::nifs::circuit::{NifsVCircuitConfig, NifsVCircuitMessages};
@@ -49,6 +72,76 @@ const PROJECTION_SHARED_FAMILY: &str = "nifs.pi_rlc.projection_shared";
 const PROJECTION_IDENTITY_FAMILY: &str = "nifs.pi_rlc.projection_identity";
 const K_MUL_ROWS: usize = 5;
 
+/// Direct row-emission, phase-composition, and Lean-consumer owners covered by
+/// the manifest drift sentinel. Keep this grouped by ownership layer so a
+/// protocol-phase change cannot update row hashes while escaping provenance.
+const SOURCE_PATHS: &[&str] = &[
+    // Shared R1CS emitters used by every child verifier.
+    "crates/neo-fold-clean/src/engine/r1cs_circuit/builder.rs",
+    "crates/neo-fold-clean/src/engine/r1cs_circuit/field_ext.rs",
+    "crates/neo-fold-clean/src/engine/r1cs_circuit/poseidon2.rs",
+    "crates/neo-fold-clean/src/engine/r1cs_circuit/projection_identity_trace.rs",
+    "crates/neo-fold-clean/src/engine/r1cs_circuit/ring_action.rs",
+    "crates/neo-fold-clean/src/engine/r1cs_circuit/sumcheck.rs",
+    "crates/neo-fold-clean/src/engine/r1cs_circuit/transcript.rs",
+    "crates/neo-fold-clean/src/engine/r1cs_circuit/u64.rs",
+    // PiRLC transcript challenge and rejection sampler.
+    "crates/neo-fold-clean/src/engine/r1cs_circuit/alphabet_sampling/mod.rs",
+    "crates/neo-fold-clean/src/engine/r1cs_circuit/alphabet_sampling/acceptance.rs",
+    "crates/neo-fold-clean/src/engine/r1cs_circuit/alphabet_sampling/chunk.rs",
+    "crates/neo-fold-clean/src/engine/r1cs_circuit/alphabet_sampling/digest_rounds.rs",
+    "crates/neo-fold-clean/src/engine/r1cs_circuit/alphabet_sampling/selection.rs",
+    // F-prime and NIFS protocol composition.
+    "crates/neo-fold-clean/src/paper/f_prime/r1cs.rs",
+    "crates/neo-fold-clean/src/paper/nifs/circuit/mod.rs",
+    "crates/neo-fold-clean/src/paper/nifs/circuit/stage.rs",
+    "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/mod.rs",
+    "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/consistency.rs",
+    "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/fold_wires.rs",
+    "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/padding.rs",
+    "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/projection/mod.rs",
+    "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/projection/binding.rs",
+    "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/projection/identities.rs",
+    "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/projection/shared.rs",
+    // PiCCS constraint families.
+    "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/mod.rs",
+    "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/stage.rs",
+    "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/digests.rs",
+    "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/fe.rs",
+    "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/nc.rs",
+    "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/transcript.rs",
+    "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/verifier.rs",
+    // Shared SIS, PiRLC algebra, and PiDEC constraint families.
+    "crates/neo-fold-clean/src/paper/reductions/accumulator_sis_circuit.rs",
+    "crates/neo-fold-clean/src/paper/reductions/pi_rlc_circuit/mod.rs",
+    "crates/neo-fold-clean/src/paper/reductions/pi_rlc_circuit/stage.rs",
+    "crates/neo-fold-clean/src/paper/reductions/pi_rlc_circuit/commitment.rs",
+    "crates/neo-fold-clean/src/paper/reductions/pi_rlc_circuit/consistency.rs",
+    "crates/neo-fold-clean/src/paper/reductions/pi_rlc_circuit/padded_k.rs",
+    "crates/neo-fold-clean/src/paper/reductions/pi_rlc_circuit/x.rs",
+    "crates/neo-fold-clean/src/paper/reductions/pi_rlc_circuit/y_ring.rs",
+    "crates/neo-fold-clean/src/paper/reductions/pi_dec_circuit.rs",
+    // Drift-gate implementation and Lean consumers.
+    "crates/neo-fold-clean/tests/gadgets/f_prime_recursive_manifest.rs",
+    "formal/nightstream-lean/Nightstream/Implementation/R1CS/Ownership/FPrimeRecursive/FPrimeRecursiveManifestSchema.lean",
+    "formal/nightstream-lean/Nightstream/Implementation/R1CS/Ownership/FPrimeRecursive/FPrimeRecursiveManifest.lean",
+    "formal/nightstream-lean/Nightstream/SuperNeo/ProjectionCheck.lean",
+    "formal/nightstream-lean/Nightstream/Assurance/FPrimeRecursiveCircuit.lean",
+];
+
+#[path = "f_prime_recursive_manifest/aggregate_acceptance_outer_image.rs"]
+mod aggregate_acceptance_outer_image;
+#[path = "f_prime_recursive_manifest/output_authority_poseidon2_sbox.rs"]
+mod output_authority_poseidon2_sbox;
+#[path = "f_prime_recursive_manifest/output_authority_sbox_lean.rs"]
+mod output_authority_sbox_lean;
+#[path = "f_prime_recursive_manifest/pi_rlc_transcript_schedule.rs"]
+mod pi_rlc_transcript_schedule;
+#[path = "f_prime_recursive_manifest/projection_binding_shape.rs"]
+mod projection_binding_shape;
+#[path = "f_prime_recursive_manifest/projection_certificate.rs"]
+mod projection_certificate;
+
 struct Fixture {
     prep: neo_fold_clean::Preprocessing,
     fresh_claims: Vec<CcsClaim>,
@@ -70,11 +163,18 @@ struct RecursiveSource {
 }
 
 fn bit_carrier_r1cs() -> R1cs {
+    let padding = F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN - F_PRIME_PUBLIC_INPUT_LEN;
+    let mut a = Mat::zero(padding, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN, F::ZERO);
+    let mut b = Mat::zero(padding, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN, F::ZERO);
+    for row in 0..padding {
+        a[(row, F_PRIME_PUBLIC_INPUT_LEN + row)] = F::ONE;
+        b[(row, 0)] = F::ONE;
+    }
     R1cs {
-        a: Mat::zero(1, F_PRIME_PUBLIC_INPUT_LEN, F::ZERO),
-        b: Mat::zero(1, F_PRIME_PUBLIC_INPUT_LEN, F::ZERO),
-        c: Mat::zero(1, F_PRIME_PUBLIC_INPUT_LEN, F::ZERO),
-        m_in: F_PRIME_PUBLIC_INPUT_LEN,
+        a,
+        b,
+        c: Mat::zero(padding, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN, F::ZERO),
+        m_in: F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
     }
 }
 
@@ -193,7 +293,7 @@ fn build_fixture() -> Fixture {
         public_trace_in: rand_digest(0x40),
         nebula: None,
     };
-    let mut assignment = encode_f_prime_public_input(prior_x_out(&state));
+    let mut assignment = encode_f_prime_superneo_public_input(prior_x_out(&state));
     assignment.resize(prep.structure().m, F::ZERO);
     let fresh = direct_ccs::build_instance(&prep, &r1cs, &assignment).expect("linked fresh instance");
     let fresh_claims = vec![fresh.claim.clone()];
@@ -295,8 +395,10 @@ fn build_recursive_program() -> R1csBuilder {
         public_x_out_bits: source.public_x_out,
     };
     let mut builder = R1csBuilder::new();
+    builder.enable_encoding_trace();
     enforce_f_prime_recursive_step_circuit(&mut builder, &fixture.prep.params, &config, &inputs)
         .expect("emit recursive program");
+    builder.begin_encoding_stage("complete");
     builder
 }
 
@@ -525,22 +627,15 @@ fn build_manifest() -> Value {
             "layout": "plain",
             "semantic_mode": "stateless",
             "carrier_relation": "minimal-supported-bit-carrier",
-            "carrier_rows": 1,
-            "public_input_fields": F_PRIME_PUBLIC_INPUT_LEN,
+            "carrier_rows": F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN - F_PRIME_PUBLIC_INPUT_LEN,
+            "public_input_fields": F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
             "current_batch_size": 1,
             "running_shape": "nonempty-steady-recursive",
         },
-        "source_hashes": [
-            source_hash("crates/neo-fold-clean/src/engine/r1cs_circuit/builder.rs"),
-            source_hash("crates/neo-fold-clean/src/engine/r1cs_circuit/ring_action.rs"),
-            source_hash("crates/neo-fold-clean/src/paper/nifs/circuit.rs"),
-            source_hash("crates/neo-fold-clean/src/paper/f_prime/r1cs.rs"),
-            source_hash("crates/neo-fold-clean/tests/gadgets/f_prime_recursive_manifest.rs"),
-            source_hash("formal/nightstream-lean/Nightstream/Implementation/R1CS/Ownership/FPrimeRecursive/FPrimeRecursiveManifestSchema.lean"),
-            source_hash("formal/nightstream-lean/Nightstream/Implementation/R1CS/Ownership/FPrimeRecursive/FPrimeRecursiveManifest.lean"),
-            source_hash("formal/nightstream-lean/Nightstream/SuperNeo/ProjectionCheck.lean"),
-            source_hash("formal/nightstream-lean/Nightstream/Assurance/FPrimeRecursiveCircuit.lean"),
-        ],
+        "source_hashes": SOURCE_PATHS
+            .iter()
+            .map(|path| source_hash(path))
+            .collect::<Vec<_>>(),
         "recursive_total": range_json(builder, recursive),
         "top_level_families": top_level
             .iter()
@@ -648,6 +743,20 @@ fn render_lean_data(manifest: &Value) -> String {
         json_nat(manifest, "full_builder_columns")
     )
     .expect("write string");
+    let nifs_owner = &top_level[2];
+    writeln!(
+        rendered,
+        "def nifsRowStart : Nat := {}",
+        json_nat(nifs_owner, "row_start")
+    )
+    .expect("write string");
+    writeln!(rendered, "def nifsRowEnd : Nat := {}", json_nat(nifs_owner, "row_end")).expect("write string");
+    writeln!(
+        rendered,
+        "def nifsRowCount : Nat := {}",
+        json_nat(nifs_owner, "row_count")
+    )
+    .expect("write string");
     writeln!(
         rendered,
         "def totalNonzeroEntries : Nat := {}",
@@ -736,4 +845,109 @@ fn recursive_program_manifest_matches_production_rows() {
         lean_committed, lean_rendered,
         "recursive Lean manifest data drifted; reviewed output:\n{lean_rendered}"
     );
+}
+
+#[test]
+fn projection_identity_trace_exactly_replays_production_rows_and_rejects_corruption() {
+    let builder = build_recursive_program();
+    let source = builder.snapshot();
+    let trace = builder.encoding_trace();
+    let validated = validate_projection_identity_traces(&source, trace).expect("exact production projection trace");
+
+    assert_eq!(validated.census.identities, 31);
+    assert_eq!(validated.census.pairs, 31 * 15);
+    assert_eq!(validated.census.polynomial_evaluations, 31 * 17);
+    assert_eq!(validated.census.k_products, 31 * 16);
+    assert_eq!(validated.census.source_rows, 59_396);
+    assert_eq!(validated.census.source_columns, 59_334);
+    assert_eq!(
+        validated
+            .roles
+            .iter()
+            .filter(|role| matches!(role, ProjectionIdentityRole::CommitmentLane { .. }))
+            .count(),
+        18
+    );
+    assert_eq!(
+        validated
+            .roles
+            .iter()
+            .filter(|role| matches!(role, ProjectionIdentityRole::ActiveXColumn { .. }))
+            .count(),
+        5
+    );
+    assert_eq!(
+        validated
+            .roles
+            .iter()
+            .filter(|role| matches!(role, ProjectionIdentityRole::YRingLimb { .. }))
+            .count(),
+        6
+    );
+    assert_eq!(
+        validated
+            .roles
+            .iter()
+            .filter(|role| matches!(role, ProjectionIdentityRole::YZColLimb { .. }))
+            .count(),
+        2
+    );
+    assert!(!validated.roles.iter().any(|role| matches!(
+        role,
+        ProjectionIdentityRole::Standalone | ProjectionIdentityRole::NebulaCommitmentLane { .. }
+    )));
+
+    let first = &trace.projection_identities()[0];
+    let first_evaluation = first.input_evaluations.start;
+    let corruptions = [
+        {
+            let mut corrupted = trace.clone();
+            corrupted.apply_projection_identity_trace_test_mutation(
+                0,
+                ProjectionIdentityTraceTestMutation::SourceRowEnd {
+                    row_end: first.source_rows.end - 1,
+                },
+            );
+            corrupted
+        },
+        {
+            let mut corrupted = trace.clone();
+            corrupted.apply_projection_identity_trace_test_mutation(
+                0,
+                ProjectionIdentityTraceTestMutation::FinalLimbRowEnd {
+                    row_end: first.final_limb_rows.end - 1,
+                },
+            );
+            corrupted
+        },
+        {
+            let mut corrupted = trace.clone();
+            corrupted.apply_projection_identity_trace_test_mutation(
+                0,
+                ProjectionIdentityTraceTestMutation::InputColumn {
+                    pair: 0,
+                    coefficient: 0,
+                    column: first.input_columns[0][0] + 1,
+                },
+            );
+            corrupted
+        },
+        {
+            let mut corrupted = trace.clone();
+            corrupted.apply_polynomial_evaluation_trace_test_mutation(
+                first_evaluation,
+                PolynomialEvaluationTraceTestMutation::CoefficientColumn {
+                    offset: 0,
+                    column: trace.polynomial_evaluations()[first_evaluation].coefficient_cols[0] + 1,
+                },
+            );
+            corrupted
+        },
+    ];
+    for corrupted in corruptions {
+        assert!(
+            validate_projection_identity_traces(&source, &corrupted).is_err(),
+            "corrupted provenance must fail closed"
+        );
+    }
 }

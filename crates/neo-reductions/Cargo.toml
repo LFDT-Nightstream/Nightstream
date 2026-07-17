@@ -104,3 +104,7 @@ path = "spec-tests/engines.rs"
 [[test]]
 name = "spec_superneo_eval"
 path = "spec-tests/superneo_eval.rs"
+
+[[test]]
+name = "pi_ccs_nc_carrier_lean_artifact"
+path = "tests/pi_ccs_nc_carrier_lean_artifact.rs"

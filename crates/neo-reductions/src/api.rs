@@ -1541,9 +1541,10 @@ where
             }
         }
     }
-    // Optional NC point: s_col is shared by DEC parent and children. y_zcol is
-    // intentionally not b-ary recomposed here; SplitNc's NC sidecar does not
-    // telescope through DEC and is re-bound at the terminal CE boundary.
+    // Optional NC point: s_col is shared by DEC parent and children. The
+    // current verifier does not validate the parent's old-point y_zcol here.
+    // Terminal child checks alone do not close that authority chain; the
+    // parent projection must be state-bound and checked before s_col changes.
     let t = parent.y_ring.len();
     if t < s.t() {
         eprintln!("verify_dec_public failed: parent y.len()={} < s.t()={}", t, s.t());
@@ -1587,7 +1588,10 @@ where
         return false;
     }
 
-    // y_j / X / y_zcol decomposition is checked over the same radix-b ladder.
+    // X and y_ring decomposition are checked over the same radix-b ladder.
+    // The parent's old-point y_zcol is intentionally not checked by the
+    // current verifier; the delayed-projection authority bridge must close
+    // that gap before this omission can be treated as sound.
     let Some(d_pad) = 1usize.checked_shl(ell_d as u32) else {
         eprintln!("verify_dec_public failed: 2^ell_d overflow");
         return false;

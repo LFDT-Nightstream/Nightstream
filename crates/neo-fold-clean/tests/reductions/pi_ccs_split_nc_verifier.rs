@@ -67,13 +67,8 @@ fn k_c1_one() -> K {
     K::from_coeffs([F::ZERO, F::ONE])
 }
 
-fn running_y_zcol_sidecar_columns(derived: &SplitNcPiCcsVDerived) -> BTreeSet<usize> {
-    let mut allowed: BTreeSet<usize> = derived
-        .running
-        .iter()
-        .flat_map(|running| running.y_zcol.iter().take(D))
-        .flat_map(|k| [k.c0.col(), k.c1.col()])
-        .collect();
+fn running_parent_y_zcol_sidecar_columns(derived: &SplitNcPiCcsVDerived) -> BTreeSet<usize> {
+    let mut allowed = BTreeSet::new();
     if let Some(parent) = &derived.running_parent_authority {
         allowed.extend(parent.y_zcol.iter().flat_map(|k| [k.c0.col(), k.c1.col()]));
     }
@@ -492,6 +487,48 @@ fn split_nc_pi_ccs_v_accepts_native_proof() {
 }
 
 #[test]
+fn split_nc_pi_ccs_v_does_not_read_incoming_running_y_zcol() {
+    let baseline_fixture = build_fixture();
+    let (baseline_builder, baseline_derived) =
+        emit_verifier_with_derived(&baseline_fixture).expect("emit baseline verifier");
+    assert!(baseline_builder.is_satisfied());
+    assert!(baseline_derived
+        .running
+        .iter()
+        .all(|claim| claim.y_zcol.is_empty()));
+    let baseline = baseline_builder.snapshot();
+
+    let mut mutated_fixture = build_fixture();
+    mutated_fixture.running.claims[0].y_zcol[0] += K::ONE;
+    let mut native_tr = Transcript::session();
+    pi_ccs::verify(
+        &mut native_tr,
+        &mutated_fixture.prep.params,
+        mutated_fixture.prep.structure(),
+        mutated_fixture.prep.optimized_cache(),
+        &mutated_fixture.fresh_claims,
+        &mutated_fixture.running,
+        &mutated_fixture.proof,
+    )
+    .expect("native Pi_CCS verifier must ignore incoming running y_zcol");
+
+    let (mutated_builder, mutated_derived) =
+        emit_verifier_with_derived(&mutated_fixture).expect("emit running-y_zcol mutation");
+    assert!(mutated_builder.is_satisfied());
+    assert!(mutated_derived
+        .running
+        .iter()
+        .all(|claim| claim.y_zcol.is_empty()));
+    let mutated = mutated_builder.snapshot();
+    assert!(baseline.has_same_relation(&mutated));
+    assert_eq!(
+        baseline.witness(),
+        mutated.witness(),
+        "incoming running y_zcol leaked into the Pi_CCS circuit witness"
+    );
+}
+
+#[test]
 fn folded_header_is_bound_as_witness_without_entering_verifier_matrices() {
     let fixture = build_fixture();
     let honest_header = split_nc_config(&fixture.prep).header_bundle;
@@ -566,9 +603,9 @@ fn pi_ccs_output_digest_is_exactly_the_prover_chosen_active_message() {
 #[test]
 fn split_nc_pi_ccs_v_leaves_only_documented_deferred_ce_sidecars_unconstrained() {
     // SplitNc owns the full Π_CCS verifier and recomputes the output digest
-    // consumed by Π_RLC. The only intentionally floating columns are the
-    // active lanes of running-side y_zcol and the running parent authority's
-    // full y_zcol: native Π_DEC treats those as non-authority sidecars.
+    // consumed by Π_RLC. Running-child y_zcol is not allocated. The only
+    // intentionally floating columns are the running parent authority's full
+    // y_zcol; Π_DEC does not consume it, while parent continuity retains it.
     let fixture = build_fixture();
     let (builder, derived) = emit_verifier_with_derived(&fixture).expect("emit verifier");
 
@@ -578,7 +615,14 @@ fn split_nc_pi_ccs_v_leaves_only_documented_deferred_ce_sidecars_unconstrained()
     );
 
     let unconstrained: BTreeSet<_> = builder.unconstrained_columns().into_iter().collect();
-    let allowed = running_y_zcol_sidecar_columns(&derived);
+    assert!(
+        derived
+            .running
+            .iter()
+            .all(|running| running.y_zcol.is_empty()),
+        "incoming running claims must not allocate y_zcol"
+    );
+    let allowed = running_parent_y_zcol_sidecar_columns(&derived);
     let unexpected: BTreeSet<_> = unconstrained.difference(&allowed).copied().collect();
     let summary = split_nc_unconstrained_column_summary(&derived, &unexpected);
     assert!(
@@ -1010,12 +1054,10 @@ fn split_nc_pi_ccs_v_rejects_tampered_parent_authority_s_col() {
 }
 
 #[test]
-fn split_nc_pi_ccs_v_accepts_tampered_parent_authority_y_zcol_non_authority() {
-    // Parent-authority y_zcol is an NC sidecar, not part of SuperNeo's CE
-    // tuple. Π_DEC children cannot prove a verifier-checkable radix-b
-    // y_zcol recomposition equation, so the recursive accumulator handle
-    // deliberately omits it. Terminal CE verification binds final y_zcol
-    // against the opened witness instead.
+fn split_nc_pi_ccs_v_records_current_unbound_parent_y_zcol_c0() {
+    // This acceptance records the current missing authority link. The
+    // optimized raw projection is linear and supports radix-b recomposition;
+    // a delayed-parent refinement must eventually make this mutation fail.
     let mut fixture = build_fixture();
     let parent = fixture
         .running
@@ -1028,15 +1070,14 @@ fn split_nc_pi_ccs_v_accepts_tampered_parent_authority_y_zcol_non_authority() {
     let builder = emit_verifier(&fixture).expect("emit verifier");
     assert!(
         builder.is_satisfied(),
-        "SplitNc Π_CCS.V should not treat parent-authority y_zcol as recursive accumulator authority"
+        "current-gap regression: SplitNc Π_CCS.V unexpectedly started binding parent y_zcol; update the delayed-authority audit"
     );
 }
 
 #[test]
-fn split_nc_pi_ccs_v_accepts_tampered_parent_authority_y_zcol_c1_limb_non_authority() {
-    // Same non-authority boundary as the c0-limb test, but perturb only c1
-    // so an accidental limb-selective absorb would be caught by the digest
-    // regression tests rather than hidden here.
+fn split_nc_pi_ccs_v_records_current_unbound_parent_y_zcol_c1() {
+    // Same known gap as the c0-limb test, but perturb only c1 so a future
+    // binding cannot accidentally cover just one extension-field limb.
     let mut fixture = build_fixture();
     let parent = fixture
         .running
@@ -1060,7 +1101,7 @@ fn split_nc_pi_ccs_v_accepts_tampered_parent_authority_y_zcol_c1_limb_non_author
     let builder = emit_verifier(&fixture).expect("emit verifier");
     assert!(
         builder.is_satisfied(),
-        "SplitNc Π_CCS.V should not treat c1 of parent-authority y_zcol as recursive accumulator authority"
+        "current-gap regression: SplitNc Π_CCS.V unexpectedly started binding parent y_zcol.c1; update the delayed-authority audit"
     );
 }
 

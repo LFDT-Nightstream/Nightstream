@@ -9,12 +9,6 @@ const CORE_SHARD_PREFIX: &str =
     "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeFullHistory/Generated/FPrimeFullHistoryRecursiveAccumulatorCoreSegment";
 const CORE_HASHES_PATH: &str =
     "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeFullHistory/Generated/FPrimeFullHistoryRecursiveAccumulatorCorePoseidonHashes.lean";
-const CORE_CHECK_COVERAGE_PATH: &str =
-    "formal/nightstream-lean/Nightstream/Implementation/R1CS/Ownership/FPrimeFullHistory/FPrimeFullHistoryRecursiveAccumulatorCoreCheckCoverage.lean";
-const CORE_SCHEDULE_PREFIX: &str =
-    "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeFullHistory/Generated/FPrimeFullHistoryRecursiveAccumulatorCoreSchedule";
-const CORE_SCHEDULES_PATH: &str =
-    "formal/nightstream-lean/Nightstream/Implementation/R1CS/Ownership/FPrimeFullHistory/FPrimeFullHistoryRecursiveAccumulatorCoreSchedules.lean";
 const RUNNING_LINK_PATH: &str =
     "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeFullHistory/Generated/FPrimeFullHistoryRecursiveAccumulatorRunningLinkArtifact.lean";
 const OUTPUT_LINK_PATH: &str =
@@ -80,8 +74,8 @@ fn render_owner_artifact(
          \x20 FPrimeFullHistoryRecursiveAccumulatorOutputLink.pairs.map Prod.fst\n\n\
          def recomputedAccumulatorDigestColumns : List Nat :=\n\
          \x20 FPrimeFullHistoryRecursiveAccumulatorOutputLink.pairs.map Prod.snd\n\n\
-         def parentCeDigestColumns : List Nat :=\n\
-         \x20 FPrimeFullHistoryRecursiveAccumulatorCore.parentCeDigestColumns\n\n\
+         def accumulatorClaimSourceColumns : List Nat :=\n\
+         \x20 FPrimeFullHistoryRecursiveAccumulatorCore.accumulatorClaimSourceColumns\n\n\
          def accumulatorDigestColumns : List Nat :=\n\
          \x20 recomputedAccumulatorDigestColumns\n\n\
          def stateOutputAccumulatorDigestColumns : List Nat :=\n\
@@ -120,7 +114,7 @@ pub fn compare_recursive_accumulator_artifacts(
     let accumulator = owner(builder, "fprime.recursive.accumulator");
     assert_eq!(
         accumulator.row_end - accumulator.row_start,
-        37_303,
+        254_919,
         "fixed-profile recursive accumulator row count"
     );
     let running_link = RowFamilyRange {
@@ -138,7 +132,7 @@ pub fn compare_recursive_accumulator_artifacts(
         row_start: accumulator.row_end - 4,
         row_end: accumulator.row_end,
     };
-    assert_eq!(core.row_end - core.row_start, 37_295, "shared accumulator core");
+    assert_eq!(core.row_end - core.row_start, 254_911, "shared accumulator core");
 
     compare_accumulator_core_artifacts(
         builder,
@@ -147,9 +141,6 @@ pub fn compare_recursive_accumulator_artifacts(
             artifact: CORE_ARTIFACT_PATH,
             shard_prefix: CORE_SHARD_PREFIX,
             hashes: CORE_HASHES_PATH,
-            check_coverage: CORE_CHECK_COVERAGE_PATH,
-            schedule_prefix: CORE_SCHEDULE_PREFIX,
-            schedules: CORE_SCHEDULES_PATH,
             recursive: true,
         },
     );

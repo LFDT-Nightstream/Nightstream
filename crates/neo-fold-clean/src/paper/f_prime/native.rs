@@ -1,42 +1,21 @@
-//! F' — the augmented function from Hypernova §6.3 Construction 2.
+//! Native proving and verification for one Construction-2 `F'` step.
 //!
-//! ```text
-//! F'_j(vk_fs, U_i, u_i, pc_i, (i, z_0, z_i), ω_i, π) → x:
-//!   1. pc_{i+1} = φ(z_i, ω_i)
-//!   2. z_{i+1}  = F_j(z_i, ω_i)
-//!   3. base case (i = 0):  no NIFS.P; running = canonical default
-//!   4. recursive case:     NIFS.V(vk_fs[pc_i], U_i, u_i, π) → U_{i+1}
-//!   5. x = state_x_out_digest(vk_fs, i+1, z_{i+1},
-//!      semantic_state_digest_{i+1}, U_{i+1})
-//! ```
+//! Owns: the step transcript prefix, base/recursive native control flow, NIFS
+//! invocation, state advance, and public-output verification.
 //!
-//! For ccs-direct (ℓ = 1):
-//! - `pc` is constant `TRIVIAL_PC` (φ trivially returns 1).
-//!   It is checked as state and absorbed into `state_x_out`, matching
-//!   HyperNova's recursive-link preimage even though the selector is
-//!   currently constant.
-//! - `z_0` is verifier-derived, pinned at the base, and linked as state.
-//!   It is not absorbed directly by `state_x_out`: it is
-//!   `initial_boundary_digest(structure_digest, public_input_len)`, and both
-//!   inputs are already absorbed into `vk_fs_digest`.
-//! - `z_{i+1}` is the chain of the chunk's public-instance digest.
-//! - The recursive `NIFS.V` call lives in [`crate::paper::nifs::verify`].
+//! Does not own: encoded-image construction, R1CS constraints, or NIFS internals.
 //!
-//! ## Control flow at extend(state, next_latest)
+//! Emits constraints: no.
 //!
-//! ```text
-//! match state.proof:
-//!   Initial                               -> no fold; running = empty
-//!   Active { running, latest }            -> NIFS.P(running, latest) -> next_running
-//! advance_state -> compute_x_out
-//! state.proof = Active { running: next_running, latest: next_latest }
-//! ```
+//! Authority boundary: [`verify`] recomputes transcript-derived checks, validates
+//! the NIFS transition, and derives the public output; prover-returned state is
+//! never authority by itself.
 //!
-//! The ENCODING step ("encode this F' as next_latest") is the frontend's
-//! job in PR7. Here today: the caller passes `next_latest` directly.
-//!
-//! This file owns the *native* F' on both sides (prover and verifier). The
-//! R1CS form lives in `engine::decider` (PR5).
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | Transcript context | [`f_prime_step_transcript`] | no | Verifier key and prior state |
+//! | Prover transition | [`prove`] and backend variants | no | Native witness plus NIFS prover |
+//! | Verifier transition | [`verify`] | no | Replayed transcript and checked NIFS proof |
 
 use neo_ajtai::AjtaiSModule;
 use neo_math::F;

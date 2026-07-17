@@ -1,18 +1,21 @@
-//! Bit-backed Poseidon2 trace layout + encoder + decoder for the
-//! Phase 1 `enc(F')` source/witness image.
+//! Bit-backed Poseidon2 trace layout and native encoding for `enc(F')`.
 //!
-//! Owns: the contract between the bit-backed
-//! [`crate::engine::ccs_native::poseidon2`] builder and the F' source
-//! image — how many bits each Poseidon2 hash invocation contributes,
-//! where the digest output lanes live, and how to decode them back to
-//! `[F; 4]`.
+//! Owns: per-hash trace width, final-state digest offsets, native trace encoding,
+//! and digest decoding.
 //!
-//! Does not own: per-call-site preimage construction (e.g.
-//! `state_x_out`'s exact byte layout), nor any F' region offsets beyond
-//! this one trace.
+//! Does not own: call-site preimages, outer image offsets, Poseidon2 constraint
+//! emission, or digest authority.
 //!
-//! Phase 1.1-mini-1 wires this up for `state_x_out`. Phase 1.1-mini-2
-//! will reuse it verbatim for the parent_authority CE digest trace.
+//! Emits constraints: no.
+//!
+//! Authority boundary: an encoded trace is prover data until the Poseidon2
+//! relation verifies it and the call site binds both preimage and digest.
+//!
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | Trace layout | [`PoseidonTraceLayout`] | no | Poseidon2 width and rate constants |
+//! | Native encoding | [`encode_poseidon_trace`] | no | Supplied preimage |
+//! | Digest view | [`decode_digest_lanes`] | no | Verified final-state lanes |
 
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;

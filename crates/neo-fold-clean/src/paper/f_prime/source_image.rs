@@ -1,44 +1,22 @@
-//! Low-norm source image for F' boundary data.
+//! Typed low-norm image for `F'` boundary values.
 //!
-//! SuperNeo's fresh CCS relation commits a full assignment `z = [x, w]`
-//! and requires `‖z‖_∞ < b`. For `b = 2`, any value placed *directly* into
-//! the fresh CCS public input `x` must be bit-valued. That's the only
-//! reason F' needs bit encoding for the `x_out` digest — not because
-//! Poseidon2 itself "needs low norm".
+//! Owns: append-only bit storage and typed ranges for words, digests, extension
+//! values, and multiplication witnesses.
 //!
-//! The raw F' hash output `h = state_x_out_digest(...)` is allowed to be
-//! a normal Goldilocks field value while it is only an intermediate
-//! computation. It becomes low-norm-relevant only at the `enc_inst(h)`
-//! boundary, because `enc_inst(h)` is the public input of the *next*
-//! fresh CCS instance.
+//! Does not own: constraint emission, full private-witness lowering, digest
+//! semantics, or proof verification.
 //!
-//! This module therefore owns source-image bits for those boundary
-//! values. It is **not** a generic lowering pass, and it should not be
-//! used to route every internal digest or transcript lane through a bit
-//! image by default.
+//! Emits constraints: no. It is a native data-layout carrier.
 //!
-//! The generic `enc(F')` correctness oracle now lives in
-//! `frontends/f_prime/low_norm_r1cs.rs`. A practical production lowering is
-//! still unresolved. This boundary-only image is separate from both:
-//! `enc_inst(h)` handles only the public-instance link. See `encoding.md`.
+//! Authority boundary: image bits are prover data until
+//! [`crate::paper::f_prime::source_image_circuit::SourceImageWires`] constrains
+//! them and the consuming relation binds each decoded value.
 //!
-//! ## Current scope
-//!
-//! At this stage, this image backs:
-//!
-//! - `enc_inst(prior_x_out)` (input recursive link),
-//! - `enc_inst(current_x_out)` (output recursive link),
-//! - selected u64 boundary counters (`chunk_count_in`, `step_count_in`, `pc`).
-//!
-//! It does **not** yet encode the full private F' execution witness.
-//!
-//! ## Layout
-//!
-//! Bits are appended sequentially via `push_*` methods. Each push returns
-//! a typed handle (`BitRange`, [`Word64Image`], [`DigestImage`]) that
-//! `SourceImageWires` later resolves to specific allocated R1CS vars.
-//! Handles are offset-by-construction; they cannot collide with each
-//! other within a single source image.
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | Non-overlapping ranges | [`BitRange`] and typed image handles | no | Append-only allocation |
+//! | Boundary image | [`FPrimeSourceImage`] | no | Caller-supplied canonical bits |
+//! | Public-instance width | `F_PRIME_PUBLIC_INPUT_BITS` | no | Fixed digest-lane schema |
 
 use neo_math::{KExtensions, F, K};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};

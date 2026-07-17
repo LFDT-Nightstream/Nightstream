@@ -1,11 +1,25 @@
-//! Deterministic low-norm encoding for an arbitrary field-valued R1CS.
+//! Deterministic low-norm CCS encoding of a field-valued R1CS.
 //!
-//! This is the generic `enc` oracle used by the complete F' relation.  Every
-//! field wire is represented by its unique canonical Goldilocks bit string.
-//! The derived mode projects acyclic linear definitions out of the committed
-//! witness and narrows wires that the source R1CS explicitly proves Boolean.
-//! Remaining constraints are replayed over decoded linear combinations, so no
-//! raw field-valued witness column crosses the SuperNeo commitment boundary.
+//! Owns: canonical and derived single-branch witness plans, Goldilocks
+//! reconstruction, source-row replay, and estimate-only arithmetic for a
+//! proposed selector-gated branch encoding.
+//!
+//! Does not own: source-R1CS correctness, the outer `F'` relation, or folding
+//! proof verification.
+//!
+//! Emits constraints: the single-branch encoders emit CCS rows that decode
+//! committed bits and replay the source relation. The selector-gated surface
+//! emits no constraints; it only returns a cost estimate.
+//!
+//! Authority boundary: the source R1CS and declared public columns define the
+//! relation; canonical bits and proved linear definitions determine retained
+//! values, while encoding estimates carry no authority.
+//!
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | Canonical oracle | [`encode_r1cs_oracle`] | yes | Canonical Goldilocks bits |
+//! | Derived encoding | [`encode_r1cs_derived`] | yes | Source Boolean and acyclic-linear facts |
+//! | Branch selection | selector-gated estimator | no | Formula only; materializer and soundness proof absent |
 
 use std::collections::BTreeMap;
 
@@ -48,9 +62,11 @@ pub struct LowNormR1csEstimate {
     pub linearly_derived_source_cols: usize,
 }
 
-/// Exact dimensions for a direct selector-gated CCS lowering of two R1CS
-/// branches. Unlike selector composition back into R1CS, this design uses a
-/// degree-three CCS term and allocates no per-row residual witnesses.
+/// Formula dimensions for a proposed direct selector-gated CCS lowering of
+/// two R1CS branches. No production relation materializer currently audits
+/// this estimate. Unlike selector composition back into R1CS, the proposed
+/// design uses a degree-three CCS term and allocates no per-row residual
+/// witnesses.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SelectorGatedR1csEstimate {
     pub public_input_len: usize,
@@ -337,11 +353,12 @@ pub fn estimate_r1cs_encoding(
     })
 }
 
-/// Estimate the direct CCS representation of one relation with base and
-/// recursive branches. Branch equations are multiplied by `is_base` or
-/// `1-is_base` in the CCS polynomial itself. Private slots are kept separate;
-/// one decoded-value equation forces every inactive source slot to zero, which
-/// makes the encoding canonical without one zero row per bit.
+/// Estimate a proposed direct CCS representation of one relation with base
+/// and recursive branches. Branch equations would be multiplied by `is_base`
+/// or `1-is_base` in the CCS polynomial itself. Private slots are kept
+/// separate; one decoded-value equation is budgeted for every inactive source
+/// slot. This function is cost arithmetic only, not a materializer or a
+/// selector-soundness audit.
 pub fn estimate_selector_gated_r1cs_encoding(
     base: &R1csSnapshot,
     base_public_bit_columns: &[usize],

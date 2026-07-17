@@ -6,7 +6,9 @@ mod lean_artifact_support;
 use lean_artifact_support::{lean_nat_list, lean_rows, lean_witness, sha256_hex, SCHEMA_VERSION};
 use neo_ajtai::Commitment;
 use neo_ccs::Mat;
-use neo_fold_clean::engine::decider::__test_isolation::{enforce_ce_continuity_against_self, CeContinuityProbeWires};
+use neo_fold_clean::engine::decider::__test_isolation::{
+    enforce_ce_continuity_against_self, enforce_ce_continuity_between, CeContinuityProbeWires,
+};
 use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
 use neo_fold_clean::paper::params::Params;
 use neo_fold_clean::paper::relations::CeClaim;
@@ -144,7 +146,7 @@ fn lean_runs(runs: &[(usize, usize, usize)]) -> String {
 fn artifact_hashes(builder: &R1csBuilder, forged: &[F], pairs: &[(usize, usize)]) -> (String, String) {
     let row_payload = format!(
         "schema={SCHEMA_VERSION}\nkind=r1cs/f-prime-ce-continuity\n\
-         source=enforce_children_equal_running\npairs={}\nleft_cols={}\nrows={}\ncols={}\n{}",
+         source=enforce_child_core_equal_running\npairs={}\nleft_cols={}\nrows={}\ncols={}\n{}",
         lean_pairs(pairs),
         lean_nat_list(pairs.iter().map(|pair| pair.0)),
         builder.rows(),
@@ -171,7 +173,7 @@ fn ce_continuity_accepts_honest_and_has_only_direct_equalities() {
 
 #[test]
 fn ce_continuity_rejects_each_authority_family() {
-    let selectors: [fn(&CeContinuityProbeWires) -> usize; 15] = [
+    let selectors: [fn(&CeContinuityProbeWires) -> usize; 14] = [
         |w| w.c_data0.col(),
         |w| w.x0.col(),
         |w| w.c_d.col(),
@@ -185,7 +187,6 @@ fn ce_continuity_rejects_each_authority_family() {
         |w| w.s_col_c1.col(),
         |w| w.ct_c1.col(),
         |w| w.y_ring_c1.col(),
-        |w| w.y_zcol_c1.col(),
         |w| w.fold_digest0.col(),
     ];
     for select in selectors {
@@ -194,6 +195,27 @@ fn ce_continuity_rejects_each_authority_family() {
         builder.tamper_witness(column, builder.witness()[column] + F::ONE);
         assert!(!builder.is_satisfied(), "CE continuity disconnected column {column}");
     }
+}
+
+#[test]
+fn ce_continuity_does_not_read_child_or_running_y_zcol() {
+    let claim = claim_fixture();
+    let (baseline, _) = enforce_ce_continuity_between(&claim, &claim).expect("emit baseline");
+    let baseline = baseline.snapshot();
+
+    let mut child_mutation = claim.clone();
+    child_mutation.y_zcol[0] += K::ONE;
+    let (child, _) = enforce_ce_continuity_between(&child_mutation, &claim).expect("emit child mutation");
+    let child = child.snapshot();
+    assert!(baseline.has_same_relation(&child));
+    assert_eq!(baseline.witness(), child.witness());
+
+    let mut running_mutation = claim.clone();
+    running_mutation.y_zcol[0] += K::ONE;
+    let (running, _) = enforce_ce_continuity_between(&claim, &running_mutation).expect("emit running mutation");
+    let running = running.snapshot();
+    assert!(baseline.has_same_relation(&running));
+    assert_eq!(baseline.witness(), running.witness());
 }
 
 #[test]

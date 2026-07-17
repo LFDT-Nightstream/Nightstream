@@ -12,6 +12,7 @@ pub mod encoder;
 pub mod gadget_native;
 pub mod image;
 pub mod low_norm_r1cs;
+pub mod output_authority;
 pub mod projection_structure;
 pub mod recursive_plan;
 pub mod structure;

@@ -27,7 +27,7 @@ an executable checker or a duplicate model.
 | `fprime.active.prior_slot` | raw prior counter selects the typed slot | checked | `Family.priorSlot` |
 | `fprime.active.prior_link` | fresh public input equals the exact prior-state image | checked | `Family.priorPublicInput` |
 | `fprime.active.structure` | fresh claim uses the verifier-selected structure | checked | `Family.expectedStructure` |
-| `fprime.active.nifs` | selected sources yield the complete semantic fold result | checked | `Family.selectedNifs` |
+| `fprime.active.nifs` | selected sources yield the complete semantic fold result; the child relation opens into the exact nine-leaf NIFS plan | checked parent | `Family.selectedNifs`, `Result.resultTransition_iff_exists_obligationPlan` |
 | `fprime.active.dispatch` | application control selects this fixed function | checked | `Family.dispatch` |
 | `fprime.active.obligation_plan.exact` | all six leaves are exactly `Obligations` | exact model theorem | `exact` |
 -/
@@ -80,7 +80,6 @@ variable {AppState : Type uAppState}
 variable {Witness : Type uWitness}
 variable {TranscriptState : Type uTranscriptState}
 variable {shape : SemanticShape}
-variable {domain : FlatNcDomain}
 variable {publicRingColumns verifierRows slotCount : Nat}
 variable {publicFits :
   ringDegree * publicRingColumns <= shape.carrierWidth}
@@ -89,7 +88,7 @@ variable {publicFits :
 `Obligations` structure. -/
 def semantics
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -123,7 +122,7 @@ def semantics
 candidate. -/
 def target
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -142,7 +141,7 @@ def target
 the actual six-field semantic obligations. -/
 theorem accepts_iff_obligations
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -191,7 +190,7 @@ theorem accepts_iff_obligations
 obligations. This theorem makes no necessity claim for any individual leaf. -/
 theorem exact
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns

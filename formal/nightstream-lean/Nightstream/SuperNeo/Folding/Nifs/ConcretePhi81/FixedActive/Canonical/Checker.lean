@@ -30,7 +30,7 @@ checker; no digest is promoted to authority.
 | Stage path | Mathematical obligation | Authority class | Lean owner |
 |---|---|---|---|
 | `nifs.fixed_active.running_authority` | four-family incoming checked-parent authority | checked | `Canonical.RunningAuthority.check` |
-| `nifs.fixed_active.pi_ccs` | exact FE-to-NC raw transcript acceptance | checked | `Protocol.check` |
+| `nifs.fixed_active.pi_ccs` | exact FE-to-block/lane-NC raw transcript acceptance | checked | `Protocol.BlockLane.check` |
 | `nifs.fixed_active.pi_rlc.sampler` | exact 54-of-64 challenge derivation and binding | checked/computed | `Sampler.Checker.certificateCheck` |
 | `nifs.fixed_active.pi_rlc.structure` | all sources use the verifier-owned relation structure | derived/eliminated | `Canonical.Context.sourceStructures` |
 | `nifs.fixed_active.pi_dec` | three-family outgoing recomposition | checked | `DerivedPiDec.Checker.check` |
@@ -52,19 +52,17 @@ universe uState
 /-- Execute all and only the retained physical verifier families. -/
 def check
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (context :
-      Canonical.Context shape domain State publicRingColumns publicFits
+      Canonical.Context shape State publicRingColumns publicFits
         verifierRows)
     (certificate : FixedActive.Certificate context.materialize) : Bool :=
   Canonical.RunningAuthority.check context &&
-    (Protocol.check context.materialize.feMachine context.materialize.ncMachine
-        context.materialize.initialState context.profile context.piCcsInput
-        context.materialize.feCoins context.materialize.ncCoins
+    (Protocol.BlockLane.check StatementInput.polynomial context.piCcsSchedule
+        context.priorState context.profile context.materialize.piCcsStatement
         certificate.piCcs &&
       (Sampler.Checker.certificateCheck context.materialize certificate &&
         DerivedPiDec.Checker.check context.materialize certificate))
@@ -73,20 +71,19 @@ def check
 physical NIFS verifier predicate. -/
 theorem check_eq_true_iff_accepted
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (context :
-      Canonical.Context shape domain State publicRingColumns publicFits
+      Canonical.Context shape State publicRingColumns publicFits
         verifierRows)
     (certificate : FixedActive.Certificate context.materialize) :
     check context certificate = true <->
       ConcretePhi81.Accepted context.materialize certificate := by
   simp only [check, Bool.and_eq_true,
     Canonical.RunningAuthority.check_eq_true_iff_accepted,
-    Protocol.check_eq_true_iff_accepted,
+    Protocol.BlockLane.check_eq_true_iff_accepted,
     Sampler.Checker.certificateCheck_eq_true_iff_accepted,
     DerivedPiDec.Checker.check_eq_true_iff_recomposition]
   constructor
@@ -108,13 +105,12 @@ theorem check_eq_true_iff_accepted
 left as an abstract backend promise. -/
 def evaluatorChecker
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (context :
-      Canonical.Context shape domain State publicRingColumns publicFits
+      Canonical.Context shape State publicRingColumns publicFits
         verifierRows) :
     FixedActive.Evaluator.Checker context.materialize where
   check := check context

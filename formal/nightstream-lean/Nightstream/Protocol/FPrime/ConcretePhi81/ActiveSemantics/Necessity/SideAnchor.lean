@@ -60,7 +60,6 @@ variable {AppState : Type uAppState}
 variable {Witness : Type uWitness}
 variable {TranscriptState : Type uTranscriptState}
 variable {shape : SemanticShape}
-variable {domain : FlatNcDomain}
 variable {publicRingColumns verifierRows slotCount : Nat}
 variable {publicFits :
   ringDegree * publicRingColumns <= shape.carrierWidth}
@@ -70,7 +69,7 @@ exposes the exact bounded-sampler coordinate that prevented construction. The
 two outer side equalities remain separate premises. -/
 theorem exists_sideAnchor_or_samplerShortfall_of_semanticPremises
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -108,7 +107,7 @@ The equality records that the existential anchor uses the caller's selected
 slot, rather than merely some unrelated slot. -/
 theorem exists_sideAnchor_of_honestNifs
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -142,7 +141,7 @@ callbacks may inspect the whole input, equality of fresh/running fields alone
 does not justify reusing the semantic NIFS transition. -/
 structure StableSideMutation
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (source target :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -162,7 +161,7 @@ namespace StableSideMutation
 only after the verifier-built contexts are proved equal. -/
 def transport
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (source target :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -189,7 +188,7 @@ program-counter types and contains the actual semantic NIFS side anchor. -/
 structure ConcreteRealization
     (removed : OuterPlan.Family)
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -213,7 +212,7 @@ rejection by both witness-level obligations and the independent `Holds`
 relation. -/
 theorem lift
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -248,7 +247,7 @@ theorem lift
 dispatch equations and rejects only because positivity fails. -/
 def activeIteration
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -286,7 +285,7 @@ def activeIteration
 and rejects only because the observed and required public inputs differ. -/
 def priorPublicLink
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -324,7 +323,7 @@ def priorPublicLink
 prior link and rejects only because control chooses a different counter. -/
 def dispatch
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns

@@ -49,17 +49,16 @@ and is deposited for the following step. Production provenance is not assumed
 by this structure. -/
 structure Setup
     (shape : SemanticShape)
-    (domain : FlatNcDomain)
     (TranscriptState : Type uTranscriptState)
     (publicRingColumns : Nat)
     (publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth)
     (verifierRows : Nat) where
   bootstrapTemplate :
-    BootstrapContext.Template shape domain TranscriptState
+    BootstrapContext.Template shape TranscriptState
       publicRingColumns publicFits verifierRows
   activeTemplate :
-    Context.Template shape domain TranscriptState
+    Context.Template shape TranscriptState
       publicRingColumns publicFits verifierRows
   bootstrapPiCcsInput :
     Fresh shape publicRingColumns publicFits verifierRows ->
@@ -83,17 +82,16 @@ structure Setup
 fold. -/
 def bootstrapContext
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {TranscriptState : Type uTranscriptState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (setup :
-      Setup shape domain TranscriptState publicRingColumns publicFits
+      Setup shape TranscriptState publicRingColumns publicFits
         verifierRows)
     (currentLatest nextLatest :
       Fresh shape publicRingColumns publicFits verifierRows) :
-    FixedBootstrap.Context shape domain TranscriptState publicRingColumns
+    FixedBootstrap.Context shape TranscriptState publicRingColumns
       publicFits verifierRows :=
   setup.bootstrapTemplate.build {
     fresh := currentLatest
@@ -103,13 +101,12 @@ def bootstrapContext
 
 @[simp] theorem bootstrapContext_runningParent
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {TranscriptState : Type uTranscriptState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (setup :
-      Setup shape domain TranscriptState publicRingColumns publicFits
+      Setup shape TranscriptState publicRingColumns publicFits
         verifierRows)
     (currentLatest nextLatest :
       Fresh shape publicRingColumns publicFits verifierRows) :
@@ -119,19 +116,18 @@ def bootstrapContext
 /-- Construct the exact fixed-active NIFS context for every later fold. -/
 def activeContext
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {TranscriptState : Type uTranscriptState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (setup :
-      Setup shape domain TranscriptState publicRingColumns publicFits
+      Setup shape TranscriptState publicRingColumns publicFits
         verifierRows)
     (accumulator :
       Accumulator shape publicRingColumns publicFits verifierRows)
     (currentLatest nextLatest :
       Fresh shape publicRingColumns publicFits verifierRows) :
-    FixedActive.Context shape domain TranscriptState publicRingColumns
+    FixedActive.Context shape TranscriptState publicRingColumns
       publicFits verifierRows :=
   setup.activeTemplate.build {
     fresh := currentLatest
@@ -142,13 +138,12 @@ def activeContext
 
 @[simp] theorem activeContext_runningParent
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {TranscriptState : Type uTranscriptState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (setup :
-      Setup shape domain TranscriptState publicRingColumns publicFits
+      Setup shape TranscriptState publicRingColumns publicFits
         verifierRows)
     (accumulator :
       Accumulator shape publicRingColumns publicFits verifierRows)

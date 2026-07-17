@@ -59,6 +59,23 @@ while IFS= read -r relative; do
 done < <(cd "$REPO_ROOT" && rg --files \
   formal/nightstream-lean/Nightstream -g '*.lean' | sort)
 
+# The active ConcretePhi81 NIFS/F-prime model has one canonical 9/3/6
+# BlockLane transcript profile. Keep the superseded flat-domain protocol out
+# of this trust path; legacy artifact correspondence remains under
+# Implementation/R1CS and must refine into this model explicitly.
+canonical_roots=(
+  formal/nightstream-lean/Nightstream/SuperNeo/Folding/Nifs/ConcretePhi81
+  formal/nightstream-lean/Nightstream/Protocol/FPrime/ConcretePhi81
+)
+legacy_pattern='\bFlatNcDomain\b|Protocol\.TranscriptAuthority\.Schedule|Protocol\.Certificate|Protocol\.Accepted|Protocol\.derive|\bpiCcsOutputHandoff\b|\boutputPoints\b|\bbetaM\b'
+if legacy_hits="$(cd "$REPO_ROOT" && rg -n -e "$legacy_pattern" \
+    "${canonical_roots[@]}" -g '*.lean' || true)" &&
+    [[ -n "$legacy_hits" ]]; then
+  echo "[ownership] legacy flat-domain protocol leaked into canonical ConcretePhi81:" >&2
+  echo "$legacy_hits" >&2
+  status=1
+fi
+
 if (( status != 0 )); then
   exit "$status"
 fi

@@ -62,7 +62,6 @@ variable {AppState : Type uAppState}
 variable {Witness : Type uWitness}
 variable {TranscriptState : Type uTranscriptState}
 variable {shape : SemanticShape}
-variable {domain : FlatNcDomain}
 variable {publicRingColumns verifierRows slotCount : Nat}
 variable {publicFits :
   ringDegree * publicRingColumns <= shape.carrierWidth}
@@ -72,7 +71,7 @@ by all six active families. -/
 def candidate
     {removed : OuterPlan.Family}
     {setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount}
     {machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -93,7 +92,7 @@ actual candidate carried by the realization. -/
 theorem weakened
     {removed : OuterPlan.Family}
     {setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount}
     {machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -165,7 +164,7 @@ outer realization is outside the three-equation outer boundary. -/
 theorem rejected
     {removed : OuterPlan.Family}
     {setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount}
     {machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -193,7 +192,7 @@ bad view and side anchor are constructed. -/
 theorem necessary
     {removed : OuterPlan.Family}
     {setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount}
     {machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -215,7 +214,7 @@ produce the iteration-removal witness, unless the fixed bounded sampler names
 one exact shortfall coordinate. -/
 theorem activeIteration_necessary_or_samplerShortfall_of_semanticPremises
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -260,7 +259,7 @@ input produce the link-removal witness, unless the fixed bounded sampler names
 one exact shortfall coordinate. -/
 theorem priorPublicLink_necessary_or_samplerShortfall_of_semanticPremises
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns
@@ -305,7 +304,7 @@ produce the dispatch-removal witness, unless the fixed bounded sampler names
 one exact shortfall coordinate. -/
 theorem dispatch_necessary_or_samplerShortfall_of_semanticPremises
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount)
     (machine :
       Machine OuterKey Digest AppState Witness shape publicRingColumns

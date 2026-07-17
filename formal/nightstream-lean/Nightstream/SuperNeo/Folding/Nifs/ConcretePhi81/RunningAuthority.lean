@@ -49,7 +49,6 @@ universe uState
 
 variable
   {shape : SemanticShape}
-  {domain : FlatNcDomain}
   {State : Type uState}
   {publicRingColumns verifierRows : Nat}
   {publicFits :
@@ -66,7 +65,7 @@ def activeIndex
 /-- Reindex the fixed `k` child family into an active arity's running input. -/
 def children
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows arity)
+      Context shape State publicRingColumns publicFits verifierRows arity)
     (active : arity.mode = .active) :
     Fin productionGlobalParams.k →
       Phi81Relation.CEStatement
@@ -77,7 +76,7 @@ def children
 
 @[simp] theorem children_apply
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity)
     (active : arity.mode = .active)
     (child : Fin productionGlobalParams.k) :
@@ -89,7 +88,7 @@ def children
 authorize transcript compression. -/
 def attempt
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity)
     (active : arity.mode = .active)
     (parent :
@@ -112,7 +111,7 @@ def attempt
 /-- Typed evidence for the complete active incoming-accumulator check. -/
 structure Bound
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows arity) where
+      Context shape State publicRingColumns publicFits verifierRows arity) where
   active : arity.mode = .active
   parent :
     Phi81Relation.CEStatement
@@ -131,7 +130,7 @@ the full `k`-child product and must validate its complete parent through the
 strict `Pi_DEC` equations retained in `Bound`. -/
 inductive Accepted
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows arity) :
+      Context shape State publicRingColumns publicFits verifierRows arity) :
     Prop where
   | bootstrap
       (mode : arity.mode = .bootstrap)
@@ -144,7 +143,7 @@ namespace Bound
 /-- Every running child uses the checked parent's structure. -/
 theorem childStructure_eq_parent
     {context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity}
     (bound : Bound context)
     (child : Fin productionGlobalParams.k) :
@@ -155,7 +154,7 @@ theorem childStructure_eq_parent
 /-- Every running child uses the checked parent's evaluation point. -/
 theorem childPoint_eq_parent
     {context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity}
     (bound : Bound context)
     (child : Fin productionGlobalParams.k) :
@@ -167,7 +166,7 @@ theorem childPoint_eq_parent
 input, after eliminating the active-mode index cast. -/
 theorem inputPoint_eq_parent
     {context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity}
     (bound : Bound context)
     (child : Fin (arity.mode.count productionGlobalParams)) :
@@ -181,7 +180,7 @@ theorem inputPoint_eq_parent
 `Pi_DEC`; it is not an independent semantic obligation. -/
 theorem children_sharePoint
     {context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity}
     (bound : Bound context)
     (left right : Fin (arity.mode.count productionGlobalParams)) :
@@ -198,7 +197,7 @@ namespace Accepted
 /-- Bootstrap acceptance exposes the exact absence of a parent carrier. -/
 theorem parentAbsent_of_bootstrap
     {context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity}
     (accepted : Accepted context)
     (mode : arity.mode = .bootstrap) :
@@ -214,7 +213,7 @@ theorem parentAbsent_of_bootstrap
 incoming-authority obligation. -/
 theorem iff_parentAbsent_of_bootstrap
     {context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity}
     (mode : arity.mode = .bootstrap) :
     Accepted context ↔ context.runningParent = none := by
@@ -228,7 +227,7 @@ theorem iff_parentAbsent_of_bootstrap
 the complete strict parent proof. -/
 theorem iff_nonemptyBound_of_active
     {context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity}
     (mode : arity.mode = .active) :
     Accepted context ↔ Nonempty (Bound context) := by
@@ -246,7 +245,7 @@ theorem iff_nonemptyBound_of_active
 /-- A zero-running bootstrap cannot accept a supplied parent authority. -/
 theorem rejects_parent_in_bootstrap
     {context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity}
     (mode : arity.mode = .bootstrap)
     (parent :
@@ -264,7 +263,7 @@ theorem rejects_parent_in_bootstrap
 for the exact public running family. -/
 theorem children_sharePoint
     {context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity}
     (accepted : Accepted context)
     (left right : Fin (arity.mode.count productionGlobalParams)) :

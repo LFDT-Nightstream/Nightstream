@@ -7,6 +7,9 @@ import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.Sampler.Checker
 import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.DerivedPiRlc
 import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.DerivedPiDec
 import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.DerivedPiDec.Checker
+import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.SemanticFold
+import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.SemanticFold.ObligationPlan
+import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.SemanticFold.ObligationPlan.Necessity
 import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.Transition
 import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.Result
 import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedBootstrap
@@ -42,7 +45,10 @@ Emits constraints: no.
 | `nifs.concrete.pi_rlc.derived` | exact retained source-structure family; every other public `Pi_RLC` equation is computed | no | `ConcretePhi81.DerivedPiRlc` |
 | `nifs.concrete.pi_dec.derived` | canonical child materialization and the exact three-equation recomposition boundary | no | `ConcretePhi81.DerivedPiDec` |
 | `nifs.concrete.pi_dec.checker` | executable three-family recomposition check exact to the retained boundary | no | `ConcretePhi81.DerivedPiDec.Checker` |
-| `nifs.concrete.transition` | independent acceptance, semantic transition, named-bad-event soundness, and honest completeness | no | `ConcretePhi81.Transition` |
+| `nifs.semantic.fold` | certificate-independent honest outputs, combined parent, radix children, and relation | no | `ConcretePhi81.SemanticFold` |
+| `nifs.semantic.obligation_plan` | exact protocol/phase/family leaves over a raw point and challenge candidate | no | `ConcretePhi81.SemanticFold.ObligationPlan` |
+| `nifs.semantic.obligation_plan.necessity` | parent-only and child-only removal witnesses for the computed result equalities | no | `ConcretePhi81.SemanticFold.ObligationPlan.Necessity` |
+| `nifs.concrete.transition` | physical acceptance, refinement into the semantic fold, named-bad-event soundness, and honest completeness | no | `ConcretePhi81.Transition` |
 | `nifs.result` | one arity-independent derived parent/children result and its semantic projection | no | `ConcretePhi81.Result` |
 | `nifs.fixed_bootstrap` | exact `1 + 0` carrier, absent incoming parent, and complete derived parent/children result | no | `ConcretePhi81.FixedBootstrap` |
 | `nifs.fixed_active` | exact `1 + 14` carrier and complete derived parent/children result | no | `ConcretePhi81.FixedActive` |

@@ -63,27 +63,25 @@ def arity : BatchArity productionGlobalParams :=
 /-- Concrete verifier context specialized to the fixed bootstrap arity. -/
 abbrev Context
     (shape : SemanticShape)
-    (domain : FlatNcDomain)
     (State : Type uState)
     (publicRingColumns : Nat)
     (publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth)
     (verifierRows : Nat) :=
-  ConcretePhi81.Context shape domain State publicRingColumns publicFits
+  ConcretePhi81.Context shape State publicRingColumns publicFits
     verifierRows arity
 
 /-- Raw verifier-visible certificate specialized to the fixed bootstrap
 arity. -/
 abbrev Certificate
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows) :=
-  ConcretePhi81.Certificate (domain := domain) (arity := arity)
+      Context shape State publicRingColumns publicFits verifierRows) :=
+  ConcretePhi81.Certificate (arity := arity)
     publicRingColumns publicFits verifierRows context.piCcsInput
 
 /-- Complete bootstrap fold result. The parent is retained only as authority
@@ -99,13 +97,12 @@ abbrev FoldResult
 /-- Construct valid incoming-authority evidence for the zero-running mode. -/
 def runningAuthority_of_parentAbsent
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows)
+      Context shape State publicRingColumns publicFits verifierRows)
     (parentAbsent : context.runningParent = none) :
     RunningAuthority.Accepted context :=
   .bootstrap arity_mode parentAbsent
@@ -115,13 +112,12 @@ incoming-authority contract. This is the target future native/R1CS checker
 must refine, including the concrete `Option.none` tag. -/
 theorem runningAuthority_iff_parentAbsent
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows) :
+      Context shape State publicRingColumns publicFits verifierRows) :
     RunningAuthority.Accepted context ↔ context.runningParent = none :=
   RunningAuthority.Accepted.iff_parentAbsent_of_bootstrap
     (context := context) arity_mode
@@ -129,39 +125,36 @@ theorem runningAuthority_iff_parentAbsent
 /-- Compute both public result surfaces from one shared phase execution. -/
 abbrev resultOf
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows)
+      Context shape State publicRingColumns publicFits verifierRows)
     (certificate : Certificate context) :
     FoldResult shape publicRingColumns publicFits verifierRows :=
   Result.resultOf context certificate
 
 @[simp] theorem resultOf_parent
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows)
+      Context shape State publicRingColumns publicFits verifierRows)
     (certificate : Certificate context) :
     (resultOf context certificate).parent =
       (ConcretePhi81.derive context certificate).piRlcOutput := rfl
 
 @[simp] theorem resultOf_children
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows)
+      Context shape State publicRingColumns publicFits verifierRows)
     (certificate : Certificate context) :
     (resultOf context certificate).children =
       ConcretePhi81.outputChildren context certificate := rfl
@@ -169,13 +162,12 @@ abbrev resultOf
 /-- Independent semantic transition for the complete bootstrap result. -/
 abbrev ResultTransition
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows)
+      Context shape State publicRingColumns publicFits verifierRows)
     (result : FoldResult shape publicRingColumns publicFits verifierRows) :
     Prop :=
   Result.ResultTransition context result
@@ -183,13 +175,12 @@ abbrev ResultTransition
 /-- The complete result projects to the child-only concrete transition. -/
 theorem ResultTransition.children_transition
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {context :
-      Context shape domain State publicRingColumns publicFits verifierRows}
+      Context shape State publicRingColumns publicFits verifierRows}
     {result : FoldResult shape publicRingColumns publicFits verifierRows}
     (transition : ResultTransition context result) :
     ConcretePhi81.Transition context result.children := by
@@ -200,30 +191,28 @@ theorem ResultTransition.children_transition
 absent; this is not inferred from an empty digest. -/
 theorem ResultTransition.parentAbsent
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {context :
-      Context shape domain State publicRingColumns publicFits verifierRows}
+      Context shape State publicRingColumns publicFits verifierRows}
     {result : FoldResult shape publicRingColumns publicFits verifierRows}
     (transition : ResultTransition context result) :
     context.runningParent = none := by
-  rcases transition with ⟨_data, _certificate, _resultEq, holds⟩
+  rcases transition with ⟨_data, holds⟩
   exact holds.running.parentAbsent_of_bootstrap arity_mode
 
 /-- Strict outgoing `Pi_DEC` binding preserves the sole fresh-source
 structure in every returned accumulator child. -/
 theorem ResultTransition.childStructure_eq_fresh
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {context :
-      Context shape domain State publicRingColumns publicFits verifierRows}
+      Context shape State publicRingColumns publicFits verifierRows}
     {result : FoldResult shape publicRingColumns publicFits verifierRows}
     (transition : ResultTransition context result)
     (child : Fin productionGlobalParams.k) :

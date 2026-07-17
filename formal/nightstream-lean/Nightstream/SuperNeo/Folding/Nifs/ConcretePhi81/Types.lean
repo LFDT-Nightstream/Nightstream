@@ -1,9 +1,9 @@
 import Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra
 import Nightstream.SuperNeo.Concrete.Phi81Relation.PiRLCAlgebra
 import Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionSchedule
+import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.PiCcsDomains
 import Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier.OutputProduct
-import Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier.Protocol
-import Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier.Protocol.TranscriptAuthority
+import Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier.Protocol.BlockLane
 
 /-!
 Typed carrier and deterministic dataflow for the concrete Phi81 NIFS
@@ -40,7 +40,7 @@ copy can override them.
 |---|---|---|---|
 | `nifs.concrete.setup.key` | `VerifierKey`, `commit` | exact typed Ajtai key and opening map | verifier-owned setup |
 | `nifs.concrete.setup.algebra` | `rlcAlgebra`, `decAlgebra` | independently proved concrete Phi81 phase algebras | computed |
-| `nifs.concrete.context` | `Context` | key, source alignment, incoming parent, both public input surfaces, prior state, one transcript schedule, and supported profile | verifier-owned context |
+| `nifs.concrete.context` | `Context` | key, source alignment, incoming parent, both public input surfaces, prior state, the fixed production domain, one transcript schedule, and supported profile | verifier-owned context |
 | `nifs.concrete.pi_ccs.statement` | `Context.piCcsStatement` | bind the verifier key, source product, checked-parent carrier, and polynomial public input together | computed |
 | `nifs.concrete.pi_ccs.coins` | `Context.piCcsPreSumcheck` | derive one shared FE/NC challenge record after statement binding | computed |
 | `nifs.concrete.pi_ccs.fe` | `Context.feMachine`, `Context.initialState` | compute the FE initial claim and sole phase-entry state | computed |
@@ -49,7 +49,7 @@ copy can override them.
 | `nifs.concrete.certificate.pi_rlc` | `Certificate.piRlcChallenges` | one scalar per canonical source | verifier-derived carrier |
 | `nifs.concrete.certificate.pi_dec.payload` | `Certificate.piDecPayloads` | exactly `k` commitment/public-input/evaluation payloads | prover message |
 | `nifs.concrete.derive.pi_ccs_output` | `derive` | canonical source-ordered CE product | computed |
-| `nifs.concrete.derive.pi_ccs_handoff` | `Execution.piRlcInitialState` | bind the accepted Π_CCS output message after the FE/NC transcript and before any Π_RLC challenge | verifier-owned computation |
+| `nifs.concrete.derive.pi_ccs_handoff` | `Execution.piRlcInitialState` | reuse the canonical post-output Π_CCS state as the sole Π_RLC sampler root | direct dataflow |
 | `nifs.concrete.pi_rlc.sampler.machine` | `Context.piRlcMachine` | deterministic four-block challenge source | verifier-owned context |
 | `nifs.concrete.derive.pi_rlc_parent` | `derive` | one combined CE parent from the shared product | computed |
 | `nifs.concrete.derive.pi_dec.children` | `Execution.piDecChildren` | inherit structure, point, and fresh stage from the computed parent | computed |
@@ -145,14 +145,13 @@ structure StatementInput
 fixes public setup or deterministically interprets the raw certificate. -/
 structure Context
     (shape : SemanticShape)
-    (domain : FlatNcDomain)
     (State : Type uState)
     (publicRingColumns : Nat)
     (publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth)
     (verifierRows : Nat)
     (arity : BatchArity productionGlobalParams) where
-  covers : domain.Covers shape
+  covers : PiCcsDomains.production.nc.Covers shape
   key : VerifierKey shape publicRingColumns publicFits verifierRows
   alignment : SourceAlignment shape productionGlobalParams arity
   input :
@@ -166,13 +165,14 @@ structure Context
   piCcsInput : PiCCS.SplitNc.Verifier.PublicInput shape
   priorState : State
   piCcsSchedule :
-    PiCCS.SplitNc.Verifier.Protocol.TranscriptAuthority.Schedule
+    PiCCS.SplitNc.Verifier.Protocol.TranscriptAuthority.BlockLane.Schedule
       (VerifierKey shape publicRingColumns publicFits verifierRows)
       (StatementInput shape publicRingColumns publicFits verifierRows arity)
-      shape domain State
+      shape PiCcsDomains.production State
   piRlcMachine :
     Nifs.NonInteractive.PiRlcSampler.ProductionSchedule.Machine State
-  profile : PiCCS.SplitNc.Verifier.Polynomial.Fe.SupportedProfile shape domain
+  profile : PiCCS.SplitNc.Verifier.Polynomial.Fe.SupportedProfile shape
+    PiCcsDomains.production.fe
   challengeSetSize : Nat
 
 namespace Context
@@ -180,16 +180,15 @@ namespace Context
 /-- Exact public statement bound before any `Pi_CCS` challenge is derived. -/
 def piCcsStatement
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {arity : BatchArity productionGlobalParams}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity) :
-    PiCCS.SplitNc.Verifier.Protocol.TranscriptAuthority.Statement
+    PiCCS.SplitNc.Verifier.Protocol.TranscriptAuthority.BlockLane.Statement
       (VerifierKey shape publicRingColumns publicFits verifierRows)
       (StatementInput shape publicRingColumns publicFits verifierRows
         arity) where
@@ -203,14 +202,13 @@ def piCcsStatement
 /-- Statement binding includes the complete public source product exactly. -/
 @[simp] theorem piCcsStatement_sources
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {arity : BatchArity productionGlobalParams}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity) :
     context.piCcsStatement.input.sources = context.input := by
   rfl
@@ -219,14 +217,13 @@ def piCcsStatement
 exactly. -/
 @[simp] theorem piCcsStatement_polynomial
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {arity : BatchArity productionGlobalParams}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity) :
     context.piCcsStatement.input.polynomial = context.piCcsInput := by
   rfl
@@ -236,14 +233,13 @@ exactly. The separate running-authority verifier decides whether it is valid;
 the transcript never receives only an unverified digest. -/
 @[simp] theorem piCcsStatement_runningParent
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {arity : BatchArity productionGlobalParams}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity) :
     context.piCcsStatement.input.runningParent = context.runningParent := by
   rfl
@@ -253,14 +249,13 @@ structure. Production arity proves that source exists, and `Pi_RLC` equations
 later check every materialized source against this same value. -/
 def system
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {arity : BatchArity productionGlobalParams}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity) :
     Phi81Relation.Structure
       (RelationShape shape publicRingColumns publicFits) :=
@@ -270,14 +265,13 @@ def system
 source's system; there is no hidden semantic-data lookup. -/
 @[simp] theorem system_eq_firstFresh
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {arity : BatchArity productionGlobalParams}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity) :
     context.system =
       (context.input.fresh ⟨0, arity.freshPositive⟩).constraintSystem := by
@@ -287,62 +281,60 @@ source's system; there is no hidden semantic-data lookup. -/
 sole state entering FE. -/
 def piCcsPreSumcheck
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {arity : BatchArity productionGlobalParams}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity) :
-    PiCCS.SplitNc.Verifier.Protocol.TranscriptAuthority.PreSumcheck
-      shape domain State :=
-  PiCCS.SplitNc.Verifier.Protocol.TranscriptAuthority.derivePreSumcheck
+    PiCCS.SplitNc.Verifier.Protocol.TranscriptAuthority.BlockLane.PreSumcheck
+      shape PiCcsDomains.production State :=
+  PiCCS.SplitNc.Verifier.Protocol.TranscriptAuthority.BlockLane.derivePreSumcheck
     context.piCcsSchedule context.priorState context.piCcsStatement
 
 /-- FE coins are a projection of the unique pre-SumCheck challenge record. -/
 def feCoins
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {arity : BatchArity productionGlobalParams}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity) :
-    PiCCS.SplitNc.Verifier.Polynomial.Fe.Coins shape domain :=
+    PiCCS.SplitNc.Verifier.Polynomial.Fe.Coins shape
+      PiCcsDomains.production.fe :=
   context.piCcsPreSumcheck.challenges.feCoins
 
 /-- NC coins are a projection of the same challenge record. -/
 def ncCoins
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {arity : BatchArity productionGlobalParams}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity) :
-    PiCCS.SplitNc.Verifier.Polynomial.Nc.Mixing.Coins domain :=
+    PiCCS.SplitNc.Verifier.Polynomial.Nc.BlockLane.Mixing.Coins
+      PiCcsDomains.production.nc :=
   context.piCcsPreSumcheck.challenges.ncCoins
 
 /-- The FE initial claim is verifier-computed from the bound public input and
 the schedule-derived FE coins. -/
 def feInitial
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {arity : BatchArity productionGlobalParams}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity) : K :=
   PiCCS.SplitNc.Verifier.Polynomial.Fe.initial context.profile
     context.piCcsInput context.feCoins
@@ -350,98 +342,78 @@ def feInitial
 /-- FE transcript machine parameterized only by the computed initial claim. -/
 def feMachine
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {arity : BatchArity productionGlobalParams}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity) :
     PiCCS.SplitNc.Verifier.Transcript.Fe.Machine State :=
-  PiCCS.SplitNc.Verifier.Protocol.TranscriptAuthority.feMachine
+  PiCCS.SplitNc.Verifier.Protocol.TranscriptAuthority.BlockLane.feMachine
     context.piCcsSchedule context.feInitial
 
 /-- NC transcript machine projected from the same schedule. -/
 def ncMachine
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {arity : BatchArity productionGlobalParams}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity) :
     PiCCS.SplitNc.Verifier.Transcript.Nc.Machine State :=
-  PiCCS.SplitNc.Verifier.Protocol.TranscriptAuthority.ncMachine
+  PiCCS.SplitNc.Verifier.Protocol.TranscriptAuthority.BlockLane.ncMachine
     context.piCcsSchedule
 
 /-- Sole state entering FE after statement binding and pre-SumCheck sampling. -/
 def initialState
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {arity : BatchArity productionGlobalParams}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity) : State :=
   context.piCcsPreSumcheck.state
-
-/-- Complete output-message handoff owned by the same transcript schedule. -/
-def piCcsOutputHandoff
-    {shape : SemanticShape}
-    {domain : FlatNcDomain}
-    {State : Type uState}
-    {publicRingColumns verifierRows : Nat}
-    {publicFits :
-      ringDegree * publicRingColumns <= shape.carrierWidth}
-    {arity : BatchArity productionGlobalParams}
-    (context :
-      Context shape domain State publicRingColumns publicFits verifierRows
-        arity) :
-    State -> PiCCS.SplitNc.Verifier.OutputMessage shape -> State :=
-  context.piCcsSchedule.absorbOutput
 
 /-- The shared challenge carrier makes FE/NC lane authority definitionally
 identical. -/
 @[simp] theorem ncCoins_betaA_eq_feCoins_betaA
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {arity : BatchArity productionGlobalParams}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity) :
     context.ncCoins.betaA = context.feCoins.betaA := by
   exact
-    PiCCS.SplitNc.Verifier.Protocol.TranscriptAuthority.Challenges.ncCoins_betaA_eq_feCoins_betaA
+    PiCCS.SplitNc.Verifier.Protocol.TranscriptAuthority.BlockLane.Challenges.ncCoins_betaA_eq_feCoins_betaA
       context.piCcsPreSumcheck.challenges
 
 /-- The shared challenge carrier makes FE/NC mixing authority definitionally
 identical. -/
 @[simp] theorem ncCoins_gamma_eq_feCoins_gamma
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {arity : BatchArity productionGlobalParams}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity) :
     context.ncCoins.gamma = context.feCoins.gamma := by
   exact
-    PiCCS.SplitNc.Verifier.Protocol.TranscriptAuthority.Challenges.ncCoins_gamma_eq_feCoins_gamma
+    PiCCS.SplitNc.Verifier.Protocol.TranscriptAuthority.BlockLane.Challenges.ncCoins_gamma_eq_feCoins_gamma
       context.piCcsPreSumcheck.challenges
 
 end Context
@@ -492,7 +464,6 @@ end PiDecChildPayload
 The two internal derived carriers are intentionally absent. -/
 structure Certificate
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {arity : BatchArity productionGlobalParams}
     (publicRingColumns : Nat)
     (publicFits :
@@ -500,8 +471,8 @@ structure Certificate
     (verifierRows : Nat)
     (piCcsInput : PiCCS.SplitNc.Verifier.PublicInput shape) where
   piCcs :
-    PiCCS.SplitNc.Verifier.Protocol.Certificate
-      piCcsInput domain
+    PiCCS.SplitNc.Verifier.Protocol.BlockLane.Certificate
+      piCcsInput PiCcsDomains.production
   piRlcChallenges : Fin arity.total -> RingF
   piDecPayloads : Fin productionGlobalParams.k ->
     PiDecChildPayload
@@ -512,7 +483,6 @@ structure Certificate
 `Pi_RLC` input vector and `piRlcOutput` is the sole `Pi_DEC` parent. -/
 structure Execution
     (shape : SemanticShape)
-    (domain : FlatNcDomain)
     (State : Type uState)
     (publicRingColumns : Nat)
     (publicFits :
@@ -520,8 +490,8 @@ structure Execution
     (verifierRows : Nat)
     (arity : BatchArity productionGlobalParams) where
   piCcs :
-    PiCCS.SplitNc.Verifier.Protocol.Execution shape domain State
-  piRlcInitialState : State
+    PiCCS.SplitNc.Verifier.Protocol.BlockLane.Execution shape
+      PiCcsDomains.production State
   piCcsOutputs :
     Product shape publicRingColumns publicFits
       (CommitmentValue verifierRows) productionGlobalParams arity
@@ -532,10 +502,23 @@ structure Execution
 
 namespace Execution
 
+/-- Sole Π_RLC sampler root. Canonical BlockLane replay has already absorbed
+the complete Π_CCS output exactly once. -/
+def piRlcInitialState
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    {arity : BatchArity productionGlobalParams}
+    (execution :
+      Execution shape State publicRingColumns publicFits verifierRows arity) :
+    State :=
+  execution.piCcs.finalState
+
 /-- The exact `Pi_RLC` view over the one derived `Pi_CCS` product. -/
 def piRlcAttempt
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
@@ -543,10 +526,10 @@ def piRlcAttempt
     {arity : BatchArity productionGlobalParams}
     {piCcsInput : PiCCS.SplitNc.Verifier.PublicInput shape}
     (execution :
-      Execution shape domain State publicRingColumns publicFits verifierRows
+      Execution shape State publicRingColumns publicFits verifierRows
         arity)
     (certificate :
-      Certificate (domain := domain) (arity := arity)
+      Certificate (arity := arity)
         publicRingColumns publicFits verifierRows piCcsInput) :
     PiRLC.Attempt
       (Phi81Relation.Structure
@@ -566,7 +549,6 @@ def piRlcAttempt
 computed parent rather than checked against prover-supplied duplicates. -/
 def piDecChildren
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
@@ -574,10 +556,10 @@ def piDecChildren
     {arity : BatchArity productionGlobalParams}
     {piCcsInput : PiCCS.SplitNc.Verifier.PublicInput shape}
     (execution :
-      Execution shape domain State publicRingColumns publicFits verifierRows
+      Execution shape State publicRingColumns publicFits verifierRows
         arity)
     (certificate :
-      Certificate (domain := domain) (arity := arity)
+      Certificate (arity := arity)
         publicRingColumns publicFits verifierRows piCcsInput) :
     Fin productionGlobalParams.k ->
       Phi81Relation.CEStatement
@@ -590,7 +572,6 @@ def piDecChildren
 /-- The exact `Pi_DEC` view over the one derived `Pi_RLC` parent. -/
 def piDecAttempt
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
@@ -598,10 +579,10 @@ def piDecAttempt
     {arity : BatchArity productionGlobalParams}
     {piCcsInput : PiCCS.SplitNc.Verifier.PublicInput shape}
     (execution :
-      Execution shape domain State publicRingColumns publicFits verifierRows
+      Execution shape State publicRingColumns publicFits verifierRows
         arity)
     (certificate :
-      Certificate (domain := domain) (arity := arity)
+      Certificate (arity := arity)
         publicRingColumns publicFits verifierRows piCcsInput) :
     PiDEC.Attempt
       (Phi81Relation.Structure
@@ -621,7 +602,6 @@ end Execution
 /-- Deterministic three-phase dataflow. -/
 def derive
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {arity : BatchArity productionGlobalParams}
     {publicRingColumns : Nat}
@@ -629,30 +609,27 @@ def derive
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {verifierRows : Nat}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows arity)
+      Context shape State publicRingColumns publicFits verifierRows arity)
     (certificate :
-      Certificate (domain := domain) (arity := arity)
+      Certificate (arity := arity)
         publicRingColumns publicFits verifierRows context.piCcsInput) :
-    Execution shape domain State publicRingColumns publicFits verifierRows
+    Execution shape State publicRingColumns publicFits verifierRows
       arity :=
   let piCcsExecution :=
-    PiCCS.SplitNc.Verifier.Protocol.derive
-      context.feMachine context.ncMachine context.initialState certificate.piCcs
-  let piRlcInitialState :=
-    context.piCcsOutputHandoff piCcsExecution.finalState
-      certificate.piCcs.output
+    PiCCS.SplitNc.Verifier.Protocol.BlockLane.derive
+      StatementInput.polynomial context.piCcsSchedule context.priorState
+      context.profile context.piCcsStatement certificate.piCcs
   let piCcsOutputs :=
     OutputProduct.materialize publicRingColumns publicFits context.alignment
-      context.input piCcsExecution.outputPoints.rPrime
+      context.input piCcsExecution.fePoint.row
       certificate.piCcs.output
   let piRlcOutput :=
     PiRLC.combinedOutput (rlcAlgebra context.key)
       context.system
-      piCcsExecution.outputPoints.rPrime piCcsOutputs
+      piCcsExecution.fePoint.row piCcsOutputs
       certificate.piRlcChallenges
   {
     piCcs := piCcsExecution
-    piRlcInitialState := piRlcInitialState
     piCcsOutputs := piCcsOutputs
     piRlcOutput := piRlcOutput
   }
@@ -661,7 +638,6 @@ def derive
 This is the only child-statement surface exported by a raw certificate. -/
 def outputChildren
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {arity : BatchArity productionGlobalParams}
     {publicRingColumns : Nat}
@@ -669,9 +645,9 @@ def outputChildren
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {verifierRows : Nat}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows arity)
+      Context shape State publicRingColumns publicFits verifierRows arity)
     (certificate :
-      Certificate (domain := domain) (arity := arity)
+      Certificate (arity := arity)
         publicRingColumns publicFits verifierRows context.piCcsInput) :
     Fin productionGlobalParams.k ->
       Phi81Relation.CEStatement
@@ -679,12 +655,9 @@ def outputChildren
         (CommitmentValue verifierRows) :=
   (derive context certificate).piDecChildren certificate
 
-/-- The Π_RLC sampler starts only after the verifier-owned post-Π_CCS output
-handoff. The raw FE/NC successor is deliberately not exposed as the sampler
-root. -/
+/-- The Π_RLC sampler starts at the canonical post-output Π_CCS state. -/
 @[simp] theorem derive_piRlcInitialState
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {arity : BatchArity productionGlobalParams}
     {publicRingColumns : Nat}
@@ -692,16 +665,12 @@ root. -/
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {verifierRows : Nat}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows arity)
+      Context shape State publicRingColumns publicFits verifierRows arity)
     (certificate :
-      Certificate (domain := domain) (arity := arity)
+      Certificate (arity := arity)
         publicRingColumns publicFits verifierRows context.piCcsInput) :
     (derive context certificate).piRlcInitialState =
-      context.piCcsOutputHandoff
-        (PiCCS.SplitNc.Verifier.Protocol.derive
-          context.feMachine context.ncMachine context.initialState
-          certificate.piCcs).finalState
-        certificate.piCcs.output := by
+      (derive context certificate).piCcs.finalState := by
   rfl
 
 end Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81

@@ -48,7 +48,6 @@ variable {Witness : Type uWitness}
 variable {Digest : Type uDigest}
 variable {TranscriptState : Type uTranscriptState}
 variable {shape : SemanticShape}
-variable {domain : FlatNcDomain}
 variable {publicRingColumns verifierRows : Nat}
 variable {publicFits :
   ringDegree * publicRingColumns <= shape.carrierWidth}
@@ -57,7 +56,7 @@ variable {publicFits :
 canonically reconstructed NIFS context. -/
 abbrev Certificate
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -71,7 +70,7 @@ structure OuterChecks
       Machine OuterKey Digest AppState Witness shape publicRingColumns
         publicFits verifierRows 1)
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -88,7 +87,7 @@ def outerCheck
       Machine OuterKey Digest AppState Witness shape publicRingColumns
         publicFits verifierRows 1)
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -104,7 +103,7 @@ theorem outerCheck_eq_true_iff
       Machine OuterKey Digest AppState Witness shape publicRingColumns
         publicFits verifierRows 1)
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -125,7 +124,7 @@ structure Accepted
       Machine OuterKey Digest AppState Witness shape publicRingColumns
         publicFits verifierRows 1)
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -142,7 +141,7 @@ def check
       Machine OuterKey Digest AppState Witness shape publicRingColumns
         publicFits verifierRows 1)
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
@@ -158,7 +157,7 @@ theorem check_eq_true_iff_accepted
       Machine OuterKey Digest AppState Witness shape publicRingColumns
         publicFits verifierRows 1)
     (setup :
-      Setup OuterKey AppState Witness TranscriptState shape domain
+      Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows 1)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits

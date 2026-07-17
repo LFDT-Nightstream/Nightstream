@@ -45,17 +45,16 @@ universe uState
 /-- Execute exactly the three retained recomposition comparisons. -/
 def check
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {arity : BatchArity productionGlobalParams}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity)
     (certificate :
-      Certificate (domain := domain) (arity := arity)
+      Certificate (arity := arity)
         publicRingColumns publicFits verifierRows context.piCcsInput) : Bool :=
   commitmentEqual
       (derive context certificate).piRlcOutput.commitment
@@ -74,17 +73,16 @@ def check
 `Pi_DEC` equations. -/
 theorem check_eq_true_iff_recomposition
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {State : Type uState}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {arity : BatchArity productionGlobalParams}
     (context :
-      Context shape domain State publicRingColumns publicFits verifierRows
+      Context shape State publicRingColumns publicFits verifierRows
         arity)
     (certificate :
-      Certificate (domain := domain) (arity := arity)
+      Certificate (arity := arity)
         publicRingColumns publicFits verifierRows context.piCcsInput) :
     check context certificate = true <->
       RecompositionEquations context certificate := by

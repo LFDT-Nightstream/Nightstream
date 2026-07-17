@@ -70,6 +70,7 @@ end Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive
 #check SemanticFold.outputs
 #check SemanticFold.parentOf
 #check SemanticFold.childrenOf
+#check SemanticFold.Realization
 #check SemanticFold.Holds
 #check SemanticFold.complete
 #check SemanticFold.Holds.outputsHold
@@ -88,7 +89,9 @@ end Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive
 #check SemanticFold.ObligationPlan.exact
 #check SemanticFold.ObligationPlan.Necessity.Realization
 #check SemanticFold.ObligationPlan.Necessity.Realization.parentNecessary
+#check SemanticFold.ObligationPlan.Necessity.Realization.challengeNecessary
 #check SemanticFold.ObligationPlan.Necessity.Realization.childrenNecessary
+#check Nightstream.SuperNeo.Concrete.Phi81StrongSet.outsideChallenge_not_member
 #check
   Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier.Protocol.OutputRefinement.materializedOutputs_eq_honestOutputs_of_yRingEq
 #check OutputBound
@@ -160,6 +163,8 @@ end Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive
 #check accepted_implies_transition_or_outputUnbound_or_badEvent
 #check CertificateRefinement.piRlcParentOpening
 #check CertificateRefinement.packedYZcolBound
+#check CertificateRefinement.semanticWitness
+#check CertificateRefinement.toSemanticRealization
 #check CertificateRefinement.toSemanticFold
 #check Result.resultOf_refines
 #check Result.resultTransition_iff_exists_obligationPlan

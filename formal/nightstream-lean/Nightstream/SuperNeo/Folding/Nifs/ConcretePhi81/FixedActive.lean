@@ -156,6 +156,43 @@ theorem ResultTransition.children_transition
   exact Result.ResultTransition.children_transition
     (arity := arity) accepted
 
+/-- The derived parent cache has an authoritative private opening. -/
+theorem ResultTransition.parentOpening
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    {context :
+      Context shape State publicRingColumns publicFits verifierRows}
+    {result : FoldResult shape publicRingColumns publicFits verifierRows}
+    (accepted : ResultTransition context result) :
+    ∃ assignment :
+        Phi81Relation.Assignment
+          (RelationShape shape publicRingColumns publicFits),
+      CE.Holds (ConcretePhi81.semantics context.key) productionGlobalParams
+        result.parent assignment := by
+  exact Result.ResultTransition.parentOpening (arity := arity) accepted
+
+/-- Every returned child has an authoritative private opening. -/
+theorem ResultTransition.childOpening
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    {context :
+      Context shape State publicRingColumns publicFits verifierRows}
+    {result : FoldResult shape publicRingColumns publicFits verifierRows}
+    (accepted : ResultTransition context result)
+    (child : Fin productionGlobalParams.k) :
+    ∃ assignment :
+        Phi81Relation.Assignment
+          (RelationShape shape publicRingColumns publicFits),
+      CE.Holds (ConcretePhi81.semantics context.key) productionGlobalParams
+        (result.children child) assignment := by
+  exact Result.ResultTransition.childOpening (arity := arity) accepted child
+
 /-- The old child-only transition is exactly the projection of some complete
 result transition. -/
 theorem transition_iff_exists_resultTransition

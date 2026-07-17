@@ -200,8 +200,8 @@ theorem ResultTransition.parentAbsent
     {result : FoldResult shape publicRingColumns publicFits verifierRows}
     (transition : ResultTransition context result) :
     context.runningParent = none := by
-  rcases transition with ⟨_data, holds⟩
-  exact holds.running.parentAbsent_of_bootstrap arity_mode
+  rcases transition with ⟨_data, _witness, realized⟩
+  exact realized.running.parentAbsent_of_bootstrap arity_mode
 
 /-- Strict outgoing `Pi_DEC` binding preserves the sole fresh-source
 structure in every returned accumulator child. -/

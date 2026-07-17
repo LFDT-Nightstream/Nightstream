@@ -170,27 +170,29 @@ theorem resultTransition_iff_exists_obligationPlan
         CheckPlan.Accepts SemanticFold.ObligationPlan.semantics
           SemanticFold.ObligationPlan.checks candidate := by
   constructor
-  · rintro ⟨data, holds⟩
+  · rintro ⟨data, witness, realized⟩
     let candidate :
         SemanticFold.ObligationPlan.Candidate shape State publicRingColumns
           publicFits verifierRows arity := {
       context := context
       data := data
-      point := holds.witness.point
-      challenges := holds.witness.challenges
+      point := witness.point
+      challenges := witness.challenges
       parent := result.parent
       children := result.children
     }
     refine ⟨candidate, rfl, rfl, rfl, ?_⟩
     apply
       (SemanticFold.ObligationPlan.accepts_iff_target candidate).mpr
-    exact ⟨holds, rfl⟩
+    exact realized
   · rintro ⟨candidate, contextEq, parentEq, childrenEq, accepted⟩
     have realized :=
       (SemanticFold.ObligationPlan.accepts_iff_target candidate).mp accepted
-    rcases realized with ⟨holds, _witnessEq⟩
-    rw [contextEq, parentEq, childrenEq] at holds
-    exact ⟨candidate.data, holds⟩
+    change SemanticFold.Realization candidate.context candidate.data
+      candidate.parent candidate.children candidate.witness at realized
+    subst context
+    rw [parentEq, childrenEq] at realized
+    exact ⟨candidate.data, candidate.witness, realized⟩
 
 /-- A physical result with complete certificate-refinement evidence
 instantiates the certificate-independent result relation. -/
@@ -232,8 +234,7 @@ theorem ResultTransition.parentOpening
       CE.Holds (ConcretePhi81.semantics context.key) productionGlobalParams
         result.parent assignment := by
   rcases transition with ⟨data, holds⟩
-  exact ⟨SemanticFold.combinedAssignment context data holds.witness,
-    holds.parentOpening⟩
+  exact holds.parentOpening
 
 /-- Every public child in a semantic result retains the corresponding
 canonical radix-split opening. The physical refinement that establishes
@@ -257,10 +258,7 @@ theorem ResultTransition.childOpening
       CE.Holds (ConcretePhi81.semantics context.key) productionGlobalParams
         (result.children child) assignment := by
   rcases transition with ⟨data, holds⟩
-  exact ⟨
-    (ConcretePhi81.decAlgebra context.key).splitAssignment
-      (SemanticFold.combinedAssignment context data holds.witness) child,
-    holds.childOpening child⟩
+  exact holds.childOpening child
 
 /-- Project the complete semantic result to the public child relation. -/
 theorem ResultTransition.children_transition
@@ -325,10 +323,10 @@ theorem ResultTransition.runningStructure_eq_fresh
     (running : Fin (arity.mode.count productionGlobalParams)) :
     (context.input.running running).constraintSystem =
       (context.input.fresh ⟨0, arity.freshPositive⟩).constraintSystem := by
-  rcases transition with ⟨_data, holds⟩
+  rcases transition with ⟨_data, _witness, realized⟩
   exact
-    (holds.input.sources.running running).constraintSystem.trans
-      (holds.input.sources.fresh
+    (realized.input.sources.running running).constraintSystem.trans
+      (realized.input.sources.fresh
         ⟨0, arity.freshPositive⟩).constraintSystem.symm
 
 /-- Every output child preserves the first fresh source's structure. -/
@@ -347,16 +345,16 @@ theorem ResultTransition.childStructure_eq_fresh
     (child : Fin productionGlobalParams.k) :
     (result.children child).constraintSystem =
       (context.input.fresh ⟨0, arity.freshPositive⟩).constraintSystem := by
-  rcases transition with ⟨data, holds⟩
+  rcases transition with ⟨data, witness, realized⟩
   calc
     (result.children child).constraintSystem =
-        (SemanticFold.childrenOf context data holds.witness child).constraintSystem := by
-      rw [holds.children_eq]
+        (SemanticFold.childrenOf context data witness child).constraintSystem := by
+      rw [realized.children_eq]
     _ = SemanticFold.systemOf context data := by
       rfl
     _ = (context.input.fresh
           ⟨0, arity.freshPositive⟩).constraintSystem :=
-      (holds.input.sources.fresh
+      (realized.input.sources.fresh
         ⟨0, arity.freshPositive⟩).constraintSystem.symm
 
 /-- Equal accepted child families determine the same derived parent cache. -/

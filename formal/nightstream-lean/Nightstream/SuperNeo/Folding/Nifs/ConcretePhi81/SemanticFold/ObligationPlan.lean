@@ -13,8 +13,8 @@ Assurance tier: model-level.
 
 Owns: one raw candidate language, stable protocol/phase/family ownership for
 the retained semantic leaves, and exact equivalence between accepting every
-leaf and realizing `SemanticFold.Holds` with the candidate's exact point and
-challenge vector.
+leaf and satisfying the witness-indexed `SemanticFold.Realization` at the
+candidate's exact point and challenge vector.
 
 Does not own: executable transcript replay, SumCheck soundness, sampler
 shortfall probability, child-opening extraction, per-leaf necessity,
@@ -206,11 +206,14 @@ def semantics :
       Candidate shape State publicRingColumns publicFits verifierRows arity ->
         Prop
   | .freshCcs, candidate =>
-      SplitNc.Semantics.Paper.FreshCcsHolds candidate.data
+      Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Semantics.Paper.FreshCcsHolds
+        candidate.data
   | .allSourceNorm, candidate =>
-      SplitNc.Semantics.Paper.AllSourceNormsHold candidate.data
+      Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Semantics.Paper.AllSourceNormsHold
+        candidate.data
   | .carriedEvaluations, candidate =>
-      SplitNc.Semantics.Paper.CarriedEvaluationsHold candidate.data
+      Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Semantics.Paper.CarriedEvaluationsHold
+        candidate.data
   | .polynomialInput, candidate =>
       SemanticFold.PublicInputBound candidate.context candidate.data
   | .sourceProduct, candidate =>
@@ -228,16 +231,15 @@ def semantics :
         SemanticFold.childrenOf candidate.context candidate.data
           candidate.witness
 
-/-- The candidate realizes the independent fold with its exact raw point and
-challenge vector. The equality prevents existential witness substitution. -/
+/-- The candidate realizes the independent fold at its exact raw point and
+challenge vector. Indexing `Realization` by the candidate witness prevents
+existential witness substitution. -/
 def target
     (candidate :
       Candidate shape State publicRingColumns publicFits verifierRows arity) :
     Prop :=
-  ∃ holds :
-      SemanticFold.Holds candidate.context candidate.data candidate.parent
-        candidate.children,
-    holds.witness = candidate.witness
+  SemanticFold.Realization candidate.context candidate.data candidate.parent
+    candidate.children candidate.witness
 
 /-- The nine-leaf tree is exactly the candidate-indexed independent fold
 relation. This theorem makes no per-leaf necessity or physical row claim. -/
@@ -247,7 +249,6 @@ theorem accepts_iff_target
     CheckPlan.Accepts semantics checks candidate ↔ target candidate := by
   constructor
   · intro accepted
-    refine ⟨?_, rfl⟩
     exact {
       paper := ⟨
         accepted .freshCcs (mem_checks .freshCcs),
@@ -260,13 +261,12 @@ theorem accepts_iff_target
       }
       running :=
         accepted .incomingAuthority (mem_checks .incomingAuthority)
-      witness := candidate.witness
       challengesValid :=
         accepted .challengeStrongSet (mem_checks .challengeStrongSet)
       parent_eq := accepted .parentExact (mem_checks .parentExact)
       children_eq := accepted .childrenExact (mem_checks .childrenExact)
     }
-  · rintro ⟨holds, witnessEq⟩ leaf _member
+  · intro holds leaf _member
     cases leaf with
     | freshCcs => exact holds.paper.1
     | allSourceNorm => exact holds.paper.2.1
@@ -275,11 +275,11 @@ theorem accepts_iff_target
     | sourceProduct => exact holds.input.sources
     | incomingAuthority => exact holds.running
     | challengeStrongSet =>
-        simpa [semantics, witnessEq] using holds.challengesValid
+        exact holds.challengesValid
     | parentExact =>
-        simpa [semantics, witnessEq] using holds.parent_eq
+        exact holds.parent_eq
     | childrenExact =>
-        simpa [semantics, witnessEq] using holds.children_eq
+        exact holds.children_eq
 
 /-- Exactness in the generic inclusion-minimality calculus. -/
 theorem exact :

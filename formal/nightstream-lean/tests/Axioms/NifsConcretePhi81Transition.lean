@@ -138,6 +138,12 @@ import tests.Axioms.Support
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.SemanticFold.ObligationPlan.Necessity.Realization.parentNecessary
 
+/-- info: 'Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.SemanticFold.ObligationPlan.Necessity.Realization.challengeNecessary' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.SemanticFold.ObligationPlan.Necessity.Realization.challengeNecessary
+
 /-- info: 'Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.SemanticFold.ObligationPlan.Necessity.Realization.childrenNecessary' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/

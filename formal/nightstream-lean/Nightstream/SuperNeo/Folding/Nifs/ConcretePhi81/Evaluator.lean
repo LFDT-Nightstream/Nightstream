@@ -147,6 +147,7 @@ theorem run_sound
       noZeroDivisors input children accepted with
     holds | outputUnbound | bad
   · have semantic := Result.resultOf_refines holds
+    change Result.resultOf context certificate = result at resultEq
     rw [resultEq] at semantic
     exact Or.inl semantic
   · exact Or.inr (Or.inl outputUnbound)

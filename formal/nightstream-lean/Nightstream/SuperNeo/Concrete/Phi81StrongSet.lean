@@ -32,6 +32,7 @@ that boundary are proved here.
 |---|---|---|---|
 | `Pi_RLC` | coefficient embedding | `embedCoefficient` | proves `{-2,-1,0,1,2}` maps to canonical Goldilocks residues |
 | `Pi_RLC` | ring assembly | `embedScalar` | constructs exactly 54 coefficients in Phi81 order |
+| `Pi_RLC` | unary exclusion | `outsideChallenge_not_member` | exhibits one concrete ring value outside the production set |
 | `Pi_RLC` | separation | `embeddedDifference_nonzero` | proves distinct embedded challenges have nonzero difference |
 | `Pi_RLC` | norm | `embeddedDifference_normAtMostFour` | proves every difference coefficient has centered magnitude at most 4 |
 | Theorem 8 | parameters | `theorem8Conditions_exact` | proves `3 divides 81`, `q = 1 mod 3`, and `ord_81(q) = 27` |
@@ -224,6 +225,25 @@ def ProductionMember (value : RingF) : Prop :=
 theorem embedScalar_member (scalar : Scalar) :
     ProductionMember (embedScalar scalar) :=
   ⟨scalar, rfl⟩
+
+/-- A concrete ring value outside the five-symbol production image. -/
+def outsideChallenge : RingF := fun _ => (3 : F)
+
+theorem embedCoefficient_ne_three (coefficient : Coefficient) :
+    embedCoefficient coefficient ≠ (3 : F) := by
+  revert coefficient
+  decide
+
+/-- Unary membership is a genuine restriction: the constant-three ring
+element is not the embedding of any production scalar. -/
+theorem outsideChallenge_not_member :
+    ¬ ProductionMember outsideChallenge := by
+  rintro ⟨scalar, equal⟩
+  let position : Fin ringDegree := ⟨0, by decide⟩
+  have atPosition := congrFun equal position
+  exact embedCoefficient_ne_three
+    (scalar (scalarPosition position)) (by
+      simpa [outsideChallenge, embedScalar] using atPosition.symm)
 
 /-- Pairwise Definition-17 consequence needed by extraction: distinct valid
 challenges have an invertible difference. -/

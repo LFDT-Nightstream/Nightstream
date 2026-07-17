@@ -30,7 +30,7 @@ use crate::engine::r1cs_circuit::field_ext::{enforce_k_mul, KLc, KVar};
 use crate::engine::r1cs_circuit::mux::enforce_mux_var;
 use crate::engine::r1cs_circuit::poseidon2::{enforce_poseidon2_hash, DIGEST_LEN};
 use crate::engine::r1cs_circuit::transcript::TranscriptGadget;
-use crate::paper::construction2::nebula_lane::{NebulaLane, NEBULA_GAMMA_TRANSCRIPT_LABEL};
+use crate::paper::construction2::nebula_lane::{DelayedNebulaStepX, NebulaLane, NEBULA_GAMMA_TRANSCRIPT_LABEL};
 use crate::paper::construction2::nebula_lane::{K_LIMB_BITS, MAX_STACKS, SEG_IDX_BITS, STEP_IDX_BITS, TS_BITS};
 use crate::paper::construction2::StackShape;
 use crate::paper::digest::{
@@ -196,10 +196,8 @@ pub enum NebulaStepXDecodeError {
     Length { expected: usize, got: usize },
 }
 
-pub const NEBULA_D_PRE_BITS: usize = 3 * DIGEST_LEN * K_LIMB_BITS;
-
 pub const fn delayed_nebula_public_suffix_len(stacks: StackShape) -> usize {
-    stacks.x_bits() + 1 + NEBULA_D_PRE_BITS
+    DelayedNebulaStepX::encoded_len(stacks)
 }
 
 /// Previous fresh claim data needed by the delayed Nebula transition.

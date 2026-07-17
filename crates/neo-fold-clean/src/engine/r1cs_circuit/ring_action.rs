@@ -1,27 +1,24 @@
-//! Ring action `ρ · c` in `R_𝔽 = 𝔽[X]/Φ(X)` as an R1CS gadget.
+//! R1CS gadgets for multiplication in `F[X] / (X^54 + X^27 + 1)`.
 //!
-//! For SuperNeo Goldilocks Appendix B.2, `Φ(X) = X^54 + X^27 + 1` (the 81st
-//! cyclotomic polynomial). The reduction `X^k mod Φ` is *not* a simple
-//! permute-and-add (that would require a power-of-two cyclotomic per
-//! Remark 1); we precompute a reduction table and use it in the gadget.
+//! Owns: cyclotomic reduction coefficients, full and Toom-3 multiplication
+//! rows, and beta-evaluation/projection identity rows.
 //!
-//! ## What this gadget owns
+//! Does not own: transcript derivation of rho or beta, claim-wire binding, or
+//! Pi_RLC verifier orchestration.
 //!
-//! - The reduction table `Φ_TABLE[k][m]` = coefficient of `X^m` in
-//!   `X^k mod Φ`, for `k ∈ [0, 2D-2]`. Built once at first use.
-//! - [`enforce_ring_mul`] — legacy full-product shape: given `ρ` and `c`
-//!   as length-D arrays of `Var`s in `R_𝔽`'s coefficient basis, emit
-//!   `D²` multiplication rows plus `D` linear-equality rows for the output
-//!   coefficients, and record all `D²` products for strict trace audits.
-//! - [`enforce_ring_mul_toom3`] — production verifier shape: mirrors
-//!   `Rq::mul`'s 3-way multiplication and emits `5·18² + D` rows unless
-//!   the audit trail is enabled.
+//! Emits constraints: yes, including product, reduction, evaluation, quotient,
+//! and projection-equality rows.
 //!
-//! ## Soundness
+//! Authority boundary: supplied operands and challenges must be bound by the
+//! caller; this module makes only the resulting ring equations authoritative.
 //!
-//! Mechanical. The reduction table is built by running the native
-//! `reduce_mod_phi_81` once per basis monomial `X^k`. The gadget's output
-//! satisfies `out = Rq(ρ).mul(&Rq(c))` byte-for-byte.
+//! | Stage path | Function | Equation | Multiplicity | Emitted rows/formula | Lowered gate | Lean theorem |
+//! |---|---|---|---:|---|---|---|
+//! | full ring product | [`enforce_ring_mul`] | multiplication modulo Phi_81 | one per requested product | coefficient products plus D reductions | generic/product-sum | `Semantics/RingAction.lean` |
+//! | full ring product | [`enforce_ring_mul_toom3`] | same quotient-ring product | one per requested product | Toom-3 products plus D bindings | ring-mul gate | `Semantics/RingAction.lean` |
+//! | `identities.*.evaluations.*` | [`enforce_eval_at_beta`] | `p(beta)=sum_j p_j beta^j` | 17 per identity | `2 * coefficient_count` | compact evaluation open | projection-batching refinement open |
+//! | `identities.*.k_products.*` | projection-batch helpers | exact two-limb Karatsuba product | 16 per identity | 5 source rows per product | product-sum | final-limb batching refinement open |
+//! | `identities.*.final_limb_checks` | projection-batch helpers | left and right extension limbs agree | 2 per identity | 2 linear equalities | linear substitution | `Semantics/ProjectionBoundary.lean` |
 
 use std::sync::OnceLock;
 
@@ -33,7 +30,9 @@ use crate::engine::r1cs_circuit::builder::{
     Lc, PolynomialEvaluationTrace, ProjectionIdentityAudit, ProjectionIdentityRole, ProjectionLadderAudit, R1csBuilder,
     Var,
 };
-use crate::engine::r1cs_circuit::encoding_trace::{RingMulToom3TraceEntry, Toom3ConvolutionTrace};
+use crate::engine::r1cs_circuit::encoding_trace::{
+    ProjectionIdentityTraceEntry, RingMulToom3TraceEntry, Toom3ConvolutionTrace,
+};
 
 const TABLE_LEN: usize = 2 * D - 1;
 const TOOM3_SPLIT: usize = D / 3;
@@ -395,7 +394,7 @@ fn reduce_lcs_mod_phi_81(coeffs: &mut [Lc]) {
 //
 // Committed material per input pair drops from O(D²) products to O(D)
 // evaluation terms; the β power ladder is shared across every pair of a
-// step. The caller owns β's transcript binding. The authoritative NIFS.V
+// step. The caller owns β's transcript binding. The production NIFS.V
 // commitment client supplies transcript-derived β and quotient wires;
 // other clients and the final low-norm lowering remain Road A work.
 
@@ -404,6 +403,18 @@ use crate::engine::r1cs_circuit::field_ext::{alloc_klc, enforce_k_mul, KLc, KVar
 /// Quotient length for the batched identity: `deg(Σ ρ_i·c_i) ≤ 2D − 2`,
 /// so `deg q = 2D − 2 − D = D − 2` → `D − 1` coefficients.
 pub const PROJECTION_QUOTIENT_LEN: usize = D - 1;
+
+/// Diagnostic stage labels for the six arithmetic phases of one projection
+/// identity. Labels never authorize a lowering; exact trace validation does.
+#[derive(Clone, Copy, Debug)]
+pub struct ProjectionIdentityStageLabels {
+    pub input_evaluations: &'static str,
+    pub rho_times_input: &'static str,
+    pub output_evaluation: &'static str,
+    pub quotient_evaluation: &'static str,
+    pub quotient_times_phi: &'static str,
+    pub final_limb_checks: &'static str,
+}
 
 /// `β^0 .. β^top` as constrained `KVar`s (one K-mult per power).
 /// `top = D` covers everything the batched check needs: evaluations use
@@ -519,7 +530,31 @@ pub fn enforce_ring_action_projection_batch_with_rho_evaluations(
     out: &[Var; D],
     quotient: &[Var; PROJECTION_QUOTIENT_LEN],
 ) {
+    enforce_ring_action_projection_batch_with_rho_evaluations_and_stages(
+        builder,
+        powers,
+        rho_evaluations,
+        pairs,
+        out,
+        quotient,
+        None,
+    );
+}
+
+/// Production projection identity with exact phase attribution.
+pub fn enforce_ring_action_projection_batch_with_rho_evaluations_and_stages(
+    builder: &mut R1csBuilder,
+    powers: &[KVar],
+    rho_evaluations: &PolynomialEvaluationsAtBeta,
+    pairs: &[(&[Var; D], &[Var; D])],
+    out: &[Var; D],
+    quotient: &[Var; PROJECTION_QUOTIENT_LEN],
+    stages: Option<ProjectionIdentityStageLabels>,
+) {
     let identity_row_start = builder.rows();
+    let identity_column_start = builder.cols();
+    let input_evaluation_start = builder.encoding_trace().polynomial_evaluations().len();
+    let pair_product_start = builder.encoding_trace().k_muls().len();
     assert!(powers.len() > D, "ladder must reach β^D for Φ(β)");
     assert_eq!(rho_evaluations.evaluations.len(), pairs.len(), "rho evaluation count");
     // Σ_i ρ_i(β) · c_i(β), one K-mult per pair.
@@ -534,7 +569,13 @@ pub fn enforce_ring_action_projection_batch_with_rho_evaluations(
             "cached rho evaluation must match the identity's rho wires"
         );
         let rho_eval = rho_evaluations.evaluations[pair_index];
+        if let Some(stages) = stages {
+            builder.begin_encoding_stage(stages.input_evaluations);
+        }
         let c_eval = enforce_eval_at_beta(builder, c.as_slice(), powers);
+        if let Some(stages) = stages {
+            builder.begin_encoding_stage(stages.rho_times_input);
+        }
         let term = enforce_k_mul(builder, &KLc::from_var(rho_eval), &KLc::from_var(c_eval));
         input_columns.push(c.iter().map(|value| value.col()).collect());
         input_evaluation_outputs.push([c_eval.c0.col(), c_eval.c1.col()]);
@@ -542,10 +583,20 @@ pub fn enforce_ring_action_projection_batch_with_rho_evaluations(
         lhs.c0.add_term(term.c0, F::ONE);
         lhs.c1.add_term(term.c1, F::ONE);
     }
+    let input_evaluation_end = builder.encoding_trace().polynomial_evaluations().len();
+    let pair_product_end = builder.encoding_trace().k_muls().len();
 
     // q(β)·Φ(β) + out(β), with Φ(β) = β^D + β^{PHI_MID_DEGREE} + 1 as a
     // linear form over the shared ladder.
+    let output_evaluation = builder.encoding_trace().polynomial_evaluations().len();
+    if let Some(stages) = stages {
+        builder.begin_encoding_stage(stages.output_evaluation);
+    }
     let out_eval = enforce_eval_at_beta(builder, out.as_slice(), powers);
+    let quotient_evaluation = builder.encoding_trace().polynomial_evaluations().len();
+    if let Some(stages) = stages {
+        builder.begin_encoding_stage(stages.quotient_evaluation);
+    }
     let q_eval = enforce_eval_at_beta(builder, quotient.as_slice(), powers);
     let mut phi_beta = KLc::zero();
     phi_beta.c0.add_term(powers[D].c0, F::ONE);
@@ -553,6 +604,10 @@ pub fn enforce_ring_action_projection_batch_with_rho_evaluations(
     phi_beta.c0.add_constant(F::ONE);
     phi_beta.c1.add_term(powers[D].c1, F::ONE);
     phi_beta.c1.add_term(powers[PHI_MID_DEGREE].c1, F::ONE);
+    let quotient_phi_product = builder.encoding_trace().k_muls().len();
+    if let Some(stages) = stages {
+        builder.begin_encoding_stage(stages.quotient_times_phi);
+    }
     let q_phi = enforce_k_mul(builder, &KLc::from_var(q_eval), &phi_beta);
 
     let mut rhs = KLc::zero();
@@ -561,8 +616,40 @@ pub fn enforce_ring_action_projection_batch_with_rho_evaluations(
     rhs.c1.add_term(q_phi.c1, F::ONE);
     rhs.c1.add_term(out_eval.c1, F::ONE);
 
+    let final_limb_row_start = builder.rows();
+    if let Some(stages) = stages {
+        builder.begin_encoding_stage(stages.final_limb_checks);
+    }
     builder.enforce_eq(&lhs.c0, &rhs.c0);
     builder.enforce_eq(&lhs.c1, &rhs.c1);
+    builder.record_projection_identity_trace(ProjectionIdentityTraceEntry {
+        role: ProjectionIdentityRole::Standalone,
+        source_rows: identity_row_start..builder.rows(),
+        allocated_columns: identity_column_start..builder.cols(),
+        power_columns: powers
+            .iter()
+            .map(|power| [power.c0.col(), power.c1.col()])
+            .collect(),
+        rho_columns: rho_evaluations
+            .source_columns
+            .iter()
+            .map(|columns| columns.to_vec())
+            .collect(),
+        rho_evaluation_outputs: rho_evaluations
+            .evaluations
+            .iter()
+            .map(|evaluation| [evaluation.c0.col(), evaluation.c1.col()])
+            .collect(),
+        input_columns: input_columns.clone(),
+        output_columns: out.iter().map(|value| value.col()).collect(),
+        quotient_columns: quotient.iter().map(|value| value.col()).collect(),
+        input_evaluations: input_evaluation_start..input_evaluation_end,
+        pair_products: pair_product_start..pair_product_end,
+        output_evaluation,
+        quotient_evaluation,
+        quotient_phi_product,
+        final_limb_rows: final_limb_row_start..builder.rows(),
+    });
     builder.record_projection_identity(ProjectionIdentityAudit {
         role: ProjectionIdentityRole::Standalone,
         row_start: identity_row_start,

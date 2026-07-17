@@ -374,6 +374,9 @@ pub fn enforce_poseidon2_permutation(builder: &mut R1csBuilder, state_in: &[Var;
         output_linear_forms: selective_state,
     });
     builder.record_poseidon_permutation_encoding(PoseidonPermutationTraceEntry {
+        input_columns: state_in.map(Var::col),
+        allocated_columns: column_start..builder.cols(),
+        output_columns: output_cols,
         source_rows: row_start..builder.rows(),
     });
     out
@@ -475,7 +478,7 @@ pub fn enforce_poseidon2_hash(builder: &mut R1csBuilder, input: &[Var]) -> [Var;
     builder.record_poseidon2_hash(Poseidon2HashTrace {
         row_start,
         row_end: builder.rows(),
-        input_cols,
+        input_cols: input_cols.clone(),
         zero_col: zero_var.col(),
         zero_row,
         rounds,
@@ -484,6 +487,9 @@ pub fn enforce_poseidon2_hash(builder: &mut R1csBuilder, input: &[Var]) -> [Var;
     let final_permutation = builder.encoding_trace().poseidon_permutations().len();
     builder.record_poseidon_hash_encoding(PoseidonHashTraceEntry {
         input_len: input.len(),
+        input_columns: input_cols,
+        zero_column: zero_var.col(),
+        output_columns: out.map(Var::col),
         permutation_range: first_permutation..final_permutation,
         source_rows: row_start..builder.rows(),
     });

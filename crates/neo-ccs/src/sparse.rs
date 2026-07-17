@@ -14,6 +14,7 @@ use crate::seeded_phi81::{SeededPhi81Error, SeededPhi81LinearBlock};
 use p3_field::{Field, PrimeCharacteristicRing};
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
+use std::collections::BTreeMap;
 
 /// Compressed Sparse Column (CSC) format for sparse matrices.
 ///
@@ -592,6 +593,46 @@ where
 }
 
 impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CcsMatrix<Ff> {
+    /// Materialize one exact sparse row from every additive matrix component.
+    ///
+    /// The result is sorted by column, contains no duplicate columns or zero
+    /// coefficients, and includes ordinary CSC, seeded Phi81, and geometric
+    /// contributions after field addition. `None` means only that `row` is
+    /// outside the matrix.
+    pub fn materialize_row(&self, row: usize) -> Option<Vec<(usize, Ff)>> {
+        if row >= self.rows() {
+            return None;
+        }
+        let mut terms = BTreeMap::<usize, Ff>::new();
+        match self {
+            CcsMatrix::Identity { .. } => accumulate_row_term(&mut terms, row, Ff::ONE),
+            CcsMatrix::Csc(csc) => accumulate_csc_row(&mut terms, csc, row),
+            CcsMatrix::CscWithSeededPhi81 {
+                csc,
+                blocks,
+                geometric_runs,
+            } => {
+                accumulate_csc_row(&mut terms, csc, row);
+                for block in blocks {
+                    block.for_each_row_term::<Ff, _>(row, |column, coefficient| {
+                        accumulate_row_term(&mut terms, column, coefficient);
+                    });
+                }
+                for run in geometric_runs.iter().filter(|run| run.row() == row) {
+                    run.for_each_term(|_, column, coefficient| {
+                        accumulate_row_term(&mut terms, column, coefficient);
+                    });
+                }
+            }
+        }
+        Some(
+            terms
+                .into_iter()
+                .filter(|(_, coefficient)| *coefficient != Ff::ZERO)
+                .collect(),
+        )
+    }
+
     /// Accumulate `y += Aᵀ·x`, reading only `x[..n_eff]` and only contributing rows `< n_eff`.
     pub fn add_mul_transpose_into<Kf>(&self, x: &[Kf], y: &mut [Kf], n_eff: usize)
     where
@@ -652,5 +693,33 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CcsMatrix<Ff> {
                 }
             }
         }
+    }
+}
+
+fn accumulate_row_term<Ff>(terms: &mut BTreeMap<usize, Ff>, column: usize, coefficient: Ff)
+where
+    Ff: Field + PrimeCharacteristicRing + Copy,
+{
+    if coefficient != Ff::ZERO {
+        *terms.entry(column).or_insert(Ff::ZERO) += coefficient;
+    }
+}
+
+fn accumulate_csc_row<Ff>(terms: &mut BTreeMap<usize, Ff>, csc: &CscMat<Ff>, row: usize)
+where
+    Ff: Field + PrimeCharacteristicRing + Copy,
+{
+    for (entry, &candidate_row) in csc.row_idx.iter().enumerate() {
+        if candidate_row as usize != row {
+            continue;
+        }
+        let pointer = csc
+            .col_ptr
+            .partition_point(|&start| start as usize <= entry);
+        let column = pointer
+            .checked_sub(1)
+            .filter(|&column| column < csc.ncols)
+            .expect("well-formed CSC entry must have one owning column");
+        accumulate_row_term(terms, column, csc.vals[entry]);
     }
 }

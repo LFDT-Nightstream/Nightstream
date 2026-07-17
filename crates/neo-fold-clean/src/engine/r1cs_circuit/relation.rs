@@ -113,6 +113,38 @@ impl R1csSnapshot {
         Arc::ptr_eq(&self.relation, &other.relation) || self.relation == other.relation
     }
 
+    /// Corrupt one authoritative A-row coefficient for fail-closed integration
+    /// tests. This deliberately detaches the snapshot's shared relation and
+    /// never mutates a builder or production relation in place.
+    #[doc(hidden)]
+    pub fn apply_a_row_test_mutation(&mut self, row: usize, column: usize, delta: F) {
+        assert!(row < self.rows(), "test row mutation is out of range");
+        assert!(column < self.cols(), "test column mutation is out of range");
+        let relation = Arc::make_mut(&mut self.relation);
+        relation.a_rows[row].push((column, delta));
+        normalize_rows(std::slice::from_mut(&mut relation.a_rows[row]));
+    }
+
+    /// Corrupt one authoritative B-row coefficient for fail-closed tests.
+    #[doc(hidden)]
+    pub fn apply_b_row_test_mutation(&mut self, row: usize, column: usize, delta: F) {
+        assert!(row < self.rows(), "test row mutation is out of range");
+        assert!(column < self.cols(), "test column mutation is out of range");
+        let relation = Arc::make_mut(&mut self.relation);
+        relation.b_rows[row].push((column, delta));
+        normalize_rows(std::slice::from_mut(&mut relation.b_rows[row]));
+    }
+
+    /// Corrupt one authoritative C-row coefficient for fail-closed tests.
+    #[doc(hidden)]
+    pub fn apply_c_row_test_mutation(&mut self, row: usize, column: usize, delta: F) {
+        assert!(row < self.rows(), "test row mutation is out of range");
+        assert!(column < self.cols(), "test column mutation is out of range");
+        let relation = Arc::make_mut(&mut self.relation);
+        relation.c_rows[row].push((column, delta));
+        normalize_rows(std::slice::from_mut(&mut relation.c_rows[row]));
+    }
+
     pub(crate) fn relation_arc(&self) -> Arc<R1csRelation> {
         Arc::clone(&self.relation)
     }

@@ -27,7 +27,8 @@ the origin and chaining of every field column.
 | Protocol | Phase | Constraint family | Terminal input | Proven result |
 |---|---|---|---|---|
 | `Pi_RLC` | scalar `rho` | generic tail view | exact terminal tail mapping | readable terminal rows instantiate the generic tail interface |
-| `Pi_RLC` | bounded sampler | enough accepted | lane/source/tail refinement | independent field-derived output has length 54 |
+| `Pi_RLC` | bounded sampler | enough accepted | lane/source/tail refinement | the exact 64-candidate prefix contains at least 54 accepted chunks |
+| `Pi_RLC` | bounded sampler | output length | derived from enough accepted | independent field-derived output has length 54 |
 | `Pi_RLC` | output selection | one position | accepted terminal rows | output wire equals the corresponding first-accepted centered symbol |
 | `Pi_RLC` | output selection | all 54 positions | accepted terminal rows | complete terminal output equals independent field-derived output |
 -/
@@ -74,6 +75,36 @@ theorem accepted_genericTailSatisfies
   simpa [TailSources.layout, TailCandidateSemantics.localAssignment,
     TailRows.localAssignment] using TailRows.accepted_satisfies accepted rho
 
+/-- The exact terminal rows prove the semantic success premise used by the
+bounded sampler: at least 54 of the 64 field-derived candidates are accepted.
+This theorem owns the success obligation; output-length and batch-existence
+results derive from it rather than re-proving the row arithmetic. -/
+theorem enoughAccepted
+    (prime : EuclidPrime goldilocksP)
+    {assignment : Nat -> Nat}
+    (canonical : ChunkOrder.CanonicalAssignment assignment)
+    (one : assignment 0 = 1)
+    (accepted :
+      FPrimeFullHistoryTerminalPiRlcTranscriptRhos.Accepted assignment)
+    (rho : Fin ScalarRows.scalarCount) :
+    Nightstream.SuperNeo.Sampling.FirstAccepted.Enough
+      ProductionAlphabet.verifier ProductionAlphabet.coefficientCount
+      (TailPrefixCounts.candidates (TailSources.layout rho) assignment
+        canonical) := by
+  let layout := TailSources.layout rho
+  have lanes : ScalarLanes.Refines assignment canonical layout.lanes := by
+    simpa [layout, TailSources.layout] using
+      ScalarSemantics.accepted_refines_lanes prime canonical one accepted rho
+  have bindings : TailCandidateSemantics.SourceBindings layout assignment := by
+    simpa [layout] using
+      TailSources.accepted_sourceBindings prime canonical one accepted rho
+  have tailSatisfies : Satisfies SelectionRows.rows
+      (TailCandidateSemantics.localAssignment layout assignment) := by
+    simpa [layout] using accepted_genericTailSatisfies accepted rho
+  simpa [layout] using
+    TailPrefixCounts.enoughAccepted prime canonical one layout lanes bindings
+      tailSatisfies
+
 /-- Every accepted terminal scalar has exactly 54 field-derived semantic
 coefficients. -/
 theorem semanticOutput_length
@@ -86,18 +117,10 @@ theorem semanticOutput_length
     (rho : Fin ScalarRows.scalarCount) :
     (semanticOutput assignment canonical rho).length =
       ProductionAlphabet.coefficientCount := by
-  let layout := TailSources.layout rho
-  have lanes : ScalarLanes.Refines assignment canonical layout.lanes := by
-    simpa [layout, TailSources.layout] using
-      ScalarSemantics.accepted_refines_lanes prime canonical one accepted rho
-  have bindings : TailCandidateSemantics.SourceBindings layout assignment := by
-    simpa [layout] using
-      TailSources.accepted_sourceBindings prime canonical one accepted rho
-  have tailSatisfies : Satisfies SelectionRows.rows
-      (TailCandidateSemantics.localAssignment layout assignment) := by
-    simpa [layout] using accepted_genericTailSatisfies accepted rho
-  exact TailFirstAccepted.semanticOutput_length prime canonical one layout lanes
-    bindings tailSatisfies
+  unfold semanticOutput TailFirstAccepted.semanticOutput
+  exact
+    Nightstream.SuperNeo.Sampling.FirstAccepted.firstAccepted_length_of_enough
+      (enoughAccepted prime canonical one accepted rho)
 
 /-- One accepted terminal output wire equals the matching position of the
 independent first-accepted field output. -/

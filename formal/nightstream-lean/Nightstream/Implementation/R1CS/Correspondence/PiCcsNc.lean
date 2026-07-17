@@ -6,6 +6,7 @@ import Nightstream.Implementation.R1CS.Correspondence.PiCcsNc.Authority.Projecti
 import Nightstream.Implementation.R1CS.Correspondence.PiCcsNc.Authority.TerminalEqualityNecessity
 import Nightstream.Implementation.R1CS.Correspondence.PiCcsNc.Authority.DelayedParentProjection
 import Nightstream.Implementation.R1CS.Correspondence.PiCcsNc.Authority.DelayedResidual
+import Nightstream.Implementation.R1CS.Correspondence.PiCcsNc.Authority.DelayedResidual.ProjectionBinding
 
 /-!
 Owns: the curated implementation-refinement surface for the Π_CCS norm-check
@@ -36,4 +37,5 @@ delayed-authority semantics while leaving their production derivations open.
 | terminal-equality necessity | show that the terminal range scalar can agree despite a false `y_zcol` sidecar | no | concrete model-level counterexample; no row-removal permission |
 | delayed authority | transfer a verified old-point raw-child projection to the state-bound parent and retain authoritative next outputs | not yet | conditional optimized model theorem; SumCheck, Π_RLC/Π_DEC, and state/commitment refinement open |
 | delayed residual | lift the radix-combined raw-child evaluation at producer `beta` into the NC cube and reduce a compact equality to exact-or-bad-root | not yet | model-level formula; transcript, output-row, recomposition, and accumulator refinement open |
+| delayed projection binding | transfer an accepted compact identity into the delayed NC cube sum | not yet | model-level exact-or-bad-root theorem; transcript, state, and row refinement open |
 -/

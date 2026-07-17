@@ -25,7 +25,11 @@ supplied separately as evidence for this machine execution.
 |---|---|---|---|
 | `Pi_CCS` | raw absorb | `appendRaw` | absorb the field-count word and payload, then eagerly permute an exactly full rate buffer |
 | `Pi_CCS` | raw squeeze | `squeezeN` | absorb one, permute, and expose at most four rate lanes per block |
-| `Pi_CCS` | extension packing | `pairFields` | pair consecutive base-field responses as `(c0,c1)` |
+| `Pi_CCS` | raw squeeze shape | `squeezeN_fields_length` | every requested field is present, including a partial final block |
+| `Pi_CCS` | two-field squeeze | `squeezeN_two_exact` | exactly two response fields exist, so extension decoding never uses defaults |
+| `Pi_CCS` | two-field successor | `squeezeN_two_absorbed_zero` | the complete response permutation leaves the rate cursor at zero |
+| `Pi_CCS` | extension packing | `pairFields` | pair consecutive base-field responses as `(c0,c1)` with exact even-count preservation |
+| `Pi_CCS` | extension serialization | `extensionFields_length` | every extension coefficient contributes exactly two base fields |
 | `Pi_CCS` | catch-up | `catchup` | one exact digest transition jointly returns state and four lanes |
 -/
 
@@ -109,6 +113,20 @@ def pairFields : List Field -> List Extension
 def extensionFields (values : List Extension) : List Field :=
   values.flatMap fun value => [value.c0, value.c1]
 
+/-- Flattening extension coefficients contributes exactly two base fields per
+coefficient. -/
+@[simp] theorem extensionFields_length (values : List Extension) :
+    (extensionFields values).length = 2 * values.length := by
+  induction values with
+  | nil => rfl
+  | cons value values inductionHypothesis =>
+      rw [show extensionFields (value :: values) =
+        [value.c0, value.c1] ++ extensionFields values by rfl]
+      simp only [List.length_append, List.length_cons, List.length_nil,
+        Nat.zero_add]
+      rw [inductionHypothesis]
+      omega
+
 /-- One extension response from a two-field squeeze result. The default branch
 is unreachable for `squeezeN _ 2` and remains explicit rather than introducing
 a prover-controlled option. -/
@@ -150,6 +168,100 @@ theorem squeezeBlocks_fields_length (state : State) (blocks : Nat) :
       simp only [squeezeBlocks, List.length_append, digestFields_length]
       rw [inductionHypothesis]
       omega
+
+/-- The ceiling block count always exposes at least the requested number of
+fields. This is the arithmetic fact that closes every `List.take` truncation
+branch in `squeezeN`. -/
+theorem count_le_four_mul_blocksFor (count : Nat) :
+    count <= 4 * blocksFor count := by
+  unfold blocksFor
+  omega
+
+/-- A raw squeeze returns exactly the requested number of fields. The final
+Poseidon2 block may expose unused lanes, but the verifier-visible response is
+neither short nor padded. -/
+@[simp] theorem squeezeN_fields_length (state : State) (count : Nat) :
+    (squeezeN state count).2.length = count := by
+  simp only [squeezeN, List.length_take, squeezeBlocks_fields_length]
+  exact Nat.min_eq_left (count_le_four_mul_blocksFor count)
+
+/-- A two-field request exposes exactly two response fields. In particular,
+the complete four-lane permutation still executes, but `take` returns the
+requested prefix rather than a shorter list. -/
+@[simp] theorem squeezeN_two_fields_length (state : State) :
+    (squeezeN state 2).2.length = 2 := by
+  simp [squeezeN, blocksFor, squeezeBlocks, digestFields_length]
+
+/-- A two-field challenge request executes one complete digest permutation.
+Its successor cursor is therefore verifier-computed zero, not a carried
+transcript value. -/
+@[simp] theorem squeezeN_two_absorbed_zero (state : State) :
+    (squeezeN state 2).1.absorbed.val = 0 := by
+  rfl
+
+/-- Exact two-field decoding witness. This closes the default-value branch in
+`firstExtension` for every SumCheck challenge: both decoded limbs come from
+the concrete Poseidon2 response. -/
+theorem squeezeN_two_exact (state : State) :
+    ∃ first second,
+      (squeezeN state 2).2 = [first, second] ∧
+        firstExtension (squeezeN state 2).2 =
+          { c0 := first, c1 := second } := by
+  generalize responseEq : (squeezeN state 2).2 = fields
+  have lengthEq : fields.length = 2 := by
+    rw [← responseEq]
+    exact squeezeN_two_fields_length state
+  cases fields with
+  | nil => simp at lengthEq
+  | cons first rest =>
+      cases rest with
+      | nil => simp at lengthEq
+      | cons second tail =>
+          cases tail with
+          | nil =>
+              refine ⟨first, second, rfl, ?_⟩
+              rfl
+          | cons third tail => simp at lengthEq
+
+/-- Pairing an exact even-length response preserves exactly half its field
+count. Odd tails remain outside this theorem and cannot enter typed challenge
+bundles. -/
+theorem pairFields_length_of_length_eq_two_mul
+    (fields : List Field)
+    (count : Nat)
+    (length : fields.length = 2 * count) :
+    (pairFields fields).length = count := by
+  induction count generalizing fields with
+  | zero =>
+      have fieldsNil : fields = [] :=
+        List.eq_nil_of_length_eq_zero (by omega)
+      subst fields
+      rfl
+  | succ count inductionHypothesis =>
+      cases fields with
+      | nil =>
+          simp only [List.length_nil] at length
+          omega
+      | cons first rest =>
+          cases rest with
+          | nil =>
+              simp only [List.length_cons, List.length_nil] at length
+              omega
+          | cons second tail =>
+              have tailLength : tail.length = 2 * count := by
+                simp only [List.length_cons] at length
+                omega
+              simp only [pairFields, List.length_cons]
+              rw [inductionHypothesis tail tailLength]
+
+/-- Every even-sized verifier response decodes to the exact requested number
+of extension challenges. -/
+@[simp] theorem pairFields_squeezeN_even_length
+    (state : State)
+    (count : Nat) :
+    (pairFields (squeezeN state (2 * count)).2).length = count := by
+  exact pairFields_length_of_length_eq_two_mul
+    (squeezeN state (2 * count)).2 count (squeezeN_fields_length _ _)
 
 @[simp] theorem pairFields_extensionFields (values : List Extension) :
     pairFields (extensionFields values) = values := by

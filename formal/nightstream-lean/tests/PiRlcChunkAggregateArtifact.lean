@@ -1,0 +1,12 @@
+import Nightstream.Implementation.R1CS.Correspondence.PiRlcChallenge.Sampler.Chunk.Acceptance.Aggregate.ArtifactRefinement
+
+open Nightstream.Implementation.R1CS.PiRlcChallenge.Sampler.Chunk.Acceptance
+
+#check generated_aggregate_shape_exact
+#check generated_aggregate_matrix_bindings_exact
+#check generated_aggregate_polynomial_degrees_exact
+#check generatedProductTreeOutputBitRows_iff
+#check generatedProductTreeAggregateRow_iff
+#check generatedFinalAcceptanceRow_iff
+#check generatedAggregateAcceptanceRows_iff
+#check generatedAggregateAcceptanceRows_iff_verifierMeaning

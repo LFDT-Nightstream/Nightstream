@@ -64,6 +64,23 @@ theorem fieldCountPinsCanonical :
     ConstantPins.ValuesCanonical OutputDigestSchedule.fieldCountPins := by
   decide
 
+/-- The catch-up owner alone binds the squeeze marker. No later `Pi_RLC`
+owner is needed to establish this preceding `Pi_CCS` fact. -/
+theorem catchupSqueeze_eq_one
+    {assignment : Nat -> Nat}
+    (canonical : forall column, assignment column < goldilocksP)
+    (one : assignment 0 = 1)
+    (catchupAccepted :
+      FPrimeFullHistoryTerminalPiCcsCatchup.Accepted assignment) :
+    assignment 1713693 = 1 := by
+  exact acceptedPins canonical one OutputDigestSchedule.catchupSqueezePins
+    catchupSqueezePinsCanonical OutputDigestSchedule.catchupPinPiece
+    (catchupAccepted OutputDigestSchedule.catchupPinPiece
+      OutputDigestSchedule.catchupPinPiece_mem)
+    (by rw [OutputDigestSchedule.catchupPinPiece_eq]; rfl)
+    (1713693, 1)
+    (by simp [OutputDigestSchedule.catchupSqueezePins])
+
 /-- Exact pin facts grouped by their protocol phase. -/
 structure Facts (assignment : Nat -> Nat) : Prop where
   catchupSqueeze : forall pin, pin ∈ OutputDigestSchedule.catchupSqueezePins ->

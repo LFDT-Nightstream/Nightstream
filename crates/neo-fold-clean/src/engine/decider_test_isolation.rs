@@ -12,7 +12,7 @@ use crate::paper::decider_ce_relation::enforce_final_ce_relations;
 use crate::paper::digest::{digest32_as_fields, initial_boundary_digest, public_trace_seed_digest, AccumulatorHandle};
 use crate::paper::f_prime::r1cs::{FPrimeStateWires, FPrimeStepOutput, F_PRIME_ENC_INST_BITS};
 use crate::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsOutputWires;
-use crate::paper::reductions::pi_dec_circuit::alloc_ce_claim;
+use crate::paper::reductions::pi_dec_circuit::{alloc_ce_claim, alloc_dec_child_claim};
 use crate::paper::relations::product_commitment_circuit::alloc_adv;
 use crate::paper::relations::{CcsClaim, CeClaim, WitnessMat};
 use crate::paper::terminal_ce::circuit::{
@@ -320,6 +320,61 @@ pub fn enforce_terminal_fold_against_last_acc_digest(
     Ok(builder)
 }
 
+/// Emit the terminal fold followed by the direct terminal CE closure. This
+/// test-only path proves the terminal-only `y_zcol` reattachment is consumed
+/// by the authoritative witness-opening relation.
+pub fn enforce_terminal_fold_ce_closure_against(
+    prep: &Preprocessing,
+    pre_final_running: &RunningInstance,
+    trailing_latest: &[CcsClaim],
+    final_fold_nifs: &NifsProof,
+    last_acc_digest: [u8; 32],
+    terminal_witnesses: &[WitnessMat],
+) -> Result<R1csBuilder, String> {
+    let mut builder = R1csBuilder::new();
+    let latest = trailing_latest
+        .first()
+        .ok_or_else(|| "terminal CE-closure isolation requires non-empty trailing latest".to_string())?;
+    if latest.x.len() != 1 + F_PRIME_ENC_INST_BITS {
+        return Err(format!(
+            "terminal CE-closure isolation expected fresh.x length {}, got {}",
+            1 + F_PRIME_ENC_INST_BITS,
+            latest.x.len()
+        ));
+    }
+
+    let zero_digest = [F::ZERO; 4];
+    let state = dummy_state_wires(&mut builder, last_acc_digest);
+    let last = FPrimeStepOutput {
+        x_out: alloc_digest_fields(&mut builder, zero_digest),
+        x_out_bits: latest.x[1..]
+            .iter()
+            .map(|&bit| builder.alloc(bit))
+            .collect(),
+        prior_link: None,
+        state_in: state,
+        state_out: state,
+        nifs_running: None,
+        nifs_running_parent_authority: None,
+        nifs_parent: None,
+        nifs_children: None,
+        fresh_public_suffixes: Vec::new(),
+        fresh_adv: Vec::new(),
+    };
+    let (_, _, _, _, _, terminal_children) = emit_terminal_fold(
+        &mut builder,
+        prep,
+        &last,
+        pre_final_running,
+        trailing_latest,
+        final_fold_nifs,
+    )
+    .map_err(|e| e.to_string())?;
+    enforce_final_ce_relations(&mut builder, prep, &terminal_children, terminal_witnesses)
+        .map_err(|e| e.to_string())?;
+    Ok(builder)
+}
+
 pub struct TerminalParentProbeWires {
     pub last_parent_y_ring_c1: Var,
 }
@@ -461,7 +516,7 @@ pub fn enforce_terminal_fold_children_continuity_against_self(
         .nifs_children
         .as_ref()
         .ok_or_else(|| "terminal children continuity isolation missing synthetic previous children".to_string())?;
-    super::enforce_children_equal_running(&mut builder, prev_children, &terminal_running)?;
+    super::enforce_child_core_equal_running(&mut builder, prev_children, &terminal_running)?;
     Ok((
         builder,
         TerminalChildrenProbeWires {
@@ -485,14 +540,23 @@ pub struct CeContinuityProbeWires {
     pub s_col_c1: Var,
     pub ct_c1: Var,
     pub y_ring_c1: Var,
-    pub y_zcol_c1: Var,
     pub fold_digest0: Var,
 }
 
 pub fn enforce_ce_continuity_against_self(claim: &CeClaim) -> Result<(R1csBuilder, CeContinuityProbeWires), String> {
+    enforce_ce_continuity_between(claim, claim)
+}
+
+/// Emit CE-core continuity for separately supplied child and running claims.
+/// Their `y_zcol` sidecars are not allocated, which lets tests prove native
+/// sidecar mutation cannot change either the relation or witness.
+pub fn enforce_ce_continuity_between(
+    child_claim: &CeClaim,
+    running_claim: &CeClaim,
+) -> Result<(R1csBuilder, CeContinuityProbeWires), String> {
     let mut builder = R1csBuilder::new();
-    let child = alloc_ce_claim(&mut builder, claim);
-    let running = alloc_running_claim(&mut builder, claim);
+    let child = alloc_dec_child_claim(&mut builder, child_claim);
+    let running = alloc_running_claim(&mut builder, running_claim);
     let probes = CeContinuityProbeWires {
         c_data0: running.c_data[0],
         x0: running.x[0],
@@ -532,14 +596,9 @@ pub fn enforce_ce_continuity_against_self(claim: &CeClaim) -> Result<(R1csBuilde
             .and_then(|row| row.first())
             .ok_or_else(|| "CE-continuity probe requires non-empty y_ring".to_string())?
             .c1,
-        y_zcol_c1: running
-            .y_zcol
-            .first()
-            .ok_or_else(|| "CE-continuity probe requires non-empty y_zcol".to_string())?
-            .c1,
         fold_digest0: running.fold_digest_fields[0],
     };
-    super::enforce_children_equal_running(&mut builder, &[child], &[running])?;
+    super::enforce_child_core_equal_running(&mut builder, &[child], &[running])?;
     Ok((builder, probes))
 }
 
@@ -781,7 +840,7 @@ fn alloc_running_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> SplitNcPiC
             .map(|row| alloc_k_vec(builder, row))
             .collect(),
         ct: alloc_k_vec(builder, &claim.ct),
-        y_zcol: alloc_k_vec(builder, &claim.y_zcol),
+        y_zcol: Vec::new(),
         fold_digest_fields: alloc_digest32(builder, claim.fold_digest),
     }
 }

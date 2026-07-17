@@ -48,11 +48,11 @@ use neo_ajtai::{setup as setup_ajtai, AjtaiSModule};
 use neo_ccs::{traits::SModuleHomomorphism, Mat};
 use neo_fold_clean::engine::decider::{
     __test_isolation::{
-        enforce_base_state_constants_against, enforce_ce_continuity_against_self, enforce_public_image_pins_against,
-        enforce_public_image_pins_against_chain, enforce_state_link_against_self,
-        enforce_terminal_fold_against_last_acc_digest, enforce_terminal_fold_children_continuity_against_self,
-        enforce_terminal_fold_parent_authority_against_self, enforce_terminal_latest_link_against,
-        CeContinuityProbeWires,
+        enforce_base_state_constants_against, enforce_ce_continuity_against_self, enforce_ce_continuity_between,
+        enforce_public_image_pins_against, enforce_public_image_pins_against_chain, enforce_state_link_against_self,
+        enforce_terminal_fold_against_last_acc_digest, enforce_terminal_fold_ce_closure_against,
+        enforce_terminal_fold_children_continuity_against_self, enforce_terminal_fold_parent_authority_against_self,
+        enforce_terminal_latest_link_against, CeContinuityProbeWires,
     },
     synthesize_last_step_terminal_r1cs, synthesize_statement_r1cs, REQUIRED_PUBLIC_IMAGE_PINS,
 };
@@ -68,7 +68,7 @@ use neo_fold_clean::paper::digest::{
 use neo_fold_clean::paper::f_prime::r1cs::{encode_f_prime_public_input, F_PRIME_PUBLIC_INPUT_LEN};
 use neo_fold_clean::paper::terminal_ce::{TerminalCeProof, TerminalCePublic};
 use neo_fold_clean::CcsInstance;
-use neo_math::{D, F};
+use neo_math::{D, F, K};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
 use serde_json::{json, Value};
@@ -388,8 +388,10 @@ fn decider_r1cs_honors_explicit_verifier_owned_ajtai_setup() {
         &prep.vk,
         prep.public_input_len,
         prep.enforces_f_prime_recursive_link(),
+        prep.enforces_terminal_induction(),
         prep.semantic_state_mode(),
         prep.initial_semantic_state_digest(),
+        prep.nebula(),
         &statement,
     )
     .expect("owned-log decider preflight must pass");
@@ -965,6 +967,57 @@ fn decider_terminal_fold_rejects_tampered_last_acc_digest() {
 }
 
 #[test]
+fn decider_terminal_ce_rejects_tampered_reattached_child_y_zcol() {
+    let (prep, finished) = build_honest_finished_proof(3);
+    let final_fold = finished
+        .proof
+        .final_fold
+        .as_ref()
+        .expect("finished proof has terminal fold");
+    let pre_running = &final_fold.terminal_inputs.pre_final_running;
+    let trailing_latest = final_fold.terminal_inputs.latest.claims();
+    let final_running = finished
+        .proof
+        .state
+        .proof
+        .running()
+        .expect("finished proof has final running");
+    let last_acc_digest =
+        AccumulatorHandle::from_running_parts(&pre_running.claims, pre_running.parent_authority.as_ref()).digest();
+
+    let honest = enforce_terminal_fold_ce_closure_against(
+        &prep,
+        pre_running,
+        &trailing_latest,
+        &final_fold.nifs,
+        last_acc_digest,
+        &final_running.witnesses,
+    )
+    .expect("emit honest terminal CE closure");
+    assert!(
+        honest.is_satisfied(),
+        "honest terminal CE closure must satisfy (first bad row: {:?})",
+        honest.first_unsatisfied_row()
+    );
+
+    let mut tampered_nifs = final_fold.nifs.clone();
+    tampered_nifs.pi_dec.children[0].y_zcol[0] += K::ONE;
+    let tampered = enforce_terminal_fold_ce_closure_against(
+        &prep,
+        pre_running,
+        &trailing_latest,
+        &tampered_nifs,
+        last_acc_digest,
+        &final_running.witnesses,
+    )
+    .expect("emit tampered terminal CE closure");
+    assert!(
+        !tampered.is_satisfied(),
+        "terminal CE closure accepted a tampered reattached child y_zcol"
+    );
+}
+
+#[test]
 fn decider_terminal_fold_rejects_tampered_last_parent_authority_wire() {
     let (prep, finished) = build_honest_finished_proof(3);
     let final_fold = finished
@@ -1230,7 +1283,7 @@ fn decider_ce_continuity_rejects_tampered_y_ring_c1_limb() {
 }
 
 #[test]
-fn decider_ce_continuity_rejects_tampered_y_zcol_c1_limb() {
+fn decider_ce_continuity_omits_child_and_running_y_zcol() {
     let (_prep, finished) = build_honest_finished_proof(2);
     let claim = finished
         .proof
@@ -1242,18 +1295,34 @@ fn decider_ce_continuity_rejects_tampered_y_zcol_c1_limb() {
         .first()
         .expect("final running has at least one claim");
 
-    let (mut builder, probes) = enforce_ce_continuity_against_self(claim).expect("emit continuity rows");
+    let (baseline_builder, _) = enforce_ce_continuity_against_self(claim).expect("emit continuity rows");
     assert!(
-        builder.is_satisfied(),
+        baseline_builder.is_satisfied(),
         "honest CE-continuity isolation must satisfy (first bad row: {:?})",
-        builder.first_unsatisfied_row()
+        baseline_builder.first_unsatisfied_row()
+    );
+    let baseline = baseline_builder.snapshot();
+
+    let mut child_mutation = claim.clone();
+    child_mutation.y_zcol[0] += K::ONE;
+    let (child_builder, _) = enforce_ce_continuity_between(&child_mutation, claim).expect("emit child mutation");
+    let child = child_builder.snapshot();
+    assert!(baseline.has_same_relation(&child));
+    assert_eq!(
+        baseline.witness(),
+        child.witness(),
+        "child y_zcol leaked into continuity"
     );
 
-    let target_col = probes.y_zcol_c1.col();
-    builder.tamper_witness(target_col, builder.witness()[target_col] + F::ONE);
-    assert!(
-        !builder.is_satisfied(),
-        "CE continuity accepted a running-side y_zcol.c1 limb that diverged from the child"
+    let mut running_mutation = claim.clone();
+    running_mutation.y_zcol[0] += K::ONE;
+    let (running_builder, _) = enforce_ce_continuity_between(claim, &running_mutation).expect("emit running mutation");
+    let running = running_builder.snapshot();
+    assert!(baseline.has_same_relation(&running));
+    assert_eq!(
+        baseline.witness(),
+        running.witness(),
+        "running y_zcol leaked into continuity"
     );
 }
 

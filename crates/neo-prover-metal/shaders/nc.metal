@@ -2,8 +2,9 @@
 // Compact rows store a cyclic window; dense rows always store all 54 ring lanes.
 
 constant ushort NC_SIMD_WIDTH = 32;
-constant ushort NC_DENSE_PAIRS_PER_GROUP = 2;
-constant ushort NC_MASK_DENSE_CROSSOVER = 64;
+constant ushort NC_DENSE_PAIRS_PER_GROUP = 8;
+constant ushort NC_REDUCTION_THREADS = 256;
+constant ushort NC_REDUCTION_SIMD_GROUPS = 8;
 
 inline ulong nc_simd_shuffle_xor_word(ulong value, ushort mask) {
     uint lo = simd_shuffle_xor((uint)value, mask);
@@ -22,6 +23,39 @@ inline Kx nc_simd_reduce(Kx value) {
         value = kx_add(value, nc_simd_shuffle_xor(value, mask));
     }
     return value;
+}
+
+kernel void nc_reduce_partials(
+    device const ulong *partials [[buffer(0)]],
+    device const ulong *shape [[buffer(1)]],
+    device ulong *output [[buffer(2)]],
+    uint lane [[thread_index_in_threadgroup]],
+    uint coefficient [[threadgroup_position_in_grid]],
+    ushort simd_lane [[thread_index_in_simdgroup]],
+    ushort simd_group [[simdgroup_index_in_threadgroup]]) {
+    ulong rows = shape[0];
+    ulong coefficient_count = shape[1];
+    if ((ulong)coefficient >= coefficient_count) {
+        return;
+    }
+    Kx total = Kx{0, 0};
+    for (ulong row = lane; row < rows; row += NC_REDUCTION_THREADS) {
+        total = kx_add(total, load_k(partials, row * coefficient_count + coefficient));
+    }
+    total = nc_simd_reduce(total);
+    threadgroup Kx shared[NC_REDUCTION_SIMD_GROUPS];
+    if (simd_lane == 0) {
+        shared[simd_group] = total;
+    }
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    if (lane == 0) {
+        total = shared[0];
+        for (ushort group = 1; group < NC_REDUCTION_SIMD_GROUPS; ++group) {
+            total = kx_add(total, shared[group]);
+        }
+        output[2 * coefficient] = total.c0;
+        output[2 * coefficient + 1] = total.c1;
+    }
 }
 
 inline Kx nc_signed_mask_digit(
@@ -50,8 +84,9 @@ kernel void nc_fold_signed_masks(
     ulong blocks = shape[2];
     ulong active_rows = shape[3];
     ulong half_rows = rows / 2;
-    ulong active_witness = index / half_rows;
-    ulong out_row = index % half_rows;
+    ulong live_output_rows = (active_rows + 1) / 2;
+    ulong active_witness = index / live_output_rows;
+    ulong out_row = index % live_output_rows;
     if (active_witness >= witness_count) {
         return;
     }
@@ -94,7 +129,8 @@ kernel void nc_fold_signed_masks(
     output[2 * (output_base + 1) + 1] = folded_hi.c1;
 }
 
-// Each fold doubles compact width and switches permanently to dense on overlap.
+// Fold only live rows while preserving padded per-witness input and output strides.
+// Compact width doubles until overlap, then every later row stays dense.
 kernel void nc_fold_compact(
     device const ulong *input [[buffer(0)]],
     device const ulong *challenge_words [[buffer(1)]],
@@ -105,13 +141,16 @@ kernel void nc_fold_compact(
     ulong rows = shape[1];
     ulong width = shape[2];
     bool dense = shape[3] != 0;
+    ulong live_rows = shape[4];
     bool output_dense = dense || 2 * width > RING_DEGREE;
     ulong half_rows = (rows + 1) / 2;
+    ulong live_output_rows = (live_rows + 1) / 2;
     ulong input_per_witness = dense ? rows * RING_DEGREE : rows * width;
     ulong output_width = output_dense ? RING_DEGREE : 2 * width;
     ulong output_per_witness = half_rows * output_width;
-    ulong witness = index / output_per_witness;
-    ulong within = index % output_per_witness;
+    ulong live_output_per_witness = live_output_rows * output_width;
+    ulong witness = index / live_output_per_witness;
+    ulong within = index % live_output_per_witness;
     ulong out_row = within / output_width;
     ulong slot = within % output_width;
     if (witness >= witness_count) {
@@ -126,12 +165,12 @@ kernel void nc_fold_compact(
     if (!output_dense) {
         if (slot < width) {
             lo = load_k(input, input_base + lo_row * width + slot);
-        } else if (hi_row < rows) {
+        } else if (hi_row < live_rows) {
             hi = load_k(input, input_base + hi_row * width + slot - width);
         }
     } else if (dense) {
         lo = load_k(input, input_base + lo_row * RING_DEGREE + slot);
-        if (hi_row < rows) {
+        if (hi_row < live_rows) {
             hi = load_k(input, input_base + hi_row * RING_DEGREE + slot);
         }
     } else {
@@ -140,7 +179,7 @@ kernel void nc_fold_compact(
         if (lo_slot < width) {
             lo = load_k(input, input_base + lo_row * width + lo_slot);
         }
-        if (hi_row < rows) {
+        if (hi_row < live_rows) {
             ulong start_hi = (hi_row * width) % RING_DEGREE;
             ulong hi_slot = (slot + RING_DEGREE - start_hi) % RING_DEGREE;
             if (hi_slot < width) {
@@ -149,8 +188,9 @@ kernel void nc_fold_compact(
         }
     }
     Kx folded = kx_add(lo, kx_mul(challenge, kx_sub(hi, lo)));
-    output[2 * index] = folded.c0;
-    output[2 * index + 1] = folded.c1;
+    ulong output_index = witness * output_per_witness + out_row * output_width + slot;
+    output[2 * output_index] = folded.c0;
+    output[2 * output_index + 1] = folded.c1;
 }
 
 inline void nc_accumulate_digit_constraint(
@@ -211,6 +251,33 @@ inline void nc_accumulate_signed_high_constraint(
     inner[3] = kx_add(inner[3], signed_weight);
 }
 
+// Multiply a cubic by the equality line with two degree-one Karatsuba blocks.
+inline void nc_multiply_cubic_by_eq(
+    thread Kx *product,
+    Kx eq_zero,
+    Kx eq_one,
+    thread Kx *cubic) {
+    Kx eq_slope = kx_sub(eq_one, eq_zero);
+
+    Kx lo_zero = kx_mul(eq_zero, cubic[0]);
+    Kx lo_two = kx_mul(eq_slope, cubic[1]);
+    Kx lo_one = kx_sub(
+        kx_sub(kx_mul(eq_one, kx_add(cubic[0], cubic[1])), lo_zero),
+        lo_two);
+
+    Kx hi_zero = kx_mul(eq_zero, cubic[2]);
+    Kx hi_two = kx_mul(eq_slope, cubic[3]);
+    Kx hi_one = kx_sub(
+        kx_sub(kx_mul(eq_one, kx_add(cubic[2], cubic[3])), hi_zero),
+        hi_two);
+
+    product[0] = lo_zero;
+    product[1] = lo_one;
+    product[2] = kx_add(lo_two, hi_zero);
+    product[3] = hi_one;
+    product[4] = hi_two;
+}
+
 inline Kx nc_mask_basis_digit(
     device const ulong *masks,
     ulong witness,
@@ -223,6 +290,23 @@ inline Kx nc_mask_basis_digit(
     }
     ulong block = row / RING_DEGREE;
     ulong bit = 1ul << (row % RING_DEGREE);
+    ulong mask_base = 2 * (witness * blocks + block);
+    if ((masks[mask_base] & bit) != 0) {
+        return basis;
+    }
+    if ((masks[mask_base + 1] & bit) != 0) {
+        return kx_sub(Kx{0, 0}, basis);
+    }
+    return Kx{0, 0};
+}
+
+inline Kx nc_mask_basis_digit_at(
+    device const ulong *masks,
+    ulong witness,
+    ulong blocks,
+    ulong block,
+    ulong bit,
+    Kx basis) {
     ulong mask_base = 2 * (witness * blocks + block);
     if ((masks[mask_base] & bit) != 0) {
         return basis;
@@ -251,6 +335,7 @@ kernel void nc_expand_mask_basis(
     output[2 * index + 1] = value.c1;
 }
 
+// Materialize only live rows; unwritten padded suffix rows are never read again.
 kernel void nc_materialize_mask_dense(
     device const ulong *masks [[buffer(0)]],
     device const ulong *basis [[buffer(1)]],
@@ -261,15 +346,18 @@ kernel void nc_materialize_mask_dense(
     uint index [[thread_position_in_grid]]) {
     ulong witness_count = fold_shape[0];
     ulong output_rows = fold_shape[1] / 2;
+    ulong live_output_rows = (fold_shape[4] + 1) / 2;
     ulong values_per_witness = output_rows * RING_DEGREE;
-    ulong active_witness = index / values_per_witness;
-    ulong within = index % values_per_witness;
+    ulong live_values_per_witness = live_output_rows * RING_DEGREE;
+    ulong active_witness = index / live_values_per_witness;
+    ulong within = index % live_values_per_witness;
     if (active_witness >= witness_count) {
         return;
     }
     ulong output_row = within / RING_DEGREE;
     ulong ring_lane = within % RING_DEGREE;
-    ulong source_base = output_row * NC_MASK_DENSE_CROSSOVER;
+    ulong source_width = 2 * fold_shape[2];
+    ulong source_base = output_row * source_width;
     ulong source_start = source_base % RING_DEGREE;
     ulong slot = (ring_lane + RING_DEGREE - source_start) % RING_DEGREE;
     ulong witness = (ulong)active_witnesses[active_witness];
@@ -282,8 +370,7 @@ kernel void nc_materialize_mask_dense(
         active_rows,
         source_base + slot,
         load_k(basis, slot));
-    if (slot + RING_DEGREE < NC_MASK_DENSE_CROSSOVER) {
-        ulong second = slot + RING_DEGREE;
+    for (ulong extra = slot + RING_DEGREE; extra < source_width; extra += RING_DEGREE) {
         value = kx_add(
             value,
             nc_mask_basis_digit(
@@ -291,11 +378,12 @@ kernel void nc_materialize_mask_dense(
                 witness,
                 blocks,
                 active_rows,
-                source_base + second,
-                load_k(basis, second)));
+                source_base + extra,
+                load_k(basis, extra)));
     }
-    output[2 * index] = value.c0;
-    output[2 * index + 1] = value.c1;
+    ulong output_index = active_witness * values_per_witness + output_row * RING_DEGREE + ring_lane;
+    output[2 * output_index] = value.c0;
+    output[2 * output_index + 1] = value.c1;
 }
 
 // Mask-native rounds traverse the compact active-witness index, not the full batch.
@@ -313,17 +401,17 @@ kernel void nc_round_mask_partials(
     uint group [[threadgroup_position_in_grid]],
     ushort simd_lane [[thread_index_in_simdgroup]],
     ushort simd_group [[simdgroup_index_in_threadgroup]]) {
-    ulong rows = shape[0];
     ulong witness_count = shape[1];
     ulong width = shape[2];
+    ulong live_rows = shape[5];
     ulong blocks = mask_shape[2];
     ulong active_rows = mask_shape[3];
     threadgroup Kx shared[2 * 5];
     Kx local[5] = {Kx{0, 0}, Kx{0, 0}, Kx{0, 0}, Kx{0, 0}, Kx{0, 0}};
-    if (pair < rows / 2) {
+    if (pair < (live_rows + 1) / 2) {
         ulong index = 2 * pair;
         Kx e0 = load_k(eq_table, index);
-        Kx e1 = kx_sub(load_k(eq_table, index + 1), e0);
+        Kx e_at_one = load_k(eq_table, index + 1);
         Kx inner[4] = {Kx{0, 0}, Kx{0, 0}, Kx{0, 0}, Kx{0, 0}};
         ulong lo_base = index * width;
         ulong hi_base = (index + 1) * width;
@@ -387,32 +475,79 @@ kernel void nc_round_mask_partials(
                     }
                 }
                 } else {
+                    ulong lo_block = lo_base / RING_DEGREE;
+                    ulong hi_offset = lo_start + width;
+                    ulong hi_block = lo_block;
+                    if (hi_offset >= RING_DEGREE) {
+                        hi_offset -= RING_DEGREE;
+                        hi_block += 1;
+                    }
+                    if (hi_offset >= RING_DEGREE) {
+                        hi_offset -= RING_DEGREE;
+                        hi_block += 1;
+                    }
                     for (ulong ring_lane = 0; ring_lane < RING_DEGREE; ++ring_lane) {
-                    ulong lo_slot = (ring_lane + RING_DEGREE - lo_start) % RING_DEGREE;
-                    ulong hi_slot = (ring_lane + RING_DEGREE - hi_start) % RING_DEGREE;
+                    ulong lo_slot = ring_lane >= lo_start
+                        ? ring_lane - lo_start
+                        : ring_lane + RING_DEGREE - lo_start;
+                    ulong hi_slot = ring_lane >= hi_start
+                        ? ring_lane - hi_start
+                        : ring_lane + RING_DEGREE - hi_start;
                     bool has_lo = lo_slot < width;
                     bool has_hi = hi_slot < width;
                     if (!has_lo && !has_hi) {
                         continue;
                     }
-                    Kx a = has_lo
-                        ? nc_mask_basis_digit(
+                    Kx a = Kx{0, 0};
+                    if (has_lo && lo_base + lo_slot < active_rows) {
+                        ulong offset = lo_start + lo_slot;
+                        bool carry = offset >= RING_DEGREE;
+                        ulong bit_index = carry ? offset - RING_DEGREE : offset;
+                        a = nc_mask_basis_digit_at(
                             masks,
                             witness,
                             blocks,
-                            active_rows,
-                            lo_base + lo_slot,
-                            load_k(basis, lo_slot))
-                        : Kx{0, 0};
-                    Kx hi = has_hi
-                        ? nc_mask_basis_digit(
+                            lo_block + (carry ? 1ul : 0ul),
+                            1ul << bit_index,
+                            load_k(basis, lo_slot));
+                        ulong second = lo_slot + RING_DEGREE;
+                        if (second < width && lo_base + second < active_rows) {
+                            a = kx_add(
+                                a,
+                                nc_mask_basis_digit_at(
+                                    masks,
+                                    witness,
+                                    blocks,
+                                    lo_block + (carry ? 2ul : 1ul),
+                                    1ul << bit_index,
+                                    load_k(basis, second)));
+                        }
+                    }
+                    Kx hi = Kx{0, 0};
+                    if (has_hi && hi_base + hi_slot < active_rows) {
+                        ulong offset = hi_start + hi_slot;
+                        bool carry = offset >= RING_DEGREE;
+                        ulong bit_index = carry ? offset - RING_DEGREE : offset;
+                        hi = nc_mask_basis_digit_at(
                             masks,
                             witness,
                             blocks,
-                            active_rows,
-                            hi_base + hi_slot,
-                            load_k(basis, hi_slot))
-                        : Kx{0, 0};
+                            hi_block + (carry ? 1ul : 0ul),
+                            1ul << bit_index,
+                            load_k(basis, hi_slot));
+                        ulong second = hi_slot + RING_DEGREE;
+                        if (second < width && hi_base + second < active_rows) {
+                            hi = kx_add(
+                                hi,
+                                nc_mask_basis_digit_at(
+                                    masks,
+                                    witness,
+                                    blocks,
+                                    hi_block + (carry ? 2ul : 1ul),
+                                    1ul << bit_index,
+                                    load_k(basis, second)));
+                        }
+                    }
                     Kx weight = load_k(weights, active_witness * RING_DEGREE + ring_lane);
                     if (has_lo && has_hi) {
                         nc_accumulate_digit_constraint(inner, weight, a, kx_sub(hi, a));
@@ -425,11 +560,7 @@ kernel void nc_round_mask_partials(
                 }
             }
         }
-        local[0] = kx_mul(e0, inner[0]);
-        local[1] = kx_add(kx_mul(e0, inner[1]), kx_mul(e1, inner[0]));
-        local[2] = kx_add(kx_mul(e0, inner[2]), kx_mul(e1, inner[1]));
-        local[3] = kx_add(kx_mul(e0, inner[3]), kx_mul(e1, inner[2]));
-        local[4] = kx_mul(e1, inner[3]);
+        nc_multiply_cubic_by_eq(local, e0, e_at_one, inner);
     }
     for (uint coefficient = 0; coefficient < 5; ++coefficient) {
         local[coefficient] = nc_simd_reduce(local[coefficient]);
@@ -461,46 +592,58 @@ kernel void nc_round_partials(
     uint group [[threadgroup_position_in_grid]],
     ushort simd_lane [[thread_index_in_simdgroup]],
     ushort simd_group [[simdgroup_index_in_threadgroup]]) {
-    ulong table_len = shape[0];
     ulong witness_count = shape[1];
     ulong width = shape[2];
     bool dense = shape[3] != 0;
     ulong values_per_witness = shape[4];
-    threadgroup Kx shared[2 * 5];
+    ulong live_table_len = shape[5];
+    threadgroup Kx shared[8 * 5];
     Kx local[5] = {Kx{0, 0}, Kx{0, 0}, Kx{0, 0}, Kx{0, 0}, Kx{0, 0}};
     if (dense) {
         ulong dense_pair = (ulong)group * NC_DENSE_PAIRS_PER_GROUP + simd_group;
-        if (dense_pair < table_len / 2) {
+        Kx inner[4] = {Kx{0, 0}, Kx{0, 0}, Kx{0, 0}, Kx{0, 0}};
+        if (dense_pair < (live_table_len + 1) / 2) {
             ulong index = 2 * dense_pair;
-            Kx inner[4] = {Kx{0, 0}, Kx{0, 0}, Kx{0, 0}, Kx{0, 0}};
+            bool hi_active = index + 1 < live_table_len;
             ulong terms = witness_count * RING_DEGREE;
+            ulong ring_lane = simd_lane;
+            ulong witness_base = 0;
             for (ulong term = simd_lane; term < terms; term += NC_SIMD_WIDTH) {
-                ulong witness = term / RING_DEGREE;
-                ulong ring_lane = term - witness * RING_DEGREE;
-                ulong witness_base = witness * values_per_witness;
-                Kx weight = load_k(weights, witness * RING_DEGREE + ring_lane);
+                Kx weight = load_k(weights, term);
                 Kx a = load_k(digit_values, witness_base + index * RING_DEGREE + ring_lane);
-                Kx hi = load_k(digit_values, witness_base + (index + 1) * RING_DEGREE + ring_lane);
+                Kx hi = Kx{0, 0};
+                if (hi_active) {
+                    hi = load_k(digit_values, witness_base + (index + 1) * RING_DEGREE + ring_lane);
+                }
                 nc_accumulate_digit_constraint(inner, weight, a, kx_sub(hi, a));
+                ring_lane += NC_SIMD_WIDTH;
+                if (ring_lane >= RING_DEGREE) {
+                    ring_lane -= RING_DEGREE;
+                    witness_base += values_per_witness;
+                }
             }
-            Kx e0 = load_k(eq_table, index);
-            Kx e1 = kx_sub(load_k(eq_table, index + 1), e0);
-            local[0] = kx_mul(e0, inner[0]);
-            local[1] = kx_add(kx_mul(e0, inner[1]), kx_mul(e1, inner[0]));
-            local[2] = kx_add(kx_mul(e0, inner[2]), kx_mul(e1, inner[1]));
-            local[3] = kx_add(kx_mul(e0, inner[3]), kx_mul(e1, inner[2]));
-            local[4] = kx_mul(e1, inner[3]);
         }
-        for (uint coefficient = 0; coefficient < 5; ++coefficient) {
-            local[coefficient] = nc_simd_reduce(local[coefficient]);
-            if (simd_lane == 0) {
+        for (uint coefficient = 0; coefficient < 4; ++coefficient) {
+            inner[coefficient] = nc_simd_reduce(inner[coefficient]);
+        }
+        if (simd_lane == 0) {
+            if (dense_pair < (live_table_len + 1) / 2) {
+                ulong index = 2 * dense_pair;
+                Kx e0 = load_k(eq_table, index);
+                Kx e_at_one = load_k(eq_table, index + 1);
+                nc_multiply_cubic_by_eq(local, e0, e_at_one, inner);
+            }
+            for (uint coefficient = 0; coefficient < 5; ++coefficient) {
                 shared[simd_group * 5 + coefficient] = local[coefficient];
             }
         }
         threadgroup_barrier(mem_flags::mem_threadgroup);
         if (lane_index == 0) {
             for (uint coefficient = 0; coefficient < 5; ++coefficient) {
-                Kx value = kx_add(shared[coefficient], shared[5 + coefficient]);
+                Kx value = shared[coefficient];
+                for (uint pair_index = 1; pair_index < NC_DENSE_PAIRS_PER_GROUP; ++pair_index) {
+                    value = kx_add(value, shared[pair_index * 5 + coefficient]);
+                }
                 ulong output_index = group * 5 + coefficient;
                 partials[2 * output_index] = value.c0;
                 partials[2 * output_index + 1] = value.c1;
@@ -508,10 +651,11 @@ kernel void nc_round_partials(
         }
         return;
     }
-    if (pair < table_len / 2) {
+    if (pair < (live_table_len + 1) / 2) {
         ulong index = 2 * pair;
+        bool hi_active = index + 1 < live_table_len;
         Kx e0 = load_k(eq_table, index);
-        Kx e1 = kx_sub(load_k(eq_table, index + 1), e0);
+        Kx e_at_one = load_k(eq_table, index + 1);
         Kx inner[4] = {Kx{0, 0}, Kx{0, 0}, Kx{0, 0}, Kx{0, 0}};
         ulong start_lo = (index * width) % RING_DEGREE;
         ulong start_hi = ((index + 1) * width) % RING_DEGREE;
@@ -524,37 +668,37 @@ kernel void nc_round_partials(
                     Kx a = load_k(digit_values, witness_base + index * width + slot);
                     nc_accumulate_low_window_constraint(inner, weight, a);
                 }
-                for (ulong slot = 0; slot < width; ++slot) {
-                    ulong ring_lane = (start_hi + slot) % RING_DEGREE;
-                    Kx weight = load_k(weights, witness * RING_DEGREE + ring_lane);
-                    Kx hi = load_k(digit_values, witness_base + (index + 1) * width + slot);
-                    nc_accumulate_high_window_constraint(inner, weight, hi);
+                if (hi_active) {
+                    for (ulong slot = 0; slot < width; ++slot) {
+                        ulong ring_lane = (start_hi + slot) % RING_DEGREE;
+                        Kx weight = load_k(weights, witness * RING_DEGREE + ring_lane);
+                        Kx hi = load_k(digit_values, witness_base + (index + 1) * width + slot);
+                        nc_accumulate_high_window_constraint(inner, weight, hi);
+                    }
                 }
             } else {
                 for (ulong ring_lane = 0; ring_lane < RING_DEGREE; ++ring_lane) {
                     Kx weight = load_k(weights, witness * RING_DEGREE + ring_lane);
                     ulong slot_lo = (ring_lane + RING_DEGREE - start_lo) % RING_DEGREE;
                     ulong slot_hi = (ring_lane + RING_DEGREE - start_hi) % RING_DEGREE;
-                    if (slot_lo < width) {
+                    bool has_lo = slot_lo < width;
+                    bool has_hi = hi_active && slot_hi < width;
+                    if (has_lo) {
                         Kx a = load_k(digit_values, witness_base + index * width + slot_lo);
-                        if (slot_hi < width) {
+                        if (has_hi) {
                             Kx hi = load_k(digit_values, witness_base + (index + 1) * width + slot_hi);
                             nc_accumulate_digit_constraint(inner, weight, a, kx_sub(hi, a));
                         } else {
                             nc_accumulate_low_window_constraint(inner, weight, a);
                         }
-                    } else if (slot_hi < width) {
+                    } else if (has_hi) {
                         Kx hi = load_k(digit_values, witness_base + (index + 1) * width + slot_hi);
                         nc_accumulate_high_window_constraint(inner, weight, hi);
                     }
                 }
             }
         }
-        local[0] = kx_mul(e0, inner[0]);
-        local[1] = kx_add(kx_mul(e0, inner[1]), kx_mul(e1, inner[0]));
-        local[2] = kx_add(kx_mul(e0, inner[2]), kx_mul(e1, inner[1]));
-        local[3] = kx_add(kx_mul(e0, inner[3]), kx_mul(e1, inner[2]));
-        local[4] = kx_mul(e1, inner[3]);
+        nc_multiply_cubic_by_eq(local, e0, e_at_one, inner);
     }
     for (uint coefficient = 0; coefficient < 5; ++coefficient) {
         local[coefficient] = nc_simd_reduce(local[coefficient]);

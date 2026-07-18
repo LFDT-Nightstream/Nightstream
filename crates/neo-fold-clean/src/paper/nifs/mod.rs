@@ -88,8 +88,9 @@ pub enum Error {
 pub use backend::{
     CpuNifsProver, DeferredNifsProofMaterializer, DeferredNifsRunningMaterializer, NifsFPrimeStepContext,
     NifsFreshImageOverlayRequest, NifsFreshImageRegion, NifsFreshImageRegionKind, NifsFreshInstancesRequest,
-    NifsFreshSemanticStateInOverlay, NifsFreshSemanticStateOutOverlay, NifsFreshStateXOutOverlay, NifsPostFoldSummary,
-    NifsProofCarrier, NifsProverAdapter, NifsProverBackend, NifsProverOutput, NifsProverRequest, NifsRunningCarrier,
+    NifsFreshSemanticStateInOverlay, NifsFreshSemanticStateOutOverlay, NifsFreshSignedUnitAssignment,
+    NifsFreshSignedUnitInstancesRequest, NifsFreshStateXOutOverlay, NifsPostFoldSummary, NifsProofCarrier,
+    NifsProverAdapter, NifsProverBackend, NifsProverOutput, NifsProverRequest, NifsRunningCarrier,
 };
 pub use fixed::{prove_fixed, verify_fixed, FixedNifsAccumulator};
 pub use proof::NifsProof;

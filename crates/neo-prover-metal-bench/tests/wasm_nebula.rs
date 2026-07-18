@@ -5,8 +5,8 @@
 use std::time::{Duration, Instant};
 
 use neo_fold_clean::paper::nifs::{
-    Error as NifsError, NifsFPrimeStepContext, NifsFreshInstancesRequest, NifsProverAdapter, NifsProverOutput,
-    NifsProverRequest,
+    Error as NifsError, NifsFPrimeStepContext, NifsFreshInstancesRequest, NifsFreshSignedUnitInstancesRequest,
+    NifsProverAdapter, NifsProverOutput, NifsProverRequest,
 };
 use neo_fold_clean::paper::params::Params;
 use neo_fold_clean::paper::relations::CcsInstance;
@@ -53,6 +53,13 @@ impl NifsProverAdapter for ProfileCapture<'_> {
         request: NifsFreshInstancesRequest<'_>,
     ) -> Result<Option<Vec<CcsInstance>>, NifsError> {
         self.metal.build_fresh_instances(request)
+    }
+
+    fn build_fresh_signed_unit_instances(
+        &mut self,
+        request: NifsFreshSignedUnitInstancesRequest<'_>,
+    ) -> Result<Option<Vec<CcsInstance>>, NifsError> {
+        self.metal.build_fresh_signed_unit_instances(request)
     }
 
     fn requires_recursive_compile_reverify(&self) -> bool {
@@ -169,7 +176,7 @@ fn wasm_nebula_metal_startup_diagnostic() {
     let static_elapsed = prepare_metal_static(&fixture, &mut metal);
     eprintln!("WASM_NEBULA_DIAGNOSTIC_STATIC_MS={:.3}", milliseconds(static_elapsed));
     let activity_before = metal.session().activity();
-    let (proof, _, profiles) = prove_metal_unverified_with_profiles(&fixture, &mut metal);
+    let (proof, online_elapsed, profiles) = prove_metal_unverified_with_profiles(&fixture, &mut metal);
     let activity_after = metal.session().activity();
     let online_uploaded_bytes = activity_after
         .uploaded_bytes
@@ -180,6 +187,7 @@ fn wasm_nebula_metal_startup_diagnostic() {
     eprintln!(
         "WASM_NEBULA_DIAGNOSTIC_ONLINE_TRANSFER uploaded_bytes={online_uploaded_bytes} downloaded_bytes={online_downloaded_bytes}"
     );
+    eprintln!("WASM_NEBULA_DIAGNOSTIC_ONLINE_MS={:.3}", milliseconds(online_elapsed));
     neo_wasm::verify(&fixture.prep, &proof, fixture.final_state).expect("verify profiled Metal proof");
     for (fold, profile) in profiles.iter().enumerate() {
         eprintln!("WASM_NEBULA_DIAGNOSTIC_PROFILE fold={fold} {profile:#?}");

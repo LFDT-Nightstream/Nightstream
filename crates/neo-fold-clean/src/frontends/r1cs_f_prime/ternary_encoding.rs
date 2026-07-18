@@ -14,10 +14,10 @@
 //! | Obligation | Local owner | Emits constraints? | Authority source |
 //! |---|---|---|---|
 //! | Chunk decomposition | `balanced_ternary_chunks` | no | Fixed radix-three arithmetic |
-//! | Field encoding | [`write_balanced_ternary`] | no | Canonical field representative |
+//! | Field encoding | [`balanced_ternary_digits`] | no | Canonical field representative |
 
 use neo_math::F;
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use p3_field::PrimeField64;
 
 use super::lowering::LowNormR1csError;
 
@@ -45,17 +45,16 @@ const fn balanced_ternary_chunks() -> [([i8; CHUNK_DIGITS], u8); CHUNK_RADIX as 
     chunks
 }
 
-pub(super) fn write_balanced_ternary(
-    assignment: &mut [F],
-    start: usize,
+pub(super) fn balanced_ternary_digits(
     value: F,
     field_col: usize,
-) -> Result<(), LowNormR1csError> {
+) -> Result<[i8; BALANCED_TERNARY_FIELD_WIDTH], LowNormR1csError> {
     let modulus = F::ORDER_U64;
     let canonical = value.as_canonical_u64();
     let negative = canonical > modulus / 2;
     let mut remaining = if negative { modulus - canonical } else { canonical };
     let mut digit_index = 0usize;
+    let mut out = [0i8; BALANCED_TERNARY_FIELD_WIDTH];
 
     while digit_index < BALANCED_TERNARY_FIELD_WIDTH {
         let residue = (remaining % CHUNK_RADIX) as usize;
@@ -69,18 +68,12 @@ pub(super) fn write_balanced_ternary(
                 }
                 continue;
             }
-            let positive_digit = match digit {
-                -1 => -F::ONE,
-                0 => F::ZERO,
-                1 => F::ONE,
-                _ => unreachable!("balanced ternary chunk digit"),
-            };
-            assignment[start + digit_index] = if negative { -positive_digit } else { positive_digit };
+            out[digit_index] = if negative { -digit } else { digit };
             digit_index += 1;
         }
     }
     if remaining != 0 {
         return Err(LowNormR1csError::BalancedTernaryOverflow { col: field_col });
     }
-    Ok(())
+    Ok(out)
 }

@@ -33,6 +33,7 @@ use crate::paper::f_prime::r1cs::{
     enforce_f_prime_base_step_circuit, enforce_f_prime_recursive_step_circuit, Error as FPrimeError, FPrimeBaseInputs,
     FPrimeRecursiveInputs, FPrimeStepConfig, FPrimeStepOutput,
 };
+use crate::paper::nifs::NifsFreshSignedUnitAssignment;
 use crate::paper::params::Params;
 use crate::paper::reductions::pi_ccs_split_nc_circuit::SplitNcVerifierRelation;
 use crate::paper::relations::{CcsInstance, LaneRanges, LaneSchemeError, RelationError, Structure};
@@ -484,6 +485,16 @@ impl NebulaFPrimeRelation {
     ) -> Result<Vec<F>, NebulaFPrimeRelationError> {
         self.relation
             .encode(branch.index(), field_assignment)
+            .map_err(Into::into)
+    }
+
+    pub(super) fn encode_signed_unit_for_deferred_nifs(
+        &self,
+        branch: NebulaFPrimeBranch,
+        field_assignment: &[F],
+    ) -> Result<NifsFreshSignedUnitAssignment, NebulaFPrimeRelationError> {
+        self.relation
+            .encode_signed_unit(branch.index(), field_assignment)
             .map_err(Into::into)
     }
 

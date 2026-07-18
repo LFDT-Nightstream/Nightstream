@@ -9,13 +9,15 @@ use std::time::Duration;
 use neo_math::{KExtensions, D, K};
 use neo_reductions::superneo_eval::SuperneoEvalCache;
 use objc2_foundation::NSString;
-use objc2_metal::{MTLBuffer, MTLCommandBuffer, MTLCommandEncoder, MTLComputeCommandEncoder};
+use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder, MTLComputeCommandEncoder};
 
 use super::forms::{DeviceFormBuild, MetalAjtaiRingForms, MetalDecFormPlan};
 use super::{checked_product, CHUNK_COLUMNS, PRODUCT_COEFFICIENTS};
 use crate::session::carrier::{MetalResidentChildren, MetalResidentWitness};
 use crate::session::{Buffer, MetalAjtaiLowNormPlan, MetalDecPublicProjection, MetalSession};
 use crate::MetalError;
+
+const SPLIT_CHILDREN_PER_THREAD: usize = 14;
 
 /// Minimal host outputs plus ownership of the complete resident child batch.
 pub(crate) struct MetalDecMaterial {
@@ -171,10 +173,12 @@ impl MetalSession {
             ));
         }
         // This is the first consumer of Pi_RLC output, so it is also the single
-        // synchronization point for the pending mix and its recyclable inputs.
-        let recycled_children = parent.finish_pending_mix(self)?;
+        // synchronization point for the pending mix and its retained inputs.
+        parent.finish_pending_mix(self)?;
         let entries = checked_product(&[D, parent.cols], "Pi_DEC parent dimensions overflow")?;
-        let child_words = checked_product(&[child_count, entries], "Pi_DEC child dimensions overflow")?;
+        if child_count >= u64::BITS as usize {
+            return Err(MetalError::Shape("Pi_DEC child count exceeds the signed-mask width"));
+        }
 
         let chunks = parent.cols.div_ceil(CHUNK_COLUMNS);
         let mask_words = checked_product(&[child_count, parent.cols, 2], "Pi_DEC mask dimensions overflow")?;
@@ -185,14 +189,8 @@ impl MetalSession {
             "Pi_DEC commitment dimensions overflow",
         )?;
 
-        let children = match recycled_children {
-            Some(children) if children.child_count == child_count && children.cols == parent.cols => children.words,
-            Some(children) => {
-                self.recycle_dec_children(children);
-                self.take_recycled_dec_children(child_count, parent.cols, child_words * size_of::<u64>())?
-            }
-            None => self.take_recycled_dec_children(child_count, parent.cols, child_words * size_of::<u64>())?,
-        };
+        // Deferred carriers can outlive the current generation, so every mask
+        // buffer becomes immutable after this command and is never recycled.
         let masks = self.buffer(mask_words * size_of::<u64>())?;
         let split_status = self.buffer_from_slice(&[0u32])?;
         let child_nonzero = self.buffer_from_slice(&vec![0u32; child_count])?;
@@ -203,8 +201,8 @@ impl MetalSession {
             parent.cols as u64,
             chunks as u64,
         ])?;
-        // Command-buffer order is the dependency graph: build forms, split,
-        // validate, pack masks, project, and commit before any host readback.
+        // Command-buffer order is the dependency graph: build forms, split
+        // directly to masks, project, and commit before any host readback.
         let command = self.command_buffer("nightstream.pi_dec.split_project_commit")?;
 
         let seeded_scratch = if let Some(build) = form_build {
@@ -221,38 +219,20 @@ impl MetalSession {
         };
 
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setLabel(Some(&NSString::from_str("nightstream.pi_dec.split_base2")));
-        encoder.setComputePipelineState(&self.dec_split_base2);
+        encoder.setLabel(Some(&NSString::from_str("nightstream.pi_dec.split_base2_masks")));
+        encoder.setComputePipelineState(&self.dec_split_base2_masks);
         unsafe {
             encoder.setBuffer_offset_atIndex(Some(&parent.words), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&split_shape), 0, 1);
-            encoder.setBuffer_offset_atIndex(Some(&children), 0, 2);
-        }
-        self.dispatch(&encoder, &self.dec_split_base2, entries);
-        encoder.endEncoding();
-
-        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setLabel(Some(&NSString::from_str("nightstream.pi_dec.validate_split")));
-        encoder.setComputePipelineState(&self.dec_validate_split);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(&parent.words), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&children), 0, 1);
-            encoder.setBuffer_offset_atIndex(Some(&split_shape), 0, 2);
-            encoder.setBuffer_offset_atIndex(Some(&split_status), 0, 3);
-        }
-        self.dispatch(&encoder, &self.dec_validate_split, entries);
-        encoder.endEncoding();
-
-        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setLabel(Some(&NSString::from_str("nightstream.pi_dec.binary_masks")));
-        encoder.setComputePipelineState(&self.dec_binary_masks);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(&children), 0, 0);
             encoder.setBuffer_offset_atIndex(Some(&split_shape), 0, 1);
             encoder.setBuffer_offset_atIndex(Some(&masks), 0, 2);
             encoder.setBuffer_offset_atIndex(Some(&child_nonzero), 0, 3);
+            encoder.setBuffer_offset_atIndex(Some(&split_status), 0, 4);
         }
-        self.dispatch(&encoder, &self.dec_binary_masks, child_count * parent.cols);
+        self.dispatch(
+            &encoder,
+            &self.dec_split_base2_masks,
+            child_count.div_ceil(SPLIT_CHILDREN_PER_THREAD) * parent.cols,
+        );
         encoder.endEncoding();
 
         // Project every fixed child before the first host readback. Inactive
@@ -297,6 +277,7 @@ impl MetalSession {
             form_rows as u64,
             parent.cols as u64,
             y_chunks as u64,
+            1,
         ])?;
         let commitment_shape = self.buffer_from_slice(&[
             entries as u64,
@@ -304,6 +285,7 @@ impl MetalSession {
             commitment_groups as u64,
             parent.cols as u64,
             chunks as u64,
+            1,
         ])?;
 
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
@@ -320,6 +302,7 @@ impl MetalSession {
                 encoder.setBuffer_offset_atIndex(Some(&plan.active_chunk_bases), 0, 6);
                 encoder.setBuffer_offset_atIndex(Some(&plan.active_chunk_matrices), 0, 7);
                 encoder.setBuffer_offset_atIndex(Some(&plan.matrix_active_offsets), 0, 8);
+                encoder.setBuffer_offset_atIndex(Some(&child_nonzero), 0, 9);
             }
             self.dispatch(&encoder, &self.dec_sparse_ring_partials, partial_words);
         } else {
@@ -330,6 +313,7 @@ impl MetalSession {
                 encoder.setBuffer_offset_atIndex(Some(&shape), 0, 2);
                 encoder.setBuffer_offset_atIndex(Some(&partials), 0, 3);
                 encoder.setBuffer_offset_atIndex(Some(&all_children), 0, 4);
+                encoder.setBuffer_offset_atIndex(Some(&child_nonzero), 0, 5);
             }
             self.dispatch(&encoder, &self.dec_ring_partials, partial_words);
         }
@@ -377,6 +361,7 @@ impl MetalSession {
             encoder.setBuffer_offset_atIndex(Some(&commitment_shape), 0, 2);
             encoder.setBuffer_offset_atIndex(Some(&commitment_partials), 0, 3);
             encoder.setBuffer_offset_atIndex(Some(&all_children), 0, 4);
+            encoder.setBuffer_offset_atIndex(Some(&child_nonzero), 0, 5);
         }
         self.dispatch(&encoder, &self.dec_ring_partials, commitment_partial_words);
         encoder.endEncoding();
@@ -415,9 +400,9 @@ impl MetalSession {
             Self::recycle_largest_buffer(&self.recycled_seeded_forms, scratch);
         }
 
-        // Reject if any digit is outside {-1, 0, 1} or the base-2 children fail
-        // to recompose the parent. This accelerator check does not replace the
-        // canonical proof verifier.
+        // Reject a centered parent coefficient that does not fit in the fixed
+        // child count. Directly generated masks are otherwise signed-unit by
+        // construction. This check does not replace the canonical verifier.
         if self.read_buffer::<u32>(&split_status, 1)[0] != 0 {
             return Err(MetalError::Shape(
                 "Metal Pi_DEC digits are out of range or do not recompose",
@@ -442,41 +427,11 @@ impl MetalSession {
             y_zcol_gpu,
             commitment_words: self.read_buffer::<u64>(&commitments, commitment_words),
             resident_children: MetalResidentChildren {
-                words: children,
                 masks,
                 child_count,
                 cols: parent.cols,
                 active_witnesses,
             },
         })
-    }
-
-    pub(crate) fn recycle_dec_children(&self, children: MetalResidentChildren) {
-        let bytes = children.words.length();
-        let mut slot = self.recycled_dec_children.borrow_mut();
-        if slot
-            .as_ref()
-            .is_none_or(|cached| cached.words.length() <= bytes)
-        {
-            *slot = Some(children);
-        }
-    }
-
-    fn take_recycled_dec_children(&self, child_count: usize, cols: usize, bytes: usize) -> Result<Buffer, MetalError> {
-        let recycled = {
-            let mut slot = self.recycled_dec_children.borrow_mut();
-            slot.as_ref()
-                .is_some_and(|children| {
-                    children.child_count == child_count
-                        && children.cols == cols
-                        && children.words.length() as usize == bytes
-                })
-                .then(|| {
-                    slot.take()
-                        .expect("matching recycled Pi_DEC children exist above")
-                        .words
-                })
-        };
-        recycled.map_or_else(|| self.buffer(bytes), Ok)
     }
 }

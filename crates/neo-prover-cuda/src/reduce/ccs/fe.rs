@@ -1188,6 +1188,7 @@ impl FeSumcheckBackend for DeviceFeBackend<'_> {
         f_var_indices: &[usize],
         z_blocks: &SuperneoZBlocks,
         n_eff: usize,
+        _crop: bool,
         n_pad: usize,
     ) -> Option<FeMcsRowTables> {
         let result;

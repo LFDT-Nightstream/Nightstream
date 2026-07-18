@@ -36,4 +36,8 @@ open Nightstream.Protocol.FPrime.ConcretePhi81.ActiveEvaluator.FixedOneCanonical
 #check run_eq_some_iff_physicalChecks
 #check SoundnessClosure
 #check run_sound_of_closure
+#check run_refinesConstruction2_of_closure
+#check Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive.Evaluator.SecurityFailure
+#check Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive.Evaluator.run_sound_or_securityFailure
+#check run_refinesConstruction2_or_securityFailure
 #check exists_run_and_holds_or_samplerShortfall

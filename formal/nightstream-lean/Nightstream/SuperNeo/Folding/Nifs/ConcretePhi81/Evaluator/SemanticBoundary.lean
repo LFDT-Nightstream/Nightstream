@@ -8,13 +8,14 @@ Phase: physically accepted certificate → independent semantic result.
 Constraint family: semantic/security boundary only; this file emits no rows.
 
 Owns: the exact additional premises that close the existing
-soundness-or-output-unbound-or-bad-event theorem for one certificate.
+soundness-or-output-unbound-or-bad-event theorem for one certificate, and an
+exhaustive classification of every unresolved semantic/security failure.
 
 Does not own: derivation of semantic source authority from public verifier
 inputs, proof that output claims are source-bound, extraction/binding of
 private child openings, a probability bound for the named `Pi_CCS` bad event,
-unconditional verifier exactness, Rust, R1CS, rows, costs, necessity, or row
-removal.
+probability or binding bounds for the named failures, unconditional verifier
+exactness, Rust, R1CS, rows, costs, necessity, or row removal.
 
 Emits constraints: no.
 
@@ -32,6 +33,7 @@ current executable verifier decides `ResultTransition` unconditionally.
 | `nifs.fixed_active.soundness.children` | every public Π_DEC child has its canonical split private opening | extraction/binding premise | `SoundnessClosure.childOpenings` |
 | `nifs.fixed_active.soundness.bad_event` | the named FE/NC mixing failure did not occur | security premise | `SoundnessClosure.noPiCcsBadEvent` |
 | `nifs.fixed_active.soundness.closed` | successful execution yields the independent result transition | conditional theorem | `run_sound_of_closure` |
+| `nifs.fixed_active.soundness.partition` | every successful execution refines semantics or names the missing binding/security event | exhaustive theorem | `run_sound_or_securityFailure` |
 -/
 
 namespace Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive.Evaluator
@@ -70,6 +72,39 @@ structure SoundnessClosure
   noPiCcsBadEvent :
     ¬ ConcretePhi81.PiCcsBadEvent context data certificate
 
+/-- Exhaustive unresolved outcomes for one physically successful execution.
+
+These constructors are named proof obligations, not claims that the events
+are possible or likely. A security reduction must eliminate or bound each
+constructor without assuming the semantic conclusion. -/
+inductive SecurityFailure
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    (context :
+      FixedActive.Context shape State publicRingColumns publicFits
+        verifierRows)
+    (certificate : FixedActive.Certificate context) : Prop where
+  | sourceUnbound
+      (unbound : forall data : Data shape,
+        ¬ ConcretePhi81.SemanticInput context data)
+  | childOpeningsUnbound
+      (data : Data shape)
+      (input : ConcretePhi81.SemanticInput context data)
+      (unbound : ¬ ConcretePhi81.ChildOpenings context data certificate)
+  | outputUnbound
+      (data : Data shape)
+      (input : ConcretePhi81.SemanticInput context data)
+      (children : ConcretePhi81.ChildOpenings context data certificate)
+      (unbound : ¬ ConcretePhi81.OutputBound context data certificate)
+  | piCcsBadEvent
+      (data : Data shape)
+      (input : ConcretePhi81.SemanticInput context data)
+      (children : ConcretePhi81.ChildOpenings context data certificate)
+      (bad : ConcretePhi81.PiCcsBadEvent context data certificate)
+
 /-- Successful physical execution closes to the independent semantic result
 when source interpretation, output authority, and bad-event exclusion are
 supplied explicitly. -/
@@ -97,6 +132,41 @@ theorem run_sound_of_closure
   · exact transition
   · exact False.elim (outputUnbound closure.outputBound)
   · exact False.elim (closure.noPiCcsBadEvent badEvent)
+
+/-- Every successful physical run either reaches the independent semantic
+transition or exposes exactly one still-unproved binding/security family. -/
+theorem run_sound_or_securityFailure
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    (noZeroDivisors : NormRange.BaseFieldNoZeroDivisors)
+    {context :
+      FixedActive.Context shape State publicRingColumns publicFits
+        verifierRows}
+    {checker : Checker context}
+    {certificate : FixedActive.Certificate context}
+    {result :
+      FixedActive.FoldResult shape publicRingColumns publicFits verifierRows}
+    (executed : run checker certificate = some result) :
+    FixedActive.ResultTransition context result ∨
+      SecurityFailure context certificate := by
+  classical
+  by_cases source :
+      ∃ data : Data shape, ConcretePhi81.SemanticInput context data
+  · rcases source with ⟨data, input⟩
+    by_cases children : ConcretePhi81.ChildOpenings context data certificate
+    · rcases run_sound noZeroDivisors input children executed with
+        transition | outputUnbound | badEvent
+      · exact Or.inl transition
+      · exact Or.inr (.outputUnbound data input children outputUnbound)
+      · exact Or.inr (.piCcsBadEvent data input children badEvent)
+    · exact Or.inr (.childOpeningsUnbound data input children)
+  · apply Or.inr
+    apply SecurityFailure.sourceUnbound
+    intro data input
+    exact source ⟨data, input⟩
 
 /-- Unpacked form of `run_sound_of_closure`, useful at a caller that already
 owns the three premises separately. -/

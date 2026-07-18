@@ -25,6 +25,24 @@ import tests.Axioms.Support
 #guard_msgs in
 #audit_axioms Nightstream.Protocol.FPrime.ConcretePhi81.ActiveEvaluator.FixedOneCanonical.run_sound_of_closure
 
+/-- info: 'Nightstream.Protocol.FPrime.ConcretePhi81.ActiveEvaluator.FixedOneCanonical.run_refinesConstruction2_of_closure' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Protocol.FPrime.ConcretePhi81.ActiveEvaluator.FixedOneCanonical.run_refinesConstruction2_of_closure
+
+/-- info: 'Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive.Evaluator.run_sound_or_securityFailure' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive.Evaluator.run_sound_or_securityFailure
+
+/-- info: 'Nightstream.Protocol.FPrime.ConcretePhi81.ActiveEvaluator.FixedOneCanonical.run_refinesConstruction2_or_securityFailure' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Protocol.FPrime.ConcretePhi81.ActiveEvaluator.FixedOneCanonical.run_refinesConstruction2_or_securityFailure
+
 /-- info: 'Nightstream.Protocol.FPrime.ConcretePhi81.ActiveEvaluator.FixedOneCanonical.exists_run_and_holds_or_samplerShortfall' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/

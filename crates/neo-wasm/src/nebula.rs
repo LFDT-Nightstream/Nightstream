@@ -34,8 +34,8 @@ use crate::{preload_from_program_artifacts, WasmOpcode};
 
 const WASM_NEBULA_PLAN_SEED: [u8; 32] = [0x57; 32];
 const WASM32_PAGE_WORDS: u64 = 65_536 / 4;
-// Largest fixed instruction batch that keeps the production relation below
-// the 16M committed-coordinate gate.
+// Fixed instruction batch used by the WASM/Nebula profiles. Final relation
+// construction enforces the Road A committed-coordinate gate separately.
 const WASM_NEBULA_BATCH_SIZE: usize = 3;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

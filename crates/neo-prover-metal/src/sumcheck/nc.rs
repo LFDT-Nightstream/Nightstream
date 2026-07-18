@@ -1,4 +1,7 @@
 //! NC column-sumcheck backend, resident execution, and canonical host fallback.
+//!
+//! Signed masks remain available after NC so Pi_RLC can reuse them. The backend
+//! recycles its resident plan only after that handoff is complete.
 
 use neo_ccs::Mat;
 use neo_math::{D, F, K};
@@ -33,6 +36,7 @@ impl NcSumcheckProfile {
     }
 }
 
+/// Adapter between the canonical NC backend trait and one Metal session.
 pub(crate) struct MetalNcBackend<'a> {
     session: &'a MetalSession,
     source: NcSource,
@@ -55,6 +59,7 @@ pub(super) enum NcSource {
     SignedMasks(NcSignedMasks),
 }
 
+/// Logical NC state with either compact signed masks or materialized rows.
 struct NcOracle {
     cur_len: usize,
     beta_m: Vec<K>,
@@ -69,6 +74,8 @@ struct NcOracle {
     initial_width: usize,
     initial_dense: bool,
     resident: Option<MetalNcSumcheckPlan>,
+    // Stored until the next round so folding and coefficient evaluation share
+    // a command submission.
     pending_challenge: Option<K>,
     challenges: Vec<K>,
     host_fallback: bool,
@@ -281,6 +288,8 @@ impl NcSource {
 }
 
 impl NcOracle {
+    /// Selects exactly one initial representation: fully deferred signed masks
+    /// or fully materialized dense rows. Mixed ownership is rejected.
     fn from_snapshot(
         snapshot: &NcColSnapshot<'_>,
         source: &NcSource,
@@ -383,6 +392,8 @@ impl NcOracle {
         coeffs
     }
 
+    /// Encodes the selected logical representation into a resident plan while
+    /// sharing an existing mask buffer whenever its shape matches.
     fn prepare_resident(
         &self,
         session: &MetalSession,
@@ -500,6 +511,8 @@ impl NcOracle {
         if self.host_fallback {
             return;
         }
+        // Restore the initial representation, then replay every challenge that
+        // the canonical transcript has already accepted.
         self.materialize_initial_masks();
         if self.eq_beta.is_empty() {
             self.eq_beta = neo_ccs::utils::tensor_point_parallel(&self.beta_m);

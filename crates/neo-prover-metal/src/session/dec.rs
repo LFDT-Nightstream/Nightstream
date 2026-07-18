@@ -15,6 +15,8 @@ pub(super) const PRODUCT_COEFFICIENTS: usize = 2 * D - 1;
 pub(super) const CHUNK_COLUMNS: usize = 512;
 
 impl MetalSession {
+    // Recycling is deliberately exact-size: aliasing a differently shaped
+    // scratch allocation would make the shader ABI depend on stale metadata.
     fn take_recycled_buffer(
         &self,
         slot: &std::cell::RefCell<Option<Buffer>>,
@@ -33,6 +35,8 @@ impl MetalSession {
     }
 
     fn recycle_largest_buffer(slot: &std::cell::RefCell<Option<Buffer>>, buffer: Buffer) {
+        // Keep one high-water allocation per scratch role rather than growing
+        // an unbounded general-purpose pool.
         let bytes = buffer.length();
         let mut slot = slot.borrow_mut();
         if slot.as_ref().is_none_or(|cached| cached.length() <= bytes) {

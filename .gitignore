@@ -50,3 +50,5 @@ crates/neo-prover-cuda/*.ll
 crates/neo-prover-cuda/*.ptx
 crates/neo-prover-cuda/.oxide-artifacts/
 /specs
+METAL_IMPLEMENTATION_BEST_PRACTICES.md
+profile-xctrace.txt

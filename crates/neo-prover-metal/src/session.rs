@@ -1,4 +1,7 @@
-//! Metal device, pipeline, and shared-buffer ownership for the arithmetic gate.
+//! Metal device, pipeline, queue, and shared-buffer ownership.
+//!
+//! Protocol phase ordering stays in the adapter. This layer owns command
+//! encoding and accounts for online-path CPU reads, writes, and waits.
 
 use std::cell::{Cell, RefCell};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -56,11 +59,16 @@ struct ActivityCounters {
     downloaded_bytes: AtomicU64,
 }
 
+/// Long-lived owner of one Metal device and its reusable prover resources.
+///
+/// The primary queue preserves dependencies within the proof pipeline. The
+/// independent queue is reserved for work that can overlap that pipeline.
 pub struct MetalSession {
     ownership_id: u64,
     device: Device,
     queue: Queue,
     independent_queue: Queue,
+    // Primitive arithmetic, hashing, and transcript pipelines.
     goldilocks_ops: Pipeline,
     goldilocks_ops_native: Pipeline,
     copy_k_words: Pipeline,
@@ -73,12 +81,14 @@ pub struct MetalSession {
     poseidon2_hash_uniform_simd: Pipeline,
     transcript_absorb_challenge2: Pipeline,
     poseidon2_constants: Buffer,
+    // Ajtai and SIS commitment pipelines.
     ajtai_mat_vec: Pipeline,
     ajtai_low_norm_products: Pipeline,
     ajtai_reduce_columns: Pipeline,
     seeded_ajtai_matrix: Pipeline,
     sis_balanced_ternary_message: Pipeline,
     sis_pack_signed_masks: Pipeline,
+    // Shared table construction and sumcheck pipelines.
     fold_k_table: Pipeline,
     tensor_point_expand_k: Pipeline,
     fe_carried_plane_lin_comb: Pipeline,
@@ -101,6 +111,7 @@ pub struct MetalSession {
     nc_round_partials: Pipeline,
     sumcheck_reduce_partials: Pipeline,
     nc_fold_compact: Pipeline,
+    // Cross-phase witness mixing and Pi_DEC pipelines.
     rlc_witness_mix: Pipeline,
     rlc_witness_mix_resident_tail: Pipeline,
     rlc_witness_mix_signed_masks: Pipeline,
@@ -124,6 +135,8 @@ pub struct MetalSession {
     ajtai_lane_ring_partials: Pipeline,
     ajtai_lane_ring_sum_chunks: Pipeline,
     ajtai_lane_ring_reduce_phi81: Pipeline,
+    // Structure-static caches, the current running generation, and bounded
+    // recycling slots. Protocol code sees opaque plans rather than buffers.
     sis_maps: RefCell<Vec<MetalSisMap>>,
     resident_running: RefCell<Option<(u64, carrier::MetalResidentChildren)>>,
     recycled_nc_plan: RefCell<Option<MetalNcSumcheckPlan>>,
@@ -137,6 +150,7 @@ pub struct MetalSession {
     activity: ActivityCounters,
 }
 
+/// Resident Ajtai matrix and reduction scratch reused across commitments.
 pub struct MetalAjtaiLowNormPlan {
     matrix: Buffer,
     shapes: Buffer,
@@ -147,6 +161,7 @@ pub struct MetalAjtaiLowNormPlan {
     product_words: usize,
 }
 
+/// Ping-pong buffers for repeated quadratic-extension multiply-add rounds.
 pub struct MetalKxChainPlan {
     initial: Buffer,
     multipliers: Buffer,
@@ -155,6 +170,7 @@ pub struct MetalKxChainPlan {
     elements: usize,
 }
 
+/// Resident fixed-width Poseidon2 batch with reusable output storage.
 pub struct MetalPoseidonUniformPlan {
     fields: Buffer,
     output: Buffer,
@@ -683,6 +699,8 @@ impl MetalSession {
         self.prepare_ajtai_low_norm_from_buffer(matrix, rows, cols)
     }
 
+    /// Expands the canonical chunked ChaCha matrix directly on Metal, falling
+    /// back to the canonical host expansion only if rejection sampling flags it.
     pub(crate) fn prepare_ajtai_low_norm_seeded(
         &self,
         seed: [u8; 32],
@@ -737,6 +755,9 @@ impl MetalSession {
         self.dispatch(&encoder, &self.seeded_ajtai_matrix, rows * groups_per_row);
         encoder.endEncoding();
         self.finish(&command)?;
+        // The shader flags a rejection-sampling corner case instead of
+        // silently choosing different field elements. Materialize the same
+        // canonical seeded matrix on the host when that rare case occurs.
         if self.read_buffer::<u32>(&rejected, 1)[0] != 0 {
             let pp = neo_ajtai::materialize_seeded_pp(seed, RING_DEGREE, rows, cols)
                 .map_err(|_| MetalError::Shape("materialize rejected seeded Ajtai matrix"))?;
@@ -753,6 +774,8 @@ impl MetalSession {
         self.prepare_ajtai_low_norm_from_buffer(matrix, rows, cols)
     }
 
+    /// Turns an owned matrix buffer into a reusable reduction plan, including
+    /// every halving shape and both ping-pong workspaces.
     fn prepare_ajtai_low_norm_from_buffer(
         &self,
         matrix: Buffer,
@@ -800,6 +823,8 @@ impl MetalSession {
         self.ajtai_low_norm_with_plan_on_queue(plan, message, &self.independent_queue)
     }
 
+    /// Packs the signed-unit message and executes the prepared commitment on the
+    /// selected queue; the independent queue permits overlap with the fold path.
     fn ajtai_low_norm_with_plan_on_queue(
         &self,
         plan: &MetalAjtaiLowNormPlan,
@@ -841,6 +866,8 @@ impl MetalSession {
         Ok(self.read_buffer::<u64>(output, plan.rows * RING_DEGREE))
     }
 
+    /// Encodes products and the complete column-reduction tree into one command,
+    /// returning whichever ping-pong buffer owns the final row sums.
     fn encode_ajtai_low_norm_masks<'a>(
         &self,
         command: &ProtocolObject<dyn MTLCommandBuffer>,
@@ -1013,6 +1040,9 @@ impl MetalSession {
     }
 
     fn buffer(&self, bytes: usize) -> Result<Buffer, MetalError> {
+        // Shared storage is required for explicit CPU boundaries on Apple
+        // unified memory. It does not make those boundaries free, so reads and
+        // writes are still counted separately below.
         let buffer = self
             .device
             .newBufferWithLength_options(bytes, MTLResourceOptions::StorageModeShared)
@@ -1106,10 +1136,13 @@ impl MetalSession {
         finish(command)
     }
 
+    // Commit without a host wait. Queue ordering keeps later commands correct
+    // while allowing the CPU to continue encoding independent work.
     fn submit(&self, command: &ProtocolObject<dyn MTLCommandBuffer>) {
         command.commit();
     }
 
+    // Waiting is reserved for a real CPU dependency or an explicit readback.
     fn wait(&self, command: &ProtocolObject<dyn MTLCommandBuffer>) -> Result<(), MetalError> {
         self.activity.host_waits.fetch_add(1, Ordering::Relaxed);
         wait(command)
@@ -1243,6 +1276,8 @@ fn wait(command: &ProtocolObject<dyn MTLCommandBuffer>) -> Result<(), MetalError
 }
 
 fn nonempty(values: &[u64]) -> &[u64] {
+    // Metal does not provide a useful zero-length binding. Kernels use shape
+    // metadata to ignore this sentinel whenever the logical input is empty.
     static ZERO: [u64; 1] = [0];
     if values.is_empty() {
         &ZERO
@@ -1252,6 +1287,8 @@ fn nonempty(values: &[u64]) -> &[u64] {
 }
 
 pub(super) fn command_gpu_duration(command: &ProtocolObject<dyn MTLCommandBuffer>) -> std::time::Duration {
+    // Metal timestamps are defined after completion; every caller waits on the
+    // command before requesting this duration.
     let start: f64 = unsafe { objc2::msg_send![command, GPUStartTime] };
     let end: f64 = unsafe { objc2::msg_send![command, GPUEndTime] };
     std::time::Duration::from_secs_f64((end - start).max(0.0))

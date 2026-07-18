@@ -1,4 +1,7 @@
-//! Resident witness ownership across Pi_RLC and Pi_DEC.
+//! Resident witness ownership across Pi_RLC, Pi_DEC, and the next fold.
+//!
+//! Generation ids prevent stale carriers from addressing a newer buffer set;
+//! immutable snapshots provide the explicit CPU-materialization path.
 
 use std::mem::size_of;
 
@@ -32,6 +35,7 @@ impl MetalWitnessMasks {
     }
 }
 
+/// One dense ring witness whose producing Pi_RLC command may still be running.
 pub(crate) struct MetalResidentWitness {
     pub(super) words: Buffer,
     pub(super) cols: usize,
@@ -39,6 +43,8 @@ pub(crate) struct MetalResidentWitness {
 }
 
 struct PendingRlcMix {
+    // Retaining inputs until completion is required even though the Rust call
+    // that encoded the command has already returned.
     command: Retained<ProtocolObject<dyn MTLCommandBuffer>>,
     _inputs: [Buffer; 3],
     recycled_children: Option<MetalResidentChildren>,
@@ -49,6 +55,8 @@ impl MetalResidentWitness {
         self.cols
     }
 
+    /// Waits at the first true consumer of a deferred Pi_RLC mix and returns any
+    /// child allocation whose lifetime was transferred into that command.
     pub(super) fn finish_pending_mix(
         &mut self,
         session: &MetalSession,
@@ -61,6 +69,7 @@ impl MetalResidentWitness {
     }
 }
 
+/// Pi_DEC child witnesses in both dense and signed-mask device layouts.
 pub(crate) struct MetalResidentChildren {
     pub(super) words: Buffer,
     pub(super) masks: Buffer,
@@ -69,6 +78,7 @@ pub(crate) struct MetalResidentChildren {
     pub(super) active_witnesses: Vec<u32>,
 }
 
+/// Immutable signed-mask view used only when a running carrier leaves Metal.
 pub(crate) struct MetalResidentWitnessSnapshot {
     masks: Buffer,
     child_count: usize,
@@ -82,6 +92,8 @@ unsafe impl Send for MetalResidentWitnessSnapshot {}
 unsafe impl Sync for MetalResidentWitnessSnapshot {}
 
 impl MetalResidentWitnessSnapshot {
+    /// Materializes compact signed masks into ordinary matrices only for a
+    /// carrier that must leave the Metal execution path.
     pub(crate) fn materialize(&self) -> Result<Vec<Mat<F>>, &'static str> {
         let words = super::read_buffer::<u64>(&self.masks, self.child_count * self.cols * 2);
         let mut witnesses = Vec::with_capacity(self.child_count);
@@ -145,6 +157,8 @@ impl MetalSession {
     }
 
     pub(crate) fn retain_running_children(&self, children: MetalResidentChildren) -> u64 {
+        // The session retains exactly one generation. Replacing it invalidates
+        // all older ids without making those ids part of the proof protocol.
         let id = self.next_resident_id.get();
         self.next_resident_id.set(id.wrapping_add(1).max(1));
         self.resident_running.replace(Some((id, children)));
@@ -157,6 +171,8 @@ impl MetalSession {
         (*resident_id == id).then(|| children.shape())
     }
 
+    /// Uploads fresh host masks, appends the retained running masks on-device,
+    /// and preserves logical active indices across the concatenated batch.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn prepare_witness_masks_with_resident_id(
         &self,
@@ -244,6 +260,8 @@ impl MetalSession {
         MetalWitnessMasks::from_buffer(masks, input_count, blocks, active_rows)?.with_active_witnesses(active_witnesses)
     }
 
+    /// Concatenates device-resident fresh and running masks without exposing
+    /// either source to the CPU.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn compose_witness_masks_from_device(
         &self,
@@ -370,6 +388,8 @@ impl MetalSession {
         }))
     }
 
+    /// Mixes fresh signed masks with a retained dense tail and moves ownership
+    /// of the old generation into the pending command's lifetime.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn enqueue_rlc_witness_mix_from_signed_masks_with_resident_id(
         &self,
@@ -432,6 +452,8 @@ impl MetalSession {
             );
             encoder.endEncoding();
         }
+        // Transfer the old generation into the pending command's lifetime.
+        // Once Pi_RLC completes, Pi_DEC can recycle its dense child storage.
         let (_, recycled_children) = self
             .resident_running
             .borrow_mut()
@@ -554,6 +576,8 @@ impl MetalSession {
             self.dispatch(&encoder, &self.rlc_witness_mix_resident_tail, RING_DEGREE * cols);
             encoder.endEncoding();
         }
+        // The running generation cannot remain addressable after its buffer is
+        // consumed by this mix, so ownership moves into the pending command.
         let (_, recycled_children) = self
             .resident_running
             .borrow_mut()

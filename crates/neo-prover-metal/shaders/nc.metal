@@ -1,4 +1,5 @@
 // NC table folding and sumcheck kernels. Common field arithmetic remains in goldilocks.metal.
+// Compact rows store a cyclic window; dense rows always store all 54 ring lanes.
 
 constant ushort NC_SIMD_WIDTH = 32;
 constant ushort NC_DENSE_PAIRS_PER_GROUP = 2;
@@ -36,6 +37,7 @@ inline Kx nc_signed_mask_digit(
     return Kx{0, 0};
 }
 
+// Small mask inputs materialize their first folded width directly.
 kernel void nc_fold_signed_masks(
     device const ulong *masks [[buffer(0)]],
     device const ulong *challenge_words [[buffer(1)]],
@@ -92,6 +94,7 @@ kernel void nc_fold_signed_masks(
     output[2 * (output_base + 1) + 1] = folded_hi.c1;
 }
 
+// Each fold doubles compact width and switches permanently to dense on overlap.
 kernel void nc_fold_compact(
     device const ulong *input [[buffer(0)]],
     device const ulong *challenge_words [[buffer(1)]],
@@ -230,6 +233,7 @@ inline Kx nc_mask_basis_digit(
     return Kx{0, 0};
 }
 
+// Large mask inputs fold one shared basis instead of every witness row.
 kernel void nc_expand_mask_basis(
     device const ulong *basis [[buffer(0)]],
     device const ulong *challenge_words [[buffer(1)]],
@@ -294,6 +298,7 @@ kernel void nc_materialize_mask_dense(
     output[2 * index + 1] = value.c1;
 }
 
+// Mask-native rounds traverse the compact active-witness index, not the full batch.
 kernel void nc_round_mask_partials(
     device const ulong *eq_table [[buffer(0)]],
     device const ulong *masks [[buffer(1)]],
@@ -443,6 +448,8 @@ kernel void nc_round_mask_partials(
     }
 }
 
+// Dense rows map one SIMD group to each row pair; compact rows map one group
+// across many pairs and reconstruct only their cyclic windows.
 kernel void nc_round_partials(
     device const ulong *eq_table [[buffer(0)]],
     device const ulong *shape [[buffer(1)]],

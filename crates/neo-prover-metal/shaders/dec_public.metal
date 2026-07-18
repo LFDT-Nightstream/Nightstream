@@ -1,4 +1,5 @@
-// Compact public Pi_DEC surfaces derived directly from resident child masks.
+// Compact public Pi_DEC surfaces derived directly from the resident parent.
+// Partials are child-major, ring-row-major, then column chunk.
 
 constant ulong DEC_PUBLIC_CHUNK_BLOCKS = 512;
 constant ushort DEC_PUBLIC_CHILDREN_PER_THREAD = 4;
@@ -53,6 +54,7 @@ kernel void dec_y_zcol_partials(
     }
 }
 
+// The second stage reduces chunks to one K value per child and ring row.
 kernel void dec_y_zcol_reduce(
     device const ulong *partials [[buffer(0)]],
     device const ulong *shape [[buffer(1)]],

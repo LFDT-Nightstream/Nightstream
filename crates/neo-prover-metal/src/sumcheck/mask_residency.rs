@@ -1,4 +1,7 @@
-//! Select the authoritative resident source for one fold's signed masks.
+//! Select the execution representation for one fold's signed-unit witnesses.
+//!
+//! Protocol semantics remain with the canonical backend; this module decides
+//! only whether Metal reuses masks or receives materialized rows.
 
 use neo_ccs::Mat;
 use neo_math::{D, F, K};
@@ -8,6 +11,8 @@ use super::encoding::signed_unit_mask_words;
 use super::nc::{NcSignedMasks, NcSource};
 use crate::{MetalError, MetalSession, MetalWitnessMasks};
 
+/// Chooses the cheapest lossless input representation in residency-first order:
+/// composed device masks, packable host masks, then materialized field rows.
 pub(super) fn select_source(
     witnesses: &[&Mat<F>],
     assignment_len: usize,
@@ -63,6 +68,8 @@ pub(super) fn select_source(
         })
 }
 
+/// Produces the one mask batch shared by NC, Ajtai opening evaluation, and RLC,
+/// composing fresh and running generations on-device whenever possible.
 pub(super) fn prepare_shared_masks(
     session: &MetalSession,
     masks: &NcSignedMasks,

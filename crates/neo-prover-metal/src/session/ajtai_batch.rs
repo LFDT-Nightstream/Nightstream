@@ -45,6 +45,8 @@ impl MetalSession {
             chunks as u64,
         ])?;
 
+        // Partial convolution, chunk reduction, and Phi81 reduction stay in one
+        // command buffer; only the final commitment words are read back.
         let command = self.command_buffer("nightstream.ajtai.low_norm_many")?;
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
         encoder.setComputePipelineState(&self.dec_ring_partials);
@@ -136,6 +138,8 @@ impl MetalSession {
             ranges.fs.start as u64,
         ])?;
 
+        // Ops, IS, and FS share one mask traversal and one reduction pipeline.
+        // Their output remains lane-major so host slicing is mechanically clear.
         let command = self.command_buffer("nightstream.ajtai.nebula_lanes")?;
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
         encoder.setComputePipelineState(&self.ajtai_lane_ring_partials);

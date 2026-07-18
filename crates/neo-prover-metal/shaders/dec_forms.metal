@@ -1,4 +1,5 @@
 // Pi_CCS/Pi_DEC compact ring-form contraction. Included after Goldilocks helpers.
+// Form buffers are active-block-major, then real/imaginary component, then coefficient.
 
 constant ulong DEC_PARALLEL_FORM_LIST_THRESHOLD = 128;
 constant uint DEC_FORM_REDUCTION_THREADS = 256;

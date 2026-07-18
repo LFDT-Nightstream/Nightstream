@@ -58,24 +58,33 @@ pub struct GoldilocksOps {
     pub mul: u64,
 }
 
+/// One quadratic-extension element in the canonical `[c0, c1]` basis.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct KWords {
     pub c0: u64,
     pub c1: u64,
 }
 
+/// Canonical Goldilocks words for one width-eight Poseidon2 state.
 pub type PoseidonState = [u64; 8];
+/// Canonical Goldilocks words for one four-element Poseidon2 digest.
 pub type PoseidonDigest = [u64; 4];
 
+/// Goldilocks multiplication kernels exposed for parity and profiling checks.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GoldilocksMulVariant {
+    /// Portable multiplication assembled from 32-bit limbs.
     Limb32,
+    /// Metal's native 64-bit multiply-high instruction.
     Native64,
 }
 
+/// Poseidon2 scheduling strategies with identical protocol output.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PoseidonHashVariant {
+    /// One Metal thread owns an entire permutation.
     Scalar,
+    /// One eight-lane SIMD tile owns an entire permutation.
     SimdGroup,
 }
 
@@ -99,6 +108,10 @@ pub struct MetalDeviceInfo {
     pub recommended_working_set_bytes: u64,
 }
 
+/// Cumulative host/device activity since session creation or the last reset.
+///
+/// `current_allocated_bytes` is an instantaneous device reading; the other
+/// byte counters record explicit allocations and CPU-visible data movement.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct MetalActivity {
     pub command_buffers: u64,

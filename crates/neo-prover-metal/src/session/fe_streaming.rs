@@ -18,6 +18,7 @@ use crate::{KWords, MetalError};
 
 const ROUND_SHAPE_WORDS: usize = 7;
 
+/// Optional algebra-preserving program that extracts a shared selector per group.
 struct FactoredTerms {
     group_headers: Vec<u64>,
     term_headers: Vec<u64>,
@@ -45,6 +46,8 @@ fn factor_streaming_terms(
         }
     }
 
+    // Failure to find a useful factor is not an error; the caller selects the
+    // unfactored kernel with the original term program.
     let mut assigned = vec![false; term_count];
     let mut group_headers = Vec::new();
     let mut factored_headers = Vec::with_capacity(term_headers.len());
@@ -119,6 +122,7 @@ fn factor_streaming_terms(
     })
 }
 
+/// Per-MCS buffers, shared scratch, and transcript state for streaming FE.
 pub(crate) struct MetalStreamingFePlan {
     mcs_tables: Vec<Buffer>,
     mcs_scratch: Buffer,

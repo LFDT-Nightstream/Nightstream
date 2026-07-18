@@ -1,4 +1,7 @@
-//! Device-owned preparation of the carried Pi_CCS Eval table.
+//! Structure-static FE oracle plans and device-owned Pi_CCS row tables.
+//!
+//! Plans encode sparse matrix structure. Deferred table handles transfer
+//! ownership between producers and sumcheck without exposing raw buffers.
 
 use std::collections::BTreeMap;
 use std::mem::size_of;
@@ -21,6 +24,7 @@ const RING_PRODUCT_COEFFICIENTS: usize = 2 * D - 1;
 const SEEDED_OUTPUT_HEADER_WORDS: usize = 9;
 const SEEDED_WORK_HEADER_WORDS: usize = 3;
 
+/// Structure-static metadata for evaluating seeded Phi81 row contributions.
 pub(super) struct DeviceSeededRows {
     pub(super) output_headers: Buffer,
     work_headers: Buffer,
@@ -37,6 +41,10 @@ struct SeededOutputMeta {
     row_start: usize,
 }
 
+/// Resident sparse-matrix index used by MCS and carried-evaluation kernels.
+///
+/// The pointer and digest below reject stale cache reuse; neither is treated as
+/// authentication. Canonical matrix data remains the protocol input.
 pub(crate) struct MetalFeOraclePlan {
     matrix_row_offsets: Buffer,
     matrix_entry_bases: Buffer,
@@ -55,6 +63,7 @@ pub(crate) struct MetalFeOraclePlan {
     matrix_digest: [u64; 4],
 }
 
+/// Base-field MCS row tables retained for direct streaming-sumcheck consumption.
 pub(crate) struct MetalDeferredMcsRowTables {
     words: Buffer,
     mcs_idx: usize,
@@ -65,6 +74,7 @@ pub(crate) struct MetalDeferredMcsRowTables {
     seeded_patch_bytes: usize,
 }
 
+/// Extension-field carried-evaluation table retained for FE sumcheck.
 pub(crate) struct MetalDeferredEvalTable {
     words: Buffer,
     n_pad: usize,
@@ -142,6 +152,8 @@ impl MetalDeferredEvalTable {
 }
 
 impl MetalSession {
+    /// Compiles the canonical sparse matrix cache into a structure-static row
+    /// index; cache identity and digest only reject accidental stale reuse.
     pub(crate) fn prepare_fe_oracle(&self, cache: &SuperneoEvalCache) -> Result<MetalFeOraclePlan, MetalError> {
         let matrices = cache.matrix_caches();
         let Some(first) = matrices.first() else {
@@ -403,6 +415,8 @@ impl MetalSession {
         }))
     }
 
+    /// Selects dense, local-mask, or resident-mask witness input and leaves the
+    /// resulting MCS tables resident for direct FE sumcheck consumption.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn build_mcs_row_tables(
         &self,
@@ -437,6 +451,8 @@ impl MetalSession {
             return Err(MetalError::Shape("Pi_CCS MCS row-table padded row count is invalid"));
         }
         let resident_masks = witness_masks.filter(|masks| masks.contains(mcs_idx, plan.blocks));
+        // Shader ABI: kind 0 is a dense base-field plane, kind 1 is one local
+        // positive/negative mask pair, and kind 2 indexes a resident mask batch.
         let (z, z_kind, z_index) = if let Some((positive, negative)) = z_blocks.signed_unit_masks() {
             if positive.len() != plan.blocks || negative.len() != plan.blocks {
                 return Err(MetalError::Shape("Pi_CCS signed witness plane has the wrong width"));
@@ -539,6 +555,8 @@ impl MetalSession {
         })
     }
 
+    /// Combines the retained child generation and evaluates its carried FE table
+    /// without materializing the intermediate ring planes on the CPU.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn build_carried_eval_table(
         &self,

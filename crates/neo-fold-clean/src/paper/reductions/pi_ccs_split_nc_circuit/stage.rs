@@ -26,6 +26,8 @@
 //! | `ROW_NC_TERMINAL_*` | Attribute equality, basis, mixing, range, and final-product source rows independently without changing lowering | no | `nc` row-family markers | range semantics partial; remaining terminal bridge open |
 //! | `header_catch_up` | Replay the digest cursor and bind output headers | yes | `transcript`, `verifier` | transcript bridge open |
 //! | `output_message_hashes` | Bind the Pi_CCS message passed to Pi_RLC | yes | `digests` | output projection bridge open |
+//! | `...digest.preimage.*` | Attribute every header, `y_ring`, and `y_zcol` serializer input | only constant rows | `output_message` | active serializer model |
+//! | `...digest.sis` | Compress the complete typed field stream | yes | `digests` | SIS refinement open |
 
 pub const ROOT: &str = "nifs.pi_ccs";
 
@@ -85,6 +87,13 @@ pub const HEADER_OUTPUT_BINDING: &str = "nifs.pi_ccs.header_catch_up.output_bind
 
 pub const OUTPUT_MESSAGE_HASHES: &str = "nifs.pi_ccs.output_message_hashes";
 pub const OUTPUT_MESSAGE_DIGEST: &str = "nifs.pi_ccs.output_message_hashes.digest";
+pub const OUTPUT_MESSAGE_PREIMAGE: &str = "nifs.pi_ccs.output_message_hashes.digest.preimage";
+pub const OUTPUT_MESSAGE_PREIMAGE_OUTER_HEADER: &str = "nifs.pi_ccs.output_message_hashes.digest.preimage.outer_header";
+pub const OUTPUT_MESSAGE_PREIMAGE_SOURCE_HEADERS: &str =
+    "nifs.pi_ccs.output_message_hashes.digest.preimage.source_headers";
+pub const OUTPUT_MESSAGE_PREIMAGE_Y_RING: &str = "nifs.pi_ccs.output_message_hashes.digest.preimage.y_ring";
+pub const OUTPUT_MESSAGE_PREIMAGE_Y_ZCOL: &str = "nifs.pi_ccs.output_message_hashes.digest.preimage.y_zcol";
+pub const OUTPUT_MESSAGE_SIS: &str = "nifs.pi_ccs.output_message_hashes.digest.sis";
 pub const OUTPUT_MESSAGE_CLAIM: &str = "nifs.pi_ccs.output_message_hashes.claim";
 pub const OUTPUT_MESSAGE_BINDING: &str = "nifs.pi_ccs.output_message_hashes.binding";
 
@@ -136,6 +145,12 @@ pub const ALL: &[&str] = &[
     HEADER_OUTPUT_BINDING,
     OUTPUT_MESSAGE_HASHES,
     OUTPUT_MESSAGE_DIGEST,
+    OUTPUT_MESSAGE_PREIMAGE,
+    OUTPUT_MESSAGE_PREIMAGE_OUTER_HEADER,
+    OUTPUT_MESSAGE_PREIMAGE_SOURCE_HEADERS,
+    OUTPUT_MESSAGE_PREIMAGE_Y_RING,
+    OUTPUT_MESSAGE_PREIMAGE_Y_ZCOL,
+    OUTPUT_MESSAGE_SIS,
     OUTPUT_MESSAGE_CLAIM,
     OUTPUT_MESSAGE_BINDING,
 ];
@@ -214,6 +229,16 @@ pub const HIERARCHY: &[(&str, &[&str])] = &[
     (
         OUTPUT_MESSAGE_HASHES,
         &[OUTPUT_MESSAGE_DIGEST, OUTPUT_MESSAGE_CLAIM, OUTPUT_MESSAGE_BINDING],
+    ),
+    (OUTPUT_MESSAGE_DIGEST, &[OUTPUT_MESSAGE_PREIMAGE, OUTPUT_MESSAGE_SIS]),
+    (
+        OUTPUT_MESSAGE_PREIMAGE,
+        &[
+            OUTPUT_MESSAGE_PREIMAGE_OUTER_HEADER,
+            OUTPUT_MESSAGE_PREIMAGE_SOURCE_HEADERS,
+            OUTPUT_MESSAGE_PREIMAGE_Y_RING,
+            OUTPUT_MESSAGE_PREIMAGE_Y_ZCOL,
+        ],
     ),
 ];
 

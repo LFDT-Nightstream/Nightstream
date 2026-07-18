@@ -76,7 +76,7 @@ use super::{
     enforce_nc_sumcheck_driver, enforce_nc_terminal_identity, enforce_pi_ccs_instance_digest_parent_authority,
     enforce_pi_ccs_outputs_digest, header_digest_bytes_to_fields, sample_engine_beta_m, sample_engine_challenges,
     AccumulatorCeClaimDigestInputs, Error, FeClaimedInitialInputs, FeTerminalInputs, NcTerminalInputs,
-    PiCcsOutputMessageDigestInputs,
+    PiCcsOutputMessageDigestInputs, PiCcsOutputsPreimage,
 };
 use crate::engine::r1cs_circuit::boolean;
 use crate::engine::r1cs_circuit::builder::{Lc, Var};
@@ -85,6 +85,7 @@ use crate::engine::r1cs_circuit::transcript::TranscriptGadget;
 use crate::engine::r1cs_circuit::R1csBuilder;
 use crate::paper::digest::AccumulatorHandle;
 use crate::paper::params::Params;
+use crate::paper::reductions::pi_ccs_output_message::Profile as PiCcsOutputMessageProfile;
 use crate::paper::reductions::pi_dec_circuit::{
     enforce_dec_v_strict, enforce_split_nc_d_pad_shape, CeClaimWires as DecCeClaimWires, DecInputWires,
 };
@@ -244,6 +245,9 @@ pub struct SplitNcPiCcsVDerived {
     /// checked against the redundant proof field. NIFS.V appends these same
     /// wires before sampling Π_RLC challenges.
     pub output_claims_digest: [Var; 4],
+    /// Exact pre-SIS field-to-column ownership used to compute
+    /// [`Self::output_claims_digest`].
+    pub output_message_preimage: PiCcsOutputsPreimage,
     /// `fresh_x[i]` = the `m_in` public-input `F`-wires of `fresh[i]`.
     pub fresh_x: Vec<Vec<Var>>,
     /// Product-commitment coordinates of those same fresh claims. Each
@@ -724,7 +728,12 @@ fn enforce_split_nc_pi_ccs_v_inner(
             y_zcol: &output.y_zcol,
         })
         .collect();
-    let output_claims_digest = enforce_pi_ccs_outputs_digest(builder, &output_digest_inputs)?;
+    let output_digest_wires = enforce_pi_ccs_outputs_digest(
+        builder,
+        PiCcsOutputMessageProfile::new(k_total, t),
+        &output_digest_inputs,
+    )?;
+    let output_claims_digest = output_digest_wires.digest;
     builder.begin_encoding_stage(stage::OUTPUT_MESSAGE_CLAIM);
     let claimed_output_digest: [Var; 4] = std::array::from_fn(|lane| builder.alloc(msg.outputs_digest[lane]));
     builder.begin_encoding_stage(stage::OUTPUT_MESSAGE_BINDING);
@@ -821,6 +830,7 @@ fn enforce_split_nc_pi_ccs_v_inner(
         s_col_prime: nc.s_col_prime,
         outputs,
         output_claims_digest,
+        output_message_preimage: output_digest_wires.preimage,
         fresh_x,
         fresh_adv,
         running_c_data,

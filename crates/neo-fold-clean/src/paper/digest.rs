@@ -20,6 +20,7 @@ use crate::paper::reductions::accumulator_sis_circuit::{
     accumulator_digest as sis_accumulator_digest, CCS_CLAIM_SIS_CONFIG, CE_CLAIM_SIS_CONFIG, NEBULA_LEAF_SIS_CONFIG,
     PI_CCS_OUTPUTS_SIS_CONFIG,
 };
+use crate::paper::reductions::pi_ccs_output_message::{OUTPUTS_DOMAIN, OUTPUT_MESSAGE_DOMAIN};
 
 pub(crate) const F_PRIME_CHUNK_CLAIM_DIGEST_TAG: &[u8] = b"neo.fold.clean/f_prime_chunk_claim_digest/v1";
 pub(crate) const F_PRIME_CHUNK_PUBLIC_DIGEST_TAG: &[u8] = b"neo.fold.clean/f_prime_chunk_public_digest/v1";
@@ -557,7 +558,7 @@ pub fn terminal_children_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] 
     poseidon_digest_fields(&preimage)
 }
 
-/// Digest the prover-chosen Π_CCS output message before Π_RLC samples `ρ`.
+/// Serialize the prover-chosen Π_CCS output message before Π_RLC samples `ρ`.
 ///
 /// SuperNeo's interactive order is "Π_CCS sends output CE claims, then Π_RLC
 /// samples random linear-combination coefficients." In the Fiat-Shamir
@@ -568,25 +569,21 @@ pub fn terminal_children_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] 
 /// term, `fold_digest` is the checked header, and padded lanes/unsupported
 /// sidecars are canonical. Native and recursive verifiers enforce those
 /// reconstruction equations before relying on this projection.
-pub fn pi_ccs_outputs_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] {
-    let preimage = pi_ccs_outputs_digest_preimage(claims);
-    sis_accumulator_digest(PI_CCS_OUTPUTS_SIS_CONFIG, &preimage).expect("nonempty PiCCS-output SIS preimage")
-}
-
-/// Canonical Π_CCS output-digest preimage for accelerator backends.
-///
-/// This is the exact input to `PI_CCS_OUTPUTS_SIS_CONFIG`; the verifier still
-/// recomputes [`pi_ccs_outputs_digest`] from the proof's output claims.
-#[doc(hidden)]
-pub fn pi_ccs_outputs_digest_preimage(claims: &[CeClaim<Commitment, F, K>]) -> Vec<F> {
-    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/pi_ccs_outputs_digest/v2");
+pub fn pi_ccs_outputs_preimage(claims: &[CeClaim<Commitment, F, K>]) -> Vec<F> {
+    let mut preimage = pack_bytes_as_fields(OUTPUTS_DOMAIN);
     preimage.push(F::from_u64(claims.len() as u64));
     for claim in claims {
-        preimage.extend(pack_bytes_as_fields(b"neo.fold.clean/pi_ccs_output_message_digest/v2"));
+        preimage.extend(pack_bytes_as_fields(OUTPUT_MESSAGE_DOMAIN));
         append_active_k_rows(&mut preimage, &claim.y_ring);
         append_active_k_slice(&mut preimage, &claim.y_zcol);
     }
     preimage
+}
+
+/// SIS-compress [`pi_ccs_outputs_preimage`] for the Fiat-Shamir transcript.
+pub fn pi_ccs_outputs_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] {
+    let preimage = pi_ccs_outputs_preimage(claims);
+    sis_accumulator_digest(PI_CCS_OUTPUTS_SIS_CONFIG, &preimage).expect("nonempty PiCCS-output SIS preimage")
 }
 
 /// Digest of the compact terminal-CE proof's public statement.

@@ -5,7 +5,9 @@
 //! transcript internals. **Emits constraints:** by invoking each verifier and
 //! finally equating the Π_DEC parent point with Π_CCS `r_prime`.
 //! **Authority boundary:** Π_CCS-derived output wires are the sole Π_RLC input;
-//! the resulting parent is the sole Π_DEC parent and outgoing accumulator.
+//! Π_DEC checks their parent cache, while the exact ordered paper-level
+//! children are the outgoing Construction-2 accumulator. The optimized
+//! `y_zcol` source binding remains a separate open obligation.
 //!
 //! | Child phase | Mathematical obligation | Emits constraints? | Rust owner | Lean owner |
 //! |---|---|---|---|---|
@@ -58,15 +60,15 @@ pub struct NifsVOutputs {
     pub fresh_adv: Vec<Option<AdvCommitmentWires>>,
     /// Per-running-claim commitment data wires `[running_idx][lane]`.
     pub running_c_data: Vec<Vec<Var>>,
-    /// Four-lane handle of the strict incoming Π_RLC parent authority.
+    /// Four-lane handle of the exact ordered incoming child accumulator.
     pub running_acc_digest: [Var; 4],
-    /// Incoming running CE-claim wires used by the continuity gate.
+    /// Incoming running accumulator wires used by the continuity gate.
     pub running: Vec<SplitNcPiCcsOutputWires>,
-    /// Π_RLC parent authority for [`Self::running`], when non-empty.
+    /// Checked Π_RLC recomposition cache for [`Self::running`], when non-empty.
     pub running_parent_authority: Option<SplitNcPiCcsOutputWires>,
-    /// Current Π_RLC parent, checked by Π_DEC and carried to the next step.
+    /// Current Π_RLC parent, checked by Π_DEC and retained as a cache.
     pub parent: pi_dec_circuit::CeClaimWires,
-    /// Π_DEC children that become the next step's running claims.
+    /// Exact ordered Π_DEC children that become the next accumulator.
     pub children: Vec<pi_dec_circuit::CeClaimWires>,
     /// Transcript-owned Π_RLC projection beta.
     pub projection_beta: [Var; 2],

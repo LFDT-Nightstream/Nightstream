@@ -25,7 +25,7 @@ use neo_fold_clean::lifecycle;
 use neo_fold_clean::lifecycle::preprocess_with_test_log;
 use neo_fold_clean::paper::construction2::{EncInst, SemanticStateMode};
 use neo_fold_clean::paper::digest::{self, StateXOutDigestMode};
-use neo_fold_clean::paper::f_prime::r1cs::F_PRIME_PUBLIC_INPUT_LEN;
+use neo_fold_clean::paper::f_prime::r1cs::F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN;
 use neo_fold_clean::preprocess as lifecycle_preprocess;
 use neo_fold_clean::{finish_uncompressed, prove, verify_uncompressed, Preprocessing, Uncompressed};
 
@@ -57,12 +57,12 @@ fn one_term_copy() -> R1cs {
 }
 
 fn zero_direct_ccs_with_f_prime_width() -> R1cs {
-    let m = F_PRIME_PUBLIC_INPUT_LEN;
+    let m = F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN;
     R1cs {
         a: NeoMat::zero(1, m, F::default()),
         b: NeoMat::zero(1, m, F::default()),
         c: NeoMat::zero(1, m, F::default()),
-        m_in: F_PRIME_PUBLIC_INPUT_LEN,
+        m_in: F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
     }
 }
 

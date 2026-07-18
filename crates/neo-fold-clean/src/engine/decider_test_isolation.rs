@@ -548,8 +548,7 @@ pub fn enforce_ce_continuity_against_self(claim: &CeClaim) -> Result<(R1csBuilde
 }
 
 /// Emit CE-core continuity for separately supplied child and running claims.
-/// Their `y_zcol` sidecars are not allocated, which lets tests prove native
-/// sidecar mutation cannot change either the relation or witness.
+/// Their `y_zcol` sidecars are deliberately not allocated.
 pub fn enforce_ce_continuity_between(
     child_claim: &CeClaim,
     running_claim: &CeClaim,

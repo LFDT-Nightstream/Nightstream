@@ -25,8 +25,8 @@
 //!
 //! | CE boundary | Constraint ownership | Lean authority result |
 //! |---|---|---|
-//! | child -> next running | CE core only; `y_zcol` omitted | current no-read behavior only; not soundness permission |
-//! | Pi_RLC parent -> running parent | Parent `y_zcol` is carried but omitted from the accumulator digest | open authority gap |
+//! | child -> next running | Exact paper-level CE core; `y_zcol` omitted | exact child-vector continuity, delayed-NC bridge open |
+//! | Pi_RLC parent -> running parent | Checked recomposition cache continuity | not accumulator authority |
 //! | terminal child | A newly computed `y_zcol` is checked against the opened witness | insufficient to bind the prior parent projection |
 
 mod terminal;
@@ -58,7 +58,8 @@ use crate::paper::f_prime::source_image::{BitRange, FPrimeSourceImage};
 use crate::paper::nifs::circuit::{enforce_nifs_v_circuit_with_transcript, NifsVCircuitConfig, NifsVCircuitMessages};
 use crate::paper::nifs::NifsProof;
 use crate::paper::reductions::pi_ccs_split_nc_circuit::{
-    enforce_accumulator_ce_claim_digest, AccumulatorCeClaimDigestInputs, SplitNcPiCcsOutputWires, SplitNcPiCcsVConfig,
+    enforce_accumulator_ce_claim_digest, enforce_accumulator_claims_digest, AccumulatorCeClaimDigestInputs,
+    SplitNcPiCcsOutputWires, SplitNcPiCcsVConfig,
 };
 use crate::paper::reductions::pi_dec_circuit::CeClaimWires;
 use crate::paper::relations::product_commitment_circuit::enforce_adv_equality;
@@ -328,11 +329,9 @@ fn synthesize_statement_r1cs_inner(
             cross_step_links += 1;
         }
 
-        // CE-core continuity: previous step's NIFS children must equal this
-        // step's NIFS running wire-for-wire (not just by digest). Π_DEC's
-        // currently unbound child y_zcol sidecar is absent on both sides;
-        // this is the known delayed-projection authority gap. Skipped if
-        // either side has no NIFS.V (base step).
+        // Exact paper-level CE continuity: previous NIFS children equal the
+        // next running accumulator core wire-for-wire. `y_zcol` remains a
+        // separate delayed-NC obligation.
         if let (Some(prev_children), Some(curr_running)) = (previous_children.as_ref(), output.nifs_running.as_ref()) {
             let continuity_start = builder.rows();
             enforce_child_core_equal_running(&mut builder, prev_children, curr_running)
@@ -747,8 +746,8 @@ fn enforce_digest_eq(builder: &mut R1csBuilder, a: &[Var; 4], b: &[Var; 4]) {
     }
 }
 
-/// CE-core continuity: pin every strict-Π_DEC child wire equal to the
-/// corresponding next-running wire, for all `i`. Returns an error if the
+/// Exact paper-level accumulator continuity: pin every strict-Π_DEC child
+/// core equal to the corresponding next-running wire, for all `i`. Returns an error if the
 /// shapes don't line up.
 ///
 /// `children` is the Π_DEC output (next-running) view; `running` is the
@@ -760,10 +759,8 @@ fn enforce_digest_eq(builder: &mut R1csBuilder, a: &[Var; 4], b: &[Var; 4]) {
 ///     (`Vec<Var>`); running's is `Vec<KVar>`. The helper expands each KVar
 ///     back into `(c0, c1)` and pins limb-by-limb.
 ///
-/// Child/running `y_zcol` is absent on both sides in the current relation.
-/// Strict Π_DEC does not read it, but the NC authority audit shows that a
-/// state-bound parent old-point projection still needs an independent delayed
-/// validation before this continuity boundary can be considered sound.
+/// The optimized `y_zcol` sidecar is absent on both sides. Hashing it would
+/// bind a value, but would not prove its missing source relation.
 fn enforce_child_core_equal_running(
     builder: &mut R1csBuilder,
     children: &[CeClaimWires],
@@ -776,7 +773,7 @@ fn enforce_child_core_equal_running(
             running.len()
         ));
     }
-    for (idx, (child, run)) in children.iter().zip(running.iter()).enumerate() {
+    for (idx, (child, run)) in children.iter().zip(running).enumerate() {
         if !child.y_zcol.is_empty() || !run.y_zcol.is_empty() {
             return Err(format!(
                 "CE core continuity unexpectedly received y_zcol wires at {idx}: child={} run={}",
@@ -1045,11 +1042,10 @@ fn emit_terminal_fold(
     )?;
     builder.record_row_family("terminal.latest_link", latest_link_start);
 
-    // Pi_DEC has already checked every output child against this parent. The
-    // parent is the compact recursive authority, so no second child hash is
-    // part of the terminal state handle.
+    // Bind the exact ordered output accumulator. Strict Pi_DEC validates the
+    // parent cache but does not make it injective in its child vector.
     let accumulator_start = builder.rows();
-    let post_fold_acc_digest = enforce_dec_ce_claim_accumulator_digest(builder, &nifs_outputs.parent)?;
+    let post_fold_acc_digest = enforce_dec_accumulator_digest(builder, &nifs_outputs.children)?;
     let mut terminal_children = nifs_outputs.children;
     attach_terminal_children_y_zcol(builder, &mut terminal_children, &final_fold_nifs.pi_dec.children)
         .map_err(|e| decider::Error::WalkFailed(format!("terminal child y_zcol attachment: {e}")))?;
@@ -1100,6 +1096,17 @@ fn attach_terminal_children_y_zcol(
     Ok(())
 }
 
+fn enforce_dec_accumulator_digest(
+    builder: &mut R1csBuilder,
+    children: &[CeClaimWires],
+) -> Result<[Var; 4], decider::Error> {
+    let child_digests = children
+        .iter()
+        .map(|claim| enforce_dec_ce_claim_accumulator_digest(builder, claim))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(enforce_accumulator_claims_digest(builder, &child_digests))
+}
+
 fn enforce_dec_ce_claim_accumulator_digest(
     builder: &mut R1csBuilder,
     claim: &CeClaimWires,
@@ -1145,6 +1152,7 @@ fn dec_y_ring_kvars(claim: &CeClaimWires) -> Result<Vec<Vec<KVar>>, String> {
 ///   - the canonical `fresh_x[i][1..257]` prefix equals
 ///     `last_x_out_bits` (bit-by-bit); an application suffix is preserved
 ///     for its own delayed consumer.
+///   - every remaining ring-completion coordinate is zero.
 fn enforce_terminal_latest_link(
     builder: &mut R1csBuilder,
     layout: FPrimePublicInputLayout,
@@ -1177,6 +1185,9 @@ fn enforce_terminal_latest_link(
             .zip(last_x_out_bits)
         {
             builder.enforce_eq(&Lc::from_var(*fresh_bit), &Lc::from_var(*out_bit));
+        }
+        for &padding in &x[layout.carrier_padding_offset()..layout.total_len()] {
+            builder.enforce_eq(&Lc::from_var(padding), &Lc::zero());
         }
     }
     Ok(())

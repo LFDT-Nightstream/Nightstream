@@ -23,10 +23,10 @@ pub enum RunningInstanceError {
 /// Running accumulator: verifier-visible CE claims plus the prover-only
 /// witness matrices that justify them.
 ///
-/// `parent_authority` is the Π_RLC parent whose Π_DEC decomposition produced
-/// `claims`. The next Π_CCS Fiat-Shamir transcript binds this parent, not the
-/// child claims individually; the children are still the algebraic running
-/// inputs and are checked against this parent by the prior Π_DEC verifier.
+/// `claims` is the exact ordered Construction-2 accumulator. The legacy-named
+/// `parent_authority` field is the Π_RLC recomposition cache whose Π_DEC
+/// decomposition produced those claims. The next transcript binds both: the
+/// exact child handle and the independently checked parent-cache digest.
 #[derive(Clone, Debug, Default)]
 pub struct RunningInstance {
     pub claims: Vec<CeClaim>,

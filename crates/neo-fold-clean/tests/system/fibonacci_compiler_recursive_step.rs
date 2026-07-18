@@ -7,12 +7,10 @@
 //!   doesn't enforce the Fibonacci app step.
 //! - **Post-fold accumulator binding** — catches a compiler that
 //!   computes the outgoing accumulator handle from anything other than
-//!   the verified post-fold parent authority. Unified mode no
+//!   the exact ordered post-fold child accumulator. Unified mode no
 //!   longer stores the full CE payload in the low-norm source image.
 //! - **Post vs pre confusion** — catches a compiler that uses
-//!   `pre_running.parent_authority` instead of
-//!   `post_running.parent_authority`. The fixture ensures pre and
-//!   post commitments differ before the check runs.
+//!   the pre-fold child vector instead of the post-fold child vector.
 //! - **Mutated post_running** — catches a compiler that trusts the
 //!   caller's `post_running` without re-verifying the fold. The
 //!   compiler must re-run NIFS.V and reject.
@@ -248,7 +246,7 @@ fn compiler_rejects_recursive_step_without_prior_fold() {
     );
 }
 
-// ── Post-fold parent authority binding (non-tautological) ─────────────────
+// ── Post-fold exact accumulator binding (non-tautological) ───────────────
 
 #[test]
 fn compiler_binds_post_fold_full_running_to_state_out_acc_digest() {
@@ -274,7 +272,7 @@ fn compiler_binds_post_fold_full_running_to_state_out_acc_digest() {
     assert_eq!(
         compiled.encoded.image.decode_state_out().new_acc_digest,
         expected,
-        "recursive source image must carry the accumulator handle derived from the verified post-fold parent authority"
+        "recursive source image must carry the exact ordered post-fold child handle"
     );
     assert_eq!(
         compiled.encoded.image.layout.nifs_payloads.bits, 0,
@@ -285,8 +283,8 @@ fn compiler_binds_post_fold_full_running_to_state_out_acc_digest() {
 // ── Post vs pre confusion (anti-bug) ───────────────────────────────────────
 
 #[test]
-#[ignore = "n=3 fixture chain under the canonical big plan — preprocess + 3 fixture-step encodes + 2 lifecycle extends + 1 final extend pushes the binary over the 5-min per-test cap when other recursive-step tests run in the same invocation. Run manually with `cargo test --release -p neo-fold-clean --test system_fibonacci_compiler_recursive_step -- --ignored compiler_uses_post_fold_parent_authority_not_pre_fold`. The anti-bug property (compiler uses post-fold accumulator authority, not pre-fold) is also covered by the lighter `compiler_binds_post_fold_full_running_to_state_out_acc_digest` test that runs by default."]
-fn compiler_uses_post_fold_parent_authority_not_pre_fold() {
+#[ignore = "n=3 fixture chain under the canonical big plan — preprocess + 3 fixture-step encodes + 2 lifecycle extends + 1 final extend pushes the binary over the 5-min per-test cap when other recursive-step tests run in the same invocation. Run manually with `cargo test --release -p neo-fold-clean --test system_fibonacci_compiler_recursive_step -- --ignored compiler_uses_post_fold_accumulator_not_pre_fold`. The anti-bug property is also covered by the lighter `compiler_binds_post_fold_full_running_to_state_out_acc_digest` test that runs by default."]
+fn compiler_uses_post_fold_accumulator_not_pre_fold() {
     // 3-step chain so both pre_running and post_running have parent
     // authorities (running becomes non-empty after the first recursive
     // fold, so call N >= 2 sees a non-trivial pre_running).
@@ -302,17 +300,14 @@ fn compiler_uses_post_fold_parent_authority_not_pre_fold() {
         .clone()
         .expect("pre-fold parent authority for a 3-step chain");
 
-    // Fixture precondition: pre and post commitments differ. If they
-    // happen to be equal the test would pass trivially regardless of
-    // which one the compiler used.
-    assert_ne!(
-        pre_parent.c.data, post_parent.c.data,
-        "fixture precondition: pre and post commitments must be distinct after a real fold"
-    );
     let expected_post =
         AccumulatorHandle::from_running_parts(&fold.post_running.claims, Some(&post_parent)).digest_fields();
     let expected_pre =
         AccumulatorHandle::from_running_parts(&fold.pre_running.claims, Some(&pre_parent)).digest_fields();
+    assert_ne!(
+        expected_pre, expected_post,
+        "fixture precondition: exact pre- and post-fold child handles must differ"
+    );
 
     let mut ctx = start_fibonacci_chain(&prep).expect("start chain");
     ctx.chain_state = chain_state;
@@ -325,7 +320,7 @@ fn compiler_uses_post_fold_parent_authority_not_pre_fold() {
 
     assert_eq!(
         decoded, expected_post,
-        "compiler must derive state_out.acc_digest from the post-fold parent authority"
+        "compiler must derive state_out.acc_digest from the exact post-fold children"
     );
     assert_ne!(
         decoded, expected_pre,

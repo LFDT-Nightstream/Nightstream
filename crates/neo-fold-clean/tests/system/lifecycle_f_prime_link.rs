@@ -11,9 +11,9 @@ use neo_fold_clean::paper::digest::{
 };
 use neo_fold_clean::paper::f_prime::native::F_PRIME_STEP_TRANSCRIPT_LABEL;
 use neo_fold_clean::paper::f_prime::r1cs::{
-    encode_f_prime_public_input, encode_x_out_public_bits, enforce_f_prime_base_step_circuit,
+    encode_f_prime_superneo_public_input, encode_x_out_public_bits, enforce_f_prime_base_step_circuit,
     enforce_f_prime_recursive_step_circuit, FPrimeBaseInputs, FPrimePublicInputLayout, FPrimeRecursiveInputs,
-    FPrimeStateIn, FPrimeStepConfig, F_PRIME_ENC_INST_BITS, F_PRIME_PUBLIC_INPUT_LEN,
+    FPrimeStateIn, FPrimeStepConfig, F_PRIME_ENC_INST_BITS, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
 };
 use neo_fold_clean::paper::f_prime::source_image::{BitRange, FPrimeSourceImage, Word64Image};
 use neo_fold_clean::paper::nifs::circuit::{NifsVCircuitConfig, NifsVCircuitMessages};
@@ -25,10 +25,10 @@ use neo_math::{KExtensions, F, K};
 use p3_field::PrimeCharacteristicRing;
 fn bit_carrier_r1cs() -> R1cs {
     R1cs {
-        a: Mat::zero(1, F_PRIME_PUBLIC_INPUT_LEN, F::ZERO),
-        b: Mat::zero(1, F_PRIME_PUBLIC_INPUT_LEN, F::ZERO),
-        c: Mat::zero(1, F_PRIME_PUBLIC_INPUT_LEN, F::ZERO),
-        m_in: F_PRIME_PUBLIC_INPUT_LEN,
+        a: Mat::zero(1, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN, F::ZERO),
+        b: Mat::zero(1, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN, F::ZERO),
+        c: Mat::zero(1, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN, F::ZERO),
+        m_in: F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
     }
 }
 
@@ -129,8 +129,7 @@ fn base_state(prep: &neo_fold_clean::Preprocessing) -> State {
     State::base(z_0, public_trace, acc_digest, acc_digest)
 }
 fn build_link_instance(prep: &neo_fold_clean::Preprocessing, r1cs: &R1cs, x_out_target: [F; 4]) -> CcsInstance {
-    let mut z = encode_f_prime_public_input(x_out_target);
-    z.resize(prep.structure().m, F::ZERO);
+    let z = encode_f_prime_superneo_public_input(x_out_target);
     direct_ccs::build_instance(prep, r1cs, &z).expect("recursive-link instance")
 }
 fn peek_next_state(prep: &neo_fold_clean::Preprocessing, state: &State, batch: &[CcsInstance]) -> State {

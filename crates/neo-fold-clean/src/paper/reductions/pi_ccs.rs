@@ -15,7 +15,7 @@
 //! | Obligation | Local owner | Emits constraints? | Authority source |
 //! |---|---|---|---|
 //! | Proof/output shape | [`Proof`] | no | Fixed fresh and running claim counts |
-//! | Incoming running `y_zcol` omission | Current verifier validates only the CE core | no | open authority gap; delayed parent-projection refinement required |
+//! | Incoming running `y_zcol` omission | Current verifier validates only the CE core | no | delayed parent-projection refinement required |
 //! | Prover reduction | [`prove`] and backend variants | no | Engine Pi_CCS prover |
 //! | Verifier reduction | [`verify`] | no | Engine SumCheck and terminal checks |
 
@@ -617,7 +617,7 @@ fn validate_clean_split_nc_claim(s: &Structure, claim: &CeClaim) -> Result<(), E
 }
 
 /// Validate the CE core consumed by Π_CCS and strict Π_DEC. Incoming
-/// running `y_zcol` is excluded because it is not read by either verifier.
+/// running `y_zcol` is excluded because its source relation remains open.
 fn validate_clean_split_nc_claim_core(s: &Structure, claim: &CeClaim) -> Result<(), Error> {
     let d_pad = D.next_power_of_two();
     let ell_n = s.n.next_power_of_two().max(2).trailing_zeros() as usize;

@@ -338,6 +338,9 @@ impl NifsPayloadShape {
 pub struct FPrimeImageLayout {
     pub config: FPrimeImageConfig,
     pub boundary: RegionRange,
+    /// Verifier-fixed zeros completing `[1 | boundary]` to whole `D`-lane
+    /// SuperNeo public columns. Running CE instances retain these coordinates.
+    pub carrier_padding: RegionRange,
     pub state_in: RegionRange,
     pub state_out: RegionRange,
     pub chunk_digest: RegionRange,
@@ -407,6 +410,14 @@ impl FPrimeImageLayout {
             bits: config.boundary_bits,
         };
         cursor = boundary.end();
+
+        let logical_public_len = cursor;
+        let physical_public_len = logical_public_len.next_multiple_of(D);
+        let carrier_padding = RegionRange {
+            offset: cursor,
+            bits: physical_public_len - logical_public_len,
+        };
+        cursor = carrier_padding.end();
 
         let state_in = RegionRange {
             offset: cursor,
@@ -517,6 +528,7 @@ impl FPrimeImageLayout {
         Self {
             config,
             boundary,
+            carrier_padding,
             state_in,
             state_out,
             chunk_digest,
@@ -541,9 +553,10 @@ impl FPrimeImageLayout {
     }
 
     /// Top-level region ranges in spec order (boundary..poseidon).
-    pub fn top_level_regions(&self) -> [RegionRange; 11] {
+    pub fn top_level_regions(&self) -> [RegionRange; 12] {
         [
             self.boundary,
+            self.carrier_padding,
             self.state_in,
             self.state_out,
             self.chunk_digest,
@@ -555,6 +568,12 @@ impl FPrimeImageLayout {
             self.projection,
             self.poseidon,
         ]
+    }
+
+    /// Complete public carrier width, including the constant-one column and
+    /// verifier-fixed ring-completion zeros.
+    pub fn public_input_len(&self) -> usize {
+        self.carrier_padding.end()
     }
 }
 

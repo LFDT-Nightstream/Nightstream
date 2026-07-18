@@ -70,10 +70,16 @@ pub const RECURSIVE_PRELUDE: &str = "fprime.recursive.step.prelude";
 pub const RECURSIVE_TRANSCRIPT: &str = "fprime.recursive.step.transcript";
 pub const RECURSIVE_NIFS: &str = "fprime.recursive.step.nifs";
 pub const RECURSIVE_PRIOR_LINK: &str = "fprime.recursive.step.prior_link";
+pub const RECURSIVE_PRIOR_LINK_DIGEST: &str = "fprime.recursive.step.prior_link.digest";
+pub const RECURSIVE_PRIOR_LINK_ENC_INST: &str = "fprime.recursive.step.prior_link.enc_inst";
+pub const RECURSIVE_PRIOR_LINK_CARRIER_PADDING: &str = "fprime.recursive.step.prior_link.carrier_padding";
 pub const RECURSIVE_NEBULA: &str = "fprime.recursive.step.nebula";
 pub const RECURSIVE_ACCUMULATOR: &str = "fprime.recursive.step.accumulator";
 pub const RECURSIVE_ACCUMULATOR_INPUT: &str = "fprime.recursive.step.accumulator.input_link";
 pub const RECURSIVE_ACCUMULATOR_OUTPUT: &str = "fprime.recursive.step.accumulator.output_authority";
+pub const RECURSIVE_ACCUMULATOR_OUTPUT_CHILD_DIGESTS: &str =
+    "fprime.recursive.step.accumulator.output_authority.child_digests";
+pub const RECURSIVE_ACCUMULATOR_OUTPUT_AGGREGATE: &str = "fprime.recursive.step.accumulator.output_authority.aggregate";
 pub const RECURSIVE_COUNTERS: &str = "fprime.recursive.step.counters";
 pub const RECURSIVE_OUTPUT: &str = "fprime.recursive.step.output";
 pub const RECURSIVE_FINALIZE: &str = "fprime.recursive.finalize";
@@ -91,10 +97,15 @@ pub const RECURSIVE_ALL: &[&str] = &[
     RECURSIVE_TRANSCRIPT,
     RECURSIVE_NIFS,
     RECURSIVE_PRIOR_LINK,
+    RECURSIVE_PRIOR_LINK_DIGEST,
+    RECURSIVE_PRIOR_LINK_ENC_INST,
+    RECURSIVE_PRIOR_LINK_CARRIER_PADDING,
     RECURSIVE_NEBULA,
     RECURSIVE_ACCUMULATOR,
     RECURSIVE_ACCUMULATOR_INPUT,
     RECURSIVE_ACCUMULATOR_OUTPUT,
+    RECURSIVE_ACCUMULATOR_OUTPUT_CHILD_DIGESTS,
+    RECURSIVE_ACCUMULATOR_OUTPUT_AGGREGATE,
     RECURSIVE_COUNTERS,
     RECURSIVE_OUTPUT,
     RECURSIVE_FINALIZE,
@@ -131,8 +142,23 @@ pub const RECURSIVE_HIERARCHY: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        RECURSIVE_PRIOR_LINK,
+        &[
+            RECURSIVE_PRIOR_LINK_DIGEST,
+            RECURSIVE_PRIOR_LINK_ENC_INST,
+            RECURSIVE_PRIOR_LINK_CARRIER_PADDING,
+        ],
+    ),
+    (
         RECURSIVE_ACCUMULATOR,
         &[RECURSIVE_ACCUMULATOR_INPUT, RECURSIVE_ACCUMULATOR_OUTPUT],
+    ),
+    (
+        RECURSIVE_ACCUMULATOR_OUTPUT,
+        &[
+            RECURSIVE_ACCUMULATOR_OUTPUT_CHILD_DIGESTS,
+            RECURSIVE_ACCUMULATOR_OUTPUT_AGGREGATE,
+        ],
     ),
     (
         RECURSIVE_FINALIZE,

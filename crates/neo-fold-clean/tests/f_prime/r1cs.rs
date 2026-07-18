@@ -13,7 +13,8 @@
 //!   fresh CCS instance's public input and an `acc_digest_in` that matches
 //!   `digest(running)`, must satisfy the F' R1CS verifier shell.
 //! - Recursive-step batch shape-rejection: empty fresh batch (`fresh.is_empty()`),
-//!   `fresh[i].m_in != F_PRIME_PUBLIC_INPUT_LEN`, and `chunk_count_in == 0`.
+//!   a fresh claim whose width differs from the 270-coordinate SuperNeo
+//!   carrier, and `chunk_count_in == 0`.
 //! - Recursive-step batched-link: a K=3 fresh batch with every public
 //!   input rooted at one shared prior `x_out` must satisfy; an
 //!   independently-proved fresh whose public input encodes a *different*
@@ -41,9 +42,9 @@ use neo_fold_clean::paper::digest::{
     AccumulatorHandle, StateXOutDigestMode,
 };
 use neo_fold_clean::paper::f_prime::r1cs::{
-    encode_f_prime_public_input, enforce_f_prime_base_step_circuit, enforce_f_prime_recursive_step_circuit,
+    encode_f_prime_superneo_public_input, enforce_f_prime_base_step_circuit, enforce_f_prime_recursive_step_circuit,
     FPrimeBaseInputs, FPrimePublicInputLayout, FPrimeRecursiveInputs, FPrimeStateIn, FPrimeStepConfig,
-    F_PRIME_ENC_INST_BITS, F_PRIME_PUBLIC_INPUT_LEN,
+    F_PRIME_ENC_INST_BITS, F_PRIME_PUBLIC_INPUT_LEN, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
 };
 use neo_fold_clean::paper::f_prime::source_image::{BitRange, FPrimeSourceImage, Word64Image};
 use neo_fold_clean::paper::nifs::circuit::{NifsVCircuitConfig, NifsVCircuitMessages};
@@ -58,8 +59,9 @@ const TRANSCRIPT_LABEL: &[u8] = b"neo.test.f_prime/step/v1";
 // ── Fixture ──────────────────────────────────────────────────────────────
 
 /// Real two-step `nifs::prove` run wired for F' consumption:
-///   - The carrier R1CS has `m_in = F_PRIME_PUBLIC_INPUT_LEN` so the fresh
-///     CCS instance can hold the bit-encoded `prior_x_out`.
+///   - The carrier R1CS has the complete 270-coordinate SuperNeo public width,
+///     so the fresh CCS instance holds the bit-encoded `prior_x_out` plus
+///     thirteen verifier-fixed zero coordinates.
 ///   - `state` is built so `acc_digest_in == digest(first_running)` and
 ///     `bit_encode(state_x_out(state)) == second_fresh.x`.
 struct Fixture {
@@ -73,16 +75,18 @@ struct Fixture {
     chunk_digest: [F; 4],
 }
 
-/// All-zero R1CS with `m_in = F_PRIME_PUBLIC_INPUT_LEN`. The constraint
+/// All-zero R1CS with the complete SuperNeo carrier width. The constraint
 /// `0·z * 0·z = 0·z` is trivially satisfied by any assignment, so we can
-/// hand the fresh CCS instance any low-norm public input we want.
+/// hand the fresh CCS instance any low-norm public input we want. This is
+/// deliberately weaker than the production relation so the F′ shell's own
+/// fixed-padding rows can be tested independently.
 fn bit_carrier_r1cs() -> R1cs {
-    let m = F_PRIME_PUBLIC_INPUT_LEN;
+    let m = F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN;
     R1cs {
         a: Mat::zero(1, m, F::ZERO),
         b: Mat::zero(1, m, F::ZERO),
         c: Mat::zero(1, m, F::ZERO),
-        m_in: F_PRIME_PUBLIC_INPUT_LEN,
+        m_in: F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
     }
 }
 
@@ -174,15 +178,13 @@ fn build_fixture_with_divergent_fresh(divergent_index: usize) -> Fixture {
     };
 
     let prior_x_out = native_prior_x_out(&state);
-    let mut honest_z = encode_f_prime_public_input(prior_x_out);
-    honest_z.resize(prep.structure().m, F::ZERO);
+    let honest_z = encode_f_prime_superneo_public_input(prior_x_out);
 
     // `divergent_x_out` differs from `prior_x_out` in at least one lane —
     // so its `enc_inst` body differs from the honest source-image bits.
     let mut divergent_x_out = prior_x_out;
     divergent_x_out[0] += F::ONE;
-    let mut divergent_z = encode_f_prime_public_input(divergent_x_out);
-    divergent_z.resize(prep.structure().m, F::ZERO);
+    let divergent_z = encode_f_prime_superneo_public_input(divergent_x_out);
 
     let k_fresh = 3;
     assert!(divergent_index < k_fresh);
@@ -236,6 +238,14 @@ fn build_fixture_with_k_fresh(k_fresh: usize) -> Fixture {
 }
 
 fn build_fixture_with_k_fresh_and_public_one(k_fresh: usize, public_one: F) -> Fixture {
+    build_fixture_with_k_fresh_and_public_carrier(k_fresh, public_one, None)
+}
+
+fn build_fixture_with_k_fresh_and_public_carrier(
+    k_fresh: usize,
+    public_one: F,
+    first_padding_value: Option<F>,
+) -> Fixture {
     assert!(k_fresh >= 1, "build_fixture_with_k_fresh: k_fresh must be \u{2265} 1");
     let r1cs = bit_carrier_r1cs();
     let prep = direct_ccs::preprocess_seeded(&r1cs, 42).expect("preprocess");
@@ -260,7 +270,7 @@ fn build_fixture_with_k_fresh_and_public_one(k_fresh: usize, public_one: F) -> F
     .expect("first NIFS.P");
 
     // Pin F' state-in so the recursive link is honest:
-    //   acc_digest_in = digest(strict Pi_DEC parent authority)
+    //   acc_digest_in = digest(exact ordered running children)
     //   fresh[i].x   = enc_inst(state_x_out(state))   for every i in 0..k_fresh
     let acc_digest_in = running_acc_digest(&running);
     let state = FPrimeStateIn {
@@ -278,14 +288,15 @@ fn build_fixture_with_k_fresh_and_public_one(k_fresh: usize, public_one: F) -> F
     };
 
     let prior_x_out = native_prior_x_out(&state);
-    let mut z = encode_f_prime_public_input(prior_x_out);
-    assert_eq!(z.len(), F_PRIME_PUBLIC_INPUT_LEN);
+    let mut z = encode_f_prime_superneo_public_input(prior_x_out);
+    assert_eq!(z.len(), F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN);
     z[0] = public_one;
+    if let Some(value) = first_padding_value {
+        z[F_PRIME_PUBLIC_INPUT_LEN] = value;
+    }
     // Carrier R1CS has m = m_in, so the assignment is exactly
-    // [public_one, bits…].
-    assert_eq!(prep.structure().m, F_PRIME_PUBLIC_INPUT_LEN);
-    // Defensive: pad/truncate to structure.m in case those ever diverge.
-    z.resize(prep.structure().m, F::ZERO);
+    // [public_one, bits…, fixed padding…].
+    assert_eq!(prep.structure().m, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN);
 
     let fresh_instances: Vec<_> = (0..k_fresh)
         .map(|_| direct_ccs::build_instance(&prep, &r1cs, &z).expect("fresh instance"))
@@ -331,8 +342,7 @@ fn build_fixture_with_k_fresh_and_public_one(k_fresh: usize, public_one: F) -> F
 
 fn rebuild_recursive_fixture_for_state(mut fixture: Fixture, state: FPrimeStateIn) -> Fixture {
     let prior_x_out = native_prior_x_out(&state);
-    let mut z = encode_f_prime_public_input(prior_x_out);
-    z.resize(fixture.prep.structure().m, F::ZERO);
+    let z = encode_f_prime_superneo_public_input(prior_x_out);
 
     let fresh_instances: Vec<_> = (0..fixture.fresh_claims.len())
         .map(|_| direct_ccs::build_instance(&fixture.prep, &bit_carrier_r1cs(), &z).expect("fresh instance"))
@@ -1226,7 +1236,7 @@ fn f_prime_recursive_rejects_multi_fresh_with_divergent_non_first_link() {
 fn f_prime_recursive_rejects_fresh_m_in_mismatch() {
     let fixture = build_fixture();
     let cfg = make_step_config(&fixture.prep);
-    // Hand-craft a fresh claim with `m_in != F_PRIME_PUBLIC_INPUT_LEN`.
+    // Hand-craft a fresh claim with `m_in` unequal to the physical carrier.
     let mut bad_fresh = fixture.fresh_claims.clone();
     bad_fresh[0].m_in = 4;
     bad_fresh[0].x = vec![F::ZERO; 4];
@@ -1257,7 +1267,7 @@ fn f_prime_recursive_rejects_fresh_m_in_mismatch() {
     let result = enforce_f_prime_recursive_step_circuit(&mut b, &fixture.prep.params, &cfg, &inputs);
     assert!(
         result.is_err(),
-        "recursive must reject fresh m_in != F_PRIME_PUBLIC_INPUT_LEN"
+        "recursive must reject fresh m_in != F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN"
     );
 }
 
@@ -1400,6 +1410,39 @@ fn f_prime_recursive_rejects_tampered_fresh_x_bit() {
     assert!(
         !b.is_satisfied(),
         "F' recursive must reject fresh.x that doesn't encode prior_x_out"
+    );
+}
+
+#[test]
+fn f_prime_recursive_rejects_nonzero_fresh_carrier_padding_when_nifs_proof_matches() {
+    // The weak carrier relation accepts any low-norm public vector, so build
+    // NIFS.P honestly over a fresh claim whose first ring-completion lane is
+    // one. NIFS.V therefore agrees with the claim; only F′'s verifier-owned
+    // 270-coordinate carrier contract is responsible for rejecting it.
+    let fixture = build_fixture_with_k_fresh_and_public_carrier(1, F::ONE, Some(F::ONE));
+    assert_eq!(fixture.fresh_claims[0].x[F_PRIME_PUBLIC_INPUT_LEN], F::ONE);
+    let cfg = make_step_config(&fixture.prep);
+    let source = recursive_source_image(&fixture);
+    let inputs = FPrimeRecursiveInputs {
+        state: fixture.state.clone(),
+        chunk_digest: fixture.chunk_digest,
+        semantic_state_digest_out: recursive_acc_digest(&fixture),
+        acc_digest_out: recursive_acc_digest(&fixture),
+        nifs_msg: msg_from_fixture(&fixture),
+        rows_in_chunk: 1,
+        source_image: &source.image,
+        chunk_count_in_word: source.chunk_count_in_word,
+        step_count_in_word: source.step_count_in_word,
+        pc_word: source.pc_word,
+        prior_x_out_bits: source.prior_x_out_bits,
+        public_x_out_bits: source.public_x_out_bits,
+    };
+
+    let mut builder = R1csBuilder::new();
+    enforce_f_prime_recursive_step_circuit(&mut builder, &fixture.prep.params, &cfg, &inputs).expect("emit");
+    assert!(
+        !builder.is_satisfied(),
+        "F′ accepted nonzero fresh carrier padding even though that padding is verifier-fixed"
     );
 }
 

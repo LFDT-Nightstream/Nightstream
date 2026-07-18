@@ -608,11 +608,9 @@ fn nifs_v_rejects_tampered_running_parent_authority_s_col() {
 
 #[test]
 fn nifs_v_records_current_unbound_running_parent_y_zcol() {
-    // This acceptance is a regression pin for the known authority gap, not a
-    // desired semantic boundary. The optimized raw projection is linear and
-    // can be recomposed through Π_DEC, but the recursive accumulator handle
-    // currently omits it. A delayed-parent check must make this mutation fail
-    // before row removal is authorized.
+    // This acceptance pins a known authority gap, not a desired boundary.
+    // Hashing the sidecar would bind a prover value without proving its source;
+    // a delayed-NC refinement must make this mutation fail semantically.
     let mut fixture = build_fixture();
     let parent = fixture
         .running
@@ -1456,10 +1454,10 @@ fn native_nifs_verify_rejects_extra_self_consistent_running_y_ring_row() {
 
 #[test]
 fn nifs_v_rejects_incoming_running_sidecars() {
-    // Incoming `running` and its Π_RLC parent authority are HyperNova's
-    // carried U_i. The clean circuit does not allocate aux_openings or
-    // Pattern-A metadata for either, so those sidecars must fail closed
-    // before any digest can treat them as authoritative.
+    // Incoming `running` is HyperNova's carried U_i; its Π_RLC parent is a
+    // separately checked cache. The clean circuit does not allocate
+    // aux_openings or Pattern-A metadata for either, so those sidecars fail
+    // closed before any digest can consume them.
     expect_incoming_sidecar_rejected(
         "running aux_openings",
         |f| f.running.claims[0].aux_openings.push(K::ONE),

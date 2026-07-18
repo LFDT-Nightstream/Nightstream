@@ -9,6 +9,7 @@ mod lean_artifact_support;
 
 use lean_artifact_support::{lean_nat_list, lean_rows, lean_witness, sha256_hex, SCHEMA_VERSION};
 use neo_fold_clean::engine::decider::__test_isolation::enforce_terminal_latest_link_against;
+use neo_fold_clean::paper::f_prime::r1cs::{F_PRIME_PUBLIC_INPUT_LEN, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
@@ -26,9 +27,10 @@ fn canonical_inputs() -> (Vec<Vec<F>>, Vec<F>) {
     let bits = (0..256)
         .map(|bit| F::from_u64((bit % 2) as u64))
         .collect::<Vec<_>>();
-    let mut fresh = Vec::with_capacity(257);
+    let mut fresh = Vec::with_capacity(F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN);
     fresh.push(F::ONE);
     fresh.extend(bits.iter().copied());
+    fresh.resize(F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN, F::ZERO);
     (vec![fresh], bits)
 }
 
@@ -36,7 +38,7 @@ fn build(last_bits: &[F], fresh: &[Vec<F>]) -> Result<BuiltLink, String> {
     let builder = enforce_terminal_latest_link_against(last_bits, fresh)?;
     Ok(BuiltLink {
         last_x_out_bit_cols: (1..=256).collect(),
-        fresh_cols: vec![(257..=513).collect()],
+        fresh_cols: vec![(257..257 + F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN).collect()],
         builder,
     })
 }
@@ -46,7 +48,12 @@ fn build_honest() -> BuiltLink {
     build(&bits, &fresh).expect("emit terminal latest link")
 }
 
-fn artifact_hashes(honest: &BuiltLink, wrong_one_witness: &[F], wrong_bit_witness: &[F]) -> (String, String) {
+fn artifact_hashes(
+    honest: &BuiltLink,
+    wrong_one_witness: &[F],
+    wrong_bit_witness: &[F],
+    wrong_padding_witness: &[F],
+) -> (String, String) {
     let row_payload = format!(
         "schema={SCHEMA_VERSION}\nkind=r1cs/f-prime-terminal-latest-link\n\
          source=enforce_terminal_latest_link\nfresh_cols={}\nlast_cols={}\nrows={}\ncols={}\n{}",
@@ -62,10 +69,11 @@ fn artifact_hashes(honest: &BuiltLink, wrong_one_witness: &[F], wrong_bit_witnes
         lean_rows(&honest.builder),
     );
     let witness_payload = format!(
-        "{}\n{}\n{}",
+        "{}\n{}\n{}\n{}",
         lean_witness("honestWitness", honest.builder.witness()),
         lean_witness("wrongOneWitness", wrong_one_witness),
         lean_witness("wrongBitWitness", wrong_bit_witness),
+        lean_witness("wrongPaddingWitness", wrong_padding_witness),
     );
     (sha256_hex(&row_payload), sha256_hex(&witness_payload))
 }
@@ -73,8 +81,8 @@ fn artifact_hashes(honest: &BuiltLink, wrong_one_witness: &[F], wrong_bit_witnes
 #[test]
 fn terminal_link_accepts_honest_witness() {
     let built = build_honest();
-    assert_eq!(built.builder.rows(), 257, "terminal link row count changed");
-    assert_eq!(built.builder.cols(), 514, "terminal link column count changed");
+    assert_eq!(built.builder.rows(), F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN);
+    assert_eq!(built.builder.cols(), 257 + F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN);
     assert!(built.builder.unconstrained_columns().is_empty());
     assert!(built.builder.is_satisfied());
 }
@@ -96,6 +104,14 @@ fn terminal_link_rejects_wrong_public_bit() {
 }
 
 #[test]
+fn terminal_link_rejects_nonzero_carrier_padding() {
+    let (mut fresh, bits) = canonical_inputs();
+    fresh[0][F_PRIME_PUBLIC_INPUT_LEN] = F::ONE;
+    let built = build(&bits, &fresh).expect("emit");
+    assert_eq!(built.builder.first_unsatisfied_row(), Some(F_PRIME_PUBLIC_INPUT_LEN));
+}
+
+#[test]
 fn terminal_link_rejects_host_shape_errors() {
     let (fresh, bits) = canonical_inputs();
     assert!(build(&bits, &[]).is_err());
@@ -112,7 +128,15 @@ fn lean_terminal_link_artifact_matches_committed_file() {
     let (mut wrong_bit, bits) = canonical_inputs();
     wrong_bit[0][1 + TAMPERED_BIT] = F::ONE - wrong_bit[0][1 + TAMPERED_BIT];
     let wrong_bit = build(&bits, &wrong_bit).expect("emit wrong bit");
-    let (row_hash, witness_hash) = artifact_hashes(&honest, wrong_one.builder.witness(), wrong_bit.builder.witness());
+    let (mut wrong_padding, bits) = canonical_inputs();
+    wrong_padding[0][F_PRIME_PUBLIC_INPUT_LEN] = F::ONE;
+    let wrong_padding = build(&bits, &wrong_padding).expect("emit wrong padding");
+    let (row_hash, witness_hash) = artifact_hashes(
+        &honest,
+        wrong_one.builder.witness(),
+        wrong_bit.builder.witness(),
+        wrong_padding.builder.witness(),
+    );
 
     let path = format!("{}{}", env!("CARGO_MANIFEST_DIR"), ARTIFACT_REL_PATH);
     let committed = std::fs::read_to_string(&path).unwrap_or_default();

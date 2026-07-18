@@ -17,16 +17,17 @@ use neo_fold_clean::engine::r1cs_circuit::builder::Var;
 use neo_fold_clean::engine::r1cs_circuit::field_ext::KVar;
 use neo_fold_clean::engine::r1cs_circuit::{Lc, R1csBuilder, TranscriptGadget};
 use neo_fold_clean::paper::digest::{
-    accumulator_ce_claim_digest, accumulator_digest_from_running_parts, ccs_claim_digest, ce_claim_digest,
-    digest32_as_fields, pi_ccs_instance_digest, pi_ccs_instance_digest_parent_authority, pi_ccs_outputs_digest,
+    accumulator_ce_claim_digest, accumulator_claims_digest, accumulator_digest_from_running_parts, ccs_claim_digest,
+    ce_claim_digest, digest32_as_fields, pi_ccs_instance_digest, pi_ccs_instance_digest_parent_authority,
+    pi_ccs_outputs_digest,
 };
 use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::{
     absorb_engine_header_bundle_and_instance_digest, absorb_engine_me_inputs_accumulator_handle,
-    enforce_accumulator_ce_claim_digest, enforce_ccs_claim_digest, enforce_ce_claim_digest, enforce_fe_claimed_initial,
-    enforce_header_digest_catch_up_wires, enforce_pi_ccs_instance_digest,
-    enforce_pi_ccs_instance_digest_parent_authority, enforce_pi_ccs_outputs_digest, header_digest_bytes_to_fields,
-    sample_engine_beta_m, sample_engine_challenges, AccumulatorCeClaimDigestInputs, CeClaimDigestInputs,
-    FeClaimedInitialInputs, PiCcsOutputMessageDigestInputs,
+    enforce_accumulator_ce_claim_digest, enforce_accumulator_claims_digest, enforce_ccs_claim_digest,
+    enforce_ce_claim_digest, enforce_fe_claimed_initial, enforce_header_digest_catch_up_wires,
+    enforce_pi_ccs_instance_digest, enforce_pi_ccs_instance_digest_parent_authority, enforce_pi_ccs_outputs_digest,
+    header_digest_bytes_to_fields, sample_engine_beta_m, sample_engine_challenges, AccumulatorCeClaimDigestInputs,
+    CeClaimDigestInputs, FeClaimedInitialInputs, PiCcsOutputMessageDigestInputs,
 };
 use neo_math::ring::D;
 use neo_math::{from_complex, KExtensions, F, K};
@@ -783,9 +784,8 @@ fn enforce_ce_claim_digest_rejects_nonzero_inactive_x() {
 fn enforce_accumulator_ce_claim_digest_matches_native_authority_fields() {
     // This is the HyperNova U_i handle's per-claim building block. Unlike
     // the paper-layer `ce_claim_digest`, it must bind implementation-carried
-    // authority fields too: s_col, ct, and fold_digest. The current encoding
-    // omits y_zcol because Π_DEC children do not yet prove a verifier-checkable
-    // radix-b y_zcol recomposition equation; this test pins that known gap.
+    // authority fields too: s_col, ct, and fold_digest. `y_zcol` remains an
+    // explicitly unbound delayed-NC sidecar.
     let claim = build_test_accumulator_ce_claim(0xACCE_551);
     let native_digest = accumulator_ce_claim_digest(&claim);
 
@@ -850,10 +850,6 @@ fn enforce_pi_ccs_outputs_digest_matches_native_new_messages_only() {
 
 #[test]
 fn accumulator_ce_claim_digest_records_current_unbound_y_zcol_gap() {
-    // y_zcol is consumed by the same-step NC/RLC equations, but child
-    // y_zcol is not verifier-checkably recomposed by Π_DEC. If this digest
-    // absorbed it, the prover would get an unconstrained Fiat-Shamir salt in
-    // the recursive accumulator handle.
     let claim = build_test_accumulator_ce_claim(0xA11C_E5A17);
     assert!(!claim.y_zcol.is_empty(), "fixture must expose y_zcol");
 
@@ -893,9 +889,7 @@ fn accumulator_ce_claim_digest_records_current_unbound_y_zcol_gap() {
 }
 
 #[test]
-fn running_accumulator_handle_is_the_validated_parent_authority() {
-    // Π_DEC validates children against the parent. Recursive state therefore
-    // carries the full parent digest, not a second digest of child bytes.
+fn running_accumulator_handle_binds_exact_ordered_children() {
     let child_a = build_test_accumulator_ce_claim(0xA11CE);
     let child_b = build_test_accumulator_ce_claim(0xB0B);
     let parent = build_test_accumulator_ce_claim(0xFA12_EA7E_u64);
@@ -903,14 +897,52 @@ fn running_accumulator_handle_is_the_validated_parent_authority() {
         &[child_a.clone(), child_b.clone()],
         Some(&parent),
     ));
-    assert_eq!(native_digest, accumulator_ce_claim_digest(&parent));
+    assert_ne!(native_digest, accumulator_ce_claim_digest(&parent));
 
     let mut changed_children = [child_a, child_b];
     changed_children[0].c.data[0] += F::ONE;
-    assert_eq!(
+    assert_ne!(
         digest32_as_fields(accumulator_digest_from_running_parts(&changed_children, Some(&parent))),
         native_digest,
-        "child serialization is a checked witness, not transcript authority"
+        "child mutation must change the Construction-2 accumulator handle"
+    );
+
+    let mut changed_parent = parent.clone();
+    changed_parent.c.data[0] += F::ONE;
+    assert_eq!(
+        digest32_as_fields(accumulator_digest_from_running_parts(
+            &[changed_children[0].clone(), changed_children[1].clone()],
+            Some(&changed_parent),
+        )),
+        digest32_as_fields(accumulator_digest_from_running_parts(&changed_children, Some(&parent))),
+        "the checked parent is a cache, not part of the paper accumulator"
+    );
+}
+
+#[test]
+fn enforce_accumulator_claims_digest_matches_exact_ordered_native_handle() {
+    let claims = [
+        build_test_accumulator_ce_claim(0xC111_D001),
+        build_test_accumulator_ce_claim(0xC111_D002),
+    ];
+    let native = accumulator_claims_digest(&claims);
+    let mut builder = R1csBuilder::new();
+    let child_digests = claims
+        .iter()
+        .map(|claim| enforce_accumulator_claim_digest_for_test(&mut builder, claim))
+        .collect::<Vec<_>>();
+    let circuit = enforce_accumulator_claims_digest(&mut builder, &child_digests);
+    for (lane, wire) in circuit.into_iter().enumerate() {
+        assert_eq!(builder.witness()[wire.col()], native[lane], "lane {lane}");
+        builder.enforce_eq(&Lc::from_var(wire), &Lc::from_const(native[lane]));
+    }
+    assert!(builder.is_satisfied());
+
+    let reversed = [claims[1].clone(), claims[0].clone()];
+    assert_ne!(
+        accumulator_claims_digest(&reversed),
+        native,
+        "ordered accumulator binding must reject child permutations"
     );
 }
 

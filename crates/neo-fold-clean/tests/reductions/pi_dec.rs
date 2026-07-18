@@ -289,13 +289,9 @@ fn pi_dec_circuit_strict_rejects_noncanonical_fold_digest_limb_alias() {
 
 #[test]
 fn pi_dec_circuit_strict_leaves_only_parent_y_zcol_unconstrained() {
-    // Π_DEC owns the b-ary parent→children recomposition for commitment, X,
-    // r, y_ring, ct, s_col, and fold_digest. It currently omits y_zcol even
-    // though the optimized raw projection is linear and admits the same
-    // radix-b recomposition. This test records that known gap: child sidecars
-    // are not allocated, while the parent sidecar floats. If any other
-    // allocated wire floats, the strict DEC gadget is missing an additional
-    // row family.
+    // Child `y_zcol` is not part of the current Π_DEC relation. The parent
+    // sidecar remains allocated but semantically unbound; this test makes that
+    // open authority surface explicit.
     let (proof, _claims) = drive_nifs(24);
 
     let parent = &proof.pi_rlc.combined;
@@ -974,11 +970,8 @@ fn pi_dec_circuit_rejects_nonzero_inactive_child_x() {
 
 #[test]
 fn pi_dec_circuit_does_not_constrain_child_y_zcol() {
-    // Native `verify_dec_public` does NOT enforce a parent/child `y_zcol`
-    // relation. This test records the current emitted shape; it is not a
-    // soundness claim. The NC authority audit demonstrates that terminal child
-    // checks do not by themselves justify erasing the state-bound parent
-    // old-point projection.
+    // Native Π_DEC has no proved parent/child y_zcol relation. This test pins
+    // the emitted shape so an unproved equation cannot silently enter R1CS.
     let (proof, _claims) = drive_nifs(53);
 
     let parent = &proof.pi_rlc.combined;

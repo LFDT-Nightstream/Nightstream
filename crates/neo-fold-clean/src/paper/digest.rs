@@ -360,8 +360,8 @@ fn append_adv_leaves(preimage: &mut Vec<F>, adv: &Option<LaneCommitments<Commitm
 ///
 /// Soundness rationale for dropping `c.data` here: commitments are still
 /// bound to the chain through the **running accumulator authority** path
-/// (`AccumulatorHandle::from_running_parts`, which binds the validated
-/// Π_RLC parent authority). Each fresh claim's commitment
+/// (`AccumulatorHandle::from_running_parts`, which binds the exact ordered
+/// child claims). Each fresh claim's commitment
 /// also re-enters the F'-step transcript through NIFS.V's
 /// algebraic checks (sumcheck on y_ring evaluations, ρ, β_m, …), which
 /// reject any inconsistent `(c, x, witness)` triple. The chunk digest's
@@ -506,22 +506,38 @@ pub fn ce_claim_digest(claim: &CeClaim<Commitment, F, K>) -> [F; 4] {
     sis_accumulator_digest(CE_CLAIM_SIS_CONFIG, &preimage).expect("nonempty CE-claim SIS preimage")
 }
 
-/// Digest of every authority-bearing CE-claim field that is part of the
-/// carried Construction-2 running accumulator.
+/// Digest of the paper-level CE claim carried in the Construction-2
+/// accumulator.
 ///
 /// This is intentionally separate from [`ce_claim_digest`]. The latter is the
 /// paper-layer Π_CCS transcript digest and historically omits fields whose
 /// consistency is enforced elsewhere. The accumulator handle is different: it
-/// stands in for HyperNova's `U_i` in `state_x_out`, so it must bind the CE
-/// relation fields plus constrained implementation sidecars, not just
-/// commitment coordinates. The current v1 encoding omits `y_zcol`. The NC
-/// authority audit proves that terminal child checks do not make that omission
-/// safe: a parent `(s_col, y_zcol)` must be state-bound and checked against the
-/// old-point running witnesses before `s_col` is replaced. A prover-carried
-/// child digest remains insufficient authority.
+/// stands in for one child statement in HyperNova's `U_i`, so it binds the CE
+/// relation fields rather than only commitment coordinates. The optimized
+/// `y_zcol` sidecar is deliberately outside this paper-level digest: its
+/// verifier-owned source relation is still an open delayed-NC obligation and
+/// must not be disguised as solved by merely hashing a prover value.
+///
+/// This is the current conservative Rust CE-core encoding, not yet the
+/// Lean-minimal Phi81 family payload. Replacing repeated shared/derived fields
+/// requires the concrete 270-coordinate serializer refinement first.
 pub fn accumulator_ce_claim_digest(claim: &CeClaim<Commitment, F, K>) -> [F; 4] {
     let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/accumulator_ce_claim_digest/v1");
     append_ce_claim_public_fields(&mut preimage, claim);
+    poseidon_digest_fields(&preimage)
+}
+
+/// Ordered digest of the exact `CE(b)^k` Construction-2 accumulator.
+///
+/// The checked Pi_RLC parent is deliberately absent. Strict Pi_DEC
+/// recomposition does not uniquely determine its child vector, so a
+/// parent-only handle would alias distinct paper accumulators before hashing.
+pub fn accumulator_claims_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] {
+    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/accumulator/children/v3");
+    preimage.push(F::from_u64(claims.len() as u64));
+    for claim in claims {
+        preimage.extend_from_slice(&accumulator_ce_claim_digest(claim));
+    }
     poseidon_digest_fields(&preimage)
 }
 
@@ -720,10 +736,9 @@ pub fn pi_ccs_instance_digest(
 /// public instances being folded in this step. The running side is bound by the
 /// single Π_RLC parent whose Π_DEC children are the running CE claims. The
 /// children remain the algebraic inputs to Π_CCS and are checked against the
-/// parent by Π_DEC; they are not independent Fiat-Shamir authority. The full
-/// accumulator CE digest is used here so every parent field that can affect a
-/// later step is bound once and the same wires can serve as the Construction-2
-/// accumulator handle.
+/// parent by Π_DEC. Their exact ordered accumulator handle is absorbed
+/// separately before challenges; this digest owns only the parent-cache view
+/// of the public-instance header.
 pub fn pi_ccs_instance_digest_parent_authority(
     fresh_claims: &[CcsClaim<Commitment, F>],
     running_count: usize,
@@ -762,12 +777,9 @@ pub(crate) fn pi_ccs_instance_digest_from_parent_digest(
 
 /// Compact handle for the running accumulator carried in Construction-2 state.
 ///
-/// HyperNova's recursive link hashes the running instance `U_i`. In this
-/// SuperNeo instantiation, native and in-circuit NIFS.V first verify that all
-/// running children are a strict Pi_DEC reduction of the Pi_RLC parent. The
-/// full parent CE digest therefore names the verified weak-reduction class
-/// directly, without hashing every child or wrapping the parent digest in a
-/// second Poseidon2 call.
+/// HyperNova's recursive link hashes the running instance `U_i`. Here `U_i` is
+/// the exact ordered `CE(b)^k` child vector. The checked Pi_RLC parent is a
+/// recomposition cache and is not a substitute for that vector.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct AccumulatorHandle {
     digest: [u8; 32],
@@ -776,31 +788,32 @@ pub struct AccumulatorHandle {
 impl AccumulatorHandle {
     /// Handle for an empty running accumulator.
     pub fn empty() -> Self {
-        Self::from_running_parts(&[], None)
+        Self::from_claims(&[])
     }
 
-    /// Handle for the actual running accumulator `U_i`. Callers that consume
-    /// this as authority must first verify `Pi_DEC(parent, claims)`; all NIFS
-    /// prove/verify paths do so before deriving or checking the handle.
+    /// Handle for the exact ordered Construction-2 accumulator.
+    pub fn from_claims(claims: &[CeClaim<Commitment, F, K>]) -> Self {
+        Self {
+            digest: digest_fields_as_digest32(accumulator_claims_digest(claims)),
+        }
+    }
+
+    /// Shape-checking adapter for the running transport envelope.
+    ///
+    /// Valid states hash only the exact ordered child accumulator. The parent
+    /// is checked separately by Pi_DEC. Malformed empty/parent combinations
+    /// receive a distinct fail-closed digest.
     pub fn from_running_parts(
         claims: &[CeClaim<Commitment, F, K>],
         parent_authority: Option<&CeClaim<Commitment, F, K>>,
     ) -> Self {
-        Self {
-            digest: accumulator_digest_from_running_parts(claims, parent_authority),
+        let shape_is_valid =
+            (claims.is_empty() && parent_authority.is_none()) || (!claims.is_empty() && parent_authority.is_some());
+        if shape_is_valid {
+            return Self::from_claims(claims);
         }
-    }
-
-    /// Build the same handle when a resident backend already holds the
-    /// authenticated [`accumulator_ce_claim_digest`] of the Pi_RLC parent.
-    ///
-    /// This is a prover-side scheduling shortcut, not authority. The parent
-    /// and its Pi_DEC children must still be verified before the handle is
-    /// consumed across a trust boundary.
-    #[doc(hidden)]
-    pub fn from_parent_digest(child_count: usize, parent_digest: Option<[F; 4]>) -> Self {
         Self {
-            digest: accumulator_digest_from_parent_digest(child_count, parent_digest),
+            digest: malformed_accumulator_digest(claims, parent_authority),
         }
     }
 
@@ -813,49 +826,27 @@ impl AccumulatorHandle {
     }
 }
 
-/// Poseidon2 handle for a strict Pi_DEC running accumulator `U_i`.
-///
-/// A valid non-empty running instance returns
-/// [`accumulator_ce_claim_digest`] of its checked parent directly. The child
-/// claims are deliberately absent: NIFS.V verifies their full strict Pi_DEC
-/// relation to `parent` before this value is used. The same parent digest is
-/// the running-side Fiat-Shamir authority in Pi_CCS, so the recursive state
-/// link and native verifier use one authority boundary and one hash.
-///
-/// The empty accumulator retains its existing domain-separated constant. For
-/// malformed states (`children.is_empty() != parent.is_none()`), a fallback
-/// preimage records the mismatch instead of silently projecting to a valid
-/// empty/non-empty handle. Honest call sites reject that shape before relying
-/// on the digest.
+/// Compatibility wrapper for [`AccumulatorHandle::from_running_parts`].
 pub fn accumulator_digest_from_running_parts(
     claims: &[CeClaim<Commitment, F, K>],
     parent_authority: Option<&CeClaim<Commitment, F, K>>,
 ) -> [u8; 32] {
-    accumulator_digest_from_parent_digest(claims.len(), parent_authority.map(accumulator_ce_claim_digest))
+    AccumulatorHandle::from_running_parts(claims, parent_authority).digest()
 }
 
-/// Canonical accumulator handle from an already-authenticated
-/// [`accumulator_ce_claim_digest`]. This is the scheduling form of
-/// [`accumulator_digest_from_running_parts`] for resident backends.
-#[doc(hidden)]
-pub fn accumulator_digest_from_parent_digest(child_count: usize, parent_digest: Option<[F; 4]>) -> [u8; 32] {
-    if child_count > 0 {
-        if let Some(parent_digest) = parent_digest {
-            return digest_fields_as_digest32(parent_digest);
-        }
-    }
-
-    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/accumulator/parent_authority/v2");
-    preimage.push(F::from_u64(child_count as u64));
-    match parent_digest {
-        Some(parent_digest) => {
+fn malformed_accumulator_digest(
+    claims: &[CeClaim<Commitment, F, K>],
+    parent_authority: Option<&CeClaim<Commitment, F, K>>,
+) -> [u8; 32] {
+    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/accumulator/malformed/v3");
+    preimage.push(F::from_u64(claims.len() as u64));
+    preimage.extend_from_slice(&accumulator_claims_digest(claims));
+    match parent_authority {
+        Some(parent) => {
             preimage.push(F::ONE);
-            preimage.extend_from_slice(&parent_digest);
+            preimage.extend_from_slice(&accumulator_ce_claim_digest(parent));
         }
         None => preimage.push(F::ZERO),
-    }
-    if (child_count == 0) != parent_digest.is_none() {
-        preimage.push(F::from_u64(u64::MAX));
     }
     digest_fields_as_digest32(poseidon_digest_fields(&preimage))
 }

@@ -113,10 +113,10 @@ fn audit_verifier_rejects_contradictory_terminal_input_snapshot() {
     );
 }
 
-/// The recorded running parent is part of the terminal accumulator authority.
-/// Every one of its carried fields must either be re-derived from the terminal
-/// fold or included in the accumulator digest.  Otherwise the production
-/// terminal verifier and audit replay accept different wire languages.
+/// The recorded running parent is a separately checked terminal cache, not the
+/// accumulator handle. Every carried field must still be re-derived or checked;
+/// otherwise production verification and audit replay accept different wire
+/// languages.
 #[test]
 fn terminal_verifier_rejects_unbound_parent_y_zcol() {
     let prep = support::toy_preprocessing();

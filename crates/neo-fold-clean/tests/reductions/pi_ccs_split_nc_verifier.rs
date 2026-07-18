@@ -602,10 +602,9 @@ fn pi_ccs_output_digest_is_exactly_the_prover_chosen_active_message() {
 
 #[test]
 fn split_nc_pi_ccs_v_leaves_only_documented_deferred_ce_sidecars_unconstrained() {
-    // SplitNc owns the full Π_CCS verifier and recomputes the output digest
-    // consumed by Π_RLC. Running-child y_zcol is not allocated. The only
-    // intentionally floating columns are the running parent authority's full
-    // y_zcol; Π_DEC does not consume it, while parent continuity retains it.
+    // Running-child y_zcol is not allocated. The only intentionally floating
+    // columns are the checked parent's old-point y_zcol sidecar; the missing
+    // verifier-owned source relation is tracked explicitly below.
     let fixture = build_fixture();
     let (builder, derived) = emit_verifier_with_derived(&fixture).expect("emit verifier");
 
@@ -934,8 +933,8 @@ fn split_nc_pi_ccs_v_rejects_tampered_output_ct() {
 
 #[test]
 fn split_nc_pi_ccs_v_rejects_tampered_parent_authority_r() {
-    // The running parent authority is part of HyperNova's carried U_i
-    // handle. Its r point must be transcript-bound, not merely allocated.
+    // The checked parent cache is independently transcript-bound even though
+    // it is not the Construction-2 accumulator handle.
     let mut fixture = build_fixture();
     let parent = fixture
         .running
@@ -1055,9 +1054,8 @@ fn split_nc_pi_ccs_v_rejects_tampered_parent_authority_s_col() {
 
 #[test]
 fn split_nc_pi_ccs_v_records_current_unbound_parent_y_zcol_c0() {
-    // This acceptance records the current missing authority link. The
-    // optimized raw projection is linear and supports radix-b recomposition;
-    // a delayed-parent refinement must eventually make this mutation fail.
+    // Acceptance records the missing delayed-NC source relation. A digest of
+    // this prover value alone would not close the gap.
     let mut fixture = build_fixture();
     let parent = fixture
         .running
@@ -1076,8 +1074,8 @@ fn split_nc_pi_ccs_v_records_current_unbound_parent_y_zcol_c0() {
 
 #[test]
 fn split_nc_pi_ccs_v_records_current_unbound_parent_y_zcol_c1() {
-    // Same known gap as the c0-limb test, but perturb only c1 so a future
-    // binding cannot accidentally cover just one extension-field limb.
+    // Perturb only c1 so a future source binding cannot accidentally cover
+    // only one extension-field limb.
     let mut fixture = build_fixture();
     let parent = fixture
         .running

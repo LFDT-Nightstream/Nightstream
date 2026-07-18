@@ -329,9 +329,9 @@ fn compile_recursive_step(
 
 /// Compose the encoded F' step around the shared shell assembly.
 ///
-/// `new_acc_digest` is the verified-parent accumulator handle carried through
-/// state and checked by the consumer step/terminal fold, so the producer image
-/// does not emit a dedicated accumulator Poseidon trace.
+/// `new_acc_digest` is the exact ordered-child accumulator handle carried
+/// through state and checked by the consumer step/terminal fold, so the
+/// producer image does not emit a dedicated accumulator Poseidon trace.
 fn finalize_compile(
     prep: &super::FibonacciFPrimePreprocessing,
     ctx: &mut FibonacciCompilerContext,

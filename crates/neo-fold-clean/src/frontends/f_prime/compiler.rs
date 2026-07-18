@@ -38,6 +38,7 @@ use crate::paper::digest::{
 };
 use crate::paper::f_prime::native::f_prime_step_transcript;
 use crate::paper::f_prime::poseidon_trace::{encode_poseidon_trace, PoseidonTraceImage};
+use crate::paper::f_prime::r1cs::FPrimePublicInputLayout;
 use crate::paper::nifs::NifsProof;
 use crate::paper::relations::{CcsClaim, CeClaim};
 
@@ -252,10 +253,11 @@ pub fn start_f_prime_chain_context(
 
     // Boundary bits = 4 lanes × POSEIDON2_GOLDILOCKS_BITS = 256.
     let boundary_bits = 4 * POSEIDON2_GOLDILOCKS_BITS;
-    if public_input_len != 1 + boundary_bits {
+    let expected_public_input_len = FPrimePublicInputLayout::plain().total_len();
+    if public_input_len != expected_public_input_len {
         return Err(FPrimeShellCompilerError::UnsupportedPublicInputShape {
             got: public_input_len,
-            expected: 1 + boundary_bits,
+            expected: expected_public_input_len,
         });
     }
 

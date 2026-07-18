@@ -13,7 +13,8 @@
 //! |---|---|---|---|---|
 //! | fresh CCS digest | Bind commitment, advice, public input, and shape | yes | `enforce_ccs_claim_digest` | concrete bridge open |
 //! | CE digest | Bind the complete CE message | yes | `enforce_ce_claim_digest` | concrete bridge open |
-//! | checked-parent digest | Bind authoritative accumulator fields | yes | `enforce_accumulator_ce_claim_digest` | authority bridge open |
+//! | accumulator child digest | Bind one paper-level ordered child claim; `y_zcol` source binding remains open | yes | `enforce_accumulator_ce_claim_digest` | exact-child bridge open |
+//! | accumulator handle | Bind the ordered paper-level `CE(b)^k` child vector | yes | `enforce_accumulator_claims_digest` | exact-child bridge open |
 //! | instance digest | Bind fresh claims and checked running parent | yes | `enforce_pi_ccs_instance_digest_parent_authority` | authority bridge open |
 //! | output digest | Bind the Pi_CCS message consumed by Pi_RLC | yes | `enforce_pi_ccs_outputs_digest` | projection bridge open |
 //!
@@ -28,12 +29,11 @@
 //! these digests in-circuit from authoritative claim wires — never
 //! accept a prover-supplied digest as authority.
 //!
-//! The per-running-claim ME-input *projection* digest has been retired.
-//! The Π_CCS verifier now absorbs the full digest of the validated Π_RLC
-//! parent authority via [`super::absorb_engine_me_inputs_accumulator_handle`].
-//! NIFS.V first checks strict Π_DEC consistency between the running children
-//! and that parent, so child serialization is not an independent transcript
-//! authority.
+//! The ME-input handle binds the exact ordered paper-level running children.
+//! The checked Π_RLC parent remains a recomposition cache: strict Π_DEC
+//! consistency does not uniquely determine its child vector.
+//! The per-child serializer is intentionally conservative until the Lean
+//! minimal-family payload is refined to Rust's repaired 270-coordinate carrier.
 
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
@@ -56,6 +56,7 @@ use crate::paper::relations::product_commitment_circuit::AdvCommitmentWires;
 const CCS_CLAIM_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/ccs_claim_digest/v1";
 const CE_CLAIM_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/ce_claim_digest/v2";
 const ACCUMULATOR_CE_CLAIM_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/accumulator_ce_claim_digest/v1";
+const ACCUMULATOR_CLAIMS_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/accumulator/children/v3";
 const PI_CCS_OUTPUT_MESSAGE_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/pi_ccs_output_message_digest/v2";
 const PI_CCS_OUTPUTS_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/pi_ccs_outputs_digest/v2";
 const PI_CCS_INSTANCE_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/pi_ccs_instance_digest/v1";
@@ -312,6 +313,21 @@ pub fn enforce_accumulator_ce_claim_digest(
     append_adv_leaves_circuit(builder, &mut preimage, input.adv);
 
     Ok(enforce_poseidon2_hash(builder, &preimage))
+}
+
+/// Mirror of `paper::digest::accumulator_claims_digest`.
+///
+/// Child digests are absorbed in index order, so neither permutation nor a
+/// different strict-PiDEC decomposition of the same parent can alias before
+/// the Poseidon2 binding assumption.
+pub fn enforce_accumulator_claims_digest(builder: &mut R1csBuilder, child_digests: &[[Var; 4]]) -> [Var; 4] {
+    let mut preimage = Vec::new();
+    extend_packed_bytes_as_fields_wires(builder, &mut preimage, ACCUMULATOR_CLAIMS_DIGEST_DOMAIN);
+    preimage.push(alloc_constant_var(builder, F::from_u64(child_digests.len() as u64)));
+    for digest in child_digests {
+        preimage.extend_from_slice(digest);
+    }
+    enforce_poseidon2_hash(builder, &preimage)
 }
 
 /// Mirror of `crate::paper::digest::pi_ccs_outputs_digest`.

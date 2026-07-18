@@ -70,7 +70,7 @@ const NEW_CHUNK_COUNT: u64 = 7;
 const NEW_STEP_COUNT: u64 = 13;
 const PUBLIC_X_OUT_LANE_COUNT: usize = 4;
 /// Public-x_out boundary bit count (4 lanes × 64 bits = 256). Tests can
-/// reference this when they need the canonical `m_in = 1 + BOUNDARY_BITS`
+/// reference this when they need the 256-bit logical `enc_inst` width
 /// directly.
 pub const BOUNDARY_BITS: usize = PUBLIC_X_OUT_LANE_COUNT * POSEIDON2_GOLDILOCKS_BITS;
 

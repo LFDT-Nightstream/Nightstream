@@ -37,10 +37,7 @@ const KMUL_SLOT_BITS: usize = KMUL_LANES_PER_SLOT * POSEIDON2_GOLDILOCKS_BITS;
 const RING_ACTION_LANES_PER_PAIR: usize = 3 * D + D * D;
 const RING_ACTION_PRODUCT_LANES_PER_PAIR: usize = D * D;
 const RING_ACTION_OUTPUT_LANES_PER_PAIR: usize = D;
-/// Rows linking the base selector to the outgoing chunk counter:
-/// `(new_chunk_count - 1) · is_base = 0` and
-/// `(new_chunk_count - 1) · inv = 1 - is_base`. Emitted directly after
-/// the semantic Boolean block.
+/// Rows deriving the base selector from the outgoing chunk counter.
 const IS_BASE_COUNTER_LINK_ROWS: usize = 2;
 
 /// One canonical-u64 lane: a 64-bit window inside the image's `values`.
@@ -620,6 +617,7 @@ pub fn build_f_prime_structure(layout: FPrimeImageLayout) -> FPrimeStructure {
 
 fn estimated_shell_row_capacity(layout: &FPrimeImageLayout) -> usize {
     semantic_boolean_row_count(layout)
+        + layout.carrier_padding.bits
         + IS_BASE_COUNTER_LINK_ROWS
         + layout.config.ring_action_pair_count
             * (RING_ACTION_PRODUCT_LANES_PER_PAIR + RING_ACTION_OUTPUT_LANES_PER_PAIR)
@@ -659,7 +657,8 @@ pub(crate) fn emit_shell_rows(
     builder: &mut MixedGateBuilder,
 ) {
     let semantic_boolean_count = semantic_boolean_row_count(layout);
-    let control_count = semantic_boolean_count + IS_BASE_COUNTER_LINK_ROWS;
+    let carrier_padding_count = layout.carrier_padding.bits;
+    let control_count = semantic_boolean_count + carrier_padding_count + IS_BASE_COUNTER_LINK_ROWS;
     let ring_action_product_count = layout.config.ring_action_pair_count * RING_ACTION_PRODUCT_LANES_PER_PAIR;
     let ring_action_output_count = layout.config.ring_action_pair_count * RING_ACTION_OUTPUT_LANES_PER_PAIR;
     let projection_row_count = projection_semantic_row_count(&layout.config.projection_batches);
@@ -719,19 +718,22 @@ pub(crate) fn emit_shell_rows(
         + stateless_semantic_acc_count;
     let base_row = builder.rows();
 
-    // ── Semantic Boolean rows: `z[col] · (z[col] − 1) = 0`
-    // for public boundary bits, control bits, and tiny app carry bits.
+    // ── Semantic Boolean rows: `z[col] · (z[col] − 1) = 0`.
     for col in semantic_boolean_columns(layout) {
         builder.bitness(col);
     }
     debug_assert_eq!(builder.rows() - base_row, semantic_boolean_count);
 
-    // ── Base selector ↔ counter link.
-    //
-    // The base branch selector is derived from the post-step counter,
-    // not trusted as prover advice. Base emits `new_chunk_count == 1`;
-    // every recursive step emits a larger counter. The adjacent 64-bit
-    // lane witnesses `1 / (new_chunk_count - 1)` on recursive steps.
+    // ── Verifier-fixed SuperNeo public-carrier completion.
+    for col in layout.carrier_padding.offset..layout.carrier_padding.end() {
+        builder.linear([(col, F::ONE)], std::iter::empty::<(usize, F)>());
+    }
+    debug_assert_eq!(
+        builder.rows() - base_row,
+        semantic_boolean_count + carrier_padding_count
+    );
+
+    // ── Base selector ↔ post-step counter link and inverse witness.
     let is_base_col = layout.is_base.offset;
     let is_base_inv = LaneSlot {
         bit_start: layout.is_base.offset + 1,
@@ -1267,17 +1269,17 @@ impl FPrimeStructure {
         self.layout.config.ring_action_pair_count * RING_ACTION_OUTPUT_LANES_PER_PAIR
     }
 
-    /// Number of explicit Boolean rows emitted by this structure.
-    ///
-    /// This intentionally counts only semantic bits (public boundary,
-    /// `is_base`, and tiny app carry regions), not every low-norm digit
-    /// used to encode internal field lanes.
+    /// Explicit semantic-bit rows, excluding internal low-norm digits.
     pub fn semantic_boolean_row_count(&self) -> usize {
         semantic_boolean_row_count(&self.layout)
     }
 
-    /// Number of rows deriving `is_base` from `state_out.new_chunk_count`
-    /// (emitted directly after the semantic Boolean block).
+    /// Number of rows fixing public ring-completion coordinates to zero.
+    pub fn carrier_padding_row_count(&self) -> usize {
+        self.layout.carrier_padding.bits
+    }
+
+    /// Rows deriving `is_base` from `state_out.new_chunk_count`.
     pub fn is_base_counter_link_row_count(&self) -> usize {
         IS_BASE_COUNTER_LINK_ROWS
     }
@@ -1294,11 +1296,9 @@ impl FPrimeStructure {
         self.ring_action_product_row_start() + pair_idx * RING_ACTION_PRODUCT_LANES_PER_PAIR + i * D + j
     }
 
-    /// First row of the ring_action product-constraint block. Rows preceding it
-    /// are the explicit semantic Boolean rows plus the base-selector ↔
-    /// counter link rows.
+    /// First ring-action product row, after Boolean, padding, and control rows.
     pub fn ring_action_product_row_start(&self) -> usize {
-        self.semantic_boolean_row_count() + IS_BASE_COUNTER_LINK_ROWS
+        self.semantic_boolean_row_count() + self.carrier_padding_row_count() + IS_BASE_COUNTER_LINK_ROWS
     }
 
     /// Row index for the ring_action constraint

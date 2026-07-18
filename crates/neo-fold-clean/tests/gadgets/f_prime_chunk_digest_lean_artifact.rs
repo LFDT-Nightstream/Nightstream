@@ -8,6 +8,7 @@ use neo_ajtai::Commitment;
 use neo_fold_clean::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
 use neo_fold_clean::paper::digest::f_prime_chunk_public_digest;
 use neo_fold_clean::paper::f_prime::digest_circuit::enforce_f_prime_chunk_public_digest_circuit;
+use neo_fold_clean::paper::f_prime::r1cs::F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN;
 use neo_fold_clean::paper::relations::CcsClaim;
 use neo_math::{D, F};
 use neo_params::goldilocks_paper_b2;
@@ -19,7 +20,7 @@ const SHARD_REL_PREFIX: &str =
     "/../../formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrime/Generated/FPrimeChunkDigestDefinitions";
 const START_INDEX: u64 = 9;
 const FRESH_LEN: usize = 3;
-const M_IN: usize = 257;
+const M_IN: usize = F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN;
 const SHARD_SIZE: usize = 1_200;
 
 #[derive(Clone, Debug)]

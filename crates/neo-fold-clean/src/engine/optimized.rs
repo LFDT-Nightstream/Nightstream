@@ -98,7 +98,7 @@ where
 {
     let parent_authority = running_parent_authority(running)?;
     let instance_digest = pi_ccs_instance_digest_parent_authority(fresh_claims, running.claims.len(), parent_authority);
-    let me_handle = running_parent_accumulator_handle(running)?;
+    let me_handle = compute_running_accumulator_handle(running)?;
     let (outputs, proof, perf, pi_dec_precompute) =
         optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf(
             tr,
@@ -231,12 +231,12 @@ where
     // Validate inputs and compute the instance digest BEFORE moving `fresh`
     // into engine arrays — both sides hash the same public claims.
     let instance_digest = prover_instance_digest(fresh_claims, running, running_parent_digest)?;
-    // Accumulator-handle ME-input binding: bind the same Π_RLC parent
-    // authority as the public-instance digest. The Π_DEC children remain the
-    // algebraic running inputs, but they do not steer this Fiat-Shamir absorb.
+    // Accumulator-handle ME-input binding: bind the exact ordered Π_DEC child
+    // vector. The separately checked Π_RLC parent remains in the instance
+    // digest as a recomposition cache.
     let me_handle = match running_accumulator_handle {
         Some(handle) => handle,
-        None => running_parent_accumulator_handle(running)?,
+        None => compute_running_accumulator_handle(running)?,
     };
 
     let (outputs, proof, _perf) = optimized_prove_with_phase_backend_and_transcript_mode(
@@ -285,7 +285,7 @@ where
     let instance_digest = prover_instance_digest(fresh_claims, running, running_parent_digest)?;
     let me_handle = match running_accumulator_handle {
         Some(handle) => handle,
-        None => running_parent_accumulator_handle(running)?,
+        None => compute_running_accumulator_handle(running)?,
     };
 
     Ok(optimized_defer_prove_with_phase_backend_and_transcript_mode(
@@ -333,7 +333,7 @@ where
     let instance_digest = prover_instance_digest(fresh_claims, running, running_parent_digest)?;
     let me_handle = match running_accumulator_handle {
         Some(handle) => handle,
-        None => running_parent_accumulator_handle(running)?,
+        None => compute_running_accumulator_handle(running)?,
     };
 
     Ok(optimized_defer_prove_with_device_backends_and_transcript_mode(
@@ -393,8 +393,8 @@ pub fn verify_pi_ccs(
     use neo_transcript::Transcript as _;
     let parent_authority = running_parent_authority(running)?;
     let instance_digest = pi_ccs_instance_digest_parent_authority(fresh_claims, running.claims.len(), parent_authority);
-    // Same parent-authority handle the prover bound.
-    let me_handle = running_parent_accumulator_handle(running)?;
+    // Same exact ordered-child handle the prover bound.
+    let me_handle = compute_running_accumulator_handle(running)?;
     let (ok, perf) = optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf(
         tr,
         pp.inner(),
@@ -476,7 +476,7 @@ fn running_parent_authority(running: &RunningInstance) -> Result<Option<&CeClaim
     }
 }
 
-fn running_parent_accumulator_handle(running: &RunningInstance) -> Result<[F; 4], Error> {
+fn compute_running_accumulator_handle(running: &RunningInstance) -> Result<[F; 4], Error> {
     let handle = match running_parent_authority(running)? {
         Some(parent) => AccumulatorHandle::from_running_parts(&running.claims, Some(parent)),
         None => AccumulatorHandle::empty(),

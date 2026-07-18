@@ -17,14 +17,15 @@
 //! artifact, not the independent semantic authority for F'/NIFS.
 //!
 //! Authority boundary: recursive state is accepted only through the public
-//! prior-state link and checked NIFS parent; digests compress but never replace
-//! those constrained inputs.
+//! prior-state link, exact paper-level child accumulator, and checked NIFS
+//! parent cache; digests compress but never replace those constrained inputs.
+//! The optimized `y_zcol` source-binding gap is not claimed closed here.
 //!
 //! | Branch/phase | Mathematical obligation | Emits constraints? | Rust owner | Lean owner |
 //! |---|---|---|---|---|
 //! | Base | Initialize state and the canonical empty accumulator | yes | this file | FPrime base semantics |
 //! | Recursive transcript | Bind the prior public state before NIFS | yes | this file | transcript refinement open |
-//! | NIFS transition | Fold fresh/running claims into one checked parent | yes | `paper/nifs/circuit/` | NIFS/FPrime bridge |
+//! | NIFS transition | Fold fresh/running claims into checked parent plus exact children | yes | `paper/nifs/circuit/` | NIFS/FPrime bridge |
 //! | Accumulator continuity | Link incoming authority and recompute outgoing authority | yes | this file | authority refinement open |
 //! | Counters and `x_out` | Advance counters and derive the public next-state digest | yes | this file | FPrime step semantics |
 //!
@@ -37,62 +38,24 @@
 //!     fold `u_i` into `U_i` under a transcript bound to the full F' state
 //!     input, enforces the HyperNova recursive link
 //!     `u_i.public == bits(prior_x_out)`, and binds `acc_digest_in` to
-//!     the parent-authority handle of the actual `running` accumulator and
-//!     `acc_digest_out` to the parent-authority handle of NIFS.V's output.
-//!
-//! Both functions return the `x_out` wires; the caller pins them against
-//! the public-input slot.
-//!
-//! ## Math (Construction 2)
-//!
-//! ```text
-//!   z_{i+1}         = chunk_digest
-//!   public_trace'   = z_{i+1}
-//!   chunk_count'    = chunk_count + 1
-//!   step_count'     = step_count + K
-//!   pc'             = pc                    (TRIVIAL_PC in this build)
-//!
-//!   acc_digest' = accumulator handle carried in state_out.
-//!     base:      empty accumulator handle
-//!     recursive: digest of the strict Pi_DEC parent authority computed in
-//!                this same relation after checking `(parent, children)`.
-//!
-//!   x_out = state_x_out_digest(
-//!       vk_fs, structure, chunk_count', step_count',
-//!       z_0, z_{i+1}, pc', semantic_state_digest', acc_digest')
-//! ```
+//!     the exact ordered-child handle of the actual `running` accumulator and
+//!     `acc_digest_out` to the ordered-child handle of NIFS.V's output.
 //!
 //! ## Bindings enforced (recursive case)
 //!
-//! 1. **HyperNova recursive public link**: every fresh `u_i.x` in the
-//!    batch is `[1 || enc_inst(prior_x_out)]` — same prior `x_out` for
-//!    the whole chunk, mirroring the SuperNeo "one chunk rooted at a
-//!    single prior Construction-2 state" semantics. The raw
-//!    `prior_x_out` digest is an ordinary computed field value; it is
-//!    bit-encoded here only because it becomes the public input of a
-//!    *fresh SuperNeo CCS instance*, and that public input is part of
-//!    the low-norm assignment `z = [x, w]` (`‖z‖_∞ < b = 2`). Poseidon2
-//!    itself does not need low norm. See `encoding.md` for the
-//!    distinction between this public-instance encoding `enc_inst(h)`, the
-//!    generic private-witness oracle, and the still-unresolved practical
-//!    production lowering for `enc(F')`.
-//! 2. **Running accumulator binding**: `acc_digest_in` equals the full
-//!    authority digest of the checked Π_RLC parent. Π_DEC still validates all
-//!    running children against that parent, so `u_i.public` cannot bind to one
-//!    accumulator while NIFS.V folds a different one.
-//! 3. **Output accumulator binding**:
-//!    `acc_digest_out == digest(NIFS.V.parent)`. NIFS.V checks the emitted
-//!    children by Π_DEC recomposition; hashing those checked witnesses again
-//!    is not a separate authority condition.
+//! 1. Every fresh `u_i.x` is `[1 || enc_inst(prior_x_out)]`.
+//! 2. `acc_digest_in` hashes the exact ordered running children.
+//! 3. `acc_digest_out` hashes the exact ordered NIFS output children. The
+//!    checked Π_RLC parent is only a cache because Π_DEC recomposition is not
+//!    injective in its child vector.
 //! 4. **`pc == TRIVIAL_PC`** (ℓ = 1 in this build). `pc` is pinned,
 //!    linked as state, and absorbed into `state_x_out` so the local
 //!    recursive link retains HyperNova's `pc_i` binding even before
 //!    multi-program support exists.
 //! 5. **Strict-mode shape**: non-empty fresh batch, every fresh `u_i`
-//!    has `m_in == F_PRIME_PUBLIC_INPUT_LEN` and `x.len() ==
-//!    F_PRIME_PUBLIC_INPUT_LEN`. Enforced against the message shape
-//!    (the SplitNc config carries `params` + `structure` references,
-//!    not redundant integer copies).
+//!    has the verifier-owned physical carrier width. Plain F′ therefore uses
+//!    `[1 | 256 enc_inst bits | 13 fixed zeros]`. Shape is checked before
+//!    allocation and the padding is constrained to zero in-circuit.
 //! 6. **Current chunk-shape digest**: `chunk_digest` is recomputed with
 //!    Poseidon2 from the in-circuit `step_count`, fixed claim geometry, and
 //!    `rows_in_chunk`. Native witness generation is not trusted to supply this
@@ -102,7 +65,6 @@ use neo_math::{D, F};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::engine::r1cs_circuit::builder::{Lc, R1csBuilder, Var};
-use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::poseidon2::DIGEST_LEN;
 use crate::engine::r1cs_circuit::transcript::TranscriptGadget;
 use crate::engine::r1cs_circuit::u64_arith::{
@@ -128,10 +90,8 @@ use crate::paper::nifs::circuit::{
     enforce_nifs_v_circuit_with_transcript_and_header_bundle_wires, NifsVCircuitConfig, NifsVCircuitMessages,
 };
 use crate::paper::params::Params;
-use crate::paper::reductions::pi_ccs_split_nc_circuit::{
-    enforce_accumulator_ce_claim_digest, AccumulatorCeClaimDigestInputs,
-};
-use crate::paper::reductions::pi_dec_circuit::CeClaimWires;
+
+mod accumulator;
 
 /// Canonical bits per `x_out` digest lane. Goldilocks canonical form fits
 /// in 64 bits.
@@ -826,64 +786,6 @@ fn enforce_digest_eq(builder: &mut R1csBuilder, a: &[Var; DIGEST_LEN], b: &[Var;
     }
 }
 
-fn enforce_nifs_output_acc_digest(
-    builder: &mut R1csBuilder,
-    parent: &CeClaimWires,
-) -> Result<[Var; DIGEST_LEN], Error> {
-    enforce_dec_ce_claim_accumulator_digest(builder, parent)
-}
-
-fn enforce_dec_ce_claim_accumulator_digest(
-    builder: &mut R1csBuilder,
-    claim: &CeClaimWires,
-) -> Result<[Var; DIGEST_LEN], Error> {
-    let y_ring = dec_y_ring_kvars(claim)?;
-    enforce_accumulator_ce_claim_digest(
-        builder,
-        &AccumulatorCeClaimDigestInputs {
-            c_d: claim.c_d,
-            c_kappa: claim.c_kappa,
-            c_data: &claim.c_data,
-            x_rows: claim.x_rows,
-            x_cols: claim.x_cols,
-            x_flat_row_major: &claim.x,
-            r: &claim.r,
-            s_col: &claim.s_col,
-            y_ring: &y_ring,
-            ct: &claim.ct,
-            m_in: claim.m_in,
-            fold_digest_fields: claim.fold_digest_fields,
-            adv: claim.adv.as_ref(),
-        },
-    )
-    .map_err(|e| Error::Inner(format!("output accumulator CE digest: {e}")))
-}
-
-fn dec_y_ring_kvars(claim: &CeClaimWires) -> Result<Vec<Vec<KVar>>, Error> {
-    claim
-        .y_ring
-        .iter()
-        .enumerate()
-        .map(|(j, row)| flat_kvars(row, claim.y_ring_lanes, &format!("y_ring[{j}]")))
-        .collect()
-}
-
-fn flat_kvars(flat: &[Var], lanes: usize, what: &str) -> Result<Vec<KVar>, Error> {
-    let expected = lanes * 2;
-    if flat.len() != expected {
-        return Err(Error::Inner(format!(
-            "{what} has {} base-field limbs, expected {expected} for {lanes} K-lanes",
-            flat.len()
-        )));
-    }
-    Ok((0..lanes)
-        .map(|lane| KVar {
-            c0: flat[2 * lane],
-            c1: flat[2 * lane + 1],
-        })
-        .collect())
-}
-
 /// F' **base** step (i = 0). No NIFS.V. Enforces `chunk_count_in == 0`,
 /// `z_i_in == z_0`, and `acc_digest_in == AccumulatorHandle::empty()`.
 /// Sets `acc_digest_out = empty_acc_digest`. Returns the `x_out` wires.
@@ -1077,9 +979,10 @@ fn enforce_f_prime_base_step_with_output_acc(
 ///   - non-empty fresh batch (`inputs.nifs_msg.fresh.len() >= 1`).
 ///   - `inputs.rows_in_chunk >= 1` — the new chunk being deposited
 ///     must be non-empty.
-///   - every fresh `u_i,j` has the verifier-configured public-input length.
-///     Its fixed prefix encodes the prior `x_out` digest as `DIGEST_LEN *
-///     64` low-norm bits; an optional application suffix follows it.
+///   - every fresh `u_i,j` has the verifier-configured physical carrier
+///     length. Its fixed prefix encodes the prior `x_out` digest as
+///     `DIGEST_LEN * 64` low-norm bits; an optional application suffix follows
+///     it; the remaining ring-completion coordinates are fixed to zero.
 ///   - all K fresh public inputs are bound to the **same** prior
 ///     `x_out` source-image bits; the whole batch is treated as one
 ///     SuperNeo chunk rooted at one prior Construction-2 state.
@@ -1137,9 +1040,11 @@ fn enforce_f_prime_recursive_step_circuit_impl(
     for (idx, fresh) in inputs.nifs_msg.fresh.iter().enumerate() {
         if fresh.m_in != expected_public_input_len || fresh.x.len() != expected_public_input_len {
             return Err(Error::Inner(format!(
-                "strict F' recursive: fresh[{idx}] public input must be [1 | {F_PRIME_ENC_INST_BITS} enc_inst bits | {} suffix fields], \
+                "strict F' recursive: fresh[{idx}] public input must be [1 | {F_PRIME_ENC_INST_BITS} enc_inst bits | {} suffix fields | {} fixed-zero padding fields] (total {}), \
                  got m_in={}, x.len={}",
                 cfg.public_input_layout.suffix_len(),
+                cfg.public_input_layout.carrier_padding_len(),
+                expected_public_input_len,
                 fresh.m_in,
                 fresh.x.len()
             )));
@@ -1262,7 +1167,7 @@ fn enforce_f_prime_recursive_step_circuit_impl(
     let prior_link_start = builder.rows();
     let prior_link_first_column = builder.cols();
 
-    builder.begin_encoding_stage(stage::RECURSIVE_PRIOR_LINK);
+    builder.begin_encoding_stage(stage::RECURSIVE_PRIOR_LINK_DIGEST);
     // ── HyperNova recursive link: u_i.public == bits(prior_x_out) ───────
     //
     // The fresh CCS instance's public input MUST encode the previous F'
@@ -1307,6 +1212,7 @@ fn enforce_f_prime_recursive_step_circuit_impl(
     //      `fresh[i].x` must agree with the source image; tampering
     //      either side breaks the link.
     let prior_bits = source_wires.range(inputs.prior_x_out_bits);
+    builder.begin_encoding_stage(stage::RECURSIVE_PRIOR_LINK_ENC_INST);
     enforce_public_bits_encode_digest(builder, prior_bits, &prior_x_out)?;
     let mut fresh_public_suffixes = Vec::with_capacity(nifs_outputs.fresh_x.len());
     for (idx, fresh_x) in nifs_outputs.fresh_x.iter().enumerate() {
@@ -1330,6 +1236,12 @@ fn enforce_f_prime_recursive_step_circuit_impl(
         }
         fresh_public_suffixes
             .push(fresh_x[cfg.public_input_layout.suffix_offset()..cfg.public_input_layout.suffix_end()].to_vec());
+    }
+    builder.begin_encoding_stage(stage::RECURSIVE_PRIOR_LINK_CARRIER_PADDING);
+    for fresh_x in &nifs_outputs.fresh_x {
+        for &padding in &fresh_x[cfg.public_input_layout.carrier_padding_offset()..expected_public_input_len] {
+            builder.enforce_eq(&Lc::from_var(padding), &Lc::zero());
+        }
     }
     builder.record_row_family("fprime.recursive.prior_link", prior_link_start);
     let prior_link = FPrimePriorLinkWires {
@@ -1402,14 +1314,12 @@ fn enforce_f_prime_recursive_step_circuit_impl(
     // ── State advance: bind outgoing accumulator handle ────────────────
     //
     // HyperNova Construction 2 outputs `hash(..., U_{i+1}, ...)`. In this
-    // codebase `U_{i+1}` is represented by the authority-bearing
-    // accumulator handle over NIFS.V's output `(children, parent)`, so the
-    // producer step must compute that handle here before absorbing it into
-    // `state_x_out`. A later consumer equality is useful continuity, but
-    // not a substitute for this producer-side equation.
+    // codebase `U_{i+1}` is the exact ordered NIFS.V child vector; its checked
+    // parent is a recomposition cache. Compute the child handle here before
+    // absorbing it into `state_x_out`.
     builder.begin_encoding_stage(stage::RECURSIVE_ACCUMULATOR_OUTPUT);
     let claimed_acc_digest = alloc_4(builder, inputs.acc_digest_out);
-    let new_acc_digest = enforce_nifs_output_acc_digest(builder, &nifs_outputs.parent)?;
+    let new_acc_digest = accumulator::enforce_nifs_output_acc_digest(builder, &nifs_outputs.children)?;
     enforce_digest_eq(builder, &claimed_acc_digest, &new_acc_digest);
     let new_semantic_state_digest = alloc_4(builder, inputs.semantic_state_digest_out);
     builder.record_row_family("fprime.recursive.accumulator", accumulator_start);

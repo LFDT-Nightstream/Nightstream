@@ -15,8 +15,8 @@ use neo_fold_clean::paper::digest::{
     AccumulatorHandle, StateXOutDigestMode,
 };
 use neo_fold_clean::paper::f_prime::r1cs::{
-    encode_f_prime_public_input, enforce_f_prime_recursive_step_circuit, FPrimePublicInputLayout,
-    FPrimeRecursiveInputs, FPrimeStateIn, FPrimeStepConfig, F_PRIME_ENC_INST_BITS, F_PRIME_PUBLIC_INPUT_LEN,
+    encode_f_prime_superneo_public_input, enforce_f_prime_recursive_step_circuit, FPrimePublicInputLayout,
+    FPrimeRecursiveInputs, FPrimeStateIn, FPrimeStepConfig, F_PRIME_ENC_INST_BITS, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
 };
 use neo_fold_clean::paper::f_prime::source_image::{BitRange, FPrimeSourceImage, Word64Image};
 use neo_fold_clean::paper::nifs::circuit::{NifsVCircuitConfig, NifsVCircuitMessages};
@@ -67,12 +67,12 @@ enum ProverTranscriptShape {
 }
 
 fn bit_carrier_r1cs() -> R1cs {
-    let m = F_PRIME_PUBLIC_INPUT_LEN;
+    let m = F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN;
     R1cs {
         a: Mat::zero(1, m, F::ZERO),
         b: Mat::zero(1, m, F::ZERO),
         c: Mat::zero(1, m, F::ZERO),
-        m_in: F_PRIME_PUBLIC_INPUT_LEN,
+        m_in: F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
     }
 }
 
@@ -548,8 +548,7 @@ fn build_transcript_replay_fixture_with_mode_and_context(
     let mut forged_state = honest_state.clone();
     forge_state(&mut forged_state);
 
-    let mut forged_z = encode_f_prime_public_input(native_prior_x_out(mode, &forged_state));
-    forged_z.resize(prep.structure().m, F::ZERO);
+    let forged_z = encode_f_prime_superneo_public_input(native_prior_x_out(mode, &forged_state));
     let fresh = direct_ccs::build_instance(&prep, &r1cs, &forged_z).expect("forged fresh instance");
     let fresh_claims = vec![fresh.claim.clone()];
     let chunk_digest = f_prime_chunk_public_digest(forged_state.step_count_in, &fresh_claims);

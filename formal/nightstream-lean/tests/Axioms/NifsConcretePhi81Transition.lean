@@ -126,6 +126,24 @@ import tests.Axioms.Support
 
 /-! Certificate-independent fold refinement. -/
 
+/-- info: 'Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.SemanticFold.Realization.canonicalChildren' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.SemanticFold.Realization.canonicalChildren
+
+/-- info: 'Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.SemanticFold.Holds.canonicalChildren' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.SemanticFold.Holds.canonicalChildren
+
+/-- info: 'Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.Result.ResultTransition.canonicalChildren' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.Result.ResultTransition.canonicalChildren
+
 /-- info: 'Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.SemanticFold.ObligationPlan.exact' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/
@@ -168,6 +186,18 @@ import tests.Axioms.Support
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.Result.resultOf_refines
 
+/-- info: 'Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.Result.ResultTransition.inputRunningOpenings' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.Result.ResultTransition.inputRunningOpenings
+
+/-- info: 'Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.Result.ResultTransition.runningAuthority' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.Result.ResultTransition.runningAuthority
+
 /-- info: 'Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.accepted_implies_paper_or_outputUnbound_or_badEvent' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/
@@ -200,11 +230,29 @@ import tests.Axioms.Support
 
 /-! Fixed-active result and evaluator boundary. -/
 
+/-- info: 'Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive.ResultTransition.canonicalChildren' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive.ResultTransition.canonicalChildren
+
 /-- info: 'Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive.ResultTransition.children_transition' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive.ResultTransition.children_transition
+
+/-- info: 'Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive.ResultTransition.inputRunningOpenings' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive.ResultTransition.inputRunningOpenings
+
+/-- info: 'Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive.ResultTransition.inputRunningPiDec' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive.ResultTransition.inputRunningPiDec
 
 /-- info: 'Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive.ResultTransition.runningStructure_eq_fresh' depends on axioms: [propext,
  Classical.choice,

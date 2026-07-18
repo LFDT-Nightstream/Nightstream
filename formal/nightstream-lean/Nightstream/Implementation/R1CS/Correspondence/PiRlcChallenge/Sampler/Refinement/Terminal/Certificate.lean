@@ -5,13 +5,13 @@ import Nightstream.Implementation.R1CS.Correspondence.PiRlcChallenge.Sampler.Ref
 Terminal R1CS sampler refinement into the exact concrete Phi81 NIFS
 certificate predicate.
 
-Assurance tier: artifact-checked, conditional on the explicitly listed
-upstream message and post-NC bindings. This module binds the production
-terminal context and decoded challenge columns to the independent
-`ConcretePhi81.Sampler.CertificateAccepted` boundary.
+Assurance tier: artifact-checked diagnostic profile, conditional on the
+explicitly listed upstream message and post-NC bindings. This module binds the
+reviewed three-matrix terminal artifact and decoded challenge columns to the
+independent `ConcretePhi81.Sampler.CertificateAccepted` boundary.
 
-Owns: the exact production terminal arity; context equality for the semantic
-output handoff and transcript machine; canonical construction of the
+Owns: the exact reviewed terminal-artifact arity; context equality for the
+semantic output handoff and transcript machine; canonical construction of the
 certificate challenge field from decoded transcript output; and construction
 of the context/certificate-specific sampler acceptance proof.
 
@@ -31,7 +31,8 @@ semantic acceptance.
 |---|---|---|---|
 | `nifs.pi_ccs.output_digest.profile.sources` | terminal context alignment derives exactly 15 sources | derived | `terminalProfile` |
 | `nifs.pi_ccs.output_digest.profile.matrices` | actual F-prime relation has exactly three matrices | explicit remaining premise | `terminalProfile` |
-| `nifs.pi_rlc.challenge.context.handoff` | context uses the pure typed post-`Pi_CCS` handoff | checked refinement | `ContextBinding.outputHandoff` |
+| `nifs.pi_rlc.challenge.context.handoff` | schedule output absorption is the pure typed post-`Pi_CCS` handoff | checked refinement | `ContextBinding.outputHandoff` |
+| `nifs.pi_rlc.challenge.context.post_nc` | derive the exact state after NC and before output absorption | computed | `postNcState` |
 | `nifs.pi_rlc.challenge.context.machine` | context uses the exact production transcript machine | checked refinement | `ContextBinding.samplerMachine` |
 | `nifs.pi_rlc.challenge.certificate` | construct the challenge field from the decoded terminal sampler vector | computed | `withDecodedChallenges` |
 | `nifs.pi_rlc.challenge.columns` | constructed challenge field equals the RingF interpretation of the equation columns | derived | `withDecodedChallenges_challenge_eq_columns` |
@@ -49,16 +50,16 @@ open Nightstream.SuperNeo.Folding.Nifs
 open Nightstream.SuperNeo.Folding.PiCCS.SplitNc
 
 /-- Terminal source count is derived from the context's partition alignment.
-Only the actual relation's three-matrix fact remains an explicit profile
-premise. -/
+Only the reviewed diagnostic artifact's three-matrix fact remains an explicit
+profile premise. The active selective relation has thirteen matrices; no
+`13 -> 3` compression theorem is claimed here. -/
 def terminalProfile
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (context :
-      ConcretePhi81.Context shape domain State publicRingColumns publicFits
+      ConcretePhi81.Context shape State publicRingColumns publicFits
         verifierRows terminalArity)
     (matrixCount_eq :
       shape.matrixCount = PiCcsOutputDigest.Semantics.yRingRows) :
@@ -70,19 +71,38 @@ def terminalProfile
 NIFS context. -/
 structure ContextBinding
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     (profile : PiCcsOutputDigest.Projection.SplitNc.Profile shape)
     (context :
-      ConcretePhi81.Context shape domain State publicRingColumns publicFits
+      ConcretePhi81.Context shape State publicRingColumns publicFits
         verifierRows terminalArity) : Prop where
   outputHandoff :
-    context.piCcsOutputHandoff =
-      PiCcsOutputDigest.SemanticHandoff.run profile
+    ∀ postNc message,
+      context.piCcsSchedule.absorbOutput postNc message =
+        PiCcsOutputDigest.SemanticHandoff.run profile postNc message
   samplerMachine :
     context.piRlcMachine = machine
+
+/-- Exact transcript state after canonical block×lane NC and before the output
+message is absorbed. -/
+def postNcState
+    {shape : SemanticShape}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    (context :
+      ConcretePhi81.Context shape State publicRingColumns publicFits
+        verifierRows terminalArity)
+    (certificate :
+      ConcretePhi81.Certificate (arity := terminalArity)
+        publicRingColumns publicFits verifierRows context.piCcsInput) : State :=
+  let feExecution :=
+    Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier.Transcript.Fe.derive
+      context.feMachine context.initialState certificate.piCcs.fe
+  (Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier.Nc.BlockLane.derive
+    context.ncMachine feExecution.finalState certificate.piCcs.nc).finalState
 
 /-- Terminal challenge vector in the exact NIFS source index, reusing the
 canonical arity-to-sampler transport owned by `TerminalSamplerArtifact`. -/
@@ -97,33 +117,31 @@ def decodedChallenges
 from the transcript rows. The other raw phase messages are preserved. -/
 def withDecodedChallenges
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {context :
-      ConcretePhi81.Context shape domain State publicRingColumns publicFits
+      ConcretePhi81.Context shape State publicRingColumns publicFits
         verifierRows terminalArity}
     (assignment : Nat -> Nat)
     (certificate :
-      ConcretePhi81.Certificate (domain := domain) (arity := terminalArity)
+      ConcretePhi81.Certificate (arity := terminalArity)
         publicRingColumns publicFits verifierRows context.piCcsInput) :
-    ConcretePhi81.Certificate (domain := domain) (arity := terminalArity)
+    ConcretePhi81.Certificate (arity := terminalArity)
       publicRingColumns publicFits verifierRows context.piCcsInput :=
   { certificate with piRlcChallenges := decodedChallenges assignment }
 
 @[simp] theorem withDecodedChallenges_piRlcChallenges
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {context :
-      ConcretePhi81.Context shape domain State publicRingColumns publicFits
+      ConcretePhi81.Context shape State publicRingColumns publicFits
         verifierRows terminalArity}
     (assignment : Nat -> Nat)
     (certificate :
-      ConcretePhi81.Certificate (domain := domain) (arity := terminalArity)
+      ConcretePhi81.Certificate (arity := terminalArity)
         publicRingColumns publicFits verifierRows context.piCcsInput)
     (index : Fin terminalArity.total) :
     (withDecodedChallenges assignment certificate).piRlcChallenges index =
@@ -134,16 +152,15 @@ def withDecodedChallenges
 of the challenge columns consumed by every public projection equation. -/
 theorem withDecodedChallenges_challenge_eq_columns
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {context :
-      ConcretePhi81.Context shape domain State publicRingColumns publicFits
+      ConcretePhi81.Context shape State publicRingColumns publicFits
         verifierRows terminalArity}
     (assignment : Nat -> Nat)
     (certificate :
-      ConcretePhi81.Certificate (domain := domain) (arity := terminalArity)
+      ConcretePhi81.Certificate (arity := terminalArity)
         publicRingColumns publicFits verifierRows context.piCcsInput)
     (index : Fin terminalArity.total) :
     (withDecodedChallenges assignment certificate).piRlcChallenges index =
@@ -162,15 +179,14 @@ predicate consumed by the independent concrete NIFS verifier. -/
 theorem accepted_refines_certificateAccepted
     (prime : EuclidPrime goldilocksP)
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {context :
-      ConcretePhi81.Context shape domain State publicRingColumns publicFits
+      ConcretePhi81.Context shape State publicRingColumns publicFits
         verifierRows terminalArity}
     {certificate :
-      ConcretePhi81.Certificate (domain := domain) (arity := terminalArity)
+      ConcretePhi81.Certificate (arity := terminalArity)
         publicRingColumns publicFits verifierRows context.piCcsInput}
     (profile : PiCcsOutputDigest.Projection.SplitNc.Profile shape)
     (contextBinding : ContextBinding profile context)
@@ -188,9 +204,7 @@ theorem accepted_refines_certificateAccepted
         profile certificate.piCcs.output assignment canonical)
     (postNcBoundary :
       PiCcsOutputDigest.SemanticHandoff.CatchupInputBound
-        (Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier.Protocol.derive
-          context.feMachine context.ncMachine context.initialState
-          certificate.piCcs).finalState
+        (postNcState context certificate)
         assignment canonical)
     (challengesBound :
       certificate.piRlcChallenges = decodedChallenges assignment) :
@@ -198,9 +212,7 @@ theorem accepted_refines_certificateAccepted
   have bounded :=
     SemanticHandoff.accepted_refines_semanticHandoffBound
       prime profile
-      (Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier.Protocol.derive
-        context.feMachine context.ncMachine context.initialState
-        certificate.piCcs).finalState
+      (postNcState context certificate)
       certificate.piCcs.output canonical one outputAccepted catchupAccepted
       rlcAccepted messageBound postNcBoundary
   rcases bounded with ⟨bound⟩
@@ -210,6 +222,11 @@ theorem accepted_refines_certificateAccepted
       (ConcretePhi81.derive context certificate).piRlcInitialState
       certificate.piRlcChallenges
   rw [ConcretePhi81.derive_piRlcInitialState]
+  change
+    ConcretePhi81.Sampler.Bound context.piRlcMachine
+      (context.piCcsSchedule.absorbOutput
+        (postNcState context certificate) certificate.piCcs.output)
+      certificate.piRlcChallenges
   rw [contextBinding.outputHandoff, contextBinding.samplerMachine,
     challengesBound]
   simpa [decodedChallenges, TerminalSamplerArtifact.scalarIndex,
@@ -221,15 +238,14 @@ certificate-to-challenge equality premise remains. -/
 theorem accepted_refines_withDecodedChallenges
     (prime : EuclidPrime goldilocksP)
     {shape : SemanticShape}
-    {domain : FlatNcDomain}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {context :
-      ConcretePhi81.Context shape domain State publicRingColumns publicFits
+      ConcretePhi81.Context shape State publicRingColumns publicFits
         verifierRows terminalArity}
     (certificate :
-      ConcretePhi81.Certificate (domain := domain) (arity := terminalArity)
+      ConcretePhi81.Certificate (arity := terminalArity)
         publicRingColumns publicFits verifierRows context.piCcsInput)
     (profile : PiCcsOutputDigest.Projection.SplitNc.Profile shape)
     (contextBinding : ContextBinding profile context)
@@ -247,9 +263,7 @@ theorem accepted_refines_withDecodedChallenges
         profile certificate.piCcs.output assignment canonical)
     (postNcBoundary :
       PiCcsOutputDigest.SemanticHandoff.CatchupInputBound
-        (Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier.Protocol.derive
-          context.feMachine context.ncMachine context.initialState
-          certificate.piCcs).finalState
+        (postNcState context certificate)
         assignment canonical) :
     ConcretePhi81.Sampler.CertificateAccepted context
       (withDecodedChallenges assignment certificate) := by

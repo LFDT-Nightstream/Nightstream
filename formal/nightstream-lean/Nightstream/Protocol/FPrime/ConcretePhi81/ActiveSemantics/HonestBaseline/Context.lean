@@ -493,9 +493,11 @@ theorem runningAccepted :
     Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics.HonestBaseline.RunningAuthority.accepted_of_combinedOpening
       context zeroAssignment parent
   · rfl
-  · rfl
-  · exact parentHolds
-  · rfl
+  · exact {
+      parentCombined := rfl
+      parentValid := parentHolds
+      childrenEq := rfl
+    }
 
 /-- Closed honest semantic authority for the degenerate 270-coordinate model
 context. Sampler success remains an explicit later outcome of honest

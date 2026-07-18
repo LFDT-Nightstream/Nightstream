@@ -22,16 +22,18 @@ Emits constraints: no.
 Authority boundary: a parent digest is never authority. Bootstrap acceptance
 requires the complete parent carrier to be absent. Active acceptance requires
 the complete parent statement bound by `Context.runningParent` and a strict
-`Pi_DEC.Accepted` proof against the exact public running children. The shared
-running point is a theorem of that check, not an additional protocol
-obligation.
+`Pi_DEC.Accepted` proof against the exact public running children. This proves
+public recomposition consistency, not that those children are the canonical
+split of a valid parent opening; cross-step authority must supply that
+separate binding boundary. The shared running point is a theorem of the
+public check, not an additional protocol obligation.
 
 | Stage path | Mathematical obligation | Authority class | Lean owner |
 |---|---|---|---|
 | `nifs.concrete.running_authority.mode` | accept exactly zero-running bootstrap or full active mode | checked | `Accepted.bootstrap`, `Accepted.active` |
 | `nifs.concrete.running_authority.bootstrap_parent_absence` | zero-running bootstrap carries no parent authority | checked | `Accepted.bootstrap`, `Accepted.parentAbsent_of_bootstrap` |
 | `nifs.concrete.running_authority.parent_presence` | active transcript-bound carrier is exactly `some parent` | checked | `Bound.parentBound` |
-| `nifs.concrete.running_authority.parent_dec` | parent stage, child stages, structure, point, commitment, public input, and evaluations satisfy strict `Pi_DEC` | checked | `Bound.piDec` |
+| `nifs.concrete.running_authority.parent_dec` | parent stage, child stages, structure, point, commitment, public input, and evaluations satisfy strict public `Pi_DEC` recomposition | checked consistency | `Bound.piDec` |
 | `nifs.concrete.running_authority.shared_point` | every pair of running children has the same evaluation point | derived | `Accepted.children_sharePoint` |
 -/
 

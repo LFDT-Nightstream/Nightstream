@@ -1,0 +1,16 @@
+import Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.CanonicalParentVerifier.Minimality
+
+/-! Focused interface gate for the canonical-parent opening verifier. -/
+
+#check Nightstream.SuperNeo.Folding.PiDEC.CanonicalChildren.OpeningVerifier.accepted_iff_parentHolds
+#check Nightstream.SuperNeo.Folding.PiDEC.CanonicalChildren.OpeningVerifier.canonicalChildren
+#check Nightstream.SuperNeo.Folding.PiDEC.CanonicalChildren.OpeningVerifier.piDecAccepted_and_childHolds
+
+#check Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.CanonicalParentVerifier.accepted_iff_commitment_and_norm
+#check Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.CanonicalParentVerifier.parentHolds_iff_commitment_and_norm
+#check Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.CanonicalParentVerifier.canonicalChildren_of_commitment_and_norm
+
+#check Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.CanonicalParentVerifier.Minimality.plan_exact
+#check Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.CanonicalParentVerifier.Minimality.commitment_necessary
+#check Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.CanonicalParentVerifier.Minimality.combinedNorm_necessary
+#check Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.CanonicalParentVerifier.Minimality.plan_inclusionMinimalSound

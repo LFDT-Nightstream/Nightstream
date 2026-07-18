@@ -168,6 +168,12 @@ module is built; the aggregate entrypoint imports all ownership groups.
 #guard_msgs in
 #audit_axioms Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics.Obligations.selectedStructures_eq_expected
 
+/-- info: 'Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics.Obligations.selectedInputAuthority' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics.Obligations.selectedInputAuthority
+
 /-- info: 'Nightstream.Protocol.FPrime.ConcretePhi81.ActiveEvaluator.outerCheck_eq_true_iff' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/

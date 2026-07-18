@@ -26,6 +26,9 @@ the generic owner; only active arity selection is profile-specific here.
 | `nifs.fixed_active.arity` | exactly one fresh source plus all `k = 14` running sources | typed/computed | `arity` |
 | `nifs.fixed_active.result` | expose the generic complete result at active arity | delegated | `Result.FoldResult`, `Result.resultOf` |
 | `nifs.fixed_active.semantic` | expose the generic semantic transition at active arity | delegated | `Result.ResultTransition` |
+| `nifs.fixed_active.canonical_children` | expose the valid parent opening and its complete deterministic child split | delegated | `ResultTransition.canonicalChildren` |
+| `nifs.fixed_active.input.running_openings` | expose one coherent opening function for all fourteen incoming children | delegated | `ResultTransition.inputRunningOpenings` |
+| `nifs.fixed_active.input.running_parent` | expose strict recomposition for the exact carried parent and fourteen children | delegated/derived | `ResultTransition.inputRunningPiDec` |
 | `nifs.fixed_active.derived` | expose generic structure and parent-uniqueness facts at active arity | delegated | `Result.ResultTransition.*` |
 -/
 
@@ -157,6 +160,26 @@ theorem ResultTransition.children_transition
   exact Result.ResultTransition.children_transition
     (arity := arity) accepted
 
+/-- The complete active result is bound to one valid combined parent opening
+and its exact deterministic child split. -/
+theorem ResultTransition.canonicalChildren
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    {context :
+      Context shape State publicRingColumns publicFits verifierRows}
+    {result : FoldResult shape publicRingColumns publicFits verifierRows}
+    (accepted : ResultTransition context result) :
+    ∃ assignment :
+        Phi81Relation.Assignment
+          (RelationShape shape publicRingColumns publicFits),
+      PiDEC.CanonicalChildren.ForOpening
+        (ConcretePhi81.decAlgebra context.key) result.parent assignment
+        result.children := by
+  exact Result.ResultTransition.canonicalChildren (arity := arity) accepted
+
 /-- The derived parent cache has a valid private opening. This does not make
 the parent an injective encoding of its children. -/
 theorem ResultTransition.parentOpening
@@ -214,6 +237,60 @@ theorem transition_iff_exists_resultTransition
         result.children = children ∧ ResultTransition context result := by
   exact Result.transition_iff_exists_resultTransition
     (arity := arity) (context := context) (children := children)
+
+/-- One active transition carries authoritative openings for the complete
+incoming `CE(b)^14` accumulator through one shared semantic source witness. -/
+theorem ResultTransition.inputRunningOpenings
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    {context :
+      Context shape State publicRingColumns publicFits verifierRows}
+    {result : FoldResult shape publicRingColumns publicFits verifierRows}
+    (accepted : ResultTransition context result) :
+    ∃ inputAssignments : Fin productionGlobalParams.k ->
+        Phi81Relation.Assignment
+          (RelationShape shape publicRingColumns publicFits),
+      ∀ child,
+        CE.Holds (ConcretePhi81.semantics context.key) productionGlobalParams
+          (context.input.running child) (inputAssignments child) := by
+  exact Result.ResultTransition.inputRunningOpenings
+    (arity := arity) accepted
+
+/-- Active semantic acceptance already checks the supplied incoming parent
+against the exact fourteen public running children. `parentBound` only names
+the parent installed in the verifier-owned context; it is not a digest. -/
+theorem ResultTransition.inputRunningPiDec
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    {context :
+      Context shape State publicRingColumns publicFits verifierRows}
+    {result : FoldResult shape publicRingColumns publicFits verifierRows}
+    (accepted : ResultTransition context result)
+    (parent : Phi81Relation.CEStatement
+      (RelationShape shape publicRingColumns publicFits)
+      (CommitmentValue verifierRows))
+    (parentBound : context.runningParent = some parent) :
+    PiDEC.Accepted (ConcretePhi81.decAlgebra context.key) {
+      parent := parent
+      children := context.input.running
+    } := by
+  have runningAuthority : RunningAuthority.Accepted context :=
+    Result.ResultTransition.runningAuthority (arity := arity) accepted
+  rcases
+      (RunningAuthority.Accepted.iff_nonemptyBound_of_active
+        (context := context) rfl).1 runningAuthority with
+    ⟨bound⟩
+  have parentEq : bound.parent = parent :=
+    Option.some.inj (bound.parentBound.symm.trans parentBound)
+  subst parent
+  simpa [RunningAuthority.attempt, RunningAuthority.children,
+    RunningAuthority.activeIndex, bound.active] using bound.piDec
 
 /-- Independent source authority already forces every selected running child
 to use the same relation structure as the sole fresh source. This is derived

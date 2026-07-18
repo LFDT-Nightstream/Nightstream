@@ -1,6 +1,7 @@
 import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.RunningAuthority
 import Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Semantics.Paper
 import Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier.InputAuthority
+import Nightstream.SuperNeo.Folding.PiDEC.CanonicalChildren
 
 /-!
 Certificate-independent semantics for one concrete Phi81 NIFS fold.
@@ -40,6 +41,7 @@ extraction arguments must refine into this relation in a separate module.
 | `nifs.semantic.fold` | paper truth, input authority, incoming authority, and exact computed result | independent specification | `Holds` |
 | `nifs.semantic.completeness` | every paper-valid bound input and semantic witness yields its computed result | derived | `complete` |
 | `nifs.semantic.opening.parent` | the computed parent has the combined private opening | derived | `Holds.parentOpening` |
+| `nifs.semantic.opening.canonical_children` | the complete child family is the deterministic split of that same parent opening | derived | `Holds.canonicalChildren` |
 | `nifs.semantic.opening.children` | every computed child has its radix-split private opening | derived | `Holds.childOpening` |
 -/
 
@@ -403,6 +405,34 @@ theorem parentOpening
   · exact Phi81Relation.evaluationPointValid_holds
       (systemOf context data) witness.point
 
+/-- The complete public child family is exactly the deterministic split of
+the same valid combined parent opening. -/
+theorem canonicalChildren
+    {context :
+      Context shape State publicRingColumns publicFits verifierRows arity}
+    {data : Data shape}
+    {parent :
+      Phi81Relation.CEStatement
+        (RelationShape shape publicRingColumns publicFits)
+        (CommitmentValue verifierRows)}
+    {children : Fin productionGlobalParams.k ->
+      Phi81Relation.CEStatement
+        (RelationShape shape publicRingColumns publicFits)
+        (CommitmentValue verifierRows)}
+    {witness : Witness context}
+    (holds : Realization context data parent children witness) :
+    PiDEC.CanonicalChildren.ForOpening (decAlgebra context.key) parent
+      (combinedAssignment context data witness) children := by
+  refine {
+    parentCombined := ?_
+    parentValid := holds.parentOpening
+    childrenEq := ?_
+  }
+  · rw [holds.parent_eq]
+    rfl
+  · rw [holds.parent_eq, holds.children_eq]
+    rfl
+
 /-- Every public child has exactly its canonical radix-split opening. -/
 theorem childOpening
     {context :
@@ -422,12 +452,7 @@ theorem childOpening
     CE.Holds (semantics context.key) productionGlobalParams (children child)
       ((decAlgebra context.key).splitAssignment
         (combinedAssignment context data witness) child) := by
-  have parentHolds := holds.parentOpening
-  rw [holds.parent_eq] at parentHolds
-  rw [holds.children_eq]
-  exact PiDEC.childrenOf_holds (semantics context.key) productionGlobalParams
-    (decAlgebra context.key) (parentOf context data witness)
-    (combinedAssignment context data witness) rfl parentHolds child
+  exact holds.canonicalChildren.complete.2 child
 
 /-- The semantic result satisfies the strict public `Pi_DEC` equations. -/
 theorem piDecAccepted
@@ -445,13 +470,7 @@ theorem piDecAccepted
     {witness : Witness context}
     (holds : Realization context data parent children witness) :
     PiDEC.Accepted (decAlgebra context.key) (piDecAttempt parent children) := by
-  have parentHolds := holds.parentOpening
-  rw [holds.parent_eq] at parentHolds
-  rw [holds.parent_eq, holds.children_eq]
-  simpa [piDecAttempt] using
-    (PiDEC.complete (semantics context.key) productionGlobalParams
-      (decAlgebra context.key) (parentOf context data witness)
-      (combinedAssignment context data witness) rfl parentHolds).1
+  simpa [piDecAttempt] using holds.canonicalChildren.complete.1
 
 end Realization
 
@@ -479,6 +498,31 @@ theorem outputsHold
   rcases holds with ⟨witness, realized⟩
   exact ⟨witness, realized.outputsHold⟩
 
+/-- Every semantic fold result carries one valid combined parent opening and
+its exact canonical child vector. This is the semantic prior-link authority;
+a physical recursive boundary must refine into it explicitly. -/
+theorem canonicalChildren
+    {context :
+      Context shape State publicRingColumns publicFits verifierRows arity}
+    {data : Data shape}
+    {parent :
+      Phi81Relation.CEStatement
+        (RelationShape shape publicRingColumns publicFits)
+        (CommitmentValue verifierRows)}
+    {children : Fin productionGlobalParams.k ->
+      Phi81Relation.CEStatement
+        (RelationShape shape publicRingColumns publicFits)
+        (CommitmentValue verifierRows)}
+    (holds : Holds context data parent children) :
+    ∃ assignment :
+        Phi81Relation.Assignment
+          (RelationShape shape publicRingColumns publicFits),
+      PiDEC.CanonicalChildren.ForOpening (decAlgebra context.key) parent
+        assignment children := by
+  rcases holds with ⟨witness, realized⟩
+  exact ⟨combinedAssignment context data witness,
+    realized.canonicalChildren⟩
+
 /-- The public parent of every semantic fold has an authoritative opening. -/
 theorem parentOpening
     {context :
@@ -498,8 +542,8 @@ theorem parentOpening
           (RelationShape shape publicRingColumns publicFits),
       CE.Holds (semantics context.key) productionGlobalParams parent
         assignment := by
-  rcases holds with ⟨witness, realized⟩
-  exact ⟨combinedAssignment context data witness, realized.parentOpening⟩
+  rcases holds.canonicalChildren with ⟨assignment, canonical⟩
+  exact ⟨assignment, canonical.parentValid⟩
 
 /-- Every public child of a semantic fold has an authoritative opening. -/
 theorem childOpening
@@ -521,11 +565,10 @@ theorem childOpening
           (RelationShape shape publicRingColumns publicFits),
       CE.Holds (semantics context.key) productionGlobalParams
         (children child) assignment := by
-  rcases holds with ⟨witness, realized⟩
+  rcases holds.canonicalChildren with ⟨assignment, canonical⟩
   exact ⟨
-    (decAlgebra context.key).splitAssignment
-      (combinedAssignment context data witness) child,
-    realized.childOpening child⟩
+    (decAlgebra context.key).splitAssignment assignment child,
+    canonical.complete.2 child⟩
 
 /-- Every semantic fold satisfies the strict public `Pi_DEC` equations. -/
 theorem piDecAccepted
@@ -542,8 +585,8 @@ theorem piDecAccepted
         (CommitmentValue verifierRows)}
     (holds : Holds context data parent children) :
     PiDEC.Accepted (decAlgebra context.key) (piDecAttempt parent children) := by
-  rcases holds with ⟨_witness, realized⟩
-  exact realized.piDecAccepted
+  rcases holds.canonicalChildren with ⟨_assignment, canonical⟩
+  simpa [piDecAttempt] using canonical.complete.1
 
 end Holds
 

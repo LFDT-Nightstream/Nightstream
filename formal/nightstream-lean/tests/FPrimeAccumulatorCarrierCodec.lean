@@ -1,0 +1,22 @@
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.Accumulator.CarrierCodec
+
+/-! Focused interface gate for the reduced accumulator field codec. -/
+
+open Nightstream.Implementation.R1CS.FPrimeFullHistory.Accumulator.CarrierCodec
+
+#check encodePoint_injective
+#check encodePoint_eq_flatten_map
+#check encodeCommitment_injective
+#check decodeCommitmentOfLength
+#check encodeCommitment_decodeCommitmentOfLength
+#check encodeChildren_injective
+#check encodeChildren_decodeCommitmentOfLength
+#check encodeCommitmentFamily_injective
+#check encodeCanonicalParent_injective
+#check commitmentFamilyScheme_no_encodingCollision
+#check canonicalParentScheme_no_encodingCollision
+#check commitmentFamily_claim_eq_or_hashCollision
+#check canonicalParent_claim_eq_or_hashCollision
+#check fixed_commitment_field_count
+#check fixed_commitment_family_field_count
+#check fixed_canonical_parent_field_count

@@ -11,6 +11,8 @@ import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.SemanticFold
 import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.SemanticFold.ObligationPlan
 import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.SemanticFold.ObligationPlan.Necessity
 import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.Transition
+import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.Authority.PiRlcParentOpening
+import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.Authority.PackedYZcol
 import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.Result
 import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedBootstrap
 import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive
@@ -49,6 +51,8 @@ Emits constraints: no.
 | `nifs.semantic.obligation_plan` | exact protocol/phase/family leaves over a raw point and challenge candidate | no | `ConcretePhi81.SemanticFold.ObligationPlan` |
 | `nifs.semantic.obligation_plan.necessity` | parent-only and child-only removal witnesses for the computed result equalities | no | `ConcretePhi81.SemanticFold.ObligationPlan.Necessity` |
 | `nifs.concrete.transition` | physical acceptance, refinement into the semantic fold, named-bad-event soundness, and honest completeness | no | `ConcretePhi81.Transition` |
+| `nifs.pi_rlc.verify.authority.parent` | canonical combined CE opening from source-authorized `yRing` values | no | `ConcretePhi81.Authority.PiRlcParentOpening` |
+| `nifs.pi_rlc.verify.authority.packed_y_zcol` | product-indexed packed sidecar authority, or explicit mixing, bad-root, or parent-projection mismatch | no | `ConcretePhi81.Authority.PackedYZcol` |
 | `nifs.result` | one arity-independent derived parent/children result and its semantic projection | no | `ConcretePhi81.Result` |
 | `nifs.fixed_bootstrap` | exact `1 + 0` carrier, absent incoming parent, and complete derived parent/children result | no | `ConcretePhi81.FixedBootstrap` |
 | `nifs.fixed_active` | exact `1 + 14` carrier and complete derived parent/children result | no | `ConcretePhi81.FixedActive` |

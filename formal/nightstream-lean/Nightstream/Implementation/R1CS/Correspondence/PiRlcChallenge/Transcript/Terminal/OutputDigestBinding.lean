@@ -201,17 +201,23 @@ theorem labelPrefix_eq_firstBoundaryInput
   have label3 : assignment 2553448 = 28252447032566124 :=
     pins.label (2553448, 28252447032566124)
       (by simp [OutputDigestSchedule.labelPins])
+  have label0Field := fieldAt_eq_wordField canonical label0
+    (by decide) (by decide)
+  have label1Field := fieldAt_eq_wordField canonical label1
+    (by decide) (by decide)
+  have label2Field := fieldAt_eq_wordField canonical label2
+    (by decide) (by decide)
+  have label3Field := fieldAt_eq_wordField canonical label3
+    (by decide) (by decide)
   rw [labelPrefix_shape]
   apply stateExt
   · funext lane
-    apply Fin.ext
     rcases laneValueCases lane with h | h | h | h | h | h | h | h <;>
-      simp [labelPrefixState, postCatchupState, callOutputState, callInputState,
+      simp [labelPrefixState, postCatchupState,
         OutputDigestSchedule.catchupCall,
         OutputDigestSchedule.firstBoundaryCall,
-        Poseidon2Call.Call.columnMap, overwriteLane, fieldAt,
-        wordField, fieldValue, u64Modulus, goldilocksP,
-        h, label0, label1, label2, label3]
+        Poseidon2Call.Call.columnMap, overwriteLane,
+        h, label0Field, label1Field, label2Field, label3Field]
   · rfl
 
 /-- Crossing the first full cursor computes the exact first-boundary output
@@ -271,21 +277,22 @@ theorem beforeSecondBoundary_eq_input
   have fieldCount : assignment 2554050 = 4 :=
     pins.fieldCount (2554050, 4)
       (by simp [OutputDigestSchedule.fieldCountPins])
+  have label4Field := fieldAt_eq_wordField canonical label4
+    (by decide) (by decide)
+  have fieldCountField := fieldAt_eq_wordField canonical fieldCount
+    (by decide) (by decide)
   rw [OutputDigestSemantics.beforeSecondBoundary, firstBoundary]
   change secondBoundaryInputState assignment canonical =
     callInputState assignment canonical
       OutputDigestSchedule.secondBoundaryCall ⟨4, by decide⟩
   apply stateExt
   · funext lane
-    apply Fin.ext
     rcases laneValueCases lane with h | h | h | h | h | h | h | h <;>
-      simp [secondBoundaryInputState, callOutputState, callInputState,
-        outputDigest,
+      simp [secondBoundaryInputState, outputDigest,
         OutputDigestSchedule.firstBoundaryCall,
         OutputDigestSchedule.secondBoundaryCall,
-        Poseidon2Call.Call.columnMap, overwriteLane, fieldAt,
-        wordField, fieldValue, u64Modulus, goldilocksP,
-        h, label4, fieldCount]
+        Poseidon2Call.Call.columnMap, overwriteLane,
+        h, label4Field, fieldCountField]
   · rfl
 
 /-- The second boundary is independently replayed; buffering digest lanes two
@@ -330,12 +337,10 @@ theorem completeBinding_eq_initialState
       ScheduleRefinement.initialState assignment canonical
   apply stateExt
   · funext lane
-    apply Fin.ext
     rcases laneValueCases lane with h | h | h | h | h | h | h | h <;>
-      simp [callOutputState, outputDigest,
-        ScheduleRefinement.initialState,
+      simp [outputDigest, ScheduleRefinement.initialState,
         OutputDigestSchedule.secondBoundaryCall,
-        Poseidon2Call.Call.columnMap, overwriteLane, fieldAt, h]
+        Poseidon2Call.Call.columnMap, overwriteLane, h]
   · rfl
 
 /-- Accepted terminal handoff rows refine the independent output-digest

@@ -130,7 +130,7 @@ theorem messageBound_of_sourceBound
   simp [Primitives.extensionFields, Carrier.semanticCoefficientAt,
     Carrier.semanticFieldAt, Transport.toExtension, Transport.toField,
     Execution.messageFields,
-    PiRlcChallenge.Transcript.DigestRounds.fieldAt]
+    PiRlcChallenge.Transcript.CallRefinement.fieldAt]
 
 /-- Preferred later-round message theorem exposing only the complete carrier
 boundary. -/

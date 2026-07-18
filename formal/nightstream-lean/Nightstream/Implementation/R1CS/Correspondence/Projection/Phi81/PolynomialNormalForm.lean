@@ -1,42 +1,29 @@
-import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.NifsPaper.PiRlc
+import Nightstream.Implementation.R1CS.Correspondence.Projection.Phi81.Carrier
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ConcreteCarrier.Algebra
 
 /-!
-Exact Phi81 normal-form interpretation for one production projection identity.
+Profile-neutral exact normal form for one Phi81 projection polynomial.
 
-Assurance tier: model-level. The result is independent polynomial algebra and
-does not claim generated-row or Rust conformance.
+Assurance tier: model-level. The only semantic premise is exact coefficient
+equality; no generated trace, quotient witness, digest, or profile is trusted.
 
-Owns: the structural list-polynomial facts needed to interpret
-`ProjectionTrace.identity`; uniqueness of the 54-coefficient remainder modulo
-`X^54 + X^27 + 1`; and the bridge from one embedded schoolbook product to the
-independent executable `Concrete.ringFMul` operation.
-
-Does not own: sampled-point soundness, transcript probability, generated trace
-membership, carrier wiring, NIFS acceptance, Rust conformance, row removal, or
-constraint counts.
-
-Emits constraints: no.
-
-Authority boundary: the only semantic premise is coefficient-list equality.
-No quotient, remainder, digest, or native-verifier result is accepted as a
-caller-supplied conclusion.
-
-| Stage path | Mathematical obligation | Authority class | Lean owner |
+| Stage family | Mathematical obligation | Authority class | Lean owner |
 |---|---|---|---|
-| `nifs.pi_rlc.verify.identities.public` | multiplication by `X^54 + X^27 + 1` is three exact shifts | computed | `mul_phi81` |
-| `nifs.pi_rlc.verify.identities.public` | a degree-106 identity has one 54-coefficient Phi81 remainder | derived | `exact_output_eq_remainder` |
-| `nifs.pi_rlc.verify.identities.public` | embedded list multiplication decodes to `Concrete.rawMulCoeffF` | derived | `product_remainder_eq_ringFMul` |
+| `projection.identity.quotient` | `X^54 + X^27 + 1` gives one 54-lane remainder | derived | `exact_output_eq_remainder` |
+| `projection.identity.product` | embedded schoolbook multiplication is `ringFMul` | derived | `product_remainder_eq_ringFMul` |
+
+Owns: list-polynomial remainder uniqueness and executable Phi81 product
+interpretation. Does not own: sampled-root soundness, trace membership, column
+binding, costs, or Rust/R1CS conformance. Emits constraints: no.
 -/
 
-namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper.PiRlc.Reduction
+namespace Nightstream.Implementation.R1CS.ProjectionPhi81.PolynomialNormalForm
 
 open Nightstream.SuperNeo
 open Nightstream.SuperNeo.Concrete
 open Nightstream.Implementation.R1CS
 open Nightstream.Implementation.R1CS.ProjectionProgram
-open Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper
-open Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper.PiRlc
+open Nightstream.Implementation.R1CS.ProjectionPhi81
 
 set_option maxRecDepth 16384
 set_option maxHeartbeats 4000000
@@ -52,8 +39,6 @@ private local instance : Std.Associative (fun left right : Scalar => left + righ
 
 private local instance : Std.Commutative (fun left right : Scalar => left + right) :=
   ⟨Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ConcreteCarrier.baseLaws.add_comm⟩
-
-/-! ## Structural list-polynomial algebra -/
 
 def shift : Nat → List ProjectionProgram.K → List ProjectionProgram.K
   | 0, polynomial => polynomial
@@ -214,8 +199,6 @@ private theorem phi81_as_monomials :
           (shift 54 [ProjectionProgram.K.one])) := by
   decide
 
-/-- Multiplication by the fixed cyclotomic polynomial is exactly the sum of
-the unshifted, 27-shifted, and 54-shifted coefficient vectors. -/
 theorem mul_phi81 (polynomial : List ProjectionProgram.K)
     (nonempty : polynomial ≠ []) :
     Polynomial.mul polynomial Polynomial.phi81 =
@@ -224,8 +207,6 @@ theorem mul_phi81 (polynomial : List ProjectionProgram.K)
   rw [phi81_as_monomials, mul_add_right, mul_add_right, mul_one,
     mul_shift_monomial 27 polynomial nonempty,
     mul_shift_monomial 54 polynomial nonempty]
-
-/-! ## Coefficient projection and unique remainder -/
 
 def coefficient (polynomial : List ProjectionProgram.K) (degree : Nat) :
     ProjectionProgram.K :=
@@ -353,7 +334,6 @@ private theorem add_sub_add_triple
   simp only [Fin.sub_eq_add_neg]
   ac_rfl
 
-/-- Phi81 remainder extraction is additive on coefficient lists. -/
 theorem remainderRing_add
     (left right : List ProjectionProgram.K) :
     remainderRing (Polynomial.add left right) =
@@ -365,7 +345,6 @@ theorem remainderRing_add
   · exact add_sub_add_triple _ _ _ _ _ _
   · exact add_sub_pair _ _ _ _
 
-/-- The empty coefficient list denotes the zero Phi81 ring element. -/
 theorem remainderRing_nil :
     remainderRing [] = Concrete.ringFZero := by
   funext output
@@ -422,8 +401,8 @@ private theorem exact_coefficient_equation
     coefficient_add, coefficient_add,
     coefficient_shift, coefficient_shift, coefficient_padRight]
 
-/-- Coefficient equality with a 53-coefficient quotient and 54-coefficient
-output uniquely determines the concrete Phi81 remainder. -/
+/-- Exact coefficient equality with the fixed quotient/output widths uniquely
+determines the concrete Phi81 remainder. -/
 theorem exact_output_eq_remainder
     (raw quotient output : List ProjectionProgram.K)
     (quotientWidth : quotient.length = 53)
@@ -578,8 +557,6 @@ theorem exact_output_eq_remainder
           exact (high_cancel _ _ _).symm
         _ = (List.ofFn (remainderRing raw))[index] := by
           exact (List.getElem_ofFn (f := remainderRing raw) rightLt).symm
-
-/-! ## Embedded product to executable quotient-ring multiplication -/
 
 def embedded (coefficients : List Scalar) : List ProjectionProgram.K :=
   coefficients.map fun coefficient => ⟨coefficient, 0⟩
@@ -838,8 +815,8 @@ private theorem embedded_product_coefficient_eq_zero_of_degree_gt
   apply convolutionRange_eq_zero_of_right_outside
   omega
 
-/-- One exact embedded schoolbook product has exactly the same canonical
-Phi81 remainder as the independent executable ring multiplication. -/
+/-- An exact embedded schoolbook product has the same canonical remainder as
+the independently defined executable Phi81 multiplication. -/
 theorem product_remainder_eq_ringFMul
     (left right : List Scalar)
     (leftWidth : left.length = 54) (rightWidth : right.length = 54) :
@@ -863,4 +840,4 @@ theorem product_remainder_eq_ringFMul
     have noTwice : ¬ output.val + 81 ≤ 106 := by omega
     simp [noTwice] <;> rfl
 
-end Nightstream.Implementation.R1CS.FPrimeFullHistoryNifsPaper.PiRlc.Reduction
+end Nightstream.Implementation.R1CS.ProjectionPhi81.PolynomialNormalForm

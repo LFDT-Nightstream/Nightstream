@@ -1,5 +1,5 @@
 import Nightstream.Implementation.R1CS.Correspondence.PiCcsOutputDigest.ActiveSemantics
-import Nightstream.Implementation.R1CS.Correspondence.PiCcsOutputDigest.Projection.SplitNc
+import Nightstream.Implementation.R1CS.Correspondence.PiCcsOutputDigest.Profile
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.RelationProfile
 import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive
 
@@ -33,7 +33,7 @@ active shape.
 | `nifs.pi_ccs.output_digest.profile.relation` | forgetting batch counts recovers the exact independent relation shape | derived | `relationShape_eq` |
 | `nifs.pi_ccs.output_digest.profile.sources` | fixed active arity implies exactly 15 sources | derived | `context_sourceCount_eq_15` |
 | `nifs.pi_ccs.output_digest.profile.matrices` | canonical selective shape has exactly 13 matrices | computed | `selectiveShape_matrixCount_eq_13` |
-| `nifs.pi_ccs.output_digest.profile.legacy_mismatch` | the legacy three-matrix projection cannot inhabit the active shape | derived/quarantine | `selectiveShape_not_legacyProfile` |
+| `nifs.pi_ccs.output_digest.profile.legacy_mismatch` | the active shape differs from the diagnostic three-matrix profile | derived/quarantine | `selectiveShape_not_diagnosticProfile` |
 | `nifs.pi_ccs.output_digest.profile.fields` | complete canonical active pre-SIS message has 23,033 fields | derived representation length | `selective_serialize_length` |
 -/
 
@@ -97,18 +97,25 @@ theorem relationShape_eq
       Selective.Profile.shape profile := by
   rfl
 
-/-- The independently specified active relation cannot be routed through the
-legacy three-matrix terminal projection. This prevents the diagnostic artifact
-from becoming an accidental premise of the active refinement. -/
-theorem selectiveShape_not_legacyProfile
+/-- The active serializer profile is exactly the independent thirteen-matrix
+specialization. -/
+theorem selectiveShape_profile_eq_steadyFixedPoint
     {rows columns : Nat}
     (profile : Selective.Profile rows columns) :
-    ¬ Projection.SplitNc.Profile (selectiveShape profile) := by
-  intro legacy
-  have matrixCountEq : (selectiveShape profile).matrixCount = 3 := by
-    simpa [Semantics.yRingRows] using legacy.matrixCount_eq
-  rw [selectiveShape_matrixCount_eq_13] at matrixCountEq
-  omega
+    PiCcsOutputDigest.Profile.ofSemanticShape (selectiveShape profile) =
+      PiCcsOutputDigest.Profile.steadyFixedPointThirteenMatrix := by
+  rfl
+
+/-- The independently specified active relation cannot be mistaken for the
+historical three-matrix diagnostic profile. No diagnostic projection module
+is imported to establish this separation. -/
+theorem selectiveShape_not_diagnosticProfile
+    {rows columns : Nat}
+    (profile : Selective.Profile rows columns) :
+    PiCcsOutputDigest.Profile.ofSemanticShape (selectiveShape profile) ≠
+      PiCcsOutputDigest.Profile.diagnosticThreeMatrix := by
+  rw [selectiveShape_profile_eq_steadyFixedPoint]
+  exact PiCcsOutputDigest.Profile.diagnosticThreeMatrix_ne_steadyFixedPointThirteenMatrix.symm
 
 /-- The fixed active alignment derives one fresh plus fourteen running
 sources; no independent source-count profile is accepted. -/

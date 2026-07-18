@@ -3,13 +3,15 @@
 ```text
 property_id: CIR-FPR-RECURSIVE-MANIFEST
 claim:
-  For the exact plain/stateless/minimal-bit-carrier steady recursive profile,
-  the production F' builder emits 2,640,071 rows in eight contiguous named
-  top-level families. Its 2,572,208-row NIFS interval is exactly partitioned
-  into PiCCS, PiRLC, PiDEC, and point-binding families. Every interval hashes
-  the exact sparse A/B/C triplets. The Rust harness renders and byte-compares
-  the Lean data module from those same rows, and source drift fails the
-  regression.
+  For the exact diagnostic plain/stateless/direct-CCS-bit-carrier steady
+  recursive profile, the generated `FPrimeRecursiveManifest.totalRows` rows
+  form eight contiguous named top-level families. Its generated
+  `FPrimeRecursiveManifest.nifsRowCount`-row NIFS interval is exactly
+  partitioned into PiCCS, PiRLC, PiDEC, and point-binding families. These
+  generated totals are diagnostic measurements, not semantic authority.
+  Every interval hashes the exact sparse A/B/C triplets. The Rust harness
+  renders and byte-compares the Lean data module from those same rows, and
+  source drift fails the regression.
 
   Independently, ProjectedChecks is the explicit production-facing semantic
   proof interface. Its kernel theorem composes decoded facts into
@@ -17,8 +19,9 @@ claim:
 assumptions:
   - SHA-256 is used only for offline drift identity, never as protocol
     authority or as a premise of a semantic theorem.
-  - The selected carrier is a supported one-row direct CCS relation with the
-    production 257-field F' public input.
+  - The selected carrier is a direct-CCS diagnostic padding relation over the
+    verifier's current F' public carrier. It is not the selective fixed-point
+    relation.
 non_goals:
   - Satisfaction of a range implies its ProjectedChecks fields.
   - CIR-SOUND or CIR-COMPLETE.

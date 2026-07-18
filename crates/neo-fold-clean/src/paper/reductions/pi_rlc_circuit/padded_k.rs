@@ -227,7 +227,7 @@ pub fn enforce_rlc_padded_k_projection_identities_with_quotient_wires(
     )
 }
 
-/// Padded K-vector identities with diagnostic phase labels.
+/// Padded K-vector identities with one diagnostic phase-label set per limb.
 pub fn enforce_rlc_padded_k_projection_identities_with_quotient_wires_and_stages(
     builder: &mut R1csBuilder,
     powers: &[KVar],
@@ -235,9 +235,13 @@ pub fn enforce_rlc_padded_k_projection_identities_with_quotient_wires_and_stages
     wires: &RlcPaddedKVectorWires,
     quotient_c0: &[Var; PROJECTION_QUOTIENT_LEN],
     quotient_c1: &[Var; PROJECTION_QUOTIENT_LEN],
-    stages: Option<ProjectionIdentityStageLabels>,
+    stages: Option<[ProjectionIdentityStageLabels; 2]>,
 ) -> Result<(), Error> {
     validate_rlc_padded_k_projection_shape(wires)?;
+    let (c0_stages, c1_stages) = match stages {
+        Some([c0, c1]) => (Some(c0), Some(c1)),
+        None => (None, None),
+    };
     let inputs_c0: Vec<[Var; D]> = wires
         .inputs
         .iter()
@@ -269,7 +273,7 @@ pub fn enforce_rlc_padded_k_projection_identities_with_quotient_wires_and_stages
         &pairs_c0,
         &output_c0,
         quotient_c0,
-        stages,
+        c0_stages,
     );
     enforce_ring_action_projection_batch_with_rho_evaluations_and_stages(
         builder,
@@ -278,7 +282,7 @@ pub fn enforce_rlc_padded_k_projection_identities_with_quotient_wires_and_stages
         &pairs_c1,
         &output_c1,
         quotient_c1,
-        stages,
+        c1_stages,
     );
     Ok(())
 }

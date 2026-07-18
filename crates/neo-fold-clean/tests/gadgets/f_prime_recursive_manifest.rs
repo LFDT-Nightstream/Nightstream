@@ -1,7 +1,8 @@
-//! Compact drift manifest for the exact steady-state plain F' recursive step.
+//! Compact drift manifest for one diagnostic steady-state plain F' recursive step.
 //!
-//! Owns: production-row regeneration, top-level/NIFS partition checks,
-//! projection census, source provenance, and Lean-data drift output.
+//! Owns: diagnostic-row regeneration, top-level/NIFS partition checks,
+//! projection census, physical PiCCS output-profile recovery, source
+//! provenance, and Lean-data drift output.
 //!
 //! Does not own: semantic soundness, cryptographic reductions, or permission
 //! to trust a manifest instead of the production relation.
@@ -10,7 +11,9 @@
 //! emitted rows.
 //!
 //! Authority boundary: generated JSON and Lean data are review artifacts only;
-//! every run recomputes rows and hashes from the current source.
+//! every run recomputes rows, hashes, and the physical PiCCS output profile
+//! from the current source. This fixture is not the selective fixed-point F'
+//! relation.
 //!
 //! | Artifact branch | Guarantee | Evidence tier | Permits row removal? |
 //! |---|---|---|---|
@@ -40,13 +43,14 @@ use neo_fold_clean::paper::digest::{
 };
 use neo_fold_clean::paper::f_prime::r1cs::{
     encode_f_prime_superneo_public_input, enforce_f_prime_recursive_step_circuit, FPrimePublicInputLayout,
-    FPrimeRecursiveInputs, FPrimeStateIn, FPrimeStepConfig, F_PRIME_ENC_INST_BITS, F_PRIME_PUBLIC_INPUT_LEN,
-    F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
+    FPrimeRecursiveInputs, FPrimeStateIn, FPrimeStepConfig, FPrimeStepOutput, F_PRIME_ENC_INST_BITS,
+    F_PRIME_PUBLIC_INPUT_LEN, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
 };
 use neo_fold_clean::paper::f_prime::source_image::{BitRange, FPrimeSourceImage, Word64Image};
 use neo_fold_clean::paper::nifs::circuit::{NifsVCircuitConfig, NifsVCircuitMessages};
 use neo_fold_clean::paper::nifs::NifsProof;
-use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsVConfig;
+use neo_fold_clean::paper::reductions::pi_ccs_output_message::Profile as PiCcsOutputMessageProfile;
+use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::{stage as pi_ccs_stage, SplitNcPiCcsVConfig};
 use neo_fold_clean::paper::relations::{CcsClaim, CeClaim};
 use neo_math::ring::D;
 use neo_math::F;
@@ -109,8 +113,10 @@ const SOURCE_PATHS: &[&str] = &[
     "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/digests.rs",
     "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/fe.rs",
     "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/nc.rs",
+    "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/output_message.rs",
     "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/transcript.rs",
     "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/verifier.rs",
+    "crates/neo-fold-clean/src/paper/reductions/pi_ccs_output_message.rs",
     // Shared SIS, PiRLC algebra, and PiDEC constraint families.
     "crates/neo-fold-clean/src/paper/reductions/accumulator_sis_circuit.rs",
     "crates/neo-fold-clean/src/paper/reductions/pi_rlc_circuit/mod.rs",
@@ -129,6 +135,22 @@ const SOURCE_PATHS: &[&str] = &[
     "formal/nightstream-lean/Nightstream/Assurance/FPrimeRecursiveCircuit.lean",
 ];
 
+#[path = "f_prime_recursive_manifest/active_beta_ladder.rs"]
+mod active_beta_ladder;
+#[path = "f_prime_recursive_manifest/active_projection_artifacts.rs"]
+mod active_projection_artifacts;
+#[path = "f_prime_recursive_manifest/active_rho_challenge_wiring.rs"]
+mod active_rho_challenge_wiring;
+#[path = "f_prime_recursive_manifest/active_rho_evaluations.rs"]
+mod active_rho_evaluations;
+#[path = "f_prime_recursive_manifest/active_sampler_layout.rs"]
+mod active_sampler_layout;
+#[path = "f_prime_recursive_manifest/active_transcript_layout.rs"]
+mod active_transcript_layout;
+#[path = "f_prime_recursive_manifest/active_y_zcol_identities.rs"]
+mod active_y_zcol_identities;
+#[path = "f_prime_recursive_manifest/active_y_zcol_output_owners.rs"]
+mod active_y_zcol_output_owners;
 #[path = "f_prime_recursive_manifest/aggregate_acceptance_outer_image.rs"]
 mod aggregate_acceptance_outer_image;
 #[path = "f_prime_recursive_manifest/output_authority_poseidon2_sbox.rs"]
@@ -368,7 +390,7 @@ fn source_image(fixture: &Fixture) -> RecursiveSource {
     }
 }
 
-fn build_recursive_program() -> R1csBuilder {
+fn build_recursive_program_with_output() -> (R1csBuilder, FPrimeStepOutput) {
     let fixture = build_fixture();
     let config = step_config(&fixture.prep);
     let source = source_image(&fixture);
@@ -396,10 +418,14 @@ fn build_recursive_program() -> R1csBuilder {
     };
     let mut builder = R1csBuilder::new();
     builder.enable_encoding_trace();
-    enforce_f_prime_recursive_step_circuit(&mut builder, &fixture.prep.params, &config, &inputs)
+    let output = enforce_f_prime_recursive_step_circuit(&mut builder, &fixture.prep.params, &config, &inputs)
         .expect("emit recursive program");
     builder.begin_encoding_stage("complete");
-    builder
+    (builder, output)
+}
+
+fn build_recursive_program() -> R1csBuilder {
+    build_recursive_program_with_output().0
 }
 
 fn repo_root() -> PathBuf {
@@ -560,10 +586,81 @@ fn assert_partition(owner: &RowFamilyRange, ranges: &[&RowFamilyRange]) {
     assert_eq!(cursor, owner.row_end, "row families do not cover {}", owner.name);
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct PiCcsOutputProfile {
+    source_count: usize,
+    matrix_count: usize,
+    field_count: usize,
+}
+
+fn unique_stage_row(builder: &R1csBuilder, label: &str) -> usize {
+    let rows = builder
+        .encoding_trace()
+        .stages()
+        .iter()
+        .filter(|stage| stage.label == label)
+        .map(|stage| stage.row)
+        .collect::<Vec<_>>();
+    let [row] = rows.as_slice() else {
+        panic!("expected one `{label}` stage, found {}", rows.len());
+    };
+    *row
+}
+
+fn solve_pi_ccs_output_profile(source_count: usize, field_count: usize) -> PiCcsOutputProfile {
+    assert!(source_count > 0, "PiCCS output profile must contain a source");
+    assert!(field_count > 0, "PiCCS output profile must contain a field");
+    let matrix_counts = (0..=field_count)
+        .filter(|&matrix_count| PiCcsOutputMessageProfile::new(source_count, matrix_count).field_count() == field_count)
+        .collect::<Vec<_>>();
+    let [matrix_count] = matrix_counts.as_slice() else {
+        panic!(
+            "physical PiCCS output stream ({source_count} sources, {field_count} fields) has {} compatible matrix counts",
+            matrix_counts.len()
+        );
+    };
+    PiCcsOutputProfile {
+        source_count,
+        matrix_count: *matrix_count,
+        field_count,
+    }
+}
+
+fn recover_pi_ccs_output_profile(builder: &R1csBuilder) -> PiCcsOutputProfile {
+    let trace = builder.encoding_trace();
+    let source_count = trace
+        .stages()
+        .iter()
+        .filter(|stage| stage.label == pi_ccs_stage::OUTPUT_MESSAGE_PREIMAGE_SOURCE_HEADERS)
+        .count();
+    let sis_start = unique_stage_row(builder, pi_ccs_stage::OUTPUT_MESSAGE_SIS);
+    let claim_start = unique_stage_row(builder, pi_ccs_stage::OUTPUT_MESSAGE_CLAIM);
+    assert!(sis_start < claim_start, "PiCCS output SIS must precede its claim");
+
+    let mut blocks = builder
+        .seeded_phi81_a_blocks()
+        .iter()
+        .filter(|block| sis_start <= block.row_start() && block.row_end() <= claim_start)
+        .collect::<Vec<_>>();
+    blocks.sort_by_key(|block| block.row_start());
+    let [primary, compression] = blocks.as_slice() else {
+        panic!(
+            "expected primary and compression PiCCS output SIS blocks, found {}",
+            blocks.len()
+        );
+    };
+    assert!(
+        primary.word_starts().len() > compression.word_starts().len(),
+        "primary PiCCS output SIS block must precede the smaller digest-compression block"
+    );
+    solve_pi_ccs_output_profile(source_count, primary.word_starts().len())
+}
+
 fn build_manifest() -> Value {
     let builder = build_recursive_program();
     assert!(builder.is_satisfied(), "honest recursive program must satisfy");
     let builder = &builder;
+    let pi_ccs_output_profile = recover_pi_ccs_output_profile(builder);
 
     let recursive = one_range(builder, "fprime.recursive.total");
     assert_eq!(recursive.row_start, 0, "recursive program must start at row zero");
@@ -621,9 +718,13 @@ fn build_manifest() -> Value {
         .sum::<usize>();
 
     json!({
-        "schema": 2,
+        "schema": 3,
         "artifact_kind": "r1cs/f-prime-recursive-program-manifest",
+        "piCcsSourceCount": pi_ccs_output_profile.source_count,
+        "piCcsMatrixCount": pi_ccs_output_profile.matrix_count,
+        "piCcsOutputFieldCount": pi_ccs_output_profile.field_count,
         "profile": {
+            "scope": "diagnostic-direct-ccs-bit-carrier",
             "layout": "plain",
             "semantic_mode": "stateless",
             "carrier_relation": "minimal-supported-bit-carrier",
@@ -721,7 +822,9 @@ fn render_lean_data(manifest: &Value) -> String {
     let mut rendered = String::new();
     rendered
         .push_str("import Nightstream.Implementation.R1CS.Ownership.FPrimeRecursive.FPrimeRecursiveManifestSchema\n\n");
-    rendered.push_str("/-! Generated by `gadgets_f_prime_recursive_manifest`; do not hand-edit. -/\n\n");
+    rendered.push_str(
+        "/-! Generated diagnostic direct-CCS bit-carrier data by `gadgets_f_prime_recursive_manifest`; do not hand-edit. -/\n\n",
+    );
     rendered.push_str("namespace Nightstream.Implementation.R1CS.FPrimeRecursiveManifest\n\n");
     writeln!(rendered, "def schemaVersion : Nat := {}", json_nat(manifest, "schema")).expect("write string");
     writeln!(
@@ -730,7 +833,26 @@ fn render_lean_data(manifest: &Value) -> String {
         lean_string(json_string(manifest, "artifact_kind"))
     )
     .expect("write string");
-    rendered.push_str("def profile : String := \"plain/stateless/minimal-supported-bit-carrier/steady-recursive\"\n");
+    rendered
+        .push_str("def profile : String := \"diagnostic/direct-ccs-bit-carrier/plain/stateless/steady-recursive\"\n");
+    writeln!(
+        rendered,
+        "def piCcsSourceCount : Nat := {}",
+        json_nat(manifest, "piCcsSourceCount")
+    )
+    .expect("write string");
+    writeln!(
+        rendered,
+        "def piCcsMatrixCount : Nat := {}",
+        json_nat(manifest, "piCcsMatrixCount")
+    )
+    .expect("write string");
+    writeln!(
+        rendered,
+        "def piCcsOutputFieldCount : Nat := {}",
+        json_nat(manifest, "piCcsOutputFieldCount")
+    )
+    .expect("write string");
     writeln!(
         rendered,
         "def totalRows : Nat := {}",

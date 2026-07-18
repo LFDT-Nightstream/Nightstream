@@ -1,7 +1,11 @@
 import Nightstream.Implementation.R1CS.Core.ChaCha8
 
 /-!
-Assignment-free seed derivation for the two `Pi_CCS` output-binding maps.
+Assignment-free seed derivation for the historical three-matrix `Pi_CCS`
+output-binding maps.
+
+The 5,075-column primary schedule is tied to the 6,683-field diagnostic
+artifact. It is not the active 23,033-field target schedule.
 
 Assurance tier: executable protocol-profile semantics. This file specifies
 the verifier-owned master seeds, row-seed expansion, chunk partition, and

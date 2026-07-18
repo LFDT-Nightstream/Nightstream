@@ -47,8 +47,8 @@ use crate::engine::r1cs_circuit::R1csBuilder;
 use crate::paper::digest::{NEBULA_ADV_PRESENT_MARKER, NEBULA_LEAF_MEM_TAG, NEBULA_LEAF_OPS_TAG};
 use crate::paper::f_prime::nebula_lane_circuit::enforce_nebula_leaf_digest_circuit;
 use crate::paper::reductions::accumulator_sis_circuit::{
-    enforce_accumulator_digest as enforce_sis_accumulator_digest, CCS_CLAIM_SIS_CONFIG, CE_CLAIM_SIS_CONFIG,
-    PI_CCS_OUTPUTS_SIS_CONFIG,
+    enforce_accumulator_digest as enforce_sis_accumulator_digest, SisAccumulatorCircuitLayout, CCS_CLAIM_SIS_CONFIG,
+    CE_CLAIM_SIS_CONFIG, PI_CCS_OUTPUTS_SIS_CONFIG,
 };
 use crate::paper::reductions::pi_ccs_output_message::Profile;
 use crate::paper::relations::product_commitment_circuit::AdvCommitmentWires;
@@ -152,6 +152,7 @@ pub struct AccumulatorCeClaimDigestInputs<'a> {
 pub struct PiCcsOutputsDigestWires {
     pub digest: [Var; 4],
     pub preimage: PiCcsOutputsPreimage,
+    pub sis_layout: SisAccumulatorCircuitLayout,
 }
 
 /// Mirror of `crate::paper::digest::ce_claim_digest`. Preimage layout
@@ -345,12 +346,13 @@ pub fn enforce_pi_ccs_outputs_digest(
     let preimage = encode_pi_ccs_outputs_preimage(builder, profile, inputs)?;
     let wires = preimage.wires();
     builder.begin_encoding_stage(stage::OUTPUT_MESSAGE_SIS);
+    let sis = enforce_sis_accumulator_digest(builder, PI_CCS_OUTPUTS_SIS_CONFIG, &wires)
+        .expect("fixed nonempty PiCCS-output SIS preimage");
 
     Ok(PiCcsOutputsDigestWires {
-        digest: enforce_sis_accumulator_digest(builder, PI_CCS_OUTPUTS_SIS_CONFIG, &wires)
-            .expect("fixed nonempty PiCCS-output SIS preimage")
-            .digest,
+        digest: sis.digest,
         preimage,
+        sis_layout: sis.layout,
     })
 }
 

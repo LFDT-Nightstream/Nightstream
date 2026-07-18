@@ -101,7 +101,7 @@ theorem messageBound_of_sourceBound
   simp [Primitives.extensionFields, Carrier.semanticCoefficientAt,
     Carrier.semanticFieldAt, Transport.toExtension, Transport.toField,
     Execution.messageFields,
-    PiRlcChallenge.Transcript.DigestRounds.fieldAt]
+    PiRlcChallenge.Transcript.CallRefinement.fieldAt]
 
 theorem messageBound_of_carrierBound
     {shape : SemanticShape}

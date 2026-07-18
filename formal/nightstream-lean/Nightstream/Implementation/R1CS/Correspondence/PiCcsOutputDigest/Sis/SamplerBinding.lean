@@ -3,8 +3,9 @@ import Nightstream.Implementation.R1CS.Core.SeededPhi81Sampler.Production
 import Nightstream.Implementation.R1CS.Core.SeededPhi81Sampler.NoRejection
 
 /-!
-Exact production `Pi_CCS` SIS sampler bridge, with the finite computation
-boundary exposed rather than trusted.
+Exact historical three-matrix `Pi_CCS` SIS sampler bridge, with the finite
+computation boundary exposed rather than trusted. Its 6,683-field schedule is
+not the active 23,033-field target schedule.
 
 Assurance tier: conditional implementation/protocol correspondence. The
 generic no-rejection and bounded-to-unbounded theorems are proved. The three

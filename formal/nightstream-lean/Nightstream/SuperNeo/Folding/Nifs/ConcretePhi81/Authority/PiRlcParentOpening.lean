@@ -24,10 +24,10 @@ field and therefore is not carried into the Π_RLC parent.
 
 | Stage path | Mathematical obligation | Authority class | Lean owner |
 |---|---|---|---|
-| `nifs.pi_rlc.authority.parent.inputs` | every materialized Π_CCS output is a genuine fresh CE opening | derived | `canonicalParent_holds_of_yRingBound` |
-| `nifs.pi_rlc.authority.parent.challenge` | every Π_RLC scalar belongs to the production strong set | derived from sampler replay | `canonicalParent_holds_of_yRingBound` |
-| `nifs.pi_rlc.authority.parent.opening` | the computed parent opens at the canonical challenge-folded assignment | derived | `canonicalParent_holds_of_yRingBound` |
-| `nifs.pi_rlc.authority.parent.y_zcol` | packed `yZcol` closes Split-NC only and is absent from paper CE/Π_RLC | eliminated by type/dataflow | `canonicalParent_holds_of_outputBound` |
+| `nifs.pi_rlc.verify.authority.parent.inputs` | every materialized Π_CCS output is a genuine fresh CE opening | derived | `canonicalParent_holds_of_yRingBound` |
+| `nifs.pi_rlc.verify.authority.parent.challenge` | every Π_RLC scalar belongs to the production strong set | derived from sampler replay | `canonicalParent_holds_of_yRingBound` |
+| `nifs.pi_rlc.verify.authority.parent.opening` | the computed parent opens at the canonical challenge-folded assignment | derived | `canonicalParent_holds_of_yRingBound` |
+| `nifs.pi_rlc.verify.authority.parent.y_zcol` | packed `yZcol` closes Split-NC only and is absent from paper CE/Π_RLC | eliminated by type/dataflow | `canonicalParent_holds_of_outputBound` |
 -/
 
 namespace Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.Authority.PiRlcParentOpening

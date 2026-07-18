@@ -91,6 +91,11 @@ run_lean_capped() (
   run_capped "$@"
 )
 
+run_non_lean_capped() (
+  export NIGHTSTREAM_MEMORY_CAP_KB="$LEAN_MEMORY_CAP_KB"
+  run_capped "$NON_LEAN_TIMEOUT_SECONDS" "$@"
+)
+
 static_checks() {
   "$ROOT/scripts/check-layer-imports.sh"
   "$ROOT/scripts/check-generated-layout.sh"
@@ -137,7 +142,7 @@ executable_check() {
 }
 
 usage() {
-  echo "usage: $0 {static|build|axioms|check|all}" >&2
+  echo "usage: $0 {static|build|axioms|check|all|bounded COMMAND...}" >&2
   exit 2
 }
 
@@ -159,6 +164,13 @@ case "${1:-}" in
     lean_build
     axiom_report
     executable_check
+    ;;
+  bounded)
+    shift
+    if (( $# == 0 )); then
+      usage
+    fi
+    run_non_lean_capped "$@"
     ;;
   *)
     usage

@@ -9,7 +9,7 @@ use neo_fold_clean::engine::r1cs_circuit::boolean::enforce_bit;
 use neo_fold_clean::engine::r1cs_circuit::poseidon2::enforce_poseidon2_permutation;
 use neo_fold_clean::engine::r1cs_circuit::u64_arith::decompose_var_to_u64_bits;
 use neo_fold_clean::engine::r1cs_circuit::{Lc, R1csBuilder};
-use neo_fold_clean::frontends::r1cs_f_prime::ivc::R1csIvcRelation;
+use neo_fold_clean::frontends::r1cs_f_prime::ivc::{R1csIvcRelation, R1CS_IVC_COMMITTED_COORDINATE_BUDGET};
 use neo_fold_clean::frontends::r1cs_f_prime::{
     audit_multi_branch_selective_low_norm_width_with_alignment,
     build_multi_branch_selective_low_norm_r1cs_with_alignment, lower_field_r1cs, LowNormR1csError,
@@ -242,19 +242,107 @@ fn selective_f_prime_public_carrier_precedes_selectors() {
 }
 
 #[test]
-fn tiny_fixed_point_tracks_the_aligned_public_carrier() {
+fn active_fixed_point_shape_is_auditable_but_over_budget() {
     let app = one_product_r1cs();
     let plan = make_tiny_lifecycle_plan(app.m(), app.m_in);
-    let relation = R1csIvcRelation::compile_fixed_point(&tiny_params(), &app.into(), &plan)
-        .expect("compile diagnostic fixed point");
+    let audit = R1csIvcRelation::audit_fixed_point_shape(&tiny_params(), &app.into(), &plan)
+        .expect("audit active fixed-point shape");
 
-    assert_eq!(relation.public_input_len(), F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN);
-    assert_eq!(relation.public_input_len() % D, 0);
-    assert!(relation.structure().m >= relation.public_input_len());
-
-    let audit = relation.compilation_audit();
     assert!(audit.rounds().len() >= 2, "fixed point requires an observed repeat");
     let terminal_round = audit.rounds().last().expect("terminal fixed-point round");
+    assert_eq!(
+        terminal_round.output.public_input_len,
+        F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN
+    );
+    assert_eq!(terminal_round.output.public_input_len % D, 0);
+    assert!(terminal_round.output.columns >= terminal_round.output.public_input_len);
+    assert_eq!(terminal_round.output.polynomial.arity(), 13);
+    assert!(
+        audit.width().total_coordinates > R1CS_IVC_COMMITTED_COORDINATE_BUDGET,
+        "this test must become a materialized-relation artifact once the candidate fits the budget"
+    );
+    let output_digest = audit.pi_ccs_output_digest();
+    let output_profile = output_digest.profile();
+    assert_eq!(output_profile.source_count(), 15);
+    assert_eq!(output_profile.matrix_count(), 13);
+    assert_eq!(output_profile.output_field_count(), 23_033);
+    let output_sis = output_digest.sis();
+    assert_eq!(output_sis.primary().block().word_starts().len(), 23_033);
+    assert_eq!(output_sis.primary().input_columns().len(), 23_033);
+    assert_eq!(output_sis.primary().output_columns().len(), 2 * D);
+    assert_eq!(output_sis.compression().block().word_starts().len(), 2 * D);
+    assert_eq!(
+        output_sis.compression().input_columns(),
+        output_sis.primary().output_columns()
+    );
+    assert_eq!(output_sis.compression().output_columns().len(), D);
+    let y_zcol_projection = output_digest.y_zcol_projection();
+    assert_eq!(y_zcol_projection.input_count(), 2 * 15);
+    assert_eq!(y_zcol_projection.coefficient_count(), 2 * 15 * D);
+    for limb in 0..2 {
+        assert_eq!(y_zcol_projection.boundary().parent_columns(limb).len(), D);
+        assert_eq!(y_zcol_projection.boundary().quotient_columns(limb).len(), D - 1);
+    }
+    let identity = y_zcol_projection.identity();
+    assert_eq!(identity.row_count(), 5_724);
+    assert_eq!(identity.allocated_column_count(), 5_720);
+    assert_eq!(identity.shared().beta_ladder_rows().len(), 272);
+    assert_eq!(identity.shared().rho_evaluation_rows().len(), 1_620);
+    assert_eq!(identity.shared().allocated_column_count(), 1_892);
+    assert_eq!(identity.shared().power_columns().len(), D + 1);
+    assert_eq!(identity.shared().rho_columns().len(), 15);
+    assert_eq!(identity.shared().rho_evaluation_outputs().len(), 15);
+    assert_eq!(
+        identity.shared().beta_columns(),
+        y_zcol_projection.boundary().beta_columns()
+    );
+    for limb in 0..2 {
+        let limb_identity = identity.limb(limb);
+        assert_eq!(limb_identity.row_count(), 1_916);
+        assert_eq!(limb_identity.allocated_column_count(), 1_914);
+        assert_eq!(limb_identity.input_evaluation_rows().len(), 15);
+        assert_eq!(limb_identity.rho_product_rows().len(), 15);
+        assert_eq!(limb_identity.output_evaluation_rows().len(), 108);
+        assert_eq!(limb_identity.quotient_evaluation_rows().len(), 106);
+        assert_eq!(limb_identity.quotient_phi_rows().len(), 5);
+        assert_eq!(limb_identity.final_rows().len(), 2);
+        assert_eq!(
+            limb_identity.parent_columns(),
+            y_zcol_projection.boundary().parent_columns(limb)
+        );
+        assert_eq!(
+            limb_identity.quotient_columns(),
+            y_zcol_projection.boundary().quotient_columns(limb)
+        );
+    }
+    for limb in 0..2 {
+        assert_eq!(y_zcol_projection.limb(limb).len(), 15);
+        for (source, input) in y_zcol_projection.limb(limb).iter().enumerate() {
+            assert_eq!(input.source(), source);
+            assert_eq!(input.limb(), limb);
+            assert_eq!(input.producer_columns(), input.coefficient_columns());
+            assert_eq!(input.coefficient_columns().len(), D);
+            assert_eq!(input.rows().len(), 2 * D);
+        }
+    }
+    let output_prefix = output_digest.envelope_prefix();
+    assert_eq!(output_prefix.columns().len(), 10);
+    assert_eq!(output_prefix.values().len(), 10);
+    assert_eq!(output_prefix.values()[8], F::from_u64(23_033));
+    assert_eq!(output_prefix.values()[9], F::from_u64(2));
+    assert_eq!(output_prefix.rows().end, output_digest.hash().row_start);
+    assert_eq!(output_digest.hash().input_cols.len(), 64);
+    assert_eq!(output_digest.hash().rounds.len(), 17);
+    assert_eq!(
+        output_digest.hash().input_cols,
+        output_prefix
+            .columns()
+            .iter()
+            .chain(output_sis.compression().output_columns())
+            .copied()
+            .collect::<Vec<_>>()
+    );
+
     let source_stages = audit.source_arm_physical_stages();
     assert_eq!(source_stages.len(), terminal_round.arms.len());
     for (arm, (stages, shape)) in source_stages.iter().zip(&terminal_round.arms).enumerate() {
@@ -327,13 +415,6 @@ fn tiny_fixed_point_tracks_the_aligned_public_carrier() {
             &adjacent[1].input.polynomial
         ));
     }
-    let terminal = &audit.rounds().last().expect("terminal round").output;
-    assert_eq!(
-        (terminal.rows, terminal.columns),
-        (relation.structure().n, relation.structure().m)
-    );
-    assert_eq!(terminal.public_input_len, relation.public_input_len());
-    assert!(same_polynomial(&terminal.polynomial, &relation.structure().f));
 }
 
 #[test]

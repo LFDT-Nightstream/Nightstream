@@ -8,12 +8,25 @@
 
 mod chain;
 mod compilation_audit;
+mod pi_ccs_output_digest_audit;
 mod relation;
 pub(crate) mod shape;
 
 pub use chain::{R1csIvc, R1csIvcPreprocessing};
-pub use compilation_audit::{ArmShapeAudit, FixedPointRoundAudit, R1csIvcCompilationAudit, RelationHeaderAudit};
-pub use relation::{R1csIvcBranch, R1csIvcRelation};
+pub use compilation_audit::{
+    ArmShapeAudit, FixedPointRoundAudit, R1csIvcCompilationAudit, R1csIvcFixedPointShapeAudit, RelationHeaderAudit,
+};
+pub use pi_ccs_output_digest_audit::{
+    CanonicalOpeningAudit, CanonicalOpeningPlacement, PiCcsOutputDigestAudit, PiCcsOutputDigestProfileAudit,
+    PiCcsOutputEnvelopePrefixAudit, PiCcsOutputSisPhysicalAudit, PiCcsOutputYZcolProducerEntryAudit,
+    PiCcsOutputYZcolProjectionAudit, PiCcsOutputYZcolProjectionInputAudit, PiRlcYZcolKMulAudit,
+    PiRlcYZcolLinearCombinationAudit, PiRlcYZcolPolynomialEvaluationAudit, PiRlcYZcolProductFactorAudit,
+    PiRlcYZcolProductIdentityAudit, PiRlcYZcolProjectionIdentityAudit, PiRlcYZcolProjectionLeafRowMappingAudit,
+    PiRlcYZcolProjectionLimbAudit, PiRlcYZcolProjectionLoweredFragmentAudit, PiRlcYZcolProjectionLoweringDisposition,
+    PiRlcYZcolProjectionProfileAudit, PiRlcYZcolProjectionRowAudit, PiRlcYZcolProjectionRowMappingAudit,
+    PiRlcYZcolProjectionSharedAudit, SeededPhi81BlockAudit,
+};
+pub use relation::{R1csIvcBranch, R1csIvcRelation, R1CS_IVC_COMMITTED_COORDINATE_BUDGET};
 
 use thiserror::Error;
 
@@ -52,6 +65,8 @@ pub enum R1csIvcError {
     },
     #[error("R1CS IVC relation needs {required} committed coordinates, exceeding the {budget} coordinate budget")]
     BudgetExceeded { required: usize, budget: usize },
+    #[error("invalid stabilized PiCCS output-digest audit: {detail}")]
+    InvalidPiCcsOutputDigestAudit { detail: String },
     #[error("R1CS IVC branch {branch:?} synthesized {rows}x{columns} with {public_columns} public columns; expected {expected_rows}x{expected_columns} with {expected_public_columns} public columns")]
     ArmShapeMismatch {
         branch: R1csIvcBranch,

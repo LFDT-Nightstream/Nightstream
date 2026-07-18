@@ -1,4 +1,5 @@
 import Nightstream.Implementation.R1CS.Correspondence.PiRlcChallenge.Sampler.Selection.Acceptance
+import Nightstream.Implementation.R1CS.Correspondence.PiRlcChallenge.Sampler.Selection.AggregateExactness
 import Nightstream.Implementation.R1CS.Correspondence.PiRlcChallenge.Sampler.Selection.LinearEquality
 import Nightstream.Implementation.R1CS.Correspondence.PiRlcChallenge.Sampler.Selection.Initialization
 import Nightstream.Implementation.R1CS.Correspondence.PiRlcChallenge.Sampler.Selection.OneHot
@@ -17,6 +18,7 @@ Emits constraints: no.
 | Child family | Mathematical obligation | Excluded boundary |
 |---|---|---|
 | `Acceptance` / `LinearEquality` | candidate acceptance and equality equations | candidate semantics |
+| `AggregateExactness` | existential product rows iff three substituted aggregates | concrete gadget-native rows |
 | `Initialization` / `OneHot` / `Position` | deterministic selector control flow | transcript order |
 | `FirstAccepted` | selected position is the first accepted candidate | scalar/ring output encoding |
 -/

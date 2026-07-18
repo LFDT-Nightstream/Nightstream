@@ -167,6 +167,30 @@ identity_phase_paths!(
     IDENTITIES_Y_ZCOL_K_PRODUCTS_QUOTIENT_TIMES_PHI,
     IDENTITIES_Y_ZCOL_FINAL_LIMB_CHECKS
 );
+pub const IDENTITIES_Y_ZCOL_EVALUATIONS_OUTPUT_LIMB0: &str =
+    "nifs.pi_rlc.verify.identities.y_zcol.evaluations.output.limb0";
+pub const IDENTITIES_Y_ZCOL_EVALUATIONS_OUTPUT_LIMB1: &str =
+    "nifs.pi_rlc.verify.identities.y_zcol.evaluations.output.limb1";
+pub const IDENTITIES_Y_ZCOL_EVALUATIONS_INPUTS_LIMB0: &str =
+    "nifs.pi_rlc.verify.identities.y_zcol.evaluations.inputs.limb0";
+pub const IDENTITIES_Y_ZCOL_EVALUATIONS_INPUTS_LIMB1: &str =
+    "nifs.pi_rlc.verify.identities.y_zcol.evaluations.inputs.limb1";
+pub const IDENTITIES_Y_ZCOL_EVALUATIONS_QUOTIENT_LIMB0: &str =
+    "nifs.pi_rlc.verify.identities.y_zcol.evaluations.quotient.limb0";
+pub const IDENTITIES_Y_ZCOL_EVALUATIONS_QUOTIENT_LIMB1: &str =
+    "nifs.pi_rlc.verify.identities.y_zcol.evaluations.quotient.limb1";
+pub const IDENTITIES_Y_ZCOL_K_PRODUCTS_RHO_TIMES_INPUT_LIMB0: &str =
+    "nifs.pi_rlc.verify.identities.y_zcol.k_products.rho_times_input.limb0";
+pub const IDENTITIES_Y_ZCOL_K_PRODUCTS_RHO_TIMES_INPUT_LIMB1: &str =
+    "nifs.pi_rlc.verify.identities.y_zcol.k_products.rho_times_input.limb1";
+pub const IDENTITIES_Y_ZCOL_K_PRODUCTS_QUOTIENT_TIMES_PHI_LIMB0: &str =
+    "nifs.pi_rlc.verify.identities.y_zcol.k_products.quotient_times_phi.limb0";
+pub const IDENTITIES_Y_ZCOL_K_PRODUCTS_QUOTIENT_TIMES_PHI_LIMB1: &str =
+    "nifs.pi_rlc.verify.identities.y_zcol.k_products.quotient_times_phi.limb1";
+pub const IDENTITIES_Y_ZCOL_FINAL_LIMB_CHECKS_LIMB0: &str =
+    "nifs.pi_rlc.verify.identities.y_zcol.final_limb_checks.limb0";
+pub const IDENTITIES_Y_ZCOL_FINAL_LIMB_CHECKS_LIMB1: &str =
+    "nifs.pi_rlc.verify.identities.y_zcol.final_limb_checks.limb1";
 
 pub const COMMITMENT_IDENTITY_STAGES: ProjectionIdentityStageLabels = ProjectionIdentityStageLabels {
     input_evaluations: IDENTITIES_COMMITMENT_EVALUATIONS_INPUTS,
@@ -200,6 +224,8 @@ pub const Y_RING_IDENTITY_STAGES: ProjectionIdentityStageLabels = ProjectionIden
     quotient_times_phi: IDENTITIES_Y_RING_K_PRODUCTS_QUOTIENT_TIMES_PHI,
     final_limb_checks: IDENTITIES_Y_RING_FINAL_LIMB_CHECKS,
 };
+/// Parent-prefix descriptors for aggregating both physical `y_zcol` limbs.
+/// Constraint emitters use the limb-specific descriptors below.
 pub const Y_ZCOL_IDENTITY_STAGES: ProjectionIdentityStageLabels = ProjectionIdentityStageLabels {
     input_evaluations: IDENTITIES_Y_ZCOL_EVALUATIONS_INPUTS,
     rho_times_input: IDENTITIES_Y_ZCOL_K_PRODUCTS_RHO_TIMES_INPUT,
@@ -207,6 +233,22 @@ pub const Y_ZCOL_IDENTITY_STAGES: ProjectionIdentityStageLabels = ProjectionIden
     quotient_evaluation: IDENTITIES_Y_ZCOL_EVALUATIONS_QUOTIENT,
     quotient_times_phi: IDENTITIES_Y_ZCOL_K_PRODUCTS_QUOTIENT_TIMES_PHI,
     final_limb_checks: IDENTITIES_Y_ZCOL_FINAL_LIMB_CHECKS,
+};
+pub const Y_ZCOL_LIMB0_IDENTITY_STAGES: ProjectionIdentityStageLabels = ProjectionIdentityStageLabels {
+    input_evaluations: IDENTITIES_Y_ZCOL_EVALUATIONS_INPUTS_LIMB0,
+    rho_times_input: IDENTITIES_Y_ZCOL_K_PRODUCTS_RHO_TIMES_INPUT_LIMB0,
+    output_evaluation: IDENTITIES_Y_ZCOL_EVALUATIONS_OUTPUT_LIMB0,
+    quotient_evaluation: IDENTITIES_Y_ZCOL_EVALUATIONS_QUOTIENT_LIMB0,
+    quotient_times_phi: IDENTITIES_Y_ZCOL_K_PRODUCTS_QUOTIENT_TIMES_PHI_LIMB0,
+    final_limb_checks: IDENTITIES_Y_ZCOL_FINAL_LIMB_CHECKS_LIMB0,
+};
+pub const Y_ZCOL_LIMB1_IDENTITY_STAGES: ProjectionIdentityStageLabels = ProjectionIdentityStageLabels {
+    input_evaluations: IDENTITIES_Y_ZCOL_EVALUATIONS_INPUTS_LIMB1,
+    rho_times_input: IDENTITIES_Y_ZCOL_K_PRODUCTS_RHO_TIMES_INPUT_LIMB1,
+    output_evaluation: IDENTITIES_Y_ZCOL_EVALUATIONS_OUTPUT_LIMB1,
+    quotient_evaluation: IDENTITIES_Y_ZCOL_EVALUATIONS_QUOTIENT_LIMB1,
+    quotient_times_phi: IDENTITIES_Y_ZCOL_K_PRODUCTS_QUOTIENT_TIMES_PHI_LIMB1,
+    final_limb_checks: IDENTITIES_Y_ZCOL_FINAL_LIMB_CHECKS_LIMB1,
 };
 
 pub const IDENTITY_PHASE_NODES: &[&str] = &[
@@ -247,12 +289,24 @@ pub const IDENTITY_PHASE_NODES: &[&str] = &[
     IDENTITIES_Y_RING_FINAL_LIMB_CHECKS,
     IDENTITIES_Y_ZCOL_EVALUATIONS,
     IDENTITIES_Y_ZCOL_EVALUATIONS_INPUTS,
+    IDENTITIES_Y_ZCOL_EVALUATIONS_INPUTS_LIMB0,
+    IDENTITIES_Y_ZCOL_EVALUATIONS_INPUTS_LIMB1,
     IDENTITIES_Y_ZCOL_EVALUATIONS_OUTPUT,
+    IDENTITIES_Y_ZCOL_EVALUATIONS_OUTPUT_LIMB0,
+    IDENTITIES_Y_ZCOL_EVALUATIONS_OUTPUT_LIMB1,
     IDENTITIES_Y_ZCOL_EVALUATIONS_QUOTIENT,
+    IDENTITIES_Y_ZCOL_EVALUATIONS_QUOTIENT_LIMB0,
+    IDENTITIES_Y_ZCOL_EVALUATIONS_QUOTIENT_LIMB1,
     IDENTITIES_Y_ZCOL_K_PRODUCTS,
     IDENTITIES_Y_ZCOL_K_PRODUCTS_RHO_TIMES_INPUT,
+    IDENTITIES_Y_ZCOL_K_PRODUCTS_RHO_TIMES_INPUT_LIMB0,
+    IDENTITIES_Y_ZCOL_K_PRODUCTS_RHO_TIMES_INPUT_LIMB1,
     IDENTITIES_Y_ZCOL_K_PRODUCTS_QUOTIENT_TIMES_PHI,
+    IDENTITIES_Y_ZCOL_K_PRODUCTS_QUOTIENT_TIMES_PHI_LIMB0,
+    IDENTITIES_Y_ZCOL_K_PRODUCTS_QUOTIENT_TIMES_PHI_LIMB1,
     IDENTITIES_Y_ZCOL_FINAL_LIMB_CHECKS,
+    IDENTITIES_Y_ZCOL_FINAL_LIMB_CHECKS_LIMB0,
+    IDENTITIES_Y_ZCOL_FINAL_LIMB_CHECKS_LIMB1,
 ];
 
 pub const PADDING: &str = "nifs.pi_rlc.verify.padding";
@@ -350,12 +404,24 @@ pub const ALL: &[&str] = &[
     IDENTITIES_Y_RING_FINAL_LIMB_CHECKS,
     IDENTITIES_Y_ZCOL_EVALUATIONS,
     IDENTITIES_Y_ZCOL_EVALUATIONS_INPUTS,
+    IDENTITIES_Y_ZCOL_EVALUATIONS_INPUTS_LIMB0,
+    IDENTITIES_Y_ZCOL_EVALUATIONS_INPUTS_LIMB1,
     IDENTITIES_Y_ZCOL_EVALUATIONS_OUTPUT,
+    IDENTITIES_Y_ZCOL_EVALUATIONS_OUTPUT_LIMB0,
+    IDENTITIES_Y_ZCOL_EVALUATIONS_OUTPUT_LIMB1,
     IDENTITIES_Y_ZCOL_EVALUATIONS_QUOTIENT,
+    IDENTITIES_Y_ZCOL_EVALUATIONS_QUOTIENT_LIMB0,
+    IDENTITIES_Y_ZCOL_EVALUATIONS_QUOTIENT_LIMB1,
     IDENTITIES_Y_ZCOL_K_PRODUCTS,
     IDENTITIES_Y_ZCOL_K_PRODUCTS_RHO_TIMES_INPUT,
+    IDENTITIES_Y_ZCOL_K_PRODUCTS_RHO_TIMES_INPUT_LIMB0,
+    IDENTITIES_Y_ZCOL_K_PRODUCTS_RHO_TIMES_INPUT_LIMB1,
     IDENTITIES_Y_ZCOL_K_PRODUCTS_QUOTIENT_TIMES_PHI,
+    IDENTITIES_Y_ZCOL_K_PRODUCTS_QUOTIENT_TIMES_PHI_LIMB0,
+    IDENTITIES_Y_ZCOL_K_PRODUCTS_QUOTIENT_TIMES_PHI_LIMB1,
     IDENTITIES_Y_ZCOL_FINAL_LIMB_CHECKS,
+    IDENTITIES_Y_ZCOL_FINAL_LIMB_CHECKS_LIMB0,
+    IDENTITIES_Y_ZCOL_FINAL_LIMB_CHECKS_LIMB1,
     PADDING,
     PADDING_X,
     PADDING_Y_RING,
@@ -540,10 +606,52 @@ pub const HIERARCHY: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        IDENTITIES_Y_ZCOL_EVALUATIONS_INPUTS,
+        &[
+            IDENTITIES_Y_ZCOL_EVALUATIONS_INPUTS_LIMB0,
+            IDENTITIES_Y_ZCOL_EVALUATIONS_INPUTS_LIMB1,
+        ],
+    ),
+    (
+        IDENTITIES_Y_ZCOL_EVALUATIONS_OUTPUT,
+        &[
+            IDENTITIES_Y_ZCOL_EVALUATIONS_OUTPUT_LIMB0,
+            IDENTITIES_Y_ZCOL_EVALUATIONS_OUTPUT_LIMB1,
+        ],
+    ),
+    (
+        IDENTITIES_Y_ZCOL_EVALUATIONS_QUOTIENT,
+        &[
+            IDENTITIES_Y_ZCOL_EVALUATIONS_QUOTIENT_LIMB0,
+            IDENTITIES_Y_ZCOL_EVALUATIONS_QUOTIENT_LIMB1,
+        ],
+    ),
+    (
         IDENTITIES_Y_ZCOL_K_PRODUCTS,
         &[
             IDENTITIES_Y_ZCOL_K_PRODUCTS_RHO_TIMES_INPUT,
             IDENTITIES_Y_ZCOL_K_PRODUCTS_QUOTIENT_TIMES_PHI,
+        ],
+    ),
+    (
+        IDENTITIES_Y_ZCOL_K_PRODUCTS_RHO_TIMES_INPUT,
+        &[
+            IDENTITIES_Y_ZCOL_K_PRODUCTS_RHO_TIMES_INPUT_LIMB0,
+            IDENTITIES_Y_ZCOL_K_PRODUCTS_RHO_TIMES_INPUT_LIMB1,
+        ],
+    ),
+    (
+        IDENTITIES_Y_ZCOL_K_PRODUCTS_QUOTIENT_TIMES_PHI,
+        &[
+            IDENTITIES_Y_ZCOL_K_PRODUCTS_QUOTIENT_TIMES_PHI_LIMB0,
+            IDENTITIES_Y_ZCOL_K_PRODUCTS_QUOTIENT_TIMES_PHI_LIMB1,
+        ],
+    ),
+    (
+        IDENTITIES_Y_ZCOL_FINAL_LIMB_CHECKS,
+        &[
+            IDENTITIES_Y_ZCOL_FINAL_LIMB_CHECKS_LIMB0,
+            IDENTITIES_Y_ZCOL_FINAL_LIMB_CHECKS_LIMB1,
         ],
     ),
     (PADDING, &[PADDING_X, PADDING_Y_RING, PADDING_Y_ZCOL]),

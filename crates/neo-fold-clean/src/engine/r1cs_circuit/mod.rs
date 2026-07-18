@@ -12,6 +12,7 @@ pub mod builder;
 pub mod encoding_trace;
 pub mod field_ext;
 pub mod mux;
+mod pi_rlc_y_zcol_boundary;
 pub mod poseidon2;
 pub mod projection_identity_trace;
 mod relation;
@@ -35,6 +36,7 @@ pub use encoding_trace::{
 };
 pub use field_ext::{alloc_klc, enforce_k_dot_product, enforce_k_mul, KLc, KVar};
 pub use mux::{enforce_mux_var, enforce_mux_vec};
+pub use pi_rlc_y_zcol_boundary::PiRlcYZcolBoundaryAudit;
 pub use poseidon2::{enforce_poseidon2_hash, enforce_poseidon2_permutation, DIGEST_LEN};
 pub use relation::{R1csRelation, R1csSnapshot};
 pub use ring_action::{alloc_and_enforce_ring_mul, enforce_ring_mul};

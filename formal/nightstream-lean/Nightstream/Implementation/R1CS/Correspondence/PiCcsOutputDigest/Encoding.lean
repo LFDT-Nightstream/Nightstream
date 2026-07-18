@@ -114,6 +114,16 @@ def encode {Item : Type} (encodeItem : Item -> List F) : List Item -> List F
   | [] => []
   | item :: items => encodeItem item ++ encode encodeItem items
 
+theorem encode_eq_flatMap
+    {Item : Type}
+    (encodeItem : Item -> List F)
+    (items : List Item) :
+    encode encodeItem items = items.flatMap encodeItem := by
+  induction items with
+  | nil => rfl
+  | cons item items inductionHypothesis =>
+      simp [encode, inductionHypothesis]
+
 @[simp] theorem length
     {Item : Type}
     (encodeItem : Item -> List F)

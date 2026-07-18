@@ -1,20 +1,20 @@
 import Nightstream.Implementation.R1CS.Correspondence.PiCcsNc.Authority.DelayedParentProjection
-import Nightstream.SuperNeo.ProjectionCheck
 
 /-!
 Contract: define the compact delayed-parent projection residual that can be
 batched into the production-shaped Π_CCS NC SumCheck.
 
+Assurance tier: model-level.
+
 Owns: the raw-child projection at the producer's univariate `beta`, its
 column/lane lift by `eq(s, s_old) * B_beta(alpha)`, Boolean-cube normalization,
-the ordinary terminal-point formula that reuses the current raw `z`
-evaluation, and the model-level exact-or-bad-root bridge for the compact
-projection identity.
+and the ordinary terminal-point formula that reuses the current raw `z`
+evaluation.
 
 Does not own: transcript timing or domain separation, Π_RLC `out_eval` row
 refinement, independence of parent witnesses and Π_DEC child recomposition
-before `beta`, accumulator/state binding, concrete SumCheck rows, or any
-row-removal permission.
+before `beta`, the compact one-point projection identity, accumulator/state
+binding, concrete SumCheck rows, or any row-removal permission.
 
 Emits constraints: no.
 
@@ -23,18 +23,14 @@ Authority boundary: `rawChildren` is independent assignment authority.
 production refinement must prove when they are sampled and how they are bound.
 A carried scalar evaluation or digest is not authority by itself.
 
-| Surface | Mathematical obligation | Explicit assumptions | Refinement status | Permits row removal? |
+| Stage path | Mathematical obligation | Explicit assumptions | Lean owner | Permits row removal? |
 |---|---|---|---|---|
-| raw column | radix-combine child diagonals, then evaluate lanes at producer `beta` | all coordinates fit the selected domains | model-level | no |
-| compact old point | MLE-evaluate raw columns at `s_old` | `oldS.length = ellM` | model-level | no |
-| power selector | `B_beta(alpha) = product_j ((1-alpha_j) + alpha_j beta^(2^j))` and `B_beta(bit(lane)) = beta^lane` | lane is in the Boolean domain | proved | no |
-| lifted residual | multiply the current raw `z(s,alpha)` by independent `batchWeight`, `eq(s,s_old)`, and `B_beta(alpha)` | `oldS.length = ellM` | model-level | no |
-| source coverage | every raw child coordinate lies inside the selected column domain | `DelayedResidualShape.childrenFit` | proved at the semantic list boundary; Rust layout refinement open | no |
-| cube normalization | full Boolean sum equals the weighted compact old-point evaluation | `DelayedResidualShape` | model-level | no |
-| terminal formula | final fixed-arity SumCheck point reuses `radixCombinedRawZ(s',alpha')` rather than reevaluating 54 coefficients | `DelayedResidualShape` and `TerminalPointShape` | model-level | no |
-| child-evaluation limbs | recombine the child-side base-limb polynomial evaluations into the delayed `K` evaluation | `K = F[u]/(u^2 - 7)` and one shared `beta` | model-level exact; retained parent-output instantiation and generated-column decoder open | no |
-| padded child vector | append exactly ten zero `K` lanes to the active child-side `D = 54` vector | fixed-profile `d_pad = 64` | model-level geometry only; production input/parent zero-pin refinement open | no |
-| projection identity | accepted parent/child equality over exactly `D = 54` active coefficients is exact or a named bad root of degree at most `53` | fixed active width and degree through `Accepted` | generic reduction reused; concrete row refinement open | no |
+| `pi_ccs.nc.delayed_residual.raw_column` | radix-combine child diagonals, then evaluate lanes at producer `beta` | all coordinates fit the selected domains | `rawProjectionAtProducerBeta` | no |
+| `pi_ccs.nc.delayed_residual.power_selector` | `B_beta(bit(lane)) = beta^lane` | lane is in the Boolean domain | `betaPowerSelector_cubePoint` | no |
+| `pi_ccs.nc.delayed_residual.lift` | multiply raw `z(s,alpha)` by independent `batchWeight`, `eq(s,s_old)`, and `B_beta(alpha)` | `oldS.length = ellM` | `delayedResidualPolynomial` | no |
+| `pi_ccs.nc.delayed_residual.source_coverage` | every raw child coordinate lies inside the selected column domain | `DelayedResidualShape.childrenFit` | `rawChildCoordinate_lt_columnDomain` | no |
+| `pi_ccs.nc.delayed_residual.cube_normalization` | full Boolean sum equals the weighted active old-point projection | `DelayedResidualShape` | `delayedResidualCubeSum_eq_weightedCompactOldProjection` | no |
+| `pi_ccs.nc.delayed_residual.terminal` | final SumCheck point reuses `radixCombinedRawZ(s',alpha')` | `DelayedResidualShape` and `TerminalPointShape` | `delayedResidualPolynomial_eq_terminalRhs` | no |
 
 Open obligations: domain-separate and sample `batchWeight` independently;
 bind `producerBeta` only after the compared parent and child data are fixed;
@@ -42,9 +38,9 @@ refine concrete terminal-list lengths and raw-child matrix coverage to
 `TerminalPointShape` and `AssignmentsFitColumnDomain`;
 instantiate the generic limb theorem on the claimed parent coefficient vector,
 then connect Π_RLC's two retained `YZColLimb` parent-output evaluations to
-that parent instance; separately refine the generated padding-zero pins for
-the production input and parent vectors (the child-padding theorem below only
-fixes the reconstructed child's geometry); derive
+that parent instance in `DelayedResidual.ProjectionIdentity`; separately
+refine the generated padding-zero pins for the production input and parent
+vectors; derive
 parent-witness/child recomposition independently before `beta`; bind the
 compact handle into the accumulator; and retain all current rows until those
 links are proved.
@@ -983,370 +979,5 @@ theorem delayedResidualCubeSum_eq_weightedCompactOldProjection
     shape radix rawChildren producerBeta batchWeight oldS wellShaped]
   rw [rawProjectionAtProducerBeta_eq_active
     shape radix rawChildren producerBeta oldS wellShaped.lanesCoverRing]
-
-/-! ## One-point compact-handle reduction -/
-
-/-- Concrete operations used to instantiate the generic projection collision
-theorem over the same quadratic extension as the delayed residual. -/
-def projectionOps : Nightstream.SuperNeo.ProjectionCheck.Ops K where
-  zero := K.zero
-  add := K.add
-  mul := K.mul
-
-/-- Production active-width radix-combined child `y_zcol` coefficient vector.
-
-Π_RLC evaluates exactly `D = 54` coefficients and separately constrains the
-`D .. d_pad` tail to zero. The NC lift still ranges over `shape.laneDomain`;
-the concrete padded-tail row refinement remains an explicit open obligation. -/
-def rawChildProjectionCoefficients
-    (shape : Shape) (radix : F) (rawChildren : List (List F))
-    (s : List K) : List K :=
-  (List.range ringDegree).map fun lane =>
-    radixWeightedChildProjection shape radix rawChildren s lane
-
-/-- Basis element `u = (0, 1)` for the production extension
-`K = F[u]/(u^2 - 7)`. Multiplication by this fixed value is the linear map
-`(a, b) -> (7*b, a)`. -/
-def extensionGenerator : K := ⟨0, 1⟩
-
-/-- Lift the first base-field limb of every `K` coefficient back into `K`.
-This has the coefficient shape consumed by the first production `YZColLimb`
-projection identity when instantiated on that identity's parent vector. -/
-def projectionC0Coefficients (coefficients : List K) : List K :=
-  coefficients.map fun coefficient => K.embed coefficient.c0
-
-/-- Lift the second base-field limb of every `K` coefficient back into `K`.
-This has the coefficient shape consumed by the second production `YZColLimb`
-projection identity when instantiated on that identity's parent vector. -/
-def projectionC1Coefficients (coefficients : List K) : List K :=
-  coefficients.map fun coefficient => K.embed coefficient.c1
-
-private theorem k_eq_limb_decomposition (value : K) :
-    value = K.add (K.embed value.c0)
-      (K.mul extensionGenerator (K.embed value.c1)) := by
-  rcases value with ⟨value0, value1⟩
-  simp only [K.add, K.mul, K.embed, extensionGenerator, K.mk.injEq]
-  constructor
-  · apply Fin.ext
-    simp [Fin.val_add, Fin.val_mul, Nat.mod_eq_of_lt value0.isLt]
-  · apply Fin.ext
-    simp only [Fin.val_add, Fin.val_mul]
-    have oneVal : ((1 : F).val) = 1 := by rfl
-    have zeroVal : ((0 : F).val) = 0 := by rfl
-    rw [oneVal, zeroVal]
-    simp [Nat.mod_eq_of_lt value1.isLt]
-
-private theorem k_hornerStep_eq_limbSteps
-    (head producerBeta tail0 tail1 : K) :
-    K.add head
-        (K.add (K.mul producerBeta tail0)
-          (K.mul producerBeta (K.mul extensionGenerator tail1))) =
-      K.add
-        (K.add (K.embed head.c0) (K.mul producerBeta tail0))
-        (K.add (K.mul extensionGenerator (K.embed head.c1))
-          (K.mul extensionGenerator (K.mul producerBeta tail1))) := by
-  calc
-    K.add head
-        (K.add (K.mul producerBeta tail0)
-          (K.mul producerBeta (K.mul extensionGenerator tail1))) =
-      K.add
-        (K.add (K.embed head.c0)
-          (K.mul extensionGenerator (K.embed head.c1)))
-        (K.add (K.mul producerBeta tail0)
-          (K.mul producerBeta (K.mul extensionGenerator tail1))) :=
-      congrArg
-        (fun value => K.add value
-          (K.add (K.mul producerBeta tail0)
-            (K.mul producerBeta (K.mul extensionGenerator tail1))))
-        (k_eq_limb_decomposition head)
-    _ = _ := by ac_rfl
-
-/-- Constant-first Horner evaluation commutes with the production-shaped
-two-limb coefficient split. Thus, once instantiated on the combined parent
-vector, the two retained output evaluations contain the complete
-`K`-coefficient evaluation; recombination is a fixed linear map, not another
-degree-53 evaluation.
-
-This is model-level algebra. It does not identify any generated column with
-either list. -/
-theorem projectionEval_eq_limbEvaluations
-    (coefficients : List K) (producerBeta : K) :
-    Nightstream.SuperNeo.ProjectionCheck.eval projectionOps
-        coefficients producerBeta =
-      K.add
-        (Nightstream.SuperNeo.ProjectionCheck.eval projectionOps
-          (projectionC0Coefficients coefficients) producerBeta)
-        (K.mul extensionGenerator
-          (Nightstream.SuperNeo.ProjectionCheck.eval projectionOps
-            (projectionC1Coefficients coefficients) producerBeta)) := by
-  induction coefficients with
-  | nil =>
-      change K.zero = K.add K.zero (K.mul extensionGenerator K.zero)
-      rw [mul_zero, add_zero]
-  | cons head tail inductionHypothesis =>
-      change K.add head
-          (K.mul producerBeta
-            (Nightstream.SuperNeo.ProjectionCheck.eval projectionOps
-              tail producerBeta)) =
-        K.add
-          (K.add (K.embed head.c0)
-            (K.mul producerBeta
-              (Nightstream.SuperNeo.ProjectionCheck.eval projectionOps
-                (projectionC0Coefficients tail) producerBeta)))
-          (K.mul extensionGenerator
-            (K.add (K.embed head.c1)
-              (K.mul producerBeta
-                (Nightstream.SuperNeo.ProjectionCheck.eval projectionOps
-                  (projectionC1Coefficients tail) producerBeta))))
-      rw [inductionHypothesis, k_mul_add, k_mul_add]
-      exact k_hornerStep_eq_limbSteps head producerBeta
-        (Nightstream.SuperNeo.ProjectionCheck.eval projectionOps
-          (projectionC0Coefficients tail) producerBeta)
-        (Nightstream.SuperNeo.ProjectionCheck.eval projectionOps
-          (projectionC1Coefficients tail) producerBeta)
-
-/-- Child-side evaluation of the first `y_zcol` coefficient limb.
-
-This is not the retained production `YZColLimb` output column: that column
-evaluates the claimed combined parent vector. A separate refinement must
-instantiate `projectionEval_eq_limbEvaluations` on the parent coefficients and
-identify its two limb evaluations with those retained columns. -/
-def childC0ProjectionEvaluation
-    (shape : Shape) (radix : F) (rawChildren : List (List F))
-    (producerBeta : K) (s : List K) : K :=
-  Nightstream.SuperNeo.ProjectionCheck.eval projectionOps
-    (projectionC0Coefficients
-      (rawChildProjectionCoefficients shape radix rawChildren s))
-    producerBeta
-
-/-- Child-side evaluation of the second `y_zcol` coefficient limb.
-
-As above, this is the radix-recomposed child vector, not the retained combined
-parent output column. -/
-def childC1ProjectionEvaluation
-    (shape : Shape) (radix : F) (rawChildren : List (List F))
-    (producerBeta : K) (s : List K) : K :=
-  Nightstream.SuperNeo.ProjectionCheck.eval projectionOps
-    (projectionC1Coefficients
-      (rawChildProjectionCoefficients shape radix rawChildren s))
-    producerBeta
-
-/-- Production's padded ring-column width: active lanes `0 .. 53`, followed
-by zero lanes `54 .. 63`. -/
-def projectionPaddedWidth : Nat := 64
-
-/-- Model-level production-shaped `y_zcol`: the active delayed-projection
-coefficients followed by the ten canonical-zero padding lanes. -/
-def paddedRawChildProjectionCoefficients
-    (shape : Shape) (radix : F) (rawChildren : List (List F))
-    (s : List K) : List K :=
-  rawChildProjectionCoefficients shape radix rawChildren s ++
-    List.replicate (projectionPaddedWidth - ringDegree) K.zero
-
-/-- The model-level padded vector has the exact production width 64. -/
-theorem paddedRawChildProjectionCoefficients_length
-    (shape : Shape) (radix : F) (rawChildren : List (List F))
-    (s : List K) :
-    (paddedRawChildProjectionCoefficients
-      shape radix rawChildren s).length = 64 := by
-  simp [paddedRawChildProjectionCoefficients,
-    rawChildProjectionCoefficients, projectionPaddedWidth, ringDegree]
-
-/-- Lanes `54 .. 63` of the reconstructed child vector are exactly the
-ten-zero suffix. This matches the fixed profile's padding geometry, but does
-not identify the generated Rust padding pins, which constrain separate PiRLC
-input and combined-parent vectors. -/
-theorem paddedRawChildProjectionCoefficients_drop_active
-    (shape : Shape) (radix : F) (rawChildren : List (List F))
-    (s : List K) :
-    (paddedRawChildProjectionCoefficients
-      shape radix rawChildren s).drop ringDegree =
-      List.replicate 10 K.zero := by
-  simp [paddedRawChildProjectionCoefficients,
-    rawChildProjectionCoefficients, projectionPaddedWidth, ringDegree]
-
-private theorem projectionEval_append_single
-    (coefficients : List K) (coefficient producerBeta : K) :
-    Nightstream.SuperNeo.ProjectionCheck.eval projectionOps
-        (coefficients ++ [coefficient]) producerBeta =
-      K.add
-        (Nightstream.SuperNeo.ProjectionCheck.eval projectionOps
-          coefficients producerBeta)
-        (K.mul coefficient (powK producerBeta coefficients.length)) := by
-  induction coefficients with
-  | nil =>
-      change K.add coefficient (K.mul producerBeta K.zero) =
-        K.add K.zero (K.mul coefficient K.one)
-      rw [mul_zero, add_zero, mul_one, zero_add]
-  | cons head tail inductionHypothesis =>
-      change K.add head
-          (K.mul producerBeta
-            (Nightstream.SuperNeo.ProjectionCheck.eval projectionOps
-              (tail ++ [coefficient]) producerBeta)) =
-        K.add
-          (K.add head
-            (K.mul producerBeta
-              (Nightstream.SuperNeo.ProjectionCheck.eval projectionOps
-                tail producerBeta)))
-          (K.mul coefficient (powK producerBeta (tail.length + 1)))
-      rw [inductionHypothesis, k_mul_add, powK]
-      ac_rfl
-
-private theorem projectionEval_range
-    (count : Nat) (coefficient : Nat → K) (producerBeta : K) :
-    Nightstream.SuperNeo.ProjectionCheck.eval projectionOps
-        ((List.range count).map coefficient) producerBeta =
-      sumRange count fun lane =>
-        K.mul (coefficient lane) (powK producerBeta lane) := by
-  induction count with
-  | zero => rfl
-  | succ count inductionHypothesis =>
-      rw [List.range_succ, List.map_append]
-      simp only [List.map_singleton]
-      rw [projectionEval_append_single, inductionHypothesis]
-      simp only [List.length_map, List.length_range]
-      rw [sumRange]
-
-/-- The child-side scalar of the fixed-width delayed projection identity at
-`producerBeta`. Current production rows retain the analogous parent-side
-scalar; their concrete connection remains a separate refinement. -/
-def compactOldPointEvaluation
-    (shape : Shape) (radix : F) (rawChildren : List (List F))
-    (producerBeta : K) (s : List K) : K :=
-  Nightstream.SuperNeo.ProjectionCheck.eval projectionOps
-    (rawChildProjectionCoefficients shape radix rawChildren s)
-    producerBeta
-
-/-- The delayed child-side compact scalar is recoverable from its two
-base-limb evaluations by the fixed linear extension-basis map. No second
-coefficient traversal or degree-53 evaluation is mathematically required.
-
-This theorem does not identify those child-side evaluations with production's
-retained parent-output columns. That later bridge must instantiate the generic
-limb theorem on the claimed parent coefficients and then use the delayed
-projection identity to relate the parent and child evaluations. -/
-theorem compactOldPointEvaluation_eq_childLimbEvaluations
-    (shape : Shape) (radix : F) (rawChildren : List (List F))
-    (producerBeta : K) (s : List K) :
-    compactOldPointEvaluation
-        shape radix rawChildren producerBeta s =
-      K.add
-        (childC0ProjectionEvaluation
-          shape radix rawChildren producerBeta s)
-        (K.mul extensionGenerator
-          (childC1ProjectionEvaluation
-            shape radix rawChildren producerBeta s)) := by
-  exact projectionEval_eq_limbEvaluations
-    (rawChildProjectionCoefficients shape radix rawChildren s)
-    producerBeta
-
-/-- Horner evaluation of the fixed-width projection vector is exactly the
-active `sum_{lane < 54} y_zcol[lane] * beta^lane` used by the delayed cube
-normalization theorem. -/
-theorem compactOldPointEvaluation_eq_active
-    (shape : Shape) (radix : F) (rawChildren : List (List F))
-    (producerBeta : K) (s : List K) :
-    compactOldPointEvaluation
-        shape radix rawChildren producerBeta s =
-      activeRawProjectionAtProducerBeta
-        shape radix rawChildren producerBeta s := by
-  unfold compactOldPointEvaluation rawChildProjectionCoefficients
-    activeRawProjectionAtProducerBeta
-  exact projectionEval_range ringDegree
-    (fun lane =>
-      radixWeightedChildProjection shape radix rawChildren s lane)
-    producerBeta
-
-/-- The production-shaped cube theorem expressed directly through the scalar
-evaluated by the fixed-width projection identity. -/
-theorem delayedResidualCubeSum_eq_weightedProjectionEvaluation
-    (shape : Shape) (radix : F) (rawChildren : List (List F))
-    (producerBeta batchWeight : K) (oldS : List K)
-    (wellShaped : DelayedResidualShape shape oldS rawChildren) :
-    delayedResidualCubeSum shape radix rawChildren
-        producerBeta batchWeight oldS =
-      K.mul batchWeight
-        (compactOldPointEvaluation
-          shape radix rawChildren producerBeta oldS) := by
-  rw [compactOldPointEvaluation_eq_active]
-  exact delayedResidualCubeSum_eq_weightedCompactOldProjection
-    shape radix rawChildren producerBeta batchWeight oldS wellShaped
-
-/-- The bounded polynomial identity whose one-point evaluation can be carried
-as the compact delayed handle. The claimed parent vector is an explicit input;
-constructing this value does not prove it was accumulator-bound before
-`producerBeta` was sampled. -/
-def projectionIdentity
-    (shape : Shape) (radix : F) (rawChildren : List (List F))
-    (s : List K) (claimedParentCoefficients : List K)
-    (producerBeta : K) :
-    Nightstream.SuperNeo.ProjectionCheck.Identity K where
-  lhs := claimedParentCoefficients
-  rhs := rawChildProjectionCoefficients shape radix rawChildren s
-  beta := producerBeta
-  maxDegree := ringDegree - 1
-
-/-- The identity's child-side scalar is the compact old-point evaluation used
-by the delayed residual. -/
-theorem projectionIdentity_rhsEvaluation_eq_compact
-    (shape : Shape) (radix : F) (rawChildren : List (List F))
-    (s : List K) (claimedParentCoefficients : List K)
-    (producerBeta : K) :
-    Nightstream.SuperNeo.ProjectionCheck.eval projectionOps
-        (projectionIdentity shape radix rawChildren s
-          claimedParentCoefficients producerBeta).rhs
-        producerBeta =
-      compactOldPointEvaluation
-        shape radix rawChildren producerBeta s := by
-  rfl
-
-/-- The concrete production identity has 54 coefficients and maximum degree
-53. -/
-theorem projectionIdentity_activeWidth
-    (shape : Shape) (radix : F) (rawChildren : List (List F))
-    (s : List K) (claimedParentCoefficients : List K)
-    (producerBeta : K) :
-    (projectionIdentity shape radix rawChildren s
-        claimedParentCoefficients producerBeta).rhs.length = 54 ∧
-      (projectionIdentity shape radix rawChildren s
-        claimedParentCoefficients producerBeta).maxDegree = 53 := by
-  unfold projectionIdentity rawChildProjectionCoefficients ringDegree
-  simp
-
-/-- With the expected fixed width, the compact projection identity satisfies
-the generic degree/representation side condition. -/
-theorem projectionIdentity_wellFormed
-    (shape : Shape) (radix : F) (rawChildren : List (List F))
-    (s : List K) (claimedParentCoefficients : List K)
-    (producerBeta : K)
-    (claimedLength : claimedParentCoefficients.length = ringDegree) :
-    (projectionIdentity shape radix rawChildren s
-      claimedParentCoefficients producerBeta).WellFormed := by
-  unfold Nightstream.SuperNeo.ProjectionCheck.Identity.WellFormed
-    projectionIdentity rawChildProjectionCoefficients
-  simp only [List.length_map, List.length_range, claimedLength, true_and]
-  have positive : 0 < ringDegree := by decide
-  omega
-
-/-- Reuse of the generic one-point soundness boundary: acceptance yields exact
-fixed-width coefficients or identifies the producer challenge as a bad root.
-No premise asserts either branch of the conclusion. -/
-theorem acceptedProjectionIdentity_implies_exact_or_badRoot
-    (shape : Shape) (radix : F) (rawChildren : List (List F))
-    (s : List K) (claimedParentCoefficients : List K)
-    (producerBeta : K)
-    (accepted : Nightstream.SuperNeo.ProjectionCheck.Accepted projectionOps
-      (projectionIdentity shape radix rawChildren s
-        claimedParentCoefficients producerBeta)) :
-    (projectionIdentity shape radix rawChildren s
-        claimedParentCoefficients producerBeta).Exact ∨
-      Nightstream.SuperNeo.ProjectionCheck.BadRoot projectionOps
-        (projectionIdentity shape radix rawChildren s
-          claimedParentCoefficients producerBeta) :=
-  Nightstream.SuperNeo.ProjectionCheck.accepted_implies_exact_or_badRoot
-    projectionOps
-    (projectionIdentity shape radix rawChildren s
-      claimedParentCoefficients producerBeta)
-    accepted
 
 end Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual

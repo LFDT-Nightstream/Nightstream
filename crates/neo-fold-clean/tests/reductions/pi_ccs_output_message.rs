@@ -6,19 +6,21 @@
 //! | decoder | every field index has one typed source/matrix/lane/limb path | omission, duplication, or reordering |
 //! | parity | native fields equal the values at the recorded R1CS columns | native/circuit protocol drift |
 //! | rejection | verifier-owned source and matrix counts are exact | prover-shaped profile inference |
+//! | SIS ownership | every canonical source opening has one typed owner; global maps stay shared | unowned, duplicate, overlapping, or late openings |
 
 use std::collections::HashSet;
 
 use neo_ajtai::Commitment;
 use neo_ccs::{CeClaim, Mat};
 use neo_fold_clean::engine::r1cs_circuit::field_ext::KVar;
-use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
+use neo_fold_clean::engine::r1cs_circuit::{BalancedTernaryTraceTestMutation, R1csBuilder};
 use neo_fold_clean::paper::digest::{pi_ccs_outputs_digest, pi_ccs_outputs_preimage};
 use neo_fold_clean::paper::reductions::pi_ccs_output_message::{
     FieldPath, KLimb, Profile, R1csInputOwner, ACTIVE_F_PRIME_FIELD_COUNT, LEGACY_THREE_MATRIX_FIELD_COUNT,
 };
 use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::{
-    encode_pi_ccs_outputs_preimage, enforce_pi_ccs_outputs_digest, PiCcsOutputMessageDigestInputs,
+    audit_pi_ccs_output_sis, encode_pi_ccs_outputs_preimage, enforce_pi_ccs_outputs_digest,
+    PiCcsOutputMessageDigestInputs,
 };
 use neo_math::ring::D;
 use neo_math::{KExtensions, F, K};
@@ -250,5 +252,88 @@ fn sis_digest_matches_the_native_active_lane_message() {
         pi_ccs_outputs_digest(&changed),
         expected,
         "the pre-rho digest must bind the active y_zcol payload"
+    );
+}
+
+#[test]
+fn sis_source_openings_reconcile_to_typed_owners_and_shared_phases() {
+    const SOURCE_ROWS_PER_OPENING: usize = 124;
+    const AUXILIARY_COLUMNS_PER_OPENING: usize = 122;
+
+    let profile = Profile::new(1, 1);
+    let native = native_outputs(profile);
+    let mut builder = R1csBuilder::new();
+    builder.enable_encoding_trace();
+    let wires: Vec<_> = native
+        .iter()
+        .map(|output| wire_output(&mut builder, output))
+        .collect();
+    let inputs: Vec<_> = wires
+        .iter()
+        .map(|output| PiCcsOutputMessageDigestInputs {
+            y_ring: &output.y_ring,
+            y_zcol: &output.y_zcol,
+        })
+        .collect();
+    let digest = enforce_pi_ccs_outputs_digest(&mut builder, profile, &inputs).expect("Pi_CCS output digest");
+    let audit = audit_pi_ccs_output_sis(&digest.preimage, &digest.sis_layout, builder.encoding_trace())
+        .expect("exact SIS source ownership");
+
+    let expected = [
+        (R1csInputOwner::VerifierShape, 19usize),
+        (R1csInputOwner::YRingOutput, 108usize),
+        (R1csInputOwner::YZcolOutput, 108usize),
+    ];
+    for (owner, fields) in expected {
+        let owned = audit.owner(owner);
+        assert_eq!(owned.owner(), owner);
+        assert_eq!(owned.field_occurrences(), fields);
+        assert_eq!(owned.unique_source_columns(), fields);
+        assert_eq!(owned.new_openings(), fields);
+        assert_eq!(owned.reused_openings(), 0);
+        assert_eq!(owned.source_rows(), fields * SOURCE_ROWS_PER_OPENING);
+        assert_eq!(owned.digit_rows(), fields * 82);
+        assert_eq!(owned.reconstruction_rows(), fields);
+        assert_eq!(owned.transition_rows(), fields * 41);
+        assert_eq!(owned.auxiliary_columns(), fields * AUXILIARY_COLUMNS_PER_OPENING);
+    }
+
+    assert_eq!(
+        audit
+            .owners()
+            .iter()
+            .map(|owner| owner.field_occurrences())
+            .sum::<usize>(),
+        235
+    );
+    assert_eq!(
+        audit.shared_input_binding_rows(),
+        110,
+        "two shape rows plus rank-2 Φ81 output rows"
+    );
+    assert_eq!(
+        audit.shared_input_binding_columns(),
+        110,
+        "two shape columns plus rank-2 commitment columns"
+    );
+    assert!(!audit.digest_compression_rows().is_empty());
+    assert!(!audit.digest_compression_columns().is_empty());
+    assert!(!audit.envelope_rows().is_empty());
+    assert!(!audit.envelope_columns().is_empty());
+    assert!(builder.is_satisfied());
+
+    let first_opening = digest
+        .sis_layout
+        .input_binding()
+        .balanced_ternary_openings()
+        .start;
+    let mut corrupted = builder.encoding_trace().clone();
+    corrupted.apply_balanced_ternary_trace_test_mutation(
+        first_opening,
+        BalancedTernaryTraceTestMutation::FieldColumn { column: usize::MAX },
+    );
+    assert!(
+        audit_pi_ccs_output_sis(&digest.preimage, &digest.sis_layout, &corrupted).is_err(),
+        "an unowned canonical opening must fail closed"
     );
 }

@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.Correspondence.PiCcsNc.Authority.DelayedResidual
+import Nightstream.Implementation.R1CS.Correspondence.PiCcsNc.Authority.DelayedResidual.ProjectionIdentity
 
 /-!
 Contract: connect the compact delayed-parent projection identity to the NC
@@ -29,6 +29,7 @@ namespace Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual
 open Nightstream.Implementation.R1CS.PiCcsNc
 open Nightstream.Implementation.R1CS.PiCcsNc.MixedPolynomial
 open Nightstream.SuperNeo.Concrete
+open Nightstream.SuperNeo.Folding.PiCCS.OutputClaims.EvaluationHomomorphism.Authority.DelayedPackedProjection
 
 /-- Honest completeness of the compact projection check. When the claimed
 parent coefficients are exactly the independently reconstructed child

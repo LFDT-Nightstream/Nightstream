@@ -4,7 +4,10 @@ use neo_ccs::Mat;
 use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
 
-use super::compilation_audit::{ArmShapeAudit, FixedPointRoundAudit, R1csIvcCompilationAudit, RelationHeaderAudit};
+use super::compilation_audit::{
+    ArmShapeAudit, FixedPointRoundAudit, R1csIvcCompilationAudit, R1csIvcFixedPointShapeAudit, RelationHeaderAudit,
+};
+use super::pi_ccs_output_digest_audit;
 use super::{shape, R1csIvcError};
 use crate::frontends::f_prime::recursive_plan::RecursiveStepImagePlan;
 use crate::frontends::r1cs_f_prime::lowering::MultiBranchLowNormR1cs;
@@ -20,6 +23,13 @@ use crate::paper::relations::{CcsInstance, Structure};
 
 /// Hard ceiling shared with the production Road-A relation.
 pub const R1CS_IVC_COMMITTED_COORDINATE_BUDGET: usize = 16_000_000;
+
+struct FixedPointCandidate {
+    arms: [SparseR1cs; 3],
+    shape: SelectiveLowNormShape,
+    rounds: Vec<FixedPointRoundAudit>,
+    pi_ccs_output_digest: super::PiCcsOutputDigestAudit,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum R1csIvcBranch {
@@ -60,6 +70,38 @@ impl R1csIvcRelation {
         app: &R1csShape,
         plan: &RecursiveStepImagePlan,
     ) -> Result<Self, R1csIvcError> {
+        let candidate = Self::discover_fixed_point(params, app, plan)?;
+        Self::compile_arms_selected(
+            candidate.arms,
+            candidate.shape,
+            candidate.rounds,
+            candidate.pi_ccs_output_digest,
+        )
+    }
+
+    /// Discover the exact stabilized field-R1CS arms and selective layout
+    /// without materializing the final sparse CCS matrices.
+    ///
+    /// The returned values are diagnostic shape evidence. They do not prove
+    /// that the planned relation was emitted or that any obligation is sound.
+    pub fn audit_fixed_point_shape(
+        params: &Params,
+        app: &R1csShape,
+        plan: &RecursiveStepImagePlan,
+    ) -> Result<R1csIvcFixedPointShapeAudit, R1csIvcError> {
+        let candidate = Self::discover_fixed_point(params, app, plan)?;
+        Ok(R1csIvcFixedPointShapeAudit::new(
+            candidate.rounds,
+            candidate.shape.compiler_audit,
+            candidate.pi_ccs_output_digest,
+        ))
+    }
+
+    fn discover_fixed_point(
+        params: &Params,
+        app: &R1csShape,
+        plan: &RecursiveStepImagePlan,
+    ) -> Result<FixedPointCandidate, R1csIvcError> {
         const MAX_ROUNDS: usize = 8;
 
         app.validate_shape()?;
@@ -103,7 +145,21 @@ impl R1csIvcRelation {
                 && input_signature == shape_signature(&next_shape)
                 && same_polynomial(verifier_relation.polynomial(), &next_shape.polynomial)
             {
-                return Self::compile_arms_selected(arms, next_shape, rounds);
+                // The bootstrap arm has no running claims. Only the stabilized
+                // recursive arm carries the complete fresh-plus-running PiCCS
+                // output-message profile.
+                let recursive_arm = R1csIvcBranch::Recursive.index();
+                let pi_ccs_output_digest = pi_ccs_output_digest_audit::recover(
+                    &arms[recursive_arm],
+                    next_shape.compiler_audit.rows(),
+                    recursive_arm,
+                )?;
+                return Ok(FixedPointCandidate {
+                    arms,
+                    shape: next_shape,
+                    rounds,
+                    pi_ccs_output_digest,
+                });
             }
             folded_public_input_len = next_shape.public_input_len;
             verifier_relation =
@@ -122,6 +178,7 @@ impl R1csIvcRelation {
         arms: [SparseR1cs; 3],
         shape: SelectiveLowNormShape,
         rounds: Vec<FixedPointRoundAudit>,
+        pi_ccs_output_digest: super::PiCcsOutputDigestAudit,
     ) -> Result<Self, R1csIvcError> {
         let arm_shapes = std::array::from_fn(|index| ArmShape {
             rows: arms[index].n,
@@ -163,7 +220,7 @@ impl R1csIvcRelation {
                 budget: R1CS_IVC_COMMITTED_COORDINATE_BUDGET,
             });
         }
-        let compilation_audit = R1csIvcCompilationAudit::new(rounds, emitted_audit);
+        let compilation_audit = R1csIvcCompilationAudit::new(rounds, emitted_audit, pi_ccs_output_digest);
         Ok(Self {
             relation,
             arm_shapes,

@@ -100,7 +100,7 @@ pub(super) fn enforce(
             wires,
             &quotients[0],
             &quotients[1],
-            Some(stage::Y_RING_IDENTITY_STAGES),
+            Some([stage::Y_RING_IDENTITY_STAGES; 2]),
         )?;
         padding::enforce_y_ring(builder, wires, row)?;
     }
@@ -113,7 +113,7 @@ pub(super) fn enforce(
         &folds.y_zcol,
         &binding.y_zcol_q[0],
         &binding.y_zcol_q[1],
-        Some(stage::Y_ZCOL_IDENTITY_STAGES),
+        Some([stage::Y_ZCOL_LIMB0_IDENTITY_STAGES, stage::Y_ZCOL_LIMB1_IDENTITY_STAGES]),
     )?;
     padding::enforce_y_zcol(builder, &folds.y_zcol)?;
 

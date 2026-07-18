@@ -22,6 +22,10 @@
 //! | `y_zcol` width | active Phi81 lane count | verifier constant | `Encoding.encodeKVector` |
 //! | `y_zcol` limbs | `message.yZcol[source][lane].(c0,c1)` | existing output wire | `ActiveSemantics.encodeSourcePayload` |
 
+mod sis_ownership;
+
+pub use sis_ownership::{audit_pi_ccs_output_sis, PiCcsOutputSisAudit, PiCcsOutputSisOwnerAudit};
+
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 

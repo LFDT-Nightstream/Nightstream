@@ -342,7 +342,7 @@ theorem scalar0Block0DigestCallInput
   · funext lane
     apply Fin.ext
     rcases laneValueCases lane with h | h | h | h | h | h | h | h <;>
-      simp [overwriteLane, callInputState, callOutputState, fieldAt,
+      simp [overwriteLane, callInputState, callOutputState,
         Schedule.scalar0Block0FullCursorCall, Schedule.block0DigestCall,
         Schedule.block0InputColumns, zeroScalar,
         Poseidon2Call.Call.columnMap, wordField, fieldValue, u64Modulus,
@@ -406,12 +406,6 @@ theorem successorEntryBoundaryCallInput
   simp only [Schedule.domainBase, Schedule.scalarColumnStride] at domainPin
   simp only [Schedule.domainBase, Schedule.scalarColumnStride] at coordinatePin
   simp only [Schedule.domainBase, Schedule.scalarColumnStride] at blockLengthPin
-  have rhoLtU64 : rho.val < u64Modulus := by
-    have bound : 15 < u64Modulus := by decide
-    omega
-  have rhoLtField : rho.val < goldilocksP := by
-    have bound : 15 < goldilocksP := by decide
-    omega
   rw [show afterEnterState assignment canonical rho =
       enterScalar (stateBeforeScalar assignment canonical rho) rho.val by
     simp [afterEnterState, nonzero]]
@@ -433,13 +427,12 @@ theorem successorEntryBoundaryCallInput
     apply Fin.ext
     rcases laneValueCases lane with h | h | h | h | h | h | h | h <;>
       simp [block3State, overwriteLane, callInputState, callOutputState,
-        fieldAt, Schedule.entryBoundaryCall, Schedule.block3DigestCall,
+        Schedule.entryBoundaryCall, Schedule.block3DigestCall,
         Schedule.laterDigestCall, Schedule.laterBlockPinBase,
         Schedule.previousHighColumns, Schedule.entryFirstAllocated,
         Schedule.domainBase, Schedule.scalarColumnStride,
         previousScalar, Poseidon2Call.Call.columnMap, nonzero, h,
         wordField, fieldValue, u64Modulus, goldilocksP,
-        Nat.mod_eq_of_lt rhoLtU64, Nat.mod_eq_of_lt rhoLtField,
         lengthPin, domainPin, coordinatePin, blockLengthPin] <;>
       congr 1 <;> omega
   · rfl
@@ -485,12 +478,6 @@ theorem successorBlock0DigestCallInput
     Schedule.scalarColumnStride, nonzero, ↓reduceIte] at counterPin
   simp only [Schedule.entryFirstAllocated, Schedule.domainBase,
     Schedule.scalarColumnStride, nonzero, ↓reduceIte] at squeezePin
-  have rhoLtU64 : rho.val < u64Modulus := by
-    have bound : 15 < u64Modulus := by decide
-    omega
-  have rhoLtField : rho.val < goldilocksP := by
-    have bound : 15 < goldilocksP := by decide
-    omega
   change
     { lanes := overwriteLane
         (overwriteLane
@@ -509,13 +496,12 @@ theorem successorBlock0DigestCallInput
   · funext lane
     apply Fin.ext
     rcases laneValueCases lane with h | h | h | h | h | h | h | h <;>
-      simp [overwriteLane, callInputState, callOutputState, fieldAt,
+      simp [overwriteLane, callInputState, callOutputState,
         Schedule.entryBoundaryCall, Schedule.block0DigestCall,
         Schedule.block0InputColumns, Schedule.entryFirstAllocated,
         Schedule.domainBase, Schedule.scalarColumnStride,
         Poseidon2Call.Call.columnMap, nonzero, h,
         wordField, fieldValue, u64Modulus, goldilocksP,
-        Nat.mod_eq_of_lt rhoLtU64, Nat.mod_eq_of_lt rhoLtField,
         domainPin, counterPin, squeezePin] <;>
       omega
   · rfl
@@ -610,6 +596,12 @@ theorem laterDigestCallInput
           (Schedule.laterBlockPinBase rho block + 3) = wordField 1 :=
     fieldAt_eq_wordField canonical (pins.laterSqueeze rho block)
       (by decide) (by decide)
+  have lengthValue := congrArg Fin.val lengthField
+  have domainValue := congrArg Fin.val domainField
+  have counterValue := congrArg Fin.val counterField
+  have squeezeValue := congrArg Fin.val squeezeField
+  simp only [CallRefinement.fieldAt_val, Schedule.laterBlockPinBase,
+    Schedule.scalarColumnStride] at lengthValue domainValue counterValue squeezeValue
   unfold appendRawPair
   change
     { lanes := overwriteLane
@@ -641,8 +633,8 @@ theorem laterDigestCallInput
            Schedule.block0InputColumns, Schedule.entryFirstAllocated,
            Schedule.priorDigestHighBase, Schedule.domainBase,
            Schedule.scalarColumnStride, Poseidon2Call.Call.columnMap] <;>
-         simp [fieldAt, Schedule.laterBlockPinBase,
-           Schedule.scalarColumnStride] <;>
+         (try simp [Schedule.laterBlockPinBase,
+           Schedule.scalarColumnStride]) <;>
          congr 1 <;> omega)
 
 /-- Each later digest transition replays the exact accepted Poseidon2 call,

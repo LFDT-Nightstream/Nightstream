@@ -2,15 +2,20 @@ import Nightstream.Implementation.R1CS.Core.ConstantPins
 import Nightstream.Implementation.R1CS.Correspondence.PiCcsOutputDigest.EncodingSchedule
 
 /-!
-Typed source-position layout for the terminal `Pi_CCS` output-digest preimage.
+Typed source-position layout for the historical three-matrix `Pi_CCS`
+output-digest preimage.
+
+This module fixes 15 sources, 3 matrices, and 6,683 serialized fields. It is
+not the active 15-source/13-matrix/23,033-field fixed-point target and cannot
+discharge active-profile refinement.
 
 Assurance tier: implementation/R1CS correspondence. `Semantics` independently
 fixes the mathematical serialization; this file gives every serialized
-position a typed role and proves that the production source columns occur in
+position a typed role and proves that the diagnostic artifact columns occur in
 exactly that order. Generated row spans and profiler totals are irrelevant to
 the theorem statements.
 
-Owns: protocol-role -> serialized-position -> production-column mapping;
+Owns: protocol-role -> serialized-position -> diagnostic-column mapping;
 explicit affine formulas for all dynamic `K` limbs; all 203 semantic constant
 positions; the two primary-SIS shape constants; and derivation of those 205
 values from accepted ordinary equations.

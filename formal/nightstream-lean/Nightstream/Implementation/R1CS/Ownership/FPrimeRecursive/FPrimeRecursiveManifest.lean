@@ -1,13 +1,14 @@
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeRecursive.Generated.FPrimeRecursiveManifestData
 
 /-!
-Contract: kernel-checked coverage of one exact production recursive F' program.
+Contract: kernel-checked coverage of one exact diagnostic recursive F' program.
 
-The Rust drift harness constructs the real plain/stateless steady recursive
-step and byte-compares `FPrimeRecursiveManifestData.lean` against metadata
-rendered from its exact sparse rows. The proofs below establish that those
-generated named ranges cover the entire program and nested NIFS block without
-gaps or overlaps.
+The Rust drift harness constructs the plain/stateless steady recursive step
+over the direct-CCS bit-carrier fixture and byte-compares
+`FPrimeRecursiveManifestData.lean` against metadata rendered from its exact
+sparse rows. The proofs below establish that those generated named ranges
+cover the entire diagnostic program and nested NIFS block without gaps or
+overlaps. This is not the selective fixed-point F' relation.
 
 Range identity is not circuit soundness. No hash or row count is authority for
 a protocol proposition; separate compiler lemmas must prove that satisfaction
@@ -39,7 +40,7 @@ theorem nifs_matches_top_level :
 /-- The exact steady-state profile has one shared beta/rho block and 31
 projection identities, all owned by PiRLC. -/
 theorem projection_census_shape :
-    schemaVersion = 2 ∧
+    schemaVersion = 3 ∧
     projectionIdentityRanges.length = projectionIdentityCount ∧
     projectionPairCounts.length = projectionIdentityCount ∧
     projectionIdentityCount = 31 := by

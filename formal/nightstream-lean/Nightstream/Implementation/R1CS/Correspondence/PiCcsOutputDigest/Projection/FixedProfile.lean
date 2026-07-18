@@ -1,8 +1,12 @@
 import Nightstream.Implementation.R1CS.Correspondence.PiCcsOutputDigest.Semantics
 
 /-!
-Fixed-profile projection from typed claimed `Pi_CCS` output data to the complete
-legacy CE envelope carried by the current recursive verifier.
+Historical three-matrix diagnostic projection from typed claimed `Pi_CCS`
+output data to the legacy CE envelope.
+
+This module fixes 15 sources, 3 matrices, and 6,683 serialized fields. It is
+not the active 15-source/13-matrix/23,033-field fixed-point target and cannot
+discharge active-profile refinement.
 
 Assurance tier: model-level. This module defines a typed reconstruction
 contract. It does not prove that `PiCCS.Accepted`, Rust, or R1CS rows provide

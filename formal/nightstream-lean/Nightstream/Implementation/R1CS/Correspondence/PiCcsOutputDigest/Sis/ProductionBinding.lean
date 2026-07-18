@@ -2,7 +2,13 @@ import Nightstream.Implementation.R1CS.Correspondence.PiCcsOutputDigest.SourceLa
 import Nightstream.Implementation.R1CS.Correspondence.PiCcsOutputDigest.Sis.Refinement
 
 /-!
-Concrete two-layer SIS refinement for the terminal `Pi_CCS` output digest.
+Concrete two-layer SIS refinement for the historical three-matrix `Pi_CCS`
+output-digest artifact.
+
+Despite the legacy file name, this module fixes 15 sources, 3 matrices, and
+6,683 serialized fields. It is not the active
+15-source/13-matrix/23,033-field fixed-point target and cannot discharge
+active-profile refinement.
 
 Assurance tier: implementation/R1CS correspondence. Starting from accepted
 owner rows, this file proves that the primary and compression output columns
@@ -22,7 +28,7 @@ Emits constraints: no.
 
 Authority boundary: the right-hand side contains only the independently typed
 message serialization and explicit `LinearMap` values projected from the two
-production blocks. The coefficient functions are not yet called public-seed
+diagnostic blocks. The coefficient functions are not yet called public-seed
 derived; that is a separate cross-language theorem obligation.
 
 | Protocol | Phase | Constraint family | Theorem | Exact guarantee |

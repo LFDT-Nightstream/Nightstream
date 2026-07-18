@@ -31,7 +31,8 @@ open Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier
 #check ActiveProfile.serialize_length
 #check ActiveProfile.selectiveShape
 #check ActiveProfile.relationShape_eq
-#check ActiveProfile.selectiveShape_not_legacyProfile
+#check ActiveProfile.selectiveShape_profile_eq_steadyFixedPoint
+#check ActiveProfile.selectiveShape_not_diagnosticProfile
 #check ActiveProfile.selective_serialize_length
 
 def activeProfileShape : SemanticShape where

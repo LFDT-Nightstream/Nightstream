@@ -1,10 +1,12 @@
 import Nightstream.Implementation.R1CS.Correspondence.PiCcsOutputDigest.Projection.FixedProfile
 
 /-!
-Model-level necessity witnesses for the fixed-profile `Pi_CCS` output
-projection.
+Model-level necessity witnesses for the historical three-matrix `Pi_CCS`
+output projection. These witnesses concern 15 sources, 3 matrices, and 6,683
+serialized fields; they do not establish necessity for the active
+15-source/13-matrix/23,033-field target.
 
-Assurance tier: model-level counterexamples. The typed active output message
+Assurance tier: model-level counterexamples. The typed diagnostic output message
 plus named derived context uniquely determine `canonicalExpand`; these
 theorems instead show that the observable projections alone still permit
 noncanonical alternatives when a listed canonicalization obligation is

@@ -634,8 +634,8 @@ theorem parentPayloadCallInput
   · funext lane
     apply Fin.ext
     rcases laneValueCases lane with h | h | h | h | h | h | h | h <;>
-      simp [overwriteLane, h, countParentOutputLane,
-        parentPayloadInputLane]
+      simp [overwriteLane, h, Poseidon2Call.Call.columnMap,
+        countParentBoundaryCall, parentPayloadCall]
   · rfl
 
 /-- Complete five-message binding refinement. The result is transcript-

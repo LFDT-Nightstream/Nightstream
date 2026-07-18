@@ -1,4 +1,5 @@
 import Nightstream.Implementation
+import Nightstream.Implementation.R1CS.Correspondence.PiCcsOutputDigest.Sis.SamplerBinding
 import tests.Axioms.Support
 
 /-!

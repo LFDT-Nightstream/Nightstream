@@ -18,7 +18,7 @@
 //! | evaluation leaves | bind all 34 retained output limbs | 102 rows, 68 carries per identity |
 //! | fused terminal leaf | direct 15-pair K identity minus q/Phi and output | 4 rows, 2 carries per identity |
 //! | K-product leaves | fully absorbed by the fused terminal identity | zero encoded rows/columns |
-//! | complete identity | exact sum of leaves | 13,314 rows / 9,880 columns |
+//! | complete identity | exact sum of leaves | 5,248 rows / 8,044 columns |
 
 use std::sync::OnceLock;
 
@@ -33,7 +33,7 @@ use neo_fold_clean::engine::r1cs_circuit::{
 };
 use neo_fold_clean::frontends::f_prime::gadget_native::{
     encode_r1cs_gadget_native, estimate_r1cs_gadget_native, profile_r1cs_gadget_native_stages, GadgetNativeError,
-    GadgetNativeStageEstimate,
+    GadgetNativeStageEstimate, GadgetNativeStageProfile,
 };
 use neo_fold_clean::paper::reductions::pi_rlc_circuit::stage;
 use neo_math::ring::D;
@@ -45,8 +45,8 @@ const IDENTITIES: usize = 31;
 const RETAINED_PER_IDENTITY: usize = 34;
 const SYNTHETIC_PER_IDENTITY: usize = 70;
 const PRODUCT_ROWS_PER_IDENTITY: usize = 106;
-const ENCODED_COLUMNS_PER_IDENTITY: usize = 9_880;
-const ENCODED_ROWS_PER_IDENTITY: usize = 13_314;
+const ENCODED_COLUMNS_PER_IDENTITY: usize = 8_044;
+const ENCODED_ROWS_PER_IDENTITY: usize = 5_248;
 
 struct Fixture {
     source: R1csSnapshot,
@@ -152,7 +152,8 @@ fn labels_for_identity(identity: usize) -> ProjectionIdentityStageLabels {
         0..=17 => stage::COMMITMENT_IDENTITY_STAGES,
         18..=22 => stage::X_IDENTITY_STAGES,
         23..=28 => stage::Y_RING_IDENTITY_STAGES,
-        29..=30 => stage::Y_ZCOL_IDENTITY_STAGES,
+        29 => stage::Y_ZCOL_LIMB0_IDENTITY_STAGES,
+        30 => stage::Y_ZCOL_LIMB1_IDENTITY_STAGES,
         _ => unreachable!("fixed projection role count"),
     }
 }
@@ -281,13 +282,18 @@ fn exact_projection_compaction_stage_profile_exposes_evaluation_fusion_and_zero_
     assert_family_profile(&stages, 18, stage::COMMITMENT_IDENTITY_STAGES);
     assert_family_profile(&stages, 5, stage::X_IDENTITY_STAGES);
     assert_family_profile(&stages, 6, stage::Y_RING_IDENTITY_STAGES);
-    assert_family_profile(&stages, 2, stage::Y_ZCOL_IDENTITY_STAGES);
+    assert_family_profile(&stages, 1, stage::Y_ZCOL_LIMB0_IDENTITY_STAGES);
+    assert_family_profile(&stages, 1, stage::Y_ZCOL_LIMB1_IDENTITY_STAGES);
+
+    let y_zcol_parent_stages = labels_as_prefix_totals(&profile, stage::Y_ZCOL_IDENTITY_STAGES);
+    assert_family_profile(&y_zcol_parent_stages, 2, stage::Y_ZCOL_IDENTITY_STAGES);
 
     let labels = [
         stage::COMMITMENT_IDENTITY_STAGES,
         stage::X_IDENTITY_STAGES,
         stage::Y_RING_IDENTITY_STAGES,
-        stage::Y_ZCOL_IDENTITY_STAGES,
+        stage::Y_ZCOL_LIMB0_IDENTITY_STAGES,
+        stage::Y_ZCOL_LIMB1_IDENTITY_STAGES,
     ];
     let retained = labels
         .iter()
@@ -298,7 +304,7 @@ fn exact_projection_compaction_stage_profile_exposes_evaluation_fusion_and_zero_
                 labels.quotient_evaluation,
             ]
         })
-        .map(|label| stage_at(&stages, label).canonical_binary_field_source_cols)
+        .map(|label| stage_at(&stages, label).ordinary_private_field_source_cols)
         .sum::<usize>();
     let synthetic = labels
         .iter()
@@ -356,6 +362,27 @@ fn exact_projection_compaction_stage_profile_exposes_evaluation_fusion_and_zero_
     assert_eq!(encoded_rows, IDENTITIES * ENCODED_ROWS_PER_IDENTITY);
 }
 
+fn labels_as_prefix_totals(
+    profile: &GadgetNativeStageProfile,
+    labels: ProjectionIdentityStageLabels,
+) -> Vec<GadgetNativeStageEstimate> {
+    [
+        labels.input_evaluations,
+        labels.rho_times_input,
+        labels.output_evaluation,
+        labels.quotient_evaluation,
+        labels.quotient_times_phi,
+        labels.final_limb_checks,
+    ]
+    .into_iter()
+    .map(|label| {
+        profile
+            .aggregate_prefix(label)
+            .expect("identity phase parent")
+    })
+    .collect()
+}
+
 fn assert_family_profile(
     stages: &[GadgetNativeStageEstimate],
     identities: usize,
@@ -366,7 +393,7 @@ fn assert_family_profile(
     assert_eq!(inputs.product_sum_identities, identities * PAIRS * 2);
     assert_eq!(inputs.product_sum_rows, identities * PAIRS * 2 * 3);
     assert_eq!(inputs.synthetic_product_sum_fields, identities * PAIRS * 2 * 2);
-    assert_eq!(inputs.canonical_binary_field_source_cols, identities * PAIRS * 2);
+    assert_eq!(inputs.ordinary_private_field_source_cols, identities * PAIRS * 2);
 
     let output = stage_at(stages, labels.output_evaluation);
     assert_evaluation_leaf(output, identities, 106);
@@ -388,17 +415,17 @@ fn assert_family_profile(
     assert_eq!(final_limb.synthetic_product_sum_fields, identities * 2);
     assert_eq!(final_limb.canonical_binary_field_source_cols, 0);
     assert_eq!(final_limb.encoded_cols, identities * 2 * 95);
-    assert_eq!(final_limb.encoded_rows, identities * 258);
+    assert_eq!(final_limb.encoded_rows, identities * 131);
 }
 
 fn assert_evaluation_leaf(stage: &GadgetNativeStageEstimate, identities: usize, removed_columns: usize) {
     assert_eq!(stage.product_sum_identities, identities * 2);
     assert_eq!(stage.product_sum_rows, identities * 6);
     assert_eq!(stage.synthetic_product_sum_fields, identities * 4);
-    assert_eq!(stage.canonical_binary_field_source_cols, identities * 2);
+    assert_eq!(stage.ordinary_private_field_source_cols, identities * 2);
     assert_eq!(stage.gadget_derived_source_cols, identities * removed_columns);
-    assert_eq!(stage.encoded_cols, identities * 6 * 95);
-    assert_eq!(stage.encoded_rows, identities * 768);
+    assert_eq!(stage.encoded_cols, identities * 462);
+    assert_eq!(stage.encoded_rows, identities * 301);
 }
 
 fn stage_at<'a>(stages: &'a [GadgetNativeStageEstimate], label: &str) -> &'a GadgetNativeStageEstimate {

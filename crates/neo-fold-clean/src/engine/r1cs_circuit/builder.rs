@@ -37,6 +37,7 @@ use super::encoding_trace::{
 };
 pub use super::encoding_trace::{ProjectionIdentityRole, ProjectionNebulaCoordinate};
 use super::stage_provenance::PhysicalStageCheckpoint;
+use super::PiRlcYZcolBoundaryAudit;
 pub(crate) type PolynomialEvaluationTrace = PolynomialEvaluationTraceEntry;
 pub use super::relation::{R1csRelation, R1csSnapshot};
 
@@ -550,6 +551,7 @@ pub struct R1csBuilder {
     projection_ladder_audits: Vec<ProjectionLadderAudit>,
     projection_identity_audits: Vec<ProjectionIdentityAudit>,
     projection_glue_audits: Vec<ProjectionGlueAudit>,
+    pi_rlc_y_zcol_boundary_audits: Vec<PiRlcYZcolBoundaryAudit>,
     indexed_row_family_ranges: Vec<IndexedRowFamilyRange>,
     column_family_ranges: Vec<ColumnFamilyRange>,
     physical_stage_checkpoints: Vec<PhysicalStageCheckpoint>,
@@ -575,6 +577,7 @@ pub(crate) struct R1csSynthesis {
     pub(crate) centered_unit_columns: Vec<usize>,
     pub(crate) seeded_phi81_a_blocks: Vec<SeededPhi81LinearBlock>,
     pub(crate) poseidon2_traces: Vec<Poseidon2PermutationTrace>,
+    pub(crate) poseidon2_hash_audits: Vec<Poseidon2HashAudit>,
     pub(crate) polynomial_evaluation_traces: Vec<PolynomialEvaluationTraceEntry>,
     pub(crate) product_sum_batch_traces: Vec<ProductSumBatchTrace>,
     pub(crate) centered_unit_traces: Vec<CenteredUnitTrace>,
@@ -582,6 +585,7 @@ pub(crate) struct R1csSynthesis {
     pub(crate) equality_pairs: Vec<(usize, usize, usize)>,
     pub(crate) row_family_ranges: Vec<RowFamilyRange>,
     pub(crate) physical_stage_checkpoints: Vec<PhysicalStageCheckpoint>,
+    pub(crate) pi_rlc_y_zcol_boundary_audits: Vec<PiRlcYZcolBoundaryAudit>,
 }
 
 impl Default for R1csBuilder {
@@ -635,6 +639,7 @@ impl R1csBuilder {
             projection_ladder_audits: Vec::new(),
             projection_identity_audits: Vec::new(),
             projection_glue_audits: Vec::new(),
+            pi_rlc_y_zcol_boundary_audits: Vec::new(),
             indexed_row_family_ranges: Vec::new(),
             column_family_ranges: Vec::new(),
             physical_stage_checkpoints: Vec::new(),
@@ -1022,6 +1027,12 @@ impl R1csBuilder {
         }
     }
 
+    pub(crate) fn record_pi_rlc_y_zcol_boundary(&mut self, audit: PiRlcYZcolBoundaryAudit) {
+        if self.record_structure {
+            self.pi_rlc_y_zcol_boundary_audits.push(audit);
+        }
+    }
+
     pub(crate) fn record_projection_identity_trace(&mut self, trace: ProjectionIdentityTraceEntry) {
         if self.encoding_trace_enabled {
             self.encoding_trace.push_projection_identity(trace);
@@ -1372,6 +1383,7 @@ impl R1csBuilder {
             self.record_structure,
             "witness-only builder cannot export R1CS structure"
         );
+        let poseidon2_hash_audits = self.poseidon2_hash_audits();
         R1csSynthesis {
             a_trips: self.a_trips,
             b_trips: self.b_trips,
@@ -1385,6 +1397,7 @@ impl R1csBuilder {
             centered_unit_columns: self.centered_unit_columns,
             seeded_phi81_a_blocks: self.seeded_phi81_a_blocks,
             poseidon2_traces: self.poseidon2_traces,
+            poseidon2_hash_audits,
             polynomial_evaluation_traces: self.polynomial_evaluation_traces,
             product_sum_batch_traces: self.product_sum_batch_traces,
             centered_unit_traces: self.centered_unit_traces,
@@ -1392,6 +1405,7 @@ impl R1csBuilder {
             equality_pairs: self.equality_pairs,
             row_family_ranges: self.row_family_ranges,
             physical_stage_checkpoints: self.physical_stage_checkpoints,
+            pi_rlc_y_zcol_boundary_audits: self.pi_rlc_y_zcol_boundary_audits,
         }
     }
 

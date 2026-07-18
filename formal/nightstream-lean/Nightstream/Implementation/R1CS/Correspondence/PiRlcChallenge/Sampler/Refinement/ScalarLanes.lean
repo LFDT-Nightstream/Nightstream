@@ -114,19 +114,20 @@ structure Refines
       ProductionAlphabet.candidateBound
 
 /-- One proof, by strong induction over the sixteen block-major leaves, that
-readable rows plus explicit layout links force all lane semantics and keep the
-accepted-count chain within the fixed 64-candidate bound. -/
-theorem satisfyingRows_refine
+already-derived canonical candidate inputs, readable sampler rows, and explicit
+layout links force all lane semantics and keep the accepted-count chain within
+the fixed 64-candidate bound. This isolates sampler ownership from the upstream
+canonical-u64 and transcript obligations. -/
+theorem satisfyingSamplerRows_refine
     (prime : EuclidPrime goldilocksP)
     {assignment : Nat -> Nat}
     (canonical : ChunkOrder.CanonicalAssignment assignment)
     (one : assignment 0 = 1)
     (layout : Layout)
     (chain : CounterChain layout)
-    (canonicalRows : ∀ block lane : Fin 4,
-      Satisfies CanonicalU64.rows
-        (ChunkOrder.laneSource assignment
-          (layout.fieldColumn block lane) (layout.bitStart block lane)))
+    (canonicalLanes : ∀ block lane : Fin 4,
+      ChunkOrder.LaneRefines assignment canonical
+        (layout.fieldColumn block lane) (layout.bitStart block lane))
     (laneRows : ∀ block lane : Fin 4,
       Satisfies
         (AlphabetSamplingResidualTemplate.laneRows
@@ -146,11 +147,7 @@ theorem satisfyingRows_refine
     | ind value inductionHypothesis =>
         intro valueLt
         let index : Fin laneCount := ⟨value, valueLt⟩
-        let canonicalLane := ChunkOrder.satisfyingLane_refines prime
-          canonical one
-          (layout.fieldColumn (blockAt index) (laneAt index))
-          (layout.bitStart (blockAt index) (laneAt index))
-          (canonicalRows (blockAt index) (laneAt index))
+        let canonicalLane := canonicalLanes (blockAt index) (laneAt index)
         have initialWithin :
             assignment (layout.predecessor (blockAt index) (laneAt index)) + 4 <=
               ProductionAlphabet.candidateBound := by
@@ -255,5 +252,34 @@ theorem satisfyingRows_refine
   }
   have bound := (build lastIndex.val lastIndex.isLt).2
   simpa [lastIndex, ProductionAlphabet.candidateBound] using bound
+
+/-- Readable canonical-u64 and sampler rows imply the complete sixteen-lane
+result. This wrapper retains the original source-R1CS interface while the core
+theorem above lets active profiles keep transcript decomposition and sampler
+row ownership separate. -/
+theorem satisfyingRows_refine
+    (prime : EuclidPrime goldilocksP)
+    {assignment : Nat -> Nat}
+    (canonical : ChunkOrder.CanonicalAssignment assignment)
+    (one : assignment 0 = 1)
+    (layout : Layout)
+    (chain : CounterChain layout)
+    (canonicalRows : ∀ block lane : Fin 4,
+      Satisfies CanonicalU64.rows
+        (ChunkOrder.laneSource assignment
+          (layout.fieldColumn block lane) (layout.bitStart block lane)))
+    (laneRows : ∀ block lane : Fin 4,
+      Satisfies
+        (AlphabetSamplingResidualTemplate.laneRows
+          (layout.bitStart block lane) (layout.predecessor block lane))
+        assignment)
+    (initialZero : assignment layout.initialCountColumn = 0) :
+    Refines assignment canonical layout := by
+  exact satisfyingSamplerRows_refine prime canonical one layout chain
+    (fun block lane =>
+      ChunkOrder.satisfyingLane_refines prime canonical one
+        (layout.fieldColumn block lane) (layout.bitStart block lane)
+        (canonicalRows block lane))
+    laneRows initialZero
 
 end Nightstream.Implementation.R1CS.PiRlcChallenge.Sampler.Refinement.ScalarLanes

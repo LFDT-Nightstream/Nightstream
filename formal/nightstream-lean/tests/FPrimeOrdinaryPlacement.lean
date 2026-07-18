@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.Artifacts.FPrimeRecursive
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeRecursive.OrdinaryPlacement
 
 /-!
 Contract: executable geometry, mutation, and concrete production regressions

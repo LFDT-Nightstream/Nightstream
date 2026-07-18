@@ -189,6 +189,10 @@ name = "reductions_pi_ccs_split_nc"
 path = "tests/reductions/pi_ccs_split_nc.rs"
 
 [[test]]
+name = "reductions_pi_ccs_output_message"
+path = "tests/reductions/pi_ccs_output_message.rs"
+
+[[test]]
 name = "reductions_pi_ccs_split_nc_fe"
 path = "tests/reductions/pi_ccs_split_nc_fe.rs"
 

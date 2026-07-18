@@ -16,6 +16,7 @@
 //! | `transcript` | Exact Poseidon2 absorb/squeeze schedule | yes | `transcript.rs` | transcript bridge open |
 //! | `fe` | FE initial claim, SumCheck, terminal identity | yes | `fe.rs` | FE bridge open |
 //! | `nc` | NC SumCheck and terminal identity | yes | `nc.rs` | NC bridge open |
+//! | `output_message` | Exact pre-SIS field order and source-column ownership | only verifier constants | `output_message.rs` | active serializer model |
 //! | `stage` | Stable diagnostic ownership | no | `stage.rs` | no theorem claim |
 //!
 //! Owns the byte-for-byte mirror of the verifier path that
@@ -62,6 +63,7 @@ use crate::engine::r1cs_circuit::R1csBuilder;
 pub mod digests;
 pub mod fe;
 pub mod nc;
+pub mod output_message;
 pub mod stage;
 pub mod transcript;
 pub mod verifier;
@@ -72,7 +74,7 @@ pub mod verifier;
 pub use digests::{
     enforce_accumulator_ce_claim_digest, enforce_accumulator_claims_digest, enforce_ccs_claim_digest,
     enforce_ce_claim_digest, enforce_pi_ccs_instance_digest, enforce_pi_ccs_instance_digest_parent_authority,
-    enforce_pi_ccs_outputs_digest, AccumulatorCeClaimDigestInputs, CeClaimDigestInputs, PiCcsOutputMessageDigestInputs,
+    enforce_pi_ccs_outputs_digest, AccumulatorCeClaimDigestInputs, CeClaimDigestInputs, PiCcsOutputsDigestWires,
 };
 pub use fe::{
     enforce_fe_claimed_initial, enforce_fe_sumcheck_driver, enforce_fe_terminal_identity, FeClaimedInitialInputs,
@@ -81,6 +83,9 @@ pub use fe::{
 pub use nc::{
     enforce_nc_range_product, enforce_nc_sumcheck_driver, enforce_nc_terminal_identity, NcSumcheckResult,
     NcTerminalInputs,
+};
+pub use output_message::{
+    encode_pi_ccs_outputs_preimage, PiCcsOutputFieldBinding, PiCcsOutputMessageDigestInputs, PiCcsOutputsPreimage,
 };
 pub use transcript::{
     absorb_engine_header_bundle_and_instance_digest, absorb_engine_header_bundle_wires_and_instance_digest,

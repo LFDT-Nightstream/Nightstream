@@ -22,6 +22,7 @@
 
 pub mod accumulator_sis_circuit;
 pub mod pi_ccs;
+pub mod pi_ccs_output_message;
 pub mod pi_ccs_split_nc_circuit;
 pub mod pi_dec;
 pub mod pi_dec_circuit;

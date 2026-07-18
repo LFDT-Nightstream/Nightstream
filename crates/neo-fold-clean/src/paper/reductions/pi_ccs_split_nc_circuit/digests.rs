@@ -16,7 +16,7 @@
 //! | accumulator child digest | Bind one paper-level ordered child claim; `y_zcol` source binding remains open | yes | `enforce_accumulator_ce_claim_digest` | exact-child bridge open |
 //! | accumulator handle | Bind the ordered paper-level `CE(b)^k` child vector | yes | `enforce_accumulator_claims_digest` | exact-child bridge open |
 //! | instance digest | Bind fresh claims and checked running parent | yes | `enforce_pi_ccs_instance_digest_parent_authority` | authority bridge open |
-//! | output digest | Bind the Pi_CCS message consumed by Pi_RLC | yes | `enforce_pi_ccs_outputs_digest` | projection bridge open |
+//! | output digest | Bind the profile-pinned Pi_CCS message consumed by Pi_RLC | yes | `enforce_pi_ccs_outputs_digest` | source layout model-level; physical SIS bridge open |
 //!
 //! Mirrors:
 //! - `crate::paper::digest::ccs_claim_digest` (per-fresh CCS claim).
@@ -38,7 +38,8 @@
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-use super::{alloc_constant_var, extend_f_slice_wires, extend_packed_bytes_as_fields_wires, Error};
+use super::output_message::{encode_pi_ccs_outputs_preimage, PiCcsOutputMessageDigestInputs, PiCcsOutputsPreimage};
+use super::{alloc_constant_var, extend_f_slice_wires, extend_packed_bytes_as_fields_wires, stage, Error};
 use crate::engine::r1cs_circuit::builder::{Lc, Var};
 use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::poseidon2::enforce_poseidon2_hash;
@@ -49,6 +50,7 @@ use crate::paper::reductions::accumulator_sis_circuit::{
     enforce_accumulator_digest as enforce_sis_accumulator_digest, CCS_CLAIM_SIS_CONFIG, CE_CLAIM_SIS_CONFIG,
     PI_CCS_OUTPUTS_SIS_CONFIG,
 };
+use crate::paper::reductions::pi_ccs_output_message::Profile;
 use crate::paper::relations::product_commitment_circuit::AdvCommitmentWires;
 
 /// Domain bytes for the paper-layer per-claim digests (mirrors
@@ -57,8 +59,6 @@ const CCS_CLAIM_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/ccs_claim_digest/v1";
 const CE_CLAIM_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/ce_claim_digest/v2";
 const ACCUMULATOR_CE_CLAIM_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/accumulator_ce_claim_digest/v1";
 const ACCUMULATOR_CLAIMS_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/accumulator/children/v3";
-const PI_CCS_OUTPUT_MESSAGE_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/pi_ccs_output_message_digest/v2";
-const PI_CCS_OUTPUTS_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/pi_ccs_outputs_digest/v2";
 const PI_CCS_INSTANCE_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/pi_ccs_instance_digest/v1";
 const PI_CCS_PARENT_AUTHORITY_INSTANCE_DIGEST_DOMAIN: &[u8] =
     b"neo.fold.clean/pi_ccs_instance_digest/parent_authority/v1";
@@ -148,12 +148,10 @@ pub struct AccumulatorCeClaimDigestInputs<'a> {
     pub adv: Option<&'a AdvCommitmentWires>,
 }
 
-/// Prover-chosen Π_CCS output message. Every omitted CE field is reconstructed
-/// or constrained by the verifier before this projection is used to sample
-/// Π_RLC's `ρ`.
-pub struct PiCcsOutputMessageDigestInputs<'a> {
-    pub y_ring: &'a [Vec<KVar>],
-    pub y_zcol: &'a [KVar],
+/// Digest output plus the exact field-to-column ledger consumed by SIS.
+pub struct PiCcsOutputsDigestWires {
+    pub digest: [Var; 4],
+    pub preimage: PiCcsOutputsPreimage,
 }
 
 /// Mirror of `crate::paper::digest::ce_claim_digest`. Preimage layout
@@ -337,22 +335,23 @@ pub fn enforce_accumulator_claims_digest(builder: &mut R1csBuilder, child_digest
 /// product-commitment, shape, and challenge fields are omitted deliberately:
 /// the Π_CCS verifier has already bound them to transcript-authenticated inputs
 /// or derived challenges by wire equality. Rehashing them here is redundant.
+/// `profile` must come from verifier-owned relation shape; this function never
+/// infers protocol dimensions from the message.
 pub fn enforce_pi_ccs_outputs_digest(
     builder: &mut R1csBuilder,
+    profile: Profile,
     inputs: &[PiCcsOutputMessageDigestInputs<'_>],
-) -> Result<[Var; 4], Error> {
-    let mut preimage = Vec::new();
-    extend_packed_bytes_as_fields_wires(builder, &mut preimage, PI_CCS_OUTPUTS_DIGEST_DOMAIN);
-    preimage.push(alloc_constant_var(builder, F::from_u64(inputs.len() as u64)));
-    for input in inputs {
-        extend_pi_ccs_output_message(builder, &mut preimage, input)?;
-    }
+) -> Result<PiCcsOutputsDigestWires, Error> {
+    let preimage = encode_pi_ccs_outputs_preimage(builder, profile, inputs)?;
+    let wires = preimage.wires();
+    builder.begin_encoding_stage(stage::OUTPUT_MESSAGE_SIS);
 
-    Ok(
-        enforce_sis_accumulator_digest(builder, PI_CCS_OUTPUTS_SIS_CONFIG, &preimage)
+    Ok(PiCcsOutputsDigestWires {
+        digest: enforce_sis_accumulator_digest(builder, PI_CCS_OUTPUTS_SIS_CONFIG, &wires)
             .expect("fixed nonempty PiCCS-output SIS preimage")
             .digest,
-    )
+        preimage,
+    })
 }
 
 fn enforce_unique_inactive_x_zero(builder: &mut R1csBuilder, x: &[Var], rows: usize, cols: usize, active_cols: usize) {
@@ -365,32 +364,6 @@ fn enforce_unique_inactive_x_zero(builder: &mut R1csBuilder, x: &[Var], rows: us
             }
         }
     }
-}
-
-fn extend_pi_ccs_output_message(
-    builder: &mut R1csBuilder,
-    preimage: &mut Vec<Var>,
-    input: &PiCcsOutputMessageDigestInputs<'_>,
-) -> Result<(), Error> {
-    if input.y_ring.iter().any(|row| row.len() < neo_math::ring::D) {
-        return Err(Error::Shape(
-            "Π_CCS output message y_ring row shorter than active ring degree".into(),
-        ));
-    }
-    if input.y_zcol.len() < neo_math::ring::D {
-        return Err(Error::Shape(
-            "Π_CCS output message y_zcol shorter than active ring degree".into(),
-        ));
-    }
-
-    extend_packed_bytes_as_fields_wires(builder, preimage, PI_CCS_OUTPUT_MESSAGE_DIGEST_DOMAIN);
-    preimage.push(alloc_constant_var(builder, F::from_u64(input.y_ring.len() as u64)));
-    for row in input.y_ring {
-        extend_kvar_slice(builder, preimage, &row[..neo_math::ring::D]);
-    }
-    extend_kvar_slice(builder, preimage, &input.y_zcol[..neo_math::ring::D]);
-
-    Ok(())
 }
 
 // The fields deliberately absent above are all pinned before this digest is

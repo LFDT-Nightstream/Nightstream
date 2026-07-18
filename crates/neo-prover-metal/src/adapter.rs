@@ -103,7 +103,7 @@ impl pi_ccs::PiCcsOutputsDigestBackend for MetalPiCcsOutputsDigest<'_> {
         self.session
             .sis_accumulator_digest_resident(
                 PI_CCS_OUTPUTS_SIS_CONFIG,
-                &digest::pi_ccs_outputs_digest_preimage(outputs),
+                &digest::pi_ccs_outputs_preimage(outputs),
             )
             .map_err(|_| pi_ccs::Error::OutputDigestBackend)
     }

@@ -49,6 +49,9 @@ use neo_fold_clean::frontends::r1cs_f_prime::lower_field_r1cs;
 use neo_fold_clean::paper::construction2::RunningInstance;
 use neo_fold_clean::paper::digest::pi_ccs_outputs_digest;
 use neo_fold_clean::paper::reductions::pi_ccs;
+use neo_fold_clean::paper::reductions::pi_ccs_output_message::{
+    FieldPath, KLimb, Profile as PiCcsOutputMessageProfile, R1csInputOwner, LEGACY_THREE_MATRIX_FIELD_COUNT,
+};
 use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::{
     enforce_split_nc_pi_ccs_v, enforce_split_nc_pi_ccs_v_with_header_bundle_wires, Error, SplitNcPiCcsVConfig,
     SplitNcPiCcsVDerived, SplitNcPiCcsVMessages,
@@ -598,6 +601,47 @@ fn pi_ccs_output_digest_is_exactly_the_prover_chosen_active_message() {
         expected,
         "reconstructed fields and canonical padding are not a second message"
     );
+}
+
+#[test]
+fn accepted_diagnostic_outputs_have_exact_field_to_column_ownership() {
+    let fixture = build_fixture();
+    let (builder, derived) = emit_verifier_with_derived(&fixture).expect("emit accepted verifier");
+    assert!(builder.is_satisfied());
+
+    // This standalone fixture deliberately exercises the quarantined
+    // three-matrix relation. The fixed F-prime profile is checked separately;
+    // this test establishes that the production emitter uses the same decoder
+    // for an actually accepted R1CS execution.
+    let profile = PiCcsOutputMessageProfile::new(derived.outputs.len(), fixture.prep.structure().t());
+    assert_eq!(profile, PiCcsOutputMessageProfile::new(15, 3));
+    assert_eq!(profile.field_count(), LEGACY_THREE_MATRIX_FIELD_COUNT);
+    assert_eq!(derived.output_message_preimage.profile(), profile);
+
+    for binding in derived.output_message_preimage.fields() {
+        let expected = match binding.path() {
+            FieldPath::YRingLimb {
+                source,
+                matrix,
+                lane,
+                limb,
+            } => Some(match limb {
+                KLimb::C0 => derived.outputs[source].y_ring[matrix][lane].c0,
+                KLimb::C1 => derived.outputs[source].y_ring[matrix][lane].c1,
+            }),
+            FieldPath::YZcolLimb { source, lane, limb } => Some(match limb {
+                KLimb::C0 => derived.outputs[source].y_zcol[lane].c0,
+                KLimb::C1 => derived.outputs[source].y_zcol[lane].c1,
+            }),
+            _ => {
+                assert_eq!(binding.r1cs_input_owner(), R1csInputOwner::VerifierShape);
+                None
+            }
+        };
+        if let Some(expected) = expected {
+            assert_eq!(binding.wire(), expected);
+        }
+    }
 }
 
 #[test]

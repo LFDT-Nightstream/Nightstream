@@ -62,6 +62,8 @@ import tests.Axioms.PiRlcTerminalSemanticHandoff
 import tests.Axioms.Phi81EvaluationHomomorphism
 import tests.Axioms.Phi81PiDECAlgebra
 import tests.Axioms.Phi81PiDECRecomposition
+import tests.Axioms.PiDecCanonicalParent
+import tests.Axioms.PiDecProductionChildSubstitution
 import tests.Axioms.Phi81PiRLCAlgebra
 import tests.Axioms.Phi81PiRLCNormGrowth
 import tests.Axioms.FPrimeCarrier270
@@ -73,8 +75,11 @@ import tests.Axioms.FPrimeConcretePhi81ActiveFixedOne
 import tests.Axioms.FPrimeConcretePhi81BootstrapContext
 import tests.Axioms.FPrimeConcretePhi81ZeroArityLifecycle
 import tests.Axioms.FPrimeConcretePhi81ActiveFixedOneMinimality
+import tests.Axioms.FPrimeConcretePhi81BaseFixedOneMinimality
 import tests.Axioms.FPrimeConcretePhi81FixedOneCanonical
 import tests.Axioms.FPrimeConcretePhi81FixedOneExecutable
+import tests.Axioms.FPrimeConcretePhi81HonestCompleteness
+import tests.Axioms.FPrimeConcretePhi81ParentOnlyAuthority
 import tests.Axioms.SumCheckFinite
 import tests.Axioms.SumCheckFixedPolynomial
 import tests.Axioms.SumCheckFixedPhase

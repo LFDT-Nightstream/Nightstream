@@ -42,6 +42,9 @@ import tests.Axioms.PiCcsOutputClaimsPackedBlockLinear
 import tests.Axioms.PiCcsOutputClaimsPackedBlockFinite
 import tests.Axioms.PiCcsOutputClaimsPackedBlockPiDEC
 import tests.Axioms.PiCcsOutputClaimsPiRlcSidecarAuthority
+import tests.Axioms.PiCcsOutputClaimsDelayedPackedProjection
+import tests.Axioms.PiCcsOutputClaimsDelayedPackedProjectionPiDec
+import tests.Axioms.PiCcsOutputClaimsScalarBindingNecessity
 import tests.Axioms.PiCCSSplitNcNcMixing
 import tests.Axioms.PiCCSSplitNcNcInitialSum
 import tests.Axioms.PiCCSSplitNcNcDegree
@@ -57,6 +60,7 @@ import tests.Axioms.PiCcsSplitNcVerifierProtocolOutputRefinement
 import tests.Axioms.NifsConcretePhi81Sampler
 import tests.Axioms.NifsConcretePhi81PiCcsDomains
 import tests.Axioms.NifsConcretePhi81Transition
+import tests.Axioms.NifsConcretePhi81PackedYZcolAuthority
 import tests.Axioms.NifsConcretePhi81ChildPayloadAuthority
 import tests.Axioms.NifsConcretePhi81ChildCommitmentAuthority
 import tests.Axioms.NifsConcretePhi81CanonicalParentAuthority

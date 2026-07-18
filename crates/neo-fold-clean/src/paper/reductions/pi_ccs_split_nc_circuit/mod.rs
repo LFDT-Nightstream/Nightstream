@@ -85,7 +85,8 @@ pub use nc::{
     NcTerminalInputs,
 };
 pub use output_message::{
-    encode_pi_ccs_outputs_preimage, PiCcsOutputFieldBinding, PiCcsOutputMessageDigestInputs, PiCcsOutputsPreimage,
+    audit_pi_ccs_output_sis, encode_pi_ccs_outputs_preimage, PiCcsOutputFieldBinding, PiCcsOutputMessageDigestInputs,
+    PiCcsOutputSisAudit, PiCcsOutputSisOwnerAudit, PiCcsOutputsPreimage,
 };
 pub use transcript::{
     absorb_engine_header_bundle_and_instance_digest, absorb_engine_header_bundle_wires_and_instance_digest,

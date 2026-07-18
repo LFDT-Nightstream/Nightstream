@@ -3,8 +3,12 @@ import Nightstream.Implementation.R1CS.Correspondence.ShiftedTernary.CanonicalWo
 import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryTerminalPiCcsOutputMessageHashesArtifact
 
 /-!
-Exact production schedule for the two canonical-word/SIS layers of the
-terminal `Pi_CCS` output digest.
+Exact historical three-matrix artifact schedule for the two
+canonical-word/SIS layers of the `Pi_CCS` output digest.
+
+This module fixes 15 sources, 3 matrices, and 6,683 serialized fields. It is
+not the active 15-source/13-matrix/23,033-field fixed-point target and cannot
+discharge active-profile refinement.
 
 Assurance tier: implementation/R1CS correspondence. The independent message
 serialization remains in `Semantics`; this file only proves how generated

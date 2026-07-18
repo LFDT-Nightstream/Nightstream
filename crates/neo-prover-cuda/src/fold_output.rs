@@ -11,9 +11,7 @@ use std::sync::{Arc, Mutex};
 use cuda_core::{CudaStream, DeviceBuffer};
 use neo_ajtai::Commitment;
 use neo_ccs::Mat;
-use neo_fold_clean::paper::digest::{
-    accumulator_ce_claim_digest, ce_claim_digest, digest32_as_fields, AccumulatorHandle,
-};
+use neo_fold_clean::paper::digest::{ce_claim_digest, digest32_as_fields, AccumulatorHandle};
 use neo_fold_clean::paper::nifs::{DeferredNifsRunningMaterializer, Error, NifsRunningCarrier};
 use neo_fold_clean::{CeClaim, RunningInstance};
 use neo_math::{D, F};
@@ -91,13 +89,11 @@ impl DeviceFoldOutput {
         if child_public_x.claims() != claim_shells.len() {
             return Err(backend_unavailable("device fold-output public X count mismatch"));
         }
-        // A valid nonempty Construction-2 handle is the checked parent's full
-        // accumulator CE digest directly. The child count only preserves the
-        // empty/malformed shape behavior.
+        // Construction-2 binds the exact ordered child accumulator. The
+        // checked parent remains a recomposition cache and cannot substitute
+        // for these claims.
         let parent_ce_digest = ce_claim_digest(&parent_shell);
-        let parent_accumulator_digest = accumulator_ce_claim_digest(&parent_shell);
-        let accumulator_digest =
-            AccumulatorHandle::from_parent_digest(claim_shells.len(), Some(parent_accumulator_digest)).digest();
+        let accumulator_digest = AccumulatorHandle::from_claims(&claim_shells).digest();
         let parent_authority = DeviceClaimAuthority::new(
             parent_shell,
             parent_surfaces,

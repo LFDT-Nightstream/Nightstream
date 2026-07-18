@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.Artifacts.FPrimeRecursive
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeRecursive.SourceRoleCensus
 
 /-!
 Contract: fail-closed parser mutations and public theorem-shape regressions

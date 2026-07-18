@@ -73,10 +73,10 @@ def probes : List Nightstream.Checks.Probe :=
   , ⟨"r1cs_fprime_ce_continuity_exact_row_count",
       fun _ => FPrimeCeContinuity.continuityRows.length == FPrimeCeContinuity.continuityRowCount,
       true⟩
-  , ⟨"r1cs_fprime_recursive_manifest_top_level_coverage",
+  , ⟨"r1cs_fprime_diagnostic_direct_ccs3_manifest_top_level_coverage",
       fun _ => FPrimeRecursiveManifest.covers 0 FPrimeRecursiveManifest.totalRows
         FPrimeRecursiveManifest.topLevelFamilies, true⟩
-  , ⟨"r1cs_fprime_recursive_manifest_nifs_coverage",
+  , ⟨"r1cs_fprime_diagnostic_direct_ccs3_manifest_nifs_coverage",
       fun _ => FPrimeRecursiveManifest.covers FPrimeRecursiveManifest.nifsRowStart
         FPrimeRecursiveManifest.nifsRowEnd
         FPrimeRecursiveManifest.nifsFamilies, true⟩
@@ -95,9 +95,9 @@ def probes : List Nightstream.Checks.Probe :=
   , ⟨"r1cs_pirlc_projection_bad_root_satisfies",
       fun _ => decide (Satisfies PiRLCProjection.rows
         (assignmentOf PiRLCProjection.badRootWitness)), true⟩
-  , ⟨"r1cs_pirlc_production_identity_census",
+  , ⟨"r1cs_pirlc_diagnostic_direct_ccs3_identity_census",
       fun _ => FPrimeRecursiveManifest.projectionIdentityCount == 31, true⟩
-  , ⟨"r1cs_pirlc_production_pair_census",
+  , ⟨"r1cs_pirlc_diagnostic_direct_ccs3_pair_census",
       fun _ => FPrimeRecursiveManifest.projectionPairCounts.all (fun count => count == 15), true⟩
   , ⟨"r1cs_poseidon2_permutation_exact_row_count",
       fun _ => Poseidon2Permutation.rows.length == Poseidon2Permutation.rowCount, true⟩

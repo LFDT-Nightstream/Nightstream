@@ -40,8 +40,8 @@ namespace Nightstream.Implementation.R1CS.PiCcsOutputDigest.Semantics
 
 open Nightstream.SuperNeo.Concrete
 
-/-- Production terminal output count: one output for each of the fifteen
-fresh/running `Pi_CCS` inputs in the fixed terminal profile. -/
+/-- Diagnostic output count: one output for each of the fifteen fresh/running
+`Pi_CCS` inputs in the historical three-matrix fixture. -/
 def outputCount : Nat := 15
 
 /-- Number of prover-visible `y_ring` evaluation rows per output. -/

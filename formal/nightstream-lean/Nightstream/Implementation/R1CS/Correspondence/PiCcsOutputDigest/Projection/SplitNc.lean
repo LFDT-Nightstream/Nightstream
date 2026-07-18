@@ -42,7 +42,8 @@ open Nightstream.SuperNeo.Folding.PiCCS
 open Nightstream.SuperNeo.Folding.PiCCS.SplitNc
 open Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier
 
-/-- Exact semantic dimensions consumed by the terminal output digest. -/
+/-- Exact semantic dimensions consumed by the historical three-matrix
+diagnostic output digest. -/
 structure Profile (shape : SemanticShape) : Prop where
   sourceCount_eq : shape.sourceCount = Semantics.outputCount
   matrixCount_eq : shape.matrixCount = Semantics.yRingRows

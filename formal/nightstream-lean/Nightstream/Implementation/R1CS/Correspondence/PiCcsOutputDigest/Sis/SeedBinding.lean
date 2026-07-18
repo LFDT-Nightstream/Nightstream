@@ -2,11 +2,13 @@ import Nightstream.Implementation.R1CS.Correspondence.PiCcsOutputDigest.Sis.Prod
 import Nightstream.Implementation.R1CS.Correspondence.PiCcsOutputDigest.Sis.SeedDerivation
 
 /-!
-Production metadata refinement to the independent `Pi_CCS` SIS seed profile.
+Historical three-matrix artifact metadata refinement to its independent
+`Pi_CCS` SIS seed profile. These schedules do not instantiate the active
+15-source/13-matrix/23,033-field target.
 
 Assurance tier: implementation/R1CS correspondence. The theorems below
 kernel-evaluate the independently specified two-stage ChaCha8 seed derivation
-and prove that both production blocks carry exactly those schedules.
+and prove that both diagnostic blocks carry exactly those schedules.
 
 Owns: primary/compression chunk-width equality; exact derived seed equality;
 rank/message geometry equality; and the fixed rejection-fuel metadata.

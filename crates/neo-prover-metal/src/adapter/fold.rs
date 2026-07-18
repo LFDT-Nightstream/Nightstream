@@ -119,7 +119,7 @@ impl MetalNifsProver {
             && pi_rlc.witness_masks_reused;
 
         let pi_dec = self.prove_pi_dec(&request, pi_rlc.claim, pi_rlc.witness, forms_on_metal, ajtai_forms)?;
-        let post_fold_summary = self.post_fold_summary(&pi_dec.running, pi_rlc.parent_accumulator_digest)?;
+        let post_fold_summary = self.post_fold_summary(&pi_dec.running)?;
         let activity = activity_delta(activity_before, self.session.activity());
         let resident_running_output = pi_dec.resident_id.is_some();
         self.last_profile = Some(MetalNifsProfile {
@@ -204,9 +204,7 @@ impl MetalNifsProver {
             ));
         }
         let parent_accumulator_digest = carrier.map(MetalRunningCarrier::parent_accumulator_digest);
-        let accumulator_handle = parent_accumulator_digest.map(|parent_accumulator_digest| {
-            AccumulatorHandle::from_parent_digest(running.claims.len(), Some(parent_accumulator_digest)).digest_fields()
-        });
+        let accumulator_handle = carrier.map(|_| AccumulatorHandle::from_claims(&running.claims).digest_fields());
         // A generation id is a session-local capability, not protocol data.
         // A carrier that supplies one must match the generation currently
         // retained by this session; invalid capabilities fail closed.

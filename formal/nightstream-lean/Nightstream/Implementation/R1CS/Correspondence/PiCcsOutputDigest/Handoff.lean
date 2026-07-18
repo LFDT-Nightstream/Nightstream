@@ -2,8 +2,9 @@ import Nightstream.Implementation.R1CS.Correspondence.PiCcsOutputDigest.Poseidon
 import Nightstream.Implementation.R1CS.Correspondence.PiRlcChallenge.Transcript.Terminal.OutputDigestBinding
 
 /-!
-Conditional terminal handoff from the recomputed `Pi_CCS` output digest into
-the `Pi_RLC` transcript.
+Conditional historical three-matrix handoff from the recomputed `Pi_CCS`
+output digest into the `Pi_RLC` transcript. It fixes the 6,683-field artifact
+and cannot discharge the active 23,033-field handoff.
 
 Assurance tier: implementation/R1CS composition. This file joins two already
 separate refinement results; it does not manufacture authority for either
@@ -40,12 +41,12 @@ open Nightstream.Implementation.R1CS.PiRlcChallenge.TranscriptMachine
 abbrev CanonicalAssignment (assignment : Nat → Nat) :=
   ∀ column, assignment column < goldilocksP
 
-/-- Pure value computed by the production-shaped typed serialization, exact
+/-- Pure value computed by the diagnostic-shaped typed serialization, exact
 two-stage SIS maps, and exact terminal output-digest sponge. -/
 def recomputedDigestValue (assignment : Nat → Nat)
     (canonical : CanonicalAssignment assignment) (lane : Nat) : Nat :=
   Poseidon2Sponge.runValueRounds Poseidon.Schedule.trace.rounds
-    (Poseidon.EnvelopeSemantics.envelope
+    (Poseidon.EnvelopeSemantics.diagnosticEnvelope
       (Sis.Semantics.apply
         (Sis.Refinement.mapOfBlock Sis.ProductionBinding.compressionBlock)
         (Sis.Semantics.apply

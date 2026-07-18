@@ -11,6 +11,8 @@ open Nightstream.Implementation.R1CS.PiCcsNc.Authority.ProjectionNecessity
 open Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedParentProjection
 open Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual
 open Nightstream.SuperNeo.Concrete
+open Nightstream.SuperNeo.Folding.PiCCS.OutputClaims.EvaluationHomomorphism.Authority.DelayedPackedProjection
+open Nightstream.SuperNeo.Folding.PiCCS.OutputClaims.EvaluationHomomorphism.Authority.DelayedPackedProjection.LimbDecomposition
 
 example (value : F) :
     directDiagonal [value] 0 0 = K.embed value := by

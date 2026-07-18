@@ -4,20 +4,21 @@ import Nightstream.Implementation.R1CS.Correspondence.PiCcsTranscript.Primitives
 import Nightstream.Implementation.R1CS.Correspondence.PiCcsTranscript.Refinement.Terminal.PostNcBoundary
 
 /-!
-Exact semantic handoff from the Split-NC `Pi_CCS` output message to the
-production `Pi_RLC` sampler state.
+Exact semantic handoff from the historical three-matrix Split-NC `Pi_CCS`
+output message to its diagnostic `Pi_RLC` sampler state. This module fixes
+6,683 serialized fields and cannot discharge the active 23,033-field handoff.
 
 Assurance tier: conditional implementation/R1CS refinement. The pure handoff
 is independently executable from a post-NC transcript state and the complete
 typed Split-NC output message. The row-refinement theorem keeps the two
 remaining upstream authority equalities explicit.
 
-Owns: fixed-profile message serialization; the two exact production SIS map
+Owns: diagnostic-profile message serialization; the two exact artifact SIS map
 applications; the isolated Poseidon2 digest; verifier catch-up; output-digest
 absorption; and composition with accepted terminal owner rows.
 
-Does not own: proof that a production F-prime shape satisfies the fixed
-profile; equality of accepted output columns with the semantic Split-NC
+Does not own: proof that the active F-prime shape satisfies this diagnostic
+profile (it does not); equality of accepted output columns with the semantic Split-NC
 message; equality of the catch-up input columns with the semantic post-NC
 state; finite SIS sampler acceptance; Rust ChaCha/Poseidon2 conformance;
 collision resistance; costs; necessity; or row removal.
@@ -69,7 +70,7 @@ def digestValue
       Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier.OutputMessage shape)
     (lane : Nat) : Nat :=
   Poseidon2Sponge.runValueRounds Poseidon.Schedule.trace.rounds
-    (Poseidon.EnvelopeSemantics.envelope
+    (Poseidon.EnvelopeSemantics.diagnosticEnvelope
       (Sis.Semantics.apply
         (Sis.Refinement.mapOfBlock Sis.ProductionBinding.compressionBlock)
         (Sis.Semantics.apply

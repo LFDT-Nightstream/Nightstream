@@ -1,0 +1,15 @@
+import Nightstream.SuperNeo.Folding.PiCCS.OutputClaims.EvaluationHomomorphism.Authority.DelayedPackedProjection.PiDecRecomposition
+
+/-! Public theorem-surface gate for the optional `Pi_DEC` projection route. -/
+
+open Nightstream.SuperNeo.Folding.PiCCS.OutputClaims.EvaluationHomomorphism.Authority.DelayedPackedProjection.PiDecRecomposition
+
+#check identity_exact_iff
+#check accepted_of_exact
+#check accepted_implies_exact_or_badRoot
+#check accepted_implies_parentProjection_or_badRoot
+#check sourceBound_or_mixingCollision_or_badRoot
+#check TransitionAccepted
+#check ScalarRecompositionMatches
+#check transitionAccepted_of_scalar
+#check transitionAccepted_implies_sourceBound_or_mixingCollision_or_badRoot

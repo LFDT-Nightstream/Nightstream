@@ -1,6 +1,8 @@
 import Nightstream.Implementation
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeRecursive.SourceRoleCensus
 import tests.Axioms.Implementation.PiCcsTranscript
 import tests.Axioms.Implementation.PiRlcPackedMod5
+import tests.Axioms.Implementation.PiRlcSelectionAggregateExactness
 import tests.Axioms.Implementation.PiRlcChunkAggregateAcceptance
 import tests.Axioms.Implementation.PiRlcChunkAggregateArtifact
 import tests.Axioms.Implementation.PiRlcAggregateAcceptanceOuterImage
@@ -8,6 +10,23 @@ import tests.Axioms.Implementation.SeededPhi81Sampler
 import tests.Axioms.Implementation.PiCcsMatrix
 import tests.Axioms.Implementation.PiCcsNc
 import tests.Axioms.Implementation.FPrimeFullHistoryNifsPaper
+import tests.Axioms.Implementation.FPrimeRecursiveYZcolProjection
+import tests.Axioms.Implementation.FPrimeRecursiveYZcolProjectionRefinement
+import tests.Axioms.Implementation.FPrimeSelectiveFixedPointPiRlcProjectionYZcol
+import tests.Axioms.Implementation.FPrimeRecursivePiRlcProjectionBetaLadder
+import tests.Axioms.Implementation.FPrimeRecursivePiRlcProjectionBetaLadderRefinement
+import tests.Axioms.Implementation.FPrimeRecursivePiRlcProjectionRhoEvaluations
+import tests.Axioms.Implementation.FPrimeRecursivePiRlcProjectionRhoEvaluationsRefinement
+import tests.Axioms.Implementation.FPrimeRecursivePiRlcProjectionYZcolIdentities
+import tests.Axioms.Implementation.FPrimeRecursivePiRlcProjectionYZcolIdentitiesRefinement
+import tests.Axioms.Implementation.FPrimeRecursivePiRlcProjectionYZcolNormalForm
+import tests.Axioms.Implementation.FPrimeRecursivePiRlcChallengeWiring
+import tests.Axioms.Implementation.FPrimeRecursivePiRlcChallengeSamplerLayout
+import tests.Axioms.Implementation.FPrimeRecursivePiRlcChallengeTranscriptLayout
+import tests.Axioms.Implementation.FPrimeRecursivePiRlcChallengeSamplerFirstAccepted
+import tests.Axioms.Implementation.FPrimeRecursivePiRlcChallengeProjectionConsumer
+import tests.Axioms.Implementation.FPrimeRecursivePiRlcChallengeTranscriptHandoff
+import tests.Axioms.Implementation.FPrimeRecursiveProfileScope
 import tests.Axioms.Implementation.FPrimeFullHistorySelectiveCarrier270
 import tests.Axioms.Implementation.FPrimeFullHistorySelectiveCcsPolynomial
 import tests.Axioms.Implementation.FPrimeFullHistorySelectiveCcsSelectorComposition
@@ -19,7 +38,14 @@ import tests.Axioms.Implementation.FPrimeFullHistorySelectiveFixedPointShape
 import tests.Axioms.Implementation.FPrimeFullHistoryPiRlcClaimEvaluationCarrier
 import tests.Axioms.Implementation.FPrimeFullHistoryPiRlcClaimShapeAlignment
 import tests.Axioms.Implementation.PiCcsOutputDigestPoseidon
+import tests.Axioms.Implementation.PiCcsOutputActiveEnvelopeSemantics
+import tests.Axioms.Implementation.PiCcsOutputDigestProfile
 import tests.Axioms.Implementation.PiCcsOutputActiveSemantics
+import tests.Axioms.Implementation.PiCcsOutputActiveSourceLayout
+import tests.Axioms.Implementation.PiCcsOutputYZcolConsumer
+import tests.Axioms.Implementation.PiCcsOutputActiveSisBoundary
+import tests.Axioms.Implementation.PiCcsOutputActiveProjectionIdentity
+import tests.Axioms.Implementation.ProjectionArtifactProgram
 import tests.Axioms.Implementation.PiCcsOutputSemanticHandoff
 import tests.Axioms.Implementation.PiCcsOutputProjection
 import tests.Axioms.Implementation.PiDecStrict
@@ -604,6 +630,12 @@ module is built; the aggregate entrypoint imports all ownership groups.
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.Implementation.R1CS.PiCcsOutputDigest.Sis.Refinement.outputCoordinate_eq
+
+/-- info: 'Nightstream.Implementation.R1CS.PiCcsOutputDigest.Sis.Refinement.outputs_eq_apply' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Implementation.R1CS.PiCcsOutputDigest.Sis.Refinement.outputs_eq_apply
 
 /-- info: 'Nightstream.Implementation.R1CS.PiCcsOutputDigest.Sis.ProductionBinding.accepted_primaryWordAgreement' depends on axioms: [propext,
  Classical.choice,

@@ -17,9 +17,10 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use crate::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
 use crate::engine::r1cs_circuit::builder::{
     BalancedTernaryDecomposition, CanonicalU64Decomposition, CenteredUnitTrace, Lc, PolynomialEvaluationTrace,
-    Poseidon2PermutationTrace, ProductSumBatchTrace, R1csBuilder, RowFamilyRange, ShiftedTernaryCanonicalTrace, Var,
+    Poseidon2HashAudit, Poseidon2PermutationTrace, ProductSumBatchTrace, R1csBuilder, RowFamilyRange,
+    ShiftedTernaryCanonicalTrace, Var,
 };
-use crate::engine::r1cs_circuit::PhysicalStageRange;
+use crate::engine::r1cs_circuit::{PhysicalStageRange, PiRlcYZcolBoundaryAudit};
 use crate::frontends::direct_ccs::FrontendError;
 use crate::frontends::direct_ccs::R1cs;
 use crate::frontends::f_prime::image::{FPrimeImageLayout, PoseidonPreimageLaneSource};
@@ -46,10 +47,12 @@ pub struct SparseR1cs {
     shifted_ternary_canonical_traces: Vec<ShiftedTernaryCanonicalTrace>,
     equality_pairs: Vec<(usize, usize, usize)>,
     poseidon2_traces: Vec<Poseidon2PermutationTrace>,
+    poseidon2_hash_audits: Vec<Poseidon2HashAudit>,
     polynomial_evaluation_traces: Vec<PolynomialEvaluationTrace>,
     product_sum_batch_traces: Vec<ProductSumBatchTrace>,
     row_family_ranges: Vec<RowFamilyRange>,
     physical_stage_ranges: Vec<PhysicalStageRange>,
+    pi_rlc_y_zcol_boundary_audits: Vec<PiRlcYZcolBoundaryAudit>,
 }
 
 impl SparseR1cs {
@@ -68,6 +71,8 @@ impl SparseR1cs {
             n,
             m,
             m_in,
+            Vec::new(),
+            Vec::new(),
             Vec::new(),
             Vec::new(),
             Vec::new(),
@@ -100,10 +105,12 @@ impl SparseR1cs {
         shifted_ternary_canonical_traces: Vec<ShiftedTernaryCanonicalTrace>,
         equality_pairs: Vec<(usize, usize, usize)>,
         poseidon2_traces: Vec<Poseidon2PermutationTrace>,
+        poseidon2_hash_audits: Vec<Poseidon2HashAudit>,
         polynomial_evaluation_traces: Vec<PolynomialEvaluationTrace>,
         product_sum_batch_traces: Vec<ProductSumBatchTrace>,
         row_family_ranges: Vec<RowFamilyRange>,
         physical_stage_ranges: Vec<PhysicalStageRange>,
+        pi_rlc_y_zcol_boundary_audits: Vec<PiRlcYZcolBoundaryAudit>,
     ) -> Result<Self, FrontendError> {
         let out = Self {
             a,
@@ -121,10 +128,12 @@ impl SparseR1cs {
             shifted_ternary_canonical_traces,
             equality_pairs,
             poseidon2_traces,
+            poseidon2_hash_audits,
             polynomial_evaluation_traces,
             product_sum_batch_traces,
             row_family_ranges,
             physical_stage_ranges,
+            pi_rlc_y_zcol_boundary_audits,
         };
         out.validate_shape()?;
         Ok(out)
@@ -170,6 +179,10 @@ impl SparseR1cs {
         &self.poseidon2_traces
     }
 
+    pub(crate) fn poseidon2_hash_audits(&self) -> &[Poseidon2HashAudit] {
+        &self.poseidon2_hash_audits
+    }
+
     pub(crate) fn polynomial_evaluation_traces(&self) -> &[PolynomialEvaluationTrace] {
         &self.polynomial_evaluation_traces
     }
@@ -190,6 +203,10 @@ impl SparseR1cs {
     /// its expected root and complete path universe.
     pub fn physical_stage_ranges(&self) -> &[PhysicalStageRange] {
         &self.physical_stage_ranges
+    }
+
+    pub(crate) fn pi_rlc_y_zcol_boundary_audits(&self) -> &[PiRlcYZcolBoundaryAudit] {
+        &self.pi_rlc_y_zcol_boundary_audits
     }
 
     pub fn validate_shape(&self) -> Result<(), FrontendError> {

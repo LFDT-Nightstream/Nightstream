@@ -175,7 +175,7 @@ theorem refines_catchupInput
     · apply Fin.ext
       simp [overwriteLane, callInputState,
         PiRlcChallenge.Transcript.Terminal.OutputDigestSchedule.catchupCall,
-        Poseidon2Call.Call.columnMap, fieldAt, wordField, fieldValue,
+      Poseidon2Call.Call.columnMap, wordField, fieldValue,
         u64Modulus, goldilocksP, cursorZero, laneZero, marker]
     · have overwritten :
           overwriteLane postNc.lanes postNc.absorbed.val

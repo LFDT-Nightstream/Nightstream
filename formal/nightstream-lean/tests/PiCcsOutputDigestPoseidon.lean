@@ -9,16 +9,16 @@ namespace tests.PiCcsOutputDigestPoseidon
 
 open Nightstream.Implementation.R1CS.PiCcsOutputDigest
 
-#check Poseidon.EnvelopeSemantics.envelope_length
+#check Poseidon.EnvelopeSemantics.diagnosticEnvelope_length
 #check Poseidon.Schedule.trace_valid
 #check Poseidon.Refinement.accepted_digestEnvelope
 #check Poseidon.Refinement.accepted_composedDigest
 #check Handoff.accepted_digestFieldValues
 #check Handoff.accepted_conditionalDigestHandoff
 
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsOutputDigest.Poseidon.EnvelopeSemantics.envelope_length' depends on axioms: [propext] -/
+/-- info: 'Nightstream.Implementation.R1CS.PiCcsOutputDigest.Poseidon.EnvelopeSemantics.diagnosticEnvelope_length' depends on axioms: [propext] -/
 #guard_msgs in
-#print axioms Poseidon.EnvelopeSemantics.envelope_length
+#print axioms Poseidon.EnvelopeSemantics.diagnosticEnvelope_length
 
 /-- info: 'Nightstream.Implementation.R1CS.PiCcsOutputDigest.Poseidon.Schedule.trace_valid' depends on axioms: [propext,
  Quot.sound] -/

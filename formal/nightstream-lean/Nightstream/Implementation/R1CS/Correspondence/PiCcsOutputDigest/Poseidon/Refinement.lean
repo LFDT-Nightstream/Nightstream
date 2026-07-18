@@ -4,8 +4,9 @@ import Nightstream.Implementation.R1CS.Correspondence.PiCcsOutputDigest.Sis.Prod
 import Nightstream.Implementation.R1CS.Core.ConstantPins
 
 /-!
-Exact terminal refinement from the typed `Pi_CCS` output serialization through
-both SIS maps and the final Poseidon2 envelope.
+Exact historical three-matrix artifact refinement from typed `Pi_CCS` output
+serialization through both SIS maps and the final Poseidon2 envelope. It fixes
+6,683 serialized fields and cannot discharge active 23,033-field refinement.
 
 Assurance tier: implementation/R1CS correspondence. Accepted owner pieces are
 used only to reconstruct exact prefix pins, SIS equations, and the isolated
@@ -77,8 +78,8 @@ theorem compressionColumns_eq_schedule :
   decide
 
 theorem prefixValues_eq_semantics :
-    prefixValues = EnvelopeSemantics.envelopePrefix := by
-  rw [EnvelopeSemantics.envelopePrefix_eq]
+    prefixValues = EnvelopeSemantics.diagnosticEnvelopePrefix := by
+  rw [EnvelopeSemantics.diagnosticEnvelopePrefix_eq]
   decide
 
 private theorem initialPiece_satisfies
@@ -98,7 +99,8 @@ theorem accepted_prefixValues
     (one : assignment 0 = 1)
     (accepted :
       FPrimeFullHistoryTerminalPiCcsOutputMessageHashes.Accepted assignment) :
-    prefixColumns.map assignment = EnvelopeSemantics.envelopePrefix := by
+    prefixColumns.map assignment =
+      EnvelopeSemantics.diagnosticEnvelopePrefix := by
   have facts := ConstantPins.sound envelopePins_canonical
     envelopePinRows_in_initialPiece canonical one
     (initialPiece_satisfies canonical one accepted)
@@ -109,7 +111,8 @@ theorem accepted_prefixValues
       apply List.map_congr_left
       intro pin pinMember
       exact facts pin pinMember
-    _ = EnvelopeSemantics.envelopePrefix := prefixValues_eq_semantics
+    _ = EnvelopeSemantics.diagnosticEnvelopePrefix :=
+      prefixValues_eq_semantics
 
 private theorem initialHashRows_satisfy
     {assignment : Nat → Nat}
@@ -159,7 +162,7 @@ theorem accepted_traceInputValues
     (accepted :
       FPrimeFullHistoryTerminalPiCcsOutputMessageHashes.Accepted assignment) :
     Schedule.trace.inputColumns.map assignment =
-      EnvelopeSemantics.envelope
+      EnvelopeSemantics.diagnosticEnvelope
         (Sis.ProductionBinding.compressionBlock.outputColumns.map assignment) := by
   rw [Schedule.trace_inputColumns,
     Schedule.envelopeColumns, List.map_append]
@@ -179,7 +182,7 @@ theorem accepted_digestEnvelope
     ∀ lane, lane < 4 →
       assignment (Schedule.digestColumns.getD lane 0) =
         Poseidon2Sponge.runValueRounds Schedule.trace.rounds
-          (EnvelopeSemantics.envelope
+          (EnvelopeSemantics.diagnosticEnvelope
             (Sis.ProductionBinding.compressionBlock.outputColumns.map assignment))
           (fun _ => 0) lane := by
   have traceValues := Poseidon2Sponge.trace_values_sound
@@ -203,7 +206,7 @@ theorem accepted_composedDigest
     ∀ lane, lane < 4 →
       assignment (Schedule.digestColumns.getD lane 0) =
         Poseidon2Sponge.runValueRounds Schedule.trace.rounds
-          (EnvelopeSemantics.envelope
+          (EnvelopeSemantics.diagnosticEnvelope
             (Sis.Semantics.apply
               (Sis.Refinement.mapOfBlock Sis.ProductionBinding.compressionBlock)
               (Sis.Semantics.apply

@@ -24,6 +24,14 @@ roots=(
   formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/FPrimeFullHistory/NifsPaper/PiRlc
   formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/PiCcsNc/Authority
   formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/PiRlcChallenge
+  formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/Projection/IndexedRows.lean
+  formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/Projection/ArtifactProgram.lean
+  formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint.lean
+  formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint
+  formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/Projection/IndexedRows.lean
+  formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/Projection/ArtifactProgram.lean
+  formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/FPrimeSelectiveFixedPoint.lean
+  formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/FPrimeSelectiveFixedPoint
   crates/neo-fold-clean/src/engine/r1cs_circuit/alphabet_sampling
   crates/neo-fold-clean/src/frontends/f_prime/gadget_native.rs
   crates/neo-fold-clean/src/frontends/f_prime/gadget_native
@@ -73,6 +81,49 @@ if legacy_hits="$(cd "$REPO_ROOT" && rg -n -e "$legacy_pattern" \
     [[ -n "$legacy_hits" ]]; then
   echo "[ownership] legacy flat-domain protocol leaked into canonical ConcretePhi81:" >&2
   echo "$legacy_hits" >&2
+  status=1
+fi
+
+# Active source/consumer proofs and their reusable Phi81 arithmetic must not
+# reach mathematical facts through historical fixed-profile artifacts. The
+# legacy wrappers may depend on these neutral modules, never the reverse.
+profile_neutral_roots=(
+  formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/Projection/IndexedRows.lean
+  formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/Projection/ArtifactProgram.lean
+  formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/Projection/IndexedRows.lean
+  formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/Projection/ArtifactProgram.lean
+  formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/Projection/Phi81
+  formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/PiCcsOutputDigest/ActiveSourceLayout
+)
+diagnostic_import_pattern='^import Nightstream\.Implementation\.R1CS\.(Artifacts\.FPrimeRecursive|Ownership\.FPrime(FullHistory|Recursive)|Correspondence\.FPrime(FullHistory|Recursive))'
+if diagnostic_hits="$(cd "$REPO_ROOT" && rg -n \
+    -e "$diagnostic_import_pattern" "${profile_neutral_roots[@]}" \
+    -g '*.lean' || true)" && [[ -n "$diagnostic_hits" ]]; then
+  echo "[ownership] fixed-profile dependency leaked into active/neutral projection proofs:" >&2
+  echo "$diagnostic_hits" >&2
+  status=1
+fi
+
+# The active artifact tree owns retained data and executable certificate
+# checks. It must not depend upward on semantic correspondence. Conversely,
+# correspondence consumes only the stable artifact facade, never generated
+# metadata or row shards directly.
+active_artifact_root=formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint
+active_correspondence_root=formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/FPrimeSelectiveFixedPoint
+if artifact_import_hits="$(cd "$REPO_ROOT" && rg -n \
+    '^import Nightstream\.Implementation\.R1CS\.Correspondence' \
+    "$active_artifact_root" -g '*.lean' || true)" &&
+    [[ -n "$artifact_import_hits" ]]; then
+  echo "[ownership] active artifact imports semantic correspondence:" >&2
+  echo "$artifact_import_hits" >&2
+  status=1
+fi
+if generated_import_hits="$(cd "$REPO_ROOT" && rg -n \
+    '^import Nightstream\.Implementation\.R1CS\.Artifacts\.FPrimeSelectiveFixedPoint\..*\.Generated' \
+    "$active_correspondence_root" -g '*.lean' || true)" &&
+    [[ -n "$generated_import_hits" ]]; then
+  echo "[ownership] active correspondence bypasses its artifact facade:" >&2
+  echo "$generated_import_hits" >&2
   status=1
 fi
 

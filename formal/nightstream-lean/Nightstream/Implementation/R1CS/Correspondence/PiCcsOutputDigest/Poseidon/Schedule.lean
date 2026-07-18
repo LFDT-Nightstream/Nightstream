@@ -2,12 +2,13 @@ import Nightstream.Implementation.R1CS.Core.Poseidon2Sponge
 import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryTerminalPiCcsOutputMessageHashesArtifact
 
 /-!
-Exact terminal-profile structure of the `Pi_CCS` output-digest Poseidon2
-envelope.
+Exact historical three-matrix artifact structure of the `Pi_CCS`
+output-digest Poseidon2 envelope. Its 6,683-field prefix is not the active
+23,033-field target prefix.
 
 Assurance tier: implementation/R1CS structural correspondence. This file
 separates the final sponge from the preceding 6,683 canonical encodings and
-two SIS maps, then checks its exact production row slice.
+two SIS maps, then checks its exact diagnostic artifact row slice.
 
 Owns: the ten envelope-prefix columns; 54 compression-output columns; sixteen
 four-field absorb rounds; one padding round; local row/column geometry; the

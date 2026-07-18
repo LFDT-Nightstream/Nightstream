@@ -1,4 +1,5 @@
-import Nightstream.Assurance.FPrimeRecursiveCircuit
+import Nightstream.Assurance.FPrimeConcreteNifs
+import Nightstream.Implementation.R1CS.Ownership.FPrimeRecursive.FPrimeRecursiveManifest
 
 namespace NightstreamTests.FPrimeRecursiveManifest
 

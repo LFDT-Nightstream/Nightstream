@@ -223,7 +223,7 @@ theorem block0DigestCallInput
     apply Fin.ext
     rcases laneValueCases lane with h | h | h | h | h | h | h | h <;>
       simp [overwriteLane, DigestRounds.callInputState,
-        DigestRounds.callOutputState, DigestRounds.fieldAt,
+        DigestRounds.callOutputState,
         Schedule.Artifact.block0FullCursorCall,
         Schedule.Artifact.block0DigestCall,
         Poseidon2Call.Call.columnMap, wordField, fieldValue, u64Modulus,
@@ -282,7 +282,7 @@ theorem block1DigestCallInput
     apply Fin.ext
     rcases laneValueCases lane with h | h | h | h | h | h | h | h <;>
       simp [block0State, overwriteLane, DigestRounds.callInputState,
-        DigestRounds.callOutputState, DigestRounds.fieldAt,
+        DigestRounds.callOutputState,
         Schedule.Artifact.block0DigestCall,
         Schedule.Artifact.block1DigestCall,
         Poseidon2Call.Call.columnMap, wordField, fieldValue, u64Modulus,
@@ -340,7 +340,7 @@ theorem block2DigestCallInput
     apply Fin.ext
     rcases laneValueCases lane with h | h | h | h | h | h | h | h <;>
       simp [block1State, overwriteLane, DigestRounds.callInputState,
-        DigestRounds.callOutputState, DigestRounds.fieldAt,
+        DigestRounds.callOutputState,
         Schedule.Artifact.block1DigestCall,
         Schedule.Artifact.block2DigestCall,
         Poseidon2Call.Call.columnMap, wordField, fieldValue, u64Modulus,
@@ -398,12 +398,12 @@ theorem block3DigestCallInput
     apply Fin.ext
     rcases laneValueCases lane with h | h | h | h | h | h | h | h <;>
       simp [block2State, overwriteLane, DigestRounds.callInputState,
-        DigestRounds.callOutputState, DigestRounds.fieldAt,
+        DigestRounds.callOutputState,
         Schedule.Artifact.block2DigestCall,
         Schedule.Artifact.block3DigestCall,
         Poseidon2Call.Call.columnMap, wordField, fieldValue, u64Modulus,
         goldilocksP, h, pins.block3Length, pins.block3Domain,
-        pins.block3Counter, pins.block3Squeeze]
+        pins.block3Counter, pins.block3Squeeze] <;> rfl
   · rfl
 
 /-- Exact owner acceptance refines digest block three's successor state. -/

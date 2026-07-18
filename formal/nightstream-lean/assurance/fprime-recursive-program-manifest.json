@@ -1,48 +1,52 @@
 {
   "artifact_kind": "r1cs/f-prime-recursive-program-manifest",
-  "full_builder_columns": 2386983,
-  "full_builder_rows": 2564298,
+  "full_builder_columns": 9316338,
+  "full_builder_rows": 9503595,
   "nifs_families": [
     {
       "name": "nifs.pi_ccs",
-      "nonzero_entries": 8019715,
-      "row_count": 1601997,
-      "row_end": 1622035,
+      "nonzero_entries": 36706775,
+      "row_count": 5208590,
+      "row_end": 5228628,
       "row_start": 20038,
-      "sha256": "383290d9c11cb94bf936e38648b82b391af736e2040f47923375d2097f7bbfe6"
+      "sha256": "98d619b01667facee31a4739e10e0581752e1d8dbce965fbc36e989a7e9affa9"
     },
     {
       "name": "nifs.pi_rlc",
       "nonzero_entries": 3165255,
       "row_count": 666223,
-      "row_end": 2288258,
-      "row_start": 1622035,
-      "sha256": "6bade91554fbde03e8dcfcf095b19476df280e0554073d76be178136aac93b8f"
+      "row_end": 5894851,
+      "row_start": 5228628,
+      "sha256": "4bd7375f19156143b0bb80ab9b43aefe460a26bccb3be62be710b6d34fce722f"
     },
     {
       "name": "nifs.pi_dec",
-      "nonzero_entries": 55794,
-      "row_count": 10597,
-      "row_end": 2298855,
-      "row_start": 2288258,
-      "sha256": "5ff1bf5cecb9263f2aeb94f05025d600ab121ec224efd37e7449a0888b112072"
+      "nonzero_entries": 56046,
+      "row_count": 10681,
+      "row_end": 5905532,
+      "row_start": 5894851,
+      "sha256": "5e0b3b1da50615f1f5eadbf2934a7c2b38df18de8a8e7e6ef1c440764749b504"
     },
     {
       "name": "nifs.point_binding",
-      "nonzero_entries": 6,
-      "row_count": 2,
-      "row_end": 2298857,
-      "row_start": 2298855,
-      "sha256": "0273962be34fee61cd810bdf025da030bd7ea3c11046a47ca3ca52a2c9545f7e"
+      "nonzero_entries": 24,
+      "row_count": 8,
+      "row_end": 5905540,
+      "row_start": 5905532,
+      "sha256": "b1288f019d8b18f9d54b7cd0dcf62461d5d6ecde22c89f29d6d67bce3b923d74"
     }
   ],
+  "piCcsMatrixCount": 3,
+  "piCcsOutputFieldCount": 6683,
+  "piCcsSourceCount": 15,
   "profile": {
     "carrier_relation": "minimal-supported-bit-carrier",
-    "carrier_rows": 1,
+    "carrier_rows": 13,
     "current_batch_size": 1,
     "layout": "plain",
-    "public_input_fields": 257,
+    "public_input_fields": 270,
     "running_shape": "nonempty-steady-recursive",
+    "scope": "diagnostic-direct-ccs-bit-carrier",
     "semantic_mode": "stateless"
   },
   "projection_census": {
@@ -53,9 +57,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2229482,
-        "row_start": 2227566,
-        "sha256": "9cfbd23d03e6d1a4a86ecb21ed4fc52ef386867be83bb2ce0708c57848c072b2",
+        "row_end": 5836075,
+        "row_start": 5834159,
+        "sha256": "d9308dfc01ce6b37ab3455b4672b22947bf8838b2ecc5fb85a49e2842023585a",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -64,9 +68,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2231398,
-        "row_start": 2229482,
-        "sha256": "480c4187cf58ed5bd6fe66502237f3948b0e8b8ec6757c0742582b51bb971a46",
+        "row_end": 5837991,
+        "row_start": 5836075,
+        "sha256": "6132ddeaa28e75deb28318a5579b22c81eaca68049d903a38dcf876509dc1d4e",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -75,9 +79,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2233314,
-        "row_start": 2231398,
-        "sha256": "bfef881060883d29ec79b1b8ff45ab50b8088f99bc02476b8897c0b15a78cfba",
+        "row_end": 5839907,
+        "row_start": 5837991,
+        "sha256": "59243a5db132a5edc0511449f2cd0bf795e54fa934d85458120757d5d0f207de",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -86,9 +90,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2235230,
-        "row_start": 2233314,
-        "sha256": "119b0b2459f814d7537673e41dd074e06b5e91fc7e81f763af753194f4e2eaef",
+        "row_end": 5841823,
+        "row_start": 5839907,
+        "sha256": "76ee26076eda1ed0475b1ee4dcc45c1c0d8836cd2465a7f74fd616b9d81e470c",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -97,9 +101,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2237146,
-        "row_start": 2235230,
-        "sha256": "0774fa89e39f3dbdb8e3b881489fbcfc572a4c88f5446d9aa7d027c718e8d5c7",
+        "row_end": 5843739,
+        "row_start": 5841823,
+        "sha256": "a0411462b00f5d9895c6a70b4111714fc8aa0b5380c4d40766ebc30572d546cd",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -108,9 +112,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2239062,
-        "row_start": 2237146,
-        "sha256": "4981b628cac6c662afde28716862d0f32b815f178c71481c298d97e3e014ceb7",
+        "row_end": 5845655,
+        "row_start": 5843739,
+        "sha256": "d29b426f780b5f4f658a4ecf6e4077f014c3ff000758048e9a0ef2408fb22bea",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -119,9 +123,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2240978,
-        "row_start": 2239062,
-        "sha256": "888a6ae8fd0186bfcac816711c368f244950f92967104c067688e50f357a1df5",
+        "row_end": 5847571,
+        "row_start": 5845655,
+        "sha256": "be1697b81eb43a1ae88156f19686f029c1563edbd9295c439d98881d373b44d2",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -130,9 +134,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2242894,
-        "row_start": 2240978,
-        "sha256": "c60bbca71b75904c5a085d274681517c551343ae4e6ea464f25fef0788daee35",
+        "row_end": 5849487,
+        "row_start": 5847571,
+        "sha256": "00694ccc4d88e7e4598d52ace88ba541233d9e192941cd8b452aa21d9a9892c4",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -141,9 +145,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2244810,
-        "row_start": 2242894,
-        "sha256": "15e2f43b25acccc595157030811095ba50388afedb5d1b509b9b4f4e91266b25",
+        "row_end": 5851403,
+        "row_start": 5849487,
+        "sha256": "deed5dd8836c06f4d18173b86f313f306d32792761822ccea869d231cab5d9fa",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -152,9 +156,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2246726,
-        "row_start": 2244810,
-        "sha256": "02a7030673060b2056432912209bb31c5d1dc96c5c9cfa62a8c5819d5618b067",
+        "row_end": 5853319,
+        "row_start": 5851403,
+        "sha256": "ee18c876630d2793c9b64455a94002af750fa0dbb1dc6b9f1fcdc48ec0987f32",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -163,9 +167,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2248642,
-        "row_start": 2246726,
-        "sha256": "a27d2e721345285ab500eb5f0969d3d01d8043ddc19f6cc85dde9f2c57a17f92",
+        "row_end": 5855235,
+        "row_start": 5853319,
+        "sha256": "b0e43fccbd09853b2c8005f35e76fd55eda58b90594e81f83f67560362a6badc",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -174,9 +178,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2250558,
-        "row_start": 2248642,
-        "sha256": "30631233a4f71d7c43495b4993028bf4bc93d9872fdc247d44c8bb3a9d395e05",
+        "row_end": 5857151,
+        "row_start": 5855235,
+        "sha256": "a65884790b037834d389fc34a21983ce0659ec1dcd0566e941b5cfef7e148781",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -185,9 +189,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2252474,
-        "row_start": 2250558,
-        "sha256": "5b0445a90aa9a17f169222fb58c6a6335ae1e6977df695be4435bea167cd0ec6",
+        "row_end": 5859067,
+        "row_start": 5857151,
+        "sha256": "6651250ecb12fb2f89600180338969efcb0935eb718d11244b0e769ff79c592d",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -196,9 +200,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2254390,
-        "row_start": 2252474,
-        "sha256": "02d95714fd226c20877e424cdb38217fe31614364432ec2e5845c23c06d9ff57",
+        "row_end": 5860983,
+        "row_start": 5859067,
+        "sha256": "8049f4a7613335c10578f05779ee3cdb5f6d0405a9febb2e36c814046f03621d",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -207,9 +211,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2256306,
-        "row_start": 2254390,
-        "sha256": "c045cd1377fbb7e5e8e78016e7662bc6e5e5e2aaf459ebf12d81fd685f472c46",
+        "row_end": 5862899,
+        "row_start": 5860983,
+        "sha256": "8c5e31278483db4de405cf7995f39bd62388f18154a2737db8933755b7576cbd",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -218,9 +222,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2258222,
-        "row_start": 2256306,
-        "sha256": "a84b37dfc422a948906206f351abd9fdb71dd76860d4113f9235452a7d1f3879",
+        "row_end": 5864815,
+        "row_start": 5862899,
+        "sha256": "6bd141e49f35716ceb15d1fa56892c4b94d0a070fb303f5b3e81b2a02592e928",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -229,9 +233,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2260138,
-        "row_start": 2258222,
-        "sha256": "ceeddbc4f0b20d7a8bb011f4a187c10c3bb7210331cb029c069270bf91d7c0ab",
+        "row_end": 5866731,
+        "row_start": 5864815,
+        "sha256": "cef8a8a34a5073066fa5525cf98a9018d42c61587eb617e25c045addc1d25774",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -240,9 +244,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2262054,
-        "row_start": 2260138,
-        "sha256": "4d5a1a821b81982cdd1b011266d4ab7e9358b5eccac9e55648fcd51a624828d4",
+        "row_end": 5868647,
+        "row_start": 5866731,
+        "sha256": "01f420205fd59dc43728ae6453c381ba935d95904b8ba3ad530d1d929bce6832",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -251,9 +255,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2263970,
-        "row_start": 2262054,
-        "sha256": "861bca0f7d5a05fa87b7e31bfd2c839ee945cadd34ff5a7d7c8c199ac1df3a77",
+        "row_end": 5870563,
+        "row_start": 5868647,
+        "sha256": "d7699c112cde0d8cc459878906af0a18fa4a66ff0f2cddb806508598f09f0363",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -262,9 +266,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2265886,
-        "row_start": 2263970,
-        "sha256": "5e261c3ecbd5d7f86f0ffca1bc905d321cfc01bdb4a1e81d14f50f2d35cfc862",
+        "row_end": 5872479,
+        "row_start": 5870563,
+        "sha256": "0dc46ab22c3d81b050c75b13971427d63a911c082f787395d65bc19d99caec09",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -273,9 +277,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2267802,
-        "row_start": 2265886,
-        "sha256": "cac768b0796218fba1b2af288f5ee57812f35114b385c23b2308bc063282a9c0",
+        "row_end": 5874395,
+        "row_start": 5872479,
+        "sha256": "29050c74a98257c14de6bf0446a40b0de452f9df19e19922b1927f7c675b90c4",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -284,9 +288,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2269718,
-        "row_start": 2267802,
-        "sha256": "498926344dda9bfdbd1b25daf97378a7d7b068062c99775c4795fdd902d45dc2",
+        "row_end": 5876311,
+        "row_start": 5874395,
+        "sha256": "c7b6a5fa7872b5261634892485ad2032753b6445fa26ed705a36257e032cedbc",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -295,9 +299,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2271634,
-        "row_start": 2269718,
-        "sha256": "cfd6c1a19a5ce5e7fe259453e3c3fd14a6319fad81b029da61379f4079ed2357",
+        "row_end": 5878227,
+        "row_start": 5876311,
+        "sha256": "c93d3d15353ed8832196562bf9222130d2114048dc089c35b90241e6bcaeae6f",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -306,9 +310,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2273566,
-        "row_start": 2271650,
-        "sha256": "a425bd6af8babbf43bbbe44df4794ae801bccff08d36c35fd32bd311adc43761",
+        "row_end": 5880159,
+        "row_start": 5878243,
+        "sha256": "ece565d49605d796f3e8749f1624ab48dee2909ab6196070db9f71295bc797ce",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -317,9 +321,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2275482,
-        "row_start": 2273566,
-        "sha256": "430403e964fe12807f8cd0337aebdf5e2c8c6eef1f07c3b86229147eed6c911f",
+        "row_end": 5882075,
+        "row_start": 5880159,
+        "sha256": "2e30d69dfb9d1715beee6f9058a40c05bc8091ec7ff05da36e9dc80619ceb049",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -328,9 +332,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2277718,
-        "row_start": 2275802,
-        "sha256": "884b801e0422790de5ad3382c33fbad7951a68b91839750cf253110cd7579a28",
+        "row_end": 5884311,
+        "row_start": 5882395,
+        "sha256": "264e474420aa8fef87222db12aa4a8cd91e1223a4c00be53529b2f1fb4591ca3",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -339,9 +343,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2279634,
-        "row_start": 2277718,
-        "sha256": "797f0f770b40a1b166c8a1a1713e58a685d91ba202d7cd26cea17edda53c129a",
+        "row_end": 5886227,
+        "row_start": 5884311,
+        "sha256": "2babc234ce6c1a0cd7c59ab40f65aa318e05e8148f3125ae3f44e4c89a41942e",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -350,9 +354,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2281870,
-        "row_start": 2279954,
-        "sha256": "f9a732aa5a41a9a25bf74786a6d03a2a24123ac00e5b454aaf4b672a86c8712e",
+        "row_end": 5888463,
+        "row_start": 5886547,
+        "sha256": "37a53107a04836817c6b703f955ff2fedc3e942f89d8140e37c2e948b3197f19",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -361,9 +365,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2283786,
-        "row_start": 2281870,
-        "sha256": "fc506aeac4f6b9507fcadc0eea8f79e387d309d6db68c85593f1ea3965f12ac7",
+        "row_end": 5890379,
+        "row_start": 5888463,
+        "sha256": "0fe076953e38f27b087a5b15eb7ff83e6f87c67214eb9e963b922ddac988bb97",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -372,9 +376,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2286022,
-        "row_start": 2284106,
-        "sha256": "12144df8545bec92e3bfa49238ee78a205f7cfe831aaa38184cf0c24f2de541a",
+        "row_end": 5892615,
+        "row_start": 5890699,
+        "sha256": "029706120f2d5f952ab98be16e149ccc8cdba7b3a74925afecebab68f95785bd",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       },
       {
@@ -383,9 +387,9 @@
         "nonzero_entries": 7647,
         "pair_count": 15,
         "row_count": 1916,
-        "row_end": 2287938,
-        "row_start": 2286022,
-        "sha256": "0ff9aedb81d2930bee5da7f02b0b12081c40be3f064b673a9d3e6ce831c10ec3",
+        "row_end": 5894531,
+        "row_start": 5892615,
+        "sha256": "0a1787c62bdb5ffbb6d85017fcd3c34ddf4177eb2b06188aae07ae3b7f058067",
         "shape_sha256": "ccc94ad9820838c4ae0ad62547e532332ffb44a45ba64bce75aac2d9edc9f4b1"
       }
     ],
@@ -429,24 +433,24 @@
       "name": "nifs.pi_rlc.projection_shared",
       "nonzero_entries": 7520,
       "row_count": 1892,
-      "row_end": 2227566,
-      "row_start": 2225674,
-      "sha256": "a096377cecafdb3f6b2bbc6cb625b33e9b8a634aea8aea675fee24ab2d210050"
+      "row_end": 5834159,
+      "row_start": 5832267,
+      "sha256": "9f1bfa6e886d07f9006015a1bc5a83d3301783892b98bcfff1f62b44999b0fd6"
     }
   },
   "recursive_total": {
     "name": "fprime.recursive.total",
-    "nonzero_entries": 13505159,
-    "row_count": 2564298,
-    "row_end": 2564298,
+    "nonzero_entries": 68752233,
+    "row_count": 9503595,
+    "row_end": 9503595,
     "row_start": 0,
-    "sha256": "bfc7ed037002fe51d9f3dada1a5168aa4dbdc083e38d09d704902b4d295608c9"
+    "sha256": "1e29a670b8c98c78f2fd8fa3a24bddf7ccfaf46caf9672b60f3964a38953d2d9"
   },
-  "schema": 2,
+  "schema": 3,
   "source_hashes": [
     {
       "path": "crates/neo-fold-clean/src/engine/r1cs_circuit/builder.rs",
-      "sha256": "fb34c2cb49f7009381f7635d5efefa672f5e7ec945e526c963cdf7f315288c29"
+      "sha256": "2067fd98be2f575d4fab9b0b60f203b529e1f8544ddc483c5d1734fdff83317d"
     },
     {
       "path": "crates/neo-fold-clean/src/engine/r1cs_circuit/field_ext.rs",
@@ -462,7 +466,7 @@
     },
     {
       "path": "crates/neo-fold-clean/src/engine/r1cs_circuit/ring_action.rs",
-      "sha256": "4b9a633f072d623dac877fb283c30841e88086350d7ea59a0bb019424559034d"
+      "sha256": "2273d2012a060bd04bb6375e2d304f7f3ec8ee926c16f70c03a69e22ef4d7810"
     },
     {
       "path": "crates/neo-fold-clean/src/engine/r1cs_circuit/sumcheck.rs",
@@ -478,7 +482,7 @@
     },
     {
       "path": "crates/neo-fold-clean/src/engine/r1cs_circuit/alphabet_sampling/mod.rs",
-      "sha256": "321e183e09b265b92238015b74a3df9b77908f12bf236f34f11dc20c7b9119d8"
+      "sha256": "4e898848ed28a17e77ad00e6b5a9e701c2dbbb99f7e947ad8610f080c7a808c1"
     },
     {
       "path": "crates/neo-fold-clean/src/engine/r1cs_circuit/alphabet_sampling/acceptance.rs",
@@ -498,43 +502,43 @@
     },
     {
       "path": "crates/neo-fold-clean/src/paper/f_prime/r1cs.rs",
-      "sha256": "f3460949cb4cd9fd6eab09863de008e34f8033f10491b0aeab67736961b7bcf7"
+      "sha256": "cee7750133a4ad700fa43fbe10895f9b27b8e1158ad225785ad9666437082d60"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/nifs/circuit/mod.rs",
-      "sha256": "e705d2d8c0774e06a33bad9fac03c68f59d182ee496b315c5f4185fb4ae5ec2e"
+      "sha256": "302b94a0ce3242b6d3a9bc104ab6c54277579f55ae2c93f653485d943e139655"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/nifs/circuit/stage.rs",
-      "sha256": "71010f95e8bde759bca7d25a45b168bb6b8c295ff2536fd49eb3281d8b0f1735"
+      "sha256": "06ab259f55796babc9a47e977be6fb6084e24dfad2d7b49dd2d1bd606921d44d"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/mod.rs",
-      "sha256": "b26ecc7ac8112247a6793e5976ce8dd3b273fe03ebfd3dee0f5633fa1ab00d05"
+      "sha256": "b58ba12ad5a71cb214dad21ca4299920703ea97034420793970adc36a7e8cc26"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/consistency.rs",
-      "sha256": "4758ab0243170fde7aa08c8c6167795bfdb2077f93c7d4f2703aa76c48dc82bc"
+      "sha256": "4c6623bacd316066e4333b5aa0e195de715ea0ed1dcac6dde9ff7e4bbca1c505"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/fold_wires.rs",
-      "sha256": "b4896fa2e13cc4b45bad329846a063e2cee418c1db0e3929df043306bc940ecf"
+      "sha256": "376f0c8e3cd57e6e15794e2c19aa201d9ad46c3827623a8c46c29c9576ffe04a"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/padding.rs",
-      "sha256": "8c6466441c912b4633f3a36f3a84784eb0707632bd05e8a3414fe10352a4c9a9"
+      "sha256": "460c13206733966f8b5e032e4d7d5dd6a70591cce97e54cc1c4e352a966c5a26"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/projection/mod.rs",
-      "sha256": "28f3d3b1a0784e5b289bbfb5e85ca2c311c9cd786b57f937f29fdc9ae569b943"
+      "sha256": "32c92a5368f5509f92d8aafd23c71a31b06646b03c9b6373dc1b046706ec3602"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/projection/binding.rs",
-      "sha256": "7c6c9e5d41d03048f85eb94e8482ee17f2ca4f38b3c3c1387cd64399f5bac001"
+      "sha256": "6775351a14e8f40fc4b1daba6e86fd294324e38f5c61aae651e234da1e58a82d"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/projection/identities.rs",
-      "sha256": "c194946fe1a51c1d22725d01cec903ba9f12628114b8d3f4f58244918a5390b1"
+      "sha256": "dc3f21bc61de3806ee9ef5cfd1cd66b112bde9316bacaccca8fd56d78910f24b"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/projection/shared.rs",
@@ -542,15 +546,15 @@
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/mod.rs",
-      "sha256": "6bf67de8204398b7b32eeb02af2e086e4b310c361032a977b85c6cf2e8d23333"
+      "sha256": "f5aad20660b5a47d2ab864f27e2b2d321ce94c721b35364a7c356ec6787899a4"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/stage.rs",
-      "sha256": "4dad68f535fa61aebbd6100dda12b0e09ac08f5050bad0a3ca74b53bca084256"
+      "sha256": "757cb2e71aba710c8f4f20e0cff16866ec78a142942e6cb0b970d9acb6ad0b7d"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/digests.rs",
-      "sha256": "c7683630b17fcb1e8a6855af4084f8c9e149e7102b4ad3b0e14487dce92c9090"
+      "sha256": "72a92ee9dedfc3bdd1d51109f0f8a5f4bc1b1c68be055f89b3feaea117d825a8"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/fe.rs",
@@ -558,43 +562,51 @@
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/nc.rs",
-      "sha256": "557283c0edac62959808f55df27b9b60cf2be6bb47609d87523c7a32c729176e"
+      "sha256": "595c70d06763c6fd2b70c323e0db11ae07cc4f741bc6e76c864f5ffe8251e8ac"
+    },
+    {
+      "path": "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/output_message.rs",
+      "sha256": "c064f8feb97a539344a7c26f630723e5cc75875c162af03738489509aebd2a8a"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/transcript.rs",
-      "sha256": "0eff6670528586052731dfa6fb7f75bd40e49f50a2c8384aa2b023eeed391b75"
+      "sha256": "2334fd122309f9cde3d92187575919a1cc122ee4f60d5d71d481d89ecc0e98d2"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/verifier.rs",
-      "sha256": "a3c949a828f0b3d93e367fdf36c58e4132e2a71f1dceb4e7c2536890c683181e"
+      "sha256": "3454eeee5a5d55bc2b9999b6447c015ab34d6a7149f74316c4eab458fa7f8aa6"
+    },
+    {
+      "path": "crates/neo-fold-clean/src/paper/reductions/pi_ccs_output_message.rs",
+      "sha256": "3b1e35ed79e216dffe4aab35961a33532244fbfe32653f495336903174915a98"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/accumulator_sis_circuit.rs",
-      "sha256": "ff92f26a1376dada0220195157110a94d7e8f055478bcd928b4cbd2e0bfec2b3"
+      "sha256": "806d4b68811f898fd4cec1d99c52ac51d0c4f6fd25753dba989354e9976ddcc2"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_rlc_circuit/mod.rs",
-      "sha256": "14dd42595d39ef505f1538fe677ab2f64d566a372452a88e5ef2ab8c2392d196"
+      "sha256": "dc47a0914ff2d847af3db8883d8e89a15b002c88aa1bd4d3a2e862c955eda3b9"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_rlc_circuit/stage.rs",
-      "sha256": "0ee7f96399744ed7f3ce9980a6b59232f1914bda4a8fc0fae01c2da8df8fa06d"
+      "sha256": "1df18ff3a7ed8e0af9e6a66e3b329f3a9dda02ae7286426dbcde8a8a4e3ba4aa"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_rlc_circuit/commitment.rs",
-      "sha256": "da60e96806e06f285994bd8e87dd4f7c1aba5617721f66d76ee1323dd56db85a"
+      "sha256": "0e320db93cf37e541bcce01cb9cc5f2ee16d8defe05e6d5bc2a174adb46de6ed"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_rlc_circuit/consistency.rs",
-      "sha256": "337e13cecfbd771d2ef27ded7200f9c9f008a215fa22e3cb689a5e135594b948"
+      "sha256": "7b5eb0c18f1c957e387fc89ef779bf17d13cb884c29c95f7c5eee6d2ac7ab74b"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_rlc_circuit/padded_k.rs",
-      "sha256": "9e3f28be6576cbff0df0e0690fd58acc39e2c81e3a68766a185c380d39246710"
+      "sha256": "234e950d7ceed0e09b11c2eafbc3279f487945e7028d9002970cb58a59e517a4"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_rlc_circuit/x.rs",
-      "sha256": "a0e0c263280095424f35e21aea5a1bbd9b8c8b6e22bdb44fdaa092654e5bc51d"
+      "sha256": "31cc9ebeda7abfa394b38d71d7f36fe70c1bb0e9192ca27f691064d99dccb841"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_rlc_circuit/y_ring.rs",
@@ -602,11 +614,11 @@
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_dec_circuit.rs",
-      "sha256": "062dfea0bfa57b2247063252ddeb0aa5e592807e1212afd4b6c0ecb1a0a82e57"
+      "sha256": "083a7abc6d98d6702c2bbe516424f32a1f14494c67dc3ccc66bf51086f868f06"
     },
     {
       "path": "crates/neo-fold-clean/tests/gadgets/f_prime_recursive_manifest.rs",
-      "sha256": "4536439ce1b87bf051926d19ebbabe384512f4598ee1568a7976ec66252bcf9c"
+      "sha256": "e0ba9a2bcbe3627d1d94b642dbd7d537cab7e502e3a064e71455a3f26162da35"
     },
     {
       "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Ownership/FPrimeRecursive/FPrimeRecursiveManifestSchema.lean",
@@ -614,7 +626,7 @@
     },
     {
       "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Ownership/FPrimeRecursive/FPrimeRecursiveManifest.lean",
-      "sha256": "81106f834f04326966495e30cc48af4bc4497ba88c972ea4ac0a29051227c895"
+      "sha256": "6b191173a61b190c459ebf246c1ab6e08e75ee77ded725284ab063828283c2c7"
     },
     {
       "path": "formal/nightstream-lean/Nightstream/SuperNeo/ProjectionCheck.lean",
@@ -632,7 +644,7 @@
       "row_count": 6176,
       "row_end": 6176,
       "row_start": 0,
-      "sha256": "7bf6161b30ec309b7f92bdbc35218917dfe0a3a4bd8f5462835f0b0b6672a4bc"
+      "sha256": "eac9e7aa86d2ca6825807ebfaa4e5de419f0b424ccc52c01fd412b336d8d19c0"
     },
     {
       "name": "fprime.recursive.transcript",
@@ -644,51 +656,51 @@
     },
     {
       "name": "fprime.recursive.nifs",
-      "nonzero_entries": 11240770,
-      "row_count": 2278819,
-      "row_end": 2298857,
+      "nonzero_entries": 39928100,
+      "row_count": 5885502,
+      "row_end": 5905540,
       "row_start": 20038,
-      "sha256": "10b5dd1fdfad68d1659f6168068e20ee77b923f33fa2861e39a05ddac9b44cdc"
+      "sha256": "b9cf49840ab41575bbbe74991b281e6384909131a7cb27717d26eee6a8c2ead5"
     },
     {
       "name": "fprime.recursive.prior_link",
-      "nonzero_entries": 37990,
-      "row_count": 5232,
-      "row_end": 2304089,
-      "row_start": 2298857,
-      "sha256": "3aeb04f2c4af842bca7fe49a741e245cb80bd931763c35011ddde4212c414a4a"
+      "nonzero_entries": 38016,
+      "row_count": 5245,
+      "row_end": 5910785,
+      "row_start": 5905540,
+      "sha256": "45bd49d84c9e1693d3dd38ee50587bc55940cde746c4e38a545eaca637ea8aea"
     },
     {
       "name": "fprime.recursive.nebula",
       "nonzero_entries": 0,
       "row_count": 0,
-      "row_end": 2304089,
-      "row_start": 2304089,
+      "row_end": 5910785,
+      "row_start": 5910785,
       "sha256": "84a39c68a24131c8c8d551f5b97e172f633bf78f3e4d0d703615fc7032b314c0"
     },
     {
       "name": "fprime.recursive.accumulator",
-      "nonzero_entries": 2031590,
-      "row_count": 254919,
-      "row_end": 2559008,
-      "row_start": 2304089,
-      "sha256": "7e42e49cc8729c331f36c9e32340534d182ab12b90c2c37f98fb19cf49ea3868"
+      "nonzero_entries": 28591308,
+      "row_count": 3587520,
+      "row_end": 9498305,
+      "row_start": 5910785,
+      "sha256": "77d3746e5084760c64449aa5361b0b1f09b0e41d0be98d12c9e98da460724ca1"
     },
     {
       "name": "fprime.recursive.counter",
       "nonzero_entries": 2136,
       "row_count": 522,
-      "row_end": 2559530,
-      "row_start": 2559008,
-      "sha256": "c44ae58b588c771713bc8fbb0b34bcfb1e95e3c106cd3683968c05b2ade254ca"
+      "row_end": 9498827,
+      "row_start": 9498305,
+      "sha256": "efa6aabdca286592f9a556ea2e6910ffba8486bf75131a8a0372cd788f3b8eeb"
     },
     {
       "name": "fprime.recursive.output",
       "nonzero_entries": 36127,
       "row_count": 4768,
-      "row_end": 2564298,
-      "row_start": 2559530,
-      "sha256": "43cb3d739279e306b9b06a76d4161b75a512a38fe14439b049e3e74b97610be4"
+      "row_end": 9503595,
+      "row_start": 9498827,
+      "sha256": "bd4825c2eba78de8924a5fa6feefc7b1ea90747641f353fcac95220f8a73f050"
     }
   ]
 }

@@ -101,10 +101,7 @@ struct MetalPiCcsOutputsDigest<'a> {
 impl pi_ccs::PiCcsOutputsDigestBackend for MetalPiCcsOutputsDigest<'_> {
     fn digest_outputs(&mut self, outputs: &[CeClaim]) -> Result<[F; 4], pi_ccs::Error> {
         self.session
-            .sis_accumulator_digest_resident(
-                PI_CCS_OUTPUTS_SIS_CONFIG,
-                &digest::pi_ccs_outputs_preimage(outputs),
-            )
+            .sis_accumulator_digest_resident(PI_CCS_OUTPUTS_SIS_CONFIG, &digest::pi_ccs_outputs_preimage(outputs))
             .map_err(|_| pi_ccs::Error::OutputDigestBackend)
     }
 }
@@ -417,16 +414,12 @@ impl MetalNifsProver {
         Ok(Some(instances))
     }
 
-    fn post_fold_summary(
-        &self,
-        running: &RunningInstance,
-        parent_accumulator_digest: [F; 4],
-    ) -> Result<NifsPostFoldSummary, Error> {
+    fn post_fold_summary(&self, running: &RunningInstance) -> Result<NifsPostFoldSummary, Error> {
         let parent = running
             .parent_authority
             .as_ref()
             .ok_or_else(|| backend_unavailable("post-fold running accumulator is missing its Pi_RLC parent"))?;
-        let handle = AccumulatorHandle::from_parent_digest(running.claims.len(), Some(parent_accumulator_digest));
+        let handle = AccumulatorHandle::from_claims(&running.claims);
         let f_prime = FPrimeFoldPostSummary {
             parent_shape: nifs_ce_shape_from_claim(parent, 0),
             child_count: running.claims.len() as u64,

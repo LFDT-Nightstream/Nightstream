@@ -1,4 +1,5 @@
 import Nightstream.Implementation
+import Nightstream.Implementation.R1CS.Correspondence.PiCcsOutputDigest.Handoff
 import tests.Axioms.Support
 
 /-!
@@ -19,9 +20,9 @@ Does not own: dynamic output authority, SIS seed/native conformance, complete
 | `Pi_RLC` | digest handoff | the recomputed four lanes enter the audited sampler state | no |
 -/
 
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsOutputDigest.Poseidon.EnvelopeSemantics.envelope_length' depends on axioms: [propext] -/
+/-- info: 'Nightstream.Implementation.R1CS.PiCcsOutputDigest.Poseidon.EnvelopeSemantics.diagnosticEnvelope_length' depends on axioms: [propext] -/
 #guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.PiCcsOutputDigest.Poseidon.EnvelopeSemantics.envelope_length
+#audit_axioms Nightstream.Implementation.R1CS.PiCcsOutputDigest.Poseidon.EnvelopeSemantics.diagnosticEnvelope_length
 
 /-- info: 'Nightstream.Implementation.R1CS.PiCcsOutputDigest.Poseidon.Schedule.trace_valid' depends on axioms: [propext,
  Quot.sound] -/

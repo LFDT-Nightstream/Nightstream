@@ -18,6 +18,7 @@
 //! | Low-norm relation | [`lower_sparse_r1cs_to_low_norm`] | yes | Constrained field encodings |
 //! | Branch composition | fixed/multi-branch builders | yes | Constrained selector and branch rows |
 
+mod poseidon_hash_audit;
 mod signed_unit;
 mod snapshot;
 mod support;
@@ -633,6 +634,12 @@ pub fn lower_field_r1cs(
             output_linear_forms: core::array::from_fn(|lane| remap_lc(&trace.output_linear_forms[lane])),
         })
         .collect();
+    let poseidon2_hash_audits = poseidon_hash_audit::remap(&synthesis.poseidon2_hash_audits, &old_to_new);
+    let pi_rlc_y_zcol_boundary_audits = synthesis
+        .pi_rlc_y_zcol_boundary_audits
+        .iter()
+        .map(|audit| audit.remap(&old_to_new))
+        .collect();
     let polynomial_evaluation_traces = synthesis
         .polynomial_evaluation_traces
         .iter()
@@ -727,10 +734,12 @@ pub fn lower_field_r1cs(
         shifted_ternary_canonical_traces,
         equality_pairs,
         poseidon2_traces,
+        poseidon2_hash_audits,
         polynomial_evaluation_traces,
         product_sum_batch_traces,
         synthesis.row_family_ranges,
         physical_stage_ranges,
+        pi_rlc_y_zcol_boundary_audits,
     )?;
 
     Ok(LoweredFieldR1cs { shape, assignment })

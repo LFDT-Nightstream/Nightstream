@@ -23,6 +23,8 @@
 //! | Seeded Φ81 map | `A_seed · digits = commitment` | `D·kappa` rows per map |
 //! | Digest envelope | Poseidon2 of domain/shape/short binding | input-dependent |
 
+use std::ops::Range;
+
 use neo_ajtai::{commit_row_major_seeded, seeded_pp_chunk_seeds, Commitment};
 use neo_ccs::{Mat, SeededPhi81LinearBlock};
 use neo_math::{D, F};
@@ -99,6 +101,86 @@ pub struct SisAccumulatorWires {
     pub commitment: CommitmentWires,
     pub digest_compression: CommitmentWires,
     pub digest: [Var; 4],
+    pub layout: SisAccumulatorCircuitLayout,
+}
+
+/// Exact source-R1CS frontier occupied by one SIS phase.
+///
+/// This is diagnostic provenance. It does not establish that the rows are
+/// sound or authorize their removal; the source relation and its validated
+/// encoding trace remain authoritative for those claims.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SisCircuitSpan {
+    rows: Range<usize>,
+    columns: Range<usize>,
+    balanced_ternary_openings: Range<usize>,
+}
+
+impl SisCircuitSpan {
+    pub fn rows(&self) -> Range<usize> {
+        self.rows.clone()
+    }
+
+    pub fn columns(&self) -> Range<usize> {
+        self.columns.clone()
+    }
+
+    pub fn balanced_ternary_openings(&self) -> Range<usize> {
+        self.balanced_ternary_openings.clone()
+    }
+}
+
+/// Three non-overlapping phases of the complete SIS-to-Poseidon2 binding.
+///
+/// | Phase | Mathematical obligation | Input authority |
+/// |---|---|---|
+/// | `input_binding` | canonical openings and seeded Φ81 binding of the caller's fields | caller-owned fields |
+/// | `digest_compression` | independent short SIS binding of the first commitment | derived commitment |
+/// | `envelope` | domain/shape envelope and Poseidon2 hash | derived digest-compression output |
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SisAccumulatorCircuitLayout {
+    input_binding: SisCircuitSpan,
+    digest_compression: SisCircuitSpan,
+    envelope: SisCircuitSpan,
+}
+
+impl SisAccumulatorCircuitLayout {
+    pub fn input_binding(&self) -> &SisCircuitSpan {
+        &self.input_binding
+    }
+
+    pub fn digest_compression(&self) -> &SisCircuitSpan {
+        &self.digest_compression
+    }
+
+    pub fn envelope(&self) -> &SisCircuitSpan {
+        &self.envelope
+    }
+}
+
+#[derive(Clone, Copy)]
+struct CircuitFrontier {
+    row: usize,
+    column: usize,
+    balanced_ternary_opening: usize,
+}
+
+impl CircuitFrontier {
+    fn capture(builder: &R1csBuilder) -> Self {
+        Self {
+            row: builder.rows(),
+            column: builder.cols(),
+            balanced_ternary_opening: builder.encoding_trace().balanced_ternary_openings().len(),
+        }
+    }
+
+    fn until(self, end: Self) -> SisCircuitSpan {
+        SisCircuitSpan {
+            rows: self.row..end.row,
+            columns: self.column..end.column,
+            balanced_ternary_openings: self.balanced_ternary_opening..end.balanced_ternary_opening,
+        }
+    }
 }
 
 pub fn accumulator_digest(config: SisAccumulatorConfig, fields: &[F]) -> Result<[F; 4], SisAccumulatorError> {
@@ -198,31 +280,41 @@ pub fn enforce_accumulator_digest(
     config: SisAccumulatorConfig,
     fields: &[Var],
 ) -> Result<SisAccumulatorWires, SisAccumulatorError> {
+    let input_binding_start = CircuitFrontier::capture(builder);
     let commitment = enforce_commit_fields(builder, config, fields)?;
+    let digest_compression_start = CircuitFrontier::capture(builder);
     let digest_compression = enforce_commit_fields(builder, SIS_DIGEST_COMPRESSION_CONFIG, &commitment.data)?;
+    let envelope_start = CircuitFrontier::capture(builder);
     let digest_preimage = digest_envelope_wires(builder, config, fields.len(), &commitment, &digest_compression);
     let digest = enforce_poseidon2_hash(builder, &digest_preimage);
+    let end = CircuitFrontier::capture(builder);
     Ok(SisAccumulatorWires {
         commitment,
         digest_compression,
         digest,
+        layout: SisAccumulatorCircuitLayout {
+            input_binding: input_binding_start.until(digest_compression_start),
+            digest_compression: digest_compression_start.until(envelope_start),
+            envelope: envelope_start.until(end),
+        },
     })
 }
 
 fn digest_envelope(
     config: SisAccumulatorConfig,
     field_count: usize,
-    _binding: &Commitment,
+    binding: &Commitment,
     digest_compression: &Commitment,
 ) -> Vec<F> {
     let mut envelope = accumulator_digest_envelope_prefix(config, field_count);
+    debug_assert_eq!(binding.kappa, config.kappa);
     envelope.extend_from_slice(&digest_compression.data);
     envelope
 }
 
-/// Canonical constant prefix placed before the short rank-1 commitment in
-/// an accumulator digest. Accelerator backends use this instead of copying
-/// protocol-domain constants into their own implementation.
+/// Verifier-owned constant prefix placed before the short rank-1 commitment.
+/// Accelerator backends and physical audits use this canonical definition
+/// instead of copying protocol-domain constants.
 #[doc(hidden)]
 pub fn accumulator_digest_envelope_prefix(config: SisAccumulatorConfig, field_count: usize) -> Vec<F> {
     let mut envelope = pack_bytes_as_fields(SIS_ACCUMULATOR_DIGEST_DOMAIN);
@@ -239,19 +331,13 @@ fn digest_envelope_wires(
     binding: &CommitmentWires,
     digest_compression: &CommitmentWires,
 ) -> Vec<Var> {
-    let mut envelope = alloc_constant_fields(builder, SIS_ACCUMULATOR_DIGEST_DOMAIN);
-    envelope.push(alloc_constant(builder, F::from_u64(config.domain)));
-    envelope.push(alloc_constant(builder, F::from_u64(field_count as u64)));
-    envelope.push(alloc_constant(builder, F::from_u64(binding.kappa as u64)));
-    envelope.extend_from_slice(&digest_compression.data);
-    envelope
-}
-
-fn alloc_constant_fields(builder: &mut R1csBuilder, domain: &[u8]) -> Vec<Var> {
-    pack_bytes_as_fields(domain)
+    debug_assert_eq!(binding.data.len(), D * config.kappa);
+    let mut envelope = accumulator_digest_envelope_prefix(config, field_count)
         .into_iter()
         .map(|value| alloc_constant(builder, value))
-        .collect()
+        .collect::<Vec<_>>();
+    envelope.extend_from_slice(&digest_compression.data);
+    envelope
 }
 
 fn balanced_ternary_message(fields: &[F]) -> Mat<F> {
